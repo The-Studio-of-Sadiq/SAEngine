@@ -1,0 +1,5 @@
+[console_scripts]
+saengine = saengine.app:main
+
+[gui_scripts]
+saengine-gui = saengine.app:main
