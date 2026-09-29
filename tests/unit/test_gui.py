@@ -1,5 +1,6 @@
 import os
 os.environ["QT_API"] = "pyside6"
+os.environ["SAENGINE_HEADLESS"] = "1"
 
 import pyvista as pv
 pv.OFF_SCREEN = True
@@ -27,7 +28,7 @@ def qapp():
 
 def test_ribbon_bar(qapp):
     ribbon = RibbonBar()
-    assert ribbon.count() == 6  # Home, Model, Loads, Analysis, Design, View
+    assert ribbon.count() == 7  # Home, Model, Loads, Analysis, Design, View, Scripting
 
     received_actions = []
     ribbon.action_triggered.connect(received_actions.append)

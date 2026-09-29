@@ -8,6 +8,7 @@ model display, camera controls, and object picking.
 from __future__ import annotations
 
 from typing import Optional, List, TYPE_CHECKING
+import os
 
 import numpy as np
 import pyvista as pv
@@ -69,11 +70,11 @@ class ViewportWidget(QWidget):
 
     def _init_plotter(self) -> None:
         """Initialize the PyVista plotter."""
-        if not HAS_PYVISTAQT:
+        if not HAS_PYVISTAQT or os.environ.get("SAENGINE_HEADLESS") == "1":
             from PySide6.QtWidgets import QLabel
-            fallback = QLabel("pyvistaqt not installed.\npip install pyvistaqt")
+            fallback = QLabel("3D Viewport (Headless / Safe Mode)")
             fallback.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            fallback.setStyleSheet("color: #E57373; font-size: 16px;")
+            fallback.setStyleSheet("color: #4FC3F7; font-size: 14px; background: #14161a;")
             self._layout.addWidget(fallback)
             return
 

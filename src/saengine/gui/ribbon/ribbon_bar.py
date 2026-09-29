@@ -113,6 +113,7 @@ class RibbonBar(QTabWidget):
         self._build_analysis_tab()
         self._build_design_tab()
         self._build_view_tab()
+        self._build_scripting_tab()
 
     def _create_button(self, text: str, action_name: str,
                        tooltip: str = "") -> RibbonButton:
@@ -249,6 +250,40 @@ class RibbonBar(QTabWidget):
         theme_group = tab.add_group("Theme")
         theme_group.add_button(self._create_button("Dark", "theme.dark", "Dark Mode"))
         theme_group.add_button(self._create_button("Light", "theme.light", "Light Mode"))
+
+    def _build_scripting_tab(self) -> None:
+        tab = RibbonTab()
+        self.addTab(tab, "Scripting")
+
+        # Script group
+        script_group = tab.add_group("Editor")
+        script_group.add_button(self._create_button("New", "script.new", "New Script (Ctrl+N)"))
+        script_group.add_button(self._create_button("Open", "script.open", "Open Script (Ctrl+O)"))
+        script_group.add_button(self._create_button("Save", "script.save", "Save Script (Ctrl+S)"))
+
+        # Run group
+        run_group = tab.add_group("Execution")
+        run_group.add_button(self._create_button("Run ▶", "script.run", "Run Current Script (F5)"))
+        run_group.add_button(self._create_button("Stop ■", "script.stop", "Stop Script Execution"))
+
+        # Tools group
+        tools_group = tab.add_group("Tools")
+        tools_group.add_button(self._create_button("Files", "tools.files", "Toggle File Explorer"))
+        tools_group.add_button(self._create_button("Terminal", "tools.terminal", "Toggle Shell Terminal (Ctrl+`)"))
+        tools_group.add_button(self._create_button("Git", "tools.git", "Toggle Source Control (Ctrl+Shift+G)"))
+        tools_group.add_button(self._create_button("REPL", "tools.repl", "Toggle Python Console"))
+
+        # Git group
+        git_group = tab.add_group("Git")
+        git_group.add_button(self._create_button("Commit", "git.commit", "Commit Staged Changes"))
+        git_group.add_button(self._create_button("Push", "git.push", "Push to Remote"))
+        git_group.add_button(self._create_button("Pull", "git.pull", "Pull from Remote"))
+
+        # Layout group
+        layout_group = tab.add_group("Workspace")
+        layout_group.add_button(self._create_button("CAE View", "layout.cae", "3D Structural Model Centered"))
+        layout_group.add_button(self._create_button("Split View", "layout.split", "3D Model + Code Split View"))
+        layout_group.add_button(self._create_button("Code IDE", "layout.code", "Code Studio Centered"))
 
     def update_undo_redo(self, can_undo: bool, can_redo: bool,
                           undo_text: str = "", redo_text: str = "") -> None:

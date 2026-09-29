@@ -9,10 +9,14 @@
 
 SAEngine is a cross-platform desktop application for structural analysis and design of building systems. It provides an intuitive 3D modeling environment backed by the proven OpenSees finite element framework.
 
-## Features (Planned)
+## Features
 
 - 🏗️ 3D object-based structural modeling (beams, columns, walls, slabs)
 - 📐 Grid and story system for building definition
+- 💻 **Integrated Code Studio**: Full multi-tab code editor with syntax highlighting (Python, OpenSeesPy, JSON, Diffs), line numbers, auto-indentation, and search/replace
+- 🖥️ **Interactive Terminal & Python REPL**: Integrated shell terminal (PowerShell/cmd/bash) and live Python console executing against the active project
+- 📁 **Workspace File Explorer**: Tree view of repository files with create, rename, delete, and open actions
+- 🌿 **Git Version Control**: Full GUI for branches, staged/unstaged changes, diffs, commits, and remote push/pull
 - ⚡ Linear and nonlinear structural analysis via OpenSeesPy
 - 🌊 Seismic analysis (response spectrum, time history, pushover)
 - 🏛️ Code-based design checking (plugin architecture)
