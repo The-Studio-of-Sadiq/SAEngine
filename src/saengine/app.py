@@ -1,14 +1,18 @@
 """
 SAEngine Application Bootstrap.
 
-Initializes QApplication, loads the modern CAD dark theme,
-and launches MainWindow.
+Initializes QApplication with WebEngine support, loads the modern
+CAD dark theme, and launches the VS Code-integrated MainWindow.
 """
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
+
+# WebEngine must be imported before QApplication is created
+os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", "--no-sandbox")
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon, QFont

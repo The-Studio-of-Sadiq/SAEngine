@@ -1,8 +1,13 @@
 """
 Main Application Window for SAEngine.
 
-Integrates the Ribbon Bar, 3D Viewport, Model Explorer, Property Panel,
-and Output Console into a dockable desktop CAE workspace.
+The main window uses a VS Code-centric layout:
+- **Central widget**: Embedded VS Code (full IDE via ``code serve-web``)
+- **Right dock**: 3D Structural Viewport (PyVista)
+- **Bottom dock**: SAEngine Log & Messages
+
+VS Code provides: file explorer, git, terminal, extensions, code editing.
+SAEngine provides: 3D viewport, structural analysis, design checking.
 """
 
 from __future__ import annotations
@@ -11,21 +16,21 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import Qt, QSize
+from PySide6.QtCore import Qt, QSize, QTimer
 from PySide6.QtGui import QAction, QIcon, QKeySequence, QCloseEvent
 from PySide6.QtWidgets import (
-    QMainWindow, QDockWidget, QWidget, QVBoxLayout,
-    QFileDialog, QMessageBox, QLabel, QStatusBar
+    QMainWindow, QDockWidget, QWidget, QVBoxLayout, QHBoxLayout,
+    QFileDialog, QMessageBox, QLabel, QStatusBar, QToolBar,
+    QSplitter, QPushButton, QSizePolicy
 )
 
 from saengine.core.project import Project
 from saengine.commands.command_manager import CommandManager
 from saengine.commands.model_commands import SetGridSystemCommand, SetStorySystemCommand
 from saengine.io.project_io import ProjectIO
-from saengine.gui.ribbon.ribbon_bar import RibbonBar
+from saengine.gui.editor.vscode_server import VSCodeServerManager
+from saengine.gui.editor.vscode_widget import VSCodeWebView
 from saengine.gui.viewport.viewport_widget import ViewportWidget
-from saengine.gui.panels.model_explorer import ModelExplorerPanel
-from saengine.gui.panels.property_panel import PropertyPanel
 from saengine.gui.panels.output_panel import OutputPanel
 from saengine.gui.dialogs.grid_dialog import GridDialog
 from saengine.gui.dialogs.story_dialog import StoryDialog
@@ -34,85 +39,142 @@ from saengine.gui.dialogs.story_dialog import StoryDialog
 class MainWindow(QMainWindow):
     """
     SAEngine primary application window.
+
+    Embeds VS Code as the main IDE workspace with the 3D structural
+    viewport as a dockable panel.
     """
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
 
         self.setWindowTitle("SAEngine — Structure Analysis Engine")
-        self.resize(1400, 900)
+        self.resize(1600, 1000)
 
         # Core state
         self.project: Project = Project.create_new()
         self.cmd_manager: CommandManager = CommandManager(parent=self)
         self.project_io: ProjectIO = ProjectIO()
 
+        # VS Code server
+        self._vscode_server = VSCodeServerManager(parent=self)
+
         # Build UI
         self._init_ui()
         self._connect_signals()
+        self._setup_shortcuts()
 
-        # Initial model render & refresh
-        self.refresh_all()
-        self.output_panel.append_message("SAEngine initialized successfully. Ready.", level="success")
+        # Start VS Code server after a brief delay to let Qt settle
+        QTimer.singleShot(500, self._start_vscode)
+
+        # Initial model render
+        self.refresh_viewport()
+        self.output_panel.append_message(
+            "SAEngine initialized. Starting VS Code environment...", level="success"
+        )
 
     def _init_ui(self) -> None:
-        """Construct the complete window layout and docks."""
-        # 1. Central Widget: 3D Viewport
-        self.viewport = ViewportWidget(self)
-        self.setCentralWidget(self.viewport)
+        """Construct the VS Code-centric window layout."""
+        # ── Central Widget: VS Code Web View ────────────────────
+        self.vscode_view = VSCodeWebView(self)
+        self.setCentralWidget(self.vscode_view)
 
-        # 2. Ribbon Bar (top tabbed toolbar)
-        self.ribbon_bar = RibbonBar(self)
-        self.addToolBarBreak()
-        # Container for ribbon
-        ribbon_container = QWidget(self)
-        ribbon_layout = QVBoxLayout(ribbon_container)
-        ribbon_layout.setContentsMargins(0, 0, 0, 0)
-        ribbon_layout.setSpacing(0)
-        ribbon_layout.addWidget(self.ribbon_bar)
-        self.setMenuWidget(ribbon_container)
-
-        # 3. Dock Widgets
+        # ── Dock Options ────────────────────────────────────────
         self.setDockOptions(
             QMainWindow.DockOption.AnimatedDocks |
             QMainWindow.DockOption.AllowTabbedDocks |
             QMainWindow.DockOption.AllowNestedDocks
         )
 
-        # Left Dock: Model Explorer
-        self.dock_explorer = QDockWidget("Model Explorer", self)
-        self.dock_explorer.setObjectName("dock_explorer")
-        self.explorer_panel = ModelExplorerPanel(self.dock_explorer)
-        self.dock_explorer.setWidget(self.explorer_panel)
-        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.dock_explorer)
+        # ── Right Dock: 3D Structural Viewport ─────────────────
+        self.dock_viewport = QDockWidget("3D Viewport", self)
+        self.dock_viewport.setObjectName("dock_viewport")
+        self.dock_viewport.setMinimumWidth(400)
 
-        # Right Dock: Property Panel
-        self.dock_properties = QDockWidget("Properties", self)
-        self.dock_properties.setObjectName("dock_properties")
-        self.property_panel = PropertyPanel(self.dock_properties)
-        self.dock_properties.setWidget(self.property_panel)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dock_properties)
+        viewport_container = QWidget()
+        viewport_layout = QVBoxLayout(viewport_container)
+        viewport_layout.setContentsMargins(0, 0, 0, 0)
+        viewport_layout.setSpacing(0)
 
-        # Bottom Dock: Output Console
+        # Viewport toolbar
+        vp_toolbar = QWidget()
+        vp_toolbar.setFixedHeight(36)
+        vp_toolbar.setStyleSheet("""
+            QWidget {
+                background-color: #252526;
+                border-bottom: 1px solid #3c3c3c;
+            }
+            QPushButton {
+                background: transparent;
+                color: #cccccc;
+                border: none;
+                padding: 4px 10px;
+                font-size: 11px;
+                font-family: 'Segoe UI', sans-serif;
+            }
+            QPushButton:hover {
+                background-color: #3c3c3c;
+                color: #ffffff;
+            }
+            QPushButton:pressed {
+                background-color: #4c4c4c;
+            }
+        """)
+        vp_tb_layout = QHBoxLayout(vp_toolbar)
+        vp_tb_layout.setContentsMargins(4, 0, 4, 0)
+        vp_tb_layout.setSpacing(2)
+
+        for label, action in [
+            ("3D", "view.3d"), ("XY", "view.xy"),
+            ("XZ", "view.xz"), ("YZ", "view.yz"),
+            ("Fit", "view.fit"),
+        ]:
+            btn = QPushButton(label)
+            btn.setFixedHeight(28)
+            btn.clicked.connect(lambda checked, a=action: self._handle_view_action(a))
+            vp_tb_layout.addWidget(btn)
+
+        vp_tb_layout.addStretch()
+
+        # Grid/Story buttons
+        btn_grids = QPushButton("⊞ Grids")
+        btn_grids.setFixedHeight(28)
+        btn_grids.clicked.connect(self.open_grid_dialog)
+        vp_tb_layout.addWidget(btn_grids)
+
+        btn_stories = QPushButton("⏛ Stories")
+        btn_stories.setFixedHeight(28)
+        btn_stories.clicked.connect(self.open_story_dialog)
+        vp_tb_layout.addWidget(btn_stories)
+
+        viewport_layout.addWidget(vp_toolbar)
+
+        # The actual 3D viewport
+        self.viewport = ViewportWidget(viewport_container)
+        viewport_layout.addWidget(self.viewport)
+
+        self.dock_viewport.setWidget(viewport_container)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dock_viewport)
+
+        # ── Bottom Dock: Output Console ─────────────────────────
         self.dock_output = QDockWidget("Log & Messages", self)
         self.dock_output.setObjectName("dock_output")
         self.output_panel = OutputPanel(self.dock_output)
         self.dock_output.setWidget(self.output_panel)
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.dock_output)
 
-        # Set dock sizes
+        # ── Set Dock Sizes ──────────────────────────────────────
         self.resizeDocks(
-            [self.dock_explorer, self.dock_properties],
-            [260, 280],
+            [self.dock_viewport],
+            [500],
             Qt.Orientation.Horizontal
         )
         self.resizeDocks(
             [self.dock_output],
-            [160],
+            [140],
             Qt.Orientation.Vertical
         )
 
-        # 4. Status Bar
+        # ── Status Bar ──────────────────────────────────────────
         self.status_bar = QStatusBar(self)
         self.setStatusBar(self.status_bar)
 
@@ -123,91 +185,78 @@ class MainWindow(QMainWindow):
         self.units_indicator.setStyleSheet("color: #4FC3F7; padding: 0 8px; font-weight: bold;")
         self.status_bar.addPermanentWidget(self.units_indicator)
 
-        self.story_indicator = QLabel("Active: All Stories")
-        self.story_indicator.setStyleSheet("color: #9aa0a6; padding: 0 8px;")
-        self.status_bar.addPermanentWidget(self.story_indicator)
+        self.vscode_indicator = QLabel("VS Code: Starting...")
+        self.vscode_indicator.setStyleSheet("color: #FFA726; padding: 0 8px;")
+        self.status_bar.addPermanentWidget(self.vscode_indicator)
 
         self.engine_indicator = QLabel("Engine: OpenSeesPy")
         self.engine_indicator.setStyleSheet("color: #81C784; padding: 0 8px;")
         self.status_bar.addPermanentWidget(self.engine_indicator)
 
-        # 5. Global Keyboard Shortcuts
-        self._setup_shortcuts()
-
     def _setup_shortcuts(self) -> None:
-        """Setup keyboard shortcuts for quick access."""
-        # File
-        self._action_new = QAction(self)
-        self._action_new.setShortcut(QKeySequence.StandardKey.New)
-        self._action_new.triggered.connect(self.new_project)
-        self.addAction(self._action_new)
-
-        self._action_open = QAction(self)
-        self._action_open.setShortcut(QKeySequence.StandardKey.Open)
-        self._action_open.triggered.connect(self.open_project)
-        self.addAction(self._action_open)
-
-        self._action_save = QAction(self)
-        self._action_save.setShortcut(QKeySequence.StandardKey.Save)
-        self._action_save.triggered.connect(self.save_project)
-        self.addAction(self._action_save)
-
-        # Edit
-        self._action_undo = QAction(self)
-        self._action_undo.setShortcut(QKeySequence.StandardKey.Undo)
-        self._action_undo.triggered.connect(self.undo)
-        self.addAction(self._action_undo)
-
-        self._action_redo = QAction(self)
-        self._action_redo.setShortcut(QKeySequence.StandardKey.Redo)
-        self._action_redo.triggered.connect(self.redo)
-        self.addAction(self._action_redo)
-
-        # View Fit
-        self._action_fit = QAction(self)
-        self._action_fit.setShortcut(QKeySequence(Qt.Key.Key_F))
-        self._action_fit.triggered.connect(self.viewport.fit_all)
-        self.addAction(self._action_fit)
+        """Setup keyboard shortcuts that don't conflict with VS Code."""
+        # Most shortcuts are handled by VS Code itself.
+        # Only SAEngine-specific shortcuts are bound here.
+        pass
 
     def _connect_signals(self) -> None:
         """Wire all signals between components."""
-        # Ribbon actions
-        self.ribbon_bar.action_triggered.connect(self._handle_ribbon_action)
+        # VS Code server signals
+        self._vscode_server.ready.connect(self._on_vscode_ready)
+        self._vscode_server.error.connect(self._on_vscode_error)
+        self._vscode_server.log_message.connect(self._on_vscode_log)
+
+        # VS Code widget signals
+        self.vscode_view.editor_loaded.connect(self._on_editor_loaded)
+        self.vscode_view.editor_error.connect(self._on_editor_error)
 
         # Command stack
         self.cmd_manager.stack_changed.connect(self._on_stack_changed)
         self.cmd_manager.command_executed.connect(self._on_command_executed)
 
-        # Model Explorer
-        self.explorer_panel.selection_changed.connect(self._on_explorer_selection)
-        self.explorer_panel.edit_requested.connect(self._handle_edit_request)
+    # ── VS Code Lifecycle ───────────────────────────────────────
 
-    # ── Action Dispatcher ───────────────────────────────────────
+    def _start_vscode(self) -> None:
+        """Start the VS Code web server with the current project folder."""
+        workspace = str(Path.cwd())
+        self._vscode_server.start(workspace_folder=workspace)
 
-    def _handle_ribbon_action(self, action: str) -> None:
-        """Route action strings from ribbon buttons."""
-        # File
-        if action == "file.new":
-            self.new_project()
-        elif action == "file.open":
-            self.open_project()
-        elif action == "file.save":
-            self.save_project()
+    def _on_vscode_ready(self, url: str) -> None:
+        """Handle VS Code server becoming ready."""
+        self.vscode_view.load_url(url)
+        self.vscode_indicator.setText(f"VS Code: Ready")
+        self.vscode_indicator.setStyleSheet("color: #81C784; padding: 0 8px;")
+        self.output_panel.append_message(
+            f"VS Code web server started at {url}", level="success"
+        )
 
-        # Edit
-        elif action == "edit.undo":
-            self.undo()
-        elif action == "edit.redo":
-            self.redo()
+    def _on_vscode_error(self, message: str) -> None:
+        """Handle VS Code server errors."""
+        self.vscode_indicator.setText("VS Code: Error")
+        self.vscode_indicator.setStyleSheet("color: #ff6b6b; padding: 0 8px;")
+        self.vscode_view.show_error(message)
+        self.output_panel.append_message(f"VS Code error: {message}", level="error")
 
-        # Model
-        elif action == "model.grids":
-            self.open_grid_dialog()
-        elif action == "model.stories":
-            self.open_story_dialog()
+    def _on_vscode_log(self, message: str) -> None:
+        """Log VS Code server output."""
+        self.output_panel.append_message(f"[vscode] {message}", level="info")
 
-        # View
-        elif action == "view.3d":
+    def _on_editor_loaded(self) -> None:
+        """Handle VS Code web UI fully loaded."""
+        self.status_label.setText("VS Code ready — SAEngine workspace loaded")
+        self.output_panel.append_message(
+            "VS Code environment loaded successfully.", level="success"
+        )
+
+    def _on_editor_error(self, message: str) -> None:
+        """Handle editor loading failure."""
+        self.output_panel.append_message(f"Editor error: {message}", level="error")
+
+    # ── View Actions ────────────────────────────────────────────
+
+    def _handle_view_action(self, action: str) -> None:
+        """Handle viewport toolbar actions."""
+        if action == "view.3d":
             self.viewport.set_view_3d()
         elif action == "view.xy":
             self.viewport.set_view_xy()
@@ -217,152 +266,6 @@ class MainWindow(QMainWindow):
             self.viewport.set_view_yz()
         elif action == "view.fit":
             self.viewport.fit_all()
-
-        # Theme
-        elif action == "theme.dark":
-            self.apply_theme("dark")
-        elif action == "theme.light":
-            self.apply_theme("light")
-
-        # Fallback / Stubs for future phases
-        elif action.startswith("draw."):
-            elem = action.split(".")[1].capitalize()
-            self.output_panel.append_message(f"Drawing tool '{elem}' activated (Phase 2 feature).", level="info")
-        elif action.startswith("analysis."):
-            self.output_panel.append_message(f"Analysis option '{action}' selected (Phase 4 solver engine).", level="info")
-        elif action.startswith("design."):
-            self.output_panel.append_message(f"Design code check '{action}' selected (Phase 5 module).", level="info")
-        elif action.startswith("loads."):
-            self.output_panel.append_message(f"Load definition '{action}' selected (Phase 3 feature).", level="info")
-        elif action.startswith("import."):
-            self._handle_import(action)
-
-    def _handle_edit_request(self, target: str) -> None:
-        if target == "grids":
-            self.open_grid_dialog()
-        elif target == "stories":
-            self.open_story_dialog()
-
-    def _handle_import(self, action: str) -> None:
-        ext = "JSON Files (*.json)" if "json" in action else "CSV Files (*.csv)"
-        file_path, _ = QFileDialog.getOpenFileName(self, "Import Data", "", ext)
-        if file_path:
-            self.output_panel.append_message(f"Imported configuration from {file_path}", level="success")
-
-    # ── Project Operations ──────────────────────────────────────
-
-    def new_project(self) -> None:
-        """Create a fresh structural project."""
-        if not self._maybe_save():
-            return
-
-        self.project = Project.create_new()
-        self.cmd_manager.clear()
-        self.refresh_all()
-        self.output_panel.append_message("Created new project.", level="info")
-
-    def open_project(self) -> None:
-        """Open an existing .saengine project file."""
-        if not self._maybe_save():
-            return
-
-        file_path, _ = QFileDialog.getOpenFileName(
-            self, "Open Project", "", "SAEngine Project (*.saengine);;All Files (*.*)"
-        )
-        if not file_path:
-            return
-
-        project = self.project_io.load_project(file_path)
-        if project:
-            self.project = project
-            self.cmd_manager.clear()
-            self.refresh_all()
-            self.output_panel.append_message(f"Opened project: {file_path}", level="success")
-        else:
-            QMessageBox.critical(self, "Error", f"Failed to load project from {file_path}")
-
-    def save_project(self) -> bool:
-        """Save the project. Prompts for location if never saved before."""
-        if self.project.file_path is None:
-            return self.save_project_as()
-
-        success = self.project_io.save_project(self.project, self.project.file_path)
-        if success:
-            self.project.mark_clean()
-            self._update_title()
-            self.output_panel.append_message(f"Project saved: {self.project.file_path}", level="success")
-            return True
-        else:
-            QMessageBox.critical(self, "Error", "Failed to save project file.")
-            return False
-
-    def save_project_as(self) -> bool:
-        """Prompt user for a destination file path and save."""
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, "Save Project As", f"{self.project.settings.project_name}.saengine",
-            "SAEngine Project (*.saengine)"
-        )
-        if not file_path:
-            return False
-
-        path = Path(file_path)
-        if not path.suffix:
-            path = path.with_suffix(".saengine")
-
-        success = self.project_io.save_project(self.project, path)
-        if success:
-            self.project.file_path = path
-            self.project.settings.project_name = path.stem
-            self.project.mark_clean()
-            self._update_title()
-            self.output_panel.append_message(f"Project saved as: {path}", level="success")
-            return True
-        else:
-            QMessageBox.critical(self, "Error", "Failed to save project file.")
-            return False
-
-    def _maybe_save(self) -> bool:
-        """Check for unsaved changes before destructive actions."""
-        if not self.project.is_dirty:
-            return True
-
-        ret = QMessageBox.warning(
-            self, "Unsaved Changes",
-            f"The project '{self.project.display_name}' has unsaved changes.\nDo you want to save them?",
-            QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel
-        )
-        if ret == QMessageBox.StandardButton.Save:
-            return self.save_project()
-        elif ret == QMessageBox.StandardButton.Cancel:
-            return False
-        return True
-
-    # ── Undo / Redo & Commands ──────────────────────────────────
-
-    def undo(self) -> None:
-        cmd = self.cmd_manager.undo()
-        if cmd:
-            self.project.mark_dirty()
-            self.refresh_all()
-
-    def redo(self) -> None:
-        cmd = self.cmd_manager.redo()
-        if cmd:
-            self.project.mark_dirty()
-            self.refresh_all()
-
-    def _on_stack_changed(self) -> None:
-        self.ribbon_bar.update_undo_redo(
-            self.cmd_manager.can_undo,
-            self.cmd_manager.can_redo,
-            self.cmd_manager.undo_description,
-            self.cmd_manager.redo_description
-        )
-        self._update_title()
-
-    def _on_command_executed(self, description: str) -> None:
-        self.status_label.setText(description)
-        self.output_panel.append_message(description, level="cmd")
 
     # ── Dialog Handlers ─────────────────────────────────────────
 
@@ -374,7 +277,7 @@ class MainWindow(QMainWindow):
             cmd = SetGridSystemCommand(self.project.grids, new_grids)
             self.cmd_manager.execute(cmd)
             self.project.mark_dirty()
-            self.refresh_all()
+            self.refresh_viewport()
 
     def open_story_dialog(self) -> None:
         """Open the Story Data Definition dialog."""
@@ -384,26 +287,30 @@ class MainWindow(QMainWindow):
             cmd = SetStorySystemCommand(self.project.stories, new_stories)
             self.cmd_manager.execute(cmd)
             self.project.mark_dirty()
-            self.refresh_all()
+            self.refresh_viewport()
 
-    # ── UI Refresh & Themes ─────────────────────────────────────
+    # ── UI Refresh ──────────────────────────────────────────────
 
-    def refresh_all(self) -> None:
-        """Full refresh of viewport, panels, and title."""
+    def refresh_viewport(self) -> None:
+        """Refresh the 3D viewport with current model data."""
         self.viewport.render_grids(self.project.grids, self.project.stories)
-        self.explorer_panel.set_project(self.project)
-        self.property_panel.show_object("project", self.project)
         self.units_indicator.setText(f"Units: {self.project.units.active_system.display_name}")
         self._update_title()
-
-    def _on_explorer_selection(self, node_type: str, obj: object) -> None:
-        self.property_panel.show_object(node_type, obj)
 
     def _update_title(self) -> None:
         self.setWindowTitle(f"{self.project.display_name} — SAEngine")
 
+    def _on_stack_changed(self) -> None:
+        self._update_title()
+
+    def _on_command_executed(self, description: str) -> None:
+        self.status_label.setText(description)
+        self.output_panel.append_message(description, level="cmd")
+
+    # ── Theme ───────────────────────────────────────────────────
+
     def apply_theme(self, theme_name: str) -> None:
-        """Switch between dark and light themes."""
+        """Switch between dark and light themes (Qt side only)."""
         themes_dir = Path(__file__).parent / "themes"
         theme_file = themes_dir / f"{theme_name}.qss"
         if theme_file.exists():
@@ -413,12 +320,20 @@ class MainWindow(QMainWindow):
             app = QApplication.instance()
             if app:
                 app.setStyleSheet(stylesheet)
-            self.output_panel.append_message(f"Applied {theme_name.capitalize()} theme.", level="info")
+            self.output_panel.append_message(
+                f"Applied {theme_name.capitalize()} theme.", level="info"
+            )
+
+    # ── Window Lifecycle ────────────────────────────────────────
 
     def closeEvent(self, event: QCloseEvent) -> None:
-        """Handle window close event with dirty check."""
-        if self._maybe_save():
-            self.viewport.close()
-            event.accept()
-        else:
-            event.ignore()
+        """Handle window close — stop VS Code server and clean up."""
+        self.output_panel.append_message("Shutting down SAEngine...", level="info")
+
+        # Stop VS Code server
+        self._vscode_server.stop()
+
+        # Close viewport
+        self.viewport.close()
+
+        event.accept()
