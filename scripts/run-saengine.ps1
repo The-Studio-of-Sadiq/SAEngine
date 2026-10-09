@@ -65,12 +65,17 @@ if ($needsBrandingUpdate) {
 }
 
 $extensionPath = Join-Path $saengineRoot 'extensions\saengine'
+$userDataPath = Join-Path $env:APPDATA 'SAEngine'
+$null = New-Item -ItemType Directory -Path $userDataPath -Force
+$projectsPath = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'SAEngine Projects'
+$null = New-Item -ItemType Directory -Path $projectsPath -Force
 $arguments = @(
     '.',
     '--new-window',
+    "--user-data-dir=`"$userDataPath`"",
     "--extensionDevelopmentPath=`"$extensionPath`"",
     '--disable-extension=vscode.vscode-api-tests',
-    "`"$saengineRoot`""
+    "`"$projectsPath`""
 )
 
 $env:NODE_ENV = 'development'
@@ -82,4 +87,4 @@ $process = Start-Process -FilePath $appExecutable `
     -ArgumentList $arguments `
     -WorkingDirectory $codeRoot `
     -PassThru
-Write-Host "Started $($product.nameLong) with the SAEngine extension (PID $($process.Id))."
+Write-Host "Started $($product.nameLong) in $projectsPath with the SAEngine extension (PID $($process.Id))."

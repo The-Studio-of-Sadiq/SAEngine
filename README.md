@@ -77,9 +77,24 @@ from this repository:
 
 The first launch uses the adjoining Code - OSS checkout's compiled output and
 cached Electron runtime. Its window is branded **SAEngine** and opens the
-SAEngine workbench. The launcher creates a separate
-SAEngine executable from the cached runtime, applies the SAEngine icon, and
-leaves the original Code - OSS executable untouched.
+SAEngine workbench without opening SAEngine's source tree as a workspace. The
+launcher creates a separate SAEngine executable from the cached runtime,
+applies the SAEngine icon, and leaves the original Code - OSS executable
+untouched. SAEngine keeps its own application profile under `%APPDATA%\SAEngine`;
+the Explorer initially opens `%USERPROFILE%\Documents\SAEngine Projects`,
+never the software source. After you create or open a model, the Explorer switches
+to that individual project's folder.
+
+The workbench opens an interactive 3D structural viewport beside the start
+screen. It shows the frame and its base grid with a camera-oriented compass
+(east/west, north/south, and up/down). Drag inside the viewport to orbit, scroll
+to zoom, and choose **Reset** (or **Reset view** on the start-screen preview) to
+return to the default camera. The start screen also displays a smaller wireframe
+preview. **New Project** asks for a name and a
+parent folder (defaulting to `Documents\SAEngine Projects`), creates
+`<parent>\<name>\<name>.saengine`, opens that project folder in the Explorer,
+and updates the preview. **Open Project** selects an
+existing `.saengine` file and opens its containing project directory.
 
 Start the Python service separately if you want to use analysis commands. In
 the workbench, the Command Palette provides **SAEngine: Open Welcome Screen**,

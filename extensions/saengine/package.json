@@ -15,6 +15,9 @@
   "activationEvents": [
     "onStartupFinished",
     "onCommand:saengine.openWelcome",
+    "onCommand:saengine.createProject",
+    "onCommand:saengine.openProject",
+    "onCommand:saengine.show3DPreview",
     "onCommand:saengine.checkService",
     "onCommand:saengine.generateGridFrameModel",
     "onCommand:saengine.addJointLoad",
@@ -25,6 +28,18 @@
       {
         "command": "saengine.openWelcome",
         "title": "SAEngine: Open Welcome Screen"
+      },
+      {
+        "command": "saengine.createProject",
+        "title": "SAEngine: New Project"
+      },
+      {
+        "command": "saengine.openProject",
+        "title": "SAEngine: Open Project"
+      },
+      {
+        "command": "saengine.show3DPreview",
+        "title": "SAEngine: Show 3D Structure Preview"
       },
       {
         "command": "saengine.checkService",
