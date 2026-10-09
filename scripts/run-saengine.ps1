@@ -1,8 +1,7 @@
 $ErrorActionPreference = 'Stop'
 
 $saengineRoot = Split-Path -Parent $PSScriptRoot
-$documentsRoot = Split-Path -Parent $saengineRoot
-$codeRoot = Join-Path $documentsRoot 'vscode\vscode-main'
+$codeRoot = Join-Path $saengineRoot 'workbench'
 $product = Get-Content (Join-Path $codeRoot 'product.json') -Raw | ConvertFrom-Json
 $electronDirectory = Join-Path $codeRoot '.build\electron'
 $appExecutable = Join-Path $electronDirectory "$($product.nameShort).exe"
@@ -64,7 +63,6 @@ if ($needsBrandingUpdate) {
     }
 }
 
-$extensionPath = Join-Path $saengineRoot 'extensions\saengine'
 $userDataPath = Join-Path $env:APPDATA 'SAEngine'
 $null = New-Item -ItemType Directory -Path $userDataPath -Force
 $projectsPath = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'SAEngine Projects'
@@ -73,8 +71,6 @@ $arguments = @(
     '.',
     '--new-window',
     "--user-data-dir=`"$userDataPath`"",
-    "--extensionDevelopmentPath=`"$extensionPath`"",
-    '--disable-extension=vscode.vscode-api-tests',
     "`"$projectsPath`""
 )
 
@@ -87,4 +83,4 @@ $process = Start-Process -FilePath $appExecutable `
     -ArgumentList $arguments `
     -WorkingDirectory $codeRoot `
     -PassThru
-Write-Host "Started $($product.nameLong) in $projectsPath with the SAEngine extension (PID $($process.Id))."
+Write-Host "Started the native $($product.nameLong) workbench in $projectsPath (PID $($process.Id))."

@@ -13,3 +13,6 @@ __pycache__/
 # Coverage
 .coverage
 htmlcov/
+
+# Copilot simulation cache databases are LFS-backed test data, not source files.
+/workbench/extensions/copilot/test/simulation/cache/

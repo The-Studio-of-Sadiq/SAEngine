@@ -1,0 +1,44 @@
+.structural-engineering-view {
+	padding: 16px;
+}
+
+.structural-engineering-view h2 {
+	margin: 0 0 8px;
+	font-size: 16px;
+	font-weight: 600;
+}
+
+.structural-engineering-description {
+	margin-bottom: 20px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.5;
+}
+
+.structural-engineering-actions {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.structural-engineering-action.monaco-text-button {
+	width: 100%;
+	text-align: left;
+	justify-content: flex-start;
+	font-family: inherit;
+	font-size: inherit;
+}
+
+.structural-engineering-action.monaco-text-button::before {
+	margin-right: 0.4em;
+	font-family: codicon;
+	font-size: 16px;
+}
+
+.structural-engineering-status {
+	margin-top: 20px;
+	padding-top: 12px;
+	border-top: 1px solid var(--vscode-sideBarSectionHeader-border);
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+	line-height: 1.5;
+}

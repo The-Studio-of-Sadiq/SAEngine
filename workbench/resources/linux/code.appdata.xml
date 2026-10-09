@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop">
+	<id>@@NAME@@.desktop</id>
+	<metadata_license>@@LICENSE@@</metadata_license>
+	<project_license>@@LICENSE@@</project_license>
+	<name>@@NAME_LONG@@</name>
+	<url type="homepage">https://github.com/princekhan7748/saengine</url>
+	<summary>Open-source structural analysis and engineering workbench.</summary>
+	<description>
+		<p>SAEngine is an open-source engineering workbench for structural modeling and analysis, designed to grow into a connected platform for finite-element analysis, CAD, and BIM.</p>
+	</description>
+	<screenshots>
+		<screenshot type="default">
+			<image>https://code.visualstudio.com/home/home-screenshot-linux-lg.png</image>
+			<caption>Editing TypeScript and searching for extensions</caption>
+		</screenshot>
+	</screenshots>
+</component>
