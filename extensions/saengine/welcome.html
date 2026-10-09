@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline';">
+	<title>SAEngine</title>
+	<style>
+		body {
+			box-sizing: border-box;
+			min-height: 100vh;
+			margin: 0;
+			padding: 64px clamp(28px, 8vw, 112px);
+			color: var(--vscode-foreground, #e9f1f6);
+			background:
+				radial-gradient(ellipse at 82% 15%, rgba(53, 211, 191, .11), transparent 35%),
+				var(--vscode-editor-background, #111923);
+			font-family: var(--vscode-font-family, sans-serif);
+		}
+		main { max-width: 880px; margin: 0 auto; }
+		header { display: flex; align-items: center; gap: 20px; margin-bottom: 80px; }
+		header img { width: 68px; height: 68px; }
+		.wordmark { margin: 0; font-size: 20px; font-weight: 650; letter-spacing: .02em; }
+		.eyebrow { margin: 0 0 14px; color: #54d7c6; font-size: 12px; font-weight: 650; letter-spacing: .16em; text-transform: uppercase; }
+		h1 { max-width: 680px; margin: 0; font-size: clamp(38px, 7vw, 68px); font-weight: 560; line-height: 1.08; letter-spacing: -.04em; }
+		.intro { max-width: 590px; margin: 22px 0 0; color: var(--vscode-descriptionForeground, #a6b4c1); font-size: 16px; line-height: 1.75; }
+		.status { display: inline-flex; align-items: center; gap: 9px; margin-top: 34px; padding: 8px 12px; border: 1px solid rgba(84, 215, 198, .25); border-radius: 999px; color: #bfece5; background: rgba(36, 153, 137, .09); font-size: 12px; }
+		.status::before { width: 7px; height: 7px; border-radius: 50%; background: #54d7c6; content: ""; }
+		.divider { height: 1px; margin: 58px 0 22px; border: 0; background: var(--vscode-panel-border, rgba(155, 179, 197, .17)); }
+		footer { color: var(--vscode-descriptionForeground, #8293a2); font-size: 12px; letter-spacing: .04em; }
+		@media (max-width: 520px) { body { padding-top: 38px; } header { margin-bottom: 56px; } }
+	</style>
+</head>
+<body>
+	<main>
+		<header>
+			<img src="media/saengine-mark.svg" alt="SAEngine structural frame logo">
+			<p class="wordmark">SAEngine</p>
+		</header>
+		<section aria-labelledby="welcome-title">
+			<p class="eyebrow">Structural Analysis &amp; Engineering</p>
+			<h1 id="welcome-title">A clearer foundation for structural design.</h1>
+			<p class="intro">Your engineering workbench is ready. Start with a building model, then bring analysis and design into one connected workspace.</p>
+			<div class="status">Engineering workspace ready</div>
+		</section>
+		<hr class="divider">
+		<footer>OPEN ENGINEERING WORKBENCH &nbsp;·&nbsp; BUILT FOR STRUCTURES</footer>
+	</main>
+</body>
+</html>

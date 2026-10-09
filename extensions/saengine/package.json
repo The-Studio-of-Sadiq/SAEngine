@@ -1,0 +1,57 @@
+{
+  "name": "saengine",
+  "displayName": "SAEngine",
+  "description": "The open-source structural engineering workbench.",
+  "version": "0.1.0",
+  "publisher": "saengine",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:saengine.openWelcome",
+    "onCommand:saengine.checkService",
+    "onCommand:saengine.generateGridFrameModel",
+    "onCommand:saengine.addJointLoad",
+    "onCommand:saengine.analyzeCurrentProject"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "saengine.openWelcome",
+        "title": "SAEngine: Open Welcome Screen"
+      },
+      {
+        "command": "saengine.checkService",
+        "title": "SAEngine: Check Engineering Service"
+      },
+      {
+        "command": "saengine.analyzeCurrentProject",
+        "title": "SAEngine: Run Linear-Static Analysis"
+      },
+      {
+        "command": "saengine.generateGridFrameModel",
+        "title": "SAEngine: Generate Grid Frame Model"
+      },
+      {
+        "command": "saengine.addJointLoad",
+        "title": "SAEngine: Add Joint Load"
+      }
+    ],
+    "configuration": {
+      "title": "SAEngine",
+      "properties": {
+        "saengine.serviceUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8765",
+          "description": "Base URL of the SAEngine local engineering service."
+        }
+      }
+    }
+  }
+}

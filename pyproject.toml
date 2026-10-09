@@ -57,6 +57,7 @@ dev = [
 
 [project.scripts]
 saengine = "saengine.app:main"
+saengine-service = "saengine.service.app:main"
 
 [project.entry-points."saengine.design_codes"]
 # Built-in design codes registered as entry points

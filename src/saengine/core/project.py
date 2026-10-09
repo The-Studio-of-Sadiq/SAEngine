@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+from saengine.core.frame import FrameModel
 from saengine.core.grids import GridSystem
 from saengine.core.stories import StorySystem
 from saengine.core.units import UnitManager, UnitSystem
@@ -61,6 +62,7 @@ class Project:
     units: UnitManager = field(default_factory=UnitManager)
     grids: GridSystem = field(default_factory=GridSystem)
     stories: StorySystem = field(default_factory=StorySystem)
+    frame_model: FrameModel = field(default_factory=FrameModel)
 
     # File path (None if never saved)
     file_path: Optional[Path] = None
@@ -111,6 +113,7 @@ class Project:
             "units": self.units.to_dict(),
             "grids": self.grids.to_dict(),
             "stories": self.stories.to_dict(),
+            "frame_model": self.frame_model.to_dict(),
         }
 
     @classmethod
@@ -121,4 +124,5 @@ class Project:
             units=UnitManager.from_dict(data.get("units", {})),
             grids=GridSystem.from_dict(data.get("grids", {})),
             stories=StorySystem.from_dict(data.get("stories", {})),
+            frame_model=FrameModel.from_dict(data.get("frame_model", {})),
         )
