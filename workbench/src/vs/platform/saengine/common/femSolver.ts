@@ -115,5 +115,6 @@ export interface IFemSolverService {
 	getBackendInfo(python: string): Promise<IFemBackendInfo>;
 	validateProject(python: string, project: string): Promise<IFemProjectValidation>;
 	getResultTables(python: string, outDir: string, project: string): Promise<readonly IFemCaseResults[]>;
-	checkLibrary(python: string, kind: 'materials' | 'objects', text: string, materialsText?: string): Promise<readonly ILibraryProblem[]>;
+	/** Runs the model rules on a project file; `companionText` is the file it references (materials for objects, objects for bim). */
+	checkLibrary(python: string, kind: 'materials' | 'objects' | 'bim', text: string, companionText?: string): Promise<readonly ILibraryProblem[]>;
 }

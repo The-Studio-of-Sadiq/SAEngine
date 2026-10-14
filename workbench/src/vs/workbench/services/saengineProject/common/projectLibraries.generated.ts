@@ -2167,6 +2167,429 @@ export const DEFAULT_OBJECTS: object = {
 	objects: [],
 };
 
+export const BIM_SCHEMA: IJSONSchema = {
+	$defs: {
+		GridLine: {
+			additionalProperties: false,
+			description: 'One grid line (IfcGridAxis): X lines are vertical in plan, Y lines horizontal.',
+			properties: {
+				label: {
+					maxLength: 8,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9.\'-]+$',
+					title: 'Label',
+					type: 'string',
+				},
+				position: {
+					description: 'Distance from the origin along the axis [mm].',
+					title: 'Position',
+					type: 'number',
+				},
+			},
+			required: ['label', 'position'],
+			title: 'GridLine',
+			type: 'object',
+		},
+		GridPoint: {
+			additionalProperties: false,
+			description: 'A grid intersection, optionally offset; follows the grid lines when they move.',
+			properties: {
+				x: {
+					description: 'X grid line label, e.g. A.',
+					maxLength: 8,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9.\'-]+$',
+					title: 'X',
+					type: 'string',
+				},
+				y: {
+					description: 'Y grid line label, e.g. 1.',
+					maxLength: 8,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9.\'-]+$',
+					title: 'Y',
+					type: 'string',
+				},
+				dx: {
+					default: 0,
+					description: '[mm]',
+					title: 'Offset X',
+					type: 'number',
+				},
+				dy: {
+					default: 0,
+					description: '[mm]',
+					title: 'Offset Y',
+					type: 'number',
+				},
+			},
+			required: ['x', 'y'],
+			title: 'GridPoint',
+			type: 'object',
+		},
+		Grids: {
+			additionalProperties: false,
+			properties: {
+				x: {
+					description: 'Lines at x = position, labelled A, B, C, ...',
+					items: {
+						$ref: '#/$defs/GridLine',
+					},
+					title: 'X grid lines',
+					type: 'array',
+				},
+				y: {
+					description: 'Lines at y = position, labelled 1, 2, 3, ...',
+					items: {
+						$ref: '#/$defs/GridLine',
+					},
+					title: 'Y grid lines',
+					type: 'array',
+				},
+			},
+			title: 'Grids',
+			type: 'object',
+		},
+		PlacedBeam: {
+			additionalProperties: false,
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					description: 'Object type id from 04 Objects.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Object type',
+					type: 'string',
+				},
+				story: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				start: {
+					$ref: '#/$defs/GridPoint',
+					title: 'Start',
+				},
+				end: {
+					$ref: '#/$defs/GridPoint',
+					title: 'End',
+				},
+			},
+			required: ['id', 'type', 'story', 'start', 'end'],
+			title: 'PlacedBeam',
+			type: 'object',
+		},
+		PlacedColumn: {
+			additionalProperties: false,
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					description: 'Object type id from 04 Objects.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Object type',
+					type: 'string',
+				},
+				at: {
+					$ref: '#/$defs/GridPoint',
+					title: 'At',
+				},
+				base: {
+					description: 'Story the column starts at.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Base',
+					type: 'string',
+				},
+				top: {
+					description: 'Story the column ends at.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Top',
+					type: 'string',
+				},
+				rotation: {
+					default: 0,
+					description: 'Rotation of the section about its axis [°].',
+					title: 'Rotation',
+					type: 'number',
+				},
+			},
+			required: ['id', 'type', 'at', 'base', 'top'],
+			title: 'PlacedColumn',
+			type: 'object',
+		},
+		PlacedFooting: {
+			additionalProperties: false,
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					description: 'Object type id from 04 Objects.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Object type',
+					type: 'string',
+				},
+				story: {
+					description: 'Story whose level is the top of the footing.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				at: {
+					$ref: '#/$defs/GridPoint',
+					title: 'At',
+				},
+				rotation: {
+					default: 0,
+					description: '[°]',
+					title: 'Rotation',
+					type: 'number',
+				},
+			},
+			required: ['id', 'type', 'story', 'at'],
+			title: 'PlacedFooting',
+			type: 'object',
+		},
+		PlacedSlab: {
+			additionalProperties: false,
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					description: 'Object type id from 04 Objects.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Object type',
+					type: 'string',
+				},
+				story: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				boundary: {
+					description: 'Corners, in order around the slab.',
+					items: {
+						$ref: '#/$defs/GridPoint',
+					},
+					minItems: 3,
+					title: 'Boundary',
+					type: 'array',
+				},
+			},
+			required: ['id', 'type', 'story', 'boundary'],
+			title: 'PlacedSlab',
+			type: 'object',
+		},
+		PlacedWall: {
+			additionalProperties: false,
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					description: 'Object type id from 04 Objects.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Object type',
+					type: 'string',
+				},
+				base: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Base',
+					type: 'string',
+				},
+				top: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Top',
+					type: 'string',
+				},
+				start: {
+					$ref: '#/$defs/GridPoint',
+					title: 'Start',
+				},
+				end: {
+					$ref: '#/$defs/GridPoint',
+					title: 'End',
+				},
+			},
+			required: ['id', 'type', 'base', 'top', 'start', 'end'],
+			title: 'PlacedWall',
+			type: 'object',
+		},
+		Story: {
+			additionalProperties: false,
+			description: 'A building level (IfcBuildingStorey); its height is the distance to the next level up.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				elevation: {
+					description: 'Level of the top of the floor [mm].',
+					title: 'Elevation',
+					type: 'number',
+				},
+			},
+			required: ['id', 'name', 'elevation'],
+			title: 'Story',
+			type: 'object',
+		},
+	},
+	additionalProperties: false,
+	properties: {
+		schema: {
+			const: 'saengine.bim/1',
+			default: 'saengine.bim/1',
+			title: 'Schema_',
+			type: 'string',
+		},
+		grids: {
+			$ref: '#/$defs/Grids',
+		},
+		stories: {
+			items: {
+				$ref: '#/$defs/Story',
+			},
+			title: 'Stories',
+			type: 'array',
+		},
+		columns: {
+			items: {
+				$ref: '#/$defs/PlacedColumn',
+			},
+			title: 'Columns',
+			type: 'array',
+		},
+		beams: {
+			items: {
+				$ref: '#/$defs/PlacedBeam',
+			},
+			title: 'Beams',
+			type: 'array',
+		},
+		walls: {
+			items: {
+				$ref: '#/$defs/PlacedWall',
+			},
+			title: 'Walls',
+			type: 'array',
+		},
+		slabs: {
+			items: {
+				$ref: '#/$defs/PlacedSlab',
+			},
+			title: 'Slabs',
+			type: 'array',
+		},
+		footings: {
+			items: {
+				$ref: '#/$defs/PlacedFooting',
+			},
+			title: 'Footings',
+			type: 'array',
+		},
+	},
+	title: 'SAEngine building model',
+	type: 'object',
+};
+
+export const DEFAULT_BIM: object = {
+	schema: 'saengine.bim/1',
+	grids: {
+		x: [
+			{
+				label: 'A',
+				position: 0.0,
+			},
+			{
+				label: 'B',
+				position: 6000.0,
+			},
+		],
+		y: [
+			{
+				label: '1',
+				position: 0.0,
+			},
+			{
+				label: '2',
+				position: 5000.0,
+			},
+		],
+	},
+	stories: [
+		{
+			id: 'BASE',
+			name: 'Base',
+			elevation: 0.0,
+		},
+		{
+			id: 'L1',
+			name: 'Level 1',
+			elevation: 3200.0,
+		},
+	],
+	columns: [],
+	beams: [],
+	walls: [],
+	slabs: [],
+	footings: [],
+};
+
 export const TEMPLATES: { readonly [defName: string]: object } = {
 	'Material:concrete': {
 		id: 'C20.7',
@@ -2513,5 +2936,89 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 			radius: 300,
 		},
 		length: 18000,
+	},
+	GridLine: {
+		label: 'C',
+		position: 12000,
+	},
+	Story: {
+		id: 'L2',
+		name: 'Level 2',
+		elevation: 6400,
+	},
+	GridPoint: {
+		x: 'A',
+		y: '1',
+		dx: 0,
+		dy: 0,
+	},
+	PlacedColumn: {
+		id: 'C-A1',
+		type: 'C',
+		at: {
+			x: 'A',
+			y: '1',
+		},
+		base: 'BASE',
+		top: 'L1',
+	},
+	PlacedBeam: {
+		id: 'B-A1-B1',
+		type: 'B',
+		story: 'L1',
+		start: {
+			x: 'A',
+			y: '1',
+		},
+		end: {
+			x: 'B',
+			y: '1',
+		},
+	},
+	PlacedWall: {
+		id: 'W-A1-A2',
+		type: 'W',
+		base: 'BASE',
+		top: 'L1',
+		start: {
+			x: 'A',
+			y: '1',
+		},
+		end: {
+			x: 'A',
+			y: '2',
+		},
+	},
+	PlacedSlab: {
+		id: 'S-A1',
+		type: 'S',
+		story: 'L1',
+		boundary: [
+			{
+				x: 'A',
+				y: '1',
+			},
+			{
+				x: 'B',
+				y: '1',
+			},
+			{
+				x: 'B',
+				y: '2',
+			},
+			{
+				x: 'A',
+				y: '2',
+			},
+		],
+	},
+	PlacedFooting: {
+		id: 'F-A1',
+		type: 'F',
+		story: 'BASE',
+		at: {
+			x: 'A',
+			y: '1',
+		},
 	},
 };

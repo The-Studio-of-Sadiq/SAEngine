@@ -202,4 +202,42 @@ TEMPLATES: dict[str, dict[str, Any]] = {
         "profile": {"shape": "circle", "radius": 300},
         "length": 18000,
     },
+    # building model (the editor computes labels/positions for grid lines and stories)
+    "GridLine": {"label": "C", "position": 12000},
+    "Story": {"id": "L2", "name": "Level 2", "elevation": 6400},
+    "GridPoint": {"x": "A", "y": "1", "dx": 0, "dy": 0},
+    "PlacedColumn": {
+        "id": "C-A1",
+        "type": "C",
+        "at": {"x": "A", "y": "1"},
+        "base": "BASE",
+        "top": "L1",
+    },
+    "PlacedBeam": {
+        "id": "B-A1-B1",
+        "type": "B",
+        "story": "L1",
+        "start": {"x": "A", "y": "1"},
+        "end": {"x": "B", "y": "1"},
+    },
+    "PlacedWall": {
+        "id": "W-A1-A2",
+        "type": "W",
+        "base": "BASE",
+        "top": "L1",
+        "start": {"x": "A", "y": "1"},
+        "end": {"x": "A", "y": "2"},
+    },
+    "PlacedSlab": {
+        "id": "S-A1",
+        "type": "S",
+        "story": "L1",
+        "boundary": [
+            {"x": "A", "y": "1"},
+            {"x": "B", "y": "1"},
+            {"x": "B", "y": "2"},
+            {"x": "A", "y": "2"},
+        ],
+    },
+    "PlacedFooting": {"id": "F-A1", "type": "F", "story": "BASE", "at": {"x": "A", "y": "1"}},
 }

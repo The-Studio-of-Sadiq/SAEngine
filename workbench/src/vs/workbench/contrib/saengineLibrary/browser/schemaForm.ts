@@ -37,6 +37,11 @@ export interface ISchemaFormContext {
 	 * 'required' for an optional field this item must have.
 	 */
 	mode(path: string): 'hidden' | 'required' | undefined;
+	/**
+	 * The entry "Add" appends to an array (`path` without indices), e.g. the next grid line at the
+	 * previous spacing; undefined uses the definition's template.
+	 */
+	newItem?(path: string, list: readonly JsonValue[]): JsonObject | undefined;
 }
 
 interface IResolved {
@@ -79,6 +84,8 @@ export function humanize(value: string): string {
 export class SchemaForm {
 
 	private readonly disposables = new DisposableStore();
+	/** While rendering a table row, fields render as bare cells (no label, no unit). */
+	private inlineCells = false;
 
 	constructor(
 		private readonly ctx: ISchemaFormContext,
@@ -235,30 +242,77 @@ export class SchemaForm {
 
 		const list = Array.isArray(owner[key]) ? owner[key] as JsonValue[] : [];
 		const min = schema.minItems ?? 0;
-		list.forEach((entry, i) => {
-			if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
-				return;
-			}
-			const row = append(group, $('.form-array-row'));
-			this.renderObject(append(row, $('.form-array-fields')), items.schema, entry, `${path}.${i}`);
-			const remove = this.disposables.add(new Button(row, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: localize('schemaForm.remove', "Remove") }));
-			remove.label = `$(${Codicon.trash.id})`;
-			remove.enabled = list.length > min;
-			this.disposables.add(remove.onDidClick(() => {
+		const remove = (parent: HTMLElement, i: number) => {
+			const button = this.disposables.add(new Button(parent, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: localize('schemaForm.remove', "Remove") }));
+			button.label = `$(${Codicon.trash.id})`;
+			button.enabled = list.length > min;
+			this.disposables.add(button.onDidClick(() => {
 				list.splice(i, 1);
 				owner[key] = list;
 				this.ctx.changed(path, true);
 			}));
-		});
+		};
+
+		const columns = this.flatColumns(items.schema);
+		if (columns) {
+			// Rows of simple values (grid lines, stories, bar groups) read best as a table.
+			const table = append(group, $('.form-table'));
+			table.style.gridTemplateColumns = `repeat(${columns.length}, minmax(72px, 150px)) auto`;
+			for (const column of columns) {
+				const unit = column.description?.match(UNIT)?.[1];
+				append(table, $('.form-table-header', undefined, unit && unit !== '-' ? `${column.title} (${unit})` : column.title));
+			}
+			append(table, $('.form-table-header'));
+			list.forEach((entry, i) => {
+				if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+					return;
+				}
+				this.inlineCells = true;
+				try {
+					this.renderObject(table, items.schema, entry, `${path}.${i}`);
+				} finally {
+					this.inlineCells = false;
+				}
+				remove(append(table, $('.form-table-actions')), i);
+			});
+		} else {
+			list.forEach((entry, i) => {
+				if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+					return;
+				}
+				const row = append(group, $('.form-array-row'));
+				this.renderObject(append(row, $('.form-array-fields')), items.schema, entry, `${path}.${i}`);
+				remove(row, i);
+			});
+		}
 
 		if (schema.maxItems === undefined || list.length < schema.maxItems) {
 			const add = this.disposables.add(new Button(append(group, $('.form-array-add')), { ...defaultButtonStyles, secondary: true, supportIcons: true }));
 			add.label = `$(${Codicon.add.id}) ${localize('schemaForm.add', "Add {0}", humanize(items.defName!))}`;
 			this.disposables.add(add.onDidClick(() => {
-				owner[key] = [...list, this.ctx.template(items.defName!)];
+				const entry = this.ctx.newItem?.(path.replace(/\.\d+(?=\.|$)/g, ''), list) ?? this.ctx.template(items.defName!);
+				owner[key] = [...list, entry];
 				this.ctx.changed(path, true);
 			}));
 		}
+	}
+
+	/** Titles of an object's fields when every field is a simple value; otherwise undefined. */
+	private flatColumns(schema: IJSONSchema): { title: string; description?: string }[] | undefined {
+		const columns: { title: string; description?: string }[] = [];
+		for (const [key, property] of Object.entries(schema.properties ?? {})) {
+			if (property.const !== undefined) {
+				continue;
+			}
+			const inner = this.optional(property) ?? property;
+			const resolved = this.resolve(inner).schema;
+			const simple = ['string', 'number', 'integer', 'boolean'].includes(String(resolved.type)) || !!resolved.enum;
+			if (!simple || inner.oneOf) {
+				return undefined;
+			}
+			columns.push({ title: property.title ?? resolved.title ?? humanize(key), description: property.description ?? resolved.description });
+		}
+		return columns.length ? columns : undefined;
 	}
 
 	private renderPrimitiveArray(container: HTMLElement, title: string, description: string | undefined, schema: IJSONSchema, item: IJSONSchema, owner: JsonObject, key: string, path: string): void {
@@ -338,7 +392,7 @@ export class SchemaForm {
 			}
 		});
 		const unit = description?.match(UNIT)?.[1];
-		if (unit && unit !== '-') {
+		if (unit && unit !== '-' && !this.inlineCells) {
 			append(row.control, $('span.form-unit', undefined, unit));
 		}
 	}
@@ -346,6 +400,9 @@ export class SchemaForm {
 	// ───────────────────────────── widgets ─────────────────────────────
 
 	private fieldRow(container: HTMLElement, title: string, description: string | undefined): { control: HTMLElement } {
+		if (this.inlineCells) {
+			return { control: append(container, $('.form-control.form-cell')) };
+		}
 		const row = append(container, $('.form-field'));
 		const label = append(row, $('label.form-label', undefined, title));
 		const help = description?.replace(UNIT, '').replace(/\s+\./, '.').trim();

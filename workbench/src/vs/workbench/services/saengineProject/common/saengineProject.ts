@@ -6,7 +6,7 @@
 import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { DEFAULT_MATERIALS, DEFAULT_OBJECTS, MATERIALS_SCHEMA, OBJECTS_SCHEMA } from './projectLibraries.generated.js';
+import { BIM_SCHEMA, DEFAULT_BIM, DEFAULT_MATERIALS, DEFAULT_OBJECTS, MATERIALS_SCHEMA, OBJECTS_SCHEMA } from './projectLibraries.generated.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 
 export const PROJECT_MANIFEST_EXTENSION = '.saengine';
@@ -55,7 +55,10 @@ export const PROJECT_PARTS: readonly IProjectPart[] = [
 		schema: { id: 'vscode://schemas/saengine/objects', schema: OBJECTS_SCHEMA },
 	},
 	{ id: 'floorPlan', folder: '05 Floor Plan', mainFile: 'floor-plan.json', initialContent: placeholder('floorPlan') },
-	{ id: 'bim', folder: '06 BIM', mainFile: 'bim.json', initialContent: placeholder('bim') },
+	{
+		id: 'bim', folder: '06 BIM', mainFile: 'bim.json', initialContent: json(DEFAULT_BIM),
+		schema: { id: 'vscode://schemas/saengine/bim', schema: BIM_SCHEMA },
+	},
 	{ id: 'mep', folder: '07 MEP', mainFile: 'mep.json', initialContent: placeholder('mep') },
 	{
 		id: 'fem', folder: '08 FEM', mainFile: 'model.osmodel',

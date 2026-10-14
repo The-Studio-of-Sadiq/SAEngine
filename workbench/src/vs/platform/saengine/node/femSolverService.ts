@@ -124,8 +124,8 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 		return result.cases;
 	}
 
-	async checkLibrary(python: string, kind: 'materials' | 'objects', text: string, materialsText?: string): Promise<readonly ILibraryProblem[]> {
-		const result = await this.request<{ problems: ILibraryProblem[] }>(python, 'library/check', { kind, text, materialsText });
+	async checkLibrary(python: string, kind: 'materials' | 'objects' | 'bim', text: string, companionText?: string): Promise<readonly ILibraryProblem[]> {
+		const result = await this.request<{ problems: ILibraryProblem[] }>(python, 'library/check', { kind, text, materialsText: companionText });
 		return result.problems;
 	}
 

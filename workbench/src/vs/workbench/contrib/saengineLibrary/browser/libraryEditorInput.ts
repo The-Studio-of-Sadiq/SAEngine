@@ -12,17 +12,18 @@ import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
-import { EditorInputCapabilities, GroupIdentifier, IEditorSerializer, IRevertOptions, ISaveOptions, IUntypedEditorInput } from '../../../common/editor.js';
+import { EditorInputCapabilities, GroupIdentifier, IEditorDescriptor, IEditorPane, IEditorSerializer, IRevertOptions, ISaveOptions, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 
-export type LibraryKind = 'materials' | 'objects';
+export type LibraryKind = 'materials' | 'objects' | 'bim';
 
 const materialsIcon = registerIcon('saengine-materials-editor-icon', Codicon.symbolColor, localize('materialsEditorIcon', "Icon of the materials editor."));
 const objectsIcon = registerIcon('saengine-objects-editor-icon', Codicon.symbolStructure, localize('objectsEditorIcon', "Icon of the object types editor."));
+const buildingIcon = registerIcon('saengine-building-editor-icon', Codicon.layers, localize('buildingEditorIcon', "Icon of the building model editor."));
 
 /**
- * A project library file (`materials.json`, `objects.json`) opened in its visual editor.
+ * A SAEngine project file (`materials.json`, `objects.json`, `bim.json`) opened in its visual editor.
  * The JSON text model stays the document: dirty state, save, revert, backups and undo come
  * from the text file service, exactly as for a text editor on the same file.
  */
@@ -30,6 +31,7 @@ export class LibraryEditorInput extends EditorInput {
 
 	static readonly ID = 'workbench.input.saengine.library';
 	static readonly EDITOR_ID = 'workbench.editor.saengine.library';
+	static readonly BUILDING_EDITOR_ID = 'workbench.editor.saengine.building';
 
 	private modelReference: Promise<IReference<IResolvedTextEditorModel>> | undefined;
 
@@ -52,7 +54,7 @@ export class LibraryEditorInput extends EditorInput {
 	}
 
 	override get editorId(): string {
-		return LibraryEditorInput.EDITOR_ID;
+		return this.kind === 'bim' ? LibraryEditorInput.BUILDING_EDITOR_ID : LibraryEditorInput.EDITOR_ID;
 	}
 
 	override get capabilities(): EditorInputCapabilities {
@@ -60,11 +62,15 @@ export class LibraryEditorInput extends EditorInput {
 	}
 
 	override getName(): string {
-		return this.kind === 'materials' ? localize('materialsEditor', "Materials") : localize('objectsEditor', "Object Types");
+		switch (this.kind) {
+			case 'materials': return localize('materialsEditor', "Materials");
+			case 'objects': return localize('objectsEditor', "Object Types");
+			case 'bim': return localize('buildingEditor', "Building Model");
+		}
 	}
 
 	override getIcon(): ThemeIcon {
-		return this.kind === 'materials' ? materialsIcon : objectsIcon;
+		return this.kind === 'materials' ? materialsIcon : this.kind === 'objects' ? objectsIcon : buildingIcon;
 	}
 
 	/** The shared text model of the file; released when the input is disposed. */
@@ -89,6 +95,11 @@ export class LibraryEditorInput extends EditorInput {
 		await this.textFileService.revert(this.resource, options);
 	}
 
+	/** Two panes are registered for this input (library and building editor); pick by kind. */
+	override prefersEditorPane<T extends IEditorDescriptor<IEditorPane>>(editorPanes: T[]): T | undefined {
+		return editorPanes.find(pane => pane.typeId === this.editorId) ?? editorPanes[0];
+	}
+
 	override matches(other: EditorInput | IUntypedEditorInput): boolean {
 		if (super.matches(other)) {
 			return true;
@@ -97,7 +108,7 @@ export class LibraryEditorInput extends EditorInput {
 	}
 
 	override toUntyped(): IUntypedEditorInput {
-		return { resource: this.resource, options: { override: LibraryEditorInput.EDITOR_ID } };
+		return { resource: this.resource, options: { override: this.editorId } };
 	}
 
 	override dispose(): void {

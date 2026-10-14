@@ -91,7 +91,7 @@ registerAction2(class extends Action2 {
  * Full rule check of a library file by the Python models, for the visual library editors.
  * Internal: the editors call it by id so they also work where no Python backend exists.
  */
-CommandsRegistry.registerCommand('saengine.library.check', async (accessor, kind: 'materials' | 'objects', text: string, materialsText?: string) => {
+CommandsRegistry.registerCommand('saengine.library.check', async (accessor, kind: 'materials' | 'objects' | 'bim', text: string, materialsText?: string) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	return accessor.get(IFemSolverService).checkLibrary(python, kind, text, materialsText);
 });

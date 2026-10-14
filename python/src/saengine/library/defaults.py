@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import math
 
+from saengine.library.bim import BuildingModel, GridLine, Grids, Story
 from saengine.library.materials import (
     Category,
     ConcreteProperties,
@@ -123,3 +124,17 @@ def default_material_library() -> MaterialLibrary:
 
 def default_object_library() -> ObjectLibrary:
     return ObjectLibrary()
+
+
+def default_building_model() -> BuildingModel:
+    """A one-bay starting grid and a base plus one level; the engineer edits both."""
+    return BuildingModel(
+        grids=Grids(
+            x=[GridLine(label="A", position=0), GridLine(label="B", position=6000)],
+            y=[GridLine(label="1", position=0), GridLine(label="2", position=5000)],
+        ),
+        stories=[
+            Story(id="BASE", name="Base", elevation=0),
+            Story(id="L1", name="Level 1", elevation=3200),
+        ],
+    )

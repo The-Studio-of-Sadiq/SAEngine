@@ -3,38 +3,31 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/libraryEditor.css';
-import { $, addDisposableListener, append, clearNode, Dimension, EventType } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, clearNode, EventType } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
-import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { DisposableStore, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { joinPath } from '../../../../base/common/resources.js';
-import { ITextModel } from '../../../../editor/common/model.js';
-import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
-import { DEFAULT_EDITOR_ASSOCIATION, IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { MATERIALS_SCHEMA, OBJECTS_SCHEMA, TEMPLATES } from '../../../services/saengineProject/common/projectLibraries.generated.js';
-import { ISaengineProjectService, PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
+import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
+import { clone, IDocumentProblem, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditorInput, LibraryKind } from './libraryEditorInput.js';
 import { humanize, JsonObject, JsonValue, SchemaForm } from './schemaForm.js';
 
@@ -77,56 +70,28 @@ function libraryConfig(kind: LibraryKind): ILibraryConfig {
 	};
 }
 
-/** A rule violation found by the Python models (see `saengine.library.check`). */
-interface ILibraryProblem {
-	readonly index: number | null;
-	readonly path: string;
-	readonly message: string;
-}
-
-/** Desktop command running the full model rules; absent where there is no Python backend. */
-const CHECK_COMMAND = 'saengine.library.check';
-
-function clone<T>(value: T): T {
-	return JSON.parse(JSON.stringify(value));
-}
-
-function isObject(value: JsonValue | undefined): value is JsonObject {
-	return !!value && typeof value === 'object' && !Array.isArray(value);
-}
-
 /**
  * Visual editor for the project's material and object-type libraries. The left side lists the
  * entries grouped by category/kind; the right side is a form generated from the library's
- * JSON Schema. Edits are written to the file's text model only when they are valid.
+ * JSON Schema.
  */
-export class LibraryEditor extends EditorPane {
+export class LibraryEditor extends JsonDocumentEditor {
 
-	private root!: HTMLElement;
-	private banner!: HTMLElement;
+	static readonly ID = LibraryEditorInput.EDITOR_ID;
+
 	private listContainer!: HTMLElement;
 	private detail!: HTMLElement;
 	private toolbar!: HTMLElement;
+	private problemBox: HTMLElement | undefined;
 
 	private config: ILibraryConfig | undefined;
-	private document: JsonObject | undefined;
 	private selectedId: string | undefined;
-	private model: ITextModel | undefined;
-	private applying = false;
 
 	/** Ids from the project's materials file, for the material fields of object types. */
 	private materialIds: { members: string[]; rebar: string[] } = { members: [], rebar: [] };
 
 	private readonly form: SchemaForm;
-	private readonly inputDisposables = this._register(new DisposableStore());
-	private readonly materialsReference = this._register(new MutableDisposable<IReference<IResolvedTextEditorModel>>());
-	private readonly viewDisposables = this._register(new DisposableStore());
 	private readonly detailDisposables = this._register(new DisposableStore());
-	private readonly commitScheduler = this._register(new RunOnceScheduler(() => this.commit(), 300));
-	private readonly checkScheduler = this._register(new RunOnceScheduler(() => this.check(), 600));
-	private checkVersion = 0;
-	private problems: readonly ILibraryProblem[] = [];
-	private problemBox: HTMLElement | undefined;
 
 	constructor(
 		group: IEditorGroup,
@@ -136,13 +101,13 @@ export class LibraryEditor extends EditorPane {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IEditorService private readonly editorService: IEditorService,
-		@ITextModelService private readonly textModelService: ITextModelService,
-		@ISaengineProjectService private readonly projectService: ISaengineProjectService,
+		@ICommandService commandService: ICommandService,
+		@IEditorService editorService: IEditorService,
+		@ITextModelService textModelService: ITextModelService,
+		@ISaengineProjectService projectService: ISaengineProjectService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
-		super(LibraryEditorInput.EDITOR_ID, group, telemetryService, themeService, storageService);
+		super(LibraryEditor.ID, group, telemetryService, themeService, storageService, commandService, editorService, textModelService, projectService);
 		const editor = this;
 		this.form = instantiationService.createInstance(SchemaForm, {
 			get root() { return editor.config?.schema ?? MATERIALS_SCHEMA; },
@@ -155,10 +120,7 @@ export class LibraryEditor extends EditorPane {
 		this._register({ dispose: () => this.form.dispose() });
 	}
 
-	protected createEditor(parent: HTMLElement): void {
-		this.root = append(parent, $('.saengine-library-editor'));
-		this.banner = append(this.root, $('.library-banner'));
-		const body = append(this.root, $('.library-body'));
+	protected createBody(body: HTMLElement): void {
 		const master = append(body, $('.library-master'));
 		this.toolbar = append(master, $('.library-toolbar'));
 		this.listContainer = append(master, $('.library-list', { role: 'listbox', tabIndex: 0 }));
@@ -166,57 +128,39 @@ export class LibraryEditor extends EditorPane {
 		this._register(addDisposableListener(this.listContainer, EventType.KEY_DOWN, e => this.onListKey(new StandardKeyboardEvent(e))));
 	}
 
-	override async setInput(input: LibraryEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		await super.setInput(input, options, context, token);
-		this.inputDisposables.clear();
-		this.materialsReference.clear();
-		this.config = libraryConfig(input.kind);
-
-		const reference = await input.resolve();
-		if (token.isCancellationRequested || this.input !== input) {
-			return;
-		}
-		this.model = reference.object.textEditorModel;
-		this.inputDisposables.add(this.model.onDidChangeContent(() => {
-			if (!this.applying) {
-				this.load(); // undo/redo, revert, external edits
-			}
-		}));
-
-		if (input.kind === 'objects') {
-			await this.trackMaterials();
-		}
+	protected override onWillLoadInput(): void {
+		const kind = this.kind;
+		this.config = kind === 'materials' || kind === 'objects' ? libraryConfig(kind) : undefined;
 		this.selectedId = undefined;
-		this.load();
 	}
 
-	override clearInput(): void {
-		this.flush();
-		this.inputDisposables.clear();
-		this.materialsReference.clear();
-		this.model = undefined;
-		this.document = undefined;
-		super.clearInput();
+	protected shapeError(value: JsonObject): IShapeError | undefined {
+		if (this.config && !Array.isArray(value[this.config.listKey])) {
+			return { message: localize('library.unexpected', "This file does not have the expected \"{0}\" list. Fix it in the text editor.", this.config.listKey) };
+		}
+		return undefined;
 	}
 
-	override layout(dimension: Dimension): void {
-		this.root.style.width = `${dimension.width}px`;
-		this.root.style.height = `${dimension.height}px`;
+	protected override onCompanionChanged(text: string): void {
+		try {
+			const materials = (JSON.parse(text) as JsonObject).materials;
+			const list = Array.isArray(materials) ? materials.filter(isObject) : [];
+			this.materialIds = {
+				// Members are made of concrete, steel, masonry, ...; never of rebar or mortar alone.
+				members: list.filter(m => m.category !== 'rebar' && m.category !== 'mortar').map(m => String(m.id)),
+				rebar: list.filter(m => m.category === 'rebar').map(m => String(m.id)),
+			};
+		} catch {
+			return; // keep the last good list while the materials file is being fixed
+		}
+		if (this.document) {
+			this.renderDetail();
+		}
 	}
 
 	override focus(): void {
 		super.focus();
 		this.listContainer.focus();
-	}
-
-	override dispose(): void {
-		this.flush();
-		super.dispose();
-	}
-
-	/** The library file's text model, for undo/redo. */
-	get resource() {
-		return (this.input as LibraryEditorInput | undefined)?.resource;
 	}
 
 	// ───────────────────────────── document ─────────────────────────────
@@ -230,87 +174,10 @@ export class LibraryEditor extends EditorPane {
 		return this.items.find(i => i.id === this.selectedId);
 	}
 
-	private load(): void {
-		if (!this.model || !this.config) {
-			return;
-		}
-		let parsed: unknown;
-		try {
-			parsed = JSON.parse(this.model.getValue());
-		} catch (error) {
-			this.showBanner(localize('library.invalidJson', "This file contains invalid JSON ({0}). Fix it in the text editor; the visual editor will not change it until then.", String(error)));
-			this.document = undefined;
-			this.renderAll();
-			return;
-		}
-		if (!isObject(parsed as JsonValue) || !Array.isArray((parsed as JsonObject)[this.config.listKey])) {
-			this.showBanner(localize('library.unexpected', "This file does not have the expected \"{0}\" list. Fix it in the text editor.", this.config.listKey));
-			this.document = undefined;
-			this.renderAll();
-			return;
-		}
-		this.showBanner(undefined);
-		this.document = parsed as JsonObject;
-		if (!this.selected) {
-			this.selectedId = this.items[0]?.id as string | undefined;
-		}
-		this.renderAll();
-		this.checkScheduler.schedule();
-	}
-
-	/** Writes the document to the text model as one undoable edit. */
-	private commit(): void {
-		this.commitScheduler.cancel();
-		if (!this.model || !this.document || this.model.isDisposed()) {
-			return;
-		}
-		const text = JSON.stringify(this.document, undefined, '\t') + '\n';
-		if (text === this.model.getValue()) {
-			return;
-		}
-		this.applying = true;
-		try {
-			this.model.pushStackElement();
-			this.model.pushEditOperations([], [{ range: this.model.getFullModelRange(), text }], () => null);
-			this.model.pushStackElement();
-		} finally {
-			this.applying = false;
-		}
-		this.checkScheduler.schedule();
-	}
-
-	/** Runs the Python model rules on the file and shows what they report. */
-	private async check(): Promise<void> {
-		const input = this.input as LibraryEditorInput | undefined;
-		if (!this.model || !input || !this.document) {
-			return;
-		}
-		const version = ++this.checkVersion;
-		const materialsText = this.materialsReference.value?.object.textEditorModel.getValue();
-		let problems: readonly ILibraryProblem[] = [];
-		try {
-			problems = await this.commandService.executeCommand<readonly ILibraryProblem[]>(CHECK_COMMAND, input.kind, this.model.getValue(), materialsText) ?? [];
-		} catch {
-			// No backend (web) or Python is not set up: the schema checks while typing still apply.
-		}
-		if (version !== this.checkVersion || this.input !== input) {
-			return; // a newer check is on its way
-		}
-		this.problems = problems;
-		this.renderList();
-		this.renderProblems();
-	}
-
-	private problemsOf(item: JsonObject): readonly ILibraryProblem[] {
+	private problemsOf(item: JsonObject): readonly IDocumentProblem[] {
 		const list = this.config && this.document?.[this.config.listKey];
 		const index = Array.isArray(list) ? list.indexOf(item) : -1;
 		return this.problems.filter(p => p.index === index);
-	}
-
-	private flush(): void {
-		if (this.commitScheduler.isScheduled()) {
-			this.commit();
-		}
 	}
 
 	private onFormChanged(path: string, structural: boolean): void {
@@ -322,14 +189,9 @@ export class LibraryEditor extends EditorPane {
 		if (path === 'id' && item) {
 			this.selectedId = item.id as string;
 		}
-		if (structural) {
-			this.commit();
-			this.renderAll();
-		} else {
-			this.commitScheduler.schedule();
-			if (path === 'id' || path === 'name') {
-				this.renderList();
-			}
+		this.changed(structural);
+		if (!structural && (path === 'id' || path === 'name')) {
+			this.renderList();
 		}
 	}
 
@@ -376,8 +238,7 @@ export class LibraryEditor extends EditorPane {
 		item.id = this.uniqueId(String(item.id ?? variant.value.toUpperCase()));
 		(this.document[this.config.listKey] as JsonValue[]).push(item);
 		this.selectedId = item.id as string;
-		this.commit();
-		this.renderAll();
+		this.changed(true);
 	}
 
 	private duplicateItem(): void {
@@ -391,8 +252,7 @@ export class LibraryEditor extends EditorPane {
 		const list = this.document[this.config.listKey] as JsonValue[];
 		list.splice(list.indexOf(item) + 1, 0, copy);
 		this.selectedId = copy.id as string;
-		this.commit();
-		this.renderAll();
+		this.changed(true);
 	}
 
 	private async deleteItem(): Promise<void> {
@@ -405,7 +265,7 @@ export class LibraryEditor extends EditorPane {
 			detail: localize('library.deleteDetail', "Anything that refers to {0} will show it as not defined. You can undo this with Ctrl+Z.", String(item.id)),
 			primaryButton: localize('library.delete', "&&Delete"),
 		});
-		if (!confirmed || this.selected !== item) {
+		if (!confirmed || this.selected !== item || !this.document) {
 			return;
 		}
 		const list = this.document[this.config.listKey] as JsonValue[];
@@ -413,8 +273,7 @@ export class LibraryEditor extends EditorPane {
 		list.splice(index, 1);
 		const remaining = this.items;
 		this.selectedId = remaining[Math.min(index, remaining.length - 1)]?.id as string | undefined;
-		this.commit();
-		this.renderAll();
+		this.changed(true);
 	}
 
 	/** Changes a material's category or an object's kind, keeping what both have in common. */
@@ -434,8 +293,7 @@ export class LibraryEditor extends EditorPane {
 		}
 		const list = this.document[this.config.listKey] as JsonValue[];
 		list[list.indexOf(item)] = replacement;
-		this.commit();
-		this.renderAll();
+		this.changed(true);
 	}
 
 	// ───────────────────────────── references and rules ─────────────────────────────
@@ -476,65 +334,21 @@ export class LibraryEditor extends EditorPane {
 		return undefined;
 	}
 
-	/** Follows the project's materials file (unsaved edits included) for the material pickers. */
-	private async trackMaterials(): Promise<void> {
-		const project = this.projectService.project;
-		const part = PROJECT_PARTS.find(p => p.id === 'materials');
-		if (!project || !part?.mainFile) {
-			return;
-		}
-		try {
-			this.materialsReference.value = await this.textModelService.createModelReference(joinPath(project.root, part.folder, part.mainFile));
-		} catch {
-			return;
-		}
-		const model = this.materialsReference.value.object.textEditorModel;
-		const update = () => {
-			try {
-				const materials = (JSON.parse(model.getValue()) as JsonObject).materials;
-				const list = Array.isArray(materials) ? materials.filter(isObject) : [];
-				this.materialIds = {
-					// Members are made of concrete, steel, masonry, ...; never of rebar or mortar alone.
-					members: list.filter(m => m.category !== 'rebar' && m.category !== 'mortar').map(m => String(m.id)),
-					rebar: list.filter(m => m.category === 'rebar').map(m => String(m.id)),
-				};
-			} catch {
-				// keep the last good list while the materials file is being fixed
-			}
-		};
-		update();
-		this.inputDisposables.add(model.onDidChangeContent(() => {
-			update();
-			this.renderDetail();
-			this.checkScheduler.schedule();
-		}));
-	}
-
 	// ───────────────────────────── rendering ─────────────────────────────
 
-	private showBanner(message: string | undefined): void {
-		clearNode(this.banner);
-		this.banner.classList.toggle('visible', !!message);
-		if (message) {
-			append(this.banner, $('span', undefined, message));
-			const button = this.viewDisposables.add(new Button(this.banner, { ...defaultButtonStyles, secondary: true }));
-			button.label = localize('library.openText', "Open in Text Editor");
-			this.viewDisposables.add(button.onDidClick(() => this.openAsText()));
+	protected render(): void {
+		if (!this.selected) {
+			this.selectedId = this.items[0]?.id as string | undefined;
 		}
-	}
-
-	private openAsText(): void {
-		const resource = this.resource;
-		if (resource) {
-			void this.editorService.openEditor({ resource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } }, this.group);
-		}
-	}
-
-	private renderAll(): void {
 		this.viewDisposables.clear();
 		this.renderToolbar();
 		this.renderList();
 		this.renderDetail();
+	}
+
+	protected renderProblems(): void {
+		this.renderList();
+		this.renderDetailProblems();
 	}
 
 	private renderToolbar(): void {
@@ -617,7 +431,7 @@ export class LibraryEditor extends EditorPane {
 		const header = append(this.detail, $('.library-detail-header'));
 		append(header, $('h2', undefined, String(item.name ?? item.id)));
 		this.problemBox = append(header, $('.library-problems'));
-		this.renderProblems();
+		this.renderDetailProblems();
 		const typeRow = append(header, $('.library-detail-type'));
 		append(typeRow, $('span', undefined, config.listKey === 'materials' ? localize('library.categoryLabel', "Category") : localize('library.kindLabel', "Kind")));
 		const variants = config.variants;
@@ -628,15 +442,14 @@ export class LibraryEditor extends EditorPane {
 		select.render(append(typeRow, $('.library-variant')));
 		this.detailDisposables.add(select.onDidSelect(e => this.replaceVariant(item, variants[e.index].value)));
 
-		const variant = variants[current];
-		const schema = config.schema.$defs?.[variant.defName];
+		const schema = config.schema.$defs?.[variants[current].defName];
 		if (schema) {
 			this.form.render(append(this.detail, $('.library-form')), schema, item, [config.discriminator]);
 		}
 	}
 
 	/** Fills the selected entry's warning box without rebuilding the form (keeps focus while typing). */
-	private renderProblems(): void {
+	private renderDetailProblems(): void {
 		const box = this.problemBox;
 		const item = this.selected;
 		if (!box) {
@@ -659,7 +472,7 @@ export class LibraryEditor extends EditorPane {
 		}
 		this.flush();
 		this.selectedId = id;
-		this.renderAll();
+		this.render();
 		this.listContainer.focus();
 	}
 

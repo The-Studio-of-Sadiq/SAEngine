@@ -13,12 +13,15 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { ISaengineProjectService, PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
+import { BuildingEditor } from './buildingEditor.js';
+import { JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditor } from './libraryEditor.js';
 import { LibraryEditorInput, LibraryEditorInputSerializer, LibraryKind } from './libraryEditorInput.js';
 
@@ -27,11 +30,25 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	[new SyncDescriptor(LibraryEditorInput)]
 );
 
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(BuildingEditor, LibraryEditorInput.BUILDING_EDITOR_ID, localize('buildingEditor', "SAEngine Building Model Editor")),
+	[new SyncDescriptor(LibraryEditorInput)]
+);
+
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(LibraryEditorInput.ID, LibraryEditorInputSerializer);
 
+/** Project files with a visual editor; each is the main file of the project part with that id. */
+const KINDS: readonly LibraryKind[] = ['materials', 'objects', 'bim'];
+
+const EDITOR_LABELS: { readonly [kind in LibraryKind]: string } = {
+	materials: localize('materialsEditorLabel', "Materials Editor"),
+	objects: localize('objectsEditorLabel', "Object Types Editor"),
+	bim: localize('buildingEditorLabel', "Building Model Editor"),
+};
+
 /**
- * Opens the project's `03 Materials/materials.json` and `04 Objects/objects.json` in the
- * visual editor by default. Other files with the same names are not affected, and the JSON
+ * Opens the project's `03 Materials/materials.json`, `04 Objects/objects.json` and
+ * `06 BIM/bim.json` in their visual editors by default. Other files with the same names are not affected, and the JSON
  * stays reachable on purpose through "Reopen Editor With...".
  */
 class LibraryEditorResolverContribution extends Disposable implements IWorkbenchContribution {
@@ -41,10 +58,11 @@ class LibraryEditorResolverContribution extends Disposable implements IWorkbench
 	constructor(
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@ISaengineProjectService private readonly projectService: ISaengineProjectService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		for (const kind of ['materials', 'objects'] as const) {
+		for (const kind of KINDS) {
 			const part = PROJECT_PARTS.find(p => p.id === kind);
 			if (!part?.mainFile) {
 				continue;
@@ -52,8 +70,8 @@ class LibraryEditorResolverContribution extends Disposable implements IWorkbench
 			this._register(editorResolverService.registerEditor(
 				`**/${part.mainFile}`,
 				{
-					id: LibraryEditorInput.EDITOR_ID,
-					label: kind === 'materials' ? localize('materialsEditorLabel', "Materials Editor") : localize('objectsEditorLabel', "Object Types Editor"),
+					id: kind === 'bim' ? LibraryEditorInput.BUILDING_EDITOR_ID : LibraryEditorInput.EDITOR_ID,
+					label: EDITOR_LABELS[kind],
 					detail: localize('libraryEditorDetail', "SAEngine"),
 					priority: RegisteredEditorPriority.default,
 				},
@@ -72,13 +90,15 @@ class LibraryEditorResolverContribution extends Disposable implements IWorkbench
 	}
 
 	private kindOf(resource: URI): LibraryKind | undefined {
-		const project = this.projectService.project;
-		if (!project) {
+		// Project detection is asynchronous; until it finishes, a part's main file in the
+		// workspace folder is matched by path so files opened at startup still get their editor.
+		const root = this.projectService.project?.root ?? this.contextService.getWorkspaceFolder(resource)?.uri;
+		if (!root) {
 			return undefined;
 		}
-		for (const kind of ['materials', 'objects'] as const) {
+		for (const kind of KINDS) {
 			const part = PROJECT_PARTS.find(p => p.id === kind);
-			if (part?.mainFile && isEqual(resource, joinPath(project.root, part.folder, part.mainFile))) {
+			if (part?.mainFile && isEqual(resource, joinPath(root, part.folder, part.mainFile))) {
 				return kind;
 			}
 		}
@@ -94,7 +114,7 @@ registerWorkbenchContribution2(LibraryEditorResolverContribution.ID, LibraryEdit
  */
 function undoRedo(accessor: ServicesAccessor, redo: boolean): boolean | Promise<void> {
 	const pane = accessor.get(IEditorService).activeEditorPane;
-	const resource = pane instanceof LibraryEditor ? pane.resource : undefined;
+	const resource = pane instanceof JsonDocumentEditor ? pane.resource : undefined;
 	if (!resource || isEditableElement(getActiveElement() as HTMLElement)) {
 		return false;
 	}
