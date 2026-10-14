@@ -37,7 +37,7 @@ const engineeringActions = [
 	},
 	{
 		id: 'structuralEngineering.configurePython',
-		label: localize('structuralEngineering.configurePython', "Configure Python Runtime"),
+		label: localize('structuralEngineering.checkPythonRuntime', "Check Python Runtime"),
 		icon: Codicon.settingsGear,
 	},
 	{
@@ -95,8 +95,8 @@ export class StructuralEngineeringView extends ViewPane {
 
 		const status = append(content, $('.structural-engineering-status'));
 		status.textContent = localize(
-			'structuralEngineering.initialStatus',
-			"Project management, Python runtime configuration, and solver integration are not implemented yet.",
+			'structuralEngineering.status',
+			"Open an .osmodel file to view it and run its analysis with OpenSees. Project management is not implemented yet.",
 		);
 	}
 }

@@ -155,6 +155,7 @@ export default defineConfig(
 	{
 		files: [
 			'src/vs/workbench/contrib/saengine*/**/*.ts',
+			'src/vs/platform/saengine/**/*.ts',
 		],
 		rules: {
 			'header/header': [
@@ -1700,6 +1701,7 @@ export default defineConfig(
 						'url',
 						'module',
 						'util',
+						'vscode-jsonrpc/node.js', // SAEngine Python backend connection
 						'vscode-regexpp',
 						'vscode-textmate',
 						'worker_threads',

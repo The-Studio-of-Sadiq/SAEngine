@@ -59,6 +59,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
+// Run Analysis and Configure Python Runtime are implemented in contrib/saengineFem (desktop).
 const placeholders = [
 	{
 		id: 'structuralEngineering.createProject',
@@ -69,16 +70,6 @@ const placeholders = [
 		id: 'structuralEngineering.openProject',
 		title: localize2('structuralEngineering.openProject', "Open Engineering Project"),
 		message: localize('structuralEngineering.openProjectPlaceholder', "Opening engineering projects is not implemented yet."),
-	},
-	{
-		id: 'structuralEngineering.configurePython',
-		title: localize2('structuralEngineering.configurePython', "Configure Python Runtime"),
-		message: localize('structuralEngineering.configurePythonPlaceholder', "Python runtime configuration is not implemented yet."),
-	},
-	{
-		id: 'structuralEngineering.runAnalysis',
-		title: localize2('structuralEngineering.runAnalysis', "Run Analysis"),
-		message: localize('structuralEngineering.runAnalysisPlaceholder', "Structural analysis is not implemented yet."),
 	},
 ];
 
