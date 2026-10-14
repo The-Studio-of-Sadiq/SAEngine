@@ -6,9 +6,17 @@
 import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { DEFAULT_MATERIALS, DEFAULT_OBJECTS, MATERIALS_SCHEMA, OBJECTS_SCHEMA } from './projectLibraries.generated.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 
 export const PROJECT_MANIFEST_EXTENSION = '.saengine';
 export const PROJECT_MANIFEST_SCHEMA = 1;
+
+/** JSON Schema of a part's main file, used for validation and completion in the JSON editor. */
+export interface IProjectPartSchema {
+	readonly id: string;
+	readonly schema: IJSONSchema;
+}
 
 export interface IProjectPart {
 	/** Stable id, used in the manifest and by the module that owns the part. */
@@ -19,6 +27,11 @@ export interface IProjectPart {
 	readonly mainFile?: string;
 	/** Initial content of {@link mainFile} for a new project. */
 	readonly initialContent?: (projectName: string) => string;
+	readonly schema?: IProjectPartSchema;
+}
+
+function json(value: object): () => string {
+	return () => JSON.stringify(value, undefined, '\t') + '\n';
 }
 
 function placeholder(id: string): () => string {
@@ -33,8 +46,14 @@ function placeholder(id: string): () => string {
 export const PROJECT_PARTS: readonly IProjectPart[] = [
 	{ id: 'soil', folder: '01 Soil Report', mainFile: 'soil-report.json', initialContent: placeholder('soil') },
 	{ id: 'settings', folder: '02 Project Settings', mainFile: 'project-settings.json', initialContent: placeholder('settings') },
-	{ id: 'materials', folder: '03 Materials', mainFile: 'materials.json', initialContent: placeholder('materials') },
-	{ id: 'objects', folder: '04 Objects', mainFile: 'objects.json', initialContent: placeholder('objects') },
+	{
+		id: 'materials', folder: '03 Materials', mainFile: 'materials.json', initialContent: json(DEFAULT_MATERIALS),
+		schema: { id: 'vscode://schemas/saengine/materials', schema: MATERIALS_SCHEMA },
+	},
+	{
+		id: 'objects', folder: '04 Objects', mainFile: 'objects.json', initialContent: json(DEFAULT_OBJECTS),
+		schema: { id: 'vscode://schemas/saengine/objects', schema: OBJECTS_SCHEMA },
+	},
 	{ id: 'floorPlan', folder: '05 Floor Plan', mainFile: 'floor-plan.json', initialContent: placeholder('floorPlan') },
 	{ id: 'bim', folder: '06 BIM', mainFile: 'bim.json', initialContent: placeholder('bim') },
 	{ id: 'mep', folder: '07 MEP', mainFile: 'mep.json', initialContent: placeholder('mep') },

@@ -41,6 +41,33 @@ Office Building/
 └─ 11 Exports/
 ```
 
+### Material and object libraries (Parts 3 and 4)
+
+`03 Materials/materials.json` (`saengine.materials/1`) holds the project's physical
+materials; `04 Objects/objects.json` (`saengine.objects/1`) its structural object types
+(beam, column, brace, slab, wall, staircase, footing, pile cap, pile). Both use fixed SI
+units (mm, MPa, kg/m³). Material categories and property groups follow IFC
+(`Pset_MaterialConcrete`, `Pset_MaterialSteel`, ...); profiles use the IFC profile
+definitions and parameter names, and become section properties through
+[sectionproperties](https://github.com/robbievanleeuwen/section-properties). Concrete and
+mortar record their mix (nominal volume ratio or design mix in kg/m³) for quantities.
+New projects start with a BNBC 2020 / common Bangladeshi material set; each value records
+its standard or code formula.
+
+Both files open in **visual editors** (`contrib/saengineLibrary`): a list grouped by
+category or kind, and a form generated from the schema with units, dropdowns for
+references (materials, rebar, mortars, piles) and per-field validation. Only valid values
+are written, as undoable edits to the file's text model, so Save, Undo/Redo and hot exit
+work as usual. The raw JSON stays reachable on purpose via *Reopen Editor With...*.
+
+The formats are Pydantic models in `python/src/saengine/library`, the single source of
+truth. Their JSON Schemas give validation and completion in the JSON editor. After changing
+a model, regenerate the workbench copy (a test fails when it is stale):
+
+```powershell
+.venv\Scripts\python -m saengine.library.export workbench\src\vs\workbench\services\saengineProject\common\projectLibraries.generated.ts
+```
+
 The manifest, the module folders and each module's main file are core items: the
 Explorer shows them with a lock and refuses to delete, rename or move them, and they are
 recreated if removed outside SAEngine. Users can add and remove anything else. The
@@ -124,9 +151,13 @@ and prints the result tables to the **SAEngine Analysis** output channel.
    .\scripts\run-saengine.ps1
    ```
 
-   The launcher creates a branded `SAEngine.exe` from the cached Electron runtime,
-   keeps its profile under `%APPDATA%\SAEngine`, and opens
-   `%USERPROFILE%\Documents\SAEngine Projects`.
+   The launcher creates a branded `SAEngine.exe` from the cached Electron runtime and
+   keeps its profile under `%APPDATA%\SAEngine`. It reopens the last project, or shows
+   the start window; new projects default to `%USERPROFILE%\Documents\SAEngine Projects`.
+
+   For **Desktop and Start Menu shortcuts** that start SAEngine without a console window,
+   run `.\scripts\install-shortcut.ps1` once (again after moving the repository). After
+   code changes, rebuild with `npm run transpile-client` in `workbench/` before launching.
 
 ## License
 

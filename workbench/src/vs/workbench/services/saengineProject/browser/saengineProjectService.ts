@@ -19,7 +19,11 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IDecorationData, IDecorationsService } from '../../decorations/common/decorations.js';
+import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 import { createManifest, IProjectManifest, ISaengineProject, ISaengineProjectService, PROJECT_MANIFEST_EXTENSION, PROJECT_PARTS } from '../common/saengineProject.js';
+
+const schemaRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 
 export class SaengineProjectService extends Disposable implements ISaengineProjectService {
 
@@ -53,6 +57,12 @@ export class SaengineProjectService extends Disposable implements ISaengineProje
 			onDidChange: this._onDidChangeDecorations.event,
 			provideDecorations: uri => this.provideDecoration(uri),
 		}));
+
+		for (const part of PROJECT_PARTS) {
+			if (part.schema) {
+				schemaRegistry.registerSchema(part.schema.id, part.schema.schema, this._store);
+			}
+		}
 
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.detect()));
 		void this.detect();
@@ -120,7 +130,12 @@ export class SaengineProjectService extends Disposable implements ISaengineProje
 				const folder = joinPath(project.root, part.folder);
 				this.protectedResources.add(folder);
 				if (part.mainFile) {
-					this.protectedResources.add(joinPath(folder, part.mainFile));
+					const mainFile = joinPath(folder, part.mainFile);
+					this.protectedResources.add(mainFile);
+					if (part.schema) {
+						// The JSON language service matches associations against the decoded URI.
+						this.projectDisposables.add(schemaRegistry.registerSchemaAssociation(part.schema.id, mainFile.toString(true)));
+					}
 				}
 			}
 

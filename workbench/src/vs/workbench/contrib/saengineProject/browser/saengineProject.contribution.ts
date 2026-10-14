@@ -41,19 +41,24 @@ function openStart(editorService: IEditorService): Promise<unknown> {
 	return editorService.openEditor(StartEditorInput.instance, { pinned: true, modal: { size: START_SIZE } });
 }
 
-/** Shows the start window when SAEngine opens without a project or folder. */
+/** Shows the start window when SAEngine opens without a project: no folder, or a folder that is not one. */
 class StartWindowContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.saengine.startWindow';
 
 	constructor(
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IEditorService editorService: IEditorService,
-		@ISaengineProjectService _projectService: ISaengineProjectService, // start guarding the open project early
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ISaengineProjectService private readonly projectService: ISaengineProjectService,
 	) {
 		super();
-		if (contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			void openStart(editorService);
+		void this.showIfNoProject();
+	}
+
+	private async showIfNoProject(): Promise<void> {
+		const folder = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : this.contextService.getWorkspace().folders[0]?.uri;
+		if (!folder || !await this.projectService.findProject(folder)) {
+			await openStart(this.editorService);
 		}
 	}
 }

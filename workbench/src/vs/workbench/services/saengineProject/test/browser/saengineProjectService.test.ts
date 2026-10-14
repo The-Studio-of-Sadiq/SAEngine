@@ -78,11 +78,13 @@ suite('SAEngine - ProjectService', () => {
 
 		const project = await service.createProject(root, 'Office');
 		const fem = (await fileService.readFile(joinPath(root, '08 FEM', 'model.osmodel'))).value.toString();
+		const materials = JSON.parse((await fileService.readFile(joinPath(root, '03 Materials', 'materials.json'))).value.toString());
 
 		assert.deepStrictEqual({
 			name: project.name,
 			files: await listing(root),
 			fem: JSON.parse(fem),
+			materials: { schema: materials.schema, first: materials.materials[0].id, count: materials.materials.length },
 		}, {
 			name: 'Office',
 			files: [
@@ -100,6 +102,7 @@ suite('SAEngine - ProjectService', () => {
 				'Office.saengine',
 			],
 			fem: { schema_version: 2, meta: { name: 'Office' } },
+			materials: { schema: 'saengine.materials/1', first: 'C20.7', count: 12 },
 		});
 	});
 

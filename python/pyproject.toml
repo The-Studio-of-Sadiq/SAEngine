@@ -12,6 +12,7 @@ dependencies = [
     # Headless core + services (no Qt). Installed from the pinned submodule, see README.
     "opensees-studio",
     "pygls>=2.1,<3",
+    "sectionproperties>=3.10,<4",  # section constants of object profiles
 ]
 
 [project.optional-dependencies]

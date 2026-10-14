@@ -250,6 +250,7 @@ import './contrib/testing/browser/testing.contribution.js';
 
 // Structural Engineering
 import './contrib/saengineProject/browser/saengineProject.contribution.js';
+import './contrib/saengineLibrary/browser/saengineLibrary.contribution.js';
 import './contrib/saengineFem/browser/saengineFem.contribution.js';
 
 // Logs

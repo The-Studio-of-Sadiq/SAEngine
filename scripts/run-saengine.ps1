@@ -65,13 +65,13 @@ if ($needsBrandingUpdate) {
 
 $userDataPath = Join-Path $env:APPDATA 'SAEngine'
 $null = New-Item -ItemType Directory -Path $userDataPath -Force
+# Default location offered for new projects.
 $projectsPath = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'SAEngine Projects'
 $null = New-Item -ItemType Directory -Path $projectsPath -Force
+# No folder argument: SAEngine reopens the last project, or shows its start window.
 $arguments = @(
     '.',
-    '--new-window',
-    "--user-data-dir=`"$userDataPath`"",
-    "`"$projectsPath`""
+    "--user-data-dir=`"$userDataPath`""
 )
 
 $env:NODE_ENV = 'development'
@@ -83,4 +83,4 @@ $process = Start-Process -FilePath $appExecutable `
     -ArgumentList $arguments `
     -WorkingDirectory $codeRoot `
     -PassThru
-Write-Host "Started the native $($product.nameLong) workbench in $projectsPath (PID $($process.Id))."
+Write-Host "Started $($product.nameLong) (PID $($process.Id))."
