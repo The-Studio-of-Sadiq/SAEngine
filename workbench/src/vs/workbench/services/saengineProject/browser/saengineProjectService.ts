@@ -1,0 +1,195 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../base/common/map.js';
+import { basename, joinPath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { FileChangeType, IFileService } from '../../../../platform/files/common/files.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IDecorationData, IDecorationsService } from '../../decorations/common/decorations.js';
+import { createManifest, IProjectManifest, ISaengineProject, ISaengineProjectService, PROJECT_MANIFEST_EXTENSION, PROJECT_PARTS } from '../common/saengineProject.js';
+
+export class SaengineProjectService extends Disposable implements ISaengineProjectService {
+
+	declare readonly _serviceBrand: undefined;
+
+	private _project: ISaengineProject | undefined;
+	get project(): ISaengineProject | undefined { return this._project; }
+
+	private readonly _onDidChangeProject = this._register(new Emitter<ISaengineProject | undefined>());
+	readonly onDidChangeProject = this._onDidChangeProject.event;
+
+	private readonly _onDidChangeDecorations = this._register(new Emitter<URI[]>());
+
+	private protectedResources: ResourceSet;
+	private readonly projectDisposables = this._register(new DisposableStore());
+	private readonly restoreScheduler = this._register(new RunOnceScheduler(() => this.restoreStructure(true), 500));
+
+	constructor(
+		@IFileService private readonly fileService: IFileService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IDecorationsService decorationsService: IDecorationsService,
+		@ILogService private readonly logService: ILogService,
+	) {
+		super();
+		this.protectedResources = this.newResourceSet();
+
+		this._register(decorationsService.registerDecorationsProvider({
+			label: localize('saengineProject.decorations', "SAEngine Project"),
+			onDidChange: this._onDidChangeDecorations.event,
+			provideDecorations: uri => this.provideDecoration(uri),
+		}));
+
+		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.detect()));
+		void this.detect();
+	}
+
+	isProtected(resource: URI): boolean {
+		return this.protectedResources.has(resource);
+	}
+
+	async findProject(folder: URI): Promise<ISaengineProject | undefined> {
+		let children;
+		try {
+			children = (await this.fileService.resolve(folder)).children ?? [];
+		} catch {
+			return undefined;
+		}
+		const manifest = children.find(c => c.isFile && c.name.toLowerCase().endsWith(PROJECT_MANIFEST_EXTENSION));
+		if (!manifest) {
+			return undefined;
+		}
+		let name = manifest.name.slice(0, -PROJECT_MANIFEST_EXTENSION.length);
+		try {
+			const parsed: Partial<IProjectManifest> = JSON.parse((await this.fileService.readFile(manifest.resource)).value.toString());
+			if (typeof parsed.name === 'string' && parsed.name) {
+				name = parsed.name;
+			}
+		} catch (error) {
+			this.logService.warn(`[saengine] unreadable project manifest ${manifest.resource.toString()}: ${error}`);
+		}
+		return { root: folder, manifest: manifest.resource, name };
+	}
+
+	async createProject(folder: URI, name: string): Promise<ISaengineProject> {
+		const existing = await this.findProject(folder);
+		const project = existing ?? { root: folder, manifest: joinPath(folder, `${name}${PROJECT_MANIFEST_EXTENSION}`), name };
+		if (!existing) {
+			await this.fileService.createFolder(folder);
+			await this.fileService.writeFile(project.manifest, VSBuffer.fromString(JSON.stringify(createManifest(name), undefined, '\t') + '\n'));
+		}
+		await this.createMissing(project);
+		return project;
+	}
+
+	private async detect(): Promise<void> {
+		const folder = this.contextService.getWorkspace().folders[0]?.uri;
+		const project = folder ? await this.findProject(folder) : undefined;
+		if (project?.root.toString() === this._project?.root.toString() && project?.manifest.toString() === this._project?.manifest.toString()) {
+			return;
+		}
+		this.setProject(project);
+		if (project) {
+			await this.restoreStructure(true);
+		}
+	}
+
+	private setProject(project: ISaengineProject | undefined): void {
+		const previous = [...this.protectedResources];
+		this.projectDisposables.clear();
+		this._project = project;
+		this.protectedResources = this.newResourceSet();
+
+		if (project) {
+			this.protectedResources.add(project.manifest);
+			for (const part of PROJECT_PARTS) {
+				const folder = joinPath(project.root, part.folder);
+				this.protectedResources.add(folder);
+				if (part.mainFile) {
+					this.protectedResources.add(joinPath(folder, part.mainFile));
+				}
+			}
+
+			// Core items removed outside the workbench (file manager, terminal, git) come back. The
+			// project is the workspace folder, which the workbench already watches recursively.
+			this.projectDisposables.add(this.fileService.onDidFilesChange(e => {
+				if (e.gotDeleted() && [...this.protectedResources].some(r => e.contains(r, FileChangeType.DELETED))) {
+					this.restoreScheduler.schedule();
+				}
+			}));
+		}
+
+		this._onDidChangeDecorations.fire([...previous, ...this.protectedResources]);
+		this._onDidChangeProject.fire(project);
+	}
+
+	private async restoreStructure(notify: boolean): Promise<void> {
+		const project = this._project;
+		if (!project) {
+			return;
+		}
+		const restored = await this.createMissing(project);
+		if (notify && restored.length) {
+			this.notificationService.warn(localize('saengineProject.restored', "Restored core project items that are required by SAEngine: {0}", restored.join(', ')));
+		}
+	}
+
+	/** Creates every missing core item and returns their project-relative names. */
+	private async createMissing(project: ISaengineProject): Promise<string[]> {
+		const created: string[] = [];
+		try {
+			if (!await this.fileService.exists(project.manifest)) {
+				await this.fileService.writeFile(project.manifest, VSBuffer.fromString(JSON.stringify(createManifest(project.name), undefined, '\t') + '\n'));
+				created.push(basename(project.manifest));
+			}
+			for (const part of PROJECT_PARTS) {
+				const folder = joinPath(project.root, part.folder);
+				if (!await this.fileService.exists(folder)) {
+					await this.fileService.createFolder(folder);
+					created.push(part.folder);
+				}
+				if (part.mainFile) {
+					const file = joinPath(folder, part.mainFile);
+					if (!await this.fileService.exists(file)) {
+						await this.fileService.writeFile(file, VSBuffer.fromString(part.initialContent?.(project.name) ?? ''));
+						created.push(`${part.folder}/${part.mainFile}`);
+					}
+				}
+			}
+		} catch (error) {
+			this.logService.error(`[saengine] could not create the project structure in ${project.root.toString()}: ${error}`);
+			throw error;
+		}
+		return created;
+	}
+
+	private provideDecoration(uri: URI): IDecorationData | undefined {
+		if (!this.isProtected(uri)) {
+			return undefined;
+		}
+		return {
+			letter: Codicon.lock,
+			tooltip: localize('saengineProject.protected', "Core project item: it cannot be deleted, renamed or moved"),
+		};
+	}
+
+	private newResourceSet(): ResourceSet {
+		return new ResourceSet(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+	}
+}
+
+registerSingleton(ISaengineProjectService, SaengineProjectService, InstantiationType.Delayed);

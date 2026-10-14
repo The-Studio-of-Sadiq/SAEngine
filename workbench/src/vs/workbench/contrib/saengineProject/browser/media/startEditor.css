@@ -1,0 +1,114 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.saengine-start {
+	box-sizing: border-box;
+	padding: 28px 32px;
+	overflow: auto;
+	color: var(--vscode-foreground);
+}
+
+.saengine-start .header h1 {
+	margin: 0;
+	font-size: 26px;
+	font-weight: 600;
+}
+
+.saengine-start .header .subtitle {
+	margin: 4px 0 24px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-start h2 {
+	margin: 24px 0 8px;
+	font-size: 13px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-start .actions {
+	display: flex;
+	gap: 8px;
+}
+
+.saengine-start .actions .monaco-button {
+	width: auto;
+	padding: 6px 14px;
+}
+
+.saengine-start ul.recent {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.saengine-start ul.recent li.empty {
+	color: var(--vscode-descriptionForeground);
+	padding: 4px 0;
+}
+
+.saengine-start a.recent-project {
+	display: grid;
+	grid-template-columns: 20px auto 1fr;
+	align-items: center;
+	gap: 6px;
+	padding: 5px 6px;
+	border-radius: 4px;
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+}
+
+.saengine-start a.recent-project:hover,
+.saengine-start a.recent-project:focus {
+	background: var(--vscode-list-hoverBackground);
+	outline: none;
+}
+
+.saengine-start a.recent-project .path {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-start .form {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	max-width: 520px;
+}
+
+.saengine-start .form label {
+	margin-top: 8px;
+}
+
+.saengine-start .form .location {
+	display: flex;
+	gap: 6px;
+}
+
+.saengine-start .form .location .monaco-inputbox {
+	flex: 1;
+}
+
+.saengine-start .form .location .monaco-button {
+	width: auto;
+	padding: 4px 12px;
+}
+
+.saengine-start .form .target {
+	min-height: 18px;
+	margin: 6px 0 0;
+	color: var(--vscode-descriptionForeground);
+	word-break: break-all;
+}
+
+.saengine-start .form-actions {
+	margin-top: 20px;
+	justify-content: flex-end;
+	max-width: 520px;
+}

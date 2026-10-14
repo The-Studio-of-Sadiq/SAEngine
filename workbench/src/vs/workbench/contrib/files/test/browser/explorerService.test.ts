@@ -10,13 +10,14 @@ import { joinPath } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
-import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
+import { IBulkEditService, ResourceFileEdit } from '../../../../../editor/browser/services/bulkEditService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { FileChangesEvent, FileChangeType } from '../../../../../platform/files/common/files.js';
 import { IEditableData } from '../../../../common/views.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestSaengineProjectService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { ISaengineProjectService } from '../../../../services/saengineProject/common/saengineProject.js';
 import { NullFilesConfigurationService, TestFileService } from '../../../../test/common/workbenchTestServices.js';
 import { ExplorerService } from '../../browser/explorerService.js';
 import { IExplorerView } from '../../browser/files.js';
@@ -31,6 +32,8 @@ suite('Files - ExplorerService', () => {
 	let item: NewExplorerItem;
 	let calls: string[];
 	let focusDuringRender: boolean;
+	let projectService: TestSaengineProjectService;
+	let bulkEdits: ResourceFileEdit[][];
 
 	const editableData: IEditableData = {
 		validationMessage: () => null,
@@ -48,7 +51,10 @@ suite('Files - ExplorerService', () => {
 			configurationService: () => configurationService,
 		}, store);
 		instantiationService.stub(IHostService, { onDidChangeFocus: focusChanged.event });
-		instantiationService.stub(IBulkEditService, {});
+		bulkEdits = [];
+		instantiationService.stub(IBulkEditService, { apply: async (edits: ResourceFileEdit[]) => { bulkEdits.push(edits); return { ariaSummary: '', isApplied: true }; } });
+		projectService = new TestSaengineProjectService();
+		instantiationService.stub(ISaengineProjectService, projectService);
 		explorerService = store.add(instantiationService.createInstance(ExplorerService));
 		explorerService.registerView(new class extends mock<IExplorerView>() {
 			override async setEditable(_stat: ExplorerItem, isEditing: boolean): Promise<void> {
@@ -88,6 +94,25 @@ suite('Files - ExplorerService', () => {
 			assert.deepStrictEqual({ before, after: service.getViewId() }, { before: expected, after: expected });
 		});
 	}
+
+	test('refuses to delete, rename or move SAEngine core project items but allows copies', async () => {
+		const root = explorerService.roots[0].resource;
+		const core = joinPath(root, '08 FEM');
+		const other = joinPath(root, 'notes.txt');
+		projectService.protectedResources.push(core);
+		const options = { undoLabel: '', progressLabel: '' };
+
+		await explorerService.applyBulkEdit([new ResourceFileEdit(core, undefined)], options);
+		await explorerService.applyBulkEdit([new ResourceFileEdit(core, joinPath(root, 'FEM'))], options);
+		await explorerService.applyBulkEdit([new ResourceFileEdit(other, undefined), new ResourceFileEdit(core, undefined)], options);
+		await explorerService.applyBulkEdit([new ResourceFileEdit(core, joinPath(root, 'copy'), { copy: true })], options);
+		await explorerService.applyBulkEdit([new ResourceFileEdit(other, undefined)], options);
+
+		assert.deepStrictEqual(bulkEdits.map(edits => edits.map(e => [e.oldResource?.path, e.newResource?.path])), [
+			[[core.path, joinPath(root, 'copy').path]],
+			[[other.path, undefined]],
+		]);
+	});
 
 	test('refreshes on window focus when not editing', () => {
 		focusChanged.fire(false);

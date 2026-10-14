@@ -9,13 +9,42 @@ open-source engines are reused wherever they exist.
 
 1. Soil report importer and form generator
 2. Project type, design codes (BNBC, ACI, AISC, ...) and design checks
-3. Floor plan CAD
-4. 3D BIM model
-5. MEP
-6. **FEM analysis (SAP2000/ETABS alternative) — in progress**
-7. Substructure analysis
-8. BOQ analyzer
-9. Exporter
+3. Material editor (material composition)
+4. Object editor (beam, column, slab, wall, ...)
+5. Floor plan CAD
+6. 3D BIM model
+7. MEP
+8. **FEM analysis (SAP2000/ETABS alternative) — in progress**
+9. Substructure analysis
+10. BOQ analyzer
+11. Exporter
+
+## Projects
+
+SAEngine starts with a modal start window (New Project, Open Project, recent projects;
+also *File > New Project...* / *Open Project...*). A project is a folder with a
+`<name>.saengine` manifest and one folder per module:
+
+```
+Office Building/
+├─ Office Building.saengine
+├─ 01 Soil Report/soil-report.json
+├─ 02 Project Settings/project-settings.json
+├─ 03 Materials/materials.json
+├─ 04 Objects/objects.json
+├─ 05 Floor Plan/floor-plan.json
+├─ 06 BIM/bim.json
+├─ 07 MEP/mep.json
+├─ 08 FEM/model.osmodel
+├─ 09 Substructure/substructure.json
+├─ 10 BOQ/boq.json
+└─ 11 Exports/
+```
+
+The manifest, the module folders and each module's main file are core items: the
+Explorer shows them with a lock and refuses to delete, rename or move them, and they are
+recreated if removed outside SAEngine. Users can add and remove anything else. The
+`.json` main files are versioned placeholders until their module is implemented.
 
 ## Repository layout
 
@@ -23,7 +52,8 @@ open-source engines are reused wherever they exist.
 |---|---|
 | `workbench/` | Code - OSS fork, branded via `workbench/product.json` |
 | `workbench/src/vs/workbench/contrib/saengineFem/` | Native FEM model editor (`*.osmodel`) |
-| `workbench/src/vs/workbench/contrib/structuralEngineering/` | Activity-bar entry point (placeholder actions) |
+| `workbench/src/vs/workbench/services/saengineProject/` | Project detection, core-item protection and restore |
+| `workbench/src/vs/workbench/contrib/saengineProject/` | Start window, New/Open Project commands |
 | `workbench/src/vs/workbench/contrib/saengineFem/electron-browser/` | Run Analysis / Check Python Runtime commands (desktop) |
 | `workbench/src/vs/platform/saengine/` | Shared-process service hosting the Python backend |
 | `packages/fem-viewer/` | FEM viewport library: three.js + [That Open Engine](https://github.com/ThatOpen/engine_components), bundled to one ESM file |
@@ -32,7 +62,7 @@ open-source engines are reused wherever they exist.
 | `legacy/` | Earlier prototypes kept for reference only (see `legacy/README.md`) |
 | `scripts/run-saengine.ps1` | Windows launcher for the branded dev build |
 
-## FEM architecture (module 6)
+## FEM architecture (module 8)
 
 - **Model format:** the [opensees-studio](https://github.com/ogunc/opensees-studio)
   `.osmodel` JSON schema. Its headless core (Pydantic model, OpenSeesPy runner,

@@ -66,6 +66,7 @@ import './services/workspaces/common/canonicalUriService.js';
 import './services/extensions/browser/extensionUrlHandler.js';
 import './services/keybinding/common/keybindingEditing.js';
 import './services/decorations/browser/decorationsService.js';
+import './services/saengineProject/browser/saengineProjectService.js';
 import './services/dialogs/common/dialogService.js';
 import './services/progress/browser/progressService.js';
 import './services/editor/browser/codeEditorService.js';
@@ -248,7 +249,7 @@ import './contrib/replNotebook/browser/repl.contribution.js';
 import './contrib/testing/browser/testing.contribution.js';
 
 // Structural Engineering
-import './contrib/structuralEngineering/browser/structuralEngineering.contribution.js';
+import './contrib/saengineProject/browser/saengineProject.contribution.js';
 import './contrib/saengineFem/browser/saengineFem.contribution.js';
 
 // Logs

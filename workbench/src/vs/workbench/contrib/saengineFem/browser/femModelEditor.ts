@@ -141,7 +141,9 @@ export class FemModelEditor extends EditorPane {
 		let model: FemModel;
 		try {
 			const content = await this.fileService.readFile(input.resource, undefined, token);
-			model = JSON.parse(content.value.toString());
+			const parsed = JSON.parse(content.value.toString());
+			// opensees-studio fills omitted lists with defaults, so a new project's model may have none yet.
+			model = { ...parsed, ndm: parsed.ndm ?? 3, nodes: parsed.nodes ?? [], elements: parsed.elements ?? [] };
 		} catch (error) {
 			if (!token.isCancellationRequested) {
 				this.showMessage(localize('femModelEditor.readFailed', "Unable to read the model: {0}", String(error)));

@@ -18,7 +18,7 @@ import { Extensions as OutputExtensions, IOutputChannelRegistry } from '../../..
 import { FemModelEditorInput } from '../browser/femModelEditorInput.js';
 import { FEM_OUTPUT_CHANNEL_ID, FEM_PYTHON_SETTING, FemAnalysisRunner } from './femAnalysisRunner.js';
 
-const category = localize2('structuralEngineering.category', "Structural Engineering");
+const category = localize2('saengine.category', "SAEngine");
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'saengine',
@@ -43,8 +43,7 @@ Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels).registerCha
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			// Keeps the id of the Engineering Workspace view's button.
-			id: 'structuralEngineering.runAnalysis',
+			id: 'saengine.fem.runAnalysis',
 			title: localize2('femRunAnalysis', "Run Analysis"),
 			category,
 			icon: Codicon.play,
@@ -74,8 +73,7 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			// Keeps the id of the Engineering Workspace view's button.
-			id: 'structuralEngineering.configurePython',
+			id: 'saengine.checkPythonRuntime',
 			title: localize2('femCheckRuntime', "Check Python Runtime"),
 			category,
 			f1: true,

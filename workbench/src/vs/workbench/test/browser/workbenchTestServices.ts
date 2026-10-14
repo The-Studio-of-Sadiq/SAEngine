@@ -148,6 +148,7 @@ import { IChatEntitlementService } from '../../services/chat/common/chatEntitlem
 import { IManagedSettingsService, NullManagedSettingsService } from '../../../platform/policy/common/copilotManagedSettings.js';
 import { AccountPolicyGateState, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
 import { IDecoration, IDecorationData, IDecorationsProvider, IDecorationsService, IResourceDecorationChangeEvent } from '../../services/decorations/common/decorations.js';
+import { ISaengineProject, ISaengineProjectService } from '../../services/saengineProject/common/saengineProject.js';
 import { CodeEditorService } from '../../services/editor/browser/codeEditorService.js';
 import { EditorPaneService } from '../../services/editor/browser/editorPaneService.js';
 import { EditorResolverService } from '../../services/editor/browser/editorResolverService.js';
@@ -343,6 +344,7 @@ export function workbenchInstantiationService(
 	const keybindingService = new MockKeybindingService();
 	instantiationService.stub(IKeybindingService, keybindingService);
 	instantiationService.stub(IDecorationsService, new TestDecorationsService());
+	instantiationService.stub(ISaengineProjectService, new TestSaengineProjectService());
 	instantiationService.stub(IExtensionService, new TestExtensionService());
 	instantiationService.stub(IWorkingCopyFileService, disposables.add(instantiationService.createInstance(WorkingCopyFileService)));
 	instantiationService.stub(ITextFileService, overrides?.textFileService ? overrides.textFileService(instantiationService) : disposables.add(<ITextFileService>instantiationService.createInstance(TestTextFileService)));
@@ -572,6 +574,21 @@ export class TestDecorationsService implements IDecorationsService {
 
 	registerDecorationsProvider(_provider: IDecorationsProvider): IDisposable { return Disposable.None; }
 	getDecoration(_uri: URI, _includeChildren: boolean, _overwrite?: IDecorationData): IDecoration | undefined { return undefined; }
+}
+
+export class TestSaengineProjectService implements ISaengineProjectService {
+
+	declare readonly _serviceBrand: undefined;
+
+	readonly project: ISaengineProject | undefined = undefined;
+	readonly onDidChangeProject: Event<ISaengineProject | undefined> = Event.None;
+
+	/** Resources tests mark as core project items. */
+	readonly protectedResources: URI[] = [];
+
+	isProtected(resource: URI): boolean { return this.protectedResources.some(r => r.toString() === resource.toString()); }
+	async findProject(_folder: URI): Promise<ISaengineProject | undefined> { return undefined; }
+	async createProject(folder: URI, name: string): Promise<ISaengineProject> { return { root: folder, manifest: folder, name }; }
 }
 
 export class TestMenuService implements IMenuService {
