@@ -16,3 +16,6 @@ htmlcov/
 
 # Copilot simulation cache databases are LFS-backed test data, not source files.
 /workbench/extensions/copilot/test/simulation/cache/
+
+# Python packaging
+*.egg-info/

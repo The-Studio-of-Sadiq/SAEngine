@@ -1,0 +1,31 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.saengine-fem-model-editor {
+	position: relative;
+	overflow: hidden;
+}
+
+.saengine-fem-model-editor .viewport {
+	position: absolute;
+	inset: 0;
+	outline: none;
+}
+
+.saengine-fem-model-editor .message {
+	display: none;
+	position: absolute;
+	top: 12px;
+	left: 12px;
+	right: 12px;
+	padding: 8px 12px;
+	color: var(--vscode-inputValidation-errorForeground, var(--vscode-foreground));
+	background: var(--vscode-inputValidation-errorBackground);
+	border: 1px solid var(--vscode-inputValidation-errorBorder);
+}
+
+.saengine-fem-model-editor .message.visible {
+	display: block;
+}

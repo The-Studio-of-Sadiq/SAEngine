@@ -1,126 +1,76 @@
 # SAEngine
 
-SAEngine is an open-source engineering IDE foundation for structural analysis,
-with a path toward general-purpose finite-element analysis and future CAD and
-BIM modules. The native Code - OSS workbench source, Python services, and desktop
-launcher are kept together in this repository.
+SAEngine is an open-source engineering IDE for civil and structural engineers,
+built as a native fork of Code - OSS. Engineering features are implemented as
+native workbench contributions (not webview extensions), and existing
+open-source engines are reused wherever they exist.
 
-## Architecture direction
+## Modules
 
-- **Workbench:** native Code - OSS contribution in
-  `workbench/src/vs/workbench/contrib/structuralEngineering`.
-- **Engineering API:** Python service in `src/saengine/service`, independent of
-  the desktop GUI and bound to loopback by default.
-- **First engineering slice:** create a regular 3D frame from project grids and
-  stories, assign joint loads, and run linear-static analysis through the Python service.
-- **Existing desktop UI:** the PySide application and embedded editor remain in
-  the repository as an early prototype while the Code - OSS workbench evolves.
+1. Soil report importer and form generator
+2. Project type, design codes (BNBC, ACI, AISC, ...) and design checks
+3. Floor plan CAD
+4. 3D BIM model
+5. MEP
+6. **FEM analysis (SAP2000/ETABS alternative) — in progress**
+7. Substructure analysis
+8. BOQ analyzer
+9. Exporter
 
-Services own domain operations and communicate through explicit, versioned
-interfaces. The current API provides `GET /api/v1/health`,
-`POST /api/v1/models/grid-frame`, and
-`POST /api/v1/analysis/linear-static`. CAD and BIM APIs can be added and versioned
-without coupling their runtimes to the workbench.
+## Repository layout
 
-## First frame-analysis scope
+| Path | Contents |
+|---|---|
+| `workbench/` | Code - OSS fork, branded via `workbench/product.json` |
+| `workbench/src/vs/workbench/contrib/saengineFem/` | Native FEM model editor (`*.osmodel`) |
+| `workbench/src/vs/workbench/contrib/structuralEngineering/` | Activity-bar entry point (placeholder actions) |
+| `packages/fem-viewer/` | FEM viewport library: three.js + [That Open Engine](https://github.com/ThatOpen/engine_components), bundled to one ESM file |
+| `legacy/` | Earlier prototypes kept for reference only (see `legacy/README.md`) |
+| `scripts/run-saengine.ps1` | Windows launcher for the branded dev build |
 
-The grid-frame generator creates joints at every grid/story intersection,
-continuous columns between levels, and beams along each floor grid line. The
-generated model initially shares one user-supplied isotropic material and one
-prismatic section across all members, fixes all six degrees of freedom at the
-lowest level, and creates an empty static load case. The native Code - OSS
-engineering view is being established first; its project and analysis actions
-are currently explicit placeholders and are not yet connected to the service.
+## FEM architecture (module 6)
 
-The solver is an initial sparse direct-stiffness implementation for linear,
-elastic, prismatic 3D Euler-Bernoulli frame members. It supports joint forces
-and moments and reports joint displacements, support reactions, and member-end
-forces. It does not yet support distributed/member loads, geometric or material
-nonlinearity, dynamic analysis, diaphragm constraints, automated design checks,
-or validated code-level design results. Treat it as an engineering prototype,
-not as a substitute for independently verified professional analysis software.
-All solver input uses consistent base units: kN, m, kN/m², m², and m⁴.
+- **Model format:** the [opensees-studio](https://github.com/ogunc/opensees-studio)
+  `.osmodel` JSON schema. Its headless core (Pydantic model, OpenSeesPy runner,
+  results store, response spectrum, SRSS/CQC) will be the Python backend.
+- **Solver:** OpenSeesPy.
+- **Viewport:** `packages/fem-viewer`, loaded lazily by URL from the workbench
+  renderer (`resolveAmdNodeModulePath`). The renderer cannot resolve bare module
+  specifiers, so the package bundles its dependencies with esbuild. The build also
+  removes one `innerHTML` assignment from That Open (its hidden logo), because the
+  workbench enforces Trusted Types.
 
-## Run the local service
+Opening any `*.osmodel` file shows it in the **FEM Model Viewport** (grid, members,
+nodes, supports, click selection). Use *Reopen Editor With...* to edit the JSON.
 
-Python 3.11 or newer is required. From the repository root:
+## Build and run (Windows)
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -e ".[dev]"
-python -m saengine.service
-```
+1. Build the viewer:
 
-The service listens on `http://127.0.0.1:8765` by default. Verify it from another
-terminal:
+   ```powershell
+   cd packages\fem-viewer
+   npm install
+   npm run build
+   ```
 
-```powershell
-Invoke-RestMethod http://127.0.0.1:8765/api/v1/health
-```
+2. Install and build Code - OSS following [its instructions](./workbench/README.md).
+   The viewer is linked into the workbench as `"@saengine/fem-viewer": "file:../packages/fem-viewer"`.
+   For client-only rebuilds: `npm run build-fast -- --client-only` in `workbench/`.
 
-The service binds only to loopback by default. Use `--host` to choose a different
-interface only when remote access is intentionally required.
+3. Launch:
 
-## Open the SAEngine workbench
+   ```powershell
+   .\scripts\run-saengine.ps1
+   ```
 
-The Code - OSS source in `workbench/` is rebranded through its `product.json`
-as the SAEngine desktop product, with its own application name, user-data
-directory, URL scheme, and structural-frame icon. Engineering functionality is
-implemented as native Code - OSS workbench source, not as an extension.
-
-On Windows, launch that branded development build (not the installed VS Code app)
-from this repository:
-
-```powershell
-.\scripts\run-saengine.ps1
-```
-
-Before the first launch, install and build the included Code - OSS checkout
-following [its build instructions](./workbench/README.md). The launcher then
-uses its compiled output and cached Electron runtime. Its window is branded
-**SAEngine** and opens the
-SAEngine workbench without opening SAEngine's source tree as a workspace. The
-launcher creates a separate SAEngine executable from the cached runtime,
-applies the SAEngine icon, and leaves the original Code - OSS executable
-untouched. SAEngine keeps its own application profile under `%APPDATA%\SAEngine`;
-the Explorer initially opens `%USERPROFILE%\Documents\SAEngine Projects`,
-never the software source. After you create or open a model, the Explorer switches
-to that individual project's folder.
-
-The native workbench currently adds a **Structural Engineering** activity-bar
-entry and an **Engineering Workspace** view. Its Create/Open Project,
-Configure Python Runtime, and Run Analysis buttons deliberately report that
-those features are not implemented yet. Project management, fixed module-folder
-enforcement, solver process management, and the native engineering editors
-remain future work; the previous extension-based prototype is not the product
-architecture.
-
-Start the Python service separately if you want to use analysis commands. In
-the workbench, the Command Palette provides **SAEngine: Open Welcome Screen**,
-**SAEngine: Generate Grid Frame Model**, **SAEngine: Add Joint Load**, and
-**SAEngine: Run Linear-Static Analysis**. **SAEngine: Check Engineering Service**
-verifies the connection. Configure `saengine.serviceUrl` to point to another
-service URL if needed.
-
-The analysis endpoint accepts a request containing a serialized `FrameModel`
-and a `load_case_id`. The grid-frame endpoint accepts serialized project `grids`
-and `stories`, plus explicitly supplied material and section properties; it
-does not silently choose engineering properties.
-
-## Test
-
-```powershell
-python -m pytest
-```
-
-## Legacy desktop prototype
-
-The earlier PySide6 application is still available through `saengine` or
-`python -m saengine`. It currently provides project setup, grids, stories, and
-an embedded Code - OSS web view; it is not yet the target Code - OSS-first
-workbench described above.
+   The launcher creates a branded `SAEngine.exe` from the cached Electron runtime,
+   keeps its profile under `%APPDATA%\SAEngine`, and opens
+   `%USERPROFILE%\Documents\SAEngine Projects`.
 
 ## License
 
-MIT License — free for everyone, forever.
+SAEngine is licensed under the [GNU Affero General Public License v3.0](./LICENSE),
+which is required to reuse opensees-studio (AGPL-3.0). The Code - OSS sources in
+`workbench/` remain under their original MIT license (`workbench/LICENSE.txt`).
+OpenSees/OpenSeesPy are distributed by the Regents of the University of California
+under their own license; commercial use of OpenSees requires a license from UC Berkeley.

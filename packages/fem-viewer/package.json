@@ -1,0 +1,30 @@
+{
+  "name": "@saengine/fem-viewer",
+  "version": "0.1.0",
+  "description": "SAEngine FEM model viewport: three.js + That Open Engine, bundled as a single ESM file for the workbench renderer.",
+  "license": "AGPL-3.0-only",
+  "private": true,
+  "type": "module",
+  "main": "dist/fem-viewer.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node build.mjs && tsc -p tsconfig.json --emitDeclarationOnly",
+    "watch": "node build.mjs --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@thatopen/components": "^3.4.9",
+    "@thatopen/fragments": "^3.4.8",
+    "camera-controls": "^3.1.2",
+    "three": "^0.186.1",
+    "web-ifc": "^0.0.78"
+  },
+  "devDependencies": {
+    "@types/three": "^0.186.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
+  }
+}

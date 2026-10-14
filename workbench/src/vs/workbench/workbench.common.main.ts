@@ -249,6 +249,7 @@ import './contrib/testing/browser/testing.contribution.js';
 
 // Structural Engineering
 import './contrib/structuralEngineering/browser/structuralEngineering.contribution.js';
+import './contrib/saengineFem/browser/saengineFem.contribution.js';
 
 // Logs
 import './contrib/logs/common/logs.contribution.js';
