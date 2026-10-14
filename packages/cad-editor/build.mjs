@@ -2,62 +2,9 @@
 // The workbench enforces Trusted Types, so mlightcad's `x.innerHTML = value` and `new Worker(url)`
 // are rewritten (on the syntax tree, not by text search) to go through src/trustedTypes.ts.
 import * as esbuild from 'esbuild';
-import * as acorn from 'acorn';
-import * as walk from 'acorn-walk';
-import MagicString from 'magic-string';
+import { PATCHES } from './patches/mlightcad.mjs';
+import { patched, rewritten, threeExamples, trustedTypes } from './plugins.mjs';
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
-import path from 'node:path';
-
-const HELPER = path.resolve('src/trustedTypes.ts').replace(/\\/g, '/');
-const rewritten = new Map();
-
-const trustedTypes = {
-	name: 'trusted-types',
-	setup(build) {
-		build.onLoad({ filter: /[\\/]@mlightcad[\\/].*\.js$/ }, async args => {
-			const source = await readFile(args.path, 'utf8');
-			if (!source.includes('innerHTML') && !source.includes('new Worker')) {
-				return undefined;
-			}
-			const ast = acorn.parse(source, { ecmaVersion: 'latest', sourceType: 'module' });
-			const out = new MagicString(source);
-			let count = 0;
-			walk.simple(ast, {
-				AssignmentExpression(node) {
-					const target = node.left;
-					if (target.type === 'MemberExpression' && !target.computed && target.property.name === 'innerHTML') {
-						out.appendLeft(node.right.start, '__saengineTrustedHtml(');
-						out.appendRight(node.right.end, ')');
-						count++;
-					}
-				},
-				NewExpression(node) {
-					if (node.callee.type === 'Identifier' && node.callee.name === 'Worker' && node.arguments.length) {
-						out.appendLeft(node.arguments[0].start, '__saengineTrustedScriptUrl(');
-						out.appendRight(node.arguments[0].end, ')');
-						count++;
-					}
-				},
-			});
-			if (!count) {
-				return undefined;
-			}
-			rewritten.set(path.relative(process.cwd(), args.path), count);
-			out.prepend(`import { trustedHtml as __saengineTrustedHtml, trustedScriptUrl as __saengineTrustedScriptUrl } from '${HELPER}';\n`);
-			return { contents: out.toString(), loader: 'js' };
-		});
-	},
-};
-
-// mlightcad imports three.js example modules without their extension (Vite tolerates that).
-const threeExamples = {
-	name: 'three-examples',
-	setup(build) {
-		build.onResolve({ filter: /^three\/examples\/jsm\// }, args => args.path.endsWith('.js')
-			? undefined
-			: build.resolve(`${args.path}.js`, { kind: args.kind, resolveDir: args.resolveDir }));
-	},
-};
 
 await esbuild.build({
 	entryPoints: ['src/index.ts'],
@@ -76,6 +23,10 @@ await esbuild.build({
 	plugins: [trustedTypes, threeExamples],
 });
 
+if (patched.length !== PATCHES.length) {
+	throw new Error(`Only ${patched.length} of ${PATCHES.length} mlightcad patches were applied: ${patched.join('; ')}`);
+}
+console.log(`mlightcad patches: ${patched.length} applied`);
 const total = [...rewritten.values()].reduce((a, b) => a + b, 0);
 console.log(`trusted-types: rewrote ${total} innerHTML/Worker site(s) in ${rewritten.size} file(s)`);
 const bundle = await readFile('dist/cad-editor.js', 'utf8');
@@ -88,16 +39,50 @@ await mkdir('dist', { recursive: true });
 await copyFile('node_modules/@mlightcad/mtext-renderer/dist/mtext-renderer-worker.js', 'dist/mtext-renderer-worker.js');
 
 // Offline assets. mlightcad's defaults come from an unlicensed CDN repository, so SAEngine ships
-// its own: an ezdxf-generated template (scripts/make-template.py) and DejaVu Sans (Bitstream Vera
-// license) registered under the font names drawings and mlightcad fall back to.
+// its own: an ezdxf-generated template (scripts/make-template.py) and openly licensed fonts,
+// registered under the names drawings reference. mlightcad matches a style's font by its file
+// name, lower-cased and without extension ("LiberationSans-Bold.ttf" -> "liberationsans-bold").
+// Bold/italic variants map to the regular face.
+const VARIANTS = ['', '-regular', '-bold', '-italic', '-bolditalic', '-light', '-lightitalic', '-semibold', '-semibolditalic', '-extrabold', '-extrabolditalic'];
+const variants = (...families) => families.flatMap(f => VARIANTS.map(v => f + v));
+const FONTS = [
+	{
+		// DejaVu (Bitstream Vera license): AutoCAD's default SHX names fall back to it.
+		source: 'node_modules/dejavu-fonts-ttf/ttf/DejaVuSans.ttf', file: 'DejaVuSans.ttf',
+		license: ['node_modules/dejavu-fonts-ttf/LICENSE', 'DejaVu-LICENSE.txt'],
+		names: ['dejavu sans', ...variants('dejavusans'), 'standard', 'txt', 'simplex', 'romans', 'romand', 'isocp', 'iso', 'monotxt'],
+	},
+	{
+		source: 'node_modules/dejavu-fonts-ttf/ttf/DejaVuSansMono.ttf', file: 'DejaVuSansMono.ttf',
+		names: ['dejavu sans mono', ...variants('dejavusansmono', 'liberationmono', 'couriernew', 'cour', 'consolas')],
+	},
+	{
+		source: 'node_modules/dejavu-fonts-ttf/ttf/DejaVuSerif.ttf', file: 'DejaVuSerif.ttf',
+		names: ['dejavu serif', ...variants('dejavuserif', 'liberationserif', 'times', 'timesnewroman', 'romant')],
+	},
+	{
+		// Arimo (OFL): the Liberation Sans design, metric-compatible with Arial.
+		source: 'node_modules/@expo-google-fonts/arimo/400Regular/Arimo_400Regular.ttf', file: 'Arimo.ttf',
+		license: ['node_modules/@expo-google-fonts/arimo/LICENSE_FONT', 'Arimo-LICENSE.txt'],
+		names: ['arimo', ...variants('arimo', 'arial', 'liberationsans', 'opensans', 'opensanscondensed', 'helvetica', 'calibri', 'segoeui', 'tahoma', 'verdana')],
+	},
+	{
+		// Noto Sans Bengali (OFL), for Bengali notes and titles in drawings.
+		source: 'node_modules/@expo-google-fonts/noto-sans-bengali/400Regular/NotoSansBengali_400Regular.ttf', file: 'NotoSansBengali.ttf',
+		license: ['node_modules/@expo-google-fonts/noto-sans-bengali/LICENSE_FONT', 'NotoSansBengali-LICENSE.txt'],
+		names: ['noto sans bengali', ...variants('notosansbengali', 'vrinda', 'nirmalaui', 'solaimanlipi', 'kalpurush', 'siyamrupali', 'shonarbangla')],
+	},
+];
+
 await mkdir('dist/assets/templates', { recursive: true });
 await mkdir('dist/assets/fonts', { recursive: true });
 await copyFile('assets/templates/acadiso.dxf', 'dist/assets/templates/acadiso.dxf');
-await copyFile('node_modules/dejavu-fonts-ttf/ttf/DejaVuSans.ttf', 'dist/assets/fonts/DejaVuSans.ttf');
-await copyFile('node_modules/dejavu-fonts-ttf/LICENSE', 'dist/assets/fonts/DejaVuSans-LICENSE.txt');
-const fonts = [{
-	file: 'DejaVuSans.ttf',
-	type: 'mesh',
-	name: ['DejaVu Sans', 'standard', 'txt', 'simplex', 'romans', 'isocp', 'arial', 'simsun'],
-}];
-await writeFile('dist/assets/fonts/fonts.json', JSON.stringify(fonts, undefined, '\t'));
+for (const font of FONTS) {
+	await copyFile(font.source, `dist/assets/fonts/${font.file}`);
+	if (font.license) {
+		await copyFile(font.license[0], `dist/assets/fonts/${font.license[1]}`);
+	}
+}
+await writeFile('dist/assets/fonts/fonts.json', JSON.stringify(
+	FONTS.map(f => ({ file: f.file, type: 'mesh', name: [...new Set(f.names)] })), undefined, '\t'));
+console.log(`fonts: ${FONTS.map(f => f.file).join(', ')}`);
