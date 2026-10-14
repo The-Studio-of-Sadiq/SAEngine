@@ -28,3 +28,85 @@
 .saengine-cad-editor .cad-message.visible {
 	display: block;
 }
+
+.saengine-floor-plan {
+	display: flex;
+	flex-direction: column;
+	outline: none;
+}
+
+.saengine-floor-plan .floor-plan-toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px 16px;
+	flex: none;
+	padding: 6px 12px;
+	box-sizing: border-box;
+}
+
+.saengine-floor-plan .floor-plan-group {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.saengine-floor-plan .floor-plan-group.hidden {
+	display: none;
+}
+
+.saengine-floor-plan .floor-plan-label {
+	margin-right: 4px;
+}
+
+.saengine-floor-plan .floor-plan-select.story {
+	width: 180px;
+}
+
+.saengine-floor-plan .floor-plan-select.type {
+	width: 220px;
+}
+
+.saengine-floor-plan .floor-plan-tool .monaco-button,
+.saengine-floor-plan .floor-plan-action .monaco-button,
+.saengine-floor-plan .floor-plan-link .monaco-button {
+	width: auto;
+	padding: 2px 8px;
+}
+
+.saengine-floor-plan .floor-plan-tool .monaco-button.active {
+	color: var(--vscode-button-foreground);
+	background-color: var(--vscode-button-background);
+}
+
+.saengine-floor-plan .floor-plan-status {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex: none;
+	height: 26px;
+	padding: 0 12px 4px;
+	box-sizing: border-box;
+	color: var(--vscode-descriptionForeground);
+	border-bottom: 1px solid var(--vscode-editorGroup-border, transparent);
+}
+
+.saengine-floor-plan .floor-plan-problems {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	margin-left: auto;
+}
+
+.saengine-floor-plan .floor-plan-problems .codicon-warning {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.saengine-floor-plan .saengine-cad-editor {
+	flex: none;
+}
+
+.saengine-cad-editor .cad-instance {
+	position: absolute;
+	inset: 0;
+}

@@ -33,7 +33,10 @@ export class CadEditorInput extends EditorInput {
 	static readonly EDITOR_ID = 'workbench.editor.saengine.cad';
 
 	private dirty = false;
+	/** Set while the drawing is shown in the CAD editor. */
 	source: ICadDrawingSource | undefined;
+	/** Unsaved drawing kept while another editor uses the pane. */
+	unsavedDxf: string | undefined;
 
 	constructor(
 		readonly resource: URI,
@@ -74,15 +77,18 @@ export class CadEditorInput extends EditorInput {
 	}
 
 	override async save(): Promise<EditorInput | IUntypedEditorInput | undefined> {
-		if (!this.source) {
+		const dxf = this.source?.toDxf() ?? this.unsavedDxf;
+		if (dxf === undefined) {
 			return undefined;
 		}
-		await this.fileService.writeFile(this.resource, VSBuffer.fromString(this.source.toDxf()));
+		await this.fileService.writeFile(this.resource, VSBuffer.fromString(dxf));
+		this.unsavedDxf = undefined;
 		this.setDirty(false);
 		return this;
 	}
 
 	override async revert(_group: GroupIdentifier, _options?: IRevertOptions): Promise<void> {
+		this.unsavedDxf = undefined;
 		await this.source?.reload();
 		this.setDirty(false);
 	}
