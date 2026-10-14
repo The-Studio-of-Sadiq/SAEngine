@@ -1978,6 +1978,7 @@ export default defineConfig(
 						'vscode-notebook-renderer', // Type only import
 						'@vscode/tree-sitter-wasm', // type import
 						'@saengine/fem-viewer', // type import, loaded at runtime by URL
+						'@saengine/cad-editor', // type import, loaded at runtime by URL
 						{
 							'when': 'hasBrowser',
 							'pattern': '@xterm/xterm'
