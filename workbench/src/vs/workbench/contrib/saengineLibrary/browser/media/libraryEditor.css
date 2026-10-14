@@ -242,3 +242,38 @@
 .saengine-library-editor .library-variant .monaco-select-box {
 	width: 100%;
 }
+
+/* rule warnings from the Python models */
+
+.saengine-library-editor .library-list-item .item-warning {
+	margin-left: auto;
+	color: var(--vscode-problemsWarningIcon-foreground);
+}
+
+.saengine-library-editor .library-list-problems,
+.saengine-library-editor .library-problems.visible {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 6px 10px;
+	margin: 6px 10px;
+	color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
+	background: var(--vscode-inputValidation-warningBackground);
+	border: 1px solid var(--vscode-inputValidation-warningBorder);
+}
+
+.saengine-library-editor .library-problems {
+	display: none;
+	max-width: 560px;
+	margin: 4px 0 10px;
+}
+
+.saengine-library-editor .library-problem {
+	display: flex;
+	gap: 6px;
+	align-items: center;
+}
+
+.saengine-library-editor .library-problem .codicon {
+	color: var(--vscode-problemsWarningIcon-foreground);
+}

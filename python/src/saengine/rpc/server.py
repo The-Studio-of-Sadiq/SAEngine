@@ -5,6 +5,7 @@ Methods:
 - ``saengine/info`` -> versions of the backend stack
 - ``project/validate`` ``{path}`` -> schema and reference check of an ``.osmodel``
 - ``results/tables`` ``{outDir, projectPath?}`` -> result tables of a finished run
+- ``library/check`` ``{kind, text, materialsText?}`` -> rule violations in a library file
 
 Analyses themselves are not run here: the workbench starts
 ``python -m opensees_studio.run`` per run, so an OpenSees hard exit can never take
@@ -47,6 +48,11 @@ def create_server() -> JsonRPCServer:
     def _results_tables(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.results_tables(args["outDir"], args.get("projectPath"))
+
+    @server.feature("library/check")
+    def _check_library(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.check_library(args["kind"], args["text"], args.get("materialsText"))
 
     return server
 

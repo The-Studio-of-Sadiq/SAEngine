@@ -271,3 +271,33 @@ def test_editor_templates_are_valid() -> None:
                 ref = branch.get("$ref", "").rsplit("/", 1)[-1]
                 if ref and schemas[ref].get("type") == "object":
                     assert ref in TEMPLATES or ref == "Material", f"{name}: no template for {ref}"
+
+
+def test_check_reports_problems_per_entry() -> None:
+    import json
+
+    from saengine.library.check import check_library
+
+    materials = default_material_library().model_dump(mode="json", by_alias=True, exclude_none=True)
+    assert check_library("materials", json.dumps(materials)) == []
+
+    materials["materials"][4]["steel"]["fu"] = 100  # B420DWR, fy 420
+    materials["materials"][0]["composition"]["ratio"] = [1, 2]  # concrete needs three parts
+    assert check_library("materials", json.dumps(materials)) == [
+        {"index": 0, "path": "", "message": "a nominal concrete mix has 3 ratio parts"},
+        {"index": 4, "path": "steel", "message": "fu must not be lower than fy"},
+    ]
+
+    objects = json.dumps(
+        {
+            "objects": [
+                EXAMPLE_OBJECTS["objects"][0],
+                {**EXAMPLE_OBJECTS["objects"][2], "material": "C99"},
+            ]
+        }
+    )
+    good = default_material_library().model_dump_json(by_alias=True, exclude_none=True)
+    assert check_library("objects", objects, good) == [
+        {"index": 1, "path": "material", "message": "unknown material 'C99'"},
+    ]
+    assert check_library("objects", "{ nope", good)[0]["message"].startswith("Invalid JSON")

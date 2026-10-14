@@ -91,6 +91,13 @@ export interface IFemCaseResults {
 	readonly tables: readonly IFemResultTable[];
 }
 
+/** A rule violation in a library file, reported against the entry at `index` (none: the whole file). */
+export interface ILibraryProblem {
+	readonly index: number | null;
+	readonly path: string;
+	readonly message: string;
+}
+
 /**
  * Hosts the SAEngine Python backend (in the shared process): analysis runs through the
  * opensees-studio CLI, and queries through a long-lived `python -m saengine.rpc` server.
@@ -108,4 +115,5 @@ export interface IFemSolverService {
 	getBackendInfo(python: string): Promise<IFemBackendInfo>;
 	validateProject(python: string, project: string): Promise<IFemProjectValidation>;
 	getResultTables(python: string, outDir: string, project: string): Promise<readonly IFemCaseResults[]>;
+	checkLibrary(python: string, kind: 'materials' | 'objects', text: string, materialsText?: string): Promise<readonly ILibraryProblem[]>;
 }

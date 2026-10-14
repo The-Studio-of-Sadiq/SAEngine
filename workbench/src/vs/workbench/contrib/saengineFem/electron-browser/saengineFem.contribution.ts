@@ -7,6 +7,8 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { IFemSolverService } from '../../../../platform/saengine/common/femSolver.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -83,4 +85,13 @@ registerAction2(class extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		await accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).checkRuntime();
 	}
+});
+
+/**
+ * Full rule check of a library file by the Python models, for the visual library editors.
+ * Internal: the editors call it by id so they also work where no Python backend exists.
+ */
+CommandsRegistry.registerCommand('saengine.library.check', async (accessor, kind: 'materials' | 'objects', text: string, materialsText?: string) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).checkLibrary(python, kind, text, materialsText);
 });

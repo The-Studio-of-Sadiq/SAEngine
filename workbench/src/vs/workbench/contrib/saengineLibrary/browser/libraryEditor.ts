@@ -20,6 +20,9 @@ import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/
 import { localize } from '../../../../nls.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -74,6 +77,16 @@ function libraryConfig(kind: LibraryKind): ILibraryConfig {
 	};
 }
 
+/** A rule violation found by the Python models (see `saengine.library.check`). */
+interface ILibraryProblem {
+	readonly index: number | null;
+	readonly path: string;
+	readonly message: string;
+}
+
+/** Desktop command running the full model rules; absent where there is no Python backend. */
+const CHECK_COMMAND = 'saengine.library.check';
+
 function clone<T>(value: T): T {
 	return JSON.parse(JSON.stringify(value));
 }
@@ -110,6 +123,10 @@ export class LibraryEditor extends EditorPane {
 	private readonly viewDisposables = this._register(new DisposableStore());
 	private readonly detailDisposables = this._register(new DisposableStore());
 	private readonly commitScheduler = this._register(new RunOnceScheduler(() => this.commit(), 300));
+	private readonly checkScheduler = this._register(new RunOnceScheduler(() => this.check(), 600));
+	private checkVersion = 0;
+	private problems: readonly ILibraryProblem[] = [];
+	private problemBox: HTMLElement | undefined;
 
 	constructor(
 		group: IEditorGroup,
@@ -119,9 +136,11 @@ export class LibraryEditor extends EditorPane {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@ISaengineProjectService private readonly projectService: ISaengineProjectService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(LibraryEditorInput.EDITOR_ID, group, telemetryService, themeService, storageService);
 		const editor = this;
@@ -236,6 +255,7 @@ export class LibraryEditor extends EditorPane {
 			this.selectedId = this.items[0]?.id as string | undefined;
 		}
 		this.renderAll();
+		this.checkScheduler.schedule();
 	}
 
 	/** Writes the document to the text model as one undoable edit. */
@@ -256,6 +276,35 @@ export class LibraryEditor extends EditorPane {
 		} finally {
 			this.applying = false;
 		}
+		this.checkScheduler.schedule();
+	}
+
+	/** Runs the Python model rules on the file and shows what they report. */
+	private async check(): Promise<void> {
+		const input = this.input as LibraryEditorInput | undefined;
+		if (!this.model || !input || !this.document) {
+			return;
+		}
+		const version = ++this.checkVersion;
+		const materialsText = this.materialsReference.value?.object.textEditorModel.getValue();
+		let problems: readonly ILibraryProblem[] = [];
+		try {
+			problems = await this.commandService.executeCommand<readonly ILibraryProblem[]>(CHECK_COMMAND, input.kind, this.model.getValue(), materialsText) ?? [];
+		} catch {
+			// No backend (web) or Python is not set up: the schema checks while typing still apply.
+		}
+		if (version !== this.checkVersion || this.input !== input) {
+			return; // a newer check is on its way
+		}
+		this.problems = problems;
+		this.renderList();
+		this.renderProblems();
+	}
+
+	private problemsOf(item: JsonObject): readonly ILibraryProblem[] {
+		const list = this.config && this.document?.[this.config.listKey];
+		const index = Array.isArray(list) ? list.indexOf(item) : -1;
+		return this.problems.filter(p => p.index === index);
 	}
 
 	private flush(): void {
@@ -457,6 +506,7 @@ export class LibraryEditor extends EditorPane {
 		this.inputDisposables.add(model.onDidChangeContent(() => {
 			update();
 			this.renderDetail();
+			this.checkScheduler.schedule();
 		}));
 	}
 
@@ -523,6 +573,13 @@ export class LibraryEditor extends EditorPane {
 		if (!config) {
 			return;
 		}
+		const fileProblems = this.problems.filter(p => p.index === null);
+		if (fileProblems.length) {
+			const box = append(this.listContainer, $('.library-list-problems'));
+			for (const problem of fileProblems) {
+				append(box, $('div', undefined, problem.message));
+			}
+		}
 		for (const variant of config.variants) {
 			const members = this.items.filter(i => i[config.discriminator] === variant.value);
 			if (!members.length) {
@@ -535,6 +592,12 @@ export class LibraryEditor extends EditorPane {
 				row.classList.toggle('selected', selected);
 				append(row, $('span.item-id', undefined, String(item.id)));
 				append(row, $('span.item-name', undefined, String(item.name ?? '')));
+				const problems = this.problemsOf(item);
+				if (problems.length) {
+					row.classList.add('has-problems');
+					const icon = append(row, $(`span.item-warning${ThemeIcon.asCSSSelector(Codicon.warning)}`));
+					this.viewDisposables.add(this.hoverService.setupDelayedHover(icon, { content: problems.map(p => p.message).join('\n') }));
+				}
 				this.viewDisposables.add(addDisposableListener(row, EventType.CLICK, () => this.select(String(item.id))));
 			}
 		}
@@ -553,6 +616,8 @@ export class LibraryEditor extends EditorPane {
 		}
 		const header = append(this.detail, $('.library-detail-header'));
 		append(header, $('h2', undefined, String(item.name ?? item.id)));
+		this.problemBox = append(header, $('.library-problems'));
+		this.renderProblems();
 		const typeRow = append(header, $('.library-detail-type'));
 		append(typeRow, $('span', undefined, config.listKey === 'materials' ? localize('library.categoryLabel', "Category") : localize('library.kindLabel', "Kind")));
 		const variants = config.variants;
@@ -567,6 +632,24 @@ export class LibraryEditor extends EditorPane {
 		const schema = config.schema.$defs?.[variant.defName];
 		if (schema) {
 			this.form.render(append(this.detail, $('.library-form')), schema, item, [config.discriminator]);
+		}
+	}
+
+	/** Fills the selected entry's warning box without rebuilding the form (keeps focus while typing). */
+	private renderProblems(): void {
+		const box = this.problemBox;
+		const item = this.selected;
+		if (!box) {
+			return;
+		}
+		clearNode(box);
+		const problems = item ? this.problemsOf(item) : [];
+		box.classList.toggle('visible', problems.length > 0);
+		for (const problem of problems) {
+			const row = append(box, $('.library-problem'));
+			append(row, $(`span${ThemeIcon.asCSSSelector(Codicon.warning)}`));
+			const field = problem.path ? `${problem.path.split('.').map(humanize).join(' › ')}: ` : '';
+			append(row, $('span', undefined, `${field}${problem.message}`));
 		}
 	}
 

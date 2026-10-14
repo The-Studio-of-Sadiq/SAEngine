@@ -13,7 +13,7 @@ import { killTree } from '../../../base/node/processes.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemRunEventMessage, IFemRunExit, IFemRunRequest, IFemSolverService } from '../common/femSolver.js';
+import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemRunEventMessage, ILibraryProblem, IFemRunExit, IFemRunRequest, IFemSolverService } from '../common/femSolver.js';
 
 interface IRun {
 	readonly child: cp.ChildProcess;
@@ -122,6 +122,11 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 	async getResultTables(python: string, outDir: string, project: string): Promise<readonly IFemCaseResults[]> {
 		const result = await this.request<{ cases: IFemCaseResults[] }>(python, 'results/tables', { outDir, projectPath: project });
 		return result.cases;
+	}
+
+	async checkLibrary(python: string, kind: 'materials' | 'objects', text: string, materialsText?: string): Promise<readonly ILibraryProblem[]> {
+		const result = await this.request<{ problems: ILibraryProblem[] }>(python, 'library/check', { kind, text, materialsText });
+		return result.problems;
 	}
 
 	private async request<T>(python: string, method: string, params: object): Promise<T> {
