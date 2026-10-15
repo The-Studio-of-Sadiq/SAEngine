@@ -123,6 +123,13 @@ export interface IFemResultView {
 		readonly displacements: readonly (readonly number[])[];
 		readonly forces?: readonly (readonly number[])[];
 	}[];
+	/** Shells with their section forces per unit length at the centre (N11 … Q23, local axes). */
+	readonly shells?: readonly {
+		readonly id: number;
+		readonly name: string;
+		readonly nodes: readonly number[];
+		readonly forces?: readonly number[];
+	}[];
 }
 
 /** A rule violation in a library file, reported against the entry at `index` (none: the whole file). */

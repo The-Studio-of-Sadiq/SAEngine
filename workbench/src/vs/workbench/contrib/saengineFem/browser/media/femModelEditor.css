@@ -133,6 +133,14 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+/* matches the contour colours of the 3D view (fem-viewer CONTOUR_STOPS) */
+.saengine-fem-model-editor .fem-results-scale-bar {
+	width: 120px;
+	height: 10px;
+	border-radius: 2px;
+	background: linear-gradient(to right, rgb(48, 79, 227), rgb(33, 184, 237), rgb(64, 204, 107), rgb(250, 214, 46), rgb(232, 61, 48));
+}
+
 .saengine-fem-model-editor .fem-results-info .codicon-warning {
 	color: var(--vscode-editorWarning-foreground);
 }

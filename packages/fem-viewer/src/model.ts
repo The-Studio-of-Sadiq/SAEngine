@@ -48,6 +48,16 @@ export interface FemResultView {
 	readonly nodes: readonly (readonly number[])[];
 	readonly reactions: readonly (readonly number[])[];
 	readonly elements: readonly FemResultElement[];
+	/** Shell elements with their section forces per unit length at the centre (local axes). */
+	readonly shells?: readonly FemResultShell[];
+}
+
+export interface FemResultShell {
+	readonly id: number;
+	readonly name: string;
+	readonly nodes: readonly number[];
+	/** N11, N22, N12, M11, M22, M12, Q13, Q23. */
+	readonly forces?: readonly number[];
 }
 
 export interface FemResultElement {
@@ -59,10 +69,17 @@ export interface FemResultElement {
 	readonly forces?: readonly (readonly number[])[];
 }
 
+/** Kinds of values the labels show. */
+export type FemValueQuantity = 'length' | 'force' | 'moment' | 'forcePerLength' | 'momentPerLength';
+
 /** What to draw of a result: the deflected shape, one section force's diagram, or the reactions. */
-export type FemResultQuantity = 'deformed' | 'N' | 'Vy' | 'Vz' | 'T' | 'My' | 'Mz' | 'reactions';
+export type FemResultQuantity = 'deformed' | 'N' | 'Vy' | 'Vz' | 'T' | 'My' | 'Mz' | 'reactions'
+	| 'N11' | 'N22' | 'N12' | 'M11' | 'M22' | 'M12' | 'Q13' | 'Q23';
 
 export const FORCE_COMPONENTS: readonly FemResultQuantity[] = ['N', 'Vy', 'Vz', 'T', 'My', 'Mz'];
+
+/** Shell section forces per unit length, in the order of {@link FemResultShell.forces}. */
+export const SHELL_COMPONENTS: readonly FemResultQuantity[] = ['N11', 'N22', 'N12', 'M11', 'M22', 'M12', 'Q13', 'Q23'];
 
 export interface FemResultDisplay {
 	readonly show: FemResultQuantity;
@@ -71,5 +88,5 @@ export interface FemResultDisplay {
 	/** Mode shapes only: oscillate the shape. */
 	readonly animate: boolean;
 	/** Text of a value for the labels, in the units the user reads. */
-	readonly format: (quantity: 'length' | 'force' | 'moment', value: number) => string;
+	readonly format: (quantity: FemValueQuantity, value: number) => string;
 }

@@ -16,8 +16,8 @@ suite('SAEngine - FEM results', () => {
 		const si = resultFormatter('SI (m, N, kg, s, Pa)');
 		const other = resultFormatter('kip-in');
 		assert.deepStrictEqual(
-			[si('length', 0.0032104), si('force', -77215.4), si('moment', 4463.9), other('force', 12.34567)],
-			['3.21 mm', '-77.2 kN', '4.5 kN·m', '12.35'],
+			[si('length', 0.0032104), si('force', -77215.4), si('moment', 4463.9), si('forcePerLength', 2500), si('momentPerLength', -12345), other('force', 12.34567)],
+			['3.21 mm', '-77.2 kN', '4.5 kN·m', '2.5 kN/m', '-12.35 kN·m/m', '12.35'],
 		);
 	});
 

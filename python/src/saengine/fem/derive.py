@@ -4,30 +4,35 @@ Part 8 never authors geometry: it derives an OpenSees Studio project (schema 2, 
 node, SI units m-N-kg-s) from ``06 BIM/bim.json``, the object types and materials, and applies
 the loads of ``02 Project Settings`` (BNBC 2020) automatically:
 
-- columns become elastic beam-columns split at every story they pass, beams and inclined
-  members elastic beam-columns split wherever another member's node lies on them;
-- sections are elastic, from the object types' profiles (``sectionproperties``), with E and the
-  density of their materials;
-- the bases of columns at the lowest story are fixed;
-- slabs carry their self-weight, superimposed dead and live loads to the beams along their
-  edges (:func:`saengine.fem.loads.slab_edge_loads`); a slab edge with no beam hands its load
-  to the nodes at its ends;
-- wind and earthquake are equivalent static story forces (:mod:`saengine.fem.loads`), shared
-  among a story's nodes by their weight, which also gives each node its lumped mass.
+- columns, beams and inclined members become elastic beam-columns; structural walls (and slabs,
+  when the settings model them as shells) become shell elements. Gmsh meshes them together
+  (:mod:`saengine.fem.mesh`), so frames and shells share their nodes wherever they meet;
+- sections are elastic, from the object types' profiles (``sectionproperties``) and thicknesses,
+  with E, Poisson's ratio and the density of their materials;
+- the bases of columns and walls at the lowest story are fixed;
+- slabs on beams carry their self-weight, superimposed dead and live loads to the beams along
+  their edges (:func:`saengine.fem.loads.slab_edge_loads`); where an edge has no beam (a wall
+  top, a free edge between columns) its load goes to the edge's nodes. Shell slabs and walls
+  carry their loads as the consistent nodal loads of their elements. Non-structural walls are
+  a line load on the beams they stand on;
+- with a rigid diaphragm (the default) every floor is tied to a node at its centre of mass;
+- wind and earthquake are equivalent static story forces (:mod:`saengine.fem.loads`) at the
+  levels, shared among a level's nodes by their weight; each node's weight also gives its
+  lumped mass. Nodes between levels (wall meshes) count towards the nearest level's weight.
 
 Load combinations are not part of the analysis model (OpenSees Studio has no combination
 object): the analysis runs each load case once and the combinations of the project settings
 are formed from those results, which is exact for this linear elastic model.
 
-Known simplifications are reported as notes: walls and stairs are not yet in the stiffness
-model (OpenSees Studio has no shell elements), floors are flexible in plan (no rigid
-diaphragm), and columns rotated by other than a multiple of 90° use the nearest one.
+Known simplifications are reported as notes: stairs are not in the stiffness model, and
+columns rotated by other than a multiple of 90° use the nearest one.
 """
 
 from __future__ import annotations
 
 import hashlib
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from itertools import pairwise
 from typing import Any
@@ -35,8 +40,15 @@ from typing import Any
 import numpy as np
 
 from saengine.fem import loads as fl
+from saengine.fem.mesh import Surface, mesh, shell_node_shares
 from saengine.library import bnbc
-from saengine.library.bim import BeamElement, BuildingModel, ColumnElement, SlabElement
+from saengine.library.bim import (
+    BeamElement,
+    BuildingModel,
+    ColumnElement,
+    SlabElement,
+    WallElement,
+)
 from saengine.library.materials import MaterialLibrary
 from saengine.library.objects import ObjectLibrary
 from saengine.library.sections import section_properties
@@ -48,6 +60,9 @@ UNITS = "SI (m, N, kg, s, Pa)"
 
 #: Load cases of the analysis model, in this order (see bnbc.LOAD_CASES).
 CASES = ["D", "SD", "L", "Lr", "WX", "WY", "EX", "EY"]
+
+#: Restraint of a diaphragm's own node: free in plan, held out of plane.
+_IN_PLAN = [False, False, True, True, True, False]
 
 
 def stamp(text: str) -> str:
@@ -67,6 +82,15 @@ class _Member:
 
 
 @dataclass
+class _Shell:
+    """A shell element of the analysis model: its SAEngine element, nodes and section."""
+
+    source: str
+    nodes: tuple[int, ...]
+    section: int
+
+
+@dataclass
 class Derivation:
     project: dict[str, Any]
     notes: list[str] = field(default_factory=list)
@@ -78,9 +102,10 @@ class _Builder:
         self.nodes: dict[tuple[int, int, int], int] = {}
         self.coords: dict[int, np.ndarray] = {}
         self.members: list[_Member] = []
+        self.shells: list[_Shell] = []
         self.sections: list[dict[str, Any]] = []
-        self.section_ids: dict[tuple[str, int], int] = {}
-        self.restraints: set[int] = set()
+        self.section_ids: dict[tuple[Any, ...], int] = {}
+        self.restraints: dict[int, list[bool]] = {}
         self.notes: list[str] = []
 
     def node(self, x_mm: float, y_mm: float, z_mm: float) -> int:
@@ -114,10 +139,15 @@ def derive_fem(
     description so the editor can tell when they have changed since.
     """
     b = _Builder()
+    options = settings.analysis
     types = {o.id: o for o in objects.objects}
     mats = {m.id: m for m in materials.materials}
     levels = sorted({s.elevation for s in building.stories})
     base = levels[0] if levels else 0.0
+
+    def poisson(material: Any) -> float:
+        nu = material.mechanical.nu
+        return nu if nu is not None else (0.2 if material.category.value == "concrete" else 0.3)
 
     def section(
         type_id: str, quarter_turns: int, vertical: bool
@@ -139,11 +169,6 @@ def derive_fem(
         key = (type_id, quarter_turns % 2, vertical)
         if key not in b.section_ids:
             props = section_properties(object_type.profile)
-            nu = (
-                mech.nu
-                if mech.nu is not None
-                else (0.2 if material.category.value == "concrete" else 0.3)
-            )
             about_x, about_y = props.ixx * MM**4, props.iyy * MM**4
             if quarter_turns % 2:
                 about_x, about_y = about_y, about_x
@@ -159,7 +184,7 @@ def derive_fem(
                     "A": props.area * MM**2,
                     "Iz": iz,
                     "Iy": iy,
-                    "G": mech.E * 1e6 / (2 * (1 + nu)),
+                    "G": mech.E * 1e6 / (2 * (1 + poisson(material))),
                     "J": props.j * MM**4,
                 }
             )
@@ -169,7 +194,38 @@ def derive_fem(
             section_properties(object_type.profile).area * MM**2,
         )
 
-    # Columns, split at every level they pass; bases at the lowest level are fixed.
+    def plate(type_id: str) -> tuple[int, float, float] | None:
+        """Plate section of a wall or slab type: (section id, density, thickness m)."""
+        object_type = types.get(type_id)
+        material = mats.get(object_type.material) if object_type else None
+        if object_type is None or material is None or not material.mechanical.E:
+            return None
+        thickness = object_type.thickness * MM
+        key = ("plate", type_id)
+        if key not in b.section_ids:
+            b.section_ids[key] = len(b.sections) + 1
+            b.sections.append(
+                {
+                    "id": b.section_ids[key],
+                    "name": f"{type_id} {object_type.kind}",
+                    "type": "ElasticMembranePlateSection",
+                    "E": material.mechanical.E * 1e6,
+                    "nu": poisson(material),
+                    "h": thickness,
+                    # The mass is lumped at the nodes with the loads, as for the frames.
+                    "rho": 0.0,
+                }
+            )
+        return b.section_ids[key], material.mechanical.density or 0.0, thickness
+
+    # ── geometry: frames as lines, structural walls (and shell slabs) as surfaces ──
+    lines: list[tuple[str, tuple[float, float, float], tuple[float, float, float]]] = []
+    line_sources: dict[str, tuple[str, tuple[int, float, float]]] = {}
+    surfaces: list[Surface] = []
+    surface_sources: dict[str, tuple[str, tuple[int, float, float]]] = {}
+    supports: list[tuple[float, float, float]] = []
+    partitions: list[tuple[WallElement, float]] = []  # non-structural walls, N/m
+
     for element in building.elements:
         if not isinstance(element, ColumnElement):
             continue
@@ -185,24 +241,30 @@ def derive_fem(
             )
             continue
         x, y = element.position
+        # Split at every level the column passes, so each floor has its node.
         stops = [
             element.bottom,
             *[lv for lv in levels if element.bottom < lv < element.top],
             element.top,
         ]
-        ids = [b.node(x, y, z) for z in stops]
-        for i, j in pairwise(ids):
-            b.members.append(_Member(element.id, i, j, sec[0], sec[1], sec[2]))
+        for k, (z0, z1) in enumerate(pairwise(stops)):
+            key = f"{element.id}/{k}"
+            lines.append((key, (x, y, z0), (x, y, z1)))
+            line_sources[key] = (element.id, sec)
         if math.isclose(element.bottom, base):
-            b.restraints.add(ids[0])
+            supports.append((x, y, element.bottom))
 
-    # Beam ends and inclined members' ends, then beams split at every node on them.
     linear: list[tuple[str, str, np.ndarray, np.ndarray]] = []
     for element in building.elements:
         if isinstance(element, BeamElement):
-            a = np.array([*element.start, element.elevation])
-            c = np.array([*element.end, element.elevation])
-            linear.append((element.id, element.type, a, c))
+            linear.append(
+                (
+                    element.id,
+                    element.type,
+                    np.array([*element.start, element.elevation]),
+                    np.array([*element.end, element.elevation]),
+                )
+            )
     for member in building.additions.members:
         linear.append(
             (
@@ -212,9 +274,6 @@ def derive_fem(
                 np.array([member.x2, member.y2, member.z2]),
             )
         )
-    for _, _, a, c in linear:
-        b.node(*a)
-        b.node(*c)
     for source, type_id, a, c in linear:
         axis = c - a
         sec = section(type_id, 0, abs(axis[2]) > abs(axis[0]))
@@ -223,26 +282,113 @@ def derive_fem(
                 f"{source}: no elastic section (object type, material or E missing); left out"
             )
             continue
-        axis = c - a
-        length = float(np.linalg.norm(axis))
-        stops = sorted(
-            {0.0, 1.0}
-            | {
-                t
-                for key in b.nodes
-                for t in [float(np.dot(np.array(key) - a, axis) / length**2)]
-                if 1e-6 < t < 1 - 1e-6 and np.linalg.norm(a + t * axis - np.array(key)) < 1.0
-            }
-        )
-        ids = [b.node(*(a + t * axis)) for t in stops]
-        for i, j in pairwise(ids):
-            b.members.append(_Member(source, i, j, sec[0], sec[1], sec[2]))
+        lines.append((source, tuple(a), tuple(c)))
+        line_sources[source] = (source, sec)
 
+    wall_openings: dict[str, list[Any]] = {}
+    for opening in building.additions.wallOpenings:
+        wall_openings.setdefault(opening.host, []).append(opening)
     for element in building.elements:
-        if element.kind == "wall":
-            b.notes.append(
-                f"{element.id}: walls are not in the analysis model yet (no shell elements); its weight is not applied"
+        if not isinstance(element, WallElement):
+            continue
+        object_type = types.get(element.type)
+        if object_type is None or object_type.kind != "wall":
+            b.notes.append(f"{element.id}: unknown wall type '{element.type}'; left out")
+            continue
+        start, end = np.array(element.start, dtype=float), np.array(element.end, dtype=float)
+        run = end - start
+        length = float(np.linalg.norm(run))
+        if length < 1:
+            continue
+        along = run / length
+        if not object_type.structural:
+            material = mats.get(object_type.material)
+            density = (material.mechanical.density or 0.0) if material else 0.0
+            weight = density * G * object_type.thickness * MM * (element.top - element.bottom) * MM
+            partitions.append((element, weight))
+            continue
+        sec = plate(element.type)
+        if sec is None:
+            b.notes.append(f"{element.id}: no plate section (material or E missing); left out")
+            continue
+
+        def corner(s: float, z: float, start: np.ndarray = start, along: np.ndarray = along):
+            return (*(start + s * along), z)
+
+        openings = [
+            [
+                corner(o.offset, element.bottom + o.sill),
+                corner(o.offset + o.width, element.bottom + o.sill),
+                corner(o.offset + o.width, element.bottom + o.sill + o.height),
+                corner(o.offset, element.bottom + o.sill + o.height),
+            ]
+            for o in wall_openings.get(element.id, [])
+        ]
+        surfaces.append(
+            Surface(
+                key=element.id,
+                outline=[
+                    corner(0, element.bottom),
+                    corner(length, element.bottom),
+                    corner(length, element.top),
+                    corner(0, element.top),
+                ],
+                openings=openings,
+                direction=(float(along[0]), float(along[1]), 0.0),
             )
+        )
+        surface_sources[element.id] = (element.id, sec)
+        if math.isclose(element.bottom, base):
+            # The wall's whole base edge is fixed: its nodes there are found after meshing.
+            supports.append((*start, element.bottom))
+            supports.append((*end, element.bottom))
+            lines.append(
+                (f"{element.id}/base", corner(0, element.bottom), corner(length, element.bottom))
+            )
+
+    slab_openings: dict[str, list[Any]] = {}
+    for opening in building.additions.slabOpenings:
+        slab_openings.setdefault(opening.host, []).append(opening)
+    shell_slabs = options.slabs == "shells"
+    if shell_slabs:
+        for element in building.elements:
+            if not isinstance(element, SlabElement):
+                continue
+            sec = plate(element.type)
+            if sec is None:
+                continue  # reported with the slab loads below
+            z = element.elevation
+            surfaces.append(
+                Surface(
+                    key=element.id,
+                    outline=[(x, y, z) for x, y in element.boundary],
+                    openings=[_rectangle(o, z) for o in slab_openings.get(element.id, [])],
+                    normal=(0.0, 0.0, 1.0),
+                )
+            )
+            surface_sources[element.id] = (element.id, sec)
+
+    meshed = mesh(lines, surfaces, options.meshSize)
+    node_of = {tag: b.node(*xyz) for tag, xyz in meshed.nodes.items()}
+    for key, segments in meshed.lines.items():
+        if key.endswith("/base"):
+            for i, j in segments:  # a wall's base edge: fixed
+                b.restraints[node_of[i]] = [True] * 6
+                b.restraints[node_of[j]] = [True] * 6
+            continue
+        source, sec = line_sources[key]
+        for i, j in segments:
+            if node_of[i] != node_of[j]:
+                b.members.append(_Member(source, node_of[i], node_of[j], *sec))
+    for key, elements in meshed.surfaces.items():
+        source, sec = surface_sources[key]
+        for nodes in elements:
+            ids = tuple(node_of[n] for n in nodes)
+            if len(set(ids)) == len(ids):
+                b.shells.append(_Shell(source, ids, sec[0]))
+    for x, y, z in supports:
+        b.restraints[b.node(x, y, z)] = [True] * 6
+
     for stair in building.additions.stairs:
         b.notes.append(
             f"{stair.id}: stairs are not in the analysis model yet; their loads are not applied"
@@ -263,11 +409,14 @@ def derive_fem(
     def add_nodal(case: str, node_id: int, force: np.ndarray) -> None:
         patterns[case]["nodal"].setdefault(node_id, np.zeros(6))[:3] += force
 
+    def add_weight(node_id: int, weight: float) -> None:
+        node_weight[node_id] = node_weight.get(node_id, 0.0) + weight
+
     def share_weight(index: int, w: float, factor: float) -> None:
         member = b.members[index]
         half = w * float(np.linalg.norm(b.coords[member.j] - b.coords[member.i])) / 2 * factor
-        node_weight[member.i] = node_weight.get(member.i, 0.0) + half
-        node_weight[member.j] = node_weight.get(member.j, 0.0) + half
+        add_weight(member.i, half)
+        add_weight(member.j, half)
 
     down = np.array([0.0, 0.0, -1.0])
     for index, member in enumerate(b.members):
@@ -276,13 +425,64 @@ def derive_fem(
             add_element_load("D", index, down * w)
             share_weight(index, w, 1.0)
 
+    def seismic_share(case: str) -> float:
+        return 1.0 if case in ("D", "SD") else bnbc.SEISMIC_LIVE_SHARE if case == "L" else 0.0
+
+    def shell_pressure(shell: _Shell, case: str, pressure: float) -> None:
+        """A uniform downward pressure (N/m²) on a shell, as its consistent nodal loads."""
+        shares = shell_node_shares([b.coords[n] for n in shell.nodes])
+        for node_id, area in zip(shell.nodes, shares, strict=True):
+            add_nodal(case, node_id, down * pressure * area)
+            add_weight(node_id, pressure * area * seismic_share(case))
+
+    by_pair = {frozenset((m.i, m.j)): index for index, m in enumerate(b.members)}
+
+    def line_load(source: str, case: str, p0: np.ndarray, p1: np.ndarray, load: float) -> bool:
+        """A uniform line load (N/m, down) along ``p0``-``p1``: beams along it carry their part,
+        the nodes on it the rest. False when part of it has no node to go to."""
+        axis = p1 - p0
+        length = float(np.linalg.norm(axis))
+        on_line = sorted(
+            (float((xyz - p0) @ axis) / length**2, node_id)
+            for node_id, xyz in b.coords.items()
+            if _on_segment(xyz, p0, p1)
+        )
+        complete = bool(on_line) and on_line[0][0] < 1e-6 and on_line[-1][0] > 1 - 1e-6
+        for (t0, n0), (t1, n1) in pairwise(on_line):
+            span = (t1 - t0) * length
+            index = by_pair.get(frozenset((n0, n1)))
+            if index is not None:
+                add_element_load(case, index, down * load)
+                share_weight(index, load, seismic_share(case))
+            else:
+                for node_id in (n0, n1):
+                    add_nodal(case, node_id, down * load * span / 2)
+                    add_weight(node_id, load * span / 2 * seismic_share(case))
+        if not complete and case == "D":
+            b.notes.append(
+                f"{source}: part of its load has no beam, wall or column to go to; not applied"
+            )
+        return complete
+
+    walls = {e.id for e in building.elements if isinstance(e, WallElement)}
+    for shell in b.shells:
+        if shell.source in walls:
+            _, density, thickness = surface_sources[shell.source][1]
+            if density:
+                shell_pressure(shell, "D", density * G * thickness)
+
+    for element, weight in partitions:
+        if math.isclose(element.bottom, base) or not weight:
+            continue  # stands on the foundation (Part 9)
+        p0 = np.array([*element.start, element.bottom]) * MM
+        p1 = np.array([*element.end, element.bottom]) * MM
+        line_load(element.id, "D", p0, p1, weight)
+
     area_loads = {a.id: a for a in settings.areaLoads}
     top = levels[-1] if levels else 0.0
-    beams_at = [
-        (index, b.coords[m.i], b.coords[m.j])
-        for index, m in enumerate(b.members)
-        if abs(b.coords[m.i][2] - b.coords[m.j][2]) < 1e-9
-    ]
+    shells_of: dict[str, list[_Shell]] = {}
+    for shell in b.shells:
+        shells_of.setdefault(shell.source, []).append(shell)
     for element in building.elements:
         if not isinstance(element, SlabElement):
             continue
@@ -305,57 +505,72 @@ def derive_fem(
             "SD": (area_load.finish + area_load.partitions) * 1e3 if area_load else 0.0,
             "Lr" if roof else "L": area_load.live * 1e3 if area_load else 0.0,
         }
+        if element.id in shells_of:
+            for case, pressure in pressures.items():
+                for shell in shells_of[element.id] if pressure else []:
+                    shell_pressure(shell, case, pressure)
+            continue
+        if shell_slabs:
+            b.notes.append(
+                f"{element.id}: no plate section (material or E missing); loads applied to its edges"
+            )
         corners = [(x * MM, y * MM) for x, y in element.boundary]
         z = element.elevation * MM
         for case, pressure in pressures.items():
             if not pressure:
                 continue
-            seismic_share = (
-                1.0 if case in ("D", "SD") else bnbc.SEISMIC_LIVE_SHARE if case == "L" else 0.0
-            )
             for edge in fl.slab_edge_loads(corners, pressure, object_type.system):
-                if not edge.load:
-                    continue
-                p0 = np.array([*corners[edge.index], z])
-                p1 = np.array([*corners[(edge.index + 1) % len(corners)], z])
-                carried = 0.0
-                for index, a, c in beams_at:
-                    if (
-                        abs(a[2] - z) > 1e-6
-                        or not _on_segment(a, p0, p1)
-                        or not _on_segment(c, p0, p1)
-                    ):
-                        continue
-                    add_element_load(case, index, down * edge.load)
-                    share_weight(index, edge.load, seismic_share)
-                    carried += float(np.linalg.norm(c - a))
-                rest = float(np.linalg.norm(p1 - p0)) - carried
-                if rest > 1e-3:
-                    ends = [
-                        b.nodes.get((round(p[0] / MM), round(p[1] / MM), round(p[2] / MM)))
-                        for p in (p0, p1)
-                    ]
-                    if all(ends):
-                        for node_id in ends:
-                            add_nodal(case, node_id, down * edge.load * rest / 2)
-                            node_weight[node_id] = (
-                                node_weight.get(node_id, 0.0) + edge.load * rest / 2 * seismic_share
-                            )
-                    elif case == "D":
-                        b.notes.append(
-                            f"{element.id}: an edge has neither a beam nor columns at its ends; part of its load is not applied"
-                        )
+                if edge.load:
+                    p0 = np.array([*corners[edge.index], z])
+                    p1 = np.array([*corners[(edge.index + 1) % len(corners)], z])
+                    line_load(element.id, case, p0, p1, edge.load)
 
-    # ── lateral loads: equivalent static story forces, shared among a story's nodes by weight ──
+    # ── levels: the story elevations with nodes; nodes between count for the nearest ──
+    above = [round(lv * MM, 6) for lv in levels if lv > base]
+    level_nodes: dict[float, list[int]] = {h: [] for h in above}
+    level_weight: dict[float, float] = dict.fromkeys(above, 0.0)
+    for node_id, xyz in b.coords.items():
+        if node_id in b.restraints or not above:
+            continue
+        nearest = min(above, key=lambda h: abs(h - xyz[2]))
+        level_weight[nearest] += node_weight.get(node_id, 0.0)
+        if abs(xyz[2] - nearest) < 1e-6:
+            level_nodes[nearest].append(node_id)
+    heights = [h for h in above if level_nodes[h]]
+    weights = [level_weight[h] for h in heights]
+
+    # ── rigid diaphragms: each floor tied to a node at its centre of mass ──
+    constraints: list[dict[str, Any]] = []
+    if options.diaphragm == "rigid":
+        for h in heights:
+            tied = level_nodes[h]
+            if len(tied) < 2:
+                continue
+            total = sum(node_weight.get(n, 0.0) for n in tied)
+            centre = (
+                sum(b.coords[n] * node_weight.get(n, 0.0) for n in tied) / total
+                if total
+                else sum(b.coords[n] for n in tied) / len(tied)
+            )
+            key = (round(centre[0] / MM), round(centre[1] / MM), round(centre[2] / MM))
+            if key in b.nodes and b.nodes[key] in tied:
+                retained = b.nodes[key]  # a node of the floor is at its centre
+            else:
+                retained = b.node(*key)
+                b.restraints[retained] = list(_IN_PLAN)
+            constraints.append(
+                {
+                    "type": "RigidDiaphragm",
+                    "perp_dir": 3,
+                    "retained_node": retained,
+                    "constrained_nodes": sorted(n for n in tied if n != retained),
+                }
+            )
+
+    # ── lateral loads: equivalent static story forces, shared among a level's nodes by weight ──
     values = derived(settings)
-    story_nodes: dict[float, list[int]] = {}
-    for key, node_id in b.nodes.items():
-        z = key[2] * MM
-        if z > base * MM + 1e-6:
-            story_nodes.setdefault(round(z, 6), []).append(node_id)
-    heights = sorted(story_nodes)
-    weights = [sum(node_weight.get(n, 0.0) for n in story_nodes[h]) for h in heights]
-    hn = (heights[-1] - base * MM) if heights else 0.0
+    base_m = base * MM
+    hn = (heights[-1] - base_m) if heights else 0.0
     summary: dict[str, Any] = {"levels": len(heights), "weight_kN": sum(weights) / 1e3}
     if heights and values["Z"] and values["windSpeed"]:
         period = fl.approximate_period(hn, settings.seismic.system)
@@ -364,12 +579,12 @@ def derive_fem(
         )
         base_shear = sa * sum(weights)
         story_forces = fl.vertical_distribution(
-            [(h - base * MM, w) for h, w in zip(heights, weights)], base_shear, period
+            [(h - base_m, w) for h, w in zip(heights, weights, strict=True)], base_shear, period
         )
-        xs = [b.coords[n][0] for n in b.coords]
-        ys = [b.coords[n][1] for n in b.coords]
+        xs = [xyz[0] for xyz in b.coords.values()]
+        ys = [xyz[1] for xyz in b.coords.values()]
         extent_x, extent_y = (max(xs) - min(xs)) or 1.0, (max(ys) - min(ys)) or 1.0
-        rel = [h - base * MM for h in heights]
+        rel = [h - base_m for h in heights]
         wind = {
             "WX": fl.wind_level_forces(
                 rel,
@@ -389,13 +604,10 @@ def derive_fem(
             ),
         }
         for level, h in enumerate(heights):
-            total = weights[level] or 1.0
-            for node_id in story_nodes[h]:
-                share = (
-                    node_weight.get(node_id, 0.0) / total
-                    if weights[level]
-                    else 1 / len(story_nodes[h])
-                )
+            nodes_here = level_nodes[h]
+            total = sum(node_weight.get(n, 0.0) for n in nodes_here)
+            for node_id in nodes_here:
+                share = node_weight.get(node_id, 0.0) / total if total else 1 / len(nodes_here)
                 add_nodal("EX", node_id, np.array([story_forces[level] * share, 0, 0]))
                 add_nodal("EY", node_id, np.array([0, story_forces[level] * share, 0]))
                 add_nodal("WX", node_id, np.array([wind["WX"][level] * 1e3 * share, 0, 0]))
@@ -419,31 +631,46 @@ def derive_fem(
     nodes = []
     for node_id, xyz in sorted(b.coords.items()):
         mass = node_weight.get(node_id, 0.0) / G
-        restrained = node_id in b.restraints
+        restraint = b.restraints.get(node_id, [False] * 6)
+        fixed = all(restraint)
         nodes.append(
             {
                 "id": node_id,
                 "name": "",
                 "coords": [round(float(v), 6) for v in xyz],
-                "mass": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-                if restrained
-                else [mass, mass, 0.0, 0.0, 0.0, 0.0],
-                "restraint": [restrained] * 6,
+                "mass": [0.0] * 6 if fixed else [mass, mass, 0.0, 0.0, 0.0, 0.0],
+                "restraint": restraint,
             }
         )
-    elements = []
-    for index, member in enumerate(b.members):
-        count = sum(1 for m in b.members[:index] if m.source == member.source)
+    elements: list[dict[str, Any]] = []
+    counts: dict[str, int] = {}
+
+    def name(source: str) -> str:
+        counts[source] = counts.get(source, 0) + 1
+        return source if counts[source] == 1 else f"{source}#{counts[source]}"
+
+    for member in b.members:
         elements.append(
             {
-                "id": index + 1,
-                "name": member.source if count == 0 else f"{member.source}#{count + 1}",
+                "id": len(elements) + 1,
+                "name": name(member.source),
                 "type": "ElasticBeamColumn",
                 "nodes": [member.i, member.j],
                 "section_id": member.section,
                 "geom_transf": "Linear",
                 "rho": 0.0,
                 "consistent_mass": False,
+            }
+        )
+    for shell in b.shells:
+        elements.append(
+            {
+                "id": len(elements) + 1,
+                "name": name(shell.source),
+                "type": "Shell",
+                "formulation": "ASDShellQ4" if len(shell.nodes) == 4 else "ASDShellT3",
+                "nodes": list(shell.nodes),
+                "section_id": shell.section,
             }
         )
     load_patterns = []
@@ -513,12 +740,35 @@ def derive_fem(
         "nodes": nodes,
         "sections": b.sections,
         "elements": elements,
+        "mp_constraints": constraints,
         "time_series": [{"id": 1, "name": "", "type": "Linear", "factor": 1.0}],
         "load_patterns": load_patterns,
         "analyses": analyses,
     }
-    summary.update({"nodes": len(nodes), "elements": len(elements), "supports": len(b.restraints)})
+    summary.update(
+        {
+            "nodes": len(nodes),
+            "elements": len(elements),
+            "frames": len(b.members),
+            "shells": len(b.shells),
+            "diaphragms": len(constraints),
+            "supports": sum(1 for r in b.restraints.values() if all(r)),
+        }
+    )
     return Derivation(project=project, notes=b.notes, summary=summary)
+
+
+def _rectangle(opening: Any, z: float) -> list[tuple[float, float, float]]:
+    """Corners of a rectangular slab opening at elevation ``z`` (mm)."""
+    angle = math.radians(opening.rotation)
+    ux = np.array([math.cos(angle), math.sin(angle)])
+    uy = np.array([-math.sin(angle), math.cos(angle)])
+    centre = np.array([opening.x, opening.y])
+    corners: Sequence[tuple[float, float]] = [(-1, -1), (1, -1), (1, 1), (-1, 1)]
+    return [
+        (*(centre + sx * opening.xDim / 2 * ux + sy * opening.yDim / 2 * uy), z)
+        for sx, sy in corners
+    ]
 
 
 def _on_segment(point: np.ndarray, a: np.ndarray, b: np.ndarray, tolerance: float = 1e-3) -> bool:

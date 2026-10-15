@@ -202,6 +202,10 @@ export class SchemaForm {
 			}));
 		}
 		append(header, $('span.form-group-title', undefined, title));
+		if (!optional && owner[key] === undefined && resolved.defName) {
+			// Files written before the section existed: its defaults, saved with the next edit.
+			owner[key] = this.ctx.template(resolved.defName);
+		}
 		const value = owner[key];
 		if (value && typeof value === 'object' && !Array.isArray(value)) {
 			this.renderObject(append(group, $('.form-group-body')), resolved.schema, value, path);

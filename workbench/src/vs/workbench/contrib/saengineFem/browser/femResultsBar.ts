@@ -3,7 +3,7 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { FemResultDisplay, FemResultQuantity, FemSelection } from '@saengine/fem-viewer';
+import type { FemResultDisplay, FemResultQuantity, FemSelection, FemValueQuantity } from '@saengine/fem-viewer';
 import { $, append, clearNode } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
@@ -48,6 +48,18 @@ const STATIC_OPTIONS: readonly IShowOption[] = [
 	{ show: 'My', label: localize('femResults.momentY', "Moment My") },
 	{ show: 'Mz', label: localize('femResults.momentZ', "Moment Mz") },
 ];
+/** Shell section forces per unit length, offered when the model has shells. */
+const SHELL_OPTIONS: readonly IShowOption[] = [
+	{ show: 'M11', label: localize('femResults.m11', "Shell Moment M11") },
+	{ show: 'M22', label: localize('femResults.m22', "Shell Moment M22") },
+	{ show: 'M12', label: localize('femResults.m12', "Shell Twisting Moment M12") },
+	{ show: 'N11', label: localize('femResults.n11', "Shell Membrane Force N11") },
+	{ show: 'N22', label: localize('femResults.n22', "Shell Membrane Force N22") },
+	{ show: 'N12', label: localize('femResults.n12', "Shell Membrane Shear N12") },
+	{ show: 'Q13', label: localize('femResults.q13', "Shell Transverse Shear Q13") },
+	{ show: 'Q23', label: localize('femResults.q23', "Shell Transverse Shear Q23") },
+];
+const SHELL_COMPONENTS: readonly Show[] = ['N11', 'N22', 'N12', 'M11', 'M22', 'M12', 'Q13', 'Q23'];
 const MODAL_OPTIONS: readonly IShowOption[] = [
 	MODEL_ONLY,
 	{ show: 'deformed', label: localize('femResults.modeShape', "Mode Shape") },
@@ -57,7 +69,7 @@ const COMPONENTS: readonly Show[] = ['N', 'Vy', 'Vz', 'T', 'My', 'Mz'];
 /** Steps of the scale multiplier offered by the − and + buttons. */
 const SCALES = [0.25, 0.5, 1, 2, 4, 8, 16];
 
-type Quantity = 'length' | 'force' | 'moment';
+type Quantity = FemValueQuantity;
 
 /**
  * Values in the units the user reads: SAEngine models are in SI (m, N), shown as mm, kN and
@@ -70,6 +82,8 @@ export function resultFormatter(units: string | undefined): (quantity: Quantity,
 				case 'length': return localize('femResults.mm', "{0} mm", (value * 1000).toFixed(2));
 				case 'force': return localize('femResults.kN', "{0} kN", (value / 1000).toFixed(1));
 				case 'moment': return localize('femResults.kNm', "{0} kN·m", (value / 1000).toFixed(1));
+				case 'forcePerLength': return localize('femResults.kNperM', "{0} kN/m", (value / 1000).toFixed(1));
+				case 'momentPerLength': return localize('femResults.kNmPerM', "{0} kN·m/m", (value / 1000).toFixed(2));
 			}
 		};
 	}
@@ -245,7 +259,10 @@ export class FemResultsBar extends Disposable {
 	}
 
 	private showOptions(): readonly IShowOption[] {
-		return this.entry?.kind === 'modal' ? MODAL_OPTIONS : STATIC_OPTIONS;
+		if (this.entry?.kind === 'modal') {
+			return MODAL_OPTIONS;
+		}
+		return this.view?.shells?.length ? [...STATIC_OPTIONS, ...SHELL_OPTIONS] : STATIC_OPTIONS;
 	}
 
 	private async showResult(): Promise<void> {
@@ -255,9 +272,6 @@ export class FemResultsBar extends Disposable {
 			this.view = undefined;
 			this.render();
 			return;
-		}
-		if (!this.showOptions().some(o => o.show === this.show)) {
-			this.show = 'deformed';
 		}
 		const id = `${entry.key}/${entry.kind === 'modal' ? this.mode : 0}`;
 		let view = this.views.get(id);
@@ -278,6 +292,9 @@ export class FemResultsBar extends Disposable {
 			}
 		}
 		this.view = view;
+		if (!this.showOptions().some(o => o.show === this.show)) {
+			this.show = 'deformed';
+		}
 		this.render();
 	}
 
@@ -329,6 +346,17 @@ export class FemResultsBar extends Disposable {
 		if (this.list.stale) {
 			append(this.info, $(`span${ThemeIcon.asCSSSelector(Codicon.warning)}`));
 			append(this.info, $('span', undefined, localize('femResults.stale', "The model changed after this analysis ran: run the analysis again.")));
+			return;
+		}
+		const shellComponent = SHELL_COMPONENTS.indexOf(this.show);
+		const values = shellComponent >= 0 ? (this.view?.shells ?? []).flatMap(s => s.forces ? [s.forces[shellComponent]] : []) : [];
+		if (values.length) {
+			// The contour's scale, lowest (blue) to highest (red), as the 3D view colours it.
+			const quantity: Quantity = shellComponent >= 3 && shellComponent < 6 ? 'momentPerLength' : 'forcePerLength';
+			append(this.info, $('span', undefined, this.format(quantity, Math.min(...values))));
+			append(this.info, $('span.fem-results-scale-bar'));
+			append(this.info, $('span', undefined, this.format(quantity, Math.max(...values))));
+			append(this.info, $('span', undefined, localize('femResults.shellAxes', "Local 1 runs along X on slabs and along the wall on walls.")));
 			return;
 		}
 		const text = this.describe();

@@ -7,8 +7,9 @@ import * as OBC from '@thatopen/components';
 import { FemElement, FemModel, FemNode, FemResultDisplay, FemResultView, FemSelection, sameSelection } from './model.js';
 import { ResultOverlay } from './results.js';
 
-export type { FemElement, FemModel, FemNode, FemResultDisplay, FemResultElement, FemResultQuantity, FemResultView, FemSelection } from './model.js';
-export { FORCE_COMPONENTS } from './model.js';
+export type { FemElement, FemModel, FemNode, FemResultDisplay, FemResultElement, FemResultQuantity, FemResultShell, FemResultView, FemSelection, FemValueQuantity } from './model.js';
+export { FORCE_COMPONENTS, SHELL_COMPONENTS } from './model.js';
+export { contourColor } from './results.js';
 
 export interface FemViewerTheme {
 	readonly background: string;

@@ -223,11 +223,13 @@ def result_view(
 ) -> dict[str, Any]:
     """One result ready to draw.
 
-    Returns ``{"label", "kind", "nodes", "reactions", "elements"}``: node displacements
-    ``[id, ux, uy, uz, rx, ry, rz]``, support reactions ``[id, fx, fy, fz, mx, my, mz]``, and
-    per element ``{"id", "name", "y", "z", "displacements", "forces"}`` with the local axes
-    and the station values. Mode shapes are scaled so their largest translation is 1 and have
-    no forces or reactions.
+    Returns ``{"label", "kind", "nodes", "reactions", "elements", "shells"}``: node
+    displacements ``[id, ux, uy, uz, rx, ry, rz]``, support reactions
+    ``[id, fx, fy, fz, mx, my, mz]``, per frame element ``{"id", "name", "y", "z",
+    "displacements", "forces"}`` with the local axes and the station values, and per shell
+    ``{"id", "name", "nodes", "forces"}`` with its section forces per unit length
+    (N11, N22, N12, M11, M22, M12, Q13, Q23, local axes) averaged over its integration points.
+    Mode shapes are scaled so their largest translation is 1 and have no forces or reactions.
     """
     from opensees_studio.services.result_store import load_results
     from opensees_studio.services.results import ModalResults, StaticResults
@@ -237,7 +239,14 @@ def result_view(
         raise ValueError("there are no results; run the analysis first")
     project = _load(project_path)
     elements = _elements(project)
-    restrained = {n["id"] for n in project.get("nodes", []) if any(n.get("restraint") or [])}
+    # Supports: restrained nodes, but not the diaphragms' own nodes (held out of plane only).
+    diaphragm_nodes = {c.get("retained_node") for c in project.get("mp_constraints", [])}
+    restrained = {
+        n["id"]
+        for n in project.get("nodes", [])
+        if any(n.get("restraint") or []) and n["id"] not in diaphragm_nodes
+    }
+    shells = [e for e in project.get("elements", []) if e.get("type") == "Shell"]
     entries = {f"case:{e['case_id']}": e for e in manifest["cases"]}
 
     # Each result is a factored sum of static cases: (factor, results, analysis id).
@@ -285,6 +294,7 @@ def result_view(
         loads: dict[int, np.ndarray] = {}
         forces: dict[int, np.ndarray] = {}
         reactions: dict[int, np.ndarray] = {}
+        plate_forces: dict[int, np.ndarray] = {}
     else:
         disp = {n: sum(f * _last(r.node_disp, n, 6) for f, r, _ in parts) for n in node_ids}
         reactions = {
@@ -293,6 +303,11 @@ def result_view(
         }
         forces = {
             e.id: sum(f * _last(r.element_forces, e.id, 12) for f, r, _ in parts) for e in elements
+        }
+        # Shells: the mean over the integration points (the value at the element's centre).
+        plate_forces = {
+            e["id"]: sum(f * _centre(r.shell_forces.get(e["id"])) for f, r, _ in parts)
+            for e in shells
         }
         loads = {}
         for factor, results, analysis_id in parts:
@@ -320,7 +335,24 @@ def result_view(
         "nodes": [[n, *_round(v, 9)] for n, v in disp.items()],
         "reactions": [[n, *_round(v, 3)] for n, v in reactions.items()],
         "elements": view_elements,
+        "shells": [
+            {
+                "id": e["id"],
+                "name": e.get("name") or str(e["id"]),
+                "nodes": list(e["nodes"]),
+                **({"forces": _round(plate_forces[e["id"]], 3)} if e["id"] in plate_forces else {}),
+            }
+            for e in shells
+        ],
     }
+
+
+def _centre(rows: np.ndarray | None) -> np.ndarray:
+    """Section forces of a shell (8 per integration point, last step) averaged over its points."""
+    if rows is None or not len(rows):
+        return np.zeros(8)
+    values = np.asarray(rows[-1], dtype=float)
+    return values.reshape(-1, 8).mean(axis=0)
 
 
 def _pad(values: np.ndarray | None, width: int) -> np.ndarray:

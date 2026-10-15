@@ -2182,6 +2182,37 @@ export const DEFAULT_OBJECTS: object = {
 
 export const SETTINGS_SCHEMA: IJSONSchema = {
 	$defs: {
+		Analysis: {
+			additionalProperties: false,
+			description: 'How the analysis model (Part 8) represents the building.',
+			properties: {
+				slabs: {
+					default: 'loadsToBeams',
+					description: 'Slabs on beams hand their loads to the beams (45° rule); flat slabs and slabs whose bending matters are meshed as shells.',
+					enum: ['loadsToBeams', 'shells'],
+					enumDescriptions: ['Loads to beams (slab not in the stiffness)', 'Shells (plate bending, flat slabs)'],
+					title: 'Slabs',
+					type: 'string',
+				},
+				diaphragm: {
+					default: 'rigid',
+					description: 'Rigid: every floor moves as a rigid plate in plan. Flexible: floors are as stiff in plan as their beams (and shell slabs) make them.',
+					enum: ['rigid', 'flexible'],
+					enumDescriptions: ['Rigid', 'Flexible (from the modelled elements)'],
+					title: 'Floor diaphragm',
+					type: 'string',
+				},
+				meshSize: {
+					default: 1000,
+					description: 'Largest side of a shell element [mm].',
+					minimum: 100,
+					title: 'Mesh size',
+					type: 'number',
+				},
+			},
+			title: 'Analysis',
+			type: 'object',
+		},
 		AreaLoad: {
 			additionalProperties: false,
 			description: 'Loads on floor area of one use: live load and superimposed dead loads.',
@@ -2578,6 +2609,10 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'Load combinations',
 			type: 'array',
 		},
+		analysis: {
+			$ref: '#/$defs/Analysis',
+			title: 'Analysis model',
+		},
 	},
 	required: ['project', 'floorLoad', 'roofLoad'],
 	title: 'SAEngine project settings',
@@ -2869,6 +2904,11 @@ export const DEFAULT_SETTINGS: object = {
 			EY: -1.0,
 		},
 	],
+	analysis: {
+		slabs: 'loadsToBeams',
+		diaphragm: 'rigid',
+		meshSize: 1000.0,
+	},
 };
 
 export const BNBC: IBnbcTables = {
@@ -4749,6 +4789,11 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		name: '1.2D + 1.6L',
 		D: 1.2,
 		L: 1.6,
+	},
+	Analysis: {
+		slabs: 'loadsToBeams',
+		diaphragm: 'rigid',
+		meshSize: 1000.0,
 	},
 	ProjectInfo: {
 		name: 'Project',

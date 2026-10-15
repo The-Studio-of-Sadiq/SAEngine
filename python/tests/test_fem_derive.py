@@ -99,7 +99,9 @@ def test_derived_model_is_valid_with_bnbc_loads() -> None:
 
     d = derivation()
     project = Project.model_validate(d.project)
-    assert (len(project.nodes), len(project.elements), d.summary["supports"]) == (8, 8, 4)
+    # 8 frame nodes and the rigid diaphragm's node at the floor's centre of mass.
+    assert (len(project.nodes), len(project.elements), d.summary["supports"]) == (9, 8, 4)
+    assert d.summary["diaphragms"] == 1
     assert [p["name"] for p in d.project["load_patterns"]] == [
         "D",
         "SD",

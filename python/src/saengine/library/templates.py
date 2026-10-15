@@ -17,6 +17,7 @@ from typing import Any
 
 from saengine.library.defaults import default_material_library
 from saengine.library.materials import Category
+from saengine.library.settings import Analysis
 
 _REBAR = "B420DWR"
 _CONCRETE = "C24.1"
@@ -251,6 +252,7 @@ TEMPLATES: dict[str, dict[str, Any]] = {
         "partitions": 1.0,
     },
     "LoadCombination": {"name": "1.2D + 1.6L", "D": 1.2, "L": 1.6},
+    "Analysis": Analysis().model_dump(mode="json"),
     "ProjectInfo": {"name": "Project"},
     # building model elements
     "SlabOpening": {"id": "O1", "host": "S1", "x": 0, "y": 0, "xDim": 1000, "yDim": 1000},

@@ -160,6 +160,29 @@ class Wind(_Model):
     )
 
 
+class Analysis(_Model):
+    """How the analysis model (Part 8) represents the building."""
+
+    slabs: Literal["loadsToBeams", "shells"] = Field(
+        default="loadsToBeams",
+        description="Slabs on beams hand their loads to the beams (45° rule); flat slabs and "
+        "slabs whose bending matters are meshed as shells.",
+        json_schema_extra=_labels(
+            ["Loads to beams (slab not in the stiffness)", "Shells (plate bending, flat slabs)"]
+        ),
+    )
+    diaphragm: Literal["rigid", "flexible"] = Field(
+        default="rigid",
+        title="Floor diaphragm",
+        description="Rigid: every floor moves as a rigid plate in plan. Flexible: floors are as "
+        "stiff in plan as their beams (and shell slabs) make them.",
+        json_schema_extra=_labels(["Rigid", "Flexible (from the modelled elements)"]),
+    )
+    meshSize: float = Field(
+        default=1000, ge=100, title="Mesh size", description="Largest side of a shell element [mm]."
+    )
+
+
 class AreaLoad(_Model):
     """Loads on floor area of one use: live load and superimposed dead loads."""
 
@@ -204,6 +227,7 @@ class ProjectSettings(_Model):
     )
     roofLoad: Id = Field(title="Roof", description="Area load of the roof (the top story).")
     combinations: list[LoadCombination] = Field(default_factory=list, title="Load combinations")
+    analysis: Analysis = Field(default_factory=Analysis, title="Analysis model")
 
 
 def strength_combinations() -> list[LoadCombination]:
