@@ -1,0 +1,98 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.saengine-structure-modeler {
+	display: flex;
+	flex-direction: column;
+	outline: none;
+}
+
+.saengine-structure-modeler .modeler-toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px 16px;
+	flex: none;
+	padding: 6px 12px;
+	box-sizing: border-box;
+}
+
+.saengine-structure-modeler .modeler-group {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.saengine-structure-modeler .modeler-group.hidden {
+	display: none;
+}
+
+.saengine-structure-modeler .modeler-label {
+	margin-right: 4px;
+}
+
+.saengine-structure-modeler .modeler-select.type {
+	width: 200px;
+}
+
+.saengine-structure-modeler .modeler-select.level {
+	width: 190px;
+}
+
+.saengine-structure-modeler .modeler-group.value .monaco-inputbox {
+	width: 200px;
+}
+
+.saengine-structure-modeler .modeler-group .monaco-button {
+	width: auto;
+	padding: 2px 8px;
+}
+
+.saengine-structure-modeler .modeler-group.tools .monaco-button.active {
+	color: var(--vscode-button-foreground);
+	background-color: var(--vscode-button-background);
+}
+
+.saengine-structure-modeler .modeler-status {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	flex: none;
+	height: 26px;
+	padding: 0 12px 4px;
+	box-sizing: border-box;
+	overflow: hidden;
+	white-space: nowrap;
+	color: var(--vscode-descriptionForeground);
+	border-bottom: 1px solid var(--vscode-editorGroup-border, transparent);
+}
+
+.saengine-structure-modeler .modeler-coordinates {
+	margin-left: auto;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-structure-modeler .modeler-viewport {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+}
+
+.saengine-structure-modeler .modeler-message {
+	display: none;
+	position: absolute;
+	top: 12px;
+	left: 12px;
+	right: 12px;
+	z-index: 1;
+	padding: 8px 12px;
+	color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
+	background: var(--vscode-inputValidation-warningBackground);
+	border: 1px solid var(--vscode-inputValidation-warningBorder);
+}
+
+.saengine-structure-modeler .modeler-message.visible {
+	display: block;
+}

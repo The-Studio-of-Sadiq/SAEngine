@@ -105,8 +105,9 @@ class LibraryEditorResolverContribution extends Disposable implements IWorkbench
 					id: EDITOR_IDS[kind],
 					label: EDITOR_LABELS[kind],
 					detail: localize('libraryEditorDetail', "SAEngine"),
-					// The floor plan opens in its plan view; the form is the alternative.
-					priority: kind === 'floorPlan' ? RegisteredEditorPriority.option : RegisteredEditorPriority.default,
+					// The floor plan opens in its plan view, the structural model in its 3D modeller;
+					// the form is the alternative.
+					priority: kind === 'floorPlan' || kind === 'structure' ? RegisteredEditorPriority.option : RegisteredEditorPriority.default,
 				},
 				{
 					singlePerResource: true,
@@ -114,7 +115,7 @@ class LibraryEditorResolverContribution extends Disposable implements IWorkbench
 				},
 				{
 					createEditorInput: ({ resource, options }) => ({
-						editor: instantiationService.createInstance(LibraryEditorInput, resource, kind),
+						editor: instantiationService.createInstance(LibraryEditorInput, resource, kind, undefined),
 						options,
 					}),
 				}

@@ -416,3 +416,4 @@ export function createFemViewer(container: HTMLElement, options: FemViewerOption
 
 export { createBuildingViewer, type BuildingViewer, type BuildingViewerOptions, type BuildingViewerTheme } from './building.js';
 export { setTrustedTypesHost, type TrustedTypesHost } from './trustedTypes.js';
+export { createStructureModeler, type ModelerEntity, type ModelerHit, type ModelerScene, type ModelerTheme, type ModelerView, type ModelPoint, type StructureModeler, type StructureModelerOptions } from './modeler.js';

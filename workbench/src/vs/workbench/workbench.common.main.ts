@@ -253,6 +253,7 @@ import './contrib/testing/browser/testing.contribution.js';
 import './contrib/saengineProject/browser/saengineProject.contribution.js';
 import './contrib/saengineLibrary/browser/saengineLibrary.contribution.js';
 import './contrib/saengineCad/browser/saengineCad.contribution.js';
+import './contrib/saengineStructure/browser/saengineStructure.contribution.js';
 import './contrib/saengineModel/browser/saengineModel.contribution.js';
 import './contrib/saengineFem/browser/saengineFem.contribution.js';
 

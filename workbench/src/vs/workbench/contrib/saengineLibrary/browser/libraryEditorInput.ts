@@ -38,12 +38,16 @@ export class LibraryEditorInput extends EditorInput {
 	static readonly GRIDS_EDITOR_ID = 'workbench.editor.saengine.grids';
 	static readonly SETTINGS_EDITOR_ID = 'workbench.editor.saengine.settings';
 	static readonly STRUCTURE_EDITOR_ID = 'workbench.editor.saengine.structure';
+	/** The 3D modeller of the structural model (contrib/saengineStructure). */
+	static readonly STRUCTURE_MODELER_ID = 'workbench.editor.saengine.structureModeler';
 
 	private modelReference: Promise<IReference<IResolvedTextEditorModel>> | undefined;
 
 	constructor(
 		readonly resource: URI,
 		readonly kind: LibraryKind,
+		/** Another pane for this file than the kind's form (the structural model's 3D modeller). */
+		readonly editorOverride: string | undefined,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 	) {
@@ -60,6 +64,9 @@ export class LibraryEditorInput extends EditorInput {
 	}
 
 	override get editorId(): string {
+		if (this.editorOverride) {
+			return this.editorOverride;
+		}
 		switch (this.kind) {
 			case 'bim': return LibraryEditorInput.BUILDING_EDITOR_ID;
 			case 'floorPlan': return LibraryEditorInput.GRIDS_EDITOR_ID;
@@ -80,7 +87,7 @@ export class LibraryEditorInput extends EditorInput {
 			case 'settings': return localize('settingsEditor', "Project Settings");
 			case 'floorPlan': return localize('gridsEditor', "Grids & Stories");
 			case 'bim': return localize('buildingEditor', "Building Model");
-			case 'structure': return localize('structureEditor', "Structural Model");
+			case 'structure': return this.editorOverride ? localize('structureModeler', "Structural Model 3D") : localize('structureEditor', "Structural Model");
 		}
 	}
 
@@ -126,7 +133,7 @@ export class LibraryEditorInput extends EditorInput {
 		if (super.matches(other)) {
 			return true;
 		}
-		return other instanceof LibraryEditorInput && isEqual(other.resource, this.resource);
+		return other instanceof LibraryEditorInput && isEqual(other.resource, this.resource) && other.editorId === this.editorId;
 	}
 
 	override toUntyped(): IUntypedEditorInput {
@@ -147,11 +154,11 @@ export class LibraryEditorInputSerializer implements IEditorSerializer {
 	}
 
 	serialize(editor: LibraryEditorInput): string {
-		return JSON.stringify({ resource: editor.resource.toJSON(), kind: editor.kind });
+		return JSON.stringify({ resource: editor.resource.toJSON(), kind: editor.kind, editorOverride: editor.editorOverride });
 	}
 
 	deserialize(instantiationService: IInstantiationService, serialized: string): LibraryEditorInput {
-		const { resource, kind } = JSON.parse(serialized);
-		return instantiationService.createInstance(LibraryEditorInput, URI.revive(resource), kind);
+		const { resource, kind, editorOverride } = JSON.parse(serialized);
+		return instantiationService.createInstance(LibraryEditorInput, URI.revive(resource), kind, editorOverride);
 	}
 }
