@@ -384,3 +384,68 @@
 	width: auto;
 	padding: 2px 10px;
 }
+
+/* building model: header, then the 3D view (or the summary tables) filling the editor */
+
+.saengine-library-editor .building-editor.building-3d {
+	display: flex;
+	flex-direction: column;
+	padding: 0;
+	overflow: hidden;
+}
+
+.saengine-library-editor .building-3d .building-header {
+	flex: none;
+	padding: 12px 24px 4px;
+}
+
+.saengine-library-editor .building-3d .building-title {
+	display: flex;
+	align-items: baseline;
+	flex-wrap: wrap;
+	gap: 4px 12px;
+}
+
+.saengine-library-editor .building-3d .building-title .building-intro {
+	margin: 0;
+}
+
+.saengine-library-editor .building-3d .building-actions {
+	margin: 8px 0 4px;
+	flex-wrap: wrap;
+}
+
+.saengine-library-editor .building-3d .building-status {
+	display: none;
+	align-items: center;
+	gap: 6px;
+	flex: none;
+	padding: 0 24px 6px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-library-editor .building-3d .building-status.visible {
+	display: flex;
+}
+
+.saengine-library-editor .building-3d .building-status .codicon-warning {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.saengine-library-editor .building-3d .building-viewport {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+	border-top: 1px solid var(--vscode-editorGroup-border, transparent);
+}
+
+.saengine-library-editor .building-3d .building-summary-view {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	padding: 0 24px 32px;
+}
+
+.saengine-library-editor .building-3d .hidden {
+	display: none;
+}

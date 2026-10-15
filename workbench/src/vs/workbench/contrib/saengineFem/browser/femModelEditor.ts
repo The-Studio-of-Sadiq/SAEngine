@@ -9,7 +9,6 @@ import { $, append, Dimension, clearNode } from '../../../../base/browser/dom.js
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { resolveAmdNodeModulePath } from '../../../../amdX.js';
 import { localize } from '../../../../nls.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -22,23 +21,7 @@ import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { FemModelEditorInput } from './femModelEditorInput.js';
-
-type FemViewerModule = typeof import('@saengine/fem-viewer');
-
-let viewerModule: Promise<FemViewerModule> | undefined;
-
-/**
- * The viewer bundles three.js and That Open Engine as a single ESM file. It is loaded by URL on
- * first use so the workbench startup bundle does not pay for it.
- */
-function loadViewerModule(): Promise<FemViewerModule> {
-	if (!viewerModule) {
-		const url = resolveAmdNodeModulePath('@saengine/fem-viewer', 'dist/fem-viewer.js');
-		viewerModule = import(/* webpackIgnore: true */ /* @vite-ignore */ `${url}`) as Promise<FemViewerModule>;
-		viewerModule.catch(() => viewerModule = undefined);
-	}
-	return viewerModule;
-}
+import { loadViewerModule } from './viewerModule.js';
 
 export class FemModelEditor extends EditorPane {
 

@@ -8,7 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { IFemSolverService, LibraryFileKind } from '../../../../platform/saengine/common/femSolver.js';
+import { IBuildingIfcRequest, IFemSolverService, LibraryFileKind } from '../../../../platform/saengine/common/femSolver.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -100,6 +100,15 @@ CommandsRegistry.registerCommand('saengine.library.check', async (accessor, kind
  * Generates the building model (`bim.json` text) from the floor plan with the Python models.
  * Internal: the Building Model editor calls it by id.
  */
+/**
+ * The building model as IFC with the Python models (IfcOpenShell), for the 3D view and IFC export.
+ * Internal: the Building Model editor calls it by id.
+ */
+CommandsRegistry.registerCommand('saengine.bim.ifc', async (accessor, request: IBuildingIfcRequest) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).buildingIfc(python, request);
+});
+
 CommandsRegistry.registerCommand('saengine.bim.generate', async (accessor, floorPlanText: string, bimText?: string) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	return accessor.get(IFemSolverService).generateBuilding(python, floorPlanText, bimText);

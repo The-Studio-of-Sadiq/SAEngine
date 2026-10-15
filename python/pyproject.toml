@@ -13,6 +13,7 @@ dependencies = [
     "opensees-studio",
     "pygls>=2.1,<3",
     "sectionproperties>=3.10,<4",  # section constants of object profiles
+    "ifcopenshell>=0.8,<1",  # IFC export of the building model (LGPL-3.0)
 ]
 
 [project.optional-dependencies]

@@ -101,6 +101,25 @@ export interface IGeneratedBuilding {
 	readonly problems?: readonly string[];
 }
 
+export interface IBuildingIfcRequest {
+	readonly bimText: string;
+	readonly objectsText: string;
+	readonly materialsText?: string;
+	/** Name of the IFC project, e.g. the SAEngine project's name. */
+	readonly name: string;
+}
+
+export interface IBuildingIfc {
+	/** IFC4 file text. */
+	readonly text?: string;
+	/** Element id -> IFC GlobalId. */
+	readonly ids?: { readonly [elementId: string]: string };
+	/** Elements left out, with why. */
+	readonly skipped?: readonly string[];
+	/** Why no IFC could be written (the building model or object types have errors). */
+	readonly problems?: readonly string[];
+}
+
 export interface ILibraryProblem {
 	readonly index: number | null;
 	readonly path: string;
@@ -132,4 +151,7 @@ export interface IFemSolverService {
 	 * (see `saengine.library.bim`). Problems are returned when either file has errors.
 	 */
 	generateBuilding(python: string, floorPlanText: string, bimText: string | undefined): Promise<IGeneratedBuilding>;
+
+	/** The building model as IFC (IfcOpenShell), with each element's IFC GlobalId. */
+	buildingIfc(python: string, request: IBuildingIfcRequest): Promise<IBuildingIfc>;
 }

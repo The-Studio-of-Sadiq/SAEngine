@@ -195,3 +195,30 @@ def generate_building(floor_plan_text: str, bim_text: str | None) -> dict[str, A
         return {"problems": [str(exc)]}
     data = model.model_dump(mode="json", by_alias=True, exclude_none=True)
     return {"text": json.dumps(data, indent="\t", ensure_ascii=False) + "\n"}
+
+
+def building_ifc(
+    bim_text: str, objects_text: str, materials_text: str | None, name: str
+) -> dict[str, Any]:
+    """The IFC of the building model: ``{"text", "ids", "skipped"}`` or ``{"problems"}``.
+
+    ``ids`` maps element ids to IFC GlobalIds, for the 3D view to link elements to the project.
+    """
+    from pydantic import ValidationError
+
+    from saengine.library.bim import BuildingModel
+    from saengine.library.ifc import export_ifc
+    from saengine.library.materials import MaterialLibrary
+    from saengine.library.objects import ObjectLibrary
+
+    try:
+        building = BuildingModel.model_validate_json(bim_text)
+        objects = ObjectLibrary.model_validate_json(objects_text)
+    except ValidationError as exc:
+        return {"problems": [str(e["msg"]) for e in exc.errors()]}
+    try:
+        materials = MaterialLibrary.model_validate_json(materials_text) if materials_text else None
+    except ValidationError:
+        materials = None  # material names fall back to their ids
+    ifc, ids, skipped = export_ifc(building, objects, materials, name)
+    return {"text": ifc.to_string(), "ids": ids, "skipped": skipped}

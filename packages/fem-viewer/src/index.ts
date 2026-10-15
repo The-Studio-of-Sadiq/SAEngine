@@ -343,3 +343,6 @@ class FemViewerImpl implements FemViewer {
 export function createFemViewer(container: HTMLElement, options: FemViewerOptions = {}): FemViewer {
 	return new FemViewerImpl(container, options);
 }
+
+export { createBuildingViewer, type BuildingViewer, type BuildingViewerOptions, type BuildingViewerTheme } from './building.js';
+export { setTrustedTypesHost, type TrustedTypesHost } from './trustedTypes.js';

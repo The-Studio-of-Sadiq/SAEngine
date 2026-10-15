@@ -68,7 +68,12 @@ suite('SAEngine - Grids and stories editor', () => {
 			x: (document.grids as JsonObject).x,
 			changes,
 		}, {
-			headers: [['Label', 'Position (mm)'], ['Label', 'Position (mm)'], ['ID', 'Name', 'Elevation (mm)']],
+			headers: [
+				['Label', 'Position (mm)'],
+				['Label', 'Position (mm)'],
+				['ID', 'Name', 'Elevation (mm)'],
+				['Story', 'File', 'Offset X (mm)', 'Offset Y (mm)', 'Scale', 'Rotation (°)', 'Visible'],
+			],
 			x: [{ label: 'A', position: 0 }, { label: 'B', position: 6000 }, { label: 'C', position: 12000 }],
 			changes: ['grids.x'],
 		});
