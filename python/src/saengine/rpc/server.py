@@ -14,6 +14,7 @@ Methods:
 - ``structure/runScript`` ``{structureText, scriptPath}`` -> the model a script built
 - ``design/report`` ``{outDir, projectPath}`` -> the RC member design checks of a run
 - ``boq/compute`` ``{bimText, objectsText, materialsText}`` -> the bill of quantities
+- ``report/build`` ``{projectRoot, outPdf?}`` -> the PDF design report (``{path, pages, warnings}``)
 
 Analyses themselves are not run here: the workbench starts
 ``python -m opensees_studio.run`` per run, so an OpenSees hard exit can never take
@@ -135,6 +136,11 @@ def create_server() -> JsonRPCServer:
     def _compute_boq(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.compute_boq(args["bimText"], args["objectsText"], args["materialsText"])
+
+    @server.feature("report/build")
+    def _build_report(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.build_report(args["projectRoot"], args.get("outPdf"))
 
     return server
 

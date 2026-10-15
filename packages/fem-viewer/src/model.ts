@@ -129,8 +129,9 @@ export interface FemResultDisplay {
 	/** Text of a value for the labels, in the units the user reads. */
 	readonly format: (quantity: FemValueQuantity, value: number) => string;
 	/**
-	 * `show: 'utilisation'`: the design utilisation (demand / capacity) of frame elements by
-	 * element id. Elements without a value are not coloured.
+	 * `show: 'utilisation'`: the design utilisation (demand / capacity) of frame and shell
+	 * elements (a slab's shells carry the slab's value) by element id. Elements without a value
+	 * are not coloured.
 	 */
 	readonly utilisation?: { readonly [elementId: number]: number };
 }

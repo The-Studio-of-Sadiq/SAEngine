@@ -2371,6 +2371,41 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'Codes',
 			type: 'object',
 		},
+		Foundation: {
+			additionalProperties: false,
+			description: 'Soil values the footing design needs, until the soil part of the project provides them.',
+			properties: {
+				allowableBearing: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'From the soil report [kPa]; compared with the net soil pressure under the service loads. Leave empty to design the footings without the bearing check.',
+					title: 'Net allowable bearing pressure qa',
+				},
+				soilUnitWeight: {
+					default: 18.0,
+					description: 'Unit weight of the backfill above the footings [kN/m³].',
+					exclusiveMinimum: 0,
+					title: 'Soil unit weight γ',
+					type: 'number',
+				},
+				groundLevel: {
+					default: 0.0,
+					description: 'Elevation of the finished ground [mm]; the soil cover above a footing is measured from it.',
+					title: 'Ground level',
+					type: 'number',
+				},
+			},
+			title: 'Foundation',
+			type: 'object',
+		},
 		LoadCombination: {
 			additionalProperties: false,
 			description: 'Factors on the load cases. D applies to the dead and superimposed dead loads.',
@@ -2795,6 +2830,10 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			$ref: '#/$defs/Analysis',
 			title: 'Analysis model',
 		},
+		foundation: {
+			$ref: '#/$defs/Foundation',
+			description: 'Soil values for the footing design (from the soil report).',
+		},
 	},
 	required: ['project', 'floorLoad', 'roofLoad'],
 	title: 'SAEngine project settings',
@@ -3092,6 +3131,10 @@ export const DEFAULT_SETTINGS: object = {
 		meshSize: 1000.0,
 		responseSpectrum: true,
 		timeHistories: [],
+	},
+	foundation: {
+		soilUnitWeight: 18.0,
+		groundLevel: 0.0,
 	},
 };
 

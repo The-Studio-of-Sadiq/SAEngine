@@ -257,6 +257,30 @@ class Analysis(_Model):
     )
 
 
+class Foundation(_Model):
+    """Soil values the footing design needs, until the soil part of the project provides them."""
+
+    allowableBearing: float | None = Field(
+        default=None,
+        gt=0,
+        title="Net allowable bearing pressure qa",
+        description="From the soil report [kPa]; compared with the net soil pressure under the "
+        "service loads. Leave empty to design the footings without the bearing check.",
+    )
+    soilUnitWeight: float = Field(
+        default=18.0,
+        gt=0,
+        title="Soil unit weight γ",
+        description="Unit weight of the backfill above the footings [kN/m³].",
+    )
+    groundLevel: float = Field(
+        default=0.0,
+        title="Ground level",
+        description="Elevation of the finished ground [mm]; the soil cover above a footing is "
+        "measured from it.",
+    )
+
+
 class AreaLoad(_Model):
     """Loads on floor area of one use: live load and superimposed dead loads."""
 
@@ -302,6 +326,10 @@ class ProjectSettings(_Model):
     roofLoad: Id = Field(title="Roof", description="Area load of the roof (the top story).")
     combinations: list[LoadCombination] = Field(default_factory=list, title="Load combinations")
     analysis: Analysis = Field(default_factory=Analysis, title="Analysis model")
+    foundation: Foundation = Field(
+        default_factory=Foundation,
+        description="Soil values for the footing design (from the soil report).",
+    )
 
 
 def strength_combinations() -> list[LoadCombination]:

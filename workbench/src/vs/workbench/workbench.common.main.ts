@@ -255,6 +255,7 @@ import './contrib/saengineLibrary/browser/saengineLibrary.contribution.js';
 import './contrib/saengineCad/browser/saengineCad.contribution.js';
 import './contrib/saengineStructure/browser/saengineStructure.contribution.js';
 import './contrib/saengineBoq/browser/saengineBoq.contribution.js';
+import './contrib/saengineReport/browser/saengineReport.contribution.js';
 import './contrib/saengineModel/browser/saengineModel.contribution.js';
 import './contrib/saengineFem/browser/saengineFem.contribution.js';
 

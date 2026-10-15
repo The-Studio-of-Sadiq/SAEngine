@@ -1,4 +1,6 @@
-"""Design checks of the reinforced-concrete frame members of an analysed SAEngine model.
+"""Design checks of the reinforced-concrete frame members and slabs of an analysed SAEngine
+model (slabs: see :mod:`saengine.design.slab`; they are reported with ``kind`` "slab" and
+their shell element ids as ``members``).
 
 For each beam and column of the building model with a reinforced rectangular (beams) or
 rectangular/circular (columns) object type, the section forces of the analysis are combined
@@ -26,6 +28,7 @@ from typing import Any
 
 import numpy as np
 
+from saengine.design import slab
 from saengine.design.rc import (
     SLENDERNESS_LIMIT,
     DesignError,
@@ -36,9 +39,16 @@ from saengine.design.rc import (
     shear,
     slenderness,
 )
-from saengine.library.bim import BeamElement, BuildingModel, ColumnElement, MemberElement
+from saengine.library.bim import (
+    AreaElement,
+    BeamElement,
+    BuildingModel,
+    ColumnElement,
+    MemberElement,
+    SlabElement,
+)
 from saengine.library.materials import Category, MaterialLibrary
-from saengine.library.objects import Beam, Column, ObjectLibrary
+from saengine.library.objects import Beam, Column, ObjectLibrary, Slab
 from saengine.library.settings import ProjectSettings
 
 METHOD = [
@@ -78,6 +88,8 @@ class _Piece:
     depth_along_z: bool
     axes: np.ndarray  # rows: local x, y, z (global)
     forces: list[np.ndarray]  # per combination: (stations, 6) N, Vy, Vz, T, My, Mz [N, N·m]
+    start: np.ndarray | None = None  # end coordinates [m]
+    end: np.ndarray | None = None
 
 
 def design_report(out_dir: str | Path, project_path: str | Path) -> dict[str, Any]:
@@ -89,8 +101,11 @@ def design_report(out_dir: str | Path, project_path: str | Path) -> dict[str, An
     "combinations", "elements", "skipped", "summary", "notes"}``: per checked element ``{"id",
     "kind", "type", "members", "checks", "utilisation", "ok"}`` with ``members`` the analysis
     element ids and each check ``{"name", "demand", "capacity", "unit", "utilisation",
-    "combination", "ok", "note", "flag"}`` (forces in kN and kN·m; ``flag`` checks are reported
-    but do not make the element fail), per skipped element ``{"id", "kind", "type", "reason"}``.
+    "combination", "ok", "note", "flag"}`` (forces in kN and kN·m, slabs per metre width in
+    kN·m/m and kN/m; ``flag`` checks are reported but do not make the element fail), per
+    skipped element ``{"id", "kind", "type", "reason"}``. Slabs (``kind`` "slab") list their
+    shell elements as ``members``; slabs neither reinforced nor analysed as shells are only
+    mentioned in the notes.
     """
     project_path = Path(project_path)
     root = project_path.resolve().parent.parent
@@ -121,7 +136,7 @@ def design(
     settings: ProjectSettings,
 ) -> dict[str, Any]:
     """:func:`design_report` with the project's parts already read."""
-    combinations, pieces, notes = _demands(project, out_dir, settings)
+    combinations, pieces, notes, shell_forces = _demands(project, out_dir, settings)
     types = {o.id: o for o in objects.objects}
     mats = {m.id: m for m in materials.materials}
 
@@ -221,12 +236,28 @@ def design(
 
     for type_id, (section, _) in {**beam_sections, **column_sections}.items():
         notes += [f"{type_id}: {note}" for note in section.notes]
+    slabs_seen = _design_slabs(
+        project, building, types, mats, pieces, shell_forces, combinations, checked, skipped, notes
+    )
+    from saengine.design.footing import FOOTING_METHOD, footing_checks
+
+    footings, footings_skipped, footing_notes = footing_checks(
+        project, out_dir, building, objects, materials, settings
+    )
+    checked += footings
+    skipped += footings_skipped
+    notes += footing_notes
     failed = [e for e in checked if not e["ok"]]
     governing = max(checked, key=lambda e: e["utilisation"], default=None)
     code = settings.codes.concrete
+    method = [line.format(code=code, limit=SLENDERNESS_LIMIT) for line in METHOD]
+    if slabs_seen:
+        method += slab.METHOD
+    if footings or footings_skipped:
+        method += list(FOOTING_METHOD)
     return {
         "code": code,
-        "method": [line.format(code=code, limit=SLENDERNESS_LIMIT) for line in METHOD],
+        "method": method,
         "combinations": combinations,
         "elements": checked,
         "skipped": skipped,
@@ -242,14 +273,253 @@ def design(
     }
 
 
+# ─────────────────────────────────────── slabs ───────────────────────────────────────
+
+
+def _design_slabs(
+    project: dict[str, Any],
+    building: BuildingModel,
+    types: dict[str, Any],
+    mats: dict[str, Any],
+    pieces: dict[str, list[_Piece]],
+    shell_forces: dict[int, list[np.ndarray]],
+    combinations: list[str],
+    checked: list[dict[str, Any]],
+    skipped: list[dict[str, Any]],
+    notes: list[str],
+) -> bool:
+    """Checks the slabs of the building model (see :mod:`saengine.design.slab`), adding them to
+    ``checked`` or ``skipped``. True when the building has slabs."""
+    from saengine.library.sections import section_properties
+
+    coords = {n["id"]: np.asarray(n["coords"], dtype=float) for n in project.get("nodes", [])}
+    shells_of: dict[str, list[dict[str, Any]]] = {}
+    for e in project.get("elements", []):
+        if e.get("type") == "Shell":
+            shells_of.setdefault((e.get("name") or str(e["id"])).split("#")[0], []).append(e)
+
+    # (id, type id, plan outline mm, slab axes or None, level mm)
+    candidates: list[tuple[str, str, list[tuple[float, float]], Any, float]] = []
+    for element in building.elements:
+        if isinstance(element, SlabElement):
+            outline = [(float(x), float(y)) for x, y in element.boundary]
+            candidates.append(
+                (element.id, element.type, outline, slab.plan_axes(), element.elevation)
+            )
+        elif isinstance(element, AreaElement) and isinstance(types.get(element.type), Slab):
+            outline = [(float(p[0]), float(p[1])) for p in element.outline]
+            level = sum(float(p[2]) for p in element.outline) / len(element.outline)
+            candidates.append(
+                (element.id, element.type, outline, slab.outline_axes(element.outline), level)
+            )
+    if not candidates:
+        return False
+
+    beams_at: dict[float, list[slab.EdgeBeam]] = {}
+    for element in building.elements:
+        if not isinstance(element, BeamElement):
+            continue
+        beam_type = types.get(element.type)
+        material = mats.get(beam_type.material) if beam_type else None
+        profile = getattr(beam_type, "profile", None)
+        if profile is None or material is None or not material.mechanical.E:
+            continue
+        try:
+            ixx = section_properties(profile).ixx
+        except (ValueError, TypeError, AttributeError, ArithmeticError):
+            continue
+        beams_at.setdefault(round(element.elevation), []).append(
+            slab.EdgeBeam(
+                tuple(element.start),
+                tuple(element.end),
+                material.mechanical.E * ixx,
+                float(getattr(profile, "xDim", 0.0) or 0.0),
+            )
+        )
+
+    for slab_id, type_id, outline, axes, level in candidates:
+        object_type = types.get(type_id)
+
+        def skip(reason: str, slab_id: str = slab_id, type_id: str = type_id) -> None:
+            skipped.append({"id": slab_id, "kind": "slab", "type": type_id, "reason": reason})
+
+        own = shells_of.get(slab_id, [])
+        if not isinstance(object_type, Slab):
+            skip(f"unknown slab type '{type_id}'")
+            continue
+        if not own:
+            if object_type.reinforcement is None:
+                notes.append(
+                    f"{slab_id}: slab not designed (no reinforcement, not analysed as shells)"
+                )
+            else:
+                skip("not analysed as shells: set the analysis's slabs to shells to design it")
+            continue
+        concrete = mats.get(object_type.material)
+        if concrete is None or concrete.category != Category.CONCRETE or not concrete.concrete:
+            skip("not a concrete slab")
+            continue
+        reinforcement = object_type.reinforcement
+        if reinforcement is None:
+            skip("no reinforcement")
+            continue
+        if axes is None:
+            skip("not a horizontal slab (inclined areas are not designed yet)")
+            continue
+        if not combinations:
+            skip("no load combination could be formed")
+            continue
+        bars = mats.get(reinforcement.material)
+        if bars is None or bars.steel is None:
+            skip(f"unknown reinforcement material '{reinforcement.material}'")
+            continue
+        fc, fy = concrete.concrete.fc, bars.steel.fy
+        es = bars.mechanical.E or 200_000.0
+
+        shells: list[slab.ShellPoint] = []
+        for e in own:
+            points = [coords[n] for n in e["nodes"]]
+            rows = shell_forces.get(e["id"])
+            if not rows:
+                continue
+            shell_axes = slab.shell_axes(points)
+            shells.append(
+                slab.ShellPoint(
+                    id=e["id"],
+                    name=e.get("name") or str(e["id"]),
+                    points=slab.integration_points(points, len(rows[0])),
+                    forces=[slab.slab_forces(r, shell_axes, axes) for r in rows],
+                )
+            )
+
+        context = slab.SlabContext(boundary=outline)
+        flat = object_type.system == "flat"
+        context.columns = _slab_columns(
+            building, types, pieces, outline, level, notes if flat else []
+        )
+        neighbours = [
+            other
+            for other_id, _, other, _, other_level in candidates
+            if other_id != slab_id and abs(other_level - level) <= 1
+        ]
+        try:
+            context.thickness = slab.minimum_thickness(
+                outline,
+                axes,
+                object_type.system,
+                object_type.thickness,
+                fy,
+                concrete.mechanical.E or 4700 * math.sqrt(fc),
+                neighbours,
+                beams_at.get(round(level), []),
+                column_size=(
+                    sum(max(c.c1, c.c2) for c in context.columns) / len(context.columns)
+                    if context.columns
+                    else 0.0
+                ),
+                columns=[c.centre for c in context.columns] if flat else (),
+            )
+        except (ValueError, ZeroDivisionError) as error:
+            notes.append(f"{slab_id}: minimum thickness not checked: {error}")
+        try:
+            checks = slab.slab_checks(
+                object_type.system,
+                object_type.thickness,
+                reinforcement,
+                fc,
+                fy,
+                es,
+                shells,
+                combinations,
+                context,
+            )
+        except ValueError as error:
+            skip(str(error))
+            continue
+        strength = [c for c in checks if not c["flag"]]
+        checked.append(
+            {
+                "id": slab_id,
+                "kind": "slab",
+                "type": type_id,
+                "members": [e["id"] for e in own],
+                "checks": checks,
+                "utilisation": max((c["utilisation"] for c in strength), default=0.0),
+                "ok": all(c["ok"] for c in strength),
+            }
+        )
+        notes += [f"{slab_id}: {note}" for note in context.notes]
+    return True
+
+
+def _slab_columns(
+    building: BuildingModel,
+    types: dict[str, Any],
+    pieces: dict[str, list[_Piece]],
+    outline: list[tuple[float, float]],
+    level: float,
+    notes: list[str],
+) -> list[Any]:
+    """The columns meeting a slab at ``level`` (mm) inside its ``outline``, with the force and
+    moment the slab puts on each per combination (from the column ends above and below)."""
+    from saengine.library.objects import CircleProfile, RectangleProfile
+
+    z = level * 1e-3
+    joints = []
+    for element in building.elements:
+        if not isinstance(element, ColumnElement):
+            continue
+        if not (element.bottom < level + 1 and element.top > level - 1):
+            continue
+        if not slab._inside(np.asarray(element.position, dtype=float), outline):
+            continue
+        profile = getattr(types.get(element.type), "profile", None)
+        if isinstance(profile, RectangleProfile):
+            c1, c2 = profile.xDim, profile.yDim
+        elif isinstance(profile, CircleProfile):
+            c1 = c2 = math.sqrt(math.pi) * profile.radius  # the square of the same area
+        else:
+            notes.append(f"{element.id}: punching not checked (rectangular or circular only)")
+            continue
+        own = pieces.get(element.id, [])
+        below = [p for p in own if p.end is not None and abs(p.end[2] - z) < 2e-3]
+        above = [p for p in own if p.start is not None and abs(p.start[2] - z) < 2e-3]
+        if not below and not above:
+            notes.append(f"{element.id}: punching not checked (no column end at the slab)")
+            continue
+        joint = slab.ColumnJoint(
+            element.id,
+            (float(element.position[0]), float(element.position[1])),
+            c1,
+            c2,
+            float(element.rotation or 0.0),
+        )
+        count = len((below or above)[0].forces)
+        for c in range(count):
+            force, moment = np.zeros(3), np.zeros(3)
+            # The joint's equilibrium: the slab's action on it is the force of the column below
+            # on its top end less the force the column above puts on its bottom end.
+            for p in below:
+                force += p.forces[c][-1, :3] @ p.axes
+                moment += p.forces[c][-1, 3:] @ p.axes
+            for p in above:
+                force -= p.forces[c][0, :3] @ p.axes
+                moment -= p.forces[c][0, 3:] @ p.axes
+            joint.forces.append(force)
+            joint.moments.append(moment * 1e3)  # N·mm
+        joints.append(joint)
+    return joints
+
+
 # ─────────────────────────────────────── demands ───────────────────────────────────────
 
 
 def _demands(
     project: dict[str, Any], out_dir: str | Path, settings: ProjectSettings
-) -> tuple[list[str], dict[str, list[_Piece]], list[str]]:
+) -> tuple[list[str], dict[str, list[_Piece]], list[str], dict[int, list[np.ndarray]]]:
     """The combinations formed, each member's pieces with their section forces per combination,
-    and notes on what could not be formed."""
+    notes on what could not be formed, and each shell's forces per combination (one row of
+    N11 N22 N12 M11 M22 M12 Q13 Q23 per integration point, shell axes, N/m and N·m/m)."""
     from opensees_studio.services.result_store import load_manifest, load_results
     from opensees_studio.services.results import StaticResults
 
@@ -264,13 +534,18 @@ def _demands(
     coords = {n["id"]: np.asarray(n["coords"], dtype=float) for n in project.get("nodes", [])}
 
     # Section forces of each static case (linear in the end forces and the loads).
+    shell_ids = [e["id"] for e in project.get("elements", []) if e.get("type") == "Shell"]
     by_case: dict[str, dict[int, np.ndarray]] = {}
+    shell_case: dict[str, dict[int, np.ndarray]] = {}
     for entry in manifest["cases"]:
         results = load_results(entry, out_dir)
         if not isinstance(results, StaticResults):
             continue
         reached = float(results.load_factors[-1]) if len(results.load_factors) else 1.0
         loads = _case_loads(project, int(entry["case_id"]))
+        shell_case[_code(entry["case_name"])] = {
+            i: _shell_rows(results.shell_forces.get(i)) for i in shell_ids
+        }
         by_case[_code(entry["case_name"])] = {
             e.id: element_section_forces(
                 e, _last(results.element_forces, e.id, 12), reached * loads.get(e.id, np.zeros(3))
@@ -308,9 +583,25 @@ def _demands(
                     sum(f * by_case[case][e.id] for case, f in factors.items())
                     for factors in factors_of
                 ],
+                start=a,
+                end=b,
             )
         )
-    return names, pieces, notes
+
+    # Shells: N11 ... Q23 at each integration point of the last step, per combination.
+    shells: dict[int, list[np.ndarray]] = {}
+    for i in shell_ids:
+        shells[i] = [
+            sum(f * shell_case[case][i] for case, f in factors.items()) for factors in factors_of
+        ]
+    return names, pieces, notes, shells
+
+
+def _shell_rows(rows: Any) -> np.ndarray:
+    """A shell's forces at the last step, one row of 8 per integration point."""
+    if rows is None or not len(rows):
+        return np.zeros((1, 8))
+    return np.asarray(rows[-1], dtype=float).reshape(-1, 8)
 
 
 def _profile_forces(piece: _Piece, turned: bool, forces: np.ndarray) -> dict[str, np.ndarray]:

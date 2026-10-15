@@ -90,6 +90,9 @@ class FemViewerImpl implements FemViewer {
 	private memberIds: number[] = [];
 	private nodes: THREE.Points | undefined;
 	private nodeIds: number[] = [];
+	/** The shells' faces, as triangles, and the element of each triangle. */
+	private faces: THREE.Mesh | undefined;
+	private faceIds: number[] = [];
 	private readonly highlight = new THREE.Group();
 	private readonly resultGroup = new THREE.Group();
 	private results: { readonly view: FemResultView; readonly display: FemResultDisplay } | undefined;
@@ -198,6 +201,7 @@ class FemViewerImpl implements FemViewer {
 		this.pickTargets.length = 0;
 		this.members = undefined;
 		this.nodes = undefined;
+		this.faces = undefined;
 		const model = this.model;
 		if (!model) {
 			return;
@@ -276,7 +280,10 @@ class FemViewerImpl implements FemViewer {
 			this.modelGroup.add(new THREE.LineSegments(lines, new THREE.LineBasicMaterial({ color: this.theme.member, transparent: true, opacity: dimmed ? 0.15 : 0.35 })));
 		}
 
-		// Shell-like elements (3+ nodes) also get a translucent face so they read as areas.
+		// Shell-like elements (3+ nodes) also get a translucent face so they read as areas; a click
+		// on the face selects the element.
+		const facePositions: number[] = [];
+		this.faceIds = [];
 		for (const element of model.elements) {
 			if (element.nodes.length < 3 || element.type === 'Solid') {
 				continue;
@@ -285,16 +292,19 @@ class FemViewerImpl implements FemViewer {
 			if (pts.length < 3) {
 				continue;
 			}
-			const geometry = new THREE.BufferGeometry().setFromPoints(pts);
-			const index: number[] = [];
 			for (let i = 1; i < pts.length - 1; i++) {
-				index.push(0, i, i + 1);
+				facePositions.push(...pts[0].toArray(), ...pts[i].toArray(), ...pts[i + 1].toArray());
+				this.faceIds.push(element.id);
 			}
-			geometry.setIndex(index);
-			const face = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+		}
+		if (facePositions.length) {
+			const geometry = new THREE.BufferGeometry();
+			geometry.setAttribute('position', new THREE.Float32BufferAttribute(facePositions, 3));
+			this.faces = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
 				color: this.theme.member, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false,
 			}));
-			this.modelGroup.add(face);
+			this.modelGroup.add(this.faces);
+			this.pickTargets.push(this.faces);
 		}
 
 		// Nodes only solids use are not marked (or picked): a solid's mesh would bury it in them.
@@ -424,14 +434,17 @@ class FemViewerImpl implements FemViewer {
 		this.raycaster.params.Points = { threshold: threshold * 1.5 };
 		this.raycaster.setFromCamera(ndc, this.camera.three);
 		const hits = this.raycaster.intersectObjects(this.pickTargets, false);
-		// Prefer nodes over members when both are under the cursor.
+		// Prefer nodes over members, and members over the shell faces behind them.
 		const nodeHit = hits.find(h => h.object === this.nodes && h.index !== undefined);
 		const memberHit = hits.find(h => h.object === this.members && h.index !== undefined);
+		const faceHit = hits.find(h => h.object === this.faces && h.faceIndex !== undefined && h.faceIndex !== null);
 		let next: FemSelection | undefined;
 		if (nodeHit) {
 			next = { kind: 'node', id: this.nodeIds[nodeHit.index!] };
 		} else if (memberHit) {
 			next = { kind: 'element', id: this.memberIds[Math.floor(memberHit.index! / 2)] };
+		} else if (faceHit) {
+			next = { kind: 'element', id: this.faceIds[faceHit.faceIndex!] };
 		}
 		if (!sameSelection(next, this.selection)) {
 			this.selection = next;

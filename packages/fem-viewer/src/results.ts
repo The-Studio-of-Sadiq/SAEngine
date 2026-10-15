@@ -440,7 +440,8 @@ export class ResultOverlay {
 	}
 
 	/**
-	 * Frame elements coloured by their design utilisation band (pass, warn, fail), labelled with
+	 * Frame elements (as lines) and shells (as filled faces, e.g. a slab's elements all with the
+	 * slab's value) coloured by their design utilisation band (pass, warn, fail), labelled with
 	 * the selected element's value, or else the largest.
 	 */
 	private drawUtilisation(utilisation: { readonly [elementId: number]: number }): void {
@@ -448,22 +449,35 @@ export class ResultOverlay {
 		const bands = { pass: new THREE.Color(this.colors.pass), warn: new THREE.Color(this.colors.warn), fail: new THREE.Color(this.colors.fail) };
 		const positions: number[] = [];
 		const colors: number[] = [];
+		const faces: number[] = [];
+		const faceColors: number[] = [];
+		const outline: number[] = [];
 		let largest: { value: number; at: THREE.Vector3 } | undefined;
 		let selected: { value: number; at: THREE.Vector3 } | undefined;
 		for (const [key, value] of Object.entries(utilisation)) {
 			const id = Number(key);
 			const element = this.modelElements.get(id);
-			const a = element?.nodes.length === 2 ? nodes.get(element.nodes[0]) : undefined;
-			const b = element?.nodes.length === 2 ? nodes.get(element.nodes[1]) : undefined;
-			if (!a || !b) {
+			const points = (element?.nodes ?? []).map(n => nodes.get(n)).filter((n): n is FemNode => !!n).map(n => this.toWorld(n.coords));
+			if (!element || points.length < 2 || points.length !== element.nodes.length) {
 				continue;
 			}
-			const pa = this.toWorld(a.coords);
-			const pb = this.toWorld(b.coords);
 			const color = bands[utilisationBand(value)];
-			positions.push(pa.x, pa.y, pa.z, pb.x, pb.y, pb.z);
-			colors.push(color.r, color.g, color.b, color.r, color.g, color.b);
-			const middle = pa.clone().lerp(pb, 0.5);
+			let middle: THREE.Vector3;
+			if (points.length === 2) {
+				const [pa, pb] = points;
+				positions.push(pa.x, pa.y, pa.z, pb.x, pb.y, pb.z);
+				colors.push(color.r, color.g, color.b, color.r, color.g, color.b);
+				middle = pa.clone().lerp(pb, 0.5);
+			} else {
+				for (let k = 1; k + 1 < points.length; k++) {
+					for (const p of [points[0], points[k], points[k + 1]]) {
+						faces.push(p.x, p.y, p.z);
+						faceColors.push(color.r, color.g, color.b);
+					}
+				}
+				points.forEach((p, k) => outline.push(...p.toArray(), ...points[(k + 1) % points.length].toArray()));
+				middle = points.reduce((sum, p) => sum.add(p), new THREE.Vector3()).divideScalar(points.length);
+			}
 			if (!largest || value > largest.value) {
 				largest = { value, at: middle };
 			}
@@ -471,13 +485,24 @@ export class ResultOverlay {
 				selected = { value, at: middle };
 			}
 		}
-		if (!positions.length) {
-			return;
+		if (positions.length) {
+			const geometry = new THREE.BufferGeometry();
+			geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+			geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+			this.group.add(new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ vertexColors: true })));
 		}
-		const geometry = new THREE.BufferGeometry();
-		geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-		geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-		this.group.add(new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ vertexColors: true })));
+		if (faces.length) {
+			const geometry = new THREE.BufferGeometry();
+			geometry.setAttribute('position', new THREE.Float32BufferAttribute(faces, 3));
+			geometry.setAttribute('color', new THREE.Float32BufferAttribute(faceColors, 3));
+			this.group.add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+				vertexColors: true, transparent: true, opacity: 0.6, side: THREE.DoubleSide, depthWrite: false,
+				polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,
+			})));
+			const lines = new THREE.BufferGeometry();
+			lines.setAttribute('position', new THREE.Float32BufferAttribute(outline, 3));
+			this.group.add(new THREE.LineSegments(lines, new THREE.LineBasicMaterial({ color: this.colors.labelBackground, transparent: true, opacity: 0.35 })));
+		}
 		const label = selected ?? largest;
 		if (label) {
 			this.addLabel(formatUtilisation(label.value), label.at, this.colors[utilisationBand(label.value)]);

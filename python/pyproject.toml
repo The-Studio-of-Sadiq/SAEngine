@@ -19,16 +19,20 @@ dependencies = [
     "rhino3dm>=8.17,<9",  # Rhino (.3dm) import of structural geometry (MIT)
     "shapely>=2,<3",  # mid-surfaces of imported plates, quantities (BSD-3-Clause)
     "concreteproperties>=0.8,<0.9",  # RC section capacities for the design checks (MIT)
+    "typst>=0.14,<0.15",  # PDF design report (Apache-2.0)
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.6"]
+dev = ["pytest>=8", "ruff>=0.6", "pypdf>=5"]
 
 [project.scripts]
 saengine-rpc = "saengine.rpc.server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"saengine.report" = ["templates/*.typ"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

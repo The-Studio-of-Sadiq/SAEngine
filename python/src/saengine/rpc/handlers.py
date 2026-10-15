@@ -480,3 +480,10 @@ def compute_boq(bim_text: str, objects_text: str, materials_text: str) -> dict[s
     from saengine.boq import compute_boq_text
 
     return compute_boq_text(bim_text, objects_text, materials_text)
+
+
+def build_report(project_root: str, out_pdf: str | None = None) -> dict[str, Any]:
+    """The PDF design report of the project (see ``saengine.report.build_report``)."""
+    from saengine.report import build_report as build
+
+    return build(project_root, out_pdf)

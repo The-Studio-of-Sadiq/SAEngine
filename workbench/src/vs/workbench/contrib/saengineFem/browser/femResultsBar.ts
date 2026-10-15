@@ -587,7 +587,10 @@ export class FemResultsBar extends Disposable {
 		append(legend, $('span.fem-design-swatch.fail'));
 		append(legend, $('span', undefined, localize('femResults.designFail', "above 1.0")));
 		const selection = this.selection;
-		const name = selection?.kind === 'element' ? this.view?.elements.find(e => e.id === selection.id)?.name : undefined;
+		// A frame element, or a shell (its slab's checks).
+		const name = selection?.kind === 'element'
+			? this.view?.elements.find(e => e.id === selection.id)?.name ?? this.view?.shells?.find(s => s.id === selection.id)?.name
+			: undefined;
 		const text = selection?.kind === 'element' ? describeDesignElement(report, selection.id, name) : undefined;
 		append(this.info, $('span.fem-design-text', undefined, text ?? describeDesignSummary(report)));
 	}

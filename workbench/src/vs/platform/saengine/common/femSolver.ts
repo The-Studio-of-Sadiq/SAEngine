@@ -238,6 +238,14 @@ export interface IBoqComputation {
 	readonly problems?: readonly string[];
 }
 
+/** The PDF design report: where it was written, or why it could not be built. */
+export interface IReportBuild {
+	readonly path?: string;
+	readonly pages?: number;
+	readonly warnings?: readonly string[];
+	readonly problems?: readonly string[];
+}
+
 export interface ILibraryProblem {
 	readonly index: number | null;
 	readonly path: string;
@@ -300,4 +308,7 @@ export interface IFemSolverService {
 
 	/** The bill of quantities of the building model (`saengine.boq`). */
 	computeBoq(python: string, bimText: string, objectsText: string, materialsText: string): Promise<IBoqComputation>;
+
+	/** Builds the PDF design report of the project (`saengine.report`), by default in `11 Exports`. */
+	buildReport(python: string, projectRoot: string, outPdf?: string): Promise<IReportBuild>;
 }

@@ -14,7 +14,10 @@ import { URI } from '../../../../base/common/uri.js';
  */
 export const DESIGN_COMMAND = 'saengine.fem.design';
 
-/** One check of a member: demand against design capacity (kN, kN·m; none for ratios). */
+/**
+ * One check of a member or a slab: demand against design capacity (kN, kN·m; slabs per metre
+ * width, kN·m/m and kN/m; mm and mm²/m for detailing; none for ratios).
+ */
 export interface IFemDesignCheck {
 	readonly name: string;
 	readonly demand: number;
@@ -29,14 +32,17 @@ export interface IFemDesignCheck {
 	readonly flag: boolean;
 }
 
-/** A checked beam or column of the building model. */
+/** A checked beam, column or slab of the building model. */
 export interface IFemDesignElement {
-	/** Building model element id (`B1`, `C3`, ...). */
+	/** Building model element id (`B1`, `C3`, `S1`, ...). */
 	readonly id: string;
-	readonly kind: 'beam' | 'column';
+	readonly kind: 'beam' | 'column' | 'slab' | 'footing';
 	/** Object type id. */
 	readonly type: string;
-	/** The analysis elements it is made of (`B1`, `B1#2`, ...), by analysis element id. */
+	/**
+	 * The analysis elements it is made of (`B1`, `B1#2`, ...; a slab's shells `S1`, `S1#2`,
+	 * ...), by analysis element id.
+	 */
 	readonly members: readonly number[];
 	readonly checks: readonly IFemDesignCheck[];
 	/** The largest utilisation of its strength checks. */
@@ -116,20 +122,23 @@ export function describeDesignSummary(report: IFemDesignReport): string {
 	if (!report.elements.length) {
 		return skipped
 			? localize('femDesign.noneChecked', "No member could be checked ({0} not checked: select one for the reason, or see the notes).", skipped)
-			: localize('femDesign.noMembers', "There are no reinforced-concrete beams or columns to check.");
+			: localize('femDesign.noMembersOrSlabs', "There are no reinforced-concrete beams, columns or slabs to check.");
 	}
 	const counts = localize('femDesign.counts', "{0} members pass, {1} fail", passed, failed);
 	const largest = report.summary.maxUtilisation !== null && report.summary.governing
 		? localize('femDesign.largest', "largest utilisation {0} in {1}", formatUtilisation(report.summary.maxUtilisation), report.summary.governing)
 		: undefined;
 	const parts = [counts, ...(largest ? [largest] : []), ...(skipped ? [localize('femDesign.skipped', "{0} not checked", skipped)] : [])];
-	return localize('femDesign.summary', "{0} ({1}). Select a member for its checks.", parts.join(', '), report.code);
+	return report.elements.some(e => e.kind === 'slab')
+		? localize('femDesign.summarySlabs', "{0} ({1}). Select a member, or a slab's shell, for its checks.", parts.join(', '), report.code)
+		: localize('femDesign.summary', "{0} ({1}). Select a member for its checks.", parts.join(', '), report.code);
 }
 
 function formatCheck(check: IFemDesignCheck): string {
+	// Ratios (c/d, slenderness) keep two decimals: one would round a slab's c/d of 0.11 to 0.1.
 	const values = check.unit
 		? localize('femDesign.checkValues', "{0} of {1} {2}", check.demand.toFixed(1), check.capacity.toFixed(1), check.unit)
-		: localize('femDesign.checkRatio', "{0} against {1}", check.demand.toFixed(1), check.capacity.toFixed(1));
+		: localize('femDesign.checkRatio', "{0} against {1}", check.demand.toFixed(2), check.capacity.toFixed(2));
 	return check.combination
 		? localize('femDesign.checkUnder', "{0} {1} ({2}, {3})", check.name, formatUtilisation(check.utilisation), values, check.combination)
 		: localize('femDesign.check', "{0} {1} ({2})", check.name, formatUtilisation(check.utilisation), values);
@@ -147,7 +156,10 @@ export function describeDesignElement(report: IFemDesignReport, elementId: numbe
 		return skipped ? localize('femDesign.notChecked', "{0} ({1}) is not checked: {2}.", skipped.id, skipped.type, skipped.reason) : undefined;
 	}
 	const checks = [...element.checks].sort((a, b) => Number(a.flag) - Number(b.flag) || b.utilisation - a.utilisation);
-	const kind = element.kind === 'beam' ? localize('femDesign.beam', "beam") : localize('femDesign.column', "column");
+	const kind = element.kind === 'beam' ? localize('femDesign.beam', "beam")
+		: element.kind === 'slab' ? localize('femDesign.slab', "slab")
+			: element.kind === 'footing' ? localize('femDesign.footing', "footing")
+				: localize('femDesign.column', "column");
 	const verdict = element.ok ? localize('femDesign.passes', "passes") : localize('femDesign.fails', "fails");
 	const text = localize('femDesign.element', "{0} ({1} {2}) {3}, utilisation {4}: {5}.", element.id, kind, element.type, verdict,
 		formatUtilisation(element.utilisation), checks.map(formatCheck).join('; '));

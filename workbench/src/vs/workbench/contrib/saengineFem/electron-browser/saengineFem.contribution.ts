@@ -187,3 +187,9 @@ CommandsRegistry.registerCommand('saengine.boq.compute', async (accessor, args: 
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	return accessor.get(IFemSolverService).computeBoq(python, args.bimText, args.objectsText, args.materialsText);
 });
+
+/** The PDF design report of the project. Internal: the report command calls it by id. */
+CommandsRegistry.registerCommand('saengine.report.build', async (accessor, args: { projectRoot: string; outPdf?: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).buildReport(python, args.projectRoot, args.outPdf);
+});
