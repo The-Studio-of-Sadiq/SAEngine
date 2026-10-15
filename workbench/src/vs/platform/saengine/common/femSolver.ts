@@ -120,6 +120,22 @@ export interface IBuildingIfc {
 	readonly problems?: readonly string[];
 }
 
+export interface IFemDeriveRequest {
+	readonly bimText: string;
+	readonly objectsText: string;
+	readonly materialsText: string;
+	readonly settingsText: string;
+}
+
+export interface IFemDerivation {
+	/** The `model.osmodel` text. */
+	readonly text?: string;
+	/** What the model leaves out or simplifies. */
+	readonly notes?: readonly string[];
+	readonly summary?: { readonly [key: string]: number };
+	readonly problems?: readonly string[];
+}
+
 export interface ILibraryProblem {
 	readonly index: number | null;
 	readonly path: string;
@@ -154,4 +170,7 @@ export interface IFemSolverService {
 
 	/** The building model as IFC (IfcOpenShell), with each element's IFC GlobalId. */
 	buildingIfc(python: string, request: IBuildingIfcRequest): Promise<IBuildingIfc>;
+
+	/** The analysis model derived from the building model, with the project settings' loads. */
+	deriveFem(python: string, request: IFemDeriveRequest): Promise<IFemDerivation>;
 }

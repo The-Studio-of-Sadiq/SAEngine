@@ -13,7 +13,7 @@ import { killTree } from '../../../base/node/processes.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemRunEventMessage, IBuildingIfc, IBuildingIfcRequest, IGeneratedBuilding, ILibraryProblem, LibraryFileKind, IFemRunExit, IFemRunRequest, IFemSolverService } from '../common/femSolver.js';
+import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemRunEventMessage, IBuildingIfc, IBuildingIfcRequest, IFemDerivation, IFemDeriveRequest, IGeneratedBuilding, ILibraryProblem, LibraryFileKind, IFemRunExit, IFemRunRequest, IFemSolverService } from '../common/femSolver.js';
 
 interface IRun {
 	readonly child: cp.ChildProcess;
@@ -135,6 +135,10 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 
 	buildingIfc(python: string, request: IBuildingIfcRequest): Promise<IBuildingIfc> {
 		return this.request(python, 'bim/ifc', request);
+	}
+
+	deriveFem(python: string, request: IFemDeriveRequest): Promise<IFemDerivation> {
+		return this.request(python, 'fem/derive', request);
 	}
 
 	private async request<T>(python: string, method: string, params: object): Promise<T> {

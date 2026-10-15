@@ -160,3 +160,70 @@ STRENGTH_COMBINATIONS: list[tuple[str, dict[str, float]]] = [
     ("0.9D + 1.6W", {"D": 0.9, "W": 1.6}),
     ("0.9D + 1.0E", {"D": 0.9, "E": 1.0}),
 ]
+
+
+# ───────────────────────── equivalent static lateral forces ─────────────────────────
+
+
+class SiteFactors(NamedTuple):
+    #: Soil factor S and the corner periods of the normalized spectrum TB, TC, TD [s]
+    #: (Table 6.2.16).
+    s: float
+    tb: float
+    tc: float
+    td: float
+
+
+SITE_FACTORS: dict[str, SiteFactors] = {
+    "SA": SiteFactors(1.00, 0.15, 0.40, 2.0),
+    "SB": SiteFactors(1.20, 0.15, 0.50, 2.0),
+    "SC": SiteFactors(1.15, 0.20, 0.60, 2.0),
+    "SD": SiteFactors(1.35, 0.20, 0.80, 2.0),
+    "SE": SiteFactors(1.40, 0.15, 0.50, 2.0),
+}
+
+#: Approximate period T = Ct·hn^m, hn in metres (6.2.?, Table 6.2.20): by system family.
+PERIOD_COEFFICIENTS: dict[str, tuple[float, float]] = {
+    "concreteMomentFrame": (0.0466, 0.9),
+    "steelMomentFrame": (0.0724, 0.8),
+    "other": (0.0488, 0.75),
+}
+
+#: The period family of each structural system in STRUCTURAL_SYSTEMS.
+SYSTEM_PERIOD_FAMILY: dict[str, str] = {
+    "rcSmf": "concreteMomentFrame",
+    "rcImf": "concreteMomentFrame",
+    "rcOmf": "concreteMomentFrame",
+    "steelSmf": "steelMomentFrame",
+    "steelOmf": "steelMomentFrame",
+}
+
+#: Damping correction factor η for 5 % damping.
+DAMPING_ETA = 1.0
+
+#: Share of the floor live load in the seismic weight W (6.2.?): 25 % for ordinary floors.
+SEISMIC_LIVE_SHARE = 0.25
+
+
+class ExposureProfile(NamedTuple):
+    #: Power-law exponent α and gradient height zg [m] of the velocity pressure profile.
+    alpha: float
+    zg: float
+
+
+#: Velocity pressure exposure profiles by exposure category (6.2.10, Table 6.2.11).
+EXPOSURE_PROFILES: dict[str, ExposureProfile] = {
+    "A": ExposureProfile(7.0, 365.76),
+    "B": ExposureProfile(9.5, 274.32),
+    "C": ExposureProfile(11.5, 213.36),
+}
+
+#: Wind directionality factor Kd for buildings (Table 6.2.12) and topographic factor Kzt.
+WIND_KD = 0.85
+WIND_KZT = 1.0
+#: Gust effect factor G for a rigid building (6.2.10.8).
+WIND_GUST = 0.85
+#: External pressure coefficients of the main wind-force resisting system (Figure 6.2.6):
+#: windward wall, and leeward wall by plan aspect L/B.
+WIND_CP_WINDWARD = 0.8
+WIND_CP_LEEWARD = ((1.0, -0.5), (2.0, -0.3), (4.0, -0.2))

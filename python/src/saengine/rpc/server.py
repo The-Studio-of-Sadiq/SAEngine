@@ -59,6 +59,13 @@ def create_server() -> JsonRPCServer:
         args = _plain(params)
         return handlers.generate_building(args["floorPlanText"], args.get("bimText"))
 
+    @server.feature("fem/derive")
+    def _derive_fem(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.derive_fem(
+            args["bimText"], args["objectsText"], args["materialsText"], args["settingsText"]
+        )
+
     @server.feature("bim/ifc")
     def _building_ifc(params: Any) -> dict[str, Any]:
         args = _plain(params)

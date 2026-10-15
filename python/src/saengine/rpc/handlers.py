@@ -141,6 +141,16 @@ def results_tables(out_dir: str, project_path: str | None = None) -> dict[str, A
                 "tables": _tables_for(results, project),
             }
         )
+    # Models derived by SAEngine: the project settings' load combinations of these results.
+    if project is not None and project.meta.author == "SAEngine" and project_file:
+        import json as _json
+
+        from saengine.fem.combinations import combination_results, settings_beside
+
+        settings = settings_beside(project_file)
+        if settings is not None:
+            payload = _json.loads(Path(project_file).read_text(encoding="utf-8"))
+            cases.extend(combination_results(out_dir, payload, settings))
     return {"cases": cases}
 
 
@@ -222,3 +232,48 @@ def building_ifc(
         materials = None  # material names fall back to their ids
     ifc, ids, skipped = export_ifc(building, objects, materials, name)
     return {"text": ifc.to_string(), "ids": ids, "skipped": skipped}
+
+
+def derive_fem(
+    bim_text: str, objects_text: str, materials_text: str, settings_text: str
+) -> dict[str, Any]:
+    """The analysis model (``model.osmodel`` text) of the building model with the settings' loads.
+
+    Returns ``{"text", "notes", "summary"}``, or ``{"problems"}`` when an input has errors.
+    """
+    import json
+
+    from pydantic import ValidationError
+
+    from saengine.fem.derive import derive_fem as derive
+    from saengine.fem.derive import stamp
+    from saengine.library.bim import BuildingModel
+    from saengine.library.materials import MaterialLibrary
+    from saengine.library.objects import ObjectLibrary
+    from saengine.library.settings import ProjectSettings
+
+    inputs = {
+        "bim": (BuildingModel, bim_text, "Building model"),
+        "objects": (ObjectLibrary, objects_text, "Object types"),
+        "materials": (MaterialLibrary, materials_text, "Materials"),
+        "settings": (ProjectSettings, settings_text, "Project settings"),
+    }
+    parsed = {}
+    for key, (model, text, label) in inputs.items():
+        try:
+            parsed[key] = model.model_validate_json(text)
+        except ValidationError as exc:
+            return {
+                "problems": [
+                    f"{label}: {e['msg'].removeprefix('Value error, ')}" for e in exc.errors()
+                ]
+            }
+    stamps = {key: stamp(text) for key, (_, text, _) in inputs.items()}
+    derivation = derive(
+        parsed["bim"], parsed["objects"], parsed["materials"], parsed["settings"], stamps
+    )
+    return {
+        "text": json.dumps(derivation.project, indent="\t", ensure_ascii=False) + "\n",
+        "notes": derivation.notes,
+        "summary": derivation.summary,
+    }

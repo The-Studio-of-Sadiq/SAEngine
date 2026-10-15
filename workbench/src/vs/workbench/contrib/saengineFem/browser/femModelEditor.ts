@@ -20,7 +20,9 @@ import { editorBackground, editorForeground } from '../../../../platform/theme/c
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { FemDerivationBar } from './femDerivationBar.js';
 import { FemModelEditorInput } from './femModelEditorInput.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { loadViewerModule } from './viewerModule.js';
 
 export class FemModelEditor extends EditorPane {
@@ -29,6 +31,8 @@ export class FemModelEditor extends EditorPane {
 	private viewport: HTMLElement | undefined;
 	private message: HTMLElement | undefined;
 	private viewer: FemViewer | undefined;
+	private derivation: FemDerivationBar | undefined;
+	private nodeCount = 0;
 
 	private readonly inputDisposables = this._register(new DisposableStore());
 	private readonly viewerDisposable = this._register(new MutableDisposable());
@@ -42,12 +46,14 @@ export class FemModelEditor extends EditorPane {
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IFileService private readonly fileService: IFileService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(FemModelEditorInput.EDITOR_ID, group, telemetryService, themeService, storageService);
 	}
 
 	protected createEditor(parent: HTMLElement): void {
 		this.container = append(parent, $('.saengine-fem-model-editor'));
+		this.derivation = this._register(this.instantiationService.createInstance(FemDerivationBar, this.container, () => this.viewer?.layout()));
 		this.viewport = append(this.container, $('.viewport'));
 		this.message = append(this.container, $('.message'));
 	}
@@ -55,6 +61,7 @@ export class FemModelEditor extends EditorPane {
 	override async setInput(input: FemModelEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		this.inputDisposables.clear();
+		void this.derivation?.setResource(input.resource);
 
 		const viewer = await this.ensureViewer();
 		if (token.isCancellationRequested || !viewer) {
@@ -141,7 +148,14 @@ export class FemModelEditor extends EditorPane {
 			return;
 		}
 		this.showMessage(undefined);
+		this.derivation?.setDescription((model as { meta?: { description?: unknown } }).meta?.description);
+		const wasEmpty = this.nodeCount === 0;
+		this.nodeCount = model.nodes.length;
 		this.viewer?.setModel(model);
+		if (wasEmpty && this.nodeCount) {
+			// A model derived into an empty file: frame it (the first fit framed nothing).
+			void this.viewer?.fit();
+		}
 	}
 
 	private showMessage(text: string | undefined): void {

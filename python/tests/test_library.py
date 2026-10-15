@@ -11,9 +11,9 @@ from pydantic import ValidationError
 from saengine.library import (
     BuildingModel,
     FloorPlan,
-    ProjectSettings,
     MaterialLibrary,
     ObjectLibrary,
+    ProjectSettings,
     default_material_library,
 )
 from saengine.library import objects as o
@@ -255,8 +255,8 @@ def test_rectangle_torsion_constant() -> None:
 def test_editor_templates_are_valid() -> None:
     from saengine.library import bim as b
     from saengine.library import floorplan as f
-    from saengine.library import settings as st
     from saengine.library import materials as m
+    from saengine.library import settings as st
     from saengine.library.templates import TEMPLATES
 
     schemas = {
