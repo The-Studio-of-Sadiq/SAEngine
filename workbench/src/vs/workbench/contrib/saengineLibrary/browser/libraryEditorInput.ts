@@ -16,10 +16,11 @@ import { EditorInputCapabilities, GroupIdentifier, IEditorDescriptor, IEditorPan
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 
-export type LibraryKind = 'materials' | 'objects' | 'floorPlan' | 'bim';
+export type LibraryKind = 'materials' | 'objects' | 'settings' | 'floorPlan' | 'bim';
 
 const materialsIcon = registerIcon('saengine-materials-editor-icon', Codicon.symbolColor, localize('materialsEditorIcon', "Icon of the materials editor."));
 const objectsIcon = registerIcon('saengine-objects-editor-icon', Codicon.symbolStructure, localize('objectsEditorIcon', "Icon of the object types editor."));
+const settingsIcon = registerIcon('saengine-settings-editor-icon', Codicon.settingsGear, localize('settingsEditorIcon', "Icon of the project settings editor."));
 const gridsIcon = registerIcon('saengine-grids-editor-icon', Codicon.table, localize('gridsEditorIcon', "Icon of the grids and stories editor."));
 const buildingIcon = registerIcon('saengine-building-editor-icon', Codicon.layers, localize('buildingEditorIcon', "Icon of the building model editor."));
 
@@ -34,6 +35,7 @@ export class LibraryEditorInput extends EditorInput {
 	static readonly EDITOR_ID = 'workbench.editor.saengine.library';
 	static readonly BUILDING_EDITOR_ID = 'workbench.editor.saengine.building';
 	static readonly GRIDS_EDITOR_ID = 'workbench.editor.saengine.grids';
+	static readonly SETTINGS_EDITOR_ID = 'workbench.editor.saengine.settings';
 
 	private modelReference: Promise<IReference<IResolvedTextEditorModel>> | undefined;
 
@@ -59,6 +61,7 @@ export class LibraryEditorInput extends EditorInput {
 		switch (this.kind) {
 			case 'bim': return LibraryEditorInput.BUILDING_EDITOR_ID;
 			case 'floorPlan': return LibraryEditorInput.GRIDS_EDITOR_ID;
+			case 'settings': return LibraryEditorInput.SETTINGS_EDITOR_ID;
 			default: return LibraryEditorInput.EDITOR_ID;
 		}
 	}
@@ -71,6 +74,7 @@ export class LibraryEditorInput extends EditorInput {
 		switch (this.kind) {
 			case 'materials': return localize('materialsEditor', "Materials");
 			case 'objects': return localize('objectsEditor', "Object Types");
+			case 'settings': return localize('settingsEditor', "Project Settings");
 			case 'floorPlan': return localize('gridsEditor', "Grids & Stories");
 			case 'bim': return localize('buildingEditor', "Building Model");
 		}
@@ -80,6 +84,7 @@ export class LibraryEditorInput extends EditorInput {
 		switch (this.kind) {
 			case 'materials': return materialsIcon;
 			case 'objects': return objectsIcon;
+			case 'settings': return settingsIcon;
 			case 'floorPlan': return gridsIcon;
 			case 'bim': return buildingIcon;
 		}

@@ -479,3 +479,9 @@
 	color: var(--vscode-button-foreground);
 	background-color: var(--vscode-button-background);
 }
+
+/* project settings */
+
+.saengine-library-editor .settings-editor .settings-values {
+	grid-template-columns: repeat(3, auto);
+}

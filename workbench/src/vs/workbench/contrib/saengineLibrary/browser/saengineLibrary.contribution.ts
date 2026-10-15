@@ -22,6 +22,7 @@ import { IEditorResolverService, RegisteredEditorPriority } from '../../../servi
 import { ISaengineProjectService, PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
 import { BuildingEditor } from './buildingEditor.js';
 import { GridsEditor } from './gridsEditor.js';
+import { SettingsEditor } from './settingsEditor.js';
 import { JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditor } from './libraryEditor.js';
 import { LibraryEditorInput, LibraryEditorInputSerializer, LibraryKind } from './libraryEditorInput.js';
@@ -41,15 +42,21 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	[new SyncDescriptor(LibraryEditorInput)]
 );
 
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(SettingsEditor, LibraryEditorInput.SETTINGS_EDITOR_ID, localize('settingsEditorPane', "SAEngine Project Settings Editor")),
+	[new SyncDescriptor(LibraryEditorInput)]
+);
+
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(LibraryEditorInput.ID, LibraryEditorInputSerializer);
 
 /** Project files with a visual editor; each is the main file of the project part with that id. */
-const KINDS: readonly LibraryKind[] = ['materials', 'objects', 'floorPlan', 'bim'];
+const KINDS: readonly LibraryKind[] = ['settings', 'materials', 'objects', 'floorPlan', 'bim'];
 
 const EDITOR_LABELS: { readonly [kind in LibraryKind]: string } = {
 	materials: localize('materialsEditorLabel', "Materials Editor"),
 	objects: localize('objectsEditorLabel', "Object Types Editor"),
 	floorPlan: localize('gridsEditorLabel', "Grids & Stories Editor"),
+	settings: localize('settingsEditorLabel', "Project Settings Editor"),
 	bim: localize('buildingEditorLabel', "Building Model Editor"),
 };
 
@@ -57,6 +64,7 @@ const EDITOR_IDS: { readonly [kind in LibraryKind]: string } = {
 	materials: LibraryEditorInput.EDITOR_ID,
 	objects: LibraryEditorInput.EDITOR_ID,
 	floorPlan: LibraryEditorInput.GRIDS_EDITOR_ID,
+	settings: LibraryEditorInput.SETTINGS_EDITOR_ID,
 	bim: LibraryEditorInput.BUILDING_EDITOR_ID,
 };
 

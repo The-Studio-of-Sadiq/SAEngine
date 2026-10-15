@@ -8,6 +8,19 @@
 
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 
+/** Reference tables from BNBC 2020 Part 6 Chapter 2 (see saengine.library.bnbc). */
+export interface IBnbcTables {
+	readonly edition: string;
+	readonly zoneCoefficient: { readonly [zone: string]: number };
+	readonly locations: { readonly [id: string]: { readonly name: string; readonly zone: number; readonly windSpeed: number } };
+	readonly categories: { readonly [id: string]: { readonly description: string; readonly seismicImportance: number; readonly windImportance: number } };
+	readonly areaUses: { readonly [id: string]: { readonly name: string; readonly live: number } };
+	readonly systems: { readonly [id: string]: { readonly name: string; readonly r: number; readonly omega: number; readonly cd: number } };
+	readonly siteClasses: { readonly [id: string]: string };
+	readonly exposures: { readonly [id: string]: string };
+	readonly loadCases: { readonly [id: string]: string };
+}
+
 export const MATERIALS_SCHEMA: IJSONSchema = {
 	$defs: {
 		Admixture: {
@@ -2167,6 +2180,933 @@ export const DEFAULT_OBJECTS: object = {
 	objects: [],
 };
 
+export const SETTINGS_SCHEMA: IJSONSchema = {
+	$defs: {
+		AreaLoad: {
+			additionalProperties: false,
+			description: 'Loads on floor area of one use: live load and superimposed dead loads.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				use: {
+					default: 'residential',
+					description: 'Use of the area (Table 6.2.3).',
+					enum: ['residential', 'residentialPublic', 'office', 'officeLobby', 'corridorAbove', 'classroom', 'hospitalWard', 'operatingRoom', 'assemblyFixed', 'assemblyMovable', 'retailGround', 'retailUpper', 'storageLight', 'storageHeavy', 'parking', 'stairs', 'roof', 'roofGarden', 'custom'],
+					enumDescriptions: ['Residential: rooms and private corridors (2.0 kN/m²)', 'Residential: public rooms and corridors (4.8 kN/m²)', 'Office (2.4 kN/m²)', 'Office: lobbies and first-floor corridors (4.8 kN/m²)', 'Corridors above the first floor (3.8 kN/m²)', 'School: classrooms (1.9 kN/m²)', 'Hospital: patient rooms (1.9 kN/m²)', 'Hospital: operating rooms, laboratories (2.9 kN/m²)', 'Assembly: fixed seats (2.9 kN/m²)', 'Assembly: movable seats, lobbies (4.8 kN/m²)', 'Retail: first floor (4.8 kN/m²)', 'Retail: upper floors (3.6 kN/m²)', 'Storage: light (6.0 kN/m²)', 'Storage: heavy (12.0 kN/m²)', 'Parking: passenger vehicles (1.9 kN/m²)', 'Stairs and exits (4.8 kN/m²)', 'Roof: ordinary flat, pitched or curved (1.0 kN/m²)', 'Roof: gardens and assembly use (4.8 kN/m²)', 'Custom'],
+					title: 'Use',
+					type: 'string',
+				},
+				live: {
+					description: 'Live load [kN/m²]; at least the code minimum for the use.',
+					minimum: 0,
+					title: 'Live',
+					type: 'number',
+				},
+				finish: {
+					default: 0,
+					description: '[kN/m²]',
+					minimum: 0,
+					title: 'Floor finish',
+					type: 'number',
+				},
+				partitions: {
+					default: 0,
+					description: 'Partition allowance [kN/m²].',
+					minimum: 0,
+					title: 'Partitions',
+					type: 'number',
+				},
+			},
+			required: ['id', 'name', 'live'],
+			title: 'AreaLoad',
+			type: 'object',
+		},
+		Codes: {
+			additionalProperties: false,
+			description: 'The codes the design follows. BNBC 2020 Part 6 adopts ACI 318 for concrete and AISC 360 for steel.',
+			properties: {
+				general: {
+					const: 'BNBC 2020',
+					default: 'BNBC 2020',
+					title: 'Loads and general',
+					type: 'string',
+				},
+				concrete: {
+					default: 'BNBC 2020 Part 6 Chapter 6',
+					enum: ['BNBC 2020 Part 6 Chapter 6', 'ACI 318-19'],
+					title: 'Concrete',
+					type: 'string',
+				},
+				steel: {
+					default: 'BNBC 2020 Part 6 Chapter 10',
+					enum: ['BNBC 2020 Part 6 Chapter 10', 'AISC 360-22'],
+					title: 'Steel',
+					type: 'string',
+				},
+				method: {
+					const: 'strength',
+					default: 'strength',
+					description: 'Strength design (LRFD).',
+					title: 'Design method',
+					type: 'string',
+				},
+			},
+			title: 'Codes',
+			type: 'object',
+		},
+		LoadCombination: {
+			additionalProperties: false,
+			description: 'Factors on the load cases. D applies to the dead and superimposed dead loads.',
+			properties: {
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				D: {
+					default: 0,
+					title: 'D',
+					type: 'number',
+				},
+				L: {
+					default: 0,
+					title: 'L',
+					type: 'number',
+				},
+				Lr: {
+					default: 0,
+					title: 'Lr',
+					type: 'number',
+				},
+				WX: {
+					default: 0,
+					title: 'W x',
+					type: 'number',
+				},
+				WY: {
+					default: 0,
+					title: 'W y',
+					type: 'number',
+				},
+				EX: {
+					default: 0,
+					title: 'E x',
+					type: 'number',
+				},
+				EY: {
+					default: 0,
+					title: 'E y',
+					type: 'number',
+				},
+			},
+			required: ['name'],
+			title: 'LoadCombination',
+			type: 'object',
+		},
+		Occupancy: {
+			additionalProperties: false,
+			properties: {
+				use: {
+					default: 'residential',
+					enum: ['residential', 'office', 'educational', 'healthcare', 'assembly', 'retail', 'industrial', 'storage', 'parking', 'mixed'],
+					enumDescriptions: ['Residential', 'Office', 'Educational', 'Health care', 'Assembly', 'Retail', 'Industrial', 'Storage', 'Parking', 'Mixed use'],
+					title: 'Building use',
+					type: 'string',
+				},
+				category: {
+					default: 'II',
+					description: 'BNBC 2020 Table 6.1.1.',
+					enum: ['I', 'II', 'III', 'IV'],
+					enumDescriptions: ['I: Low hazard to human life on failure (agricultural, minor storage)', 'II: Standard occupancy (all buildings not in I, III or IV)', 'III: Substantial hazard: assembly, schools, health care without surgery', 'IV: Essential facilities: hospitals, fire and police stations, shelters'],
+					title: 'Occupancy category',
+					type: 'string',
+				},
+			},
+			title: 'Occupancy',
+			type: 'object',
+		},
+		ProjectInfo: {
+			additionalProperties: false,
+			properties: {
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				number: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Project number',
+				},
+				client: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Client',
+				},
+				engineer: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Structural engineer',
+				},
+				address: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Address',
+				},
+			},
+			required: ['name'],
+			title: 'ProjectInfo',
+			type: 'object',
+		},
+		Seismic: {
+			additionalProperties: false,
+			properties: {
+				system: {
+					default: 'rcImf',
+					description: 'Seismic force-resisting system (Table 6.2.19).',
+					enum: ['rcSmf', 'rcImf', 'rcOmf', 'rcSpecialWallFrame', 'rcOrdinaryWallFrame', 'rcDualSpecial', 'steelSmf', 'steelOmf', 'steelScbf'],
+					enumDescriptions: ['RC special moment frame', 'RC intermediate moment frame', 'RC ordinary moment frame', 'Building frame with RC special shear walls', 'Building frame with RC ordinary shear walls', 'Dual: RC special moment frame and special shear walls', 'Steel special moment frame', 'Steel ordinary moment frame', 'Steel special concentrically braced frame'],
+					title: 'Structural system',
+					type: 'string',
+				},
+				r: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Overrides the system\'s value.',
+					title: 'Response reduction factor R',
+				},
+				omega: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Overrides the system\'s value.',
+					title: 'Overstrength factor Ω0',
+				},
+				cd: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Overrides the system\'s value.',
+					title: 'Deflection amplification Cd',
+				},
+			},
+			title: 'Seismic',
+			type: 'object',
+		},
+		Site: {
+			additionalProperties: false,
+			properties: {
+				location: {
+					default: 'dhaka',
+					description: 'District town; sets the seismic zone and the basic wind speed.',
+					enum: ['dhaka', 'chattogram', 'coxsbazar', 'khulna', 'rajshahi', 'sylhet', 'barishal', 'rangpur', 'mymensingh', 'cumilla', 'custom'],
+					enumDescriptions: ['Dhaka', 'Chattogram', 'Cox\'s Bazar', 'Khulna', 'Rajshahi', 'Sylhet', 'Barishal', 'Rangpur', 'Mymensingh', 'Cumilla', 'Custom (enter Z and V)'],
+					title: 'Location',
+					type: 'string',
+				},
+				siteClass: {
+					default: 'SD',
+					description: 'BNBC 2020 Table 6.2.13, from the soil report.',
+					enum: ['SA', 'SB', 'SC', 'SD', 'SE'],
+					enumDescriptions: ['SA: Rock (Vs > 800 m/s)', 'SB: Rock (360-800 m/s)', 'SC: Very dense soil or soft rock (180-360 m/s)', 'SD: Stiff soil (Vs < 180 m/s)', 'SE: Soft soil over stiffer layer'],
+					title: 'Site class',
+					type: 'string',
+				},
+				zoneCoefficient: {
+					anyOf: [
+						{
+							exclusiveMaximum: 1,
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Overrides the location\'s value.',
+					title: 'Seismic zone coefficient Z',
+				},
+				windSpeed: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Overrides the location\'s value [m/s].',
+					title: 'Basic wind speed',
+				},
+			},
+			title: 'Site',
+			type: 'object',
+		},
+		Wind: {
+			additionalProperties: false,
+			properties: {
+				exposure: {
+					default: 'A',
+					description: 'Exposure category (6.2.9.3).',
+					enum: ['A', 'B', 'C'],
+					enumDescriptions: ['A: Urban, suburban, wooded', 'B: Open terrain, scattered obstructions', 'C: Flat open country, coastal'],
+					title: 'Exposure',
+					type: 'string',
+				},
+			},
+			title: 'Wind',
+			type: 'object',
+		},
+	},
+	additionalProperties: false,
+	properties: {
+		schema: {
+			const: 'saengine.projectSettings/1',
+			default: 'saengine.projectSettings/1',
+			title: 'Schema_',
+			type: 'string',
+		},
+		project: {
+			$ref: '#/$defs/ProjectInfo',
+			title: 'Project',
+		},
+		codes: {
+			$ref: '#/$defs/Codes',
+		},
+		occupancy: {
+			$ref: '#/$defs/Occupancy',
+		},
+		site: {
+			$ref: '#/$defs/Site',
+		},
+		seismic: {
+			$ref: '#/$defs/Seismic',
+		},
+		wind: {
+			$ref: '#/$defs/Wind',
+		},
+		areaLoads: {
+			items: {
+				$ref: '#/$defs/AreaLoad',
+			},
+			title: 'Area loads',
+			type: 'array',
+		},
+		floorLoad: {
+			description: 'Area load of the floors unless the floor plan says otherwise.',
+			maxLength: 64,
+			minLength: 1,
+			pattern: '^[A-Za-z0-9._-]+$',
+			title: 'Floors',
+			type: 'string',
+		},
+		roofLoad: {
+			description: 'Area load of the roof (the top story).',
+			maxLength: 64,
+			minLength: 1,
+			pattern: '^[A-Za-z0-9._-]+$',
+			title: 'Roof',
+			type: 'string',
+		},
+		combinations: {
+			items: {
+				$ref: '#/$defs/LoadCombination',
+			},
+			title: 'Load combinations',
+			type: 'array',
+		},
+	},
+	required: ['project', 'floorLoad', 'roofLoad'],
+	title: 'SAEngine project settings',
+	type: 'object',
+};
+
+export const DEFAULT_SETTINGS: object = {
+	schema: 'saengine.projectSettings/1',
+	project: {
+		name: 'Project',
+	},
+	codes: {
+		general: 'BNBC 2020',
+		concrete: 'BNBC 2020 Part 6 Chapter 6',
+		steel: 'BNBC 2020 Part 6 Chapter 10',
+		method: 'strength',
+	},
+	occupancy: {
+		use: 'residential',
+		category: 'II',
+	},
+	site: {
+		location: 'dhaka',
+		siteClass: 'SD',
+	},
+	seismic: {
+		system: 'rcImf',
+	},
+	wind: {
+		exposure: 'A',
+	},
+	areaLoads: [
+		{
+			id: 'FL',
+			name: 'Floors',
+			use: 'residential',
+			live: 2.0,
+			finish: 1.2,
+			partitions: 1.0,
+		},
+		{
+			id: 'ST',
+			name: 'Stairs',
+			use: 'stairs',
+			live: 4.8,
+			finish: 1.2,
+			partitions: 0.0,
+		},
+		{
+			id: 'RF',
+			name: 'Roof',
+			use: 'roof',
+			live: 1.0,
+			finish: 1.5,
+			partitions: 0.0,
+		},
+	],
+	floorLoad: 'FL',
+	roofLoad: 'RF',
+	combinations: [
+		{
+			name: '1.4D',
+			D: 1.4,
+			L: 0.0,
+			Lr: 0.0,
+			WX: 0.0,
+			WY: 0.0,
+			EX: 0.0,
+			EY: 0.0,
+		},
+		{
+			name: '1.2D + 1.6L + 0.5Lr',
+			D: 1.2,
+			L: 1.6,
+			Lr: 0.5,
+			WX: 0.0,
+			WY: 0.0,
+			EX: 0.0,
+			EY: 0.0,
+		},
+		{
+			name: '1.2D + 1.6Lr + 1.0L',
+			D: 1.2,
+			L: 1.0,
+			Lr: 1.6,
+			WX: 0.0,
+			WY: 0.0,
+			EX: 0.0,
+			EY: 0.0,
+		},
+		{
+			name: '1.2D + 1.6Lr + 0.8WX',
+			D: 1.2,
+			L: 0.0,
+			Lr: 1.6,
+			WX: 0.8,
+			WY: 0.0,
+			EX: 0.0,
+			EY: 0.0,
+		},
+		{
+			name: '1.2D + 1.6Lr + 0.8(-WX)',
+			D: 1.2,
+			L: 0.0,
+			Lr: 1.6,
+			WX: -0.8,
+			WY: 0.0,
+			EX: 0.0,
+			EY: 0.0,
+		},
+		{
+			name: '1.2D + 1.6Lr + 0.8WY',
+			D: 1.2,
+			L: 0.0,
+			Lr: 1.6,
+			WX: 0.0,
+			WY: 0.8,
+			EX: 0.0,
+			EY: 0.0,
+		},
+		{
+			name: '1.2D + 1.6Lr + 0.8(-WY)',
+			D: 1.2,
+			L: 0.0,
+			Lr: 1.6,
+			WX: 0.0,
+			WY: -0.8,
+			EX: 0.0,
+			EY: 0.0,
+		},
+		{
+			name: '1.2D + 1.6WX + 1.0L + 0.5Lr',
+			D: 1.2,
+			L: 1.0,
+			Lr: 0.5,
+			WX: 1.6,
+			WY: 0.0,
+			EX: 0.0,
+			EY: 0.0,
+		},
+		{
+			name: '1.2D + 1.6(-WX) + 1.0L + 0.5Lr',
+			D: 1.2,
+			L: 1.0,
+			Lr: 0.5,
+			WX: -1.6,
+			WY: 0.0,
+			EX: 0.0,
+			EY: 0.0,
+		},
+		{
+			name: '1.2D + 1.6WY + 1.0L + 0.5Lr',
+			D: 1.2,
+			L: 1.0,
+			Lr: 0.5,
+			WX: 0.0,
+			WY: 1.6,
+			EX: 0.0,
+			EY: 0.0,
+		},
+		{
+			name: '1.2D + 1.6(-WY) + 1.0L + 0.5Lr',
+			D: 1.2,
+			L: 1.0,
+			Lr: 0.5,
+			WX: 0.0,
+			WY: -1.6,
+			EX: 0.0,
+			EY: 0.0,
+		},
+		{
+			name: '1.2D + 1.0EX + 1.0L',
+			D: 1.2,
+			L: 1.0,
+			Lr: 0.0,
+			WX: 0.0,
+			WY: 0.0,
+			EX: 1.0,
+			EY: 0.0,
+		},
+		{
+			name: '1.2D + 1.0(-EX) + 1.0L',
+			D: 1.2,
+			L: 1.0,
+			Lr: 0.0,
+			WX: 0.0,
+			WY: 0.0,
+			EX: -1.0,
+			EY: 0.0,
+		},
+		{
+			name: '1.2D + 1.0EY + 1.0L',
+			D: 1.2,
+			L: 1.0,
+			Lr: 0.0,
+			WX: 0.0,
+			WY: 0.0,
+			EX: 0.0,
+			EY: 1.0,
+		},
+		{
+			name: '1.2D + 1.0(-EY) + 1.0L',
+			D: 1.2,
+			L: 1.0,
+			Lr: 0.0,
+			WX: 0.0,
+			WY: 0.0,
+			EX: 0.0,
+			EY: -1.0,
+		},
+		{
+			name: '0.9D + 1.6WX',
+			D: 0.9,
+			L: 0.0,
+			Lr: 0.0,
+			WX: 1.6,
+			WY: 0.0,
+			EX: 0.0,
+			EY: 0.0,
+		},
+		{
+			name: '0.9D + 1.6(-WX)',
+			D: 0.9,
+			L: 0.0,
+			Lr: 0.0,
+			WX: -1.6,
+			WY: 0.0,
+			EX: 0.0,
+			EY: 0.0,
+		},
+		{
+			name: '0.9D + 1.6WY',
+			D: 0.9,
+			L: 0.0,
+			Lr: 0.0,
+			WX: 0.0,
+			WY: 1.6,
+			EX: 0.0,
+			EY: 0.0,
+		},
+		{
+			name: '0.9D + 1.6(-WY)',
+			D: 0.9,
+			L: 0.0,
+			Lr: 0.0,
+			WX: 0.0,
+			WY: -1.6,
+			EX: 0.0,
+			EY: 0.0,
+		},
+		{
+			name: '0.9D + 1.0EX',
+			D: 0.9,
+			L: 0.0,
+			Lr: 0.0,
+			WX: 0.0,
+			WY: 0.0,
+			EX: 1.0,
+			EY: 0.0,
+		},
+		{
+			name: '0.9D + 1.0(-EX)',
+			D: 0.9,
+			L: 0.0,
+			Lr: 0.0,
+			WX: 0.0,
+			WY: 0.0,
+			EX: -1.0,
+			EY: 0.0,
+		},
+		{
+			name: '0.9D + 1.0EY',
+			D: 0.9,
+			L: 0.0,
+			Lr: 0.0,
+			WX: 0.0,
+			WY: 0.0,
+			EX: 0.0,
+			EY: 1.0,
+		},
+		{
+			name: '0.9D + 1.0(-EY)',
+			D: 0.9,
+			L: 0.0,
+			Lr: 0.0,
+			WX: 0.0,
+			WY: 0.0,
+			EX: 0.0,
+			EY: -1.0,
+		},
+	],
+};
+
+export const BNBC: IBnbcTables = {
+	edition: 'BNBC 2020',
+	zoneCoefficient: {
+		'1': 0.12,
+		'2': 0.2,
+		'3': 0.28,
+		'4': 0.36,
+	},
+	locations: {
+		dhaka: {
+			name: 'Dhaka',
+			zone: 2,
+			windSpeed: 65.7,
+		},
+		chattogram: {
+			name: 'Chattogram',
+			zone: 3,
+			windSpeed: 80.0,
+		},
+		coxsbazar: {
+			name: 'Cox\'s Bazar',
+			zone: 3,
+			windSpeed: 80.0,
+		},
+		khulna: {
+			name: 'Khulna',
+			zone: 1,
+			windSpeed: 73.3,
+		},
+		rajshahi: {
+			name: 'Rajshahi',
+			zone: 1,
+			windSpeed: 72.1,
+		},
+		sylhet: {
+			name: 'Sylhet',
+			zone: 4,
+			windSpeed: 61.1,
+		},
+		barishal: {
+			name: 'Barishal',
+			zone: 1,
+			windSpeed: 78.7,
+		},
+		rangpur: {
+			name: 'Rangpur',
+			zone: 3,
+			windSpeed: 65.3,
+		},
+		mymensingh: {
+			name: 'Mymensingh',
+			zone: 3,
+			windSpeed: 67.4,
+		},
+		cumilla: {
+			name: 'Cumilla',
+			zone: 2,
+			windSpeed: 61.4,
+		},
+	},
+	categories: {
+		I: {
+			description: 'Low hazard to human life on failure (agricultural, minor storage)',
+			seismicImportance: 1.0,
+			windImportance: 0.87,
+		},
+		II: {
+			description: 'Standard occupancy (all buildings not in I, III or IV)',
+			seismicImportance: 1.0,
+			windImportance: 1.0,
+		},
+		III: {
+			description: 'Substantial hazard: assembly, schools, health care without surgery',
+			seismicImportance: 1.25,
+			windImportance: 1.15,
+		},
+		IV: {
+			description: 'Essential facilities: hospitals, fire and police stations, shelters',
+			seismicImportance: 1.5,
+			windImportance: 1.15,
+		},
+	},
+	areaUses: {
+		residential: {
+			name: 'Residential: rooms and private corridors',
+			live: 2.0,
+		},
+		residentialPublic: {
+			name: 'Residential: public rooms and corridors',
+			live: 4.8,
+		},
+		office: {
+			name: 'Office',
+			live: 2.4,
+		},
+		officeLobby: {
+			name: 'Office: lobbies and first-floor corridors',
+			live: 4.8,
+		},
+		corridorAbove: {
+			name: 'Corridors above the first floor',
+			live: 3.8,
+		},
+		classroom: {
+			name: 'School: classrooms',
+			live: 1.9,
+		},
+		hospitalWard: {
+			name: 'Hospital: patient rooms',
+			live: 1.9,
+		},
+		operatingRoom: {
+			name: 'Hospital: operating rooms, laboratories',
+			live: 2.9,
+		},
+		assemblyFixed: {
+			name: 'Assembly: fixed seats',
+			live: 2.9,
+		},
+		assemblyMovable: {
+			name: 'Assembly: movable seats, lobbies',
+			live: 4.8,
+		},
+		retailGround: {
+			name: 'Retail: first floor',
+			live: 4.8,
+		},
+		retailUpper: {
+			name: 'Retail: upper floors',
+			live: 3.6,
+		},
+		storageLight: {
+			name: 'Storage: light',
+			live: 6.0,
+		},
+		storageHeavy: {
+			name: 'Storage: heavy',
+			live: 12.0,
+		},
+		parking: {
+			name: 'Parking: passenger vehicles',
+			live: 1.9,
+		},
+		stairs: {
+			name: 'Stairs and exits',
+			live: 4.8,
+		},
+		roof: {
+			name: 'Roof: ordinary flat, pitched or curved',
+			live: 1.0,
+		},
+		roofGarden: {
+			name: 'Roof: gardens and assembly use',
+			live: 4.8,
+		},
+	},
+	systems: {
+		rcSmf: {
+			name: 'RC special moment frame',
+			r: 8.0,
+			omega: 3.0,
+			cd: 5.5,
+		},
+		rcImf: {
+			name: 'RC intermediate moment frame',
+			r: 5.0,
+			omega: 3.0,
+			cd: 4.5,
+		},
+		rcOmf: {
+			name: 'RC ordinary moment frame',
+			r: 3.0,
+			omega: 3.0,
+			cd: 2.5,
+		},
+		rcSpecialWallFrame: {
+			name: 'Building frame with RC special shear walls',
+			r: 6.0,
+			omega: 2.5,
+			cd: 5.0,
+		},
+		rcOrdinaryWallFrame: {
+			name: 'Building frame with RC ordinary shear walls',
+			r: 5.0,
+			omega: 2.5,
+			cd: 4.5,
+		},
+		rcDualSpecial: {
+			name: 'Dual: RC special moment frame and special shear walls',
+			r: 7.0,
+			omega: 2.5,
+			cd: 5.5,
+		},
+		steelSmf: {
+			name: 'Steel special moment frame',
+			r: 8.0,
+			omega: 3.0,
+			cd: 5.5,
+		},
+		steelOmf: {
+			name: 'Steel ordinary moment frame',
+			r: 3.5,
+			omega: 3.0,
+			cd: 3.0,
+		},
+		steelScbf: {
+			name: 'Steel special concentrically braced frame',
+			r: 6.0,
+			omega: 2.0,
+			cd: 5.0,
+		},
+	},
+	siteClasses: {
+		SA: 'Rock (Vs > 800 m/s)',
+		SB: 'Rock (360-800 m/s)',
+		SC: 'Very dense soil or soft rock (180-360 m/s)',
+		SD: 'Stiff soil (Vs < 180 m/s)',
+		SE: 'Soft soil over stiffer layer',
+	},
+	exposures: {
+		A: 'Urban, suburban, wooded',
+		B: 'Open terrain, scattered obstructions',
+		C: 'Flat open country, coastal',
+	},
+	loadCases: {
+		D: 'Dead (self-weight)',
+		SD: 'Superimposed dead (finishes, partitions)',
+		L: 'Live',
+		Lr: 'Roof live',
+		WX: 'Wind in X',
+		WY: 'Wind in Y',
+		EX: 'Earthquake in X',
+		EY: 'Earthquake in Y',
+	},
+};
+
 export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 	$defs: {
 		GridLine: {
@@ -3796,6 +4736,22 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 	Underlay: {
 		story: 'L1',
 		file: 'Underlays/architect-L1.dxf',
+	},
+	AreaLoad: {
+		id: 'AL',
+		name: 'Office',
+		use: 'office',
+		live: 2.4,
+		finish: 1.2,
+		partitions: 1.0,
+	},
+	LoadCombination: {
+		name: '1.2D + 1.6L',
+		D: 1.2,
+		L: 1.6,
+	},
+	ProjectInfo: {
+		name: 'Project',
 	},
 	SlabOpening: {
 		id: 'O1',

@@ -93,7 +93,7 @@ export interface IFemCaseResults {
 
 /** A rule violation in a library file, reported against the entry at `index` (none: the whole file). */
 /** Project files the Python models check. */
-export type LibraryFileKind = 'materials' | 'objects' | 'floorPlan' | 'bim';
+export type LibraryFileKind = 'materials' | 'objects' | 'settings' | 'floorPlan' | 'bim';
 
 export interface IGeneratedBuilding {
 	/** The new `bim.json` text, when it could be generated. */

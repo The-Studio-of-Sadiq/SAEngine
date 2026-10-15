@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from saengine.library import (
     BuildingModel,
     FloorPlan,
+    ProjectSettings,
     MaterialLibrary,
     ObjectLibrary,
     default_material_library,
@@ -254,6 +255,7 @@ def test_rectangle_torsion_constant() -> None:
 def test_editor_templates_are_valid() -> None:
     from saengine.library import bim as b
     from saengine.library import floorplan as f
+    from saengine.library import settings as st
     from saengine.library import materials as m
     from saengine.library.templates import TEMPLATES
 
@@ -261,12 +263,13 @@ def test_editor_templates_are_valid() -> None:
         **MaterialLibrary.model_json_schema(by_alias=True)["$defs"],
         **ObjectLibrary.model_json_schema(by_alias=True)["$defs"],
         **FloorPlan.model_json_schema(by_alias=True)["$defs"],
+        **ProjectSettings.model_json_schema(by_alias=True)["$defs"],
         **BuildingModel.model_json_schema(by_alias=True)["$defs"],
     }
     for key, value in TEMPLATES.items():
         name = key.split(":")[0]
         assert name in schemas, f"{key} is not a schema definition"
-        module = next(x for x in (m, o, f, b) if hasattr(x, name))
+        module = next(x for x in (m, o, st, f, b) if hasattr(x, name))
         model = getattr(module, name)
         model.model_validate(value)
         if ":" in key:

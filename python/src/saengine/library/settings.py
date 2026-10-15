@@ -1,0 +1,300 @@
+"""Project settings (``02 Project Settings/project-settings.json``): codes, occupancy, site and loads.
+
+Part 2 is upstream of the floor plan, the building model and the analysis: they read these
+settings and never write them. BNBC 2020 is the governing code; its tables (see
+:mod:`saengine.library.bnbc`) give the defaults, and every derived value can be overridden.
+
+Units: kN/m² for area loads, m/s for wind speed.
+"""
+
+from __future__ import annotations
+
+from typing import Annotated, Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from saengine.library import bnbc
+from saengine.library.labels import field_title
+from saengine.library.materials import Id
+
+SCHEMA_ID = "saengine.projectSettings/1"
+
+Pressure = Annotated[float, Field(ge=0, description="[kN/m²]")]
+
+LocationId = Literal[tuple(bnbc.LOCATIONS) + ("custom",)]  # type: ignore[valid-type]
+AreaUseId = Literal[tuple(bnbc.AREA_USES) + ("custom",)]  # type: ignore[valid-type]
+SystemId = Literal[tuple(bnbc.STRUCTURAL_SYSTEMS)]  # type: ignore[valid-type]
+
+
+def _labels(names: list[str]) -> dict[str, Any]:
+    """Readable names of an enum's values for the editors (JSON Schema ``enumDescriptions``)."""
+    return {"enumDescriptions": names}
+
+
+class _Model(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid", populate_by_name=True, field_title_generator=field_title
+    )
+
+
+class ProjectInfo(_Model):
+    name: str = Field(min_length=1)
+    number: str | None = Field(default=None, title="Project number")
+    client: str | None = None
+    engineer: str | None = Field(default=None, title="Structural engineer")
+    address: str | None = None
+
+
+class Codes(_Model):
+    """The codes the design follows. BNBC 2020 Part 6 adopts ACI 318 for concrete and AISC 360 for steel."""
+
+    general: Literal["BNBC 2020"] = Field(default="BNBC 2020", title="Loads and general")
+    concrete: Literal["BNBC 2020 Part 6 Chapter 6", "ACI 318-19"] = "BNBC 2020 Part 6 Chapter 6"
+    steel: Literal["BNBC 2020 Part 6 Chapter 10", "AISC 360-22"] = "BNBC 2020 Part 6 Chapter 10"
+    method: Literal["strength"] = Field(
+        default="strength", title="Design method", description="Strength design (LRFD)."
+    )
+
+
+class Occupancy(_Model):
+    use: Literal[
+        "residential",
+        "office",
+        "educational",
+        "healthcare",
+        "assembly",
+        "retail",
+        "industrial",
+        "storage",
+        "parking",
+        "mixed",
+    ] = Field(
+        default="residential",
+        title="Building use",
+        json_schema_extra=_labels(
+            [
+                "Residential",
+                "Office",
+                "Educational",
+                "Health care",
+                "Assembly",
+                "Retail",
+                "Industrial",
+                "Storage",
+                "Parking",
+                "Mixed use",
+            ]
+        ),
+    )
+    category: Literal["I", "II", "III", "IV"] = Field(
+        default="II",
+        title="Occupancy category",
+        description="BNBC 2020 Table 6.1.1.",
+        json_schema_extra=_labels(
+            [f"{k}: {v.description}" for k, v in bnbc.OCCUPANCY_CATEGORIES.items()]
+        ),
+    )
+
+
+class Site(_Model):
+    location: LocationId = Field(  # type: ignore[valid-type]
+        default="dhaka",
+        description="District town; sets the seismic zone and the basic wind speed.",
+        json_schema_extra=_labels(
+            [v.name for v in bnbc.LOCATIONS.values()] + ["Custom (enter Z and V)"]
+        ),
+    )
+    siteClass: Literal["SA", "SB", "SC", "SD", "SE"] = Field(
+        default="SD",
+        title="Site class",
+        description="BNBC 2020 Table 6.2.13, from the soil report.",
+        json_schema_extra=_labels([f"{k}: {v}" for k, v in bnbc.SITE_CLASSES.items()]),
+    )
+    zoneCoefficient: float | None = Field(
+        default=None,
+        gt=0,
+        lt=1,
+        title="Seismic zone coefficient Z",
+        description="Overrides the location's value.",
+    )
+    windSpeed: float | None = Field(
+        default=None,
+        gt=0,
+        title="Basic wind speed",
+        description="Overrides the location's value [m/s].",
+    )
+
+
+class Seismic(_Model):
+    system: SystemId = Field(  # type: ignore[valid-type]
+        default="rcImf",
+        title="Structural system",
+        description="Seismic force-resisting system (Table 6.2.19).",
+        json_schema_extra=_labels([v.name for v in bnbc.STRUCTURAL_SYSTEMS.values()]),
+    )
+    r: float | None = Field(
+        default=None,
+        gt=0,
+        title="Response reduction factor R",
+        description="Overrides the system's value.",
+    )
+    omega: float | None = Field(
+        default=None,
+        gt=0,
+        title="Overstrength factor Ω0",
+        description="Overrides the system's value.",
+    )
+    cd: float | None = Field(
+        default=None,
+        gt=0,
+        title="Deflection amplification Cd",
+        description="Overrides the system's value.",
+    )
+
+
+class Wind(_Model):
+    exposure: Literal["A", "B", "C"] = Field(
+        default="A",
+        description="Exposure category (6.2.9.3).",
+        json_schema_extra=_labels([f"{k}: {v}" for k, v in bnbc.EXPOSURES.items()]),
+    )
+
+
+class AreaLoad(_Model):
+    """Loads on floor area of one use: live load and superimposed dead loads."""
+
+    id: Id
+    name: str = Field(min_length=1)
+    use: AreaUseId = Field(  # type: ignore[valid-type]
+        default="residential",
+        description="Use of the area (Table 6.2.3).",
+        json_schema_extra=_labels(
+            [f"{v.name} ({v.live} kN/m²)" for v in bnbc.AREA_USES.values()] + ["Custom"]
+        ),
+    )
+    live: Pressure = Field(description="Live load [kN/m²]; at least the code minimum for the use.")
+    finish: Pressure = Field(default=0, title="Floor finish", description="[kN/m²]")
+    partitions: Pressure = Field(default=0, description="Partition allowance [kN/m²].")
+
+
+class LoadCombination(_Model):
+    """Factors on the load cases. D applies to the dead and superimposed dead loads."""
+
+    name: str = Field(min_length=1)
+    D: float = 0
+    L: float = 0
+    Lr: float = 0
+    WX: float = 0
+    WY: float = 0
+    EX: float = 0
+    EY: float = 0
+
+
+class ProjectSettings(_Model):
+    schema_: Literal["saengine.projectSettings/1"] = Field(default=SCHEMA_ID, alias="schema")
+    project: ProjectInfo
+    codes: Codes = Field(default_factory=Codes)
+    occupancy: Occupancy = Field(default_factory=Occupancy)
+    site: Site = Field(default_factory=Site)
+    seismic: Seismic = Field(default_factory=Seismic)
+    wind: Wind = Field(default_factory=Wind)
+    areaLoads: list[AreaLoad] = Field(default_factory=list, title="Area loads")
+    floorLoad: Id = Field(
+        title="Floors", description="Area load of the floors unless the floor plan says otherwise."
+    )
+    roofLoad: Id = Field(title="Roof", description="Area load of the roof (the top story).")
+    combinations: list[LoadCombination] = Field(default_factory=list, title="Load combinations")
+
+
+def strength_combinations() -> list[LoadCombination]:
+    """BNBC 2020 strength combinations (2.7.3), with wind and earthquake in ±X and ±Y."""
+    result = []
+    for name, factors in bnbc.STRENGTH_COMBINATIONS:
+        lateral = next((case for case in ("W", "E") if case in factors), None)
+        if lateral is None:
+            result.append(LoadCombination(name=name, **factors))
+            continue
+        base = {k: v for k, v in factors.items() if k != lateral}
+        for axis in ("X", "Y"):
+            for sign in (1, -1):
+                label = (
+                    f"{name.replace(lateral, f'{lateral}{axis}', 1)}"
+                    if sign > 0
+                    else f"{name.replace(lateral, f'(-{lateral}{axis})', 1)}"
+                )
+                result.append(
+                    LoadCombination(
+                        name=label, **base, **{f"{lateral}{axis}": sign * factors[lateral]}
+                    )
+                )
+    return result
+
+
+def default_area_loads() -> list[AreaLoad]:
+    return [
+        AreaLoad(
+            id="FL",
+            name="Floors",
+            use="residential",
+            live=bnbc.AREA_USES["residential"].live,
+            finish=1.2,
+            partitions=1.0,
+        ),
+        AreaLoad(
+            id="ST", name="Stairs", use="stairs", live=bnbc.AREA_USES["stairs"].live, finish=1.2
+        ),
+        AreaLoad(id="RF", name="Roof", use="roof", live=bnbc.AREA_USES["roof"].live, finish=1.5),
+    ]
+
+
+def default_project_settings(name: str = "Project") -> ProjectSettings:
+    return ProjectSettings(
+        project=ProjectInfo(name=name),
+        areaLoads=default_area_loads(),
+        floorLoad="FL",
+        roofLoad="RF",
+        combinations=strength_combinations(),
+    )
+
+
+def derived(settings: ProjectSettings) -> dict[str, Any]:
+    """The code values the settings imply, each with where it comes from."""
+    location = bnbc.LOCATIONS.get(settings.site.location)
+    category = bnbc.OCCUPANCY_CATEGORIES[settings.occupancy.category]
+    system = bnbc.STRUCTURAL_SYSTEMS[settings.seismic.system]
+    zone_z = bnbc.ZONE_COEFFICIENT[location.zone] if location else None
+    return {
+        "zone": location.zone if location else None,
+        "Z": settings.site.zoneCoefficient or zone_z,
+        "windSpeed": settings.site.windSpeed or (location.wind_speed if location else None),
+        "seismicImportance": category.seismic_importance,
+        "windImportance": category.wind_importance,
+        "R": settings.seismic.r or system.r,
+        "omega": settings.seismic.omega or system.omega,
+        "Cd": settings.seismic.cd or system.cd,
+    }
+
+
+def check(settings: ProjectSettings) -> list[str]:
+    """Problems the schema cannot express: references, code minimums, missing site values."""
+    problems = []
+    ids = [a.id for a in settings.areaLoads]
+    for duplicate in sorted({i for i in ids if ids.count(i) > 1}):
+        problems.append(f"{duplicate}: two area loads use this id")
+    for field, value in (("floorLoad", settings.floorLoad), ("roofLoad", settings.roofLoad)):
+        if value not in ids:
+            problems.append(f"{field}: there is no area load '{value}'")
+    for load in settings.areaLoads:
+        use = bnbc.AREA_USES.get(load.use)
+        if use and load.live < use.live:
+            problems.append(
+                f"{load.id}: live load {load.live} kN/m² is below the BNBC 2020 minimum of {use.live} kN/m² for {use.name.lower()}"
+            )
+    if settings.site.location == "custom":
+        if settings.site.zoneCoefficient is None:
+            problems.append("site: a custom location needs the seismic zone coefficient Z")
+        if settings.site.windSpeed is None:
+            problems.append("site: a custom location needs the basic wind speed")
+    if not settings.combinations:
+        problems.append("combinations: there are no load combinations")
+    return problems

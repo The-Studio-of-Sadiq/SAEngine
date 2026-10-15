@@ -18,8 +18,10 @@ from saengine.library.bim import BuildingModel
 from saengine.library.floorplan import FloorPlan
 from saengine.library.materials import MaterialLibrary
 from saengine.library.objects import ObjectLibrary
+from saengine.library.settings import ProjectSettings
+from saengine.library.settings import check as check_settings
 
-Kind = Literal["materials", "objects", "floorPlan", "bim"]
+Kind = Literal["materials", "objects", "settings", "floorPlan", "bim"]
 
 
 @cache
@@ -39,6 +41,7 @@ def _union_tags() -> frozenset[str]:
     walk(MaterialLibrary.model_json_schema())
     walk(ObjectLibrary.model_json_schema())
     walk(FloorPlan.model_json_schema())
+    walk(ProjectSettings.model_json_schema())
     walk(BuildingModel.model_json_schema())
     return frozenset(tags)
 
@@ -62,6 +65,8 @@ def check_library(kind: Kind, text: str, materials_text: str | None = None) -> l
     except json.JSONDecodeError as exc:
         return [_problem(None, "", f"Invalid JSON: {exc}")]
 
+    if kind == "settings":
+        return _check_settings(data)
     if kind == "floorPlan":
         return _check_layout(FloorPlan, data, materials_text)
     if kind == "bim":
@@ -129,3 +134,19 @@ def _check_layout(
             _problem(None, "", "The object types file has errors; member types were not checked."),
         ]
     return [*problems, *(_problem(None, "", message) for message in model.check_objects(objects))]
+
+
+def _check_settings(data: Any) -> list[dict[str, Any]]:
+    """Project settings problems; ``path`` names the section."""
+    try:
+        settings = ProjectSettings.model_validate(data)
+    except ValidationError as exc:
+        return [
+            _problem(
+                None,
+                ".".join(str(p) for p in error["loc"] if p not in _union_tags()),
+                _clean(error["msg"]),
+            )
+            for error in exc.errors()
+        ]
+    return [_problem(None, message.split(":")[0], message) for message in check_settings(settings)]

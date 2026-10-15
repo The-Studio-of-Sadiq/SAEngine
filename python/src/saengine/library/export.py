@@ -19,6 +19,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from saengine.library import bnbc
 from saengine.library.bim import BuildingModel
 from saengine.library.defaults import (
     default_building_model,
@@ -29,6 +30,7 @@ from saengine.library.defaults import (
 from saengine.library.floorplan import FloorPlan
 from saengine.library.materials import MaterialLibrary
 from saengine.library.objects import ObjectLibrary
+from saengine.library.settings import ProjectSettings, default_project_settings
 from saengine.library.templates import TEMPLATES
 
 HEADER = """/*---------------------------------------------------------------------------------------------
@@ -40,6 +42,19 @@ HEADER = """/*------------------------------------------------------------------
 // python/src/saengine/library. Do not edit by hand.
 
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+
+/** Reference tables from BNBC 2020 Part 6 Chapter 2 (see saengine.library.bnbc). */
+export interface IBnbcTables {
+	readonly edition: string;
+	readonly zoneCoefficient: { readonly [zone: string]: number };
+	readonly locations: { readonly [id: string]: { readonly name: string; readonly zone: number; readonly windSpeed: number } };
+	readonly categories: { readonly [id: string]: { readonly description: string; readonly seismicImportance: number; readonly windImportance: number } };
+	readonly areaUses: { readonly [id: string]: { readonly name: string; readonly live: number } };
+	readonly systems: { readonly [id: string]: { readonly name: string; readonly r: number; readonly omega: number; readonly cd: number } };
+	readonly siteClasses: { readonly [id: string]: string };
+	readonly exposures: { readonly [id: string]: string };
+	readonly loadCases: { readonly [id: string]: string };
+}
 """
 
 _IDENTIFIER = re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
@@ -94,12 +109,47 @@ def _ts(value: Any, indent: int = 0) -> str:
     return json.dumps(value)
 
 
+def bnbc_tables() -> dict[str, Any]:
+    """BNBC 2020 tables the settings editor shows derived values from."""
+    return {
+        "edition": bnbc.EDITION,
+        "zoneCoefficient": {str(k): v for k, v in bnbc.ZONE_COEFFICIENT.items()},
+        "locations": {
+            k: {"name": v.name, "zone": v.zone, "windSpeed": v.wind_speed}
+            for k, v in bnbc.LOCATIONS.items()
+        },
+        "categories": {
+            k: {
+                "description": v.description,
+                "seismicImportance": v.seismic_importance,
+                "windImportance": v.wind_importance,
+            }
+            for k, v in bnbc.OCCUPANCY_CATEGORIES.items()
+        },
+        "areaUses": {k: {"name": v.name, "live": v.live} for k, v in bnbc.AREA_USES.items()},
+        "systems": {
+            k: {"name": v.name, "r": v.r, "omega": v.omega, "cd": v.cd}
+            for k, v in bnbc.STRUCTURAL_SYSTEMS.items()
+        },
+        "siteClasses": bnbc.SITE_CLASSES,
+        "exposures": bnbc.EXPOSURES,
+        "loadCases": bnbc.LOAD_CASES,
+    }
+
+
 def generate_typescript() -> str:
     exports = [
         ("MATERIALS_SCHEMA", "IJSONSchema", json_schema(MaterialLibrary, "SAEngine materials")),
         ("OBJECTS_SCHEMA", "IJSONSchema", json_schema(ObjectLibrary, "SAEngine object types")),
         ("DEFAULT_MATERIALS", "object", library_json(default_material_library())),
         ("DEFAULT_OBJECTS", "object", library_json(default_object_library())),
+        (
+            "SETTINGS_SCHEMA",
+            "IJSONSchema",
+            json_schema(ProjectSettings, "SAEngine project settings"),
+        ),
+        ("DEFAULT_SETTINGS", "object", library_json(default_project_settings())),
+        ("BNBC", "IBnbcTables", bnbc_tables()),
         ("FLOOR_PLAN_SCHEMA", "IJSONSchema", json_schema(FloorPlan, "SAEngine floor plan")),
         ("DEFAULT_FLOOR_PLAN", "object", library_json(default_floor_plan())),
         ("BIM_SCHEMA", "IJSONSchema", json_schema(BuildingModel, "SAEngine building model")),

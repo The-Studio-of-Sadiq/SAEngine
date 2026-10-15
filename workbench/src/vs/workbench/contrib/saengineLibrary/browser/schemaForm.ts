@@ -351,13 +351,19 @@ export class SchemaForm {
 
 		const references = this.ctx.references(path.replace(/\.\d+(?=\.|$)/g, ''));
 		const enumValues = references ?? this.enumValues(schema);
+		// Readable names for enum values ("RC special moment frame" for "rcSmf"), when the schema has them.
+		const labels = references ? undefined : schema.enumDescriptions ?? this.resolve(schema).schema.enumDescriptions;
+		const label = (v: JsonValue) => {
+			const index = this.enumValues(schema)?.indexOf(v) ?? -1;
+			return labels && index >= 0 && labels[index] ? labels[index] : String(v);
+		};
 		if (enumValues) {
 			const values = [...(optional ? [null] : []), ...enumValues];
 			if (value !== undefined && value !== null && !values.includes(value)) {
 				values.push(value); // keep showing a value that is no longer allowed, e.g. a deleted material
 			}
 			const options = values.map(v => ({
-				text: v === null ? localize('schemaForm.notSet', "(not set)") : String(v),
+				text: v === null ? localize('schemaForm.notSet', "(not set)") : label(v),
 				description: references && v !== null && !references.includes(v as string) ? localize('schemaForm.missing', "Not defined") : undefined,
 			}));
 			const select = this.disposables.add(new SelectBox(options, Math.max(0, values.indexOf(value ?? null)), this.contextViewService, defaultSelectBoxStyles, { ariaLabel: title }));

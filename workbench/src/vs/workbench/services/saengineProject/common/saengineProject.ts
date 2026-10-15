@@ -6,7 +6,7 @@
 import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { BIM_SCHEMA, DEFAULT_BIM, DEFAULT_FLOOR_PLAN, DEFAULT_MATERIALS, DEFAULT_OBJECTS, FLOOR_PLAN_SCHEMA, MATERIALS_SCHEMA, OBJECTS_SCHEMA } from './projectLibraries.generated.js';
+import { BIM_SCHEMA, DEFAULT_BIM, DEFAULT_FLOOR_PLAN, DEFAULT_MATERIALS, DEFAULT_OBJECTS, DEFAULT_SETTINGS, FLOOR_PLAN_SCHEMA, MATERIALS_SCHEMA, OBJECTS_SCHEMA, SETTINGS_SCHEMA } from './projectLibraries.generated.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 
 export const PROJECT_MANIFEST_EXTENSION = '.saengine';
@@ -45,7 +45,11 @@ function placeholder(id: string): () => string {
  */
 export const PROJECT_PARTS: readonly IProjectPart[] = [
 	{ id: 'soil', folder: '01 Soil Report', mainFile: 'soil-report.json', initialContent: placeholder('soil') },
-	{ id: 'settings', folder: '02 Project Settings', mainFile: 'project-settings.json', initialContent: placeholder('settings') },
+	{
+		id: 'settings', folder: '02 Project Settings', mainFile: 'project-settings.json',
+		initialContent: name => json({ ...DEFAULT_SETTINGS, project: { name } })(),
+		schema: { id: 'vscode://schemas/saengine/settings', schema: SETTINGS_SCHEMA },
+	},
 	{
 		id: 'materials', folder: '03 Materials', mainFile: 'materials.json', initialContent: json(DEFAULT_MATERIALS),
 		schema: { id: 'vscode://schemas/saengine/materials', schema: MATERIALS_SCHEMA },

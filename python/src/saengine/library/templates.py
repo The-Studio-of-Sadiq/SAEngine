@@ -241,6 +241,17 @@ TEMPLATES: dict[str, dict[str, Any]] = {
     },
     "PlacedFooting": {"id": "F-A1", "type": "F", "story": "BASE", "at": {"x": "A", "y": "1"}},
     "Underlay": {"story": "L1", "file": "Underlays/architect-L1.dxf"},
+    # project settings
+    "AreaLoad": {
+        "id": "AL",
+        "name": "Office",
+        "use": "office",
+        "live": 2.4,
+        "finish": 1.2,
+        "partitions": 1.0,
+    },
+    "LoadCombination": {"name": "1.2D + 1.6L", "D": 1.2, "L": 1.6},
+    "ProjectInfo": {"name": "Project"},
     # building model elements
     "SlabOpening": {"id": "O1", "host": "S1", "x": 0, "y": 0, "xDim": 1000, "yDim": 1000},
     "WallOpening": {
