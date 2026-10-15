@@ -25,6 +25,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { PROJECT_TYPES, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
 import { ProjectOpener } from './projectOpener.js';
 import { StartEditorInput } from './startEditorInput.js';
 
@@ -141,6 +142,28 @@ export class StartEditor extends EditorPane {
 			},
 		}));
 
+		// What the project designs decides how Part 5 models it.
+		append(form, $('label', undefined, localize('start.type', "Project type")));
+		const types = append(form, $('.project-types', { role: 'radiogroup', 'aria-label': localize('start.typeAria', "Project type") }));
+		let type: ProjectType = 'building';
+		const options = PROJECT_TYPES.map(option => {
+			const card = append(types, $('button.project-type', { type: 'button', role: 'radio' }));
+			append(card, $(`span${ThemeIcon.asCSSSelector(option.type === 'building' ? Codicon.layers : Codicon.symbolStructure)}`));
+			const text = append(card, $('span.text'));
+			append(text, $('span.label', undefined, option.label));
+			append(text, $('span.description', undefined, option.description));
+			this.pageDisposables.add(addDisposableListener(card, EventType.CLICK, () => select(option.type)));
+			return { card, type: option.type };
+		});
+		const select = (value: ProjectType) => {
+			type = value;
+			for (const option of options) {
+				option.card.classList.toggle('selected', option.type === value);
+				option.card.setAttribute('aria-checked', String(option.type === value));
+			}
+		};
+		select(type);
+
 		append(form, $('label', undefined, localize('start.location', "Location")));
 		const locationRow = append(form, $('.location'));
 		const location = this.pageDisposables.add(new InputBox(locationRow, this.contextViewService, { inputBoxStyles: defaultInputBoxStyles }));
@@ -176,7 +199,7 @@ export class StartEditor extends EditorPane {
 				name.focus();
 				return;
 			}
-			this.run(() => this.opener.createAndOpen(URI.file(location.value.trim()), name.value));
+			this.run(() => this.opener.createAndOpen(URI.file(location.value.trim()), name.value, type));
 		};
 		this.pageDisposables.add(create.onDidClick(submit));
 		this.pageDisposables.add(addDisposableListener(form, EventType.KEY_DOWN, e => {

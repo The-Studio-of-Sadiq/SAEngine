@@ -23,8 +23,8 @@ import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { DEFAULT_EDITOR_ASSOCIATION, IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { recordedStamp, sourceStamp, UPSTREAM_PARTS } from '../../../services/saengineProject/common/partSources.js';
-import { ISaengineProjectService, PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
+import { recordedStamp, sourceStamp, upstreamPart } from '../../../services/saengineProject/common/partSources.js';
+import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { LibraryEditorInput, LibraryKind } from './libraryEditorInput.js';
 import { JsonObject, JsonValue } from './schemaForm.js';
 
@@ -43,12 +43,14 @@ const CHECK_COMMAND = 'saengine.library.check';
 const COMPANION_PART: { readonly [kind in LibraryKind]?: string } = {
 	objects: 'materials',
 	floorPlan: 'objects',
+	structure: 'objects',
 	bim: 'objects',
 };
 
 /** Names of the parts a document can be built from, for the "changed since" banner. */
 const UPSTREAM_NAMES: { readonly [part: string]: string } = {
 	floorPlan: localize('upstream.floorPlan', "Floor Plan"),
+	structure: localize('upstream.structure', "Structural Model"),
 };
 
 export function clone<T>(value: T): T {
@@ -71,7 +73,7 @@ export interface IShapeError {
  * only when the edit is valid, so Save, Undo/Redo, dirty state and hot exit come from the
  * text file service. After each change the Python models check the whole file.
  *
- * A document built from upstream parts (see `UPSTREAM_PARTS`) records their stamps; when an
+ * A document built from upstream parts (see `upstreamPart`) records their stamps; when an
  * upstream file changes, the editor says so and offers to update, and only updates on request.
  */
 export abstract class JsonDocumentEditor extends EditorPane {
@@ -305,7 +307,7 @@ export abstract class JsonDocumentEditor extends EditorPane {
 	/** Follows the companion file (unsaved edits included) for references and checks. */
 	private async trackCompanion(kind: LibraryKind): Promise<void> {
 		const project = this.projectService.project;
-		const part = PROJECT_PARTS.find(p => p.id === COMPANION_PART[kind]);
+		const part = partById(COMPANION_PART[kind] ?? '');
 		if (!project || !part?.mainFile) {
 			return;
 		}
@@ -325,7 +327,7 @@ export abstract class JsonDocumentEditor extends EditorPane {
 	/** Follows the upstream part the document is built from (unsaved edits included). */
 	private async trackUpstream(kind: LibraryKind): Promise<void> {
 		const project = this.projectService.project;
-		const part = PROJECT_PARTS.find(p => p.id === UPSTREAM_PARTS[kind]?.[0]);
+		const part = partById(upstreamPart(kind, this.projectService.parts) ?? '');
 		if (!project || !part?.mainFile) {
 			return;
 		}
@@ -341,7 +343,7 @@ export abstract class JsonDocumentEditor extends EditorPane {
 	private renderOutdated(): void {
 		this.outdatedDisposables.clear();
 		clearNode(this.outdated);
-		const part = this.kind && UPSTREAM_PARTS[this.kind]?.[0];
+		const part = this.kind && upstreamPart(this.kind, this.projectService.parts);
 		const text = this.upstreamText;
 		const recorded = this.document && part ? recordedStamp(this.document, part) : undefined;
 		const stale = !!this.document && !!part && text !== undefined && recorded !== sourceStamp(text);

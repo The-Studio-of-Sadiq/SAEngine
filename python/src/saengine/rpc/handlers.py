@@ -171,7 +171,7 @@ def result_view(out_dir: str, project_path: str, key: str, mode: int | None) -> 
 def check_library(kind: str, text: str, materials_text: str | None = None) -> dict[str, Any]:
     from saengine.library.check import check_library as check
 
-    if kind not in ("materials", "objects", "settings", "floorPlan", "bim"):
+    if kind not in ("materials", "objects", "settings", "floorPlan", "structure", "bim"):
         raise ValueError(f"unknown library kind: {kind}")
     return {"problems": check(kind, text, materials_text)}  # type: ignore[arg-type]
 
@@ -217,6 +217,45 @@ def generate_building(floor_plan_text: str, bim_text: str | None) -> dict[str, A
         model = generate(plan, source_stamp(floor_plan_text), previous)
     except ValueError as exc:
         return {"problems": [str(exc)]}
+    data = model.model_dump(mode="json", by_alias=True, exclude_none=True)
+    return {"text": json.dumps(data, indent="\t", ensure_ascii=False) + "\n"}
+
+
+def generate_building_from_structure(structure_text: str, bim_text: str | None) -> dict[str, Any]:
+    """The building model of a special structure, keeping the model's own elements.
+
+    Returns ``{"text": ...}``, or ``{"problems": [...]}`` when the structural model (or the
+    current building model) has errors that must be fixed first.
+    """
+    import json
+
+    from pydantic import ValidationError
+
+    from saengine.library.bim import BuildingModel, generate_from_structure, source_stamp
+    from saengine.library.structure import StructuralModel
+
+    def messages(exc: ValidationError, where: str) -> list[str]:
+        return [
+            f"{where}: {'.'.join(str(p) for p in e['loc'])}: {e['msg'].removeprefix('Value error, ')}"
+            for e in exc.errors()
+        ]
+
+    try:
+        structure = StructuralModel.model_validate_json(structure_text)
+    except ValidationError as exc:
+        return {"problems": messages(exc, "Structural model")}
+    previous = None
+    if bim_text:
+        try:
+            data = json.loads(bim_text)
+        except json.JSONDecodeError:
+            data = None
+        if isinstance(data, dict) and data.get("schema") == "saengine.bim/2":
+            try:
+                previous = BuildingModel.model_validate(data)
+            except ValidationError as exc:
+                return {"problems": messages(exc, "Building model")}
+    model = generate_from_structure(structure, source_stamp(structure_text), previous)
     data = model.model_dump(mode="json", by_alias=True, exclude_none=True)
     return {"text": json.dumps(data, indent="\t", ensure_ascii=False) + "\n"}
 

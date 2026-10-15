@@ -20,6 +20,9 @@ type Json = { readonly [key: string]: unknown };
 export interface IProjectDocuments {
 	readonly floorPlan?: unknown;
 	readonly floorPlanText?: string;
+	/** The structural model of a special structure (instead of the floor plan). */
+	readonly structure?: unknown;
+	readonly structureText?: string;
 	readonly objects?: unknown;
 	readonly materials?: unknown;
 	readonly bim?: unknown;
@@ -159,13 +162,14 @@ class Model {
 		return { label: `${str(value.x)}-${str(value.y)}${offset}`, at: x !== undefined && y !== undefined ? [x + dx, y + dy] : undefined };
 	}
 
-	/** Build state of the building model against the current floor plan. */
+	/** Build state of the building model against the current floor plan (or structural model). */
 	buildingStatus(): 'none' | 'outdated' | 'current' {
-		const recorded = recordedStamp(this.docs.bim, 'floorPlan');
+		const [part, text] = this.docs.structureText !== undefined ? ['structure', this.docs.structureText] : ['floorPlan', this.docs.floorPlanText];
+		const recorded = recordedStamp(this.docs.bim, part);
 		if (!recorded) {
 			return 'none';
 		}
-		return this.docs.floorPlanText !== undefined && recorded === sourceStamp(this.docs.floorPlanText) ? 'current' : 'outdated';
+		return text !== undefined && recorded === sourceStamp(text) ? 'current' : 'outdated';
 	}
 }
 
@@ -188,7 +192,9 @@ export function modelTree(docs: IProjectDocuments): IModelNode[] {
 	const model = new Model(docs);
 	const nodes: IModelNode[] = [];
 
-	if (!model.plan) {
+	if (docs.structureText !== undefined) {
+		nodes.push(structureNode(docs.structure, model));
+	} else if (!model.plan) {
 		nodes.push({ id: 'floorPlan', label: localize('tree.floorPlan', "Floor Plan"), description: localize('tree.noFloorPlan', "not created yet"), icon: Codicon.symbolArray, part: 'floorPlan' });
 	} else {
 		const memberNode = (group: MemberGroup, member: Json, parent: string): IModelNode => {
@@ -247,14 +253,43 @@ export function modelTree(docs: IProjectDocuments): IModelNode[] {
 	const elements = list(isObject(docs.bim) ? docs.bim.elements : undefined);
 	nodes.push({
 		id: 'bim', label: localize('tree.bim', "Building Model"), icon: Codicon.symbolStructure, part: 'bim',
-		description: status === 'none' ? localize('tree.bimNone', "not built yet") : status === 'outdated' ? localize('tree.bimOutdated', "Floor Plan changed since built") : localize('tree.bimCurrent', "up to date"),
+		description: status === 'none' ? localize('tree.bimNone', "not built yet") : status === 'outdated'
+			? (docs.structureText !== undefined ? localize('tree.bimOutdatedStructure', "Structural Model changed since built") : localize('tree.bimOutdated', "Floor Plan changed since built"))
+			: localize('tree.bimCurrent', "up to date"),
 		problem: status === 'outdated' ? localize('tree.bimOutdatedProblem', "Update it in the Building Model editor.") : undefined,
-		children: GROUPS.map(({ group, label, icon }) => {
+		children: [
+			...GROUPS.map(({ group, label, icon }) => ({ group, label, icon })),
+			{ group: 'members', label: localize('tree.members', "Members"), icon: Codicon.dash },
+			{ group: 'areas', label: localize('tree.areas', "Areas"), icon: Codicon.symbolArray },
+		].map(({ group, label, icon }) => {
 			const count = elements.filter(e => `${e.kind}s` === group).length;
 			return { id: `bim:${group}`, label, description: String(count), icon, part: 'bim' };
 		}).filter(n => n.description !== '0'),
 	});
 	return nodes;
+}
+
+/** The structural model of a special structure: its grid systems, members, areas and supports. */
+function structureNode(structure: unknown, model: Model): IModelNode {
+	const doc = isObject(structure) ? structure : {};
+	const point = (p: unknown) => isObject(p) ? `(${num(p.x) ?? '?'}, ${num(p.y) ?? '?'}, ${num(p.z) ?? '?'})` : '?';
+	const typeProblem = (entry: Json) => model.types.has(entry.type as string) ? undefined : localize('tree.unknownType', "Unknown object type '{0}'", str(entry.type));
+	const section = (id: string, label: string, icon: ThemeIcon, entries: Json[], describe: (entry: Json) => string, typed: boolean): IModelNode => ({
+		id: `structure:${id}`, label, description: String(entries.length), icon, part: 'structure',
+		children: entries.map(e => ({
+			id: `structure:${id}/${e.id}`, label: str(e.id), description: describe(e), icon, part: 'structure',
+			problem: typed ? typeProblem(e) : undefined,
+		})),
+	});
+	return {
+		id: 'structure', label: localize('tree.structure', "Structural Model"), icon: Codicon.symbolStructure, part: 'structure',
+		children: [
+			section('grids', localize('tree.gridSystems', "Grid Systems"), Codicon.table, list(doc.grids), g => str(g.name) || str(g.kind), false),
+			section('members', localize('tree.members', "Members"), Codicon.dash, list(doc.members), m => `${str(m.type)} · ${point(m.start)} → ${point(m.end)}`, true),
+			section('areas', localize('tree.areas', "Areas"), Codicon.symbolArray, list(doc.areas), a => `${str(a.type)} · ${list(a.outline).length} corners`, true),
+			section('supports', localize('tree.supports', "Supports"), Codicon.pinned, list(doc.supports), s => `${str(s.fixity) || 'fixed'} · ${point(s.at)}`, false),
+		],
+	};
 }
 
 function profileText(profile: unknown): string {

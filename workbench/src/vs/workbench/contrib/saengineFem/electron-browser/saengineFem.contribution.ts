@@ -133,6 +133,11 @@ CommandsRegistry.registerCommand('saengine.fem.resultView', async (accessor, mod
 	return accessor.get(IFemSolverService).getResultView(python, resultsFolder(model).fsPath, model.fsPath, key, mode);
 });
 
+CommandsRegistry.registerCommand('saengine.bim.generateFromStructure', async (accessor, structureText: string, bimText?: string) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).generateBuildingFromStructure(python, structureText, bimText);
+});
+
 CommandsRegistry.registerCommand('saengine.bim.generate', async (accessor, floorPlanText: string, bimText?: string) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	return accessor.get(IFemSolverService).generateBuilding(python, floorPlanText, bimText);

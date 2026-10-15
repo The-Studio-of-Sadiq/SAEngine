@@ -10,7 +10,7 @@ import * as perf from '../../../../../base/common/performance.js';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../../base/common/actions.js';
 import { memoize } from '../../../../../base/common/decorators.js';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, ExplorerResourceWritableContext, ViewHasSomeCollapsibleRootItemContext, FoldersViewVisibleContext, ExplorerResourceParentReadOnlyContext, ExplorerFindProviderActive, ExplorerResourceProtectedContext } from '../../common/files.js';
-import { ISaengineProjectService, PROJECT_PARTS } from '../../../../services/saengineProject/common/saengineProject.js';
+import { ALL_PARTS, ISaengineProjectService } from '../../../../services/saengineProject/common/saengineProject.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { PROJECT_FLOW_GAP, projectFlowPosition } from '../../../../services/saengineProject/common/projectFlow.js';
 import { FileCopiedContext, NEW_FILE_COMMAND_ID, NEW_FOLDER_COMMAND_ID } from '../fileActions.js';
@@ -605,10 +605,13 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		// A SAEngine project's part folders form a flowchart with arrows between them (see
 		// ExplorerDelegate); once the project is known, give them their taller rows.
 		this._register(this.saengineProjectService.onDidChangeProject(project => {
-			for (const part of project ? PROJECT_PARTS.slice(1) : []) {
+			// Every part folder either project type has: a project's own parts are flow nodes, the
+			// other Part 5 folder (left after changing the project type) is a plain folder again.
+			const flow = this.saengineProjectService.parts.slice(1);
+			for (const part of project ? ALL_PARTS : []) {
 				const item = this.explorerService.findClosest(joinPath(project!.root, part.folder));
-				if (item && this.tree.hasNode(item)) {
-					this.tree.updateElementHeight(item, ExplorerDelegate.ITEM_HEIGHT + PROJECT_FLOW_GAP);
+				if (item && this.tree.hasNode(item) && item.resource.toString() === joinPath(project!.root, part.folder).toString()) {
+					this.tree.updateElementHeight(item, ExplorerDelegate.ITEM_HEIGHT + (flow.includes(part) ? PROJECT_FLOW_GAP : 0));
 				}
 			}
 			this.tree.rerender();

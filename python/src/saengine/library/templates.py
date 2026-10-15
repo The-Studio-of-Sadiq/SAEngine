@@ -253,6 +253,35 @@ TEMPLATES: dict[str, dict[str, Any]] = {
     },
     "LoadCombination": {"name": "1.2D + 1.6L", "D": 1.2, "L": 1.6},
     "Analysis": Analysis().model_dump(mode="json"),
+    # structural model (special structures)
+    "CartesianGrid": {"kind": "cartesian", "id": "G2", "x": [], "y": [], "z": []},
+    "CylindricalGrid": {"kind": "cylindrical", "id": "G2", "radii": [], "angles": [], "z": []},
+    "AngleLine": {"label": "R1", "angle": 0},
+    "Point": {"x": 0, "y": 0, "z": 0},
+    "Member": {
+        "id": "M1",
+        "type": "B300x500",
+        "start": {"x": 0, "y": 0, "z": 0},
+        "end": {"x": 6000, "y": 0, "z": 0},
+    },
+    "Area": {
+        "id": "A1",
+        "type": "S150",
+        "outline": [
+            {"x": 0, "y": 0, "z": 0},
+            {"x": 6000, "y": 0, "z": 0},
+            {"x": 6000, "y": 5000, "z": 0},
+            {"x": 0, "y": 5000, "z": 0},
+        ],
+    },
+    "Opening": {
+        "outline": [
+            {"x": 1000, "y": 1000, "z": 0},
+            {"x": 2000, "y": 1000, "z": 0},
+            {"x": 2000, "y": 2000, "z": 0},
+        ]
+    },
+    "Support": {"id": "SP1", "at": {"x": 0, "y": 0, "z": 0}, "fixity": "fixed"},
     "ProjectInfo": {"name": "Project"},
     # building model elements
     "SlabOpening": {"id": "O1", "host": "S1", "x": 0, "y": 0, "xDim": 1000, "yDim": 1000},

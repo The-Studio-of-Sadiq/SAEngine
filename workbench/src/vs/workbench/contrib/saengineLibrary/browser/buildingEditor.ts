@@ -31,7 +31,7 @@ import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ISaengineModelSelectionService, MemberGroup } from '../../../services/saengineProject/common/modelSelection.js';
-import { ISaengineProjectService, PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
+import { ISaengineProjectService, partById, PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
 import { loadViewerModule, viewerAssetBaseUrl } from '../../saengineFem/browser/viewerModule.js';
 import { clone, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditorInput } from './libraryEditorInput.js';
@@ -39,9 +39,11 @@ import { JsonObject, JsonValue, SchemaForm } from './schemaForm.js';
 
 const BIM_SCHEMA_ID = 'saengine.bim/2';
 const FLOOR_PLAN_SCHEMA_ID = 'saengine.floorPlan/1';
+const STRUCTURE_SCHEMA_ID = 'saengine.structure/1';
 
 /** Desktop commands of the Python models (see `saengine.library.bim` and `saengine.library.ifc`). */
 const GENERATE_COMMAND = 'saengine.bim.generate';
+const GENERATE_FROM_STRUCTURE_COMMAND = 'saengine.bim.generateFromStructure';
 const IFC_COMMAND = 'saengine.bim.ifc';
 
 /** The selection service's name for this editor. */
@@ -59,12 +61,14 @@ interface IBuildingIfc {
 	readonly problems?: readonly string[];
 }
 
-const ELEMENT_KINDS: readonly { readonly kind: string; readonly group: MemberGroup; readonly label: string }[] = [
+const ELEMENT_KINDS: readonly { readonly kind: string; readonly group?: MemberGroup; readonly label: string }[] = [
 	{ kind: 'column', group: 'columns', label: localize('element.columns', "Columns") },
 	{ kind: 'beam', group: 'beams', label: localize('element.beams', "Beams") },
 	{ kind: 'wall', group: 'walls', label: localize('element.walls', "Walls") },
 	{ kind: 'slab', group: 'slabs', label: localize('element.slabs', "Slabs") },
 	{ kind: 'footing', group: 'footings', label: localize('element.footings', "Footings") },
+	{ kind: 'member', label: localize('element.members', "Members") },
+	{ kind: 'area', label: localize('element.areas', "Areas") },
 ];
 
 type View = '3d' | 'additions' | 'summary';
@@ -204,7 +208,7 @@ export class BuildingEditor extends JsonDocumentEditor {
 		if (value.schema === BIM_SCHEMA_ID) {
 			return undefined;
 		}
-		const build = { label: localize('building.build', "Build from Floor Plan"), run: () => this.build() };
+		const build = { label: localize('building.build', "Build from {0}", this.sourceName), run: () => this.build() };
 		if (value.schema === 'saengine.bim/1') {
 			return {
 				message: localize('building.legacy', "This building model still holds the layout, which the Floor Plan owns now. Open the Floor Plan and create it (it takes the layout over from this file), then build the building model from it."),
@@ -212,7 +216,7 @@ export class BuildingEditor extends JsonDocumentEditor {
 			};
 		}
 		if (value.part === 'bim') {
-			return { message: localize('building.empty', "The building model has not been built from the Floor Plan yet."), fix: build };
+			return { message: localize('building.empty', "The building model has not been built from the {0} yet.", this.sourceName), fix: build };
 		}
 		return { message: localize('building.unexpected', "This file is not a SAEngine building model ({0}).", BIM_SCHEMA_ID) };
 	}
@@ -221,22 +225,34 @@ export class BuildingEditor extends JsonDocumentEditor {
 		void this.build();
 	}
 
-	/** Generates the model from the current floor plan, keeping the model's own elements. */
+	/** A special structure is built from its structural model, a building from its floor plan. */
+	private get special(): boolean {
+		return this.project.project?.type === 'structure';
+	}
+
+	/** The Part 5 model this one is built from, as the engineer knows it. */
+	private get sourceName(): string {
+		return this.special ? localize('building.structuralModel', "Structural Model") : localize('building.floorPlan', "Floor Plan");
+	}
+
+	/** Generates the model from the current Part 5 model, keeping the model's own elements. */
 	private async build(): Promise<void> {
-		const floorPlan = this.upstreamText;
+		const source = this.upstreamText;
 		let parsed: JsonValue | undefined;
 		try {
-			parsed = floorPlan ? JSON.parse(floorPlan) : undefined;
+			parsed = source ? JSON.parse(source) : undefined;
 		} catch {
 			parsed = undefined;
 		}
-		if (!floorPlan || !isObject(parsed) || parsed.schema !== FLOOR_PLAN_SCHEMA_ID) {
-			this.notificationService.warn(localize('building.noFloorPlan', "The Floor Plan has no layout yet. Open it and create it first."));
+		if (!source || !isObject(parsed) || parsed.schema !== (this.special ? STRUCTURE_SCHEMA_ID : FLOOR_PLAN_SCHEMA_ID)) {
+			this.notificationService.warn(this.special
+				? localize('building.noStructure', "The Structural Model is not valid yet. Open it and fix it first.")
+				: localize('building.noFloorPlan', "The Floor Plan has no layout yet. Open it and create it first."));
 			return;
 		}
 		let result: IGeneratedBuilding | undefined;
 		try {
-			result = await this.commands.executeCommand<IGeneratedBuilding>(GENERATE_COMMAND, floorPlan, this.document ? JSON.stringify(this.document) : undefined);
+			result = await this.commands.executeCommand<IGeneratedBuilding>(this.special ? GENERATE_FROM_STRUCTURE_COMMAND : GENERATE_COMMAND, source, this.document ? JSON.stringify(this.document) : undefined);
 		} catch (error) {
 			this.notificationService.error(localize('building.generateFailed', "The building model could not be built: {0}", String(error)));
 			return;
@@ -244,13 +260,13 @@ export class BuildingEditor extends JsonDocumentEditor {
 		if (result?.text) {
 			this.replaceDocument(JSON.parse(result.text));
 		} else {
-			this.notificationService.warn(localize('building.problems', "Fix the Floor Plan first: {0}", (result?.problems ?? []).join('; ')));
+			this.notificationService.warn(localize('building.problems', "Fix the {0} first: {1}", this.sourceName, (result?.problems ?? []).join('; ')));
 		}
 	}
 
-	private openFloorPlan(): void {
+	private openSource(): void {
 		const resource = this.resource;
-		const part = PROJECT_PARTS.find(p => p.id === 'floorPlan')!;
+		const part = partById(this.special ? 'structure' : 'floorPlan')!;
 		if (resource) {
 			void this.editors.openEditor({ resource: joinPath(dirname(dirname(resource)), part.folder, part.mainFile!) });
 		}
@@ -390,7 +406,7 @@ export class BuildingEditor extends JsonDocumentEditor {
 
 		const title = append(this.header, $('.building-title'));
 		append(title, $('h2', undefined, localize('building.title', "Building Model")));
-		append(title, $('span.building-intro', undefined, localize('building.intro', "Built from the Floor Plan; update it when the Floor Plan changes. Elements added to the building model itself are kept.")));
+		append(title, $('span.building-intro', undefined, localize('building.intro', "Built from the {0}; update it when the {0} changes. Elements added to the building model itself are kept.", this.sourceName)));
 
 		const actions = append(this.header, $('.building-actions'));
 		const button = (label: string, icon: ThemeIcon, run: () => void, secondary = true) => {
@@ -399,9 +415,9 @@ export class BuildingEditor extends JsonDocumentEditor {
 			this.viewDisposables.add(b.onDidClick(run));
 			return b;
 		};
-		button(localize('building.openFloorPlan', "Open Floor Plan"), Codicon.symbolArray, () => this.openFloorPlan());
+		button(localize('building.openSource', "Open {0}", this.sourceName), Codicon.symbolArray, () => this.openSource());
 		if (this.document) {
-			button(localize('building.rebuild', "Rebuild from Floor Plan"), Codicon.refresh, () => this.build());
+			button(localize('building.rebuild', "Rebuild from {0}", this.sourceName), Codicon.refresh, () => this.build());
 			button(localize('building.exportIfc', "Export IFC"), Codicon.export, () => this.exportIfc());
 			const views = append(actions, $('.building-views', { role: 'tablist' }));
 			for (const { view, label, icon } of VIEWS) {
@@ -459,7 +475,7 @@ export class BuildingEditor extends JsonDocumentEditor {
 
 		append(this.summary, $('h3', undefined, localize('building.elements', "Elements")));
 		const elementTable = append(this.summary, $('.building-table'));
-		for (const header of [localize('building.kind', "Kind"), localize('building.fromFloorPlan', "From Floor Plan"), localize('building.own', "Own"), localize('building.total', "Total")]) {
+		for (const header of [localize('building.kind', "Kind"), localize('building.fromSource', "From {0}", this.sourceName), localize('building.own', "Own"), localize('building.total', "Total")]) {
 			append(elementTable, $('span.header', undefined, header));
 		}
 		for (const { kind, label } of ELEMENT_KINDS) {

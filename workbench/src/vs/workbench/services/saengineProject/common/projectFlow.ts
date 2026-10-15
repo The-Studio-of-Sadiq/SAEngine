@@ -5,7 +5,7 @@
 
 import { relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ISaengineProject, PROJECT_PARTS } from './saengineProject.js';
+import { ISaengineProject, projectParts } from './saengineProject.js';
 
 /*
  * The project's part folders read as a flowchart in the Explorer: one node per part, in workflow
@@ -36,9 +36,10 @@ export function projectFlowPosition(project: ISaengineProject | undefined, resou
 		return undefined;
 	}
 	const segments = path.split('/');
-	const part = PROJECT_PARTS.findIndex(p => p.folder === segments[0]);
+	const parts = projectParts(project.type);
+	const part = parts.findIndex(p => p.folder === segments[0]);
 	if (part < 0) {
 		return undefined;
 	}
-	return { part, node: segments.length === 1, level: segments.length, first: part === 0, last: part === PROJECT_PARTS.length - 1 };
+	return { part, node: segments.length === 1, level: segments.length, first: part === 0, last: part === parts.length - 1 };
 }

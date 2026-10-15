@@ -141,6 +141,10 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 		return this.request(python, 'bim/generate', { floorPlanText, bimText });
 	}
 
+	generateBuildingFromStructure(python: string, structureText: string, bimText: string | undefined): Promise<IGeneratedBuilding> {
+		return this.request(python, 'bim/generateFromStructure', { structureText, bimText });
+	}
+
 	buildingIfc(python: string, request: IBuildingIfcRequest): Promise<IBuildingIfc> {
 		return this.request(python, 'bim/ifc', request);
 	}

@@ -18,7 +18,8 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { BNBC, DEFAULT_SETTINGS, SETTINGS_SCHEMA, TEMPLATES } from '../../../services/saengineProject/common/projectLibraries.generated.js';
-import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
+import { ISaengineProjectService, PROJECT_TYPES, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { clone, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditorInput } from './libraryEditorInput.js';
 import { JsonObject, JsonValue, SchemaForm } from './schemaForm.js';
@@ -95,6 +96,7 @@ export class SettingsEditor extends JsonDocumentEditor {
 		@IEditorService editorService: IEditorService,
 		@ITextModelService textModelService: ITextModelService,
 		@ISaengineProjectService private readonly project: ISaengineProjectService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super(SettingsEditor.ID, group, telemetryService, themeService, storageService, commandService, editorService, textModelService, project);
 		this.form = instantiationService.createInstance(SchemaForm, {
@@ -204,6 +206,8 @@ export class SettingsEditor extends JsonDocumentEditor {
 		this.problemBox = append(this.container, $('.library-problems'));
 		this.renderProblems();
 
+		this.renderProjectType();
+
 		append(this.container, $('h3', undefined, localize('settings.codeValues', "Code Values")));
 		this.values = append(this.container, $('.building-table.settings-values'));
 		this.renderValues();
@@ -214,6 +218,42 @@ export class SettingsEditor extends JsonDocumentEditor {
 		this.viewDisposables.add(reset.onDidClick(() => this.resetCombinations()));
 
 		this.form.render(append(this.container, $('.library-form')), SETTINGS_SCHEMA, this.document);
+	}
+
+	/** What the project designs, which decides how Part 5 models it; kept in the project manifest. */
+	private renderProjectType(): void {
+		const current = this.project.project?.type;
+		if (!current) {
+			return;
+		}
+		append(this.container, $('h3', undefined, localize('settings.projectType', "Project Type")));
+		const row = append(this.container, $('.building-actions.project-type'));
+		for (const option of PROJECT_TYPES) {
+			const selected = option.type === current;
+			const button = this.viewDisposables.add(new Button(row, { ...defaultButtonStyles, secondary: !selected, supportIcons: true, title: option.description }));
+			button.label = selected ? `$(${Codicon.check.id}) ${option.label}` : option.label;
+			button.element.setAttribute('aria-pressed', String(selected));
+			this.viewDisposables.add(button.onDidClick(() => this.changeProjectType(option.type)));
+		}
+		append(this.container, $('p.building-intro', undefined, PROJECT_TYPES.find(t => t.type === current)?.description ?? ''));
+	}
+
+	private async changeProjectType(type: ProjectType): Promise<void> {
+		if (this.project.project?.type === type) {
+			return;
+		}
+		const label = PROJECT_TYPES.find(t => t.type === type)!.label;
+		const { confirmed } = await this.dialogService.confirm({
+			message: localize('settings.changeType', "Make this project a {0}?", label),
+			detail: type === 'structure'
+				? localize('settings.toStructure', "Part 5 becomes the Structural Model (05 Structural Model/structure.json), drawn in 3D. The Floor Plan folder stays with its files but is no longer used. Rebuild the Building Model from the Structural Model afterwards.")
+				: localize('settings.toBuilding', "Part 5 becomes the Floor Plan (05 Floor Plan/floor-plan.json), story by story. The Structural Model folder stays with its files but is no longer used. Rebuild the Building Model from the Floor Plan afterwards."),
+			primaryButton: localize('settings.changeTypeButton', "&&Change Project Type"),
+		});
+		if (confirmed) {
+			await this.project.setProjectType(type);
+			this.render();
+		}
 	}
 
 	/** Code values derived from the settings, refreshed as fields are typed. */

@@ -43,9 +43,11 @@ from saengine.fem import loads as fl
 from saengine.fem.mesh import Surface, mesh, shell_node_shares
 from saengine.library import bnbc
 from saengine.library.bim import (
+    AreaElement,
     BeamElement,
     BuildingModel,
     ColumnElement,
+    MemberElement,
     SlabElement,
     WallElement,
 )
@@ -53,6 +55,7 @@ from saengine.library.materials import MaterialLibrary
 from saengine.library.objects import ObjectLibrary
 from saengine.library.sections import section_properties
 from saengine.library.settings import ProjectSettings, derived
+from saengine.library.structure import plane_of
 
 G = 9.80665  # m/s²
 MM = 0.001  # m per mm
@@ -144,6 +147,9 @@ def derive_fem(
     mats = {m.id: m for m in materials.materials}
     levels = sorted({s.elevation for s in building.stories})
     base = levels[0] if levels else 0.0
+    # Special structures (drawn in 3D, Part 5 structural model) have explicit supports and no
+    # floors: no base fixity by level, no diaphragms, no story forces.
+    special = building.source is not None and building.source.structure is not None
 
     def poisson(material: Any) -> float:
         nu = material.mechanical.nu
@@ -285,6 +291,52 @@ def derive_fem(
         lines.append((source, tuple(a), tuple(c)))
         line_sources[source] = (source, sec)
 
+    for element in building.elements:
+        if not isinstance(element, MemberElement):
+            continue
+        a, c = np.array(element.start), np.array(element.end)
+        turns = round(element.rotation / 90)
+        if abs(element.rotation - 90 * turns) > 1e-6:
+            b.notes.append(
+                f"{element.id}: rotation {element.rotation}° is analysed as {90 * turns % 360}°"
+            )
+        axis = c - a
+        sec = section(element.type, turns, abs(axis[2]) > abs(axis[0]))
+        if sec is None:
+            b.notes.append(
+                f"{element.id}: no elastic section (object type, material or E missing); left out"
+            )
+            continue
+        lines.append((element.id, tuple(a), tuple(c)))
+        line_sources[element.id] = (element.id, sec)
+
+    area_loads_of: dict[str, str | None] = {}
+    for element in building.elements:
+        if not isinstance(element, AreaElement):
+            continue
+        sec = plate(element.type)
+        object_type = types.get(element.type)
+        if sec is None or object_type is None or object_type.kind not in ("slab", "wall"):
+            b.notes.append(f"{element.id}: no slab or wall type with a plate section; left out")
+            continue
+        points = [np.array(p, dtype=float) for p in element.outline]
+        plane = plane_of(points)
+        if plane is None:
+            b.notes.append(f"{element.id}: its outline is not a flat polygon; left out")
+            continue
+        first = points[1] - points[0]
+        surfaces.append(
+            Surface(
+                key=element.id,
+                outline=[tuple(p) for p in element.outline],
+                openings=[[tuple(p) for p in o] for o in element.openings],
+                direction=tuple(first / np.linalg.norm(first)),
+                normal=tuple(plane[1]),
+            )
+        )
+        surface_sources[element.id] = (element.id, sec)
+        area_loads_of[element.id] = element.areaLoad
+
     wall_openings: dict[str, list[Any]] = {}
     for opening in building.additions.wallOpenings:
         wall_openings.setdefault(opening.host, []).append(opening)
@@ -388,6 +440,15 @@ def derive_fem(
                 b.shells.append(_Shell(source, ids, sec[0]))
     for x, y, z in supports:
         b.restraints[b.node(x, y, z)] = [True] * 6
+    for support in building.supports:
+        key = tuple(round(v) for v in support.at)
+        if key not in b.nodes:
+            b.notes.append(
+                f"{support.id}: not at a member end or an area corner of the model; left out"
+            )
+            continue
+        pinned = support.fixity == "pinned"
+        b.restraints[b.nodes[key]] = [True, True, True, not pinned, not pinned, not pinned]
 
     for stair in building.additions.stairs:
         b.notes.append(
@@ -437,6 +498,9 @@ def derive_fem(
 
     by_pair = {frozenset((m.i, m.j)): index for index, m in enumerate(b.members)}
 
+    def shells_of_source(source: str) -> list[_Shell]:
+        return [shell for shell in b.shells if shell.source == source]
+
     def line_load(source: str, case: str, p0: np.ndarray, p1: np.ndarray, load: float) -> bool:
         """A uniform line load (N/m, down) along ``p0``-``p1``: beams along it carry their part,
         the nodes on it the rest. False when part of it has no node to go to."""
@@ -464,7 +528,7 @@ def derive_fem(
             )
         return complete
 
-    walls = {e.id for e in building.elements if isinstance(e, WallElement)}
+    walls = {e.id for e in building.elements if isinstance(e, WallElement | AreaElement)}
     for shell in b.shells:
         if shell.source in walls:
             _, density, thickness = surface_sources[shell.source][1]
@@ -479,6 +543,15 @@ def derive_fem(
         line_load(element.id, "D", p0, p1, weight)
 
     area_loads = {a.id: a for a in settings.areaLoads}
+    for source, load_id in area_loads_of.items():
+        area_load = area_loads.get(load_id) if load_id else None
+        if load_id and area_load is None:
+            b.notes.append(f"{source}: no area load '{load_id}' in the project settings")
+        if area_load is None:
+            continue
+        for shell in shells_of_source(source):
+            shell_pressure(shell, "SD", (area_load.finish + area_load.partitions) * 1e3)
+            shell_pressure(shell, "L", area_load.live * 1e3)
     top = levels[-1] if levels else 0.0
     shells_of: dict[str, list[_Shell]] = {}
     for shell in b.shells:
@@ -536,7 +609,7 @@ def derive_fem(
         level_weight[nearest] += node_weight.get(node_id, 0.0)
         if abs(xyz[2] - nearest) < 1e-6:
             level_nodes[nearest].append(node_id)
-    heights = [h for h in above if level_nodes[h]]
+    heights = [h for h in above if level_nodes[h]] if not special else []
     weights = [level_weight[h] for h in heights]
 
     # ── rigid diaphragms: each floor tied to a node at its centre of mass ──
@@ -621,6 +694,11 @@ def derive_fem(
                 "wind_X_kN": sum(wind["WX"]),
                 "wind_Y_kN": sum(wind["WY"]),
             }
+        )
+    elif special:
+        b.notes.append(
+            "special structure: no equivalent static wind or earthquake loads (they suit "
+            "buildings with floors); gravity loads only for now"
         )
     else:
         b.notes.append(

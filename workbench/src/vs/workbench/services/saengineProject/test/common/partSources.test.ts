@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { newFloorPlan, recordedStamp, sourceStamp } from '../../common/partSources.js';
+import { newFloorPlan, recordedStamp, sourceStamp, upstreamPart } from '../../common/partSources.js';
+import { projectParts } from '../../common/saengineProject.js';
 import { DEFAULT_FLOOR_PLAN } from '../../common/projectLibraries.generated.js';
 
 suite('SAEngine - Part sources', () => {
@@ -23,6 +24,13 @@ suite('SAEngine - Part sources', () => {
 			lineEndings: true,
 			recorded: ['abc', undefined, undefined],
 		});
+	});
+
+	test('the building model is built from the floor plan or the structural model', () => {
+		assert.deepStrictEqual(
+			[upstreamPart('bim', projectParts('building')), upstreamPart('bim', projectParts('structure')), upstreamPart('settings', projectParts('building'))],
+			['floorPlan', 'structure', undefined],
+		);
 	});
 
 	test('a new floor plan takes over the layout of an older building model', () => {

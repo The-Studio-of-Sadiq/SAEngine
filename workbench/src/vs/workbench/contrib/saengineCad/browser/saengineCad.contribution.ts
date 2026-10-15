@@ -94,7 +94,8 @@ class CadEditorResolverContribution extends Disposable implements IWorkbenchCont
 	private isFloorPlan(resource: URI): boolean {
 		// Project detection is asynchronous; until it finishes, match by the workspace folder.
 		const root = this.projectService.project?.root ?? this.contextService.getWorkspaceFolder(resource)?.uri;
-		return !!root && isEqual(resource, joinPath(root, FLOOR_PLAN_PART.folder, FLOOR_PLAN_PART.mainFile!));
+		// A special structure has no floor plan: a floor-plan.json left from before is a plain file.
+		return !!root && this.projectService.project?.type !== 'structure' && isEqual(resource, joinPath(root, FLOOR_PLAN_PART.folder, FLOOR_PLAN_PART.mainFile!));
 	}
 }
 

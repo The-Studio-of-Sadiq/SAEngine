@@ -16,12 +16,13 @@ import { EditorInputCapabilities, GroupIdentifier, IEditorDescriptor, IEditorPan
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 
-export type LibraryKind = 'materials' | 'objects' | 'settings' | 'floorPlan' | 'bim';
+export type LibraryKind = 'materials' | 'objects' | 'settings' | 'floorPlan' | 'structure' | 'bim';
 
 const materialsIcon = registerIcon('saengine-materials-editor-icon', Codicon.symbolColor, localize('materialsEditorIcon', "Icon of the materials editor."));
 const objectsIcon = registerIcon('saengine-objects-editor-icon', Codicon.symbolStructure, localize('objectsEditorIcon', "Icon of the object types editor."));
 const settingsIcon = registerIcon('saengine-settings-editor-icon', Codicon.settingsGear, localize('settingsEditorIcon', "Icon of the project settings editor."));
 const gridsIcon = registerIcon('saengine-grids-editor-icon', Codicon.table, localize('gridsEditorIcon', "Icon of the grids and stories editor."));
+const structureIcon = registerIcon('saengine-structure-editor-icon', Codicon.symbolStructure, localize('structureEditorIcon', "Icon of the structural model editor."));
 const buildingIcon = registerIcon('saengine-building-editor-icon', Codicon.layers, localize('buildingEditorIcon', "Icon of the building model editor."));
 
 /**
@@ -36,6 +37,7 @@ export class LibraryEditorInput extends EditorInput {
 	static readonly BUILDING_EDITOR_ID = 'workbench.editor.saengine.building';
 	static readonly GRIDS_EDITOR_ID = 'workbench.editor.saengine.grids';
 	static readonly SETTINGS_EDITOR_ID = 'workbench.editor.saengine.settings';
+	static readonly STRUCTURE_EDITOR_ID = 'workbench.editor.saengine.structure';
 
 	private modelReference: Promise<IReference<IResolvedTextEditorModel>> | undefined;
 
@@ -62,6 +64,7 @@ export class LibraryEditorInput extends EditorInput {
 			case 'bim': return LibraryEditorInput.BUILDING_EDITOR_ID;
 			case 'floorPlan': return LibraryEditorInput.GRIDS_EDITOR_ID;
 			case 'settings': return LibraryEditorInput.SETTINGS_EDITOR_ID;
+			case 'structure': return LibraryEditorInput.STRUCTURE_EDITOR_ID;
 			default: return LibraryEditorInput.EDITOR_ID;
 		}
 	}
@@ -77,6 +80,7 @@ export class LibraryEditorInput extends EditorInput {
 			case 'settings': return localize('settingsEditor', "Project Settings");
 			case 'floorPlan': return localize('gridsEditor', "Grids & Stories");
 			case 'bim': return localize('buildingEditor', "Building Model");
+			case 'structure': return localize('structureEditor', "Structural Model");
 		}
 	}
 
@@ -87,6 +91,7 @@ export class LibraryEditorInput extends EditorInput {
 			case 'settings': return settingsIcon;
 			case 'floorPlan': return gridsIcon;
 			case 'bim': return buildingIcon;
+			case 'structure': return structureIcon;
 		}
 	}
 

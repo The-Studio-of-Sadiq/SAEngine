@@ -20,8 +20,9 @@ from saengine.library.materials import MaterialLibrary
 from saengine.library.objects import ObjectLibrary
 from saengine.library.settings import ProjectSettings
 from saengine.library.settings import check as check_settings
+from saengine.library.structure import StructuralModel
 
-Kind = Literal["materials", "objects", "settings", "floorPlan", "bim"]
+Kind = Literal["materials", "objects", "settings", "floorPlan", "structure", "bim"]
 
 
 @cache
@@ -71,6 +72,8 @@ def check_library(kind: Kind, text: str, materials_text: str | None = None) -> l
         return _check_layout(FloorPlan, data, materials_text)
     if kind == "bim":
         return _check_layout(BuildingModel, data, materials_text)
+    if kind == "structure":
+        return _check_layout(StructuralModel, data, materials_text)
     model = MaterialLibrary if kind == "materials" else ObjectLibrary
     try:
         library = model.model_validate(data)
@@ -107,7 +110,9 @@ def check_library(kind: Kind, text: str, materials_text: str | None = None) -> l
 
 
 def _check_layout(
-    model_type: type[FloorPlan | BuildingModel], data: Any, objects_text: str | None
+    model_type: type[FloorPlan | BuildingModel | StructuralModel],
+    data: Any,
+    objects_text: str | None,
 ) -> list[dict[str, Any]]:
     """Floor plan or building model problems; ``index`` is None and ``path`` names the section."""
     try:

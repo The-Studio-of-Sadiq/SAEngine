@@ -14,10 +14,11 @@ import { localize } from '../../../../nls.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { ModelSelection } from '../../../services/saengineProject/common/modelSelection.js';
-import { ISaengineProjectService, PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
+import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { IProjectDocuments } from './modelData.js';
 
-const PARTS = ['floorPlan', 'objects', 'materials', 'bim'] as const;
+/** The part files the views read; a project has the floor plan or the structural model. */
+const PARTS = ['floorPlan', 'structure', 'objects', 'materials', 'bim'] as const;
 
 /** The grids and stories form for the floor plan (registered by the library editors). */
 const GRIDS_EDITOR_ID = 'workbench.editor.saengine.grids';
@@ -55,9 +56,12 @@ export class ProjectDocuments extends Disposable {
 
 	get documents(): IProjectDocuments {
 		const floorPlan = this.models.get('floorPlan');
+		const structure = this.models.get('structure');
 		return {
 			floorPlan: parse(floorPlan),
 			floorPlanText: floorPlan?.getValue(),
+			structure: parse(structure),
+			structureText: structure?.getValue(),
 			objects: parse(this.models.get('objects')),
 			materials: parse(this.models.get('materials')),
 			bim: parse(this.models.get('bim')),
@@ -71,7 +75,7 @@ export class ProjectDocuments extends Disposable {
 		const root = this.projectService.project?.root;
 		if (root) {
 			const store = new DisposableStore();
-			for (const id of PARTS) {
+			for (const id of PARTS.filter(id => this.projectService.parts.some(p => p.id === id))) {
 				const resource = partFile(root, id);
 				try {
 					const reference = await this.textModelService.createModelReference(resource);
@@ -95,7 +99,7 @@ export class ProjectDocuments extends Disposable {
 }
 
 export function partFile(root: URI, id: string): URI {
-	const part = PROJECT_PARTS.find(p => p.id === id)!;
+	const part = partById(id)!;
 	return joinPath(root, part.folder, part.mainFile!);
 }
 
@@ -120,6 +124,8 @@ export async function openOwner(selection: ModelSelection | undefined, part: str
 		await editorService.openEditor({ resource: partFile(root, 'floorPlan'), options: { override: GRIDS_EDITOR_ID } }, SIDE_GROUP);
 	} else if (part === 'bim') {
 		await editorService.openEditor({ resource: partFile(root, 'bim') });
+	} else if (part === 'structure') {
+		await editorService.openEditor({ resource: partFile(root, 'structure') });
 	} else {
 		await editorService.openEditor({ resource: partFile(root, 'floorPlan') });
 	}

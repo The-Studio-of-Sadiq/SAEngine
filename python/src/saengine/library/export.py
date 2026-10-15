@@ -31,6 +31,7 @@ from saengine.library.floorplan import FloorPlan
 from saengine.library.materials import MaterialLibrary
 from saengine.library.objects import ObjectLibrary
 from saengine.library.settings import ProjectSettings, default_project_settings
+from saengine.library.structure import StructuralModel, default_structural_model
 from saengine.library.templates import TEMPLATES
 
 HEADER = """/*---------------------------------------------------------------------------------------------
@@ -152,6 +153,12 @@ def generate_typescript() -> str:
         ("BNBC", "IBnbcTables", bnbc_tables()),
         ("FLOOR_PLAN_SCHEMA", "IJSONSchema", json_schema(FloorPlan, "SAEngine floor plan")),
         ("DEFAULT_FLOOR_PLAN", "object", library_json(default_floor_plan())),
+        (
+            "STRUCTURE_SCHEMA",
+            "IJSONSchema",
+            json_schema(StructuralModel, "SAEngine structural model"),
+        ),
+        ("DEFAULT_STRUCTURE", "object", library_json(default_structural_model())),
         ("BIM_SCHEMA", "IJSONSchema", json_schema(BuildingModel, "SAEngine building model")),
         ("DEFAULT_BIM", "object", library_json(default_building_model())),
         ("TEMPLATES", "{ readonly [defName: string]: object }", TEMPLATES),

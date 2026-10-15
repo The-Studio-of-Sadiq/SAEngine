@@ -138,6 +138,35 @@ suite('SAEngine - ProjectService', () => {
 		}, { objects: true, model: true, warned: true });
 	}));
 
+	test('a special structure has a structural model as Part 5, and the type can change', async () => {
+		await createService(URI.from({ scheme: Schemas.inMemory, path: '/elsewhere' })).createProject(root, 'Terminal', 'structure');
+		const service = createService();
+		const project = await detected(service);
+		const manifest = () => fileService.readFile(joinPath(root, 'Terminal.saengine')).then(f => JSON.parse(f.value.toString()));
+		const before = {
+			type: project?.type,
+			manifest: (await manifest()).type,
+			structure: service.isProtected(joinPath(root, '05 Structural Model', 'structure.json')),
+			floorPlan: await fileService.exists(joinPath(root, '05 Floor Plan')),
+			parts: service.parts.map(p => p.id).slice(3, 6),
+		};
+
+		await service.setProjectType('building');
+		assert.deepStrictEqual({
+			before,
+			after: {
+				type: service.project?.type,
+				manifest: (await manifest()).type,
+				floorPlan: service.isProtected(joinPath(root, '05 Floor Plan', 'floor-plan.json')) && await fileService.exists(joinPath(root, '05 Floor Plan', 'floor-plan.json')),
+				// The structural model stays with its files, as a plain folder.
+				structure: [service.isProtected(joinPath(root, '05 Structural Model')), await fileService.exists(joinPath(root, '05 Structural Model', 'structure.json'))],
+			},
+		}, {
+			before: { type: 'structure', manifest: 'structure', structure: true, floorPlan: false, parts: ['objects', 'structure', 'bim'] },
+			after: { type: 'building', manifest: 'building', floorPlan: true, structure: [false, true] },
+		});
+	});
+
 	test('is not a project without a manifest', async () => {
 		await fileService.createFolder(root);
 		const service = createService();

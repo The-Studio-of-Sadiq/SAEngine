@@ -112,3 +112,50 @@
 	justify-content: flex-end;
 	max-width: 520px;
 }
+
+/* project type: what the project designs, two cards to choose from */
+.saengine-start .form .project-types {
+	display: flex;
+	gap: 8px;
+}
+
+.saengine-start .form .project-type {
+	flex: 1;
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	padding: 10px 12px;
+	text-align: left;
+	color: var(--vscode-foreground);
+	background: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-widget-border, var(--vscode-editorGroup-border));
+	border-radius: 4px;
+	cursor: pointer;
+	font: inherit;
+}
+
+.saengine-start .form .project-type.selected {
+	border-color: var(--vscode-focusBorder);
+	background: var(--vscode-list-activeSelectionBackground, var(--vscode-editorWidget-background));
+	color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+}
+
+.saengine-start .form .project-type .codicon {
+	margin-top: 2px;
+	font-size: 20px;
+}
+
+.saengine-start .form .project-type .text {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.saengine-start .form .project-type .label {
+	font-weight: 600;
+}
+
+.saengine-start .form .project-type .description {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}

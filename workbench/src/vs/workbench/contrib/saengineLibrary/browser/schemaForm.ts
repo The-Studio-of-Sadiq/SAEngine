@@ -176,7 +176,10 @@ export class SchemaForm {
 		}
 		if (resolved.schema.type === 'array' && resolved.schema.items && !Array.isArray(resolved.schema.items)) {
 			const items = this.resolve(resolved.schema.items);
-			if (items.schema.type === 'object' && items.defName) {
+			const itemUnion = this.union(resolved.schema.items);
+			if (itemUnion) {
+				this.renderUnionArray(container, title, resolved.schema, itemUnion, owner, key, path);
+			} else if (items.schema.type === 'object' && items.defName) {
 				this.renderObjectArray(container, title, resolved.schema, items, owner, key, path);
 			} else {
 				this.renderPrimitiveArray(container, title, description, resolved.schema, items.schema, owner, key, path);
@@ -236,6 +239,39 @@ export class SchemaForm {
 		const branch = index >= 0 ? union.branches[index] : undefined;
 		if (current && branch) {
 			this.renderObject(append(group, $('.form-group-body')), branch.schema, current, path);
+		}
+	}
+
+	/** A list whose entries are each one of several kinds (e.g. rectangular or cylindrical grids). */
+	private renderUnionArray(container: HTMLElement, title: string, schema: IJSONSchema, union: { key: string; branches: IBranch[] }, owner: JsonObject, key: string, path: string): void {
+		const group = append(container, $('.form-group'));
+		const header = append(group, $('.form-group-header'));
+		append(header, $('span.form-group-title', undefined, title));
+		const list = Array.isArray(owner[key]) ? owner[key] as JsonValue[] : [];
+		// The entries are edited in place: the list stands in for an object keyed by index.
+		const entries = list as unknown as JsonObject;
+		list.forEach((entry, i) => {
+			const row = append(group, $('.form-array-row'));
+			const fields = append(row, $('.form-array-fields'));
+			const name = entry && typeof entry === 'object' && !Array.isArray(entry) && typeof entry.id === 'string' ? entry.id : String(i + 1);
+			this.renderUnion(fields, name, union, entries, String(i), `${path}.${i}`, false);
+			const remove = this.disposables.add(new Button(row, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: localize('schemaForm.remove', "Remove") }));
+			remove.label = `$(${Codicon.trash.id})`;
+			remove.enabled = list.length > (schema.minItems ?? 0);
+			this.disposables.add(remove.onDidClick(() => {
+				list.splice(i, 1);
+				owner[key] = list;
+				this.ctx.changed(path, true);
+			}));
+		});
+		if (schema.maxItems === undefined || list.length < schema.maxItems) {
+			const add = this.disposables.add(new Button(append(group, $('.form-array-add')), { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+			add.label = `$(${Codicon.add.id}) ${localize('schemaForm.add', "Add {0}", title)}`;
+			this.disposables.add(add.onDidClick(() => {
+				const entry = this.ctx.newItem?.(path.replace(/\.\d+(?=\.|$)/g, ''), list) ?? this.ctx.template(union.branches[0].defName);
+				owner[key] = [...list, entry];
+				this.ctx.changed(path, true);
+			}));
 		}
 	}
 

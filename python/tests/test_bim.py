@@ -56,6 +56,7 @@ def test_default_is_empty_and_unbuilt() -> None:
         "stories": [],
         "elements": [],
         "additions": {"slabOpenings": [], "wallOpenings": [], "stairs": [], "members": []},
+        "supports": [],
     }
 
 

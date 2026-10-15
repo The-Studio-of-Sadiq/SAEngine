@@ -3633,6 +3633,423 @@ export const DEFAULT_FLOOR_PLAN: object = {
 	underlays: [],
 };
 
+export const STRUCTURE_SCHEMA: IJSONSchema = {
+	$defs: {
+		AngleLine: {
+			additionalProperties: false,
+			description: 'A radial grid line of a cylindrical grid, at an angle from its X axis.',
+			properties: {
+				label: {
+					maxLength: 8,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9.\'-]+$',
+					title: 'Label',
+					type: 'string',
+				},
+				angle: {
+					description: 'Counter-clockwise from the grid\'s X axis [°].',
+					title: 'Angle',
+					type: 'number',
+				},
+			},
+			required: ['label', 'angle'],
+			title: 'AngleLine',
+			type: 'object',
+		},
+		Area: {
+			additionalProperties: false,
+			description: 'A planar area: slab, wall or shell panel, bounded by a polygon (its mid-surface).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					description: 'Slab or wall type from 04 Objects.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Object type',
+					type: 'string',
+				},
+				outline: {
+					items: {
+						$ref: '#/$defs/Point',
+					},
+					minItems: 3,
+					title: 'Outline',
+					type: 'array',
+				},
+				openings: {
+					items: {
+						$ref: '#/$defs/Opening',
+					},
+					title: 'Openings',
+					type: 'array',
+				},
+				areaLoad: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Area load from 02 Project Settings carried by the area (floors and roofs); none for walls and panels with self-weight only.',
+					title: 'Area load',
+				},
+			},
+			required: ['id', 'type', 'outline'],
+			title: 'Area',
+			type: 'object',
+		},
+		CartesianGrid: {
+			additionalProperties: false,
+			description: 'A rectangular grid system: lines along X, Y and Z (levels).',
+			properties: {
+				kind: {
+					const: 'cartesian',
+					default: 'cartesian',
+					title: 'Kind',
+					type: 'string',
+				},
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					default: '',
+					title: 'Name',
+					type: 'string',
+				},
+				origin: {
+					$ref: '#/$defs/Point',
+					title: 'Origin',
+				},
+				rotation: {
+					default: 0,
+					description: 'Rotation of the grid in plan [°].',
+					title: 'Rotation',
+					type: 'number',
+				},
+				x: {
+					items: {
+						$ref: '#/$defs/GridLine',
+					},
+					title: 'X lines',
+					type: 'array',
+				},
+				y: {
+					items: {
+						$ref: '#/$defs/GridLine',
+					},
+					title: 'Y lines',
+					type: 'array',
+				},
+				z: {
+					description: 'Z lines.',
+					items: {
+						$ref: '#/$defs/GridLine',
+					},
+					title: 'Levels',
+					type: 'array',
+				},
+			},
+			required: ['id'],
+			title: 'CartesianGrid',
+			type: 'object',
+		},
+		CylindricalGrid: {
+			additionalProperties: false,
+			description: 'A cylindrical grid system for domes, round terminals and towers: rings, radial lines\nand levels around a vertical axis through its origin.',
+			properties: {
+				kind: {
+					const: 'cylindrical',
+					default: 'cylindrical',
+					title: 'Kind',
+					type: 'string',
+				},
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					default: '',
+					title: 'Name',
+					type: 'string',
+				},
+				origin: {
+					$ref: '#/$defs/Point',
+					title: 'Origin',
+				},
+				radii: {
+					description: 'Circles at radius = position [mm].',
+					items: {
+						$ref: '#/$defs/GridLine',
+					},
+					title: 'Rings',
+					type: 'array',
+				},
+				angles: {
+					items: {
+						$ref: '#/$defs/AngleLine',
+					},
+					title: 'Radial lines',
+					type: 'array',
+				},
+				z: {
+					description: 'Z lines.',
+					items: {
+						$ref: '#/$defs/GridLine',
+					},
+					title: 'Levels',
+					type: 'array',
+				},
+			},
+			required: ['id'],
+			title: 'CylindricalGrid',
+			type: 'object',
+		},
+		GridLine: {
+			additionalProperties: false,
+			description: 'One grid line (IfcGridAxis): X lines are vertical in plan, Y lines horizontal.',
+			properties: {
+				label: {
+					maxLength: 8,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9.\'-]+$',
+					title: 'Label',
+					type: 'string',
+				},
+				position: {
+					description: 'Distance from the origin along the axis [mm].',
+					title: 'Position',
+					type: 'number',
+				},
+			},
+			required: ['label', 'position'],
+			title: 'GridLine',
+			type: 'object',
+		},
+		Member: {
+			additionalProperties: false,
+			description: 'A straight member between two points: beam, column, brace or truss bar.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					description: 'Beam, column or brace type from 04 Objects.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Object type',
+					type: 'string',
+				},
+				start: {
+					$ref: '#/$defs/Point',
+					title: 'Start',
+				},
+				end: {
+					$ref: '#/$defs/Point',
+					title: 'End',
+				},
+				rotation: {
+					default: 0,
+					description: 'Rotation of the section about the member\'s axis [°].',
+					title: 'Rotation',
+					type: 'number',
+				},
+			},
+			required: ['id', 'type', 'start', 'end'],
+			title: 'Member',
+			type: 'object',
+		},
+		Opening: {
+			additionalProperties: false,
+			description: 'A hole through an area, bounded by a polygon in the area\'s plane.',
+			properties: {
+				outline: {
+					items: {
+						$ref: '#/$defs/Point',
+					},
+					minItems: 3,
+					title: 'Outline',
+					type: 'array',
+				},
+			},
+			required: ['outline'],
+			title: 'Opening',
+			type: 'object',
+		},
+		Point: {
+			additionalProperties: false,
+			description: 'A point in space [mm].',
+			properties: {
+				x: {
+					description: '[mm]',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					description: '[mm]',
+					title: 'Y',
+					type: 'number',
+				},
+				z: {
+					description: 'Elevation [mm].',
+					title: 'Z',
+					type: 'number',
+				},
+			},
+			required: ['x', 'y', 'z'],
+			title: 'Point',
+			type: 'object',
+		},
+		Support: {
+			additionalProperties: false,
+			description: 'Where the structure is held: a fixed or pinned support at a point.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				at: {
+					$ref: '#/$defs/Point',
+					title: 'At',
+				},
+				fixity: {
+					default: 'fixed',
+					description: 'Fixed holds translations and rotations, pinned the translations only.',
+					enum: ['fixed', 'pinned'],
+					title: 'Fixity',
+					type: 'string',
+				},
+			},
+			required: ['id', 'at'],
+			title: 'Support',
+			type: 'object',
+		},
+	},
+	additionalProperties: false,
+	properties: {
+		schema: {
+			const: 'saengine.structure/1',
+			default: 'saengine.structure/1',
+			title: 'Schema_',
+			type: 'string',
+		},
+		grids: {
+			items: {
+				oneOf: [
+					{
+						$ref: '#/$defs/CartesianGrid',
+					},
+					{
+						$ref: '#/$defs/CylindricalGrid',
+					},
+				],
+			},
+			title: 'Grid systems',
+			type: 'array',
+		},
+		members: {
+			items: {
+				$ref: '#/$defs/Member',
+			},
+			title: 'Members',
+			type: 'array',
+		},
+		areas: {
+			items: {
+				$ref: '#/$defs/Area',
+			},
+			title: 'Areas',
+			type: 'array',
+		},
+		supports: {
+			items: {
+				$ref: '#/$defs/Support',
+			},
+			title: 'Supports',
+			type: 'array',
+		},
+	},
+	title: 'SAEngine structural model',
+	type: 'object',
+};
+
+export const DEFAULT_STRUCTURE: object = {
+	schema: 'saengine.structure/1',
+	grids: [
+		{
+			kind: 'cartesian',
+			id: 'G1',
+			name: 'Main grid',
+			origin: {
+				x: 0.0,
+				y: 0.0,
+				z: 0.0,
+			},
+			rotation: 0.0,
+			x: [
+				{
+					label: 'A',
+					position: 0.0,
+				},
+				{
+					label: 'B',
+					position: 6000.0,
+				},
+			],
+			y: [
+				{
+					label: '1',
+					position: 0.0,
+				},
+				{
+					label: '2',
+					position: 5000.0,
+				},
+			],
+			z: [
+				{
+					label: 'Z0',
+					position: 0.0,
+				},
+				{
+					label: 'Z1',
+					position: 4000.0,
+				},
+			],
+		},
+	],
+	members: [],
+	areas: [],
+	supports: [],
+};
+
 export const BIM_SCHEMA: IJSONSchema = {
 	$defs: {
 		Additions: {
@@ -3669,6 +4086,98 @@ export const BIM_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'Additions',
+			type: 'object',
+		},
+		AreaElement: {
+			additionalProperties: false,
+			description: 'A planar slab, wall or shell panel bounded by a polygon in space (special structures);\nthe polygon is its mid-surface.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					description: 'Object type id from 04 Objects.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Object type',
+					type: 'string',
+				},
+				source: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The floor-plan member this element is generated from; none for elements that belong to the building model itself.',
+					title: 'Floor plan member',
+				},
+				kind: {
+					const: 'area',
+					default: 'area',
+					title: 'Kind',
+					type: 'string',
+				},
+				outline: {
+					items: {
+						description: '[x, y, z] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 3,
+						minItems: 3,
+						type: 'array',
+					},
+					minItems: 3,
+					title: 'Outline',
+					type: 'array',
+				},
+				openings: {
+					items: {
+						items: {
+							description: '[x, y, z] in mm.',
+							items: {
+								type: 'number',
+							},
+							maxItems: 3,
+							minItems: 3,
+							type: 'array',
+						},
+						type: 'array',
+					},
+					title: 'Openings',
+					type: 'array',
+				},
+				areaLoad: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Area load from 02 Project Settings.',
+					title: 'Area load',
+				},
+			},
+			required: ['id', 'type', 'outline'],
+			title: 'AreaElement',
 			type: 'object',
 		},
 		BeamElement: {
@@ -3740,6 +4249,38 @@ export const BIM_SCHEMA: IJSONSchema = {
 			},
 			required: ['id', 'type', 'start', 'end', 'elevation'],
 			title: 'BeamElement',
+			type: 'object',
+		},
+		BimSupport: {
+			additionalProperties: false,
+			description: 'A support of a special structure: fixed, or pinned (translations only).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				at: {
+					description: '[x, y, z] in mm.',
+					items: {
+						type: 'number',
+					},
+					maxItems: 3,
+					minItems: 3,
+					title: 'At',
+					type: 'array',
+				},
+				fixity: {
+					default: 'fixed',
+					enum: ['fixed', 'pinned'],
+					title: 'Fixity',
+					type: 'string',
+				},
+			},
+			required: ['id', 'at'],
+			title: 'BimSupport',
 			type: 'object',
 		},
 		ColumnElement: {
@@ -3934,6 +4475,78 @@ export const BIM_SCHEMA: IJSONSchema = {
 			title: 'InclinedMember',
 			type: 'object',
 		},
+		MemberElement: {
+			additionalProperties: false,
+			description: 'A straight member between two points in space (special structures).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					description: 'Object type id from 04 Objects.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Object type',
+					type: 'string',
+				},
+				source: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The floor-plan member this element is generated from; none for elements that belong to the building model itself.',
+					title: 'Floor plan member',
+				},
+				kind: {
+					const: 'member',
+					default: 'member',
+					title: 'Kind',
+					type: 'string',
+				},
+				start: {
+					description: '[x, y, z] in mm.',
+					items: {
+						type: 'number',
+					},
+					maxItems: 3,
+					minItems: 3,
+					title: 'Start',
+					type: 'array',
+				},
+				end: {
+					description: '[x, y, z] in mm.',
+					items: {
+						type: 'number',
+					},
+					maxItems: 3,
+					minItems: 3,
+					title: 'End',
+					type: 'array',
+				},
+				rotation: {
+					default: 0,
+					description: 'About the member\'s axis [°].',
+					title: 'Rotation',
+					type: 'number',
+				},
+			},
+			required: ['id', 'type', 'start', 'end'],
+			title: 'MemberElement',
+			type: 'object',
+		},
 		SlabElement: {
 			additionalProperties: false,
 			properties: {
@@ -4055,12 +4668,32 @@ export const BIM_SCHEMA: IJSONSchema = {
 			description: 'The upstream revisions the model was built from.',
 			properties: {
 				floorPlan: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
 					description: 'Stamp of floor-plan.json.',
 					title: 'Floor plan',
-					type: 'string',
+				},
+				structure: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Stamp of structure.json.',
+					title: 'Structural model',
 				},
 			},
-			required: ['floorPlan'],
 			title: 'SourceStamps',
 			type: 'object',
 		},
@@ -4317,6 +4950,12 @@ export const BIM_SCHEMA: IJSONSchema = {
 					{
 						$ref: '#/$defs/FootingElement',
 					},
+					{
+						$ref: '#/$defs/MemberElement',
+					},
+					{
+						$ref: '#/$defs/AreaElement',
+					},
 				],
 			},
 			title: 'Elements',
@@ -4324,6 +4963,14 @@ export const BIM_SCHEMA: IJSONSchema = {
 		},
 		additions: {
 			$ref: '#/$defs/Additions',
+		},
+		supports: {
+			description: 'Supports of a special structure.',
+			items: {
+				$ref: '#/$defs/BimSupport',
+			},
+			title: 'Supports',
+			type: 'array',
 		},
 	},
 	title: 'SAEngine building model',
@@ -4340,6 +4987,7 @@ export const DEFAULT_BIM: object = {
 		stairs: [],
 		members: [],
 	},
+	supports: [],
 };
 
 export const TEMPLATES: { readonly [defName: string]: object } = {
@@ -4794,6 +5442,97 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		slabs: 'loadsToBeams',
 		diaphragm: 'rigid',
 		meshSize: 1000.0,
+	},
+	CartesianGrid: {
+		kind: 'cartesian',
+		id: 'G2',
+		x: [],
+		y: [],
+		z: [],
+	},
+	CylindricalGrid: {
+		kind: 'cylindrical',
+		id: 'G2',
+		radii: [],
+		angles: [],
+		z: [],
+	},
+	AngleLine: {
+		label: 'R1',
+		angle: 0,
+	},
+	Point: {
+		x: 0,
+		y: 0,
+		z: 0,
+	},
+	Member: {
+		id: 'M1',
+		type: 'B300x500',
+		start: {
+			x: 0,
+			y: 0,
+			z: 0,
+		},
+		end: {
+			x: 6000,
+			y: 0,
+			z: 0,
+		},
+	},
+	Area: {
+		id: 'A1',
+		type: 'S150',
+		outline: [
+			{
+				x: 0,
+				y: 0,
+				z: 0,
+			},
+			{
+				x: 6000,
+				y: 0,
+				z: 0,
+			},
+			{
+				x: 6000,
+				y: 5000,
+				z: 0,
+			},
+			{
+				x: 0,
+				y: 5000,
+				z: 0,
+			},
+		],
+	},
+	Opening: {
+		outline: [
+			{
+				x: 1000,
+				y: 1000,
+				z: 0,
+			},
+			{
+				x: 2000,
+				y: 1000,
+				z: 0,
+			},
+			{
+				x: 2000,
+				y: 2000,
+				z: 0,
+			},
+		],
+	},
+	Support: {
+		id: 'SP1',
+		at: {
+			x: 0,
+			y: 0,
+			z: 0,
+		},
+		fixity: 'fixed',
 	},
 	ProjectInfo: {
 		name: 'Project',

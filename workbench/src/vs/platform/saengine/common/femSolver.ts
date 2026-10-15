@@ -134,7 +134,7 @@ export interface IFemResultView {
 
 /** A rule violation in a library file, reported against the entry at `index` (none: the whole file). */
 /** Project files the Python models check. */
-export type LibraryFileKind = 'materials' | 'objects' | 'settings' | 'floorPlan' | 'bim';
+export type LibraryFileKind = 'materials' | 'objects' | 'settings' | 'floorPlan' | 'structure' | 'bim';
 
 export interface IGeneratedBuilding {
 	/** The new `bim.json` text, when it could be generated. */
@@ -212,6 +212,9 @@ export interface IFemSolverService {
 	 * (see `saengine.library.bim`). Problems are returned when either file has errors.
 	 */
 	generateBuilding(python: string, floorPlanText: string, bimText: string | undefined): Promise<IGeneratedBuilding>;
+
+	/** The building model of a special structure, from its structural model (`structure.json`). */
+	generateBuildingFromStructure(python: string, structureText: string, bimText: string | undefined): Promise<IGeneratedBuilding>;
 
 	/** The building model as IFC (IfcOpenShell), with each element's IFC GlobalId. */
 	buildingIfc(python: string, request: IBuildingIfcRequest): Promise<IBuildingIfc>;

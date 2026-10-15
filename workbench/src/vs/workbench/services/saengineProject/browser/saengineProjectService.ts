@@ -21,7 +21,7 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IDecorationData, IDecorationsService } from '../../decorations/common/decorations.js';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { createManifest, IProjectManifest, ISaengineProject, ISaengineProjectService, PROJECT_MANIFEST_EXTENSION, PROJECT_PARTS } from '../common/saengineProject.js';
+import { ALL_PARTS, createManifest, IProjectManifest, IProjectPart, ISaengineProject, ISaengineProjectService, PROJECT_MANIFEST_EXTENSION, PROJECT_PARTS, projectParts, ProjectType } from '../common/saengineProject.js';
 
 const schemaRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 
@@ -58,7 +58,7 @@ export class SaengineProjectService extends Disposable implements ISaengineProje
 			provideDecorations: uri => this.provideDecoration(uri),
 		}));
 
-		for (const part of PROJECT_PARTS) {
+		for (const part of ALL_PARTS) {
 			if (part.schema) {
 				schemaRegistry.registerSchema(part.schema.id, part.schema.schema, this._store);
 			}
@@ -66,6 +66,10 @@ export class SaengineProjectService extends Disposable implements ISaengineProje
 
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.detect()));
 		void this.detect();
+	}
+
+	get parts(): readonly IProjectPart[] {
+		return this._project ? projectParts(this._project.type) : PROJECT_PARTS;
 	}
 
 	isProtected(resource: URI): boolean {
@@ -84,32 +88,55 @@ export class SaengineProjectService extends Disposable implements ISaengineProje
 			return undefined;
 		}
 		let name = manifest.name.slice(0, -PROJECT_MANIFEST_EXTENSION.length);
+		let type: ProjectType = 'building';
 		try {
 			const parsed: Partial<IProjectManifest> = JSON.parse((await this.fileService.readFile(manifest.resource)).value.toString());
 			if (typeof parsed.name === 'string' && parsed.name) {
 				name = parsed.name;
 			}
+			if (parsed.type === 'structure') {
+				type = 'structure';
+			}
 		} catch (error) {
 			this.logService.warn(`[saengine] unreadable project manifest ${manifest.resource.toString()}: ${error}`);
 		}
-		return { root: folder, manifest: manifest.resource, name };
+		return { root: folder, manifest: manifest.resource, name, type };
 	}
 
-	async createProject(folder: URI, name: string): Promise<ISaengineProject> {
+	async createProject(folder: URI, name: string, type: ProjectType = 'building'): Promise<ISaengineProject> {
 		const existing = await this.findProject(folder);
-		const project = existing ?? { root: folder, manifest: joinPath(folder, `${name}${PROJECT_MANIFEST_EXTENSION}`), name };
+		const project = existing ?? { root: folder, manifest: joinPath(folder, `${name}${PROJECT_MANIFEST_EXTENSION}`), name, type };
 		if (!existing) {
 			await this.fileService.createFolder(folder);
-			await this.fileService.writeFile(project.manifest, VSBuffer.fromString(JSON.stringify(createManifest(name), undefined, '\t') + '\n'));
+			await this.fileService.writeFile(project.manifest, VSBuffer.fromString(JSON.stringify(createManifest(name, type), undefined, '\t') + '\n'));
 		}
 		await this.createMissing(project);
 		return project;
 	}
 
+	async setProjectType(type: ProjectType): Promise<void> {
+		const project = this._project;
+		if (!project || project.type === type) {
+			return;
+		}
+		let manifest: { [key: string]: unknown };
+		try {
+			manifest = JSON.parse((await this.fileService.readFile(project.manifest)).value.toString());
+		} catch {
+			manifest = { ...createManifest(project.name, type) };
+		}
+		manifest.type = type;
+		manifest.parts = projectParts(type).map(p => p.id);
+		await this.fileService.writeFile(project.manifest, VSBuffer.fromString(JSON.stringify(manifest, undefined, '\t') + '\n'));
+		const changed = { ...project, type };
+		this.setProject(changed);
+		await this.createMissing(changed);
+	}
+
 	private async detect(): Promise<void> {
 		const folder = this.contextService.getWorkspace().folders[0]?.uri;
 		const project = folder ? await this.findProject(folder) : undefined;
-		if (project?.root.toString() === this._project?.root.toString() && project?.manifest.toString() === this._project?.manifest.toString()) {
+		if (project?.root.toString() === this._project?.root.toString() && project?.manifest.toString() === this._project?.manifest.toString() && project?.type === this._project?.type) {
 			return;
 		}
 		this.setProject(project);
@@ -126,7 +153,7 @@ export class SaengineProjectService extends Disposable implements ISaengineProje
 
 		if (project) {
 			this.protectedResources.add(project.manifest);
-			for (const part of PROJECT_PARTS) {
+			for (const part of projectParts(project.type)) {
 				const folder = joinPath(project.root, part.folder);
 				this.protectedResources.add(folder);
 				if (part.mainFile) {
@@ -144,6 +171,10 @@ export class SaengineProjectService extends Disposable implements ISaengineProje
 			this.projectDisposables.add(this.fileService.onDidFilesChange(e => {
 				if (e.gotDeleted() && [...this.protectedResources].some(r => e.contains(r, FileChangeType.DELETED))) {
 					this.restoreScheduler.schedule();
+				}
+				// The project type may be changed in another window.
+				if (e.contains(project.manifest, FileChangeType.UPDATED)) {
+					void this.detect();
 				}
 			}));
 		}
@@ -168,10 +199,10 @@ export class SaengineProjectService extends Disposable implements ISaengineProje
 		const created: string[] = [];
 		try {
 			if (!await this.fileService.exists(project.manifest)) {
-				await this.fileService.writeFile(project.manifest, VSBuffer.fromString(JSON.stringify(createManifest(project.name), undefined, '\t') + '\n'));
+				await this.fileService.writeFile(project.manifest, VSBuffer.fromString(JSON.stringify(createManifest(project.name, project.type), undefined, '\t') + '\n'));
 				created.push(basename(project.manifest));
 			}
-			for (const part of PROJECT_PARTS) {
+			for (const part of projectParts(project.type)) {
 				const folder = joinPath(project.root, part.folder);
 				if (!await this.fileService.exists(folder)) {
 					await this.fileService.createFolder(folder);

@@ -1,4 +1,9 @@
-"""The building model (``06 BIM/bim.json``): the 3D building, derived from the floor plan.
+"""The building model (``06 BIM/bim.json``): the 3D building, derived from Part 5.
+
+Buildings are generated from the floor plan (story by story); special structures from the
+structural model (``05 Structural Model/structure.json``, :func:`generate_from_structure`),
+whose members, areas and supports become ``member`` and ``area`` elements and ``supports``.
+
 
 Parts own their files: the floor plan (Part 5) owns the layout, and this model is *generated*
 from it (:func:`generate`), never edited into it. Every generated element keeps the id of the
@@ -24,10 +29,12 @@ from saengine.library.floorplan import FloorPlan, GridPoint, Story
 from saengine.library.labels import field_title
 from saengine.library.materials import Id
 from saengine.library.objects import ObjectLibrary
+from saengine.library.structure import StructuralModel
 
 SCHEMA_ID = "saengine.bim/2"
 
 Point2 = Annotated[list[float], Field(min_length=2, max_length=2, description="[x, y] in mm.")]
+Point3 = Annotated[list[float], Field(min_length=3, max_length=3, description="[x, y, z] in mm.")]
 Mm = Annotated[float, Field(description="[mm]")]
 
 
@@ -48,7 +55,12 @@ class _Model(BaseModel):
 class SourceStamps(_Model):
     """The upstream revisions the model was built from."""
 
-    floorPlan: str = Field(title="Floor plan", description="Stamp of floor-plan.json.")
+    floorPlan: str | None = Field(
+        default=None, title="Floor plan", description="Stamp of floor-plan.json."
+    )
+    structure: str | None = Field(
+        default=None, title="Structural model", description="Stamp of structure.json."
+    )
 
 
 class _Element(_Model):
@@ -102,8 +114,43 @@ class FootingElement(_Element):
     rotation: float = Field(default=0, description="[°]")
 
 
+class MemberElement(_Element):
+    """A straight member between two points in space (special structures)."""
+
+    kind: Literal["member"] = "member"
+    start: Point3
+    end: Point3
+    rotation: float = Field(default=0, description="About the member's axis [°].")
+
+
+class AreaElement(_Element):
+    """A planar slab, wall or shell panel bounded by a polygon in space (special structures);
+    the polygon is its mid-surface."""
+
+    kind: Literal["area"] = "area"
+    outline: list[Point3] = Field(min_length=3)
+    openings: list[list[Point3]] = Field(default_factory=list)
+    areaLoad: Id | None = Field(
+        default=None, title="Area load", description="Area load from 02 Project Settings."
+    )
+
+
+class BimSupport(_Model):
+    """A support of a special structure: fixed, or pinned (translations only)."""
+
+    id: Id
+    at: Point3
+    fixity: Literal["fixed", "pinned"] = "fixed"
+
+
 Element = Annotated[
-    ColumnElement | BeamElement | WallElement | SlabElement | FootingElement,
+    ColumnElement
+    | BeamElement
+    | WallElement
+    | SlabElement
+    | FootingElement
+    | MemberElement
+    | AreaElement,
     Field(discriminator="kind"),
 ]
 
@@ -114,6 +161,8 @@ _ALLOWED_KINDS = {
     "wall": ("wall",),
     "slab": ("slab",),
     "footing": ("footing", "pileCap"),
+    "member": ("beam", "column", "brace"),
+    "area": ("slab", "wall"),
 }
 
 
@@ -200,6 +249,9 @@ class BuildingModel(_Model):
     stories: list[Story] = Field(default_factory=list)
     elements: list[Element] = Field(default_factory=list)
     additions: Additions = Field(default_factory=Additions)
+    supports: list[BimSupport] = Field(
+        default_factory=list, description="Supports of a special structure."
+    )
 
     @model_validator(mode="after")
     def _references(self) -> BuildingModel:
@@ -343,4 +395,49 @@ def generate(plan: FloorPlan, stamp: str, previous: BuildingModel | None = None)
         stories=[s.model_copy() for s in plan.stories],
         elements=[*elements, *own],
         additions=previous.additions.model_copy(deep=True) if previous else Additions(),
+    )
+
+
+def generate_from_structure(
+    structure: StructuralModel, stamp: str, previous: BuildingModel | None = None
+) -> BuildingModel:
+    """The building model of a special structure (whose ``structure.json`` has stamp ``stamp``).
+
+    Members and areas become ``member`` and ``area`` elements, supports are carried over, and the
+    levels of the first grid system with any become the stories. The building model's own
+    additions are kept from ``previous``.
+    """
+    levels = next((g.z for g in structure.grids if g.z), [])
+    elements: list[Element] = [
+        MemberElement(
+            id=m.id,
+            type=m.type,
+            source=m.id,
+            start=[m.start.x, m.start.y, m.start.z],
+            end=[m.end.x, m.end.y, m.end.z],
+            rotation=m.rotation,
+        )
+        for m in structure.members
+    ]
+    elements += [
+        AreaElement(
+            id=a.id,
+            type=a.type,
+            source=a.id,
+            outline=[[p.x, p.y, p.z] for p in a.outline],
+            openings=[[[p.x, p.y, p.z] for p in o.outline] for o in a.openings],
+            areaLoad=a.areaLoad,
+        )
+        for a in structure.areas
+    ]
+    own = [e for e in (previous.elements if previous else []) if e.source is None]
+    return BuildingModel(
+        source=SourceStamps(structure=stamp),
+        stories=[Story(id=g.label, name=f"Level {g.label}", elevation=g.position) for g in levels],
+        elements=[*elements, *own],
+        additions=previous.additions.model_copy(deep=True) if previous else Additions(),
+        supports=[
+            BimSupport(id=s.id, at=[s.at.x, s.at.y, s.at.z], fixity=s.fixity)
+            for s in structure.supports
+        ],
     )

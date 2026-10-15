@@ -11,7 +11,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { isRecentFolder, IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
-import { ISaengineProject, ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
+import { ISaengineProject, ISaengineProjectService, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
 
 /** Characters Windows does not allow in a folder name (the strictest platform). */
 const INVALID_NAME = /[\\/:*?"<>|]/;
@@ -64,7 +64,7 @@ export class ProjectOpener {
 	}
 
 	/** Creates `<location>/<name>` as a new project and opens it in this window. */
-	async createAndOpen(location: URI, name: string): Promise<void> {
+	async createAndOpen(location: URI, name: string, type: ProjectType = 'building'): Promise<void> {
 		const folder = joinPath(location, name.trim());
 		if (await this.fileService.exists(folder)) {
 			const existing = await this.projectService.findProject(folder);
@@ -79,7 +79,7 @@ export class ProjectOpener {
 				return;
 			}
 		}
-		await this.projectService.createProject(folder, name.trim());
+		await this.projectService.createProject(folder, name.trim(), type);
 		await this.open(folder);
 	}
 

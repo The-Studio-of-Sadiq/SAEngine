@@ -14,10 +14,19 @@ import { DEFAULT_FLOOR_PLAN } from './projectLibraries.generated.js';
  * Nothing is regenerated without the engineer asking.
  */
 
-/** The parts each derived part is built from, by part id (one-way: upstream to downstream). */
+/**
+ * The parts each derived part can be built from, by part id (one-way: upstream to downstream).
+ * A project has one of them: the building model comes from the floor plan of a building or the
+ * structural model of a special structure (see `upstreamPart`).
+ */
 export const UPSTREAM_PARTS: { readonly [part: string]: readonly string[] } = {
-	bim: ['floorPlan'],
+	bim: ['floorPlan', 'structure'],
 };
+
+/** The part `part` is built from in a project with `parts`, if any. */
+export function upstreamPart(part: string, parts: readonly { readonly id: string }[]): string | undefined {
+	return UPSTREAM_PARTS[part]?.find(id => parts.some(p => p.id === id));
+}
 
 /**
  * The stamp of an upstream file: SHA-1 of its text with line endings normalised. The Python

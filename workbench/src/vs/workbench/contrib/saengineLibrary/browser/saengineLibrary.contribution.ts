@@ -19,10 +19,11 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
-import { ISaengineProjectService, PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
+import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { BuildingEditor } from './buildingEditor.js';
 import { GridsEditor } from './gridsEditor.js';
 import { SettingsEditor } from './settingsEditor.js';
+import { StructureEditor } from './structureEditor.js';
 import { JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditor } from './libraryEditor.js';
 import { LibraryEditorInput, LibraryEditorInputSerializer, LibraryKind } from './libraryEditorInput.js';
@@ -47,10 +48,15 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	[new SyncDescriptor(LibraryEditorInput)]
 );
 
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(StructureEditor, LibraryEditorInput.STRUCTURE_EDITOR_ID, localize('structureEditorPane', "SAEngine Structural Model Editor")),
+	[new SyncDescriptor(LibraryEditorInput)]
+);
+
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(LibraryEditorInput.ID, LibraryEditorInputSerializer);
 
 /** Project files with a visual editor; each is the main file of the project part with that id. */
-const KINDS: readonly LibraryKind[] = ['settings', 'materials', 'objects', 'floorPlan', 'bim'];
+const KINDS: readonly LibraryKind[] = ['settings', 'materials', 'objects', 'floorPlan', 'structure', 'bim'];
 
 const EDITOR_LABELS: { readonly [kind in LibraryKind]: string } = {
 	materials: localize('materialsEditorLabel', "Materials Editor"),
@@ -58,6 +64,7 @@ const EDITOR_LABELS: { readonly [kind in LibraryKind]: string } = {
 	floorPlan: localize('gridsEditorLabel', "Grids & Stories Editor"),
 	settings: localize('settingsEditorLabel', "Project Settings Editor"),
 	bim: localize('buildingEditorLabel', "Building Model Editor"),
+	structure: localize('structureEditorLabel', "Structural Model Editor"),
 };
 
 const EDITOR_IDS: { readonly [kind in LibraryKind]: string } = {
@@ -66,6 +73,7 @@ const EDITOR_IDS: { readonly [kind in LibraryKind]: string } = {
 	floorPlan: LibraryEditorInput.GRIDS_EDITOR_ID,
 	settings: LibraryEditorInput.SETTINGS_EDITOR_ID,
 	bim: LibraryEditorInput.BUILDING_EDITOR_ID,
+	structure: LibraryEditorInput.STRUCTURE_EDITOR_ID,
 };
 
 /**
@@ -87,7 +95,7 @@ class LibraryEditorResolverContribution extends Disposable implements IWorkbench
 	) {
 		super();
 		for (const kind of KINDS) {
-			const part = PROJECT_PARTS.find(p => p.id === kind);
+			const part = partById(kind);
 			if (!part?.mainFile) {
 				continue;
 			}
@@ -121,8 +129,13 @@ class LibraryEditorResolverContribution extends Disposable implements IWorkbench
 		if (!root) {
 			return undefined;
 		}
+		// The project's own parts only: a floor plan left in a special structure is a plain file.
+		const parts = this.projectService.project ? this.projectService.parts : undefined;
 		for (const kind of KINDS) {
-			const part = PROJECT_PARTS.find(p => p.id === kind);
+			const part = partById(kind);
+			if (parts && !parts.includes(part!)) {
+				continue;
+			}
 			if (part?.mainFile && isEqual(resource, joinPath(root, part.folder, part.mainFile))) {
 				return kind;
 			}

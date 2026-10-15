@@ -148,7 +148,7 @@ import { IChatEntitlementService } from '../../services/chat/common/chatEntitlem
 import { IManagedSettingsService, NullManagedSettingsService } from '../../../platform/policy/common/copilotManagedSettings.js';
 import { AccountPolicyGateState, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
 import { IDecoration, IDecorationData, IDecorationsProvider, IDecorationsService, IResourceDecorationChangeEvent } from '../../services/decorations/common/decorations.js';
-import { ISaengineProject, ISaengineProjectService } from '../../services/saengineProject/common/saengineProject.js';
+import { IProjectPart, ISaengineProject, ISaengineProjectService, PROJECT_PARTS, ProjectType } from '../../services/saengineProject/common/saengineProject.js';
 import { CodeEditorService } from '../../services/editor/browser/codeEditorService.js';
 import { EditorPaneService } from '../../services/editor/browser/editorPaneService.js';
 import { EditorResolverService } from '../../services/editor/browser/editorResolverService.js';
@@ -586,9 +586,12 @@ export class TestSaengineProjectService implements ISaengineProjectService {
 	/** Resources tests mark as core project items. */
 	readonly protectedResources: URI[] = [];
 
+	readonly parts: readonly IProjectPart[] = PROJECT_PARTS;
+
 	isProtected(resource: URI): boolean { return this.protectedResources.some(r => r.toString() === resource.toString()); }
 	async findProject(_folder: URI): Promise<ISaengineProject | undefined> { return undefined; }
-	async createProject(folder: URI, name: string): Promise<ISaengineProject> { return { root: folder, manifest: folder, name }; }
+	async createProject(folder: URI, name: string, type: ProjectType = 'building'): Promise<ISaengineProject> { return { root: folder, manifest: folder, name, type }; }
+	async setProjectType(_type: ProjectType): Promise<void> { }
 }
 
 export class TestMenuService implements IMenuService {

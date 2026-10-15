@@ -22,10 +22,12 @@ import ifcopenshell.guid
 import numpy as np
 
 from saengine.library.bim import (
+    AreaElement,
     BeamElement,
     BuildingModel,
     ColumnElement,
     FootingElement,
+    MemberElement,
     SlabElement,
     WallElement,
 )
@@ -265,6 +267,22 @@ def export_ifc(
         if object_type is None:
             skipped.append(f"{element.id}: unknown object type '{element.type}'")
             continue
+        if isinstance(element, MemberElement):
+            _member(
+                w,
+                element.id,
+                element.type,
+                element.start,
+                element.end,
+                element.rotation,
+                storey_at,
+                ids,
+                skipped,
+            )
+            continue
+        if isinstance(element, AreaElement):
+            _area(w, element, storey_at, ids, skipped)
+            continue
         ifc_class, predefined = _CLASSES[element.kind]
         if element.kind == "footing" and object_type.kind == "pileCap":
             predefined = "PILE_CAP"
@@ -485,30 +503,114 @@ def _export_additions(
         ids[stair.id] = product.GlobalId
 
     for member in additions.members:
-        object_type = w.types.get(member.type)
-        if object_type is None or object_type.kind not in _MEMBER_CLASSES:
-            skipped.append(f"{member.id}: needs a brace, beam or column type")
-            continue
-        start = np.array([member.x1, member.y1, member.z1], dtype=float)
-        axis = np.array([member.x2, member.y2, member.z2], dtype=float) - start
-        length = float(np.linalg.norm(axis))
-        axis /= length
-        # Profile Y as close to up as the axis allows (vertical members: profile X along world X).
-        side = np.cross((0.0, 0.0, 1.0), axis)
-        x_axis = (
-            tuple(side / np.linalg.norm(side)) if np.linalg.norm(side) > 1e-9 else (1.0, 0.0, 0.0)
+        _member(
+            w,
+            member.id,
+            member.type,
+            [member.x1, member.y1, member.z1],
+            [member.x2, member.y2, member.z2],
+            0.0,
+            storey_at,
+            ids,
+            skipped,
         )
-        ifc_class, predefined = _MEMBER_CLASSES[object_type.kind]
-        product = w.entity(ifc_class, member.id, member.id, predefined)
-        product.ObjectType = object_type.id
-        product.Description = object_type.name
-        w.extrusion(product, w.profile(object_type.id, object_type.profile), length)
-        w.place(product, _placement(tuple(start), x_axis, tuple(axis)))
+
+
+def _member(
+    w: _Writer,
+    member_id: str,
+    type_id: str,
+    start_point: list[float],
+    end_point: list[float],
+    rotation: float,
+    storey_at: Any,
+    ids: dict[str, str],
+    skipped: list[str],
+) -> None:
+    """A straight member between two points, its profile extruded along it."""
+    object_type = w.types.get(type_id)
+    if object_type is None or object_type.kind not in _MEMBER_CLASSES:
+        skipped.append(f"{member_id}: needs a brace, beam or column type")
+        return
+    start = np.array(start_point, dtype=float)
+    axis = np.array(end_point, dtype=float) - start
+    length = float(np.linalg.norm(axis))
+    axis /= length
+    # Profile Y as close to up as the axis allows (vertical members: profile X along world X),
+    # then turned about the axis by the member's rotation.
+    side = np.cross((0.0, 0.0, 1.0), axis)
+    x_axis = side / np.linalg.norm(side) if np.linalg.norm(side) > 1e-9 else np.array([1.0, 0, 0])
+    angle = math.radians(rotation)
+    x_axis = x_axis * math.cos(angle) + np.cross(axis, x_axis) * math.sin(angle)
+    ifc_class, predefined = _MEMBER_CLASSES[object_type.kind]
+    product = w.entity(ifc_class, member_id, member_id, predefined)
+    product.ObjectType = object_type.id
+    product.Description = object_type.name
+    w.extrusion(product, w.profile(object_type.id, object_type.profile), length)
+    w.place(product, _placement(tuple(start), tuple(x_axis), tuple(axis)))
+    w.run(
+        "spatial.assign_container",
+        w.file,
+        products=[product],
+        relating_structure=storey_at(min(start_point[2], end_point[2])),
+    )
+    w.material(product, object_type.material)
+    ids[member_id] = product.GlobalId
+
+
+_AREA_CLASSES = {"slab": ("IfcSlab", "FLOOR"), "wall": ("IfcWall", "STANDARD")}
+
+
+def _area(
+    w: _Writer, area: AreaElement, storey_at: Any, ids: dict[str, str], skipped: list[str]
+) -> None:
+    """A planar slab or wall panel: its outline (with openings) extruded through its thickness,
+    centred on the outline's plane."""
+    object_type = w.types.get(area.type)
+    if object_type is None or object_type.kind not in _AREA_CLASSES:
+        skipped.append(f"{area.id}: needs a slab or wall type")
+        return
+    from saengine.library.structure import plane_of
+
+    points = [np.array(p, dtype=float) for p in area.outline]
+    plane = plane_of(points)
+    if plane is None:
+        skipped.append(f"{area.id}: its outline is not a flat polygon")
+        return
+    origin, normal = plane
+    u = points[1] - points[0]
+    u /= np.linalg.norm(u)
+    v = np.cross(normal, u)
+
+    def local(polygon: list[np.ndarray]) -> list[tuple[float, float]]:
+        flat = [(float((p - origin) @ u) * _SI, float((p - origin) @ v) * _SI) for p in polygon]
+        return [*flat, flat[0]]
+
+    holes = [local([np.array(p, dtype=float) for p in o]) for o in area.openings]
+    profile = (
         w.run(
-            "spatial.assign_container",
+            "profile.add_arbitrary_profile_with_voids",
             w.file,
-            products=[product],
-            relating_structure=storey_at(min(member.z1, member.z2)),
+            outer_profile=local(points),
+            inner_profiles=holes,
+            name=area.id,
         )
-        w.material(product, object_type.material)
-        ids[member.id] = product.GlobalId
+        if holes
+        else w.run("profile.add_arbitrary_profile", w.file, profile=local(points), name=area.id)
+    )
+    thickness = float(object_type.thickness)
+    ifc_class, predefined = _AREA_CLASSES[object_type.kind]
+    product = w.entity(ifc_class, area.id, area.id, predefined)
+    product.ObjectType = object_type.id
+    product.Description = object_type.name
+    product.Tag = area.id
+    w.extrusion(product, profile, thickness, None)
+    w.place(product, _placement(tuple(origin - normal * thickness / 2), tuple(u), tuple(normal)))
+    w.run(
+        "spatial.assign_container",
+        w.file,
+        products=[product],
+        relating_structure=storey_at(min(p[2] for p in area.outline)),
+    )
+    w.material(product, object_type.material)
+    ids[area.id] = product.GlobalId
