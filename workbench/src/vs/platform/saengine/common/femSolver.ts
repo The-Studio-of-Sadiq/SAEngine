@@ -96,8 +96,11 @@ export interface IFemResultEntry {
 	/** `case:<id>` or `combination:<number>`. */
 	readonly key: string;
 	readonly label: string;
-	readonly kind: 'static' | 'combination' | 'modal';
+	readonly kind: 'static' | 'combination' | 'modal' | 'spectrum' | 'history';
 	readonly modes?: readonly { readonly number: number; readonly period: number | null }[];
+	/** A time history's frames (up to 200 of its steps), and the one where it moves most. */
+	readonly frames?: readonly { readonly number: number; readonly time: number }[];
+	readonly peak?: number;
 }
 
 export interface IFemResultList {
@@ -112,7 +115,7 @@ export interface IFemResultList {
  */
 export interface IFemResultView {
 	readonly label: string;
-	readonly kind: 'static' | 'combination' | 'modal';
+	readonly kind: 'static' | 'combination' | 'modal' | 'spectrum' | 'history';
 	readonly nodes: readonly (readonly number[])[];
 	readonly reactions: readonly (readonly number[])[];
 	readonly elements: readonly {
@@ -166,6 +169,8 @@ export interface IFemDeriveRequest {
 	readonly objectsText: string;
 	readonly materialsText: string;
 	readonly settingsText: string;
+	/** Folder the model is written to (`08 FEM`): time-history records are read from the project. */
+	readonly modelFolder?: string;
 }
 
 export interface IFemDerivation {
@@ -175,6 +180,42 @@ export interface IFemDerivation {
 	readonly notes?: readonly string[];
 	readonly summary?: { readonly [key: string]: number };
 	readonly problems?: readonly string[];
+}
+
+type Xyz = readonly [number, number, number];
+
+/**
+ * Members, areas and supports to add to a structural model, from a parametric shape or an
+ * imported file (see `saengine.library.shapes.Geometry`). Points are [x, y, z] in mm.
+ */
+export interface IStructureGeometry {
+	readonly members: readonly { readonly start: Xyz; readonly end: Xyz; readonly type: string }[];
+	readonly areas: readonly { readonly outline: readonly Xyz[]; readonly openings: readonly (readonly Xyz[])[]; readonly type: string }[];
+	readonly supports: readonly { readonly at: Xyz; readonly fixity: 'fixed' | 'pinned' }[];
+	/** What was left out, and why. */
+	readonly notes: readonly string[];
+}
+
+/** Geometry, or why there is none (invalid parameters, an unreadable file). */
+export type StructureGeometryResult = IStructureGeometry | { readonly problems: readonly string[] };
+
+export interface IStructureEdit {
+	/** The new `structure.json` text. */
+	readonly text?: string;
+	/** Ids of the new members, areas and supports. */
+	readonly ids?: readonly string[];
+	/** Elements left out because the model already had them. */
+	readonly skipped?: number;
+	readonly problems?: readonly string[];
+}
+
+export interface IStructureScriptResult extends IStructureEdit {
+	/** Whether the script cleared the model before adding to it. */
+	readonly cleared?: boolean;
+	/** Why the script failed (with the line), when it did. */
+	readonly error?: string;
+	/** What the script printed. */
+	readonly output: string;
 }
 
 export interface ILibraryProblem {
@@ -221,4 +262,16 @@ export interface IFemSolverService {
 
 	/** The analysis model derived from the building model, with the project settings' loads. */
 	deriveFem(python: string, request: IFemDeriveRequest): Promise<IFemDerivation>;
+
+	/** The members, areas and supports of a parametric shape (`saengine.library.shapes`). */
+	shapeGeometry(python: string, shape: object): Promise<StructureGeometryResult>;
+
+	/** The geometry of a DXF, IFC or Rhino file, typed with `options` (`saengine.library.importers`). */
+	importGeometry(python: string, path: string, options: object, objectsText: string | undefined): Promise<StructureGeometryResult>;
+
+	/** The structural model with `geometry` added, leaving out what it already has. */
+	insertGeometry(python: string, structureText: string, geometry: IStructureGeometry): Promise<IStructureEdit>;
+
+	/** Runs a structural model script on the model (in its own Python process). */
+	runStructureScript(python: string, structureText: string, scriptPath: string): Promise<IStructureScriptResult>;
 }

@@ -96,3 +96,70 @@
 .saengine-structure-modeler .modeler-message.visible {
 	display: block;
 }
+
+.saengine-structure-modeler .modeler-body {
+	display: flex;
+	flex: 1;
+	min-height: 0;
+}
+
+.saengine-structure-modeler .modeler-body > .modeler-viewport {
+	flex: 1;
+	min-width: 0;
+}
+
+.saengine-structure-modeler .modeler-panel {
+	display: none;
+	flex: none;
+	width: 360px;
+	max-width: 50%;
+	box-sizing: border-box;
+	padding: 8px 12px 12px;
+	overflow-y: auto;
+	background: var(--vscode-sideBar-background, var(--vscode-editorWidget-background));
+	border-left: 1px solid var(--vscode-editorGroup-border, var(--vscode-widget-border, transparent));
+}
+
+.saengine-structure-modeler .modeler-panel.visible {
+	display: block;
+}
+
+.saengine-structure-modeler .modeler-panel-title {
+	margin: 4px 0 8px;
+	font-size: 13px;
+	font-weight: 600;
+}
+
+/* The form is narrower here than in the editors. */
+.saengine-structure-modeler .modeler-panel .form-field {
+	grid-template-columns: 130px minmax(0, 1fr);
+}
+
+.saengine-structure-modeler .modeler-panel .form-control {
+	max-width: none;
+}
+
+.saengine-structure-modeler .modeler-panel-status {
+	margin-top: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-structure-modeler .modeler-panel-note {
+	margin-top: 4px;
+}
+
+.saengine-structure-modeler .modeler-panel-problem {
+	margin-top: 4px;
+	color: var(--vscode-errorForeground);
+}
+
+.saengine-structure-modeler .modeler-panel-buttons {
+	display: flex;
+	gap: 8px;
+	margin-top: 12px;
+}
+
+.saengine-structure-modeler .modeler-panel-buttons .monaco-button {
+	width: auto;
+	padding: 4px 14px;
+}

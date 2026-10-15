@@ -18,6 +18,13 @@ export interface ModelerScene {
 	readonly supports: readonly { readonly id: string; readonly at: ModelPoint; readonly fixity: string }[];
 }
 
+/** Elements shown as a preview before they are added: a parametric shape or an imported file. */
+export interface ModelerGhost {
+	readonly members: readonly { readonly start: ModelPoint; readonly end: ModelPoint }[];
+	readonly areas: readonly { readonly outline: readonly ModelPoint[]; readonly openings: readonly (readonly ModelPoint[])[] }[];
+	readonly supports: readonly { readonly at: ModelPoint }[];
+}
+
 export type ModelerEntity = { readonly kind: 'member' | 'area' | 'support'; readonly id: string };
 
 /** What is under the pointer: the snapped point (if any) and the element (if any). */
@@ -59,6 +66,8 @@ export interface StructureModeler {
 	setPreview(points: readonly ModelPoint[] | undefined, closed?: boolean): void;
 	/** The snap marker, or none. */
 	setCursor(point: ModelPoint | undefined): void;
+	/** Elements about to be added, drawn faintly, or none. */
+	setGhost(ghost: ModelerGhost | undefined): void;
 	/** Free points fall on the horizontal plane at this elevation (mm); none: only snapped points. */
 	setWorkPlane(elevation: number | undefined): void;
 	setView(view: ModelerView): Promise<void>;
@@ -117,6 +126,7 @@ class StructureModelerImpl implements StructureModeler {
 	private selection: readonly ModelerEntity[] = [];
 	private preview: { points: readonly ModelPoint[]; closed: boolean } | undefined;
 	private cursor: ModelPoint | undefined;
+	private ghost: ModelerGhost | undefined;
 	private workPlane: number | undefined;
 	private candidates: ISnapCandidate[] = [];
 	private pointerDown: { x: number; y: number } | undefined;
@@ -175,12 +185,24 @@ class StructureModelerImpl implements StructureModeler {
 		this.renderOverlay();
 	}
 
+	setGhost(ghost: ModelerGhost | undefined): void {
+		this.ghost = ghost;
+		this.renderOverlay();
+	}
+
 	setWorkPlane(elevation: number | undefined): void {
 		this.workPlane = elevation;
 	}
 
 	async setView(view: ModelerView): Promise<void> {
 		const box = this.bounds();
+		// What is about to be added counts too: an imported file may lie away from the model.
+		for (const m of this.ghost?.members ?? []) {
+			box.expandByPoint(toWorld(m.start)).expandByPoint(toWorld(m.end));
+		}
+		for (const area of this.ghost?.areas ?? []) {
+			area.outline.forEach(p => box.expandByPoint(toWorld(p)));
+		}
 		const centre = box.getCenter(new THREE.Vector3());
 		const radius = Math.max(box.getBoundingSphere(new THREE.Sphere()).radius, 1);
 		const distance = radius * 2.6;
@@ -300,6 +322,25 @@ class StructureModelerImpl implements StructureModeler {
 
 	private renderOverlay(): void {
 		clear(this.overlay);
+		const ghost = this.ghost;
+		if (ghost) {
+			const color = this.theme.preview;
+			if (ghost.members.length) {
+				const geometry = new THREE.BufferGeometry();
+				geometry.setAttribute('position', new THREE.Float32BufferAttribute(ghost.members.flatMap(m => [...toWorld(m.start).toArray(), ...toWorld(m.end).toArray()]), 3));
+				this.overlay.add(new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.7 })));
+			}
+			for (const area of ghost.areas) {
+				const face = polygonMesh(area.outline, area.openings, color, 0.12);
+				if (face) {
+					this.overlay.add(face);
+				}
+			}
+			if (ghost.supports.length) {
+				const geometry = new THREE.BufferGeometry().setFromPoints(ghost.supports.map(s => toWorld(s.at)));
+				this.overlay.add(new THREE.Points(geometry, new THREE.PointsMaterial({ color: this.theme.support, size: 7, sizeAttenuation: false })));
+			}
+		}
 		const preview = this.preview;
 		if (preview) {
 			const points = (preview.closed ? [...preview.points, preview.points[0]] : preview.points).map(toWorld);

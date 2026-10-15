@@ -44,7 +44,7 @@ export function sameSelection(a: FemSelection | undefined, b: FemSelection | und
  */
 export interface FemResultView {
 	readonly label: string;
-	readonly kind: 'static' | 'combination' | 'modal';
+	readonly kind: 'static' | 'combination' | 'modal' | 'spectrum' | 'history';
 	readonly nodes: readonly (readonly number[])[];
 	readonly reactions: readonly (readonly number[])[];
 	readonly elements: readonly FemResultElement[];

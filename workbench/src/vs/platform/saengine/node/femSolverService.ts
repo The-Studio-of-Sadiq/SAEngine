@@ -13,7 +13,7 @@ import { killTree } from '../../../base/node/processes.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemResultList, IFemResultView, IFemRunEventMessage, IBuildingIfc, IBuildingIfcRequest, IFemDerivation, IFemDeriveRequest, IGeneratedBuilding, ILibraryProblem, LibraryFileKind, IFemRunExit, IFemRunRequest, IFemSolverService } from '../common/femSolver.js';
+import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemResultList, IFemResultView, IFemRunEventMessage, IBuildingIfc, IBuildingIfcRequest, IFemDerivation, IFemDeriveRequest, IGeneratedBuilding, ILibraryProblem, LibraryFileKind, IFemRunExit, IFemRunRequest, IFemSolverService, IStructureEdit, IStructureGeometry, IStructureScriptResult, StructureGeometryResult } from '../common/femSolver.js';
 
 interface IRun {
 	readonly child: cp.ChildProcess;
@@ -151,6 +151,22 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 
 	deriveFem(python: string, request: IFemDeriveRequest): Promise<IFemDerivation> {
 		return this.request(python, 'fem/derive', request);
+	}
+
+	shapeGeometry(python: string, shape: object): Promise<StructureGeometryResult> {
+		return this.request(python, 'structure/shapeGeometry', { shape });
+	}
+
+	importGeometry(python: string, path: string, options: object, objectsText: string | undefined): Promise<StructureGeometryResult> {
+		return this.request(python, 'structure/importGeometry', { path, options, objectsText });
+	}
+
+	insertGeometry(python: string, structureText: string, geometry: IStructureGeometry): Promise<IStructureEdit> {
+		return this.request(python, 'structure/insert', { structureText, geometry });
+	}
+
+	runStructureScript(python: string, structureText: string, scriptPath: string): Promise<IStructureScriptResult> {
+		return this.request(python, 'structure/runScript', { structureText, scriptPath });
 	}
 
 	private async request<T>(python: string, method: string, params: object): Promise<T> {

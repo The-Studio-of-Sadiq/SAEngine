@@ -77,6 +77,33 @@ def _table(table: Any, name: str) -> dict[str, Any]:
     }
 
 
+def _peak_table(results: Any, project: Any) -> Any:
+    """Each node's largest displacement during a time history, from where it started."""
+    import numpy as np
+    from opensees_studio.services.result_tables import ResultTable
+
+    table = ResultTable(
+        "Peak displacements during the shaking",
+        ["Node", "|ux| max", "|uy| max", "|uz| max", "At time (s)"],
+    )
+    times = np.asarray(results.time(), dtype=float)
+    for node in project.nodes if project is not None else []:
+        try:
+            history = np.asarray(results.node_disp_history(node.id), dtype=float)
+        except (KeyError, ValueError):
+            continue
+        if history.ndim != 2 or not len(history):
+            continue
+        moved = np.abs(history[:, :3] - history[0, :3])
+        step = int(np.argmax(np.linalg.norm(moved, axis=1)))
+        table.rows.append([node.id, *(float(v) for v in moved.max(axis=0)), float(times[step])])
+    table.notes.append(
+        "Displacements in the model's length unit, measured from the position under the dead "
+        "loads, before the shaking."
+    )
+    return table
+
+
 def _tables_for(results: Any, project: Any) -> list[dict[str, Any]]:
     """The same tables, in the same order, as opensees-studio's Results panel."""
     from opensees_studio.services import result_tables as rt
@@ -112,8 +139,8 @@ def _tables_for(results: Any, project: Any) -> list[dict[str, Any]]:
         combined, modes = rt.response_spectrum_tables(results, project)
         tables = [(combined, "Combined displacements"), (modes, "Modes")]
     elif isinstance(results, TransientResults):
-        # Full histories are large; the workbench asks for one node at a time (later phase).
-        tables = []
+        # Full histories are large: the 3D view plays them; the table holds each node's peaks.
+        tables = [(_peak_table(results, project), "Peak displacements")]
     else:
         tables = []
     return [_table(table, name) for table, name in tables]
@@ -234,16 +261,10 @@ def generate_building_from_structure(structure_text: str, bim_text: str | None) 
     from saengine.library.bim import BuildingModel, generate_from_structure, source_stamp
     from saengine.library.structure import StructuralModel
 
-    def messages(exc: ValidationError, where: str) -> list[str]:
-        return [
-            f"{where}: {'.'.join(str(p) for p in e['loc'])}: {e['msg'].removeprefix('Value error, ')}"
-            for e in exc.errors()
-        ]
-
     try:
         structure = StructuralModel.model_validate_json(structure_text)
     except ValidationError as exc:
-        return {"problems": messages(exc, "Structural model")}
+        return {"problems": _messages(exc, "Structural model")}
     previous = None
     if bim_text:
         try:
@@ -254,7 +275,7 @@ def generate_building_from_structure(structure_text: str, bim_text: str | None) 
             try:
                 previous = BuildingModel.model_validate(data)
             except ValidationError as exc:
-                return {"problems": messages(exc, "Building model")}
+                return {"problems": _messages(exc, "Building model")}
     model = generate_from_structure(structure, source_stamp(structure_text), previous)
     data = model.model_dump(mode="json", by_alias=True, exclude_none=True)
     return {"text": json.dumps(data, indent="\t", ensure_ascii=False) + "\n"}
@@ -288,7 +309,11 @@ def building_ifc(
 
 
 def derive_fem(
-    bim_text: str, objects_text: str, materials_text: str, settings_text: str
+    bim_text: str,
+    objects_text: str,
+    materials_text: str,
+    settings_text: str,
+    model_folder: str | None = None,
 ) -> dict[str, Any]:
     """The analysis model (``model.osmodel`` text) of the building model with the settings' loads.
 
@@ -323,10 +348,105 @@ def derive_fem(
             }
     stamps = {key: stamp(text) for key, (_, text, _) in inputs.items()}
     derivation = derive(
-        parsed["bim"], parsed["objects"], parsed["materials"], parsed["settings"], stamps
+        parsed["bim"],
+        parsed["objects"],
+        parsed["materials"],
+        parsed["settings"],
+        stamps,
+        model_folder,
     )
     return {
         "text": json.dumps(derivation.project, indent="\t", ensure_ascii=False) + "\n",
         "notes": derivation.notes,
         "summary": derivation.summary,
     }
+
+
+def _messages(exc: Any, where: str) -> list[str]:
+    return [
+        f"{where}: {'.'.join(str(p) for p in e['loc'])}: {e['msg'].removeprefix('Value error, ')}"
+        for e in exc.errors()
+    ]
+
+
+def shape_geometry(shape: dict[str, Any]) -> dict[str, Any]:
+    """The members, areas and supports of a parametric shape, to preview and insert.
+
+    Returns the geometry (see ``saengine.library.shapes.Geometry.to_json``) or ``{"problems"}``.
+    """
+    from pydantic import ValidationError
+
+    from saengine.library.shapes import ShapeInput
+    from saengine.library.shapes import shape_geometry as build
+
+    try:
+        parsed = ShapeInput.model_validate({"shape": shape}).shape
+    except ValidationError as exc:
+        problems = []
+        for e in exc.errors():
+            field = ".".join(str(p) for p in e["loc"][2:])  # without "shape" and the kind
+            message = e["msg"].removeprefix("Value error, ")
+            problems.append(f"{field}: {message}" if field else message[:1].upper() + message[1:])
+        return {"problems": problems}
+    return build(parsed).to_json()
+
+
+def import_geometry(path: str, options: dict[str, Any], objects_text: str | None) -> dict[str, Any]:
+    """The geometry of a DXF, IFC or Rhino file, typed with the options and object types."""
+    import json
+
+    from pydantic import ValidationError
+
+    from saengine.library.importers import ImportOptions
+    from saengine.library.importers import import_geometry as read
+
+    try:
+        parsed = ImportOptions.model_validate(options)
+    except ValidationError as exc:
+        return {"problems": _messages(exc, "Options")}
+    kinds: dict[str, str] = {}
+    try:
+        objects = json.loads(objects_text) if objects_text else {}
+        kinds = {
+            o["id"]: o["kind"] for o in objects.get("objects", []) if "id" in o and "kind" in o
+        }
+    except (json.JSONDecodeError, AttributeError, TypeError):
+        pass  # no layer-named types then
+    try:
+        return read(path, parsed, kinds).to_json()
+    except Exception as exc:  # noqa: BLE001 - unreadable files are reported to the user
+        return {"problems": [f"{Path(path).name}: {exc}"]}
+
+
+def insert_geometry(structure_text: str, geometry: dict[str, Any]) -> dict[str, Any]:
+    """The structural model with previewed geometry added: ``{"text", "ids", "skipped"}``."""
+    import json
+
+    from pydantic import ValidationError
+
+    from saengine.library.shapes import Geometry, insert
+    from saengine.library.structure import StructuralModel
+
+    try:
+        model = StructuralModel.model_validate_json(structure_text)
+        result, ids, skipped = insert(model, Geometry.from_json(geometry))
+    except ValidationError as exc:
+        return {"problems": _messages(exc, "Structural model")}
+    data = result.model_dump(mode="json", by_alias=True, exclude_none=True)
+    return {
+        "text": json.dumps(data, indent="\t", ensure_ascii=False) + "\n",
+        "ids": ids,
+        "skipped": skipped,
+    }
+
+
+def run_script(structure_text: str, script_path: str) -> dict[str, Any]:
+    """Runs a structural model script (see ``saengine.library.script``)."""
+    from pydantic import ValidationError
+
+    from saengine.library.script import run_script as run
+
+    try:
+        return run(structure_text, script_path)
+    except ValidationError as exc:
+        return {"error": "; ".join(_messages(exc, "Structural model")), "output": ""}

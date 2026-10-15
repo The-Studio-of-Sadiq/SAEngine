@@ -8,6 +8,10 @@ Methods:
 - ``results/list`` ``{outDir, projectPath}`` -> the results that can be shown in 3D
 - ``results/view`` ``{outDir, projectPath, key, mode?}`` -> one result's shape and diagrams
 - ``library/check`` ``{kind, text, materialsText?}`` -> rule violations in a library file
+- ``structure/shapeGeometry`` ``{shape}`` -> a parametric shape's members, areas and supports
+- ``structure/importGeometry`` ``{path, options, objectsText?}`` -> a DXF, IFC or Rhino file's
+- ``structure/insert`` ``{structureText, geometry}`` -> the structural model with them added
+- ``structure/runScript`` ``{structureText, scriptPath}`` -> the model a script built
 
 Analyses themselves are not run here: the workbench starts
 ``python -m opensees_studio.run`` per run, so an OpenSees hard exit can never take
@@ -82,7 +86,11 @@ def create_server() -> JsonRPCServer:
     def _derive_fem(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.derive_fem(
-            args["bimText"], args["objectsText"], args["materialsText"], args["settingsText"]
+            args["bimText"],
+            args["objectsText"],
+            args["materialsText"],
+            args["settingsText"],
+            args.get("modelFolder"),
         )
 
     @server.feature("bim/ifc")
@@ -94,6 +102,27 @@ def create_server() -> JsonRPCServer:
             args.get("materialsText"),
             args.get("name") or "Project",
         )
+
+    @server.feature("structure/shapeGeometry")
+    def _shape_geometry(params: Any) -> dict[str, Any]:
+        return handlers.shape_geometry(_plain(params)["shape"])
+
+    @server.feature("structure/importGeometry")
+    def _import_geometry(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.import_geometry(
+            args["path"], args.get("options") or {}, args.get("objectsText")
+        )
+
+    @server.feature("structure/insert")
+    def _insert_geometry(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.insert_geometry(args["structureText"], args["geometry"])
+
+    @server.feature("structure/runScript")
+    def _run_script(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.run_script(args["structureText"], args["scriptPath"])
 
     return server
 

@@ -19,14 +19,21 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { EditorExtensions } from '../../../common/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
+import { Extensions as OutputExtensions, IOutputChannelRegistry } from '../../../services/output/common/output.js';
 import { ISaengineProjectService, STRUCTURE_PART } from '../../../services/saengineProject/common/saengineProject.js';
 import { LibraryEditorInput } from '../../saengineLibrary/browser/libraryEditorInput.js';
-import { StructureModelerEditor } from './structureModeler.js';
+import { SCRIPT_OUTPUT_CHANNEL_ID, StructureModelerEditor } from './structureModeler.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(StructureModelerEditor, StructureModelerEditor.ID, localize('structureModeler', "SAEngine Structural Model 3D")),
 	[new SyncDescriptor(LibraryEditorInput)]
 );
+
+Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels).registerChannel({
+	id: SCRIPT_OUTPUT_CHANNEL_ID,
+	label: localize('structureScripts', "SAEngine Scripts"),
+	log: false,
+});
 
 /** Opens a special structure's `05 Structural Model/structure.json` in the 3D modeller. */
 class StructureModelerResolverContribution extends Disposable implements IWorkbenchContribution {

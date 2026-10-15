@@ -8,11 +8,12 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { IBuildingIfcRequest, IFemDeriveRequest, IFemSolverService, LibraryFileKind } from '../../../../platform/saengine/common/femSolver.js';
+import { IBuildingIfcRequest, IFemDeriveRequest, IFemSolverService, IStructureGeometry, IStructureScriptResult, LibraryFileKind } from '../../../../platform/saengine/common/femSolver.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { EditorResourceAccessor } from '../../../common/editor.js';
 import { ActiveEditorContext } from '../../../common/contextkeys.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -141,4 +142,36 @@ CommandsRegistry.registerCommand('saengine.bim.generateFromStructure', async (ac
 CommandsRegistry.registerCommand('saengine.bim.generate', async (accessor, floorPlanText: string, bimText?: string) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	return accessor.get(IFemSolverService).generateBuilding(python, floorPlanText, bimText);
+});
+
+/**
+ * Parametric shapes, geometry import and model scripts of the 3D structural modeller.
+ * Internal: the modeller calls them by id.
+ */
+CommandsRegistry.registerCommand('saengine.structure.shapeGeometry', async (accessor, shape: object) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).shapeGeometry(python, shape);
+});
+
+CommandsRegistry.registerCommand('saengine.structure.importGeometry', async (accessor, file: URI, options: object, objectsText?: string) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).importGeometry(python, file.fsPath, options, objectsText);
+});
+
+CommandsRegistry.registerCommand('saengine.structure.insertGeometry', async (accessor, structureText: string, geometry: IStructureGeometry) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).insertGeometry(python, structureText, geometry);
+});
+
+CommandsRegistry.registerCommand('saengine.structure.runScript', async (accessor, structureText: string, script: URI): Promise<IStructureScriptResult> => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	const solver = accessor.get(IFemSolverService);
+	// A script is code: only run it in a workspace the user trusts.
+	const trusted = await accessor.get(IWorkspaceTrustRequestService).requestWorkspaceTrust({
+		message: localize('structure.scriptTrust', "Model scripts run Python code from this project. Run them only if you trust its authors."),
+	});
+	if (!trusted) {
+		return { error: localize('structure.scriptUntrusted', "The script was not run: the workspace is not trusted."), output: '' };
+	}
+	return solver.runStructureScript(python, structureText, script.fsPath);
 });

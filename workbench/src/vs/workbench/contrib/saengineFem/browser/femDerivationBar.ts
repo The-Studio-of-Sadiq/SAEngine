@@ -7,7 +7,7 @@ import { $, append, clearNode } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { isEqual, joinPath } from '../../../../base/common/resources.js';
+import { dirname, isEqual, joinPath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
@@ -165,7 +165,7 @@ export class FemDerivationBar extends Disposable {
 		this.deriving = true;
 		this.render();
 		try {
-			const result = await this.commandService.executeCommand<IFemDerivation>(DERIVE_COMMAND, { bimText, objectsText, materialsText, settingsText });
+			const result = await this.commandService.executeCommand<IFemDerivation>(DERIVE_COMMAND, { bimText, objectsText, materialsText, settingsText, modelFolder: dirname(resource).fsPath });
 			if (!result?.text) {
 				this.notificationService.warn(localize('fem.deriveProblems', "The analysis model could not be derived: {0}", (result?.problems ?? []).join('; ')));
 				return;

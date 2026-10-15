@@ -18,6 +18,19 @@ from typing import Any
 from saengine.library.defaults import default_material_library
 from saengine.library.materials import Category
 from saengine.library.settings import Analysis
+from saengine.library.shapes import Arch, BarrelVault, CableNet, Dome, PlaneTruss, SpaceTruss
+
+# Parametric shapes start at typical sizes of their kind; "MEMBER" is replaced by a member type.
+_SHAPES = [
+    SpaceTruss(lengthX=36000, lengthY=24000, baysX=12, baysY=8, depth=2000, memberType="MEMBER"),
+    PlaneTruss(span=24000, depth=2400, panels=8, memberType="MEMBER"),
+    Arch(span=30000, rise=7500, segments=12, memberType="MEMBER"),
+    Dome(radius=20000, rise=8000, rings=6, segments=24, memberType="MEMBER"),
+    BarrelVault(span=24000, rise=6000, length=36000, segments=12, bays=6, memberType="MEMBER"),
+    CableNet(
+        lengthX=36000, lengthY=24000, divisionsX=12, divisionsY=8, rise=3000, memberType="MEMBER"
+    ),
+]
 
 _REBAR = "B420DWR"
 _CONCRETE = "C24.1"
@@ -253,6 +266,11 @@ TEMPLATES: dict[str, dict[str, Any]] = {
     },
     "LoadCombination": {"name": "1.2D + 1.6L", "D": 1.2, "L": 1.6},
     "Analysis": Analysis().model_dump(mode="json"),
+    "TimeHistory": {
+        "name": "El Centro X",
+        "record": "02 Project Settings/records/ElCentro.AT2",
+        "direction": "X",
+    },
     # structural model (special structures)
     "CartesianGrid": {"kind": "cartesian", "id": "G2", "x": [], "y": [], "z": []},
     "CylindricalGrid": {"kind": "cylindrical", "id": "G2", "radii": [], "angles": [], "z": []},
@@ -351,4 +369,6 @@ TEMPLATES: dict[str, dict[str, Any]] = {
         "position": [0, 0],
         "elevation": 0,
     },
+    # parametric shapes (structural model)
+    **{type(shape).__name__: shape.model_dump(mode="json", exclude_none=True) for shape in _SHAPES},
 }

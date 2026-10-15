@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { FemResultDisplay, FemResultQuantity, FemSelection, FemValueQuantity } from '@saengine/fem-viewer';
-import { $, append, clearNode } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, clearNode, EventType } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
-import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { RunOnceScheduler, timeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { basename, dirname, joinPath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -64,6 +64,16 @@ const MODAL_OPTIONS: readonly IShowOption[] = [
 	MODEL_ONLY,
 	{ show: 'deformed', label: localize('femResults.modeShape', "Mode Shape") },
 ];
+/** Response spectrum results are peak displacements only: no signs, forces or reactions. */
+const SPECTRUM_OPTIONS: readonly IShowOption[] = [
+	MODEL_ONLY,
+	{ show: 'deformed', label: localize('femResults.peakDisplacements', "Peak Displacements") },
+];
+/** A time history at one moment: no reactions are recorded. */
+const HISTORY_OPTIONS = STATIC_OPTIONS.filter(o => o.show !== 'reactions');
+
+/** Pause between frames while a time history plays [ms]. */
+const FRAME_INTERVAL = 60;
 const COMPONENTS: readonly Show[] = ['N', 'Vy', 'Vz', 'T', 'My', 'Mz'];
 
 /** Steps of the scale multiplier offered by the − and + buttons. */
@@ -102,6 +112,12 @@ export class FemResultsBar extends Disposable {
 	private readonly modePicker: SelectBox;
 	private readonly showPicker: SelectBox;
 	private readonly modeContainer: HTMLElement;
+	private readonly timeContainer: HTMLElement;
+	private readonly timeSlider: HTMLInputElement;
+	private readonly timeLabel: HTMLElement;
+	private readonly playButton: Button;
+	private playing = false;
+	private playToken = 0;
 	private readonly scaleLabel: HTMLElement;
 	private readonly animateButton: Button;
 	private readonly info: HTMLElement;
@@ -140,8 +156,9 @@ export class FemResultsBar extends Disposable {
 		this.resultPicker = this._register(new SelectBox([], 0, contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('femResults.resultAria', "Analysis result shown") }));
 		this.resultPicker.render(append(results, $('.fem-results-select.result')));
 		this._register(this.resultPicker.onDidSelect(({ index }) => {
+			this.stopPlaying();
 			this.key = this.list.results[index]?.key;
-			this.mode = 1;
+			this.mode = this.firstFrame();
 			void this.showResult();
 		}));
 
@@ -153,6 +170,20 @@ export class FemResultsBar extends Disposable {
 			this.mode = index + 1;
 			void this.showResult();
 		}));
+
+		// A time history: the moment shown, and playing it frame by frame.
+		this.timeContainer = group('time');
+		append(this.timeContainer, $('span.fem-results-label', undefined, localize('femResults.time', "Time")));
+		this.timeSlider = append(this.timeContainer, $<HTMLInputElement>('input.fem-results-time', { type: 'range', min: '1', step: '1', 'aria-label': localize('femResults.timeAria', "Moment of the time history shown") }));
+		this._register(addDisposableListener(this.timeSlider, EventType.INPUT, () => {
+			this.stopPlaying();
+			this.mode = Number(this.timeSlider.value);
+			void this.showResult();
+		}));
+		this.timeLabel = append(this.timeContainer, $('span.fem-results-time-label'));
+		this.playButton = this._register(new Button(this.timeContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: localize('femResults.play', "Play the Time History") }));
+		this._register(this.playButton.onDidClick(() => this.playing ? this.stopPlaying() : void this.play()));
+		this._register(toDisposable(() => this.stopPlaying()));
 
 		const show = group('show');
 		append(show, $('span.fem-results-label', undefined, localize('femResults.show', "Show")));
@@ -188,6 +219,7 @@ export class FemResultsBar extends Disposable {
 			this.render();
 			return;
 		}
+		this.stopPlaying();
 		this.resource = resource;
 		this.watch.clear();
 		this.resultsWatch.clear();
@@ -248,8 +280,9 @@ export class FemResultsBar extends Disposable {
 		this.list = list;
 		this.views.clear();
 		if (!list.results.some(r => r.key === this.key)) {
+			this.stopPlaying();
 			this.key = list.results[0]?.key;
-			this.mode = 1;
+			this.mode = this.firstFrame();
 		}
 		await this.showResult();
 	}
@@ -259,8 +292,10 @@ export class FemResultsBar extends Disposable {
 	}
 
 	private showOptions(): readonly IShowOption[] {
-		if (this.entry?.kind === 'modal') {
-			return MODAL_OPTIONS;
+		switch (this.entry?.kind) {
+			case 'modal': return MODAL_OPTIONS;
+			case 'spectrum': return SPECTRUM_OPTIONS;
+			case 'history': return HISTORY_OPTIONS;
 		}
 		return this.view?.shells?.length ? [...STATIC_OPTIONS, ...SHELL_OPTIONS] : STATIC_OPTIONS;
 	}
@@ -273,12 +308,13 @@ export class FemResultsBar extends Disposable {
 			this.render();
 			return;
 		}
-		const id = `${entry.key}/${entry.kind === 'modal' ? this.mode : 0}`;
+		const framed = entry.kind === 'modal' || entry.kind === 'history';
+		const id = `${entry.key}/${framed ? this.mode : 0}`;
 		let view = this.views.get(id);
 		if (!view) {
 			const request = ++this.request;
 			try {
-				view = await this.commandService.executeCommand<IFemResultView>(VIEW_COMMAND, resource, entry.key, entry.kind === 'modal' ? this.mode : undefined);
+				view = await this.commandService.executeCommand<IFemResultView>(VIEW_COMMAND, resource, entry.key, framed ? this.mode : undefined);
 			} catch (error) {
 				this.view = undefined;
 				this.render(localize('femResults.failed', "The result could not be read: {0}", String(error)));
@@ -296,6 +332,36 @@ export class FemResultsBar extends Disposable {
 			this.show = 'deformed';
 		}
 		this.render();
+	}
+
+	/** The frame a result opens at: a time history's peak, else the first (mode 1). */
+	private firstFrame(): number {
+		const entry = this.entry;
+		return entry?.kind === 'history' ? entry.peak ?? 1 : 1;
+	}
+
+	/** Plays the time history from the frame shown, looping, until stopped. */
+	private async play(): Promise<void> {
+		const token = ++this.playToken;
+		this.playing = true;
+		this.render();
+		while (token === this.playToken) {
+			const count = this.entry?.kind === 'history' ? this.entry.frames?.length ?? 0 : 0;
+			if (!count) {
+				break;
+			}
+			this.mode = this.mode >= count ? 1 : this.mode + 1;
+			await this.showResult();
+			await timeout(FRAME_INTERVAL);
+		}
+	}
+
+	private stopPlaying(): void {
+		if (this.playing) {
+			this.playing = false;
+			this.playToken++;
+			this.render();
+		}
 	}
 
 	private step(direction: number): void {
@@ -316,6 +382,15 @@ export class FemResultsBar extends Disposable {
 				this.modePicker.setOptions(modes.map<ISelectOptionItem>(m => ({
 					text: m.period === null ? String(m.number) : localize('femResults.modeOption', "{0} (T = {1} s)", m.number, m.period.toFixed(3)),
 				})), Math.max(0, this.mode - 1));
+			}
+			const frames = entry.kind === 'history' ? entry.frames ?? [] : [];
+			this.timeContainer.classList.toggle('hidden', !frames.length);
+			if (frames.length) {
+				this.timeSlider.max = String(frames.length);
+				this.timeSlider.value = String(this.mode);
+				const time = frames[this.mode - 1]?.time ?? 0;
+				this.timeLabel.textContent = localize('femResults.timeOf', "{0} of {1} s", time.toFixed(2), frames[frames.length - 1].time.toFixed(2));
+				this.playButton.label = `$(${(this.playing ? Codicon.debugPause : Codicon.play).id})`;
 			}
 			const options = this.showOptions();
 			this.showPicker.setOptions(options.map<ISelectOptionItem>(o => ({ text: o.label })), Math.max(0, options.findIndex(o => o.show === this.show)));

@@ -166,6 +166,32 @@ def _load(project_path: str | Path) -> dict[str, Any]:
     return json.loads(Path(project_path).read_text(encoding="utf-8"))
 
 
+#: Most time frames a time-history result offers to show or play.
+MAX_FRAMES = 200
+
+
+def _frames(results: Any) -> np.ndarray:
+    """Recorded steps of a time-history result shown as its frames (at most MAX_FRAMES)."""
+    count = int(results.n_steps)
+    if count <= 0:
+        return np.zeros(0, dtype=int)
+    return np.unique(np.round(np.linspace(0, count - 1, min(MAX_FRAMES, count))).astype(int))
+
+
+def _peak_frame(results: Any, node_ids: list[int], frames: np.ndarray) -> int:
+    """The frame (1-based) where the largest node translation is reached."""
+    largest = np.zeros(len(frames))
+    for node in node_ids:
+        try:
+            history = np.asarray(results.node_disp_history(node), dtype=float)
+        except (KeyError, ValueError):
+            continue
+        if history.ndim == 2 and len(history):
+            moved = np.linalg.norm(history[frames, :3] - history[0, :3], axis=1)
+            largest = np.maximum(largest, moved)
+    return int(np.argmax(largest)) + 1 if len(largest) else 1
+
+
 def _code(case_name: str) -> str:
     return case_name.split(":")[0].strip()
 
@@ -174,15 +200,23 @@ def result_list(out_dir: str | Path, project_path: str | Path) -> dict[str, Any]
     """The results that can be shown: ``{"results": [...], "stale": bool}``.
 
     Each result has a ``key`` (``case:<id>``, ``combination:<n>``), a ``label`` and a ``kind``
-    (``static``, ``combination``, ``modal``); modal results list their ``modes`` with periods.
+    (``static``, ``combination``, ``modal``, ``spectrum``, ``history``); modal results list
+    their ``modes`` with periods, time histories their ``frames`` (number, time) and the
+    ``peak`` frame, where the structure moves most.
     ``stale`` is true when the model was changed after the run.
     """
     from opensees_studio.services.result_store import load_results
-    from opensees_studio.services.results import ModalResults, StaticResults
+    from opensees_studio.services.results import (
+        ModalResults,
+        ResponseSpectrumResults,
+        StaticResults,
+        TransientResults,
+    )
 
     manifest = _manifest(out_dir)
     if manifest is None:
         return {"results": [], "stale": False}
+    node_ids = [n["id"] for n in _load(project_path).get("nodes", [])]
     results: list[dict[str, Any]] = []
     static_codes = set()
     for entry in manifest["cases"]:
@@ -198,6 +232,25 @@ def result_list(out_dir: str | Path, project_path: str | Path) -> dict[str, Any]
             ]
             results.append(
                 {"key": key, "label": entry["case_name"], "kind": "modal", "modes": modes}
+            )
+        elif isinstance(loaded, ResponseSpectrumResults):
+            results.append({"key": key, "label": entry["case_name"], "kind": "spectrum"})
+        elif isinstance(loaded, TransientResults):
+            frames = _frames(loaded)
+            if not len(frames):
+                continue
+            times = np.asarray(loaded.time(), dtype=float)
+            results.append(
+                {
+                    "key": key,
+                    "label": entry["case_name"],
+                    "kind": "history",
+                    "frames": [
+                        {"number": i + 1, "time": round(float(times[step]), 4)}
+                        for i, step in enumerate(frames)
+                    ],
+                    "peak": _peak_frame(loaded, node_ids, frames),
+                }
             )
     project = _load(project_path)
     if project.get("meta", {}).get("author") == "SAEngine":
@@ -230,9 +283,17 @@ def result_view(
     ``{"id", "name", "nodes", "forces"}`` with its section forces per unit length
     (N11, N22, N12, M11, M22, M12, Q13, Q23, local axes) averaged over its integration points.
     Mode shapes are scaled so their largest translation is 1 and have no forces or reactions.
+    Response spectrum results are peak displacements (no signs, forces or reactions); a time
+    history is shown at its frame ``mode`` (see :func:`result_list`), with forces but no
+    reactions.
     """
     from opensees_studio.services.result_store import load_results
-    from opensees_studio.services.results import ModalResults, StaticResults
+    from opensees_studio.services.results import (
+        ModalResults,
+        ResponseSpectrumResults,
+        StaticResults,
+        TransientResults,
+    )
 
     manifest = _manifest(out_dir)
     if manifest is None:
@@ -252,6 +313,9 @@ def result_view(
     # Each result is a factored sum of static cases: (factor, results, analysis id).
     parts: list[tuple[float, Any, int]] = []
     modal: dict[int, np.ndarray] | None = None
+    spectrum: dict[int, np.ndarray] | None = None
+    history: tuple[Any, int, int] | None = None  # results, recorded step, analysis id
+    kind = "static" if key in entries else "combination"
     label = ""
     if key in entries:
         entry = entries[key]
@@ -266,6 +330,19 @@ def result_view(
             modal = {nid: np.asarray(v, dtype=float) for nid, v in shape.items()}
             period = loaded.periods[mode - 1]
             label = f"{label}, mode {mode} (T = {period:.3f} s)"
+            kind = "modal"
+        elif isinstance(loaded, ResponseSpectrumResults):
+            spectrum = {nid: np.asarray(v, dtype=float) for nid, v in loaded.combined_disp.items()}
+            label = f"{label} (peak values)"
+            kind = "spectrum"
+        elif isinstance(loaded, TransientResults):
+            frames = _frames(loaded)
+            if not 1 <= mode <= len(frames):
+                raise ValueError(f"{label} has no frame {mode}")
+            step = int(frames[mode - 1])
+            history = (loaded, step, int(entry["case_id"]))
+            label = f"{label}, t = {float(loaded.time()[step]):.2f} s"
+            kind = "history"
         else:
             raise ValueError(f"{label} cannot be shown in 3D")
     elif key.startswith("combination:"):
@@ -295,6 +372,20 @@ def result_view(
         forces: dict[int, np.ndarray] = {}
         reactions: dict[int, np.ndarray] = {}
         plate_forces: dict[int, np.ndarray] = {}
+    elif spectrum is not None:
+        disp = {n: _pad(spectrum.get(n), 6) for n in node_ids}
+        loads, forces, reactions, plate_forces = {}, {}, {}, {}
+    elif history is not None:
+        results, step, analysis_id = history
+        disp = {n: _at(results.node_disp_history, n, step, 6) for n in node_ids}
+        forces = {e.id: _at(results.element_force_history, e.id, step, 12) for e in elements}
+        reactions, plate_forces = {}, {}
+        # The dead loads applied before the shaking stay on the members.
+        loads = {}
+        analysis = next(a for a in project["analyses"] if a["id"] == analysis_id)
+        for preload in analysis.get("preload_case_ids", []):
+            for element_id, w in _case_loads(project, preload).items():
+                loads[element_id] = loads.get(element_id, np.zeros(3)) + w
     else:
         disp = {n: sum(f * _last(r.node_disp, n, 6) for f, r, _ in parts) for n in node_ids}
         reactions = {
@@ -331,7 +422,7 @@ def result_view(
         view_elements.append(item)
     return {
         "label": label,
-        "kind": "modal" if modal is not None else ("static" if key in entries else "combination"),
+        "kind": kind,
         "nodes": [[n, *_round(v, 9)] for n, v in disp.items()],
         "reactions": [[n, *_round(v, 3)] for n, v in reactions.items()],
         "elements": view_elements,
@@ -345,6 +436,17 @@ def result_view(
             for e in shells
         ],
     }
+
+
+def _at(history: Any, item: int, step: int, width: int) -> np.ndarray:
+    """One recorded step of a node's or an element's history, padded to ``width``."""
+    try:
+        rows = np.asarray(history(item), dtype=float)
+    except (KeyError, ValueError):
+        return np.zeros(width)
+    if rows.ndim != 2 or step >= len(rows):
+        return np.zeros(width)
+    return _pad(rows[step], width)
 
 
 def _centre(rows: np.ndarray | None) -> np.ndarray:

@@ -160,6 +160,36 @@ class Wind(_Model):
     )
 
 
+class TimeHistory(_Model):
+    """A ground acceleration record run as a time-history analysis."""
+
+    name: str = Field(min_length=1)
+    record: str = Field(
+        min_length=1,
+        title="Record file",
+        description="Acceleration record in the project folder, e.g. "
+        "'02 Project Settings/records/ElCentro.AT2': PEER .AT2, two columns (time, "
+        "acceleration) or one value per line.",
+    )
+    units: Literal["g", "m/s2"] = Field(
+        default="g",
+        description="Units of the record's accelerations.",
+        json_schema_extra=_labels(["g", "m/s²"]),
+    )
+    dt: float | None = Field(
+        default=None,
+        gt=0,
+        title="Time step",
+        description="Sampling interval [s] of a record with one value per line; the others "
+        "carry their own.",
+    )
+    direction: Literal["X", "Y"] = Field(default="X", description="Direction of the shaking.")
+    scale: float = Field(default=1.0, gt=0, description="Factor on the record's accelerations.")
+    damping: float = Field(
+        default=0.05, ge=0, le=0.3, description="Damping ratio of the first mode [-]."
+    )
+
+
 class Analysis(_Model):
     """How the analysis model (Part 8) represents the building."""
 
@@ -180,6 +210,18 @@ class Analysis(_Model):
     )
     meshSize: float = Field(
         default=1000, ge=100, title="Mesh size", description="Largest side of a shell element [mm]."
+    )
+    responseSpectrum: bool = Field(
+        default=True,
+        title="Response spectrum",
+        description="Add response spectrum analyses in X and Y with the BNBC design spectrum of "
+        "the site (CQC of the modes).",
+    )
+    timeHistories: list[TimeHistory] = Field(
+        default_factory=list,
+        title="Time histories",
+        description="Earthquake records to run through the structure step by step, after its "
+        "dead loads.",
     )
 
 

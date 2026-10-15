@@ -52,6 +52,14 @@ class Point(_Model):
     y: Mm
     z: Mm = Field(description="Elevation [mm].")
 
+    @model_validator(mode="before")
+    @classmethod
+    def _from_sequence(cls, value: object) -> object:
+        """Scripts may write a point as ``(x, y, z)``."""
+        if isinstance(value, list | tuple | np.ndarray) and len(value) == 3:
+            return {"x": float(value[0]), "y": float(value[1]), "z": float(value[2])}
+        return value
+
     def array(self) -> np.ndarray:
         return np.array([self.x, self.y, self.z], dtype=float)
 

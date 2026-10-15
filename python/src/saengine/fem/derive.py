@@ -35,6 +35,7 @@ import math
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from itertools import pairwise
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -66,6 +67,40 @@ CASES = ["D", "SD", "L", "Lr", "WX", "WY", "EX", "EY"]
 
 #: Restraint of a diaphragm's own node: free in plan, held out of plane.
 _IN_PLAN = [False, False, True, True, True, False]
+
+
+#: Periods of the tabulated design spectrum [s]: fine where it turns, coarse in its tail.
+SPECTRUM_PERIODS = (
+    *[round(0.02 * i, 2) for i in range(1, 51)],
+    *[round(1.0 + 0.1 * i, 1) for i in range(1, 31)],
+    *[round(4.0 + 0.5 * i, 1) for i in range(1, 9)],
+)
+
+
+def _ground_motion(
+    history: Any, record_id: int, model_dir: str | Path | None
+) -> dict[str, Any] | str:
+    """The ground-motion catalog entry of a time history's record, or why there is none."""
+    from opensees_studio.core.ground_motion import import_record
+
+    if model_dir is None:
+        return "the model's folder is not known"
+    path = Path(model_dir).parent / history.record
+    if not path.is_file():
+        return f"its record {history.record} is not in the project folder"
+    try:
+        record, _ = import_record(
+            path,
+            model_dir,
+            record_id,
+            name=history.name,
+            dt=history.dt,
+            accel_units="g" if history.units == "g" else "project",
+        )
+    except ValueError as exc:
+        return str(exc)
+    # A two-column record's step comes from its time column: keep it free of float noise.
+    return record.model_copy(update={"dt": round(record.dt, 9)}).model_dump(mode="json")
 
 
 def stamp(text: str) -> str:
@@ -135,11 +170,14 @@ def derive_fem(
     materials: MaterialLibrary,
     settings: ProjectSettings,
     sources: dict[str, str] | None = None,
+    model_dir: str | Path | None = None,
 ) -> Derivation:
     """The OpenSees Studio project of ``building`` with the loads of ``settings``.
 
     ``sources`` maps upstream part ids to the stamps of their files, recorded in the project's
-    description so the editor can tell when they have changed since.
+    description so the editor can tell when they have changed since. ``model_dir`` is the folder
+    the model is written to (``08 FEM``): time-history records are found from the project folder
+    above it and referenced relative to it.
     """
     b = _Builder()
     options = settings.analysis
@@ -793,16 +831,101 @@ def derive_fem(
         }
         for number, case in enumerate(CASES, start=1)
     ]
+    time_series: list[dict[str, Any]] = [{"id": 1, "name": "", "type": "Linear", "factor": 1.0}]
+    spectra: list[dict[str, Any]] = []
+    records: list[dict[str, Any]] = []
     if any(node_weight.values()):
+        modal_id = len(CASES) + 1
         analyses.append(
             {
-                "id": len(CASES) + 1,
+                "id": modal_id,
                 "name": "Modal",
                 "type": "Modal",
                 "n_modes": max(1, min(12, 3 * len(heights))),
                 "solver": "auto",
             }
         )
+        # ── response spectrum: the BNBC design spectrum (already reduced by R), in m/s² ──
+        if options.responseSpectrum and values["Z"]:
+            periods = list(SPECTRUM_PERIODS)
+            spectra.append(
+                {
+                    "id": 1,
+                    "name": "BNBC design spectrum",
+                    "type": "ResponseSpectrum",
+                    "periods": periods,
+                    "accelerations": [
+                        round(
+                            G
+                            * fl.design_acceleration(
+                                t,
+                                settings.site.siteClass,
+                                values["Z"],
+                                values["seismicImportance"],
+                                values["R"],
+                            ),
+                            6,
+                        )
+                        for t in periods
+                    ],
+                    "damping_ratio": 0.05,
+                }
+            )
+            for direction, axis in ((1, "X"), (2, "Y")):
+                analyses.append(
+                    {
+                        "id": len(analyses) + 1,
+                        "name": f"R{axis}: Response spectrum {axis}",
+                        "type": "ResponseSpectrum",
+                        "modal_case_id": modal_id,
+                        "spectrum_id": 1,
+                        "direction": direction,
+                        "combination": "CQC",
+                        "damping_ratio": 0.05,
+                    }
+                )
+        # ── time histories: each record after the dead loads (D, SD) ──
+        for history in options.timeHistories:
+            record = _ground_motion(history, len(records) + 1, model_dir)
+            if isinstance(record, str):
+                b.notes.append(f"time history '{history.name}' left out: {record}")
+                continue
+            records.append(record)
+            series_id = len(time_series) + 1
+            time_series.append(
+                {
+                    "id": series_id,
+                    "name": history.name,
+                    "type": "Path",
+                    "factor": history.scale * (G if history.units == "g" else 1.0),
+                    "dt": record["dt"],
+                    "record_id": record["id"],
+                }
+            )
+            pattern_id = len(load_patterns) + 1
+            load_patterns.append(
+                {
+                    "id": pattern_id,
+                    "name": history.name,
+                    "type": "UniformExcitation",
+                    "direction": 1 if history.direction == "X" else 2,
+                    "accel_series_id": series_id,
+                }
+            )
+            analyses.append(
+                {
+                    "id": len(analyses) + 1,
+                    "name": f"TH: {history.name}",
+                    "type": "Transient",
+                    "pattern_ids": [pattern_id],
+                    "dt": record["dt"],
+                    "n_steps": record["npts"],
+                    "system": "BandGeneral",
+                    "algorithm": "Newton",
+                    "rayleigh_mode1_damping": history.damping,
+                    "preload_case_ids": [CASES.index("D") + 1, CASES.index("SD") + 1],
+                }
+            )
 
     stamps = "; ".join(f"{k}={v}" for k, v in sorted((sources or {}).items()))
     project = {
@@ -819,9 +942,11 @@ def derive_fem(
         "sections": b.sections,
         "elements": elements,
         "mp_constraints": constraints,
-        "time_series": [{"id": 1, "name": "", "type": "Linear", "factor": 1.0}],
+        "time_series": time_series,
         "load_patterns": load_patterns,
         "analyses": analyses,
+        "spectra": spectra,
+        "ground_motions": records,
     }
     summary.update(
         {

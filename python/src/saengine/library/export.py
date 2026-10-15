@@ -28,9 +28,12 @@ from saengine.library.defaults import (
     default_object_library,
 )
 from saengine.library.floorplan import FloorPlan
+from saengine.library.importers import ImportInput
 from saengine.library.materials import MaterialLibrary
 from saengine.library.objects import ObjectLibrary
+from saengine.library.script import TEMPLATE as SCRIPT_TEMPLATE
 from saengine.library.settings import ProjectSettings, default_project_settings
+from saengine.library.shapes import ShapeInput
 from saengine.library.structure import StructuralModel, default_structural_model
 from saengine.library.templates import TEMPLATES
 
@@ -162,6 +165,9 @@ def generate_typescript() -> str:
         ("BIM_SCHEMA", "IJSONSchema", json_schema(BuildingModel, "SAEngine building model")),
         ("DEFAULT_BIM", "object", library_json(default_building_model())),
         ("TEMPLATES", "{ readonly [defName: string]: object }", TEMPLATES),
+        ("SHAPE_SCHEMA", "IJSONSchema", json_schema(ShapeInput, "SAEngine parametric shape")),
+        ("IMPORT_SCHEMA", "IJSONSchema", json_schema(ImportInput, "SAEngine geometry import")),
+        ("SCRIPT_TEMPLATE", "string", SCRIPT_TEMPLATE),
     ]
     body = "\n".join(
         f"export const {name}: {type_} = {_ts(value)};\n" for name, type_, value in exports
