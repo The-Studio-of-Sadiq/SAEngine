@@ -147,6 +147,51 @@ def results_tables(out_dir: str, project_path: str | None = None) -> dict[str, A
 def check_library(kind: str, text: str, materials_text: str | None = None) -> dict[str, Any]:
     from saengine.library.check import check_library as check
 
-    if kind not in ("materials", "objects", "bim"):
+    if kind not in ("materials", "objects", "floorPlan", "bim"):
         raise ValueError(f"unknown library kind: {kind}")
     return {"problems": check(kind, text, materials_text)}  # type: ignore[arg-type]
+
+
+def generate_building(floor_plan_text: str, bim_text: str | None) -> dict[str, Any]:
+    """The building model generated from the floor plan, keeping the model's own elements.
+
+    Returns ``{"text": ...}``, or ``{"problems": [...]}`` when the floor plan (or the current
+    building model) has errors that must be fixed first.
+    """
+    import json
+
+    from pydantic import ValidationError
+
+    from saengine.library.bim import BuildingModel, generate, source_stamp
+    from saengine.library.floorplan import FloorPlan
+
+    def messages(exc: ValidationError, where: str) -> list[str]:
+        result = []
+        for error in exc.errors():
+            message = error["msg"].removeprefix("Value error, ")
+            path = ".".join(str(p) for p in error["loc"])
+            result.append(f"{where}: {path}: {message}" if path else f"{where}: {message}")
+        return result
+
+    try:
+        plan = FloorPlan.model_validate_json(floor_plan_text)
+    except ValidationError as exc:
+        return {"problems": messages(exc, "Floor plan")}
+    previous = None
+    if bim_text:
+        try:
+            data = json.loads(bim_text)
+        except json.JSONDecodeError:
+            data = None
+        # Older or placeholder files have nothing of their own to keep.
+        if isinstance(data, dict) and data.get("schema") == "saengine.bim/2":
+            try:
+                previous = BuildingModel.model_validate(data)
+            except ValidationError as exc:
+                return {"problems": messages(exc, "Building model")}
+    try:
+        model = generate(plan, source_stamp(floor_plan_text), previous)
+    except ValueError as exc:
+        return {"problems": [str(exc)]}
+    data = model.model_dump(mode="json", by_alias=True, exclude_none=True)
+    return {"text": json.dumps(data, indent="\t", ensure_ascii=False) + "\n"}

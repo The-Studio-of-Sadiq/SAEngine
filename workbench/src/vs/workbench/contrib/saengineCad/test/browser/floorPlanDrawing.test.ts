@@ -6,7 +6,7 @@
 import assert from 'assert';
 import type { CadEntitySpec } from '@saengine/cad-editor';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { DEFAULT_BIM, DEFAULT_OBJECTS } from '../../../../services/saengineProject/common/projectLibraries.generated.js';
+import { DEFAULT_FLOOR_PLAN, DEFAULT_OBJECTS } from '../../../../services/saengineProject/common/projectLibraries.generated.js';
 import { floorPlanDrawing, profileOutline, storiesOf } from '../../browser/floorPlanDrawing.js';
 
 /** One line per entity, rounded, so a whole plan reads as a snapshot. */
@@ -34,8 +34,8 @@ suite('SAEngine - Floor plan drawing', () => {
 			{ id: 'F1', kind: 'footing', length: 2000, width: 1500, thickness: 500 },
 		],
 	};
-	const bim = {
-		schema: 'saengine.bim/1',
+	const layout = {
+		schema: 'saengine.floorPlan/1',
 		grids: { x: [{ label: 'A', position: 0 }, { label: 'B', position: 6000 }], y: [{ label: '1', position: 0 }] },
 		stories: [{ id: 'L1', name: 'Level 1', elevation: 3200 }, { id: 'BASE', name: 'Base', elevation: 0 }, { id: 'L2', name: 'Level 2', elevation: 6400 }],
 		columns: [
@@ -52,7 +52,7 @@ suite('SAEngine - Floor plan drawing', () => {
 	};
 
 	test('a story shows grids, the columns rising to it and the members at its level', () => {
-		const plan = floorPlanDrawing(bim, objects, 'L1');
+		const plan = floorPlanDrawing(layout, objects, 'L1');
 		assert.deepStrictEqual({ entities: plan.drawing.entities.map(describe), problems: plan.problems }, {
 			entities: [
 				'S-GRID line 0,-1500 0,1500',
@@ -82,7 +82,7 @@ suite('SAEngine - Floor plan drawing', () => {
 	});
 
 	test('the base shows footings and reports members it cannot draw', () => {
-		const plan = floorPlanDrawing(bim, objects, 'BASE');
+		const plan = floorPlanDrawing(layout, objects, 'BASE');
 		assert.deepStrictEqual({
 			members: plan.drawing.entities.filter(e => !e.layer.startsWith('S-GRID')).map(describe),
 			problems: plan.problems,
@@ -96,10 +96,10 @@ suite('SAEngine - Floor plan drawing', () => {
 	});
 
 	test('stories sort by elevation and the default model draws without problems', () => {
-		const stories = storiesOf(DEFAULT_BIM);
-		const plan = floorPlanDrawing(DEFAULT_BIM, DEFAULT_OBJECTS, stories[1].id);
+		const stories = storiesOf(DEFAULT_FLOOR_PLAN);
+		const plan = floorPlanDrawing(DEFAULT_FLOOR_PLAN, DEFAULT_OBJECTS, stories[1].id);
 		assert.deepStrictEqual({
-			stories: storiesOf(bim).map(s => s.id),
+			stories: storiesOf(layout).map(s => s.id),
 			defaultPlan: { lines: plan.drawing.entities.filter(e => e.kind === 'line').length, problems: plan.problems },
 			profiles: [
 				profileOutline({ shape: 'I', overallWidth: 200, overallDepth: 400, webThickness: 10, flangeThickness: 20 }),

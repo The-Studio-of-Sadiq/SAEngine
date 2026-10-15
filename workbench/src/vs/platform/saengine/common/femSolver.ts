@@ -92,6 +92,15 @@ export interface IFemCaseResults {
 }
 
 /** A rule violation in a library file, reported against the entry at `index` (none: the whole file). */
+/** Project files the Python models check. */
+export type LibraryFileKind = 'materials' | 'objects' | 'floorPlan' | 'bim';
+
+export interface IGeneratedBuilding {
+	/** The new `bim.json` text, when it could be generated. */
+	readonly text?: string;
+	readonly problems?: readonly string[];
+}
+
 export interface ILibraryProblem {
 	readonly index: number | null;
 	readonly path: string;
@@ -115,6 +124,12 @@ export interface IFemSolverService {
 	getBackendInfo(python: string): Promise<IFemBackendInfo>;
 	validateProject(python: string, project: string): Promise<IFemProjectValidation>;
 	getResultTables(python: string, outDir: string, project: string): Promise<readonly IFemCaseResults[]>;
-	/** Runs the model rules on a project file; `companionText` is the file it references (materials for objects, objects for bim). */
-	checkLibrary(python: string, kind: 'materials' | 'objects' | 'bim', text: string, companionText?: string): Promise<readonly ILibraryProblem[]>;
+	/** Runs the model rules on a project file; `companionText` is the file it references (materials for objects, objects for the floor plan and bim). */
+	checkLibrary(python: string, kind: LibraryFileKind, text: string, companionText?: string): Promise<readonly ILibraryProblem[]>;
+
+	/**
+	 * The building model generated from the floor plan, keeping the model's own elements
+	 * (see `saengine.library.bim`). Problems are returned when either file has errors.
+	 */
+	generateBuilding(python: string, floorPlanText: string, bimText: string | undefined): Promise<IGeneratedBuilding>;
 }

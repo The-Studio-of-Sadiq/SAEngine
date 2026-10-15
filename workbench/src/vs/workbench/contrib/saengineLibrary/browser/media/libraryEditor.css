@@ -23,6 +23,13 @@
 	display: flex;
 }
 
+/* an upstream part changed since the document was built: information, not a fault */
+.saengine-library-editor .library-banner.outdated {
+	color: var(--vscode-inputValidation-infoForeground, var(--vscode-foreground));
+	background: var(--vscode-inputValidation-infoBackground);
+	border-bottom-color: var(--vscode-inputValidation-infoBorder);
+}
+
 .saengine-library-editor .library-banner .monaco-button {
 	width: auto;
 	flex-shrink: 0;
@@ -348,4 +355,32 @@
 .saengine-library-editor .building-summary .summary-label {
 	color: var(--vscode-descriptionForeground);
 	margin-right: 6px;
+}
+
+.saengine-library-editor .building-table {
+	display: grid;
+	grid-template-columns: repeat(4, auto);
+	justify-content: start;
+	gap: 4px 24px;
+	margin: 4px 0 16px;
+}
+
+.saengine-library-editor .building-table .header {
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-library-editor .building-table .number {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-library-editor .building-actions {
+	display: flex;
+	gap: 8px;
+	margin: 8px 0 16px;
+}
+
+.saengine-library-editor .building-actions .monaco-button {
+	width: auto;
+	padding: 2px 10px;
 }

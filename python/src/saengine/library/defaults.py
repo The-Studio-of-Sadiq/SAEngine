@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import math
 
-from saengine.library.bim import BuildingModel, GridLine, Grids, Story
+from saengine.library.bim import BuildingModel
+from saengine.library.floorplan import FloorPlan, GridLine, Grids, Story
 from saengine.library.materials import (
     Category,
     ConcreteProperties,
@@ -126,9 +127,9 @@ def default_object_library() -> ObjectLibrary:
     return ObjectLibrary()
 
 
-def default_building_model() -> BuildingModel:
+def default_floor_plan() -> FloorPlan:
     """A one-bay starting grid and a base plus one level; the engineer edits both."""
-    return BuildingModel(
+    return FloorPlan(
         grids=Grids(
             x=[GridLine(label="A", position=0), GridLine(label="B", position=6000)],
             y=[GridLine(label="1", position=0), GridLine(label="2", position=5000)],
@@ -138,3 +139,8 @@ def default_building_model() -> BuildingModel:
             Story(id="L1", name="Level 1", elevation=3200),
         ],
     )
+
+
+def default_building_model() -> BuildingModel:
+    """Empty until it is generated from the floor plan."""
+    return BuildingModel()

@@ -6,7 +6,7 @@
 import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { BIM_SCHEMA, DEFAULT_BIM, DEFAULT_MATERIALS, DEFAULT_OBJECTS, MATERIALS_SCHEMA, OBJECTS_SCHEMA } from './projectLibraries.generated.js';
+import { BIM_SCHEMA, DEFAULT_BIM, DEFAULT_FLOOR_PLAN, DEFAULT_MATERIALS, DEFAULT_OBJECTS, FLOOR_PLAN_SCHEMA, MATERIALS_SCHEMA, OBJECTS_SCHEMA } from './projectLibraries.generated.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 
 export const PROJECT_MANIFEST_EXTENSION = '.saengine';
@@ -54,7 +54,10 @@ export const PROJECT_PARTS: readonly IProjectPart[] = [
 		id: 'objects', folder: '04 Objects', mainFile: 'objects.json', initialContent: json(DEFAULT_OBJECTS),
 		schema: { id: 'vscode://schemas/saengine/objects', schema: OBJECTS_SCHEMA },
 	},
-	{ id: 'floorPlan', folder: '05 Floor Plan', mainFile: 'floor-plan.json', initialContent: placeholder('floorPlan') },
+	{
+		id: 'floorPlan', folder: '05 Floor Plan', mainFile: 'floor-plan.json', initialContent: json(DEFAULT_FLOOR_PLAN),
+		schema: { id: 'vscode://schemas/saengine/floorPlan', schema: FLOOR_PLAN_SCHEMA },
+	},
 	{
 		id: 'bim', folder: '06 BIM', mainFile: 'bim.json', initialContent: json(DEFAULT_BIM),
 		schema: { id: 'vscode://schemas/saengine/bim', schema: BIM_SCHEMA },

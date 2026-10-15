@@ -18,6 +18,7 @@ import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/
 import { localize } from '../../../../nls.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -26,13 +27,17 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { newFloorPlan } from '../../../services/saengineProject/common/partSources.js';
 import { acquireCadEditor, releaseCadEditor } from './cadHost.js';
 import { floorPlanDrawing, IFloorPlan, IMemberShape, storiesOf } from './floorPlanDrawing.js';
 import { bayAt, EditResult, IGridNode, pickMember, placeColumn, placeFooting, placeLinear, placeSlab, PlacementTool, removeMember, snapToGrid, TOOL_KINDS } from './floorPlanEdits.js';
 import { FloorPlanEditorInput, siblingPartFile } from './floorPlanEditorInput.js';
 
-const BIM_SCHEMA_ID = 'saengine.bim/1';
+const FLOOR_PLAN_SCHEMA_ID = 'saengine.floorPlan/1';
+
+/** The grids and stories form for the same file (registered by the library editors). */
+const GRIDS_EDITOR_ID = 'workbench.editor.saengine.grids';
 
 /** Screen distances: how close a click must be to a grid intersection or member, and marker size [px]. */
 const SNAP_PIXELS = 24;
@@ -78,9 +83,10 @@ function outlineEntities(shape: IMemberShape, layer: string): CadEntitySpec[] {
 }
 
 /**
- * The floor plan of the building model, one story at a time, in the CAD editor. It reads the
- * open text models of `bim.json` and `objects.json`, so edits elsewhere show up as they are
- * made, and places and deletes members by writing `bim.json` as undoable edits.
+ * The floor plan (`floor-plan.json`) in the CAD editor, one story at a time. The floor plan owns
+ * the building's layout: this editor places and deletes members as undoable edits of its text
+ * model, which the Grids & Stories form edits too. Object types come from `objects.json`, read
+ * only, so edits there show up as they are made.
  */
 export class FloorPlanEditor extends EditorPane {
 
@@ -99,7 +105,7 @@ export class FloorPlanEditor extends EditorPane {
 	private dimension: Dimension | undefined;
 
 	private editor: CadEditorApi | undefined;
-	private bim: ITextModel | undefined;
+	private planModel: ITextModel | undefined;
 	private objects: ITextModel | undefined;
 	private plan: IFloorPlan | undefined;
 	private storyIds: string[] = [];
@@ -128,13 +134,14 @@ export class FloorPlanEditor extends EditorPane {
 		@IEditorService private readonly editorService: IEditorService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super(FloorPlanEditor.ID, group, telemetryService, themeService, storageService);
 	}
 
-	/** The building model the plan edits, for undo and redo. */
-	get bimResource() {
-		return (this.input as FloorPlanEditorInput | undefined)?.bimResource;
+	/** The floor plan file, for undo and redo. */
+	get resource() {
+		return (this.input as FloorPlanEditorInput | undefined)?.resource;
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -182,7 +189,7 @@ export class FloorPlanEditor extends EditorPane {
 			this._register(button.onDidClick(run));
 		};
 		action(localize('floorPlan.zoomExtents', "Zoom Extents"), Codicon.screenFull, localize('floorPlan.zoomExtentsTitle', "Fit the whole plan in the view"), () => this.editor?.zoomExtents());
-		action(localize('floorPlan.editGrids', "Edit Grids & Stories"), Codicon.layers, localize('floorPlan.editGridsTitle', "Open the building model"), () => this.openPart('bim'));
+		action(localize('floorPlan.editGrids', "Edit Grids & Stories"), Codicon.layers, localize('floorPlan.editGridsTitle', "Edit the grid lines and stories beside the plan"), () => this.openGrids());
 
 		this.status = append(this.root, $('.floor-plan-status'));
 		this.cad = append(this.root, $('.saengine-cad-editor'));
@@ -206,7 +213,7 @@ export class FloorPlanEditor extends EditorPane {
 
 		let references: IReference<IResolvedTextEditorModel>[];
 		try {
-			references = await Promise.all([input.bimResource, siblingPartFile(input.resource, 'objects')].map(r => this.textModelService.createModelReference(r)));
+			references = await Promise.all([input.resource, siblingPartFile(input.resource, 'objects')].map(r => this.textModelService.createModelReference(r)));
 		} catch (error) {
 			this.showMessage(localize('floorPlan.noModel', "The building model could not be read: {0}", String(error)));
 			return;
@@ -216,8 +223,8 @@ export class FloorPlanEditor extends EditorPane {
 			return;
 		}
 		references.forEach(r => this.inputDisposables.add(r));
-		[this.bim, this.objects] = references.map(r => r.object.textEditorModel);
-		for (const model of [this.bim, this.objects]) {
+		[this.planModel, this.objects] = references.map(r => r.object.textEditorModel);
+		for (const model of [this.planModel, this.objects]) {
 			this.inputDisposables.add(model.onDidChangeContent(() => this.renderScheduler.schedule()));
 		}
 
@@ -268,7 +275,7 @@ export class FloorPlanEditor extends EditorPane {
 		this.renderScheduler.cancel();
 		this.previewFrame.clear();
 		this.inputDisposables.clear();
-		this.bim = this.objects = undefined;
+		this.planModel = this.objects = undefined;
 		this.plan = undefined;
 		this.chainStart = undefined;
 		if (this.editor) {
@@ -371,20 +378,20 @@ export class FloorPlanEditor extends EditorPane {
 	}
 
 	private snap(point: CadPoint): IGridNode | undefined {
-		return this.editor ? snapToGrid(parse(this.bim), point, SNAP_PIXELS * this.editor.unitsPerPixel()) : undefined;
+		return this.editor ? snapToGrid(parse(this.planModel), point, SNAP_PIXELS * this.editor.unitsPerPixel()) : undefined;
 	}
 
 	private click(point: CadPoint): void {
 		const input = this.input as FloorPlanEditorInput | undefined;
-		const bim = parse(this.bim);
+		const layout = parse(this.planModel);
 		const story = input?.story;
-		if (this.tool === 'select' || !story || !isObject(bim) || bim.schema !== BIM_SCHEMA_ID) {
+		if (this.tool === 'select' || !story || !isObject(layout) || layout.schema !== FLOOR_PLAN_SCHEMA_ID) {
 			return;
 		}
 		if (this.tool === 'delete') {
 			const shape = this.plan && this.editor ? pickMember(this.plan.members, point, PICK_PIXELS * this.editor.unitsPerPixel()) : undefined;
 			if (shape) {
-				this.write(removeMember(bim, shape.group, shape.id));
+				this.write(removeMember(layout, shape.group, shape.id));
 				this.setNotice(localize('floorPlan.deleted', "Deleted {0}.", shape.id));
 			}
 			return;
@@ -397,8 +404,8 @@ export class FloorPlanEditor extends EditorPane {
 		}
 		let result: EditResult | undefined;
 		if (tool === 'slab') {
-			const bay = bayAt(bim, point);
-			result = bay ? placeSlab(bim, type, story, bay) : { ok: false, error: localize('floorPlan.outsideGrid', "Click inside a bay of the grid.") };
+			const bay = bayAt(layout, point);
+			result = bay ? placeSlab(layout, type, story, bay) : { ok: false, error: localize('floorPlan.outsideGrid', "Click inside a bay of the grid.") };
 		} else {
 			const node = this.snap(point);
 			if (!node) {
@@ -406,22 +413,22 @@ export class FloorPlanEditor extends EditorPane {
 				return;
 			}
 			if (tool === 'column') {
-				result = placeColumn(bim, type, story, node);
+				result = placeColumn(layout, type, story, node);
 			} else if (tool === 'footing') {
-				result = placeFooting(bim, type, story, node);
+				result = placeFooting(layout, type, story, node);
 			} else if (!this.chainStart) {
 				this.chainStart = node;
 				this.schedulePreview();
 				return;
 			} else {
-				result = placeLinear(bim, tool, type, story, this.chainStart, node);
+				result = placeLinear(layout, tool, type, story, this.chainStart, node);
 				if (result.ok || node.x !== this.chainStart.x || node.y !== this.chainStart.y) {
 					this.chainStart = node; // keep chaining from the end point
 				}
 			}
 		}
 		if (result.ok) {
-			this.write(result.bim);
+			this.write(result.layout);
 			this.setNotice(localize('floorPlan.placed', "Placed {0}.", result.id));
 		} else {
 			this.setNotice(result.error);
@@ -429,9 +436,9 @@ export class FloorPlanEditor extends EditorPane {
 		this.schedulePreview();
 	}
 
-	/** Replaces `bim.json` with `value` as one undoable edit. */
+	/** Replaces the floor plan with `value` as one undoable edit. */
 	private write(value: object): void {
-		const model = this.bim;
+		const model = this.planModel;
 		if (!model || model.isDisposed()) {
 			return;
 		}
@@ -447,11 +454,11 @@ export class FloorPlanEditor extends EditorPane {
 	/** Regenerates the plan of the selected story from the current models. */
 	private renderPlan(): void {
 		const input = this.input as FloorPlanEditorInput | undefined;
-		if (!input || !this.editor || !this.bim) {
+		if (!input || !this.editor || !this.planModel) {
 			return;
 		}
-		const bim = parse(this.bim);
-		const stories = storiesOf(bim);
+		const layout = parse(this.planModel);
+		const stories = storiesOf(layout);
 		this.storyIds = stories.map(s => s.id);
 		if (!input.story || !this.storyIds.includes(input.story)) {
 			// The first floor above the lowest level: the plan most people look at first.
@@ -462,7 +469,7 @@ export class FloorPlanEditor extends EditorPane {
 			Math.max(0, this.storyIds.indexOf(input.story ?? '')),
 		);
 
-		this.plan = floorPlanDrawing(bim, parse(this.objects), input.story ?? '');
+		this.plan = floorPlanDrawing(layout, parse(this.objects), input.story ?? '');
 		this.editor.setGenerated(this.plan.drawing);
 		if (this.fitPending) {
 			this.fitPending = false;
@@ -507,7 +514,7 @@ export class FloorPlanEditor extends EditorPane {
 					entities.push(...outlineEntities(shape, deleteLayer));
 				}
 			} else if (this.tool === 'slab') {
-				const bay = bayAt(parse(this.bim), point);
+				const bay = bayAt(parse(this.planModel), point);
 				if (bay) {
 					entities.push({ kind: 'polyline', layer, closed: true, points: bay.corners });
 				}
@@ -534,18 +541,24 @@ export class FloorPlanEditor extends EditorPane {
 	private updateStatus(): void {
 		this.statusDisposables.clear();
 		clearNode(this.status);
-		const bim = parse(this.bim);
+		const layout = parse(this.planModel);
 		const plan = this.plan;
 		const hint = TOOLS.find(t => t.tool === this.tool)?.hint;
 		const text = (value: string) => append(this.status, $('span', undefined, value));
-		if (this.bim && (!isObject(bim) || bim.schema !== BIM_SCHEMA_ID)) {
-			text(localize('floorPlan.invalidModel', "bim.json is not a valid building model; open it to fix it. The plan cannot be edited until then."));
+		if (this.planModel && isObject(layout) && layout.part === 'floorPlan') {
+			// The placeholder of projects made before the floor plan owned the layout.
+			text(localize('floorPlan.empty', "This project has no floor plan yet. Creating it takes over the grids, stories and members of an older building model."));
+			const create = this.statusDisposables.add(new Button(append(this.status, $('.floor-plan-link')), defaultButtonStyles));
+			create.label = localize('floorPlan.create', "Create Floor Plan");
+			this.statusDisposables.add(create.onDidClick(() => this.createFloorPlan()));
+		} else if (this.planModel && (!isObject(layout) || layout.schema !== FLOOR_PLAN_SCHEMA_ID)) {
+			text(localize('floorPlan.invalidModel', "floor-plan.json is not a valid floor plan; open it as text to fix it. The plan cannot be edited until then."));
 		} else if (this.notice) {
 			text(this.notice);
 		} else if (hint) {
 			text(hint);
-		} else if (this.storyIds.length === 0 && this.bim) {
-			text(localize('floorPlan.noStories', "The building model has no stories yet."));
+		} else if (this.storyIds.length === 0 && this.planModel) {
+			text(localize('floorPlan.noStories', "The floor plan has no stories yet."));
 		}
 		if (this.placementTool && this.typeIds.length === 0) {
 			const open = this.statusDisposables.add(new Button(append(this.status, $('.floor-plan-link')), { ...defaultButtonStyles, secondary: true }));
@@ -557,6 +570,32 @@ export class FloorPlanEditor extends EditorPane {
 			append(problems, $(`span${ThemeIcon.asCSSSelector(Codicon.warning)}`)).setAttribute('aria-hidden', 'true');
 			append(problems, $('span', undefined, localize('floorPlan.problems', "{0} member(s) could not be drawn", plan.problems.length)));
 			this.statusDisposables.add(this.hoverService.setupDelayedHover(problems, { content: plan.problems.join('\n') }));
+		}
+	}
+
+	/** Writes the first floor plan: the layout of an older `bim.json`, or the default grid. */
+	private async createFloorPlan(): Promise<void> {
+		const input = this.input as FloorPlanEditorInput | undefined;
+		if (!input) {
+			return;
+		}
+		let legacy: string | undefined;
+		try {
+			legacy = (await this.fileService.readFile(siblingPartFile(input.resource, 'bim'))).value.toString();
+		} catch {
+			legacy = undefined;
+		}
+		if (this.input === input) {
+			this.fitPending = true;
+			this.write(newFloorPlan(legacy));
+		}
+	}
+
+	/** The grids and stories form, beside the plan so its edits show in the plan as they are made. */
+	private openGrids(): void {
+		const input = this.input as FloorPlanEditorInput | undefined;
+		if (input) {
+			void this.editorService.openEditor({ resource: input.resource, options: { override: GRIDS_EDITOR_ID } }, SIDE_GROUP);
 		}
 	}
 

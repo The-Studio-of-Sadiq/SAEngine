@@ -6,9 +6,9 @@
 import type { CadEntitySpec, CadGeneratedDrawing, CadLayerSpec, CadPoint } from '@saengine/cad-editor';
 
 /*
- * The structural floor plan of one story, drawn from the building model (`06 BIM/bim.json`) and
- * the object types (`04 Objects/objects.json`). The drawing is a view: it is regenerated from the
- * model on every change and never edited directly. Layer names follow the US National CAD
+ * The drawing of one story of the floor plan (`05 Floor Plan/floor-plan.json`), with member
+ * outlines from the object types (`04 Objects/objects.json`). The drawing is regenerated from
+ * the file on every change and never edited directly; edits go to the file. Layer names follow the US National CAD
  * Standard's structural discipline ("S-GRID", "S-COLS", ...).
  */
 
@@ -50,7 +50,7 @@ type Json = { readonly [key: string]: unknown };
 
 interface IGridPoint { readonly x: string; readonly y: string; readonly dx?: number; readonly dy?: number }
 
-/** Member lists of the building model, in the order members are picked (smallest first). */
+/** Member lists of the floor plan, in the order members are picked (smallest first). */
 export type MemberGroup = 'columns' | 'footings' | 'walls' | 'beams' | 'slabs';
 
 /** Where a drawn member is in plan, for picking it with the mouse. */
@@ -168,16 +168,16 @@ function centroid(points: readonly CadPoint[]): CadPoint {
 }
 
 /** The stories of the model, lowest first. */
-export function storiesOf(bim: unknown): { readonly id: string; readonly name: string; readonly elevation: number }[] {
-	return list(isObject(bim) ? bim.stories : undefined)
+export function storiesOf(layout: unknown): { readonly id: string; readonly name: string; readonly elevation: number }[] {
+	return list(isObject(layout) ? layout.stories : undefined)
 		.filter(s => typeof s.id === 'string' && num(s.elevation) !== undefined)
 		.map(s => ({ id: s.id as string, name: typeof s.name === 'string' && s.name ? s.name : s.id as string, elevation: s.elevation as number }))
 		.sort((a, b) => a.elevation - b.elevation);
 }
 
 /** Grid line positions by label, per axis. */
-export function gridsOf(bim: unknown): { readonly x: ReadonlyMap<string, number>; readonly y: ReadonlyMap<string, number> } {
-	const grids = isObject(bim) && isObject(bim.grids) ? bim.grids : {};
+export function gridsOf(layout: unknown): { readonly x: ReadonlyMap<string, number>; readonly y: ReadonlyMap<string, number> } {
+	const grids = isObject(layout) && isObject(layout.grids) ? layout.grids : {};
 	const lines = (axis: 'x' | 'y') => new Map(list(grids[axis])
 		.filter(g => typeof g.label === 'string' && num(g.position) !== undefined)
 		.map(g => [g.label as string, g.position as number]));
@@ -188,8 +188,8 @@ export function gridsOf(bim: unknown): { readonly x: ReadonlyMap<string, number>
  * The plan of story `storyId`: grids with bubbles, the columns and walls rising to it (plans
  * look down from just below the level), and the beams, slabs and footings at its level.
  */
-export function floorPlanDrawing(bim: unknown, objects: unknown, storyId: string): IFloorPlan {
-	const model = isObject(bim) ? bim : {};
+export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: string): IFloorPlan {
+	const model = isObject(layout) ? layout : {};
 	const { x: xLines, y: yLines } = gridsOf(model);
 	const elevation = new Map(storiesOf(model).map(s => [s.id, s.elevation]));
 	const level = elevation.get(storyId);

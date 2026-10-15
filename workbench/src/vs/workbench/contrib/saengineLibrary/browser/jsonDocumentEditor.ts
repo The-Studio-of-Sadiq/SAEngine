@@ -23,6 +23,7 @@ import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { DEFAULT_EDITOR_ASSOCIATION, IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { recordedStamp, sourceStamp, UPSTREAM_PARTS } from '../../../services/saengineProject/common/partSources.js';
 import { ISaengineProjectService, PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
 import { LibraryEditorInput, LibraryKind } from './libraryEditorInput.js';
 import { JsonObject, JsonValue } from './schemaForm.js';
@@ -41,7 +42,13 @@ const CHECK_COMMAND = 'saengine.library.check';
 /** The other project file each document needs for references and checks. */
 const COMPANION_PART: { readonly [kind in LibraryKind]?: string } = {
 	objects: 'materials',
+	floorPlan: 'objects',
 	bim: 'objects',
+};
+
+/** Names of the parts a document can be built from, for the "changed since" banner. */
+const UPSTREAM_NAMES: { readonly [part: string]: string } = {
+	floorPlan: localize('upstream.floorPlan', "Floor Plan"),
 };
 
 export function clone<T>(value: T): T {
@@ -63,11 +70,15 @@ export interface IShapeError {
  * the document: the editor parses it, edits a copy, and writes it back as one undoable edit
  * only when the edit is valid, so Save, Undo/Redo, dirty state and hot exit come from the
  * text file service. After each change the Python models check the whole file.
+ *
+ * A document built from upstream parts (see `UPSTREAM_PARTS`) records their stamps; when an
+ * upstream file changes, the editor says so and offers to update, and only updates on request.
  */
 export abstract class JsonDocumentEditor extends EditorPane {
 
 	protected root!: HTMLElement;
 	private banner!: HTMLElement;
+	private outdated!: HTMLElement;
 
 	protected document: JsonObject | undefined;
 	protected problems: readonly IDocumentProblem[] = [];
@@ -77,7 +88,9 @@ export abstract class JsonDocumentEditor extends EditorPane {
 	protected readonly inputDisposables = this._register(new DisposableStore());
 	protected readonly viewDisposables = this._register(new DisposableStore());
 	private readonly bannerDisposables = this._register(new DisposableStore());
+	private readonly outdatedDisposables = this._register(new DisposableStore());
 	private readonly companionReference = this._register(new MutableDisposable<IReference<IResolvedTextEditorModel>>());
+	private readonly upstreamReference = this._register(new MutableDisposable<IReference<IResolvedTextEditorModel>>());
 	private readonly commitScheduler = this._register(new RunOnceScheduler(() => this.commit(), 300));
 	private readonly checkScheduler = this._register(new RunOnceScheduler(() => this.check(), 600));
 	private checkVersion = 0;
@@ -99,6 +112,7 @@ export abstract class JsonDocumentEditor extends EditorPane {
 	protected createEditor(parent: HTMLElement): void {
 		this.root = append(parent, $('.saengine-library-editor'));
 		this.banner = append(this.root, $('.library-banner'));
+		this.outdated = append(this.root, $('.library-banner.outdated'));
 		this.createBody(append(this.root, $('.library-body')));
 	}
 
@@ -117,6 +131,14 @@ export abstract class JsonDocumentEditor extends EditorPane {
 	/** The companion file's text changed (also called once when it is first read). */
 	protected onCompanionChanged(_text: string): void { }
 
+	/** Rebuilds the document from its upstream part, when the engineer asks to update. */
+	protected updateFromUpstream(_upstreamText: string): void { }
+
+	/** The current text of the upstream part the document is built from, if it has one. */
+	protected get upstreamText(): string | undefined {
+		return this.upstreamReference.value?.object.textEditorModel.getValue();
+	}
+
 	protected get kind(): LibraryKind | undefined {
 		return (this.input as LibraryEditorInput | undefined)?.kind;
 	}
@@ -130,6 +152,7 @@ export abstract class JsonDocumentEditor extends EditorPane {
 		await super.setInput(input, options, context, token);
 		this.inputDisposables.clear();
 		this.companionReference.clear();
+		this.upstreamReference.clear();
 
 		const reference = await input.resolve();
 		if (token.isCancellationRequested || this.input !== input) {
@@ -142,6 +165,7 @@ export abstract class JsonDocumentEditor extends EditorPane {
 			}
 		}));
 		await this.trackCompanion(input.kind);
+		await this.trackUpstream(input.kind);
 		this.onWillLoadInput();
 		this.load();
 	}
@@ -153,6 +177,7 @@ export abstract class JsonDocumentEditor extends EditorPane {
 		this.flush();
 		this.inputDisposables.clear();
 		this.companionReference.clear();
+		this.upstreamReference.clear();
 		this.model = undefined;
 		this.document = undefined;
 		super.clearInput();
@@ -189,6 +214,7 @@ export abstract class JsonDocumentEditor extends EditorPane {
 		this.showBanner(undefined);
 		this.document = parsed as JsonObject;
 		this.render();
+		this.renderOutdated();
 		this.checkScheduler.schedule();
 	}
 
@@ -197,6 +223,7 @@ export abstract class JsonDocumentEditor extends EditorPane {
 		this.problems = [];
 		this.showBanner(error);
 		this.render();
+		this.renderOutdated();
 	}
 
 	/** Writes the document to the text model as one undoable edit. */
@@ -226,6 +253,7 @@ export abstract class JsonDocumentEditor extends EditorPane {
 		this.showBanner(undefined);
 		this.commit();
 		this.render();
+		this.renderOutdated();
 	}
 
 	protected flush(): void {
@@ -283,6 +311,42 @@ export abstract class JsonDocumentEditor extends EditorPane {
 			this.onCompanionChanged(model.getValue());
 			this.checkScheduler.schedule();
 		}));
+	}
+
+	/** Follows the upstream part the document is built from (unsaved edits included). */
+	private async trackUpstream(kind: LibraryKind): Promise<void> {
+		const project = this.projectService.project;
+		const part = PROJECT_PARTS.find(p => p.id === UPSTREAM_PARTS[kind]?.[0]);
+		if (!project || !part?.mainFile) {
+			return;
+		}
+		try {
+			this.upstreamReference.value = await this.textModelService.createModelReference(joinPath(project.root, part.folder, part.mainFile));
+		} catch {
+			return;
+		}
+		this.inputDisposables.add(this.upstreamReference.value.object.textEditorModel.onDidChangeContent(() => this.renderOutdated()));
+	}
+
+	/** "<Upstream> changed since this was built — Update", while the recorded stamp is stale. */
+	private renderOutdated(): void {
+		this.outdatedDisposables.clear();
+		clearNode(this.outdated);
+		const part = this.kind && UPSTREAM_PARTS[this.kind]?.[0];
+		const text = this.upstreamText;
+		const recorded = this.document && part ? recordedStamp(this.document, part) : undefined;
+		const stale = !!this.document && !!part && text !== undefined && recorded !== sourceStamp(text);
+		this.outdated.classList.toggle('visible', stale);
+		if (!stale || !part || text === undefined) {
+			return;
+		}
+		const name = UPSTREAM_NAMES[part] ?? part;
+		append(this.outdated, $('span', undefined, recorded
+			? localize('outdated.changed', "The {0} has changed since this was built from it.", name)
+			: localize('outdated.never', "This has not been built from the {0} yet.", name)));
+		const update = this.outdatedDisposables.add(new Button(this.outdated, defaultButtonStyles));
+		update.label = localize('outdated.update', "Update from {0}", name);
+		this.outdatedDisposables.add(update.onDidClick(() => this.updateFromUpstream(this.upstreamText ?? text)));
 	}
 
 	// ───────────────────────────── banner ─────────────────────────────

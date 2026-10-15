@@ -2167,7 +2167,7 @@ export const DEFAULT_OBJECTS: object = {
 	objects: [],
 };
 
-export const BIM_SCHEMA: IJSONSchema = {
+export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 	$defs: {
 		GridLine: {
 			additionalProperties: false,
@@ -2492,8 +2492,8 @@ export const BIM_SCHEMA: IJSONSchema = {
 	additionalProperties: false,
 	properties: {
 		schema: {
-			const: 'saengine.bim/1',
-			default: 'saengine.bim/1',
+			const: 'saengine.floorPlan/1',
+			default: 'saengine.floorPlan/1',
 			title: 'Schema_',
 			type: 'string',
 		},
@@ -2543,12 +2543,12 @@ export const BIM_SCHEMA: IJSONSchema = {
 			type: 'array',
 		},
 	},
-	title: 'SAEngine building model',
+	title: 'SAEngine floor plan',
 	type: 'object',
 };
 
-export const DEFAULT_BIM: object = {
-	schema: 'saengine.bim/1',
+export const DEFAULT_FLOOR_PLAN: object = {
+	schema: 'saengine.floorPlan/1',
 	grids: {
 		x: [
 			{
@@ -2588,6 +2588,459 @@ export const DEFAULT_BIM: object = {
 	walls: [],
 	slabs: [],
 	footings: [],
+};
+
+export const BIM_SCHEMA: IJSONSchema = {
+	$defs: {
+		BeamElement: {
+			additionalProperties: false,
+			description: 'A beam with its top at ``elevation`` (the level of the story it supports).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					description: 'Object type id from 04 Objects.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Object type',
+					type: 'string',
+				},
+				source: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The floor-plan member this element is generated from; none for elements that belong to the building model itself.',
+					title: 'Floor plan member',
+				},
+				kind: {
+					const: 'beam',
+					default: 'beam',
+					title: 'Kind',
+					type: 'string',
+				},
+				start: {
+					description: '[x, y] in mm.',
+					items: {
+						type: 'number',
+					},
+					maxItems: 2,
+					minItems: 2,
+					title: 'Start',
+					type: 'array',
+				},
+				end: {
+					description: '[x, y] in mm.',
+					items: {
+						type: 'number',
+					},
+					maxItems: 2,
+					minItems: 2,
+					title: 'End',
+					type: 'array',
+				},
+				elevation: {
+					description: 'Elevation of the top [mm].',
+					title: 'Elevation',
+					type: 'number',
+				},
+			},
+			required: ['id', 'type', 'start', 'end', 'elevation'],
+			title: 'BeamElement',
+			type: 'object',
+		},
+		ColumnElement: {
+			additionalProperties: false,
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					description: 'Object type id from 04 Objects.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Object type',
+					type: 'string',
+				},
+				source: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The floor-plan member this element is generated from; none for elements that belong to the building model itself.',
+					title: 'Floor plan member',
+				},
+				kind: {
+					const: 'column',
+					default: 'column',
+					title: 'Kind',
+					type: 'string',
+				},
+				position: {
+					description: '[x, y] in mm.',
+					items: {
+						type: 'number',
+					},
+					maxItems: 2,
+					minItems: 2,
+					title: 'Position',
+					type: 'array',
+				},
+				bottom: {
+					description: 'Elevation of the bottom [mm].',
+					title: 'Bottom',
+					type: 'number',
+				},
+				top: {
+					description: 'Elevation of the top [mm].',
+					title: 'Top',
+					type: 'number',
+				},
+				rotation: {
+					default: 0,
+					description: '[°]',
+					title: 'Rotation',
+					type: 'number',
+				},
+			},
+			required: ['id', 'type', 'position', 'bottom', 'top'],
+			title: 'ColumnElement',
+			type: 'object',
+		},
+		FootingElement: {
+			additionalProperties: false,
+			description: 'A footing or pile cap with its top at ``elevation``.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					description: 'Object type id from 04 Objects.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Object type',
+					type: 'string',
+				},
+				source: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The floor-plan member this element is generated from; none for elements that belong to the building model itself.',
+					title: 'Floor plan member',
+				},
+				kind: {
+					const: 'footing',
+					default: 'footing',
+					title: 'Kind',
+					type: 'string',
+				},
+				position: {
+					description: '[x, y] in mm.',
+					items: {
+						type: 'number',
+					},
+					maxItems: 2,
+					minItems: 2,
+					title: 'Position',
+					type: 'array',
+				},
+				elevation: {
+					description: 'Elevation of the top [mm].',
+					title: 'Elevation',
+					type: 'number',
+				},
+				rotation: {
+					default: 0,
+					description: '[°]',
+					title: 'Rotation',
+					type: 'number',
+				},
+			},
+			required: ['id', 'type', 'position', 'elevation'],
+			title: 'FootingElement',
+			type: 'object',
+		},
+		SlabElement: {
+			additionalProperties: false,
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					description: 'Object type id from 04 Objects.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Object type',
+					type: 'string',
+				},
+				source: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The floor-plan member this element is generated from; none for elements that belong to the building model itself.',
+					title: 'Floor plan member',
+				},
+				kind: {
+					const: 'slab',
+					default: 'slab',
+					title: 'Kind',
+					type: 'string',
+				},
+				boundary: {
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					minItems: 3,
+					title: 'Boundary',
+					type: 'array',
+				},
+				elevation: {
+					description: 'Elevation of the top [mm].',
+					title: 'Elevation',
+					type: 'number',
+				},
+			},
+			required: ['id', 'type', 'boundary', 'elevation'],
+			title: 'SlabElement',
+			type: 'object',
+		},
+		SourceStamps: {
+			additionalProperties: false,
+			description: 'The upstream revisions the model was built from.',
+			properties: {
+				floorPlan: {
+					description: 'Stamp of floor-plan.json.',
+					title: 'Floor plan',
+					type: 'string',
+				},
+			},
+			required: ['floorPlan'],
+			title: 'SourceStamps',
+			type: 'object',
+		},
+		Story: {
+			additionalProperties: false,
+			description: 'A building level (IfcBuildingStorey); its height is the distance to the next level up.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				elevation: {
+					description: 'Level of the top of the floor [mm].',
+					title: 'Elevation',
+					type: 'number',
+				},
+			},
+			required: ['id', 'name', 'elevation'],
+			title: 'Story',
+			type: 'object',
+		},
+		WallElement: {
+			additionalProperties: false,
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					description: 'Object type id from 04 Objects.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Object type',
+					type: 'string',
+				},
+				source: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The floor-plan member this element is generated from; none for elements that belong to the building model itself.',
+					title: 'Floor plan member',
+				},
+				kind: {
+					const: 'wall',
+					default: 'wall',
+					title: 'Kind',
+					type: 'string',
+				},
+				start: {
+					description: '[x, y] in mm.',
+					items: {
+						type: 'number',
+					},
+					maxItems: 2,
+					minItems: 2,
+					title: 'Start',
+					type: 'array',
+				},
+				end: {
+					description: '[x, y] in mm.',
+					items: {
+						type: 'number',
+					},
+					maxItems: 2,
+					minItems: 2,
+					title: 'End',
+					type: 'array',
+				},
+				bottom: {
+					description: '[mm]',
+					title: 'Bottom',
+					type: 'number',
+				},
+				top: {
+					description: '[mm]',
+					title: 'Top',
+					type: 'number',
+				},
+			},
+			required: ['id', 'type', 'start', 'end', 'bottom', 'top'],
+			title: 'WallElement',
+			type: 'object',
+		},
+	},
+	additionalProperties: false,
+	properties: {
+		schema: {
+			const: 'saengine.bim/2',
+			default: 'saengine.bim/2',
+			title: 'Schema_',
+			type: 'string',
+		},
+		source: {
+			anyOf: [
+				{
+					$ref: '#/$defs/SourceStamps',
+				},
+				{
+					type: 'null',
+				},
+			],
+			default: null,
+			description: 'The floor plan revision the model was generated from.',
+			title: 'Source',
+		},
+		stories: {
+			items: {
+				$ref: '#/$defs/Story',
+			},
+			title: 'Stories',
+			type: 'array',
+		},
+		elements: {
+			items: {
+				oneOf: [
+					{
+						$ref: '#/$defs/ColumnElement',
+					},
+					{
+						$ref: '#/$defs/BeamElement',
+					},
+					{
+						$ref: '#/$defs/WallElement',
+					},
+					{
+						$ref: '#/$defs/SlabElement',
+					},
+					{
+						$ref: '#/$defs/FootingElement',
+					},
+				],
+			},
+			title: 'Elements',
+			type: 'array',
+		},
+	},
+	title: 'SAEngine building model',
+	type: 'object',
+};
+
+export const DEFAULT_BIM: object = {
+	schema: 'saengine.bim/2',
+	stories: [],
+	elements: [],
 };
 
 export const TEMPLATES: { readonly [defName: string]: object } = {
@@ -3020,5 +3473,49 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 			x: 'A',
 			y: '1',
 		},
+	},
+	ColumnElement: {
+		id: 'C1',
+		type: 'C',
+		kind: 'column',
+		position: [0, 0],
+		bottom: 0,
+		top: 3200,
+	},
+	BeamElement: {
+		id: 'B1',
+		type: 'B',
+		kind: 'beam',
+		start: [0, 0],
+		end: [6000, 0],
+		elevation: 3200,
+	},
+	WallElement: {
+		id: 'W1',
+		type: 'W',
+		kind: 'wall',
+		start: [0, 0],
+		end: [6000, 0],
+		bottom: 0,
+		top: 3200,
+	},
+	SlabElement: {
+		id: 'S1',
+		type: 'S',
+		kind: 'slab',
+		boundary: [
+			[0, 0],
+			[6000, 0],
+			[6000, 5000],
+			[0, 5000],
+		],
+		elevation: 3200,
+	},
+	FootingElement: {
+		id: 'F1',
+		type: 'F',
+		kind: 'footing',
+		position: [0, 0],
+		elevation: 0,
 	},
 };

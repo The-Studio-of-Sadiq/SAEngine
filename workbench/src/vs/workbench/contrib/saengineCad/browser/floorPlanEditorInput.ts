@@ -24,17 +24,14 @@ export function siblingPartFile(resource: URI, id: string): URI {
 }
 
 /**
- * The project's floor plan (`05 Floor Plan/floor-plan.json`): a plan view, one story at a
- * time, of the building model in `06 BIM/bim.json`, where members are placed. What the plan
- * edits is the building model, so its unsaved changes, Save and Revert are those of `bim.json`.
+ * The project's floor plan (`05 Floor Plan/floor-plan.json`) in its plan view: grids, stories
+ * and the members placed on them, one story at a time. The file is a JSON text model, so
+ * unsaved changes, Save, Revert and backups are those of the text file.
  */
 export class FloorPlanEditorInput extends EditorInput {
 
 	static readonly ID = 'workbench.input.saengine.floorPlan';
 	static readonly EDITOR_ID = 'workbench.editor.saengine.floorPlan';
-
-	/** The building model the plan shows and edits. */
-	readonly bimResource: URI;
 
 	/** Story shown, kept while the input lives so switching tabs returns to it. */
 	story: string | undefined;
@@ -44,9 +41,8 @@ export class FloorPlanEditorInput extends EditorInput {
 		@ITextFileService private readonly textFileService: ITextFileService,
 	) {
 		super();
-		this.bimResource = siblingPartFile(resource, 'bim');
 		this._register(this.textFileService.files.onDidChangeDirty(model => {
-			if (isEqual(model.resource, this.bimResource)) {
+			if (isEqual(model.resource, this.resource)) {
 				this._onDidChangeDirty.fire();
 			}
 		}));
@@ -73,16 +69,16 @@ export class FloorPlanEditorInput extends EditorInput {
 	}
 
 	override isDirty(): boolean {
-		return this.textFileService.isDirty(this.bimResource);
+		return this.textFileService.isDirty(this.resource);
 	}
 
 	override async save(_group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | IUntypedEditorInput | undefined> {
-		await this.textFileService.save(this.bimResource, options);
-		return this;
+		const saved = await this.textFileService.save(this.resource, options);
+		return saved ? this : undefined;
 	}
 
 	override async revert(_group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
-		await this.textFileService.revert(this.bimResource, options);
+		await this.textFileService.revert(this.resource, options);
 	}
 
 	override matches(other: EditorInput | IUntypedEditorInput): boolean {

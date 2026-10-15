@@ -8,7 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { IFemSolverService } from '../../../../platform/saengine/common/femSolver.js';
+import { IFemSolverService, LibraryFileKind } from '../../../../platform/saengine/common/femSolver.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -91,7 +91,16 @@ registerAction2(class extends Action2 {
  * Full rule check of a library file by the Python models, for the visual library editors.
  * Internal: the editors call it by id so they also work where no Python backend exists.
  */
-CommandsRegistry.registerCommand('saengine.library.check', async (accessor, kind: 'materials' | 'objects' | 'bim', text: string, materialsText?: string) => {
+CommandsRegistry.registerCommand('saengine.library.check', async (accessor, kind: LibraryFileKind, text: string, materialsText?: string) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	return accessor.get(IFemSolverService).checkLibrary(python, kind, text, materialsText);
+});
+
+/**
+ * Generates the building model (`bim.json` text) from the floor plan with the Python models.
+ * Internal: the Building Model editor calls it by id.
+ */
+CommandsRegistry.registerCommand('saengine.bim.generate', async (accessor, floorPlanText: string, bimText?: string) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).generateBuilding(python, floorPlanText, bimText);
 });

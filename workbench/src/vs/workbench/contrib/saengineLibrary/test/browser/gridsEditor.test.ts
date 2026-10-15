@@ -7,11 +7,11 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { BIM_SCHEMA, DEFAULT_BIM } from '../../../../services/saengineProject/common/projectLibraries.generated.js';
-import { nextGridLine, nextLetters, nextStory } from '../../browser/buildingEditor.js';
+import { DEFAULT_FLOOR_PLAN, FLOOR_PLAN_SCHEMA } from '../../../../services/saengineProject/common/projectLibraries.generated.js';
+import { nextGridLine, nextLetters, nextStory } from '../../browser/gridsEditor.js';
 import { JsonObject, SchemaForm } from '../../browser/schemaForm.js';
 
-suite('SAEngine - Building model editor', () => {
+suite('SAEngine - Grids and stories editor', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -44,10 +44,10 @@ suite('SAEngine - Building model editor', () => {
 	});
 
 	test('grid lines and stories render as tables and Add uses the editor\'s next entry', () => {
-		const document: JsonObject = JSON.parse(JSON.stringify(DEFAULT_BIM));
+		const document: JsonObject = JSON.parse(JSON.stringify(DEFAULT_FLOOR_PLAN));
 		const changes: string[] = [];
 		const form = workbenchInstantiationService(undefined, store).createInstance(SchemaForm, {
-			root: BIM_SCHEMA,
+			root: FLOOR_PLAN_SCHEMA,
 			template: () => ({}),
 			references: () => undefined,
 			validate: () => undefined,
@@ -57,7 +57,7 @@ suite('SAEngine - Building model editor', () => {
 		});
 		store.add({ dispose: () => form.dispose() });
 		const container = mainWindow.document.createElement('div');
-		form.render(container, BIM_SCHEMA, document, ['columns', 'beams', 'walls', 'slabs', 'footings']);
+		form.render(container, FLOOR_PLAN_SCHEMA, document, ['columns', 'beams', 'walls', 'slabs', 'footings']);
 
 		const headers = [...container.querySelectorAll('.form-table')].map(t => [...t.querySelectorAll('.form-table-header')].map(h => h.textContent).filter(Boolean));
 		const addX = [...container.querySelectorAll<HTMLElement>('.form-array-add .monaco-button')][0];

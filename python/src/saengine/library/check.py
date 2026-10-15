@@ -15,10 +15,11 @@ from typing import Any, Literal
 from pydantic import ValidationError
 
 from saengine.library.bim import BuildingModel
+from saengine.library.floorplan import FloorPlan
 from saengine.library.materials import MaterialLibrary
 from saengine.library.objects import ObjectLibrary
 
-Kind = Literal["materials", "objects", "bim"]
+Kind = Literal["materials", "objects", "floorPlan", "bim"]
 
 
 @cache
@@ -37,6 +38,7 @@ def _union_tags() -> frozenset[str]:
 
     walk(MaterialLibrary.model_json_schema())
     walk(ObjectLibrary.model_json_schema())
+    walk(FloorPlan.model_json_schema())
     walk(BuildingModel.model_json_schema())
     return frozenset(tags)
 
@@ -53,15 +55,17 @@ def check_library(kind: Kind, text: str, materials_text: str | None = None) -> l
     """Problems in a library file, each with the index of its entry (None for the whole file).
 
     ``materials_text`` is the other file the check needs: materials.json for object types,
-    objects.json for the building model.
+    objects.json for the floor plan and the building model.
     """
     try:
         data = json.loads(text)
     except json.JSONDecodeError as exc:
         return [_problem(None, "", f"Invalid JSON: {exc}")]
 
+    if kind == "floorPlan":
+        return _check_layout(FloorPlan, data, materials_text)
     if kind == "bim":
-        return _check_building(data, materials_text)
+        return _check_layout(BuildingModel, data, materials_text)
     model = MaterialLibrary if kind == "materials" else ObjectLibrary
     try:
         library = model.model_validate(data)
@@ -97,10 +101,12 @@ def check_library(kind: Kind, text: str, materials_text: str | None = None) -> l
     return []
 
 
-def _check_building(data: Any, objects_text: str | None) -> list[dict[str, Any]]:
-    """Building-model problems; ``index`` is None and ``path`` names the section."""
+def _check_layout(
+    model_type: type[FloorPlan | BuildingModel], data: Any, objects_text: str | None
+) -> list[dict[str, Any]]:
+    """Floor plan or building model problems; ``index`` is None and ``path`` names the section."""
     try:
-        model = BuildingModel.model_validate(data)
+        model = model_type.model_validate(data)
     except ValidationError as exc:
         return [
             _problem(

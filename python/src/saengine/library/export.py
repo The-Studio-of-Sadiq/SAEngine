@@ -22,9 +22,11 @@ from pydantic import BaseModel
 from saengine.library.bim import BuildingModel
 from saengine.library.defaults import (
     default_building_model,
+    default_floor_plan,
     default_material_library,
     default_object_library,
 )
+from saengine.library.floorplan import FloorPlan
 from saengine.library.materials import MaterialLibrary
 from saengine.library.objects import ObjectLibrary
 from saengine.library.templates import TEMPLATES
@@ -98,6 +100,8 @@ def generate_typescript() -> str:
         ("OBJECTS_SCHEMA", "IJSONSchema", json_schema(ObjectLibrary, "SAEngine object types")),
         ("DEFAULT_MATERIALS", "object", library_json(default_material_library())),
         ("DEFAULT_OBJECTS", "object", library_json(default_object_library())),
+        ("FLOOR_PLAN_SCHEMA", "IJSONSchema", json_schema(FloorPlan, "SAEngine floor plan")),
+        ("DEFAULT_FLOOR_PLAN", "object", library_json(default_floor_plan())),
         ("BIM_SCHEMA", "IJSONSchema", json_schema(BuildingModel, "SAEngine building model")),
         ("DEFAULT_BIM", "object", library_json(default_building_model())),
         ("TEMPLATES", "{ readonly [defName: string]: object }", TEMPLATES),

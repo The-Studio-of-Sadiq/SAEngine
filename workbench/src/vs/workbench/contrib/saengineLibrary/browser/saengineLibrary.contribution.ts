@@ -21,6 +21,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { ISaengineProjectService, PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
 import { BuildingEditor } from './buildingEditor.js';
+import { GridsEditor } from './gridsEditor.js';
 import { JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditor } from './libraryEditor.js';
 import { LibraryEditorInput, LibraryEditorInputSerializer, LibraryKind } from './libraryEditorInput.js';
@@ -35,21 +36,36 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	[new SyncDescriptor(LibraryEditorInput)]
 );
 
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(GridsEditor, LibraryEditorInput.GRIDS_EDITOR_ID, localize('gridsEditor', "SAEngine Grids and Stories Editor")),
+	[new SyncDescriptor(LibraryEditorInput)]
+);
+
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(LibraryEditorInput.ID, LibraryEditorInputSerializer);
 
 /** Project files with a visual editor; each is the main file of the project part with that id. */
-const KINDS: readonly LibraryKind[] = ['materials', 'objects', 'bim'];
+const KINDS: readonly LibraryKind[] = ['materials', 'objects', 'floorPlan', 'bim'];
 
 const EDITOR_LABELS: { readonly [kind in LibraryKind]: string } = {
 	materials: localize('materialsEditorLabel', "Materials Editor"),
 	objects: localize('objectsEditorLabel', "Object Types Editor"),
+	floorPlan: localize('gridsEditorLabel', "Grids & Stories Editor"),
 	bim: localize('buildingEditorLabel', "Building Model Editor"),
+};
+
+const EDITOR_IDS: { readonly [kind in LibraryKind]: string } = {
+	materials: LibraryEditorInput.EDITOR_ID,
+	objects: LibraryEditorInput.EDITOR_ID,
+	floorPlan: LibraryEditorInput.GRIDS_EDITOR_ID,
+	bim: LibraryEditorInput.BUILDING_EDITOR_ID,
 };
 
 /**
  * Opens the project's `03 Materials/materials.json`, `04 Objects/objects.json` and
- * `06 BIM/bim.json` in their visual editors by default. Other files with the same names are not affected, and the JSON
- * stays reachable on purpose through "Reopen Editor With...".
+ * `06 BIM/bim.json` in their visual editors by default. `05 Floor Plan/floor-plan.json` opens in
+ * the plan view (Floor Plan editor) and offers its grids and stories form as an option. Other
+ * files with the same names are not affected, and the JSON stays reachable on purpose through
+ * "Reopen Editor With...".
  */
 class LibraryEditorResolverContribution extends Disposable implements IWorkbenchContribution {
 
@@ -70,10 +86,11 @@ class LibraryEditorResolverContribution extends Disposable implements IWorkbench
 			this._register(editorResolverService.registerEditor(
 				`**/${part.mainFile}`,
 				{
-					id: kind === 'bim' ? LibraryEditorInput.BUILDING_EDITOR_ID : LibraryEditorInput.EDITOR_ID,
+					id: EDITOR_IDS[kind],
 					label: EDITOR_LABELS[kind],
 					detail: localize('libraryEditorDetail', "SAEngine"),
-					priority: RegisteredEditorPriority.default,
+					// The floor plan opens in its plan view; the form is the alternative.
+					priority: kind === 'floorPlan' ? RegisteredEditorPriority.option : RegisteredEditorPriority.default,
 				},
 				{
 					singlePerResource: true,

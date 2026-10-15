@@ -8,7 +8,7 @@ import { localize } from '../../../../nls.js';
 import { gridsOf, IMemberShape, MemberGroup, storiesOf } from './floorPlanDrawing.js';
 
 /*
- * Edits the floor plan makes to the building model (`06 BIM/bim.json`): placing members on grid
+ * Edits to the floor plan (`05 Floor Plan/floor-plan.json`): placing members on grid
  * intersections and bays, and removing them. Each edit returns a new model, or why it cannot be
  * made, so every edit keeps the model valid.
  */
@@ -57,14 +57,14 @@ export interface IBay {
 	readonly corners: readonly CadPoint[];
 }
 
-export type EditResult = { readonly ok: true; readonly bim: Json; readonly id: string } | { readonly ok: false; readonly error: string };
+export type EditResult = { readonly ok: true; readonly layout: Json; readonly id: string } | { readonly ok: false; readonly error: string };
 
 function isObject(value: unknown): value is Json {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function members(bim: Json, group: MemberGroup): Json[] {
-	const list = bim[group];
+function members(layout: Json, group: MemberGroup): Json[] {
+	const list = layout[group];
 	return Array.isArray(list) ? list.filter(isObject) : [];
 }
 
@@ -77,8 +77,8 @@ function gridPoint(node: Pick<IGridNode, 'x' | 'y'>): Json {
 }
 
 /** The grid intersection within `tolerance` of `point`, if any (the nearest one). */
-export function snapToGrid(bim: unknown, point: CadPoint, tolerance: number): IGridNode | undefined {
-	const grids = gridsOf(bim);
+export function snapToGrid(layout: unknown, point: CadPoint, tolerance: number): IGridNode | undefined {
+	const grids = gridsOf(layout);
 	let best: IGridNode | undefined;
 	let bestDistance = tolerance;
 	for (const [x, px] of grids.x) {
@@ -94,8 +94,8 @@ export function snapToGrid(bim: unknown, point: CadPoint, tolerance: number): IG
 }
 
 /** The bay `point` lies in, if it is inside the grid. */
-export function bayAt(bim: unknown, point: CadPoint): IBay | undefined {
-	const grids = gridsOf(bim);
+export function bayAt(layout: unknown, point: CadPoint): IBay | undefined {
+	const grids = gridsOf(layout);
 	const span = (lines: ReadonlyMap<string, number>, value: number): [[string, number], [string, number]] | undefined => {
 		const sorted = [...lines].sort((a, b) => a[1] - b[1]);
 		for (let i = 1; i < sorted.length; i++) {
@@ -151,8 +151,8 @@ export function pickMember(shapes: readonly IMemberShape[], point: CadPoint, tol
 	return hits[0];
 }
 
-function nextId(bim: Json, group: MemberGroup): string {
-	const used = new Set(PICK_ORDER.flatMap(g => members(bim, g).map(m => m.id)));
+function nextId(layout: Json, group: MemberGroup): string {
+	const used = new Set(PICK_ORDER.flatMap(g => members(layout, g).map(m => m.id)));
 	let n = 1;
 	while (used.has(`${ID_PREFIX[group]}${n}`)) {
 		n++;
@@ -160,18 +160,18 @@ function nextId(bim: Json, group: MemberGroup): string {
 	return `${ID_PREFIX[group]}${n}`;
 }
 
-function append(bim: unknown, group: MemberGroup, member: Json): EditResult {
-	const next = JSON.parse(JSON.stringify(bim)) as Json;
+function append(layout: unknown, group: MemberGroup, member: Json): EditResult {
+	const next = JSON.parse(JSON.stringify(layout)) as Json;
 	const id = nextId(next, group);
 	next[group] = [...members(next, group), { id, ...member }];
-	return { ok: true, bim: next, id };
+	return { ok: true, layout: next, id };
 }
 
 const label = (node: Pick<IGridNode, 'x' | 'y'>) => `${node.x}-${node.y}`;
 
 /** A column at `node`, from the story below `story` up to it. */
-export function placeColumn(bim: unknown, type: string, story: string, node: IGridNode): EditResult {
-	const stories = storiesOf(bim);
+export function placeColumn(layout: unknown, type: string, story: string, node: IGridNode): EditResult {
+	const stories = storiesOf(layout);
 	const index = stories.findIndex(s => s.id === story);
 	if (index < 1) {
 		return { ok: false, error: localize('place.columnBase', "Columns rise to a story from the one below; choose a story above {0}.", stories[0]?.name ?? '') };
@@ -179,64 +179,64 @@ export function placeColumn(bim: unknown, type: string, story: string, node: IGr
 	const base = stories[index - 1].id;
 	const elevation = new Map(stories.map(s => [s.id, s.elevation]));
 	const level = stories[index].elevation;
-	const clash = members(bim as Json, 'columns').some(c => sameNode(c.at, node)
+	const clash = members(layout as Json, 'columns').some(c => sameNode(c.at, node)
 		&& (elevation.get(c.base as string) ?? Infinity) < level && level <= (elevation.get(c.top as string) ?? -Infinity));
 	if (clash) {
 		return { ok: false, error: localize('place.columnExists', "There is already a column at {0} on this story.", label(node)) };
 	}
-	return append(bim, 'columns', { type, at: gridPoint(node), base, top: story, rotation: 0 });
+	return append(layout, 'columns', { type, at: gridPoint(node), base, top: story, rotation: 0 });
 }
 
 /** A beam on `story`, or a wall from the story below up to it, between two intersections. */
-export function placeLinear(bim: unknown, tool: 'beam' | 'wall', type: string, story: string, start: IGridNode, end: IGridNode): EditResult {
+export function placeLinear(layout: unknown, tool: 'beam' | 'wall', type: string, story: string, start: IGridNode, end: IGridNode): EditResult {
 	if (start.x === end.x && start.y === end.y) {
 		return { ok: false, error: localize('place.samePoint', "Choose a different end point.") };
 	}
 	const group = TOOL_GROUP[tool];
 	const ends = (m: Json) => (sameNode(m.start, start) && sameNode(m.end, end)) || (sameNode(m.start, end) && sameNode(m.end, start));
 	if (tool === 'beam') {
-		if (members(bim as Json, group).some(b => b.story === story && ends(b))) {
+		if (members(layout as Json, group).some(b => b.story === story && ends(b))) {
 			return { ok: false, error: localize('place.beamExists', "There is already a beam from {0} to {1} on this story.", label(start), label(end)) };
 		}
-		return append(bim, group, { type, story, start: gridPoint(start), end: gridPoint(end) });
+		return append(layout, group, { type, story, start: gridPoint(start), end: gridPoint(end) });
 	}
-	const stories = storiesOf(bim);
+	const stories = storiesOf(layout);
 	const index = stories.findIndex(s => s.id === story);
 	if (index < 1) {
 		return { ok: false, error: localize('place.wallBase', "Walls rise to a story from the one below; choose a story above {0}.", stories[0]?.name ?? '') };
 	}
 	const elevation = new Map(stories.map(s => [s.id, s.elevation]));
 	const level = stories[index].elevation;
-	const clash = members(bim as Json, group).some(w => ends(w)
+	const clash = members(layout as Json, group).some(w => ends(w)
 		&& (elevation.get(w.base as string) ?? Infinity) < level && level <= (elevation.get(w.top as string) ?? -Infinity));
 	if (clash) {
 		return { ok: false, error: localize('place.wallExists', "There is already a wall from {0} to {1} on this story.", label(start), label(end)) };
 	}
-	return append(bim, group, { type, base: stories[index - 1].id, top: story, start: gridPoint(start), end: gridPoint(end) });
+	return append(layout, group, { type, base: stories[index - 1].id, top: story, start: gridPoint(start), end: gridPoint(end) });
 }
 
 /** A slab filling `bay` on `story`. */
-export function placeSlab(bim: unknown, type: string, story: string, bay: IBay): EditResult {
+export function placeSlab(layout: unknown, type: string, story: string, bay: IBay): EditResult {
 	const corners = [{ x: bay.x[0], y: bay.y[0] }, { x: bay.x[1], y: bay.y[0] }, { x: bay.x[1], y: bay.y[1] }, { x: bay.x[0], y: bay.y[1] }];
 	const key = (points: readonly unknown[]) => points.filter(isObject).map(p => `${p.x}-${p.y}`).sort().join(' ');
 	const own = key(corners);
-	if (members(bim as Json, 'slabs').some(s => s.story === story && Array.isArray(s.boundary) && key(s.boundary) === own)) {
+	if (members(layout as Json, 'slabs').some(s => s.story === story && Array.isArray(s.boundary) && key(s.boundary) === own)) {
 		return { ok: false, error: localize('place.slabExists', "There is already a slab in this bay on this story.") };
 	}
-	return append(bim, 'slabs', { type, story, boundary: corners.map(gridPoint) });
+	return append(layout, 'slabs', { type, story, boundary: corners.map(gridPoint) });
 }
 
 /** A footing (or pile cap) at `node`, its top at `story`. */
-export function placeFooting(bim: unknown, type: string, story: string, node: IGridNode): EditResult {
-	if (members(bim as Json, 'footings').some(f => f.story === story && sameNode(f.at, node))) {
+export function placeFooting(layout: unknown, type: string, story: string, node: IGridNode): EditResult {
+	if (members(layout as Json, 'footings').some(f => f.story === story && sameNode(f.at, node))) {
 		return { ok: false, error: localize('place.footingExists', "There is already a footing at {0} on this story.", label(node)) };
 	}
-	return append(bim, 'footings', { type, story, at: gridPoint(node), rotation: 0 });
+	return append(layout, 'footings', { type, story, at: gridPoint(node), rotation: 0 });
 }
 
 /** The model without member `id` of `group`. */
-export function removeMember(bim: unknown, group: MemberGroup, id: string): Json {
-	const next = JSON.parse(JSON.stringify(bim)) as Json;
+export function removeMember(layout: unknown, group: MemberGroup, id: string): Json {
+	const next = JSON.parse(JSON.stringify(layout)) as Json;
 	next[group] = members(next, group).filter(m => m.id !== id);
 	return next;
 }

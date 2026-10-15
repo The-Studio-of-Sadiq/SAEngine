@@ -100,10 +100,10 @@ class CadEditorResolverContribution extends Disposable implements IWorkbenchCont
 
 registerWorkbenchContribution2(CadEditorResolverContribution.ID, CadEditorResolverContribution, WorkbenchPhase.BlockStartup);
 
-/** Ctrl+Z / Ctrl+Y in the floor plan undo and redo its edits to the building model. */
+/** Ctrl+Z / Ctrl+Y in the floor plan undo and redo its edits to the file. */
 function undoRedo(accessor: ServicesAccessor, redo: boolean): boolean | Promise<void> {
 	const pane = accessor.get(IEditorService).activeEditorPane;
-	const resource = pane instanceof FloorPlanEditor ? pane.bimResource : undefined;
+	const resource = pane instanceof FloorPlanEditor ? pane.resource : undefined;
 	if (!resource || isEditableElement(getActiveElement() as HTMLElement)) {
 		return false;
 	}

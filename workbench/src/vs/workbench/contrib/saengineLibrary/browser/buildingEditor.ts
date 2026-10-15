@@ -4,84 +4,49 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, append, clearNode } from '../../../../base/browser/dom.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { dirname, joinPath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { BIM_SCHEMA, DEFAULT_BIM, TEMPLATES } from '../../../services/saengineProject/common/projectLibraries.generated.js';
-import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
-import { clone, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
+import { ISaengineProjectService, PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
+import { IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditorInput } from './libraryEditorInput.js';
-import { JsonObject, JsonValue, SchemaForm } from './schemaForm.js';
+import { JsonObject, JsonValue } from './schemaForm.js';
 
-const BIM_SCHEMA_ID = 'saengine.bim/1';
+const BIM_SCHEMA_ID = 'saengine.bim/2';
+const FLOOR_PLAN_SCHEMA_ID = 'saengine.floorPlan/1';
 
-/** Member lists of the building model; they are placed in the floor plan (Part 5), not here. */
-const MEMBER_LISTS = ['columns', 'beams', 'walls', 'slabs', 'footings'];
+/** Desktop command generating the building model with the Python models (see `saengine.library.bim`). */
+const GENERATE_COMMAND = 'saengine.bim.generate';
 
-/** Default spacing for the first added grid line or story, before there is one to repeat [mm]. */
-const DEFAULT_SPACING = { x: 6000, y: 5000, story: 3200 };
-
-export interface IGridLine { readonly label: string; readonly position: number }
-export interface IStory { readonly id: string; readonly name: string; readonly elevation: number }
-
-/** "A" -> "B", "Z" -> "AA", "AZ" -> "BA" (spreadsheet-style column letters). */
-export function nextLetters(label: string): string {
-	const chars = label.toUpperCase().split('');
-	for (let i = chars.length - 1; i >= 0; i--) {
-		if (chars[i] !== 'Z') {
-			chars[i] = String.fromCharCode(chars[i].charCodeAt(0) + 1);
-			return chars.join('');
-		}
-		chars[i] = 'A';
-	}
-	return 'A' + chars.join('');
+interface IGeneratedBuilding {
+	readonly text?: string;
+	readonly problems?: readonly string[];
 }
 
-function nextLabel(label: string): string {
-	return /^\d+$/.test(label) ? String(Number(label) + 1) : /^[A-Za-z]+$/.test(label) ? nextLetters(label) : `${label}1`;
-}
+const ELEMENT_KINDS: readonly { readonly kind: string; readonly label: string }[] = [
+	{ kind: 'column', label: localize('element.columns', "Columns") },
+	{ kind: 'beam', label: localize('element.beams', "Beams") },
+	{ kind: 'wall', label: localize('element.walls', "Walls") },
+	{ kind: 'slab', label: localize('element.slabs', "Slabs") },
+	{ kind: 'footing', label: localize('element.footings', "Footings") },
+];
 
 /**
- * The grid line after `lines`: the next label (letters for X, numbers for Y, skipping labels
- * in `used`) at the last spacing.
- */
-export function nextGridLine(lines: readonly IGridLine[], axis: 'x' | 'y', used: ReadonlySet<string>): IGridLine {
-	const last = lines[lines.length - 1];
-	let label = last ? nextLabel(last.label) : (axis === 'x' ? 'A' : '1');
-	while (used.has(label)) {
-		label = nextLabel(label);
-	}
-	const spacing = lines.length >= 2 ? last.position - lines[lines.length - 2].position : DEFAULT_SPACING[axis];
-	return { label, position: last ? last.position + spacing : 0 };
-}
-
-/** The story above `stories`, at the last story height. */
-export function nextStory(stories: readonly IStory[], name: (n: number) => string): IStory {
-	const last = stories[stories.length - 1];
-	const ids = new Set(stories.map(s => s.id));
-	let n = stories.length;
-	while (ids.has(`L${n}`)) {
-		n++;
-	}
-	const height = stories.length >= 2 ? last.elevation - stories[stories.length - 2].elevation : DEFAULT_SPACING.story;
-	return { id: `L${n}`, name: name(n), elevation: last ? last.elevation + height : 0 };
-}
-
-function formatMm(value: number): string {
-	return `${Number(value.toFixed(3))}`;
-}
-
-/**
- * Editor for the building model's grids and stories (`06 BIM/bim.json`). Members are placed on
- * them in the floor plan; this form only shows them as counts.
+ * The building model (`06 BIM/bim.json`), generated from the floor plan. The floor plan owns the
+ * layout; this editor shows what was built from it, says when the floor plan has changed since,
+ * and rebuilds on request. Elements that belong to the building model itself (no floor-plan
+ * source) are kept when it is rebuilt.
  */
 export class BuildingEditor extends JsonDocumentEditor {
 
@@ -89,36 +54,19 @@ export class BuildingEditor extends JsonDocumentEditor {
 
 	private container!: HTMLElement;
 	private problemBox: HTMLElement | undefined;
-	private summary: HTMLElement | undefined;
-	private readonly form: SchemaForm;
 
 	constructor(
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ICommandService commandService: ICommandService,
-		@IEditorService editorService: IEditorService,
+		@ICommandService private readonly commands: ICommandService,
+		@IEditorService private readonly editors: IEditorService,
 		@ITextModelService textModelService: ITextModelService,
 		@ISaengineProjectService projectService: ISaengineProjectService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
-		super(BuildingEditor.ID, group, telemetryService, themeService, storageService, commandService, editorService, textModelService, projectService);
-		this.form = instantiationService.createInstance(SchemaForm, {
-			root: BIM_SCHEMA,
-			template: defName => clone((TEMPLATES[defName] ?? {}) as JsonObject),
-			references: () => undefined,
-			validate: (path, value) => this.validate(path, value),
-			changed: (_path, structural) => {
-				this.changed(structural);
-				if (!structural) {
-					this.renderSummary();
-				}
-			},
-			mode: () => undefined,
-			newItem: (path, list) => this.newItem(path, list),
-		});
-		this._register({ dispose: () => this.form.dispose() });
+		super(BuildingEditor.ID, group, telemetryService, themeService, storageService, commands, editors, textModelService, projectService);
 	}
 
 	protected createBody(body: HTMLElement): void {
@@ -129,60 +77,56 @@ export class BuildingEditor extends JsonDocumentEditor {
 		if (value.schema === BIM_SCHEMA_ID) {
 			return undefined;
 		}
-		if (value.part === 'bim') {
-			// The placeholder written for projects created before the building model existed.
+		const build = { label: localize('building.build', "Build from Floor Plan"), run: () => this.build() };
+		if (value.schema === 'saengine.bim/1') {
 			return {
-				message: localize('building.empty', "This project has no building model yet."),
-				fix: { label: localize('building.create', "Create Building Model"), run: () => this.replaceDocument(clone(DEFAULT_BIM as JsonObject)) },
+				message: localize('building.legacy', "This building model still holds the layout, which the Floor Plan owns now. Open the Floor Plan and create it (it takes the layout over from this file), then build the building model from it."),
+				fix: build,
 			};
+		}
+		if (value.part === 'bim') {
+			return { message: localize('building.empty', "The building model has not been built from the Floor Plan yet."), fix: build };
 		}
 		return { message: localize('building.unexpected', "This file is not a SAEngine building model ({0}).", BIM_SCHEMA_ID) };
 	}
 
-	// ───────────────────────────── grid lines and stories ─────────────────────────────
-
-	private get grids(): { x: IGridLine[]; y: IGridLine[] } {
-		const grids = isObject(this.document?.grids) ? this.document.grids : {};
-		const lines = (value: JsonValue | undefined) => (Array.isArray(value) ? value.filter(isObject) : []) as unknown as IGridLine[];
-		return { x: lines(grids.x), y: lines(grids.y) };
+	protected override updateFromUpstream(): void {
+		void this.build();
 	}
 
-	private get stories(): IStory[] {
-		const stories = this.document?.stories;
-		return (Array.isArray(stories) ? stories.filter(isObject) : []) as unknown as IStory[];
+	/** Generates the model from the current floor plan, keeping the model's own elements. */
+	private async build(): Promise<void> {
+		const floorPlan = this.upstreamText;
+		let parsed: JsonValue | undefined;
+		try {
+			parsed = floorPlan ? JSON.parse(floorPlan) : undefined;
+		} catch {
+			parsed = undefined;
+		}
+		if (!floorPlan || !isObject(parsed) || parsed.schema !== FLOOR_PLAN_SCHEMA_ID) {
+			this.notificationService.warn(localize('building.noFloorPlan', "The Floor Plan has no layout yet. Open it and create it first."));
+			return;
+		}
+		let result: IGeneratedBuilding | undefined;
+		try {
+			result = await this.commands.executeCommand<IGeneratedBuilding>(GENERATE_COMMAND, floorPlan, this.document ? JSON.stringify(this.document) : undefined);
+		} catch (error) {
+			this.notificationService.error(localize('building.generateFailed', "The building model could not be built: {0}", String(error)));
+			return;
+		}
+		if (result?.text) {
+			this.replaceDocument(JSON.parse(result.text));
+		} else {
+			this.notificationService.warn(localize('building.problems', "Fix the Floor Plan first: {0}", (result?.problems ?? []).join('; ')));
+		}
 	}
 
-	/** The next grid line or story, continuing the sequence and spacing of the last two. */
-	private newItem(path: string, list: readonly JsonValue[]): JsonObject | undefined {
-		if (path === 'grids.x' || path === 'grids.y') {
-			const used = new Set([...this.grids.x, ...this.grids.y].map(g => g.label));
-			const line = nextGridLine(list.filter(isObject) as unknown as IGridLine[], path === 'grids.x' ? 'x' : 'y', used);
-			return { ...line };
+	private openFloorPlan(): void {
+		const resource = this.resource;
+		const part = PROJECT_PARTS.find(p => p.id === 'floorPlan')!;
+		if (resource) {
+			void this.editors.openEditor({ resource: joinPath(dirname(dirname(resource)), part.folder, part.mainFile!) });
 		}
-		if (path === 'stories') {
-			const story = nextStory(list.filter(isObject) as unknown as IStory[], n => localize('building.levelName', "Level {0}", n));
-			return { ...story };
-		}
-		return undefined;
-	}
-
-	/** Unique grid labels (across both axes) and story ids, checked as they are typed. */
-	private validate(path: string, value: string): string | undefined {
-		const grid = /^grids\.(x|y)\.(\d+)\.label$/.exec(path);
-		if (grid) {
-			const own = this.grids[grid[1] as 'x' | 'y'][Number(grid[2])];
-			if ([...this.grids.x, ...this.grids.y].some(g => g !== own && g.label === value)) {
-				return localize('building.duplicateLabel', "Grid line {0} already exists.", value);
-			}
-		}
-		const story = /^stories\.(\d+)\.id$/.exec(path);
-		if (story) {
-			const own = this.stories[Number(story[1])];
-			if (this.stories.some(s => s !== own && s.id === value)) {
-				return localize('building.duplicateStory', "Another story already uses the ID {0}.", value);
-			}
-		}
-		return undefined;
 	}
 
 	// ───────────────────────────── rendering ─────────────────────────────
@@ -191,17 +135,56 @@ export class BuildingEditor extends JsonDocumentEditor {
 		this.viewDisposables.clear();
 		clearNode(this.container);
 		this.problemBox = undefined;
-		this.summary = undefined;
+		append(this.container, $('h2', undefined, localize('building.title', "Building Model")));
+		append(this.container, $('p.building-intro', undefined, localize('building.intro', "Built from the Floor Plan, which owns the grids, stories and members. Update it when the Floor Plan changes; elements added to the building model itself are kept. The 3D view and IFC export come with Part 6.")));
+
+		const actions = append(this.container, $('.building-actions'));
+		const open = this.viewDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		open.label = `$(${Codicon.symbolArray.id}) ${localize('building.openFloorPlan', "Open Floor Plan")}`;
+		this.viewDisposables.add(open.onDidClick(() => this.openFloorPlan()));
 		if (!this.document) {
 			return;
 		}
-		append(this.container, $('h2', undefined, localize('building.title', "Building Model")));
-		append(this.container, $('p.building-intro', undefined, localize('building.intro', "Grid lines and stories of the building. Columns, beams, walls, slabs and footings are placed on them in the floor plan; analysis models are generated from them.")));
+		const rebuild = this.viewDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		rebuild.label = `$(${Codicon.refresh.id}) ${localize('building.rebuild', "Rebuild from Floor Plan")}`;
+		this.viewDisposables.add(rebuild.onDidClick(() => this.build()));
+
 		this.problemBox = append(this.container, $('.library-problems'));
 		this.renderProblems();
-		this.summary = append(this.container, $('.building-summary'));
-		this.renderSummary();
-		this.form.render(append(this.container, $('.library-form')), BIM_SCHEMA, this.document, MEMBER_LISTS);
+
+		const stories = (Array.isArray(this.document.stories) ? this.document.stories.filter(isObject) : [])
+			.sort((a, b) => Number(a.elevation) - Number(b.elevation));
+		const elements = Array.isArray(this.document.elements) ? this.document.elements.filter(isObject) : [];
+
+		append(this.container, $('h3', undefined, localize('building.stories', "Stories")));
+		const storyTable = append(this.container, $('.building-table'));
+		for (const header of [localize('building.story', "Story"), localize('building.storyId', "ID"), localize('building.elevation', "Elevation (mm)"), localize('building.height', "Height (mm)")]) {
+			append(storyTable, $('span.header', undefined, header));
+		}
+		stories.forEach((story, i) => {
+			const above = stories[i + 1];
+			append(storyTable, $('span', undefined, String(story.name ?? story.id)));
+			append(storyTable, $('span', undefined, String(story.id)));
+			append(storyTable, $('span.number', undefined, String(story.elevation)));
+			append(storyTable, $('span.number', undefined, above ? String(Number(above.elevation) - Number(story.elevation)) : '—'));
+		});
+		if (!stories.length) {
+			append(this.container, $('p.building-intro', undefined, localize('building.noStories', "No stories yet.")));
+		}
+
+		append(this.container, $('h3', undefined, localize('building.elements', "Elements")));
+		const elementTable = append(this.container, $('.building-table'));
+		for (const header of [localize('building.kind', "Kind"), localize('building.fromFloorPlan', "From Floor Plan"), localize('building.own', "Own"), localize('building.total', "Total")]) {
+			append(elementTable, $('span.header', undefined, header));
+		}
+		for (const { kind, label } of ELEMENT_KINDS) {
+			const ofKind = elements.filter(e => e.kind === kind);
+			const generated = ofKind.filter(e => typeof e.source === 'string').length;
+			append(elementTable, $('span', undefined, label));
+			append(elementTable, $('span.number', undefined, String(generated)));
+			append(elementTable, $('span.number', undefined, String(ofKind.length - generated)));
+			append(elementTable, $('span.number', undefined, String(ofKind.length)));
+		}
 	}
 
 	protected renderProblems(): void {
@@ -216,34 +199,5 @@ export class BuildingEditor extends JsonDocumentEditor {
 			append(row, $(`span${ThemeIcon.asCSSSelector(Codicon.warning)}`));
 			append(row, $('span', undefined, problem.message));
 		}
-	}
-
-	/** Spacings and story heights, derived from positions and elevations. */
-	private renderSummary(): void {
-		const box = this.summary;
-		if (!box) {
-			return;
-		}
-		clearNode(box);
-		const spacings = (lines: IGridLine[]) => {
-			const sorted = [...lines].sort((a, b) => a.position - b.position);
-			return sorted.slice(1).map((line, i) => `${sorted[i].label}–${line.label} ${formatMm(line.position - sorted[i].position)}`).join(', ') || '—';
-		};
-		const stories = [...this.stories].sort((a, b) => a.elevation - b.elevation);
-		const heights = stories.slice(1).map((story, i) => `${stories[i].name} → ${story.name} ${formatMm(story.elevation - stories[i].elevation)}`).join(', ') || '—';
-		const members = MEMBER_LISTS.map(key => {
-			const list = this.document?.[key];
-			return Array.isArray(list) ? list.length : 0;
-		}).reduce((a, b) => a + b, 0);
-
-		const item = (label: string, value: string) => {
-			const entry = append(box, $('div'));
-			append(entry, $('span.summary-label', undefined, label));
-			append(entry, $('span', undefined, value));
-		};
-		item(localize('building.xSpacing', "X spacing (mm)"), spacings(this.grids.x));
-		item(localize('building.ySpacing', "Y spacing (mm)"), spacings(this.grids.y));
-		item(localize('building.storyHeights', "Story heights (mm)"), heights);
-		item(localize('building.members', "Placed members"), String(members));
 	}
 }

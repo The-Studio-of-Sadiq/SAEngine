@@ -13,7 +13,7 @@ import { killTree } from '../../../base/node/processes.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemRunEventMessage, ILibraryProblem, IFemRunExit, IFemRunRequest, IFemSolverService } from '../common/femSolver.js';
+import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemRunEventMessage, IGeneratedBuilding, ILibraryProblem, LibraryFileKind, IFemRunExit, IFemRunRequest, IFemSolverService } from '../common/femSolver.js';
 
 interface IRun {
 	readonly child: cp.ChildProcess;
@@ -124,9 +124,13 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 		return result.cases;
 	}
 
-	async checkLibrary(python: string, kind: 'materials' | 'objects' | 'bim', text: string, companionText?: string): Promise<readonly ILibraryProblem[]> {
+	async checkLibrary(python: string, kind: LibraryFileKind, text: string, companionText?: string): Promise<readonly ILibraryProblem[]> {
 		const result = await this.request<{ problems: ILibraryProblem[] }>(python, 'library/check', { kind, text, materialsText: companionText });
 		return result.problems;
+	}
+
+	generateBuilding(python: string, floorPlanText: string, bimText: string | undefined): Promise<IGeneratedBuilding> {
+		return this.request(python, 'bim/generate', { floorPlanText, bimText });
 	}
 
 	private async request<T>(python: string, method: string, params: object): Promise<T> {

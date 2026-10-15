@@ -13,7 +13,7 @@ suite('SAEngine - Floor plan edits', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const empty = {
-		schema: 'saengine.bim/1',
+		schema: 'saengine.floorPlan/1',
 		grids: { x: [{ label: 'A', position: 0 }, { label: 'B', position: 6000 }, { label: 'C', position: 12000 }], y: [{ label: '1', position: 0 }, { label: '2', position: 5000 }] },
 		stories: [{ id: 'BASE', name: 'Base', elevation: 0 }, { id: 'L1', name: 'Level 1', elevation: 3200 }, { id: 'L2', name: 'Level 2', elevation: 6400 }],
 		columns: [], beams: [], walls: [], slabs: [], footings: [],
@@ -23,7 +23,7 @@ suite('SAEngine - Floor plan edits', () => {
 	const outcome = (result: EditResult) => result.ok ? result.id : result.error;
 	const model = (result: EditResult) => {
 		assert.ok(result.ok, result.ok ? '' : result.error);
-		return result.bim;
+		return result.layout;
 	};
 
 	test('snapping finds the nearest intersection within the tolerance and bays the lines around a point', () => {
@@ -89,19 +89,19 @@ suite('SAEngine - Floor plan edits', () => {
 				{ id: 'S150', kind: 'slab', thickness: 150 },
 			],
 		};
-		let bim = model(placeColumn(empty, 'C400', 'L1', A1));
-		bim = model(placeLinear(bim, 'beam', 'B300', 'L1', A1, B1));
-		bim = model(placeSlab(bim, 'S150', 'L1', bayAt(empty, [100, 100])!));
-		const plan = floorPlanDrawing(bim, objects, 'L1');
+		let layout = model(placeColumn(empty, 'C400', 'L1', A1));
+		layout = model(placeLinear(layout, 'beam', 'B300', 'L1', A1, B1));
+		layout = model(placeSlab(layout, 'S150', 'L1', bayAt(empty, [100, 100])!));
+		const plan = floorPlanDrawing(layout, objects, 'L1');
 		const pick = (x: number, y: number) => pickMember(plan.members, [x, y], 50)?.id;
 		assert.deepStrictEqual({
 			picks: [pick(0, 0), pick(3000, 100), pick(3000, 2500), pick(-5000, -5000)],
-			afterDelete: removeMember(bim, 'beams', 'B1').beams,
-			columnsKept: removeMember(bim, 'beams', 'B1').columns,
+			afterDelete: removeMember(layout, 'beams', 'B1').beams,
+			columnsKept: removeMember(layout, 'beams', 'B1').columns,
 		}, {
 			picks: ['C1', 'B1', 'S1', undefined],
 			afterDelete: [],
-			columnsKept: bim.columns,
+			columnsKept: layout.columns,
 		});
 	});
 });

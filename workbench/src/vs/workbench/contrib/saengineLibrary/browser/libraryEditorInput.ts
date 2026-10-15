@@ -16,14 +16,15 @@ import { EditorInputCapabilities, GroupIdentifier, IEditorDescriptor, IEditorPan
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 
-export type LibraryKind = 'materials' | 'objects' | 'bim';
+export type LibraryKind = 'materials' | 'objects' | 'floorPlan' | 'bim';
 
 const materialsIcon = registerIcon('saengine-materials-editor-icon', Codicon.symbolColor, localize('materialsEditorIcon', "Icon of the materials editor."));
 const objectsIcon = registerIcon('saengine-objects-editor-icon', Codicon.symbolStructure, localize('objectsEditorIcon', "Icon of the object types editor."));
+const gridsIcon = registerIcon('saengine-grids-editor-icon', Codicon.table, localize('gridsEditorIcon', "Icon of the grids and stories editor."));
 const buildingIcon = registerIcon('saengine-building-editor-icon', Codicon.layers, localize('buildingEditorIcon', "Icon of the building model editor."));
 
 /**
- * A SAEngine project file (`materials.json`, `objects.json`, `bim.json`) opened in its visual editor.
+ * A SAEngine project file (`materials.json`, `objects.json`, `floor-plan.json`, `bim.json`) opened in its visual editor.
  * The JSON text model stays the document: dirty state, save, revert, backups and undo come
  * from the text file service, exactly as for a text editor on the same file.
  */
@@ -32,6 +33,7 @@ export class LibraryEditorInput extends EditorInput {
 	static readonly ID = 'workbench.input.saengine.library';
 	static readonly EDITOR_ID = 'workbench.editor.saengine.library';
 	static readonly BUILDING_EDITOR_ID = 'workbench.editor.saengine.building';
+	static readonly GRIDS_EDITOR_ID = 'workbench.editor.saengine.grids';
 
 	private modelReference: Promise<IReference<IResolvedTextEditorModel>> | undefined;
 
@@ -54,7 +56,11 @@ export class LibraryEditorInput extends EditorInput {
 	}
 
 	override get editorId(): string {
-		return this.kind === 'bim' ? LibraryEditorInput.BUILDING_EDITOR_ID : LibraryEditorInput.EDITOR_ID;
+		switch (this.kind) {
+			case 'bim': return LibraryEditorInput.BUILDING_EDITOR_ID;
+			case 'floorPlan': return LibraryEditorInput.GRIDS_EDITOR_ID;
+			default: return LibraryEditorInput.EDITOR_ID;
+		}
 	}
 
 	override get capabilities(): EditorInputCapabilities {
@@ -65,12 +71,18 @@ export class LibraryEditorInput extends EditorInput {
 		switch (this.kind) {
 			case 'materials': return localize('materialsEditor', "Materials");
 			case 'objects': return localize('objectsEditor', "Object Types");
+			case 'floorPlan': return localize('gridsEditor', "Grids & Stories");
 			case 'bim': return localize('buildingEditor', "Building Model");
 		}
 	}
 
 	override getIcon(): ThemeIcon {
-		return this.kind === 'materials' ? materialsIcon : this.kind === 'objects' ? objectsIcon : buildingIcon;
+		switch (this.kind) {
+			case 'materials': return materialsIcon;
+			case 'objects': return objectsIcon;
+			case 'floorPlan': return gridsIcon;
+			case 'bim': return buildingIcon;
+		}
 	}
 
 	/** The shared text model of the file; released when the input is disposed. */
@@ -95,7 +107,7 @@ export class LibraryEditorInput extends EditorInput {
 		await this.textFileService.revert(this.resource, options);
 	}
 
-	/** Two panes are registered for this input (library and building editor); pick by kind. */
+	/** Several panes are registered for this input (library, grids and building editor); pick by kind. */
 	override prefersEditorPane<T extends IEditorDescriptor<IEditorPane>>(editorPanes: T[]): T | undefined {
 		return editorPanes.find(pane => pane.typeId === this.editorId) ?? editorPanes[0];
 	}

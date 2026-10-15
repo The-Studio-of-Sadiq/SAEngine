@@ -1,29 +1,42 @@
-"""The building model (``06 BIM/bim.json``): grids, stories and the members placed on them.
+"""The building model (``06 BIM/bim.json``): the 3D building, derived from the floor plan.
 
-It mirrors IFC: grid lines are ``IfcGridAxis``, stories are ``IfcBuildingStorey`` levels
-(an elevation; a story's height is the distance to the next one), and every member is an
-instance of an object type from ``04 Objects/objects.json``. Members are placed on the grid
-("column at A-1", "beam from A-1 to B-1") with optional offsets, so moving a grid line moves
-everything on it. Part 5 (floor plans) edits it, Part 6 shows it in 3D and exports IFC, and
-Part 8 derives the FEM model from it.
+Parts own their files: the floor plan (Part 5) owns the layout, and this model is *generated*
+from it (:func:`generate`), never edited into it. Every generated element keeps the id of the
+floor-plan member it comes from (``source``), with its position resolved to absolute
+coordinates, the way IFC places elements. Elements without a ``source`` belong to the building
+model itself (openings, stairs, sloped members, ... as Part 6 grows); regenerating keeps them.
 
-Units are fixed SI: positions, elevations and offsets in mm, rotations in degrees.
+``source`` at the top records the floor plan revision the model was built from (a stamp of its
+text), so the editor can tell when the floor plan has changed since and offer to update. The
+model is only regenerated when the engineer asks.
+
+Units are fixed SI: coordinates and elevations in mm, rotations in degrees.
 """
 
 from __future__ import annotations
 
+import hashlib
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from saengine.library.floorplan import FloorPlan, GridPoint, Story
 from saengine.library.labels import field_title
 from saengine.library.materials import Id
 from saengine.library.objects import ObjectLibrary
 
-SCHEMA_ID = "saengine.bim/1"
+SCHEMA_ID = "saengine.bim/2"
 
-Label = Annotated[str, Field(pattern=r"^[A-Za-z0-9.'-]+$", min_length=1, max_length=8)]
+Point2 = Annotated[list[float], Field(min_length=2, max_length=2, description="[x, y] in mm.")]
 Mm = Annotated[float, Field(description="[mm]")]
+
+
+def source_stamp(text: str) -> str:
+    """The stamp of an upstream file: SHA-1 of its text with line endings normalised.
+
+    The workbench computes the same stamp to tell whether the file changed since.
+    """
+    return hashlib.sha1(text.replace("\r\n", "\n").encode("utf-8")).hexdigest()
 
 
 class _Model(BaseModel):
@@ -32,167 +45,191 @@ class _Model(BaseModel):
     )
 
 
-class GridLine(_Model):
-    """One grid line (IfcGridAxis): X lines are vertical in plan, Y lines horizontal."""
+class SourceStamps(_Model):
+    """The upstream revisions the model was built from."""
 
-    label: Label
-    position: Mm = Field(description="Distance from the origin along the axis [mm].")
-
-
-class Grids(_Model):
-    x: list[GridLine] = Field(
-        default_factory=list,
-        title="X grid lines",
-        description="Lines at x = position, labelled A, B, C, ...",
-    )
-    y: list[GridLine] = Field(
-        default_factory=list,
-        title="Y grid lines",
-        description="Lines at y = position, labelled 1, 2, 3, ...",
-    )
-
-    @model_validator(mode="after")
-    def _distinct(self) -> Grids:
-        labels = [g.label for g in self.x + self.y]
-        duplicates = sorted({label for label in labels if labels.count(label) > 1})
-        if duplicates:
-            raise ValueError(
-                f"grid labels must be unique across both axes: {', '.join(duplicates)}"
-            )
-        for axis, lines in (("X", self.x), ("Y", self.y)):
-            positions = [g.position for g in lines]
-            if len(set(positions)) != len(positions):
-                raise ValueError(f"two {axis} grid lines are at the same position")
-        return self
+    floorPlan: str = Field(title="Floor plan", description="Stamp of floor-plan.json.")
 
 
-class Story(_Model):
-    """A building level (IfcBuildingStorey); its height is the distance to the next level up."""
-
-    id: Id
-    name: str = Field(min_length=1)
-    elevation: Mm = Field(description="Level of the top of the floor [mm].")
-
-
-class GridPoint(_Model):
-    """A grid intersection, optionally offset; follows the grid lines when they move."""
-
-    x: Label = Field(description="X grid line label, e.g. A.")
-    y: Label = Field(description="Y grid line label, e.g. 1.")
-    dx: Mm = Field(default=0, title="Offset X")
-    dy: Mm = Field(default=0, title="Offset Y")
-
-
-class _Placed(_Model):
+class _Element(_Model):
     id: Id
     type: Id = Field(title="Object type", description="Object type id from 04 Objects.")
-
-
-class PlacedColumn(_Placed):
-    at: GridPoint
-    base: Id = Field(description="Story the column starts at.")
-    top: Id = Field(description="Story the column ends at.")
-    rotation: float = Field(default=0, description="Rotation of the section about its axis [°].")
-
-
-class PlacedBeam(_Placed):
-    story: Id
-    start: GridPoint
-    end: GridPoint
-
-
-class PlacedWall(_Placed):
-    base: Id
-    top: Id
-    start: GridPoint
-    end: GridPoint
-
-
-class PlacedSlab(_Placed):
-    story: Id
-    boundary: list[GridPoint] = Field(
-        min_length=3, description="Corners, in order around the slab."
+    source: Id | None = Field(
+        default=None,
+        title="Floor plan member",
+        description="The floor-plan member this element is generated from; none for elements "
+        "that belong to the building model itself.",
     )
 
 
-class PlacedFooting(_Placed):
-    story: Id = Field(description="Story whose level is the top of the footing.")
-    at: GridPoint
+class ColumnElement(_Element):
+    kind: Literal["column"] = "column"
+    position: Point2
+    bottom: Mm = Field(description="Elevation of the bottom [mm].")
+    top: Mm = Field(description="Elevation of the top [mm].")
     rotation: float = Field(default=0, description="[°]")
 
 
-# Object kinds each member may use.
+class BeamElement(_Element):
+    """A beam with its top at ``elevation`` (the level of the story it supports)."""
+
+    kind: Literal["beam"] = "beam"
+    start: Point2
+    end: Point2
+    elevation: Mm = Field(description="Elevation of the top [mm].")
+
+
+class WallElement(_Element):
+    kind: Literal["wall"] = "wall"
+    start: Point2
+    end: Point2
+    bottom: Mm = Field(description="[mm]")
+    top: Mm = Field(description="[mm]")
+
+
+class SlabElement(_Element):
+    kind: Literal["slab"] = "slab"
+    boundary: list[Point2] = Field(min_length=3)
+    elevation: Mm = Field(description="Elevation of the top [mm].")
+
+
+class FootingElement(_Element):
+    """A footing or pile cap with its top at ``elevation``."""
+
+    kind: Literal["footing"] = "footing"
+    position: Point2
+    elevation: Mm = Field(description="Elevation of the top [mm].")
+    rotation: float = Field(default=0, description="[°]")
+
+
+Element = Annotated[
+    ColumnElement | BeamElement | WallElement | SlabElement | FootingElement,
+    Field(discriminator="kind"),
+]
+
+# Object kinds each element may use.
 _ALLOWED_KINDS = {
-    "columns": ("column",),
-    "beams": ("beam",),
-    "walls": ("wall",),
-    "slabs": ("slab",),
-    "footings": ("footing", "pileCap"),
+    "column": ("column",),
+    "beam": ("beam",),
+    "wall": ("wall",),
+    "slab": ("slab",),
+    "footing": ("footing", "pileCap"),
 }
 
 
 class BuildingModel(_Model):
-    schema_: Literal["saengine.bim/1"] = Field(default=SCHEMA_ID, alias="schema")
-    grids: Grids = Field(default_factory=Grids)
+    schema_: Literal["saengine.bim/2"] = Field(default=SCHEMA_ID, alias="schema")
+    source: SourceStamps | None = Field(
+        default=None, description="The floor plan revision the model was generated from."
+    )
     stories: list[Story] = Field(default_factory=list)
-    columns: list[PlacedColumn] = Field(default_factory=list)
-    beams: list[PlacedBeam] = Field(default_factory=list)
-    walls: list[PlacedWall] = Field(default_factory=list)
-    slabs: list[PlacedSlab] = Field(default_factory=list)
-    footings: list[PlacedFooting] = Field(default_factory=list)
-
-    def members(self) -> list[tuple[str, _Placed]]:
-        return [(group, m) for group in _ALLOWED_KINDS for m in getattr(self, group)]
+    elements: list[Element] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _references(self) -> BuildingModel:
-        story_ids = [s.id for s in self.stories]
-        if len(set(story_ids)) != len(story_ids):
-            raise ValueError("story ids must be unique")
-        if len({s.elevation for s in self.stories}) != len(self.stories):
-            raise ValueError("two stories are at the same elevation")
-        member_ids = [m.id for _, m in self.members()]
-        duplicates = sorted({i for i in member_ids if member_ids.count(i) > 1})
+        ids = [e.id for e in self.elements]
+        duplicates = sorted({i for i in ids if ids.count(i) > 1})
         if duplicates:
-            raise ValueError(f"duplicate member ids: {', '.join(duplicates)}")
-
-        x_labels = {g.label for g in self.grids.x}
-        y_labels = {g.label for g in self.grids.y}
-        elevation = {s.id: s.elevation for s in self.stories}
-
-        def point(member: _Placed, p: GridPoint) -> None:
-            if p.x not in x_labels:
-                raise ValueError(f"{member.id}: no X grid line '{p.x}'")
-            if p.y not in y_labels:
-                raise ValueError(f"{member.id}: no Y grid line '{p.y}'")
-
-        def story(member: _Placed, story_id: str) -> None:
-            if story_id not in elevation:
-                raise ValueError(f"{member.id}: no story '{story_id}'")
-
-        for _, member in self.members():
-            for field in ("story", "base", "top"):
-                if hasattr(member, field):
-                    story(member, getattr(member, field))
-            for field in ("at", "start", "end"):
-                if hasattr(member, field):
-                    point(member, getattr(member, field))
-            for corner in getattr(member, "boundary", []):
-                point(member, corner)
-            if hasattr(member, "base") and elevation[member.base] >= elevation[member.top]:
-                raise ValueError(f"{member.id}: its top story must be above its base story")
+            raise ValueError(f"duplicate element ids: {', '.join(duplicates)}")
+        if len({s.id for s in self.stories}) != len(self.stories):
+            raise ValueError("story ids must be unique")
+        for e in self.elements:
+            if e.kind in ("column", "wall") and e.bottom >= e.top:
+                raise ValueError(f"{e.id}: its top must be above its bottom")
         return self
 
     def check_objects(self, objects: ObjectLibrary) -> list[str]:
         """Problems with object-type references, which span files."""
         kinds = {o.id: o.kind for o in objects.objects}
         problems = []
-        for group, member in self.members():
-            kind = kinds.get(member.type)
+        for e in self.elements:
+            kind = kinds.get(e.type)
             if kind is None:
-                problems.append(f"{member.id}: unknown object type '{member.type}'")
-            elif kind not in _ALLOWED_KINDS[group]:
-                problems.append(
-                    f"{member.id}: object type '{member.type}' is a {kind}, not a {group[:-1]}"
-                )
+                problems.append(f"{e.id}: unknown object type '{e.type}'")
+            elif kind not in _ALLOWED_KINDS[e.kind]:
+                problems.append(f"{e.id}: object type '{e.type}' is a {kind}, not a {e.kind}")
         return problems
+
+
+def generate(plan: FloorPlan, stamp: str, previous: BuildingModel | None = None) -> BuildingModel:
+    """The building model of ``plan`` (whose text has stamp ``stamp``).
+
+    Elements generated earlier are replaced; elements that belong to the building model itself
+    (no ``source``) are kept from ``previous``.
+    """
+    x = {g.label: g.position for g in plan.grids.x}
+    y = {g.label: g.position for g in plan.grids.y}
+    level = {s.id: s.elevation for s in plan.stories}
+
+    def at(p: GridPoint) -> list[float]:
+        return [x[p.x] + p.dx, y[p.y] + p.dy]
+
+    elements: list[ColumnElement | BeamElement | WallElement | SlabElement | FootingElement] = []
+    for c in plan.columns:
+        elements.append(
+            ColumnElement(
+                id=c.id,
+                type=c.type,
+                source=c.id,
+                position=at(c.at),
+                bottom=level[c.base],
+                top=level[c.top],
+                rotation=c.rotation,
+            )
+        )
+    for b in plan.beams:
+        elements.append(
+            BeamElement(
+                id=b.id,
+                type=b.type,
+                source=b.id,
+                start=at(b.start),
+                end=at(b.end),
+                elevation=level[b.story],
+            )
+        )
+    for w in plan.walls:
+        elements.append(
+            WallElement(
+                id=w.id,
+                type=w.type,
+                source=w.id,
+                start=at(w.start),
+                end=at(w.end),
+                bottom=level[w.base],
+                top=level[w.top],
+            )
+        )
+    for s in plan.slabs:
+        elements.append(
+            SlabElement(
+                id=s.id,
+                type=s.type,
+                source=s.id,
+                boundary=[at(p) for p in s.boundary],
+                elevation=level[s.story],
+            )
+        )
+    for f in plan.footings:
+        elements.append(
+            FootingElement(
+                id=f.id,
+                type=f.type,
+                source=f.id,
+                position=at(f.at),
+                elevation=level[f.story],
+                rotation=f.rotation,
+            )
+        )
+    own = [e for e in (previous.elements if previous else []) if e.source is None]
+    taken = {e.id for e in elements}
+    clashes = [e.id for e in own if e.id in taken]
+    if clashes:
+        raise ValueError(
+            f"building-model elements use ids of floor-plan members: {', '.join(clashes)}"
+        )
+    return BuildingModel(
+        source=SourceStamps(floorPlan=stamp),
+        stories=[s.model_copy() for s in plan.stories],
+        elements=[*elements, *own],
+    )
