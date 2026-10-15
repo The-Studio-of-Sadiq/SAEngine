@@ -96,10 +96,14 @@ export interface IFemResultEntry {
 	/** `case:<id>` or `combination:<number>`. */
 	readonly key: string;
 	readonly label: string;
-	readonly kind: 'static' | 'combination' | 'modal' | 'spectrum' | 'history';
+	readonly kind: 'static' | 'combination' | 'modal' | 'spectrum' | 'history' | 'pushover';
 	readonly modes?: readonly { readonly number: number; readonly period: number | null }[];
-	/** A time history's frames (up to 200 of its steps), and the one where it moves most. */
-	readonly frames?: readonly { readonly number: number; readonly time: number }[];
+	/**
+	 * A time history's or a pushover's frames (up to 200 of its steps): the time, or the control
+	 * displacement and base shear (the capacity curve). `peak`: where it moves most (time
+	 * history) or carries the most (pushover).
+	 */
+	readonly frames?: readonly { readonly number: number; readonly time?: number; readonly displacement?: number; readonly shear?: number }[];
 	readonly peak?: number;
 }
 
@@ -115,7 +119,7 @@ export interface IFemResultList {
  */
 export interface IFemResultView {
 	readonly label: string;
-	readonly kind: 'static' | 'combination' | 'modal' | 'spectrum' | 'history';
+	readonly kind: 'static' | 'combination' | 'modal' | 'spectrum' | 'history' | 'pushover';
 	readonly nodes: readonly (readonly number[])[];
 	readonly reactions: readonly (readonly number[])[];
 	readonly elements: readonly {
@@ -176,6 +180,8 @@ export interface IFemDeriveRequest {
 export interface IFemDerivation {
 	/** The `model.osmodel` text. */
 	readonly text?: string;
+	/** The `pushover.osmodel` text (frames as fiber elements), when the settings ask for pushovers. */
+	readonly pushoverText?: string;
 	/** What the model leaves out or simplifies. */
 	readonly notes?: readonly string[];
 	readonly summary?: { readonly [key: string]: number };

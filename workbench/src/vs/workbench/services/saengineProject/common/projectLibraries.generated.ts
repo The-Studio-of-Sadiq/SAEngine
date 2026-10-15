@@ -2223,6 +2223,19 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					title: 'Time histories',
 					type: 'array',
 				},
+				pushover: {
+					anyOf: [
+						{
+							$ref: '#/$defs/Pushover',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Pushover analyses: the frames as fiber elements that crack and yield, pushed sideways after the gravity loads (08 FEM/pushover.osmodel).',
+					title: 'Pushover',
+				},
 			},
 			title: 'Analysis',
 			type: 'object',
@@ -2439,6 +2452,48 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			},
 			required: ['name'],
 			title: 'ProjectInfo',
+			type: 'object',
+		},
+		Pushover: {
+			additionalProperties: false,
+			description: 'Nonlinear static (pushover) analyses of the frames, with fiber sections.',
+			properties: {
+				directions: {
+					description: 'Directions to push in.',
+					items: {
+						enum: ['X', 'Y'],
+						type: 'string',
+					},
+					minItems: 1,
+					title: 'Directions',
+					type: 'array',
+				},
+				pattern: {
+					default: 'seismic',
+					description: 'How the lateral load is spread over the height.',
+					enum: ['seismic', 'uniform'],
+					enumDescriptions: ['Seismic (BNBC story forces, growing with height)', 'Uniform (in proportion to the masses)'],
+					title: 'Load pattern',
+					type: 'string',
+				},
+				targetDrift: {
+					default: 2.0,
+					description: 'Roof displacement to push to, as a share of the height [%].',
+					exclusiveMinimum: 0,
+					maximum: 10,
+					title: 'Target roof drift',
+					type: 'number',
+				},
+				steps: {
+					default: 100,
+					description: 'Steps to the target drift.',
+					maximum: 2000,
+					minimum: 10,
+					title: 'Steps',
+					type: 'integer',
+				},
+			},
+			title: 'Pushover',
 			type: 'object',
 		},
 		Seismic: {
@@ -5524,6 +5579,10 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		meshSize: 1000.0,
 		responseSpectrum: true,
 		timeHistories: [],
+		pushover: null,
+	},
+	Pushover: {
+		directions: ['X', 'Y'],
 	},
 	TimeHistory: {
 		name: 'El Centro X',

@@ -160,6 +160,33 @@ class Wind(_Model):
     )
 
 
+class Pushover(_Model):
+    """Nonlinear static (pushover) analyses of the frames, with fiber sections."""
+
+    directions: list[Literal["X", "Y"]] = Field(
+        default_factory=lambda: ["X", "Y"], min_length=1, description="Directions to push in."
+    )
+    pattern: Literal["seismic", "uniform"] = Field(
+        default="seismic",
+        title="Load pattern",
+        description="How the lateral load is spread over the height.",
+        json_schema_extra=_labels(
+            [
+                "Seismic (BNBC story forces, growing with height)",
+                "Uniform (in proportion to the masses)",
+            ]
+        ),
+    )
+    targetDrift: float = Field(
+        default=2.0,
+        gt=0,
+        le=10,
+        title="Target roof drift",
+        description="Roof displacement to push to, as a share of the height [%].",
+    )
+    steps: int = Field(default=100, ge=10, le=2000, description="Steps to the target drift.")
+
+
 class TimeHistory(_Model):
     """A ground acceleration record run as a time-history analysis."""
 
@@ -222,6 +249,11 @@ class Analysis(_Model):
         title="Time histories",
         description="Earthquake records to run through the structure step by step, after its "
         "dead loads.",
+    )
+    pushover: Pushover | None = Field(
+        default=None,
+        description="Pushover analyses: the frames as fiber elements that crack and yield, "
+        "pushed sideways after the gravity loads (08 FEM/pushover.osmodel).",
     )
 
 

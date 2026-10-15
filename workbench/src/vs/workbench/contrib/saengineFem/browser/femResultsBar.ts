@@ -72,6 +72,10 @@ const SPECTRUM_OPTIONS: readonly IShowOption[] = [
 /** A time history at one moment: no reactions are recorded. */
 const HISTORY_OPTIONS = STATIC_OPTIONS.filter(o => o.show !== 'reactions');
 
+/** Size of the capacity curve drawn beside a pushover's values [px]. */
+const CURVE_WIDTH = 120;
+const CURVE_HEIGHT = 36;
+
 /** Pause between frames while a time history plays [ms]. */
 const FRAME_INTERVAL = 60;
 const COMPONENTS: readonly Show[] = ['N', 'Vy', 'Vz', 'T', 'My', 'Mz'];
@@ -115,6 +119,7 @@ export class FemResultsBar extends Disposable {
 	private readonly timeContainer: HTMLElement;
 	private readonly timeSlider: HTMLInputElement;
 	private readonly timeLabel: HTMLElement;
+	private readonly timeCaption: HTMLElement;
 	private readonly playButton: Button;
 	private playing = false;
 	private playToken = 0;
@@ -173,7 +178,7 @@ export class FemResultsBar extends Disposable {
 
 		// A time history: the moment shown, and playing it frame by frame.
 		this.timeContainer = group('time');
-		append(this.timeContainer, $('span.fem-results-label', undefined, localize('femResults.time', "Time")));
+		this.timeCaption = append(this.timeContainer, $('span.fem-results-label', undefined, localize('femResults.time', "Time")));
 		this.timeSlider = append(this.timeContainer, $<HTMLInputElement>('input.fem-results-time', { type: 'range', min: '1', step: '1', 'aria-label': localize('femResults.timeAria', "Moment of the time history shown") }));
 		this._register(addDisposableListener(this.timeSlider, EventType.INPUT, () => {
 			this.stopPlaying();
@@ -296,6 +301,7 @@ export class FemResultsBar extends Disposable {
 			case 'modal': return MODAL_OPTIONS;
 			case 'spectrum': return SPECTRUM_OPTIONS;
 			case 'history': return HISTORY_OPTIONS;
+			case 'pushover': return STATIC_OPTIONS;
 		}
 		return this.view?.shells?.length ? [...STATIC_OPTIONS, ...SHELL_OPTIONS] : STATIC_OPTIONS;
 	}
@@ -308,7 +314,7 @@ export class FemResultsBar extends Disposable {
 			this.render();
 			return;
 		}
-		const framed = entry.kind === 'modal' || entry.kind === 'history';
+		const framed = entry.kind === 'modal' || entry.kind === 'history' || entry.kind === 'pushover';
 		const id = `${entry.key}/${framed ? this.mode : 0}`;
 		let view = this.views.get(id);
 		if (!view) {
@@ -337,7 +343,7 @@ export class FemResultsBar extends Disposable {
 	/** The frame a result opens at: a time history's peak, else the first (mode 1). */
 	private firstFrame(): number {
 		const entry = this.entry;
-		return entry?.kind === 'history' ? entry.peak ?? 1 : 1;
+		return entry?.kind === 'history' || entry?.kind === 'pushover' ? entry.peak ?? 1 : 1;
 	}
 
 	/** Plays the time history from the frame shown, looping, until stopped. */
@@ -346,7 +352,8 @@ export class FemResultsBar extends Disposable {
 		this.playing = true;
 		this.render();
 		while (token === this.playToken) {
-			const count = this.entry?.kind === 'history' ? this.entry.frames?.length ?? 0 : 0;
+			const kind = this.entry?.kind;
+			const count = kind === 'history' || kind === 'pushover' ? this.entry?.frames?.length ?? 0 : 0;
 			if (!count) {
 				break;
 			}
@@ -383,13 +390,16 @@ export class FemResultsBar extends Disposable {
 					text: m.period === null ? String(m.number) : localize('femResults.modeOption', "{0} (T = {1} s)", m.number, m.period.toFixed(3)),
 				})), Math.max(0, this.mode - 1));
 			}
-			const frames = entry.kind === 'history' ? entry.frames ?? [] : [];
+			const frames = entry.kind === 'history' || entry.kind === 'pushover' ? entry.frames ?? [] : [];
 			this.timeContainer.classList.toggle('hidden', !frames.length);
 			if (frames.length) {
 				this.timeSlider.max = String(frames.length);
 				this.timeSlider.value = String(this.mode);
-				const time = frames[this.mode - 1]?.time ?? 0;
-				this.timeLabel.textContent = localize('femResults.timeOf', "{0} of {1} s", time.toFixed(2), frames[frames.length - 1].time.toFixed(2));
+				const frame = frames[this.mode - 1];
+				this.timeCaption.textContent = entry.kind === 'pushover' ? localize('femResults.step', "Step") : localize('femResults.time', "Time");
+				this.timeLabel.textContent = entry.kind === 'pushover'
+					? localize('femResults.pushoverAt', "roof {0}, base shear {1}", this.format('length', frame?.displacement ?? 0), this.format('force', frame?.shear ?? 0))
+					: localize('femResults.timeOf', "{0} of {1} s", (frame?.time ?? 0).toFixed(2), (frames[frames.length - 1].time ?? 0).toFixed(2));
 				this.playButton.label = `$(${(this.playing ? Codicon.debugPause : Codicon.play).id})`;
 			}
 			const options = this.showOptions();
@@ -423,6 +433,9 @@ export class FemResultsBar extends Disposable {
 			append(this.info, $('span', undefined, localize('femResults.stale', "The model changed after this analysis ran: run the analysis again.")));
 			return;
 		}
+		if (this.entry.kind === 'pushover') {
+			this.renderCurve(this.entry.frames ?? []);
+		}
 		const shellComponent = SHELL_COMPONENTS.indexOf(this.show);
 		const values = shellComponent >= 0 ? (this.view?.shells ?? []).flatMap(s => s.forces ? [s.forces[shellComponent]] : []) : [];
 		if (values.length) {
@@ -438,6 +451,36 @@ export class FemResultsBar extends Disposable {
 		if (text) {
 			append(this.info, $('span', undefined, text));
 		}
+	}
+
+	/** A pushover's capacity curve (base shear against roof displacement), marking the step shown. */
+	private renderCurve(frames: NonNullable<IFemResultEntry['frames']>): void {
+		const points = frames.map(f => [Math.abs(f.displacement ?? 0), Math.abs(f.shear ?? 0)]);
+		const dMax = Math.max(...points.map(p => p[0])) || 1;
+		const vMax = Math.max(...points.map(p => p[1])) || 1;
+		const xy = (p: readonly number[]) => `${(p[0] / dMax * (CURVE_WIDTH - 4) + 2).toFixed(1)},${(CURVE_HEIGHT - 2 - p[1] / vMax * (CURVE_HEIGHT - 4)).toFixed(1)}`;
+		const svg = append(this.info, $('span.fem-results-curve', { title: localize('femResults.curveTitle', "Capacity curve: base shear against roof displacement") }));
+		const ns = 'http://www.w3.org/2000/svg';
+		const root = this.info.ownerDocument.createElementNS(ns, 'svg');
+		root.setAttribute('width', String(CURVE_WIDTH));
+		root.setAttribute('height', String(CURVE_HEIGHT));
+		const line = this.info.ownerDocument.createElementNS(ns, 'polyline');
+		line.setAttribute('points', points.map(xy).join(' '));
+		line.setAttribute('class', 'curve');
+		root.appendChild(line);
+		const at = points[this.mode - 1];
+		if (at) {
+			const [cx, cy] = xy(at).split(',');
+			const marker = this.info.ownerDocument.createElementNS(ns, 'circle');
+			marker.setAttribute('cx', cx);
+			marker.setAttribute('cy', cy);
+			marker.setAttribute('r', '3');
+			marker.setAttribute('class', 'marker');
+			root.appendChild(marker);
+		}
+		svg.appendChild(root);
+		append(this.info, $('span', undefined, localize('femResults.peakShear', "Largest base shear {0} at roof {1}.",
+			this.format('force', vMax), this.format('length', points.find(p => p[1] === vMax)?.[0] ?? 0))));
 	}
 
 	/** The values that matter for what is shown, or for the selected node or element. */

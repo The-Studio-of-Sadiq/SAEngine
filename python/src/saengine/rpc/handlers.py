@@ -169,7 +169,16 @@ def results_tables(out_dir: str, project_path: str | None = None) -> dict[str, A
             }
         )
     # Models derived by SAEngine: the project settings' load combinations of these results.
-    if project is not None and project.meta.author == "SAEngine" and project_file:
+    # (Not for the pushover model: its single gravity case is no design load case.)
+    pushover_model = project is not None and any(
+        type(a).__name__ == "PushoverCase" for a in project.analyses
+    )
+    if (
+        project is not None
+        and project.meta.author == "SAEngine"
+        and project_file
+        and not pushover_model
+    ):
         import json as _json
 
         from saengine.fem.combinations import combination_results, settings_beside
@@ -317,7 +326,8 @@ def derive_fem(
 ) -> dict[str, Any]:
     """The analysis model (``model.osmodel`` text) of the building model with the settings' loads.
 
-    Returns ``{"text", "notes", "summary"}``, or ``{"problems"}`` when an input has errors.
+    Returns ``{"text", "notes", "summary"}`` (and ``"pushoverText"``, the pushover model, when
+    the settings ask for pushovers), or ``{"problems"}`` when an input has errors.
     """
     import json
 
@@ -355,11 +365,16 @@ def derive_fem(
         stamps,
         model_folder,
     )
-    return {
+    result = {
         "text": json.dumps(derivation.project, indent="\t", ensure_ascii=False) + "\n",
         "notes": derivation.notes,
         "summary": derivation.summary,
     }
+    if derivation.pushover is not None:
+        result["pushoverText"] = (
+            json.dumps(derivation.pushover, indent="\t", ensure_ascii=False) + "\n"
+        )
+    return result
 
 
 def _messages(exc: Any, where: str) -> list[str]:

@@ -171,8 +171,9 @@ MAX_FRAMES = 200
 
 
 def _frames(results: Any) -> np.ndarray:
-    """Recorded steps of a time-history result shown as its frames (at most MAX_FRAMES)."""
-    count = int(results.n_steps)
+    """Recorded steps of a time history or a pushover shown as its frames (at most MAX_FRAMES;
+    a pushover's first step is its state under the gravity loads)."""
+    count = len(results.control_disp) if hasattr(results, "control_disp") else int(results.n_steps)
     if count <= 0:
         return np.zeros(0, dtype=int)
     return np.unique(np.round(np.linspace(0, count - 1, min(MAX_FRAMES, count))).astype(int))
@@ -200,14 +201,17 @@ def result_list(out_dir: str | Path, project_path: str | Path) -> dict[str, Any]
     """The results that can be shown: ``{"results": [...], "stale": bool}``.
 
     Each result has a ``key`` (``case:<id>``, ``combination:<n>``), a ``label`` and a ``kind``
-    (``static``, ``combination``, ``modal``, ``spectrum``, ``history``); modal results list
-    their ``modes`` with periods, time histories their ``frames`` (number, time) and the
-    ``peak`` frame, where the structure moves most.
+    (``static``, ``combination``, ``modal``, ``spectrum``, ``history``, ``pushover``); modal
+    results list their ``modes`` with periods, time histories their ``frames`` (number, time)
+    and the ``peak`` frame, where the structure moves most, and pushovers their ``frames``
+    (number, control ``displacement``, base ``shear``: the capacity curve) and the ``peak``
+    frame, at the largest base shear.
     ``stale`` is true when the model was changed after the run.
     """
     from opensees_studio.services.result_store import load_results
     from opensees_studio.services.results import (
         ModalResults,
+        PushoverResults,
         ResponseSpectrumResults,
         StaticResults,
         TransientResults,
@@ -235,6 +239,25 @@ def result_list(out_dir: str | Path, project_path: str | Path) -> dict[str, Any]
             )
         elif isinstance(loaded, ResponseSpectrumResults):
             results.append({"key": key, "label": entry["case_name"], "kind": "spectrum"})
+        elif isinstance(loaded, PushoverResults):
+            frames = _frames(loaded)
+            disp, shear = np.asarray(loaded.control_disp), np.asarray(loaded.base_shear)
+            results.append(
+                {
+                    "key": key,
+                    "label": entry["case_name"],
+                    "kind": "pushover",
+                    "frames": [
+                        {
+                            "number": i + 1,
+                            "displacement": round(float(disp[step]), 6),
+                            "shear": round(float(shear[step]), 1),
+                        }
+                        for i, step in enumerate(frames)
+                    ],
+                    "peak": int(np.argmax(np.abs(shear[frames]))) + 1,
+                }
+            )
         elif isinstance(loaded, TransientResults):
             frames = _frames(loaded)
             if not len(frames):
@@ -285,11 +308,12 @@ def result_view(
     Mode shapes are scaled so their largest translation is 1 and have no forces or reactions.
     Response spectrum results are peak displacements (no signs, forces or reactions); a time
     history is shown at its frame ``mode`` (see :func:`result_list`), with forces but no
-    reactions.
+    reactions, and a pushover at its frame ``mode`` with forces and reactions.
     """
     from opensees_studio.services.result_store import load_results
     from opensees_studio.services.results import (
         ModalResults,
+        PushoverResults,
         ResponseSpectrumResults,
         StaticResults,
         TransientResults,
@@ -315,6 +339,7 @@ def result_view(
     modal: dict[int, np.ndarray] | None = None
     spectrum: dict[int, np.ndarray] | None = None
     history: tuple[Any, int, int] | None = None  # results, recorded step, analysis id
+    push: tuple[Any, int, int] | None = None  # pushover results, step, analysis id
     kind = "static" if key in entries else "combination"
     label = ""
     if key in entries:
@@ -343,6 +368,14 @@ def result_view(
             history = (loaded, step, int(entry["case_id"]))
             label = f"{label}, t = {float(loaded.time()[step]):.2f} s"
             kind = "history"
+        elif isinstance(loaded, PushoverResults):
+            frames = _frames(loaded)
+            if not 1 <= mode <= len(frames):
+                raise ValueError(f"{label} has no step {mode}")
+            step = int(frames[mode - 1])
+            push = (loaded, step, int(entry["case_id"]))
+            label = f"{label}, step {step} of {len(loaded.control_disp) - 1}"
+            kind = "pushover"
         else:
             raise ValueError(f"{label} cannot be shown in 3D")
     elif key.startswith("combination:"):
@@ -375,6 +408,18 @@ def result_view(
     elif spectrum is not None:
         disp = {n: _pad(spectrum.get(n), 6) for n in node_ids}
         loads, forces, reactions, plate_forces = {}, {}, {}, {}
+    elif push is not None:
+        results, step, analysis_id = push
+        disp = {n: _row(results.node_disp, n, step, 6) for n in node_ids}
+        forces = {e.id: _row(results.element_forces, e.id, step, 12) for e in elements}
+        reactions = {n: _row(results.node_reaction, n, step, 6) for n in sorted(restrained)}
+        plate_forces = {}
+        # The gravity loads stay on the members while they are pushed.
+        loads = {}
+        analysis = next(a for a in project["analyses"] if a["id"] == analysis_id)
+        for preload in analysis.get("preload_case_ids", []):
+            for element_id, w in _case_loads(project, preload).items():
+                loads[element_id] = loads.get(element_id, np.zeros(3)) + w
     elif history is not None:
         results, step, analysis_id = history
         disp = {n: _at(results.node_disp_history, n, step, 6) for n in node_ids}
@@ -436,6 +481,14 @@ def result_view(
             for e in shells
         ],
     }
+
+
+def _row(group: dict[int, Any], item: int, step: int, width: int) -> np.ndarray:
+    """One step of a node's or an element's recorded rows, padded to ``width``."""
+    rows = group.get(item)
+    if rows is None or step >= len(rows):
+        return np.zeros(width)
+    return _pad(np.asarray(rows[step], dtype=float), width)
 
 
 def _at(history: Any, item: int, step: int, width: int) -> np.ndarray:

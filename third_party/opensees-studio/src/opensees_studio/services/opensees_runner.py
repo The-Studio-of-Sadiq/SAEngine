@@ -129,6 +129,10 @@ def _dof_indices(ndm: int, ndf: int) -> tuple[int, ...]:
 
 
 # ─────────────────────── runner ───────────────────────
+#: Smaller increments a failed pushover step is retried in.
+SUBSTEPS = 10
+
+
 class OpenSeesRunner:
     """Translator + executor. Instantiate with a project, then ``run(case)``."""
 
@@ -1389,23 +1393,45 @@ class OpenSeesRunner:
         # still record so the curve starts at the origin cleanly).
         _snapshot(0)
 
+        def _fallbacks() -> int:
+            """One increment with the fallback algorithms of the OpenSees portal-frame
+            tutorials: initial-tangent Newton, then Broyden, then Newton with line search."""
+            ops.test(case.test, case.tolerance, 2000)
+            ops.algorithm("Newton", "-initial")
+            status = ops.analyze(1)
+            if status != 0:
+                ops.algorithm("Broyden", 8)
+                status = ops.analyze(1)
+            if status != 0:
+                ops.algorithm("NewtonLineSearch", 0.8)
+                status = ops.analyze(1)
+            ops.test(case.test, case.tolerance, case.max_iter)
+            ops.algorithm(case.algorithm, *case.algorithm_args)
+            return status
+
+        def _substeps() -> int:
+            """The step in SUBSTEPS smaller increments (each with the fallbacks), for the
+            steps where a member softens (concrete crushing) faster than one increment
+            can follow; the integrator returns to the full increment afterwards."""
+            ops.integrator(
+                "DisplacementControl", case.control_node, case.control_dof, dU / SUBSTEPS
+            )
+            status = 0
+            for _ in range(SUBSTEPS):
+                status = ops.analyze(1)
+                if status != 0:
+                    status = _fallbacks()
+                if status != 0:
+                    break
+            ops.integrator("DisplacementControl", case.control_node, case.control_dof, dU)
+            return status
+
         for step in range(1, n_steps + 1):
             status = ops.analyze(1)
             if status != 0:
-                # Convergence fallback mirrors the OpenSees portal-frame
-                # tutorials: initial-tangent Newton, then Broyden, then
-                # Newton with line search.
-                ops.test(case.test, case.tolerance, 2000)
-                ops.algorithm("Newton", "-initial")
-                status = ops.analyze(1)
-                if status != 0:
-                    ops.algorithm("Broyden", 8)
-                    status = ops.analyze(1)
-                if status != 0:
-                    ops.algorithm("NewtonLineSearch", 0.8)
-                    status = ops.analyze(1)
-                ops.test(case.test, case.tolerance, case.max_iter)
-                ops.algorithm(case.algorithm, *case.algorithm_args)
+                status = _fallbacks()
+            if status != 0:
+                status = _substeps()
             if status != 0:
                 # Still failed — trim output to where we got, then stop.
                 control_disp = control_disp[:step]
@@ -1433,6 +1459,7 @@ class OpenSeesRunner:
             node_reaction=node_reaction,
             element_end_fibers=element_end_fibers,
             element_forces=element_forces,
+            n_steps_requested=n_steps,
         )
 
     def _run_response_spectrum(self, case: ResponseSpectrumCase) -> ResponseSpectrumResults:

@@ -133,6 +133,8 @@ class Derivation:
     project: dict[str, Any]
     notes: list[str] = field(default_factory=list)
     summary: dict[str, Any] = field(default_factory=dict)
+    #: The pushover model (frames as fiber elements), when the settings ask for pushovers.
+    pushover: dict[str, Any] | None = None
 
 
 class _Builder:
@@ -958,7 +960,16 @@ def derive_fem(
             "supports": sum(1 for r in b.restraints.values() if all(r)),
         }
     )
-    return Derivation(project=project, notes=b.notes, summary=summary)
+    pushover = None
+    if options.pushover is not None:
+        from saengine.fem.nonlinear import pushover_model
+
+        keys = {sid: key for key, sid in b.section_ids.items() if key[0] != "plate"}
+        pushover, more = pushover_model(
+            project, keys, types, mats, node_weight, base * MM, options.pushover
+        )
+        b.notes.extend(more)
+    return Derivation(project=project, notes=b.notes, summary=summary, pushover=pushover)
 
 
 def _rectangle(opening: Any, z: float) -> list[tuple[float, float, float]]:

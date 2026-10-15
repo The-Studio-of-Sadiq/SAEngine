@@ -143,6 +143,15 @@ def write_results(results: AnyResults, out_dir: str | Path) -> dict[str, Any]:
                 _write_int_dict(f, "shell_forces", results.shell_forces)
         elif isinstance(results, PushoverResults):
             entry["completed_steps"] = results.n_steps
+            entry["n_steps_requested"] = results.n_steps_requested
+            entry["early_stop"] = results.early_stop
+            if results.early_stop:
+                entry["warnings"].append(
+                    f"Pushover stopped at step {results.n_steps} of "
+                    f"{results.n_steps_requested} (control displacement "
+                    f"{float(results.control_disp[-1]):.6g}): the analysis did not converge "
+                    "further."
+                )
             entry["control_node"] = results.control_node
             entry["control_dof"] = results.control_dof
             f.create_dataset("control_disp", data=np.asarray(results.control_disp, dtype=float))
@@ -237,6 +246,7 @@ def load_results(entry: dict[str, Any], out_dir: str | Path) -> AnyResults:
                 node_reaction=_read_int_dict(f, "node_reaction"),
                 element_end_fibers=_read_int_dict(f, "element_end_fibers"),
                 element_forces=_read_int_dict(f, "element_forces"),
+                n_steps_requested=int(entry.get("n_steps_requested", 0)),
             )
         if kind == "ModalResults":
             shapes = f["mode_shapes"]

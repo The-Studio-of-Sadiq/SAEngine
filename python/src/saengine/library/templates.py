@@ -266,6 +266,7 @@ TEMPLATES: dict[str, dict[str, Any]] = {
     },
     "LoadCombination": {"name": "1.2D + 1.6L", "D": 1.2, "L": 1.6},
     "Analysis": Analysis().model_dump(mode="json"),
+    "Pushover": {"directions": ["X", "Y"]},
     "TimeHistory": {
         "name": "El Centro X",
         "record": "02 Project Settings/records/ElCentro.AT2",

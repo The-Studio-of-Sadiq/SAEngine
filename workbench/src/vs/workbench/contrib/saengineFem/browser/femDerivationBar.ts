@@ -35,10 +35,14 @@ const SOURCES: readonly { readonly part: string; readonly key: string; readonly 
 
 interface IFemDerivation {
 	readonly text?: string;
+	readonly pushoverText?: string;
 	readonly notes?: readonly string[];
 	readonly summary?: { readonly [key: string]: number };
 	readonly problems?: readonly string[];
 }
+
+/** The pushover model, derived beside the analysis model when the settings ask for pushovers. */
+export const PUSHOVER_FILE = 'pushover.osmodel';
 
 function partFile(root: URI, id: string): URI {
 	const part = PROJECT_PARTS.find(p => p.id === id)!;
@@ -59,7 +63,8 @@ export function recordedSources(description: unknown): Map<string, string> {
 }
 
 /**
- * Above the project's analysis model (`08 FEM/model.osmodel`): where it comes from, whether its
+ * Above the project's analysis model (`08 FEM/model.osmodel`, and its pushover model
+ * `pushover.osmodel`): where it comes from, whether its
  * sources have changed since it was derived, and the actions of Part 8 (derive, run).
  * The analysis model is never edited by hand: it is derived again on request.
  */
@@ -95,7 +100,8 @@ export class FemDerivationBar extends Disposable {
 		this.store.clear();
 		this.models.clear();
 		const root = this.projectService.project?.root;
-		this.resource = root && resource && isEqual(resource, partFile(root, 'fem')) ? resource : undefined;
+		const model = root && partFile(root, 'fem');
+		this.resource = model && resource && (isEqual(resource, model) || isEqual(resource, joinPath(dirname(model), PUSHOVER_FILE))) ? resource : undefined;
 		if (root && this.resource) {
 			for (const { part } of SOURCES) {
 				try {
@@ -156,7 +162,8 @@ export class FemDerivationBar extends Disposable {
 	}
 
 	private async derive(): Promise<void> {
-		const resource = this.resource;
+		const root = this.projectService.project?.root;
+		const resource = root && this.resource && partFile(root, 'fem');
 		const text = (part: string) => this.models.get(part)?.getValue();
 		const [bimText, settingsText, objectsText, materialsText] = SOURCES.map(s => text(s.part));
 		if (!resource || bimText === undefined || settingsText === undefined || objectsText === undefined || materialsText === undefined) {
@@ -170,7 +177,11 @@ export class FemDerivationBar extends Disposable {
 				this.notificationService.warn(localize('fem.deriveProblems', "The analysis model could not be derived: {0}", (result?.problems ?? []).join('; ')));
 				return;
 			}
+			// Both models are derived together, whichever of them is open.
 			await this.fileService.writeFile(resource, VSBuffer.fromString(result.text));
+			if (result.pushoverText) {
+				await this.fileService.writeFile(joinPath(dirname(resource), PUSHOVER_FILE), VSBuffer.fromString(result.pushoverText));
+			}
 			const summary = result.summary ?? {};
 			const facts = localize('fem.derived', "Derived {0} nodes and {1} elements; base shear {2} kN, seismic weight {3} kN.",
 				summary.nodes ?? 0, summary.elements ?? 0, (summary.base_shear_kN ?? 0).toFixed(1), (summary.weight_kN ?? 0).toFixed(1));

@@ -148,3 +148,48 @@
 .saengine-fem-model-editor .fem-results-info .codicon-error {
 	color: var(--vscode-editorError-foreground);
 }
+
+.saengine-fem-model-editor .fem-results-curve {
+	display: inline-flex;
+	align-items: center;
+}
+
+.saengine-fem-model-editor .fem-results-curve .curve {
+	fill: none;
+	stroke: var(--vscode-charts-blue);
+	stroke-width: 1.5;
+}
+
+.saengine-fem-model-editor .fem-results-curve .marker {
+	fill: var(--vscode-charts-yellow);
+}
+
+.saengine-fem-model-editor .fem-results-time {
+	width: 160px;
+}
+
+.saengine-fem-model-editor .fem-results-time-label {
+	min-width: 96px;
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-fem-model-editor .fem-results-group.time .monaco-button {
+	width: auto;
+	padding: 2px 4px;
+}
+
+.saengine-fem-model-editor .fem-results-curve {
+	display: inline-flex;
+	align-items: center;
+}
+
+.saengine-fem-model-editor .fem-results-curve .curve {
+	fill: none;
+	stroke: var(--vscode-charts-blue);
+	stroke-width: 1.5;
+}
+
+.saengine-fem-model-editor .fem-results-curve .marker {
+	fill: var(--vscode-charts-yellow);
+}

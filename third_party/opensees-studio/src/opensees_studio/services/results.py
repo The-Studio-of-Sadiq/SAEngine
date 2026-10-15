@@ -80,6 +80,13 @@ class PushoverResults:
 
     Each fiber contains y, z, area, stress, strain in the emitted fiber order.
     """
+    n_steps_requested: int = 0
+    """Steps to the target displacement; 0 when unknown (results saved before it was kept)."""
+
+    @property
+    def early_stop(self) -> bool:
+        """The analysis stopped (did not converge) before the target displacement."""
+        return 0 < self.n_steps < self.n_steps_requested
 
 
 @dataclass
