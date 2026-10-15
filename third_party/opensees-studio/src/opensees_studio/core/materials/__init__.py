@@ -1,0 +1,305 @@
+"""Uniaxial and isotropic materials.
+
+All materials share the ``Entity`` base. Concrete subclasses set a
+``type`` discriminator literal; this lets Pydantic round-trip the
+heterogeneous collection in Project.materials through JSON cleanly.
+
+Naming and parameter conventions follow the OpenSeesPy
+``uniaxialMaterial`` and ``nDMaterial`` commands. See
+https://openseespydoc.readthedocs.io/en/latest/src/uniaxialMaterial.html
+"""
+
+from __future__ import annotations
+
+from typing import Annotated, Literal
+
+from pydantic import Field, PositiveFloat, model_validator
+
+from opensees_studio.core._base import Entity, omit_when_default
+
+
+# ──────────────────────────── Linear-elastic ────────────────────────────
+class ElasticIsotropic(Entity):
+    """Linear-elastic isotropic 3D material — ``nDMaterial ElasticIsotropic``."""
+
+    type: Literal["ElasticIsotropic"] = "ElasticIsotropic"
+    E: PositiveFloat = Field(..., description="Young's modulus.")
+    nu: float = Field(..., ge=-1.0, le=0.5, description="Poisson's ratio.")
+    rho: float = Field(default=0.0, ge=0.0, description="Mass density.")
+
+
+class ElasticUniaxial(Entity):
+    """Linear-elastic uniaxial material — ``uniaxialMaterial Elastic``."""
+
+    type: Literal["Elastic"] = "Elastic"
+    E: PositiveFloat
+    eta: float = Field(default=0.0, description="Damping coefficient.")
+    Eneg: float | None = Field(default=None, description="Optional negative-strain modulus.")
+
+
+# ──────────────────────────── Steel ────────────────────────────
+class Steel01(Entity):
+    """Bilinear steel with kinematic hardening — ``uniaxialMaterial Steel01``."""
+
+    type: Literal["Steel01"] = "Steel01"
+    Fy: PositiveFloat = Field(..., description="Yield strength.")
+    E0: PositiveFloat = Field(..., description="Initial elastic tangent.")
+    b: float = Field(..., ge=0.0, le=1.0, description="Strain-hardening ratio (Et/E0).")
+    a1: float | None = Field(default=None, description="Isotropic hardening parameter.")
+    a2: float | None = None
+    a3: float | None = None
+    a4: float | None = None
+
+
+class Steel02(Entity):
+    """Giuffre-Menegotto-Pinto steel with isotropic hardening — ``uniaxialMaterial Steel02``."""
+
+    type: Literal["Steel02"] = "Steel02"
+    Fy: PositiveFloat
+    E0: PositiveFloat
+    b: float = Field(..., ge=0.0, le=1.0)
+    R0: float = Field(
+        default=18.0, description="Bauschinger curvature parameter (typically 10-20)."
+    )
+    cR1: float = Field(default=0.925)
+    cR2: float = Field(default=0.15)
+    a1: float = Field(default=0.0, ge=0.0)
+    a2: PositiveFloat = 1.0
+    a3: float = Field(default=0.0, ge=0.0)
+    a4: PositiveFloat = 1.0
+    sigInit: float = 0.0
+
+    serialize_without_defaults = omit_when_default("a1", "a2", "a3", "a4", "sigInit")
+
+    def isotropic_args(self) -> tuple[float, ...]:
+        """Keep the original command signature when the optional values are default."""
+        args = (self.a1, self.a2, self.a3, self.a4, self.sigInit)
+        return () if args == (0.0, 1.0, 0.0, 1.0, 0.0) else args
+
+
+# ──────────────────────────── Concrete ────────────────────────────
+class Concrete01(Entity):
+    """Kent-Scott-Park concrete, no tension — ``uniaxialMaterial Concrete01``."""
+
+    type: Literal["Concrete01"] = "Concrete01"
+    fpc: float = Field(..., lt=0.0, description="Peak compressive strength (negative).")
+    epsc0: float = Field(..., lt=0.0, description="Strain at peak strength (negative).")
+    fpcu: float = Field(..., le=0.0, description="Crushing strength (negative or zero).")
+    epsU: float = Field(..., lt=0.0, description="Crushing strain (negative).")
+
+
+class Concrete02(Entity):
+    """Linear-tension Kent-Scott-Park — ``uniaxialMaterial Concrete02``."""
+
+    type: Literal["Concrete02"] = "Concrete02"
+    fpc: float = Field(..., lt=0.0)
+    epsc0: float = Field(..., lt=0.0)
+    fpcu: float = Field(..., le=0.0)
+    epsU: float = Field(..., lt=0.0)
+    lambda_: float = Field(
+        ...,
+        alias="lambda",
+        ge=0.0,
+        le=1.0,
+        description="Ratio between unloading slope at epscu and initial slope.",
+    )
+    ft: PositiveFloat = Field(..., description="Tensile strength.")
+    Ets: PositiveFloat = Field(..., description="Tension softening stiffness.")
+
+
+class Concrete04(Entity):
+    """Popovics concrete with optional tension — ``uniaxialMaterial Concrete04``.
+
+    Curated from generated Concrete04Spec; see
+    core/catalog/generated/concrete04_popovics_concrete.py.
+
+    The optional tensile parameters follow the OpenSeesPy signature:
+    - no tension: ``Concrete04(fpc, epsc0, epscu, Ec)``
+    - with tension: ``Concrete04(fpc, epsc0, epscu, Ec, fct, et)``
+    - with cyclic: ``Concrete04(fpc, epsc0, epscu, Ec, fct, et, beta)``
+    """
+
+    type: Literal["Concrete04"] = "Concrete04"
+    fpc: float = Field(..., lt=0.0, description="Peak compressive strength (negative).")
+    epsc0: float = Field(..., lt=0.0, description="Strain at peak compressive strength (negative).")
+    epscu: float = Field(..., lt=0.0, description="Ultimate compressive strain (negative).")
+    Ec: PositiveFloat = Field(..., description="Initial tangent modulus.")
+    fct: float | None = Field(
+        default=None,
+        gt=0.0,
+        description="Maximum tensile strength. Omit for no-tension model.",
+    )
+    et: float | None = Field(
+        default=None,
+        gt=0.0,
+        description="Ultimate tensile strain. Required when fct is given.",
+    )
+    beta: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Cyclic degradation factor on unloading stiffness. Requires fct and et.",
+    )
+
+    @model_validator(mode="after")
+    def _tensile_params_consistent(self) -> Concrete04:
+        if self.fct is not None and self.et is None:
+            raise ValueError("et is required when fct is given.")
+        if self.et is not None and self.fct is None:
+            raise ValueError("fct is required when et is given.")
+        if self.beta is not None and self.fct is None:
+            raise ValueError("beta requires fct and et to be given.")
+        return self
+
+
+class Hardening(Entity):
+    """Rate-independent plasticity with combined linear isotropic and kinematic hardening:
+    ``uniaxialMaterial Hardening tag E sigmaY H_iso H_kin <eta>``.
+
+    Monotonic loading follows ``E`` up to ``sigmaY`` and ``E*(H_iso + H_kin)/(E + H_iso +
+    H_kin)`` beyond it. ``H_kin`` translates the elastic range (Bauschinger effect), ``H_iso``
+    widens it. ``eta`` is the optional viscosity, written only when it is not zero.
+    """
+
+    type: Literal["Hardening"] = "Hardening"
+    E: PositiveFloat = Field(..., description="Elastic modulus.")
+    sigmaY: PositiveFloat = Field(..., description="Yield stress.")
+    H_iso: float = Field(..., ge=0.0, description="Isotropic hardening modulus.")
+    H_kin: float = Field(..., ge=0.0, description="Kinematic hardening modulus.")
+    eta: float = Field(default=0.0, ge=0.0, description="Visco-plastic coefficient.")
+
+
+class ElasticPP(Entity):
+    """Elastic-perfectly-plastic — ``uniaxialMaterial ElasticPP``."""
+
+    type: Literal["ElasticPP"] = "ElasticPP"
+    E: PositiveFloat
+    epsy_pos: PositiveFloat = Field(..., description="Yield strain in tension.")
+    epsy_neg: float | None = Field(
+        default=None,
+        description="Yield strain in compression (negative); defaults to -epsy_pos.",
+    )
+    eps0: float = Field(default=0.0, description="Initial strain.")
+
+
+class HystereticMaterial(Entity):
+    """Trilinear hysteretic model — ``uniaxialMaterial Hysteretic``.
+
+    Suitable for moment-rotation plastic hinges. Takes three positive
+    and three negative backbone points (stress-strain pairs). The
+    unload/reload behaviour is controlled by the pinching parameters.
+
+    Positive and negative envelopes may be asymmetric — useful for
+    reinforced-concrete members where cracking capacity differs from
+    crushing capacity.
+    """
+
+    type: Literal["Hysteretic"] = "Hysteretic"
+    # Positive (tension/positive-rotation) envelope: 3 points on backbone.
+    s1p: float = Field(..., gt=0.0, description="Stress/moment at first positive point.")
+    e1p: float = Field(..., gt=0.0, description="Strain/rotation at first positive point.")
+    s2p: float = Field(..., description="Stress/moment at second (yield) point.")
+    e2p: float = Field(..., description="Strain/rotation at second (yield) point.")
+    s3p: float = Field(..., description="Stress/moment at ultimate positive point.")
+    e3p: float = Field(..., description="Strain/rotation at ultimate positive point.")
+    # Negative envelope (all values stored as negative numbers).
+    s1n: float = Field(..., lt=0.0)
+    e1n: float = Field(..., lt=0.0)
+    s2n: float
+    e2n: float
+    s3n: float
+    e3n: float
+    # Pinching & damage (OpenSees defaults work for most cases).
+    px: float = Field(default=1.0, ge=0.0, le=1.0, description="Pinching factor for strain.")
+    py: float = Field(default=1.0, ge=0.0, le=1.0, description="Pinching factor for stress.")
+    d1: float = Field(default=0.0, ge=0.0, description="Ductility damage, linear portion.")
+    d2: float = Field(default=0.0, ge=0.0, description="Ductility damage, cumulative portion.")
+    beta: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Unloading-stiffness degradation (0 = no degradation).",
+    )
+
+
+class HystereticSM(Entity):
+    """Multi-point hysteretic model — ``uniaxialMaterial HystereticSM``.
+
+    Silvia Mazzoni's multi-linear backbone material (bundled with OpenSees /
+    OpenSeesPy). Unlike :class:`HystereticMaterial` (fixed at three backbone
+    points), this takes an *arbitrary* number of force-deformation points per
+    envelope and an independent, possibly asymmetric negative envelope. This is
+    what wire-rope isolators need: their axial backbone is tension/compression
+    asymmetric (a soft ~70 kN tension curve vs. a stiffer compression curve) and
+    the shear/roll backbones carry many points.
+
+    Only the envelopes are modelled here; the optional pinching / damage /
+    degradation arguments are left at the OpenSees defaults (matching the
+    wire-rope benchmark's ``-posEnv``/``-negEnv``-only definition). The eigen of
+    an unloaded model uses each envelope's initial tangent (the first segment),
+    so this material reproduces the benchmark's initial-stiffness modal result.
+
+    ``pos_env`` / ``neg_env`` are lists of ``(force, deformation)`` pairs in the
+    OpenSees command order (force first). ``pos_env`` rises in deformation from
+    the origin; ``neg_env`` carries negative force and deformation values. An
+    empty ``neg_env`` lets OpenSees mirror the positive envelope (symmetric).
+    """
+
+    type: Literal["HystereticSM"] = "HystereticSM"
+    pos_env: list[tuple[float, float]] = Field(
+        ...,
+        min_length=1,
+        description="Positive envelope (force, deformation) pairs, force first.",
+    )
+    neg_env: list[tuple[float, float]] = Field(
+        default_factory=list,
+        description="Negative envelope (force, deformation) pairs; empty ⇒ symmetric.",
+    )
+
+
+class MultiLinear(Entity):
+    """Symmetric multi-linear kinematic model: ``uniaxialMaterial MultiLinear``.
+
+    ``points`` are ``(strain, stress)`` pairs in the OpenSees command order
+    (strain first), rising from the origin; the negative side mirrors them. On a
+    reversal OpenSees traverses each segment over twice its length (kinematic
+    hardening), so a symmetric multi-linear backbone with a kinematic hysteresis
+    rule needs only these points. Beyond the last point the last slope continues.
+    OpenSeesPy 3.8.0 rejects a single point, so at least two are required.
+    """
+
+    type: Literal["MultiLinear"] = "MultiLinear"
+    points: list[tuple[float, float]] = Field(
+        ...,
+        min_length=2,
+        description="Backbone (strain, stress) pairs, strain first, positive side.",
+    )
+
+    @model_validator(mode="after")
+    def _points_rise_from_the_origin(self) -> MultiLinear:
+        previous = 0.0
+        for strain, stress in self.points:
+            if not strain > previous:
+                raise ValueError("MultiLinear strains must be positive and strictly increasing.")
+            if not stress > 0.0:
+                raise ValueError("MultiLinear stresses must be positive.")
+            previous = strain
+        return self
+
+
+# ──────────────────────────── Discriminated union ────────────────────────────
+Material = Annotated[
+    ElasticIsotropic
+    | ElasticUniaxial
+    | Steel01
+    | Steel02
+    | Concrete01
+    | Concrete02
+    | Concrete04
+    | ElasticPP
+    | Hardening
+    | HystereticMaterial
+    | HystereticSM
+    | MultiLinear,
+    Field(discriminator="type"),
+]
+"""Tagged union of every material kind. Pydantic uses ``type`` to dispatch on JSON load."""

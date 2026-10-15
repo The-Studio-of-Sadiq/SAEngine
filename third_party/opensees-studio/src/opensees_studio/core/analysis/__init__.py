@@ -1,0 +1,368 @@
+"""Analysis case definitions.
+
+These are *declarative* descriptions of analyses to run; the actual
+solver invocation is in ``services.opensees_runner``. Phase 1 covers
+the most common cases needed for verification (static, modal,
+transient). More cases (cyclic pushover, IDA, response spectrum) come
+in Phase 6/8.
+"""
+
+from __future__ import annotations
+
+import warnings
+from typing import Annotated, Literal, get_args
+
+from pydantic import Field, PositiveFloat, PositiveInt, field_validator, model_validator
+
+from opensees_studio.core._base import Entity, omit_when_default
+from opensees_studio.core.modal import KNOWN_SOLVERS, OFFERED_SOLVERS, SOLVER_AUTO
+
+Numberer = Literal["Plain", "RCM", "AMD"]
+"""DOF numberers offered: each gives its own equation numbering in OpenSeesPy 3.8.0, and an
+unknown name is an error there, not a silent default."""
+
+NUMBERERS: tuple[str, ...] = get_args(Numberer)
+
+SYSTEMS: tuple[str, ...] = (
+    "BandGeneral",
+    "BandSPD",
+    "ProfileSPD",
+    "SparseGeneral",
+    "UmfPack",
+    "FullGeneral",
+)
+"""Linear solvers offered; each runs in OpenSeesPy 3.8.0 and gives its own result bits.
+
+``system`` stays a free string so files naming another solver still load; the runner passes
+it to OpenSees, which refuses an unknown name.
+"""
+
+SYSTEM_ARGS: dict[str, tuple[str, ...]] = {}
+"""Arguments a system accepts here, per system: none at present.
+
+``SparseGeneral -piv`` is not offered: this build ignores the flag and always applies SuperLU
+partial pivoting (``DiagPivotThresh`` is fixed at 1.0), so the flag changes no result bit.
+"""
+
+SYSTEM_NOTES: dict[str, str] = {"SparseGeneral": "partial pivoting is always on in this build"}
+"""Short notes shown with a system in the case forms."""
+
+_RETIRED_SYSTEM_ARGS: dict[str, tuple[str, ...]] = {"SparseGeneral": ("-piv",)}
+"""Arguments earlier files may carry that load with a notice and are dropped."""
+
+
+class _SolverOptions(Entity):
+    """``numberer`` and ``system`` arguments shared by the stepped analysis cases.
+
+    Both are left out of the file at their defaults (RCM, no arguments), so projects that do
+    not use them save exactly as before.
+    """
+
+    numberer: Numberer = "RCM"
+    system_args: tuple[str, ...] = ()
+    algorithm_args: tuple[str, ...] = ()
+
+    serialize_without_defaults = omit_when_default("numberer", "system_args", "algorithm_args")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_retired_system_args(cls, data: object) -> object:
+        if not isinstance(data, dict) or not data.get("system_args"):
+            return data
+        system = data.get("system", "")
+        retired = _RETIRED_SYSTEM_ARGS.get(system, ())
+        dropped = [a for a in data["system_args"] if a in retired]
+        if not dropped:
+            return data
+        warnings.warn(
+            f"Analysis case {data.get('id')}: system {system} {' '.join(dropped)} is not "
+            f"offered ({SYSTEM_NOTES.get(system, 'no effect in this build')}); "
+            f"running without {' '.join(dropped)}.",
+            UserWarning,
+            stacklevel=2,
+        )
+        kept = tuple(a for a in data["system_args"] if a not in retired)
+        return {**data, "system_args": kept}
+
+    @model_validator(mode="after")
+    def _known_algorithm_args(self) -> _SolverOptions:
+        allowed = (
+            ((), ("-initial",))
+            if getattr(self, "algorithm", "") in ("Newton", "ModifiedNewton")
+            else ((),)
+        )
+        if self.algorithm_args not in allowed:
+            raise ValueError("Only Newton and ModifiedNewton offer -initial in this build.")
+        return self
+
+    @model_validator(mode="after")
+    def _known_system_args(self) -> _SolverOptions:
+        system = getattr(self, "system", "")
+        allowed = SYSTEM_ARGS.get(system, ())
+        unknown = [a for a in self.system_args if a not in allowed]
+        if unknown:
+            accepted = ", ".join(allowed) if allowed else "none"
+            raise ValueError(
+                f"system {system} does not take {', '.join(unknown)} (accepted: {accepted})."
+            )
+        return self
+
+
+class StaticCase(_SolverOptions):
+    """Linear or nonlinear static analysis (single load step or pushover)."""
+
+    type: Literal["Static"] = "Static"
+    pattern_ids: list[PositiveInt] = Field(..., min_length=1)
+    n_steps: PositiveInt = 1
+    load_factor_increment: float = 1.0
+    system: str = "BandGeneral"
+    constraints: str = "Plain"
+    integrator: str = "LoadControl"
+    algorithm: str = "Linear"
+    test: str = "NormDispIncr"
+    tolerance: float = Field(default=1e-8, gt=0.0)
+    max_iter: PositiveInt = 25
+
+
+class ModalCase(Entity):
+    """Eigenvalue analysis.
+
+    ``solver`` is ``auto`` (the default: dense ``fullGenLapack`` at or below
+    ``core.modal.DENSE_EIGEN_MAX_FREE_DOF`` free DOF, ``genBandArpack`` above
+    it), or one of the two solvers this build really runs. ``symmBandLapack``
+    loads but is refused at run time (lumped mass leaves DOF massless). Any
+    other stored name loads with a warning and runs with the default routing.
+    """
+
+    type: Literal["Modal"] = "Modal"
+    n_modes: PositiveInt = 3
+    solver: str = SOLVER_AUTO
+
+    @field_validator("solver", mode="before")
+    @classmethod
+    def _known_solver(cls, value: object) -> str:
+        name = str(value).strip() if value is not None else SOLVER_AUTO
+        if name in KNOWN_SOLVERS:
+            return name
+        warnings.warn(
+            f"ModalCase solver {name!r} is not offered by this build (choose one of "
+            f"{', '.join(OFFERED_SOLVERS)}); running with the default routing ({SOLVER_AUTO}).",
+            UserWarning,
+            stacklevel=2,
+        )
+        return SOLVER_AUTO
+
+
+class TransientCase(_SolverOptions):
+    """Direct-integration time-history analysis.
+
+    Supports chained analysis via ``preload_case_ids``: a list of
+    StaticCase IDs to run first (applying their patterns in order), after
+    which ``ops.loadConst -time 0.0`` locks the load and resets pseudo-
+    time. Patterns in ``remove_patterns`` are then dropped via
+    ``ops.remove loadPattern`` so the transient runs as a *free-vibration*
+    (or reduced-pattern) continuation of the preloaded state.
+
+    If ``rayleigh_mode1_damping`` is set, the runner computes a stiffness-
+    proportional Rayleigh coefficient βK = 2ζ/√λ₁ from the first eigen-
+    value of the current (possibly preloaded) structure. This matches
+    the Tcl idiom ``rayleigh 0 0 0 [expr 2*ζ/sqrt([eigen 1])]``.
+    """
+
+    type: Literal["Transient"] = "Transient"
+    pattern_ids: list[PositiveInt] = Field(default_factory=list)
+    dt: PositiveFloat
+    n_steps: PositiveInt
+    system: str = "BandGeneral"
+    constraints: str = "Plain"
+    integrator: str = "Newmark"
+    integrator_params: tuple[float, float] = Field(
+        default=(0.5, 0.25),
+        description="Newmark gamma, beta (default = average acceleration).",
+    )
+    algorithm: str = "Newton"
+    test: str = "NormDispIncr"
+    tolerance: float = Field(default=1e-6, gt=0.0)
+    max_iter: PositiveInt = 25
+    # Rayleigh damping coefficients: C = αM·M + βK·K.
+    # αM damps lower frequencies, βK damps higher. Typical values:
+    # pick two target frequencies (e.g. 1st mode and 3rd mode) and 5%
+    # damping, then solve the 2x2 for α and β.
+    rayleigh_alpha_m: float = Field(
+        default=0.0,
+        description="Mass-proportional Rayleigh coefficient αM (damps low frequencies).",
+    )
+    rayleigh_beta_k: float = Field(
+        default=0.0,
+        description="Stiffness-proportional βK on CURRENT/tangent stiffness — "
+        "``rayleigh`` slot 2 (damps high frequencies).",
+    )
+    rayleigh_beta_k_init: float = Field(
+        default=0.0,
+        description=(
+            "Stiffness-proportional βK on INITIAL stiffness — ``rayleigh`` slot 3 "
+            "(``rayleigh 0 0 βKinit 0`` Kinit-proportional damping: βK·K_init held "
+            "constant). For ζ at a chosen mode i set βKinit = 2·ζ/ωᵢ. The four "
+            "coefficients are emitted in a SINGLE ``rayleigh`` call (a second call "
+            "would silently replace the first)."
+        ),
+    )
+    rayleigh_beta_k_comm: float = Field(
+        default=0.0,
+        description="Stiffness-proportional βK on COMMITTED stiffness — ``rayleigh`` slot 4.",
+    )
+    rayleigh_mode1_damping: float | None = Field(
+        default=None,
+        ge=0.0,
+        description=(
+            "If set, βK is computed as 2·ζ/√λ₁ (first-mode eigenvalue) and "
+            "overrides ``rayleigh_beta_k``. ``rayleigh_alpha_m`` still applies."
+        ),
+    )
+    # Chained analysis — preload + pattern removal before the transient.
+    preload_case_ids: list[PositiveInt] = Field(
+        default_factory=list,
+        description=(
+            "StaticCase IDs to run first. Each runs its ``pattern_ids`` "
+            "through ``LoadControl`` steps, then ``loadConst -time 0.0`` "
+            "locks the applied load and resets pseudo-time to zero."
+        ),
+    )
+    remove_patterns: list[PositiveInt] = Field(
+        default_factory=list,
+        description=(
+            "Pattern IDs to drop (``ops.remove loadPattern``) after the "
+            "preload phase and before the transient loop — use this for "
+            "Tcl-style free-vibration analyses."
+        ),
+    )
+
+
+class PushoverCase(_SolverOptions):
+    """Displacement-controlled monotonic pushover analysis.
+
+    Applies the reference load pattern(s), then incrementally drives
+    a single control DOF from 0 to ``target_disp`` in steps of
+    ``step_size``. OpenSees reports base shear implicitly via reaction
+    forces at restrained nodes — we aggregate them over the user's
+    ``base_nodes`` list to build the pushover curve.
+
+    Gravity preload options:
+        - **Recommended**: set ``preload_case_ids`` to a list of
+          ``StaticCase`` IDs. Each preload case runs its ``pattern_ids``
+          through the configured ``LoadControl`` loop (ramped over
+          ``n_steps``) before the pushover starts, then
+          ``ops.loadConst -time 0.0`` locks the preload. This matches
+          the Tcl ``analyze 10; loadConst`` recipe from the RC Portal
+          Pushover example.
+        - **Legacy fallback**: if ``preload_case_ids`` is empty, the
+          runner splits ``pattern_ids`` by TimeSeries type — patterns
+          driven by a ``ConstantTimeSeries`` are applied in a single
+          ``LoadControl(0)`` step before the pushover; Linear patterns
+          are treated as the DisplacementControl reference load. Kept
+          for backward compatibility with older ``.osmodel`` files.
+    """
+
+    type: Literal["Pushover"] = "Pushover"
+    pattern_ids: list[PositiveInt] = Field(default_factory=list)
+    control_node: PositiveInt = Field(..., description="Node whose displacement is driven.")
+    control_dof: int = Field(..., ge=1, le=6, description="DOF direction (1..6) to push.")
+    target_disp: float = Field(..., description="Final displacement target (signed).")
+    step_size: PositiveFloat = Field(
+        default=0.001,
+        description="Incremental displacement per step. Smaller = more stable.",
+    )
+    base_nodes: list[PositiveInt] = Field(
+        default_factory=list,
+        description="Nodes whose reactions sum into the 'base shear' for the curve. "
+        "Leave empty to use every restrained node in the project.",
+    )
+    system: str = "BandGeneral"
+    constraints: str = "Plain"
+    algorithm: str = "Newton"
+    test: str = "NormDispIncr"
+    tolerance: float = Field(default=1e-6, gt=0.0)
+    max_iter: PositiveInt = 25
+    preload_case_ids: list[PositiveInt] = Field(
+        default_factory=list,
+        description=(
+            "StaticCase IDs to run first (in order) as the gravity / "
+            "axial preload. After all preloads complete, "
+            "``loadConst -time 0.0`` locks the applied load and resets "
+            "pseudo-time so the pushover's DisplacementControl starts "
+            "from a clean t=0."
+        ),
+    )
+
+
+class ResponseSpectrumCase(Entity):
+    """Modal response-spectrum analysis with SRSS or CQC combination.
+
+    Operates on a previously-computed :class:`ModalCase` result —
+    we re-run that modal eigenvalue analysis under the hood so the
+    spectrum case is self-contained from the user's perspective.
+
+    For each mode i:
+    1. Read frequency f_i, modal mass participation factor Γ_i, and
+       mode shape φ_i from the modal results.
+    2. Look up Sa(T_i) from the spectrum (linear interpolation in
+       period; clamped at table ends).
+    3. Compute the modal peak response u_i = Γ_i · φ_i · Sa(T_i) / ω_i².
+    4. Combine across modes using SRSS or CQC.
+    """
+
+    type: Literal["ResponseSpectrum"] = "ResponseSpectrum"
+    modal_case_id: PositiveInt = Field(
+        ...,
+        description="ID of the ModalCase whose mode shapes drive this analysis.",
+    )
+    spectrum_id: PositiveInt = Field(
+        ...,
+        description="ID of the ResponseSpectrum to apply.",
+    )
+    direction: int = Field(
+        ...,
+        ge=1,
+        le=6,
+        description="DOF direction (1..6) for the seismic excitation.",
+    )
+    combination: Literal["SRSS", "CQC"] = Field(
+        default="CQC",
+        description=(
+            "Modal combination rule. CQC is the default for new cases: its result does "
+            "not depend on the arbitrary basis an eigen solver returns inside a repeated "
+            "or near-repeated mode pair, SRSS does. Saved cases keep their stored rule."
+        ),
+    )
+    damping_ratio: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Modal damping for the CQC correlation. None (also stored for 0 or an empty "
+            "value) means the spectrum's own damping_ratio. A CQC run never uses zero "
+            "damping: if that would be the outcome, 0.05 is used and a warning is issued."
+        ),
+    )
+    closely_spaced_ratio: float = Field(
+        default=0.9,
+        gt=0.0,
+        le=1.0,
+        description=(
+            "SRSS only: two included modes whose frequency ratio (lower over higher) is at "
+            "least this count as closely spaced and produce a warning."
+        ),
+    )
+
+    @field_validator("damping_ratio", mode="before")
+    @classmethod
+    def _zero_damping_means_spectrum(cls, value: object) -> object:
+        if value is None or value == "" or value == 0:
+            return None
+        return value
+
+
+AnalysisCase = Annotated[
+    StaticCase | ModalCase | TransientCase | PushoverCase | ResponseSpectrumCase,
+    Field(discriminator="type"),
+]
