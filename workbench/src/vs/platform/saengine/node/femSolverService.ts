@@ -13,7 +13,7 @@ import { killTree } from '../../../base/node/processes.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemRunEventMessage, IBuildingIfc, IBuildingIfcRequest, IFemDerivation, IFemDeriveRequest, IGeneratedBuilding, ILibraryProblem, LibraryFileKind, IFemRunExit, IFemRunRequest, IFemSolverService } from '../common/femSolver.js';
+import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemResultList, IFemResultView, IFemRunEventMessage, IBuildingIfc, IBuildingIfcRequest, IFemDerivation, IFemDeriveRequest, IGeneratedBuilding, ILibraryProblem, LibraryFileKind, IFemRunExit, IFemRunRequest, IFemSolverService } from '../common/femSolver.js';
 
 interface IRun {
 	readonly child: cp.ChildProcess;
@@ -122,6 +122,14 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 	async getResultTables(python: string, outDir: string, project: string): Promise<readonly IFemCaseResults[]> {
 		const result = await this.request<{ cases: IFemCaseResults[] }>(python, 'results/tables', { outDir, projectPath: project });
 		return result.cases;
+	}
+
+	getResultList(python: string, outDir: string, project: string): Promise<IFemResultList> {
+		return this.request(python, 'results/list', { outDir, projectPath: project });
+	}
+
+	getResultView(python: string, outDir: string, project: string, key: string, mode?: number): Promise<IFemResultView> {
+		return this.request(python, 'results/view', { outDir, projectPath: project, key, mode });
 	}
 
 	async checkLibrary(python: string, kind: LibraryFileKind, text: string, companionText?: string): Promise<readonly ILibraryProblem[]> {

@@ -160,3 +160,20 @@ def test_analysis_runs_and_combinations_balance(tmp_path: Path) -> None:
     )
     assert total[3] == pytest.approx(expected, rel=1e-4)
     assert "Envelope of all combinations" in entries
+
+    # The 3D display of the same run: listing, a combination's reactions, a mode shape.
+    from saengine.fem.display import result_list, result_view
+
+    settings_file = tmp_path / "02 Project Settings" / "project-settings.json"
+    settings_file.parent.mkdir()
+    settings_file.write_text(SETTINGS.model_dump_json(by_alias=True), encoding="utf-8")
+    listing = result_list(out, model)
+    keys = {r["label"]: r["key"] for r in listing["results"]}
+    assert not listing["stale"]
+    view = result_view(out, model, keys["1.2D + 1.6L + 0.5Lr"])
+    assert sum(r[3] for r in view["reactions"]) == pytest.approx(total[3], rel=1e-6)
+    beam = next(e for e in view["elements"] if e["name"] == "B1")
+    assert beam["forces"][0][4] > 0 > beam["forces"][len(beam["forces"]) // 2][4]  # hog, sag
+    modal = next(r for r in listing["results"] if r["kind"] == "modal")
+    shape = result_view(out, model, modal["key"], 1)
+    assert max(abs(c) for n in shape["nodes"] for c in n[1:4]) == pytest.approx(1.0)

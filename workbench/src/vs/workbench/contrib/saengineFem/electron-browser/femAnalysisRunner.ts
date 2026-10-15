@@ -7,7 +7,7 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
-import { basename, dirname, joinPath } from '../../../../base/common/resources.js';
+import { basename, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -17,6 +17,7 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { FemRunEvent, FemRunExitCode, IFemCaseResults, IFemResultTable, IFemRunExit, IFemSolverService } from '../../../../platform/saengine/common/femSolver.js';
+import { resultsFolder } from '../browser/femResultsBar.js';
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { IOutputService } from '../../../services/output/common/output.js';
 
@@ -108,7 +109,7 @@ export class FemAnalysisRunner {
 			return;
 		}
 
-		const outDir = joinPath(dirname(model), `${basename(model).replace(/\.osmodel$/i, '')}.results`);
+		const outDir = resultsFolder(model);
 		await this.clearPreviousResults(outDir);
 
 		const output = this.outputService.getChannel(FEM_OUTPUT_CHANNEL_ID);

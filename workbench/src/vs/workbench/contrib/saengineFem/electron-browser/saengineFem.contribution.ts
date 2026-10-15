@@ -18,6 +18,7 @@ import { ActiveEditorContext } from '../../../common/contextkeys.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { Extensions as OutputExtensions, IOutputChannelRegistry } from '../../../services/output/common/output.js';
 import { FemModelEditorInput } from '../browser/femModelEditorInput.js';
+import { resultsFolder } from '../browser/femResultsBar.js';
 import { FEM_OUTPUT_CHANNEL_ID, FEM_PYTHON_SETTING, FemAnalysisRunner } from './femAnalysisRunner.js';
 
 const category = localize2('saengine.category', "SAEngine");
@@ -116,6 +117,20 @@ CommandsRegistry.registerCommand('saengine.bim.ifc', async (accessor, request: I
 CommandsRegistry.registerCommand('saengine.fem.derive', async (accessor, request: IFemDeriveRequest) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	return accessor.get(IFemSolverService).deriveFem(python, request);
+});
+
+/**
+ * The results of the model's last run that can be shown in 3D, and one result ready to draw.
+ * Internal: the FEM model editor's results bar calls them by id.
+ */
+CommandsRegistry.registerCommand('saengine.fem.resultList', async (accessor, model: URI) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).getResultList(python, resultsFolder(model).fsPath, model.fsPath);
+});
+
+CommandsRegistry.registerCommand('saengine.fem.resultView', async (accessor, model: URI, key: string, mode?: number) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).getResultView(python, resultsFolder(model).fsPath, model.fsPath, key, mode);
 });
 
 CommandsRegistry.registerCommand('saengine.bim.generate', async (accessor, floorPlanText: string, bimText?: string) => {

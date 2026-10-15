@@ -35,3 +35,41 @@ export type FemSelection =
 export function sameSelection(a: FemSelection | undefined, b: FemSelection | undefined): boolean {
 	return a?.kind === b?.kind && a?.id === b?.id;
 }
+
+/**
+ * One analysis result ready to draw (SAEngine backend `results/view`): node displacements
+ * `[id, ux, uy, uz, rx, ry, rz]`, support reactions `[id, fx, fy, fz, mx, my, mz]`, and per frame
+ * element its local y/z axes with displacements (global) and section forces
+ * `[N, Vy, Vz, T, My, Mz]` (local, tension positive) at stations evenly spaced from node i to j.
+ */
+export interface FemResultView {
+	readonly label: string;
+	readonly kind: 'static' | 'combination' | 'modal';
+	readonly nodes: readonly (readonly number[])[];
+	readonly reactions: readonly (readonly number[])[];
+	readonly elements: readonly FemResultElement[];
+}
+
+export interface FemResultElement {
+	readonly id: number;
+	readonly name: string;
+	readonly y: readonly number[];
+	readonly z: readonly number[];
+	readonly displacements: readonly (readonly number[])[];
+	readonly forces?: readonly (readonly number[])[];
+}
+
+/** What to draw of a result: the deflected shape, one section force's diagram, or the reactions. */
+export type FemResultQuantity = 'deformed' | 'N' | 'Vy' | 'Vz' | 'T' | 'My' | 'Mz' | 'reactions';
+
+export const FORCE_COMPONENTS: readonly FemResultQuantity[] = ['N', 'Vy', 'Vz', 'T', 'My', 'Mz'];
+
+export interface FemResultDisplay {
+	readonly show: FemResultQuantity;
+	/** Multiplier on the automatic scale (largest value drawn at a fixed share of the model size). */
+	readonly scale: number;
+	/** Mode shapes only: oscillate the shape. */
+	readonly animate: boolean;
+	/** Text of a value for the labels, in the units the user reads. */
+	readonly format: (quantity: 'length' | 'force' | 'moment', value: number) => string;
+}

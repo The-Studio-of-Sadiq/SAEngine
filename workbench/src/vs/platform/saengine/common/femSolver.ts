@@ -91,6 +91,40 @@ export interface IFemCaseResults {
 	readonly tables: readonly IFemResultTable[];
 }
 
+/** A result of a finished run that can be shown in 3D. */
+export interface IFemResultEntry {
+	/** `case:<id>` or `combination:<number>`. */
+	readonly key: string;
+	readonly label: string;
+	readonly kind: 'static' | 'combination' | 'modal';
+	readonly modes?: readonly { readonly number: number; readonly period: number | null }[];
+}
+
+export interface IFemResultList {
+	readonly results: readonly IFemResultEntry[];
+	/** The model was changed after the run. */
+	readonly stale: boolean;
+}
+
+/**
+ * One result ready to draw (see `saengine.fem.display`): node displacements, support reactions,
+ * and per frame element its local axes with displacements and section forces at stations.
+ */
+export interface IFemResultView {
+	readonly label: string;
+	readonly kind: 'static' | 'combination' | 'modal';
+	readonly nodes: readonly (readonly number[])[];
+	readonly reactions: readonly (readonly number[])[];
+	readonly elements: readonly {
+		readonly id: number;
+		readonly name: string;
+		readonly y: readonly number[];
+		readonly z: readonly number[];
+		readonly displacements: readonly (readonly number[])[];
+		readonly forces?: readonly (readonly number[])[];
+	}[];
+}
+
 /** A rule violation in a library file, reported against the entry at `index` (none: the whole file). */
 /** Project files the Python models check. */
 export type LibraryFileKind = 'materials' | 'objects' | 'settings' | 'floorPlan' | 'bim';
@@ -159,6 +193,10 @@ export interface IFemSolverService {
 	getBackendInfo(python: string): Promise<IFemBackendInfo>;
 	validateProject(python: string, project: string): Promise<IFemProjectValidation>;
 	getResultTables(python: string, outDir: string, project: string): Promise<readonly IFemCaseResults[]>;
+	/** The results of a run that can be shown in 3D. */
+	getResultList(python: string, outDir: string, project: string): Promise<IFemResultList>;
+	/** One result's deflected shape, force diagrams and reactions (`mode`: modal results). */
+	getResultView(python: string, outDir: string, project: string, key: string, mode?: number): Promise<IFemResultView>;
 	/** Runs the model rules on a project file; `companionText` is the file it references (materials for objects, objects for the floor plan and bim). */
 	checkLibrary(python: string, kind: LibraryFileKind, text: string, companionText?: string): Promise<readonly ILibraryProblem[]>;
 

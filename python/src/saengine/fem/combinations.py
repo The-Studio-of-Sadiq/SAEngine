@@ -29,7 +29,7 @@ _FORCES = ["Fx", "Fy", "Fz", "Mx", "My", "Mz"]
 _END_FORCES = ["N", "Vy", "Vz", "T", "My", "Mz"]
 
 
-def _factors(combination: LoadCombination) -> dict[str, float]:
+def combination_factors(combination: LoadCombination) -> dict[str, float]:
     factors: dict[str, float] = {}
     for field, cases in _FACTOR_CASES.items():
         value = getattr(combination, field)
@@ -75,7 +75,7 @@ def combination_results(
     entries: list[dict[str, Any]] = []
     envelope: dict[tuple[int, int], list[float]] = {}
     for number, combination in enumerate(settings.combinations, start=1):
-        factors = _factors(combination)
+        factors = combination_factors(combination)
         missing = [case for case in factors if case not in by_case]
         if missing:
             entries.append(

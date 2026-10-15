@@ -154,6 +154,20 @@ def results_tables(out_dir: str, project_path: str | None = None) -> dict[str, A
     return {"cases": cases}
 
 
+def result_list(out_dir: str, project_path: str) -> dict[str, Any]:
+    """The results of a run that can be shown in 3D (see ``saengine.fem.display``)."""
+    from saengine.fem.display import result_list as listing
+
+    return listing(out_dir, project_path)
+
+
+def result_view(out_dir: str, project_path: str, key: str, mode: int | None) -> dict[str, Any]:
+    """One result's deflected shape and force diagrams (see ``saengine.fem.display``)."""
+    from saengine.fem.display import result_view as view
+
+    return view(out_dir, project_path, key, mode or 1)
+
+
 def check_library(kind: str, text: str, materials_text: str | None = None) -> dict[str, Any]:
     from saengine.library.check import check_library as check
 

@@ -92,7 +92,7 @@ class _Builder:
         return self.nodes[key]
 
 
-def _local_axes(a: np.ndarray, b: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def local_axes(a: np.ndarray, b: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """The element axes OpenSees Studio uses (its runner picks vecxz from the element axis)."""
     x = (b - a) / np.linalg.norm(b - a)
     vecxz = np.array([1.0, 0, 0]) if abs(x[2]) > abs(x[0]) else np.array([0, 0, 1.0])
@@ -255,7 +255,7 @@ def derive_fem(
     def add_element_load(case: str, index: int, vector: np.ndarray) -> None:
         """A uniform load (global N/m) on member ``index``, applied in its local axes."""
         member = b.members[index]
-        x, y, z = _local_axes(b.coords[member.i], b.coords[member.j])
+        x, y, z = local_axes(b.coords[member.i], b.coords[member.j])
         local = np.array([vector @ x, vector @ y, vector @ z])
         total = patterns[case]["element"].setdefault(index, np.zeros(3))
         total += local

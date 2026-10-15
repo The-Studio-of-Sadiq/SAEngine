@@ -72,3 +72,71 @@
 .saengine-fem-model-editor .message.visible {
 	display: block;
 }
+
+/* results of the last run: which one, what of it, at which scale */
+.saengine-fem-model-editor .fem-results {
+	display: none;
+	flex: none;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 6px 16px;
+	padding: 6px 16px;
+	border-bottom: 1px solid var(--vscode-editorGroup-border, transparent);
+}
+
+.saengine-fem-model-editor .fem-results.visible {
+	display: flex;
+}
+
+.saengine-fem-model-editor .fem-results-group {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.saengine-fem-model-editor .fem-results-group.hidden,
+.saengine-fem-model-editor .fem-results .monaco-button.hidden {
+	display: none;
+}
+
+.saengine-fem-model-editor .fem-results-label {
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-fem-model-editor .fem-results-select.result {
+	width: 220px;
+}
+
+.saengine-fem-model-editor .fem-results-select.mode {
+	width: 130px;
+}
+
+.saengine-fem-model-editor .fem-results-select.show {
+	width: 150px;
+}
+
+.saengine-fem-model-editor .fem-results-group.scale .monaco-button {
+	width: auto;
+	padding: 2px 4px;
+}
+
+.saengine-fem-model-editor .fem-results-scale {
+	min-width: 28px;
+	text-align: center;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-fem-model-editor .fem-results-info {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-fem-model-editor .fem-results-info .codicon-warning {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.saengine-fem-model-editor .fem-results-info .codicon-error {
+	color: var(--vscode-editorError-foreground);
+}

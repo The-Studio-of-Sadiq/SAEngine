@@ -4,9 +4,11 @@
 
 import * as THREE from 'three';
 import * as OBC from '@thatopen/components';
-import { FemElement, FemModel, FemNode, FemSelection, sameSelection } from './model.js';
+import { FemElement, FemModel, FemNode, FemResultDisplay, FemResultView, FemSelection, sameSelection } from './model.js';
+import { ResultOverlay } from './results.js';
 
-export type { FemElement, FemModel, FemNode, FemSelection } from './model.js';
+export type { FemElement, FemModel, FemNode, FemResultDisplay, FemResultElement, FemResultQuantity, FemResultView, FemSelection } from './model.js';
+export { FORCE_COMPONENTS } from './model.js';
 
 export interface FemViewerTheme {
 	readonly background: string;
@@ -15,6 +17,11 @@ export interface FemViewerTheme {
 	readonly support: string;
 	readonly selection: string;
 	readonly grid: string;
+	/** Results: deflected shape, positive and negative diagram values, reactions. */
+	readonly deformed: string;
+	readonly positive: string;
+	readonly negative: string;
+	readonly reaction: string;
 }
 
 export interface FemViewerOptions {
@@ -25,6 +32,8 @@ export interface FemViewerOptions {
 export interface FemViewer {
 	setModel(model: FemModel): void;
 	setSelection(selection: FemSelection | undefined): void;
+	/** Draws an analysis result over the model (undefined: the model alone). */
+	setResults(results: FemResultView | undefined, display?: FemResultDisplay): void;
 	setTheme(theme: Partial<FemViewerTheme>): void;
 	fit(): Promise<void>;
 	/** Call when the container changes size and the browser has not reported it (e.g. hidden tabs). */
@@ -39,6 +48,10 @@ const defaultTheme: FemViewerTheme = {
 	support: '#89d185',
 	selection: '#ffcc00',
 	grid: '#3c3c3c',
+	deformed: '#d18616',
+	positive: '#3794ff',
+	negative: '#f14c4c',
+	reaction: '#89d185',
 };
 
 /** Model space (Z up in 3D, Y up in 2D) to three.js world space (Y up). */
@@ -70,6 +83,10 @@ class FemViewerImpl implements FemViewer {
 	private nodes: THREE.Points | undefined;
 	private nodeIds: number[] = [];
 	private readonly highlight = new THREE.Group();
+	private readonly resultGroup = new THREE.Group();
+	private results: { readonly view: FemResultView; readonly display: FemResultDisplay } | undefined;
+	private overlay: ResultOverlay | undefined;
+	private animation: number | undefined;
 	private readonly raycaster = new THREE.Raycaster();
 
 	private pointerDown: { x: number; y: number } | undefined;
@@ -94,6 +111,7 @@ class FemViewerImpl implements FemViewer {
 		this.grid = this.components.get(OBC.Grids).create(this.world);
 		this.world.scene.three.add(this.modelGroup);
 		this.world.scene.three.add(this.highlight);
+		this.world.scene.three.add(this.resultGroup);
 
 		this.applyTheme();
 
@@ -107,6 +125,7 @@ class FemViewerImpl implements FemViewer {
 		this.model = model;
 		this.rebuild();
 		this.renderHighlight();
+		this.renderResults();
 		if (first) {
 			void this.fit();
 		}
@@ -118,6 +137,13 @@ class FemViewerImpl implements FemViewer {
 		}
 		this.selection = selection;
 		this.renderHighlight();
+		this.renderResults();
+	}
+
+	setResults(view: FemResultView | undefined, display?: FemResultDisplay): void {
+		this.results = view && display ? { view, display } : undefined;
+		this.rebuild();
+		this.renderResults();
 	}
 
 	setTheme(theme: Partial<FemViewerTheme>): void {
@@ -125,6 +151,7 @@ class FemViewerImpl implements FemViewer {
 		this.applyTheme();
 		this.rebuild();
 		this.renderHighlight();
+		this.renderResults();
 	}
 
 	async fit(): Promise<void> {
@@ -149,6 +176,7 @@ class FemViewerImpl implements FemViewer {
 		canvas?.removeEventListener('pointerup', this.onPointerUp);
 		this.clearGroup(this.modelGroup);
 		this.clearGroup(this.highlight);
+		this.clearResults();
 		this.components.dispose();
 	}
 
@@ -189,7 +217,9 @@ class FemViewerImpl implements FemViewer {
 		if (positions.length) {
 			const geometry = new THREE.BufferGeometry();
 			geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-			this.members = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ color: this.theme.member }));
+			// Under a result the model steps back.
+			const dimmed = !!this.results;
+			this.members = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ color: this.theme.member, transparent: dimmed, opacity: dimmed ? 0.35 : 1 }));
 			this.modelGroup.add(this.members);
 			this.pickTargets.push(this.members);
 		}
@@ -237,6 +267,45 @@ class FemViewerImpl implements FemViewer {
 			const support = new THREE.Mesh(supportGeometry, supportMaterial);
 			support.position.copy(toWorld(model, node.coords));
 			this.modelGroup.add(support);
+		}
+	}
+
+	private clearResults(): void {
+		if (this.animation !== undefined) {
+			cancelAnimationFrame(this.animation);
+			this.animation = undefined;
+		}
+		if (this.overlay) {
+			this.resultGroup.remove(this.overlay.group);
+			this.overlay.dispose();
+			this.overlay = undefined;
+		}
+	}
+
+	private renderResults(): void {
+		this.clearResults();
+		const model = this.model;
+		if (!model || !this.results) {
+			return;
+		}
+		const theme = this.theme;
+		const overlay = new ResultOverlay(model, this.results.view, this.results.display, {
+			deformed: theme.deformed,
+			positive: theme.positive,
+			negative: theme.negative,
+			reaction: theme.reaction,
+			label: theme.node,
+			labelBackground: theme.background,
+		}, this.modelScale(model), coords => toWorld(model, coords), this.selection?.kind === 'element' ? this.selection.id : undefined);
+		this.overlay = overlay;
+		this.resultGroup.add(overlay.group);
+		if (overlay.isAnimated) {
+			const start = performance.now();
+			const step = (now: number) => {
+				overlay.setPhase(Math.sin((now - start) / 1600 * 2 * Math.PI));
+				this.animation = requestAnimationFrame(step);
+			};
+			this.animation = requestAnimationFrame(step);
 		}
 	}
 

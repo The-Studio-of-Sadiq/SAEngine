@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/femModelEditor.css';
-import type { FemModel, FemSelection, FemViewer, FemViewerTheme } from '@saengine/fem-viewer';
+import type { FemModel, FemResultDisplay, FemSelection, FemViewer, FemViewerTheme } from '@saengine/fem-viewer';
 import { $, append, Dimension, clearNode } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -15,13 +15,15 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { chartsBlue, chartsGreen, chartsLines, chartsYellow } from '../../../../platform/theme/common/colors/chartsColors.js';
+import { chartsBlue, chartsGreen, chartsLines, chartsOrange, chartsRed, chartsYellow } from '../../../../platform/theme/common/colors/chartsColors.js';
 import { editorBackground, editorForeground } from '../../../../platform/theme/common/colors/editorColors.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { FemDerivationBar } from './femDerivationBar.js';
 import { FemModelEditorInput } from './femModelEditorInput.js';
+import { FemResultsBar } from './femResultsBar.js';
+import { IFemResultView } from '../../../../platform/saengine/common/femSolver.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { loadViewerModule } from './viewerModule.js';
 
@@ -32,6 +34,9 @@ export class FemModelEditor extends EditorPane {
 	private message: HTMLElement | undefined;
 	private viewer: FemViewer | undefined;
 	private derivation: FemDerivationBar | undefined;
+	private results: FemResultsBar | undefined;
+	/** The result drawn over the model, kept for a viewer created later. */
+	private shownResult: { readonly view: IFemResultView; readonly display: FemResultDisplay } | undefined;
 	private nodeCount = 0;
 
 	private readonly inputDisposables = this._register(new DisposableStore());
@@ -54,6 +59,11 @@ export class FemModelEditor extends EditorPane {
 	protected createEditor(parent: HTMLElement): void {
 		this.container = append(parent, $('.saengine-fem-model-editor'));
 		this.derivation = this._register(this.instantiationService.createInstance(FemDerivationBar, this.container, () => this.viewer?.layout()));
+		this.results = this._register(this.instantiationService.createInstance(FemResultsBar, this.container, () => this.viewer?.layout(), (view: IFemResultView | undefined, display: FemResultDisplay | undefined) => {
+			this.shownResult = view && display ? { view, display } : undefined;
+			this.viewer?.setResults(view, display);
+		}));
+		this._register(this.onDidChangeSelection(selection => this.results?.setSelection(selection)));
 		this.viewport = append(this.container, $('.viewport'));
 		this.message = append(this.container, $('.message'));
 	}
@@ -81,6 +91,7 @@ export class FemModelEditor extends EditorPane {
 
 	override clearInput(): void {
 		this.inputDisposables.clear();
+		this.results?.setResource(undefined, undefined);
 		super.clearInput();
 	}
 
@@ -116,6 +127,9 @@ export class FemModelEditor extends EditorPane {
 				onSelectionChanged: selection => this._onDidChangeSelection.fire(selection),
 			});
 			this.viewer = viewer;
+			if (this.shownResult) {
+				viewer.setResults(this.shownResult.view, this.shownResult.display);
+			}
 			this.viewerDisposable.value = toDisposable(() => {
 				viewer.dispose();
 				this.viewer = undefined;
@@ -148,7 +162,9 @@ export class FemModelEditor extends EditorPane {
 			return;
 		}
 		this.showMessage(undefined);
-		this.derivation?.setDescription((model as { meta?: { description?: unknown } }).meta?.description);
+		const meta = (model as { meta?: { description?: unknown; units?: unknown } }).meta;
+		this.derivation?.setDescription(meta?.description);
+		this.results?.setResource(input.resource, typeof meta?.units === 'string' ? meta.units : undefined);
 		const wasEmpty = this.nodeCount === 0;
 		this.nodeCount = model.nodes.length;
 		this.viewer?.setModel(model);
@@ -179,6 +195,10 @@ export class FemModelEditor extends EditorPane {
 			support: color(chartsGreen),
 			selection: color(chartsYellow),
 			grid: color(chartsLines),
+			deformed: color(chartsOrange),
+			positive: color(chartsBlue),
+			negative: color(chartsRed),
+			reaction: color(chartsGreen),
 		};
 	}
 }
