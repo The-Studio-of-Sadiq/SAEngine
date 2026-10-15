@@ -14,6 +14,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -161,6 +162,15 @@ export class LibraryEditor extends JsonDocumentEditor {
 	override focus(): void {
 		super.focus();
 		this.listContainer.focus();
+	}
+
+	/** `revealId` (e.g. from the Properties view) selects that entry. */
+	protected override applyOptions(options: (IEditorOptions & { readonly revealId?: unknown }) | undefined): void {
+		const id = options?.revealId;
+		if (typeof id === 'string' && this.items.some(i => i.id === id)) {
+			this.selectedId = id;
+			this.render();
+		}
 	}
 
 	// ───────────────────────────── document ─────────────────────────────

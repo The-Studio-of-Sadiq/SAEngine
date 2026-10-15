@@ -125,3 +125,19 @@ def test_check_reports_member_types_and_rules() -> None:
     assert [p["message"] for p in check_library("floorPlan", json.dumps(broken))] == [
         "C-A1: no story 'L1'"
     ]
+
+
+def test_underlays() -> None:
+    plan = FloorPlan.model_validate(
+        model(underlays=[{"story": "L1", "file": "Underlays/architect L1.DXF", "scale": 1000}])
+    )
+    assert (plan.underlays[0].dx, plan.underlays[0].visible) == (0, True)
+    for underlays, message in [
+        ([{"story": "L9", "file": "a.dxf"}], "no story 'L9'"),
+        ([{"story": "L1", "file": "a.dxf"}, {"story": "L1", "file": "b.dxf"}], "one underlay"),
+        ([{"story": "L1", "file": "../outside.dxf"}], "inside the 05 Floor Plan folder"),
+        ([{"story": "L1", "file": "C:/plans/a.dxf"}], "inside the 05 Floor Plan folder"),
+        ([{"story": "L1", "file": "plan.dwg"}], "should match pattern"),
+    ]:
+        with pytest.raises(ValidationError, match=message):
+            FloorPlan.model_validate(model(underlays=underlays))

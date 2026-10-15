@@ -240,3 +240,150 @@ export function removeMember(layout: unknown, group: MemberGroup, id: string): J
 	next[group] = members(next, group).filter(m => m.id !== id);
 	return next;
 }
+
+// ───────────────────────────── free points, move, rotate, polygon slabs ─────────────────────────────
+
+/**
+ * Where a click lands: on a grid intersection when within `tolerance` of one, else on a grid
+ * line's coordinate for each axis within `tolerance` of a line, else where it is (to the mm).
+ */
+export function snapPoint(layout: unknown, point: CadPoint, tolerance: number): CadPoint {
+	const node = snapToGrid(layout, point, tolerance);
+	if (node) {
+		return node.point;
+	}
+	const grids = gridsOf(layout);
+	const near = (lines: ReadonlyMap<string, number>, value: number) => {
+		let best: number | undefined;
+		for (const position of lines.values()) {
+			if (Math.abs(position - value) <= tolerance && (best === undefined || Math.abs(position - value) < Math.abs(best - value))) {
+				best = position;
+			}
+		}
+		return best ?? Math.round(value);
+	};
+	return [near(grids.x, point[0]), near(grids.y, point[1])];
+}
+
+/**
+ * A point as the floor plan stores it: its nearest grid intersection plus an offset in whole
+ * millimetres (no offset on the intersection itself), so it follows the grid when lines move.
+ */
+export function anchor(layout: unknown, point: CadPoint): Json | undefined {
+	const node = snapToGrid(layout, point, Infinity);
+	if (!node) {
+		return undefined;
+	}
+	const dx = Math.round(point[0] - node.point[0]);
+	const dy = Math.round(point[1] - node.point[1]);
+	return { x: node.x, y: node.y, ...(dx ? { dx } : {}), ...(dy ? { dy } : {}) };
+}
+
+/** Where a grid point of the floor plan is. */
+export function resolvePoint(layout: unknown, value: unknown): CadPoint | undefined {
+	if (!isObject(value)) {
+		return undefined;
+	}
+	const grids = gridsOf(layout);
+	const x = grids.x.get(value.x as string);
+	const y = grids.y.get(value.y as string);
+	return x === undefined || y === undefined ? undefined : [x + (Number(value.dx) || 0), y + (Number(value.dy) || 0)];
+}
+
+/** The point a member is moved by: a column's or footing's location, a line's start, a slab's first corner. */
+export function basePoint(layout: unknown, group: MemberGroup, id: string): CadPoint | undefined {
+	const member = isObject(layout) ? members(layout, group).find(m => m.id === id) : undefined;
+	if (!member) {
+		return undefined;
+	}
+	const first = group === 'columns' || group === 'footings' ? member.at
+		: group === 'slabs' ? (Array.isArray(member.boundary) ? member.boundary[0] : undefined)
+			: member.start;
+	return resolvePoint(layout, first);
+}
+
+function polygonArea(points: readonly CadPoint[]): number {
+	let sum = 0;
+	points.forEach(([x1, y1], i) => {
+		const [x2, y2] = points[(i + 1) % points.length];
+		sum += x1 * y2 - x2 * y1;
+	});
+	return sum / 2;
+}
+
+function changeMember(layout: unknown, group: MemberGroup, id: string, change: (member: Json) => Json | string): EditResult {
+	const next = JSON.parse(JSON.stringify(layout)) as Json;
+	const list = members(next, group);
+	const index = list.findIndex(m => m.id === id);
+	if (index < 0) {
+		return { ok: false, error: localize('edit.missing', "{0} no longer exists.", id) };
+	}
+	const changed = change(list[index]);
+	if (typeof changed === 'string') {
+		return { ok: false, error: changed };
+	}
+	list[index] = changed;
+	next[group] = list;
+	return { ok: true, layout: next, id };
+}
+
+/**
+ * Moves a member by `delta` (mm). Each of its points is re-anchored to the grid intersection
+ * nearest to where it lands, so a member moved onto another bay belongs to that bay's lines.
+ */
+export function moveMember(layout: unknown, group: MemberGroup, id: string, delta: CadPoint): EditResult {
+	if (!delta[0] && !delta[1]) {
+		return { ok: false, error: localize('edit.noMove', "Choose a different point to move to.") };
+	}
+	const move = (value: unknown): Json | undefined => {
+		const at = resolvePoint(layout, value);
+		return at && anchor(layout, [at[0] + delta[0], at[1] + delta[1]]);
+	};
+	return changeMember(layout, group, id, member => {
+		const keys = group === 'columns' || group === 'footings' ? ['at'] : group === 'slabs' ? [] : ['start', 'end'];
+		const result: Json = { ...member };
+		for (const key of keys) {
+			const moved = move(member[key]);
+			if (!moved) {
+				return localize('edit.badPoint', "{0} refers to a grid line that does not exist.", id);
+			}
+			result[key] = moved;
+		}
+		if (group === 'slabs') {
+			const corners = (Array.isArray(member.boundary) ? member.boundary : []).map(move);
+			if (corners.some(c => !c)) {
+				return localize('edit.badPoint', "{0} refers to a grid line that does not exist.", id);
+			}
+			result.boundary = corners;
+		}
+		return result;
+	});
+}
+
+/** Sets the rotation of a column or footing, in degrees (kept within 0–360). */
+export function rotateMember(layout: unknown, group: MemberGroup, id: string, degrees: number): EditResult {
+	if (group !== 'columns' && group !== 'footings') {
+		return { ok: false, error: localize('edit.notRotatable', "Only columns and footings rotate; beams, walls and slabs follow their points.") };
+	}
+	if (!Number.isFinite(degrees)) {
+		return { ok: false, error: localize('edit.badAngle', "Enter an angle in degrees.") };
+	}
+	const angle = Number((((degrees % 360) + 360) % 360).toFixed(3));
+	return changeMember(layout, group, id, member => ({ ...member, rotation: angle }));
+}
+
+/** A slab bounded by `points` (in order around it) on `story`. */
+export function placePolygonSlab(layout: unknown, type: string, story: string, points: readonly CadPoint[]): EditResult {
+	const distinct = points.filter((p, i) => i === 0 || Math.hypot(p[0] - points[i - 1][0], p[1] - points[i - 1][1]) >= 1);
+	if (distinct.length >= 2 && Math.hypot(distinct[0][0] - distinct[distinct.length - 1][0], distinct[0][1] - distinct[distinct.length - 1][1]) < 1) {
+		distinct.pop();
+	}
+	if (distinct.length < 3 || Math.abs(polygonArea(distinct)) < 1e4) {
+		return { ok: false, error: localize('edit.polygonTooSmall', "A slab needs at least three corners around an area.") };
+	}
+	const boundary = distinct.map(p => anchor(layout, p));
+	if (boundary.some(b => !b)) {
+		return { ok: false, error: localize('edit.noGrid', "The floor plan needs grid lines on both axes first.") };
+	}
+	return append(layout, 'slabs', { type, story, boundary });
+}

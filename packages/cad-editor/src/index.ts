@@ -3,7 +3,7 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AcApDocManager, AcApOpenViewMode, AcEdOpenMode, MTEXT_RENDERER_WORKER_FILE } from '@mlightcad/cad-simple-viewer';
+import { AcApDocManager, AcApOpenViewMode, AcApXrefManager, AcEdOpenMode, MTEXT_RENDERER_WORKER_FILE } from '@mlightcad/cad-simple-viewer';
 import { applyGenerated, CadGeneratedDrawing, CadPoint } from './generated.js';
 
 export type { CadEntitySpec, CadGeneratedDrawing, CadLayerSpec, CadPoint } from './generated.js';
@@ -15,6 +15,20 @@ export interface CadEditorOptions {
 	readonly workerBaseUrl: string;
 	/** Folder URL (with trailing slash) holding `fonts/` and `templates/`. */
 	readonly assetBaseUrl: string;
+}
+
+/** A reference drawing shown read-only and greyed under the content (e.g. an architect's plan). */
+export interface CadUnderlay {
+	/** Display name, e.g. the file name. */
+	readonly name: string;
+	/** DXF text. */
+	readonly dxf: string;
+	/** Where the drawing's origin goes, in drawing units. */
+	readonly offset?: CadPoint;
+	/** Scale from the underlay's units to the drawing's. */
+	readonly scale?: number;
+	/** Rotation about its origin, in degrees. */
+	readonly rotation?: number;
 }
 
 export interface CadEditor {
@@ -39,6 +53,8 @@ export interface CadEditor {
 	toWorld(clientX: number, clientY: number): CadPoint;
 	/** Drawing units per screen pixel at the current zoom, e.g. for pick tolerances. */
 	unitsPerPixel(): number;
+	/** Shows `underlay` under the drawing, replacing the previous one; `undefined` removes it. */
+	setUnderlay(underlay: CadUnderlay | undefined): Promise<void>;
 	/** Fits the whole drawing in the view. */
 	zoomExtents(): void;
 	/** The drawing as DXF text (AutoCAD 2018 format). */
@@ -68,6 +84,8 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	const listeners = new Set<() => void>();
 	let generated = new Set<string>();
 	let preview = new Set<string>();
+	let underlaySession: string | undefined;
+	let underlayVersion = 0;
 	// mlightcad also reports loading and its own housekeeping as database events; a user's edit
 	// is what lands on the undo stack (every command runs in an undoable transaction).
 	let checkQueued = false;
@@ -132,6 +150,35 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 		setGenerated: drawing => {
 			generated = applyGenerated(manager.curDocument.database, generated, drawing);
 		},
+		setUnderlay: async underlay => {
+			const version = ++underlayVersion;
+			const xrefs = AcApXrefManager.instance;
+			if (underlaySession) {
+				xrefs.unload(underlaySession);
+				underlaySession = undefined;
+			}
+			if (!underlay) {
+				return;
+			}
+			const session = await xrefs.attachOverlay({
+				blockName: 'SAENGINE-UNDERLAY',
+				fileName: `${underlay.name.replace(/\.dxf$/i, '')}.dxf`,
+				sourcePath: underlay.name,
+				content: encoder.encode(underlay.dxf).buffer as ArrayBuffer,
+				transform: {
+					position: { x: underlay.offset?.[0] ?? 0, y: underlay.offset?.[1] ?? 0, z: 0 },
+					scale: underlay.scale ?? 1,
+					rotationRad: (underlay.rotation ?? 0) * Math.PI / 180,
+				},
+			});
+			if (version !== underlayVersion) {
+				xrefs.unload(session.id); // replaced while it was loading
+				return;
+			}
+			underlaySession = session.id;
+			// Reference drawings read best greyed out, behind the host's own linework.
+			manager.setOverlayCompareDisplay(session.overlayId, { enabled: true, baseColor: 0x6b7280 });
+		},
 		setPreview: drawing => {
 			preview = applyGenerated(manager.curDocument.database, preview, drawing);
 		},
@@ -159,6 +206,9 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 		},
 		dispose: async () => {
 			unsubscribeDocument?.();
+			if (underlaySession) {
+				AcApXrefManager.instance.unload(underlaySession);
+			}
 			listeners.clear();
 			await manager.destroy();
 		},

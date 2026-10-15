@@ -168,7 +168,16 @@ export abstract class JsonDocumentEditor extends EditorPane {
 		await this.trackUpstream(input.kind);
 		this.onWillLoadInput();
 		this.load();
+		this.applyOptions(options);
 	}
+
+	override setOptions(options: IEditorOptions | undefined): void {
+		super.setOptions(options);
+		this.applyOptions(options);
+	}
+
+	/** Applies editor options (e.g. revealing an entry) after the document is shown. */
+	protected applyOptions(_options: IEditorOptions | undefined): void { }
 
 	/** Resets per-input view state before the first load. */
 	protected onWillLoadInput(): void { }

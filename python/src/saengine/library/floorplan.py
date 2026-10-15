@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from saengine.library.labels import field_title
 from saengine.library.materials import Id
@@ -123,6 +123,32 @@ class PlacedFooting(_Placed):
     rotation: float = Field(default=0, description="[°]")
 
 
+class Underlay(_Model):
+    """An architect's drawing shown, greyed and read-only, under one story's plan."""
+
+    story: Id = Field(description="Story whose plan shows the drawing.")
+    file: str = Field(
+        min_length=1,
+        pattern=r"\.[dD][xX][fF]$",
+        description="DXF file, relative to the 05 Floor Plan folder.",
+    )
+    dx: Mm = Field(default=0, title="Offset X", description="Where the drawing's origin goes [mm].")
+    dy: Mm = Field(default=0, title="Offset Y", description="[mm]")
+    scale: float = Field(
+        default=1, gt=0, description="Drawing units to mm, e.g. 1000 for a drawing in metres."
+    )
+    rotation: float = Field(default=0, description="[°]")
+    visible: bool = True
+
+    @field_validator("file")
+    @classmethod
+    def _inside_project(cls, value: str) -> str:
+        parts = value.replace("\\", "/").split("/")
+        if value.startswith(("/", "\\")) or ":" in value or ".." in parts:
+            raise ValueError("the file must be inside the 05 Floor Plan folder (a relative path)")
+        return value
+
+
 # Object kinds each member may use.
 _ALLOWED_KINDS = {
     "columns": ("column",),
@@ -142,6 +168,9 @@ class FloorPlan(_Model):
     walls: list[PlacedWall] = Field(default_factory=list)
     slabs: list[PlacedSlab] = Field(default_factory=list)
     footings: list[PlacedFooting] = Field(default_factory=list)
+    underlays: list[Underlay] = Field(
+        default_factory=list, description="Architects' drawings under the story plans."
+    )
 
     def members(self) -> list[tuple[str, _Placed]]:
         return [(group, m) for group in _ALLOWED_KINDS for m in getattr(self, group)]
@@ -171,6 +200,13 @@ class FloorPlan(_Model):
         def story(member: _Placed, story_id: str) -> None:
             if story_id not in elevation:
                 raise ValueError(f"{member.id}: no story '{story_id}'")
+
+        for underlay in self.underlays:
+            if underlay.story not in elevation:
+                raise ValueError(f"underlay {underlay.file}: no story '{underlay.story}'")
+        underlay_stories = [u.story for u in self.underlays]
+        if len(set(underlay_stories)) != len(underlay_stories):
+            raise ValueError("each story can have one underlay")
 
         for _, member in self.members():
             for field in ("story", "base", "top"):

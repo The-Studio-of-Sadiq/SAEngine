@@ -240,6 +240,7 @@ TEMPLATES: dict[str, dict[str, Any]] = {
         ],
     },
     "PlacedFooting": {"id": "F-A1", "type": "F", "story": "BASE", "at": {"x": "A", "y": "1"}},
+    "Underlay": {"story": "L1", "file": "Underlays/architect-L1.dxf"},
     # building model elements
     "ColumnElement": {
         "id": "C1",

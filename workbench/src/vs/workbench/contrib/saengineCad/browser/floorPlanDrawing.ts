@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CadEntitySpec, CadGeneratedDrawing, CadLayerSpec, CadPoint } from '@saengine/cad-editor';
+import { MemberGroup, ModelSelection } from '../../../services/saengineProject/common/modelSelection.js';
+
+export type { MemberGroup };
 
 /*
  * The drawing of one story of the floor plan (`05 Floor Plan/floor-plan.json`), with member
@@ -50,8 +53,6 @@ type Json = { readonly [key: string]: unknown };
 
 interface IGridPoint { readonly x: string; readonly y: string; readonly dx?: number; readonly dy?: number }
 
-/** Member lists of the floor plan, in the order members are picked (smallest first). */
-export type MemberGroup = 'columns' | 'footings' | 'walls' | 'beams' | 'slabs';
 
 /** Where a drawn member is in plan, for picking it with the mouse. */
 export interface IMemberShape {
@@ -173,6 +174,22 @@ export function storiesOf(layout: unknown): { readonly id: string; readonly name
 		.filter(s => typeof s.id === 'string' && num(s.elevation) !== undefined)
 		.map(s => ({ id: s.id as string, name: typeof s.name === 'string' && s.name ? s.name : s.id as string, elevation: s.elevation as number }))
 		.sort((a, b) => a.elevation - b.elevation);
+}
+
+/**
+ * The story whose plan shows `selection`: the story itself, or a member's story (the top story
+ * of columns and walls, which plans show from the story they rise to).
+ */
+export function storyOfSelection(layout: unknown, selection: ModelSelection): string | undefined {
+	if (selection.kind === 'story') {
+		return selection.id;
+	}
+	if (selection.kind !== 'member' || !isObject(layout)) {
+		return undefined;
+	}
+	const member = list(layout[selection.group]).find(m => m.id === selection.id);
+	const story = member && (selection.group === 'columns' || selection.group === 'walls' ? member.top : member.story);
+	return typeof story === 'string' ? story : undefined;
 }
 
 /** Grid line positions by label, per axis. */

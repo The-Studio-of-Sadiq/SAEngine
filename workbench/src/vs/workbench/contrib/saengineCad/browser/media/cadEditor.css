@@ -110,3 +110,7 @@
 	position: absolute;
 	inset: 0;
 }
+
+.saengine-floor-plan .floor-plan-typed {
+	width: 180px;
+}

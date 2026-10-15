@@ -10,7 +10,9 @@ import * as perf from '../../../../../base/common/performance.js';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../../base/common/actions.js';
 import { memoize } from '../../../../../base/common/decorators.js';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, ExplorerResourceWritableContext, ViewHasSomeCollapsibleRootItemContext, FoldersViewVisibleContext, ExplorerResourceParentReadOnlyContext, ExplorerFindProviderActive, ExplorerResourceProtectedContext } from '../../common/files.js';
-import { ISaengineProjectService } from '../../../../services/saengineProject/common/saengineProject.js';
+import { ISaengineProjectService, PROJECT_PARTS } from '../../../../services/saengineProject/common/saengineProject.js';
+import { joinPath } from '../../../../../base/common/resources.js';
+import { PROJECT_FLOW_GAP, projectFlowPosition } from '../../../../services/saengineProject/common/projectFlow.js';
 import { FileCopiedContext, NEW_FILE_COMMAND_ID, NEW_FOLDER_COMMAND_ID } from '../fileActions.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
@@ -529,7 +531,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		const getFileNestingSettings = (item?: ExplorerItem) => this.configurationService.getValue<IFilesConfiguration>({ resource: item?.root.resource }).explorer.fileNesting;
 
-		this.tree = this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, 'FileExplorer', container, new ExplorerDelegate(), new ExplorerCompressionDelegate(), [this.renderer],
+		this.tree = this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, 'FileExplorer', container, new ExplorerDelegate(item => projectFlowPosition(this.saengineProjectService.project, item.resource)), new ExplorerCompressionDelegate(), [this.renderer],
 			this.instantiationService.createInstance(ExplorerDataSource, this.filter, this.findProvider), {
 			compressionEnabled: isCompressionEnabled(),
 			accessibilityProvider: this.renderer,
@@ -599,6 +601,18 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		// Update resource context based on focused element
 		this._register(this.tree.onDidChangeFocus(e => this.onFocusChanged(e.elements)));
+
+		// A SAEngine project's part folders form a flowchart with arrows between them (see
+		// ExplorerDelegate); once the project is known, give them their taller rows.
+		this._register(this.saengineProjectService.onDidChangeProject(project => {
+			for (const part of project ? PROJECT_PARTS.slice(1) : []) {
+				const item = this.explorerService.findClosest(joinPath(project!.root, part.folder));
+				if (item && this.tree.hasNode(item)) {
+					this.tree.updateElementHeight(item, ExplorerDelegate.ITEM_HEIGHT + PROJECT_FLOW_GAP);
+				}
+			}
+			this.tree.rerender();
+		}));
 		this.onFocusChanged([]);
 		// Open when selecting via keyboard
 		this._register(this.tree.onDidOpen(async e => {

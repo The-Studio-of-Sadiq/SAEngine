@@ -1,0 +1,110 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* model explorer */
+
+.saengine-model-explorer .model-node {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	height: 22px;
+	overflow: hidden;
+	white-space: nowrap;
+}
+
+.saengine-model-explorer .model-node-icon {
+	flex: none;
+}
+
+.saengine-model-explorer .model-node-label {
+	flex: none;
+}
+
+.saengine-model-explorer .model-node-description {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	opacity: 0.75;
+	font-size: 0.9em;
+}
+
+.saengine-model-explorer .model-node-problem {
+	flex: none;
+	color: var(--vscode-editorWarning-foreground);
+}
+
+/* properties */
+
+.saengine-properties {
+	padding: 4px 12px 12px 20px;
+	overflow: auto;
+	height: 100%;
+	box-sizing: border-box;
+}
+
+.saengine-properties .properties-empty,
+.saengine-properties .properties-note {
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-properties .properties-header {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	margin: 6px 0 4px;
+}
+
+.saengine-properties .properties-title {
+	font-size: 1.2em;
+	font-weight: 600;
+}
+
+.saengine-properties .properties-subtitle {
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-properties .properties-section {
+	margin: 12px 0 4px;
+	font-weight: 600;
+	text-transform: uppercase;
+	font-size: 0.85em;
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-properties .properties-table {
+	display: grid;
+	grid-template-columns: minmax(80px, auto) 1fr;
+	gap: 3px 12px;
+}
+
+.saengine-properties .properties-row {
+	display: contents;
+}
+
+.saengine-properties .properties-label {
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-properties .properties-value {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	overflow-wrap: anywhere;
+	user-select: text;
+}
+
+.saengine-properties .properties-value.problem .codicon {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.saengine-properties .properties-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.saengine-properties .properties-actions .monaco-button {
+	width: auto;
+	padding: 2px 8px;
+}

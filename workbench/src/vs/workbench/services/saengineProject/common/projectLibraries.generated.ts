@@ -2488,6 +2488,60 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 			title: 'Story',
 			type: 'object',
 		},
+		Underlay: {
+			additionalProperties: false,
+			description: 'An architect\'s drawing shown, greyed and read-only, under one story\'s plan.',
+			properties: {
+				story: {
+					description: 'Story whose plan shows the drawing.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				file: {
+					description: 'DXF file, relative to the 05 Floor Plan folder.',
+					minLength: 1,
+					pattern: '\\.[dD][xX][fF]$',
+					title: 'File',
+					type: 'string',
+				},
+				dx: {
+					default: 0,
+					description: 'Where the drawing\'s origin goes [mm].',
+					title: 'Offset X',
+					type: 'number',
+				},
+				dy: {
+					default: 0,
+					description: '[mm]',
+					title: 'Offset Y',
+					type: 'number',
+				},
+				scale: {
+					default: 1,
+					description: 'Drawing units to mm, e.g. 1000 for a drawing in metres.',
+					exclusiveMinimum: 0,
+					title: 'Scale',
+					type: 'number',
+				},
+				rotation: {
+					default: 0,
+					description: '[°]',
+					title: 'Rotation',
+					type: 'number',
+				},
+				visible: {
+					default: true,
+					title: 'Visible',
+					type: 'boolean',
+				},
+			},
+			required: ['story', 'file'],
+			title: 'Underlay',
+			type: 'object',
+		},
 	},
 	additionalProperties: false,
 	properties: {
@@ -2542,6 +2596,14 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 			title: 'Footings',
 			type: 'array',
 		},
+		underlays: {
+			description: 'Architects\' drawings under the story plans.',
+			items: {
+				$ref: '#/$defs/Underlay',
+			},
+			title: 'Underlays',
+			type: 'array',
+		},
 	},
 	title: 'SAEngine floor plan',
 	type: 'object',
@@ -2588,6 +2650,7 @@ export const DEFAULT_FLOOR_PLAN: object = {
 	walls: [],
 	slabs: [],
 	footings: [],
+	underlays: [],
 };
 
 export const BIM_SCHEMA: IJSONSchema = {
@@ -3473,6 +3536,10 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 			x: 'A',
 			y: '1',
 		},
+	},
+	Underlay: {
+		story: 'L1',
+		file: 'Underlays/architect-L1.dxf',
 	},
 	ColumnElement: {
 		id: 'C1',

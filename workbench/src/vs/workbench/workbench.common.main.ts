@@ -67,6 +67,7 @@ import './services/extensions/browser/extensionUrlHandler.js';
 import './services/keybinding/common/keybindingEditing.js';
 import './services/decorations/browser/decorationsService.js';
 import './services/saengineProject/browser/saengineProjectService.js';
+import './services/saengineProject/browser/modelSelectionService.js';
 import './services/dialogs/common/dialogService.js';
 import './services/progress/browser/progressService.js';
 import './services/editor/browser/codeEditorService.js';
@@ -252,6 +253,7 @@ import './contrib/testing/browser/testing.contribution.js';
 import './contrib/saengineProject/browser/saengineProject.contribution.js';
 import './contrib/saengineLibrary/browser/saengineLibrary.contribution.js';
 import './contrib/saengineCad/browser/saengineCad.contribution.js';
+import './contrib/saengineModel/browser/saengineModel.contribution.js';
 import './contrib/saengineFem/browser/saengineFem.contribution.js';
 
 // Logs
