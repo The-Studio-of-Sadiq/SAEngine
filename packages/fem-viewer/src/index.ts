@@ -8,7 +8,7 @@ import { FemElement, FemModel, FemNode, FemResultDisplay, FemResultView, FemSele
 import { ResultOverlay } from './results.js';
 
 export type { FemElement, FemModel, FemNode, FemResultDisplay, FemResultElement, FemResultQuantity, FemResultShell, FemResultSolid, FemResultView, FemSelection, FemValueQuantity } from './model.js';
-export { FORCE_COMPONENTS, SHELL_COMPONENTS, SOLID_COMPONENTS } from './model.js';
+export { FORCE_COMPONENTS, SHELL_COMPONENTS, SOLID_COMPONENTS, formatUtilisation, UTILISATION_WARN, utilisationBand } from './model.js';
 export { contourColor } from './results.js';
 
 export interface FemViewerTheme {
@@ -23,6 +23,10 @@ export interface FemViewerTheme {
 	readonly positive: string;
 	readonly negative: string;
 	readonly reaction: string;
+	/** Design utilisation bands: below 0.9, 0.9 to 1.0, above 1.0. */
+	readonly pass: string;
+	readonly warn: string;
+	readonly fail: string;
 }
 
 export interface FemViewerOptions {
@@ -53,6 +57,9 @@ const defaultTheme: FemViewerTheme = {
 	positive: '#3794ff',
 	negative: '#f14c4c',
 	reaction: '#89d185',
+	pass: '#89d185',
+	warn: '#cca700',
+	fail: '#f14c4c',
 };
 
 /** Model space (Z up in 3D, Y up in 2D) to three.js world space (Y up). */
@@ -349,6 +356,9 @@ class FemViewerImpl implements FemViewer {
 			positive: theme.positive,
 			negative: theme.negative,
 			reaction: theme.reaction,
+			pass: theme.pass,
+			warn: theme.warn,
+			fail: theme.fail,
 			label: theme.node,
 			labelBackground: theme.background,
 		}, this.modelScale(model), coords => toWorld(model, coords), this.selection?.kind === 'element' ? this.selection.id : undefined);

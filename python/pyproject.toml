@@ -17,7 +17,8 @@ dependencies = [
     "gmsh>=4.13,<5",  # meshing walls and slabs for the analysis model (GPL-2.0-or-later)
     "ezdxf>=1.3,<2",  # DXF import of structural geometry (MIT)
     "rhino3dm>=8.17,<9",  # Rhino (.3dm) import of structural geometry (MIT)
-    "shapely>=2,<3",  # mid-surfaces of imported plates (BSD-3-Clause)
+    "shapely>=2,<3",  # mid-surfaces of imported plates, quantities (BSD-3-Clause)
+    "concreteproperties>=0.8,<0.9",  # RC section capacities for the design checks (MIT)
 ]
 
 [project.optional-dependencies]

@@ -19,6 +19,7 @@ import { IContextViewService } from '../../../../platform/contextview/browser/co
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IFemResultEntry, IFemResultList, IFemResultView } from '../../../../platform/saengine/common/femSolver.js';
 import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { describeDesignElement, describeDesignSummary, designInputs, designUtilisation, IFemDesignReport, runDesign } from './femDesign.js';
 
 /** Desktop commands reading a run's results with the Python backend (see `saengine.fem.resultList`). */
 const LIST_COMMAND = 'saengine.fem.resultList';
@@ -59,6 +60,11 @@ const SHELL_OPTIONS: readonly IShowOption[] = [
 	{ show: 'Q13', label: localize('femResults.q13', "Shell Transverse Shear Q13") },
 	{ show: 'Q23', label: localize('femResults.q23', "Shell Transverse Shear Q23") },
 ];
+/**
+ * The reinforced-concrete design checks of the run, enveloped over the load combinations:
+ * independent of the result picked, offered with every static case and combination.
+ */
+const DESIGN_OPTION: IShowOption = { show: 'utilisation', label: localize('femResults.design', "Design Utilisation") };
 const SHELL_COMPONENTS: readonly Show[] = ['N11', 'N22', 'N12', 'M11', 'M22', 'M12', 'Q13', 'Q23'];
 /** Solid stresses, offered when the result has solids with stresses. */
 const SOLID_OPTIONS: readonly IShowOption[] = [
@@ -139,6 +145,8 @@ export class FemResultsBar extends Disposable {
 	private readonly watch = this._register(new DisposableStore());
 	private readonly resultsWatch = this._register(new MutableDisposable());
 	private readonly reload = this._register(new RunOnceScheduler(() => void this.load(), 400));
+	/** The design checks' own inputs (reinforcement, materials, combinations) changed. */
+	private readonly redesign = this._register(new RunOnceScheduler(() => this.refreshDesign(), 400));
 
 	private resource: URI | undefined;
 	private format = resultFormatter(undefined);
@@ -152,6 +160,11 @@ export class FemResultsBar extends Disposable {
 	private selection: FemSelection | undefined;
 	private readonly views = new Map<string, IFemResultView>();
 	private request = 0;
+	/** The design checks of the current run, once asked for (the "Design Utilisation" option). */
+	private design: IFemDesignReport | undefined;
+	private designProblem: string | undefined;
+	private designLoading = false;
+	private designToken = 0;
 
 	constructor(
 		container: HTMLElement,
@@ -206,6 +219,12 @@ export class FemResultsBar extends Disposable {
 		this.showPicker.render(append(show, $('.fem-results-select.show')));
 		this._register(this.showPicker.onDidSelect(({ index }) => {
 			this.show = this.showOptions()[index]?.show ?? 'none';
+			if (this.show === 'utilisation') {
+				if (this.designProblem) {
+					this.clearDesign(); // choosing it again retries
+				}
+				void this.loadDesign();
+			}
 			this.render();
 		}));
 
@@ -242,6 +261,7 @@ export class FemResultsBar extends Disposable {
 		this.key = undefined;
 		this.views.clear();
 		this.view = undefined;
+		this.clearDesign();
 		if (resource) {
 			// A run deletes and writes again the results folder beside the model: watch the model's
 			// folder for it, and the results folder for its manifest (written last).
@@ -267,6 +287,17 @@ export class FemResultsBar extends Disposable {
 				}
 			}));
 			watchResults();
+			// The design checks also read the project's object types, materials, settings and
+			// building model: editing the bars changes them without a new run.
+			for (const input of designInputs(resource)) {
+				const folder = this.fileService.createWatcher(dirname(input), { recursive: false, excludes: [] });
+				this.watch.add(folder);
+				this.watch.add(folder.onDidChange(e => {
+					if (e.contains(input)) {
+						this.redesign.schedule();
+					}
+				}));
+			}
 			void this.load();
 		} else {
 			this.render();
@@ -294,6 +325,10 @@ export class FemResultsBar extends Disposable {
 		}
 		this.list = list;
 		this.views.clear();
+		this.clearDesign();
+		if (this.show === 'utilisation') {
+			void this.loadDesign();
+		}
 		if (!list.results.some(r => r.key === this.key)) {
 			this.stopPlaying();
 			this.key = list.results[0]?.key;
@@ -314,7 +349,53 @@ export class FemResultsBar extends Disposable {
 			case 'pushover': return [...STATIC_OPTIONS, ...(this.view?.solids?.some(s => s.stress) ? SOLID_OPTIONS : [])];
 		}
 		const solids = this.view?.solids?.some(s => s.stress) ? SOLID_OPTIONS : [];
-		return [...STATIC_OPTIONS, ...(this.view?.shells?.length ? SHELL_OPTIONS : []), ...solids];
+		return [...STATIC_OPTIONS, ...(this.view?.shells?.length ? SHELL_OPTIONS : []), ...solids, DESIGN_OPTION];
+	}
+
+	private clearDesign(): void {
+		this.design = undefined;
+		this.designProblem = undefined;
+		this.designLoading = false;
+		this.designToken++;
+	}
+
+	/** Drops the design checks and, while they are shown, runs them again. */
+	private refreshDesign(): void {
+		if (!this.design && !this.designProblem && !this.designLoading) {
+			return; // never asked for
+		}
+		this.clearDesign();
+		if (this.show === 'utilisation') {
+			void this.loadDesign();
+		}
+		this.render();
+	}
+
+	/** Runs the design checks of the current run once (new results or inputs clear them). */
+	private async loadDesign(): Promise<void> {
+		const resource = this.resource;
+		if (!resource || this.design || this.designProblem || this.designLoading) {
+			return;
+		}
+		const token = ++this.designToken;
+		this.designLoading = true;
+		let report: IFemDesignReport | undefined;
+		let problem: string | undefined;
+		try {
+			report = await runDesign(this.commandService, resource);
+			if (!report) {
+				problem = localize('femResults.designUnavailable', "The design checks are not available.");
+			}
+		} catch (error) {
+			problem = localize('femResults.designFailed', "The design checks failed: {0}", String(error));
+		}
+		if (token !== this.designToken || resource !== this.resource) {
+			return; // the results changed meanwhile
+		}
+		this.design = report;
+		this.designProblem = problem;
+		this.designLoading = false;
+		this.render();
 	}
 
 	private async showResult(): Promise<void> {
@@ -423,7 +504,13 @@ export class FemResultsBar extends Disposable {
 		const view = this.view;
 		this.onDidChangeDisplay(
 			view && this.show !== 'none' ? view : undefined,
-			view && this.show !== 'none' ? { show: this.show, scale: this.scale, animate: this.animate, format: this.format } : undefined,
+			view && this.show !== 'none' ? {
+				show: this.show,
+				scale: this.scale,
+				animate: this.animate,
+				format: this.format,
+				utilisation: this.show === 'utilisation' && this.design ? designUtilisation(this.design) : undefined,
+			} : undefined,
 		);
 		this.renderInfo(problem);
 		this.onDidChangeHeight();
@@ -442,6 +529,10 @@ export class FemResultsBar extends Disposable {
 		if (this.list.stale) {
 			append(this.info, $(`span${ThemeIcon.asCSSSelector(Codicon.warning)}`));
 			append(this.info, $('span', undefined, localize('femResults.stale', "The model changed after this analysis ran: run the analysis again.")));
+			return;
+		}
+		if (this.show === 'utilisation') {
+			this.renderDesign();
 			return;
 		}
 		if (this.entry.kind === 'pushover') {
@@ -472,6 +563,33 @@ export class FemResultsBar extends Disposable {
 		if (text) {
 			append(this.info, $('span', undefined, text));
 		}
+	}
+
+	/** The design checks: pass and fail counts, or the selected member's checks. */
+	private renderDesign(): void {
+		const report = this.design;
+		if (this.designProblem) {
+			append(this.info, $(`span${ThemeIcon.asCSSSelector(Codicon.error)}`));
+			append(this.info, $('span', undefined, this.designProblem));
+			return;
+		}
+		if (!report) {
+			append(this.info, $(`span${ThemeIcon.asCSSSelector(Codicon.loading)}.codicon-modifier-spin`));
+			append(this.info, $('span', undefined, localize('femResults.designRunning', "Checking the members against the load combinations...")));
+			return;
+		}
+		// The colours of the 3D view's utilisation bands.
+		const legend = append(this.info, $('span.fem-design-legend'));
+		append(legend, $('span.fem-design-swatch.pass'));
+		append(legend, $('span', undefined, localize('femResults.designPass', "below 0.9")));
+		append(legend, $('span.fem-design-swatch.warn'));
+		append(legend, $('span', undefined, localize('femResults.designWarn', "0.9 to 1.0")));
+		append(legend, $('span.fem-design-swatch.fail'));
+		append(legend, $('span', undefined, localize('femResults.designFail', "above 1.0")));
+		const selection = this.selection;
+		const name = selection?.kind === 'element' ? this.view?.elements.find(e => e.id === selection.id)?.name : undefined;
+		const text = selection?.kind === 'element' ? describeDesignElement(report, selection.id, name) : undefined;
+		append(this.info, $('span.fem-design-text', undefined, text ?? describeDesignSummary(report)));
 	}
 
 	/** A pushover's capacity curve (base shear against roof displacement), marking the step shown. */

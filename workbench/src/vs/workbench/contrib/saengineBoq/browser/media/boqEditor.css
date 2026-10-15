@@ -1,0 +1,141 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.saengine-boq-editor {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+
+.saengine-boq-editor .boq-source {
+	display: flex;
+	flex: none;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 6px 16px;
+	padding: 8px 16px;
+	border-bottom: 1px solid var(--vscode-editorGroup-border, transparent);
+}
+
+.saengine-boq-editor .boq-source-status {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.saengine-boq-editor .boq-source-status .codicon-warning {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.saengine-boq-editor .boq-source-status .codicon-check {
+	color: var(--vscode-testing-iconPassed, var(--vscode-charts-green));
+}
+
+.saengine-boq-editor .boq-source-actions {
+	display: flex;
+	gap: 8px;
+	margin-left: auto;
+}
+
+.saengine-boq-editor .boq-source-actions .monaco-button {
+	width: auto;
+	padding: 2px 10px;
+}
+
+.saengine-boq-editor .boq-body {
+	flex: 1;
+	overflow: auto;
+	padding: 4px 16px 16px;
+	outline: none;
+}
+
+.saengine-boq-editor .boq-message {
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-boq-editor .boq-group h2 {
+	margin: 16px 0 6px;
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.saengine-boq-editor table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.saengine-boq-editor th {
+	text-align: left;
+	font-weight: normal;
+	color: var(--vscode-descriptionForeground);
+	border-bottom: 1px solid var(--vscode-editorGroup-border, transparent);
+}
+
+.saengine-boq-editor th,
+.saengine-boq-editor td {
+	padding: 3px 8px;
+	vertical-align: top;
+}
+
+.saengine-boq-editor .number {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.saengine-boq-editor .code {
+	width: 80px;
+	white-space: nowrap;
+}
+
+.saengine-boq-editor .unit {
+	width: 40px;
+}
+
+.saengine-boq-editor .boq-item {
+	cursor: pointer;
+}
+
+.saengine-boq-editor .boq-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.saengine-boq-editor .boq-item:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.saengine-boq-editor .boq-item .code .codicon {
+	margin-right: 4px;
+	vertical-align: text-bottom;
+}
+
+.saengine-boq-editor .boq-breakdown > td {
+	padding: 4px 8px 8px 32px;
+	background-color: var(--vscode-editorWidget-background);
+}
+
+.saengine-boq-editor .boq-stories {
+	margin-bottom: 4px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-boq-editor .boq-total td {
+	font-weight: 600;
+	border-top: 1px solid var(--vscode-editorGroup-border, transparent);
+}
+
+.saengine-boq-editor .boq-notes {
+	margin-top: 16px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-boq-editor .boq-notes summary {
+	cursor: pointer;
+}
+
+.saengine-boq-editor .boq-notes li {
+	margin: 4px 0;
+}

@@ -175,3 +175,15 @@ CommandsRegistry.registerCommand('saengine.structure.runScript', async (accessor
 	}
 	return solver.runStructureScript(python, structureText, script.fsPath);
 });
+
+/** The RC member design checks of the model's last run. Internal: the results bar calls it by id. */
+CommandsRegistry.registerCommand('saengine.fem.design', async (accessor, model: URI) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).getDesignReport(python, resultsFolder(model).fsPath, model.fsPath);
+});
+
+/** The bill of quantities of the building model. Internal: the BOQ editor calls it by id. */
+CommandsRegistry.registerCommand('saengine.boq.compute', async (accessor, args: { bimText: string; objectsText: string; materialsText: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).computeBoq(python, args.bimText, args.objectsText, args.materialsText);
+});

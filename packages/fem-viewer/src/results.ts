@@ -3,13 +3,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as THREE from 'three';
-import { FemModel, FemNode, FemResultDisplay, FemResultElement, FemResultQuantity, FemResultView, FORCE_COMPONENTS, outerFaces, SHELL_COMPONENTS, SOLID_COMPONENTS } from './model.js';
+import { FemModel, FemNode, FemResultDisplay, FemResultElement, FemResultQuantity, FemResultView, FORCE_COMPONENTS, formatUtilisation, outerFaces, SHELL_COMPONENTS, SOLID_COMPONENTS, utilisationBand } from './model.js';
 
 export interface ResultColors {
 	readonly deformed: string;
 	readonly positive: string;
 	readonly negative: string;
 	readonly reaction: string;
+	/** Design utilisation bands: below 0.9, 0.9 to 1.0, above 1.0. */
+	readonly pass: string;
+	readonly warn: string;
+	readonly fail: string;
 	readonly label: string;
 	readonly labelBackground: string;
 }
@@ -70,6 +74,8 @@ export class ResultOverlay {
 			this.drawStress(SOLID_COMPONENTS[display.show]);
 		} else if (display.show === 'reactions') {
 			this.drawReactions();
+		} else if (display.show === 'utilisation') {
+			this.drawUtilisation(display.utilisation ?? {});
 		} else {
 			this.drawDiagram(display.show);
 		}
@@ -430,6 +436,51 @@ export class ResultOverlay {
 			const arrow = new THREE.ArrowHelper(direction, at.clone().addScaledVector(direction, -length), length, color, length * 0.25, length * 0.12);
 			this.group.add(arrow);
 			this.addLabel(this.display.format('force', magnitude), at.clone().addScaledVector(direction, -length), this.colors.reaction);
+		}
+	}
+
+	/**
+	 * Frame elements coloured by their design utilisation band (pass, warn, fail), labelled with
+	 * the selected element's value, or else the largest.
+	 */
+	private drawUtilisation(utilisation: { readonly [elementId: number]: number }): void {
+		const nodes = this.nodes();
+		const bands = { pass: new THREE.Color(this.colors.pass), warn: new THREE.Color(this.colors.warn), fail: new THREE.Color(this.colors.fail) };
+		const positions: number[] = [];
+		const colors: number[] = [];
+		let largest: { value: number; at: THREE.Vector3 } | undefined;
+		let selected: { value: number; at: THREE.Vector3 } | undefined;
+		for (const [key, value] of Object.entries(utilisation)) {
+			const id = Number(key);
+			const element = this.modelElements.get(id);
+			const a = element?.nodes.length === 2 ? nodes.get(element.nodes[0]) : undefined;
+			const b = element?.nodes.length === 2 ? nodes.get(element.nodes[1]) : undefined;
+			if (!a || !b) {
+				continue;
+			}
+			const pa = this.toWorld(a.coords);
+			const pb = this.toWorld(b.coords);
+			const color = bands[utilisationBand(value)];
+			positions.push(pa.x, pa.y, pa.z, pb.x, pb.y, pb.z);
+			colors.push(color.r, color.g, color.b, color.r, color.g, color.b);
+			const middle = pa.clone().lerp(pb, 0.5);
+			if (!largest || value > largest.value) {
+				largest = { value, at: middle };
+			}
+			if (id === this.selectedElement) {
+				selected = { value, at: middle };
+			}
+		}
+		if (!positions.length) {
+			return;
+		}
+		const geometry = new THREE.BufferGeometry();
+		geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+		geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+		this.group.add(new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ vertexColors: true })));
+		const label = selected ?? largest;
+		if (label) {
+			this.addLabel(formatUtilisation(label.value), label.at, this.colors[utilisationBand(label.value)]);
 		}
 	}
 

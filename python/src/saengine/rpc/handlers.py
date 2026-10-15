@@ -465,3 +465,18 @@ def run_script(structure_text: str, script_path: str) -> dict[str, Any]:
         return run(structure_text, script_path)
     except ValidationError as exc:
         return {"error": "; ".join(_messages(exc, "Structural model")), "output": ""}
+
+
+def design_report(out_dir: str, project_path: str) -> dict[str, Any]:
+    """The RC member design checks of a run (see ``saengine.design.check``)."""
+    from saengine.design import design_report as report
+
+    return report(out_dir, project_path)
+
+
+def compute_boq(bim_text: str, objects_text: str, materials_text: str) -> dict[str, Any]:
+    """The bill of quantities (``10 BOQ/boq.json`` text) of the building model:
+    ``{"text", "notes"}``, or ``{"problems"}`` when an input has errors."""
+    from saengine.boq import compute_boq_text
+
+    return compute_boq_text(bim_text, objects_text, materials_text)

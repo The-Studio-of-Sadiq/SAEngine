@@ -193,3 +193,34 @@
 .saengine-fem-model-editor .fem-results-curve .marker {
 	fill: var(--vscode-charts-yellow);
 }
+
+/* design utilisation bands, as the 3D view colours the members (theme pass, warn, fail) */
+.saengine-fem-model-editor .fem-design-legend {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	flex-shrink: 0;
+}
+
+.saengine-fem-model-editor .fem-design-swatch {
+	width: 10px;
+	height: 10px;
+	border-radius: 2px;
+}
+
+.saengine-fem-model-editor .fem-design-swatch.pass {
+	background: var(--vscode-charts-green);
+}
+
+.saengine-fem-model-editor .fem-design-swatch.warn {
+	background: var(--vscode-charts-orange);
+}
+
+.saengine-fem-model-editor .fem-design-swatch.fail {
+	background: var(--vscode-charts-red);
+}
+
+.saengine-fem-model-editor .fem-design-text {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}

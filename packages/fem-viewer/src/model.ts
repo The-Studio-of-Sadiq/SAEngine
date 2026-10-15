@@ -109,7 +109,8 @@ export type FemValueQuantity = 'length' | 'force' | 'moment' | 'forcePerLength' 
 /** What to draw of a result: the deflected shape, one section force's diagram, or the reactions. */
 export type FemResultQuantity = 'deformed' | 'N' | 'Vy' | 'Vz' | 'T' | 'My' | 'Mz' | 'reactions'
 	| 'N11' | 'N22' | 'N12' | 'M11' | 'M22' | 'M12' | 'Q13' | 'Q23'
-	| 'S11' | 'S22' | 'S33' | 'SVM';
+	| 'S11' | 'S22' | 'S33' | 'SVM'
+	| 'utilisation';
 
 export const FORCE_COMPONENTS: readonly FemResultQuantity[] = ['N', 'Vy', 'Vz', 'T', 'My', 'Mz'];
 
@@ -127,4 +128,23 @@ export interface FemResultDisplay {
 	readonly animate: boolean;
 	/** Text of a value for the labels, in the units the user reads. */
 	readonly format: (quantity: FemValueQuantity, value: number) => string;
+	/**
+	 * `show: 'utilisation'`: the design utilisation (demand / capacity) of frame elements by
+	 * element id. Elements without a value are not coloured.
+	 */
+	readonly utilisation?: { readonly [elementId: number]: number };
+}
+
+/** Utilisation below which a member is shown as passing with margin. */
+export const UTILISATION_WARN = 0.9;
+
+/** The band of a utilisation: below 0.9, from 0.9 up to 1.0, above 1.0. */
+export function utilisationBand(value: number): 'pass' | 'warn' | 'fail' {
+	return value > 1 ? 'fail' : value >= UTILISATION_WARN ? 'warn' : 'pass';
+}
+
+/** A utilisation to two decimals, or three where two would hide which band it is in (1.004). */
+export function formatUtilisation(value: number): string {
+	const short = value.toFixed(2);
+	return Number(short) !== value && (short === '1.00' || short === '0.90') ? value.toFixed(3) : short;
 }

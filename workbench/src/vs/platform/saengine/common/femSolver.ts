@@ -231,6 +231,13 @@ export interface IStructureScriptResult extends IStructureEdit {
 	readonly output: string;
 }
 
+/** The bill of quantities: the new `boq.json` text, or why it could not be measured. */
+export interface IBoqComputation {
+	readonly text?: string;
+	readonly notes?: readonly string[];
+	readonly problems?: readonly string[];
+}
+
 export interface ILibraryProblem {
 	readonly index: number | null;
 	readonly path: string;
@@ -287,4 +294,10 @@ export interface IFemSolverService {
 
 	/** Runs a structural model script on the model (in its own Python process). */
 	runStructureScript(python: string, structureText: string, scriptPath: string): Promise<IStructureScriptResult>;
+
+	/** The RC member design checks of a run (`saengine.design`); the report is plain JSON. */
+	getDesignReport(python: string, outDir: string, project: string): Promise<object>;
+
+	/** The bill of quantities of the building model (`saengine.boq`). */
+	computeBoq(python: string, bimText: string, objectsText: string, materialsText: string): Promise<IBoqComputation>;
 }

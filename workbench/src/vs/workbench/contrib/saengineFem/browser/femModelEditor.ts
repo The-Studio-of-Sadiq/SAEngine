@@ -199,6 +199,9 @@ export class FemModelEditor extends EditorPane {
 			positive: color(chartsBlue),
 			negative: color(chartsRed),
 			reaction: color(chartsGreen),
+			pass: color(chartsGreen),
+			warn: color(chartsOrange),
+			fail: color(chartsRed),
 		};
 	}
 }
