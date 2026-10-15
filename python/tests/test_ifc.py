@@ -7,7 +7,7 @@ import ifcopenshell.geom
 import numpy as np
 
 from saengine.library import BuildingModel, FloorPlan, ObjectLibrary, default_floor_plan
-from saengine.library.bim import generate
+from saengine.library.bim import Additions, generate
 from saengine.library.ifc import export_ifc, global_id
 from saengine.rpc.handlers import building_ifc
 
@@ -163,3 +163,89 @@ def test_handler_returns_ifc_text_and_ids() -> None:
     assert building_ifc(unknown.model_dump_json(by_alias=True), "{}", None, "T")["skipped"] == [
         "X: unknown object type 'NOPE'"
     ]
+
+
+ADDITIONS = {
+    "slabOpenings": [{"id": "O1", "host": "S1", "x": 3000, "y": 2500, "xDim": 1000, "yDim": 800}],
+    "wallOpenings": [
+        {"id": "D1", "host": "W1", "offset": 1000, "sill": 0, "width": 900, "height": 2100}
+    ],
+    "stairs": [
+        {
+            "id": "ST1",
+            "type": "STR",
+            "base": "BASE",
+            "top": "L1",
+            "x": 2000,
+            "y": 1000,
+            "direction": 90,
+        }
+    ],
+    "members": [
+        {"id": "BR1", "type": "BM", "x1": 0, "y1": 0, "z1": 0, "x2": 6000, "y2": 0, "z2": 3200}
+    ],
+}
+
+STAIR_OBJECTS = ObjectLibrary.model_validate(
+    {
+        "objects": [
+            *OBJECTS.model_dump(mode="json", by_alias=True)["objects"],
+            {
+                "id": "STR",
+                "name": "Stair",
+                "kind": "staircase",
+                "material": "C24",
+                "waistThickness": 150,
+                "riser": 160,
+                "tread": 280,
+                "flightWidth": 1200,
+            },
+        ]
+    }
+)
+
+
+def test_additions_cut_hosts_and_add_stairs_and_inclined_members() -> None:
+    building = generate(PLAN, "s").model_copy(
+        update={"additions": Additions.model_validate(ADDITIONS)}
+    )
+    file, ids, skipped = export_ifc(building, STAIR_OBJECTS, None, "Test")
+    assert skipped == []
+    assert {"O1", "D1", "ST1", "BR1"} <= set(ids)
+    voids = {
+        r.RelatedOpeningElement.Name: r.RelatingBuildingElement.Name
+        for r in file.by_type("IfcRelVoidsElement")
+    }
+    assert voids == {"O1": "S1", "D1": "W1"}
+    box = bounds(file)
+    # The slab and wall keep their outer size; the openings are cut by the geometry engine.
+    assert box["S1"] == [[0, 0, 3050], [6000, 5000, 3200]]
+    # 3200 mm rise / 160 mm riser = 20 risers of 280 mm going, rising towards +Y from (2000, 1000).
+    assert box["ST1"] == [[1400, 1000, 0], [2600, 6600, 3200]]
+    # I 150 x 300 on a 28.07° slope: its top reaches 150 sin(a) beyond the end and 150 cos(a) above it.
+    assert [round(v) for v in box["BR1"][1]] == [6071, 75, 3332]
+    settings = ifcopenshell.geom.settings()
+    slab = ifcopenshell.geom.create_shape(settings, file.by_type("IfcSlab")[0])
+    # A slab with a hole has more faces than the six of a box.
+    assert len(slab.geometry.faces) // 3 > 12
+
+
+def test_additions_survive_rebuilds_and_report_broken_references() -> None:
+    previous = BuildingModel.model_validate(
+        {**generate(PLAN, "s").model_dump(mode="json", by_alias=True), "additions": ADDITIONS}
+    )
+    smaller = FloorPlan.model_validate(
+        {**PLAN.model_dump(mode="json", by_alias=True), "walls": [], "slabs": []}
+    )
+    rebuilt = generate(smaller, "t", previous)
+    assert rebuilt.additions == previous.additions
+    assert rebuilt.check_additions() == [
+        "O1: there is no slab 'S1' to cut",
+        "D1: there is no wall 'W1' to cut",
+    ]
+    _, _, skipped = export_ifc(rebuilt, STAIR_OBJECTS, None, "Test")
+    assert skipped == ["O1: there is no slab 'S1' to cut", "D1: there is no wall 'W1' to cut"]
+    clash = previous.model_copy(deep=True)
+    clash.additions.members[0].id = "C1"
+    assert clash.check_additions() == ["C1: an element from the floor plan already uses this id"]
+    assert previous.check_objects(OBJECTS) == ["ST1: 'STR' is not a staircase type"]

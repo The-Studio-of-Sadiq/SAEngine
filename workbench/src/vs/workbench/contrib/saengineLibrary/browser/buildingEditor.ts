@@ -19,6 +19,8 @@ import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { BIM_SCHEMA, TEMPLATES } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -31,9 +33,9 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { ISaengineModelSelectionService, MemberGroup } from '../../../services/saengineProject/common/modelSelection.js';
 import { ISaengineProjectService, PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
 import { loadViewerModule, viewerAssetBaseUrl } from '../../saengineFem/browser/viewerModule.js';
-import { IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
+import { clone, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditorInput } from './libraryEditorInput.js';
-import { JsonObject, JsonValue } from './schemaForm.js';
+import { JsonObject, JsonValue, SchemaForm } from './schemaForm.js';
 
 const BIM_SCHEMA_ID = 'saengine.bim/2';
 const FLOOR_PLAN_SCHEMA_ID = 'saengine.floorPlan/1';
@@ -65,7 +67,24 @@ const ELEMENT_KINDS: readonly { readonly kind: string; readonly group: MemberGro
 	{ kind: 'footing', group: 'footings', label: localize('element.footings', "Footings") },
 ];
 
-type View = '3d' | 'summary';
+type View = '3d' | 'additions' | 'summary';
+
+const VIEWS: readonly { readonly view: View; readonly label: string; readonly icon: ThemeIcon }[] = [
+	{ view: '3d', label: localize('building.view3d', "3D View"), icon: Codicon.symbolStructure },
+	{ view: 'additions', label: localize('building.viewAdditions', "Additions"), icon: Codicon.add },
+	{ view: 'summary', label: localize('building.viewSummary', "Summary"), icon: Codicon.listFlat },
+];
+
+/** Additions lists, the id prefix of their new entries, and the elements or objects they refer to. */
+const ADDITION_LISTS: { readonly [list: string]: string } = {
+	slabOpenings: 'O',
+	wallOpenings: 'D',
+	stairs: 'ST',
+	members: 'M',
+};
+
+/** The parts of the building model that are generated, not edited in the Additions form. */
+const GENERATED = ['source', 'stories', 'elements'];
 
 /**
  * The building model (`06 BIM/bim.json`), generated from the floor plan. The floor plan owns the
@@ -82,6 +101,8 @@ export class BuildingEditor extends JsonDocumentEditor {
 	private status!: HTMLElement;
 	private viewport!: HTMLElement;
 	private summary!: HTMLElement;
+	private additions!: HTMLElement;
+	private readonly form: SchemaForm;
 	private problemBox: HTMLElement | undefined;
 	private view: View = '3d';
 
@@ -107,8 +128,19 @@ export class BuildingEditor extends JsonDocumentEditor {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IFileService private readonly fileService: IFileService,
 		@ISaengineModelSelectionService private readonly selectionService: ISaengineModelSelectionService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(BuildingEditor.ID, group, telemetryService, themeService, storageService, commands, editors, textModels, project);
+		this.form = instantiationService.createInstance(SchemaForm, {
+			root: BIM_SCHEMA,
+			template: defName => clone((TEMPLATES[defName] ?? {}) as JsonObject),
+			references: path => this.references(path),
+			validate: (path, value) => this.validate(path, value),
+			changed: (_path, structural) => this.changed(structural),
+			mode: () => undefined,
+			newItem: (path, list) => this.newItem(path, list),
+		});
+		this._register({ dispose: () => this.form.dispose() });
 		this._register(selectionService.onDidChangeSelection(({ selection, source }) => {
 			if (source !== SELECTION_SOURCE) {
 				void this.viewer?.setSelection(selection?.kind === 'member' ? selection.id : undefined);
@@ -123,6 +155,7 @@ export class BuildingEditor extends JsonDocumentEditor {
 		this.status = append(container, $('.building-status'));
 		this.viewport = append(container, $('.building-viewport'));
 		this.summary = append(container, $('.building-summary-view'));
+		this.additions = append(container, $('.building-additions-view'));
 		this.showView(this.view);
 	}
 
@@ -331,6 +364,7 @@ export class BuildingEditor extends JsonDocumentEditor {
 		this.view = view;
 		this.viewport.classList.toggle('hidden', view !== '3d');
 		this.summary.classList.toggle('hidden', view !== 'summary');
+		this.additions.classList.toggle('hidden', view !== 'additions');
 		if (view === '3d') {
 			this.ifcScheduler.schedule(0);
 			this.viewer?.layout();
@@ -351,6 +385,7 @@ export class BuildingEditor extends JsonDocumentEditor {
 		this.viewDisposables.clear();
 		clearNode(this.header);
 		clearNode(this.summary);
+		clearNode(this.additions);
 		this.problemBox = undefined;
 
 		const title = append(this.header, $('.building-title'));
@@ -368,12 +403,18 @@ export class BuildingEditor extends JsonDocumentEditor {
 		if (this.document) {
 			button(localize('building.rebuild', "Rebuild from Floor Plan"), Codicon.refresh, () => this.build());
 			button(localize('building.exportIfc', "Export IFC"), Codicon.export, () => this.exportIfc());
-			const toggle = button(this.view === '3d' ? localize('building.showSummary', "Summary") : localize('building.show3d', "3D View"),
-				this.view === '3d' ? Codicon.listFlat : Codicon.symbolStructure, () => {
-					this.showView(this.view === '3d' ? 'summary' : '3d');
+			const views = append(actions, $('.building-views', { role: 'tablist' }));
+			for (const { view, label, icon } of VIEWS) {
+				const b = this.viewDisposables.add(new Button(views, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+				b.label = `$(${icon.id}) ${label}`;
+				b.element.classList.toggle('active', view === this.view);
+				b.element.setAttribute('role', 'tab');
+				b.element.setAttribute('aria-selected', String(view === this.view));
+				this.viewDisposables.add(b.onDidClick(() => {
+					this.showView(view);
 					this.render();
-				});
-			toggle.element.title = localize('building.toggleTitle', "Switch between the 3D view and the summary tables");
+				}));
+			}
 		}
 		this.problemBox = append(this.header, $('.library-problems'));
 		this.renderProblems();
@@ -385,6 +426,16 @@ export class BuildingEditor extends JsonDocumentEditor {
 		if (!this.document) {
 			return;
 		}
+
+		append(this.additions, $('p.building-intro', undefined, localize('building.additionsIntro', "What the building model adds to the Floor Plan: openings cut into slabs and walls, stairs between stories, and braces, sloped beams or raking columns. Rebuilding from the Floor Plan keeps them; openings follow their slab or wall.")));
+		// Models built before additions existed have none yet; the lists are written on the first edit.
+		const additions = isObject(this.document.additions) ? this.document.additions : (this.document.additions = {});
+		for (const list of Object.keys(ADDITION_LISTS)) {
+			if (!Array.isArray(additions[list])) {
+				additions[list] = [];
+			}
+		}
+		this.form.render(append(this.additions, $('.library-form')), BIM_SCHEMA, this.document, GENERATED);
 
 		const stories = (Array.isArray(this.document.stories) ? this.document.stories.filter(isObject) : [])
 			.sort((a, b) => Number(a.elevation) - Number(b.elevation));
@@ -419,6 +470,93 @@ export class BuildingEditor extends JsonDocumentEditor {
 			append(elementTable, $('span.number', undefined, String(ofKind.length - generated)));
 			append(elementTable, $('span.number', undefined, String(ofKind.length)));
 		}
+	}
+
+	// ───────────────────────────── additions form ─────────────────────────────
+
+	private get stories(): string[] {
+		const stories = Array.isArray(this.document?.stories) ? this.document.stories.filter(isObject) : [];
+		return stories.sort((a, b) => Number(a.elevation) - Number(b.elevation)).map(s => String(s.id));
+	}
+
+	private elementIds(kind: string): string[] {
+		const elements = Array.isArray(this.document?.elements) ? this.document.elements.filter(isObject) : [];
+		return elements.filter(e => e.kind === kind).map(e => String(e.id));
+	}
+
+	private typeIds(kinds: readonly string[]): string[] {
+		let objects: JsonValue | undefined;
+		try {
+			objects = this.objectsText ? JSON.parse(this.objectsText) : undefined;
+		} catch {
+			objects = undefined;
+		}
+		const list = isObject(objects) && Array.isArray(objects.objects) ? objects.objects.filter(isObject) : [];
+		// In the order of `kinds`: braces before beams before columns for inclined members.
+		return kinds.flatMap(kind => list.filter(o => o.kind === kind).map(o => String(o.id)));
+	}
+
+	/** Pick lists: the slab or wall an opening cuts, stories, and object types of the right kind. */
+	private references(path: string): readonly string[] | undefined {
+		const match = /^additions\.(?<list>\w+)\.\d+\.(?<field>\w+)$/.exec(path);
+		switch (match && `${match.groups!.list}.${match.groups!.field}`) {
+			case 'slabOpenings.host': return this.elementIds('slab');
+			case 'wallOpenings.host': return this.elementIds('wall');
+			case 'stairs.type': return this.typeIds(['staircase']);
+			case 'stairs.base':
+			case 'stairs.top': return this.stories;
+			case 'members.type': return this.typeIds(['brace', 'beam', 'column']);
+		}
+		return undefined;
+	}
+
+	/** Ids are unique across the elements and all additions. */
+	private validate(path: string, value: string): string | undefined {
+		const match = /^additions\.(?<list>\w+)\.(?<index>\d+)\.id$/.exec(path);
+		if (!match || !this.document) {
+			return undefined;
+		}
+		const additions = isObject(this.document.additions) ? this.document.additions : {};
+		const own = (additions[match.groups!.list] as JsonValue[] | undefined)?.[Number(match.groups!.index)];
+		const taken = [
+			...(Array.isArray(this.document.elements) ? this.document.elements : []),
+			...Object.values(additions).flatMap(list => Array.isArray(list) ? list : []),
+		].filter(isObject).filter(item => item !== own).map(item => item.id);
+		return taken.includes(value) ? localize('building.idTaken', "Another element already uses the id {0}.", value) : undefined;
+	}
+
+	/** A new addition with the next free id and the first host, type or stories that fit. */
+	private newItem(path: string, list: readonly JsonValue[]): JsonObject | undefined {
+		const name = /^additions\.(?<list>\w+)$/.exec(path)?.groups?.list;
+		const prefix = name && ADDITION_LISTS[name];
+		if (!name || !prefix || !this.document) {
+			return undefined;
+		}
+		const defName = { slabOpenings: 'SlabOpening', wallOpenings: 'WallOpening', stairs: 'Stair', members: 'InclinedMember' }[name]!;
+		const item = clone((TEMPLATES[defName] ?? {}) as JsonObject);
+		const additions = isObject(this.document.additions) ? this.document.additions : {};
+		const used = new Set([
+			...(Array.isArray(this.document.elements) ? this.document.elements : []),
+			...Object.values(additions).flatMap(l => Array.isArray(l) ? l : []),
+			...list,
+		].filter(isObject).map(i => String(i.id)));
+		let n = 1;
+		while (used.has(`${prefix}${n}`)) {
+			n++;
+		}
+		item.id = `${prefix}${n}`;
+		const first = (values: readonly string[]) => values[0];
+		if (name === 'slabOpenings') {
+			item.host = first(this.elementIds('slab')) ?? item.host;
+		} else if (name === 'wallOpenings') {
+			item.host = first(this.elementIds('wall')) ?? item.host;
+		} else if (name === 'stairs') {
+			item.type = first(this.typeIds(['staircase'])) ?? item.type;
+			[item.base, item.top] = [this.stories[0] ?? item.base, this.stories[1] ?? item.top];
+		} else {
+			item.type = first(this.typeIds(['brace', 'beam', 'column'])) ?? item.type;
+		}
+		return item;
 	}
 
 	protected renderProblems(): void {

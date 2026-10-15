@@ -55,6 +55,7 @@ def test_default_is_empty_and_unbuilt() -> None:
         "schema": "saengine.bim/2",
         "stories": [],
         "elements": [],
+        "additions": {"slabOpenings": [], "wallOpenings": [], "stairs": [], "members": []},
     }
 
 

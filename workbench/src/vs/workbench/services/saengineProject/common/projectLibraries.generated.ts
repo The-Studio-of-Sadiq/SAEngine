@@ -2655,6 +2655,42 @@ export const DEFAULT_FLOOR_PLAN: object = {
 
 export const BIM_SCHEMA: IJSONSchema = {
 	$defs: {
+		Additions: {
+			additionalProperties: false,
+			description: 'Elements the building model adds to what it is built from; rebuilding keeps them.',
+			properties: {
+				slabOpenings: {
+					items: {
+						$ref: '#/$defs/SlabOpening',
+					},
+					title: 'Slab openings',
+					type: 'array',
+				},
+				wallOpenings: {
+					items: {
+						$ref: '#/$defs/WallOpening',
+					},
+					title: 'Wall openings',
+					type: 'array',
+				},
+				stairs: {
+					items: {
+						$ref: '#/$defs/Stair',
+					},
+					title: 'Stairs',
+					type: 'array',
+				},
+				members: {
+					items: {
+						$ref: '#/$defs/InclinedMember',
+					},
+					title: 'Inclined members',
+					type: 'array',
+				},
+			},
+			title: 'Additions',
+			type: 'object',
+		},
 		BeamElement: {
 			additionalProperties: false,
 			description: 'A beam with its top at ``elevation`` (the level of the story it supports).',
@@ -2864,6 +2900,60 @@ export const BIM_SCHEMA: IJSONSchema = {
 			title: 'FootingElement',
 			type: 'object',
 		},
+		InclinedMember: {
+			additionalProperties: false,
+			description: 'A brace, sloped beam or raking column between two points in space.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					description: 'Brace, beam or column type from 04 Objects.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Object type',
+					type: 'string',
+				},
+				x1: {
+					description: '[mm]',
+					title: 'Start X',
+					type: 'number',
+				},
+				y1: {
+					description: '[mm]',
+					title: 'Start Y',
+					type: 'number',
+				},
+				z1: {
+					description: 'Elevation [mm].',
+					title: 'Start Z',
+					type: 'number',
+				},
+				x2: {
+					description: '[mm]',
+					title: 'End X',
+					type: 'number',
+				},
+				y2: {
+					description: '[mm]',
+					title: 'End Y',
+					type: 'number',
+				},
+				z2: {
+					description: 'Elevation [mm].',
+					title: 'End Z',
+					type: 'number',
+				},
+			},
+			required: ['id', 'type', 'x1', 'y1', 'z1', 'x2', 'y2', 'z2'],
+			title: 'InclinedMember',
+			type: 'object',
+		},
 		SlabElement: {
 			additionalProperties: false,
 			properties: {
@@ -2928,6 +3018,58 @@ export const BIM_SCHEMA: IJSONSchema = {
 			title: 'SlabElement',
 			type: 'object',
 		},
+		SlabOpening: {
+			additionalProperties: false,
+			description: 'A rectangular hole through a slab (shafts, stair wells, ducts).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				host: {
+					description: 'Id of the slab element it cuts.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Slab',
+					type: 'string',
+				},
+				x: {
+					description: 'Centre of the opening [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					description: '[mm]',
+					title: 'Y',
+					type: 'number',
+				},
+				xDim: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Size X',
+					type: 'number',
+				},
+				yDim: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Size Y',
+					type: 'number',
+				},
+				rotation: {
+					default: 0,
+					description: '[°]',
+					title: 'Rotation',
+					type: 'number',
+				},
+			},
+			required: ['id', 'host', 'x', 'y', 'xDim', 'yDim'],
+			title: 'SlabOpening',
+			type: 'object',
+		},
 		SourceStamps: {
 			additionalProperties: false,
 			description: 'The upstream revisions the model was built from.',
@@ -2940,6 +3082,62 @@ export const BIM_SCHEMA: IJSONSchema = {
 			},
 			required: ['floorPlan'],
 			title: 'SourceStamps',
+			type: 'object',
+		},
+		Stair: {
+			additionalProperties: false,
+			description: 'A straight waist-slab flight between two stories.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					description: 'Staircase type from 04 Objects.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Object type',
+					type: 'string',
+				},
+				base: {
+					description: 'Story the flight starts at.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Base',
+					type: 'string',
+				},
+				top: {
+					description: 'Story the flight arrives at.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Top',
+					type: 'string',
+				},
+				x: {
+					description: 'Foot of the flight, centre of its width [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					description: '[mm]',
+					title: 'Y',
+					type: 'number',
+				},
+				direction: {
+					default: 0,
+					description: 'Direction the flight rises in, from the X axis [°].',
+					title: 'Direction',
+					type: 'number',
+				},
+			},
+			required: ['id', 'type', 'base', 'top', 'x', 'y'],
+			title: 'Stair',
 			type: 'object',
 		},
 		Story: {
@@ -3043,6 +3241,55 @@ export const BIM_SCHEMA: IJSONSchema = {
 			title: 'WallElement',
 			type: 'object',
 		},
+		WallOpening: {
+			additionalProperties: false,
+			description: 'A door or window hole through a wall.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				host: {
+					description: 'Id of the wall element it cuts.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Wall',
+					type: 'string',
+				},
+				offset: {
+					description: 'From the wall\'s start to the opening\'s near edge [mm].',
+					minimum: 0,
+					title: 'Offset',
+					type: 'number',
+				},
+				sill: {
+					default: 0,
+					description: 'Height of the bottom above the wall\'s bottom [mm].',
+					minimum: 0,
+					title: 'Sill',
+					type: 'number',
+				},
+				width: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Width',
+					type: 'number',
+				},
+				height: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Height',
+					type: 'number',
+				},
+			},
+			required: ['id', 'host', 'offset', 'width', 'height'],
+			title: 'WallOpening',
+			type: 'object',
+		},
 	},
 	additionalProperties: false,
 	properties: {
@@ -3095,6 +3342,9 @@ export const BIM_SCHEMA: IJSONSchema = {
 			title: 'Elements',
 			type: 'array',
 		},
+		additions: {
+			$ref: '#/$defs/Additions',
+		},
 	},
 	title: 'SAEngine building model',
 	type: 'object',
@@ -3104,6 +3354,12 @@ export const DEFAULT_BIM: object = {
 	schema: 'saengine.bim/2',
 	stories: [],
 	elements: [],
+	additions: {
+		slabOpenings: [],
+		wallOpenings: [],
+		stairs: [],
+		members: [],
+	},
 };
 
 export const TEMPLATES: { readonly [defName: string]: object } = {
@@ -3540,6 +3796,41 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 	Underlay: {
 		story: 'L1',
 		file: 'Underlays/architect-L1.dxf',
+	},
+	SlabOpening: {
+		id: 'O1',
+		host: 'S1',
+		x: 0,
+		y: 0,
+		xDim: 1000,
+		yDim: 1000,
+	},
+	WallOpening: {
+		id: 'D1',
+		host: 'W1',
+		offset: 500,
+		sill: 0,
+		width: 900,
+		height: 2100,
+	},
+	Stair: {
+		id: 'ST1',
+		type: 'ST',
+		base: 'BASE',
+		top: 'L1',
+		x: 0,
+		y: 0,
+		direction: 0,
+	},
+	InclinedMember: {
+		id: 'M1',
+		type: 'BR',
+		x1: 0,
+		y1: 0,
+		z1: 0,
+		x2: 6000,
+		y2: 0,
+		z2: 3200,
 	},
 	ColumnElement: {
 		id: 'C1',

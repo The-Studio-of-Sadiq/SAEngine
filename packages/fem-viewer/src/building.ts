@@ -21,6 +21,8 @@ export interface BuildingViewerTheme {
 	readonly wall: string;
 	readonly slab: string;
 	readonly footing: string;
+	readonly stair: string;
+	readonly member: string;
 }
 
 export interface BuildingViewerOptions {
@@ -54,6 +56,8 @@ const defaultTheme: BuildingViewerTheme = {
 	wall: '#6b8cff',
 	slab: '#c586c0',
 	footing: '#d7954b',
+	stair: '#d4d4d4',
+	member: '#f14c4c',
 };
 
 const CATEGORIES: readonly [keyof BuildingViewerTheme, RegExp][] = [
@@ -62,6 +66,8 @@ const CATEGORIES: readonly [keyof BuildingViewerTheme, RegExp][] = [
 	['wall', /^IFCWALL/],
 	['slab', /^IFCSLAB$/],
 	['footing', /^IFCFOOTING$/],
+	['stair', /^IFCSTAIR/],
+	['member', /^IFCMEMBER$/],
 ];
 
 class BuildingViewerImpl implements BuildingViewer {

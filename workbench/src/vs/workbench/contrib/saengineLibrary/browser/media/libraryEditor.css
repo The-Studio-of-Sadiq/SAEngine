@@ -449,3 +449,33 @@
 .saengine-library-editor .building-3d .hidden {
 	display: none;
 }
+
+.saengine-library-editor .building-3d .building-additions-view {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	padding: 4px 24px 32px;
+}
+
+.saengine-library-editor .building-3d .building-views {
+	display: flex;
+	gap: 0;
+	margin-left: 8px;
+}
+
+.saengine-library-editor .building-3d .building-views .monaco-button {
+	border-radius: 0;
+}
+
+.saengine-library-editor .building-3d .building-views .monaco-button:first-child {
+	border-radius: 2px 0 0 2px;
+}
+
+.saengine-library-editor .building-3d .building-views .monaco-button:last-child {
+	border-radius: 0 2px 2px 0;
+}
+
+.saengine-library-editor .building-3d .building-views .monaco-button.active {
+	color: var(--vscode-button-foreground);
+	background-color: var(--vscode-button-background);
+}

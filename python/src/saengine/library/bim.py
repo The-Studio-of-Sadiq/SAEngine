@@ -117,6 +117,81 @@ _ALLOWED_KINDS = {
 }
 
 
+# ───────────────────────── additions: what the building model adds itself ─────────────────────────
+
+Length = Annotated[float, Field(gt=0, description="[mm]")]
+
+
+class SlabOpening(_Model):
+    """A rectangular hole through a slab (shafts, stair wells, ducts)."""
+
+    id: Id
+    host: Id = Field(title="Slab", description="Id of the slab element it cuts.")
+    x: Mm = Field(description="Centre of the opening [mm].")
+    y: Mm = Field(description="[mm]")
+    xDim: Length = Field(title="Size X")
+    yDim: Length = Field(title="Size Y")
+    rotation: float = Field(default=0, description="[°]")
+
+
+class WallOpening(_Model):
+    """A door or window hole through a wall."""
+
+    id: Id
+    host: Id = Field(title="Wall", description="Id of the wall element it cuts.")
+    offset: Mm = Field(ge=0, description="From the wall's start to the opening's near edge [mm].")
+    sill: Mm = Field(
+        default=0, ge=0, description="Height of the bottom above the wall's bottom [mm]."
+    )
+    width: Length
+    height: Length
+
+
+class Stair(_Model):
+    """A straight waist-slab flight between two stories."""
+
+    id: Id
+    type: Id = Field(title="Object type", description="Staircase type from 04 Objects.")
+    base: Id = Field(description="Story the flight starts at.")
+    top: Id = Field(description="Story the flight arrives at.")
+    x: Mm = Field(description="Foot of the flight, centre of its width [mm].")
+    y: Mm = Field(description="[mm]")
+    direction: float = Field(
+        default=0, description="Direction the flight rises in, from the X axis [°]."
+    )
+
+
+class InclinedMember(_Model):
+    """A brace, sloped beam or raking column between two points in space."""
+
+    id: Id
+    type: Id = Field(title="Object type", description="Brace, beam or column type from 04 Objects.")
+    x1: Mm = Field(title="Start X")
+    y1: Mm = Field(title="Start Y")
+    z1: Mm = Field(title="Start Z", description="Elevation [mm].")
+    x2: Mm = Field(title="End X")
+    y2: Mm = Field(title="End Y")
+    z2: Mm = Field(title="End Z", description="Elevation [mm].")
+
+    @model_validator(mode="after")
+    def _length(self) -> InclinedMember:
+        if (self.x1, self.y1, self.z1) == (self.x2, self.y2, self.z2):
+            raise ValueError(f"{self.id}: its start and end are the same point")
+        return self
+
+
+class Additions(_Model):
+    """Elements the building model adds to what it is built from; rebuilding keeps them."""
+
+    slabOpenings: list[SlabOpening] = Field(default_factory=list, title="Slab openings")
+    wallOpenings: list[WallOpening] = Field(default_factory=list, title="Wall openings")
+    stairs: list[Stair] = Field(default_factory=list)
+    members: list[InclinedMember] = Field(default_factory=list, title="Inclined members")
+
+    def all(self) -> list[SlabOpening | WallOpening | Stair | InclinedMember]:
+        return [*self.slabOpenings, *self.wallOpenings, *self.stairs, *self.members]
+
+
 class BuildingModel(_Model):
     schema_: Literal["saengine.bim/2"] = Field(default=SCHEMA_ID, alias="schema")
     source: SourceStamps | None = Field(
@@ -124,6 +199,7 @@ class BuildingModel(_Model):
     )
     stories: list[Story] = Field(default_factory=list)
     elements: list[Element] = Field(default_factory=list)
+    additions: Additions = Field(default_factory=Additions)
 
     @model_validator(mode="after")
     def _references(self) -> BuildingModel:
@@ -138,10 +214,44 @@ class BuildingModel(_Model):
                 raise ValueError(f"{e.id}: its top must be above its bottom")
         return self
 
+    def check_additions(self) -> list[str]:
+        """Problems with what the additions refer to.
+
+        These are reported, not rejected: the floor plan may drop a host or a story the
+        additions use, and rebuilding from it must still work.
+        """
+        kinds = {e.id: e.kind for e in self.elements}
+        stories = {s.id: s.elevation for s in self.stories}
+        problems = []
+        ids = [a.id for a in self.additions.all()]
+        for duplicate in sorted({i for i in ids if ids.count(i) > 1}):
+            problems.append(f"{duplicate}: two additions use this id")
+        for clash in sorted({i for i in ids if i in kinds}):
+            problems.append(f"{clash}: an element from the floor plan already uses this id")
+        for opening, kind in [
+            *((o, "slab") for o in self.additions.slabOpenings),
+            *((o, "wall") for o in self.additions.wallOpenings),
+        ]:
+            if kinds.get(opening.host) != kind:
+                problems.append(f"{opening.id}: there is no {kind} '{opening.host}' to cut")
+        for stair in self.additions.stairs:
+            missing = [s for s in (stair.base, stair.top) if s not in stories]
+            if missing:
+                problems.append(f"{stair.id}: no story '{missing[0]}'")
+            elif stories[stair.base] >= stories[stair.top]:
+                problems.append(f"{stair.id}: its top story must be above its base story")
+        return problems
+
     def check_objects(self, objects: ObjectLibrary) -> list[str]:
         """Problems with object-type references, which span files."""
         kinds = {o.id: o.kind for o in objects.objects}
         problems = []
+        for stair in self.additions.stairs:
+            if kinds.get(stair.type) != "staircase":
+                problems.append(f"{stair.id}: '{stair.type}' is not a staircase type")
+        for member in self.additions.members:
+            if kinds.get(member.type) not in ("brace", "beam", "column"):
+                problems.append(f"{member.id}: '{member.type}' is not a brace, beam or column type")
         for e in self.elements:
             kind = kinds.get(e.type)
             if kind is None:
@@ -154,8 +264,8 @@ class BuildingModel(_Model):
 def generate(plan: FloorPlan, stamp: str, previous: BuildingModel | None = None) -> BuildingModel:
     """The building model of ``plan`` (whose text has stamp ``stamp``).
 
-    Elements generated earlier are replaced; elements that belong to the building model itself
-    (no ``source``) are kept from ``previous``.
+    Elements generated earlier are replaced; the building model's own additions (and elements
+    without a ``source``, from before additions existed) are kept from ``previous``.
     """
     x = {g.label: g.position for g in plan.grids.x}
     y = {g.label: g.position for g in plan.grids.y}
@@ -232,4 +342,5 @@ def generate(plan: FloorPlan, stamp: str, previous: BuildingModel | None = None)
         source=SourceStamps(floorPlan=stamp),
         stories=[s.model_copy() for s in plan.stories],
         elements=[*elements, *own],
+        additions=previous.additions.model_copy(deep=True) if previous else Additions(),
     )

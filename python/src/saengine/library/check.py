@@ -116,12 +116,16 @@ def _check_layout(
             )
             for error in exc.errors()
         ]
+    problems = []
+    if isinstance(model, BuildingModel):
+        problems = [_problem(None, "additions", message) for message in model.check_additions()]
     if objects_text is None:
-        return []
+        return problems
     try:
         objects = ObjectLibrary.model_validate_json(objects_text)
     except ValidationError:
         return [
-            _problem(None, "", "The object types file has errors; member types were not checked.")
+            *problems,
+            _problem(None, "", "The object types file has errors; member types were not checked."),
         ]
-    return [_problem(None, "", message) for message in model.check_objects(objects)]
+    return [*problems, *(_problem(None, "", message) for message in model.check_objects(objects))]

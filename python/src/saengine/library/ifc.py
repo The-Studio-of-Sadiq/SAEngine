@@ -258,6 +258,7 @@ def export_ifc(
         return below[-1] if below else (storeys[0][1] if storeys else w.building)
 
     ids: dict[str, str] = {}
+    products: dict[str, Any] = {}
     skipped: list[str] = []
     for element in building.elements:
         object_type = w.types.get(element.type)
@@ -360,4 +361,154 @@ def export_ifc(
         w.run("spatial.assign_container", w.file, products=[product], relating_structure=container)
         w.material(product, object_type.material)
         ids[element.id] = product.GlobalId
+        products[element.id] = product
+
+    _export_additions(w, building, products, storey_at, ids, skipped)
     return w.file, ids, skipped
+
+
+# Openings cut a little beyond their host's faces, so the boolean leaves no skin.
+_CLEARANCE = 10.0
+
+_MEMBER_CLASSES = {
+    "brace": ("IfcMember", "BRACE"),
+    "beam": ("IfcBeam", "BEAM"),
+    "column": ("IfcColumn", "COLUMN"),
+}
+
+
+def _export_additions(
+    w: _Writer,
+    building: BuildingModel,
+    products: dict[str, Any],
+    storey_at: Any,
+    ids: dict[str, str],
+    skipped: list[str],
+) -> None:
+    """Openings (voiding their hosts), stairs and inclined members the building model adds."""
+    elements = {e.id: e for e in building.elements}
+    levels = {s.id: s.elevation for s in building.stories}
+    additions = building.additions
+
+    for o in additions.slabOpenings:
+        slab, host = elements.get(o.host), products.get(o.host)
+        if not isinstance(slab, SlabElement) or host is None:
+            skipped.append(f"{o.id}: there is no slab '{o.host}' to cut")
+            continue
+        thickness = float(w.types[slab.type].thickness)
+        opening = w.entity("IfcOpeningElement", o.id, o.id, "OPENING")
+        w.extrusion(opening, w.rectangle(o.xDim, o.yDim), thickness + 2 * _CLEARANCE)
+        w.place(
+            opening,
+            _placement(
+                (o.x, o.y, slab.elevation - thickness - _CLEARANCE),
+                _rotation(o.rotation),
+                (0, 0, 1),
+            ),
+        )
+        w.run("feature.add_feature", w.file, feature=opening, element=host)
+        ids[o.id] = opening.GlobalId
+
+    for o in additions.wallOpenings:
+        wall, host = elements.get(o.host), products.get(o.host)
+        if not isinstance(wall, WallElement) or host is None:
+            skipped.append(f"{o.id}: there is no wall '{o.host}' to cut")
+            continue
+        (x1, y1), (x2, y2) = wall.start, wall.end
+        length = math.hypot(x2 - x1, y2 - y1)
+        dx, dy = (x2 - x1) / length, (y2 - y1) / length
+        half = float(w.types[wall.type].thickness) / 2 + _CLEARANCE
+        # Local X along the wall, Y up, extruded through the wall from its far face.
+        origin = (
+            x1 + dx * o.offset - dy * half,
+            y1 + dy * o.offset + dx * half,
+            wall.bottom + o.sill,
+        )
+        opening = w.entity("IfcOpeningElement", o.id, o.id, "OPENING")
+        w.extrusion(opening, w.rectangle(o.width, o.height), 2 * half, "bottom left")
+        w.place(opening, _placement(origin, (dx, dy, 0.0), (dy, -dx, 0.0)))
+        w.run("feature.add_feature", w.file, feature=opening, element=host)
+        ids[o.id] = opening.GlobalId
+
+    for stair in additions.stairs:
+        object_type = w.types.get(stair.type)
+        if (
+            object_type is None
+            or object_type.kind != "staircase"
+            or stair.base not in levels
+            or stair.top not in levels
+        ):
+            skipped.append(f"{stair.id}: needs a staircase type and two stories")
+            continue
+        bottom, top = levels[stair.base], levels[stair.top]
+        rise = top - bottom
+        if rise <= 0:
+            skipped.append(f"{stair.id}: its top story must be above its base story")
+            continue
+        n = max(1, round(rise / object_type.riser))
+        riser, going = rise / n, float(object_type.tread)
+        # The flight in its own plane: steps on top, a waist slab parallel to the pitch below.
+        drop = float(object_type.waistThickness) * math.hypot(riser, going) / going
+        foot = drop * going / riser
+        points = [(0.0, 0.0)]
+        for i in range(n):
+            points += [(i * going, (i + 1) * riser), ((i + 1) * going, (i + 1) * riser)]
+        points += [(n * going, n * riser - drop), (min(foot, n * going), 0.0)]
+        outline = w.run(
+            "profile.add_arbitrary_profile",
+            w.file,
+            profile=[*((x * _SI, y * _SI) for x, y in points), (0.0, 0.0)],
+            name=stair.id,
+        )
+        product = w.entity("IfcStair", stair.id, stair.id, "STRAIGHT_RUN_STAIR")
+        product.ObjectType = object_type.id
+        product.Description = object_type.name
+        width = float(object_type.flightWidth)
+        run = _rotation(stair.direction)
+        across = (run[1], -run[0], 0.0)  # local Z: X (the run) x Y (up)
+        w.extrusion(product, outline, width, None)
+        w.place(
+            product,
+            _placement(
+                (stair.x - across[0] * width / 2, stair.y - across[1] * width / 2, bottom),
+                run,
+                across,
+            ),
+        )
+        w.run(
+            "spatial.assign_container",
+            w.file,
+            products=[product],
+            relating_structure=storey_at(bottom),
+        )
+        w.material(product, object_type.material)
+        ids[stair.id] = product.GlobalId
+
+    for member in additions.members:
+        object_type = w.types.get(member.type)
+        if object_type is None or object_type.kind not in _MEMBER_CLASSES:
+            skipped.append(f"{member.id}: needs a brace, beam or column type")
+            continue
+        start = np.array([member.x1, member.y1, member.z1], dtype=float)
+        axis = np.array([member.x2, member.y2, member.z2], dtype=float) - start
+        length = float(np.linalg.norm(axis))
+        axis /= length
+        # Profile Y as close to up as the axis allows (vertical members: profile X along world X).
+        side = np.cross((0.0, 0.0, 1.0), axis)
+        x_axis = (
+            tuple(side / np.linalg.norm(side)) if np.linalg.norm(side) > 1e-9 else (1.0, 0.0, 0.0)
+        )
+        ifc_class, predefined = _MEMBER_CLASSES[object_type.kind]
+        product = w.entity(ifc_class, member.id, member.id, predefined)
+        product.ObjectType = object_type.id
+        product.Description = object_type.name
+        w.extrusion(product, w.profile(object_type.id, object_type.profile), length)
+        w.place(product, _placement(tuple(start), x_axis, tuple(axis)))
+        w.run(
+            "spatial.assign_container",
+            w.file,
+            products=[product],
+            relating_structure=storey_at(min(member.z1, member.z2)),
+        )
+        w.material(product, object_type.material)
+        ids[member.id] = product.GlobalId
