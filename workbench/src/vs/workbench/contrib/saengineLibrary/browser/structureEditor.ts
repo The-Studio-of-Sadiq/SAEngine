@@ -28,6 +28,7 @@ const LISTS: { readonly [list: string]: { readonly template: string; readonly pr
 	grids: { template: 'CartesianGrid', prefix: 'G' },
 	members: { template: 'Member', prefix: 'M' },
 	areas: { template: 'Area', prefix: 'A' },
+	blocks: { template: 'Block', prefix: 'K' },
 	supports: { template: 'Support', prefix: 'SP' },
 };
 
@@ -95,7 +96,7 @@ export class StructureEditor extends JsonDocumentEditor {
 
 	/** Object types of the kinds a member or an area can be. */
 	private references(path: string): readonly string[] | undefined {
-		const kinds = /^members\.\d+\.type$/.test(path) ? ['beam', 'column', 'brace'] : /^areas\.\d+\.type$/.test(path) ? ['slab', 'wall'] : undefined;
+		const kinds = /^members\.\d+\.type$/.test(path) ? ['beam', 'column', 'brace'] : /^areas\.\d+\.type$/.test(path) ? ['slab', 'wall'] : /^blocks\.\d+\.type$/.test(path) ? ['solid'] : undefined;
 		return kinds && kinds.flatMap(kind => this.objects.filter(o => o.kind === kind).map(o => String(o.id)));
 	}
 
@@ -104,13 +105,13 @@ export class StructureEditor extends JsonDocumentEditor {
 		if (!spec) {
 			return undefined;
 		}
-		const used = new Set([...(this.document?.members as JsonValue[] ?? []), ...(this.document?.areas as JsonValue[] ?? []), ...list].filter(isObject).map(e => String(e.id)));
+		const used = new Set([...(this.document?.members as JsonValue[] ?? []), ...(this.document?.areas as JsonValue[] ?? []), ...(this.document?.blocks as JsonValue[] ?? []), ...list].filter(isObject).map(e => String(e.id)));
 		let n = 1;
 		while (used.has(`${spec.prefix}${n}`)) {
 			n++;
 		}
 		const item: JsonObject = { ...clone(TEMPLATES[spec.template] as JsonObject), id: `${spec.prefix}${n}` };
-		const types = path === 'members' || path === 'areas' ? this.references(`${path}.0.type`) : undefined;
+		const types = path === 'members' || path === 'areas' || path === 'blocks' ? this.references(`${path}.0.type`) : undefined;
 		if (types?.length) {
 			item.type = types[0];
 		}

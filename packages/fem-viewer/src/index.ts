@@ -4,11 +4,11 @@
 
 import * as THREE from 'three';
 import * as OBC from '@thatopen/components';
-import { FemElement, FemModel, FemNode, FemResultDisplay, FemResultView, FemSelection, sameSelection } from './model.js';
+import { FemElement, FemModel, FemNode, FemResultDisplay, FemResultView, FemSelection, outerFaces, sameSelection } from './model.js';
 import { ResultOverlay } from './results.js';
 
-export type { FemElement, FemModel, FemNode, FemResultDisplay, FemResultElement, FemResultQuantity, FemResultShell, FemResultView, FemSelection, FemValueQuantity } from './model.js';
-export { FORCE_COMPONENTS, SHELL_COMPONENTS } from './model.js';
+export type { FemElement, FemModel, FemNode, FemResultDisplay, FemResultElement, FemResultQuantity, FemResultShell, FemResultSolid, FemResultView, FemSelection, FemValueQuantity } from './model.js';
+export { FORCE_COMPONENTS, SHELL_COMPONENTS, SOLID_COMPONENTS } from './model.js';
 export { contourColor } from './results.js';
 
 export interface FemViewerTheme {
@@ -202,7 +202,13 @@ class FemViewerImpl implements FemViewer {
 		// Members: every element is drawn as its edge loop (2-node elements as one segment).
 		const positions: number[] = [];
 		this.memberIds = [];
+		// Solids show their outer faces; the struts tying frames into them are not drawn.
+		const solids = model.elements.filter(e => e.type === 'Solid');
+		const hidden = (e: FemElement) => e.type === 'Solid' || /\/embed(#\d+)?$/.test(e.name ?? '');
 		for (const element of model.elements) {
+			if (hidden(element)) {
+				continue;
+			}
 			for (const [a, b] of this.edges(element)) {
 				const na = nodeById.get(a);
 				const nb = nodeById.get(b);
@@ -225,9 +231,47 @@ class FemViewerImpl implements FemViewer {
 			this.pickTargets.push(this.members);
 		}
 
+		if (solids.length) {
+			const faces = outerFaces(solids);
+			const points: number[] = [];
+			// Only the feature edges, where the surface folds (the solid's own outline): every
+			// triangle edge of a fine mesh would grey the solid out.
+			const sharing = new Map<string, { a: THREE.Vector3; b: THREE.Vector3; normals: THREE.Vector3[] }>();
+			for (const face of faces) {
+				const pts = face.nodes.map(id => nodeById.get(id)).filter((n): n is FemNode => !!n).map(n => toWorld(model, n.coords));
+				if (pts.length !== 3) {
+					continue;
+				}
+				points.push(...pts.flatMap(p => p.toArray()));
+				const normal = pts[1].clone().sub(pts[0]).cross(pts[2].clone().sub(pts[0])).normalize();
+				face.nodes.forEach((a, k) => {
+					const b = face.nodes[(k + 1) % 3];
+					const key = a < b ? `${a}-${b}` : `${b}-${a}`;
+					const entry = sharing.get(key) ?? { a: pts[k], b: pts[(k + 1) % 3], normals: [] };
+					entry.normals.push(normal);
+					sharing.set(key, entry);
+				});
+			}
+			const edges: number[] = [];
+			for (const { a, b, normals: [n1, n2] } of sharing.values()) {
+				if (!n2 || Math.abs(n1.dot(n2)) < 0.94) {
+					edges.push(...a.toArray(), ...b.toArray());
+				}
+			}
+			const surface = new THREE.BufferGeometry();
+			surface.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+			this.modelGroup.add(new THREE.Mesh(surface, new THREE.MeshBasicMaterial({
+				color: this.theme.member, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false,
+			})));
+			const lines = new THREE.BufferGeometry();
+			lines.setAttribute('position', new THREE.Float32BufferAttribute(edges, 3));
+			const dimmed = !!this.results;
+			this.modelGroup.add(new THREE.LineSegments(lines, new THREE.LineBasicMaterial({ color: this.theme.member, transparent: true, opacity: dimmed ? 0.15 : 0.35 })));
+		}
+
 		// Shell-like elements (3+ nodes) also get a translucent face so they read as areas.
 		for (const element of model.elements) {
-			if (element.nodes.length < 3) {
+			if (element.nodes.length < 3 || element.type === 'Solid') {
 				continue;
 			}
 			const pts = element.nodes.map(id => nodeById.get(id)).filter((n): n is FemNode => !!n).map(n => toWorld(model, n.coords));
@@ -246,9 +290,18 @@ class FemViewerImpl implements FemViewer {
 			this.modelGroup.add(face);
 		}
 
+		// Nodes only solids use are not marked (or picked): a solid's mesh would bury it in them.
+		const solidOnly = new Set(solids.flatMap(e => e.nodes));
+		for (const element of model.elements) {
+			if (element.type !== 'Solid') {
+				element.nodes.forEach(n => solidOnly.delete(n));
+			}
+		}
+
 		// Nodes.
-		this.nodeIds = model.nodes.map(n => n.id);
-		const nodePositions = model.nodes.flatMap(n => toWorld(model, n.coords).toArray());
+		const marked = model.nodes.filter(n => !solidOnly.has(n.id));
+		this.nodeIds = marked.map(n => n.id);
+		const nodePositions = marked.flatMap(n => toWorld(model, n.coords).toArray());
 		if (nodePositions.length) {
 			const geometry = new THREE.BufferGeometry();
 			geometry.setAttribute('position', new THREE.Float32BufferAttribute(nodePositions, 3));
@@ -257,12 +310,13 @@ class FemViewerImpl implements FemViewer {
 			this.pickTargets.push(this.nodes);
 		}
 
-		// Supports: a small pyramid under every node with any restrained DOF.
+		// Supports: a small pyramid under every node with any restrained DOF, except the nodes of a
+		// supported solid face (a carpet of them would hide the solid): its face shows it.
 		const supportGeometry = new THREE.ConeGeometry(scale * 0.025, scale * 0.04, 4);
 		supportGeometry.translate(0, -scale * 0.02, 0);
 		const supportMaterial = new THREE.MeshBasicMaterial({ color: this.theme.support });
 		for (const node of model.nodes) {
-			if (!node.restraint?.some(Boolean)) {
+			if (!node.restraint?.some(Boolean) || solidOnly.has(node.id)) {
 				continue;
 			}
 			const support = new THREE.Mesh(supportGeometry, supportMaterial);

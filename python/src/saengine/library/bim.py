@@ -135,6 +135,16 @@ class AreaElement(_Element):
     )
 
 
+class BlockElement(_Element):
+    """A solid block (special structures): a flat outline extruded along its normal by
+    ``thickness``."""
+
+    kind: Literal["block"] = "block"
+    outline: list[Point3] = Field(min_length=3)
+    thickness: Mm
+    supported: bool = Field(default=False, description="Held on its outline face.")
+
+
 class BimSupport(_Model):
     """A support of a special structure: fixed, or pinned (translations only)."""
 
@@ -150,7 +160,8 @@ Element = Annotated[
     | SlabElement
     | FootingElement
     | MemberElement
-    | AreaElement,
+    | AreaElement
+    | BlockElement,
     Field(discriminator="kind"),
 ]
 
@@ -163,6 +174,7 @@ _ALLOWED_KINDS = {
     "footing": ("footing", "pileCap"),
     "member": ("beam", "column", "brace"),
     "area": ("slab", "wall"),
+    "block": ("solid",),
 }
 
 
@@ -429,6 +441,17 @@ def generate_from_structure(
             areaLoad=a.areaLoad,
         )
         for a in structure.areas
+    ]
+    elements += [
+        BlockElement(
+            id=b.id,
+            type=b.type,
+            source=b.id,
+            outline=[[p.x, p.y, p.z] for p in b.outline],
+            thickness=b.thickness,
+            supported=b.supported,
+        )
+        for b in structure.blocks
     ]
     own = [e for e in (previous.elements if previous else []) if e.source is None]
     return BuildingModel(

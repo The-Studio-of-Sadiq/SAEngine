@@ -340,6 +340,51 @@ class ShellElement(Entity):
         return self
 
 
+SolidFormulation = Literal[
+    "FourNodeTetrahedron", "TenNodeTetrahedron", "stdBrick", "bbarBrick", "SSPbrick"
+]
+"""Continuum elements: linear and quadratic tetrahedra, and 8-node bricks."""
+
+#: Nodes of each solid formulation.
+SOLID_NODE_COUNTS: dict[str, int] = {
+    "FourNodeTetrahedron": 4,
+    "TenNodeTetrahedron": 10,
+    "stdBrick": 8,
+    "bbarBrick": 8,
+    "SSPbrick": 8,
+}
+
+
+class SolidElement(Entity):
+    """A 3D continuum (solid) element - ``element TenNodeTetrahedron`` and the other
+    :data:`SolidFormulation` elements - with an nD material (``ElasticIsotropic``).
+
+    Requires ``ndm=3``. Node order follows OpenSees: a four-node tetrahedron's corners with
+    the fourth on the side the first three turn counter-clockwise towards (Gmsh's order); a
+    brick's bottom face then its top face. The ten-node tetrahedron's node order is OpenSees'
+    own and has not been checked here against a reference solution.
+    Solid nodes carry translations only: in a model with ``ndf=6`` the runner gives each a
+    three-DOF twin tied to it in translation and holds the rotations of nodes no other
+    element uses. Mass comes from the material's ``rho``. Results are the node displacements:
+    the runner records no element response (OpenSeesPy 3.8.0's ``stresses`` response of a
+    TenNodeTetrahedron corrupts the heap); stresses follow from the displacements.
+    """
+
+    type: Literal["Solid"] = "Solid"
+    formulation: SolidFormulation = "FourNodeTetrahedron"
+    nodes: tuple[PositiveInt, ...]
+    material_id: PositiveInt
+
+    @model_validator(mode="after")
+    def _check_node_count(self) -> SolidElement:
+        count = SOLID_NODE_COUNTS[self.formulation]
+        if len(self.nodes) != count:
+            raise ValueError(f"{self.formulation} takes {count} nodes, got {len(self.nodes)}.")
+        if len(set(self.nodes)) != len(self.nodes):
+            raise ValueError(f"Solid element nodes must be distinct: {self.nodes}.")
+        return self
+
+
 Element = Annotated[
     TrussElement
     | CorotTrussElement
@@ -352,6 +397,7 @@ Element = Annotated[
     | BeamWithHingesElement
     | QuadElement
     | ShellElement
+    | SolidElement
     | ElastomericBearingPlasticityElement
     | ElastomericBearingBoucWenElement
     | FlatSliderBearingElement

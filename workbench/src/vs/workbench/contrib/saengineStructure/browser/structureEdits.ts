@@ -5,7 +5,7 @@
 
 import type { ModelerEntity, ModelPoint } from '@saengine/fem-viewer';
 import { localize } from '../../../../nls.js';
-import { isJson, Json, json, list, point } from './structureGeometry.js';
+import { isJson, Json, json, list, point, polygonNormal } from './structureGeometry.js';
 
 /*
  * Edits of the structural model (`structure.json`) made by the 3D modeller. Each takes the
@@ -19,11 +19,16 @@ export type EditResult =
 /** Points closer than this are the same point (mm), as in the Python model. */
 const TOLERANCE = 1;
 
-const LISTS: { readonly [kind in ModelerEntity['kind']]: 'members' | 'areas' | 'supports' } = {
+type ListName = 'members' | 'areas' | 'supports' | 'blocks';
+
+const LISTS: { readonly [kind in ModelerEntity['kind']]: ListName } = {
 	member: 'members',
 	area: 'areas',
 	support: 'supports',
+	block: 'blocks',
 };
+
+const PREFIXES: { readonly [kind in ModelerEntity['kind']]: string } = { member: 'M', area: 'A', support: 'SP', block: 'K' };
 
 function clone<T>(value: T): T {
 	return JSON.parse(JSON.stringify(value));
@@ -37,9 +42,9 @@ function add(a: ModelPoint, d: ModelPoint): ModelPoint {
 	return [a[0] + d[0], a[1] + d[1], a[2] + d[2]];
 }
 
-/** The next free id with `prefix` among members, areas and supports (one namespace for elements). */
+/** The next free id with `prefix` among members, areas, blocks and supports (one namespace for elements). */
 export function nextId(doc: Json, prefix: string, taken: ReadonlySet<string> = new Set()): string {
-	const used = new Set([...list(doc.members), ...list(doc.areas), ...list(doc.supports)].map(e => String(e.id)));
+	const used = new Set([...list(doc.members), ...list(doc.areas), ...list(doc.blocks), ...list(doc.supports)].map(e => String(e.id)));
 	let n = 1;
 	while (used.has(`${prefix}${n}`) || taken.has(`${prefix}${n}`)) {
 		n++;
@@ -47,7 +52,7 @@ export function nextId(doc: Json, prefix: string, taken: ReadonlySet<string> = n
 	return `${prefix}${n}`;
 }
 
-function withList(doc: Json, name: 'members' | 'areas' | 'supports'): [Json, Json[]] {
+function withList(doc: Json, name: ListName): [Json, Json[]] {
 	const copy = clone(doc);
 	const items = list(copy[name]);
 	copy[name] = items;
@@ -65,20 +70,6 @@ export function addMember(doc: Json, type: string, start: ModelPoint, end: Model
 	const id = nextId(doc, 'M');
 	members.push({ id, type, start: json(start), end: json(end) });
 	return { ok: true, doc: copy, ids: [id] };
-}
-
-/** The unit normal of a polygon (Newell's method), or undefined when it has no area. */
-export function polygonNormal(points: readonly ModelPoint[]): ModelPoint | undefined {
-	let nx = 0, ny = 0, nz = 0;
-	for (let i = 0; i < points.length; i++) {
-		const a = points[i];
-		const b = points[(i + 1) % points.length];
-		nx += (a[1] - b[1]) * (a[2] + b[2]);
-		ny += (a[2] - b[2]) * (a[0] + b[0]);
-		nz += (a[0] - b[0]) * (a[1] + b[1]);
-	}
-	const size = Math.hypot(nx, ny, nz);
-	return size < TOLERANCE * TOLERANCE ? undefined : [nx / size, ny / size, nz / size];
 }
 
 export function addArea(doc: Json, type: string, outline: readonly ModelPoint[]): EditResult {
@@ -99,6 +90,28 @@ export function addArea(doc: Json, type: string, outline: readonly ModelPoint[])
 	return { ok: true, doc: copy, ids: [id] };
 }
 
+/** A solid block: the face `outline` extruded by `thickness` (mm) to the side its corners turn counter-clockwise for. */
+export function addBlock(doc: Json, type: string, outline: readonly ModelPoint[], thickness: number): EditResult {
+	if (!type) {
+		return { ok: false, error: localize('edit.noSolidType', "Add a solid type in Object Types first.") };
+	}
+	if (!(thickness > 0)) {
+		return { ok: false, error: localize('edit.blockThickness', "Type the block's thickness (mm) beside.") };
+	}
+	const normal = polygonNormal(outline);
+	if (outline.length < 3 || !normal) {
+		return { ok: false, error: localize('edit.noBlock', "A block's face needs at least three corners that are not in a line.") };
+	}
+	const off = outline.some(p => Math.abs((p[0] - outline[0][0]) * normal[0] + (p[1] - outline[0][1]) * normal[1] + (p[2] - outline[0][2]) * normal[2]) > TOLERANCE);
+	if (off) {
+		return { ok: false, error: localize('edit.blockNotFlat', "The corners of a block's face must lie in one plane.") };
+	}
+	const [copy, blocks] = withList(doc, 'blocks');
+	const id = nextId(doc, 'K');
+	blocks.push({ id, type, outline: outline.map(json), thickness });
+	return { ok: true, doc: copy, ids: [id] };
+}
+
 export function addSupport(doc: Json, at: ModelPoint, fixity: 'fixed' | 'pinned'): EditResult {
 	if (list(doc.supports).some(s => distance(point(s.at), at) < TOLERANCE)) {
 		return { ok: false, error: localize('edit.supportExists', "There is a support at this point already.") };
@@ -109,10 +122,16 @@ export function addSupport(doc: Json, at: ModelPoint, fixity: 'fixed' | 'pinned'
 	return { ok: true, doc: copy, ids: [id] };
 }
 
-/** Every point of an element, moved through `move`. */
-function transform(element: Json, kind: ModelerEntity['kind'], move: (p: ModelPoint) => ModelPoint): Json {
+/**
+ * Every point of an element, moved through `move`. A mirror image (`reflect`) of a block runs
+ * its outline the other way round, so that it still grows to the mirrored side.
+ */
+function transform(element: Json, kind: ModelerEntity['kind'], move: (p: ModelPoint) => ModelPoint, reflect = false): Json {
 	const result = clone(element);
-	if (kind === 'member') {
+	if (kind === 'block') {
+		const outline = list(element.outline).map(p => json(move(point(p))));
+		result.outline = reflect ? [outline[0], ...outline.slice(1).reverse()] : outline;
+	} else if (kind === 'member') {
 		result.start = json(move(point(element.start)));
 		result.end = json(move(point(element.end)));
 	} else if (kind === 'area') {
@@ -171,10 +190,10 @@ export function mirrorElements(doc: Json, entities: readonly ModelerEntity[], a:
 		const fy = a[1] + t * uy;
 		return [2 * fx - p[0], 2 * fy - p[1], p[2]];
 	};
-	return replicate(doc, entities, [mirror]);
+	return replicate(doc, entities, [mirror], true);
 }
 
-function replicate(doc: Json, entities: readonly ModelerEntity[], moves: readonly ((p: ModelPoint) => ModelPoint)[]): EditResult {
+function replicate(doc: Json, entities: readonly ModelerEntity[], moves: readonly ((p: ModelPoint) => ModelPoint)[], reflect = false): EditResult {
 	const picked = selected(doc, entities);
 	if (!picked.length) {
 		return { ok: false, error: localize('edit.nothingSelected', "Select what to change first.") };
@@ -184,14 +203,14 @@ function replicate(doc: Json, entities: readonly ModelerEntity[], moves: readonl
 	const taken = new Set<string>();
 	for (const move of moves) {
 		for (const { kind, element } of picked) {
-			const prefix = kind === 'member' ? 'M' : kind === 'area' ? 'A' : 'SP';
+			const prefix = PREFIXES[kind];
 			if (kind === 'support' && list(copy.supports).some(s => distance(point(s.at), move(point(element.at))) < TOLERANCE)) {
 				continue; // never two supports at one point
 			}
 			const id = nextId(copy, prefix, taken);
 			taken.add(id);
 			const items = list(copy[LISTS[kind]]);
-			items.push({ ...transform(element, kind, move), id });
+			items.push({ ...transform(element, kind, move, reflect), id });
 			copy[LISTS[kind]] = items;
 			ids.push(id);
 		}
@@ -233,7 +252,7 @@ export function removeElements(doc: Json, entities: readonly ModelerEntity[]): E
 		return { ok: false, error: localize('edit.nothingSelected', "Select what to change first.") };
 	}
 	const copy = clone(doc);
-	for (const name of ['members', 'areas', 'supports'] as const) {
+	for (const name of ['members', 'areas', 'blocks', 'supports'] as const) {
 		const doomed = new Set(picked.filter(p => LISTS[p.kind] === name).map(p => String(p.element.id)));
 		copy[name] = list(copy[name]).filter(e => !doomed.has(String(e.id)));
 	}

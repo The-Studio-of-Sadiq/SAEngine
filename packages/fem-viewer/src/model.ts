@@ -50,6 +50,40 @@ export interface FemResultView {
 	readonly elements: readonly FemResultElement[];
 	/** Shell elements with their section forces per unit length at the centre (local axes). */
 	readonly shells?: readonly FemResultShell[];
+	/** Solid elements (four-node tetrahedra) with their stresses. */
+	readonly solids?: readonly FemResultSolid[];
+}
+
+export interface FemResultSolid {
+	readonly id: number;
+	readonly name: string;
+	readonly nodes: readonly number[];
+	/** s11, s22, s33, s12, s23, s13 (global axes) and the von Mises stress. */
+	readonly stress?: readonly number[];
+}
+
+/**
+ * The outer faces of a set of tetrahedra (each face only one of them has), with the index of
+ * the tetrahedron it belongs to: what of a solid can be seen.
+ */
+export function outerFaces(solids: readonly { readonly nodes: readonly number[] }[]): { readonly nodes: readonly [number, number, number]; readonly owner: number }[] {
+	const count = new Map<string, { nodes: [number, number, number]; owner: number; seen: number }>();
+	solids.forEach((solid, owner) => {
+		const n = solid.nodes;
+		if (n.length !== 4) {
+			return;
+		}
+		for (const face of [[n[0], n[1], n[2]], [n[0], n[1], n[3]], [n[0], n[2], n[3]], [n[1], n[2], n[3]]] as [number, number, number][]) {
+			const key = [...face].sort((a, b) => a - b).join('-');
+			const entry = count.get(key);
+			if (entry) {
+				entry.seen++;
+			} else {
+				count.set(key, { nodes: face, owner, seen: 1 });
+			}
+		}
+	});
+	return [...count.values()].filter(f => f.seen === 1).map(f => ({ nodes: f.nodes, owner: f.owner }));
 }
 
 export interface FemResultShell {
@@ -70,16 +104,20 @@ export interface FemResultElement {
 }
 
 /** Kinds of values the labels show. */
-export type FemValueQuantity = 'length' | 'force' | 'moment' | 'forcePerLength' | 'momentPerLength';
+export type FemValueQuantity = 'length' | 'force' | 'moment' | 'forcePerLength' | 'momentPerLength' | 'stress';
 
 /** What to draw of a result: the deflected shape, one section force's diagram, or the reactions. */
 export type FemResultQuantity = 'deformed' | 'N' | 'Vy' | 'Vz' | 'T' | 'My' | 'Mz' | 'reactions'
-	| 'N11' | 'N22' | 'N12' | 'M11' | 'M22' | 'M12' | 'Q13' | 'Q23';
+	| 'N11' | 'N22' | 'N12' | 'M11' | 'M22' | 'M12' | 'Q13' | 'Q23'
+	| 'S11' | 'S22' | 'S33' | 'SVM';
 
 export const FORCE_COMPONENTS: readonly FemResultQuantity[] = ['N', 'Vy', 'Vz', 'T', 'My', 'Mz'];
 
 /** Shell section forces per unit length, in the order of {@link FemResultShell.forces}. */
 export const SHELL_COMPONENTS: readonly FemResultQuantity[] = ['N11', 'N22', 'N12', 'M11', 'M22', 'M12', 'Q13', 'Q23'];
+
+/** Solid stresses drawn as contours, and their index in {@link FemResultSolid.stress}. */
+export const SOLID_COMPONENTS: { readonly [quantity: string]: number } = { S11: 0, S22: 1, S33: 2, SVM: 6 };
 
 export interface FemResultDisplay {
 	readonly show: FemResultQuantity;

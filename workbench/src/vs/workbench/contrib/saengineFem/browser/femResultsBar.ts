@@ -60,6 +60,15 @@ const SHELL_OPTIONS: readonly IShowOption[] = [
 	{ show: 'Q23', label: localize('femResults.q23', "Shell Transverse Shear Q23") },
 ];
 const SHELL_COMPONENTS: readonly Show[] = ['N11', 'N22', 'N12', 'M11', 'M22', 'M12', 'Q13', 'Q23'];
+/** Solid stresses, offered when the result has solids with stresses. */
+const SOLID_OPTIONS: readonly IShowOption[] = [
+	{ show: 'SVM', label: localize('femResults.svm', "Solid Stress, von Mises") },
+	{ show: 'S11', label: localize('femResults.s11', "Solid Stress σxx") },
+	{ show: 'S22', label: localize('femResults.s22', "Solid Stress σyy") },
+	{ show: 'S33', label: localize('femResults.s33', "Solid Stress σzz") },
+];
+/** Index of each solid stress in a solid's `stress`. */
+const SOLID_COMPONENTS: { readonly [show: string]: number } = { S11: 0, S22: 1, S33: 2, SVM: 6 };
 const MODAL_OPTIONS: readonly IShowOption[] = [
 	MODEL_ONLY,
 	{ show: 'deformed', label: localize('femResults.modeShape', "Mode Shape") },
@@ -98,6 +107,7 @@ export function resultFormatter(units: string | undefined): (quantity: Quantity,
 				case 'moment': return localize('femResults.kNm', "{0} kN·m", (value / 1000).toFixed(1));
 				case 'forcePerLength': return localize('femResults.kNperM', "{0} kN/m", (value / 1000).toFixed(1));
 				case 'momentPerLength': return localize('femResults.kNmPerM', "{0} kN·m/m", (value / 1000).toFixed(2));
+				case 'stress': return localize('femResults.MPa', "{0} MPa", (value / 1e6).toFixed(2));
 			}
 		};
 	}
@@ -300,10 +310,11 @@ export class FemResultsBar extends Disposable {
 		switch (this.entry?.kind) {
 			case 'modal': return MODAL_OPTIONS;
 			case 'spectrum': return SPECTRUM_OPTIONS;
-			case 'history': return HISTORY_OPTIONS;
-			case 'pushover': return STATIC_OPTIONS;
+			case 'history': return [...HISTORY_OPTIONS, ...(this.view?.solids?.some(s => s.stress) ? SOLID_OPTIONS : [])];
+			case 'pushover': return [...STATIC_OPTIONS, ...(this.view?.solids?.some(s => s.stress) ? SOLID_OPTIONS : [])];
 		}
-		return this.view?.shells?.length ? [...STATIC_OPTIONS, ...SHELL_OPTIONS] : STATIC_OPTIONS;
+		const solids = this.view?.solids?.some(s => s.stress) ? SOLID_OPTIONS : [];
+		return [...STATIC_OPTIONS, ...(this.view?.shells?.length ? SHELL_OPTIONS : []), ...solids];
 	}
 
 	private async showResult(): Promise<void> {
@@ -435,6 +446,16 @@ export class FemResultsBar extends Disposable {
 		}
 		if (this.entry.kind === 'pushover') {
 			this.renderCurve(this.entry.frames ?? []);
+		}
+		const solidComponent = SOLID_COMPONENTS[this.show];
+		const stresses = solidComponent !== undefined ? (this.view?.solids ?? []).flatMap(s => s.stress ? [s.stress[solidComponent]] : []) : [];
+		if (stresses.length) {
+			// The contour's scale, lowest (blue) to highest (red), as the 3D view colours it.
+			append(this.info, $('span', undefined, this.format('stress', Math.min(...stresses))));
+			append(this.info, $('span.fem-results-scale-bar'));
+			append(this.info, $('span', undefined, this.format('stress', Math.max(...stresses))));
+			append(this.info, $('span', undefined, localize('femResults.solidStress', "Tension positive; constant in each tetrahedron.")));
+			return;
 		}
 		const shellComponent = SHELL_COMPONENTS.indexOf(this.show);
 		const values = shellComponent >= 0 ? (this.view?.shells ?? []).flatMap(s => s.forces ? [s.forces[shellComponent]] : []) : [];

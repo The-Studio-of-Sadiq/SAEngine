@@ -38,6 +38,7 @@ from opensees_studio.core.geometry import (
     GridSystem,
     Node,
     ShellElement,
+    SolidElement,
     TwoNodeLinkElement,
     default_global_system,
 )
@@ -418,6 +419,7 @@ class Project(BaseModel):
         problems.extend(self._rigid_link_problems())
         problems.extend(self._rigid_diaphragm_problems())
         problems.extend(self._shell_problems())
+        problems.extend(self._solid_problems())
 
         if problems:
             raise ValueError("Reference validation failed:\n  - " + "\n  - ".join(problems))
@@ -434,7 +436,7 @@ class Project(BaseModel):
         return any(
             isinstance(mp, RigidLinkConstraint | RigidDiaphragmConstraint)
             for mp in self.mp_constraints
-        )
+        ) or (self.ndf != 3 and any(isinstance(el, SolidElement) for el in self.elements))
 
     def _rigid_diaphragm_problems(self) -> list[str]:
         """Rigid diaphragm checks: a 3D model, every node in the retained node's plane, no
@@ -493,6 +495,25 @@ class Project(BaseModel):
                     f"({', '.join(names[i] for i in free)}); no element holds them."
                 )
         return list(dict.fromkeys(problems))
+
+    def _solid_problems(self) -> list[str]:
+        """Solids need a 3D model and an nD material (ElasticIsotropic)."""
+        from opensees_studio.core.materials import ElasticIsotropic
+
+        materials = {m.id: m for m in self.materials}
+        problems: list[str] = []
+        for el in self.elements:
+            if not isinstance(el, SolidElement):
+                continue
+            if self.ndm != 3:
+                problems.append(f"Element {el.id} (Solid) needs a 3D model (ndm=3).")
+            material = materials.get(el.material_id)
+            if material is not None and not isinstance(material, ElasticIsotropic):
+                problems.append(
+                    f"Element {el.id} (Solid) needs an nD material (ElasticIsotropic); "
+                    f"material {material.id} is a {material.type}."
+                )
+        return problems
 
     def _shell_problems(self) -> list[str]:
         """Shells need a 3D model and an ElasticMembranePlateSection; that section is for

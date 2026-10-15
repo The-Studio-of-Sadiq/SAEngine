@@ -63,11 +63,13 @@ class FiberMaterials:
     """The uniaxial materials of the fiber sections, shared between sections."""
 
     materials: list[dict[str, Any]] = field(default_factory=list)
+    #: Ids start after this one (the model's own materials come first).
+    offset: int = 0
     _ids: dict[tuple[Any, ...], int] = field(default_factory=dict)
 
     def _add(self, key: tuple[Any, ...], value: dict[str, Any]) -> int:
         if key not in self._ids:
-            self._ids[key] = len(self.materials) + 1
+            self._ids[key] = self.offset + len(self.materials) + 1
             self.materials.append({"id": self._ids[key], **value})
         return self._ids[key]
 
@@ -426,7 +428,8 @@ def pushover_model(
 
     notes: list[str] = []
     project = copy.deepcopy(linear)
-    library = FiberMaterials()
+    own = project.get("materials", [])
+    library = FiberMaterials(offset=max((m["id"] for m in own), default=0))
 
     # ── fiber sections, one per elastic frame section that can have one ──
     fiber_of: dict[int, int] = {}
@@ -456,7 +459,7 @@ def pushover_model(
             + " stay elastic (concrete without reinforcement, or a profile or material without "
             "a fiber section)"
         )
-    project["materials"] = library.materials
+    project["materials"] = [*own, *library.materials]
 
     vertical_ids = {sid for sid, (_, _, vertical) in section_keys.items() if vertical}
     frames = 0

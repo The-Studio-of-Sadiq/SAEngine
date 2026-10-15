@@ -137,6 +137,13 @@ export interface IFemResultView {
 		readonly nodes: readonly number[];
 		readonly forces?: readonly number[];
 	}[];
+	/** Solids (four-node tetrahedra) with their stresses: s11 … s13 (global axes), von Mises. */
+	readonly solids?: readonly {
+		readonly id: number;
+		readonly name: string;
+		readonly nodes: readonly number[];
+		readonly stress?: readonly number[];
+	}[];
 }
 
 /** A rule violation in a library file, reported against the entry at `index` (none: the whole file). */

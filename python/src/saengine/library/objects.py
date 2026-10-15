@@ -265,8 +265,15 @@ class Pile(_ObjectBase):
     reinforcement: LinearReinforcement | None = None
 
 
+class Solid(_ObjectBase):
+    """The material of solid blocks of special structures (dam sections, massive foundations,
+    piers, thick containment walls), analysed as volumes."""
+
+    kind: Literal["solid"] = "solid"
+
+
 ObjectType = Annotated[
-    Beam | Column | Brace | Slab | Wall | Staircase | Footing | PileCap | Pile,
+    Beam | Column | Brace | Slab | Wall | Staircase | Footing | PileCap | Pile | Solid,
     Field(discriminator="kind"),
 ]
 

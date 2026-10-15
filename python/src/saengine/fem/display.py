@@ -308,7 +308,9 @@ def result_view(
     Mode shapes are scaled so their largest translation is 1 and have no forces or reactions.
     Response spectrum results are peak displacements (no signs, forces or reactions); a time
     history is shown at its frame ``mode`` (see :func:`result_list`), with forces but no
-    reactions, and a pushover at its frame ``mode`` with forces and reactions.
+    reactions, and a pushover at its frame ``mode`` with forces and reactions. Solids
+    ``{"id", "name", "nodes", "stress"}`` carry s11 s22 s33 s12 s23 s13 (global axes) and the
+    von Mises stress [Pa], except for mode shapes and spectrum results.
     """
     from opensees_studio.services.result_store import load_results
     from opensees_studio.services.results import (
@@ -332,6 +334,7 @@ def result_view(
         if any(n.get("restraint") or []) and n["id"] not in diaphragm_nodes
     }
     shells = [e for e in project.get("elements", []) if e.get("type") == "Shell"]
+    solids = [e for e in project.get("elements", []) if e.get("type") == "Solid"]
     entries = {f"case:{e['case_id']}": e for e in manifest["cases"]}
 
     # Each result is a factored sum of static cases: (factor, results, analysis id).
@@ -397,6 +400,7 @@ def result_view(
         raise ValueError(f"unknown result {key}")
 
     node_ids = [n["id"] for n in project.get("nodes", [])]
+    coords = {n["id"]: np.asarray(n["coords"], dtype=float) for n in project.get("nodes", [])}
     if modal is not None:
         peak = max((float(np.max(np.abs(v[:3]))) for v in modal.values()), default=0.0)
         scale = 1.0 / peak if peak > 0 else 1.0
@@ -454,6 +458,8 @@ def result_view(
 
     view_elements = []
     for e in elements:
+        if e.name.split("#")[0].endswith("/embed"):
+            continue  # the struts tying frames and shells into solids
         load = loads.get(e.id, np.zeros(3))
         item: dict[str, Any] = {
             "id": e.id,
@@ -465,6 +471,21 @@ def result_view(
         if e.id in forces:
             item["forces"] = _round(element_section_forces(e, forces[e.id], load), 3)
         view_elements.append(item)
+    # Solids: stresses from the corner displacements (constant in a linear tetrahedron); mode
+    # shapes and peak (spectrum) displacements have no meaningful stresses.
+    materials = {m["id"]: m for m in project.get("materials", [])}
+    stressed = kind not in ("modal", "spectrum")
+    view_solids = []
+    for e in solids:
+        item = {"id": e["id"], "name": e.get("name") or str(e["id"]), "nodes": list(e["nodes"])}
+        material = materials.get(e.get("material_id"))
+        if stressed and material is not None and len(e["nodes"]) == 4:
+            corners = [coords[n] for n in e["nodes"]]
+            stress = tetrahedron_stress(
+                corners, [disp[n][:3] for n in e["nodes"]], material["E"], material["nu"]
+            )
+            item["stress"] = _round(np.append(stress, von_mises(stress)), 1)
+        view_solids.append(item)
     return {
         "label": label,
         "kind": kind,
@@ -480,7 +501,36 @@ def result_view(
             }
             for e in shells
         ],
+        "solids": view_solids,
     }
+
+
+def tetrahedron_stress(
+    corners: list[np.ndarray], displacements: list[np.ndarray], e: float, nu: float
+) -> np.ndarray:
+    """Stresses (s11 s22 s33 s12 s23 s13, global axes) of a linear tetrahedron of an elastic
+    isotropic material from its corners' displacements: constant through the element."""
+    m = np.array([[1.0, *c] for c in corners])
+    gradients = np.linalg.inv(m)[1:]  # dN_i/dx, dN_i/dy, dN_i/dz (rows) of each corner i
+    u = np.array(displacements, dtype=float)  # (4, 3)
+    grad_u = gradients @ u  # du_j/dx_i
+    strain = (grad_u + grad_u.T) / 2
+    lam = e * nu / ((1 + nu) * (1 - 2 * nu))
+    mu = e / (2 * (1 + nu))
+    stress = lam * np.trace(strain) * np.eye(3) + 2 * mu * strain
+    return np.array(
+        [stress[0, 0], stress[1, 1], stress[2, 2], stress[0, 1], stress[1, 2], stress[0, 2]]
+    )
+
+
+def von_mises(stress: np.ndarray) -> float:
+    s11, s22, s33, s12, s23, s13 = stress
+    return float(
+        np.sqrt(
+            ((s11 - s22) ** 2 + (s22 - s33) ** 2 + (s33 - s11) ** 2) / 2
+            + 3 * (s12**2 + s23**2 + s13**2)
+        )
+    )
 
 
 def _row(group: dict[int, Any], item: int, step: int, width: int) -> np.ndarray:

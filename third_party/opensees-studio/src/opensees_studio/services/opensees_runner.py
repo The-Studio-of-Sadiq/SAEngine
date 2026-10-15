@@ -76,6 +76,7 @@ from opensees_studio.core import (
     RigidLinkConstraint,
     SectionAggregator,
     ShellElement,
+    SolidElement,
     StaticCase,
     Steel01,
     Steel02,
@@ -159,6 +160,8 @@ class OpenSeesRunner:
         self._on_progress = on_progress
         self.project = project
         self._dof_idx: tuple[int, ...] = _dof_indices(project.ndm, project.ndf)
+        self._solid_twin: dict[int, int] = {}
+        self._solid_only: set[int] = set()
         self._geom_transf_tags: dict[str, int] = {}
         self._element_geom_transf_tag: dict[int, int] = {}
         self._emitted_time_series: set[int] = set()
@@ -179,9 +182,11 @@ class OpenSeesRunner:
 
         for node in self.project.nodes:
             self._emit_node(node)
+        self._plan_solid_twins()
         for node in self.project.nodes:
-            if node.is_restrained:
+            if node.is_restrained or node.id in self._solid_only:
                 self._emit_fix(node)
+        self._emit_solid_twins()
         for mp in self.project.mp_constraints:
             self._emit_mp_constraint(mp)
 
@@ -268,8 +273,63 @@ class OpenSeesRunner:
         self._ops.node(node.id, *coords)
 
     def _emit_fix(self, node: Any) -> None:
-        flags = tuple(int(node.restraint[i]) for i in self._dof_idx)
-        self._ops.fix(node.id, *flags)
+        # A node only solids use has no rotational stiffness: hold its rotations. The
+        # translations of a node with a solid twin are held at the twin (see _emit_solid_twins).
+        held = node.id in self._solid_only
+        twin = node.id in self._solid_twin
+        flags = tuple(
+            int((node.restraint[i] and not (twin and i < 3)) or (held and i >= 3))
+            for i in self._dof_idx
+        )
+        if any(flags):
+            self._ops.fix(node.id, *flags)
+
+    def _reaction(self, node_id: int, dof: int) -> float:
+        """A node's reaction, including its solid twin's (which carries the solids' forces)."""
+        value = float(self._ops.nodeReaction(node_id, dof))
+        twin = self._solid_twin.get(node_id)
+        if twin is not None and dof <= 3:
+            value += float(self._ops.nodeReaction(twin, dof))
+        return value
+
+    def _plan_solid_twins(self) -> None:
+        """Solid elements take three-DOF nodes. In a model with more DOFs per node, every node
+        a solid uses gets a twin (a new tag after the last node) that the solid connects to.
+        The twin is the retained node of an equalDOF in translation, and takes over the node's
+        translational supports: OpenSees computes a reaction from the elements at a node, and
+        the solids are at the twin. Nodes no other element uses hold their rotations."""
+        self._solid_twin: dict[int, int] = {}
+        self._solid_only: set[int] = set()
+        solids = [el for el in self.project.elements if isinstance(el, SolidElement)]
+        if not solids or self.project.ndf == 3:
+            return
+        used = {n for el in solids for n in el.nodes}
+        others = {
+            n
+            for el in self.project.elements
+            if not isinstance(el, SolidElement)
+            for n in getattr(el, "nodes", ())
+        }
+        next_tag = max((n.id for n in self.project.nodes), default=0) + 1
+        for offset, node_id in enumerate(sorted(used)):
+            self._solid_twin[node_id] = next_tag + offset
+        self._solid_only = used - others
+
+    def _emit_solid_twins(self) -> None:
+        if not self._solid_twin:
+            return
+        ops = self._ops
+        coords = {n.id: n.coords for n in self.project.nodes}
+        restraints = {n.id: n.restraint for n in self.project.nodes}
+        ops.model("basic", "-ndm", 3, "-ndf", 3)
+        for node_id, twin in self._solid_twin.items():
+            ops.node(twin, *coords[node_id][:3])
+            held = [int(bool(r)) for r in restraints[node_id][:3]]
+            if any(held):
+                ops.fix(twin, *held)
+        ops.model("basic", "-ndm", self.project.ndm, "-ndf", self.project.ndf)
+        for node_id, twin in self._solid_twin.items():
+            ops.equalDOF(twin, node_id, 1, 2, 3)
 
     def _emit_mass(self, node: Any) -> None:
         m = tuple(node.mass[i] for i in self._dof_idx)
@@ -810,6 +870,10 @@ class OpenSeesRunner:
             case ShellElement():
                 # element ASDShellQ4 eleTag n1 n2 n3 n4 secTag (and the other formulations)
                 ops.element(el.formulation, el.id, *el.nodes, el.section_id)
+            case SolidElement():
+                # element TenNodeTetrahedron eleTag n1 ... n10 matTag (and the others)
+                nodes = [self._solid_twin.get(n, n) for n in el.nodes]
+                ops.element(el.formulation, el.id, *nodes, el.material_id)
             case BeamWithHingesElement():
                 tag = self._element_geom_transf_tag[el.id]
                 # OpenSees 3D signature:
@@ -1198,8 +1262,10 @@ class OpenSeesRunner:
             for node in self.project.nodes:
                 for j, dof in enumerate(range(1, ndf + 1)):
                     node_disp[node.id][step, j] = ops.nodeDisp(node.id, dof)
-                    node_reaction[node.id][step, j] = ops.nodeReaction(node.id, dof)
+                    node_reaction[node.id][step, j] = self._reaction(node.id, dof)
             for el in self.project.elements:
+                if isinstance(el, SolidElement):
+                    continue  # no section forces (stresses follow from the displacements)
                 # Prefer "localForce" — gives [N, V_y, V_z, T, M_y, M_z] per
                 # end in the element's local frame, which is what diagrams
                 # need. Fall back to global eleForce if the element type
@@ -1354,7 +1420,7 @@ class OpenSeesRunner:
             # so positive base_shear means "applied load to the right".
             bs = 0.0
             for nid in base_nodes:
-                bs += float(ops.nodeReaction(nid, case.control_dof))
+                bs += self._reaction(nid, case.control_dof)
             base_shear[step] = -bs
             control_disp[step] = float(
                 ops.nodeDisp(case.control_node, case.control_dof),
@@ -1362,8 +1428,10 @@ class OpenSeesRunner:
             for node in self.project.nodes:
                 for j, dof in enumerate(range(1, ndf + 1)):
                     node_disp[node.id][step, j] = ops.nodeDisp(node.id, dof)
-                    node_reaction[node.id][step, j] = ops.nodeReaction(node.id, dof)
+                    node_reaction[node.id][step, j] = self._reaction(node.id, dof)
             for el in self.project.elements:
+                if isinstance(el, SolidElement):
+                    continue
                 if isinstance(el, ForceBeamColumn | DispBeamColumn):
                     # The final integration section provides beam-end fiber
                     # stress/strain without changing any analysis settings.

@@ -16,6 +16,8 @@ export interface ModelerScene {
 	readonly members: readonly { readonly id: string; readonly start: ModelPoint; readonly end: ModelPoint; readonly kind: string }[];
 	readonly areas: readonly { readonly id: string; readonly outline: readonly ModelPoint[]; readonly openings: readonly (readonly ModelPoint[])[]; readonly kind: string }[];
 	readonly supports: readonly { readonly id: string; readonly at: ModelPoint; readonly fixity: string }[];
+	/** Solid blocks: a flat outline extruded along `extrusion` (mm). */
+	readonly blocks?: readonly { readonly id: string; readonly outline: readonly ModelPoint[]; readonly extrusion: ModelPoint; readonly supported: boolean }[];
 }
 
 /** Elements shown as a preview before they are added: a parametric shape or an imported file. */
@@ -25,7 +27,7 @@ export interface ModelerGhost {
 	readonly supports: readonly { readonly at: ModelPoint }[];
 }
 
-export type ModelerEntity = { readonly kind: 'member' | 'area' | 'support'; readonly id: string };
+export type ModelerEntity = { readonly kind: 'member' | 'area' | 'support' | 'block'; readonly id: string };
 
 /** What is under the pointer: the snapped point (if any) and the element (if any). */
 export interface ModelerHit {
@@ -45,6 +47,7 @@ export interface ModelerTheme {
 	readonly slab: string;
 	readonly wall: string;
 	readonly support: string;
+	readonly solid: string;
 	readonly selection: string;
 	readonly preview: string;
 	readonly cursor: string;
@@ -87,6 +90,7 @@ const defaultTheme: ModelerTheme = {
 	slab: '#89d185',
 	wall: '#ce9178',
 	support: '#89d185',
+	solid: '#b180d7',
 	selection: '#ffcc00',
 	preview: '#ffffff',
 	cursor: '#ffcc00',
@@ -297,6 +301,22 @@ class StructureModelerImpl implements StructureModeler {
 			this.candidates.push(...area.outline.map(point => ({ point, snap: 'corner' as const })));
 		}
 
+		// Blocks: translucent prisms (their two faces and their sides) with edges.
+		for (const block of scene.blocks ?? []) {
+			const selected = this.isSelected('block', block.id);
+			const color = selected ? theme.selection : theme.solid;
+			for (const face of blockFaces(block)) {
+				const mesh = polygonMesh(face, [], color, selected ? 0.4 : 0.22);
+				if (mesh) {
+					this.modelGroup.add(mesh);
+				}
+				const points = [...face, face[0]].map(toWorld);
+				this.modelGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color })));
+			}
+			const top = block.outline.map(p => add(p, block.extrusion));
+			this.candidates.push(...[...block.outline, ...top].map(point => ({ point, snap: 'corner' as const })));
+		}
+
 		// Members: lines coloured by kind.
 		for (const member of scene.members) {
 			const selected = this.isSelected('member', member.id);
@@ -407,18 +427,22 @@ class StructureModelerImpl implements StructureModeler {
 		if (member) {
 			return { kind: 'member', id: member.id };
 		}
-		let area: { id: string; depth: number } | undefined;
-		for (const a of scene.areas) {
+		let area: { entity: ModelerEntity; depth: number } | undefined;
+		const faces: { entity: ModelerEntity; outline: readonly ModelPoint[]; openings: readonly (readonly ModelPoint[])[] }[] = [
+			...scene.areas.map(a => ({ entity: { kind: 'area' as const, id: a.id }, outline: a.outline, openings: a.openings })),
+			...(scene.blocks ?? []).flatMap(b => blockFaces(b).map(outline => ({ entity: { kind: 'block' as const, id: b.id }, outline, openings: [] }))),
+		];
+		for (const a of faces) {
 			const outline = a.outline.map(screen);
 			if (!outline.some(p => p.visible) || !inside(outline, x, y) || a.openings.some(o => inside(o.map(screen), x, y))) {
 				continue;
 			}
 			const depth = outline.reduce((sum, p) => sum + p.z, 0) / outline.length;
 			if (!area || depth < area.depth) {
-				area = { id: a.id, depth };
+				area = { entity: a.entity, depth };
 			}
 		}
-		return area && { kind: 'area', id: area.id };
+		return area?.entity;
 	}
 
 	private hitAt(clientX: number, clientY: number): ModelerHit {
@@ -467,6 +491,21 @@ const PICK_PIXELS = 7;
 /** Element snaps win ties with grid points: drawing usually continues from what is drawn. */
 function rank(snap: NonNullable<ModelerHit['snap']>): number {
 	return ['end', 'support', 'corner', 'middle', 'grid', 'plane'].indexOf(snap);
+}
+
+function add(a: ModelPoint, b: ModelPoint): ModelPoint {
+	return [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+}
+
+/** The faces of a block: its outline, the outline moved by the extrusion, and the sides. */
+function blockFaces(block: { readonly outline: readonly ModelPoint[]; readonly extrusion: ModelPoint }): ModelPoint[][] {
+	const bottom = [...block.outline];
+	const top = bottom.map(p => add(p, block.extrusion));
+	const sides = bottom.map((p, k) => {
+		const q = bottom[(k + 1) % bottom.length];
+		return [p, q, add(q, block.extrusion), add(p, block.extrusion)];
+	});
+	return [bottom, top, ...sides];
 }
 
 /** Whether (x, y) is inside the polygon (even-odd rule). */

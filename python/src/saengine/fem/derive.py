@@ -31,6 +31,7 @@ columns rotated by other than a multiple of 90° use the nearest one.
 from __future__ import annotations
 
 import hashlib
+import itertools
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -41,11 +42,12 @@ from typing import Any
 import numpy as np
 
 from saengine.fem import loads as fl
-from saengine.fem.mesh import Surface, mesh, shell_node_shares
+from saengine.fem.mesh import Surface, Volume, mesh, shell_node_shares
 from saengine.library import bnbc
 from saengine.library.bim import (
     AreaElement,
     BeamElement,
+    BlockElement,
     BuildingModel,
     ColumnElement,
     MemberElement,
@@ -129,6 +131,16 @@ class _Shell:
 
 
 @dataclass
+class _Solid:
+    """A tetrahedron of the analysis model: its SAEngine block, nodes and material."""
+
+    source: str
+    nodes: tuple[int, int, int, int]
+    material: int
+    density: float  # kg/m³
+
+
+@dataclass
 class Derivation:
     project: dict[str, Any]
     notes: list[str] = field(default_factory=list)
@@ -143,6 +155,9 @@ class _Builder:
         self.coords: dict[int, np.ndarray] = {}
         self.members: list[_Member] = []
         self.shells: list[_Shell] = []
+        self.solids: list[_Solid] = []
+        self.materials: list[dict[str, Any]] = []
+        self.material_ids: dict[tuple[str, str], int] = {}
         self.sections: list[dict[str, Any]] = []
         self.section_ids: dict[tuple[Any, ...], int] = {}
         self.restraints: dict[int, list[bool]] = {}
@@ -460,7 +475,52 @@ def derive_fem(
             )
             surface_sources[element.id] = (element.id, sec)
 
-    meshed = mesh(lines, surfaces, options.meshSize)
+    # ── solid blocks: volumes of four-node tetrahedra with an elastic material ──
+    volumes: list[Volume] = []
+    block_materials: dict[str, tuple[int, float]] = {}  # block id -> material id, density
+    supported_faces: list[tuple[np.ndarray, np.ndarray, list[np.ndarray]]] = []  # m
+    for element in building.elements:
+        if not isinstance(element, BlockElement):
+            continue
+        object_type = types.get(element.type)
+        material = mats.get(object_type.material) if object_type else None
+        if object_type is None or object_type.kind != "solid" or material is None:
+            b.notes.append(f"{element.id}: no solid type with a material; left out")
+            continue
+        if not material.mechanical.E:
+            b.notes.append(f"{element.id}: its material has no E; left out")
+            continue
+        points = [np.array(p, dtype=float) for p in element.outline]
+        plane = plane_of(points)
+        if plane is None:
+            b.notes.append(f"{element.id}: its outline is not a flat polygon; left out")
+            continue
+        volumes.append(
+            Volume(
+                key=element.id,
+                outline=[tuple(p) for p in element.outline],
+                extrusion=tuple(plane[1] * element.thickness),
+            )
+        )
+        key = ("solid", element.type)
+        if key not in b.material_ids:
+            b.material_ids[key] = len(b.materials) + 1
+            b.materials.append(
+                {
+                    "id": b.material_ids[key],
+                    "name": f"{element.type} solid",
+                    "type": "ElasticIsotropic",
+                    "E": material.mechanical.E * 1e6,
+                    "nu": poisson(material),
+                    # The mass is lumped at the nodes with the loads, as for frames and shells.
+                    "rho": 0.0,
+                }
+            )
+        block_materials[element.id] = (b.material_ids[key], material.mechanical.density or 0.0)
+        if element.supported:
+            supported_faces.append((plane[0] * MM, plane[1], [q * MM for q in points]))
+
+    meshed = mesh(lines, surfaces, options.meshSize, volumes)
     node_of = {tag: b.node(*xyz) for tag, xyz in meshed.nodes.items()}
     for key, segments in meshed.lines.items():
         if key.endswith("/base"):
@@ -478,6 +538,17 @@ def derive_fem(
             ids = tuple(node_of[n] for n in nodes)
             if len(set(ids)) == len(ids):
                 b.shells.append(_Shell(source, ids, sec[0]))
+    for key, tetrahedra in meshed.volumes.items():
+        material_id, density = block_materials[key]
+        for nodes in tetrahedra:
+            ids = tuple(node_of[n] for n in nodes)
+            if len(set(ids)) == 4:
+                b.solids.append(_Solid(key, ids, material_id, density))  # type: ignore[arg-type]
+    for origin, normal, outline in supported_faces:
+        for node_id, xyz in b.coords.items():
+            if abs(float((xyz - origin) @ normal)) < 1e-6 and _in_polygon(xyz, outline, normal):
+                b.restraints[node_id] = [True] * 6
+    _embed(b)
     for x, y, z in supports:
         b.restraints[b.node(x, y, z)] = [True] * 6
     for support in building.supports:
@@ -525,6 +596,15 @@ def derive_fem(
         if w:
             add_element_load("D", index, down * w)
             share_weight(index, w, 1.0)
+
+    for solid in b.solids:
+        corners = [b.coords[n] for n in solid.nodes]
+        volume = abs(float(np.linalg.det(np.array([c - corners[0] for c in corners[1:]])))) / 6
+        w = volume * solid.density * G / 4  # a linear tetrahedron: a quarter to each corner
+        if w:
+            for node_id in solid.nodes:
+                add_nodal("D", node_id, down * w)
+                add_weight(node_id, w)
 
     def seismic_share(case: str) -> float:
         return 1.0 if case in ("D", "SD") else bnbc.SEISMIC_LIVE_SHARE if case == "L" else 0.0
@@ -791,6 +871,17 @@ def derive_fem(
                 "section_id": shell.section,
             }
         )
+    for solid in b.solids:
+        elements.append(
+            {
+                "id": len(elements) + 1,
+                "name": name(solid.source),
+                "type": "Solid",
+                "formulation": "FourNodeTetrahedron",
+                "nodes": list(solid.nodes),
+                "material_id": solid.material,
+            }
+        )
     load_patterns = []
     for number, case in enumerate(CASES, start=1):
         pattern = patterns[case]
@@ -941,6 +1032,7 @@ def derive_fem(
         "ndm": 3,
         "ndf": 6,
         "nodes": nodes,
+        "materials": b.materials,
         "sections": b.sections,
         "elements": elements,
         "mp_constraints": constraints,
@@ -956,6 +1048,7 @@ def derive_fem(
             "elements": len(elements),
             "frames": len(b.members),
             "shells": len(b.shells),
+            "solids": len(b.solids),
             "diaphragms": len(constraints),
             "supports": sum(1 for r in b.restraints.values() if all(r)),
         }
@@ -964,7 +1057,7 @@ def derive_fem(
     if options.pushover is not None:
         from saengine.fem.nonlinear import pushover_model
 
-        keys = {sid: key for key, sid in b.section_ids.items() if key[0] != "plate"}
+        keys = {sid: key for key, sid in b.section_ids.items() if key[0] not in ("plate", "embed")}
         pushover, more = pushover_model(
             project, keys, types, mats, node_weight, base * MM, options.pushover
         )
@@ -983,6 +1076,76 @@ def _rectangle(opening: Any, z: float) -> list[tuple[float, float, float]]:
         (*(centre + sx * opening.xDim / 2 * ux + sy * opening.yDim / 2 * uy), z)
         for sx, sy in corners
     ]
+
+
+def _embed(b: _Builder) -> None:
+    """Frames and shells meeting a solid share nodes with it, but a solid's nodes have no
+    rotations: a column standing on a block would be pinned to it. Each node a frame or a shell
+    shares with a solid gets a short elastic strut to every solid node next to it (in a
+    tetrahedron with it): square, as wide as the block's elements are long, of the block's
+    material. Together they carry the frame's or the shell's moments into the solid."""
+    solid_nodes = {n for solid in b.solids for n in solid.nodes}
+    joints = {n for m in b.members for n in (m.i, m.j)} | {n for sh in b.shells for n in sh.nodes}
+    embedded = joints & solid_nodes
+    if not embedded:
+        return
+    neighbours: dict[int, set[int]] = {}
+    block_of: dict[int, _Solid] = {}
+    for solid in b.solids:
+        for n in solid.nodes:
+            neighbours.setdefault(n, set()).update(solid.nodes)
+            block_of.setdefault(n, solid)
+    struts: dict[str, int] = {}
+    for node in sorted(embedded):
+        solid = block_of[node]
+        if solid.source not in struts:
+            edges = [
+                float(np.linalg.norm(b.coords[x] - b.coords[y]))
+                for t in b.solids
+                if t.source == solid.source
+                for x, y in itertools.combinations(t.nodes, 2)
+            ]
+            h = float(np.mean(edges))
+            material = b.materials[solid.material - 1]
+            e, nu = material["E"], material["nu"]
+            struts[solid.source] = len(b.sections) + 1
+            b.section_ids[("embed", solid.source)] = struts[solid.source]
+            b.sections.append(
+                {
+                    "id": struts[solid.source],
+                    "name": f"{solid.source} embedding strut",
+                    "type": "ElasticSection",
+                    "E": e,
+                    "A": h**2,
+                    "Iz": h**4 / 12,
+                    "Iy": h**4 / 12,
+                    "G": e / (2 * (1 + nu)),
+                    "J": 0.141 * h**4,
+                }
+            )
+        for other in sorted(neighbours[node] - {node}):
+            b.members.append(
+                _Member(f"{solid.source}/embed", node, other, struts[solid.source], 0.0, 0.0)
+            )
+    b.notes.append(
+        f"{len(embedded)} frame or shell nodes on solids are tied into them with embedding struts"
+    )
+
+
+def _in_polygon(point: np.ndarray, polygon: list[np.ndarray], normal: np.ndarray) -> bool:
+    """Whether ``point`` (in the polygon's plane) lies inside or on the polygon."""
+    u = polygon[1] - polygon[0]
+    u = u / np.linalg.norm(u)
+    v = np.cross(normal, u)
+    flat = [(float((q - polygon[0]) @ u), float((q - polygon[0]) @ v)) for q in polygon]
+    x, y = float((point - polygon[0]) @ u), float((point - polygon[0]) @ v)
+    inside = False
+    for (x0, y0), (x1, y1) in zip(flat, flat[1:] + flat[:1], strict=True):
+        if _on_segment(np.array([x, y, 0.0]), np.array([x0, y0, 0.0]), np.array([x1, y1, 0.0])):
+            return True
+        if (y0 > y) != (y1 > y) and x < (x1 - x0) * (y - y0) / (y1 - y0) + x0:
+            inside = not inside
+    return inside
 
 
 def _on_segment(point: np.ndarray, a: np.ndarray, b: np.ndarray, tolerance: float = 1e-3) -> bool:

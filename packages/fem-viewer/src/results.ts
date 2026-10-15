@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as THREE from 'three';
-import { FemModel, FemNode, FemResultDisplay, FemResultElement, FemResultQuantity, FemResultView, FORCE_COMPONENTS, SHELL_COMPONENTS } from './model.js';
+import { FemModel, FemNode, FemResultDisplay, FemResultElement, FemResultQuantity, FemResultView, FORCE_COMPONENTS, outerFaces, SHELL_COMPONENTS, SOLID_COMPONENTS } from './model.js';
 
 export interface ResultColors {
 	readonly deformed: string;
@@ -66,6 +66,8 @@ export class ResultOverlay {
 			this.drawDeformed();
 		} else if (SHELL_COMPONENTS.includes(display.show)) {
 			this.drawContour(SHELL_COMPONENTS.indexOf(display.show));
+		} else if (display.show in SOLID_COMPONENTS) {
+			this.drawStress(SOLID_COMPONENTS[display.show]);
 		} else if (display.show === 'reactions') {
 			this.drawReactions();
 		} else {
@@ -131,7 +133,9 @@ export class ResultOverlay {
 			}
 		}
 		const moved = new Map(this.results.nodes.map(n => [n[0], n]));
-		for (const shell of this.results.shells ?? []) {
+		// Solids: the edges of their outer faces, moving with their nodes, as for shells.
+		const solidFaces = outerFaces(this.results.solids ?? []).map(f => ({ nodes: f.nodes }));
+		for (const shell of [...(this.results.shells ?? []), ...solidFaces]) {
 			for (const id of shell.nodes) {
 				const d = moved.get(id);
 				peak = Math.max(peak, d ? Math.hypot(d[1], d[2], d[3]) : 0);
@@ -140,9 +144,9 @@ export class ResultOverlay {
 		const factor = peak > 0 ? this.display.scale * DEFORMED_SHARE * this.size / peak : 0;
 		const base: number[] = [];
 		const delta: number[] = [];
-		// Shells: their edges, each once, moving with their nodes.
+		// Shells and solids: their edges, each once, moving with their nodes.
 		const edges = new Set<string>();
-		for (const shell of this.results.shells ?? []) {
+		for (const shell of [...(this.results.shells ?? []), ...solidFaces]) {
 			shell.nodes.forEach((a, k) => {
 				const b = shell.nodes[(k + 1) % shell.nodes.length];
 				const key = a < b ? `${a}-${b}` : `${b}-${a}`;
@@ -357,6 +361,48 @@ export class ResultOverlay {
 		if (largest) {
 			const kind = component < 3 ? 'forcePerLength' : component < 6 ? 'momentPerLength' : 'forcePerLength';
 			this.addLabel(this.display.format(kind, largest.value), largest.at, this.colors.label);
+		}
+	}
+
+	/**
+	 * A solid stress (`index` in {@link FemResultSolid.stress}) as a contour on the solids' outer
+	 * faces: each face coloured by its tetrahedron's (constant) value.
+	 */
+	private drawStress(index: number): void {
+		const nodes = this.nodes();
+		const solids = (this.results.solids ?? []).filter(s => s.stress);
+		if (!solids.length) {
+			return;
+		}
+		const values = solids.map(s => s.stress![index]);
+		const low = Math.min(...values);
+		const high = Math.max(...values);
+		const positions: number[] = [];
+		const colors: number[] = [];
+		let largest: { value: number; at: THREE.Vector3 } | undefined;
+		for (const face of outerFaces(solids)) {
+			const points = face.nodes.map(id => nodes.get(id)).filter((n): n is FemNode => !!n).map(n => this.toWorld(n.coords));
+			if (points.length !== 3) {
+				continue;
+			}
+			const value = values[face.owner];
+			const color = contourColor(high > low ? (value - low) / (high - low) : 0.5);
+			for (const p of points) {
+				positions.push(p.x, p.y, p.z);
+				colors.push(...color);
+			}
+			if (!largest || Math.abs(value) > Math.abs(largest.value)) {
+				largest = { value, at: points[0].clone().add(points[1]).add(points[2]).divideScalar(3) };
+			}
+		}
+		const geometry = new THREE.BufferGeometry();
+		geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+		geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+		this.group.add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+			vertexColors: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,
+		})));
+		if (largest) {
+			this.addLabel(this.display.format('stress', largest.value), largest.at, this.colors.label);
 		}
 	}
 

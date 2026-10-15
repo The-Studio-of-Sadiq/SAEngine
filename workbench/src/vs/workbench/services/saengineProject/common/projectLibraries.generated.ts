@@ -1529,6 +1529,52 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			title: 'Slab',
 			type: 'object',
 		},
+		Solid: {
+			additionalProperties: false,
+			description: 'The material of solid blocks of special structures (dam sections, massive foundations,\npiers, thick containment walls), analysed as volumes.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				material: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Material',
+					type: 'string',
+				},
+				description: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Description',
+				},
+				kind: {
+					const: 'solid',
+					default: 'solid',
+					title: 'Kind',
+					type: 'string',
+				},
+			},
+			required: ['id', 'name', 'material'],
+			title: 'Solid',
+			type: 'object',
+		},
 		StairReinforcement: {
 			additionalProperties: false,
 			properties: {
@@ -1921,6 +1967,9 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					},
 					{
 						$ref: '#/$defs/Pile',
+					},
+					{
+						$ref: '#/$defs/Solid',
 					},
 				],
 			},
@@ -3846,6 +3895,50 @@ export const STRUCTURE_SCHEMA: IJSONSchema = {
 			title: 'Area',
 			type: 'object',
 		},
+		Block: {
+			additionalProperties: false,
+			description: 'A solid block: a flat outline extruded by its thickness, analysed as a volume. The block\ngrows from its outline along the outline\'s normal: towards the side from which its corners\nturn counter-clockwise.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					description: 'Solid type from 04 Objects.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Object type',
+					type: 'string',
+				},
+				outline: {
+					items: {
+						$ref: '#/$defs/Point',
+					},
+					minItems: 3,
+					title: 'Outline',
+					type: 'array',
+				},
+				thickness: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Thickness',
+					type: 'number',
+				},
+				supported: {
+					default: false,
+					description: 'Held on its outline face, as on rock or a rigid base (all of the face\'s points are held in every direction).',
+					title: 'Supported',
+					type: 'boolean',
+				},
+			},
+			required: ['id', 'type', 'outline', 'thickness'],
+			title: 'Block',
+			type: 'object',
+		},
 		CartesianGrid: {
 			additionalProperties: false,
 			description: 'A rectangular grid system: lines along X, Y and Z (levels).',
@@ -4123,6 +4216,13 @@ export const STRUCTURE_SCHEMA: IJSONSchema = {
 			title: 'Areas',
 			type: 'array',
 		},
+		blocks: {
+			items: {
+				$ref: '#/$defs/Block',
+			},
+			title: 'Blocks',
+			type: 'array',
+		},
 		supports: {
 			items: {
 				$ref: '#/$defs/Support',
@@ -4182,6 +4282,7 @@ export const DEFAULT_STRUCTURE: object = {
 	],
 	members: [],
 	areas: [],
+	blocks: [],
 	supports: [],
 };
 
@@ -4416,6 +4517,77 @@ export const BIM_SCHEMA: IJSONSchema = {
 			},
 			required: ['id', 'at'],
 			title: 'BimSupport',
+			type: 'object',
+		},
+		BlockElement: {
+			additionalProperties: false,
+			description: 'A solid block (special structures): a flat outline extruded along its normal by\n``thickness``.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					description: 'Object type id from 04 Objects.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Object type',
+					type: 'string',
+				},
+				source: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The floor-plan member this element is generated from; none for elements that belong to the building model itself.',
+					title: 'Floor plan member',
+				},
+				kind: {
+					const: 'block',
+					default: 'block',
+					title: 'Kind',
+					type: 'string',
+				},
+				outline: {
+					items: {
+						description: '[x, y, z] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 3,
+						minItems: 3,
+						type: 'array',
+					},
+					minItems: 3,
+					title: 'Outline',
+					type: 'array',
+				},
+				thickness: {
+					description: '[mm]',
+					title: 'Thickness',
+					type: 'number',
+				},
+				supported: {
+					default: false,
+					description: 'Held on its outline face.',
+					title: 'Supported',
+					type: 'boolean',
+				},
+			},
+			required: ['id', 'type', 'outline', 'thickness'],
+			title: 'BlockElement',
 			type: 'object',
 		},
 		ColumnElement: {
@@ -5091,6 +5263,9 @@ export const BIM_SCHEMA: IJSONSchema = {
 					{
 						$ref: '#/$defs/AreaElement',
 					},
+					{
+						$ref: '#/$defs/BlockElement',
+					},
 				],
 			},
 			title: 'Elements',
@@ -5583,6 +5758,39 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 	},
 	Pushover: {
 		directions: ['X', 'Y'],
+	},
+	Solid: {
+		id: 'MASS',
+		name: 'Mass concrete',
+		kind: 'solid',
+		material: 'C24.1',
+	},
+	Block: {
+		id: 'K1',
+		type: 'MASS',
+		outline: [
+			{
+				x: 0,
+				y: 0,
+				z: 0,
+			},
+			{
+				x: 4000,
+				y: 0,
+				z: 0,
+			},
+			{
+				x: 4000,
+				y: 4000,
+				z: 0,
+			},
+			{
+				x: 0,
+				y: 4000,
+				z: 0,
+			},
+		],
+		thickness: 1000,
 	},
 	TimeHistory: {
 		name: 'El Centro X',

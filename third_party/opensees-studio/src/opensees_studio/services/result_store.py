@@ -141,6 +141,7 @@ def write_results(results: AnyResults, out_dir: str | Path) -> dict[str, Any]:
             _write_int_dict(f, "element_forces", results.element_forces)
             if results.shell_forces:
                 _write_int_dict(f, "shell_forces", results.shell_forces)
+
         elif isinstance(results, PushoverResults):
             entry["completed_steps"] = results.n_steps
             entry["n_steps_requested"] = results.n_steps_requested

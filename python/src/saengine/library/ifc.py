@@ -24,6 +24,7 @@ import numpy as np
 from saengine.library.bim import (
     AreaElement,
     BeamElement,
+    BlockElement,
     BuildingModel,
     ColumnElement,
     FootingElement,
@@ -282,6 +283,9 @@ def export_ifc(
             continue
         if isinstance(element, AreaElement):
             _area(w, element, storey_at, ids, skipped)
+            continue
+        if isinstance(element, BlockElement):
+            _block(w, element, storey_at, ids, skipped)
             continue
         ifc_class, predefined = _CLASSES[element.kind]
         if element.kind == "footing" and object_type.kind == "pileCap":
@@ -559,6 +563,46 @@ def _member(
 
 
 _AREA_CLASSES = {"slab": ("IfcSlab", "FLOOR"), "wall": ("IfcWall", "STANDARD")}
+
+
+def _block(
+    w: _Writer, block: BlockElement, storey_at: Any, ids: dict[str, str], skipped: list[str]
+) -> None:
+    """A solid block: its outline extruded along its normal by its thickness, as an
+    IfcBuildingElementProxy (IFC has no class for a mass of concrete or rock)."""
+    from saengine.library.structure import plane_of
+
+    object_type = w.types.get(block.type)
+    if object_type is None or object_type.kind != "solid":
+        skipped.append(f"{block.id}: needs a solid type")
+        return
+    points = [np.array(p, dtype=float) for p in block.outline]
+    plane = plane_of(points)
+    if plane is None:
+        skipped.append(f"{block.id}: its outline is not a flat polygon")
+        return
+    origin, normal = plane
+    u = points[1] - points[0]
+    u /= np.linalg.norm(u)
+    v = np.cross(normal, u)
+    flat = [(float((p - origin) @ u) * _SI, float((p - origin) @ v) * _SI) for p in points]
+    profile = w.run(
+        "profile.add_arbitrary_profile", w.file, profile=[*flat, flat[0]], name=block.id
+    )
+    product = w.entity("IfcBuildingElementProxy", block.id, block.id, "ELEMENT")
+    product.ObjectType = object_type.id
+    product.Description = object_type.name
+    product.Tag = block.id
+    w.extrusion(product, profile, float(block.thickness), None)
+    w.place(product, _placement(tuple(origin), tuple(u), tuple(normal)))
+    w.run(
+        "spatial.assign_container",
+        w.file,
+        products=[product],
+        relating_structure=storey_at(min(p[2] for p in block.outline)),
+    )
+    w.material(product, object_type.material)
+    ids[block.id] = product.GlobalId
 
 
 def _area(

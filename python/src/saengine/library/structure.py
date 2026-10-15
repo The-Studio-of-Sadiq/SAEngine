@@ -8,6 +8,7 @@ only, the way ``floor-plan.json`` is for buildings:
 - grid systems to draw on: rectangular (X, Y, Z lines) and cylindrical (radii, angles, Z);
 - members (beams, columns, braces, truss bars...) between two points in space;
 - areas (slabs, walls, shells, roof panels) bounded by a planar polygon, with openings;
+- blocks (dam sections, massive foundations, piers): a planar polygon extruded, as volumes;
 - supports, where the structure meets the ground (or the substructure, Part 9).
 
 Every member and area is an instance of an object type from ``04 Objects/objects.json``.
@@ -147,6 +148,34 @@ class Area(_Model):
         return self
 
 
+class Block(_Model):
+    """A solid block: a flat outline extruded by its thickness, analysed as a volume. The block
+    grows from its outline along the outline's normal: towards the side from which its corners
+    turn counter-clockwise."""
+
+    id: Id
+    type: Id = Field(title="Object type", description="Solid type from 04 Objects.")
+    outline: list[Point] = Field(min_length=3)
+    thickness: Annotated[float, Field(gt=0, description="[mm]")]
+    supported: bool = Field(
+        default=False,
+        description="Held on its outline face, as on rock or a rigid base (all of the face's "
+        "points are held in every direction).",
+    )
+
+    @model_validator(mode="after")
+    def _planar(self) -> Block:
+        if plane_of([p.array() for p in self.outline]) is None:
+            raise ValueError(f"{self.id}: its outline is not a flat polygon")
+        return self
+
+    def extrusion(self) -> np.ndarray:
+        """The vector the outline is extruded along [mm]."""
+        plane = plane_of([p.array() for p in self.outline])
+        assert plane is not None
+        return plane[1] * self.thickness
+
+
 class Support(_Model):
     """Where the structure is held: a fixed or pinned support at a point."""
 
@@ -163,13 +192,14 @@ class StructuralModel(_Model):
     grids: list[Grid] = Field(default_factory=list, title="Grid systems")
     members: list[Member] = Field(default_factory=list)
     areas: list[Area] = Field(default_factory=list)
+    blocks: list[Block] = Field(default_factory=list)
     supports: list[Support] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _unique(self) -> StructuralModel:
         for label, items in (
             ("grid", self.grids),
-            ("element", [*self.members, *self.areas]),
+            ("element", [*self.members, *self.areas, *self.blocks]),
             ("support", self.supports),
         ):
             ids = [i.id for i in items]
@@ -188,6 +218,9 @@ class StructuralModel(_Model):
         for area in self.areas:
             if kinds.get(area.type) not in ("slab", "wall"):
                 problems.append(f"{area.id}: '{area.type}' is not a slab or wall type")
+        for block in self.blocks:
+            if kinds.get(block.type) != "solid":
+                problems.append(f"{block.id}: '{block.type}' is not a solid type")
         return problems
 
 

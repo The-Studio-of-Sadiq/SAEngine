@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { addArea, addMember, addSupport, copyElements, divideMember, EditResult, mirrorElements, moveElements, parseOffset, removeElements } from '../../browser/structureEdits.js';
+import { addArea, addBlock, addMember, addSupport, copyElements, divideMember, EditResult, mirrorElements, moveElements, parseOffset, removeElements } from '../../browser/structureEdits.js';
 import { gridGeometry, Json, list, modelerScene } from '../../browser/structureGeometry.js';
 
 function ok(result: EditResult): Json {
@@ -90,6 +90,22 @@ suite('SAEngine - Structural model edits', () => {
 			mirrored: ['M1@1000,2000,0-4000', 'M2@1000,-2000,0-4000'],
 			divided: ['M1@0,0,0-1000', 'M2@0,0,1000-2000', 'M3@0,0,2000-3000', 'M4@0,0,3000-4000'],
 			removed: [1, 0],
+		});
+	});
+
+	test('draws blocks, and a mirrored block still grows to its own side', () => {
+		const face: [number, number, number][] = [[0, 0, 0], [2000, 0, 0], [2000, 1000, 0], [0, 1000, 0]];
+		const doc = ok(addBlock(EMPTY, 'MASS', face, 800));
+		const mirrored = ok(mirrorElements(doc, [{ kind: 'block', id: 'K1' }], [3000, 0, 0], [3000, 1000, 0]));
+		const scene = modelerScene(mirrored, new Map([['MASS', 'solid']]));
+		assert.deepStrictEqual({
+			blocks: scene.blocks?.map(b => ({ id: b.id, up: Math.round(b.extrusion[2]), xs: b.outline.map(p => p[0]) })),
+			errors: [addBlock(doc, 'MASS', face, 0).ok, addBlock(doc, '', face, 800).ok],
+			removed: list(ok(removeElements(mirrored, [{ kind: 'block', id: 'K2' }])).blocks).map(b => b.id),
+		}, {
+			blocks: [{ id: 'K1', up: 800, xs: [0, 2000, 2000, 0] }, { id: 'K2', up: 800, xs: [6000, 6000, 4000, 4000] }],
+			errors: [false, false],
+			removed: ['K1'],
 		});
 	});
 

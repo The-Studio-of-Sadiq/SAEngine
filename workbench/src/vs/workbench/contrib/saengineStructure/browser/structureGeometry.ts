@@ -93,6 +93,20 @@ export function gridGeometry(grids: unknown): { lines: [ModelPoint, ModelPoint][
 	return { lines, points, levels: [...levels].map(([z, label]) => ({ label, z })).sort((a, b) => a.z - b.z) };
 }
 
+/** The unit normal of a polygon (Newell's method), or undefined when it has no area. */
+export function polygonNormal(points: readonly ModelPoint[]): ModelPoint | undefined {
+	let nx = 0, ny = 0, nz = 0;
+	for (let i = 0; i < points.length; i++) {
+		const a = points[i];
+		const b = points[(i + 1) % points.length];
+		nx += (a[1] - b[1]) * (a[2] + b[2]);
+		ny += (a[2] - b[2]) * (a[0] + b[0]);
+		nz += (a[0] - b[0]) * (a[1] + b[1]);
+	}
+	const size = Math.hypot(nx, ny, nz);
+	return size < 1 ? undefined : [nx / size, ny / size, nz / size];
+}
+
 /** Object type id -> kind (beam, column, brace, slab, wall...), from `objects.json`. */
 export function typeKinds(objects: unknown): Map<string, string> {
 	return new Map(list(isJson(objects) ? objects.objects : undefined).map(o => [String(o.id), String(o.kind)]));
@@ -111,5 +125,11 @@ export function modelerScene(doc: unknown, kinds: ReadonlyMap<string, string>): 
 			kind: kinds.get(String(a.type)) ?? 'unknown',
 		})),
 		supports: list(model.supports).map(s => ({ id: String(s.id), at: point(s.at), fixity: String(s.fixity ?? 'fixed') })),
+		blocks: list(model.blocks).flatMap(b => {
+			const outline = list(b.outline).map(point);
+			const normal = polygonNormal(outline);
+			const thickness = Number(b.thickness) || 0;
+			return normal ? [{ id: String(b.id), outline, extrusion: [normal[0] * thickness, normal[1] * thickness, normal[2] * thickness] as ModelPoint, supported: b.supported === true }] : [];
+		}),
 	};
 }

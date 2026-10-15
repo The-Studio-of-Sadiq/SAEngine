@@ -48,15 +48,16 @@ import { ITextFileService } from '../../../services/textfile/common/textfiles.js
 import { loadViewerModule } from '../../saengineFem/browser/viewerModule.js';
 import { LibraryEditorInput } from '../../saengineLibrary/browser/libraryEditorInput.js';
 import { ISchemaFormContext, JsonObject, SchemaForm } from '../../saengineLibrary/browser/schemaForm.js';
-import { addArea, addMember, addSupport, copyElements, divideMember, EditResult, isStructure, mirrorElements, moveElements, parseOffset, removeElements } from './structureEdits.js';
+import { addArea, addBlock, addMember, addSupport, copyElements, divideMember, EditResult, isStructure, mirrorElements, moveElements, parseOffset, removeElements } from './structureEdits.js';
 import { gridGeometry, Json, list, modelerScene, typeKinds } from './structureGeometry.js';
 
-type Tool = 'select' | 'member' | 'area' | 'support' | 'move' | 'copy' | 'mirror' | 'divide' | 'delete';
+type Tool = 'select' | 'member' | 'area' | 'block' | 'support' | 'move' | 'copy' | 'mirror' | 'divide' | 'delete';
 
 const TOOLS: readonly { readonly tool: Tool; readonly label: string; readonly icon: ThemeIcon }[] = [
 	{ tool: 'select', label: localize('modeler.select', "Select"), icon: Codicon.inspect },
 	{ tool: 'member', label: localize('modeler.member', "Member"), icon: Codicon.dash },
 	{ tool: 'area', label: localize('modeler.area', "Area"), icon: Codicon.symbolArray },
+	{ tool: 'block', label: localize('modeler.block', "Block"), icon: Codicon.package },
 	{ tool: 'support', label: localize('modeler.support', "Support"), icon: Codicon.pinned },
 	{ tool: 'move', label: localize('modeler.move', "Move"), icon: Codicon.move },
 	{ tool: 'copy', label: localize('modeler.copy', "Copy"), icon: Codicon.copy },
@@ -76,6 +77,7 @@ const VIEWS: readonly { readonly view: ModelerView; readonly label: string }[] =
 const TOOL_KINDS: { readonly [tool in Tool]?: readonly string[] } = {
 	member: ['beam', 'column', 'brace'],
 	area: ['slab', 'wall'],
+	block: ['solid'],
 };
 
 const SUPPORT_FIXITIES = ['fixed', 'pinned'] as const;
@@ -110,7 +112,7 @@ function clone<T>(value: T): T {
 
 /** The elements of `doc` with these ids, as the modeller selects them. */
 function entitiesOf(doc: Json, ids: readonly string[]): ModelerEntity[] {
-	const kindOf = (id: string): ModelerEntity['kind'] => list(doc.members).some(m => m.id === id) ? 'member' : list(doc.areas).some(a => a.id === id) ? 'area' : 'support';
+	const kindOf = (id: string): ModelerEntity['kind'] => list(doc.members).some(m => m.id === id) ? 'member' : list(doc.areas).some(a => a.id === id) ? 'area' : list(doc.blocks).some(b => b.id === id) ? 'block' : 'support';
 	return ids.map(id => ({ kind: kindOf(id), id }));
 }
 
@@ -119,6 +121,7 @@ function hint(tool: Tool, picked: number, selected: number): string {
 		case 'select': return localize('hint.select', "Click an element to select it; Shift+click adds to the selection. Drag to orbit, right-drag to pan, wheel to zoom.");
 		case 'member': return picked ? localize('hint.memberEnd', "Click the end of the member (Esc stops the chain).") : localize('hint.memberStart', "Click the start of the member: a grid point, a member end or a free point on the work level.");
 		case 'area': return picked < 3 ? localize('hint.areaCorner', "Click the corners of the area in order ({0} so far).", picked) : localize('hint.areaClose', "Click the first corner, press Enter or right-click to finish the area.");
+		case 'block': return picked < 3 ? localize('hint.blockCorner', "Click the corners of the block's face in order ({0} so far); it grows by the thickness beside to the side its corners turn counter-clockwise for.", picked) : localize('hint.blockClose', "Click the first corner, press Enter or right-click to finish the block.");
 		case 'support': return localize('hint.support', "Click a member end or area corner to support it.");
 		case 'move':
 		case 'copy':
@@ -401,7 +404,7 @@ export class StructureModelerEditor extends EditorPane {
 		}
 		this.kinds = typeKinds(objects);
 		// Drop selected elements that no longer exist (deleted, or undone).
-		const exists = (e: ModelerEntity) => list(parsed[e.kind === 'member' ? 'members' : e.kind === 'area' ? 'areas' : 'supports']).some(x => x.id === e.id);
+		const exists = (e: ModelerEntity) => list(parsed[e.kind === 'member' ? 'members' : e.kind === 'area' ? 'areas' : e.kind === 'block' ? 'blocks' : 'supports']).some(x => x.id === e.id);
 		this.selection = this.selection.filter(exists);
 
 		const levels = gridGeometry(parsed.grids).levels;
@@ -441,10 +444,10 @@ export class StructureModelerEditor extends EditorPane {
 			this.typeOptions = [...SUPPORT_FIXITIES];
 			this.typePicker.setOptions([{ text: localize('modeler.fixed', "Fixed") }, { text: localize('modeler.pinned', "Pinned") }], Math.max(0, this.typeOptions.indexOf(this.types.get('support') ?? 'fixed')));
 		}
-		const typed = this.tool === 'move' || this.tool === 'copy' || this.tool === 'divide';
+		const typed = this.tool === 'move' || this.tool === 'copy' || this.tool === 'divide' || this.tool === 'block';
 		this.valueGroup.classList.toggle('hidden', !typed);
 		if (typed) {
-			this.valueBox.setPlaceHolder(this.tool === 'divide' ? localize('modeler.partsPlaceholder', "Parts (e.g. 4)") : this.tool === 'copy' ? localize('modeler.copyPlaceholder', "dx, dy, dz[, copies] (mm)") : localize('modeler.movePlaceholder', "dx, dy, dz (mm)"));
+			this.valueBox.setPlaceHolder(this.tool === 'divide' ? localize('modeler.partsPlaceholder', "Parts (e.g. 4)") : this.tool === 'block' ? localize('modeler.thicknessPlaceholder', "Thickness (mm), e.g. 1000") : this.tool === 'copy' ? localize('modeler.copyPlaceholder', "dx, dy, dz[, copies] (mm)") : localize('modeler.movePlaceholder', "dx, dy, dz (mm)"));
 		}
 		this.renderStatus();
 	}
@@ -474,7 +477,10 @@ export class StructureModelerEditor extends EditorPane {
 		modeler.setCursor(at);
 		const points = at ? [...this.points, at] : this.points;
 		switch (this.tool) {
-			case 'area': modeler.setPreview(points, points.length > 2); break;
+			case 'area':
+			case 'block':
+				modeler.setPreview(points, points.length > 2);
+				break;
 			case 'member':
 			case 'move':
 			case 'copy':
@@ -526,7 +532,7 @@ export class StructureModelerEditor extends EditorPane {
 			return;
 		}
 		if (secondary) {
-			if (this.tool === 'area' && this.points.length >= 3) {
+			if ((this.tool === 'area' || this.tool === 'block') && this.points.length >= 3) {
 				this.finishArea();
 			} else {
 				this.points = [];
@@ -551,6 +557,7 @@ export class StructureModelerEditor extends EditorPane {
 				}
 				break;
 			case 'area':
+			case 'block':
 				if (p && this.points.length >= 3 && p.every((v, i) => Math.abs(v - this.points[0][i]) < 1)) {
 					this.finishArea();
 				} else if (p) {
@@ -617,7 +624,10 @@ export class StructureModelerEditor extends EditorPane {
 
 	private finishArea(): void {
 		const doc = this.doc;
-		if (doc && this.apply(addArea(doc, this.types.get('area') ?? '', this.points))) {
+		const result = !doc ? undefined : this.tool === 'block'
+			? addBlock(doc, this.types.get('block') ?? '', this.points, Number(this.valueBox.value || 1000))
+			: addArea(doc, this.types.get('area') ?? '', this.points);
+		if (result && this.apply(result)) {
 			this.points = [];
 		}
 	}
@@ -658,7 +668,7 @@ export class StructureModelerEditor extends EditorPane {
 			} else {
 				this.select(undefined, false);
 			}
-		} else if (e.key === 'Enter' && this.tool === 'area' && this.points.length >= 3) {
+		} else if (e.key === 'Enter' && (this.tool === 'area' || this.tool === 'block') && this.points.length >= 3) {
 			this.finishArea();
 		} else if ((e.key === 'Delete' || e.key === 'Backspace') && this.selection.length && this.doc) {
 			this.apply(removeElements(this.doc, this.selection));
@@ -1038,6 +1048,7 @@ export class StructureModelerEditor extends EditorPane {
 			column: color(chartsPurple),
 			brace: color(chartsOrange),
 			slab: color(chartsGreen),
+			solid: color(chartsPurple),
 			wall: color(chartsOrange),
 			support: color(chartsGreen),
 			selection: color(chartsYellow),
