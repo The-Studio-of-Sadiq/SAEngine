@@ -2,9 +2,45 @@
 strength design, which BNBC 2020 Part 6 Chapter 6 adopts).
 
 Slabs are designed when the analysis meshes them as shells (Analysis settings: slabs as
-shells). Each check envelopes every combination of the project settings and every integration
-point of every shell of the slab (``S1``, ``S1#2``, ...): the moments at the points next to a
-beam or a column give the support hogging, not just the element centres.
+shells). Flexure and one-way shear are designed by design strips, as SAFE and ETABS do (ACI
+318-19 8.4.1.1-8.4.1.2 permit any analysis satisfying equilibrium and compatibility; the strips
+follow 8.4.1.5 and 8.4.1.6): the Wood-Armer moments of the integration points of every shell of
+the slab (``S1``, ``S1#2``, ...) are averaged across the width of each strip at stations along
+it, and each check envelopes every station, strip and combination of the project settings.
+
+Design strips (see :func:`design_strips`). Strips run along the slab's local x (they design the
+X layers) and along local y (the Y layers). The support lines across a direction are the column
+lines (columns meeting the slab, in line within 300 mm) and the beams and walls at the slab's
+level running that way. A column strip is centred on each support line, with a half-width on
+each side of 0.25 min(l1, l2) (ACI 8.4.1.5; l1 the span of the bay along the strip, l2 the
+distance to the next line on that side; at the slab's edge only the inside half, or the
+overhang where the slab runs past the line). Middle strips fill the space between column strips
+(8.4.1.6). The strips are cut into bays at the faces of the support lines across them (the
+faces of columns, beams and walls: the design sections of ACI 8.10.4.1 / 8.11.6.1): the slab
+over a support further in from its faces than half a station spacing, or than the support's
+centre line, is designed with the support, not by the strips. A direction with fewer than two
+support lines across it (no column grid: an irregular drawn area, a slab of a special
+structure) is cut into equal strips at most 1 m wide instead (the conventional design per
+metre width, and never narrower than the mesh).
+
+Averaging (see :func:`element_means` and :func:`strip_average`). The Wood-Armer design moments
+are taken at each integration point first, bottom and top separately (conservative: the average
+of |mxy| is at least |average mxy|; SAFE's Wood-Armer option does the same). Each shell is then
+reduced to the area-weighted mean of its points at its centre: the points of a shell carry a
+gradient of their own (near a column several times the moment field's), but the shells' means
+are in equilibrium with the loads, on any mesh. A shell belongs to the strip its centre lies
+in; shells with their centre inside a column are left out (for one-way shear, within 2d of a
+column). Stations along each bay are spaced about the mesh size (⌈ln / mesh⌉ intervals), the
+first and last at the support faces. The value at a station is a least-squares parabola along
+the strip through the shells' means, each weighted by its area (so the mean across the strip
+on any mesh), taken at the station: through the shells within 1.25 mesh sizes either way at an
+inner station, and from the face to the middle of the bay at a face (the static moment of a
+uniform load is a parabola), so a face value is the face's and not that of the first row of
+shells, half a mesh size or more into the span (for the shear a straight line). The shells
+taken in reach into a support no further than half a spacing and never to its centre line, so
+nothing of the next span, where the shear has the other sign, is taken in. On a flat slab the
+strip moments of a bay add up to its static moment ln² / 8 per unit load and width within a
+few per cent at a mesh of 0.5 m and of 1 m alike (tests).
 
 Axes. A slab's local x is global X for a slab of the floor plan (``SlabElement``) and the
 direction of the first edge of its outline for a drawn area (``AreaElement``); local y is
@@ -62,12 +98,32 @@ METHOD = [
     (
         "Slabs (analysed as shells): moments per unit width at every integration point of "
         "every shell, turned into the slab's reinforcement axes (local x: global X for floor-"
-        "plan slabs, the first outline edge for drawn areas), designed by Wood-Armer: bottom "
-        "Mx* = mx + |mxy|, My* = my + |mxy|, top Mx* = mx - |mxy|, My* = my - |mxy|, with "
-        "Armer's corrections when one of a pair has the wrong sign. Membrane forces are not "
-        "included. Points inside a column are left out (the moment is designed at its faces); "
-        "moments are not averaged over column or middle strips, so the peaks next to columns "
-        "are designed as they are (conservative)."
+        "plan slabs, the first outline edge for drawn areas), Wood-Armer design moments at each "
+        "point: bottom Mx* = mx + |mxy|, My* = my + |mxy|, top Mx* = mx - |mxy|, My* = my - "
+        "|mxy|, with Armer's corrections when one of a pair has the wrong sign. Membrane forces "
+        "are not included."
+    ),
+    (
+        "Slab design strips (ACI 8.4.1.1-8.4.1.2: any method satisfying equilibrium and "
+        "compatibility; strips per 8.4.1.5-8.4.1.6, as SAFE/ETABS design FE slabs): along x "
+        "(X bars) and along y (Y bars); support lines are the column lines (columns in line "
+        "within 300 mm) and the beams and walls running that way; a column strip on each line "
+        "extends 0.25 min(l1, l2) each side (l2 to the next line on that side; at an edge the "
+        "inside half only), middle strips fill the rest; strips are cut into bays at the "
+        "support faces. The Wood-Armer moments are taken at each integration point first "
+        "(bottom and top separately), then each shell is reduced to the area-weighted mean of "
+        "its points at its centre (shells' means are in equilibrium with the loads on any "
+        "mesh); a shell belongs to the strip its centre lies in. Stations about one mesh size "
+        "apart along each bay, the first and last at the faces; at each, a least-squares "
+        "parabola along the strip through the shells' means, weighted by their areas (the "
+        "mean across the strip), is taken at the station: through the shells within 1.25 mesh "
+        "sizes at an inner station, from the face to mid-bay at a face (the shape of the static "
+        "moment), never reaching into a support to its centre line. The design moment of a "
+        "layer is the envelope over stations, strips and combinations, reported with the "
+        "governing strip. Without at least two support lines across a direction (no column "
+        "grid), that direction is cut into equal strips at most 1 m wide (design per metre "
+        "width, never narrower than the mesh). Shells with their centre inside a column are "
+        "not designed."
     ),
     (
         "Slab layers per metre: φMn = φ As fy (d - a/2), X layers outer (d = h - c - db/2), "
@@ -82,9 +138,11 @@ METHOD = [
     ),
     (
         "Slab one-way shear per metre: φVc = 0.75 · 0.66 λs λ ρ^(1/3) √f'c b d (ACI Table "
-        "22.5.5.1 (c), no shear reinforcement, λ = 1), ρ and d of the layer in tension at the "
-        "point, against the transverse shear Qx, Qy of the shells, except within 2d of a "
-        "column's faces (two-way shear governs there)."
+        "22.5.5.1 (c), no shear reinforcement, λ = 1), ρ and d of the layer in tension under "
+        "the strip's average moment, against the transverse shear Qx (X strips), Qy (Y strips) "
+        "averaged across the strip like the moments (a straight line instead of a parabola), "
+        "leaving out the shells with their centre within 2d of a column's faces (two-way "
+        "shear governs there)."
     ),
     (
         "Flat slabs: punching at each column under the slab (ACI 22.6): critical section at "
@@ -181,6 +239,23 @@ def integration_points(points: Sequence[np.ndarray], count: int) -> list[np.ndar
         return [sum(w * q for w, q in zip(ws, p, strict=True)) for ws in weights]
     centre = sum(p) / len(p)
     return [centre] * count
+
+
+def integration_areas(points: Sequence[np.ndarray], count: int) -> list[float]:
+    """The plan area each of a shell's :func:`integration_points` stands for (its weight times
+    the Jacobian: the four of a Q4 share its area by its shape, a T3's three equally) [units²
+    of ``points``]."""
+    p = [np.asarray(q, dtype=float)[:2] for q in points]
+    if len(p) == 4 and count == 4:
+        g = 1 / math.sqrt(3)
+        out = []
+        for xi, eta in ((-g, -g), (g, -g), (g, g), (-g, g)):
+            d_xi = ((1 - eta) * (p[1] - p[0]) + (1 + eta) * (p[2] - p[3])) / 4
+            d_eta = ((1 - xi) * (p[3] - p[0]) + (1 + xi) * (p[2] - p[1])) / 4
+            out.append(abs(float(d_xi[0] * d_eta[1] - d_xi[1] * d_eta[0])))
+        return out
+    area = _polygon_area(p)
+    return [area / count] * count if count else []
 
 
 @dataclass(frozen=True)
@@ -704,6 +779,446 @@ def _along(p: np.ndarray, q: np.ndarray, a: np.ndarray, b: np.ndarray) -> bool:
     return overlap > 0.5 * min(s1 - s0, length)
 
 
+# ─────────────────────────────────────── design strips ───────────────────────────────────────
+
+#: Columns (and beams) this close across are on one support line [mm] (as :func:`_grid_span`).
+LINE_TOLERANCE = 300.0
+#: Width of the strips of a direction without a column grid [mm] (design per metre width).
+FALLBACK_WIDTH = 1000.0
+#: A beam or wall is a support line when it runs within this angle of a slab axis [°].
+PARALLEL = 5.0
+
+
+@dataclass(frozen=True)
+class LineSupport:
+    """A beam or wall at a slab's level (plan, mm), which supports it along its line."""
+
+    id: str
+    start: tuple[float, float]
+    end: tuple[float, float]
+    width: float  # mm
+
+
+@dataclass(frozen=True)
+class SupportLine:
+    """Supports in line across a direction: their position across (``at``, mm in the slab's
+    axes), the half-width of the widest one along the strips they cut (their faces are at
+    ``at ± half``) and their ids."""
+
+    at: float
+    half: float
+    ids: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class Strip:
+    """One bay of a design strip, in the slab's axes (mm): it runs along ``direction`` ("X":
+    along local x, designing the X layers) from ``start`` to ``end`` (support faces or slab
+    edges) and spans ``lo`` to ``hi`` across. ``kind``: "column", "middle" or "strip" (a
+    strip of a direction without a column grid); ``span`` is the bay's l1. ``before`` and
+    ``after``: how far past ``start`` and ``end`` the support there reaches to its centre line
+    (its half-width; 0 at a slab edge): the face stations sample the slab no further into the
+    support, so they never take in the next span's points (where the shear changes sign)."""
+
+    direction: str
+    kind: str
+    name: str
+    lo: float
+    hi: float
+    start: float
+    end: float
+    span: float
+    before: float = 0.0
+    after: float = 0.0
+
+    @property
+    def width(self) -> float:
+        return self.hi - self.lo
+
+
+@dataclass(frozen=True)
+class StripLayout:
+    """The design strips of a slab in one direction; ``note`` says when it has no grid."""
+
+    strips: list[Strip]
+    note: str | None = None
+
+
+class PlanFrame:
+    """A slab's plan axes: local (s, t) coordinates [mm] of plan points along its x and y."""
+
+    def __init__(self, axes: SlabAxes) -> None:
+        ux, uy = np.asarray(axes.x[:2], dtype=float), np.asarray(axes.y[:2], dtype=float)
+        self.ux = ux / (np.linalg.norm(ux) or 1.0)
+        self.uy = uy / (np.linalg.norm(uy) or 1.0)
+
+    def local(self, point: Sequence[float]) -> tuple[float, float]:
+        p = np.asarray(point[:2], dtype=float)
+        return float(p @ self.ux), float(p @ self.uy)
+
+    def plan(self, s: float, t: float) -> np.ndarray:
+        """The plan point [mm] of local coordinates (s, t)."""
+        return self.ux * s + self.uy * t
+
+
+def _cluster(found: list[tuple[float, float, str]]) -> list[SupportLine]:
+    """Support lines from (position across, half-width, id), merging those within
+    :data:`LINE_TOLERANCE` of the first of a line."""
+    lines: list[list[tuple[float, float, str]]] = []
+    for item in sorted(found):
+        if lines and item[0] - lines[-1][0][0] <= LINE_TOLERANCE:
+            lines[-1].append(item)
+        else:
+            lines.append([item])
+    return [
+        SupportLine(
+            sum(i[0] for i in line) / len(line),
+            max(i[1] for i in line),
+            tuple(dict.fromkeys(i[2] for i in line)),
+        )
+        for line in lines
+    ]
+
+
+def support_lines(
+    along: int,
+    frame: PlanFrame,
+    extent: tuple[float, float, float, float],
+    columns: Sequence[ColumnJoint],
+    supports: Sequence[LineSupport],
+) -> list[SupportLine]:
+    """The support lines running along local x (``along`` 0: lines of constant t) or local y
+    (1: constant s), sorted across. ``extent``: the slab's (s0, s1, t0, t1) in its axes [mm].
+    A column gives a line through its centre with its half-size across the line; a beam or wall
+    running that way (within :data:`PARALLEL`) whose line lies on the slab and which runs over
+    at least half the slab's length, or half its own, gives a line with half its width."""
+    across = 1 - along
+    found: list[tuple[float, float, str]] = []
+    reference = math.degrees(math.atan2(frame.ux[1], frame.ux[0]))
+    for column in columns:
+        position = frame.local(column.centre)
+        angle = math.radians(column.angle - reference)
+        c, s = abs(math.cos(angle)), abs(math.sin(angle))
+        # Half-sizes along local x and y of the (turned) column.
+        half = (column.c1 * c + column.c2 * s) / 2, (column.c1 * s + column.c2 * c) / 2
+        found.append((position[across], half[across], column.id))
+    lo, hi = extent[2 * along], extent[2 * along + 1]
+    lo_across, hi_across = extent[2 * across], extent[2 * across + 1]
+    for support in supports:
+        a, b = frame.local(support.start), frame.local(support.end)
+        length = math.hypot(b[0] - a[0], b[1] - a[1])
+        if length < 1 or abs(b[along] - a[along]) < length * math.cos(math.radians(PARALLEL)):
+            continue
+        at = (a[across] + b[across]) / 2
+        if not lo_across - 1 <= at <= hi_across + 1:
+            continue
+        s0, s1 = sorted((a[along], b[along]))
+        overlap = min(s1, hi) - max(s0, lo)
+        if overlap <= 0 or overlap < 0.5 * min(s1 - s0, hi - lo):
+            continue
+        found.append((at, support.width / 2, support.id))
+    return _cluster(found)
+
+
+def _bays(
+    lines: list[SupportLine], lo: float, hi: float
+) -> list[tuple[float, float, float, float, float]]:
+    """The bays (start, end, span l1, support half-width before start, after end) between the
+    faces of the support ``lines`` across a strip and the slab's edges ``lo``, ``hi`` along it:
+    overhangs past the first and last line are bays of their own (span: edge to line)."""
+    if not lines:
+        return [(lo, hi, hi - lo, 0.0, 0.0)]
+    bays = []
+    first, last = lines[0], lines[-1]
+    if first.at - first.half - lo > 1:
+        bays.append((lo, first.at - first.half, first.at - lo, 0.0, first.half))
+    for a, b in pairwise(lines):
+        if b.at - b.half - (a.at + a.half) > 1:
+            bays.append((a.at + a.half, b.at - b.half, b.at - a.at, a.half, b.half))
+    if hi - (last.at + last.half) > 1:
+        bays.append((last.at + last.half, hi, hi - last.at, last.half, 0.0))
+    return bays
+
+
+def _names(ids: tuple[str, ...]) -> str:
+    return ", ".join(ids[:3]) + (", ..." if len(ids) > 3 else "")
+
+
+def design_strips(
+    direction: str,
+    frame: PlanFrame,
+    extent: tuple[float, float, float, float],
+    columns: Sequence[ColumnJoint],
+    supports: Sequence[LineSupport],
+    mesh: float,
+) -> StripLayout:
+    """The design strips of a slab along ``direction`` ("X" or "Y"), bay by bay (see the module
+    notes): column strips 0.25 min(l1, l2) each side of the support lines across the direction
+    (ACI 8.4.1.5), middle strips between them (8.4.1.6), or, with fewer than two lines across,
+    equal strips at most :data:`FALLBACK_WIDTH` (and at least ``mesh``) wide."""
+    along = 0 if direction == "X" else 1
+    across_axis = "y" if direction == "X" else "x"
+    lines = support_lines(along, frame, extent, columns, supports)  # across the strips' width
+    ends = support_lines(1 - along, frame, extent, columns, supports)  # cutting them into bays
+    lo, hi = extent[2 * along], extent[2 * along + 1]
+    lo_t, hi_t = extent[2 * (1 - along)], extent[2 * (1 - along) + 1]
+    strips: list[Strip] = []
+    note = None
+    for bay in _bays(ends, lo, hi):
+        span = bay[2]
+        if len(lines) < 2:
+            width = max(FALLBACK_WIDTH, mesh)
+            count = max(1, math.ceil((hi_t - lo_t) / width - 1e-9))
+            step = (hi_t - lo_t) / count
+            for k in range(count):
+                a, b = lo_t + k * step, lo_t + (k + 1) * step
+                strips.append(
+                    Strip(
+                        direction,
+                        "strip",
+                        f"{direction} strip {across_axis} = {a / 1e3:.2f} to {b / 1e3:.2f} m",
+                        a,
+                        b,
+                        *bay,
+                    )
+                )
+            note = (
+                f"{direction} strips: fewer than two support lines across {direction} (no column "
+                f"grid), designed in {count} equal strips {step / 1e3:.2f} m wide (at most "
+                f"{width / 1e3:.2f} m: design per metre width) instead of column and middle strips"
+            )
+            continue
+        bands: list[tuple[float, float, SupportLine]] = []
+        for k, line in enumerate(lines):
+            below = line.at - lines[k - 1].at if k > 0 else None
+            above = lines[k + 1].at - line.at if k + 1 < len(lines) else None
+            half_below = 0.25 * min(span, below) if below is not None else None
+            half_above = 0.25 * min(span, above) if above is not None else None
+            # At the slab's edge: the inside half only, or the overhang past the line.
+            if half_below is None:
+                half_below = min(half_above or 0.0, max(line.at - lo_t, 0.0))
+            if half_above is None:
+                half_above = min(half_below, max(hi_t - line.at, 0.0))
+            a, b = max(line.at - half_below, lo_t), min(line.at + half_above, hi_t)
+            if b - a > 1:
+                bands.append((a, b, line))
+        edge = lo_t
+        for a, b, line in bands:
+            if a - edge > 1:
+                strips.append(_middle(direction, across_axis, edge, a, bay))
+            strips.append(
+                Strip(
+                    direction,
+                    "column",
+                    f"{direction} column strip on the line of {_names(line.ids)} "
+                    f"({across_axis} = {line.at / 1e3:.2f} m)",
+                    a,
+                    b,
+                    *bay,
+                )
+            )
+            edge = b
+        if hi_t - edge > 1:
+            strips.append(_middle(direction, across_axis, edge, hi_t, bay))
+    return StripLayout(strips, note)
+
+
+def _middle(
+    direction: str,
+    axis: str,
+    a: float,
+    b: float,
+    bay: tuple[float, float, float, float, float],
+) -> Strip:
+    return Strip(
+        direction,
+        "middle",
+        f"{direction} middle strip {axis} = {a / 1e3:.2f} to {b / 1e3:.2f} m",
+        a,
+        b,
+        *bay,
+    )
+
+
+def stations(strip: Strip, mesh: float) -> list[tuple[float, float, float]]:
+    """Design sections along a strip's bay: (station, band start, band end) [mm], ⌈ln / mesh⌉
+    intervals from face to face, each band reaching half way to the next station on both sides.
+    At a face the band reaches into the support by half a spacing at most and never to the
+    support's centre line (``strip.before`` / ``strip.after``, less 1 mm), so it takes in the
+    slab between the face and the centre line but nothing of the next span, where the shear has
+    the other sign. :func:`strip_average` fits over wider windows but within the first and last
+    band's limits."""
+    length = strip.end - strip.start
+    count = max(1, math.ceil(length / mesh - 1e-9)) if mesh > 0 else 1
+    step = length / count
+    into = (
+        min(step / 2, max(strip.before - 1.0, 0.0)),
+        min(step / 2, max(strip.after - 1.0, 0.0)),
+    )
+    out = []
+    for k in range(count + 1):
+        at = strip.start + k * step
+        a = at - (into[0] if k == 0 else step / 2)
+        b = at + (into[1] if k == count else step / 2)
+        out.append((at, a, b))
+    return out
+
+
+def strip_weights(across: np.ndarray, lo: float, hi: float, reach: float) -> np.ndarray:
+    """The width [mm] each point at ``across`` represents in a strip from ``lo`` to ``hi``:
+    half way to its neighbours, to the strip's edges from the outermost points but at most
+    ``reach`` beyond them; points within 1 mm of each other share their width."""
+    order = np.argsort(across, kind="stable")
+    values = across[order]
+    groups: list[list[int]] = []
+    for k, value in enumerate(values):
+        if groups and value - values[groups[-1][0]] <= 1.0:
+            groups[-1].append(k)
+        else:
+            groups.append([k])
+    centres = [float(np.mean(values[g])) for g in groups]
+    weights = np.zeros(len(across))
+    for k, group in enumerate(groups):
+        left = (centres[k - 1] + centres[k]) / 2 if k > 0 else max(lo, centres[k] - reach)
+        right = (
+            (centres[k] + centres[k + 1]) / 2
+            if k + 1 < len(groups)
+            else min(hi, centres[k] + reach)
+        )
+        share = max(right - left, 0.0) / len(group)
+        for index in group:
+            weights[order[index]] = share
+    return weights
+
+
+def strip_average(
+    strip: Strip,
+    along: np.ndarray,
+    across: np.ndarray,
+    values: np.ndarray,
+    mesh: float,
+    keep: np.ndarray | None = None,
+    areas: np.ndarray | None = None,
+    degree: int = 2,
+) -> list[tuple[float, np.ndarray]]:
+    """The averages across a strip of ``values`` (one row per point, any trailing shape) at
+    each of its :func:`stations` that has points: (station [mm], average). ``along``,
+    ``across``: the points' coordinates in the slab's axes along and across the strip [mm];
+    ``keep``: the points that count (default all).
+
+    Each point is weighted by the plan area it stands for (``areas``: on any mesh, structured
+    or not, the area-weighted mean over a band is the mean across the strip), or without
+    ``areas`` by its width across (:func:`strip_weights`, for points in rows). The value at a
+    station is a weighted least-squares polynomial along the strip of ``degree`` (2: a
+    parabola, the shape of the static moment under a uniform load; 1 for the shear), taken at
+    the station: through the points within 1.25 ``mesh`` either way at an inner station, from
+    the face to the middle of the bay at a face, so the face value is the face's and not that
+    of the first row of shells, half a mesh size or more into the span (with fewer distinct
+    positions along, a lower degree). No point further into a support than the face bands of
+    :func:`stations` allow is taken in."""
+    inside = (across >= strip.lo - 1e-6) & (across <= strip.hi + 1e-6)
+    inside &= (along >= strip.start - mesh) & (along <= strip.end + mesh)
+    if keep is not None:
+        inside &= keep
+    candidates = np.flatnonzero(inside)
+    middle = (strip.start + strip.end) / 2
+    found = stations(strip, mesh)
+    first, last = found[0][1], found[-1][2]  # into the supports no further than allowed
+    reach = 1.25 * mesh
+    out = []
+    for k, (at, a, b) in enumerate(found):
+        if k == 0 and len(found) > 2:
+            a, b = first, middle
+        elif k == len(found) - 1 and len(found) > 2:
+            a, b = middle, last
+        else:
+            a, b = max(first, at - reach), min(last, at + reach)
+        position = along[candidates]
+        chosen = candidates[(position >= a - 1e-6) & (position <= b + 1e-6)]
+        if not len(chosen):
+            continue
+        weights = (
+            strip_weights(across[chosen], strip.lo, strip.hi, mesh / 2)
+            if areas is None
+            else np.asarray(areas, dtype=float)[chosen]
+        )
+        if float(weights.sum()) <= 0:
+            continue
+        value = _fit(along[chosen], weights, values[chosen], at, degree, mesh)
+        out.append((at, value))
+    return out
+
+
+def _fit(
+    along: np.ndarray, weights: np.ndarray, values: np.ndarray, at: float, degree: int, mesh: float
+) -> np.ndarray:
+    """A weighted least-squares polynomial along the strip of at most ``degree`` through the
+    points, taken at ``at``: of lower degree when the points lie at fewer distinct positions
+    along (a quarter mesh size apart) than it needs."""
+    scale = max(mesh, 1.0)
+    distinct = len(np.unique(np.round(along / (scale / 4))))
+    degree = min(degree, distinct - 1)
+    flat = values.reshape(len(values), -1)
+    if degree <= 0:
+        mean = weights @ flat / weights.sum()
+        return mean.reshape(values.shape[1:])
+    x = (along - at) / scale  # the value at the station is the constant term
+    basis = np.vander(x, degree + 1, increasing=True)
+    root = np.sqrt(weights)[:, None]
+    solution = np.linalg.lstsq(basis * root, flat * root, rcond=None)[0]
+    return solution[0].reshape(values.shape[1:])
+
+
+def element_means(
+    groups: np.ndarray,
+    plan: np.ndarray,
+    values: np.ndarray,
+    areas: np.ndarray,
+    keep: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Per shell (``groups``: the shell of each point), the area-weighted mean of the ``values``
+    of its points that are kept, at their area-weighted centre (``plan``: (points, any number
+    of coordinates)), with their area: (centres, means, areas). A shell's integration points
+    carry a gradient within it that need not be the moment field's (near a column it is
+    several times too steep), but its mean is in equilibrium with the loads: strips average
+    shells' means."""
+    index = np.flatnonzero(keep)
+    labels, inverse = np.unique(groups[index], return_inverse=True)
+    weight = areas[index]
+    total = np.bincount(inverse, weights=weight, minlength=len(labels))
+    centres = (
+        np.stack(
+            [
+                np.bincount(inverse, weights=weight * plan[index, k], minlength=len(labels))
+                for k in range(plan.shape[1])
+            ],
+            axis=1,
+        )
+        / total[:, None]
+    )
+    flat = values[index].reshape(len(index), -1) * weight[:, None]
+    means = np.zeros((len(labels), flat.shape[1]))
+    np.add.at(means, inverse, flat)
+    means /= total[:, None]
+    return centres, means.reshape((len(labels), *values.shape[1:])), total
+
+
+def mesh_size(area: float, points: int) -> float:
+    """The mesh size [mm] a slab of ``area`` [mm²] with ``points`` integration points has:
+    a Q4 has four points over h², so h = 2 √(area / points); 1 m when unknown."""
+    if area <= 0 or points <= 0:
+        return 1000.0
+    return 2 * math.sqrt(area / points)
+
+
+def _polygon_area(points: Sequence[Sequence[float]]) -> float:
+    flat = [(float(p[0]), float(p[1])) for p in points]
+    return abs(
+        sum(x0 * y1 - x1 * y0 for (x0, y0), (x1, y1) in zip(flat, flat[1:] + flat[:1], strict=True))
+        / 2
+    )
+
+
 # ─────────────────────────────────────── the checks ───────────────────────────────────────
 
 
@@ -715,6 +1230,8 @@ class ShellPoint:
     name: str
     points: list[np.ndarray]  # positions [m]
     forces: list[np.ndarray]  # per combination: (points, 5) mx my mxy qx qy [N·m/m, N/m]
+    #: The plan area [m²] each point stands for (:func:`integration_areas`); None: all alike.
+    areas: list[float] | None = None
 
 
 @dataclass
@@ -739,6 +1256,25 @@ class SlabContext:
     boundary: list[tuple[float, float]] = field(default_factory=list)  # plan, mm
     columns: list[ColumnJoint] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    axes: SlabAxes = field(default_factory=plan_axes)
+    supports: list[LineSupport] = field(default_factory=list)  # beams and walls at its level
+    #: Filled by :func:`slab_checks`: the design strips of both directions.
+    strips: list[Strip] = field(default_factory=list)
+    #: Filled by :func:`slab_checks`: the strip averages at every station.
+    sections: list[StripSection] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class StripSection:
+    """The averages across a strip at one station [mm along it], per combination [N·m/m]:
+    ``moment`` the signed moment of the strip's direction (mx for X strips, my for Y strips;
+    sagging positive), ``bottom`` and ``top`` the Wood-Armer moments of its layers."""
+
+    strip: Strip
+    at: float
+    moment: np.ndarray
+    bottom: np.ndarray
+    top: np.ndarray
 
 
 def slab_checks(
@@ -774,25 +1310,94 @@ def slab_checks(
                 return one_way_shear(rho, capacity.d, fc)[0], f"{face}{direction}"
         return None
 
-    # Points inside a column are not designed for flexure (the design moment is at the face),
-    # nor within 2d of its faces for one-way shear (two-way shear governs there, ACI 22.6).
+    # Shells with their centre inside a column are not designed for flexure (the design moment
+    # is at the face), nor within 2d of its faces for one-way shear (two-way shear governs
+    # there, ACI 22.6).
     depth = max((layer.d for layer in layers.values() if layer is not None), default=0.0)
-    skipped_points = 0
-    for shell in shells:
-        inside = [_near_column(p, context.columns, 0.0) for p in shell.points]
-        near = [_near_column(p, context.columns, 2 * depth) for p in shell.points]
-        skipped_points += sum(inside)
-        for c, values in enumerate(shell.forces):
-            for k, (mx, my, mxy, qx, qy) in enumerate(values):
-                where = _where(shell, k)
-                if not inside[k]:
-                    design = wood_armer(mx, my, mxy)
-                    for name, value in zip(LAYERS, design, strict=True):
-                        if value > envelope[name][0]:
-                            envelope[name] = (value, combinations[c], where)
-                if near[k]:
-                    continue
-                for direction, q, m in (("X", qx, mx), ("Y", qy, my)):
+    positions = [p for shell in shells for p in shell.points]
+    count = len(positions)
+    if not count:
+        raise ValueError("the slab's shells have no results")
+    # The plan area each point stands for; alike when a shell does not say.
+    if all(shell.areas is not None for shell in shells):
+        areas = np.array([a for shell in shells for a in shell.areas or []], dtype=float)
+    else:
+        areas = np.ones(count)
+    # Per point and combination: mx my mxy qx qy, and the Wood-Armer moments (LAYERS order).
+    forces = np.stack(
+        [np.concatenate([shell.forces[c] for shell in shells]) for c in range(len(combinations))],
+        axis=1,
+    )
+    design = np.array([[wood_armer(*f[:3]) for f in row] for row in forces])
+
+    frame = PlanFrame(context.axes)
+    local = np.array([frame.local(p[:2] * 1e3) for p in positions])
+    outline = [frame.local(p) for p in context.boundary] if len(context.boundary) >= 3 else []
+    corners = outline or [tuple(q) for q in local]
+    extent = (
+        min(q[0] for q in corners),
+        max(q[0] for q in corners),
+        min(q[1] for q in corners),
+        max(q[1] for q in corners),
+    )
+    area = _polygon_area(outline) if outline else 0.0
+    mesh = mesh_size(area, count)
+    if not outline:  # no outline: the points' extent, half a mesh size round them
+        extent = (
+            extent[0] - mesh / 2,
+            extent[1] + mesh / 2,
+            extent[2] - mesh / 2,
+            extent[3] + mesh / 2,
+        )
+    # The shells' means: mx my mxy qx qy, then the Wood-Armer moments; for flexure those of
+    # the shells whose centre is outside the columns, for shear further than 2d from them.
+    groups = np.repeat(np.arange(len(shells)), [len(shell.points) for shell in shells])
+    plan = np.hstack([local, np.array([p[:2] for p in positions])])
+    centres, means, weights = element_means(
+        groups, plan, np.concatenate([forces, design], axis=2), areas, np.ones(count, bool)
+    )
+    inside = np.array([_near_column(c[2:], context.columns, 0.0) for c in centres])
+    near = np.array([_near_column(c[2:], context.columns, 2 * depth) for c in centres])
+    skipped_shells = int(inside.sum())
+    flexure = centres[~inside], means[~inside], weights[~inside]
+    shear = centres[~near], means[~near], weights[~near]
+    context.strips, context.sections = [], []
+    for direction, along in (("X", 0), ("Y", 1)):
+        layout = design_strips(direction, frame, extent, context.columns, context.supports, mesh)
+        context.strips += layout.strips
+        if layout.note:
+            context.notes.append(layout.note)
+        # Wood-Armer moments of this direction's layers: bottom, top.
+        names = (f"bottom{direction}", f"top{direction}")
+        columns_of = [LAYERS.index(n) for n in names]
+        for strip in layout.strips:
+
+            def where(at: float, strip: Strip = strip, along: int = along) -> str:
+                middle = (strip.lo + strip.hi) / 2
+                x, y = frame.plan(at, middle) if along == 0 else frame.plan(middle, at)
+                return (
+                    f"{strip.name}, {strip.width / 1e3:.2f} m wide, station at "
+                    f"({x / 1e3:.2f}, {y / 1e3:.2f}) m"
+                )
+
+            centres, means, weights = flexure
+            fields = means[:, :, [along, *(5 + k for k in columns_of)]]
+            s, t = centres[:, along], centres[:, 1 - along]
+            for at, averaged in strip_average(strip, s, t, fields, mesh, None, weights):
+                context.sections.append(
+                    StripSection(strip, at, averaged[:, 0], averaged[:, 1], averaged[:, 2])
+                )
+                values = averaged[:, 1:]
+                for k, name in enumerate(names):
+                    c = int(np.argmax(values[:, k]))
+                    if values[c, k] > envelope[name][0]:
+                        envelope[name] = (float(values[c, k]), combinations[c], where(at))
+            # One-way shear: the strip's transverse shear and moment, away from the columns.
+            centres, means, weights = shear
+            fields = means[:, :, [3 + along, along]]
+            s, t = centres[:, along], centres[:, 1 - along]
+            for at, values in strip_average(strip, s, t, fields, mesh, None, weights, 1):
+                for c, (q, m) in enumerate(values):
                     resisting = shear_capacity(direction, m >= 0)
                     if resisting is None:
                         continue
@@ -802,15 +1407,15 @@ def slab_checks(
                     if best is None or ratio > best[0]:
                         shear_env["all"] = (
                             ratio,
-                            abs(q),
+                            abs(float(q)),
                             capacity,
                             combinations[c],
-                            f"Q{direction.lower()}, ρ of {layer}; {where}",
+                            f"Q{direction.lower()}, ρ of {layer}; {where(at)}",
                         )
 
-    if skipped_points:
+    if skipped_shells:
         context.notes.append(
-            f"{skipped_points} shell integration points inside columns are not designed for "
+            f"{skipped_shells} shells with their centre inside a column are not designed for "
             "flexure (the design moment is taken at the column faces)"
         )
     checks: list[dict[str, Any]] = []
@@ -1011,11 +1616,6 @@ def _near_column(point: np.ndarray, columns: list[ColumnJoint], margin: float) -
 
 def _bars(layer: Layer) -> str:
     return f"Ø{layer.dia:g} @ {layer.spacing:g}"
-
-
-def _where(shell: ShellPoint, k: int) -> str:
-    x, y, _ = shell.points[k]
-    return f"{shell.name} point {k + 1} at ({x:.2f}, {y:.2f}) m"
 
 
 def _punching_checks(

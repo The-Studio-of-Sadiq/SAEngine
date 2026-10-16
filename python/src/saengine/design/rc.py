@@ -16,9 +16,18 @@ factors apply to both.
   P0 = 0.85 f'c (Ag - Ast) + fy Ast.
 - Biaxial bending of columns: the capacity at the demand's axial force in the direction of the
   demand's moment vector, read from the φ-factored interaction surface: meridians (φPn, φMnx,
-  φMny) are computed at neutral-axis angles 15° apart, cut at φPn = Pu, and the demand ray is
-  intersected with the resulting contour (chords between the computed points: slightly
-  conservative).
+  φMny) are computed at neutral-axis angles 7.5° apart at the same ratios of neutral-axis
+  depth to the depth of the extreme tension bar (so with the same εt and φ row by row),
+  interpolated linearly to 1.875° apart at those ratios, cut at φPn = Pu, and the demand ray
+  is intersected with the resulting contour (see :class:`InteractionSurface`). Each meridian
+  has 13 points evenly spaced from εt = εty to εty + 0.003, where φ bends the factored diagram
+  inwards. On 6 rectangular sections (4 doubly symmetric, 2 not; 2.5° x 60 depths of exact
+  concreteproperties points each) the capacity read off the surface was at most 0.3 % above
+  the exact one, the largest where the contour runs almost along the demand ray; it was 1.4 %
+  with chords between meridians 15° apart cut at Pu. Unsymmetric bar layouts are read with
+  signed moments, the least over the four signs of (Mx, My); where the contour at Pu does not
+  enclose the origin (tension on unsymmetric bars, whose resultant is off the centroid) the
+  capacity is 0.
 
 Units: mm, MPa, N, N·mm. Section coordinates: x along the profile's width (``xDim``), y along
 its depth (``yDim``), origin at the centroid, +y the "top" face.
@@ -45,12 +54,16 @@ FYT_SHEAR_MAX = 420.0
 SLENDERNESS_LIMIT = 22.0
 """k lu / r below which slenderness may be neglected in sway frames (ACI 6.2.5.1(a))."""
 
-#: Neutral-axis angles of the interaction surface within a quadrant.
-_QUADRANT = np.radians(np.arange(0, 91, 15))
-#: Neutral-axis depths of a meridian, as a share of the section depth at that angle.
+#: Neutral-axis angles of the interaction surface's computed meridians, this far apart.
+_STEP = math.radians(7.5)
+#: Meridians per computed span, the computed one and those interpolated after it.
+_SUBDIVISIONS = 4
+#: Neutral-axis depths of a meridian, as a share of the depth of the extreme tension bar.
 _DEPTHS = np.concatenate(
     [np.geomspace(1e-3, 0.05, 6), np.linspace(0.07, 1.4, 24), np.geomspace(1.6, 8.0, 6)]
 )
+#: Extra neutral-axis depths per meridian, evenly spaced in εt over the φ transition.
+_TRANSITION_POINTS = 13
 
 
 class DesignError(ValueError):
@@ -481,26 +494,80 @@ class ColumnCheck:
     note: str
 
 
+def _encloses_origin(polygon: np.ndarray) -> bool:
+    """True when the closed polygon (rows x, y) winds around the origin."""
+    q = np.roll(polygon, -1, axis=0)
+    cross = polygon[:, 0] * q[:, 1] - polygon[:, 1] * q[:, 0]
+    return abs(float(np.arctan2(cross, (polygon * q).sum(axis=1)).sum())) > math.pi
+
+
 class InteractionSurface:
-    """The φ-factored P-Mx-My interaction surface of a column section (compression positive)."""
+    """The φ-factored P-Mx-My interaction surface of a column section (compression positive).
+
+    Meridians (φPn, φMnx, φMny over the neutral-axis depth) are computed with concreteproperties
+    at neutral-axis angles :data:`_STEP` apart: over a quadrant with |Mx|, |My| for a doubly
+    symmetric bar layout, over the full turn with signed moments for any other. Every meridian
+    is sampled at the same depth ratios k = c / d_t (d_t: depth of the extreme tension bar), so
+    the same rows share εt = 0.003 (1/k - 1) and with it φ. Meridians between the computed ones
+    are interpolated linearly, row by row: φ is the same along such an interpolation, so the
+    inward bends that φ puts into the factored contour at a given Pu are followed rather than
+    cut by chords. The contour at Pu joins the cuts of all meridians.
+    """
 
     def __init__(self, section: RcSection) -> None:
-        from concreteproperties.utils import calculate_extreme_fibre
-
         self.section = section
-        cp = section.analysis
-        points = cp.compound_geometry.points
-        # Quadrants of neutral-axis angles: one suffices for a doubly symmetric bar layout.
-        offsets = [0.0] if section.symmetric else [0.0, math.pi / 2, math.pi, -math.pi / 2]
-        self.quadrants: list[list[np.ndarray]] = []
-        for offset in offsets:
-            meridians = []
-            for angle in _QUADRANT + offset:
-                theta = math.atan2(math.sin(angle), math.cos(angle))
-                _, d_t = calculate_extreme_fibre(points=points, theta=theta)
-                rows = [self._point(theta, d_n) for d_n in [*(_DEPTHS * d_t), math.inf]]
-                meridians.append(np.array(rows))
-            self.quadrants.append(meridians)
+        self.symmetric = section.symmetric
+        span = math.pi / 2 if self.symmetric else 2 * math.pi
+        steps = round(span / _STEP)
+        angles = sorted({*(k * span / steps for k in range(steps + 1)), *self._switches(span)})
+        angles = [a for k, a in enumerate(angles) if k == 0 or a - angles[k - 1] > 1e-4]
+        eps_ty = section.fy / section.es
+        # Depth ratios of the φ transition (ACI Table 21.2.2), both ends included: φ bends the
+        # factored diagram inwards at εty and at εty + 0.003, and in between it may curve the
+        # wrong way, so chords there need closely spaced points.
+        transition = EPS_CU / (EPS_CU + eps_ty + EPS_CU * np.linspace(0, 1, _TRANSITION_POINTS))
+        ratios = np.unique(np.concatenate([_DEPTHS, transition]))
+        computed = angles if self.symmetric else angles[:-1]  # the full turn: 2π is 0
+        base = np.array([self._meridian(a, ratios) for a in computed])
+        if not self.symmetric:
+            base = np.concatenate([base, base[:1]])
+        self._meridians = self._interpolate(base)
+
+    def _switches(self, span: float) -> list[float]:
+        """Neutral-axis angles in [0, ``span``) at which the extreme tension bar changes: parallel
+        to an edge of the bars' convex hull. The meridians kink there, so they are computed."""
+        from shapely.geometry import MultiPoint
+
+        hull = MultiPoint([(b.x, b.y) for b in self.section.bars]).convex_hull
+        if hull.geom_type != "Polygon":
+            return []
+        xy = np.asarray(hull.exterior.coords)
+        edges = np.diff(xy, axis=0)
+        angles = np.arctan2(edges[:, 1], edges[:, 0])
+        both = np.concatenate([angles, angles + math.pi]) % (2 * math.pi)
+        return [float(a) for a in both if a < span]
+
+    def _interpolate(self, base: np.ndarray) -> np.ndarray:
+        """:data:`_SUBDIVISIONS` meridians per computed span, linear in the angle row by row
+        (the closing meridian of a quadrant kept, of the full turn dropped: it is the first)."""
+        s = np.linspace(0, 1, _SUBDIVISIONS, endpoint=False)[:, None, None]
+        fine = (base[:-1, None] + s * (base[1:, None] - base[:-1, None])).reshape(
+            -1, *base.shape[1:]
+        )
+        return np.concatenate([fine, base[-1:]]) if self.symmetric else fine
+
+    def _meridian(self, angle: float, ratios: np.ndarray) -> np.ndarray:
+        """Rows (φPn, φMnx, φMny) [N, N·mm] at the depth ratios, then at infinite depth."""
+        from concreteproperties.utils import calculate_extreme_fibre, global_to_local
+
+        section = self.section
+        points = section.analysis.compound_geometry.points
+        theta = math.atan2(math.sin(angle), math.cos(angle))
+        fibre, _ = calculate_extreme_fibre(points=points, theta=theta)
+        _, fibre_v = global_to_local(theta=theta, x=fibre[0], y=fibre[1])
+        # Depth of the extreme tension bar, the one εt is measured at.
+        d_bar = max(fibre_v - global_to_local(theta=theta, x=b.x, y=b.y)[1] for b in section.bars)
+        return np.array([self._point(theta, d_n) for d_n in [*(ratios * d_bar), math.inf]])
 
     def _point(self, theta: float, d_n: float) -> list[float]:
         from concreteproperties.results import UltimateBendingResults
@@ -513,50 +580,56 @@ class InteractionSurface:
         k_u = result.k_u if result.k_u else math.inf
         eps_t = EPS_CU * (1 / k_u - 1) if math.isfinite(d_n) else -EPS_CU
         phi = phi_axial_flexure(eps_t, self.section.fy, self.section.es, self.section.spiral)
-        return [phi * result.n, phi * abs(result.m_x), phi * abs(result.m_y)]
+        mx, my = phi * result.m_x, phi * result.m_y
+        if self.symmetric:
+            mx, my = abs(mx), abs(my)
+        return [phi * result.n, mx, my]
+
+    def contour(self, pu: float) -> np.ndarray | None:
+        """The closed contour (φMnx, φMny) [N·mm] at axial force ``pu`` [N], anticlockwise, or
+        None if some meridian never reaches ``pu``. On each meridian the crossing nearest the
+        origin is taken."""
+        m = self._meridians
+        lo, hi = m[:, :-1, 0] - pu, m[:, 1:, 0] - pu
+        hit = (lo == 0) | (lo * hi < 0)
+        if not hit.any(axis=1).all():
+            return None
+        t = np.where(hit, lo / np.where(hit & (lo != hi), lo - hi, 1.0), 0.0)
+        points = m[:, :-1, 1:] + t[..., None] * (m[:, 1:, 1:] - m[:, :-1, 1:])
+        reach = np.where(hit, np.hypot(points[..., 0], points[..., 1]), np.inf)
+        contour = points[np.arange(len(m)), np.argmin(reach, axis=1)]
+        if not self.symmetric:
+            return contour
+        # A quadrant, reflected into the other three (a reflection in one axis reverses it).
+        return np.concatenate(
+            [contour, contour[::-1] * [-1, 1], contour * [-1, -1], contour[::-1] * [1, -1]]
+        )
 
     def moment_capacity(self, pu: float, angle: float) -> float:
         """φMn [N·mm] at axial force ``pu`` [N] in the direction ``angle`` (rad, 0 … π/2, from
-        the x axis) of the moment vector (|Mx|, |My|); the least over the quadrants."""
-        return min(self._quadrant_capacity(q, pu, angle) for q in self.quadrants)
-
-    @staticmethod
-    def _quadrant_capacity(meridians: list[np.ndarray], pu: float, angle: float) -> float:
-        contour = []
-        for m in meridians:
-            n, mx, my = m[:, 0], m[:, 1], m[:, 2]
-            best: tuple[float, float] | None = None
-            for k in range(len(n) - 1):
-                lo, hi = n[k] - pu, n[k + 1] - pu
-                if lo == 0 or lo * hi < 0:
-                    t = 0.0 if lo == 0 else lo / (lo - hi)
-                    point = (mx[k] + t * (mx[k + 1] - mx[k]), my[k] + t * (my[k + 1] - my[k]))
-                    if best is None or math.hypot(*point) < math.hypot(*best):
-                        best = point
-            if best is None:
-                return 0.0  # the axial force is beyond this meridian
-            contour.append(best)
-        contour.sort(key=lambda p: math.atan2(p[1], p[0]))
-        angles = [math.atan2(p[1], p[0]) for p in contour]
-        u = np.array([math.cos(angle), math.sin(angle)])
-        if angle <= angles[0]:
-            return float(np.dot(contour[0], u)) if angles[0] > 1e-9 else math.hypot(*contour[0])
-        if angle >= angles[-1]:
-            return math.hypot(*contour[-1])
-        for (a0, p0), (a1, p1) in zip(
-            zip(angles, contour, strict=True),
-            zip(angles[1:], contour[1:], strict=True),
-            strict=True,
-        ):
-            if a0 <= angle <= a1:
-                # Ray t·u meets the chord p0 + s (p1 - p0).
-                p0v, d = np.array(p0), np.array(p1) - np.array(p0)
-                matrix = np.column_stack([u, -d])
-                if abs(np.linalg.det(matrix)) < 1e-12:
-                    return math.hypot(*p0)
-                t, _ = np.linalg.solve(matrix, p0v)
-                return float(t)
-        return math.hypot(*contour[-1])
+        the x axis) of the moment vector (|Mx|, |My|): the least over the four signs of the
+        moments, each the distance from the origin to the nearest crossing of the contour. 0 if
+        the axial force is beyond a meridian or the contour does not enclose the origin (e.g.
+        tension on unsymmetric bars, whose resultant is off the centroid)."""
+        p = self.contour(pu)
+        if p is None or not _encloses_origin(p):
+            return 0.0
+        d = np.roll(p, -1, axis=0) - p
+        c, s = math.cos(angle), math.sin(angle)
+        signs = ((1, 1),) if self.symmetric else ((1, 1), (-1, 1), (-1, -1), (1, -1))
+        least = math.inf
+        for sx, sy in signs:
+            u = (sx * c, sy * s)
+            det = d[:, 0] * u[1] - d[:, 1] * u[0]
+            ok = np.abs(det) > 1e-12 * np.maximum(1.0, (d * d).sum(axis=1))
+            safe = np.where(ok, det, 1.0)
+            t = (p[:, 1] * d[:, 0] - p[:, 0] * d[:, 1]) / safe  # ray t·u = p + r (q - p)
+            r = (u[0] * p[:, 1] - u[1] * p[:, 0]) / safe
+            ok &= (t >= 0) & (r >= -1e-12) & (r <= 1 + 1e-12)
+            if not ok.any():
+                return 0.0
+            least = min(least, float(t[ok].min()))
+        return least
 
     def check(self, pu: float, mux: float, muy: float) -> ColumnCheck:
         """Utilisation of a demand (Pu compression positive [N], Mux, Muy [N·mm])."""
@@ -567,6 +640,11 @@ class InteractionSurface:
         if pu < -s.phi_tension:
             return ColumnCheck(-pu / s.phi_tension, 0.0, mu, "tension exceeds φ fy Ast")
         if mu <= 0:
+            if not self.symmetric and pu < 0:
+                p = self.contour(pu)
+                if p is not None and not _encloses_origin(p):
+                    note = "axial force only: at the centroid it is outside the surface"
+                    return ColumnCheck(math.inf, 0.0, 0.0, note)
             axial = pu / s.phi_pn_max if pu >= 0 else -pu / s.phi_tension
             return ColumnCheck(axial, 0.0, 0.0, "axial force only")
         capacity = self.moment_capacity(pu, math.atan2(abs(muy), abs(mux)))

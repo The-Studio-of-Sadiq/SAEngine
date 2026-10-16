@@ -9,7 +9,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
+from concreteproperties.results import UltimateBendingResults
 from test_fem_derive import OBJECTS, PLAN, SETTINGS
 
 from saengine.design import design, design_report
@@ -218,6 +220,149 @@ def test_tied_column_axial_and_interaction_point_by_hand() -> None:
     assert point.utilisation == pytest.approx(1.0, rel=0.03)
     diagonal = surface.check(phi * pn, phi * mn / math.sqrt(2), phi * mn / math.sqrt(2))
     assert diagonal.utilisation > point.utilisation
+
+
+@pytest.mark.parametrize(
+    ("width", "depth", "count", "dia", "fc", "fy"),
+    [(400, 400, 8, 20, 28, 420), (300, 600, 10, 25, 35, 500), (500, 350, 12, 16, 25, 420)],
+)
+def test_interaction_surface_is_never_outside_the_exact_curve(
+    width: float, depth: float, count: int, dia: float, fc: float, fy: float
+) -> None:
+    # The φ-factored diagram bends inwards where φ leaves 0.65 (εt = εty) and reaches 0.90
+    # (εt = εty + 0.003): chords across those corners would pass outside the true curve. At
+    # every exact point of the strong- and weak-axis meridians (concreteproperties at that
+    # neutral axis, φ from its εt), the interpolated capacity is at most 0.2 % larger.
+    from concreteproperties.utils import calculate_extreme_fibre
+
+    reinforcement = LinearReinforcement.model_validate(
+        {
+            "material": "B420DWR",
+            "cover": 40,
+            "longitudinal": [{"position": "perimeter", "count": count, "dia": dia}],
+            "transverse": {"type": "tie", "dia": 10, "spacing": 150},
+        }
+    )
+    section = section_of(RectangleProfile(xDim=width, yDim=depth), reinforcement, fc, fy)
+    surface = InteractionSurface(section)
+    points = section.analysis.compound_geometry.points
+    eps_ty = fy / 200_000
+    in_transition = 0
+    for theta, along in ((0.0, 0), (math.pi / 2, 1)):
+        _, d_t = calculate_extreme_fibre(points=points, theta=theta)
+        for d_n in np.linspace(0.05, 1.3, 120) * d_t:
+            result = section.analysis.calculate_ultimate_section_actions(
+                d_n=float(d_n),
+                ultimate_results=UltimateBendingResults(
+                    default_units=section.analysis.default_units, theta=theta
+                ),
+            )
+            eps_t = 0.003 * (1 / result.k_u - 1)
+            phi = phi_axial_flexure(eps_t, fy)
+            pu = phi * result.n
+            exact = phi * abs((result.m_x, result.m_y)[along])
+            if not -section.phi_tension < pu < section.phi_pn_max or exact < 1e6:
+                continue
+            in_transition += eps_ty < eps_t < eps_ty + 0.003
+            capacity = surface.moment_capacity(pu, along * math.pi / 2)
+            assert capacity <= exact * 1.002, (theta, d_n, pu / 1e3)
+    assert in_transition > 20
+
+
+def _column(width: float, depth: float, groups: list[dict]) -> InteractionSurface:
+    reinforcement = LinearReinforcement.model_validate(
+        {
+            "material": "B420DWR",
+            "cover": 40,
+            "longitudinal": groups,
+            "transverse": {"type": "tie", "dia": 10, "spacing": 150},
+        }
+    )
+    profile = RectangleProfile(xDim=width, yDim=depth)
+    return InteractionSurface(section_of(profile, reinforcement, 28, 420))
+
+
+def _exact(surface: InteractionSurface, degrees: float, d_n: float) -> tuple[float, float, float]:
+    """φPn, φMnx, φMny [N, N·mm] of the section at that neutral axis, φ from its εt."""
+    cp = surface.section.analysis
+    result = cp.calculate_ultimate_section_actions(
+        d_n=d_n,
+        ultimate_results=UltimateBendingResults(
+            default_units=cp.default_units, theta=math.radians(degrees)
+        ),
+    )
+    phi = phi_axial_flexure(0.003 * (1 / result.k_u - 1), surface.section.fy)
+    return phi * result.n, phi * result.m_x, phi * result.m_y
+
+
+@pytest.mark.parametrize(
+    ("width", "depth", "groups", "angles"),
+    [
+        # Doubly symmetric: one quadrant of neutral-axis angles, all between computed meridians.
+        (600, 300, [{"position": "perimeter", "count": 4, "dia": 32}], np.arange(1.25, 90, 5)),
+        # Unsymmetric (different top and bottom bars, side bars): the full turn.
+        (
+            350,
+            700,
+            [
+                {"position": "top", "count": 3, "dia": 20},
+                {"position": "bottom", "count": 5, "dia": 28},
+                {"position": "sides", "count": 2, "dia": 16},
+            ],
+            np.arange(2.5, 360, 10),
+        ),
+    ],
+)
+def test_interaction_surface_between_meridians_is_never_outside_the_exact_surface(
+    width: float, depth: float, groups: list[dict], angles: np.ndarray
+) -> None:
+    # Biaxial demands: exact points at neutral-axis angles off the computed meridians. Where φ
+    # changes along the contour at a given Pu, chords between meridians 15° apart overstated the
+    # capacity by up to 1.4 % (600 x 300, 4 Ø32, neutral axis at 100°). The bound is 0.4 %: the
+    # largest found over nine sections was 0.35 %, where the contour runs almost along the
+    # demand ray and a tiny shift of the moment's direction changes the radial capacity most.
+    from concreteproperties.utils import calculate_extreme_fibre
+
+    surface = _column(width, depth, groups)
+    s = surface.section
+    points = s.analysis.compound_geometry.points
+    probes = [(100.0, 305.0)]  # the reviewer's worst point (1.37 % before)
+    for degrees in angles:
+        _, d_t = calculate_extreme_fibre(points=points, theta=math.radians(degrees))
+        probes += [(float(degrees), float(d_n)) for d_n in np.geomspace(0.1, 1.3, 14) * d_t]
+    checked = 0
+    for degrees, d_n in probes:
+        pu, mx, my = _exact(surface, degrees, d_n)
+        m = math.hypot(mx, my)
+        if not -s.phi_tension < pu < s.phi_pn_max or m < 0.05 * 1e6 * width * depth / 1e4:
+            continue
+        capacity = surface.moment_capacity(pu, math.atan2(abs(my), abs(mx)))
+        assert capacity <= m * 1.004, (degrees, d_n, pu / 1e3, capacity / m)
+        checked += 1
+    assert checked > 0.6 * len(probes)
+
+
+def test_unsymmetric_column_in_tension_reads_signed_moments() -> None:
+    # 2 Ø16 top, 4 Ø25 bottom. Under tension the bars' resultant lies below the centroid, so
+    # the contour at Pu is off the origin: on the hogging meridian the moment changes sign. The
+    # absolute moments used to fold it back, overstating the hogging capacity 2.2 times.
+    surface = _column(
+        300,
+        500,
+        [{"position": "top", "count": 2, "dia": 16}, {"position": "bottom", "count": 4, "dia": 25}],
+    )
+    assert not surface.section.symmetric
+    pu, mx, _ = _exact(surface, 180.0, 50.0)
+    assert pu == pytest.approx(-144e3, rel=0.01) and mx == pytest.approx(-41.96e6, rel=0.01)
+    assert surface.moment_capacity(pu, 0.0) <= abs(mx) * 1.004
+    # Factored tension at zero moment about the centroid: at most both rows yielding with the
+    # resultant at the centroid, 0.9 (Ftop + Fbottom) with Ftop · 194 = Fbottom · 187.5, top
+    # 402 mm² at 420 MPa: 0.9 × (169 + 175) = 310 kN (less with concrete in compression).
+    assert surface.check(-250e3, 0.0, 0.0).utilisation < 1
+    assert surface.check(-400e3, 0.0, 0.0).utilisation == math.inf
+    assert surface.check(-400e3, 1e6, 0.0).utilisation == math.inf
+    # Old behaviour: φ fy Ast = 894 kN, so the axial utilisation alone looked like 0.45.
+    assert surface.section.phi_tension == pytest.approx(894e3, rel=1e-3)
 
 
 # ─────────────────────────────── the analysed one-bay frame ───────────────────────────────

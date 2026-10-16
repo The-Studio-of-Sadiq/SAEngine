@@ -46,9 +46,10 @@ from saengine.library.bim import (
     ColumnElement,
     MemberElement,
     SlabElement,
+    WallElement,
 )
 from saengine.library.materials import Category, MaterialLibrary
-from saengine.library.objects import Beam, Column, ObjectLibrary, Slab
+from saengine.library.objects import Beam, Column, ObjectLibrary, Slab, Wall
 from saengine.library.settings import ProjectSettings
 
 METHOD = [
@@ -337,6 +338,8 @@ def _design_slabs(
             )
         )
 
+    supports_at = _line_supports(building, types, [c[4] for c in candidates])
+
     for slab_id, type_id, outline, axes, level in candidates:
         object_type = types.get(type_id)
 
@@ -389,10 +392,13 @@ def _design_slabs(
                     name=e.get("name") or str(e["id"]),
                     points=slab.integration_points(points, len(rows[0])),
                     forces=[slab.slab_forces(r, shell_axes, axes) for r in rows],
+                    areas=slab.integration_areas(points, len(rows[0])),
                 )
             )
 
-        context = slab.SlabContext(boundary=outline)
+        context = slab.SlabContext(
+            boundary=outline, axes=axes, supports=supports_at.get(round(level), [])
+        )
         flat = object_type.system == "flat"
         context.columns = _slab_columns(
             building, types, pieces, outline, level, notes if flat else []
@@ -446,10 +452,43 @@ def _design_slabs(
                 "checks": checks,
                 "utilisation": max((c["utilisation"] for c in strength), default=0.0),
                 "ok": all(c["ok"] for c in strength),
+                "strips": [_strip_outline(strip, axes) for strip in context.strips],
             }
         )
         notes += [f"{slab_id}: {note}" for note in context.notes]
     return True
+
+
+def _line_supports(
+    building: BuildingModel, types: dict[str, Any], slab_levels: list[float]
+) -> dict[float, list[slab.LineSupport]]:
+    """The beams and structural walls supporting the slabs at each of ``slab_levels`` [mm]
+    (keyed by the rounded level): the support lines of the slabs' design strips. A beam
+    supports the slabs at its level; a wall those at its top and those it runs through, not a
+    slab it stands on (its bottom at the slab's level, e.g. on a transfer slab)."""
+    supports_at: dict[float, list[slab.LineSupport]] = {}
+    for element in building.elements:
+        support_type = types.get(element.type)
+        if isinstance(element, BeamElement):
+            levels = [element.elevation]
+            width = float(getattr(getattr(support_type, "profile", None), "xDim", 0.0) or 0.0)
+        elif isinstance(element, WallElement) and isinstance(support_type, Wall):
+            if not support_type.structural:
+                continue
+            levels = [at for at in slab_levels if element.bottom + 1 < at < element.top + 1]
+            width = float(support_type.thickness)
+        else:
+            continue
+        for at in dict.fromkeys(round(level) for level in levels):
+            supports_at.setdefault(at, []).append(
+                slab.LineSupport(
+                    element.id,
+                    (float(element.start[0]), float(element.start[1])),
+                    (float(element.end[0]), float(element.end[1])),
+                    width,
+                )
+            )
+    return supports_at
 
 
 def _slab_columns(
@@ -509,6 +548,28 @@ def _slab_columns(
             joint.moments.append(moment * 1e3)  # N·mm
         joints.append(joint)
     return joints
+
+
+def _strip_outline(strip: Any, axes: Any) -> dict[str, Any]:
+    """A design strip's bay for the report: ``{"name", "direction", "kind", "outline"}`` with
+    the plan corners of the bay in metres (global X, Y)."""
+    frame = slab.PlanFrame(axes)
+    along = strip.direction == "X"
+    corners = []
+    for a, b in (
+        (strip.start, strip.lo),
+        (strip.end, strip.lo),
+        (strip.end, strip.hi),
+        (strip.start, strip.hi),
+    ):
+        point = frame.plan(a, b) if along else frame.plan(b, a)
+        corners.append([round(float(point[0]) / 1e3, 4), round(float(point[1]) / 1e3, 4)])
+    return {
+        "name": strip.name,
+        "direction": strip.direction,
+        "kind": strip.kind,
+        "outline": corners,
+    }
 
 
 # ─────────────────────────────────────── demands ───────────────────────────────────────

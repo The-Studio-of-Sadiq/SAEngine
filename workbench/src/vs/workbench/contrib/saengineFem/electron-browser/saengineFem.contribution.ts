@@ -33,7 +33,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'string',
 			default: '',
 			scope: ConfigurationScope.MACHINE_OVERRIDABLE,
-			markdownDescription: localize('saengine.python.path', "Python 3.12 interpreter with the `saengine` and `opensees-studio` packages installed. When empty, the `.venv` next to the SAEngine sources is used."),
+			markdownDescription: localize('saengine.python.path', "Python 3.12 interpreter with the `saengine` and `opensees-studio` packages installed. When empty, an installed SAEngine uses its bundled Python (`resources/python`), and SAEngine run from the sources uses the `.venv` next to them."),
 		},
 	},
 });

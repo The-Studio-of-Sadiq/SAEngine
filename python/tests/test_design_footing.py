@@ -138,6 +138,18 @@ def by_name(checks: list[dict]) -> dict[str, dict]:
     return {c["name"]: c for c in checks}
 
 
+def test_effective_depths_of_the_two_layers() -> None:
+    t20 = BarMesh(dia=20, spacing=150)
+    spec = square_footing(bottom_x=t20, top_x=T16, top_y=t20)
+    # X outer: 500 - 75 - 10; Y on the X bars: 500 - 75 - 20 - 8; punching the mean.
+    assert spec.depths() == {"u": 415, "v": 397} and spec.d == 406
+    assert spec.depths("top") == {"u": 417, "v": 399}
+    # One direction without bars: the other layer lies against the cover, and is used for both.
+    assert square_footing(bottom_y=None).depths() == {"u": 417, "v": 417}
+    assert square_footing(bottom_x=None).depths() == {"u": 417, "v": 417}
+    assert square_footing(bottom_x=None, bottom_y=None).d == 425
+
+
 def test_punching_one_way_shear_and_flexure_by_hand() -> None:
     spec = square_footing()
     pu = 1200 * KN
@@ -145,8 +157,11 @@ def test_punching_one_way_shear_and_flexure_by_hand() -> None:
         spec, {}, {"1.2D + 1.6L": [np.array([pu, 0.0, 0.0])]}, Foundation()
     )
     checks = by_name(checks)
-    d = 500 - 75 - 16
-    assert spec.d == d
+    # X bars the outer layer, Y bars on them (as in slabs); punching takes the mean depth.
+    d_x, d_y = 500 - 75 - 16 / 2, 500 - 75 - 16 - 16 / 2
+    assert spec.depths() == {"u": d_x, "v": d_y}
+    d = (d_x + d_y) / 2
+    assert spec.d == d == 500 - 75 - 16
     q = pu / 1800**2
     lambda_s = math.sqrt(2 / (1 + 0.004 * d))
 
@@ -160,24 +175,29 @@ def test_punching_one_way_shear_and_flexure_by_hand() -> None:
     assert punching["capacity"] == pytest.approx(phi_vc * b0 * d / KN, rel=0.01)
     assert punching["utilisation"] == pytest.approx(vu / (b0 * d) / phi_vc, rel=0.01)
 
-    # One-way shear at d from the face: the 900 - 200 - d strip beyond it.
-    rho = math.pi * 16**2 / 4 * 1000 / 150 / (1000 * d)
-    vu1 = q * (900 - 200 - d) * 1800
-    phi_vc1 = 0.75 * 0.66 * lambda_s * rho ** (1 / 3) * 5 * 1800 * d
-    assert one_way_shear_capacity(1800, d, rho, 25) == pytest.approx(phi_vc1)
-    for name in ("One-way shear X", "One-way shear Y"):
-        assert checks[name]["demand"] == pytest.approx(vu1 / KN, rel=0.01)
-        assert checks[name]["capacity"] == pytest.approx(phi_vc1 / KN, rel=0.01)
+    # One-way shear at d from the face, each direction with its own layer's d: the
+    # 900 - 200 - d strip beyond it.
+    a_s = math.pi * 16**2 / 4 * 1000 / 150
+    for label, d_layer in (("X", d_x), ("Y", d_y)):
+        rho = a_s / (1000 * d_layer)
+        lam = math.sqrt(2 / (1 + 0.004 * d_layer))
+        vu1 = q * (900 - 200 - d_layer) * 1800
+        phi_vc1 = 0.75 * 0.66 * lam * rho ** (1 / 3) * 5 * 1800 * d_layer
+        assert one_way_shear_capacity(1800, d_layer, rho, 25) == pytest.approx(phi_vc1)
+        one_way = checks[f"One-way shear {label}"]
+        assert one_way["demand"] == pytest.approx(vu1 / KN, rel=0.005)
+        assert one_way["capacity"] == pytest.approx(phi_vc1 / KN, rel=0.005)
+        assert f"d = {d_layer:.0f} mm" in one_way["note"]
 
     # Flexure at the column face: q B l² / 2 per metre width, l = 700 mm.
     mu = q * 1800 * 700**2 / 2 / 1.8
-    a_s = math.pi * 16**2 / 4 * 1000 / 150
     a = a_s * 420 / (0.85 * 25 * 1000)
-    phi_mn = 0.9 * a_s * 420 * (d - a / 2)
-    for name in ("Flexure X (bottom)", "Flexure Y (bottom)"):
-        assert checks[name]["demand"] == pytest.approx(mu / 1e6, rel=0.01)
-        assert checks[name]["capacity"] == pytest.approx(phi_mn / 1e6, rel=0.01)
-        assert checks[name]["unit"] == "kN·m/m"
+    for label, d_layer in (("X", d_x), ("Y", d_y)):
+        phi_mn = 0.9 * a_s * 420 * (d_layer - a / 2)
+        flexure = checks[f"Flexure {label} (bottom)"]
+        assert flexure["demand"] == pytest.approx(mu / 1e6, rel=0.01)
+        assert flexure["capacity"] == pytest.approx(phi_mn / 1e6, rel=0.005)
+        assert flexure["unit"] == "kN·m/m"
 
     # Minimum steel: 0.0018 x 500 x 1000 = 900 mm²/m against 1340 provided.
     minimum = checks["Min. reinforcement X (bottom)"]
@@ -269,17 +289,27 @@ def test_combined_footing_resultant_and_hogging_between_columns_by_hand() -> Non
     assert top["demand"] == pytest.approx(hogging / 1e6, rel=0.01)
     assert top["capacity"] > 0 and "Punching at C1" in checks and "Punching at C2" in checks
     # Across the footing: a strip c + d wide under each column carries its load, Pu / B
-    # uniform across: M = Pu / B (900 - 200)² / 2 at the face, V at d from it.
+    # uniform across: M = Pu / B (900 - 200)² / 2 at the face, V at dY from it (the strip is
+    # c + d wide with the mean d; the Y bars are the inner layer).
     d = 600 - 75 - 16
+    d_y = 600 - 75 - 16 - 16 / 2
     strip = 400 + d
     transverse = checks["Flexure Y (bottom)"]
     assert transverse["demand"] == pytest.approx(pu / 1800 * 700**2 / 2 / strip / 1e3, rel=0.01)
     assert "transverse strip under C" in transverse["note"]
+    a_s = math.pi * 64 / 0.150
+    a = a_s * 420 / (0.85 * 25 * 1000)
+    assert transverse["capacity"] == pytest.approx(0.9 * a_s * 420 * (d_y - a / 2) / 1e6, rel=5e-3)
     shear = checks["One-way shear Y"]
-    assert shear["demand"] == pytest.approx(pu / 1800 * (700 - d) / KN, rel=0.01)
+    assert shear["demand"] == pytest.approx(pu / 1800 * (700 - d_y) / KN, rel=0.005)
     assert shear["capacity"] == pytest.approx(
-        one_way_shear_capacity(strip, d, math.pi * 64 / 0.150 / (1000 * d), 25) / KN, rel=0.01
+        one_way_shear_capacity(strip, d_y, a_s / (1000 * d_y), 25) / KN, rel=0.005
     )
+    # Top flexure between the columns: the top X bars are the outer top layer.
+    d_top_x = 600 - 75 - 16 / 2
+    a_top = 0.9 * a_s * 420 * (d_top_x - a / 2) / 1e6
+    assert spec.depths("top") == {"u": d_top_x, "v": d_y}
+    assert top["capacity"] == pytest.approx(a_top, rel=5e-3)
 
     # Unequal loads: the resultant of both columns about the centroid, by hand.
     service = {"D": [np.array([1000 * KN, 0, 0]), np.array([500 * KN, 0, 0])]}

@@ -51,13 +51,20 @@ export class FemAnalysisRunner {
 	) { }
 
 	/**
-	 * The interpreter set in `saengine.python.path`, else the repository `.venv` next to
-	 * the workbench sources (development layout).
+	 * The interpreter set in `saengine.python.path`; else, in an installed build, the Python
+	 * bundled by the installer at `<install>/resources/python` (the app root is
+	 * `<install>/resources/app`); else, running from sources, the repository `.venv` next to the
+	 * workbench folder. The renderer cannot check files, so the layout decides: an installed
+	 * build always carries its bundled Python (scripts/build-installer.ps1).
 	 */
 	resolvePython(): string {
 		const configured = this.configurationService.getValue<string>(FEM_PYTHON_SETTING)?.trim();
 		if (configured) {
 			return configured;
+		}
+		if (this.environmentService.isBuilt) {
+			const bundled = join(this.environmentService.appRoot, '..', 'python');
+			return isWindows ? join(bundled, 'python.exe') : join(bundled, 'bin', 'python3');
 		}
 		const venv = join(this.environmentService.appRoot, '..', '.venv');
 		return isWindows ? join(venv, 'Scripts', 'python.exe') : join(venv, 'bin', 'python');

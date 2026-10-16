@@ -97,8 +97,12 @@ FOOTING_METHOD = [
         "Combined footings across their length: a transverse strip of width c + d under each "
         "column carrying that column's load (ACI 336.2R practice), for flexure and one-way "
         "shear. λs (22.5.5.1.3) is applied although ACI 13.2.6.2 permits neglecting it for "
-        "footings. d = thickness - cover - bar diameter. Minimum reinforcement 0.0018 Ag "
-        "(ACI 7.6.1.1). Development lengths are not checked."
+        "footings. Effective depths to the centroid of each direction's bars (ACI 2.2), the X "
+        "bars the outer layer and the Y bars on them, as in slabs: dX = thickness - cover - "
+        "dbX/2, dY = thickness - cover - dbX - dbY/2 (the top mesh likewise from the top "
+        "face); flexure and one-way shear in each direction take its own layer's d, punching "
+        "and the transverse strips the mean of the two (ACI 22.6.2.1). Minimum reinforcement "
+        "0.0018 Ag (ACI 7.6.1.1). Development lengths are not checked."
     ),
 ]
 
@@ -403,15 +407,28 @@ class FootingSpec:
     unit_weight: float = 2400 * G * 1e-9  # N/mm³
     notes: list[str] = field(default_factory=list)
 
-    @property
-    def d(self) -> float:
-        bars = [m.dia for m in (self.bottom_x, self.bottom_y) if m]
-        return self.thickness - self.cover - (max(bars) if bars else 0.0)
+    def depths(self, face: str = "bottom") -> dict[str, float]:
+        """Effective depth [mm] of each direction's bars of a ``face``, by axis ("u" for the X
+        bars, "v" for the Y bars): to the centroid of that layer (ACI 318-19 2.2), the X bars
+        the outer layer and the Y bars on them, as in slabs (:func:`saengine.design.slab.
+        layers_of`). A direction without bars takes the other layer's depth (the cover depth
+        without any bars)."""
+        bottom = face == "bottom"
+        outer, inner = (self.bottom_x, self.bottom_y) if bottom else (self.top_x, self.top_y)
+        base = self.thickness - self.cover
+        d_outer = base - outer.dia / 2 if outer else None
+        d_inner = base - (outer.dia if outer else 0.0) - inner.dia / 2 if inner else None
+        return {
+            "u": d_outer if d_outer is not None else (d_inner if d_inner is not None else base),
+            "v": d_inner if d_inner is not None else (d_outer if d_outer is not None else base),
+        }
 
     @property
-    def d_top(self) -> float:
-        bars = [m.dia for m in (self.top_x, self.top_y) if m]
-        return self.thickness - self.cover - (max(bars) if bars else 0.0)
+    def d(self) -> float:
+        """Effective depth for two-way shear: the mean of the two bottom layers' (ACI
+        22.6.2.1)."""
+        depths = self.depths("bottom")
+        return (depths["u"] + depths["v"]) / 2
 
 
 Loads = dict[str, list[np.ndarray]]
@@ -643,6 +660,7 @@ def design_footing(
         shear, moment, point, span = _beam(beam_spec, pressure, loads, axis, weight)
         across = beam_spec.width if axis == "u" else beam_spec.length
         bottom, top = meshes[axis]
+        d = beam_spec.depths("bottom")[axis]  # this direction's own layer
         where = (
             f"transverse strip under {strip_of}, b = c + d = {across:.0f} mm (ACI 336.2R); "
             if strip_of
@@ -706,7 +724,7 @@ def design_footing(
         hogging = max(-hog[0], 0.0) * per_m
         between = combined and axis == long_axis
         if between or hogging > 1e6:  # 1 kN·m/m: a hogging moment worth top bars
-            d_top = spec.d_top
+            d_top = spec.depths("top")[axis]
             note = f"{where}at {label.lower()} = {hog[1]:.0f} mm"
             if not between:
                 note += (
@@ -1114,7 +1132,7 @@ def footing_checks(
             top_y=reinforcement.topY,
             unit_weight=density * G * 1e-9,
         )
-        if spec.d <= 0:
+        if min(spec.depths("bottom").values()) <= 0:
             skip("the cover and bars leave no effective depth")
             continue
 

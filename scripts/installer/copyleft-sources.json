@@ -1,0 +1,41 @@
+{
+  "_comment": "Upstream source archives of the copyleft components shipped as binaries (GPL, LGPL, MPL). scripts/installer/fetch-sources.ps1 downloads them, checks the SHA-256 and copies them to dist/ next to the setup, to be published from the same place as the setup (GPL-2.0 section 3, GPL-3.0/LGPL-3.0 section 6(d), MPL-2.0 section 3.2(a)). Keep 'version' equal to what ships: constraints.txt for Python packages, packages/fem-viewer/package.json for web-ifc. Bump url, file and sha256 together.",
+  "sources": [
+    {
+      "name": "gmsh",
+      "version": "4.15.2",
+      "license": "GPL-2.0-or-later",
+      "ships": "resources/python/Lib/site-packages (gmsh.dll, gmsh.py)",
+      "file": "gmsh-4.15.2-source.tgz",
+      "url": "https://gmsh.info/src/gmsh-4.15.2-source.tgz",
+      "sha256": "be3f66f225d27ba9fa014f07e83169285da8a051b0e8ab7103d88066b39bdd3e"
+    },
+    {
+      "name": "ifcopenshell",
+      "version": "0.9.0",
+      "license": "LGPL-3.0-or-later",
+      "ships": "resources/python/Lib/site-packages/ifcopenshell",
+      "file": "IfcOpenShell-ifcopenshell-python-0.9.0.tar.gz",
+      "url": "https://github.com/IfcOpenShell/IfcOpenShell/archive/refs/tags/ifcopenshell-python-0.9.0.tar.gz",
+      "sha256": "0909b0f1fd8f13168bacb47a316afe0caaf360fc67191b6cd87cb2da1bc803bc"
+    },
+    {
+      "name": "cytriangle",
+      "version": "3.0.2",
+      "license": "LGPL-3.0 (wraps Triangle by J. R. Shewchuk, which has its own licence)",
+      "ships": "resources/python/Lib/site-packages/cytriangle",
+      "file": "cytriangle-3.0.2.tar.gz",
+      "url": "https://github.com/m-clare/cytriangle/archive/refs/tags/v3.0.2.tar.gz",
+      "sha256": "d16a3e535ad066fe52eec204b3a784a827451109a2cb06ea5577c260694c76e8"
+    },
+    {
+      "name": "web-ifc",
+      "version": "0.0.77",
+      "license": "MPL-2.0",
+      "ships": "resources/app/node_modules.asar: @saengine/fem-viewer/dist (web-ifc.wasm and the bundled web-ifc-api)",
+      "file": "engine_web-ifc-0.77.tar.gz",
+      "url": "https://github.com/ThatOpen/engine_web-ifc/archive/refs/tags/0.77.tar.gz",
+      "sha256": "740d3a9ebd83f80f29912e3c70d17e33f0b09ea3be234cc50742e313891245a4"
+    }
+  ]
+}

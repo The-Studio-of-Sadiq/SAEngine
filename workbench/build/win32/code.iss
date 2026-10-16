@@ -1,17 +1,20 @@
 #define RootLicenseFileName FileExists(RepoDir + '\LICENSE.rtf') ? 'LICENSE.rtf' : 'LICENSE.txt'
+// SAEngine: the licence page shows the AGPL-3.0 LICENSE of the repository root (RepoDir is the
+// workbench folder), not the MIT licence of Code - OSS.
+#define RootLicenseFile FileExists(RepoDir + '\..\LICENSE') ? RepoDir + '\..\LICENSE' : RepoDir + '\' + RootLicenseFileName
 #define LocalizedLanguageFile(Language = "") \
     DirExists(RepoDir + "\licenses") && Language != "" \
       ? ('; LicenseFile: "' + RepoDir + '\licenses\LICENSE-' + Language + '.rtf"') \
-      : '; LicenseFile: "' + RepoDir + '\' + RootLicenseFileName + '"'
+      : '; LicenseFile: "' + RootLicenseFile + '"'
 
 [Setup]
 AppId={#AppId}
 AppName={#NameLong}
 AppVerName={#NameVersion}
-AppPublisher=Microsoft Corporation
-AppPublisherURL=https://code.visualstudio.com/
-AppSupportURL=https://code.visualstudio.com/
-AppUpdatesURL=https://code.visualstudio.com/
+AppPublisher=SAEngine contributors
+AppPublisherURL=https://github.com/princekhan7748/saengine
+AppSupportURL=https://github.com/princekhan7748/saengine/issues
+AppUpdatesURL=https://github.com/princekhan7748/saengine/releases
 DefaultGroupName={#NameLong}
 AllowNoIcons=yes
 OutputDir={#OutputDir}
@@ -74,8 +77,12 @@ Type: filesandordirs; Name: "{app}\{#VersionedResourcesFolder}\resources\app\nod
 Type: filesandordirs; Name: "{app}\{#VersionedResourcesFolder}\resources\app\node_modules.asar.unpacked"; Check: IsNotBackgroundUpdate
 Type: files; Name: "{app}\{#VersionedResourcesFolder}\resources\app\node_modules.asar"; Check: IsNotBackgroundUpdate
 Type: files; Name: "{app}\{#VersionedResourcesFolder}\resources\app\Credits_45.0.2454.85.html"; Check: IsNotBackgroundUpdate
+// SAEngine: an upgrade replaces the bundled Python whole, so no package of an older version stays.
+Type: filesandordirs; Name: "{app}\{#VersionedResourcesFolder}\resources\python"; Check: IsNotBackgroundUpdate
 
 [UninstallDelete]
+// SAEngine: the bundled Python (resources\python) may gain files at runtime (bytecode caches).
+Type: filesandordirs; Name: "{app}\{#VersionedResourcesFolder}\resources\python"
 Type: filesandordirs; Name: "{app}\_"
 Type: filesandordirs; Name: "{app}\bin"
 Type: files; Name: "{app}\old_*"

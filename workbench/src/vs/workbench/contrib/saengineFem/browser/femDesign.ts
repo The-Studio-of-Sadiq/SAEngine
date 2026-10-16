@@ -48,6 +48,23 @@ export interface IFemDesignElement {
 	/** The largest utilisation of its strength checks. */
 	readonly utilisation: number;
 	readonly ok: boolean;
+	/**
+	 * A slab's design strips (flexure and one-way shear are averaged across them), one bay each;
+	 * its flexure checks name the governing one in their notes.
+	 */
+	readonly strips?: readonly IFemDesignStrip[];
+}
+
+/** One bay of a slab's design strip (ACI 318-19 8.4.1.5: column and middle strips). */
+export interface IFemDesignStrip {
+	/** E.g. "X column strip on the line of C4, C5, C6 (y = 5.00 m)". */
+	readonly name: string;
+	/** The slab layers it designs: bars along the slab's local x or y. */
+	readonly direction: 'X' | 'Y';
+	/** "strip": a direction without a column grid, cut into strips at most 1 m wide. */
+	readonly kind: 'column' | 'middle' | 'strip';
+	/** Plan corners of the bay, metres (global X, Y). */
+	readonly outline: readonly (readonly [number, number])[];
 }
 
 export interface IFemDesignSkipped {

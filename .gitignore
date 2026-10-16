@@ -19,3 +19,10 @@ htmlcov/
 
 # Python packaging
 *.egg-info/
+
+# Installer build output (scripts/build-installer.ps1)
+/VSCode-win32-x64/
+/dist/
+
+# Verification pack output when run without --out
+/python/verification/

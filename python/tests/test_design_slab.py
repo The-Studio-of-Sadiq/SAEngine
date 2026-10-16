@@ -16,9 +16,15 @@ from test_fem_derive import OBJECTS, PLAN
 
 from saengine.design import design_report
 from saengine.design.slab import (
+    ColumnJoint,
+    LineSupport,
+    PlanFrame,
     ShellPoint,
     SlabContext,
+    Strip,
+    StripSection,
     critical_section,
+    design_strips,
     integration_points,
     layer_capacity,
     layers_of,
@@ -30,6 +36,8 @@ from saengine.design.slab import (
     shell_axes,
     slab_checks,
     slab_forces,
+    strip_average,
+    strip_weights,
     wood_armer,
 )
 from saengine.fem.derive import derive_fem
@@ -149,6 +157,175 @@ def test_max_spacing_of_one_way_distribution_bars() -> None:
     # Two-way: min(2h, 450) = 200 mm everywhere.
     spacing = _run("twoWay", 100, mesh, _one_point(5, 3))["Max. spacing"]
     assert not spacing["ok"] and spacing["capacity"] == 200
+
+
+def _grid(size: float, step: float, field) -> list[ShellPoint]:
+    """Square Q4 shells ``step`` [mm] over a ``size`` square slab, their 2 x 2 Gauss points
+    carrying ``field(x, y)`` -> (mx, my, mxy) [kN·m/m] (no shear)."""
+    shells = []
+    count = round(size / step)
+    for i in range(count):
+        for j in range(count):
+            corners = [
+                np.array([x, y, 0.0]) * step / 1e3
+                for x, y in ((i, j), (i + 1, j), (i + 1, j + 1), (i, j + 1))
+            ]
+            points = integration_points(corners, 4)
+            values = [[*(v * 1e3 for v in field(*p[:2] * 1e3)), 0.0, 0.0] for p in points]
+            shells.append(ShellPoint(len(shells) + 1, f"S1#{len(shells) + 1}", points, [values]))
+    for shell in shells:
+        shell.forces = [np.asarray(f, dtype=float) for f in shell.forces]
+    return shells
+
+
+SQUARE = [(0.0, 0.0), (4000.0, 0.0), (4000.0, 4000.0), (0.0, 4000.0)]
+
+
+def test_a_uniform_field_averages_to_its_pointwise_value() -> None:
+    shells = _grid(4000, 500, lambda x, y: (10.0, -4.0, 1.5))
+    context = SlabContext(boundary=SQUARE)
+    checks = slab_checks("twoWay", 150, planar(), 25, 420, 200000, shells, ["U"], context)
+    found = {c["name"]: c for c in checks}
+    expected = wood_armer(10.0, -4.0, 1.5)  # pointwise, the same everywhere
+    for k, name in enumerate(("bottom X", "bottom Y", "top X", "top Y")):
+        demand = found.get(f"Flexure {name} (Wood-Armer)", {"demand": 0.0})["demand"]
+        assert demand == pytest.approx(expected[k], abs=0.01)
+    # No columns: no grid, so 1 m strips each way, and a note that says so.
+    assert {s.kind for s in context.strips} == {"strip"}
+    assert all(s.width == pytest.approx(1000) for s in context.strips)
+    assert any("no column grid" in note for note in context.notes)
+
+
+def test_a_narrow_spike_is_averaged_over_the_strip_width_by_hand() -> None:
+    # Points 250 mm apart across a 1 m strip: each stands for 250 mm, a 20 kN·m/m spike on one
+    # of them averages to 20 x 250 / 1000 = 5.
+    strip = Strip("X", "strip", "test", 0.0, 1000.0, 0.0, 1000.0, 1000.0)
+    across = np.array([125.0, 375.0, 625.0, 875.0] * 2)
+    along = np.array([400.0] * 4 + [600.0] * 4)
+    values = np.where(across == 375.0, 20.0, 0.0)[:, None]
+    averages = strip_average(strip, along, across, values, 500.0)
+    assert averages and all(a[1][0] == pytest.approx(5.0) for a in averages)
+    # Uneven spacing: half way to the neighbours, and at most ``reach`` beyond the outermost.
+    weights = strip_weights(np.array([100.0, 300.0, 800.0]), 0.0, 1000.0, 500.0)
+    assert weights == pytest.approx([200.0, 350.0, 450.0])
+    weights = strip_weights(np.array([300.0, 300.0, 600.0]), 0.0, 1000.0, 100.0)
+    assert weights == pytest.approx([125.0, 125.0, 250.0])  # 200-450 shared, 450-700
+    # Through slab_checks: a 20 kN·m/m sagging spike along one 500 mm wide row of shells of a
+    # 4 m slab without a grid, in 1 m strips: 20 x 500 / 1000 = 10 kN·m/m.
+    shells = _grid(4000, 500, lambda x, y: (20.0 if 1000 < y < 1500 else 0.0, 0.0, 0.0))
+    found = {
+        c["name"]: c
+        for c in slab_checks(
+            "twoWay", 150, planar(), 25, 420, 200000, shells, ["U"], SlabContext(boundary=SQUARE)
+        )
+    }
+    assert found["Flexure bottom X (Wood-Armer)"]["demand"] == pytest.approx(10.0)
+    assert "X strip y = 1.00 to 2.00 m" in found["Flexure bottom X (Wood-Armer)"]["note"]
+
+
+def _columns(xs: list[float], ys: list[float]) -> list[ColumnJoint]:
+    return [
+        ColumnJoint(f"C{k + 1}", (x, y), 400, 400, 0.0)
+        for k, (y, x) in enumerate((y, x) for y in ys for x in xs)
+    ]
+
+
+def test_strip_geometry_of_a_two_by_two_bay_flat_slab_by_hand() -> None:
+    # Bays of 6 m along x and 4 m along y: column strips 0.25 min(l1, l2) = 1 m each side of
+    # a column line both ways (only the inside half at the edges), middle strips between, and
+    # bays from column face to column face (400 mm columns).
+    frame = PlanFrame(plan_axes())
+    columns = _columns([0, 6000, 12000], [0, 4000, 8000])
+    extent = (0.0, 12000.0, 0.0, 8000.0)
+    x = design_strips("X", frame, extent, columns, [], 500).strips
+    assert {(s.start, s.end, s.span) for s in x} == {(200, 5800, 6000), (6200, 11800, 6000)}
+    first = [(s.kind, s.lo, s.hi) for s in x if s.start == 200]
+    assert first == [
+        ("column", 0, 1000),
+        ("middle", 1000, 3000),
+        ("column", 3000, 5000),
+        ("middle", 5000, 7000),
+        ("column", 7000, 8000),
+    ]
+    assert x[2].name == "X column strip on the line of C4, C5, C6 (y = 4.00 m)"
+    y = design_strips("Y", frame, extent, columns, [], 500).strips
+    first = [(s.kind, s.lo, s.hi) for s in y if s.start == 200]
+    assert first == [
+        ("column", 0, 1000),
+        ("middle", 1000, 5000),
+        ("column", 5000, 7000),
+        ("middle", 7000, 11000),
+        ("column", 11000, 12000),
+    ]
+    # Square bays of 5 m (the flat slab of the analysed tests): 1.25 m each side.
+    square = design_strips(
+        "X", frame, (0, 10000, 0, 10000), _columns([0, 5000, 10000], [0, 5000, 10000]), [], 500
+    ).strips
+    assert [(s.kind, s.lo, s.hi) for s in square if s.start == 200] == [
+        ("column", 0, 1250),
+        ("middle", 1250, 3750),
+        ("column", 3750, 6250),
+        ("middle", 6250, 8750),
+        ("column", 8750, 10000),
+    ]
+    # A slab running 1.5 m past its last column line along the strips: the overhang is a bay
+    # of its own; across them (1.5 m past y = 10 m), the edge column strip reaches 1.25 m into
+    # the overhang and the last 0.25 m is a middle strip.
+    over = design_strips(
+        "X", frame, (0, 11500, 0, 11500), _columns([0, 5000, 10000], [0, 5000, 10000]), [], 500
+    ).strips
+    assert {(s.start, s.end) for s in over} == {(200, 4800), (5200, 9800), (10200, 11500)}
+    assert [(s.kind, s.lo, s.hi) for s in over if s.start == 200][-2:] == [
+        ("column", 8750, 11250),
+        ("middle", 11250, 11500),
+    ]
+
+
+@pytest.mark.parametrize("mesh", [500.0, 1000.0])
+def test_face_stations_keep_the_shear_of_an_interior_support(mesh: float) -> None:
+    # A 10 x 5 m slab on 300 mm beams along Y at x = 0, 5 and 10 m: two 5 m spans along X,
+    # the exact shear of a uniform load q = 1 (per mm): 3/8 q L at the outer supports and
+    # 5/8 q L either side of the inner one. Its face stations must not reach past the beam's
+    # centre line into the next span, where the shear has the other sign.
+    frame = PlanFrame(plan_axes())
+    beams = [LineSupport(f"B{k}", (x, 0.0), (x, 5000.0), 300) for k, x in enumerate((0, 5e3, 1e4))]
+    layout = design_strips("X", frame, (0, 10000, 0, 5000), [], beams, mesh)
+    assert layout.note and {(s.start, s.end, s.before, s.after) for s in layout.strips} == {
+        (150, 4850, 150, 150),
+        (5150, 9850, 150, 150),
+    }
+
+    def shear(x: np.ndarray) -> np.ndarray:
+        return np.where(x <= 5000, 1875 - x, (10000 - x) - 1875)
+
+    # The 2 x 2 Gauss points of square shells ``mesh`` wide, all of the same area.
+    g = mesh / 2 * (1 - 1 / math.sqrt(3))
+    rows = np.concatenate([[k * mesh + g, (k + 1) * mesh - g] for k in range(round(1e4 / mesh))])
+    cols = np.concatenate([[k * mesh + g, (k + 1) * mesh - g] for k in range(round(5e3 / mesh))])
+    along, across = (a.ravel() for a in np.meshgrid(rows, cols, indexing="ij"))
+    values = shear(along)[:, None]
+    strip = next(s for s in layout.strips if s.start == 150 and s.lo == 0)
+    averages = dict(strip_average(strip, along, across, values, mesh, areas=np.ones(len(along))))
+    assert averages[150][0] == pytest.approx(1725, rel=1e-6)
+    assert averages[4850][0] == pytest.approx(-2975, rel=1e-6)  # 1875 - 4850
+    # Without areas (points in rows, weighted by width across) the same.
+    averages = dict(strip_average(strip, along, across, values, mesh))
+    assert averages[4850][0] == pytest.approx(-2975, rel=1e-6)
+
+
+def test_a_wall_supports_the_slabs_at_its_top_not_one_it_stands_on() -> None:
+    from types import SimpleNamespace
+
+    from saengine.design.check import _line_supports
+    from saengine.library.bim import WallElement
+    from saengine.library.objects import Wall
+
+    wall = WallElement(id="W1", type="W", start=(0, 0), end=(5000, 0), bottom=3000, top=6000)
+    types = {"W": Wall(id="W", name="Wall", material="C25", thickness=200)}
+    found = _line_supports(SimpleNamespace(elements=[wall]), types, [3000.0, 4500.0, 6000.0])
+    # Standing on the slab at 3 m (a transfer slab): no support line there.
+    assert sorted(found) == [4500, 6000]
+    assert found[6000][0].width == 200 and found[6000][0].id == "W1"
 
 
 def test_punching_of_an_interior_and_an_edge_column_by_hand() -> None:
@@ -405,7 +582,7 @@ def test_one_way_slab_sags_along_its_span(one_way: dict) -> None:
         checks["Flexure bottom Y (Wood-Armer)"],
     )
     # Spanning 2.5 m along Y: the Y bars carry the sagging, at midspan (y = 1.25 m).
-    assert bottom_y["demand"] > 1.5 * bottom_x["demand"] > 0
+    assert bottom_y["demand"] > 1.4 * bottom_x["demand"] > 0
     assert bottom_y["combination"] == COMBINATION.name
     y = float(bottom_y["note"].split("at (")[1].split(",")[1].strip(" )m"))
     assert abs(y - 1.25) < 0.5, bottom_y["note"]
@@ -449,7 +626,7 @@ def test_slab_axes_follow_a_drawn_area_first_edge(
     plan = checks_of(one_way, "S1")
     span = turned["Flexure bottom X (Wood-Armer)"]["demand"]
     across = turned["Flexure bottom Y (Wood-Armer)"]["demand"]
-    assert span > 1.5 * across
+    assert span > 1.4 * across
     assert span == pytest.approx(plan["Flexure bottom Y (Wood-Armer)"]["demand"], rel=0.05)
     assert across == pytest.approx(
         plan["Flexure bottom X (Wood-Armer)"]["demand"], rel=0.05, abs=0.2
@@ -479,27 +656,30 @@ def test_slab_without_top_bars_fails_in_hogging(tmp_path_factory: pytest.TempPat
     assert report["summary"]["failed"] >= 1
 
 
-def flat_plan() -> FloorPlan:
-    """Two by two bays of 5 m, nine 400 x 400 columns, a flat slab and no beams."""
+def flat_plan(bays: int = 2) -> FloorPlan:
+    """``bays`` by ``bays`` bays of 5 m (two by default: nine columns), 400 x 400 columns, a
+    flat slab and no beams."""
+    xs, ys = "ABCDE"[: bays + 1], "12345"[: bays + 1]
     data = PLAN.model_dump(mode="json", by_alias=True)
     data["grids"] = {
-        "x": [{"label": k, "position": 5000.0 * i} for i, k in enumerate("ABC")],
-        "y": [{"label": k, "position": 5000.0 * i} for i, k in enumerate("123")],
+        "x": [{"label": k, "position": 5000.0 * i} for i, k in enumerate(xs)],
+        "y": [{"label": k, "position": 5000.0 * i} for i, k in enumerate(ys)],
     }
     data["columns"] = [
         {
-            "id": f"C{3 * j + i + 1}",
+            "id": f"C{(bays + 1) * j + i + 1}",
             "type": "COL",
             "at": {"x": x, "y": y},
             "base": "BASE",
             "top": "L1",
         }
-        for j, y in enumerate("123")
-        for i, x in enumerate("ABC")
+        for j, y in enumerate(ys)
+        for i, x in enumerate(xs)
     ]
     data["beams"] = []
+    first, last = (xs[0], ys[0]), (xs[-1], ys[-1])
     data["slabs"][0]["boundary"] = [
-        {"x": x, "y": y} for x, y in (("A", "1"), ("C", "1"), ("C", "3"), ("A", "3"))
+        {"x": x, "y": y} for x, y in (first, (last[0], first[1]), last, (first[0], last[1]))
     ]
     return FloorPlan.model_validate(data)
 
@@ -537,3 +717,129 @@ def test_flat_slab_punching_at_every_column(tmp_path_factory: pytest.TempPathFac
     assert 0.2 < shares[list(punching).index("C5")] * 1e3 / total < 0.45
     thickness = checks["Min. thickness (Table 8.3.1.1)"]
     assert thickness["flag"] and thickness["demand"] == pytest.approx((5000 - 400) / 30, rel=1e-3)
+
+
+def _static_moments(
+    sections: list[StripSection], start: float, end: float, lo: float, hi: float
+) -> tuple[float, float, float]:
+    """Of the X strips of the bay from ``start`` to ``end`` [mm], over the width from ``lo`` to
+    ``hi`` across: Σ width x (midspan + mean of the two face moments) [N·m], with the signed
+    strip moments (sagging - mean hogging), with the Wood-Armer ones (bottom + mean top), and
+    the hogging part alone (mean top)."""
+    signed = designed = hogging = 0.0
+    bay = [s for s in sections if s.strip.direction == "X" and s.strip.start == start]
+    for strip in dict.fromkeys(s.strip for s in bay):
+        width = (min(strip.hi, hi) - max(strip.lo, lo)) / 1e3  # m
+        if width <= 0:
+            continue
+        at = {s.at: s for s in bay if s.strip == strip}
+        stations = sorted(at)
+
+        def midspan(value: str, at: dict = at, stations: list = stations) -> float:
+            # Linear between the stations either side of midspan.
+            return float(
+                np.interp((start + end) / 2, stations, [getattr(at[k], value)[0] for k in stations])
+            )
+
+        a, b = at[start], at[end]
+        signed += width * (midspan("moment") - (a.moment[0] + b.moment[0]) / 2)
+        designed += width * (midspan("bottom") + (a.top[0] + b.top[0]) / 2)
+        hogging += width * (a.top[0] + b.top[0]) / 2
+    return signed, designed, hogging
+
+
+@pytest.mark.parametrize("mesh", [500, 1000])
+def test_strip_moments_of_an_interior_panel_add_up_to_the_static_moment(
+    tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch, mesh: float
+) -> None:
+    """Equilibrium (ACI 8.10.3.2) through the design itself (its strips, mesh estimate and
+    stations), at the tests' mesh and at the default 1 m: of the interior panel of a 3 x 3 bay
+    flat slab (half column strip + middle strip + half column strip across, between the column
+    faces along x), the strip averages of mx times their widths give midspan sagging + the
+    mean hogging at the two faces = M0 = qu l2 ln² / 8; the whole slab's width gives B ln² / 8,
+    which statics of the free body between the faces requires."""
+    from saengine.design import slab as slab_module
+
+    contexts: list[SlabContext] = []
+    original = slab_module.slab_checks
+
+    def capture(*args, **kwargs):
+        contexts.append(args[-1])
+        return original(*args, **kwargs)
+
+    slab = {"thickness": 200, "system": "flat", "reinforcement": planar(dia=12).model_dump()}
+    root = tmp_path_factory.mktemp("static")
+    building = generate(flat_plan(3), "s")
+    monkeypatch.setattr(slab_module, "slab_checks", capture)
+    report = analyse(root, building, objects(slab), shell_settings("Static", mesh))
+    assert any(e["id"] == "S1" for e in report["elements"]) and len(contexts) == 1
+    sections = contexts[0].sections
+
+    project = json.loads((root / "08 FEM" / "model.osmodel").read_text(encoding="utf-8"))
+    factors = {"D": 1.2, "SD": 1.2, "L": 1.6, "Lr": 1.6}
+    load = sum(
+        factors.get(p["name"], 0.0) * -sum(n["forces"][2] for n in p["nodal_loads"])
+        for p in project["load_patterns"]
+        if p["type"] == "Plain"
+    )
+    qu = load / 15.0**2  # N/m²
+    m0 = qu * 5.0 * 4.6**2 / 8  # one panel
+    # The whole width (three panels): a statics identity, short only by the sampling of the
+    # face moments at points near (not at) the faces.
+    whole, _, _ = _static_moments(sections, 5200, 9800, 0, 15000)
+    signed, designed, hogging = _static_moments(sections, 5200, 9800, 5000, 10000)
+    # Measured: 0.965 (mesh 500) and 0.975 (1000).
+    assert 0.93 * 3 * m0 < whole < 1.03 * 3 * m0
+    # The interior panel (its two half column strips at their strips' averages): 1.015, 1.021.
+    assert signed == pytest.approx(m0, rel=0.07)
+    # The Wood-Armer moments (pointwise |mxy| added, then averaged) are at least the signed
+    # ones: the design is not short of statics; and the hogging takes its share (ACI's direct
+    # design method gives 0.65 M0 at an interior support; measured 0.79 at both meshes).
+    assert signed <= designed < 1.25 * m0
+    assert hogging > 0.7 * m0
+
+
+def test_two_way_slab_on_beams_passes_under_gravity(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> None:
+    # The one-bay frame (6 x 5 m on 300 x 500 beams), 150 mm two-way slab, T10 @ 150 each layer,
+    # at the tests' mesh and at the default 1 m.
+    slab = {"thickness": 150, "system": "twoWay", "reinforcement": planar().model_dump()}
+    reports = {
+        mesh: analyse(
+            tmp_path_factory.mktemp("twoway"),
+            generate(PLAN, "s"),
+            objects(slab),
+            shell_settings("2", mesh),
+        )
+        for mesh in (500, 1000)
+    }
+    flexure = [f"Flexure {face} {d} (Wood-Armer)" for face in ("bottom", "top") for d in "XY"]
+    fine, coarse = (checks_of(reports[m], "S1") for m in (500, 1000))
+    for name in flexure:
+        # The strip averages depend little on the mesh (shells' means, faces by a fit), and
+        # are not lower at the default mesh. Measured (500 -> 1000): bottom X 7.72 -> 7.36,
+        # bottom Y 7.75 -> 7.72, top X 4.40 -> 5.17, top Y 3.85 -> 4.22 kN·m/m.
+        assert 0.9 < coarse[name]["demand"] / fine[name]["demand"] < 1.25, name
+    # The shear of the edge column strips beside the corner columns is about twice as high at
+    # 1 m (10.97 -> 21.54 kN/m: a 1 m shell next to the corner carries the corner's shear),
+    # conservative and still well below φVc.
+    shear = "One-way shear"
+    assert coarse[shear]["demand"] >= 0.9 * fine[shear]["demand"] and coarse[shear]["ok"]
+    report = reports[500]
+    entry = next(e for e in report["elements"] if e["id"] == "S1")
+    checks = checks_of(report, "S1")
+    assert entry["ok"], [(c["name"], c["utilisation"]) for c in entry["checks"]]
+    q = 1.2 * (2400 * 9.80665 * 0.15 / 1e3 + 1.5) + 1.6 * 1.0  # kPa, as in the one-way test
+    for name in ("Flexure bottom X (Wood-Armer)", "Flexure bottom Y (Wood-Armer)"):
+        # Between a fixed (ACI coefficient ~0.02-0.04) and a simply supported 5 m strip.
+        assert 0.02 * q * 5**2 < checks[name]["demand"] < q * 5**2 / 8, checks[name]
+        assert "middle strip" in checks[name]["note"]
+    for name in ("Flexure top X (Wood-Armer)", "Flexure top Y (Wood-Armer)"):
+        assert checks[name]["ok"] and "strip" in checks[name]["note"]
+    # Column strips on the beam lines, 0.25 min(6, 5) = 1.25 m (inside half at the edges).
+    strips = entry["strips"]
+    edge = next(s for s in strips if s["name"].startswith("X column strip on the line of B1"))
+    assert edge["kind"] == "column"
+    assert edge["outline"] == [[0.2, 0.0], [5.8, 0.0], [5.8, 1.25], [0.2, 1.25]]
+    assert sum(s["kind"] == "middle" for s in strips) == 2

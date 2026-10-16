@@ -33,6 +33,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "saengine.report" = ["templates/*.typ"]
+"saengine.verification" = ["templates/*.typ"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
