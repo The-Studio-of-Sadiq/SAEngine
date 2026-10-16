@@ -123,7 +123,7 @@ def _tables_for(results: Any, project: Any) -> list[dict[str, Any]]:
                 strict=True,
             )
         )
-        if results.n_steps > 1 and len(results.load_factors):
+        if results.n_steps > 1 and len(results.load_factors) and not results.stage_names:
             tables.append((rt.static_history_table(results, project), "Static history"))
     elif isinstance(results, PushoverResults):
         tables = list(
@@ -201,7 +201,7 @@ def result_view(out_dir: str, project_path: str, key: str, mode: int | None) -> 
     """One result's deflected shape and force diagrams (see ``saengine.fem.display``)."""
     from saengine.fem.display import result_view as view
 
-    return view(out_dir, project_path, key, mode or 1)
+    return view(out_dir, project_path, key, mode)
 
 
 def check_library(kind: str, text: str, materials_text: str | None = None) -> dict[str, Any]:

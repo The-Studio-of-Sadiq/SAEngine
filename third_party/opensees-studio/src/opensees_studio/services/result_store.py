@@ -141,6 +141,8 @@ def write_results(results: AnyResults, out_dir: str | Path) -> dict[str, Any]:
             _write_int_dict(f, "element_forces", results.element_forces)
             if results.shell_forces:
                 _write_int_dict(f, "shell_forces", results.shell_forces)
+            if results.stage_names:
+                entry["stages"] = list(results.stage_names)
 
         elif isinstance(results, PushoverResults):
             entry["completed_steps"] = results.n_steps
@@ -233,6 +235,7 @@ def load_results(entry: dict[str, Any], out_dir: str | Path) -> AnyResults:
                 node_reaction=_read_int_dict(f, "node_reaction"),
                 element_forces=_read_int_dict(f, "element_forces"),
                 shell_forces=_read_int_dict(f, "shell_forces"),
+                stage_names=[str(name) for name in entry.get("stages", [])],
             )
         if kind == "PushoverResults":
             return PushoverResults(

@@ -244,6 +244,14 @@ class Analysis(_Model):
         description="Add response spectrum analyses in X and Y with the BNBC design spectrum of "
         "the site (CQC of the modes).",
     )
+    constructionSequence: bool = Field(
+        default=False,
+        title="Construction sequence",
+        description="Apply the self-weight storey by storey as the building is built (a linear "
+        "sequential construction analysis): each storey carries only the self-weight added "
+        "after it is built, as for the column shortening of tall buildings. Superimposed dead, "
+        "live and lateral loads act on the completed building. Buildings only.",
+    )
     timeHistories: list[TimeHistory] = Field(
         default_factory=list,
         title="Time histories",

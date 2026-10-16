@@ -100,10 +100,11 @@ export interface IFemResultEntry {
 	readonly modes?: readonly { readonly number: number; readonly period: number | null }[];
 	/**
 	 * A time history's or a pushover's frames (up to 200 of its steps): the time, or the control
-	 * displacement and base shear (the capacity curve). `peak`: where it moves most (time
-	 * history) or carries the most (pushover).
+	 * displacement and base shear (the capacity curve); a staged (construction sequence) static
+	 * case's stages. `peak`: where it moves most (time history), carries the most (pushover), or
+	 * the last stage (the completed structure).
 	 */
-	readonly frames?: readonly { readonly number: number; readonly time?: number; readonly displacement?: number; readonly shear?: number }[];
+	readonly frames?: readonly { readonly number: number; readonly time?: number; readonly displacement?: number; readonly shear?: number; readonly stage?: string }[];
 	readonly peak?: number;
 }
 

@@ -129,16 +129,48 @@ def element_section_forces(
     return np.column_stack([forces, moments])
 
 
-def _case_loads(project: dict[str, Any], analysis_id: int) -> dict[int, np.ndarray]:
-    """Uniform local loads (wx, wy, wz) per element of a static analysis's patterns."""
+def case_pattern_ids(analysis: dict[str, Any] | None, stages: int | None = None) -> list[int]:
+    """The load patterns of a static analysis; of a staged one, those of its stages (the first
+    ``stages`` of them, all when None)."""
+    if analysis is None:
+        return []
+    if "stages" in analysis:
+        chosen = analysis["stages"] if stages is None else analysis["stages"][:stages]
+        return [pid for stage in chosen for pid in stage.get("pattern_ids", [])]
+    return list(analysis.get("pattern_ids", []))
+
+
+def _case_loads(
+    project: dict[str, Any], analysis_id: int, stages: int | None = None
+) -> dict[int, np.ndarray]:
+    """Uniform local loads (wx, wy, wz) per element of a static analysis's patterns (of a
+    staged analysis, the patterns of its first ``stages`` stages; all when None)."""
     analysis = next((a for a in project.get("analyses", []) if a.get("id") == analysis_id), None)
     patterns = {p["id"]: p for p in project.get("load_patterns", [])}
     loads: dict[int, np.ndarray] = {}
-    for pattern_id in (analysis or {}).get("pattern_ids", []):
+    for pattern_id in case_pattern_ids(analysis, stages):
         for load in patterns.get(pattern_id, {}).get("element_loads", []):
             total = loads.setdefault(load["element_id"], np.zeros(3))
             total += [load.get("wx", 0.0), load.get("wy", 0.0), load.get("wz", 0.0)]
     return loads
+
+
+def _up_to_stage(results: Any, stage: int) -> Any:
+    """A staged case's results as they were after its first ``stage`` stages."""
+    from dataclasses import replace
+
+    def cut(group: dict[int, Any]) -> dict[int, Any]:
+        return {key: np.asarray(rows)[:stage] for key, rows in group.items()}
+
+    return replace(
+        results,
+        n_steps=stage,
+        load_factors=np.asarray(results.load_factors)[:stage],
+        node_disp=cut(results.node_disp),
+        node_reaction=cut(results.node_reaction),
+        element_forces=cut(results.element_forces),
+        shell_forces=cut(results.shell_forces),
+    )
 
 
 def _last(group: dict[int, Any], key: int, width: int) -> np.ndarray:
@@ -228,7 +260,14 @@ def result_list(out_dir: str | Path, project_path: str | Path) -> dict[str, Any]
         key = f"case:{entry['case_id']}"
         if isinstance(loaded, StaticResults):
             static_codes.add(_code(entry["case_name"]))
-            results.append({"key": key, "label": entry["case_name"], "kind": "static"})
+            item: dict[str, Any] = {"key": key, "label": entry["case_name"], "kind": "static"}
+            if loaded.stage_names:
+                # A staged (construction sequence) case: the state after each stage.
+                item["frames"] = [
+                    {"number": i + 1, "stage": name} for i, name in enumerate(loaded.stage_names)
+                ]
+                item["peak"] = len(loaded.stage_names)
+            results.append(item)
         elif isinstance(loaded, ModalResults):
             modes = [
                 {"number": n + 1, "period": float(p) if np.isfinite(p) else None}
@@ -295,7 +334,7 @@ def result_list(out_dir: str | Path, project_path: str | Path) -> dict[str, Any]
 
 
 def result_view(
-    out_dir: str | Path, project_path: str | Path, key: str, mode: int = 1
+    out_dir: str | Path, project_path: str | Path, key: str, mode: int | None = None
 ) -> dict[str, Any]:
     """One result ready to draw.
 
@@ -337,6 +376,9 @@ def result_view(
     solids = [e for e in project.get("elements", []) if e.get("type") == "Solid"]
     entries = {f"case:{e['case_id']}": e for e in manifest["cases"]}
 
+    frame = mode  # None: no frame chosen (a staged case shows its completed structure)
+    mode = mode or 1
+    stages_of: dict[int, int] = {}  # analysis id -> stages shown, when not all
     # Each result is a factored sum of static cases: (factor, results, analysis id).
     parts: list[tuple[float, Any, int]] = []
     modal: dict[int, np.ndarray] | None = None
@@ -350,6 +392,13 @@ def result_view(
         loaded = load_results(entry, out_dir)
         label = entry["case_name"]
         if isinstance(loaded, StaticResults):
+            if loaded.stage_names and frame is not None:
+                if not 1 <= frame <= len(loaded.stage_names):
+                    raise ValueError(f"{label} has no stage {frame}")
+                if frame < len(loaded.stage_names):
+                    loaded = _up_to_stage(loaded, frame)
+                    stages_of[int(entry["case_id"])] = frame
+                label = f"{label}, after {loaded.stage_names[frame - 1]}"
             parts.append((1.0, loaded, int(entry["case_id"])))
         elif isinstance(loaded, ModalResults):
             shape = loaded.mode_shapes.get(mode)
@@ -453,7 +502,9 @@ def result_view(
         for factor, results, analysis_id in parts:
             # A static case may apply its patterns in steps; scale by the factor reached.
             reached = float(results.load_factors[-1]) if len(results.load_factors) else 1.0
-            for element_id, w in _case_loads(project, analysis_id).items():
+            for element_id, w in _case_loads(
+                project, analysis_id, stages_of.get(analysis_id)
+            ).items():
                 loads[element_id] = loads.get(element_id, np.zeros(3)) + factor * reached * w
 
     view_elements = []

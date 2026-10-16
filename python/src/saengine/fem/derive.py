@@ -570,6 +570,26 @@ def derive_fem(
     patterns: dict[str, dict[str, Any]] = {case: {"nodal": {}, "element": {}} for case in CASES}
     node_weight: dict[int, float] = {}  # N, D + SD + share of L, for masses and lateral forces
 
+    # Construction sequence: the self-weight (D) also goes, per element, to the stage of the
+    # storey its element tops out in (one stage per level above the base).
+    stage_levels = [lv * MM for lv in levels if lv > base]
+    staged = options.constructionSequence and not special and bool(stage_levels)
+    if options.constructionSequence and not staged:
+        b.notes.append(
+            "construction sequence: left out (it applies to buildings with levels above their base)"
+        )
+    stage_patterns: dict[int, dict[str, Any]] = {}
+
+    def stage_of(z: float) -> int:
+        """The stage of an element whose top is at ``z`` [m]: the first level at or above it."""
+        for k, height in enumerate(stage_levels):
+            if z <= height + 1e-6:
+                return k
+        return len(stage_levels) - 1
+
+    def top_stage(node_ids: Any) -> int:
+        return stage_of(max(float(b.coords[n][2]) for n in node_ids))
+
     def add_element_load(case: str, index: int, vector: np.ndarray) -> None:
         """A uniform load (global N/m) on member ``index``, applied in its local axes."""
         member = b.members[index]
@@ -577,9 +597,20 @@ def derive_fem(
         local = np.array([vector @ x, vector @ y, vector @ z])
         total = patterns[case]["element"].setdefault(index, np.zeros(3))
         total += local
+        if staged and case == "D":
+            stage = stage_patterns.setdefault(
+                top_stage((member.i, member.j)), {"nodal": {}, "element": {}}
+            )
+            stage["element"].setdefault(index, np.zeros(3))[:] += local
 
-    def add_nodal(case: str, node_id: int, force: np.ndarray) -> None:
+    def add_nodal(case: str, node_id: int, force: np.ndarray, stage: int | None = None) -> None:
+        """A nodal force (global N); ``stage``: the construction stage of the element it comes
+        from (by default the stage of the node's level)."""
         patterns[case]["nodal"].setdefault(node_id, np.zeros(6))[:3] += force
+        if staged and case == "D":
+            k = stage if stage is not None else top_stage((node_id,))
+            pattern = stage_patterns.setdefault(k, {"nodal": {}, "element": {}})
+            pattern["nodal"].setdefault(node_id, np.zeros(6))[:3] += force
 
     def add_weight(node_id: int, weight: float) -> None:
         node_weight[node_id] = node_weight.get(node_id, 0.0) + weight
@@ -603,7 +634,7 @@ def derive_fem(
         w = volume * solid.density * G / 4  # a linear tetrahedron: a quarter to each corner
         if w:
             for node_id in solid.nodes:
-                add_nodal("D", node_id, down * w)
+                add_nodal("D", node_id, down * w, top_stage(solid.nodes))
                 add_weight(node_id, w)
 
     def seismic_share(case: str) -> float:
@@ -612,8 +643,9 @@ def derive_fem(
     def shell_pressure(shell: _Shell, case: str, pressure: float) -> None:
         """A uniform downward pressure (N/m²) on a shell, as its consistent nodal loads."""
         shares = shell_node_shares([b.coords[n] for n in shell.nodes])
+        stage = top_stage(shell.nodes)
         for node_id, area in zip(shell.nodes, shares, strict=True):
-            add_nodal(case, node_id, down * pressure * area)
+            add_nodal(case, node_id, down * pressure * area, stage)
             add_weight(node_id, pressure * area * seismic_share(case))
 
     by_pair = {frozenset((m.i, m.j)): index for index, m in enumerate(b.members)}
@@ -640,7 +672,7 @@ def derive_fem(
                 share_weight(index, load, seismic_share(case))
             else:
                 for node_id in (n0, n1):
-                    add_nodal(case, node_id, down * load * span / 2)
+                    add_nodal(case, node_id, down * load * span / 2, stage_of(float(p0[2])))
                     add_weight(node_id, load * span / 2 * seismic_share(case))
         if not complete and case == "D":
             b.notes.append(
@@ -906,6 +938,35 @@ def derive_fem(
                 ],
             }
         )
+    element_stage: dict[int, int] = {}  # analysis element id -> construction stage
+    if staged:
+        for e in elements:
+            element_stage[e["id"]] = top_stage(e["nodes"])
+    stage_pattern_ids: dict[int, int] = {}
+    for k in sorted(stage_patterns):
+        pattern = stage_patterns[k]
+        stage_pattern_ids[k] = len(load_patterns) + 1
+        load_patterns.append(
+            {
+                "id": stage_pattern_ids[k],
+                "name": f"D, stage {k + 1}",
+                "type": "Plain",
+                "time_series_id": 1,
+                "nodal_loads": [
+                    {"node_id": n, "forces": [round(float(f), 3) for f in v]}
+                    for n, v in sorted(pattern["nodal"].items())
+                ],
+                "element_loads": [
+                    {
+                        "element_id": i + 1,
+                        "wy": round(float(v[1]), 3),
+                        "wz": round(float(v[2]), 3),
+                        "wx": round(float(v[0]), 3),
+                    }
+                    for i, v in sorted(pattern["element"].items())
+                ],
+            }
+        )
     analyses = [
         {
             "id": number,
@@ -924,11 +985,47 @@ def derive_fem(
         }
         for number, case in enumerate(CASES, start=1)
     ]
+    dead_preload = CASES.index("D") + 1  # the dead load case time histories start from
+    if staged:
+        stages = []
+        for k, height in enumerate(stage_levels):
+            built = sorted(i for i, stage in element_stage.items() if stage == k)
+            loads = [stage_pattern_ids[k]] if k in stage_pattern_ids else []
+            if built or loads:
+                stages.append(
+                    {
+                        "name": f"Level {k + 1} (+{height:.2f} m)",
+                        "element_ids": built,
+                        "pattern_ids": loads,
+                    }
+                )
+        dead = analyses[CASES.index("D")]
+        analyses[CASES.index("D")] = {
+            "id": dead["id"],
+            "name": f"D: {bnbc.LOAD_CASES['D']}, construction sequence",
+            "type": "Staged",
+            "stages": stages,
+            "system": "BandGeneral",
+            "constraints": "Plain",
+        }
+        dead_preload = len(analyses) + 1
+        analyses.append(
+            {
+                **dead,
+                "id": dead_preload,
+                "name": f"D0: {bnbc.LOAD_CASES['D']}, applied at once",
+            }
+        )
+        b.notes.append(
+            f"construction sequence: the self-weight D is applied in {len(stages)} stages, one "
+            "per level, each to the storeys built by then (linear, elements enter stress-free); "
+            "D0 is the same load on the completed building, the start of the time histories"
+        )
     time_series: list[dict[str, Any]] = [{"id": 1, "name": "", "type": "Linear", "factor": 1.0}]
     spectra: list[dict[str, Any]] = []
     records: list[dict[str, Any]] = []
     if any(node_weight.values()):
-        modal_id = len(CASES) + 1
+        modal_id = len(analyses) + 1
         analyses.append(
             {
                 "id": modal_id,
@@ -1016,7 +1113,7 @@ def derive_fem(
                     "system": "BandGeneral",
                     "algorithm": "Newton",
                     "rayleigh_mode1_damping": history.damping,
-                    "preload_case_ids": [CASES.index("D") + 1, CASES.index("SD") + 1],
+                    "preload_case_ids": [dead_preload, CASES.index("SD") + 1],
                 }
             )
 

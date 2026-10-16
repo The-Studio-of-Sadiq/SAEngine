@@ -47,6 +47,9 @@ class StaticResults:
     """shell element id → array of shape (n_steps, 8 * n_points): the section forces per unit
     length N11, N22, N12, M11, M22, M12, Q13, Q23 at each integration point, in the element's
     local axes (OpenSees ``stresses``). Empty for a model without shells."""
+    stage_names: list[str] = field(default_factory=list)
+    """A staged case's stages, one per result row (each row cumulative up to that stage).
+    Empty for an ordinary static case."""
 
     def disp(self, node_id: int, dof: int, step: int = -1) -> float:
         """Convenience: scalar displacement at ``node_id``/``dof``/``step``."""

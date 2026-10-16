@@ -77,6 +77,7 @@ from opensees_studio.core import (
     SectionAggregator,
     ShellElement,
     SolidElement,
+    StagedCase,
     StaticCase,
     Steel01,
     Steel02,
@@ -229,6 +230,8 @@ class OpenSeesRunner:
         """
         self.project.validate_case_references(case)
         self._check_ground_motion_records(case)
+        if isinstance(case, StagedCase):
+            return self._run_staged(case)  # builds one model per stage
         self.build()
         self._check_dof_coverage()
         if isinstance(case, StaticCase):
@@ -1304,6 +1307,149 @@ class OpenSeesRunner:
             element_forces=element_forces,
             element_deformations=element_deformations,
             shell_forces=shell_forces,
+        )
+
+    # ─────────────────────── staged construction ───────────────────────
+    _LINEAR_MATERIALS = ("Elastic", "ElasticIsotropic")
+    _LINEAR_SECTIONS = ("ElasticSection", "ElasticMembranePlateSection")
+
+    def _nonlinear_parts(self, element_ids: set[int]) -> list[str]:
+        """What makes the elements ``element_ids`` nonlinear (superposition needs none)."""
+        materials = {m.id: m for m in self.project.materials}
+        sections = {s.id: s for s in self.project.sections}
+        problems: list[str] = []
+        for el in self.project.elements:
+            if el.id not in element_ids:
+                continue
+            transf = getattr(el, "geom_transf", "Linear")
+            if transf != "Linear":
+                problems.append(f"element {el.id}: geometric transformation {transf}")
+            if isinstance(el, CorotTrussElement) or getattr(el, "friction_model_id", None):
+                problems.append(f"element {el.id}: {el.type}")
+            mids = [getattr(el, "material_id", None), *(getattr(el, "material_ids", None) or [])]
+            for mid in mids:
+                material = materials.get(mid) if mid is not None else None
+                if material is not None and material.type not in self._LINEAR_MATERIALS:
+                    problems.append(f"element {el.id}: material {mid} ({material.type})")
+            sid = getattr(el, "section_id", None)
+            section = sections.get(sid) if sid is not None else None
+            if section is not None and section.type not in self._LINEAR_SECTIONS:
+                problems.append(f"element {el.id}: section {sid} ({section.type})")
+        return problems
+
+    def _stage_project(self, case: StagedCase, stage: Any, active: set[int]) -> Project:
+        """The part of the model built by the end of ``stage`` with only its loads."""
+        project = self.project
+        elements = [e for e in project.elements if e.id in active]
+        used = {nid for e in elements for nid in e.nodes}
+        constraints: list[Any] = []
+        for mp in project.mp_constraints:
+            if isinstance(mp, RigidDiaphragmConstraint):
+                kept = [n for n in mp.constrained_nodes if n in used]
+                if kept:
+                    constraints.append(mp.model_copy(update={"constrained_nodes": kept}))
+                    used.add(mp.retained_node)
+            elif mp.constrained_node in used:
+                constraints.append(mp)
+                used.add(mp.retained_node)
+        patterns = {p.id: p for p in project.load_patterns}
+        stage_patterns = []
+        prefix = f"Case {case.id}, stage '{stage.name}'"
+        for pid in stage.pattern_ids:
+            pattern = patterns[pid]
+            if not isinstance(pattern, PlainLoadPattern):
+                raise ValueError(f"{prefix}: pattern {pid} is not a plain load pattern.")
+            nodes = sorted({load.node_id for load in pattern.nodal_loads} - used)
+            loaded = sorted({load.element_id for load in pattern.element_loads} - active)
+            if nodes or loaded:
+                what = [f"node(s) {', '.join(map(str, nodes))}"] if nodes else []
+                what += [f"element(s) {', '.join(map(str, loaded))}"] if loaded else []
+                raise ValueError(
+                    f"{prefix}: pattern {pid} loads {' and '.join(what)} not built by then."
+                )
+            stage_patterns.append(pattern)
+        return project.model_copy(
+            update={
+                "nodes": [n for n in project.nodes if n.id in used],
+                "elements": elements,
+                "mp_constraints": constraints,
+                "load_patterns": stage_patterns,
+                "analyses": [],
+            }
+        )
+
+    def _run_staged(self, case: StagedCase) -> StaticResults:
+        """Each stage: the structure built so far under the stage's loads alone (a fresh linear
+        model), the results summed over the stages (see :class:`StagedCase`)."""
+        built = {i for stage in case.stages for i in stage.element_ids}
+        problems = self._nonlinear_parts(built)
+        if problems:
+            shown = "; ".join(problems[:5]) + ("; ..." if len(problems) > 5 else "")
+            raise ValueError(
+                f"Case {case.id} ({case.name}): a staged analysis sums linear stages and needs a "
+                f"linear elastic model, but {shown}."
+            )
+        ndf = len(self._dof_idx)
+        count = len(case.stages)
+        node_disp = {n.id: np.zeros((count, ndf)) for n in self.project.nodes}
+        node_reaction = {n.id: np.zeros((count, ndf)) for n in self.project.nodes}
+        element_forces: dict[int, np.ndarray] = {}
+        shell_forces: dict[int, np.ndarray] = {}
+        running: dict[str, dict[int, np.ndarray]] = {
+            "disp": {},
+            "reaction": {},
+            "forces": {},
+            "shells": {},
+        }
+        active: set[int] = set()
+        for k, stage in enumerate(case.stages):
+            active.update(stage.element_ids)
+            if stage.pattern_ids:
+                sub = self._stage_project(case, stage, active)
+                runner = OpenSeesRunner(sub, self._ops)
+                runner.build()
+                runner._check_dof_coverage()
+                step = runner._run_static(
+                    StaticCase(
+                        id=case.id,
+                        name=f"{case.name}: {stage.name}",
+                        pattern_ids=stage.pattern_ids,
+                        system=case.system,
+                        system_args=case.system_args,
+                        numberer=case.numberer,
+                        constraints=case.constraints,
+                    )
+                )
+                for key, group in (
+                    ("disp", step.node_disp),
+                    ("reaction", step.node_reaction),
+                    ("forces", step.element_forces),
+                    ("shells", step.shell_forces),
+                ):
+                    for tag, rows in group.items():
+                        last = np.asarray(rows[-1], dtype=float)
+                        total = running[key].get(tag)
+                        running[key][tag] = last.copy() if total is None else total + last
+            for tag, value in running["disp"].items():
+                node_disp[tag][k, :] = value
+            for tag, value in running["reaction"].items():
+                node_reaction[tag][k, :] = value
+            for target, key in ((element_forces, "forces"), (shell_forces, "shells")):
+                for tag, value in running[key].items():
+                    if tag not in target:
+                        target[tag] = np.zeros((count, value.size))
+                    target[tag][k, :] = value
+            self._progress(k + 1, count)
+        return StaticResults(
+            case_id=case.id,
+            case_name=case.name,
+            n_steps=count,
+            load_factors=np.ones(count),  # every stage applies its patterns in full
+            node_disp=node_disp,
+            node_reaction=node_reaction,
+            element_forces=element_forces,
+            shell_forces=shell_forces,
+            stage_names=[stage.name for stage in case.stages],
         )
 
     def _run_pushover(self, case: PushoverCase) -> PushoverResults:

@@ -12,7 +12,15 @@ from __future__ import annotations
 import warnings
 from typing import Annotated, Literal, get_args
 
-from pydantic import Field, PositiveFloat, PositiveInt, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PositiveFloat,
+    PositiveInt,
+    field_validator,
+    model_validator,
+)
 
 from opensees_studio.core._base import Entity, omit_when_default
 from opensees_studio.core.modal import KNOWN_SOLVERS, OFFERED_SOLVERS, SOLVER_AUTO
@@ -362,7 +370,63 @@ class ResponseSpectrumCase(Entity):
         return value
 
 
+class ConstructionStage(BaseModel):
+    """One stage of a :class:`StagedCase`: the elements built in it and the loads applied."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(..., min_length=1)
+    element_ids: list[PositiveInt] = Field(
+        default_factory=list, description="Elements activated in this stage (stress-free)."
+    )
+    pattern_ids: list[PositiveInt] = Field(
+        default_factory=list,
+        description="Load patterns applied in this stage, to the structure built so far.",
+    )
+
+    @model_validator(mode="after")
+    def _does_something(self) -> ConstructionStage:
+        if not self.element_ids and not self.pattern_ids:
+            raise ValueError(f"Stage '{self.name}' neither adds elements nor applies loads.")
+        return self
+
+
+class StagedCase(_SolverOptions):
+    """Linear static analysis by construction stages (sequential construction).
+
+    Stage k analyses the structure built in stages 1..k under the loads of stage k alone;
+    the results are the running sums over the stages. Elements therefore enter stress-free
+    in the deformed position of the structure they join, and carry only the loads applied
+    after they are built (the usual linear "sequential construction" analysis, e.g. the
+    column shortening of a building built storey by storey). One result row per stage,
+    cumulative. Superposition needs a linear elastic model: the runner refuses others.
+    """
+
+    type: Literal["Staged"] = "Staged"
+    stages: list[ConstructionStage] = Field(..., min_length=1)
+    system: str = "BandGeneral"
+    constraints: str = "Plain"
+
+    @model_validator(mode="after")
+    def _elements_built_once(self) -> StagedCase:
+        seen: dict[int, str] = {}
+        for stage in self.stages:
+            for element_id in stage.element_ids:
+                if element_id in seen:
+                    raise ValueError(
+                        f"Element {element_id} is built in both stage '{seen[element_id]}' "
+                        f"and stage '{stage.name}'."
+                    )
+                seen[element_id] = stage.name
+        return self
+
+    @property
+    def pattern_ids(self) -> list[int]:
+        """Every pattern of every stage (for reference checks)."""
+        return [pid for stage in self.stages for pid in stage.pattern_ids]
+
+
 AnalysisCase = Annotated[
-    StaticCase | ModalCase | TransientCase | PushoverCase | ResponseSpectrumCase,
+    StaticCase | ModalCase | TransientCase | PushoverCase | ResponseSpectrumCase | StagedCase,
     Field(discriminator="type"),
 ]

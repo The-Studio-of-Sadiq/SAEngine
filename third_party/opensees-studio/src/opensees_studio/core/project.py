@@ -264,6 +264,7 @@ class Project(BaseModel):
         patterns = {p.id: p for p in self.load_patterns}
         series = {s.id for s in self.time_series}
         nodes = {n.id for n in self.nodes}
+        elements = {e.id for e in self.elements}
         cases = {c.id: c for c in self.analyses}
         cases[case.id] = case
 
@@ -286,6 +287,13 @@ class Project(BaseModel):
             node = getattr(current, "control_node", None)
             if node is not None and node not in nodes:
                 errors.append(f"{prefix}: missing control node {node}.")
+            for stage in getattr(current, "stages", []):
+                missing = [i for i in stage.element_ids if i not in elements]
+                if missing:
+                    errors.append(
+                        f"{prefix}: stage '{stage.name}' builds missing element(s) "
+                        f"{', '.join(map(str, missing))}."
+                    )
             for cid in getattr(current, "preload_case_ids", []):
                 preload = cases.get(cid)
                 if cid in (*chain, current.id):

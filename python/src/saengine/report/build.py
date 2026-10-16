@@ -406,17 +406,26 @@ def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[s
             ],
             ["Floor diaphragm", analysis.diaphragm.capitalize()],
             ["Shell mesh size", f"{fmt(analysis.meshSize, 0)} mm"],
+            [
+                "Construction sequence",
+                "Self-weight applied storey by storey (linear sequential construction; D0: "
+                "the same load applied at once)"
+                if analysis.constructionSequence
+                else "Off (all loads act on the completed building)",
+            ],
         ]
     basis["materials"] = _materials(parts)
     basis["cases"] = []
     for analysis in model.get("analyses", []):
-        if analysis.get("type", "Static") != "Static":
+        if analysis.get("type", "Static") not in ("Static", "Staged"):
             continue
         code, _, description = str(analysis.get("name") or analysis.get("id")).partition(":")
         basis["cases"].append([code.strip(), description.strip() or code.strip()])
     run = []
     for entry in manifest.get("cases", []):
         label = RESULT_TYPES.get(entry.get("result_type"), str(entry.get("result_type")))
+        if entry.get("stages"):
+            label = f"Construction sequence ({len(entry['stages'])} stages)"
         if label not in run:
             run.append(label)
     basis["analyses"] = run
@@ -565,7 +574,9 @@ def _model_summary(
         run_rows.append(
             [
                 str(entry.get("case_name", entry.get("case_id"))),
-                RESULT_TYPES.get(entry.get("result_type"), str(entry.get("result_type"))),
+                "Construction sequence"
+                if entry.get("stages")
+                else RESULT_TYPES.get(entry.get("result_type"), str(entry.get("result_type"))),
                 "–" if steps is None else str(steps),
                 "Stopped early" if early else "Complete",
             ]

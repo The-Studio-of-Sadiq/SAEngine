@@ -755,6 +755,95 @@ def solid_cantilever(folder: Path) -> Outcome:
     )
 
 
+# ─────────────────────────────── construction sequence ───────────────────────────────
+
+
+def construction_sequence(folder: Path) -> Outcome:
+    from saengine.library import FloorPlan, default_floor_plan
+    from saengine.library.bim import generate
+
+    storeys, height, side = 3, 3.2, 0.4  # -, m, m
+    plan = default_floor_plan().model_dump(mode="json", by_alias=True)
+    plan["stories"] = [{"id": "BASE", "name": "Base", "elevation": 0.0}] + [
+        {"id": f"L{i}", "name": f"Level {i}", "elevation": height * 1e3 * i}
+        for i in range(1, storeys + 1)
+    ]
+    plan["columns"] = [
+        {
+            "id": f"C{i}",
+            "type": "COL",
+            "at": {"x": "A", "y": "1"},
+            "base": "BASE" if i == 1 else f"L{i - 1}",
+            "top": f"L{i}",
+        }
+        for i in range(1, storeys + 1)
+    ]
+    d = derive(
+        generate(FloorPlan.model_validate(plan), "s"),
+        objects(COLUMN),
+        MATERIALS,
+        settings(constructionSequence=True, responseSpectrum=False),
+    )
+    project = d.project
+    dead0 = next(a["id"] for a in project["analyses"] if a["name"].startswith("D0: "))
+    _, _, results = run_model(project, folder, [1, dead0])
+    staged, at_once = results[1], results[dead0]
+    tops = [node_at(project, (0.0, 0.0, height * j)) for j in range(1, storeys + 1)]
+
+    area = side * side
+    w = RHO_C * G * area * height  # N, the weight of one storey's column
+    unit = w * height / (E_C * area)  # m, W h / EA
+    n = storeys
+    ref_staged = [(j - 0.5 + j * (n - j)) * unit for j in range(1, n + 1)]
+    ref_at_once = [(j * (n + 0.5) - j * (j + 1) / 2) * unit for j in range(1, n + 1)]
+    reference = Reference(
+        source="Column shortening under sequential construction (statics of an axially loaded "
+        "column built storey by storey; e.g. Fintel & Ghosh, Column shortening in tall "
+        "structures), linear elastic, each storey entering stress-free",
+        formula="staged: u_j = (j - 1/2 + j (n - j)) W h / EA;  "
+        "at once: u_j = (j (n + 1/2) - j (j + 1)/2) W h / EA",
+        steps=[
+            f"W = ρ g A h = {RHO_C:g} × 9.80665 × {fmt(area)} × {height} = {fmt(w)} N per storey",
+            f"W h / EA = {fmt(w)} × {height} / ({fmt(E_C)} × {fmt(area)}) = {fmt(unit * 1e3)} mm",
+            (
+                "Stage k adds storey k with its own weight, a uniform axial load: it shortens itself "
+                "by W h/(2EA) and every storey below by W h/EA. The top of storey j exists from "
+                "stage j on, so it moves (j - 1/2) W h/EA in stage j and j W h/EA in each later stage."
+            ),
+            (
+                "At once, storey i carries the n - i storeys above it plus half its own weight: "
+                "shortening (n - i + 1/2) W h/EA; u_j sums storeys 1 to j."
+            ),
+            (
+                "n = 3: staged 2.5, 3.5, 2.5 and at once 2.5, 4.0, 4.5 times W h/EA "
+                "(the largest staged shortening is at mid-height, not at the top)."
+            ),
+        ],
+    )
+    quantities = []
+    for j, node in enumerate(tops, start=1):
+        quantities.append(
+            Quantity(
+                f"Shortening at level {j}, staged",
+                "mm",
+                ref_staged[j - 1] * 1e3,
+                -staged.node_disp[node][-1][2] * 1e3,
+                FRAME,
+            )
+        )
+    for j, node in enumerate(tops, start=1):
+        quantities.append(
+            Quantity(
+                f"Shortening at level {j}, at once (D0)",
+                "mm",
+                ref_at_once[j - 1] * 1e3,
+                -at_once.node_disp[node][-1][2] * 1e3,
+                FRAME,
+            )
+        )
+    return Outcome(reference, quantities)
+
+
 CASES = [
     Case(
         "A1",
@@ -853,5 +942,16 @@ CASES = [
         "direction); meshed at the default size, at 100 mm (the finest Project Settings "
         "accept) and at 50 mm. Load case D: the self-weight.",
         solid_cantilever,
+    ),
+    Case(
+        "A10",
+        "Construction sequence: column shortening",
+        "analysis",
+        "Shortening of a column stack under its own weight when it is built storey by storey "
+        "(Project Settings: Construction sequence), and when the same load is applied at once.",
+        "Column 400 × 400 mm of C24.1 in three storeys of 3.2 m (a floor plan with one column "
+        "per storey), fixed at the base. Load case D: the self-weight in three stages; D0: the "
+        "same load on the completed column.",
+        construction_sequence,
     ),
 ]

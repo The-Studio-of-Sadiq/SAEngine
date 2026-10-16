@@ -25,6 +25,14 @@ import { describeDesignElement, describeDesignSummary, designInputs, designUtili
 const LIST_COMMAND = 'saengine.fem.resultList';
 const VIEW_COMMAND = 'saengine.fem.resultView';
 
+/**
+ * The frames a result steps through: a time history's moments, a pushover's steps, a staged
+ * (construction sequence) static case's stages; none for the others.
+ */
+function framesOf(entry: IFemResultEntry): NonNullable<IFemResultEntry['frames']> {
+	return entry.kind === 'history' || entry.kind === 'pushover' || entry.kind === 'static' ? entry.frames ?? [] : [];
+}
+
 /** The folder a model's analysis results are written to (`model.osmodel` -> `model.results`). */
 export function resultsFolder(model: URI): URI {
 	return joinPath(dirname(model), `${basename(model).replace(/\.osmodel$/i, '')}.results`);
@@ -406,7 +414,7 @@ export class FemResultsBar extends Disposable {
 			this.render();
 			return;
 		}
-		const framed = entry.kind === 'modal' || entry.kind === 'history' || entry.kind === 'pushover';
+		const framed = entry.kind === 'modal' || framesOf(entry).length > 0;
 		const id = `${entry.key}/${framed ? this.mode : 0}`;
 		let view = this.views.get(id);
 		if (!view) {
@@ -432,10 +440,10 @@ export class FemResultsBar extends Disposable {
 		this.render();
 	}
 
-	/** The frame a result opens at: a time history's peak, else the first (mode 1). */
+	/** The frame a result opens at: a time history's peak, a staged case's last stage, else the first. */
 	private firstFrame(): number {
 		const entry = this.entry;
-		return entry?.kind === 'history' || entry?.kind === 'pushover' ? entry.peak ?? 1 : 1;
+		return entry && framesOf(entry).length ? entry.peak ?? 1 : 1;
 	}
 
 	/** Plays the time history from the frame shown, looping, until stopped. */
@@ -444,8 +452,7 @@ export class FemResultsBar extends Disposable {
 		this.playing = true;
 		this.render();
 		while (token === this.playToken) {
-			const kind = this.entry?.kind;
-			const count = kind === 'history' || kind === 'pushover' ? this.entry?.frames?.length ?? 0 : 0;
+			const count = this.entry ? framesOf(this.entry).length : 0;
 			if (!count) {
 				break;
 			}
@@ -482,16 +489,19 @@ export class FemResultsBar extends Disposable {
 					text: m.period === null ? String(m.number) : localize('femResults.modeOption', "{0} (T = {1} s)", m.number, m.period.toFixed(3)),
 				})), Math.max(0, this.mode - 1));
 			}
-			const frames = entry.kind === 'history' || entry.kind === 'pushover' ? entry.frames ?? [] : [];
+			const frames = framesOf(entry);
 			this.timeContainer.classList.toggle('hidden', !frames.length);
 			if (frames.length) {
 				this.timeSlider.max = String(frames.length);
 				this.timeSlider.value = String(this.mode);
 				const frame = frames[this.mode - 1];
-				this.timeCaption.textContent = entry.kind === 'pushover' ? localize('femResults.step', "Step") : localize('femResults.time', "Time");
+				this.timeCaption.textContent = entry.kind === 'pushover' ? localize('femResults.step', "Step")
+					: entry.kind === 'static' ? localize('femResults.stage', "Stage") : localize('femResults.time', "Time");
 				this.timeLabel.textContent = entry.kind === 'pushover'
 					? localize('femResults.pushoverAt', "roof {0}, base shear {1}", this.format('length', frame?.displacement ?? 0), this.format('force', frame?.shear ?? 0))
-					: localize('femResults.timeOf', "{0} of {1} s", (frame?.time ?? 0).toFixed(2), (frames[frames.length - 1].time ?? 0).toFixed(2));
+					: entry.kind === 'static'
+						? localize('femResults.stageOf', "{0} ({1} of {2})", frame?.stage ?? '', this.mode, frames.length)
+						: localize('femResults.timeOf', "{0} of {1} s", (frame?.time ?? 0).toFixed(2), (frames[frames.length - 1].time ?? 0).toFixed(2));
 				this.playButton.label = `$(${(this.playing ? Codicon.debugPause : Codicon.play).id})`;
 			}
 			const options = this.showOptions();

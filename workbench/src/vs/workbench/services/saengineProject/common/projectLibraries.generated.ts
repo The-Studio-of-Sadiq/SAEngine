@@ -2264,6 +2264,12 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					title: 'Response spectrum',
 					type: 'boolean',
 				},
+				constructionSequence: {
+					default: false,
+					description: 'Apply the self-weight storey by storey as the building is built (a linear sequential construction analysis): each storey carries only the self-weight added after it is built, as for the column shortening of tall buildings. Superimposed dead, live and lateral loads act on the completed building. Buildings only.',
+					title: 'Construction sequence',
+					type: 'boolean',
+				},
 				timeHistories: {
 					description: 'Earthquake records to run through the structure step by step, after its dead loads.',
 					items: {
@@ -3130,6 +3136,7 @@ export const DEFAULT_SETTINGS: object = {
 		diaphragm: 'rigid',
 		meshSize: 1000.0,
 		responseSpectrum: true,
+		constructionSequence: false,
 		timeHistories: [],
 	},
 	foundation: {
@@ -5796,6 +5803,7 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		diaphragm: 'rigid',
 		meshSize: 1000.0,
 		responseSpectrum: true,
+		constructionSequence: false,
 		timeHistories: [],
 		pushover: null,
 	},
