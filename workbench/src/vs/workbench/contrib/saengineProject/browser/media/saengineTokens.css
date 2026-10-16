@@ -1,0 +1,48 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * SAEngine design tokens, shared by every SAEngine surface. Colours come from the active
+ * colour theme (SAEngine Light / SAEngine Dark set the chart colours so they read on both
+ * canvases), so these follow theme switches with no code. Use them as
+ * `var(--sa-space-2)`; never hard-code a colour in SAEngine CSS.
+ */
+.monaco-workbench {
+	/* Spacing scale */
+	--sa-space-1: 4px;
+	--sa-space-2: 8px;
+	--sa-space-3: 12px;
+	--sa-space-4: 16px;
+	--sa-space-6: 24px;
+
+	/* Shape and type */
+	--sa-radius: 4px;
+	--sa-font-s: 12px;
+	--sa-font-m: 13px;
+	--sa-font-l: 16px;
+	--sa-font-xl: 20px;
+	--sa-toolbar-height: 34px;
+
+	/* Surfaces and lines */
+	--sa-border: var(--vscode-panel-border, var(--vscode-widget-border, rgba(128, 128, 128, 0.35)));
+	--sa-muted: var(--vscode-descriptionForeground);
+	--sa-surface: var(--vscode-editor-background);
+	--sa-surface-alt: var(--vscode-sideBar-background, var(--vscode-editor-background));
+	--sa-accent: var(--vscode-focusBorder);
+
+	/* Status dots: pass / near the limit / fail / not run yet */
+	--sa-ok: var(--vscode-charts-green, #2e8540);
+	--sa-warn: var(--vscode-charts-orange, #c2620e);
+	--sa-fail: var(--vscode-charts-red, #c62f2f);
+	/* Idle: muted text pulled a quarter towards the sidebar, so it reads as quieter than text but
+	   stays above 3:1 on it (about 3.3:1 in SAEngine Light, 4:1 in SAEngine Dark). */
+	--sa-idle: color-mix(in srgb, var(--vscode-descriptionForeground, #8a9099) 75%, var(--sa-surface-alt));
+}
+
+/* High contrast themes: status colours at full strength, borders from the contrast border. */
+.monaco-workbench.hc-black,
+.monaco-workbench.hc-light {
+	--sa-border: var(--vscode-contrastBorder);
+}

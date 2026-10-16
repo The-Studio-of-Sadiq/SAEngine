@@ -1,0 +1,51 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* "Run All": the one primary action of the title bar. */
+.monaco-workbench .part.titlebar .action-item.saengine-run-all {
+	display: flex;
+	align-items: center;
+	height: 100%;
+	padding: 0 var(--sa-space-1, 4px);
+	cursor: pointer;
+	-webkit-app-region: no-drag;
+}
+
+.monaco-workbench .part.titlebar .action-item.saengine-run-all .saengine-run-all-content {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-1, 4px);
+	height: 22px;
+	padding: 0 var(--sa-space-2, 8px) 0 6px;
+	border-radius: var(--sa-radius, 4px);
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	font-size: var(--sa-font-s, 12px);
+	line-height: 22px;
+	white-space: nowrap;
+}
+
+.monaco-workbench .part.titlebar .action-item.saengine-run-all .saengine-run-all-content .codicon {
+	font-size: 14px;
+	color: inherit;
+}
+
+.monaco-workbench .part.titlebar .action-item.saengine-run-all:hover .saengine-run-all-content {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
+.monaco-workbench .part.titlebar .action-item.saengine-run-all:focus-visible {
+	outline: none;
+}
+
+.monaco-workbench .part.titlebar .action-item.saengine-run-all:focus-visible .saengine-run-all-content {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.monaco-workbench .part.titlebar .action-item.saengine-run-all.disabled {
+	cursor: default;
+	opacity: 0.5;
+}

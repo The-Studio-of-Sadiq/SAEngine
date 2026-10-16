@@ -1,0 +1,153 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The project overview: the parts as grouped, numbered rows with their status and the next step. */
+
+.saengine-overview {
+	box-sizing: border-box;
+	overflow: hidden; /* scrolled by the workbench's scrollbar (DomScrollableElement) */
+	background-color: var(--sa-surface, var(--vscode-editor-background));
+	color: var(--vscode-foreground);
+	font-size: var(--sa-font-m, 13px);
+}
+
+/* The page itself takes the focus when the overview opens; its rows show the keyboard focus. */
+.monaco-workbench .saengine-overview[tabindex="-1"]:focus {
+	outline: none;
+}
+
+.saengine-overview .page {
+	box-sizing: border-box;
+	max-width: 720px;
+	margin: 0 auto;
+	padding: 48px var(--sa-space-6, 24px) var(--sa-space-6, 24px);
+}
+
+.saengine-overview .header h1 {
+	margin: 0;
+	font-size: var(--sa-font-xl, 20px);
+	font-weight: 600;
+}
+
+.saengine-overview .header .path {
+	display: flex;
+	gap: 0.35em;
+	white-space: nowrap;
+}
+
+.saengine-overview .header .path .type {
+	flex: none;
+}
+
+.saengine-overview .header .path,
+.saengine-overview .muted {
+	margin: 4px 0 0;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-overview .next {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+	margin: var(--sa-space-6, 24px) 0 var(--sa-space-2, 8px);
+	padding: var(--sa-space-3, 12px) var(--sa-space-4, 16px);
+	border: 1px solid var(--sa-border, var(--vscode-panel-border));
+	border-radius: var(--sa-radius, 4px);
+	background-color: var(--sa-surface-alt, var(--vscode-sideBar-background));
+}
+
+.saengine-overview .next:empty {
+	display: none;
+}
+
+.saengine-overview .next .next-text {
+	flex: 1;
+	min-width: 0;
+}
+
+.saengine-overview .next .monaco-button {
+	flex: none;
+	width: auto;
+	padding: 0 var(--sa-space-4, 16px);
+}
+
+.saengine-overview .group h2 {
+	margin: var(--sa-space-6, 24px) 0 var(--sa-space-1, 4px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+}
+
+.saengine-overview .group ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	border-top: 1px solid var(--sa-border, var(--vscode-panel-border));
+}
+
+.saengine-overview .group li {
+	border-bottom: 1px solid var(--sa-border, var(--vscode-panel-border));
+}
+
+.saengine-overview .part {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-3, 12px);
+	width: 100%;
+	height: 36px;
+	padding: 0 var(--sa-space-2, 8px);
+	border: none;
+	background: none;
+	color: var(--vscode-foreground);
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.saengine-overview .part:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.saengine-overview .part:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.saengine-overview .part .number {
+	flex: none;
+	width: 20px;
+	text-align: right;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-overview .part .name {
+	flex: 1;
+	min-width: 0;
+}
+
+.saengine-overview .part.is-next .name {
+	font-weight: 600;
+}
+
+.saengine-overview .part .state {
+	flex: none;
+	width: 120px;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-overview .part .chevron {
+	flex: none;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	visibility: hidden;
+}
+
+.saengine-overview .part:hover .chevron,
+.saengine-overview .part:focus-visible .chevron {
+	visibility: visible;
+}

@@ -1,0 +1,292 @@
+{
+	"schema": "saengine.projectSettings/1",
+	"project": {
+		"name": "Sample Frame"
+	},
+	"codes": {
+		"general": "BNBC 2020",
+		"concrete": "BNBC 2020 Part 6 Chapter 6",
+		"steel": "BNBC 2020 Part 6 Chapter 10",
+		"method": "strength"
+	},
+	"occupancy": {
+		"use": "residential",
+		"category": "II"
+	},
+	"site": {
+		"location": "chattogram",
+		"siteClass": "SD"
+	},
+	"seismic": {
+		"system": "rcImf"
+	},
+	"wind": {
+		"exposure": "A"
+	},
+	"areaLoads": [
+		{
+			"id": "FL",
+			"name": "Floors",
+			"use": "office",
+			"live": 2.4,
+			"finish": 1.2,
+			"partitions": 1
+		},
+		{
+			"id": "ST",
+			"name": "Stairs",
+			"use": "stairs",
+			"live": 4.8,
+			"finish": 1.2,
+			"partitions": 0
+		},
+		{
+			"id": "RF",
+			"name": "Roof",
+			"use": "roof",
+			"live": 1,
+			"finish": 1.5,
+			"partitions": 0
+		}
+	],
+	"floorLoad": "FL",
+	"roofLoad": "RF",
+	"combinations": [
+		{
+			"name": "1.4D",
+			"D": 1.4,
+			"L": 0,
+			"Lr": 0,
+			"WX": 0,
+			"WY": 0,
+			"EX": 0,
+			"EY": 0
+		},
+		{
+			"name": "1.2D + 1.6L + 0.5Lr",
+			"D": 1.2,
+			"L": 1.6,
+			"Lr": 0.5,
+			"WX": 0,
+			"WY": 0,
+			"EX": 0,
+			"EY": 0
+		},
+		{
+			"name": "1.2D + 1.6Lr + 1.0L",
+			"D": 1.2,
+			"L": 1,
+			"Lr": 1.6,
+			"WX": 0,
+			"WY": 0,
+			"EX": 0,
+			"EY": 0
+		},
+		{
+			"name": "1.2D + 1.6Lr + 0.8WX",
+			"D": 1.2,
+			"L": 0,
+			"Lr": 1.6,
+			"WX": 0.8,
+			"WY": 0,
+			"EX": 0,
+			"EY": 0
+		},
+		{
+			"name": "1.2D + 1.6Lr + 0.8(-WX)",
+			"D": 1.2,
+			"L": 0,
+			"Lr": 1.6,
+			"WX": -0.8,
+			"WY": 0,
+			"EX": 0,
+			"EY": 0
+		},
+		{
+			"name": "1.2D + 1.6Lr + 0.8WY",
+			"D": 1.2,
+			"L": 0,
+			"Lr": 1.6,
+			"WX": 0,
+			"WY": 0.8,
+			"EX": 0,
+			"EY": 0
+		},
+		{
+			"name": "1.2D + 1.6Lr + 0.8(-WY)",
+			"D": 1.2,
+			"L": 0,
+			"Lr": 1.6,
+			"WX": 0,
+			"WY": -0.8,
+			"EX": 0,
+			"EY": 0
+		},
+		{
+			"name": "1.2D + 1.6WX + 1.0L + 0.5Lr",
+			"D": 1.2,
+			"L": 1,
+			"Lr": 0.5,
+			"WX": 1.6,
+			"WY": 0,
+			"EX": 0,
+			"EY": 0
+		},
+		{
+			"name": "1.2D + 1.6(-WX) + 1.0L + 0.5Lr",
+			"D": 1.2,
+			"L": 1,
+			"Lr": 0.5,
+			"WX": -1.6,
+			"WY": 0,
+			"EX": 0,
+			"EY": 0
+		},
+		{
+			"name": "1.2D + 1.6WY + 1.0L + 0.5Lr",
+			"D": 1.2,
+			"L": 1,
+			"Lr": 0.5,
+			"WX": 0,
+			"WY": 1.6,
+			"EX": 0,
+			"EY": 0
+		},
+		{
+			"name": "1.2D + 1.6(-WY) + 1.0L + 0.5Lr",
+			"D": 1.2,
+			"L": 1,
+			"Lr": 0.5,
+			"WX": 0,
+			"WY": -1.6,
+			"EX": 0,
+			"EY": 0
+		},
+		{
+			"name": "1.2D + 1.0EX + 1.0L",
+			"D": 1.2,
+			"L": 1,
+			"Lr": 0,
+			"WX": 0,
+			"WY": 0,
+			"EX": 1,
+			"EY": 0
+		},
+		{
+			"name": "1.2D + 1.0(-EX) + 1.0L",
+			"D": 1.2,
+			"L": 1,
+			"Lr": 0,
+			"WX": 0,
+			"WY": 0,
+			"EX": -1,
+			"EY": 0
+		},
+		{
+			"name": "1.2D + 1.0EY + 1.0L",
+			"D": 1.2,
+			"L": 1,
+			"Lr": 0,
+			"WX": 0,
+			"WY": 0,
+			"EX": 0,
+			"EY": 1
+		},
+		{
+			"name": "1.2D + 1.0(-EY) + 1.0L",
+			"D": 1.2,
+			"L": 1,
+			"Lr": 0,
+			"WX": 0,
+			"WY": 0,
+			"EX": 0,
+			"EY": -1
+		},
+		{
+			"name": "0.9D + 1.6WX",
+			"D": 0.9,
+			"L": 0,
+			"Lr": 0,
+			"WX": 1.6,
+			"WY": 0,
+			"EX": 0,
+			"EY": 0
+		},
+		{
+			"name": "0.9D + 1.6(-WX)",
+			"D": 0.9,
+			"L": 0,
+			"Lr": 0,
+			"WX": -1.6,
+			"WY": 0,
+			"EX": 0,
+			"EY": 0
+		},
+		{
+			"name": "0.9D + 1.6WY",
+			"D": 0.9,
+			"L": 0,
+			"Lr": 0,
+			"WX": 0,
+			"WY": 1.6,
+			"EX": 0,
+			"EY": 0
+		},
+		{
+			"name": "0.9D + 1.6(-WY)",
+			"D": 0.9,
+			"L": 0,
+			"Lr": 0,
+			"WX": 0,
+			"WY": -1.6,
+			"EX": 0,
+			"EY": 0
+		},
+		{
+			"name": "0.9D + 1.0EX",
+			"D": 0.9,
+			"L": 0,
+			"Lr": 0,
+			"WX": 0,
+			"WY": 0,
+			"EX": 1,
+			"EY": 0
+		},
+		{
+			"name": "0.9D + 1.0(-EX)",
+			"D": 0.9,
+			"L": 0,
+			"Lr": 0,
+			"WX": 0,
+			"WY": 0,
+			"EX": -1,
+			"EY": 0
+		},
+		{
+			"name": "0.9D + 1.0EY",
+			"D": 0.9,
+			"L": 0,
+			"Lr": 0,
+			"WX": 0,
+			"WY": 0,
+			"EX": 0,
+			"EY": 1
+		},
+		{
+			"name": "0.9D + 1.0(-EY)",
+			"D": 0.9,
+			"L": 0,
+			"Lr": 0,
+			"WX": 0,
+			"WY": 0,
+			"EX": 0,
+			"EY": -1
+		}
+	],
+	"analysis": {
+		"slabs": "shells"
+	},
+	"foundation": {
+		"allowableBearing": 150
+	}
+}

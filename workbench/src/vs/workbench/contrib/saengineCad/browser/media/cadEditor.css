@@ -114,3 +114,29 @@
 .saengine-floor-plan .floor-plan-typed {
 	width: 180px;
 }
+
+/*
+ * Theme. mlightcad draws a dark CAD canvas (black, ACI 7 in white). On light themes the canvas
+ * goes through the "paper" SVG filter (cadHost.ts): white ground, black linework, greys inverted
+ * and darkened, layer colours kept in their hue but darkened so they read on white (dark blue
+ * stays blue, bright green and cyan turn deeper). Only the picture changes; the drawing and
+ * exported DXF keep their colours.
+ */
+.monaco-workbench.vs .saengine-cad-editor .cad-instance > canvas,
+.monaco-workbench.hc-light .saengine-cad-editor .cad-instance > canvas {
+	filter: url(#saengine-cad-paper);
+}
+
+/* mlightcad's own controls (command line, quick toolbar) in the workbench colours. */
+.saengine-cad-editor .cad-instance,
+.saengine-cad-editor .cad-instance [data-ml-ui-theme] {
+	--ml-ui-text: var(--vscode-foreground) !important;
+	--ml-ui-text-muted: var(--vscode-descriptionForeground) !important;
+	--ml-ui-bg: var(--vscode-editorWidget-background) !important;
+	--ml-ui-border: var(--vscode-editorWidget-border, var(--vscode-widget-border)) !important;
+	--ml-ui-shadow: 0 2px 8px var(--vscode-widget-shadow, transparent) !important;
+	--ml-ui-accent: var(--vscode-focusBorder) !important;
+	--ml-ui-accent-alt: var(--vscode-descriptionForeground) !important;
+	--ml-ui-danger: var(--vscode-errorForeground) !important;
+	color-scheme: inherit !important;
+}

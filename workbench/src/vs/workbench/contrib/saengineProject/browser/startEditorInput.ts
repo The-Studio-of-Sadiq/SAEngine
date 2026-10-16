@@ -13,7 +13,10 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 
 const startIcon = registerIcon('saengine-start-label-icon', Codicon.home, localize('saengineStartIcon', "Icon of the SAEngine start window."));
 
-/** The SAEngine start window: create, open or reopen a project. Always shown as a modal. */
+/**
+ * The SAEngine start page: create, open or reopen a project. It opens in the editor area, and
+ * fills the window while no project is open (see `StartLayoutContribution`).
+ */
 export class StartEditorInput extends EditorInput {
 
 	static readonly ID = 'workbench.input.saengine.start';
@@ -38,11 +41,11 @@ export class StartEditorInput extends EditorInput {
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.RequiresModal;
+		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton;
 	}
 
 	override getName(): string {
-		return localize('saengineStart', "SAEngine");
+		return localize('saengineStart', "Start");
 	}
 
 	override getIcon(): ThemeIcon {

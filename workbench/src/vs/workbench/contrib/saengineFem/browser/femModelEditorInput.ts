@@ -41,7 +41,7 @@ export class FemModelEditorInput extends EditorInput {
 	}
 
 	override getName(): string {
-		return basename(this.resource);
+		return basename(this.resource) === 'model.osmodel' ? localize('femModelEditor.partName', "FEM") : basename(this.resource);
 	}
 
 	override getIcon(): ThemeIcon {

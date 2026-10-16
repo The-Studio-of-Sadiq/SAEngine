@@ -1,0 +1,30 @@
+{
+  "name": "theme-saengine",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "categories": [
+    "Themes"
+  ],
+  "version": "10.0.0",
+  "publisher": "vscode",
+  "license": "AGPL-3.0-only",
+  "engines": {
+    "vscode": "*"
+  },
+  "contributes": {
+    "themes": [
+      {
+        "id": "SAEngine Light",
+        "label": "%lightThemeLabel%",
+        "uiTheme": "vs",
+        "path": "./themes/saengine-light.json"
+      },
+      {
+        "id": "SAEngine Dark",
+        "label": "%darkThemeLabel%",
+        "uiTheme": "vs-dark",
+        "path": "./themes/saengine-dark.json"
+      }
+    ]
+  }
+}

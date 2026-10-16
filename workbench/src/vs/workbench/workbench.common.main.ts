@@ -251,6 +251,8 @@ import './contrib/testing/browser/testing.contribution.js';
 
 // Structural Engineering
 import './contrib/saengineProject/browser/saengineProject.contribution.js';
+import './contrib/saengineProject/browser/saengineNavigator.contribution.js';
+import './contrib/saengineProject/browser/saengineTheme.contribution.js';
 import './contrib/saengineLibrary/browser/saengineLibrary.contribution.js';
 import './contrib/saengineCad/browser/saengineCad.contribution.js';
 import './contrib/saengineStructure/browser/saengineStructure.contribution.js';

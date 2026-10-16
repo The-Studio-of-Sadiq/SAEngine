@@ -10,6 +10,7 @@ import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Color } from '../../../../base/common/color.js';
 import { MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { dirname, joinPath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -25,6 +26,7 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { chartsLines, chartsYellow } from '../../../../platform/theme/common/colors/chartsColors.js';
 import { editorBackground } from '../../../../platform/theme/common/colors/editorColors.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
@@ -336,8 +338,14 @@ export class BuildingEditor extends JsonDocumentEditor {
 		return this.viewerLoading;
 	}
 
-	private viewerTheme(): { background: string } {
-		return { background: this.themeService.getColorTheme().getColor(editorBackground)?.toString() ?? '#1e1e1e' };
+	/** Canvas, ground grid and selection in the theme's colours, so the 3D view follows light and dark. */
+	private viewerTheme(): { background: string; grid?: string; selection?: string } {
+		const theme = this.themeService.getColorTheme();
+		const color = (id: string) => {
+			const value = theme.getColor(id);
+			return value ? Color.Format.CSS.formatHex(value) : undefined; // three.js reads #rrggbb only
+		};
+		return { background: color(editorBackground) ?? '#1e1e1e', grid: color(chartsLines), selection: color(chartsYellow) };
 	}
 
 	/** An element picked in 3D selects its floor-plan member (Properties, Model Explorer, plan). */

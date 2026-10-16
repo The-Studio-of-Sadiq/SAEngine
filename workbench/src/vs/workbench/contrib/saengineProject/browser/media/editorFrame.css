@@ -1,0 +1,309 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The shared SAEngine editor frame (editorFrame.ts): toolbar, main, properties panel, status line.
+ * Spacing, sizes and colours come from the shared tokens (saengineTokens.css), with fallbacks. */
+
+.saengine-editor-frame {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	background: var(--sa-surface, var(--vscode-editor-background));
+	color: var(--vscode-foreground);
+	font-size: var(--sa-font-m, 13px);
+}
+
+/* ── toolbar ─────────────────────────────────────────────────────────────── */
+
+.saengine-editor-frame .sa-frame-toolbar {
+	position: relative;
+	flex: none;
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+	height: var(--sa-toolbar-height, 34px);
+	padding: 0 var(--sa-space-2, 8px) 0 var(--sa-space-3, 12px);
+	border-bottom: 1px solid var(--sa-border, var(--vscode-panel-border));
+	box-sizing: border-box;
+	min-width: 0;
+}
+
+.saengine-editor-frame .sa-frame-title,
+.saengine-editor-frame .sa-frame-controls,
+.saengine-editor-frame .sa-frame-end {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+	min-width: 0;
+	white-space: nowrap;
+}
+
+.saengine-editor-frame .sa-frame-controls {
+	flex-shrink: 1;
+	overflow: hidden;
+}
+
+.saengine-editor-frame .sa-frame-controls:empty,
+.saengine-editor-frame .sa-frame-end:empty {
+	display: none;
+}
+
+.saengine-editor-frame .sa-frame-title-text {
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.saengine-editor-frame .sa-frame-spacer {
+	flex: 1;
+	min-width: 0;
+}
+
+.saengine-editor-frame .sa-frame-actions {
+	flex: none;
+	display: flex;
+	align-items: center;
+}
+
+.saengine-editor-frame .sa-frame-actions .action-label.codicon {
+	padding: 4px;
+	border-radius: var(--sa-radius, 4px);
+}
+
+/* progress along the toolbar's bottom edge */
+.saengine-editor-frame .sa-frame-progress {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: -1px;
+	height: 2px;
+	pointer-events: none;
+}
+
+/* a pill in the toolbar ("Out of date") */
+.saengine-editor-frame .sa-frame-pill {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1, 4px);
+	padding: 1px var(--sa-space-2, 8px);
+	border-radius: 999px;
+	font-size: var(--sa-font-s, 12px);
+	line-height: 18px;
+	border: 1px solid currentColor;
+	cursor: default;
+	background: transparent;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-family: inherit;
+}
+
+.saengine-editor-frame button.sa-frame-pill {
+	cursor: pointer;
+}
+
+.saengine-editor-frame .sa-frame-pill.warn {
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.saengine-editor-frame .sa-frame-pill.fail {
+	color: var(--sa-fail, var(--vscode-editorError-foreground));
+}
+
+.saengine-editor-frame .sa-frame-pill .codicon {
+	font-size: 12px;
+}
+
+/* a small inline label beside a control */
+.saengine-editor-frame .sa-frame-label {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+}
+
+/* small icon buttons of an inline control (− ×2 +) */
+.saengine-editor-frame .sa-frame-icon-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	border: none;
+	border-radius: var(--sa-radius, 4px);
+	background: transparent;
+	color: inherit;
+	cursor: pointer;
+}
+
+.saengine-editor-frame .sa-frame-icon-button:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.saengine-editor-frame .sa-frame-icon-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* ── body: main and properties ───────────────────────────────────────────── */
+
+.saengine-editor-frame .sa-frame-body {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+	display: flex;
+}
+
+.saengine-editor-frame .sa-frame-main {
+	position: relative;
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.saengine-editor-frame .sa-frame-panel {
+	flex: none;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	border-left: 1px solid var(--sa-border, var(--vscode-panel-border));
+	background: var(--sa-surface-alt, var(--vscode-sideBar-background));
+	box-sizing: border-box;
+}
+
+.saengine-editor-frame .sa-frame-panel.hidden,
+.saengine-editor-frame .sa-frame-panel.hidden ~ .monaco-sash {
+	display: none;
+}
+
+.saengine-editor-frame .sa-frame-panel-header {
+	flex: none;
+	display: flex;
+	align-items: center;
+	height: 30px;
+	padding: 0 var(--sa-space-1, 4px) 0 var(--sa-space-3, 12px);
+	font-size: var(--sa-font-s, 12px);
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-editor-frame .sa-frame-panel-title {
+	flex: 1;
+}
+
+.saengine-editor-frame .sa-frame-panel-close {
+	display: inline-flex;
+	padding: 3px;
+	border: none;
+	border-radius: var(--sa-radius, 4px);
+	background: transparent;
+	color: inherit;
+	cursor: pointer;
+}
+
+.saengine-editor-frame .sa-frame-panel-close:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.saengine-editor-frame .sa-frame-panel-content {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	padding: 0 var(--sa-space-3, 12px) var(--sa-space-3, 12px);
+	line-height: 1.5;
+}
+
+/* property sheet: a heading, then name/value rows */
+.saengine-editor-frame .sa-props-heading {
+	margin: var(--sa-space-3, 12px) 0 var(--sa-space-1, 4px);
+	font-weight: 600;
+}
+
+.saengine-editor-frame .sa-props-heading:first-child {
+	margin-top: var(--sa-space-1, 4px);
+}
+
+.saengine-editor-frame .sa-props-row {
+	display: flex;
+	justify-content: space-between;
+	gap: var(--sa-space-3, 12px);
+	padding: 2px 0;
+}
+
+.saengine-editor-frame .sa-props-row > .name {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	min-width: 0;
+}
+
+.saengine-editor-frame .sa-props-row > .value {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+	overflow-wrap: anywhere;
+}
+
+.saengine-editor-frame .sa-props-note {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+	margin: var(--sa-space-1, 4px) 0;
+}
+
+/* ── status line ─────────────────────────────────────────────────────────── */
+
+.saengine-editor-frame .sa-frame-status {
+	flex: none;
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+	height: 24px;
+	padding: 0 var(--sa-space-3, 12px);
+	border-top: 1px solid var(--sa-border, var(--vscode-panel-border));
+	font-size: var(--sa-font-s, 12px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	white-space: nowrap;
+	overflow: hidden;
+	box-sizing: border-box;
+}
+
+.saengine-editor-frame .sa-frame-status:empty {
+	visibility: hidden;
+}
+
+.saengine-editor-frame .sa-frame-status-text {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.saengine-editor-frame .sa-frame-status-text > span {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.saengine-editor-frame .sa-frame-status-icon {
+	font-size: 14px;
+}
+
+.saengine-editor-frame .sa-frame-status.warning .sa-frame-status-icon {
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.saengine-editor-frame .sa-frame-status.error .sa-frame-status-icon {
+	color: var(--sa-fail, var(--vscode-editorError-foreground));
+}
+
+.saengine-editor-frame .sa-frame-status-link {
+	flex: none;
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+
+.saengine-editor-frame .sa-frame-status-link:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}

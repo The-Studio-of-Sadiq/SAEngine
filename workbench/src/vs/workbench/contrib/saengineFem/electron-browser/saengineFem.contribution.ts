@@ -6,7 +6,7 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IBuildingIfcRequest, IFemDeriveRequest, IFemSolverService, IStructureGeometry, IStructureScriptResult, LibraryFileKind } from '../../../../platform/saengine/common/femSolver.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -15,10 +15,8 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { EditorResourceAccessor } from '../../../common/editor.js';
-import { ActiveEditorContext } from '../../../common/contextkeys.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { Extensions as OutputExtensions, IOutputChannelRegistry } from '../../../services/output/common/output.js';
-import { FemModelEditorInput } from '../browser/femModelEditorInput.js';
 import { resultsFolder } from '../browser/femResultsBar.js';
 import { FEM_OUTPUT_CHANNEL_ID, FEM_PYTHON_SETTING, FemAnalysisRunner } from './femAnalysisRunner.js';
 
@@ -52,11 +50,6 @@ registerAction2(class extends Action2 {
 			category,
 			icon: Codicon.play,
 			f1: true,
-			menu: {
-				id: MenuId.EditorTitle,
-				group: 'navigation',
-				when: ActiveEditorContext.isEqualTo(FemModelEditorInput.EDITOR_ID),
-			},
 		});
 	}
 

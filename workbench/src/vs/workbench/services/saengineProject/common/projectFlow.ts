@@ -8,12 +8,12 @@ import { URI } from '../../../../base/common/uri.js';
 import { ISaengineProject, projectParts } from './saengineProject.js';
 
 /*
- * The project's part folders read as a flowchart in the Explorer: one node per part, in workflow
- * order, with arrows pointing down from "01 Soil Report" to "11 Exports".
+ * Where a resource sits in the project's workflow of part folders. The Explorer, now shown in
+ * developer mode only, lists them as a plain file tree: the project sidebar shows the workflow.
  */
 
-/** Height of the connector above every part folder but the first [px]. */
-export const PROJECT_FLOW_GAP = 14;
+/** Extra height above every part folder but the first in the Explorer [px]; none since the project sidebar shows the workflow. */
+export const PROJECT_FLOW_GAP = 0;
 
 export interface IProjectFlowPosition {
 	/** Index of the part in the workflow. */

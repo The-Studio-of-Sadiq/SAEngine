@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import * as OBC from '@thatopen/components';
 import * as FRAGS from '@thatopen/fragments';
+import { usableTheme } from './theme.js';
 
 /*
  * The 3D view of the building model: an IFC file (written by SAEngine's Python side with
@@ -98,7 +99,7 @@ class BuildingViewerImpl implements BuildingViewer {
 	private readonly onPointerUp = (e: PointerEvent) => void this.handleClick(e);
 
 	constructor(container: HTMLElement, private readonly options: BuildingViewerOptions) {
-		this.theme = { ...defaultTheme, ...options.theme };
+		this.theme = { ...defaultTheme, ...usableTheme(options.theme) };
 
 		const worlds = this.components.get(OBC.Worlds);
 		this.world = worlds.create<OBC.SimpleScene, OBC.OrthoPerspectiveCamera, OBC.SimpleRenderer>();
@@ -177,7 +178,7 @@ class BuildingViewerImpl implements BuildingViewer {
 	}
 
 	async setTheme(theme: Partial<BuildingViewerTheme>): Promise<void> {
-		this.theme = { ...this.theme, ...theme };
+		this.theme = { ...this.theme, ...usableTheme(theme) };
 		this.applyTheme();
 		await this.applyColors();
 		await this.applySelection();

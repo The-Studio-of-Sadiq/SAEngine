@@ -304,6 +304,8 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			deps
 		];
 		let all = es.merge(...mergeStreams);
+		// SAEngine: the sample project ("Open sample project" on the start page).
+		all = es.merge(all, gulp.src('resources/saengine/samples/**', { base: '.', dot: true }));
 
 		if (platform === 'win32') {
 			all = es.merge(all, gulp.src([

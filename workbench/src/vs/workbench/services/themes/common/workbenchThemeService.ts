@@ -40,8 +40,9 @@ export enum ThemeSettings {
 }
 
 export namespace ThemeSettingDefaults {
-	export const COLOR_THEME_DARK = 'Dark 2026';
-	export const COLOR_THEME_LIGHT = 'Light 2026';
+	// SAEngine: the SAEngine themes (extensions/theme-saengine) are the defaults; 'Light 2026' and 'Dark 2026' remain installed.
+	export const COLOR_THEME_DARK = 'SAEngine Dark';
+	export const COLOR_THEME_LIGHT = 'SAEngine Light';
 	export const COLOR_THEME_HC_DARK = 'Default High Contrast';
 	export const COLOR_THEME_HC_LIGHT = 'Default High Contrast Light';
 

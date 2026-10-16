@@ -1,0 +1,170 @@
+{
+	"schema": "saengine.objects/1",
+	"objects": [
+		{
+			"id": "C400x600",
+			"name": "Column 400x600",
+			"kind": "column",
+			"material": "C20.7",
+			"profile": {
+				"shape": "rectangle",
+				"xDim": 400,
+				"yDim": 600
+			},
+			"reinforcement": {
+				"material": "B420DWR",
+				"cover": 40,
+				"longitudinal": [
+					{
+						"position": "perimeter",
+						"count": 10,
+						"dia": 20
+					}
+				],
+				"transverse": {
+					"type": "tie",
+					"dia": 10,
+					"spacing": 150,
+					"legs": 2
+				}
+			}
+		},
+		{
+			"id": "C500R",
+			"name": "Round column 500",
+			"kind": "column",
+			"material": "C20.7",
+			"profile": {
+				"shape": "circle",
+				"radius": 250
+			},
+			"reinforcement": {
+				"material": "B420DWR",
+				"cover": 40,
+				"longitudinal": [
+					{
+						"position": "perimeter",
+						"count": 8,
+						"dia": 20
+					}
+				],
+				"transverse": {
+					"type": "tie",
+					"dia": 10,
+					"spacing": 150,
+					"legs": 2
+				}
+			}
+		},
+		{
+			"id": "B300x500",
+			"name": "Beam 300x500",
+			"kind": "beam",
+			"material": "C20.7",
+			"profile": {
+				"shape": "rectangle",
+				"xDim": 300,
+				"yDim": 500
+			},
+			"reinforcement": {
+				"material": "B420DWR",
+				"cover": 40,
+				"longitudinal": [
+					{
+						"position": "top",
+						"count": 3,
+						"dia": 16
+					},
+					{
+						"position": "bottom",
+						"count": 4,
+						"dia": 16
+					}
+				],
+				"transverse": {
+					"type": "tie",
+					"dia": 10,
+					"spacing": 150,
+					"legs": 2
+				}
+			}
+		},
+		{
+			"id": "S150",
+			"name": "Slab 150",
+			"kind": "slab",
+			"material": "C20.7",
+			"thickness": 150,
+			"reinforcement": {
+				"material": "B420DWR",
+				"cover": 20,
+				"bottomX": {
+					"dia": 10,
+					"spacing": 150
+				},
+				"bottomY": {
+					"dia": 10,
+					"spacing": 150
+				},
+				"topX": {
+					"dia": 10,
+					"spacing": 200
+				},
+				"topY": {
+					"dia": 10,
+					"spacing": 200
+				}
+			}
+		},
+		{
+			"id": "W200",
+			"name": "Wall 200",
+			"kind": "wall",
+			"material": "C20.7",
+			"thickness": 200
+		},
+		{
+			"id": "F2015",
+			"name": "Footing 2000x1500",
+			"kind": "footing",
+			"material": "C20.7",
+			"length": 2000,
+			"width": 1500,
+			"thickness": 500,
+			"reinforcement": {
+				"material": "B420DWR",
+				"cover": 75,
+				"bottomX": {
+					"dia": 12,
+					"spacing": 150
+				},
+				"bottomY": {
+					"dia": 12,
+					"spacing": 150
+				}
+			}
+		},
+		{
+			"id": "ST1200",
+			"name": "Stair 1200 wide",
+			"kind": "staircase",
+			"material": "C20.7",
+			"waistThickness": 150,
+			"riser": 160,
+			"tread": 280,
+			"flightWidth": 1200
+		},
+		{
+			"id": "BR-SHS",
+			"name": "Brace SHS 150",
+			"kind": "brace",
+			"material": "C20.7",
+			"profile": {
+				"shape": "rectangleHollow",
+				"xDim": 150,
+				"yDim": 150,
+				"wallThickness": 8
+			}
+		}
+	]
+}

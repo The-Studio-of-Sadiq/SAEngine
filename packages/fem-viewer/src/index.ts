@@ -4,6 +4,7 @@
 
 import * as THREE from 'three';
 import * as OBC from '@thatopen/components';
+import { usableTheme } from './theme.js';
 import { FemElement, FemModel, FemNode, FemResultDisplay, FemResultView, FemSelection, outerFaces, sameSelection } from './model.js';
 import { ResultOverlay } from './results.js';
 
@@ -105,7 +106,7 @@ class FemViewerImpl implements FemViewer {
 	private readonly onPointerUp = (e: PointerEvent) => this.handleClick(e);
 
 	constructor(private readonly container: HTMLElement, private readonly options: FemViewerOptions) {
-		this.theme = { ...defaultTheme, ...options.theme };
+		this.theme = { ...defaultTheme, ...usableTheme(options.theme) };
 
 		const worlds = this.components.get(OBC.Worlds);
 		this.world = worlds.create<OBC.SimpleScene, OBC.OrthoPerspectiveCamera, OBC.SimpleRenderer>();
@@ -158,7 +159,7 @@ class FemViewerImpl implements FemViewer {
 	}
 
 	setTheme(theme: Partial<FemViewerTheme>): void {
-		this.theme = { ...this.theme, ...theme };
+		this.theme = { ...this.theme, ...usableTheme(theme) };
 		this.applyTheme();
 		this.rebuild();
 		this.renderHighlight();

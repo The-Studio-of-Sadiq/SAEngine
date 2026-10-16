@@ -472,7 +472,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 		// Register for configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(MenuSettings.MenuBarVisibility)) {
-				if (getMenuBarVisibility(this.configurationService) === 'compact') {
+				if (getMenuBarVisibility(this.configurationService) === 'compact' && this.globalActivities /* SAEngine: on the side only; else the title bar hosts it */) {
 					this.installMenubar();
 				} else {
 					this.uninstallMenubar();
@@ -570,7 +570,9 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 		this.element = parent;
 
 		// Install menubar if compact
-		if (getMenuBarVisibility(this.configurationService) === 'compact') {
+		// SAEngine: only in the activity bar on the side (it has global activities); a view
+		// switcher on top of the side bar leaves the compact menu to the title bar.
+		if (getMenuBarVisibility(this.configurationService) === 'compact' && this.globalActivities) {
 			this.installMenubar();
 		}
 

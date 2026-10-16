@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
@@ -17,7 +18,8 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { FemRunEvent, FemRunExitCode, IFemCaseResults, IFemResultTable, IFemRunExit, IFemSolverService } from '../../../../platform/saengine/common/femSolver.js';
-import { resultsFolder } from '../browser/femResultsBar.js';
+import { resultsFolder } from '../browser/femDesign.js';
+import { errorSummary, IFemRunOptions, IFemRunOutcome, IFemRunTracker } from '../browser/femResultsBar.js';
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { IOutputService } from '../../../services/output/common/output.js';
 
@@ -32,9 +34,10 @@ interface ICasePick extends IQuickPickItem {
 }
 
 /**
- * Runs the analysis cases of one `.osmodel` file: validates the model, asks which cases to
- * run, streams solver progress to a notification and the output channel, and prints the
- * result tables when the run finishes.
+ * Runs the analysis cases of one `.osmodel` file: validates the model, runs all its cases (or
+ * those picked), reports progress quietly (to the caller, or the status bar) and logs the solver
+ * output and the result tables to the "SAEngine Analysis" output channel, which opens only on
+ * request ("Show Log"). Only a failure notifies.
  */
 export class FemAnalysisRunner {
 
@@ -48,6 +51,7 @@ export class FemAnalysisRunner {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IOutputService private readonly outputService: IOutputService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IFemRunTracker private readonly runTracker: IFemRunTracker,
 	) { }
 
 	/**
@@ -80,7 +84,49 @@ export class FemAnalysisRunner {
 		}
 	}
 
-	async run(model: URI): Promise<void> {
+	/** The result tables of `model`'s last run, for the FEM editor's tables panel and export. */
+	resultTables(model: URI): Promise<readonly IFemCaseResults[]> {
+		return this.solverService.getResultTables(this.resolvePython(), resultsFolder(model).fsPath, model.fsPath);
+	}
+
+	/** Opens the output channel holding the log of the last run. */
+	async showLog(): Promise<void> {
+		await this.outputService.showChannel(FEM_OUTPUT_CHANNEL_ID);
+	}
+
+	/**
+	 * Runs the analysis of `model`: all its cases, or those picked when `options.pick`. One run per
+	 * model at a time: while one goes (from the editor, the palette or Run All), another returns
+	 * `busy` without touching the results.
+	 */
+	async run(model: URI, options: IFemRunOptions = {}): Promise<IFemRunOutcome> {
+		const cancellation = new CancellationTokenSource(options.token);
+		const tracked = this.runTracker.begin(model, () => cancellation.cancel());
+		if (!tracked) {
+			cancellation.dispose();
+			const message = localize('femRun.busy', "The analysis of this model is already running.");
+			if (!options.quiet) {
+				this.notificationService.info(message);
+			}
+			return { status: 'busy', cases: 0, message };
+		}
+		try {
+			const onProgress = options.onProgress;
+			return await this.runTracked(model, {
+				...options,
+				token: cancellation.token,
+				onProgress: progress => {
+					tracked.report(progress);
+					onProgress?.(progress);
+				},
+			}, !!onProgress);
+		} finally {
+			tracked.dispose();
+			cancellation.dispose();
+		}
+	}
+
+	private async runTracked(model: URI, options: IFemRunOptions, callerShowsProgress: boolean): Promise<IFemRunOutcome> {
 		const python = this.resolvePython();
 		const projectPath = model.fsPath;
 
@@ -88,32 +134,46 @@ export class FemAnalysisRunner {
 		try {
 			validation = await this.solverService.validateProject(python, projectPath);
 		} catch (error) {
-			this.reportBackendError(python, error);
-			return;
+			if (!options.quiet) {
+				this.reportBackendError(python, error);
+			}
+			return { status: 'unavailable', cases: 0, message: errorSummary(error) };
 		}
 		if (!validation.ok || !validation.summary) {
-			this.notificationService.error(localize('femRun.invalid', "The model cannot be analyzed: {0}", validation.errors.join('; ')));
-			return;
+			const message = localize('femRun.invalid', "The model cannot be analyzed: {0}", validation.errors.join('; '));
+			if (!options.quiet) {
+				this.notificationService.error(message);
+			}
+			return { status: 'invalid', cases: 0, message };
 		}
 		if (!validation.summary.analyses.length) {
-			this.notificationService.info(localize('femRun.noCases', "The model defines no analysis cases."));
-			return;
+			const message = localize('femRun.noCases', "The model defines no analysis cases.");
+			if (!options.quiet) {
+				this.notificationService.info(message);
+			}
+			return { status: 'empty', cases: 0, message };
 		}
 
-		const picks: ICasePick[] = validation.summary.analyses.map(c => ({
-			caseId: c.id,
-			label: c.name,
-			description: c.type.replace(/Case$/, ''),
-			detail: localize('femRun.caseId', "Case #{0}", c.id),
-			picked: true,
-		}));
-		const selected = await this.quickInputService.pick(picks, {
-			canPickMany: true,
-			title: localize('femRun.pickTitle', "Run Analysis: {0}", basename(model)),
-			placeHolder: localize('femRun.pickPlaceholder', "Select the analysis cases to run"),
-		});
-		if (!selected?.length) {
-			return;
+		let caseIds = validation.summary.analyses.map(c => c.id);
+		if (options.pick) {
+			const picks: ICasePick[] = validation.summary.analyses.map(c => ({
+				caseId: c.id,
+				label: c.name,
+				description: caseTypeLabel(c.type),
+				picked: true,
+			}));
+			const selected = await this.quickInputService.pick(picks, {
+				canPickMany: true,
+				title: localize('femRun.pickTitle', "Run Selected Cases"),
+				placeHolder: localize('femRun.pickPlaceholder', "Select the analysis cases to run"),
+			});
+			if (!selected?.length) {
+				return { status: 'cancelled', cases: 0 };
+			}
+			caseIds = selected.map(s => s.caseId);
+		}
+		if (options.token?.isCancellationRequested) {
+			return { status: 'cancelled', cases: 0 };
 		}
 
 		const outDir = resultsFolder(model);
@@ -122,48 +182,47 @@ export class FemAnalysisRunner {
 		const output = this.outputService.getChannel(FEM_OUTPUT_CHANNEL_ID);
 		// replace() rather than clear(): clear() resets asynchronously and would also drop the lines appended right after it.
 		output?.replace(localize('femRun.header', "Analyzing {0} ({1} nodes, {2} elements)\n", projectPath, validation.summary.nodes, validation.summary.elements));
-		void this.outputService.showChannel(FEM_OUTPUT_CHANNEL_ID, true);
 
-		const caseIds = selected.map(s => s.caseId);
-		const exit = await this.runWithProgress(python, projectPath, caseIds, outDir.fsPath, line => output?.append(line + '\n'));
+		const exit = await this.runWithProgress(python, projectPath, caseIds, outDir.fsPath, line => output?.append(line + '\n'), options, callerShowsProgress);
 
 		if (exit.result.cancelled) {
 			output?.append(localize('femRun.cancelled', "Analysis cancelled.\n"));
-			return;
+			return { status: 'cancelled', cases: 0 };
 		}
 		if (exit.result.exitCode !== FemRunExitCode.Ok) {
 			const message = exit.lastError ?? localize('femRun.crashed', "The solver process exited unexpectedly (exit code {0}).", String(exit.result.exitCode));
-			this.notificationService.notify({
-				severity: Severity.Error,
-				message: localize('femRun.failed', "Analysis failed: {0}", message),
-				actions: { primary: [this.showOutputAction()] },
-			});
-			return;
+			if (!options.quiet) {
+				this.notificationService.notify({
+					severity: Severity.Error,
+					message: localize('femRun.failed', "Analysis failed: {0}", message),
+					actions: { primary: [this.showLogAction()] },
+				});
+			}
+			return { status: 'failed', cases: 0, message };
 		}
 
+		// The log keeps the result tables; the FEM editor shows them in its tables panel.
 		try {
 			const results = await this.solverService.getResultTables(python, outDir.fsPath, projectPath);
 			output?.append(formatResults(results));
 		} catch (error) {
 			output?.append(localize('femRun.tablesFailed', "Could not read the results: {0}\n", String(error)));
 		}
-		this.notificationService.notify({
-			severity: Severity.Info,
-			message: localize('femRun.done', "Analysis complete: {0} case(s). Results are in {1}.", caseIds.length, basename(outDir)),
-			actions: { primary: [this.showOutputAction()] },
-		});
+		output?.append(localize('femRun.done', "Analysis complete: {0} case(s). Results are in {1}.\n", caseIds.length, basename(outDir)));
+		return { status: 'done', cases: caseIds.length };
 	}
 
-	private async runWithProgress(python: string, project: string, caseIds: number[], outDir: string, log: (line: string) => void): Promise<{ result: IFemRunExit; lastError?: string }> {
+	private async runWithProgress(python: string, project: string, caseIds: number[], outDir: string, log: (line: string) => void, options: IFemRunOptions, callerShowsProgress: boolean): Promise<{ result: IFemRunExit; lastError?: string }> {
 		const disposables = new DisposableStore();
 		const done = new DeferredPromise<IFemRunExit>();
 		let runId: string | undefined;
+		let cancelled = false;
 		let lastError: string | undefined;
-		let report: ((message: string, increment?: number) => void) | undefined;
+		let report: ((message: string) => void) | undefined;
 		const pending: { runId: string; event: FemRunEvent }[] = [];
 		const caseNames = new Map<number, string>();
-		const share = 100 / caseIds.length;
 		const caseProgress = new Map<number, number>();
+		const fraction = () => [...caseProgress.values()].reduce((sum, f) => sum + f, 0) / caseIds.length;
 
 		const handle = (event: FemRunEvent) => {
 			switch (event.type) {
@@ -179,18 +238,16 @@ export class FemAnalysisRunner {
 					break;
 				case 'case_started':
 					caseNames.set(event.case_id, event.case_name);
-					report?.(localize('femRun.caseStarted', "{0} ({1})", event.case_name, event.case_type.replace(/Case$/, '')));
+					caseProgress.set(event.case_id, 0);
+					report?.(localize('femRun.caseStarted', "{0} ({1})", event.case_name, caseTypeLabel(event.case_type)));
 					break;
-				case 'progress': {
-					const fraction = event.total > 0 ? event.step / event.total : 1;
-					const previous = caseProgress.get(event.case_id) ?? 0;
-					caseProgress.set(event.case_id, fraction);
-					report?.(localize('femRun.step', "{0}: step {1} of {2}", caseNames.get(event.case_id) ?? '', event.step, event.total), (fraction - previous) * share);
+				case 'progress':
+					caseProgress.set(event.case_id, event.total > 0 ? event.step / event.total : 1);
+					report?.(localize('femRun.step', "{0}: step {1} of {2}", caseNames.get(event.case_id) ?? '', event.step, event.total));
 					break;
-				}
 				case 'case_finished':
-					report?.(localize('femRun.caseFinished', "{0} finished", event.case_name), (1 - (caseProgress.get(event.case_id) ?? 0)) * share);
 					caseProgress.set(event.case_id, 1);
+					report?.(localize('femRun.caseFinished', "{0} finished", event.case_name));
 					break;
 			}
 		};
@@ -208,26 +265,49 @@ export class FemAnalysisRunner {
 				done.complete(e);
 			}
 		}));
-
-		try {
-			await this.progressService.withProgress({
-				location: ProgressLocation.Notification,
-				title: localize('femRun.progressTitle', "Running analysis"),
-				cancellable: true,
-			}, async progress => {
-				report = (message, increment) => progress.report({ message, increment });
-				runId = await this.solverService.startRun({ python, project, caseIds, outDir });
-				for (const e of pending.splice(0)) {
-					if (e.runId === runId) {
-						handle(e.event);
-					}
-				}
-				await done.p;
-			}, () => {
+		if (options.token) {
+			disposables.add(options.token.onCancellationRequested(() => {
+				cancelled = true;
 				if (runId) {
 					void this.solverService.cancelRun(runId);
 				}
-			});
+			}));
+		}
+
+		const start = async () => {
+			runId = await this.solverService.startRun({ python, project, caseIds, outDir });
+			if (cancelled) {
+				void this.solverService.cancelRun(runId);
+			}
+			for (const e of pending.splice(0)) {
+				if (e.runId === runId) {
+					handle(e.event);
+				}
+			}
+			await done.p;
+		};
+
+		try {
+			// The tracker (and so an open FEM editor) always gets the progress.
+			const onProgress = options.onProgress;
+			const tell = (message: string) => onProgress?.({ fraction: fraction(), message });
+			tell(localize('femRun.starting', "Starting the solver"));
+			if (callerShowsProgress) {
+				report = tell;
+				await start();
+			} else {
+				// No caller to show it: the status bar too, quietly.
+				await this.progressService.withProgress({
+					location: ProgressLocation.Window,
+					title: localize('femRun.progressTitle', "Running analysis"),
+				}, async progress => {
+					report = message => {
+						tell(message);
+						progress.report({ message });
+					};
+					await start();
+				});
+			}
 			return { result: await done.p, lastError };
 		} finally {
 			disposables.dispose();
@@ -258,16 +338,21 @@ export class FemAnalysisRunner {
 		});
 	}
 
-	private showOutputAction() {
+	private showLogAction() {
 		return {
-			id: 'saengine.fem.showOutput',
-			label: localize('femRun.showOutput', "Show Output"),
+			id: 'saengine.fem.showLogFromNotification',
+			label: localize('femRun.showLog', "Show Log"),
 			tooltip: '',
 			class: undefined,
 			enabled: true,
-			run: () => this.outputService.showChannel(FEM_OUTPUT_CHANNEL_ID),
+			run: () => this.showLog(),
 		};
 	}
+}
+
+/** "Static", "Modal", ... of an opensees-studio case type ("StaticCase"). */
+function caseTypeLabel(type: string): string {
+	return type.replace(/Case$/, '');
 }
 
 function formatCell(value: number | string): string {

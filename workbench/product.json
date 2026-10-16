@@ -2,6 +2,7 @@
 	"nameShort": "SAEngine",
 	"nameLong": "SAEngine",
 	"applicationName": "saengine",
+	"vscodeVersion": "1.142.0",
 	"dataFolderName": ".saengine",
 	"sharedDataFolderName": ".saengine-shared",
 	"win32MutexName": "saengine",

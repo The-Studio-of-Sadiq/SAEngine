@@ -139,9 +139,11 @@ export class SaengineProjectService extends Disposable implements ISaengineProje
 		if (project?.root.toString() === this._project?.root.toString() && project?.manifest.toString() === this._project?.manifest.toString() && project?.type === this._project?.type) {
 			return;
 		}
+		// Opening a project fills in missing core items quietly; the open project losing one is said.
+		const sameRoot = !!project && project.root.toString() === this._project?.root.toString();
 		this.setProject(project);
 		if (project) {
-			await this.restoreStructure(true);
+			await this.restoreStructure(sameRoot);
 		}
 	}
 
@@ -189,8 +191,12 @@ export class SaengineProjectService extends Disposable implements ISaengineProje
 			return;
 		}
 		const restored = await this.createMissing(project);
-		if (notify && restored.length) {
-			this.notificationService.warn(localize('saengineProject.restored', "Restored core project items that are required by SAEngine: {0}", restored.join(', ')));
+		if (!restored.length) {
+			return;
+		}
+		this.logService.info(`[saengine] restored core project items: ${restored.join(', ')}`);
+		if (notify) {
+			this.notificationService.info(localize('saengineProject.restored', "{0} was missing and has been recreated.", restored.join(', ')));
 		}
 	}
 

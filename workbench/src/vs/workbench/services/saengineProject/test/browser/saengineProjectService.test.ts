@@ -25,9 +25,9 @@ import { SaengineProjectService } from '../../browser/saengineProjectService.js'
 import { ISaengineProject, PROJECT_PARTS } from '../../common/saengineProject.js';
 
 class RecordingNotificationService extends TestNotificationService {
-	readonly warnings: string[] = [];
-	override warn(message: string): INotificationHandle {
-		this.warnings.push(message);
+	readonly messages: string[] = [];
+	override info(message: string): INotificationHandle {
+		this.messages.push(message);
 		return new NoOpNotification();
 	}
 }
@@ -126,6 +126,7 @@ suite('SAEngine - ProjectService', () => {
 		await createService(URI.from({ scheme: Schemas.inMemory, path: '/elsewhere' })).createProject(root, 'Office');
 		const service = createService();
 		await detected(service);
+		await timeout(1000); // opened: the quiet check for missing items is done
 
 		await fileService.del(joinPath(root, '04 Objects'), { recursive: true });
 		await fileService.del(joinPath(root, '08 FEM', 'model.osmodel'));
@@ -134,8 +135,8 @@ suite('SAEngine - ProjectService', () => {
 		assert.deepStrictEqual({
 			objects: await fileService.exists(joinPath(root, '04 Objects', 'objects.json')),
 			model: await fileService.exists(joinPath(root, '08 FEM', 'model.osmodel')),
-			warned: notifications.warnings.length > 0,
-		}, { objects: true, model: true, warned: true });
+			notified: notifications.messages.length > 0,
+		}, { objects: true, model: true, notified: true });
 	}));
 
 	test('a special structure has a structural model as Part 5, and the type can change', async () => {

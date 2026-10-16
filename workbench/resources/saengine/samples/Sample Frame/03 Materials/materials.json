@@ -1,0 +1,256 @@
+{
+	"schema": "saengine.materials/1",
+	"materials": [
+		{
+			"id": "C20.7",
+			"name": "Concrete f'c 20.7 MPa (3000 psi)",
+			"category": "concrete",
+			"mechanical": {
+				"E": 21380,
+				"nu": 0.2,
+				"density": 2400,
+				"alpha": 0.00001
+			},
+			"concrete": {
+				"fc": 20.7,
+				"ft": 2.82,
+				"maxAggregate": 20
+			},
+			"composition": {
+				"method": "nominal",
+				"ratio": [
+					1,
+					2,
+					4
+				],
+				"waterCement": 0.5,
+				"cementType": "OPC"
+			},
+			"source": {
+				"standard": "BNBC 2020 Part 6 / ACI 318-19",
+				"note": "E = 4700√f'c and modulus of rupture 0.62√f'c (normal-weight concrete). Nominal mix is typical site practice; confirm strength by trial mix and cylinder tests."
+			}
+		},
+		{
+			"id": "C24.1",
+			"name": "Concrete f'c 24.1 MPa (3500 psi)",
+			"category": "concrete",
+			"mechanical": {
+				"E": 23070,
+				"nu": 0.2,
+				"density": 2400,
+				"alpha": 0.00001
+			},
+			"concrete": {
+				"fc": 30,
+				"ft": 3.04,
+				"maxAggregate": 20
+			},
+			"composition": {
+				"method": "nominal",
+				"ratio": [
+					1,
+					1.5,
+					3
+				],
+				"waterCement": 0.45,
+				"cementType": "OPC"
+			},
+			"source": {
+				"standard": "BNBC 2020 Part 6 / ACI 318-19",
+				"note": "E = 4700√f'c and modulus of rupture 0.62√f'c (normal-weight concrete). Nominal mix is typical site practice; confirm strength by trial mix and cylinder tests."
+			}
+		},
+		{
+			"id": "C27.6",
+			"name": "Concrete f'c 27.6 MPa (4000 psi)",
+			"category": "concrete",
+			"mechanical": {
+				"E": 24690,
+				"nu": 0.2,
+				"density": 2400,
+				"alpha": 0.00001
+			},
+			"concrete": {
+				"fc": 27.6,
+				"ft": 3.26,
+				"maxAggregate": 20
+			},
+			"source": {
+				"standard": "BNBC 2020 Part 6 / ACI 318-19",
+				"note": "E = 4700√f'c and modulus of rupture 0.62√f'c (normal-weight concrete). Use a design mix for this grade."
+			}
+		},
+		{
+			"id": "C31",
+			"name": "Concrete f'c 31 MPa (4500 psi)",
+			"category": "concrete",
+			"mechanical": {
+				"E": 26170,
+				"nu": 0.2,
+				"density": 2400,
+				"alpha": 0.00001
+			},
+			"concrete": {
+				"fc": 31,
+				"ft": 3.45,
+				"maxAggregate": 20
+			},
+			"source": {
+				"standard": "BNBC 2020 Part 6 / ACI 318-19",
+				"note": "E = 4700√f'c and modulus of rupture 0.62√f'c (normal-weight concrete). Use a design mix for this grade."
+			}
+		},
+		{
+			"id": "B420DWR",
+			"name": "Rebar B420DWR",
+			"category": "rebar",
+			"mechanical": {
+				"E": 200000,
+				"nu": 0.3,
+				"density": 7850,
+				"alpha": 0.000012
+			},
+			"steel": {
+				"grade": "B420DWR",
+				"fy": 420
+			},
+			"source": {
+				"standard": "BDS ISO 6935-2:2016",
+				"note": "Specified characteristic yield strength. Take fu and elongation from the mill certificate."
+			}
+		},
+		{
+			"id": "B500DWR",
+			"name": "Rebar B500DWR",
+			"category": "rebar",
+			"mechanical": {
+				"E": 200000,
+				"nu": 0.3,
+				"density": 7850,
+				"alpha": 0.000012
+			},
+			"steel": {
+				"grade": "B500DWR",
+				"fy": 500
+			},
+			"source": {
+				"standard": "BDS ISO 6935-2:2016",
+				"note": "Specified characteristic yield strength. Take fu and elongation from the mill certificate."
+			}
+		},
+		{
+			"id": "A36",
+			"name": "Structural steel ASTM A36",
+			"category": "steel",
+			"mechanical": {
+				"E": 200000,
+				"nu": 0.3,
+				"density": 7850,
+				"alpha": 0.000012
+			},
+			"steel": {
+				"grade": "ASTM A36",
+				"fy": 250,
+				"fu": 400
+			},
+			"source": {
+				"standard": "ASTM A36/A36M",
+				"note": "Specified minimum yield and tensile strengths."
+			}
+		},
+		{
+			"id": "A572-50",
+			"name": "Structural steel ASTM A572 Grade 50",
+			"category": "steel",
+			"mechanical": {
+				"E": 200000,
+				"nu": 0.3,
+				"density": 7850,
+				"alpha": 0.000012
+			},
+			"steel": {
+				"grade": "ASTM A572 Grade 50",
+				"fy": 345,
+				"fu": 450
+			},
+			"source": {
+				"standard": "ASTM A572/A572M",
+				"note": "Specified minimum yield and tensile strengths."
+			}
+		},
+		{
+			"id": "A992",
+			"name": "Structural steel ASTM A992",
+			"category": "steel",
+			"mechanical": {
+				"E": 200000,
+				"nu": 0.3,
+				"density": 7850,
+				"alpha": 0.000012
+			},
+			"steel": {
+				"grade": "ASTM A992",
+				"fy": 345,
+				"fu": 450
+			},
+			"source": {
+				"standard": "ASTM A992/A992M",
+				"note": "Specified minimum yield and tensile strengths."
+			}
+		},
+		{
+			"id": "M1-4",
+			"name": "Cement mortar 1:4",
+			"category": "mortar",
+			"mechanical": {
+				"density": 2080
+			},
+			"composition": {
+				"method": "nominal",
+				"ratio": [
+					1,
+					4
+				],
+				"cementType": "OPC"
+			},
+			"source": {
+				"note": "Typical cement:sand mortar by volume; density ~20.4 kN/m³."
+			}
+		},
+		{
+			"id": "M1-6",
+			"name": "Cement mortar 1:6",
+			"category": "mortar",
+			"mechanical": {
+				"density": 2080
+			},
+			"composition": {
+				"method": "nominal",
+				"ratio": [
+					1,
+					6
+				],
+				"cementType": "OPC"
+			},
+			"source": {
+				"note": "Typical cement:sand mortar by volume; density ~20.4 kN/m³."
+			}
+		},
+		{
+			"id": "BRICK-1",
+			"name": "First-class brick masonry",
+			"category": "masonry",
+			"mechanical": {
+				"density": 1920
+			},
+			"masonry": {
+				"unit": "first-class burnt clay brick",
+				"mortar": "M1-4"
+			},
+			"source": {
+				"note": "Typical unit weight ~18.85 kN/m³. Enter unit and prism strengths from tests."
+			}
+		}
+	]
+}

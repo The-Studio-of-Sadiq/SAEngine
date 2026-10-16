@@ -5,7 +5,9 @@
 
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { dirname, joinPath } from '../../../../base/common/resources.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { basename, dirname, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 
 /**
@@ -92,6 +94,36 @@ export interface IFemDesignReport {
 	readonly notes: readonly string[];
 }
 
+/** The folder a model's analysis results are written to (`model.osmodel` -> `model.results`). */
+export function resultsFolder(model: URI): URI {
+	return joinPath(dirname(model), `${basename(model).replace(/\.osmodel$/i, '')}.results`);
+}
+
+/** The design checks' summary beside the results, read by the project's part list ("3 fail"). */
+export const DESIGN_SUMMARY_FILE = 'design-summary.json';
+
+/** Content of {@link DESIGN_SUMMARY_FILE}. */
+export interface IFemDesignSummaryFile {
+	readonly checked: number;
+	readonly passed: number;
+	readonly failed: number;
+	readonly maxUtilisation: number | null;
+	readonly governing: string | null;
+	/** ISO time the checks were computed. */
+	readonly computed: string;
+}
+
+export function designSummaryFile(report: IFemDesignReport, computed: Date): IFemDesignSummaryFile {
+	const { checked, passed, failed, maxUtilisation, governing } = report.summary;
+	return { checked, passed, failed, maxUtilisation, governing, computed: computed.toISOString() };
+}
+
+/** Writes the design checks' summary of `model`'s run to `<model>.results/design-summary.json`. */
+export async function writeDesignSummary(fileService: IFileService, model: URI, report: IFemDesignReport): Promise<void> {
+	const content = JSON.stringify(designSummaryFile(report, new Date()), undefined, '\t') + '\n';
+	await fileService.writeFile(joinPath(resultsFolder(model), DESIGN_SUMMARY_FILE), VSBuffer.fromString(content));
+}
+
 export function runDesign(commandService: ICommandService, model: URI): Promise<IFemDesignReport | undefined> {
 	return commandService.executeCommand<IFemDesignReport>(DESIGN_COMMAND, model);
 }
@@ -151,11 +183,29 @@ export function describeDesignSummary(report: IFemDesignReport): string {
 		: localize('femDesign.summary', "{0} ({1}). Select a member for its checks.", parts.join(', '), report.code);
 }
 
-function formatCheck(check: IFemDesignCheck): string {
+/** A check's demand against capacity: "120.5 of 300.0 kN", or a ratio "0.11 against 0.38". */
+export function formatCheckValues(check: IFemDesignCheck): string {
 	// Ratios (c/d, slenderness) keep two decimals: one would round a slab's c/d of 0.11 to 0.1.
-	const values = check.unit
+	return check.unit
 		? localize('femDesign.checkValues', "{0} of {1} {2}", check.demand.toFixed(1), check.capacity.toFixed(1), check.unit)
 		: localize('femDesign.checkRatio', "{0} against {1}", check.demand.toFixed(2), check.capacity.toFixed(2));
+}
+
+/** A member's checks, the governing (strength) checks first, then the reported-only ones. */
+export function sortedChecks(element: IFemDesignElement): IFemDesignCheck[] {
+	return [...element.checks].sort((a, b) => Number(a.flag) - Number(b.flag) || b.utilisation - a.utilisation);
+}
+
+/** "beam", "column", "slab", "footing". */
+export function designKindLabel(kind: IFemDesignElement['kind']): string {
+	return kind === 'beam' ? localize('femDesign.beam', "beam")
+		: kind === 'slab' ? localize('femDesign.slab', "slab")
+			: kind === 'footing' ? localize('femDesign.footing', "footing")
+				: localize('femDesign.column', "column");
+}
+
+function formatCheck(check: IFemDesignCheck): string {
+	const values = formatCheckValues(check);
 	return check.combination
 		? localize('femDesign.checkUnder', "{0} {1} ({2}, {3})", check.name, formatUtilisation(check.utilisation), values, check.combination)
 		: localize('femDesign.check', "{0} {1} ({2})", check.name, formatUtilisation(check.utilisation), values);
@@ -172,11 +222,8 @@ export function describeDesignElement(report: IFemDesignReport, elementId: numbe
 		const skipped = id !== undefined ? report.skipped.find(s => s.id === id) : undefined;
 		return skipped ? localize('femDesign.notChecked', "{0} ({1}) is not checked: {2}.", skipped.id, skipped.type, skipped.reason) : undefined;
 	}
-	const checks = [...element.checks].sort((a, b) => Number(a.flag) - Number(b.flag) || b.utilisation - a.utilisation);
-	const kind = element.kind === 'beam' ? localize('femDesign.beam', "beam")
-		: element.kind === 'slab' ? localize('femDesign.slab', "slab")
-			: element.kind === 'footing' ? localize('femDesign.footing', "footing")
-				: localize('femDesign.column', "column");
+	const checks = sortedChecks(element);
+	const kind = designKindLabel(element.kind);
 	const verdict = element.ok ? localize('femDesign.passes', "passes") : localize('femDesign.fails', "fails");
 	const text = localize('femDesign.element', "{0} ({1} {2}) {3}, utilisation {4}: {5}.", element.id, kind, element.type, verdict,
 		formatUtilisation(element.utilisation), checks.map(formatCheck).join('; '));

@@ -1,0 +1,711 @@
+{
+	"schema": "saengine.boq/1",
+	"source": {
+		"bim": "206a050a29ba70b4184a6f5576150d3dc47a949b",
+		"objects": "208cf81c4f12504fd967771a054f8c6edb9e8405",
+		"materials": "50563593cdcc5ae3ea57a91d1c0379e5e5db980f"
+	},
+	"items": [
+		{
+			"code": "C.01",
+			"group": "concrete",
+			"description": "Concrete C20.7 in footings",
+			"quantity": 1.5,
+			"unit": "m3",
+			"material": "C20.7",
+			"kind": "footing",
+			"byStory": {
+				"BASE": 1.5
+			},
+			"breakdown": [
+				{
+					"element": "F1",
+					"story": "BASE",
+					"quantity": 1.5
+				}
+			]
+		},
+		{
+			"code": "C.02",
+			"group": "concrete",
+			"description": "Concrete C20.7 in columns",
+			"quantity": 6.945,
+			"unit": "m3",
+			"material": "C20.7",
+			"kind": "column",
+			"byStory": {
+				"L1": 4.545,
+				"L2": 0.768
+			},
+			"breakdown": [
+				{
+					"element": "C1",
+					"story": "L1",
+					"quantity": 0.768
+				},
+				{
+					"element": "C2",
+					"story": "L1",
+					"quantity": 0.75
+				},
+				{
+					"element": "C3",
+					"story": "L1",
+					"quantity": 0.759
+				},
+				{
+					"element": "C4",
+					"story": "L1",
+					"quantity": 0.759
+				},
+				{
+					"element": "C5",
+					"story": "L1",
+					"quantity": 0.75
+				},
+				{
+					"element": "C6",
+					"story": "L1",
+					"quantity": 0.759
+				},
+				{
+					"element": "C7",
+					"story": "L2",
+					"quantity": 0.768
+				},
+				{
+					"element": "M1",
+					"quantity": 1.632
+				}
+			]
+		},
+		{
+			"code": "C.03",
+			"group": "concrete",
+			"description": "Concrete C20.7 in walls",
+			"quantity": 2.307,
+			"unit": "m3",
+			"material": "C20.7",
+			"kind": "wall",
+			"byStory": {
+				"L1": 2.307
+			},
+			"breakdown": [
+				{
+					"element": "W1",
+					"story": "L1",
+					"quantity": 2.307
+				}
+			]
+		},
+		{
+			"code": "C.04",
+			"group": "concrete",
+			"description": "Concrete C20.7 in beams",
+			"quantity": 3.536,
+			"unit": "m3",
+			"material": "C20.7",
+			"kind": "beam",
+			"byStory": {
+				"L1": 3.536
+			},
+			"breakdown": [
+				{
+					"element": "B1",
+					"story": "L1",
+					"quantity": 0.686
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"quantity": 0.832
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"quantity": 0.714
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"quantity": 0.842
+				},
+				{
+					"element": "B5",
+					"story": "L1",
+					"quantity": 0.463
+				}
+			]
+		},
+		{
+			"code": "C.05",
+			"group": "concrete",
+			"description": "Concrete C20.7 in braces",
+			"quantity": 0.031,
+			"unit": "m3",
+			"material": "C20.7",
+			"kind": "brace",
+			"byStory": {},
+			"breakdown": [
+				{
+					"element": "M2",
+					"quantity": 0.031
+				}
+			]
+		},
+		{
+			"code": "C.06",
+			"group": "concrete",
+			"description": "Concrete C20.7 in slabs",
+			"quantity": 9.166,
+			"unit": "m3",
+			"material": "C20.7",
+			"kind": "slab",
+			"byStory": {
+				"L1": 9.166
+			},
+			"breakdown": [
+				{
+					"element": "S1",
+					"story": "L1",
+					"quantity": 3.917
+				},
+				{
+					"element": "S2",
+					"story": "L1",
+					"quantity": 5.25
+				}
+			]
+		},
+		{
+			"code": "C.07",
+			"group": "concrete",
+			"description": "Concrete C20.7 in stairs",
+			"quantity": 3.334,
+			"unit": "m3",
+			"material": "C20.7",
+			"kind": "staircase",
+			"byStory": {
+				"BASE": 3.334
+			},
+			"breakdown": [
+				{
+					"element": "ST1",
+					"story": "BASE",
+					"quantity": 1.667
+				},
+				{
+					"element": "ST2",
+					"story": "BASE",
+					"quantity": 1.667
+				}
+			]
+		},
+		{
+			"code": "R.01",
+			"group": "reinforcement",
+			"description": "Reinforcement B420DWR, 10 mm bars",
+			"quantity": 1278.901,
+			"unit": "kg",
+			"material": "B420DWR",
+			"diameter": 10.0,
+			"byStory": {
+				"L1": 1201.667,
+				"L2": 24.988
+			},
+			"breakdown": [
+				{
+					"element": "C1",
+					"story": "L1",
+					"detail": "ties",
+					"quantity": 24.988
+				},
+				{
+					"element": "C2",
+					"story": "L1",
+					"detail": "ties",
+					"quantity": 24.988
+				},
+				{
+					"element": "C3",
+					"story": "L1",
+					"detail": "ties",
+					"quantity": 24.988
+				},
+				{
+					"element": "C4",
+					"story": "L1",
+					"detail": "ties",
+					"quantity": 24.988
+				},
+				{
+					"element": "C5",
+					"story": "L1",
+					"detail": "ties",
+					"quantity": 24.988
+				},
+				{
+					"element": "C6",
+					"story": "L1",
+					"detail": "ties",
+					"quantity": 24.988
+				},
+				{
+					"element": "C7",
+					"story": "L2",
+					"detail": "ties",
+					"quantity": 24.988
+				},
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "ties",
+					"quantity": 32.0
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "ties",
+					"quantity": 39.111
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "ties",
+					"quantity": 33.778
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "ties",
+					"quantity": 40.0
+				},
+				{
+					"element": "B5",
+					"story": "L1",
+					"detail": "ties",
+					"quantity": 26.667
+				},
+				{
+					"element": "S1",
+					"story": "L1",
+					"detail": "bottom X",
+					"quantity": 107.449
+				},
+				{
+					"element": "S1",
+					"story": "L1",
+					"detail": "bottom Y",
+					"quantity": 107.449
+				},
+				{
+					"element": "S1",
+					"story": "L1",
+					"detail": "top X",
+					"quantity": 80.586
+				},
+				{
+					"element": "S1",
+					"story": "L1",
+					"detail": "top Y",
+					"quantity": 80.586
+				},
+				{
+					"element": "S2",
+					"story": "L1",
+					"detail": "bottom X",
+					"quantity": 144.033
+				},
+				{
+					"element": "S2",
+					"story": "L1",
+					"detail": "bottom Y",
+					"quantity": 144.033
+				},
+				{
+					"element": "S2",
+					"story": "L1",
+					"detail": "top X",
+					"quantity": 108.025
+				},
+				{
+					"element": "S2",
+					"story": "L1",
+					"detail": "top Y",
+					"quantity": 108.025
+				},
+				{
+					"element": "M1",
+					"detail": "ties",
+					"quantity": 52.247
+				}
+			]
+		},
+		{
+			"code": "R.02",
+			"group": "reinforcement",
+			"description": "Reinforcement B420DWR, 12 mm bars",
+			"quantity": 35.556,
+			"unit": "kg",
+			"material": "B420DWR",
+			"diameter": 12.0,
+			"byStory": {
+				"BASE": 35.556
+			},
+			"breakdown": [
+				{
+					"element": "F1",
+					"story": "BASE",
+					"detail": "bottom X",
+					"quantity": 17.778
+				},
+				{
+					"element": "F1",
+					"story": "BASE",
+					"detail": "bottom Y",
+					"quantity": 17.778
+				}
+			]
+		},
+		{
+			"code": "R.03",
+			"group": "reinforcement",
+			"description": "Reinforcement B420DWR, 16 mm bars",
+			"quantity": 342.914,
+			"unit": "kg",
+			"material": "B420DWR",
+			"diameter": 16.0,
+			"byStory": {
+				"L1": 342.914
+			},
+			"breakdown": [
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "longitudinal",
+					"quantity": 66.37
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "longitudinal",
+					"quantity": 77.432
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "longitudinal",
+					"quantity": 66.37
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "longitudinal",
+					"quantity": 77.432
+				},
+				{
+					"element": "B5",
+					"story": "L1",
+					"detail": "longitudinal",
+					"quantity": 55.309
+				}
+			]
+		},
+		{
+			"code": "R.04",
+			"group": "reinforcement",
+			"description": "Reinforcement B420DWR, 20 mm bars",
+			"quantity": 720.988,
+			"unit": "kg",
+			"material": "B420DWR",
+			"diameter": 20.0,
+			"byStory": {
+				"L1": 474.074,
+				"L2": 79.012
+			},
+			"breakdown": [
+				{
+					"element": "C1",
+					"story": "L1",
+					"detail": "longitudinal",
+					"quantity": 79.012
+				},
+				{
+					"element": "C2",
+					"story": "L1",
+					"detail": "longitudinal",
+					"quantity": 79.012
+				},
+				{
+					"element": "C3",
+					"story": "L1",
+					"detail": "longitudinal",
+					"quantity": 79.012
+				},
+				{
+					"element": "C4",
+					"story": "L1",
+					"detail": "longitudinal",
+					"quantity": 79.012
+				},
+				{
+					"element": "C5",
+					"story": "L1",
+					"detail": "longitudinal",
+					"quantity": 79.012
+				},
+				{
+					"element": "C6",
+					"story": "L1",
+					"detail": "longitudinal",
+					"quantity": 79.012
+				},
+				{
+					"element": "C7",
+					"story": "L2",
+					"detail": "longitudinal",
+					"quantity": 79.012
+				},
+				{
+					"element": "M1",
+					"detail": "longitudinal",
+					"quantity": 167.901
+				}
+			]
+		},
+		{
+			"code": "F.01",
+			"group": "formwork",
+			"description": "Formwork to footings",
+			"quantity": 3.5,
+			"unit": "m2",
+			"kind": "footing",
+			"byStory": {
+				"BASE": 3.5
+			},
+			"breakdown": [
+				{
+					"element": "F1",
+					"story": "BASE",
+					"detail": "sides",
+					"quantity": 3.5
+				}
+			]
+		},
+		{
+			"code": "F.02",
+			"group": "formwork",
+			"description": "Formwork to columns",
+			"quantity": 57.875,
+			"unit": "m2",
+			"kind": "column",
+			"byStory": {
+				"L1": 37.875,
+				"L2": 6.4
+			},
+			"breakdown": [
+				{
+					"element": "C1",
+					"story": "L1",
+					"detail": "sides",
+					"quantity": 6.4
+				},
+				{
+					"element": "C2",
+					"story": "L1",
+					"detail": "sides",
+					"quantity": 6.25
+				},
+				{
+					"element": "C3",
+					"story": "L1",
+					"detail": "sides",
+					"quantity": 6.325
+				},
+				{
+					"element": "C4",
+					"story": "L1",
+					"detail": "sides",
+					"quantity": 6.325
+				},
+				{
+					"element": "C5",
+					"story": "L1",
+					"detail": "sides",
+					"quantity": 6.25
+				},
+				{
+					"element": "C6",
+					"story": "L1",
+					"detail": "sides",
+					"quantity": 6.325
+				},
+				{
+					"element": "C7",
+					"story": "L2",
+					"detail": "sides",
+					"quantity": 6.4
+				},
+				{
+					"element": "M1",
+					"detail": "sides",
+					"quantity": 13.6
+				}
+			]
+		},
+		{
+			"code": "F.03",
+			"group": "formwork",
+			"description": "Formwork to walls",
+			"quantity": 23.07,
+			"unit": "m2",
+			"kind": "wall",
+			"byStory": {
+				"L1": 23.07
+			},
+			"breakdown": [
+				{
+					"element": "W1",
+					"story": "L1",
+					"detail": "both faces",
+					"quantity": 23.07
+				}
+			]
+		},
+		{
+			"code": "F.04",
+			"group": "formwork",
+			"description": "Formwork to beams",
+			"quantity": 32.089,
+			"unit": "m2",
+			"kind": "beam",
+			"byStory": {
+				"L1": 32.089
+			},
+			"breakdown": [
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "sides and soffit",
+					"quantity": 6.172
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "sides and soffit",
+					"quantity": 7.493
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "sides and soffit",
+					"quantity": 6.44
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "sides and soffit",
+					"quantity": 7.59
+				},
+				{
+					"element": "B5",
+					"story": "L1",
+					"detail": "sides and soffit",
+					"quantity": 4.393
+				}
+			]
+		},
+		{
+			"code": "F.05",
+			"group": "formwork",
+			"description": "Formwork to braces",
+			"quantity": 3.06,
+			"unit": "m2",
+			"kind": "brace",
+			"byStory": {},
+			"breakdown": [
+				{
+					"element": "M2",
+					"detail": "sides and soffit",
+					"quantity": 3.06
+				}
+			]
+		},
+		{
+			"code": "F.06",
+			"group": "formwork",
+			"description": "Formwork to slabs",
+			"quantity": 57.279,
+			"unit": "m2",
+			"kind": "slab",
+			"byStory": {
+				"L1": 57.279
+			},
+			"breakdown": [
+				{
+					"element": "S1",
+					"story": "L1",
+					"detail": "soffit",
+					"quantity": 23.642
+				},
+				{
+					"element": "S1",
+					"story": "L1",
+					"detail": "edges",
+					"quantity": 1.957
+				},
+				{
+					"element": "S2",
+					"story": "L1",
+					"detail": "soffit",
+					"quantity": 31.68
+				}
+			]
+		},
+		{
+			"code": "F.07",
+			"group": "formwork",
+			"description": "Formwork to stairs",
+			"quantity": 23.16,
+			"unit": "m2",
+			"kind": "staircase",
+			"byStory": {
+				"BASE": 23.16
+			},
+			"breakdown": [
+				{
+					"element": "ST1",
+					"story": "BASE",
+					"detail": "soffit",
+					"quantity": 7.74
+				},
+				{
+					"element": "ST1",
+					"story": "BASE",
+					"detail": "risers",
+					"quantity": 3.84
+				},
+				{
+					"element": "ST2",
+					"story": "BASE",
+					"detail": "soffit",
+					"quantity": 7.74
+				},
+				{
+					"element": "ST2",
+					"story": "BASE",
+					"detail": "risers",
+					"quantity": 3.84
+				}
+			]
+		}
+	],
+	"notes": [
+		"Concrete: slabs are measured over their whole outline and full thickness, less openings. Beams are measured between the faces of the columns they meet and below the slab: the part of a beam, column or wall within a slab's depth is measured with the slab. Columns run their full height and walls their whole length (less wall openings), each less that slab depth. Nothing else is deducted where members meet (beam/beam and wall/column joints); special-structure members are measured node to node and their areas over their whole outline, with no deduction where they meet.",
+		"Longitudinal bars run the member's full length (beams centreline to centreline) with a lap of 40 bar diameters at every joint between 12 m stock lengths. Stirrups and ties are measured at their centre line plus two 135° hooks of 10 diameters, length / spacing + 1 of them. Meshes are area / spacing of bar per layer and direction. Bends, anchorages, chairs and wastage are not included; bar mass is d²/162 kg/m.",
+		"Formwork is measured to the cast faces: beam sides and soffit, column perimeter by height, slab soffit and edges, wall faces, footing sides. Faces cast against another member are not formed (slab soffit over beams, columns and walls; their faces within the slab's depth; slab edges over them); nothing else is deducted where members meet.",
+		"Object type 'W200' (Wall 200) has no reinforcement; no bars are measured for W1.",
+		"Object type 'BR-SHS' (Brace SHS 150) has no reinforcement; no bars are measured for M2.",
+		"Object type 'ST1200' (Stair 1200 wide) has no reinforcement; no bars are measured for ST1, ST2."
+	]
+}

@@ -3,134 +3,121 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* The FEM model editor in the shared editor frame (saengineProject/browser/editorFrame.ts).
+ * Layout here; colours only through the variables below, so the theme can change them. */
+
 .saengine-fem-model-editor {
-	position: relative;
-	overflow: hidden;
-	display: flex;
-	flex-direction: column;
+	--fem-overlay-background: color-mix(in srgb, var(--sa-surface, var(--vscode-editor-background)) 88%, transparent);
+	--fem-overlay-border: var(--sa-border, var(--vscode-panel-border));
+	--fem-band-pass: var(--sa-ok, var(--vscode-charts-green));
+	--fem-band-warn: var(--sa-warn, var(--vscode-charts-orange));
+	--fem-band-fail: var(--sa-fail, var(--vscode-charts-red));
+	--fem-curve: var(--vscode-charts-blue);
+	--fem-curve-marker: var(--vscode-charts-yellow);
+	--fem-table-stripe: color-mix(in srgb, var(--vscode-foreground) 4%, transparent);
 }
 
-.saengine-fem-model-editor .viewport {
-	position: relative;
-	flex: 1;
-	min-height: 0;
-	outline: none;
+.saengine-fem-model-editor .hidden {
+	display: none !important;
 }
 
-/* derived from the building model: status and the Part 8 actions */
-.saengine-fem-model-editor .fem-derivation {
-	display: none;
-	flex: none;
-	align-items: center;
-	flex-wrap: wrap;
-	gap: 6px 16px;
-	padding: 8px 16px;
-	border-bottom: 1px solid var(--vscode-editorGroup-border, transparent);
-}
-
-.saengine-fem-model-editor .fem-derivation.visible {
-	display: flex;
-}
-
-.saengine-fem-model-editor .fem-derivation-status {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-}
-
-.saengine-fem-model-editor .fem-derivation-status .codicon-warning {
-	color: var(--vscode-editorWarning-foreground);
-}
-
-.saengine-fem-model-editor .fem-derivation-status .codicon-check {
-	color: var(--vscode-testing-iconPassed, var(--vscode-charts-green));
-}
-
-.saengine-fem-model-editor .fem-derivation-actions {
-	display: flex;
-	gap: 8px;
-	margin-left: auto;
-}
-
-.saengine-fem-model-editor .fem-derivation-actions .monaco-button {
-	width: auto;
-	padding: 2px 10px;
-}
-
-.saengine-fem-model-editor .message {
-	display: none;
-	position: absolute;
-	top: 12px;
-	left: 12px;
-	right: 12px;
-	padding: 8px 12px;
-	color: var(--vscode-inputValidation-errorForeground, var(--vscode-foreground));
-	background: var(--vscode-inputValidation-errorBackground);
-	border: 1px solid var(--vscode-inputValidation-errorBorder);
-}
-
-.saengine-fem-model-editor .message.visible {
-	display: block;
-}
-
-/* results of the last run: which one, what of it, at which scale */
-.saengine-fem-model-editor .fem-results {
-	display: none;
-	flex: none;
-	align-items: center;
-	flex-wrap: wrap;
-	gap: 6px 16px;
-	padding: 6px 16px;
-	border-bottom: 1px solid var(--vscode-editorGroup-border, transparent);
-}
-
-.saengine-fem-model-editor .fem-results.visible {
-	display: flex;
-}
+/* ── toolbar: selectors and inline controls ──────────────────────────────── */
 
 .saengine-fem-model-editor .fem-results-group {
 	display: flex;
 	align-items: center;
-	gap: 6px;
-}
-
-.saengine-fem-model-editor .fem-results-group.hidden,
-.saengine-fem-model-editor .fem-results .monaco-button.hidden {
-	display: none;
-}
-
-.saengine-fem-model-editor .fem-results-label {
-	color: var(--vscode-descriptionForeground);
+	gap: var(--sa-space-1, 4px);
 }
 
 .saengine-fem-model-editor .fem-results-select.result {
-	width: 220px;
+	width: 200px;
+}
+
+.saengine-fem-model-editor .fem-results-select.show {
+	width: 160px;
 }
 
 .saengine-fem-model-editor .fem-results-select.mode {
 	width: 130px;
 }
 
-.saengine-fem-model-editor .fem-results-select.show {
-	width: 150px;
+.saengine-fem-model-editor .sa-frame-toolbar .monaco-select-box {
+	height: 24px;
+	padding-top: 0;
+	padding-bottom: 0;
+	border-radius: var(--sa-radius, 4px);
+	font-size: var(--sa-font-m, 13px);
 }
 
-.saengine-fem-model-editor .fem-results-group.scale .monaco-button {
-	width: auto;
-	padding: 2px 4px;
+.saengine-fem-model-editor .fem-results-group.time,
+.saengine-fem-model-editor .fem-results-group.mode,
+.saengine-fem-model-editor .fem-results-group.scale {
+	padding-left: var(--sa-space-2, 8px);
+	border-left: 1px solid var(--sa-border, var(--vscode-panel-border));
+}
+
+.saengine-fem-model-editor .fem-results-time {
+	width: 140px;
+}
+
+.saengine-fem-model-editor .fem-results-time-label {
+	min-width: 80px;
+	font-size: var(--sa-font-s, 12px);
+	font-variant-numeric: tabular-nums;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .saengine-fem-model-editor .fem-results-scale {
-	min-width: 28px;
+	min-width: 30px;
 	text-align: center;
+	font-size: var(--sa-font-s, 12px);
 	font-variant-numeric: tabular-nums;
 }
 
-.saengine-fem-model-editor .fem-results-info {
+/* ── the 3D view and its overlays ────────────────────────────────────────── */
+
+.saengine-fem-model-editor .fem-view {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+}
+
+.saengine-fem-model-editor .viewport {
+	position: absolute;
+	inset: 0;
+	outline: none;
+}
+
+/* the colour scale, in the bottom-left corner of the view */
+.saengine-fem-model-editor .fem-legend {
+	display: none;
+	position: absolute;
+	left: var(--sa-space-3, 12px);
+	bottom: var(--sa-space-3, 12px);
+	padding: var(--sa-space-2, 8px) var(--sa-space-3, 12px);
+	border: 1px solid var(--fem-overlay-border);
+	border-radius: var(--sa-radius, 4px);
+	background: var(--fem-overlay-background);
+	font-size: var(--sa-font-s, 12px);
+	pointer-events: none;
+}
+
+.saengine-fem-model-editor .fem-legend.visible {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sa-space-1, 4px);
+}
+
+.saengine-fem-model-editor .fem-legend-title {
+	font-weight: 600;
+}
+
+.saengine-fem-model-editor .fem-legend-row {
 	display: flex;
 	align-items: center;
-	gap: 6px;
-	color: var(--vscode-descriptionForeground);
+	gap: var(--sa-space-2, 8px);
+	font-variant-numeric: tabular-nums;
 }
 
 /* matches the contour colours of the 3D view (fem-viewer CONTOUR_STOPS) */
@@ -141,86 +128,243 @@
 	background: linear-gradient(to right, rgb(48, 79, 227), rgb(33, 184, 237), rgb(64, 204, 107), rgb(250, 214, 46), rgb(232, 61, 48));
 }
 
-.saengine-fem-model-editor .fem-results-info .codicon-warning {
-	color: var(--vscode-editorWarning-foreground);
-}
-
-.saengine-fem-model-editor .fem-results-info .codicon-error {
-	color: var(--vscode-editorError-foreground);
-}
-
-.saengine-fem-model-editor .fem-results-curve {
-	display: inline-flex;
-	align-items: center;
-}
-
-.saengine-fem-model-editor .fem-results-curve .curve {
-	fill: none;
-	stroke: var(--vscode-charts-blue);
-	stroke-width: 1.5;
-}
-
-.saengine-fem-model-editor .fem-results-curve .marker {
-	fill: var(--vscode-charts-yellow);
-}
-
-.saengine-fem-model-editor .fem-results-time {
-	width: 160px;
-}
-
-.saengine-fem-model-editor .fem-results-time-label {
-	min-width: 96px;
-	white-space: nowrap;
-	font-variant-numeric: tabular-nums;
-}
-
-.saengine-fem-model-editor .fem-results-group.time .monaco-button {
-	width: auto;
-	padding: 2px 4px;
-}
-
-.saengine-fem-model-editor .fem-results-curve {
-	display: inline-flex;
-	align-items: center;
-}
-
-.saengine-fem-model-editor .fem-results-curve .curve {
-	fill: none;
-	stroke: var(--vscode-charts-blue);
-	stroke-width: 1.5;
-}
-
-.saengine-fem-model-editor .fem-results-curve .marker {
-	fill: var(--vscode-charts-yellow);
-}
-
 /* design utilisation bands, as the 3D view colours the members (theme pass, warn, fail) */
-.saengine-fem-model-editor .fem-design-legend {
-	display: inline-flex;
-	align-items: center;
-	gap: 4px;
-	flex-shrink: 0;
-}
-
 .saengine-fem-model-editor .fem-design-swatch {
 	width: 10px;
 	height: 10px;
 	border-radius: 2px;
+	flex: none;
 }
 
 .saengine-fem-model-editor .fem-design-swatch.pass {
-	background: var(--vscode-charts-green);
+	background: var(--fem-band-pass);
 }
 
 .saengine-fem-model-editor .fem-design-swatch.warn {
-	background: var(--vscode-charts-orange);
+	background: var(--fem-band-warn);
 }
 
 .saengine-fem-model-editor .fem-design-swatch.fail {
-	background: var(--vscode-charts-red);
+	background: var(--fem-band-fail);
 }
 
-.saengine-fem-model-editor .fem-design-text {
+/* a model not derived yet: what to do first */
+.saengine-fem-model-editor .fem-empty {
+	display: none;
+	position: absolute;
+	inset: 0;
+	align-items: center;
+	justify-content: center;
+	flex-direction: column;
+	gap: var(--sa-space-3, 12px);
+	padding: var(--sa-space-6, 24px);
+	text-align: center;
+}
+
+.saengine-fem-model-editor .fem-empty.visible {
+	display: flex;
+}
+
+.saengine-fem-model-editor .fem-empty-title {
+	font-size: var(--sa-font-l, 16px);
+	font-weight: 600;
+}
+
+.saengine-fem-model-editor .fem-empty-text {
+	max-width: 420px;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-fem-model-editor .fem-empty .monaco-button {
+	width: auto;
+	padding: 4px 14px;
+}
+
+.saengine-fem-model-editor .message {
+	display: none;
+	position: absolute;
+	top: var(--sa-space-3, 12px);
+	left: var(--sa-space-3, 12px);
+	right: var(--sa-space-3, 12px);
+	padding: var(--sa-space-2, 8px) var(--sa-space-3, 12px);
+	color: var(--vscode-inputValidation-errorForeground, var(--vscode-foreground));
+	background: var(--vscode-inputValidation-errorBackground);
+	border: 1px solid var(--vscode-inputValidation-errorBorder);
+	border-radius: var(--sa-radius, 4px);
+}
+
+.saengine-fem-model-editor .message.visible {
+	display: block;
+}
+
+/* ── result tables under the view ────────────────────────────────────────── */
+
+.saengine-fem-model-editor .fem-tables {
+	flex: 0 0 40%;
+	min-height: 120px;
+	display: flex;
+	flex-direction: column;
+	border-top: 1px solid var(--sa-border, var(--vscode-panel-border));
+}
+
+.saengine-fem-model-editor .fem-tables-header {
+	flex: none;
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+	height: 30px;
+	padding: 0 var(--sa-space-2, 8px) 0 var(--sa-space-3, 12px);
+}
+
+.saengine-fem-model-editor .fem-tables-header .monaco-select-box {
+	height: 22px;
+	padding-top: 0;
+	padding-bottom: 0;
+	border-radius: var(--sa-radius, 4px);
+}
+
+.saengine-fem-model-editor .fem-tables-select.case {
+	width: 200px;
+}
+
+.saengine-fem-model-editor .fem-tables-select.table {
+	width: 220px;
+}
+
+.saengine-fem-model-editor .fem-tables-count {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-fem-model-editor .fem-tables-spacer {
+	flex: 1;
+}
+
+/* While a run replaces the results the panel holds only a note: no empty pickers. */
+.saengine-fem-model-editor .fem-tables.waiting .fem-tables-select {
+	visibility: hidden;
+}
+
+.saengine-fem-model-editor .fem-tables-caption {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 	min-width: 0;
-	overflow-wrap: anywhere;
+}
+
+/* The workbench's own scrollbars (DomScrollableElement), themed like the rest of the editor. */
+.saengine-fem-model-editor .fem-tables > .monaco-scrollable-element {
+	flex: 1;
+	min-height: 0;
+}
+
+.saengine-fem-model-editor .fem-tables-body {
+	height: 100%;
+	box-sizing: border-box;
+	padding: 0 var(--sa-space-3, 12px) var(--sa-space-2, 8px);
+	outline: none;
+}
+
+.saengine-fem-model-editor .fem-tables-note {
+	margin: var(--sa-space-1, 4px) 0;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-fem-model-editor .fem-table {
+	border-collapse: collapse;
+	font-size: var(--sa-font-s, 12px);
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-fem-model-editor .fem-table th {
+	position: sticky;
+	top: 0;
+	padding: 3px var(--sa-space-3, 12px) 3px 0;
+	text-align: right;
+	font-weight: 600;
+	background: var(--sa-surface, var(--vscode-editor-background));
+	border-bottom: 1px solid var(--sa-border, var(--vscode-panel-border));
+	white-space: nowrap;
+}
+
+.saengine-fem-model-editor .fem-table td {
+	padding: 2px var(--sa-space-3, 12px) 2px 0;
+	white-space: nowrap;
+}
+
+.saengine-fem-model-editor .fem-table td.number {
+	text-align: right;
+}
+
+.saengine-fem-model-editor .fem-table tbody tr:nth-child(even) {
+	background: var(--fem-table-stripe);
+}
+
+/* ── properties: design checks and the capacity curve ────────────────────── */
+
+.saengine-fem-model-editor .fem-design-verdict {
+	display: flex;
+	justify-content: space-between;
+	margin: var(--sa-space-1, 4px) 0 var(--sa-space-2, 8px);
+	padding: var(--sa-space-1, 4px) var(--sa-space-2, 8px);
+	border-radius: var(--sa-radius, 4px);
+	font-weight: 600;
+	border-left: 3px solid var(--fem-band-pass);
+	background: color-mix(in srgb, var(--fem-band-pass) 12%, transparent);
+}
+
+.saengine-fem-model-editor .fem-design-verdict.fail {
+	border-left-color: var(--fem-band-fail);
+	background: color-mix(in srgb, var(--fem-band-fail) 12%, transparent);
+}
+
+.saengine-fem-model-editor .fem-design-check {
+	padding: var(--sa-space-1, 4px) 0;
+	border-bottom: 1px solid var(--sa-border, var(--vscode-panel-border));
+}
+
+.saengine-fem-model-editor .fem-design-check-head {
+	display: flex;
+	justify-content: space-between;
+	gap: var(--sa-space-2, 8px);
+}
+
+.saengine-fem-model-editor .fem-design-check-head .value {
+	font-variant-numeric: tabular-nums;
+	font-weight: 600;
+}
+
+.saengine-fem-model-editor .fem-design-check.fail .fem-design-check-head .value {
+	color: var(--fem-band-fail);
+}
+
+.saengine-fem-model-editor .fem-design-check.flag {
+	opacity: 0.75;
+}
+
+.saengine-fem-model-editor .fem-design-check-detail {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-fem-model-editor .fem-results-curve svg {
+	display: block;
+	margin: var(--sa-space-1, 4px) 0;
+}
+
+.saengine-fem-model-editor .fem-results-curve .curve {
+	fill: none;
+	stroke: var(--fem-curve);
+	stroke-width: 1.5;
+}
+
+.saengine-fem-model-editor .fem-results-curve .marker {
+	fill: var(--fem-curve-marker);
+}
+
+/* the 3D view takes keyboard focus without a frame around the whole view */
+.saengine-fem-model-editor .viewport:focus,
+.saengine-fem-model-editor .viewport:focus-visible {
+	outline: none !important;
 }

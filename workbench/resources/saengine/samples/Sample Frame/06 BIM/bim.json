@@ -1,0 +1,356 @@
+{
+	"schema": "saengine.bim/2",
+	"source": {
+		"floorPlan": "2b460618c64bad1762e8bf28563a267cac802b61"
+	},
+	"stories": [
+		{
+			"id": "BASE",
+			"name": "Base",
+			"elevation": 0
+		},
+		{
+			"id": "L1",
+			"name": "Level 1",
+			"elevation": 3200
+		},
+		{
+			"id": "L2",
+			"name": "Level 2",
+			"elevation": 6400
+		},
+		{
+			"id": "L3",
+			"name": "Level 3",
+			"elevation": 10000
+		}
+	],
+	"elements": [
+		{
+			"id": "C1",
+			"type": "C400x600",
+			"source": "C1",
+			"kind": "column",
+			"position": [
+				150,
+				0
+			],
+			"bottom": 0,
+			"top": 3200,
+			"rotation": 0
+		},
+		{
+			"id": "C2",
+			"type": "C400x600",
+			"source": "C2",
+			"kind": "column",
+			"position": [
+				6000,
+				0
+			],
+			"bottom": 0,
+			"top": 3200,
+			"rotation": 135
+		},
+		{
+			"id": "C3",
+			"type": "C400x600",
+			"source": "C3",
+			"kind": "column",
+			"position": [
+				13000,
+				0
+			],
+			"bottom": 0,
+			"top": 3200,
+			"rotation": 0
+		},
+		{
+			"id": "C4",
+			"type": "C400x600",
+			"source": "C4",
+			"kind": "column",
+			"position": [
+				0,
+				5000
+			],
+			"bottom": 0,
+			"top": 3200,
+			"rotation": 0
+		},
+		{
+			"id": "C5",
+			"type": "C400x600",
+			"source": "C5",
+			"kind": "column",
+			"position": [
+				6000,
+				5000
+			],
+			"bottom": 0,
+			"top": 3200,
+			"rotation": 0
+		},
+		{
+			"id": "C6",
+			"type": "C400x600",
+			"source": "C6",
+			"kind": "column",
+			"position": [
+				13000,
+				5000
+			],
+			"bottom": 0,
+			"top": 3200,
+			"rotation": 0
+		},
+		{
+			"id": "C7",
+			"type": "C400x600",
+			"source": "C7",
+			"kind": "column",
+			"position": [
+				0,
+				0
+			],
+			"bottom": 3200,
+			"top": 6400,
+			"rotation": 0
+		},
+		{
+			"id": "B1",
+			"type": "B300x500",
+			"source": "B1",
+			"kind": "beam",
+			"start": [
+				0,
+				0
+			],
+			"end": [
+				6000,
+				0
+			],
+			"elevation": 3200
+		},
+		{
+			"id": "B2",
+			"type": "B300x500",
+			"source": "B2",
+			"kind": "beam",
+			"start": [
+				6000,
+				0
+			],
+			"end": [
+				13000,
+				0
+			],
+			"elevation": 3200
+		},
+		{
+			"id": "B3",
+			"type": "B300x500",
+			"source": "B3",
+			"kind": "beam",
+			"start": [
+				0,
+				5000
+			],
+			"end": [
+				6000,
+				5000
+			],
+			"elevation": 3200
+		},
+		{
+			"id": "B4",
+			"type": "B300x500",
+			"source": "B4",
+			"kind": "beam",
+			"start": [
+				6000,
+				5000
+			],
+			"end": [
+				13000,
+				5000
+			],
+			"elevation": 3200
+		},
+		{
+			"id": "B5",
+			"type": "B300x500",
+			"source": "B5",
+			"kind": "beam",
+			"start": [
+				6000,
+				0
+			],
+			"end": [
+				6000,
+				5000
+			],
+			"elevation": 3200
+		},
+		{
+			"id": "W1",
+			"type": "W200",
+			"source": "W1",
+			"kind": "wall",
+			"start": [
+				13000,
+				0
+			],
+			"end": [
+				13000,
+				5000
+			],
+			"bottom": 0,
+			"top": 3200
+		},
+		{
+			"id": "S1",
+			"type": "S150",
+			"source": "S1",
+			"kind": "slab",
+			"boundary": [
+				[
+					0,
+					0
+				],
+				[
+					6000,
+					0
+				],
+				[
+					6000,
+					5000
+				],
+				[
+					0,
+					5000
+				]
+			],
+			"elevation": 3200
+		},
+		{
+			"id": "S2",
+			"type": "S150",
+			"source": "S2",
+			"kind": "slab",
+			"boundary": [
+				[
+					6000,
+					0
+				],
+				[
+					13000,
+					0
+				],
+				[
+					13000,
+					5000
+				],
+				[
+					6000,
+					5000
+				]
+			],
+			"elevation": 3200
+		},
+		{
+			"id": "F1",
+			"type": "F2015",
+			"source": "F1",
+			"kind": "footing",
+			"position": [
+				0,
+				0
+			],
+			"elevation": 0,
+			"rotation": 0
+		}
+	],
+	"additions": {
+		"slabOpenings": [
+			{
+				"id": "O1",
+				"host": "S1",
+				"x": 4500,
+				"y": 3500,
+				"xDim": 1400,
+				"yDim": 2600,
+				"rotation": 0
+			},
+			{
+				"id": "O2",
+				"host": "S1",
+				"x": 0,
+				"y": 0,
+				"xDim": 1000,
+				"yDim": 1000,
+				"rotation": 0
+			}
+		],
+		"wallOpenings": [
+			{
+				"id": "D1",
+				"host": "W1",
+				"offset": 1500,
+				"sill": 0,
+				"width": 1000,
+				"height": 2200
+			},
+			{
+				"id": "D2",
+				"host": "W1",
+				"offset": 500,
+				"sill": 0,
+				"width": 900,
+				"height": 2100
+			}
+		],
+		"stairs": [
+			{
+				"id": "ST1",
+				"type": "ST1200",
+				"base": "BASE",
+				"top": "L1",
+				"x": 4500,
+				"y": 600,
+				"direction": 90
+			},
+			{
+				"id": "ST2",
+				"type": "ST1200",
+				"base": "BASE",
+				"top": "L1",
+				"x": 0,
+				"y": 0,
+				"direction": 0
+			}
+		],
+		"members": [
+			{
+				"id": "M1",
+				"type": "C400x600",
+				"x1": 0,
+				"y1": 0,
+				"z1": 0,
+				"x2": 6000,
+				"y2": 0,
+				"z2": 3200
+			},
+			{
+				"id": "M2",
+				"type": "BR-SHS",
+				"x1": 0,
+				"y1": 0,
+				"z1": 0,
+				"x2": 6000,
+				"y2": 0,
+				"z2": 3200
+			}
+		]
+	}
+}

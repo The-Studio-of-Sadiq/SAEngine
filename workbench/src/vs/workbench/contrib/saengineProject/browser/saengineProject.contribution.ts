@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/projectFlow.css';
+import './saengineShell.contribution.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -22,9 +23,9 @@ import { StartEditor } from './startEditor.js';
 import { StartEditorInput } from './startEditorInput.js';
 
 const category = localize2('saengine.category', "SAEngine");
-const START_SIZE = { width: 640, height: 520 };
 
-// SAEngine opens its own start window; VS Code's welcome page and onboarding stay out of the way.
+// SAEngine opens its own start page; VS Code's welcome page and onboarding stay out of the way.
+// The window chrome and developer mode are in saengineShell.contribution.ts.
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerDefaultConfigurations([{
 	overrides: {
 		'workbench.startupEditor': 'none',
@@ -39,10 +40,10 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 );
 
 function openStart(editorService: IEditorService): Promise<unknown> {
-	return editorService.openEditor(StartEditorInput.instance, { pinned: true, modal: { size: START_SIZE } });
+	return editorService.openEditor(StartEditorInput.instance, { pinned: true });
 }
 
-/** Shows the start window when SAEngine opens without a project: no folder, or a folder that is not one. */
+/** Shows the start page when SAEngine opens without a project: no folder, or a folder that is not one. */
 class StartWindowContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.saengine.startWindow';

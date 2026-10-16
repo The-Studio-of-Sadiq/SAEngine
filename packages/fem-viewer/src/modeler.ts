@@ -4,6 +4,7 @@
 
 import * as THREE from 'three';
 import * as OBC from '@thatopen/components';
+import { usableTheme } from './theme.js';
 
 /** A point of the structural model: x, y, z in mm, Z up. */
 export type ModelPoint = readonly [number, number, number];
@@ -142,7 +143,7 @@ class StructureModelerImpl implements StructureModeler {
 	private readonly onContextMenu = (e: MouseEvent) => e.preventDefault();
 
 	constructor(private readonly container: HTMLElement, private readonly options: StructureModelerOptions) {
-		this.theme = { ...defaultTheme, ...options.theme };
+		this.theme = { ...defaultTheme, ...usableTheme(options.theme) };
 		const worlds = this.components.get(OBC.Worlds);
 		this.world = worlds.create<OBC.SimpleScene, OBC.OrthoPerspectiveCamera, OBC.SimpleRenderer>();
 		this.world.scene = new OBC.SimpleScene(this.components);
@@ -222,7 +223,7 @@ class StructureModelerImpl implements StructureModeler {
 	}
 
 	setTheme(theme: Partial<ModelerTheme>): void {
-		this.theme = { ...this.theme, ...theme };
+		this.theme = { ...this.theme, ...usableTheme(theme) };
 		this.applyTheme();
 		this.rebuild();
 		this.renderOverlay();

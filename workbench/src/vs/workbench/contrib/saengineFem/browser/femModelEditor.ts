@@ -5,42 +5,296 @@
 
 import './media/femModelEditor.css';
 import type { FemModel, FemResultDisplay, FemSelection, FemViewer, FemViewerTheme } from '@saengine/fem-viewer';
-import { $, append, Dimension, clearNode } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, Dimension, clearNode, EventType } from '../../../../base/browser/dom.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
+import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
+import { Action, IAction, Separator } from '../../../../base/common/actions.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { dirname, joinPath } from '../../../../base/common/resources.js';
+import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { FemTableCell, IFemCaseResults, IFemResultView } from '../../../../platform/saengine/common/femSolver.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { chartsBlue, chartsGreen, chartsLines, chartsOrange, chartsRed, chartsYellow } from '../../../../platform/theme/common/colors/chartsColors.js';
 import { editorBackground, editorForeground } from '../../../../platform/theme/common/colors/editorColors.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
-import { FemDerivationBar } from './femDerivationBar.js';
+import { EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
+import { FemDerivation, IFemDeriveOutcome } from './femDerivationBar.js';
 import { FemModelEditorInput } from './femModelEditorInput.js';
-import { FemResultsBar } from './femResultsBar.js';
-import { IFemResultView } from '../../../../platform/saengine/common/femSolver.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { errorSummary, FEM_RESULT_TABLES_COMMAND, FEM_RUN_CASES_COMMAND, FEM_SHOW_LOG_COMMAND, FemResultsBar, IFemRun, IFemRunOptions, IFemRunOutcome, IFemRunTracker, propertyHeading, propertyNote, propertyRow } from './femResultsBar.js';
 import { loadViewerModule } from './viewerModule.js';
 
+/** Rows of a result table drawn at once; the export has them all. */
+const MAX_TABLE_ROWS = 500;
+
+/** A table cell as the tables panel and the export write it. */
+function formatCell(value: FemTableCell): string {
+	if (typeof value === 'number') {
+		return Number.isInteger(value) ? String(value) : value.toPrecision(6);
+	}
+	return value;
+}
+
+function csvField(value: string): string {
+	return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+}
+
+/** All result tables as CSV: per table a heading row (case, table), its columns and its rows. */
+export function resultTablesCsv(cases: readonly IFemCaseResults[]): string {
+	const lines: string[] = [];
+	for (const c of cases) {
+		for (const table of c.tables) {
+			if (lines.length) {
+				lines.push('');
+			}
+			lines.push([c.caseName, table.title].map(csvField).join(','));
+			lines.push(table.columns.map(csvField).join(','));
+			lines.push(...table.rows.map(row => row.map(cell => csvField(formatCell(cell))).join(',')));
+		}
+	}
+	return lines.join('\r\n') + '\r\n';
+}
+
+/**
+ * The result tables of the last run under the 3D view: a case, one of its tables, and its rows
+ * (the first {@link MAX_TABLE_ROWS}; Export has them all).
+ */
+class FemTablesPanel extends Disposable {
+
+	readonly element: HTMLElement;
+	private readonly casePicker: SelectBox;
+	private readonly tablePicker: SelectBox;
+	private readonly count: HTMLElement;
+	private readonly body: HTMLElement;
+	private readonly scrollable: DomScrollableElement;
+	private readonly caption: HTMLElement;
+	private cases: readonly IFemCaseResults[] = [];
+	private caseIndex = 0;
+	private tableIndex = 0;
+	private request = 0;
+	/** The result picked in the toolbar: its tables are shown. */
+	private followed: string | undefined;
+
+	constructor(
+		container: HTMLElement,
+		onClose: () => void,
+		/** A case or combination was picked here: the toolbar shows its result too. */
+		private readonly onPick: (label: string) => void,
+		@ICommandService private readonly commandService: ICommandService,
+		@IContextViewService contextViewService: IContextViewService,
+	) {
+		super();
+		this.element = append(container, $('.fem-tables'));
+		const header = append(this.element, $('.fem-tables-header'));
+		this.casePicker = this._register(new SelectBox([], 0, contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('femTables.caseAria', "Analysis case of the table") }));
+		this.casePicker.render(append(header, $('.fem-tables-select.case')));
+		this._register(this.casePicker.onDidSelect(({ index }) => {
+			this.caseIndex = index;
+			this.tableIndex = 0;
+			this.render();
+			const picked = this.cases[index];
+			if (picked) {
+				this.onPick(picked.caseName);
+			}
+		}));
+		this.tablePicker = this._register(new SelectBox([], 0, contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('femTables.tableAria', "Result table shown") }));
+		this.tablePicker.render(append(header, $('.fem-tables-select.table')));
+		this._register(this.tablePicker.onDidSelect(({ index }) => {
+			this.tableIndex = index;
+			this.render();
+		}));
+		this.count = append(header, $('span.fem-tables-count'));
+		this.caption = append(header, $('span.fem-tables-count.fem-tables-caption'));
+		append(header, $('.fem-tables-spacer'));
+		const close = append(header, $<HTMLButtonElement>('button.sa-frame-icon-button', { type: 'button', title: localize('femTables.close', "Hide Tables"), 'aria-label': localize('femTables.close', "Hide Tables") }));
+		append(close, $(ThemeIcon.asCSSSelector(Codicon.close)));
+		this._register(addDisposableListener(close, EventType.CLICK, () => onClose()));
+		this.body = $('.fem-tables-body', { tabIndex: 0 });
+		this.scrollable = this._register(new DomScrollableElement(this.body, { horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Auto, useShadows: false }));
+		append(this.element, this.scrollable.getDomNode());
+	}
+
+	/** The panel's size or content changed: the scrollbars follow. */
+	layout(): void {
+		this.scrollable.scanDomNode();
+	}
+
+	/**
+	 * Shows the tables of the result the toolbar shows (cases and load combinations have tables
+	 * under the same name). A result without tables keeps the panel where it is and says so.
+	 */
+	follow(resultLabel: string | undefined): void {
+		this.followed = resultLabel;
+		if (this.applyFollowed()) {
+			this.render();
+		} else {
+			this.renderCaption();
+		}
+	}
+
+	/** Moves to the followed result's tables; true when it moved. */
+	private applyFollowed(): boolean {
+		const index = this.followed === undefined ? -1 : this.cases.findIndex(c => c.caseName === this.followed);
+		if (index < 0 || index === this.caseIndex) {
+			return false;
+		}
+		this.caseIndex = index;
+		this.tableIndex = 0;
+		return true;
+	}
+
+	private renderCaption(): void {
+		const missing = this.followed !== undefined && this.cases.length > 0 && !this.cases.some(c => c.caseName === this.followed);
+		this.caption.textContent = missing ? localize('femTables.noTablesFor', "{0} has no result tables.", this.followed) : '';
+		this.caption.classList.toggle('hidden', !missing);
+	}
+
+	/** Shows only a note (while a run replaces the results): the tables are read again after it. */
+	showNote(text: string): void {
+		this.request++; // drops a read still going
+		this.element.classList.add('waiting');
+		this.cases = [];
+		this.casePicker.setOptions([]);
+		this.tablePicker.setOptions([]);
+		this.count.textContent = '';
+		this.renderCaption();
+		clearNode(this.body);
+		append(this.body, $('.fem-tables-note', undefined, text));
+		this.layout();
+	}
+
+	/** Reads the tables of `model`'s last run again. */
+	async load(model: URI): Promise<void> {
+		const request = ++this.request;
+		clearNode(this.body);
+		this.count.textContent = '';
+		append(this.body, $('.fem-tables-note', undefined, localize('femTables.loading', "Reading the result tables...")));
+		this.layout();
+		let cases: readonly IFemCaseResults[];
+		try {
+			cases = await this.commandService.executeCommand<readonly IFemCaseResults[]>(FEM_RESULT_TABLES_COMMAND, model) ?? [];
+		} catch (error) {
+			if (request === this.request) {
+				clearNode(this.body);
+				append(this.body, $('.fem-tables-note', undefined, localize('femTables.failed', "The result tables could not be read: {0}", errorSummary(error))));
+				this.layout();
+			}
+			return;
+		}
+		if (request !== this.request) {
+			return;
+		}
+		this.cases = cases;
+		this.caseIndex = Math.min(this.caseIndex, Math.max(0, cases.length - 1));
+		this.tableIndex = Math.min(this.tableIndex, Math.max(0, (cases[this.caseIndex]?.tables.length ?? 1) - 1));
+		this.applyFollowed();
+		this.render();
+	}
+
+	private render(): void {
+		this.element.classList.remove('waiting');
+		this.renderBody();
+		this.layout();
+		this.scrollable.setScrollPosition({ scrollTop: 0, scrollLeft: 0 });
+	}
+
+	private renderBody(): void {
+		clearNode(this.body);
+		this.renderCaption();
+		const results = this.cases[this.caseIndex];
+		this.casePicker.setOptions(this.cases.map<ISelectOptionItem>(c => ({ text: c.caseName })), this.caseIndex);
+		this.tablePicker.setOptions((results?.tables ?? []).map<ISelectOptionItem>(t => ({ text: t.title })), this.tableIndex);
+		const table = results?.tables[this.tableIndex];
+		if (!table) {
+			this.count.textContent = '';
+			append(this.body, $('.fem-tables-note', undefined, localize('femTables.none', "There are no result tables: run the analysis first.")));
+			return;
+		}
+		this.count.textContent = table.rows.length > MAX_TABLE_ROWS
+			? localize('femTables.countLimited', "first {0} of {1} rows", MAX_TABLE_ROWS, table.rows.length)
+			: localize('femTables.count', "{0} rows", table.rows.length);
+		for (const note of [...results.warnings, ...table.notes]) {
+			append(this.body, $('.fem-tables-note', undefined, note));
+		}
+		const element = append(this.body, $('table.fem-table'));
+		const head = append(append(element, $('thead')), $('tr'));
+		for (const column of table.columns) {
+			append(head, $('th', undefined, column));
+		}
+		const rows = append(element, $('tbody'));
+		for (const row of table.rows.slice(0, MAX_TABLE_ROWS)) {
+			const tr = append(rows, $('tr'));
+			for (const cell of row) {
+				append(tr, $(typeof cell === 'number' ? 'td.number' : 'td', undefined, formatCell(cell)));
+			}
+		}
+	}
+}
+
+/**
+ * The analysis model (`08 FEM/model.osmodel`) in 3D, in the shared editor frame: one toolbar
+ * (result and what to show of it, the inline controls a result needs, Derive when the model is
+ * out of date, Run, Design Utilisation, Tables, Properties, and an overflow for the rest), the
+ * view with its legend, the result tables under it on request, the selection's values in the
+ * properties panel, and one status line.
+ */
 export class FemModelEditor extends EditorPane {
 
-	private container: HTMLElement | undefined;
+	private frame: EditorFrame | undefined;
+	private titleText: HTMLElement | undefined;
 	private viewport: HTMLElement | undefined;
+	private legend: HTMLElement | undefined;
+	private empty: HTMLElement | undefined;
 	private message: HTMLElement | undefined;
+	private tables: FemTablesPanel | undefined;
+	private tablesVisible = false;
+	private tablesVersion = -1;
 	private viewer: FemViewer | undefined;
-	private derivation: FemDerivationBar | undefined;
+	private derivation: FemDerivation | undefined;
 	private results: FemResultsBar | undefined;
 	/** The result drawn over the model, kept for a viewer created later. */
 	private shownResult: { readonly view: IFemResultView; readonly display: FemResultDisplay } | undefined;
 	private nodeCount = 0;
+	private elementCount = 0;
+	private units: string | undefined;
+	private lastDerivation: IFemDeriveOutcome | undefined;
+	private actionsKey = '';
+	/** What the "Out of date" pill says, to build it again only when that changes. */
+	private pillKey: string | undefined;
+
+	private readonly deriveAction = this._register(new Action('saengine.fem.editor.derive', localize('femEditor.derive', "Derive from Building Model"), ThemeIcon.asClassName(Codicon.refresh), true, () => this.derive()));
+	private readonly deriveAgainAction = this._register(new Action('saengine.fem.editor.deriveAgain', localize('femEditor.deriveAgain', "Derive Again"), undefined, true, () => this.derive()));
+	private readonly runAction = this._register(new Action('saengine.fem.editor.run', localize('femEditor.run', "Run Analysis"), ThemeIcon.asClassName(Codicon.play), true, () => this.running ? this.running.cancel() : this.run({})));
+	private readonly runSelectedAction = this._register(new Action('saengine.fem.editor.runSelected', localize('femEditor.runSelected', "Run Selected Cases..."), undefined, true, () => this.run({ pick: true })));
+	private readonly designAction = this._register(new Action('saengine.fem.editor.design', localize('femEditor.design', "Design Utilisation"), ThemeIcon.asClassName(Codicon.checklist), true, async () => this.results?.toggleDesign()));
+	private readonly tablesAction = this._register(new Action('saengine.fem.editor.tables', localize('femEditor.tables', "Result Tables"), ThemeIcon.asClassName(Codicon.table), true, async () => this.setTablesVisible(!this.tablesVisible)));
+	private readonly exportAction = this._register(new Action('saengine.fem.editor.export', localize('femEditor.export', "Export Result Tables..."), undefined, true, () => this.exportTables()));
+	private readonly showLogAction = this._register(new Action('saengine.fem.editor.showLog', localize('femEditor.showLog', "Show Log"), undefined, true, () => this.commandService.executeCommand(FEM_SHOW_LOG_COMMAND)));
+	private readonly fitAction = this._register(new Action('saengine.fem.editor.fit', localize('femEditor.fit', "Zoom to Fit"), undefined, true, async () => this.viewer?.fit()));
 
 	private readonly inputDisposables = this._register(new DisposableStore());
 	private readonly viewerDisposable = this._register(new MutableDisposable());
+	private readonly pill = this._register(new MutableDisposable());
+	private readonly emptyStore = this._register(new MutableDisposable());
 
 	private readonly _onDidChangeSelection = this._register(new Emitter<FemSelection | undefined>());
 	readonly onDidChangeSelection: Event<FemSelection | undefined> = this._onDidChangeSelection.event;
@@ -52,25 +306,64 @@ export class FemModelEditor extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@IFileService private readonly fileService: IFileService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ICommandService private readonly commandService: ICommandService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IFemRunTracker private readonly runTracker: IFemRunTracker,
 	) {
 		super(FemModelEditorInput.EDITOR_ID, group, telemetryService, themeService, storageService);
 	}
 
+	/** The run of this model going, wherever it was started (here, the palette, Run All). */
+	private get running(): IFemRun | undefined {
+		const resource = this.resource;
+		return resource ? this.runTracker.get(resource) : undefined;
+	}
+
 	protected createEditor(parent: HTMLElement): void {
-		this.container = append(parent, $('.saengine-fem-model-editor'));
-		this.derivation = this._register(this.instantiationService.createInstance(FemDerivationBar, this.container, () => this.viewer?.layout()));
-		this.results = this._register(this.instantiationService.createInstance(FemResultsBar, this.container, () => this.viewer?.layout(), (view: IFemResultView | undefined, display: FemResultDisplay | undefined) => {
-			this.shownResult = view && display ? { view, display } : undefined;
-			this.viewer?.setResults(view, display);
+		const frame = this.frame = this._register(this.instantiationService.createInstance(EditorFrame, parent, {
+			id: FemModelEditorInput.EDITOR_ID,
+			ariaLabel: localize('femEditor.toolbar', "Analysis Model"),
+			properties: { title: localize('femEditor.properties', "Properties") },
+		}));
+		frame.element.classList.add('saengine-fem-model-editor');
+		this.titleText = append(frame.titleSlot, $('span.sa-frame-title-text', undefined, localize('femEditor.title', "Analysis Model")));
+
+		const view = append(frame.main, $('.fem-view'));
+		this.viewport = append(view, $('.viewport', { tabIndex: 0 }));
+		this.legend = append(view, $('.fem-legend'));
+		this.empty = append(view, $('.fem-empty'));
+		this.message = append(view, $('.message'));
+		this.tables = this._register(this.instantiationService.createInstance(FemTablesPanel, frame.main, () => this.setTablesVisible(false), label => this.results?.selectResult(label)));
+		this.tables.element.classList.add('hidden');
+
+		this.derivation = this._register(this.instantiationService.createInstance(FemDerivation, () => this.updateChrome()));
+		this.results = this._register(this.instantiationService.createInstance(FemResultsBar, frame, this.legend, {
+			setDisplay: (view: IFemResultView | undefined, display: FemResultDisplay | undefined) => {
+				this.shownResult = view && display ? { view, display } : undefined;
+				this.viewer?.setResults(view, display);
+			},
+			changed: () => this.updateChrome(),
+			run: () => void this.run({}),
 		}));
 		this._register(this.onDidChangeSelection(selection => this.results?.setSelection(selection)));
-		this.viewport = append(this.container, $('.viewport'));
-		this.message = append(this.container, $('.message'));
+		this._register(frame.onDidLayoutMain(() => {
+			this.viewer?.layout();
+			this.tables?.layout();
+		}));
+		this._register(this.runTracker.onDidChange(model => {
+			if (this.resource?.toString() === model.toString()) {
+				this.updateChrome();
+			}
+		}));
+		this.updateChrome();
 	}
 
 	override async setInput(input: FemModelEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		this.inputDisposables.clear();
+		this.lastDerivation = undefined;
+		this.updateChrome(); // a run of this model may already be going
 		void this.derivation?.setResource(input.resource);
 
 		const viewer = await this.ensureViewer();
@@ -96,11 +389,7 @@ export class FemModelEditor extends EditorPane {
 	}
 
 	override layout(dimension: Dimension): void {
-		if (this.container) {
-			this.container.style.width = `${dimension.width}px`;
-			this.container.style.height = `${dimension.height}px`;
-		}
-		this.viewer?.layout();
+		this.frame?.layout(dimension.width, dimension.height);
 	}
 
 	override focus(): void {
@@ -112,6 +401,261 @@ export class FemModelEditor extends EditorPane {
 		super.updateStyles();
 		this.viewer?.setTheme(this.computeTheme());
 	}
+
+	private get resource(): URI | undefined {
+		return (this.input as FemModelEditorInput | undefined)?.resource;
+	}
+
+	// ───────────────────────────── actions ─────────────────────────────
+
+	private async derive(): Promise<void> {
+		const outcome = await this.derivation?.derive();
+		if (!outcome) {
+			return;
+		}
+		this.lastDerivation = outcome;
+		if (!outcome.ok) {
+			this.notificationService.error(localize('femEditor.deriveFailed', "The analysis model could not be derived: {0}", outcome.message));
+		}
+		// The facts and the notes are in the properties panel: no toast.
+		this.updateChrome();
+	}
+
+	/**
+	 * Runs the analysis (all cases, or those picked). Its progress shows in the toolbar and the
+	 * status line through the run tracker, as does a run of this model started elsewhere; the
+	 * runner refuses a second run of the same model.
+	 */
+	private async run(options: Pick<IFemRunOptions, 'pick'>): Promise<void> {
+		const resource = this.resource;
+		if (!resource || this.running) {
+			return;
+		}
+		try {
+			// onProgress: this editor shows the progress (from the tracker), not the status bar.
+			const runOptions: IFemRunOptions = { pick: options.pick, onProgress: () => { } };
+			await this.commandService.executeCommand<IFemRunOutcome>(FEM_RUN_CASES_COMMAND, resource, runOptions);
+		} catch (error) {
+			this.notificationService.error(localize('femEditor.runFailed', "The analysis could not be run: {0}", errorSummary(error)));
+		}
+	}
+
+	private setTablesVisible(visible: boolean): void {
+		this.tablesVisible = visible;
+		this.tables?.element.classList.toggle('hidden', !visible);
+		this.tablesVersion = -1; // read them again when shown
+		this.updateChrome();
+		this.viewer?.layout();
+	}
+
+	private async exportTables(): Promise<void> {
+		const resource = this.resource;
+		if (!resource) {
+			return;
+		}
+		const target = await this.fileDialogService.showSaveDialog({
+			title: localize('femEditor.exportTitle', "Export Result Tables"),
+			defaultUri: joinPath(dirname(resource), 'results.csv'),
+			filters: [{ name: localize('femEditor.csvFiles', "CSV Files"), extensions: ['csv'] }],
+		});
+		if (!target) {
+			return;
+		}
+		try {
+			const cases = await this.commandService.executeCommand<readonly IFemCaseResults[]>(FEM_RESULT_TABLES_COMMAND, resource) ?? [];
+			await this.fileService.writeFile(target, VSBuffer.fromString(resultTablesCsv(cases)));
+		} catch (error) {
+			this.notificationService.error(localize('femEditor.exportFailed', "The result tables could not be exported: {0}", errorSummary(error)));
+		}
+	}
+
+	// ───────────────────────────── chrome ─────────────────────────────
+
+	/** Brings the toolbar, the status line, the properties panel and the overlays up to date. */
+	private updateChrome(): void {
+		const frame = this.frame;
+		const results = this.results;
+		const derivation = this.derivation;
+		if (!frame || !results || !derivation) {
+			return;
+		}
+		const state = derivation.state;
+		const stale = !!state && (!state.derived || state.changed.length > 0);
+		const hasResults = results.hasResults;
+
+		// Toolbar
+		this.titleText?.classList.toggle('hidden', hasResults);
+		this.deriveAction.enabled = this.deriveAgainAction.enabled = !derivation.deriving && !this.running;
+		this.deriveAction.label = state?.derived ? localize('femEditor.deriveAgainLong', "Derive Again from Building Model") : localize('femEditor.derive', "Derive from Building Model");
+		this.runAction.label = this.running ? localize('femEditor.stop', "Stop Analysis") : localize('femEditor.run', "Run Analysis");
+		this.runAction.class = ThemeIcon.asClassName(this.running ? Codicon.debugStop : Codicon.play);
+		this.runAction.enabled = this.nodeCount > 0 && !derivation.deriving;
+		this.runSelectedAction.enabled = this.nodeCount > 0 && !this.running && !derivation.deriving;
+		this.designAction.enabled = hasResults && results.canShowDesign;
+		this.designAction.checked = results.showsDesign;
+		this.tablesAction.enabled = hasResults;
+		this.tablesAction.checked = this.tablesVisible;
+		this.exportAction.enabled = hasResults;
+		const primary: IAction[] = [...(stale ? [this.deriveAction] : []), this.runAction, this.designAction, this.tablesAction, frame.togglePropertiesAction];
+		const secondary: IAction[] = [
+			this.runSelectedAction,
+			...(state && !stale ? [this.deriveAgainAction] : []),
+			new Separator(),
+			this.exportAction,
+			this.showLogAction,
+			new Separator(),
+			this.fitAction,
+		];
+		const key = `${primary.map(a => a.id).join()}|${secondary.map(a => a.id).join()}`;
+		if (key !== this.actionsKey) {
+			this.actionsKey = key;
+			frame.setActions(primary, secondary);
+		}
+
+		// The "Out of date" pill: what changed since the model was derived. Built again only when
+		// that changes, so its hover stays open through progress updates.
+		const changed = state?.derived && state.changed.length ? state.changed.join(', ') : undefined;
+		if (changed !== this.pillKey) {
+			this.pillKey = changed;
+			this.pill.value = changed === undefined ? undefined : frame.createPill(localize('femEditor.outOfDate', "Out of date"), {
+				severity: 'warn',
+				icon: Codicon.warning,
+				title: localize('femEditor.outOfDateTitle', "Changed since the analysis model was derived: {0}. Click to derive it again.", changed),
+				run: () => void this.derive(),
+			});
+		}
+
+		// Progress
+		const running = this.running;
+		if (running) {
+			frame.showProgress(running.progress?.fraction);
+		} else if (derivation.deriving) {
+			frame.showProgress();
+		} else {
+			frame.hideProgress();
+		}
+
+		frame.setStatus(this.status(stale));
+		this.renderEmpty(stale);
+		this.renderProperties();
+
+		// The tables follow the results while shown.
+		const resource = this.resource;
+		this.tables?.follow(results.resultLabel);
+		if (this.tablesVisible && running) {
+			// The run replaces the results: no old tables meanwhile.
+			if (this.tablesVersion !== -2) {
+				this.tablesVersion = -2;
+				this.tables?.showNote(localize('femTables.running', "The result tables are shown when the analysis has finished."));
+			}
+		} else if (this.tablesVisible && resource && hasResults && results.version !== this.tablesVersion) {
+			this.tablesVersion = results.version;
+			void this.tables?.load(resource);
+		}
+	}
+
+	private status(stale: boolean): IEditorFrameStatus | undefined {
+		const derivation = this.derivation;
+		const running = this.running;
+		if (running) {
+			const progress = running.progress;
+			return {
+				busy: true,
+				text: progress ? localize('femEditor.running', "Running the analysis: {0}", progress.message) : localize('femEditor.runningStart', "Preparing the analysis..."),
+				link: { label: localize('femEditor.stopLink', "Stop"), run: () => running.cancel() },
+			};
+		}
+		if (derivation?.deriving) {
+			return { busy: true, text: localize('femEditor.deriving', "Deriving the analysis model from the building model...") };
+		}
+		const results = this.results?.status();
+		if (results) {
+			return results;
+		}
+		const state = derivation?.state;
+		if (state && !state.derived) {
+			return {
+				text: localize('femEditor.notDerived', "The analysis model has not been derived from the building model yet."),
+				link: { label: localize('femEditor.derive', "Derive from Building Model"), run: () => void this.derive() },
+			};
+		}
+		if (this.nodeCount) {
+			return {
+				text: stale
+					? localize('femEditor.notAnalysedStale', "{0} nodes, {1} elements. Not analysed yet; the model is out of date.", this.nodeCount, this.elementCount)
+					: localize('femEditor.notAnalysed', "{0} nodes, {1} elements. Not analysed yet.", this.nodeCount, this.elementCount),
+				link: { label: localize('femEditor.run', "Run Analysis"), run: () => void this.run({}) },
+			};
+		}
+		return undefined;
+	}
+
+	/** The empty view of a model not derived yet: what to do first. */
+	private renderEmpty(stale: boolean): void {
+		const empty = this.empty;
+		const state = this.derivation?.state;
+		if (!empty) {
+			return;
+		}
+		this.emptyStore.clear();
+		clearNode(empty);
+		const show = this.nodeCount === 0 && !!this.input && !this.message?.classList.contains('visible');
+		empty.classList.toggle('visible', show);
+		if (!show) {
+			return;
+		}
+		append(empty, $('.fem-empty-title', undefined, state && !state.derived
+			? localize('femEditor.emptyTitle', "No analysis model yet")
+			: localize('femEditor.emptyNoNodes', "This model has no nodes")));
+		append(empty, $('.fem-empty-text', undefined, state
+			? localize('femEditor.emptyText', "The analysis model is derived from the building model, the object types, the materials and the project settings.")
+			: localize('femEditor.emptyTextOther', "Open the project's analysis model, or add nodes and elements to this file.")));
+		if (state && (stale || !state.derived)) {
+			const store = new DisposableStore();
+			const button = store.add(new Button(empty, { ...defaultButtonStyles, supportIcons: true }));
+			button.label = `$(${Codicon.refresh.id}) ${localize('femEditor.derive', "Derive from Building Model")}`;
+			button.enabled = !this.derivation?.deriving;
+			store.add(button.onDidClick(() => this.derive()));
+			this.emptyStore.value = store;
+		}
+	}
+
+	/** The properties panel: the result's values for the selection, then the model's facts. */
+	private renderProperties(): void {
+		const panel = this.frame?.properties;
+		if (!panel) {
+			return;
+		}
+		clearNode(panel);
+		this.results?.renderProperties(panel);
+		propertyHeading(panel, localize('femEditor.modelHeading', "Model"));
+		propertyRow(panel, localize('femEditor.nodes', "Nodes"), String(this.nodeCount));
+		propertyRow(panel, localize('femEditor.elements', "Elements"), String(this.elementCount));
+		if (this.units) {
+			propertyRow(panel, localize('femEditor.units', "Units"), this.units);
+		}
+		const state = this.derivation?.state;
+		if (state) {
+			propertyRow(panel, localize('femEditor.derivation', "Derived"), !state.derived
+				? localize('femEditor.derivationNo', "Not yet")
+				: state.changed.length ? localize('femEditor.derivationStale', "Out of date") : localize('femEditor.derivationCurrent', "Up to date"));
+			if (state.derived && state.changed.length) {
+				propertyNote(panel, localize('femEditor.changedSources', "Changed since: {0}.", state.changed.join(', ')));
+			}
+		}
+		const last = this.lastDerivation;
+		if (last?.ok && !this.results?.hasResults) {
+			propertyNote(panel, last.message);
+		}
+		if (last?.ok && last.notes.length) {
+			propertyHeading(panel, localize('femEditor.notesHeading', "Derivation Notes"));
+			for (const note of last.notes) {
+				propertyNote(panel, note);
+			}
+		}
+	}
+
+	// ───────────────────────────── viewer ─────────────────────────────
 
 	private async ensureViewer(): Promise<FemViewer | undefined> {
 		if (this.viewer) {
@@ -163,15 +707,18 @@ export class FemModelEditor extends EditorPane {
 		}
 		this.showMessage(undefined);
 		const meta = (model as { meta?: { description?: unknown; units?: unknown } }).meta;
-		this.derivation?.setDescription(meta?.description);
-		this.results?.setResource(input.resource, typeof meta?.units === 'string' ? meta.units : undefined);
+		this.units = typeof meta?.units === 'string' ? meta.units : undefined;
 		const wasEmpty = this.nodeCount === 0;
 		this.nodeCount = model.nodes.length;
+		this.elementCount = model.elements.length;
+		this.derivation?.setDescription(meta?.description);
+		this.results?.setResource(input.resource, this.units);
 		this.viewer?.setModel(model);
 		if (wasEmpty && this.nodeCount) {
 			// A model derived into an empty file: frame it (the first fit framed nothing).
 			void this.viewer?.fit();
 		}
+		this.updateChrome();
 	}
 
 	private showMessage(text: string | undefined): void {
@@ -183,6 +730,7 @@ export class FemModelEditor extends EditorPane {
 		if (text) {
 			this.message.textContent = text;
 		}
+		this.updateChrome();
 	}
 
 	private computeTheme(): Partial<FemViewerTheme> {

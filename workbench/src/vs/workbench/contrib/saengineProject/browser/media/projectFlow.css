@@ -4,75 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /*
- * The project's part folders in the Explorer as a flowchart: each part folder is a node (a box),
- * an arrow points down into every node after "01 Soil Report", and a line runs down through an
- * expanded part's contents to the next node. "11 Exports" is the last node. The row classes and
- * --saengine-flow-x (the x of the part folders' chevrons) are set by the Explorer's renderer.
+ * The Explorer used to draw the project's part folders as a flowchart (boxes and arrows). The
+ * project sidebar now shows the workflow; the Explorer, shown in developer mode only, is a plain
+ * file tree. The row classes its renderer still sets (saengine-flow-*) carry no style.
  */
-
-.explorer-folders-view .monaco-tl-row.saengine-flow-node,
-.explorer-folders-view .monaco-tl-row.saengine-flow-through {
-	position: relative;
-	--saengine-flow-color: var(--vscode-textLink-foreground);
-}
-
-/* every node after the first sits under its incoming arrow */
-.explorer-folders-view .monaco-tl-row.saengine-flow-in {
-	box-sizing: border-box;
-	padding-top: 14px;
-}
-
-/* the node */
-.explorer-folders-view .monaco-tl-row.saengine-flow-node::after {
-	content: '';
-	position: absolute;
-	left: calc(var(--saengine-flow-x) - 12px);
-	right: 6px;
-	bottom: 2px;
-	height: 18px;
-	border: 1px solid var(--saengine-flow-color);
-	border-radius: 4px;
-	pointer-events: none;
-}
-
-/* incoming line, and the line through an expanded part's contents */
-.explorer-folders-view .monaco-tl-row.saengine-flow-in::before,
-.explorer-folders-view .monaco-tl-row.saengine-flow-through::before {
-	content: '';
-	position: absolute;
-	left: var(--saengine-flow-x);
-	top: 0;
-	border-left: 1px solid var(--saengine-flow-color);
-	pointer-events: none;
-}
-
-.explorer-folders-view .monaco-tl-row.saengine-flow-in::before {
-	height: 9px;
-}
-
-.explorer-folders-view .monaco-tl-row.saengine-flow-through::before {
-	bottom: 0;
-}
-
-/* the arrowhead, pointing down into the node (the indent element starts 16px into the row) */
-.explorer-folders-view .monaco-tl-row.saengine-flow-in > .monaco-tl-indent::after {
-	content: '';
-	position: absolute;
-	left: calc(var(--saengine-flow-x) - 16px - 4px);
-	top: 7px;
-	border-left: 4.5px solid transparent;
-	border-right: 4.5px solid transparent;
-	border-top: 5px solid var(--saengine-flow-color);
-	pointer-events: none;
-}
-
-/* outgoing line, from the bottom of the node */
-.explorer-folders-view .monaco-tl-row.saengine-flow-out > .monaco-tl-indent::before {
-	content: '';
-	position: absolute;
-	left: calc(var(--saengine-flow-x) - 16px);
-	bottom: 0;
-	height: 2px;
-	border-left: 1px solid var(--saengine-flow-color);
-	pointer-events: none;
-}

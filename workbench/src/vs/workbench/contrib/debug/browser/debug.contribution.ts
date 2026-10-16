@@ -463,6 +463,7 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewCo
 	icon: icons.runViewIcon,
 	alwaysUseContainerInfo: true,
 	order: 3,
+	hideIfEmpty: true, // SAEngine: leaves the activity bar when all its views are hidden (developer mode off)
 }, ViewContainerLocation.Sidebar);
 
 // Register default debug views
