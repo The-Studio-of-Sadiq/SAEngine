@@ -183,6 +183,8 @@ export interface IFemDeriveRequest {
 	readonly settingsText: string;
 	/** Folder the model is written to (`08 FEM`): time-history records are read from the project. */
 	readonly modelFolder?: string;
+	/** The soil report (site class "From the soil report"); when not given, the project's file beside `modelFolder` is read. */
+	readonly soilText?: string;
 }
 
 export interface IFemDerivation {
@@ -245,6 +247,79 @@ export interface IReportBuild {
 	readonly pages?: number;
 	readonly warnings?: readonly string[];
 	readonly problems?: readonly string[];
+}
+
+/** A CSV or Excel file's boreholes merged into the soil report, or why it could not be read. */
+export interface ISoilImport {
+	/** The whole soil report with the file's boreholes in it. */
+	readonly text?: string;
+	/** What the import did ("BH-1: added (3 layers, …)"). */
+	readonly notes?: readonly string[];
+	readonly problems?: readonly string[];
+}
+
+/** The borehole import template written, or why it could not be. */
+export interface ISoilTemplate {
+	readonly path?: string;
+	readonly problems?: readonly string[];
+}
+
+/** Net allowable bearing pressure of one footing (`saengine.soil.allowable_bearing`). Lengths in mm. */
+export interface ISoilBearingRequest {
+	readonly soilText: string;
+	readonly settingsText?: string;
+	readonly x: number;
+	readonly y: number;
+	/** Underside of the footing in the project datum. */
+	readonly foundingLevel: number;
+	readonly b: number;
+	readonly l: number;
+}
+
+export interface ISoilBearing {
+	/** [kPa]; null when the soil report gives none there (see `notes`). */
+	readonly qa_kpa?: number | null;
+	readonly qa_shear?: number | null;
+	readonly qa_settlement?: number | null;
+	readonly borehole?: string | null;
+	readonly Df?: number;
+	readonly method?: string;
+	readonly note?: string;
+	readonly notes?: readonly string[];
+	readonly problems?: readonly string[];
+}
+
+/** The soil report's site class (`saengine.library.settings.soil_site_class`). */
+export interface ISoilSiteClass {
+	readonly class: string | null;
+	readonly boreholes: number;
+	/** "SD (N̄ = 12 over 30 m, BH-2)". */
+	readonly label: string;
+	readonly note: string;
+	readonly borehole?: string;
+	readonly problems?: readonly string[];
+}
+
+/** Where the site class and the allowable bearing pressure of the project come from. */
+export interface ISoilSources {
+	readonly site: {
+		/** The class the analysis uses. */
+		readonly class: string;
+		readonly source: 'soilReport' | 'entered';
+		readonly entered: string;
+		/** "from 1 Soil Report: SD (N̄ = 12 over 30 m, BH-2)" or "SC (entered)". */
+		readonly label: string;
+		readonly note: string;
+	};
+	readonly soil: ISoilSiteClass;
+	readonly bearing: {
+		readonly source: 'override' | 'soilReport' | 'none';
+		readonly override?: number | null;
+		readonly boreholes: number;
+		readonly note: string;
+		/** When qa is from the soil report and the Foundation's ground level differs from a borehole's ground. */
+		readonly levels?: string | null;
+	};
 }
 
 export interface ILibraryProblem {
@@ -312,4 +387,22 @@ export interface IFemSolverService {
 
 	/** Builds the PDF design report of the project (`saengine.report`), by default in `11 Exports`. */
 	buildReport(python: string, projectRoot: string, outPdf?: string): Promise<IReportBuild>;
+
+	/**
+	 * Everything computed from the soil report (`saengine.soil.soil_report`): per borehole and
+	 * for the project, or `{problems}`. Plain JSON, read by the Soil Report editor.
+	 */
+	soilReport(python: string, soilText: string, settingsText?: string): Promise<object>;
+
+	/** Net allowable bearing pressure of one footing from the soil report. */
+	soilAllowableBearing(python: string, request: ISoilBearingRequest): Promise<ISoilBearing>;
+
+	/** The soil report with the boreholes of a CSV or Excel file merged in. */
+	importSoil(python: string, path: string, soilText?: string): Promise<ISoilImport>;
+
+	/** Writes the borehole import template (.csv or .xlsx by the extension of `path`). */
+	soilTemplate(python: string, path: string): Promise<ISoilTemplate>;
+
+	/** Where the site class and the allowable bearing pressure come from, for Project Settings. */
+	soilSources(python: string, soilText: string | undefined, settingsText: string | undefined): Promise<ISoilSources>;
 }

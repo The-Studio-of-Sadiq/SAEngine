@@ -323,11 +323,19 @@ def derive_fem(
     materials_text: str,
     settings_text: str,
     model_folder: str | None = None,
+    soil_text: str | None = None,
 ) -> dict[str, Any]:
     """The analysis model (``model.osmodel`` text) of the building model with the settings' loads.
 
     Returns ``{"text", "notes", "summary"}`` (and ``"pushoverText"``, the pushover model, when
     the settings ask for pushovers), or ``{"problems"}`` when an input has errors.
+
+    The site class is resolved here (``saengine.library.settings.resolve_site_class``): with
+    the source "From the soil report", the soil report's governing class replaces the entered
+    one. ``soil_text`` is the soil report's text; when it is not given, the project's
+    ``01 Soil Report/soil-report.json`` beside ``model_folder`` (``08 FEM``) is read. The soil
+    report's stamp is recorded with the other sources (key ``soil``) whenever the source is
+    "From the soil report", even when the report gives no class yet.
     """
     import json
 
@@ -338,7 +346,7 @@ def derive_fem(
     from saengine.library.bim import BuildingModel
     from saengine.library.materials import MaterialLibrary
     from saengine.library.objects import ObjectLibrary
-    from saengine.library.settings import ProjectSettings
+    from saengine.library.settings import ProjectSettings, read_soil_text, resolve_site_class
 
     inputs = {
         "bim": (BuildingModel, bim_text, "Building model"),
@@ -357,17 +365,26 @@ def derive_fem(
                 ]
             }
     stamps = {key: stamp(text) for key, (_, text, _) in inputs.items()}
+    if soil_text is None and model_folder:
+        soil_text = read_soil_text(Path(model_folder).parent)
+    settings, site = resolve_site_class(parsed["settings"], soil_text)
+    # The soil report is a source whenever the settings take the site class from it, also while
+    # it gives no class yet (placeholder, no boreholes): boreholes added later then make the
+    # model out of date.
+    if parsed["settings"].site.siteClassSource == "soilReport" and soil_text is not None:
+        stamps["soil"] = stamp(soil_text)
+    site_notes = [site["note"]] if site["source"] == "soilReport" else []
     derivation = derive(
         parsed["bim"],
         parsed["objects"],
         parsed["materials"],
-        parsed["settings"],
+        settings,
         stamps,
         model_folder,
     )
     result = {
         "text": json.dumps(derivation.project, indent="\t", ensure_ascii=False) + "\n",
-        "notes": derivation.notes,
+        "notes": site_notes + list(derivation.notes),
         "summary": derivation.summary,
     }
     if derivation.pushover is not None:
@@ -487,3 +504,133 @@ def build_report(project_root: str, out_pdf: str | None = None) -> dict[str, Any
     from saengine.report import build_report as build
 
     return build(project_root, out_pdf)
+
+
+# ─────────────────────────────────────── soil report ───────────────────────────────────────
+
+
+def soil_report(soil_text: str, settings_text: str | None = None) -> dict[str, Any]:
+    """Everything computed from the soil report (see ``saengine.soil.soil_report``), with the
+    site class of the settings resolved as the analysis uses it."""
+    from saengine.library.settings import resolve_settings_text
+    from saengine.soil import soil_report as compute
+
+    return compute(soil_text, resolve_settings_text(settings_text, soil_text))
+
+
+def allowable_bearing(
+    soil_text: str,
+    settings_text: str | None,
+    x_mm: float,
+    y_mm: float,
+    founding_level_mm: float,
+    b_mm: float,
+    l_mm: float,
+) -> dict[str, Any]:
+    """Net allowable bearing pressure of a footing (see ``saengine.soil.allowable_bearing``)."""
+    from saengine.soil import allowable_bearing as compute
+
+    return compute(soil_text, settings_text, x_mm, y_mm, founding_level_mm, b_mm, l_mm)
+
+
+def import_soil(path: str, soil_text: str | None = None) -> dict[str, Any]:
+    """The soil report with the boreholes of a CSV or Excel file merged in:
+    ``{"text", "notes"}`` or ``{"problems"}``."""
+    from saengine.soil import import_soil as read
+
+    return read(path, soil_text)
+
+
+def soil_template(path: str) -> dict[str, Any]:
+    """Writes the borehole import template (.csv or .xlsx): ``{"path"}`` or ``{"problems"}``."""
+    from saengine.soil import soil_template as write
+
+    return write(path)
+
+
+def soil_settlement(
+    soil_text: str, borehole: str, b_mm: float, l_mm: float, df_mm: float, q_kpa: float
+) -> dict[str, Any]:
+    """Settlement of a footing at a borehole under a net pressure."""
+    from saengine.soil import footing_settlement
+
+    return footing_settlement(soil_text, borehole, b_mm, l_mm, df_mm, q_kpa)
+
+
+def soil_sources(soil_text: str | None, settings_text: str | None = None) -> dict[str, Any]:
+    """Where the site class and the allowable bearing pressure come from, for Project Settings.
+
+    Returns ``{"site", "soil", "bearing"}``: ``site`` the info of ``resolve_site_class`` (the
+    class the analysis uses and its source), ``soil`` the soil report's own class
+    (``soil_site_class``), ``bearing`` ``{"source": "override" | "soilReport" | "none",
+    "override", "boreholes", "note"}``.
+    """
+    from pydantic import ValidationError
+
+    from saengine.library.settings import (
+        ProjectSettings,
+        default_project_settings,
+        resolve_site_class,
+        soil_site_class,
+    )
+
+    try:
+        settings = (
+            ProjectSettings.model_validate_json(settings_text)
+            if settings_text
+            else default_project_settings()
+        )
+    except ValidationError:
+        settings = default_project_settings()
+    _, site = resolve_site_class(settings, soil_text)
+    soil = site["soil"] if site["soil"] is not None else soil_site_class(soil_text, settings)
+    boreholes = soil.get("boreholes", 0)
+    override = settings.foundation.allowableBearing
+    if override:
+        source = "override"
+        note = f"qa = {override:g} kPa, the override, for every footing."
+    elif boreholes:
+        source = "soilReport"
+        note = (
+            "qa per footing from 1 Soil Report: the lowest of the boreholes within 10 m (else "
+            "the nearest), at the footing's founding level, B and L."
+        )
+    else:
+        source = "none"
+        note = "No qa: the footings are designed without the bearing check."
+    return {
+        "site": site,
+        "soil": soil,
+        "bearing": {
+            "source": source,
+            "override": override,
+            "boreholes": boreholes,
+            "note": note,
+            "levels": _ground_levels(soil_text, settings.foundation.groundLevel)
+            if source == "soilReport"
+            else None,
+        },
+    }
+
+
+def _ground_levels(soil_text: str | None, finished: float) -> str | None:
+    """A note when Project Settings → Foundation's ground level differs (by more than 100 mm)
+    from the ground of a borehole: qa is net of the overburden below the borehole's ground."""
+    from saengine.soil.report import parse
+
+    report = parse(soil_text or "")
+    if isinstance(report, list):
+        return None
+    differ = [
+        f"{bh.id} {report.ground_level(bh) / 1e3:+.2f} m"
+        for bh in report.boreholes
+        if abs(report.ground_level(bh) - finished) > 100
+    ]
+    if not differ:
+        return None
+    return (
+        f"The finished ground ({finished / 1e3:+.2f} m) differs from the ground of "
+        + ", ".join(differ)
+        + ": qa is net of the overburden below each borehole's ground, so fill above it is "
+        "taken as a load and a cut is flagged in the footing's notes."
+    )

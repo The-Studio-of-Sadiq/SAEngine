@@ -15,6 +15,14 @@ Methods:
 - ``design/report`` ``{outDir, projectPath}`` -> the RC member design checks of a run
 - ``boq/compute`` ``{bimText, objectsText, materialsText}`` -> the bill of quantities
 - ``report/build`` ``{projectRoot, outPdf?}`` -> the PDF design report (``{path, pages, warnings}``)
+- ``soil/report`` ``{soilText, settingsText?}`` -> everything computed from the soil report
+- ``soil/allowableBearing`` ``{soilText, settingsText?, x, y, foundingLevel, b, l}`` -> qa [kPa]
+  of a footing (lengths in mm)
+- ``soil/import`` ``{path, soilText?}`` -> the soil report with a CSV or Excel file's boreholes
+- ``soil/template`` ``{path}`` -> writes the borehole import template
+- ``soil/settlement`` ``{soilText, borehole, b, l, df, q}`` -> a footing's settlement
+- ``soil/sources`` ``{soilText?, settingsText?}`` -> where the site class and qa come from
+- ``fem/derive`` also takes ``soilText?`` (else the project's soil report beside ``modelFolder``)
 
 Analyses themselves are not run here: the workbench starts
 ``python -m opensees_studio.run`` per run, so an OpenSees hard exit can never take
@@ -94,6 +102,7 @@ def create_server() -> JsonRPCServer:
             args["materialsText"],
             args["settingsText"],
             args.get("modelFolder"),
+            args.get("soilText"),
         )
 
     @server.feature("bim/ifc")
@@ -141,6 +150,45 @@ def create_server() -> JsonRPCServer:
     def _build_report(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.build_report(args["projectRoot"], args.get("outPdf"))
+
+    @server.feature("soil/report")
+    def _soil_report(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.soil_report(args["soilText"], args.get("settingsText"))
+
+    @server.feature("soil/allowableBearing")
+    def _soil_allowable_bearing(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.allowable_bearing(
+            args["soilText"],
+            args.get("settingsText"),
+            args["x"],
+            args["y"],
+            args["foundingLevel"],
+            args["b"],
+            args["l"],
+        )
+
+    @server.feature("soil/import")
+    def _soil_import(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.import_soil(args["path"], args.get("soilText"))
+
+    @server.feature("soil/template")
+    def _soil_template(params: Any) -> dict[str, Any]:
+        return handlers.soil_template(_plain(params)["path"])
+
+    @server.feature("soil/settlement")
+    def _soil_settlement(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.soil_settlement(
+            args["soilText"], args["borehole"], args["b"], args["l"], args["df"], args["q"]
+        )
+
+    @server.feature("soil/sources")
+    def _soil_sources(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.soil_sources(args.get("soilText"), args.get("settingsText"))
 
     return server
 

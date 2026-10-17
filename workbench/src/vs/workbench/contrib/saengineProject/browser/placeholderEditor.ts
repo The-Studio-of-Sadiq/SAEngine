@@ -33,7 +33,6 @@ import { PlaceholderEditorInput } from './placeholderEditorInput.js';
  * leaves this list when its editor arrives (that editor registers for the part's main file).
  */
 export const PLACEHOLDER_PARTS: readonly { readonly part: string; readonly description: () => string }[] = [
-	{ part: 'soil', description: () => localize('placeholder.soil', "Boreholes with SPT, lab data, bearing capacity and settlement, and liquefaction. Coming in the next phase.") },
 	{ part: 'mep', description: () => localize('placeholder.mep', "Mechanical, electrical and plumbing services and their loads on the structure. Planned for later.") },
 	{ part: 'substructure', description: () => localize('placeholder.substructure', "Footings, piles and pile caps, and rafts, designed from the analysis reactions. Coming in the next phase.") },
 ];

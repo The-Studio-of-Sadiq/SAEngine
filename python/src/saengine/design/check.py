@@ -50,7 +50,7 @@ from saengine.library.bim import (
 )
 from saengine.library.materials import Category, MaterialLibrary
 from saengine.library.objects import Beam, Column, ObjectLibrary, Slab, Wall
-from saengine.library.settings import ProjectSettings
+from saengine.library.settings import ProjectSettings, read_soil_text
 
 METHOD = [
     "Strength design to {code} (ACI 318-19 clauses and factors).",
@@ -125,7 +125,8 @@ def design_report(out_dir: str | Path, project_path: str | Path) -> dict[str, An
     objects = ObjectLibrary.model_validate_json(read("04 Objects/objects.json"))
     building = BuildingModel.model_validate_json(read("06 BIM/bim.json"))
     project = json.loads(project_path.read_text(encoding="utf-8"))
-    return design(project, out_dir, building, objects, materials, settings)
+    soil_text = read_soil_text(root)  # qa of the footings, when it has boreholes
+    return design(project, out_dir, building, objects, materials, settings, soil_text)
 
 
 def design(
@@ -135,8 +136,10 @@ def design(
     objects: ObjectLibrary,
     materials: MaterialLibrary,
     settings: ProjectSettings,
+    soil_text: str | None = None,
 ) -> dict[str, Any]:
-    """:func:`design_report` with the project's parts already read."""
+    """:func:`design_report` with the project's parts already read (``soil_text``: the soil
+    report's text, for the footings' allowable bearing pressures)."""
     combinations, pieces, notes, shell_forces = _demands(project, out_dir, settings)
     types = {o.id: o for o in objects.objects}
     mats = {m.id: m for m in materials.materials}
@@ -243,7 +246,7 @@ def design(
     from saengine.design.footing import FOOTING_METHOD, footing_checks
 
     footings, footings_skipped, footing_notes = footing_checks(
-        project, out_dir, building, objects, materials, settings
+        project, out_dir, building, objects, materials, settings, soil_text
     )
     checked += footings
     skipped += footings_skipped

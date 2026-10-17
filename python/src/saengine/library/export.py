@@ -34,6 +34,7 @@ from saengine.library.objects import ObjectLibrary
 from saengine.library.script import TEMPLATE as SCRIPT_TEMPLATE
 from saengine.library.settings import ProjectSettings, default_project_settings
 from saengine.library.shapes import ShapeInput
+from saengine.library.soil import SoilReport, default_soil_report
 from saengine.library.structure import StructuralModel, default_structural_model
 from saengine.library.templates import TEMPLATES
 
@@ -168,6 +169,8 @@ def generate_typescript() -> str:
         ("SHAPE_SCHEMA", "IJSONSchema", json_schema(ShapeInput, "SAEngine parametric shape")),
         ("IMPORT_SCHEMA", "IJSONSchema", json_schema(ImportInput, "SAEngine geometry import")),
         ("SCRIPT_TEMPLATE", "string", SCRIPT_TEMPLATE),
+        ("SOIL_SCHEMA", "IJSONSchema", json_schema(SoilReport, "SAEngine soil report")),
+        ("DEFAULT_SOIL", "object", library_json(default_soil_report())),
     ]
     body = "\n".join(
         f"export const {name}: {type_} = {_ts(value)};\n" for name, type_, value in exports

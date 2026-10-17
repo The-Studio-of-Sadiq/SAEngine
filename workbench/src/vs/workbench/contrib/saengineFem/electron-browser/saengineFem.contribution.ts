@@ -8,7 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { IBuildingIfcRequest, IFemDeriveRequest, IFemSolverService, IStructureGeometry, IStructureScriptResult, LibraryFileKind } from '../../../../platform/saengine/common/femSolver.js';
+import { IBuildingIfcRequest, IFemDeriveRequest, IFemSolverService, ISoilBearingRequest, IStructureGeometry, IStructureScriptResult, LibraryFileKind } from '../../../../platform/saengine/common/femSolver.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -179,6 +179,51 @@ CommandsRegistry.registerCommand('saengine.fem.design', async (accessor, model: 
 CommandsRegistry.registerCommand('saengine.boq.compute', async (accessor, args: { bimText: string; objectsText: string; materialsText: string }) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	return accessor.get(IFemSolverService).computeBoq(python, args.bimText, args.objectsText, args.materialsText);
+});
+
+/**
+ * The soil report's results (`saengine.soil.soil_report`, returned as it is: the editor reads
+ * it). Internal: the Soil Report editor calls it by id.
+ */
+CommandsRegistry.registerCommand('saengine.soil.compute', async (accessor, args: { soilText: string; settingsText?: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).soilReport(python, args.soilText, args.settingsText);
+});
+
+/**
+ * Boreholes of a CSV or Excel file merged into the soil report: `{text, problems?}` with the
+ * import's remarks (beyond the boreholes added) as `problems`, or `{problems}` when nothing
+ * was imported. Internal: the Soil Report editor calls it by id.
+ */
+CommandsRegistry.registerCommand('saengine.soil.import', async (accessor, args: { path: string; soilText?: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	const result = await accessor.get(IFemSolverService).importSoil(python, args.path, args.soilText);
+	if (!result.text) {
+		return { problems: result.problems ?? [] };
+	}
+	const remarks = (result.notes ?? []).filter(note => !/: added \(/.test(note));
+	return { text: result.text, notes: result.notes ?? [], problems: remarks.length ? remarks : undefined };
+});
+
+/** Writes the borehole import template. Internal: the Soil Report editor calls it by id. */
+CommandsRegistry.registerCommand('saengine.soil.template', async (accessor, args: { path: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).soilTemplate(python, args.path);
+});
+
+/** Net allowable bearing pressure of one footing from the soil report (lengths in mm). */
+CommandsRegistry.registerCommand('saengine.soil.allowableBearing', async (accessor, request: ISoilBearingRequest) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).soilAllowableBearing(python, request);
+});
+
+/**
+ * Where the site class and the allowable bearing pressure come from (the soil report or the
+ * settings). Internal: the Project Settings editor calls it by id.
+ */
+CommandsRegistry.registerCommand('saengine.soil.sources', async (accessor, args: { soilText?: string; settingsText?: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).soilSources(python, args.soilText, args.settingsText);
 });
 
 /** The PDF design report of the project. Internal: the report command calls it by id. */

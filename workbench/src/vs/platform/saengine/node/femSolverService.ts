@@ -13,7 +13,7 @@ import { killTree } from '../../../base/node/processes.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemResultList, IFemResultView, IFemRunEventMessage, IBuildingIfc, IBuildingIfcRequest, IFemDerivation, IFemDeriveRequest, IGeneratedBuilding, ILibraryProblem, LibraryFileKind, IFemRunExit, IFemRunRequest, IFemSolverService, IStructureEdit, IStructureGeometry, IStructureScriptResult, StructureGeometryResult, IBoqComputation, IReportBuild } from '../common/femSolver.js';
+import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemResultList, IFemResultView, IFemRunEventMessage, IBuildingIfc, IBuildingIfcRequest, IFemDerivation, IFemDeriveRequest, IGeneratedBuilding, ILibraryProblem, LibraryFileKind, IFemRunExit, IFemRunRequest, IFemSolverService, IStructureEdit, IStructureGeometry, IStructureScriptResult, StructureGeometryResult, IBoqComputation, IReportBuild, ISoilBearing, ISoilBearingRequest, ISoilImport, ISoilSources, ISoilTemplate } from '../common/femSolver.js';
 
 interface IRun {
 	readonly child: cp.ChildProcess;
@@ -179,6 +179,26 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 
 	buildReport(python: string, projectRoot: string, outPdf?: string): Promise<IReportBuild> {
 		return this.request(python, 'report/build', { projectRoot, outPdf });
+	}
+
+	soilReport(python: string, soilText: string, settingsText?: string): Promise<object> {
+		return this.request(python, 'soil/report', { soilText, settingsText });
+	}
+
+	soilAllowableBearing(python: string, request: ISoilBearingRequest): Promise<ISoilBearing> {
+		return this.request(python, 'soil/allowableBearing', request);
+	}
+
+	importSoil(python: string, path: string, soilText?: string): Promise<ISoilImport> {
+		return this.request(python, 'soil/import', { path, soilText });
+	}
+
+	soilTemplate(python: string, path: string): Promise<ISoilTemplate> {
+		return this.request(python, 'soil/template', { path });
+	}
+
+	soilSources(python: string, soilText: string | undefined, settingsText: string | undefined): Promise<ISoilSources> {
+		return this.request(python, 'soil/sources', { soilText, settingsText });
 	}
 
 	private async request<T>(python: string, method: string, params: object): Promise<T> {

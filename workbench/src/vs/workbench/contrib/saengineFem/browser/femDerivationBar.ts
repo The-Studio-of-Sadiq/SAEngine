@@ -26,6 +26,16 @@ export const DERIVATION_SOURCES: readonly { readonly part: string; readonly key:
 	{ part: 'materials', key: 'materials', label: localize('fem.source.materials', "Materials") },
 ];
 
+/**
+ * The soil report, a source only of a model whose site class may come from it: the derivation
+ * records its stamp (key `soil`) whenever the settings take the site class from the soil report,
+ * so adding or changing boreholes later makes the model out of date.
+ */
+export const SOIL_DERIVATION_SOURCE = { part: 'soil', key: 'soil', label: localize('fem.source.soil', "Soil Report") } as const;
+
+/** Every part the derivation may read: the sources above and the soil report. */
+export const DERIVATION_INPUTS: readonly string[] = [...DERIVATION_SOURCES.map(s => s.part), SOIL_DERIVATION_SOURCE.part];
+
 interface IFemDerivation {
 	readonly text?: string;
 	readonly pushoverText?: string;
@@ -70,8 +80,16 @@ export function derivationState(description: unknown, texts: ReadonlyMap<string,
 	const changed = DERIVATION_SOURCES.filter(({ part, key }) => {
 		const text = texts.get(part);
 		return text === undefined || recorded.get(key) !== sourceStamp(text);
-	});
-	return { derived: recorded.size > 0, changed: changed.map(c => c.label) };
+	}).map(c => c.label);
+	// The soil report counts only when the model recorded it (its site class could come from it).
+	const soil = SOIL_DERIVATION_SOURCE;
+	if (recorded.has(soil.key)) {
+		const text = texts.get(soil.part);
+		if (text === undefined || recorded.get(soil.key) !== sourceStamp(text)) {
+			changed.push(soil.label);
+		}
+	}
+	return { derived: recorded.size > 0, changed };
 }
 
 /** What deriving the analysis model gave: facts to show, notes to heed, or why it failed. */
@@ -93,7 +111,10 @@ export async function deriveAnalysisModel(commandService: ICommandService, fileS
 		const missing = DERIVATION_SOURCES.filter(s => texts.get(s.part) === undefined).map(s => s.label);
 		return { ok: false, message: localize('fem.deriveMissing', "{0} could not be read.", missing.join(', ')), notes: [] };
 	}
-	const result = await commandService.executeCommand<IFemDerivation>(DERIVE_COMMAND, { bimText, objectsText, materialsText, settingsText, modelFolder: dirname(resource).fsPath });
+	// The soil report's text from the caller, so the site class comes from the same text as the
+	// state check; without it the backend reads `01 Soil Report` beside the model folder.
+	const soilText = texts.get(SOIL_DERIVATION_SOURCE.part);
+	const result = await commandService.executeCommand<IFemDerivation>(DERIVE_COMMAND, { bimText, objectsText, materialsText, settingsText, modelFolder: dirname(resource).fsPath, ...(soilText !== undefined ? { soilText } : {}) });
 	if (!result?.text) {
 		return { ok: false, message: (result?.problems ?? []).join('; '), notes: [] };
 	}
@@ -153,7 +174,12 @@ export class FemDerivation extends Disposable {
 		if (!this.resource) {
 			return undefined;
 		}
-		return derivationState(this.description, new Map(DERIVATION_SOURCES.map(({ part }) => [part, this.models.get(part)?.getValue()])));
+		return derivationState(this.description, this.texts());
+	}
+
+	/** The current text of each derivation input (unsaved edits included). */
+	private texts(): Map<string, string | undefined> {
+		return new Map(DERIVATION_INPUTS.map(part => [part, this.models.get(part)?.getValue()]));
 	}
 
 	/** Follows the sources of `resource` when it is the project's analysis model. */
@@ -165,7 +191,7 @@ export class FemDerivation extends Disposable {
 		const model = root && partFile(root, 'fem');
 		this.resource = model && resource && (isEqual(resource, model) || isEqual(resource, joinPath(dirname(model), PUSHOVER_FILE))) ? resource : undefined;
 		if (root && this.resource) {
-			for (const { part } of DERIVATION_SOURCES) {
+			for (const part of DERIVATION_INPUTS) {
 				try {
 					const reference = await this.textModelService.createModelReference(partFile(root, part));
 					this.store.add(reference);
@@ -195,7 +221,7 @@ export class FemDerivation extends Disposable {
 		this._deriving = true;
 		this.onDidChange();
 		try {
-			return await deriveAnalysisModel(this.commandService, this.fileService, root, new Map(DERIVATION_SOURCES.map(({ part }) => [part, this.models.get(part)?.getValue()])));
+			return await deriveAnalysisModel(this.commandService, this.fileService, root, this.texts());
 		} catch (error) {
 			return { ok: false, message: String(error), notes: [] };
 		} finally {

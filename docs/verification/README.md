@@ -77,27 +77,39 @@ was widened to make a case pass; where SAEngine is off, the case fails.
 | A7 | Pushover of a steel I cantilever (fiber elements) to 3 % drift: initial stiffness, base moment at 1, 2 and 3 % drift | 3EI/L³; Mp = Z fy; exact inelastic cantilever δ = ∫ κ(M) s ds with the section's bilinear moment-curvature |
 | A8 | Simply supported square plate under uniform load (shells): central deflection and moment | Timoshenko & Woinowsky-Krieger, α = 0.00406, β = 0.0479 (ν = 0.3) |
 | A9 | Solid cantilever block (tetrahedra) under its self-weight: tip deflection at the default mesh, the finest allowed (100 mm) and 50 mm | Timoshenko beam (bending + shear) |
+| A10 | Construction sequence: shortening of a three-storey column built storey by storey under its self-weight, and the same load applied at once | Statics of a column built in stages, linear elastic (staged: (j - 1/2 + j(n - j)) Wh/EA; at once: (j(n + 1/2) - j(j + 1)/2) Wh/EA) |
 | D1 | RC beam φMn, singly reinforced | ACI 318-19 22.2, 21.2.2 |
 | D2 | RC beam shear with and without stirrups | ACI 318-19 Table 22.5.5.1 (a) and (c), λs |
 | D3 | Tied column φPn,max and the balanced point | ACI 318-19 22.4.2, strain compatibility |
 | D4 | Slab layers: effective depths and φMn per metre | ACI 318-19 22.2 |
 | D5 | Isolated footing with eccentric load: bearing, punching (with moment transfer), one-way shear and flexure at the face in X and Y, each with its own layer's d | ACI 318-19 13.2.7, 22.6, 8.4.4.2, 22.5 |
+| D6 | Site class of a 30 m borehole from the harmonic mean of its field SPT N values | BNBC 2020 Table 6.2.13; harmonic mean as ASCE 7-16 20.4 |
+| D7 | Net allowable bearing pressure against shear failure: square footing on sand (drained), rectangular footing on clay (undrained), FS = 3 | General bearing capacity equation, Vesic (1975) factors, De Beer shape and Hansen depth factors |
+| D8 | Immediate settlement of a square footing on sand | Schmertmann et al. (1978) strain influence factor |
+| D9 | Liquefaction factor of safety at one SPT test: rd, CSR, (N1)60cs, CRR and FS | Idriss & Boulanger (2014) SPT procedure |
+| D10 | SPT corrections of the Bangladesh consultant practice: σ'v per row, CN, N60 with rod-length factors, (N1)60 and the dilatancy N' | Peck, Hanson and Thornburn (1974) CN; Terzaghi and Peck dilatancy correction |
+| D11 | Settlement-limited allowable bearing pressure with N' averaged over the zone from Df - B/2 to Df + 2B | Meyerhof (1965) as modified by Bowles, 25 mm |
+| D12 | Liquefaction factor of safety at one SPT test with amax = (2/3) Z S | BNBC 2020 Sec 3.9.5 (Eqs 6.3.6-6.3.8, rd = 1 - 0.015z, no 0.65 factor), CRR by Youd et al. (2001) |
 
 ## Results at the time of writing
 
-13 of the 14 cases pass; A9 fails on the known issue below. The table lists the
+21 of the 22 cases pass; A9 fails on the known issue below. The table lists the
 largest deviation in each case:
 
 | Case | Ratio | Tolerance | Case | Ratio | Tolerance |
 |---|---|---|---|---|---|
-| A1 | 1.0000 | 1 % | A9 | 0.9247 (fail) | 5 % |
-| A2 | 1.0000 | 1 % | D1 | 1.0000 | 0.5 % |
-| A3 | 1.0020 | 1 % | D2 | 1.0000 | 0.5 % |
-| A4 | 0.9989 | 1 % | D3 | 1.0000 | 0.5 % |
-| A5 | 1.0000 | 1 % | D4 | 1.0000 | 0.5 % |
-| A6 | 1.0000 | 1 % | D5 | 1.0000 | 0.5 % |
-| A7 | 1.0224 | 3 % | | | |
-| A8 | 0.9952 | 2 % | | | |
+| A1 | 1.0000 | 1 % | D1 | 1.0000 | 1 % |
+| A2 | 1.0000 | 1 % | D2 | 1.0000 | 0.5 % |
+| A3 | 1.0020 | 1 % | D3 | 1.0000 | 0.5 % |
+| A4 | 0.9989 | 1 % | D4 | 1.0000 | 0.5 % |
+| A5 | 1.0000 | 1 % | D5 | 1.0000 | 0.5 % |
+| A6 | 1.0000 | 1 % | D6 | 0.9983 | 0.5 % |
+| A7 | 1.0224 | 3 % | D7 | 1.0000 | 0.5 % |
+| A8 | 0.9952 | 2 % | D8 | 1.0000 | 0.5 % |
+| A9 | 0.9247 (fail) | 5 % | D9 | 0.9942 | 1 % |
+| A10 | 1.0000 | 1 % | D10 | 1.0000 | 0.5 % |
+| | | | D11 | 0.9999 | 0.5 % |
+| | | | D12 | 1.0024 | 1 % |
 
 ## Known issues (failing cases)
 
@@ -134,7 +146,8 @@ largest deviation in each case:
 
 ## Adding a case
 
-Write a function `run(folder: Path) -> Outcome` in `cases/analysis.py` or `cases/design.py`. It
+Write a function `run(folder: Path) -> Outcome` in `cases/analysis.py`, `cases/design.py` or
+`cases/soil.py`. It
 returns a `Reference` (source, formula, steps) and a list of `Quantity(name, unit, reference,
 saengine, tolerance)`. Add a `Case(id, title, category, description, model, run, fast=...)` to
 that module's `CASES`. Cite the reference by name, and do not copy text from it.

@@ -8,14 +8,16 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { Action } from '../../../../base/common/actions.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { DisposableStore, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { joinPath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -25,16 +27,25 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ISoilSources } from '../../../../platform/saengine/common/femSolver.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { BNBC, DEFAULT_SETTINGS, SETTINGS_SCHEMA, TEMPLATES } from '../../../services/saengineProject/common/projectLibraries.generated.js';
-import { ISaengineProjectService, PROJECT_TYPES, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
+import { ISaengineProjectService, partById, PROJECT_TYPES, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
 import { EditorFrame } from '../../saengineProject/browser/editorFrame.js';
 import { clone, IDocumentFrameActions, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditorInput } from './libraryEditorInput.js';
 import { humanize, JsonObject, JsonValue, SchemaForm, titleCase } from './schemaForm.js';
 
 const SETTINGS_SCHEMA_ID = 'saengine.projectSettings/1';
+
+/** Desktop command telling where the site class and qa come from (`saengine.soil.sources`). */
+const SOIL_SOURCES_COMMAND = 'saengine.soil.sources';
+
+/** The schema title of a settings field (`Site`, `siteClassSource`), as the form labels it. */
+function fieldTitle(defName: string, key: string): string | undefined {
+	return SETTINGS_SCHEMA.$defs?.[defName]?.properties?.[key]?.title;
+}
 
 function format(value: number): string {
 	return `${Number(value.toFixed(3))}`;
@@ -50,9 +61,11 @@ interface ICodeValue {
 
 /**
  * The code values the settings imply, from the BNBC 2020 tables (the same tables and rules as
- * `saengine.library.settings.derived`).
+ * `saengine.library.settings.derived`). `soilSiteClass` is the site class the soil report gives
+ * (with its label, "SD (N̄ = 12 over 30 m, BH-2)"): the settings use it unless their site class
+ * source is Entered.
  */
-export function codeValues(settings: JsonObject): ICodeValue[] {
+export function codeValues(settings: JsonObject, soilSiteClass?: { readonly class: string; readonly label: string }): ICodeValue[] {
 	const object = (key: string) => (isObject(settings[key]) ? settings[key] : {}) as JsonObject;
 	const site = object('site');
 	const occupancy = object('occupancy');
@@ -77,7 +90,11 @@ export function codeValues(settings: JsonObject): ICodeValue[] {
 		const own = override(seismic[key]);
 		push(label, own ?? system?.[key], localize('code.systemSource', "Table 6.2.19"), own !== undefined);
 	}
-	push(localize('code.siteClass', "Site class"), BNBC.siteClasses[String(site.siteClass)], localize('code.siteClassSource', "Table 6.2.13"));
+	if (soilSiteClass && site.siteClassSource !== 'entered') {
+		push(localize('code.siteClass', "Site class"), BNBC.siteClasses[soilSiteClass.class], localize('code.siteClassFromSoil', "Table 6.2.13, from 1 Soil Report: {0}", soilSiteClass.label));
+	} else {
+		push(localize('code.siteClass', "Site class"), BNBC.siteClasses[String(site.siteClass)], localize('code.siteClassSource', "Table 6.2.13"));
+	}
 	push(localize('code.exposure', "Wind exposure"), BNBC.exposures[String(wind.exposure)], localize('code.exposureSource', "6.2.9.3"));
 	return values;
 }
@@ -143,6 +160,16 @@ export class SettingsEditor extends JsonDocumentEditor {
 
 	private readonly navDisposables = this._register(new DisposableStore());
 	private readonly valuesDisposables = this._register(new DisposableStore());
+
+	/** The soil report (unsaved edits included): where the site class and qa come from. */
+	private readonly soilReference = this._register(new MutableDisposable<IReference<IResolvedTextEditorModel>>());
+	private readonly soilListener = this._register(new MutableDisposable());
+	private readonly sourcesScheduler = this._register(new RunOnceScheduler(() => void this.refreshSources(), 400));
+	private sources: ISoilSources | undefined;
+	private sourcesVersion = 0;
+	/** The read-only rows of the Site and Foundation sections telling where the values come from. */
+	private siteSourceCell: HTMLElement | undefined;
+	private bearingSourceCell: HTMLElement | undefined;
 	private readonly resetAction = this._register(Object.assign(
 		new Action('saengine.settings.resetCombinations', localize('settings.resetCombinationsEllipsis', "Reset Combinations to {0}...", BNBC.edition), undefined, true, () => this.resetCombinations()),
 		{ tooltip: localize('settings.resetTitle', "Replace the load combinations with the {0} strength design combinations", BNBC.edition) },
@@ -154,16 +181,16 @@ export class SettingsEditor extends JsonDocumentEditor {
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ICommandService commandService: ICommandService,
+		@ICommandService private readonly commands: ICommandService,
 		@IEditorService editorService: IEditorService,
-		@ITextModelService textModelService: ITextModelService,
+		@ITextModelService private readonly textModels: ITextModelService,
 		@ISaengineProjectService private readonly project: ISaengineProjectService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(SettingsEditor.ID, group, telemetryService, themeService, storageService, commandService, editorService, textModelService, project);
+		super(SettingsEditor.ID, group, telemetryService, themeService, storageService, commands, editorService, textModels, project);
 		this.trackDeveloperMode(configurationService);
 		this.form = instantiationService.createInstance(SchemaForm, {
 			root: SETTINGS_SCHEMA,
@@ -171,10 +198,144 @@ export class SettingsEditor extends JsonDocumentEditor {
 			references: path => this.references(path),
 			validate: (path, value) => this.validate(path, value),
 			changed: (path, structural) => this.onChanged(path, structural),
-			mode: () => undefined,
+			mode: path => path === 'site.siteClass' && this.siteClassFromSoil ? 'hidden' : undefined,
 			newItem: (path, list) => this.newItem(path, list),
 		});
 		this._register({ dispose: () => this.form.dispose() });
+		// The backend's commands are registered by the desktop contributions, possibly after this editor.
+		this._register(CommandsRegistry.onDidRegisterCommand(id => {
+			if (id === SOIL_SOURCES_COMMAND) {
+				this.sourcesScheduler.schedule(0);
+			}
+		}));
+	}
+
+	// ───────────────────────────── values from the soil report ─────────────────────────────
+
+	protected override onWillLoadInput(): void {
+		this.sources = undefined;
+		void this.trackSoil();
+	}
+
+	/** Follows the soil report (Part 1), whose boreholes give the site class and qa. */
+	private async trackSoil(): Promise<void> {
+		this.soilListener.clear();
+		this.soilReference.clear();
+		const root = this.project.project?.root;
+		const part = partById('soil');
+		if (root && part?.mainFile) {
+			try {
+				const reference = await this.textModels.createModelReference(joinPath(root, part.folder, part.mainFile));
+				this.soilReference.value = reference;
+				this.soilListener.value = reference.object.textEditorModel.onDidChangeContent(() => this.sourcesScheduler.schedule());
+			} catch {
+				// No soil report: the entered site class and the override qa apply.
+			}
+		}
+		this.sourcesScheduler.schedule(0);
+	}
+
+	/** Asks the backend where the site class and qa come from (after edits to either file). */
+	private async refreshSources(): Promise<void> {
+		if (!this.document || !CommandsRegistry.getCommand(SOIL_SOURCES_COMMAND)) {
+			return;
+		}
+		const version = ++this.sourcesVersion;
+		let sources: ISoilSources | undefined;
+		try {
+			sources = await this.commands.executeCommand<ISoilSources>(SOIL_SOURCES_COMMAND, {
+				soilText: this.soilReference.value?.object.textEditorModel.getValue(),
+				settingsText: JSON.stringify(this.document),
+			});
+		} catch {
+			sources = undefined; // no Python backend: the settings' own values are shown
+		}
+		if (version !== this.sourcesVersion || !this.document) {
+			return;
+		}
+		const hidden = this.siteClassFromSoil;
+		this.sources = sources;
+		if (hidden !== this.siteClassFromSoil && this.section?.id === 'site') {
+			this.renderPage(); // the entered site class field shows or hides
+		} else {
+			this.renderSources();
+		}
+		this.renderValues();
+	}
+
+	/** The site class comes from the soil report: the source is not Entered and the boreholes give one. */
+	private get siteClassFromSoil(): boolean {
+		const site = isObject(this.document?.site) ? this.document.site : {};
+		return site.siteClassSource !== 'entered' && !!this.sources?.soil.class;
+	}
+
+	/**
+	 * Adds a read-only row after the field titled `after` (or at the top of the form): what the
+	 * analysis uses and where it comes from. Returns its value cell.
+	 */
+	private sourceRow(form: HTMLElement, after: string | undefined, label: string): HTMLElement {
+		// A flat section's fields are the form's own rows: label cell first, its label first in it.
+		const anchor = Array.from(form.children).find(row => row.classList.contains('form-field') && row.firstElementChild?.firstElementChild?.textContent === after);
+		const row = $('.form-field.settings-source-field');
+		append(append(row, $('.form-label-cell')), $('span.form-label', undefined, label));
+		const cell = append(row, $('.form-control', { 'aria-live': 'polite' }));
+		if (anchor) {
+			anchor.after(row);
+		} else {
+			form.prepend(row);
+		}
+		return cell;
+	}
+
+	/** Fills the read-only source rows of the Site and Foundation sections. */
+	private renderSources(): void {
+		const soil = this.sources?.soil;
+		const site = this.siteSourceCell;
+		if (site) {
+			clearNode(site);
+			const entered = isObject(this.document?.site) && this.document.site.siteClassSource === 'entered';
+			const row = site.parentElement!;
+			let text: string | undefined;
+			if (this.siteClassFromSoil && soil) {
+				text = localize('settings.siteFromSoil', "from 1 Soil Report: {0}", soil.label);
+			} else if (!entered && this.sources) {
+				text = soil?.note
+					? localize('settings.siteNoSoilClass', "the entered class below: 1 Soil Report gives none yet ({0})", soil.note.replace(/\.$/, ''))
+					: localize('settings.siteEnteredFallback', "the entered class below");
+			} else if (entered && soil?.class) {
+				text = localize('settings.siteEntered', "the entered class below; 1 Soil Report gives {0}", soil.label);
+			}
+			row.classList.toggle('hidden', text === undefined);
+			if (text !== undefined) {
+				append(site, $('span.settings-source-value', undefined, text));
+			}
+		}
+		const bearing = this.bearingSourceCell;
+		if (bearing) {
+			clearNode(bearing);
+			const foundation = isObject(this.document?.foundation) ? this.document.foundation : {};
+			const override = typeof foundation.allowableBearing === 'number' ? foundation.allowableBearing : undefined;
+			const boreholes = soil?.boreholes ?? 0;
+			let text: string;
+			if (override !== undefined) {
+				text = boreholes
+					? localize('settings.qaOverrideSoil', "the override, {0} kPa, for every footing; clear it to take qa per footing from 1 Soil Report ({1} boreholes)", override, boreholes)
+					: localize('settings.qaOverride', "the override, {0} kPa, for every footing", override);
+			} else if (boreholes) {
+				text = localize('settings.qaFromSoil', "per footing from 1 Soil Report ({0} boreholes), at each footing's position, founding level and size", boreholes);
+				const levels = this.sources?.bearing.levels;
+				if (levels) {
+					text = localize('settings.qaFromSoilLevels', "{0}. {1}", text, levels);
+				}
+			} else if (this.sources) {
+				text = localize('settings.qaNone', "none: 1 Soil Report has no boreholes and no override is given, so the footings are designed without the bearing check");
+			} else {
+				text = override === undefined
+					? localize('settings.qaUnknown', "from 1 Soil Report when it has boreholes, else the override")
+					: localize('settings.qaOverride', "the override, {0} kPa, for every footing", override);
+			}
+			append(bearing, $('span.settings-source-value', undefined, text));
+		}
 	}
 
 	protected override createDocumentFrame(parent: HTMLElement): EditorFrame {
@@ -263,6 +424,11 @@ export class SettingsEditor extends JsonDocumentEditor {
 
 	/** Choosing an area's use sets its live load to the code minimum for that use. */
 	private onChanged(path: string, structural: boolean): void {
+		this.sourcesScheduler.schedule();
+		if (path === 'site.siteClassSource') {
+			this.changed(true); // the entered site class field shows or hides
+			return;
+		}
 		const match = /^areaLoads\.(?<index>\d+)\.use$/.exec(path);
 		const load = match ? this.areaLoads[Number(match.groups!.index)] : undefined;
 		const use = load ? BNBC.areaUses[String(load.use)] : undefined;
@@ -274,6 +440,7 @@ export class SettingsEditor extends JsonDocumentEditor {
 		this.changed(structural);
 		if (!structural) {
 			this.renderValues();
+			this.renderSources();
 		}
 	}
 
@@ -388,7 +555,16 @@ export class SettingsEditor extends JsonDocumentEditor {
 		this.problemBox = append(this.page, $('.library-problems'));
 		this.renderSectionProblems();
 		const skip = Object.keys(SETTINGS_SCHEMA.properties ?? {}).filter(key => !section.keys.includes(key));
-		this.form.render(append(this.page, $('.library-form')), SETTINGS_SCHEMA, this.document, skip, { flat: true });
+		const form = append(this.page, $('.library-form'));
+		this.form.render(form, SETTINGS_SCHEMA, this.document, skip, { flat: true });
+		// Where the site class and qa come from: read-only rows below their own fields.
+		this.siteSourceCell = section.keys.includes('site')
+			? this.sourceRow(form, fieldTitle('Site', 'siteClassSource'), this.siteClassFromSoil ? localize('settings.siteClass', "Site class") : localize('settings.siteClassUsed', "Site class used"))
+			: undefined;
+		this.bearingSourceCell = section.keys.includes('foundation')
+			? this.sourceRow(form, fieldTitle('Foundation', 'allowableBearing'), localize('settings.qaUsed', "Allowable bearing qa used"))
+			: undefined;
+		this.renderSources();
 	}
 
 	private selectSection(id: string): void {
@@ -433,7 +609,8 @@ export class SettingsEditor extends JsonDocumentEditor {
 			return;
 		}
 		const table = append(panel, $('.settings-values', { role: 'table', 'aria-label': localize('settings.codeValues', "Code Values") }));
-		for (const value of codeValues(this.document)) {
+		const soil = this.sources?.soil;
+		for (const value of codeValues(this.document, soil?.class ? { class: soil.class, label: soil.label } : undefined)) {
 			const row = append(table, $('.sa-props-row', { role: 'row' }));
 			append(row, $('span.name', { role: 'cell' }, value.label));
 			const cell = append(row, $('span.value', { role: 'cell' }, value.value));

@@ -13,6 +13,7 @@ concreteproperties==0.8.0
 contourpy==1.4.0
 cycler==0.12.1
 cytriangle==3.0.2
+et_xmlfile==2.0.0
 executing==2.3.0
 ezdxf==1.4.4
 fonttools==4.67.0
@@ -35,6 +36,7 @@ matplotlib-inline==0.2.2
 mdurl==0.1.2
 more-itertools==11.2.1
 numpy==2.5.4
+openpyxl==3.1.5
 openseespy==3.8.0.0
 openseespywin==3.8.0.0
 packaging==26.3

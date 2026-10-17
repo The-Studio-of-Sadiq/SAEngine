@@ -574,3 +574,139 @@ def test_column_without_footing_and_bearing_without_qa(frame: tuple[dict, Path])
     )
     # A building without footings gives nothing to report.
     assert run_checks(frame, generate(PLAN, "s")) == ([], [], [])
+
+
+# ─────────────────────────── qa from the soil report (Part 1) ───────────────────────────
+
+
+def soil_text(layers: list[dict], x: float = 500, spt_from: int = 1500) -> str:
+    """A soil report with one borehole BH-1 at (x, 0), ground at the datum, dry to 20 m, SPT
+    N = 15 every 1.5 m from ``spt_from``."""
+    return json.dumps(
+        {
+            "schema": "saengine.soilReport/1",
+            "boreholes": [
+                {
+                    "id": "BH-1",
+                    "x": x,
+                    "y": 0,
+                    "waterTable": 20000,
+                    "depth": 20000,
+                    "layers": layers,
+                    "spt": [{"depth": d, "N": 15} for d in range(spt_from, 20001, 1500)],
+                }
+            ],
+        }
+    )
+
+
+STIFF_CLAY = [
+    {
+        "top": 0,
+        "bottom": 20000,
+        "description": "Stiff clay",
+        "soilType": "clay",
+        "unitWeight": 19,
+        "cu": 100,
+        "E": 60,
+    }
+]
+
+
+def run_with_soil(frame, building, soil: str, settings: ProjectSettings = SETTINGS):
+    project, out = frame
+    return footing_checks(
+        project, out, building, OBJECTS_WITH_FOOTINGS, default_material_library(), settings, soil
+    )
+
+
+def test_qa_per_footing_from_the_soil_report(frame: tuple[dict, Path]) -> None:
+    # F18 (1.8 x 1.8 x 0.5 m, top at -1.0 m) founded at -1.5 m: Df = 1.5 m below BH-1's ground,
+    # on clay with cu = 100 kPa, undrained: qu - q = cu Nc sc dc with Nc = 5.14,
+    # sc = 1 + (B/L)(Nq/Nc) = 1 + 1/5.14, dc = 1 + 0.4 Df/B = 1 + 0.4 x 1.5/1.8, FS = 3:
+    hand = 100 * 5.14 * (1 + 1 / 5.14) * (1 + 0.4 * 1.5 / 1.8) / 3  # 272.9 kPa
+    building = with_footings(footing("F1", "F18", 0, 0))
+    elements, _, notes = run_with_soil(frame, building, soil_text(STIFF_CLAY))
+    bearing = by_name(elements[0]["checks"])["Bearing (service)"]
+    assert bearing["capacity"] == pytest.approx(hand, abs=0.05)
+    assert "qa = 272.9 kPa from 1 Soil Report: BH-1, 0.5 m away, Df = 1.50 m" in bearing["note"]
+    assert "shear governs" in bearing["note"]
+    assert any(
+        n.startswith("Allowable bearing pressures from 1 Soil Report: qa = min(") for n in notes
+    )
+
+    # The override of Project Settings wins, and the note gives the soil report's value.
+    override = SETTINGS.model_copy(update={"foundation": Foundation(allowableBearing=150)})
+    elements, _, notes = run_with_soil(frame, building, soil_text(STIFF_CLAY), override)
+    bearing = by_name(elements[0]["checks"])["Bearing (service)"]
+    assert bearing["capacity"] == 150
+    assert "the override in Project Settings → Foundation" in bearing["note"]
+    assert "1 Soil Report gives 273 kPa here (BH-1" in bearing["note"]
+    assert not any(n.startswith("Allowable bearing pressures") for n in notes)
+
+
+def test_net_pressure_takes_off_the_overburden_qa_is_net_of(frame: tuple[dict, Path]) -> None:
+    # F18 founded at -1.5 m, BH-1's ground at the datum: qa is net of the clay's overburden
+    # 19 x 1.5 = 28.5 kPa. With the finished ground at the datum too, the net pressure takes off
+    # gamma Df = 18 x 1.5 = 27 kPa (the smaller). With the finished ground 1.0 m higher (site
+    # fill), the gross pressure gains 18 x 1.0 = 18 kPa of soil above the footing, but only the
+    # 28.5 kPa the soil qa allowed for comes off (not 18 x 2.5 = 45): net + 18 - 1.5 = +16.5 kPa.
+    building = with_footings(footing("F1", "F18", 0, 0))
+    same, _, _ = run_with_soil(frame, building, soil_text(STIFF_CLAY))
+    filled = SETTINGS.model_copy(update={"foundation": Foundation(groundLevel=1000)})
+    raised, _, notes = run_with_soil(frame, building, soil_text(STIFF_CLAY), filled)
+    low = by_name(same[0]["checks"])["Bearing (service)"]
+    high = by_name(raised[0]["checks"])["Bearing (service)"]
+    assert high["capacity"] == low["capacity"]  # the same soil qa: Df below BH-1's ground
+    # (The governing combination is in 99 % partial contact at the lower ground, so the 18 kPa
+    # does not add exactly to qmax there.)
+    assert high["demand"] - low["demand"] == pytest.approx(18 - 1.5, abs=0.1)
+    assert "net = gross - 27.0 kPa, the overburden γ Df below the finished ground" in low["note"]
+    assert (
+        "net = gross - 28.5 kPa, the overburden at the founding level below BH-1's"
+        in (high["note"])
+    )
+    assert any(
+        n.startswith("F1: the finished ground (Project Settings → Foundation, +1.00 m) is 1.00 m")
+        and "fill above the borehole's ground is taken as a load" in n
+        for n in notes
+    )
+
+
+def test_soil_report_without_qa_and_old_projects(frame: tuple[dict, Path]) -> None:
+    building = with_footings(footing("F1", "F18", 0, 0))
+    # Fill without any strength (no SPT in it either) right under the base: no qa.
+    fill = [
+        {"top": 0, "bottom": 3000, "description": "Fill", "soilType": "fill", "unitWeight": 17},
+        {**STIFF_CLAY[0], "top": 3000},
+    ]
+    elements, _, notes = run_with_soil(frame, building, soil_text(fill, spt_from=4500))
+    assert "Bearing (service)" not in by_name(elements[0]["checks"])
+    note = next(n for n in notes if n.startswith("F1: bearing not checked"))
+    assert "1 Soil Report gives no qa here (BH-1 gives none: layer 1 (fill): no strength" in note
+    # ... and the override, when given, is used instead.
+    override = SETTINGS.model_copy(update={"foundation": Foundation(allowableBearing=120)})
+    elements, _, _ = run_with_soil(frame, building, soil_text(fill, spt_from=4500), override)
+    assert by_name(elements[0]["checks"])["Bearing (service)"]["capacity"] == 120
+
+    # The placeholder of an old project (or no soil report): qa from the settings as before.
+    for text in ('{"schema": 1, "part": "soil"}', None):
+        elements, _, notes = run_with_soil(frame, building, text, override)
+        bearing = by_name(elements[0]["checks"])["Bearing (service)"]
+        assert bearing["capacity"] == 120
+        assert bearing["note"].endswith("qa = 120 kPa from Project Settings → Foundation")
+        assert not any("Soil Report" in n for n in notes)
+
+
+def test_soil_note_names_the_practice_of_the_soil_report() -> None:
+    """The footing note says how qa was worked out with the soil report's own practice."""
+    from saengine.design.footing import SoilBearing
+    from saengine.library.settings import Foundation
+
+    clay = [{"top": 0, "bottom": 20000, "description": "Stiff clay", "soilType": "clay", "cu": 80}]
+    text = json.loads(soil_text(clay))
+    textbook = SoilBearing(json.dumps(text), Foundation()).notes()
+    text["design"] = {"practice": "bdConsultant"}
+    consultant = SoilBearing(json.dumps(text), Foundation()).notes()
+    assert "Bangladesh consultant practice" not in textbook[0]
+    assert "Bangladesh consultant practice" in consultant[0]

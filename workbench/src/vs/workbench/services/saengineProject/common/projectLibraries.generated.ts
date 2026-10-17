@@ -2379,7 +2379,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 		},
 		Foundation: {
 			additionalProperties: false,
-			description: 'Soil values the footing design needs, until the soil part of the project provides them.',
+			description: 'Soil values of the footing design. The net allowable bearing pressure of each footing\ncomes from 1 Soil Report (its nearest boreholes, at the footing\'s founding level and size)\nunless it is overridden here.',
 			properties: {
 				allowableBearing: {
 					anyOf: [
@@ -2392,8 +2392,8 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'From the soil report [kPa]; compared with the net soil pressure under the service loads. Leave empty to design the footings without the bearing check.',
-					title: 'Net allowable bearing pressure qa',
+					description: 'Net allowable bearing pressure [kPa] used for every footing instead of the soil report\'s. Leave empty to take qa per footing from 1 Soil Report; without boreholes and without an override, the footings are designed without the bearing check.',
+					title: 'Allowable bearing override qa',
 				},
 				soilUnitWeight: {
 					default: 18.0,
@@ -2654,11 +2654,19 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					title: 'Location',
 					type: 'string',
 				},
+				siteClassSource: {
+					default: 'soilReport',
+					description: 'From the soil report: the governing (softest) site class of the boreholes of 1 Soil Report; the entered class is used while the report gives none.',
+					enum: ['soilReport', 'entered'],
+					enumDescriptions: ['From the soil report', 'Entered'],
+					title: 'Site class source',
+					type: 'string',
+				},
 				siteClass: {
 					default: 'SD',
-					description: 'BNBC 2020 Table 6.2.13, from the soil report.',
+					description: 'BNBC 2020 Table 6.2.13. Used when the source is Entered, or while the soil report has no boreholes that give a class.',
 					enum: ['SA', 'SB', 'SC', 'SD', 'SE'],
-					enumDescriptions: ['SA: Rock (Vs > 800 m/s)', 'SB: Rock (360-800 m/s)', 'SC: Very dense soil or soft rock (180-360 m/s)', 'SD: Stiff soil (Vs < 180 m/s)', 'SE: Soft soil over stiffer layer'],
+					enumDescriptions: ['SA: Rock or rock-like formation, at most 5 m of weaker material on top (Vs > 800 m/s)', 'SB: Very dense sand, gravel or very stiff clay (Vs 360-800 m/s, N > 50, su > 250 kPa)', 'SC: Dense or medium dense sand, gravel or stiff clay (Vs 180-360 m/s, N 15-50, su 70-250 kPa)', 'SD: Loose-to-medium cohesionless soil or soft-to-firm cohesive soil (Vs < 180 m/s, N < 15, su < 70 kPa)', 'SE: Surface alluvium of SC or SD, 5-20 m thick, on material with Vs > 800 m/s'],
 					title: 'Site class',
 					type: 'string',
 				},
@@ -2863,6 +2871,7 @@ export const DEFAULT_SETTINGS: object = {
 	},
 	site: {
 		location: 'dhaka',
+		siteClassSource: 'soilReport',
 		siteClass: 'SD',
 	},
 	seismic: {
@@ -3358,11 +3367,11 @@ export const BNBC: IBnbcTables = {
 		},
 	},
 	siteClasses: {
-		SA: 'Rock (Vs > 800 m/s)',
-		SB: 'Rock (360-800 m/s)',
-		SC: 'Very dense soil or soft rock (180-360 m/s)',
-		SD: 'Stiff soil (Vs < 180 m/s)',
-		SE: 'Soft soil over stiffer layer',
+		SA: 'Rock or rock-like formation, at most 5 m of weaker material on top (Vs > 800 m/s)',
+		SB: 'Very dense sand, gravel or very stiff clay (Vs 360-800 m/s, N > 50, su > 250 kPa)',
+		SC: 'Dense or medium dense sand, gravel or stiff clay (Vs 180-360 m/s, N 15-50, su 70-250 kPa)',
+		SD: 'Loose-to-medium cohesionless soil or soft-to-firm cohesive soil (Vs < 180 m/s, N < 15, su < 70 kPa)',
+		SE: 'Surface alluvium of SC or SD, 5-20 m thick, on material with Vs > 800 m/s',
 	},
 	exposures: {
 		A: 'Urban, suburban, wooded',
@@ -6833,3 +6842,873 @@ export const IMPORT_SCHEMA: IJSONSchema = {
 };
 
 export const SCRIPT_TEMPLATE: string = '"""Builds part of the structural model. Run it from the 3D modeller (Script).\n\n`model` is the structural model. Lengths are in mm, angles in degrees, Z is up. The shapes\nSpaceTruss, PlaneTruss, Arch, Dome, BarrelVault and CableNet, `math` and `np` (numpy) are\navailable without imports.\n"""\n\nmodel.clear()  # start again on every run (grids are kept)\n\nspan = 30000\nfor x in (0, span):\n    for y in range(0, 30001, 6000):\n        model.member((x, y, 0), (x, y, 8000), type="{column}")\n        model.support((x, y, 0), "fixed")\n\nmodel.add(BarrelVault(\n    span=span, rise=7500, length=30000, segments=12, bays=5,\n    memberType="{member}", origin=(0, 0, 8000), supports="none",\n))\n';
+
+export const SOIL_SCHEMA: IJSONSchema = {
+	$defs: {
+		Borehole: {
+			additionalProperties: false,
+			properties: {
+				id: {
+					description: 'E.g. BH-1.',
+					maxLength: 64,
+					minLength: 1,
+					title: 'ID',
+					type: 'string',
+				},
+				x: {
+					default: 0,
+					description: 'Plan position in the project coordinates [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					default: 0,
+					description: 'Plan position in the project coordinates [mm].',
+					title: 'Y',
+					type: 'number',
+				},
+				groundLevel: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Elevation of the ground at the borehole [mm]; overrides the report\'s.',
+					title: 'Ground level',
+				},
+				waterTable: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Depth of the ground water below the borehole\'s ground [mm]; empty when none was met.',
+					title: 'Water table',
+				},
+				depth: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Depth the borehole was drilled to [mm]; the deepest layer\'s bottom when empty.',
+					title: 'Termination depth',
+				},
+				layers: {
+					items: {
+						$ref: '#/$defs/Layer',
+					},
+					title: 'Layers',
+					type: 'array',
+				},
+				spt: {
+					items: {
+						$ref: '#/$defs/SptRecord',
+					},
+					title: 'SPT records',
+					type: 'array',
+				},
+				samples: {
+					items: {
+						$ref: '#/$defs/Sample',
+					},
+					title: 'Laboratory samples',
+					type: 'array',
+				},
+			},
+			required: ['id'],
+			title: 'Borehole',
+			type: 'object',
+		},
+		Design: {
+			additionalProperties: false,
+			description: 'Design choices for the values computed from the boreholes.',
+			properties: {
+				practice: {
+					default: 'textbook',
+					description: 'How the SPT corrections and the settlement-controlled bearing pressure are worked out. Textbook: cumulative effective stress, CN of Liao & Whitman (≤ 1.7), the N60 factors of Youd et al. 2001, Meyerhof-Bowles with N60. Bangladesh consultant practice (as in common Dhaka soil reports): σ\'v of each SPT row from its own unit weight, CN of Peck, Hanson & Thornburn, Skempton\'s rod factors, the dilatancy correction N\' below the water table, Meyerhof-Bowles with N\' averaged over the influence zone.',
+					enum: ['textbook', 'bdConsultant'],
+					enumDescriptions: ['Textbook', 'Bangladesh consultant practice'],
+					title: 'Practice',
+					type: 'string',
+				},
+				liquefactionMethod: {
+					default: 'idrissBoulanger2014',
+					description: 'Idriss & Boulanger (2014), or BNBC 2020 Part 6 Sec 3.9.5 (FL = CRR/CSR, CSR of Eq 6.3.8 with rd = 1 - 0.015 z, CRR of Youd et al. 2001 from the SPT).',
+					enum: ['idrissBoulanger2014', 'bnbc2020'],
+					enumDescriptions: ['Idriss & Boulanger 2014', 'BNBC 2020 Sec 3.9.5'],
+					title: 'Liquefaction method',
+					type: 'string',
+				},
+				hammerEnergy: {
+					default: 60,
+					description: 'Energy ratio of the SPT hammer [%]: about 45-60 for a hand-released donut hammer, 60 for a safety hammer, 70-90 for an automatic trip hammer.',
+					exclusiveMinimum: 0,
+					maximum: 100,
+					title: 'Hammer energy ER',
+					type: 'number',
+				},
+				factorOfSafety: {
+					default: 3.0,
+					description: 'On the bearing capacity.',
+					maximum: 10,
+					minimum: 1,
+					title: 'Factor of safety',
+					type: 'number',
+				},
+				allowableSettlement: {
+					default: 25,
+					description: 'Settlement the settlement-controlled bearing pressure is worked out for [mm]. BNBC 2020 Table 6.3.8\'s permissible total settlement is shown next to the computed settlement for information.',
+					exclusiveMinimum: 0,
+					maximum: 500,
+					title: 'Allowable settlement',
+					type: 'number',
+				},
+				liquefaction: {
+					$ref: '#/$defs/Liquefaction',
+				},
+				spt: {
+					$ref: '#/$defs/SptCorrections',
+					title: 'SPT corrections',
+				},
+				pile: {
+					$ref: '#/$defs/Pile',
+					title: 'Pile type',
+				},
+				creepYears: {
+					default: 0.1,
+					description: 'Time for the creep factor C2 of the Schmertmann settlement [years]; 0.1 leaves out creep.',
+					maximum: 100,
+					minimum: 0.1,
+					title: 'Creep time',
+					type: 'number',
+				},
+				tableWidths: {
+					description: 'Widths B of the square footings of the bearing table [mm].',
+					items: {
+						exclusiveMinimum: 0,
+						type: 'number',
+					},
+					maxItems: 12,
+					minItems: 1,
+					title: 'Footing widths',
+					type: 'array',
+				},
+				tableDepths: {
+					description: 'Depths Df of the bearing table [mm].',
+					items: {
+						minimum: 0,
+						type: 'number',
+					},
+					maxItems: 12,
+					minItems: 1,
+					title: 'Founding depths',
+					type: 'array',
+				},
+				subgradeWidth: {
+					default: 2000,
+					description: 'Width of the square footing the subgrade modulus is worked out for [mm].',
+					exclusiveMinimum: 0,
+					title: 'Subgrade footing width',
+					type: 'number',
+				},
+				subgradeDepth: {
+					default: 1500,
+					description: 'Its founding depth [mm].',
+					minimum: 0,
+					title: 'Subgrade founding depth',
+					type: 'number',
+				},
+			},
+			title: 'Design',
+			type: 'object',
+		},
+		Layer: {
+			additionalProperties: false,
+			description: 'One stratum of a borehole log, with its index and strength properties.',
+			properties: {
+				top: {
+					description: 'Depth of the top below the borehole\'s ground [mm].',
+					minimum: 0,
+					title: 'Top',
+					type: 'number',
+				},
+				bottom: {
+					description: 'Depth of the bottom below the borehole\'s ground [mm].',
+					minimum: 0,
+					title: 'Bottom',
+					type: 'number',
+				},
+				description: {
+					default: '',
+					description: 'Description from the log.',
+					title: 'Description',
+					type: 'string',
+				},
+				soilType: {
+					description: 'Governs which methods apply: clay, organic soil and plastic silt are cohesive; sand, gravel and non-plastic silt are granular.',
+					enum: ['clay', 'silt', 'sand', 'gravel', 'organic', 'fill', 'rock'],
+					enumDescriptions: ['Clay', 'Silt', 'Sand', 'Gravel', 'Organic soil, peat', 'Fill, made ground', 'Rock'],
+					title: 'Soil type',
+					type: 'string',
+				},
+				uscs: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'E.g. CL, ML, SM.',
+					title: 'USCS group',
+				},
+				unitWeight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 30,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Above the water table [kN/m³].',
+					title: 'Unit weight γ',
+				},
+				saturatedUnitWeight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 30,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kN/m³]',
+					title: 'Saturated unit weight γsat',
+				},
+				cu: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kPa]',
+					title: 'Undrained shear strength cu',
+				},
+				c: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Drained [kPa].',
+					title: 'Effective cohesion c\'',
+				},
+				phi: {
+					anyOf: [
+						{
+							maximum: 50,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Drained [°].',
+					title: 'Friction angle φ\'',
+				},
+				E: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Of the soil [MPa].',
+					title: 'Young\'s modulus E',
+				},
+				finesContent: {
+					anyOf: [
+						{
+							maximum: 100,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Passing 75 µm [%].',
+					title: 'Fines content FC',
+				},
+				plasticityIndex: {
+					anyOf: [
+						{
+							maximum: 100,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[%]',
+					title: 'Plasticity index PI',
+				},
+				liquidLimit: {
+					anyOf: [
+						{
+							maximum: 500,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[%]',
+					title: 'Liquid limit LL',
+				},
+				clayFraction: {
+					anyOf: [
+						{
+							maximum: 100,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Finer than 0.005 mm [%] (for the liquefaction criteria of fine-grained soil).',
+					title: 'Clay fraction',
+				},
+				Cc: {
+					anyOf: [
+						{
+							maximum: 10,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Compression index Cc',
+				},
+				Cr: {
+					anyOf: [
+						{
+							maximum: 10,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Recompression index Cr',
+				},
+				e0: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 20,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Initial void ratio e0',
+				},
+				OCR: {
+					anyOf: [
+						{
+							maximum: 50,
+							minimum: 1,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'σ\'p/σ\'v0.',
+					title: 'Overconsolidation ratio OCR',
+				},
+			},
+			required: ['top', 'bottom', 'soilType'],
+			title: 'Layer',
+			type: 'object',
+		},
+		Liquefaction: {
+			additionalProperties: false,
+			description: 'Earthquake for the liquefaction screening.',
+			properties: {
+				magnitude: {
+					default: 7.5,
+					description: 'Moment magnitude.',
+					maximum: 9,
+					minimum: 5,
+					title: 'Magnitude Mw',
+					type: 'number',
+				},
+				pga: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 2,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'At the ground surface [g]; empty: Z × S from the project settings: the zone coefficient of the seismic zoning map (BNBC 2020 Table 6.2.14, the maximum considered PGA on rock) amplified by the site class\'s soil factor S (Table 6.2.16), as BNBC 3.9.5 asks for the site amplification.',
+					title: 'Peak ground acceleration amax',
+				},
+			},
+			title: 'Liquefaction',
+			type: 'object',
+		},
+		Pile: {
+			additionalProperties: false,
+			description: 'Pile type for the pile design parameters.',
+			properties: {
+				type: {
+					default: 'bored',
+					description: 'Bored cast-in-situ piles (FHWA, O\'Neill & Reese 1999) or driven piles (API RP 2A in clay, Meyerhof 1976 in sand).',
+					enum: ['bored', 'driven'],
+					enumDescriptions: ['Bored (cast in situ)', 'Driven (displacement)'],
+					title: 'Pile type',
+					type: 'string',
+				},
+			},
+			title: 'Pile',
+			type: 'object',
+		},
+		ReportInfo: {
+			additionalProperties: false,
+			description: 'The soil investigation report the data comes from.',
+			properties: {
+				title: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Title',
+				},
+				consultant: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Firm that did the investigation.',
+					title: 'Consultant',
+				},
+				reportNumber: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Report number',
+				},
+				date: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Date of the report.',
+					title: 'Date',
+				},
+			},
+			title: 'ReportInfo',
+			type: 'object',
+		},
+		Sample: {
+			additionalProperties: false,
+			description: 'A sample tested in the laboratory. Its values fill in the layer\'s where the log has none.',
+			properties: {
+				depth: {
+					description: 'Depth of the sample below the borehole\'s ground [mm].',
+					minimum: 0,
+					title: 'Depth',
+					type: 'number',
+				},
+				type: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'E.g. SPT (disturbed), UD (Shelby tube).',
+					title: 'Sample type',
+				},
+				moisture: {
+					anyOf: [
+						{
+							maximum: 1000,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[%]',
+					title: 'Moisture content w',
+				},
+				unitWeight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 30,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kN/m³]',
+					title: 'Bulk unit weight γ',
+				},
+				cu: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kPa]',
+					title: 'Undrained shear strength cu',
+				},
+				c: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kPa]',
+					title: 'Cohesion c\'',
+				},
+				phi: {
+					anyOf: [
+						{
+							maximum: 50,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[°]',
+					title: 'Friction angle φ\'',
+				},
+				finesContent: {
+					anyOf: [
+						{
+							maximum: 100,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Passing 75 µm [%].',
+					title: 'Fines content FC',
+				},
+				liquidLimit: {
+					anyOf: [
+						{
+							maximum: 500,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[%]',
+					title: 'Liquid limit LL',
+				},
+				plasticLimit: {
+					anyOf: [
+						{
+							maximum: 500,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[%]',
+					title: 'Plastic limit PL',
+				},
+				clayFraction: {
+					anyOf: [
+						{
+							maximum: 100,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Finer than 0.005 mm [%].',
+					title: 'Clay fraction',
+				},
+				Cc: {
+					anyOf: [
+						{
+							maximum: 10,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Compression index Cc',
+				},
+				e0: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 20,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Initial void ratio e0',
+				},
+			},
+			required: ['depth'],
+			title: 'Sample',
+			type: 'object',
+		},
+		SptCorrections: {
+			additionalProperties: false,
+			description: 'Equipment corrections of the field N besides the hammer energy (Youd et al. 2001); the\nBangladesh consultant practice takes CB = CS = 1 whatever is entered here.',
+			properties: {
+				boreholeFactor: {
+					default: 1.0,
+					description: '1.0 for 65-115 mm, 1.05 for 150 mm, 1.15 for 200 mm.',
+					maximum: 1.2,
+					minimum: 1,
+					title: 'Borehole diameter factor CB',
+					type: 'number',
+				},
+				samplerFactor: {
+					default: 1.0,
+					description: '1.0 for a standard sampler; 1.1-1.3 for a sampler without liners.',
+					maximum: 1.3,
+					minimum: 1,
+					title: 'Sampler factor CS',
+					type: 'number',
+				},
+				rodLength: {
+					default: true,
+					description: 'Short rods lose energy: 0.75 for the shortest rods to 1.0 beyond 10 m of rod (Youd et al. 2001 for the textbook practice, Skempton 1986 for the consultant practice).',
+					title: 'Rod length correction CR',
+					type: 'boolean',
+				},
+			},
+			title: 'SptCorrections',
+			type: 'object',
+		},
+		SptRecord: {
+			additionalProperties: false,
+			description: 'A standard penetration test (ASTM D1586): the blows for the last 300 mm of the drive.',
+			properties: {
+				depth: {
+					description: 'Depth of the test below the borehole\'s ground [mm].',
+					minimum: 0,
+					title: 'Depth',
+					type: 'number',
+				},
+				N: {
+					description: 'Blow count as measured, uncorrected [blows/300 mm]; refusal as the extrapolated count (e.g. 50 blows for 150 mm as 100).',
+					maximum: 300,
+					minimum: 0,
+					title: 'Field N',
+					type: 'integer',
+				},
+				energyRatio: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 100,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Hammer energy of this test [%]; overrides the report\'s hammer energy.',
+					title: 'Energy ratio ER',
+				},
+			},
+			required: ['depth', 'N'],
+			title: 'SptRecord',
+			type: 'object',
+		},
+	},
+	additionalProperties: false,
+	properties: {
+		schema: {
+			const: 'saengine.soilReport/1',
+			default: 'saengine.soilReport/1',
+			title: 'Schema_',
+			type: 'string',
+		},
+		report: {
+			$ref: '#/$defs/ReportInfo',
+			title: 'Report',
+		},
+		groundLevel: {
+			default: 0.0,
+			description: 'Elevation of the existing ground in the project datum [mm].',
+			title: 'Ground level',
+			type: 'number',
+		},
+		boreholes: {
+			items: {
+				$ref: '#/$defs/Borehole',
+			},
+			title: 'Boreholes',
+			type: 'array',
+		},
+		design: {
+			$ref: '#/$defs/Design',
+		},
+	},
+	title: 'SAEngine soil report',
+	type: 'object',
+};
+
+export const DEFAULT_SOIL: object = {
+	schema: 'saengine.soilReport/1',
+	report: {},
+	groundLevel: 0.0,
+	boreholes: [],
+	design: {
+		practice: 'textbook',
+		liquefactionMethod: 'idrissBoulanger2014',
+		hammerEnergy: 60.0,
+		factorOfSafety: 3.0,
+		allowableSettlement: 25.0,
+		liquefaction: {
+			magnitude: 7.5,
+		},
+		spt: {
+			boreholeFactor: 1.0,
+			samplerFactor: 1.0,
+			rodLength: true,
+		},
+		pile: {
+			type: 'bored',
+		},
+		creepYears: 0.1,
+		tableWidths: [1000.0, 1500.0, 2000.0, 3000.0, 4000.0],
+		tableDepths: [1000.0, 1500.0, 2000.0, 3000.0],
+		subgradeWidth: 2000.0,
+		subgradeDepth: 1500.0,
+	},
+};

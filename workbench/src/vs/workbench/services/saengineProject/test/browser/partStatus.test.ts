@@ -98,7 +98,6 @@ suite('SAEngine - PartStatus', () => {
 			lines({ floorPlan: '{"schema": "saengine.floorPlan/1", "grids": {}}' })[5],
 			lines({ bim: JSON.stringify({ schema: 'saengine.bim/2', elements: [] }) })[5],
 			lines({}, { reportTime: 42 })[10],
-			lines({ soil: '{"schema": 1, "part": "soil", "layers": []}' })[0],
 			lines({ materials: '{' })[2],
 			lines({ settings: undefined })[1],
 		], [
@@ -108,9 +107,41 @@ suite('SAEngine - PartStatus', () => {
 			'bim: stale stale',
 			'bim: notStarted not built',
 			'exports: done report day 42',
-			'soil: done',
 			'materials: error invalid file',
 			'settings: notStarted not started',
+		]);
+	});
+
+	test('soil report: boreholes, and the analysis model that took its site class from it', () => {
+		const borehole = (id: string, layers: object[] = [{ top: 0, bottom: 3000 }]) => ({ id, x: 0, y: 0, layers });
+		const soil = (boreholes: object[], schema = 'saengine.soilReport/1') => JSON.stringify({ schema, boreholes });
+		const three = soil([borehole('BH-1'), borehole('BH-2'), borehole('BH-3')]);
+		const line = (texts: { [part: string]: string | undefined }) => summary(project(texts))[0];
+		const fem = (texts: { [part: string]: string | undefined }) => summary(project(texts))[7];
+		const fromSoil = femModel({ bim: BIM, settings: SOURCES.settings, objects: SOURCES.objects, materials: SOURCES.materials, soil: three });
+		assert.deepStrictEqual([
+			line({ soil: undefined }),
+			line({ soil: soil([]) }),
+			line({ soil: three }),
+			line({ soil: soil([borehole('BH-1')]) }),
+			line({ soil: soil([borehole('BH-1'), borehole('BH-2', [])]) }),
+			line({ soil: '{ not json' }),
+			line({ soil: soil([borehole('BH-1')], 'saengine.other/1') }),
+			fem({ soil: three }),
+			fem({ soil: three, fem: fromSoil }),
+			fem({ soil: soil([borehole('BH-1')]), fem: fromSoil }),
+		], [
+			'soil: notStarted not started',
+			'soil: notStarted not started',
+			'soil: done 3 boreholes',
+			'soil: done 1 borehole',
+			'soil: inProgress 2 boreholes',
+			'soil: error invalid file',
+			'soil: error invalid file',
+			// A model derived without the soil report (entered site class) does not follow it.
+			'fem: inProgress not analysed',
+			'fem: inProgress not analysed',
+			'fem: stale stale',
 		]);
 	});
 

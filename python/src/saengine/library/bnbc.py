@@ -119,13 +119,18 @@ STRUCTURAL_SYSTEMS: dict[str, StructuralSystem] = {
     "steelScbf": StructuralSystem("Steel special concentrically braced frame", 6.0, 2.0, 5.0),
 }
 
-#: Site classes (Table 6.2.13), from the soil profile of the soil report.
+#: Site classes (Table 6.2.13, abridged from its descriptions and average properties of the top
+#: 30 m), from the soil profile of the soil report. S1 (soft clays/silts with PI > 40, at least
+#: 10 m thick) and S2 (liquefiable soils, sensitive clays) need site-specific studies (Sec
+#: 2.5.3.1); the soil report flags them, the settings keep SA-SE.
 SITE_CLASSES = {
-    "SA": "Rock (Vs > 800 m/s)",
-    "SB": "Rock (360-800 m/s)",
-    "SC": "Very dense soil or soft rock (180-360 m/s)",
-    "SD": "Stiff soil (Vs < 180 m/s)",
-    "SE": "Soft soil over stiffer layer",
+    "SA": "Rock or rock-like formation, at most 5 m of weaker material on top (Vs > 800 m/s)",
+    "SB": "Very dense sand, gravel or very stiff clay (Vs 360-800 m/s, N > 50, su > 250 kPa)",
+    "SC": "Dense or medium dense sand, gravel or stiff clay (Vs 180-360 m/s, N 15-50, "
+    "su 70-250 kPa)",
+    "SD": "Loose-to-medium cohesionless soil or soft-to-firm cohesive soil (Vs < 180 m/s, "
+    "N < 15, su < 70 kPa)",
+    "SE": "Surface alluvium of SC or SD, 5-20 m thick, on material with Vs > 800 m/s",
 }
 
 #: Wind exposure categories (6.2.9.3): A - urban and suburban, B - open terrain, C - flat

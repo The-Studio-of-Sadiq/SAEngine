@@ -225,6 +225,87 @@
   Analyses run: #basis.analyses.join(", ").
 ]
 
+// ───────────────────────────── soil and foundations ─────────────────────────────
+
+#let soil = data.soil
+
+#if soil.available [
+  = Soil and foundations
+
+  From the soil report of the project (1 Soil Report). Depths are below each borehole's
+  ground level; levels in the project datum.
+
+  == Soil report
+  #pairs(soil.details)
+
+  == Boreholes
+  #tbl(
+    ("Borehole", "X [m]", "Y [m]", "Ground level [m]", "Water table [m]", "Depth [m]", "Layers", "SPT", "Site class"),
+    soil.boreholes,
+    columns: (auto, auto, auto, auto, auto, auto, auto, auto, 1fr),
+    align: (left, right, right, right, right, right, right, right, left),
+    size: 8pt,
+  )
+  The water table is given as a depth below the borehole's ground level.
+
+  #if soil.strata.len() > 0 [
+    == Strata
+    #tbl(
+      ("Borehole", "Depth [m]", "Soil", "Description", "γ [kN/m³]", "cu [kPa]", "φ' [°]", "N60"),
+      soil.strata,
+      columns: (auto, auto, auto, 1fr, auto, auto, auto, auto),
+      align: (left, left, left, left, right, right, right, right),
+      size: 7.5pt,
+    )
+  ]
+
+  == Site class
+  #tbl(
+    ("Borehole", "N̄", "s̄u [kPa]", "Class by N̄", "Class by s̄u", "Site class", "Over [m]"),
+    soil.site.rows,
+    columns: (auto, auto, auto, auto, auto, auto, 1fr),
+    align: (left, right, right, center, center, center, left),
+  )
+  #bullets(soil.site.notes)
+  #text(size: 8.5pt, fill: muted, soil.site.method)
+
+  == Allowable bearing pressure
+  Net allowable bearing pressure qa (kPa) of square footings, the lowest of the boreholes for
+  each width B and founding depth Df (– where a borehole gives none). Factor of safety
+  #soil.bearing.factorOfSafety on shear; allowable settlement #soil.bearing.allowableSettlement mm.
+  Each footing's own qa (at its position, founding level, B and L) is in its bearing check.
+  #v(0.3em)
+  #let nd = soil.bearing.depths.len()
+  #tbl(
+    ("B",) + soil.bearing.depths,
+    soil.bearing.rows,
+    columns: (1fr,) + (auto,) * nd,
+    align: (left,) + (right,) * nd,
+  )
+  #v(0.3em)
+  The reference footing of each borehole, with its settlement and modulus of subgrade reaction:
+  #tbl(
+    ("Borehole", "B × Df [m]", "qa shear", "qa settlement", "qa [kPa]", "Governs", "Settlement [mm]", "ks [kN/m³]"),
+    soil.bearing.reference,
+    columns: (auto, auto, auto, auto, auto, 1fr, auto, auto),
+    align: (left, left, right, right, right, left, right, right),
+    size: 8pt,
+  )
+  #if soil.bearing.notes.len() > 0 { bullets(soil.bearing.notes, size: 8.5pt) }
+  #text(size: 8.5pt, fill: muted, soil.bearing.method)
+
+  == Liquefaction screening
+  #tbl(
+    ("Borehole", "Min. FS", "LPI", "Risk", "Liquefiable layers"),
+    soil.liquefaction.rows,
+    columns: (auto, auto, auto, auto, 1fr),
+    align: (left, right, right, left, left),
+    bad: soil.liquefaction.fails,
+  )
+  #if soil.liquefaction.notes.len() > 0 { bullets(soil.liquefaction.notes, size: 8.5pt) }
+  #text(size: 8.5pt, fill: muted, soil.liquefaction.method)
+]
+
 // ───────────────────────────── 2 model ─────────────────────────────
 
 = Analysis model
@@ -373,6 +454,11 @@ what the software did not check or assumed; the engineer must consider each one.
 #if data.warnings.len() > 0 [
   == Warnings
   #bullets(data.warnings)
+]
+
+#if soil.available [
+  == Soil and foundations
+  #if lim.soil.len() > 0 { bullets(lim.soil) } else { empty[No notes.] }
 ]
 
 == Member design

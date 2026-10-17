@@ -313,3 +313,65 @@ def test_formatting() -> None:
     assert fmt(1234.56, 1) == "1,234.6"
     assert fmt(-0.00001, 2) == "0.00"
     assert fmt(float("inf")) == "∞"
+
+
+def test_soil_and_foundations_chapter(project: Path, tmp_path: Path) -> None:
+    from test_soil_wiring import soil_text
+
+    copy = tmp_path / "soil"
+    shutil.copytree(project, copy)
+    # Without boreholes (an old project's placeholder) there is no chapter.
+    _write(copy, {"01 Soil Report/soil-report.json": '{"schema": 1, "part": "soil"}'})
+    data = report_data(copy)
+    assert data["soil"] == {"available": False, "notes": []}
+    assert dict(data["basis"]["site"])["Site class (Table 6.2.13)"] == "SD (entered)"
+
+    # N = 8 throughout: SD, the class the model was derived with (entered): still current.
+    _write(copy, {"01 Soil Report/soil-report.json": soil_text(8)})
+    data = report_data(copy)
+    json.dumps(data, allow_nan=False)
+    soil = data["soil"]
+    assert soil["available"]
+    assert soil["boreholes"] == [
+        ["BH-1", "0.00", "0.00", "0.00", "2.00", "30.0", "1", "20", "SD (N̄ 8.0)"]
+    ]
+    assert soil["site"]["class"] == "SD"
+    assert soil["site"]["rows"] == [["BH-1", "8.0", "–", "SD", "–", "SD", "30.0"]]
+    assert (
+        "The analysis uses site class SD, from 1 Soil Report (N̄ = 8 over 30 m, BH-1)."
+        in (soil["site"]["notes"])
+    )
+    site_row = dict(data["basis"]["site"])["Site class (Table 6.2.13)"]
+    assert site_row == "SD, from 1 Soil Report (N̄ = 8 over 30 m, BH-1)"
+    # The bearing table: one row per width, one column per founding depth, in kPa.
+    bearing = soil["bearing"]
+    assert bearing["depths"][0].startswith("Df ") and len(bearing["rows"][0]) == 1 + len(
+        bearing["depths"]
+    )
+    assert all(cell == "–" or float(cell) > 0 for row in bearing["rows"] for cell in row[1:])
+    # Loose saturated sand: liquefiable, marked as such.
+    assert soil["liquefaction"]["fails"] == [True]
+    assert soil["liquefaction"]["rows"][0][4] != "none"
+    assert not any("derived from earlier versions" in w for w in data["warnings"])
+    assert data["limitations"]["soil"] == soil["notes"]
+
+    # N = 20: the boreholes now give SC, so the model derived with SD is out of date.
+    _write(copy, {"01 Soil Report/soil-report.json": soil_text(20)})
+    data = report_data(copy)
+    assert data["soil"]["site"]["class"] == "SC"
+    assert any(
+        "derived from earlier versions of 01 Soil Report/soil-report.json" in w
+        for w in data["warnings"]
+    )
+    assert data["model"]["derived"] == []
+
+    result = build_report(copy, version="9.9.9")
+    assert "problems" not in result, result
+    assert not [w for w in result["warnings"] if w.startswith("Typst")]
+    if importlib.util.find_spec("pypdf") is not None:
+        from pypdf import PdfReader
+
+        text = "\n".join(page.extract_text() for page in PdfReader(result["path"]).pages)
+        for heading in ("Soil and foundations", "Boreholes", "Allowable bearing pressure"):
+            assert heading in text
+        assert "Liquefaction screening" in text

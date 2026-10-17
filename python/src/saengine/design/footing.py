@@ -38,6 +38,7 @@ Units: mm, N, N·mm and MPa inside; reported in kN, kN·m/m, kPa, mm²/m.
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
@@ -78,6 +79,17 @@ FOOTING_METHOD = [
         "two. The net pressure (gross minus γ Df, Df from the ground level to the underside) "
         "is compared with the net allowable bearing pressure qa. Sliding and overturning are "
         "not checked."
+    ),
+    (
+        "qa of each footing: the override of Project Settings → Foundation when it is given; "
+        "otherwise, when 1 Soil Report has boreholes, its net allowable pressure for that "
+        "footing (saengine.soil.allowable_bearing): the lowest of the boreholes within 10 m of "
+        "the footing's centre (else the nearest; none when one of them gives none), for its "
+        "B × L at its founding level (Df from the borehole's ground level); each footing's "
+        "check says where its qa came from. That qa is net of the overburden at the founding "
+        "level below the borehole's ground: the net pressure then takes off that overburden "
+        "(or γ Df below the finished ground when it is less), so fill above the borehole's "
+        "ground stays a load."
     ),
     (
         "Footing strength under the factored combinations: soil pressure under the column "
@@ -517,16 +529,45 @@ def _transverse_strip(
     return strip, [np.array([float(load[0]), 0.0, float(load[2])])]
 
 
+@dataclass
+class Bearing:
+    """The net allowable bearing pressure of one footing and where it came from."""
+
+    qa: float | None  # [kPa]; None: no bearing check
+    source: str  # "override", "soilReport", "settings" (no soil report) or "none"
+    note: str  # where qa came from (or why there is none), for the check's note
+    # From the soil report: the total overburden at the founding level that qa is net of [kPa],
+    # the ground level of the borehole it is measured from [mm] and that borehole's id.
+    overburden: float | None = None
+    ground_level: float | None = None
+    borehole: str | None = None
+
+
+def manual_bearing(foundation: Foundation) -> Bearing:
+    """qa from Project Settings → Foundation alone (projects without a soil report)."""
+    if foundation.allowableBearing:
+        return Bearing(
+            foundation.allowableBearing,
+            "settings",
+            f"qa = {foundation.allowableBearing:g} kPa from Project Settings → Foundation",
+        )
+    return Bearing(None, "none", "")
+
+
 def design_footing(
     spec: FootingSpec,
     service: Loads,
     strength: Loads,
     foundation: Foundation,
     dead: dict[str, float] | None = None,
+    bearing: Bearing | None = None,
 ) -> tuple[list[dict[str, Any]], list[str]]:
     """The checks of one footing and notes on it. ``dead`` gives, per strength combination,
     the factor on the weight of the footing and the soil above it (its dead-load factor;
-    1.0 when not given)."""
+    1.0 when not given). ``bearing`` is the footing's qa and its source (see
+    :func:`footing_bearing`); without it, the qa of ``foundation`` (:func:`manual_bearing`)."""
+    if bearing is None:
+        bearing = manual_bearing(foundation)
     notes: list[str] = []
     checks: list[dict[str, Any]] = []
     length, width, h = spec.length, spec.width, spec.thickness
@@ -537,8 +578,38 @@ def design_footing(
     founding = max(0.0, foundation.groundLevel - (spec.elevation - h))
     own_weight = spec.unit_weight * h + gamma * cover_depth  # N/mm² of base
     overburden = gamma * founding
+    overburden_note = f"net = gross - γ Df = gross - {overburden * 1e3:.0f} kPa"
+    if bearing.overburden is not None:
+        # qa from the soil report is net of the overburden at Df below the borehole's ground:
+        # take off no more than that. Fill above the borehole's ground stays a load (it was not
+        # there when the soil was tested); a finished ground below it (a cut) removes less.
+        soil_overburden = bearing.overburden / 1e3
+        overburden = min(overburden, soil_overburden)
+        overburden_note = f"net = gross - {overburden * 1e3:.1f} kPa, the overburden " + (
+            f"at the founding level below {bearing.borehole}'s ground, which qa is net of"
+            if overburden == soil_overburden
+            else "γ Df below the finished ground (less than the soil report's "
+            f"{soil_overburden * 1e3:.1f} kPa below {bearing.borehole}'s ground)"
+        )
+        if bearing.ground_level is not None:
+            difference = foundation.groundLevel - bearing.ground_level
+            if difference > 100:
+                notes.append(
+                    f"{spec.id}: the finished ground (Project Settings → Foundation, "
+                    f"{foundation.groundLevel / 1e3:+.2f} m) is {difference / 1e3:.2f} m above "
+                    f"{bearing.borehole}'s ground ({bearing.ground_level / 1e3:+.2f} m): the "
+                    "fill above the borehole's ground is taken as a load on the soil"
+                )
+            elif difference < -100:
+                notes.append(
+                    f"{spec.id}: the finished ground (Project Settings → Foundation, "
+                    f"{foundation.groundLevel / 1e3:+.2f} m) is {-difference / 1e3:.2f} m below "
+                    f"{bearing.borehole}'s ground ({bearing.ground_level / 1e3:+.2f} m): qa "
+                    "from the soil report assumes the soil removed by the cut is still there; "
+                    "check qa at the finished level"
+                )
     worst: tuple[float, float, str, str] | None = None  # (utilisation, q net, combination, note)
-    qa = foundation.allowableBearing / 1e3 if foundation.allowableBearing else None
+    qa = bearing.qa / 1e3 if bearing.qa else None
     # The resultant outside the base or the footing lifted off: reported as their own checks,
     # with the eccentricity against the half side (the bearing check takes the other cases).
     outside: tuple[float, float, float, str, str] | None = None  # (ratio, e, half, name, note)
@@ -600,7 +671,7 @@ def design_footing(
         )
     if worst is not None:
         utilisation, net, name, note = worst
-        note += f"; net = gross - γ Df = gross - {overburden * 1e3:.0f} kPa"
+        note += f"; {overburden_note}"
         if qa:
             checks.append(
                 _check(
@@ -609,16 +680,20 @@ def design_footing(
                     qa * 1e3,
                     "kPa",
                     name,
-                    note,
+                    f"{note}; {bearing.note}" if bearing.note else note,
                     utilisation=utilisation,
                 )
             )
         else:
             shown = f"net pressure {net * 1e3:.0f} kPa" if math.isfinite(net) else "no bearing"
+            why = (
+                bearing.note
+                if bearing.note
+                else "enter the net allowable bearing pressure qa in 1 Soil Report (boreholes) "
+                "or as the override in Project Settings → Foundation"
+            )
             notes.append(
-                f"{spec.id}: bearing not checked: enter the net allowable bearing pressure qa "
-                f"from the soil report (Project Settings, Foundation); governing {name}: "
-                f"{shown}, {note}"
+                f"{spec.id}: bearing not checked: {why}; governing {name}: {shown}, {note}"
             )
     elif service == {}:
         notes.append(f"{spec.id}: no service combination could be formed for the bearing check")
@@ -973,6 +1048,100 @@ def _combine(per_case: dict[str, list[np.ndarray]], factors: dict[str, float]) -
     ]
 
 
+class SoilBearing:
+    """qa of each footing from the soil report (``01 Soil Report/soil-report.json``), with the
+    override of Project Settings → Foundation taking precedence (see :func:`footing_bearing`).
+    """
+
+    def __init__(self, soil_text: str | None, foundation: Foundation) -> None:
+        from saengine.soil.report import parse
+
+        self.text = soil_text
+        self.foundation = foundation
+        self.problems: list[str] = []
+        self.boreholes = 0
+        self.method = ""
+        if soil_text and soil_text.strip():
+            report = parse(soil_text)
+            if isinstance(report, list):
+                self.problems = report
+            else:
+                from saengine.soil.bearing import method_text
+
+                self.boreholes = len(report.boreholes)
+                self.method = method_text(report.design)
+
+    @property
+    def used(self) -> bool:
+        """Whether the soil report gives (or would give, but for the override) qa."""
+        return self.boreholes > 0
+
+    def notes(self) -> list[str]:
+        """What the footing notes say once about the soil report."""
+        if self.problems:
+            return [
+                "The soil report has errors, so qa is not taken from it ("
+                + "; ".join(self.problems[:3])
+                + ("; …" if len(self.problems) > 3 else "")
+                + ")."
+            ]
+        if self.used and not self.foundation.allowableBearing:
+            return [f"Allowable bearing pressures from 1 Soil Report: {self.method}"]
+        return []
+
+    def at(self, x: float, y: float, founding_level: float, b: float, l_: float) -> Bearing:
+        """qa of a footing B × L [mm] at plan position (x, y) founded at ``founding_level``
+        (project datum, mm)."""
+        override = self.foundation.allowableBearing
+        if not self.used:
+            return manual_bearing(self.foundation)
+        from saengine.soil.report import allowable_bearing
+
+        found = allowable_bearing(self.text or "", None, x, y, founding_level, b, l_)
+        soil_qa = found.get("qa_kpa")
+        where = str(found.get("note", "")).rstrip(".")
+        if override:
+            here = (
+                f"; 1 Soil Report gives {soil_qa:.0f} kPa here ({where})"
+                if soil_qa is not None
+                else ""
+            )
+            return Bearing(
+                override,
+                "override",
+                f"qa = {override:g} kPa, the override in Project Settings → Foundation{here}",
+            )
+        if soil_qa is None:
+            reason = where or "the soil report gives no allowable pressure here"
+            reason = reason.removeprefix("No allowable pressure: ")
+            return Bearing(
+                None,
+                "none",
+                f"1 Soil Report gives no qa here ({reason}); enter the override qa in Project "
+                "Settings → Foundation, or the missing soil data",
+            )
+        where = re.sub(r"; governed by [^;]*$", "", where)
+        governs = "settlement" if found.get("qa_settlement") == soil_qa else "shear"
+        return Bearing(
+            float(soil_qa),
+            "soilReport",
+            f"qa = {soil_qa:.1f} kPa from 1 Soil Report: {where} (shear "
+            f"{_kpa(found.get('qa_shear'))}, settlement {_kpa(found.get('qa_settlement'))}: "
+            f"{governs} governs)",
+            _float(found.get("overburden")),
+            _float(found.get("groundLevel")),
+            found.get("borehole"),
+        )
+
+
+def _float(value: Any) -> float | None:
+    return None if value is None else float(value)
+
+
+def _kpa(value: Any) -> str:
+    return "–" if value is None else f"{float(value):.1f} kPa"
+
+
 def footing_checks(
     project: dict[str, Any],
     out_dir: str | Path,
@@ -980,15 +1149,20 @@ def footing_checks(
     objects: ObjectLibrary,
     materials: MaterialLibrary,
     settings: ProjectSettings,
+    soil_text: str | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
     """The footing checks of an analysed model, in :func:`saengine.design.design_report`'s
-    format: ``(elements, skipped, notes)``. Arguments as :func:`saengine.design.check.design`.
+    format: ``(elements, skipped, notes)``. Arguments as :func:`saengine.design.check.design`;
+    ``soil_text`` is the soil report's text: when it has boreholes, each footing's qa comes
+    from it at the footing's position, founding level and size (:class:`SoilBearing`), unless
+    Project Settings → Foundation gives the override.
     """
     from saengine.fem.combinations import combination_factors
 
     footings = [e for e in building.elements if isinstance(e, FootingElement)]
     if not footings:
         return [], [], []
+    soil = SoilBearing(soil_text, settings.foundation)
     types = {o.id: o for o in objects.objects}
     mats = {m.id: m for m in materials.materials}
     by_case = _case_reactions(out_dir)
@@ -1149,6 +1323,13 @@ def footing_checks(
             {name: _combine(per_case, factors) for name, factors in strength},
             settings.foundation,
             dead,
+            soil.at(
+                footing.position[0],
+                footing.position[1],
+                bottom,
+                object_type.width,
+                object_type.length,
+            ),
         )
         notes += spec_notes + footing_notes
         strength_checks = [c for c in checks if not c["flag"]]
@@ -1166,4 +1347,6 @@ def footing_checks(
     for column, _ in bases:
         if column.id not in placed:
             notes.append(f"{column.id}: no footing under it")
+    if elements:
+        notes += soil.notes()
     return elements, skipped, notes

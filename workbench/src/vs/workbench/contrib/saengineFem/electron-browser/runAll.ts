@@ -20,7 +20,7 @@ import { ISaengineProject, ISaengineProjectService, partById } from '../../../se
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { BOQ_COMPUTE_COMMAND, BOQ_SOURCES, changedSources, IBoqComputeArgs, IBoqComputeResult, parseBoq } from '../../saengineBoq/browser/boqDocument.js';
 import { BUILD_REPORT_COMMAND_ID, IReportBuildRequest, IReportBuildResult, reportProblems } from '../../saengineReport/browser/reportBuild.js';
-import { DERIVATION_SOURCES, deriveAnalysisModel, derivationState, partFile } from '../browser/femDerivationBar.js';
+import { DERIVATION_INPUTS, deriveAnalysisModel, derivationState, partFile } from '../browser/femDerivationBar.js';
 import { IFemDesignReport, runDesign, writeDesignSummary } from '../browser/femDesign.js';
 import { errorSummary } from '../browser/femResultsBar.js';
 import { FemAnalysisRunner } from './femAnalysisRunner.js';
@@ -187,9 +187,12 @@ export class RunAllService implements IRunAllService {
 		}
 	}
 
-	/** Saves the project's edited part files: the steps read them from disk. */
+	/**
+	 * Saves the project's edited part files: the steps read them from disk (the soil report too:
+	 * the derivation takes the site class, and the footing design qa, from the saved file).
+	 */
 	private async saveSources(project: ISaengineProject): Promise<void> {
-		const ids = [...new Set([...DERIVATION_SOURCES.map(s => s.part), ...BOQ_SOURCES.map(s => s.part)])];
+		const ids = [...new Set([...DERIVATION_INPUTS, ...BOQ_SOURCES.map(s => s.part)])];
 		for (const id of ids) {
 			const part = partById(id);
 			const file = part?.mainFile && joinPath(project.root, part.folder, part.mainFile);
@@ -220,7 +223,7 @@ export class RunAllService implements IRunAllService {
 
 	/** Derives the analysis model when it is not derived yet or its sources changed. */
 	private async derive(project: ISaengineProject, token: CancellationToken): Promise<boolean> {
-		const texts = await this.readParts(project, DERIVATION_SOURCES.map(s => s.part));
+		const texts = await this.readParts(project, DERIVATION_INPUTS);
 		let description: unknown;
 		try {
 			const content = await this.fileService.readFile(partFile(project.root, 'fem'));

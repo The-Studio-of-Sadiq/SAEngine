@@ -20,6 +20,7 @@ dependencies = [
     "shapely>=2,<3",  # mid-surfaces of imported plates, quantities (BSD-3-Clause)
     "concreteproperties>=0.8,<0.9",  # RC section capacities for the design checks (MIT)
     "typst>=0.14,<0.15",  # PDF design report (Apache-2.0)
+    "openpyxl>=3.1,<4",  # Excel import of borehole logs (MIT)
 ]
 
 [project.optional-dependencies]

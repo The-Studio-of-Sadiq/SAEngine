@@ -104,10 +104,18 @@ class Site(_Model):
             [v.name for v in bnbc.LOCATIONS.values()] + ["Custom (enter Z and V)"]
         ),
     )
+    siteClassSource: Literal["soilReport", "entered"] = Field(
+        default="soilReport",
+        title="Site class source",
+        description="From the soil report: the governing (softest) site class of the boreholes "
+        "of 1 Soil Report; the entered class is used while the report gives none.",
+        json_schema_extra=_labels(["From the soil report", "Entered"]),
+    )
     siteClass: Literal["SA", "SB", "SC", "SD", "SE"] = Field(
         default="SD",
         title="Site class",
-        description="BNBC 2020 Table 6.2.13, from the soil report.",
+        description="BNBC 2020 Table 6.2.13. Used when the source is Entered, or while the soil "
+        "report has no boreholes that give a class.",
         json_schema_extra=_labels([f"{k}: {v}" for k, v in bnbc.SITE_CLASSES.items()]),
     )
     zoneCoefficient: float | None = Field(
@@ -266,14 +274,17 @@ class Analysis(_Model):
 
 
 class Foundation(_Model):
-    """Soil values the footing design needs, until the soil part of the project provides them."""
+    """Soil values of the footing design. The net allowable bearing pressure of each footing
+    comes from 1 Soil Report (its nearest boreholes, at the footing's founding level and size)
+    unless it is overridden here."""
 
     allowableBearing: float | None = Field(
         default=None,
         gt=0,
-        title="Net allowable bearing pressure qa",
-        description="From the soil report [kPa]; compared with the net soil pressure under the "
-        "service loads. Leave empty to design the footings without the bearing check.",
+        title="Allowable bearing override qa",
+        description="Net allowable bearing pressure [kPa] used for every footing instead of the "
+        "soil report's. Leave empty to take qa per footing from 1 Soil Report; without boreholes "
+        "and without an override, the footings are designed without the bearing check.",
     )
     soilUnitWeight: float = Field(
         default=18.0,
@@ -432,3 +443,146 @@ def check(settings: ProjectSettings) -> list[str]:
     if not settings.combinations:
         problems.append("combinations: there are no load combinations")
     return problems
+
+
+# ─────────────────────────────── values from the soil report ───────────────────────────────
+
+#: Part 1's main file, relative to the project folder.
+SOIL_FILE = "01 Soil Report/soil-report.json"
+
+
+def soil_site_class(
+    soil_text: str | None, settings: ProjectSettings | None = None
+) -> dict[str, Any]:
+    """The project's site class from the boreholes of the soil report (``soil_text``, the text
+    of :data:`SOIL_FILE`): ``{"class", "boreholes", "borehole", "N", "su", "basis", "depth",
+    "extrapolated", "label", "note"}``; ``"class"`` is None when the report has no boreholes
+    that give one (or cannot be read: ``"problems"``).
+
+    ``label`` is the short form the settings editor and the report print, e.g. "SD (N̄ = 12
+    over 30 m, BH-2)" (``detail`` the part in brackets): the governing borehole's harmonic mean
+    over the top 30 m of BNBC 2020 Table 6.2.13 that decides the class (N̄, or s̄u when the
+    cohesive layers govern).
+    """
+    from saengine.soil import site_class
+    from saengine.soil.profile import Profile
+    from saengine.soil.report import parse
+
+    none: dict[str, Any] = {"class": None, "boreholes": 0, "label": "", "note": ""}
+    if not soil_text or not soil_text.strip():
+        return {**none, "note": "There is no soil report."}
+    report = parse(soil_text)
+    if isinstance(report, list):
+        return {**none, "problems": report, "note": "The soil report has errors."}
+    if not report.boreholes:
+        return {**none, "note": "The soil report has no boreholes."}
+    if settings is not None:
+        # With the settings (Z for amax), the liquefaction screening is taken into account:
+        # boreholes with liquefiable layers make the site S2 (BNBC 2020 Table 6.2.13) and use
+        # SD for the design spectrum meanwhile (saengine.soil.report.classify).
+        from saengine.soil.report import classify
+
+        classified = classify(report, settings)
+        sites, project = classified["sites"], classified["project"]
+    else:
+        sites = {b.id: site_class.site_class(Profile(report, b)) for b in report.boreholes}
+        project = site_class.governing(sites)
+    cls = project.get("class")
+    result: dict[str, Any] = {**none, "boreholes": len(report.boreholes), "note": project["note"]}
+    if not cls:
+        return result
+    which = project["governing"]
+    own = sites[which]
+    by_su = own.get("bySu") == cls and own.get("byN") != cls
+    if by_su and own.get("su") is not None:
+        basis = f"s̄u = {own['su']:.0f} kPa"
+    elif own.get("N") is not None:
+        basis = f"N̄ = {own['N']:g}"
+    else:
+        basis = ""
+    over = "over 30 m" + (", extrapolated" if own.get("extrapolated") else "")
+    detail = f"{basis} {over}, {which}" if basis else which
+    label = f"{cls} ({detail})"
+    return {
+        **result,
+        "class": cls,
+        "borehole": which,
+        "N": own.get("N"),
+        "su": own.get("su"),
+        "basis": "su" if by_su else "N",
+        "depth": own.get("depth"),
+        "extrapolated": bool(own.get("extrapolated")),
+        "label": label,
+        "detail": detail,
+        "note": project["note"],
+        "derivation": own.get("note", ""),
+    }
+
+
+def resolve_site_class(
+    settings: ProjectSettings, soil_text: str | None
+) -> tuple[ProjectSettings, dict[str, Any]]:
+    """The settings with the site class the analysis uses, and where it comes from.
+
+    With ``site.siteClassSource`` "soilReport" (the default) and a soil report whose boreholes
+    give a class, that class replaces ``site.siteClass``; otherwise the entered class stays.
+    The returned info is ``{"class", "source", "entered", "label", "note", "soil"}``, ``source``
+    "soilReport" or "entered" (what is actually used), ``soil`` the result of
+    :func:`soil_site_class` (None when the source is Entered).
+    """
+    entered = settings.site.siteClass
+    info: dict[str, Any] = {"class": entered, "source": "entered", "entered": entered, "soil": None}
+    if settings.site.siteClassSource == "entered":
+        info["label"] = f"{entered} (entered)"
+        info["note"] = f"Site class {entered}, entered in the project settings."
+        return settings, info
+    soil = soil_site_class(soil_text, settings)
+    info["soil"] = soil
+    if not soil["class"]:
+        info["label"] = f"{entered} (entered)"
+        info["note"] = (
+            f"Site class {entered}, entered in the project settings: "
+            f"{soil['note'][:1].lower() + soil['note'][1:] if soil['note'] else 'no soil report'}"
+        ).rstrip(".") + "."
+        return settings, info
+    info.update(
+        {
+            "class": soil["class"],
+            "source": "soilReport",
+            "label": f"from 1 Soil Report: {soil['label']}",
+            "note": f"Site class from 1 Soil Report: {soil['label']}; {soil['note']}",
+        }
+    )
+    if soil["class"] == entered:
+        return settings, info
+    site = settings.site.model_copy(update={"siteClass": soil["class"]})
+    return settings.model_copy(update={"site": site}), info
+
+
+def resolve_settings_text(settings_text: str | None, soil_text: str | None) -> str | None:
+    """``settings_text`` with the site class the analysis uses (:func:`resolve_site_class`);
+    the text itself when it is empty, has errors or keeps its class."""
+    import json
+
+    from pydantic import ValidationError
+
+    if not settings_text:
+        return settings_text
+    try:
+        settings = ProjectSettings.model_validate_json(settings_text)
+    except ValidationError:
+        return settings_text
+    resolved, _ = resolve_site_class(settings, soil_text)
+    if resolved is settings:
+        return settings_text
+    return json.dumps(resolved.model_dump(mode="json", by_alias=True, exclude_none=True))
+
+
+def read_soil_text(project_root: Any) -> str | None:
+    """The text of the soil report of the project at ``project_root``, None when it is missing."""
+    from pathlib import Path
+
+    try:
+        return (Path(project_root) / SOIL_FILE).read_text(encoding="utf-8")
+    except OSError:
+        return None

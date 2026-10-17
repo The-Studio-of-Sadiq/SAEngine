@@ -1,0 +1,854 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The soil report editor (soilEditor.ts) in the shared editor frame (editorFrame.css). Sizes and
+ * colours come from the shared tokens (saengineTokens.css) and the theme; soil fills are the
+ * chart colours mixed far into the canvas, so they stay muted in both themes. */
+
+.saengine-soil-editor {
+	--soil-clay: color-mix(in srgb, var(--vscode-charts-orange, #c2620e) 30%, var(--sa-surface));
+	--soil-silt: color-mix(in srgb, var(--vscode-charts-yellow, #b89500) 26%, var(--sa-surface));
+	--soil-sand: color-mix(in srgb, var(--vscode-charts-yellow, #b89500) 44%, var(--sa-surface));
+	--soil-gravel: color-mix(in srgb, var(--vscode-charts-orange, #c2620e) 18%, color-mix(in srgb, var(--vscode-descriptionForeground) 22%, var(--sa-surface)));
+	--soil-organic: color-mix(in srgb, var(--vscode-charts-green, #2e8540) 30%, var(--sa-surface));
+	--soil-fill: color-mix(in srgb, var(--vscode-descriptionForeground) 20%, var(--sa-surface));
+	--soil-rock: color-mix(in srgb, var(--vscode-charts-purple, #8a4fbf) 22%, var(--sa-surface));
+	--soil-hatch: color-mix(in srgb, var(--vscode-foreground) 38%, transparent);
+	--soil-water: var(--vscode-charts-blue, #2c6fbe);
+	--soil-n: var(--vscode-foreground);
+	--soil-n60: var(--vscode-charts-blue, #2c6fbe);
+	--soil-grid: color-mix(in srgb, var(--sa-border) 60%, transparent);
+}
+
+.saengine-soil-editor .soil-patterns {
+	position: absolute;
+	width: 0;
+	height: 0;
+	overflow: hidden;
+}
+
+.saengine-soil-editor .soil-body {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+}
+
+/* ── borehole list ───────────────────────────────────────────────────────── */
+
+.saengine-soil-editor .soil-list {
+	flex: none;
+	width: 176px;
+	overflow: auto;
+	padding: var(--sa-space-2) 0;
+	border-right: 1px solid var(--sa-border);
+	box-sizing: border-box;
+	outline: none;
+}
+
+.saengine-soil-editor .soil-list-heading {
+	padding: var(--sa-space-3) var(--sa-space-3) var(--sa-space-1);
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: var(--sa-muted);
+}
+
+.saengine-soil-editor .soil-list-item {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2);
+	margin: 0 var(--sa-space-1);
+	padding: 4px var(--sa-space-2);
+	border-radius: var(--sa-radius);
+	cursor: pointer;
+}
+
+.saengine-soil-editor .soil-list-item:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.saengine-soil-editor .soil-list-item.selected {
+	background: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground, inherit);
+}
+
+.monaco-workbench .saengine-soil-editor .soil-list:focus,
+.monaco-workbench .saengine-soil-editor .soil-view:focus {
+	outline: none;
+}
+
+.saengine-soil-editor .soil-list:focus-visible .soil-list-item.selected {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.saengine-soil-editor .soil-list-icon {
+	flex: none;
+	font-size: 14px;
+	color: var(--sa-muted);
+}
+
+.saengine-soil-editor .soil-list-text {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	line-height: 1.3;
+}
+
+.saengine-soil-editor .soil-list-name {
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.saengine-soil-editor .soil-list-detail {
+	font-size: var(--sa-font-s);
+	color: var(--sa-muted);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.saengine-soil-editor .soil-list-warning {
+	color: var(--sa-warn);
+}
+
+/* ── view ────────────────────────────────────────────────────────────────── */
+
+.saengine-soil-editor .soil-view {
+	flex: 1;
+	min-width: 0;
+	overflow: auto;
+	padding: var(--sa-space-3) var(--sa-space-4) var(--sa-space-6);
+	box-sizing: border-box;
+	outline: none;
+}
+
+.saengine-soil-editor .soil-view-header {
+	display: flex;
+	align-items: baseline;
+	gap: var(--sa-space-3);
+	margin-bottom: var(--sa-space-2);
+}
+
+.saengine-soil-editor .soil-view-title {
+	font-size: var(--sa-font-l);
+	font-weight: 600;
+}
+
+.saengine-soil-editor .soil-view-subtitle,
+.saengine-soil-editor .soil-muted {
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+}
+
+/* legend */
+.saengine-soil-editor .soil-legend,
+.saengine-soil-editor .soil-series-legend {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--sa-space-1) var(--sa-space-3);
+	margin-bottom: var(--sa-space-2);
+	font-size: var(--sa-font-s);
+	color: var(--sa-muted);
+}
+
+.saengine-soil-editor .soil-legend-item {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1);
+}
+
+.saengine-soil-editor .soil-legend-gap {
+	flex: 0 0 var(--sa-space-2);
+}
+
+.saengine-soil-editor .soil-legend-item.water .soil-legend-mark {
+	color: var(--soil-water);
+}
+
+.saengine-soil-editor .soil-legend-item.n60 .soil-legend-mark {
+	color: var(--soil-n60);
+}
+
+/* ── drawings (soilLog.ts) ──────────────────────────────────────────────── */
+
+.saengine-soil-editor .soil-canvas svg {
+	display: block;
+	overflow: visible;
+}
+
+.saengine-soil-editor .soil-bg-clay { fill: var(--soil-clay); }
+.saengine-soil-editor .soil-bg-silt { fill: var(--soil-silt); }
+.saengine-soil-editor .soil-bg-sand { fill: var(--soil-sand); }
+.saengine-soil-editor .soil-bg-gravel { fill: var(--soil-gravel); }
+.saengine-soil-editor .soil-bg-organic { fill: var(--soil-organic); }
+.saengine-soil-editor .soil-bg-fill { fill: var(--soil-fill); }
+.saengine-soil-editor .soil-bg-rock { fill: var(--soil-rock); }
+
+.saengine-soil-editor .soil-hatch {
+	fill: none;
+	stroke: var(--soil-hatch);
+	stroke-width: 0.8;
+}
+
+.saengine-soil-editor circle.soil-hatch {
+	fill: var(--soil-hatch);
+	stroke: none;
+}
+
+.saengine-soil-editor pattern[id$='-gravel'] circle.soil-hatch {
+	fill: none;
+	stroke: var(--soil-hatch);
+}
+
+.saengine-soil-editor .soil-stratum {
+	stroke: color-mix(in srgb, var(--vscode-foreground) 45%, transparent);
+	stroke-width: 1;
+}
+
+.saengine-soil-editor .soil-heading {
+	font-size: 11px;
+	font-weight: 600;
+	fill: var(--sa-muted);
+}
+
+.saengine-soil-editor .soil-tick {
+	font-size: 11px;
+	fill: var(--sa-muted);
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-soil-editor svg .soil-muted {
+	fill: var(--sa-muted);
+	font-size: 12px;
+}
+
+.saengine-soil-editor .soil-grid {
+	stroke: var(--soil-grid);
+	stroke-width: 1;
+}
+
+.saengine-soil-editor .soil-axis {
+	stroke: var(--sa-border);
+}
+
+.saengine-soil-editor .soil-boundary {
+	stroke: var(--sa-border);
+	stroke-dasharray: 2 3;
+}
+
+.saengine-soil-editor .soil-termination {
+	stroke: var(--vscode-foreground);
+	stroke-width: 2;
+}
+
+.saengine-soil-editor .soil-description {
+	height: 100%;
+	box-sizing: border-box;
+	padding: 3px 0 0;
+	overflow: hidden;
+	font-size: 12px;
+	line-height: 1.35;
+	color: var(--vscode-foreground);
+}
+
+.saengine-soil-editor .soil-description-type {
+	display: block;
+	font-weight: 600;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.saengine-soil-editor .soil-description-text {
+	display: block;
+	color: var(--sa-muted);
+}
+
+.saengine-soil-editor .soil-water line {
+	stroke: var(--soil-water);
+	stroke-width: 1.5;
+}
+
+.saengine-soil-editor .soil-water path {
+	fill: none;
+	stroke: var(--soil-water);
+	stroke-width: 1.5;
+}
+
+.saengine-soil-editor .soil-chart-frame {
+	fill: none;
+	stroke: var(--sa-border);
+}
+
+.saengine-soil-editor .soil-n-line {
+	fill: none;
+	stroke: var(--soil-n);
+	stroke-width: 1.25;
+}
+
+.saengine-soil-editor .soil-n {
+	fill: var(--soil-n);
+}
+
+.saengine-soil-editor .soil-n.refusal {
+	fill: var(--sa-fail);
+}
+
+.saengine-soil-editor .soil-n-label {
+	font-size: 10px;
+	fill: var(--sa-muted);
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-soil-editor .soil-n60-line {
+	fill: none;
+	stroke: var(--soil-n60);
+	stroke-width: 1.25;
+	stroke-dasharray: 4 3;
+}
+
+.saengine-soil-editor .soil-n60 {
+	fill: var(--soil-n60);
+}
+
+/* fence */
+.saengine-soil-editor .soil-fence-borehole {
+	cursor: pointer;
+	outline: none;
+}
+
+.saengine-soil-editor .soil-fence-id {
+	font-size: 12px;
+	font-weight: 600;
+	fill: var(--vscode-foreground);
+}
+
+.saengine-soil-editor .soil-fence-outline {
+	fill: none;
+	stroke: var(--vscode-foreground);
+	stroke-width: 1;
+}
+
+.saengine-soil-editor .soil-fence-borehole:hover .soil-fence-outline,
+.saengine-soil-editor .soil-fence-borehole:focus-visible .soil-fence-outline,
+.saengine-soil-editor .soil-fence-borehole.selected .soil-fence-outline {
+	stroke: var(--sa-accent);
+	stroke-width: 2;
+}
+
+.saengine-soil-editor .soil-join {
+	stroke: var(--sa-muted);
+	stroke-width: 1;
+	stroke-dasharray: 4 3;
+}
+
+.saengine-soil-editor .soil-water-join {
+	stroke: var(--soil-water);
+	stroke-width: 1;
+	stroke-dasharray: 6 3;
+}
+
+/* liquefaction chart */
+.saengine-soil-editor .soil-fs-one {
+	stroke: var(--sa-fail);
+	stroke-width: 1.5;
+	stroke-dasharray: 5 3;
+}
+
+.saengine-soil-editor .soil-fs-one-label {
+	font-size: 11px;
+	fill: var(--sa-fail);
+}
+
+.saengine-soil-editor .soil-liquefiable-band {
+	fill: color-mix(in srgb, var(--sa-fail) 6%, transparent);
+}
+
+.saengine-soil-editor .soil-series.line {
+	fill: none;
+	stroke-width: 1.5;
+}
+
+.saengine-soil-editor .soil-series-0 { --soil-series: var(--vscode-charts-blue, #2c6fbe); }
+.saengine-soil-editor .soil-series-1 { --soil-series: var(--vscode-charts-green, #2e8540); }
+.saengine-soil-editor .soil-series-2 { --soil-series: var(--vscode-charts-purple, #8a4fbf); }
+.saengine-soil-editor .soil-series-3 { --soil-series: var(--vscode-charts-orange, #c2620e); }
+.saengine-soil-editor .soil-series-4 { --soil-series: var(--vscode-charts-yellow, #b89500); }
+.saengine-soil-editor .soil-series-5 { --soil-series: var(--vscode-foreground); }
+
+.saengine-soil-editor .soil-series.line { stroke: var(--soil-series); }
+.saengine-soil-editor .soil-series.point { fill: var(--sa-surface); stroke: var(--soil-series); stroke-width: 1.5; }
+.saengine-soil-editor .soil-series.point.liquefiable { fill: var(--sa-fail); stroke: var(--sa-fail); }
+
+.saengine-soil-editor .soil-series-dot {
+	display: inline-block;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--soil-series);
+}
+
+/* ── tables ──────────────────────────────────────────────────────────────── */
+
+.saengine-soil-editor .soil-section {
+	margin-top: var(--sa-space-4);
+}
+
+.saengine-soil-editor .soil-section-heading {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2);
+	margin-bottom: var(--sa-space-2);
+}
+
+.saengine-soil-editor .soil-section-title {
+	font-weight: 600;
+}
+
+.saengine-soil-editor .soil-section-count {
+	min-width: 16px;
+	padding: 0 5px;
+	border-radius: 999px;
+	font-size: 11px;
+	line-height: 16px;
+	text-align: center;
+	color: var(--vscode-badge-foreground);
+	background: var(--vscode-badge-background);
+}
+
+.saengine-soil-editor .soil-section-detail {
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+}
+
+.saengine-soil-editor .soil-add {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1);
+	margin-left: auto;
+	padding: 2px var(--sa-space-2);
+	border: none;
+	border-radius: var(--sa-radius);
+	background: transparent;
+	color: var(--vscode-textLink-foreground);
+	font-family: inherit;
+	font-size: var(--sa-font-s);
+	cursor: pointer;
+}
+
+.saengine-soil-editor .soil-add:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.saengine-soil-editor .soil-table-scroll {
+	overflow-x: auto;
+}
+
+.saengine-soil-editor .soil-table {
+	border-collapse: collapse;
+	table-layout: fixed;
+	font-size: var(--sa-font-s);
+}
+
+.saengine-soil-editor .soil-result-table,
+.saengine-soil-editor .soil-summary,
+.saengine-soil-editor .soil-bearing {
+	table-layout: auto;
+	min-width: 360px;
+}
+
+.saengine-soil-editor .soil-table th {
+	padding: 4px 6px;
+	text-align: left;
+	font-weight: 600;
+	color: var(--sa-muted);
+	border-bottom: 1px solid var(--sa-border);
+	white-space: nowrap;
+	vertical-align: bottom;
+}
+
+.saengine-soil-editor .soil-table th.number,
+.saengine-soil-editor .soil-table td.number {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-soil-editor .soil-unit {
+	display: block;
+	font-weight: 400;
+	font-size: 11px;
+}
+
+.saengine-soil-editor .soil-table td {
+	padding: 2px 6px;
+	border-bottom: 1px solid color-mix(in srgb, var(--sa-border) 50%, transparent);
+	white-space: nowrap;
+}
+
+.saengine-soil-editor .soil-table td:has(> .soil-input),
+.saengine-soil-editor .soil-table td:has(> .soil-select) {
+	padding: 1px 2px;
+}
+
+.saengine-soil-editor .soil-table td.computed,
+.saengine-soil-editor .soil-table th.computed {
+	color: var(--sa-muted);
+	text-align: right;
+}
+
+.saengine-soil-editor .soil-table td.soil-muted {
+	padding: var(--sa-space-2) 6px;
+}
+
+.saengine-soil-editor .soil-summary-row {
+	cursor: pointer;
+}
+
+.saengine-soil-editor .soil-summary-row:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.saengine-soil-editor .soil-input,
+.saengine-soil-editor .soil-select {
+	width: 100%;
+	height: 24px;
+	box-sizing: border-box;
+	padding: 0 5px;
+	border: 1px solid transparent;
+	border-radius: 2px;
+	background: transparent;
+	color: var(--vscode-input-foreground, var(--vscode-foreground));
+	font-family: inherit;
+	font-size: var(--sa-font-s);
+	outline: none;
+}
+
+.saengine-soil-editor .soil-input.number {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-soil-editor .soil-input:hover,
+.saengine-soil-editor .soil-select:hover {
+	border-color: var(--vscode-input-border, var(--sa-border));
+}
+
+.saengine-soil-editor .soil-input:focus,
+.saengine-soil-editor .soil-select:focus {
+	border-color: var(--vscode-focusBorder);
+	background: var(--vscode-input-background);
+}
+
+.saengine-soil-editor .soil-select {
+	background: transparent;
+	cursor: pointer;
+}
+
+.saengine-soil-editor .soil-select option {
+	background: var(--vscode-dropdown-background);
+	color: var(--vscode-dropdown-foreground);
+}
+
+.saengine-soil-editor .soil-input.warning {
+	border-color: var(--sa-warn);
+}
+
+.saengine-soil-editor .soil-input.invalid {
+	border-color: var(--sa-fail);
+	background: color-mix(in srgb, var(--sa-fail) 8%, transparent);
+}
+
+.saengine-soil-editor .soil-row-actions {
+	text-align: center;
+}
+
+.saengine-soil-editor .soil-remove {
+	display: inline-flex;
+	padding: 3px;
+	border: none;
+	border-radius: var(--sa-radius);
+	background: transparent;
+	color: var(--sa-muted);
+	cursor: pointer;
+	visibility: hidden;
+}
+
+.saengine-soil-editor tr:hover .soil-remove,
+.saengine-soil-editor .soil-remove:focus-visible {
+	visibility: visible;
+}
+
+.saengine-soil-editor .soil-remove:hover {
+	color: var(--vscode-foreground);
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+/* ── properties panel ────────────────────────────────────────────────────── */
+
+.saengine-soil-editor .soil-prop-row {
+	align-items: center;
+}
+
+.saengine-soil-editor .soil-prop-row > .value {
+	flex: 0 0 52%;
+}
+
+.saengine-soil-editor .soil-prop-control {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-1);
+}
+
+.saengine-soil-editor .soil-prop-control .soil-input {
+	border-color: var(--vscode-input-border, var(--sa-border));
+	background: var(--vscode-input-background);
+}
+
+.saengine-soil-editor .soil-prop-unit {
+	flex: none;
+	max-width: 40%;
+	color: var(--sa-muted);
+	font-size: 11px;
+	text-align: left;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.saengine-soil-editor .sa-props-note.error {
+	color: var(--sa-fail);
+}
+
+.saengine-soil-editor .sa-props-note.warning {
+	color: var(--sa-warn);
+}
+
+/* ── results ─────────────────────────────────────────────────────────────── */
+
+.saengine-soil-editor .soil-results-state {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--sa-space-2);
+	max-width: 440px;
+	margin: 12vh auto 0;
+	text-align: center;
+}
+
+.saengine-soil-editor .soil-results-state-icon {
+	font-size: 24px;
+	color: var(--sa-muted);
+}
+
+.saengine-soil-editor .soil-results-state-title {
+	font-size: var(--sa-font-l);
+	font-weight: 600;
+}
+
+.saengine-soil-editor .soil-results-state-text {
+	color: var(--sa-muted);
+	line-height: 1.5;
+}
+
+.saengine-soil-editor .soil-section.result {
+	margin-top: var(--sa-space-6);
+}
+
+.saengine-soil-editor .soil-tile {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-3);
+	margin-bottom: var(--sa-space-3);
+}
+
+.saengine-soil-editor .soil-tile-value {
+	min-width: 48px;
+	padding: 4px var(--sa-space-2);
+	border: 1px solid var(--sa-border);
+	border-radius: var(--sa-radius);
+	font-size: var(--sa-font-xl);
+	font-weight: 600;
+	text-align: center;
+	background: var(--sa-surface-alt);
+}
+
+.saengine-soil-editor .soil-tile-text {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.saengine-soil-editor .soil-tile-title {
+	font-weight: 600;
+}
+
+.saengine-soil-editor .soil-tile-detail {
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+}
+
+.saengine-soil-editor .soil-bearing th.row {
+	color: var(--sa-muted);
+	font-weight: 600;
+	border-bottom: 1px solid color-mix(in srgb, var(--sa-border) 50%, transparent);
+	text-align: right;
+}
+
+.saengine-soil-editor .soil-bearing td {
+	padding: 4px 10px;
+}
+
+.saengine-soil-editor .soil-bearing td.governing {
+	outline: 2px solid var(--sa-accent);
+	outline-offset: -2px;
+	font-weight: 600;
+}
+
+.saengine-soil-editor .soil-governs {
+	margin-left: 2px;
+	color: var(--sa-warn);
+	font-size: 10px;
+}
+
+.saengine-soil-editor .soil-note {
+	margin: var(--sa-space-2) 0 0;
+	max-width: 720px;
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+	line-height: 1.5;
+}
+
+.saengine-soil-editor .soil-note.warning {
+	color: var(--sa-warn);
+}
+
+/* the basis of the results: label and value pairs, the source muted after the value */
+.saengine-soil-editor .soil-basis {
+	display: grid;
+	grid-template-columns: max-content minmax(0, 1fr);
+	gap: var(--sa-space-1) var(--sa-space-4);
+	margin: 0;
+	max-width: 720px;
+	font-size: var(--sa-font-s);
+	line-height: 1.5;
+}
+
+.saengine-soil-editor .soil-basis dt {
+	color: var(--sa-muted);
+}
+
+.saengine-soil-editor .soil-basis dd {
+	margin: 0;
+	min-width: 0;
+}
+
+.saengine-soil-editor .soil-basis-value {
+	font-weight: 600;
+}
+
+.saengine-soil-editor .soil-basis-detail {
+	margin-left: var(--sa-space-2);
+	color: var(--sa-muted);
+}
+
+/* a site class warning (S1 / S2): calm, at the warn tier, never the fail tier */
+.saengine-soil-editor .soil-flag {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--sa-space-2);
+	max-width: 720px;
+	margin: var(--sa-space-2) 0;
+	padding: var(--sa-space-2) var(--sa-space-3);
+	border-left: 2px solid var(--sa-warn);
+	background: color-mix(in srgb, var(--sa-warn) 7%, transparent);
+	font-size: var(--sa-font-s);
+	line-height: 1.5;
+}
+
+.saengine-soil-editor .soil-flag-icon {
+	flex: none;
+	margin-top: 2px;
+	color: var(--sa-warn);
+}
+
+.saengine-soil-editor .soil-flag-text {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.saengine-soil-editor .soil-flag-detail {
+	color: var(--sa-muted);
+}
+
+/* a settlement above the permissible one reads at the warn tier */
+.saengine-soil-editor .soil-result-table tr.soil-over-limit td:nth-child(7) {
+	color: var(--sa-warn);
+	font-weight: 600;
+}
+
+.saengine-soil-editor .soil-prop-control .soil-prop-select {
+	border-color: var(--vscode-input-border, var(--sa-border));
+	background: var(--vscode-input-background);
+}
+
+.saengine-soil-editor .soil-liquefaction-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	gap: var(--sa-space-6);
+}
+
+.saengine-soil-editor .soil-liquefaction-tables {
+	flex: 1 1 320px;
+	min-width: 0;
+}
+
+.saengine-soil-editor .soil-liquefaction-tables .soil-result-table {
+	max-width: 100%;
+}
+
+.saengine-soil-editor .soil-liquefaction-tables .soil-result-table td:last-child {
+	white-space: normal;
+}
+
+/* a borehole with liquefiable layers: its row reads at the fail tier */
+.saengine-soil-editor .soil-result-table tr.soil-liquefiable-row td:last-child {
+	color: var(--sa-fail);
+	font-weight: 600;
+}
+
+.saengine-soil-editor .soil-chart svg {
+	display: block;
+}
+
+/* scrollbars of the view and the wide tables, in the theme's scrollbar colours */
+.saengine-soil-editor ::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+
+.saengine-soil-editor ::-webkit-scrollbar-track,
+.saengine-soil-editor ::-webkit-scrollbar-corner {
+	background: transparent;
+}
+
+.saengine-soil-editor ::-webkit-scrollbar-thumb {
+	background: var(--vscode-scrollbarSlider-background);
+}
+
+.saengine-soil-editor ::-webkit-scrollbar-thumb:hover {
+	background: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.saengine-soil-editor ::-webkit-scrollbar-thumb:active {
+	background: var(--vscode-scrollbarSlider-activeBackground);
+}

@@ -30,7 +30,7 @@ suite('SAEngine - Project settings editor', () => {
 				'Response reduction factor R: 5',
 				'Overstrength factor Ω0: 3',
 				'Deflection amplification Cd: 4.5',
-				'Site class: Stiff soil (Vs < 180 m/s)',
+				'Site class: Loose-to-medium cohesionless soil or soft-to-firm cohesive soil (Vs < 180 m/s, N < 15, su < 70 kPa)',
 				'Wind exposure: Urban, suburban, wooded',
 			],
 			sylhet: [
@@ -42,9 +42,22 @@ suite('SAEngine - Project settings editor', () => {
 				'Response reduction factor R: 8',
 				'Overstrength factor Ω0: 3',
 				'Deflection amplification Cd: 5.5',
-				'Site class: Very dense soil or soft rock (180-360 m/s)',
+				'Site class: Dense or medium dense sand, gravel or stiff clay (Vs 180-360 m/s, N 15-50, su 70-250 kPa)',
 				'Wind exposure: Urban, suburban, wooded',
 			],
 		});
+	});
+
+	test('the site class comes from the soil report unless it is entered', () => {
+		const defaults = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as JsonObject;
+		const soil = { class: 'SC', label: 'SC (N̄ = 22 over 30 m, BH-2)' };
+		const site = (settings: JsonObject) => codeValues(settings, soil).find(v => v.label === 'Site class');
+		assert.deepStrictEqual([
+			site(defaults),
+			site({ ...defaults, site: { location: 'dhaka', siteClass: 'SD', siteClassSource: 'entered' } }),
+		], [
+			{ label: 'Site class', value: 'Dense or medium dense sand, gravel or stiff clay (Vs 180-360 m/s, N 15-50, su 70-250 kPa)', source: 'Table 6.2.13, from 1 Soil Report: SC (N̄ = 22 over 30 m, BH-2)', overridden: false },
+			{ label: 'Site class', value: 'Loose-to-medium cohesionless soil or soft-to-firm cohesive soil (Vs < 180 m/s, N < 15, su < 70 kPa)', source: 'Table 6.2.13', overridden: false },
+		]);
 	});
 });

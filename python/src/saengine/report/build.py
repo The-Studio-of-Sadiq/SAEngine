@@ -1,7 +1,9 @@
 """The printed design report of a SAEngine project (Part 11 Exports, ``11 Exports/report.pdf``).
 
 The report is an engineer's calculation report: cover and contents, design basis (codes, site,
-seismic and wind parameters, materials, load cases and combinations, analyses run), a summary
+seismic and wind parameters, materials, load cases and combinations, analyses run), the soil and
+foundations of ``01 Soil Report/soil-report.json`` (when it has boreholes: the boreholes, the
+site class, the allowable bearing pressures and the liquefaction screening), a summary
 of the analysis model and its run, the main analysis results (modal periods, base reactions,
 displacements and story drifts), the member design checks of :mod:`saengine.design`, the bill
 of quantities of ``10 BOQ/boq.json`` and the limitations every part reported.
@@ -31,6 +33,7 @@ import saengine
 
 TEMPLATE = Path(__file__).parent / "templates" / "report.typ"
 
+SOIL_FILE = "01 Soil Report/soil-report.json"
 SETTINGS_FILE = "02 Project Settings/project-settings.json"
 MATERIALS_FILE = "03 Materials/materials.json"
 OBJECTS_FILE = "04 Objects/objects.json"
@@ -47,6 +50,9 @@ MODEL_SOURCES = {
     "materials": MATERIALS_FILE,
     "settings": SETTINGS_FILE,
 }
+
+#: Upstream files recorded only when the derivation used them (the soil report's site class).
+MODEL_OPTIONAL_SOURCES = {"soil": SOIL_FILE}
 
 #: Upstream files of the bill of quantities, by the keys of its ``source`` stamps.
 BOQ_SOURCES = {"bim": BIM_FILE, "objects": OBJECTS_FILE, "materials": MATERIALS_FILE}
@@ -187,6 +193,7 @@ def report_data(
         "warnings": warnings,
     }
     report["basis"] = _basis(settings, parts, model, manifest)
+    report["soil"] = _soil(parts)
     report["model"] = _model_summary(root, model, manifest, parts, warnings)
     report["results"] = _results(
         model_path, model, manifest, results_dir, settings, parts, warnings
@@ -196,6 +203,7 @@ def report_data(
     report["limitations"] = {
         "design": report["design"].get("notes", []),
         "boq": report["boq"].get("notes", []),
+        "soil": report["soil"].get("notes", []),
         "model": report["model"].get("notes", []),
         "run": report["model"].get("runWarnings", []),
     }
@@ -238,9 +246,24 @@ class _Parts:
         return self._cache[key]
 
     def settings(self) -> Any:
-        from saengine.library.settings import ProjectSettings
+        """The project settings with the site class the analysis uses (from the soil report
+        when the settings say so, see ``resolve_site_class``)."""
+        from saengine.library.settings import ProjectSettings, resolve_site_class
 
-        return self._parse("settings", SETTINGS_FILE, ProjectSettings, "Project settings")
+        if "resolved" not in self._cache:
+            entered = self._parse("settings", SETTINGS_FILE, ProjectSettings, "Project settings")
+            resolved, site = (
+                resolve_site_class(entered, self.text(SOIL_FILE))
+                if entered is not None
+                else (None, None)
+            )
+            self._cache["resolved"], self._cache["site"] = resolved, site
+        return self._cache["resolved"]
+
+    def site(self) -> dict[str, Any] | None:
+        """Where the site class comes from (``resolve_site_class``'s info)."""
+        self.settings()
+        return self._cache["site"]
 
     def materials(self) -> Any:
         from saengine.library.materials import MaterialLibrary
@@ -360,7 +383,7 @@ def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[s
                 + (f": {category.description}" if category is not None else ""),
             ],
             ["Location", location.name if location else "Custom"],
-            ["Site class (Table 6.2.13)", settings.site.siteClass],
+            ["Site class (Table 6.2.13)", _site_class_text(parts)],
             ["Seismic zone", str(values["zone"]) if values["zone"] else "–"],
             ["Seismic zone coefficient Z", fmt(values["Z"], 2)],
             ["Basic wind speed V", f"{fmt(values['windSpeed'], 1)} m/s"],
@@ -527,9 +550,18 @@ def _model_summary(
     recorded = _recorded_sources(model)
     changed = [
         relative
-        for key, relative in MODEL_SOURCES.items()
+        for key, relative in {**MODEL_SOURCES, **MODEL_OPTIONAL_SOURCES}.items()
         if key in recorded and parts.stamp(relative) != recorded[key]
     ]
+    site = parts.site()
+    if (
+        site is not None
+        and "soil" not in recorded
+        and site["source"] == "soilReport"
+        and site["class"] != site["entered"]
+        and SOIL_FILE not in changed
+    ):
+        changed.append(SOIL_FILE)  # derived with the entered class before the boreholes gave one
     current = bool(recorded) and set(MODEL_SOURCES) <= set(recorded) and not changed
     if changed:
         warnings.append(
@@ -907,6 +939,240 @@ def _design(results_dir: Path, model_path: Path, warnings: list[str]) -> dict[st
         "method": [str(line) for line in report.get("method", [])],
         "notes": [str(note) for note in report.get("notes", [])],
         "details": details,
+    }
+
+
+# ─────────────────────────────────────── soil and foundations ──────────────────────────────────
+
+
+def _site_class_text(parts: _Parts) -> str:
+    """The site class of the design basis, with where it comes from."""
+    site = parts.site()
+    if site is None:
+        return "–"
+    if site["source"] == "soilReport":
+        return f"{site['class']}, from 1 Soil Report ({site['soil']['detail']})"
+    return f"{site['class']} (entered)"
+
+
+def _m(value: Any, digits: int = 1) -> str:
+    """A length in mm printed in m."""
+    return "–" if value is None else fmt(float(value) / 1e3, digits)
+
+
+def _range(top: Any, bottom: Any) -> str:
+    return f"{_m(top)}–{_m(bottom)}"
+
+
+def _soil(parts: _Parts) -> dict[str, Any]:
+    """The soil and foundations chapter: printed only when the soil report has boreholes."""
+    from saengine.library.settings import resolve_settings_text
+    from saengine.soil import soil_report
+    from saengine.soil.report import parse
+
+    text = parts.text(SOIL_FILE)
+    if text is None:
+        return {"available": False, "notes": []}
+    report = parse(text)
+    if isinstance(report, list):
+        parts.warnings.append(
+            f"The soil report ({SOIL_FILE}) has errors and is not printed: "
+            + "; ".join(report[:3])
+            + ("; …" if len(report) > 3 else "")
+        )
+        return {"available": False, "notes": []}
+    if not report.boreholes:
+        return {"available": False, "notes": []}
+    data = soil_report(text, resolve_settings_text(parts.text(SETTINGS_FILE), text))
+    if "problems" in data:
+        parts.warnings.append(
+            "The soil report could not be computed: " + "; ".join(data["problems"])
+        )
+        return {"available": False, "notes": []}
+    boreholes = data["boreholes"]
+    design = report.design
+
+    info = report.report
+    details = [
+        [label, value]
+        for label, value in (
+            ("Report", info.title),
+            ("Geotechnical consultant", info.consultant),
+            ("Report number", info.reportNumber),
+            ("Date", info.date),
+        )
+        if value
+    ]
+    pga = design.liquefaction.pga
+    details += [
+        ["Boreholes", str(len(boreholes))],
+        ["Ground level (project datum)", f"{_m(report.groundLevel, 2)} m"],
+        ["SPT hammer energy ratio", f"{fmt(design.hammerEnergy, 0)} %"],
+        ["Factor of safety on bearing", fmt(design.factorOfSafety, 1)],
+        ["Allowable settlement", f"{fmt(design.allowableSettlement, 0)} mm"],
+        ["Earthquake magnitude (liquefaction)", fmt(design.liquefaction.magnitude, 1)],
+        [
+            "Peak ground acceleration amax",
+            f"{fmt(data.get('amax'), 3)} g"
+            + (" (entered)" if pga is not None else " (Z·S of the project settings)"),
+        ],
+    ]
+
+    rows, strata = [], []
+    for b in boreholes:
+        site = b.get("siteClass") or {}
+        n_bar = site.get("N")
+        rows.append(
+            [
+                str(b["id"]),
+                _m(b.get("x"), 2),
+                _m(b.get("y"), 2),
+                _m(b.get("groundLevel"), 2),
+                _m(b.get("waterTable"), 2),
+                _m(b.get("depth"), 1),
+                str(len(b.get("layers", []))),
+                str(len(b.get("profile") or [])),  # the corrected SPT records
+                f"{site.get('class') or '–'}" + (f" (N̄ {fmt(n_bar, 1)})" if n_bar else ""),
+            ]
+        )
+        for layer in b.get("layers", []):
+            strata.append(
+                [
+                    str(b["id"]),
+                    _range(layer.get("top"), layer.get("bottom")),
+                    str(layer.get("soilType", "")),
+                    str(layer.get("description", "")),
+                    fmt(layer.get("unitWeight"), 1),
+                    fmt(layer.get("cu"), 0) if layer.get("cu") else "–",
+                    fmt(layer.get("phi"), 0) if layer.get("phi") else "–",
+                    fmt(layer.get("N60"), 1),
+                ]
+            )
+
+    # Site class: each borehole's averages, the governing class, and what the analysis uses.
+    site_rows = []
+    for b in boreholes:
+        site = b.get("siteClass") or {}
+        site_rows.append(
+            [
+                str(b["id"]),
+                fmt(site.get("N"), 1),
+                fmt(site.get("su"), 0),
+                str(site.get("byN") or "–"),
+                str(site.get("bySu") or "–"),
+                str(site.get("class") or "–"),
+                (
+                    _m(site.get("depth"), 1)
+                    + (" (extrapolated)" if site.get("extrapolated") else "")
+                ),
+            ]
+        )
+    used = parts.site()
+    site_notes = [str(data["siteClass"].get("note", ""))]
+    if used is not None:
+        site_notes.append(
+            f"The analysis uses site class {_site_class_text(parts)}."
+            if used["source"] == "soilReport"
+            else f"The analysis uses the entered site class {used['class']} (Project Settings → "
+            "Site class source: Entered)."
+        )
+    for b in boreholes:
+        site_notes += [f"{b['id']}: {n}" for n in (b.get("siteClass") or {}).get("notes", [])]
+
+    # Allowable bearing: the lowest qa of the boreholes for each footing width and depth.
+    cells: dict[tuple[float, float], list[Any]] = {}
+    for b in boreholes:
+        for row in b["bearing"]["table"]:
+            cells.setdefault((row["B"], row["Df"]), []).append(row["qa"])
+    widths = sorted({k[0] for k in cells})
+    depths = sorted({k[1] for k in cells})
+
+    def lowest(values: list[Any]) -> str:
+        return "–" if not values or any(v is None for v in values) else fmt(min(values), 0)
+
+    bearing_rows = [
+        [f"{_m(width, 1)} m", *(lowest(cells.get((width, df), [])) for df in depths)]
+        for width in widths
+    ]
+    reference = []
+    for b in boreholes:
+        ks = b.get("ksDetail") or {}
+        row = next(
+            (r for r in b["bearing"]["table"] if r["B"] == ks.get("B") and r["Df"] == ks.get("Df")),
+            None,
+        )
+        reference.append(
+            [
+                str(b["id"]),
+                f"{_m(ks.get('B'), 1)} × {_m(ks.get('Df'), 1)}",
+                fmt(row["qa_shear"], 0) if row else "–",
+                fmt(row["qa_settlement"], 0) if row else "–",
+                fmt(row["qa"], 0) if row else "–",
+                str(row["governs"]) if row and row.get("governs") else "–",
+                fmt((b.get("settlement") or {}).get("total"), 1),
+                fmt(b.get("ks"), 0),
+            ]
+        )
+    bearing_notes = sorted({f"{b['id']}: {n}" for b in boreholes for n in b["bearing"]["notes"]})
+
+    # Liquefaction screening.
+    liquefaction_rows, liquefiable = [], []
+    for b in boreholes:
+        screen = b["liquefaction"]
+        fs = [p["fs"] for p in screen.get("points", []) if p.get("fs") is not None]
+        layers = "; ".join(
+            f"{_range(layer['top'], layer['bottom'])} m {layer['soilType']}"
+            for layer in screen.get("layers", [])
+        )
+        liquefiable.append(bool(screen.get("layers")))
+        liquefaction_rows.append(
+            [
+                str(b["id"]),
+                fmt(min(fs), 2) if fs else "–",
+                fmt(screen.get("lpi"), 1),
+                str(screen.get("category") or "–"),
+                layers or "none",
+            ]
+        )
+    # Notes every borehole shares (amax) once; the others with their borehole.
+    own_notes = [set(map(str, b["liquefaction"].get("notes", []))) for b in boreholes]
+    shared = set.intersection(*own_notes) if own_notes else set()
+    liquefaction_notes = sorted(shared) + [
+        f"{b['id']}: {n}"
+        for b, notes in zip(boreholes, own_notes, strict=True)
+        for n in sorted(notes - shared)
+    ]
+
+    notes = list(data.get("notes", []))
+    for b in boreholes:
+        notes += [f"{b['id']}: {n}" for n in b.get("notes", [])]
+    return {
+        "available": True,
+        "details": details,
+        "boreholes": rows,
+        "strata": strata,
+        "site": {
+            "class": str(data["siteClass"].get("class") or "–"),
+            "rows": site_rows,
+            "notes": site_notes,
+            "method": str(data["methods"].get("siteClass", "")),
+        },
+        "bearing": {
+            "depths": [f"Df {_m(df, 1)} m" for df in depths],
+            "rows": bearing_rows,
+            "reference": reference,
+            "notes": bearing_notes,
+            "method": str(data["methods"].get("bearing", "")),
+            "factorOfSafety": fmt(design.factorOfSafety, 1),
+            "allowableSettlement": fmt(design.allowableSettlement, 0),
+        },
+        "liquefaction": {
+            "rows": liquefaction_rows,
+            "fails": liquefiable,
+            "notes": liquefaction_notes,
+            "method": str(data["methods"].get("liquefaction", "")),
+        },
+        "notes": notes,
     }
 
 

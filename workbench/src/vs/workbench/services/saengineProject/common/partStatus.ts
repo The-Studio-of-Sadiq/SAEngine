@@ -84,7 +84,10 @@ export function exportKind(relativePath: string): 'report' | 'ifc' | 'dxf' | 'cs
 	return undefined;
 }
 
-/** Parts whose modules are not written yet: they never block the next step. */
+/**
+ * Parts that never block the next step: the soil report is optional (without boreholes the
+ * settings' site class and qa apply), MEP and the substructure are not written yet.
+ */
 const OPTIONAL_PARTS = new Set(['soil', 'mep', 'substructure']);
 
 /** The parts the analysis model is derived from, by the keys its description records them under. */
@@ -94,6 +97,11 @@ const FEM_SOURCES = ['bim', 'settings', 'objects', 'materials'];
 const BOQ_SOURCES = ['bim', 'objects', 'materials'];
 
 const BOQ_SCHEMA_ID = 'saengine.boq/1';
+
+const SOIL_SCHEMA_ID = 'saengine.soilReport/1';
+
+/** The key a derived analysis model records the soil report's stamp under, when its settings take the site class from it. */
+const FEM_SOIL_SOURCE = 'soil';
 
 type JsonObject = { readonly [key: string]: unknown };
 
@@ -157,7 +165,10 @@ function femStatus(inputs: IPartStatusInputs): IPartStatus {
 	if (!recorded.size) {
 		return status('fem', 'notStarted', localize('partStatus.fem.notDerived', "not derived"), localize('partStatus.fem.derive', "derive the analysis model"));
 	}
-	if (FEM_SOURCES.some(part => changed(inputs.texts, part, recorded.get(part)))) {
+	// The soil report counts as a source only when the model recorded it: the settings take the
+	// site class from it (also while it gives none yet, so boreholes added later count).
+	const soilChanged = recorded.has(FEM_SOIL_SOURCE) && changed(inputs.texts, 'soil', recorded.get(FEM_SOIL_SOURCE));
+	if (soilChanged || FEM_SOURCES.some(part => changed(inputs.texts, part, recorded.get(part)))) {
 		return status('fem', 'stale', STALE(), localize('partStatus.fem.deriveAgain', "derive the analysis model again"));
 	}
 	if (inputs.femResultsTime === undefined) {
@@ -208,6 +219,31 @@ function bimStatus(parts: readonly IProjectPart[], inputs: IPartStatusInputs): I
 	return status('bim', 'done');
 }
 
+/**
+ * Part 1: not started while the soil report is the placeholder of a new project or has no
+ * boreholes; in progress while a borehole has no layers; done with the number of boreholes.
+ */
+function soilStatus(inputs: IPartStatusInputs): IPartStatus {
+	const text = inputs.texts.get('soil');
+	const document = text !== undefined ? parse(text) : undefined;
+	if (text === undefined || (document && isPlaceholder(document, 'soil'))) {
+		return status('soil', 'notStarted', NOT_STARTED(), startHint('soil'));
+	}
+	if (!document || document.schema !== SOIL_SCHEMA_ID) {
+		return status('soil', 'error', localize('partStatus.invalid', "invalid file"), localize('partStatus.fix', "fix the file"));
+	}
+	const boreholes = Array.isArray(document.boreholes) ? document.boreholes : [];
+	if (!boreholes.length) {
+		return status('soil', 'notStarted', NOT_STARTED(), localize('partStatus.soil.addBorehole', "add the boreholes"));
+	}
+	const count = boreholes.length === 1 ? localize('partStatus.soil.oneBorehole', "1 borehole") : localize('partStatus.soil.boreholes', "{0} boreholes", boreholes.length);
+	const logged = (b: unknown) => typeof b === 'object' && b !== null && Array.isArray((b as JsonObject).layers) && ((b as JsonObject).layers as unknown[]).length > 0;
+	if (!boreholes.every(logged)) {
+		return status('soil', 'inProgress', count, localize('partStatus.soil.layers', "enter the layers of every borehole"));
+	}
+	return status('soil', 'done', count);
+}
+
 function exportsStatus(inputs: IPartStatusInputs, formatDate: (time: number) => string): IPartStatus {
 	if (inputs.reportTime === undefined) {
 		const files = inputs.exportFiles ?? 0;
@@ -256,6 +292,7 @@ function defaultFormatDate(time: number): string {
 export function computePartStatuses(parts: readonly IProjectPart[], inputs: IPartStatusInputs, formatDate: (time: number) => string = defaultFormatDate): IPartStatus[] {
 	return parts.map(part => {
 		switch (part.id) {
+			case 'soil': return soilStatus(inputs);
 			case 'fem': return femStatus(inputs);
 			case 'boq': return boqStatus(inputs);
 			case 'bim': return bimStatus(parts, inputs);
