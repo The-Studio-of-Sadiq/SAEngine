@@ -1,0 +1,768 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The substructure editor (substructureEditor.ts) in the shared editor frame (editorFrame.css).
+ * Sizes and colours come from the shared tokens (saengineTokens.css) and the theme. Concrete is
+ * drawn as the canvas tinted with the foreground, piles and caps in the chart blue, rafts in a
+ * calmer tint; the utilisation bands are the shared ok / warn / fail tiers. */
+
+.saengine-substructure-editor {
+	--sub-concrete: color-mix(in srgb, var(--vscode-foreground) 10%, var(--sa-surface));
+	--sub-concrete-edge: color-mix(in srgb, var(--vscode-foreground) 55%, transparent);
+	--sub-raft: color-mix(in srgb, var(--vscode-foreground) 5%, var(--sa-surface));
+	--sub-pile: var(--vscode-charts-blue, #2c6fbe);
+	--sub-cap: color-mix(in srgb, var(--vscode-charts-blue, #2c6fbe) 12%, var(--sa-surface));
+	--sub-column: color-mix(in srgb, var(--vscode-foreground) 72%, var(--sa-surface));
+	--sub-tie: color-mix(in srgb, var(--vscode-foreground) 40%, var(--sa-surface));
+	--sub-grid: color-mix(in srgb, var(--sa-muted) 55%, transparent);
+	--sub-borehole: var(--vscode-charts-orange, #c2620e);
+	--sub-select: var(--sa-accent);
+}
+
+.saengine-substructure-editor .sub-view {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	padding: var(--sa-space-3) var(--sa-space-4) var(--sa-space-6);
+	box-sizing: border-box;
+	outline: none;
+}
+
+.saengine-substructure-editor .sub-view.plan {
+	overflow: hidden;
+}
+
+.saengine-substructure-editor .sub-view-header {
+	display: flex;
+	align-items: baseline;
+	flex-wrap: wrap;
+	gap: var(--sa-space-1) var(--sa-space-3);
+	margin-bottom: var(--sa-space-2);
+}
+
+.saengine-substructure-editor .sub-view-title {
+	font-size: var(--sa-font-l);
+	font-weight: 600;
+}
+
+.saengine-substructure-editor .sub-view-subtitle,
+.saengine-substructure-editor .sub-muted,
+.saengine-substructure-editor .sub-muted-cell {
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+}
+
+/* ── legend ──────────────────────────────────────────────────────────────── */
+
+.saengine-substructure-editor .sub-legend {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--sa-space-1) var(--sa-space-3);
+	margin-bottom: var(--sa-space-2);
+	font-size: var(--sa-font-s);
+	color: var(--sa-muted);
+}
+
+.saengine-substructure-editor .sub-legend-item {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1);
+}
+
+.saengine-substructure-editor .sub-swatch {
+	display: inline-block;
+	width: 12px;
+	height: 10px;
+	box-sizing: border-box;
+	border: 1px solid var(--sub-concrete-edge);
+	background: var(--sub-concrete);
+}
+
+.saengine-substructure-editor .sub-swatch.cap { background: var(--sub-cap); border-color: var(--sub-pile); border-radius: 2px; }
+.saengine-substructure-editor .sub-swatch.raft { background: var(--sub-raft); border-style: dashed; }
+.saengine-substructure-editor .sub-swatch.tie { height: 4px; border: none; background: var(--sub-tie); }
+.saengine-substructure-editor .sub-swatch.column { width: 8px; height: 10px; border: none; background: var(--sub-column); }
+.saengine-substructure-editor .sub-swatch.borehole { width: 10px; height: 10px; border-radius: 50%; border-color: var(--sub-borehole); background: transparent; }
+.saengine-substructure-editor .sub-swatch.band-ok { border: none; background: var(--sa-ok); }
+.saengine-substructure-editor .sub-swatch.band-warn { border: none; background: var(--sa-warn); }
+.saengine-substructure-editor .sub-swatch.band-fail { border: none; background: var(--sa-fail); }
+
+/* ── proposal banner ─────────────────────────────────────────────────────── */
+
+.saengine-substructure-editor .sub-banner {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-3);
+	max-width: 880px;
+	margin: 0 0 var(--sa-space-2);
+	padding: var(--sa-space-2) var(--sa-space-3);
+	border-left: 2px solid var(--sa-accent);
+	background: color-mix(in srgb, var(--sa-accent) 8%, transparent);
+	font-size: var(--sa-font-s);
+}
+
+.saengine-substructure-editor .sub-banner-icon {
+	flex: none;
+	color: var(--sa-accent);
+}
+
+.saengine-substructure-editor .sub-banner-text {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.saengine-substructure-editor .sub-banner-title {
+	font-weight: 600;
+}
+
+.saengine-substructure-editor .sub-banner-detail {
+	color: var(--sa-muted);
+}
+
+.saengine-substructure-editor .sub-banner .monaco-button {
+	flex: none;
+	width: auto;
+	padding: 2px 12px;
+}
+
+/* ── plan (substructurePlan.ts) ──────────────────────────────────────────── */
+
+.saengine-substructure-editor .sub-canvas svg {
+	display: block;
+	user-select: none;
+}
+
+.saengine-substructure-editor .sub-grid-line {
+	stroke: var(--sub-grid);
+	stroke-width: 1;
+	stroke-dasharray: 12 3 2 3;
+}
+
+.saengine-substructure-editor .sub-grid-bubble {
+	fill: var(--sa-surface);
+	stroke: var(--sub-grid);
+}
+
+.saengine-substructure-editor .sub-grid-label {
+	font-size: 11px;
+	font-weight: 600;
+	fill: var(--sa-muted);
+}
+
+.saengine-substructure-editor .sub-wall {
+	stroke: color-mix(in srgb, var(--vscode-foreground) 25%, transparent);
+	stroke-linecap: butt;
+}
+
+.saengine-substructure-editor .sub-foundation {
+	cursor: pointer;
+	outline: none;
+}
+
+.saengine-substructure-editor .sub-foundation-shape {
+	fill: var(--sub-concrete);
+	stroke: var(--sub-concrete-edge);
+	stroke-width: 1;
+}
+
+.saengine-substructure-editor .sub-foundation.type-pileCap .sub-foundation-shape {
+	fill: var(--sub-cap);
+}
+
+.saengine-substructure-editor .sub-foundation.type-raft .sub-foundation-shape {
+	fill: var(--sub-raft);
+	stroke-dasharray: 6 3;
+}
+
+.saengine-substructure-editor .sub-foundation.band-ok .sub-foundation-shape { fill: color-mix(in srgb, var(--sa-ok) 16%, var(--sa-surface)); stroke: var(--sa-ok); }
+.saengine-substructure-editor .sub-foundation.band-warn .sub-foundation-shape { fill: color-mix(in srgb, var(--sa-warn) 18%, var(--sa-surface)); stroke: var(--sa-warn); }
+.saengine-substructure-editor .sub-foundation.band-fail .sub-foundation-shape { fill: color-mix(in srgb, var(--sa-fail) 18%, var(--sa-surface)); stroke: var(--sa-fail); }
+
+.saengine-substructure-editor .sub-foundation:hover .sub-foundation-shape {
+	stroke: var(--sub-select);
+}
+
+.saengine-substructure-editor .sub-foundation.selected .sub-foundation-shape {
+	stroke: var(--sub-select);
+	stroke-width: 2;
+}
+
+.saengine-substructure-editor .sub-strip-axis {
+	fill: none;
+	stroke: var(--sub-concrete-edge);
+	stroke-dasharray: 8 4;
+}
+
+.saengine-substructure-editor .sub-pile {
+	fill: color-mix(in srgb, var(--sub-pile) 22%, var(--sa-surface));
+	stroke: var(--sub-pile);
+	stroke-width: 1.25;
+}
+
+.saengine-substructure-editor .sub-foundation-label {
+	font-size: 11px;
+	font-weight: 600;
+	fill: var(--vscode-foreground);
+	pointer-events: none;
+}
+
+.saengine-substructure-editor .sub-proposal {
+	fill: color-mix(in srgb, var(--sa-accent) 6%, transparent);
+	stroke: var(--sa-accent);
+	stroke-width: 1.5;
+	stroke-dasharray: 5 3;
+	pointer-events: none;
+}
+
+.saengine-substructure-editor .sub-tie {
+	cursor: pointer;
+}
+
+.saengine-substructure-editor .sub-tie-line {
+	stroke: var(--sub-tie);
+	stroke-linecap: butt;
+	pointer-events: none;
+}
+
+.saengine-substructure-editor .sub-tie-hit {
+	stroke: transparent;
+	stroke-width: 12;
+}
+
+.saengine-substructure-editor .sub-tie:hover .sub-tie-line,
+.saengine-substructure-editor .sub-tie.selected .sub-tie-line {
+	stroke: var(--sub-select);
+}
+
+.saengine-substructure-editor .sub-tie-label {
+	font-size: 10px;
+	fill: var(--sa-muted);
+	pointer-events: none;
+}
+
+.saengine-substructure-editor .sub-column {
+	cursor: pointer;
+}
+
+.saengine-substructure-editor .sub-column-shape {
+	fill: var(--sub-column);
+	stroke: var(--sub-column);
+	stroke-width: 1;
+}
+
+.saengine-substructure-editor .sub-column:hover .sub-column-shape {
+	stroke: var(--sub-select);
+	stroke-width: 2;
+}
+
+.saengine-substructure-editor .sub-column.selected .sub-column-shape {
+	fill: var(--sub-select);
+	stroke: var(--sub-select);
+	stroke-width: 3;
+}
+
+.saengine-substructure-editor .sub-column-label {
+	font-size: 10px;
+	fill: var(--sa-muted);
+	pointer-events: none;
+}
+
+.saengine-substructure-editor .sub-column.selected .sub-column-label {
+	fill: var(--sub-select);
+	font-weight: 600;
+}
+
+/* A borehole marker is drawn over the columns: clicks go through it to the column under it. */
+.saengine-substructure-editor .sub-borehole {
+	pointer-events: none;
+}
+
+.saengine-substructure-editor .sub-borehole-mark {
+	fill: none;
+	stroke: var(--sub-borehole);
+	stroke-width: 1.5;
+}
+
+.saengine-substructure-editor .sub-borehole-cross {
+	stroke: var(--sub-borehole);
+	stroke-width: 1;
+}
+
+.saengine-substructure-editor .sub-borehole-label {
+	font-size: 10px;
+	fill: var(--sub-borehole);
+}
+
+.saengine-substructure-editor .sub-scale {
+	fill: none;
+	stroke: var(--sa-muted);
+}
+
+.saengine-substructure-editor .sub-scale-label {
+	font-size: 10px;
+	fill: var(--sa-muted);
+}
+
+/* ── tables ──────────────────────────────────────────────────────────────── */
+
+.saengine-substructure-editor .sub-section {
+	margin-top: var(--sa-space-4);
+}
+
+.saengine-substructure-editor .sub-section.result {
+	margin-top: var(--sa-space-6);
+}
+
+.saengine-substructure-editor .sub-section-heading {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2);
+	margin-bottom: var(--sa-space-2);
+}
+
+.saengine-substructure-editor .sub-section-title {
+	font-weight: 600;
+}
+
+.saengine-substructure-editor .sub-section-detail {
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+}
+
+.saengine-substructure-editor .sub-section-count {
+	min-width: 16px;
+	padding: 0 5px;
+	border-radius: 999px;
+	font-size: 11px;
+	line-height: 16px;
+	text-align: center;
+	color: var(--vscode-badge-foreground);
+	background: var(--vscode-badge-background);
+}
+
+.saengine-substructure-editor .sub-subheading {
+	margin: var(--sa-space-4) 0 var(--sa-space-2);
+	font-weight: 600;
+	font-size: var(--sa-font-s);
+}
+
+.saengine-substructure-editor .sub-add {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1);
+	margin-left: auto;
+	padding: 2px var(--sa-space-2);
+	border: none;
+	border-radius: var(--sa-radius);
+	background: transparent;
+	color: var(--vscode-textLink-foreground);
+	font-family: inherit;
+	font-size: var(--sa-font-s);
+	cursor: pointer;
+}
+
+.saengine-substructure-editor .sub-add:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.saengine-substructure-editor .sub-table-scroll {
+	overflow-x: auto;
+}
+
+.saengine-substructure-editor .sub-table {
+	border-collapse: collapse;
+	table-layout: fixed;
+	font-size: var(--sa-font-s);
+}
+
+.saengine-substructure-editor .sub-result-table {
+	table-layout: auto;
+	min-width: 360px;
+}
+
+.saengine-substructure-editor .sub-table th {
+	padding: 4px 6px;
+	text-align: left;
+	font-weight: 600;
+	color: var(--sa-muted);
+	border-bottom: 1px solid var(--sa-border);
+	white-space: nowrap;
+	vertical-align: bottom;
+}
+
+.saengine-substructure-editor .sub-table th.number,
+.saengine-substructure-editor .sub-table td.number {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-substructure-editor .sub-unit {
+	display: block;
+	font-weight: 400;
+	font-size: 11px;
+}
+
+.saengine-substructure-editor .sub-table td {
+	padding: 2px 6px;
+	border-bottom: 1px solid color-mix(in srgb, var(--sa-border) 50%, transparent);
+	white-space: nowrap;
+}
+
+.saengine-substructure-editor .sub-result-table td {
+	padding: 4px 6px;
+}
+
+.saengine-substructure-editor .sub-table td:has(> .sub-input),
+.saengine-substructure-editor .sub-table td:has(> .sub-select) {
+	padding: 1px 2px;
+}
+
+.saengine-substructure-editor .sub-table td.sub-wrap {
+	white-space: normal;
+	min-width: 200px;
+	color: var(--sa-muted);
+}
+
+.saengine-substructure-editor .sub-table td.sub-muted {
+	padding: var(--sa-space-2) 6px;
+}
+
+.saengine-substructure-editor tr.sub-row {
+	cursor: pointer;
+}
+
+.saengine-substructure-editor tr.sub-row:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.saengine-substructure-editor tr.sub-row.selected {
+	background: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.saengine-substructure-editor .sub-input,
+.saengine-substructure-editor .sub-select {
+	width: 100%;
+	height: 24px;
+	box-sizing: border-box;
+	padding: 0 5px;
+	border: 1px solid transparent;
+	border-radius: 2px;
+	background: transparent;
+	color: var(--vscode-input-foreground, var(--vscode-foreground));
+	font-family: inherit;
+	font-size: var(--sa-font-s);
+	outline: none;
+}
+
+.saengine-substructure-editor .sub-input.number {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-substructure-editor .sub-input:hover,
+.saengine-substructure-editor .sub-select:hover {
+	border-color: var(--vscode-input-border, var(--sa-border));
+}
+
+.saengine-substructure-editor .sub-input:focus,
+.saengine-substructure-editor .sub-select:focus {
+	border-color: var(--vscode-focusBorder);
+	background: var(--vscode-input-background);
+}
+
+.saengine-substructure-editor .sub-select {
+	cursor: pointer;
+}
+
+.saengine-substructure-editor .sub-select option {
+	background: var(--vscode-dropdown-background);
+	color: var(--vscode-dropdown-foreground);
+}
+
+.saengine-substructure-editor .sub-input.warning,
+.saengine-substructure-editor .sub-select.warning {
+	border-color: var(--sa-warn);
+}
+
+.saengine-substructure-editor .sub-input.invalid {
+	border-color: var(--sa-fail);
+	background: color-mix(in srgb, var(--sa-fail) 8%, transparent);
+}
+
+.saengine-substructure-editor .sub-row-actions {
+	text-align: center;
+}
+
+.saengine-substructure-editor .sub-remove {
+	display: inline-flex;
+	padding: 3px;
+	border: none;
+	border-radius: var(--sa-radius);
+	background: transparent;
+	color: var(--sa-muted);
+	cursor: pointer;
+	visibility: hidden;
+}
+
+.saengine-substructure-editor tr:hover .sub-remove,
+.saengine-substructure-editor .sub-remove:focus-visible {
+	visibility: visible;
+}
+
+.saengine-substructure-editor .sub-remove:hover {
+	color: var(--vscode-foreground);
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+/* utilisation: a short bar and the value, in the shared bands */
+.saengine-substructure-editor .sub-util-cell {
+	white-space: nowrap;
+}
+
+.saengine-substructure-editor .sub-util-bar {
+	display: inline-block;
+	width: 48px;
+	height: 6px;
+	margin-right: var(--sa-space-2);
+	border-radius: 3px;
+	background: color-mix(in srgb, var(--sa-muted) 18%, transparent);
+	vertical-align: middle;
+	overflow: hidden;
+}
+
+.saengine-substructure-editor .sub-util-fill {
+	display: block;
+	height: 100%;
+	background: var(--sa-ok);
+}
+
+.saengine-substructure-editor .sub-util-fill.band-warn { background: var(--sa-warn); }
+.saengine-substructure-editor .sub-util-fill.band-fail { background: var(--sa-fail); }
+
+.saengine-substructure-editor .sub-util-value {
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-substructure-editor .band-warn.sub-util-value,
+.saengine-substructure-editor .sub-tile-value.band-warn { color: var(--sa-warn); }
+
+.saengine-substructure-editor .band-fail.sub-util-value,
+.saengine-substructure-editor .sub-tile-value.band-fail {
+	color: var(--sa-fail);
+	font-weight: 600;
+}
+
+.saengine-substructure-editor .sub-tile-value.band-ok { color: var(--sa-ok); }
+
+.saengine-substructure-editor tr.failed td:first-child {
+	box-shadow: inset 2px 0 0 var(--sa-fail);
+}
+
+.saengine-substructure-editor .sub-note.warning {
+	color: var(--sa-warn);
+}
+
+.saengine-substructure-editor tr.flag td {
+	color: var(--sa-muted);
+}
+
+/* ── results ─────────────────────────────────────────────────────────────── */
+
+.saengine-substructure-editor .sub-results-state {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--sa-space-2);
+	max-width: 460px;
+	margin: 12vh auto 0;
+	text-align: center;
+}
+
+.saengine-substructure-editor .sub-results-state-icon {
+	font-size: 24px;
+	color: var(--sa-muted);
+}
+
+.saengine-substructure-editor .sub-results-state-title {
+	font-size: var(--sa-font-l);
+	font-weight: 600;
+}
+
+.saengine-substructure-editor .sub-results-state-text {
+	color: var(--sa-muted);
+	line-height: 1.5;
+}
+
+.saengine-substructure-editor .sub-tiles {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--sa-space-3);
+	margin-top: var(--sa-space-3);
+}
+
+.saengine-substructure-editor .sub-tile {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 120px;
+	padding: var(--sa-space-2) var(--sa-space-3);
+	border: 1px solid var(--sa-border);
+	border-radius: var(--sa-radius);
+	background: var(--sa-surface-alt);
+}
+
+.saengine-substructure-editor .sub-tile-value {
+	font-size: var(--sa-font-xl);
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-substructure-editor .sub-tile-label {
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+}
+
+.saengine-substructure-editor .sub-note {
+	margin: var(--sa-space-2) 0 0;
+	max-width: 720px;
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+	line-height: 1.5;
+}
+
+.saengine-substructure-editor .sub-basis {
+	display: grid;
+	grid-template-columns: max-content minmax(0, 1fr);
+	gap: var(--sa-space-1) var(--sa-space-4);
+	margin: 0 0 var(--sa-space-3);
+	max-width: 520px;
+	font-size: var(--sa-font-s);
+}
+
+.saengine-substructure-editor .sub-basis dt {
+	color: var(--sa-muted);
+}
+
+.saengine-substructure-editor .sub-basis dd {
+	margin: 0;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-substructure-editor .sub-heat-switch {
+	margin-bottom: var(--sa-space-2);
+}
+
+.saengine-substructure-editor .sub-heat-chart svg {
+	display: block;
+}
+
+.saengine-substructure-editor .sub-heat-outline {
+	fill: none;
+	stroke: var(--sub-concrete-edge);
+}
+
+.saengine-substructure-editor .sub-heat-column {
+	fill: var(--sub-column);
+}
+
+/* a sequential ramp from the chart blue (low) to the chart red (high) */
+.saengine-substructure-editor .sub-heat-0 { --sub-heat: color-mix(in srgb, var(--vscode-charts-blue, #2c6fbe) 30%, var(--sa-surface)); }
+.saengine-substructure-editor .sub-heat-1 { --sub-heat: color-mix(in srgb, var(--vscode-charts-blue, #2c6fbe) 55%, var(--sa-surface)); }
+.saengine-substructure-editor .sub-heat-2 { --sub-heat: color-mix(in srgb, var(--vscode-charts-blue, #2c6fbe) 80%, var(--sa-surface)); }
+.saengine-substructure-editor .sub-heat-3 { --sub-heat: color-mix(in srgb, var(--vscode-charts-green, #2e8540) 70%, var(--sa-surface)); }
+.saengine-substructure-editor .sub-heat-4 { --sub-heat: color-mix(in srgb, var(--vscode-charts-yellow, #b89500) 70%, var(--sa-surface)); }
+.saengine-substructure-editor .sub-heat-5 { --sub-heat: color-mix(in srgb, var(--vscode-charts-orange, #c2620e) 70%, var(--sa-surface)); }
+.saengine-substructure-editor .sub-heat-6 { --sub-heat: color-mix(in srgb, var(--vscode-charts-red, #c62f2f) 75%, var(--sa-surface)); }
+.saengine-substructure-editor .sub-heat-7 { --sub-heat: var(--vscode-charts-red, #c62f2f); }
+
+.saengine-substructure-editor rect.sub-heat-cell {
+	fill: var(--sub-heat);
+}
+
+.saengine-substructure-editor .sub-heat-scale {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2);
+	margin-top: var(--sa-space-2);
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-substructure-editor .sub-heat-ramp {
+	display: inline-flex;
+	height: 8px;
+}
+
+.saengine-substructure-editor .sub-heat-ramp > span {
+	width: 18px;
+	background: var(--sub-heat);
+}
+
+/* ── properties panel ────────────────────────────────────────────────────── */
+
+.saengine-substructure-editor .sub-prop-row {
+	align-items: center;
+}
+
+.saengine-substructure-editor .sub-prop-row > .value {
+	flex: 0 0 56%;
+}
+
+.saengine-substructure-editor .sub-prop-control {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-1);
+}
+
+.saengine-substructure-editor .sub-prop-control .sub-input,
+.saengine-substructure-editor .sub-prop-control .sub-select {
+	border-color: var(--vscode-input-border, var(--sa-border));
+	background: var(--vscode-input-background);
+}
+
+.saengine-substructure-editor .sub-prop-unit {
+	flex: none;
+	max-width: 40%;
+	color: var(--sa-muted);
+	font-size: 11px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.saengine-substructure-editor .sa-props-note.error {
+	color: var(--sa-fail);
+}
+
+.saengine-substructure-editor .sa-props-note.warning {
+	color: var(--sa-warn);
+}
+
+.saengine-substructure-editor ::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+
+.saengine-substructure-editor ::-webkit-scrollbar-track,
+.saengine-substructure-editor ::-webkit-scrollbar-corner {
+	background: transparent;
+}
+
+.saengine-substructure-editor ::-webkit-scrollbar-thumb {
+	background: var(--vscode-scrollbarSlider-background);
+}
+
+.saengine-substructure-editor ::-webkit-scrollbar-thumb:hover {
+	background: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.saengine-substructure-editor .sub-borehole.off-plan {
+	opacity: 0.7;
+}

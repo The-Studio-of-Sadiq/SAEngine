@@ -259,18 +259,7 @@
 			]
 		}
 	],
-	"footings": [
-		{
-			"id": "F1",
-			"type": "F2015",
-			"story": "BASE",
-			"at": {
-				"x": "A",
-				"y": "1"
-			},
-			"rotation": 0
-		}
-	],
+	"footings": [],
 	"underlays": [
 		{
 			"story": "L1",

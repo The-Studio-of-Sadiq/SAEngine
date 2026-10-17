@@ -7712,3 +7712,732 @@ export const DEFAULT_SOIL: object = {
 		subgradeDepth: 1500.0,
 	},
 };
+
+export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
+	$defs: {
+		BarGroup: {
+			additionalProperties: false,
+			description: 'Longitudinal bars of a linear member.',
+			properties: {
+				position: {
+					description: 'top/bottom/sides for beams, perimeter for columns and piles.',
+					enum: ['top', 'bottom', 'sides', 'perimeter'],
+					title: 'Position',
+					type: 'string',
+				},
+				count: {
+					exclusiveMinimum: 0,
+					title: 'Number of bars',
+					type: 'integer',
+				},
+				dia: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Bar diameter',
+					type: 'number',
+				},
+			},
+			required: ['position', 'count', 'dia'],
+			title: 'BarGroup',
+			type: 'object',
+		},
+		BarMesh: {
+			additionalProperties: false,
+			description: 'One layer of bars in one direction of a planar member.',
+			properties: {
+				dia: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Bar diameter',
+					type: 'number',
+				},
+				spacing: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Spacing',
+					type: 'number',
+				},
+			},
+			required: ['dia', 'spacing'],
+			title: 'BarMesh',
+			type: 'object',
+		},
+		Design: {
+			additionalProperties: false,
+			description: 'Design choices of the substructure.',
+			properties: {
+				pileCapacity: {
+					default: 'soilReport',
+					description: 'From the soil report\'s per-layer skin friction and end bearing (Part 1), or from the SPT N values by BNBC 2020 Eqs 6.3.29 and 6.3.31-32.',
+					enum: ['soilReport', 'bnbcSpt'],
+					enumDescriptions: ['Soil report (per layer)', 'BNBC 2020 SPT equations'],
+					title: 'Pile capacity',
+					type: 'string',
+				},
+				factorOfSafety: {
+					$ref: '#/$defs/FactorOfSafety',
+					title: 'Factor of safety',
+				},
+				raftMeshSize: {
+					default: 500,
+					description: '[mm]',
+					maximum: 5000,
+					minimum: 100,
+					title: 'Raft mesh size',
+					type: 'number',
+				},
+				springsFrom: {
+					anyOf: [
+						{
+							const: 'soilReport',
+							type: 'string',
+						},
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+					],
+					default: 'soilReport',
+					description: 'Modulus of subgrade reaction of rafts: from the soil report, or a value [kN/m³].',
+					title: 'Subgrade springs',
+				},
+			},
+			title: 'Design',
+			type: 'object',
+		},
+		FactorOfSafety: {
+			additionalProperties: false,
+			description: 'Factors of safety of the geotechnical capacities.',
+			properties: {
+				pileCompression: {
+					default: 2.5,
+					description: 'Overall factor of safety on the ultimate compression capacity of a pile: BNBC 2020 Table 6.3.10a gives 2.5 for permanent structures with normal control (2.0 good, 2.8 poor, 3.0 very poor); Sec 3.10.1.18 asks at least 3.0 without a load test at the site (Sec 3.10.4.10: bored piles too), so the design raises a smaller value to 3.0 unless a load test is given.',
+					maximum: 10,
+					minimum: 1,
+					title: 'Pile compression',
+					type: 'number',
+				},
+				pileLoadTest: {
+					default: false,
+					description: 'BNBC 2020 Sec 3.10.1.18: without a load test at the site the overall factor of safety in compression is at least 3.0 (2.0 with one, with good quality control); Sec 3.10.4.10 for bored piles.',
+					title: 'Pile load test at the site',
+					type: 'boolean',
+				},
+				pileUplift: {
+					default: 2.5,
+					description: 'Overall factor of safety on the ultimate uplift capacity (BNBC 2020 Table 6.3.10a: downward and upward load).',
+					maximum: 10,
+					minimum: 1,
+					title: 'Pile uplift',
+					type: 'number',
+				},
+				pileSkin: {
+					default: 1.5,
+					description: 'Partial factor of safety on the skin friction; the allowable load is the lesser of the overall and the partial ones (BNBC 2020 Sec 3.10.1.18: 1.5).',
+					maximum: 10,
+					minimum: 1,
+					title: 'Pile skin friction (partial)',
+					type: 'number',
+				},
+				pileEndBearing: {
+					default: 3.0,
+					description: 'Partial factor of safety on the end bearing (BNBC 2020 Sec 3.10.1.18: 3.0).',
+					maximum: 10,
+					minimum: 1,
+					title: 'Pile end bearing (partial)',
+					type: 'number',
+				},
+				bearing: {
+					anyOf: [
+						{
+							maximum: 10,
+							minimum: 1,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Factor of safety on the bearing capacity of footings and rafts; empty: the soil report\'s.',
+					title: 'Bearing',
+				},
+			},
+			title: 'FactorOfSafety',
+			type: 'object',
+		},
+		Foundation: {
+			additionalProperties: false,
+			description: 'One foundation: a footing, a pile cap or a raft, with the columns (and walls) it\ncarries.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					description: 'Isolated footing (one column), combined footing (several columns on one rectangle), strip footing (under walls or a column line, along a path), pile cap on piles, or raft (a slab on the soil under many columns).',
+					enum: ['isolated', 'combined', 'strip', 'pileCap', 'raft'],
+					enumDescriptions: ['Isolated footing', 'Combined footing', 'Strip footing', 'Pile cap', 'Raft'],
+					title: 'Type',
+					type: 'string',
+				},
+				columns: {
+					description: 'Building-model ids of the columns it carries (a strip footing: the walls and columns on its path). A raft without any carries every column base inside its outline.',
+					items: {
+						maxLength: 64,
+						minLength: 1,
+						pattern: '^[A-Za-z0-9._-]+$',
+						type: 'string',
+					},
+					title: 'Columns',
+					type: 'array',
+				},
+				center: {
+					anyOf: [
+						{
+							description: '[x, y] in mm.',
+							items: {
+								type: 'number',
+							},
+							maxItems: 2,
+							minItems: 2,
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Plan position of the centre [x, y] mm (isolated and combined footings, pile caps); empty: the centroid of its columns.',
+					title: 'Center',
+				},
+				rotation: {
+					default: 0,
+					description: 'Of its local x axis from the global X [°].',
+					title: 'Rotation',
+					type: 'number',
+				},
+				length: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Along its local x [mm].',
+					title: 'Length',
+				},
+				width: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Along its local y; a strip footing: across its path [mm].',
+					title: 'Width',
+				},
+				thickness: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[mm]',
+					title: 'Thickness',
+				},
+				path: {
+					anyOf: [
+						{
+							items: {
+								description: '[x, y] in mm.',
+								items: {
+									type: 'number',
+								},
+								maxItems: 2,
+								minItems: 2,
+								type: 'array',
+							},
+							minItems: 2,
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Centre line of a strip footing [[x, y], ...] mm.',
+					title: 'Path',
+				},
+				outline: {
+					anyOf: [
+						{
+							items: {
+								description: '[x, y] in mm.',
+								items: {
+									type: 'number',
+								},
+								maxItems: 2,
+								minItems: 2,
+								type: 'array',
+							},
+							minItems: 3,
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Plan outline of a raft [[x, y], ...] mm.',
+					title: 'Outline',
+				},
+				foundingLevel: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Level of the underside, project datum [mm]; empty: 1.5 m below the finished ground of Project Settings → Foundation.',
+					title: 'Founding level',
+				},
+				allowableBearing: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Net allowable bearing pressure of this foundation [kPa], instead of the soil report\'s at its position, founding level and size (and of the project\'s override).',
+					title: 'Allowable bearing override qa',
+				},
+				material: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Concrete material id (03 Materials).',
+					title: 'Material',
+				},
+				reinforcement: {
+					anyOf: [
+						{
+							$ref: '#/$defs/PlanarReinforcement',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Reinforcement',
+				},
+				pileType: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Pile caps.',
+					title: 'Pile type',
+				},
+				piles: {
+					anyOf: [
+						{
+							items: {
+								description: '[x, y] in mm.',
+								items: {
+									type: 'number',
+								},
+								maxItems: 2,
+								minItems: 2,
+								type: 'array',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Pile positions [[dx, dy], ...] mm from the cap\'s centre, in its local axes.',
+					title: 'Piles',
+				},
+				note: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Note',
+				},
+			},
+			required: ['id', 'type'],
+			title: 'Foundation',
+			type: 'object',
+		},
+		LinearReinforcement: {
+			additionalProperties: false,
+			properties: {
+				material: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Material',
+					type: 'string',
+				},
+				cover: {
+					description: 'Clear cover to the transverse bars [mm].',
+					exclusiveMinimum: 0,
+					title: 'Cover',
+					type: 'number',
+				},
+				longitudinal: {
+					items: {
+						$ref: '#/$defs/BarGroup',
+					},
+					title: 'Longitudinal',
+					type: 'array',
+				},
+				transverse: {
+					anyOf: [
+						{
+							$ref: '#/$defs/Transverse',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Transverse',
+				},
+			},
+			required: ['material', 'cover'],
+			title: 'LinearReinforcement',
+			type: 'object',
+		},
+		PileType: {
+			additionalProperties: false,
+			description: 'A pile: kind, size and reinforcement.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				kind: {
+					default: 'bored',
+					description: 'Bored cast-in-situ or driven precast.',
+					enum: ['bored', 'driven'],
+					enumDescriptions: ['Bored (cast in situ)', 'Driven (precast)'],
+					title: 'Kind',
+					type: 'string',
+				},
+				diameter: {
+					description: 'Diameter (driven square piles: the side) [mm].',
+					exclusiveMinimum: 0,
+					title: 'Diameter',
+					type: 'number',
+				},
+				length: {
+					description: 'Below the underside of the cap [mm].',
+					exclusiveMinimum: 0,
+					title: 'Length',
+					type: 'number',
+				},
+				material: {
+					description: 'Concrete material id (03 Materials).',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Material',
+					type: 'string',
+				},
+				reinforcement: {
+					anyOf: [
+						{
+							$ref: '#/$defs/LinearReinforcement',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Reinforcement',
+				},
+			},
+			required: ['id', 'diameter', 'length', 'material'],
+			title: 'PileType',
+			type: 'object',
+		},
+		PlanarReinforcement: {
+			additionalProperties: false,
+			description: 'Bottom/top layers in the member\'s local x and y (slabs, footings, pile caps).',
+			properties: {
+				material: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Material',
+					type: 'string',
+				},
+				cover: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Cover',
+					type: 'number',
+				},
+				bottomX: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BarMesh',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Bottom layer, X',
+				},
+				bottomY: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BarMesh',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Bottom layer, Y',
+				},
+				topX: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BarMesh',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Top layer, X',
+				},
+				topY: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BarMesh',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Top layer, Y',
+				},
+			},
+			required: ['material', 'cover'],
+			title: 'PlanarReinforcement',
+			type: 'object',
+		},
+		TieBeam: {
+			additionalProperties: false,
+			description: 'A tie (grade) beam between two foundations.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				from: {
+					description: 'Foundation id.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'From',
+					type: 'string',
+				},
+				to: {
+					description: 'Foundation id.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'To',
+					type: 'string',
+				},
+				type: {
+					description: 'Beam object type id (04 Objects): profile and bars.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Type',
+					type: 'string',
+				},
+				level: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Level of its top, project datum [mm]; empty: the top of the lower of the two foundations.',
+					title: 'Level',
+				},
+				settlement: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Settlement of one end relative to the other the tie beam is designed for [mm]; empty: none.',
+					title: 'Differential settlement',
+				},
+			},
+			required: ['id', 'from', 'to', 'type'],
+			title: 'TieBeam',
+			type: 'object',
+		},
+		Transverse: {
+			additionalProperties: false,
+			properties: {
+				type: {
+					enum: ['stirrup', 'tie', 'spiral'],
+					title: 'Type',
+					type: 'string',
+				},
+				dia: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Bar diameter',
+					type: 'number',
+				},
+				spacing: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Spacing',
+					type: 'number',
+				},
+				legs: {
+					default: 2,
+					minimum: 1,
+					title: 'Legs',
+					type: 'integer',
+				},
+			},
+			required: ['type', 'dia', 'spacing'],
+			title: 'Transverse',
+			type: 'object',
+		},
+	},
+	additionalProperties: false,
+	properties: {
+		schema: {
+			const: 'saengine.substructure/1',
+			default: 'saengine.substructure/1',
+			title: 'Schema_',
+			type: 'string',
+		},
+		foundations: {
+			items: {
+				$ref: '#/$defs/Foundation',
+			},
+			title: 'Foundations',
+			type: 'array',
+		},
+		pileTypes: {
+			items: {
+				$ref: '#/$defs/PileType',
+			},
+			title: 'Pile types',
+			type: 'array',
+		},
+		tieBeams: {
+			items: {
+				$ref: '#/$defs/TieBeam',
+			},
+			title: 'Tie beams',
+			type: 'array',
+		},
+		design: {
+			$ref: '#/$defs/Design',
+		},
+	},
+	title: 'SAEngine substructure',
+	type: 'object',
+};
+
+export const DEFAULT_SUBSTRUCTURE: object = {
+	schema: 'saengine.substructure/1',
+	foundations: [],
+	pileTypes: [],
+	tieBeams: [],
+	design: {
+		pileCapacity: 'soilReport',
+		factorOfSafety: {
+			pileCompression: 2.5,
+			pileLoadTest: false,
+			pileUplift: 2.5,
+			pileSkin: 1.5,
+			pileEndBearing: 3.0,
+		},
+		raftMeshSize: 500.0,
+		springsFrom: 'soilReport',
+	},
+};

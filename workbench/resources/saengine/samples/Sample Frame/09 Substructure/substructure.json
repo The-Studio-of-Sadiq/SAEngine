@@ -1,4 +1,49 @@
 {
-	"schema": 1,
-	"part": "substructure"
+	"schema": "saengine.substructure/1",
+	"foundations": [
+		{
+			"id": "F1",
+			"type": "isolated",
+			"columns": [
+				"C1"
+			],
+			"center": [
+				0,
+				0
+			],
+			"rotation": 0,
+			"length": 2000,
+			"width": 1500,
+			"thickness": 500,
+			"foundingLevel": -500,
+			"material": "C20.7",
+			"reinforcement": {
+				"material": "B420DWR",
+				"cover": 75,
+				"bottomX": {
+					"dia": 12,
+					"spacing": 150
+				},
+				"bottomY": {
+					"dia": 12,
+					"spacing": 150
+				}
+			},
+			"note": "From the footing F1 (Footing 2000x1500) of 6 BIM."
+		}
+	],
+	"pileTypes": [],
+	"tieBeams": [],
+	"design": {
+		"pileCapacity": "soilReport",
+		"factorOfSafety": {
+			"pileCompression": 2.5,
+			"pileLoadTest": false,
+			"pileUplift": 2.5,
+			"pileSkin": 1.5,
+			"pileEndBearing": 3
+		},
+		"raftMeshSize": 500,
+		"springsFrom": "soilReport"
+	}
 }

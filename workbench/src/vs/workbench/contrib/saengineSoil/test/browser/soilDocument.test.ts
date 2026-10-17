@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { bearingSummary, BOREHOLE_FIELDS, checkSoilReport, choiceLabel, choiceTitle, DESIGN_CHOICES, hasLiquefiable, IBorehole, ISoilReport, LAYER_FIELDS, newBorehole, newSoilReport, nextBoreholeId, parseField, parseSoilReport, PRACTICE_CHOICE, readSoilResults, resultsBasis, siteFlagsOf, SPT_FIELDS, soilSummary } from '../../browser/soilDocument.js';
+import { bearingSummary, BOREHOLE_FIELDS, checkSoilReport, choiceLabel, choiceTitle, DESIGN_CHOICES, hasLiquefiable, IBorehole, ISoilReport, LAYER_FIELDS, newBorehole, newSoilReport, nextBoreholeId, parseField, parseSoilReport, PRACTICE_CHOICE, readSoilResults, resultsBasis, siltNeedsPlasticity, siteFlagsOf, SPT_FIELDS, soilSummary } from '../../browser/soilDocument.js';
 import { SOIL_BACKEND_OUTPUT } from './soilBackendOutput.js';
 import { appendSoilPatterns, niceStep, renderBoreholeLog, renderFence, renderLiquefactionChart } from '../../browser/soilLog.js';
 
@@ -204,6 +204,24 @@ suite('SAEngine - Soil report', () => {
 			added: ['BH-2', 10000, 1],
 			summaries: ['no boreholes', '1 borehole', '2 boreholes'],
 		});
+	});
+
+	test('asks whether a silt with no PI or cu is plastic, as the backend treats it', () => {
+		const hole = borehole('BH-1', {
+			layers: [
+				{ top: 0, bottom: 3000, description: '', soilType: 'silt' },
+				{ top: 3000, bottom: 6000, description: '', soilType: 'silt', plasticityIndex: 12 },
+				{ top: 6000, bottom: 9000, description: '', soilType: 'silt', cu: 0 },
+				{ top: 9000, bottom: 12000, description: '', soilType: 'silt' },
+				{ top: 12000, bottom: 15000, description: '', soilType: 'silt' },
+				{ top: 15000, bottom: 18000, description: '', soilType: 'sand' },
+				{ top: 18000, bottom: 21000, description: '', soilType: 'silt' },
+			],
+			// cu in the fourth layer; only LL in the fifth (no PI without PL); LL and PL below the
+			// last layer's top count for it.
+			samples: [{ depth: 10000, cu: 30 }, { depth: 12000, liquidLimit: 30 }, { depth: 22000, liquidLimit: 30, plasticLimit: 24 }],
+		});
+		assert.deepStrictEqual(hole.layers.map(layer => siltNeedsPlasticity(hole, layer)), [true, false, false, false, true, false, false]);
 	});
 
 	test('draws the log, the fence and the liquefaction chart', () => {

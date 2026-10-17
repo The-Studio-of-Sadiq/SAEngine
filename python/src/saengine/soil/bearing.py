@@ -57,12 +57,21 @@ loads (gross pressure minus the total overburden at the founding level, as
     value is given for every footing with SPT rows under it (``meyerhofBowles``) to compare
     with a consultant's table.
 
-    When a cohesive layer lies within the zone the footing stresses (down to where the 2:1
-    stress increase falls below 10 % of σ'v0) under the trial pressure, the larger of the shear
-    and the Meyerhof-Bowles values (the zone under any lower qa lies inside it), the pressure
-    whose computed settlement
-    (:mod:`saengine.soil.settlement`: immediate plus consolidation) equals the allowable
-    settlement is found by bisection, and the lower of the two is used.
+    The settlement of a clay is checked at the pressure actually adopted, by a loop: it starts
+    from the lower of the shear and the Meyerhof-Bowles values (q0). When a cohesive layer lies
+    within the zone the footing stresses under that pressure (down to where the 2:1 stress
+    increase falls below 10 % of σ'v0), its settlement is computed
+    (:mod:`saengine.soil.settlement`: immediate, plus consolidation where Cc and e0 are known);
+    if it exceeds the allowable settlement, the highest lower pressure whose settlement is
+    within it is found by bisection, and the zone at that pressure is checked again. The
+    settlement grows with the pressure and jumps up where the zone first reaches a clay, so the
+    bisected pressure settles at most the allowable amount whether the clay is still in its
+    zone or not: the loop ends on the next pass (it is guarded at :data:`MAX_ITERATIONS`). The
+    pressure is then either where the computed settlement equals the allowable one, or just
+    below the one whose zone reaches the clay. When the settlement at the adopted pressure is
+    within the allowable one, the settlement does not govern; the higher pressure at which it
+    reaches it (by bisection, up to 5000 kPa) is given for the table. A clay only stressed by a
+    pressure higher than the adopted one is not checked.
 
 (c) ``qa = min(qa_shear, qa_settlement)``. There is no qa when a layer within B below the
     base has no strength (cu, or φ' or SPT), or when a cohesive layer in the stressed zone has
@@ -204,6 +213,9 @@ def meyerhof_bowles_si(n_prime: float, b: float, df: float, se: float) -> float:
     return n_prime / 0.08 * ((b + 0.3) / b) ** 2 * kd * se / 25
 
 
+#: Guard of the loop of :func:`settlement_controlled`; it converges in two passes.
+MAX_ITERATIONS = 10
+
 #: Spacing of the N' samples over the influence zone (consultant practice) [m].
 ZONE_STEP = 0.5
 
@@ -288,51 +300,92 @@ def settlement_controlled(
             )
         else:
             notes.append("no SPT below the founding level for the settlement check of the sand")
-    # The stressed zone under the highest pressure qa could take: any lower qa stresses less.
-    trial = max([upper, *(value for _, value in results)])
-    depth = influence_depth(profile, b, l_, df, trial)
-    cohesive = [
-        layer
-        for layer in profile.layers
-        if layer.behaviour == "cohesive" and layer.bottom > df and layer.top < df + depth
-    ]
-    unknown = [
-        layer for layer in cohesive if not layer.E and (layer.cc is None or layer.e0 is None)
-    ]
-    for layer in unknown:
-        notes.append(
-            f"layer {layer.index + 1} ({layer.soil_type}): no modulus, Cc or e0, so its "
-            "settlement cannot be computed: no settlement-controlled pressure"
-        )
-    if unknown:
-        return {
-            "qa": None,
-            "method": None,
-            "notes": notes,
-            "incomplete": True,
-            "consultant": consultant,
-        }
-    if cohesive:
+    # The settlement of a clay is checked at the pressure actually adopted (see the module
+    # docstring): the lower of the shear and the Meyerhof-Bowles values to start with.
+    adopted = min([upper, *(value for _, value in results)])
 
-        def total(q: float) -> float:
-            return settlement(profile, b, l_, df, q)["total"]
+    def clays(q: float) -> list[SoilLayer]:
+        depth = influence_depth(profile, b, l_, df, q)
+        return [
+            layer
+            for layer in profile.layers
+            if layer.behaviour == "cohesive" and layer.bottom > df and layer.top < df + depth
+        ]
 
-        hi = max(trial, 50.0)
-        while total(hi) <= se and hi < 5000.0:
-            hi *= 2
-        if total(hi) <= se:
-            results.append((f"computed settlement below {se:g} mm up to {hi:.0f} kPa", hi))
+    def total(q: float) -> float:
+        return settlement(profile, b, l_, df, q)["total"]
+
+    def limit(lo: float, hi: float) -> float:
+        """Bisection between lo (settles at most se) and hi (more): the highest such pressure."""
+        for _ in range(60):
+            mid = (lo + hi) / 2
+            if total(mid) > se:
+                hi = mid
+            else:
+                lo = mid
+            if hi - lo < 0.1:
+                break
+        return lo
+
+    checked: list[SoilLayer] = []
+    reduced = False
+    q = adopted
+    for _ in range(MAX_ITERATIONS):
+        cohesive = clays(q)
+        unknown = [
+            layer for layer in cohesive if not layer.E and (layer.cc is None or layer.e0 is None)
+        ]
+        for layer in unknown:
+            notes.append(
+                f"layer {layer.index + 1} ({layer.soil_type}): no modulus, Cc or e0, so its "
+                "settlement cannot be computed: no settlement-controlled pressure"
+            )
+        if unknown:
+            return {
+                "qa": None,
+                "method": None,
+                "notes": notes,
+                "incomplete": True,
+                "consultant": consultant,
+            }
+        if not cohesive:
+            break
+        checked = cohesive
+        if total(q) <= se:
+            break
+        # Bisection for the highest pressure below q whose settlement is within se. total(q)
+        # grows with q and jumps up where the zone first reaches a clay; lo always settles at
+        # most se (total(0) = 0), so the next pass stops: the sequence of pressures only falls.
+        q, reduced = limit(0.0, q), True
+    if checked:
+        result = settlement(profile, b, l_, df, q)
+        names = ", ".join(f"layer {layer.index + 1} ({layer.soil_type})" for layer in checked)
+        kinds = "immediate + consolidation" if result["consolidation"] > 0.05 else "immediate"
+        still = clays(q)
+        if not reduced:
+            # Within se at the adopted pressure: the settlement does not govern. Its own limit
+            # (above q, for the table) is where the settlement reaches se, as far as 5000 kPa.
+            lo, hi = q, max(q, 50.0)
+            while total(hi) <= se and hi < 5000.0:
+                lo, hi = hi, hi * 2
+            if total(hi) <= se:
+                q = hi
+                text = f"computed settlement below {se:g} mm up to {hi:.0f} kPa, {names} stressed"
+            else:
+                q = limit(lo, hi)
+                text = (
+                    f"computed settlement ({kinds}) = {result['total']:.1f} mm ≤ {se:g} mm at "
+                    f"the adopted {adopted:.0f} kPa ({names} in the stressed zone); {se:g} mm at "
+                    f"{q:.0f} kPa"
+                )
+        elif still:
+            text = f"computed settlement ({kinds}) = {se:g} mm, {names} in the stressed zone"
         else:
-            lo = 0.0
-            for _ in range(40):
-                mid = (lo + hi) / 2
-                if total(mid) > se:
-                    hi = mid
-                else:
-                    lo = mid
-                if hi - lo < 0.1:
-                    break
-            results.append((f"computed settlement (immediate + consolidation) = {se:g} mm", lo))
+            text = (
+                f"computed settlement: above {q:.0f} kPa the stressed zone reaches {names} and "
+                f"the settlement exceeds {se:g} mm"
+            )
+        results.append((text, q))
     if not results:
         return {"qa": None, "method": None, "notes": notes, "consultant": consultant}
     method, qa = min(results, key=lambda r: r[1])
@@ -414,8 +467,9 @@ _SETTLEMENT = {
 }
 _COMPUTED = (
     "computed settlement (Schmertmann 1978, elastic and 1D consolidation) when clay is within "
-    "the stressed zone under the trial pressure. Square footings; net pressures (gross minus "
-    "the overburden)."
+    "the stressed zone under the adopted pressure (the lower of the above, reduced until the "
+    "settlement is within the allowable value, the zone checked again at each pressure). "
+    "Square footings; net pressures (gross minus the overburden)."
 )
 
 #: The textbook method (kept for the callers that name it without the design options).

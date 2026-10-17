@@ -1,7 +1,7 @@
 {
 	"schema": "saengine.bim/2",
 	"source": {
-		"floorPlan": "2b460618c64bad1762e8bf28563a267cac802b61"
+		"floorPlan": "6258ca1b5d5ba68e446045b067876e307a0666a0"
 	},
 	"stories": [
 		{
@@ -257,18 +257,6 @@
 				]
 			],
 			"elevation": 3200
-		},
-		{
-			"id": "F1",
-			"type": "F2015",
-			"source": "F1",
-			"kind": "footing",
-			"position": [
-				0,
-				0
-			],
-			"elevation": 0,
-			"rotation": 0
 		}
 	],
 	"additions": {
@@ -352,5 +340,6 @@
 				"z2": 3200
 			}
 		]
-	}
+	},
+	"supports": []
 }

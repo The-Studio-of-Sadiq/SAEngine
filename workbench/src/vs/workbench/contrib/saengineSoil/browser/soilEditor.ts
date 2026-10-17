@@ -37,7 +37,7 @@ import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFra
 import {
 	BOREHOLE_FIELDS, bearingSummary, boreholeDepth, boreholeGround, checkSoilReport, choiceTitle, DESIGN_CHOICES, DESIGN_DEFAULTS, DESIGN_FIELDS, formatField, formatNumber, hasLiquefiable, IBearingCell, IBearingResult, IBorehole, IBoreholeResult, IFieldSpec,
 	ISoilComputeRequest, ISoilImportRequest, ISoilImportResult, ISoilProblem, ISoilReport, ISoilResults, ISoilTemplateRequest, ISoilTemplateResult, LAYER_FIELDS, newBorehole, parseField,
-	IChoiceSpec, ISiteClassFlag, parseSoilReport, readSoilResults, REPORT_FIELDS, resultsBasis, SAMPLE_FIELDS, serializeSoilReport, SOIL_COMPUTE_COMMAND, SOIL_IMPORT_COMMAND, SOIL_TEMPLATE_COMMAND, SOIL_TYPES, siteFlagMeaning, siteFlagsOf, soilSummary, soilTypeLabel, SPT_FIELDS,
+	IChoiceSpec, ISiteClassFlag, parseSoilReport, readSoilResults, REPORT_FIELDS, resultsBasis, SAMPLE_FIELDS, serializeSoilReport, SOIL_COMPUTE_COMMAND, SOIL_IMPORT_COMMAND, SOIL_TEMPLATE_COMMAND, SOIL_TYPES, siteFlagMeaning, siteFlagsOf, siltNeedsPlasticity, soilSummary, soilTypeLabel, SPT_FIELDS, ISoilLayer,
 } from './soilDocument.js';
 import { SoilEditorInput } from './soilEditorInput.js';
 import { appendSoilPatterns, appendSoilSwatch, renderBoreholeLog, renderFence, renderLiquefactionChart } from './soilLog.js';
@@ -902,6 +902,7 @@ export class SoilEditor extends EditorPane {
 		const body = append(table, $('tbody'));
 		rows.forEach((row, index) => {
 			const tr = append(body, $('tr'));
+			const updateHint = this.siltHint(borehole, list, row, tr, fields.length + computed.length + 1);
 			for (const field of fields) {
 				const td = append(tr, $('td'));
 				append(td, this.createInput(field, row[field.key], value => {
@@ -910,6 +911,7 @@ export class SoilEditor extends EditorPane {
 					} else {
 						row[field.key] = value;
 					}
+					updateHint();
 					this.changed(field.kind === 'soilType');
 				}, this.problemKey(boreholeIndex, `${list}.${index}.${field.key}`)));
 			}
@@ -927,6 +929,30 @@ export class SoilEditor extends EditorPane {
 		if (!rows.length) {
 			append(append(body, $('tr')), $('td.soil-muted', { colspan: String(fields.length + computed.length + 1) }, localize('soil.noRows', "None yet.")));
 		}
+	}
+
+	/**
+	 * Under a silt layer with neither a PI nor a cu, a quiet line asking whether it is plastic
+	 * (the backend treats it as non-plastic, granular). Returns the function that shows or hides
+	 * it as the row is edited; other lists get a no-op.
+	 */
+	private siltHint(borehole: IBorehole, list: RowList, row: { [key: string]: unknown }, tr: HTMLElement, columns: number): () => void {
+		if (list !== 'layers') {
+			return () => { };
+		}
+		const layer = row as ISoilLayer;
+		const hintRow = $('tr.soil-hint-row');
+		tr.after(hintRow);
+		const hint = append(append(hintRow, $('td', { colspan: String(columns) })), $('span.soil-hint'));
+		append(hint, $(ThemeIcon.asCSSSelector(Codicon.info)));
+		append(hint, $('span', undefined, localize('soil.siltPlasticHint', "Is this silt plastic? Give PI or cu.")));
+		const update = () => {
+			const show = siltNeedsPlasticity(borehole, layer);
+			hintRow.hidden = !show;
+			tr.classList.toggle('soil-has-hint', show);
+		};
+		update();
+		return update;
 	}
 
 	private problemKey(boreholeIndex: number | undefined, path: string): string {

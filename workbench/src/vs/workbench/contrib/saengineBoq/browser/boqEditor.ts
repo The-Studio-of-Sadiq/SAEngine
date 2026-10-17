@@ -39,13 +39,14 @@ import { DEVELOPER_MODE_SETTING } from '../../../services/saengineProject/common
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
-import { BOQ_COMPUTE_COMMAND, BOQ_GROUPS, BOQ_SOURCES, BoqGroup, changedSources, formatQuantity, IBoqComputeArgs, IBoqComputeResult, IBoqDocument, IBoqItem, parseBoq, totals, unitLabel } from './boqDocument.js';
+import { BOQ_COMPUTE_COMMAND, BOQ_GROUPS, BOQ_SOURCES, BoqGroup, boqComputeArgs, changedSources, formatQuantity, totalledItems, IBoqComputeResult, IBoqDocument, IBoqItem, parseBoq, totals, unitLabel } from './boqDocument.js';
 import { BoqEditorInput } from './boqEditorInput.js';
 import { exportBoqCsv } from './boqExport.js';
 
 /** Short group names for the status line's totals. */
 function shortGroupName(group: BoqGroup): string {
 	switch (group) {
+		case 'earthwork': return localize('boq.short.earthwork', "Earthwork");
 		case 'concrete': return localize('boq.short.concrete', "Concrete");
 		case 'masonry': return localize('boq.short.masonry', "Masonry");
 		case 'reinforcement': return localize('boq.short.reinforcement', "Reinforcement");
@@ -312,7 +313,7 @@ export class BoqEditor extends EditorPane {
 		for (const { group } of BOQ_GROUPS) {
 			const items = document.items.filter(i => i.group === group);
 			if (items.length) {
-				const values = totals(items).map(({ unit, total }) => `${formatQuantity(total, unit)} ${unitLabel(unit)}`).join(', ');
+				const values = totals(totalledItems(group, items)).map(({ unit, total }) => `${formatQuantity(total, unit)} ${unitLabel(unit)}`).join(', ');
 				sums.push(localize('boq.groupTotal', "{0} {1}", shortGroupName(group), values));
 			}
 		}
@@ -404,20 +405,17 @@ export class BoqEditor extends EditorPane {
 	private async compute(): Promise<void> {
 		const model = this.model;
 		const resource = (this.input as BoqEditorInput | undefined)?.resource;
-		const text = (part: string) => this.sources.get(part)?.getValue();
-		const [bimText, objectsText, materialsText] = BOQ_SOURCES.map(s => text(s.part));
+		const { args, missing } = boqComputeArgs(new Map(BOQ_SOURCES.map(({ part }) => [part, this.sources.get(part)?.getValue()])));
 		if (!model || !resource || this.computing) {
 			return;
 		}
-		if (bimText === undefined || objectsText === undefined || materialsText === undefined) {
-			const missing = BOQ_SOURCES.filter(s => text(s.part) === undefined).map(s => s.label);
+		if (!args) {
 			this.notificationService.warn(localize('boq.missingSources', "The bill cannot be measured: {0} could not be read.", missing.join(', ')));
 			return;
 		}
 		this.computing = true;
 		this.renderChrome();
 		try {
-			const args: IBoqComputeArgs = { bimText, objectsText, materialsText };
 			const result = await this.commandService.executeCommand<IBoqComputeResult>(BOQ_COMPUTE_COMMAND, args);
 			if (!result?.text) {
 				this.notificationService.warn(localize('boq.problems', "The bill could not be measured: {0}", (result?.problems ?? []).join('; ')));
@@ -571,7 +569,8 @@ export class BoqEditor extends EditorPane {
 				row.focus();
 			}
 		}
-		for (const { unit, total } of totals(items)) {
+		// Excavation and backfill do not add up: the earthwork has no total row.
+		for (const { unit, total } of items[0]?.group === 'earthwork' ? [] : totals(items)) {
 			const row = append(body, $('tr.boq-total'));
 			append(row, $('td.code'));
 			append(row, $('td', undefined, localize('boq.total', "Total")));

@@ -5,8 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { sourceStamp } from '../../../../services/saengineProject/common/partSources.js';
-import { changedSources, IBoqDocument, parseBoq, toCsv, totals } from '../../browser/boqDocument.js';
+import { groundLevelStamp, sourceStamp } from '../../../../services/saengineProject/common/partSources.js';
+import { boqComputeArgs, changedSources, IBoqDocument, parseBoq, toCsv, totals } from '../../browser/boqDocument.js';
 
 suite('SAEngine - Bill of quantities', () => {
 
@@ -25,6 +25,35 @@ suite('SAEngine - Bill of quantities', () => {
 		],
 		notes: [],
 	};
+
+	test('the substructure and the settings count as sources once the bill records them', () => {
+		const texts = (extra: [string, string][]) => new Map([['bim', '{"a": 1}\n'], ['objects', 'o'], ['materials', 'm'], ...extra]);
+		const settings = '{"foundation": {"groundLevel": -150, "allowableBearing": 150}}';
+		const measured: IBoqDocument = { ...document, source: { ...document.source, substructure: sourceStamp('s'), settings: groundLevelStamp(settings) } };
+		assert.deepStrictEqual({
+			before: changedSources(document, texts([['substructure', 's'], ['settings', settings]])),
+			current: changedSources(measured, texts([['substructure', 's'], ['settings', settings]])),
+			// Only the ground level of the settings counts: a new qa leaves the bill current.
+			otherSetting: changedSources(measured, texts([['substructure', 's'], ['settings', '{"foundation": {"groundLevel": -150.0, "allowableBearing": 400}, "x": 1}']])),
+			changed: changedSources(measured, texts([['substructure', 's2'], ['settings', '{"foundation": {"groundLevel": -300}}']])),
+			invalid: changedSources(measured, texts([['substructure', 's'], ['settings', '{']])),
+			missing: changedSources(measured, texts([])),
+			// The same stamps as saengine.library.bim.ground_level_stamp(-150.0) and (0.0).
+			python: [groundLevelStamp(settings), groundLevelStamp('{}')],
+			args: boqComputeArgs(texts([['substructure', 's']])),
+			noBim: boqComputeArgs(new Map([['objects', 'o']])),
+		}, {
+			before: ['substructure'],
+			current: [],
+			otherSetting: [],
+			changed: ['substructure', 'settings'],
+			invalid: ['settings'],
+			missing: ['substructure', 'settings'],
+			python: ['eb7f0d0d5faa4ccf9f9d13fbdda0529448065fda', 'fe329f8351df78af4c4980a95d5ca6d0310b7ccd'],
+			args: { args: { bimText: '{"a": 1}\n', objectsText: 'o', materialsText: 'm', substructureText: 's', settingsText: undefined }, missing: [] },
+			noBim: { missing: ['Building Model', 'Materials'] },
+		});
+	});
 
 	test('reads a measured bill, tells which sources changed, totals and exports it', () => {
 		assert.deepStrictEqual({

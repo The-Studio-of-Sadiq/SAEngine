@@ -50,7 +50,14 @@ from saengine.library.bim import (
 )
 from saengine.library.materials import Category, MaterialLibrary
 from saengine.library.objects import Beam, Column, ObjectLibrary, Slab, Wall
-from saengine.library.settings import ProjectSettings, read_soil_text
+from saengine.library.settings import ProjectSettings
+
+#: Said in the notes instead of designing footings: they are Part 9's (saengine.substructure).
+DESIGNED_IN_PART_9 = (
+    "Foundations are designed in 9 Substructure (09 Substructure/substructure.json). The column "
+    "bases are fixed supports of this analysis (no soil-structure interaction), and footings "
+    "drawn in the building model are not checked here."
+)
 
 METHOD = [
     "Strength design to {code} (ACI 318-19 clauses and factors).",
@@ -125,8 +132,7 @@ def design_report(out_dir: str | Path, project_path: str | Path) -> dict[str, An
     objects = ObjectLibrary.model_validate_json(read("04 Objects/objects.json"))
     building = BuildingModel.model_validate_json(read("06 BIM/bim.json"))
     project = json.loads(project_path.read_text(encoding="utf-8"))
-    soil_text = read_soil_text(root)  # qa of the footings, when it has boreholes
-    return design(project, out_dir, building, objects, materials, settings, soil_text)
+    return design(project, out_dir, building, objects, materials, settings)
 
 
 def design(
@@ -138,8 +144,9 @@ def design(
     settings: ProjectSettings,
     soil_text: str | None = None,
 ) -> dict[str, Any]:
-    """:func:`design_report` with the project's parts already read (``soil_text``: the soil
-    report's text, for the footings' allowable bearing pressures)."""
+    """:func:`design_report` with the project's parts already read. ``soil_text`` is no longer
+    used: the footings it gave the allowable bearing pressures of are designed in Part 9
+    (:func:`saengine.substructure.substructure_report`)."""
     combinations, pieces, notes, shell_forces = _demands(project, out_dir, settings)
     types = {o.id: o for o in objects.objects}
     mats = {m.id: m for m in materials.materials}
@@ -243,22 +250,14 @@ def design(
     slabs_seen = _design_slabs(
         project, building, types, mats, pieces, shell_forces, combinations, checked, skipped, notes
     )
-    from saengine.design.footing import FOOTING_METHOD, footing_checks
-
-    footings, footings_skipped, footing_notes = footing_checks(
-        project, out_dir, building, objects, materials, settings, soil_text
-    )
-    checked += footings
-    skipped += footings_skipped
-    notes += footing_notes
+    # Footings moved to Part 9 (saengine.substructure): this report designs the superstructure.
+    notes.append(DESIGNED_IN_PART_9)
     failed = [e for e in checked if not e["ok"]]
     governing = max(checked, key=lambda e: e["utilisation"], default=None)
     code = settings.codes.concrete
     method = [line.format(code=code, limit=SLENDERNESS_LIMIT) for line in METHOD]
     if slabs_seen:
         method += slab.METHOD
-    if footings or footings_skipped:
-        method += list(FOOTING_METHOD)
     return {
         "code": code,
         "method": method,

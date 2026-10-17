@@ -1,13 +1,69 @@
 {
 	"schema": "saengine.boq/1",
 	"source": {
-		"bim": "206a050a29ba70b4184a6f5576150d3dc47a949b",
+		"bim": "4095937f620faa9783b313d15bd6ee381f7ddf30",
 		"objects": "208cf81c4f12504fd967771a054f8c6edb9e8405",
-		"materials": "50563593cdcc5ae3ea57a91d1c0379e5e5db980f"
+		"materials": "50563593cdcc5ae3ea57a91d1c0379e5e5db980f",
+		"substructure": "1c85c6c69986e74d73ee4249ee870e7ae4786397",
+		"settings": "fe329f8351df78af4c4980a95d5ca6d0310b7ccd"
 	},
 	"items": [
 		{
+			"code": "E.01",
+			"group": "earthwork",
+			"description": "Excavation for foundations",
+			"quantity": 3.14,
+			"unit": "m3",
+			"kind": "excavation",
+			"byStory": {
+				"BASE": 3.14
+			},
+			"breakdown": [
+				{
+					"element": "F1",
+					"story": "BASE",
+					"quantity": 3.14
+				}
+			]
+		},
+		{
+			"code": "E.02",
+			"group": "earthwork",
+			"description": "Backfill around foundations",
+			"quantity": 1.373,
+			"unit": "m3",
+			"kind": "backfill",
+			"byStory": {
+				"BASE": 1.373
+			},
+			"breakdown": [
+				{
+					"element": "F1",
+					"story": "BASE",
+					"quantity": 1.373
+				}
+			]
+		},
+		{
 			"code": "C.01",
+			"group": "concrete",
+			"description": "Lean concrete (blinding) under foundations, 75 mm",
+			"quantity": 0.266,
+			"unit": "m3",
+			"kind": "blinding",
+			"byStory": {
+				"BASE": 0.266
+			},
+			"breakdown": [
+				{
+					"element": "F1",
+					"story": "BASE",
+					"quantity": 0.266
+				}
+			]
+		},
+		{
+			"code": "C.02",
 			"group": "concrete",
 			"description": "Concrete C20.7 in footings",
 			"quantity": 1.5,
@@ -26,7 +82,7 @@
 			]
 		},
 		{
-			"code": "C.02",
+			"code": "C.03",
 			"group": "concrete",
 			"description": "Concrete C20.7 in columns",
 			"quantity": 6.945,
@@ -80,7 +136,7 @@
 			]
 		},
 		{
-			"code": "C.03",
+			"code": "C.04",
 			"group": "concrete",
 			"description": "Concrete C20.7 in walls",
 			"quantity": 2.307,
@@ -99,7 +155,7 @@
 			]
 		},
 		{
-			"code": "C.04",
+			"code": "C.05",
 			"group": "concrete",
 			"description": "Concrete C20.7 in beams",
 			"quantity": 3.536,
@@ -138,7 +194,7 @@
 			]
 		},
 		{
-			"code": "C.05",
+			"code": "C.06",
 			"group": "concrete",
 			"description": "Concrete C20.7 in braces",
 			"quantity": 0.031,
@@ -154,7 +210,7 @@
 			]
 		},
 		{
-			"code": "C.06",
+			"code": "C.07",
 			"group": "concrete",
 			"description": "Concrete C20.7 in slabs",
 			"quantity": 9.166,
@@ -178,7 +234,7 @@
 			]
 		},
 		{
-			"code": "C.07",
+			"code": "C.08",
 			"group": "concrete",
 			"description": "Concrete C20.7 in stairs",
 			"quantity": 3.334,
@@ -704,6 +760,8 @@
 		"Concrete: slabs are measured over their whole outline and full thickness, less openings. Beams are measured between the faces of the columns they meet and below the slab: the part of a beam, column or wall within a slab's depth is measured with the slab. Columns run their full height and walls their whole length (less wall openings), each less that slab depth. Nothing else is deducted where members meet (beam/beam and wall/column joints); special-structure members are measured node to node and their areas over their whole outline, with no deduction where they meet.",
 		"Longitudinal bars run the member's full length (beams centreline to centreline) with a lap of 40 bar diameters at every joint between 12 m stock lengths. Stirrups and ties are measured at their centre line plus two 135° hooks of 10 diameters, length / spacing + 1 of them. Meshes are area / spacing of bar per layer and direction. Bends, anchorages, chairs and wastage are not included; bar mass is d²/162 kg/m.",
 		"Formwork is measured to the cast faces: beam sides and soffit, column perimeter by height, slab soffit and edges, wall faces, footing sides. Faces cast against another member are not formed (slab soffit over beams, columns and walls; their faces within the slab's depth; slab edges over them); nothing else is deducted where members meet.",
+		"Foundations are measured from 9 Substructure (the footings of the building model are not): footings, pile caps and rafts over their plan by their thickness, formwork to their sides (and a raft's edges), bars as meshes over the plan. Piles: concrete of the full length below the cap (bored piles round, driven piles square of the given size), bars as for columns, moulds of driven precast piles on three faces (cast flat). Tie beams: concrete and stirrups between the faces of the foundations they tie, longitudinal bars centre to centre of the foundations, formwork to their two sides.",
+		"Earthwork: each foundation and tie beam is dug with vertical sides 300 mm beyond its edges (working space), from the finished ground of Project Settings → Foundation down to the underside of the blinding; where pits overlap the overlap is measured once (each element's share scaled to suit). Blinding (lean concrete) 75 mm thick, 75 mm beyond the edges of foundations and tie beams. Backfill is the excavation less the foundations, tie beams and blinding below the ground; column stubs and pedestals below the ground are not deducted. No battered sides, dewatering, shoring, disposal of surplus spoil or bored pile spoil are measured.",
 		"Object type 'W200' (Wall 200) has no reinforcement; no bars are measured for W1.",
 		"Object type 'BR-SHS' (Brace SHS 150) has no reinforcement; no bars are measured for M2.",
 		"Object type 'ST1200' (Stair 1200 wide) has no reinforcement; no bars are measured for ST1, ST2."

@@ -291,11 +291,18 @@ def generate_building_from_structure(structure_text: str, bim_text: str | None) 
 
 
 def building_ifc(
-    bim_text: str, objects_text: str, materials_text: str | None, name: str
+    bim_text: str,
+    objects_text: str,
+    materials_text: str | None,
+    name: str,
+    substructure_text: str | None = None,
+    settings_text: str | None = None,
 ) -> dict[str, Any]:
     """The IFC of the building model: ``{"text", "ids", "skipped"}`` or ``{"problems"}``.
 
     ``ids`` maps element ids to IFC GlobalIds, for the 3D view to link elements to the project.
+    With ``substructure_text`` (``09 Substructure/substructure.json``, once it is no longer the
+    placeholder) the foundations are its own, founded from the ground level of ``settings_text``.
     """
     from pydantic import ValidationError
 
@@ -313,8 +320,36 @@ def building_ifc(
         materials = MaterialLibrary.model_validate_json(materials_text) if materials_text else None
     except ValidationError:
         materials = None  # material names fall back to their ids
-    ifc, ids, skipped = export_ifc(building, objects, materials, name)
+    substructure, ground, problems = _substructure_inputs(substructure_text, settings_text)
+    if problems:
+        return {"problems": problems}
+    ifc, ids, skipped = export_ifc(building, objects, materials, name, substructure, ground)
     return {"text": ifc.to_string(), "ids": ids, "skipped": skipped}
+
+
+def _substructure_inputs(
+    substructure_text: str | None, settings_text: str | None
+) -> tuple[Any, float, list[str]]:
+    """The substructure that is the source of the foundations (None while it is the placeholder:
+    the building model's footings are), the ground level, and problems with either file."""
+    from pydantic import ValidationError
+
+    from saengine.library.settings import ProjectSettings
+    from saengine.substructure.handover import authoritative_substructure
+
+    try:
+        substructure = authoritative_substructure(substructure_text)
+    except ValidationError as exc:
+        return None, 0.0, _messages(exc, "Substructure")
+    except ValueError as exc:
+        return None, 0.0, [f"Substructure: {exc}"]
+    ground = 0.0
+    if settings_text:
+        try:
+            ground = ProjectSettings.model_validate_json(settings_text).foundation.groundLevel
+        except ValidationError:
+            pass  # the settings editor reports it; the ground then stays at 0
+    return substructure, ground, []
 
 
 def derive_fem(
@@ -491,12 +526,20 @@ def design_report(out_dir: str, project_path: str) -> dict[str, Any]:
     return report(out_dir, project_path)
 
 
-def compute_boq(bim_text: str, objects_text: str, materials_text: str) -> dict[str, Any]:
-    """The bill of quantities (``10 BOQ/boq.json`` text) of the building model:
-    ``{"text", "notes"}``, or ``{"problems"}`` when an input has errors."""
+def compute_boq(
+    bim_text: str,
+    objects_text: str,
+    materials_text: str,
+    substructure_text: str | None = None,
+    settings_text: str | None = None,
+) -> dict[str, Any]:
+    """The bill of quantities (``10 BOQ/boq.json`` text) of the building model and the
+    substructure: ``{"text", "notes"}``, or ``{"problems"}`` when an input has errors."""
     from saengine.boq import compute_boq_text
 
-    return compute_boq_text(bim_text, objects_text, materials_text)
+    return compute_boq_text(
+        bim_text, objects_text, materials_text, substructure_text, settings_text
+    )
 
 
 def build_report(project_root: str, out_pdf: str | None = None) -> dict[str, Any]:
@@ -634,3 +677,92 @@ def _ground_levels(soil_text: str | None, finished: float) -> str | None:
         + ": qa is net of the overburden below each borehole's ground, so fill above it is "
         "taken as a load and a cut is flagged in the footing's notes."
     )
+
+
+# ─────────────────────────────────────── substructure ───────────────────────────────────────
+
+
+def _problem(error: Exception) -> dict[str, Any]:
+    from pydantic import ValidationError
+
+    if isinstance(error, ValidationError):
+        return {"problems": _messages(error, "9 Substructure")}
+    return {"problems": [str(error) or type(error).__name__]}
+
+
+def substructure_report(project_root: str) -> dict[str, Any]:
+    """The design checks of the project's saved substructure (see
+    ``saengine.substructure.substructure_report``), or ``{"problems"}`` when a part of the
+    project cannot be read.
+
+    The result adds ``sources``: the stamp of each part file the design reads, by part id ("" for
+    a missing file), taken before the design reads them, so the part list can tell when the
+    checks no longer describe the project (an edit while the design runs counts as a change)."""
+    from saengine.substructure import substructure_report as report
+
+    sources = substructure_sources(project_root)
+    try:
+        result = report(project_root)
+    except ValueError as error:
+        return _problem(error)
+    return {**result, "sources": sources}
+
+
+#: The part files the foundation design reads, by the part ids the workbench knows them under
+#: (besides the analysis results, which the part list compares by time).
+SUBSTRUCTURE_SOURCES = {
+    "soil": "01 Soil Report/soil-report.json",
+    "settings": "02 Project Settings/project-settings.json",
+    "materials": "03 Materials/materials.json",
+    "objects": "04 Objects/objects.json",
+    "bim": "06 BIM/bim.json",
+    "substructure": "09 Substructure/substructure.json",
+}
+
+
+def substructure_sources(project_root: str) -> dict[str, str]:
+    """The stamp of each of :data:`SUBSTRUCTURE_SOURCES` in the project ("" when missing)."""
+    from pathlib import Path
+
+    from saengine.library.bim import source_stamp
+
+    stamps: dict[str, str] = {}
+    for part, relative in SUBSTRUCTURE_SOURCES.items():
+        try:
+            stamps[part] = source_stamp((Path(project_root) / relative).read_text(encoding="utf-8"))
+        except OSError:
+            stamps[part] = ""
+    return stamps
+
+
+def substructure_size(project_root: str, columns: list[str] | None = None) -> dict[str, Any]:
+    """Footings proposed for ``columns`` (default: the columns without a foundation) from the
+    reactions and the soil report: ``{"foundations", "designs", "notes"}`` or ``{"problems"}``."""
+    from saengine.substructure.context import Skip, load_context
+    from saengine.substructure.sizing import propose
+
+    try:
+        return propose(load_context(project_root), columns=columns)
+    except Skip as reason:  # no analysis results yet
+        return {"foundations": [], "designs": [], "notes": [f"Nothing sized: {reason}."]}
+    except ValueError as error:
+        return _problem(error)
+
+
+def substructure_migrate(project_root: str) -> dict[str, Any]:
+    """The saved substructure with the building model's footings added (nothing is written):
+    ``{"substructure", "notes", "count"}`` or ``{"problems"}``."""
+    from saengine.substructure import migrate_project
+
+    try:
+        return migrate_project(project_root)
+    except (OSError, ValueError) as error:
+        return _problem(error)
+
+
+def substructure_ensure(project_root: str) -> dict[str, Any]:
+    """Writes the building model's footings into ``substructure.json`` while it is still the
+    placeholder (``saengine.substructure.handover.ensure_migrated``)."""
+    from saengine.substructure.handover import ensure_migrated
+
+    return ensure_migrated(project_root)

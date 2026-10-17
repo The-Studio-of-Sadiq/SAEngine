@@ -852,3 +852,27 @@
 .saengine-soil-editor ::-webkit-scrollbar-thumb:active {
 	background: var(--vscode-scrollbarSlider-activeBackground);
 }
+
+/* A quiet prompt under a layer row (a silt with no PI or cu). */
+.saengine-soil-editor .soil-table tr.soil-has-hint td {
+	border-bottom: none;
+}
+
+.saengine-soil-editor .soil-table tr.soil-hint-row td {
+	padding: 0 6px 4px;
+	color: var(--sa-muted);
+	white-space: normal;
+}
+
+/* Stays in view while the wide layer table is scrolled sideways (e.g. to the PI column). */
+.saengine-soil-editor .soil-table tr.soil-hint-row .soil-hint {
+	position: sticky;
+	left: 6px;
+	display: inline-flex;
+	align-items: center;
+}
+
+.saengine-soil-editor .soil-table tr.soil-hint-row .codicon {
+	font-size: 12px;
+	margin-right: 4px;
+}

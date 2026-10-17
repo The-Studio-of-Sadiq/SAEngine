@@ -4,19 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { IBuildingIfcRequest, IFemDeriveRequest, IFemSolverService, ISoilBearingRequest, IStructureGeometry, IStructureScriptResult, LibraryFileKind } from '../../../../platform/saengine/common/femSolver.js';
+import { IBoqComputeRequest, IBuildingIfcRequest, IFemDeriveRequest, IFemSolverService, ISoilBearingRequest, IStructureGeometry, IStructureScriptResult, LibraryFileKind } from '../../../../platform/saengine/common/femSolver.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { EditorResourceAccessor } from '../../../common/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { Extensions as OutputExtensions, IOutputChannelRegistry } from '../../../services/output/common/output.js';
+import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { resultsFolder } from '../browser/femResultsBar.js';
 import { FEM_OUTPUT_CHANNEL_ID, FEM_PYTHON_SETTING, FemAnalysisRunner } from './femAnalysisRunner.js';
 
@@ -101,8 +105,40 @@ CommandsRegistry.registerCommand('saengine.library.check', async (accessor, kind
  */
 CommandsRegistry.registerCommand('saengine.bim.ifc', async (accessor, request: IBuildingIfcRequest) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
-	return accessor.get(IFemSolverService).buildingIfc(python, request);
+	const solver = accessor.get(IFemSolverService);
+	// The foundations are 9 Substructure's (once it is no longer the placeholder): the editors
+	// ask for the building model's IFC, and get the project's foundations with it.
+	const texts = projectTexts(accessor);
+	const substructureText = request.substructureText ?? await texts('substructure');
+	const settingsText = request.settingsText ?? await texts('settings');
+	return solver.buildingIfc(python, { ...request, substructureText, settingsText });
 });
+
+/**
+ * Reads the open project's part files by part id, with their unsaved edits (undefined without a
+ * project or file). Take it from the accessor before the first await.
+ */
+function projectTexts(accessor: ServicesAccessor): (part: string) => Promise<string | undefined> {
+	const root = accessor.get(ISaengineProjectService).project?.root;
+	const fileService = accessor.get(IFileService);
+	const modelService = accessor.get(IModelService);
+	return async id => {
+		const part = partById(id);
+		if (!root || !part?.mainFile) {
+			return undefined;
+		}
+		const resource = joinPath(root, part.folder, part.mainFile);
+		const model = modelService.getModel(resource);
+		if (model) {
+			return model.getValue();
+		}
+		try {
+			return (await fileService.readFile(resource)).value.toString();
+		} catch {
+			return undefined;
+		}
+	};
+}
 
 /**
  * The analysis model derived from the building model and the project settings (`model.osmodel`
@@ -176,9 +212,9 @@ CommandsRegistry.registerCommand('saengine.fem.design', async (accessor, model: 
 });
 
 /** The bill of quantities of the building model. Internal: the BOQ editor calls it by id. */
-CommandsRegistry.registerCommand('saengine.boq.compute', async (accessor, args: { bimText: string; objectsText: string; materialsText: string }) => {
+CommandsRegistry.registerCommand('saengine.boq.compute', async (accessor, args: IBoqComputeRequest) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
-	return accessor.get(IFemSolverService).computeBoq(python, args.bimText, args.objectsText, args.materialsText);
+	return accessor.get(IFemSolverService).computeBoq(python, args);
 });
 
 /**
@@ -230,4 +266,45 @@ CommandsRegistry.registerCommand('saengine.soil.sources', async (accessor, args:
 CommandsRegistry.registerCommand('saengine.report.build', async (accessor, args: { projectRoot: string; outPdf?: string }) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	return accessor.get(IFemSolverService).buildReport(python, args.projectRoot, args.outPdf);
+});
+
+/** What the Substructure editor asks the backend: the project folder (its saved files are read), and the columns to size. */
+interface ISubstructureCommandArgs {
+	readonly projectRoot: string;
+	readonly columns?: readonly string[];
+}
+
+/** A backend answer of only `{problems}` becomes an error the caller shows. */
+function orThrow<T extends object>(result: T): T {
+	const { problems, foundations, substructure } = result as { problems?: unknown; foundations?: unknown; substructure?: unknown };
+	if (Array.isArray(problems) && problems.length && foundations === undefined && substructure === undefined) {
+		throw new Error(problems.map(String).join(' '));
+	}
+	return result;
+}
+
+/**
+ * Part 9 Substructure: the design checks of the saved substructure, the sizing assistant, the
+ * building model's footings as foundations (nothing written), and the one-time move of those
+ * footings into a placeholder `substructure.json`. Internal: the Substructure editor and Run All
+ * call them by id.
+ */
+CommandsRegistry.registerCommand('saengine.substructure.report', async (accessor, args: ISubstructureCommandArgs) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return orThrow(await accessor.get(IFemSolverService).substructureReport(python, args.projectRoot));
+});
+
+CommandsRegistry.registerCommand('saengine.substructure.size', async (accessor, args: ISubstructureCommandArgs) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return orThrow(await accessor.get(IFemSolverService).substructureSize(python, args.projectRoot, args.columns));
+});
+
+CommandsRegistry.registerCommand('saengine.substructure.migrate', async (accessor, args: ISubstructureCommandArgs) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return orThrow(await accessor.get(IFemSolverService).substructureMigrate(python, args.projectRoot));
+});
+
+CommandsRegistry.registerCommand('saengine.substructure.ensureMigrated', async (accessor, args: ISubstructureCommandArgs) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).substructureEnsure(python, args.projectRoot);
 });

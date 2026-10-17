@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { computePartStatuses, DESIGN_SUMMARY_FILE, EXPORT_DXF_FOLDER, EXPORT_IFC_FOLDER, exportKind, FEM_RESULTS_FOLDER, FEM_RESULTS_MANIFEST, IPartStatus, IPartStatusInputs, ISaenginePartStatusService, REPORT_FILE } from '../common/partStatus.js';
+import { computePartStatuses, DESIGN_SUMMARY_FILE, EXPORT_DXF_FOLDER, EXPORT_IFC_FOLDER, exportKind, FEM_RESULTS_FOLDER, FEM_RESULTS_MANIFEST, IPartStatus, IPartStatusInputs, ISaenginePartStatusService, REPORT_FILE, SUBSTRUCTURE_SUMMARY_FILE } from '../common/partStatus.js';
 import { ALL_PARTS, ISaengineProject, ISaengineProjectService, partById } from '../common/saengineProject.js';
 
 /** How long file changes settle before the statuses are computed again [ms]. */
@@ -91,15 +91,20 @@ export class SaenginePartStatusService extends Disposable implements ISaenginePa
 		const femFolder = joinPath(project.root, fem.folder);
 		const results = joinPath(femFolder, FEM_RESULTS_FOLDER);
 		const exportsFolder = joinPath(project.root, partById('exports')!.folder);
-		const [femModelTime, femResultsTime, designSummaryTime, designSummaryText, reportTime, exportFiles] = await Promise.all([
+		const substructure = partById('substructure');
+		const substructureFolder = substructure && joinPath(project.root, substructure.folder);
+		const [femModelTime, femResultsTime, designSummaryTime, designSummaryText, reportTime, exportFiles, substructureTime, substructureSummaryTime, substructureSummaryText] = await Promise.all([
 			this.mtime(joinPath(femFolder, fem.mainFile!)),
 			this.mtime(joinPath(results, FEM_RESULTS_MANIFEST)),
 			this.mtime(joinPath(results, DESIGN_SUMMARY_FILE)),
 			this.readText(joinPath(results, DESIGN_SUMMARY_FILE)),
 			this.mtime(joinPath(exportsFolder, REPORT_FILE)),
 			this.countExports(exportsFolder),
+			substructureFolder && substructure.mainFile ? this.mtime(joinPath(substructureFolder, substructure.mainFile)) : undefined,
+			substructureFolder ? this.mtime(joinPath(substructureFolder, SUBSTRUCTURE_SUMMARY_FILE)) : undefined,
+			substructureFolder ? this.readText(joinPath(substructureFolder, SUBSTRUCTURE_SUMMARY_FILE)) : undefined,
 		]);
-		return { texts, femModelTime, femResultsTime, designSummaryTime, designSummaryText, reportTime, exportFiles };
+		return { texts, femModelTime, femResultsTime, designSummaryTime, designSummaryText, reportTime, exportFiles, substructureTime, substructureSummaryTime, substructureSummaryText };
 	}
 
 	/** The exports in `folder` other than the report: IFC, DXF floor plans and CSV tables. */

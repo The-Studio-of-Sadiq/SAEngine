@@ -306,6 +306,138 @@
   #text(size: 8.5pt, fill: muted, soil.liquefaction.method)
 ]
 
+// ───────────────────────────── foundations ─────────────────────────────
+
+#let fdn = data.foundations
+
+= Foundations
+
+#if not fdn.available [
+  #note(fdn.message)
+] else [
+  The foundations of 9 Substructure, designed for the support reactions of the analysis: the
+  column bases are fixed supports of the analysis model. Bearing and pile loads are checked under
+  the service combinations, the concrete (ACI 318-19) under the factored ones. Utilisation is
+  demand over capacity; above 1.000 is marked FAIL.
+
+  == Summary
+  #pairs(fdn.summary, width: 40%)
+  #if fdn.failed > 0 {
+    note[*#fdn.failed foundation(s) or tie beam(s) fail their design checks.* They are
+      highlighted below.]
+  }
+
+  == Governing checks
+  #tbl(
+    ("Id", "Type", "Columns", "Size", "Governing check", "Util.", "Combination", "Result"),
+    fdn.rows,
+    columns: (auto, auto, 1fr, auto, 1fr, auto, auto, auto),
+    align: (left, left, left, left, left, right, left, center),
+    bad: fdn.fails,
+    size: 8pt,
+  )
+
+  #if fdn.pressures.len() > 0 [
+    == Bearing pressure
+    The largest net pressure under each footing and raft (the gross pressure less the overburden
+    removed), against its net allowable bearing pressure qa.
+    #v(0.3em)
+    #tbl(
+      ("Foundation", "Net pressure [kPa]", "qa [kPa]", "Combination", "qa from"),
+      fdn.pressures,
+      columns: (auto, auto, auto, 1fr, auto),
+      align: (left, right, right, left, left),
+    )
+  ]
+
+  #if fdn.capacities.len() > 0 [
+    == Pile capacity
+    Single-pile capacity at each pile cap (BNBC 2020 Part 6 Sec 3.10, geotechnical design of
+    deep foundations): Qult = Qs + Qb - W, Qa the
+    lesser of Qult / FS and the partial factors; Ta the allowable uplift.
+    #v(0.3em)
+    #tbl(
+      ("Cap", "Pile", "Kind", "Borehole", "D [mm]", "L [m]", "Qs [kN]", "Qb [kN]", "Qult [kN]", "FS", "Qa [kN]", "Ta [kN]"),
+      fdn.capacities,
+      columns: (auto,) * 12,
+      align: (left, left, left, left) + (right,) * 8,
+      size: 7.5pt,
+    )
+    #for t in fdn.capacityTables [
+      #v(0.4em)
+      #text(size: 9pt, weight: "bold", t.title)
+      #let nd = t.diameters.len()
+      #tbl(
+        ("Length",) + t.diameters,
+        t.rows,
+        columns: (1fr,) + (auto,) * nd,
+        align: (left,) + (right,) * nd,
+        size: 7.5pt,
+      )
+    ]
+  ]
+
+  #if fdn.pileLoads.len() > 0 [
+    == Pile loads
+    The load on each pile (cap/pile; u, v its offset from the cap's centre in mm): service loads
+    against Qa, factored loads for the pile section. Negative values are tension.
+    #v(0.3em)
+    #tbl(
+      ("Pile", "u", "v", "Service max [kN]", "Service min [kN]", "Factored max [kN]", "Factored min [kN]", "Qa [kN]"),
+      fdn.pileLoads,
+      columns: (auto,) * 8,
+      align: (left,) + (right,) * 7,
+      size: 8pt,
+    )
+  ]
+
+  #if fdn.rafts.len() > 0 [
+    == Rafts
+    Plate on compression-only Winkler springs (modulus of subgrade reaction ks); settlements are
+    net of the rebound of the excavation.
+    #v(0.3em)
+    #tbl(
+      ("Raft", "ks [kN/m³]", "Mesh [mm]", "Net pressure [kPa]", "qa [kPa]", "Max contact [kPa]", "Max settlement [mm]", "Max differential [mm]", "Angular distortion [‰]"),
+      fdn.rafts,
+      columns: (auto,) * 9,
+      align: (left,) + (right,) * 8,
+      size: 7.5pt,
+    )
+  ]
+
+  #if fdn.skipped.len() > 0 [
+    == Foundations not designed
+    #tbl(("Id", "Type", "Reason"), fdn.skipped, columns: (auto, auto, 1fr))
+  ]
+
+  == Checks of each foundation
+  #for e in fdn.details {
+    block(breakable: false, above: 1em, below: 0pt, {
+      block(below: 0.4em, text(
+        size: 9pt,
+        weight: "bold",
+        fill: if e.ok { ink } else { fail-ink },
+        e.title,
+      ))
+      tbl(
+        ("Check", "Demand", "Capacity", "Unit", "Util.", "Combination", "Result", "Note"),
+        e.rows,
+        columns: (20%, auto, auto, auto, auto, auto, auto, 1fr),
+        align: (left, right, right, left, right, left, center, left),
+        bad: e.fails,
+        size: 7.5pt,
+      )
+    })
+  }
+
+  == Design method
+  #bullets(fdn.method, size: 8.5pt)
+  #if fdn.combinations.service.len() > 0 [
+    Service combinations: #fdn.combinations.service.join(", "). \
+    Strength combinations: #fdn.combinations.strength.join(", ").
+  ]
+]
+
 // ───────────────────────────── 2 model ─────────────────────────────
 
 = Analysis model
@@ -460,6 +592,10 @@ what the software did not check or assumed; the engineer must consider each one.
   == Soil and foundations
   #if lim.soil.len() > 0 { bullets(lim.soil) } else { empty[No notes.] }
 ]
+
+== Foundations
+#bullets(fdn.limits)
+#if lim.foundations.len() > 0 { bullets(lim.foundations) }
 
 == Member design
 #if lim.design.len() > 0 { bullets(lim.design) } else { empty[No notes.] }

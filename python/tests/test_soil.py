@@ -14,7 +14,13 @@ from saengine.library.settings import default_project_settings
 from saengine.library.soil import SoilReport, is_placeholder
 from saengine.soil import allowable_bearing, bearing, liquefaction, piles, site_class, soil_report
 from saengine.soil.profile import GAMMA_W, PA, Profile, rod_factor
-from saengine.soil.settlement import settlement, steinbrenner_i1, strain_influence
+from saengine.soil.settlement import (
+    influence_depth,
+    settlement,
+    steinbrenner_i1,
+    strain_influence,
+    stress_increase,
+)
 
 
 def report(*boreholes: dict, **design: object) -> SoilReport:
@@ -164,6 +170,38 @@ def test_layer_values_from_samples_and_correlations() -> None:
     assert clay.E == pytest.approx(500 * clay.cu / 1e3)
     assert sandy.phi == pytest.approx(math.sqrt(15.4 * sandy.n160) + 20)
     assert sandy.E == pytest.approx(5 * PA * sandy.n60 / 1e3)  # FC ≥ 15 %: α = 5
+
+
+def test_silt_without_pi_or_cu_is_granular_with_a_note() -> None:
+    hole = {
+        "id": "BH-1",
+        "layers": [
+            {"top": 0, "bottom": 3000, "soilType": "silt"},
+            {"top": 3000, "bottom": 6000, "soilType": "silt", "plasticityIndex": 12},
+            {"top": 6000, "bottom": 9000, "soilType": "silt"},
+            {"top": 9000, "bottom": 12000, "soilType": "silt"},
+        ],
+        # The third silt has a cu from a sample, the fourth a PI of 4 from LL - PL.
+        "samples": [
+            {"depth": 7000, "cu": 30},
+            {"depth": 10000, "liquidLimit": 26, "plasticLimit": 22},
+        ],
+    }
+    p = profile(hole)
+    assert [layer.behaviour for layer in p.layers] == [
+        "granular",
+        "cohesive",
+        "cohesive",
+        "granular",
+    ]
+    note = (
+        "layer 1 (silt): no PI or cu given — treated as non-plastic (granular): it counts in "
+        "the liquefaction screening and the sand methods; give PI or cu if it is plastic"
+    )
+    assert p.notes == [note]
+    # The note reaches the results' notes, which the Soil editor shows.
+    result = soil_report(json.dumps({"boreholes": [hole]}), None)
+    assert result["boreholes"][0]["notes"] == p.notes
 
 
 # ─────────────────────────────── site class ───────────────────────────────
@@ -342,9 +380,10 @@ def test_settlement_controlled_pressure_settles_the_allowable_amount() -> None:
     assert len(rows) == 5 * 4 and {row["B"] for row in rows} == {1000, 1500, 2000, 3000, 4000}
 
 
-def test_settlement_check_sees_clay_stressed_by_the_trial_pressure() -> None:
+def test_settlement_check_sees_clay_stressed_by_the_adopted_pressure() -> None:
     # Dense sand over soft clay at 8 m: under 100 kPa the stressed zone (5.5 m below the base)
-    # misses the clay; under the Meyerhof-Bowles value (510 kPa) it reaches it.
+    # misses the clay; under the adopted pressure (the Meyerhof-Bowles value, far below the
+    # shear value) it reaches it, and the computed settlement governs.
     hole = {
         "id": "BH",
         "layers": [
@@ -367,6 +406,73 @@ def test_settlement_check_sees_clay_stressed_by_the_trial_pressure() -> None:
     assert r["governs"] == "settlement" and r["settlement"].startswith("computed settlement")
     assert r["qa"] < 0.5 * bearing.meyerhof_bowles(35, 3.0, 1.5, 25)
     assert settlement(p, 3.0, 3.0, 1.5, r["qa"])["total"] <= 25.2
+
+
+def soft_sand_over_clay(clay_top: int, **clay: object) -> Profile:
+    """Loose sand (N = 8, γ = 18) over a clay from ``clay_top`` [mm], no water table."""
+    return profile(
+        {
+            "id": "BH",
+            "layers": [
+                {"top": 0, "bottom": clay_top, "soilType": "sand", "unitWeight": 18},
+                {"top": clay_top, "bottom": 25000, "soilType": "clay", "unitWeight": 18, **clay},
+            ],
+            "spt": [{"depth": d, "N": 8} for d in (1500, 3000, 4500)],
+        }
+    )
+
+
+def test_clay_is_checked_at_the_adopted_pressure_not_the_shear_value() -> None:
+    # B = 2 m, Df = 1.5 m. N60 = 8 x 0.75 = 6 at 1.5 m (CR 0.75 below 3 m of rod), 8 x 0.80 at
+    # 3 m and 8 x 0.85 at 4.5 m: mean 6.4, so Meyerhof-Bowles gives
+    # 11.98 x 6.4 x (2.305/2)^2 x (1 + 0.33 x 1.5/2) = 127.0 kPa, well below the shear value.
+    # Under 127 kPa the stressed zone ends 4.8 m below the base (6.3 m deep); under the shear
+    # value it reaches 9 m below it.
+    clay = {"cu": 25, "Cc": 0.5, "e0": 1.3}
+    mb = 11.98 * 6.4 * (2.305 / 2) ** 2 * (1 + 0.33 * 1.5 / 2)
+    outside = soft_sand_over_clay(6600, **clay)
+    r = bearing.allowable(outside, 2.0, 2.0, 1.5)
+    assert r["qa_shear"] > 3 * mb
+    # Clay top 6.6 m (5.1 m below the base): Δσ = 127 x 4/(2 + 5.1)² = 10.1 kPa < 10 % of
+    # σ'v0 = 0.1 x 18 x 6.6 = 11.9 kPa: outside the zone, so no computed settlement ...
+    assert stress_increase(r["qa"], 2.0, 2.0, 5.1) < 0.1 * outside.sigma_v_eff(6.6)
+    assert r["qa"] == pytest.approx(mb, abs=0.1) and r["settlement"].startswith("Meyerhof-Bowles")
+    # ... though the zone under the shear value (the old trial pressure) would reach it.
+    assert influence_depth(outside, 2.0, 2.0, 1.5, r["qa_shear"]) > 5.1
+    # Clay top 6.0 m (4.5 m below the base): Δσ = 127 x 4/6.5² = 12.0 kPa > 0.1 x 18 x 6 = 10.8:
+    # inside; its settlement at 127 kPa exceeds 25 mm, so the pressure drops until it is 25 mm
+    # with the clay still in the zone.
+    inside = soft_sand_over_clay(6000, **clay)
+    assert stress_increase(mb, 2.0, 2.0, 4.5) > 0.1 * inside.sigma_v_eff(6.0)
+    assert settlement(inside, 2.0, 2.0, 1.5, mb)["total"] > 25
+    r = bearing.allowable(inside, 2.0, 2.0, 1.5)
+    assert r["governs"] == "settlement" and r["qa"] < mb - 1
+    assert r["settlement"].startswith("computed settlement (immediate + consolidation) = 25 mm")
+    s = settlement(inside, 2.0, 2.0, 1.5, r["qa"])
+    assert s["total"] == pytest.approx(25, abs=0.2) and s["consolidation"] > 0
+    assert influence_depth(inside, 2.0, 2.0, 1.5, r["qa"]) > 4.5
+
+
+def test_reduced_pressure_rechecks_the_zone_and_names_only_what_settles() -> None:
+    # Clay top 6.2 m, very compressible: at 127 kPa it is in the zone and settles too much; the
+    # bisection lands just below the pressure whose zone reaches it, where only the sand settles.
+    p = soft_sand_over_clay(6200, cu=25, Cc=1.2, e0=1.3)
+    r = bearing.allowable(p, 2.0, 2.0, 1.5)
+    assert r["governs"] == "settlement" and r["settlement"].startswith("computed settlement: above")
+    # The clay is 4.7 m below the base: the zone at the adopted pressure stops above it.
+    assert influence_depth(p, 2.0, 2.0, 1.5, r["qa"]) <= 4.7 + 1e-9
+    assert settlement(p, 2.0, 2.0, 1.5, r["qa"])["consolidation"] == 0
+    # A clay with a modulus but no Cc, e0: only the immediate settlement, and the text says so.
+    r = bearing.allowable(soft_sand_over_clay(6000, E=2), 2.0, 2.0, 1.5)
+    assert r["settlement"].startswith("computed settlement (immediate) = 25 mm")
+    assert "consolidation" not in r["settlement"]
+    # A stiff clay in the zone that settles less than 25 mm at the adopted pressure does not
+    # govern: the pressure where it would settle 25 mm lies above the adopted one.
+    stiff = soft_sand_over_clay(6000, E=50)
+    r = bearing.allowable(stiff, 2.0, 2.0, 1.5)
+    assert r["settlement"].startswith("Meyerhof-Bowles") and r["qa"] == pytest.approx(127.0, 0.1)
+    t = bearing.settlement_controlled(stiff, 2.0, 2.0, 1.5, 25, r["qa_shear"])
+    assert t["method"].startswith("Meyerhof-Bowles")
 
 
 # ─────────────────────────────── settlement ───────────────────────────────

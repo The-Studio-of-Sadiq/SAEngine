@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { recordedStamp, sourceStamp } from '../../../services/saengineProject/common/partSources.js';
+import { boqSourceStamp, recordedStamp } from '../../../services/saengineProject/common/partSources.js';
 
 /*
  * The bill of quantities (`10 BOQ/boq.json`, schema `saengine.boq/1`), measured by the Python
- * models (`saengine.boq.quantities`) from the building model, the object types and the materials.
+ * models (`saengine.boq.quantities`) from the building model, the object types, the materials and
+ * the substructure (its foundations, with their earthwork dug from the project settings' ground).
  * The editor never edits the bill: it is measured again on request.
  */
 
@@ -17,7 +18,7 @@ export const BOQ_SCHEMA_ID = 'saengine.boq/1';
 /** Desktop command measuring the bill (registered where the Python backend is). */
 export const BOQ_COMPUTE_COMMAND = 'saengine.boq.compute';
 
-export type BoqGroup = 'concrete' | 'masonry' | 'reinforcement' | 'formwork' | 'steel';
+export type BoqGroup = 'earthwork' | 'concrete' | 'masonry' | 'reinforcement' | 'formwork' | 'steel';
 export type BoqUnit = 'm3' | 'm2' | 'kg';
 
 export interface IBoqBreakdownEntry {
@@ -47,11 +48,15 @@ export interface IBoqDocument {
 	readonly notes?: readonly string[];
 }
 
-/** Arguments of {@link BOQ_COMPUTE_COMMAND}: the texts of the three source files. */
+/** Arguments of {@link BOQ_COMPUTE_COMMAND}: the texts of the source files. */
 export interface IBoqComputeArgs {
 	readonly bimText: string;
 	readonly objectsText: string;
 	readonly materialsText: string;
+	/** Once it is no longer the placeholder, its foundations are measured (not the building model's footings). */
+	readonly substructureText?: string;
+	/** The ground level the foundations' earthwork is dug from. */
+	readonly settingsText?: string;
 }
 
 /** Result of {@link BOQ_COMPUTE_COMMAND}: the new text of `boq.json`, or why it could not be measured. */
@@ -61,21 +66,49 @@ export interface IBoqComputeResult {
 	readonly problems?: readonly string[];
 }
 
-/** The parts the bill is measured from, by the part ids its `source` records them under. */
-export const BOQ_SOURCES: readonly { readonly part: string; readonly label: string }[] = [
-	{ part: 'bim', label: localize('boq.source.bim', "Building Model") },
-	{ part: 'objects', label: localize('boq.source.objects', "Object Types") },
-	{ part: 'materials', label: localize('boq.source.materials', "Materials") },
+/**
+ * The parts the bill is measured from, by the part ids its `source` records them under:
+ * `required` ones must exist; the substructure may be missing (a project from before Part 9);
+ * an `optional` source counts only when the bill recorded it (the settings matter only for the
+ * earthwork of the substructure's foundations, and of them only the ground level counts: see
+ * `boqSourceStamp`).
+ */
+export const BOQ_SOURCES: readonly { readonly part: string; readonly label: string; readonly required?: boolean; readonly optional?: boolean }[] = [
+	{ part: 'bim', label: localize('boq.source.bim', "Building Model"), required: true },
+	{ part: 'objects', label: localize('boq.source.objects', "Object Types"), required: true },
+	{ part: 'materials', label: localize('boq.source.materials', "Materials"), required: true },
+	{ part: 'substructure', label: localize('boq.source.substructure', "Substructure") },
+	{ part: 'settings', label: localize('boq.source.groundLevel', "Ground Level (Project Settings)"), optional: true },
 ];
+
+/** The arguments of {@link BOQ_COMPUTE_COMMAND} from the sources' texts by part id; without them, the labels of the required sources that are missing. */
+export function boqComputeArgs(texts: ReadonlyMap<string, string | undefined>): { readonly args?: IBoqComputeArgs; readonly missing: readonly string[] } {
+	const bimText = texts.get('bim');
+	const objectsText = texts.get('objects');
+	const materialsText = texts.get('materials');
+	if (bimText === undefined || objectsText === undefined || materialsText === undefined) {
+		return { missing: BOQ_SOURCES.filter(s => s.required && texts.get(s.part) === undefined).map(s => s.label) };
+	}
+	return { args: { bimText, objectsText, materialsText, substructureText: texts.get('substructure'), settingsText: texts.get('settings') }, missing: [] };
+}
 
 /** The groups of the bill in their order, with their titles. */
 export const BOQ_GROUPS: readonly { readonly group: BoqGroup; readonly title: string }[] = [
+	{ group: 'earthwork', title: localize('boq.group.earthwork', "Earthwork") },
 	{ group: 'concrete', title: localize('boq.group.concrete', "Concrete") },
 	{ group: 'masonry', title: localize('boq.group.masonry', "Masonry") },
 	{ group: 'reinforcement', title: localize('boq.group.reinforcement', "Reinforcement by Bar Diameter") },
 	{ group: 'formwork', title: localize('boq.group.formwork', "Formwork") },
 	{ group: 'steel', title: localize('boq.group.steel', "Structural Steel") },
 ];
+
+/**
+ * The items of `group` whose quantities add up to a meaningful total: excavation and backfill are
+ * the same earth measured twice, so the earthwork's total is the excavation's.
+ */
+export function totalledItems(group: BoqGroup, items: readonly IBoqItem[]): readonly IBoqItem[] {
+	return group === 'earthwork' ? items.filter(i => i.kind === 'excavation') : items;
+}
 
 /** The bill in `text`, or undefined when it is not a measured bill (invalid JSON, the new-project placeholder, ...). */
 export function parseBoq(text: string): IBoqDocument | undefined {
@@ -91,13 +124,21 @@ export function parseBoq(text: string): IBoqDocument | undefined {
 }
 
 /**
- * The source parts whose current text differs from the one the bill was measured from;
- * a part whose text is unknown (missing file) counts as changed.
+ * The source parts whose current text differs from the one the bill was measured from; a
+ * required part whose text is unknown (missing file) counts as changed, and so does a missing
+ * substructure the bill was measured with.
  */
 export function changedSources(document: IBoqDocument | undefined, texts: ReadonlyMap<string, string | undefined>): string[] {
-	return BOQ_SOURCES.filter(({ part }) => {
+	return BOQ_SOURCES.filter(({ part, required, optional }) => {
+		const recorded = recordedStamp(document, part);
+		if (optional && recorded === undefined) {
+			return false;
+		}
 		const text = texts.get(part);
-		return text === undefined || recordedStamp(document, part) !== sourceStamp(text);
+		if (text === undefined) {
+			return required || recorded !== undefined;
+		}
+		return recorded !== boqSourceStamp(part, text);
 	}).map(s => s.part);
 }
 

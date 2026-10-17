@@ -5,7 +5,8 @@
 
 import { CancellationError } from '../../../../base/common/errors.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { joinPath } from '../../../../base/common/resources.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { dirname, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IReference } from '../../../../base/common/lifecycle.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -18,8 +19,9 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { ISaengineProject, ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
-import { BOQ_COMPUTE_COMMAND, BOQ_SOURCES, changedSources, IBoqComputeArgs, IBoqComputeResult, parseBoq } from '../../saengineBoq/browser/boqDocument.js';
+import { BOQ_COMPUTE_COMMAND, BOQ_SOURCES, boqComputeArgs, changedSources, IBoqComputeResult, parseBoq } from '../../saengineBoq/browser/boqDocument.js';
 import { BUILD_REPORT_COMMAND_ID, IReportBuildRequest, IReportBuildResult, reportProblems } from '../../saengineReport/browser/reportBuild.js';
+import { ISubstructureMigration, ISubstructureReport, ISubstructureRequest, parseSubstructure, readSubstructureReport, SUBSTRUCTURE_ENSURE_COMMAND, SUBSTRUCTURE_REPORT_COMMAND, SUBSTRUCTURE_SUMMARY_FILE, substructureSummaryFile } from '../../saengineSubstructure/browser/substructureDocument.js';
 import { DERIVATION_INPUTS, deriveAnalysisModel, derivationState, partFile } from '../browser/femDerivationBar.js';
 import { IFemDesignReport, runDesign, writeDesignSummary } from '../browser/femDesign.js';
 import { errorSummary } from '../browser/femResultsBar.js';
@@ -31,13 +33,15 @@ export const CANCEL_RUN_ALL_COMMAND_ID = 'saengine.runAll.cancel';
 
 const STATUS_ENTRY_ID = 'saengine.runAll.status';
 
-type StepId = 'derive' | 'analysis' | 'design' | 'boq' | 'report';
+type StepId = 'derive' | 'analysis' | 'design' | 'substructure' | 'boq' | 'report';
+
 
 /** The steps of Run All, in order, with the names the status bar gives them. */
 const STEPS: readonly { readonly id: StepId; readonly label: string }[] = [
 	{ id: 'derive', label: localize('runAll.step.derive', "analysis model") },
 	{ id: 'analysis', label: localize('runAll.step.analysis', "analysis") },
 	{ id: 'design', label: localize('runAll.step.design', "design checks") },
+	{ id: 'substructure', label: localize('runAll.step.substructure', "foundation design") },
 	{ id: 'boq', label: localize('runAll.step.boq', "bill of quantities") },
 	{ id: 'report', label: localize('runAll.step.report', "report") },
 ];
@@ -50,8 +54,10 @@ export const IRunAllService = createDecorator<IRunAllService>('saengineRunAllSer
 /**
  * Brings the open project's outputs up to date in one go: derives the analysis model if it is
  * out of date, runs all analysis cases, runs the design checks (writing
- * `08 FEM/model.results/design-summary.json`), measures the bill of quantities if it is out of
- * date and builds the design report. Progress is one status bar entry (click to cancel); the end
+ * `08 FEM/model.results/design-summary.json`), designs the foundations of 9 Substructure (moving
+ * the building model's footings there first while it is still the placeholder; writing
+ * `09 Substructure/substructure.results/summary.json`), measures the bill of quantities if it is
+ * out of date and builds the design report. Progress is one status bar entry (click to cancel); the end
  * is one quiet summary, or one error naming the step that failed.
  */
 export interface IRunAllService {
@@ -127,14 +133,19 @@ export class RunAllService implements IRunAllService {
 
 			step = 3;
 			report();
-			const boqUpdated = await this.measure(project, token);
+			const foundations = await this.designSubstructure(project);
+			this.check(token);
 
 			step = 4;
+			report();
+			const boqUpdated = await this.measure(project, token);
+
+			step = 5;
 			report();
 			const pdf = await this.buildReport(project);
 			this.check(token);
 
-			this.showSummary(design, derived, boqUpdated, pdf);
+			this.showSummary(design, foundations, derived, boqUpdated, pdf);
 		} catch (error) {
 			if (error instanceof CancellationError || token.isCancellationRequested) {
 				this.notificationService.notify({ severity: Severity.Info, message: localize('runAll.cancelled', "Run All cancelled at step {0} of {1} ({2}).", step + 1, STEPS.length, STEPS[step].label) });
@@ -192,7 +203,7 @@ export class RunAllService implements IRunAllService {
 	 * the derivation takes the site class, and the footing design qa, from the saved file).
 	 */
 	private async saveSources(project: ISaengineProject): Promise<void> {
-		const ids = [...new Set([...DERIVATION_INPUTS, ...BOQ_SOURCES.map(s => s.part)])];
+		const ids = [...new Set([...DERIVATION_INPUTS, ...BOQ_SOURCES.map(s => s.part), 'substructure', 'soil'])];
 		for (const id of ids) {
 			const part = partById(id);
 			const file = part?.mainFile && joinPath(project.root, part.folder, part.mainFile);
@@ -252,6 +263,49 @@ export class RunAllService implements IRunAllService {
 		return report;
 	}
 
+	/**
+	 * Designs the foundations of 9 Substructure: moves the building model's footings there first
+	 * while it is still the placeholder (projects from before Part 9), then checks the saved file
+	 * and writes the summary the part list shows. Undefined when there are no foundations.
+	 */
+	private async designSubstructure(project: ISaengineProject): Promise<ISubstructureReport | undefined> {
+		const part = partById('substructure');
+		if (!part?.mainFile) {
+			return undefined;
+		}
+		const resource = joinPath(project.root, part.folder, part.mainFile);
+		const request: ISubstructureRequest = { projectRoot: project.root.fsPath };
+		const migration = await this.commandService.executeCommand<ISubstructureMigration>(SUBSTRUCTURE_ENSURE_COMMAND, request);
+		if (migration?.problems?.length) {
+			throw new StepFailure(migration.problems.join(' '));
+		}
+		let text: string;
+		try {
+			text = (await this.fileService.readFile(resource)).value.toString();
+		} catch {
+			return undefined; // no substructure file: nothing to design
+		}
+		const parsed = parseSubstructure(text);
+		if (parsed.kind === 'error') {
+			throw new StepFailure(parsed.message);
+		}
+		if (parsed.kind === 'placeholder' || !parsed.document.foundations.length) {
+			return undefined;
+		}
+		let report: ISubstructureReport | undefined;
+		try {
+			report = readSubstructureReport(await this.commandService.executeCommand<unknown>(SUBSTRUCTURE_REPORT_COMMAND, request));
+		} catch (error) {
+			throw new StepFailure(errorSummary(error));
+		}
+		if (!report) {
+			throw new StepFailure(localize('runAll.substructureUnavailable', "The foundation design is not available."));
+		}
+		const summary = substructureSummaryFile(parsed.document, report, new Date());
+		await this.fileService.writeFile(joinPath(dirname(resource), SUBSTRUCTURE_SUMMARY_FILE), VSBuffer.fromString(JSON.stringify(summary, undefined, '\t') + '\n'));
+		return report;
+	}
+
 	/** Measures the bill of quantities when it is not measured yet or its sources changed. */
 	private async measure(project: ISaengineProject, token: CancellationToken): Promise<boolean> {
 		const boq = partById('boq');
@@ -272,13 +326,11 @@ export class RunAllService implements IRunAllService {
 			if (!changedSources(parseBoq(model.getValue()), texts).length) {
 				return false;
 			}
-			const [bimText, objectsText, materialsText] = BOQ_SOURCES.map(s => texts.get(s.part));
-			if (bimText === undefined || objectsText === undefined || materialsText === undefined) {
-				const missing = BOQ_SOURCES.filter(s => texts.get(s.part) === undefined).map(s => s.label);
+			const { args, missing } = boqComputeArgs(texts);
+			if (!args) {
 				throw new StepFailure(localize('runAll.boqMissing', "{0} could not be read.", missing.join(', ')));
 			}
 			this.check(token);
-			const args: IBoqComputeArgs = { bimText, objectsText, materialsText };
 			const result = await this.commandService.executeCommand<IBoqComputeResult>(BOQ_COMPUTE_COMMAND, args);
 			if (!result?.text) {
 				throw new StepFailure((result?.problems ?? []).join('; ') || localize('runAll.boqFailed', "The bill could not be measured."));
@@ -304,10 +356,11 @@ export class RunAllService implements IRunAllService {
 		return URI.file(result.path);
 	}
 
-	/** "Done: 13 pass, 3 fail · BOQ updated · report written", with Open Report. */
-	private showSummary(design: IFemDesignReport, derived: boolean, boqUpdated: boolean, pdf: URI): void {
+	/** "Done: 13 pass, 3 fail · foundations 6 pass, 1 fail · BOQ updated · report written", with Open Report. */
+	private showSummary(design: IFemDesignReport, foundations: ISubstructureReport | undefined, derived: boolean, boqUpdated: boolean, pdf: URI): void {
 		const parts = [
 			localize('runAll.summary.design', "{0} pass, {1} fail", design.summary.passed, design.summary.failed),
+			...(foundations ? [localize('runAll.summary.foundations', "foundations {0} pass, {1} fail", foundations.summary.passed, foundations.summary.failed)] : []),
 			...(derived ? [localize('runAll.summary.derived', "model derived")] : []),
 			boqUpdated ? localize('runAll.summary.boqUpdated', "BOQ updated") : localize('runAll.summary.boqCurrent', "BOQ up to date"),
 			localize('runAll.summary.report', "report written"),

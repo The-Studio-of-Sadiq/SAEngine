@@ -13,7 +13,7 @@ import { killTree } from '../../../base/node/processes.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemResultList, IFemResultView, IFemRunEventMessage, IBuildingIfc, IBuildingIfcRequest, IFemDerivation, IFemDeriveRequest, IGeneratedBuilding, ILibraryProblem, LibraryFileKind, IFemRunExit, IFemRunRequest, IFemSolverService, IStructureEdit, IStructureGeometry, IStructureScriptResult, StructureGeometryResult, IBoqComputation, IReportBuild, ISoilBearing, ISoilBearingRequest, ISoilImport, ISoilSources, ISoilTemplate } from '../common/femSolver.js';
+import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemResultList, IFemResultView, IFemRunEventMessage, IBuildingIfc, IBuildingIfcRequest, IFemDerivation, IFemDeriveRequest, IGeneratedBuilding, ILibraryProblem, LibraryFileKind, IFemRunExit, IFemRunRequest, IFemSolverService, IStructureEdit, IStructureGeometry, IStructureScriptResult, StructureGeometryResult, IBoqComputation, IBoqComputeRequest, IReportBuild, ISoilBearing, ISoilBearingRequest, ISoilImport, ISoilSources, ISoilTemplate, ISubstructureMigration } from '../common/femSolver.js';
 
 interface IRun {
 	readonly child: cp.ChildProcess;
@@ -173,8 +173,8 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 		return this.request(python, 'design/report', { outDir, projectPath: project });
 	}
 
-	computeBoq(python: string, bimText: string, objectsText: string, materialsText: string): Promise<IBoqComputation> {
-		return this.request(python, 'boq/compute', { bimText, objectsText, materialsText });
+	computeBoq(python: string, request: IBoqComputeRequest): Promise<IBoqComputation> {
+		return this.request(python, 'boq/compute', request);
 	}
 
 	buildReport(python: string, projectRoot: string, outPdf?: string): Promise<IReportBuild> {
@@ -199,6 +199,22 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 
 	soilSources(python: string, soilText: string | undefined, settingsText: string | undefined): Promise<ISoilSources> {
 		return this.request(python, 'soil/sources', { soilText, settingsText });
+	}
+
+	substructureReport(python: string, projectRoot: string): Promise<object> {
+		return this.request(python, 'substructure/report', { projectRoot });
+	}
+
+	substructureSize(python: string, projectRoot: string, columns?: readonly string[]): Promise<object> {
+		return this.request(python, 'substructure/size', { projectRoot, columns });
+	}
+
+	substructureMigrate(python: string, projectRoot: string): Promise<object> {
+		return this.request(python, 'substructure/migrate', { projectRoot });
+	}
+
+	substructureEnsure(python: string, projectRoot: string): Promise<ISubstructureMigration> {
+		return this.request(python, 'substructure/ensure', { projectRoot });
 	}
 
 	private async request<T>(python: string, method: string, params: object): Promise<T> {

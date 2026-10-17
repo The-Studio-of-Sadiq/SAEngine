@@ -34,7 +34,6 @@ import { PlaceholderEditorInput } from './placeholderEditorInput.js';
  */
 export const PLACEHOLDER_PARTS: readonly { readonly part: string; readonly description: () => string }[] = [
 	{ part: 'mep', description: () => localize('placeholder.mep', "Mechanical, electrical and plumbing services and their loads on the structure. Planned for later.") },
-	{ part: 'substructure', description: () => localize('placeholder.substructure', "Footings, piles and pile caps, and rafts, designed from the analysis reactions. Coming in the next phase.") },
 ];
 
 /** What a part's main file holds, for the page. */

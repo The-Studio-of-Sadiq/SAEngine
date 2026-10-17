@@ -6,7 +6,7 @@
 import { Event } from '../../../../base/common/event.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { recordedStamp, sourceStamp, upstreamPart } from './partSources.js';
+import { boqSourceStamp, recordedStamp, sourceStamp, upstreamPart } from './partSources.js';
 import { IProjectPart } from './saengineProject.js';
 
 /*
@@ -53,6 +53,12 @@ export interface IPartStatusInputs {
 	readonly reportTime?: number;
 	/** How many other exports `11 Exports` holds (IFC, DXF floor plans, CSV); 0 or undefined for none. */
 	readonly exportFiles?: number;
+	/** Text of `09 Substructure/substructure.results/summary.json`, if the foundations were checked. */
+	readonly substructureSummaryText?: string;
+	/** Modification time of that summary. */
+	readonly substructureSummaryTime?: number;
+	/** Modification time of `09 Substructure/substructure.json`. */
+	readonly substructureTime?: number;
 }
 
 /** File names the status reads besides the parts' main files. */
@@ -60,6 +66,8 @@ export const FEM_RESULTS_FOLDER = 'model.results';
 export const FEM_RESULTS_MANIFEST = 'manifest.json';
 export const DESIGN_SUMMARY_FILE = 'design-summary.json';
 export const REPORT_FILE = 'report.pdf';
+/** The foundation checks' summary the Substructure editor and Run All write beside `substructure.json`. */
+export const SUBSTRUCTURE_SUMMARY_FILE = 'substructure.results/summary.json';
 
 /** Where the exports of `11 Exports` go besides the report: IFC models and DXF floor plans in folders, CSV tables at the top. */
 export const EXPORT_IFC_FOLDER = 'IFC';
@@ -93,8 +101,11 @@ const OPTIONAL_PARTS = new Set(['soil', 'mep', 'substructure']);
 /** The parts the analysis model is derived from, by the keys its description records them under. */
 const FEM_SOURCES = ['bim', 'settings', 'objects', 'materials'];
 
-/** The parts the bill of quantities is measured from. */
+/** The parts the bill of quantities is measured from (the substructure: once the bill records it). */
 const BOQ_SOURCES = ['bim', 'objects', 'materials'];
+const BOQ_RECORDED_SOURCES = ['substructure', 'settings'];
+
+const SUBSTRUCTURE_SCHEMA_ID = 'saengine.substructure/1';
 
 const BOQ_SCHEMA_ID = 'saengine.boq/1';
 
@@ -135,9 +146,9 @@ export function femRecordedSources(model: JsonObject): Map<string, string> {
 	return sources;
 }
 
-function changed(texts: ReadonlyMap<string, string | undefined>, part: string, recorded: string | undefined): boolean {
+function changed(texts: ReadonlyMap<string, string | undefined>, part: string, recorded: string | undefined, stamp: (part: string, text: string) => string = (_part, text) => sourceStamp(text)): boolean {
 	const text = texts.get(part);
-	return text === undefined || recorded !== sourceStamp(text);
+	return text === undefined || recorded !== stamp(part, text);
 }
 
 function status(part: string, state: PartState, text = '', hint?: string): IPartStatus {
@@ -196,7 +207,13 @@ function boqStatus(inputs: IPartStatusInputs): IPartStatus {
 	if (!document || document.schema !== BOQ_SCHEMA_ID) {
 		return status('boq', 'notStarted', localize('partStatus.boq.notMeasured', "not measured"), localize('partStatus.boq.measure', "measure the quantities"));
 	}
-	if (BOQ_SOURCES.some(part => changed(inputs.texts, part, recordedStamp(document, part)))) {
+	// The substructure and the settings count once the bill was measured with them (bills from
+	// before Part 9 do not record them; Run All measures them again). Of the settings only the
+	// ground level counts: the earthwork is dug from it, and nothing else in the bill reads them.
+	const recorded = (part: string) => recordedStamp(document, part) !== undefined;
+	if (BOQ_SOURCES.some(part => changed(inputs.texts, part, recordedStamp(document, part)))
+		|| BOQ_RECORDED_SOURCES.some(part => recorded(part) && changed(inputs.texts, part, recordedStamp(document, part), boqSourceStamp))
+		|| (!recorded('substructure') && substructureHasFoundations(inputs))) {
 		return status('boq', 'stale', STALE(), localize('partStatus.boq.measureAgain', "measure the quantities again"));
 	}
 	return status('boq', 'done', localize('partStatus.boq.measured', "measured"));
@@ -242,6 +259,73 @@ function soilStatus(inputs: IPartStatusInputs): IPartStatus {
 		return status('soil', 'inProgress', count, localize('partStatus.soil.layers', "enter the layers of every borehole"));
 	}
 	return status('soil', 'done', count);
+}
+
+function substructureHasFoundations(inputs: IPartStatusInputs): boolean {
+	const text = inputs.texts.get('substructure');
+	const document = text !== undefined ? parse(text) : undefined;
+	return !!document && document.schema === SUBSTRUCTURE_SCHEMA_ID && Array.isArray(document.foundations) && document.foundations.length > 0;
+}
+
+/** The foundation checks' summary (see {@link SUBSTRUCTURE_SUMMARY_FILE}). */
+interface ISubstructureSummary {
+	readonly foundations: number;
+	readonly checked: number;
+	readonly passed: number;
+	readonly failed: number;
+	/**
+	 * The stamp of each part file the checks read, by part id ("" for a file that was missing):
+	 * the substructure, soil report, settings, materials, object types and building model.
+	 * Summaries written before it was recorded are compared by time with the substructure only.
+	 */
+	readonly source?: { readonly [part: string]: unknown };
+}
+
+/** True when every part file a summary recorded still has the text it was checked with. */
+function sourcesUnchanged(texts: ReadonlyMap<string, string | undefined>, source: { readonly [part: string]: unknown }): boolean {
+	return Object.entries(source).every(([part, recorded]) => {
+		const text = texts.get(part);
+		return recorded === '' ? text === undefined : text !== undefined && recorded === sourceStamp(text);
+	});
+}
+
+/**
+ * Part 9: not started while the file is the placeholder or has no foundations; done (or failed)
+ * when the foundation checks' summary is newer than the analysis results and every part file
+ * it was checked from (the substructure, soil report, settings, materials, object types and
+ * building model) is unchanged; in progress otherwise.
+ */
+function substructureStatus(inputs: IPartStatusInputs): IPartStatus {
+	const text = inputs.texts.get('substructure');
+	const document = text !== undefined ? parse(text) : undefined;
+	if (text === undefined || (document && isPlaceholder(document, 'substructure'))) {
+		return status('substructure', 'notStarted', NOT_STARTED(), startHint('substructure'));
+	}
+	if (!document || document.schema !== SUBSTRUCTURE_SCHEMA_ID) {
+		return status('substructure', 'error', localize('partStatus.invalid', "invalid file"), localize('partStatus.fix', "fix the file"));
+	}
+	const count = Array.isArray(document.foundations) ? document.foundations.length : 0;
+	if (!count) {
+		return status('substructure', 'notStarted', NOT_STARTED(), startHint('substructure'));
+	}
+	const foundations = count === 1 ? localize('partStatus.substructure.one', "1 foundation") : localize('partStatus.substructure.count', "{0} foundations", count);
+	const value = inputs.substructureSummaryText !== undefined ? parse(inputs.substructureSummaryText) : undefined;
+	const summary = value && typeof value.failed === 'number' && typeof value.passed === 'number' ? value as unknown as ISubstructureSummary : undefined;
+	const time = inputs.substructureSummaryTime;
+	const source = summary && typeof summary.source === 'object' && summary.source !== null ? summary.source : undefined;
+	const current = summary && time !== undefined
+		&& (source ? sourcesUnchanged(inputs.texts, source) : inputs.substructureTime === undefined || time >= inputs.substructureTime)
+		&& (inputs.femResultsTime === undefined || time >= inputs.femResultsTime);
+	if (!current) {
+		return status('substructure', 'inProgress', foundations, localize('partStatus.substructure.check', "check the foundations"));
+	}
+	if (summary.checked === 0) {
+		return status('substructure', 'inProgress', foundations, localize('partStatus.substructure.analyse', "run the analysis to design them"));
+	}
+	if (summary.failed > 0) {
+		return status('substructure', 'failed', localize('partStatus.substructure.fail', "{0} fail", summary.failed), localize('partStatus.substructure.review', "review the failing foundations"));
+	}
+	return status('substructure', 'done', foundations);
 }
 
 function exportsStatus(inputs: IPartStatusInputs, formatDate: (time: number) => string): IPartStatus {
@@ -297,6 +381,7 @@ export function computePartStatuses(parts: readonly IProjectPart[], inputs: IPar
 			case 'boq': return boqStatus(inputs);
 			case 'bim': return bimStatus(parts, inputs);
 			case 'exports': return exportsStatus(inputs, formatDate);
+			case 'substructure': return substructureStatus(inputs);
 			default: return documentStatus(part.id, inputs);
 		}
 	});

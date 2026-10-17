@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { sourceStamp } from '../../common/partSources.js';
+import { groundLevelStamp, sourceStamp } from '../../common/partSources.js';
 import { computePartStatuses, exportKind, IPartStatusInputs, nextStep } from '../../common/partStatus.js';
 import { PROJECT_PARTS, projectParts } from '../../common/saengineProject.js';
 
@@ -160,6 +160,74 @@ suite('SAEngine - PartStatus', () => {
 		const structure = '{"schema": "saengine.structure/1"}';
 		const bim = JSON.stringify({ schema: 'saengine.bim/2', source: { structure: sourceStamp(structure) }, elements: [] });
 		assert.deepStrictEqual(summary(project({ structure, bim }), projectParts('structure')).slice(4, 6), ['structure: done', 'bim: done']);
+	});
+
+	test('substructure: placeholder, foundations, checked against the saved file and the results', () => {
+		const file = (count: number) => JSON.stringify({ schema: 'saengine.substructure/1', foundations: Array.from({ length: count }, (_, i) => ({ id: `F${i + 1}`, type: 'isolated' })) });
+		const pass = JSON.stringify({ foundations: 2, checked: 2, passed: 2, failed: 0, maxUtilisation: 0.7, governing: 'F1', computed: '2026-10-17T00:00:00Z' });
+		const fail = JSON.stringify({ foundations: 2, checked: 2, passed: 1, failed: 1, maxUtilisation: 1.2, governing: 'F2', computed: '2026-10-17T00:00:00Z' });
+		const part = (texts: { [part: string]: string | undefined }, rest: Omit<IPartStatusInputs, 'texts'> = {}) => computePartStatuses(PROJECT_PARTS, project(texts, rest)).find(s => s.part === 'substructure');
+		// A summary with the stamps of the files it was checked from ("" for a missing soil report).
+		const recorded = (substructure: string, soil = sourceStamp(placeholder('soil'))) => JSON.stringify({
+			...JSON.parse(fail),
+			source: { substructure: sourceStamp(substructure), soil, settings: sourceStamp(SOURCES.settings), materials: sourceStamp(SOURCES.materials), objects: sourceStamp(SOURCES.objects), bim: sourceStamp(BIM) },
+		});
+		const line = (texts: { [part: string]: string | undefined }, rest: Omit<IPartStatusInputs, 'texts'> = {}) => {
+			const s = part(texts, rest)!;
+			return `${s.state} ${s.text} (${s.hint ?? ''})`;
+		};
+		assert.deepStrictEqual([
+			line({}),
+			line({ substructure: file(0) }),
+			line({ substructure: '{ not json' }),
+			line({ substructure: JSON.stringify({ schema: 'other' }) }),
+			line({ substructure: file(1) }),
+			line({ substructure: file(2) }, { substructureTime: 10, femResultsTime: 5, substructureSummaryText: pass, substructureSummaryTime: 20 }),
+			line({ substructure: file(2) }, { substructureTime: 10, femResultsTime: 5, substructureSummaryText: fail, substructureSummaryTime: 20 }),
+			line({ substructure: file(2) }, { substructureTime: 30, femResultsTime: 5, substructureSummaryText: pass, substructureSummaryTime: 20 }),
+			line({ substructure: file(2) }, { substructureTime: 10, femResultsTime: 25, substructureSummaryText: pass, substructureSummaryTime: 20 }),
+			line({ substructure: file(2) }, { substructureTime: 10, substructureSummaryText: JSON.stringify({ foundations: 2, checked: 0, passed: 0, failed: 0 }), substructureSummaryTime: 20 }),
+			// A summary that records its sources is current while they are unchanged, whatever the times.
+			line({ substructure: file(2) }, { substructureTime: 30, femResultsTime: 5, substructureSummaryText: recorded(file(2)), substructureSummaryTime: 20 }),
+			line({ substructure: file(2), settings: '{"schema": "saengine.projectSettings/1", "foundation": {"allowableBearing": 400}}' }, { femResultsTime: 5, substructureSummaryText: recorded(file(2)), substructureSummaryTime: 20 }),
+			line({ substructure: file(2), soil: '{"schema": "saengine.soilReport/1", "boreholes": []}' }, { femResultsTime: 5, substructureSummaryText: recorded(file(2)), substructureSummaryTime: 20 }),
+			line({ substructure: file(2), objects: '{"objects": [1]}' }, { femResultsTime: 5, substructureSummaryText: recorded(file(2)), substructureSummaryTime: 20 }),
+			line({ substructure: file(2) }, { femResultsTime: 25, substructureSummaryText: recorded(file(2)), substructureSummaryTime: 20 }),
+			line({ substructure: file(2) }, { femResultsTime: 5, substructureSummaryText: recorded(file(2), ''), substructureSummaryTime: 20 }),
+			line({ substructure: file(2), soil: undefined }, { femResultsTime: 5, substructureSummaryText: recorded(file(2), ''), substructureSummaryTime: 20 }),
+		], [
+			'notStarted not started (design the foundations)',
+			'notStarted not started (design the foundations)',
+			'error invalid file (fix the file)',
+			'error invalid file (fix the file)',
+			'inProgress 1 foundation (check the foundations)',
+			'done 2 foundations ()',
+			'failed 1 fail (review the failing foundations)',
+			'inProgress 2 foundations (check the foundations)',
+			'inProgress 2 foundations (check the foundations)',
+			'inProgress 2 foundations (run the analysis to design them)',
+			'failed 1 fail (review the failing foundations)',
+			'inProgress 2 foundations (check the foundations)',
+			'inProgress 2 foundations (check the foundations)',
+			'inProgress 2 foundations (check the foundations)',
+			'inProgress 2 foundations (check the foundations)',
+			'inProgress 2 foundations (check the foundations)',
+			'failed 1 fail (review the failing foundations)',
+		]);
+	});
+
+	test('the bill of quantities is stale once the substructure it does not record has foundations', () => {
+		const substructure = JSON.stringify({ schema: 'saengine.substructure/1', foundations: [{ id: 'F1', type: 'isolated' }] });
+		const withSubstructure = JSON.stringify({ schema: 'saengine.boq/1', source: { bim: sourceStamp(BIM), objects: sourceStamp(SOURCES.objects), materials: sourceStamp(SOURCES.materials), substructure: sourceStamp(substructure), settings: groundLevelStamp(SOURCES.settings) }, items: [] });
+		const boq = (texts: { [part: string]: string | undefined }) => computePartStatuses(PROJECT_PARTS, project(texts)).find(s => s.part === 'boq')!.state;
+		assert.deepStrictEqual([
+			boq({ boq: BOQ }),
+			boq({ boq: BOQ, substructure }),
+			boq({ boq: withSubstructure, substructure }),
+			// Only the ground level of the settings counts.
+			boq({ boq: withSubstructure, substructure, settings: '{"schema": "saengine.projectSettings/1", "foundation": {"allowableBearing": 400}}' }),
+			boq({ boq: withSubstructure, substructure, settings: '{"schema": "saengine.projectSettings/1", "foundation": {"groundLevel": -300}}' }),
+		], ['done', 'stale', 'done', 'done', 'stale']);
 	});
 
 	test('the next step skips the parts that are not written yet', () => {

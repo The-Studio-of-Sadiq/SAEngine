@@ -43,7 +43,7 @@ import { propertyHeading, propertyLink, propertyNote, propertyRow, renderPropert
 import { EditorFrame, IEditorFrameIconButton } from '../../saengineProject/browser/editorFrame.js';
 import { acquireCadEditor, cadBackground, isLightCanvas, releaseCadEditor } from './cadHost.js';
 import { floorPlanDrawing, IFloorPlan, IMemberShape, storiesOf, storyOfSelection } from './floorPlanDrawing.js';
-import { basePoint, bayAt, changeMemberType, EditResult, IGridNode, moveMember, pickMember, placeColumn, placeFooting, placeLinear, placePolygonSlab, placeSlab, PlacementTool, removeMember, rotateMember, snapPoint, snapToGrid, TOOL_GROUP, TOOL_KINDS } from './floorPlanEdits.js';
+import { basePoint, bayAt, changeMemberType, EditResult, IGridNode, moveMember, pickMember, placeColumn, placeLinear, placePolygonSlab, placeSlab, PlacementTool, removeMember, rotateMember, snapPoint, snapToGrid, TOOL_GROUP, TOOL_KINDS } from './floorPlanEdits.js';
 import { FloorPlanEditorInput, siblingPartFile } from './floorPlanEditorInput.js';
 
 const FLOOR_PLAN_SCHEMA_ID = 'saengine.floorPlan/1';
@@ -72,7 +72,6 @@ const TOOLS: readonly { readonly tool: Tool; readonly label: string; readonly ic
 	{ tool: 'wall', label: localize('tool.wall', "Wall"), icon: Codicon.splitHorizontal, hint: localize('hint.wall', "Click two grid intersections; walls chain until you press Esc or right-click.") },
 	{ tool: 'slab', label: localize('tool.slab', "Slab"), icon: Codicon.layout, hint: localize('hint.slab', "Click inside a bay to place a slab on this story.") },
 	{ tool: 'polygonSlab', label: localize('tool.polygonSlab', "Polygon Slab"), icon: Codicon.symbolConstant, hint: localize('hint.polygonSlab', "Click the slab's corners; finish on the first corner, with Enter or a right-click. Corners snap to intersections and grid lines.") },
-	{ tool: 'footing', label: localize('tool.footing', "Footing"), icon: Codicon.symbolStructure, hint: localize('hint.footing', "Click a grid intersection to place a footing at this story.") },
 	{ tool: 'move', label: localize('tool.move', "Move"), icon: Codicon.move, hint: localize('hint.move', "Click the member to move.") },
 	{ tool: 'rotate', label: localize('tool.rotate', "Rotate"), icon: Codicon.refresh, hint: localize('hint.rotate', "Click a column or footing to rotate.") },
 	{ tool: 'delete', label: localize('tool.delete', "Delete"), icon: Codicon.trash, hint: localize('hint.delete', "Click a member on this story to delete it.") },
@@ -198,6 +197,8 @@ export class FloorPlanEditor extends EditorPane {
 	private readonly attachUnderlayAction = this._register(new Action('saengine.floorPlan.attachUnderlay', localize('floorPlan.attachUnderlay', "Attach Underlay..."), undefined, false, () => this.attachUnderlay()));
 	private readonly removeUnderlayAction = this._register(new Action('saengine.floorPlan.removeUnderlay', localize('floorPlan.removeUnderlay', "Remove Underlay"), undefined, false, async () => this.changeUnderlay((this.input as FloorPlanEditorInput | undefined)?.story, undefined)));
 	private readonly exportAction = this._register(new Action('saengine.floorPlan.exportDxf', localize('floorPlan.exportDxf', "Export DXF"), undefined, false, () => this.exportDxf()));
+	/** Footings are placed in 9 Substructure since Part 9: the floor plan's Footing tool opens it. */
+	private readonly foundationsAction = this._register(new Action('saengine.floorPlan.openSubstructure', localize('floorPlan.openSubstructure', "Place Footings in 9 Substructure"), ThemeIcon.asClassName(Codicon.symbolStructure), true, async () => this.openPart('substructure')));
 	private readonly objectsAction = this._register(new Action('saengine.floorPlan.openObjects', localize('floorPlan.openObjects', "Open Object Types"), undefined, true, async () => this.openPart('objects')));
 	private readonly createAction = this._register(new Action('saengine.floorPlan.create', localize('floorPlan.create', "Create Floor Plan"), undefined, true, () => this.createFloorPlan()));
 
@@ -567,7 +568,7 @@ export class FloorPlanEditor extends EditorPane {
 		const primary: IAction[] = [
 			...tools(['select']),
 			new Separator(),
-			...tools(['column', 'beam', 'wall', 'slab', 'polygonSlab', 'footing']),
+			...tools(['column', 'beam', 'wall', 'slab', 'polygonSlab']), this.foundationsAction,
 			new Separator(),
 			...(this.narrow ? [] : [...tools(['move', 'rotate', 'delete']), new Separator()]),
 			...(this.compact ? [] : [this.undoAction, this.redoAction, new Separator()]),
@@ -875,7 +876,8 @@ export class FloorPlanEditor extends EditorPane {
 			if (tool === 'column') {
 				result = placeColumn(layout, type, story, node);
 			} else if (tool === 'footing') {
-				result = placeFooting(layout, type, story, node);
+				this.openPart('substructure'); // footings are placed in 9 Substructure
+				return;
 			} else if (!this.chainStart) {
 				this.chainStart = node;
 				this.schedulePreview();

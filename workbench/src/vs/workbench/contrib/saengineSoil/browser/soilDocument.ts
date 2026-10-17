@@ -856,6 +856,24 @@ export const LAYER_FIELDS: readonly IFieldSpec[] = [
 	{ key: 'OCR', label: 'OCR', kind: 'number', min: 1, max: 50, width: 58, title: localize('soil.f.ocrTitle', "Overconsolidation ratio") },
 ];
 
+/**
+ * Whether a layer is a silt with neither a PI nor a cu, from its own row or its lab samples
+ * (a PI needs both LL and PL): the backend then treats it as non-plastic (granular), so the
+ * Data view asks whether it is plastic. The samples are the backend's (`saengine.soil.profile`):
+ * those from the layer's top (inclusive) to its bottom; for the last layer with none of its
+ * own, every sample from its top down.
+ */
+export function siltNeedsPlasticity(borehole: IBorehole, layer: ISoilLayer): boolean {
+	if (layer.soilType !== 'silt' || typeof layer.plasticityIndex === 'number' || typeof layer.cu === 'number') {
+		return false;
+	}
+	let samples = borehole.samples.filter(s => layer.top <= s.depth && s.depth < layer.bottom);
+	if (!samples.length && borehole.layers.indexOf(layer) === borehole.layers.length - 1) {
+		samples = borehole.samples.filter(s => s.depth >= layer.top);
+	}
+	return !samples.some(s => typeof s.cu === 'number' || (typeof s.liquidLimit === 'number' && typeof s.plasticLimit === 'number'));
+}
+
 export const SPT_FIELDS: readonly IFieldSpec[] = [
 	{ key: 'depth', label: localize('soil.f.depth', "Depth"), unit: M, kind: 'depth', min: 0, required: true, width: 70 },
 	{ key: 'N', label: 'N', kind: 'integer', min: 0, max: 100, required: true, width: 60, title: localize('soil.f.nTitle', "Field SPT blow count for 300 mm (ASTM D1586); 100 for refusal") },

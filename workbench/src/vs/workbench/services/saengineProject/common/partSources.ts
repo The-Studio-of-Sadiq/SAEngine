@@ -38,6 +38,34 @@ export function sourceStamp(text: string): string {
 	return sha.digest();
 }
 
+/**
+ * The stamp of the finished ground level of the project settings in `settingsText` (to the
+ * micrometre; 0 when not set), the only setting the bill of quantities depends on. The Python
+ * side (`saengine.library.bim.ground_level_stamp`) computes the same. A text that is not valid
+ * JSON gets the stamp of its text, which no bill records.
+ */
+export function groundLevelStamp(settingsText: string): string {
+	let ground = 0;
+	try {
+		const settings = JSON.parse(settingsText);
+		const value = typeof settings === 'object' && settings !== null ? settings.foundation?.groundLevel : undefined;
+		if (typeof value === 'number') {
+			ground = value;
+		}
+	} catch {
+		return sourceStamp(settingsText);
+	}
+	return sourceStamp(`groundLevel=${Math.floor(ground * 1000 + 0.5)}`);
+}
+
+/**
+ * The stamp the bill of quantities records for its source part `part` with text `text`: the
+ * ground level's for the project settings, the whole file's otherwise.
+ */
+export function boqSourceStamp(part: string, text: string): string {
+	return part === 'settings' ? groundLevelStamp(text) : sourceStamp(text);
+}
+
 /** The stamp a derived document recorded for upstream part `part`, if any. */
 export function recordedStamp(document: unknown, part: string): string | undefined {
 	if (typeof document !== 'object' || document === null) {

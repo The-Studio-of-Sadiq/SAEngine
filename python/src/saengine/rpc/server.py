@@ -23,6 +23,12 @@ Methods:
 - ``soil/settlement`` ``{soilText, borehole, b, l, df, q}`` -> a footing's settlement
 - ``soil/sources`` ``{soilText?, settingsText?}`` -> where the site class and qa come from
 - ``fem/derive`` also takes ``soilText?`` (else the project's soil report beside ``modelFolder``)
+- ``bim/ifc`` and ``boq/compute`` also take ``substructureText?`` and ``settingsText?``: the
+  foundations of 9 Substructure (once it is no longer the placeholder) and the ground level
+- ``substructure/report`` ``{projectRoot}`` -> the design checks of the saved substructure
+- ``substructure/size`` ``{projectRoot, columns?}`` -> footings proposed by the sizing assistant
+- ``substructure/migrate`` ``{projectRoot}`` -> the substructure with the building model's footings
+- ``substructure/ensure`` ``{projectRoot}`` -> moves the footings into a placeholder substructure
 
 Analyses themselves are not run here: the workbench starts
 ``python -m opensees_studio.run`` per run, so an OpenSees hard exit can never take
@@ -113,6 +119,8 @@ def create_server() -> JsonRPCServer:
             args["objectsText"],
             args.get("materialsText"),
             args.get("name") or "Project",
+            args.get("substructureText"),
+            args.get("settingsText"),
         )
 
     @server.feature("structure/shapeGeometry")
@@ -144,7 +152,13 @@ def create_server() -> JsonRPCServer:
     @server.feature("boq/compute")
     def _compute_boq(params: Any) -> dict[str, Any]:
         args = _plain(params)
-        return handlers.compute_boq(args["bimText"], args["objectsText"], args["materialsText"])
+        return handlers.compute_boq(
+            args["bimText"],
+            args["objectsText"],
+            args["materialsText"],
+            args.get("substructureText"),
+            args.get("settingsText"),
+        )
 
     @server.feature("report/build")
     def _build_report(params: Any) -> dict[str, Any]:
@@ -189,6 +203,23 @@ def create_server() -> JsonRPCServer:
     def _soil_sources(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.soil_sources(args.get("soilText"), args.get("settingsText"))
+
+    @server.feature("substructure/report")
+    def _substructure_report(params: Any) -> dict[str, Any]:
+        return handlers.substructure_report(_plain(params)["projectRoot"])
+
+    @server.feature("substructure/size")
+    def _substructure_size(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.substructure_size(args["projectRoot"], args.get("columns"))
+
+    @server.feature("substructure/migrate")
+    def _substructure_migrate(params: Any) -> dict[str, Any]:
+        return handlers.substructure_migrate(_plain(params)["projectRoot"])
+
+    @server.feature("substructure/ensure")
+    def _substructure_ensure(params: Any) -> dict[str, Any]:
+        return handlers.substructure_ensure(_plain(params)["projectRoot"])
 
     return server
 

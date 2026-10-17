@@ -3,7 +3,9 @@
 Every element of ``06 BIM/bim.json`` becomes an IFC element (IfcColumn, IfcBeam, IfcWall,
 IfcSlab, IfcFooting) in its IfcBuildingStorey, with an extruded body built from its object
 type's section: SAEngine's profiles are IFC's parameterised profiles (IfcRectangleProfileDef,
-IfcIShapeProfileDef, ...), so they map one to one. Units are millimetres.
+IfcIShapeProfileDef, ...), so they map one to one. The foundations of 9 Substructure (IfcFooting,
+IfcPile, a raft as an IfcSlab BASESLAB) replace the building model's footings once it is no
+longer the placeholder. Units are millimetres.
 
 GlobalIds are derived from the element ids, so the same element keeps its GlobalId from one
 export to the next (IFC diffs and BCF issues stay attached). The workbench's 3D view loads the
@@ -31,6 +33,7 @@ from saengine.library.bim import (
     MemberElement,
     SlabElement,
     WallElement,
+    foundation_solids,
 )
 from saengine.library.materials import MaterialLibrary
 from saengine.library.objects import ObjectLibrary
@@ -244,8 +247,16 @@ def export_ifc(
     objects: ObjectLibrary,
     materials: MaterialLibrary | None = None,
     name: str = "Project",
+    substructure: Any = None,
+    ground_level: float = 0.0,
 ) -> tuple[ifcopenshell.file, dict[str, str], list[str]]:
-    """The IFC file of ``building``, its element id -> GlobalId map, and elements left out (why)."""
+    """The IFC file of ``building``, its element id -> GlobalId map, and elements left out (why).
+
+    With ``substructure`` (the project's ``substructure.json`` once it is no longer the
+    placeholder, see :func:`saengine.substructure.handover.authoritative_substructure`) the
+    foundations are its footings, pile caps, piles, rafts and tie beams (foundations without a
+    founding level found 1.5 m below ``ground_level``), and the footings of the building model
+    are left out; without it the building model's footings are exported."""
     w = _Writer(name, objects, materials)
     storeys: list[tuple[float, Any]] = []
     for story in sorted(building.stories, key=lambda s: s.elevation):
@@ -264,6 +275,8 @@ def export_ifc(
     products: dict[str, Any] = {}
     skipped: list[str] = []
     for element in building.elements:
+        if isinstance(element, FootingElement) and substructure is not None:
+            continue  # superseded by the foundations of 9 Substructure: not a problem to report
         object_type = w.types.get(element.type)
         if object_type is None:
             skipped.append(f"{element.id}: unknown object type '{element.type}'")
@@ -386,6 +399,8 @@ def export_ifc(
         products[element.id] = product
 
     _export_additions(w, building, products, storey_at, ids, skipped)
+    if substructure is not None:
+        _export_foundations(w, building, substructure, ground_level, storey_at, ids, skipped)
     return w.file, ids, skipped
 
 
@@ -563,6 +578,117 @@ def _member(
 
 
 _AREA_CLASSES = {"slab": ("IfcSlab", "FLOOR"), "wall": ("IfcWall", "STANDARD")}
+
+# IFC class and predefined type of each foundation type of 9 Substructure.
+_FOUNDATION_CLASSES = {
+    "isolated": ("IfcFooting", "PAD_FOOTING"),
+    "combined": ("IfcFooting", "PAD_FOOTING"),
+    "strip": ("IfcFooting", "STRIP_FOOTING"),
+    "pileCap": ("IfcFooting", "PILE_CAP"),
+    "raft": ("IfcSlab", "BASESLAB"),
+}
+
+_FOUNDATION_NAMES = {
+    "isolated": "Isolated footing",
+    "combined": "Combined footing",
+    "strip": "Strip footing",
+    "pileCap": "Pile cap",
+    "raft": "Raft",
+}
+
+
+def _export_foundations(
+    w: _Writer,
+    building: BuildingModel,
+    substructure: Any,
+    ground_level: float,
+    storey_at: Any,
+    ids: dict[str, str],
+    skipped: list[str],
+) -> None:
+    """The foundations of 9 Substructure (:func:`saengine.library.bim.foundation_solids`).
+    GlobalIds are keyed ``substructure:<id>``, so they never clash with the building model's;
+    the id map uses the foundation's id unless an element of the building model (other than a
+    drawn footing, which is left out) has it, then ``9:<id>``."""
+    solids = foundation_solids(substructure, building, ground_level)
+    skipped += [f"9 Substructure: {note}" for note in solids.notes]
+    taken = {e.id for e in building.elements if not isinstance(e, FootingElement)}
+
+    def add(key: str, product: Any, material: str | None, level: float) -> None:
+        w.run(
+            "spatial.assign_container",
+            w.file,
+            products=[product],
+            relating_structure=storey_at(level),
+        )
+        if material:
+            w.material(product, material)
+        ids[key if key not in taken else f"9:{key}"] = product.GlobalId
+
+    for f in solids.foundations:
+        ifc_class, predefined = _FOUNDATION_CLASSES[f.type]
+        product = w.entity(ifc_class, f.id, f"substructure:{f.id}", predefined)
+        product.ObjectType = f.type
+        product.Description = _FOUNDATION_NAMES[f.type]
+        product.Tag = f.id
+        if f.center is not None:
+            w.extrusion(product, w.rectangle(f.length, f.width), f.thickness)
+            w.place(
+                product,
+                _placement((*f.center, f.bottom), _rotation(f.rotation), (0, 0, 1)),
+            )
+        else:
+            points = [(x * _SI, y * _SI) for x, y in f.outline]
+            outline = w.run(
+                "profile.add_arbitrary_profile", w.file, profile=[*points, points[0]], name=f.id
+            )
+            w.extrusion(product, outline, f.thickness, None)  # the outline is in absolute x, y
+            w.place(product, _placement((0, 0, f.bottom), (1, 0, 0), (0, 0, 1)))
+        add(f.id, product, f.material, f.bottom)
+
+    circles: dict[float, Any] = {}
+    for pile in solids.piles:
+        product = w.entity("IfcPile", pile.id, f"substructure:{pile.id}", pile.kind.upper())
+        product.ObjectType = pile.pile_type
+        product.Description = f"Pile {pile.pile_type} under {pile.cap}"
+        if pile.kind == "driven":
+            profile = w.rectangle(pile.diameter, pile.diameter)
+        else:
+            if pile.diameter not in circles:
+                circle = w.run(
+                    "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
+                )
+                circle.Radius = float(pile.diameter) / 2
+                circles[pile.diameter] = circle
+            profile = circles[pile.diameter]
+        w.extrusion(product, profile, pile.length)
+        w.place(
+            product, _placement((pile.x, pile.y, pile.head - pile.length), (1, 0, 0), (0, 0, 1))
+        )
+        add(pile.id, product, pile.material, pile.head - pile.length)
+
+    for tie in solids.ties:
+        object_type = w.types.get(tie.type)
+        if object_type is None or object_type.kind != "beam":
+            skipped.append(f"{tie.id}: '{tie.type}' is not a beam type of 04 Objects")
+            continue
+        for k, (a, b) in enumerate(tie.clear):
+            length = math.dist(a, b)
+            direction = ((b[0] - a[0]) / length, (b[1] - a[1]) / length, 0.0)
+            key = tie.id if len(tie.clear) == 1 else f"{tie.id}/{k + 1}"
+            product = w.entity("IfcFooting", key, f"substructure:{key}", "FOOTING_BEAM")
+            product.ObjectType = object_type.id
+            product.Description = f"Tie beam ({object_type.name})"
+            product.Tag = tie.id
+            # Profile Y up, extruded along the beam, its top centre at the tie beam's level.
+            w.extrusion(
+                product, w.profile(object_type.id, object_type.profile), length, "top centre"
+            )
+            w.place(
+                product,
+                _placement((*a, tie.level), (-direction[1], direction[0], 0.0), direction),
+            )
+            add(key, product, object_type.material, tie.level)
 
 
 def _block(

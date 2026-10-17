@@ -3,7 +3,9 @@
 The report is an engineer's calculation report: cover and contents, design basis (codes, site,
 seismic and wind parameters, materials, load cases and combinations, analyses run), the soil and
 foundations of ``01 Soil Report/soil-report.json`` (when it has boreholes: the boreholes, the
-site class, the allowable bearing pressures and the liquefaction screening), a summary
+site class, the allowable bearing pressures and the liquefaction screening), the foundations of
+``09 Substructure/substructure.json`` with their design checks (pile capacities and loads, raft
+results), a summary
 of the analysis model and its run, the main analysis results (modal periods, base reactions,
 displacements and story drifts), the member design checks of :mod:`saengine.design`, the bill
 of quantities of ``10 BOQ/boq.json`` and the limitations every part reported.
@@ -38,6 +40,7 @@ SETTINGS_FILE = "02 Project Settings/project-settings.json"
 MATERIALS_FILE = "03 Materials/materials.json"
 OBJECTS_FILE = "04 Objects/objects.json"
 BIM_FILE = "06 BIM/bim.json"
+SUBSTRUCTURE_FILE = "09 Substructure/substructure.json"
 MODEL_FILE = "08 FEM/model.osmodel"
 RESULTS_DIR = "08 FEM/model.results"
 BOQ_FILE = "10 BOQ/boq.json"
@@ -55,7 +58,13 @@ MODEL_SOURCES = {
 MODEL_OPTIONAL_SOURCES = {"soil": SOIL_FILE}
 
 #: Upstream files of the bill of quantities, by the keys of its ``source`` stamps.
-BOQ_SOURCES = {"bim": BIM_FILE, "objects": OBJECTS_FILE, "materials": MATERIALS_FILE}
+BOQ_SOURCES = {
+    "bim": BIM_FILE,
+    "objects": OBJECTS_FILE,
+    "materials": MATERIALS_FILE,
+    "substructure": SUBSTRUCTURE_FILE,
+    "settings": SETTINGS_FILE,
+}
 
 RESULT_TYPES = {
     "StaticResults": "Linear static",
@@ -82,6 +91,7 @@ KIND_TITLES = {
 }
 
 BOQ_GROUPS = {
+    "earthwork": "Earthwork",
     "concrete": "Concrete",
     "masonry": "Masonry",
     "reinforcement": "Reinforcement",
@@ -194,6 +204,7 @@ def report_data(
     }
     report["basis"] = _basis(settings, parts, model, manifest)
     report["soil"] = _soil(parts)
+    report["foundations"] = _foundations(parts)
     report["model"] = _model_summary(root, model, manifest, parts, warnings)
     report["results"] = _results(
         model_path, model, manifest, results_dir, settings, parts, warnings
@@ -204,6 +215,7 @@ def report_data(
         "design": report["design"].get("notes", []),
         "boq": report["boq"].get("notes", []),
         "soil": report["soil"].get("notes", []),
+        "foundations": report["foundations"].get("notes", []),
         "model": report["model"].get("notes", []),
         "run": report["model"].get("runWarnings", []),
     }
@@ -1176,6 +1188,290 @@ def _soil(parts: _Parts) -> dict[str, Any]:
     }
 
 
+# ─────────────────────────────────────── foundations ───────────────────────────────────────
+
+#: What the foundation design does not cover, printed with the chapter's limitations.
+FOUNDATION_LIMITS = [
+    (
+        "The superstructure is analysed on fixed column bases (no soil-structure interaction): "
+        "the foundations are designed for its support reactions, and their own settlement does "
+        "not change the forces in the frame."
+    ),
+    (
+        "Strip footings run along straight paths; their wall loads are spread along the wall. "
+        "Settlement of tie beams is the value entered, not computed."
+    ),
+    (
+        "Piles: no rock sockets, lateral load capacity or negative skin friction; square (driven) "
+        "piles take the capacity of a round pile of the same size."
+    ),
+    (
+        "Pile caps: deep caps are checked by a simplified strut-and-tie model (lever arm 0.9 d, "
+        "no bottle-shaped struts); no diagonal shear at corner piles; tie bars must be anchored "
+        "beyond the outer piles."
+    ),
+    (
+        "Rafts: vertical loads only (no horizontal loads, no walls standing on the raft, no ground "
+        "floor loads on it), on compression-only Winkler springs of the soil report's subgrade "
+        "modulus."
+    ),
+]
+
+FOUNDATION_TYPE_NAMES = {
+    "isolated": "Isolated footing",
+    "combined": "Combined footing",
+    "strip": "Strip footing",
+    "pileCap": "Pile cap",
+    "raft": "Raft",
+    "tieBeam": "Tie beam",
+}
+
+
+def _size_text(result: dict[str, Any]) -> str:
+    sizes = result.get("sizes") or {}
+    if "length" in sizes and "width" in sizes:
+        text = f"{_m(sizes['length'], 2)} × {_m(sizes['width'], 2)}"
+    elif "area" in sizes:
+        text = f"{fmt(sizes['area'], 1)} m²"
+    elif "width" in sizes:
+        text = f"{_m(sizes['width'], 2)} wide"
+    else:
+        return "–"
+    if "thickness" in sizes:
+        text += f" × {_m(sizes['thickness'], 2)}"
+    return text + " m"
+
+
+def _check_rows(checks: list[dict[str, Any]]) -> tuple[list[list[str]], list[bool]]:
+    rows = [
+        [
+            str(c.get("name", "")),
+            fmt(c.get("demand"), 2),
+            fmt(c.get("capacity"), 2),
+            str(c.get("unit", "")),
+            fmt(c.get("utilisation"), 3),
+            str(c.get("combination") or "–"),
+            _result_label(c),
+            str(c.get("note", "")),
+        ]
+        for c in checks
+    ]
+    return rows, [_result_label(c) == "FAIL" for c in checks]
+
+
+def _foundations(parts: _Parts) -> dict[str, Any]:
+    """The foundations chapter: the design checks of 9 Substructure
+    (:func:`saengine.substructure.substructure_report`)."""
+    from saengine.substructure import substructure_report
+    from saengine.substructure.handover import authoritative_substructure, needs_migration
+
+    limits = list(FOUNDATION_LIMITS)
+    text = parts.text(SUBSTRUCTURE_FILE)
+    try:
+        substructure = authoritative_substructure(text)
+    except ValueError as error:
+        message = f"9 Substructure ({SUBSTRUCTURE_FILE}) is not valid: {str(error).splitlines()[0]}"
+        parts.warnings.append(message)
+        return {"available": False, "message": message, "notes": [], "limits": limits}
+    if substructure is None or not (substructure.foundations or substructure.tieBeams):
+        if needs_migration(parts.root):
+            message = (
+                "The footings of the building model have not been moved to 9 Substructure yet, "
+                "so no foundation is designed: open 9 Substructure or Run All."
+            )
+            parts.warnings.append(message)
+        else:
+            message = "The project has no foundations in 9 Substructure."
+        return {"available": False, "message": message, "notes": [], "limits": limits}
+    try:
+        report = substructure_report(parts.root)
+    except Exception as error:  # noqa: BLE001 - the report goes on without the foundations
+        message = f"The foundations could not be designed: {error}"
+        parts.warnings.append(message)
+        return {"available": False, "message": message, "notes": [], "limits": limits}
+
+    summary = report.get("summary", {})
+    designed = report.get("foundations", []) + report.get("tieBeams", [])
+    rows, fails = [], []
+    for result in designed:
+        check = _governing(result)
+        kind = str(result.get("type", ""))
+        rows.append(
+            [
+                str(result.get("id")),
+                FOUNDATION_TYPE_NAMES.get(kind, kind),
+                ", ".join(map(str, result.get("columns", []))) or "–",
+                _size_text(result) if kind != "tieBeam" else "–",
+                str(check.get("name", "")) if check else "–",
+                fmt(result.get("utilisation"), 3),
+                str(check.get("combination") or "–") if check else "–",
+                "OK" if result.get("ok") else "FAIL",
+            ]
+        )
+        fails.append(not result.get("ok"))
+
+    pressures = []
+    for result in report.get("foundations", []):
+        pressure = result.get("pressure") or {}
+        if pressure.get("net") is None:
+            continue
+        pressures.append(
+            [
+                str(result.get("id")),
+                fmt(pressure.get("net"), 1),
+                fmt(pressure.get("qa"), 1),
+                str(pressure.get("combination") or "–"),
+                str(pressure.get("source") or "–"),
+            ]
+        )
+
+    capacities, pile_loads, tables, seen = [], [], [], set()
+    for result in report.get("foundations", []):
+        pile = result.get("pile")
+        if not isinstance(pile, dict):
+            continue
+        factors = pile.get("factors") or {}
+        sizes = result.get("sizes") or {}
+        capacities.append(
+            [
+                str(result.get("id")),
+                str(sizes.get("pileType", "–")),
+                str(pile.get("kind", "")),
+                str(pile.get("borehole") or "–"),
+                fmt(pile.get("diameter"), 0),
+                _m(pile.get("length"), 1),
+                fmt(pile.get("Qs"), 0),
+                fmt(pile.get("Qb"), 0),
+                fmt(pile.get("Qult"), 0),
+                fmt(factors.get("compression"), 1),
+                fmt(pile.get("Qa"), 0),
+                fmt(pile.get("Ta"), 0),
+            ]
+        )
+        for p in result.get("piles", []):
+            pile_loads.append(
+                [
+                    f"{result.get('id')}/{p.get('index')}",
+                    fmt(p.get("u"), 0),
+                    fmt(p.get("v"), 0),
+                    fmt(p.get("serviceMax"), 1),
+                    fmt(p.get("serviceMin"), 1),
+                    fmt(p.get("strengthMax"), 1),
+                    fmt(p.get("strengthMin"), 1),
+                    fmt(pile.get("Qa"), 0),
+                ]
+            )
+        table = result.get("capacityTable")
+        key = (
+            (table.get("borehole"), table.get("kind"), table.get("method"))
+            if isinstance(table, dict)
+            else None
+        )
+        if key and key not in seen and table.get("rows"):
+            seen.add(key)
+            diameters = [float(d) for d in table.get("diameters", [])]
+            lengths = [float(length) for length in table.get("lengths", [])]
+            qa = {(float(r["D"]), float(r["L"])): r.get("Qa") for r in table["rows"]}
+            tables.append(
+                {
+                    "title": (
+                        f"{str(table.get('kind', '')).capitalize()} piles at "
+                        f"{table.get('borehole') or '–'}, head at {_m(table.get('head'), 1)} m "
+                        "depth: allowable load Qa [kN]"
+                    ),
+                    "diameters": [f"D {fmt(d, 0)}" for d in diameters],
+                    "rows": [
+                        [f"L {_m(length, 1)} m"] + [fmt(qa.get((d, length)), 0) for d in diameters]
+                        for length in lengths
+                    ],
+                }
+            )
+
+    rafts = []
+    for result in report.get("foundations", []):
+        raft = result.get("raft")
+        if not isinstance(raft, dict):
+            continue
+        s = raft.get("summary") or {}
+        pressure = result.get("pressure") or {}
+        rafts.append(
+            [
+                str(result.get("id")),
+                fmt(raft.get("ks"), 0),
+                fmt(raft.get("meshSize"), 0),
+                fmt(pressure.get("net"), 1),
+                fmt(pressure.get("qa"), 1),
+                fmt(s.get("maxPressure"), 1),
+                fmt(s.get("maxSettlement"), 1),
+                fmt(s.get("maxDifferential"), 1),
+                fmt((s.get("maxAngularDistortion") or 0) * 1e3, 2)
+                if s.get("maxAngularDistortion") is not None
+                else "–",
+            ]
+        )
+
+    details = []
+    for result in designed:
+        checks = list(result.get("checks", []))
+        check_rows, check_fails = _check_rows(checks)
+        kind = str(result.get("type", ""))
+        details.append(
+            {
+                "title": (
+                    f"{result.get('id')} ({FOUNDATION_TYPE_NAMES.get(kind, kind).lower()}): "
+                    f"utilisation {fmt(result.get('utilisation'), 3)}, "
+                    f"{'OK' if result.get('ok') else 'FAIL'}"
+                ),
+                "ok": bool(result.get("ok")),
+                "rows": check_rows,
+                "fails": check_fails,
+            }
+        )
+
+    failed = int(summary.get("failed", 0) or 0)
+    if failed:
+        parts.warnings.append(f"{failed} foundation(s) or tie beam(s) fail their design checks.")
+    if not summary.get("analysed", True):
+        parts.warnings.append("The foundations are not designed: there are no analysis results.")
+    max_util = summary.get("maxUtilisation")
+    governing = summary.get("governing")
+    return {
+        "available": True,
+        "summary": [
+            ["Foundations and tie beams checked", str(summary.get("checked", 0))],
+            ["Passed", str(summary.get("passed", 0))],
+            ["Failed", str(failed)],
+            ["Not designed", str(summary.get("skipped", 0))],
+            ["Largest utilisation", fmt(max_util, 3) if max_util is not None else "–"],
+            ["Governing", str(governing) if governing else "–"],
+        ],
+        "failed": failed,
+        "rows": rows,
+        "fails": fails,
+        "pressures": pressures,
+        "capacities": capacities,
+        "pileLoads": pile_loads,
+        "capacityTables": tables,
+        "rafts": rafts,
+        "details": details,
+        "skipped": [
+            [
+                str(s.get("id")),
+                FOUNDATION_TYPE_NAMES.get(str(s.get("type")), str(s.get("type"))),
+                str(s.get("reason")),
+            ]
+            for s in report.get("skipped", [])
+        ],
+        "combinations": {
+            "service": [str(c) for c in report.get("combinations", {}).get("service", [])],
+            "strength": [str(c) for c in report.get("combinations", {}).get("strength", [])],
+        },
+        "method": [str(line) for line in report.get("method", [])],
+        "notes": [str(note) for note in report.get("notes", [])],
+        "limits": limits,
+    }
+
+
 # ─────────────────────────────────────── bill of quantities ───────────────────────────────────
 
 
@@ -1213,8 +1509,9 @@ def _boq(parts: _Parts) -> dict[str, Any]:
                     ]
                     for i in items
                 ],
+                # Excavation and backfill are the same earth twice: no earthwork total.
                 "total": fmt(sum(i.quantity for i in items), 0 if unit == "kg" else 2)
-                if unit
+                if unit and group != "earthwork"
                 else "",
             }
         )

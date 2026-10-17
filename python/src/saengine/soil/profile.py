@@ -129,6 +129,12 @@ EU_RATIO = 500.0
 PHI_MAX = 45.0
 #: A silt with at least this plasticity index behaves like clay (Boulanger & Idriss 2006).
 PLASTIC_PI = 7.0
+#: The profile note of a silt with neither a PI nor a cu (log or samples): it is taken as
+#: non-plastic, which the engineer should confirm.
+SILT_NOTE = (
+    "layer {index} (silt): no PI or cu given — treated as non-plastic (granular): it counts in "
+    "the liquefaction screening and the sand methods; give PI or cu if it is plastic"
+)
 
 #: Properties a layer can take from its laboratory samples.
 _SAMPLE_FIELDS = ("unitWeight", "cu", "c", "phi", "finesContent", "liquidLimit", "Cc", "e0")
@@ -408,6 +414,8 @@ class Profile:
         )
         if layer.OCR is not None:
             sources["OCR"] = "log"
+        if layer.soilType == "silt" and pi is None and cu is None:
+            self.notes.append(SILT_NOTE.format(index=index + 1))
         return resolved
 
     def layer_at(self, z: float) -> SoilLayer | None:

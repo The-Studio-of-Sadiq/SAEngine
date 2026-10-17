@@ -57,14 +57,18 @@ from saengine.library.bim import (
     ColumnElement,
     FootingElement,
     MemberElement,
+    PileSolid,
     SlabElement,
     WallElement,
+    foundation_solids,
+    ground_level_stamp,
     source_stamp,
 )
 from saengine.library.labels import field_title
 from saengine.library.materials import Category, Id, Material, MaterialLibrary
 from saengine.library.objects import ObjectLibrary
 from saengine.library.sections import profile_geometry
+from saengine.library.substructure import Substructure
 
 SCHEMA_ID = "saengine.boq/1"
 
@@ -79,11 +83,17 @@ MM = 1e-3  # m per mm
 MM2 = 1e-6  # m² per mm²
 MM3 = 1e-9  # m³ per mm³
 
-Group = Literal["concrete", "masonry", "reinforcement", "formwork", "steel"]
+Group = Literal["earthwork", "concrete", "masonry", "reinforcement", "formwork", "steel"]
 Unit = Literal["m3", "m2", "kg"]
+
+#: Earthwork and blinding of the foundations of 9 Substructure [mm].
+WORKING_SPACE = 300.0  # around a foundation or tie beam, each side, to the excavation's face
+BLINDING = 75.0  # lean concrete under foundations and tie beams
+BLINDING_PROJECTION = 75.0  # of the blinding beyond the foundation's edges
 
 #: Groups in the order of the bill, with the letter of their item codes.
 GROUPS: dict[str, str] = {
+    "earthwork": "E",
     "concrete": "C",
     "masonry": "M",
     "reinforcement": "R",
@@ -93,9 +103,14 @@ GROUPS: dict[str, str] = {
 
 #: Object kinds in the order of the bill, with their plural names for descriptions.
 KINDS: dict[str, str] = {
+    "excavation": "excavation",
+    "backfill": "backfill",
+    "blinding": "blinding",
     "footing": "footings",
     "pileCap": "pile caps",
     "pile": "piles",
+    "raft": "rafts",
+    "tieBeam": "tie beams",
     "column": "columns",
     "wall": "walls",
     "beam": "beams",
@@ -127,6 +142,30 @@ CONVENTIONS = [
         "slab soffit and edges, wall faces, footing sides. Faces cast against another member are "
         "not formed (slab soffit over beams, columns and walls; their faces within the slab's "
         "depth; slab edges over them); nothing else is deducted where members meet."
+    ),
+]
+
+#: The measurement of the foundations of 9 Substructure, added to the notes when there are any.
+FOUNDATION_CONVENTIONS = [
+    (
+        "Foundations are measured from 9 Substructure (the footings of the building model are "
+        "not): footings, pile caps and rafts over their plan by their thickness, formwork to "
+        "their sides (and a raft's edges), bars as meshes over the plan. Piles: concrete of the "
+        "full length below the cap (bored piles round, driven piles square of the given size), "
+        "bars as for columns, moulds of driven precast piles on three faces (cast flat). Tie "
+        "beams: concrete and stirrups between the faces of the foundations they tie, "
+        "longitudinal bars centre to centre of the foundations, formwork to their two sides."
+    ),
+    (
+        f"Earthwork: each foundation and tie beam is dug with vertical sides "
+        f"{WORKING_SPACE:g} mm beyond its edges (working space), from the finished ground of "
+        f"Project Settings → Foundation down to the underside of the blinding; where pits "
+        f"overlap the overlap is measured once (each element's share scaled to suit). Blinding "
+        f"(lean concrete) {BLINDING:g} mm thick, {BLINDING_PROJECTION:g} mm beyond the edges of "
+        "foundations and tie beams. Backfill is the excavation less the foundations, tie beams "
+        "and blinding below the ground; column stubs and pedestals below the ground are not "
+        "deducted. No battered sides, dewatering, shoring, disposal of surplus spoil or bored "
+        "pile spoil are measured."
     ),
 ]
 
@@ -187,6 +226,15 @@ class BoqSource(_Model):
     )
     materials: str | None = Field(
         default=None, title="Materials", description="Stamp of materials.json."
+    )
+    substructure: str | None = Field(
+        default=None, title="Substructure", description="Stamp of substructure.json."
+    )
+    settings: str | None = Field(
+        default=None,
+        title="Project settings",
+        description="Stamp of the ground level of project-settings.json, the only setting the "
+        "bill depends on (the earthwork is dug from it): other settings edits leave it current.",
     )
 
 
@@ -381,9 +429,17 @@ class _Plate:
 
 class _Measure:
     def __init__(
-        self, building: BuildingModel, objects: ObjectLibrary, materials: MaterialLibrary
+        self,
+        building: BuildingModel,
+        objects: ObjectLibrary,
+        materials: MaterialLibrary,
+        substructure: Substructure | None = None,
+        ground_level: float = 0.0,
     ) -> None:
         self.building = building
+        self.substructure = substructure
+        self.ground_level = ground_level
+        self.drawn_footings: list[str] = []
         self.types = {t.id: t for t in objects.objects}
         self.materials = {m.id: m for m in materials.materials}
         self.bill = _Bill()
@@ -767,6 +823,8 @@ class _Measure:
                         less = self.in_slabs(plan, faces, plan, e.bottom, e.top)
                         story = self.story_at(e.top)
                         self.wall(e.id, t, area, (height, length), story, less)
+                case FootingElement() if self.substructure is not None:
+                    self.drawn_footings.append(e.id)  # 9 Substructure has the foundations
                 case FootingElement():
                     t = self.object_type(e.id, e.type, (o.Footing, o.PileCap), "footing")
                     if t:
@@ -800,6 +858,8 @@ class _Measure:
             t = self.object_type(stair.id, stair.type, (o.Staircase,), "staircase")
             if t:
                 self.stair(stair, t)
+        if self.substructure is not None:
+            self.foundations(self.substructure)
 
     @staticmethod
     def slab_plan(e: SlabElement, openings: list[Any]) -> BaseGeometry:
@@ -950,8 +1010,189 @@ class _Measure:
             total = mesh_length(slope * width, mesh.spacing, run, mesh.dia)
             self.rebar(stair.id, reinforcement.material, mesh.dia, total, story, detail)
 
+    # ── the foundations of 9 Substructure ──
+
+    def foundations(self, substructure: Substructure) -> None:
+        """Footings, pile caps, rafts, piles and tie beams of 9 Substructure, with their
+        excavation, blinding and backfill (see :data:`FOUNDATION_CONVENTIONS`)."""
+        solids = foundation_solids(substructure, self.building, self.ground_level)
+        self.notes += [f"9 Substructure: {n}; not measured." for n in solids.notes]
+        stories = sorted(self.building.stories, key=lambda s: s.elevation)
+        story = stories[0].id if stories else None
+        ground = self.ground_level
+        pits: list[tuple[str, BaseGeometry, float]] = []  # (element, plan, bottom of the pit)
+        below: dict[str, float] = {}  # concrete below the ground [mm³], by element
+
+        def blinding(element: str, plan: BaseGeometry, bottom: float) -> None:
+            pad = plan.buffer(BLINDING_PROJECTION, join_style="mitre")
+            volume = pad.area * BLINDING
+            self.bill.add(
+                "concrete",
+                (_kind_order("blinding"), ""),
+                f"Lean concrete (blinding) under foundations, {BLINDING:g} mm",
+                "m3",
+                element,
+                volume * MM3,
+                story=story,
+                kind="blinding",
+            )
+            pits.append(
+                (element, plan.buffer(WORKING_SPACE, join_style="mitre"), bottom - BLINDING)
+            )
+            if bottom - BLINDING < ground:
+                below[element] = below.get(element, 0.0) + volume * min(
+                    1.0, (ground - bottom + BLINDING) / BLINDING
+                )
+
+        for f in solids.foundations:
+            plan = Polygon(f.outline)
+            kind = {"pileCap": "pileCap", "raft": "raft"}.get(f.type, "footing")
+            material = self.materials.get(f.material or "")
+            blinding(f.id, plan, f.bottom)
+            if material is None or material.category != Category.CONCRETE:
+                self.notes.append(
+                    f"{f.id}: its material '{f.material}' is not a concrete of 03 Materials; its "
+                    "concrete, formwork and bars are not measured."
+                )
+                continue
+            self.concrete(f.id, material, kind, plan.area * f.thickness, story)
+            below[f.id] = below.get(f.id, 0.0) + plan.area * max(0.0, min(f.top, ground) - f.bottom)
+            self.formwork(f.id, kind, plan.exterior.length * f.thickness, story, "sides")
+            reinforcement = f.reinforcement
+            if reinforcement is None:
+                self.notes.append(f"{f.id}: no reinforcement; no bars are measured.")
+                continue
+            for detail, mesh, run in (
+                ("bottom X", reinforcement.bottomX, f.runs[0]),
+                ("bottom Y", reinforcement.bottomY, f.runs[1]),
+                ("top X", reinforcement.topX, f.runs[0]),
+                ("top Y", reinforcement.topY, f.runs[1]),
+            ):
+                if mesh is not None:
+                    total = mesh_length(plan.area, mesh.spacing, run, mesh.dia)
+                    self.rebar(f.id, reinforcement.material, mesh.dia, total, story, detail)
+
+        for pile in solids.piles:
+            self.pile(pile, story)
+
+        for tie in solids.ties:
+            t = self.object_type(tie.id, tie.type, (o.Beam,), "beam")
+            if t is None or not tie.clear:
+                continue
+            spans = tuple(math.dist(a, b) for a, b in tie.clear)
+            self.linear(
+                tie.id,
+                t,
+                tie.length,
+                tie.clear_length,
+                story,
+                formwork=False,
+                kind="tieBeam",
+                spans=spans,
+            )
+            xmin, ymin, xmax, ymax = self.section(t).bounds
+            width, depth = xmax - xmin, ymax - ymin
+            material = self.materials.get(t.material)
+            if material is not None and material.category == Category.CONCRETE:
+                self.formwork(tie.id, "tieBeam", 2 * depth * tie.clear_length, story, "sides")
+            bottom = tie.level - depth
+            for a, b in tie.clear:
+                plan = _rectangle(list(a), list(b), width)
+                blinding(tie.id, plan, bottom)
+                below[tie.id] = (
+                    below.get(tie.id, 0.0)
+                    + self.section(t).area
+                    * math.dist(a, b)
+                    * max(0.0, min(tie.level, ground) - bottom)
+                    / depth
+                )
+
+        self.earthwork(pits, below, story)
+
+    def pile(self, pile: PileSolid, story: str | None) -> None:
+        """One pile: concrete, bars, and the moulds of a driven precast pile."""
+        material = self.materials.get(pile.material)
+        if material is None or material.category != Category.CONCRETE:
+            self.notes.append(
+                f"{pile.id}: its material '{pile.material}' is not a concrete of 03 Materials; "
+                "it is not measured."
+            )
+            return
+        d = pile.diameter
+        square = pile.kind == "driven"
+        section = box(-d / 2, -d / 2, d / 2, d / 2) if square else Point(0, 0).buffer(d / 2, 64)
+        area = d * d if square else math.pi * d * d / 4
+        self.concrete(pile.cap, material, "pile", area * pile.length, story)
+        if square:
+            self.formwork(pile.cap, "pile", 3 * d * pile.length, story, "precast moulds")
+        reinforcement = pile.reinforcement
+        if reinforcement is None:
+            self.notes.append(f"{pile.id}: pile type '{pile.pile_type}' has no reinforcement.")
+            return
+        for bars in reinforcement.longitudinal:
+            total = bars.count * bar_length(pile.length, bars.dia)
+            self.rebar(pile.cap, reinforcement.material, bars.dia, total, story, "pile bars")
+        transverse = reinforcement.transverse
+        if transverse is not None:
+            total = transverse_length(section, reinforcement.cover, transverse, pile.length)
+            self.rebar(pile.cap, reinforcement.material, transverse.dia, total, story, "pile ties")
+
+    def earthwork(
+        self,
+        pits: list[tuple[str, BaseGeometry, float]],
+        below: dict[str, float],
+        story: str | None,
+    ) -> None:
+        """Excavation of ``pits`` (vertical sides, overlaps once) and the backfill around what
+        is ``below`` the ground in them."""
+        ground = self.ground_level
+        pits = [p for p in pits if p[2] < ground - TOLERANCE]
+        if not pits:
+            return
+        levels = sorted({bottom for _, _, bottom in pits}) + [ground]
+        total = 0.0
+        for low, high in itertools.pairwise(levels):
+            active = [plan for _, plan, bottom in pits if bottom <= low + 1e-9]
+            total += unary_union(active).area * (high - low)
+        own: dict[str, float] = {}
+        for element, plan, bottom in pits:
+            own[element] = own.get(element, 0.0) + plan.area * (ground - bottom)
+        scale = total / sum(own.values())
+        for element, volume in own.items():
+            dug = volume * scale
+            self.bill.add(
+                "earthwork",
+                (_kind_order("excavation"),),
+                "Excavation for foundations",
+                "m3",
+                element,
+                dug * MM3,
+                story=story,
+                kind="excavation",
+            )
+            self.bill.add(
+                "earthwork",
+                (_kind_order("backfill"),),
+                "Backfill around foundations",
+                "m3",
+                element,
+                max(dug - below.get(element, 0.0), 0.0) * MM3,
+                story=story,
+                kind="backfill",
+            )
+
     def finish(self) -> list[str]:
-        notes = [*CONVENTIONS, *self.building.check_additions(), *self.notes]
+        notes = [*CONVENTIONS]
+        if self.substructure is not None and (
+            self.substructure.foundations or self.substructure.tieBeams
+        ):
+            notes += FOUNDATION_CONVENTIONS
+        notes += [*self.building.check_additions(), *self.notes]
+        if self.drawn_footings:
+            notes.append(
+                f"Footings drawn in the building model ({', '.join(self.drawn_footings)}) are not "
+                "measured: the foundations are those of 9 Substructure."
+            )
         for type_id, elements in self.unreinforced.items():
             t = self.types[type_id]
             notes.append(
@@ -966,20 +1207,53 @@ def bill_of_quantities(
     objects: ObjectLibrary,
     materials: MaterialLibrary,
     source: BoqSource | None = None,
+    substructure: Substructure | None = None,
+    ground_level: float = 0.0,
 ) -> BillOfQuantities:
-    """The bill of quantities of ``building``."""
-    measure = _Measure(building, objects, materials)
+    """The bill of quantities of ``building``. With ``substructure`` (the project's
+    ``substructure.json`` once it is no longer the placeholder, see
+    :func:`saengine.substructure.handover.authoritative_substructure`) the foundations are
+    measured from it, with their earthwork dug from ``ground_level`` [mm], and the footings of
+    the building model are not; without it the building model's footings are measured."""
+    measure = _Measure(building, objects, materials, substructure, ground_level)
     measure.run()
     return BillOfQuantities(
         source=source or BoqSource(), items=measure.bill.items(), notes=measure.finish()
     )
 
 
-def compute_boq(bim_text: str, objects_text: str, materials_text: str) -> dict[str, Any]:
-    """The ``10 BOQ/boq.json`` document (JSON-ready) measured from the three files' texts.
+def _inputs(
+    substructure_text: str | None, settings_text: str | None
+) -> tuple[Substructure | None, float]:
+    """The substructure that is the source of the foundations (None: the building model's
+    footings are) and the finished ground level."""
+    from saengine.library.settings import ProjectSettings
+    from saengine.substructure.handover import authoritative_substructure
 
-    Raises ``pydantic.ValidationError`` when a file is not valid.
+    substructure = authoritative_substructure(substructure_text)
+    ground = 0.0
+    if settings_text:
+        ground = ProjectSettings.model_validate_json(settings_text).foundation.groundLevel
+    return substructure, ground
+
+
+def compute_boq(
+    bim_text: str,
+    objects_text: str,
+    materials_text: str,
+    substructure_text: str | None = None,
+    settings_text: str | None = None,
+) -> dict[str, Any]:
+    """The ``10 BOQ/boq.json`` document (JSON-ready) measured from the files' texts:
+    ``substructure_text`` (``09 Substructure/substructure.json``) and ``settings_text`` (the
+    ground level of the earthwork) are optional. Their stamps are recorded when given (for the
+    settings, the stamp of their ground level only, and only when the substructure's
+    foundations are measured: nothing else in the bill depends on them).
+
+    Raises ``pydantic.ValidationError`` (a ``ValueError``) when a file is not valid.
     """
+    substructure, ground = _inputs(substructure_text, settings_text)
+    earthwork = substructure is not None and bool(substructure.foundations or substructure.tieBeams)
     document = bill_of_quantities(
         BuildingModel.model_validate_json(bim_text),
         ObjectLibrary.model_validate_json(objects_text),
@@ -988,19 +1262,42 @@ def compute_boq(bim_text: str, objects_text: str, materials_text: str) -> dict[s
             bim=source_stamp(bim_text),
             objects=source_stamp(objects_text),
             materials=source_stamp(materials_text),
+            substructure=source_stamp(substructure_text) if substructure_text is not None else None,
+            settings=ground_level_stamp(ground) if settings_text and earthwork else None,
         ),
+        substructure,
+        ground,
     )
     return document.model_dump(mode="json", by_alias=True, exclude_none=True)
 
 
-def compute_boq_text(bim_text: str, objects_text: str, materials_text: str) -> dict[str, Any]:
+def compute_boq_text(
+    bim_text: str,
+    objects_text: str,
+    materials_text: str,
+    substructure_text: str | None = None,
+    settings_text: str | None = None,
+) -> dict[str, Any]:
     """For the RPC handler: ``{"text", "notes"}`` (the file's text), or ``{"problems"}`` when an
     input has errors."""
-    for model, text, label in (
+    from saengine.library.settings import ProjectSettings
+    from saengine.library.substructure import Substructure as SubstructureModel
+
+    checks: list[tuple[Any, str | None, str]] = [
         (BuildingModel, bim_text, "Building model"),
         (ObjectLibrary, objects_text, "Object types"),
         (MaterialLibrary, materials_text, "Materials"),
-    ):
+        (ProjectSettings, settings_text or None, "Project settings"),
+    ]
+    try:
+        _inputs(substructure_text, None)
+    except ValidationError:
+        checks.append((SubstructureModel, substructure_text, "Substructure"))
+    except ValueError as exc:  # not JSON
+        return {"problems": [f"Substructure: {exc}"]}
+    for model, text, label in checks:
+        if text is None:
+            continue
         try:
             model.model_validate_json(text)
         except ValidationError as exc:
@@ -1010,7 +1307,7 @@ def compute_boq_text(bim_text: str, objects_text: str, materials_text: str) -> d
                 message = e["msg"].removeprefix("Value error, ")
                 problems.append(f"{label}: {path}: {message}" if path else f"{label}: {message}")
             return {"problems": problems}
-    document = compute_boq(bim_text, objects_text, materials_text)
+    document = compute_boq(bim_text, objects_text, materials_text, substructure_text, settings_text)
     return {
         "text": json.dumps(document, indent="\t", ensure_ascii=False) + "\n",
         "notes": document["notes"],

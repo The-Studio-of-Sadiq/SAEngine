@@ -21,7 +21,9 @@ Units are fixed SI: coordinates and elevations in mm, rotations in degrees.
 from __future__ import annotations
 
 import hashlib
-from typing import Annotated, Literal
+import math
+from dataclasses import dataclass, field
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -44,6 +46,13 @@ def source_stamp(text: str) -> str:
     The workbench computes the same stamp to tell whether the file changed since.
     """
     return hashlib.sha1(text.replace("\r\n", "\n").encode("utf-8")).hexdigest()
+
+
+def ground_level_stamp(ground_level: float) -> str:
+    """The stamp of the finished ground level [mm] (to the micrometre), the only value of the
+    project settings the bill of quantities depends on. The workbench computes the same
+    (``groundLevelStamp`` in partSources.ts), so other settings edits leave the bill current."""
+    return source_stamp(f"groundLevel={math.floor(ground_level * 1000 + 0.5)}")
 
 
 class _Model(BaseModel):
@@ -464,3 +473,219 @@ def generate_from_structure(
             for s in structure.supports
         ],
     )
+
+
+# ─────────────────────────────── foundations of 9 Substructure ───────────────────────────────
+#
+# Since Part 9, footings are placed in 9 Substructure, not in the floor plan: the foundations of
+# ``09 Substructure/substructure.json`` are the building's foundation elements in the IFC and in
+# the bill of quantities. :func:`foundation_solids` turns them into solids beside the building
+# model's own elements; ``bim.json`` itself never stores them.
+
+
+@dataclass(frozen=True)
+class FoundationSolid:
+    """A footing, pile cap or raft of 9 Substructure as a vertical prism."""
+
+    id: str
+    #: isolated | combined | strip | pileCap | raft
+    type: str
+    #: Plan outline [(x, y), ...] mm, counter-clockwise.
+    outline: list[tuple[float, float]]
+    bottom: float
+    top: float
+    material: str | None
+    reinforcement: Any
+    #: The run [mm] of the bars along the foundation's local x and y.
+    runs: tuple[float, float]
+    #: Centre, rotation [°], length and width of a rectangular foundation (not strips, rafts).
+    center: tuple[float, float] | None = None
+    rotation: float = 0.0
+    length: float = 0.0
+    width: float = 0.0
+
+    @property
+    def thickness(self) -> float:
+        return self.top - self.bottom
+
+
+@dataclass(frozen=True)
+class PileSolid:
+    """One pile of a pile cap, its head at the cap's underside."""
+
+    id: str
+    cap: str
+    pile_type: str
+    kind: str  # bored | driven
+    x: float
+    y: float
+    head: float
+    length: float
+    diameter: float
+    material: str
+    reinforcement: Any
+
+
+@dataclass(frozen=True)
+class TieBeamSolid:
+    """A tie beam: its axis from the centre of one foundation to the other's (``start``,
+    ``end``), the clear pieces of it between their faces (``clear``), its top at ``level``."""
+
+    id: str
+    type: str
+    start: tuple[float, float]
+    end: tuple[float, float]
+    clear: list[tuple[tuple[float, float], tuple[float, float]]]
+    level: float
+
+    @property
+    def length(self) -> float:
+        return math.dist(self.start, self.end)
+
+    @property
+    def clear_length(self) -> float:
+        return sum(math.dist(a, b) for a, b in self.clear)
+
+
+@dataclass
+class FoundationSolids:
+    foundations: list[FoundationSolid] = field(default_factory=list)
+    piles: list[PileSolid] = field(default_factory=list)
+    ties: list[TieBeamSolid] = field(default_factory=list)
+    #: Foundations and tie beams that could not be placed, with why.
+    notes: list[str] = field(default_factory=list)
+
+
+def _counter_clockwise(points: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    area = sum(
+        a[0] * b[1] - b[0] * a[1] for a, b in zip(points, points[1:] + points[:1], strict=True)
+    )
+    return points if area >= 0 else points[::-1]
+
+
+def foundation_solids(
+    substructure: Any, building: BuildingModel, ground_level: float
+) -> FoundationSolids:
+    """The foundations, piles and tie beams of ``substructure`` (a
+    :class:`~saengine.library.substructure.Substructure`) as solids. A foundation without a
+    founding level founds 1.5 m below ``ground_level``
+    (:meth:`~saengine.library.substructure.Foundation.founding_level`); one without a centre sits
+    at the centroid of its columns."""
+    from shapely.geometry import LineString, Polygon
+    from shapely.ops import unary_union
+
+    solids = FoundationSolids()
+    positions: dict[str, tuple[float, float]] = {}
+    for e in building.elements:
+        if isinstance(e, ColumnElement):
+            positions[e.id] = (e.position[0], e.position[1])
+        elif isinstance(e, WallElement):
+            positions[e.id] = ((e.start[0] + e.end[0]) / 2, (e.start[1] + e.end[1]) / 2)
+    pile_types = {p.id: p for p in substructure.pileTypes}
+    plans: dict[str, Any] = {}
+    centers: dict[str, tuple[float, float]] = {}
+    for f in substructure.foundations:
+        bottom = f.founding_level(ground_level)
+        top = bottom + float(f.thickness or 0)
+        if f.type in ("isolated", "combined", "pileCap"):
+            if f.center is not None:
+                cx, cy = float(f.center[0]), float(f.center[1])
+            else:
+                known = [positions[c] for c in f.columns if c in positions]
+                if not known:
+                    solids.notes.append(f"{f.id}: no centre, and none of its columns is in 6 BIM")
+                    continue
+                cx = sum(p[0] for p in known) / len(known)
+                cy = sum(p[1] for p in known) / len(known)
+            length, width = float(f.length or 0), float(f.width or 0)
+            angle = math.radians(f.rotation)
+            ux, uy = math.cos(angle), math.sin(angle)
+
+            def at(u: float, v: float) -> tuple[float, float]:
+                return (cx + u * ux - v * uy, cy + u * uy + v * ux)  # noqa: B023
+
+            outline = [at(su * length / 2, sv * width / 2) for su, sv in _CORNERS]
+            solids.foundations.append(
+                FoundationSolid(
+                    id=f.id,
+                    type=f.type,
+                    outline=outline,
+                    bottom=bottom,
+                    top=top,
+                    material=f.material,
+                    reinforcement=f.reinforcement,
+                    runs=(length, width),
+                    center=(cx, cy),
+                    rotation=f.rotation,
+                    length=length,
+                    width=width,
+                )
+            )
+            centers[f.id] = (cx, cy)
+            plans[f.id] = Polygon(outline)
+            pile = pile_types.get(f.pileType or "") if f.type == "pileCap" else None
+            for k, (dx, dy) in enumerate(f.piles or [] if pile else [], start=1):
+                x, y = at(dx, dy)
+                solids.piles.append(
+                    PileSolid(
+                        id=f"{f.id}/{k}",
+                        cap=f.id,
+                        pile_type=pile.id,
+                        kind=pile.kind,
+                        x=x,
+                        y=y,
+                        head=bottom,
+                        length=pile.length,
+                        diameter=pile.diameter,
+                        material=pile.material,
+                        reinforcement=pile.reinforcement,
+                    )
+                )
+            continue
+        if f.type == "strip":
+            path = LineString([(float(p[0]), float(p[1])) for p in f.path or []])
+            plan = path.buffer(float(f.width or 0) / 2, cap_style="flat", join_style="mitre")
+            runs = (path.length, float(f.width or 0))
+        else:  # raft
+            plan = Polygon([(float(p[0]), float(p[1])) for p in f.outline or []])
+            xmin, ymin, xmax, ymax = plan.bounds
+            runs = (xmax - xmin, ymax - ymin)
+        outline = _counter_clockwise([(float(x), float(y)) for x, y, *_ in plan.exterior.coords])
+        outline = outline[:-1] if outline[0] == outline[-1] else outline
+        solids.foundations.append(
+            FoundationSolid(
+                id=f.id,
+                type=f.type,
+                outline=outline,
+                bottom=bottom,
+                top=top,
+                material=f.material,
+                reinforcement=f.reinforcement,
+                runs=runs,
+            )
+        )
+        polygon = Polygon(outline)
+        centers[f.id] = (polygon.centroid.x, polygon.centroid.y)
+        plans[f.id] = polygon
+    tops = {s.id: s.top for s in solids.foundations}
+    for tie in substructure.tieBeams:
+        ends = (tie.from_, tie.to)
+        if not all(end in centers for end in ends):
+            solids.notes.append(f"{tie.id}: one of its foundations could not be placed")
+            continue
+        start, end = centers[tie.from_], centers[tie.to]
+        clear = LineString([start, end]).difference(unary_union([plans[tie.from_], plans[tie.to]]))
+        pieces = [
+            (
+                (float(g.coords[0][0]), float(g.coords[0][1])),
+                (float(g.coords[-1][0]), float(g.coords[-1][1])),
+            )
+            for g in getattr(clear, "geoms", [clear])
+            if not g.is_empty and g.length > 1
+        ]
+        level = tie.level if tie.level is not None else min(tops[e] for e in ends)
+        solids.ties.append(TieBeamSolid(tie.id, tie.type, start, end, pieces, level))
+    return solids
+
+
+_CORNERS = ((-1, -1), (1, -1), (1, 1), (-1, 1))

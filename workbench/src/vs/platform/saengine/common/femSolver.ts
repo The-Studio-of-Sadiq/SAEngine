@@ -163,6 +163,10 @@ export interface IBuildingIfcRequest {
 	readonly materialsText?: string;
 	/** Name of the IFC project, e.g. the SAEngine project's name. */
 	readonly name: string;
+	/** `09 Substructure/substructure.json`: once it is no longer the placeholder, its foundations replace the building model's footings. */
+	readonly substructureText?: string;
+	/** The project settings: the ground level foundations without a founding level are founded from. */
+	readonly settingsText?: string;
 }
 
 export interface IBuildingIfc {
@@ -238,6 +242,25 @@ export interface IStructureScriptResult extends IStructureEdit {
 export interface IBoqComputation {
 	readonly text?: string;
 	readonly notes?: readonly string[];
+	readonly problems?: readonly string[];
+}
+
+/** The texts the bill of quantities is measured from (`substructureText` and `settingsText` are optional). */
+export interface IBoqComputeRequest {
+	readonly bimText: string;
+	readonly objectsText: string;
+	readonly materialsText: string;
+	/** `09 Substructure/substructure.json`: once it is no longer the placeholder, its foundations are measured instead of the building model's footings. */
+	readonly substructureText?: string;
+	/** The project settings: the ground level the foundations' earthwork is dug from. */
+	readonly settingsText?: string;
+}
+
+/** The building model's footings moved into a placeholder `substructure.json` (`saengine.substructure.handover`). */
+export interface ISubstructureMigration {
+	readonly migrated: boolean;
+	readonly count: number;
+	readonly notes: readonly string[];
 	readonly problems?: readonly string[];
 }
 
@@ -382,8 +405,8 @@ export interface IFemSolverService {
 	/** The RC member design checks of a run (`saengine.design`); the report is plain JSON. */
 	getDesignReport(python: string, outDir: string, project: string): Promise<object>;
 
-	/** The bill of quantities of the building model (`saengine.boq`). */
-	computeBoq(python: string, bimText: string, objectsText: string, materialsText: string): Promise<IBoqComputation>;
+	/** The bill of quantities of the building model and the substructure (`saengine.boq`). */
+	computeBoq(python: string, request: IBoqComputeRequest): Promise<IBoqComputation>;
 
 	/** Builds the PDF design report of the project (`saengine.report`), by default in `11 Exports`. */
 	buildReport(python: string, projectRoot: string, outPdf?: string): Promise<IReportBuild>;
@@ -405,4 +428,19 @@ export interface IFemSolverService {
 
 	/** Where the site class and the allowable bearing pressure come from, for Project Settings. */
 	soilSources(python: string, soilText: string | undefined, settingsText: string | undefined): Promise<ISoilSources>;
+
+	/**
+	 * The design checks of the project's saved substructure (`saengine.substructure.substructure_report`),
+	 * plain JSON read by the Substructure editor, or `{problems}`.
+	 */
+	substructureReport(python: string, projectRoot: string): Promise<object>;
+
+	/** Footings proposed by the sizing assistant for `columns` (default: those without a foundation), or `{problems}`. */
+	substructureSize(python: string, projectRoot: string, columns?: readonly string[]): Promise<object>;
+
+	/** The saved substructure with the building model's footings added, nothing written (`{substructure, notes, count}`), or `{problems}`. */
+	substructureMigrate(python: string, projectRoot: string): Promise<object>;
+
+	/** Writes the building model's footings into `substructure.json` while it is still the placeholder. */
+	substructureEnsure(python: string, projectRoot: string): Promise<ISubstructureMigration>;
 }
