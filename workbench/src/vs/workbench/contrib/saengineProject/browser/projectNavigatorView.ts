@@ -30,6 +30,7 @@ import { IViewDescriptorService } from '../../../common/views.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IPartStatus, ISaenginePartStatusService } from '../../../services/saengineProject/common/partStatus.js';
 import { IProjectPart, ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
+import { EXPORTS_SCHEME } from './exportsEditorInput.js';
 import { IPartEntry, openPart, partGroups, partResource, stateClass, stateLabel, stateText } from './projectParts.js';
 
 /** Setting (registered with the developer mode) that shows the raw files under each part. */
@@ -256,6 +257,9 @@ export class ProjectNavigatorView extends ViewPane {
 		const active = this.activeResource;
 		if (!project || !active) {
 			return false;
+		}
+		if (part.id === 'exports' && active.scheme === EXPORTS_SCHEME) {
+			return true;
 		}
 		const resource = partResource(project, part);
 		return resource ? isEqual(resource, active) : isEqualOrParent(active, joinPath(project.root, part.folder));

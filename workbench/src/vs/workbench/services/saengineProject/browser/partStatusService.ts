@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { computePartStatuses, DESIGN_SUMMARY_FILE, FEM_RESULTS_FOLDER, FEM_RESULTS_MANIFEST, IPartStatus, IPartStatusInputs, ISaenginePartStatusService, REPORT_FILE } from '../common/partStatus.js';
+import { computePartStatuses, DESIGN_SUMMARY_FILE, EXPORT_DXF_FOLDER, EXPORT_IFC_FOLDER, exportKind, FEM_RESULTS_FOLDER, FEM_RESULTS_MANIFEST, IPartStatus, IPartStatusInputs, ISaenginePartStatusService, REPORT_FILE } from '../common/partStatus.js';
 import { ALL_PARTS, ISaengineProject, ISaengineProjectService, partById } from '../common/saengineProject.js';
 
 /** How long file changes settle before the statuses are computed again [ms]. */
@@ -90,14 +90,33 @@ export class SaenginePartStatusService extends Disposable implements ISaenginePa
 		const fem = partById('fem')!;
 		const femFolder = joinPath(project.root, fem.folder);
 		const results = joinPath(femFolder, FEM_RESULTS_FOLDER);
-		const [femModelTime, femResultsTime, designSummaryTime, designSummaryText, reportTime] = await Promise.all([
+		const exportsFolder = joinPath(project.root, partById('exports')!.folder);
+		const [femModelTime, femResultsTime, designSummaryTime, designSummaryText, reportTime, exportFiles] = await Promise.all([
 			this.mtime(joinPath(femFolder, fem.mainFile!)),
 			this.mtime(joinPath(results, FEM_RESULTS_MANIFEST)),
 			this.mtime(joinPath(results, DESIGN_SUMMARY_FILE)),
 			this.readText(joinPath(results, DESIGN_SUMMARY_FILE)),
-			this.mtime(joinPath(project.root, partById('exports')!.folder, REPORT_FILE)),
+			this.mtime(joinPath(exportsFolder, REPORT_FILE)),
+			this.countExports(exportsFolder),
 		]);
-		return { texts, femModelTime, femResultsTime, designSummaryTime, designSummaryText, reportTime };
+		return { texts, femModelTime, femResultsTime, designSummaryTime, designSummaryText, reportTime, exportFiles };
+	}
+
+	/** The exports in `folder` other than the report: IFC, DXF floor plans and CSV tables. */
+	private async countExports(folder: URI): Promise<number> {
+		const names = async (path: string) => {
+			try {
+				const stat = await this.fileService.resolve(path ? joinPath(folder, path) : folder);
+				return (stat.children ?? []).filter(child => child.isFile).map(child => path ? `${path}/${child.name}` : child.name);
+			} catch {
+				return [];
+			}
+		};
+		const files = (await Promise.all(['', EXPORT_IFC_FOLDER, EXPORT_DXF_FOLDER].map(names))).flat();
+		return files.filter(file => {
+			const kind = exportKind(file);
+			return kind !== undefined && kind !== 'report';
+		}).length;
 	}
 
 	private async readText(resource: URI): Promise<string | undefined> {

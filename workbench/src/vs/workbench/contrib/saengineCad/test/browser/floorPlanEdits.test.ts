@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { floorPlanDrawing } from '../../browser/floorPlanDrawing.js';
-import { anchor, basePoint, bayAt, EditResult, moveMember, pickMember, placeColumn, placeFooting, placeLinear, placePolygonSlab, placeSlab, removeMember, rotateMember, snapPoint, snapToGrid } from '../../browser/floorPlanEdits.js';
+import { anchor, basePoint, bayAt, changeMemberType, EditResult, moveMember, pickMember, placeColumn, placeFooting, placeLinear, placePolygonSlab, placeSlab, removeMember, rotateMember, snapPoint, snapToGrid } from '../../browser/floorPlanEdits.js';
 
 suite('SAEngine - Floor plan edits', () => {
 
@@ -150,6 +150,18 @@ suite('SAEngine - Floor plan edits', () => {
 				'C9 no longer exists.',
 				'A slab needs at least three corners around an area.',
 			],
+		});
+	});
+
+	test('a member takes another object type', () => {
+		const layout = model(placeColumn(empty, 'C400', 'L1', A1));
+		const changed = model(changeMemberType(layout, 'columns', 'C1', 'C600'));
+		assert.deepStrictEqual({
+			type: (changed.columns as { type: unknown }[])[0].type,
+			refused: [outcome(changeMemberType(layout, 'columns', 'C1', '')), outcome(changeMemberType(layout, 'columns', 'C9', 'C600'))],
+		}, {
+			type: 'C600',
+			refused: ['Choose an object type.', 'C9 no longer exists.'],
 		});
 	});
 });

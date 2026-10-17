@@ -46,7 +46,22 @@
 	overflow: hidden;
 }
 
+.saengine-editor-frame .sa-frame-help {
+	display: flex;
+	align-items: center;
+	margin-left: calc(-1 * var(--sa-space-1, 4px));
+}
+
+.saengine-editor-frame .sa-frame-help-button {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-editor-frame .sa-frame-help-button:hover {
+	color: var(--vscode-foreground);
+}
+
 .saengine-editor-frame .sa-frame-controls:empty,
+.saengine-editor-frame .sa-frame-help:empty,
 .saengine-editor-frame .sa-frame-end:empty {
 	display: none;
 }
@@ -250,6 +265,71 @@
 	margin: var(--sa-space-1, 4px) 0;
 }
 
+/* empty state: a calm message centred over the main area (setEmpty) */
+.saengine-editor-frame .sa-frame-empty {
+	display: none;
+	position: absolute;
+	inset: 0;
+	z-index: 1;
+	align-items: center;
+	justify-content: center;
+	padding: var(--sa-space-6, 24px);
+	background: var(--sa-surface, var(--vscode-editor-background));
+	text-align: center;
+	box-sizing: border-box;
+}
+
+.saengine-editor-frame .sa-frame-empty.visible {
+	display: flex;
+}
+
+.saengine-editor-frame .sa-frame-empty-content {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+	max-width: 440px;
+}
+
+.saengine-editor-frame .sa-frame-empty-icon {
+	font-size: 24px;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	margin-bottom: var(--sa-space-1, 4px);
+}
+
+.saengine-editor-frame .sa-frame-empty-title {
+	font-size: var(--sa-font-l, 16px);
+	font-weight: 600;
+}
+
+.saengine-editor-frame .sa-frame-empty-text {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	line-height: 1.5;
+}
+
+.saengine-editor-frame .sa-frame-empty-actions {
+	display: flex;
+	gap: var(--sa-space-2, 8px);
+	margin-top: var(--sa-space-2, 8px);
+}
+
+.saengine-editor-frame .sa-frame-empty-actions .monaco-button {
+	width: auto;
+	padding: 4px 14px;
+}
+
+.saengine-editor-frame .sa-frame-empty-link {
+	margin-top: var(--sa-space-1, 4px);
+	font-size: var(--sa-font-s, 12px);
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+
+.saengine-editor-frame .sa-frame-empty-link:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
 /* ── status line ─────────────────────────────────────────────────────────── */
 
 .saengine-editor-frame .sa-frame-status {
@@ -306,4 +386,17 @@
 .saengine-editor-frame .sa-frame-status-link:hover {
 	color: var(--vscode-textLink-activeForeground);
 	text-decoration: underline;
+}
+
+/* Narrow windows: the title gives way and the toolbar never spills out of the editor. */
+.saengine-editor-frame .sa-frame-toolbar {
+	overflow: hidden;
+}
+
+.saengine-editor-frame .sa-frame-title {
+	flex-shrink: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }

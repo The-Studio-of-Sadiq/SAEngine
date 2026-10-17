@@ -3,12 +3,19 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isEqual, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { localize } from '../../../../nls.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
@@ -18,6 +25,7 @@ import { IEditorResolverService, RegisteredEditorPriority } from '../../../servi
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { BoqEditor } from './boqEditor.js';
 import { BoqEditorInput, BoqEditorInputSerializer } from './boqEditorInput.js';
+import { BOQ_EXPORT_CSV_COMMAND, exportBoqCsv, readProjectBoq } from './boqExport.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(BoqEditor, BoqEditor.ID, localize('boqEditorPane', "SAEngine Bill of Quantities")),
@@ -73,3 +81,33 @@ class BoqEditorResolverContribution extends Disposable implements IWorkbenchCont
 }
 
 registerWorkbenchContribution2(BoqEditorResolverContribution.ID, BoqEditorResolverContribution, WorkbenchPhase.BlockStartup);
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: BOQ_EXPORT_CSV_COMMAND,
+			title: localize2('saengine.boq.exportCsv', "Export Bill of Quantities as CSV..."),
+			category: localize2('saengine.category', "SAEngine"),
+			icon: Codicon.export,
+			f1: true,
+			precondition: ContextKeyExpr.has('saengineProjectOpen'),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const project = accessor.get(ISaengineProjectService).project;
+		const textModelService = accessor.get(ITextModelService);
+		const fileService = accessor.get(IFileService);
+		const fileDialogService = accessor.get(IFileDialogService);
+		const notificationService = accessor.get(INotificationService);
+		if (!project) {
+			return;
+		}
+		const document = await readProjectBoq(project, textModelService);
+		if (!document) {
+			notificationService.info(localize('boq.exportNotMeasured', "Measure the bill of quantities from the building model before exporting it."));
+			return;
+		}
+		await exportBoqCsv(document, project, { textModelService, fileService, fileDialogService, notificationService });
+	}
+});

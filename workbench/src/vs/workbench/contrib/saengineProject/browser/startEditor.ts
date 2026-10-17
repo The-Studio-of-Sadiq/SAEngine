@@ -187,13 +187,17 @@ export class StartEditor extends EditorPane {
 			return;
 		}
 		const userHome = this.pathService.resolvedUserHome;
-		for (const { project, label, opened } of recent) {
+		for (const { project, label, opened, changed } of recent) {
 			const item = append(list, $('li'));
 			const link = append(item, $('button.recent-project', { type: 'button', title: project.root.fsPath }));
 			const top = append(link, $('span.top'));
 			append(top, $('span.name', undefined, label));
-			if (opened) {
-				append(top, $('span.date', undefined, formatOpened(opened)));
+			const time = opened ?? changed;
+			if (time) {
+				const date = formatOpened(time);
+				append(top, $('span.date', {
+					'aria-label': opened ? localize('start.lastOpened', "Last opened {0}", date) : localize('start.lastChanged', "Last changed {0}", date),
+				}, date));
 			}
 			appendProjectPath(link, project.root, userHome).classList.add('path');
 			this.pageDisposables.add(addDisposableListener(link, EventType.CLICK, () => this.run(() => this.opener.open(project.root))));

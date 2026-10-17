@@ -6,6 +6,7 @@
 import './media/editorFrame.css';
 import { $, addDisposableListener, append, clearNode, EventType } from '../../../../base/browser/dom.js';
 import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { Orientation, Sash, SashState } from '../../../../base/browser/ui/sash/sash.js';
@@ -19,7 +20,7 @@ import { localize } from '../../../../nls.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 
 /*
  * The shared frame of the SAEngine editors: one slim toolbar, the editor's own canvas or table,
@@ -40,12 +41,16 @@ import { defaultProgressBarStyles } from '../../../../platform/theme/browser/def
  *   append(this.frame.titleSlot, ...);              // a selector or a title
  *   this.frame.setActions([runAction, this.frame.togglePropertiesAction], [exportAction]);
  *   this.frame.setStatus({ text: localize(...), link: { label: localize(...), run: () => ... } });
+ *   this.frame.setHelp(localize(...));              // optional: "?" after the title, explains the editor
+ *   this.frame.setEmpty({ title, text, actions });   // optional: calm centred message, undefined hides it
  *   this.frame.layout(dimension.width, dimension.height); // from EditorPane.layout
  *   this._register(this.frame.onDidLayoutMain(() => this.canvas.layout()));
  *
  * Primary actions are icon buttons (an `Action` whose `class` is a codicon class name, and whose
  * label is the tooltip; `checked` shows a toggle as pressed); secondary actions go to the "..."
- * overflow menu. The properties panel's width and visibility are remembered per `id`.
+ * overflow menu. The properties panel's width and visibility are remembered per `id`; fill it
+ * with `appendPropertyHeading` / `appendPropertyRow` / `appendPropertyNote`. Append to `main`
+ * rather than clearing it: the empty state lives there too.
  */
 
 /** Options of the properties panel on the right of the frame. */
@@ -77,6 +82,28 @@ export interface IEditorFrameStatus {
 	/** A codicon before the text; `busy` shows a spinner instead. */
 	readonly icon?: ThemeIcon;
 	readonly busy?: boolean;
+	readonly link?: { readonly label: string; readonly run: () => void };
+}
+
+/** A button of the empty state (see {@link EditorFrame.setEmpty}). */
+export interface IEditorFrameEmptyAction {
+	readonly label: string;
+	readonly icon?: ThemeIcon;
+	/** The empty state's main action (button colours); the others are secondary. */
+	readonly primary?: boolean;
+	readonly enabled?: boolean;
+	readonly run: () => void;
+}
+
+/**
+ * What the main area shows while the editor has nothing to show yet: a calm, centred message
+ * over the main area, with at most a few buttons and a link.
+ */
+export interface IEditorFrameEmptyState {
+	readonly icon?: ThemeIcon;
+	readonly title: string;
+	readonly text?: string;
+	readonly actions?: readonly IEditorFrameEmptyAction[];
 	readonly link?: { readonly label: string; readonly run: () => void };
 }
 
@@ -121,6 +148,29 @@ export function readFrameState(raw: string | undefined, defaults: IEditorFrameSt
 	}
 }
 
+/** Appends a heading of the property sheet (`.sa-props-heading`) to a properties panel. */
+export function appendPropertyHeading(container: HTMLElement, text: string): HTMLElement {
+	return append(container, $('.sa-props-heading', undefined, text));
+}
+
+/** Appends a name/value row of the property sheet (`.sa-props-row`); the value may be an element. */
+export function appendPropertyRow(container: HTMLElement, name: string, value: string | HTMLElement): HTMLElement {
+	const row = append(container, $('.sa-props-row'));
+	append(row, $('span.name', undefined, name));
+	const cell = append(row, $('span.value'));
+	if (typeof value === 'string') {
+		cell.textContent = value;
+	} else {
+		append(cell, value);
+	}
+	return row;
+}
+
+/** Appends a muted note of the property sheet (`.sa-props-note`). */
+export function appendPropertyNote(container: HTMLElement, text: string): HTMLElement {
+	return append(container, $('.sa-props-note', undefined, text));
+}
+
 /**
  * The layout SAEngine editor panes compose: a slim toolbar (selectors on the left, icon buttons
  * and an overflow menu on the right, a progress bar along its bottom edge), the main area, an
@@ -149,6 +199,10 @@ export class EditorFrame extends Disposable {
 	private readonly sash: Sash | undefined;
 	private readonly status: HTMLElement;
 	private readonly statusStore = this._register(new DisposableStore());
+	private readonly helpSlot: HTMLElement;
+	private readonly helpStore = this._register(new DisposableStore());
+	private readonly emptyElement: HTMLElement;
+	private readonly emptyStore = this._register(new DisposableStore());
 	private readonly storageKey: string;
 	private state: IEditorFrameState;
 	private width = 0;
@@ -177,6 +231,7 @@ export class EditorFrame extends Disposable {
 
 		const bar = append(this.element, $('.sa-frame-toolbar', { role: 'toolbar', 'aria-label': options.ariaLabel }));
 		this.titleSlot = append(bar, $('.sa-frame-title'));
+		this.helpSlot = append(bar, $('.sa-frame-help'));
 		this.controlsSlot = append(bar, $('.sa-frame-controls'));
 		append(bar, $('.sa-frame-spacer'));
 		this.endSlot = append(bar, $('.sa-frame-end'));
@@ -191,6 +246,7 @@ export class EditorFrame extends Disposable {
 
 		this.body = append(this.element, $('.sa-frame-body'));
 		this.main = append(this.body, $('.sa-frame-main'));
+		this.emptyElement = append(this.main, $('.sa-frame-empty'));
 
 		this.togglePropertiesAction = this._register(new Action('saengine.editorFrame.toggleProperties',
 			panelOptions ? localize('editorFrame.toggleProperties', "Toggle {0}", panelOptions.title) : '',
@@ -200,7 +256,9 @@ export class EditorFrame extends Disposable {
 			this.panel = append(this.body, $('.sa-frame-panel'));
 			const header = append(this.panel, $('.sa-frame-panel-header'));
 			append(header, $('span.sa-frame-panel-title', undefined, panelOptions.title));
-			const close = append(header, $<HTMLButtonElement>('button.sa-frame-panel-close', { type: 'button', title: localize('editorFrame.hideProperties', "Hide {0}", panelOptions.title), 'aria-label': localize('editorFrame.hideProperties', "Hide {0}", panelOptions.title) }));
+			const hideLabel = localize('editorFrame.hideProperties', "Hide {0}", panelOptions.title);
+			const close = append(header, $<HTMLButtonElement>('button.sa-frame-panel-close', { type: 'button', 'aria-label': hideLabel }));
+			this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), close, hideLabel));
 			append(close, $(ThemeIcon.asCSSSelector(Codicon.close)));
 			this._register(addDisposableListener(close, EventType.CLICK, () => this.setPropertiesVisible(false)));
 			this.properties = append(this.panel, $('.sa-frame-panel-content'));
@@ -300,6 +358,66 @@ export class EditorFrame extends Disposable {
 			const anchor = append(this.status, $<HTMLAnchorElement>('a.sa-frame-status-link', { role: 'button', tabIndex: 0 }, link.label));
 			this.statusStore.add(addDisposableListener(anchor, EventType.CLICK, () => link.run()));
 			this.statusStore.add(addDisposableListener(anchor, EventType.KEY_DOWN, e => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					link.run();
+				}
+			}));
+		}
+	}
+
+	/**
+	 * A "?" button after the title whose hover explains the editor (what used to be a paragraph
+	 * at the top); undefined removes it. Clicking it, or Enter on it, shows the hover too.
+	 */
+	setHelp(text: string | undefined): void {
+		this.helpStore.clear();
+		clearNode(this.helpSlot);
+		if (!text) {
+			return;
+		}
+		const label = localize('editorFrame.help', "About This Editor");
+		const button = append(this.helpSlot, $<HTMLButtonElement>('button.sa-frame-icon-button.sa-frame-help-button', { type: 'button', 'aria-label': label }));
+		append(button, $(ThemeIcon.asCSSSelector(Codicon.question)));
+		const hover = this.helpStore.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, text));
+		this.helpStore.add(addDisposableListener(button, EventType.CLICK, () => hover.show(true)));
+	}
+
+	/**
+	 * A calm message centred over the main area while the editor has nothing to show (not made
+	 * yet, no file); undefined hides it. The main area's own content stays underneath.
+	 */
+	setEmpty(state: IEditorFrameEmptyState | undefined): void {
+		this.emptyStore.clear();
+		clearNode(this.emptyElement);
+		// Last in the main area, so it covers the editor's own content.
+		this.main.appendChild(this.emptyElement);
+		this.emptyElement.classList.toggle('visible', !!state);
+		if (!state) {
+			return;
+		}
+		const content = append(this.emptyElement, $('.sa-frame-empty-content'));
+		if (state.icon) {
+			append(content, $(`span.sa-frame-empty-icon${ThemeIcon.asCSSSelector(state.icon)}`));
+		}
+		append(content, $('.sa-frame-empty-title', undefined, state.title));
+		if (state.text) {
+			append(content, $('.sa-frame-empty-text', undefined, state.text));
+		}
+		if (state.actions?.length) {
+			const actions = append(content, $('.sa-frame-empty-actions'));
+			for (const action of state.actions) {
+				const button = this.emptyStore.add(new Button(actions, { ...defaultButtonStyles, secondary: !action.primary, supportIcons: true }));
+				button.label = action.icon ? `$(${action.icon.id}) ${action.label}` : action.label;
+				button.enabled = action.enabled ?? true;
+				this.emptyStore.add(button.onDidClick(() => action.run()));
+			}
+		}
+		const link = state.link;
+		if (link) {
+			const anchor = append(content, $<HTMLAnchorElement>('a.sa-frame-empty-link', { role: 'button', tabIndex: 0 }, link.label));
+			this.emptyStore.add(addDisposableListener(anchor, EventType.CLICK, () => link.run()));
+			this.emptyStore.add(addDisposableListener(anchor, EventType.KEY_DOWN, e => {
 				if (e.key === 'Enter' || e.key === ' ') {
 					e.preventDefault();
 					link.run();

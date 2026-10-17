@@ -1,0 +1,172 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The model editors in the shared editor frame (editorFrame.css): 6 BIM (buildingEditor.ts) and
+ * the structural model form (structureEditor.ts). Sizes and colours come from the shared tokens. */
+
+/* ── a segmented control in the toolbar (the view of the building model) ───────────────────── */
+
+.saengine-editor-frame .sa-segmented {
+	display: inline-flex;
+	align-items: center;
+	padding: 2px;
+	gap: 2px;
+	border-radius: var(--sa-radius, 4px);
+	background: var(--sa-surface-alt, var(--vscode-sideBar-background));
+	border: 1px solid var(--sa-border, var(--vscode-panel-border));
+}
+
+.saengine-editor-frame .sa-segment {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1, 4px);
+	height: 22px;
+	padding: 0 var(--sa-space-2, 8px);
+	border: none;
+	border-radius: calc(var(--sa-radius, 4px) - 1px);
+	background: transparent;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-family: inherit;
+	font-size: var(--sa-font-s, 12px);
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.saengine-editor-frame .sa-segment .codicon {
+	font-size: 14px;
+}
+
+.saengine-editor-frame .sa-segment:hover:not(:disabled) {
+	color: var(--vscode-foreground);
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.saengine-editor-frame .sa-segment.active {
+	color: var(--vscode-foreground);
+	background: var(--sa-surface, var(--vscode-editor-background));
+	box-shadow: 0 0 0 1px var(--sa-border, var(--vscode-panel-border));
+}
+
+.saengine-editor-frame .sa-segment:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.saengine-editor-frame .sa-segment:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* ── 6 BIM ─────────────────────────────────────────────────────────────────────────────────── */
+
+.saengine-building-editor .library-body {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+}
+
+.saengine-building-editor .library-body.hidden {
+	display: none;
+}
+
+.saengine-building-editor .building-editor.building-3d {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	padding: 0;
+	overflow: hidden;
+}
+
+.saengine-building-editor .building-3d .building-viewport {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+	border-top: none;
+}
+
+.saengine-building-editor .building-3d .building-summary-view,
+.saengine-building-editor .building-3d .building-additions-view {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	padding: var(--sa-space-4, 16px) var(--sa-space-5, 24px) var(--sa-space-6, 32px);
+}
+
+.saengine-building-editor .building-3d .hidden {
+	display: none;
+}
+
+.saengine-building-editor .building-summary-view h3 {
+	margin: var(--sa-space-4, 16px) 0 var(--sa-space-2, 8px);
+	font-size: var(--sa-font-m, 13px);
+	font-weight: 600;
+}
+
+.saengine-building-editor .building-summary-view h3:first-child {
+	margin-top: 0;
+}
+
+.saengine-building-editor .building-table {
+	display: grid;
+	grid-template-columns: repeat(4, auto);
+	justify-content: start;
+	gap: var(--sa-space-1, 4px) var(--sa-space-5, 24px);
+	margin: 0 0 var(--sa-space-4, 16px);
+}
+
+.saengine-building-editor .building-table .header {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-building-editor .building-table .number {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-building-editor .building-note {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+/* the one help line above the additions form (the old paragraph header) */
+.saengine-building-editor .building-help {
+	display: flex;
+	gap: var(--sa-space-2, 8px);
+	max-width: 720px;
+	margin: 0 0 var(--sa-space-3, 12px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+	line-height: 1.5;
+}
+
+.saengine-building-editor .building-help .codicon {
+	flex: none;
+	margin-top: 2px;
+	font-size: 14px;
+}
+
+/* ── the structural model form (structureEditor.ts) ───────────────────────────────────────── */
+
+.saengine-structure-form .library-body {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+}
+
+.saengine-structure-form .library-body.hidden {
+	display: none;
+}
+
+.saengine-structure-form .structure-editor {
+	flex: 1;
+	min-width: 0;
+	overflow-x: hidden;
+	overflow-y: auto;
+	padding: var(--sa-space-4, 16px) var(--sa-space-5, 24px) var(--sa-space-6, 32px);
+}
+
+.saengine-building-editor .sa-frame-icon-button.hidden {
+	display: none;
+}

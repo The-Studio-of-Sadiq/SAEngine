@@ -3,14 +3,16 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, DisposableResizeObserver, EventType, getWindow } from '../../../../base/browser/dom.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { InputBox, MessageType } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
@@ -44,6 +46,15 @@ export interface ISchemaFormContext {
 	newItem?(path: string, list: readonly JsonValue[]): JsonObject | undefined;
 }
 
+/** How {@link SchemaForm.render} lays the form out. */
+export interface ISchemaFormRenderOptions {
+	/**
+	 * The top-level groups and lists render without their heading (their section's title says
+	 * what they are), e.g. one section of the project settings.
+	 */
+	readonly flat?: boolean;
+}
+
 interface IResolved {
 	readonly schema: IJSONSchema;
 	readonly defName?: string;
@@ -56,6 +67,12 @@ interface IBranch {
 }
 
 const UNIT = /\[([^\]]+)\]/;
+
+/** A table column's heading: the field's title with the unit from its description, "Elevation (mm)". */
+function columnHeading(title: string, description: string | undefined): string {
+	const unit = description?.match(UNIT)?.[1];
+	return unit && unit !== '-' ? `${title} (${unit})` : title;
+}
 
 /** Engineering names of IFC profile shapes, which the schema stores as short codes. */
 const SHAPE_LABELS: { readonly [shape: string]: string } = {
@@ -76,6 +93,13 @@ export function humanize(value: string): string {
 	return [words[0].charAt(0).toUpperCase() + words[0].slice(1), ...words.slice(1).map(w => w.toLowerCase())].join(' ');
 }
 
+const SMALL_WORDS = new Set(['a', 'an', 'and', 'as', 'at', 'by', 'for', 'in', 'of', 'on', 'or', 'the', 'to', 'with']);
+
+/** "Load combinations" -> "Load Combinations" (title-style, as the part names and buttons). */
+export function titleCase(text: string): string {
+	return text.split(' ').map((word, i) => i > 0 && SMALL_WORDS.has(word) ? word : word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+}
+
 /**
  * Renders a form for a JSON value from its JSON Schema, with the workbench's own widgets.
  * Every edit is validated against the schema before it is applied, so the value only ever
@@ -86,6 +110,8 @@ export class SchemaForm {
 	private readonly disposables = new DisposableStore();
 	/** While rendering a table row, fields render as bare cells (no label, no unit). */
 	private inlineCells = false;
+	/** Top-level groups and lists render without their heading (see {@link ISchemaFormRenderOptions}). */
+	private flat = false;
 
 	constructor(
 		private readonly ctx: ISchemaFormContext,
@@ -93,9 +119,15 @@ export class SchemaForm {
 		@IHoverService private readonly hoverService: IHoverService,
 	) { }
 
-	render(container: HTMLElement, schema: IJSONSchema, value: JsonObject, skip: readonly string[] = []): void {
+	render(container: HTMLElement, schema: IJSONSchema, value: JsonObject, skip: readonly string[] = [], options: ISchemaFormRenderOptions = {}): void {
 		this.disposables.clear();
+		this.flat = !!options.flat;
 		this.renderObject(container, this.resolve(schema).schema, value, '', skip);
+	}
+
+	/** Whether the group or list at `path` renders without its heading. */
+	private headless(path: string, optional: boolean): boolean {
+		return this.flat && !optional && !path.includes('.');
 	}
 
 	dispose(): void {
@@ -190,6 +222,16 @@ export class SchemaForm {
 	}
 
 	private renderGroup(container: HTMLElement, title: string, resolved: IResolved, owner: JsonObject, key: string, path: string, optional: boolean): void {
+		if (this.headless(path, optional)) {
+			if (owner[key] === undefined && resolved.defName) {
+				owner[key] = this.ctx.template(resolved.defName);
+			}
+			const value = owner[key];
+			if (value && typeof value === 'object' && !Array.isArray(value)) {
+				this.renderObject(container, resolved.schema, value, path);
+			}
+			return;
+		}
 		const group = append(container, $('.form-group'));
 		const header = append(group, $('.form-group-header'));
 		if (optional) {
@@ -245,8 +287,10 @@ export class SchemaForm {
 	/** A list whose entries are each one of several kinds (e.g. rectangular or cylindrical grids). */
 	private renderUnionArray(container: HTMLElement, title: string, schema: IJSONSchema, union: { key: string; branches: IBranch[] }, owner: JsonObject, key: string, path: string): void {
 		const group = append(container, $('.form-group'));
-		const header = append(group, $('.form-group-header'));
-		append(header, $('span.form-group-title', undefined, title));
+		if (!this.headless(path, false)) {
+			const header = append(group, $('.form-group-header'));
+			append(header, $('span.form-group-title', undefined, title));
+		}
 		const list = Array.isArray(owner[key]) ? owner[key] as JsonValue[] : [];
 		// The entries are edited in place: the list stands in for an object keyed by index.
 		const entries = list as unknown as JsonObject;
@@ -255,18 +299,15 @@ export class SchemaForm {
 			const fields = append(row, $('.form-array-fields'));
 			const name = entry && typeof entry === 'object' && !Array.isArray(entry) && typeof entry.id === 'string' ? entry.id : String(i + 1);
 			this.renderUnion(fields, name, union, entries, String(i), `${path}.${i}`, false);
-			const remove = this.disposables.add(new Button(row, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: localize('schemaForm.remove', "Remove") }));
-			remove.label = `$(${Codicon.trash.id})`;
-			remove.enabled = list.length > (schema.minItems ?? 0);
-			this.disposables.add(remove.onDidClick(() => {
+			this.iconButton(row, Codicon.trash, localize('schemaForm.remove', "Remove"), () => {
 				list.splice(i, 1);
 				owner[key] = list;
 				this.ctx.changed(path, true);
-			}));
+			}, list.length > (schema.minItems ?? 0));
 		});
 		if (schema.maxItems === undefined || list.length < schema.maxItems) {
 			const add = this.disposables.add(new Button(append(group, $('.form-array-add')), { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-			add.label = `$(${Codicon.add.id}) ${localize('schemaForm.add', "Add {0}", title)}`;
+			add.label = `$(${Codicon.add.id}) ${localize('schemaForm.add', "Add {0}", titleCase(title))}`;
 			this.disposables.add(add.onDidClick(() => {
 				const entry = this.ctx.newItem?.(path.replace(/\.\d+(?=\.|$)/g, ''), list) ?? this.ctx.template(union.branches[0].defName);
 				owner[key] = [...list, entry];
@@ -277,30 +318,32 @@ export class SchemaForm {
 
 	private renderObjectArray(container: HTMLElement, title: string, schema: IJSONSchema, items: IResolved, owner: JsonObject, key: string, path: string): void {
 		const group = append(container, $('.form-group'));
-		const header = append(group, $('.form-group-header'));
-		append(header, $('span.form-group-title', undefined, title));
+		if (!this.headless(path, false)) {
+			const header = append(group, $('.form-group-header'));
+			append(header, $('span.form-group-title', undefined, title));
+		}
 
 		const list = Array.isArray(owner[key]) ? owner[key] as JsonValue[] : [];
 		const min = schema.minItems ?? 0;
 		const remove = (parent: HTMLElement, i: number) => {
-			const button = this.disposables.add(new Button(parent, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: localize('schemaForm.remove', "Remove") }));
-			button.label = `$(${Codicon.trash.id})`;
-			button.enabled = list.length > min;
-			this.disposables.add(button.onDidClick(() => {
+			this.iconButton(parent, Codicon.trash, localize('schemaForm.remove', "Remove"), () => {
 				list.splice(i, 1);
 				owner[key] = list;
 				this.ctx.changed(path, true);
-			}));
+			}, list.length > min);
 		};
 
 		const columns = this.flatColumns(items.schema);
 		if (columns) {
 			// Rows of simple values (grid lines, stories, bar groups) read best as a table.
 			const table = append(group, $('.form-table'));
-			table.style.gridTemplateColumns = `repeat(${columns.length}, minmax(72px, 150px)) auto`;
+			table.style.gridTemplateColumns = `${columns.map(c => c.width).join(' ')} auto`;
 			for (const column of columns) {
-				const unit = column.description?.match(UNIT)?.[1];
-				append(table, $('.form-table-header', undefined, unit && unit !== '-' ? `${column.title} (${unit})` : column.title));
+				const text = columnHeading(column.title, column.description);
+				const cell = append(table, $('.form-table-header', undefined, text));
+				// The whole heading (and its description) on hover: narrow columns cut it short.
+				const help = column.description?.replace(UNIT, '').replace(/\s+\./, '.').trim();
+				this.disposables.add(this.hoverService.setupDelayedHover(cell, { content: help && help !== '.' ? `${text}: ${help}` : text }));
 			}
 			append(table, $('.form-table-header'));
 			list.forEach((entry, i) => {
@@ -315,6 +358,7 @@ export class SchemaForm {
 				}
 				remove(append(table, $('.form-table-actions')), i);
 			});
+			this.stackWhenNarrow(group, table);
 		} else {
 			list.forEach((entry, i) => {
 				if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
@@ -328,7 +372,7 @@ export class SchemaForm {
 
 		if (schema.maxItems === undefined || list.length < schema.maxItems) {
 			const add = this.disposables.add(new Button(append(group, $('.form-array-add')), { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-			add.label = `$(${Codicon.add.id}) ${localize('schemaForm.add', "Add {0}", humanize(items.defName!))}`;
+			add.label = `$(${Codicon.add.id}) ${localize('schemaForm.add', "Add {0}", titleCase(humanize(items.defName!)))}`;
 			this.disposables.add(add.onDidClick(() => {
 				const entry = this.ctx.newItem?.(path.replace(/\.\d+(?=\.|$)/g, ''), list) ?? this.ctx.template(items.defName!);
 				owner[key] = [...list, entry];
@@ -337,9 +381,41 @@ export class SchemaForm {
 		}
 	}
 
+	/**
+	 * A table whose columns do not fit their group (a narrow editor, or the properties panel taking
+	 * the width) shows each row as label/field pairs instead of scrolling sideways; it goes back to
+	 * columns once the group is as wide as the columns need again.
+	 */
+	private stackWhenNarrow(group: HTMLElement, table: HTMLElement): void {
+		const targetWindow = getWindow(group);
+		let needed = 0;
+		let frame: number | undefined;
+		const update = () => {
+			frame = undefined;
+			const available = group.clientWidth;
+			if (!table.isConnected || available === 0) {
+				return; // hidden: measured again once it is shown
+			}
+			if (!table.classList.contains('stacked')) {
+				if (table.scrollWidth > available + 1) {
+					needed = table.scrollWidth;
+					table.classList.add('stacked');
+				}
+			} else if (available >= needed) {
+				table.classList.remove('stacked');
+			}
+		};
+		const observer = this.disposables.add(new DisposableResizeObserver('SchemaForm.stackWhenNarrow', () => {
+			// After layout, so changing the table's shape does not resize what is being observed mid-pass.
+			frame ??= targetWindow.requestAnimationFrame(update);
+		}, targetWindow));
+		this.disposables.add(observer.observe(group));
+		this.disposables.add(toDisposable(() => frame !== undefined && targetWindow.cancelAnimationFrame(frame)));
+	}
+
 	/** Titles of an object's fields when every field is a simple value; otherwise undefined. */
-	private flatColumns(schema: IJSONSchema): { title: string; description?: string }[] | undefined {
-		const columns: { title: string; description?: string }[] = [];
+	private flatColumns(schema: IJSONSchema): { title: string; description?: string; width: string }[] | undefined {
+		const columns: { title: string; description?: string; width: string }[] = [];
 		for (const [key, property] of Object.entries(schema.properties ?? {})) {
 			if (property.const !== undefined) {
 				continue;
@@ -350,7 +426,11 @@ export class SchemaForm {
 			if (!simple || inner.oneOf) {
 				return undefined;
 			}
-			columns.push({ title: property.title ?? resolved.title ?? humanize(key), description: property.description ?? resolved.description });
+			// Numbers in fixed narrow columns; names and choices take the room that is left, so long
+			// combination names ("1.2D + 1.6L + 0.5Lr") stay readable.
+			const numeric = resolved.type === 'number' || resolved.type === 'integer';
+			const width = resolved.type === 'boolean' ? 'max-content' : numeric && !resolved.enum ? '64px' : 'minmax(88px, 220px)';
+			columns.push({ title: property.title ?? resolved.title ?? humanize(key), description: property.description ?? resolved.description, width });
 		}
 		return columns.length ? columns : undefined;
 	}
@@ -395,7 +475,11 @@ export class SchemaForm {
 		const labels = references ? undefined : schema.enumDescriptions ?? this.resolve(schema).schema.enumDescriptions;
 		const label = (v: JsonValue) => {
 			const index = this.enumValues(schema)?.indexOf(v) ?? -1;
-			return labels && index >= 0 && labels[index] ? labels[index] : String(v);
+			if (labels && index >= 0 && labels[index]) {
+				return labels[index];
+			}
+			// Plain words of the schema ("perimeter", "pileCap") read as words; ids stay as they are.
+			return !references && typeof v === 'string' && /^[a-z][a-zA-Z]*$/.test(v) ? humanize(v) : String(v);
 		};
 		if (enumValues) {
 			const values = [...(optional ? [null] : []), ...enumValues];
@@ -421,7 +505,7 @@ export class SchemaForm {
 		}
 
 		if (schema.type === 'boolean') {
-			const checkbox = this.disposables.add(new Checkbox(title, value === true, defaultCheckboxStyles));
+			const checkbox = this.disposables.add(new Checkbox(title, value === true || (value === undefined && schema.default === true), defaultCheckboxStyles));
 			row.control.appendChild(checkbox.domNode);
 			this.disposables.add(checkbox.onChange(() => {
 				owner[key] = checkbox.checked;
@@ -430,16 +514,19 @@ export class SchemaForm {
 			return;
 		}
 
-		this.input(row.control, schema, value === undefined || value === null ? '' : String(value), optional, path, title, parsed => {
+		const unit = description?.match(UNIT)?.[1];
+		const suffix = unit && unit !== '-' && !this.inlineCells ? unit : undefined;
+		const wrap = suffix ? append(row.control, $('.form-input-unit')) : row.control;
+		this.input(wrap, schema, value === undefined || value === null ? '' : String(value), optional, path, title, parsed => {
 			if (parsed === undefined) {
 				delete owner[key];
 			} else {
 				owner[key] = parsed;
 			}
 		});
-		const unit = description?.match(UNIT)?.[1];
-		if (unit && unit !== '-' && !this.inlineCells) {
-			append(row.control, $('span.form-unit', undefined, unit));
+		if (suffix) {
+			// A muted suffix inside the field, so fields with and without units line up.
+			append(wrap, $('span.form-unit', { 'aria-hidden': 'true' }, suffix));
 		}
 	}
 
@@ -447,13 +534,20 @@ export class SchemaForm {
 
 	private fieldRow(container: HTMLElement, title: string, description: string | undefined): { control: HTMLElement } {
 		if (this.inlineCells) {
-			return { control: append(container, $('.form-control.form-cell')) };
+			const cell = append(container, $('.form-control.form-cell'));
+			// The column heading, shown only when a narrow table stacks its rows (see renderObjectArray).
+			append(cell, $('span.form-cell-label', { 'aria-hidden': 'true' }, columnHeading(title, description)));
+			return { control: cell };
 		}
 		const row = append(container, $('.form-field'));
-		const label = append(row, $('label.form-label', undefined, title));
+		const head = append(row, $('.form-label-cell'));
+		const label = append(head, $('label.form-label', undefined, title));
 		const help = description?.replace(UNIT, '').replace(/\s+\./, '.').trim();
 		if (help && help !== '.') {
+			// The description behind a quiet "?" beside the label (and on the label itself).
+			const icon = append(head, $(`span.form-help${ThemeIcon.asCSSSelector(Codicon.question)}`, { 'aria-hidden': 'true' }));
 			this.disposables.add(this.hoverService.setupDelayedHover(label, { content: help }));
+			this.disposables.add(this.hoverService.setupDelayedHover(icon, { content: help }));
 		}
 		return { control: append(row, $('.form-control')) };
 	}
@@ -486,6 +580,12 @@ export class SchemaForm {
 			validationOptions: { validation: text => { const error = check(text); return error ? { content: error, type: MessageType.ERROR } : null; } },
 		}));
 		box.value = initial;
+		if (schema.default !== undefined && schema.default !== null && typeof schema.default !== 'object') {
+			// An empty field means the schema's default (an underlay's offset 0, scale 1): show it
+			// greyed in the field. Set on the element, not as the InputBox placeholder, which would
+			// also show it as the hover of a field that has a value.
+			box.inputElement.placeholder = String(schema.default);
+		}
 		this.disposables.add(box.onDidChange(text => {
 			if (check(text) !== undefined) {
 				return;
@@ -496,9 +596,12 @@ export class SchemaForm {
 		}));
 	}
 
-	private iconButton(container: HTMLElement, icon: typeof Codicon.add, title: string, run: () => void): void {
-		const button = this.disposables.add(new Button(container, { ...defaultButtonStyles, secondary: true, supportIcons: true, title }));
-		button.label = `$(${icon.id})`;
-		this.disposables.add(button.onDidClick(run));
+	/** A small borderless icon button (remove a row, add a part), with a hover. */
+	private iconButton(container: HTMLElement, icon: ThemeIcon, title: string, run: () => void, enabled = true): void {
+		const button = append(container, $<HTMLButtonElement>('button.form-icon-button', { type: 'button', 'aria-label': title }));
+		append(button, $(ThemeIcon.asCSSSelector(icon)));
+		button.disabled = !enabled;
+		this.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, title));
+		this.disposables.add(addDisposableListener(button, EventType.CLICK, () => run()));
 	}
 }

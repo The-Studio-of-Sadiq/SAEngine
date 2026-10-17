@@ -1,0 +1,53 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Property sheets in the editor frame's properties panel (propertySheetView.ts), on top of the
+ * frame's own .sa-props-heading / .sa-props-row / .sa-props-note (editorFrame.css). */
+
+.sa-props-heading .sa-props-detail {
+	margin-left: var(--sa-space-2, 8px);
+	font-weight: normal;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.sa-props-section {
+	margin: var(--sa-space-3, 12px) 0 var(--sa-space-1, 4px);
+	font-size: var(--sa-font-s, 12px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.sa-props-row > .value.problem {
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.sa-props-row > .value.problem > .codicon {
+	margin-right: var(--sa-space-1, 4px);
+	font-size: 12px;
+	vertical-align: -2px;
+}
+
+.sa-props-links {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--sa-space-1, 4px) var(--sa-space-3, 12px);
+	margin-top: var(--sa-space-3, 12px);
+}
+
+.sa-props-link {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+
+.sa-props-link:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.sa-props-link:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}

@@ -6,14 +6,18 @@
 import './media/libraryEditor.css';
 import { $, append, clearNode, Dimension } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { Action, IAction, Separator } from '../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { DisposableStore, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { DisposableStore, IDisposable, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { joinPath } from '../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -23,8 +27,10 @@ import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { DEFAULT_EDITOR_ASSOCIATION, IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { DEVELOPER_MODE_SETTING } from '../../../services/saengineProject/common/developerMode.js';
 import { recordedStamp, sourceStamp, upstreamPart } from '../../../services/saengineProject/common/partSources.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
+import { EditorFrame } from '../../saengineProject/browser/editorFrame.js';
 import { LibraryEditorInput, LibraryKind } from './libraryEditorInput.js';
 import { JsonObject, JsonValue } from './schemaForm.js';
 
@@ -67,6 +73,12 @@ export interface IShapeError {
 	readonly fix?: { readonly label: string; readonly run: () => void };
 }
 
+/** The toolbar actions of a framed document editor (see {@link JsonDocumentEditor.documentFrameActions}). */
+export interface IDocumentFrameActions {
+	readonly primary: readonly IAction[];
+	readonly secondary?: readonly IAction[];
+}
+
 /**
  * Base for the visual editors of SAEngine's JSON project files. The file's text model stays
  * the document: the editor parses it, edits a copy, and writes it back as one undoable edit
@@ -75,27 +87,44 @@ export interface IShapeError {
  *
  * A document built from upstream parts (see `upstreamPart`) records their stamps; when an
  * upstream file changes, the editor says so and offers to update, and only updates on request.
+ *
+ * An editor that returns a frame from {@link createDocumentFrame} is laid out in the shared SAEngine
+ * editor frame: its body fills the frame's main area, a file that cannot be edited visually
+ * shows as an empty state there, an outdated document shows an "Out of date" pill in the
+ * toolbar, and the toolbar holds {@link documentFrameActions} (plus "Open in Text Editor" in the overflow
+ * menu in developer mode). Without a frame the editor keeps the plain layout with banners.
  */
 export abstract class JsonDocumentEditor extends EditorPane {
 
 	protected root!: HTMLElement;
+	/** The shared editor frame, when {@link createDocumentFrame} returned one. */
+	protected documentFrame: EditorFrame | undefined;
 	private banner!: HTMLElement;
 	private outdated!: HTMLElement;
+	private documentBody!: HTMLElement;
 
 	protected document: JsonObject | undefined;
 	protected problems: readonly IDocumentProblem[] = [];
 	private model: ITextModel | undefined;
 	private applying = false;
+	private documentShapeProblem: IShapeError | undefined;
+	private documentActionsKey: string | undefined;
+	private documentOutdatedKey: string | undefined;
+	private documentConfiguration: IConfigurationService | undefined;
 
 	protected readonly inputDisposables = this._register(new DisposableStore());
 	protected readonly viewDisposables = this._register(new DisposableStore());
 	private readonly bannerDisposables = this._register(new DisposableStore());
 	private readonly outdatedDisposables = this._register(new DisposableStore());
+	private readonly documentOutdatedPill = this._register(new MutableDisposable<IDisposable>());
 	private readonly companionReference = this._register(new MutableDisposable<IReference<IResolvedTextEditorModel>>());
 	private readonly upstreamReference = this._register(new MutableDisposable<IReference<IResolvedTextEditorModel>>());
 	private readonly commitScheduler = this._register(new RunOnceScheduler(() => this.commit(), 300));
 	private readonly checkScheduler = this._register(new RunOnceScheduler(() => this.check(), 600));
 	private checkVersion = 0;
+
+	/** Opens the file in the text editor; in the overflow menu of a framed editor in developer mode. */
+	protected readonly openDocumentAsTextAction = this._register(new Action('saengine.library.openAsText', localize('jsonDocument.openText', "Open in Text Editor"), ThemeIcon.asClassName(Codicon.code), true, async () => this.openDocumentAsText()));
 
 	constructor(
 		id: string,
@@ -112,13 +141,77 @@ export abstract class JsonDocumentEditor extends EditorPane {
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		this.root = append(parent, $('.saengine-library-editor'));
-		this.banner = append(this.root, $('.library-banner'));
-		this.outdated = append(this.root, $('.library-banner.outdated'));
-		this.createBody(append(this.root, $('.library-body')));
+		const frame = this.documentFrame = this.createDocumentFrame(parent);
+		if (frame) {
+			this.root = frame.element;
+			this.root.classList.add('saengine-library-editor', 'framed');
+			this.banner = append(frame.main, $('.library-empty-state'));
+			this.outdated = $('.library-banner.outdated'); // the pill stands in for it
+			this.documentBody = append(frame.main, $('.library-body'));
+		} else {
+			this.root = append(parent, $('.saengine-library-editor'));
+			this.banner = append(this.root, $('.library-banner'));
+			this.outdated = append(this.root, $('.library-banner.outdated'));
+			this.documentBody = append(this.root, $('.library-body'));
+		}
+		this.createBody(this.documentBody);
+		this.updateDocumentFrameActions();
 	}
 
-	/** Builds the editor's own UI below the banner. */
+	/**
+	 * The shared editor frame to lay the editor out in (created with the subclass's instantiation
+	 * service and registered by it), or undefined for the plain layout.
+	 */
+	protected createDocumentFrame(_parent: HTMLElement): EditorFrame | undefined {
+		return undefined;
+	}
+
+	/** The toolbar actions of a framed editor: icon buttons and the overflow menu. */
+	protected documentFrameActions(): IDocumentFrameActions {
+		return { primary: [] };
+	}
+
+	/**
+	 * Follows `saengine.developerMode` for the frame's "Open in Text Editor" action. Call it from
+	 * the constructor of a framed editor.
+	 */
+	protected trackDeveloperMode(configurationService: IConfigurationService): void {
+		this.documentConfiguration = configurationService;
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(DEVELOPER_MODE_SETTING)) {
+				this.updateDocumentFrameActions();
+			}
+		}));
+	}
+
+	protected get isDeveloperMode(): boolean {
+		return this.documentConfiguration?.getValue<boolean>(DEVELOPER_MODE_SETTING) === true;
+	}
+
+	/** Puts {@link documentFrameActions} in the frame's toolbar (only when they changed, so hovers stay). */
+	protected updateDocumentFrameActions(): void {
+		const frame = this.documentFrame;
+		if (!frame) {
+			return;
+		}
+		const own = this.documentFrameActions();
+		const secondary: IAction[] = [...(own.secondary ?? [])];
+		if (this.isDeveloperMode && this.resource) {
+			if (secondary.length) {
+				secondary.push(new Separator());
+			}
+			secondary.push(this.openDocumentAsTextAction);
+		}
+		const primary = this.documentShapeProblem ? [] : own.primary;
+		// Enabled and checked states update in place; only a different set of actions is set again.
+		const key = `${primary.map(a => a.id).join()}|${secondary.map(a => a.id).join()}`;
+		if (key !== this.documentActionsKey) {
+			this.documentActionsKey = key;
+			frame.setActions(primary, this.documentShapeProblem ? secondary.filter(a => a === this.openDocumentAsTextAction) : secondary);
+		}
+	}
+
+	/** Builds the editor's own UI below the banner (in the frame's main area when framed). */
 	protected abstract createBody(container: HTMLElement): void;
 
 	/** Why `value` is not a document this editor can edit, if it is not. */
@@ -195,6 +288,10 @@ export abstract class JsonDocumentEditor extends EditorPane {
 	}
 
 	override layout(dimension: Dimension): void {
+		if (this.documentFrame) {
+			this.documentFrame.layout(dimension.width, dimension.height);
+			return;
+		}
 		this.root.style.width = `${dimension.width}px`;
 		this.root.style.height = `${dimension.height}px`;
 	}
@@ -226,6 +323,7 @@ export abstract class JsonDocumentEditor extends EditorPane {
 		this.document = parsed as JsonObject;
 		this.render();
 		this.renderOutdated();
+		this.updateDocumentFrameActions();
 		this.checkScheduler.schedule();
 	}
 
@@ -235,6 +333,8 @@ export abstract class JsonDocumentEditor extends EditorPane {
 		this.showBanner(error);
 		this.render();
 		this.renderOutdated();
+		this.updateDocumentFrameActions();
+		this.documentFrame?.setStatus({ severity: 'warning', text: error.message });
 	}
 
 	/** Writes the document to the text model as one undoable edit. */
@@ -265,6 +365,7 @@ export abstract class JsonDocumentEditor extends EditorPane {
 		this.commit();
 		this.render();
 		this.renderOutdated();
+		this.updateDocumentFrameActions();
 	}
 
 	protected flush(): void {
@@ -278,6 +379,7 @@ export abstract class JsonDocumentEditor extends EditorPane {
 		if (structural) {
 			this.commit();
 			this.render();
+			this.updateDocumentFrameActions();
 		} else {
 			this.commitScheduler.schedule();
 		}
@@ -339,48 +441,78 @@ export abstract class JsonDocumentEditor extends EditorPane {
 		this.inputDisposables.add(this.upstreamReference.value.object.textEditorModel.onDidChangeContent(() => this.renderOutdated()));
 	}
 
-	/** "<Upstream> changed since this was built — Update", while the recorded stamp is stale. */
+	/**
+	 * "<Upstream> changed since this was built — Update", while the recorded stamp is stale: a
+	 * banner, or an "Out of date" pill in the frame's toolbar.
+	 */
 	private renderOutdated(): void {
-		this.outdatedDisposables.clear();
-		clearNode(this.outdated);
 		const part = this.kind && upstreamPart(this.kind, this.projectService.parts);
 		const text = this.upstreamText;
 		const recorded = this.document && part ? recordedStamp(this.document, part) : undefined;
 		const stale = !!this.document && !!part && text !== undefined && recorded !== sourceStamp(text);
-		this.outdated.classList.toggle('visible', stale);
-		if (!stale || !part || text === undefined) {
+		const name = part ? UPSTREAM_NAMES[part] ?? part : '';
+		const message = !stale ? undefined : recorded
+			? localize('outdated.changed', "The {0} has changed since this was built from it.", name)
+			: localize('outdated.never', "This has not been built from the {0} yet.", name);
+		const run = () => this.updateFromUpstream(this.upstreamText ?? text ?? '');
+
+		const frame = this.documentFrame;
+		if (frame) {
+			if (message !== this.documentOutdatedKey) {
+				this.documentOutdatedKey = message;
+				this.documentOutdatedPill.value = message === undefined ? undefined : frame.createPill(localize('outdated.pill', "Out of date"), {
+					severity: 'warn',
+					icon: Codicon.warning,
+					title: localize('outdated.pillTitle', "{0} Click to update from the {1}.", message, name),
+					run,
+				});
+			}
 			return;
 		}
-		const name = UPSTREAM_NAMES[part] ?? part;
-		append(this.outdated, $('span', undefined, recorded
-			? localize('outdated.changed', "The {0} has changed since this was built from it.", name)
-			: localize('outdated.never', "This has not been built from the {0} yet.", name)));
+
+		this.outdatedDisposables.clear();
+		clearNode(this.outdated);
+		this.outdated.classList.toggle('visible', stale);
+		if (!message) {
+			return;
+		}
+		append(this.outdated, $('span', undefined, message));
 		const update = this.outdatedDisposables.add(new Button(this.outdated, defaultButtonStyles));
 		update.label = localize('outdated.update', "Update from {0}", name);
-		this.outdatedDisposables.add(update.onDidClick(() => this.updateFromUpstream(this.upstreamText ?? text)));
+		this.outdatedDisposables.add(update.onDidClick(run));
 	}
 
 	// ───────────────────────────── banner ─────────────────────────────
 
+	/**
+	 * Why the file cannot be edited visually: a banner above the body, or, in the frame, an empty
+	 * state in place of the body.
+	 */
 	private showBanner(error: IShapeError | undefined): void {
+		this.documentShapeProblem = error;
 		this.bannerDisposables.clear();
 		clearNode(this.banner);
 		this.banner.classList.toggle('visible', !!error);
+		if (this.documentFrame) {
+			this.documentBody.classList.toggle('hidden', !!error);
+		}
 		if (!error) {
 			return;
 		}
-		append(this.banner, $('span', undefined, error.message));
+		append(this.banner, $('span.library-empty-text', undefined, error.message));
+		const buttons = this.documentFrame ? append(this.banner, $('.library-empty-actions')) : this.banner;
 		if (error.fix) {
-			const fix = this.bannerDisposables.add(new Button(this.banner, defaultButtonStyles));
+			const fix = this.bannerDisposables.add(new Button(buttons, defaultButtonStyles));
 			fix.label = error.fix.label;
 			this.bannerDisposables.add(fix.onDidClick(() => error.fix!.run()));
 		}
-		const text = this.bannerDisposables.add(new Button(this.banner, { ...defaultButtonStyles, secondary: true }));
+		// The only way to repair a broken file: shown here even outside developer mode.
+		const text = this.bannerDisposables.add(new Button(buttons, { ...defaultButtonStyles, secondary: true }));
 		text.label = localize('jsonDocument.openText', "Open in Text Editor");
-		this.bannerDisposables.add(text.onDidClick(() => this.openAsText()));
+		this.bannerDisposables.add(text.onDidClick(() => this.openDocumentAsText()));
 	}
 
-	private openAsText(): void {
+	private openDocumentAsText(): void {
 		const resource = this.resource;
 		if (resource) {
 			void this.editorService.openEditor({ resource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } }, this.group);

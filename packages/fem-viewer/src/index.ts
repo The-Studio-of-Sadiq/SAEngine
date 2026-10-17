@@ -4,7 +4,7 @@
 
 import * as THREE from 'three';
 import * as OBC from '@thatopen/components';
-import { usableTheme } from './theme.js';
+import { roundPointMaterial, subtleNodeColor, usableTheme } from './theme.js';
 import { FemElement, FemModel, FemNode, FemResultDisplay, FemResultView, FemSelection, outerFaces, sameSelection } from './model.js';
 import { ResultOverlay } from './results.js';
 
@@ -323,7 +323,8 @@ class FemViewerImpl implements FemViewer {
 		if (nodePositions.length) {
 			const geometry = new THREE.BufferGeometry();
 			geometry.setAttribute('position', new THREE.Float32BufferAttribute(nodePositions, 3));
-			this.nodes = new THREE.Points(geometry, new THREE.PointsMaterial({ color: this.theme.node, size: 6, sizeAttenuation: false }));
+			// Small round dots, faded towards the background: the members carry the picture.
+			this.nodes = new THREE.Points(geometry, roundPointMaterial(subtleNodeColor(this.theme.node, this.theme.background), 5));
 			this.modelGroup.add(this.nodes);
 			this.pickTargets.push(this.nodes);
 		}
@@ -398,7 +399,7 @@ class FemViewerImpl implements FemViewer {
 			const node = nodeById.get(selection.id);
 			if (node) {
 				const geometry = new THREE.BufferGeometry().setFromPoints([toWorld(model, node.coords)]);
-				this.highlight.add(new THREE.Points(geometry, new THREE.PointsMaterial({ color, size: 11, sizeAttenuation: false, depthTest: false })));
+				this.highlight.add(new THREE.Points(geometry, roundPointMaterial(color, 10, { depthTest: false })));
 			}
 			return;
 		}

@@ -3,21 +3,23 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/modelEditors.css';
 import type { BuildingViewer } from '@saengine/fem-viewer';
-import { $, append, clearNode, Dimension } from '../../../../base/browser/dom.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
+import { $, addDisposableListener, append, clearNode, EventType } from '../../../../base/browser/dom.js';
+import { Action, Separator } from '../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Color } from '../../../../base/common/color.js';
-import { MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { dirname, joinPath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ITextModel } from '../../../../editor/common/model.js';
-import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -25,19 +27,23 @@ import { BIM_SCHEMA, TEMPLATES } from '../../../services/saengineProject/common/
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { chartsLines, chartsYellow } from '../../../../platform/theme/common/colors/chartsColors.js';
 import { editorBackground } from '../../../../platform/theme/common/colors/editorColors.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { ISaengineModelSelectionService, MemberGroup } from '../../../services/saengineProject/common/modelSelection.js';
+import { ISaengineModelSelectionService, MemberGroup, ModelSelection } from '../../../services/saengineProject/common/modelSelection.js';
+import { recordedStamp, sourceStamp, upstreamPart } from '../../../services/saengineProject/common/partSources.js';
 import { ISaengineProjectService, partById, PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
 import { loadViewerModule, viewerAssetBaseUrl } from '../../saengineFem/browser/viewerModule.js';
-import { clone, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
+import { propertySheet } from '../../saengineModel/browser/modelData.js';
+import { openOwner } from '../../saengineModel/browser/projectDocuments.js';
+import { formatPropertyValue, propertyHeading, propertyNote, propertyRow, renderPropertySheet, schemaUnit } from '../../saengineModel/browser/propertySheetView.js';
+import { EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
+import { clone, IDocumentFrameActions, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditorInput } from './libraryEditorInput.js';
-import { JsonObject, JsonValue, SchemaForm } from './schemaForm.js';
+import { humanize, JsonObject, JsonValue, SchemaForm } from './schemaForm.js';
 
 const BIM_SCHEMA_ID = 'saengine.bim/2';
 const FLOOR_PLAN_SCHEMA_ID = 'saengine.floorPlan/1';
@@ -71,6 +77,7 @@ const ELEMENT_KINDS: readonly { readonly kind: string; readonly group?: MemberGr
 	{ kind: 'footing', group: 'footings', label: localize('element.footings', "Footings") },
 	{ kind: 'member', label: localize('element.members', "Members") },
 	{ kind: 'area', label: localize('element.areas', "Areas") },
+	{ kind: 'block', label: localize('element.blocks', "Blocks") },
 ];
 
 type View = '3d' | 'additions' | 'summary';
@@ -89,6 +96,14 @@ const ADDITION_LISTS: { readonly [list: string]: string } = {
 	members: 'M',
 };
 
+/** The schema definition of an entry of each additions list. */
+const ADDITION_DEFINITIONS: { readonly [list: string]: string } = {
+	slabOpenings: 'SlabOpening',
+	wallOpenings: 'WallOpening',
+	stairs: 'Stair',
+	members: 'InclinedMember',
+};
+
 /** The parts of the building model that are generated, not edited in the Additions form. */
 const GENERATED = ['source', 'stories', 'elements'];
 
@@ -103,13 +118,12 @@ export class BuildingEditor extends JsonDocumentEditor {
 
 	static readonly ID = LibraryEditorInput.BUILDING_EDITOR_ID;
 
-	private header!: HTMLElement;
-	private status!: HTMLElement;
+	private frame!: EditorFrame;
 	private viewport!: HTMLElement;
 	private summary!: HTMLElement;
 	private additions!: HTMLElement;
+	private readonly viewButtons = new Map<View, HTMLButtonElement>();
 	private readonly form: SchemaForm;
-	private problemBox: HTMLElement | undefined;
 	private view: View = '3d';
 
 	private viewer: BuildingViewer | undefined;
@@ -118,9 +132,19 @@ export class BuildingEditor extends JsonDocumentEditor {
 	private readonly ifcScheduler = this._register(new RunOnceScheduler(() => this.refreshIfc(), 400));
 	private ifcVersion = 0;
 	private ifcNote: string | undefined;
+	/** The element picked in 3D, also one the floor plan does not own (an addition). */
+	private selectedElement: string | undefined;
 
 	private objectsText: string | undefined;
 	private materials: ITextModel | undefined;
+	/** The Part 5 model this one is built from, followed to say when it changed. */
+	private readonly source = this._register(new MutableDisposable<IReference<IResolvedTextEditorModel>>());
+
+	private readonly rebuildAction = this._register(new Action('saengine.bim.rebuild', '', ThemeIcon.asClassName(Codicon.refresh), true, () => this.build()));
+	private readonly fitAction = this._register(new Action('saengine.bim.fit', localize('building.fit', "Zoom to Fit"), ThemeIcon.asClassName(Codicon.screenFull), true, async () => this.viewer?.fit()));
+	private readonly openSourceAction = this._register(new Action('saengine.bim.openSource', '', undefined, true, async () => this.openSource()));
+	private readonly exportAction = this._register(new Action('saengine.bim.exportIfc', localize('building.exportIfc', "Export IFC"), undefined, false, () => this.exportIfc()));
+	private readonly propertiesDisposables = this._register(new DisposableStore());
 
 	constructor(
 		group: IEditorGroup,
@@ -134,10 +158,12 @@ export class BuildingEditor extends JsonDocumentEditor {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IFileService private readonly fileService: IFileService,
 		@ISaengineModelSelectionService private readonly selectionService: ISaengineModelSelectionService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiation: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(BuildingEditor.ID, group, telemetryService, themeService, storageService, commands, editors, textModels, project);
-		this.form = instantiationService.createInstance(SchemaForm, {
+		this.trackDeveloperMode(configurationService);
+		this.form = instantiation.createInstance(SchemaForm, {
 			root: BIM_SCHEMA,
 			template: defName => clone((TEMPLATES[defName] ?? {}) as JsonObject),
 			references: path => this.references(path),
@@ -149,29 +175,59 @@ export class BuildingEditor extends JsonDocumentEditor {
 		this._register({ dispose: () => this.form.dispose() });
 		this._register(selectionService.onDidChangeSelection(({ selection, source }) => {
 			if (source !== SELECTION_SOURCE) {
-				void this.viewer?.setSelection(selection?.kind === 'member' ? selection.id : undefined);
+				this.selectedElement = selection?.kind === 'member' ? this.elementOfMember(selection.id) : undefined;
+				void this.viewer?.setSelection(this.selectedElement);
 			}
+			this.renderProperties();
 		}));
 		this._register(themeService.onDidColorThemeChange(() => void this.viewer?.setTheme(this.viewerTheme())));
 	}
 
+	protected override createDocumentFrame(parent: HTMLElement): EditorFrame {
+		const frame = this.frame = this._register(this.instantiation.createInstance(EditorFrame, parent, {
+			id: BuildingEditor.ID,
+			ariaLabel: localize('building.toolbar', "Building Model"),
+			properties: { title: localize('building.properties', "Properties") },
+		}));
+		frame.element.classList.add('saengine-building-editor');
+		return frame;
+	}
+
 	protected createBody(body: HTMLElement): void {
+		const frame = this.frame;
+
+		// The view: a segmented control, the editor's only text in the toolbar.
+		const views = append(frame.titleSlot, $('.sa-segmented', { role: 'tablist', 'aria-label': localize('building.viewsAria', "Building model view") }));
+		for (const { view, label, icon } of VIEWS) {
+			const button = append(views, $<HTMLButtonElement>('button.sa-segment', { type: 'button', role: 'tab' }));
+			append(button, $(ThemeIcon.asCSSSelector(icon)));
+			append(button, $('span', undefined, label));
+			this._register(addDisposableListener(button, EventType.CLICK, () => {
+				this.showView(view);
+				this.render();
+			}));
+			this.viewButtons.set(view, button);
+		}
+
+
 		const container = append(body, $('.building-editor.building-3d'));
-		this.header = append(container, $('.building-header'));
-		this.status = append(container, $('.building-status'));
 		this.viewport = append(container, $('.building-viewport'));
 		this.summary = append(container, $('.building-summary-view'));
 		this.additions = append(container, $('.building-additions-view'));
+		this._register(frame.onDidLayoutMain(() => this.viewer?.layout()));
 		this.showView(this.view);
 	}
 
 	override async setInput(input: LibraryEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.materials = undefined;
+		this.source.clear();
+		this.selectedElement = undefined;
 		await super.setInput(input, options, context, token);
+		const root = dirname(dirname(input.resource));
 		// Material names for the IFC, read from the materials file (unsaved edits included).
 		const part = PROJECT_PARTS.find(p => p.id === 'materials')!;
 		try {
-			const reference = await this.textModels.createModelReference(joinPath(dirname(dirname(input.resource)), part.folder, part.mainFile!));
+			const reference = await this.textModels.createModelReference(joinPath(root, part.folder, part.mainFile!));
 			if (this.input !== input) {
 				reference.dispose();
 				return;
@@ -182,17 +238,33 @@ export class BuildingEditor extends JsonDocumentEditor {
 		} catch {
 			// Without materials the IFC names materials by id.
 		}
+		// The floor plan (or structural model): "Out of date" when it changed since the last build.
+		const sourcePart = partById(upstreamPart('bim', this.project.parts) ?? (this.special ? 'structure' : 'floorPlan'));
+		if (sourcePart?.mainFile) {
+			try {
+				const reference = await this.textModels.createModelReference(joinPath(root, sourcePart.folder, sourcePart.mainFile));
+				if (this.input !== input) {
+					reference.dispose();
+					return;
+				}
+				this.source.value = reference;
+				this.inputDisposables.add(reference.object.textEditorModel.onDidChangeContent(() => {
+					this.updateChrome();
+					this.renderProperties();
+				}));
+			} catch {
+				// No source yet: the editor says it has not been built.
+			}
+		}
 		this.ifcScheduler.schedule();
+		this.updateChrome();
+		this.renderProperties();
 	}
 
 	override clearInput(): void {
 		this.ifcScheduler.cancel();
+		this.source.clear();
 		super.clearInput();
-	}
-
-	override layout(dimension: Dimension): void {
-		super.layout(dimension);
-		this.viewer?.layout();
 	}
 
 	override dispose(): void {
@@ -204,6 +276,7 @@ export class BuildingEditor extends JsonDocumentEditor {
 	protected override onCompanionChanged(text: string): void {
 		this.objectsText = text;
 		this.ifcScheduler.schedule();
+		this.renderProperties();
 	}
 
 	protected shapeError(value: JsonObject): IShapeError | undefined {
@@ -237,9 +310,16 @@ export class BuildingEditor extends JsonDocumentEditor {
 		return this.special ? localize('building.structuralModel', "Structural Model") : localize('building.floorPlan', "Floor Plan");
 	}
 
+	/** Whether the source changed since the model was built from it (or it never was). */
+	private get stale(): boolean {
+		const model = this.source.value?.object.textEditorModel;
+		const part = upstreamPart('bim', this.project.parts) ?? (this.special ? 'structure' : 'floorPlan');
+		return !!this.document && !!model && recordedStamp(this.document, part) !== sourceStamp(model.getValue());
+	}
+
 	/** Generates the model from the current Part 5 model, keeping the model's own elements. */
 	private async build(): Promise<void> {
-		const source = this.upstreamText;
+		const source = this.upstreamText ?? this.source.value?.object.textEditorModel.getValue();
 		let parsed: JsonValue | undefined;
 		try {
 			parsed = source ? JSON.parse(source) : undefined;
@@ -253,11 +333,14 @@ export class BuildingEditor extends JsonDocumentEditor {
 			return;
 		}
 		let result: IGeneratedBuilding | undefined;
+		this.frame.showProgress();
 		try {
 			result = await this.commands.executeCommand<IGeneratedBuilding>(this.special ? GENERATE_FROM_STRUCTURE_COMMAND : GENERATE_COMMAND, source, this.document ? JSON.stringify(this.document) : undefined);
 		} catch (error) {
 			this.notificationService.error(localize('building.generateFailed', "The building model could not be built: {0}", String(error)));
 			return;
+		} finally {
+			this.frame.hideProgress();
 		}
 		if (result?.text) {
 			this.replaceDocument(JSON.parse(result.text));
@@ -312,7 +395,9 @@ export class BuildingEditor extends JsonDocumentEditor {
 		if (viewer && version === this.ifcVersion) {
 			await viewer.load(VSBuffer.fromString(result.text).buffer, result.ids ?? {});
 			const selection = this.selectionService.selection;
-			await viewer.setSelection(selection?.kind === 'member' ? selection.id : undefined);
+			this.selectedElement ??= selection?.kind === 'member' ? this.elementOfMember(selection.id) : undefined;
+			await viewer.setSelection(this.selectedElement);
+			this.renderProperties();
 		}
 	}
 
@@ -354,11 +439,13 @@ export class BuildingEditor extends JsonDocumentEditor {
 		const element = elements.find(e => e.id === elementId);
 		const group = ELEMENT_KINDS.find(k => k.kind === element?.kind)?.group;
 		const member = typeof element?.source === 'string' ? element.source : undefined;
+		this.selectedElement = elementId;
 		this.selectionService.setSelection(group && member ? { kind: 'member', group, id: member } : undefined, SELECTION_SOURCE);
+		this.renderProperties();
 	}
 
 	/** Writes the IFC to `11 Exports/IFC/<project>.ifc`. */
-	private async exportIfc(): Promise<void> {
+	async exportIfc(): Promise<void> {
 		const resource = this.resource;
 		let result: IBuildingIfc | undefined;
 		try {
@@ -386,72 +473,112 @@ export class BuildingEditor extends JsonDocumentEditor {
 
 	private showView(view: View): void {
 		this.view = view;
-		this.viewport.classList.toggle('hidden', view !== '3d');
+		this.viewport.classList.toggle('hidden', view !== '3d' || !this.document);
 		this.summary.classList.toggle('hidden', view !== 'summary');
 		this.additions.classList.toggle('hidden', view !== 'additions');
+		// What the Additions view is for: the frame's "?" (hover, click or Enter), only in that view.
+		this.documentFrame?.setHelp(view === 'additions'
+			? localize('building.additionsIntro', "What the building model adds to the Floor Plan: openings cut into slabs and walls, stairs between stories, and braces, sloped beams or raking columns. Rebuilding from the Floor Plan keeps them; openings follow their slab or wall.")
+			: undefined);
+		for (const [id, button] of this.viewButtons) {
+			button.classList.toggle('active', id === view);
+			button.setAttribute('aria-selected', String(id === view));
+		}
 		if (view === '3d') {
 			this.ifcScheduler.schedule(0);
 			this.viewer?.layout();
 		}
+		this.updateChrome();
 	}
 
 	private setIfcNote(note: string | undefined): void {
 		this.ifcNote = note;
-		clearNode(this.status);
-		this.status.classList.toggle('visible', !!note);
-		if (note) {
-			append(this.status, $(`span${ThemeIcon.asCSSSelector(Codicon.warning)}`)).setAttribute('aria-hidden', 'true');
-			append(this.status, $('span', undefined, note));
+		this.updateChrome();
+	}
+
+	/** The element of the building model built from floor-plan member `member`. */
+	private elementOfMember(member: string): string | undefined {
+		const elements = Array.isArray(this.document?.elements) ? this.document.elements.filter(isObject) : [];
+		return elements.find(e => e.source === member)?.id as string | undefined;
+	}
+
+	/** The toolbar (Rebuild stands out only when the source changed), the pill and the status line. */
+	private updateChrome(): void {
+		const frame = this.frame;
+		if (!frame) {
+			return;
 		}
+		const stale = this.stale;
+		const built = !!this.document;
+		this.rebuildAction.label = built ? localize('building.rebuild', "Rebuild from {0}", this.sourceName) : localize('building.build', "Build from {0}", this.sourceName);
+		this.openSourceAction.label = localize('building.openSource', "Open {0}", this.sourceName);
+		this.exportAction.enabled = built;
+		this.fitAction.enabled = built && this.view === '3d';
+		this.updateDocumentFrameActions();
+		for (const [view, button] of this.viewButtons) {
+			button.disabled = !built && view !== '3d';
+		}
+		if (this.document) {
+			frame.setStatus(this.status(stale)); // otherwise the frame says why it cannot show the file
+		}
+	}
+
+	/** Rebuild is an icon button only while the source changed (or it was never built); else in "...". */
+	protected override documentFrameActions(): IDocumentFrameActions {
+		const frame = this.frame;
+		if (!frame) {
+			return { primary: [] };
+		}
+		const prominent = this.stale || !this.document;
+		return {
+			primary: [...(prominent ? [this.rebuildAction] : []), ...(this.view === '3d' && this.document ? [this.fitAction] : []), frame.togglePropertiesAction],
+			secondary: [...(prominent ? [] : [this.rebuildAction]), this.openSourceAction, new Separator(), this.exportAction],
+		};
+	}
+
+	private status(stale: boolean): IEditorFrameStatus | undefined {
+		const document = this.document;
+		if (!document) {
+			return undefined; // the banner says why and how to build it
+		}
+		const elements = Array.isArray(document.elements) ? document.elements.filter(isObject) : [];
+		const stories = Array.isArray(document.stories) ? document.stories.length : 0;
+		const own = elements.filter(e => typeof e.source !== 'string').length;
+		const parts = [own
+			? localize('building.statusOwn', "{0} elements ({1} of its own) on {2} stories", elements.length, own, stories)
+			: localize('building.statusCount', "{0} elements on {1} stories", elements.length, stories)];
+		if (stale) {
+			parts.push(localize('building.statusStale', "the {0} changed since it was built", this.sourceName));
+		}
+		if (this.problems.length) {
+			parts.push(localize('building.statusProblems', "{0} problem(s)", this.problems.length));
+		}
+		if (this.ifcNote && this.view === '3d') {
+			parts.push(this.ifcNote);
+		}
+		return {
+			text: parts.join('  ·  '),
+			severity: this.problems.length || (this.ifcNote && this.view === '3d') ? 'warning' : undefined,
+			link: stale ? { label: localize('building.rebuildLink', "Rebuild"), run: () => void this.build() }
+				: this.problems.length ? { label: localize('building.details', "Details"), run: () => this.frame.setPropertiesVisible(true) }
+					: undefined,
+		};
 	}
 
 	protected render(): void {
 		this.viewDisposables.clear();
-		clearNode(this.header);
 		clearNode(this.summary);
 		clearNode(this.additions);
-		this.problemBox = undefined;
-
-		const title = append(this.header, $('.building-title'));
-		append(title, $('h2', undefined, localize('building.title', "Building Model")));
-		append(title, $('span.building-intro', undefined, localize('building.intro', "Built from the {0}; update it when the {0} changes. Elements added to the building model itself are kept.", this.sourceName)));
-
-		const actions = append(this.header, $('.building-actions'));
-		const button = (label: string, icon: ThemeIcon, run: () => void, secondary = true) => {
-			const b = this.viewDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary, supportIcons: true }));
-			b.label = `$(${icon.id}) ${label}`;
-			this.viewDisposables.add(b.onDidClick(run));
-			return b;
-		};
-		button(localize('building.openSource', "Open {0}", this.sourceName), Codicon.symbolArray, () => this.openSource());
-		if (this.document) {
-			button(localize('building.rebuild', "Rebuild from {0}", this.sourceName), Codicon.refresh, () => this.build());
-			button(localize('building.exportIfc', "Export IFC"), Codicon.export, () => this.exportIfc());
-			const views = append(actions, $('.building-views', { role: 'tablist' }));
-			for (const { view, label, icon } of VIEWS) {
-				const b = this.viewDisposables.add(new Button(views, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-				b.label = `$(${icon.id}) ${label}`;
-				b.element.classList.toggle('active', view === this.view);
-				b.element.setAttribute('role', 'tab');
-				b.element.setAttribute('aria-selected', String(view === this.view));
-				this.viewDisposables.add(b.onDidClick(() => {
-					this.showView(view);
-					this.render();
-				}));
-			}
-		}
-		this.problemBox = append(this.header, $('.library-problems'));
-		this.renderProblems();
-		this.setIfcNote(this.ifcNote);
 		this.viewport.classList.toggle('hidden', this.view !== '3d' || !this.document);
 		if (this.document && this.view === '3d') {
 			this.ifcScheduler.schedule();
 		}
+		this.updateChrome();
+		this.renderProperties();
 		if (!this.document) {
-			return;
+			return; // the frame shows why, and how to build it
 		}
 
-		append(this.additions, $('p.building-intro', undefined, localize('building.additionsIntro', "What the building model adds to the Floor Plan: openings cut into slabs and walls, stairs between stories, and braces, sloped beams or raking columns. Rebuilding from the Floor Plan keeps them; openings follow their slab or wall.")));
 		// Models built before additions existed have none yet; the lists are written on the first edit.
 		const additions = isObject(this.document.additions) ? this.document.additions : (this.document.additions = {});
 		for (const list of Object.keys(ADDITION_LISTS)) {
@@ -478,7 +605,7 @@ export class BuildingEditor extends JsonDocumentEditor {
 			append(storyTable, $('span.number', undefined, above ? String(Number(above.elevation) - Number(story.elevation)) : '—'));
 		});
 		if (!stories.length) {
-			append(this.summary, $('p.building-intro', undefined, localize('building.noStories', "No stories yet.")));
+			append(this.summary, $('p.building-note', undefined, localize('building.noStories', "No stories yet.")));
 		}
 
 		append(this.summary, $('h3', undefined, localize('building.elements', "Elements")));
@@ -493,6 +620,115 @@ export class BuildingEditor extends JsonDocumentEditor {
 			append(elementTable, $('span.number', undefined, String(generated)));
 			append(elementTable, $('span.number', undefined, String(ofKind.length - generated)));
 			append(elementTable, $('span.number', undefined, String(ofKind.length)));
+		}
+	}
+
+	// ───────────────────────────── properties panel ─────────────────────────────
+
+	/** An element or addition of the building model by id, and the list it is in. */
+	private findElement(id: string): { readonly item: JsonObject; readonly list: string } | undefined {
+		const document = this.document;
+		if (!document) {
+			return undefined;
+		}
+		const element = (Array.isArray(document.elements) ? document.elements.filter(isObject) : []).find(e => e.id === id);
+		if (element) {
+			return { item: element, list: 'elements' };
+		}
+		const additions = isObject(document.additions) ? document.additions : {};
+		for (const list of Object.keys(ADDITION_LISTS)) {
+			const item = (Array.isArray(additions[list]) ? (additions[list] as JsonValue[]).filter(isObject) : []).find(e => e.id === id);
+			if (item) {
+				return { item, list };
+			}
+		}
+		return undefined;
+	}
+
+	/**
+	 * The selected element: its own values, then (for one built from the floor plan) the member's
+	 * placement and object type; with nothing selected, the model's summary and its problems.
+	 */
+	private renderProperties(): void {
+		const panel = this.frame?.properties;
+		if (!panel) {
+			return;
+		}
+		this.propertiesDisposables.clear();
+		clearNode(panel);
+		const document = this.document;
+		if (!document) {
+			propertyNote(panel, localize('building.propertiesEmpty', "Build the building model to see its elements here."));
+			return;
+		}
+		const found = this.selectedElement ? this.findElement(this.selectedElement) : undefined;
+		if (found) {
+			const { item, list } = found;
+			const kindLabel = ELEMENT_KINDS.find(k => k.kind === item.kind)?.label;
+			propertyHeading(panel, String(item.id), list === 'elements' ? (typeof item.kind === 'string' ? humanize(item.kind) : kindLabel) : humanize(list));
+			append(panel, $('.sa-props-section', undefined, localize('building.elementSection', "Building Model")));
+			// The schema definition of the item, for the units of its values (mm, °).
+			const definition = list === 'elements'
+				? typeof item.kind === 'string' && `${item.kind.charAt(0).toUpperCase()}${item.kind.slice(1)}Element`
+				: ADDITION_DEFINITIONS[list];
+			for (const [key, value] of Object.entries(item)) {
+				if (key === 'id' || value === null || typeof value === 'object' && !Array.isArray(value)) {
+					continue;
+				}
+				const text = key === 'kind' && typeof value === 'string' ? humanize(value) : formatPropertyValue(value, definition ? schemaUnit(BIM_SCHEMA, definition, key) : undefined);
+				propertyRow(panel, key === 'source' ? localize('building.sourceRow', "From {0}", this.sourceName) : humanize(key), text);
+			}
+			if (typeof item.source !== 'string' && list === 'elements') {
+				propertyNote(panel, localize('building.ownElement', "An element of the building model itself: rebuilding keeps it."));
+			}
+			const group = ELEMENT_KINDS.find(k => k.kind === item.kind)?.group;
+			const sheet = group && typeof item.source === 'string' && !this.special ? propertySheet({ kind: 'member', group, id: item.source }, {
+				floorPlan: this.parse(this.source.value?.object.textEditorModel.getValue()),
+				floorPlanText: this.source.value?.object.textEditorModel.getValue(),
+				objects: this.parse(this.objectsText),
+				materials: this.parse(this.materials?.getValue()),
+				bim: document,
+			}) : undefined;
+			if (sheet && group) {
+				const member: ModelSelection = { kind: 'member', group, id: String(item.source) };
+				const root = this.resource && dirname(dirname(this.resource));
+				// The member's placement and object type (its last section, the building model's state, is this editor).
+				renderPropertySheet(panel, { ...sheet, title: localize('building.memberHeading', "{0} in the {1}", sheet.title, this.sourceName), subtitle: sheet.subtitle, sections: sheet.sections.slice(0, -1) },
+					this.propertiesDisposables,
+					action => void openOwner(action === 'editObjectType' && sheet.objectType ? { kind: 'objectType', id: sheet.objectType } : member, action === 'editObjectType' ? 'objects' : 'floorPlan', root, this.editors));
+			}
+			return;
+		}
+		const elements = Array.isArray(document.elements) ? document.elements.filter(isObject) : [];
+		propertyHeading(panel, localize('building.modelHeading', "Building Model"));
+		propertyRow(panel, localize('building.storiesRow', "Stories"), String(Array.isArray(document.stories) ? document.stories.length : 0));
+		for (const { kind, label } of ELEMENT_KINDS) {
+			const count = elements.filter(e => e.kind === kind).length;
+			if (count) {
+				propertyRow(panel, label, String(count));
+			}
+		}
+		const additions = isObject(document.additions) ? document.additions : {};
+		const added = Object.keys(ADDITION_LISTS).reduce((n, list) => n + (Array.isArray(additions[list]) ? (additions[list] as JsonValue[]).length : 0), 0);
+		propertyRow(panel, localize('building.additionsRow', "Additions"), String(added));
+		propertyRow(panel, localize('building.builtRow', "Built from the {0}", this.sourceName), this.stale ? localize('building.outOfDate', "Out of date") : localize('building.upToDate', "Up to date"), this.stale);
+		if (this.ifcNote) {
+			propertyNote(panel, this.ifcNote);
+		}
+		if (this.problems.length) {
+			propertyHeading(panel, localize('building.problemsHeading', "Problems"));
+			for (const problem of this.problems) {
+				propertyNote(panel, problem.message);
+			}
+		}
+		propertyNote(panel, localize('building.selectHint', "Select an element in the 3D view to see its properties."));
+	}
+
+	private parse(text: string | undefined): JsonValue | undefined {
+		try {
+			return text ? JSON.parse(text) : undefined;
+		} catch {
+			return undefined;
 		}
 	}
 
@@ -556,7 +792,7 @@ export class BuildingEditor extends JsonDocumentEditor {
 		if (!name || !prefix || !this.document) {
 			return undefined;
 		}
-		const defName = { slabOpenings: 'SlabOpening', wallOpenings: 'WallOpening', stairs: 'Stair', members: 'InclinedMember' }[name]!;
+		const defName = ADDITION_DEFINITIONS[name];
 		const item = clone((TEMPLATES[defName] ?? {}) as JsonObject);
 		const additions = isObject(this.document.additions) ? this.document.additions : {};
 		const used = new Set([
@@ -584,16 +820,7 @@ export class BuildingEditor extends JsonDocumentEditor {
 	}
 
 	protected renderProblems(): void {
-		const box = this.problemBox;
-		if (!box) {
-			return;
-		}
-		clearNode(box);
-		box.classList.toggle('visible', this.problems.length > 0);
-		for (const problem of this.problems) {
-			const row = append(box, $('.library-problem'));
-			append(row, $(`span${ThemeIcon.asCSSSelector(Codicon.warning)}`));
-			append(row, $('span', undefined, problem.message));
-		}
+		this.updateChrome();
+		this.renderProperties();
 	}
 }

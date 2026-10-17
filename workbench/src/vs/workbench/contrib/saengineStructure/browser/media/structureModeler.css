@@ -3,76 +3,44 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.saengine-structure-modeler {
-	display: flex;
-	flex-direction: column;
+/* The 3D modeller of a special structure in the shared editor frame (editorFrame.css). */
+
+.saengine-structure-modeler,
+.monaco-workbench .saengine-editor-frame.saengine-structure-modeler:focus {
 	outline: none;
 }
 
-.saengine-structure-modeler .modeler-toolbar {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: 6px 16px;
-	flex: none;
-	padding: 6px 12px;
-	box-sizing: border-box;
-}
+/* ── inline controls in the toolbar: work level, type, typed value ─────────────────────────── */
 
-.saengine-structure-modeler .modeler-group {
+.saengine-structure-modeler .modeler-inline {
 	display: flex;
 	align-items: center;
-	gap: 4px;
+	gap: var(--sa-space-1, 4px);
 }
 
-.saengine-structure-modeler .modeler-group.hidden {
+.saengine-structure-modeler .modeler-inline.hidden {
 	display: none;
 }
 
-.saengine-structure-modeler .modeler-label {
-	margin-right: 4px;
-}
-
 .saengine-structure-modeler .modeler-select.type {
-	width: 200px;
-}
-
-.saengine-structure-modeler .modeler-select.level {
 	width: 190px;
 }
 
-.saengine-structure-modeler .modeler-group.value .monaco-inputbox {
-	width: 200px;
+.saengine-structure-modeler .modeler-select.level {
+	width: 170px;
 }
 
-.saengine-structure-modeler .modeler-group .monaco-button {
-	width: auto;
-	padding: 2px 8px;
+.saengine-structure-modeler .modeler-inline.value .monaco-inputbox {
+	width: 190px;
 }
 
-.saengine-structure-modeler .modeler-group.tools .monaco-button.active {
-	color: var(--vscode-button-foreground);
-	background-color: var(--vscode-button-background);
+/* the view direction (3D / Top / Front / Side) uses .sa-segmented (modelEditors.css) */
+.saengine-structure-modeler .sa-segment {
+	min-width: 40px;
+	justify-content: center;
 }
 
-.saengine-structure-modeler .modeler-status {
-	display: flex;
-	align-items: center;
-	gap: 16px;
-	flex: none;
-	height: 26px;
-	padding: 0 12px 4px;
-	box-sizing: border-box;
-	overflow: hidden;
-	white-space: nowrap;
-	color: var(--vscode-descriptionForeground);
-	border-bottom: 1px solid var(--vscode-editorGroup-border, transparent);
-}
-
-.saengine-structure-modeler .modeler-coordinates {
-	margin-left: auto;
-	font-variant-numeric: tabular-nums;
-}
+/* ── the 3D view ───────────────────────────────────────────────────────────────────────────── */
 
 .saengine-structure-modeler .modeler-viewport {
 	position: relative;
@@ -83,11 +51,12 @@
 .saengine-structure-modeler .modeler-message {
 	display: none;
 	position: absolute;
-	top: 12px;
-	left: 12px;
-	right: 12px;
+	top: var(--sa-space-3, 12px);
+	left: var(--sa-space-3, 12px);
+	right: var(--sa-space-3, 12px);
 	z-index: 1;
-	padding: 8px 12px;
+	padding: var(--sa-space-2, 8px) var(--sa-space-3, 12px);
+	border-radius: var(--sa-radius, 4px);
 	color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
 	background: var(--vscode-inputValidation-warningBackground);
 	border: 1px solid var(--vscode-inputValidation-warningBorder);
@@ -97,27 +66,14 @@
 	display: block;
 }
 
-.saengine-structure-modeler .modeler-body {
-	display: flex;
-	flex: 1;
-	min-height: 0;
-}
+/* ── the properties panel: the selection, or the shape or file being added ─────────────────── */
 
-.saengine-structure-modeler .modeler-body > .modeler-viewport {
-	flex: 1;
-	min-width: 0;
+.saengine-structure-modeler .modeler-details.hidden {
+	display: none;
 }
 
 .saengine-structure-modeler .modeler-panel {
 	display: none;
-	flex: none;
-	width: 360px;
-	max-width: 50%;
-	box-sizing: border-box;
-	padding: 8px 12px 12px;
-	overflow-y: auto;
-	background: var(--vscode-sideBar-background, var(--vscode-editorWidget-background));
-	border-left: 1px solid var(--vscode-editorGroup-border, var(--vscode-widget-border, transparent));
 }
 
 .saengine-structure-modeler .modeler-panel.visible {
@@ -125,14 +81,14 @@
 }
 
 .saengine-structure-modeler .modeler-panel-title {
-	margin: 4px 0 8px;
-	font-size: 13px;
+	margin: var(--sa-space-1, 4px) 0 var(--sa-space-2, 8px);
+	font-size: var(--sa-font-m, 13px);
 	font-weight: 600;
 }
 
 /* The form is narrower here than in the editors. */
 .saengine-structure-modeler .modeler-panel .form-field {
-	grid-template-columns: 130px minmax(0, 1fr);
+	grid-template-columns: minmax(90px, 40%) minmax(0, 1fr);
 }
 
 .saengine-structure-modeler .modeler-panel .form-control {
@@ -140,26 +96,46 @@
 }
 
 .saengine-structure-modeler .modeler-panel-status {
-	margin-top: 12px;
-	color: var(--vscode-descriptionForeground);
+	margin-top: var(--sa-space-3, 12px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
 }
 
 .saengine-structure-modeler .modeler-panel-note {
-	margin-top: 4px;
+	margin-top: var(--sa-space-1, 4px);
 }
 
 .saengine-structure-modeler .modeler-panel-problem {
-	margin-top: 4px;
+	margin-top: var(--sa-space-1, 4px);
 	color: var(--vscode-errorForeground);
 }
 
 .saengine-structure-modeler .modeler-panel-buttons {
 	display: flex;
-	gap: 8px;
-	margin-top: 12px;
+	gap: var(--sa-space-2, 8px);
+	margin-top: var(--sa-space-3, 12px);
 }
 
 .saengine-structure-modeler .modeler-panel-buttons .monaco-button {
 	width: auto;
 	padding: 4px 14px;
+}
+
+/* the union pickers of the form (e.g. the shape) in the narrow panel */
+.saengine-structure-modeler .modeler-panel .form-group-header:has(> .form-group-select) {
+	grid-template-columns: minmax(90px, 40%) minmax(0, 1fr);
+}
+
+.saengine-structure-modeler .modeler-panel {
+	min-width: 0;
+	overflow-x: hidden;
+}
+
+/* a narrow editor: the work level picker without its label */
+.saengine-structure-modeler.compact .modeler-level-label {
+	display: none;
+}
+
+/* a very narrow editor: the work level is in "..." (Work Level...) */
+.saengine-structure-modeler.narrow .modeler-level {
+	display: none;
 }

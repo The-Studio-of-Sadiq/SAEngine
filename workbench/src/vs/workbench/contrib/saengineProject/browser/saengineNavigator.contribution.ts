@@ -21,13 +21,19 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
-import { EditorExtensions } from '../../../common/editor.js';
+import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { Extensions as ViewExtensions, IViewContainersRegistry, IViewsRegistry, ViewContainerLocation } from '../../../common/views.js';
+import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { ISaengineProject, ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { ExportsEditor } from './exportsEditor.js';
+import { ExportsEditorInput, ExportsEditorInputSerializer } from './exportsEditorInput.js';
+import { PLACEHOLDER_PARTS, PlaceholderEditor, placeholderPartOf } from './placeholderEditor.js';
+import { PlaceholderEditorInput, PlaceholderEditorInputSerializer } from './placeholderEditorInput.js';
 import { DEVELOPER_MODE_SETTING, ProjectNavigatorView } from './projectNavigatorView.js';
 import { ProjectOpener } from './projectOpener.js';
 import { ProjectOverviewEditor } from './projectOverviewEditor.js';
@@ -81,6 +87,83 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(ProjectOverviewEditor, ProjectOverviewInput.EDITOR_ID, localize('saengineOverviewEditor', "SAEngine Project Overview")),
 	[new SyncDescriptor(ProjectOverviewInput)]
 );
+
+// --- Part 11: the exports page ---------------------------------------------------------------
+
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(ExportsEditor, ExportsEditor.ID, localize('saengineExportsEditor', "SAEngine Exports")),
+	[new SyncDescriptor(ExportsEditorInput)]
+);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ExportsEditorInput.ID, ExportsEditorInputSerializer);
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'saengine.project.showExports',
+			title: localize2('saengine.showExports', "Exports"),
+			category,
+			icon: Codicon.export,
+			f1: true,
+			precondition: projectOpen,
+		});
+	}
+
+	override run(accessor: ServicesAccessor): Promise<unknown> {
+		return accessor.get(IEditorService).openEditor(ExportsEditorInput.instance, { pinned: true });
+	}
+});
+
+// --- Parts not built yet: their calm page -----------------------------------------------------
+
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(PlaceholderEditor, PlaceholderEditor.ID, localize('saenginePlaceholderEditor', "SAEngine Part (Not Built Yet)")),
+	[new SyncDescriptor(PlaceholderEditorInput)]
+);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(PlaceholderEditorInput.ID, PlaceholderEditorInputSerializer);
+
+/**
+ * Opens the main files of the parts that are not built yet (1 Soil Report, 7 MEP,
+ * 9 Substructure) on their page. Registered as the default editor rather than exclusive, so
+ * "Reopen Editor With..." and the page's "Open as JSON" still reach the text; a part's real
+ * editor replaces this by registering for its file and dropping the part from PLACEHOLDER_PARTS.
+ */
+class PlaceholderEditorResolverContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.saengine.placeholderEditorResolver';
+
+	constructor(
+		@IEditorResolverService editorResolverService: IEditorResolverService,
+		@ISaengineProjectService projectService: ISaengineProjectService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+	) {
+		super();
+		for (const { part: id } of PLACEHOLDER_PARTS) {
+			const part = partById(id);
+			if (!part?.mainFile) {
+				continue;
+			}
+			this._register(editorResolverService.registerEditor(
+				`**/${part.folder}/${part.mainFile}`,
+				{
+					id: PlaceholderEditor.ID,
+					label: localize('placeholderEditor.label', "SAEngine Part"),
+					detail: localize('placeholderEditor.detail', "SAEngine"),
+					priority: RegisteredEditorPriority.default,
+				},
+				{
+					singlePerResource: true,
+					// Project detection is asynchronous; until it finishes, match by the workspace folder.
+					canSupportResource: resource => placeholderPartOf(resource, projectService.project?.root ?? contextService.getWorkspaceFolder(resource)?.uri) === id,
+				},
+				{
+					createEditorInput: ({ resource, options }) => ({ editor: new PlaceholderEditorInput(resource, id), options }),
+				}
+			));
+		}
+	}
+}
+
+registerWorkbenchContribution2(PlaceholderEditorResolverContribution.ID, PlaceholderEditorResolverContribution, WorkbenchPhase.BlockStartup);
 
 function openOverview(editorService: IEditorService): Promise<unknown> {
 	return editorService.openEditor(ProjectOverviewInput.instance, { pinned: true });

@@ -51,6 +51,8 @@ export interface IPartStatusInputs {
 	readonly designSummaryTime?: number;
 	/** Modification time of `11 Exports/report.pdf`, if it exists. */
 	readonly reportTime?: number;
+	/** How many other exports `11 Exports` holds (IFC, DXF floor plans, CSV); 0 or undefined for none. */
+	readonly exportFiles?: number;
 }
 
 /** File names the status reads besides the parts' main files. */
@@ -58,6 +60,29 @@ export const FEM_RESULTS_FOLDER = 'model.results';
 export const FEM_RESULTS_MANIFEST = 'manifest.json';
 export const DESIGN_SUMMARY_FILE = 'design-summary.json';
 export const REPORT_FILE = 'report.pdf';
+
+/** Where the exports of `11 Exports` go besides the report: IFC models and DXF floor plans in folders, CSV tables at the top. */
+export const EXPORT_IFC_FOLDER = 'IFC';
+export const EXPORT_DXF_FOLDER = 'Floor Plan';
+
+/** The export kind of a file of `11 Exports` from its path inside that folder, if it is one. */
+export function exportKind(relativePath: string): 'report' | 'ifc' | 'dxf' | 'csv' | undefined {
+	const path = relativePath.replace(/\\/g, '/');
+	const lower = path.toLowerCase();
+	if (lower === REPORT_FILE) {
+		return 'report';
+	}
+	if (lower.startsWith(`${EXPORT_IFC_FOLDER.toLowerCase()}/`) && lower.endsWith('.ifc')) {
+		return 'ifc';
+	}
+	if (lower.startsWith(`${EXPORT_DXF_FOLDER.toLowerCase()}/`) && lower.endsWith('.dxf')) {
+		return 'dxf';
+	}
+	if (!path.includes('/') && lower.endsWith('.csv')) {
+		return 'csv';
+	}
+	return undefined;
+}
 
 /** Parts whose modules are not written yet: they never block the next step. */
 const OPTIONAL_PARTS = new Set(['soil', 'mep', 'substructure']);
@@ -185,7 +210,10 @@ function bimStatus(parts: readonly IProjectPart[], inputs: IPartStatusInputs): I
 
 function exportsStatus(inputs: IPartStatusInputs, formatDate: (time: number) => string): IPartStatus {
 	if (inputs.reportTime === undefined) {
-		return status('exports', 'notStarted', localize('partStatus.exports.noReport', "no report"), localize('partStatus.exports.build', "build the design report"));
+		const files = inputs.exportFiles ?? 0;
+		return files > 0
+			? status('exports', 'inProgress', files === 1 ? localize('partStatus.exports.oneFile', "1 file, no report") : localize('partStatus.exports.files', "{0} files, no report", files), localize('partStatus.exports.build', "build the design report"))
+			: status('exports', 'notStarted', localize('partStatus.exports.noReport', "no report"), localize('partStatus.exports.build', "build the design report"));
 	}
 	return status('exports', 'done', localize('partStatus.exports.report', "report {0}", formatDate(inputs.reportTime)));
 }

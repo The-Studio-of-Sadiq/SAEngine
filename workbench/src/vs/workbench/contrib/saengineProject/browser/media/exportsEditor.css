@@ -1,0 +1,122 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Part 11, the exports page, on the shared editor frame (editorFrame.css). */
+
+.saengine-exports-editor .exports-scroll {
+	flex: 1;
+	min-height: 0;
+}
+
+.saengine-exports-editor .exports-list {
+	box-sizing: border-box;
+	height: 100%;
+	max-width: 880px;
+	padding: var(--sa-space-2, 8px) var(--sa-space-4, 16px) var(--sa-space-6, 24px);
+}
+
+.saengine-exports-editor .exports-kind {
+	border-bottom: 1px solid var(--sa-border, var(--vscode-panel-border));
+}
+
+.saengine-exports-editor .exports-row,
+.saengine-exports-editor .exports-file {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-3, 12px);
+}
+
+.saengine-exports-editor .exports-row {
+	min-height: 52px;
+	padding: var(--sa-space-2, 8px) var(--sa-space-2, 8px);
+}
+
+.saengine-exports-editor .exports-icon {
+	flex: none;
+	font-size: 18px;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-exports-editor .exports-kind.made .exports-icon {
+	color: var(--vscode-foreground);
+}
+
+.saengine-exports-editor .exports-text {
+	flex: 1;
+	min-width: 0;
+}
+
+.saengine-exports-editor .exports-title {
+	font-weight: 600;
+}
+
+.saengine-exports-editor .exports-description {
+	margin-top: 2px;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.saengine-exports-editor .exports-when {
+	flex: none;
+	min-width: 112px;
+	text-align: right;
+	font-size: var(--sa-font-s, 12px);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.saengine-exports-editor .exports-when.muted {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-exports-editor .exports-actions {
+	flex: none;
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 2px;
+	min-width: 184px;
+}
+
+.saengine-exports-editor .exports-actions .monaco-button {
+	width: auto;
+	padding: 2px 12px;
+	white-space: nowrap;
+}
+
+/* the files of an export made of several (one IFC per export, one DXF per story) */
+.saengine-exports-editor .exports-files {
+	list-style: none;
+	margin: calc(-1 * var(--sa-space-1, 4px)) 0 var(--sa-space-2, 8px);
+	padding: 0 var(--sa-space-2, 8px) 0 calc(18px + var(--sa-space-3, 12px) + var(--sa-space-2, 8px));
+}
+
+.saengine-exports-editor .exports-file {
+	height: 26px;
+	border-radius: var(--sa-radius, 4px);
+}
+
+.saengine-exports-editor .exports-file:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.saengine-exports-editor .exports-file-name {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.saengine-exports-editor .exports-file .exports-actions {
+	min-width: 184px;
+}
+
+.saengine-exports-editor .exports-file .exports-when {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}

@@ -17,7 +17,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
-import { acquireCadEditor, releaseCadEditor } from './cadHost.js';
+import { acquireCadEditor, cadBackground, releaseCadEditor } from './cadHost.js';
 import { CadEditorInput } from './cadEditorInput.js';
 
 /**
@@ -56,7 +56,7 @@ export class CadEditorPane extends EditorPane {
 
 		let editor: CadEditorApi;
 		try {
-			editor = this.editor = await acquireCadEditor(this.host);
+			editor = this.editor = await acquireCadEditor(this.host, { background: cadBackground(this.themeService.getColorTheme()) });
 		} catch (error) {
 			this.showMessage(localize('cad.loadFailed', "The CAD editor could not start: {0}", String(error)));
 			return;
@@ -88,6 +88,11 @@ export class CadEditorPane extends EditorPane {
 	override layout(dimension: Dimension): void {
 		this.container.style.width = `${dimension.width}px`;
 		this.container.style.height = `${dimension.height}px`;
+	}
+
+	override updateStyles(): void {
+		super.updateStyles();
+		this.editor?.setBackground(cadBackground(this.themeService.getColorTheme()));
 	}
 
 	override dispose(): void {

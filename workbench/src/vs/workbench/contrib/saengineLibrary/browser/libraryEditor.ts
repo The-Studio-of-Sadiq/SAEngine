@@ -5,8 +5,8 @@
 
 import { $, addDisposableListener, append, clearNode, EventType } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
 import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
+import { Action, Separator, SubmenuAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -16,19 +16,21 @@ import { ITextModelService } from '../../../../editor/common/services/resolverSe
 import { localize } from '../../../../nls.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { MATERIALS_SCHEMA, OBJECTS_SCHEMA, TEMPLATES } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
-import { clone, IDocumentProblem, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
+import { EditorFrame } from '../../saengineProject/browser/editorFrame.js';
+import { clone, IDocumentFrameActions, IDocumentProblem, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditorInput, LibraryKind } from './libraryEditorInput.js';
 import { humanize, JsonObject, JsonValue, SchemaForm } from './schemaForm.js';
 
@@ -72,9 +74,10 @@ function libraryConfig(kind: LibraryKind): ILibraryConfig {
 }
 
 /**
- * Visual editor for the project's material and object-type libraries. The left side lists the
- * entries grouped by category/kind; the right side is a form generated from the library's
- * JSON Schema.
+ * Visual editor for the project's material and object-type libraries, in the shared editor
+ * frame. The toolbar adds (by category/kind), duplicates and deletes entries; the list on the
+ * left groups the entries by category/kind; the selected entry's form, generated from the
+ * library's JSON Schema, fills the rest. Rule warnings show on the entries and in the status line.
  */
 export class LibraryEditor extends JsonDocumentEditor {
 
@@ -82,33 +85,46 @@ export class LibraryEditor extends JsonDocumentEditor {
 
 	private listContainer!: HTMLElement;
 	private detail!: HTMLElement;
-	private toolbar!: HTMLElement;
 	private problemBox: HTMLElement | undefined;
+	private detailTitle: HTMLElement | undefined;
+	private selectedRow: HTMLElement | undefined;
 
 	private config: ILibraryConfig | undefined;
 	private selectedId: string | undefined;
+	/** The entry the form edits (the selected one when the form was rendered). */
+	private formItem: JsonObject | undefined;
 
 	/** Ids from the project's materials file, for the material fields of object types. */
 	private materialIds: { members: string[]; rebar: string[] } = { members: [], rebar: [] };
 
 	private readonly form: SchemaForm;
+	private readonly listDisposables = this._register(new DisposableStore());
 	private readonly detailDisposables = this._register(new DisposableStore());
+
+	private addAction: SubmenuAction | undefined;
+	private readonly addActionStore = this._register(new DisposableStore());
+	private addActionKind: LibraryKind | undefined;
+	private readonly duplicateAction = this._register(new Action('saengine.library.duplicate', localize('library.duplicate', "Duplicate"), ThemeIcon.asClassName(Codicon.copy), false, async () => this.duplicateItem()));
+	private readonly deleteAction = this._register(new Action('saengine.library.delete', localize('library.deleteTitle', "Delete"), ThemeIcon.asClassName(Codicon.trash), false, async () => this.deleteItem()));
 
 	constructor(
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ICommandService commandService: ICommandService,
 		@IEditorService editorService: IEditorService,
 		@ITextModelService textModelService: ITextModelService,
 		@ISaengineProjectService projectService: ISaengineProjectService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(LibraryEditor.ID, group, telemetryService, themeService, storageService, commandService, editorService, textModelService, projectService);
+		this.trackDeveloperMode(configurationService);
 		const editor = this;
 		this.form = instantiationService.createInstance(SchemaForm, {
 			get root() { return editor.config?.schema ?? MATERIALS_SCHEMA; },
@@ -121,9 +137,16 @@ export class LibraryEditor extends JsonDocumentEditor {
 		this._register({ dispose: () => this.form.dispose() });
 	}
 
+	protected override createDocumentFrame(parent: HTMLElement): EditorFrame {
+		return this._register(this.instantiationService.createInstance(EditorFrame, parent, {
+			id: LibraryEditor.ID,
+			ariaLabel: localize('library.toolbar', "Library"),
+		}));
+	}
+
 	protected createBody(body: HTMLElement): void {
+		body.classList.add('library-split');
 		const master = append(body, $('.library-master'));
-		this.toolbar = append(master, $('.library-toolbar'));
 		this.listContainer = append(master, $('.library-list', { role: 'listbox', tabIndex: 0 }));
 		this.detail = append(body, $('.library-detail'));
 		this._register(addDisposableListener(this.listContainer, EventType.KEY_DOWN, e => this.onListKey(new StandardKeyboardEvent(e))));
@@ -133,6 +156,39 @@ export class LibraryEditor extends JsonDocumentEditor {
 		const kind = this.kind;
 		this.config = kind === 'materials' || kind === 'objects' ? libraryConfig(kind) : undefined;
 		this.selectedId = undefined;
+		this.documentFrame?.setTitle(kind === 'materials' ? localize('library.materialsTitle', "Materials") : localize('library.objectsTitle', "Object Types"));
+		this.documentFrame?.setHelp(kind === 'materials'
+			? localize('library.materialsHelp', "The materials of the project: concrete, rebar, steel, masonry and mortar, with their mechanical properties. Object types refer to them by ID. Add with + (by category), duplicate or delete the selected material in the toolbar or by right-clicking it.")
+			: localize('library.objectsHelp', "The object types of the project: beams, columns, slabs, walls, footings and the other member types, with their sections, materials and reinforcement. The floor plan places them by ID. Add with + (by kind), duplicate or delete the selected type in the toolbar or by right-clicking it."));
+		this.listContainer.setAttribute('aria-label', kind === 'materials' ? localize('library.materialsList', "Materials") : localize('library.objectsList', "Object types"));
+	}
+
+	protected override documentFrameActions(): IDocumentFrameActions {
+		const add = this.createAddAction();
+		if (!add || !this.document) {
+			return { primary: [] };
+		}
+		this.duplicateAction.enabled = this.deleteAction.enabled = !!this.selected;
+		return { primary: [add, this.duplicateAction, this.deleteAction] };
+	}
+
+	/** "+" with a menu of the categories/kinds to add (built again when the library changes). */
+	private createAddAction(): SubmenuAction | undefined {
+		const config = this.config;
+		if (!config) {
+			return undefined;
+		}
+		if (this.addAction && this.addActionKind === this.kind) {
+			return this.addAction;
+		}
+		this.addActionStore.clear();
+		this.addActionKind = this.kind;
+		const materials = config.listKey === 'materials';
+		const actions = config.variants.map(variant => this.addActionStore.add(new Action(`saengine.library.add.${variant.value}`, humanize(variant.value), undefined, true, async () => this.addItem(variant))));
+		this.addAction = new SubmenuAction(`saengine.library.add.${config.listKey}`,
+			materials ? localize('library.addMaterial', "Add Material") : localize('library.addObject', "Add Object Type"),
+			actions, ThemeIcon.asClassName(Codicon.add));
+		return this.addAction;
 	}
 
 	protected shapeError(value: JsonObject): IShapeError | undefined {
@@ -180,6 +236,12 @@ export class LibraryEditor extends JsonDocumentEditor {
 		return Array.isArray(list) ? list.filter(isObject) : [];
 	}
 
+	/** The entries in the order the list shows them (grouped by category or kind). */
+	private get displayOrder(): JsonObject[] {
+		const config = this.config;
+		return config ? config.variants.flatMap(v => this.items.filter(i => i[config.discriminator] === v.value)) : [];
+	}
+
 	private get selected(): JsonObject | undefined {
 		return this.items.find(i => i.id === this.selectedId);
 	}
@@ -191,7 +253,8 @@ export class LibraryEditor extends JsonDocumentEditor {
 	}
 
 	private onFormChanged(path: string, structural: boolean): void {
-		const item = this.selected;
+		// The entry whose form is shown: after its ID was typed, `selected` no longer finds it.
+		const item = this.formItem ?? this.selected;
 		if (item && this.config?.listKey === 'materials' && path === 'category') {
 			this.replaceVariant(item, String(item.category));
 			return;
@@ -202,6 +265,7 @@ export class LibraryEditor extends JsonDocumentEditor {
 		this.changed(structural);
 		if (!structural && (path === 'id' || path === 'name')) {
 			this.renderList();
+			this.renderDetailTitle();
 		}
 	}
 
@@ -244,6 +308,7 @@ export class LibraryEditor extends JsonDocumentEditor {
 		if (!this.document || !this.config) {
 			return;
 		}
+		this.flush();
 		const item = this.template(variant.template);
 		item.id = this.uniqueId(String(item.id ?? variant.value.toUpperCase()));
 		(this.document[this.config.listKey] as JsonValue[]).push(item);
@@ -256,6 +321,7 @@ export class LibraryEditor extends JsonDocumentEditor {
 		if (!item || !this.document || !this.config) {
 			return;
 		}
+		this.flush();
 		const copy = clone(item);
 		copy.id = this.uniqueId(String(item.id));
 		copy.name = localize('library.copyName', "{0} (copy)", String(item.name));
@@ -350,58 +416,32 @@ export class LibraryEditor extends JsonDocumentEditor {
 		if (!this.selected) {
 			this.selectedId = this.items[0]?.id as string | undefined;
 		}
-		this.viewDisposables.clear();
-		this.renderToolbar();
 		this.renderList();
 		this.renderDetail();
+		this.renderStatus();
 	}
 
 	protected renderProblems(): void {
 		this.renderList();
 		this.renderDetailProblems();
-	}
-
-	private renderToolbar(): void {
-		clearNode(this.toolbar);
-		const config = this.config;
-		if (!config || !this.document) {
-			return;
-		}
-		const variants = config.variants;
-		const select = this.viewDisposables.add(new SelectBox(variants.map(v => ({ text: humanize(v.value) })), 0, this.contextViewService, defaultSelectBoxStyles, {
-			ariaLabel: config.listKey === 'materials' ? localize('library.category', "Category") : localize('library.kind', "Kind"),
-		}));
-		select.render(append(this.toolbar, $('.library-variant')));
-		let variantIndex = 0;
-		this.viewDisposables.add(select.onDidSelect(e => variantIndex = e.index));
-
-		const buttons = append(this.toolbar, $('.library-buttons'));
-		const add = this.viewDisposables.add(new Button(buttons, { ...defaultButtonStyles, supportIcons: true, title: localize('library.addTitle', "Add a new entry of the selected type") }));
-		add.label = `$(${Codicon.add.id}) ${localize('library.add', "Add")}`;
-		this.viewDisposables.add(add.onDidClick(() => this.addItem(variants[variantIndex])));
-
-		const duplicate = this.viewDisposables.add(new Button(buttons, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: localize('library.duplicate', "Duplicate") }));
-		duplicate.label = `$(${Codicon.copy.id})`;
-		duplicate.enabled = !!this.selected;
-		this.viewDisposables.add(duplicate.onDidClick(() => this.duplicateItem()));
-
-		const remove = this.viewDisposables.add(new Button(buttons, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: localize('library.deleteTitle', "Delete") }));
-		remove.label = `$(${Codicon.trash.id})`;
-		remove.enabled = !!this.selected;
-		this.viewDisposables.add(remove.onDidClick(() => this.deleteItem()));
+		this.renderStatus();
 	}
 
 	private renderList(): void {
+		this.listDisposables.clear();
 		clearNode(this.listContainer);
+		this.selectedRow = undefined;
 		const config = this.config;
-		if (!config) {
+		if (!config || !this.document) {
 			return;
 		}
 		const fileProblems = this.problems.filter(p => p.index === null);
 		if (fileProblems.length) {
 			const box = append(this.listContainer, $('.library-list-problems'));
 			for (const problem of fileProblems) {
-				append(box, $('div', undefined, problem.message));
+				const row = append(box, $('.library-problem'));
+				append(row, $(`span${ThemeIcon.asCSSSelector(Codicon.warning)}`));
+				append(row, $('span', undefined, problem.message));
 			}
 		}
 		for (const variant of config.variants) {
@@ -409,52 +449,91 @@ export class LibraryEditor extends JsonDocumentEditor {
 			if (!members.length) {
 				continue;
 			}
-			append(this.listContainer, $('.library-list-group', undefined, humanize(variant.value)));
+			append(this.listContainer, $('.library-list-group', { role: 'presentation' }, humanize(variant.value)));
 			for (const item of members) {
+				const id = String(item.id);
 				const selected = item.id === this.selectedId;
-				const row = append(this.listContainer, $('.library-list-item', { role: 'option', 'aria-selected': String(selected) }));
+				const row = append(this.listContainer, $('.library-list-item', { role: 'option', 'aria-selected': String(selected), id: `library-item-${id}` }));
 				row.classList.toggle('selected', selected);
-				append(row, $('span.item-id', undefined, String(item.id)));
+				if (selected) {
+					this.selectedRow = row;
+				}
+				append(row, $('span.item-id', undefined, id));
 				append(row, $('span.item-name', undefined, String(item.name ?? '')));
 				const problems = this.problemsOf(item);
 				if (problems.length) {
 					row.classList.add('has-problems');
 					const icon = append(row, $(`span.item-warning${ThemeIcon.asCSSSelector(Codicon.warning)}`));
-					this.viewDisposables.add(this.hoverService.setupDelayedHover(icon, { content: problems.map(p => p.message).join('\n') }));
+					this.listDisposables.add(this.hoverService.setupDelayedHover(icon, { content: problems.map(p => p.message).join('\n') }));
 				}
-				this.viewDisposables.add(addDisposableListener(row, EventType.CLICK, () => this.select(String(item.id))));
+				this.listDisposables.add(addDisposableListener(row, EventType.CLICK, () => this.select(id)));
+				this.listDisposables.add(addDisposableListener(row, EventType.CONTEXT_MENU, e => {
+					e.preventDefault();
+					this.showItemMenu({ x: e.clientX, y: e.clientY }, id);
+				}));
+				if (selected) {
+					this.listContainer.setAttribute('aria-activedescendant', row.id);
+				}
 			}
 		}
-		if (!this.items.length && this.document) {
-			append(this.listContainer, $('.library-list-empty', undefined, localize('library.empty', "Nothing here yet. Choose a type above and click Add.")));
+		if (!this.items.length) {
+			append(this.listContainer, $('.library-list-empty', undefined, localize('library.empty', "Nothing here yet. Add an entry with + in the toolbar.")));
 		}
+	}
+
+	/** Right-click on an entry: duplicate or delete it. */
+	private showItemMenu(anchor: { readonly x: number; readonly y: number }, id: string): void {
+		this.select(id);
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => [this.duplicateAction, new Separator(), this.deleteAction],
+		});
 	}
 
 	private renderDetail(): void {
 		this.detailDisposables.clear();
 		clearNode(this.detail);
+		this.problemBox = undefined;
+		this.detailTitle = undefined;
 		const config = this.config;
-		const item = this.selected;
+		const item = this.formItem = this.selected;
 		if (!config || !item) {
 			return;
 		}
 		const header = append(this.detail, $('.library-detail-header'));
-		append(header, $('h2', undefined, String(item.name ?? item.id)));
-		this.problemBox = append(header, $('.library-problems'));
+		this.detailTitle = append(header, $('.library-detail-title'));
+		this.renderDetailTitle();
+		this.problemBox = append(this.detail, $('.library-problems'));
 		this.renderDetailProblems();
-		const typeRow = append(header, $('.library-detail-type'));
-		append(typeRow, $('span', undefined, config.listKey === 'materials' ? localize('library.categoryLabel', "Category") : localize('library.kindLabel', "Kind")));
+
+		const form = append(this.detail, $('.library-form'));
+		// The category/kind first, as a field like the others; changing it keeps the shared fields.
+		const typeRow = append(form, $('.form-field'));
+		const typeLabel = config.listKey === 'materials' ? localize('library.categoryLabel', "Category") : localize('library.kindLabel', "Kind");
+		append(append(typeRow, $('.form-label-cell')), $('label.form-label', undefined, typeLabel));
 		const variants = config.variants;
 		const current = Math.max(0, variants.findIndex(v => v.value === item[config.discriminator]));
-		const select = this.detailDisposables.add(new SelectBox(variants.map(v => ({ text: humanize(v.value) })), current, this.contextViewService, defaultSelectBoxStyles, {
-			ariaLabel: config.listKey === 'materials' ? localize('library.category', "Category") : localize('library.kind', "Kind"),
-		}));
-		select.render(append(typeRow, $('.library-variant')));
+		const select = this.detailDisposables.add(new SelectBox(variants.map(v => ({ text: humanize(v.value) })), current, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: typeLabel }));
+		select.render(append(typeRow, $('.form-control')));
 		this.detailDisposables.add(select.onDidSelect(e => this.replaceVariant(item, variants[e.index].value)));
 
 		const schema = config.schema.$defs?.[variants[current].defName];
 		if (schema) {
-			this.form.render(append(this.detail, $('.library-form')), schema, item, [config.discriminator]);
+			this.form.render(form, schema, item, [config.discriminator]);
+		}
+	}
+
+	/** The selected entry's name and id above its form, kept up to date while they are typed. */
+	private renderDetailTitle(): void {
+		const title = this.detailTitle;
+		const item = this.selected;
+		if (!title || !item) {
+			return;
+		}
+		clearNode(title);
+		append(title, $('span.library-detail-name', undefined, String(item.name || item.id)));
+		if (item.name) {
+			append(title, $('span.library-detail-id', undefined, String(item.id)));
 		}
 	}
 
@@ -476,6 +555,38 @@ export class LibraryEditor extends JsonDocumentEditor {
 		}
 	}
 
+	/** Counts in the status line; with rule warnings, how many and where. */
+	private renderStatus(): void {
+		const frame = this.documentFrame;
+		const config = this.config;
+		if (!frame || !config || !this.document) {
+			return;
+		}
+		const count = this.items.length;
+		const materials = config.listKey === 'materials';
+		const text = materials
+			? count === 1 ? localize('library.oneMaterial', "1 material") : localize('library.materials', "{0} materials", count)
+			: count === 1 ? localize('library.oneObject', "1 object type") : localize('library.objects', "{0} object types", count);
+		const problems = this.problems.length;
+		if (!problems) {
+			frame.setStatus({ text });
+			return;
+		}
+		// The next other entry with a problem below the selected one in the list (wrapping round), so
+		// repeated clicks walk through every entry that needs fixing.
+		const items = this.items;
+		const flaggedItems = new Set(this.problems.map(p => p.index === null ? undefined : items[p.index]));
+		const ordered = this.displayOrder;
+		const current = ordered.findIndex(i => i.id === this.selectedId);
+		const flagged = ordered.map((item, i) => ({ item, i })).filter(({ item, i }) => i !== current && flaggedItems.has(item));
+		const target = (flagged.find(({ i }) => i > current) ?? flagged[0])?.item;
+		frame.setStatus({
+			severity: 'warning',
+			text: problems === 1 ? localize('library.statusOneProblem', "{0}. 1 problem to fix.", text) : localize('library.statusProblems', "{0}. {1} problems to fix.", text, problems),
+			link: target ? { label: localize('library.showProblem', "Show {0}", String(target.id)), run: () => this.select(String(target.id)) } : undefined,
+		});
+	}
+
 	private select(id: string): void {
 		if (id === this.selectedId) {
 			return;
@@ -483,16 +594,35 @@ export class LibraryEditor extends JsonDocumentEditor {
 		this.flush();
 		this.selectedId = id;
 		this.render();
+		this.updateDocumentFrameActions();
+		this.duplicateAction.enabled = this.deleteAction.enabled = !!this.selected;
 		this.listContainer.focus();
+		this.selectedRow?.scrollIntoView({ block: 'nearest' });
 	}
 
 	private onListKey(e: StandardKeyboardEvent): void {
 		const config = this.config;
-		if (!config || !(e.keyCode === KeyCode.UpArrow || e.keyCode === KeyCode.DownArrow)) {
+		if (!config) {
 			return;
 		}
-		// Navigate in display order (grouped by type).
-		const ordered = config.variants.flatMap(v => this.items.filter(i => i[config.discriminator] === v.value));
+		if (e.keyCode === KeyCode.Delete && this.selected) {
+			e.preventDefault();
+			void this.deleteItem();
+			return;
+		}
+		if ((e.keyCode === KeyCode.F10 && e.shiftKey) || e.keyCode === KeyCode.ContextMenu) {
+			const row = this.selectedRow;
+			if (row && this.selectedId) {
+				e.preventDefault();
+				const rect = row.getBoundingClientRect();
+				this.showItemMenu({ x: rect.left + 24, y: rect.bottom }, this.selectedId);
+			}
+			return;
+		}
+		if (!(e.keyCode === KeyCode.UpArrow || e.keyCode === KeyCode.DownArrow)) {
+			return;
+		}
+		const ordered = this.displayOrder;
 		const index = ordered.findIndex(i => i.id === this.selectedId);
 		const next = ordered[Math.min(ordered.length - 1, Math.max(0, index + (e.keyCode === KeyCode.DownArrow ? 1 : -1)))];
 		if (next) {

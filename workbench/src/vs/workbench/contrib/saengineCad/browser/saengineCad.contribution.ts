@@ -8,18 +8,21 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isEqual, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { RedoCommand, UndoCommand } from '../../../../editor/browser/editorExtensions.js';
-import { localize } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { ActiveEditorContext } from '../../../common/contextkeys.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { ISaengineProjectService, PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
+import { ISaengineProjectService, PROJECT_PARTS, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { CadEditorPane } from './cadEditor.js';
 import { CadEditorInput, CadEditorInputSerializer } from './cadEditorInput.js';
 import { FloorPlanEditor } from './floorPlanEditor.js';
@@ -115,3 +118,37 @@ function undoRedo(accessor: ServicesAccessor, redo: boolean): boolean | Promise<
 const UNDO_PRIORITY = 110;
 UndoCommand.addImplementation(UNDO_PRIORITY, 'saengine-floor-plan', accessor => undoRedo(accessor, false));
 RedoCommand.addImplementation(UNDO_PRIORITY, 'saengine-floor-plan', accessor => undoRedo(accessor, true));
+
+/** The CAD command line of the floor plan, hidden until asked for (also ":" in the plan). */
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'saengine.floorPlan.toggleCommandLine',
+			title: localize2('floorPlan.toggleCommandLine', "Toggle Command Line"),
+			category: localize2('floorPlan.category', "Floor Plan"),
+			f1: true,
+			precondition: ActiveEditorContext.isEqualTo(FloorPlanEditor.ID),
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const pane = accessor.get(IEditorService).activeEditorPane;
+		if (pane instanceof FloorPlanEditor) {
+			pane.toggleCommandLine();
+		}
+	}
+});
+
+/** Exports every story's structural plan as DXF (the Exports page runs it): opens 5 Floor Plan and exports from it. */
+CommandsRegistry.registerCommand('saengine.floorPlan.exportDxf', async (accessor: ServicesAccessor) => {
+	const project = accessor.get(ISaengineProjectService).project;
+	const part = partById('floorPlan');
+	const editorService = accessor.get(IEditorService);
+	if (!project || !part?.mainFile) {
+		return;
+	}
+	const pane = await editorService.openEditor({ resource: joinPath(project.root, part.folder, part.mainFile) });
+	if (pane instanceof FloorPlanEditor) {
+		await pane.exportDxf();
+	}
+});

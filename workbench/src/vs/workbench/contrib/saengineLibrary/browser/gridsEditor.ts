@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, append, clearNode } from '../../../../base/browser/dom.js';
+import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -20,11 +22,15 @@ import { newFloorPlan } from '../../../services/saengineProject/common/partSourc
 import { FLOOR_PLAN_SCHEMA, TEMPLATES } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { ISaengineProjectService, PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
 import { dirname, joinPath } from '../../../../base/common/resources.js';
-import { clone, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
+import { EditorFrame } from '../../saengineProject/browser/editorFrame.js';
+import { clone, IDocumentFrameActions, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditorInput } from './libraryEditorInput.js';
 import { JsonObject, JsonValue, SchemaForm } from './schemaForm.js';
 
 const FLOOR_PLAN_SCHEMA_ID = 'saengine.floorPlan/1';
+
+/** The plan view of the floor plan (contrib/saengineCad, FloorPlanEditorInput.EDITOR_ID). */
+const FLOOR_PLAN_EDITOR_ID = 'workbench.editor.saengine.floorPlan';
 
 /** Member lists of the floor plan; they are placed in its plan view, not in this form. */
 const MEMBER_LISTS = ['columns', 'beams', 'walls', 'slabs', 'footings'];
@@ -85,6 +91,9 @@ function formatMm(value: number): string {
 /**
  * Form for the grids and stories of the floor plan (`05 Floor Plan/floor-plan.json`). Members
  * are placed on them in the plan view; this form only shows them as counts.
+ *
+ * In the shared editor frame: the form in the main area, the spacings, story heights and member
+ * count it implies in the properties panel, "Open in Floor Plan" in the overflow menu.
  */
 export class GridsEditor extends JsonDocumentEditor {
 
@@ -92,22 +101,25 @@ export class GridsEditor extends JsonDocumentEditor {
 
 	private container!: HTMLElement;
 	private problemBox: HTMLElement | undefined;
-	private summary: HTMLElement | undefined;
 	private readonly form: SchemaForm;
+
+	private readonly openPlanAction = this._register(new Action('saengine.grids.openFloorPlan', localize('grids.openFloorPlan', "Open in Floor Plan"), undefined, true, async () => this.openFloorPlan()));
 
 	constructor(
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommandService commandService: ICommandService,
-		@IEditorService editorService: IEditorService,
+		@IEditorService private readonly editors: IEditorService,
 		@ITextModelService textModelService: ITextModelService,
 		@ISaengineProjectService projectService: ISaengineProjectService,
 		@IFileService private readonly fileService: IFileService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(GridsEditor.ID, group, telemetryService, themeService, storageService, commandService, editorService, textModelService, projectService);
+		super(GridsEditor.ID, group, telemetryService, themeService, storageService, commandService, editors, textModelService, projectService);
+		this.trackDeveloperMode(configurationService);
 		this.form = instantiationService.createInstance(SchemaForm, {
 			root: FLOOR_PLAN_SCHEMA,
 			template: defName => clone((TEMPLATES[defName] ?? {}) as JsonObject),
@@ -125,8 +137,32 @@ export class GridsEditor extends JsonDocumentEditor {
 		this._register({ dispose: () => this.form.dispose() });
 	}
 
+	protected override createDocumentFrame(parent: HTMLElement): EditorFrame {
+		return this._register(this.instantiationService.createInstance(EditorFrame, parent, {
+			id: GridsEditor.ID,
+			ariaLabel: localize('grids.toolbar', "Grids & Stories"),
+			properties: { title: localize('grids.summary', "Summary") },
+		}));
+	}
+
 	protected createBody(body: HTMLElement): void {
-		this.container = append(body, $('.building-editor'));
+		this.documentFrame!.setTitle(localize('grids.title', "Grids & Stories"));
+		this.documentFrame!.setHelp(localize('grids.intro', "Grid lines and stories of the floor plan. Columns, beams, walls, slabs and footings are placed on them in the Floor Plan; the building model is generated from it."));
+		this.container = append(body, $('.sa-form-page'));
+	}
+
+	protected override documentFrameActions(): IDocumentFrameActions {
+		return this.document && this.documentFrame
+			? { primary: [this.documentFrame.togglePropertiesAction], secondary: [this.openPlanAction] }
+			: { primary: [] };
+	}
+
+	/** The plan view of the same file (its default editor). */
+	private async openFloorPlan(): Promise<void> {
+		const resource = this.resource;
+		if (resource) {
+			await this.editors.openEditor({ resource, options: { override: FLOOR_PLAN_EDITOR_ID } }, this.group);
+		}
 	}
 
 	protected shapeError(value: JsonObject): IShapeError | undefined {
@@ -207,15 +243,11 @@ export class GridsEditor extends JsonDocumentEditor {
 		this.viewDisposables.clear();
 		clearNode(this.container);
 		this.problemBox = undefined;
-		this.summary = undefined;
 		if (!this.document) {
 			return;
 		}
-		append(this.container, $('h2', undefined, localize('grids.title', "Grids & Stories")));
-		append(this.container, $('p.building-intro', undefined, localize('grids.intro', "Grid lines and stories of the floor plan. Columns, beams, walls, slabs and footings are placed on them in the Floor Plan; the building model is generated from it.")));
 		this.problemBox = append(this.container, $('.library-problems'));
 		this.renderProblems();
-		this.summary = append(this.container, $('.building-summary'));
 		this.renderSummary();
 		this.form.render(append(this.container, $('.library-form')), FLOOR_PLAN_SCHEMA, this.document, MEMBER_LISTS);
 	}
@@ -232,15 +264,30 @@ export class GridsEditor extends JsonDocumentEditor {
 			append(row, $(`span${ThemeIcon.asCSSSelector(Codicon.warning)}`));
 			append(row, $('span', undefined, problem.message));
 		}
+		this.renderStatus();
 	}
 
-	/** Spacings and story heights, derived from positions and elevations. */
+	/** What the grids are for, or how many problems there are. */
+	private renderStatus(): void {
+		const count = this.problems.length;
+		this.documentFrame?.setStatus(count
+			? { severity: 'warning', text: count === 1 ? localize('grids.oneProblem', "1 problem: {0}", this.problems[0].message) : localize('grids.problems', "{0} problems. {1}", count, this.problems[0].message) }
+			: {
+				text: localize('grids.status', "Columns, beams, walls, slabs and footings are placed on these grids and stories in the Floor Plan."),
+				link: { label: localize('grids.openFloorPlan', "Open in Floor Plan"), run: () => void this.openFloorPlan() },
+			});
+	}
+
+	/** Spacings and story heights, derived from positions and elevations, in the properties panel. */
 	private renderSummary(): void {
-		const box = this.summary;
+		const box = this.documentFrame?.properties;
 		if (!box) {
 			return;
 		}
 		clearNode(box);
+		if (!this.document) {
+			return;
+		}
 		const spacings = (lines: IGridLine[]) => {
 			const sorted = [...lines].sort((a, b) => a.position - b.position);
 			return sorted.slice(1).map((line, i) => `${sorted[i].label}–${line.label} ${formatMm(line.position - sorted[i].position)}`).join(', ') || '—';
@@ -253,13 +300,14 @@ export class GridsEditor extends JsonDocumentEditor {
 		}).reduce((a, b) => a + b, 0);
 
 		const item = (label: string, value: string) => {
-			const entry = append(box, $('div'));
-			append(entry, $('span.summary-label', undefined, label));
-			append(entry, $('span', undefined, value));
+			append(box, $('.sa-props-heading', undefined, label));
+			append(box, $('.sa-props-note.grids-summary-value', undefined, value));
 		};
 		item(localize('building.xSpacing', "X spacing (mm)"), spacings(this.grids.x));
 		item(localize('building.ySpacing', "Y spacing (mm)"), spacings(this.grids.y));
 		item(localize('building.storyHeights', "Story heights (mm)"), heights);
-		item(localize('building.members', "Placed members"), String(members));
+		const row = append(box, $('.sa-props-row.grids-members'));
+		append(row, $('span.name', undefined, localize('building.members', "Placed members")));
+		append(row, $('span.value', undefined, String(members)));
 	}
 }

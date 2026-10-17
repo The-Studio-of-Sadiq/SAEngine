@@ -29,103 +29,60 @@
 	display: block;
 }
 
-.saengine-floor-plan {
-	display: flex;
-	flex-direction: column;
-	outline: none;
-}
-
-.saengine-floor-plan .floor-plan-toolbar {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: 6px 16px;
-	flex: none;
-	padding: 6px 12px;
-	box-sizing: border-box;
-}
-
-.saengine-floor-plan .floor-plan-group {
-	display: flex;
-	align-items: center;
-	gap: 4px;
-}
-
-.saengine-floor-plan .floor-plan-group.hidden {
-	display: none;
-}
-
-.saengine-floor-plan .floor-plan-label {
-	margin-right: 4px;
-}
-
-.saengine-floor-plan .floor-plan-select.story {
-	width: 180px;
-}
-
-.saengine-floor-plan .floor-plan-select.type {
-	width: 220px;
-}
-
-.saengine-floor-plan .floor-plan-tool .monaco-button,
-.saengine-floor-plan .floor-plan-action .monaco-button,
-.saengine-floor-plan .floor-plan-link .monaco-button {
-	width: auto;
-	padding: 2px 8px;
-}
-
-.saengine-floor-plan .floor-plan-tool .monaco-button.active {
-	color: var(--vscode-button-foreground);
-	background-color: var(--vscode-button-background);
-}
-
-.saengine-floor-plan .floor-plan-status {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-	flex: none;
-	height: 26px;
-	padding: 0 12px 4px;
-	box-sizing: border-box;
-	color: var(--vscode-descriptionForeground);
-	border-bottom: 1px solid var(--vscode-editorGroup-border, transparent);
-}
-
-.saengine-floor-plan .floor-plan-problems {
-	display: flex;
-	align-items: center;
-	gap: 4px;
-	margin-left: auto;
-}
-
-.saengine-floor-plan .floor-plan-problems .codicon-warning {
-	color: var(--vscode-editorWarning-foreground);
-}
-
-.saengine-floor-plan .saengine-cad-editor {
-	flex: none;
-}
-
 .saengine-cad-editor .cad-instance {
 	position: absolute;
 	inset: 0;
 }
 
+/* The floor plan in the shared editor frame (editorFrame.css): the drawing fills the main area. */
+.saengine-floor-plan,
+.monaco-workbench .saengine-editor-frame.saengine-floor-plan:focus {
+	outline: none;
+}
+
+.saengine-floor-plan .saengine-cad-editor {
+	flex: 1;
+	min-height: 0;
+}
+
+.saengine-floor-plan .floor-plan-select.story {
+	width: 200px;
+}
+
+.saengine-floor-plan .floor-plan-select.type {
+	width: 200px;
+}
+
+/* Inline controls of the active tool: the type picker, the typed move or angle. */
+.saengine-floor-plan .floor-plan-inline {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-1, 4px);
+}
+
+.saengine-floor-plan .floor-plan-inline.hidden {
+	display: none;
+}
+
 .saengine-floor-plan .floor-plan-typed {
-	width: 180px;
+	width: 170px;
+}
+
+/* Editable rows of the properties panel. */
+.saengine-floor-plan .sa-props-row.editable {
+	align-items: center;
+}
+
+.saengine-floor-plan .floor-plan-prop-control {
+	width: 190px;
+	max-width: 100%;
 }
 
 /*
- * Theme. mlightcad draws a dark CAD canvas (black, ACI 7 in white). On light themes the canvas
- * goes through the "paper" SVG filter (cadHost.ts): white ground, black linework, greys inverted
- * and darkened, layer colours kept in their hue but darkened so they read on white (dark blue
- * stays blue, bright green and cyan turn deeper). Only the picture changes; the drawing and
- * exported DXF keep their colours.
+ * Theme. The canvas takes the editor background (cadHost.ts: cadBackground) and mlightcad draws
+ * ACI 7 linework black on light backgrounds and white on dark ones; the floor plan draws its
+ * layers in deeper shades on light canvases (floorPlanEditor.ts: LIGHT_CANVAS_COLORS).
  */
-.monaco-workbench.vs .saengine-cad-editor .cad-instance > canvas,
-.monaco-workbench.hc-light .saengine-cad-editor .cad-instance > canvas {
-	filter: url(#saengine-cad-paper);
-}
 
 /* mlightcad's own controls (command line, quick toolbar) in the workbench colours. */
 .saengine-cad-editor .cad-instance,

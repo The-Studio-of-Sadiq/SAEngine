@@ -22,7 +22,7 @@
 	box-sizing: border-box;
 	max-width: 720px;
 	margin: 0 auto;
-	padding: 48px var(--sa-space-6, 24px) var(--sa-space-6, 24px);
+	padding: var(--sa-space-6, 24px) var(--sa-space-6, 24px) var(--sa-space-4, 16px);
 }
 
 .saengine-overview .header h1 {
@@ -52,8 +52,8 @@
 	display: flex;
 	align-items: center;
 	gap: var(--sa-space-2, 8px);
-	margin: var(--sa-space-6, 24px) 0 var(--sa-space-2, 8px);
-	padding: var(--sa-space-3, 12px) var(--sa-space-4, 16px);
+	margin: var(--sa-space-4, 16px) 0 var(--sa-space-1, 4px);
+	padding: var(--sa-space-2, 8px) var(--sa-space-2, 8px) var(--sa-space-2, 8px) var(--sa-space-4, 16px);
 	border: 1px solid var(--sa-border, var(--vscode-panel-border));
 	border-radius: var(--sa-radius, 4px);
 	background-color: var(--sa-surface-alt, var(--vscode-sideBar-background));
@@ -71,11 +71,11 @@
 .saengine-overview .next .monaco-button {
 	flex: none;
 	width: auto;
-	padding: 0 var(--sa-space-4, 16px);
+	padding: 2px var(--sa-space-4, 16px);
 }
 
 .saengine-overview .group h2 {
-	margin: var(--sa-space-6, 24px) 0 var(--sa-space-1, 4px);
+	margin: var(--sa-space-4, 16px) 0 var(--sa-space-1, 4px);
 	color: var(--sa-muted, var(--vscode-descriptionForeground));
 	font-size: 11px;
 	font-weight: 600;
@@ -98,7 +98,7 @@
 	align-items: center;
 	gap: var(--sa-space-3, 12px);
 	width: 100%;
-	height: 36px;
+	height: 28px;
 	padding: 0 var(--sa-space-2, 8px);
 	border: none;
 	background: none;

@@ -9,6 +9,7 @@ import { isEqual, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { RedoCommand, UndoCommand } from '../../../../editor/browser/editorExtensions.js';
 import { localize } from '../../../../nls.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -164,3 +165,17 @@ function undoRedo(accessor: ServicesAccessor, redo: boolean): boolean | Promise<
 const UNDO_PRIORITY = 110;
 UndoCommand.addImplementation(UNDO_PRIORITY, 'saengine-library', accessor => undoRedo(accessor, false));
 RedoCommand.addImplementation(UNDO_PRIORITY, 'saengine-library', accessor => undoRedo(accessor, true));
+
+/** Exports the building model as IFC (the Exports page runs it): opens 6 BIM and exports from it. */
+CommandsRegistry.registerCommand('saengine.bim.exportIfc', async (accessor: ServicesAccessor) => {
+	const project = accessor.get(ISaengineProjectService).project;
+	const part = partById('bim');
+	const editorService = accessor.get(IEditorService);
+	if (!project || !part?.mainFile) {
+		return;
+	}
+	const pane = await editorService.openEditor({ resource: joinPath(project.root, part.folder, part.mainFile) });
+	if (pane instanceof BuildingEditor) {
+		await pane.exportIfc();
+	}
+});

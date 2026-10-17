@@ -38,6 +38,8 @@ export interface IRecentProject {
 	readonly label: string;
 	/** When the project was last opened in SAEngine [ms since the epoch], if known. */
 	readonly opened?: number;
+	/** When a part's main file last changed, for projects last opened before SAEngine recorded it. */
+	readonly changed?: number;
 }
 
 /**
@@ -217,6 +219,20 @@ export class ProjectOpener {
 		}
 	}
 
+	/** The latest modification of the project's manifest and part main files. */
+	private async lastChanged(project: ISaengineProject): Promise<number | undefined> {
+		const files = [project.manifest, ...this.projectService.parts.filter(p => p.mainFile).map(p => joinPath(project.root, p.folder, p.mainFile!))];
+		const times = await Promise.all(files.map(async file => {
+			try {
+				return (await this.fileService.stat(file)).mtime;
+			} catch {
+				return undefined;
+			}
+		}));
+		const known = times.filter((time): time is number => typeof time === 'number');
+		return known.length ? Math.max(...known) : undefined;
+	}
+
 	/** Recently opened folders that are still SAEngine projects, most recent first. */
 	async recentProjects(limit = 8): Promise<IRecentProject[]> {
 		const recent = (await this.workspacesService.getRecentlyOpened()).workspaces.filter(isRecentFolder);
@@ -228,7 +244,8 @@ export class ProjectOpener {
 			}
 			const project = await this.projectService.findProject(entry.folderUri);
 			if (project) {
-				projects.push({ project, label: project.name, opened: opened[entry.folderUri.toString()] });
+				const time = opened[entry.folderUri.toString()];
+				projects.push({ project, label: project.name, opened: time, changed: time === undefined ? await this.lastChanged(project) : undefined });
 			}
 		}
 		return projects;

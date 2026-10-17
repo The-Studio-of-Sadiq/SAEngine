@@ -11,8 +11,9 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IPartStatus, PartState, REPORT_FILE } from '../../../services/saengineProject/common/partStatus.js';
+import { IPartStatus, PartState } from '../../../services/saengineProject/common/partStatus.js';
 import { IProjectPart, ISaengineProject } from '../../../services/saengineProject/common/saengineProject.js';
+import { ExportsEditorInput } from './exportsEditorInput.js';
 
 /*
  * The project's parts as the sidebar and the overview show them: numbered in workflow order
@@ -133,11 +134,9 @@ export function appendProjectPath(parent: HTMLElement, root: URI, userHome: URI 
 	return element;
 }
 
-const PRINT_REPORT_COMMAND = 'saengine.report.print';
-
 /**
  * Opens the editor of a part: its main file, with the editor registered for it. Part 11 has no
- * main file: its design report opens in the system's PDF viewer, or is printed if there is none.
+ * main file: it opens the exports page.
  */
 export async function openPart(project: ISaengineProject, part: IProjectPart, services: {
 	readonly editorService: IEditorService;
@@ -148,12 +147,7 @@ export async function openPart(project: ISaengineProject, part: IProjectPart, se
 	const resource = partResource(project, part);
 	if (resource) {
 		await services.editorService.openEditor({ resource, options: { pinned: true, preserveFocus: options?.preserveFocus } });
-		return;
-	}
-	const report = joinPath(project.root, part.folder, REPORT_FILE);
-	if (await services.fileService.exists(report)) {
-		await services.openerService.open(report, { openExternal: true });
-	} else {
-		await services.commandService.executeCommand(PRINT_REPORT_COMMAND);
+	} else if (part.id === 'exports') {
+		await services.editorService.openEditor(ExportsEditorInput.instance, { pinned: true, preserveFocus: options?.preserveFocus });
 	}
 }

@@ -6,7 +6,7 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
@@ -22,11 +22,26 @@ const ProjectOpenContext = new RawContextKey<boolean>('saengineProjectOpen', fal
 
 const VIEW_CONTAINER_ID = 'workbench.view.saengine.model';
 
+/** The project sidebar (saengineNavigator.contribution.ts): the parts, then the model tree. */
+const PROJECT_VIEW_CONTAINER_ID = 'workbench.view.saengine.project';
+
+/** Developer mode (`saengine.developerMode`, see saengineShell.contribution.ts). */
+const DeveloperModeContext = ContextKeyExpr.has('saengineDeveloperMode');
+
 const modelViewIcon = registerIcon('saengine-model-view-icon', Codicon.symbolStructure, localize('modelViewIcon', "View icon of the SAEngine model views."));
 const explorerViewIcon = registerIcon('saengine-model-explorer-view-icon', Codicon.listTree, localize('modelExplorerViewIcon', "View icon of the Model Explorer."));
 const propertiesViewIcon = registerIcon('saengine-properties-view-icon', Codicon.symbolProperty, localize('propertiesViewIcon', "View icon of the Properties view."));
 
-const container = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
+const viewContainers = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
+const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+
+/*
+ * The model tree lives in the project sidebar, under the parts, collapsed until opened: it
+ * selects members for the Floor Plan, BIM and the analysis wherever they are open. The editors
+ * show the selection's properties in their own properties panel, so the separate Properties view
+ * and its "Model" side bar (an extra icon) are only there in developer mode.
+ */
+const modelContainer = viewContainers.registerViewContainer({
 	id: VIEW_CONTAINER_ID,
 	title: localize2('model', "Model"),
 	icon: modelViewIcon,
@@ -36,28 +51,44 @@ const container = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContai
 	storageId: VIEW_CONTAINER_ID,
 }, ViewContainerLocation.Sidebar);
 
-Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([
-	{
+function registerExplorer(): void {
+	const projectContainer = viewContainers.get(PROJECT_VIEW_CONTAINER_ID);
+	viewsRegistry.registerViews([{
 		id: ModelExplorerView.ID,
 		name: localize2('modelExplorer', "Model Explorer"),
 		containerIcon: explorerViewIcon,
 		ctorDescriptor: new SyncDescriptor(ModelExplorerView),
 		when: ProjectOpenContext,
 		canMoveView: true,
-		weight: 60,
-		order: 1,
-	},
-	{
-		id: PropertiesView.ID,
-		name: localize2('properties', "Properties"),
-		containerIcon: propertiesViewIcon,
-		ctorDescriptor: new SyncDescriptor(PropertiesView),
-		when: ProjectOpenContext,
-		canMoveView: true,
+		canToggleVisibility: true,
+		collapsed: true,
 		weight: 40,
-		order: 2,
-	},
-], container);
+		order: 10,
+	}], projectContainer ?? modelContainer);
+}
+
+// The project sidebar is registered by the project contribution; it may load after this one.
+if (viewContainers.get(PROJECT_VIEW_CONTAINER_ID)) {
+	registerExplorer();
+} else {
+	const listener = viewContainers.onDidRegister(({ viewContainer }) => {
+		if (viewContainer.id === PROJECT_VIEW_CONTAINER_ID) {
+			listener.dispose();
+			registerExplorer();
+		}
+	});
+}
+
+viewsRegistry.registerViews([{
+	id: PropertiesView.ID,
+	name: localize2('properties', "Properties"),
+	containerIcon: propertiesViewIcon,
+	ctorDescriptor: new SyncDescriptor(PropertiesView),
+	when: ContextKeyExpr.and(ProjectOpenContext, DeveloperModeContext),
+	canMoveView: true,
+	weight: 40,
+	order: 2,
+}], modelContainer);
 
 /** Keeps `saengineProjectOpen` in step with the project service. */
 class ProjectOpenContextContribution extends Disposable implements IWorkbenchContribution {

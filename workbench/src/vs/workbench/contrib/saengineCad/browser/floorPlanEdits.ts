@@ -372,6 +372,14 @@ export function rotateMember(layout: unknown, group: MemberGroup, id: string, de
 	return changeMember(layout, group, id, member => ({ ...member, rotation: angle }));
 }
 
+/** Gives a member another object type (of a kind its group places: see {@link TOOL_KINDS}). */
+export function changeMemberType(layout: unknown, group: MemberGroup, id: string, type: string): EditResult {
+	if (!type) {
+		return { ok: false, error: localize('edit.noType', "Choose an object type.") };
+	}
+	return changeMember(layout, group, id, member => ({ ...member, type }));
+}
+
 /** A slab bounded by `points` (in order around it) on `story`. */
 export function placePolygonSlab(layout: unknown, type: string, story: string, points: readonly CadPoint[]): EditResult {
 	const distinct = points.filter((p, i) => i === 0 || Math.hypot(p[0] - points[i - 1][0], p[1] - points[i - 1][1]) >= 1);

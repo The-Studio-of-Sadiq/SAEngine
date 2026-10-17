@@ -3,95 +3,80 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.saengine-boq-editor {
-	display: flex;
-	flex-direction: column;
-	overflow: hidden;
-}
+/* The bill of quantities on the shared editor frame (editorFrame.css): one table whose groups
+ * share the columns, so codes, quantities and units line up down the whole bill. */
 
-.saengine-boq-editor .boq-source {
-	display: flex;
-	flex: none;
-	align-items: center;
-	flex-wrap: wrap;
-	gap: 6px 16px;
-	padding: 8px 16px;
-	border-bottom: 1px solid var(--vscode-editorGroup-border, transparent);
-}
-
-.saengine-boq-editor .boq-source-status {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-}
-
-.saengine-boq-editor .boq-source-status .codicon-warning {
-	color: var(--vscode-editorWarning-foreground);
-}
-
-.saengine-boq-editor .boq-source-status .codicon-check {
-	color: var(--vscode-testing-iconPassed, var(--vscode-charts-green));
-}
-
-.saengine-boq-editor .boq-source-actions {
-	display: flex;
-	gap: 8px;
-	margin-left: auto;
-}
-
-.saengine-boq-editor .boq-source-actions .monaco-button {
-	width: auto;
-	padding: 2px 10px;
+.saengine-boq-editor .boq-scroll {
+	flex: 1;
+	min-height: 0;
 }
 
 .saengine-boq-editor .boq-body {
-	flex: 1;
-	overflow: auto;
-	padding: 4px 16px 16px;
+	box-sizing: border-box;
+	height: 100%;
+	padding: var(--sa-space-2, 8px) var(--sa-space-4, 16px) var(--sa-space-6, 24px);
 	outline: none;
 }
 
-.saengine-boq-editor .boq-message {
-	color: var(--vscode-descriptionForeground);
-}
-
-.saengine-boq-editor .boq-group h2 {
-	margin: 16px 0 6px;
-	font-size: 13px;
-	font-weight: 600;
-}
-
-.saengine-boq-editor table {
+.saengine-boq-editor .boq-table {
 	width: 100%;
+	max-width: 880px;
 	border-collapse: collapse;
+	table-layout: fixed;
 }
 
-.saengine-boq-editor th {
-	text-align: left;
-	font-weight: normal;
-	color: var(--vscode-descriptionForeground);
-	border-bottom: 1px solid var(--vscode-editorGroup-border, transparent);
+.saengine-boq-editor .boq-table col.code {
+	width: 84px;
+}
+
+.saengine-boq-editor .boq-table col.number {
+	width: 104px;
+}
+
+.saengine-boq-editor .boq-table col.unit {
+	width: 44px;
 }
 
 .saengine-boq-editor th,
 .saengine-boq-editor td {
-	padding: 3px 8px;
-	vertical-align: top;
+	padding: 0 var(--sa-space-2, 8px);
+	height: 24px;
+	line-height: 24px;
+	text-align: left;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.saengine-boq-editor thead th {
+	font-weight: normal;
+	font-size: var(--sa-font-s, 12px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	border-bottom: 1px solid var(--sa-border, var(--vscode-panel-border));
 }
 
 .saengine-boq-editor .number {
 	text-align: right;
 	font-variant-numeric: tabular-nums;
-	white-space: nowrap;
-}
-
-.saengine-boq-editor .code {
-	width: 80px;
-	white-space: nowrap;
 }
 
 .saengine-boq-editor .unit {
-	width: 40px;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+/* group heading: a small muted label, as in the sidebar */
+.saengine-boq-editor .boq-group-row th {
+	height: auto;
+	padding-top: var(--sa-space-4, 16px);
+	padding-bottom: var(--sa-space-1, 4px);
+	line-height: 16px;
+	font-size: var(--sa-font-s, 12px);
+	font-weight: 600;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-boq-editor .boq-group:first-of-type .boq-group-row th {
+	padding-top: var(--sa-space-2, 8px);
 }
 
 .saengine-boq-editor .boq-item {
@@ -102,40 +87,73 @@
 	background-color: var(--vscode-list-hoverBackground);
 }
 
+.saengine-boq-editor .boq-item.selected {
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground, inherit);
+}
+
 .saengine-boq-editor .boq-item:focus {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
 
-.saengine-boq-editor .boq-item .code .codicon {
-	margin-right: 4px;
-	vertical-align: text-bottom;
+.saengine-boq-editor .boq-item .boq-twistie {
+	margin-right: 2px;
+	vertical-align: middle;
+	font-size: 14px;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
 }
 
-.saengine-boq-editor .boq-breakdown > td {
-	padding: 4px 8px 8px 32px;
-	background-color: var(--vscode-editorWidget-background);
-}
-
-.saengine-boq-editor .boq-stories {
-	margin-bottom: 4px;
-	color: var(--vscode-descriptionForeground);
+.saengine-boq-editor .boq-item .code > span:last-child {
+	vertical-align: middle;
 }
 
 .saengine-boq-editor .boq-total td {
 	font-weight: 600;
-	border-top: 1px solid var(--vscode-editorGroup-border, transparent);
+	border-top: 1px solid var(--sa-border, var(--vscode-panel-border));
 }
 
-.saengine-boq-editor .boq-notes {
-	margin-top: 16px;
-	color: var(--vscode-descriptionForeground);
+.saengine-boq-editor .boq-total .unit {
+	color: inherit;
 }
 
-.saengine-boq-editor .boq-notes summary {
-	cursor: pointer;
+/* the breakdown under an expanded row, indented to the description column */
+.saengine-boq-editor .boq-breakdown > td {
+	height: auto;
+	padding: var(--sa-space-1, 4px) 0 var(--sa-space-2, 8px) 84px;
+	white-space: normal;
+	background-color: var(--sa-surface-alt, var(--vscode-sideBar-background));
 }
 
-.saengine-boq-editor .boq-notes li {
-	margin: 4px 0;
+.saengine-boq-editor .boq-breakdown-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-boq-editor .boq-breakdown-table th,
+.saengine-boq-editor .boq-breakdown-table td {
+	height: 20px;
+	line-height: 20px;
+}
+
+.saengine-boq-editor .boq-breakdown-table th.number,
+.saengine-boq-editor .boq-breakdown-table td.number {
+	width: 104px;
+	box-sizing: border-box;
+}
+
+.saengine-boq-editor .boq-breakdown-table th.unit,
+.saengine-boq-editor .boq-breakdown-table td.unit {
+	width: 44px;
+	box-sizing: border-box;
+}
+
+.saengine-boq-editor .boq-breakdown-table thead th {
+	border-bottom: none;
+}
+
+.saengine-boq-editor .boq-breakdown-table .detail,
+.saengine-boq-editor .boq-breakdown-table .muted {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
 }

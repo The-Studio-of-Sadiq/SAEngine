@@ -3,7 +3,7 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AcApDocManager, AcApOpenViewMode, AcApXrefManager, AcEdOpenMode, MTEXT_RENDERER_WORKER_FILE } from '@mlightcad/cad-simple-viewer';
+import { AcApDocManager, AcApOpenViewMode, AcApSettingManager, AcApXrefManager, AcEdOpenMode, MTEXT_RENDERER_WORKER_FILE } from '@mlightcad/cad-simple-viewer';
 import { applyGenerated, CadGeneratedDrawing, CadPoint } from './generated.js';
 
 export type { CadEntitySpec, CadGeneratedDrawing, CadLayerSpec, CadPoint } from './generated.js';
@@ -15,6 +15,18 @@ export interface CadEditorOptions {
 	readonly workerBaseUrl: string;
 	/** Folder URL (with trailing slash) holding `fonts/` and `templates/`. */
 	readonly assetBaseUrl: string;
+	/** mlightcad's own controls to show (default: both). */
+	readonly chrome?: CadChrome;
+	/** Canvas background as 0xRRGGBB (default: black). ACI 7 linework turns black on light ones. */
+	readonly background?: number;
+}
+
+/** mlightcad's own controls over the canvas. */
+export interface CadChrome {
+	/** The AutoCAD-style command line ("Type command"). */
+	readonly commandLine?: boolean;
+	/** The floating undo / redo / erase toolbar. */
+	readonly shortcutToolbar?: boolean;
 }
 
 /** A reference drawing shown read-only and greyed under the content (e.g. an architect's plan). */
@@ -61,6 +73,16 @@ export interface CadEditor {
 	toDxf(): string;
 	/** Runs an AutoCAD-style command, e.g. "line" or "dimlinear". */
 	execute(command: string): Promise<void>;
+	/** Sets the canvas background (0xRRGGBB); ACI 7 linework follows it (black on light, white on dark). */
+	setBackground(rgb: number): void;
+	/** Shows or hides mlightcad's own controls (fields left out stay as they are). */
+	setChrome(chrome: CadChrome): void;
+	/** Which of mlightcad's own controls show now. */
+	getChrome(): Required<CadChrome>;
+	/** Called when a control is shown or hidden, also by its own close button; returns an unsubscribe function. */
+	onDidChangeChrome(listener: () => void): () => void;
+	/** Moves the keyboard focus to the command line, when it shows. */
+	focusCommandLine(): void;
 	/** Called when the user changes the open drawing (an undoable edit); returns an unsubscribe function. */
 	onDidChange(listener: () => void): () => void;
 	dispose(): Promise<void>;
@@ -80,6 +102,35 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	if (!manager) {
 		throw new Error('A CAD editor is already open; close it first.');
 	}
+
+	// mlightcad keeps its controls' visibility in one setting store per page; there is one live
+	// editor at a time, so each editor sets what it wants when it starts.
+	const settings = AcApSettingManager.instance;
+	const CHROME_KEYS = { commandLine: 'isShowCommandLine', shortcutToolbar: 'isShowShortCutToolbar' } as const;
+	const setChrome = (chrome: CadChrome) => {
+		for (const [field, key] of Object.entries(CHROME_KEYS) as [keyof CadChrome, typeof CHROME_KEYS[keyof CadChrome]][]) {
+			const value = chrome[field];
+			if (value !== undefined && settings.get(key) !== value) {
+				settings.set(key, value);
+			}
+		}
+	};
+	setChrome({ commandLine: true, shortcutToolbar: true, ...options.chrome });
+	const chromeListeners = new Set<() => void>();
+	const onSettingChanged = (args: { key: string }) => {
+		if (Object.values<string>(CHROME_KEYS).includes(args.key)) {
+			chromeListeners.forEach(listener => listener());
+		}
+	};
+	settings.events.modified.addEventListener(onSettingChanged);
+
+	let background = options.background;
+	const applyBackground = () => {
+		if (background !== undefined && manager.curView.backgroundColor !== background) {
+			manager.curView.backgroundColor = background;
+		}
+	};
+	applyBackground();
 
 	const listeners = new Set<() => void>();
 	let generated = new Set<string>();
@@ -128,6 +179,8 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			generated = new Set();
 			preview = new Set();
 			watchDocument();
+			// Opening a drawing applies its own background (MODELBKCOLOR); the host's wins.
+			applyBackground();
 		}
 		return ok;
 	};
@@ -200,6 +253,17 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			return typeof out === 'string' ? out : new TextDecoder().decode(out);
 		},
 		execute: command => manager.executeCommandString(command),
+		setBackground: rgb => {
+			background = rgb & 0xffffff;
+			applyBackground();
+		},
+		setChrome,
+		getChrome: () => ({ commandLine: !!settings.get(CHROME_KEYS.commandLine), shortcutToolbar: !!settings.get(CHROME_KEYS.shortcutToolbar) }),
+		onDidChangeChrome: listener => {
+			chromeListeners.add(listener);
+			return () => chromeListeners.delete(listener);
+		},
+		focusCommandLine: () => options.container.querySelector<HTMLInputElement>('input.ml-cli-text')?.focus(),
 		onDidChange: listener => {
 			listeners.add(listener);
 			return () => listeners.delete(listener);
@@ -210,6 +274,8 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 				AcApXrefManager.instance.unload(underlaySession);
 			}
 			listeners.clear();
+			chromeListeners.clear();
+			settings.events.modified.removeEventListener(onSettingChanged);
 			await manager.destroy();
 		},
 	};

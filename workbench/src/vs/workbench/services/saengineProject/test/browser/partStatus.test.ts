@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { sourceStamp } from '../../common/partSources.js';
-import { computePartStatuses, IPartStatusInputs, nextStep } from '../../common/partStatus.js';
+import { computePartStatuses, exportKind, IPartStatusInputs, nextStep } from '../../common/partStatus.js';
 import { PROJECT_PARTS, projectParts } from '../../common/saengineProject.js';
 
 const placeholder = (part: string) => JSON.stringify({ schema: 1, part });
@@ -112,6 +112,17 @@ suite('SAEngine - PartStatus', () => {
 			'materials: error invalid file',
 			'settings: notStarted not started',
 		]);
+	});
+
+	test('the exports part counts the exports besides the report', () => {
+		const exportsLine = (rest: Omit<IPartStatusInputs, 'texts'>) => summary(project({}, rest))[10];
+		assert.deepStrictEqual({
+			lines: [exportsLine({ exportFiles: 0 }), exportsLine({ exportFiles: 1 }), exportsLine({ exportFiles: 3 }), exportsLine({ exportFiles: 3, reportTime: 7 })],
+			kinds: ['report.pdf', 'IFC/Frame.ifc', 'Floor Plan\\L1 Ground.dxf', 'boq.csv', 'IFC/notes.txt', 'Floor Plan/old/L1.csv', 'other.pdf'].map(exportKind),
+		}, {
+			lines: ['exports: notStarted no report', 'exports: inProgress 1 file, no report', 'exports: inProgress 3 files, no report', 'exports: done report day 7'],
+			kinds: ['report', 'ifc', 'dxf', 'csv', undefined, undefined, undefined],
+		});
 	});
 
 	test('a special structure builds its model from the structural model', () => {

@@ -113,6 +113,8 @@ const EXTENSIONS_VIEW_CONTAINER = 'workbench.view.extensions';
 
 /** View containers that belong to code editing: every view in them is shown in developer mode only. */
 const DEVELOPER_VIEW_CONTAINERS = new Set([
+	// The file explorer: the project sidebar lists each part's files, so Files is a developer tool.
+	'workbench.view.explorer',
 	'workbench.view.scm',
 	'workbench.view.debug',
 	EXTENSIONS_VIEW_CONTAINER,
