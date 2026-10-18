@@ -259,6 +259,7 @@ import './contrib/saengineStructure/browser/saengineStructure.contribution.js';
 import './contrib/saengineBoq/browser/saengineBoq.contribution.js';
 import './contrib/saengineSoil/browser/saengineSoil.contribution.js';
 import './contrib/saengineSubstructure/browser/saengineSubstructure.contribution.js';
+import './contrib/saengineMep/browser/saengineMep.contribution.js';
 import './contrib/saengineReport/browser/saengineReport.contribution.js';
 import './contrib/saengineModel/browser/saengineModel.contribution.js';
 import './contrib/saengineFem/browser/saengineFem.contribution.js';

@@ -465,7 +465,8 @@ def test_the_sample_has_its_footing_in_9_substructure() -> None:
     assert not any(e.kind == "footing" for e in building.elements)
     assert json.loads(text("05 Floor Plan/floor-plan.json"))["footings"] == []
     assert building.source.floorPlan == source_stamp(text("05 Floor Plan/floor-plan.json"))
-    # The qa override stays, and the shipped bill is the bill of these files.
+    # The qa override stays, and the shipped bill is the bill of these files (with the tank's
+    # plinth and the sleeve of 7 MEP).
     settings = json.loads(text("02 Project Settings/project-settings.json"))
     assert settings["foundation"]["allowableBearing"] == 150
     bill = compute_boq(
@@ -474,6 +475,7 @@ def test_the_sample_has_its_footing_in_9_substructure() -> None:
         text("03 Materials/materials.json"),
         text(SUBSTRUCTURE_FILE),
         text("02 Project Settings/project-settings.json"),
+        text("07 MEP/mep.json"),
     )
     assert bill == json.loads(text("10 BOQ/boq.json"))
 

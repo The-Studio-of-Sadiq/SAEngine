@@ -2291,6 +2291,47 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					description: 'Pushover analyses: the frames as fiber elements that crack and yield, pushed sideways after the gravity loads (08 FEM/pushover.osmodel).',
 					title: 'Pushover',
 				},
+				thermal: {
+					$ref: '#/$defs/Thermal',
+					title: 'Temperature',
+				},
+				supports: {
+					default: 'fixed',
+					description: 'Fixed: the column bases are fixed. Soil springs: each column base stands on its foundation of 9 Substructure, on springs from the soil of 1 Soil Report (BNBC 2020 Part 6 Sec 1.2.7.3). Footings: ASCE 41-06 Sec 4.4.2.1.2 (Gazetas 1991). Pile caps: their piles\' head stiffnesses. Rafts: shells on subgrade springs. Columns without a foundation, strip footings and walls stay fixed. The foundations of 9 Substructure are then designed from a fixed-base run of the same model (Compare Fixed Base and Soil Springs; Run All runs it).',
+					enum: ['fixed', 'soilSprings'],
+					enumDescriptions: ['Fixed', 'Soil springs (Part 9 foundations on Part 1 soil)'],
+					title: 'Column supports',
+					type: 'string',
+				},
+				ssiShearModulusRatio: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 1,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Soil shear modulus under earthquake strains over the small-strain one from the SPT (Vs = 97.0 N^0.314 m/s, Imai & Tonouchi 1982). Empty: from the site\'s effective peak acceleration (2/3)·Z·S, by ASCE 7-05 Table 19.2-1 (0.81 at 0.10 g or less, 0.64 at 0.15 g, 0.49 at 0.20 g, 0.42 at 0.30 g or more, linear between).',
+					title: 'Effective shear modulus ratio G/G0',
+				},
+				ssiPileGroupFactor: {
+					default: 1.0,
+					description: 'Multiplies the summed lateral and torsional stiffness of a cap\'s piles. 1.0: no pile-soil-pile interaction (BNBC 2020 Part 6 Sec 3.10.1.19 takes a group efficiency of 1.0 for capacity).',
+					exclusiveMinimum: 0,
+					maximum: 1,
+					title: 'Pile group factor (lateral)',
+					type: 'number',
+				},
+				ssiEmbedment: {
+					default: true,
+					description: 'Increase the footings\' springs by the embedment factors of ASCE 41-06 Sec 4.4.2.1.2 (depth below the finished ground, sides in contact up to the footing\'s thickness).',
+					title: 'Footing embedment',
+					type: 'boolean',
+				},
 			},
 			title: 'Analysis',
 			type: 'object',
@@ -2455,6 +2496,25 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					default: 0,
 					title: 'E y',
 					type: 'number',
+				},
+				T: {
+					default: 0,
+					description: 'Factor on the temperature case T (Analysis model → Temperature). BNBC 2020 Part 6 Sec 2.7.3.1 has T only in 1.2(D + F + T) + 1.6(L + H) + 0.5(Lr or R).',
+					title: 'T',
+					type: 'number',
+				},
+				F: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Factor on the fluid loads (the contents of equipment in 07 MEP). Empty: the D factor where it is above 1.0, else 0 (BNBC 2020 2.7.3.1: F with D in 1.4(D + F) and 1.2(D + F + T) + ...; none in the 0.9D combinations, as a tank may be empty). 1.2F in the other 1.2D combinations is an SAEngine adoption, on the safe side for gravity.',
+					title: 'F',
 				},
 			},
 			required: ['name'],
@@ -2703,6 +2763,44 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'Site',
 			type: 'object',
 		},
+		Thermal: {
+			additionalProperties: false,
+			description: 'The temperature load case T (BNBC 2020 Part 6 Sec 2.6.4; T in the combinations of Sec\n2.7).',
+			properties: {
+				enabled: {
+					default: false,
+					description: 'Add the load case T: the members\' restrained expansion or contraction and the bending of a sun-heated roof. BNBC 2020 asks for temperature effects where significant, unless expansion joints relieve them (Part 6 Sec 2.6.4). With rigid floor diaphragms, this case is analysed without them, so the floors can expand.',
+					title: 'Temperature case T',
+					type: 'boolean',
+				},
+				uniform: {
+					default: 20.0,
+					description: 'Change of the members\' temperature from the construction temperature [°C], + expansion. BNBC gives no design range; take the site\'s range of shade air temperature (Sec 2.6.4(a)). The combinations apply it as a rise (+T) and a fall (-T); enter the larger. Suggestion for Bangladesh: 20 °C.',
+					maximum: 60,
+					minimum: -60,
+					title: 'Uniform change ΔTu',
+					type: 'number',
+				},
+				gradient: {
+					default: 10.0,
+					description: 'Top face minus bottom face of the roof\'s beams and slabs [°C] (sun-heated roof); 0 for none. Not given by BNBC; about 10 °C is a common assumption for an uninsulated concrete roof.',
+					maximum: 40,
+					minimum: -40,
+					title: 'Roof gradient ΔTg',
+					type: 'number',
+				},
+				scope: {
+					default: 'roof',
+					description: 'The roof\'s beams and slabs (a sun-exposed roof over a shaded building), or every member and shell (an open structure). The roof is every horizontal beam and slab with nothing above it: the main roof and any stair, lift-machine or tank room roof above it.',
+					enum: ['roof', 'all'],
+					enumDescriptions: ['Roof beams and slabs', 'All members and shells'],
+					title: 'Uniform change applies to',
+					type: 'string',
+				},
+			},
+			title: 'Thermal',
+			type: 'object',
+		},
 		TimeHistory: {
 			additionalProperties: false,
 			description: 'A ground acceleration record run as a time-history analysis.',
@@ -2918,6 +3016,8 @@ export const DEFAULT_SETTINGS: object = {
 			WY: 0.0,
 			EX: 0.0,
 			EY: 0.0,
+			T: 0.0,
+			F: 1.4,
 		},
 		{
 			name: '1.2D + 1.6L + 0.5Lr',
@@ -2928,6 +3028,8 @@ export const DEFAULT_SETTINGS: object = {
 			WY: 0.0,
 			EX: 0.0,
 			EY: 0.0,
+			T: 0.0,
+			F: 1.2,
 		},
 		{
 			name: '1.2D + 1.6Lr + 1.0L',
@@ -2938,6 +3040,8 @@ export const DEFAULT_SETTINGS: object = {
 			WY: 0.0,
 			EX: 0.0,
 			EY: 0.0,
+			T: 0.0,
+			F: 1.2,
 		},
 		{
 			name: '1.2D + 1.6Lr + 0.8WX',
@@ -2948,6 +3052,8 @@ export const DEFAULT_SETTINGS: object = {
 			WY: 0.0,
 			EX: 0.0,
 			EY: 0.0,
+			T: 0.0,
+			F: 1.2,
 		},
 		{
 			name: '1.2D + 1.6Lr + 0.8(-WX)',
@@ -2958,6 +3064,8 @@ export const DEFAULT_SETTINGS: object = {
 			WY: 0.0,
 			EX: 0.0,
 			EY: 0.0,
+			T: 0.0,
+			F: 1.2,
 		},
 		{
 			name: '1.2D + 1.6Lr + 0.8WY',
@@ -2968,6 +3076,8 @@ export const DEFAULT_SETTINGS: object = {
 			WY: 0.8,
 			EX: 0.0,
 			EY: 0.0,
+			T: 0.0,
+			F: 1.2,
 		},
 		{
 			name: '1.2D + 1.6Lr + 0.8(-WY)',
@@ -2978,6 +3088,8 @@ export const DEFAULT_SETTINGS: object = {
 			WY: -0.8,
 			EX: 0.0,
 			EY: 0.0,
+			T: 0.0,
+			F: 1.2,
 		},
 		{
 			name: '1.2D + 1.6WX + 1.0L + 0.5Lr',
@@ -2988,6 +3100,8 @@ export const DEFAULT_SETTINGS: object = {
 			WY: 0.0,
 			EX: 0.0,
 			EY: 0.0,
+			T: 0.0,
+			F: 1.2,
 		},
 		{
 			name: '1.2D + 1.6(-WX) + 1.0L + 0.5Lr',
@@ -2998,6 +3112,8 @@ export const DEFAULT_SETTINGS: object = {
 			WY: 0.0,
 			EX: 0.0,
 			EY: 0.0,
+			T: 0.0,
+			F: 1.2,
 		},
 		{
 			name: '1.2D + 1.6WY + 1.0L + 0.5Lr',
@@ -3008,6 +3124,8 @@ export const DEFAULT_SETTINGS: object = {
 			WY: 1.6,
 			EX: 0.0,
 			EY: 0.0,
+			T: 0.0,
+			F: 1.2,
 		},
 		{
 			name: '1.2D + 1.6(-WY) + 1.0L + 0.5Lr',
@@ -3018,6 +3136,8 @@ export const DEFAULT_SETTINGS: object = {
 			WY: -1.6,
 			EX: 0.0,
 			EY: 0.0,
+			T: 0.0,
+			F: 1.2,
 		},
 		{
 			name: '1.2D + 1.0EX + 1.0L',
@@ -3028,6 +3148,8 @@ export const DEFAULT_SETTINGS: object = {
 			WY: 0.0,
 			EX: 1.0,
 			EY: 0.0,
+			T: 0.0,
+			F: 1.2,
 		},
 		{
 			name: '1.2D + 1.0(-EX) + 1.0L',
@@ -3038,6 +3160,8 @@ export const DEFAULT_SETTINGS: object = {
 			WY: 0.0,
 			EX: -1.0,
 			EY: 0.0,
+			T: 0.0,
+			F: 1.2,
 		},
 		{
 			name: '1.2D + 1.0EY + 1.0L',
@@ -3048,6 +3172,8 @@ export const DEFAULT_SETTINGS: object = {
 			WY: 0.0,
 			EX: 0.0,
 			EY: 1.0,
+			T: 0.0,
+			F: 1.2,
 		},
 		{
 			name: '1.2D + 1.0(-EY) + 1.0L',
@@ -3058,6 +3184,8 @@ export const DEFAULT_SETTINGS: object = {
 			WY: 0.0,
 			EX: 0.0,
 			EY: -1.0,
+			T: 0.0,
+			F: 1.2,
 		},
 		{
 			name: '0.9D + 1.6WX',
@@ -3068,6 +3196,8 @@ export const DEFAULT_SETTINGS: object = {
 			WY: 0.0,
 			EX: 0.0,
 			EY: 0.0,
+			T: 0.0,
+			F: 0.0,
 		},
 		{
 			name: '0.9D + 1.6(-WX)',
@@ -3078,6 +3208,8 @@ export const DEFAULT_SETTINGS: object = {
 			WY: 0.0,
 			EX: 0.0,
 			EY: 0.0,
+			T: 0.0,
+			F: 0.0,
 		},
 		{
 			name: '0.9D + 1.6WY',
@@ -3088,6 +3220,8 @@ export const DEFAULT_SETTINGS: object = {
 			WY: 1.6,
 			EX: 0.0,
 			EY: 0.0,
+			T: 0.0,
+			F: 0.0,
 		},
 		{
 			name: '0.9D + 1.6(-WY)',
@@ -3098,6 +3232,8 @@ export const DEFAULT_SETTINGS: object = {
 			WY: -1.6,
 			EX: 0.0,
 			EY: 0.0,
+			T: 0.0,
+			F: 0.0,
 		},
 		{
 			name: '0.9D + 1.0EX',
@@ -3108,6 +3244,8 @@ export const DEFAULT_SETTINGS: object = {
 			WY: 0.0,
 			EX: 1.0,
 			EY: 0.0,
+			T: 0.0,
+			F: 0.0,
 		},
 		{
 			name: '0.9D + 1.0(-EX)',
@@ -3118,6 +3256,8 @@ export const DEFAULT_SETTINGS: object = {
 			WY: 0.0,
 			EX: -1.0,
 			EY: 0.0,
+			T: 0.0,
+			F: 0.0,
 		},
 		{
 			name: '0.9D + 1.0EY',
@@ -3128,6 +3268,8 @@ export const DEFAULT_SETTINGS: object = {
 			WY: 0.0,
 			EX: 0.0,
 			EY: 1.0,
+			T: 0.0,
+			F: 0.0,
 		},
 		{
 			name: '0.9D + 1.0(-EY)',
@@ -3138,6 +3280,8 @@ export const DEFAULT_SETTINGS: object = {
 			WY: 0.0,
 			EX: 0.0,
 			EY: -1.0,
+			T: 0.0,
+			F: 0.0,
 		},
 	],
 	analysis: {
@@ -3147,12 +3291,48 @@ export const DEFAULT_SETTINGS: object = {
 		responseSpectrum: true,
 		constructionSequence: false,
 		timeHistories: [],
+		thermal: {
+			enabled: false,
+			uniform: 20.0,
+			gradient: 10.0,
+			scope: 'roof',
+		},
+		supports: 'fixed',
+		ssiPileGroupFactor: 1.0,
+		ssiEmbedment: true,
 	},
 	foundation: {
 		soilUnitWeight: 18.0,
 		groundLevel: 0.0,
 	},
 };
+
+export const THERMAL_COMBINATIONS: readonly object[] = [
+	{
+		name: '1.2D + 1.2T + 1.6L + 0.5Lr',
+		D: 1.2,
+		L: 1.6,
+		Lr: 0.5,
+		WX: 0.0,
+		WY: 0.0,
+		EX: 0.0,
+		EY: 0.0,
+		T: 1.2,
+		F: 1.2,
+	},
+	{
+		name: '1.2D - 1.2T + 1.6L + 0.5Lr',
+		D: 1.2,
+		L: 1.6,
+		Lr: 0.5,
+		WX: 0.0,
+		WY: 0.0,
+		EX: 0.0,
+		EY: 0.0,
+		T: -1.2,
+		F: 1.2,
+	},
+];
 
 export const BNBC: IBnbcTables = {
 	edition: 'BNBC 2020',
@@ -3387,6 +3567,8 @@ export const BNBC: IBnbcTables = {
 		WY: 'Wind in Y',
 		EX: 'Earthquake in X',
 		EY: 'Earthquake in Y',
+		F: 'Fluids (equipment contents)',
+		T: 'Temperature',
 	},
 };
 
@@ -5815,6 +5997,16 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		constructionSequence: false,
 		timeHistories: [],
 		pushover: null,
+		thermal: {
+			enabled: false,
+			uniform: 20.0,
+			gradient: 10.0,
+			scope: 'roof',
+		},
+		supports: 'fixed',
+		ssiShearModulusRatio: null,
+		ssiPileGroupFactor: 1.0,
+		ssiEmbedment: true,
 	},
 	Pushover: {
 		directions: ['X', 'Y'],
@@ -8440,4 +8632,468 @@ export const DEFAULT_SUBSTRUCTURE: object = {
 		raftMeshSize: 500.0,
 		springsFrom: 'soilReport',
 	},
+};
+
+export const MEP_SCHEMA: IJSONSchema = {
+	$defs: {
+		Equipment: {
+			additionalProperties: false,
+			description: 'A piece of equipment standing on a floor: its weight is a load on the structure.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					default: '',
+					description: 'E.g. \'Overhead water tank\'.',
+					title: 'Name',
+					type: 'string',
+				},
+				kind: {
+					default: 'other',
+					enum: ['tank', 'chiller', 'ahu', 'pump', 'generator', 'transformer', 'lift', 'other'],
+					enumDescriptions: ['Water tank', 'Chiller', 'Air handling unit', 'Pump', 'Generator', 'Transformer', 'Lift machine', 'Other'],
+					title: 'Kind',
+					type: 'string',
+				},
+				story: {
+					description: 'Building-model story it stands on.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				x: {
+					description: 'Centre of the footprint, plan X [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					description: 'Centre of the footprint, plan Y [mm].',
+					title: 'Y',
+					type: 'number',
+				},
+				length: {
+					description: 'Footprint along its local x [mm].',
+					exclusiveMinimum: 0,
+					title: 'Length',
+					type: 'number',
+				},
+				width: {
+					description: 'Footprint along its local y [mm].',
+					exclusiveMinimum: 0,
+					title: 'Width',
+					type: 'number',
+				},
+				height: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Height',
+				},
+				operatingWeight: {
+					description: 'Weight in operation, with its contents (water, oil, refrigerant) [kN].',
+					exclusiveMinimum: 0,
+					title: 'Operating weight',
+					type: 'number',
+				},
+				emptyWeight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Weight without its contents [kN]; empty: the operating weight.',
+					title: 'Empty weight',
+				},
+				vibrating: {
+					default: false,
+					description: 'Machinery whose operation imposes vibration or impact (BNBC 2020 Sec 2.3.12): an impact allowance is added as live load (Table 6.2.6). Lifts always have it.',
+					title: 'Vibrating',
+					type: 'boolean',
+				},
+				impact: {
+					anyOf: [
+						{
+							maximum: 200,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Vertical impact load as a percentage of the operating weight, from the manufacturer; empty: BNBC 2020 Table 6.2.6 for the kind.',
+					title: 'Impact allowance',
+				},
+				rotation: {
+					default: 0,
+					description: 'Of its local x from the global X [°].',
+					title: 'Rotation',
+					type: 'number',
+				},
+				loadAs: {
+					default: 'area',
+					description: 'Area: spread uniformly over the footprint. Points: on its supports (the footprint corners unless given).',
+					enum: ['area', 'points'],
+					enumDescriptions: ['Uniform over the footprint', 'On its supports'],
+					title: 'Load as',
+					type: 'string',
+				},
+				supports: {
+					description: 'Support points in its local axes from the centre [x, y] mm, for \'points\'; empty: the four corners of the footprint.',
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					title: 'Supports',
+					type: 'array',
+				},
+				plinth: {
+					anyOf: [
+						{
+							$ref: '#/$defs/Plinth',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Plinth',
+				},
+			},
+			required: ['id', 'story', 'x', 'y', 'length', 'width', 'operatingWeight'],
+			title: 'Equipment',
+			type: 'object',
+		},
+		IfcModel: {
+			additionalProperties: false,
+			description: 'An MEP model of the building services, an IFC file in the project.',
+			properties: {
+				path: {
+					description: 'Project-relative path of the .ifc file.',
+					minLength: 1,
+					title: 'Path',
+					type: 'string',
+				},
+				discipline: {
+					default: 'mechanical',
+					enum: ['mechanical', 'plumbing', 'fire', 'electrical'],
+					enumDescriptions: ['Mechanical (HVAC)', 'Plumbing', 'Fire protection', 'Electrical'],
+					title: 'Discipline',
+					type: 'string',
+				},
+				visible: {
+					default: true,
+					title: 'Visible',
+					type: 'boolean',
+				},
+			},
+			required: ['path'],
+			title: 'IfcModel',
+			type: 'object',
+		},
+		Opening: {
+			additionalProperties: false,
+			description: 'A sleeve or opening through a beam, slab or wall for a service.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				host: {
+					description: 'Building-model id of the beam, slab or wall it passes through.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Host',
+					type: 'string',
+				},
+				kind: {
+					default: 'sleeve',
+					enum: ['sleeve', 'opening'],
+					enumDescriptions: ['Sleeve (a pipe passing through)', 'Opening'],
+					title: 'Kind',
+					type: 'string',
+				},
+				shape: {
+					default: 'circle',
+					enum: ['circle', 'rectangle'],
+					enumDescriptions: ['Circle', 'Rectangle'],
+					title: 'Shape',
+					type: 'string',
+				},
+				diameter: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Diameter',
+				},
+				width: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Rectangle: along the beam or wall, or along X in a slab [mm].',
+					title: 'Width',
+				},
+				height: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Rectangle: vertical in a beam or wall, or along Y in a slab [mm].',
+					title: 'Height',
+				},
+				position: {
+					$ref: '#/$defs/OpeningPosition',
+					title: 'Position',
+				},
+				service: {
+					default: '',
+					description: 'E.g. \'DN150 drain\'.',
+					title: 'Service',
+					type: 'string',
+				},
+			},
+			required: ['id', 'host', 'position'],
+			title: 'Opening',
+			type: 'object',
+		},
+		OpeningPosition: {
+			additionalProperties: false,
+			description: 'Where an opening is in its host: in a beam ``distance`` from the beam\'s start and\n``elevation`` of its centre above the beam\'s bottom; in a slab the plan position ``x``,\n``y`` of its centre; in a wall ``x`` along the wall from its start and ``y`` up from its\nbottom, to the centre.',
+			properties: {
+				distance: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Beam: from its start end [mm].',
+					title: 'Distance',
+				},
+				elevation: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Beam: centre above the beam\'s bottom [mm].',
+					title: 'Elevation',
+				},
+				x: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Slab: plan X; wall: along the wall [mm].',
+					title: 'X',
+				},
+				y: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Slab: plan Y; wall: up from its bottom [mm].',
+					title: 'Y',
+				},
+			},
+			title: 'OpeningPosition',
+			type: 'object',
+		},
+		Plinth: {
+			additionalProperties: false,
+			description: 'A concrete plinth under a piece of equipment, of the equipment\'s footprint.',
+			properties: {
+				height: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Height',
+					type: 'number',
+				},
+				material: {
+					description: 'Concrete from 03 Materials (its density gives the weight).',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Material',
+					type: 'string',
+				},
+			},
+			required: ['height', 'material'],
+			title: 'Plinth',
+			type: 'object',
+		},
+		Shaft: {
+			additionalProperties: false,
+			description: 'A vertical service shaft: a hole through the floors from one story up to another.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				outline: {
+					description: 'Plan outline [mm].',
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					minItems: 3,
+					title: 'Outline',
+					type: 'array',
+				},
+				fromStory: {
+					description: 'Story it starts at (not cut).',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'From story',
+					type: 'string',
+				},
+				toStory: {
+					description: 'Highest story whose floor it cuts.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'To story',
+					type: 'string',
+				},
+				service: {
+					default: '',
+					title: 'Service',
+					type: 'string',
+				},
+			},
+			required: ['id', 'outline', 'fromStory', 'toStory'],
+			title: 'Shaft',
+			type: 'object',
+		},
+	},
+	additionalProperties: false,
+	properties: {
+		schema: {
+			const: 'saengine.mep/1',
+			default: 'saengine.mep/1',
+			title: 'Schema_',
+			type: 'string',
+		},
+		equipment: {
+			items: {
+				$ref: '#/$defs/Equipment',
+			},
+			title: 'Equipment',
+			type: 'array',
+		},
+		openings: {
+			items: {
+				$ref: '#/$defs/Opening',
+			},
+			title: 'Openings',
+			type: 'array',
+		},
+		shafts: {
+			items: {
+				$ref: '#/$defs/Shaft',
+			},
+			title: 'Shafts',
+			type: 'array',
+		},
+		ifcModels: {
+			items: {
+				$ref: '#/$defs/IfcModel',
+			},
+			title: 'IFC models',
+			type: 'array',
+		},
+		contentsAs: {
+			default: 'fluid',
+			description: 'Fluid: the contents (operating minus empty weight) are the fluid load F of BNBC 2020 2.7.3.1, in 1.4(D + F) and 1.2(D + F + T) + ... and not in the 0.9D combinations (live load until the analysis has an F case). Live: live load. Dead: superimposed dead load, also in the 0.9D combinations; only for contents that are always there.',
+			enum: ['fluid', 'live', 'dead'],
+			enumDescriptions: ['Fluid load F', 'Live load', 'Dead load (always full)'],
+			title: 'Contents as',
+			type: 'string',
+		},
+	},
+	title: 'SAEngine MEP coordination',
+	type: 'object',
 };

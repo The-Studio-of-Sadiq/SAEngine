@@ -320,7 +320,7 @@ def result_list(out_dir: str | Path, project_path: str | Path) -> dict[str, Any]
 
         settings = settings_beside(project_path)
         for number, combination in enumerate(settings.combinations if settings else [], 1):
-            if set(combination_factors(combination)) <= static_codes:
+            if set(combination_factors(combination, static_codes)) <= static_codes:
                 results.append(
                     {
                         "key": f"combination:{number}",
@@ -440,7 +440,7 @@ def result_view(
         combination = settings.combinations[number - 1]
         label = combination.name
         by_code = {_code(e["case_name"]): e for e in manifest["cases"]}
-        for code, factor in combination_factors(combination).items():
+        for code, factor in combination_factors(combination, set(by_code)).items():
             entry = by_code.get(code)
             if entry is None:
                 raise ValueError(f"{label}: case {code} has no results")
@@ -485,17 +485,39 @@ def result_view(
             for element_id, w in _case_loads(project, preload).items():
                 loads[element_id] = loads.get(element_id, np.zeros(3)) + w
     else:
+        from saengine.fem.thermal import (
+            end_force_corrections,
+            load_corrections,
+            shell_force_corrections,
+        )
+
+        # The temperature case: its members' fixed-end forces are added back (saengine.fem.thermal).
+        thermal = load_corrections(project_path)
+        code_of = {int(e["case_id"]): _code(e["case_name"]) for e in manifest["cases"]}
+        frame_add = {
+            aid: end_force_corrections(thermal, code_of.get(aid, "")) for _, _, aid in parts
+        }
+        shell_add = {
+            aid: shell_force_corrections(thermal, code_of.get(aid, "")) for _, _, aid in parts
+        }
         disp = {n: sum(f * _last(r.node_disp, n, 6) for f, r, _ in parts) for n in node_ids}
         reactions = {
             n: sum(f * _last(r.node_reaction, n, 6) for f, r, _ in parts)
             for n in sorted(restrained)
         }
         forces = {
-            e.id: sum(f * _last(r.element_forces, e.id, 12) for f, r, _ in parts) for e in elements
+            e.id: sum(
+                f * (_last(r.element_forces, e.id, 12) + frame_add[aid].get(e.id, 0.0))
+                for f, r, aid in parts
+            )
+            for e in elements
         }
         # Shells: the mean over the integration points (the value at the element's centre).
         plate_forces = {
-            e["id"]: sum(f * _centre(r.shell_forces.get(e["id"])) for f, r, _ in parts)
+            e["id"]: sum(
+                f * (_centre(r.shell_forces.get(e["id"])) + shell_add[aid].get(e["id"], 0.0))
+                for f, r, aid in parts
+            )
             for e in shells
         }
         loads = {}

@@ -30,9 +30,14 @@ from saengine.library.defaults import (
 from saengine.library.floorplan import FloorPlan
 from saengine.library.importers import ImportInput
 from saengine.library.materials import MaterialLibrary
+from saengine.library.mep import MepModel
 from saengine.library.objects import ObjectLibrary
 from saengine.library.script import TEMPLATE as SCRIPT_TEMPLATE
-from saengine.library.settings import ProjectSettings, default_project_settings
+from saengine.library.settings import (
+    ProjectSettings,
+    default_project_settings,
+    strength_combinations,
+)
 from saengine.library.shapes import ShapeInput
 from saengine.library.soil import SoilReport, default_soil_report
 from saengine.library.structure import StructuralModel, default_structural_model
@@ -155,6 +160,15 @@ def generate_typescript() -> str:
             json_schema(ProjectSettings, "SAEngine project settings"),
         ),
         ("DEFAULT_SETTINGS", "object", library_json(default_project_settings())),
+        (
+            "THERMAL_COMBINATIONS",
+            "readonly object[]",
+            [
+                c.model_dump(mode="json", by_alias=True, exclude_none=True)
+                for c in strength_combinations(thermal=True)
+                if c.T
+            ],
+        ),
         ("BNBC", "IBnbcTables", bnbc_tables()),
         ("FLOOR_PLAN_SCHEMA", "IJSONSchema", json_schema(FloorPlan, "SAEngine floor plan")),
         ("DEFAULT_FLOOR_PLAN", "object", library_json(default_floor_plan())),
@@ -178,6 +192,7 @@ def generate_typescript() -> str:
             json_schema(Substructure, "SAEngine substructure"),
         ),
         ("DEFAULT_SUBSTRUCTURE", "object", library_json(default_substructure())),
+        ("MEP_SCHEMA", "IJSONSchema", json_schema(MepModel, "SAEngine MEP coordination")),
     ]
     body = "\n".join(
         f"export const {name}: {type_} = {_ts(value)};\n" for name, type_, value in exports

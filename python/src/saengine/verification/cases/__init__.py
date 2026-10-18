@@ -2,15 +2,27 @@
 
 from __future__ import annotations
 
-from saengine.verification.cases import analysis, design, soil, substructure, substructure_deep
+from saengine.verification.cases import (
+    analysis,
+    design,
+    mep,
+    soil,
+    ssi,
+    substructure,
+    substructure_deep,
+    thermal,
+)
 from saengine.verification.cases.common import Case
 
 CASES: list[Case] = [
     *analysis.CASES,
+    *thermal.CASES,
+    *ssi.CASES,
     *design.CASES,
     *soil.CASES,
     *substructure.CASES,
     *substructure_deep.CASES,
+    *mep.CASES,
 ]
 BY_ID: dict[str, Case] = {case.id: case for case in CASES}
 

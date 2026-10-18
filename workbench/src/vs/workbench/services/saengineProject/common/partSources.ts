@@ -38,6 +38,42 @@ export function sourceStamp(text: string): string {
 	return sha.digest();
 }
 
+/** What the analysis model takes from the MEP file (see {@link mepModelStamp}). */
+const MEP_MODEL_KEYS = ['contentsAs', 'equipment', 'openings', 'shafts'];
+/** Labels of the MEP file's items, which the analysis model does not take. */
+const MEP_LABELS = new Set(['name', 'service']);
+
+/**
+ * The stamp an analysis model records for the MEP file `text` (key `mep`): of what the model
+ * takes from it (its contents setting, equipment, openings and shafts, without the items' names
+ * and service labels), so editing an IFC model's entry or a label leaves the model current. The
+ * Python side (`saengine.fem.derive.mep_stamp`) computes the same; a text that is not a JSON
+ * object gets the stamp of its text.
+ */
+export function mepModelStamp(text: string): string {
+	let document: unknown;
+	try {
+		document = JSON.parse(text);
+	} catch {
+		return sourceStamp(text);
+	}
+	if (typeof document !== 'object' || document === null || Array.isArray(document)) {
+		return sourceStamp(text);
+	}
+	const source = document as { readonly [key: string]: unknown };
+	const content: { [key: string]: unknown } = {};
+	for (const key of MEP_MODEL_KEYS) {
+		if (!Object.prototype.hasOwnProperty.call(source, key)) {
+			continue;
+		}
+		const value = source[key];
+		content[key] = Array.isArray(value)
+			? value.map(item => typeof item === 'object' && item !== null && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).filter(([name]) => !MEP_LABELS.has(name))) : item)
+			: value;
+	}
+	return sourceStamp(JSON.stringify(content));
+}
+
 /**
  * The stamp of the finished ground level of the project settings in `settingsText` (to the
  * micrometre; 0 when not set), the only setting the bill of quantities depends on. The Python

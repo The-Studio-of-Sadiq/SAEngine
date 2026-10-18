@@ -588,6 +588,11 @@ def _demands(
 
     from saengine.fem.combinations import combination_factors
     from saengine.fem.display import _case_loads, _code, _elements, _last, element_section_forces
+    from saengine.fem.thermal import (
+        end_force_corrections,
+        load_corrections,
+        shell_force_corrections,
+    )
 
     try:
         manifest = load_manifest(out_dir)
@@ -600,18 +605,26 @@ def _demands(
     shell_ids = [e["id"] for e in project.get("elements", []) if e.get("type") == "Shell"]
     by_case: dict[str, dict[int, np.ndarray]] = {}
     shell_case: dict[str, dict[int, np.ndarray]] = {}
+    # The temperature case's fixed-end forces, added back to its members (saengine.fem.thermal).
+    thermal = load_corrections(Path(out_dir).with_suffix(".osmodel"))
     for entry in manifest["cases"]:
         results = load_results(entry, out_dir)
         if not isinstance(results, StaticResults):
             continue
+        code = _code(entry["case_name"])
         reached = float(results.load_factors[-1]) if len(results.load_factors) else 1.0
         loads = _case_loads(project, int(entry["case_id"]))
-        shell_case[_code(entry["case_name"])] = {
-            i: _shell_rows(results.shell_forces.get(i)) for i in shell_ids
+        frame_add = end_force_corrections(thermal, code)
+        shell_add = shell_force_corrections(thermal, code)
+        shell_case[code] = {
+            i: _shell_rows(results.shell_forces.get(i)) + reached * shell_add.get(i, 0.0)
+            for i in shell_ids
         }
-        by_case[_code(entry["case_name"])] = {
+        by_case[code] = {
             e.id: element_section_forces(
-                e, _last(results.element_forces, e.id, 12), reached * loads.get(e.id, np.zeros(3))
+                e,
+                _last(results.element_forces, e.id, 12) + reached * frame_add.get(e.id, 0.0),
+                reached * loads.get(e.id, np.zeros(3)),
             )
             for e in elements
         }
@@ -620,7 +633,7 @@ def _demands(
     factors_of: list[dict[str, float]] = []
     notes: list[str] = []
     for combination in settings.combinations:
-        factors = combination_factors(combination)
+        factors = combination_factors(combination, set(by_case))
         missing = [case for case in factors if case not in by_case]
         if missing:
             notes.append(

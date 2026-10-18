@@ -30,7 +30,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { ISoilSources } from '../../../../platform/saengine/common/femSolver.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { BNBC, DEFAULT_SETTINGS, SETTINGS_SCHEMA, TEMPLATES } from '../../../services/saengineProject/common/projectLibraries.generated.js';
+import { BNBC, DEFAULT_SETTINGS, SETTINGS_SCHEMA, TEMPLATES, THERMAL_COMBINATIONS } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { ISaengineProjectService, partById, PROJECT_TYPES, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
 import { EditorFrame } from '../../saengineProject/browser/editorFrame.js';
 import { clone, IDocumentFrameActions, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
@@ -49,6 +49,22 @@ function fieldTitle(defName: string, key: string): string | undefined {
 
 function format(value: number): string {
 	return `${Number(value.toFixed(3))}`;
+}
+
+/**
+ * The code's strength combinations for `settings`: with the temperature case on (Analysis model →
+ * Temperature), combination 2 also with ±T right after it (BNBC 2020 Part 6 Sec 2.7.3.1).
+ */
+export function codeCombinations(settings: JsonObject): JsonValue[] {
+	const combinations = clone((DEFAULT_SETTINGS as JsonObject).combinations as JsonValue) as JsonValue[];
+	const analysis = isObject(settings.analysis) ? settings.analysis : undefined;
+	const thermal = analysis && isObject(analysis.thermal) ? analysis.thermal : undefined;
+	if (thermal?.enabled !== true) {
+		return combinations;
+	}
+	const at = combinations.findIndex(c => isObject(c) && c.name === '1.2D + 1.6L + 0.5Lr');
+	combinations.splice(at < 0 ? combinations.length : at + 1, 0, ...(clone(THERMAL_COMBINATIONS as JsonValue) as JsonValue[]));
+	return combinations;
 }
 
 /** One derived code value: what it is, its value, and where it comes from. */
@@ -471,7 +487,7 @@ export class SettingsEditor extends JsonDocumentEditor {
 		});
 		const document = this.document;
 		if (confirmed && document) {
-			document.combinations = clone((DEFAULT_SETTINGS as JsonObject).combinations as JsonValue);
+			document.combinations = codeCombinations(document);
 			this.sectionId = 'combinations';
 			this.changed(true);
 		}

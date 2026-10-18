@@ -83,8 +83,8 @@ MM = 1e-3  # m per mm
 MM2 = 1e-6  # m² per mm²
 MM3 = 1e-9  # m³ per mm³
 
-Group = Literal["earthwork", "concrete", "masonry", "reinforcement", "formwork", "steel"]
-Unit = Literal["m3", "m2", "kg"]
+Group = Literal["earthwork", "concrete", "masonry", "reinforcement", "formwork", "steel", "mep"]
+Unit = Literal["m3", "m2", "kg", "nr"]
 
 #: Earthwork and blinding of the foundations of 9 Substructure [mm].
 WORKING_SPACE = 300.0  # around a foundation or tie beam, each side, to the excavation's face
@@ -99,6 +99,7 @@ GROUPS: dict[str, str] = {
     "reinforcement": "R",
     "formwork": "F",
     "steel": "S",
+    "mep": "P",
 }
 
 #: Object kinds in the order of the bill, with their plural names for descriptions.
@@ -118,7 +119,19 @@ KINDS: dict[str, str] = {
     "slab": "slabs",
     "staircase": "stairs",
     "solid": "solid blocks",
+    "plinth": "equipment plinths",
 }
+
+#: The measurement of the MEP coordination items of 7 MEP, added when there are any.
+MEP_CONVENTIONS = [
+    (
+        "Equipment plinths of 7 MEP: concrete of their footprint by their height, formwork to "
+        "their four sides (no reinforcement measured). Sleeves and openings through beams, slabs "
+        "and walls are counted by host kind and size (number), for the services' coordination; "
+        "their concrete is not deducted (it is small), and the slab openings cut by shafts are "
+        "not counted."
+    ),
+]
 
 CONVENTIONS = [
     (
@@ -230,6 +243,7 @@ class BoqSource(_Model):
     substructure: str | None = Field(
         default=None, title="Substructure", description="Stamp of substructure.json."
     )
+    mep: str | None = Field(default=None, title="MEP", description="Stamp of mep.json.")
     settings: str | None = Field(
         default=None,
         title="Project settings",
@@ -435,8 +449,10 @@ class _Measure:
         materials: MaterialLibrary,
         substructure: Substructure | None = None,
         ground_level: float = 0.0,
+        mep: Any = None,
     ) -> None:
         self.building = building
+        self.mep = mep
         self.substructure = substructure
         self.ground_level = ground_level
         self.drawn_footings: list[str] = []
@@ -1181,12 +1197,65 @@ class _Measure:
                 kind="backfill",
             )
 
+    def measure_mep(self) -> None:
+        """The plinths of the equipment, and the sleeves and openings counted by size."""
+        mep = self.mep
+        if mep is None:
+            return
+        for item in mep.equipment:
+            plinth = item.plinth
+            if plinth is None or plinth.height <= 0:
+                continue
+            material = self.materials.get(plinth.material)
+            if material is None:
+                self.notes.append(
+                    f"{item.id}: its plinth's material '{plinth.material}' is not in 3 Materials; "
+                    "not measured"
+                )
+                continue
+            self.concrete(
+                item.id, material, "plinth", item.length * item.width * plinth.height, item.story
+            )
+            self.formwork(
+                item.id,
+                "plinth",
+                2 * (item.length + item.width) * plinth.height,
+                item.story,
+                "sides",
+            )
+        kinds = {e.id: e.kind for e in self.building.elements}
+        elevation = {e.id: getattr(e, "elevation", None) for e in self.building.elements}
+        nouns = {"beam": "beams", "slab": "slabs", "wall": "walls"}
+        for opening in mep.openings:
+            host = kinds.get(opening.host)
+            if host not in nouns:
+                continue
+            width, height = opening.size
+            size = f"Ø{width:g} mm" if opening.shape == "circle" else f"{width:g} x {height:g} mm"
+            what = "Sleeves" if opening.kind == "sleeve" else "Openings"
+            at = elevation.get(opening.host)
+            self.bill.add(
+                "mep",
+                (list(nouns).index(host), opening.kind, opening.shape, width, height),
+                f"{what} {size} through {nouns[host]}",
+                "nr",
+                opening.id,
+                1.0,
+                story=self.story_at(at) if at is not None else None,
+                detail=opening.service or None,
+                kind=opening.kind,
+            )
+
     def finish(self) -> list[str]:
         notes = [*CONVENTIONS]
         if self.substructure is not None and (
             self.substructure.foundations or self.substructure.tieBeams
         ):
             notes += FOUNDATION_CONVENTIONS
+        if self.mep is not None and (
+            self.mep.openings or any(e.plinth for e in self.mep.equipment)
+        ):
+            notes += MEP_CONVENTIONS
         notes += [*self.building.check_additions(), *self.notes]
         if self.drawn_footings:
             notes.append(
@@ -1209,14 +1278,16 @@ def bill_of_quantities(
     source: BoqSource | None = None,
     substructure: Substructure | None = None,
     ground_level: float = 0.0,
+    mep: Any = None,
 ) -> BillOfQuantities:
     """The bill of quantities of ``building``. With ``substructure`` (the project's
     ``substructure.json`` once it is no longer the placeholder, see
     :func:`saengine.substructure.handover.authoritative_substructure`) the foundations are
     measured from it, with their earthwork dug from ``ground_level`` [mm], and the footings of
     the building model are not; without it the building model's footings are measured."""
-    measure = _Measure(building, objects, materials, substructure, ground_level)
+    measure = _Measure(building, objects, materials, substructure, ground_level, mep)
     measure.run()
+    measure.measure_mep()
     return BillOfQuantities(
         source=source or BoqSource(), items=measure.bill.items(), notes=measure.finish()
     )
@@ -1243,16 +1314,21 @@ def compute_boq(
     materials_text: str,
     substructure_text: str | None = None,
     settings_text: str | None = None,
+    mep_text: str | None = None,
 ) -> dict[str, Any]:
     """The ``10 BOQ/boq.json`` document (JSON-ready) measured from the files' texts:
-    ``substructure_text`` (``09 Substructure/substructure.json``) and ``settings_text`` (the
-    ground level of the earthwork) are optional. Their stamps are recorded when given (for the
-    settings, the stamp of their ground level only, and only when the substructure's
-    foundations are measured: nothing else in the bill depends on them).
+    ``substructure_text`` (``09 Substructure/substructure.json``), ``settings_text`` (the
+    ground level of the earthwork) and ``mep_text`` (``07 MEP/mep.json``: plinths, sleeves and
+    openings) are optional. Their stamps are recorded when given (for the settings, the stamp of
+    their ground level only, and only when the substructure's foundations are measured: nothing
+    else in the bill depends on them).
 
     Raises ``pydantic.ValidationError`` (a ``ValueError``) when a file is not valid.
     """
+    from saengine.library.mep import parse as parse_mep
+
     substructure, ground = _inputs(substructure_text, settings_text)
+    mep = parse_mep(mep_text) if mep_text is not None else None
     earthwork = substructure is not None and bool(substructure.foundations or substructure.tieBeams)
     document = bill_of_quantities(
         BuildingModel.model_validate_json(bim_text),
@@ -1263,10 +1339,12 @@ def compute_boq(
             objects=source_stamp(objects_text),
             materials=source_stamp(materials_text),
             substructure=source_stamp(substructure_text) if substructure_text is not None else None,
+            mep=source_stamp(mep_text) if mep_text is not None else None,
             settings=ground_level_stamp(ground) if settings_text and earthwork else None,
         ),
         substructure,
         ground,
+        mep,
     )
     return document.model_dump(mode="json", by_alias=True, exclude_none=True)
 
@@ -1277,9 +1355,16 @@ def compute_boq_text(
     materials_text: str,
     substructure_text: str | None = None,
     settings_text: str | None = None,
+    mep_text: str | None = None,
 ) -> dict[str, Any]:
     """For the RPC handler: ``{"text", "notes"}`` (the file's text), or ``{"problems"}`` when an
     input has errors."""
+    from saengine.library.mep import parse as parse_mep
+
+    try:
+        parse_mep(mep_text)
+    except ValueError as exc:
+        return {"problems": [f"MEP: {str(exc).strip().splitlines()[0]}"]}
     from saengine.library.settings import ProjectSettings
     from saengine.library.substructure import Substructure as SubstructureModel
 
@@ -1307,7 +1392,9 @@ def compute_boq_text(
                 message = e["msg"].removeprefix("Value error, ")
                 problems.append(f"{label}: {path}: {message}" if path else f"{label}: {message}")
             return {"problems": problems}
-    document = compute_boq(bim_text, objects_text, materials_text, substructure_text, settings_text)
+    document = compute_boq(
+        bim_text, objects_text, materials_text, substructure_text, settings_text, mep_text
+    )
     return {
         "text": json.dumps(document, indent="\t", ensure_ascii=False) + "\n",
         "notes": document["notes"],

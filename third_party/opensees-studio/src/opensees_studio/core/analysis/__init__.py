@@ -130,6 +130,19 @@ class StaticCase(_SolverOptions):
     test: str = "NormDispIncr"
     tolerance: float = Field(default=1e-8, gt=0.0)
     max_iter: PositiveInt = 25
+    release_diaphragms: bool = Field(
+        default=False,
+        description=(
+            "Run this case without the model's rigid diaphragms: the floors then act through "
+            "their own members (slabs, beams). For a self-straining case such as a temperature "
+            "change, which a rigid diaphragm would wrongly hold in plan. The nodes left without "
+            "any element (a diaphragm's own centre node) are left out and report zero."
+        ),
+    )
+
+    serialize_without_defaults = omit_when_default(
+        "numberer", "system_args", "algorithm_args", "release_diaphragms"
+    )
 
 
 class ModalCase(Entity):

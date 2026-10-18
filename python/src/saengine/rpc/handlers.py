@@ -182,11 +182,13 @@ def results_tables(out_dir: str, project_path: str | None = None) -> dict[str, A
         import json as _json
 
         from saengine.fem.combinations import combination_results, settings_beside
+        from saengine.fem.thermal import load_corrections
 
         settings = settings_beside(project_file)
         if settings is not None:
             payload = _json.loads(Path(project_file).read_text(encoding="utf-8"))
-            cases.extend(combination_results(out_dir, payload, settings))
+            thermal = load_corrections(project_file)
+            cases.extend(combination_results(out_dir, payload, settings, thermal))
     return {"cases": cases}
 
 
@@ -297,8 +299,12 @@ def building_ifc(
     name: str,
     substructure_text: str | None = None,
     settings_text: str | None = None,
+    mep_text: str | None = None,
 ) -> dict[str, Any]:
     """The IFC of the building model: ``{"text", "ids", "skipped"}`` or ``{"problems"}``.
+
+    With ``mep_text`` (``07 MEP/mep.json``) its equipment, plinths, sleeves, openings and shafts
+    are in the model too.
 
     ``ids`` maps element ids to IFC GlobalIds, for the 3D view to link elements to the project.
     With ``substructure_text`` (``09 Substructure/substructure.json``, once it is no longer the
@@ -323,7 +329,16 @@ def building_ifc(
     substructure, ground, problems = _substructure_inputs(substructure_text, settings_text)
     if problems:
         return {"problems": problems}
-    ifc, ids, skipped = export_ifc(building, objects, materials, name, substructure, ground)
+    from saengine.library.mep import parse as parse_mep
+
+    try:
+        mep = parse_mep(mep_text)
+    except ValueError as exc:
+        return {"problems": [f"MEP: {_first_line(exc)}"]}
+    has_mep = bool(mep.equipment or mep.openings or mep.shafts)
+    ifc, ids, skipped = export_ifc(
+        building, objects, materials, name, substructure, ground, mep if has_mep else None
+    )
     return {"text": ifc.to_string(), "ids": ids, "skipped": skipped}
 
 
@@ -359,11 +374,22 @@ def derive_fem(
     settings_text: str,
     model_folder: str | None = None,
     soil_text: str | None = None,
+    mep_text: str | None = None,
+    substructure_text: str | None = None,
 ) -> dict[str, Any]:
     """The analysis model (``model.osmodel`` text) of the building model with the settings' loads.
 
     Returns ``{"text", "notes", "summary"}`` (and ``"pushoverText"``, the pushover model, when
-    the settings ask for pushovers), or ``{"problems"}`` when an input has errors.
+    the settings ask for pushovers; ``"thermalText"``, the temperature case's fixed-end forces
+    for ``08 FEM/thermal.json``, when the settings have the case T; ``"ssiText"``, the soil
+    springs for ``08 FEM/ssi.json``, when the column supports are soil springs), or
+    ``{"problems"}`` when an input has errors.
+
+    ``mep_text`` (``07 MEP/mep.json``) and ``substructure_text`` (``09 Substructure/
+    substructure.json``, read only for soil springs) are read beside ``model_folder`` when not
+    given. The MEP file's stamp (of what the model takes from it, ``derive.mep_stamp``) is recorded
+    (key ``mep``) once it is more than the placeholder,
+    the substructure's (key ``substructure``) when the supports are soil springs.
 
     The site class is resolved here (``saengine.library.settings.resolve_site_class``): with
     the source "From the soil report", the soil report's governing class replaces the entered
@@ -377,7 +403,7 @@ def derive_fem(
     from pydantic import ValidationError
 
     from saengine.fem.derive import derive_fem as derive
-    from saengine.fem.derive import stamp
+    from saengine.fem.derive import mep_stamp, stamp
     from saengine.library.bim import BuildingModel
     from saengine.library.materials import MaterialLibrary
     from saengine.library.objects import ObjectLibrary
@@ -409,6 +435,29 @@ def derive_fem(
     if parsed["settings"].site.siteClassSource == "soilReport" and soil_text is not None:
         stamps["soil"] = stamp(soil_text)
     site_notes = [site["note"]] if site["source"] == "soilReport" else []
+    from saengine.library import mep as mep_library
+    from saengine.library import substructure as substructure_library
+
+    root = Path(model_folder).parent if model_folder else None
+    if mep_text is None and root is not None:
+        mep_text = _read(root / mep_library.MEP_FILE)
+    try:
+        mep = mep_library.parse(mep_text)
+    except ValueError as exc:
+        return {"problems": [f"MEP: {_first_line(exc)}"]}
+    if mep_text and _has_content(mep):
+        stamps["mep"] = mep_stamp(mep_text)
+    substructure = None
+    if settings.analysis.supports == "soilSprings":
+        if substructure_text is None and root is not None:
+            substructure_text = _read(root / substructure_library.SUBSTRUCTURE_FILE)
+        try:
+            substructure = substructure_library.parse(substructure_text)
+        except ValueError as exc:
+            return {"problems": [f"Substructure: {_first_line(exc)}"]}
+        stamps["substructure"] = stamp(substructure_text or "")
+        if soil_text is not None:
+            stamps["soil"] = stamp(soil_text)
     derivation = derive(
         parsed["bim"],
         parsed["objects"],
@@ -416,6 +465,9 @@ def derive_fem(
         settings,
         stamps,
         model_folder,
+        mep=mep if _has_content(mep) else None,
+        substructure=substructure,
+        soil_text=soil_text,
     )
     result = {
         "text": json.dumps(derivation.project, indent="\t", ensure_ascii=False) + "\n",
@@ -426,7 +478,27 @@ def derive_fem(
         result["pushoverText"] = (
             json.dumps(derivation.pushover, indent="\t", ensure_ascii=False) + "\n"
         )
+    if derivation.thermal is not None:
+        result["thermalText"] = json.dumps(derivation.thermal)
+    if derivation.ssi is not None:
+        result["ssiText"] = json.dumps(derivation.ssi, indent="\t", ensure_ascii=False) + "\n"
     return result
+
+
+def _read(path: Path) -> str | None:
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+
+def _first_line(exc: Exception) -> str:
+    return str(exc).strip().splitlines()[0] if str(exc).strip() else type(exc).__name__
+
+
+def _has_content(mep: Any) -> bool:
+    """Whether an MEP model has anything the analysis model takes (equipment, openings, shafts)."""
+    return bool(mep.equipment or mep.openings or mep.shafts)
 
 
 def _messages(exc: Any, where: str) -> list[str]:
@@ -532,13 +604,15 @@ def compute_boq(
     materials_text: str,
     substructure_text: str | None = None,
     settings_text: str | None = None,
+    mep_text: str | None = None,
 ) -> dict[str, Any]:
-    """The bill of quantities (``10 BOQ/boq.json`` text) of the building model and the
-    substructure: ``{"text", "notes"}``, or ``{"problems"}`` when an input has errors."""
+    """The bill of quantities (``10 BOQ/boq.json`` text) of the building model, the
+    substructure and the MEP plinths and sleeves: ``{"text", "notes"}``, or ``{"problems"}``
+    when an input has errors."""
     from saengine.boq import compute_boq_text
 
     return compute_boq_text(
-        bim_text, objects_text, materials_text, substructure_text, settings_text
+        bim_text, objects_text, materials_text, substructure_text, settings_text, mep_text
     )
 
 
@@ -758,6 +832,56 @@ def substructure_migrate(project_root: str) -> dict[str, Any]:
         return migrate_project(project_root)
     except (OSError, ValueError) as error:
         return _problem(error)
+
+
+# ─────────────────────────────────────── MEP coordination ───────────────────────────────────────
+
+
+def _mep_call(call: Any) -> dict[str, Any]:
+    try:
+        return call()
+    except ValueError as error:
+        return {"problems": [_first_line(error)]}
+
+
+def mep_report(
+    project_root: str, out_dir: str | None = None, mep_text: str | None = None
+) -> dict[str, Any]:
+    """The MEP coordination report (``saengine.mep.mep_report``), or ``{"problems"}``."""
+    from saengine.mep import mep_report as report
+
+    return _mep_call(lambda: report(project_root, out_dir, mep_text))
+
+
+def mep_suggest_sleeves(
+    project_root: str, mep_text: str | None = None, allowance: float | None = None
+) -> dict[str, Any]:
+    """Sleeves and openings that would coordinate the clashes (``{openings, notes}``)."""
+    from saengine.mep import mep_suggest_sleeves as suggest
+
+    return _mep_call(
+        lambda: suggest(project_root, 25.0 if allowance is None else allowance, mep_text)
+    )
+
+
+def mep_import_ifc(project_root: str, path: str, copy: bool = False) -> dict[str, Any]:
+    """What an MEP IFC model holds (its discipline and elements), for 07 MEP's model list."""
+    from saengine.mep import mep_import_ifc as inspect
+
+    try:
+        return inspect(project_root, path, copy)
+    except (OSError, RuntimeError, ValueError) as error:
+        return {"problems": [f"{Path(path).name}: {_first_line(error)}"]}
+
+
+# ─────────────────────────────────────── soil springs ───────────────────────────────────────
+
+
+def ssi_compare(project_root: str) -> dict[str, Any]:
+    """Fixed base against soil springs (see ``saengine.fem.ssi_compare.compare``)."""
+    from saengine.fem.ssi_compare import compare
+
+    return _mep_call(lambda: compare(project_root))
 
 
 def substructure_ensure(project_root: str) -> dict[str, Any]:

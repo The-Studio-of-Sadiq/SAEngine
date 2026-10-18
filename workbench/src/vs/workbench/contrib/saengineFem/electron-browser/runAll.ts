@@ -22,7 +22,9 @@ import { ITextFileService } from '../../../services/textfile/common/textfiles.js
 import { BOQ_COMPUTE_COMMAND, BOQ_SOURCES, boqComputeArgs, changedSources, IBoqComputeResult, parseBoq } from '../../saengineBoq/browser/boqDocument.js';
 import { BUILD_REPORT_COMMAND_ID, IReportBuildRequest, IReportBuildResult, reportProblems } from '../../saengineReport/browser/reportBuild.js';
 import { ISubstructureMigration, ISubstructureReport, ISubstructureRequest, parseSubstructure, readSubstructureReport, SUBSTRUCTURE_ENSURE_COMMAND, SUBSTRUCTURE_REPORT_COMMAND, SUBSTRUCTURE_SUMMARY_FILE, substructureSummaryFile } from '../../saengineSubstructure/browser/substructureDocument.js';
-import { DERIVATION_INPUTS, deriveAnalysisModel, derivationState, partFile } from '../browser/femDerivationBar.js';
+import { IMepContextTexts, IMepReport, IMepRequest, isOpenClash, MEP_REPORT_COMMAND, MEP_SOURCE_PARTS, MEP_SUMMARY_FILE, mepSummaryFile, parseMep, readMepReport } from '../../saengineMep/browser/mepDocument.js';
+import { DERIVATION_INPUTS, deriveAnalysisModel, derivationState, partFile, SSI_FILE } from '../browser/femDerivationBar.js';
+import { SSI_COMPARE_COMMAND } from '../browser/femSsi.js';
 import { IFemDesignReport, runDesign, writeDesignSummary } from '../browser/femDesign.js';
 import { errorSummary } from '../browser/femResultsBar.js';
 import { FemAnalysisRunner } from './femAnalysisRunner.js';
@@ -33,15 +35,17 @@ export const CANCEL_RUN_ALL_COMMAND_ID = 'saengine.runAll.cancel';
 
 const STATUS_ENTRY_ID = 'saengine.runAll.status';
 
-type StepId = 'derive' | 'analysis' | 'design' | 'substructure' | 'boq' | 'report';
+type StepId = 'derive' | 'analysis' | 'ssi' | 'design' | 'substructure' | 'mep' | 'boq' | 'report';
 
 
 /** The steps of Run All, in order, with the names the status bar gives them. */
 const STEPS: readonly { readonly id: StepId; readonly label: string }[] = [
 	{ id: 'derive', label: localize('runAll.step.derive', "analysis model") },
 	{ id: 'analysis', label: localize('runAll.step.analysis', "analysis") },
+	{ id: 'ssi', label: localize('runAll.step.ssi', "fixed-base run for the soil springs") },
 	{ id: 'design', label: localize('runAll.step.design', "design checks") },
 	{ id: 'substructure', label: localize('runAll.step.substructure', "foundation design") },
+	{ id: 'mep', label: localize('runAll.step.mep', "MEP coordination checks") },
 	{ id: 'boq', label: localize('runAll.step.boq', "bill of quantities") },
 	{ id: 'report', label: localize('runAll.step.report', "report") },
 ];
@@ -53,10 +57,12 @@ export const IRunAllService = createDecorator<IRunAllService>('saengineRunAllSer
 
 /**
  * Brings the open project's outputs up to date in one go: derives the analysis model if it is
- * out of date, runs all analysis cases, runs the design checks (writing
+ * out of date, runs all analysis cases (and, on soil springs, the fixed-base model the foundations
+ * are designed from, with the comparison of the two), runs the design checks (writing
  * `08 FEM/model.results/design-summary.json`), designs the foundations of 9 Substructure (moving
  * the building model's footings there first while it is still the placeholder; writing
- * `09 Substructure/substructure.results/summary.json`), measures the bill of quantities if it is
+ * `09 Substructure/substructure.results/summary.json`), checks the MEP coordination of 7 MEP
+ * (writing `07 MEP/mep.results/summary.json`), measures the bill of quantities if it is
  * out of date and builds the design report. Progress is one status bar entry (click to cancel); the end
  * is one quiet summary, or one error naming the step that failed.
  */
@@ -128,24 +134,34 @@ export class RunAllService implements IRunAllService {
 
 			step = 2;
 			report();
-			const design = await this.design(model);
+			await this.compareSoilSprings(project);
 			this.check(token);
 
 			step = 3;
 			report();
-			const foundations = await this.designSubstructure(project);
+			const design = await this.design(model);
 			this.check(token);
 
 			step = 4;
 			report();
-			const boqUpdated = await this.measure(project, token);
+			const foundations = await this.designSubstructure(project);
+			this.check(token);
 
 			step = 5;
+			report();
+			const mep = await this.checkMep(project);
+			this.check(token);
+
+			step = 6;
+			report();
+			const boqUpdated = await this.measure(project, token);
+
+			step = 7;
 			report();
 			const pdf = await this.buildReport(project);
 			this.check(token);
 
-			this.showSummary(design, foundations, derived, boqUpdated, pdf);
+			this.showSummary(design, foundations, mep, derived, boqUpdated, pdf);
 		} catch (error) {
 			if (error instanceof CancellationError || token.isCancellationRequested) {
 				this.notificationService.notify({ severity: Severity.Info, message: localize('runAll.cancelled', "Run All cancelled at step {0} of {1} ({2}).", step + 1, STEPS.length, STEPS[step].label) });
@@ -203,7 +219,7 @@ export class RunAllService implements IRunAllService {
 	 * the derivation takes the site class, and the footing design qa, from the saved file).
 	 */
 	private async saveSources(project: ISaengineProject): Promise<void> {
-		const ids = [...new Set([...DERIVATION_INPUTS, ...BOQ_SOURCES.map(s => s.part), 'substructure', 'soil'])];
+		const ids = [...new Set([...DERIVATION_INPUTS, ...BOQ_SOURCES.map(s => s.part), 'substructure', 'soil', 'mep'])];
 		for (const id of ids) {
 			const part = partById(id);
 			const file = part?.mainFile && joinPath(project.root, part.folder, part.mainFile);
@@ -306,6 +322,63 @@ export class RunAllService implements IRunAllService {
 		return report;
 	}
 
+	/**
+	 * On soil springs (the model has `08 FEM/ssi.json`): derives and runs the fixed-base model the
+	 * foundations are designed from, and compares the two (`08 FEM/ssi-compare.json`).
+	 */
+	private async compareSoilSprings(project: ISaengineProject): Promise<void> {
+		const springs = joinPath(dirname(partFile(project.root, 'fem')), SSI_FILE);
+		if (!await this.fileService.exists(springs)) {
+			return;
+		}
+		try {
+			await this.commandService.executeCommand(SSI_COMPARE_COMMAND, { projectRoot: project.root.fsPath });
+		} catch (error) {
+			throw new StepFailure(errorSummary(error));
+		}
+	}
+
+	/**
+	 * Checks the MEP coordination of 7 MEP (equipment loads, openings, clashes) and writes the
+	 * summary the part list shows. Undefined while the MEP file is the placeholder or empty.
+	 */
+	private async checkMep(project: ISaengineProject): Promise<IMepReport | undefined> {
+		const part = partById('mep');
+		if (!part?.mainFile) {
+			return undefined;
+		}
+		const resource = joinPath(project.root, part.folder, part.mainFile);
+		let text: string;
+		try {
+			text = (await this.fileService.readFile(resource)).value.toString();
+		} catch {
+			return undefined;
+		}
+		const parsed = parseMep(text);
+		if (parsed.kind === 'error') {
+			throw new StepFailure(parsed.message);
+		}
+		const document = parsed.document;
+		if (parsed.kind === 'placeholder' || (!document.equipment.length && !document.openings.length && !document.shafts.length && !document.ifcModels.length)) {
+			return undefined;
+		}
+		const texts = await this.readParts(project, MEP_SOURCE_PARTS);
+		const request: IMepRequest = { projectRoot: project.root.fsPath, mepText: text };
+		let report: IMepReport | undefined;
+		try {
+			report = readMepReport(await this.commandService.executeCommand<unknown>(MEP_REPORT_COMMAND, request));
+		} catch (error) {
+			throw new StepFailure(errorSummary(error));
+		}
+		if (!report) {
+			throw new StepFailure(localize('runAll.mepUnavailable', "The MEP coordination checks are not available."));
+		}
+		const sourceTexts: IMepContextTexts = Object.fromEntries(MEP_SOURCE_PARTS.map(id => [id, texts.get(id)]));
+		const summary = mepSummaryFile(document, report, text, new Date(), sourceTexts);
+		await this.fileService.writeFile(joinPath(dirname(resource), MEP_SUMMARY_FILE), VSBuffer.fromString(JSON.stringify(summary, undefined, '\t') + '\n'));
+		return report;
+	}
+
 	/** Measures the bill of quantities when it is not measured yet or its sources changed. */
 	private async measure(project: ISaengineProject, token: CancellationToken): Promise<boolean> {
 		const boq = partById('boq');
@@ -356,11 +429,14 @@ export class RunAllService implements IRunAllService {
 		return URI.file(result.path);
 	}
 
-	/** "Done: 13 pass, 3 fail · foundations 6 pass, 1 fail · BOQ updated · report written", with Open Report. */
-	private showSummary(design: IFemDesignReport, foundations: ISubstructureReport | undefined, derived: boolean, boqUpdated: boolean, pdf: URI): void {
+	/** "Done: 13 pass, 3 fail · foundations 6 pass, 1 fail · MEP: failing openings 1, open clashes 2 · BOQ updated · report written", with Open Report. */
+	private showSummary(design: IFemDesignReport, foundations: ISubstructureReport | undefined, mep: IMepReport | undefined, derived: boolean, boqUpdated: boolean, pdf: URI): void {
+		const failedOpenings = mep ? mep.openings.filter(o => !o.ok).length : 0;
+		const openClashes = mep ? mep.clashes.filter(isOpenClash).length : 0;
 		const parts = [
 			localize('runAll.summary.design', "{0} pass, {1} fail", design.summary.passed, design.summary.failed),
 			...(foundations ? [localize('runAll.summary.foundations', "foundations {0} pass, {1} fail", foundations.summary.passed, foundations.summary.failed)] : []),
+			...(mep ? [localize('runAll.summary.mep', "MEP: failing openings {0}, open clashes {1}", failedOpenings, openClashes)] : []),
 			...(derived ? [localize('runAll.summary.derived', "model derived")] : []),
 			boqUpdated ? localize('runAll.summary.boqUpdated', "BOQ updated") : localize('runAll.summary.boqCurrent', "BOQ up to date"),
 			localize('runAll.summary.report', "report written"),

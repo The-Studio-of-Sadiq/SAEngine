@@ -64,8 +64,11 @@ G = 9.80665  # m/s²
 MM = 0.001  # m per mm
 UNITS = "SI (m, N, kg, s, Pa)"
 
-#: Load cases of the analysis model, in this order (see bnbc.LOAD_CASES).
-CASES = ["D", "SD", "L", "Lr", "WX", "WY", "EX", "EY"]
+#: Load cases of the analysis model, in this order (see bnbc.LOAD_CASES). The fluid case F (the
+#: contents of equipment in 07 MEP) is last and is only in a model that has fluid loads, so the
+#: other cases keep their numbers. The temperature case T is added after them when the settings
+#: ask for it (:mod:`saengine.fem.thermal`).
+CASES = ["D", "SD", "L", "Lr", "WX", "WY", "EX", "EY", "F"]
 
 #: Restraint of a diaphragm's own node: free in plan, held out of plane.
 _IN_PLAN = [False, False, True, True, True, False]
@@ -109,6 +112,86 @@ def stamp(text: str) -> str:
     return hashlib.sha1(text.replace("\r\n", "\n").encode("utf-8")).hexdigest()
 
 
+#: What the analysis model takes from ``07 MEP/mep.json`` (:func:`mep_stamp`); names and service
+#: labels of its items are left out, as are the MEP IFC models.
+MEP_MODEL_KEYS = ("contentsAs", "equipment", "openings", "shafts")
+_MEP_LABELS = ("name", "service")
+
+
+def _js_number(value: float) -> str:
+    """``value`` as JavaScript's ``JSON.stringify`` writes it (shortest round trip)."""
+    if not math.isfinite(value):
+        return "null"
+    if value == int(value) and abs(value) < 1e21:
+        return str(int(value))
+    from decimal import Decimal
+
+    sign, digits, exponent = Decimal(repr(value)).as_tuple()
+    text = "".join(map(str, digits)).rstrip("0")
+    exponent = int(exponent) + len(digits) - len(text)
+    k, n = len(text), len(text) + exponent  # value = 0.text × 10^n
+    if k <= n <= 21:
+        out = text + "0" * (n - k)
+    elif 0 < n <= 21:
+        out = f"{text[:n]}.{text[n:]}"
+    elif -6 < n <= 0:
+        out = "0." + "0" * -n + text
+    else:
+        e = n - 1
+        out = (text if k == 1 else f"{text[0]}.{text[1:]}") + f"e{'+' if e >= 0 else '-'}{abs(e)}"
+    return ("-" if sign else "") + out
+
+
+def js_json(value: Any) -> str:
+    """``value`` (parsed JSON) as JavaScript's ``JSON.stringify(value)`` writes it, so a stamp of
+    it matches the workbench's (``mepModelStamp`` in partSources.ts)."""
+    import json
+
+    if value is None or value is True or value is False:
+        return json.dumps(value)
+    if isinstance(value, int):
+        return str(value) if abs(value) <= 2**53 else _js_number(float(value))
+    if isinstance(value, float):
+        return _js_number(value)
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False)
+    if isinstance(value, list | tuple):
+        return "[" + ",".join(js_json(v) for v in value) + "]"
+    if isinstance(value, dict):
+        return "{" + ",".join(f"{js_json(str(k))}:{js_json(v)}" for k, v in value.items()) + "}"
+    raise TypeError(f"not JSON: {type(value).__name__}")
+
+
+def mep_stamp(text: str) -> str:
+    """The stamp an analysis model records for ``07 MEP/mep.json`` (key ``mep``): of what the
+    model takes from it (:data:`MEP_MODEL_KEYS`, without the items' names and service labels),
+    so editing an IFC model's entry or a label leaves the model current. The workbench computes
+    the same (``mepModelStamp`` in partSources.ts); a text that is not a JSON object is stamped
+    whole."""
+    import json
+
+    try:
+        document = json.loads(text)
+    except ValueError:
+        return stamp(text)
+    if not isinstance(document, dict):
+        return stamp(text)
+    content: dict[str, Any] = {}
+    for key in MEP_MODEL_KEYS:
+        if key not in document:
+            continue
+        value = document[key]
+        if isinstance(value, list):
+            value = [
+                {k: v for k, v in item.items() if k not in _MEP_LABELS}
+                if isinstance(item, dict)
+                else item
+                for item in value
+            ]
+        content[key] = value
+    return stamp(js_json(content))
+
+
 @dataclass
 class _Member:
     """A frame element of the analysis model: its SAEngine element, ends and section."""
@@ -147,6 +230,10 @@ class Derivation:
     summary: dict[str, Any] = field(default_factory=dict)
     #: The pushover model (frames as fiber elements), when the settings ask for pushovers.
     pushover: dict[str, Any] | None = None
+    #: The temperature case's fixed-end forces to add back (``08 FEM/thermal.json``).
+    thermal: dict[str, Any] | None = None
+    #: The soil springs of the column bases (``08 FEM/ssi.json``), with ``supports`` "soilSprings".
+    ssi: dict[str, Any] | None = None
 
 
 class _Builder:
@@ -188,6 +275,10 @@ def derive_fem(
     settings: ProjectSettings,
     sources: dict[str, str] | None = None,
     model_dir: str | Path | None = None,
+    mep: Any = None,
+    substructure: Any = None,
+    soil_text: str | None = None,
+    column_supports: str | None = None,
 ) -> Derivation:
     """The OpenSees Studio project of ``building`` with the loads of ``settings``.
 
@@ -195,7 +286,19 @@ def derive_fem(
     description so the editor can tell when they have changed since. ``model_dir`` is the folder
     the model is written to (``08 FEM``): time-history records are found from the project folder
     above it and referenced relative to it.
+
+    ``mep`` (:class:`saengine.library.mep.MepModel`, ``07 MEP/mep.json``): its shafts and slab
+    openings are cut from the slabs and its equipment loads applied (:mod:`saengine.mep.loads`).
+    ``substructure`` (:class:`saengine.library.substructure.Substructure`) and ``soil_text`` (the
+    soil report): the foundations and soil of the column bases' springs when the settings'
+    ``analysis.supports`` (or ``column_supports``, which overrides it) is "soilSprings"
+    (:mod:`saengine.fem.ssi`).
     """
+    mep_notes: list[str] = []
+    if mep is not None:
+        from saengine.mep.loads import with_mep_openings
+
+        building, mep_notes = with_mep_openings(building, mep)
     b = _Builder()
     options = settings.analysis
     types = {o.id: o for o in objects.objects}
@@ -653,9 +756,18 @@ def derive_fem(
     def shells_of_source(source: str) -> list[_Shell]:
         return [shell for shell in b.shells if shell.source == source]
 
-    def line_load(source: str, case: str, p0: np.ndarray, p1: np.ndarray, load: float) -> bool:
+    def line_load(
+        source: str,
+        case: str,
+        p0: np.ndarray,
+        p1: np.ndarray,
+        load: float,
+        share: float | None = None,
+    ) -> bool:
         """A uniform line load (N/m, down) along ``p0``-``p1``: beams along it carry their part,
-        the nodes on it the rest. False when part of it has no node to go to."""
+        the nodes on it the rest. False when part of it has no node to go to. ``share``: the part
+        of it in the seismic weight (by default that of its case)."""
+        w = seismic_share(case) if share is None else share
         axis = p1 - p0
         length = float(np.linalg.norm(axis))
         on_line = sorted(
@@ -669,11 +781,11 @@ def derive_fem(
             index = by_pair.get(frozenset((n0, n1)))
             if index is not None:
                 add_element_load(case, index, down * load)
-                share_weight(index, load, seismic_share(case))
+                share_weight(index, load, w)
             else:
                 for node_id in (n0, n1):
                     add_nodal(case, node_id, down * load * span / 2, stage_of(float(p0[2])))
-                    add_weight(node_id, load * span / 2 * seismic_share(case))
+                    add_weight(node_id, load * span / 2 * w)
         if not complete and case == "D":
             b.notes.append(
                 f"{source}: part of its load has no beam, wall or column to go to; not applied"
@@ -749,6 +861,38 @@ def derive_fem(
                     p0 = np.array([*corners[edge.index], z])
                     p1 = np.array([*corners[(edge.index + 1) % len(corners)], z])
                     line_load(element.id, case, p0, p1, edge.load)
+
+    # ── equipment of 07 MEP: its weight, contents and impact on the slabs it stands on ──
+    b.notes.extend(mep_notes)
+    if mep is not None and mep.equipment:
+        from saengine.mep.loads import equipment_loads
+
+        eq = equipment_loads(
+            building,
+            mep,
+            b.coords,
+            [(s.source, s.nodes) for s in b.shells],
+            {
+                e.id: types[e.type].system
+                for e in building.elements
+                if isinstance(e, SlabElement) and getattr(types.get(e.type), "kind", None) == "slab"
+            },
+            {m.id: m.mechanical.density for m in materials.materials},
+            cases=CASES,
+        )
+        for load in eq.nodal:
+            add_nodal(load.case, load.node, np.array(load.force))
+            add_weight(load.node, load.weight)
+        for line in eq.lines:
+            line_load(
+                line.source,
+                line.case,
+                np.array(line.start),
+                np.array(line.end),
+                line.load,
+                share=line.weight_share,
+            )
+        b.notes += eq.notes
 
     # ── levels: the story elevations with nodes; nodes between count for the nearest ──
     above = [round(lv * MM, 6) for lv in levels if lv > base]
@@ -914,8 +1058,10 @@ def derive_fem(
                 "material_id": solid.material,
             }
         )
+    # The fluid case F only when it has loads (it is last, so the other cases keep their ids).
+    cases = [c for c in CASES if c != "F" or patterns[c]["nodal"] or patterns[c]["element"]]
     load_patterns = []
-    for number, case in enumerate(CASES, start=1):
+    for number, case in enumerate(cases, start=1):
         pattern = patterns[case]
         load_patterns.append(
             {
@@ -983,7 +1129,7 @@ def derive_fem(
             "tolerance": 1e-8,
             "max_iter": 25,
         }
-        for number, case in enumerate(CASES, start=1)
+        for number, case in enumerate(cases, start=1)
     ]
     dead_preload = CASES.index("D") + 1  # the dead load case time histories start from
     if staged:
@@ -1159,7 +1305,79 @@ def derive_fem(
             project, keys, types, mats, node_weight, base * MM, options.pushover
         )
         b.notes.extend(more)
-    return Derivation(project=project, notes=b.notes, summary=summary, pushover=pushover)
+
+    # ── the temperature case T (after the pushover copy, which has none) ──
+    thermal_corrections = None
+    if options.thermal.enabled:
+        from saengine.fem.thermal import (
+            ThermalOptions,
+            add_thermal_case,
+            exposed_elements,
+            thermal_sections,
+        )
+
+        keys = {sid: key for key, sid in b.section_ids.items()}
+        t = options.thermal
+        case = add_thermal_case(
+            project,
+            thermal_sections(keys, types, mats),
+            ThermalOptions(t.uniform, t.gradient, t.scope),
+            # Every roof: the main roof and any stair, lift-machine or tank room roof above it
+            # (the horizontal members and shells with nothing above them).
+            roof_elements=exposed_elements(project),
+        )
+        b.notes.extend(case.notes)
+        thermal_corrections = case.corrections
+        if not any(c.T for c in settings.combinations):
+            b.notes.append(
+                "temperature: no load combination has a T factor, so T is analysed but not "
+                "designed for; add 1.2D ± 1.2T + 1.6L + 0.5Lr (BNBC 2020 Part 6 Sec 2.7.3.1; "
+                "Project Settings, Reset Combinations adds them)"
+            )
+        if not thermal_corrections["frames"] and not thermal_corrections["shells"]:
+            b.notes.append("temperature: no member is heated (ΔTu and ΔTg are 0 where they apply)")
+
+    # ── soil-structure interaction: the column bases on their foundations' springs ──
+    ssi_json = None
+    mode = column_supports or getattr(options, "supports", "fixed")
+    if mode == "soilSprings" and not special:
+        if substructure is None or not getattr(substructure, "foundations", None):
+            b.notes.append(
+                "soil springs: 9 Substructure has no foundations yet; the column bases stay fixed"
+            )
+        else:
+            from saengine.fem import ssi
+
+            spring_options = ssi.options_from_settings(settings)
+            spring_options.supports = "soilSprings"
+            r = ssi.apply_soil_springs(
+                project,
+                building,
+                substructure,
+                soil_text,
+                materials,
+                ground_level=settings.foundation.groundLevel,
+                acceleration=ssi.peak_acceleration(settings),
+                options=spring_options,
+                soil_unit_weight=settings.foundation.soilUnitWeight,
+            )
+            project = r.project
+            b.notes.extend(r.notes)
+            ssi_json = r.to_json()
+            summary["supports"] = sum(
+                1 for n in project["nodes"] if all(n.get("restraint") or [False])
+            )
+            summary["springs"] = len(r.foundations)
+            summary["nodes"] = len(project["nodes"])
+            summary["elements"] = len(project["elements"])
+    return Derivation(
+        project=project,
+        notes=b.notes,
+        summary=summary,
+        pushover=pushover,
+        thermal=thermal_corrections,
+        ssi=ssi_json,
+    )
 
 
 def _rectangle(opening: Any, z: float) -> list[tuple[float, float, float]]:

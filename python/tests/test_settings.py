@@ -9,7 +9,7 @@ from pydantic import ValidationError
 
 from saengine.library import ProjectSettings, default_project_settings
 from saengine.library.check import check_library
-from saengine.library.settings import derived, strength_combinations
+from saengine.library.settings import LoadCombination, derived, strength_combinations
 
 
 def settings(**changes: object) -> dict:
@@ -69,9 +69,34 @@ def test_strength_combinations() -> None:
         "WY": 0,
         "EX": 0,
         "EY": 0,
+        "T": 0,
+        "F": 1.2,
     }
     assert combinations["0.9D + 1.0(-EY)"].EY == -1.0
     assert combinations["1.2D + 1.6WX + 1.0L + 0.5Lr"].WX == 1.6
+
+
+def test_fluid_factor_follows_the_dead_load() -> None:
+    # BNBC 2020 2.7.3.1: F with D in 1.4(D + F) and 1.2(D + F + T) + ...; none with 0.9D.
+    combinations = {c.name: c for c in strength_combinations()}
+    assert combinations["1.4D"].F == 1.4
+    assert combinations["1.2D + 1.0EX + 1.0L"].F == 1.2
+    assert combinations["0.9D + 1.6WX"].F == 0.0
+    # A saved file's own factor stays; an old file without F gets it from D.
+    assert LoadCombination(name="c", D=1.2, F=0.0).F == 0.0
+    assert LoadCombination.model_validate({"name": "old", "D": 1.4}).F == 1.4
+
+
+def test_temperature_combinations() -> None:
+    # BNBC 2020 Part 6 Sec 2.7.3.1 combination 2 with ±T, right after the one without T; T is
+    # not combined with wind or earthquake.
+    names = [c.name for c in strength_combinations(thermal=True)]
+    assert len(names) == 25
+    at = names.index("1.2D + 1.6L + 0.5Lr")
+    assert names[at + 1 : at + 3] == ["1.2D + 1.2T + 1.6L + 0.5Lr", "1.2D - 1.2T + 1.6L + 0.5Lr"]
+    falling = {c.name: c for c in strength_combinations(thermal=True)}["1.2D - 1.2T + 1.6L + 0.5Lr"]
+    assert (falling.D, falling.T, falling.L, falling.Lr, falling.F) == (1.2, -1.2, 1.6, 0.5, 1.2)
+    assert all(not c.T for c in strength_combinations(thermal=True) if c.WX or c.WY or c.EX or c.EY)
 
 
 def test_check_reports_code_minimums_and_references() -> None:

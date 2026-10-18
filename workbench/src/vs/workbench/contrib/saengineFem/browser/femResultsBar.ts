@@ -24,6 +24,7 @@ import { IFemResultEntry, IFemResultList, IFemResultView } from '../../../../pla
 import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { EditorFrame, IEditorFrameIconButton, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { describeDesignSummary, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignReport, resultsFolder, runDesign, sortedChecks, writeDesignSummary } from './femDesign.js';
+import { FemSsiPanel } from './femSsi.js';
 
 export { resultsFolder } from './femDesign.js';
 
@@ -347,6 +348,8 @@ export class FemResultsBar extends Disposable {
 	private designProblem: string | undefined;
 	private designLoading = false;
 	private designToken = 0;
+	/** The soil springs' section of the properties panel (models on soil springs). */
+	private readonly ssi: FemSsiPanel;
 
 	constructor(
 		frame: EditorFrame,
@@ -358,6 +361,7 @@ export class FemResultsBar extends Disposable {
 		@IContextViewService contextViewService: IContextViewService,
 	) {
 		super();
+		this.ssi = this._register(new FemSsiPanel(() => this.host.changed(), commandService, fileService, model => dirname(dirname(model))));
 		const group = (slot: HTMLElement, className: string) => append(slot, $(`.fem-results-group.${className}`));
 
 		this.resultGroup = group(frame.titleSlot, 'result');
@@ -461,6 +465,7 @@ export class FemResultsBar extends Disposable {
 		}
 		this.stopPlaying();
 		this.resource = resource;
+		this.ssi.setResource(resource);
 		this.watch.clear();
 		this.resultsWatch.clear();
 		this.list = { results: [], stale: false };
@@ -807,7 +812,12 @@ export class FemResultsBar extends Disposable {
 			}
 		}
 		const text = this.describeOverall();
-		return text ? { text } : undefined;
+		// The temperature case: its member forces include the fixed-end forces added back.
+		const thermal = /^T:/.test(entry.label) && this.show !== 'deformed' && this.show !== 'none'
+			? localize('femResults.thermalNote', "Temperature T: forces include the members' fixed-end forces (added back); analysed without the rigid diaphragms.")
+			: undefined;
+		const shown = [text, thermal].filter(t => !!t).join(' ');
+		return shown ? { text: shown } : undefined;
 	}
 
 	/** The values that matter for what is shown, over the whole model. */
@@ -941,6 +951,9 @@ export class FemResultsBar extends Disposable {
 		if (entry.kind === 'pushover') {
 			propertyHeading(container, localize('femResults.curveHeading', "Capacity Curve"));
 			this.renderCurve(container, entry.frames ?? []);
+		}
+		if (!selection && this.show !== 'utilisation') {
+			this.ssi.render(container);
 		}
 		return true;
 	}

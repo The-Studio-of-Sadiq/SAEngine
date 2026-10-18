@@ -29,6 +29,12 @@ Methods:
 - ``substructure/size`` ``{projectRoot, columns?}`` -> footings proposed by the sizing assistant
 - ``substructure/migrate`` ``{projectRoot}`` -> the substructure with the building model's footings
 - ``substructure/ensure`` ``{projectRoot}`` -> moves the footings into a placeholder substructure
+- ``fem/derive`` also takes ``mepText?`` and ``substructureText?`` (else the project's files beside
+  ``modelFolder``): the MEP openings and equipment loads, and the foundations of soil springs
+- ``fem/ssiCompare`` ``{projectRoot}`` -> fixed base against soil springs (runs the fixed model)
+- ``mep/report`` ``{projectRoot, outDir?, mepText?}`` -> the MEP coordination report
+- ``mep/suggestSleeves`` ``{projectRoot, mepText?, allowance?}`` -> sleeves for the clashes
+- ``mep/importIfc`` ``{projectRoot, path, copy?}`` -> what an MEP IFC model holds
 
 Analyses themselves are not run here: the workbench starts
 ``python -m opensees_studio.run`` per run, so an OpenSees hard exit can never take
@@ -109,6 +115,8 @@ def create_server() -> JsonRPCServer:
             args["settingsText"],
             args.get("modelFolder"),
             args.get("soilText"),
+            args.get("mepText"),
+            args.get("substructureText"),
         )
 
     @server.feature("bim/ifc")
@@ -121,6 +129,7 @@ def create_server() -> JsonRPCServer:
             args.get("name") or "Project",
             args.get("substructureText"),
             args.get("settingsText"),
+            args.get("mepText"),
         )
 
     @server.feature("structure/shapeGeometry")
@@ -158,6 +167,7 @@ def create_server() -> JsonRPCServer:
             args["materialsText"],
             args.get("substructureText"),
             args.get("settingsText"),
+            args.get("mepText"),
         )
 
     @server.feature("report/build")
@@ -220,6 +230,27 @@ def create_server() -> JsonRPCServer:
     @server.feature("substructure/ensure")
     def _substructure_ensure(params: Any) -> dict[str, Any]:
         return handlers.substructure_ensure(_plain(params)["projectRoot"])
+
+    @server.feature("fem/ssiCompare")
+    def _ssi_compare(params: Any) -> dict[str, Any]:
+        return handlers.ssi_compare(_plain(params)["projectRoot"])
+
+    @server.feature("mep/report")
+    def _mep_report(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.mep_report(args["projectRoot"], args.get("outDir"), args.get("mepText"))
+
+    @server.feature("mep/suggestSleeves")
+    def _mep_suggest_sleeves(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.mep_suggest_sleeves(
+            args["projectRoot"], args.get("mepText"), args.get("allowance")
+        )
+
+    @server.feature("mep/importIfc")
+    def _mep_import_ifc(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.mep_import_ifc(args["projectRoot"], args["path"], bool(args.get("copy")))
 
     return server
 

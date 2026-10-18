@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { groundLevelStamp, sourceStamp } from '../../common/partSources.js';
+import { groundLevelStamp, mepModelStamp, sourceStamp } from '../../common/partSources.js';
 import { computePartStatuses, exportKind, IPartStatusInputs, nextStep } from '../../common/partStatus.js';
 import { PROJECT_PARTS, projectParts } from '../../common/saengineProject.js';
 
@@ -20,7 +20,7 @@ const SOURCES = {
 const BIM = JSON.stringify({ schema: 'saengine.bim/2', source: { floorPlan: sourceStamp(SOURCES.floorPlan) }, elements: [] });
 
 function femModel(sources: { [part: string]: string }): string {
-	const list = Object.entries(sources).map(([key, text]) => `${key}=${sourceStamp(text)}`).join('; ');
+	const list = Object.entries(sources).map(([key, text]) => `${key}=${key === 'mep' ? mepModelStamp(text) : sourceStamp(text)}`).join('; ');
 	return JSON.stringify({ schema_version: 2, meta: { description: `Derived by SAEngine. Sources: ${list}` } });
 }
 
@@ -228,6 +228,76 @@ suite('SAEngine - PartStatus', () => {
 			boq({ boq: withSubstructure, substructure, settings: '{"schema": "saengine.projectSettings/1", "foundation": {"allowableBearing": 400}}' }),
 			boq({ boq: withSubstructure, substructure, settings: '{"schema": "saengine.projectSettings/1", "foundation": {"groundLevel": -300}}' }),
 		], ['done', 'stale', 'done', 'done', 'stale']);
+	});
+
+	test('MEP: placeholder, content, checked against the saved files and the results', () => {
+		const file = (equipment: number, extra: object = {}) => JSON.stringify({ schema: 'saengine.mep/1', equipment: Array.from({ length: equipment }, (_, i) => ({ id: `EQ${i + 1}` })), openings: [], shafts: [], ...extra });
+		const summaryOf = (mep: string, counts: { openingsFailed: number; clashesOpen: number; openingsPartial?: number }, bim = BIM) => JSON.stringify({
+			equipment: 2, openings: 1, clashes: counts.clashesOpen, computed: '2026-10-17T00:00:00Z', ...counts,
+			source: { settings: sourceStamp(SOURCES.settings), materials: sourceStamp(SOURCES.materials), objects: sourceStamp(SOURCES.objects), bim: sourceStamp(bim), mep: sourceStamp(mep) },
+		});
+		const line = (texts: { [part: string]: string | undefined }, rest: Omit<IPartStatusInputs, 'texts'> = {}) => {
+			const s = computePartStatuses(PROJECT_PARTS, project(texts, rest)).find(p => p.part === 'mep')!;
+			return `${s.state} ${s.text} (${s.hint ?? ''})`;
+		};
+		const two = file(2);
+		const ok = summaryOf(two, { openingsFailed: 0, clashesOpen: 0 });
+		assert.deepStrictEqual([
+			line({}),
+			line({ mep: file(0) }),
+			line({ mep: '{ not json' }),
+			line({ mep: JSON.stringify({ schema: 'other' }) }),
+			line({ mep: two }),
+			line({ mep: two }, { femResultsTime: 5, mepSummaryText: ok, mepSummaryTime: 20 }),
+			line({ mep: file(1) }, { femResultsTime: 5, mepSummaryText: summaryOf(file(1), { openingsFailed: 0, clashesOpen: 0 }), mepSummaryTime: 20 }),
+			line({ mep: two }, { femResultsTime: 5, mepSummaryText: summaryOf(two, { openingsFailed: 1, clashesOpen: 2 }), mepSummaryTime: 20 }),
+			line({ mep: two }, { femResultsTime: 5, mepSummaryText: summaryOf(two, { openingsFailed: 0, clashesOpen: 2 }), mepSummaryTime: 20 }),
+			// Openings whose strength was not checked (no analysis results) keep it in progress.
+			line({ mep: two }, { femResultsTime: 5, mepSummaryText: summaryOf(two, { openingsFailed: 0, clashesOpen: 0, openingsPartial: 1 }), mepSummaryTime: 20 }),
+			line({ mep: two }, { femResultsTime: 5, mepSummaryText: summaryOf(two, { openingsFailed: 0, clashesOpen: 0, openingsPartial: 2 }), mepSummaryTime: 20 }),
+			// Edited since, or older than the analysis results: not checked.
+			line({ mep: file(2, { contentsAs: 'live' }) }, { femResultsTime: 5, mepSummaryText: ok, mepSummaryTime: 20 }),
+			line({ mep: two, objects: '{"objects": [1]}' }, { femResultsTime: 5, mepSummaryText: ok, mepSummaryTime: 20 }),
+			line({ mep: two }, { femResultsTime: 25, mepSummaryText: ok, mepSummaryTime: 20 }),
+			// IFC models alone are something to coordinate.
+			line({ mep: file(0, { ifcModels: [{ path: '07 MEP/HVAC.ifc' }] }) }),
+		], [
+			'notStarted not started (lay out the services)',
+			'notStarted not started (lay out the services)',
+			'error invalid file (fix the file)',
+			'error invalid file (fix the file)',
+			'inProgress not checked (check the openings and clashes)',
+			'done 2 equipment ()',
+			'done 1 equipment ()',
+			'failed 1 opening fails (review the failing openings)',
+			'inProgress 2 clashes (coordinate the clashes)',
+			'inProgress 1 opening not fully checked (run the analysis to check the openings\' strength)',
+			'inProgress 2 openings not fully checked (run the analysis to check the openings\' strength)',
+			'inProgress not checked (check the openings and clashes)',
+			'inProgress not checked (check the openings and clashes)',
+			'inProgress not checked (check the openings and clashes)',
+			'inProgress not checked (check the openings and clashes)',
+		]);
+	});
+
+	test('the analysis model and the bill are stale once MEP they do not record has content', () => {
+		const mep = JSON.stringify({ schema: 'saengine.mep/1', equipment: [{ id: 'EQ1' }], openings: [], shafts: [] });
+		const withMep = femModel({ bim: BIM, settings: SOURCES.settings, objects: SOURCES.objects, materials: SOURCES.materials, mep });
+		const boqWithMep = JSON.stringify({ schema: 'saengine.boq/1', source: { bim: sourceStamp(BIM), objects: sourceStamp(SOURCES.objects), materials: sourceStamp(SOURCES.materials), mep: sourceStamp(mep) }, items: [] });
+		const state = (part: string, texts: { [part: string]: string | undefined }) => computePartStatuses(PROJECT_PARTS, project(texts, { femModelTime: 10, femResultsTime: 20 })).find(s => s.part === part)!.state;
+		assert.deepStrictEqual([
+			state('fem', {}),
+			state('fem', { mep }),
+			state('fem', { mep, fem: withMep }),
+			state('fem', { mep: placeholder('mep'), fem: withMep }),
+			state('boq', { boq: BOQ, mep }),
+			state('boq', { boq: boqWithMep, mep }),
+			state('boq', { boq: boqWithMep, mep: placeholder('mep') }),
+			// The model takes the equipment, openings and shafts, not the IFC models or the labels.
+			state('fem', { mep: JSON.stringify({ ...JSON.parse(mep), ifcModels: [{ path: '07 MEP/HVAC.ifc', discipline: 'mechanical', visible: false }] }), fem: withMep }),
+			state('fem', { mep: JSON.stringify({ ...JSON.parse(mep), equipment: [{ id: 'EQ1', name: 'Roof tank' }] }), fem: withMep }),
+			state('fem', { mep: JSON.stringify({ ...JSON.parse(mep), equipment: [{ id: 'EQ2' }] }), fem: withMep }),
+		], ['done', 'stale', 'done', 'stale', 'stale', 'done', 'stale', 'done', 'done', 'stale']);
 	});
 
 	test('the next step skips the parts that are not written yet', () => {

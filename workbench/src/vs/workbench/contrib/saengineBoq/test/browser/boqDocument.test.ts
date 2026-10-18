@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { groundLevelStamp, sourceStamp } from '../../../../services/saengineProject/common/partSources.js';
-import { boqComputeArgs, changedSources, IBoqDocument, parseBoq, toCsv, totals } from '../../browser/boqDocument.js';
+import { boqComputeArgs, changedSources, formatQuantity, IBoqDocument, parseBoq, toCsv, totals } from '../../browser/boqDocument.js';
 
 suite('SAEngine - Bill of quantities', () => {
 
@@ -50,8 +50,27 @@ suite('SAEngine - Bill of quantities', () => {
 			invalid: ['settings'],
 			missing: ['substructure', 'settings'],
 			python: ['eb7f0d0d5faa4ccf9f9d13fbdda0529448065fda', 'fe329f8351df78af4c4980a95d5ca6d0310b7ccd'],
-			args: { args: { bimText: '{"a": 1}\n', objectsText: 'o', materialsText: 'm', substructureText: 's', settingsText: undefined }, missing: [] },
+			args: { args: { bimText: '{"a": 1}\n', objectsText: 'o', materialsText: 'm', substructureText: 's', settingsText: undefined, mepText: undefined }, missing: [] },
 			noBim: { missing: ['Building Model', 'Materials'] },
+		});
+	});
+
+	test('MEP counts as a source once the bill records it; sleeves are counted whole', () => {
+		const mep = '{"schema": "saengine.mep/1", "openings": [{"id": "OP1"}]}';
+		const texts = new Map([['bim', '{"a": 1}\n'], ['objects', 'o'], ['materials', 'm'], ['mep', mep]]);
+		const measured: IBoqDocument = { ...document, source: { ...document.source, mep: sourceStamp(mep) } };
+		assert.deepStrictEqual({
+			before: changedSources(document, texts),
+			current: changedSources(measured, texts),
+			edited: changedSources(measured, new Map([...texts, ['mep', '{}']])),
+			args: boqComputeArgs(texts).args?.mepText,
+			count: formatQuantity(3, 'nr'),
+		}, {
+			before: ['mep'],
+			current: [],
+			edited: ['mep'],
+			args: mep,
+			count: '3',
 		});
 	});
 

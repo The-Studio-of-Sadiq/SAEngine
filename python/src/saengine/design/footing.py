@@ -177,7 +177,7 @@ def footing_checks(
 
     strength: list[tuple[str, dict[str, float]]] = []
     for combination in settings.combinations:
-        factors = combination_factors(combination)
+        factors = combination_factors(combination, set(by_case))
         if all(case in by_case for case in factors):
             strength.append((combination.name, factors))
     # Wind is nominal when a strength combination factors it above 1.0 (1.6W, BNBC 2.7.3).

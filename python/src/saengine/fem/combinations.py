@@ -23,18 +23,30 @@ _FACTOR_CASES = {
     "WY": ("WY",),
     "EX": ("EX",),
     "EY": ("EY",),
+    "T": ("T",),
+    "F": ("F",),
 }
+#: Cases a combination may name that a model need not have: the fluid case F exists only when
+#: 07 MEP puts equipment contents in it, so a combination without its results is formed without
+#: it (a model without F has no fluid loads). T is not optional: its combinations need its case.
+OPTIONAL_CASES = frozenset({"F"})
 _DOF = ["Ux", "Uy", "Uz", "Rx", "Ry", "Rz"]
 _FORCES = ["Fx", "Fy", "Fz", "Mx", "My", "Mz"]
 _END_FORCES = ["N", "Vy", "Vz", "T", "My", "Mz"]
 
 
-def combination_factors(combination: LoadCombination) -> dict[str, float]:
+def combination_factors(
+    combination: LoadCombination, present: set[str] | frozenset[str] | None = None
+) -> dict[str, float]:
+    """``{case: factor}`` of a combination. With ``present`` (the cases that have results), the
+    optional cases (:data:`OPTIONAL_CASES`) without results are left out."""
     factors: dict[str, float] = {}
     for field, cases in _FACTOR_CASES.items():
         value = getattr(combination, field)
         if value:
             for case in cases:
+                if present is not None and case in OPTIONAL_CASES and case not in present:
+                    continue
                 factors[case] = value
     return factors
 
@@ -46,14 +58,21 @@ def _table(
 
 
 def combination_results(
-    out_dir: str | Path, project: dict[str, Any], settings: ProjectSettings
+    out_dir: str | Path,
+    project: dict[str, Any],
+    settings: ProjectSettings,
+    thermal: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Result entries (like the run's cases) for each combination, then the force envelope.
 
+    ``thermal``: the temperature case's fixed-end forces (``08 FEM/thermal.json``,
+    :func:`saengine.fem.thermal.load_corrections`), added to its end forces.
     Units follow the model: m, N, N·m. Values are rounded for display.
     """
     from opensees_studio.services.result_store import load_manifest, load_results
     from opensees_studio.services.results import StaticResults
+
+    from saengine.fem.thermal import end_force_corrections
 
     manifest = load_manifest(out_dir)
     by_case: dict[str, Any] = {}
@@ -75,7 +94,7 @@ def combination_results(
     entries: list[dict[str, Any]] = []
     envelope: dict[tuple[int, int], list[float]] = {}
     for number, combination in enumerate(settings.combinations, start=1):
-        factors = combination_factors(combination)
+        factors = combination_factors(combination, set(by_case))
         missing = [case for case in factors if case not in by_case]
         if missing:
             entries.append(
@@ -101,8 +120,12 @@ def combination_results(
             n: sum(f * last(by_case[c].node_reaction, n, 6) for c, f in factors.items())
             for n in supports
         }
+        added = {c: end_force_corrections(thermal, c) for c in factors}
         forces = {
-            e: sum(f * last(by_case[c].element_forces, e, 12) for c, f in factors.items())
+            e: sum(
+                f * (last(by_case[c].element_forces, e, 12) + added[c].get(e, 0.0))
+                for c, f in factors.items()
+            )
             for e in elements
         }
         total = sum(react.values(), np.zeros(6))

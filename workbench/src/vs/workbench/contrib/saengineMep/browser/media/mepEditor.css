@@ -1,0 +1,799 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The MEP editor (mepEditor.ts) in the shared editor frame (editorFrame.css). Sizes and colours
+ * come from the shared tokens (saengineTokens.css) and the theme. The structure is drawn quietly
+ * (concrete as the canvas tinted with the foreground), the services in the chart colours:
+ * equipment blue, shafts purple, sleeves and openings orange; clashes in the fail tier. */
+
+.saengine-mep-editor {
+	--mep-concrete: color-mix(in srgb, var(--vscode-foreground) 6%, var(--sa-surface));
+	--mep-concrete-edge: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
+	--mep-beam: color-mix(in srgb, var(--vscode-foreground) 22%, var(--sa-surface));
+	--mep-wall: color-mix(in srgb, var(--vscode-foreground) 45%, var(--sa-surface));
+	--mep-column: color-mix(in srgb, var(--vscode-foreground) 72%, var(--sa-surface));
+	--mep-grid: color-mix(in srgb, var(--sa-muted) 55%, transparent);
+	--mep-equipment: var(--vscode-charts-blue, #2c6fbe);
+	--mep-shaft: var(--vscode-charts-purple, #7c4dbd);
+	--mep-sleeve: var(--vscode-charts-orange, #c2620e);
+	--mep-select: var(--sa-accent);
+}
+
+.saengine-mep-editor .mep-story {
+	display: flex;
+	align-items: center;
+	margin-left: var(--sa-space-2);
+}
+
+.saengine-mep-editor .mep-story-select {
+	width: 170px;
+}
+
+.saengine-mep-editor .sa-frame-toolbar .monaco-select-box {
+	height: 24px;
+	padding-top: 0;
+	padding-bottom: 0;
+	border-radius: var(--sa-radius, 4px);
+	font-size: var(--sa-font-m, 13px);
+}
+
+.saengine-mep-editor .mep-view {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	padding: var(--sa-space-3) var(--sa-space-4) var(--sa-space-6);
+	box-sizing: border-box;
+	outline: none;
+}
+
+.saengine-mep-editor .mep-view.plan {
+	overflow: hidden;
+}
+
+.saengine-mep-editor .mep-view-header {
+	display: flex;
+	align-items: baseline;
+	flex-wrap: wrap;
+	gap: var(--sa-space-1) var(--sa-space-3);
+	margin-bottom: var(--sa-space-2);
+}
+
+.saengine-mep-editor .mep-view-title {
+	font-size: var(--sa-font-l);
+	font-weight: 600;
+}
+
+.saengine-mep-editor .mep-view-subtitle,
+.saengine-mep-editor .mep-muted,
+.saengine-mep-editor .mep-muted-cell,
+.saengine-mep-editor .mep-muted-inline {
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+}
+
+.saengine-mep-editor .mep-partial {
+	display: block;
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+}
+
+/* ── legend ──────────────────────────────────────────────────────────────── */
+
+.saengine-mep-editor .mep-legend {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--sa-space-1) var(--sa-space-3);
+	margin-bottom: var(--sa-space-2);
+	font-size: var(--sa-font-s);
+	color: var(--sa-muted);
+}
+
+.saengine-mep-editor .mep-legend-item {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1);
+}
+
+.saengine-mep-editor .mep-swatch {
+	display: inline-block;
+	width: 12px;
+	height: 10px;
+	box-sizing: border-box;
+}
+
+.saengine-mep-editor .mep-swatch.equipment { border: 1px solid var(--mep-equipment); background: color-mix(in srgb, var(--mep-equipment) 16%, var(--sa-surface)); }
+.saengine-mep-editor .mep-swatch.shaft { border: 1px solid var(--mep-shaft); background: repeating-linear-gradient(45deg, var(--mep-shaft) 0 1px, transparent 1px 4px); }
+.saengine-mep-editor .mep-swatch.sleeve { width: 10px; border: 1.5px solid var(--mep-sleeve); border-radius: 50%; }
+.saengine-mep-editor .mep-swatch.beam { height: 5px; background: var(--mep-beam); }
+.saengine-mep-editor .mep-swatch.slab { border: 1px solid var(--mep-concrete-edge); background: var(--mep-concrete); }
+.saengine-mep-editor .mep-swatch.clash { width: 10px; border: 1.5px solid var(--sa-fail); border-radius: 50%; }
+
+/* ── plan (mepPlan.ts) ───────────────────────────────────────────────────── */
+
+.saengine-mep-editor .mep-canvas {
+	touch-action: none;
+}
+
+.saengine-mep-editor .mep-canvas svg {
+	display: block;
+	user-select: none;
+}
+
+.saengine-mep-editor .mep-grid-line {
+	stroke: var(--mep-grid);
+	stroke-width: 1;
+	stroke-dasharray: 12 3 2 3;
+}
+
+.saengine-mep-editor .mep-grid-bubble {
+	fill: var(--sa-surface);
+	stroke: var(--mep-grid);
+}
+
+.saengine-mep-editor .mep-grid-label {
+	font-size: 11px;
+	font-weight: 600;
+	fill: var(--sa-muted);
+}
+
+.saengine-mep-editor .mep-slab,
+.saengine-mep-editor .mep-beam,
+.saengine-mep-editor .mep-wall,
+.saengine-mep-editor .mep-column {
+	cursor: pointer;
+}
+
+.saengine-mep-editor .mep-slab-shape {
+	fill: var(--mep-concrete);
+	stroke: var(--mep-concrete-edge);
+	stroke-width: 1;
+}
+
+.saengine-mep-editor .mep-slab:hover .mep-slab-shape {
+	stroke: var(--mep-select);
+}
+
+.saengine-mep-editor .mep-slab.selected .mep-slab-shape {
+	fill: color-mix(in srgb, var(--mep-select) 8%, var(--sa-surface));
+	stroke: var(--mep-select);
+	stroke-width: 2;
+}
+
+.saengine-mep-editor .mep-element-label {
+	font-size: 10px;
+	fill: var(--sa-muted);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .mep-element-label.slab {
+	font-size: 11px;
+	fill: color-mix(in srgb, var(--sa-muted) 70%, transparent);
+}
+
+.saengine-mep-editor .mep-bim-opening {
+	pointer-events: none;
+}
+
+.saengine-mep-editor .mep-bim-opening-shape {
+	fill: var(--sa-surface);
+	stroke: var(--mep-concrete-edge);
+}
+
+.saengine-mep-editor .mep-bim-opening-cross {
+	stroke: var(--mep-concrete-edge);
+	stroke-width: 0.75;
+}
+
+.saengine-mep-editor .mep-hit {
+	stroke: transparent;
+	stroke-width: 14;
+}
+
+.saengine-mep-editor .mep-beam-line {
+	stroke: var(--mep-beam);
+	stroke-linecap: butt;
+	pointer-events: none;
+}
+
+.saengine-mep-editor .mep-wall-line {
+	stroke: var(--mep-wall);
+	stroke-linecap: butt;
+	pointer-events: none;
+}
+
+.saengine-mep-editor .mep-beam:hover .mep-beam-line,
+.saengine-mep-editor .mep-wall:hover .mep-wall-line {
+	stroke: color-mix(in srgb, var(--mep-select) 60%, var(--mep-beam));
+}
+
+.saengine-mep-editor .mep-beam.selected .mep-beam-line,
+.saengine-mep-editor .mep-wall.selected .mep-wall-line {
+	stroke: var(--mep-select);
+}
+
+.saengine-mep-editor .mep-beam.selected .mep-element-label {
+	fill: var(--mep-select);
+	font-weight: 600;
+}
+
+.saengine-mep-editor .mep-column-shape {
+	fill: var(--mep-column);
+	stroke: var(--mep-column);
+}
+
+.saengine-mep-editor .mep-column.selected .mep-column-shape {
+	fill: var(--mep-select);
+	stroke: var(--mep-select);
+}
+
+.saengine-mep-editor .mep-shaft {
+	cursor: move;
+}
+
+.saengine-mep-editor .mep-hatch-line {
+	stroke: color-mix(in srgb, var(--mep-shaft) 55%, transparent);
+	stroke-width: 1;
+}
+
+.saengine-mep-editor .mep-shaft-fill {
+	stroke: none;
+}
+
+.saengine-mep-editor .mep-shaft-shape {
+	fill: none;
+	stroke: var(--mep-shaft);
+	stroke-width: 1.5;
+}
+
+.saengine-mep-editor .mep-shaft.selected .mep-shaft-shape {
+	stroke: var(--mep-select);
+	stroke-width: 2.5;
+}
+
+.saengine-mep-editor .mep-shaft-label {
+	font-size: 11px;
+	font-weight: 600;
+	fill: var(--mep-shaft);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .mep-equipment {
+	cursor: move;
+}
+
+.saengine-mep-editor .mep-equipment-shape {
+	fill: color-mix(in srgb, var(--mep-equipment) 14%, var(--sa-surface));
+	stroke: var(--mep-equipment);
+	stroke-width: 1.5;
+}
+
+.saengine-mep-editor .mep-equipment.vibrating .mep-equipment-shape {
+	stroke-dasharray: 6 2;
+}
+
+.saengine-mep-editor .mep-equipment:hover .mep-equipment-shape {
+	fill: color-mix(in srgb, var(--mep-equipment) 22%, var(--sa-surface));
+}
+
+.saengine-mep-editor .mep-equipment.selected .mep-equipment-shape {
+	stroke: var(--mep-select);
+	stroke-width: 2.5;
+	stroke-dasharray: none;
+}
+
+.saengine-mep-editor .mep-equipment-foot {
+	fill: var(--mep-equipment);
+}
+
+.saengine-mep-editor .mep-equipment-label {
+	font-size: 11px;
+	font-weight: 600;
+	fill: var(--vscode-foreground);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .mep-equipment-weight {
+	font-size: 10px;
+	fill: var(--mep-equipment);
+	font-variant-numeric: tabular-nums;
+	pointer-events: none;
+}
+
+.saengine-mep-editor .mep-equipment-name {
+	font-size: 10px;
+	fill: var(--sa-muted);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .mep-opening {
+	cursor: pointer;
+}
+
+.saengine-mep-editor .mep-opening-shape {
+	fill: var(--sa-surface);
+	stroke: var(--mep-sleeve);
+	stroke-width: 2;
+}
+
+.saengine-mep-editor .mep-opening.kind-opening .mep-opening-shape {
+	fill: color-mix(in srgb, var(--mep-sleeve) 18%, var(--sa-surface));
+}
+
+.saengine-mep-editor .mep-opening.band-ok .mep-opening-shape { stroke: var(--sa-ok); }
+.saengine-mep-editor .mep-opening.band-warn .mep-opening-shape { stroke: var(--sa-warn); }
+.saengine-mep-editor .mep-opening.band-fail .mep-opening-shape { stroke: var(--sa-fail); fill: color-mix(in srgb, var(--sa-fail) 18%, var(--sa-surface)); }
+
+.saengine-mep-editor .mep-opening.selected .mep-opening-shape {
+	stroke: var(--mep-select);
+	stroke-width: 3;
+}
+
+.saengine-mep-editor .mep-opening-label {
+	font-size: 10px;
+	font-weight: 600;
+	fill: var(--mep-sleeve);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .mep-opening.selected .mep-opening-label {
+	fill: var(--mep-select);
+}
+
+.saengine-mep-editor .mep-clash {
+	cursor: pointer;
+}
+
+.saengine-mep-editor .mep-clash-mark {
+	stroke: var(--sa-fail);
+	stroke-width: 2;
+}
+
+.saengine-mep-editor .mep-clash-ring {
+	fill: transparent;
+	stroke: var(--sa-fail);
+	stroke-width: 1.25;
+}
+
+.saengine-mep-editor .mep-clash.coordinated .mep-clash-mark,
+.saengine-mep-editor .mep-clash.coordinated .mep-clash-ring {
+	stroke: var(--sa-ok);
+}
+
+.saengine-mep-editor .mep-clash.selected .mep-clash-ring {
+	stroke: var(--mep-select);
+	stroke-width: 3;
+}
+
+.saengine-mep-editor .mep-scale {
+	fill: none;
+	stroke: var(--sa-muted);
+}
+
+.saengine-mep-editor .mep-scale-label {
+	font-size: 10px;
+	fill: var(--sa-muted);
+}
+
+/* ── tables ──────────────────────────────────────────────────────────────── */
+
+.saengine-mep-editor .mep-section {
+	margin-top: var(--sa-space-4);
+}
+
+.saengine-mep-editor .mep-section.result {
+	margin-top: var(--sa-space-6);
+}
+
+.saengine-mep-editor .mep-section-heading {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2);
+	margin-bottom: var(--sa-space-2);
+}
+
+.saengine-mep-editor .mep-section-title {
+	font-weight: 600;
+}
+
+.saengine-mep-editor .mep-section-detail {
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+}
+
+.saengine-mep-editor .mep-section-count {
+	min-width: 16px;
+	padding: 0 5px;
+	border-radius: 999px;
+	font-size: 11px;
+	line-height: 16px;
+	text-align: center;
+	color: var(--vscode-badge-foreground);
+	background: var(--vscode-badge-background);
+}
+
+.saengine-mep-editor .mep-subheading {
+	margin: var(--sa-space-4) 0 var(--sa-space-2);
+	font-weight: 600;
+	font-size: var(--sa-font-s);
+}
+
+.saengine-mep-editor .mep-add {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1);
+	padding: 2px var(--sa-space-2);
+	border: none;
+	border-radius: var(--sa-radius);
+	background: transparent;
+	color: var(--vscode-textLink-foreground);
+	font-family: inherit;
+	font-size: var(--sa-font-s);
+	cursor: pointer;
+}
+
+.saengine-mep-editor .mep-section-heading .mep-add {
+	margin-left: auto;
+}
+
+.saengine-mep-editor .mep-add:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.saengine-mep-editor .mep-table-scroll {
+	overflow-x: auto;
+}
+
+.saengine-mep-editor .mep-table {
+	border-collapse: collapse;
+	table-layout: fixed;
+	font-size: var(--sa-font-s);
+}
+
+.saengine-mep-editor .mep-result-table {
+	table-layout: auto;
+	min-width: 360px;
+}
+
+.saengine-mep-editor .mep-table th {
+	padding: 4px 6px;
+	text-align: left;
+	font-weight: 600;
+	color: var(--sa-muted);
+	border-bottom: 1px solid var(--sa-border);
+	white-space: nowrap;
+	vertical-align: bottom;
+}
+
+.saengine-mep-editor .mep-table th.number,
+.saengine-mep-editor .mep-table td.number {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-mep-editor .mep-unit {
+	display: block;
+	font-weight: 400;
+	font-size: 11px;
+}
+
+.saengine-mep-editor .mep-table td {
+	padding: 2px 6px;
+	border-bottom: 1px solid color-mix(in srgb, var(--sa-border) 50%, transparent);
+	white-space: nowrap;
+}
+
+.saengine-mep-editor .mep-result-table td {
+	padding: 4px 6px;
+}
+
+.saengine-mep-editor .mep-table td:has(> .mep-input),
+.saengine-mep-editor .mep-table td:has(> .mep-select) {
+	padding: 1px 2px;
+}
+
+.saengine-mep-editor .mep-table td.mep-wrap {
+	white-space: normal;
+	min-width: 200px;
+	color: var(--sa-muted);
+}
+
+.saengine-mep-editor .mep-table td.mep-muted {
+	padding: var(--sa-space-2) 6px;
+	white-space: normal;
+}
+
+.saengine-mep-editor .mep-table td.mep-check-cell {
+	text-align: center;
+}
+
+.saengine-mep-editor tr.mep-row {
+	cursor: pointer;
+}
+
+.saengine-mep-editor tr.mep-row:hover,
+.saengine-mep-editor tr.mep-clash-row:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.saengine-mep-editor tr.mep-row.selected,
+.saengine-mep-editor tr.mep-clash-row.selected {
+	background: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.saengine-mep-editor .mep-input,
+.saengine-mep-editor .mep-select {
+	width: 100%;
+	height: 24px;
+	box-sizing: border-box;
+	padding: 0 5px;
+	border: 1px solid transparent;
+	border-radius: 2px;
+	background: transparent;
+	color: var(--vscode-input-foreground, var(--vscode-foreground));
+	font-family: inherit;
+	font-size: var(--sa-font-s);
+	outline: none;
+}
+
+.saengine-mep-editor .mep-input.number {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-mep-editor .mep-input:hover,
+.saengine-mep-editor .mep-select:hover {
+	border-color: var(--vscode-input-border, var(--sa-border));
+}
+
+.saengine-mep-editor .mep-input:focus,
+.saengine-mep-editor .mep-select:focus {
+	border-color: var(--vscode-focusBorder);
+	background: var(--vscode-input-background);
+}
+
+.saengine-mep-editor .mep-select {
+	cursor: pointer;
+}
+
+.saengine-mep-editor .mep-select option {
+	background: var(--vscode-dropdown-background);
+	color: var(--vscode-dropdown-foreground);
+}
+
+.saengine-mep-editor .mep-checkbox {
+	margin: 0;
+	accent-color: var(--vscode-focusBorder);
+	cursor: pointer;
+}
+
+.saengine-mep-editor .mep-input.warning,
+.saengine-mep-editor .mep-select.warning {
+	border-color: var(--sa-warn);
+}
+
+.saengine-mep-editor .mep-input.invalid {
+	border-color: var(--sa-fail);
+	background: color-mix(in srgb, var(--sa-fail) 8%, transparent);
+}
+
+.saengine-mep-editor .mep-row-actions {
+	text-align: center;
+}
+
+.saengine-mep-editor .mep-remove {
+	display: inline-flex;
+	padding: 3px;
+	border: none;
+	border-radius: var(--sa-radius);
+	background: transparent;
+	color: var(--sa-muted);
+	cursor: pointer;
+	visibility: hidden;
+}
+
+.saengine-mep-editor tr:hover .mep-remove,
+.saengine-mep-editor .mep-remove:focus-visible {
+	visibility: visible;
+}
+
+.saengine-mep-editor .mep-remove:hover {
+	color: var(--vscode-foreground);
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+/* utilisation: a short bar and the value, in the shared bands */
+.saengine-mep-editor .mep-util-cell {
+	white-space: nowrap;
+}
+
+.saengine-mep-editor .mep-util-cell.band-fail {
+	color: var(--sa-fail);
+	font-weight: 600;
+}
+
+.saengine-mep-editor .mep-util-bar {
+	display: inline-block;
+	width: 48px;
+	height: 6px;
+	margin-right: var(--sa-space-2);
+	border-radius: 3px;
+	background: color-mix(in srgb, var(--sa-muted) 18%, transparent);
+	vertical-align: middle;
+	overflow: hidden;
+}
+
+.saengine-mep-editor .mep-util-fill {
+	display: block;
+	height: 100%;
+	background: var(--sa-ok);
+}
+
+.saengine-mep-editor .mep-util-fill.band-warn { background: var(--sa-warn); }
+.saengine-mep-editor .mep-util-fill.band-fail { background: var(--sa-fail); }
+
+.saengine-mep-editor .mep-util-value {
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-mep-editor .band-warn.mep-util-value,
+.saengine-mep-editor .mep-tile-value.band-warn { color: var(--sa-warn); }
+
+.saengine-mep-editor .band-fail.mep-util-value,
+.saengine-mep-editor .mep-tile-value.band-fail {
+	color: var(--sa-fail);
+	font-weight: 600;
+}
+
+.saengine-mep-editor .mep-tile-value.band-ok { color: var(--sa-ok); }
+
+.saengine-mep-editor tr.failed td:first-child {
+	box-shadow: inset 2px 0 0 var(--sa-fail);
+}
+
+.saengine-mep-editor .mep-status-pill {
+	display: inline-block;
+	padding: 0 6px;
+	border-radius: 999px;
+	font-size: 11px;
+	line-height: 16px;
+	border: 1px solid currentColor;
+}
+
+.saengine-mep-editor .mep-status-pill.clash { color: var(--sa-fail); }
+.saengine-mep-editor .mep-status-pill.coordinated { color: var(--sa-ok); }
+
+.saengine-mep-editor .mep-clash-actions {
+	display: flex;
+	gap: var(--sa-space-1);
+}
+
+/* ── results ─────────────────────────────────────────────────────────────── */
+
+.saengine-mep-editor .mep-results-state {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--sa-space-2);
+	max-width: 460px;
+	margin: 12vh auto 0;
+	text-align: center;
+}
+
+.saengine-mep-editor .mep-results-state-icon {
+	font-size: 24px;
+	color: var(--sa-muted);
+}
+
+.saengine-mep-editor .mep-results-state-title {
+	font-size: var(--sa-font-l);
+	font-weight: 600;
+}
+
+.saengine-mep-editor .mep-results-state-text {
+	color: var(--sa-muted);
+	line-height: 1.5;
+}
+
+.saengine-mep-editor .mep-results-state ~ .mep-section {
+	max-width: 640px;
+	margin-left: auto;
+	margin-right: auto;
+}
+
+.saengine-mep-editor .mep-tiles {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--sa-space-3);
+	margin-top: var(--sa-space-3);
+}
+
+.saengine-mep-editor .mep-tile {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 120px;
+	padding: var(--sa-space-2) var(--sa-space-3);
+	border: 1px solid var(--sa-border);
+	border-radius: var(--sa-radius);
+	background: var(--sa-surface-alt);
+}
+
+.saengine-mep-editor .mep-tile-value {
+	font-size: var(--sa-font-xl);
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-mep-editor .mep-tile-label {
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+}
+
+.saengine-mep-editor .mep-note {
+	margin: var(--sa-space-2) 0 0;
+	max-width: 720px;
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+	line-height: 1.5;
+}
+
+/* ── properties panel ────────────────────────────────────────────────────── */
+
+.saengine-mep-editor .mep-prop-row {
+	align-items: center;
+}
+
+.saengine-mep-editor .mep-prop-row > .value {
+	flex: 0 0 56%;
+}
+
+.saengine-mep-editor .mep-prop-control {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-1);
+}
+
+.saengine-mep-editor .mep-prop-control .mep-input,
+.saengine-mep-editor .mep-prop-control .mep-select {
+	border-color: var(--vscode-input-border, var(--sa-border));
+	background: var(--vscode-input-background);
+}
+
+.saengine-mep-editor .mep-prop-unit {
+	flex: none;
+	max-width: 40%;
+	color: var(--sa-muted);
+	font-size: 11px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.saengine-mep-editor .sa-props-note.error {
+	color: var(--sa-fail);
+}
+
+.saengine-mep-editor .sa-props-note.warning {
+	color: var(--sa-warn);
+}
+
+.saengine-mep-editor ::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+
+.saengine-mep-editor ::-webkit-scrollbar-track,
+.saengine-mep-editor ::-webkit-scrollbar-corner {
+	background: transparent;
+}
+
+.saengine-mep-editor ::-webkit-scrollbar-thumb {
+	background: var(--vscode-scrollbarSlider-background);
+}
+
+.saengine-mep-editor ::-webkit-scrollbar-thumb:hover {
+	background: var(--vscode-scrollbarSlider-hoverBackground);
+}

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from saengine.library import bnbc
 from saengine.library.labels import field_title
@@ -225,6 +225,48 @@ class TimeHistory(_Model):
     )
 
 
+class Thermal(_Model):
+    """The temperature load case T (BNBC 2020 Part 6 Sec 2.6.4; T in the combinations of Sec
+    2.7)."""
+
+    enabled: bool = Field(
+        default=False,
+        title="Temperature case T",
+        description="Add the load case T: the members' restrained expansion or contraction and "
+        "the bending of a sun-heated roof. BNBC 2020 asks for temperature effects where "
+        "significant, unless expansion joints relieve them (Part 6 Sec 2.6.4). With rigid floor "
+        "diaphragms, this case is analysed without them, so the floors can expand.",
+    )
+    uniform: float = Field(
+        default=20.0,
+        ge=-60,
+        le=60,
+        title="Uniform change ΔTu",
+        description="Change of the members' temperature from the construction temperature [°C], "
+        "+ expansion. BNBC gives no design range; take the site's range of shade air "
+        "temperature (Sec 2.6.4(a)). The combinations apply it as a rise (+T) and a fall (-T); "
+        "enter the larger. Suggestion for Bangladesh: 20 °C.",
+    )
+    gradient: float = Field(
+        default=10.0,
+        ge=-40,
+        le=40,
+        title="Roof gradient ΔTg",
+        description="Top face minus bottom face of the roof's beams and slabs [°C] (sun-heated "
+        "roof); 0 for none. Not given by BNBC; about 10 °C is a common assumption for an "
+        "uninsulated concrete roof.",
+    )
+    scope: Literal["roof", "all"] = Field(
+        default="roof",
+        title="Uniform change applies to",
+        description="The roof's beams and slabs (a sun-exposed roof over a shaded building), or "
+        "every member and shell (an open structure). The roof is every horizontal beam and "
+        "slab with nothing above it: the main roof and any stair, lift-machine or tank room "
+        "roof above it.",
+        json_schema_extra=_labels(["Roof beams and slabs", "All members and shells"]),
+    )
+
+
 class Analysis(_Model):
     """How the analysis model (Part 8) represents the building."""
 
@@ -270,6 +312,45 @@ class Analysis(_Model):
         default=None,
         description="Pushover analyses: the frames as fiber elements that crack and yield, "
         "pushed sideways after the gravity loads (08 FEM/pushover.osmodel).",
+    )
+    thermal: Thermal = Field(default_factory=Thermal, title="Temperature")
+    supports: Literal["fixed", "soilSprings"] = Field(
+        default="fixed",
+        title="Column supports",
+        description="Fixed: the column bases are fixed. Soil springs: each column base stands on "
+        "its foundation of 9 Substructure, on springs from the soil of 1 Soil Report (BNBC 2020 "
+        "Part 6 Sec 1.2.7.3). Footings: ASCE 41-06 Sec 4.4.2.1.2 (Gazetas 1991). Pile caps: their "
+        "piles' head stiffnesses. Rafts: shells on subgrade springs. Columns without a "
+        "foundation, strip footings and walls stay fixed. The foundations of 9 Substructure are "
+        "then designed from a fixed-base run of the same model (Compare Fixed Base and Soil "
+        "Springs; Run All runs it).",
+        json_schema_extra=_labels(["Fixed", "Soil springs (Part 9 foundations on Part 1 soil)"]),
+    )
+    ssiShearModulusRatio: float | None = Field(
+        default=None,
+        gt=0,
+        le=1,
+        title="Effective shear modulus ratio G/G0",
+        description="Soil shear modulus under earthquake strains over the small-strain one from "
+        "the SPT (Vs = 97.0 N^0.314 m/s, Imai & Tonouchi 1982). Empty: from the site's effective "
+        "peak acceleration (2/3)·Z·S, by ASCE 7-05 Table 19.2-1 (0.81 at 0.10 g or less, 0.64 at "
+        "0.15 g, 0.49 at 0.20 g, 0.42 at 0.30 g or more, linear between).",
+    )
+    ssiPileGroupFactor: float = Field(
+        default=1.0,
+        gt=0,
+        le=1,
+        title="Pile group factor (lateral)",
+        description="Multiplies the summed lateral and torsional stiffness of a cap's piles. 1.0: "
+        "no pile-soil-pile interaction (BNBC 2020 Part 6 Sec 3.10.1.19 takes a group efficiency "
+        "of 1.0 for capacity).",
+    )
+    ssiEmbedment: bool = Field(
+        default=True,
+        title="Footing embedment",
+        description="Increase the footings' springs by the embedment factors of ASCE 41-06 Sec "
+        "4.4.2.1.2 (depth below the finished ground, sides in contact up to the footing's "
+        "thickness).",
     )
 
 
@@ -328,6 +409,26 @@ class LoadCombination(_Model):
     WY: float = 0
     EX: float = 0
     EY: float = 0
+    T: float = Field(
+        default=0,
+        title="T",
+        description="Factor on the temperature case T (Analysis model → Temperature). BNBC 2020 "
+        "Part 6 Sec 2.7.3.1 has T only in 1.2(D + F + T) + 1.6(L + H) + 0.5(Lr or R).",
+    )
+    F: float | None = Field(
+        default=None,
+        title="F",
+        description="Factor on the fluid loads (the contents of equipment in 07 MEP). Empty: the "
+        "D factor where it is above 1.0, else 0 (BNBC 2020 2.7.3.1: F with D in 1.4(D + F) and "
+        "1.2(D + F + T) + ...; none in the 0.9D combinations, as a tank may be empty). 1.2F in "
+        "the other 1.2D combinations is an SAEngine adoption, on the safe side for gravity.",
+    )
+
+    @model_validator(mode="after")
+    def _fluid_factor(self) -> LoadCombination:
+        if self.F is None:
+            self.F = self.D if self.D > 1.0 else 0.0
+        return self
 
 
 class ProjectSettings(_Model):
@@ -351,13 +452,21 @@ class ProjectSettings(_Model):
     )
 
 
-def strength_combinations() -> list[LoadCombination]:
-    """BNBC 2020 strength combinations (2.7.3), with wind and earthquake in ±X and ±Y."""
+def strength_combinations(thermal: bool = False) -> list[LoadCombination]:
+    """BNBC 2020 strength combinations (2.7.3), with wind and earthquake in ±X and ±Y; with
+    ``thermal``, combination 2 also with ±T (:func:`saengine.fem.thermal.strength_combinations_with_t`)
+    right after it, the combination without T kept. The fluid factor F follows D (see
+    :class:`LoadCombination`)."""
     result = []
     for name, factors in bnbc.STRENGTH_COMBINATIONS:
         lateral = next((case for case in ("W", "E") if case in factors), None)
         if lateral is None:
             result.append(LoadCombination(name=name, **factors))
+            if thermal and name == "1.2D + 1.6L + 0.5Lr":
+                from saengine.fem.thermal import strength_combinations_with_t
+
+                for t_name, t_factors in strength_combinations_with_t():
+                    result.append(LoadCombination(name=t_name, **t_factors))
             continue
         base = {k: v for k, v in factors.items() if k != lateral}
         for axis in ("X", "Y"):

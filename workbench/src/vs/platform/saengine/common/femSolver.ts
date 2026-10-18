@@ -167,6 +167,8 @@ export interface IBuildingIfcRequest {
 	readonly substructureText?: string;
 	/** The project settings: the ground level foundations without a founding level are founded from. */
 	readonly settingsText?: string;
+	/** `07 MEP/mep.json`: its equipment, plinths, sleeves, openings and shafts are in the model too. */
+	readonly mepText?: string;
 }
 
 export interface IBuildingIfc {
@@ -189,6 +191,10 @@ export interface IFemDeriveRequest {
 	readonly modelFolder?: string;
 	/** The soil report (site class "From the soil report"); when not given, the project's file beside `modelFolder` is read. */
 	readonly soilText?: string;
+	/** `07 MEP/mep.json` (openings, shafts and equipment loads); when not given, the project's file beside `modelFolder` is read. */
+	readonly mepText?: string;
+	/** `09 Substructure/substructure.json` (the foundations of soil springs); when not given, the project's file is read. */
+	readonly substructureText?: string;
 }
 
 export interface IFemDerivation {
@@ -196,6 +202,10 @@ export interface IFemDerivation {
 	readonly text?: string;
 	/** The `pushover.osmodel` text (frames as fiber elements), when the settings ask for pushovers. */
 	readonly pushoverText?: string;
+	/** The temperature case's fixed-end forces (`08 FEM/thermal.json`), when the settings have the case T. */
+	readonly thermalText?: string;
+	/** The soil springs of the column bases (`08 FEM/ssi.json`), when the supports are soil springs. */
+	readonly ssiText?: string;
 	/** What the model leaves out or simplifies. */
 	readonly notes?: readonly string[];
 	readonly summary?: { readonly [key: string]: number };
@@ -254,6 +264,8 @@ export interface IBoqComputeRequest {
 	readonly substructureText?: string;
 	/** The project settings: the ground level the foundations' earthwork is dug from. */
 	readonly settingsText?: string;
+	/** `07 MEP/mep.json`: the equipment plinths, and the sleeves and openings counted. */
+	readonly mepText?: string;
 }
 
 /** The building model's footings moved into a placeholder `substructure.json` (`saengine.substructure.handover`). */
@@ -443,4 +455,20 @@ export interface IFemSolverService {
 
 	/** Writes the building model's footings into `substructure.json` while it is still the placeholder. */
 	substructureEnsure(python: string, projectRoot: string): Promise<ISubstructureMigration>;
+
+	/**
+	 * Fixed base against soil springs (`saengine.fem.ssi_compare.compare`): derives and runs the
+	 * fixed-base model beside the soil-spring one and compares periods, base shears and drifts;
+	 * plain JSON (also written to `08 FEM/ssi-compare.json`), or `{problems}`.
+	 */
+	ssiCompare(python: string, projectRoot: string): Promise<object>;
+
+	/** The MEP coordination report of the project (`saengine.mep.mep_report`), plain JSON read by the MEP editor, or `{problems}`. */
+	mepReport(python: string, projectRoot: string, mepText?: string): Promise<object>;
+
+	/** The sleeves and openings that would coordinate the clashes (`{openings, notes}`), or `{problems}`. */
+	mepSuggestSleeves(python: string, projectRoot: string, mepText?: string, allowance?: number): Promise<object>;
+
+	/** What an MEP IFC model in the project holds (`path` project-relative), or `{problems}`. */
+	mepImportIfc(python: string, projectRoot: string, path: string): Promise<object>;
 }

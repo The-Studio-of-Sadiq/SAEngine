@@ -190,13 +190,28 @@ def load_context(project_root: str | Path, out_dir: str | Path | None = None) ->
         substructure_text = None
     substructure = parse(substructure_text)
     out = Path(out_dir) if out_dir is not None else root / "08 FEM" / "model.results"
+    model: Path | None = root / "08 FEM" / "model.osmodel"
     project: dict[str, Any] | None = None
     loads: BaseLoads | None = None
     no_loads = ""
+    if out_dir is None:
+        # On soil springs the supports are below the column bases: the foundations are designed
+        # from the same model run with fixed bases (saengine.fem.ssi_compare).
+        from saengine.fem.ssi_compare import fixed_run, on_springs
+
+        if on_springs(root):
+            fixed = fixed_run(root)
+            if isinstance(fixed, str):
+                no_loads = fixed
+                model = None
+            else:
+                model, out = fixed
     try:
-        project = json.loads((root / "08 FEM" / "model.osmodel").read_text(encoding="utf-8"))
+        if model is None:
+            raise OSError
+        project = json.loads(model.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        no_loads = "there is no analysis model; build and run it in 8 FEM first"
+        no_loads = no_loads or "there is no analysis model; build and run it in 8 FEM first"
     if project is not None:
         try:
             loads = base_loads(project, out, building, settings)

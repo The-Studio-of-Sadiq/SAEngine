@@ -63,6 +63,7 @@ BOQ_SOURCES = {
     "objects": OBJECTS_FILE,
     "materials": MATERIALS_FILE,
     "substructure": SUBSTRUCTURE_FILE,
+    "mep": "07 MEP/mep.json",
     "settings": SETTINGS_FILE,
 }
 
@@ -97,9 +98,10 @@ BOQ_GROUPS = {
     "reinforcement": "Reinforcement",
     "formwork": "Formwork",
     "steel": "Structural steel",
+    "mep": "MEP coordination",
 }
 
-UNITS = {"m3": "m³", "m2": "m²", "kg": "kg"}
+UNITS = {"m3": "m³", "m2": "m²", "kg": "kg", "nr": "nr"}
 
 #: Lateral load cases of a derived model and the global direction they push in (0 = X, 1 = Y).
 LATERAL_CASES = {"WX": 0, "WY": 1, "EX": 0, "EY": 1}
@@ -210,9 +212,11 @@ def report_data(
         model_path, model, manifest, results_dir, settings, parts, warnings
     )
     report["design"] = _design(results_dir, model_path, warnings)
+    report["mep"] = _mep(parts)
     report["boq"] = _boq(parts)
     report["limitations"] = {
         "design": report["design"].get("notes", []),
+        "mep": report["mep"].get("notes", []),
         "boq": report["boq"].get("notes", []),
         "soil": report["soil"].get("notes", []),
         "foundations": report["foundations"].get("notes", []),
@@ -423,12 +427,15 @@ def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[s
             ]
             for load in settings.areaLoads
         ]
-        cases = ["D", "L", "Lr", "WX", "WY", "EX", "EY"]
+        cases = ["D", "L", "Lr", "WX", "WY", "EX", "EY", "T"]
         used = [c for c in cases if any(getattr(k, c) for k in settings.combinations)]
+        if any(a.get("name", "").startswith("F:") for a in model.get("analyses", [])):
+            used.append("F")  # the fluid case, only in a model with equipment contents
         basis["combinations"] = {
             "columns": used,
             "rows": [
-                [k.name, *(_factor(getattr(k, c)) for c in used)] for k in settings.combinations
+                [k.name, *(_factor(getattr(k, c) or 0.0) for c in used)]
+                for k in settings.combinations
             ],
         }
         analysis = settings.analysis
@@ -448,6 +455,8 @@ def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[s
                 if analysis.constructionSequence
                 else "Off (all loads act on the completed building)",
             ],
+            ["Column supports", _supports_text(parts.root, analysis)],
+            ["Temperature case T", _thermal_text(analysis.thermal)],
         ]
     basis["materials"] = _materials(parts)
     basis["cases"] = []
@@ -465,6 +474,52 @@ def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[s
             run.append(label)
     basis["analyses"] = run
     return basis
+
+
+def _supports_text(root: Path, analysis: Any) -> str:
+    """How the column bases are supported, as the analysis model has them."""
+    from saengine.fem.ssi_compare import on_springs, read_comparison
+
+    if analysis.supports != "soilSprings":
+        return "Fixed at the column and wall bases"
+    if not on_springs(root):
+        return (
+            "Soil springs asked for, but the model was derived without them (no foundations in "
+            "9 Substructure, or not derived again): fixed"
+        )
+    text = (
+        "Soil springs (BNBC 2020 Part 6 Sec 1.2.7.3): each column base on its foundation of 9 "
+        "Substructure, springs from the soil of 1 Soil Report (footings ASCE 41-06 Sec "
+        "4.4.2.1.2, pile caps from their piles, rafts on subgrade springs); walls and columns "
+        "without a foundation fixed. Foundations designed from the fixed-base run."
+    )
+    comparison = read_comparison(root)
+    first = (comparison or {}).get("periods") or []
+    if first and comparison and comparison.get("stale"):
+        text += (
+            " The fixed-base comparison is older than the analysis model or its results, so its "
+            "periods are not quoted (8 FEM: Compare Fixed Base and Soil Springs; Run All runs it)."
+        )
+    elif first:
+        mode = first[0]
+        text += (
+            f" First period {fmt(mode['fixed'], 3)} s fixed, {fmt(mode['ssi'], 3)} s on springs "
+            f"(ratio {fmt(mode['ratio'], 3)})."
+        )
+    return text
+
+
+def _thermal_text(thermal: Any) -> str:
+    if not thermal.enabled:
+        return "Off"
+    where = "the roofs' beams and slabs" if thermal.scope == "roof" else "every member and shell"
+    return (
+        f"ΔTu = ±{fmt(abs(thermal.uniform), 0)} °C on {where}, roof gradient ΔTg = "
+        f"{fmt(thermal.gradient, 0)} °C (the roofs: the horizontal beams and slabs with nothing "
+        "above them, so stair or machine room roofs and the main roof around them; BNBC 2020 Part 6 Sec 2.6.4; T in 1.2(D + F + T) + "
+        "1.6L + 0.5Lr, Sec 2.7.3.1); equivalent fixed-end forces, analysed without the rigid "
+        "diaphragms"
+    )
 
 
 def _materials(parts: _Parts) -> list[list[str]]:
@@ -636,12 +691,28 @@ def _model_summary(
 
 def _derive_again(root: Path, parts: _Parts) -> Any:
     from saengine.fem.derive import derive_fem
+    from saengine.library import mep as mep_library
+    from saengine.library import substructure as substructure_library
+    from saengine.library.settings import read_soil_text
 
     inputs = (parts.building(), parts.objects(), parts.materials(), parts.settings())
     if any(value is None for value in inputs):
         return None
     try:
-        return derive_fem(*inputs, None, root / "08 FEM")
+        mep = mep_library.parse(parts.text(mep_library.MEP_FILE))
+        springs = inputs[3].analysis.supports == "soilSprings"
+        return derive_fem(
+            *inputs,
+            None,
+            root / "08 FEM",
+            mep=mep if (mep.equipment or mep.openings or mep.shafts) else None,
+            substructure=substructure_library.parse(
+                parts.text(substructure_library.SUBSTRUCTURE_FILE)
+            )
+            if springs
+            else None,
+            soil_text=read_soil_text(root) if springs else None,
+        )
     except Exception as error:  # noqa: BLE001 - the report goes on without these notes
         parts.warnings.append(f"The derivation notes could not be recomputed: {error}")
         return None
@@ -1475,6 +1546,127 @@ def _foundations(parts: _Parts) -> dict[str, Any]:
 # ─────────────────────────────────────── bill of quantities ───────────────────────────────────
 
 
+#: What the MEP checks write of an opening whose shear and flexure (or punching) checks did not
+#: run, so only its size and spacing were checked (as the MEP editor reads them).
+_STRENGTH_SKIPPED = re.compile(
+    r"no analysis results|not found in the analysis results|\bis not checked\b|are not checked"
+    r"|\(no results\)",
+    re.IGNORECASE,
+)
+
+
+def opening_strength_checked(opening: dict[str, Any], general: list[str] | None = None) -> bool:
+    """Whether the strength checks of an opening of ``saengine.mep.mep_report`` ran: its own
+    ``strengthChecked`` when given, else none of its notes (nor the report's general ``notes``
+    about the openings) says they were skipped."""
+    flag = opening.get("strengthChecked")
+    if isinstance(flag, bool):
+        return flag
+    if not opening.get("checked", True):
+        return False
+    texts = [str(opening.get("note") or ""), *(str(n) for n in opening.get("notes") or [])]
+    texts += [str(c.get("note") or "") for c in opening.get("checks") or [] if isinstance(c, dict)]
+    texts += [n for n in general or [] if "at the openings" in n]
+    return not any(_STRENGTH_SKIPPED.search(text) for text in texts)
+
+
+def _mep(parts: _Parts) -> dict[str, Any]:
+    """The MEP coordination chapter: equipment loads, sleeve and opening checks, clashes
+    (:func:`saengine.mep.mep_report`); not printed while 07 MEP has nothing."""
+    from saengine.library.mep import MEP_FILE, parse
+    from saengine.mep import mep_report
+
+    try:
+        mep = parse(parts.text(MEP_FILE))
+    except ValueError as error:
+        return {"available": False, "problem": f"{MEP_FILE} is not valid: {error}", "notes": []}
+    if not (mep.equipment or mep.openings or mep.shafts or mep.ifcModels):
+        return {"available": False, "problem": "", "notes": []}
+    try:
+        report = mep_report(parts.root)
+    except ValueError as error:
+        return {"available": False, "problem": str(error), "notes": []}
+
+    def loads(entry: dict[str, Any]) -> str:
+        return " + ".join(f"{case} {fmt(value, 1)}" for case, value in entry["loads"].items())
+
+    equipment = [
+        [
+            e["id"],
+            e["name"],
+            e["story"],
+            e.get("host") or "–",
+            loads(e),
+            fmt(e["load"], 1),
+            fmt(e["pressure"], 1),
+        ]
+        for e in report["equipment"]
+    ]
+    general = [str(n) for n in report["notes"]]
+
+    def result(o: dict[str, Any]) -> str:
+        if not o["checked"]:
+            return "Not checked"
+        if not o["ok"]:
+            return "FAIL"
+        return "OK" if opening_strength_checked(o, general) else "Size OK, strength not checked"
+
+    openings = [
+        [
+            o["id"],
+            o["host"],
+            f"{o['kind']}{' (' + o['service'] + ')' if o.get('service') else ''}",
+            o.get("check") or "–",
+            f"{o['utilisation']:.3f}" if o["checked"] else "–",
+            result(o),
+        ]
+        for o in report["openings"]
+    ]
+    partial = sum(1 for row in openings if row[-1].startswith("Size OK"))
+    clashes = [
+        [
+            c["id"],
+            c.get("mepName") or c.get("mep") or "",
+            c.get("structural") or "",
+            c.get("kind", ""),
+            c.get("status", ""),
+            c.get("note") or "",
+        ]
+        for c in report["clashes"]
+    ]
+    summary = report["summary"]
+    rows = [
+        ["Equipment", str(summary["equipment"])],
+        [
+            "Equipment loads [kN]",
+            " + ".join(f"{k} {fmt(v, 1)}" for k, v in summary["loads"].items()) or "–",
+        ],
+        [
+            "Sleeves and openings",
+            f"{summary['openings']} ({summary['openingsFailed']} fail"
+            + (f", {partial} strength not checked" if partial else "")
+            + ")",
+        ],
+        ["Hard clashes open", str(summary["clashes"])],
+        ["Clashes coordinated", str(summary["coordinated"])],
+    ]
+    return {
+        "available": True,
+        "problem": "",
+        "summary": rows,
+        "equipment": equipment,
+        "openings": openings,
+        "openingFails": [r[-1] == "FAIL" for r in openings],
+        "clashes": clashes,
+        "clashOpen": [c.get("status") == "clash" for c in report["clashes"]],
+        "failed": summary["openingsFailed"],
+        "partial": partial,
+        "open": summary["clashes"],
+        "method": [str(m) for m in report["method"]],
+        "notes": list(report["notes"]) + [str(p) for p in report["problems"]],
+    }
+
+
 def _boq(parts: _Parts) -> dict[str, Any]:
     from saengine.boq import BillOfQuantities
 
@@ -1504,13 +1696,13 @@ def _boq(parts: _Parts) -> dict[str, Any]:
                     [
                         i.code,
                         i.description,
-                        fmt(i.quantity, 0 if i.unit == "kg" else 2),
+                        fmt(i.quantity, 0 if i.unit in ("kg", "nr") else 2),
                         UNITS.get(i.unit, i.unit),
                     ]
                     for i in items
                 ],
                 # Excavation and backfill are the same earth twice: no earthwork total.
-                "total": fmt(sum(i.quantity for i in items), 0 if unit == "kg" else 2)
+                "total": fmt(sum(i.quantity for i in items), 0 if unit in ("kg", "nr") else 2)
                 if unit and group != "earthwork"
                 else "",
             }

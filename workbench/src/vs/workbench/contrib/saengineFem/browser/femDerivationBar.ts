@@ -12,7 +12,7 @@ import { ITextModelService } from '../../../../editor/common/services/resolverSe
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { sourceStamp } from '../../../services/saengineProject/common/partSources.js';
+import { mepModelStamp, sourceStamp } from '../../../services/saengineProject/common/partSources.js';
 import { ISaengineProjectService, PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
 
 /** Desktop command deriving the analysis model with the Python models (see `saengine.fem.derive`). */
@@ -33,12 +33,22 @@ export const DERIVATION_SOURCES: readonly { readonly part: string; readonly key:
  */
 export const SOIL_DERIVATION_SOURCE = { part: 'soil', key: 'soil', label: localize('fem.source.soil', "Soil Report") } as const;
 
-/** Every part the derivation may read: the sources above and the soil report. */
-export const DERIVATION_INPUTS: readonly string[] = [...DERIVATION_SOURCES.map(s => s.part), SOIL_DERIVATION_SOURCE.part];
+/**
+ * Sources a model has only when they give it something: 7 MEP once it has equipment, openings or
+ * shafts (their loads and holes), 9 Substructure when the column supports are soil springs (the
+ * foundations). The derivation records their stamps then (keys `mep`, `substructure`).
+ */
+export const MEP_DERIVATION_SOURCE = { part: 'mep', key: 'mep', label: localize('fem.source.mep', "MEP") } as const;
+export const SUBSTRUCTURE_DERIVATION_SOURCE = { part: 'substructure', key: 'substructure', label: localize('fem.source.substructure', "Substructure") } as const;
+
+/** Every part the derivation may read: the sources above, the soil report, MEP and the substructure. */
+export const DERIVATION_INPUTS: readonly string[] = [...DERIVATION_SOURCES.map(s => s.part), SOIL_DERIVATION_SOURCE.part, MEP_DERIVATION_SOURCE.part, SUBSTRUCTURE_DERIVATION_SOURCE.part];
 
 interface IFemDerivation {
 	readonly text?: string;
 	readonly pushoverText?: string;
+	readonly thermalText?: string;
+	readonly ssiText?: string;
 	readonly notes?: readonly string[];
 	readonly summary?: { readonly [key: string]: number };
 	readonly problems?: readonly string[];
@@ -46,6 +56,20 @@ interface IFemDerivation {
 
 /** The pushover model, derived beside the analysis model when the settings ask for pushovers. */
 export const PUSHOVER_FILE = 'pushover.osmodel';
+/** The temperature case's fixed-end forces, beside the model when the settings have the case T (`saengine.fem.thermal`). */
+export const THERMAL_FILE = 'thermal.json';
+/** The column bases' soil springs, beside the model when the supports are soil springs (`saengine.fem.ssi`). */
+export const SSI_FILE = 'ssi.json';
+
+/** Whether the MEP file `text` has anything the analysis model takes: equipment, openings or shafts. */
+export function mepHasContent(text: string | undefined): boolean {
+	try {
+		const value = text ? JSON.parse(text) : undefined;
+		return typeof value === 'object' && value !== null && ['equipment', 'openings', 'shafts'].some(key => Array.isArray(value[key]) && value[key].length > 0);
+	} catch {
+		return false;
+	}
+}
 
 /** The main file of project part `id` (`08 FEM/model.osmodel`, ...). */
 export function partFile(root: URI, id: string): URI {
@@ -81,13 +105,21 @@ export function derivationState(description: unknown, texts: ReadonlyMap<string,
 		const text = texts.get(part);
 		return text === undefined || recorded.get(key) !== sourceStamp(text);
 	}).map(c => c.label);
-	// The soil report counts only when the model recorded it (its site class could come from it).
-	const soil = SOIL_DERIVATION_SOURCE;
-	if (recorded.has(soil.key)) {
-		const text = texts.get(soil.part);
-		if (text === undefined || recorded.get(soil.key) !== sourceStamp(text)) {
-			changed.push(soil.label);
+	// The soil report and the substructure count only when the model recorded them (its site
+	// class could come from the soil report; soil springs stand on the substructure's foundations).
+	for (const source of [SOIL_DERIVATION_SOURCE, SUBSTRUCTURE_DERIVATION_SOURCE]) {
+		if (recorded.has(source.key)) {
+			const text = texts.get(source.part);
+			if (text === undefined || recorded.get(source.key) !== sourceStamp(text)) {
+				changed.push(source.label);
+			}
 		}
+	}
+	// MEP counts once recorded, and once it has something for a model derived without it.
+	const mep = MEP_DERIVATION_SOURCE;
+	const mepText = texts.get(mep.part);
+	if (recorded.has(mep.key) ? mepText === undefined || recorded.get(mep.key) !== mepModelStamp(mepText) : recorded.size > 0 && mepHasContent(mepText)) {
+		changed.push(mep.label);
 	}
 	return { derived: recorded.size > 0, changed };
 }
@@ -114,14 +146,33 @@ export async function deriveAnalysisModel(commandService: ICommandService, fileS
 	// The soil report's text from the caller, so the site class comes from the same text as the
 	// state check; without it the backend reads `01 Soil Report` beside the model folder.
 	const soilText = texts.get(SOIL_DERIVATION_SOURCE.part);
-	const result = await commandService.executeCommand<IFemDerivation>(DERIVE_COMMAND, { bimText, objectsText, materialsText, settingsText, modelFolder: dirname(resource).fsPath, ...(soilText !== undefined ? { soilText } : {}) });
+	const mepText = texts.get(MEP_DERIVATION_SOURCE.part);
+	const substructureText = texts.get(SUBSTRUCTURE_DERIVATION_SOURCE.part);
+	const result = await commandService.executeCommand<IFemDerivation>(DERIVE_COMMAND, {
+		bimText, objectsText, materialsText, settingsText, modelFolder: dirname(resource).fsPath,
+		...(soilText !== undefined ? { soilText } : {}),
+		...(mepText !== undefined ? { mepText } : {}),
+		...(substructureText !== undefined ? { substructureText } : {}),
+	});
 	if (!result?.text) {
 		return { ok: false, message: (result?.problems ?? []).join('; '), notes: [] };
 	}
-	// Both models are derived together, whichever of them is open.
+	// Both models are derived together, whichever of them is open; the side files of the
+	// temperature case and the soil springs are written with them, or removed.
+	const folder = dirname(resource);
+	const side = async (name: string, text: string | undefined) => {
+		const file = joinPath(folder, name);
+		if (text !== undefined) {
+			await fileService.writeFile(file, VSBuffer.fromString(text));
+		} else if (await fileService.exists(file)) {
+			await fileService.del(file);
+		}
+	};
+	await side(THERMAL_FILE, result.thermalText);
+	await side(SSI_FILE, result.ssiText);
 	await fileService.writeFile(resource, VSBuffer.fromString(result.text));
 	if (result.pushoverText) {
-		await fileService.writeFile(joinPath(dirname(resource), PUSHOVER_FILE), VSBuffer.fromString(result.pushoverText));
+		await fileService.writeFile(joinPath(folder, PUSHOVER_FILE), VSBuffer.fromString(result.pushoverText));
 	}
 	const summary = result.summary ?? {};
 	return {

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DEFAULT_SETTINGS } from '../../../../services/saengineProject/common/projectLibraries.generated.js';
-import { codeValues } from '../../browser/settingsEditor.js';
+import { codeCombinations, codeValues } from '../../browser/settingsEditor.js';
 import { JsonObject } from '../../browser/schemaForm.js';
 
 suite('SAEngine - Project settings editor', () => {
@@ -59,5 +59,21 @@ suite('SAEngine - Project settings editor', () => {
 			{ label: 'Site class', value: 'Dense or medium dense sand, gravel or stiff clay (Vs 180-360 m/s, N 15-50, su 70-250 kPa)', source: 'Table 6.2.13, from 1 Soil Report: SC (N̄ = 22 over 30 m, BH-2)', overridden: false },
 			{ label: 'Site class', value: 'Loose-to-medium cohesionless soil or soft-to-firm cohesive soil (Vs < 180 m/s, N < 15, su < 70 kPa)', source: 'Table 6.2.13', overridden: false },
 		]);
+	});
+
+	test('the code combinations add ±T after 1.2D + 1.6L + 0.5Lr when the temperature case is on', () => {
+		const defaults = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as JsonObject;
+		const names = (settings: JsonObject) => codeCombinations(settings).map(c => (c as JsonObject).name);
+		const off = names(defaults);
+		const on = names({ ...defaults, analysis: { thermal: { enabled: true } } });
+		assert.deepStrictEqual({
+			off: off.length,
+			on: on.slice(1, 4),
+			count: on.length,
+		}, {
+			off: 23,
+			on: ['1.2D + 1.6L + 0.5Lr', '1.2D + 1.2T + 1.6L + 0.5Lr', '1.2D - 1.2T + 1.6L + 0.5Lr'],
+			count: 25,
+		});
 	});
 });

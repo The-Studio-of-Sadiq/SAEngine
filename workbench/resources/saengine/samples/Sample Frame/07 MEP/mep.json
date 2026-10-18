@@ -1,4 +1,38 @@
 {
-	"schema": 1,
-	"part": "mep"
+	"schema": "saengine.mep/1",
+	"equipment": [
+		{
+			"id": "EQ1",
+			"name": "Overhead water tank",
+			"kind": "tank",
+			"story": "L1",
+			"x": 9500,
+			"y": 2500,
+			"length": 2500,
+			"width": 2000,
+			"height": 1800,
+			"operatingWeight": 60,
+			"emptyWeight": 8,
+			"plinth": {
+				"material": "C20.7",
+				"height": 150
+			}
+		}
+	],
+	"openings": [
+		{
+			"id": "OP1",
+			"host": "B1",
+			"kind": "sleeve",
+			"shape": "circle",
+			"diameter": 100,
+			"position": {
+				"distance": 2000,
+				"elevation": 250
+			},
+			"service": "DN100 drain"
+		}
+	],
+	"shafts": [],
+	"ifcModels": []
 }

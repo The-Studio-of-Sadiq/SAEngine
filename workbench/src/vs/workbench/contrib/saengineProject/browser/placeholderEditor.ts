@@ -31,10 +31,9 @@ import { PlaceholderEditorInput } from './placeholderEditorInput.js';
 /**
  * The parts whose editors are not built yet, with the one sentence their page says. A part
  * leaves this list when its editor arrives (that editor registers for the part's main file).
+ * Every part has its editor now (7 MEP was the last); the page stays for parts added later.
  */
-export const PLACEHOLDER_PARTS: readonly { readonly part: string; readonly description: () => string }[] = [
-	{ part: 'mep', description: () => localize('placeholder.mep', "Mechanical, electrical and plumbing services and their loads on the structure. Planned for later.") },
-];
+export const PLACEHOLDER_PARTS: readonly { readonly part: string; readonly description: () => string }[] = [];
 
 /** What a part's main file holds, for the page. */
 function fileState(text: string | undefined, part: string): 'placeholder' | 'data' {

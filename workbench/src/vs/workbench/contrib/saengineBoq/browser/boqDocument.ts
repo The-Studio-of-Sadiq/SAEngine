@@ -18,8 +18,8 @@ export const BOQ_SCHEMA_ID = 'saengine.boq/1';
 /** Desktop command measuring the bill (registered where the Python backend is). */
 export const BOQ_COMPUTE_COMMAND = 'saengine.boq.compute';
 
-export type BoqGroup = 'earthwork' | 'concrete' | 'masonry' | 'reinforcement' | 'formwork' | 'steel';
-export type BoqUnit = 'm3' | 'm2' | 'kg';
+export type BoqGroup = 'earthwork' | 'concrete' | 'masonry' | 'reinforcement' | 'formwork' | 'steel' | 'mep';
+export type BoqUnit = 'm3' | 'm2' | 'kg' | 'nr';
 
 export interface IBoqBreakdownEntry {
 	readonly element: string;
@@ -57,6 +57,8 @@ export interface IBoqComputeArgs {
 	readonly substructureText?: string;
 	/** The ground level the foundations' earthwork is dug from. */
 	readonly settingsText?: string;
+	/** `07 MEP/mep.json`: the equipment plinths, and the sleeves and openings counted. */
+	readonly mepText?: string;
 }
 
 /** Result of {@link BOQ_COMPUTE_COMMAND}: the new text of `boq.json`, or why it could not be measured. */
@@ -78,6 +80,7 @@ export const BOQ_SOURCES: readonly { readonly part: string; readonly label: stri
 	{ part: 'objects', label: localize('boq.source.objects', "Object Types"), required: true },
 	{ part: 'materials', label: localize('boq.source.materials', "Materials"), required: true },
 	{ part: 'substructure', label: localize('boq.source.substructure', "Substructure") },
+	{ part: 'mep', label: localize('boq.source.mep', "MEP") },
 	{ part: 'settings', label: localize('boq.source.groundLevel', "Ground Level (Project Settings)"), optional: true },
 ];
 
@@ -89,7 +92,7 @@ export function boqComputeArgs(texts: ReadonlyMap<string, string | undefined>): 
 	if (bimText === undefined || objectsText === undefined || materialsText === undefined) {
 		return { missing: BOQ_SOURCES.filter(s => s.required && texts.get(s.part) === undefined).map(s => s.label) };
 	}
-	return { args: { bimText, objectsText, materialsText, substructureText: texts.get('substructure'), settingsText: texts.get('settings') }, missing: [] };
+	return { args: { bimText, objectsText, materialsText, substructureText: texts.get('substructure'), settingsText: texts.get('settings'), mepText: texts.get('mep') }, missing: [] };
 }
 
 /** The groups of the bill in their order, with their titles. */
@@ -100,6 +103,7 @@ export const BOQ_GROUPS: readonly { readonly group: BoqGroup; readonly title: st
 	{ group: 'reinforcement', title: localize('boq.group.reinforcement', "Reinforcement by Bar Diameter") },
 	{ group: 'formwork', title: localize('boq.group.formwork', "Formwork") },
 	{ group: 'steel', title: localize('boq.group.steel', "Structural Steel") },
+	{ group: 'mep', title: localize('boq.group.mep', "MEP Coordination") },
 ];
 
 /**
@@ -159,9 +163,9 @@ export function unitLabel(unit: string): string {
 	}
 }
 
-/** A quantity as the bill shows it: volumes to the litre, areas and masses to two decimals. */
+/** A quantity as the bill shows it: volumes to the litre, areas and masses to two decimals, counts whole. */
 export function formatQuantity(quantity: number, unit: string): string {
-	return quantity.toFixed(unit === 'm3' ? 3 : 2);
+	return quantity.toFixed(unit === 'm3' ? 3 : unit === 'nr' ? 0 : 2);
 }
 
 function csvField(value: string | number | undefined): string {

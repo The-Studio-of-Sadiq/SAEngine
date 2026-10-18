@@ -111,7 +111,9 @@ CommandsRegistry.registerCommand('saengine.bim.ifc', async (accessor, request: I
 	const texts = projectTexts(accessor);
 	const substructureText = request.substructureText ?? await texts('substructure');
 	const settingsText = request.settingsText ?? await texts('settings');
-	return solver.buildingIfc(python, { ...request, substructureText, settingsText });
+	// The coordination model of 7 MEP (equipment, plinths, sleeves, shafts) is in the 3D view too.
+	const mepText = request.mepText ?? await texts('mep');
+	return solver.buildingIfc(python, { ...request, substructureText, settingsText, mepText });
 });
 
 /**
@@ -307,4 +309,52 @@ CommandsRegistry.registerCommand('saengine.substructure.migrate', async (accesso
 CommandsRegistry.registerCommand('saengine.substructure.ensureMigrated', async (accessor, args: ISubstructureCommandArgs) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	return accessor.get(IFemSolverService).substructureEnsure(python, args.projectRoot);
+});
+
+/** A backend answer of only `{problems}` (no report) becomes an error the caller shows. */
+function problemsOrResult<T extends object>(result: T, keys: readonly string[]): T {
+	const record = result as { readonly [key: string]: unknown };
+	const problems = record.problems;
+	if (Array.isArray(problems) && problems.length && keys.every(key => record[key] === undefined)) {
+		throw new Error(problems.map(String).join(' '));
+	}
+	return result;
+}
+
+/**
+ * Fixed base against soil springs: derives and runs the fixed-base model beside the soil-spring
+ * model (`08 FEM/model-fixed.osmodel`, whose run the foundation design reads) and compares them.
+ * Internal: the FEM results bar and Run All call it by id.
+ */
+CommandsRegistry.registerCommand('saengine.fem.ssiCompare', async (accessor, args: { readonly projectRoot: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return problemsOrResult(await accessor.get(IFemSolverService).ssiCompare(python, args.projectRoot), ['periods']);
+});
+
+/** What the MEP editor asks the backend: the project folder (its saved files are read) and the editor's text of `mep.json`. */
+interface IMepCommandArgs {
+	readonly projectRoot: string;
+	readonly mepText?: string;
+	readonly allowance?: number;
+	readonly path?: string;
+}
+
+/**
+ * Part 7 MEP: the coordination report (equipment loads, opening checks, clashes), the sleeves
+ * that would coordinate the clashes, and what an MEP IFC model holds. Internal: the MEP editor
+ * and Run All call them by id.
+ */
+CommandsRegistry.registerCommand('saengine.mep.report', async (accessor, args: IMepCommandArgs) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return problemsOrResult(await accessor.get(IFemSolverService).mepReport(python, args.projectRoot, args.mepText), ['equipment', 'openings', 'clashes']);
+});
+
+CommandsRegistry.registerCommand('saengine.mep.suggestSleeves', async (accessor, args: IMepCommandArgs) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return problemsOrResult(await accessor.get(IFemSolverService).mepSuggestSleeves(python, args.projectRoot, args.mepText, args.allowance), ['openings']);
+});
+
+CommandsRegistry.registerCommand('saengine.mep.importIfc', async (accessor, args: IMepCommandArgs) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return problemsOrResult(await accessor.get(IFemSolverService).mepImportIfc(python, args.projectRoot, args.path ?? ''), ['path', 'elements']);
 });

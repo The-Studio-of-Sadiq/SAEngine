@@ -35,6 +35,27 @@ from saengine.library.settings import ProjectSettings
 def service_combinations(
     cases: set[str] | list[str] | dict[str, Any], strength_level_wind: bool = False
 ) -> list[tuple[str, dict[str, float]]]:
+    """The allowable-stress combinations of :func:`_service_combinations`, then those with the
+    temperature case T when it was analysed (BNBC 2020 Part 6 Sec 2.7.2.1 combinations 2 and 4,
+    :func:`saengine.fem.thermal.service_combinations_with_t`), and the fluid case F wherever D is
+    (a tank's contents act with its weight; there is no 0.6D service combination with F)."""
+    from saengine.fem.thermal import service_combinations_with_t
+
+    result = _service_combinations(cases, strength_level_wind)
+    result += service_combinations_with_t(cases)
+    if "F" in set(cases):
+        result = [
+            (name, {**factors, "F": factors.get("D", factors.get("SD", 0.0))})
+            if (factors.get("D", factors.get("SD", 0.0)) >= 1.0)
+            else (name, factors)
+            for name, factors in result
+        ]
+    return result
+
+
+def _service_combinations(
+    cases: set[str] | list[str] | dict[str, Any], strength_level_wind: bool = False
+) -> list[tuple[str, dict[str, float]]]:
     """The allowable-stress combinations the static ``cases`` allow, as (name, {case: factor});
     ``D`` stands for the dead and superimposed dead cases. Wind is nominal (service-level) as
     BNBC 2020 Part 6 defines it, with the 2.7.2 combinations (ASCE 7-05 2.4.1): D + W,
@@ -139,7 +160,7 @@ def strength_combinations(
 
     result: list[tuple[str, dict[str, float]]] = []
     for combination in settings.combinations:
-        factors = combination_factors(combination)
+        factors = combination_factors(combination, set(cases))
         if all(case in cases for case in factors):
             result.append((combination.name, factors))
     return result

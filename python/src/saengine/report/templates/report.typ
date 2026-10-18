@@ -554,6 +554,74 @@ Sum of the support reactions of each load case, in global axes.
   ]
 ]
 
+// ───────────────────────────── MEP coordination ─────────────────────────────
+
+#let mep = data.mep
+#if mep.available [
+  = MEP coordination
+
+  The building services of 7 MEP against the structure: the equipment's loads in the analysis
+  model, the sleeves and openings through beams, slabs and walls checked, and the clashes of the
+  services' IFC models with the structure.
+
+  == Summary
+  #pairs(mep.summary, width: 40%)
+  #if mep.failed > 0 {
+    note[*#mep.failed sleeve(s) or opening(s) fail their checks.* They are highlighted below.]
+  }
+  #if mep.partial > 0 {
+    note[*#mep.partial sleeve(s) or opening(s) are checked for their size and spacing only*:
+      their shear and flexure (or punching) checks need the analysis results; run the analysis
+      and write the report again.]
+  }
+  #if mep.open > 0 {
+    note[*#mep.open hard clash(es) are not coordinated*: give each a sleeve or opening, or
+      reroute the service.]
+  }
+
+  #if mep.equipment.len() > 0 [
+    == Equipment loads
+    Loads in kN by load case (SD the empty weight and plinth, F the contents, L any impact);
+    pressure is the operating weight over the footprint [kPa].
+    #tbl(
+      ("Id", "Name", "Story", "On", "Loads [kN]", "Total [kN]", "Pressure"),
+      mep.equipment,
+      columns: (auto, 1fr, auto, auto, 1fr, auto, auto),
+      align: (left, left, left, left, left, right, right),
+      size: 8pt,
+    )
+  ]
+
+  #if mep.openings.len() > 0 [
+    == Sleeves and openings
+    #tbl(
+      ("Id", "Host", "Kind", "Governing check", "Util.", "Result"),
+      mep.openings,
+      columns: (auto, auto, 1fr, 1fr, auto, auto),
+      align: (left, left, left, left, right, center),
+      bad: mep.openingFails,
+      size: 8pt,
+    )
+  ]
+
+  #if mep.clashes.len() > 0 [
+    == Clashes with the structure
+    #tbl(
+      ("Id", "Service", "Structure", "Kind", "Status", "Note"),
+      mep.clashes,
+      columns: (auto, 1fr, auto, auto, auto, 1fr),
+      bad: mep.clashOpen,
+      size: 8pt,
+    )
+  ]
+
+  == Method
+  #bullets(mep.method)
+] else if mep.problem != "" [
+  = MEP coordination
+  #note[The MEP coordination could not be reported: #mep.problem]
+]
+
 // ───────────────────────────── 5 bill of quantities ─────────────────────────────
 
 = Bill of quantities
@@ -599,6 +667,11 @@ what the software did not check or assumed; the engineer must consider each one.
 
 == Member design
 #if lim.design.len() > 0 { bullets(lim.design) } else { empty[No notes.] }
+
+#if mep.available [
+  == MEP coordination
+  #if lim.mep.len() > 0 { bullets(lim.mep) } else { empty[No notes.] }
+]
 
 == Bill of quantities
 #if lim.boq.len() > 0 { bullets(lim.boq) } else { empty[No notes.] }

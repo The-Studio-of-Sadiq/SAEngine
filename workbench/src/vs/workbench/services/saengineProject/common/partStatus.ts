@@ -6,7 +6,7 @@
 import { Event } from '../../../../base/common/event.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { boqSourceStamp, recordedStamp, sourceStamp, upstreamPart } from './partSources.js';
+import { boqSourceStamp, mepModelStamp, recordedStamp, sourceStamp, upstreamPart } from './partSources.js';
 import { IProjectPart } from './saengineProject.js';
 
 /*
@@ -59,6 +59,10 @@ export interface IPartStatusInputs {
 	readonly substructureSummaryTime?: number;
 	/** Modification time of `09 Substructure/substructure.json`. */
 	readonly substructureTime?: number;
+	/** Text of `07 MEP/mep.results/summary.json`, if the MEP checks ran. */
+	readonly mepSummaryText?: string;
+	/** Modification time of that summary. */
+	readonly mepSummaryTime?: number;
 }
 
 /** File names the status reads besides the parts' main files. */
@@ -68,6 +72,8 @@ export const DESIGN_SUMMARY_FILE = 'design-summary.json';
 export const REPORT_FILE = 'report.pdf';
 /** The foundation checks' summary the Substructure editor and Run All write beside `substructure.json`. */
 export const SUBSTRUCTURE_SUMMARY_FILE = 'substructure.results/summary.json';
+/** The MEP coordination summary the MEP editor and Run All write beside `mep.json`. */
+export const MEP_SUMMARY_FILE = 'mep.results/summary.json';
 
 /** Where the exports of `11 Exports` go besides the report: IFC models and DXF floor plans in folders, CSV tables at the top. */
 export const EXPORT_IFC_FOLDER = 'IFC';
@@ -101,9 +107,11 @@ const OPTIONAL_PARTS = new Set(['soil', 'mep', 'substructure']);
 /** The parts the analysis model is derived from, by the keys its description records them under. */
 const FEM_SOURCES = ['bim', 'settings', 'objects', 'materials'];
 
-/** The parts the bill of quantities is measured from (the substructure: once the bill records it). */
+/** The parts the bill of quantities is measured from (the substructure and MEP: once the bill records them). */
 const BOQ_SOURCES = ['bim', 'objects', 'materials'];
-const BOQ_RECORDED_SOURCES = ['substructure', 'settings'];
+const BOQ_RECORDED_SOURCES = ['substructure', 'settings', 'mep'];
+
+const MEP_SCHEMA_ID = 'saengine.mep/1';
 
 const SUBSTRUCTURE_SCHEMA_ID = 'saengine.substructure/1';
 
@@ -113,6 +121,13 @@ const SOIL_SCHEMA_ID = 'saengine.soilReport/1';
 
 /** The key a derived analysis model records the soil report's stamp under, when its settings take the site class from it. */
 const FEM_SOIL_SOURCE = 'soil';
+/** Sources an analysis model records only when they give it something: soil springs' foundations, MEP's loads and holes. */
+const FEM_RECORDED_SOURCES = ['substructure', 'mep'];
+
+/** The stamp an analysis model records for source part `part`: of what it takes for MEP, the whole file's otherwise. */
+function femSourceStamp(part: string, text: string): string {
+	return part === 'mep' ? mepModelStamp(text) : sourceStamp(text);
+}
 
 type JsonObject = { readonly [key: string]: unknown };
 
@@ -179,7 +194,10 @@ function femStatus(inputs: IPartStatusInputs): IPartStatus {
 	// The soil report counts as a source only when the model recorded it: the settings take the
 	// site class from it (also while it gives none yet, so boreholes added later count).
 	const soilChanged = recorded.has(FEM_SOIL_SOURCE) && changed(inputs.texts, 'soil', recorded.get(FEM_SOIL_SOURCE));
-	if (soilChanged || FEM_SOURCES.some(part => changed(inputs.texts, part, recorded.get(part)))) {
+	// The substructure and MEP likewise; MEP also when it has content a model without it lacks.
+	const recordedChanged = FEM_RECORDED_SOURCES.some(part => recorded.has(part) && changed(inputs.texts, part, recorded.get(part), femSourceStamp));
+	const mepAdded = !recorded.has('mep') && mepHasContent(inputs);
+	if (soilChanged || recordedChanged || mepAdded || FEM_SOURCES.some(part => changed(inputs.texts, part, recorded.get(part)))) {
 		return status('fem', 'stale', STALE(), localize('partStatus.fem.deriveAgain', "derive the analysis model again"));
 	}
 	if (inputs.femResultsTime === undefined) {
@@ -213,7 +231,8 @@ function boqStatus(inputs: IPartStatusInputs): IPartStatus {
 	const recorded = (part: string) => recordedStamp(document, part) !== undefined;
 	if (BOQ_SOURCES.some(part => changed(inputs.texts, part, recordedStamp(document, part)))
 		|| BOQ_RECORDED_SOURCES.some(part => recorded(part) && changed(inputs.texts, part, recordedStamp(document, part), boqSourceStamp))
-		|| (!recorded('substructure') && substructureHasFoundations(inputs))) {
+		|| (!recorded('substructure') && substructureHasFoundations(inputs))
+		|| (!recorded('mep') && mepHasContent(inputs))) {
 		return status('boq', 'stale', STALE(), localize('partStatus.boq.measureAgain', "measure the quantities again"));
 	}
 	return status('boq', 'done', localize('partStatus.boq.measured', "measured"));
@@ -259,6 +278,75 @@ function soilStatus(inputs: IPartStatusInputs): IPartStatus {
 		return status('soil', 'inProgress', count, localize('partStatus.soil.layers', "enter the layers of every borehole"));
 	}
 	return status('soil', 'done', count);
+}
+
+/** The MEP file of 7 MEP, parsed, when it is one (not the placeholder). */
+function mepDocument(inputs: IPartStatusInputs): JsonObject | undefined {
+	const text = inputs.texts.get('mep');
+	const document = text !== undefined ? parse(text) : undefined;
+	return document && document.schema === MEP_SCHEMA_ID ? document : undefined;
+}
+
+/** Whether 7 MEP has anything for the analysis model or the bill: equipment, openings or shafts. */
+function mepHasContent(inputs: IPartStatusInputs): boolean {
+	const document = mepDocument(inputs);
+	return !!document && ['equipment', 'openings', 'shafts'].some(key => Array.isArray(document[key]) && (document[key] as unknown[]).length > 0);
+}
+
+/** The MEP checks' summary (see {@link MEP_SUMMARY_FILE}). */
+interface IMepSummary {
+	readonly equipment: number;
+	readonly openings: number;
+	readonly openingsFailed: number;
+	readonly clashes: number;
+	readonly clashesOpen: number;
+	/** Openings whose strength checks did not run (only their size and spacing were checked). */
+	readonly openingsPartial?: number;
+	/** The stamp of each part file the checks read, by part id ("" for a missing file). */
+	readonly source?: { readonly [part: string]: unknown };
+}
+
+/**
+ * Part 7: not started while the file is missing, the placeholder, or has no equipment, openings,
+ * shafts or IFC models; in progress until the checks' summary is newer than the analysis results
+ * with every part file it read unchanged; then failed when an opening fails, in progress while
+ * clashes are open or openings are only partly checked, done otherwise.
+ */
+function mepStatus(inputs: IPartStatusInputs): IPartStatus {
+	const text = inputs.texts.get('mep');
+	const value = text !== undefined ? parse(text) : undefined;
+	if (text === undefined || (value && isPlaceholder(value, 'mep'))) {
+		return status('mep', 'notStarted', NOT_STARTED(), startHint('mep'));
+	}
+	if (!value || value.schema !== MEP_SCHEMA_ID) {
+		return status('mep', 'error', localize('partStatus.invalid', "invalid file"), localize('partStatus.fix', "fix the file"));
+	}
+	const count = (key: string) => Array.isArray(value[key]) ? (value[key] as unknown[]).length : 0;
+	if (!count('equipment') && !count('openings') && !count('shafts') && !count('ifcModels')) {
+		return status('mep', 'notStarted', NOT_STARTED(), startHint('mep'));
+	}
+	const parsed = inputs.mepSummaryText !== undefined ? parse(inputs.mepSummaryText) : undefined;
+	const summary = parsed && typeof parsed.openingsFailed === 'number' && typeof parsed.clashesOpen === 'number' ? parsed as unknown as IMepSummary : undefined;
+	const source = summary && typeof summary.source === 'object' && summary.source !== null ? summary.source : undefined;
+	const time = inputs.mepSummaryTime;
+	const current = !!summary && !!source && time !== undefined && sourcesUnchanged(inputs.texts, source)
+		&& (inputs.femResultsTime === undefined || time >= inputs.femResultsTime);
+	if (!current || !summary) {
+		return status('mep', 'inProgress', localize('partStatus.mep.notChecked', "not checked"), localize('partStatus.mep.check', "check the openings and clashes"));
+	}
+	if (summary.openingsFailed > 0) {
+		return status('mep', 'failed', summary.openingsFailed === 1 ? localize('partStatus.mep.oneFail', "1 opening fails") : localize('partStatus.mep.fail', "{0} openings fail", summary.openingsFailed), localize('partStatus.mep.review', "review the failing openings"));
+	}
+	if (summary.clashesOpen > 0) {
+		return status('mep', 'inProgress', summary.clashesOpen === 1 ? localize('partStatus.mep.oneClash', "1 clash") : localize('partStatus.mep.clashes', "{0} clashes", summary.clashesOpen), localize('partStatus.mep.coordinate', "coordinate the clashes"));
+	}
+	// Openings that passed only their size and spacing checks: their strength checks need results.
+	const partial = typeof summary.openingsPartial === 'number' ? summary.openingsPartial : 0;
+	if (partial > 0) {
+		return status('mep', 'inProgress', partial === 1 ? localize('partStatus.mep.onePartial', "1 opening not fully checked") : localize('partStatus.mep.partial', "{0} openings not fully checked", partial), localize('partStatus.mep.analyse', "run the analysis to check the openings' strength"));
+	}
+	const equipment = count('equipment');
+	return status('mep', 'done', equipment === 1 ? localize('partStatus.mep.oneEquipment', "1 equipment") : localize('partStatus.mep.equipment', "{0} equipment", equipment));
 }
 
 function substructureHasFoundations(inputs: IPartStatusInputs): boolean {
@@ -382,6 +470,7 @@ export function computePartStatuses(parts: readonly IProjectPart[], inputs: IPar
 			case 'bim': return bimStatus(parts, inputs);
 			case 'exports': return exportsStatus(inputs, formatDate);
 			case 'substructure': return substructureStatus(inputs);
+			case 'mep': return mepStatus(inputs);
 			default: return documentStatus(part.id, inputs);
 		}
 	});

@@ -152,6 +152,8 @@ LOAD_CASES = {
     "WY": "Wind in Y",
     "EX": "Earthquake in X",
     "EY": "Earthquake in Y",
+    "F": "Fluids (equipment contents)",
+    "T": "Temperature",
 }
 
 #: Strength design load combinations (2.7.3): (name, factors). D includes superimposed dead load.

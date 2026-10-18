@@ -5,6 +5,7 @@
 		"objects": "208cf81c4f12504fd967771a054f8c6edb9e8405",
 		"materials": "50563593cdcc5ae3ea57a91d1c0379e5e5db980f",
 		"substructure": "1c85c6c69986e74d73ee4249ee870e7ae4786397",
+		"mep": "48e6e26d00d495289c6e6b83407dd2f443bb790b",
 		"settings": "fe329f8351df78af4c4980a95d5ca6d0310b7ccd"
 	},
 	"items": [
@@ -254,6 +255,25 @@
 					"element": "ST2",
 					"story": "BASE",
 					"quantity": 1.667
+				}
+			]
+		},
+		{
+			"code": "C.09",
+			"group": "concrete",
+			"description": "Concrete C20.7 in equipment plinths",
+			"quantity": 0.75,
+			"unit": "m3",
+			"material": "C20.7",
+			"kind": "plinth",
+			"byStory": {
+				"L1": 0.75
+			},
+			"breakdown": [
+				{
+					"element": "EQ1",
+					"story": "L1",
+					"quantity": 0.75
 				}
 			]
 		},
@@ -754,6 +774,44 @@
 					"quantity": 3.84
 				}
 			]
+		},
+		{
+			"code": "F.08",
+			"group": "formwork",
+			"description": "Formwork to equipment plinths",
+			"quantity": 1.35,
+			"unit": "m2",
+			"kind": "plinth",
+			"byStory": {
+				"L1": 1.35
+			},
+			"breakdown": [
+				{
+					"element": "EQ1",
+					"story": "L1",
+					"detail": "sides",
+					"quantity": 1.35
+				}
+			]
+		},
+		{
+			"code": "P.01",
+			"group": "mep",
+			"description": "Sleeves Ø100 mm through beams",
+			"quantity": 1.0,
+			"unit": "nr",
+			"kind": "sleeve",
+			"byStory": {
+				"L1": 1.0
+			},
+			"breakdown": [
+				{
+					"element": "OP1",
+					"story": "L1",
+					"detail": "DN100 drain",
+					"quantity": 1.0
+				}
+			]
 		}
 	],
 	"notes": [
@@ -762,6 +820,7 @@
 		"Formwork is measured to the cast faces: beam sides and soffit, column perimeter by height, slab soffit and edges, wall faces, footing sides. Faces cast against another member are not formed (slab soffit over beams, columns and walls; their faces within the slab's depth; slab edges over them); nothing else is deducted where members meet.",
 		"Foundations are measured from 9 Substructure (the footings of the building model are not): footings, pile caps and rafts over their plan by their thickness, formwork to their sides (and a raft's edges), bars as meshes over the plan. Piles: concrete of the full length below the cap (bored piles round, driven piles square of the given size), bars as for columns, moulds of driven precast piles on three faces (cast flat). Tie beams: concrete and stirrups between the faces of the foundations they tie, longitudinal bars centre to centre of the foundations, formwork to their two sides.",
 		"Earthwork: each foundation and tie beam is dug with vertical sides 300 mm beyond its edges (working space), from the finished ground of Project Settings → Foundation down to the underside of the blinding; where pits overlap the overlap is measured once (each element's share scaled to suit). Blinding (lean concrete) 75 mm thick, 75 mm beyond the edges of foundations and tie beams. Backfill is the excavation less the foundations, tie beams and blinding below the ground; column stubs and pedestals below the ground are not deducted. No battered sides, dewatering, shoring, disposal of surplus spoil or bored pile spoil are measured.",
+		"Equipment plinths of 7 MEP: concrete of their footprint by their height, formwork to their four sides (no reinforcement measured). Sleeves and openings through beams, slabs and walls are counted by host kind and size (number), for the services' coordination; their concrete is not deducted (it is small), and the slab openings cut by shafts are not counted.",
 		"Object type 'W200' (Wall 200) has no reinforcement; no bars are measured for W1.",
 		"Object type 'BR-SHS' (Brace SHS 150) has no reinforcement; no bars are measured for M2.",
 		"Object type 'ST1200' (Stair 1200 wide) has no reinforcement; no bars are measured for ST1, ST2."

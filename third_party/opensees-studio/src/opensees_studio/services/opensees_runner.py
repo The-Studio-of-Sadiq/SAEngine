@@ -232,6 +232,12 @@ class OpenSeesRunner:
         self._check_ground_motion_records(case)
         if isinstance(case, StagedCase):
             return self._run_staged(case)  # builds one model per stage
+        if (
+            isinstance(case, StaticCase)
+            and case.release_diaphragms
+            and any(isinstance(mp, RigidDiaphragmConstraint) for mp in self.project.mp_constraints)
+        ):
+            return self._run_released(case)
         self.build()
         self._check_dof_coverage()
         if isinstance(case, StaticCase):
@@ -1308,6 +1314,49 @@ class OpenSeesRunner:
             element_deformations=element_deformations,
             shell_forces=shell_forces,
         )
+
+    # ─────────────────────── released diaphragms ───────────────────────
+    def _run_released(self, case: StaticCase) -> StaticResults:
+        """A static case on the model without its rigid diaphragms (``release_diaphragms``).
+
+        The nodes no element or remaining constraint uses (a diaphragm's own centre node) are
+        left out of the solved model and report zero displacement and reaction."""
+        project = self.project
+        constraints = [
+            mp for mp in project.mp_constraints if not isinstance(mp, RigidDiaphragmConstraint)
+        ]
+        used = {nid for e in project.elements for nid in e.nodes}
+        for mp in constraints:
+            used.update((mp.retained_node, mp.constrained_node))
+        for pattern in project.load_patterns:
+            if pattern.id not in case.pattern_ids or not isinstance(pattern, PlainLoadPattern):
+                continue
+            loose = sorted({load.node_id for load in pattern.nodal_loads} - used)
+            if loose:
+                raise ValueError(
+                    f"Case {case.id} ({case.name}) releases the rigid diaphragms, but pattern "
+                    f"{pattern.id} loads node(s) {', '.join(map(str, loose))} that only a "
+                    "diaphragm connects."
+                )
+        sub = project.model_copy(
+            update={
+                "nodes": [n for n in project.nodes if n.id in used],
+                "mp_constraints": constraints,
+                "load_patterns": [p for p in project.load_patterns if p.id in case.pattern_ids],
+                "analyses": [],
+            }
+        )
+        runner = OpenSeesRunner(sub, self._ops, self._on_progress)
+        runner.build()
+        runner._check_dof_coverage()
+        results = runner._run_static(case)
+        rows = len(results.load_factors)
+        ndf = len(self._dof_idx)
+        for node in project.nodes:
+            if node.id not in used:
+                results.node_disp[node.id] = np.zeros((rows, ndf))
+                results.node_reaction[node.id] = np.zeros((rows, ndf))
+        return results
 
     # ─────────────────────── staged construction ───────────────────────
     _LINEAR_MATERIALS = ("Elastic", "ElasticIsotropic")

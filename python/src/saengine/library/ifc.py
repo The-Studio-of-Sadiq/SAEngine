@@ -5,7 +5,11 @@ IfcSlab, IfcFooting) in its IfcBuildingStorey, with an extruded body built from 
 type's section: SAEngine's profiles are IFC's parameterised profiles (IfcRectangleProfileDef,
 IfcIShapeProfileDef, ...), so they map one to one. The foundations of 9 Substructure (IfcFooting,
 IfcPile, a raft as an IfcSlab BASESLAB) replace the building model's footings once it is no
-longer the placeholder. Units are millimetres.
+longer the placeholder. The coordination model of 7 MEP adds its equipment (IfcTank, IfcPump,
+IfcChiller, IfcUnitaryEquipment, IfcElectricGenerator, IfcTransformer, IfcTransportElement, else
+IfcBuildingElementProxy) on its plinths (IfcBuildingElementProxy "Plinth"), and its sleeves,
+openings and shafts as IfcOpeningElements voiding their beams, slabs and walls. Units are
+millimetres.
 
 GlobalIds are derived from the element ids, so the same element keeps its GlobalId from one
 export to the next (IFC diffs and BCF issues stay attached). The workbench's 3D view loads the
@@ -249,6 +253,7 @@ def export_ifc(
     name: str = "Project",
     substructure: Any = None,
     ground_level: float = 0.0,
+    mep: Any = None,
 ) -> tuple[ifcopenshell.file, dict[str, str], list[str]]:
     """The IFC file of ``building``, its element id -> GlobalId map, and elements left out (why).
 
@@ -256,7 +261,13 @@ def export_ifc(
     placeholder, see :func:`saengine.substructure.handover.authoritative_substructure`) the
     foundations are its footings, pile caps, piles, rafts and tie beams (foundations without a
     founding level found 1.5 m below ``ground_level``), and the footings of the building model
-    are left out; without it the building model's footings are exported."""
+    are left out; without it the building model's footings are exported. With ``mep`` (the
+    :class:`saengine.library.mep.MepModel` of ``07 MEP/mep.json``) its equipment, plinths,
+    sleeves, openings and shafts are added (:func:`_export_mep`)."""
+    if mep is not None:
+        from saengine.mep.loads import with_mep_openings
+
+        building, _ = with_mep_openings(building, mep)  # shafts and slab and wall openings
     w = _Writer(name, objects, materials)
     storeys: list[tuple[float, Any]] = []
     for story in sorted(building.stories, key=lambda s: s.elevation):
@@ -401,7 +412,145 @@ def export_ifc(
     _export_additions(w, building, products, storey_at, ids, skipped)
     if substructure is not None:
         _export_foundations(w, building, substructure, ground_level, storey_at, ids, skipped)
+    if mep is not None:
+        _export_mep(w, building, mep, products, storey_at, ids, skipped)
     return w.file, ids, skipped
+
+
+#: IFC4 classes of the equipment kinds of 7 MEP (class, predefined type).
+_EQUIPMENT_CLASSES: dict[str, tuple[str, str | None]] = {
+    "tank": ("IfcTank", "STORAGE"),
+    "chiller": ("IfcChiller", "WATERCOOLED"),
+    "ahu": ("IfcUnitaryEquipment", "AIRHANDLER"),
+    "pump": ("IfcPump", "ENDSUCTION"),
+    "generator": ("IfcElectricGenerator", "ENGINEGENERATOR"),
+    "transformer": ("IfcTransformer", "VOLTAGE"),
+    "lift": ("IfcTransportElement", "ELEVATOR"),
+}
+#: Height drawn for equipment that gives none [mm].
+_EQUIPMENT_HEIGHT = 1500.0
+
+
+def _profile_extent(profile: Any) -> tuple[float, float]:
+    """(width, depth) of a profile [mm]."""
+    from saengine.library.sections import profile_geometry
+
+    xmin, xmax, ymin, ymax = profile_geometry(profile).calculate_extents()
+    return float(xmax - xmin), float(ymax - ymin)
+
+
+def _export_mep(
+    w: _Writer,
+    building: BuildingModel,
+    mep: Any,
+    products: dict[str, Any],
+    storey_at: Any,
+    ids: dict[str, str],
+    skipped: list[str],
+) -> None:
+    """The equipment of 7 MEP on its plinths, and its sleeves and openings through beams, slabs
+    and walls (shafts and slab and wall openings are already in ``building``'s additions)."""
+    levels = {s.id: s.elevation for s in building.stories}
+    elements = {e.id: e for e in building.elements}
+    for item in mep.equipment:
+        if item.story not in levels:
+            skipped.append(f"{item.id}: no story '{item.story}'")
+            continue
+        floor = levels[item.story]
+        axis = _rotation(item.rotation)
+        plinth = item.plinth.height if item.plinth is not None else 0.0
+        if item.plinth is not None and plinth > 0:
+            base = w.entity("IfcBuildingElementProxy", f"{item.id} plinth", f"plinth:{item.id}")
+            base.ObjectType = "Plinth"
+            base.Description = f"Concrete plinth of {item.name or item.id}"
+            w.extrusion(base, w.rectangle(item.length, item.width), plinth)
+            w.place(base, _placement((item.x, item.y, floor), axis, (0, 0, 1)))
+            w.run(
+                "spatial.assign_container",
+                w.file,
+                products=[base],
+                relating_structure=storey_at(floor),
+            )
+            w.material(base, item.plinth.material)
+            ids[f"{item.id}/plinth"] = base.GlobalId
+        ifc_class, predefined = _EQUIPMENT_CLASSES.get(
+            item.kind, ("IfcBuildingElementProxy", "ELEMENT")
+        )
+        product = w.entity(ifc_class, item.name or item.id, f"equipment:{item.id}", predefined)
+        product.ObjectType = item.kind
+        product.Tag = item.id
+        product.Description = f"{item.operatingWeight:g} kN operating" + (
+            f", {item.emptyWeight:g} kN empty" if item.emptyWeight is not None else ""
+        )
+        w.extrusion(product, w.rectangle(item.length, item.width), item.height or _EQUIPMENT_HEIGHT)
+        w.place(product, _placement((item.x, item.y, floor + plinth), axis, (0, 0, 1)))
+        w.run(
+            "spatial.assign_container",
+            w.file,
+            products=[product],
+            relating_structure=storey_at(floor),
+        )
+        ids[item.id] = product.GlobalId
+
+    for opening in mep.openings:
+        host_element, host = elements.get(opening.host), products.get(opening.host)
+        if host_element is None or host is None:
+            skipped.append(f"{opening.id}: there is no beam, slab or wall '{opening.host}' to cut")
+            continue
+        if opening.kind == "opening" and isinstance(host_element, SlabElement | WallElement):
+            continue  # cut with the building model's additions above
+        width, height = opening.size
+        if opening.shape == "circle":
+            profile = w.run(
+                "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
+            )
+            profile.Radius = width / 2
+        else:
+            profile = w.rectangle(width, height)
+        p = opening.position
+        object_type = w.types.get(host_element.type)
+        if isinstance(host_element, BeamElement) and p.distance is not None and object_type:
+            (x1, y1), (x2, y2) = host_element.start, host_element.end
+            length = math.hypot(x2 - x1, y2 - y1)
+            dx, dy = (x2 - x1) / length, (y2 - y1) / length
+            beam_width, depth = _profile_extent(object_type.profile)
+            half = beam_width / 2 + _CLEARANCE
+            centre = (
+                x1 + dx * p.distance,
+                y1 + dy * p.distance,
+                host_element.elevation - depth + float(p.elevation or 0.0),
+            )
+            across = (dy, -dx, 0.0)  # local Z through the beam, local Y up
+            origin = (centre[0] - across[0] * half, centre[1] - across[1] * half, centre[2])
+            matrix = _placement(origin, (dx, dy, 0.0), across)
+            through = 2 * half
+        elif isinstance(host_element, SlabElement) and p.x is not None and object_type:
+            thickness = float(object_type.thickness)
+            matrix = _placement(
+                (p.x, p.y, host_element.elevation - thickness - _CLEARANCE), (1, 0, 0), (0, 0, 1)
+            )
+            through = thickness + 2 * _CLEARANCE
+        elif isinstance(host_element, WallElement) and p.x is not None and object_type:
+            (x1, y1), (x2, y2) = host_element.start, host_element.end
+            length = math.hypot(x2 - x1, y2 - y1)
+            dx, dy = (x2 - x1) / length, (y2 - y1) / length
+            half = float(object_type.thickness) / 2 + _CLEARANCE
+            origin = (
+                x1 + dx * p.x - dy * half,
+                y1 + dy * p.x + dx * half,
+                host_element.bottom + float(p.y or 0.0),
+            )
+            matrix = _placement(origin, (dx, dy, 0.0), (dy, -dx, 0.0))
+            through = 2 * half
+        else:
+            skipped.append(f"{opening.id}: its position does not suit its host '{opening.host}'")
+            continue
+        void = w.entity("IfcOpeningElement", opening.id, f"mep:{opening.id}", "OPENING")
+        void.Description = opening.service or opening.kind
+        w.extrusion(void, profile, through)
+        w.place(void, matrix)
+        w.run("feature.add_feature", w.file, feature=void, element=host)
+        ids[opening.id] = void.GlobalId
 
 
 # Openings cut a little beyond their host's faces, so the boolean leaves no skin.

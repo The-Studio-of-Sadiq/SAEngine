@@ -368,3 +368,51 @@
 .saengine-fem-model-editor .viewport:focus-visible {
 	outline: none !important;
 }
+
+/* soil springs: the fixed-base comparison and the springs, compact tables in the properties panel */
+.saengine-fem-model-editor .fem-ssi-caption {
+	margin: var(--sa-space-2, 8px) 0 var(--sa-space-1, 4px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-fem-model-editor .fem-ssi-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: var(--sa-font-s, 12px);
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-fem-model-editor .fem-ssi-table th {
+	text-align: right;
+	font-weight: 600;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	padding: 2px 4px;
+	border-bottom: 1px solid var(--sa-border, var(--vscode-panel-border));
+}
+
+.saengine-fem-model-editor .fem-ssi-table td {
+	text-align: right;
+	padding: 2px 4px;
+	border-bottom: 1px solid var(--sa-border-subtle, transparent);
+}
+
+.saengine-fem-model-editor .fem-ssi-table th:first-child,
+.saengine-fem-model-editor .fem-ssi-table td:first-child {
+	text-align: left;
+	padding-left: 0;
+}
+
+.saengine-fem-model-editor .fem-ssi-table.springs {
+	display: block;
+	overflow-x: auto;
+	font-size: 11px;
+}
+
+.saengine-fem-model-editor .fem-ssi-actions {
+	margin: var(--sa-space-2, 8px) 0;
+}
+
+.saengine-fem-model-editor .fem-ssi-problem {
+	color: var(--vscode-errorForeground);
+}
