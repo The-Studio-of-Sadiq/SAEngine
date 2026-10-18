@@ -273,7 +273,10 @@ def create_server() -> JsonRPCServer:
         args = _plain(params)
         return handlers.mep_import_ifc(args["projectRoot"], args["path"], bool(args.get("copy")))
 
+    # A project's first tank designs take about half a minute (cached after): in a worker thread,
+    # so the editor's other requests (the HVAC and electrical reports) are answered meanwhile.
     @server.feature("mep/plumbingReport")
+    @server.thread()
     def _plumbing_report(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.plumbing_report(args["projectRoot"], args.get("mepText"))

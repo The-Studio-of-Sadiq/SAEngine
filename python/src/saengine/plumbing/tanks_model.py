@@ -652,6 +652,9 @@ def _run(
             str(out),
         ],
         check=False,
+        # Not the RPC pipe: started from a worker thread while the server reads it, a child
+        # inheriting it would hang on Windows.
+        stdin=subprocess.DEVNULL,
         capture_output=True,
         text=True,
         timeout=1800,
@@ -952,6 +955,9 @@ def wall_panel(
             str(out),
         ],
         check=False,
+        # Not the RPC pipe: started from a worker thread while the server reads it, a child
+        # inheriting it would hang on Windows.
+        stdin=subprocess.DEVNULL,
         capture_output=True,
         text=True,
         timeout=600,

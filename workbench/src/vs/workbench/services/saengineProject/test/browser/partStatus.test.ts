@@ -331,7 +331,8 @@ suite('SAEngine - PartStatus', () => {
 		const fem = computePartStatuses(PROJECT_PARTS, project({ mep, fem: femModel({ bim: BIM, settings: SOURCES.settings, objects: SOURCES.objects, materials: SOURCES.materials }) })).find(p => p.part === 'fem')!;
 		assert.deepStrictEqual({
 			lines: [line(), line(summaryOf({})), line(summaryOf({ hvac: { failed: 0 } })), line(summaryOf({ hvac: { failed: 2 }, electrical: { failed: 0 } })),
-				line(summaryOf({ hvac: { failed: 0 }, electrical: { failed: 1 } })), line(summaryOf({ hvac: { failed: 0 }, electrical: { failed: 0 } }))],
+				line(summaryOf({ hvac: { failed: 0 }, electrical: { failed: 1 } })), line(summaryOf({ hvac: { failed: 2 }, electrical: { failed: 1 } })),
+				line(summaryOf({ hvac: { failed: 0 }, electrical: { failed: 0 } }))],
 			// The plant and the equipment load the analysis model: a model derived before they were entered is stale.
 			femStale: fem.state,
 		}, {
@@ -341,6 +342,8 @@ suite('SAEngine - PartStatus', () => {
 				'inProgress electrical not checked (open the electrical results or Run All)',
 				'failed 2 HVAC checks fail (review the ducts\' openings and the plant)',
 				'failed 1 electrical check fails (review the electrical services)',
+				// One discipline's failures do not hide another's.
+				'failed 3 checks fail (HVAC 2, electrical 1: review them in the MEP results)',
 				'done services checked ()',
 			],
 			femStale: 'stale',

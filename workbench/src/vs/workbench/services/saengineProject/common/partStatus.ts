@@ -408,30 +408,32 @@ function mepStatus(inputs: IPartStatusInputs): IPartStatus {
 	if (!current || !summary) {
 		return status('mep', 'inProgress', localize('partStatus.mep.notChecked', "not checked"), localize('partStatus.mep.check', "check the openings and clashes"));
 	}
-	if (summary.openingsFailed > 0) {
-		return status('mep', 'failed', summary.openingsFailed === 1 ? localize('partStatus.mep.oneFail', "1 opening fails") : localize('partStatus.mep.fail', "{0} openings fail", summary.openingsFailed), localize('partStatus.mep.review', "review the failing openings"));
-	}
 	const recorded = typeof summary.plumbing === 'object' && summary.plumbing !== null && typeof summary.plumbing.failed === 'number' ? summary.plumbing : undefined;
 	// The plumbing results also read the soil report (soak well, flotation, bearing, ground tanks):
 	// once it has changed they are stale.
 	const plumbing = recorded && (typeof recorded.source !== 'object' || recorded.source === null || sourcesUnchanged(inputs.texts, recorded.source)) ? recorded : undefined;
-	if (plumbing && plumbing.failed > 0) {
-		return status('mep', 'failed', plumbing.failed === 1 ? localize('partStatus.mep.plumbingOneFail', "1 plumbing check fails") : localize('partStatus.mep.plumbingFail', "{0} plumbing checks fail", plumbing.failed), localize('partStatus.mep.plumbingReview', "review the plumbing"));
-	}
-	if (plumbing && typeof plumbing.floorsLow === 'number' && plumbing.floorsLow > 0) {
-		return status('mep', 'failed', plumbing.floorsLow === 1 ? localize('partStatus.mep.oneFloorLow', "1 floor below the minimum pressure") : localize('partStatus.mep.floorsLow', "{0} floors below the minimum pressure", plumbing.floorsLow), localize('partStatus.mep.raiseTank', "raise the overhead tank or add a booster pump"));
-	}
 	const service = (key: 'hvac' | 'electrical') => {
 		const recorded = summary[key];
 		return typeof recorded === 'object' && recorded !== null && typeof recorded.failed === 'number' ? recorded : undefined;
 	};
 	const hvac = service('hvac');
 	const electrical = service('electrical');
-	if (hvac && hvac.failed > 0) {
-		return status('mep', 'failed', hvac.failed === 1 ? localize('partStatus.mep.hvacOneFail', "1 HVAC check fails") : localize('partStatus.mep.hvacFail', "{0} HVAC checks fail", hvac.failed), localize('partStatus.mep.hvacReview', "review the ducts' openings and the plant"));
+	// Every discipline with failing checks, so one does not hide another.
+	const failing = [
+		{ failed: summary.openingsFailed, label: () => summary.openingsFailed === 1 ? localize('partStatus.mep.oneFail', "1 opening fails") : localize('partStatus.mep.fail', "{0} openings fail", summary.openingsFailed), hint: () => localize('partStatus.mep.review', "review the failing openings"), name: () => localize('partStatus.mep.openingsName', "openings {0}", summary.openingsFailed) },
+		{ failed: plumbing?.failed ?? 0, label: () => plumbing?.failed === 1 ? localize('partStatus.mep.plumbingOneFail', "1 plumbing check fails") : localize('partStatus.mep.plumbingFail', "{0} plumbing checks fail", plumbing?.failed), hint: () => localize('partStatus.mep.plumbingReview', "review the plumbing"), name: () => localize('partStatus.mep.plumbingName', "plumbing {0}", plumbing?.failed) },
+		{ failed: hvac?.failed ?? 0, label: () => hvac?.failed === 1 ? localize('partStatus.mep.hvacOneFail', "1 HVAC check fails") : localize('partStatus.mep.hvacFail', "{0} HVAC checks fail", hvac?.failed), hint: () => localize('partStatus.mep.hvacReview', "review the ducts' openings and the plant"), name: () => localize('partStatus.mep.hvacName', "HVAC {0}", hvac?.failed) },
+		{ failed: electrical?.failed ?? 0, label: () => electrical?.failed === 1 ? localize('partStatus.mep.electricalOneFail', "1 electrical check fails") : localize('partStatus.mep.electricalFail', "{0} electrical checks fail", electrical?.failed), hint: () => localize('partStatus.mep.electricalReview', "review the electrical services"), name: () => localize('partStatus.mep.electricalName', "electrical {0}", electrical?.failed) },
+	].filter(item => item.failed > 0);
+	if (failing.length === 1) {
+		return status('mep', 'failed', failing[0].label(), failing[0].hint());
 	}
-	if (electrical && electrical.failed > 0) {
-		return status('mep', 'failed', electrical.failed === 1 ? localize('partStatus.mep.electricalOneFail', "1 electrical check fails") : localize('partStatus.mep.electricalFail', "{0} electrical checks fail", electrical.failed), localize('partStatus.mep.electricalReview', "review the electrical services"));
+	if (failing.length > 1) {
+		const total = failing.reduce((sum, item) => sum + item.failed, 0);
+		return status('mep', 'failed', localize('partStatus.mep.manyFail', "{0} checks fail", total), localize('partStatus.mep.manyReview', "{0}: review them in the MEP results", failing.map(item => item.name()).join(', ')));
+	}
+	if (plumbing && typeof plumbing.floorsLow === 'number' && plumbing.floorsLow > 0) {
+		return status('mep', 'failed', plumbing.floorsLow === 1 ? localize('partStatus.mep.oneFloorLow', "1 floor below the minimum pressure") : localize('partStatus.mep.floorsLow', "{0} floors below the minimum pressure", plumbing.floorsLow), localize('partStatus.mep.raiseTank', "raise the overhead tank or add a booster pump"));
 	}
 	if (plumbingItems && !plumbing) {
 		return status('mep', 'inProgress', localize('partStatus.mep.plumbingNotChecked', "plumbing not checked"), localize('partStatus.mep.checkPlumbing', "open the plumbing results or Run All"));

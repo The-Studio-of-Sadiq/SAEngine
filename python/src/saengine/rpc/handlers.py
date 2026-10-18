@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import math
 import platform
+import threading
 from importlib import metadata
 from pathlib import Path
 from typing import Any
@@ -898,13 +899,19 @@ def mep_import_ifc(project_root: str, path: str, copy: bool = False) -> dict[str
 # ─────────────────────────────────────── plumbing (Part 7) ───────────────────────────────────────
 
 
+#: One plumbing report at a time: the server runs them in worker threads (a project's first tank
+#: designs take half a minute), and they share the tank designs' cache file.
+_PLUMBING_LOCK = threading.Lock()
+
+
 def plumbing_report(project_root: str, mep_text: str | None = None) -> dict[str, Any]:
     """The plumbing report (BNBC 2020 Part 8 sizing, tank designs, hydraulics), JSON-safe
     (``saengine.plumbing.project.full_report``); never raises."""
     from saengine.plumbing.project import full_report
 
     try:
-        return full_report(project_root, mep_text)
+        with _PLUMBING_LOCK:
+            return full_report(project_root, mep_text)
     except Exception as error:  # noqa: BLE001 - a partly entered model must not fail the RPC
         return {"problems": [f"the plumbing report failed: {_first_line(error)}"]}
 

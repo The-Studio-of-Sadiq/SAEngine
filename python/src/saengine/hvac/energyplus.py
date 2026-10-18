@@ -104,7 +104,12 @@ def find_energyplus(explicit: str | Path | None = None) -> Path | None:
 def version(exe: Path, timeout: float = 30.0) -> str:
     """``energyplus --version``, e.g. "EnergyPlus, Version 26.2.0-4bd7a1f26f"."""
     done = subprocess.run(
-        [str(exe), "--version"], capture_output=True, text=True, timeout=timeout, check=False
+        [str(exe), "--version"],
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,
+        stdin=subprocess.DEVNULL,
     )
     return done.stdout.strip()
 
@@ -500,7 +505,8 @@ _RUNNING_LOCK = threading.Lock()
 def _run_cancellable(args: list[str], work: Path, timeout: float) -> subprocess.CompletedProcess:
     """``subprocess.run`` that :func:`cancel_runs` can stop from another thread."""
     child = subprocess.Popen(
-        args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=str(work),
+        args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        cwd=str(work),
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     )  # fmt: skip
     with _RUNNING_LOCK:
