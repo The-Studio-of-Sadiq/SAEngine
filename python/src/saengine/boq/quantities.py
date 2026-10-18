@@ -142,6 +142,21 @@ PLUMBING_CONVENTIONS = [
     ),
 ]
 
+#: The measurement of the HVAC and electrical services of 7 MEP, added when there are any.
+SERVICES_CONVENTIONS = [
+    (
+        "HVAC and electrical of 7 MEP, for the structure's coordination: ducts by system and "
+        "size, measured along their plan path (risers vertically from the story they start at "
+        "to their top story; ducts with no size entered are not measured); cable trays by width "
+        "and side height along their path; rising mains (busbars, cable risers) vertically by "
+        "size; plant and electrical equipment counted by kind (their weights are in the "
+        "analysis, their bases are not measured). Lightning protection with the columns' "
+        "reinforcement as down conductors: per down-conductor column a bonding terminal at the "
+        "roof and an earth terminal at the base (welded to the continuous bars) and an earth "
+        "inspection box recess, counted (number)."
+    ),
+]
+
 #: The measurement of the MEP coordination items of 7 MEP, added when there are any.
 MEP_CONVENTIONS = [
     (
@@ -459,6 +474,12 @@ class _Plate:
     top: float
     supports: list[BaseGeometry] = field(default_factory=list)
     under: list[BaseGeometry] = field(default_factory=list)
+
+
+def _noun(label: str) -> str:
+    """A label inside a description: its first letter lower case, unless it starts an
+    abbreviation ("VRF outdoor unit", "UPS")."""
+    return label if label[1:2].isupper() else label[:1].lower() + label[1:]
 
 
 class _Measure:
@@ -1398,6 +1419,147 @@ class _Measure:
                         kind="fixture",
                     )
 
+    def measure_services(self) -> None:
+        """The HVAC ducts and plant, the electrical trays, risers and equipment, and the
+        lightning protection's bonding points (:data:`SERVICES_CONVENTIONS`)."""
+        mep = self.mep
+        hvac = getattr(mep, "hvac", None)
+        electrical = getattr(mep, "electrical", None)
+        if hvac is None and electrical is None:
+            return
+        from saengine.mep.routing import path_length
+
+        levels = {s.id: s.elevation for s in self.building.stories}
+        self.services_measured = True
+
+        def vertical(item_id: str, low: str, high: str) -> float:
+            if low not in levels or high not in levels:
+                self.notes.append(f"{item_id}: unknown story; its riser is not measured")
+                return 0.0
+            return max(levels[high] - levels[low], 0.0) / 1000.0
+
+        if hvac is not None:
+            from saengine.library.mep import DUCT_SYSTEMS, HVAC_PLANT_KINDS
+
+            for duct in hvac.ducts:
+                if duct.shape == "round" and duct.diameter:
+                    size, dims = f"Ø{duct.diameter:g} mm", (duct.diameter, 0.0)
+                elif duct.shape == "rect" and duct.width and duct.height:
+                    size, dims = f"{duct.width:g} x {duct.height:g} mm", (duct.width, duct.height)
+                else:
+                    self.notes.append(f"{duct.id}: no duct size entered; not measured")
+                    continue
+                if duct.riser is not None:
+                    length = vertical(duct.id, duct.riser.fromStory, duct.riser.toStory)
+                    story = duct.riser.fromStory
+                else:
+                    length, story = path_length(duct.path) / 1000.0, duct.story
+                system = DUCT_SYSTEMS.get(duct.system, duct.system)
+                self.bill.add(
+                    "mep",
+                    (30, "duct", duct.system, duct.shape, *dims),
+                    f"Ducts, {_noun(system)}, {size}",
+                    "m",
+                    duct.id,
+                    length,
+                    story=story,
+                    detail="riser" if duct.riser is not None else None,
+                    kind="duct",
+                )
+            for plant in hvac.plant:
+                label = HVAC_PLANT_KINDS.get(plant.kind, plant.kind)
+                self.bill.add(
+                    "mep",
+                    (40, "plant", plant.kind),
+                    f"HVAC plant: {_noun(label)}",
+                    "nr",
+                    plant.id,
+                    1.0,
+                    story=plant.story,
+                    kind="plant",
+                )
+        if electrical is None:
+            return
+        from saengine.library.mep import ELECTRICAL_EQUIPMENT_KINDS, ELECTRICAL_RISER_KINDS
+
+        for tray in electrical.trays:
+            self.bill.add(
+                "mep",
+                (50, "tray", tray.width, tray.height),
+                f"Cable trays {tray.width:g} x {tray.height:g} mm",
+                "m",
+                tray.id,
+                path_length(tray.path) / 1000.0,
+                story=tray.story,
+                kind="tray",
+            )
+        sized: dict[str, Any] = {}
+        lightning: dict[str, Any] | None = None
+        try:
+            from types import SimpleNamespace
+
+            from saengine.electrical.report import electrical_results
+
+            objects = SimpleNamespace(objects=list(self.types.values()))
+            report = electrical_results(mep, self.building, objects, self.ground_level)
+            sized = {r.get("id"): r for r in report.get("risers", []) if isinstance(r, dict)}
+            lightning = report.get("lightning")
+        except Exception as error:  # noqa: BLE001 - the rest of the bill is still measured
+            self.notes.append(f"electrical: not sized ({error}); risers by their entered size")
+        for riser in electrical.risers:
+            width = riser.width or (sized.get(riser.id) or {}).get("width")
+            depth = riser.depth or (sized.get(riser.id) or {}).get("depth")
+            label = ELECTRICAL_RISER_KINDS.get(riser.kind, riser.kind)
+            size = f" {width:g} x {depth:g} mm" if width and depth else ""
+            self.bill.add(
+                "mep",
+                (55, "riser", riser.kind, width or 0.0, depth or 0.0),
+                f"Rising mains: {_noun(label)}{size}",
+                "m",
+                riser.id,
+                vertical(riser.id, riser.fromStory, riser.toStory),
+                story=riser.fromStory,
+                kind="riser",
+            )
+        for item in electrical.equipment:
+            label = ELECTRICAL_EQUIPMENT_KINDS.get(item.kind, item.kind)
+            self.bill.add(
+                "mep",
+                (60, "equipment", item.kind),
+                f"Electrical equipment: {_noun(label)}",
+                "nr",
+                item.id,
+                1.0,
+                story=item.story,
+                kind="equipment",
+            )
+        conductors = (lightning or {}).get("downConductors") or []
+        if lightning and lightning.get("enabled") and conductors:
+            natural = electrical.lightning is None or (
+                electrical.lightning.downConductors == "structuralRebar"
+            )
+            for dc in conductors:
+                column = (dc.get("columns") or [dc.get("id")])[0]
+                if natural:
+                    self.bill.add(
+                        "mep",
+                        (70, "bonding"),
+                        "Lightning: bonding terminals welded to the column bars (roof and base)",
+                        "nr",
+                        str(column),
+                        2.0,
+                        kind="bonding",
+                    )
+                self.bill.add(
+                    "mep",
+                    (71, "inspection"),
+                    "Lightning: earth inspection box recesses",
+                    "nr",
+                    str(column),
+                    1.0,
+                    kind="bonding",
+                )
+
     def finish(self) -> list[str]:
         notes = [*CONVENTIONS]
         if self.substructure is not None and (
@@ -1410,6 +1572,8 @@ class _Measure:
             notes += MEP_CONVENTIONS
         if getattr(self, "plumbing_measured", False):
             notes += PLUMBING_CONVENTIONS
+        if getattr(self, "services_measured", False):
+            notes += SERVICES_CONVENTIONS
         notes += [*self.building.check_additions(), *self.notes]
         if self.drawn_footings:
             notes.append(
@@ -1446,6 +1610,7 @@ def bill_of_quantities(
     measure.run()
     measure.measure_mep()
     measure.measure_plumbing(tank_designs)
+    measure.measure_services()
     return BillOfQuantities(
         source=source or BoqSource(), items=measure.bill.items(), notes=measure.finish()
     )

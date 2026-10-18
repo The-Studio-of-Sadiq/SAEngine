@@ -46,7 +46,9 @@ const MEP_LABELS = new Set(['name', 'service']);
 /**
  * The stamp an analysis model records for the MEP file `text` (key `mep`): of what the model
  * takes from it (its contents setting, equipment, openings and shafts, without the items' names
- * and service labels, and the plumbing's overhead tanks as `plumbingTanks` when there are any),
+ * and service labels, and the plumbing's overhead tanks as `plumbingTanks`, the HVAC plant as
+ * `hvacPlant` and the electrical equipment as `electricalEquipment` (with the supply's
+ * `transformerType`) when there are any),
  * so editing an IFC model's entry or a label leaves the model current. The
  * Python side (`saengine.fem.derive.mep_stamp`) computes the same; a text that is not a JSON
  * object gets the stamp of its text.
@@ -78,6 +80,22 @@ export function mepModelStamp(text: string): string {
 	const overhead = Array.isArray(tanks) ? tanks.filter(t => typeof t === 'object' && t !== null && !Array.isArray(t) && (t as { readonly kind?: unknown }).kind === 'overhead') : [];
 	if (overhead.length) {
 		content.plumbingTanks = overhead;
+	}
+	// The HVAC plant and the electrical equipment load the model as equipment too.
+	const unlabelled = (items: readonly unknown[]) => items.map(item => typeof item === 'object' && item !== null && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).filter(([name]) => !MEP_LABELS.has(name))) : item);
+	const section = (value: unknown) => typeof value === 'object' && value !== null && !Array.isArray(value) ? value as { readonly [key: string]: unknown } : undefined;
+	const plant = section(source.hvac)?.plant;
+	if (Array.isArray(plant) && plant.length) {
+		content.hvacPlant = unlabelled(plant);
+	}
+	const electrical = section(source.electrical);
+	const equipment = electrical?.equipment;
+	if (Array.isArray(equipment) && equipment.length) {
+		content.electricalEquipment = unlabelled(equipment);
+		const supply = section(electrical?.supply);
+		if (supply && Object.prototype.hasOwnProperty.call(supply, 'transformerType')) {
+			content.transformerType = supply.transformerType;
+		}
 	}
 	return sourceStamp(JSON.stringify(content));
 }

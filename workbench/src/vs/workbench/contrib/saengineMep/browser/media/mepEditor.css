@@ -1142,3 +1142,404 @@
 .saengine-mep-editor .plb-pump-label {
 	color: var(--sa-muted);
 }
+
+/* ── HVAC and electrical (hvacPlan.ts, electricalPlan.ts, their Results) ─── */
+
+/* Each duct system has its colour and its letters (SA, RA, EA, FA, KE, SE); the letters carry the
+ * identity. The plant is drawn in the equipment's blue family, the electrical in its own. */
+.saengine-mep-editor {
+	--hvac-supply: var(--vscode-charts-blue, #2c6fbe);
+	--hvac-return: var(--vscode-charts-purple, #7c4dbd);
+	--hvac-exhaust: var(--vscode-charts-orange, #c2620e);
+	--hvac-freshAir: var(--vscode-charts-green, #388a34);
+	--hvac-kitchenExhaust: var(--vscode-charts-yellow, #b58900);
+	--hvac-smoke: var(--vscode-charts-red, #c4314b);
+	--hvac-plant: var(--vscode-charts-blue, #2c6fbe);
+	--elec-equipment: var(--vscode-charts-yellow, #b58900);
+	--elec-riser: var(--vscode-charts-orange, #c2620e);
+	--elec-tray: color-mix(in srgb, var(--vscode-charts-yellow, #b58900) 70%, var(--vscode-foreground));
+	--elec-lps: var(--vscode-charts-red, #c4314b);
+}
+
+.saengine-mep-editor .mep-plan.quiet .mep-equipment {
+	opacity: 0.35;
+}
+
+.saengine-mep-editor .hvac-duct polyline,
+.saengine-mep-editor .elec-tray polyline,
+.saengine-mep-editor .mep-draft polyline {
+	fill: none;
+}
+
+/* the beams of the floor above, dashed: what the ducts and trays pass */
+.saengine-mep-editor .mep-beam-ceiling-edge {
+	stroke: color-mix(in srgb, var(--vscode-foreground) 45%, transparent);
+	stroke-width: 1;
+	stroke-dasharray: 6 4;
+	pointer-events: none;
+}
+
+.saengine-mep-editor .mep-beam.ceiling:hover .mep-beam-ceiling-edge {
+	stroke: color-mix(in srgb, var(--mep-select) 70%, transparent);
+}
+
+.saengine-mep-editor .mep-beam.ceiling.selected .mep-beam-ceiling-edge {
+	stroke: var(--mep-select);
+	stroke-width: 1.5;
+}
+
+.saengine-mep-editor .mep-element-label.ceiling {
+	font-style: italic;
+}
+
+.saengine-mep-editor .sys-supply { --hvac-c: var(--hvac-supply); }
+.saengine-mep-editor .sys-return { --hvac-c: var(--hvac-return); }
+.saengine-mep-editor .sys-exhaust { --hvac-c: var(--hvac-exhaust); }
+.saengine-mep-editor .sys-freshAir { --hvac-c: var(--hvac-freshAir); }
+.saengine-mep-editor .sys-kitchenExhaust { --hvac-c: var(--hvac-kitchenExhaust); }
+.saengine-mep-editor .sys-smoke { --hvac-c: var(--hvac-smoke); }
+
+.saengine-mep-editor .hvac-plant,
+.saengine-mep-editor .hvac-duct,
+.saengine-mep-editor .hvac-riser-duct,
+.saengine-mep-editor .elec-equipment,
+.saengine-mep-editor .elec-riser,
+.saengine-mep-editor .elec-tray {
+	cursor: move;
+}
+
+.saengine-mep-editor .hvac-duct-body {
+	stroke: color-mix(in srgb, var(--hvac-c, var(--sa-muted)) 28%, var(--sa-surface));
+	stroke-linejoin: round;
+	opacity: 0.9;
+}
+
+.saengine-mep-editor .hvac-duct-axis {
+	stroke: var(--hvac-c, var(--sa-muted));
+	stroke-width: 1.25;
+	stroke-dasharray: 8 3 2 3;
+	pointer-events: none;
+}
+
+.saengine-mep-editor .hvac-duct:hover .hvac-duct-body {
+	stroke: color-mix(in srgb, var(--hvac-c, var(--sa-muted)) 40%, var(--sa-surface));
+}
+
+.saengine-mep-editor .hvac-duct.selected .hvac-duct-axis {
+	stroke: var(--mep-select);
+	stroke-width: 2;
+	stroke-dasharray: none;
+}
+
+.saengine-mep-editor .hvac-duct-label,
+.saengine-mep-editor .hvac-label,
+.saengine-mep-editor .elec-label {
+	font-size: 10.5px;
+	fill: var(--sa-muted);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .hvac-duct.selected .hvac-duct-label {
+	fill: var(--mep-select);
+	font-weight: 600;
+}
+
+.saengine-mep-editor .hvac-riser-shape {
+	fill: color-mix(in srgb, var(--hvac-c, var(--sa-muted)) 22%, var(--sa-surface));
+	stroke: var(--hvac-c, var(--sa-muted));
+	stroke-width: 1.5;
+}
+
+.saengine-mep-editor .hvac-riser-diagonal {
+	stroke: var(--hvac-c, var(--sa-muted));
+	stroke-width: 1;
+	pointer-events: none;
+}
+
+.saengine-mep-editor .hvac-riser-duct.unshafted .hvac-riser-shape {
+	stroke-dasharray: 4 2;
+}
+
+.saengine-mep-editor .hvac-riser-duct.selected .hvac-riser-shape,
+.saengine-mep-editor .elec-riser.selected .elec-riser-shape {
+	stroke: var(--mep-select);
+	stroke-width: 2.5;
+}
+
+/* where a run crosses a beam of the ceiling: a ring through an opening, the opening it needs dashed */
+.saengine-mep-editor .hvac-crossing-shape {
+	fill: color-mix(in srgb, var(--sa-fail) 12%, transparent);
+	stroke: var(--sa-fail);
+	stroke-width: 1.5;
+	stroke-dasharray: 3 2;
+}
+
+.saengine-mep-editor .hvac-crossing-mark {
+	fill: none;
+	stroke: var(--sa-ok);
+	stroke-width: 1.5;
+}
+
+.saengine-mep-editor .hvac-plant-shape,
+.saengine-mep-editor .elec-equipment-shape {
+	fill: color-mix(in srgb, var(--c) 14%, var(--sa-surface));
+	stroke: var(--c);
+	stroke-width: 1.5;
+}
+
+.saengine-mep-editor .hvac-plant { --c: var(--hvac-plant); }
+.saengine-mep-editor .elec-equipment { --c: var(--elec-equipment); }
+
+.saengine-mep-editor .hvac-plant.sized .hvac-plant-shape,
+.saengine-mep-editor .elec-equipment.sized .elec-equipment-shape {
+	stroke-dasharray: 5 2;
+}
+
+.saengine-mep-editor .elec-equipment.vibrating .elec-equipment-shape {
+	stroke-width: 2.5;
+}
+
+.saengine-mep-editor .hvac-plant.failed .hvac-plant-shape,
+.saengine-mep-editor .elec-equipment.failed .elec-equipment-shape {
+	stroke: var(--sa-fail);
+}
+
+.saengine-mep-editor .hvac-plant:hover .hvac-plant-shape,
+.saengine-mep-editor .elec-equipment:hover .elec-equipment-shape {
+	fill: color-mix(in srgb, var(--c) 22%, var(--sa-surface));
+}
+
+.saengine-mep-editor .hvac-plant.selected .hvac-plant-shape,
+.saengine-mep-editor .elec-equipment.selected .elec-equipment-shape {
+	stroke: var(--mep-select);
+	stroke-width: 2.5;
+}
+
+.saengine-mep-editor .hvac-plant-letters,
+.saengine-mep-editor .elec-equipment-letters {
+	font-size: 11px;
+	font-weight: 600;
+	fill: var(--vscode-foreground);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .hvac-plant-weight,
+.saengine-mep-editor .hvac-plant-name,
+.saengine-mep-editor .elec-equipment-weight,
+.saengine-mep-editor .elec-equipment-name {
+	font-size: 10.5px;
+	fill: var(--sa-muted);
+	font-variant-numeric: tabular-nums;
+	pointer-events: none;
+}
+
+.saengine-mep-editor .elec-riser-shape {
+	fill: color-mix(in srgb, var(--elec-riser) 25%, var(--sa-surface));
+	stroke: var(--elec-riser);
+	stroke-width: 1.5;
+}
+
+.saengine-mep-editor .elec-tray-body {
+	stroke: color-mix(in srgb, var(--elec-tray) 22%, var(--sa-surface));
+	stroke-linejoin: round;
+}
+
+.saengine-mep-editor .elec-tray-rungs {
+	stroke: var(--elec-tray);
+	stroke-dasharray: 1 7;
+	opacity: 0.55;
+	pointer-events: none;
+}
+
+.saengine-mep-editor .elec-tray.selected .elec-tray-rungs {
+	stroke: var(--mep-select);
+	opacity: 0.9;
+}
+
+/* lightning protection */
+.saengine-mep-editor .elec-lps-edge {
+	fill: none;
+	stroke: var(--elec-lps);
+	stroke-width: 2;
+	stroke-dasharray: 10 3;
+	pointer-events: none;
+}
+
+.saengine-mep-editor .elec-lps-mesh {
+	stroke: var(--elec-lps);
+	stroke-width: 1;
+	stroke-dasharray: 6 4;
+	pointer-events: none;
+}
+
+.saengine-mep-editor .elec-air-terminal-shape {
+	fill: var(--elec-lps);
+	stroke: var(--sa-surface);
+	stroke-width: 1;
+}
+
+.saengine-mep-editor .elec-air-terminal.proposed .elec-air-terminal-shape {
+	fill: var(--sa-surface);
+	stroke: var(--elec-lps);
+	stroke-dasharray: 2 1.5;
+}
+
+.saengine-mep-editor .elec-down-conductor-ring {
+	fill: none;
+	stroke: var(--elec-lps);
+	stroke-width: 2;
+}
+
+.saengine-mep-editor .elec-down-conductor-label {
+	font-size: 10px;
+	font-weight: 600;
+	fill: var(--elec-lps);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .elec-earth-symbol {
+	stroke: var(--elec-lps);
+	stroke-width: 1.5;
+	fill: none;
+}
+
+.saengine-mep-editor .elec-earth-ring-shape {
+	fill: none;
+	stroke: var(--sa-ok);
+	stroke-width: 1.5;
+	stroke-dasharray: 12 4 2 4;
+}
+
+/* the path being drawn */
+.saengine-mep-editor .mep-canvas.drawing,
+.saengine-mep-editor .mep-canvas.drawing .mep-plan * {
+	cursor: crosshair;
+}
+
+.saengine-mep-editor .mep-draft {
+	--draft-c: var(--hvac-c, var(--elec-tray));
+}
+
+.saengine-mep-editor .mep-draft-body {
+	stroke: color-mix(in srgb, var(--draft-c) 25%, transparent);
+	stroke-linejoin: round;
+	pointer-events: none;
+}
+
+.saengine-mep-editor .mep-draft-point {
+	fill: var(--sa-surface);
+	stroke: var(--draft-c);
+	stroke-width: 1.5;
+	pointer-events: none;
+}
+
+.saengine-mep-editor .mep-draft-rubber {
+	stroke: var(--draft-c);
+	stroke-width: 1.25;
+	stroke-dasharray: 4 3;
+	pointer-events: none;
+}
+
+.saengine-mep-editor .mep-draw-hint {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1);
+	padding: 1px var(--sa-space-2);
+	border-radius: var(--sa-radius);
+	background: color-mix(in srgb, var(--sa-accent) 12%, transparent);
+	color: var(--vscode-foreground);
+	font-size: var(--sa-font-s);
+}
+
+/* legend swatches */
+.saengine-mep-editor .mep-swatch.hvac-sys {
+	width: auto;
+	min-width: 18px;
+	height: 12px;
+	padding: 0 3px;
+	border: 1.5px solid var(--hvac-c);
+	border-radius: 2px;
+	background: color-mix(in srgb, var(--hvac-c) 22%, var(--sa-surface));
+	color: var(--vscode-foreground);
+	font-size: 9px;
+	font-weight: 700;
+	line-height: 11px;
+	text-align: center;
+}
+
+.saengine-mep-editor .mep-swatch.hvac-plant { border: 1px solid var(--hvac-plant); background: color-mix(in srgb, var(--hvac-plant) 14%, var(--sa-surface)); }
+.saengine-mep-editor .mep-swatch.elec-equipment { border: 1px solid var(--elec-equipment); background: color-mix(in srgb, var(--elec-equipment) 14%, var(--sa-surface)); }
+.saengine-mep-editor .mep-swatch.elec-riser { width: 10px; border: 1.5px solid var(--elec-riser); background: color-mix(in srgb, var(--elec-riser) 25%, var(--sa-surface)); }
+.saengine-mep-editor .mep-swatch.elec-tray { height: 6px; background: repeating-linear-gradient(90deg, var(--elec-tray) 0 1px, color-mix(in srgb, var(--elec-tray) 22%, var(--sa-surface)) 1px 6px); }
+.saengine-mep-editor .mep-swatch.elec-down { width: 10px; border: 2px solid var(--elec-lps); border-radius: 50%; }
+.saengine-mep-editor .mep-swatch.elec-lps { height: 0; border-top: 2px dashed var(--elec-lps); }
+.saengine-mep-editor .mep-swatch.beam-above { height: 5px; border-top: 1px dashed var(--mep-concrete-edge); border-bottom: 1px dashed var(--mep-concrete-edge); }
+.saengine-mep-editor .mep-swatch.opening-needed { width: 12px; border: 1.5px dashed var(--sa-fail); background: color-mix(in srgb, var(--sa-fail) 12%, transparent); }
+
+/* data view */
+.saengine-mep-editor tr.plb-sized-row td:first-child .mep-input {
+	font-style: italic;
+}
+
+.saengine-mep-editor td.band-warn {
+	color: var(--sa-warn);
+}
+
+/* results */
+.saengine-mep-editor .hvac-engine {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: var(--sa-space-2);
+	margin-top: var(--sa-space-1);
+	font-size: var(--sa-font-s);
+}
+
+.saengine-mep-editor .hvac-engine-label {
+	color: var(--sa-muted);
+}
+
+.saengine-mep-editor .hvac-engine-value {
+	padding: 0 6px;
+	border: 1px solid var(--sa-ok);
+	border-radius: 999px;
+	color: var(--sa-ok);
+}
+
+.saengine-mep-editor .hvac-engine.estimate .hvac-engine-value {
+	border-color: var(--sa-warn);
+	color: var(--sa-warn);
+}
+
+.saengine-mep-editor .mep-bar-chart {
+	display: block;
+	margin-top: var(--sa-space-2);
+}
+
+.saengine-mep-editor .mep-bar-label,
+.saengine-mep-editor .mep-bar-value {
+	font-size: 10.5px;
+	fill: var(--sa-muted);
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-mep-editor .mep-bar-value {
+	fill: var(--vscode-foreground);
+}
+
+.saengine-mep-editor .mep-bar.hvac-bar-sensible { fill: var(--hvac-supply); }
+.saengine-mep-editor .mep-bar.hvac-bar-latent { fill: color-mix(in srgb, var(--hvac-supply) 45%, var(--sa-surface)); }
+.saengine-mep-editor .mep-bar.elec-bar-demand { fill: var(--elec-equipment); }
+.saengine-mep-editor .mep-bar-row.band-fail .mep-bar { fill: var(--sa-fail); }
+.saengine-mep-editor .mep-swatch.mep-bar-swatch.hvac-bar-sensible { background: var(--hvac-supply); }
+.saengine-mep-editor .mep-swatch.mep-bar-swatch.hvac-bar-latent { background: color-mix(in srgb, var(--hvac-supply) 45%, var(--sa-surface)); }
+
+.saengine-mep-editor .mep-bar-legend {
+	margin-top: var(--sa-space-1);
+}
+
+.saengine-mep-editor .elec-dc-list {
+	margin: 0 0 var(--sa-space-2);
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}

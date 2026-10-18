@@ -82,6 +82,24 @@ suite('SAEngine - FEM derivation', () => {
 		});
 	});
 
+	test('stamps the HVAC plant and the electrical equipment, not the ducts or labels, as the Python side does', () => {
+		// The same text and stamp as python/tests/test_services_integration.py::test_mep_stamp_takes_the_plant_and_equipment.
+		const text = '{"schema": "saengine.mep/1", "equipment": [], "hvac": {"system": "vrf", "plant": [{"id": "ODU1", "kind": "vrfOutdoor", "story": "L1", "x": 1800, "y": 1500.5, "name": "x"}], "ducts": [{"id": "D1", "story": "BASE", "path": [[0, 0], [1, 1]]}]}, "electrical": {"supply": {"transformerType": "dry"}, "equipment": [{"id": "TX1", "kind": "transformer", "story": "BASE", "x": 3000, "y": -3000}]}}';
+		assert.deepStrictEqual({
+			stamp: mepModelStamp(text),
+			plantMoved: mepModelStamp(text.replace('1500.5', '1600')) === mepModelStamp(text),
+			typeChanged: mepModelStamp(text.replace('"dry"', '"oil"')) === mepModelStamp(text),
+			ductMoved: mepModelStamp(text.replace('[[0, 0], [1, 1]]', '[[0, 0], [2, 2]]')) === mepModelStamp(text),
+			relabelled: mepModelStamp(text.replace('"name": "x"', '"name": "y"')) === mepModelStamp(text),
+		}, {
+			stamp: '71aa261edebd5ae64a6f6214c92ca19c3a97322c',
+			plantMoved: false,
+			typeChanged: false,
+			ductMoved: true,
+			relabelled: true,
+		});
+	});
+
 	test('stamps the plumbing\'s overhead tanks, not its ground tanks, as the Python side does', () => {
 		// The same text and stamps as python/tests/test_plumbing_integration.py::test_mep_stamp_of_the_plumbing_tanks_matches_the_workbench.
 		const text = '{"schema": "saengine.mep/1", "equipment": [], "plumbing": {"stories": [{"story": "L1"}], "tanks": [{"id": "T1", "kind": "overhead", "story": "L3", "x": 9500, "y": 2500.5, "length": 2200}, {"id": "SEP1", "kind": "septic", "x": 1, "y": 2}]}}';

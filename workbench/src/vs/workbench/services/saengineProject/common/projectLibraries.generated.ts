@@ -8636,6 +8636,959 @@ export const DEFAULT_SUBSTRUCTURE: object = {
 
 export const MEP_SCHEMA: IJSONSchema = {
 	$defs: {
+		CableTray: {
+			additionalProperties: false,
+			description: 'A horizontal cable tray under a floor.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				story: {
+					description: 'Story whose ceiling space it runs in.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				path: {
+					description: 'Plan path [[x, y], ...] mm.',
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					minItems: 2,
+					title: 'Path',
+					type: 'array',
+				},
+				width: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Width',
+					type: 'number',
+				},
+				height: {
+					default: 100,
+					description: 'Side height [mm].',
+					exclusiveMinimum: 0,
+					title: 'Height',
+					type: 'number',
+				},
+				bottom: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Underside above the story\'s floor [mm]; empty: below the slab soffit with 150 mm to lay the cables.',
+					title: 'Bottom',
+				},
+				cableArea: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Sum of the cables\' cross-sections (outside diameter) [mm²]: checks the fill.',
+					title: 'Cable area',
+				},
+			},
+			required: ['id', 'story', 'path', 'width'],
+			title: 'CableTray',
+			type: 'object',
+		},
+		Duct: {
+			additionalProperties: false,
+			description: 'A duct run: horizontal in plan on a story, or a riser at its first point.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				system: {
+					default: 'supply',
+					enum: ['supply', 'return', 'exhaust', 'freshAir', 'kitchenExhaust', 'smoke'],
+					enumDescriptions: ['Supply air', 'Return air', 'Exhaust air', 'Fresh air', 'Kitchen exhaust', 'Smoke extract'],
+					title: 'System',
+					type: 'string',
+				},
+				shape: {
+					default: 'rect',
+					enum: ['rect', 'round'],
+					enumDescriptions: ['Rectangular', 'Round'],
+					title: 'Shape',
+					type: 'string',
+				},
+				width: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Width',
+				},
+				height: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Height',
+				},
+				diameter: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Diameter',
+				},
+				story: {
+					description: 'Building-model story.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				path: {
+					description: 'Plan points [mm].',
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					minItems: 1,
+					title: 'Path',
+					type: 'array',
+				},
+				bottom: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Underside above the story\'s floor [mm]; empty: just below the slab soffit.',
+					title: 'Bottom',
+				},
+				riser: {
+					anyOf: [
+						{
+							$ref: '#/$defs/DuctRiser',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Riser',
+				},
+				shaft: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Shaft',
+				},
+				flow: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[m³/s]',
+					title: 'Flow',
+				},
+			},
+			required: ['id', 'story', 'path'],
+			title: 'Duct',
+			type: 'object',
+		},
+		DuctRiser: {
+			additionalProperties: false,
+			properties: {
+				fromStory: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'From story',
+					type: 'string',
+				},
+				toStory: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'To story',
+					type: 'string',
+				},
+			},
+			required: ['fromStory', 'toStory'],
+			title: 'DuctRiser',
+			type: 'object',
+		},
+		Electrical: {
+			additionalProperties: false,
+			description: 'The electrical services the structure coordinates with (BNBC 2020 Part 8 Chapter 1).',
+			properties: {
+				supply: {
+					$ref: '#/$defs/ElectricalSupply',
+					title: 'Supply',
+				},
+				stories: {
+					items: {
+						$ref: '#/$defs/ElectricalStory',
+					},
+					title: 'Stories',
+					type: 'array',
+				},
+				motors: {
+					items: {
+						$ref: '#/$defs/Motor',
+					},
+					title: 'Motors',
+					type: 'array',
+				},
+				equipment: {
+					items: {
+						$ref: '#/$defs/ElectricalEquipment',
+					},
+					title: 'Equipment',
+					type: 'array',
+				},
+				risers: {
+					items: {
+						$ref: '#/$defs/ElectricalRiser',
+					},
+					title: 'Risers',
+					type: 'array',
+				},
+				trays: {
+					items: {
+						$ref: '#/$defs/CableTray',
+					},
+					title: 'Trays',
+					type: 'array',
+				},
+				rooms: {
+					items: {
+						$ref: '#/$defs/ElectricalRoom',
+					},
+					title: 'Rooms',
+					type: 'array',
+				},
+				lightning: {
+					anyOf: [
+						{
+							$ref: '#/$defs/Lightning',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Lightning',
+				},
+			},
+			title: 'Electrical',
+			type: 'object',
+		},
+		ElectricalEquipment: {
+			additionalProperties: false,
+			description: 'A transformer, panel, generator, tank or battery standing on a floor.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				kind: {
+					enum: ['transformer', 'switchgear', 'lvPanel', 'generator', 'fuelTank', 'ups', 'battery', 'capacitorBank', 'distributionBoard', 'solarPv'],
+					enumDescriptions: ['Transformer', 'HT switchgear', 'LT panel', 'Generator', 'Fuel tank', 'UPS', 'Battery bank', 'Capacitor bank', 'Distribution board', 'Solar PV array'],
+					title: 'Kind',
+					type: 'string',
+				},
+				name: {
+					default: '',
+					title: 'Name',
+					type: 'string',
+				},
+				story: {
+					description: 'Building-model story it stands on.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				x: {
+					description: 'Centre, plan X [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					description: 'Centre, plan Y [mm].',
+					title: 'Y',
+					type: 'number',
+				},
+				length: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Along X [mm].',
+					title: 'Length',
+				},
+				width: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Along Y [mm].',
+					title: 'Width',
+				},
+				height: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Height',
+				},
+				rating: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'kVA (transformer, generator, UPS), kW (PV), A (panel).',
+					title: 'Rating',
+				},
+				operatingWeight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'With oil or fuel [kN]; empty: typical for the rating.',
+					title: 'Operating weight',
+				},
+				emptyWeight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Without its fuel or oil [kN] (the contents load as 07 MEP contentsAs); empty: a transformer\'s from its oil, else the operating weight.',
+					title: 'Empty weight',
+				},
+				vibrating: {
+					anyOf: [
+						{
+							type: 'boolean',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Imposes vibration (BNBC 2.3.12); empty: generators do.',
+					title: 'Vibrating',
+				},
+				oil: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Transformer oil [litres].',
+					title: 'Oil',
+				},
+				sized: {
+					default: false,
+					description: 'Proposed by SAEngine (editable).',
+					title: 'Sized',
+					type: 'boolean',
+				},
+				equipment: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The 07 MEP equipment that already carries its weight in the analysis; empty: SAEngine loads the model with this item (unless an equipment stands there).',
+					title: 'Equipment',
+				},
+			},
+			required: ['id', 'kind', 'story', 'x', 'y'],
+			title: 'ElectricalEquipment',
+			type: 'object',
+		},
+		ElectricalRiser: {
+			additionalProperties: false,
+			description: 'A rising main: busbar trunking, or cables on a tray, ladder or in conduits.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				kind: {
+					default: 'busbar',
+					enum: ['busbar', 'cableTray', 'cableLadder', 'conduitBank'],
+					enumDescriptions: ['Busbar trunking', 'Cable tray', 'Cable ladder', 'Conduit bank'],
+					title: 'Kind',
+					type: 'string',
+				},
+				x: {
+					description: 'Centre, plan X [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					description: 'Centre, plan Y [mm].',
+					title: 'Y',
+					type: 'number',
+				},
+				width: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Along X [mm]; empty: sized.',
+					title: 'Width',
+				},
+				depth: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Along Y [mm]; empty: sized.',
+					title: 'Depth',
+				},
+				fromStory: {
+					description: 'Story it starts at (not cut).',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'From story',
+					type: 'string',
+				},
+				toStory: {
+					description: 'Highest story whose floor it cuts.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'To story',
+					type: 'string',
+				},
+				shaft: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Shaft it runs in.',
+					title: 'Shaft',
+				},
+				serves: {
+					anyOf: [
+						{
+							items: {
+								maxLength: 64,
+								minLength: 1,
+								pattern: '^[A-Za-z0-9._-]+$',
+								type: 'string',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Stories it feeds; empty: all it passes.',
+					title: 'Serves',
+				},
+				rating: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[A]; empty: sized.',
+					title: 'Rating',
+				},
+			},
+			required: ['id', 'x', 'y', 'fromStory', 'toStory'],
+			title: 'ElectricalRiser',
+			type: 'object',
+		},
+		ElectricalRoom: {
+			additionalProperties: false,
+			description: 'A substation, transformer, generator, LT or UPS room: its outline is checked.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				kind: {
+					enum: ['substation', 'transformer', 'generator', 'lvRoom', 'ups'],
+					enumDescriptions: ['Substation (HT, transformer and LT rooms)', 'Transformer room', 'Generator room', 'LT switch room', 'UPS and battery room'],
+					title: 'Kind',
+					type: 'string',
+				},
+				story: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				outline: {
+					description: 'Inside face of the walls [mm].',
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					minItems: 3,
+					title: 'Outline',
+					type: 'array',
+				},
+				height: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Clear height [mm]; empty: story\'s.',
+					title: 'Height',
+				},
+			},
+			required: ['id', 'kind', 'story', 'outline'],
+			title: 'ElectricalRoom',
+			type: 'object',
+		},
+		ElectricalStory: {
+			additionalProperties: false,
+			description: 'What a story draws: its use (BNBC Table 8.1.17), unit loads and other loads.',
+			properties: {
+				story: {
+					description: 'Building-model story.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				use: {
+					default: 'office',
+					description: 'Row of BNBC 2020 Part 8 Table 8.1.17 (minimum load densities).',
+					enum: ['residenceSingle', 'residenceMulti', 'hospital', 'hotel', 'office', 'industrial', 'departmentStore', 'bank', 'restaurant', 'barber', 'school', 'parking', 'warehouse'],
+					enumDescriptions: ['Residence/dwelling: single family', 'Residence/dwelling: multi-family (other than hotels)', 'Hospitals', 'Hotels, including apartment house (no electric cooking)', 'Office and commercial multi-storeyed buildings', 'Industrial building (excluding the loads for machines)', 'Departmental stores', 'Banks', 'Restaurants (no electric cooking)', 'Barber shops and beauty parlours', 'Schools and colleges', 'Parking area in commercial buildings', 'Warehouses, large storage areas'],
+					title: 'Use',
+					type: 'string',
+				},
+				airConditioned: {
+					anyOf: [
+						{
+							type: 'boolean',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The A/C column of Table 8.1.17; empty: as 07 MEP hvac (conditioned), else not. With hvac plant entered, the plant\'s electrical load replaces the A/C column.',
+					title: 'Air conditioned',
+				},
+				lighting: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Lighting [W/m²].',
+					title: 'Lighting',
+				},
+				power: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Socket outlets, power [W/m²].',
+					title: 'Power',
+				},
+				other: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Other loads of the story [kW].',
+					title: 'Other',
+				},
+				area: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Floor area [m²]; empty: the story\'s slabs in 06 BIM.',
+					title: 'Area',
+				},
+			},
+			required: ['story'],
+			title: 'ElectricalStory',
+			type: 'object',
+		},
+		ElectricalSupply: {
+			additionalProperties: false,
+			description: 'The supply and what the sizing assumes.',
+			properties: {
+				utility: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Distribution company, e.g. \'DPDC\'.',
+					title: 'Utility',
+				},
+				voltage: {
+					anyOf: [
+						{
+							enum: ['11kV', '33kV', '0.4kV'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Supply voltage; empty: 11 kV with a substation when the load is 50 kW or more (BNBC 2020 Part 8 Sec 1.3.20.1(e)), else 0.4 kV.',
+					enumDescriptions: ['11 kV (HT)', '33 kV (HT)', '0.4 kV (LT)'],
+					title: 'Voltage',
+				},
+				generator: {
+					default: false,
+					description: 'A standby generator (Sec 1.3.19).',
+					title: 'Generator',
+					type: 'boolean',
+				},
+				ups: {
+					default: false,
+					description: 'A UPS (Sec 1.3.19.5).',
+					title: 'UPS',
+					type: 'boolean',
+				},
+				powerFactor: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0.5,
+							maximum: 1,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Of the maximum demand (kVA = kW / pf); empty: 0.85 (SAEngine practice, BNBC gives none).',
+					title: 'Power factor',
+				},
+				loadFactor: {
+					anyOf: [
+						{
+							maximum: 1,
+							minimum: 0.8,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Applied to the connected load for the substation rating; at least 0.8 (Sec 1.3.18.1); empty: 0.8.',
+					title: 'Load factor',
+				},
+				growth: {
+					default: 0,
+					description: 'Future expansion added to the maximum demand [%] (Sec 1.3.18.1).',
+					maximum: 200,
+					minimum: 0,
+					title: 'Growth',
+					type: 'number',
+				},
+				transformers: {
+					anyOf: [
+						{
+							maximum: 6,
+							minimum: 1,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Number of transformers; empty: SAEngine chooses.',
+					title: 'Transformers',
+				},
+				transformerType: {
+					default: 'oil',
+					description: 'Oil-immersed or cast resin dry type (dry for hospitals, shopping centres and where fire must not spread, Sec 1.3.18.4).',
+					enum: ['oil', 'dry'],
+					enumDescriptions: ['Oil type, natural cooled', 'Cast resin dry type'],
+					title: 'Transformer type',
+					type: 'string',
+				},
+				essentialShare: {
+					anyOf: [
+						{
+							maximum: 1,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Share of the lighting and power load on the generator; empty: 0.25 (SAEngine practice).',
+					title: 'Essential share',
+				},
+				essentialLoad: {
+					default: 0,
+					description: 'Added to the generator [kW].',
+					minimum: 0,
+					title: 'Other essential load',
+					type: 'number',
+				},
+				fuelHours: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 168,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Hours of full-load running the fuel tank holds; empty: 8 (SAEngine practice, BNBC gives none).',
+					title: 'Fuel hours',
+				},
+				upsLoad: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Load on the UPS [kW].',
+					title: 'UPS load',
+				},
+				upsAutonomy: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Battery time [min]; empty: 15.',
+					title: 'UPS autonomy',
+				},
+			},
+			title: 'ElectricalSupply',
+			type: 'object',
+		},
 		Equipment: {
 			additionalProperties: false,
 			description: 'A piece of equipment standing on a floor: its weight is a load on the structure.',
@@ -8790,6 +9743,70 @@ export const MEP_SCHEMA: IJSONSchema = {
 			title: 'Equipment',
 			type: 'object',
 		},
+		FacadeGlazing: {
+			additionalProperties: false,
+			description: 'Window-to-wall ratio of each facade (0 to 0.9); empty: 0.2 (BNBC 2020 Part 3 Sec\n4.5.1.2(a)).',
+			properties: {
+				N: {
+					anyOf: [
+						{
+							maximum: 0.9,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'N',
+				},
+				E: {
+					anyOf: [
+						{
+							maximum: 0.9,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Young\'s modulus E',
+				},
+				S: {
+					anyOf: [
+						{
+							maximum: 0.9,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'S',
+				},
+				W: {
+					anyOf: [
+						{
+							maximum: 0.9,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'W',
+				},
+			},
+			title: 'FacadeGlazing',
+			type: 'object',
+		},
 		Fixtures: {
 			additionalProperties: false,
 			description: 'Number of each plumbing fixture on a story.',
@@ -8917,6 +9934,476 @@ export const MEP_SCHEMA: IJSONSchema = {
 			title: 'Harvest',
 			type: 'object',
 		},
+		Hvac: {
+			additionalProperties: false,
+			description: 'Air-conditioning and ventilation the structure coordinates with (BNBC 2020 Part 8\nChapter 2): cooling loads, plant weights, ducts through the structure.',
+			properties: {
+				system: {
+					default: 'split',
+					enum: ['vrf', 'chilledWater', 'split', 'packaged', 'none'],
+					enumDescriptions: ['Variable refrigerant flow (VRF)', 'Chilled water (chillers, AHUs, FCUs)', 'Split air-conditioners', 'Packaged units', 'None (naturally ventilated)'],
+					title: 'System',
+					type: 'string',
+				},
+				design: {
+					$ref: '#/$defs/HvacDesign',
+					title: 'Design',
+				},
+				envelope: {
+					$ref: '#/$defs/HvacEnvelope',
+					title: 'Envelope',
+				},
+				stories: {
+					items: {
+						$ref: '#/$defs/HvacStory',
+					},
+					title: 'Stories',
+					type: 'array',
+				},
+				plant: {
+					items: {
+						$ref: '#/$defs/HvacPlant',
+					},
+					title: 'Plant',
+					type: 'array',
+				},
+				ducts: {
+					items: {
+						$ref: '#/$defs/Duct',
+					},
+					title: 'Ducts',
+					type: 'array',
+				},
+			},
+			title: 'Hvac',
+			type: 'object',
+		},
+		HvacDesign: {
+			additionalProperties: false,
+			description: 'The design conditions (BNBC 2020 Part 8 Sec 2.7.2 and 2.12.2).',
+			properties: {
+				city: {
+					anyOf: [
+						{
+							enum: ['barisal', 'bogra', 'chandpur', 'chittagong', 'comilla', 'coxsbazar', 'dhaka', 'dinajpur', 'faridpur', 'ishurdi', 'jessore', 'khulna', 'mongla', 'mymensingh', 'patuakhali', 'rajshahi', 'rangamati', 'rangpur', 'sylhet', 'tangail'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Station of Table 8.2.2 (outside design conditions); empty: the Project Settings site, else Dhaka.',
+					enumDescriptions: ['Barisal', 'Bogra', 'Chandpur', 'Chittagong', 'Comilla', 'Cox\'s Bazar', 'Dhaka', 'Dinajpur', 'Faridpur', 'Ishurdi', 'Jessore', 'Khulna', 'Mongla', 'Mymensingh', 'Patuakhali', 'Rajshahi', 'Rangamati', 'Rangpur', 'Sylhet', 'Tangail'],
+					title: 'City',
+				},
+				outdoorDB: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[°C]; empty: the station\'s 2 % dry bulb (Sec 2.12.2.1).',
+					title: 'Outdoor dry bulb',
+				},
+				outdoorWB: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Mean coincident wet bulb [°C]; empty: the station\'s 2 % MWB.',
+					title: 'Outdoor wet bulb',
+				},
+				indoorDB: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[°C]; empty: 24 °C (Sec 2.12.2.2) within the use\'s Table 8.2.1 range.',
+					title: 'Indoor dry bulb',
+				},
+				indoorRH: {
+					anyOf: [
+						{
+							exclusiveMaximum: 100,
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[%]; empty: the upper value of the use\'s Table 8.2.1 range (Sec 2.12.2.3).',
+					title: 'Indoor relative humidity',
+				},
+				dailyRange: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Of the outdoor dry bulb [°C]; empty: Table 8.2.2 column 14.',
+					title: 'Daily range',
+				},
+			},
+			title: 'HvacDesign',
+			type: 'object',
+		},
+		HvacEnvelope: {
+			additionalProperties: false,
+			description: 'The building envelope\'s constructions (typical Bangladeshi, EnergyPlus data sets).',
+			properties: {
+				wall: {
+					default: 'brick250',
+					enum: ['brick250', 'brick125'],
+					enumDescriptions: ['250 mm brick wall, 12 mm plaster both sides', '125 mm brick wall, 12 mm plaster both sides'],
+					title: 'Wall',
+					type: 'string',
+				},
+				roof: {
+					default: 'rcLimeTerracing',
+					enum: ['rcLimeTerracing', 'rcInsulated'],
+					enumDescriptions: ['100 mm lime terracing on 150 mm RC slab, 12 mm plaster ceiling', '50 mm screed on 50 mm EPS insulation on 150 mm RC slab, 12 mm plaster ceiling'],
+					title: 'Roof',
+					type: 'string',
+				},
+				glazing: {
+					default: 'singleClear',
+					enum: ['singleClear', 'doubleClear'],
+					enumDescriptions: ['Single clear glass 6 mm', 'Double clear glass 6 mm / 13 mm air / 6 mm'],
+					title: 'Glazing',
+					type: 'string',
+				},
+				uWall: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Overrides the wall\'s [W/m²K].',
+					title: 'Wall U-value',
+				},
+				uRoof: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Overrides the roof\'s [W/m²K].',
+					title: 'Roof U-value',
+				},
+				uGlazing: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Overrides the glass\'s [W/m²K].',
+					title: 'Glazing U-value',
+				},
+				shgc: {
+					anyOf: [
+						{
+							exclusiveMaximum: 1,
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Solar heat gain coefficient of the glazing; overrides the glass\'s.',
+					title: 'SHGC',
+				},
+				shading: {
+					default: 'none',
+					description: 'Overhang: a sunshade over every window 0.234 x its height deep (BNBC 2020 Part 3 Sec 4.4.3.1). Blinds: interior blinds, always drawn.',
+					enum: ['none', 'overhang', 'blinds'],
+					enumDescriptions: ['None', 'Overhangs (Part 3 Sec 4.4.3.1)', 'Interior blinds'],
+					title: 'Shading',
+					type: 'string',
+				},
+			},
+			title: 'HvacEnvelope',
+			type: 'object',
+		},
+		HvacPlant: {
+			additionalProperties: false,
+			description: 'A piece of HVAC plant: its weight is a load on the structure (through 07 MEP equipment).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				kind: {
+					enum: ['chiller', 'coolingTower', 'ahu', 'fcu', 'vrfOutdoor', 'splitOutdoor', 'pump', 'exhaustFan', 'freshAirUnit'],
+					enumDescriptions: ['Chiller', 'Cooling tower', 'Air handling unit', 'Fan coil unit', 'VRF outdoor unit', 'Split outdoor unit', 'Pump', 'Exhaust fan', 'Fresh air unit'],
+					title: 'Kind',
+					type: 'string',
+				},
+				story: {
+					description: 'Building-model story it stands on.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				x: {
+					description: 'Centre, plan X [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					description: 'Centre, plan Y [mm].',
+					title: 'Y',
+					type: 'number',
+				},
+				length: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Length',
+				},
+				width: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Width',
+				},
+				height: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Height',
+				},
+				capacity: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Cooling [kW], or air flow [m³/s] for fans.',
+					title: 'Capacity',
+				},
+				operatingWeight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kN]',
+					title: 'Operating weight',
+				},
+				sized: {
+					default: false,
+					description: 'Proposed by SAEngine (editable).',
+					title: 'Sized',
+					type: 'boolean',
+				},
+				serves: {
+					anyOf: [
+						{
+							items: {
+								maxLength: 64,
+								minLength: 1,
+								pattern: '^[A-Za-z0-9._-]+$',
+								type: 'string',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Stories it serves.',
+					title: 'Serves',
+				},
+				power: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Input [kW] for the electrical demand; empty: estimated from its capacity.',
+					title: 'Electrical power',
+				},
+				equipment: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The 07 MEP equipment that already carries its weight in the analysis; empty: SAEngine loads the model with this item (unless an equipment stands there).',
+					title: 'Equipment',
+				},
+			},
+			required: ['id', 'kind', 'story', 'x', 'y'],
+			title: 'HvacPlant',
+			type: 'object',
+		},
+		HvacStory: {
+			additionalProperties: false,
+			description: 'A story\'s use and internal gains for the cooling load.',
+			properties: {
+				story: {
+					description: 'Building-model story.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				conditioned: {
+					default: true,
+					title: 'Conditioned',
+					type: 'boolean',
+				},
+				use: {
+					default: 'officeSpace',
+					description: 'Row of BNBC 2020 Part 8 Table 8.2.3 (ventilation and occupant density).',
+					enum: ['cellsNoPlumbing', 'cellsPlumbing', 'guardStations', 'dayRoom', 'bookingWaiting', 'coinDryCleaner', 'coinLaundry', 'commercialDryCleaner', 'commercialLaundry', 'laundryStorage', 'auditorium', 'mediaCenter', 'sportsLocker', 'musicTheaterDance', 'smokingLoungeEducation', 'dayCare', 'classroom5to8', 'classroom9plus', 'lectureClassroom', 'lectureHall', 'artClassroom', 'scienceLab', 'woodMetalShop', 'computerLab', 'multiuseAssembly', 'lockerDressing', 'bar', 'cafeteria', 'diningRoom', 'kitchenCooking', 'autopsy', 'medicalProcedure', 'operatingRoom', 'patientRoom', 'physicalTherapy', 'recoveryIcu', 'hotelAssembly', 'hotelBathroom', 'hotelBedroom', 'hotelConference', 'dormitory', 'casino', 'hotelLobby', 'conferenceRoom', 'officeSpace', 'reception', 'dataEntry', 'entryLobby', 'garageCommon', 'garageSeparate', 'dwellingKitchen', 'livingArea', 'dwellingToilet', 'corridor', 'elevatorCar', 'showerRoom', 'smokingLounge', 'publicToilet', 'worship', 'courtroom', 'legislative', 'library', 'museumChildren', 'museum', 'sales', 'dressingRoom', 'mall', 'shipping', 'smokingLoungeRetail', 'storageRoom', 'fuelStation', 'barber', 'beautySalon', 'embalming', 'petShop', 'supermarket', 'disco', 'bowling', 'arcade', 'iceArena', 'gym', 'spectator', 'pool', 'aerobics', 'weightRoom', 'parkingGarage', 'warehouse', 'theaterLobby', 'stage', 'ticketBooth', 'platform', 'transportWaiting', 'bankVault', 'darkroom', 'copyRoom', 'meatProcessing', 'pharmacy', 'photoStudio', 'computerRoom'],
+					enumDescriptions: ['Correctional: cells without plumbing fixtures', 'Correctional: cells with plumbing fixtures', 'Correctional: guard stations', 'Correctional: day room', 'Correctional: booking/waiting', 'Coin-operated dry cleaner', 'Coin-operated laundries', 'Commercial dry cleaner', 'Commercial laundry', 'Laundry storage, pick up', 'Education: auditoriums', 'Education: media center', 'Education: sports locker rooms', 'Education: music/theater/dance', 'Education: smoking lounges', 'Day care (through age 4)', 'Classrooms (ages 5-8)', 'Classrooms (age 9 plus)', 'Lecture classroom', 'Lecture hall (fixed seats)', 'Art classroom', 'Science laboratories', 'Wood/metal shops', 'Computer lab', 'Multiuse assembly', 'Locker/dressing rooms', 'Bars, cocktail lounges', 'Cafeteria, fast food', 'Dining rooms', 'Kitchens (cooking)', 'Autopsy rooms', 'Medical procedure rooms', 'Operating rooms', 'Patient rooms', 'Physical therapy', 'Recovery and ICU', 'Hotel: multipurpose assembly', 'Hotel: bathrooms/toilet-private', 'Hotel: bedroom/living room', 'Hotel: conference/meeting', 'Dormitory sleeping areas', 'Gambling casinos', 'Hotel: lobbies/pre-function', 'Office: conference rooms', 'Office spaces', 'Office: reception areas', 'Office: telephone/data entry', 'Office: main entry lobbies', 'Dwellings: garages, common for multiple units', 'Dwellings: garages, separate for each dwelling', 'Dwellings: kitchens', 'Dwellings: living areas', 'Dwellings: toilet rooms and bath rooms', 'Public spaces: corridors', 'Elevator car', 'Shower room (per shower head)', 'Smoking lounges', 'Toilet rooms - public', 'Places of religious worship', 'Courtrooms', 'Legislative chambers', 'Libraries', 'Museums (children\'s)', 'Museums/galleries', 'Retail: sales (except as below)', 'Retail: dressing rooms', 'Mall common areas', 'Retail: shipping and receiving', 'Retail: smoking lounges', 'Retail: storage rooms', 'Automotive motor-fuel dispensing stations', 'Barber', 'Beauty and nail salons', 'Embalming room', 'Pet shops (animal areas)', 'Supermarkets', 'Disco/dance floors', 'Bowling alleys (seating areas)', 'Game arcades', 'Ice arenas without combustion engines', 'Gym, stadium, arena (play area)', 'Spectator areas', 'Swimming pools (pool and deck area)', 'Health club/aerobics room', 'Health club/weight room', 'Repair garages, enclosed parking garages', 'Warehouses', 'Theaters: lobbies', 'Stages, studios', 'Ticket booths', 'Transportation: platforms', 'Transportation waiting', 'Bank vaults/safe deposit', 'Darkrooms', 'Copy, printing rooms', 'Meat processing', 'Pharmacy (prep. area)', 'Photo studios', 'Computer (without printing)'],
+					title: 'Use',
+					type: 'string',
+				},
+				occupants: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Persons; empty: Table 8.2.3\'s default density.',
+					title: 'Occupants',
+				},
+				lighting: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[W/m²]; empty: Part 3 Table 3.4.5\'s maximum.',
+					title: 'Lighting',
+				},
+				equipment: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Plug loads [W/m²]; empty: SAEngine\'s value for the use.',
+					title: 'Equipment',
+				},
+				glazing: {
+					$ref: '#/$defs/FacadeGlazing',
+					title: 'Glazing',
+				},
+			},
+			required: ['story'],
+			title: 'HvacStory',
+			type: 'object',
+		},
 		IfcModel: {
 			additionalProperties: false,
 			description: 'An MEP model of the building services, an IFC file in the project.',
@@ -8942,6 +10429,189 @@ export const MEP_SCHEMA: IJSONSchema = {
 			},
 			required: ['path'],
 			title: 'IfcModel',
+			type: 'object',
+		},
+		Lightning: {
+			additionalProperties: false,
+			description: 'Lightning protection and earthing (BNBC 2020 Part 8 Sec 1.3.33).',
+			properties: {
+				enabled: {
+					default: true,
+					title: 'Enabled',
+					type: 'boolean',
+				},
+				level: {
+					anyOf: [
+						{
+							enum: ['I', 'II', 'III', 'IV'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'IEC 62305 protection level, when the design follows it (BNBC uses none); its mesh and down-conductor spacing then govern where stricter.',
+					title: 'Level',
+				},
+				downConductors: {
+					default: 'structuralRebar',
+					description: 'The columns\' continuous reinforcement, or dedicated copper conductors.',
+					enum: ['structuralRebar', 'dedicated'],
+					enumDescriptions: ['Column reinforcement (natural)', 'Dedicated copper'],
+					title: 'Down conductors',
+					type: 'string',
+				},
+				earthing: {
+					default: 'foundation',
+					description: 'Foundation earth electrode, rods (pipes) or a ring conductor.',
+					enum: ['foundation', 'rods', 'ring'],
+					enumDescriptions: ['Foundation reinforcement', 'Rods or pipes', 'Ring conductor'],
+					title: 'Earthing',
+					type: 'string',
+				},
+				airTerminals: {
+					anyOf: [
+						{
+							items: {
+								items: {
+									type: 'number',
+								},
+								maxItems: 3,
+								minItems: 3,
+								type: 'array',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[x, y, z] mm; empty: proposed by SAEngine.',
+					title: 'Air terminals',
+				},
+				construction: {
+					default: 'rcNonmetalRoof',
+					description: 'Table 8.1.27(a) index B.',
+					enum: ['steelNonmetalRoof', 'rcNonmetalRoof', 'masonry', 'metalRoof', 'timber', 'thatch'],
+					title: 'Construction',
+					type: 'string',
+				},
+				contents: {
+					anyOf: [
+						{
+							enum: ['ordinary', 'susceptible', 'power', 'key', 'people'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Table 8.1.27(b) index C; empty: from the stories\' use.',
+					title: 'Contents',
+				},
+				isolation: {
+					default: 'builtUp',
+					description: 'Table 8.1.27(b) index D.',
+					enum: ['builtUp', 'few', 'isolated'],
+					title: 'Isolation',
+					type: 'string',
+				},
+				terrain: {
+					default: 'flat',
+					description: 'Table 8.1.27(b) index E.',
+					enum: ['flat', 'hilly', 'mountainous'],
+					title: 'Terrain',
+					type: 'string',
+				},
+				thunderstormDays: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'A year (Table 8.1.27(c) index G); empty: over 21 (BNBC Table 8.1.28\'s examples).',
+					title: 'Thunderstorm days',
+				},
+				rule: {
+					default: 'perimeter',
+					description: 'Down conductors: one for every 30 m of perimeter, or by the base area (Sec 1.3.33.8(c)).',
+					enum: ['perimeter', 'area'],
+					enumDescriptions: ['One per 30 m of perimeter', 'By the base area'],
+					title: 'Rule',
+					type: 'string',
+				},
+				earthResistance: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Expected resistance to earth [ohm] for the clearance of Eq 8.1.1; empty: the limit of Sec 1.3.33.8(b).',
+					title: 'Earth resistance',
+				},
+			},
+			title: 'Lightning',
+			type: 'object',
+		},
+		Motor: {
+			additionalProperties: false,
+			description: 'Lifts, pumps and fans the building\'s load must include (Sec 1.3.2).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				kind: {
+					default: 'other',
+					enum: ['lift', 'pump', 'firePump', 'fan', 'other'],
+					enumDescriptions: ['Lift', 'Water pump', 'Fire pump', 'Fan (ventilation)', 'Other motor'],
+					title: 'Kind',
+					type: 'string',
+				},
+				power: {
+					description: 'Rated power of one [kW].',
+					exclusiveMinimum: 0,
+					title: 'Power',
+					type: 'number',
+				},
+				count: {
+					default: 1,
+					minimum: 1,
+					title: 'Number of bars',
+					type: 'integer',
+				},
+				essential: {
+					anyOf: [
+						{
+							type: 'boolean',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'On the standby generator; empty: lifts, pumps and fire pumps are.',
+					title: 'Essential',
+				},
+			},
+			required: ['id', 'power'],
+			title: 'Motor',
 			type: 'object',
 		},
 		Opening: {
@@ -10044,6 +11714,32 @@ export const MEP_SCHEMA: IJSONSchema = {
 			default: null,
 			description: 'Water supply, drainage, rainwater and tanks, sized to BNBC 2020 Part 8.',
 			title: 'Plumbing',
+		},
+		hvac: {
+			anyOf: [
+				{
+					$ref: '#/$defs/Hvac',
+				},
+				{
+					type: 'null',
+				},
+			],
+			default: null,
+			description: 'Air-conditioning and ventilation: cooling loads (EnergyPlus), plant and ducts, to BNBC 2020 Part 8 Chapter 2.',
+			title: 'HVAC',
+		},
+		electrical: {
+			anyOf: [
+				{
+					$ref: '#/$defs/Electrical',
+				},
+				{
+					type: 'null',
+				},
+			],
+			default: null,
+			description: 'Supply, plant rooms, risers, trays and lightning protection, coordinated to BNBC 2020 Part 8 Chapter 1.',
+			title: 'Electrical',
 		},
 	},
 	title: 'SAEngine MEP coordination',

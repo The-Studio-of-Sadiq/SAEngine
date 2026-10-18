@@ -5,6 +5,11 @@
 
 import { localize } from '../../../../nls.js';
 import { idError, IMep, IMepContext, IMepProblem, nextId, Point, storyExtent, usedIds } from './mepDocument.js';
+import {
+	CheckStatus, duplicates, IMepCheck, isPoint, isRecord, noteOf, num, optionalNumber, optionalString, readCheck, record, recordList, records, statusOf, strings, worst,
+} from './mepRead.js';
+
+export { statusOf };
 
 /*
  * The plumbing section of the MEP part (`plumbing` in `07 MEP/mep.json`), as the structural
@@ -145,23 +150,6 @@ export interface IPlumbing {
 	[key: string]: unknown;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function records<T>(value: unknown): T[] {
-	return (Array.isArray(value) ? value.filter(isRecord) : []) as T[];
-}
-
-/** The list itself when it holds only objects (so references to it stay valid), else a cleaned copy. */
-function recordList<T>(value: unknown): T[] {
-	return (Array.isArray(value) && value.every(isRecord) ? value : records<T>(value)) as T[];
-}
-
-function num(value: unknown, fallback = 0): number {
-	return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
-}
-
 /**
  * Fills in the lists a plumbing section lacks, in place, keeping unknown fields; undefined
  * when `value` is not an object (the caller reports it). The file keeps no plumbing section
@@ -208,10 +196,17 @@ export function hasPlumbing(document: IMep): boolean {
 	return !!p && (p.stories.length + p.risers.length + p.tanks.length + p.roof.drains.length > 0);
 }
 
-/** Every ID of the file: equipment, openings, shafts and the plumbing's risers, tanks and drains share one space. */
+/**
+ * Every ID of the file: equipment, openings, shafts, the plumbing's risers, tanks and drains, the
+ * HVAC's plant and ducts and the electrical equipment, risers and trays share one space.
+ */
 export function allIds(document: IMep): string[] {
 	const p = plumbingOf(document);
-	return [...usedIds(document), ...(p ? [...p.risers, ...p.tanks, ...p.roof.drains].map(item => item.id) : [])];
+	const hvac = record(document.hvac);
+	const electrical = record(document.electrical);
+	const listed = [hvac.plant, hvac.ducts, electrical.equipment, electrical.risers, electrical.trays]
+		.flatMap(list => records<Record<string, unknown>>(list).map(item => item.id).filter((id): id is string => typeof id === 'string'));
+	return [...usedIds(document), ...(p ? [...p.risers, ...p.tanks, ...p.roof.drains].map(item => item.id) : []), ...listed];
 }
 
 // ───────────────────────────── labels ─────────────────────────────
@@ -536,18 +531,6 @@ export function readSizedTanks(raw: unknown): { tanks: ITank[]; notes: string[] 
 
 // ───────────────────────────── checks ─────────────────────────────
 
-function duplicates(ids: readonly string[]): Set<string> {
-	const seen = new Set<string>();
-	const repeated = new Set<string>();
-	for (const id of ids) {
-		if (seen.has(id)) {
-			repeated.add(id);
-		}
-		seen.add(id);
-	}
-	return repeated;
-}
-
 /** What is missing or inconsistent in the plumbing section (the contract's rules), as problems with dotted paths. */
 export function checkPlumbing(document: IMep, context: IMepContext): IMepProblem[] {
 	const plumbing = plumbingOf(document);
@@ -710,7 +693,7 @@ export function checkPlumbing(document: IMep, context: IMepContext): IMepProblem
  * missing one leaves its section out.
  */
 
-export type PlumbingStatus = 'ok' | 'warn' | 'fail' | 'none';
+export type PlumbingStatus = CheckStatus;
 
 export interface IDemandRow {
 	readonly story: string;
@@ -751,16 +734,7 @@ export interface ISizedItem {
 }
 
 /** One check: P1's and P3's `{ name, demand, capacity, unit, utilisation, ok, note }`, P2's with its `combination`. */
-export interface IPlumbingCheck {
-	readonly name: string;
-	readonly demand?: number;
-	readonly capacity?: number;
-	readonly unit?: string;
-	readonly utilisation?: number;
-	readonly status: PlumbingStatus;
-	readonly combination?: string;
-	readonly note?: string;
-}
+export type IPlumbingCheck = IMepCheck;
 
 export interface ITankDesign {
 	readonly id: string;
@@ -845,65 +819,6 @@ export interface IPlumbingReport {
 	readonly problems: readonly string[];
 	readonly method: readonly string[];
 	readonly sources?: { readonly [part: string]: string };
-}
-
-function optionalNumber(value: unknown): number | undefined {
-	return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-}
-
-function optionalString(value: unknown): string | undefined {
-	return typeof value === 'string' && value ? value : undefined;
-}
-
-function strings(value: unknown): string[] {
-	return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
-}
-
-function record(value: unknown): Record<string, unknown> {
-	return isRecord(value) ? value : {};
-}
-
-function isPoint(value: unknown): value is Point {
-	return Array.isArray(value) && value.length >= 2 && typeof value[0] === 'number' && typeof value[1] === 'number';
-}
-
-/** `note`, else the `notes` joined. */
-function noteOf(item: Record<string, unknown>): string | undefined {
-	return optionalString(item.note) ?? (strings(item.notes).join('; ') || undefined);
-}
-
-/** A status from `status` ("ok", "warn"/"warning", "fail"), else `ok`, else the utilisation. */
-export function statusOf(item: Record<string, unknown>): PlumbingStatus {
-	const s = item.status;
-	if (s === 'ok' || s === 'pass') {
-		return 'ok';
-	}
-	if (s === 'warn' || s === 'warning') {
-		return 'warn';
-	}
-	if (s === 'fail' || s === 'failed') {
-		return 'fail';
-	}
-	if (typeof item.ok === 'boolean') {
-		return item.ok ? 'ok' : 'fail';
-	}
-	const u = optionalNumber(item.utilisation);
-	return u === undefined ? 'none' : u > 1 ? 'fail' : u >= 0.9 ? 'warn' : 'ok';
-}
-
-function rank(status: PlumbingStatus): number {
-	return status === 'fail' ? 3 : status === 'warn' ? 2 : status === 'ok' ? 1 : 0;
-}
-
-function worst(statuses: readonly PlumbingStatus[]): PlumbingStatus {
-	return statuses.reduce<PlumbingStatus>((w, s) => rank(s) > rank(w) ? s : w, 'none');
-}
-
-function readCheck(c: Record<string, unknown>): IPlumbingCheck {
-	return {
-		name: String(c.name ?? ''), demand: optionalNumber(c.demand), capacity: optionalNumber(c.capacity), unit: optionalString(c.unit),
-		utilisation: optionalNumber(c.utilisation), status: statusOf(c), combination: optionalString(c.combination), note: optionalString(c.note),
-	};
 }
 
 const UNITS = localize('plb.unit.units', "units");

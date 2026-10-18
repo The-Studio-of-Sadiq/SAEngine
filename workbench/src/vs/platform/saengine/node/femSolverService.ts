@@ -13,7 +13,7 @@ import { killTree } from '../../../base/node/processes.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemResultList, IFemResultView, IFemRunEventMessage, IBuildingIfc, IBuildingIfcRequest, IFemDerivation, IFemDeriveRequest, IGeneratedBuilding, ILibraryProblem, LibraryFileKind, IFemRunExit, IFemRunRequest, IFemSolverService, IStructureEdit, IStructureGeometry, IStructureScriptResult, StructureGeometryResult, IBoqComputation, IBoqComputeRequest, IReportBuild, ISoilBearing, ISoilBearingRequest, ISoilImport, ISoilSources, ISoilTemplate, ISubstructureMigration } from '../common/femSolver.js';
+import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemResultList, IFemResultView, IFemRunEventMessage, IBuildingIfc, IBuildingIfcRequest, IFemDerivation, IFemDeriveRequest, IGeneratedBuilding, ILibraryProblem, LibraryFileKind, IFemRunExit, IFemRunRequest, IFemSolverService, IStructureEdit, IStructureGeometry, IStructureScriptResult, StructureGeometryResult, IBoqComputation, IBoqComputeRequest, IReportBuild, ISoilBearing, ISoilBearingRequest, ISoilImport, ISoilSources, ISoilTemplate, ISubstructureMigration, IMepServiceParams, MepServiceMethod } from '../common/femSolver.js';
 
 interface IRun {
 	readonly child: cp.ChildProcess;
@@ -247,6 +247,10 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 
 	plumbingOccupancies(python: string): Promise<object> {
 		return this.request(python, 'mep/plumbingOccupancies', {});
+	}
+
+	mepService(python: string, method: MepServiceMethod, params: IMepServiceParams): Promise<object> {
+		return this.request(python, method, params);
 	}
 
 	private async request<T>(python: string, method: string, params: object): Promise<T> {

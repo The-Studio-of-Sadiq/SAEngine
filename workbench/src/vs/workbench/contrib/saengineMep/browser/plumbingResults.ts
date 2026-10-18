@@ -7,8 +7,8 @@ import { $, append } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { formatNumber } from '../../saengineSoil/browser/soilDocument.js';
 import { svg } from '../../saengineSoil/browser/soilLog.js';
-import { formatUtilisation } from './mepDocument.js';
-import { IFloorHead, IPlumbingCheck, IPlumbingReport, ISizedItem, plumbingFailures, PlumbingStatus, systemLabel, tankKindLabel } from './plumbingDocument.js';
+import { checksTable, resultSection, statusCell, statusText, value } from './mepResults.js';
+import { IFloorHead, IPlumbingReport, ISizedItem, plumbingFailures, PlumbingStatus, systemLabel, tankKindLabel } from './plumbingDocument.js';
 
 /*
  * The Results view of the plumbing: the backend's report (`saengine.plumbing.report`) as one
@@ -32,85 +32,10 @@ const M = localize('plb.unit.m', "m");
 const M3 = localize('plb.unit.m3', "m³");
 const M2 = localize('plb.unit.m2', "m²");
 
-function statusText(status: PlumbingStatus): string {
-	switch (status) {
-		case 'ok': return localize('plb.status.ok', "ok");
-		case 'warn': return localize('plb.status.warn', "check");
-		case 'fail': return localize('plb.status.fail', "fails");
-		default: return '—';
-	}
-}
-
-function statusCell(row: HTMLElement, status: PlumbingStatus): void {
-	const td = append(row, $('td'));
-	append(td, $(`span.plb-pill.band-${status}`, undefined, statusText(status)));
-	if (status === 'fail') {
-		row.classList.add('failed');
-	}
-}
-
-function value(n: number | undefined, digits: number): string {
-	return n === undefined ? '' : formatNumber(n, digits);
-}
-
-function section(view: HTMLElement, title: string, detail?: string): HTMLElement {
-	const element = append(view, $('.mep-section.result'));
-	const heading = append(element, $('.mep-section-heading'));
-	append(heading, $('span.mep-section-title', undefined, title));
-	if (detail) {
-		append(heading, $('span.mep-section-detail', undefined, detail));
-	}
-	return element;
-}
-
-function utilisation(row: HTMLElement, u: number | undefined, status: PlumbingStatus): void {
-	const td = append(row, $('td.number.mep-util-cell'));
-	if (u === undefined) {
-		td.textContent = statusText(status);
-		return;
-	}
-	const band = status === 'none' ? 'ok' : status;
-	const bar = append(td, $('span.mep-util-bar'));
-	append(bar, $(`span.mep-util-fill.band-${band}`, { style: `width: ${Math.min(100, u * 100).toFixed(0)}%` }));
-	append(td, $(`span.mep-util-value.band-${band}`, undefined, formatUtilisation(u)));
-}
-
 /** How many of a long list of checks show before "All N checks". */
 const SHOWN_CHECKS = 6;
 
-/** The checks as a table, failing and highest utilisation first; past `shown`, the rest fold into "All N checks". */
-function checksTable(parent: HTMLElement, host: IPlumbingResultsHost, checks: readonly IPlumbingCheck[], shown = Infinity): void {
-	const ordered = [...checks].sort((a, b) => rank(b.status) - rank(a.status) || (b.utilisation ?? 0) - (a.utilisation ?? 0));
-	const table = (rows: readonly IPlumbingCheck[], into: HTMLElement) => {
-		const element = append(into, $('table.mep-table.mep-result-table'));
-		host.tableHead(element, [
-			{ label: localize('plb.f.check', "Check"), width: 260 }, { label: localize('plb.f.demandCapacity', "Demand / capacity"), numeric: true, width: 150 },
-			{ label: localize('plb.f.utilisation', "Utilisation"), numeric: true, width: 120 }, { label: localize('plb.f.note', "Note"), width: 300 },
-		]);
-		const body = append(element, $('tbody'));
-		for (const check of rows) {
-			const tr = append(body, $('tr'));
-			append(tr, $('td', undefined, check.name));
-			append(tr, $('td.number', undefined, check.demand !== undefined && check.capacity !== undefined
-				? `${formatNumber(check.demand, 2)} / ${formatNumber(check.capacity, 2)}${check.unit ? ` ${check.unit}` : ''}` : ''));
-			utilisation(tr, check.utilisation, check.status);
-			append(tr, $('td.mep-wrap', undefined, [check.combination, check.note].filter(Boolean).join(' · ')));
-			if (check.status === 'fail') {
-				tr.classList.add('failed');
-			}
-		}
-	};
-	table(ordered.slice(0, shown), parent);
-	if (ordered.length > shown) {
-		const more = append(parent, $('details.plb-more'));
-		append(more, $('summary', undefined, localize('plb.allChecks', "All {0} checks", ordered.length)));
-		table(ordered.slice(shown), more);
-	}
-}
-
-function rank(status: PlumbingStatus): number {
-	return status === 'fail' ? 3 : status === 'warn' ? 2 : status === 'ok' ? 1 : 0;
-}
+const section = resultSection;
 
 /** Renders the report into `view`. */
 export function renderPlumbingReport(view: HTMLElement, report: IPlumbingReport, host: IPlumbingResultsHost): void {

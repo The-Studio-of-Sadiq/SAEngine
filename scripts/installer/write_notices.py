@@ -69,6 +69,26 @@ Other licence terms to note:
 {rule}
 """
 
+#: The licence's clause (4): the bundled program is referred to by this name only.
+ENERGYPLUS_NAME = "EnergyPlus version 26.2.0"
+ENERGYPLUS = """\
+{name}
+{rule}
+
+5. resources/energyplus holds {name} (energyplus.exe, its DLLs, Energy+.idd and
+   Energy+.schema.epJSON, unmodified), which the SAEngine backend runs as a separate program for
+   the HVAC cooling loads of 7 MEP; it is not linked into SAEngine. It is distributed under the
+   licence below (BSD-style, three clauses and clause (4) on the use of its name), by the Board
+   of Trustees of the University of Illinois, the Regents of the University of California
+   through Lawrence Berkeley National Laboratory, Oak Ridge National Laboratory, managed by
+   UT-Battelle, the Alliance for Energy Innovation, LLC, and other contributors; it is not
+   copyleft. It contains python312.dll (PSF-2.0, see the CPython licence below) and the
+   Microsoft Visual C++ and Universal C runtime DLLs it ships, redistributable under their
+   terms. Source: https://github.com/NREL/EnergyPlus (tag v26.2.0).
+
+[LICENSE.txt]
+"""
+
 # Shown in the header; the archives themselves are listed in copyleft-sources.json.
 COPYLEFT_FALLBACK = "  (see copyleft-sources.json; no list was given to this script)\n"
 
@@ -301,6 +321,11 @@ def main() -> int:
     parser.add_argument(
         "--sources-name", default="third-party-sources", help="folder of the source archives"
     )
+    parser.add_argument(
+        "--energyplus",
+        type=Path,
+        help="resources/energyplus, when the installer bundles EnergyPlus (its LICENSE.txt)",
+    )
     args = parser.parse_args()
 
     dists = {}
@@ -322,6 +347,11 @@ def main() -> int:
             sources_name=args.sources_name,
         )
     ]
+    energyplus = args.energyplus / "LICENSE.txt" if args.energyplus else None
+    if energyplus is not None and energyplus.is_file():
+        out.append(ENERGYPLUS.format(rule=RULE, name=ENERGYPLUS_NAME))
+        out.append(energyplus.read_text(encoding="utf-8", errors="replace").rstrip() + "\n")
+        out.append(f"\n{RULE}\n\n")
     js_out, js_count = js_section(args.js_package)
     out.extend(js_out)
     out.append("Bundled Python packages\n\n")

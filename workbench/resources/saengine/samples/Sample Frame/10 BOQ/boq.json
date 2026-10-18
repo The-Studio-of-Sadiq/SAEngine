@@ -5,7 +5,7 @@
 		"objects": "208cf81c4f12504fd967771a054f8c6edb9e8405",
 		"materials": "50563593cdcc5ae3ea57a91d1c0379e5e5db980f",
 		"substructure": "1c85c6c69986e74d73ee4249ee870e7ae4786397",
-		"mep": "b2d1d1aaa8a5d13da10aa66abc3a10702e2c154d",
+		"mep": "d0ff0dab748d0d6d14a7922bd91ff93b16bef1e3",
 		"settings": "fe329f8351df78af4c4980a95d5ca6d0310b7ccd"
 	},
 	"items": [
@@ -975,6 +975,157 @@
 					"quantity": 2.0
 				}
 			]
+		},
+		{
+			"code": "P.08",
+			"group": "mep",
+			"description": "Ducts, supply air, 650 x 250 mm",
+			"quantity": 7.5,
+			"unit": "m",
+			"kind": "duct",
+			"byStory": {
+				"BASE": 7.5
+			},
+			"breakdown": [
+				{
+					"element": "SD1",
+					"story": "BASE",
+					"quantity": 7.5
+				}
+			]
+		},
+		{
+			"code": "P.09",
+			"group": "mep",
+			"description": "HVAC plant: VRF outdoor unit",
+			"quantity": 2.0,
+			"unit": "nr",
+			"kind": "plant",
+			"byStory": {
+				"L1": 2.0
+			},
+			"breakdown": [
+				{
+					"element": "ODU1",
+					"story": "L1",
+					"quantity": 1.0
+				},
+				{
+					"element": "ODU2",
+					"story": "L1",
+					"quantity": 1.0
+				}
+			]
+		},
+		{
+			"code": "P.10",
+			"group": "mep",
+			"description": "Cable trays 300 x 100 mm",
+			"quantity": 5.0,
+			"unit": "m",
+			"kind": "tray",
+			"byStory": {
+				"BASE": 5.0
+			},
+			"breakdown": [
+				{
+					"element": "CT1",
+					"story": "BASE",
+					"quantity": 5.0
+				}
+			]
+		},
+		{
+			"code": "P.11",
+			"group": "mep",
+			"description": "Rising mains: busbar trunking 200 x 150 mm",
+			"quantity": 3.2,
+			"unit": "m",
+			"kind": "riser",
+			"byStory": {
+				"BASE": 3.2
+			},
+			"breakdown": [
+				{
+					"element": "ER1",
+					"story": "BASE",
+					"quantity": 3.2
+				}
+			]
+		},
+		{
+			"code": "P.12",
+			"group": "mep",
+			"description": "Electrical equipment: generator",
+			"quantity": 1.0,
+			"unit": "nr",
+			"kind": "equipment",
+			"byStory": {
+				"BASE": 1.0
+			},
+			"breakdown": [
+				{
+					"element": "G1",
+					"story": "BASE",
+					"quantity": 1.0
+				}
+			]
+		},
+		{
+			"code": "P.13",
+			"group": "mep",
+			"description": "Electrical equipment: transformer",
+			"quantity": 1.0,
+			"unit": "nr",
+			"kind": "equipment",
+			"byStory": {
+				"BASE": 1.0
+			},
+			"breakdown": [
+				{
+					"element": "TX1",
+					"story": "BASE",
+					"quantity": 1.0
+				}
+			]
+		},
+		{
+			"code": "P.14",
+			"group": "mep",
+			"description": "Lightning: bonding terminals welded to the column bars (roof and base)",
+			"quantity": 4.0,
+			"unit": "nr",
+			"kind": "bonding",
+			"byStory": {},
+			"breakdown": [
+				{
+					"element": "C4",
+					"quantity": 2.0
+				},
+				{
+					"element": "C3",
+					"quantity": 2.0
+				}
+			]
+		},
+		{
+			"code": "P.15",
+			"group": "mep",
+			"description": "Lightning: earth inspection box recesses",
+			"quantity": 2.0,
+			"unit": "nr",
+			"kind": "bonding",
+			"byStory": {},
+			"breakdown": [
+				{
+					"element": "C4",
+					"quantity": 1.0
+				},
+				{
+					"element": "C3",
+					"quantity": 1.0
+				}
+			]
 		}
 	],
 	"notes": [
@@ -985,6 +1136,7 @@
 		"Earthwork: each foundation and tie beam is dug with vertical sides 300 mm beyond its edges (working space), from the finished ground of Project Settings → Foundation down to the underside of the blinding; where pits overlap the overlap is measured once (each element's share scaled to suit). Blinding (lean concrete) 75 mm thick, 75 mm beyond the edges of foundations and tie beams. Backfill is the excavation less the foundations, tie beams and blinding below the ground; column stubs and pedestals below the ground are not deducted. No battered sides, dewatering, shoring, disposal of surplus spoil or bored pile spoil are measured.",
 		"Equipment plinths of 7 MEP: concrete of their footprint by their height, formwork to their four sides (no reinforcement measured). Sleeves and openings through beams, slabs and walls are counted by host kind and size (number), for the services' coordination; their concrete is not deducted (it is small), and the slab openings cut by shafts are not counted.",
 		"Plumbing of 7 MEP: reinforced concrete tanks (overhead, underground, septic, rainwater) by their walls, partitions, base (with its toe) and roof at the thicknesses entered, else those the tank design proposes; formwork to their inside and outside faces, the base's edges and the roof's soffit; their bars by diameter from the tank's last design (the bars per m² of each panel + 10 % for laps), measured once the plumbing report has designed them. Ground tanks are dug with 300 mm working space each side. Soak wells and masonry or prefabricated tanks are not measured. Risers and stacks are measured vertically from the story they start at to their top story, at their entered or sized base diameter (branches and fittings are not measured); fixtures are counted by kind.",
+		"HVAC and electrical of 7 MEP, for the structure's coordination: ducts by system and size, measured along their plan path (risers vertically from the story they start at to their top story; ducts with no size entered are not measured); cable trays by width and side height along their path; rising mains (busbars, cable risers) vertically by size; plant and electrical equipment counted by kind (their weights are in the analysis, their bases are not measured). Lightning protection with the columns' reinforcement as down conductors: per down-conductor column a bonding terminal at the roof and an earth terminal at the base (welded to the continuous bars) and an earth inspection box recess, counted (number).",
 		"T1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
 		"UGR1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
 		"SEP1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",

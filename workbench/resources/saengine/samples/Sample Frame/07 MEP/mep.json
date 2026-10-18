@@ -132,5 +132,140 @@
 				"sized": false
 			}
 		]
+	},
+	"hvac": {
+		"system": "vrf",
+		"envelope": {
+			"wall": "brick250",
+			"roof": "rcLimeTerracing",
+			"glazing": "singleClear",
+			"shading": "none"
+		},
+		"stories": [
+			{
+				"story": "BASE",
+				"conditioned": true,
+				"use": "officeSpace",
+				"occupants": 12
+			}
+		],
+		"plant": [
+			{
+				"id": "ODU1",
+				"kind": "vrfOutdoor",
+				"story": "L1",
+				"x": 1800,
+				"y": 1500,
+				"length": 310,
+				"width": 760,
+				"height": 1690.0,
+				"capacity": 14.0,
+				"operatingWeight": 0.8,
+				"sized": false,
+				"serves": [
+					"BASE"
+				]
+			},
+			{
+				"id": "ODU2",
+				"kind": "vrfOutdoor",
+				"story": "L1",
+				"x": 1800,
+				"y": 3500,
+				"length": 310,
+				"width": 760,
+				"height": 1690.0,
+				"capacity": 14.0,
+				"operatingWeight": 0.8,
+				"sized": false,
+				"serves": [
+					"BASE"
+				]
+			}
+		],
+		"ducts": [
+			{
+				"id": "SD1",
+				"system": "supply",
+				"shape": "rect",
+				"width": 650,
+				"height": 250,
+				"story": "BASE",
+				"path": [
+					[3000, 2500],
+					[10500, 2500]
+				]
+			}
+		]
+	},
+	"electrical": {
+		"supply": {
+			"voltage": "11kV",
+			"generator": true,
+			"ups": false
+		},
+		"stories": [
+			{
+				"story": "BASE",
+				"use": "office"
+			}
+		],
+		"equipment": [
+			{
+				"id": "TX1",
+				"kind": "transformer",
+				"story": "BASE",
+				"x": 3000,
+				"y": -3000,
+				"length": 1200.0,
+				"width": 800.0,
+				"height": 1300.0,
+				"rating": 100,
+				"operatingWeight": 7.4,
+				"sized": false
+			},
+			{
+				"id": "G1",
+				"kind": "generator",
+				"story": "BASE",
+				"x": 9000,
+				"y": -3000,
+				"length": 2100.0,
+				"width": 900.0,
+				"height": 1350.0,
+				"rating": 50,
+				"operatingWeight": 10.8,
+				"sized": false
+			}
+		],
+		"risers": [
+			{
+				"id": "ER1",
+				"kind": "busbar",
+				"x": 12300,
+				"y": 4300,
+				"width": 200,
+				"depth": 150,
+				"fromStory": "BASE",
+				"toStory": "L1"
+			}
+		],
+		"trays": [
+			{
+				"id": "CT1",
+				"story": "BASE",
+				"path": [
+					[7000, 4000],
+					[12000, 4000]
+				],
+				"width": 300,
+				"height": 100
+			}
+		],
+		"lightning": {
+			"enabled": true,
+			"downConductors": "structuralRebar",
+			"earthing": "foundation"
+		}
 	}
 }

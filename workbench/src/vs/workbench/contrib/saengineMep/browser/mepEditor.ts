@@ -10,7 +10,7 @@ import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/select
 import { Action, IAction, Separator, SubmenuAction } from '../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { basename, dirname, isEqualOrParent, joinPath, relativePath } from '../../../../base/common/resources.js';
@@ -27,6 +27,7 @@ import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -43,7 +44,7 @@ import {
 	checkMep, DISCIPLINES, disciplineLabel, EMPTY_CONTEXT, EQUIPMENT_KINDS, EQUIPMENT_PRESETS, equipmentArea, equipmentKindLabel, equipmentPressure, findHost, formatUtilisation, guessDiscipline, hostKindLabel, hostStory, IClash, IEquipment, IEquipmentPreset,
 	IIfcModel, IImportIfcRequest, IMep, IMepContext, IMepContextTexts, IMepProblem, IMepReport, IMepRequest, IOpening, IShaft, MEP_IFC_FOLDER, MEP_IMPORT_IFC_COMMAND, MEP_REPORT_COMMAND, MEP_SUGGEST_SLEEVES_COMMAND, MEP_SUMMARY_FILE, mepSummary, mepSummaryFile,
 	newEquipment, newShaft, newSleeve, OPENING_KINDS, OPENING_SHAPES, openingKindLabel, openingPoint, openingShapeLabel, parseMep, plinthWeight, Point, polygonArea, readIfcImport, readMepContext, readMepReport, readSleeveSuggestions, serializeMep, shaftOnStory, sleeveForClash,
-	idError, isOpenClash, isPartlyChecked, nextId, storyAt, storyElements, storyLoads, utilisationBand,
+	idError, isOpenClash, isPartlyChecked, IStory, nextId, storyAt, storyElements, storyLoads, utilisationBand,
 } from './mepDocument.js';
 import { MepEditorInput } from './mepEditorInput.js';
 import { IPlanClash, IPlanView, MepSelection, renderPlan } from './mepPlan.js';
@@ -55,20 +56,59 @@ import {
 } from './plumbingDocument.js';
 import { plumbingExtent, renderPlumbing } from './plumbingPlan.js';
 import { renderPlumbingReport } from './plumbingResults.js';
+import {
+	allCrossings, checkHvac, DUCT_SYSTEMS, ductLetters, ductOnStory, ductSystemLabel, DuctSystem, ensureHvac, HVAC_CONSTRUCTIONS_COMMAND, HVAC_DUCT_OPENINGS_COMMAND, HVAC_LOADS_COMMAND,
+	HVAC_PROPOSE_PLANT_COMMAND, HVAC_REPORT_COMMAND, HVAC_TABLES_COMMAND, hasHvac, hvacExtent, hvacFailures, hvacOf, hvacSummary, hvacSummaryFile, IConstructions, IHvacCity, IHvacReport, IHvacUse,
+	IPlant, mergeProposedPlant, newDuct, newPlant, newRiserDuct, PLANT_KINDS, plantKindLabel, plantLetters, PlantKind, readConstructions, readHvacReport, readHvacTables, readProposedPlant,
+	STATIC_CITIES, STATIC_CONSTRUCTIONS, STATIC_USES,
+} from './hvacDocument.js';
+import { renderDraft, renderHvac } from './hvacPlan.js';
+import { renderHvacReport } from './hvacResults.js';
+import { renderDuctProperties, renderHvacData, renderHvacSummaryProperties, renderLocalHvac, renderPlantProperties } from './hvacView.js';
+import {
+	checkElectrical, ELEC_KINDS, ELEC_RISER_KINDS, elecKindLabel, ElecKind, elecLetters, elecRiserOnStory, ElecRiserKind, ELECTRICAL_OPENINGS_COMMAND, ELECTRICAL_PROPOSE_COMMAND,
+	ELECTRICAL_REPORT_COMMAND, ELECTRICAL_USES_COMMAND, electricalExtent, electricalFailures, electricalOf, electricalSummary, electricalSummaryFile, ensureElectrical, hasElectrical, IElecEquipment,
+	IElectricalReport, IElecUse, mergeProposedEquipment, newElecEquipment, newElecRiser, newTray, readElecUses, readElectricalReport, readProposedEquipment, riserKindLabel, riserLetters,
+	STATIC_ELEC_USES,
+} from './electricalDocument.js';
+import { renderElectrical } from './electricalPlan.js';
+import { renderElectricalReport } from './electricalResults.js';
+import {
+	renderElecEquipmentProperties, renderElecRiserProperties, renderElectricalData, renderElectricalSummaryProperties, renderLocalElectrical, renderTrayProperties,
+} from './electricalView.js';
+import { IMepFormHost } from './mepForm.js';
+import { problemsOf, roofStory, storyAbove } from './mepRead.js';
 
 type View = 'plan' | 'data' | 'results';
 
-/** What can be dragged in the plan, the plumbing (drawn on top) first. */
-type DragKind = 'riser' | 'drain' | 'tank' | 'equipment' | 'shaft';
-const DRAG_KINDS: readonly DragKind[] = ['riser', 'drain', 'tank', 'equipment', 'shaft'];
+/** What can be dragged in the plan, the disciplines' items (drawn on top) first. */
+type DragKind = 'riser' | 'drain' | 'tank' | 'plant' | 'duct' | 'elecEquipment' | 'elecRiser' | 'tray' | 'equipment' | 'shaft';
+const DRAG_KINDS: readonly DragKind[] = ['riser', 'drain', 'tank', 'plant', 'elecEquipment', 'elecRiser', 'duct', 'tray', 'equipment', 'shaft'];
 
-/** What the editor shows: the coordination of the services with the structure, or the plumbing set-up. */
-type Discipline = 'coordination' | 'plumbing';
+/** The attribute each draggable kind carries in the plan (mepPlan.ts and the discipline plans). */
+const DRAG_ATTRIBUTES: { readonly [K in DragKind]: string } = {
+	riser: 'data-riser', drain: 'data-drain', tank: 'data-tank', plant: 'data-plant', duct: 'data-duct', elecEquipment: 'data-elec-equipment', elecRiser: 'data-elec-riser', tray: 'data-tray',
+	equipment: 'data-equipment', shaft: 'data-shaft',
+};
+
+/** What the editor shows: the coordination of the services with the structure, or one discipline's set-up. */
+type Discipline = 'coordination' | 'plumbing' | 'hvac' | 'electrical';
 
 const DISCIPLINE_VIEWS: readonly { readonly discipline: Discipline; readonly label: string }[] = [
 	{ discipline: 'coordination', label: localize('mep.disciplineCoordination', "Coordination") },
 	{ discipline: 'plumbing', label: localize('mep.disciplinePlumbing', "Plumbing") },
+	{ discipline: 'hvac', label: localize('mep.disciplineHvac', "HVAC") },
+	{ discipline: 'electrical', label: localize('mep.disciplineElectrical', "Electrical") },
 ];
+
+/** A path being drawn in the plan: a duct of a system, or a cable tray. */
+interface IDrawing {
+	readonly kind: 'duct' | 'tray';
+	readonly system?: DuctSystem;
+	readonly story: string;
+	readonly width: number;
+	readonly points: Point[];
+}
 
 const VIEWS: readonly { readonly view: View; readonly label: string; readonly icon: ThemeIcon }[] = [
 	{ view: 'plan', label: localize('mep.viewPlan', "Plan"), icon: Codicon.symbolStructure },
@@ -179,6 +219,31 @@ export class MepEditor extends EditorPane {
 	private plumbingVersion = 0;
 	private occupancies: readonly IOccupancy[] = STATIC_OCCUPANCIES;
 	private occupanciesFromBackend = false;
+	private hvacReport: IHvacReport | undefined;
+	private hvacState: ReportState = 'idle';
+	private hvacError: string | undefined;
+	private hvacVersion = 0;
+	/** The cooling load calculation running (EnergyPlus): its cancellation. */
+	private hvacLoads: CancellationTokenSource | undefined;
+	private hvacCities: readonly IHvacCity[] = STATIC_CITIES;
+	private hvacUses: readonly IHvacUse[] = STATIC_USES;
+	private hvacTablesFromBackend = false;
+	private constructions: IConstructions = STATIC_CONSTRUCTIONS;
+	private constructionsFromBackend = false;
+
+	private electricalReport: IElectricalReport | undefined;
+	private electricalState: ReportState = 'idle';
+	private electricalError: string | undefined;
+	private electricalVersion = 0;
+	private elecUses: readonly IElecUse[] = STATIC_ELEC_USES;
+	private elecUsesFromBackend = false;
+
+	/** The duct or tray being drawn in the plan, and the line that follows the pointer from its last point. */
+	private drawing: IDrawing | undefined;
+	private drawRubber: SVGLineElement | undefined;
+	/** The plan's svg, for the pointer's plan position while drawing. */
+	private planRoot: SVGElement | undefined;
+
 	/** The cells of the fixtures table's totals row, refreshed while typing. */
 	private readonly totalCells = new Map<string, HTMLElement>();
 
@@ -229,6 +294,28 @@ export class MepEditor extends EditorPane {
 	private readonly riserSleevesAction = this._register(new Action('saengine.mep.editor.riserSleeves', localize('plb.riserSleeves', "Add Sleeves for Risers"), ThemeIcon.asClassName(Codicon.circleLargeOutline), true, () => this.addRiserSleeves()));
 	private readonly recomputePlumbingAction = this._register(new Action('saengine.mep.editor.recomputePlumbing', localize('plb.recompute', "Check the Plumbing Again"), undefined, true, () => this.computePlumbingReport()));
 
+	private readonly plantActions = PLANT_KINDS.map(kind => this._register(new Action(`saengine.mep.editor.addPlant.${kind}`, localize('hvac.addKind', "{0} ({1})", plantKindLabel(kind), plantLetters(kind)), undefined, true, async () => this.addPlant(kind))));
+	private readonly addPlantAction = new SubmenuAction('saengine.mep.editor.addPlant', localize('hvac.addPlant', "Add Plant"), this.plantActions, ThemeIcon.asClassName(Codicon.package));
+	private readonly ductActions: IAction[] = [
+		...DUCT_SYSTEMS.map(system => this._register(new Action(`saengine.mep.editor.drawDuct.${system}`, localize('hvac.drawSystem', "{0} ({1})", ductSystemLabel(system), ductLetters(system)), undefined, true, async () => this.startDrawing('duct', system)))),
+		new Separator(),
+		...(['supply', 'return', 'exhaust', 'freshAir'] as const).map(system => this._register(new Action(`saengine.mep.editor.riserDuct.${system}`, localize('hvac.riserDuct', "Riser Duct in a Shaft: {0}", ductSystemLabel(system)), undefined, true, async () => this.addRiserDuct(system)))),
+	];
+	private readonly drawDuctAction = new SubmenuAction('saengine.mep.editor.drawDuct', localize('hvac.drawDuct', "Draw Duct"), this.ductActions, ThemeIcon.asClassName(Codicon.edit));
+	private readonly proposePlantAction = this._register(new Action('saengine.mep.editor.proposePlant', localize('hvac.proposePlant', "Propose Plant"), ThemeIcon.asClassName(Codicon.wand), true, () => this.proposePlant()));
+	private readonly ductOpeningsAction = this._register(new Action('saengine.mep.editor.ductOpenings', localize('hvac.ductOpenings', "Add Duct Openings"), ThemeIcon.asClassName(Codicon.circleLargeOutline), true, () => this.addServiceOpenings('hvac')));
+	private readonly calculateLoadsAction = this._register(new Action('saengine.mep.editor.calculateLoads', localize('hvac.calculateLoads', "Calculate Loads"), ThemeIcon.asClassName(Codicon.flame), true, () => this.calculateLoads()));
+	private readonly recomputeHvacAction = this._register(new Action('saengine.mep.editor.recomputeHvac', localize('hvac.recompute', "Check the HVAC Again"), undefined, true, () => this.computeHvacReport()));
+
+	private readonly elecEquipmentActions = ELEC_KINDS.map(kind => this._register(new Action(`saengine.mep.editor.addElec.${kind}`, localize('elec.addKind', "{0} ({1})", elecKindLabel(kind), elecLetters(kind)), undefined, true, async () => this.addElecEquipment(kind))));
+	private readonly addElecEquipmentAction = new SubmenuAction('saengine.mep.editor.addElecEquipment', localize('elec.addEquipment', "Add Equipment"), this.elecEquipmentActions, ThemeIcon.asClassName(Codicon.package));
+	private readonly elecRiserActions = ELEC_RISER_KINDS.map(kind => this._register(new Action(`saengine.mep.editor.addElecRiser.${kind}`, localize('elec.addRiserKind', "{0} ({1})", riserKindLabel(kind), riserLetters(kind)), undefined, true, async () => this.addElecRiser(kind))));
+	private readonly addElecRiserAction = new SubmenuAction('saengine.mep.editor.addElecRiser', localize('elec.addRiser', "Add Riser"), this.elecRiserActions, ThemeIcon.asClassName(Codicon.arrowUp));
+	private readonly drawTrayAction = this._register(new Action('saengine.mep.editor.drawTray', localize('elec.drawTray', "Draw Tray"), ThemeIcon.asClassName(Codicon.edit), true, async () => this.startDrawing('tray')));
+	private readonly proposeEquipmentAction = this._register(new Action('saengine.mep.editor.proposeEquipment', localize('elec.proposeEquipment', "Propose Equipment"), ThemeIcon.asClassName(Codicon.wand), true, () => this.proposeEquipment()));
+	private readonly elecOpeningsAction = this._register(new Action('saengine.mep.editor.elecOpenings', localize('elec.openings', "Add Openings"), ThemeIcon.asClassName(Codicon.circleLargeOutline), true, () => this.addServiceOpenings('electrical')));
+	private readonly recomputeElectricalAction = this._register(new Action('saengine.mep.editor.recomputeElectrical', localize('elec.recompute', "Check the Electrical Services Again"), undefined, true, () => this.computeElectricalReport()));
+
 	constructor(
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -243,6 +330,7 @@ export class MepEditor extends EditorPane {
 		@IFileService private readonly fileService: IFileService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IProgressService private readonly progressService: IProgressService,
 	) {
 		super(MepEditor.ID, group, telemetryService, themeService, storageService);
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -252,11 +340,15 @@ export class MepEditor extends EditorPane {
 		}));
 		this._register(CommandsRegistry.onDidRegisterCommand(id => {
 			// The backend registers its commands when it starts: check as soon as it can.
-			if ((id === MEP_REPORT_COMMAND && this.reportState === 'missing') || (id === PLUMBING_REPORT_COMMAND && this.plumbingState === 'missing')) {
+			if ((id === MEP_REPORT_COMMAND && this.reportState === 'missing') || (id === PLUMBING_REPORT_COMMAND && this.plumbingState === 'missing')
+				|| (id === HVAC_REPORT_COMMAND && this.hvacState === 'missing') || (id === ELECTRICAL_REPORT_COMMAND && this.electricalState === 'missing')) {
 				this.reportScheduler.schedule(0);
 			}
 			if (id === PLUMBING_OCCUPANCIES_COMMAND) {
 				void this.loadOccupancies();
+			}
+			if (id === HVAC_TABLES_COMMAND || id === HVAC_CONSTRUCTIONS_COMMAND || id === ELECTRICAL_USES_COMMAND) {
+				void this.loadTables();
 			}
 		}));
 	}
@@ -307,10 +399,16 @@ export class MepEditor extends EditorPane {
 		this.reportState = 'idle';
 		this.plumbingReport = undefined;
 		this.plumbingState = 'idle';
+		this.hvacReport = undefined;
+		this.hvacState = 'idle';
+		this.electricalReport = undefined;
+		this.electricalState = 'idle';
+		this.cancelDrawing(false);
 		this.selection = undefined;
 		this.selectedClash = undefined;
 		this.story = undefined;
 		void this.loadOccupancies();
+		void this.loadTables();
 		const reference = await input.resolve();
 		if (token.isCancellationRequested || this.input !== input) {
 			return;
@@ -337,6 +435,8 @@ export class MepEditor extends EditorPane {
 
 	override clearInput(): void {
 		this.flush();
+		this.cancelDrawing(false);
+		this.hvacLoads?.cancel();
 		this.inputDisposables.clear();
 		this.siteDisposables.clear();
 		this.siteModels.clear();
@@ -468,6 +568,11 @@ export class MepEditor extends EditorPane {
 			case 'riser': return selection.index < (plumbingOf(document)?.risers.length ?? 0);
 			case 'tank': return selection.index < (plumbingOf(document)?.tanks.length ?? 0);
 			case 'drain': return selection.index < (plumbingOf(document)?.roof.drains.length ?? 0);
+			case 'plant': return selection.index < (hvacOf(document)?.plant.length ?? 0);
+			case 'duct': return selection.index < (hvacOf(document)?.ducts.length ?? 0);
+			case 'elecEquipment': return selection.index < (electricalOf(document)?.equipment.length ?? 0);
+			case 'elecRiser': return selection.index < (electricalOf(document)?.risers.length ?? 0);
+			case 'tray': return selection.index < (electricalOf(document)?.trays.length ?? 0);
 			default: return true;
 		}
 	}
@@ -502,8 +607,9 @@ export class MepEditor extends EditorPane {
 			return;
 		}
 		this.flush();
+		this.cancelDrawing(false);
 		this.story = story;
-		if (this.selection?.kind !== 'opening' && this.selection?.kind !== 'riser') {
+		if (!this.keepsSelectionAcrossStories()) {
 			this.selection = undefined;
 		}
 		this.render();
@@ -582,14 +688,18 @@ export class MepEditor extends EditorPane {
 	}
 
 	private onPlanClick(e: MouseEvent): void {
+		if (this.drawing) {
+			this.addDrawingPoint(e);
+			return;
+		}
 		if (this.suppressClick) {
 			this.suppressClick = false;
 			return;
 		}
 		const target = e.target as Element | null;
 		const pick = (attribute: string) => target?.closest(`[${attribute}]`)?.getAttribute(attribute);
-		for (const kind of ['riser', 'drain', 'tank'] as const) {
-			const index = pick(`data-${kind}`);
+		for (const kind of ['riser', 'drain', 'tank', 'plant', 'elecEquipment', 'elecRiser', 'duct', 'tray'] as const) {
+			const index = pick(DRAG_ATTRIBUTES[kind]);
 			if (index) {
 				this.select({ kind, index: Number(index) });
 				return;
@@ -617,21 +727,28 @@ export class MepEditor extends EditorPane {
 		}
 	}
 
-	/** Equipment and shafts are moved by dragging them in the plan; the move is one edit, in 50 mm steps. */
+	/** Items are moved by dragging them in the plan; the move is one edit, in 50 mm steps. */
 	private onPlanPointerDown(canvas: HTMLElement, e: PointerEvent): void {
 		// A click follows only the gesture that ends a drag (and not always): a new press clears it.
 		this.suppressClick = false;
+		if (this.drawing) {
+			return;
+		}
 		const target = e.target as Element | null;
-		const kind = DRAG_KINDS.find(k => target?.closest(`[data-${k}]`));
-		const group = kind ? target?.closest(`[data-${kind}]`) : undefined;
+		const kind = DRAG_KINDS.find(k => target?.closest(`[${DRAG_ATTRIBUTES[k]}]`));
+		const group = kind ? target?.closest(`[${DRAG_ATTRIBUTES[kind]}]`) : undefined;
 		if (!kind || !group || e.button !== 0) {
 			return;
 		}
-		this.drag = { kind, index: Number(group.getAttribute(`data-${kind}`)), x: e.clientX, y: e.clientY, group, moved: false };
+		this.drag = { kind, index: Number(group.getAttribute(DRAG_ATTRIBUTES[kind])), x: e.clientX, y: e.clientY, group, moved: false };
 		canvas.setPointerCapture(e.pointerId);
 	}
 
 	private onPlanPointerMove(e: PointerEvent): void {
+		if (this.drawing) {
+			this.moveRubber(e);
+			return;
+		}
 		const drag = this.drag;
 		if (!drag) {
 			return;
@@ -666,17 +783,33 @@ export class MepEditor extends EditorPane {
 		const dx = Math.round((e.clientX - drag.x) / scale / 50) * 50;
 		const dy = -Math.round((e.clientY - drag.y) / scale / 50) * 50;
 		const plumbing = plumbingOf(document);
+		const hvac = hvacOf(document);
+		const electrical = electricalOf(document);
 		const point = drag.kind === 'equipment' ? document.equipment[drag.index]
 			: drag.kind === 'riser' ? plumbing?.risers[drag.index]
 				: drag.kind === 'tank' ? plumbing?.tanks[drag.index]
-					: drag.kind === 'drain' ? plumbing?.roof.drains[drag.index] : undefined;
+					: drag.kind === 'drain' ? plumbing?.roof.drains[drag.index]
+						: drag.kind === 'plant' ? hvac?.plant[drag.index]
+							: drag.kind === 'elecEquipment' ? electrical?.equipment[drag.index]
+								: drag.kind === 'elecRiser' ? electrical?.risers[drag.index] : undefined;
+		const move = (points: readonly Point[]) => points.map(p => [p[0] + dx, p[1] + dy] as Point);
 		if (point) {
 			point.x = point.x + dx;
 			point.y = point.y + dy;
 		} else if (drag.kind === 'shaft') {
 			const shaft = document.shafts[drag.index];
 			if (shaft) {
-				shaft.outline = shaft.outline.map(p => [p[0] + dx, p[1] + dy] as Point);
+				shaft.outline = move(shaft.outline);
+			}
+		} else if (drag.kind === 'duct') {
+			const duct = hvac?.ducts[drag.index];
+			if (duct) {
+				duct.path = move(duct.path);
+			}
+		} else if (drag.kind === 'tray') {
+			const tray = electrical?.trays[drag.index];
+			if (tray) {
+				tray.path = move(tray.path);
 			}
 		}
 		this.selection = { kind: drag.kind, index: drag.index };
@@ -688,11 +821,128 @@ export class MepEditor extends EditorPane {
 		if (isHTMLInputElement(target) || target.tagName === 'SELECT') {
 			return;
 		}
-		if (e.key === 'Delete' && this.deleteAction.enabled) {
+		if (this.drawing && (e.key === 'Enter' || e.key === 'Escape' || e.key === 'Backspace')) {
+			e.preventDefault();
+			if (e.key === 'Enter') {
+				this.finishDrawing();
+			} else if (e.key === 'Escape') {
+				this.cancelDrawing();
+			} else {
+				this.drawing.points.pop();
+				this.renderView();
+			}
+		} else if (e.key === 'Delete' && this.deleteAction.enabled) {
 			e.preventDefault();
 			this.deleteSelection();
 		} else if (e.key === 'Escape') {
 			this.select(undefined);
+		}
+	}
+
+	// ───────────────────────────── drawing ducts and trays ─────────────────────────────
+
+	/** Whether the selection is shown on the other stories too (a vertical item), so it stays selected when the story changes. */
+	private keepsSelectionAcrossStories(): boolean {
+		const selection = this.selection;
+		const duct = selection?.kind === 'duct' && this.document ? hvacOf(this.document)?.ducts[selection.index] : undefined;
+		return selection?.kind === 'opening' || selection?.kind === 'riser' || selection?.kind === 'elecRiser' || !!duct?.riser;
+	}
+
+	/** Starts drawing a duct of `system` or a cable tray on the story shown: its points are clicked in the plan. */
+	startDrawing(kind: 'duct' | 'tray', system?: DuctSystem): void {
+		this.flush();
+		const story = this.story;
+		if (!this.document || !story || this.noStories()) {
+			return;
+		}
+		const width = kind === 'tray' ? 300 : newDuct(this.document, system ?? 'supply', story, []).width ?? 400;
+		this.drawing = { kind, system, story, width, points: [] };
+		this.selection = undefined;
+		this.view = 'plan';
+		this.render();
+		this.viewElement.focus();
+	}
+
+	/** The plan point under the pointer [mm], in 50 mm steps; square to the last point when nearly so. */
+	private planPoint(e: MouseEvent, last?: Point): Point | undefined {
+		const view = this.planView;
+		const root = this.planRoot;
+		if (!view || !root) {
+			return undefined;
+		}
+		const rect = root.getBoundingClientRect();
+		let x = (e.clientX - rect.left - view.x(0)) / view.scale;
+		let y = (view.y(0) - (e.clientY - rect.top)) / view.scale;
+		if (last && !e.altKey) {
+			const angle = Math.abs(Math.atan2(y - last[1], x - last[0]) * 180 / Math.PI) % 90;
+			if (angle < 8 || angle > 82) {
+				if (Math.abs(x - last[0]) >= Math.abs(y - last[1])) {
+					y = last[1];
+				} else {
+					x = last[0];
+				}
+			}
+		}
+		return [Math.round(x / 50) * 50, Math.round(y / 50) * 50];
+	}
+
+	private addDrawingPoint(e: MouseEvent): void {
+		const drawing = this.drawing;
+		const last = drawing?.points[drawing.points.length - 1];
+		const point = drawing ? this.planPoint(e, last) : undefined;
+		if (!drawing || !point || (last && last[0] === point[0] && last[1] === point[1])) {
+			return;
+		}
+		drawing.points.push(point);
+		this.renderView();
+		this.renderStatus();
+	}
+
+	private moveRubber(e: PointerEvent): void {
+		const rubber = this.drawRubber;
+		const view = this.planView;
+		const drawing = this.drawing;
+		const point = drawing ? this.planPoint(e, drawing.points[drawing.points.length - 1]) : undefined;
+		if (!rubber || !view || !point) {
+			return;
+		}
+		rubber.setAttribute('x2', view.x(point[0]).toFixed(1));
+		rubber.setAttribute('y2', view.y(point[1]).toFixed(1));
+	}
+
+	/** Ends the path being drawn (double-click or Enter): the duct or tray is added as one edit. */
+	private finishDrawing(): void {
+		const drawing = this.drawing;
+		const document = this.document;
+		if (!drawing || !document) {
+			return;
+		}
+		this.drawing = undefined;
+		this.drawRubber = undefined;
+		if (drawing.points.length < 2) {
+			this.notificationService.info(localize('mep.drawTooShort', "Click at least two points of the path in the plan; double-click the last one to end it."));
+			this.render();
+			return;
+		}
+		if (drawing.kind === 'duct') {
+			const hvac = ensureHvac(document);
+			hvac.ducts.push(newDuct(document, drawing.system ?? 'supply', drawing.story, drawing.points));
+			this.added({ kind: 'duct', index: hvac.ducts.length - 1 });
+		} else {
+			const electrical = ensureElectrical(document);
+			electrical.trays.push(newTray(document, drawing.story, drawing.points));
+			this.added({ kind: 'tray', index: electrical.trays.length - 1 });
+		}
+	}
+
+	private cancelDrawing(render = true): void {
+		if (!this.drawing) {
+			return;
+		}
+		this.drawing = undefined;
+		this.drawRubber = undefined;
+		if (render) {
+			this.render();
 		}
 	}
 
@@ -768,6 +1018,11 @@ export class MepEditor extends EditorPane {
 			case 'riser': plumbingOf(document)?.risers.splice(selection.index, 1); break;
 			case 'tank': plumbingOf(document)?.tanks.splice(selection.index, 1); break;
 			case 'drain': plumbingOf(document)?.roof.drains.splice(selection.index, 1); break;
+			case 'plant': hvacOf(document)?.plant.splice(selection.index, 1); break;
+			case 'duct': hvacOf(document)?.ducts.splice(selection.index, 1); break;
+			case 'elecEquipment': electricalOf(document)?.equipment.splice(selection.index, 1); break;
+			case 'elecRiser': electricalOf(document)?.risers.splice(selection.index, 1); break;
+			case 'tray': electricalOf(document)?.trays.splice(selection.index, 1); break;
 			default: return;
 		}
 		this.selection = undefined;
@@ -890,10 +1145,20 @@ export class MepEditor extends EditorPane {
 		this.notificationService.info(added.length === 1 ? localize('mep.suggestedOne', "Added 1 sleeve where an MEP model crosses the structure.") : localize('mep.suggested', "Added {0} sleeves where the MEP models cross the structure.", added.length));
 	}
 
-	/** Adds the proposed openings the file does not have yet (none on the same host within 50 mm), with unused IDs. */
-	private addOpenings(document: IMep, proposals: readonly IOpening[]): IOpening[] {
+	/**
+	 * Adds the proposed openings the file does not have yet (none on the same host within 50 mm), with unused IDs.
+	 * `replaceById`: a proposal whose ID the file has replaces that opening (the HVAC's openings of a duct that moved
+	 * are proposed again under their IDs).
+	 */
+	private addOpenings(document: IMep, proposals: readonly IOpening[], replaceById = false): IOpening[] {
 		const added: IOpening[] = [];
 		for (const proposal of proposals) {
+			const index = replaceById && proposal.id ? document.openings.findIndex(o => o.id === proposal.id) : -1;
+			if (index >= 0) {
+				document.openings[index] = proposal;
+				added.push(proposal);
+				continue;
+			}
 			const point = openingPoint(proposal, this.context);
 			const same = document.openings.some(o => {
 				const other = openingPoint(o, this.context);
@@ -969,17 +1234,20 @@ export class MepEditor extends EditorPane {
 	}
 
 	private hasContent(document: IMep): boolean {
-		return document.equipment.length + document.openings.length + document.shafts.length + document.ifcModels.length > 0 || hasPlumbing(document);
+		return document.equipment.length + document.openings.length + document.shafts.length + document.ifcModels.length > 0 || hasPlumbing(document) || hasHvac(document) || hasElectrical(document);
 	}
 
-	/** The file's problems: the coordination's and the plumbing's. */
+	/** The file's problems: the coordination's, the plumbing's, the HVAC's and the electrical services'. */
 	private check(document: IMep): IMepProblem[] {
-		return [...checkMep(document, this.context), ...checkPlumbing(document, this.context)];
+		return [
+			...checkMep(document, this.context), ...checkPlumbing(document, this.context),
+			...checkHvac(document, this.context, this.hvacCities, this.hvacUses), ...checkElectrical(document, this.context, this.elecUses),
+		];
 	}
 
-	/** Both reports, after an edit. */
+	/** Every report, after an edit (the cooling loads only on Calculate Loads). */
 	private async computeReports(): Promise<void> {
-		await Promise.all([this.computeReport(), this.computePlumbingReport()]);
+		await Promise.all([this.computeReport(), this.computePlumbingReport(), this.computeHvacReport(), this.computeElectricalReport()]);
 	}
 
 	/** Asks the backend for the report (debounced after every edit). */
@@ -1040,7 +1308,9 @@ export class MepEditor extends EditorPane {
 			return;
 		}
 		const plumbing = this.plumbingState === 'ok' && this.plumbingReport ? { plumbing: plumbingSummaryFile(document, this.plumbingReport) } : {};
-		const content = JSON.stringify({ ...mepSummaryFile(document, report, model.getValue(), new Date(), sourceTexts), ...plumbing }, undefined, '\t') + '\n';
+		const hvac = this.hvacState === 'ok' && this.hvacReport ? { hvac: hvacSummaryFile(document, this.hvacReport) } : {};
+		const electrical = this.electricalState === 'ok' && this.electricalReport ? { electrical: electricalSummaryFile(document, this.electricalReport) } : {};
+		const content = JSON.stringify({ ...mepSummaryFile(document, report, model.getValue(), new Date(), sourceTexts), ...plumbing, ...hvac, ...electrical }, undefined, '\t') + '\n';
 		this.fileService.writeFile(joinPath(dirname(this.resource), MEP_SUMMARY_FILE), VSBuffer.fromString(content)).catch(() => { /* the part list then shows the count only */ });
 	}
 
@@ -1050,7 +1320,9 @@ export class MepEditor extends EditorPane {
 		if (!this.frame) {
 			return;
 		}
-		this.frame.element.classList.toggle('plumbing', this.discipline === 'plumbing');
+		for (const discipline of ['plumbing', 'hvac', 'electrical'] as const) {
+			this.frame.element.classList.toggle(discipline, this.discipline === discipline);
+		}
 		this.updateViewButtons();
 		this.renderActions();
 		this.renderEmpty();
@@ -1102,24 +1374,40 @@ export class MepEditor extends EditorPane {
 		this.addSleeveAction.label = host ? localize('mep.addSleeveThrough', "Add Sleeve through {0} {1}", hostKindLabel(host.kind), host.element.id) : localize('mep.addSleeve', "Add Sleeve through the Selected Beam, Slab or Wall");
 		this.addSleeveAction.enabled = !!host || selection?.kind === 'opening';
 		const plumbing = document ? plumbingOf(document) : undefined;
+		const hvac = document ? hvacOf(document) : undefined;
+		const electrical = document ? electricalOf(document) : undefined;
 		const named = selection?.kind === 'equipment' ? document?.equipment[selection.index]?.id
 			: selection?.kind === 'opening' ? document?.openings[selection.index]?.id
 				: selection?.kind === 'shaft' ? document?.shafts[selection.index]?.id
 					: selection?.kind === 'riser' ? plumbing?.risers[selection.index]?.id
 						: selection?.kind === 'tank' ? plumbing?.tanks[selection.index]?.id
-							: selection?.kind === 'drain' ? plumbing?.roof.drains[selection.index]?.id : undefined;
+							: selection?.kind === 'drain' ? plumbing?.roof.drains[selection.index]?.id
+							: selection?.kind === 'plant' ? hvac?.plant[selection.index]?.id
+								: selection?.kind === 'duct' ? hvac?.ducts[selection.index]?.id
+									: selection?.kind === 'elecEquipment' ? electrical?.equipment[selection.index]?.id
+										: selection?.kind === 'elecRiser' ? electrical?.risers[selection.index]?.id
+											: selection?.kind === 'tray' ? electrical?.trays[selection.index]?.id : undefined;
 		this.deleteAction.enabled = !!named;
 		this.deleteAction.label = named ? localize('mep.deleteNamed', "Delete {0}", named) : localize('mep.delete', "Delete");
 		this.recomputeAction.enabled = !!document && this.hasContent(document);
 		const plumbingView = this.discipline === 'plumbing';
 		this.recomputePlumbingAction.enabled = !!document && hasPlumbing(document);
 		this.riserSleevesAction.enabled = !!plumbing?.risers.length;
+		this.recomputeHvacAction.enabled = !!document && hasHvac(document);
+		this.recomputeElectricalAction.enabled = !!document && hasElectrical(document);
+		this.calculateLoadsAction.enabled = !this.hvacLoads;
+		const discipline = this.discipline;
 		const primary: IAction[] = !usable ? [frame.togglePropertiesAction] : plumbingView ? [
 			this.addRiserAction, this.addTankAction, this.addDrainAction, this.sizeTanksAction, this.riserSleevesAction, this.deleteAction, frame.togglePropertiesAction,
+		] : discipline === 'hvac' ? [
+			this.addPlantAction, this.drawDuctAction, this.proposePlantAction, this.ductOpeningsAction, this.calculateLoadsAction, this.deleteAction, frame.togglePropertiesAction,
+		] : discipline === 'electrical' ? [
+			this.addElecEquipmentAction, this.addElecRiserAction, this.drawTrayAction, this.proposeEquipmentAction, this.elecOpeningsAction, this.deleteAction, frame.togglePropertiesAction,
 		] : [
 			this.addEquipmentAction, this.addSleeveAction, this.addShaftAction, this.importIfcAction, this.suggestAction, this.deleteAction, frame.togglePropertiesAction,
 		];
-		const secondary: IAction[] = usable ? [plumbingView ? this.recomputePlumbingAction : this.recomputeAction] : [];
+		const recompute = plumbingView ? this.recomputePlumbingAction : discipline === 'hvac' ? this.recomputeHvacAction : discipline === 'electrical' ? this.recomputeElectricalAction : this.recomputeAction;
+		const secondary: IAction[] = usable ? [recompute] : [];
 		if (this.developerMode || this.parseError) {
 			if (secondary.length) {
 				secondary.push(new Separator());
@@ -1171,6 +1459,26 @@ export class MepEditor extends EditorPane {
 				case 'data': this.renderPlumbingData(document); break;
 				case 'results': this.renderPlumbingResults(document); break;
 			}
+		} else if (this.discipline === 'hvac') {
+			switch (this.view) {
+				case 'plan': this.renderPlanView(document); break;
+				case 'data':
+					renderHvacData(this.viewElement, this.formHost(document), {
+						cities: this.hvacCities, uses: this.hvacUses, constructions: this.constructions, tablesFromBackend: this.hvacTablesFromBackend, constructionsFromBackend: this.constructionsFromBackend,
+					}, this.hvacDataActions());
+					this.markSelectedRows();
+					break;
+				case 'results': this.renderHvacResults(document); break;
+			}
+		} else if (this.discipline === 'electrical') {
+			switch (this.view) {
+				case 'plan': this.renderPlanView(document); break;
+				case 'data':
+					renderElectricalData(this.viewElement, this.formHost(document), this.elecUses, this.elecUsesFromBackend, this.electricalDataActions());
+					this.markSelectedRows();
+					break;
+				case 'results': this.renderElectricalResults(document); break;
+			}
 		} else {
 			switch (this.view) {
 				case 'plan': this.renderPlanView(document); break;
@@ -1197,22 +1505,56 @@ export class MepEditor extends EditorPane {
 		return clashes;
 	}
 
+	private planSubtitle(document: IMep, story: IStory | undefined): string {
+		if (!story) {
+			return localize('mep.planSubtitleNone', "Build the building model to lay out the services on its stories.");
+		}
+		const level = formatNumber(story.elevation / 1000, 2);
+		switch (this.discipline) {
+			case 'plumbing': {
+				const plumbing = plumbingOf(document);
+				return localize('plb.planSubtitle', "level {0} m · risers and stacks: {1}, tanks: {2} · click to select, drag to move",
+					level, plumbing?.risers.filter(r => riserOnStory(r, this.context, story.id)).length ?? 0, plumbing?.tanks.filter(t => tankStory(t, this.context) === story.id).length ?? 0);
+			}
+			case 'hvac': {
+				const hvac = hvacOf(document);
+				const plant = hvac?.plant.filter(p => p.story === story.id) ?? [];
+				const ducts = hvac?.ducts.filter(d => ductOnStory(d, this.context, story.id)).length ?? 0;
+				return localize('hvac.planSubtitle', "level {0} m · plant: {1}, {2} kN · ducts: {3} · the beams above dashed · click to select, drag to move",
+					level, plant.length, formatNumber(plant.reduce((s, p) => s + (p.operatingWeight ?? 0), 0), 1), ducts);
+			}
+			case 'electrical': {
+				const electrical = electricalOf(document);
+				const equipment = electrical?.equipment.filter(e => e.story === story.id) ?? [];
+				const risers = electrical?.risers.filter(r => elecRiserOnStory(r, this.context, story.id)).length ?? 0;
+				const lightning = electrical?.lightning.enabled && (story.id === roofStory(this.context)?.id || story.id === this.context.stories[0]?.id);
+				return localize('elec.planSubtitle', "level {0} m · equipment: {1}, {2} kN · risers: {3}{4} · click to select, drag to move",
+					level, equipment.length, formatNumber(equipment.reduce((s, e) => s + (e.operatingWeight ?? 0), 0), 1), risers,
+					lightning ? localize('elec.planSubtitleLps', " · lightning protection") : '');
+			}
+			default: {
+				const onStory = document.equipment.filter(e => e.story === story.id);
+				return localize('mep.planSubtitle', "level {0} m · {1} equipment, {2} kN · click to select, drag equipment and shafts to move them",
+					level, onStory.length, formatNumber(onStory.reduce((sum, e) => sum + (e.operatingWeight || 0), 0), 1));
+			}
+		}
+	}
+
 	private renderPlanView(document: IMep): void {
 		const view = this.viewElement;
 		const story = this.context.stories.find(s => s.id === this.story);
 		const header = append(view, $('.mep-view-header'));
 		append(header, $('span.mep-view-title', undefined, story ? story.name : localize('mep.planNoStory', "No story")));
-		const plumbingView = this.discipline === 'plumbing';
-		const onStory = document.equipment.filter(e => e.story === this.story);
-		const load = onStory.reduce((sum, e) => sum + (e.operatingWeight || 0), 0);
-		const plumbing = plumbingOf(document);
-		append(header, $('span.mep-view-subtitle', undefined, !story
-			? localize('mep.planSubtitleNone', "Build the building model to lay out the services on its stories.")
-			: plumbingView
-				? localize('plb.planSubtitle', "level {0} m · risers and stacks: {1}, tanks: {2} · click to select, drag to move",
-					formatNumber(story.elevation / 1000, 2), plumbing?.risers.filter(r => riserOnStory(r, this.context, story.id)).length ?? 0, plumbing?.tanks.filter(t => tankStory(t, this.context) === story.id).length ?? 0)
-				: localize('mep.planSubtitle', "level {0} m · {1} equipment, {2} kN · click to select, drag equipment and shafts to move them",
-					formatNumber(story.elevation / 1000, 2), onStory.length, formatNumber(load, 1))));
+		append(header, $('span.mep-view-subtitle', undefined, this.planSubtitle(document, story)));
+		const discipline = this.discipline;
+		const drawing = this.drawing;
+		if (drawing) {
+			const hint = append(header, $('span.mep-draw-hint'));
+			append(hint, $(ThemeIcon.asCSSSelector(Codicon.edit)));
+			append(hint, $('span', undefined, drawing.kind === 'duct'
+				? localize('mep.drawDuctHint', "Drawing a {0} duct: click the points of its run, double-click or Enter to end, Backspace to undo a point, Esc to cancel", ductSystemLabel(drawing.system ?? 'supply').toLowerCase())
+				: localize('mep.drawTrayHint', "Drawing a cable tray: click the points of its run, double-click or Enter to end, Backspace to undo a point, Esc to cancel")));
+		}
 
 		const legend = append(view, $('.mep-legend'));
 		const item = (cls: string, label: string, text?: string) => {
@@ -1220,7 +1562,8 @@ export class MepEditor extends EditorPane {
 			append(element, text ? $(`span.mep-swatch.${cls}`, undefined, text) : $(`span.mep-swatch.${cls}`));
 			append(element, $('span', undefined, label));
 		};
-		if (plumbingView) {
+		const plumbing = plumbingOf(document);
+		if (discipline === 'plumbing') {
 			const systems = new Set(plumbing?.risers.filter(r => !story || riserOnStory(r, this.context, story.id)).map(r => r.system));
 			for (const system of PLUMBING_SYSTEMS.filter(s => systems.has(s))) {
 				item(`plb-sys.sys-${system}`, systemLabel(system), systemLetters(system));
@@ -1231,6 +1574,37 @@ export class MepEditor extends EditorPane {
 			}
 			item('shaft', localize('mep.legendShaft', "Shaft"));
 			item('sleeve', localize('mep.legendSleeve', "Sleeve or opening"));
+		} else if (discipline === 'hvac') {
+			const hvac = hvacOf(document);
+			const systems = new Set(hvac?.ducts.filter(d => !story || ductOnStory(d, this.context, story.id)).map(d => d.system));
+			for (const system of DUCT_SYSTEMS.filter(s => systems.has(s))) {
+				item(`hvac-sys.sys-${system}`, ductSystemLabel(system), ductLetters(system));
+			}
+			item('hvac-plant', localize('hvac.legendPlant', "Plant"));
+			item('beam-above', localize('hvac.legendBeamAbove', "Beam above"));
+			if (story && allCrossings(document, this.context, story.id).some(c => !c.opening)) {
+				item('opening-needed', localize('hvac.legendNeeded', "Opening needed"));
+			}
+			item('shaft', localize('mep.legendShaft', "Shaft"));
+			item('sleeve', localize('mep.legendSleeve', "Sleeve or opening"));
+		} else if (discipline === 'electrical') {
+			const electrical = electricalOf(document);
+			item('elec-equipment', localize('elec.legendEquipment', "Equipment"));
+			item('elec-riser', localize('elec.legendRiser', "Riser"));
+			if (electrical?.trays.some(t => t.story === story?.id)) {
+				item('elec-tray', localize('elec.legendTray', "Cable tray"));
+			}
+			if (electrical?.lightning.enabled && story && (story.id === roofStory(this.context)?.id || story.id === this.context.stories[0]?.id)) {
+				if (this.electricalState === 'ok' && this.electricalReport?.lightning?.downConductors.length) {
+					item('elec-down', localize('elec.legendDown', "Down-conductor column"));
+				}
+				if (story.id === roofStory(this.context)?.id) {
+					item('elec-lps', localize('elec.legendLps', "Roof conductor"));
+				}
+			}
+			item('beam-above', localize('hvac.legendBeamAbove', "Beam above"));
+			item('shaft', localize('mep.legendShaft', "Shaft"));
+			item('sleeve', localize('mep.legendSleeve', "Sleeve or opening"));
 		} else {
 			item('equipment', localize('mep.legendEquipment', "Equipment"));
 			item('shaft', localize('mep.legendShaft', "Shaft"));
@@ -1238,12 +1612,12 @@ export class MepEditor extends EditorPane {
 			item('beam', localize('mep.legendBeam', "Beam"));
 			item('slab', localize('mep.legendSlab', "Slab"));
 		}
-		const clashes = plumbingView ? [] : this.planClashes();
+		const clashes = discipline !== 'coordination' ? [] : this.planClashes();
 		if (clashes.length) {
 			item('clash', localize('mep.legendClash', "Clash"));
 		}
 
-		const canvas = append(view, $('.mep-canvas'));
+		const canvas = append(view, $(`.mep-canvas${drawing ? '.drawing' : ''}`));
 		if (!story) {
 			return;
 		}
@@ -1251,15 +1625,43 @@ export class MepEditor extends EditorPane {
 		const height = Math.max(240, view.clientHeight - 96);
 		const bands = this.reportState === 'ok' && this.report ? new Map(this.report.openings.map(o => [o.id, o.ok ? utilisationBand(o.utilisation) : 'fail' as const])) : undefined;
 		const plumbingReport = this.plumbingState === 'ok' ? this.plumbingReport : undefined;
+		const hvacReport = this.hvacState === 'ok' ? this.hvacReport : undefined;
+		const electricalReport = this.electricalState === 'ok' ? this.electricalReport : undefined;
+		const ceiling = discipline === 'hvac' || discipline === 'electrical' ? storyAbove(this.context, story.id)?.id : undefined;
+		const draft = (root: SVGElement, planView: IPlanView) => {
+			this.planRoot = root;
+			this.drawRubber = drawing && drawing.story === story.id ? renderDraft(root, planView, drawing.points, drawing.width, drawing.kind === 'duct' ? `hvac-draft sys-${drawing.system ?? 'supply'}` : 'elec-draft') : undefined;
+		};
+		const layer = discipline === 'plumbing' ? {
+			plumbing: true,
+			extraExtent: plumbingExtent(document, this.context, story.id),
+			overlay: (root: SVGElement, planView: IPlanView) => renderPlumbing(root, planView, document, this.context, { story: story.id, selection: this.selection, report: plumbingReport }),
+		} : discipline === 'hvac' ? {
+			layer: 'hvac', ceiling,
+			// Not the points being drawn: the plan keeps its scale while they are clicked.
+			extraExtent: hvacExtent(document, this.context, story.id),
+			overlay: (root: SVGElement, planView: IPlanView) => {
+				renderHvac(root, planView, document, this.context, { story: story.id, selection: this.selection, report: hvacReport });
+				draft(root, planView);
+			},
+		} : discipline === 'electrical' ? {
+			layer: 'electrical', ceiling,
+			extraExtent: electricalExtent(document, this.context, story.id),
+			overlay: (root: SVGElement, planView: IPlanView) => {
+				renderElectrical(root, planView, document, this.context, { story: story.id, selection: this.selection, report: electricalReport });
+				draft(root, planView);
+			},
+		} : {};
 		this.planView = renderPlan(canvas, document, this.context, {
-			width, height, story: story.id, selection: this.selection, openingBands: bands, clashes, selectedClash: this.selectedClash,
-			...(plumbingView ? {
-				plumbing: true,
-				extraExtent: plumbingExtent(document, this.context, story.id),
-				overlay: (root, planView) => renderPlumbing(root, planView, document, this.context, { story: story.id, selection: this.selection, report: plumbingReport }),
-			} : {}),
+			width, height, story: story.id, selection: this.selection, openingBands: bands, clashes, selectedClash: this.selectedClash, ...layer,
 		});
 		this.viewDisposables.add(addDisposableListener(canvas, EventType.CLICK, e => this.onPlanClick(e)));
+		this.viewDisposables.add(addDisposableListener(canvas, EventType.DBLCLICK, e => {
+			if (this.drawing) {
+				e.preventDefault();
+				this.finishDrawing();
+			}
+		}));
 		this.viewDisposables.add(addDisposableListener(canvas, EventType.POINTER_DOWN, e => this.onPlanPointerDown(canvas, e)));
 		this.viewDisposables.add(addDisposableListener(canvas, EventType.POINTER_MOVE, e => this.onPlanPointerMove(e)));
 		this.viewDisposables.add(addDisposableListener(canvas, EventType.POINTER_UP, e => this.onPlanPointerUp(canvas, e)));
@@ -1581,7 +1983,7 @@ export class MepEditor extends EditorPane {
 		}
 		this.inputStore.add(addDisposableListener(input, EventType.INPUT, () => {
 			let parsed = parseField(field, input.value);
-			const badId = field === F.id && typeof parsed.value === 'string' ? idError(parsed.value) : undefined;
+			const badId = field.key === 'id' && field.kind === 'text' && typeof parsed.value === 'string' ? idError(parsed.value) : undefined;
 			if (badId) {
 				parsed = { error: localize('mep.v.id', "{0}: {1}", field.label, badId) };
 			}
@@ -1960,8 +2362,29 @@ export class MepEditor extends EditorPane {
 			} else if (s?.kind === 'drain' && plumbingOf(document)?.roof.drains[s.index]) {
 				this.renderDrainProperties(panel, ensurePlumbing(document).roof.drains[s.index], s.index);
 				paths = [`plumbing.roof.drains.${s.index}.`];
+			} else if (s?.kind === 'plant' && hvacOf(document)?.plant[s.index]) {
+				renderPlantProperties(panel, this.formHost(document), ensureHvac(document).plant[s.index], s.index, this.hvacState === 'ok' ? this.hvacReport : undefined);
+				paths = [`hvac.plant.${s.index}.`];
+			} else if (s?.kind === 'duct' && hvacOf(document)?.ducts[s.index]) {
+				renderDuctProperties(panel, this.formHost(document), ensureHvac(document).ducts[s.index], s.index, this.hvacState === 'ok' ? this.hvacReport : undefined);
+				paths = [`hvac.ducts.${s.index}.`];
+			} else if (s?.kind === 'elecEquipment' && electricalOf(document)?.equipment[s.index]) {
+				renderElecEquipmentProperties(panel, this.formHost(document), ensureElectrical(document).equipment[s.index], s.index, this.electricalState === 'ok' ? this.electricalReport : undefined);
+				paths = [`electrical.equipment.${s.index}.`];
+			} else if (s?.kind === 'elecRiser' && electricalOf(document)?.risers[s.index]) {
+				renderElecRiserProperties(panel, this.formHost(document), ensureElectrical(document).risers[s.index], s.index);
+				paths = [`electrical.risers.${s.index}.`];
+			} else if (s?.kind === 'tray' && electricalOf(document)?.trays[s.index]) {
+				renderTrayProperties(panel, this.formHost(document), ensureElectrical(document).trays[s.index], s.index);
+				paths = [`electrical.trays.${s.index}.`];
 			} else if (s?.kind === 'element') {
 				this.renderElementProperties(panel, document, s.id);
+			} else if (this.discipline === 'hvac') {
+				renderHvacSummaryProperties(panel, this.formHost(document), this.hvacState === 'ok' ? this.hvacReport : undefined);
+				paths = ['hvac.'];
+			} else if (this.discipline === 'electrical') {
+				renderElectricalSummaryProperties(panel, this.formHost(document), this.electricalState === 'ok' ? this.electricalReport : undefined);
+				paths = ['electrical.'];
 			} else if (this.discipline === 'plumbing') {
 				this.renderPlumbingSummaryProperties(panel, document);
 				paths = ['plumbing.'];
@@ -2254,12 +2677,34 @@ export class MepEditor extends EditorPane {
 			frame.setStatus(this.parseError ? { severity: 'warning', text: this.parseError } : undefined);
 			return;
 		}
+		if (this.drawing) {
+			const points = this.drawing.points.length;
+			frame.setStatus({
+				text: points === 1 ? localize('mep.statusDrawingOne', "Drawing on {0}: 1 point", this.storyName(this.drawing.story)) : localize('mep.statusDrawing', "Drawing on {0}: {1} points", this.storyName(this.drawing.story), points),
+				link: { label: localize('mep.statusDrawCancel', "Cancel"), run: () => this.cancelDrawing() },
+			});
+			return;
+		}
 		if (!this.hasContent(document)) {
 			frame.setStatus({ text: localize('mep.statusEmpty', "No equipment yet · {0} stories", this.context.stories.length) });
 			return;
 		}
 		if (this.discipline === 'plumbing') {
 			this.renderPlumbingStatus(document);
+			return;
+		}
+		if (this.discipline === 'hvac') {
+			const ok = this.hvacState === 'ok' ? this.hvacReport : undefined;
+			const parts = [hvacSummary(document, this.context, ok)];
+			if (this.hvacLoads) {
+				parts.push(localize('hvac.statusLoads', "calculating the cooling loads"));
+			}
+			this.renderDisciplineStatus('hvac.', parts, hasHvac(document), this.hvacState, !!ok && hvacFailures(ok) > 0, !!this.hvacLoads);
+			return;
+		}
+		if (this.discipline === 'electrical') {
+			const ok = this.electricalState === 'ok' ? this.electricalReport : undefined;
+			this.renderDisciplineStatus('electrical.', [electricalSummary(document, ok)], hasElectrical(document), this.electricalState, !!ok && electricalFailures(ok) > 0, false);
 			return;
 		}
 		const ok = this.reportState === 'ok' ? this.report : undefined;
@@ -2269,15 +2714,16 @@ export class MepEditor extends EditorPane {
 		} else if (this.reportState === 'error') {
 			parts.push(localize('mep.statusFailed', "checks could not be computed"));
 		}
-		const errors = this.problems.filter(p => p.severity === 'error').length;
+		const problems = this.problems;
+		const errors = problems.filter(p => p.severity === 'error').length;
 		const failed = !!ok && (ok.openings.some(o => !o.ok) || ok.clashes.some(isOpenClash));
 		const partial = !!ok && ok.openings.some(isPartlyChecked);
 		const status: IEditorFrameStatus = {
 			text: parts.join(' · '),
-			severity: errors || failed ? 'error' : this.problems.length || partial || this.reportState === 'error' ? 'warning' : undefined,
+			severity: errors || failed ? 'error' : problems.length || partial || this.reportState === 'error' ? 'warning' : undefined,
 			busy: this.reportState === 'computing',
-			link: this.problems.length ? {
-				label: localize('mep.statusProblems', "{0} problem(s)", this.problems.length),
+			link: problems.length ? {
+				label: localize('mep.statusProblems', "{0} problem(s)", problems.length),
 				run: () => this.revealFirstProblem(),
 			} : ok && this.view !== 'results' ? {
 				label: localize('mep.statusShowResults', "Results"),
@@ -2285,6 +2731,32 @@ export class MepEditor extends EditorPane {
 			} : undefined,
 		};
 		frame.setStatus(status);
+	}
+
+	/** The status line of the HVAC or electrical view: its summary, the backend's state, its problems. */
+	private renderDisciplineStatus(prefix: string, parts: string[], has: boolean, state: ReportState, failed: boolean, busy: boolean): void {
+		if (has) {
+			if (state === 'missing') {
+				parts.push(localize('mep.statusNoBackendShort', "checks need the backend"));
+			} else if (state === 'error') {
+				parts.push(localize('mep.statusFailedShort', "checks could not be computed"));
+			}
+		}
+		const problems = this.problems.filter(p => p.path.startsWith(prefix));
+		const errors = problems.filter(p => p.severity === 'error').length;
+		const ok = state === 'ok';
+		this.frame.setStatus({
+			text: parts.join(' · '),
+			severity: errors || failed ? 'error' : problems.length || state === 'error' ? 'warning' : undefined,
+			busy: state === 'computing' || busy,
+			link: problems.length ? {
+				label: localize('mep.statusProblems', "{0} problem(s)", problems.length),
+				run: () => this.revealProblem(problems[0]),
+			} : ok && this.view !== 'results' ? {
+				label: localize('mep.statusShowResults', "Results"),
+				run: () => this.showView('results'),
+			} : undefined,
+		});
 	}
 
 	private revealFirstProblem(): void {
@@ -2295,16 +2767,17 @@ export class MepEditor extends EditorPane {
 		if (!problem) {
 			return;
 		}
-		const match = /^(?<list>equipment|openings|shafts|plumbing\.risers|plumbing\.tanks|plumbing\.roof\.drains)\.(?<index>\d+)\./.exec(problem.path);
+		const match = /^(?<list>equipment|openings|shafts|plumbing\.risers|plumbing\.tanks|plumbing\.roof\.drains|hvac\.plant|hvac\.ducts|electrical\.equipment|electrical\.risers|electrical\.trays)\.(?<index>\d+)\./.exec(problem.path);
 		const index = Number(match?.groups?.index);
-		const plumbingKind = match?.groups?.list === 'plumbing.risers' ? 'riser' : match?.groups?.list === 'plumbing.tanks' ? 'tank' : match?.groups?.list === 'plumbing.roof.drains' ? 'drain' : undefined;
-		if (problem.path.startsWith('plumbing.') && this.discipline !== 'plumbing') {
-			this.discipline = 'plumbing';
-		} else if (!problem.path.startsWith('plumbing.') && this.discipline === 'plumbing') {
-			this.discipline = 'coordination';
-		}
-		if (plumbingKind) {
-			const selection: MepSelection = { kind: plumbingKind, index };
+		const kinds: { [list: string]: MepSelection['kind'] } = {
+			'plumbing.risers': 'riser', 'plumbing.tanks': 'tank', 'plumbing.roof.drains': 'drain', 'hvac.plant': 'plant', 'hvac.ducts': 'duct',
+			'electrical.equipment': 'elecEquipment', 'electrical.risers': 'elecRiser', 'electrical.trays': 'tray',
+		};
+		const disciplineKind = match?.groups?.list ? kinds[match.groups.list] : undefined;
+		this.cancelDrawing(false);
+		this.discipline = problem.path.startsWith('plumbing.') ? 'plumbing' : problem.path.startsWith('hvac.') ? 'hvac' : problem.path.startsWith('electrical.') ? 'electrical' : 'coordination';
+		if (disciplineKind && disciplineKind !== 'element') {
+			const selection: MepSelection = { kind: disciplineKind, index };
 			this.selection = selection;
 			const story = this.selectionStory(selection);
 			if (story) {
@@ -2314,7 +2787,7 @@ export class MepEditor extends EditorPane {
 			if (this.view !== 'plan') {
 				this.view = 'plan';
 			}
-		} else if (problem.path.startsWith('plumbing.')) {
+		} else if (this.discipline !== 'coordination') {
 			this.view = 'data';
 		} else if (match?.groups?.list === 'equipment') {
 			this.selection = { kind: 'equipment', index };
@@ -2361,6 +2834,7 @@ export class MepEditor extends EditorPane {
 			return;
 		}
 		this.flush();
+		this.cancelDrawing(false);
 		this.discipline = discipline;
 		this.selection = undefined;
 		this.selectedClash = undefined;
@@ -2380,6 +2854,17 @@ export class MepEditor extends EditorPane {
 				return tank ? tankStory(tank, this.context) : undefined;
 			}
 			case 'drain': return plumbing?.roof.drains[selection.index]?.story;
+			case 'plant': return this.document ? hvacOf(this.document)?.plant[selection.index]?.story : undefined;
+			case 'duct': {
+				const duct = this.document ? hvacOf(this.document)?.ducts[selection.index] : undefined;
+				return duct?.riser ? (this.story && ductOnStory(duct, this.context, this.story) ? this.story : duct.riser.fromStory) : duct?.story;
+			}
+			case 'elecEquipment': return this.document ? electricalOf(this.document)?.equipment[selection.index]?.story : undefined;
+			case 'elecRiser': {
+				const riser = this.document ? electricalOf(this.document)?.risers[selection.index] : undefined;
+				return riser && this.story && elecRiserOnStory(riser, this.context, this.story) ? this.story : riser?.fromStory;
+			}
+			case 'tray': return this.document ? electricalOf(this.document)?.trays[selection.index]?.story : undefined;
 			default: return undefined;
 		}
 	}
@@ -3089,5 +3574,548 @@ export class MepEditor extends EditorPane {
 				run: () => this.showView('results'),
 			} : undefined,
 		});
+	}
+
+	// ───────────────────────────── HVAC and electrical: the form host ─────────────────────────────
+
+	/** The editor's inputs and rows for the HVAC and electrical views (hvacView.ts, electricalView.ts). */
+	private formHost(document: IMep): IMepFormHost {
+		return {
+			document,
+			context: this.context,
+			story: this.story,
+			section: (title, count, add) => this.section(title, count, add),
+			tableHead: (table, columns) => this.tableHead(table, columns),
+			selectableRow: (body, selection) => this.selectableRow(body, selection),
+			removeButton: (row, run) => this.removeButton(row, () => {
+				this.selection = undefined;
+				run();
+			}),
+			textInput: (field, value, store, key, placeholder) => this.textInput(field, value, store, key, placeholder),
+			selectInput: (options, current, store, key, label, allowNone) => this.selectInput(options, current, store, key, label, allowNone),
+			checkbox: (checked, store, label) => this.checkbox(checked, store, label),
+			yesNo: (current, store, key, label) => this.yesNo(current, store, key, label),
+			fieldRow: (panel, field, value, store, key, placeholder) => this.fieldRow(panel, field, value, store, key, placeholder),
+			propertyRow: (panel, label, control, unit, title) => this.propertyRow(panel, label, control, unit, title),
+			setField: (target, key, value) => this.setField(target, key, value),
+			setOptional: (target, key, value) => this.setOptional(target, key, value),
+			changed: structural => this.changed(structural),
+			followStory: story => {
+				if (this.context.stories.some(s => s.id === story)) {
+					this.story = story;
+					this.updateStoryPicker();
+				}
+			},
+			storyOptions: () => this.storyOptions(),
+			storyName: id => this.storyName(id),
+			pathInput: (path, store, key, label, minPoints) => this.pathInput(path, store, key, label, minPoints),
+		};
+	}
+
+	/** A polyline as "x y; x y" in m: a valid one is stored (and saved after a pause), an invalid one marked. */
+	private pathInput(path: readonly Point[], store: (path: Point[]) => void, key: string, label: string, minPoints: number): HTMLInputElement {
+		const input = $<HTMLInputElement>('input.mep-input', { type: 'text', spellcheck: 'false', 'aria-label': label });
+		input.value = path.map(p => `${formatNumber(p[0] / 1000, 3)} ${formatNumber(p[1] / 1000, 3)}`).join('; ');
+		this.inputStore.add(addDisposableListener(input, EventType.INPUT, () => {
+			const parts = input.value.split(';').filter(t => t.trim());
+			const points = parts.map(pair => pair.trim().split(/[\s,]+/).map(Number)).filter(p => p.length === 2 && p.every(Number.isFinite));
+			const valid = points.length >= minPoints && points.length === parts.length;
+			this.markInvalid(input, valid ? undefined : minPoints > 1
+				? localize('mep.pathInvalid', "Give at least {0} points as x y in m, separated by semicolons: 0 0; 6 0", minPoints)
+				: localize('mep.pointInvalid', "Give the point as x y in m: 3.5 2.4"));
+			if (valid) {
+				store(points.map(p => [Math.round(p[0] * 1000), Math.round(p[1] * 1000)] as Point));
+			}
+		}));
+		this.inputStore.add(addDisposableListener(input, EventType.BLUR, () => this.flush()));
+		this.inputMap.set(key, input);
+		return input;
+	}
+
+	// ───────────────────────────── HVAC and electrical: tables from the backend ─────────────────────────────
+
+	/** The HVAC's stations, uses and constructions and the electrical occupancies from the backend, once it lists them. */
+	private async loadTables(): Promise<void> {
+		const ask = async (id: string): Promise<unknown> => {
+			if (!CommandsRegistry.getCommand(id)) {
+				return undefined;
+			}
+			try {
+				return await this.commandService.executeCommand<unknown>(id);
+			} catch {
+				return undefined;
+			}
+		};
+		let changed = false;
+		if (!this.hvacTablesFromBackend) {
+			const tables = readHvacTables(await ask(HVAC_TABLES_COMMAND));
+			if (tables.cities || tables.uses) {
+				this.hvacCities = tables.cities ?? this.hvacCities;
+				this.hvacUses = tables.uses ?? this.hvacUses;
+				this.hvacTablesFromBackend = changed = true;
+			}
+		}
+		if (!this.constructionsFromBackend) {
+			const constructions = readConstructions(await ask(HVAC_CONSTRUCTIONS_COMMAND));
+			if (constructions) {
+				this.constructions = constructions;
+				this.constructionsFromBackend = changed = true;
+			}
+		}
+		if (!this.elecUsesFromBackend) {
+			const uses = readElecUses(await ask(ELECTRICAL_USES_COMMAND));
+			if (uses) {
+				this.elecUses = uses;
+				this.elecUsesFromBackend = changed = true;
+			}
+		}
+		if (changed && this.document) {
+			this.problems = this.check(this.document);
+			if (this.view === 'data' && (this.discipline === 'hvac' || this.discipline === 'electrical')) {
+				this.renderView();
+			}
+		}
+	}
+
+	// ───────────────────────────── HVAC ─────────────────────────────
+
+	addPlant(kind: PlantKind): void {
+		const document = this.document;
+		if (!document || this.noStories()) {
+			return;
+		}
+		const hvac = ensureHvac(document);
+		const plant = newPlant(document, this.context, kind, this.story);
+		hvac.plant.push(plant);
+		this.added({ kind: 'plant', index: hvac.plant.length - 1 }, plant.story);
+	}
+
+	addRiserDuct(system: DuctSystem): void {
+		const document = this.document;
+		if (!document || !this.story || this.noStories()) {
+			return;
+		}
+		this.cancelDrawing(false);
+		const hvac = ensureHvac(document);
+		hvac.ducts.push(newRiserDuct(document, this.context, system, this.story));
+		this.added({ kind: 'duct', index: hvac.ducts.length - 1 });
+	}
+
+	/** The plant the backend proposes from the loads (outdoor units, chillers, AHUs with their weights): one undoable edit. */
+	async proposePlant(): Promise<void> {
+		this.flush();
+		const request = this.request();
+		const document = this.document;
+		if (!request || !document) {
+			return;
+		}
+		if (!hasHvac(document)) {
+			this.notificationService.info(localize('hvac.proposeNeedsSetUp', "Set up the HVAC first (Data): the system, the station and which storeys are air-conditioned."));
+			return;
+		}
+		if (!CommandsRegistry.getCommand(HVAC_PROPOSE_PLANT_COMMAND)) {
+			this.notificationService.info(localize('hvac.proposeNoBackend', "Proposing the plant needs the SAEngine backend, which is not available in this window."));
+			return;
+		}
+		this.setBusy('proposePlant', true);
+		let answer: { plant: IPlant[]; notes: string[] } | undefined;
+		try {
+			answer = readProposedPlant(await this.commandService.executeCommand<unknown>(HVAC_PROPOSE_PLANT_COMMAND, request));
+		} catch (error) {
+			this.notificationService.error(localize('hvac.proposeFailed', "The plant could not be proposed: {0}", error instanceof Error ? error.message : String(error)));
+			return;
+		} finally {
+			this.setBusy('proposePlant', false);
+		}
+		if (this.document !== document || !answer) {
+			return;
+		}
+		const touched = answer.plant.length ? mergeProposedPlant(document, answer.plant) : [];
+		if (!touched.length) {
+			this.notificationService.info([answer.plant.length ? localize('hvac.proposeSame', "The plant already is as SAEngine proposes.") : localize('hvac.proposeNone', "The backend proposed no plant."), ...answer.notes].join(' '));
+			return;
+		}
+		const hvac = ensureHvac(document);
+		this.added({ kind: 'plant', index: hvac.plant.indexOf(touched[0]) }, touched[0].story);
+		this.notificationService.info([
+			touched.length === 1 ? localize('hvac.proposedOne', "Proposed 1 plant item; edit it to the supplier's data (undo restores the file).") : localize('hvac.proposed', "Proposed {0} plant items; edit them to the supplier's data (undo restores the file).", touched.length),
+			...answer.notes,
+		].join(' '));
+	}
+
+	/** The openings the ducts (or the risers and trays) need through beams, slabs and walls: one undoable edit. */
+	async addServiceOpenings(discipline: 'hvac' | 'electrical'): Promise<void> {
+		this.flush();
+		const request = this.request();
+		const document = this.document;
+		if (!request || !document) {
+			return;
+		}
+		const command = discipline === 'hvac' ? HVAC_DUCT_OPENINGS_COMMAND : ELECTRICAL_OPENINGS_COMMAND;
+		const has = discipline === 'hvac' ? !!hvacOf(document)?.ducts.length : !!(electricalOf(document)?.risers.length || electricalOf(document)?.trays.length);
+		if (!has) {
+			this.notificationService.info(discipline === 'hvac'
+				? localize('hvac.openingsNeedDucts', "Draw the ducts first: the openings are where they cross the beams, slabs and walls.")
+				: localize('elec.openingsNeedRisers', "Add the risers and trays first: the openings are where they pass the floors, beams and walls."));
+			return;
+		}
+		if (!CommandsRegistry.getCommand(command)) {
+			const open = discipline === 'hvac' ? allCrossings(document, this.context).filter(c => !c.opening).length : 0;
+			this.notificationService.info(discipline === 'hvac'
+				? localize('hvac.openingsNoBackend', "Proposing the duct openings (sized and checked) needs the SAEngine backend, which is not available in this window. {0} beam crossings without an opening are marked in the plan; add an opening through a beam by selecting it in the plan.", open)
+				: localize('elec.openingsNoBackend', "Proposing the openings for the risers and trays needs the SAEngine backend, which is not available in this window."));
+			return;
+		}
+		this.setBusy('serviceOpenings', true);
+		let answer: { openings: IOpening[]; notes: string[] } | undefined;
+		try {
+			answer = readSleeveSuggestions(await this.commandService.executeCommand<unknown>(command, request));
+		} catch (error) {
+			this.notificationService.error(localize('mep.openingsFailed', "The openings could not be found: {0}", error instanceof Error ? error.message : String(error)));
+			return;
+		} finally {
+			this.setBusy('serviceOpenings', false);
+		}
+		if (this.document !== document) {
+			return;
+		}
+		const added = this.addOpenings(document, answer?.openings ?? [], discipline === 'hvac');
+		if (!added.length) {
+			this.notificationService.info(answer?.notes.length ? answer.notes.join(' ') : localize('mep.openingsNone', "Every crossing already has its opening."));
+			return;
+		}
+		const first = added[0];
+		this.added({ kind: 'opening', index: document.openings.indexOf(first) }, this.story);
+		this.notificationService.info([
+			added.length === 1 ? localize('mep.openingsOne', "Added 1 opening; its checks are in Results.") : localize('mep.openingsMany', "Added {0} openings; their checks are in Results.", added.length),
+			...(answer?.notes ?? []),
+		].join(' '));
+	}
+
+	/**
+	 * Runs the cooling load calculation (`saengine.hvac.loads`: EnergyPlus as a separate process,
+	 * else an estimate): it can take about half a minute, with its progress and a cancel. The
+	 * report is asked again after it.
+	 */
+	async calculateLoads(): Promise<void> {
+		this.flush();
+		const request = this.request();
+		const document = this.document;
+		if (!request || !document || this.hvacLoads) {
+			return;
+		}
+		if (!hasHvac(document)) {
+			this.notificationService.info(localize('hvac.loadsNeedSetUp', "Set up the HVAC first (Data): the system, the station, the envelope and which storeys are air-conditioned."));
+			return;
+		}
+		if (!CommandsRegistry.getCommand(HVAC_LOADS_COMMAND)) {
+			this.notificationService.info(localize('hvac.loadsNoBackend', "Calculating the cooling loads needs the SAEngine backend (EnergyPlus runs as a separate process); it is not available in this window."));
+			return;
+		}
+		const source = this.hvacLoads = new CancellationTokenSource();
+		this.calculateLoadsAction.enabled = false;
+		this.setBusy('hvacLoads', true);
+		this.renderStatus();
+		let answer: unknown;
+		let error: string | undefined;
+		try {
+			await this.progressService.withProgress({
+				location: ProgressLocation.Notification,
+				title: localize('hvac.loadsTitle', "Calculating the cooling loads"),
+				cancellable: true,
+				delay: 300,
+			}, async progress => {
+				progress.report({ message: localize('hvac.loadsProgress', "EnergyPlus runs the design days as a separate process; this can take half a minute.") });
+				const cancelled = new Promise<undefined>(resolve => {
+					const listener = source.token.onCancellationRequested(() => {
+						listener.dispose();
+						resolve(undefined);
+					});
+				});
+				answer = await Promise.race([this.commandService.executeCommand<unknown>(HVAC_LOADS_COMMAND, request, source.token), cancelled]);
+			}, () => source.cancel());
+		} catch (e) {
+			error = e instanceof Error ? e.message : String(e);
+		}
+		const cancelled = source.token.isCancellationRequested;
+		source.dispose();
+		this.hvacLoads = undefined;
+		this.calculateLoadsAction.enabled = true;
+		this.setBusy('hvacLoads', false);
+		if (this.document !== document) {
+			return;
+		}
+		if (cancelled) {
+			this.notificationService.info(localize('hvac.loadsCancelled', "The cooling load calculation was cancelled; the results are as before."));
+			this.renderStatus();
+			return;
+		}
+		if (error) {
+			this.notificationService.error(localize('hvac.loadsFailed', "The cooling loads could not be calculated: {0}", error));
+			this.renderStatus();
+			return;
+		}
+		const problems = problemsOf(answer);
+		if (problems.length) {
+			this.notificationService.warn(problems.join(' '));
+		}
+		const report = readHvacReport(answer);
+		if (report?.stories.length) {
+			this.hvacReport = report;
+			this.hvacState = 'ok';
+		}
+		await this.computeHvacReport();
+		if (this.discipline === 'hvac') {
+			this.showView('results');
+		}
+	}
+
+	/** Asks the backend for the HVAC report (with the others, after every edit; the loads it reads are the last calculated). */
+	async computeHvacReport(): Promise<void> {
+		const document = this.document;
+		const version = ++this.hvacVersion;
+		const request = this.request();
+		if (!document || !request || !hasHvac(document)) {
+			this.setBusy('hvac', false);
+			this.hvacReport = undefined;
+			this.hvacState = 'idle';
+			this.renderReportDependent();
+			return;
+		}
+		if (!CommandsRegistry.getCommand(HVAC_REPORT_COMMAND)) {
+			this.setBusy('hvac', false);
+			this.hvacReport = undefined;
+			this.hvacState = 'missing';
+			this.renderReportDependent();
+			return;
+		}
+		this.flush();
+		const sourceTexts = this.siteTexts();
+		this.hvacState = this.hvacReport ? 'ok' : 'computing';
+		this.setBusy('hvac', true);
+		let report: IHvacReport | undefined;
+		let error: string | undefined;
+		try {
+			report = readHvacReport(await this.commandService.executeCommand<unknown>(HVAC_REPORT_COMMAND, request));
+			if (!report) {
+				error = localize('hvac.reportEmpty', "The backend gave no HVAC report.");
+			}
+		} catch (e) {
+			error = e instanceof Error ? e.message : String(e);
+		}
+		if (version !== this.hvacVersion) {
+			return;
+		}
+		this.setBusy('hvac', false);
+		this.hvacReport = report;
+		this.hvacState = report ? 'ok' : 'error';
+		this.hvacError = error;
+		this.renderReportDependent();
+		this.writeSummary(document, sourceTexts);
+	}
+
+	// ───────────────────────────── electrical ─────────────────────────────
+
+	addElecEquipment(kind: ElecKind): void {
+		const document = this.document;
+		if (!document || this.noStories()) {
+			return;
+		}
+		const electrical = ensureElectrical(document);
+		const equipment = newElecEquipment(document, this.context, kind, this.story);
+		electrical.equipment.push(equipment);
+		this.added({ kind: 'elecEquipment', index: electrical.equipment.length - 1 }, equipment.story);
+	}
+
+	addElecRiser(kind: ElecRiserKind): void {
+		const document = this.document;
+		if (!document || !this.story || this.noStories()) {
+			return;
+		}
+		const electrical = ensureElectrical(document);
+		electrical.risers.push(newElecRiser(document, this.context, kind, this.story));
+		this.added({ kind: 'elecRiser', index: electrical.risers.length - 1 });
+	}
+
+	/** The equipment the backend proposes from the demand (transformer, generator, UPS with their weights): one undoable edit. */
+	async proposeEquipment(): Promise<void> {
+		this.flush();
+		const request = this.request();
+		const document = this.document;
+		if (!request || !document) {
+			return;
+		}
+		if (!electricalOf(document)?.stories.length) {
+			this.notificationService.info(localize('elec.proposeNeedsLoads', "Give the storeys' occupancies and loads first (Data): the equipment is sized from the demand."));
+			return;
+		}
+		if (!CommandsRegistry.getCommand(ELECTRICAL_PROPOSE_COMMAND)) {
+			this.notificationService.info(localize('elec.proposeNoBackend', "Proposing the equipment needs the SAEngine backend, which is not available in this window."));
+			return;
+		}
+		this.setBusy('proposeEquipment', true);
+		let answer: { equipment: IElecEquipment[]; notes: string[] } | undefined;
+		try {
+			answer = readProposedEquipment(await this.commandService.executeCommand<unknown>(ELECTRICAL_PROPOSE_COMMAND, request));
+		} catch (error) {
+			this.notificationService.error(localize('elec.proposeFailed', "The equipment could not be proposed: {0}", error instanceof Error ? error.message : String(error)));
+			return;
+		} finally {
+			this.setBusy('proposeEquipment', false);
+		}
+		if (this.document !== document || !answer) {
+			return;
+		}
+		const touched = answer.equipment.length ? mergeProposedEquipment(document, answer.equipment) : [];
+		if (!touched.length) {
+			this.notificationService.info([answer.equipment.length ? localize('elec.proposeSame', "The equipment already is as SAEngine proposes.") : localize('elec.proposeNone', "The backend proposed no equipment."), ...answer.notes].join(' '));
+			return;
+		}
+		const electrical = ensureElectrical(document);
+		this.added({ kind: 'elecEquipment', index: electrical.equipment.indexOf(touched[0]) }, touched[0].story);
+		this.notificationService.info([
+			touched.length === 1 ? localize('elec.proposedOne', "Proposed 1 equipment; edit it to the supplier's data (undo restores the file).") : localize('elec.proposed', "Proposed {0} equipment; edit them to the supplier's data (undo restores the file).", touched.length),
+			...answer.notes,
+		].join(' '));
+	}
+
+	async computeElectricalReport(): Promise<void> {
+		const document = this.document;
+		const version = ++this.electricalVersion;
+		const request = this.request();
+		if (!document || !request || !hasElectrical(document)) {
+			this.setBusy('electrical', false);
+			this.electricalReport = undefined;
+			this.electricalState = 'idle';
+			this.renderReportDependent();
+			return;
+		}
+		if (!CommandsRegistry.getCommand(ELECTRICAL_REPORT_COMMAND)) {
+			this.setBusy('electrical', false);
+			this.electricalReport = undefined;
+			this.electricalState = 'missing';
+			this.renderReportDependent();
+			return;
+		}
+		this.flush();
+		const sourceTexts = this.siteTexts();
+		this.electricalState = this.electricalReport ? 'ok' : 'computing';
+		this.setBusy('electrical', true);
+		let report: IElectricalReport | undefined;
+		let error: string | undefined;
+		try {
+			report = readElectricalReport(await this.commandService.executeCommand<unknown>(ELECTRICAL_REPORT_COMMAND, request));
+			if (!report) {
+				error = localize('elec.reportEmpty', "The backend gave no electrical report.");
+			}
+		} catch (e) {
+			error = e instanceof Error ? e.message : String(e);
+		}
+		if (version !== this.electricalVersion) {
+			return;
+		}
+		this.setBusy('electrical', false);
+		this.electricalReport = report;
+		this.electricalState = report ? 'ok' : 'error';
+		this.electricalError = error;
+		this.renderReportDependent();
+		this.writeSummary(document, sourceTexts);
+	}
+
+	// ───────────────────────────── HVAC and electrical: results ─────────────────────────────
+
+	/** The Results view's state without a report: nothing yet, computing, failed, or no backend (with what the file says). */
+	private renderDisciplineState(view: HTMLElement, state: ReportState, has: boolean, error: string | undefined, texts: { nothing: string; nothingText: string; computing: string; failed: string; missingText: string }): boolean {
+		if (state === 'ok') {
+			return false;
+		}
+		const box = append(view, $('.mep-results-state'));
+		const computing = has && (state === 'computing' || state === 'idle');
+		const icon = !has ? Codicon.tools : computing ? ThemeIcon.modify(Codicon.loading, 'spin') : state === 'error' ? Codicon.warning : Codicon.debugDisconnect;
+		append(box, $(`span.mep-results-state-icon${ThemeIcon.asCSSSelector(icon)}`));
+		append(box, $('.mep-results-state-title', undefined, !has ? texts.nothing : computing ? texts.computing : state === 'error' ? texts.failed : localize('mep.backendMissing', "Backend not available")));
+		append(box, $('.mep-results-state-text', undefined, !has ? texts.nothingText : state === 'error' ? (error ?? '') : state === 'missing' ? texts.missingText : ''));
+		return true;
+	}
+
+	/** A result row that selects the item of the file with `id`: a plant item, duct, equipment, riser, tray, opening, shaft or column. */
+	private resultRow(document: IMep, body: HTMLElement, id: string): HTMLElement {
+		const hvac = hvacOf(document);
+		const electrical = electricalOf(document);
+		const find = (list: readonly { id: string }[] | undefined) => list?.findIndex(item => item.id === id) ?? -1;
+		const candidates: [Exclude<MepSelection['kind'], 'element'>, number][] = [
+			['plant', find(hvac?.plant)], ['duct', find(hvac?.ducts)], ['elecEquipment', find(electrical?.equipment)], ['elecRiser', find(electrical?.risers)], ['tray', find(electrical?.trays)],
+			['opening', find(document.openings)], ['shaft', find(document.shafts)],
+		];
+		const hit = candidates.find(([, index]) => index >= 0);
+		if (hit) {
+			return this.selectableRow(body, { kind: hit[0], index: hit[1] });
+		}
+		if (this.context.columns.some(c => c.id === id)) {
+			return this.selectableRow(body, { kind: 'element', id });
+		}
+		return append(body, $('tr'));
+	}
+
+	private renderHvacResults(document: IMep): void {
+		const view = this.viewElement;
+		if (this.renderDisciplineState(view, this.hvacState, hasHvac(document), this.hvacError, {
+			nothing: localize('hvac.resultsNothing', "No HVAC to check yet"),
+			nothingText: localize('hvac.resultsNothingText', "Choose the system and the station, mark the air-conditioned storeys (Data), add the plant and draw the ducts: the cooling loads, the airflow, the plant, the duct openings and the shafts appear here."),
+			computing: localize('hvac.computing', "Checking the HVAC..."),
+			failed: localize('hvac.reportFailed', "The HVAC could not be checked"),
+			missingText: localize('hvac.backendMissingText', "The cooling loads (EnergyPlus version 26.2.0 as a separate process, or an estimate), the airflow, the plant, the duct openings and the shafts are computed by the SAEngine Python backend; it is not running in this window. The HVAC can still be set up and laid out; the beam crossings are marked in the plan."),
+		})) {
+			if (this.hvacState === 'missing') {
+				renderLocalHvac(view, this.formHost(document));
+			}
+			return;
+		}
+		renderHvacReport(view, this.hvacReport!, {
+			storyName: id => this.storyName(id),
+			tableHead: (table, columns) => this.tableHead(table, columns),
+			row: (body, id) => this.resultRow(document, body, id),
+		});
+		this.markSelectedRows();
+	}
+
+	private renderElectricalResults(document: IMep): void {
+		const view = this.viewElement;
+		if (this.renderDisciplineState(view, this.electricalState, hasElectrical(document), this.electricalError, {
+			nothing: localize('elec.resultsNothing', "No electrical services to check yet"),
+			nothingText: localize('elec.resultsNothingText', "Give the supply and the storeys' loads (Data), add the equipment, risers and trays, and set up the lightning protection: the demand, the transformer and generator, their rooms, the risers, the down-conductor columns and the openings appear here."),
+			computing: localize('elec.computing', "Checking the electrical services..."),
+			failed: localize('elec.reportFailed', "The electrical services could not be checked"),
+			missingText: localize('elec.backendMissingText', "The demand, the transformer, generator and UPS, their rooms, the risers and trays, the lightning protection (with its down-conductor columns) and the openings are computed by the SAEngine Python backend; it is not running in this window. The services can still be set up and laid out."),
+		})) {
+			if (this.electricalState === 'missing') {
+				renderLocalElectrical(view, this.formHost(document));
+			}
+			return;
+		}
+		renderElectricalReport(view, this.electricalReport!, {
+			storyName: id => this.storyName(id),
+			tableHead: (table, columns) => this.tableHead(table, columns),
+			row: (body, id) => this.resultRow(document, body, id),
+		});
+		this.markSelectedRows();
+	}
+
+	private hvacDataActions() {
+		return {
+			addPlant: (kind: PlantKind) => this.addPlant(kind),
+			drawDuct: (system: DuctSystem) => this.startDrawing('duct', system),
+			addRiserDuct: (system: DuctSystem) => this.addRiserDuct(system),
+			proposePlant: () => void this.proposePlant(),
+		};
+	}
+
+	private electricalDataActions() {
+		return {
+			addEquipment: (kind: ElecKind) => this.addElecEquipment(kind),
+			addRiser: (kind: ElecRiserKind) => this.addElecRiser(kind),
+			drawTray: () => this.startDrawing('tray'),
+			proposeEquipment: () => void this.proposeEquipment(),
+		};
 	}
 }

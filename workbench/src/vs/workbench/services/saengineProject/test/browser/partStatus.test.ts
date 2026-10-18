@@ -313,6 +313,40 @@ suite('SAEngine - PartStatus', () => {
 		});
 	});
 
+	test('MEP: the HVAC and electrical services count as content and their checks decide the status', () => {
+		const mep = JSON.stringify({
+			schema: 'saengine.mep/1', equipment: [], openings: [], shafts: [],
+			hvac: { system: 'vrf', plant: [{ id: 'ODU1', kind: 'vrfOutdoor', story: 'L1', x: 0, y: 0 }], ducts: [] },
+			electrical: { equipment: [{ id: 'TX1', kind: 'transformer', story: 'BASE', x: 0, y: 0 }], risers: [], trays: [] },
+		});
+		const summaryOf = (services: { hvac?: { failed: number }; electrical?: { failed: number } }) => JSON.stringify({
+			equipment: 0, openings: 0, openingsFailed: 0, clashes: 0, clashesOpen: 0, computed: '2026-10-18T00:00:00Z',
+			source: { settings: sourceStamp(SOURCES.settings), materials: sourceStamp(SOURCES.materials), objects: sourceStamp(SOURCES.objects), bim: sourceStamp(BIM), mep: sourceStamp(mep) },
+			...services,
+		});
+		const line = (summary?: string) => {
+			const s = computePartStatuses(PROJECT_PARTS, project({ mep }, summary ? { femResultsTime: 5, mepSummaryText: summary, mepSummaryTime: 20 } : {})).find(p => p.part === 'mep')!;
+			return `${s.state} ${s.text} (${s.hint ?? ''})`;
+		};
+		const fem = computePartStatuses(PROJECT_PARTS, project({ mep, fem: femModel({ bim: BIM, settings: SOURCES.settings, objects: SOURCES.objects, materials: SOURCES.materials }) })).find(p => p.part === 'fem')!;
+		assert.deepStrictEqual({
+			lines: [line(), line(summaryOf({})), line(summaryOf({ hvac: { failed: 0 } })), line(summaryOf({ hvac: { failed: 2 }, electrical: { failed: 0 } })),
+				line(summaryOf({ hvac: { failed: 0 }, electrical: { failed: 1 } })), line(summaryOf({ hvac: { failed: 0 }, electrical: { failed: 0 } }))],
+			// The plant and the equipment load the analysis model: a model derived before they were entered is stale.
+			femStale: fem.state,
+		}, {
+			lines: [
+				'inProgress not checked (check the openings and clashes)',
+				'inProgress HVAC not checked (open the HVAC results or Run All)',
+				'inProgress electrical not checked (open the electrical results or Run All)',
+				'failed 2 HVAC checks fail (review the ducts\' openings and the plant)',
+				'failed 1 electrical check fails (review the electrical services)',
+				'done services checked ()',
+			],
+			femStale: 'stale',
+		});
+	});
+
 	test('the analysis model and the bill are stale once MEP they do not record has content', () => {
 		const mep = JSON.stringify({ schema: 'saengine.mep/1', equipment: [{ id: 'EQ1' }], openings: [], shafts: [] });
 		const withMep = femModel({ bim: BIM, settings: SOURCES.settings, objects: SOURCES.objects, materials: SOURCES.materials, mep });

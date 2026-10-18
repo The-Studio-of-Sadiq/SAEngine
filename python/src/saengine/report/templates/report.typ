@@ -741,6 +741,226 @@ Sum of the support reactions of each load case, in global axes.
   #note[The plumbing could not be reported: #plb.problem]
 ]
 
+// ───────────────────────────── HVAC coordination ─────────────────────────────
+
+#let hv = data.hvac
+#if hv.available [
+  = HVAC coordination
+
+  The air-conditioning and ventilation of 7 MEP for their coordination with the structure
+  (BNBC 2020 Part 8 Chapter 2): the cooling loads that size the plant, the plant's weights on
+  the floors, the openings the ducts need through beams and slabs with their checks, and the
+  shafts. The HVAC design itself is the services engineer's.
+
+  == Summary
+  #pairs(hv.summary, width: 40%)
+  #if hv.failed > 0 {
+    note[*#hv.failed HVAC check(s) fail.* They are highlighted below.]
+  }
+
+  #if hv.zones.len() > 0 [
+    == Cooling loads
+    Per story [kW], supply and outdoor air [m³/s], and when the peak occurs (month, time).
+    #tbl(
+      ("Story", "Area [m²]", "Sensible", "Latent", "Total", "Supply air", "Outdoor air", "Peak"),
+      hv.zones,
+      columns: (auto, auto, auto, auto, auto, auto, auto, 1fr),
+      align: (left, right, right, right, right, right, right, left),
+      size: 8pt,
+    )
+  ]
+
+  #if hv.plant.len() > 0 [
+    == Plant on the structure
+    Sizes [mm] (L x W x H), capacity (kW cooling, m³/s for fans and fresh-air units),
+    operating weight [kN] and how the analysis loads it (dead load SD, the impact allowance of
+    BNBC 2020 Part 6 Table 6.2.6 as live load for rotating plant).
+    #tbl(
+      ("Id", "Kind", "Story", "Size", "Capacity", "Weight", "In the analysis"),
+      hv.plant,
+      columns: (auto, 1fr, auto, auto, auto, auto, 1fr),
+      align: (left, left, left, right, right, right, left),
+      size: 8pt,
+    )
+  ]
+
+  == Duct openings
+  #if hv.openings.len() > 0 [
+    Openings the ducts still need, each passing its checks; they are added to 7 MEP by its
+    Add Openings command (Run All reports them, it does not add them):
+    #tbl(
+      ("Opening", "Through", "Size [mm]", "For"),
+      hv.openings,
+      columns: (auto, auto, auto, 1fr),
+      align: (left, left, right, left),
+      size: 8pt,
+    )
+  ] else [
+    #empty[No duct opening is missing.]
+  ]
+  #if hv.existing != "" [
+    Openings of 7 MEP the ducts pass through: #hv.existing (their checks are in the MEP
+    coordination chapter).
+  ]
+  #if hv.conflicts.len() > 0 [
+    Ducts that cannot pass a beam or slab where they cross it, with the governing check and the
+    routes that work:
+    #tbl(
+      ("Duct", "At", "Governing check (util.)", "Options"),
+      hv.conflicts,
+      columns: (auto, auto, 1fr, 1fr),
+      align: (left, left, left, left),
+      bad: hv.conflicts.map(c => true),
+      size: 8pt,
+    )
+  ]
+
+  #if hv.shafts.len() > 0 [
+    == Shafts
+    #tbl(
+      ("Shaft", "Needed [m²]", "Area [m²]", "Result"),
+      hv.shafts,
+      columns: (1fr, auto, auto, auto),
+      align: (left, right, right, center),
+      size: 8pt,
+    )
+  ]
+
+  == Checks
+  #tbl(
+    ("Check", "Demand", "Capacity", "Unit", "Util.", "Result"),
+    hv.checks,
+    columns: (1fr, auto, auto, auto, auto, auto),
+    align: (left, right, right, left, right, center),
+    bad: hv.checkFails,
+    size: 8pt,
+  )
+
+  #if hv.method.len() > 0 [
+    == Method
+    #bullets(hv.method)
+  ]
+] else if hv.problem != "" [
+  = HVAC coordination
+  #note[The HVAC could not be reported: #hv.problem]
+]
+
+// ───────────────────────────── electrical coordination ─────────────────────────────
+
+#let el = data.electrical
+#if el.available [
+  = Electrical coordination
+
+  The electrical services of 7 MEP for their coordination with the structure (BNBC 2020
+  Part 8 Chapter 1): the demand that sizes the substation and generator, their rooms, the
+  equipment's weights on the floors, the rising mains and cable trays with the openings they
+  need, and the lightning protection with the columns' reinforcement as down conductors and
+  the foundations as the earth electrode. The electrical design itself is the services
+  engineer's.
+
+  == Summary
+  #pairs(el.summary, width: 6%)
+  #if el.failed > 0 {
+    note[*#el.failed electrical check(s) fail.* They are highlighted below.]
+  }
+
+  #if el.stories.len() > 0 [
+    == Demand
+    Per story: Table 8.1.17's use, area [m²], unit load [W/m²], connected load [kW] and the
+    maximum demand [kVA].
+    #tbl(
+      ("Story", "Use", "Area", "W/m²", "Connected", "kVA"),
+      el.stories,
+      columns: (auto, 1fr, auto, auto, auto, auto),
+      align: (left, left, right, right, right, right),
+      size: 8pt,
+    )
+  ]
+
+  #if el.equipment.len() > 0 [
+    == Equipment on the structure
+    Rating (kVA, kW for PV, A for panels), size [mm], operating weight [kN] (typical where
+    none is entered) and how the analysis loads it: dead load SD; a fuel tank's diesel as the
+    fluid load F; a generator's impact as live load.
+    #tbl(
+      ("Id", "Kind", "Story", "Rating", "Size", "Weight", "In the analysis"),
+      el.equipment,
+      columns: (auto, 1fr, auto, auto, auto, auto, 1fr),
+      align: (left, left, left, right, right, right, left),
+      size: 8pt,
+    )
+  ]
+
+  #if el.rooms.len() > 0 [
+    == Rooms
+    #tbl(
+      ("Check", "Demand", "Capacity", "Unit", "Util.", "Result"),
+      el.rooms,
+      columns: (1fr, auto, auto, auto, auto, auto),
+      align: (left, right, right, left, right, center),
+      bad: el.roomFails,
+      size: 8pt,
+    )
+  ]
+
+  #if el.risers.len() > 0 [
+    == Rising mains
+    #tbl(
+      ("Id", "Kind", "Size [mm]", "Rating [A]", "Current [A]", "Stories"),
+      el.risers,
+      columns: (auto, auto, auto, auto, auto, 1fr),
+      align: (left, left, right, right, right, left),
+      size: 8pt,
+    )
+  ]
+  #if el.openings.len() > 0 [
+    Openings the risers and trays still need (added to 7 MEP by its Add Openings command):
+    #tbl(
+      ("Opening", "Through", "Size [mm]", "For"),
+      el.openings,
+      columns: (auto, auto, auto, 1fr),
+      align: (left, left, right, left),
+      size: 8pt,
+    )
+  ]
+
+  == Lightning protection and earthing
+  #if el.lightning.enabled [
+    #el.lightning.risk
+
+    Down conductors (#el.lightning.needed needed): the column lines whose reinforcement is made
+    continuous from the foundation to the roof. For the structural drawings:
+    #tbl(
+      ("Id", "At (x, y) [mm]", "Columns", "Foundation", "Conductor"),
+      el.lightning.conductors,
+      columns: (auto, auto, 1fr, auto, auto),
+      align: (left, right, left, left, left),
+      size: 8pt,
+    )
+    #bullets(el.lightning.structural)
+  ] else [
+    #empty[Lightning protection is not enabled in 7 MEP.] #el.lightning.risk
+  ]
+
+  == Checks
+  #tbl(
+    ("Check", "Demand", "Capacity", "Unit", "Util.", "Result"),
+    el.checks,
+    columns: (1fr, auto, auto, auto, auto, auto),
+    align: (left, right, right, left, right, center),
+    bad: el.checkFails,
+    size: 8pt,
+  )
+
+  #if el.method.len() > 0 [
+    == Method
+    #bullets(el.method)
+  ]
+] else if el.problem != "" [
+  = Electrical coordination
+  #note[The electrical services could not be reported: #el.problem]
+]
+
 // ───────────────────────────── 5 bill of quantities ─────────────────────────────
 
 = Bill of quantities
@@ -795,6 +1015,16 @@ what the software did not check or assumed; the engineer must consider each one.
 #if plb.available [
   == Plumbing
   #if lim.plumbing.len() > 0 { bullets(lim.plumbing) } else { empty[No notes.] }
+]
+
+#if hv.available [
+  == HVAC coordination
+  #if lim.hvac.len() > 0 { bullets(lim.hvac) } else { empty[No notes.] }
+]
+
+#if el.available [
+  == Electrical coordination
+  #if lim.electrical.len() > 0 { bullets(lim.electrical) } else { empty[No notes.] }
 ]
 
 == Bill of quantities

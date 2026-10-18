@@ -340,6 +340,11 @@ def building_ifc(
         or mep.openings
         or mep.shafts
         or (mep.plumbing is not None and (mep.plumbing.tanks or mep.plumbing.risers))
+        or (mep.hvac is not None and (mep.hvac.plant or mep.hvac.ducts))
+        or (
+            mep.electrical is not None
+            and (mep.electrical.equipment or mep.electrical.risers or mep.electrical.trays)
+        )
     )
     ifc, ids, skipped = export_ifc(
         building, objects, materials, name, substructure, ground, mep if has_mep else None
@@ -949,6 +954,183 @@ def warm_plumbing() -> None:
     # Only a head start: when it fails, the report says what is missing.
     with contextlib.suppress(Exception):
         import saengine.plumbing.hydraulics  # noqa: F401
+
+
+# ──────────────────────────── HVAC and electrical (Part 7) ────────────────────────────
+
+
+def _finite(result: Any) -> Any:
+    from saengine.plumbing.project import finite
+
+    return finite(result)
+
+
+def hvac_report(
+    project_root: str, mep_text: str | None = None, calculate: bool = False
+) -> dict[str, Any]:
+    """The HVAC report of 7 MEP: the cooling loads (``saengine.hvac.report.hvac_loads``) at the
+    top level and the air side, plant, shafts and duct openings (``saengine.hvac.air.hvac_air``)
+    under ``air``. ``calculate`` False (the editor after each edit, Run All): EnergyPlus is not
+    started; its cached run is used when it matches the input, else the estimate, with
+    ``calculated`` False. ``calculate`` True: EnergyPlus version 26.2.0 runs (a separate
+    process, about half a minute; :func:`hvac_cancel_loads` stops it). Never raises."""
+    from saengine.hvac.air import hvac_air
+    from saengine.hvac.report import hvac_loads
+
+    try:
+        loads = hvac_loads(project_root, mep_text, run_energyplus=calculate)
+    except Exception as error:  # noqa: BLE001 - a partly entered model must not fail the RPC
+        return {"problems": [f"the cooling loads failed: {_first_line(error)}"]}
+    try:
+        air = hvac_air(project_root, loads=loads, mep_text=mep_text)
+    except Exception as error:  # noqa: BLE001
+        air = {"problems": [f"the air side failed: {_first_line(error)}"], "checks": []}
+    loads.pop("stamp", None)
+    return _finite({**loads, "air": air})
+
+
+def hvac_cancel_loads() -> dict[str, Any]:
+    """Stops the EnergyPlus runs in progress: ``{cancelled: n}``."""
+    from saengine.hvac.energyplus import cancel_runs
+
+    return {"cancelled": cancel_runs()}
+
+
+def _fast_loads(project_root: str, mep_text: str | None) -> dict[str, Any] | None:
+    from saengine.hvac.report import hvac_loads
+
+    try:
+        return hvac_loads(project_root, mep_text, run_energyplus=False)
+    except Exception:  # noqa: BLE001 - the caller works without the loads
+        return None
+
+
+def hvac_propose_plant(project_root: str, mep_text: str | None = None) -> dict[str, Any]:
+    """The plant SAEngine proposes (07 MEP ``hvac.plant`` entries, ``sized``) for the loads last
+    calculated (else the estimate): ``{plant, notes, ...}`` or ``{problems}``."""
+    from saengine.hvac.plant import hvac_propose_plant as propose
+
+    try:
+        return _finite(propose(project_root, _fast_loads(project_root, mep_text), mep_text))
+    except Exception as error:  # noqa: BLE001
+        return {"problems": [f"the plant could not be proposed: {_first_line(error)}"]}
+
+
+def hvac_duct_openings(project_root: str, mep_text: str | None = None) -> dict[str, Any]:
+    """The openings the ducts need through beams and slabs (07 MEP openings, each passing its
+    checks; ``replaces`` an accepted one when a duct moved), the conflicts with their options
+    and the ``stale`` openings: ``{openings, conflicts, stale, notes}`` or ``{problems}``."""
+    from saengine.hvac.openings import hvac_duct_openings as openings
+
+    try:
+        return _finite(openings(project_root, _fast_loads(project_root, mep_text), mep_text))
+    except Exception as error:  # noqa: BLE001
+        return {"problems": [f"the duct openings could not be found: {_first_line(error)}"]}
+
+
+def hvac_tables() -> dict[str, Any]:
+    """BNBC 2020 Part 8 Table 8.2.2's stations (2 % cooling design conditions, Sec 2.12.2.1)
+    and Table 8.2.3's occupancies: ``{cities: [{key, label, db, wb, range}], uses: [{key,
+    label, perPerson, perArea, density, source}]}``."""
+    from saengine.hvac import tables as T
+
+    cities = [
+        {
+            "key": s.key,
+            "label": s.name,
+            "db": s.cooling[T.DESIGN_LEVEL][0],
+            "wb": s.cooling[T.DESIGN_LEVEL][1],
+            "range": s.range,
+        }
+        for s in T.STATIONS.values()
+    ]
+    uses = [
+        {
+            "key": v.key,
+            "label": v.label,
+            "perPerson": v.perPerson,
+            "perArea": v.perArea,
+            "density": v.density,
+            "source": "BNBC 2020 Part 8 Table 8.2.3",
+        }
+        for v in T.VENTILATION.values()
+    ]
+    return {"cities": cities, "uses": uses}
+
+
+def hvac_constructions() -> dict[str, Any]:
+    """The envelope constructions SAEngine knows (typical Bangladeshi walls and roofs, glazing
+    from EnergyPlus version 26.2.0's data sets) with their U-values: ``{wall, roof, glazing}``
+    lists of ``{key, label, u, shgc?}``."""
+    from saengine.hvac import constructions as C
+
+    return {
+        "wall": [
+            {"key": k, "label": c.label, "u": round(C.u_value(c), 3)} for k, c in C.WALLS.items()
+        ],
+        "roof": [
+            {"key": k, "label": c.label, "u": round(C.u_value(c, roof=True), 3)}
+            for k, c in C.ROOFS.items()
+        ],
+        "glazing": [
+            {"key": k, "label": g.label, "u": g.u, "shgc": g.shgc} for k, g in C.GLAZINGS.items()
+        ],
+    }
+
+
+def electrical_report(project_root: str, mep_text: str | None = None) -> dict[str, Any]:
+    """The electrical report of 7 MEP (``saengine.electrical.report.electrical_report``: demand,
+    substation, generator, rooms, risers, trays, lightning protection), JSON-safe; never
+    raises."""
+    from saengine.electrical.report import electrical_report as report
+
+    try:
+        return report(project_root, mep_text)
+    except Exception as error:  # noqa: BLE001
+        return {"problems": [f"the electrical report failed: {_first_line(error)}"]}
+
+
+def electrical_propose_equipment(project_root: str, mep_text: str | None = None) -> dict[str, Any]:
+    """The electrical equipment SAEngine proposes (07 MEP ``electrical.equipment``, ``sized``):
+    ``{equipment, notes}`` or ``{problems}``."""
+    result = electrical_report(project_root, mep_text)
+    if "equipment" not in result:
+        return {"problems": result.get("problems") or ["no electrical report"]}
+    return {"equipment": result["equipment"], "notes": result.get("notes", [])}
+
+
+def electrical_openings(project_root: str, mep_text: str | None = None) -> dict[str, Any]:
+    """The openings the risers and trays still need (07 MEP openings no opening of 07 MEP
+    already gives): ``{openings, notes}`` or ``{problems}``."""
+    result = electrical_report(project_root, mep_text)
+    if "openings" not in result and "summary" not in result:
+        return {"problems": result.get("problems") or ["no electrical report"]}
+    notes = [n for n in result.get("notes", []) if isinstance(n, str) and "opening" in n]
+    return {"openings": result.get("openings", []), "notes": notes}
+
+
+def electrical_uses() -> dict[str, Any]:
+    """BNBC 2020 Part 8 Table 8.1.17's occupancies (minimum load densities, W/m²):
+    ``{uses: [{key, label, nonAc, ac, source}]}``."""
+    from saengine.electrical.tables import USES
+
+    return {
+        "uses": [
+            {"key": u.key, "label": u.label, "nonAc": u.non_ac, "ac": u.ac,
+             "source": "BNBC 2020 Part 8 Table 8.1.17"}
+            for u in USES.values()
+        ]
+    }  # fmt: skip
+
+
+def warm_services() -> None:
+    """Imports the HVAC and electrical modules ahead of the editor's first report."""
+    import contextlib
+
+    with contextlib.suppress(Exception):
+        import saengine.electrical.report
+        import saengine.hvac.air
+        import saengine.hvac.report  # noqa: F401
 
 
 # ─────────────────────────────────────── soil springs ───────────────────────────────────────

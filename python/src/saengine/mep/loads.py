@@ -29,6 +29,11 @@ Load cases (BNBC 2020, Part 6 Chapter 2):
 - An overhead tank of the plumbing (``plumbing.tanks``, kind "overhead") is equipment of kind
   "tank" too (:func:`plumbing_tank_equipment`): its reinforced concrete SD, its water the
   contents. One linked to an equipment tank, or standing where one is, is left to it.
+- The HVAC plant (``hvac.plant``) and the electrical equipment (``electrical.equipment``) are
+  equipment too (:func:`services_equipment`), with the same rule against counting twice. A
+  fuel tank's diesel is a fluid of well-defined density and controllable maximum height, F
+  (Sec 2.1.4, symbol F); a transformer's oil is always there, part of the equipment, D
+  (Sec 2.1.4, symbol D: "weight of permanent equipment"; Sec 2.2.6).
 
 Seismic weight (Sec 2.5.7.3 (c)): the total (100 %) weight of permanent heavy equipment and of
 retained liquid is included, so the equipment and its contents count in full whatever case they
@@ -673,14 +678,188 @@ def with_plumbing_tanks(mep: MepModel, materials: Any = None) -> tuple[MepModel,
     return mep.model_copy(update={"equipment": [*mep.equipment, *extra]}), notes
 
 
+def _unique(base: str, taken: set[str]) -> str:
+    candidate, k = bounded_id(base), 2
+    while candidate in taken:
+        candidate, k = bounded_id(base, f"-{k}"), k + 1
+    taken.add(candidate)
+    return candidate
+
+
+def _entered_as_equipment(mep: MepModel, item_id: str) -> Equipment | None:
+    """The 07 MEP equipment that already is this service item: the one whose id is the item's
+    load id (``EQ-<id>``) or the item's own id (never counted twice)."""
+    ids = {f"EQ-{item_id}", item_id}
+    return next((e for e in mep.equipment if e.id in ids), None)
+
+
+def _renamed(item_id: str, load_id: str, base: str) -> list[str]:
+    if load_id == base:
+        return []
+    return [f"{item_id}: loaded as {load_id} ({base} is the id of another item)"]
+
+
+def _stands_under(mep: MepModel, story: str, x: float, y: float) -> Equipment | None:
+    """The 07 MEP equipment of ``story`` whose footprint covers the plan point, if any."""
+    return next((e for e in mep.equipment if e.story == story and footprint_covers(e, x, y)), None)
+
+
+def hvac_plant_equipment(
+    mep: MepModel, taken: set[str], origin: dict[str, str] | None = None
+) -> tuple[list[Equipment], list[str]]:
+    """The HVAC plant of ``mep.hvac`` as equipment for the analysis loads (BNBC 2020 Part 6 Sec
+    2.2.6: HVAC systems supported by structural members are dead load; the rotating plant
+    vibrates, Sec 2.3.12 and Table 6.2.6), and notes. A unit without its footprint or weight
+    takes the typical one of its kind for its capacity (:func:`saengine.hvac.plant.own_size`,
+    from memory, labelled so). Never counted twice: a unit linked to an equipment
+    (``equipment``), or standing where an equipment of its story is, is left to that equipment;
+    ``taken`` holds the ids already used (updated); ``origin`` (updated) maps each load id to
+    the plant's own id."""
+    hvac = mep.hvac
+    if hvac is None:
+        return [], []
+    from saengine.hvac.plant import TYPICAL_NOTE, own_size
+    from saengine.hvac.report import plant_equipment
+
+    out: list[Equipment] = []
+    notes: list[str] = []
+    for plant in hvac.plant:
+        if plant.equipment is not None:
+            notes.append(f"{plant.id}: its weight is that of equipment {plant.equipment}")
+            continue
+        entered = _entered_as_equipment(mep, plant.id)
+        if entered is not None:
+            notes.append(
+                f"{plant.id}: equipment {entered.id} of 07 MEP has its id; its weight is taken as "
+                f"{entered.id}'s (link them in 07 MEP, or rename one)"
+            )
+            continue
+        same = _stands_under(mep, plant.story, plant.x, plant.y)
+        if same is not None:
+            notes.append(
+                f"{plant.id}: stands where equipment {same.id} is; its weight is taken as "
+                f"{same.id}'s (link them in 07 MEP, or delete {same.id})"
+            )
+            continue
+        data = plant.model_dump(mode="json", exclude_none=True)
+        keys = ("length", "width", "height", "operatingWeight")
+        missing = [k for k in keys if data.get(k) is None]
+        if missing and plant.capacity:
+            sized = own_size(plant.kind, plant.capacity)
+            if sized is not None:
+                typical = dict(zip(keys, (*sized[:3], round(sized[3], 1)), strict=True))
+                for key in missing:
+                    data[key] = typical[key]
+                notes.append(
+                    f"{plant.id}: {', '.join(missing)} of a typical {plant.kind} of its "
+                    f"capacity ({TYPICAL_NOTE})"
+                )
+        entry = plant_equipment(data)
+        if entry is None:
+            notes.append(f"{plant.id}: no footprint or operating weight yet; not loaded")
+            continue
+        base = entry["id"]
+        entry["id"] = _unique(base, taken)
+        notes.extend(_renamed(plant.id, entry["id"], base))
+        try:
+            out.append(Equipment.model_validate(entry))
+            if origin is not None:
+                origin[entry["id"]] = plant.id
+        except ValueError as error:
+            notes.append(f"{plant.id}: its load could not be made ({error}); not loaded")
+    return out, notes
+
+
+def electrical_equipment_loads(
+    mep: MepModel, taken: set[str], origin: dict[str, str] | None = None
+) -> tuple[list[Equipment], list[str]]:
+    """The electrical equipment of ``mep.electrical`` as equipment for the analysis loads
+    (:func:`saengine.electrical.report.electrical_equipment`: typical size and weight where none
+    is given; a generator vibrates; a fuel tank's diesel is its contents, fluid F; a
+    transformer's oil is part of its dead load), and notes. Never counted twice: linked items
+    and items under an equipment of their story are left to that equipment."""
+    if mep.electrical is None:
+        return [], []
+    from saengine.electrical.report import electrical_equipment
+
+    entries, notes = electrical_equipment(mep)
+    out: list[Equipment] = []
+    for entry in entries:
+        item_id = entry["id"].removeprefix("EQ-")
+        entered = _entered_as_equipment(mep, item_id)
+        if entered is not None:
+            notes.append(
+                f"{item_id}: equipment {entered.id} of 07 MEP has its id; its weight is taken as "
+                f"{entered.id}'s (link them in 07 MEP, or rename one)"
+            )
+            continue
+        base = entry["id"]
+        entry = {**entry, "id": _unique(base, taken)}
+        notes.extend(_renamed(item_id, entry["id"], base))
+        try:
+            out.append(Equipment.model_validate(entry))
+            if origin is not None:
+                origin[entry["id"]] = item_id
+        except ValueError as error:
+            notes.append(f"{entry['id']}: its load could not be made ({error}); not loaded")
+    return out, notes
+
+
+def services_by_discipline(
+    mep: MepModel, materials: Any = None
+) -> tuple[dict[str, dict[str, Equipment]], list[str]]:
+    """The equipment of :func:`services_equipment` by discipline (``plumbing``, ``hvac``,
+    ``electrical``) and the item's own id (so an item is found even when its load id had to be
+    made unique, or when two disciplines use one id); and notes (prefixed with the
+    discipline)."""
+    tanks, tank_notes = plumbing_tank_equipment(mep, materials)
+    taken = {e.id for e in mep.equipment} | {t.id for t in tanks}
+    origin: dict[str, str] = {}
+    plant, plant_notes = hvac_plant_equipment(mep, taken, origin)
+    electrical, electrical_notes = electrical_equipment_loads(mep, taken, origin)
+    notes = [
+        *tank_notes,
+        *(f"HVAC: {n}" for n in plant_notes),
+        *(f"electrical: {n}" for n in electrical_notes),
+    ]
+    groups = {
+        "plumbing": {t.id: t for t in tanks},
+        "hvac": {origin[e.id]: e for e in plant},
+        "electrical": {origin[e.id]: e for e in electrical},
+    }
+    return groups, notes
+
+
+def services_equipment(mep: MepModel, materials: Any = None) -> tuple[list[Equipment], list[str]]:
+    """Everything of 07 MEP's disciplines that loads the structure as equipment: the plumbing's
+    overhead tanks (:func:`plumbing_tank_equipment`), the HVAC plant
+    (:func:`hvac_plant_equipment`) and the electrical equipment
+    (:func:`electrical_equipment_loads`), each once, under ids no other item has (an item whose
+    id an 07 MEP equipment already has is left to that equipment); and notes (prefixed with the
+    discipline)."""
+    groups, notes = services_by_discipline(mep, materials)
+    return [e for group in groups.values() for e in group.values()], notes
+
+
+def with_services_equipment(mep: MepModel, materials: Any = None) -> tuple[MepModel, list[str]]:
+    """A copy of ``mep`` whose equipment includes its disciplines' (:func:`services_equipment`),
+    and notes; ``mep`` itself when there is none."""
+    extra, notes = services_equipment(mep, materials)
+    if not extra:
+        return mep, notes
+    return mep.model_copy(update={"equipment": [*mep.equipment, *extra]}), notes
+
+
 def has_model_content(mep: MepModel) -> bool:
-    """Whether 07 MEP gives the analysis model anything: equipment, openings, shafts, or an
-    overhead plumbing tank (its weight)."""
+    """Whether 07 MEP gives the analysis model anything: equipment, openings, shafts, an
+    overhead plumbing tank, HVAC plant or electrical equipment (their weights)."""
     return bool(
         mep.equipment
         or mep.openings
         or mep.shafts
         or (mep.plumbing is not None and any(t.kind == "overhead" for t in mep.plumbing.tanks))
+        or (mep.hvac is not None and mep.hvac.plant)
+        or (mep.electrical is not None and mep.electrical.equipment)
     )
 
 

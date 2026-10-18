@@ -41,6 +41,19 @@ Methods:
 - ``mep/plumbingSizeTanks`` ``{projectRoot, mepText?}`` -> ``{tanks, notes}`` proposed tanks
 - ``mep/plumbingSleeves`` ``{projectRoot, mepText?}`` -> ``{openings, notes}`` missing sleeves
 - ``mep/plumbingOccupancies`` ``{}`` -> ``{occupancies}`` BNBC Table 8.5.1's rows
+- ``mep/hvacReport`` ``{projectRoot, mepText?}`` -> the cooling loads (the cached EnergyPlus run
+  of this input, else the estimate; EnergyPlus is not started) and the air side under ``air``
+- ``mep/hvacLoads`` ``{projectRoot, mepText?}`` -> the same after running EnergyPlus version
+  26.2.0 (a separate process, in a worker thread so the other methods keep answering)
+- ``mep/hvacCancelLoads`` ``{}`` -> ``{cancelled}`` stops the EnergyPlus runs in progress
+- ``mep/hvacProposePlant`` ``{projectRoot, mepText?}`` -> ``{plant, notes}`` proposed plant
+- ``mep/hvacDuctOpenings`` ``{projectRoot, mepText?}`` -> ``{openings, conflicts, stale, notes}``
+- ``mep/hvacTables`` ``{}`` -> ``{cities, uses}`` BNBC Tables 8.2.2 (2 %) and 8.2.3
+- ``mep/hvacConstructions`` ``{}`` -> ``{wall, roof, glazing}`` with their U-values
+- ``mep/electricalReport`` ``{projectRoot, mepText?}`` -> the electrical coordination report
+- ``mep/electricalProposeEquipment`` ``{projectRoot, mepText?}`` -> ``{equipment, notes}``
+- ``mep/electricalOpenings`` ``{projectRoot, mepText?}`` -> ``{openings, notes}`` still missing
+- ``mep/electricalUses`` ``{}`` -> ``{uses}`` BNBC Table 8.1.17's rows
 
 Analyses themselves are not run here: the workbench starts
 ``python -m opensees_studio.run`` per run, so an OpenSees hard exit can never take
@@ -279,6 +292,60 @@ def create_server() -> JsonRPCServer:
     def _plumbing_occupancies(params: Any) -> dict[str, Any]:
         return handlers.plumbing_occupancies()
 
+    @server.feature("mep/hvacReport")
+    def _hvac_report(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.hvac_report(args["projectRoot"], args.get("mepText"))
+
+    # EnergyPlus takes up to half a minute: in a worker thread, so the editor's other requests
+    # (and mep/hvacCancelLoads) are answered meanwhile.
+    @server.feature("mep/hvacLoads")
+    @server.thread()
+    def _hvac_loads(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.hvac_report(args["projectRoot"], args.get("mepText"), calculate=True)
+
+    @server.feature("mep/hvacCancelLoads")
+    def _hvac_cancel_loads(params: Any) -> dict[str, Any]:
+        return handlers.hvac_cancel_loads()
+
+    @server.feature("mep/hvacProposePlant")
+    def _hvac_propose_plant(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.hvac_propose_plant(args["projectRoot"], args.get("mepText"))
+
+    @server.feature("mep/hvacDuctOpenings")
+    def _hvac_duct_openings(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.hvac_duct_openings(args["projectRoot"], args.get("mepText"))
+
+    @server.feature("mep/hvacTables")
+    def _hvac_tables(params: Any) -> dict[str, Any]:
+        return handlers.hvac_tables()
+
+    @server.feature("mep/hvacConstructions")
+    def _hvac_constructions(params: Any) -> dict[str, Any]:
+        return handlers.hvac_constructions()
+
+    @server.feature("mep/electricalReport")
+    def _electrical_report(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.electrical_report(args["projectRoot"], args.get("mepText"))
+
+    @server.feature("mep/electricalProposeEquipment")
+    def _electrical_propose_equipment(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.electrical_propose_equipment(args["projectRoot"], args.get("mepText"))
+
+    @server.feature("mep/electricalOpenings")
+    def _electrical_openings(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.electrical_openings(args["projectRoot"], args.get("mepText"))
+
+    @server.feature("mep/electricalUses")
+    def _electrical_uses(params: Any) -> dict[str, Any]:
+        return handlers.electrical_uses()
+
     return server
 
 
@@ -299,5 +366,6 @@ def main() -> int:
     server = create_server()
     # WNTR's first import takes a second or two: done ahead of the editor's first request.
     threading.Thread(target=handlers.warm_plumbing, name="warm-plumbing", daemon=True).start()
+    threading.Thread(target=handlers.warm_services, name="warm-services", daemon=True).start()
     server.start_io(sys.stdin.buffer, stdout)
     return 0

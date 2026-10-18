@@ -65,7 +65,10 @@ export const SSI_FILE = 'ssi.json';
 export function mepHasContent(text: string | undefined): boolean {
 	try {
 		const value = text ? JSON.parse(text) : undefined;
-		return typeof value === 'object' && value !== null && ['equipment', 'openings', 'shafts'].some(key => Array.isArray(value[key]) && value[key].length > 0);
+		const listed = (list: unknown) => Array.isArray(list) && list.length > 0;
+		return typeof value === 'object' && value !== null && (['equipment', 'openings', 'shafts'].some(key => listed(value[key]))
+			// The HVAC plant and the electrical equipment load the model as equipment too.
+			|| listed(value.hvac?.plant) || listed(value.electrical?.equipment));
 	} catch {
 		return false;
 	}

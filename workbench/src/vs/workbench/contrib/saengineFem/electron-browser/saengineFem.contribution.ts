@@ -3,6 +3,7 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -10,7 +11,7 @@ import { IModelService } from '../../../../editor/common/services/model.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { IBoqComputeRequest, IBuildingIfcRequest, IFemDeriveRequest, IFemSolverService, ISoilBearingRequest, IStructureGeometry, IStructureScriptResult, LibraryFileKind } from '../../../../platform/saengine/common/femSolver.js';
+import { IBoqComputeRequest, IBuildingIfcRequest, IFemDeriveRequest, IFemSolverService, IMepServiceParams, ISoilBearingRequest, IStructureGeometry, IStructureScriptResult, LibraryFileKind, MepServiceMethod } from '../../../../platform/saengine/common/femSolver.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -382,4 +383,42 @@ CommandsRegistry.registerCommand('saengine.plumbing.sleeves', async (accessor, a
 CommandsRegistry.registerCommand('saengine.plumbing.occupancies', async accessor => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	return accessor.get(IFemSolverService).plumbingOccupancies(python);
+});
+
+/**
+ * Part 7 HVAC (BNBC 2020 Part 8 Chapter 2) and electrical (Chapter 1): the reports, the plant,
+ * equipment and openings SAEngine proposes, and their tables. Internal: the MEP editor's HVAC
+ * and Electrical views and Run All call them by id. `saengine.hvac.report` never starts
+ * EnergyPlus (it is asked after every edit); `saengine.hvac.loads` runs it (a separate process
+ * the backend runs in a worker thread) and stops it when its token is cancelled.
+ */
+function registerMepService(id: string, method: MepServiceMethod, keys: readonly string[]): void {
+	CommandsRegistry.registerCommand(id, async (accessor, args?: IMepCommandArgs) => {
+		const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+		const params: IMepServiceParams = args ? { projectRoot: args.projectRoot, mepText: args.mepText } : {};
+		return problemsOrResult(await accessor.get(IFemSolverService).mepService(python, method, params), keys);
+	});
+}
+
+registerMepService('saengine.hvac.report', 'mep/hvacReport', ['zones', 'air']);
+registerMepService('saengine.hvac.proposePlant', 'mep/hvacProposePlant', ['plant']);
+registerMepService('saengine.hvac.ductOpenings', 'mep/hvacDuctOpenings', ['openings']);
+registerMepService('saengine.hvac.tables', 'mep/hvacTables', ['cities']);
+registerMepService('saengine.hvac.constructions', 'mep/hvacConstructions', ['wall']);
+registerMepService('saengine.electrical.report', 'mep/electricalReport', ['demand', 'checks']);
+registerMepService('saengine.electrical.proposeEquipment', 'mep/electricalProposeEquipment', ['equipment']);
+registerMepService('saengine.electrical.openings', 'mep/electricalOpenings', ['openings']);
+registerMepService('saengine.electrical.uses', 'mep/electricalUses', ['uses']);
+
+CommandsRegistry.registerCommand('saengine.hvac.loads', async (accessor, args: IMepCommandArgs, token?: CancellationToken) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	const solver = accessor.get(IFemSolverService);
+	const cancel = token?.onCancellationRequested(() => {
+		solver.mepService(python, 'mep/hvacCancelLoads', {}).catch(() => { /* the run ends anyway */ });
+	});
+	try {
+		return problemsOrResult(await solver.mepService(python, 'mep/hvacLoads', { projectRoot: args.projectRoot, mepText: args.mepText }), ['zones', 'air']);
+	} finally {
+		cancel?.dispose();
+	}
 });

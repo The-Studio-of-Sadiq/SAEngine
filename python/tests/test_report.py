@@ -19,7 +19,7 @@ from saengine.library import default_material_library
 from saengine.library.bim import generate
 from saengine.library.settings import LoadCombination
 from saengine.report import build_report, report_data
-from saengine.report.build import count_pages, fmt, project_name
+from saengine.report.build import _boq, _Parts, count_pages, fmt, project_name
 
 #: Typst markup characters in the project's name: they must be printed, not interpreted.
 NAME = 'Bay #1 $x$ *bold* _it_ @ref <lbl> [b] \\ "q" // c'
@@ -375,3 +375,41 @@ def test_soil_and_foundations_chapter(project: Path, tmp_path: Path) -> None:
         for heading in ("Soil and foundations", "Boreholes", "Allowable bearing pressure"):
             assert heading in text
         assert "Liquefaction screening" in text
+
+
+def test_a_freshly_computed_bill_of_quantities_is_current(tmp_path: Path) -> None:
+    """The bill records only the ground level of the settings: a bill computed from the files
+    is current, and stays so after other settings change, until the ground level does."""
+    sample = Path(__file__).parents[2] / "workbench/resources/saengine/samples/Sample Frame"
+    root = tmp_path / "sample"
+    shutil.copytree(sample, root)
+
+    def text(relative: str) -> str:
+        return (root / relative).read_text(encoding="utf-8")
+
+    settings_file = "02 Project Settings/project-settings.json"
+    boq = compute_boq(
+        text("06 BIM/bim.json"),
+        text("04 Objects/objects.json"),
+        text("03 Materials/materials.json"),
+        text("09 Substructure/substructure.json"),
+        text(settings_file),
+        text("07 MEP/mep.json"),
+        str(root),
+    )
+    assert boq["source"]["settings"] is not None
+    _write(root, {"10 BOQ/boq.json": json.dumps(boq)})
+    warnings: list[str] = []
+    boq = _boq(_Parts(root, warnings))
+    assert boq["status"] == "ok", boq["message"]
+    assert warnings == []
+
+    settings = json.loads(text(settings_file))
+    settings["foundation"]["allowableBearing"] += 50
+    _write(root, {settings_file: json.dumps(settings, indent=2)})
+    assert _boq(_Parts(root, []))["status"] == "ok"
+
+    settings["foundation"]["groundLevel"] = settings["foundation"].get("groundLevel", 0) - 300
+    _write(root, {settings_file: json.dumps(settings, indent=2)})
+    boq = _boq(_Parts(root, []))
+    assert boq["status"] == "stale" and settings_file in boq["message"]

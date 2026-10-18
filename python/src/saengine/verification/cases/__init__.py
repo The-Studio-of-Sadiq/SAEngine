@@ -5,6 +5,9 @@ from __future__ import annotations
 from saengine.verification.cases import (
     analysis,
     design,
+    electrical,
+    hvac_air,
+    hvac_loads,
     hydraulics,
     mep,
     plumbing,
@@ -29,6 +32,9 @@ CASES: list[Case] = [
     *plumbing.CASES,
     *hydraulics.CASES,
     *tanks.CASES,
+    *electrical.CASES,
+    *hvac_air.CASES,
+    *hvac_loads.CASES,
 ]
 BY_ID: dict[str, Case] = {case.id: case for case in CASES}
 

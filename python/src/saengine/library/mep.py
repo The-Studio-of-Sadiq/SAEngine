@@ -18,6 +18,10 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from saengine.electrical.tables import USE_KEYS as ELECTRICAL_USE_KEYS
+from saengine.electrical.tables import USES as ELECTRICAL_USES
+from saengine.hvac.constructions import GLAZING_KEYS, GLAZINGS, ROOF_KEYS, ROOFS, WALL_KEYS, WALLS
+from saengine.hvac.tables import STATION_KEYS, STATIONS, VENTILATION, VENTILATION_KEYS
 from saengine.library.labels import field_title
 from saengine.library.materials import Id
 from saengine.plumbing.tables import OCCUPANCIES, OCCUPANCY_KEYS
@@ -500,6 +504,596 @@ class Plumbing(_Model):
         return self
 
 
+# ──────────────────────────── hvac (cooling loads by saengine.hvac) ────────────────────────────
+
+HvacUse = Literal[VENTILATION_KEYS]  # type: ignore[valid-type]
+HvacCity = Literal[STATION_KEYS]  # type: ignore[valid-type]
+HVAC_SYSTEMS = {
+    "vrf": "Variable refrigerant flow (VRF)",
+    "chilledWater": "Chilled water (chillers, AHUs, FCUs)",
+    "split": "Split air-conditioners",
+    "packaged": "Packaged units",
+    "none": "None (naturally ventilated)",
+}
+HVAC_PLANT_KINDS = {
+    "chiller": "Chiller",
+    "coolingTower": "Cooling tower",
+    "ahu": "Air handling unit",
+    "fcu": "Fan coil unit",
+    "vrfOutdoor": "VRF outdoor unit",
+    "splitOutdoor": "Split outdoor unit",
+    "pump": "Pump",
+    "exhaustFan": "Exhaust fan",
+    "freshAirUnit": "Fresh air unit",
+}
+DUCT_SYSTEMS = {
+    "supply": "Supply air",
+    "return": "Return air",
+    "exhaust": "Exhaust air",
+    "freshAir": "Fresh air",
+    "kitchenExhaust": "Kitchen exhaust",
+    "smoke": "Smoke extract",
+}
+
+
+class HvacDesign(_Model):
+    """The design conditions (BNBC 2020 Part 8 Sec 2.7.2 and 2.12.2)."""
+
+    city: HvacCity | None = Field(  # type: ignore[valid-type]
+        default=None,
+        description="Station of Table 8.2.2 (outside design conditions); empty: the Project "
+        "Settings site, else Dhaka.",
+        json_schema_extra=_labels([STATIONS[k].name for k in STATION_KEYS]),
+    )
+    outdoorDB: float | None = Field(
+        default=None,
+        title="Outdoor dry bulb",
+        description="[°C]; empty: the station's 2 % dry bulb (Sec 2.12.2.1).",
+    )
+    outdoorWB: float | None = Field(
+        default=None,
+        title="Outdoor wet bulb",
+        description="Mean coincident wet bulb [°C]; empty: the station's 2 % MWB.",
+    )
+    indoorDB: float | None = Field(
+        default=None,
+        title="Indoor dry bulb",
+        description="[°C]; empty: 24 °C (Sec 2.12.2.2) within the use's Table 8.2.1 range.",
+    )
+    indoorRH: float | None = Field(
+        default=None,
+        gt=0,
+        lt=100,
+        title="Indoor relative humidity",
+        description="[%]; empty: the upper value of the use's Table 8.2.1 range (Sec 2.12.2.3).",
+    )
+    dailyRange: float | None = Field(
+        default=None,
+        ge=0,
+        title="Daily range",
+        description="Of the outdoor dry bulb [°C]; empty: Table 8.2.2 column 14.",
+    )
+
+
+class HvacEnvelope(_Model):
+    """The building envelope's constructions (typical Bangladeshi, EnergyPlus data sets)."""
+
+    wall: Literal[WALL_KEYS] = Field(  # type: ignore[valid-type]
+        default="brick250", json_schema_extra=_labels([WALLS[k].label for k in WALL_KEYS])
+    )
+    roof: Literal[ROOF_KEYS] = Field(  # type: ignore[valid-type]
+        default="rcLimeTerracing", json_schema_extra=_labels([ROOFS[k].label for k in ROOF_KEYS])
+    )
+    glazing: Literal[GLAZING_KEYS] = Field(  # type: ignore[valid-type]
+        default="singleClear",
+        json_schema_extra=_labels([GLAZINGS[k].label for k in GLAZING_KEYS]),
+    )
+    uWall: float | None = Field(
+        default=None, gt=0, title="Wall U-value", description="Overrides the wall's [W/m²K]."
+    )
+    uRoof: float | None = Field(
+        default=None, gt=0, title="Roof U-value", description="Overrides the roof's [W/m²K]."
+    )
+    uGlazing: float | None = Field(
+        default=None, gt=0, title="Glazing U-value", description="Overrides the glass's [W/m²K]."
+    )
+    shgc: float | None = Field(
+        default=None,
+        gt=0,
+        lt=1,
+        title="SHGC",
+        description="Solar heat gain coefficient of the glazing; overrides the glass's.",
+    )
+    shading: Literal["none", "overhang", "blinds"] = Field(
+        default="none",
+        description="Overhang: a sunshade over every window 0.234 x its height deep (BNBC 2020 "
+        "Part 3 Sec 4.4.3.1). Blinds: interior blinds, always drawn.",
+        json_schema_extra=_labels(["None", "Overhangs (Part 3 Sec 4.4.3.1)", "Interior blinds"]),
+    )
+
+
+class FacadeGlazing(_Model):
+    """Window-to-wall ratio of each facade (0 to 0.9); empty: 0.2 (BNBC 2020 Part 3 Sec
+    4.5.1.2(a))."""
+
+    N: float | None = Field(default=None, ge=0, le=0.9)
+    E: float | None = Field(default=None, ge=0, le=0.9)
+    S: float | None = Field(default=None, ge=0, le=0.9)
+    W: float | None = Field(default=None, ge=0, le=0.9)
+
+
+class HvacStory(_Model):
+    """A story's use and internal gains for the cooling load."""
+
+    story: Id = Field(description="Building-model story.")
+    conditioned: bool = True
+    use: HvacUse = Field(  # type: ignore[valid-type]
+        default="officeSpace",
+        description="Row of BNBC 2020 Part 8 Table 8.2.3 (ventilation and occupant density).",
+        json_schema_extra=_labels([VENTILATION[k].label for k in VENTILATION_KEYS]),
+    )
+    occupants: float | None = Field(
+        default=None, ge=0, description="Persons; empty: Table 8.2.3's default density."
+    )
+    lighting: float | None = Field(
+        default=None, ge=0, description="[W/m²]; empty: Part 3 Table 3.4.5's maximum."
+    )
+    equipment: float | None = Field(
+        default=None, ge=0, description="Plug loads [W/m²]; empty: SAEngine's value for the use."
+    )
+    glazing: FacadeGlazing = Field(default_factory=FacadeGlazing)
+
+
+class HvacPlant(_Model):
+    """A piece of HVAC plant: its weight is a load on the structure (through 07 MEP equipment)."""
+
+    id: Id
+    kind: Literal[tuple(HVAC_PLANT_KINDS)] = Field(  # type: ignore[valid-type]
+        json_schema_extra=_labels(list(HVAC_PLANT_KINDS.values()))
+    )
+    story: Id = Field(description="Building-model story it stands on.")
+    x: Mm = Field(description="Centre, plan X [mm].")
+    y: Mm = Field(description="Centre, plan Y [mm].")
+    length: Length | None = None
+    width: Length | None = None
+    height: Length | None = None
+    capacity: float | None = Field(
+        default=None, gt=0, description="Cooling [kW], or air flow [m³/s] for fans."
+    )
+    operatingWeight: float | None = Field(
+        default=None, gt=0, title="Operating weight", description="[kN]"
+    )
+    sized: bool = Field(default=False, description="Proposed by SAEngine (editable).")
+    serves: list[Id] | None = Field(default=None, description="Stories it serves.")
+    power: float | None = Field(
+        default=None,
+        gt=0,
+        title="Electrical power",
+        description="Input [kW] for the electrical demand; empty: estimated from its capacity.",
+    )
+    equipment: Id | None = Field(
+        default=None,
+        description="The 07 MEP equipment that already carries its weight in the analysis; "
+        "empty: SAEngine loads the model with this item (unless an equipment stands there).",
+    )
+
+
+class DuctRiser(_Model):
+    fromStory: Id = Field(title="From story")
+    toStory: Id = Field(title="To story")
+
+
+class Duct(_Model):
+    """A duct run: horizontal in plan on a story, or a riser at its first point."""
+
+    id: Id
+    system: Literal[tuple(DUCT_SYSTEMS)] = Field(  # type: ignore[valid-type]
+        default="supply", json_schema_extra=_labels(list(DUCT_SYSTEMS.values()))
+    )
+    shape: Literal["rect", "round"] = Field(
+        default="rect", json_schema_extra=_labels(["Rectangular", "Round"])
+    )
+    width: Length | None = None
+    height: Length | None = None
+    diameter: Length | None = None
+    story: Id = Field(description="Building-model story.")
+    path: list[Point2] = Field(min_length=1, description="Plan points [mm].")
+    bottom: Mm | None = Field(
+        default=None,
+        description="Underside above the story's floor [mm]; empty: just below the slab soffit.",
+    )
+    riser: DuctRiser | None = None
+    shaft: Id | None = None
+    flow: float | None = Field(default=None, gt=0, description="[m³/s]")
+
+
+class Hvac(_Model):
+    """Air-conditioning and ventilation the structure coordinates with (BNBC 2020 Part 8
+    Chapter 2): cooling loads, plant weights, ducts through the structure."""
+
+    system: Literal[tuple(HVAC_SYSTEMS)] = Field(  # type: ignore[valid-type]
+        default="split", json_schema_extra=_labels(list(HVAC_SYSTEMS.values()))
+    )
+    design: HvacDesign = Field(default_factory=HvacDesign)
+    envelope: HvacEnvelope = Field(default_factory=HvacEnvelope)
+    stories: list[HvacStory] = Field(default_factory=list)
+    plant: list[HvacPlant] = Field(default_factory=list)
+    ducts: list[Duct] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _ids(self) -> Hvac:
+        ids = [x.id for x in (*self.plant, *self.ducts)]
+        duplicates = sorted({i for i in ids if ids.count(i) > 1})
+        if duplicates:
+            raise ValueError(f"duplicate hvac ids: {', '.join(duplicates)}")
+        stories = [s.story for s in self.stories]
+        twice = sorted({s for s in stories if stories.count(s) > 1})
+        if twice:
+            raise ValueError(f"hvac stories listed twice: {', '.join(twice)}")
+        return self
+
+
+def hvac_references(mep: MepModel, stories: dict[str, float]) -> list[str]:
+    """Problems with the stories and shafts the hvac section refers to (``stories``: building
+    story id -> elevation)."""
+    hvac = mep.hvac
+    if hvac is None:
+        return []
+    problems = []
+    shafts = {s.id for s in mep.shafts}
+    for entry in hvac.stories:
+        if entry.story not in stories:
+            problems.append(f"hvac: no story '{entry.story}'")
+    for item in hvac.plant:
+        missing = [s for s in (item.story, *(item.serves or [])) if s not in stories]
+        if missing:
+            problems.append(f"{item.id}: no story '{missing[0]}'")
+    for duct in hvac.ducts:
+        names = [duct.story, *((duct.riser.fromStory, duct.riser.toStory) if duct.riser else ())]
+        missing = [s for s in names if s not in stories]
+        if missing:
+            problems.append(f"{duct.id}: no story '{missing[0]}'")
+        elif duct.riser and stories[duct.riser.toStory] <= stories[duct.riser.fromStory]:
+            problems.append(f"{duct.id}: its riser's top story must be above its start")
+        if duct.shaft is not None and duct.shaft not in shafts:
+            problems.append(f"{duct.id}: no shaft '{duct.shaft}'")
+    return problems
+
+
+# ────────────────────── electrical (coordinated by saengine.electrical) ──────────────────────
+
+ElectricalUse = Literal[ELECTRICAL_USE_KEYS]  # type: ignore[valid-type]
+ElectricalEquipmentKind = Literal[
+    "transformer", "switchgear", "lvPanel", "generator", "fuelTank", "ups", "battery",
+    "capacitorBank", "distributionBoard", "solarPv",
+]  # fmt: skip
+ELECTRICAL_EQUIPMENT_KINDS = {
+    "transformer": "Transformer",
+    "switchgear": "HT switchgear",
+    "lvPanel": "LT panel",
+    "generator": "Generator",
+    "fuelTank": "Fuel tank",
+    "ups": "UPS",
+    "battery": "Battery bank",
+    "capacitorBank": "Capacitor bank",
+    "distributionBoard": "Distribution board",
+    "solarPv": "Solar PV array",
+}
+ELECTRICAL_RISER_KINDS = {
+    "busbar": "Busbar trunking",
+    "cableTray": "Cable tray",
+    "cableLadder": "Cable ladder",
+    "conduitBank": "Conduit bank",
+}
+ELECTRICAL_ROOM_KINDS = {
+    "substation": "Substation (HT, transformer and LT rooms)",
+    "transformer": "Transformer room",
+    "generator": "Generator room",
+    "lvRoom": "LT switch room",
+    "ups": "UPS and battery room",
+}
+MOTOR_KINDS = {
+    "lift": "Lift",
+    "pump": "Water pump",
+    "firePump": "Fire pump",
+    "fan": "Fan (ventilation)",
+    "other": "Other motor",
+}
+
+
+class ElectricalSupply(_Model):
+    """The supply and what the sizing assumes."""
+
+    utility: str | None = Field(default=None, description="Distribution company, e.g. 'DPDC'.")
+    voltage: Literal["11kV", "33kV", "0.4kV"] | None = Field(
+        default=None,
+        description="Supply voltage; empty: 11 kV with a substation when the load is 50 kW or "
+        "more (BNBC 2020 Part 8 Sec 1.3.20.1(e)), else 0.4 kV.",
+        json_schema_extra=_labels(["11 kV (HT)", "33 kV (HT)", "0.4 kV (LT)"]),
+    )
+    generator: bool = Field(default=False, description="A standby generator (Sec 1.3.19).")
+    ups: bool = Field(default=False, title="UPS", description="A UPS (Sec 1.3.19.5).")
+    powerFactor: float | None = Field(
+        default=None,
+        gt=0.5,
+        le=1,
+        title="Power factor",
+        description="Of the maximum demand (kVA = kW / pf); empty: 0.85 (SAEngine practice, "
+        "BNBC gives none).",
+    )
+    loadFactor: float | None = Field(
+        default=None,
+        ge=0.8,
+        le=1,
+        title="Load factor",
+        description="Applied to the connected load for the substation rating; at least 0.8 "
+        "(Sec 1.3.18.1); empty: 0.8.",
+    )
+    growth: float = Field(
+        default=0,
+        ge=0,
+        le=200,
+        description="Future expansion added to the maximum demand [%] (Sec 1.3.18.1).",
+    )
+    transformers: int | None = Field(
+        default=None, ge=1, le=6, description="Number of transformers; empty: SAEngine chooses."
+    )
+    transformerType: Literal["oil", "dry"] = Field(
+        default="oil",
+        title="Transformer type",
+        description="Oil-immersed or cast resin dry type (dry for hospitals, shopping centres "
+        "and where fire must not spread, Sec 1.3.18.4).",
+        json_schema_extra=_labels(["Oil type, natural cooled", "Cast resin dry type"]),
+    )
+    essentialShare: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        title="Essential share",
+        description="Share of the lighting and power load on the generator; empty: 0.25 "
+        "(SAEngine practice).",
+    )
+    essentialLoad: float = Field(
+        default=0, ge=0, title="Other essential load", description="Added to the generator [kW]."
+    )
+    fuelHours: float | None = Field(
+        default=None,
+        gt=0,
+        le=168,
+        title="Fuel hours",
+        description="Hours of full-load running the fuel tank holds; empty: 8 (SAEngine "
+        "practice, BNBC gives none).",
+    )
+    upsLoad: float | None = Field(
+        default=None, gt=0, title="UPS load", description="Load on the UPS [kW]."
+    )
+    upsAutonomy: float | None = Field(
+        default=None, gt=0, title="UPS autonomy", description="Battery time [min]; empty: 15."
+    )
+
+
+class ElectricalStory(_Model):
+    """What a story draws: its use (BNBC Table 8.1.17), unit loads and other loads."""
+
+    story: Id = Field(description="Building-model story.")
+    use: ElectricalUse = Field(  # type: ignore[valid-type]
+        default="office",
+        description="Row of BNBC 2020 Part 8 Table 8.1.17 (minimum load densities).",
+        json_schema_extra=_labels([ELECTRICAL_USES[k].label for k in ELECTRICAL_USE_KEYS]),
+    )
+    airConditioned: bool | None = Field(
+        default=None,
+        title="Air conditioned",
+        description="The A/C column of Table 8.1.17; empty: as 07 MEP hvac (conditioned), else "
+        "not. With hvac plant entered, the plant's electrical load replaces the A/C column.",
+    )
+    lighting: float | None = Field(default=None, ge=0, description="Lighting [W/m²].")
+    power: float | None = Field(default=None, ge=0, description="Socket outlets, power [W/m²].")
+    other: float | None = Field(default=None, ge=0, description="Other loads of the story [kW].")
+    area: float | None = Field(
+        default=None, gt=0, description="Floor area [m²]; empty: the story's slabs in 06 BIM."
+    )
+
+
+class Motor(_Model):
+    """Lifts, pumps and fans the building's load must include (Sec 1.3.2)."""
+
+    id: Id
+    kind: Literal["lift", "pump", "firePump", "fan", "other"] = Field(
+        default="other", json_schema_extra=_labels(list(MOTOR_KINDS.values()))
+    )
+    power: float = Field(gt=0, description="Rated power of one [kW].")
+    count: int = Field(default=1, ge=1)
+    essential: bool | None = Field(
+        default=None,
+        description="On the standby generator; empty: lifts, pumps and fire pumps are.",
+    )
+
+
+class ElectricalEquipment(_Model):
+    """A transformer, panel, generator, tank or battery standing on a floor."""
+
+    id: Id
+    kind: ElectricalEquipmentKind = Field(  # type: ignore[valid-type]
+        json_schema_extra=_labels(list(ELECTRICAL_EQUIPMENT_KINDS.values()))
+    )
+    name: str = Field(default="")
+    story: Id = Field(description="Building-model story it stands on.")
+    x: Mm = Field(description="Centre, plan X [mm].")
+    y: Mm = Field(description="Centre, plan Y [mm].")
+    length: Length | None = Field(default=None, description="Along X [mm].")
+    width: Length | None = Field(default=None, description="Along Y [mm].")
+    height: Length | None = None
+    rating: float | None = Field(
+        default=None, gt=0, description="kVA (transformer, generator, UPS), kW (PV), A (panel)."
+    )
+    operatingWeight: float | None = Field(
+        default=None,
+        gt=0,
+        title="Operating weight",
+        description="With oil or fuel [kN]; empty: typical for the rating.",
+    )
+    emptyWeight: float | None = Field(
+        default=None,
+        gt=0,
+        title="Empty weight",
+        description="Without its fuel or oil [kN] (the contents load as 07 MEP contentsAs); "
+        "empty: a transformer's from its oil, else the operating weight.",
+    )
+    vibrating: bool | None = Field(
+        default=None, description="Imposes vibration (BNBC 2.3.12); empty: generators do."
+    )
+    oil: float | None = Field(default=None, ge=0, description="Transformer oil [litres].")
+    sized: bool = Field(default=False, description="Proposed by SAEngine (editable).")
+    equipment: Id | None = Field(
+        default=None,
+        description="The 07 MEP equipment that already carries its weight in the analysis; "
+        "empty: SAEngine loads the model with this item (unless an equipment stands there).",
+    )
+
+
+class ElectricalRiser(_Model):
+    """A rising main: busbar trunking, or cables on a tray, ladder or in conduits."""
+
+    id: Id
+    kind: Literal["busbar", "cableTray", "cableLadder", "conduitBank"] = Field(
+        default="busbar", json_schema_extra=_labels(list(ELECTRICAL_RISER_KINDS.values()))
+    )
+    x: Mm = Field(description="Centre, plan X [mm].")
+    y: Mm = Field(description="Centre, plan Y [mm].")
+    width: Length | None = Field(default=None, description="Along X [mm]; empty: sized.")
+    depth: Length | None = Field(default=None, description="Along Y [mm]; empty: sized.")
+    fromStory: Id = Field(title="From story", description="Story it starts at (not cut).")
+    toStory: Id = Field(title="To story", description="Highest story whose floor it cuts.")
+    shaft: Id | None = Field(default=None, description="Shaft it runs in.")
+    serves: list[Id] | None = Field(
+        default=None, description="Stories it feeds; empty: all it passes."
+    )
+    rating: float | None = Field(default=None, gt=0, description="[A]; empty: sized.")
+
+
+class CableTray(_Model):
+    """A horizontal cable tray under a floor."""
+
+    id: Id
+    story: Id = Field(description="Story whose ceiling space it runs in.")
+    path: list[Point2] = Field(min_length=2, description="Plan path [[x, y], ...] mm.")
+    width: Length
+    height: Length = Field(default=100, description="Side height [mm].")
+    bottom: Mm | None = Field(
+        default=None,
+        description="Underside above the story's floor [mm]; empty: below the slab soffit "
+        "with 150 mm to lay the cables.",
+    )
+    cableArea: float | None = Field(
+        default=None,
+        gt=0,
+        title="Cable area",
+        description="Sum of the cables' cross-sections (outside diameter) [mm²]: checks the fill.",
+    )
+
+
+class ElectricalRoom(_Model):
+    """A substation, transformer, generator, LT or UPS room: its outline is checked."""
+
+    id: Id
+    kind: Literal["substation", "transformer", "generator", "lvRoom", "ups"] = Field(
+        json_schema_extra=_labels(list(ELECTRICAL_ROOM_KINDS.values()))
+    )
+    story: Id
+    outline: list[Point2] = Field(min_length=3, description="Inside face of the walls [mm].")
+    height: Length | None = Field(default=None, description="Clear height [mm]; empty: story's.")
+
+
+class Lightning(_Model):
+    """Lightning protection and earthing (BNBC 2020 Part 8 Sec 1.3.33)."""
+
+    enabled: bool = True
+    level: Literal["I", "II", "III", "IV"] | None = Field(
+        default=None,
+        description="IEC 62305 protection level, when the design follows it (BNBC uses none); "
+        "its mesh and down-conductor spacing then govern where stricter.",
+    )
+    downConductors: Literal["structuralRebar", "dedicated"] = Field(
+        default="structuralRebar",
+        title="Down conductors",
+        description="The columns' continuous reinforcement, or dedicated copper conductors.",
+        json_schema_extra=_labels(["Column reinforcement (natural)", "Dedicated copper"]),
+    )
+    earthing: Literal["foundation", "rods", "ring"] = Field(
+        default="foundation",
+        description="Foundation earth electrode, rods (pipes) or a ring conductor.",
+        json_schema_extra=_labels(["Foundation reinforcement", "Rods or pipes", "Ring conductor"]),
+    )
+    airTerminals: list[Annotated[list[float], Field(min_length=3, max_length=3)]] | None = Field(
+        default=None,
+        title="Air terminals",
+        description="[x, y, z] mm; empty: proposed by SAEngine.",
+    )
+    construction: Literal[
+        "steelNonmetalRoof", "rcNonmetalRoof", "masonry", "metalRoof", "timber", "thatch"
+    ] = Field(default="rcNonmetalRoof", description="Table 8.1.27(a) index B.")
+    contents: Literal["ordinary", "susceptible", "power", "key", "people"] | None = Field(
+        default=None, description="Table 8.1.27(b) index C; empty: from the stories' use."
+    )
+    isolation: Literal["builtUp", "few", "isolated"] = Field(
+        default="builtUp", description="Table 8.1.27(b) index D."
+    )
+    terrain: Literal["flat", "hilly", "mountainous"] = Field(
+        default="flat", description="Table 8.1.27(b) index E."
+    )
+    thunderstormDays: float | None = Field(
+        default=None,
+        ge=0,
+        title="Thunderstorm days",
+        description="A year (Table 8.1.27(c) index G); empty: over 21 (BNBC Table 8.1.28's "
+        "examples).",
+    )
+    rule: Literal["perimeter", "area"] = Field(
+        default="perimeter",
+        description="Down conductors: one for every 30 m of perimeter, or by the base area "
+        "(Sec 1.3.33.8(c)).",
+        json_schema_extra=_labels(["One per 30 m of perimeter", "By the base area"]),
+    )
+    earthResistance: float | None = Field(
+        default=None,
+        gt=0,
+        title="Earth resistance",
+        description="Expected resistance to earth [ohm] for the clearance of Eq 8.1.1; empty: "
+        "the limit of Sec 1.3.33.8(b).",
+    )
+
+
+class Electrical(_Model):
+    """The electrical services the structure coordinates with (BNBC 2020 Part 8 Chapter 1)."""
+
+    supply: ElectricalSupply = Field(default_factory=ElectricalSupply)
+    stories: list[ElectricalStory] = Field(default_factory=list)
+    motors: list[Motor] = Field(default_factory=list)
+    equipment: list[ElectricalEquipment] = Field(default_factory=list)
+    risers: list[ElectricalRiser] = Field(default_factory=list)
+    trays: list[CableTray] = Field(default_factory=list)
+    rooms: list[ElectricalRoom] = Field(default_factory=list)
+    lightning: Lightning | None = None
+
+    @model_validator(mode="after")
+    def _ids(self) -> Electrical:
+        ids = [
+            x.id
+            for x in (
+                *self.motors, *self.equipment, *self.risers, *self.trays, *self.rooms
+            )
+        ]  # fmt: skip
+        duplicates = sorted({i for i in ids if ids.count(i) > 1})
+        if duplicates:
+            raise ValueError(f"duplicate electrical ids: {', '.join(duplicates)}")
+        stories = [s.story for s in self.stories]
+        twice = sorted({s for s in stories if stories.count(s) > 1})
+        if twice:
+            raise ValueError(f"electrical stories listed twice: {', '.join(twice)}")
+        return self
+
+
 class MepModel(_Model):
     schema_: Literal["saengine.mep/1"] = Field(default=SCHEMA_ID, alias="schema")
     equipment: list[Equipment] = Field(default_factory=list)
@@ -519,6 +1113,17 @@ class MepModel(_Model):
     plumbing: Plumbing | None = Field(
         default=None,
         description="Water supply, drainage, rainwater and tanks, sized to BNBC 2020 Part 8.",
+    )
+    hvac: Hvac | None = Field(
+        default=None,
+        title="HVAC",
+        description="Air-conditioning and ventilation: cooling loads (EnergyPlus), plant and "
+        "ducts, to BNBC 2020 Part 8 Chapter 2.",
+    )
+    electrical: Electrical | None = Field(
+        default=None,
+        description="Supply, plant rooms, risers, trays and lightning protection, coordinated "
+        "to BNBC 2020 Part 8 Chapter 1.",
     )
 
     @model_validator(mode="after")
@@ -578,6 +1183,16 @@ def check(mep: MepModel, building: Any = None) -> list[str]:
             problems.append(f"{shaft.id}: its top story must be above the story it starts at")
     if mep.plumbing is not None:
         problems.extend(_plumbing_references(mep, stories))
+    if mep.hvac is not None:
+        problems.extend(hvac_references(mep, stories))
+    equipment = {e.id for e in mep.equipment}
+    linked = [
+        *(mep.hvac.plant if mep.hvac is not None else []),
+        *(mep.electrical.equipment if mep.electrical is not None else []),
+    ]
+    for item in linked:
+        if item.equipment is not None and item.equipment not in equipment:
+            problems.append(f"{item.id}: no equipment '{item.equipment}'")
     return problems
 
 

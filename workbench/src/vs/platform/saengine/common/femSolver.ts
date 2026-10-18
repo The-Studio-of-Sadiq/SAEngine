@@ -489,4 +489,29 @@ export interface IFemSolverService {
 
 	/** BNBC 2020 Part 8 Table 8.5.1's occupancies (`{occupancies}`). */
 	plumbingOccupancies(python: string): Promise<object>;
+
+	/**
+	 * A method of 7 MEP's HVAC or electrical backend (see {@link MepServiceMethod}) with the
+	 * project folder and the editor's unsaved `07 MEP/mep.json`; plain JSON, or `{problems}`.
+	 */
+	mepService(python: string, method: MepServiceMethod, params: IMepServiceParams): Promise<object>;
+}
+
+/**
+ * The HVAC and electrical methods of 7 MEP's backend (`saengine.rpc.server`):
+ * `mep/hvacReport` the cooling loads (EnergyPlus's cached run of this input, else the estimate;
+ * EnergyPlus is not started) with the air side under `air`; `mep/hvacLoads` the same after
+ * running EnergyPlus version 26.2.0 (a separate process, up to half a minute);
+ * `mep/hvacCancelLoads` stops it; `mep/hvacProposePlant`, `mep/hvacDuctOpenings`; the tables
+ * `mep/hvacTables` and `mep/hvacConstructions`; `mep/electricalReport`,
+ * `mep/electricalProposeEquipment`, `mep/electricalOpenings` and the table `mep/electricalUses`.
+ */
+export type MepServiceMethod =
+	| 'mep/hvacReport' | 'mep/hvacLoads' | 'mep/hvacCancelLoads' | 'mep/hvacProposePlant' | 'mep/hvacDuctOpenings' | 'mep/hvacTables' | 'mep/hvacConstructions'
+	| 'mep/electricalReport' | 'mep/electricalProposeEquipment' | 'mep/electricalOpenings' | 'mep/electricalUses';
+
+/** What a {@link MepServiceMethod} is asked about (none for the tables and the cancel). */
+export interface IMepServiceParams {
+	readonly projectRoot?: string;
+	readonly mepText?: string;
 }

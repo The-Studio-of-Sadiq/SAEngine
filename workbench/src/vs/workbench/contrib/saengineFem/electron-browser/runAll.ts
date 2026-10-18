@@ -24,6 +24,8 @@ import { BUILD_REPORT_COMMAND_ID, IReportBuildRequest, IReportBuildResult, repor
 import { ISubstructureMigration, ISubstructureReport, ISubstructureRequest, parseSubstructure, readSubstructureReport, SUBSTRUCTURE_ENSURE_COMMAND, SUBSTRUCTURE_REPORT_COMMAND, SUBSTRUCTURE_SUMMARY_FILE, substructureSummaryFile } from '../../saengineSubstructure/browser/substructureDocument.js';
 import { IMepContextTexts, IMepReport, IMepRequest, isOpenClash, MEP_REPORT_COMMAND, MEP_SOURCE_PARTS, MEP_SUMMARY_FILE, mepSummaryFile, parseMep, readMepReport } from '../../saengineMep/browser/mepDocument.js';
 import { hasPlumbing, IPlumbingReport, PLUMBING_REPORT_COMMAND, plumbingFailures, plumbingSummaryFile, readPlumbingReport } from '../../saengineMep/browser/plumbingDocument.js';
+import { hasHvac, HVAC_REPORT_COMMAND, hvacFailures, hvacSummaryFile, IHvacReport, readHvacReport } from '../../saengineMep/browser/hvacDocument.js';
+import { ELECTRICAL_REPORT_COMMAND, electricalFailures, electricalSummaryFile, hasElectrical, IElectricalReport, readElectricalReport } from '../../saengineMep/browser/electricalDocument.js';
 import { DERIVATION_INPUTS, deriveAnalysisModel, derivationState, partFile, SSI_FILE } from '../browser/femDerivationBar.js';
 import { SSI_COMPARE_COMMAND } from '../browser/femSsi.js';
 import { IFemDesignReport, runDesign, writeDesignSummary } from '../browser/femDesign.js';
@@ -46,13 +48,37 @@ const STEPS: readonly { readonly id: StepId; readonly label: string }[] = [
 	{ id: 'ssi', label: localize('runAll.step.ssi', "fixed-base run for the soil springs") },
 	{ id: 'design', label: localize('runAll.step.design', "design checks") },
 	{ id: 'substructure', label: localize('runAll.step.substructure', "foundation design") },
-	{ id: 'mep', label: localize('runAll.step.mep', "MEP coordination and plumbing checks") },
+	{ id: 'mep', label: localize('runAll.step.mep', "MEP coordination, plumbing, HVAC and electrical checks") },
 	{ id: 'boq', label: localize('runAll.step.boq', "bill of quantities") },
 	{ id: 'report', label: localize('runAll.step.report', "report") },
 ];
 
 /** A step that could not be done: Run All stops and says which. */
 class StepFailure extends Error { }
+
+/** A discipline's report of 7 MEP in Run All, with the openings it still needs (reported, not added). */
+interface IServiceCheck<T> {
+	readonly report: T;
+	readonly missingOpenings: number;
+}
+
+/** What Run All's MEP step checked. */
+interface IMepChecks {
+	readonly mep: IMepReport;
+	readonly plumbing?: IPlumbingReport;
+	readonly hvac?: IServiceCheck<IHvacReport>;
+	readonly electrical?: IServiceCheck<IElectricalReport>;
+}
+
+function record(value: unknown): { readonly [key: string]: unknown } {
+	return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as { readonly [key: string]: unknown } : {};
+}
+
+/** How many openings a backend report proposes (its `openings`: those not in 07 MEP yet). */
+function openingsOf(raw: unknown): number {
+	const openings = record(raw).openings;
+	return Array.isArray(openings) ? openings.length : 0;
+}
 
 export const IRunAllService = createDecorator<IRunAllService>('saengineRunAllService');
 
@@ -346,7 +372,7 @@ export class RunAllService implements IRunAllService {
 	 * reported, never added to the file) and writes the summary the part list shows. Undefined
 	 * while the MEP file is the placeholder or empty.
 	 */
-	private async checkMep(project: ISaengineProject): Promise<{ readonly mep: IMepReport; readonly plumbing?: IPlumbingReport } | undefined> {
+	private async checkMep(project: ISaengineProject): Promise<IMepChecks | undefined> {
 		const part = partById('mep');
 		if (!part?.mainFile) {
 			return undefined;
@@ -364,7 +390,9 @@ export class RunAllService implements IRunAllService {
 		}
 		const document = parsed.document;
 		const withPlumbing = hasPlumbing(document);
-		if (parsed.kind === 'placeholder' || (!document.equipment.length && !document.openings.length && !document.shafts.length && !document.ifcModels.length && !withPlumbing)) {
+		const withHvac = hasHvac(document);
+		const withElectrical = hasElectrical(document);
+		if (parsed.kind === 'placeholder' || (!document.equipment.length && !document.openings.length && !document.shafts.length && !document.ifcModels.length && !withPlumbing && !withHvac && !withElectrical)) {
 			return undefined;
 		}
 		const texts = await this.readParts(project, MEP_SOURCE_PARTS);
@@ -389,10 +417,40 @@ export class RunAllService implements IRunAllService {
 				throw new StepFailure(localize('runAll.plumbingUnavailable', "The plumbing checks are not available."));
 			}
 		}
+		// HVAC: its report never starts EnergyPlus; the loads are EnergyPlus's when Calculate Loads
+		// ran for this input, else the estimate (said in the summary). Openings are reported, not added.
+		let hvac: IServiceCheck<IHvacReport> | undefined;
+		if (withHvac) {
+			hvac = await this.serviceReport(HVAC_REPORT_COMMAND, request, readHvacReport, raw => openingsOf(record(raw).air), localize('runAll.hvacUnavailable', "The HVAC checks are not available."));
+		}
+		let electrical: IServiceCheck<IElectricalReport> | undefined;
+		if (withElectrical) {
+			electrical = await this.serviceReport(ELECTRICAL_REPORT_COMMAND, request, readElectricalReport, openingsOf, localize('runAll.electricalUnavailable', "The electrical checks are not available."));
+		}
 		const sourceTexts: IMepContextTexts = Object.fromEntries(MEP_SOURCE_PARTS.map(id => [id, texts.get(id)]));
-		const summary = { ...mepSummaryFile(document, report, text, new Date(), sourceTexts), ...(plumbing ? { plumbing: plumbingSummaryFile(document, plumbing) } : {}) };
+		const summary = {
+			...mepSummaryFile(document, report, text, new Date(), sourceTexts),
+			...(plumbing ? { plumbing: plumbingSummaryFile(document, plumbing) } : {}),
+			...(hvac ? { hvac: hvacSummaryFile(document, hvac.report) } : {}),
+			...(electrical ? { electrical: electricalSummaryFile(document, electrical.report) } : {}),
+		};
 		await this.fileService.writeFile(joinPath(dirname(resource), MEP_SUMMARY_FILE), VSBuffer.fromString(JSON.stringify(summary, undefined, '\t') + '\n'));
-		return { mep: report, plumbing };
+		return { mep: report, plumbing, hvac, electrical };
+	}
+
+	/** A discipline's report of 7 MEP by its command, read, with the openings it still needs; a step failure when it is not available. */
+	private async serviceReport<T>(command: string, request: IMepRequest, read: (raw: unknown) => T | undefined, missing: (raw: unknown) => number, unavailable: string): Promise<IServiceCheck<T>> {
+		let raw: unknown;
+		try {
+			raw = await this.commandService.executeCommand<unknown>(command, request);
+		} catch (error) {
+			throw new StepFailure(errorSummary(error));
+		}
+		const report = read(raw);
+		if (!report) {
+			throw new StepFailure(unavailable);
+		}
+		return { report, missingOpenings: missing(raw) };
 	}
 
 	/**
@@ -450,17 +508,23 @@ export class RunAllService implements IRunAllService {
 		return URI.file(result.path);
 	}
 
-	/** "Done: 13 pass, 3 fail · foundations 6 pass, 1 fail · MEP: failing openings 1, open clashes 2 · plumbing: 3 checks fail, 1 floor below the minimum pressure · BOQ updated · report written", with Open Report. */
-	private showSummary(design: IFemDesignReport, foundations: ISubstructureReport | undefined, checked: { readonly mep: IMepReport; readonly plumbing?: IPlumbingReport } | undefined, derived: boolean, boqUpdated: boolean, pdf: URI): void {
+	/** "Done: 13 pass, 3 fail · foundations 6 pass, 1 fail · MEP: failing openings 1, open clashes 2 · plumbing: 3 checks fail, 1 floor below the minimum pressure · HVAC: failing checks 1, openings to add 0, loads not calculated: run Calculate Loads · electrical: failing checks 0, openings to add 1 · BOQ updated · report written", with Open Report. */
+	private showSummary(design: IFemDesignReport, foundations: ISubstructureReport | undefined, checked: IMepChecks | undefined, derived: boolean, boqUpdated: boolean, pdf: URI): void {
 		const mep = checked?.mep;
 		const failedOpenings = mep ? mep.openings.filter(o => !o.ok).length : 0;
 		const openClashes = mep ? mep.clashes.filter(isOpenClash).length : 0;
 		const plumbing = checked?.plumbing ? plumbingFailures(checked.plumbing) : undefined;
+		const hvac = checked?.hvac;
+		const electrical = checked?.electrical;
 		const parts = [
 			localize('runAll.summary.design', "{0} pass, {1} fail", design.summary.passed, design.summary.failed),
 			...(foundations ? [localize('runAll.summary.foundations', "foundations {0} pass, {1} fail", foundations.summary.passed, foundations.summary.failed)] : []),
 			...(mep ? [localize('runAll.summary.mep', "MEP: failing openings {0}, open clashes {1}", failedOpenings, openClashes)] : []),
 			...(plumbing ? [localize('runAll.summary.plumbing', "plumbing: failing checks {0}, floors below the minimum pressure {1}", plumbing.items, plumbing.floorsLow)] : []),
+			...(hvac ? [hvac.report.calculated === false
+				? localize('runAll.summary.hvacEstimate', "HVAC: failing checks {0}, openings to add {1}, loads not calculated: run Calculate Loads", hvacFailures(hvac.report), hvac.missingOpenings)
+				: localize('runAll.summary.hvac', "HVAC: failing checks {0}, openings to add {1}", hvacFailures(hvac.report), hvac.missingOpenings)] : []),
+			...(electrical ? [localize('runAll.summary.electrical', "electrical: failing checks {0}, openings to add {1}", electricalFailures(electrical.report), electrical.missingOpenings)] : []),
 			...(derived ? [localize('runAll.summary.derived', "model derived")] : []),
 			boqUpdated ? localize('runAll.summary.boqUpdated', "BOQ updated") : localize('runAll.summary.boqCurrent', "BOQ up to date"),
 			localize('runAll.summary.report', "report written"),

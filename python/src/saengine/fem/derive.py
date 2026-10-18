@@ -114,7 +114,9 @@ def stamp(text: str) -> str:
 
 #: What the analysis model takes from ``07 MEP/mep.json`` (:func:`mep_stamp`); names and service
 #: labels of its items are left out, as are the MEP IFC models. The plumbing's overhead tanks
-#: (which load the model) are stamped as ``plumbingTanks`` when there are any.
+#: (which load the model) are stamped as ``plumbingTanks``, the HVAC plant as ``hvacPlant`` and
+#: the electrical equipment as ``electricalEquipment`` (with the supply's ``transformerType``,
+#: which gives a transformer's typical weight, as ``transformerType``) when there are any.
 MEP_MODEL_KEYS = ("contentsAs", "equipment", "openings", "shafts")
 _MEP_LABELS = ("name", "service")
 
@@ -199,7 +201,25 @@ def mep_stamp(text: str) -> str:
     )
     if overhead:
         content["plumbingTanks"] = overhead
+    hvac = document.get("hvac")
+    plant = hvac.get("plant") if isinstance(hvac, dict) else None
+    if isinstance(plant, list) and plant:
+        content["hvacPlant"] = _unlabelled(plant)
+    electrical = document.get("electrical")
+    items = electrical.get("equipment") if isinstance(electrical, dict) else None
+    if isinstance(items, list) and items:
+        content["electricalEquipment"] = _unlabelled(items)
+        supply = electrical.get("supply")
+        if isinstance(supply, dict) and "transformerType" in supply:
+            content["transformerType"] = supply["transformerType"]
     return stamp(js_json(content))
+
+
+def _unlabelled(items: list[Any]) -> list[Any]:
+    return [
+        {k: v for k, v in item.items() if k not in _MEP_LABELS} if isinstance(item, dict) else item
+        for item in items
+    ]
 
 
 @dataclass
@@ -306,12 +326,13 @@ def derive_fem(
     """
     mep_notes: list[str] = []
     if mep is not None:
-        from saengine.mep.loads import with_mep_openings, with_plumbing_tanks
+        from saengine.mep.loads import with_mep_openings, with_services_equipment
 
         building, mep_notes = with_mep_openings(building, mep)
-        # The plumbing's overhead tanks load the model as equipment (never counted twice).
-        mep, tank_notes = with_plumbing_tanks(mep, materials)
-        mep_notes += [f"MEP: {note}" for note in tank_notes]
+        # The plumbing's overhead tanks, the HVAC plant and the electrical equipment load the
+        # model as equipment (each never counted twice).
+        mep, service_notes = with_services_equipment(mep, materials)
+        mep_notes += [f"MEP: {note}" for note in service_notes]
     b = _Builder()
     options = settings.analysis
     types = {o.id: o for o in objects.objects}

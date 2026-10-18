@@ -28,6 +28,13 @@ export type MepSelection =
 	| { readonly kind: 'riser'; readonly index: number }
 	| { readonly kind: 'tank'; readonly index: number }
 	| { readonly kind: 'drain'; readonly index: number }
+	/** The HVAC's plant and ducts (hvacDocument.ts). */
+	| { readonly kind: 'plant'; readonly index: number }
+	| { readonly kind: 'duct'; readonly index: number }
+	/** The electrical equipment, risers and trays (electricalDocument.ts). */
+	| { readonly kind: 'elecEquipment'; readonly index: number }
+	| { readonly kind: 'elecRiser'; readonly index: number }
+	| { readonly kind: 'tray'; readonly index: number }
 	| { readonly kind: 'element'; readonly id: string };
 
 /** A clash of the report drawn on the plan. */
@@ -50,6 +57,14 @@ export interface IPlanOptions {
 	readonly extraExtent?: readonly Point[];
 	/** The plumbing view: the coordination items are drawn quietly, under the plumbing. */
 	readonly plumbing?: boolean;
+	/** A discipline's view (`hvac`, `electrical`): as `plumbing`, with the discipline's class on the plan. */
+	readonly layer?: string;
+	/**
+	 * The story whose floor is this story's ceiling: its beams are drawn dashed over the plan
+	 * (selectable), with the sleeves and openings through them, for the ducts and trays that
+	 * hang below it.
+	 */
+	readonly ceiling?: string;
 	/** Draws more over the plan (the plumbing), before the scale bar. */
 	readonly overlay?: (root: SVGElement, view: IPlanView) => void;
 }
@@ -118,8 +133,9 @@ function extent(document: IMep, context: IMepContext, story: string, extra: read
 /** Draws the plan of `options.story` into `container` (the caller clears it); returns the transform. */
 export function renderPlan(container: HTMLElement, document: IMep, context: IMepContext, options: IPlanOptions): IPlanView {
 	const { width, height, story, selection } = options;
-	const root = svg(container, 'svg', { width, height, class: `mep-plan${options.plumbing ? ' plumbing' : ''}`, role: 'img', 'aria-label': localize('mep.planAria', "Plan of the services on {0}", story) });
-	const points = extent(document, context, story, options.extraExtent);
+	const root = svg(container, 'svg', { width, height, class: `mep-plan${options.plumbing ? ' plumbing' : ''}${options.layer ? ` quiet ${options.layer}` : ''}`, role: 'img', 'aria-label': localize('mep.planAria', "Plan of the services on {0}", story) });
+	const ceilingBeams = options.ceiling ? storyElements(context, options.ceiling).beams : [];
+	const points = extent(document, context, story, [...(options.extraExtent ?? []), ...ceilingBeams.flatMap(b => [b.start, b.end])]);
 	const view = fit(points, width, height, 56);
 	const minX = Math.min(...points.map(p => p[0]));
 	const maxX = Math.max(...points.map(p => p[0]));
@@ -202,6 +218,23 @@ export function renderPlan(container: HTMLElement, document: IMep, context: IMep
 		svg(group, 'text', { x: (coordinates.x1 + coordinates.x2) / 2 - direction[1] * offset, y: (coordinates.y1 + coordinates.y2) / 2 + direction[0] * offset + 4, class: 'mep-element-label', 'text-anchor': 'middle' }, beam.id);
 	}
 
+	// The beams of the floor above (the ceiling), dashed: what the ducts and trays pass.
+	for (const beam of ceilingBeams) {
+		const group = svg(root, 'g', { class: `mep-beam ceiling${isSelected(selection, 'element', beam.id) ? ' selected' : ''}`, 'data-element': beam.id });
+		svg(group, 'title', {}, localize('mep.ceilingBeamTitle', "Beam {0} above (the ceiling)", beam.id));
+		const coordinates = { x1: view.x(beam.start[0]), y1: view.y(beam.start[1]), x2: view.x(beam.end[0]), y2: view.y(beam.end[1]) };
+		svg(group, 'line', { ...coordinates, class: 'mep-hit' });
+		const w = Math.max(3, beam.width * view.scale);
+		const direction = hostDirection({ kind: 'beam', element: beam });
+		for (const side of [-1, 1]) {
+			const dx = -direction[1] * side * w / 2;
+			const dy = -direction[0] * side * w / 2;
+			svg(group, 'line', { x1: coordinates.x1 + dx, y1: coordinates.y1 + dy, x2: coordinates.x2 + dx, y2: coordinates.y2 + dy, class: 'mep-beam-ceiling-edge' });
+		}
+		const offset = Math.max(8, w / 2 + 6);
+		svg(group, 'text', { x: (coordinates.x1 + coordinates.x2) / 2 - direction[1] * offset, y: (coordinates.y1 + coordinates.y2) / 2 + direction[0] * offset + 4, class: 'mep-element-label ceiling', 'text-anchor': 'middle' }, beam.id);
+	}
+
 	// Columns through the story.
 	for (const column of elements.columns) {
 		const group = svg(root, 'g', { class: `mep-column${isSelected(selection, 'element', column.id) ? ' selected' : ''}`, 'data-element': column.id });
@@ -249,7 +282,7 @@ export function renderPlan(container: HTMLElement, document: IMep, context: IMep
 	document.openings.forEach((opening, index) => {
 		const host = findHost(context, opening.host);
 		const point = openingPoint(opening, context);
-		if (!host || !point || !(host.kind === 'wall' ? elements.walls.includes(host.element) : host.kind === 'beam' ? elements.beams.includes(host.element) : elements.slabs.includes(host.element))) {
+		if (!host || !point || !(host.kind === 'wall' ? elements.walls.includes(host.element) : host.kind === 'beam' ? elements.beams.includes(host.element) || ceilingBeams.includes(host.element) : elements.slabs.includes(host.element))) {
 			return;
 		}
 		const band = options.openingBands?.get(opening.id) ?? 'none';

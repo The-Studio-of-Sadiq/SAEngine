@@ -214,11 +214,15 @@ def report_data(
     report["design"] = _design(results_dir, model_path, warnings)
     report["mep"] = _mep(parts)
     report["plumbing"] = _plumbing(parts)
+    report["hvac"] = _guarded(_hvac, parts, "HVAC")
+    report["electrical"] = _guarded(_electrical, parts, "electrical")
     report["boq"] = _boq(parts)
     report["limitations"] = {
         "design": report["design"].get("notes", []),
         "mep": report["mep"].get("notes", []),
         "plumbing": report["plumbing"].get("notes", []),
+        "hvac": report["hvac"].get("notes", []),
+        "electrical": report["electrical"].get("notes", []),
         "boq": report["boq"].get("notes", []),
         "soil": report["soil"].get("notes", []),
         "foundations": report["foundations"].get("notes", []),
@@ -303,6 +307,27 @@ class _Parts:
 
         text = self.text(relative)
         return source_stamp(text) if text is not None else None
+
+    def boq_stamp(self, key: str, relative: str) -> str | None:
+        """The stamp of a source of the bill of quantities as the bill records it: for the
+        settings, the stamp of their ground level only (as ``compute_boq`` and the workbench's
+        ``boqSourceStamp`` do), else the stamp of the file's text."""
+        if key != "settings":
+            return self.stamp(relative)
+        from saengine.library.bim import ground_level_stamp, source_stamp
+
+        text = self.text(relative)
+        if text is None:
+            return None
+        try:
+            settings = json.loads(text)
+        except ValueError:
+            return source_stamp(text)
+        foundation = settings.get("foundation") if isinstance(settings, dict) else None
+        ground = foundation.get("groundLevel") if isinstance(foundation, dict) else None
+        if isinstance(ground, bool) or not isinstance(ground, int | float):
+            ground = 0.0
+        return ground_level_stamp(ground)
 
 
 def project_name(root: Path, settings: Any = None) -> str:
@@ -1939,6 +1964,330 @@ def _plumbing(parts: _Parts) -> dict[str, Any]:
     }
 
 
+def _guarded(chapter: Any, parts: _Parts, label: str) -> dict[str, Any]:
+    """A services chapter, or a note why it could not be written (never fails the report)."""
+    try:
+        return chapter(parts)
+    except Exception as error:  # noqa: BLE001 - a partly entered model must not fail the report
+        return {"available": False, "problem": f"the {label} chapter failed: {error}", "notes": []}
+
+
+def _service_checks(rows: list[dict[str, Any]]) -> list[list[str]]:
+    """Checks ``{name, demand, capacity, unit, utilisation, ok}`` as the report's table rows."""
+    return [
+        [
+            str(c.get("name") or ""),
+            fmt(c.get("demand"), 2),
+            fmt(c.get("capacity"), 2),
+            str(c.get("unit") or ""),
+            fmt(c.get("utilisation"), 2) if c.get("utilisation") is not None else "–",
+            "OK" if c.get("ok") else "FAIL",
+        ]
+        for c in rows
+    ]
+
+
+def _service_loads(parts: _Parts, mep: Any, discipline: str) -> dict[str, dict[str, Any]]:
+    """The items of one of 7 MEP's disciplines (``hvac``, ``electrical``) as the analysis takes
+    their weights (:func:`saengine.mep.loads.services_by_discipline`): the item's own id ->
+    ``{id, operatingWeight, emptyWeight, vibrating}``."""
+    from saengine.mep.loads import services_by_discipline
+
+    try:
+        groups, _ = services_by_discipline(mep, parts.materials())
+    except Exception:  # noqa: BLE001 - the chapter still prints, without the load column
+        return {}
+    return {k: e.model_dump(mode="json") for k, e in groups.get(discipline, {}).items()}
+
+
+def _same_id(mep: Any, item_id: str) -> str | None:
+    """The 07 MEP equipment that has a service item's id (it carries the item's weight)."""
+    ids = {f"EQ-{item_id}", item_id}
+    return next((e.id for e in mep.equipment if e.id in ids), None)
+
+
+def _load_note(item_id: str, loaded: dict[str, dict[str, Any]], link: str | None) -> str:
+    if link:
+        return f"as equipment {link}"
+    entry = loaded.get(item_id)
+    if entry is None:
+        return "not loaded (see the notes)"
+    empty = entry.get("emptyWeight")
+    return (
+        f"{fmt(entry['operatingWeight'], 1)} kN"
+        + (f" ({fmt(empty, 1)} kN SD + contents F)" if empty else " SD")
+        + (", impact L" if entry.get("vibrating") else "")
+    )
+
+
+def _hvac(parts: _Parts) -> dict[str, Any]:
+    """The HVAC coordination chapter (Part 7, BNBC 2020 Part 8 Chapter 2): the cooling loads
+    (EnergyPlus version 26.2.0's cached run of this input, else the estimate: EnergyPlus is
+    not started by the report), the plant with its weights on the structure, the ducts' openings
+    through beams and slabs with their checks, the shafts; not printed while 07 MEP has no
+    hvac."""
+    from saengine.hvac.air import hvac_air
+    from saengine.hvac.report import hvac_loads
+    from saengine.library.mep import HVAC_PLANT_KINDS, HVAC_SYSTEMS, MEP_FILE, parse
+
+    empty = {"available": False, "problem": "", "notes": []}
+    try:
+        mep = parse(parts.text(MEP_FILE))
+    except ValueError as error:
+        return {**empty, "problem": f"{MEP_FILE} is not valid: {error}"}
+    hvac = mep.hvac
+    if hvac is None:
+        return empty
+    loads = hvac_loads(parts.root, run_energyplus=False)
+    try:
+        air = hvac_air(parts.root, loads=loads)
+    except Exception as error:  # noqa: BLE001
+        air = {"checks": [], "notes": [], "problems": [f"the air side failed: {error}"]}
+    loaded = _service_loads(parts, mep, "hvac")
+    zones = [
+        [
+            str(z.get("story")),
+            fmt(z.get("area"), 1),
+            fmt(z.get("sensible"), 2),
+            fmt(z.get("latent"), 2),
+            fmt(z.get("total"), 2),
+            fmt(z.get("airflow"), 3),
+            fmt(z.get("outdoorAir"), 3),
+            " ".join(
+                str(x) for x in ((z.get("peak") or {}).get("month"), (z.get("peak") or {}).get("time"))
+                if x is not None
+            ) or "–",
+        ]
+        for z in loads.get("zones") or []
+    ]  # fmt: skip
+    plant = []
+    for p in hvac.plant:
+        size = " x ".join(fmt(v, 0) for v in (p.length, p.width, p.height) if v) or "typical"
+        plant.append(
+            [
+                p.id,
+                HVAC_PLANT_KINDS.get(p.kind, p.kind),
+                p.story,
+                size,
+                fmt(p.capacity, 1 if p.kind not in ("exhaustFan", "freshAirUnit") else 2),
+                fmt(p.operatingWeight, 1),
+                _load_note(p.id, loaded, p.equipment or _same_id(mep, p.id)),
+            ]
+        )
+    openings = [
+        [
+            str(o.get("id")),
+            str(o.get("host")),
+            (
+                f"Ø{fmt(o.get('diameter'), 0)}"
+                if o.get("shape") == "circle"
+                else f"{fmt(o.get('width'), 0)} x {fmt(o.get('height'), 0)}"
+            ),
+            str(o.get("service") or ""),
+        ]
+        for o in air.get("openings") or []
+    ]
+    conflicts = []
+    for c in air.get("conflicts") or []:
+        failing = [k for k in c.get("checks") or [] if not k.get("ok")]
+        worst = max(failing, key=lambda k: k.get("utilisation") or 0.0, default=None)
+        options = [o.get("kind") for o in c.get("options") or [] if o.get("ok")]
+        conflicts.append(
+            [
+                str(c.get("duct")),
+                str(c.get("beam") or c.get("slab") or ""),
+                (
+                    f"{worst['name']} ({fmt(worst.get('utilisation'), 2)})"
+                    if worst
+                    else "; ".join(c.get("notes") or []) or "–"
+                ),
+                ", ".join(OPTION_LABELS.get(o, o) for o in options) or "–",
+            ]
+        )
+    existing = sorted({str(c["existing"]) for c in air.get("crossings") or [] if c.get("existing")})
+    shafts = [
+        [str(s.get("id")), fmt(s.get("need"), 3), fmt(s.get("area"), 3),
+         "OK" if s.get("ok", True) else "FAIL"]
+        for s in air.get("shafts") or []
+    ]  # fmt: skip
+    checks = list(air.get("checks") or [])
+    failed = sum(1 for c in checks if not c.get("ok"))
+    engine = str(loads.get("engineLabel") or loads.get("engine") or "not calculated")
+    if loads.get("calculated") is False:
+        engine += " (loads not calculated with EnergyPlus for this input: run Calculate Loads)"
+    building = loads.get("building") or {}
+    summary = [
+        ["System", HVAC_SYSTEMS.get(hvac.system, hvac.system)],
+        ["Cooling loads by", engine],
+        [
+            "Cooling load",
+            f"{fmt(loads.get('total'), 1)} kW ({fmt(loads.get('tons'), 1)} TR), the sum of the "
+            "stories' peaks"
+            + (
+                f"; {fmt(building.get('total'), 1)} kW coincident"
+                if building.get("total") is not None
+                else ""
+            ),
+        ],
+        ["Supply air, outdoor air", f"{fmt(loads.get('airflow'), 2)}, {fmt(loads.get('outdoorAir'), 2)} m³/s"],
+        [
+            "Plant on the structure",
+            (f"{len(hvac.plant)} items, "
+            f"{fmt(sum(p.operatingWeight or 0.0 for p in hvac.plant), 1)} kN entered"),
+        ],
+        ["Ducts", str(len(hvac.ducts))],
+        ["Openings still to add", str(len(openings))],
+        ["Ducts that cannot pass", str(len(conflicts))],
+        ["Checks failing", str(failed)],
+    ]  # fmt: skip
+    notes = [str(n) for n in loads.get("notes") or []]
+    notes += [f"Air side: {n}" for n in air.get("notes") or []]
+    notes += [str(x) for x in loads.get("problems") or []]
+    notes += [str(x) for x in air.get("problems") or []]
+    stale = air.get("stale") or []
+    if stale:
+        notes.append(
+            f"Openings of 7 MEP no duct crosses any more (remove them): {', '.join(stale)}"
+        )
+    return {
+        "available": True,
+        "problem": "",
+        "summary": summary,
+        "zones": zones,
+        "plant": plant,
+        "openings": openings,
+        "conflicts": conflicts,
+        "existing": ", ".join(existing),
+        "shafts": shafts,
+        "checks": _service_checks(checks),
+        "checkFails": [not c.get("ok") for c in checks],
+        "failed": failed,
+        "method": [str(m) for m in loads.get("method") or []],
+        "notes": notes,
+    }
+
+
+#: The duct route options of :func:`saengine.hvac.openings.route_options`.
+OPTION_LABELS = {
+    "routeBelow": "route below the beam",
+    "increaseFloorHeight": "raise the floor above",
+    "split": "split into flatter ducts",
+    "lowerToMidDepth": "lower to the beam's mid-depth",
+    "throughSlab": "rise through the slab",
+    "inShaft": "run in a shaft",
+}
+
+
+def _electrical(parts: _Parts) -> dict[str, Any]:
+    """The electrical coordination chapter (Part 7, BNBC 2020 Part 8 Chapter 1): the demand,
+    the substation, generator and their rooms, the equipment with its weights on the structure,
+    the rising mains and trays with their openings, and the lightning protection's down-conductor
+    columns and earthing for the structural drawings; not printed while 07 MEP has no
+    electrical."""
+    from saengine.electrical.report import electrical_report, with_typical
+    from saengine.library.mep import ELECTRICAL_EQUIPMENT_KINDS, MEP_FILE, parse
+
+    empty = {"available": False, "problem": "", "notes": []}
+    try:
+        mep = parse(parts.text(MEP_FILE))
+    except ValueError as error:
+        return {**empty, "problem": f"{MEP_FILE} is not valid: {error}"}
+    electrical = mep.electrical
+    if electrical is None:
+        return empty
+    report = electrical_report(parts.root)
+    if "demand" not in report:
+        return {**empty, "problem": "; ".join(str(x) for x in report.get("problems") or [])}
+    loaded = _service_loads(parts, mep, "electrical")
+    demand = report.get("demand") or {}
+    stories = [
+        [
+            str(s.get("story")),
+            str(s.get("use") or ""),
+            fmt(s.get("area"), 1),
+            fmt(s.get("density"), 1),
+            fmt(s.get("connected"), 1),
+            fmt(s.get("kva"), 1),
+        ]
+        for s in demand.get("stories") or []
+    ]
+    equipment = []
+    for item in electrical.equipment:
+        full = with_typical(item.model_dump(mode="json"), electrical.supply.transformerType)
+        size = " x ".join(fmt(full.get(k), 0) for k in ("length", "width", "height") if full.get(k))
+        equipment.append(
+            [
+                item.id,
+                ELECTRICAL_EQUIPMENT_KINDS.get(item.kind, item.kind),
+                item.story,
+                fmt(item.rating, 0),
+                size or "–",
+                fmt(full.get("operatingWeight"), 1),
+                _load_note(item.id, loaded, item.equipment or _same_id(mep, item.id)),
+            ]
+        )
+    risers = [
+        [
+            str(r.get("id")),
+            str(r.get("kind")),
+            " x ".join(fmt(r.get(k), 0) for k in ("width", "depth") if r.get(k)) or "–",
+            fmt(r.get("rating"), 0),
+            fmt(r.get("current"), 0),
+            ", ".join(str(s) for s in r.get("stories") or []),
+        ]
+        for r in report.get("risers") or []
+    ]
+    openings = [
+        [
+            str(o.get("id")),
+            str(o.get("host")),
+            f"{fmt(o.get('width'), 0)} x {fmt(o.get('height'), 0)}",
+            str(o.get("service") or ""),
+        ]
+        for o in report.get("openings") or []
+    ]
+    lightning = report.get("lightning") or {}
+    conductors = [
+        [
+            str(d.get("id")),
+            f"{fmt(d.get('x'), 0)}, {fmt(d.get('y'), 0)}",
+            ", ".join(str(c) for c in d.get("columns") or []),
+            str(d.get("foundation") or "–"),
+            str(d.get("conductor") or ""),
+        ]
+        for d in lightning.get("downConductors") or []
+    ]
+    checks = list(report.get("checks") or [])
+    failed = sum(1 for c in checks if not c.get("ok"))
+    risk = lightning.get("risk") or {}
+    summary = [[f"{i + 1}", str(line)] for i, line in enumerate(report.get("summary") or [])]
+    notes = [str(n) for n in report.get("notes") or []]
+    notes += [str(x) for x in report.get("problems") or []]
+    return {
+        "available": True,
+        "problem": "",
+        "summary": summary,
+        "stories": stories,
+        "equipment": equipment,
+        "rooms": _service_checks(report.get("rooms") or []),
+        "roomFails": [not c.get("ok") for c in report.get("rooms") or []],
+        "risers": risers,
+        "openings": openings,
+        "lightning": {
+            "enabled": bool(lightning.get("enabled")),
+            "risk": str(risk.get("note") or risk.get("decision") or ""),
+            "conductors": conductors,
+            "needed": str(lightning.get("downConductorsNeeded") or len(conductors)),
+            "structural": [str(n) for n in lightning.get("structuralNotes") or []],
+        },
+        "checks": _service_checks(checks),
+        "checkFails": [not c.get("ok") for c in checks],
+        "failed": failed,
+        "method": [str(m) for m in report.get("method") or []],
+        "notes": notes,
+    }
+
+
 def _boq(parts: _Parts) -> dict[str, Any]:
     from saengine.boq import BillOfQuantities
 
@@ -1983,7 +2332,7 @@ def _boq(parts: _Parts) -> dict[str, Any]:
     changed = [
         relative
         for key, relative in BOQ_SOURCES.items()
-        if source.get(key) is not None and parts.stamp(relative) != source.get(key)
+        if source.get(key) is not None and parts.boq_stamp(key, relative) != source.get(key)
     ]
     unstamped = all(source.get(key) is None for key in BOQ_SOURCES)
     status, message = "ok", ""

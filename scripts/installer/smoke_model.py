@@ -41,6 +41,10 @@ HEADLESS_MODULES = [
     "wntr",
     "saengine.plumbing.hydraulics",
     "saengine.plumbing.project",
+    "fluids",
+    "saengine.hvac.report",
+    "saengine.hvac.air",
+    "saengine.electrical.report",
 ]
 GUI_MODULES = ["PySide6", "pyvista", "vtk"]
 

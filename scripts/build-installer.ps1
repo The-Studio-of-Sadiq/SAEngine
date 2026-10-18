@@ -12,7 +12,11 @@
          @saengine viewer bundles and the locally compiled Copilot extension (see that file).
       3. Builds the bundled CPython 3.12 with the SAEngine backend
          (scripts\installer\bundle-python.ps1) and copies it to
-         VSCode-win32-x64\resources\python, where the workbench looks for it.
+         VSCode-win32-x64\resources\python, where the workbench looks for it. With
+         -EnergyPlusDir, copies the minimal EnergyPlus version 26.2.0 runtime (the program, its
+         DLLs, Energy+.idd, Energy+.schema.epJSON and its LICENSE.txt, about 62 MB) to
+         VSCode-win32-x64\resources\energyplus, where the backend looks for it, and checks it
+         with a design-day run (scripts\installer\energyplus_runtime.py).
       4. Writes THIRD_PARTY_NOTICES.txt (the viewer bundles' npm packages and the Python
          packages with their licences, the AGPL source offer, the copyleft source offer) and
          LICENSE.txt (AGPL-3.0) into the app folder, and collects the source archives of the
@@ -48,6 +52,12 @@
 .PARAMETER NoPrecompile
     Ship the bundled Python without precompiled bytecode (smaller setup, slower first run).
 
+.PARAMETER EnergyPlusDir
+    The extracted EnergyPlus 26.2.0 distribution for Windows x64 (the folder with energyplus.exe),
+    from which the minimal runtime for the HVAC cooling loads is bundled. Defaults to the
+    SAENGINE_ENERGYPLUS_DIR environment variable. Optional: without it the app is built without
+    EnergyPlus and the HVAC loads fall back to SAEngine's documented estimate.
+
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File scripts\build-installer.ps1
 .EXAMPLE
@@ -60,7 +70,8 @@ param(
     [switch]$SkipPython,
     [switch]$SkipSetup,
     [switch]$RefreshConstraints,
-    [switch]$NoPrecompile
+    [switch]$NoPrecompile,
+    [string]$EnergyPlusDir = $env:SAENGINE_ENERGYPLUS_DIR
 )
 
 $ErrorActionPreference = 'Stop'
@@ -349,6 +360,20 @@ Remove-Tree $appPython
 if ($LASTEXITCODE -ge 8) { throw "Copying the bundled Python failed (robocopy exit code $LASTEXITCODE)." }
 $global:LASTEXITCODE = 0
 
+# EnergyPlus version 26.2.0 for the HVAC cooling loads: a separate program the backend runs, never
+# linked. Optional: without it the loads are SAEngine's estimate.
+$appEnergyPlus = Join-Path $appDir 'resources\energyplus'
+Remove-Tree $appEnergyPlus
+if ($EnergyPlusDir) {
+    Write-Step 'Copying the minimal EnergyPlus version 26.2.0 runtime into the app'
+    $started = [Diagnostics.Stopwatch]::StartNew()
+    Invoke-Native (Join-Path $appPython 'python.exe') @('-I', '-B', (Join-Path $installerScripts 'energyplus_runtime.py'),
+        '--source', $EnergyPlusDir, '--dest', $appEnergyPlus, '--check') 'Bundling EnergyPlus'
+    $timings['EnergyPlus runtime'] = $started.Elapsed
+} else {
+    Write-Host 'EnergyPlus is not bundled (no -EnergyPlusDir or SAENGINE_ENERGYPLUS_DIR): the HVAC loads will be the estimate.'
+}
+
 # --- 4. Notices ------------------------------------------------------------------------------
 Write-Step 'Writing THIRD_PARTY_NOTICES.txt and LICENSE.txt'
 $sourcesName = "$($product.nameShort)-$Version-third-party-sources"
@@ -357,7 +382,8 @@ Invoke-Native (Join-Path $appPython 'python.exe') @('-I', '-B', (Join-Path $inst
     '--out', (Join-Path $appDir 'THIRD_PARTY_NOTICES.txt'), '--version', $Version, '--commit', $commit,
     '--python-license', (Join-Path $appPython 'LICENSE.txt'),
     '--js-package', (Join-Path $repoRoot 'packages\fem-viewer'), '--js-package', (Join-Path $repoRoot 'packages\cad-editor'),
-    '--copyleft-sources', (Join-Path $installerScripts 'copyleft-sources.json'), '--sources-name', $sourcesName) 'Writing the notices'
+    '--copyleft-sources', (Join-Path $installerScripts 'copyleft-sources.json'), '--sources-name', $sourcesName,
+    '--energyplus', $appEnergyPlus) 'Writing the notices'
 
 Write-Step 'Collecting the source archives of the copyleft binaries'
 $sourcesDir = Join-Path $distDir $sourcesName
@@ -386,6 +412,9 @@ $rows = @(
     [pscustomobject]@{ Item = '  of which resources\app'; Size = Format-Size (Get-FolderSize $appRoot) },
     [pscustomobject]@{ Item = '  of which resources\python'; Size = Format-Size (Get-FolderSize $appPython) }
 )
+if (Test-Path $appEnergyPlus) {
+    $rows += [pscustomobject]@{ Item = '  of which resources\energyplus'; Size = Format-Size (Get-FolderSize $appEnergyPlus) }
+}
 if ($setupFile) {
     $rows += [pscustomobject]@{ Item = (Split-Path -Leaf $setupFile); Size = Format-Size (Get-Item $setupFile).Length }
 }
