@@ -24,6 +24,10 @@ export type MepSelection =
 	| { readonly kind: 'equipment'; readonly index: number }
 	| { readonly kind: 'opening'; readonly index: number }
 	| { readonly kind: 'shaft'; readonly index: number }
+	/** The plumbing's risers and stacks, tanks and roof drains (plumbingDocument.ts). */
+	| { readonly kind: 'riser'; readonly index: number }
+	| { readonly kind: 'tank'; readonly index: number }
+	| { readonly kind: 'drain'; readonly index: number }
 	| { readonly kind: 'element'; readonly id: string };
 
 /** A clash of the report drawn on the plan. */
@@ -42,6 +46,12 @@ export interface IPlanOptions {
 	readonly openingBands?: ReadonlyMap<string, 'ok' | 'warn' | 'fail' | 'none'>;
 	readonly clashes?: readonly IPlanClash[];
 	readonly selectedClash?: string;
+	/** More plan points to keep in view (the plumbing's tanks beside the building). */
+	readonly extraExtent?: readonly Point[];
+	/** The plumbing view: the coordination items are drawn quietly, under the plumbing. */
+	readonly plumbing?: boolean;
+	/** Draws more over the plan (the plumbing), before the scale bar. */
+	readonly overlay?: (root: SVGElement, view: IPlanView) => void;
 }
 
 /** A plan transform: mm on the project's axes to px with y up. */
@@ -83,8 +93,8 @@ function isSelected(selection: MepSelection | undefined, kind: MepSelection['kin
 }
 
 /** Everything the story's plan should fit: its floor, columns and walls, its equipment and shafts, the grid. */
-function extent(document: IMep, context: IMepContext, story: string): Point[] {
-	const points: Point[] = [...storyExtent(context, story)];
+function extent(document: IMep, context: IMepContext, story: string, extra: readonly Point[] = []): Point[] {
+	const points: Point[] = [...storyExtent(context, story), ...extra];
 	for (const e of document.equipment) {
 		if (e.story === story) {
 			points.push(...equipmentOutline(e));
@@ -108,8 +118,8 @@ function extent(document: IMep, context: IMepContext, story: string): Point[] {
 /** Draws the plan of `options.story` into `container` (the caller clears it); returns the transform. */
 export function renderPlan(container: HTMLElement, document: IMep, context: IMepContext, options: IPlanOptions): IPlanView {
 	const { width, height, story, selection } = options;
-	const root = svg(container, 'svg', { width, height, class: 'mep-plan', role: 'img', 'aria-label': localize('mep.planAria', "Plan of the services on {0}", story) });
-	const points = extent(document, context, story);
+	const root = svg(container, 'svg', { width, height, class: `mep-plan${options.plumbing ? ' plumbing' : ''}`, role: 'img', 'aria-label': localize('mep.planAria', "Plan of the services on {0}", story) });
+	const points = extent(document, context, story, options.extraExtent);
 	const view = fit(points, width, height, 56);
 	const minX = Math.min(...points.map(p => p[0]));
 	const maxX = Math.max(...points.map(p => p[0]));
@@ -275,6 +285,8 @@ export function renderPlan(container: HTMLElement, document: IMep, context: IMep
 		svg(group, 'path', { d: `M${x - 6} ${y - 6}L${x + 6} ${y + 6}M${x + 6} ${y - 6}L${x - 6} ${y + 6}`, class: 'mep-clash-mark' });
 		svg(group, 'circle', { cx: x, cy: y, r: 10, class: 'mep-clash-ring' });
 	}
+
+	options.overlay?.(root, view);
 
 	// Scale bar.
 	const scaleLength = niceLength(120 / view.scale);

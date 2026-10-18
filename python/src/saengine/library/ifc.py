@@ -414,7 +414,145 @@ def export_ifc(
         _export_foundations(w, building, substructure, ground_level, storey_at, ids, skipped)
     if mep is not None:
         _export_mep(w, building, mep, products, storey_at, ids, skipped)
+        if getattr(mep, "plumbing", None) is not None:
+            _export_plumbing(w, building, mep, ground_level, storey_at, ids, skipped)
     return w.file, ids, skipped
+
+
+#: Thicknesses drawn for a plumbing tank that gives none [mm] (its design proposes its own).
+_TANK_WALL = 200.0
+_TANK_ROOF = 125.0
+#: Diameter drawn for a riser that is neither entered nor sized [mm].
+_RISER_DIAMETER = 100.0
+
+
+def _export_plumbing(
+    w: _Writer,
+    building: BuildingModel,
+    mep: Any,
+    ground_level: float,
+    storey_at: Any,
+    ids: dict[str, str],
+    skipped: list[str],
+) -> None:
+    """The plumbing of 7 MEP: its tanks as IfcTank (an overhead tank on its story; ground
+    tanks buried from ``ground_level`` and their top level; a soak well as a ring's cylinder),
+    drawn by their outside size, and its risers and stacks as vertical IfcPipeSegment from the
+    story they start at to their top story, at their entered or sized diameter. An overhead tank
+    whose weight an equipment tank carries is that equipment (exported above)."""
+    from saengine.library.mep import TANK_KINDS
+    from saengine.mep.loads import footprint_covers
+
+    plumbing = mep.plumbing
+    levels = {s.id: s.elevation for s in building.stories}
+    sized: dict[str, float] = {}
+    if plumbing.risers and any(r.diameter is None for r in plumbing.risers):
+        try:
+            from saengine.plumbing.report import plumbing_results
+
+            report = plumbing_results(mep, building, None, ground_level)
+            sized = {r["id"]: r["diameter"] for r in report["risers"] if r.get("diameter")}
+        except Exception as error:  # noqa: BLE001 - the model still exports, risers drawn Ø100
+            skipped.append(f"plumbing: the risers are not sized ({error})")
+    for tank in plumbing.tanks:
+        if tank.kind == "overhead" and any(
+            e.kind == "tank"
+            and (
+                e.id == tank.equipment
+                if tank.equipment is not None
+                else e.story == tank.story and footprint_covers(e, tank.x, tank.y)
+            )
+            for e in mep.equipment
+        ):
+            continue
+        wall = tank.walls or _TANK_WALL
+        base = tank.base or wall + 50.0
+        roof = tank.roof if tank.roof is not None else _TANK_ROOF
+        if tank.waterDepth is None:
+            skipped.append(f"{tank.id}: no water depth")
+            continue
+        height = tank.waterDepth + (tank.freeboard if tank.freeboard is not None else 300.0)
+        total = base + height + roof
+        if tank.kind == "overhead":
+            if tank.story not in levels:
+                skipped.append(f"{tank.id}: no story '{tank.story}'")
+                continue
+            bottom = levels[tank.story]
+        else:
+            top = tank.topLevel if tank.topLevel is not None else 150.0
+            bottom = ground_level + top - total
+        if tank.kind == "soakWell":
+            if tank.diameter is None:
+                skipped.append(f"{tank.id}: no diameter")
+                continue
+            profile = w.run(
+                "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
+            )
+            profile.Radius = tank.diameter / 2 + wall
+        elif tank.length is None or tank.width is None:
+            skipped.append(f"{tank.id}: no length or width")
+            continue
+        else:
+            # Outside = inside + 2 walls: the partitions stand inside the inside length, as the
+            # tank design, its quantities and the bill take them (saengine.plumbing.tanks).
+            profile = w.rectangle(tank.length + 2 * wall, tank.width + 2 * wall)
+        toe = (tank.toe or 0.0) if tank.kind != "overhead" and tank.kind != "soakWell" else 0.0
+        storey = storey_at(max(bottom, min(levels.values(), default=0.0)))
+        product = w.entity("IfcTank", tank.id, f"plumbing:{tank.id}", "STORAGE")
+        product.ObjectType = tank.kind
+        product.Tag = tank.id
+        product.Description = f"{TANK_KINDS.get(tank.kind, tank.kind)}, {tank.construction}"
+        if toe > 0 and tank.length is not None and tank.width is not None:
+            # The base with its toe as its own slab under the tank's walls and roof.
+            slab = w.entity("IfcSlab", f"{tank.id} base", f"plumbing:{tank.id}:base", "BASESLAB")
+            slab.Tag = f"{tank.id}-base"
+            slab.Description = f"base of {tank.id} with a {toe:g} mm toe"
+            w.extrusion(
+                slab, w.rectangle(tank.length + 2 * wall + 2 * toe, tank.width + 2 * wall + 2 * toe),
+                base,
+            )  # fmt: skip
+            w.place(slab, _placement((tank.x, tank.y, bottom), (1, 0, 0), (0, 0, 1)))
+            w.run("spatial.assign_container", w.file, products=[slab], relating_structure=storey)
+            if tank.material:
+                w.material(slab, tank.material)
+            ids[f"{tank.id}-base"] = slab.GlobalId
+            w.extrusion(product, profile, total - base)
+            w.place(product, _placement((tank.x, tank.y, bottom + base), (1, 0, 0), (0, 0, 1)))
+        else:
+            w.extrusion(product, profile, total)
+            w.place(product, _placement((tank.x, tank.y, bottom), (1, 0, 0), (0, 0, 1)))
+        w.run("spatial.assign_container", w.file, products=[product], relating_structure=storey)
+        if tank.material:
+            w.material(product, tank.material)
+        ids[tank.id] = product.GlobalId
+    for riser in plumbing.risers:
+        if riser.fromStory not in levels or riser.toStory not in levels:
+            skipped.append(f"{riser.id}: no story '{riser.fromStory}' or '{riser.toStory}'")
+            continue
+        low, high = levels[riser.fromStory], levels[riser.toStory]
+        if high <= low:
+            skipped.append(f"{riser.id}: its top story is not above the story it starts at")
+            continue
+        diameter = riser.diameter or sized.get(riser.id) or _RISER_DIAMETER
+        profile = w.run(
+            "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
+        )
+        profile.Radius = float(diameter) / 2
+        product = w.entity("IfcPipeSegment", riser.id, f"plumbing:{riser.id}", "RIGIDSEGMENT")
+        product.ObjectType = riser.system
+        product.Tag = riser.id
+        product.Description = f"DN{diameter:g} {riser.system}" + (
+            f" {riser.material}" if riser.material else ""
+        )
+        w.extrusion(product, profile, high - low)
+        w.place(product, _placement((riser.x, riser.y, low), (1, 0, 0), (0, 0, 1)))
+        w.run(
+            "spatial.assign_container",
+            w.file,
+            products=[product],
+            relating_structure=storey_at(low),
+        )
+        ids[riser.id] = product.GlobalId
 
 
 #: IFC4 classes of the equipment kinds of 7 MEP (class, predefined type).

@@ -358,3 +358,28 @@ CommandsRegistry.registerCommand('saengine.mep.importIfc', async (accessor, args
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	return problemsOrResult(await accessor.get(IFemSolverService).mepImportIfc(python, args.projectRoot, args.path ?? ''), ['path', 'elements']);
 });
+
+/**
+ * Part 7 plumbing (BNBC 2020 Part 8): the report (sizing, the tanks' design, the hydraulics, the
+ * missing sleeves), the tanks and sleeves SAEngine proposes, and Table 8.5.1's occupancies.
+ * Internal: the MEP editor's Plumbing view and Run All call them by id.
+ */
+CommandsRegistry.registerCommand('saengine.plumbing.report', async (accessor, args: IMepCommandArgs) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return problemsOrResult(await accessor.get(IFemSolverService).plumbingReport(python, args.projectRoot, args.mepText), ['demand', 'checks']);
+});
+
+CommandsRegistry.registerCommand('saengine.plumbing.sizeTanks', async (accessor, args: IMepCommandArgs) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return problemsOrResult(await accessor.get(IFemSolverService).plumbingSizeTanks(python, args.projectRoot, args.mepText), ['tanks']);
+});
+
+CommandsRegistry.registerCommand('saengine.plumbing.sleeves', async (accessor, args: IMepCommandArgs) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return problemsOrResult(await accessor.get(IFemSolverService).plumbingSleeves(python, args.projectRoot, args.mepText), ['openings']);
+});
+
+CommandsRegistry.registerCommand('saengine.plumbing.occupancies', async accessor => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).plumbingOccupancies(python);
+});

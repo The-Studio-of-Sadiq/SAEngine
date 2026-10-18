@@ -797,3 +797,348 @@
 .saengine-mep-editor ::-webkit-scrollbar-thumb:hover {
 	background: var(--vscode-scrollbarSlider-hoverBackground);
 }
+
+/* ── plumbing (plumbingPlan.ts, plumbingResults.ts) ─────────────────────── */
+
+/* Each system has its colour and its letters (CW, HW, S, W, SW, V, RW, PM): the letters carry the
+ * identity, the colour helps. Text stays in the text tokens. */
+.saengine-mep-editor {
+	--plb-coldWater: var(--vscode-charts-blue, #2c6fbe);
+	--plb-hotWater: var(--vscode-charts-red, #c4314b);
+	--plb-soil: var(--vscode-charts-orange, #c2620e);
+	--plb-waste: var(--vscode-charts-yellow, #b58900);
+	--plb-soilWaste: color-mix(in srgb, var(--vscode-charts-orange, #c2620e) 65%, var(--vscode-foreground));
+	--plb-vent: var(--vscode-charts-green, #388a34);
+	--plb-rainwater: color-mix(in srgb, var(--vscode-charts-blue, #2c6fbe) 50%, var(--vscode-charts-green, #388a34));
+	--plb-pumpMain: var(--vscode-charts-purple, #7c4dbd);
+	--plb-tank: var(--vscode-charts-blue, #2c6fbe);
+}
+
+.saengine-mep-editor .mep-discipline {
+	margin-left: var(--sa-space-3);
+}
+
+/* the coordination items drawn quietly under the plumbing */
+.saengine-mep-editor .mep-plan.plumbing .mep-equipment {
+	opacity: 0.35;
+}
+
+.saengine-mep-editor .plb-riser,
+.saengine-mep-editor .plb-tank,
+.saengine-mep-editor .plb-drain {
+	cursor: move;
+}
+
+.saengine-mep-editor .sys-coldWater { --plb-c: var(--plb-coldWater); }
+.saengine-mep-editor .sys-hotWater { --plb-c: var(--plb-hotWater); }
+.saengine-mep-editor .sys-soil { --plb-c: var(--plb-soil); }
+.saengine-mep-editor .sys-waste { --plb-c: var(--plb-waste); }
+.saengine-mep-editor .sys-soilWaste { --plb-c: var(--plb-soilWaste); }
+.saengine-mep-editor .sys-vent { --plb-c: var(--plb-vent); }
+.saengine-mep-editor .sys-rainwater { --plb-c: var(--plb-rainwater); }
+.saengine-mep-editor .sys-pumpMain { --plb-c: var(--plb-pumpMain); }
+
+.saengine-mep-editor .plb-riser-shape {
+	fill: color-mix(in srgb, var(--plb-c, var(--sa-muted)) 18%, var(--sa-surface));
+	stroke: var(--plb-c, var(--sa-muted));
+	stroke-width: 2;
+}
+
+.saengine-mep-editor .plb-riser.failed .plb-riser-shape {
+	stroke-dasharray: 3 2;
+}
+
+.saengine-mep-editor .plb-riser.selected .plb-riser-shape,
+.saengine-mep-editor .plb-drain.selected .plb-drain-shape {
+	stroke: var(--mep-select);
+	stroke-width: 3;
+}
+
+.saengine-mep-editor .plb-riser-letters {
+	font-size: 9.5px;
+	font-weight: 700;
+	fill: var(--vscode-foreground);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .plb-label {
+	font-size: 10.5px;
+	fill: var(--sa-muted);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .plb-tank-shape {
+	fill: color-mix(in srgb, var(--plb-tank) 10%, var(--sa-surface));
+	stroke: var(--plb-tank);
+	stroke-width: 1.5;
+}
+
+.saengine-mep-editor .plb-tank.ground .plb-tank-shape {
+	stroke-dasharray: 6 3;
+}
+
+.saengine-mep-editor .plb-tank.kind-septic { --plb-tank: var(--plb-soil); }
+.saengine-mep-editor .plb-tank.kind-soakWell { --plb-tank: var(--plb-waste); }
+.saengine-mep-editor .plb-tank.kind-rainwater { --plb-tank: var(--plb-rainwater); }
+
+.saengine-mep-editor .plb-tank-inside {
+	fill: color-mix(in srgb, var(--plb-tank) 18%, var(--sa-surface));
+	stroke: color-mix(in srgb, var(--plb-tank) 60%, transparent);
+	stroke-width: 1;
+}
+
+.saengine-mep-editor .plb-tank-baffle {
+	stroke: color-mix(in srgb, var(--plb-tank) 60%, transparent);
+	stroke-width: 1;
+	stroke-dasharray: 4 3;
+}
+
+.saengine-mep-editor .plb-tank.selected .plb-tank-shape {
+	stroke: var(--mep-select);
+	stroke-width: 2.5;
+}
+
+.saengine-mep-editor .plb-tank-label {
+	font-size: 11px;
+	font-weight: 600;
+	fill: var(--vscode-foreground);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .plb-tank-capacity,
+.saengine-mep-editor .plb-tank-name {
+	font-size: 10.5px;
+	fill: var(--sa-muted);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .plb-drain-shape {
+	fill: var(--sa-surface);
+	stroke: var(--plb-rainwater);
+	stroke-width: 2;
+}
+
+.saengine-mep-editor .plb-drain-cross {
+	stroke: var(--plb-rainwater);
+	stroke-width: 1.5;
+}
+
+.saengine-mep-editor .plb-catchment-shape {
+	fill: color-mix(in srgb, var(--plb-rainwater) 7%, transparent);
+	stroke: color-mix(in srgb, var(--plb-rainwater) 55%, transparent);
+	stroke-width: 1;
+	stroke-dasharray: 5 4;
+}
+
+/* legend swatches of the plumbing */
+.saengine-mep-editor .mep-swatch.plb-sys {
+	width: auto;
+	min-width: 18px;
+	height: 14px;
+	padding: 0 3px;
+	border: 1.5px solid var(--plb-c);
+	border-radius: 7px;
+	background: color-mix(in srgb, var(--plb-c) 18%, var(--sa-surface));
+	color: var(--vscode-foreground);
+	font-size: 9px;
+	font-weight: 700;
+	line-height: 11px;
+	text-align: center;
+}
+
+.saengine-mep-editor .mep-swatch.plb-tank { border: 1px solid var(--plb-tank); background: color-mix(in srgb, var(--plb-tank) 14%, var(--sa-surface)); }
+.saengine-mep-editor .mep-swatch.plb-drain { width: 10px; border: 1.5px solid var(--plb-rainwater); }
+
+/* data view */
+.saengine-mep-editor .plb-settings {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+	gap: var(--sa-space-2) var(--sa-space-4);
+	max-width: 1100px;
+}
+
+.saengine-mep-editor .plb-setting {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--sa-space-2);
+}
+
+.saengine-mep-editor .plb-setting-label {
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+}
+
+.saengine-mep-editor .plb-setting-control {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1);
+	width: 140px;
+}
+
+.saengine-mep-editor .plb-setting-control .mep-input,
+.saengine-mep-editor .plb-setting-control .mep-select {
+	border-color: var(--vscode-input-border, var(--sa-border));
+	background: var(--vscode-input-background);
+}
+
+.saengine-mep-editor .plb-static-note {
+	margin: 0 0 var(--sa-space-2);
+}
+
+.saengine-mep-editor tr.plb-empty-row td:first-child {
+	color: var(--sa-muted);
+}
+
+.saengine-mep-editor tr.plb-total td {
+	border-top: 1px solid var(--sa-border);
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-mep-editor td.plb-sized {
+	font-style: italic;
+}
+
+/* results */
+.saengine-mep-editor .plb-pill {
+	display: inline-block;
+	padding: 0 6px;
+	border-radius: 999px;
+	font-size: 11px;
+	line-height: 16px;
+	border: 1px solid currentColor;
+	color: var(--sa-muted);
+}
+
+.saengine-mep-editor .plb-pill.band-ok { color: var(--sa-ok); }
+.saengine-mep-editor .plb-pill.band-warn { color: var(--sa-warn); }
+.saengine-mep-editor .plb-pill.band-fail { color: var(--sa-fail); font-weight: 600; }
+
+.saengine-mep-editor .plb-summary {
+	margin: var(--sa-space-2) 0 0;
+	padding-left: var(--sa-space-4);
+	max-width: 760px;
+	font-size: var(--sa-font-s);
+	color: var(--sa-muted);
+}
+
+.saengine-mep-editor .plb-problem {
+	color: var(--sa-warn);
+}
+
+.saengine-mep-editor .plb-more {
+	margin-top: var(--sa-space-1);
+	font-size: var(--sa-font-s);
+}
+
+.saengine-mep-editor .plb-more > summary {
+	cursor: pointer;
+	color: var(--sa-muted);
+	width: max-content;
+}
+
+.saengine-mep-editor .plb-more > summary:hover {
+	color: var(--vscode-foreground);
+}
+
+.saengine-mep-editor .plb-tank-card {
+	margin-top: var(--sa-space-3);
+	padding: var(--sa-space-2) var(--sa-space-3);
+	max-width: 760px;
+	border: 1px solid var(--sa-border);
+	border-radius: var(--sa-radius);
+}
+
+.saengine-mep-editor .plb-tank-card.failed {
+	box-shadow: inset 2px 0 0 var(--sa-fail);
+}
+
+.saengine-mep-editor .plb-tank-card-title {
+	display: flex;
+	align-items: baseline;
+	gap: var(--sa-space-2);
+	margin-bottom: var(--sa-space-1);
+}
+
+.saengine-mep-editor .plb-tank-card-id {
+	font-weight: 600;
+}
+
+.saengine-mep-editor .plb-bars {
+	display: grid;
+	grid-template-columns: max-content 1fr;
+	gap: 2px var(--sa-space-3);
+	margin: var(--sa-space-1) 0 0;
+	font-size: var(--sa-font-s);
+}
+
+.saengine-mep-editor .plb-bars dt { color: var(--sa-muted); }
+.saengine-mep-editor .plb-bars dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+.saengine-mep-editor .plb-head-chart {
+	margin-top: var(--sa-space-2);
+}
+
+.saengine-mep-editor .plb-chart-grid {
+	stroke: color-mix(in srgb, var(--sa-muted) 22%, transparent);
+	stroke-width: 1;
+}
+
+.saengine-mep-editor .plb-chart-base {
+	stroke: color-mix(in srgb, var(--sa-muted) 60%, transparent);
+	stroke-width: 1;
+}
+
+.saengine-mep-editor .plb-chart-tick {
+	font-size: 10.5px;
+	fill: var(--sa-muted);
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-mep-editor .plb-chart-value {
+	font-size: 10.5px;
+	fill: var(--vscode-foreground);
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-mep-editor .plb-chart-hit {
+	fill: transparent;
+}
+
+.saengine-mep-editor .plb-chart-bar:hover .plb-chart-hit {
+	fill: color-mix(in srgb, var(--sa-muted) 10%, transparent);
+}
+
+.saengine-mep-editor .plb-chart-fill { fill: var(--plb-coldWater); }
+.saengine-mep-editor .plb-chart-bar.band-fail .plb-chart-fill { fill: var(--sa-fail); }
+.saengine-mep-editor .plb-chart-bar.band-warn .plb-chart-fill { fill: var(--sa-warn); }
+
+.saengine-mep-editor .plb-chart-required {
+	stroke: var(--vscode-foreground);
+	stroke-width: 1.5;
+	stroke-dasharray: 4 3;
+}
+
+.saengine-mep-editor .plb-chart-legend {
+	margin-top: var(--sa-space-1);
+}
+
+.saengine-mep-editor .plb-swatch-required {
+	display: inline-block;
+	width: 16px;
+	border-top: 1.5px dashed var(--vscode-foreground);
+}
+
+.saengine-mep-editor .mep-swatch.plb-swatch-fail { background: var(--sa-fail); }
+
+.saengine-mep-editor .plb-pump {
+	display: flex;
+	gap: var(--sa-space-3);
+	margin: var(--sa-space-2) 0 0;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-mep-editor .plb-pump-label {
+	color: var(--sa-muted);
+}

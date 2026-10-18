@@ -2,9 +2,9 @@
 derivation (as the RPC derives it), the run, the combinations, the result views, the design, the
 foundation loads, the bill of quantities, the IFC and the report, on a copy of the shipped sample.
 
-The soil is synthetic: one uniform sand layer (γ = 18 kN/m³) with SPT N = 10 every 1.5 m. The
-sample's 7 MEP has a 60 kN overhead tank (8 kN empty) on a 150 mm C20.7 plinth on S2 and a
-Ø100 sleeve in B1.
+The soil is synthetic: one uniform sand layer (γ = 18 kN/m³) with SPT N = 10 every 1.5 m. Its
+7 MEP (:data:`EQUIPMENT_MEP`) has a 60 kN overhead tank (8 kN empty) on a 150 mm C20.7 plinth on
+S2 and a Ø100 sleeve in B1.
 """
 
 from __future__ import annotations
@@ -55,11 +55,49 @@ def _read(root: Path, relative: str) -> str:
     return (root / relative).read_text(encoding="utf-8")
 
 
+#: The 7 MEP these tests are written for (the sample's before its plumbing set-up): an equipment
+#: tank and a sleeve. The sample's own plumbing is tested in test_plumbing_integration.py.
+EQUIPMENT_MEP = {
+    "schema": "saengine.mep/1",
+    "equipment": [
+        {
+            "id": "EQ1",
+            "name": "Overhead water tank",
+            "kind": "tank",
+            "story": "L1",
+            "x": 9500,
+            "y": 2500,
+            "length": 2500,
+            "width": 2000,
+            "height": 1800,
+            "operatingWeight": 60,
+            "emptyWeight": 8,
+            "plinth": {"material": "C20.7", "height": 150},
+        }
+    ],
+    "openings": [
+        {
+            "id": "OP1",
+            "host": "B1",
+            "kind": "sleeve",
+            "shape": "circle",
+            "diameter": 100,
+            "position": {"distance": 2000, "elevation": 250},
+            "service": "DN100 drain",
+        }
+    ],
+    "shafts": [],
+    "ifcModels": [],
+}
+
+
 def _project(tmp_path: Path, **analysis: object) -> Path:
-    """A copy of the sample with the synthetic soil and the analysis settings ``analysis``."""
+    """A copy of the sample with the synthetic soil, :data:`EQUIPMENT_MEP` and the analysis
+    settings ``analysis``."""
     root = tmp_path / "Sample Frame"
     shutil.copytree(SAMPLE, root)
     (root / "01 Soil Report" / "soil-report.json").write_text(json.dumps(SOIL), encoding="utf-8")
+    (root / "07 MEP" / "mep.json").write_text(json.dumps(EQUIPMENT_MEP), encoding="utf-8")
     path = root / "02 Project Settings" / "project-settings.json"
     settings = json.loads(path.read_text(encoding="utf-8"))
     settings["analysis"] = {**settings.get("analysis", {}), "responseSpectrum": False, **analysis}

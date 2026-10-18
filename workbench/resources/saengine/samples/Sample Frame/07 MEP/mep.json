@@ -1,24 +1,6 @@
 {
 	"schema": "saengine.mep/1",
-	"equipment": [
-		{
-			"id": "EQ1",
-			"name": "Overhead water tank",
-			"kind": "tank",
-			"story": "L1",
-			"x": 9500,
-			"y": 2500,
-			"length": 2500,
-			"width": 2000,
-			"height": 1800,
-			"operatingWeight": 60,
-			"emptyWeight": 8,
-			"plinth": {
-				"material": "C20.7",
-				"height": 150
-			}
-		}
-	],
+	"equipment": [],
 	"openings": [
 		{
 			"id": "OP1",
@@ -33,6 +15,122 @@
 			"service": "DN100 drain"
 		}
 	],
-	"shafts": [],
-	"ifcModels": []
+	"shafts": [
+		{
+			"id": "SH1",
+			"outline": [
+				[6600, 3800],
+				[7400, 3800],
+				[7400, 4600],
+				[6600, 4600]
+			],
+			"fromStory": "BASE",
+			"toStory": "L1",
+			"service": "Plumbing shaft"
+		}
+	],
+	"ifcModels": [],
+	"plumbing": {
+		"supply": {
+			"source": "mains",
+			"mainsHead": 8,
+			"pumpHours": 8
+		},
+		"stories": [
+			{
+				"story": "BASE",
+				"occupancy": "office",
+				"population": 12,
+				"fixtures": {
+					"wc": 2,
+					"basin": 2,
+					"kitchenSink": 1,
+					"floorDrain": 2
+				}
+			}
+		],
+		"risers": [
+			{
+				"id": "R1",
+				"system": "coldWater",
+				"x": 6800,
+				"y": 4200,
+				"fromStory": "BASE",
+				"toStory": "L1",
+				"shaft": "SH1",
+				"material": "PPR"
+			},
+			{
+				"id": "SS1",
+				"system": "soil",
+				"x": 7200,
+				"y": 4200,
+				"fromStory": "BASE",
+				"toStory": "L1",
+				"shaft": "SH1",
+				"diameter": 100,
+				"material": "uPVC"
+			}
+		],
+		"tanks": [
+			{
+				"id": "T1",
+				"kind": "overhead",
+				"story": "L1",
+				"x": 9500,
+				"y": 2500,
+				"length": 2200,
+				"width": 1700,
+				"waterDepth": 1400,
+				"freeboard": 250,
+				"compartments": 2,
+				"construction": "rc",
+				"walls": 150,
+				"base": 150,
+				"roof": 125,
+				"material": "C20.7",
+				"rebar": "B420DWR",
+				"sized": false
+			},
+			{
+				"id": "UGR1",
+				"kind": "underground",
+				"x": -3600,
+				"y": 2500,
+				"length": 3000,
+				"width": 2000,
+				"waterDepth": 1800,
+				"freeboard": 300,
+				"compartments": 2,
+				"construction": "rc",
+				"walls": 200,
+				"base": 250,
+				"roof": 150,
+				"material": "C27.6",
+				"rebar": "B420DWR",
+				"topLevel": 150,
+				"toe": 300,
+				"sized": false
+			},
+			{
+				"id": "SEP1",
+				"kind": "septic",
+				"x": 17000,
+				"y": 2500,
+				"length": 3600,
+				"width": 1200,
+				"waterDepth": 1200,
+				"freeboard": 300,
+				"compartments": 2,
+				"construction": "rc",
+				"walls": 200,
+				"base": 200,
+				"roof": 150,
+				"material": "C27.6",
+				"rebar": "B420DWR",
+				"topLevel": 150,
+				"sized": false
+			}
+		]
+	}
 }

@@ -8790,6 +8790,133 @@ export const MEP_SCHEMA: IJSONSchema = {
 			title: 'Equipment',
 			type: 'object',
 		},
+		Fixtures: {
+			additionalProperties: false,
+			description: 'Number of each plumbing fixture on a story.',
+			properties: {
+				wc: {
+					default: 0,
+					minimum: 0,
+					title: 'Water closets',
+					type: 'integer',
+				},
+				urinal: {
+					default: 0,
+					minimum: 0,
+					title: 'Urinals',
+					type: 'integer',
+				},
+				basin: {
+					default: 0,
+					minimum: 0,
+					title: 'Wash basins',
+					type: 'integer',
+				},
+				shower: {
+					default: 0,
+					minimum: 0,
+					title: 'Showers',
+					type: 'integer',
+				},
+				bathtub: {
+					default: 0,
+					minimum: 0,
+					title: 'Bathtubs',
+					type: 'integer',
+				},
+				kitchenSink: {
+					default: 0,
+					minimum: 0,
+					title: 'Kitchen sinks',
+					type: 'integer',
+				},
+				floorDrain: {
+					default: 0,
+					minimum: 0,
+					title: 'Floor drains',
+					type: 'integer',
+				},
+				washingMachine: {
+					default: 0,
+					minimum: 0,
+					title: 'Washing machines',
+					type: 'integer',
+				},
+				bidet: {
+					default: 0,
+					minimum: 0,
+					title: 'Bidets',
+					type: 'integer',
+				},
+				other: {
+					items: {
+						$ref: '#/$defs/OtherFixture',
+					},
+					title: 'Other',
+					type: 'array',
+				},
+			},
+			title: 'Fixtures',
+			type: 'object',
+		},
+		Harvest: {
+			additionalProperties: false,
+			description: 'Rainwater harvesting storage (BNBC 2020 Part 8 Sec 7.8.9).',
+			properties: {
+				demand: {
+					description: 'Rainwater demand [lpcd].',
+					exclusiveMinimum: 0,
+					title: 'Demand',
+					type: 'number',
+				},
+				purpose: {
+					default: 'other',
+					description: 'Potable (drinking, cooking, bathing, ablution): 90 days; other: 210.',
+					enum: ['potable', 'other'],
+					enumDescriptions: ['Potable uses (90 days)', 'Other uses (210 days)'],
+					title: 'Purpose',
+					type: 'string',
+				},
+				days: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Overrides the purpose\'s days.',
+					title: 'Days',
+				},
+				population: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Empty: the building\'s.',
+					title: 'Population',
+				},
+				floating: {
+					default: 0,
+					description: 'Floating storage added [m³].',
+					minimum: 0,
+					title: 'Floating',
+					type: 'number',
+				},
+			},
+			required: ['demand'],
+			title: 'Harvest',
+			type: 'object',
+		},
 		IfcModel: {
 			additionalProperties: false,
 			description: 'An MEP model of the building services, an IFC file in the project.',
@@ -8973,6 +9100,40 @@ export const MEP_SCHEMA: IJSONSchema = {
 			title: 'OpeningPosition',
 			type: 'object',
 		},
+		OtherFixture: {
+			additionalProperties: false,
+			description: 'A fixture the list does not name, with its units.',
+			properties: {
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				supplyUnits: {
+					default: 0,
+					description: 'wsfu.',
+					minimum: 0,
+					title: 'Supply units',
+					type: 'number',
+				},
+				drainageUnits: {
+					default: 0,
+					description: 'Table 8.6.12/8.6.13 units.',
+					minimum: 0,
+					title: 'Drainage units',
+					type: 'number',
+				},
+				count: {
+					default: 1,
+					minimum: 0,
+					title: 'Number of bars',
+					type: 'integer',
+				},
+			},
+			required: ['name'],
+			title: 'OtherFixture',
+			type: 'object',
+		},
 		Plinth: {
 			additionalProperties: false,
 			description: 'A concrete plinth under a piece of equipment, of the equipment\'s footprint.',
@@ -8994,6 +9155,784 @@ export const MEP_SCHEMA: IJSONSchema = {
 			},
 			required: ['height', 'material'],
 			title: 'Plinth',
+			type: 'object',
+		},
+		Plumbing: {
+			additionalProperties: false,
+			description: 'The plumbing the structure coordinates with (BNBC 2020 Part 8).',
+			properties: {
+				supply: {
+					$ref: '#/$defs/PlumbingSupply',
+					title: 'Supply',
+				},
+				stories: {
+					items: {
+						$ref: '#/$defs/PlumbingStory',
+					},
+					title: 'Stories',
+					type: 'array',
+				},
+				risers: {
+					items: {
+						$ref: '#/$defs/Riser',
+					},
+					title: 'Risers',
+					type: 'array',
+				},
+				tanks: {
+					items: {
+						$ref: '#/$defs/PlumbingTank',
+					},
+					title: 'Tanks',
+					type: 'array',
+				},
+				roof: {
+					anyOf: [
+						{
+							$ref: '#/$defs/PlumbingRoof',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Roof',
+				},
+				disposal: {
+					default: 'septic',
+					description: 'Sewage to a septic tank and soak well, or to a public sewer.',
+					enum: ['septic', 'publicSewer'],
+					enumDescriptions: ['Septic tank and soak well', 'Public sewer'],
+					title: 'Disposal',
+					type: 'string',
+				},
+				drainSlope: {
+					default: 0.01,
+					description: 'Of the building drain and storm drain (0.01 = 1 in 100).',
+					exclusiveMinimum: 0,
+					maximum: 0.1,
+					title: 'Drain slope',
+					type: 'number',
+				},
+			},
+			title: 'Plumbing',
+			type: 'object',
+		},
+		PlumbingRoof: {
+			additionalProperties: false,
+			properties: {
+				rainfallIntensity: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'One-hour rainfall [mm/h], BNBC 2020 Part 8 Appendix R; empty: Dhaka, 88.',
+					title: 'Rainfall intensity',
+				},
+				drains: {
+					items: {
+						$ref: '#/$defs/RoofDrain',
+					},
+					title: 'Drains',
+					type: 'array',
+				},
+				plotArea: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[m²]: harvesting from 300 (Sec 7.4.1).',
+					title: 'Plot area',
+				},
+				harvest: {
+					anyOf: [
+						{
+							$ref: '#/$defs/Harvest',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Harvest',
+				},
+			},
+			title: 'PlumbingRoof',
+			type: 'object',
+		},
+		PlumbingStory: {
+			additionalProperties: false,
+			description: 'What a story holds: its occupancy, people and fixtures.',
+			properties: {
+				story: {
+					description: 'Building-model story.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				occupancy: {
+					default: 'residentialFlat',
+					description: 'Row of BNBC 2020 Table 8.5.1 (water consumption).',
+					enum: ['singleFamily', 'apartmentLarge', 'residentialFlat', 'apartmentSmall', 'staffQuarter', 'townSingleFamily', 'townApartment', 'townSmallApartment', 'townStaffQuarter', 'villagePrivate', 'villagePublic', 'dormitory', 'hotel', 'school', 'college', 'preschool', 'childCare', 'custodialCapable', 'custodialIncapable', 'penalChildren', 'penalAdults', 'hospital', 'hospitalLarge', 'emergencyMedical', 'nursesQuarters', 'office', 'laboratory', 'essentialServices', 'shop', 'largeShop', 'refueling', 'industryLow', 'industryModerate', 'storageLow', 'storageModerate', 'assemblyLargeFixed', 'assemblySmallFixed', 'assemblyLarge', 'assemblySmall', 'sports', 'hazardExplosion', 'hazardChemical', 'hazardBiological', 'hazardRadiation', 'parking', 'privateGarage', 'repairGarage', 'utility', 'tanksTowers'],
+					enumDescriptions: ['Single family dwelling, high income (city)', 'Big apartment > 2500 sft, high income (city)', 'Moderate apartment < 2000 sft, middle income (city)', 'Small apartment < 1500 sft (city)', 'Junior staff flat < 1000 sft (city)', 'Single family dwelling (town)', 'Moderate apartment < 2000 sft (town)', 'Small apartment < 1500 sft (town)', 'Junior staff flat < 1000 sft (town)', 'Village, private source', 'Village, public source', 'Mess, boarding house, dormitory, hostel', 'Hotel, lodging house (per bed)', 'Educational up to higher secondary', 'Training and above higher secondary', 'Pre-school', 'Institution for care of children', 'Custodial institution, capable adults', 'Custodial institution, incapable adults', 'Penal and mental institution, children', 'Penal and mental institution, adults', 'Normal medical facility (small hospital)', 'Big hospital (over 100 beds)', 'Emergency medical facility', 'Nurses and medical quarters', 'Office', 'Research and testing laboratory', 'Essential services', 'Small shops and market', 'Large shops and market', 'Refueling station', 'Low hazard industry', 'Moderate hazard industry', 'Low fire risk storage', 'Moderate fire risk storage', 'Large assembly with fixed seats (per seat)', 'Small assembly with fixed seats (per seat)', 'Large assembly without fixed seats', 'Small assembly without fixed seats', 'Sports facility', 'Explosion hazard building', 'Chemical hazard building', 'Biological hazard building', 'Radiation hazard building', 'Parking garage (visitors)', 'Private garage (visitors)', 'Repair garage (visitors)', 'Utility', 'Fences, tanks and towers'],
+					title: 'Occupancy',
+					type: 'string',
+				},
+				population: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Persons (beds, seats for those rows); empty: 5 per dwelling (one per kitchen sink, Sec 5.6.3) or 7.4 m² per person for offices (Sec 5.6.4).',
+					title: 'Population',
+				},
+				fixtures: {
+					$ref: '#/$defs/Fixtures',
+				},
+			},
+			required: ['story'],
+			title: 'PlumbingStory',
+			type: 'object',
+		},
+		PlumbingSupply: {
+			additionalProperties: false,
+			description: 'The water source and what the supply sizing assumes.',
+			properties: {
+				source: {
+					default: 'mains',
+					enum: ['mains', 'deepTubewell'],
+					enumDescriptions: ['City water main', 'Deep tube well (DTW)'],
+					title: 'Source',
+					type: 'string',
+				},
+				mainsHead: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Residual head of the city main at the connection [m].',
+					title: 'Mains head',
+				},
+				pumpHours: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 24,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Hours a day the pump runs to fill the overhead tank; empty: the pump delivers the peak hourly demand (BNBC 2020 Part 8 Sec 5.9.1.2(c)(ii)).',
+					title: 'Pumping hours',
+				},
+				minResidualHead: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'At the fixtures [m]; empty: Table 8.5.6\'s flow pressure.',
+					title: 'Minimum residual head',
+				},
+				facility: {
+					default: 'full',
+					description: 'Column of Table 8.5.1 (full or restricted facility).',
+					enum: ['full', 'restricted'],
+					enumDescriptions: ['Full facility', 'Restricted facility'],
+					title: 'Facility',
+					type: 'string',
+				},
+				flushValves: {
+					default: false,
+					description: 'Water closets and urinals with flush valves (else flush tanks/cisterns).',
+					title: 'Flush valves',
+					type: 'boolean',
+				},
+				inflow: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Flow of the source into the underground reservoir [l/min] (sizes its overflow, Table 8.5.3); empty: the peak hourly demand.',
+					title: 'Inflow',
+				},
+				fireReserve: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Water kept for fire fighting in each tank [m³]; empty: 1 hour of the Part 4 Table 4.4.1 standpipe flow for a tall building (Sec 5.9.1.2(c)), none else.',
+					title: 'Fire reserve',
+				},
+				feed: {
+					default: 'down',
+					description: 'Down-feed from an overhead (roof) tank, or up-feed pumped from the reservoir or the main without a roof tank (no overhead tank is then proposed).',
+					enum: ['down', 'up'],
+					enumDescriptions: ['Down-feed (overhead tank)', 'Up-feed (pumped, no roof tank)'],
+					title: 'Feed',
+					type: 'string',
+				},
+			},
+			title: 'PlumbingSupply',
+			type: 'object',
+		},
+		PlumbingTank: {
+			additionalProperties: false,
+			description: 'A water tank, septic tank or soak well; its weight and walls are the structure\'s.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				kind: {
+					enum: ['overhead', 'underground', 'septic', 'rainwater', 'soakWell'],
+					enumDescriptions: ['Overhead water tank', 'Underground reservoir', 'Septic tank', 'Rainwater storage tank', 'Soak well (seepage pit)'],
+					title: 'Kind',
+					type: 'string',
+				},
+				story: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Story an overhead tank stands on; empty for ground tanks.',
+					title: 'Story',
+				},
+				x: {
+					description: 'Centre, plan X [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					description: 'Centre, plan Y [mm].',
+					title: 'Y',
+					type: 'number',
+				},
+				length: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Inside, along X [mm].',
+					title: 'Length',
+				},
+				width: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Inside, along Y [mm].',
+					title: 'Width',
+				},
+				diameter: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Soak well, inside [mm].',
+					title: 'Diameter',
+				},
+				waterDepth: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[mm]',
+					title: 'Water depth',
+				},
+				freeboard: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Above the water [mm].',
+					title: 'Freeboard',
+				},
+				compartments: {
+					anyOf: [
+						{
+							minimum: 1,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Compartments',
+				},
+				construction: {
+					default: 'rc',
+					enum: ['rc', 'masonry', 'prefab'],
+					enumDescriptions: ['Reinforced concrete', 'Masonry', 'Prefabricated'],
+					title: 'Construction',
+					type: 'string',
+				},
+				walls: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Wall thickness [mm].',
+					title: 'Walls',
+				},
+				base: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Base slab thickness [mm].',
+					title: 'Base',
+				},
+				roof: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Roof slab thickness [mm].',
+					title: 'Roof',
+				},
+				material: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Concrete from 03 Materials.',
+					title: 'Material',
+				},
+				rebar: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Reinforcement from 03 Materials.',
+					title: 'Rebar',
+				},
+				topLevel: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Ground tanks: top relative to ground [mm].',
+					title: 'Top level',
+				},
+				sized: {
+					default: false,
+					description: 'Dimensions proposed by SAEngine (editable).',
+					title: 'Sized',
+					type: 'boolean',
+				},
+				toe: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Ground tanks: projection of the base beyond the walls [mm] (flotation).',
+					title: 'Toe',
+				},
+				equipment: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Overhead tank: the 07 MEP equipment (kind tank) that already carries its weight in the analysis; empty: SAEngine loads the model with this tank.',
+					title: 'Equipment',
+				},
+				emptyWeight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Overhead tank: its own weight empty [kN], e.g. a prefab tank\'s from its maker; empty: computed (rc: the concrete; masonry: brick walls, concrete base and roof; prefab: nil).',
+					title: 'Empty weight',
+				},
+				users: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Septic tank: persons served; empty: the building\'s.',
+					title: 'Users',
+				},
+				flow: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Septic tank: waste water flow [lpcd]; empty: Appendix S.',
+					title: 'Flow',
+				},
+				desludging: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Septic tank: desludging interval [years]; empty: 1.',
+					title: 'Desludging',
+				},
+				retention: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Septic tank: liquid retention time [days]; empty: 1.',
+					title: 'Retention',
+				},
+				percolation: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Soak well: percolation test rate [minutes for 25 mm]; empty: estimated from 01 Soil Report.',
+					title: 'Percolation',
+				},
+			},
+			required: ['id', 'kind', 'x', 'y'],
+			title: 'PlumbingTank',
+			type: 'object',
+		},
+		Riser: {
+			additionalProperties: false,
+			description: 'A vertical pipe: a water riser, a soil, waste or vent stack, a leader or a pump main.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				system: {
+					enum: ['coldWater', 'hotWater', 'soil', 'waste', 'soilWaste', 'vent', 'rainwater', 'pumpMain'],
+					enumDescriptions: ['Cold water riser', 'Hot water riser', 'Soil stack', 'Waste stack', 'Soil and waste stack', 'Vent stack', 'Rainwater leader', 'Pump main'],
+					title: 'System',
+					type: 'string',
+				},
+				x: {
+					description: 'Plan X [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					description: 'Plan Y [mm].',
+					title: 'Y',
+					type: 'number',
+				},
+				fromStory: {
+					description: 'Story it starts at (not cut).',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'From story',
+					type: 'string',
+				},
+				toStory: {
+					description: 'Highest story whose floor it cuts.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'To story',
+					type: 'string',
+				},
+				shaft: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Shaft it runs in.',
+					title: 'Shaft',
+				},
+				serves: {
+					anyOf: [
+						{
+							items: {
+								maxLength: 64,
+								minLength: 1,
+								pattern: '^[A-Za-z0-9._-]+$',
+								type: 'string',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Stories it serves; empty: all it passes.',
+					title: 'Serves',
+				},
+				diameter: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Nominal diameter [mm]; empty: sized by SAEngine.',
+					title: 'Diameter',
+				},
+				material: {
+					anyOf: [
+						{
+							enum: ['uPVC', 'GI', 'PPR', 'HDPE', 'CI'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Material',
+				},
+			},
+			required: ['id', 'system', 'x', 'y', 'fromStory', 'toStory'],
+			title: 'Riser',
+			type: 'object',
+		},
+		RoofDrain: {
+			additionalProperties: false,
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				x: {
+					description: 'Plan X [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					description: 'Plan Y [mm].',
+					title: 'Y',
+					type: 'number',
+				},
+				story: {
+					description: 'Roof story it drains.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				area: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Catchment [m²]; empty: its share of the roof slab.',
+					title: 'Area',
+				},
+			},
+			required: ['id', 'x', 'y', 'story'],
+			title: 'RoofDrain',
 			type: 'object',
 		},
 		Shaft: {
@@ -9092,6 +10031,19 @@ export const MEP_SCHEMA: IJSONSchema = {
 			enumDescriptions: ['Fluid load F', 'Live load', 'Dead load (always full)'],
 			title: 'Contents as',
 			type: 'string',
+		},
+		plumbing: {
+			anyOf: [
+				{
+					$ref: '#/$defs/Plumbing',
+				},
+				{
+					type: 'null',
+				},
+			],
+			default: null,
+			description: 'Water supply, drainage, rainwater and tanks, sized to BNBC 2020 Part 8.',
+			title: 'Plumbing',
 		},
 	},
 	title: 'SAEngine MEP coordination',

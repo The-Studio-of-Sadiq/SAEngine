@@ -280,6 +280,39 @@ suite('SAEngine - PartStatus', () => {
 		]);
 	});
 
+	test('MEP: the plumbing counts as content and its checks decide the status', () => {
+		const tank = { id: 'T1', kind: 'overhead', story: 'L1', x: 0, y: 0 };
+		const mep = JSON.stringify({ schema: 'saengine.mep/1', equipment: [], openings: [], shafts: [], plumbing: { stories: [{ story: 'L1' }], risers: [], tanks: [tank] } });
+		const summaryOf = (plumbing?: { failed: number; floorsLow: number; source?: { soil: string } }) => JSON.stringify({
+			equipment: 0, openings: 0, openingsFailed: 0, clashes: 0, clashesOpen: 0, computed: '2026-10-17T00:00:00Z',
+			source: { settings: sourceStamp(SOURCES.settings), materials: sourceStamp(SOURCES.materials), objects: sourceStamp(SOURCES.objects), bim: sourceStamp(BIM), mep: sourceStamp(mep) },
+			...(plumbing ? { plumbing: { risers: 0, tanks: 1, ...plumbing } } : {}),
+		});
+		const line = (summary?: string) => {
+			const s = computePartStatuses(PROJECT_PARTS, project({ mep }, summary ? { femResultsTime: 5, mepSummaryText: summary, mepSummaryTime: 20 } : {})).find(p => p.part === 'mep')!;
+			return `${s.state} ${s.text} (${s.hint ?? ''})`;
+		};
+		const fem = computePartStatuses(PROJECT_PARTS, project({ mep, fem: femModel({ bim: BIM, settings: SOURCES.settings, objects: SOURCES.objects, materials: SOURCES.materials }) })).find(p => p.part === 'fem')!;
+		assert.deepStrictEqual({
+			lines: [line(), line(summaryOf()), line(summaryOf({ failed: 3, floorsLow: 1 })), line(summaryOf({ failed: 0, floorsLow: 2 })), line(summaryOf({ failed: 0, floorsLow: 0 })),
+				// Checked against a soil report that has changed since: stale; against the current one: current.
+				line(summaryOf({ failed: 3, floorsLow: 0, source: { soil: 'stamp of an older soil report' } })), line(summaryOf({ failed: 3, floorsLow: 0, source: { soil: sourceStamp(placeholder('soil')) } }))],
+			// The overhead tank loads the analysis model: a model derived before it is stale.
+			femStale: fem.state,
+		}, {
+			lines: [
+				'inProgress not checked (check the openings and clashes)',
+				'inProgress plumbing not checked (open the plumbing results or Run All)',
+				'failed 3 plumbing checks fail (review the plumbing)',
+				'failed 2 floors below the minimum pressure (raise the overhead tank or add a booster pump)',
+				'done plumbing checked, 1 tank ()',
+				'inProgress plumbing not checked (open the plumbing results or Run All)',
+				'failed 3 plumbing checks fail (review the plumbing)',
+			],
+			femStale: 'stale',
+		});
+	});
+
 	test('the analysis model and the bill are stale once MEP they do not record has content', () => {
 		const mep = JSON.stringify({ schema: 'saengine.mep/1', equipment: [{ id: 'EQ1' }], openings: [], shafts: [] });
 		const withMep = femModel({ bim: BIM, settings: SOURCES.settings, objects: SOURCES.objects, materials: SOURCES.materials, mep });

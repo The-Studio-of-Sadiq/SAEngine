@@ -35,11 +35,13 @@ matplotlib==3.11.2
 matplotlib-inline==0.2.2
 mdurl==0.1.2
 more-itertools==11.2.1
+networkx==3.7
 numpy==2.5.4
 openpyxl==3.1.5
 openseespy==3.8.0.0
 openseespywin==3.8.0.0
 packaging==26.3
+pandas==3.0.6
 parso==0.8.7
 pillow==12.3.0
 pluggy==1.6.0
@@ -67,5 +69,7 @@ traitlets==5.16.1
 typing-inspection==0.4.4
 typing_extensions==4.16.0
 typst==0.14.9
+tzdata==2026.5
 wcwidth==0.9.2
 widgetsnbextension==4.0.16
+wntr==1.5.0

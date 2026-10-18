@@ -287,10 +287,44 @@ function mepDocument(inputs: IPartStatusInputs): JsonObject | undefined {
 	return document && document.schema === MEP_SCHEMA_ID ? document : undefined;
 }
 
-/** Whether 7 MEP has anything for the analysis model or the bill: equipment, openings or shafts. */
+/** The plumbing section of an MEP file, when it has one. */
+function plumbingSection(document: JsonObject): JsonObject | undefined {
+	const plumbing = document.plumbing;
+	return typeof plumbing === 'object' && plumbing !== null && !Array.isArray(plumbing) ? plumbing as JsonObject : undefined;
+}
+
+/** Whether the plumbing of an MEP file has an overhead tank (its weight loads the analysis model). */
+function hasOverheadTank(document: JsonObject): boolean {
+	const tanks = plumbingSection(document)?.tanks;
+	return Array.isArray(tanks) && tanks.some(t => typeof t === 'object' && t !== null && (t as JsonObject).kind === 'overhead');
+}
+
+/** Whether 7 MEP has anything for the analysis model or the bill: equipment, openings, shafts or an overhead plumbing tank. */
 function mepHasContent(inputs: IPartStatusInputs): boolean {
 	const document = mepDocument(inputs);
-	return !!document && ['equipment', 'openings', 'shafts'].some(key => Array.isArray(document[key]) && (document[key] as unknown[]).length > 0);
+	return !!document && (['equipment', 'openings', 'shafts'].some(key => Array.isArray(document[key]) && (document[key] as unknown[]).length > 0) || hasOverheadTank(document));
+}
+
+/** How many storeys, risers, tanks and roof drains the plumbing of an MEP file has. */
+function plumbingCount(document: JsonObject): number {
+	const plumbing = plumbingSection(document);
+	if (!plumbing) {
+		return 0;
+	}
+	const length = (value: unknown) => Array.isArray(value) ? value.length : 0;
+	const roof = plumbing.roof;
+	const drains = typeof roof === 'object' && roof !== null && !Array.isArray(roof) ? (roof as JsonObject).drains : undefined;
+	return length(plumbing.stories) + length(plumbing.risers) + length(plumbing.tanks) + length(drains);
+}
+
+/** The plumbing checks' part of the MEP summary (the MEP editor and Run All write it). */
+interface IPlumbingSummary {
+	readonly risers: number;
+	readonly tanks: number;
+	readonly failed: number;
+	readonly floorsLow: number;
+	/** The stamps of the files the plumbing results read beyond the MEP summary's own: the soil report ("" for a missing file). */
+	readonly source?: { readonly [part: string]: unknown };
 }
 
 /** The MEP checks' summary (see {@link MEP_SUMMARY_FILE}). */
@@ -304,13 +338,17 @@ interface IMepSummary {
 	readonly openingsPartial?: number;
 	/** The stamp of each part file the checks read, by part id ("" for a missing file). */
 	readonly source?: { readonly [part: string]: unknown };
+	/** The plumbing checks, when the file has plumbing and they ran. */
+	readonly plumbing?: IPlumbingSummary;
 }
 
 /**
  * Part 7: not started while the file is missing, the placeholder, or has no equipment, openings,
- * shafts or IFC models; in progress until the checks' summary is newer than the analysis results
- * with every part file it read unchanged; then failed when an opening fails, in progress while
- * clashes are open or openings are only partly checked, done otherwise.
+ * shafts, IFC models or plumbing (storeys, risers, tanks, roof drains); in progress until the
+ * checks' summary is newer than the analysis results with every part file it read unchanged;
+ * then failed when an opening or a plumbing check fails or a floor is below the minimum
+ * pressure, in progress while the plumbing is not checked, clashes are open or openings are
+ * only partly checked, done otherwise.
  */
 function mepStatus(inputs: IPartStatusInputs): IPartStatus {
 	const text = inputs.texts.get('mep');
@@ -322,7 +360,8 @@ function mepStatus(inputs: IPartStatusInputs): IPartStatus {
 		return status('mep', 'error', localize('partStatus.invalid', "invalid file"), localize('partStatus.fix', "fix the file"));
 	}
 	const count = (key: string) => Array.isArray(value[key]) ? (value[key] as unknown[]).length : 0;
-	if (!count('equipment') && !count('openings') && !count('shafts') && !count('ifcModels')) {
+	const plumbingItems = plumbingCount(value);
+	if (!count('equipment') && !count('openings') && !count('shafts') && !count('ifcModels') && !plumbingItems) {
 		return status('mep', 'notStarted', NOT_STARTED(), startHint('mep'));
 	}
 	const parsed = inputs.mepSummaryText !== undefined ? parse(inputs.mepSummaryText) : undefined;
@@ -337,6 +376,19 @@ function mepStatus(inputs: IPartStatusInputs): IPartStatus {
 	if (summary.openingsFailed > 0) {
 		return status('mep', 'failed', summary.openingsFailed === 1 ? localize('partStatus.mep.oneFail', "1 opening fails") : localize('partStatus.mep.fail', "{0} openings fail", summary.openingsFailed), localize('partStatus.mep.review', "review the failing openings"));
 	}
+	const recorded = typeof summary.plumbing === 'object' && summary.plumbing !== null && typeof summary.plumbing.failed === 'number' ? summary.plumbing : undefined;
+	// The plumbing results also read the soil report (soak well, flotation, bearing, ground tanks):
+	// once it has changed they are stale.
+	const plumbing = recorded && (typeof recorded.source !== 'object' || recorded.source === null || sourcesUnchanged(inputs.texts, recorded.source)) ? recorded : undefined;
+	if (plumbing && plumbing.failed > 0) {
+		return status('mep', 'failed', plumbing.failed === 1 ? localize('partStatus.mep.plumbingOneFail', "1 plumbing check fails") : localize('partStatus.mep.plumbingFail', "{0} plumbing checks fail", plumbing.failed), localize('partStatus.mep.plumbingReview', "review the plumbing"));
+	}
+	if (plumbing && typeof plumbing.floorsLow === 'number' && plumbing.floorsLow > 0) {
+		return status('mep', 'failed', plumbing.floorsLow === 1 ? localize('partStatus.mep.oneFloorLow', "1 floor below the minimum pressure") : localize('partStatus.mep.floorsLow', "{0} floors below the minimum pressure", plumbing.floorsLow), localize('partStatus.mep.raiseTank', "raise the overhead tank or add a booster pump"));
+	}
+	if (plumbingItems && !plumbing) {
+		return status('mep', 'inProgress', localize('partStatus.mep.plumbingNotChecked', "plumbing not checked"), localize('partStatus.mep.checkPlumbing', "open the plumbing results or Run All"));
+	}
 	if (summary.clashesOpen > 0) {
 		return status('mep', 'inProgress', summary.clashesOpen === 1 ? localize('partStatus.mep.oneClash', "1 clash") : localize('partStatus.mep.clashes', "{0} clashes", summary.clashesOpen), localize('partStatus.mep.coordinate', "coordinate the clashes"));
 	}
@@ -346,6 +398,9 @@ function mepStatus(inputs: IPartStatusInputs): IPartStatus {
 		return status('mep', 'inProgress', partial === 1 ? localize('partStatus.mep.onePartial', "1 opening not fully checked") : localize('partStatus.mep.partial', "{0} openings not fully checked", partial), localize('partStatus.mep.analyse', "run the analysis to check the openings' strength"));
 	}
 	const equipment = count('equipment');
+	if (!equipment && plumbing) {
+		return status('mep', 'done', plumbing.tanks === 1 ? localize('partStatus.mep.oneTank', "plumbing checked, 1 tank") : localize('partStatus.mep.tanks', "plumbing checked, {0} tanks", plumbing.tanks));
+	}
 	return status('mep', 'done', equipment === 1 ? localize('partStatus.mep.oneEquipment', "1 equipment") : localize('partStatus.mep.equipment', "{0} equipment", equipment));
 }
 

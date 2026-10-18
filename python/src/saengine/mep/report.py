@@ -116,8 +116,11 @@ def mep_report(
     out = Path(out_dir) if out_dir is not None else project.root / "08 FEM" / "model.results"
     notes: list[str] = []
 
+    # The plumbing's overhead tanks load the model as equipment (saengine.mep.loads).
+    loaded, tank_notes = loads.with_plumbing_tanks(mep, project.materials)
+    notes += tank_notes
     equipment = []
-    for item in mep.equipment:
+    for item in loaded.equipment:
         entry = loads.summary_of(item, mep.contentsAs, project.densities)
         entry["slabs"] = loads.slabs_under(item, building)
         entry["host"] = entry["slabs"][0] if entry["slabs"] else None

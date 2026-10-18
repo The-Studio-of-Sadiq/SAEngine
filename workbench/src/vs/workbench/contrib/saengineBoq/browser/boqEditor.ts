@@ -406,7 +406,7 @@ export class BoqEditor extends EditorPane {
 	private async compute(): Promise<void> {
 		const model = this.model;
 		const resource = (this.input as BoqEditorInput | undefined)?.resource;
-		const { args, missing } = boqComputeArgs(new Map(BOQ_SOURCES.map(({ part }) => [part, this.sources.get(part)?.getValue()])));
+		const { args, missing } = boqComputeArgs(new Map(BOQ_SOURCES.map(({ part }) => [part, this.sources.get(part)?.getValue()])), this.projectService.project?.root.fsPath);
 		if (!model || !resource || this.computing) {
 			return;
 		}

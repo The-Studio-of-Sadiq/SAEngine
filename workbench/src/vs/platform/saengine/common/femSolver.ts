@@ -264,8 +264,10 @@ export interface IBoqComputeRequest {
 	readonly substructureText?: string;
 	/** The project settings: the ground level the foundations' earthwork is dug from. */
 	readonly settingsText?: string;
-	/** `07 MEP/mep.json`: the equipment plinths, and the sleeves and openings counted. */
+	/** `07 MEP/mep.json`: the equipment plinths, the sleeves and openings counted, the plumbing's tanks, pipes and fixtures. */
 	readonly mepText?: string;
+	/** The project folder: the plumbing tanks' last designs (`07 MEP/mep.results/tank-designs.json`) give their bars. */
+	readonly projectRoot?: string;
 }
 
 /** The building model's footings moved into a placeholder `substructure.json` (`saengine.substructure.handover`). */
@@ -471,4 +473,20 @@ export interface IFemSolverService {
 
 	/** What an MEP IFC model in the project holds (`path` project-relative), or `{problems}`. */
 	mepImportIfc(python: string, projectRoot: string, path: string): Promise<object>;
+
+	/**
+	 * The plumbing report of 7 MEP (`saengine.plumbing.project.full_report`): BNBC 2020 Part 8
+	 * sizing, the tanks' RC design (`tankDesigns`), the hydraulics, the sleeves still missing;
+	 * plain JSON, or `{problems}`.
+	 */
+	plumbingReport(python: string, projectRoot: string, mepText?: string): Promise<object>;
+
+	/** The tanks SAEngine proposes (`{tanks, notes}`, 7 MEP's `plumbing.tanks` format), or `{problems}`. */
+	plumbingSizeTanks(python: string, projectRoot: string, mepText?: string): Promise<object>;
+
+	/** The sleeves the risers and stacks still need (`{openings, notes}`), or `{problems}`. */
+	plumbingSleeves(python: string, projectRoot: string, mepText?: string): Promise<object>;
+
+	/** BNBC 2020 Part 8 Table 8.5.1's occupancies (`{occupancies}`). */
+	plumbingOccupancies(python: string): Promise<object>;
 }

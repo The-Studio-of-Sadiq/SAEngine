@@ -81,4 +81,20 @@ suite('SAEngine - FEM derivation', () => {
 			notJson: true,
 		});
 	});
+
+	test('stamps the plumbing\'s overhead tanks, not its ground tanks, as the Python side does', () => {
+		// The same text and stamps as python/tests/test_plumbing_integration.py::test_mep_stamp_of_the_plumbing_tanks_matches_the_workbench.
+		const text = '{"schema": "saengine.mep/1", "equipment": [], "plumbing": {"stories": [{"story": "L1"}], "tanks": [{"id": "T1", "kind": "overhead", "story": "L3", "x": 9500, "y": 2500.5, "length": 2200}, {"id": "SEP1", "kind": "septic", "x": 1, "y": 2}]}}';
+		assert.deepStrictEqual({
+			stamp: mepModelStamp(text),
+			overheadMoved: mepModelStamp(text.replace('2500.5', '2600')) === mepModelStamp(text),
+			groundMoved: mepModelStamp(text.replace('"x": 1,', '"x": 5,')) === mepModelStamp(text),
+			none: mepModelStamp('{"schema": "saengine.mep/1", "equipment": []}'),
+		}, {
+			stamp: '9f99e0976f7ef4f8b747aba3e8cb4e054ea1c3ed',
+			overheadMoved: false,
+			groundMoved: true,
+			none: '93870af7da97116c102a976ef591387cb469432b',
+		});
+	});
 });

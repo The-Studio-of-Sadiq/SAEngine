@@ -101,7 +101,7 @@ BOQ_GROUPS = {
     "mep": "MEP coordination",
 }
 
-UNITS = {"m3": "m³", "m2": "m²", "kg": "kg", "nr": "nr"}
+UNITS = {"m3": "m³", "m2": "m²", "kg": "kg", "nr": "nr", "m": "m"}
 
 #: Lateral load cases of a derived model and the global direction they push in (0 = X, 1 = Y).
 LATERAL_CASES = {"WX": 0, "WY": 1, "EX": 0, "EY": 1}
@@ -213,10 +213,12 @@ def report_data(
     )
     report["design"] = _design(results_dir, model_path, warnings)
     report["mep"] = _mep(parts)
+    report["plumbing"] = _plumbing(parts)
     report["boq"] = _boq(parts)
     report["limitations"] = {
         "design": report["design"].get("notes", []),
         "mep": report["mep"].get("notes", []),
+        "plumbing": report["plumbing"].get("notes", []),
         "boq": report["boq"].get("notes", []),
         "soil": report["soil"].get("notes", []),
         "foundations": report["foundations"].get("notes", []),
@@ -1664,6 +1666,276 @@ def _mep(parts: _Parts) -> dict[str, Any]:
         "open": summary["clashes"],
         "method": [str(m) for m in report["method"]],
         "notes": list(report["notes"]) + [str(p) for p in report["problems"]],
+    }
+
+
+#: The tank design's method, as :mod:`saengine.plumbing.tanks` documents it (shortened).
+TANK_METHOD = [
+    (
+        "Tanks: a box of elastic shells (OpenSees Studio ASDShellQ4), an overhead tank pinned "
+        "along its walls' lines, a ground tank on Winkler springs (compression only where the "
+        "base lifts off; held along its walls where the net load is upward). Loads: D (self "
+        "weight, roof finish), F (water to the overflow, each compartment alone too), H (earth "
+        "pressure at rest K0 = 1 - sin φ' with the soil report's layers, the full hydrostatic "
+        "pressure below the design water table and the uplift on the base, BNBC 2020 Part 6 "
+        "Sec 2.6.5), Lr (roof live load, Table 6.2.3)."
+    ),
+    (
+        "Combinations: BNBC 2020 Part 6 Sec 2.7.3.1 (strength) and Sec 2.7.2.1 (service), with "
+        "each load not acting investigated. Design per metre: Wood-Armer moments with the "
+        "membrane tension (ACI 318-19 flexure with axial tension), one-way shear with the axial "
+        "tension term (ACI 318-19 Table 22.5.5.1), minimum bars for early thermal restraint and "
+        "BNBC Sec 6.6.3 for walls, crack widths after EN 1992-1-1 7.3.4 against 0.2 mm, covers "
+        "BNBC Part 6 Sec 8.1.7; ground tanks: flotation (factor of safety 1.1), net bearing and "
+        "settlement (Table 6.3.8)."
+    ),
+    (
+        "Hydraulics: the water network of each riser solved with WNTR (EPANET 2.2), Hazen-"
+        "Williams friction, against the residual heads of Table 8.5.6 and the 35 m static limit "
+        "(Sec 5.11); the delivery pump at the peak hourly demand (Sec 5.9.1.2(c)(ii)) and its "
+        "head by Sec 5.10.5."
+    ),
+]
+
+
+def _plumbing(parts: _Parts) -> dict[str, Any]:
+    """The plumbing chapter (Part 7, BNBC 2020 Part 8): demand, storage, the sizes the
+    structure coordinates with (risers, stacks, tanks, sleeves), the tanks' RC design, the
+    hydraulics and the septic tank (:func:`saengine.plumbing.project.full_report`); not printed
+    while 07 MEP has no plumbing."""
+    from saengine.library.mep import MEP_FILE, PLUMBING_SYSTEMS, TANK_KINDS, parse
+    from saengine.plumbing.project import full_report, plumbing_failures
+
+    empty = {"available": False, "problem": "", "notes": []}
+    try:
+        mep = parse(parts.text(MEP_FILE))
+    except ValueError as error:
+        return {**empty, "problem": f"{MEP_FILE} is not valid: {error}"}
+    p = mep.plumbing
+    if p is None or not (p.stories or p.risers or p.tanks):
+        return empty
+    report = full_report(parts.root)
+    if "demand" not in report:
+        return {**empty, "problem": "; ".join(str(x) for x in report.get("problems") or [])}
+
+    def result(ok: Any) -> str:
+        return "OK" if ok else "FAIL"
+
+    def checked(rows: list[dict[str, Any]]) -> list[list[str]]:
+        return [
+            [
+                str(c.get("name") or ""),
+                fmt(c.get("demand"), 2),
+                fmt(c.get("capacity"), 2),
+                str(c.get("unit") or ""),
+                fmt(c.get("utilisation"), 2) if c.get("utilisation") is not None else "–",
+                result(c.get("ok")),
+            ]
+            for c in rows
+        ]
+
+    demand = report["demand"]
+    stories = [
+        [
+            s["story"],
+            str(s.get("occupancy") or ""),
+            fmt(s.get("population"), 0),
+            fmt(s.get("lpcd"), 0),
+            fmt(s.get("daily"), 0),
+            fmt(s.get("supplyUnits"), 1),
+            fmt(s.get("drainageUnits"), 1),
+        ]
+        for s in demand["stories"]
+    ]
+    storage = report["storage"] or {}
+    tanks_required = [
+        [
+            t["id"],
+            TANK_KINDS.get(t["kind"], t["kind"]),
+            fmt(t.get("required"), 2),
+            fmt(t.get("provided"), 2),
+            fmt(t.get("drain"), 0),
+            fmt(t.get("overflow"), 0),
+            result((t.get("provided") or 0) >= (t.get("required") or 0) - 1e-9),
+        ]
+        for t in storage.get("tanks") or []
+    ]
+    risers = [
+        [
+            r["id"],
+            PLUMBING_SYSTEMS.get(r["system"], r["system"]),
+            fmt(r.get("units"), 1),
+            fmt(r.get("flow"), 1),
+            fmt(r.get("diameter"), 0),
+            fmt(r.get("required"), 0),
+            result(r.get("ok")),
+        ]
+        for r in report["risers"]
+    ]
+    designs = []
+    for d in report.get("tankDesigns") or []:
+        if "error" in d:
+            designs.append(
+                {"id": str(d.get("id")), "title": str(d.get("id")), "error": d["error"],
+                 "rows": [], "checks": [], "bad": []}
+            )  # fmt: skip
+            continue
+        g = d["geometry"]
+        diameters = {t.id: t.diameter for t in p.tanks}
+        size = (
+            f"Ø{fmt(diameters.get(d['id']), 0)} x {fmt(g['height'], 0)} mm inside"
+            if d["kind"] == "soakWell"
+            else f"{fmt(g['length'], 0)} x {fmt(g['width'], 0)} x {fmt(g['height'], 0)} mm inside"
+        )
+        rows = [
+            ["Kind", TANK_KINDS.get(d["kind"], d["kind"])],
+            ["Size", size],
+            [
+                "Walls, base, roof",
+                (
+                    f"{fmt(g.get('walls'), 0)}, {fmt(g.get('base'), 0)}, "
+                    f"{fmt(g.get('roof'), 0) if g.get('roof') else 'open'} mm"
+                ),
+            ],
+            [
+                "Concrete, reinforcement",
+                (
+                    f"{g.get('concrete')} (f'c {fmt(g.get('fc'), 1)} MPa), "
+                    f"{g.get('rebar')} (fy {fmt(g.get('fy'), 0)} MPa)"
+                ),
+            ],
+        ]
+        q = d.get("quantities") or {}
+        if q:
+            rows.append(
+                [
+                    "Quantities",
+                    (
+                        f"{fmt(q.get('concrete'), 2)} m³ concrete, {fmt(q.get('formwork'), 1)} "
+                        f"m² formwork, {fmt(q.get('reinforcement'), 0)} kg bars"
+                    ),
+                ]
+            )
+        support = d.get("supportLoads")
+        if support:
+            rows.append(
+                [
+                    "On the structure",
+                    (
+                        f"{fmt(support['empty'], 1)} kN empty (SD), {fmt(support['water'], 1)} "
+                        f"kN water (F), {fmt(support['roofLive'], 1)} kN roof live; "
+                        f"{fmt(support['pressureFull'], 1)} kPa full over the footprint"
+                    ),
+                ]
+            )
+        uplift = d.get("uplift")
+        if uplift:
+            rows.append(
+                [
+                    "Flotation",
+                    (
+                        f"FS {fmt(uplift.get('FS'), 2)} (at least "
+                        f"{fmt(uplift.get('required'), 2)}): {result(uplift.get('ok'))}"
+                    ),
+                ]
+            )
+        failing = [c for c in d.get("checks") or [] if c.get("ok") is False]
+        governing = sorted(d.get("checks") or [], key=lambda c: -(c.get("utilisation") or 0.0))[:6]
+        shown = failing + [c for c in governing if c not in failing]
+        designs.append(
+            {
+                "id": d["id"],
+                "title": f"{d['id']}: {TANK_KINDS.get(d['kind'], d['kind'])}",
+                "error": "",
+                "rows": rows,
+                "checks": checked(shown),
+                "bad": [c.get("ok") is False for c in shown],
+                "count": len(d.get("checks") or []),
+                "failed": len(failing),
+            }
+        )
+    hyd = report.get("hydraulics") or {}
+    floors = [
+        [
+            str(f.get("name") or f.get("story")),
+            str(f.get("riser") or ""),
+            fmt(f.get("fixtureElevation"), 2),
+            fmt(f.get("head"), 2),
+            fmt(f.get("required"), 2),
+            fmt(f.get("staticHead"), 2),
+            result(f.get("ok")),
+        ]
+        for f in sorted(hyd.get("floors") or [], key=lambda f: -(f.get("elevation") or 0.0))
+    ]
+    pump = hyd.get("pump") or {}
+    septic = report.get("septic")
+    septic_rows = []
+    if septic:
+        septic_rows = [
+            ["Users", fmt(septic.get("persons"), 0)],
+            ["Liquid volume needed", f"{fmt((septic.get('volume') or 0) / 1000, 2)} m³"],
+            [
+                "Provided",
+                (
+                    f"{fmt((septic.get('provided') or 0) / 1000, 2)} m³ in "
+                    f"{septic.get('count', 1)} tank(s)"
+                ),
+            ],
+        ]
+        well = septic.get("soakWell") or {}
+        if well:
+            septic_rows.append(
+                [
+                    "Soak well",
+                    "; ".join(str(n) for n in (well.get("notes") or [])[:2])
+                    or (
+                        f"Ø{fmt(well.get('diameter'), 0)}, {fmt(well.get('waterDepth'), 0)} mm "
+                        "effective depth"
+                    ),
+                ]
+            )
+    failed, low = plumbing_failures(report)
+    checks = list(report["checks"]) + list(hyd.get("checks") or [])
+    summary = [
+        ["Demand", report["summary"][0]],
+        ["Storage", report["summary"][1]],
+        [
+            "Risers and stacks",
+            f"{len(report['risers'])}; sleeves missing: {len(report['sleeves'])}",
+        ],
+        [
+            "Pump",
+            f"{fmt(pump.get('flowM3h'), 2)} m³/h at {fmt(pump.get('tdh'), 1)} m"
+            if pump
+            else report["summary"][2],
+        ],
+        ["Tanks designed", str(sum(1 for d in designs if not d["error"]))],
+        ["Checks failing", str(failed)],
+        ["Floors below the minimum pressure", str(low)],
+    ]
+    notes = [str(n) for n in report.get("notes") or []]
+    notes += [f"Hydraulics: {n}" for n in hyd.get("notes") or []]
+    for d in report.get("tankDesigns") or []:
+        notes += [f"{d.get('id')}: {n}" for n in d.get("notes") or []]
+    notes += [str(x) for x in report.get("problems") or []]
+    notes += [str(x) for x in hyd.get("problems") or []]
+    return {
+        "available": True,
+        "problem": "",
+        "summary": summary,
+        "stories": stories,
+        "tanksRequired": tanks_required,
+        "risers": risers,
+        "designs": designs,
+        "floors": floors,
+        "floorFails": [row[-1] == "FAIL" for row in floors],
+        "septic": septic_rows,
+        "checks": checked(checks),
+        "checkFails": [c.get("ok") is False for c in checks],
+        "failed": failed,
+        "low": low,
+        "method": [*(str(m) for m in report.get("method") or []), *TANK_METHOD],
+        "notes": notes,
     }
 
 

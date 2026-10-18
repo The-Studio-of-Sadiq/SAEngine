@@ -335,7 +335,12 @@ def building_ifc(
         mep = parse_mep(mep_text)
     except ValueError as exc:
         return {"problems": [f"MEP: {_first_line(exc)}"]}
-    has_mep = bool(mep.equipment or mep.openings or mep.shafts)
+    has_mep = bool(
+        mep.equipment
+        or mep.openings
+        or mep.shafts
+        or (mep.plumbing is not None and (mep.plumbing.tanks or mep.plumbing.risers))
+    )
     ifc, ids, skipped = export_ifc(
         building, objects, materials, name, substructure, ground, mep if has_mep else None
     )
@@ -497,8 +502,11 @@ def _first_line(exc: Exception) -> str:
 
 
 def _has_content(mep: Any) -> bool:
-    """Whether an MEP model has anything the analysis model takes (equipment, openings, shafts)."""
-    return bool(mep.equipment or mep.openings or mep.shafts)
+    """Whether an MEP model has anything the analysis model takes (equipment, openings, shafts,
+    an overhead plumbing tank)."""
+    from saengine.mep.loads import has_model_content
+
+    return has_model_content(mep)
 
 
 def _messages(exc: Any, where: str) -> list[str]:
@@ -605,14 +613,22 @@ def compute_boq(
     substructure_text: str | None = None,
     settings_text: str | None = None,
     mep_text: str | None = None,
+    project_root: str | None = None,
 ) -> dict[str, Any]:
     """The bill of quantities (``10 BOQ/boq.json`` text) of the building model, the
-    substructure and the MEP plinths and sleeves: ``{"text", "notes"}``, or ``{"problems"}``
-    when an input has errors."""
+    substructure, the MEP plinths and sleeves and the plumbing (tanks, pipes, fixtures):
+    ``{"text", "notes"}``, or ``{"problems"}`` when an input has errors. ``project_root``: where
+    the plumbing tanks' last designs are read from (their bars)."""
     from saengine.boq import compute_boq_text
 
     return compute_boq_text(
-        bim_text, objects_text, materials_text, substructure_text, settings_text, mep_text
+        bim_text,
+        objects_text,
+        materials_text,
+        substructure_text,
+        settings_text,
+        mep_text,
+        project_root,
     )
 
 
@@ -872,6 +888,67 @@ def mep_import_ifc(project_root: str, path: str, copy: bool = False) -> dict[str
         return inspect(project_root, path, copy)
     except (OSError, RuntimeError, ValueError) as error:
         return {"problems": [f"{Path(path).name}: {_first_line(error)}"]}
+
+
+# ─────────────────────────────────────── plumbing (Part 7) ───────────────────────────────────────
+
+
+def plumbing_report(project_root: str, mep_text: str | None = None) -> dict[str, Any]:
+    """The plumbing report (BNBC 2020 Part 8 sizing, tank designs, hydraulics), JSON-safe
+    (``saengine.plumbing.project.full_report``); never raises."""
+    from saengine.plumbing.project import full_report
+
+    try:
+        return full_report(project_root, mep_text)
+    except Exception as error:  # noqa: BLE001 - a partly entered model must not fail the RPC
+        return {"problems": [f"the plumbing report failed: {_first_line(error)}"]}
+
+
+def plumbing_size_tanks(project_root: str, mep_text: str | None = None) -> dict[str, Any]:
+    """The tanks SAEngine proposes, in 07 MEP's ``plumbing.tanks`` format: ``{tanks, notes}``
+    or ``{problems}``."""
+    from saengine.plumbing.project import finite
+    from saengine.plumbing.report import plumbing_report as report
+
+    result = report(project_root, mep_text)
+    if "tanks" not in result:
+        return {"problems": result.get("problems") or ["no plumbing report"]}
+    return finite({"tanks": result["tanks"], "notes": result.get("notes", [])})
+
+
+def plumbing_sleeves(project_root: str, mep_text: str | None = None) -> dict[str, Any]:
+    """The sleeves the risers and stacks still need through the slabs (07 MEP openings, those
+    no opening of 07 MEP already gives): ``{openings, notes}`` or ``{problems}``."""
+    from saengine.library.mep import MEP_FILE, parse
+    from saengine.plumbing.project import finite, missing_sleeves
+    from saengine.plumbing.report import plumbing_report as report
+
+    result = report(project_root, mep_text)
+    if "sleeves" not in result:
+        return {"problems": result.get("problems") or ["no plumbing report"]}
+    text = mep_text if mep_text is not None else _read(Path(project_root) / MEP_FILE)
+    try:
+        missing = missing_sleeves(parse(text), result["sleeves"])
+    except ValueError as error:
+        return {"problems": [f"{MEP_FILE} is not valid: {_first_line(error)}"]}
+    return finite({"openings": missing, "notes": result.get("notes", [])})
+
+
+def plumbing_occupancies() -> dict[str, Any]:
+    """BNBC 2020 Part 8 Table 8.5.1's occupancies: ``{occupancies: [{key, label, lpcd, ...}]}``."""
+    from saengine.plumbing.project import occupancies
+
+    return {"occupancies": occupancies()}
+
+
+def warm_plumbing() -> None:
+    """Imports the hydraulics (WNTR's first import takes a second or two) ahead of the editor's
+    first plumbing report."""
+    import contextlib
+
+    # Only a head start: when it fails, the report says what is missing.
+    with contextlib.suppress(Exception):
+        import saengine.plumbing.hydraulics  # noqa: F401
 
 
 # ─────────────────────────────────────── soil springs ───────────────────────────────────────

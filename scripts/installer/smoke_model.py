@@ -38,6 +38,9 @@ HEADLESS_MODULES = [
     "concreteproperties",
     "typst",
     "pygls",
+    "wntr",
+    "saengine.plumbing.hydraulics",
+    "saengine.plumbing.project",
 ]
 GUI_MODULES = ["PySide6", "pyvista", "vtk"]
 

@@ -113,7 +113,8 @@ def stamp(text: str) -> str:
 
 
 #: What the analysis model takes from ``07 MEP/mep.json`` (:func:`mep_stamp`); names and service
-#: labels of its items are left out, as are the MEP IFC models.
+#: labels of its items are left out, as are the MEP IFC models. The plumbing's overhead tanks
+#: (which load the model) are stamped as ``plumbingTanks`` when there are any.
 MEP_MODEL_KEYS = ("contentsAs", "equipment", "openings", "shafts")
 _MEP_LABELS = ("name", "service")
 
@@ -189,6 +190,15 @@ def mep_stamp(text: str) -> str:
                 for item in value
             ]
         content[key] = value
+    plumbing = document.get("plumbing")
+    tanks = plumbing.get("tanks") if isinstance(plumbing, dict) else None
+    overhead = (
+        [t for t in tanks if isinstance(t, dict) and t.get("kind") == "overhead"]
+        if isinstance(tanks, list)
+        else []
+    )
+    if overhead:
+        content["plumbingTanks"] = overhead
     return stamp(js_json(content))
 
 
@@ -296,9 +306,12 @@ def derive_fem(
     """
     mep_notes: list[str] = []
     if mep is not None:
-        from saengine.mep.loads import with_mep_openings
+        from saengine.mep.loads import with_mep_openings, with_plumbing_tanks
 
         building, mep_notes = with_mep_openings(building, mep)
+        # The plumbing's overhead tanks load the model as equipment (never counted twice).
+        mep, tank_notes = with_plumbing_tanks(mep, materials)
+        mep_notes += [f"MEP: {note}" for note in tank_notes]
     b = _Builder()
     options = settings.analysis
     types = {o.id: o for o in objects.objects}

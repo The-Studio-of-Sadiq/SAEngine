@@ -19,7 +19,7 @@ export const BOQ_SCHEMA_ID = 'saengine.boq/1';
 export const BOQ_COMPUTE_COMMAND = 'saengine.boq.compute';
 
 export type BoqGroup = 'earthwork' | 'concrete' | 'masonry' | 'reinforcement' | 'formwork' | 'steel' | 'mep';
-export type BoqUnit = 'm3' | 'm2' | 'kg' | 'nr';
+export type BoqUnit = 'm3' | 'm2' | 'kg' | 'nr' | 'm';
 
 export interface IBoqBreakdownEntry {
 	readonly element: string;
@@ -57,8 +57,10 @@ export interface IBoqComputeArgs {
 	readonly substructureText?: string;
 	/** The ground level the foundations' earthwork is dug from. */
 	readonly settingsText?: string;
-	/** `07 MEP/mep.json`: the equipment plinths, and the sleeves and openings counted. */
+	/** `07 MEP/mep.json`: the equipment plinths, the sleeves and openings counted, the plumbing's tanks, pipes and fixtures. */
 	readonly mepText?: string;
+	/** The project folder, where the plumbing tanks' last designs give their bars. */
+	readonly projectRoot?: string;
 }
 
 /** Result of {@link BOQ_COMPUTE_COMMAND}: the new text of `boq.json`, or why it could not be measured. */
@@ -84,15 +86,19 @@ export const BOQ_SOURCES: readonly { readonly part: string; readonly label: stri
 	{ part: 'settings', label: localize('boq.source.groundLevel', "Ground Level (Project Settings)"), optional: true },
 ];
 
-/** The arguments of {@link BOQ_COMPUTE_COMMAND} from the sources' texts by part id; without them, the labels of the required sources that are missing. */
-export function boqComputeArgs(texts: ReadonlyMap<string, string | undefined>): { readonly args?: IBoqComputeArgs; readonly missing: readonly string[] } {
+/**
+ * The arguments of {@link BOQ_COMPUTE_COMMAND} from the sources' texts by part id (and the
+ * project folder, for the plumbing tanks' bars); without them, the labels of the required
+ * sources that are missing.
+ */
+export function boqComputeArgs(texts: ReadonlyMap<string, string | undefined>, projectRoot?: string): { readonly args?: IBoqComputeArgs; readonly missing: readonly string[] } {
 	const bimText = texts.get('bim');
 	const objectsText = texts.get('objects');
 	const materialsText = texts.get('materials');
 	if (bimText === undefined || objectsText === undefined || materialsText === undefined) {
 		return { missing: BOQ_SOURCES.filter(s => s.required && texts.get(s.part) === undefined).map(s => s.label) };
 	}
-	return { args: { bimText, objectsText, materialsText, substructureText: texts.get('substructure'), settingsText: texts.get('settings'), mepText: texts.get('mep') }, missing: [] };
+	return { args: { bimText, objectsText, materialsText, substructureText: texts.get('substructure'), settingsText: texts.get('settings'), mepText: texts.get('mep'), ...(projectRoot ? { projectRoot } : {}) }, missing: [] };
 }
 
 /** The groups of the bill in their order, with their titles. */
@@ -145,6 +151,18 @@ export function changedSources(document: IBoqDocument | undefined, texts: Readon
 		return recorded !== boqSourceStamp(part, text);
 	}).map(s => s.part);
 }
+
+/**
+ * Whether the bill left the bars of a plumbing tank unmeasured because the tank had no design
+ * yet (the backend's note, `saengine.boq.quantities.TANK_BARS_PENDING`): once the plumbing report
+ * has designed the tanks, measuring again adds them although no source file changed.
+ */
+export function awaitsTankDesigns(document: IBoqDocument | undefined): boolean {
+	return !!document?.notes?.some(note => note.includes(TANK_BARS_PENDING));
+}
+
+/** The words of the bill's note on a plumbing tank whose bars wait for its design. */
+const TANK_BARS_PENDING = 'its bars are not measured: it has no current design';
 
 /** The total of each unit among `items`, in the order the units first appear. */
 export function totals(items: readonly IBoqItem[]): { readonly unit: BoqUnit; readonly total: number }[] {

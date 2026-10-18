@@ -5,7 +5,7 @@
 		"objects": "208cf81c4f12504fd967771a054f8c6edb9e8405",
 		"materials": "50563593cdcc5ae3ea57a91d1c0379e5e5db980f",
 		"substructure": "1c85c6c69986e74d73ee4249ee870e7ae4786397",
-		"mep": "48e6e26d00d495289c6e6b83407dd2f443bb790b",
+		"mep": "b2d1d1aaa8a5d13da10aa66abc3a10702e2c154d",
 		"settings": "fe329f8351df78af4c4980a95d5ca6d0310b7ccd"
 	},
 	"items": [
@@ -29,6 +29,27 @@
 		},
 		{
 			"code": "E.02",
+			"group": "earthwork",
+			"description": "Excavation for ground tanks",
+			"quantity": 56.12,
+			"unit": "m3",
+			"kind": "excavation",
+			"byStory": {},
+			"breakdown": [
+				{
+					"element": "UGR1",
+					"detail": "Underground reservoir",
+					"quantity": 38.916
+				},
+				{
+					"element": "SEP1",
+					"detail": "Septic tank",
+					"quantity": 17.204
+				}
+			]
+		},
+		{
+			"code": "E.03",
 			"group": "earthwork",
 			"description": "Backfill around foundations",
 			"quantity": 1.373,
@@ -261,19 +282,39 @@
 		{
 			"code": "C.09",
 			"group": "concrete",
-			"description": "Concrete C20.7 in equipment plinths",
-			"quantity": 0.75,
+			"description": "Concrete C20.7 in water and septic tanks",
+			"quantity": 3.875,
 			"unit": "m3",
 			"material": "C20.7",
-			"kind": "plinth",
+			"kind": "tank",
 			"byStory": {
-				"L1": 0.75
+				"L1": 3.875
 			},
 			"breakdown": [
 				{
-					"element": "EQ1",
+					"element": "T1",
 					"story": "L1",
-					"quantity": 0.75
+					"quantity": 3.875
+				}
+			]
+		},
+		{
+			"code": "C.10",
+			"group": "concrete",
+			"description": "Concrete C27.6 in water and septic tanks",
+			"quantity": 15.32,
+			"unit": "m3",
+			"material": "C27.6",
+			"kind": "tank",
+			"byStory": {},
+			"breakdown": [
+				{
+					"element": "UGR1",
+					"quantity": 9.6
+				},
+				{
+					"element": "SEP1",
+					"quantity": 5.72
 				}
 			]
 		},
@@ -778,19 +819,29 @@
 		{
 			"code": "F.08",
 			"group": "formwork",
-			"description": "Formwork to equipment plinths",
-			"quantity": 1.35,
+			"description": "Formwork to water and septic tanks",
+			"quantity": 146.69,
 			"unit": "m2",
-			"kind": "plinth",
+			"kind": "tank",
 			"byStory": {
-				"L1": 1.35
+				"L1": 39.29
 			},
 			"breakdown": [
 				{
-					"element": "EQ1",
+					"element": "T1",
 					"story": "L1",
-					"detail": "sides",
-					"quantity": 1.35
+					"detail": "inside and outside faces",
+					"quantity": 39.29
+				},
+				{
+					"element": "UGR1",
+					"detail": "inside and outside faces",
+					"quantity": 64.6
+				},
+				{
+					"element": "SEP1",
+					"detail": "inside and outside faces",
+					"quantity": 42.8
 				}
 			]
 		},
@@ -812,6 +863,118 @@
 					"quantity": 1.0
 				}
 			]
+		},
+		{
+			"code": "P.02",
+			"group": "mep",
+			"description": "Pipes, cold water, Ø50 mm PPR",
+			"quantity": 3.2,
+			"unit": "m",
+			"kind": "pipe",
+			"diameter": 50.0,
+			"byStory": {
+				"BASE": 3.2
+			},
+			"breakdown": [
+				{
+					"element": "R1",
+					"story": "BASE",
+					"detail": "cold water riser",
+					"quantity": 3.2
+				}
+			]
+		},
+		{
+			"code": "P.03",
+			"group": "mep",
+			"description": "Pipes, soil, Ø100 mm uPVC",
+			"quantity": 3.2,
+			"unit": "m",
+			"kind": "pipe",
+			"diameter": 100.0,
+			"byStory": {
+				"BASE": 3.2
+			},
+			"breakdown": [
+				{
+					"element": "SS1",
+					"story": "BASE",
+					"detail": "soil stack",
+					"quantity": 3.2
+				}
+			]
+		},
+		{
+			"code": "P.04",
+			"group": "mep",
+			"description": "Sanitary fixtures: water closets",
+			"quantity": 2.0,
+			"unit": "nr",
+			"kind": "fixture",
+			"byStory": {
+				"BASE": 2.0
+			},
+			"breakdown": [
+				{
+					"element": "BASE",
+					"story": "BASE",
+					"quantity": 2.0
+				}
+			]
+		},
+		{
+			"code": "P.05",
+			"group": "mep",
+			"description": "Sanitary fixtures: wash basins",
+			"quantity": 2.0,
+			"unit": "nr",
+			"kind": "fixture",
+			"byStory": {
+				"BASE": 2.0
+			},
+			"breakdown": [
+				{
+					"element": "BASE",
+					"story": "BASE",
+					"quantity": 2.0
+				}
+			]
+		},
+		{
+			"code": "P.06",
+			"group": "mep",
+			"description": "Sanitary fixtures: kitchen sinks",
+			"quantity": 1.0,
+			"unit": "nr",
+			"kind": "fixture",
+			"byStory": {
+				"BASE": 1.0
+			},
+			"breakdown": [
+				{
+					"element": "BASE",
+					"story": "BASE",
+					"quantity": 1.0
+				}
+			]
+		},
+		{
+			"code": "P.07",
+			"group": "mep",
+			"description": "Sanitary fixtures: floor drains",
+			"quantity": 2.0,
+			"unit": "nr",
+			"kind": "fixture",
+			"byStory": {
+				"BASE": 2.0
+			},
+			"breakdown": [
+				{
+					"element": "BASE",
+					"story": "BASE",
+					"quantity": 2.0
+				}
+			]
 		}
 	],
 	"notes": [
@@ -821,6 +984,10 @@
 		"Foundations are measured from 9 Substructure (the footings of the building model are not): footings, pile caps and rafts over their plan by their thickness, formwork to their sides (and a raft's edges), bars as meshes over the plan. Piles: concrete of the full length below the cap (bored piles round, driven piles square of the given size), bars as for columns, moulds of driven precast piles on three faces (cast flat). Tie beams: concrete and stirrups between the faces of the foundations they tie, longitudinal bars centre to centre of the foundations, formwork to their two sides.",
 		"Earthwork: each foundation and tie beam is dug with vertical sides 300 mm beyond its edges (working space), from the finished ground of Project Settings → Foundation down to the underside of the blinding; where pits overlap the overlap is measured once (each element's share scaled to suit). Blinding (lean concrete) 75 mm thick, 75 mm beyond the edges of foundations and tie beams. Backfill is the excavation less the foundations, tie beams and blinding below the ground; column stubs and pedestals below the ground are not deducted. No battered sides, dewatering, shoring, disposal of surplus spoil or bored pile spoil are measured.",
 		"Equipment plinths of 7 MEP: concrete of their footprint by their height, formwork to their four sides (no reinforcement measured). Sleeves and openings through beams, slabs and walls are counted by host kind and size (number), for the services' coordination; their concrete is not deducted (it is small), and the slab openings cut by shafts are not counted.",
+		"Plumbing of 7 MEP: reinforced concrete tanks (overhead, underground, septic, rainwater) by their walls, partitions, base (with its toe) and roof at the thicknesses entered, else those the tank design proposes; formwork to their inside and outside faces, the base's edges and the roof's soffit; their bars by diameter from the tank's last design (the bars per m² of each panel + 10 % for laps), measured once the plumbing report has designed them. Ground tanks are dug with 300 mm working space each side. Soak wells and masonry or prefabricated tanks are not measured. Risers and stacks are measured vertically from the story they start at to their top story, at their entered or sized base diameter (branches and fittings are not measured); fixtures are counted by kind.",
+		"T1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
+		"UGR1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
+		"SEP1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
 		"Object type 'W200' (Wall 200) has no reinforcement; no bars are measured for W1.",
 		"Object type 'BR-SHS' (Brace SHS 150) has no reinforcement; no bars are measured for M2.",
 		"Object type 'ST1200' (Stair 1200 wide) has no reinforcement; no bars are measured for ST1, ST2."

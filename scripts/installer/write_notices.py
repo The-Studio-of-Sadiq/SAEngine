@@ -63,6 +63,8 @@ Other licence terms to note:
   - cytriangle contains Triangle by Jonathan Richard Shewchuk, whose licence permits
     distribution as part of a commercial system only by direct arrangement with the author.
   - SAEngine and opensees-studio are AGPL-3.0; see the source offer above.
+  - wntr (Revised BSD, Sandia / NTESS) ships the EPANET 2.2 libraries (MIT) for the plumbing
+    hydraulics; their notices are in wntr's licence text below. Neither is copyleft.
 
 {rule}
 """

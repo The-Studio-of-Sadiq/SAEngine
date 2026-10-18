@@ -19,10 +19,11 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { ISaengineProject, ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
-import { BOQ_COMPUTE_COMMAND, BOQ_SOURCES, boqComputeArgs, changedSources, IBoqComputeResult, parseBoq } from '../../saengineBoq/browser/boqDocument.js';
+import { awaitsTankDesigns, BOQ_COMPUTE_COMMAND, BOQ_SOURCES, boqComputeArgs, changedSources, IBoqComputeResult, parseBoq } from '../../saengineBoq/browser/boqDocument.js';
 import { BUILD_REPORT_COMMAND_ID, IReportBuildRequest, IReportBuildResult, reportProblems } from '../../saengineReport/browser/reportBuild.js';
 import { ISubstructureMigration, ISubstructureReport, ISubstructureRequest, parseSubstructure, readSubstructureReport, SUBSTRUCTURE_ENSURE_COMMAND, SUBSTRUCTURE_REPORT_COMMAND, SUBSTRUCTURE_SUMMARY_FILE, substructureSummaryFile } from '../../saengineSubstructure/browser/substructureDocument.js';
 import { IMepContextTexts, IMepReport, IMepRequest, isOpenClash, MEP_REPORT_COMMAND, MEP_SOURCE_PARTS, MEP_SUMMARY_FILE, mepSummaryFile, parseMep, readMepReport } from '../../saengineMep/browser/mepDocument.js';
+import { hasPlumbing, IPlumbingReport, PLUMBING_REPORT_COMMAND, plumbingFailures, plumbingSummaryFile, readPlumbingReport } from '../../saengineMep/browser/plumbingDocument.js';
 import { DERIVATION_INPUTS, deriveAnalysisModel, derivationState, partFile, SSI_FILE } from '../browser/femDerivationBar.js';
 import { SSI_COMPARE_COMMAND } from '../browser/femSsi.js';
 import { IFemDesignReport, runDesign, writeDesignSummary } from '../browser/femDesign.js';
@@ -45,7 +46,7 @@ const STEPS: readonly { readonly id: StepId; readonly label: string }[] = [
 	{ id: 'ssi', label: localize('runAll.step.ssi', "fixed-base run for the soil springs") },
 	{ id: 'design', label: localize('runAll.step.design', "design checks") },
 	{ id: 'substructure', label: localize('runAll.step.substructure', "foundation design") },
-	{ id: 'mep', label: localize('runAll.step.mep', "MEP coordination checks") },
+	{ id: 'mep', label: localize('runAll.step.mep', "MEP coordination and plumbing checks") },
 	{ id: 'boq', label: localize('runAll.step.boq', "bill of quantities") },
 	{ id: 'report', label: localize('runAll.step.report', "report") },
 ];
@@ -62,7 +63,8 @@ export const IRunAllService = createDecorator<IRunAllService>('saengineRunAllSer
  * `08 FEM/model.results/design-summary.json`), designs the foundations of 9 Substructure (moving
  * the building model's footings there first while it is still the placeholder; writing
  * `09 Substructure/substructure.results/summary.json`), checks the MEP coordination of 7 MEP
- * (writing `07 MEP/mep.results/summary.json`), measures the bill of quantities if it is
+ * and its plumbing (the sleeves still missing are reported, not added; writing
+ * `07 MEP/mep.results/summary.json`), measures the bill of quantities if it is
  * out of date and builds the design report. Progress is one status bar entry (click to cancel); the end
  * is one quiet summary, or one error naming the step that failed.
  */
@@ -154,7 +156,7 @@ export class RunAllService implements IRunAllService {
 
 			step = 6;
 			report();
-			const boqUpdated = await this.measure(project, token);
+			const boqUpdated = await this.measure(project, token, !!mep?.plumbing);
 
 			step = 7;
 			report();
@@ -339,10 +341,12 @@ export class RunAllService implements IRunAllService {
 	}
 
 	/**
-	 * Checks the MEP coordination of 7 MEP (equipment loads, openings, clashes) and writes the
-	 * summary the part list shows. Undefined while the MEP file is the placeholder or empty.
+	 * Checks the MEP coordination of 7 MEP (equipment loads, openings, clashes) and its plumbing
+	 * (BNBC 2020 Part 8 sizing, the tanks' design, the hydraulics, the sleeves still missing:
+	 * reported, never added to the file) and writes the summary the part list shows. Undefined
+	 * while the MEP file is the placeholder or empty.
 	 */
-	private async checkMep(project: ISaengineProject): Promise<IMepReport | undefined> {
+	private async checkMep(project: ISaengineProject): Promise<{ readonly mep: IMepReport; readonly plumbing?: IPlumbingReport } | undefined> {
 		const part = partById('mep');
 		if (!part?.mainFile) {
 			return undefined;
@@ -359,7 +363,8 @@ export class RunAllService implements IRunAllService {
 			throw new StepFailure(parsed.message);
 		}
 		const document = parsed.document;
-		if (parsed.kind === 'placeholder' || (!document.equipment.length && !document.openings.length && !document.shafts.length && !document.ifcModels.length)) {
+		const withPlumbing = hasPlumbing(document);
+		if (parsed.kind === 'placeholder' || (!document.equipment.length && !document.openings.length && !document.shafts.length && !document.ifcModels.length && !withPlumbing)) {
 			return undefined;
 		}
 		const texts = await this.readParts(project, MEP_SOURCE_PARTS);
@@ -373,14 +378,29 @@ export class RunAllService implements IRunAllService {
 		if (!report) {
 			throw new StepFailure(localize('runAll.mepUnavailable', "The MEP coordination checks are not available."));
 		}
+		let plumbing: IPlumbingReport | undefined;
+		if (withPlumbing) {
+			try {
+				plumbing = readPlumbingReport(await this.commandService.executeCommand<unknown>(PLUMBING_REPORT_COMMAND, request));
+			} catch (error) {
+				throw new StepFailure(errorSummary(error));
+			}
+			if (!plumbing) {
+				throw new StepFailure(localize('runAll.plumbingUnavailable', "The plumbing checks are not available."));
+			}
+		}
 		const sourceTexts: IMepContextTexts = Object.fromEntries(MEP_SOURCE_PARTS.map(id => [id, texts.get(id)]));
-		const summary = mepSummaryFile(document, report, text, new Date(), sourceTexts);
+		const summary = { ...mepSummaryFile(document, report, text, new Date(), sourceTexts), ...(plumbing ? { plumbing: plumbingSummaryFile(document, plumbing) } : {}) };
 		await this.fileService.writeFile(joinPath(dirname(resource), MEP_SUMMARY_FILE), VSBuffer.fromString(JSON.stringify(summary, undefined, '\t') + '\n'));
-		return report;
+		return { mep: report, plumbing };
 	}
 
-	/** Measures the bill of quantities when it is not measured yet or its sources changed. */
-	private async measure(project: ISaengineProject, token: CancellationToken): Promise<boolean> {
+	/**
+	 * Measures the bill of quantities when it is not measured yet or its sources changed, or when
+	 * `tanksDesigned` (the plumbing report has just designed the tanks) and the bill still waits
+	 * for a tank's design to measure its bars.
+	 */
+	private async measure(project: ISaengineProject, token: CancellationToken, tanksDesigned: boolean): Promise<boolean> {
 		const boq = partById('boq');
 		if (!boq?.mainFile) {
 			return false;
@@ -396,10 +416,11 @@ export class RunAllService implements IRunAllService {
 		}
 		try {
 			const model = reference.object.textEditorModel;
-			if (!changedSources(parseBoq(model.getValue()), texts).length) {
+			const current = parseBoq(model.getValue());
+			if (!changedSources(current, texts).length && !(tanksDesigned && awaitsTankDesigns(current))) {
 				return false;
 			}
-			const { args, missing } = boqComputeArgs(texts);
+			const { args, missing } = boqComputeArgs(texts, project.root.fsPath);
 			if (!args) {
 				throw new StepFailure(localize('runAll.boqMissing', "{0} could not be read.", missing.join(', ')));
 			}
@@ -429,14 +450,17 @@ export class RunAllService implements IRunAllService {
 		return URI.file(result.path);
 	}
 
-	/** "Done: 13 pass, 3 fail · foundations 6 pass, 1 fail · MEP: failing openings 1, open clashes 2 · BOQ updated · report written", with Open Report. */
-	private showSummary(design: IFemDesignReport, foundations: ISubstructureReport | undefined, mep: IMepReport | undefined, derived: boolean, boqUpdated: boolean, pdf: URI): void {
+	/** "Done: 13 pass, 3 fail · foundations 6 pass, 1 fail · MEP: failing openings 1, open clashes 2 · plumbing: 3 checks fail, 1 floor below the minimum pressure · BOQ updated · report written", with Open Report. */
+	private showSummary(design: IFemDesignReport, foundations: ISubstructureReport | undefined, checked: { readonly mep: IMepReport; readonly plumbing?: IPlumbingReport } | undefined, derived: boolean, boqUpdated: boolean, pdf: URI): void {
+		const mep = checked?.mep;
 		const failedOpenings = mep ? mep.openings.filter(o => !o.ok).length : 0;
 		const openClashes = mep ? mep.clashes.filter(isOpenClash).length : 0;
+		const plumbing = checked?.plumbing ? plumbingFailures(checked.plumbing) : undefined;
 		const parts = [
 			localize('runAll.summary.design', "{0} pass, {1} fail", design.summary.passed, design.summary.failed),
 			...(foundations ? [localize('runAll.summary.foundations', "foundations {0} pass, {1} fail", foundations.summary.passed, foundations.summary.failed)] : []),
 			...(mep ? [localize('runAll.summary.mep', "MEP: failing openings {0}, open clashes {1}", failedOpenings, openClashes)] : []),
+			...(plumbing ? [localize('runAll.summary.plumbing', "plumbing: failing checks {0}, floors below the minimum pressure {1}", plumbing.items, plumbing.floorsLow)] : []),
 			...(derived ? [localize('runAll.summary.derived', "model derived")] : []),
 			boqUpdated ? localize('runAll.summary.boqUpdated', "BOQ updated") : localize('runAll.summary.boqCurrent', "BOQ up to date"),
 			localize('runAll.summary.report', "report written"),

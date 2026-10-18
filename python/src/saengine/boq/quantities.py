@@ -84,7 +84,7 @@ MM2 = 1e-6  # m² per mm²
 MM3 = 1e-9  # m³ per mm³
 
 Group = Literal["earthwork", "concrete", "masonry", "reinforcement", "formwork", "steel", "mep"]
-Unit = Literal["m3", "m2", "kg", "nr"]
+Unit = Literal["m3", "m2", "kg", "nr", "m"]
 
 #: Earthwork and blinding of the foundations of 9 Substructure [mm].
 WORKING_SPACE = 300.0  # around a foundation or tie beam, each side, to the excavation's face
@@ -120,7 +120,27 @@ KINDS: dict[str, str] = {
     "staircase": "stairs",
     "solid": "solid blocks",
     "plinth": "equipment plinths",
+    "tank": "water and septic tanks",
 }
+
+#: The note on a tank whose bars wait for its design (the workbench's Run All measures the bill
+#: again once the plumbing report has designed the tanks: ``awaitsTankDesigns`` in boqDocument.ts).
+TANK_BARS_PENDING = "its bars are not measured: it has no current design"
+
+#: The measurement of the plumbing of 7 MEP, added when it has any tanks, risers or fixtures.
+PLUMBING_CONVENTIONS = [
+    (
+        "Plumbing of 7 MEP: reinforced concrete tanks (overhead, underground, septic, rainwater) "
+        "by their walls, partitions, base (with its toe) and roof at the thicknesses entered, "
+        "else those the tank design proposes; formwork to their inside and outside faces, the "
+        "base's edges and the roof's soffit; their bars by diameter from the tank's last design "
+        "(the bars per m² of each panel + 10 % for laps), measured once the plumbing report has "
+        "designed them. Ground tanks are dug with 300 mm working space each side. Soak wells and "
+        "masonry or prefabricated tanks are not measured. Risers and stacks are measured "
+        "vertically from the story they start at to their top story, at their entered or sized "
+        "base diameter (branches and fittings are not measured); fixtures are counted by kind."
+    ),
+]
 
 #: The measurement of the MEP coordination items of 7 MEP, added when there are any.
 MEP_CONVENTIONS = [
@@ -1246,6 +1266,138 @@ class _Measure:
                 kind=opening.kind,
             )
 
+    def measure_plumbing(self, designs: dict[str, Any] | None = None) -> None:
+        """The plumbing's RC tanks (concrete, formwork, bars from their last design, the
+        ground tanks' excavation), risers and stacks by system and diameter [m], and the
+        fixtures by kind. ``designs``: the cached tank designs
+        (:func:`saengine.plumbing.project.read_designs`)."""
+        mep = self.mep
+        plumbing = getattr(mep, "plumbing", None)
+        if plumbing is None or not (plumbing.tanks or plumbing.risers or plumbing.stories):
+            return
+        from saengine.library.mep import PLUMBING_SYSTEMS, TANK_KINDS, Fixtures
+        from saengine.plumbing.project import _with_proposals, pipe_runs, tank_stamp
+        from saengine.plumbing.report import plumbing_results
+        from saengine.plumbing.tanks import TankContext, tank_spec, volumes
+
+        self.plumbing_measured = True
+        try:
+            report: dict[str, Any] | None = plumbing_results(
+                mep, self.building, None, self.ground_level
+            )
+        except Exception as error:  # noqa: BLE001 - the rest of the bill still measures
+            report = None
+            self.notes.append(f"Plumbing: the sizing failed ({error}); sized pipes not measured")
+        proposals = {str(t.get("id")): t for t in (report or {}).get("tanks") or []}
+        latest = {
+            (entry.get("id"), entry.get("tank")): entry.get("result") or {}
+            for entry in (designs or {}).values()
+            if isinstance(entry, dict)
+        }
+        context = TankContext(materials=self.materials)
+        for tank in plumbing.tanks:
+            if tank.kind == "soakWell" or tank.construction != "rc":
+                self.notes.append(
+                    f"{tank.id}: {TANK_KINDS[tank.kind].lower()}"
+                    f"{'' if tank.construction == 'rc' else f' ({tank.construction})'} is not "
+                    "measured"
+                )
+                continue
+            data = _with_proposals(tank.model_dump(mode="json", exclude_none=True), proposals)
+            try:
+                spec = tank_spec(data, context)
+            except ValueError as error:
+                self.notes.append(f"{tank.id}: not measured: {error}")
+                continue
+            v = volumes(spec)
+            material = self.materials[spec.concrete]
+            story = tank.story
+            self.concrete(tank.id, material, "tank", v["concrete"] / MM3, story)
+            self.formwork(tank.id, "tank", v["formwork"] / MM2, story, "inside and outside faces")
+            if spec.ground:
+                depth = spec.height + spec.base + (spec.roof or 0.0) - spec.top_level  # m
+                width = spec.width + 2 * spec.wall + 2 * spec.toe + 2 * WORKING_SPACE * MM
+                length = spec.length + 2 * spec.wall + 2 * spec.toe + 2 * WORKING_SPACE * MM
+                self.bill.add(
+                    "earthwork",
+                    (_kind_order("excavation"), "tank"),
+                    "Excavation for ground tanks",
+                    "m3",
+                    tank.id,
+                    max(depth, 0.0) * width * length,
+                    detail=TANK_KINDS[tank.kind],
+                    kind="excavation",
+                )
+            design = latest.get((tank.id, tank_stamp(data)))
+            bars = (design.get("quantities") or {}).get("byDiameter") if design else None
+            if not bars:
+                self.notes.append(
+                    f"{tank.id}: {TANK_BARS_PENDING} (open the Plumbing results of 7 MEP, or Run "
+                    "All, to design the tanks)"
+                )
+                continue
+            for dia_text, mass in bars.items():
+                dia = float(dia_text)
+                self.bill.add(
+                    "reinforcement",
+                    (spec.rebar, dia),
+                    f"Reinforcement {spec.rebar}, {dia:g} mm bars",
+                    "kg",
+                    tank.id,
+                    float(mass),
+                    story=story,
+                    detail="tank design",
+                    material=spec.rebar,
+                    diameter=dia,
+                )
+        for run in pipe_runs(mep, self.building, report):
+            if not run["diameter"]:
+                self.notes.append(f"{run['id']}: no diameter (entered or sized); not measured")
+                continue
+            d, material = run["diameter"], run["material"]
+            label = PLUMBING_SYSTEMS.get(run["system"], run["system"]).lower()
+            noun = label.removesuffix(" riser").removesuffix(" stack").removesuffix(" leader")
+            self.bill.add(
+                "mep",
+                (10, "pipe", run["system"], material or "", d),
+                f"Pipes, {noun}, Ø{d:g} mm" + (f" {material}" if material else ""),
+                "m",
+                run["id"],
+                run["length"],
+                story=run["story"],
+                detail=label,
+                kind="pipe",
+                diameter=d,
+            )
+        titles = {k: f.title for k, f in Fixtures.model_fields.items() if k != "other"}
+        for entry in plumbing.stories:
+            fixtures = entry.fixtures
+            for key, title in titles.items():
+                count = getattr(fixtures, key)
+                if count:
+                    self.bill.add(
+                        "mep",
+                        (20, "fixture", list(titles).index(key)),
+                        f"Sanitary fixtures: {(title or key).lower()}",
+                        "nr",
+                        entry.story,
+                        float(count),
+                        story=entry.story,
+                        kind="fixture",
+                    )
+            for other in fixtures.other:
+                if other.count:
+                    self.bill.add(
+                        "mep",
+                        (20, "fixture", len(titles), other.name),
+                        f"Sanitary fixtures: {other.name}",
+                        "nr",
+                        entry.story,
+                        float(other.count),
+                        story=entry.story,
+                        kind="fixture",
+                    )
+
     def finish(self) -> list[str]:
         notes = [*CONVENTIONS]
         if self.substructure is not None and (
@@ -1256,6 +1408,8 @@ class _Measure:
             self.mep.openings or any(e.plinth for e in self.mep.equipment)
         ):
             notes += MEP_CONVENTIONS
+        if getattr(self, "plumbing_measured", False):
+            notes += PLUMBING_CONVENTIONS
         notes += [*self.building.check_additions(), *self.notes]
         if self.drawn_footings:
             notes.append(
@@ -1279,15 +1433,19 @@ def bill_of_quantities(
     substructure: Substructure | None = None,
     ground_level: float = 0.0,
     mep: Any = None,
+    tank_designs: dict[str, Any] | None = None,
 ) -> BillOfQuantities:
     """The bill of quantities of ``building``. With ``substructure`` (the project's
     ``substructure.json`` once it is no longer the placeholder, see
     :func:`saengine.substructure.handover.authoritative_substructure`) the foundations are
     measured from it, with their earthwork dug from ``ground_level`` [mm], and the footings of
-    the building model are not; without it the building model's footings are measured."""
+    the building model are not; without it the building model's footings are measured.
+    ``tank_designs``: the plumbing tanks' last designs (their bars,
+    :func:`saengine.plumbing.project.read_designs`)."""
     measure = _Measure(building, objects, materials, substructure, ground_level, mep)
     measure.run()
     measure.measure_mep()
+    measure.measure_plumbing(tank_designs)
     return BillOfQuantities(
         source=source or BoqSource(), items=measure.bill.items(), notes=measure.finish()
     )
@@ -1315,13 +1473,16 @@ def compute_boq(
     substructure_text: str | None = None,
     settings_text: str | None = None,
     mep_text: str | None = None,
+    project_root: str | None = None,
 ) -> dict[str, Any]:
     """The ``10 BOQ/boq.json`` document (JSON-ready) measured from the files' texts:
     ``substructure_text`` (``09 Substructure/substructure.json``), ``settings_text`` (the
     ground level of the earthwork) and ``mep_text`` (``07 MEP/mep.json``: plinths, sleeves and
-    openings) are optional. Their stamps are recorded when given (for the settings, the stamp of
-    their ground level only, and only when the substructure's foundations are measured: nothing
-    else in the bill depends on them).
+    openings, the plumbing's tanks, pipes and fixtures) are optional. Their stamps are recorded
+    when given (for the settings, the stamp of their ground level only, and only when the
+    substructure's foundations are measured: nothing else in the bill depends on them).
+    ``project_root``: the project folder, where the plumbing tanks' last designs (their bars)
+    are read from.
 
     Raises ``pydantic.ValidationError`` (a ``ValueError``) when a file is not valid.
     """
@@ -1329,6 +1490,11 @@ def compute_boq(
 
     substructure, ground = _inputs(substructure_text, settings_text)
     mep = parse_mep(mep_text) if mep_text is not None else None
+    designs = None
+    if project_root and mep is not None and mep.plumbing is not None:
+        from saengine.plumbing.project import read_designs
+
+        designs = read_designs(project_root)
     earthwork = substructure is not None and bool(substructure.foundations or substructure.tieBeams)
     document = bill_of_quantities(
         BuildingModel.model_validate_json(bim_text),
@@ -1345,6 +1511,7 @@ def compute_boq(
         substructure,
         ground,
         mep,
+        designs,
     )
     return document.model_dump(mode="json", by_alias=True, exclude_none=True)
 
@@ -1356,6 +1523,7 @@ def compute_boq_text(
     substructure_text: str | None = None,
     settings_text: str | None = None,
     mep_text: str | None = None,
+    project_root: str | None = None,
 ) -> dict[str, Any]:
     """For the RPC handler: ``{"text", "notes"}`` (the file's text), or ``{"problems"}`` when an
     input has errors."""
@@ -1393,7 +1561,13 @@ def compute_boq_text(
                 problems.append(f"{label}: {path}: {message}" if path else f"{label}: {message}")
             return {"problems": problems}
     document = compute_boq(
-        bim_text, objects_text, materials_text, substructure_text, settings_text, mep_text
+        bim_text,
+        objects_text,
+        materials_text,
+        substructure_text,
+        settings_text,
+        mep_text,
+        project_root,
     )
     return {
         "text": json.dumps(document, indent="\t", ensure_ascii=False) + "\n",

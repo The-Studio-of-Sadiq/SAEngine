@@ -622,6 +622,125 @@ Sum of the support reactions of each load case, in global axes.
   #note[The MEP coordination could not be reported: #mep.problem]
 ]
 
+// ───────────────────────────── plumbing ─────────────────────────────
+
+#let plb = data.plumbing
+#if plb.available [
+  = Plumbing
+
+  The plumbing of 7 MEP sized to BNBC 2020 Part 8 for its coordination with the structure: the
+  water demand and storage, the risers and stacks with their sleeves and shafts, the water
+  tanks, septic tank and reservoir with their reinforced concrete design, and the water-supply
+  hydraulics. The plumbing design itself is the services engineer's.
+
+  == Summary
+  #pairs(plb.summary, width: 45%)
+  #if plb.failed > 0 {
+    note[*#plb.failed plumbing check(s) fail.* They are highlighted below.]
+  }
+  #if plb.low > 0 {
+    note[*#plb.low floor(s) are below the minimum residual head*: raise the overhead tank or
+      add a booster pump.]
+  }
+
+  #if plb.stories.len() > 0 [
+    == Demand
+    Daily demand by story (population × the per-capita requirement of Table 8.5.1) and the
+    fixture units (supply: Appendix O Table 8.O.1; drainage: Table 8.6.12).
+    #tbl(
+      ("Story", "Occupancy", "Persons", "lpcd", "Daily [l]", "Supply units", "Drainage units"),
+      plb.stories,
+      columns: (auto, 1fr, auto, auto, auto, auto, auto),
+      align: (left, left, right, right, right, right, right),
+      size: 8pt,
+    )
+  ]
+
+  #if plb.tanksRequired.len() > 0 [
+    == Storage
+    Volumes in m³ (Sec 5.9.1.2(c)); drain and overflow diameters in mm (Tables 8.5.2, 8.5.3).
+    #tbl(
+      ("Tank", "Kind", "Required", "Provided", "Drain", "Overflow", "Result"),
+      plb.tanksRequired,
+      columns: (auto, 1fr, auto, auto, auto, auto, auto),
+      align: (left, left, right, right, right, right, center),
+      size: 8pt,
+    )
+  ]
+
+  #if plb.risers.len() > 0 [
+    == Risers and stacks
+    Fixture units, flow [l/min] and diameters [mm]: the size the sleeves and shafts are
+    coordinated with.
+    #tbl(
+      ("Id", "System", "Units", "Flow", "Diameter", "Required", "Result"),
+      plb.risers,
+      columns: (auto, 1fr, auto, auto, auto, auto, auto),
+      align: (left, left, right, right, right, right, center),
+      size: 8pt,
+    )
+  ]
+
+  #if plb.designs.len() > 0 [
+    == Tank design
+    #for d in plb.designs [
+      === #d.title
+      #if d.error != "" {
+        note[This tank could not be designed: #d.error]
+      } else [
+        #pairs(d.rows, width: 30%)
+        #if d.failed > 0 {
+          note[*#d.failed of #d.count checks fail.*]
+        }
+        The failing checks and the most utilised of its #d.count checks:
+        #tbl(
+          ("Check", "Demand", "Capacity", "Unit", "Util.", "Result"),
+          d.checks,
+          columns: (1fr, auto, auto, auto, auto, auto),
+          align: (left, right, right, left, right, center),
+          bad: d.bad,
+          size: 8pt,
+        )
+      ]
+    ]
+  ]
+
+  #if plb.floors.len() > 0 [
+    == Hydraulics
+    Residual head at the highest fixture of each floor and the static head on its fittings [m]
+    (Table 8.5.6; at most 35 m, Sec 5.11).
+    #tbl(
+      ("Floor", "Riser", "Fixture level", "Head", "Required", "Static", "Result"),
+      plb.floors,
+      columns: (1fr, auto, auto, auto, auto, auto, auto),
+      align: (left, left, right, right, right, right, center),
+      bad: plb.floorFails,
+      size: 8pt,
+    )
+  ]
+
+  #if plb.septic.len() > 0 [
+    == Septic tank and soak well
+    #pairs(plb.septic, width: 30%)
+  ]
+
+  == Checks
+  #tbl(
+    ("Check", "Demand", "Capacity", "Unit", "Util.", "Result"),
+    plb.checks,
+    columns: (1fr, auto, auto, auto, auto, auto),
+    align: (left, right, right, left, right, center),
+    bad: plb.checkFails,
+    size: 8pt,
+  )
+
+  == Method
+  #bullets(plb.method)
+] else if plb.problem != "" [
+  = Plumbing
+  #note[The plumbing could not be reported: #plb.problem]
+]
+
 // ───────────────────────────── 5 bill of quantities ─────────────────────────────
 
 = Bill of quantities
@@ -671,6 +790,11 @@ what the software did not check or assumed; the engineer must consider each one.
 #if mep.available [
   == MEP coordination
   #if lim.mep.len() > 0 { bullets(lim.mep) } else { empty[No notes.] }
+]
+
+#if plb.available [
+  == Plumbing
+  #if lim.plumbing.len() > 0 { bullets(lim.plumbing) } else { empty[No notes.] }
 ]
 
 == Bill of quantities

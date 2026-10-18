@@ -233,6 +233,22 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 		return this.request(python, 'mep/importIfc', { projectRoot, path });
 	}
 
+	plumbingReport(python: string, projectRoot: string, mepText?: string): Promise<object> {
+		return this.request(python, 'mep/plumbingReport', { projectRoot, mepText });
+	}
+
+	plumbingSizeTanks(python: string, projectRoot: string, mepText?: string): Promise<object> {
+		return this.request(python, 'mep/plumbingSizeTanks', { projectRoot, mepText });
+	}
+
+	plumbingSleeves(python: string, projectRoot: string, mepText?: string): Promise<object> {
+		return this.request(python, 'mep/plumbingSleeves', { projectRoot, mepText });
+	}
+
+	plumbingOccupancies(python: string): Promise<object> {
+		return this.request(python, 'mep/plumbingOccupancies', {});
+	}
+
 	private async request<T>(python: string, method: string, params: object): Promise<T> {
 		const backend = await this.backend(python);
 		try {

@@ -13,7 +13,8 @@ Methods:
 - ``structure/insert`` ``{structureText, geometry}`` -> the structural model with them added
 - ``structure/runScript`` ``{structureText, scriptPath}`` -> the model a script built
 - ``design/report`` ``{outDir, projectPath}`` -> the RC member design checks of a run
-- ``boq/compute`` ``{bimText, objectsText, materialsText}`` -> the bill of quantities
+- ``boq/compute`` ``{bimText, objectsText, materialsText, projectRoot?}`` -> the bill of
+  quantities (``projectRoot``: where the plumbing tanks' last designs give their bars)
 - ``report/build`` ``{projectRoot, outPdf?}`` -> the PDF design report (``{path, pages, warnings}``)
 - ``soil/report`` ``{soilText, settingsText?}`` -> everything computed from the soil report
 - ``soil/allowableBearing`` ``{soilText, settingsText?, x, y, foundingLevel, b, l}`` -> qa [kPa]
@@ -35,6 +36,11 @@ Methods:
 - ``mep/report`` ``{projectRoot, outDir?, mepText?}`` -> the MEP coordination report
 - ``mep/suggestSleeves`` ``{projectRoot, mepText?, allowance?}`` -> sleeves for the clashes
 - ``mep/importIfc`` ``{projectRoot, path, copy?}`` -> what an MEP IFC model holds
+- ``mep/plumbingReport`` ``{projectRoot, mepText?}`` -> the plumbing report (BNBC 2020 Part 8
+  sizing, ``tankDesigns``, ``hydraulics``, missing sleeves), JSON-safe
+- ``mep/plumbingSizeTanks`` ``{projectRoot, mepText?}`` -> ``{tanks, notes}`` proposed tanks
+- ``mep/plumbingSleeves`` ``{projectRoot, mepText?}`` -> ``{openings, notes}`` missing sleeves
+- ``mep/plumbingOccupancies`` ``{}`` -> ``{occupancies}`` BNBC Table 8.5.1's rows
 
 Analyses themselves are not run here: the workbench starts
 ``python -m opensees_studio.run`` per run, so an OpenSees hard exit can never take
@@ -45,6 +51,7 @@ from __future__ import annotations
 
 import os
 import sys
+import threading
 from typing import Any, BinaryIO
 
 from pygls.protocol import JsonRPCProtocol, default_converter
@@ -168,6 +175,7 @@ def create_server() -> JsonRPCServer:
             args.get("substructureText"),
             args.get("settingsText"),
             args.get("mepText"),
+            args.get("projectRoot"),
         )
 
     @server.feature("report/build")
@@ -252,6 +260,25 @@ def create_server() -> JsonRPCServer:
         args = _plain(params)
         return handlers.mep_import_ifc(args["projectRoot"], args["path"], bool(args.get("copy")))
 
+    @server.feature("mep/plumbingReport")
+    def _plumbing_report(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.plumbing_report(args["projectRoot"], args.get("mepText"))
+
+    @server.feature("mep/plumbingSizeTanks")
+    def _plumbing_size_tanks(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.plumbing_size_tanks(args["projectRoot"], args.get("mepText"))
+
+    @server.feature("mep/plumbingSleeves")
+    def _plumbing_sleeves(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.plumbing_sleeves(args["projectRoot"], args.get("mepText"))
+
+    @server.feature("mep/plumbingOccupancies")
+    def _plumbing_occupancies(params: Any) -> dict[str, Any]:
+        return handlers.plumbing_occupancies()
+
     return server
 
 
@@ -269,5 +296,8 @@ def _claim_stdout() -> BinaryIO:
 
 def main() -> int:
     stdout = _claim_stdout()
-    create_server().start_io(sys.stdin.buffer, stdout)
+    server = create_server()
+    # WNTR's first import takes a second or two: done ahead of the editor's first request.
+    threading.Thread(target=handlers.warm_plumbing, name="warm-plumbing", daemon=True).start()
+    server.start_io(sys.stdin.buffer, stdout)
     return 0

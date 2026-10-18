@@ -43,12 +43,32 @@ import {
 	checkMep, DISCIPLINES, disciplineLabel, EMPTY_CONTEXT, EQUIPMENT_KINDS, EQUIPMENT_PRESETS, equipmentArea, equipmentKindLabel, equipmentPressure, findHost, formatUtilisation, guessDiscipline, hostKindLabel, hostStory, IClash, IEquipment, IEquipmentPreset,
 	IIfcModel, IImportIfcRequest, IMep, IMepContext, IMepContextTexts, IMepProblem, IMepReport, IMepRequest, IOpening, IShaft, MEP_IFC_FOLDER, MEP_IMPORT_IFC_COMMAND, MEP_REPORT_COMMAND, MEP_SUGGEST_SLEEVES_COMMAND, MEP_SUMMARY_FILE, mepSummary, mepSummaryFile,
 	newEquipment, newShaft, newSleeve, OPENING_KINDS, OPENING_SHAPES, openingKindLabel, openingPoint, openingShapeLabel, parseMep, plinthWeight, Point, polygonArea, readIfcImport, readMepContext, readMepReport, readSleeveSuggestions, serializeMep, shaftOnStory, sleeveForClash,
-	idError, isOpenClash, isPartlyChecked, nextId, storyAt, storyElements, storyLoads, usedIds, utilisationBand,
+	idError, isOpenClash, isPartlyChecked, nextId, storyAt, storyElements, storyLoads, utilisationBand,
 } from './mepDocument.js';
 import { MepEditorInput } from './mepEditorInput.js';
 import { IPlanClash, IPlanView, MepSelection, renderPlan } from './mepPlan.js';
+import {
+	allIds, checkPlumbing, constructionLabel, ensurePlumbing, FIXTURES, fixtureLabel, fixtureTotals, hasPlumbing, IOccupancy, IPlumbing, IPlumbingReport, IRiser, IRoofDrain, ITank, isGroundTank, mergeSizedTanks,
+	newRiser, newRoofDrain, newTank, PIPE_MATERIALS, PLUMBING_OCCUPANCIES_COMMAND, PLUMBING_REPORT_COMMAND, PLUMBING_SIZE_TANKS_COMMAND, PLUMBING_SLEEVES_COMMAND, PLUMBING_SYSTEMS, plumbingFailures, plumbingOf,
+	plumbingSummary, plumbingSummaryFile, PlumbingSystem, readOccupancies, readPlumbingReport, readSizedTanks, riserOnStory, sourceLabel, STATIC_OCCUPANCIES, storyRow, SUPPLY_SOURCES, systemLabel, systemLetters,
+	TANK_CONSTRUCTIONS, TANK_KINDS, tankCapacity, TankKind, tankKindLabel, tankStory,
+} from './plumbingDocument.js';
+import { plumbingExtent, renderPlumbing } from './plumbingPlan.js';
+import { renderPlumbingReport } from './plumbingResults.js';
 
 type View = 'plan' | 'data' | 'results';
+
+/** What can be dragged in the plan, the plumbing (drawn on top) first. */
+type DragKind = 'riser' | 'drain' | 'tank' | 'equipment' | 'shaft';
+const DRAG_KINDS: readonly DragKind[] = ['riser', 'drain', 'tank', 'equipment', 'shaft'];
+
+/** What the editor shows: the coordination of the services with the structure, or the plumbing set-up. */
+type Discipline = 'coordination' | 'plumbing';
+
+const DISCIPLINE_VIEWS: readonly { readonly discipline: Discipline; readonly label: string }[] = [
+	{ discipline: 'coordination', label: localize('mep.disciplineCoordination', "Coordination") },
+	{ discipline: 'plumbing', label: localize('mep.disciplinePlumbing', "Plumbing") },
+];
 
 const VIEWS: readonly { readonly view: View; readonly label: string; readonly icon: ThemeIcon }[] = [
 	{ view: 'plan', label: localize('mep.viewPlan', "Plan"), icon: Codicon.symbolStructure },
@@ -94,6 +114,32 @@ const F = {
 	path: { key: 'path', label: localize('mep.f.path', "Path"), kind: 'text', required: true, width: 300 },
 } satisfies { [key: string]: IFieldSpec };
 
+/** The plumbing's fields (the contract of `plumbing` in mep.json): sizes in mm, positions in m. */
+const P = {
+	mainsHead: { key: 'mainsHead', label: localize('plb.f.mainsHead', "Mains residual head"), unit: M, kind: 'number', min: 0, title: localize('plb.f.mainsHeadTitle', "Residual head of the city main at the connection") },
+	pumpHours: { key: 'pumpHours', label: localize('plb.f.pumpHours', "Pumping hours"), unit: localize('plb.unit.hDay', "h/day"), kind: 'number', min: 0.5, max: 24, title: localize('plb.f.pumpHoursTitle', "Hours a day the pump fills the overhead tank; empty for the backend's default") },
+	minResidualHead: { key: 'minResidualHead', label: localize('plb.f.minHead', "Minimum residual head"), unit: M, kind: 'number', min: 0.1, title: localize('plb.f.minHeadTitle', "Override of the minimum residual head at the outlets; empty for the code's") },
+	rainfall: { key: 'rainfallIntensity', label: localize('plb.f.rainfall', "Rainfall intensity"), unit: localize('plb.unit.mmh', "mm/h"), kind: 'number', min: 1, title: localize('plb.f.rainfallTitle', "Design rainfall intensity for the roof drains; empty for the backend's Dhaka value") },
+	population: { key: 'population', label: localize('plb.f.population', "Population"), kind: 'integer', min: 0, width: 80, title: localize('plb.f.populationTitle', "Persons on the storey; for a hotel, its beds (BNBC Table 8.5.1(d) gives hotels per bed, hospitals per person)") },
+	diameter: { key: 'diameter', label: localize('plb.f.diameter', "Diameter"), unit: MM, kind: 'number', min: 1, width: 72, title: localize('plb.f.diameterTitle', "Your size; empty to have it sized by the backend") },
+	length: { key: 'length', label: localize('plb.f.length', "Length"), unit: MM, kind: 'number', min: 1, width: 72, title: localize('plb.f.lengthTitle', "Inside length") },
+	width: { key: 'width', label: localize('plb.f.width', "Width"), unit: MM, kind: 'number', min: 1, width: 72, title: localize('plb.f.widthTitle', "Inside width") },
+	wellDiameter: { key: 'diameter', label: localize('plb.f.wellDiameter', "Diameter"), unit: MM, kind: 'number', min: 1, width: 72, title: localize('plb.f.wellDiameterTitle', "Inside diameter of the soak well") },
+	waterDepth: { key: 'waterDepth', label: localize('plb.f.waterDepth', "Water depth"), unit: MM, kind: 'number', min: 1, width: 72 },
+	freeboard: { key: 'freeboard', label: localize('plb.f.freeboard', "Freeboard"), unit: MM, kind: 'number', min: 0, width: 72 },
+	compartments: { key: 'compartments', label: localize('plb.f.compartments', "Compartments"), kind: 'integer', min: 1, width: 72 },
+	walls: { key: 'walls', label: localize('plb.f.walls', "Walls"), unit: MM, kind: 'number', min: 1, title: localize('plb.f.wallsTitle', "Wall thickness") },
+	base: { key: 'base', label: localize('plb.f.base', "Base"), unit: MM, kind: 'number', min: 1, title: localize('plb.f.baseTitle', "Base slab thickness") },
+	roof: { key: 'roof', label: localize('plb.f.roof', "Roof"), unit: MM, kind: 'number', min: 1, title: localize('plb.f.roofTitle', "Cover slab thickness") },
+	topLevel: { key: 'topLevel', label: localize('plb.f.topLevel', "Top level"), unit: MM, kind: 'number', title: localize('plb.f.topLevelTitle', "Top of the tank relative to the ground (negative: buried below it)") },
+	area: { key: 'area', label: localize('plb.f.catchment', "Catchment"), unit: localize('plb.unit.m2', "m²"), kind: 'number', min: 0.01, width: 80, title: localize('plb.f.catchmentTitle', "Roof area the drain takes; empty to split the roof slab by the nearest drain") },
+} satisfies { [key: string]: IFieldSpec };
+
+/** A fixture count's field. */
+function fixtureField(key: string, label: string): IFieldSpec {
+	return { key, label, kind: 'integer', min: 0, width: 56 };
+}
+
 /**
  * The MEP part (`07 MEP/mep.json`) on the shared editor frame. The Plan view draws one story of
  * the building (grid, slabs with their openings, beams, columns, walls) with the equipment that
@@ -124,6 +170,17 @@ export class MepEditor extends EditorPane {
 	private story: string | undefined;
 	private selection: MepSelection | undefined;
 	private selectedClash: string | undefined;
+	private discipline: Discipline = 'coordination';
+	private readonly disciplineButtons = new Map<Discipline, HTMLButtonElement>();
+
+	private plumbingReport: IPlumbingReport | undefined;
+	private plumbingState: ReportState = 'idle';
+	private plumbingError: string | undefined;
+	private plumbingVersion = 0;
+	private occupancies: readonly IOccupancy[] = STATIC_OCCUPANCIES;
+	private occupanciesFromBackend = false;
+	/** The cells of the fixtures table's totals row, refreshed while typing. */
+	private readonly totalCells = new Map<string, HTMLElement>();
 
 	private report: IMepReport | undefined;
 	private reportState: ReportState = 'idle';
@@ -133,7 +190,7 @@ export class MepEditor extends EditorPane {
 	private actionsKey: string | undefined;
 	private lastSize = '';
 	private planView: IPlanView | undefined;
-	private drag: { kind: 'equipment' | 'shaft'; index: number; x: number; y: number; group: Element; moved: boolean } | undefined;
+	private drag: { kind: DragKind; index: number; x: number; y: number; group: Element; moved: boolean } | undefined;
 	private suppressClick = false;
 
 	private readonly inputs = new Map<string, HTMLElement>();
@@ -149,7 +206,7 @@ export class MepEditor extends EditorPane {
 	private readonly propertiesDisposables = this._register(new DisposableStore());
 	private readonly siteModels = new Map<keyof IMepContextTexts, ITextModel>();
 	private readonly commitScheduler = this._register(new RunOnceScheduler(() => this.commit(), 300));
-	private readonly reportScheduler = this._register(new RunOnceScheduler(() => void this.computeReport(), 1200));
+	private readonly reportScheduler = this._register(new RunOnceScheduler(() => void this.computeReports(), 1200));
 	private readonly siteScheduler = this._register(new RunOnceScheduler(() => this.readSite(), 300));
 	private readonly layoutScheduler = this._register(new RunOnceScheduler(() => this.onMainResized(), 50));
 
@@ -162,6 +219,15 @@ export class MepEditor extends EditorPane {
 	private readonly deleteAction = this._register(new Action('saengine.mep.editor.delete', localize('mep.delete', "Delete"), ThemeIcon.asClassName(Codicon.trash), false, async () => this.deleteSelection()));
 	private readonly recomputeAction = this._register(new Action('saengine.mep.editor.recompute', localize('mep.recompute', "Check the Openings and Clashes Again"), undefined, true, () => this.computeReport()));
 	private readonly openTextAction = this._register(new Action('saengine.mep.editor.openText', localize('mep.openText', "Open as Text"), undefined, true, () => this.openAsText()));
+
+	private readonly riserActions = PLUMBING_SYSTEMS.map(system => this._register(new Action(`saengine.mep.editor.addRiser.${system}`, localize('plb.addSystem', "{0} ({1})", systemLabel(system), systemLetters(system)), undefined, true, async () => this.addRiser(system))));
+	private readonly addRiserAction = new SubmenuAction('saengine.mep.editor.addRiser', localize('plb.addRiser', "Add Riser or Stack"), this.riserActions, ThemeIcon.asClassName(Codicon.arrowUp));
+	private readonly tankActions = (['overhead', 'underground', 'septic', 'soakWell', 'rainwater'] as const).map(kind => this._register(new Action(`saengine.mep.editor.addTank.${kind}`, tankKindLabel(kind), undefined, true, async () => this.addTank(kind))));
+	private readonly addTankAction = new SubmenuAction('saengine.mep.editor.addTank', localize('plb.addTank', "Add Tank"), this.tankActions, ThemeIcon.asClassName(Codicon.database));
+	private readonly addDrainAction = this._register(new Action('saengine.mep.editor.addDrain', localize('plb.addDrain', "Add Roof Drain"), ThemeIcon.asClassName(Codicon.arrowCircleDown), true, async () => this.addDrain()));
+	private readonly sizeTanksAction = this._register(new Action('saengine.mep.editor.sizeTanks', localize('plb.sizeTanks', "Size Tanks"), ThemeIcon.asClassName(Codicon.wand), true, () => this.sizeTanks()));
+	private readonly riserSleevesAction = this._register(new Action('saengine.mep.editor.riserSleeves', localize('plb.riserSleeves', "Add Sleeves for Risers"), ThemeIcon.asClassName(Codicon.circleLargeOutline), true, () => this.addRiserSleeves()));
+	private readonly recomputePlumbingAction = this._register(new Action('saengine.mep.editor.recomputePlumbing', localize('plb.recompute', "Check the Plumbing Again"), undefined, true, () => this.computePlumbingReport()));
 
 	constructor(
 		group: IEditorGroup,
@@ -186,8 +252,11 @@ export class MepEditor extends EditorPane {
 		}));
 		this._register(CommandsRegistry.onDidRegisterCommand(id => {
 			// The backend registers its commands when it starts: check as soon as it can.
-			if (id === MEP_REPORT_COMMAND && this.reportState === 'missing') {
+			if ((id === MEP_REPORT_COMMAND && this.reportState === 'missing') || (id === PLUMBING_REPORT_COMMAND && this.plumbingState === 'missing')) {
 				this.reportScheduler.schedule(0);
+			}
+			if (id === PLUMBING_OCCUPANCIES_COMMAND) {
+				void this.loadOccupancies();
 			}
 		}));
 	}
@@ -202,6 +271,13 @@ export class MepEditor extends EditorPane {
 		frame.setTitle(localize('mep.title', "MEP"));
 		frame.setHelp(localize('mep.help', "The building services as they affect the structure: equipment that loads the floors (water tanks, chillers, generators...), sleeves and openings through beams, slabs and walls, and the vertical shafts. Pick a story, add equipment from typical presets and edit it to the supplier's data, select a beam, slab or wall to add a sleeve through it. Import the MEP IFC models to find where pipes and ducts cross the structure; the Results view lists those clashes and checks the openings."));
 
+		const disciplines = append(frame.titleSlot, $('.sa-segmented.mep-discipline', { role: 'tablist', 'aria-label': localize('mep.disciplineAria', "Discipline") }));
+		for (const { discipline, label } of DISCIPLINE_VIEWS) {
+			const button = append(disciplines, $<HTMLButtonElement>('button.sa-segment', { type: 'button', role: 'tab' }));
+			append(button, $('span', undefined, label));
+			this._register(addDisposableListener(button, EventType.CLICK, () => this.showDiscipline(discipline)));
+			this.disciplineButtons.set(discipline, button);
+		}
 		const storyGroup = append(frame.titleSlot, $('.mep-story'));
 		this.storyPicker = this._register(new SelectBox([], 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('mep.storyAria', "Story shown") }));
 		this.storyPicker.render(append(storyGroup, $('.mep-story-select')));
@@ -229,9 +305,12 @@ export class MepEditor extends EditorPane {
 		this.model = undefined;
 		this.report = undefined;
 		this.reportState = 'idle';
+		this.plumbingReport = undefined;
+		this.plumbingState = 'idle';
 		this.selection = undefined;
 		this.selectedClash = undefined;
 		this.story = undefined;
+		void this.loadOccupancies();
 		const reference = await input.resolve();
 		if (token.isCancellationRequested || this.input !== input) {
 			return;
@@ -351,7 +430,7 @@ export class MepEditor extends EditorPane {
 		this.context = readMepContext(this.siteTexts());
 		if (render && this.document) {
 			this.ensureStory();
-			this.problems = checkMep(this.document, this.context);
+			this.problems = this.check(this.document);
 			this.render();
 			this.reportScheduler.schedule();
 		}
@@ -375,7 +454,7 @@ export class MepEditor extends EditorPane {
 			}
 		}
 		this.ensureStory();
-		this.problems = this.document ? checkMep(this.document, this.context) : [];
+		this.problems = this.document ? this.check(this.document) : [];
 		this.render();
 		this.reportScheduler.schedule(this.reportState === 'idle' ? 0 : undefined);
 	}
@@ -386,6 +465,9 @@ export class MepEditor extends EditorPane {
 			case 'equipment': return selection.index < document.equipment.length;
 			case 'opening': return selection.index < document.openings.length;
 			case 'shaft': return selection.index < document.shafts.length;
+			case 'riser': return selection.index < (plumbingOf(document)?.risers.length ?? 0);
+			case 'tank': return selection.index < (plumbingOf(document)?.tanks.length ?? 0);
+			case 'drain': return selection.index < (plumbingOf(document)?.roof.drains.length ?? 0);
 			default: return true;
 		}
 	}
@@ -421,7 +503,7 @@ export class MepEditor extends EditorPane {
 		}
 		this.flush();
 		this.story = story;
-		if (this.selection?.kind !== 'opening') {
+		if (this.selection?.kind !== 'opening' && this.selection?.kind !== 'riser') {
 			this.selection = undefined;
 		}
 		this.render();
@@ -460,7 +542,7 @@ export class MepEditor extends EditorPane {
 		if (!this.document) {
 			return;
 		}
-		this.problems = checkMep(this.document, this.context);
+		this.problems = this.check(this.document);
 		if (structural) {
 			this.commit();
 			this.render();
@@ -506,6 +588,13 @@ export class MepEditor extends EditorPane {
 		}
 		const target = e.target as Element | null;
 		const pick = (attribute: string) => target?.closest(`[${attribute}]`)?.getAttribute(attribute);
+		for (const kind of ['riser', 'drain', 'tank'] as const) {
+			const index = pick(`data-${kind}`);
+			if (index) {
+				this.select({ kind, index: Number(index) });
+				return;
+			}
+		}
 		const equipment = pick('data-equipment');
 		const opening = pick('data-opening');
 		const shaft = pick('data-shaft');
@@ -533,17 +622,12 @@ export class MepEditor extends EditorPane {
 		// A click follows only the gesture that ends a drag (and not always): a new press clears it.
 		this.suppressClick = false;
 		const target = e.target as Element | null;
-		const equipment = target?.closest('[data-equipment]');
-		const shaft = equipment ? undefined : target?.closest('[data-shaft]');
-		const group = equipment ?? shaft;
-		if (!group || e.button !== 0) {
+		const kind = DRAG_KINDS.find(k => target?.closest(`[data-${k}]`));
+		const group = kind ? target?.closest(`[data-${kind}]`) : undefined;
+		if (!kind || !group || e.button !== 0) {
 			return;
 		}
-		this.drag = {
-			kind: equipment ? 'equipment' : 'shaft',
-			index: Number(group.getAttribute(equipment ? 'data-equipment' : 'data-shaft')),
-			x: e.clientX, y: e.clientY, group, moved: false,
-		};
+		this.drag = { kind, index: Number(group.getAttribute(`data-${kind}`)), x: e.clientX, y: e.clientY, group, moved: false };
 		canvas.setPointerCapture(e.pointerId);
 	}
 
@@ -581,13 +665,15 @@ export class MepEditor extends EditorPane {
 		this.suppressClick = true;
 		const dx = Math.round((e.clientX - drag.x) / scale / 50) * 50;
 		const dy = -Math.round((e.clientY - drag.y) / scale / 50) * 50;
-		if (drag.kind === 'equipment') {
-			const equipment = document.equipment[drag.index];
-			if (equipment) {
-				equipment.x = equipment.x + dx;
-				equipment.y = equipment.y + dy;
-			}
-		} else {
+		const plumbing = plumbingOf(document);
+		const point = drag.kind === 'equipment' ? document.equipment[drag.index]
+			: drag.kind === 'riser' ? plumbing?.risers[drag.index]
+				: drag.kind === 'tank' ? plumbing?.tanks[drag.index]
+					: drag.kind === 'drain' ? plumbing?.roof.drains[drag.index] : undefined;
+		if (point) {
+			point.x = point.x + dx;
+			point.y = point.y + dy;
+		} else if (drag.kind === 'shaft') {
 			const shaft = document.shafts[drag.index];
 			if (shaft) {
 				shaft.outline = shaft.outline.map(p => [p[0] + dx, p[1] + dy] as Point);
@@ -679,6 +765,9 @@ export class MepEditor extends EditorPane {
 			case 'equipment': document.equipment.splice(selection.index, 1); break;
 			case 'opening': document.openings.splice(selection.index, 1); break;
 			case 'shaft': document.shafts.splice(selection.index, 1); break;
+			case 'riser': plumbingOf(document)?.risers.splice(selection.index, 1); break;
+			case 'tank': plumbingOf(document)?.tanks.splice(selection.index, 1); break;
+			case 'drain': plumbingOf(document)?.roof.drains.splice(selection.index, 1); break;
 			default: return;
 		}
 		this.selection = undefined;
@@ -791,8 +880,20 @@ export class MepEditor extends EditorPane {
 		if (this.document !== document) {
 			return;
 		}
+		const added = this.addOpenings(document, answer?.openings ?? []);
+		if (!added.length) {
+			this.notificationService.info(answer?.notes.length ? answer.notes.join(' ') : localize('mep.suggestNone', "No crossing of the MEP models with the structure needs a new sleeve."));
+			return;
+		}
+		const first = added[0];
+		this.added({ kind: 'opening', index: document.openings.indexOf(first) }, hostStory(this.context, findHost(this.context, first.host))?.id);
+		this.notificationService.info(added.length === 1 ? localize('mep.suggestedOne', "Added 1 sleeve where an MEP model crosses the structure.") : localize('mep.suggested', "Added {0} sleeves where the MEP models cross the structure.", added.length));
+	}
+
+	/** Adds the proposed openings the file does not have yet (none on the same host within 50 mm), with unused IDs. */
+	private addOpenings(document: IMep, proposals: readonly IOpening[]): IOpening[] {
 		const added: IOpening[] = [];
-		for (const proposal of answer?.openings ?? []) {
+		for (const proposal of proposals) {
 			const point = openingPoint(proposal, this.context);
 			const same = document.openings.some(o => {
 				const other = openingPoint(o, this.context);
@@ -801,20 +902,14 @@ export class MepEditor extends EditorPane {
 			if (same) {
 				continue;
 			}
-			const used = usedIds(document);
+			const used = allIds(document);
 			if (!proposal.id || used.includes(proposal.id)) {
 				proposal.id = nextId('OP', used);
 			}
 			document.openings.push(proposal);
 			added.push(proposal);
 		}
-		if (!added.length) {
-			this.notificationService.info(answer?.notes.length ? answer.notes.join(' ') : localize('mep.suggestNone', "No crossing of the MEP models with the structure needs a new sleeve."));
-			return;
-		}
-		const first = added[0];
-		this.added({ kind: 'opening', index: document.openings.indexOf(first) }, hostStory(this.context, findHost(this.context, first.host))?.id);
-		this.notificationService.info(added.length === 1 ? localize('mep.suggestedOne', "Added 1 sleeve where an MEP model crosses the structure.") : localize('mep.suggested', "Added {0} sleeves where the MEP models cross the structure.", added.length));
+		return added;
 	}
 
 	/** A sleeve for one clash of the report. */
@@ -874,7 +969,17 @@ export class MepEditor extends EditorPane {
 	}
 
 	private hasContent(document: IMep): boolean {
-		return document.equipment.length + document.openings.length + document.shafts.length + document.ifcModels.length > 0;
+		return document.equipment.length + document.openings.length + document.shafts.length + document.ifcModels.length > 0 || hasPlumbing(document);
+	}
+
+	/** The file's problems: the coordination's and the plumbing's. */
+	private check(document: IMep): IMepProblem[] {
+		return [...checkMep(document, this.context), ...checkPlumbing(document, this.context)];
+	}
+
+	/** Both reports, after an edit. */
+	private async computeReports(): Promise<void> {
+		await Promise.all([this.computeReport(), this.computePlumbingReport()]);
 	}
 
 	/** Asks the backend for the report (debounced after every edit). */
@@ -920,11 +1025,23 @@ export class MepEditor extends EditorPane {
 		this.reportError = error;
 		this.renderReportDependent();
 		// The summary describes the saved file: written only when the editor holds no unsaved edits.
+		this.writeSummary(document, sourceTexts);
+	}
+
+	/**
+	 * The part list's summary, once the coordination report is in: with the plumbing's failures
+	 * (key `plumbing`) when its report is in too. It describes the saved file: written only when
+	 * the editor holds no unsaved edits.
+	 */
+	private writeSummary(document: IMep, sourceTexts: IMepContextTexts): void {
 		const model = this.model;
-		if (report && model && this.resource && !this.input?.isDirty()) {
-			const content = JSON.stringify(mepSummaryFile(document, report, model.getValue(), new Date(), sourceTexts), undefined, '\t') + '\n';
-			this.fileService.writeFile(joinPath(dirname(this.resource), MEP_SUMMARY_FILE), VSBuffer.fromString(content)).catch(() => { /* the part list then shows the count only */ });
+		const report = this.reportState === 'ok' ? this.report : undefined;
+		if (!report || !model || !this.resource || this.input?.isDirty() || this.document !== document) {
+			return;
 		}
+		const plumbing = this.plumbingState === 'ok' && this.plumbingReport ? { plumbing: plumbingSummaryFile(document, this.plumbingReport) } : {};
+		const content = JSON.stringify({ ...mepSummaryFile(document, report, model.getValue(), new Date(), sourceTexts), ...plumbing }, undefined, '\t') + '\n';
+		this.fileService.writeFile(joinPath(dirname(this.resource), MEP_SUMMARY_FILE), VSBuffer.fromString(content)).catch(() => { /* the part list then shows the count only */ });
 	}
 
 	// ───────────────────────────── rendering ─────────────────────────────
@@ -933,6 +1050,7 @@ export class MepEditor extends EditorPane {
 		if (!this.frame) {
 			return;
 		}
+		this.frame.element.classList.toggle('plumbing', this.discipline === 'plumbing');
 		this.updateViewButtons();
 		this.renderActions();
 		this.renderEmpty();
@@ -958,6 +1076,12 @@ export class MepEditor extends EditorPane {
 
 	private updateViewButtons(): void {
 		const usable = !!this.document;
+		for (const [discipline, button] of this.disciplineButtons) {
+			const active = discipline === this.discipline;
+			button.classList.toggle('active', active);
+			button.setAttribute('aria-selected', String(active));
+			button.disabled = !usable;
+		}
 		for (const [view, button] of this.viewButtons) {
 			const active = view === this.view;
 			button.classList.toggle('active', active);
@@ -977,16 +1101,25 @@ export class MepEditor extends EditorPane {
 		const host = selection?.kind === 'element' ? findHost(this.context, selection.id) : undefined;
 		this.addSleeveAction.label = host ? localize('mep.addSleeveThrough', "Add Sleeve through {0} {1}", hostKindLabel(host.kind), host.element.id) : localize('mep.addSleeve', "Add Sleeve through the Selected Beam, Slab or Wall");
 		this.addSleeveAction.enabled = !!host || selection?.kind === 'opening';
+		const plumbing = document ? plumbingOf(document) : undefined;
 		const named = selection?.kind === 'equipment' ? document?.equipment[selection.index]?.id
 			: selection?.kind === 'opening' ? document?.openings[selection.index]?.id
-				: selection?.kind === 'shaft' ? document?.shafts[selection.index]?.id : undefined;
+				: selection?.kind === 'shaft' ? document?.shafts[selection.index]?.id
+					: selection?.kind === 'riser' ? plumbing?.risers[selection.index]?.id
+						: selection?.kind === 'tank' ? plumbing?.tanks[selection.index]?.id
+							: selection?.kind === 'drain' ? plumbing?.roof.drains[selection.index]?.id : undefined;
 		this.deleteAction.enabled = !!named;
 		this.deleteAction.label = named ? localize('mep.deleteNamed', "Delete {0}", named) : localize('mep.delete', "Delete");
 		this.recomputeAction.enabled = !!document && this.hasContent(document);
-		const primary: IAction[] = usable ? [
+		const plumbingView = this.discipline === 'plumbing';
+		this.recomputePlumbingAction.enabled = !!document && hasPlumbing(document);
+		this.riserSleevesAction.enabled = !!plumbing?.risers.length;
+		const primary: IAction[] = !usable ? [frame.togglePropertiesAction] : plumbingView ? [
+			this.addRiserAction, this.addTankAction, this.addDrainAction, this.sizeTanksAction, this.riserSleevesAction, this.deleteAction, frame.togglePropertiesAction,
+		] : [
 			this.addEquipmentAction, this.addSleeveAction, this.addShaftAction, this.importIfcAction, this.suggestAction, this.deleteAction, frame.togglePropertiesAction,
-		] : [frame.togglePropertiesAction];
-		const secondary: IAction[] = usable ? [this.recomputeAction] : [];
+		];
+		const secondary: IAction[] = usable ? [plumbingView ? this.recomputePlumbingAction : this.recomputeAction] : [];
 		if (this.developerMode || this.parseError) {
 			if (secondary.length) {
 				secondary.push(new Separator());
@@ -1031,10 +1164,19 @@ export class MepEditor extends EditorPane {
 		if (!document) {
 			return;
 		}
-		switch (this.view) {
-			case 'plan': this.renderPlanView(document); break;
-			case 'data': this.renderDataView(document); break;
-			case 'results': this.renderResultsView(document); break;
+		this.totalCells.clear();
+		if (this.discipline === 'plumbing') {
+			switch (this.view) {
+				case 'plan': this.renderPlanView(document); break;
+				case 'data': this.renderPlumbingData(document); break;
+				case 'results': this.renderPlumbingResults(document); break;
+			}
+		} else {
+			switch (this.view) {
+				case 'plan': this.renderPlanView(document); break;
+				case 'data': this.renderDataView(document); break;
+				case 'results': this.renderResultsView(document); break;
+			}
 		}
 		this.viewElement.scrollTop = scroll;
 		this.renderProblems();
@@ -1060,25 +1202,43 @@ export class MepEditor extends EditorPane {
 		const story = this.context.stories.find(s => s.id === this.story);
 		const header = append(view, $('.mep-view-header'));
 		append(header, $('span.mep-view-title', undefined, story ? story.name : localize('mep.planNoStory', "No story")));
+		const plumbingView = this.discipline === 'plumbing';
 		const onStory = document.equipment.filter(e => e.story === this.story);
 		const load = onStory.reduce((sum, e) => sum + (e.operatingWeight || 0), 0);
-		append(header, $('span.mep-view-subtitle', undefined, story
-			? localize('mep.planSubtitle', "level {0} m · {1} equipment, {2} kN · click to select, drag equipment and shafts to move them",
-				formatNumber(story.elevation / 1000, 2), onStory.length, formatNumber(load, 1))
-			: localize('mep.planSubtitleNone', "Build the building model to lay out the services on its stories.")));
+		const plumbing = plumbingOf(document);
+		append(header, $('span.mep-view-subtitle', undefined, !story
+			? localize('mep.planSubtitleNone', "Build the building model to lay out the services on its stories.")
+			: plumbingView
+				? localize('plb.planSubtitle', "level {0} m · risers and stacks: {1}, tanks: {2} · click to select, drag to move",
+					formatNumber(story.elevation / 1000, 2), plumbing?.risers.filter(r => riserOnStory(r, this.context, story.id)).length ?? 0, plumbing?.tanks.filter(t => tankStory(t, this.context) === story.id).length ?? 0)
+				: localize('mep.planSubtitle', "level {0} m · {1} equipment, {2} kN · click to select, drag equipment and shafts to move them",
+					formatNumber(story.elevation / 1000, 2), onStory.length, formatNumber(load, 1))));
 
 		const legend = append(view, $('.mep-legend'));
-		const item = (cls: string, label: string) => {
+		const item = (cls: string, label: string, text?: string) => {
 			const element = append(legend, $('span.mep-legend-item'));
-			append(element, $(`span.mep-swatch.${cls}`));
+			append(element, text ? $(`span.mep-swatch.${cls}`, undefined, text) : $(`span.mep-swatch.${cls}`));
 			append(element, $('span', undefined, label));
 		};
-		item('equipment', localize('mep.legendEquipment', "Equipment"));
-		item('shaft', localize('mep.legendShaft', "Shaft"));
-		item('sleeve', localize('mep.legendSleeve', "Sleeve or opening"));
-		item('beam', localize('mep.legendBeam', "Beam"));
-		item('slab', localize('mep.legendSlab', "Slab"));
-		const clashes = this.planClashes();
+		if (plumbingView) {
+			const systems = new Set(plumbing?.risers.filter(r => !story || riserOnStory(r, this.context, story.id)).map(r => r.system));
+			for (const system of PLUMBING_SYSTEMS.filter(s => systems.has(s))) {
+				item(`plb-sys.sys-${system}`, systemLabel(system), systemLetters(system));
+			}
+			item('plb-tank', localize('plb.legendTank', "Tank"));
+			if (plumbing?.roof.drains.some(d => d.story === story?.id)) {
+				item('plb-drain', localize('plb.legendDrain', "Roof drain"));
+			}
+			item('shaft', localize('mep.legendShaft', "Shaft"));
+			item('sleeve', localize('mep.legendSleeve', "Sleeve or opening"));
+		} else {
+			item('equipment', localize('mep.legendEquipment', "Equipment"));
+			item('shaft', localize('mep.legendShaft', "Shaft"));
+			item('sleeve', localize('mep.legendSleeve', "Sleeve or opening"));
+			item('beam', localize('mep.legendBeam', "Beam"));
+			item('slab', localize('mep.legendSlab', "Slab"));
+		}
+		const clashes = plumbingView ? [] : this.planClashes();
 		if (clashes.length) {
 			item('clash', localize('mep.legendClash', "Clash"));
 		}
@@ -1090,8 +1250,14 @@ export class MepEditor extends EditorPane {
 		const width = Math.max(240, view.clientWidth - 32);
 		const height = Math.max(240, view.clientHeight - 96);
 		const bands = this.reportState === 'ok' && this.report ? new Map(this.report.openings.map(o => [o.id, o.ok ? utilisationBand(o.utilisation) : 'fail' as const])) : undefined;
+		const plumbingReport = this.plumbingState === 'ok' ? this.plumbingReport : undefined;
 		this.planView = renderPlan(canvas, document, this.context, {
 			width, height, story: story.id, selection: this.selection, openingBands: bands, clashes, selectedClash: this.selectedClash,
+			...(plumbingView ? {
+				plumbing: true,
+				extraExtent: plumbingExtent(document, this.context, story.id),
+				overlay: (root, planView) => renderPlumbing(root, planView, document, this.context, { story: story.id, selection: this.selection, report: plumbingReport }),
+			} : {}),
 		});
 		this.viewDisposables.add(addDisposableListener(canvas, EventType.CLICK, e => this.onPlanClick(e)));
 		this.viewDisposables.add(addDisposableListener(canvas, EventType.POINTER_DOWN, e => this.onPlanPointerDown(canvas, e)));
@@ -1112,11 +1278,13 @@ export class MepEditor extends EditorPane {
 		this.markSelectedRows();
 	}
 
-	private section(title: string, count: number, add?: { label: string; run: () => void }): HTMLElement {
+	private section(title: string, count: number | undefined, add?: { label: string; run: () => void }): HTMLElement {
 		const section = append(this.viewElement, $('.mep-section'));
 		const heading = append(section, $('.mep-section-heading'));
 		append(heading, $('span.mep-section-title', undefined, title));
-		append(heading, $('span.mep-section-count', undefined, String(count)));
+		if (count !== undefined) {
+			append(heading, $('span.mep-section-count', undefined, String(count)));
+		}
 		if (add) {
 			const button = append(heading, $<HTMLButtonElement>('button.mep-add', { type: 'button' }));
 			append(button, $(ThemeIcon.asCSSSelector(Codicon.add)));
@@ -1783,8 +1951,20 @@ export class MepEditor extends EditorPane {
 			} else if (s?.kind === 'shaft' && document.shafts[s.index]) {
 				this.renderShaftProperties(panel, document.shafts[s.index], s.index);
 				paths = [`shafts.${s.index}.`];
+			} else if (s?.kind === 'riser' && plumbingOf(document)?.risers[s.index]) {
+				this.renderRiserProperties(panel, ensurePlumbing(document).risers[s.index], s.index);
+				paths = [`plumbing.risers.${s.index}.`];
+			} else if (s?.kind === 'tank' && plumbingOf(document)?.tanks[s.index]) {
+				this.renderTankProperties(panel, ensurePlumbing(document).tanks[s.index], s.index);
+				paths = [`plumbing.tanks.${s.index}.`];
+			} else if (s?.kind === 'drain' && plumbingOf(document)?.roof.drains[s.index]) {
+				this.renderDrainProperties(panel, ensurePlumbing(document).roof.drains[s.index], s.index);
+				paths = [`plumbing.roof.drains.${s.index}.`];
 			} else if (s?.kind === 'element') {
 				this.renderElementProperties(panel, document, s.id);
+			} else if (this.discipline === 'plumbing') {
+				this.renderPlumbingSummaryProperties(panel, document);
+				paths = ['plumbing.'];
 			} else {
 				this.renderSummaryProperties(panel, document);
 				paths = ['equipment.', 'openings.', 'shafts.', 'ifcModels.'];
@@ -2078,6 +2258,10 @@ export class MepEditor extends EditorPane {
 			frame.setStatus({ text: localize('mep.statusEmpty', "No equipment yet · {0} stories", this.context.stories.length) });
 			return;
 		}
+		if (this.discipline === 'plumbing') {
+			this.renderPlumbingStatus(document);
+			return;
+		}
 		const ok = this.reportState === 'ok' ? this.report : undefined;
 		const parts = [mepSummary(document, ok)];
 		if (this.reportState === 'missing') {
@@ -2104,13 +2288,35 @@ export class MepEditor extends EditorPane {
 	}
 
 	private revealFirstProblem(): void {
-		const problem = this.problems[0];
+		this.revealProblem(this.problems[0]);
+	}
+
+	private revealProblem(problem: IMepProblem | undefined): void {
 		if (!problem) {
 			return;
 		}
-		const match = /^(?<list>equipment|openings|shafts)\.(?<index>\d+)\./.exec(problem.path);
+		const match = /^(?<list>equipment|openings|shafts|plumbing\.risers|plumbing\.tanks|plumbing\.roof\.drains)\.(?<index>\d+)\./.exec(problem.path);
 		const index = Number(match?.groups?.index);
-		if (match?.groups?.list === 'equipment') {
+		const plumbingKind = match?.groups?.list === 'plumbing.risers' ? 'riser' : match?.groups?.list === 'plumbing.tanks' ? 'tank' : match?.groups?.list === 'plumbing.roof.drains' ? 'drain' : undefined;
+		if (problem.path.startsWith('plumbing.') && this.discipline !== 'plumbing') {
+			this.discipline = 'plumbing';
+		} else if (!problem.path.startsWith('plumbing.') && this.discipline === 'plumbing') {
+			this.discipline = 'coordination';
+		}
+		if (plumbingKind) {
+			const selection: MepSelection = { kind: plumbingKind, index };
+			this.selection = selection;
+			const story = this.selectionStory(selection);
+			if (story) {
+				this.story = story;
+				this.updateStoryPicker();
+			}
+			if (this.view !== 'plan') {
+				this.view = 'plan';
+			}
+		} else if (problem.path.startsWith('plumbing.')) {
+			this.view = 'data';
+		} else if (match?.groups?.list === 'equipment') {
 			this.selection = { kind: 'equipment', index };
 			const story = this.document?.equipment[index]?.story;
 			if (story && this.context.stories.some(s => s.id === story)) {
@@ -2127,5 +2333,761 @@ export class MepEditor extends EditorPane {
 		this.frame.setPropertiesVisible(true);
 		this.render();
 		(this.propertyInputs.get(problem.path) ?? this.inputs.get(problem.path))?.focus();
+	}
+
+	// ───────────────────────────── plumbing ─────────────────────────────
+
+	/** The occupancies of BNBC Table 8.5.1 from the backend, once it lists them; until then the static list. */
+	private async loadOccupancies(): Promise<void> {
+		if (this.occupanciesFromBackend || !CommandsRegistry.getCommand(PLUMBING_OCCUPANCIES_COMMAND)) {
+			return;
+		}
+		try {
+			const list = readOccupancies(await this.commandService.executeCommand<unknown>(PLUMBING_OCCUPANCIES_COMMAND));
+			if (list) {
+				this.occupancies = list;
+				this.occupanciesFromBackend = true;
+				if (this.discipline === 'plumbing' && this.view === 'data') {
+					this.renderView();
+				}
+			}
+		} catch {
+			// The static list stays.
+		}
+	}
+
+	private showDiscipline(discipline: Discipline): void {
+		if (discipline === this.discipline) {
+			return;
+		}
+		this.flush();
+		this.discipline = discipline;
+		this.selection = undefined;
+		this.selectedClash = undefined;
+		this.render();
+	}
+
+	/** The story a riser, tank or drain is seen on: the one shown when it is on it, else its own. */
+	private selectionStory(selection: MepSelection): string | undefined {
+		const plumbing = this.document ? plumbingOf(this.document) : undefined;
+		switch (selection.kind) {
+			case 'riser': {
+				const riser = plumbing?.risers[selection.index];
+				return riser && this.story && riserOnStory(riser, this.context, this.story) ? this.story : riser?.fromStory;
+			}
+			case 'tank': {
+				const tank = plumbing?.tanks[selection.index];
+				return tank ? tankStory(tank, this.context) : undefined;
+			}
+			case 'drain': return plumbing?.roof.drains[selection.index]?.story;
+			default: return undefined;
+		}
+	}
+
+	private noStories(): boolean {
+		if (this.context.stories.length) {
+			return false;
+		}
+		this.notificationService.info(localize('plb.noStories', "The building model has no stories yet. Build it (6 BIM) first: the plumbing is laid out on its stories."));
+		return true;
+	}
+
+	addRiser(system: PlumbingSystem): void {
+		const document = this.document;
+		if (!document || this.noStories()) {
+			return;
+		}
+		const plumbing = ensurePlumbing(document);
+		plumbing.risers.push(newRiser(document, this.context, system, this.story));
+		this.added({ kind: 'riser', index: plumbing.risers.length - 1 });
+	}
+
+	addTank(kind: TankKind): void {
+		const document = this.document;
+		if (!document || this.noStories()) {
+			return;
+		}
+		const plumbing = ensurePlumbing(document);
+		const top = this.context.stories[this.context.stories.length - 1]?.id;
+		// An overhead tank on the story shown when it is above the base, else on the roof.
+		const story = kind === 'overhead' ? (this.story && this.story !== this.context.stories[0]?.id ? this.story : top) : undefined;
+		const tank = newTank(document, this.context, kind, story);
+		plumbing.tanks.push(tank);
+		this.added({ kind: 'tank', index: plumbing.tanks.length - 1 }, tankStory(tank, this.context));
+	}
+
+	addDrain(): void {
+		const document = this.document;
+		if (!document || this.noStories()) {
+			return;
+		}
+		const plumbing = ensurePlumbing(document);
+		const story = this.story && this.story !== this.context.stories[0]?.id ? this.story : this.context.stories[this.context.stories.length - 1].id;
+		plumbing.roof.drains.push(newRoofDrain(document, this.context, story));
+		this.added({ kind: 'drain', index: plumbing.roof.drains.length - 1 }, story);
+	}
+
+	/** The backend proposes the tanks (overhead, reservoir, septic tank...) from the demand: one undoable edit. */
+	async sizeTanks(): Promise<void> {
+		this.flush();
+		const request = this.request();
+		const document = this.document;
+		if (!request || !document) {
+			return;
+		}
+		if (!plumbingOf(document)?.stories.length) {
+			this.notificationService.info(localize('plb.sizeNeedsFixtures', "Give the fixtures and population of the storeys first (Data): the tanks are sized from the daily demand."));
+			return;
+		}
+		if (!CommandsRegistry.getCommand(PLUMBING_SIZE_TANKS_COMMAND)) {
+			this.notificationService.info(localize('plb.sizeNoBackend', "Sizing the tanks needs the SAEngine backend, which is not available in this window."));
+			return;
+		}
+		this.setBusy('sizeTanks', true);
+		let answer: { tanks: ITank[]; notes: string[] } | undefined;
+		try {
+			answer = readSizedTanks(await this.commandService.executeCommand<unknown>(PLUMBING_SIZE_TANKS_COMMAND, request));
+		} catch (error) {
+			this.notificationService.error(localize('plb.sizeFailed', "The tanks could not be sized: {0}", error instanceof Error ? error.message : String(error)));
+			return;
+		} finally {
+			this.setBusy('sizeTanks', false);
+		}
+		if (this.document !== document || !answer) {
+			return;
+		}
+		if (!answer.tanks.length) {
+			this.notificationService.info(answer.notes.length ? answer.notes.join(' ') : localize('plb.sizeNone', "The backend proposed no tanks."));
+			return;
+		}
+		const touched = mergeSizedTanks(document, answer.tanks);
+		if (!touched.length) {
+			this.notificationService.info([localize('plb.sizeSame', "The tanks already have the sizes SAEngine proposes."), ...answer.notes].join(' '));
+			return;
+		}
+		const plumbing = ensurePlumbing(document);
+		const first = touched[0];
+		this.added({ kind: 'tank', index: plumbing.tanks.indexOf(first) }, tankStory(first, this.context));
+		this.notificationService.info([
+			touched.length === 1 ? localize('plb.sizedOne', "Sized 1 tank; edit it as needed (undo restores the previous sizes).") : localize('plb.sized', "Sized {0} tanks; edit them as needed (undo restores the previous sizes).", touched.length),
+			...answer.notes,
+		].join(' '));
+	}
+
+	/** The sleeves the risers and stacks need through the floors, added as one undoable edit. */
+	async addRiserSleeves(): Promise<void> {
+		this.flush();
+		const request = this.request();
+		const document = this.document;
+		if (!request || !document) {
+			return;
+		}
+		if (!CommandsRegistry.getCommand(PLUMBING_SLEEVES_COMMAND)) {
+			this.notificationService.info(localize('plb.sleevesNoBackend', "Adding sleeves for the risers needs the SAEngine backend, which is not available in this window."));
+			return;
+		}
+		this.setBusy('riserSleeves', true);
+		let answer: { openings: IOpening[]; notes: string[] } | undefined;
+		try {
+			answer = readSleeveSuggestions(await this.commandService.executeCommand<unknown>(PLUMBING_SLEEVES_COMMAND, request));
+		} catch (error) {
+			this.notificationService.error(localize('plb.sleevesFailed', "The sleeves could not be found: {0}", error instanceof Error ? error.message : String(error)));
+			return;
+		} finally {
+			this.setBusy('riserSleeves', false);
+		}
+		if (this.document !== document) {
+			return;
+		}
+		const added = this.addOpenings(document, answer?.openings ?? []);
+		if (!added.length) {
+			this.notificationService.info(answer?.notes.length ? answer.notes.join(' ') : localize('plb.sleevesNone', "Every riser and stack already has its sleeves."));
+			return;
+		}
+		const first = added[0];
+		this.added({ kind: 'opening', index: document.openings.indexOf(first) }, hostStory(this.context, findHost(this.context, first.host))?.id);
+		this.notificationService.info(added.length === 1 ? localize('plb.sleevesOne', "Added 1 sleeve for the risers and stacks.") : localize('plb.sleeves', "Added {0} sleeves for the risers and stacks.", added.length));
+	}
+
+	/** Asks the backend for the plumbing report (with the coordination's, after every edit). */
+	async computePlumbingReport(): Promise<void> {
+		const document = this.document;
+		const version = ++this.plumbingVersion;
+		const request = this.request();
+		if (!document || !request || !hasPlumbing(document)) {
+			this.setBusy('plumbing', false);
+			this.plumbingReport = undefined;
+			this.plumbingState = 'idle';
+			this.renderReportDependent();
+			return;
+		}
+		if (!CommandsRegistry.getCommand(PLUMBING_REPORT_COMMAND)) {
+			this.setBusy('plumbing', false);
+			this.plumbingReport = undefined;
+			this.plumbingState = 'missing';
+			this.renderReportDependent();
+			return;
+		}
+		this.flush();
+		const sourceTexts = this.siteTexts();
+		this.plumbingState = this.plumbingReport ? 'ok' : 'computing';
+		this.setBusy('plumbing', true);
+		let report: IPlumbingReport | undefined;
+		let error: string | undefined;
+		try {
+			report = readPlumbingReport(await this.commandService.executeCommand<unknown>(PLUMBING_REPORT_COMMAND, request));
+			if (!report) {
+				error = localize('plb.reportEmpty', "The backend gave no plumbing report.");
+			}
+		} catch (e) {
+			error = e instanceof Error ? e.message : String(e);
+		}
+		if (version !== this.plumbingVersion) {
+			return;
+		}
+		this.setBusy('plumbing', false);
+		this.plumbingReport = report;
+		this.plumbingState = report ? 'ok' : 'error';
+		this.plumbingError = error;
+		this.renderReportDependent();
+		this.writeSummary(document, sourceTexts);
+	}
+
+	// ───────────────────────────── plumbing: data view ─────────────────────────────
+
+	private occupancyOptions(): { value: string; label: string }[] {
+		return this.occupancies.map(o => ({ value: o.key, label: o.lpcd ? localize('plb.occOption', "{0} ({1} lpcd)", o.label, o.lpcd) : o.label }));
+	}
+
+	/** A store into the plumbing's object `target` of field `key`; creates the plumbing on the first edit. */
+	private plumbingStore(target: () => { [key: string]: unknown }, key: string, after?: () => void): (value: number | string | undefined) => void {
+		return value => {
+			const object = target();
+			if (value === undefined || value === '') {
+				delete object[key];
+			} else {
+				object[key] = value;
+			}
+			after?.();
+			this.changed(false);
+		};
+	}
+
+	private renderPlumbingData(document: IMep): void {
+		const view = this.viewElement;
+		const plumbing = plumbingOf(document);
+		const header = append(view, $('.mep-view-header'));
+		append(header, $('span.mep-view-title', undefined, localize('plb.dataTitle', "Plumbing set-up")));
+		append(header, $('span.mep-view-subtitle', undefined, localize('plb.dataSubtitle', "The fixtures and population of each storey, the supply, the risers and stacks, the tanks and the roof drains; sizes in mm, positions in m.")));
+		const p = () => ensurePlumbing(document);
+
+		// Supply and roof.
+		const supply = this.section(localize('plb.supply', "Supply and roof"), undefined);
+		const grid = append(supply, $('.plb-settings'));
+		const setting = (label: string, control: HTMLElement, unit?: string, title?: string) => {
+			const element = append(grid, $('label.plb-setting', title ? { title } : undefined));
+			append(element, $('span.plb-setting-label', undefined, label));
+			const wrapper = append(element, $('span.plb-setting-control'));
+			append(wrapper, control);
+			if (unit) {
+				append(wrapper, $('span.mep-unit', undefined, unit));
+			}
+		};
+		setting(localize('plb.f.source', "Source"), this.selectInput(SUPPLY_SOURCES.map(s => ({ value: s, label: sourceLabel(s) })), String(plumbing?.supply.source ?? ''), value => {
+			const s = p().supply;
+			if (value) {
+				s.source = value;
+			} else {
+				delete s.source;
+			}
+			this.changed(true);
+		}, 'plumbing.supply.source', localize('plb.f.source', "Source"), true));
+		for (const field of [P.mainsHead, P.pumpHours, P.minResidualHead] as const) {
+			setting(field.label, this.textInput(field, plumbing?.supply[field.key], this.plumbingStore(() => p().supply, field.key), `plumbing.supply.${field.key}`, field === P.minResidualHead ? localize('plb.codeValue', "code") : undefined), field.unit, field.title);
+		}
+		setting(P.rainfall.label, this.textInput(P.rainfall, plumbing?.roof.rainfallIntensity, this.plumbingStore(() => p().roof, P.rainfall.key), 'plumbing.roof.rainfallIntensity', localize('plb.defaultValue', "default")), P.rainfall.unit, P.rainfall.title);
+
+		// Fixtures by storey: one row per story of the building (and any the file names that it lacks).
+		const rows = plumbing?.stories ?? [];
+		const known = new Set(this.context.stories.map(s => s.id));
+		const storyIds = [...this.context.stories.map(s => s.id).reverse(), ...rows.map(r => r.story).filter(id => !known.has(id))];
+		const fixtures = this.section(localize('plb.fixtures', "Fixtures by storey"), rows.length);
+		if (!this.occupanciesFromBackend) {
+			append(fixtures, $('p.mep-note.plb-static-note', undefined, localize('plb.staticOccupancies', "Occupancies: the BNBC Table 8.5.1 rows SAEngine starts from (full facility); the backend's list replaces them when it is available.")));
+		}
+		const table = append(append(fixtures, $('.mep-table-scroll')), $('table.mep-table.plb-fixtures'));
+		const columns = [
+			{ label: localize('plb.f.story', "Storey"), width: 110 }, { label: localize('plb.f.occupancy', "Occupancy"), width: 270 }, { label: P.population.label, numeric: true, width: 80 },
+			...FIXTURES.map(key => ({ label: fixtureLabel(key), numeric: true, width: 62 })), { label: '', width: 28 },
+		];
+		this.tableHead(table, columns);
+		const body = append(table, $('tbody'));
+		for (const storyId of storyIds) {
+			const index = rows.findIndex(r => r.story === storyId);
+			const row = rows[index];
+			const tr = append(body, $(`tr.mep-row${row ? '' : '.plb-empty-row'}`));
+			const path = (field: string) => index >= 0 ? `plumbing.stories.${index}.${field}` : `plumbing.new.${storyId}.${field}`;
+			const target = () => storyRow(p(), storyId);
+			append(tr, $('td', undefined, this.storyName(storyId)));
+			append(append(tr, $('td')), this.selectInput(this.occupancyOptions(), String(row?.occupancy ?? ''), value => {
+				const r = target();
+				if (value) {
+					r.occupancy = value;
+				} else {
+					delete r.occupancy;
+				}
+				this.changed(true);
+			}, path('occupancy'), localize('plb.f.occupancyOf', "Occupancy of {0}", this.storyName(storyId)), true));
+			append(append(tr, $('td')), this.textInput(P.population, row?.population, this.plumbingStore(target, 'population', () => this.updatePlumbingTotals(document)), path('population')));
+			for (const key of FIXTURES) {
+				const field = fixtureField(key, fixtureLabel(key));
+				append(append(tr, $('td')), this.textInput(field, row?.fixtures[key], this.plumbingStore(() => target().fixtures, key, () => this.updatePlumbingTotals(document)), path(`fixtures.${key}`)));
+			}
+			if (row) {
+				this.removeButton(tr, () => {
+					p().stories.splice(index, 1);
+					this.changed(true);
+				});
+			} else {
+				append(tr, $('td'));
+			}
+		}
+		const totals = append(body, $('tr.plb-total'));
+		append(totals, $('td', { colspan: '2' }, localize('plb.totals', "Totals")));
+		for (const key of ['population', ...FIXTURES]) {
+			this.totalCells.set(key, append(totals, $('td.number')));
+		}
+		append(totals, $('td'));
+		this.updatePlumbingTotals(document);
+		if (rows.some(r => r.fixtures.other?.length)) {
+			append(fixtures, $('p.mep-note', undefined, localize('plb.otherNote', "Other fixtures of the file (with their own supply and drainage units) are kept and counted; edit them as text.")));
+		}
+
+		this.renderRiserTable(document);
+		this.renderTankTable(document);
+		this.renderDrainTable(document);
+		this.markSelectedRows();
+	}
+
+	private updatePlumbingTotals(document: IMep): void {
+		const plumbing = plumbingOf(document);
+		const totals = plumbing ? fixtureTotals(plumbing) : undefined;
+		for (const [key, cell] of this.totalCells) {
+			const value = totals?.[key as keyof typeof totals] ?? 0;
+			cell.textContent = value ? formatNumber(value, 0) : '';
+		}
+	}
+
+	private renderRiserTable(document: IMep): void {
+		const risers = plumbingOf(document)?.risers ?? [];
+		const section = this.section(localize('plb.risers', "Risers and stacks"), risers.length, { label: localize('plb.addColdRiser', "Add Cold Water Riser"), run: () => this.addRiser('coldWater') });
+		const table = append(append(section, $('.mep-table-scroll')), $('table.mep-table'));
+		const columns = [
+			{ label: F.id.label, width: 64 }, { label: localize('plb.f.system', "System"), width: 190 }, { label: F.x.label, unit: M, numeric: true }, { label: F.y.label, unit: M, numeric: true },
+			{ label: localize('mep.f.fromLong', "Starts at"), width: 110 }, { label: localize('mep.f.toLong', "Up to"), width: 110 }, { label: localize('plb.f.shaft', "Shaft"), width: 90 },
+			{ label: P.diameter.label, unit: MM, numeric: true }, { label: localize('plb.f.material', "Material"), width: 86 }, { label: '', width: 28 },
+		];
+		this.tableHead(table, columns);
+		const body = append(table, $('tbody'));
+		risers.forEach((r, index) => {
+			const row = this.selectableRow(body, { kind: 'riser', index });
+			const path = (field: string) => `plumbing.risers.${index}.${field}`;
+			append(append(row, $('td')), this.textInput(F.id, r.id, value => this.setField(r, 'id', value), path('id')));
+			append(append(row, $('td')), this.selectInput(PLUMBING_SYSTEMS.map(s => ({ value: s, label: `${systemLetters(s)} · ${systemLabel(s)}` })), r.system, value => {
+				r.system = value;
+				this.changed(true);
+			}, path('system'), localize('plb.f.system', "System")));
+			for (const field of [F.x, F.y]) {
+				append(append(row, $('td')), this.textInput(field, r[field.key], value => this.setField(r, field.key, value), path(field.key)));
+			}
+			for (const end of ['fromStory', 'toStory'] as const) {
+				append(append(row, $('td')), this.selectInput(this.storyOptions(), r[end], value => {
+					r[end] = value;
+					this.changed(true);
+				}, path(end), end === 'fromStory' ? localize('mep.f.fromLong', "Starts at") : localize('mep.f.toLong', "Up to")));
+			}
+			append(append(row, $('td')), this.selectInput(document.shafts.map(s => ({ value: s.id, label: s.id })), r.shaft ?? '', value => this.setOptional(r, 'shaft', value), path('shaft'), localize('plb.f.shaft', "Shaft"), true));
+			append(append(row, $('td')), this.textInput(P.diameter, r.diameter, value => this.setField(r, 'diameter', value), path('diameter'), this.sizedDiameter(r)));
+			append(append(row, $('td')), this.selectInput(PIPE_MATERIALS.map(m => ({ value: m, label: m })), r.material ?? '', value => this.setOptional(r, 'material', value), path('material'), localize('plb.f.material', "Material"), true));
+			this.removeButton(row, () => {
+				ensurePlumbing(document).risers.splice(index, 1);
+				this.selection = undefined;
+				this.changed(true);
+			});
+		});
+		if (!risers.length) {
+			append(append(body, $('tr')), $('td.mep-muted', { colspan: String(columns.length) }, localize('plb.noRisers', "None yet. Add the cold water risers, the soil and waste stacks and the vents from the toolbar: each needs a sleeve or shaft through the floors it passes.")));
+		}
+	}
+
+	/** The backend's size of a riser without one given, as the input's placeholder. */
+	private sizedDiameter(riser: IRiser): string | undefined {
+		const sized = this.plumbingState === 'ok' ? this.plumbingReport?.risers.find(r => r.id === riser.id)?.diameter : undefined;
+		return sized !== undefined ? formatNumber(sized, 0) : localize('plb.sizedPlaceholder', "sized");
+	}
+
+	private setOptional(target: { [key: string]: unknown }, key: string, value: string): void {
+		if (value) {
+			target[key] = value;
+		} else {
+			delete target[key];
+		}
+		this.changed(true);
+	}
+
+	private setTankKind(tank: ITank, kind: string): void {
+		if (tank.kind === kind) {
+			return;
+		}
+		const wasGround = isGroundTank(tank);
+		tank.kind = kind;
+		if (isGroundTank(tank)) {
+			tank.story = null;
+		} else if (wasGround) {
+			tank.story = this.story && this.story !== this.context.stories[0]?.id ? this.story : this.context.stories[this.context.stories.length - 1]?.id ?? null;
+		}
+		if (kind === 'soakWell') {
+			tank.diameter ??= 1200;
+		}
+		const story = tankStory(tank, this.context);
+		if (story && this.selection?.kind === 'tank') {
+			this.story = story;
+			this.updateStoryPicker();
+		}
+		this.changed(true);
+	}
+
+	private renderTankTable(document: IMep): void {
+		const tanks = plumbingOf(document)?.tanks ?? [];
+		const section = this.section(localize('plb.tanks', "Tanks"), tanks.length, { label: localize('plb.sizeTanksShort', "Size Tanks"), run: () => void this.sizeTanks() });
+		const table = append(append(section, $('.mep-table-scroll')), $('table.mep-table'));
+		const columns = [
+			{ label: F.id.label, width: 64 }, { label: localize('plb.f.kind', "Kind"), width: 170 }, { label: localize('plb.f.storyOn', "On"), width: 100 },
+			{ label: F.x.label, unit: M, numeric: true }, { label: F.y.label, unit: M, numeric: true }, { label: P.length.label, unit: MM, numeric: true }, { label: P.width.label, unit: MM, numeric: true },
+			{ label: P.wellDiameter.label, unit: MM, numeric: true }, { label: P.waterDepth.label, unit: MM, numeric: true }, { label: localize('plb.f.construction', "Construction"), width: 150 },
+			{ label: localize('plb.f.capacity', "Capacity"), unit: localize('plb.unit.m3', "m³"), numeric: true, width: 72 }, { label: '', width: 28 },
+		];
+		this.tableHead(table, columns);
+		const body = append(table, $('tbody'));
+		tanks.forEach((t, index) => {
+			const row = this.selectableRow(body, { kind: 'tank', index });
+			const path = (field: string) => `plumbing.tanks.${index}.${field}`;
+			append(append(row, $('td')), this.textInput(F.id, t.id, value => this.setField(t, 'id', value), path('id')));
+			append(append(row, $('td')), this.selectInput(TANK_KINDS.map(k => ({ value: k, label: tankKindLabel(k) })), t.kind, value => this.setTankKind(t, value), path('kind'), localize('plb.f.kind', "Kind")));
+			const storyCell = append(row, $('td'));
+			if (isGroundTank(t)) {
+				storyCell.classList.add('mep-muted');
+				storyCell.textContent = localize('plb.inGround', "in the ground");
+			} else {
+				append(storyCell, this.selectInput(this.storyOptions(), t.story ?? '', value => {
+					t.story = value;
+					this.changed(true);
+				}, path('story'), localize('plb.f.storyOn', "On")));
+			}
+			const round = t.kind === 'soakWell';
+			for (const [field, usable] of [[F.x, true], [F.y, true], [P.length, !round], [P.width, !round], [P.wellDiameter, round], [P.waterDepth, true]] as const) {
+				const td = append(row, $('td'));
+				if (usable) {
+					append(td, this.textInput(field, t[field.key], value => this.setField(t, field.key, value), path(field.key)));
+				} else {
+					td.classList.add('mep-muted');
+					td.textContent = '—';
+				}
+			}
+			append(append(row, $('td')), this.selectInput(TANK_CONSTRUCTIONS.map(c => ({ value: c, label: constructionLabel(c) })), String(t.construction ?? ''), value => this.setOptional(t, 'construction', value), path('construction'), localize('plb.f.construction', "Construction"), true));
+			const capacity = tankCapacity(t);
+			const capacityCell = append(row, $('td.number', undefined, capacity === undefined ? '' : formatNumber(capacity, 1)));
+			if (t.sized) {
+				capacityCell.title = localize('plb.sizedTitle', "Proposed by SAEngine; edit it as needed");
+				capacityCell.classList.add('plb-sized');
+			}
+			this.removeButton(row, () => {
+				ensurePlumbing(document).tanks.splice(index, 1);
+				this.selection = undefined;
+				this.changed(true);
+			});
+		});
+		if (!tanks.length) {
+			append(append(body, $('tr')), $('td.mep-muted', { colspan: String(columns.length) }, localize('plb.noTanks', "None yet. Add the overhead tank, the underground reservoir and the septic tank from the toolbar, or let SAEngine size them from the demand.")));
+		}
+	}
+
+	private renderDrainTable(document: IMep): void {
+		const drains = plumbingOf(document)?.roof.drains ?? [];
+		const section = this.section(localize('plb.drains', "Roof drains"), drains.length, { label: localize('plb.addDrainShort', "Add Roof Drain"), run: () => this.addDrain() });
+		const table = append(append(section, $('.mep-table-scroll')), $('table.mep-table'));
+		const columns = [
+			{ label: F.id.label, width: 64 }, { label: localize('plb.f.storyRoof', "Roof"), width: 110 }, { label: F.x.label, unit: M, numeric: true }, { label: F.y.label, unit: M, numeric: true },
+			{ label: P.area.label, unit: P.area.unit, numeric: true, width: 80 }, { label: '', width: 28 },
+		];
+		this.tableHead(table, columns);
+		const body = append(table, $('tbody'));
+		drains.forEach((d, index) => {
+			const row = this.selectableRow(body, { kind: 'drain', index });
+			const path = (field: string) => `plumbing.roof.drains.${index}.${field}`;
+			append(append(row, $('td')), this.textInput(F.id, d.id, value => this.setField(d, 'id', value), path('id')));
+			append(append(row, $('td')), this.selectInput(this.storyOptions(), d.story, value => {
+				d.story = value;
+				this.changed(true);
+			}, path('story'), localize('plb.f.storyRoof', "Roof")));
+			for (const field of [F.x, F.y]) {
+				append(append(row, $('td')), this.textInput(field, d[field.key], value => this.setField(d, field.key, value), path(field.key)));
+			}
+			append(append(row, $('td')), this.textInput(P.area, d.area, value => this.setField(d, 'area', value), path('area'), this.catchmentPlaceholder(d)));
+			this.removeButton(row, () => {
+				ensurePlumbing(document).roof.drains.splice(index, 1);
+				this.selection = undefined;
+				this.changed(true);
+			});
+		});
+		if (!drains.length) {
+			append(append(body, $('tr')), $('td.mep-muted', { colspan: String(columns.length) }, localize('plb.noDrains', "None yet. Add the roof drains on the roof: their leaders come down the building and are sized from the catchments.")));
+		}
+	}
+
+	private catchmentPlaceholder(drain: IRoofDrain): string {
+		const area = this.plumbingState === 'ok' ? this.plumbingReport?.catchments.find(c => c.drain === drain.id)?.area : undefined;
+		return area !== undefined ? formatNumber(area, 1) : localize('plb.splitPlaceholder', "split");
+	}
+
+	// ───────────────────────────── plumbing: results view ─────────────────────────────
+
+	private renderPlumbingResults(document: IMep): void {
+		const view = this.viewElement;
+		const report = this.plumbingState === 'ok' ? this.plumbingReport : undefined;
+		if (!report) {
+			const state = append(view, $('.mep-results-state'));
+			const nothing = !hasPlumbing(document);
+			const computing = !nothing && (this.plumbingState === 'computing' || this.plumbingState === 'idle');
+			const icon = nothing ? Codicon.tools : computing ? ThemeIcon.modify(Codicon.loading, 'spin') : this.plumbingState === 'error' ? Codicon.warning : Codicon.debugDisconnect;
+			append(state, $(`span.mep-results-state-icon${ThemeIcon.asCSSSelector(icon)}`));
+			append(state, $('.mep-results-state-title', undefined, nothing ? localize('plb.resultsNothing', "No plumbing to check yet")
+				: computing ? localize('plb.computing', "Checking the plumbing...")
+					: this.plumbingState === 'error' ? localize('plb.reportFailed', "The plumbing could not be checked")
+						: localize('mep.backendMissing', "Backend not available")));
+			append(state, $('.mep-results-state-text', undefined, nothing
+				? localize('plb.resultsNothingText', "Give the fixtures of the storeys and add the risers, tanks and roof drains: the demand, the sizes, the tanks' design and the pressures appear here.")
+				: this.plumbingState === 'error' ? (this.plumbingError ?? '')
+					: this.plumbingState === 'missing' ? localize('plb.backendMissingText', "The demand and storage, the riser and stack sizes, the leaders, the septic tank, the tanks' design and the pressure at each floor are computed by the SAEngine Python backend; it is not running in this window. The plumbing can still be set up and edited.") : ''));
+			if (this.plumbingState === 'missing') {
+				this.renderLocalPlumbing(view, document);
+			}
+			return;
+		}
+		renderPlumbingReport(view, report, {
+			storyName: id => this.storyName(id),
+			occupancyName: key => this.occupancies.find(o => o.key === key)?.label ?? key,
+			tableHead: (table, columns) => this.tableHead(table, columns),
+			row: (body, id) => {
+				const plumbing = plumbingOf(document);
+				const riser = plumbing?.risers.findIndex(r => r.id === id) ?? -1;
+				const tank = plumbing?.tanks.findIndex(t => t.id === id) ?? -1;
+				const drain = plumbing?.roof.drains.findIndex(d => d.id === id) ?? -1;
+				const selection: MepSelection | undefined = riser >= 0 ? { kind: 'riser', index: riser } : tank >= 0 ? { kind: 'tank', index: tank } : drain >= 0 ? { kind: 'drain', index: drain } : undefined;
+				return selection ? this.selectableRow(body, selection) : append(body, $('tr'));
+			},
+		});
+		this.markSelectedRows();
+	}
+
+	/** Without the backend: what the file itself says (fixtures, tank capacities). */
+	private renderLocalPlumbing(view: HTMLElement, document: IMep): void {
+		const plumbing = plumbingOf(document);
+		if (!plumbing) {
+			return;
+		}
+		const totals = fixtureTotals(plumbing);
+		const section = this.resultSection(view, localize('plb.localTitle', "As set up"), localize('plb.localDetail', "summed from the file; the sizes and checks come from the backend"));
+		const table = append(section, $('table.mep-table.mep-result-table'));
+		this.tableHead(table, [{ label: localize('plb.f.item', "Item"), width: 220 }, { label: localize('plb.f.value', "Value"), numeric: true, width: 120 }]);
+		const body = append(table, $('tbody'));
+		const line = (label: string, text: string) => {
+			const tr = append(body, $('tr'));
+			append(tr, $('td', undefined, label));
+			append(tr, $('td.number', undefined, text));
+		};
+		line(localize('plb.localPopulation', "Population"), formatNumber(totals.population, 0));
+		line(localize('plb.localFixtures', "Fixtures"), formatNumber(FIXTURES.reduce((s, k) => s + totals[k], 0) + totals.other, 0));
+		for (const tank of plumbing.tanks) {
+			const capacity = tankCapacity(tank);
+			line(localize('plb.localTank', "{0} {1}", tankKindLabel(tank.kind), tank.id), capacity === undefined ? '' : localize('plb.m3Value', "{0} m³", formatNumber(capacity, 1)));
+		}
+	}
+
+	// ───────────────────────────── plumbing: properties ─────────────────────────────
+
+	private renderRiserProperties(panel: HTMLElement, r: IRiser, index: number): void {
+		const path = (field: string) => `plumbing.risers.${index}.${field}`;
+		appendPropertyHeading(panel, localize('plb.riserHeading', "{0} {1}", systemLabel(r.system), r.id));
+		this.fieldRow(panel, F.id, r.id, value => this.setField(r, 'id', value), path('id'));
+		this.propertyRow(panel, localize('plb.f.system', "System"), this.selectInput(PLUMBING_SYSTEMS.map(s => ({ value: s, label: `${systemLetters(s)} · ${systemLabel(s)}` })), r.system, value => {
+			r.system = value;
+			this.changed(true);
+		}, path('system'), localize('plb.f.system', "System")));
+		this.fieldRow(panel, F.x, r.x, value => this.setField(r, 'x', value), path('x'));
+		this.fieldRow(panel, F.y, r.y, value => this.setField(r, 'y', value), path('y'));
+		for (const end of ['fromStory', 'toStory'] as const) {
+			const label = end === 'fromStory' ? localize('mep.f.fromLong', "Starts at") : localize('mep.f.toLong', "Up to");
+			this.propertyRow(panel, label, this.selectInput(this.storyOptions(), r[end], value => {
+				r[end] = value;
+				this.changed(true);
+			}, path(end), label));
+		}
+		this.propertyRow(panel, localize('plb.f.shaft', "Shaft"), this.selectInput(this.document?.shafts.map(s => ({ value: s.id, label: s.id })) ?? [], r.shaft ?? '', value => this.setOptional(r, 'shaft', value), path('shaft'), localize('plb.f.shaft', "Shaft"), true),
+			undefined, localize('plb.f.shaftTitle', "The shaft it runs in; else it needs a sleeve through each floor"));
+		appendPropertyHeading(panel, localize('plb.pipeHeading', "Pipe"));
+		this.fieldRow(panel, P.diameter, r.diameter, value => this.setField(r, 'diameter', value), path('diameter'), this.sizedDiameter(r));
+		this.propertyRow(panel, localize('plb.f.material', "Material"), this.selectInput(PIPE_MATERIALS.map(m => ({ value: m, label: m })), r.material ?? '', value => this.setOptional(r, 'material', value), path('material'), localize('plb.f.material', "Material"), true));
+		const served = r.serves?.length ? r.serves.map(s => this.storyName(s)).join(', ') : localize('plb.servesAll', "every storey it passes");
+		appendPropertyRow(panel, localize('plb.f.serves', "Serves"), served);
+		const result = this.plumbingState === 'ok' ? this.plumbingReport?.risers.find(x => x.id === r.id) : undefined;
+		if (result) {
+			appendPropertyHeading(panel, localize('plb.sizeCheck', "Size"));
+			if (result.load !== undefined) {
+				appendPropertyRow(panel, localize('plb.f.load', "Load"), `${formatNumber(result.load, 1)}${result.loadUnit ? ` ${result.loadUnit}` : ''}`);
+			}
+			if (result.required !== undefined) {
+				appendPropertyRow(panel, localize('plb.f.requiredSize', "Required"), localize('mep.mmValue', "{0} mm", formatNumber(result.required, 0)));
+			}
+			appendPropertyRow(panel, localize('plb.f.status', "Status"), $(`span.plb-pill.band-${result.status}`, undefined, result.status === 'fail' ? localize('plb.status.fail', "fails") : result.status === 'ok' ? localize('plb.status.ok', "ok") : result.status === 'warn' ? localize('plb.status.warn', "check") : '—'));
+			if (result.note) {
+				appendPropertyNote(panel, result.note);
+			}
+		}
+	}
+
+	private renderTankProperties(panel: HTMLElement, t: ITank, index: number): void {
+		const path = (field: string) => `plumbing.tanks.${index}.${field}`;
+		appendPropertyHeading(panel, localize('plb.tankHeading', "{0} {1}", tankKindLabel(t.kind), t.id));
+		this.fieldRow(panel, F.id, t.id, value => this.setField(t, 'id', value), path('id'));
+		this.propertyRow(panel, localize('plb.f.kind', "Kind"), this.selectInput(TANK_KINDS.map(k => ({ value: k, label: tankKindLabel(k) })), t.kind, value => this.setTankKind(t, value), path('kind'), localize('plb.f.kind', "Kind")));
+		if (isGroundTank(t)) {
+			appendPropertyRow(panel, localize('plb.f.storyOn', "On"), localize('plb.inGroundLong', "in the ground (drawn on {0})", this.storyName(this.context.stories[0]?.id ?? '')));
+			this.fieldRow(panel, P.topLevel, t.topLevel, value => this.setField(t, 'topLevel', value), path('topLevel'), '0');
+		} else {
+			this.propertyRow(panel, localize('plb.f.storyOn', "On"), this.selectInput(this.storyOptions(), t.story ?? '', value => {
+				t.story = value;
+				this.story = value;
+				this.updateStoryPicker();
+				this.changed(true);
+			}, path('story'), localize('plb.f.storyOn', "On")));
+		}
+		this.fieldRow(panel, F.x, t.x, value => this.setField(t, 'x', value), path('x'));
+		this.fieldRow(panel, F.y, t.y, value => this.setField(t, 'y', value), path('y'));
+		appendPropertyHeading(panel, localize('plb.insideHeading', "Inside sizes"));
+		if (t.kind === 'soakWell') {
+			this.fieldRow(panel, P.wellDiameter, t.diameter, value => this.setField(t, 'diameter', value), path('diameter'));
+		} else {
+			this.fieldRow(panel, P.length, t.length, value => this.setField(t, 'length', value), path('length'));
+			this.fieldRow(panel, P.width, t.width, value => this.setField(t, 'width', value), path('width'));
+		}
+		this.fieldRow(panel, P.waterDepth, t.waterDepth, value => this.setField(t, 'waterDepth', value), path('waterDepth'));
+		this.fieldRow(panel, P.freeboard, t.freeboard, value => this.setField(t, 'freeboard', value), path('freeboard'));
+		if (t.kind !== 'soakWell') {
+			this.fieldRow(panel, P.compartments, t.compartments, value => this.setField(t, 'compartments', value), path('compartments'), '1');
+		}
+		const capacity = tankCapacity(t);
+		if (capacity !== undefined) {
+			appendPropertyRow(panel, localize('plb.f.capacity', "Capacity"), localize('plb.m3Value', "{0} m³", formatNumber(capacity, 2)));
+		}
+		if (t.sized) {
+			appendPropertyNote(panel, localize('plb.sizedNote', "Sized by SAEngine from the demand: edit it as needed."));
+		}
+		appendPropertyHeading(panel, localize('plb.constructionHeading', "Construction"));
+		this.propertyRow(panel, localize('plb.f.construction', "Construction"), this.selectInput(TANK_CONSTRUCTIONS.map(c => ({ value: c, label: constructionLabel(c) })), String(t.construction ?? ''), value => this.setOptional(t, 'construction', value), path('construction'), localize('plb.f.construction', "Construction"), true));
+		this.fieldRow(panel, P.walls, t.walls, value => this.setField(t, 'walls', value), path('walls'));
+		if (t.kind !== 'soakWell') {
+			this.fieldRow(panel, P.base, t.base, value => this.setField(t, 'base', value), path('base'));
+			this.fieldRow(panel, P.roof, t.roof, value => this.setField(t, 'roof', value), path('roof'));
+		}
+		if (t.construction === 'rc' || t.construction === undefined) {
+			this.propertyRow(panel, localize('mep.f.concrete', "Concrete"), this.selectInput(this.context.concretes.map(c => ({ value: c.id, label: c.id })), t.material ?? '', value => this.setOptional(t, 'material', value), path('material'), localize('mep.f.concrete', "Concrete"), true));
+		}
+		const design = this.plumbingState === 'ok' ? this.plumbingReport?.tanks.find(x => x.id === t.id) : undefined;
+		if (design) {
+			appendPropertyHeading(panel, localize('plb.designHeading', "Design"));
+			// The governing checks (all of them are in Results).
+			const governing = [...design.checks].sort((a, b) => (b.status === 'fail' ? 1 : 0) - (a.status === 'fail' ? 1 : 0) || (b.utilisation ?? 0) - (a.utilisation ?? 0)).slice(0, 5);
+			for (const check of governing) {
+				appendPropertyRow(panel, check.name, $(`span.mep-util-value.band-${check.status === 'none' ? 'ok' : check.status}`, undefined, check.utilisation !== undefined ? check.utilisation.toFixed(2) : check.status));
+			}
+			for (const bar of design.reinforcement) {
+				appendPropertyRow(panel, bar.location, bar.bars);
+			}
+			if (design.loads) {
+				appendPropertyNote(panel, design.loads);
+			}
+		}
+	}
+
+	private renderDrainProperties(panel: HTMLElement, d: IRoofDrain, index: number): void {
+		const path = (field: string) => `plumbing.roof.drains.${index}.${field}`;
+		appendPropertyHeading(panel, localize('plb.drainHeading', "Roof drain {0}", d.id));
+		this.fieldRow(panel, F.id, d.id, value => this.setField(d, 'id', value), path('id'));
+		this.propertyRow(panel, localize('plb.f.storyRoof', "Roof"), this.selectInput(this.storyOptions(), d.story, value => {
+			d.story = value;
+			this.story = value;
+			this.updateStoryPicker();
+			this.changed(true);
+		}, path('story'), localize('plb.f.storyRoof', "Roof")));
+		this.fieldRow(panel, F.x, d.x, value => this.setField(d, 'x', value), path('x'));
+		this.fieldRow(panel, F.y, d.y, value => this.setField(d, 'y', value), path('y'));
+		this.fieldRow(panel, P.area, d.area, value => this.setField(d, 'area', value), path('area'), this.catchmentPlaceholder(d));
+		const catchment = this.plumbingState === 'ok' ? this.plumbingReport?.catchments.find(x => x.drain === d.id) : undefined;
+		if (catchment?.leader !== undefined) {
+			appendPropertyRow(panel, localize('plb.f.leader', "Leader"), localize('mep.mmValue', "{0} mm", formatNumber(catchment.leader, 0)));
+		}
+		if (catchment?.note) {
+			appendPropertyNote(panel, catchment.note);
+		}
+	}
+
+	private renderPlumbingSummaryProperties(panel: HTMLElement, document: IMep): void {
+		const plumbing: IPlumbing | undefined = plumbingOf(document);
+		const story = this.context.stories.find(s => s.id === this.story);
+		if (story) {
+			appendPropertyHeading(panel, story.name);
+			const row = plumbing?.stories.find(s => s.story === story.id);
+			appendPropertyRow(panel, localize('plb.f.occupancy', "Occupancy"), row?.occupancy ? this.occupancies.find(o => o.key === row.occupancy)?.label ?? row.occupancy : '—');
+			appendPropertyRow(panel, P.population.label, row?.population !== undefined ? String(row.population) : '—');
+			appendPropertyRow(panel, localize('plb.risers', "Risers and stacks"), String(plumbing?.risers.filter(r => riserOnStory(r, this.context, story.id)).length ?? 0));
+		}
+		appendPropertyHeading(panel, localize('plb.summaryHeading', "Plumbing"));
+		appendPropertyRow(panel, localize('plb.f.storeys', "Storeys with fixtures"), String(plumbing?.stories.length ?? 0));
+		appendPropertyRow(panel, localize('plb.risers', "Risers and stacks"), String(plumbing?.risers.length ?? 0));
+		appendPropertyRow(panel, localize('plb.tanks', "Tanks"), String(plumbing?.tanks.length ?? 0));
+		appendPropertyRow(panel, localize('plb.drains', "Roof drains"), String(plumbing?.roof.drains.length ?? 0));
+		if (plumbing?.supply.source) {
+			appendPropertyRow(panel, localize('plb.f.source', "Source"), sourceLabel(String(plumbing.supply.source)));
+		}
+		appendPropertyNote(panel, localize('plb.summaryNote', "Select a riser, a tank or a roof drain in the plan to edit it here; the fixtures of the storeys are in Data."));
+	}
+
+	private renderPlumbingStatus(document: IMep): void {
+		const ok = this.plumbingState === 'ok' ? this.plumbingReport : undefined;
+		const parts = [plumbingSummary(document, ok)];
+		if (hasPlumbing(document)) {
+			if (this.plumbingState === 'missing') {
+				parts.push(localize('plb.statusNoBackend', "checks need the backend"));
+			} else if (this.plumbingState === 'error') {
+				parts.push(localize('plb.statusFailed', "checks could not be computed"));
+			}
+		}
+		const problems = this.problems.filter(p => p.path.startsWith('plumbing.'));
+		const errors = problems.filter(p => p.severity === 'error').length;
+		const failures = ok ? plumbingFailures(ok) : undefined;
+		const failed = !!failures && (failures.items > 0 || failures.floorsLow > 0);
+		this.frame.setStatus({
+			text: parts.join(' · '),
+			severity: errors || failed ? 'error' : problems.length || this.plumbingState === 'error' ? 'warning' : undefined,
+			busy: this.plumbingState === 'computing',
+			link: problems.length ? {
+				label: localize('mep.statusProblems', "{0} problem(s)", problems.length),
+				run: () => this.revealProblem(problems[0]),
+			} : ok && this.view !== 'results' ? {
+				label: localize('mep.statusShowResults', "Results"),
+				run: () => this.showView('results'),
+			} : undefined,
+		});
 	}
 }

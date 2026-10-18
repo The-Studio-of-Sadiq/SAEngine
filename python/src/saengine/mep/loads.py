@@ -26,6 +26,9 @@ Load cases (BNBC 2020, Part 6 Chapter 2):
   machinery 100 %, light machinery (shaft or motor driven) 20 %, reciprocating machinery or
   power driven units 50 %. Case **L**.
 - A plinth is concrete cast on the finished floor: SD.
+- An overhead tank of the plumbing (``plumbing.tanks``, kind "overhead") is equipment of kind
+  "tank" too (:func:`plumbing_tank_equipment`): its reinforced concrete SD, its water the
+  contents. One linked to an equipment tank, or standing where one is, is left to it.
 
 Seismic weight (Sec 2.5.7.3 (c)): the total (100 %) weight of permanent heavy equipment and of
 retained liquid is included, so the equipment and its contents count in full whatever case they
@@ -551,6 +554,134 @@ def _on_segment(point: np.ndarray, a: np.ndarray, b: np.ndarray, tol: float = 1e
     ab = b - a
     t = float((point - a) @ ab) / float(ab @ ab)
     return -1e-9 <= t <= 1 + 1e-9 and float(np.linalg.norm(a + t * ab - point)) < tol
+
+
+# ───────────────────────── the plumbing's overhead tanks as equipment ─────────────────────────
+
+
+def footprint_covers(item: Equipment, x: float, y: float) -> bool:
+    """Whether the footprint of ``item`` covers the plan point (x, y) [mm]."""
+    t = math.radians(item.rotation)
+    dx, dy = x - item.x, y - item.y
+    u = dx * math.cos(t) + dy * math.sin(t)
+    v = -dx * math.sin(t) + dy * math.cos(t)
+    return abs(u) <= item.length / 2 + 1e-6 and abs(v) <= item.width / 2 + 1e-6
+
+
+def plumbing_tank_equipment(
+    mep: MepModel, materials: Any = None
+) -> tuple[list[Equipment], list[str]]:
+    """The overhead tanks of ``mep.plumbing`` as equipment of kind "tank", for the analysis
+    model, and notes. The empty weight is the tank's ``emptyWeight`` when given, else by its
+    construction (``saengine.plumbing.tanks.shell_weight``): rc, its concrete (walls, partitions, base and
+    roof from its thicknesses, else the tank design's proposals: wall h/12, at least 200 mm;
+    base wall + 50 mm; roof 125 mm) at 24 kN/m³ plus the roof finish; masonry, brick walls on a
+    concrete base under a concrete roof; prefab, nil (its maker's weight is to be entered). The
+    water to the overflow is the contents (``saengine.plumbing.tanks.tank_equipment``). Spread
+    over the tank's outside footprint. A tank with no story is skipped with a note.
+
+    A tank is never counted twice: one that names an ``equipment`` of 07 MEP, or that stands
+    where an equipment tank of the same story already is (its centre within that footprint), is
+    left to that equipment. Ground tanks (reservoir, septic tank, rainwater tank, soak well)
+    stand on the ground and do not load the superstructure. ``materials``: the material library
+    (the tank's concrete; None: the default library)."""
+    plumbing = mep.plumbing
+    if plumbing is None:
+        return [], []
+    out: list[Equipment] = []
+    notes: list[str] = []
+    taken = {e.id for e in mep.equipment}
+    tanks = [e for e in mep.equipment if e.kind == "tank"]
+    for tank in plumbing.tanks:
+        if tank.kind != "overhead":
+            continue
+        if tank.story is None:
+            notes.append(
+                f"{tank.id}: an overhead tank with no story; it does not load the model (give "
+                "the story it stands on in 07 MEP)"
+            )
+            continue
+        if tank.equipment is not None:
+            notes.append(
+                f"{tank.id}: its weight is that of equipment {tank.equipment} (linked in 07 MEP)"
+            )
+            continue
+        same = next(
+            (
+                e
+                for e in tanks
+                if e.story == tank.story
+                and tank.story is not None
+                and footprint_covers(e, tank.x, tank.y)
+            ),
+            None,
+        )
+        if same is not None:
+            notes.append(
+                f"{tank.id}: stands where equipment tank {same.id} is; its weight is taken as "
+                f"{same.id}'s (link them in 07 MEP, or delete {same.id} to load the model with "
+                f"the tank's own weight)"
+            )
+            continue
+        data = tank.model_dump(mode="json", exclude_none=True)
+        entry: dict[str, Any] | None
+        try:
+            from saengine.plumbing.tanks import tank_equipment
+
+            entry = tank_equipment(data, {"materials": materials}, basis=True)
+        except (ValueError, KeyError) as error:
+            from saengine.plumbing.report import overhead_equipment
+
+            entry = overhead_equipment(data)
+            if entry is not None:
+                notes.append(
+                    f"{tank.id}: {error}; its shell is estimated as 150 mm of concrete instead"
+                )
+        if entry is None:
+            notes.append(
+                f"{tank.id}: no story, length, width or water depth yet; it does not load the model"
+            )
+            continue
+        candidate, k = bounded_id(entry["id"]), 2
+        while candidate in taken:
+            candidate, k = bounded_id(entry["id"], f"-{k}"), k + 1
+        basis = entry.pop("emptyBasis", None)
+        try:
+            item = Equipment.model_validate({**entry, "id": candidate})
+        except ValueError as error:  # pydantic's ValidationError is a ValueError
+            notes.append(
+                f"{tank.id}: its load could not be made ({error}); it does not load the model"
+            )
+            continue
+        taken.add(candidate)
+        out.append(item)
+        notes.append(
+            f"{tank.id}: overhead tank, {item.emptyWeight or 0:g} kN empty (SD"
+            + (f"; {basis}" if basis else "")
+            + f") and {item.operatingWeight - (item.emptyWeight or 0):.1f} kN of water "
+            f"(contents) on story {tank.story}"
+        )
+    return out, notes
+
+
+def with_plumbing_tanks(mep: MepModel, materials: Any = None) -> tuple[MepModel, list[str]]:
+    """A copy of ``mep`` whose equipment includes its plumbing's overhead tanks
+    (:func:`plumbing_tank_equipment`), and notes; ``mep`` itself when it has none."""
+    extra, notes = plumbing_tank_equipment(mep, materials)
+    if not extra:
+        return mep, notes
+    return mep.model_copy(update={"equipment": [*mep.equipment, *extra]}), notes
+
+
+def has_model_content(mep: MepModel) -> bool:
+    """Whether 07 MEP gives the analysis model anything: equipment, openings, shafts, or an
+    overhead plumbing tank (its weight)."""
+    return bool(
+        mep.equipment
+        or mep.openings
+        or mep.shafts
+        or (mep.plumbing is not None and any(t.kind == "overhead" for t in mep.plumbing.tanks))
+    )
 
 
 # ───────────────────────── holes MEP cuts in the analysis model ─────────────────────────

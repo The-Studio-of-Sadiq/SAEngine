@@ -1303,8 +1303,15 @@ export function readMepReport(raw: unknown): IMepReport | undefined {
 	return { equipment, stories, openings, clashes, notes: strings(raw.notes), method: strings(raw.method), sources };
 }
 
-/** The openings the backend proposes (`saengine.mep.suggestSleeves`) and its notes. */
+/**
+ * The openings the backend proposes and its notes: `{ openings, notes }`
+ * (`saengine.mep.suggestSleeves`) or a bare list of openings (`saengine.plumbing.sleeves`, P1's
+ * `plumbing_sleeves`).
+ */
 export function readSleeveSuggestions(raw: unknown): { openings: IOpening[]; notes: string[] } | undefined {
+	if (Array.isArray(raw)) {
+		raw = { openings: raw };
+	}
 	if (!isRecord(raw)) {
 		return undefined;
 	}

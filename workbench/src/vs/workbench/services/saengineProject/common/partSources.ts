@@ -46,7 +46,8 @@ const MEP_LABELS = new Set(['name', 'service']);
 /**
  * The stamp an analysis model records for the MEP file `text` (key `mep`): of what the model
  * takes from it (its contents setting, equipment, openings and shafts, without the items' names
- * and service labels), so editing an IFC model's entry or a label leaves the model current. The
+ * and service labels, and the plumbing's overhead tanks as `plumbingTanks` when there are any),
+ * so editing an IFC model's entry or a label leaves the model current. The
  * Python side (`saengine.fem.derive.mep_stamp`) computes the same; a text that is not a JSON
  * object gets the stamp of its text.
  */
@@ -70,6 +71,13 @@ export function mepModelStamp(text: string): string {
 		content[key] = Array.isArray(value)
 			? value.map(item => typeof item === 'object' && item !== null && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).filter(([name]) => !MEP_LABELS.has(name))) : item)
 			: value;
+	}
+	// The plumbing's overhead tanks load the model too (stamped only when there are any).
+	const plumbing = source.plumbing;
+	const tanks = typeof plumbing === 'object' && plumbing !== null && !Array.isArray(plumbing) ? (plumbing as { readonly tanks?: unknown }).tanks : undefined;
+	const overhead = Array.isArray(tanks) ? tanks.filter(t => typeof t === 'object' && t !== null && !Array.isArray(t) && (t as { readonly kind?: unknown }).kind === 'overhead') : [];
+	if (overhead.length) {
+		content.plumbingTanks = overhead;
 	}
 	return sourceStamp(JSON.stringify(content));
 }
