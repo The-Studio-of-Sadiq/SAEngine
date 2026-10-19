@@ -1,5 +1,5 @@
 {
-  "_comment": "Upstream source archives of the copyleft components shipped as binaries (GPL, LGPL, MPL). scripts/installer/fetch-sources.ps1 downloads them, checks the SHA-256 and copies them to dist/ next to the setup, to be published from the same place as the setup (GPL-2.0 section 3, GPL-3.0/LGPL-3.0 section 6(d), MPL-2.0 section 3.2(a)). Keep 'version' equal to what ships: constraints.txt for Python packages, packages/fem-viewer/package.json for web-ifc. Bump url, file and sha256 together.",
+  "_comment": "Upstream source archives of the copyleft components shipped as binaries (GPL, LGPL, MPL). scripts/installer/fetch-sources.ps1 downloads them, checks the SHA-256 and copies them to dist/ next to the setup, to be published from the same place as the setup (GPL-2.0 section 3, GPL-3.0/LGPL-3.0 section 6(d), MPL-2.0 section 3.2(a)). Keep 'version' equal to what ships: constraints.txt for Python packages, packages/fem-viewer/package.json for web-ifc, resources/librecad/SAENGINE-BUNDLE.json (librecad_bundle.py) for entries with 'component': 'librecad' (LibreCAD itself and the Qt modules whose DLLs it ships, 'qt_module'); those are collected only when the build bundles LibreCAD. Bump url, file and sha256 together. A null sha256 is not pinned yet: fetch-sources.ps1 refuses it unless run with -AllowUnpinned, then prints the hash to pin here.",
   "sources": [
     {
       "name": "gmsh",
@@ -36,6 +36,60 @@
       "file": "engine_web-ifc-0.77.tar.gz",
       "url": "https://github.com/ThatOpen/engine_web-ifc/archive/refs/tags/0.77.tar.gz",
       "sha256": "740d3a9ebd83f80f29912e3c70d17e33f0b09ea3be234cc50742e313891245a4"
+    },
+    {
+      "name": "librecad",
+      "component": "librecad",
+      "version": "2.2.1.6",
+      "license": "GPL-2.0-only",
+      "ships": "resources/librecad (LibreCAD.exe and its plug-ins, a separate program)",
+      "file": "LibreCAD-v2.2.1.6.tar.gz",
+      "url": "https://github.com/LibreCAD/LibreCAD/releases/download/v2.2.1.6/LibreCAD-v2.2.1.6.tar.gz",
+      "sha256": "645e26b5ce81f862760edd63c76ca31c3ce9485302146465d373c976d661f768"
+    },
+    {
+      "name": "qt-qtbase",
+      "component": "librecad",
+      "qt_module": "qtbase",
+      "version": "5.15.2",
+      "license": "LGPL-3.0-only (Qt open-source licence; GPL-3.0 text alongside)",
+      "ships": "resources/librecad (the Qt 5 DLLs and plug-ins of qtbase that LibreCAD links dynamically)",
+      "file": "qtbase-everywhere-src-5.15.2.tar.xz",
+      "url": "https://download.qt.io/archive/qt/5.15/5.15.2/submodules/qtbase-everywhere-src-5.15.2.tar.xz",
+      "sha256": null
+    },
+    {
+      "name": "qt-qtsvg",
+      "component": "librecad",
+      "qt_module": "qtsvg",
+      "version": "5.15.2",
+      "license": "LGPL-3.0-only (Qt open-source licence; GPL-3.0 text alongside)",
+      "ships": "resources/librecad (the Qt 5 DLLs and plug-ins of qtsvg that LibreCAD links dynamically)",
+      "file": "qtsvg-everywhere-src-5.15.2.tar.xz",
+      "url": "https://download.qt.io/archive/qt/5.15/5.15.2/submodules/qtsvg-everywhere-src-5.15.2.tar.xz",
+      "sha256": null
+    },
+    {
+      "name": "qt-qtimageformats",
+      "component": "librecad",
+      "qt_module": "qtimageformats",
+      "version": "5.15.2",
+      "license": "LGPL-3.0-only (Qt open-source licence; GPL-3.0 text alongside)",
+      "ships": "resources/librecad (the Qt 5 DLLs and plug-ins of qtimageformats that LibreCAD links dynamically)",
+      "file": "qtimageformats-everywhere-src-5.15.2.tar.xz",
+      "url": "https://download.qt.io/archive/qt/5.15/5.15.2/submodules/qtimageformats-everywhere-src-5.15.2.tar.xz",
+      "sha256": null
+    },
+    {
+      "name": "qt-qttools",
+      "component": "librecad",
+      "qt_module": "qttools",
+      "version": "5.15.2",
+      "license": "LGPL-3.0-only (Qt open-source licence; GPL-3.0 text alongside)",
+      "ships": "resources/librecad (the Qt 5 DLLs and plug-ins of qttools that LibreCAD links dynamically)",
+      "file": "qttools-everywhere-src-5.15.2.tar.xz",
+      "url": "https://download.qt.io/archive/qt/5.15/5.15.2/submodules/qttools-everywhere-src-5.15.2.tar.xz",
+      "sha256": null
     }
   ]
 }

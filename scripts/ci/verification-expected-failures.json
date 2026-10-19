@@ -1,0 +1,9 @@
+{
+  "_comment": "Quantities of the verification pack (python -m saengine.verification) that are known to fail, per case. CI (scripts/ci/check_verification.py) fails on any other failing quantity or case error, and reports a listed quantity that now passes (remove it here and from KNOWN_ISSUES in python/tests/test_verification.py: the check also fails when the two lists differ). Each entry is explained in docs/verification/README.md, 'Known issues'.",
+  "expected_failures": {
+    "A9": [
+      "Tip deflection, default 1000 mm mesh",
+      "Tip deflection, 100 mm mesh (finest allowed)"
+    ]
+  }
+}

@@ -35,7 +35,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[FEM_PYTHON_SETTING]: {
 			type: 'string',
 			default: '',
-			scope: ConfigurationScope.MACHINE_OVERRIDABLE,
+			// A program SAEngine starts: only from this machine's settings, never from a project's
+			// .vscode/settings.json (a received project could name any program there).
+			scope: ConfigurationScope.MACHINE,
+			restricted: true,
 			markdownDescription: localize('saengine.python.path', "Python 3.12 interpreter with the `saengine` and `opensees-studio` packages installed. When empty, an installed SAEngine uses its bundled Python (`resources/python`), and SAEngine run from the sources uses the `.venv` next to them."),
 		},
 	},

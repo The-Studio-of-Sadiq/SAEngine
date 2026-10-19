@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/projectNavigator.css';
-import { $, append, isHTMLElement } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType, isHTMLElement } from '../../../../base/browser/dom.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IObjectTreeElement, ITreeNode, ITreeRenderer, ObjectTreeElementCollapseState } from '../../../../base/browser/ui/tree/tree.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
@@ -32,6 +32,13 @@ import { IPartStatus, ISaenginePartStatusService } from '../../../services/saeng
 import { IProjectPart, ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
 import { EXPORTS_SCHEME } from './exportsEditorInput.js';
 import { IPartEntry, openPart, partGroups, partResource, stateClass, stateLabel, stateText } from './projectParts.js';
+import { unsavedSummary } from './versionsModel.js';
+import { IProjectVersionsService } from './versionsService.js';
+
+/** The UI command that opens the Versions editor (registered in projectPlatform.contribution.ts). */
+const SHOW_VERSIONS_COMMAND = 'saengine.project.showVersions';
+/** The height of the versions line under the parts. */
+const VERSIONS_LINE_HEIGHT = 28;
 
 /** Setting (registered with the developer mode) that shows the raw files under each part. */
 export const DEVELOPER_MODE_SETTING = 'saengine.developerMode';
@@ -155,6 +162,11 @@ export class ProjectNavigatorView extends ViewPane {
 	private tree: WorkbenchObjectTree<NavigatorNode, void> | undefined;
 	private activeResource: URI | undefined;
 	private partNodes: IPartNode[] = [];
+	/** "3 parts changed since v12", under the parts; opens the versions. */
+	private versionsLine: HTMLElement | undefined;
+	private versionsText: HTMLElement | undefined;
+	private versionsIcon: HTMLElement | undefined;
+	private bodySize: { height: number; width: number } | undefined;
 	private readonly refreshScheduler = this._register(new RunOnceScheduler(() => void this.refresh(), 200));
 
 	constructor(
@@ -173,6 +185,7 @@ export class ProjectNavigatorView extends ViewPane {
 		@IEditorService private readonly editorService: IEditorService,
 		@IFileService private readonly fileService: IFileService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IProjectVersionsService private readonly versionsService: IProjectVersionsService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this._register(this.projectService.onDidChangeProject(() => {
@@ -193,7 +206,9 @@ export class ProjectNavigatorView extends ViewPane {
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 		container.classList.add('saengine-project-navigator');
-		this.tree = this._register(this.instantiationService.createInstance(WorkbenchObjectTree<NavigatorNode, void>, 'SaengineProjectNavigator', container, new Delegate(), [
+		const treeContainer = append(container, $('.sa-nav-tree'));
+		this.renderVersionsLine(container);
+		this.tree = this._register(this.instantiationService.createInstance(WorkbenchObjectTree<NavigatorNode, void>, 'SaengineProjectNavigator', treeContainer, new Delegate(), [
 			new GroupRenderer(),
 			new PartRenderer(part => this.isActive(part)),
 			new FileRenderer(),
@@ -244,7 +259,50 @@ export class ProjectNavigatorView extends ViewPane {
 
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
-		this.tree?.layout(height, width);
+		this.bodySize = { height, width };
+		const line = this.versionsLine && !this.versionsLine.classList.contains('hidden') ? VERSIONS_LINE_HEIGHT : 0;
+		this.tree?.layout(Math.max(0, height - line), width);
+	}
+
+	/** The line under the parts that says what changed since the latest version. */
+	private renderVersionsLine(container: HTMLElement): void {
+		const line = this.versionsLine = append(container, $('.sa-nav-versions.hidden', { role: 'button', tabIndex: 0 }));
+		this.versionsIcon = append(line, $('span.sa-nav-versions-icon'));
+		this.versionsText = append(line, $('span.sa-nav-versions-text'));
+		const open = () => void this.commandService.executeCommand(SHOW_VERSIONS_COMMAND);
+		this._register(addDisposableListener(line, EventType.CLICK, open));
+		this._register(addDisposableListener(line, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				open();
+			}
+		}));
+		this._register(this.versionsService.onDidChange(() => this.updateVersionsLine()));
+		this.updateVersionsLine();
+	}
+
+	private updateVersionsLine(): void {
+		const line = this.versionsLine;
+		if (!line || !this.versionsText || !this.versionsIcon) {
+			return;
+		}
+		// Quiet until the backend answers: no line at all without versions.
+		const summary = this.projectService.project && this.versionsService.available ? unsavedSummary(this.versionsService.status, this.versionsService.editedParts) : undefined;
+		const wasHidden = line.classList.contains('hidden');
+		line.classList.toggle('hidden', !summary);
+		line.classList.toggle('dirty', !!summary?.dirty);
+		line.classList.toggle('problem', !!summary?.problem);
+		this.versionsText.textContent = summary?.text ?? '';
+		this.versionsIcon.className = `sa-nav-versions-icon ${ThemeIcon.asClassName(summary?.problem ? Codicon.warning : summary?.dirty ? Codicon.circleFilled : Codicon.history)}`;
+		line.title = summary?.problem
+			? localize('projectNavigator.versionsProblem', "{0}: {1}", summary.text, summary.problem)
+			: summary?.dirty
+				? localize('projectNavigator.versionsDirty', "{0}. Open Versions to save them as a version.", summary.text)
+				: localize('projectNavigator.versionsClean', "Open Versions");
+		line.setAttribute('aria-label', summary?.text ?? '');
+		if (wasHidden !== !summary && this.bodySize) {
+			this.layoutBody(this.bodySize.height, this.bodySize.width);
+		}
 	}
 
 	override focus(): void {

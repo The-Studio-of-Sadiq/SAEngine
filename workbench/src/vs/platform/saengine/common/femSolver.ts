@@ -495,6 +495,55 @@ export interface IFemSolverService {
 	 * project folder and the editor's unsaved `07 MEP/mep.json`; plain JSON, or `{problems}`.
 	 */
 	mepService(python: string, method: MepServiceMethod, params: IMepServiceParams): Promise<object>;
+
+	/**
+	 * A method of the project archive or the version history (see {@link ProjectPlatformMethod});
+	 * plain JSON, or `{ok: false, code, message, problems}` when the backend refuses it.
+	 */
+	projectPlatform(python: string, method: ProjectPlatformMethod, params: object): Promise<object>;
+
+	/**
+	 * Opens a DXF drawing in LibreCAD (the bundled copy, else an installed one), started directly
+	 * with the drawing as its only argument (no shell). `program: null` when there is none: the
+	 * caller then hands the file to the system's own DXF program.
+	 */
+	openInCad(request: ICadOpenRequest): Promise<ICadOpenResult>;
+}
+
+/**
+ * The project archive (`.civil`, `saengine.project.archive`) and the version history
+ * (`saengine.project.versions`): `project/exportArchive` `{projectRoot, outPath, includeResults?,
+ * includeVersions?, includeExports?, note?, saengineVersion?}`, `project/inspectArchive` `{path,
+ * currentVersion?, verify?}`, `project/importArchive` `{path, destParent, name?, overwrite?,
+ * currentVersion?, migrate?}`, `versions/status` `{projectRoot}`, `versions/list` `{projectRoot,
+ * limit?}`, `versions/save` `{projectRoot, message, author?, issued?, label?}`, `versions/diff`
+ * `{projectRoot, fromVersion?, toVersion?}` (not `from`: the backend sees params as Python names), `versions/restore` `{projectRoot, version, parts?, author?, commit?}`
+ * and `versions/markIssued` `{projectRoot, version, label, author?}`.
+ */
+export type ProjectPlatformMethod =
+	| 'project/exportArchive' | 'project/inspectArchive' | 'project/importArchive'
+	| 'versions/status' | 'versions/list' | 'versions/save' | 'versions/diff' | 'versions/restore' | 'versions/markIssued';
+
+export interface ICadOpenRequest {
+	/** Absolute path of the `.dxf` file. */
+	readonly path: string;
+	/** A CAD program to prefer (the `saengine.cad.program` setting); used only when it exists. */
+	readonly program?: string;
+	/** Only find the program and say what would be started; nothing is started. */
+	readonly dryRun?: boolean;
+}
+
+export interface ICadOpenResult {
+	readonly ok: boolean;
+	/** The program started (or that would be), or null when none was found. */
+	readonly program: string | null;
+	/** Its arguments: the drawing's path. */
+	readonly args: readonly string[];
+	/** Where the program came from: the setting, the bundled copy or an installed one. */
+	readonly source?: 'setting' | 'bundled' | 'installed';
+	/** The process id when started. */
+	readonly pid?: number;
+	readonly problems?: readonly string[];
 }
 
 /**

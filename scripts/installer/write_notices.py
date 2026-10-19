@@ -34,7 +34,8 @@ including the build scripts that produced this installer, is available at
     {source}
 (commit {commit}). The same source is available from the SAEngine contributors on request.
 
-This installation contains four groups of third-party software:
+This installation contains four groups of third-party software (and, sections 5 and 6
+below, the separate programs EnergyPlus and LibreCAD when this build bundles them):
 
 1. The Code - OSS workbench (MIT, Copyright Microsoft Corporation) and its Node.js
    dependencies: see resources/app/LICENSE.txt and resources/app/ThirdPartyNotices.txt.
@@ -87,6 +88,32 @@ ENERGYPLUS = """\
    terms. Source: https://github.com/NREL/EnergyPlus (tag v26.2.0).
 
 [LICENSE.txt]
+"""
+
+LIBRECAD = """\
+LibreCAD {version}
+{rule}
+
+6. resources/librecad holds LibreCAD {version} (LibreCAD.exe with its plug-ins and data as
+   published at https://github.com/LibreCAD/LibreCAD/releases/tag/v{version}; no file of it is
+   modified{trim}), a separate program for editing the DXF drawings SAEngine exports. SAEngine starts it as its own
+   process with the path of a drawing; nothing of it is linked into SAEngine (an aggregate,
+   GPL-2.0 section 2). LibreCAD is free software, Copyright the LibreCAD developers and
+   contributors (https://librecad.org), under the GNU General Public License version 2
+   (GPL-2.0-only).
+   It contains Qt {qt} (Copyright The Qt Company Ltd. and other contributors) as DLLs that
+   LibreCAD links dynamically, under the GNU Lesser General Public License version 3
+   (LGPL-3.0-only), Qt modules: {modules}. You may replace them with modified versions of the
+   same Qt version. It also contains the Microsoft Visual C++ runtime DLLs{runtime},
+   redistributable under the Visual Studio licence terms for Distributable Code.
+   Source: the source archives of LibreCAD {version} and of these Qt modules are in the folder
+       {sources_name}
+   published next to this installer (the copyleft source offer above covers them), and
+   upstream at
+       https://github.com/LibreCAD/LibreCAD/releases/download/v{version}/LibreCAD-v{version}.tar.gz
+       {qt_source}
+   The licence texts follow ({licenses}).
+
 """
 
 # Shown in the header; the archives themselves are listed in copyleft-sources.json.
@@ -175,14 +202,77 @@ def missing_license_note(name: str, declared: str, lgpl3: str) -> str:
     return "(The package ships no licence file; see its declared licence above.)\n"
 
 
-def copyleft_lines(manifest: Path | None) -> str:
+def librecad_bundle(folder: Path | None) -> dict | None:
+    """The bundle manifest librecad_bundle.py wrote, when the installer bundles LibreCAD."""
+    if folder is None:
+        return None
+    manifest = folder / "SAENGINE-BUNDLE.json"
+    if not manifest.is_file():
+        return None
+    return json.loads(manifest.read_text(encoding="utf-8"))
+
+
+def shipped_sources(sources: list[dict], librecad: dict | None) -> list[dict]:
+    """Entries of copyleft-sources.json for what ships: optional components only if bundled."""
+    shipped = []
+    for source in sources:
+        component = source.get("component")
+        if component == "librecad":
+            if librecad is None:
+                continue
+            module = source.get("qt_module")
+            if module is not None and module not in librecad.get("qt_modules", []):
+                continue
+        elif component is not None:
+            continue
+        shipped.append(source)
+    return shipped
+
+
+def copyleft_lines(manifest: Path | None, librecad: dict | None = None) -> str:
     if manifest is None or not manifest.is_file():
         return COPYLEFT_FALLBACK
     sources = json.loads(manifest.read_text(encoding="utf-8"))["sources"]
     return "".join(
         f"  - {s['name']} {s['version']}: {s['license']}; upstream source {s['url']}\n"
-        for s in sources
+        for s in shipped_sources(sources, librecad)
     )
+
+
+def librecad_section(folder: Path, bundle: dict, sources_name: str) -> list[str]:
+    qt = bundle.get("qt_version")
+    qt_source = "https://download.qt.io/archive/qt/"
+    if qt:
+        qt_source += f"{'.'.join(qt.split('.')[:2])}/{qt}/submodules/"
+    out = [
+        LIBRECAD.format(
+            version=bundle.get("version", ""),
+            rule=RULE,
+            qt=qt or f"{bundle.get('qt_major') or ''} (version not recorded)".strip(),
+            qt_source=qt_source,
+            modules=", ".join(bundle.get("qt_modules") or []) or "see resources/librecad",
+            sources_name=sources_name,
+            licenses=", ".join(bundle.get("licenses") or []) or "none bundled",
+            trim=(
+                "; left out: its CJK fonts, its translations other than English and its Visual "
+                "C++ redistributable installer"
+                if bundle.get("trimmed")
+                else ""
+            ),
+            runtime=(
+                f" (version {runtime['version']}, next to LibreCAD.exe)"
+                if (runtime := bundle.get("vc_runtime")) and runtime.get("version")
+                else ""
+            ),
+        )
+    ]
+    for name in bundle.get("licenses") or []:
+        path = folder / name
+        if path.is_file():
+            out.append(f"[resources/librecad/{name}]\n")
+            out.append(path.read_text(encoding="utf-8", errors="replace").rstrip() + "\n\n")
+    out.append(f"{RULE}\n\n")
+    return out
 
 
 def npm_package_root(path: Path) -> Path | None:
@@ -326,7 +416,13 @@ def main() -> int:
         type=Path,
         help="resources/energyplus, when the installer bundles EnergyPlus (its LICENSE.txt)",
     )
+    parser.add_argument(
+        "--librecad",
+        type=Path,
+        help="resources/librecad, when the installer bundles LibreCAD (its SAENGINE-BUNDLE.json)",
+    )
     args = parser.parse_args()
+    librecad = librecad_bundle(args.librecad)
 
     dists = {}
     for dist in metadata.distributions():
@@ -343,7 +439,7 @@ def main() -> int:
             source=SOURCE_URL,
             commit=args.commit,
             python=python,
-            copyleft=copyleft_lines(args.copyleft_sources),
+            copyleft=copyleft_lines(args.copyleft_sources, librecad),
             sources_name=args.sources_name,
         )
     ]
@@ -352,6 +448,8 @@ def main() -> int:
         out.append(ENERGYPLUS.format(rule=RULE, name=ENERGYPLUS_NAME))
         out.append(energyplus.read_text(encoding="utf-8", errors="replace").rstrip() + "\n")
         out.append(f"\n{RULE}\n\n")
+    if librecad is not None:
+        out.extend(librecad_section(args.librecad, librecad, args.sources_name))
     js_out, js_count = js_section(args.js_package)
     out.extend(js_out)
     out.append("Bundled Python packages\n\n")

@@ -202,9 +202,10 @@ def generate_typescript() -> str:
 
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
-    if len(args) != 1:
+    # An option (e.g. --help) is never taken for the output path.
+    if len(args) != 1 or args[0].startswith("-"):
         print(__doc__, file=sys.stderr)
-        return 2
+        return 0 if args and args[0] in ("-h", "--help") else 2
     Path(args[0]).write_text(generate_typescript(), encoding="utf-8", newline="\n")
     return 0
 

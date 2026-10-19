@@ -16,8 +16,12 @@ administrator rights.
 3. Accept the licence (GNU AGPL-3.0) and keep the default folder,
    `%LOCALAPPDATA%\Programs\SAEngine`. No administrator rights are needed.
 
-The installer adds a Start-menu entry and, by default, `saengine` to the user `PATH` and
-SAEngine to *Open with* for its file types (both can be unticked).
+The installer adds a Start-menu entry and, by default, SAEngine to *Open with* for its file
+types, including the `.civil` project archive (double-click one to open it in SAEngine). The
+task *Add the saengine command to PATH* is unticked by default: tick it to use the SAEngine
+command line (`saengine ...`, see `docs/cli.md`) from any terminal. `bin\saengine.cmd` runs
+the bundled Python (`python -I -m saengine.cli`); `bin\saengine-app.cmd` opens a folder or
+file in the SAEngine window.
 
 Unattended install (for IT): `SAEngine-x64-user-setup-<version>.exe /VERYSILENT /NORESTART
 /MERGETASKS="!runcode"`; add `/DIR="<folder>"` for another folder.
@@ -37,6 +41,8 @@ the program folder, including the bundled Python. It keeps your projects (by def
 | Program | `%LOCALAPPDATA%\Programs\SAEngine\SAEngine.exe` |
 | Workbench (app root) | `...\SAEngine\resources\app` |
 | Bundled Python | `...\SAEngine\resources\python\python.exe` (CPython 3.12.10, x64) |
+| Command line | `...\SAEngine\bin\saengine.cmd` (the window launcher: `bin\saengine-app.cmd`) |
+| EnergyPlus, LibreCAD (when bundled) | `...\SAEngine\resources\energyplus`, `...\SAEngine\resources\librecad` (separate programs, with their licences) |
 | Backend packages | `...\SAEngine\resources\python\Lib\site-packages` |
 | Licences | `...\SAEngine\LICENSE.txt` (AGPL-3.0), `THIRD_PARTY_NOTICES.txt` (viewer bundles' npm packages, Python packages, source offers), `resources\app\ThirdPartyNotices.txt` (Code - OSS), `LICENSES.chromium.html` |
 | Settings, logs | `%APPDATA%\SAEngine` |
@@ -53,7 +59,9 @@ Python in this order:
 To use your own interpreter (for example to try a newer OpenSeesPy), open *File > Preferences
 > Settings*, search for `saengine.python.path` and enter the full path of a Python **3.12**
 x64 `python.exe` that has `saengine` and `opensees-studio` installed (OpenSeesPy 3.8's Windows
-build only loads in Python 3.12). Clear the setting to go back to the bundled Python. Run
+build only loads in Python 3.12). It is a setting of this machine only: a project folder's own
+`.vscode/settings.json` cannot set it, so a project received from someone else never chooses the
+program SAEngine starts. Clear the setting to go back to the bundled Python. Run
 *SAEngine: Check Python Runtime* (F1) to see which interpreter and versions are in use.
 
 The bundled Python is isolated from other Pythons on the machine: a `python312._pth` file next
@@ -120,7 +128,16 @@ releases. Without any release in the history the `saengine` package version is u
 Other switches: `-SkipAppBuild` (reuse
 `VSCode-win32-x64`), `-SkipPython` (reuse the built Python), `-SkipSetup` (stop before Inno
 Setup), `-RefreshConstraints` (re-pin `constraints.txt` from the development `.venv` after it
-changed), `-NoPrecompile`.
+changed), `-NoPrecompile`, `-EnergyPlusDir` (bundle EnergyPlus 26.2.0), `-LibreCADDir` and
+`-LibreCADLicenseDir` (bundle LibreCAD 2.2.1.6, an installed one such as
+`C:\Program Files\LibreCAD` or its installer unpacked with `7z x`, with its licence texts;
+`-LibreCADOnly -DryRun` tests that step alone), `-AllowUnpinnedSources`, `-MinFreeGB`. The
+release workflow passes all of them; see `docs/ci.md` for the release build, the pinned
+downloads and the LibreCAD and Qt source offer.
+
+After the app build the script replaces Code - OSS's launcher `bin\saengine.cmd` with the
+SAEngine command line shim (`scripts\installer\saengine.cmd`) and keeps the launcher as
+`bin\saengine-app.cmd`.
 
 Then test the setup on the build machine without the repository's `.venv`:
 

@@ -95,7 +95,9 @@ Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescrip
 Name: "addcontextmenufiles"; Description: "{cm:AddContextMenuFiles,{#NameShort}}"; GroupDescription: "{cm:Other}"; Flags: unchecked
 Name: "addcontextmenufolders"; Description: "{cm:AddContextMenuFolders,{#NameShort}}"; GroupDescription: "{cm:Other}"; Flags: unchecked
 Name: "associatewithfiles"; Description: "{cm:AssociateWithFiles,{#NameShort}}"; GroupDescription: "{cm:Other}"
-Name: "addtopath"; Description: "{cm:AddToPath}"; GroupDescription: "{cm:Other}"
+// SAEngine: {app}\bin holds the saengine command line (bin\saengine.cmd, python -m saengine.cli)
+// and the window launcher bin\saengine-app.cmd. Adding it to PATH is opt-in.
+Name: "addtopath"; Description: "{cm:SAEngineAddToPath}"; GroupDescription: "{cm:Other}"; Flags: unchecked
 Name: "runcode"; Description: "{cm:RunAfter,{#NameShort}}"; GroupDescription: "{cm:Other}"; Check: WizardSilent
 
 [Dirs]
@@ -110,6 +112,10 @@ Source: "policies\*"; DestDir: "{code:GetDestDir}\{#VersionedResourcesFolder}\po
 Source: "bin\{#TunnelApplicationName}.exe"; DestDir: "{code:GetDestDir}\bin"; DestName: "{code:GetBinDirTunnelApplicationFilename}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "bin\{#ApplicationName}.cmd"; DestDir: "{code:GetDestDir}\bin"; DestName: "{code:GetBinDirApplicationCmdFilename}"; Flags: ignoreversion
 Source: "bin\{#ApplicationName}"; DestDir: "{code:GetDestDir}\bin"; DestName: "{code:GetBinDirApplicationFilename}"; Flags: ignoreversion
+// SAEngine: scripts\build-installer.ps1 moves Code - OSS's launcher to bin\saengine-app(.cmd) and puts
+// the command line shims in its place.
+Source: "bin\{#ApplicationName}-app.cmd"; DestDir: "{code:GetDestDir}\bin"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "bin\{#ApplicationName}-app"; DestDir: "{code:GetDestDir}\bin"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#ProductJsonPath}"; DestDir: "{code:GetDestDir}\{#VersionedResourcesFolder}\resources\app"; Flags: ignoreversion
 #ifdef AppxPackageName
 Source: "appx\{#AppxPackage}"; DestDir: "{code:GetDestDir}\{#VersionedResourcesFolder}\appx"; BeforeInstall: RemoveAppxPackage; Flags: ignoreversion; Check: ShouldUseWindows11ContextMenu
@@ -290,6 +296,18 @@ Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.cls";
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.cls\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#VersionedResourcesFolder}\resources\app\resources\win32\default.ico"; Tasks: associatewithfiles
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.cls\shell\open"; ValueType: string; ValueName: "Icon"; ValueData: """{app}\{#ExeBasename}.exe"""; Tasks: associatewithfiles
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.cls\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#ExeBasename}.exe"" ""%1"""; Tasks: associatewithfiles
+
+// SAEngine: .civil, the SAEngine project archive. Opening one starts SAEngine with its path as
+// the argument (the workbench imports it).
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\.civil\OpenWithProgids"; ValueType: none; ValueName: "{#RegValueName}"; Flags: deletevalue uninsdeletevalue; Tasks: associatewithfiles
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\.civil\OpenWithProgids"; ValueType: string; ValueName: "{#RegValueName}.civil"; ValueData: ""; Flags: uninsdeletevalue; Tasks: associatewithfiles
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\.civil"; ValueType: string; ValueName: ""; ValueData: "{#RegValueName}.civil"; Flags: uninsdeletevalue; Tasks: associatewithfiles
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\.civil"; ValueType: string; ValueName: "Content Type"; ValueData: "application/x-saengine-civil"; Flags: uninsdeletevalue; Tasks: associatewithfiles
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.civil"; ValueType: string; ValueName: ""; ValueData: "{cm:SAEngineCivilFile}"; Flags: uninsdeletekey; Tasks: associatewithfiles
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.civil"; ValueType: string; ValueName: "AppUserModelID"; ValueData: "{#AppUserId}"; Flags: uninsdeletekey; Tasks: associatewithfiles
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.civil\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#VersionedResourcesFolder}\resources\app\resources\win32\code.ico"; Tasks: associatewithfiles
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.civil\shell\open"; ValueType: string; ValueName: "Icon"; ValueData: """{app}\{#ExeBasename}.exe"""; Tasks: associatewithfiles
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.civil\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#ExeBasename}.exe"" ""%1"""; Tasks: associatewithfiles
 
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\.code-workspace\OpenWithProgids"; ValueType: none; ValueName: "{#RegValueName}"; Flags: deletevalue uninsdeletevalue; Tasks: associatewithfiles
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\.code-workspace\OpenWithProgids"; ValueType: string; ValueName: "{#RegValueName}.code-workspace"; ValueData: ""; Flags: uninsdeletevalue; Tasks: associatewithfiles
@@ -1312,6 +1330,11 @@ Root: {#EnvironmentRootKey}; Subkey: "{#EnvironmentKey}"; ValueType: expandsz; V
 Root: {#EnvironmentRootKey}; Subkey: "Software\Microsoft\Windows\CurrentVersion\App Paths\{#ApplicationName}.exe"; ValueType: string; ValueName: ""; ValueData: "{app}\{#ExeBasename}.exe"; Flags: uninsdeletekey
 ; Remove the "Path" value previously written here; ShellExecute appends it to the launched process PATH, polluting the env. Default value above is enough to resolve `code` from Explorer/Run.
 Root: {#EnvironmentRootKey}; Subkey: "Software\Microsoft\Windows\CurrentVersion\App Paths\{#ApplicationName}.exe"; ValueType: none; ValueName: "Path"; Flags: deletevalue
+
+// SAEngine: messages of the SAEngine tasks and file types (all languages).
+[CustomMessages]
+SAEngineAddToPath=Add the saengine command to PATH (requires shell restart)
+SAEngineCivilFile=SAEngine Project Archive
 
 [Code]
 // Imports MultiByteToWideChar to decode UTF-8 bytes (LoadStringFromFile returns raw bytes) into a Unicode string.

@@ -16,7 +16,12 @@
          -EnergyPlusDir, copies the minimal EnergyPlus version 26.2.0 runtime (the program, its
          DLLs, Energy+.idd, Energy+.schema.epJSON and its LICENSE.txt, about 62 MB) to
          VSCode-win32-x64\resources\energyplus, where the backend looks for it, and checks it
-         with a design-day run (scripts\installer\energyplus_runtime.py).
+         with a design-day run (scripts\installer\energyplus_runtime.py). With -LibreCADDir,
+         copies the LibreCAD program folder (a separate GPL-2.0 program that edits the DXF
+         drawings SAEngine exports; never linked) to VSCode-win32-x64\resources\librecad
+         (scripts\installer\librecad_bundle.py). Replaces the Code - OSS launcher
+         bin\saengine.cmd by the SAEngine command line shim (scripts\installer\saengine.cmd,
+         python -m saengine.cli); the launcher stays as bin\saengine-app.cmd.
       4. Writes THIRD_PARTY_NOTICES.txt (the viewer bundles' npm packages and the Python
          packages with their licences, the AGPL source offer, the copyleft source offer) and
          LICENSE.txt (AGPL-3.0) into the app folder, and collects the source archives of the
@@ -58,6 +63,32 @@
     SAENGINE_ENERGYPLUS_DIR environment variable. Optional: without it the app is built without
     EnergyPlus and the HVAC loads fall back to SAEngine's documented estimate.
 
+.PARAMETER LibreCADDir
+    An installed LibreCAD 2.2.1.6 for Windows x64 (C:\Program Files\LibreCAD) or its installer
+    unpacked with '7z x' (the folder with LibreCAD.exe is found inside). Defaults to the
+    SAENGINE_LIBRECAD_DIR environment variable. Optional: without it the app is built without
+    LibreCAD and "Open in CAD" uses the program Windows associates with .dxf files.
+
+.PARAMETER LibreCADLicenseDir
+    A folder of licence texts bundled into resources\librecad\licenses (LibreCAD's LICENSE and
+    gpl-2.0.txt, Qt's LICENSE.LGPLv3 and LICENSE.GPL3: scripts\ci\fetch_pinned.py fetches them).
+    Defaults to SAENGINE_LIBRECAD_LICENSES. LibreCAD's own installer ships none; the release
+    build requires them.
+
+.PARAMETER LibreCADOnly
+    Run only the LibreCAD step (into the existing app folder, with its bundled Python or the
+    development .venv), for testing it in isolation. With -DryRun nothing is copied.
+
+.PARAMETER DryRun
+    With -LibreCADOnly: print what would be copied and copy nothing.
+
+.PARAMETER AllowUnpinnedSources
+    Let fetch-sources.ps1 take source archives that copyleft-sources.json lists without a
+    SHA-256 (it prints the hash to pin). The release workflow passes it until they are pinned.
+
+.PARAMETER MinFreeGB
+    Free space the repository's drive must have (default 15).
+
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File scripts\build-installer.ps1
 .EXAMPLE
@@ -71,7 +102,13 @@ param(
     [switch]$SkipSetup,
     [switch]$RefreshConstraints,
     [switch]$NoPrecompile,
-    [string]$EnergyPlusDir = $env:SAENGINE_ENERGYPLUS_DIR
+    [string]$EnergyPlusDir = $env:SAENGINE_ENERGYPLUS_DIR,
+    [string]$LibreCADDir = $env:SAENGINE_LIBRECAD_DIR,
+    [string]$LibreCADLicenseDir = $env:SAENGINE_LIBRECAD_LICENSES,
+    [switch]$LibreCADOnly,
+    [switch]$DryRun,
+    [switch]$AllowUnpinnedSources,
+    [int]$MinFreeGB = 15
 )
 
 $ErrorActionPreference = 'Stop'
@@ -142,6 +179,57 @@ function Remove-Tree([string]$Path) {
     }
 }
 
+# LibreCAD: a separate program (GPL-2.0-only) the "Open in CAD" action starts with a DXF path;
+# never linked. Copied trimmed with its Qt DLLs, the app-local Visual C++ runtime and the licence
+# texts (librecad_bundle.py).
+function Invoke-LibreCADBundle {
+    param([string]$Python, [string]$Dest, [switch]$Plan)
+    if (-not (Test-Path -LiteralPath $LibreCADDir)) {
+        throw "-LibreCADDir $LibreCADDir does not exist."
+    }
+    $bundleArgs = @('-I', '-B', (Join-Path $installerScripts 'librecad_bundle.py'), '--source', $LibreCADDir,
+        '--dest', $Dest, '--expect-version', '2.2.1.6')
+    if ($LibreCADLicenseDir) {
+        if (-not (Test-Path -LiteralPath $LibreCADLicenseDir)) { throw "-LibreCADLicenseDir $LibreCADLicenseDir does not exist." }
+        foreach ($file in Get-ChildItem -LiteralPath $LibreCADLicenseDir -File) {
+            $bundleArgs += @('--license', $file.FullName)
+        }
+        $bundleArgs += '--require-licenses'
+    }
+    # The bundle is trimmed (librecad_bundle.py TRIM): its Visual C++ redistributable installer is
+    # left out, so the runtime DLLs go next to LibreCAD.exe from Visual Studio's redistributable
+    # folder (Microsoft.VC14x.CRT, "Distributable Code"), found with vswhere.
+    $crt = Find-VcRuntime
+    if ($crt) { $bundleArgs += @('--vc-runtime', $crt) }
+    else { Write-Warning 'No Microsoft.VC14x.CRT folder found (vswhere): the bundled LibreCAD needs the Visual C++ runtime installed on the PC.' }
+    if ($Plan) { $bundleArgs += '--dry-run' }
+    Invoke-Native $Python $bundleArgs 'Bundling LibreCAD'
+}
+
+# Visual Studio's x64 Visual C++ redistributable folder (VC\Redist\MSVC\<version>\x64\
+# Microsoft.VC14x.CRT) of the newest installation, or $null.
+function Find-VcRuntime {
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+    if (-not (Test-Path -LiteralPath $vswhere)) { return $null }
+    $found = @(& $vswhere -latest -products * -find 'VC\Redist\MSVC\*\x64\Microsoft.VC14*.CRT' 2>$null)
+    $folders = @($found | Where-Object { $_ -and (Test-Path -LiteralPath (Join-Path $_ 'vcruntime140.dll')) } | Sort-Object -Descending)
+    if ($folders.Count -gt 0) { return $folders[0] }
+    return $null
+}
+
+if ($LibreCADOnly) {
+    Write-Step 'Only the LibreCAD step (-LibreCADOnly)'
+    if (-not $LibreCADDir) { throw '-LibreCADOnly needs -LibreCADDir (or SAENGINE_LIBRECAD_DIR).' }
+    $python = Join-Path $appDir 'resources\python\python.exe'
+    if (-not (Test-Path $python)) { $python = Join-Path $repoRoot '.venv\Scripts\python.exe' }
+    if (-not (Test-Path $python)) { throw "No Python to run librecad_bundle.py with ($python)." }
+    $dest = Join-Path $appDir 'resources\librecad'
+    if (-not $DryRun) { Remove-Tree $dest }
+    Invoke-LibreCADBundle -Python $python -Dest $dest -Plan:$DryRun
+    if (-not $DryRun) { Write-Host "LibreCAD copied to $dest ($(Format-Size (Get-FolderSize $dest)))" }
+    return
+}
+
 # --- 1. Prerequisites ------------------------------------------------------------------------
 Write-Step 'Checking prerequisites'
 $problems = @()
@@ -191,8 +279,14 @@ if ($RefreshConstraints -and -not (Test-Path $devPython)) {
     $problems += "-RefreshConstraints needs the development .venv ($devPython)."
 }
 $drive = (Get-Item $repoRoot).PSDrive
-if ($drive.Free -lt 15GB) {
-    $problems += ('Less than 15 GB free on {0}: ({1:N1} GB). The build needs about 10 GB.' -f $drive.Name, ($drive.Free / 1GB))
+if ($drive.Free -lt ($MinFreeGB * 1GB)) {
+    $problems += ('Less than {2} GB free on {0}: ({1:N1} GB). The build needs about 10 GB.' -f $drive.Name, ($drive.Free / 1GB), $MinFreeGB)
+}
+if ($LibreCADDir -and -not (Test-Path -LiteralPath $LibreCADDir)) {
+    $problems += "-LibreCADDir (or SAENGINE_LIBRECAD_DIR) $LibreCADDir does not exist."
+}
+if ($LibreCADLicenseDir -and -not (Test-Path -LiteralPath $LibreCADLicenseDir)) {
+    $problems += "-LibreCADLicenseDir (or SAENGINE_LIBRECAD_LICENSES) $LibreCADLicenseDir does not exist."
 }
 if ($problems.Count -gt 0) {
     throw ("Cannot build the installer:`n  - " + ($problems -join "`n  - "))
@@ -343,6 +437,31 @@ Invoke-Native 'node' @((Join-Path $installerScripts 'check-asar.mjs'), (Join-Pat
     '@saengine/fem-viewer/dist/fem-viewer.js', '@saengine/fem-viewer/dist/fragments-worker.mjs',
     '@saengine/cad-editor/dist/cad-editor.js') 'Viewer bundle check' $workbench
 
+Write-Step 'Installing the saengine command line shim in bin'
+# Code - OSS's build writes bin\<applicationName>.cmd (and a bin\<applicationName> shell script
+# for Git Bash and WSL): the launcher that opens a folder or file in the app window. The
+# "saengine" command is the SAEngine command line (python -m saengine.cli, docs\cli.md), so the
+# launcher moves to bin\saengine-app(.cmd) and the shims take its place. Safe to run again
+# (-SkipAppBuild): a launcher is recognised by its reference to out\cli.js.
+$binDir = Join-Path $appDir 'bin'
+$appName = $product.applicationName
+foreach ($extension in @('.cmd', '')) {
+    $current = Join-Path $binDir "$appName$extension"
+    $launcher = Join-Path $binDir "$appName-app$extension"
+    if ((Test-Path -LiteralPath $current) -and ((Get-Content -LiteralPath $current -Raw) -match 'out[\\/]cli\.js')) {
+        Move-Item -LiteralPath $current -Destination $launcher -Force
+    }
+    if (-not (Test-Path -LiteralPath $launcher)) {
+        throw "The Code - OSS launcher $launcher is missing: rebuild without -SkipAppBuild."
+    }
+}
+# The batch file with CRLF and the shell script with LF line ends, whatever git's autocrlf did
+# to the checkout.
+$cmdShim = (Get-Content -LiteralPath (Join-Path $installerScripts 'saengine.cmd') -Raw) -replace "`r?`n", "`r`n"
+[IO.File]::WriteAllText((Join-Path $binDir "$appName.cmd"), $cmdShim, (New-Object Text.ASCIIEncoding))
+$shellShim = (Get-Content -LiteralPath (Join-Path $installerScripts 'saengine.sh') -Raw) -replace "`r`n", "`n"
+[IO.File]::WriteAllText((Join-Path $binDir $appName), $shellShim, (New-Object Text.UTF8Encoding $false))
+
 # --- 3. Bundled Python -----------------------------------------------------------------------
 $bundledPython = Join-Path $workDir 'python'
 if (-not $SkipPython -or -not (Test-Path (Join-Path $bundledPython 'python.exe'))) {
@@ -374,6 +493,18 @@ if ($EnergyPlusDir) {
     Write-Host 'EnergyPlus is not bundled (no -EnergyPlusDir or SAENGINE_ENERGYPLUS_DIR): the HVAC loads will be the estimate.'
 }
 
+$appLibreCAD = Join-Path $appDir 'resources\librecad'
+Remove-Tree $appLibreCAD
+if ($LibreCADDir) {
+    Write-Step 'Copying LibreCAD 2.2.1.6 (a separate program for the DXF drawings) into the app'
+    $started = [Diagnostics.Stopwatch]::StartNew()
+    Invoke-LibreCADBundle -Python (Join-Path $appPython 'python.exe') -Dest $appLibreCAD
+    $timings['LibreCAD'] = $started.Elapsed
+} else {
+    Write-Host 'LibreCAD is not bundled (no -LibreCADDir or SAENGINE_LIBRECAD_DIR): "Open in CAD" will use the program Windows associates with .dxf files.'
+}
+$libreCADManifest = Join-Path $appLibreCAD 'SAENGINE-BUNDLE.json'
+
 # --- 4. Notices ------------------------------------------------------------------------------
 Write-Step 'Writing THIRD_PARTY_NOTICES.txt and LICENSE.txt'
 $sourcesName = "$($product.nameShort)-$Version-third-party-sources"
@@ -383,12 +514,15 @@ Invoke-Native (Join-Path $appPython 'python.exe') @('-I', '-B', (Join-Path $inst
     '--python-license', (Join-Path $appPython 'LICENSE.txt'),
     '--js-package', (Join-Path $repoRoot 'packages\fem-viewer'), '--js-package', (Join-Path $repoRoot 'packages\cad-editor'),
     '--copyleft-sources', (Join-Path $installerScripts 'copyleft-sources.json'), '--sources-name', $sourcesName,
-    '--energyplus', $appEnergyPlus) 'Writing the notices'
+    '--energyplus', $appEnergyPlus, '--librecad', $appLibreCAD) 'Writing the notices'
 
 Write-Step 'Collecting the source archives of the copyleft binaries'
 $sourcesDir = Join-Path $distDir $sourcesName
 $started = [Diagnostics.Stopwatch]::StartNew()
-& (Join-Path $installerScripts 'fetch-sources.ps1') -RepoRoot $repoRoot -CacheDir (Join-Path $workDir 'cache\sources') -OutDir $sourcesDir
+$sourcesArgs = @{ RepoRoot = $repoRoot; CacheDir = (Join-Path $workDir 'cache\sources'); OutDir = $sourcesDir }
+if (Test-Path -LiteralPath $libreCADManifest) { $sourcesArgs['LibreCADManifest'] = $libreCADManifest }
+if ($AllowUnpinnedSources) { $sourcesArgs['AllowUnpinned'] = $true }
+& (Join-Path $installerScripts 'fetch-sources.ps1') @sourcesArgs
 $timings['copyleft sources'] = $started.Elapsed
 
 # --- 5. Inno Setup ---------------------------------------------------------------------------
@@ -414,6 +548,9 @@ $rows = @(
 )
 if (Test-Path $appEnergyPlus) {
     $rows += [pscustomobject]@{ Item = '  of which resources\energyplus'; Size = Format-Size (Get-FolderSize $appEnergyPlus) }
+}
+if (Test-Path $appLibreCAD) {
+    $rows += [pscustomobject]@{ Item = '  of which resources\librecad'; Size = Format-Size (Get-FolderSize $appLibreCAD) }
 }
 if ($setupFile) {
     $rows += [pscustomobject]@{ Item = (Split-Path -Leaf $setupFile); Size = Format-Size (Get-Item $setupFile).Length }

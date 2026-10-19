@@ -54,6 +54,20 @@ Methods:
 - ``mep/electricalProposeEquipment`` ``{projectRoot, mepText?}`` -> ``{equipment, notes}``
 - ``mep/electricalOpenings`` ``{projectRoot, mepText?}`` -> ``{openings, notes}`` still missing
 - ``mep/electricalUses`` ``{}`` -> ``{uses}`` BNBC Table 8.1.17's rows
+- ``project/exportArchive`` ``{projectRoot, outPath, includeResults?, includeVersions?,
+  includeExports?, note?, saengineVersion?}`` -> ``{path, size, files, skipped, problems}``: the
+  project as one ``.civil`` file (``saengine.project.archive``; in a worker thread)
+- ``project/inspectArchive`` ``{path, currentVersion?, verify?}`` -> ``{manifest, problems, ok}``
+- ``project/importArchive`` ``{path, destParent, name?, overwrite?, currentVersion?, migrate?}``
+  -> ``{root, name, files, problems, migrated, pending}`` (in a worker thread)
+- ``versions/status`` ``{projectRoot}``, ``versions/list`` ``{projectRoot, limit?}``,
+  ``versions/save`` ``{projectRoot, message, author?, issued?, label?}``, ``versions/diff``
+  ``{projectRoot, fromVersion?, toVersion?}``, ``versions/restore`` ``{projectRoot, version, parts?, author?,
+  commit?}``, ``versions/markIssued`` ``{projectRoot, version, label, author?}``: the project's
+  version history (``saengine.project.versions``; in threads of their own, one operation at a
+  time per project, so a long save never holds up the other methods)
+
+A refused archive or versions operation answers ``{ok: false, code, message, problems}``.
 
 Analyses themselves are not run here: the workbench starts
 ``python -m opensees_studio.run`` per run, so an OpenSees hard exit can never take
@@ -62,9 +76,13 @@ this long-lived server down.
 
 from __future__ import annotations
 
+import asyncio
+import functools
 import os
 import sys
 import threading
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, BinaryIO
 
 from pygls.protocol import JsonRPCProtocol, default_converter
@@ -80,6 +98,52 @@ def _plain(value: Any) -> Any:
     if isinstance(value, list | tuple):
         return [_plain(v) for v in value]
     return value
+
+
+# Long requests (EnergyPlus, tank designs, archives) run in these threads while the server keeps
+# answering. Not pygls's ``server.thread()``: its pool also reads stdin, and a result computed
+# there could wait for the client's next message before it was sent.
+_WORKERS = ThreadPoolExecutor(max_workers=4, thread_name_prefix="saengine-rpc")
+
+
+def _in_worker(handler: Callable[[Any], Any]) -> Callable[[Any], Any]:
+    """``handler`` run in a worker thread; its answer is sent as soon as it is ready."""
+
+    @functools.wraps(handler)
+    async def run(params: Any) -> Any:
+        return await asyncio.get_running_loop().run_in_executor(_WORKERS, handler, params)
+
+    return run
+
+
+# The version history (dulwich hashing and writing every file of a project, which takes seconds
+# with large drawings or scans) runs in its own threads, so neither the quick requests nor the
+# long ones above wait behind a save; one operation at a time per project, so two saves, or a
+# status read during a restore, never see a half-written index or branch.
+_VERSIONS_WORKERS = ThreadPoolExecutor(max_workers=2, thread_name_prefix="saengine-versions")
+_PROJECT_LOCKS: dict[str, threading.Lock] = {}
+_PROJECT_LOCKS_GUARD = threading.Lock()
+
+
+def _project_lock(root: str) -> threading.Lock:
+    key = os.path.normcase(os.path.abspath(root))
+    with _PROJECT_LOCKS_GUARD:
+        return _PROJECT_LOCKS.setdefault(key, threading.Lock())
+
+
+def _versions_worker(handler: Callable[[dict[str, Any]], Any]) -> Callable[[Any], Any]:
+    """``handler`` (given the plain params) run in a versions thread under its project's lock."""
+
+    def locked(params: Any) -> Any:
+        args = _plain(params)
+        with _project_lock(str(args["projectRoot"])):
+            return handler(args)
+
+    @functools.wraps(handler)
+    async def run(params: Any) -> Any:
+        return await asyncio.get_running_loop().run_in_executor(_VERSIONS_WORKERS, locked, params)
+
+    return run
 
 
 def create_server() -> JsonRPCServer:
@@ -276,7 +340,7 @@ def create_server() -> JsonRPCServer:
     # A project's first tank designs take about half a minute (cached after): in a worker thread,
     # so the editor's other requests (the HVAC and electrical reports) are answered meanwhile.
     @server.feature("mep/plumbingReport")
-    @server.thread()
+    @_in_worker
     def _plumbing_report(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.plumbing_report(args["projectRoot"], args.get("mepText"))
@@ -303,7 +367,7 @@ def create_server() -> JsonRPCServer:
     # EnergyPlus takes up to half a minute: in a worker thread, so the editor's other requests
     # (and mep/hvacCancelLoads) are answered meanwhile.
     @server.feature("mep/hvacLoads")
-    @server.thread()
+    @_in_worker
     def _hvac_loads(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.hvac_report(args["projectRoot"], args.get("mepText"), calculate=True)
@@ -349,6 +413,90 @@ def create_server() -> JsonRPCServer:
     def _electrical_uses(params: Any) -> dict[str, Any]:
         return handlers.electrical_uses()
 
+    # A project's archive can hold large result files: in a worker thread.
+    @server.feature("project/exportArchive")
+    @_in_worker
+    def _export_archive(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        # Under the project's versions lock: the archive may copy the version history.
+        with _project_lock(str(args["projectRoot"])):
+            return handlers.project_export_archive(
+                args["projectRoot"],
+                args["outPath"],
+                bool(args.get("includeResults")),
+                bool(args.get("includeVersions")),
+                args.get("includeExports") is not False,
+                args.get("note"),
+                args.get("saengineVersion"),
+            )
+
+    @server.feature("project/inspectArchive")
+    def _inspect_archive(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.project_inspect_archive(
+            args["path"], args.get("currentVersion"), args.get("verify") is not False
+        )
+
+    @server.feature("project/importArchive")
+    @_in_worker
+    def _import_archive(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.project_import_archive(
+            args["path"],
+            args["destParent"],
+            args.get("name"),
+            bool(args.get("overwrite")),
+            args.get("currentVersion"),
+            args.get("migrate") is not False,
+        )
+
+    @server.feature("versions/status")
+    @_versions_worker
+    def _versions_status(args: dict[str, Any]) -> dict[str, Any]:
+        return handlers.versions_status(args["projectRoot"])
+
+    @server.feature("versions/list")
+    @_versions_worker
+    def _versions_list(args: dict[str, Any]) -> dict[str, Any]:
+        return handlers.versions_list(args["projectRoot"], args.get("limit") or 200)
+
+    @server.feature("versions/save")
+    @_versions_worker
+    def _versions_save(args: dict[str, Any]) -> dict[str, Any]:
+        return handlers.versions_save(
+            args["projectRoot"],
+            args["message"],
+            args.get("author"),
+            bool(args.get("issued")),
+            args.get("label"),
+        )
+
+    @server.feature("versions/diff")
+    @_versions_worker
+    def _versions_diff(args: dict[str, Any]) -> dict[str, Any]:
+        # Not "from": pygls turns params into named tuples, which rename Python keywords.
+        return handlers.versions_diff(
+            args["projectRoot"], args.get("fromVersion"), args.get("toVersion")
+        )
+
+    @server.feature("versions/restore")
+    @_versions_worker
+    def _versions_restore(args: dict[str, Any]) -> dict[str, Any]:
+        return handlers.versions_restore(
+            args["projectRoot"],
+            args["version"],
+            args.get("parts"),
+            args.get("author"),
+            args.get("commit") is not False,
+        )
+
+    @server.feature("versions/markIssued")
+    @_versions_worker
+    def _versions_mark_issued(args: dict[str, Any]) -> dict[str, Any]:
+        return handlers.versions_mark_issued(
+            args["projectRoot"], args["version"], args["label"], args.get("author")
+        )
+
     return server
 
 
@@ -364,11 +512,28 @@ def _claim_stdout() -> BinaryIO:
     return os.fdopen(protocol_fd, "wb", buffering=0)
 
 
+def _claim_stdin() -> BinaryIO:
+    """Keep the real stdin for the protocol and give fd 0 the null device.
+
+    On Windows a pipe with a read pending (the protocol reader waits on stdin between messages)
+    blocks every other call on it, and each native extension loaded for the first time (scipy,
+    OpenBLAS) asks the standard input for its type: an import in a worker thread then waited
+    for the client's next message. The protocol reads its own duplicate of the pipe instead,
+    and programs started by the backend no longer inherit (and could read) it.
+    """
+    protocol_fd = os.dup(0)
+    null = os.open(os.devnull, os.O_RDONLY)
+    os.dup2(null, 0)
+    os.close(null)
+    return os.fdopen(protocol_fd, "rb")
+
+
 def main() -> int:
+    stdin = _claim_stdin()
     stdout = _claim_stdout()
     server = create_server()
     # WNTR's first import takes a second or two: done ahead of the editor's first request.
     threading.Thread(target=handlers.warm_plumbing, name="warm-plumbing", daemon=True).start()
     threading.Thread(target=handlers.warm_services, name="warm-services", daemon=True).start()
-    server.start_io(sys.stdin.buffer, stdout)
+    server.start_io(stdin, stdout)
     return 0

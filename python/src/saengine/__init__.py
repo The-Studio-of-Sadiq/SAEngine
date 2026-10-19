@@ -6,4 +6,6 @@ what the SAEngine workbench needs on top: a JSON-RPC server and the glue that tu
 opensees-studio objects into JSON for the workbench.
 """
 
-__version__ = "0.1.0"
+# The SAEngine release this backend belongs to: always workbench/package.json's "version" (bumped
+# together; tests/test_version.py checks it). Archives (.civil) record it.
+__version__ = "0.0.34"

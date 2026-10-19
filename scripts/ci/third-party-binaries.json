@@ -1,0 +1,62 @@
+{
+  "_comment": "Third-party programs and licence texts the release build bundles (.github/workflows/release.yml). scripts/ci/fetch_pinned.py downloads each into a cache, checks the SHA-256 and, for 'unpack', extracts it. Bump url, file, size and sha256 together. The installer hashes are GitHub's own 'digest' of the release asset (GET /repos/<owner>/<repo>/releases/tags/<tag>); the licence texts are the files at the tag. None of these programs is linked into SAEngine: each runs as a separate program (see docs/ci.md and THIRD_PARTY_NOTICES.txt).",
+  "items": [
+    {
+      "name": "energyplus",
+      "version": "26.2.0",
+      "license": "BSD-3-Clause-style with a clause on the use of its name (EnergyPlus licence)",
+      "file": "EnergyPlus-26.2.0-4bd7a1f26f-Windows-x86_64.zip",
+      "url": "https://github.com/NatLabRockies/EnergyPlus/releases/download/v26.2.0/EnergyPlus-26.2.0-4bd7a1f26f-Windows-x86_64.zip",
+      "sha256": "15ab698803f459444ec3e97ee52ab9f99db93a583819c7821b17dfcd7b4461e7",
+      "unpack": "zip",
+      "program": "energyplus.exe"
+    },
+    {
+      "name": "librecad",
+      "version": "2.2.1.6",
+      "license": "GPL-2.0-only",
+      "file": "LibreCAD-v2.2.1.6-win64-msvc.exe",
+      "url": "https://github.com/LibreCAD/LibreCAD/releases/download/v2.2.1.6/LibreCAD-v2.2.1.6-win64-msvc.exe",
+      "size": 84583257,
+      "sha256": "0cd876d0e3fbfcdcdb85e5019080aca243908f4ad5c3b3c93a55ee9ba154f95b",
+      "unpack": "7z",
+      "program": "LibreCAD.exe"
+    },
+    {
+      "name": "librecad-license",
+      "version": "2.2.1.6",
+      "license": "GPL-2.0-only (LibreCAD's LICENSE file)",
+      "file": "LICENSE",
+      "url": "https://github.com/LibreCAD/LibreCAD/releases/download/v2.2.1.6/LICENSE",
+      "size": 4035,
+      "sha256": "211000d6635a62c76ae212baf868d6f0bce38bee11ac68100325f3dfae826197"
+    },
+    {
+      "name": "librecad-gpl-2.0",
+      "version": "2.2.1.6",
+      "license": "GPL-2.0 text (licenses/gpl-2.0.txt at the tag)",
+      "file": "gpl-2.0.txt",
+      "url": "https://raw.githubusercontent.com/LibreCAD/LibreCAD/v2.2.1.6/licenses/gpl-2.0.txt",
+      "size": 18092,
+      "sha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643"
+    },
+    {
+      "name": "qt-lgpl-3.0",
+      "version": "5.15.2",
+      "license": "Qt's LGPL-3.0 notice (qtbase LICENSE.LGPLv3 at v5.15.2)",
+      "file": "Qt-LICENSE.LGPLv3",
+      "url": "https://raw.githubusercontent.com/qt/qtbase/v5.15.2/LICENSE.LGPLv3",
+      "size": 8173,
+      "sha256": "88ec689407cf2df9b2eb5c45952564d51ce73c129a3bdffb15c0d2d161ad7558"
+    },
+    {
+      "name": "qt-gpl-3.0",
+      "version": "5.15.2",
+      "license": "GPL-3.0 text that the LGPL-3.0 supplements (qtbase LICENSE.GPL3 at v5.15.2)",
+      "file": "Qt-LICENSE.GPL3",
+      "url": "https://raw.githubusercontent.com/qt/qtbase/v5.15.2/LICENSE.GPL3",
+      "size": 35147,
+      "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
+    }
+  ]
+}

@@ -26,7 +26,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -38,6 +38,8 @@ import { EXPORT_DXF_FOLDER, EXPORT_IFC_FOLDER, exportKind, ISaenginePartStatusSe
 import { ISaengineProject, ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { EditorFrame, IEditorFrameStatus } from './editorFrame.js';
 import { ExportsEditorInput } from './exportsEditorInput.js';
+import { LAST_ARCHIVE_STORAGE_KEY, readLastArchive } from './projectArchiveFlows.js';
+import { ARCHIVE_EXPORT_COMMAND, CAD_OPEN_COMMAND, EXPORT_ARCHIVE_UI_COMMAND, lastArchiveDescription, OPEN_DXF_IN_CAD_UI_COMMAND } from './projectArchiveModel.js';
 import { partName } from './projectParts.js';
 
 /*
@@ -107,6 +109,8 @@ export class ExportsEditor extends EditorPane {
 	private list!: HTMLElement;
 	private files = new Map<ExportKind, IExportFile[]>();
 	private scanned = false;
+	/** The last archive written from this project, if it is still where it was written (with its size now). */
+	private archive: { readonly resource: URI; readonly size?: number; readonly time: number } | undefined;
 	private scanVersion = 0;
 	private actionsKey: string | undefined;
 	/** The first control of the list, which takes the focus. */
@@ -121,13 +125,14 @@ export class ExportsEditor extends EditorPane {
 	private readonly ifcAction = this._register(new Action('saengine.exports.ifc', localize('exports.exportIfc', "Export IFC"), undefined, true, () => this.make('ifc')));
 	private readonly dxfAction = this._register(new Action('saengine.exports.dxf', localize('exports.exportDxf', "Export DXF Floor Plans"), undefined, true, () => this.make('dxf')));
 	private readonly csvAction = this._register(new Action('saengine.exports.csv', localize('exports.exportCsv', "Export Bill of Quantities as CSV..."), undefined, true, () => this.make('csv')));
+	private readonly archiveAction = this._register(new Action('saengine.exports.archive', localize('exports.exportArchive', "Export Project (.civil)..."), undefined, true, () => this.exportArchive()));
 	private readonly refreshAction = this._register(new Action('saengine.exports.refresh', localize('exports.refresh', "Refresh"), undefined, true, () => this.scan()));
 
 	constructor(
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private readonly storage: IStorageService,
 		@ISaengineProjectService private readonly projectService: ISaengineProjectService,
 		@ISaenginePartStatusService private readonly statusService: ISaenginePartStatusService,
 		@IFileService private readonly fileService: IFileService,
@@ -138,7 +143,13 @@ export class ExportsEditor extends EditorPane {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(ExportsEditor.ID, group, telemetryService, themeService, storageService);
+		super(ExportsEditor.ID, group, telemetryService, themeService, storage);
+		this._register(this.storage.onDidChangeValue(StorageScope.WORKSPACE, LAST_ARCHIVE_STORAGE_KEY, this._store)(() => this.scanScheduler.schedule(0)));
+		this._register(CommandsRegistry.onDidRegisterCommand(id => {
+			if (id === ARCHIVE_EXPORT_COMMAND || id === CAD_OPEN_COMMAND) {
+				this.render();
+			}
+		}));
 		this._register(this.projectService.onDidChangeProject(() => this.watchProject()));
 		this._register(this.statusService.onDidChange(() => this.render()));
 	}
@@ -150,7 +161,7 @@ export class ExportsEditor extends EditorPane {
 		}));
 		this.frame.element.classList.add('saengine-exports-editor');
 		this.frame.setTitle(localize('exports.title', "Exports"));
-		this.frame.setHelp(localize('exports.help', "What the project hands over: the design report, the building model as IFC, the floor plans as DXF and the bill of quantities as CSV. Each is made from its part and written to the 11 Exports folder."));
+		this.frame.setHelp(localize('exports.help', "What the project hands over: the design report, the building model as IFC, the floor plans as DXF and the bill of quantities as CSV. Each is made from its part and written to the 11 Exports folder. The project archive (.civil) holds the whole project in one file."));
 		this.list = $('.exports-list');
 		this.scrollable = this._register(new DomScrollableElement(this.list, { horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Auto }));
 		append(this.frame.main, this.scrollable.getDomNode()).classList.add('exports-scroll');
@@ -187,6 +198,7 @@ export class ExportsEditor extends EditorPane {
 	private watchProject(): void {
 		this.projectDisposables.clear();
 		this.files.clear();
+		this.archive = undefined;
 		this.scanned = false;
 		const folder = this.exportsFolder;
 		if (folder && this.input) {
@@ -222,16 +234,35 @@ export class ExportsEditor extends EditorPane {
 				// Not made yet: the folder is created by the first export.
 			}
 		};
-		await Promise.all(['', EXPORT_IFC_FOLDER, EXPORT_DXF_FOLDER].map(read));
+		const [archive] = await Promise.all([this.findLastArchive(), ...['', EXPORT_IFC_FOLDER, EXPORT_DXF_FOLDER].map(read)]);
 		if (version !== this.scanVersion) {
 			return;
 		}
+		this.archive = archive;
 		for (const list of files.values()) {
 			list.sort((a, b) => a.name.localeCompare(b.name));
 		}
 		this.files = files;
 		this.scanned = true;
 		this.render();
+	}
+
+	/**
+	 * The last archive written from this project, if it is still there: it may have been saved
+	 * anywhere, and moved or deleted since (then the row offers a new export).
+	 */
+	private async findLastArchive(): Promise<{ readonly resource: URI; readonly size?: number; readonly time: number } | undefined> {
+		const last = readLastArchive(this.storage.get(LAST_ARCHIVE_STORAGE_KEY, StorageScope.WORKSPACE));
+		if (!last) {
+			return undefined;
+		}
+		const resource = URI.file(last.path);
+		try {
+			const stat = await this.fileService.stat(resource);
+			return stat.isFile ? { resource, size: stat.size, time: last.time } : undefined;
+		} catch {
+			return undefined;
+		}
 	}
 
 	/** The kinds of export the open project has, in the order the workflow makes them. */
@@ -313,6 +344,7 @@ export class ExportsEditor extends EditorPane {
 		for (const kind of kinds) {
 			this.renderKind(kind);
 		}
+		this.renderArchive(project);
 		this.updateActions(kinds);
 		this.frame.setStatus(this.status());
 		this.scrollable.scanDomNode();
@@ -326,7 +358,8 @@ export class ExportsEditor extends EditorPane {
 		this.dxfAction.enabled = has('dxf');
 		this.csvAction.enabled = has('csv') && !kinds?.find(k => k.kind === 'csv')?.blocked;
 		this.revealFolderAction.enabled = !!kinds;
-		const secondary: IAction[] = [this.printAction, this.ifcAction, ...(has('dxf') ? [this.dxfAction] : []), this.csvAction, new Separator(), this.refreshAction];
+		this.archiveAction.enabled = !!kinds && !!CommandsRegistry.getCommand(ARCHIVE_EXPORT_COMMAND);
+		const secondary: IAction[] = [this.printAction, this.ifcAction, ...(has('dxf') ? [this.dxfAction] : []), this.csvAction, new Separator(), this.archiveAction, new Separator(), this.refreshAction];
 		const key = secondary.map(a => a.id).join();
 		if (key !== this.actionsKey) {
 			this.actionsKey = key;
@@ -405,6 +438,9 @@ export class ExportsEditor extends EditorPane {
 
 	private renderFileButtons(container: HTMLElement, file: IExportFile, kind: IExportKind): void {
 		this.renderDisposables.add(this.frame.createIconButton(container, kind.kind === 'dxf' ? Codicon.goToFile : Codicon.linkExternal, localize('exports.openFile', "Open {0}", file.name), () => void this.openFile(file, kind)));
+		if (kind.kind === 'dxf') {
+			this.renderDisposables.add(this.frame.createIconButton(container, Codicon.linkExternal, this.cadLabel(), () => void this.openInCad(file)));
+		}
 		if (CommandsRegistry.getCommand(REVEAL_IN_OS_COMMAND)) {
 			this.renderDisposables.add(this.frame.createIconButton(container, Codicon.folderOpened, localize('exports.reveal', "Reveal in File Explorer"), () => void this.reveal(file.resource)));
 		}
@@ -414,6 +450,9 @@ export class ExportsEditor extends EditorPane {
 		const actions: IAction[] = [];
 		if (file) {
 			actions.push(new Action('saengine.exports.open', localize('exports.open', "Open"), undefined, true, () => this.openFile(file, kind)));
+			if (kind.kind === 'dxf') {
+				actions.push(new Action('saengine.exports.openInCad', this.cadLabel(), undefined, true, () => this.openInCad(file)));
+			}
 			if (CommandsRegistry.getCommand(REVEAL_IN_OS_COMMAND)) {
 				actions.push(new Action('saengine.exports.reveal', localize('exports.reveal', "Reveal in File Explorer"), undefined, true, () => this.reveal(file.resource)));
 			}
@@ -455,6 +494,77 @@ export class ExportsEditor extends EditorPane {
 		} else {
 			await this.openerService.open(file.resource, { openExternal: true });
 		}
+	}
+
+	/** "Open in LibreCAD" with the bundled LibreCAD; "Open in CAD Program" with the system's. */
+	private cadLabel(): string {
+		return CommandsRegistry.getCommand(CAD_OPEN_COMMAND)
+			? localize('exports.openInLibreCad', "Open in LibreCAD")
+			: localize('exports.openInCadProgram', "Open in CAD Program");
+	}
+
+	private async openInCad(file: IExportFile): Promise<void> {
+		await this.commandService.executeCommand(OPEN_DXF_IN_CAD_UI_COMMAND, file.resource);
+	}
+
+	private async exportArchive(): Promise<void> {
+		try {
+			await this.commandService.executeCommand(EXPORT_ARCHIVE_UI_COMMAND);
+		} catch (error) {
+			this.notificationService.error(toErrorMessage(error));
+		}
+	}
+
+	/**
+	 * The whole project as one `.civil` file, to send or keep. It is written outside the project
+	 * folder (an archive never holds another one), so the row shows the last one written from here,
+	 * where it is, while it is still there.
+	 */
+	private renderArchive(project: ISaengineProject): void {
+		const last = this.archive;
+		const available = !!CommandsRegistry.getCommand(ARCHIVE_EXPORT_COMMAND);
+		const title = localize('exports.archive', "Project archive (.civil)");
+		const section = append(this.list, $('section.exports-kind.exports-archive', { 'aria-label': title }));
+		section.classList.toggle('made', !!last);
+		const row = append(section, $('.exports-row'));
+		append(row, $(`span.exports-icon${ThemeIcon.asCSSSelector(Codicon.package)}`));
+		const text = append(row, $('.exports-text'));
+		append(text, $('.exports-title', undefined, title));
+		append(text, $('.exports-description', undefined, !available
+			? localize('exports.archiveUnavailable', "Project archives are not available in this build of SAEngine.")
+			: last
+				? lastArchiveDescription(last.resource, last.size, project.root)
+				: localize('exports.archiveDescription', "The whole project in one file, to send to a colleague or keep with an issue. It opens with Open Project Archive.")));
+		if (last) {
+			row.title = last.resource.fsPath;
+		}
+		const when = append(row, $('.exports-when'));
+		const actions = append(row, $('.exports-actions'));
+		this.renderDisposables.add(addDisposableListener(row, EventType.CONTEXT_MENU, (e: MouseEvent) => {
+			e.preventDefault();
+			const menu: IAction[] = [new Action('saengine.exports.archiveMake', last ? localize('exports.archiveAgain', "Export Project Again...") : localize('exports.exportArchive', "Export Project (.civil)..."), undefined, available, () => this.exportArchive())];
+			if (last && CommandsRegistry.getCommand(REVEAL_IN_OS_COMMAND)) {
+				menu.push(new Action('saengine.exports.archiveReveal', localize('exports.reveal', "Reveal in File Explorer"), undefined, true, () => this.reveal(last.resource)));
+			}
+			const event = new StandardMouseEvent(getWindow(this.list), e);
+			this.contextMenuService.showContextMenu({ getAnchor: () => event, getActions: () => menu });
+		}));
+		if (last && available) {
+			when.textContent = formatTime(last.time);
+			const again = this.renderDisposables.add(this.frame.createIconButton(actions, Codicon.refresh, localize('exports.archiveAgain', "Export Project Again..."), () => void this.exportArchive()));
+			this.firstControl ??= again.element;
+			if (CommandsRegistry.getCommand(REVEAL_IN_OS_COMMAND)) {
+				this.renderDisposables.add(this.frame.createIconButton(actions, Codicon.folderOpened, localize('exports.reveal', "Reveal in File Explorer"), () => void this.reveal(last.resource)));
+			}
+			return;
+		}
+		when.textContent = available ? localize('exports.notMade', "Not made yet") : '';
+		when.classList.add('muted');
+		const button = this.renderDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		button.label = localize('exports.exportArchive', "Export Project (.civil)...");
+		button.enabled = available;
+		this.renderDisposables.add(button.onDidClick(() => void this.exportArchive()));
+		this.firstControl ??= button.element;
 	}
 
 	private async reveal(resource: URI): Promise<void> {

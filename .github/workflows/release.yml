@@ -1,0 +1,193 @@
+# SAEngine release: builds the Windows x64 user setup with EnergyPlus and LibreCAD bundled,
+# smoke-tests it, and creates the GitHub pre-release with the same files as the manual
+# releases. A draft by default: review it on GitHub, then publish. How to cut one: docs/ci.md.
+name: Release
+
+on:
+  push:
+    tags: ['Pre-Alpha-v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag, Pre-Alpha-v<N> (created on this commit when the release is published)'
+        required: true
+        type: string
+      version:
+        description: 'Version in the file names (default: <x.y.z of the v<x.y.z> commit>-alpha.<N>)'
+        required: false
+        type: string
+      draft:
+        description: 'Create the release as a draft'
+        required: false
+        type: boolean
+        default: true
+
+# One release build per tag at a time; a second one waits instead of cancelling the first.
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  installer:
+    name: Windows installer and pre-release
+    # A larger runner (for example a 4-core Windows larger runner) can be set in the repository
+    # variable SAENGINE_RELEASE_RUNNER; see docs/ci.md.
+    runs-on: ${{ vars.SAENGINE_RELEASE_RUNNER || 'windows-latest' }}
+    timeout-minutes: 300
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      NPM_ARCH: x64
+      VSCODE_ARCH: x64
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The whole history: the version comes from the release commit (v<x.y.z>) and the
+          # build stamps the commit into product.json. third_party/opensees-studio is vendored.
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: workbench/.nvmrc
+
+      - name: Set up Python (for the CI scripts and node-gyp)
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Version and title
+        id: release
+        shell: pwsh
+        run: python -I scripts/ci/release.py version --tag "$env:RELEASE_TAG" --version "${{ inputs.version }}"
+
+      - name: Disk and memory
+        shell: pwsh
+        run: |
+          Get-PSDrive -PSProvider FileSystem | Format-Table Name, @{n='FreeGB';e={[math]::Round($_.Free/1GB,1)}}
+          '{0:N1} GB RAM' -f ((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)
+
+      - name: Cache the pinned downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ runner.temp }}/third-party-cache
+            ${{ runner.temp }}/librecad-licenses
+            workbench/.build/saengine-installer/cache
+          key: release-downloads-${{ hashFiles('scripts/ci/third-party-binaries.json', 'scripts/installer/copyleft-sources.json', 'scripts/installer/bundle-python.ps1') }}
+          restore-keys: release-downloads-
+
+      - name: Fetch EnergyPlus 26.2.0, LibreCAD 2.2.1.6 and the licence texts (SHA-256 pinned)
+        id: thirdparty
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -I scripts/ci/fetch_pinned.py --cache "$env:RUNNER_TEMP/third-party-cache" --out "$env:RUNNER_TEMP/third-party" energyplus librecad
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -I scripts/ci/fetch_pinned.py --cache "$env:RUNNER_TEMP/librecad-licenses" librecad-license librecad-gpl-2.0 qt-lgpl-3.0 qt-gpl-3.0
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-ChildItem "$env:RUNNER_TEMP/librecad-licenses" -Filter '*.partial' | Remove-Item -Force
+
+      - name: Build the SAEngine viewer packages
+        shell: pwsh
+        working-directory: packages
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($package in 'fem-viewer', 'cad-editor') {
+            Push-Location $package
+            npm ci; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            npm run build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Pop-Location
+          }
+
+      - name: npm ci (workbench)
+        shell: pwsh
+        working-directory: workbench
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Push-Location build
+          npm ci; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Pop-Location
+          # As Code - OSS's Windows CI: the preinstall step first, so that native modules build
+          # against the patched Electron headers.
+          node build/npm/preinstall.ts; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          for ($i = 1; $i -le 3; $i++) {
+            npm ci
+            if ($LASTEXITCODE -eq 0) { break }
+            if ($i -eq 3) { exit 1 }
+            Start-Sleep -Seconds 10
+          }
+        env:
+          npm_config_arch: ${{ env.NPM_ARCH }}
+          npm_config_foreground_scripts: 'true'
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+
+      - name: Build the installer (scripts/build-installer.ps1)
+        shell: powershell
+        run: |
+          & scripts\build-installer.ps1 -Version '${{ steps.release.outputs.version }}' `
+            -EnergyPlusDir '${{ steps.thirdparty.outputs.energyplus_dir }}' `
+            -LibreCADDir '${{ steps.thirdparty.outputs.librecad_dir }}' `
+            -LibreCADLicenseDir "$env:RUNNER_TEMP\librecad-licenses" `
+            -AllowUnpinnedSources -MinFreeGB 12
+
+      - name: Smoke test (silent install, bundled Python, app start, uninstall)
+        shell: powershell
+        run: |
+          & scripts\installer\smoke-test.ps1 -Setup "dist\SAEngine-x64-user-setup-${{ steps.release.outputs.version }}.exe"
+
+      - name: Verification Manual (with the bundled Python)
+        shell: pwsh
+        run: |
+          # The pack exits 1 while a known issue fails; the expected-failure list decides.
+          $PSNativeCommandUseErrorActionPreference = $false
+          & VSCode-win32-x64\resources\python\python.exe -I -m saengine.verification --pdf --out "$env:RUNNER_TEMP\verification"
+          python -I scripts/ci/check_verification.py "$env:RUNNER_TEMP\verification\verification.json"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Collect the release files
+        id: assets
+        shell: pwsh
+        run: |
+          python -I scripts/ci/release.py assets --tag "$env:RELEASE_TAG" --version '${{ steps.release.outputs.version }}' `
+            --out "$env:RUNNER_TEMP\release\assets" --verification-pdf "$env:RUNNER_TEMP\verification\verification-manual.pdf"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Create the GitHub pre-release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $false
+          $env:GH_TOKEN = $env:GITHUB_TOKEN
+          gh release view "$env:RELEASE_TAG" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            throw "A release for $env:RELEASE_TAG exists already: delete it or use a new tag."
+          }
+          $global:LASTEXITCODE = 0
+          $draft = if ('${{ github.event_name }}' -eq 'push' -or '${{ inputs.draft }}' -ne 'false') { '--draft' } else { $null }
+          $files = Get-ChildItem "$env:RUNNER_TEMP\release\assets" -File | ForEach-Object { $_.FullName }
+          $arguments = @('release', 'create', $env:RELEASE_TAG, '--prerelease', '--target', '${{ github.sha }}',
+            '--title', '${{ steps.release.outputs.title }}', '--notes-file', '${{ steps.assets.outputs.notes }}')
+          if ($draft) { $arguments += $draft }
+          gh @arguments @files
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Keep the build logs and notices
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-logs
+          path: |
+            VSCode-win32-x64/THIRD_PARTY_NOTICES.txt
+            VSCode-win32-x64/resources/librecad/SAENGINE-BUNDLE.json
+            dist/*-third-party-sources/README.txt
+            ${{ runner.temp }}/SAEngine-smoke/setup.log
+            ${{ runner.temp }}/release/release-notes.md
+            ${{ runner.temp }}/verification/verification.json
+          if-no-files-found: ignore
+          retention-days: 14

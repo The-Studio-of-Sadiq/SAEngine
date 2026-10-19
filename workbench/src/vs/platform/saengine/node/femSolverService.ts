@@ -8,12 +8,15 @@ import { createInterface } from 'readline';
 import type { MessageConnection } from 'vscode-jsonrpc/node.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { dirname } from '../../../base/common/path.js';
+import { promises as fs } from 'fs';
+import { FileAccess } from '../../../base/common/network.js';
+import { dirname, extname, isAbsolute, join } from '../../../base/common/path.js';
+import { isWindows } from '../../../base/common/platform.js';
 import { killTree } from '../../../base/node/processes.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemResultList, IFemResultView, IFemRunEventMessage, IBuildingIfc, IBuildingIfcRequest, IFemDerivation, IFemDeriveRequest, IGeneratedBuilding, ILibraryProblem, LibraryFileKind, IFemRunExit, IFemRunRequest, IFemSolverService, IStructureEdit, IStructureGeometry, IStructureScriptResult, StructureGeometryResult, IBoqComputation, IBoqComputeRequest, IReportBuild, ISoilBearing, ISoilBearingRequest, ISoilImport, ISoilSources, ISoilTemplate, ISubstructureMigration, IMepServiceParams, MepServiceMethod } from '../common/femSolver.js';
+import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemResultList, IFemResultView, IFemRunEventMessage, IBuildingIfc, IBuildingIfcRequest, IFemDerivation, IFemDeriveRequest, IGeneratedBuilding, ILibraryProblem, LibraryFileKind, IFemRunExit, IFemRunRequest, IFemSolverService, IStructureEdit, IStructureGeometry, IStructureScriptResult, StructureGeometryResult, IBoqComputation, IBoqComputeRequest, IReportBuild, ISoilBearing, ISoilBearingRequest, ISoilImport, ISoilSources, ISoilTemplate, ISubstructureMigration, IMepServiceParams, MepServiceMethod, ICadOpenRequest, ICadOpenResult, ProjectPlatformMethod } from '../common/femSolver.js';
 
 interface IRun {
 	readonly child: cp.ChildProcess;
@@ -253,6 +256,40 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 		return this.request(python, method, params);
 	}
 
+	projectPlatform(python: string, method: ProjectPlatformMethod, params: object): Promise<object> {
+		return this.request(python, method, params);
+	}
+
+	async openInCad(request: ICadOpenRequest): Promise<ICadOpenResult> {
+		const path = request.path;
+		const refuse = (problem: string): ICadOpenResult => ({ ok: false, program: null, args: [], problems: [problem] });
+		if (typeof path !== 'string' || !isAbsolute(path) || extname(path).toLowerCase() !== '.dxf') {
+			return refuse(localize('cad.notDxf', "Only a DXF drawing (an absolute path ending in .dxf) can be opened in CAD."));
+		}
+		if (!await isFile(path)) {
+			return refuse(localize('cad.missing', "{0} does not exist.", path));
+		}
+		const found = await findCadProgram(request.program);
+		if (!found) {
+			// No LibreCAD: the caller hands the file to the system's DXF program.
+			return { ok: true, program: null, args: [path] };
+		}
+		const args = [path];
+		if (request.dryRun) {
+			return { ok: true, program: found.program, args, source: found.source };
+		}
+		this.logService.info(`[saengine] opening ${path} in ${found.program}`);
+		// Started directly (no shell): the drawing's path is one argument, whatever it contains.
+		const child = cp.spawn(found.program, args, { cwd: dirname(path), detached: true, stdio: 'ignore', shell: false, windowsHide: false });
+		return new Promise<ICadOpenResult>(resolve => {
+			child.once('error', error => resolve(refuse(localize('cad.startFailed', "{0} could not be started: {1}", found.program, error.message))));
+			child.once('spawn', () => {
+				child.unref();
+				resolve({ ok: true, program: found.program, args, source: found.source, pid: child.pid });
+			});
+		});
+	}
+
 	private async request<T>(python: string, method: string, params: object): Promise<T> {
 		const backend = await this.backend(python);
 		try {
@@ -313,4 +350,38 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 			killTree(child.pid, true).catch(() => child.kill());
 		}
 	}
+}
+
+async function isFile(path: string): Promise<boolean> {
+	try {
+		return (await fs.stat(path)).isFile();
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * The LibreCAD to open drawings with: the `saengine.cad.program` setting when it names an
+ * existing program, else the copy bundled with SAEngine (`resources/librecad`, beside the bundled
+ * Python), else an installed LibreCAD (`%ProgramFiles%\LibreCAD`).
+ */
+async function findCadProgram(configured: string | undefined): Promise<{ readonly program: string; readonly source: 'setting' | 'bundled' | 'installed' } | undefined> {
+	if (configured?.trim() && isAbsolute(configured.trim()) && await isFile(configured.trim())) {
+		return { program: configured.trim(), source: 'setting' };
+	}
+	const exe = isWindows ? 'LibreCAD.exe' : 'librecad';
+	const appRoot = dirname(FileAccess.asFileUri('').fsPath);
+	const bundled = join(appRoot, '..', 'librecad', exe);
+	if (await isFile(bundled)) {
+		return { program: bundled, source: 'bundled' };
+	}
+	const installed = isWindows
+		? [process.env['ProgramFiles'], process.env['ProgramW6432'], process.env['ProgramFiles(x86)']].filter((p): p is string => !!p).map(p => join(p, 'LibreCAD', exe))
+		: ['/usr/bin/librecad', '/usr/local/bin/librecad'];
+	for (const candidate of installed) {
+		if (await isFile(candidate)) {
+			return { program: candidate, source: 'installed' };
+		}
+	}
+	return undefined;
 }

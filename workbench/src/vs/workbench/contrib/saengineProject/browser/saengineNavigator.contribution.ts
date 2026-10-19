@@ -39,7 +39,9 @@ import { ProjectOpener } from './projectOpener.js';
 import { ProjectOverviewEditor } from './projectOverviewEditor.js';
 import { ProjectOverviewInput } from './projectOverviewInput.js';
 import { openPart } from './projectParts.js';
+import { PROJECT_MENU } from './projectMenu.js';
 import { StartEditorInput } from './startEditorInput.js';
+import './projectPlatform.contribution.js';
 
 const category = localize2('saengine.category', "SAEngine");
 const projectOpen = ContextKeyExpr.has('saengineProjectOpen');
@@ -171,7 +173,7 @@ function openOverview(editorService: IEditorService): Promise<unknown> {
 
 // --- The sidebar header's ≡ menu and the commands in it -------------------------------------
 
-const projectMenu = new MenuId('SaengineProjectMenu');
+const projectMenu = PROJECT_MENU;
 
 MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	submenu: projectMenu,

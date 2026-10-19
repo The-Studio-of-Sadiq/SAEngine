@@ -5,7 +5,9 @@
 
 .DESCRIPTION
     1. Runs the setup with /VERYSILENT into -InstallDir, without the PATH, file-association,
-       desktop-icon and run-after-install tasks.
+       desktop-icon and run-after-install tasks; checks the bin shims (saengine.cmd, the
+       command line; saengine-app.cmd, the window launcher) and, when bundled, LibreCAD with
+       its licences. Runs "bin\saengine.cmd --help" when the backend has saengine.cli.
     2. With the bundled resources\python\python.exe, from a folder outside the repository and
        with a hostile Python environment (PYTHONHOME pointing nowhere, PYTHONPATH and a user
        site-packages that shadow numpy): checks the isolation, imports the backend, makes the JSON-RPC
@@ -92,8 +94,30 @@ Measure-Step 'silent install' {
         '/MERGETASKS="!runcode,!addtopath,!associatewithfiles,!desktopicon"', "/LOG=`"$(Join-Path $smokeRoot 'setup.log')`"")
     $process = Start-Process -FilePath $Setup -ArgumentList $arguments -Wait -PassThru
     if ($process.ExitCode -ne 0) { throw "The setup exited with $($process.ExitCode); see $smokeRoot\setup.log." }
-    foreach ($file in @('SAEngine.exe', 'resources\app\out\main.js', 'resources\python\python.exe', 'THIRD_PARTY_NOTICES.txt', 'LICENSE.txt')) {
+    foreach ($file in @('SAEngine.exe', 'resources\app\out\main.js', 'resources\python\python.exe', 'THIRD_PARTY_NOTICES.txt', 'LICENSE.txt',
+            'bin\saengine.cmd', 'bin\saengine-app.cmd')) {
         if (-not (Test-Path (Join-Path $InstallDir $file))) { throw "The installation lacks $file." }
+    }
+    # LibreCAD, when this build bundles it: the program, its Qt platform plug-in and its licences.
+    $libreCAD = Join-Path $InstallDir 'resources\librecad'
+    if (Test-Path (Join-Path $libreCAD 'SAENGINE-BUNDLE.json')) {
+        $bundle = Get-Content (Join-Path $libreCAD 'SAENGINE-BUNDLE.json') -Raw | ConvertFrom-Json
+        foreach ($file in @('LibreCAD.exe', 'platforms\qwindows.dll') + @($bundle.licenses)) {
+            if (-not (Test-Path (Join-Path $libreCAD $file))) { throw "The LibreCAD bundle lacks $file." }
+        }
+        if ((Get-Content (Join-Path $InstallDir 'THIRD_PARTY_NOTICES.txt') -Raw) -notmatch 'LibreCAD') {
+            throw 'THIRD_PARTY_NOTICES.txt does not name the bundled LibreCAD.'
+        }
+        Write-Host "LibreCAD $($bundle.version) (Qt $($bundle.qt_version)) is bundled."
+    }
+}
+
+# The saengine command line shim (bin\saengine.cmd -> python -m saengine.cli), when the bundled
+# backend has the command line.
+$cliPackage = Join-Path $InstallDir 'resources\python\Lib\site-packages\saengine\cli'
+if (Test-Path $cliPackage) {
+    Measure-Step 'saengine command line (bin\saengine.cmd --help)' {
+        Invoke-Native (Join-Path $InstallDir 'bin\saengine.cmd') @('--help') 'saengine --help' $smokeRoot
     }
 }
 

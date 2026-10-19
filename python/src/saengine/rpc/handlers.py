@@ -1156,3 +1156,157 @@ def substructure_ensure(project_root: str) -> dict[str, Any]:
     from saengine.substructure.handover import ensure_migrated
 
     return ensure_migrated(project_root)
+
+
+# ───────────────────────────── the project archive and versions ─────────────────────────────
+
+
+def _refusal(error: Exception) -> dict[str, Any]:
+    """An archive or versions operation that was refused, as the workbench reads it:
+    ``{ok: false, code, message, problems}`` (the message is written for the engineer)."""
+    problems = list(getattr(error, "problems", None) or [])
+    return {
+        "ok": False,
+        "code": getattr(error, "code", None) or (problems[0].get("code") if problems else None),
+        "message": str(error),
+        "problems": problems,
+    }
+
+
+def _part_statuses(project_root: str) -> dict[str, Any] | None:
+    """The sidebar's status of each part, recorded in an archive's manifest (as the CLI does)."""
+    from saengine.pipeline.project import ProjectError, open_project
+    from saengine.pipeline.status import part_statuses
+
+    try:
+        project = open_project(project_root)
+        return {s.part: s.to_json() for s in part_statuses(project)}
+    except (ProjectError, OSError, ValueError):
+        return None
+
+
+def project_export_archive(
+    project_root: str,
+    out_path: str,
+    include_results: bool = False,
+    include_versions: bool = False,
+    include_exports: bool = True,
+    note: str | None = None,
+    saengine_version: str | None = None,
+) -> dict[str, Any]:
+    """Writes the project into one ``.civil`` file (``saengine.project.archive.export_project``):
+    ``{path, size, files, skipped, problems}``, or a refusal (:func:`_refusal`)."""
+    from saengine.project.archive import ArchiveError, export_project
+
+    try:
+        return export_project(
+            project_root,
+            out_path,
+            include_results=include_results,
+            include_versions=include_versions,
+            include_exports=include_exports,
+            note=note,
+            statuses=_part_statuses(project_root),
+            saengine_version=saengine_version,
+        )
+    except (ArchiveError, OSError) as error:
+        return _refusal(error)
+
+
+def project_inspect_archive(
+    path: str, current_version: str | None = None, verify: bool = True
+) -> dict[str, Any]:
+    """What a ``.civil`` file holds: ``{manifest|null, problems, ok, files, size}``."""
+    from saengine.project.archive import ArchiveError, inspect_archive
+
+    try:
+        return inspect_archive(path, current_version, verify)
+    except (ArchiveError, OSError) as error:
+        return _refusal(error)
+
+
+def project_import_archive(
+    path: str,
+    dest_parent: str,
+    name: str | None = None,
+    overwrite: bool = False,
+    current_version: str | None = None,
+    migrate: bool = True,
+) -> dict[str, Any]:
+    """Unpacks a ``.civil`` file into ``<dest_parent>/<name>``: ``{root, name, files, problems
+    (warnings), migrated, pending, renamed?}``, or a refusal (nothing is left behind)."""
+    from saengine.project.archive import ArchiveError, import_project
+
+    try:
+        return import_project(path, dest_parent, name, overwrite, current_version, migrate)
+    except (ArchiveError, OSError) as error:
+        return _refusal(error)
+
+
+def _versions_call(call: Any) -> dict[str, Any]:
+    from saengine.project.versions import VersionsError
+
+    try:
+        return call()
+    except VersionsError as error:
+        return _refusal(error)
+
+
+def versions_status(project_root: str) -> dict[str, Any]:
+    """What changed since the last version (``saengine.project.versions.status``)."""
+    from saengine.project import versions
+
+    return _versions_call(lambda: versions.status(project_root))
+
+
+def versions_list(project_root: str, limit: int = 200) -> dict[str, Any]:
+    """The versions, newest first: ``{versions, count, more}``."""
+    from saengine.project import versions
+
+    return _versions_call(lambda: versions.list_versions(project_root, int(limit)))
+
+
+def versions_save(
+    project_root: str,
+    message: str,
+    author: str | None = None,
+    issued: bool = False,
+    label: str | None = None,
+) -> dict[str, Any]:
+    """Saves the project's current files as a version: ``{version, created, initialized}``."""
+    from saengine.project import versions
+
+    return _versions_call(
+        lambda: versions.save(project_root, message, author=author, issued=issued, label=label)
+    )
+
+
+def versions_diff(project_root: str, a: str | None = None, b: str | None = None) -> dict[str, Any]:
+    """Two versions (or a version and the current files, ``b`` omitted) compared part by part."""
+    from saengine.project import versions
+
+    return _versions_call(lambda: versions.diff(project_root, a, b or versions.WORKING))
+
+
+def versions_restore(
+    project_root: str,
+    version: str,
+    parts: list[str] | None = None,
+    author: str | None = None,
+    commit: bool = True,
+) -> dict[str, Any]:
+    """Brings back the files of ``parts`` (all when omitted) from ``version``, as a new change."""
+    from saengine.project import versions
+
+    return _versions_call(
+        lambda: versions.restore(project_root, version, parts=parts, author=author, commit=commit)
+    )
+
+
+def versions_mark_issued(
+    project_root: str, version: str, label: str, author: str | None = None
+) -> dict[str, Any]:
+    """Marks ``version`` as issued with ``label``: ``{version, tag}``."""
+    from saengine.project import versions
+
+    return _versions_call(lambda: versions.mark_issued(project_root, version, label, author=author))

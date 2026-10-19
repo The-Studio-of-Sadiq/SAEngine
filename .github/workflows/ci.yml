@@ -1,0 +1,208 @@
+# SAEngine CI: the Python backend and the SAEngine parts of the workbench, on Linux runners
+# (cheaper than Windows: GitHub bills Windows minutes at twice the Linux rate). The Windows
+# installer is built only for releases (release.yml). What runs where and why: docs/ci.md.
+name: CI
+
+on:
+  push:
+    branches: [main, 'feat/**', 'fix/**']
+  pull_request:
+    branches: [main, 'feat/**']
+  workflow_dispatch:
+
+# A newer push to the same branch or pull request cancels the run it supersedes.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: '3.12'
+  FORCE_COLOR: '1'
+
+jobs:
+  python:
+    name: Python (ruff, pytest, verification pack)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # third_party/opensees-studio is vendored (tracked files), not a submodule.
+          submodules: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            python/pyproject.toml
+            third_party/opensees-studio/pyproject.toml
+            scripts/installer/constraints.txt
+
+      - name: Install the system libraries of the gmsh wheel
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends \
+            libglu1-mesa libxcursor1 libxft2 libxinerama1 libxrender1 libxfixes3
+
+      - name: Install the backend (pinned like the installer)
+        run: |
+          python -m pip install --disable-pip-version-check --upgrade pip
+          python -m pip install --disable-pip-version-check \
+            -c scripts/installer/constraints.txt \
+            -e third_party/opensees-studio -e "python[dev]" "PyYAML==6.0.3"
+
+      - name: Ruff (python/ and scripts/)
+        run: |
+          python -m ruff check python
+          python -m ruff format --check python
+          python -m ruff check --line-length 100 scripts
+          python -m ruff format --check --line-length 100 scripts
+
+      - name: Workflows and CI scripts
+        run: |
+          python scripts/ci/check_workflows.py --no-actionlint
+          python -m pytest -q scripts/ci/tests
+
+      - name: Pytest
+        working-directory: python
+        run: python -m pytest -q --durations=15
+
+      - name: Verification pack (quick run)
+        working-directory: python
+        # The pack exits 1 whenever any case fails, and A9 is a known failure in the fast set.
+        # The exit code is therefore ignored here; the next step decides against the explicit
+        # expected-failure list (and fails if verification.json was not written at all).
+        run: python -m saengine.verification --fast --pdf --out "$RUNNER_TEMP/verification" || true
+
+      - name: Check the verification pack against the expected failures
+        run: python scripts/ci/check_verification.py "$RUNNER_TEMP/verification/verification.json"
+
+      - name: Keep the verification results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: verification
+          path: |
+            ${{ runner.temp }}/verification/verification.json
+            ${{ runner.temp }}/verification/verification-manual.pdf
+          if-no-files-found: ignore
+          retention-days: 14
+
+  workbench:
+    name: Workbench (typecheck, eslint, SAEngine unit tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: workbench
+    env:
+      NPM_ARCH: x64
+      VSCODE_ARCH: x64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: workbench/.nvmrc
+          cache: npm
+          cache-dependency-path: |
+            packages/fem-viewer/package-lock.json
+            packages/cad-editor/package-lock.json
+
+      - name: Install the system packages (as Code - OSS's own Linux CI)
+        run: |
+          # Chromium's namespace sandbox needs unprivileged user namespaces (Ubuntu 24.04).
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          sudo apt-get update -q
+          sudo apt-get install -y -q pkg-config xvfb libgtk-3-0 libxkbfile-dev libkrb5-dev libgbm1 zstd
+
+      # Code - OSS's own node_modules cache (every package.json/package-lock.json of the
+      # workbench and its built-in extensions, archived with zstd).
+      - name: Compute the node_modules cache key
+        run: |
+          mkdir -p .build
+          node build/azure-pipelines/common/computeNodeModulesCacheKey.ts linux x64 $(node -p process.arch) > .build/packagelockhash
+
+      - name: Restore node_modules
+        id: node-modules
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: workbench/.build/node_modules_cache
+          key: saengine-node-modules-linux-${{ hashFiles('workbench/.build/packagelockhash') }}
+
+      - name: Extract node_modules
+        if: steps.node-modules.outputs.cache-hit == 'true'
+        run: |
+          bash ./.github/workflows/node_modules_cache/cache.sh extract
+          bash ../scripts/ci/link-saengine-packages.sh link
+
+      - name: npm ci (workbench)
+        if: steps.node-modules.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          for i in 1 2 3; do (cd build && npm ci) && break; [ "$i" = 3 ] && exit 1; sleep 5; done
+          for i in 1 2 3; do npm ci && break; [ "$i" = 3 ] && exit 1; sleep 5; done
+        env:
+          npm_config_arch: ${{ env.NPM_ARCH }}
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Save node_modules
+        if: steps.node-modules.outputs.cache-hit != 'true' && github.event_name == 'push'
+        run: |
+          bash ../scripts/ci/link-saengine-packages.sh unlink
+          bash ./.github/workflows/node_modules_cache/cache.sh archive
+          bash ../scripts/ci/link-saengine-packages.sh link
+
+      - name: Upload the node_modules cache
+        if: steps.node-modules.outputs.cache-hit != 'true' && github.event_name == 'push'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: workbench/.build/node_modules_cache
+          key: ${{ steps.node-modules.outputs.cache-primary-key }}
+
+      # The workbench imports the types of the viewer bundles (file:../packages/*), whose dist/
+      # folders are build output.
+      - name: Build the SAEngine viewer packages
+        working-directory: packages
+        run: |
+          set -e
+          for package in fem-viewer cad-editor; do
+            (cd "$package" && npm ci && npm run build)
+          done
+
+      - name: Typecheck
+        run: npx tsc --project ./src/tsconfig.json --noEmit --skipLibCheck
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+
+      - name: ESLint (SAEngine sources)
+        run: >
+          npm run eslint --
+          'src/vs/platform/saengine/**/*.ts'
+          'src/vs/workbench/contrib/saengine*/**/*.ts'
+          'src/vs/workbench/services/saengine*/**/*.ts'
+
+      - name: Transpile the client
+        run: npm run transpile-client
+
+      - name: Download Electron
+        run: npm run electron
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: SAEngine unit tests (Electron, xvfb)
+        run: xvfb-run -a bash ./scripts/test.sh --grep SAEngine
+        env:
+          VSCODE_SKIP_PRELAUNCH: '1'

@@ -122,3 +122,50 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
+
+/* The versions line under the parts: what changed since the latest version; opens Versions. */
+.saengine-project-navigator .sa-nav-versions {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	box-sizing: border-box;
+	height: 28px;
+	padding: 0 var(--sa-space-3, 12px);
+	border-top: 1px solid var(--sa-border);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+	cursor: pointer;
+	outline-offset: -1px;
+}
+
+.saengine-project-navigator .sa-nav-versions.hidden {
+	display: none;
+}
+
+.saengine-project-navigator .sa-nav-versions:hover {
+	background-color: var(--vscode-list-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.saengine-project-navigator .sa-nav-versions:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+}
+
+.saengine-project-navigator .sa-nav-versions-icon {
+	flex: none;
+}
+
+.saengine-project-navigator .sa-nav-versions.dirty .sa-nav-versions-icon {
+	color: var(--sa-warn);
+	font-size: 8px;
+}
+
+.saengine-project-navigator .sa-nav-versions.problem .sa-nav-versions-icon {
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.saengine-project-navigator .sa-nav-versions-text {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}

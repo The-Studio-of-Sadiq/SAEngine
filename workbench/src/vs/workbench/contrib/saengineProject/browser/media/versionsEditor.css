@@ -1,0 +1,319 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The Versions editor, on the shared editor frame (editorFrame.css). */
+
+.saengine-versions-editor .versions-scroll {
+	flex: 1;
+	min-height: 0;
+}
+
+.saengine-versions-editor .versions-list {
+	box-sizing: border-box;
+	height: 100%;
+	max-width: 880px;
+	padding: var(--sa-space-2, 8px) var(--sa-space-4, 16px) var(--sa-space-6, 24px);
+	outline: none;
+}
+
+.saengine-versions-editor .versions-current,
+.saengine-versions-editor .versions-row {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-3, 12px);
+	min-height: 48px;
+	padding: var(--sa-space-1, 4px) var(--sa-space-2, 8px);
+	border-radius: var(--sa-radius, 4px);
+}
+
+.saengine-versions-editor .versions-current {
+	margin-bottom: var(--sa-space-2, 8px);
+	border: 1px dashed var(--sa-border, var(--vscode-panel-border));
+}
+
+.saengine-versions-editor .versions-current-icon {
+	flex: none;
+	width: 40px;
+	text-align: center;
+	color: var(--sa-ok, var(--vscode-charts-green));
+}
+
+.saengine-versions-editor .versions-current.dirty .versions-current-icon {
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+	font-size: 10px;
+}
+
+.saengine-versions-editor .versions-current.problem .versions-current-icon {
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.saengine-versions-editor .versions-current .versions-problem {
+	white-space: normal;
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.saengine-versions-editor .versions-row {
+	cursor: default;
+	border-bottom: 1px solid var(--sa-border, var(--vscode-panel-border));
+	border-radius: 0;
+}
+
+.saengine-versions-editor .versions-row:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.saengine-versions-editor .versions-row.selected {
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground, inherit);
+}
+
+.saengine-versions-editor .versions-list:focus .versions-row.selected {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground, inherit);
+}
+
+.saengine-versions-editor .versions-list:focus .versions-row.focused {
+	outline: 1px solid var(--vscode-list-focusOutline, var(--sa-accent));
+	outline-offset: -1px;
+}
+
+.saengine-versions-editor .versions-name {
+	flex: none;
+	width: 40px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-versions-editor .versions-row.selected .versions-name {
+	color: inherit;
+}
+
+.saengine-versions-editor .versions-text {
+	flex: 1;
+	min-width: 0;
+}
+
+.saengine-versions-editor .versions-title {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+	min-width: 0;
+}
+
+.saengine-versions-editor .versions-message {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.saengine-versions-editor .versions-current .versions-message {
+	font-weight: 600;
+}
+
+.saengine-versions-editor .versions-detail {
+	margin-top: 2px;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.saengine-versions-editor .versions-row.selected .versions-detail {
+	color: inherit;
+	opacity: 0.8;
+}
+
+.saengine-versions-editor .versions-badge {
+	flex: none;
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	padding: 0 6px;
+	border-radius: 999px;
+	border: 1px solid var(--sa-border, var(--vscode-panel-border));
+	font-size: 11px;
+	line-height: 16px;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-versions-editor .versions-badge.issued {
+	border-color: var(--sa-ok, var(--vscode-charts-green));
+	color: var(--sa-ok, var(--vscode-charts-green));
+}
+
+.saengine-versions-editor .versions-badge .codicon {
+	font-size: 12px;
+}
+
+.saengine-versions-editor .versions-actions {
+	flex: none;
+	display: flex;
+	align-items: center;
+	gap: 2px;
+}
+
+.saengine-versions-editor .versions-row .versions-actions {
+	visibility: hidden;
+}
+
+.saengine-versions-editor .versions-row:hover .versions-actions,
+.saengine-versions-editor .versions-row.selected .versions-actions,
+.saengine-versions-editor .versions-row:focus-within .versions-actions {
+	visibility: visible;
+}
+
+.saengine-versions-editor .versions-actions .monaco-button {
+	width: auto;
+	padding: 2px 12px;
+	white-space: nowrap;
+}
+
+/* the changes panel */
+.saengine-versions-editor .versions-compare-header {
+	margin: var(--sa-space-1, 4px) 0 var(--sa-space-3, 12px);
+}
+
+.saengine-versions-editor .versions-compare-title {
+	font-weight: 600;
+	font-size: var(--sa-font-m, 13px);
+}
+
+.saengine-versions-editor .versions-compare-detail,
+.saengine-versions-editor .versions-compare-loading {
+	margin-top: 2px;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-versions-editor .versions-compare-error {
+	color: var(--vscode-errorForeground);
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-versions-editor .versions-group {
+	margin-bottom: var(--sa-space-3, 12px);
+}
+
+.saengine-versions-editor .versions-group-heading {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: var(--sa-space-2, 8px);
+	padding-bottom: 2px;
+	margin-bottom: var(--sa-space-1, 4px);
+	border-bottom: 1px solid var(--sa-border, var(--vscode-panel-border));
+}
+
+.saengine-versions-editor .versions-group-title {
+	font-weight: 600;
+}
+
+.saengine-versions-editor .versions-group-count {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-versions-editor .versions-changes {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.saengine-versions-editor .versions-change {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--sa-space-2, 8px);
+	padding: 2px 0;
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-versions-editor .versions-change-icon {
+	flex: none;
+	margin-top: 1px;
+	font-size: 14px;
+}
+
+.saengine-versions-editor .versions-change.added .versions-change-icon {
+	color: var(--sa-ok, var(--vscode-charts-green));
+}
+
+.saengine-versions-editor .versions-change.removed .versions-change-icon {
+	color: var(--sa-fail, var(--vscode-charts-red));
+}
+
+.saengine-versions-editor .versions-change.changed .versions-change-icon {
+	color: var(--sa-warn, var(--vscode-charts-orange));
+}
+
+.saengine-versions-editor .versions-change-body {
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.saengine-versions-editor .versions-change-text {
+	overflow-wrap: anywhere;
+}
+
+.saengine-versions-editor .versions-change-values {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-variant-numeric: tabular-nums;
+	overflow-wrap: anywhere;
+}
+
+.saengine-versions-editor .versions-compare-actions {
+	margin-top: var(--sa-space-3, 12px);
+}
+
+.saengine-versions-editor .versions-compare-actions .monaco-button {
+	width: auto;
+	padding: 2px 12px;
+}
+
+/* the project sidebar: the files against the latest version */
+.saengine-project-navigator-versions {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+	height: 24px;
+	padding: 0 var(--sa-space-3, 12px) 0 20px;
+	font-size: var(--sa-font-s, 12px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	cursor: pointer;
+	flex: none;
+}
+
+.saengine-project-navigator-versions:hover {
+	color: var(--vscode-foreground);
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.saengine-project-navigator-versions:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.saengine-project-navigator-versions.hidden {
+	display: none;
+}
+
+.saengine-project-navigator-versions .codicon {
+	font-size: 14px;
+}
+
+.saengine-project-navigator-versions.dirty .sa-nav-versions-dot {
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+	font-size: 8px;
+}
+
+.saengine-project-navigator-versions .sa-nav-versions-text {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
