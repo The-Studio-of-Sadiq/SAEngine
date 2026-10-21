@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { groundLevelStamp, sourceStamp } from '../../../../services/saengineProject/common/partSources.js';
-import { boqComputeArgs, changedSources, formatQuantity, IBoqDocument, parseBoq, toCsv, totals } from '../../browser/boqDocument.js';
+import { boqComputeArgs, changedSources, formatQuantity, IBoqDocument, IBoqItem, parseBoq, toCsv, totalledItems, totals, unitLabel } from '../../browser/boqDocument.js';
 
 suite('SAEngine - Bill of quantities', () => {
 
@@ -100,6 +100,18 @@ suite('SAEngine - Bill of quantities', () => {
 				'item,C.02,concrete,"Concrete C24.1 in ""beams"", ground",,,,3,,m3',
 				'',
 			],
+		});
+	});
+
+	test('the materials total their cement in kg only; bags are shown as bags', () => {
+		const item = (kind: string, quantity: number, unit: IBoqItem['unit']): IBoqItem => ({ code: 'MT.01', group: 'materials', description: kind, quantity, unit, kind, byStory: {}, breakdown: [] });
+		const items = [item('cement', 9724.062, 'kg'), item('bags', 194.481, 'bag'), item('sand', 476.948, 'cft'), item('stone', 953.895, 'cft'), item('water', 4862.031, 'l')];
+		assert.deepStrictEqual({
+			totals: totals(totalledItems('materials', items)),
+			units: ['kg', 'bag', 'cft', 'l'].map(unitLabel),
+		}, {
+			totals: [{ unit: 'kg', total: 9724.062 }],
+			units: ['kg', 'bags', 'cft', 'l'],
 		});
 	});
 });

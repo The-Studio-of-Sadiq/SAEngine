@@ -1310,3 +1310,92 @@ def versions_mark_issued(
     from saengine.project import versions
 
     return _versions_call(lambda: versions.mark_issued(project_root, version, label, author=author))
+
+
+# ─────────────────────────────────────── design mode ───────────────────────────────────────
+
+
+def design_required(
+    out_dir: str, project_path: str, options: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """The reinforcement every designed element requires (``saengine.design.design_required``),
+    kept beside the results while the project does not change
+    (:mod:`saengine.pipeline.design_mode`)."""
+    from saengine.pipeline.design_mode import required
+
+    return required(out_dir, project_path, options)
+
+
+def design_proposal(
+    out_dir: str, project_path: str, options: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """The bars SAEngine proposes per object type and foundation
+    (``saengine.design.design_proposal``); an unknown mode is a ValueError."""
+    from saengine.design import design_proposal as propose
+    from saengine.pipeline.design_mode import _plain
+
+    return _plain(propose(out_dir, project_path, options))
+
+
+def design_apply_proposal(
+    objects_text: str,
+    bim_text: str | None,
+    proposal: dict[str, Any],
+    floor_plan_text: str | None = None,
+    substructure_text: str | None = None,
+) -> dict[str, Any]:
+    """The part files with a proposal applied, as new texts (``saengine.design.apply_proposal``,
+    pure). A project without a building model sends no ``bimText``: an empty one is used."""
+    from saengine.design import apply_proposal
+
+    return apply_proposal(
+        objects_text, bim_text or "{}", proposal, floor_plan_text, substructure_text
+    )
+
+
+# ─────────────────────────────────────── site map and GIS ───────────────────────────────────
+
+
+def soil_location(
+    soil_text: str | None, bim_text: str | None = None, settings_text: str | None = None
+) -> dict[str, Any]:
+    """Where the site, the boreholes and the building are (``saengine.gis.site.soil_location``)."""
+    from saengine.gis.site import soil_location as locate
+
+    return locate(soil_text, bim_text, settings_text)
+
+
+def gis_export(project_root: str, format: str, out_path: str) -> dict[str, Any]:
+    """The site, boreholes and building outline as GeoJSON or GeoPackage (WGS 84)."""
+    from saengine.gis.site import gis_export as export
+
+    return export(project_root, format, out_path)
+
+
+def gis_import(path: str, soil_text: str | None = None) -> dict[str, Any]:
+    """The soil report with a GeoJSON or GeoPackage file's boreholes and boundary merged in."""
+    from saengine.gis.site import gis_import as read
+
+    try:
+        return read(path, soil_text)
+    except (OSError, ValueError) as error:
+        return {"problems": [str(error) or type(error).__name__]}
+
+
+def qgis_program() -> str | None:
+    """The launcher of an installed QGIS, or None (QGIS is not bundled)."""
+    from saengine.gis.site import qgis_program as find
+
+    return find()
+
+
+def qgis_command(program: str, file_path: str) -> list[str] | dict[str, Any]:
+    """The program and arguments that open ``file_path`` in QGIS (a .bat launcher through
+    cmd.exe, its last argument to pass verbatim), or ``{problems}`` for a path cmd.exe would
+    interpret."""
+    from saengine.gis.site import qgis_command as command
+
+    try:
+        return command(program, file_path)
+    except ValueError as error:
+        return {"problems": [str(error)]}

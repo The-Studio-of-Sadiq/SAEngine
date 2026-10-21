@@ -16,7 +16,7 @@ import { killTree } from '../../../base/node/processes.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemResultList, IFemResultView, IFemRunEventMessage, IBuildingIfc, IBuildingIfcRequest, IFemDerivation, IFemDeriveRequest, IGeneratedBuilding, ILibraryProblem, LibraryFileKind, IFemRunExit, IFemRunRequest, IFemSolverService, IStructureEdit, IStructureGeometry, IStructureScriptResult, StructureGeometryResult, IBoqComputation, IBoqComputeRequest, IReportBuild, ISoilBearing, ISoilBearingRequest, ISoilImport, ISoilSources, ISoilTemplate, ISubstructureMigration, IMepServiceParams, MepServiceMethod, ICadOpenRequest, ICadOpenResult, ProjectPlatformMethod } from '../common/femSolver.js';
+import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemResultList, IFemResultView, IFemRunEventMessage, IBuildingIfc, IBuildingIfcRequest, IFemDerivation, IFemDeriveRequest, IGeneratedBuilding, ILibraryProblem, LibraryFileKind, IFemRunExit, IFemRunRequest, IFemSolverService, IStructureEdit, IStructureGeometry, IStructureScriptResult, StructureGeometryResult, IBoqComputation, IBoqComputeRequest, IReportBuild, ISoilBearing, ISoilBearingRequest, ISoilImport, ISoilSources, ISoilTemplate, ISubstructureMigration, IMepServiceParams, MepServiceMethod, ICadOpenRequest, ICadOpenResult, ProjectPlatformMethod, EngineMethod, IQgisOpenRequest, IQgisOpenResult } from '../common/femSolver.js';
 
 interface IRun {
 	readonly child: cp.ChildProcess;
@@ -286,6 +286,56 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 			child.once('spawn', () => {
 				child.unref();
 				resolve({ ok: true, program: found.program, args, source: found.source, pid: child.pid });
+			});
+		});
+	}
+
+	engine(python: string, method: EngineMethod, params: object): Promise<unknown> {
+		return this.request(python, method, params);
+	}
+
+	async openInQgis(python: string, request: IQgisOpenRequest): Promise<IQgisOpenResult> {
+		const path = request.path;
+		const refuse = (problem: string): IQgisOpenResult => ({ ok: false, program: null, args: [], problems: [problem] });
+		if (typeof path !== 'string' || !isAbsolute(path) || !['.gpkg', '.geojson', '.json'].includes(extname(path).toLowerCase())) {
+			return refuse(localize('qgis.notGis', "Only a GeoPackage or GeoJSON file (an absolute path ending in .gpkg, .geojson or .json) can be opened in QGIS."));
+		}
+		if (!await isFile(path)) {
+			return refuse(localize('qgis.missing', "{0} does not exist.", path));
+		}
+		// The program comes from this machine's setting or from the backend's search of the
+		// installs (registry, Program Files, OSGeo4W): never from the project.
+		const configured = request.program?.trim();
+		let program: string | null = configured && isAbsolute(configured) && await isFile(configured) ? configured : null;
+		if (!program) {
+			const found = await this.request<string | null>(python, 'soil/qgisProgram', {});
+			program = typeof found === 'string' && isAbsolute(found) && await isFile(found) ? found : null;
+		}
+		if (!program) {
+			return { ok: true, program: null, args: [] };
+		}
+		const command = await this.request<string[] | { problems?: string[] }>(python, 'soil/qgisCommand', { program, filePath: path });
+		if (!Array.isArray(command) || !command.length) {
+			return { ok: false, program, args: [], problems: Array.isArray(command) ? [] : command.problems ?? [] };
+		}
+		// A .bat launcher runs through cmd.exe: the system's own (never one found on the path or
+		// in the working folder), its last argument the line the backend quoted, passed verbatim.
+		const viaCmd = command[0].toLowerCase() === 'cmd.exe';
+		const executable = viaCmd ? (process.env['ComSpec'] && isAbsolute(process.env['ComSpec']) ? process.env['ComSpec'] : join(process.env['SystemRoot'] ?? 'C:\\Windows', 'System32', 'cmd.exe')) : command[0];
+		if (!viaCmd && executable !== program) {
+			return refuse(localize('qgis.unexpected', "The backend named another program than {0}.", program));
+		}
+		const args = command.slice(1);
+		if (request.dryRun) {
+			return { ok: true, program, args };
+		}
+		this.logService.info(`[saengine] opening ${path} in ${program}`);
+		const child = cp.spawn(executable, args, { cwd: dirname(program), detached: true, stdio: 'ignore', shell: false, windowsHide: false, windowsVerbatimArguments: viaCmd });
+		return new Promise<IQgisOpenResult>(resolve => {
+			child.once('error', error => resolve(refuse(localize('qgis.startFailed', "{0} could not be started: {1}", program, error.message))));
+			child.once('spawn', () => {
+				child.unref();
+				resolve({ ok: true, program, args, pid: child.pid });
 			});
 		});
 	}

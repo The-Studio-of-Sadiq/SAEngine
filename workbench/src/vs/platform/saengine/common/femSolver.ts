@@ -508,6 +508,51 @@ export interface IFemSolverService {
 	 * caller then hands the file to the system's own DXF program.
 	 */
 	openInCad(request: ICadOpenRequest): Promise<ICadOpenResult>;
+
+	/**
+	 * A method of the design mode or the site map (see {@link EngineMethod}); the backend's
+	 * answer as it is (plain JSON).
+	 */
+	engine(python: string, method: EngineMethod, params: object): Promise<unknown>;
+
+	/**
+	 * Opens a GeoPackage or GeoJSON file in QGIS: `request.program` (the machine setting) when
+	 * it names an existing program, else the QGIS the backend finds installed. Started directly
+	 * (no shell); a `.bat` launcher through `%ComSpec%` with the line the backend quotes.
+	 * `program: null` when there is no QGIS.
+	 */
+	openInQgis(python: string, request: IQgisOpenRequest): Promise<IQgisOpenResult>;
+}
+
+/**
+ * The design mode (`saengine.design`) and the site map (`saengine.gis.site`):
+ * `design/required` `{outDir, projectPath, options?}`, `design/proposal` `{outDir, projectPath,
+ * options?}`, `design/applyProposal` `{objectsText, bimText?, proposal, floorPlanText?,
+ * substructureText?}`, `soil/location` `{soilText, bimText?, settingsText?}`, `soil/gisExport`
+ * `{projectRoot, format, outPath}`, `soil/gisImport` `{path, soilText?}` and
+ * `soil/qgisProgram` `{}` (a launcher path or null).
+ */
+export type EngineMethod =
+	| 'design/required' | 'design/proposal' | 'design/applyProposal'
+	| 'soil/location' | 'soil/gisExport' | 'soil/gisImport' | 'soil/qgisProgram';
+
+export interface IQgisOpenRequest {
+	/** Absolute path of the `.gpkg`, `.geojson` or `.json` file. */
+	readonly path: string;
+	/** A QGIS launcher to prefer (the `saengine.qgis.program` setting); used only when it exists. */
+	readonly program?: string;
+	/** Only find the program and say what would be started; nothing is started. */
+	readonly dryRun?: boolean;
+}
+
+export interface IQgisOpenResult {
+	readonly ok: boolean;
+	/** The program started (or that would be), or null when no QGIS was found. */
+	readonly program: string | null;
+	/** The arguments it is started with. */
+	readonly args: readonly string[];
+	readonly pid?: number;
+	readonly problems?: readonly string[];
 }
 
 /**

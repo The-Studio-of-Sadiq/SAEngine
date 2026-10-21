@@ -3366,7 +3366,7 @@ export const BNBC: IBnbcTables = {
 		rajshahi: {
 			name: 'Rajshahi',
 			zone: 1,
-			windSpeed: 72.1,
+			windSpeed: 49.2,
 		},
 		sylhet: {
 			name: 'Sylhet',
@@ -3385,7 +3385,7 @@ export const BNBC: IBnbcTables = {
 		},
 		mymensingh: {
 			name: 'Mymensingh',
-			zone: 3,
+			zone: 4,
 			windSpeed: 67.4,
 		},
 		cumilla: {
@@ -7049,15 +7049,79 @@ export const SOIL_SCHEMA: IJSONSchema = {
 				},
 				x: {
 					default: 0,
-					description: 'Plan position in the project coordinates [mm].',
+					description: 'Plan position in the project coordinates [mm]; worked out from the position the borehole is given in when that is not the project grid.',
 					title: 'X',
 					type: 'number',
 				},
 				y: {
 					default: 0,
-					description: 'Plan position in the project coordinates [mm].',
+					description: 'Plan position in the project coordinates [mm]; worked out from the position the borehole is given in when that is not the project grid.',
 					title: 'Y',
 					type: 'number',
+				},
+				position: {
+					default: 'project',
+					description: 'The coordinates that locate the borehole; the others are worked out through the site point. When not given: latitude/longitude if the borehole has both, else BTM if it has the easting and northing, else the project grid.',
+					enum: ['project', 'wgs84', 'btm'],
+					enumDescriptions: ['Project x/y [mm]', 'Latitude/longitude (WGS 84)', 'Bangladesh Transverse Mercator (EPSG:9678) [m]'],
+					title: 'Position given in',
+					type: 'string',
+				},
+				lat: {
+					anyOf: [
+						{
+							maximum: 90,
+							minimum: -90,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'WGS 84 [°].',
+					title: 'Latitude',
+				},
+				lon: {
+					anyOf: [
+						{
+							maximum: 180,
+							minimum: -180,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'WGS 84 [°].',
+					title: 'Longitude',
+				},
+				easting: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Bangladesh Transverse Mercator [m].',
+					title: 'BTM easting',
+				},
+				northing: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Bangladesh Transverse Mercator [m].',
+					title: 'BTM northing',
 				},
 				groundLevel: {
 					anyOf: [
@@ -7100,6 +7164,33 @@ export const SOIL_SCHEMA: IJSONSchema = {
 					description: 'Depth the borehole was drilled to [mm]; the deepest layer\'s bottom when empty.',
 					title: 'Termination depth',
 				},
+				date: {
+					anyOf: [
+						{
+							maxLength: 64,
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Date drilled',
+				},
+				method: {
+					anyOf: [
+						{
+							maxLength: 200,
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'E.g. wash boring, auger, rotary.',
+					title: 'Method',
+				},
 				layers: {
 					items: {
 						$ref: '#/$defs/Layer',
@@ -7124,6 +7215,208 @@ export const SOIL_SCHEMA: IJSONSchema = {
 			},
 			required: ['id'],
 			title: 'Borehole',
+			type: 'object',
+		},
+		Chemistry: {
+			additionalProperties: false,
+			description: 'Chemical tests of the soil or the ground water, for the durability of buried concrete.',
+			properties: {
+				sulphateSoil: {
+					anyOf: [
+						{
+							maximum: 100,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[% by mass]',
+					title: 'Water-soluble SO4 in soil',
+				},
+				sulphateWater: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[mg/L, ppm]',
+					title: 'SO4 in water',
+				},
+				chlorideSoil: {
+					anyOf: [
+						{
+							maximum: 100,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[% by mass]',
+					title: 'Chloride Cl in soil',
+				},
+				chlorideWater: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[mg/L, ppm]',
+					title: 'Chloride Cl in water',
+				},
+				pH: {
+					anyOf: [
+						{
+							maximum: 14,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'pH',
+				},
+				organicContent: {
+					anyOf: [
+						{
+							maximum: 100,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Loss on ignition [% by mass].',
+					title: 'Organic content',
+				},
+			},
+			title: 'Chemistry',
+			type: 'object',
+		},
+		Consolidation: {
+			additionalProperties: false,
+			description: 'One-dimensional consolidation (oedometer, ASTM D2435).',
+			properties: {
+				e0: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 20,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Initial void ratio e0',
+				},
+				Cc: {
+					anyOf: [
+						{
+							maximum: 10,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Compression index Cc',
+				},
+				Cr: {
+					anyOf: [
+						{
+							maximum: 10,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Recompression index Cr',
+				},
+				preconsolidation: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kPa]; OCR = σ\'p/σ\'v0 at the sample.',
+					title: 'Preconsolidation pressure σ\'p',
+				},
+				cv: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[m²/year]',
+					title: 'Coefficient of consolidation cv',
+				},
+				points: {
+					description: 'In test order; Cc (loading beyond σ\'p) and Cr (unloading) are fitted when not entered.',
+					items: {
+						$ref: '#/$defs/ConsolidationPoint',
+					},
+					title: 'e-log p points',
+					type: 'array',
+				},
+			},
+			title: 'Consolidation',
+			type: 'object',
+		},
+		ConsolidationPoint: {
+			additionalProperties: false,
+			properties: {
+				pressure: {
+					description: 'Effective vertical pressure σ\' [kPa].',
+					exclusiveMinimum: 0,
+					title: 'Pressure',
+					type: 'number',
+				},
+				e: {
+					description: 'Void ratio at the end of the increment.',
+					exclusiveMinimum: 0,
+					maximum: 20,
+					title: 'E',
+					type: 'number',
+				},
+			},
+			required: ['pressure', 'e'],
+			title: 'ConsolidationPoint',
 			type: 'object',
 		},
 		Design: {
@@ -7227,6 +7520,67 @@ export const SOIL_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'Design',
+			type: 'object',
+		},
+		DirectShear: {
+			additionalProperties: false,
+			description: 'Direct shear test (ASTM D3080), drained: c\' and φ\', or the specimens to fit them.',
+			properties: {
+				c: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kPa]',
+					title: 'Cohesion c\'',
+				},
+				phi: {
+					anyOf: [
+						{
+							maximum: 50,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[°]',
+					title: 'Friction angle φ\'',
+				},
+				specimens: {
+					description: '(σn, τ) of the specimens; c\' and φ\' are fitted when not entered.',
+					items: {
+						$ref: '#/$defs/ShearPoint',
+					},
+					title: 'Specimens',
+					type: 'array',
+				},
+			},
+			title: 'DirectShear',
+			type: 'object',
+		},
+		Grading: {
+			additionalProperties: false,
+			description: 'Grain size distribution (ASTM D6913 sieves, D7928 hydrometer): one curve.',
+			properties: {
+				sieves: {
+					description: 'Sizes [mm] with the percent passing; the hydrometer\'s sizes below 0.075 mm may follow. Fines, D10/D30/D60, Cu, Cc and the USCS group are derived.',
+					items: {
+						$ref: '#/$defs/SievePoint',
+					},
+					title: 'Sieves',
+					type: 'array',
+				},
+			},
+			title: 'Grading',
 			type: 'object',
 		},
 		Layer: {
@@ -7511,6 +7865,34 @@ export const SOIL_SCHEMA: IJSONSchema = {
 			title: 'Liquefaction',
 			type: 'object',
 		},
+		Permeability: {
+			additionalProperties: false,
+			properties: {
+				k: {
+					description: '[m/s]',
+					exclusiveMinimum: 0,
+					maximum: 1,
+					title: 'Coefficient of permeability k',
+					type: 'number',
+				},
+				method: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'E.g. constant head, falling head, field (Lefranc).',
+					title: 'Method',
+				},
+			},
+			required: ['k'],
+			title: 'Permeability',
+			type: 'object',
+		},
 		Pile: {
 			additionalProperties: false,
 			description: 'Pile type for the pile design parameters.',
@@ -7589,11 +7971,39 @@ export const SOIL_SCHEMA: IJSONSchema = {
 			additionalProperties: false,
 			description: 'A sample tested in the laboratory. Its values fill in the layer\'s where the log has none.',
 			properties: {
+				number: {
+					anyOf: [
+						{
+							maxLength: 32,
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'E.g. UD-2, D-5.',
+					title: 'Sample number',
+				},
 				depth: {
-					description: 'Depth of the sample below the borehole\'s ground [mm].',
+					description: 'Depth of the sample (its top) below the borehole\'s ground [mm].',
 					minimum: 0,
 					title: 'Depth',
 					type: 'number',
+				},
+				depthTo: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Bottom of the sample [mm].',
+					title: 'Depth to',
 				},
 				type: {
 					anyOf: [
@@ -7605,8 +8015,24 @@ export const SOIL_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'E.g. SPT (disturbed), UD (Shelby tube).',
+					description: 'SPT (split spoon, disturbed), UD (Shelby tube), disturbed, core, or other text.',
+					examples: ['SPT', 'UD', 'disturbed', 'core'],
 					title: 'Sample type',
+				},
+				recovery: {
+					anyOf: [
+						{
+							maximum: 100,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Length recovered over the length driven or pushed [%].',
+					title: 'Recovery',
 				},
 				moisture: {
 					anyOf: [
@@ -7769,9 +8195,255 @@ export const SOIL_SCHEMA: IJSONSchema = {
 					default: null,
 					title: 'Initial void ratio e0',
 				},
+				nonPlastic: {
+					default: false,
+					description: 'The fines have no plastic limit (NP).',
+					title: 'Non-plastic',
+					type: 'boolean',
+				},
+				dryUnitWeight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 30,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kN/m³]',
+					title: 'Dry unit weight γd',
+				},
+				specificGravity: {
+					anyOf: [
+						{
+							maximum: 4,
+							minimum: 1.5,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Of the solids.',
+					title: 'Specific gravity Gs',
+				},
+				grainSize: {
+					anyOf: [
+						{
+							$ref: '#/$defs/Grading',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Grain size distribution',
+				},
+				ucs: {
+					anyOf: [
+						{
+							$ref: '#/$defs/Ucs',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Unconfined compression',
+				},
+				directShear: {
+					anyOf: [
+						{
+							$ref: '#/$defs/DirectShear',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Direct shear',
+				},
+				triaxial: {
+					anyOf: [
+						{
+							$ref: '#/$defs/Triaxial',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Triaxial',
+				},
+				consolidation: {
+					anyOf: [
+						{
+							$ref: '#/$defs/Consolidation',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Consolidation',
+				},
+				permeability: {
+					anyOf: [
+						{
+							$ref: '#/$defs/Permeability',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Permeability',
+				},
+				chemistry: {
+					anyOf: [
+						{
+							$ref: '#/$defs/Chemistry',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Chemistry',
+				},
 			},
 			required: ['depth'],
 			title: 'Sample',
+			type: 'object',
+		},
+		ShearPoint: {
+			additionalProperties: false,
+			properties: {
+				normal: {
+					description: 'Normal stress σn [kPa].',
+					minimum: 0,
+					title: 'Normal',
+					type: 'number',
+				},
+				shear: {
+					description: 'Peak shear stress τ [kPa].',
+					minimum: 0,
+					title: 'Shear',
+					type: 'number',
+				},
+			},
+			required: ['normal', 'shear'],
+			title: 'ShearPoint',
+			type: 'object',
+		},
+		SievePoint: {
+			additionalProperties: false,
+			properties: {
+				size: {
+					description: 'Sieve opening or particle size [mm].',
+					exclusiveMinimum: 0,
+					maximum: 1000,
+					title: 'Size',
+					type: 'number',
+				},
+				passing: {
+					description: 'Percent finer by mass [%].',
+					maximum: 100,
+					minimum: 0,
+					title: 'Passing',
+					type: 'number',
+				},
+			},
+			required: ['size', 'passing'],
+			title: 'SievePoint',
+			type: 'object',
+		},
+		Site: {
+			additionalProperties: false,
+			description: 'The site on the map (WGS 84, EPSG:4326). Its point georeferences the project grid: the\nproject point (x, y) lies at (lat, lon), and the project +Y axis points ``rotation``\ndegrees clockwise from true north.',
+			properties: {
+				lat: {
+					anyOf: [
+						{
+							maximum: 90,
+							minimum: -90,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Of the site point [°].',
+					title: 'Latitude',
+				},
+				lon: {
+					anyOf: [
+						{
+							maximum: 180,
+							minimum: -180,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Of the site point [°].',
+					title: 'Longitude',
+				},
+				x: {
+					default: 0,
+					description: 'The project point at the site point [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					default: 0,
+					description: 'The project point at the site point [mm].',
+					title: 'Y',
+					type: 'number',
+				},
+				rotation: {
+					default: 0,
+					description: 'Direction of the project +Y axis, clockwise from true north [°]; 0 when +Y points north and +X east.',
+					maximum: 360,
+					minimum: -360,
+					title: 'Grid rotation',
+					type: 'number',
+				},
+				address: {
+					anyOf: [
+						{
+							maxLength: 300,
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Address',
+				},
+				boundary: {
+					description: 'Plot boundary as [longitude, latitude] points (WGS 84), e.g. imported from QGIS.',
+					items: {
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					title: 'Site boundary',
+					type: 'array',
+				},
+			},
+			title: 'Site',
 			type: 'object',
 		},
 		SptCorrections: {
@@ -7806,7 +8478,7 @@ export const SOIL_SCHEMA: IJSONSchema = {
 		},
 		SptRecord: {
 			additionalProperties: false,
-			description: 'A standard penetration test (ASTM D1586): the blows for the last 300 mm of the drive.',
+			description: 'A standard penetration test (ASTM D1586) as the log sheet records it: the blows of the\nthree 150 mm increments (the seating drive, then N1 and N2 that make N), or a refusal.\n\n``N`` is the field blow count as entered; :attr:`blows` is the one the engine uses: the\nentered N, else the one worked out (:attr:`derived`): ``N1 + N2`` from the increments, a\nrefusal given as blows and penetration ("50/100 mm") extrapolated to 300 mm (150), a refusal\ngiven only as ``true`` (penetration not recorded) as the blows driven, N1 + N2 (N2 may be\nempty), which errs low (an entered N at or above it is the extrapolated count, not a\nmismatch); every N is at most 300. The worked-out N is never stored in ``N``, so correcting the\nincrements later changes it. An entered N that differs from the worked-out one is kept and\nreported by :func:`check`, as are other inconsistencies (:attr:`issues`); only a record that\ngives no N at all is invalid. Old records with only ``depth`` and ``N`` stay valid.',
 			properties: {
 				depth: {
 					description: 'Depth of the test below the borehole\'s ground [mm].',
@@ -7814,12 +8486,124 @@ export const SOIL_SCHEMA: IJSONSchema = {
 					title: 'Depth',
 					type: 'number',
 				},
+				depthTo: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Bottom of the drive [mm]; the depth plus 450 mm when empty.',
+					title: 'Depth to',
+				},
 				N: {
-					description: 'Blow count as measured, uncorrected [blows/300 mm]; refusal as the extrapolated count (e.g. 50 blows for 150 mm as 100).',
-					maximum: 300,
-					minimum: 0,
+					anyOf: [
+						{
+							maximum: 300,
+							minimum: 0,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Blow count as measured, uncorrected [blows/300 mm]. Empty: worked out as N1 + N2 from the increments, or a refusal as the extrapolated count (e.g. 50 blows for 150 mm as 100); an entered N that differs is used and reported.',
 					title: 'Field N',
-					type: 'integer',
+				},
+				seat: {
+					anyOf: [
+						{
+							maximum: 300,
+							minimum: 0,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Blows for the first 150 mm, the seating drive (not counted in N).',
+					title: 'Seating 150 mm',
+				},
+				N1: {
+					anyOf: [
+						{
+							maximum: 300,
+							minimum: 0,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Blows for the second 150 mm.',
+					title: 'N1, 2nd 150 mm',
+				},
+				N2: {
+					anyOf: [
+						{
+							maximum: 300,
+							minimum: 0,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Blows for the third 150 mm.',
+					title: 'N2, 3rd 150 mm',
+				},
+				refusal: {
+					anyOf: [
+						{
+							$ref: '#/$defs/SptRefusal',
+						},
+						{
+							type: 'boolean',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The test drive stopped short of 300 mm: its blows and penetration (N2 is then empty; N1 may be given when the first 150 mm were completed), or true when the penetration was not recorded.',
+					title: 'Refusal',
+				},
+				sampleNumber: {
+					anyOf: [
+						{
+							maxLength: 32,
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'E.g. D-3, SPT-3.',
+					title: 'Sample number',
+				},
+				recovery: {
+					anyOf: [
+						{
+							maximum: 100,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Length recovered in the split spoon over the length driven [%].',
+					title: 'Recovery',
 				},
 				energyRatio: {
 					anyOf: [
@@ -7837,8 +8621,175 @@ export const SOIL_SCHEMA: IJSONSchema = {
 					title: 'Energy ratio ER',
 				},
 			},
-			required: ['depth', 'N'],
+			required: ['depth'],
 			title: 'SptRecord',
+			type: 'object',
+		},
+		SptRefusal: {
+			additionalProperties: false,
+			description: 'The test drive stopped before 300 mm (e.g. "50/100 mm": 50 blows for 100 mm).',
+			properties: {
+				blows: {
+					description: 'Blows of the test drive when it stopped.',
+					maximum: 300,
+					minimum: 1,
+					title: 'Blows',
+					type: 'integer',
+				},
+				penetration: {
+					description: 'Penetration of the test drive (after the seating drive) for those blows [mm].',
+					exclusiveMaximum: 300.0,
+					exclusiveMinimum: 0,
+					title: 'Penetration',
+					type: 'number',
+				},
+			},
+			required: ['blows', 'penetration'],
+			title: 'SptRefusal',
+			type: 'object',
+		},
+		Triaxial: {
+			additionalProperties: false,
+			description: 'Triaxial test: the results (cu; c and φ), or the specimens they are worked out from.',
+			properties: {
+				type: {
+					anyOf: [
+						{
+							enum: ['UU', 'CU', 'CD'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					enumDescriptions: ['Unconsolidated undrained (ASTM D2850)', 'Consolidated undrained (ASTM D4767)', 'Consolidated drained (ASTM D7181)'],
+					title: 'Test type',
+				},
+				cu: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'UU [kPa].',
+					title: 'Undrained shear strength cu',
+				},
+				c: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kPa]',
+					title: 'Cohesion c',
+				},
+				phi: {
+					anyOf: [
+						{
+							maximum: 50,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[°]',
+					title: 'Friction angle φ',
+				},
+				effective: {
+					default: true,
+					description: 'c and φ are effective (c\', φ\'): CD, or CU with pore pressures measured. Total-stress CU parameters do not feed the drained design.',
+					title: 'Effective stress',
+					type: 'boolean',
+				},
+				specimens: {
+					description: 'UU: cu is the mean (σ1 - σ3)/2; CD, CU: c and φ are fitted to the failure points (σ\' = σ - u for CU with the pore pressures) when not entered.',
+					items: {
+						$ref: '#/$defs/TriaxialSpecimen',
+					},
+					title: 'Specimens',
+					type: 'array',
+				},
+			},
+			title: 'Triaxial',
+			type: 'object',
+		},
+		TriaxialSpecimen: {
+			additionalProperties: false,
+			properties: {
+				cell: {
+					description: '[kPa]',
+					minimum: 0,
+					title: 'Cell pressure σ3',
+					type: 'number',
+				},
+				deviator: {
+					description: 'At failure [kPa].',
+					minimum: 0,
+					title: 'Deviator stress σ1 - σ3',
+					type: 'number',
+				},
+				porePressure: {
+					anyOf: [
+						{
+							maximum: 10000,
+							minimum: -1000,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'At failure, CU [kPa].',
+					title: 'Pore pressure u',
+				},
+			},
+			required: ['cell', 'deviator'],
+			title: 'TriaxialSpecimen',
+			type: 'object',
+		},
+		Ucs: {
+			additionalProperties: false,
+			description: 'Unconfined compression test (ASTM D2166).',
+			properties: {
+				qu: {
+					description: '[kPa]; cu = qu/2.',
+					minimum: 0,
+					title: 'Unconfined strength qu',
+					type: 'number',
+				},
+				strain: {
+					anyOf: [
+						{
+							maximum: 100,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[%]',
+					title: 'Strain at failure',
+				},
+			},
+			required: ['qu'],
+			title: 'Ucs',
 			type: 'object',
 		},
 	},
@@ -7859,6 +8810,19 @@ export const SOIL_SCHEMA: IJSONSchema = {
 			description: 'Elevation of the existing ground in the project datum [mm].',
 			title: 'Ground level',
 			type: 'number',
+		},
+		site: {
+			anyOf: [
+				{
+					$ref: '#/$defs/Site',
+				},
+				{
+					type: 'null',
+				},
+			],
+			default: null,
+			description: 'The site on the map.',
+			title: 'Site',
 		},
 		boreholes: {
 			items: {

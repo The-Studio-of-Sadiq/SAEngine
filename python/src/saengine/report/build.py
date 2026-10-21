@@ -99,9 +99,12 @@ BOQ_GROUPS = {
     "formwork": "Formwork",
     "steel": "Structural steel",
     "mep": "MEP coordination",
+    "materials": "Materials (cement, sand, stone chips, water)",
 }
 
-UNITS = {"m3": "m³", "m2": "m²", "kg": "kg", "nr": "nr", "m": "m"}
+UNITS = {
+    "m3": "m³", "m2": "m²", "kg": "kg", "nr": "nr", "m": "m", "cft": "cft", "bag": "bags", "l": "l"
+}  # fmt: skip
 
 #: Lateral load cases of a derived model and the global direction they push in (0 = X, 1 = Y).
 LATERAL_CASES = {"WX": 0, "WY": 1, "EX": 0, "EY": 1}
@@ -212,6 +215,11 @@ def report_data(
         model_path, model, manifest, results_dir, settings, parts, warnings
     )
     report["design"] = _design(results_dir, model_path, warnings)
+    report["design"]["required"] = (
+        _required(results_dir, model_path, warnings)
+        if report["design"].get("available")
+        else {"available": False}
+    )
     report["mep"] = _mep(parts)
     report["plumbing"] = _plumbing(parts)
     report["hvac"] = _guarded(_hvac, parts, "HVAC")
@@ -1050,6 +1058,41 @@ def _design(results_dir: Path, model_path: Path, warnings: list[str]) -> dict[st
         "notes": [str(note) for note in report.get("notes", [])],
         "details": details,
     }
+
+
+def _required(results_dir: Path, model_path: Path, warnings: list[str]) -> dict[str, Any]:
+    """Design mode in the report: the steel each object type requires next to what is entered
+    (one row per type, the location that governs), from the answer kept beside the results
+    (:mod:`saengine.pipeline.design_mode`; worked out here when it is not current)."""
+    from saengine.pipeline.design_mode import required, required_summary, required_tables
+
+    try:
+        result = required(results_dir, model_path)
+    except Exception as error:  # noqa: BLE001 - the report goes on without the required steel
+        message = str(error) or type(error).__name__
+        warnings.append(f"The required reinforcement could not be worked out: {message}")
+        return {"available": False}
+    steel = required_summary(result)
+    lines = []
+    if steel["short"]:
+        lines.append("Steel provided is less than required in " + ", ".join(steel["short"]) + ".")
+    if steel["tooSmall"]:
+        lines.append(
+            "No practical bars make these sections work (a larger section is needed): "
+            + ", ".join(steel["tooSmall"])
+            + "."
+        )
+    if steel["otherFailures"]:
+        lines.append(
+            "Failing checks that bars do not fix (size or depth): "
+            + ", ".join(steel["otherFailures"])
+            + "."
+        )
+    if steel["assumed"]:
+        lines.append(
+            "No bars entered on " + ", ".join(steel["assumed"]) + ": only the steel required."
+        )
+    return {"available": True, "tables": required_tables(result), "lines": lines}
 
 
 # ─────────────────────────────────────── soil and foundations ──────────────────────────────────

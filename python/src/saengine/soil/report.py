@@ -18,7 +18,7 @@ from pydantic import ValidationError
 
 from saengine.library.settings import ProjectSettings, default_project_settings, derived
 from saengine.library.soil import SoilReport, check, is_placeholder
-from saengine.soil import bearing, liquefaction, piles, site_class
+from saengine.soil import bearing, lab, liquefaction, piles, site_class
 from saengine.soil.profile import SPT_METHODS, Profile
 from saengine.soil.settlement import permissible as settlement_permissible
 from saengine.soil.settlement import permissible_text, rounded, settlement, soil_column
@@ -143,7 +143,13 @@ def _borehole(profile: Profile, site: dict[str, Any], screening: dict[str, Any])
         "pile": piles.pile_parameters(profile),
         "pileType": design.pile.type,
         "pileNote": piles.PILE_NOTES[design.pile.type],
-        "notes": profile.notes,
+        "lab": [lab.summary(s) for s in profile.borehole.samples],
+        "notes": profile.notes
+        + [
+            f"{s.number or f'sample at {s.depth:g} mm'}: {flag}"
+            for s in profile.borehole.samples
+            for flag in lab.chemistry_flags(s)
+        ],
     }
 
 

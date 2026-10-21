@@ -52,7 +52,12 @@ e.g. Bowles 1996, Foundation Analysis and Design, 5th ed., and Das, Principles o
 Engineering); a layer with a measured γ but no γsat takes the type's saturated value, at
 least γ. They are indicative only: the profile reports which values are defaults. A layer's
 missing values are first taken from the laboratory samples within it (their mean), the PI
-as LL - PL.
+as LL - PL (0 for a non-plastic sample). A sample gives the value it states, else the one its
+tests give (:mod:`saengine.soil.lab`: cu = qu/2 of the unconfined compression or the triaxial
+UU's cu, c' and φ' of the direct shear or an effective-stress triaxial, the fines content of
+the grading, Cc, Cr and e0 of the consolidation test); the source then names the test. A layer
+without a logged OCR takes ``OCR = σ'p/σ'v0`` (at least 1) of its consolidation samples, σ'v0
+at each sample's mid-depth, averaged.
 
 Correlations used when a layer has no measured value (each is reported as the value's source):
 
@@ -79,7 +84,8 @@ from dataclasses import dataclass, field
 from statistics import fmean
 from typing import Any
 
-from saengine.library.soil import Borehole, Design, Layer, SoilReport
+from saengine.library.soil import Borehole, Design, Layer, Sample, SoilReport
+from saengine.soil import lab
 
 #: Unit weight of water [kN/m³].
 GAMMA_W = 9.81
@@ -136,8 +142,11 @@ SILT_NOTE = (
     "the liquefaction screening and the sand methods; give PI or cu if it is plastic"
 )
 
-#: Properties a layer can take from its laboratory samples.
-_SAMPLE_FIELDS = ("unitWeight", "cu", "c", "phi", "finesContent", "liquidLimit", "Cc", "e0")
+#: Properties a layer can take from its laboratory samples (stated by the sample or derived
+#: from its tests, :func:`saengine.soil.lab.feed`), besides the PI, Cr and the OCR.
+_SAMPLE_FIELDS = (
+    "unitWeight", "cu", "c", "phi", "finesContent", "liquidLimit", "clayFraction", "Cc", "e0",
+)  # fmt: skip
 
 
 def behaviour(layer: Layer, pi: float | None = None, cu: float | None = None) -> str:
@@ -305,36 +314,71 @@ class Profile:
         self.water_table = None if borehole.waterTable is None else borehole.waterTable / 1e3
         self.notes: list[str] = []
         self.layers = [self._resolve(i, layer) for i, layer in enumerate(borehole.layers)]
+        self._ocr_from_samples()
         self.bottom = borehole.bottom / 1e3
         self.practice = self.design.practice
         self.spt: list[SptPoint] = []
         for record in borehole.spt:
             above = self.spt[-1].depth if self.spt else 0.0
-            self.spt.append(self._spt(record.depth / 1e3, record.N, record.energyRatio, above))
+            self.spt.append(self._spt(record.depth / 1e3, record.blows, record.energyRatio, above))
         self._correlate()
 
     # ─────────────────────────────── layers ───────────────────────────────
 
-    def _resolve(self, index: int, layer: Layer) -> SoilLayer:
+    def samples_in(self, index: int, layer: Layer) -> list[Sample]:
+        """The samples whose top lies in the layer (the deepest layer also takes those below
+        the log when it has none of its own)."""
         top, bottom = layer.top / 1e3, layer.bottom / 1e3
-        sources: dict[str, str] = {}
         samples = [s for s in self.borehole.samples if top <= s.depth / 1e3 < bottom]
         if not samples and index == len(self.borehole.layers) - 1:
             samples = [s for s in self.borehole.samples if s.depth / 1e3 >= top]
+        return samples
 
-        def value(name: str, sample_name: str | None = None) -> float | None:
+    def _ocr_from_samples(self) -> None:
+        """OCR = σ'p/σ'v0 (at least 1) of the layer's consolidation samples, σ'v0 at each
+        sample's mid-depth, where the log gives no OCR."""
+        for layer, soil_layer in zip(self.borehole.layers, self.layers, strict=True):
+            if layer.OCR is not None:
+                continue
+            ratios = []
+            for sample in self.samples_in(soil_layer.index, layer):
+                found = lab.feed(sample).get("preconsolidation")
+                if found is None:
+                    continue
+                stress = self.sigma_v_eff(sample.mid / 1e3)
+                if stress > 0:
+                    ratios.append(max(1.0, found[0] / stress))
+            if ratios:
+                soil_layer.ocr = fmean(ratios)
+                soil_layer.sources["OCR"] = f"σ'p/σ'v0 of samples ({len(ratios)})"
+
+    def _resolve(self, index: int, layer: Layer) -> SoilLayer:
+        top, bottom = layer.top / 1e3, layer.bottom / 1e3
+        sources: dict[str, str] = {}
+        samples = self.samples_in(index, layer)
+        feeds = [lab.feed(s) for s in samples]
+
+        def from_samples(name: str) -> tuple[float, str] | None:
+            """The mean of the samples' values and its source (with the tests they come from
+            when a sample does not state the value itself)."""
+            found = [f[name] for f in feeds if name in f]
+            if not found:
+                return None
+            how = sorted({h for _, h in found if h})
+            source = f"samples ({len(found)})"
+            if how:
+                source = f"samples ({len(found)}: {', '.join(how)})"
+            return fmean(v for v, _ in found), source
+
+        def value(name: str) -> float | None:
             own = getattr(layer, name)
             if own is not None:
                 sources[name] = "log"
                 return float(own)
-            values = [
-                getattr(s, sample_name or name)
-                for s in samples
-                if getattr(s, sample_name or name, None) is not None
-            ]
-            if values:
-                sources[name] = f"samples ({len(values)})"
-                return fmean(values)
+            found = from_samples(name)
+            if found is not None:
+                sources[name] = found[1]
+                return found[0]
             return None
 
         gamma = value("unitWeight")
@@ -356,14 +400,17 @@ class Profile:
             pi = layer.plasticityIndex
             sources["plasticityIndex"] = "log"
         else:
-            pis = [
-                s.liquidLimit - s.plasticLimit
-                for s in samples
-                if s.liquidLimit is not None and s.plasticLimit is not None
-            ]
-            if pis:
-                pi = max(0.0, fmean(pis))
-                sources["plasticityIndex"] = f"samples LL - PL ({len(pis)})"
+            found = from_samples("plasticityIndex")
+            if found is not None:
+                pi = max(0.0, found[0])
+                count = sum("plasticityIndex" in f for f in feeds)
+                sources["plasticityIndex"] = f"samples LL - PL ({count})"
+                if any(
+                    f["plasticityIndex"][1] == "non-plastic"
+                    for f in feeds
+                    if "plasticityIndex" in f
+                ):
+                    sources["plasticityIndex"] = found[1]
         cu = value("cu")
         e0 = value("e0")
         if e0 is None:
@@ -382,8 +429,12 @@ class Profile:
             cc = 0.009 * max(ll - 10, 0)
             sources["Cc"] = "0.009(LL - 10), Terzaghi & Peck 1967"
         cr = layer.Cr
+        found_cr = from_samples("Cr")
         if cr is not None:
             sources["Cr"] = "log"
+        elif found_cr is not None:
+            cr = found_cr[0]
+            sources["Cr"] = found_cr[1]
         elif cc is not None:
             cr = cc / 5
             sources["Cr"] = "Cc/5"

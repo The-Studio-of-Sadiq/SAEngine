@@ -53,6 +53,7 @@ function shortGroupName(group: BoqGroup): string {
 		case 'formwork': return localize('boq.short.formwork', "Formwork");
 		case 'steel': return localize('boq.short.steel', "Steel");
 		case 'mep': return localize('boq.short.mep', "MEP");
+		case 'materials': return localize('boq.short.materials', "Cement");
 	}
 }
 

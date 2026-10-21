@@ -1,0 +1,1249 @@
+"""Design mode, part 2: the bars SAEngine PROPOSES, per object type, and the edit that applies
+them.
+
+Bars live on the object types of 04 Objects, shared by every member placed with the type, so a
+proposal is made per type: the envelope of the demands of all its members (the checks' own,
+gathered once by :func:`saengine.design.required.gather`) decides, and the member that needs
+the most steel is the type's governing member. Each member's own bars are worked out too:
+members whose own bars would be lighter than the type's by more than ``overDesign`` are listed
+as over-designed, and the ``splitTypes`` mode groups them into new types (``B300x500-2``, ...)
+with their members reassigned in 06 BIM (and in 05 Floor Plan, where they come from), each new
+type designed for the envelope of its own members.
+
+Detailing (see :mod:`saengine.design.bars` for the clauses):
+
+- Beams: one diameter per face, at most ``maxSizes`` (2) sizes in the beam (stirrups apart),
+  at least 2 bars per face, in at most 2 rows at the least clear spacing (rows when one does
+  not fit); fewer bars and less steel preferred. Stirrups Ø8/10/12 with 2 legs (4 in beams at
+  least 300 mm wide when that is lighter), spacing in 25 mm steps within the largest spacing.
+  Every pick is confirmed with the checks' own functions (:func:`rc.flexure` with εt >= 0.004,
+  ACI 9.3.3.1, and :func:`rc.shear`), stepping up when it falls short.
+- Columns: equal bars of one diameter round the section, a count fitting its shape (symmetric;
+  even counts, shared between the faces as :func:`rc.section_of` lays them out), the smallest
+  steel that the interaction surface (coarse to search, the checks' full one to confirm)
+  accepts for every station of every member; ties by ACI 25.7.2.
+- Slabs: per layer the lightest mesh of Ø10/12/16 at 25 mm spacing steps (at least 100 mm,
+  at most the largest spacing), for the largest Wood-Armer moment of all the type's strips, As,min
+  and the ρ that one-way shear needs (the slab has no shear bars).
+- Foundations (9 Substructure, bars stored on each foundation): per direction and face, from
+  their flexure and strut-and-tie checks, As,min and spacing at most min(3h, 450 mm).
+
+When no practical bars make a section work (εt, the shear limit of ACI 22.5.1.2, ρ above 0.08,
+a slab too thin for one-way shear without shear bars), the type is reported ``tooSmall`` with
+the next practical section as information (depth in 50 mm steps for beams, both sides in
+50 mm steps for columns, thickness in 25 mm steps for slabs); nothing is changed for it.
+
+:func:`apply_proposal` is pure: it takes the texts of the part files and returns new texts, so
+the workbench applies the proposal as one undoable edit.
+"""
+
+from __future__ import annotations
+
+import copy
+import itertools
+import json
+import math
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+from saengine.design import bars as B
+from saengine.design import slab as slab_design
+from saengine.design.rc import (
+    DesignError,
+    flexure,
+    section_of,
+    shear,
+)
+from saengine.design.required import (
+    BeamGeometry,
+    ColumnSearch,
+    Gathered,
+    Options,
+    Point,
+    beam_demand,
+    beam_need,
+    column_requirements,
+    foundation_demands,
+    foundation_layer_need,
+    gather,
+    slab_envelope,
+    slab_layer_need,
+    slab_layer_rules,
+)
+from saengine.library.objects import (
+    Beam,
+    CircleProfile,
+    LinearReinforcement,
+    RectangleProfile,
+    Slab,
+)
+
+#: The largest increase tried when suggesting a bigger section [mm].
+GROWTH = {"beam": 600.0, "column": 300.0, "slab": 150.0}
+
+
+@dataclass
+class Pick:
+    """A proposal for one set of demands: the reinforcement (the objects' JSON shape), its
+    label, the steel that ranks it [mm² or mm²/m], or why there is none."""
+
+    reinforcement: dict[str, Any] | None
+    label: str
+    area: float
+    utilisation: dict[str, float] = field(default_factory=dict)
+    notes: list[str] = field(default_factory=list)
+    too_small: str = ""
+    suggestion: str = ""
+
+
+# ─────────────────────────────────────── beams ───────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class BeamLoads:
+    sag: float  # N·mm
+    hog: float
+    shear: float  # N
+
+    def envelope(self, other: BeamLoads) -> BeamLoads:
+        return BeamLoads(
+            max(self.sag, other.sag), max(self.hog, other.hog), max(self.shear, other.shear)
+        )
+
+
+def _beam_label(reinforcement: dict[str, Any]) -> str:
+    parts = []
+    for group in reinforcement.get("longitudinal", []):
+        parts.append(f"{group['position']} {group['count']}Ø{group['dia']:g}")
+    t = reinforcement.get("transverse")
+    if t:
+        parts.append(f"{t['type']}s Ø{t['dia']:g} {t.get('legs', 2)} legs @ {t['spacing']:g}")
+    return ", ".join(parts)
+
+
+class BeamDesigner:
+    """Proposes the bars of one beam type (its profile, cover and materials) for any demands,
+    caching the checks of the arrangements it tries."""
+
+    def __init__(
+        self, obj: Beam, fc: float, fy: float, es: float, aggregate: float | None, options: Options
+    ) -> None:
+        if not isinstance(obj.profile, RectangleProfile):
+            raise DesignError("beams are proposed for rectangular profiles only")
+        self.obj = obj
+        self.b, self.h = obj.profile.xDim, obj.profile.yDim
+        reinforcement = obj.reinforcement
+        assert reinforcement is not None
+        self.cover = reinforcement.cover
+        self.material = reinforcement.material
+        self.sides = [
+            g.model_dump(mode="json") for g in reinforcement.longitudinal if g.position == "sides"
+        ]
+        self.kind = reinforcement.transverse.type if reinforcement.transverse else "stirrup"
+        self.fc, self.fy, self.es, self.aggregate = fc, fy, es, aggregate
+        self.options = options
+        self._cache: dict[str, tuple[Any, Any, Any, Any]] = {}
+
+    def geometry(self, h: float, stirrup: float) -> BeamGeometry:
+        d = h - self.cover - stirrup - 10.0  # one row of Ø20 assumed
+        return BeamGeometry(self.b, h, d, d, self.fc, self.fy, self.es, self.fy)
+
+    def _analyse(self, reinforcement: dict[str, Any]):
+        key = json.dumps(reinforcement, sort_keys=True)
+        if key not in self._cache:
+            section = section_of(
+                self.obj.profile,
+                LinearReinforcement.model_validate(reinforcement),
+                self.fc,
+                self.fy,
+                self.es,
+                self.aggregate,
+            )
+            t = reinforcement["transverse"]
+            self._cache[key] = (
+                section,
+                flexure(section, False),
+                flexure(section, True),
+                shear(section, t["dia"], t["legs"], t["spacing"]),
+            )
+        return self._cache[key]
+
+    def verify(self, reinforcement: dict[str, Any], loads: BeamLoads) -> dict[str, float] | None:
+        """The utilisations of the checks (as :func:`check._beam_checks` makes them) when every
+        one passes, else None."""
+        _, sag, hog, resistance = self._analyse(reinforcement)
+        result = {}
+        for name, capacity, demand in (("sagging", sag, loads.sag), ("hogging", hog, loads.hog)):
+            if demand <= 0:
+                result[name] = 0.0
+                continue
+            if capacity.phi_mn <= 0 or round(demand / capacity.phi_mn, 3) > 1.0:
+                return None
+            if capacity.eps_t < 0.004:  # ACI 9.3.3.1
+                return None
+            result[name] = demand / capacity.phi_mn
+        if round(loads.shear / resistance.phi_vn, 3) > 1.0 or not resistance.with_min_stirrups:
+            return None
+        need = B.beam_shear_need(loads.shear, self.b, resistance.d, self.fc, self.fy)
+        if reinforcement["transverse"]["spacing"] > need.s_max + 1e-6:
+            return None
+        result["shear"] = loads.shear / resistance.phi_vn
+        return result
+
+    def bigger(self, loads: BeamLoads) -> str:
+        """The next practical depth (50 mm steps) at which the demands have a solution."""
+        step = 50.0
+        h = self.h
+        while h < self.h + GROWTH["beam"]:
+            h += step
+            g = self.geometry(h, 10.0)
+            need, *_ = beam_need(g, loads.sag, loads.hog, loads.shear, self.options.beam_ratio_max)
+            if not need.too_small:
+                return (
+                    f"try {self.b:g} x {h:g} mm (depth +{h - self.h:g} mm); the analysis must be "
+                    "run again, the stiffness changes"
+                )
+        return f"no depth up to +{GROWTH['beam']:g} mm works: widen the beam or add a support"
+
+    def propose(self, loads: BeamLoads) -> Pick:
+        opts = self.options
+        stirrup = 10.0
+        stirrups: B.Stirrups | None = None
+        need = None
+        for _ in range(3):
+            g = self.geometry(self.h, stirrup)
+            need, *_, shear_need = beam_need(
+                g, loads.sag, loads.hog, loads.shear, opts.beam_ratio_max
+            )
+            if need.too_small:
+                return Pick(
+                    None,
+                    "",
+                    0.0,
+                    too_small="; ".join(need.too_small),
+                    suggestion=self.bigger(loads),
+                )
+            stirrups = B.choose_stirrups(
+                shear_need, self.b, opts.stirrup_diameters, opts.min_stirrup_spacing
+            )
+            if stirrups is None:
+                return Pick(
+                    None,
+                    "",
+                    0.0,
+                    too_small=f"stirrups closer than {opts.min_stirrup_spacing:g} mm needed",
+                    suggestion=self.bigger(loads),
+                )
+            if stirrups.dia == stirrup:
+                break
+            stirrup = stirrups.dia
+        assert need is not None and stirrups is not None
+        inset = self.cover + stirrups.dia
+        scale = 1.0
+        for _ in range(8):
+            bottoms = B.face_options(
+                need.bottom * scale, self.b, inset, opts.diameters, self.aggregate
+            )[:5]
+            tops = B.face_options(need.top * scale, self.b, inset, opts.diameters, self.aggregate)[
+                :5
+            ]
+            combos = [
+                (top, bottom)
+                for top, bottom in itertools.product(tops, bottoms)
+                if len({top.dia, bottom.dia}) <= opts.max_sizes
+            ]
+            combos.sort(
+                key=lambda tb: (round(tb[0].score + tb[1].score, 1), len({tb[0].dia, tb[1].dia}))
+            )
+            for top, bottom in combos:
+                for option in self._stirrup_options(stirrups, loads, top, bottom):
+                    reinforcement = self.reinforcement(top, bottom, option)
+                    utilisation = self.verify(reinforcement, loads)
+                    if utilisation is not None:
+                        notes = []
+                        if bottom.rows > 1 or top.rows > 1:
+                            notes.append("bars in 2 rows, 25 mm clear between them (ACI 25.2.2)")
+                        return Pick(
+                            reinforcement,
+                            _beam_label(reinforcement),
+                            top.area + bottom.area,
+                            utilisation,
+                            notes,
+                        )
+            scale *= 1.08
+        return Pick(
+            None,
+            "",
+            0.0,
+            too_small="no practical bars found for the demands",
+            suggestion=self.bigger(loads),
+        )
+
+    def _stirrup_options(self, first: B.Stirrups, loads: BeamLoads, top: Any, bottom: Any):
+        """The stirrups picked at the assumed depth, then those for the arrangement's own d."""
+        yield first
+        probe = self.reinforcement(top, bottom, first)
+        section = self._analyse(probe)[0]
+        try:
+            d = section.effective_depth(top=False)
+        except DesignError:
+            return
+        need = B.beam_shear_need(loads.shear, self.b, d, self.fc, self.fy)
+        again = B.choose_stirrups(
+            need, self.b, self.options.stirrup_diameters, self.options.min_stirrup_spacing
+        )
+        if again is not None and again != first:
+            yield again
+
+    def reinforcement(self, top: B.FaceBars, bottom: B.FaceBars, stirrups: B.Stirrups):
+        return {
+            "material": self.material,
+            "cover": self.cover,
+            "longitudinal": [
+                {"position": "top", "count": top.count, "dia": top.dia},
+                {"position": "bottom", "count": bottom.count, "dia": bottom.dia},
+                *self.sides,
+            ],
+            "transverse": {
+                "type": self.kind,
+                "dia": stirrups.dia,
+                "spacing": stirrups.spacing,
+                "legs": stirrups.legs,
+            },
+        }
+
+
+def _beam_loads(member: dict[str, Any], combinations: list[str]) -> BeamLoads:
+    demand = beam_demand(member, combinations)
+    return BeamLoads(
+        demand.overall("sag").value, demand.overall("hog").value, demand.overall("shear").value
+    )
+
+
+# ─────────────────────────────────────── columns ───────────────────────────────────────
+
+
+def _column_label(reinforcement: dict[str, Any]) -> str:
+    group = reinforcement["longitudinal"][0]
+    t = reinforcement.get("transverse") or {}
+    text = f"{group['count']}Ø{group['dia']:g}"
+    if t:
+        text += f", {t['type']}s Ø{t['dia']:g} @ {t['spacing']:g}"
+        if t.get("legs", 2) > 2:
+            text += f" ({t['legs']} legs)"
+    return text
+
+
+def _column_pick(
+    search: ColumnSearch, index: int | None, points: list[Point], confirm: bool = True
+) -> Pick:
+    if index is None:
+        return Pick(
+            None,
+            "",
+            0.0,
+            too_small=(
+                f"no layout with ρ up to {B.RHO_MAX:g} (ACI 10.6.1.1) carries the demand"
+                if search.layouts
+                else "no bar layout fits the section at the least clear spacing (ACI 25.2.3)"
+            ),
+            suggestion=_bigger_column(search, points),
+        )
+    if confirm:
+        confirmed = search.confirm(index, points)
+        if confirmed is None:
+            return _column_pick(search, None, points)
+        index = confirmed
+    layout = search.layouts[index]
+    ties = B.column_ties(
+        layout,
+        min(search.b, search.h),
+        search.b,
+        search.h,
+        search.cover,
+        search.options.stirrup_diameters,
+    )
+    reinforcement = search.reinforcement(layout, ties)
+    notes = list(ties.notes)
+    notes.append(f"ρ = {layout.area / search.gross:.4f}")
+    utilisation = {}
+    if confirm:
+        utilisation["axialBending"] = search.utilisation(index, points, coarse=False)
+    return Pick(reinforcement, _column_label(reinforcement), layout.area, utilisation, notes)
+
+
+def _bigger_column(search: ColumnSearch, points: list[Point]) -> str:
+    """The next practical size (both sides +50 mm) at which a layout of about ρ = 0.025
+    carries the points (coarse surface; information only)."""
+    obj = search.obj
+    step = 50.0
+    grow = step
+    while grow <= GROWTH["column"]:
+        if search.shape == "circle":
+            profile: Any = CircleProfile(radius=search.b / 2 + grow / 2)
+        else:
+            profile = RectangleProfile(xDim=search.b + grow, yDim=search.h + grow)
+        bigger = obj.model_copy(update={"profile": profile})
+        trial = ColumnSearch(
+            bigger, search.fc, search.fy, search.es, search.aggregate, search.options
+        )
+        if trial.layouts:
+            target = 0.025 * trial.gross
+            index = min(
+                range(len(trial.layouts)), key=lambda k: abs(trial.layouts[k].area - target)
+            )
+            if trial.utilisation(index, points) <= 1.0:
+                size = f"Ø{trial.b:g}" if trial.shape == "circle" else f"{trial.b:g} x {trial.h:g}"
+                return (
+                    f"try {size} mm (+{grow:g} mm) with about ρ = 0.025; the analysis must be "
+                    "run again"
+                )
+        grow += step
+    return f"no size up to +{GROWTH['column']:g} mm works: a higher concrete grade or more columns"
+
+
+# ─────────────────────────────────────── slabs ───────────────────────────────────────
+
+
+@dataclass
+class SlabLoads:
+    moments: dict[str, float]  # layer -> N·mm/m
+    shear: dict[str, float]  # layer -> N/m
+    combos: dict[str, str | None] = field(default_factory=dict)
+
+    def envelope(self, other: SlabLoads) -> SlabLoads:
+        names = set(self.moments) | set(other.moments)
+        shear_names = set(self.shear) | set(other.shear)
+        return SlabLoads(
+            {n: max(self.moments.get(n, 0.0), other.moments.get(n, 0.0)) for n in names},
+            {n: max(self.shear.get(n, 0.0), other.shear.get(n, 0.0)) for n in shear_names},
+        )
+
+
+def _slab_loads(collected: dict[str, Any], combinations: list[str]) -> SlabLoads:
+    envelope = slab_envelope(collected, combinations)
+    return SlabLoads(
+        {n: p.value * 1e3 for n, p in envelope.items()},
+        {n: v[0] for n, v in collected["context"].shear.items()},
+        {n: p.combination for n, p in envelope.items()},
+    )
+
+
+def _mesh_label(reinforcement: dict[str, Any]) -> str:
+    parts = []
+    for name in slab_design.LAYERS:
+        mesh = reinforcement.get(name)
+        if mesh:
+            parts.append(f"{name[:-1]} {name[-1]} Ø{mesh['dia']:g} @ {mesh['spacing']:g}")
+    return ", ".join(parts)
+
+
+class SlabDesigner:
+    def __init__(self, obj: Slab, fc: float, fy: float, es: float, options: Options) -> None:
+        self.obj = obj
+        reinforcement = obj.reinforcement
+        assert reinforcement is not None
+        self.cover = reinforcement.cover
+        self.material = reinforcement.material
+        self.present = {n for n in slab_design.LAYERS if getattr(reinforcement, n) is not None}
+        self.fc, self.fy, self.es = fc, fy, es
+        self.options = options
+
+    def propose(self, loads: SlabLoads, h: float | None = None, suggest: bool = True) -> Pick:
+        h = h or self.obj.thickness
+        span = slab_design.span_direction(self.obj.system, loads.moments)
+        rules = slab_layer_rules(self.obj.system, h, span)
+        reinforcement: dict[str, Any] = {"material": self.material, "cover": self.cover}
+        notes: list[str] = []
+        small: list[str] = []
+        utilisation: dict[str, float] = {}
+        total = 0.0
+        for face in ("bottom", "top"):
+            outer = 0.0
+            for direction in ("X", "Y"):
+                name = f"{face}{direction}"
+                moment = loads.moments.get(name, 0.0)
+                q = loads.shear.get(name)
+                if name not in self.present and moment <= slab_design.NO_DEMAND * 1e3 and not q:
+                    continue
+                in_span = span is None or direction == span
+                required_of: dict[float, float] = {}
+                for dia in self.options.slab_diameters:
+                    d = h - self.cover - (dia / 2 if direction == "X" else outer + dia / 2)
+                    shear = (q, None, "") if q else None
+                    required, _, layer_notes, too_small = slab_layer_need(
+                        name, moment, d, h, self.fc, self.fy, self.es, in_span, shear
+                    )
+                    if too_small:
+                        small.append(f"{name}: " + "; ".join(n for n in layer_notes if n))
+                        break
+                    required_of[dia] = required
+                if small:
+                    break
+                s_max, rule = rules[name]
+                mesh = B.mesh_for(
+                    0.0,
+                    s_max,
+                    self.options.slab_diameters,
+                    self.options.min_slab_spacing,
+                    required_of,
+                )
+                if mesh is None:
+                    small.append(
+                        f"{name}: bars closer than {self.options.min_slab_spacing:g} mm needed"
+                    )
+                    break
+                reinforcement[name] = {"dia": mesh.dia, "spacing": mesh.spacing}
+                total += mesh.area
+                d = h - self.cover - (mesh.dia / 2 if direction == "X" else outer + mesh.dia / 2)
+                capacity = slab_design.layer_capacity(mesh.area, d, self.fc, self.fy, self.es)
+                if moment > 0:
+                    utilisation[name] = moment / capacity.phi_mn
+                if q:
+                    phi_vc, _ = slab_design.one_way_shear(mesh.area / (1000 * d), d, self.fc)
+                    utilisation[f"shear {name}"] = q / phi_vc
+                if direction == "X":
+                    outer = mesh.dia
+                notes.append(f"{name}: spacing ≤ {s_max:.0f} mm ({rule})")
+            if small:
+                break
+        if small:
+            suggestion = self.thicker(loads) if suggest else ""
+            return Pick(None, "", 0.0, too_small="; ".join(small), suggestion=suggestion)
+        if self.obj.system == "flat":
+            notes.append(
+                "flat slab: punching is not cured by flexural bars; check it after applying"
+            )
+        return Pick(reinforcement, _mesh_label(reinforcement), total, utilisation, notes)
+
+    def thicker(self, loads: SlabLoads) -> str:
+        h = self.obj.thickness
+        while h < self.obj.thickness + GROWTH["slab"]:
+            h += 25.0
+            if self.propose(loads, h, suggest=False).reinforcement is not None:
+                return (
+                    f"try {h:g} mm (+{h - self.obj.thickness:g} mm); the analysis must be run again"
+                )
+        return f"no thickness up to +{GROWTH['slab']:g} mm works: add beams or drop panels"
+
+
+# ─────────────────────────────────────── grouping ───────────────────────────────────────
+
+
+@dataclass
+class MemberPick:
+    id: str
+    loads: Any
+    pick: Pick
+
+
+def _over_designed(type_pick: Pick, members: list[MemberPick], threshold: float):
+    found = []
+    for m in members:
+        if m.pick.reinforcement is None or m.pick.area <= 0 or type_pick.area <= 0:
+            continue
+        ratio = type_pick.area / m.pick.area - 1
+        if ratio > threshold + 1e-9:
+            found.append({"member": m.id, "own": m.pick.label, "overDesign": round(ratio, 3)})
+    return found
+
+
+def _groups(type_pick: Pick, members: list[MemberPick], threshold: float, limit: int):
+    """The members that may leave the type, grouped (``[[MemberPick, ...], ...]``): those
+    over-designed by more than ``threshold``, by their own bars; at most ``limit`` groups, the
+    most populous kept, the members of the others joining the lightest kept group at least as
+    heavy as their own bars (or staying)."""
+    candidates = [
+        m
+        for m in members
+        if m.pick.reinforcement is not None
+        and m.pick.area > 0
+        and type_pick.area / m.pick.area - 1 > threshold + 1e-9
+    ]
+    by_signature: dict[str, list[MemberPick]] = {}
+    for m in candidates:
+        by_signature.setdefault(json.dumps(m.pick.reinforcement, sort_keys=True), []).append(m)
+    ordered = sorted(by_signature.values(), key=lambda g: (-len(g), g[0].pick.area))
+    kept = [list(g) for g in ordered[:limit]]
+    for group in ordered[limit:]:
+        for m in group:
+            home = min(
+                (k for k in kept if k[0].pick.area >= m.pick.area),
+                key=lambda k: k[0].pick.area,
+                default=None,
+            )
+            if home is not None:
+                home.append(m)
+    return sorted(kept, key=lambda g: -g[0].pick.area)
+
+
+def _split(
+    pick: Pick, members: list[MemberPick], opts: Options, propose_for
+) -> tuple[list[tuple[list[MemberPick], Pick]], Pick]:
+    """The groups that leave the type, each with its own pick, and the pick of the members that
+    stay. A group whose own envelope finds no bars does not leave: its members stay in the type
+    and in the envelope its bars are designed for."""
+    groups = _groups(pick, members, opts.over_design, opts.max_new_types)
+    grouped = {m.id for group in groups for m in group}
+    if not groups or all(m.id in grouped for m in members):
+        return [], pick
+    accepted: list[tuple[list[MemberPick], Pick]] = []
+    for group in groups:
+        envelope = group[0].loads
+        for m in group[1:]:
+            envelope = envelope.envelope(m.loads)
+        group_pick = propose_for(envelope)
+        if group_pick.reinforcement is not None:
+            accepted.append((group, group_pick))
+    if not accepted:
+        return [], pick
+    leaving = {m.id for group, _ in accepted for m in group}
+    staying = [m for m in members if m.id not in leaving]
+    envelope = staying[0].loads
+    for m in staying[1:]:
+        envelope = envelope.envelope(m.loads)
+    return accepted, propose_for(envelope)
+
+
+def _new_id(base: str, taken: set[str]) -> tuple[str, int]:
+    k = 2
+    while f"{base}-{k}" in taken:
+        k += 1
+    taken.add(f"{base}-{k}")
+    return f"{base}-{k}", k
+
+
+# ─────────────────────────────────────── the proposal ───────────────────────────────────────
+
+
+def _entry(
+    type_id: str,
+    kind: str,
+    name: str,
+    current: dict[str, Any] | None,
+    label_of,
+    pick: Pick,
+    members: list[MemberPick],
+    governing: str | None,
+    over: list[dict[str, Any]],
+    demand: dict[str, Any],
+) -> dict[str, Any]:
+    status = "tooSmall" if pick.reinforcement is None else "ok"
+    if status == "ok" and current is not None and _same(current, pick.reinforcement):
+        status = "unchanged"
+    return {
+        "type": type_id,
+        "kind": kind,
+        "name": name,
+        "current": None if current is None else bars_of(current, label_of(current)),
+        "proposed": bars_of(pick.reinforcement, pick.label),
+        "status": status,
+        "governingMember": governing,
+        "members": [m.id for m in members],
+        "demand": demand,
+        "utilisation": {k: round(float(v), 3) for k, v in pick.utilisation.items()},
+        "overDesigned": [o["member"] for o in over],
+        "overDesignedDetails": over,
+        "tooSmall": None
+        if pick.reinforcement is not None
+        else {"reason": pick.too_small, "suggestion": pick.suggestion},
+        "notes": pick.notes,
+    }
+
+
+def bars_of(reinforcement: dict[str, Any] | None, label: str) -> dict[str, Any] | None:
+    """Bars as the proposal reports them: the reinforcement (04 Objects' or 09 Substructure's
+    shape) with its description under ``"text"``."""
+    if reinforcement is None:
+        return None
+    return {**copy.deepcopy(reinforcement), "text": label}
+
+
+def reinforcement_of(bars: dict[str, Any]) -> dict[str, Any]:
+    """The reinforcement of reported bars (:func:`bars_of`): without ``"text"``."""
+    return {k: copy.deepcopy(v) for k, v in bars.items() if k != "text"}
+
+
+def _normal(value: Any) -> Any:
+    """``value`` with every number a float and no empty entries, to compare bars."""
+    if isinstance(value, dict):
+        return {k: _normal(v) for k, v in value.items() if v is not None and k != "text"}
+    if isinstance(value, list):
+        return [_normal(v) for v in value]
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value)
+    return value
+
+
+def _same(a: dict[str, Any], b: dict[str, Any] | None) -> bool:
+    """Whether two reinforcements are the same bars (numbers compared as floats; a transverse
+    without legs has 2)."""
+    if b is None:
+        return False
+    a, b = _normal(a), _normal(b)
+    for bars in (a, b):
+        transverse = bars.get("transverse")
+        if isinstance(transverse, dict):
+            transverse.setdefault("legs", 2.0)
+    return a == b
+
+
+def design_proposal(
+    out_dir: str | Path,
+    project_path: str | Path,
+    options: dict[str, Any] | None = None,
+    gathered: Gathered | None = None,
+) -> dict[str, Any]:
+    """The proposed bars of every designed object type and foundation (see the module notes).
+
+    ``options``: ``mode`` "byType" (default) or "splitTypes", ``diameters``,
+    ``stirrupDiameters``, ``maxSizes`` (bar sizes per beam, 2), ``overDesign`` (0.25: members
+    whose own bars would be 25 % lighter are listed), ``maxNewTypes`` (3 per type).
+
+    Returns ``{"mode", "types": [{"type", "kind", "name", "current", "proposed", "status"
+    ("ok", "unchanged", "tooSmall"), "governingMember", "members", "demand", "utilisation",
+    "overDesigned" (member ids), "overDesignedDetails" ([{"member", "own", "overDesign"}]),
+    "tooSmall" ({"reason", "suggestion"} or None), "notes", "byType" (splitTypes only: the
+    single-type proposal)}], "newTypes": [{"type", "from", "kind", "name", "proposed",
+    "members", "governingMember", "utilisation"}], "reassign": [{"member", "from", "to",
+    "source"}], "foundations": [{"id", "type", "current", "proposed", "status", "notes",
+    "otherFailures", "tooSmall"}], "warnings"}``; ``current``/``proposed`` are the
+    reinforcement in the shape of 04 Objects (09 Substructure for foundations) with its
+    description under ``"text"`` (:func:`bars_of`), or None.
+    """
+    raw = options or {}
+    mode = raw.get("mode", "byType")
+    if mode not in ("byType", "splitTypes"):
+        raise ValueError(f"unknown mode '{mode}' (byType or splitTypes)")
+    opts = Options.of(raw)
+    gathered = gathered or gather(out_dir, project_path)
+    combinations = gathered.collect.get("combinations", [])
+    originals = {o["id"]: o for o in json.loads(gathered.objects_text).get("objects", [])}
+    taken = set(originals)
+    sources = {e.id: getattr(e, "source", None) for e in gathered.building.elements}
+    types: list[dict[str, Any]] = []
+    new_types: list[dict[str, Any]] = []
+    reassign: list[dict[str, Any]] = []
+    warnings: list[str] = list(gathered.notes)
+
+    def current_of(type_id: str) -> dict[str, Any] | None:
+        if type_id in gathered.assumed:
+            return None
+        return (originals.get(type_id) or {}).get("reinforcement")
+
+    def split(
+        type_id: str,
+        kind: str,
+        name: str,
+        label_of,
+        pick: Pick,
+        members: list[MemberPick],
+        propose_for,
+    ) -> Pick:
+        """Splits off the over-designed members; returns the remaining members' pick."""
+        accepted, remaining = _split(pick, members, opts, propose_for)
+        for group, group_pick in accepted:
+            new_id, k = _new_id(type_id, taken)
+            governing = max(group, key=lambda m: m.pick.area).id
+            new_types.append(
+                {
+                    "type": new_id,
+                    "from": type_id,
+                    "kind": kind,
+                    "name": f"{name} ({k})",
+                    "proposed": bars_of(group_pick.reinforcement, group_pick.label),
+                    "members": [m.id for m in group],
+                    "governingMember": governing,
+                    "utilisation": {
+                        kk: round(float(v), 3) for kk, v in group_pick.utilisation.items()
+                    },
+                }
+            )
+            for m in group:
+                reassign.append(
+                    {"member": m.id, "from": type_id, "to": new_id, "source": sources.get(m.id)}
+                )
+        return remaining
+
+    # Beams.
+    beams: dict[str, list[dict[str, Any]]] = {}
+    for member in gathered.collect.get("members", []):
+        if member["kind"] == "beam":
+            beams.setdefault(member["type"], []).append(member)
+    for type_id, members in beams.items():
+        first = members[0]
+        try:
+            designer = BeamDesigner(
+                first["object"], first["fc"], first["fy"], first["es"], first["aggregate"], opts
+            )
+        except DesignError as error:
+            warnings.append(f"{type_id}: {error}")
+            continue
+        picks = []
+        cache: dict[BeamLoads, Pick] = {}
+        for member in members:
+            loads = _beam_loads(member, combinations)
+            key = BeamLoads(*(round(v, -3) for v in (loads.sag, loads.hog, loads.shear)))
+            if key not in cache:
+                cache[key] = designer.propose(loads)
+            picks.append(MemberPick(member["id"], loads, cache[key]))
+        envelope = picks[0].loads
+        for m in picks[1:]:
+            envelope = envelope.envelope(m.loads)
+        pick = designer.propose(envelope)
+        governing = max(picks, key=lambda m: m.pick.area if m.pick.reinforcement else math.inf).id
+        over = _over_designed(pick, picks, opts.over_design) if pick.reinforcement else []
+        by_type_pick = pick
+        if mode == "splitTypes" and pick.reinforcement is not None:
+            pick = split(
+                type_id, "beam", first["object"].name, _beam_label, pick, picks, designer.propose
+            )
+        entry = _entry(
+            type_id,
+            "beam",
+            first["object"].name,
+            current_of(type_id),
+            _beam_label,
+            pick,
+            picks,
+            governing,
+            over,
+            {
+                "sagging": round(envelope.sag / 1e6, 2),
+                "hogging": round(envelope.hog / 1e6, 2),
+                "shear": round(envelope.shear / 1e3, 2),
+                "units": {"sagging": "kN·m", "hogging": "kN·m", "shear": "kN"},
+            },
+        )
+        if mode == "splitTypes":
+            entry["byType"] = bars_of(by_type_pick.reinforcement, by_type_pick.label)
+        types.append(entry)
+
+    # Columns.
+    for type_id, (search, members) in column_requirements(gathered, opts).items():
+        obj = search.obj
+        picks = []
+        for member_id, (index, points) in members.items():
+            picks.append(
+                MemberPick(
+                    member_id,
+                    _ColumnLoads(index, points),
+                    _column_pick(search, index, points, confirm=False),
+                )
+            )
+        all_points = [p for _, points in members.values() for p in points]
+        indices = [index for index, _ in members.values()]
+        index = None if any(i is None for i in indices) else max(indices, default=None)
+        pick = _column_pick(search, index, all_points)
+        governing = max(picks, key=lambda m: m.pick.area if m.pick.reinforcement else math.inf).id
+        over = _over_designed(pick, picks, opts.over_design) if pick.reinforcement else []
+        by_type_pick = pick
+
+        if mode == "splitTypes" and pick.reinforcement is not None:
+            pick = split(
+                type_id,
+                "column",
+                obj.name,
+                _column_label,
+                pick,
+                picks,
+                lambda loads, s=search: _column_pick(s, loads.index, loads.points),
+            )
+        governing_points = next((pts for mid, (_, pts) in members.items() if mid == governing), [])
+        top = max(governing_points, key=lambda p: math.hypot(p[1], p[2]), default=None)
+        entry = _entry(
+            type_id,
+            "column",
+            obj.name,
+            current_of(type_id),
+            _column_label,
+            pick,
+            picks,
+            governing,
+            over,
+            {
+                "maxAxial": round(max((p[0] for p in all_points), default=0.0) / 1e3, 1),
+                "maxMoment": round(math.hypot(top[1], top[2]) / 1e6, 2) if top else 0.0,
+                "units": {"maxAxial": "kN", "maxMoment": "kN·m"},
+            },
+        )
+        if mode == "splitTypes":
+            entry["byType"] = bars_of(by_type_pick.reinforcement, by_type_pick.label)
+        types.append(entry)
+
+    # Slabs.
+    slabs: dict[str, list[dict[str, Any]]] = {}
+    for collected in gathered.collect.get("slabs", []):
+        slabs.setdefault(collected["type"], []).append(collected)
+    for type_id, collected in slabs.items():
+        first = collected[0]
+        designer = SlabDesigner(first["object"], first["fc"], first["fy"], first["es"], opts)
+        picks = [
+            MemberPick(c["id"], loads, designer.propose(loads))
+            for c in collected
+            for loads in (_slab_loads(c, combinations),)
+        ]
+        envelope = picks[0].loads
+        for m in picks[1:]:
+            envelope = envelope.envelope(m.loads)
+        pick = designer.propose(envelope)
+        governing = max(picks, key=lambda m: m.pick.area if m.pick.reinforcement else math.inf).id
+        over = _over_designed(pick, picks, opts.over_design) if pick.reinforcement else []
+        by_type_pick = pick
+        if mode == "splitTypes" and pick.reinforcement is not None:
+            pick = split(
+                type_id, "slab", first["object"].name, _mesh_label, pick, picks, designer.propose
+            )
+        flat = [
+            c["name"]
+            for c in itertools.chain.from_iterable(x["checks"] for x in collected)
+            if c["name"].startswith("Punching") and not c["ok"]
+        ]
+        entry = _entry(
+            type_id,
+            "slab",
+            first["object"].name,
+            current_of(type_id),
+            _mesh_label,
+            pick,
+            picks,
+            governing,
+            over,
+            {
+                "moments": {k: round(v / 1e6, 2) for k, v in envelope.moments.items()},
+                "shear": {k: round(v / 1e3, 2) for k, v in envelope.shear.items()},
+                "units": {"moments": "kN·m/m", "shear": "kN/m"},
+            },
+        )
+        if flat:
+            failing = ", ".join(sorted(set(flat)))
+            entry["notes"] = [
+                *entry["notes"],
+                f"punching fails ({failing}): thicken the slab, add drop panels or shear bars",
+            ]
+        if mode == "splitTypes":
+            entry["byType"] = bars_of(by_type_pick.reinforcement, by_type_pick.label)
+        types.append(entry)
+
+    foundations = [_foundation_entry(d, opts) for d in foundation_demands(gathered)]
+    for t in types:
+        if t["status"] == "tooSmall":
+            warnings.append(f"{t['type']}: section too small — {t['tooSmall']['reason']}")
+    return {
+        "mode": mode,
+        "types": types,
+        "newTypes": new_types,
+        "reassign": reassign,
+        "foundations": foundations,
+        "warnings": warnings,
+    }
+
+
+@dataclass(frozen=True)
+class _ColumnLoads:
+    index: int | None
+    points: list[Point]
+
+    def envelope(self, other: _ColumnLoads) -> _ColumnLoads:
+        if self.index is None or other.index is None:
+            index = None
+        else:
+            index = max(self.index, other.index)
+        return _ColumnLoads(index, [*self.points, *other.points])
+
+    def __hash__(self) -> int:  # points are a list
+        return id(self)
+
+
+# ─────────────────────────────────────── foundations ───────────────────────────────────────
+
+
+def _foundation_entry(demand: Any, opts: Options) -> dict[str, Any]:
+    current = demand.current.model_dump(mode="json", exclude_none=True) if demand.current else None
+    reinforcement: dict[str, Any] = {
+        "material": demand.material,
+        "cover": demand.cover,
+    }
+    s_max = (
+        min(3 * demand.thickness, 450.0)
+        if demand.type != "raft"
+        else min(2 * demand.thickness, 450.0)
+    )
+    notes: list[str] = [
+        f"spacing ≤ {s_max:.0f} mm (ACI {'7.7.2.3' if demand.type != 'raft' else '8.7.2.2'})"
+    ]
+    small: list[str] = []
+    for face in ("bottom", "top"):
+        outer = 0.0
+        for direction in ("X", "Y"):
+            name = f"{face}{direction}"
+            if face == "top" and demand.moments[name].value <= 0:
+                continue
+            required_of = {}
+            for dia in opts.footing_diameters:
+                d = (
+                    demand.thickness
+                    - demand.cover
+                    - (dia / 2 if direction == "X" else outer + dia / 2)
+                )
+                required, _, _, too_small = foundation_layer_need(demand, name, d)
+                if too_small:
+                    small.append(f"{name}: too thin for the moment")
+                    break
+                required_of[dia] = required
+            if small:
+                break
+            if face == "top" and max(required_of.values(), default=0.0) <= 0:
+                continue
+            mesh = B.mesh_for(
+                0.0, s_max, opts.footing_diameters, opts.min_slab_spacing, required_of
+            )
+            if mesh is None:
+                small.append(f"{name}: bars closer than {opts.min_slab_spacing:g} mm needed")
+                break
+            reinforcement[name] = {"dia": mesh.dia, "spacing": mesh.spacing}
+            if direction == "X":
+                outer = mesh.dia
+        if small:
+            break
+    proposed = None
+    if not small:
+        proposed = bars_of(reinforcement, _mesh_label(reinforcement))
+    status = "ok" if not small else "tooSmall"
+    if status == "ok" and current is not None and _mesh_equal(current, reinforcement):
+        status = "unchanged"
+    return {
+        "id": demand.id,
+        "type": demand.type,
+        "current": bars_of(current, _mesh_label(current)) if current else None,
+        "proposed": proposed,
+        "status": status,
+        "notes": notes,
+        "otherFailures": list(demand.failing),
+        "tooSmall": None
+        if not small
+        else {
+            "reason": "; ".join(small),
+            "suggestion": ("a thicker foundation (try +50 mm steps and run the design again)"),
+        },
+    }
+
+
+def _mesh_equal(a: dict[str, Any], b: dict[str, Any]) -> bool:
+    return all(
+        (a.get(n) or {}).get("dia") == (b.get(n) or {}).get("dia")
+        and (a.get(n) or {}).get("spacing") == (b.get(n) or {}).get("spacing")
+        for n in slab_design.LAYERS
+    )
+
+
+# ─────────────────────────────────────── applying ───────────────────────────────────────
+
+
+def _dump(data: Any, like: str) -> str:
+    """JSON in the indentation of the text it replaces (tabs or spaces)."""
+    indent: str | int = 2
+    for line in like.splitlines()[1:3]:
+        stripped = line.lstrip(" \t")
+        if line != stripped:
+            lead = line[: len(line) - len(stripped)]
+            indent = "\t" if lead.startswith("\t") else len(lead)
+            break
+    text = json.dumps(data, indent=indent, ensure_ascii=False)
+    return text + ("\n" if like.endswith("\n") else "")
+
+
+def _text(bars: Any) -> str | None:
+    if bars is None:
+        return None
+    if isinstance(bars, str):
+        return bars
+    return bars.get("text")
+
+
+def _change(file: str, item: str, what: str, before: str | None, after: str | None):
+    """One change of :func:`apply_proposal`, with its ``message`` for the workbench."""
+    if what == "new type":
+        message = f"{item}: new type from {before}, {after}"
+    elif what == "type":
+        message = f"{item}: type {before} → {after} ({file.split('/')[0]})"
+    else:
+        message = f"{item}: {before or 'no bars'} → {after}"
+    return {"file": file, "id": item, "what": what, "from": before, "to": after, "message": message}
+
+
+def apply_proposal(
+    objects_text: str,
+    bim_text: str,
+    proposal: dict[str, Any],
+    floor_plan_text: str | None = None,
+    substructure_text: str | None = None,
+) -> dict[str, Any]:
+    """The part files with ``proposal`` (:func:`design_proposal`) applied, as new texts:
+    ``{"objectsText", "bimText", "floorPlanText"?, "substructureText"?, "changes"}``. Pure: it
+    reads and writes nothing. Entries with ``"apply": false`` (set by the workbench when the
+    engineer unticks one) and those without a proposal (too small) are left out; new types are
+    added after the type they come from, their members reassigned in the BIM model (and in the
+    floor plan, for members that come from it; the BIM model's stamp of the floor plan follows
+    when it was current). When a split-off member stays in its type (its new type or its row
+    unticked), the type takes its ``byType`` bars (designed for all its members), not the split's;
+    a new type none of whose members moves is not added. ``changes``: ``[{"file", "id", "what", "from",
+    "to", "message"}]``. Raises ``ValueError`` when a text is not valid JSON or a type is not there."""
+    from saengine.library.bim import source_stamp
+    from saengine.library.objects import ObjectLibrary
+
+    objects = json.loads(objects_text)
+    bim = json.loads(bim_text)
+    plan = json.loads(floor_plan_text) if floor_plan_text is not None else None
+    sub = json.loads(substructure_text) if substructure_text is not None else None
+    changes: list[dict[str, Any]] = []
+    by_id = {o["id"]: o for o in objects.get("objects", [])}
+
+    # Which split-off members really move: a reassignment is made when it and its new type are
+    # both applied. A member that stays in its type although the split moved it (its new type or
+    # its own row unticked) needs the type's bars for all its members (``byType``), since the
+    # split's bars were designed without it.
+    new_ids = {
+        n.get("type") or n.get("id")
+        for n in proposal.get("newTypes", [])
+        if n.get("apply") is not False
+    }
+    moves = [
+        m
+        for m in proposal.get("reassign", [])
+        if m.get("apply") is not False and m["to"] in new_ids
+    ]
+    moved = {m["member"] for m in moves}
+    used = {m["to"] for m in moves}
+    kept_back: dict[str, list[str]] = {}
+    for move in proposal.get("reassign", []):
+        if move["member"] not in moved:
+            kept_back.setdefault(move["from"], []).append(move["member"])
+
+    for entry in proposal.get("types", []):
+        if entry.get("apply") is False or not entry.get("proposed"):
+            continue
+        target = by_id.get(entry["type"])
+        if target is None:
+            raise ValueError(f"object type '{entry['type']}' is not in 04 Objects")
+        proposed = entry["proposed"]
+        staying = kept_back.get(entry["type"])
+        if staying:
+            proposed = entry.get("byType")
+            if not proposed:
+                raise ValueError(
+                    f"object type '{entry['type']}': {', '.join(staying)} would stay in it on bars "
+                    "designed without them; apply their new type too, or propose by type"
+                )
+        before = target.get("reinforcement")
+        after = reinforcement_of(proposed)
+        if before == after:
+            continue
+        target["reinforcement"] = after
+        change = _change(
+            "04 Objects/objects.json",
+            entry["type"],
+            "reinforcement",
+            _text(entry.get("current")),
+            _text(proposed),
+        )
+        if staying:
+            change["message"] += (
+                f" (the bars for all its members: {', '.join(staying)} stay in the type)"
+            )
+        changes.append(change)
+
+    added: set[str] = set()
+    for new in proposal.get("newTypes", []):
+        if new.get("apply") is False or (new.get("type") or new.get("id")) not in used:
+            continue  # unticked, or none of its members moves
+        origin = by_id.get(new["from"])
+        if origin is None:
+            raise ValueError(f"object type '{new['from']}' is not in 04 Objects")
+        new_id = new.get("type") or new.get("id")
+        if new_id in by_id:
+            raise ValueError(f"object type '{new_id}' exists already")
+        clone = copy.deepcopy(origin)
+        clone["id"], clone["name"] = new_id, new.get("name") or f"{origin['name']} ({new_id})"
+        clone["reinforcement"] = reinforcement_of(new["proposed"])
+        clone.pop("description", None)
+        items = objects["objects"]
+        at = items.index(origin) + 1
+        while at < len(items) and items[at]["id"] in added:
+            at += 1
+        items.insert(at, clone)
+        by_id[clone["id"]] = clone
+        added.add(clone["id"])
+        changes.append(
+            _change(
+                "04 Objects/objects.json", new_id, "new type", new["from"], _text(new["proposed"])
+            )
+        )
+
+    elements = {e["id"]: e for e in bim.get("elements", [])}
+    for member in (bim.get("additions") or {}).get("members", []):
+        elements.setdefault(member["id"], member)
+    plan_members: dict[str, dict[str, Any]] = {}
+    if plan is not None:
+        for key in ("columns", "beams", "slabs", "walls", "footings"):
+            for item in plan.get(key, []):
+                plan_members[item["id"]] = item
+    for move in moves:
+        element = elements.get(move["member"])
+        if element is None:
+            raise ValueError(f"member '{move['member']}' is not in 06 BIM")
+        element["type"] = move["to"]
+        changes.append(_change("06 BIM/bim.json", move["member"], "type", move["from"], move["to"]))
+        source = move.get("source") or element.get("source")
+        if plan is not None and source and source in plan_members:
+            plan_members[source]["type"] = move["to"]
+            changes.append(
+                _change("05 Floor Plan/floor-plan.json", source, "type", move["from"], move["to"])
+            )
+
+    if sub is not None:
+        found = {f["id"]: f for f in sub.get("foundations", [])}
+        for entry in proposal.get("foundations", []):
+            if entry.get("apply") is False or not entry.get("proposed"):
+                continue
+            target = found.get(entry["id"])
+            if target is None:
+                continue
+            after = reinforcement_of(entry["proposed"])
+            if target.get("reinforcement") == after:
+                continue
+            target["reinforcement"] = after
+            changes.append(
+                _change(
+                    "09 Substructure/substructure.json",
+                    entry["id"],
+                    "reinforcement",
+                    _text(entry.get("current")),
+                    _text(entry["proposed"]),
+                )
+            )
+
+    ObjectLibrary.model_validate(objects)  # the result must still be a valid library
+    result: dict[str, Any] = {
+        "objectsText": _dump(objects, objects_text),
+        "bimText": _dump(bim, bim_text),
+        "changes": changes,
+    }
+    if plan is not None and floor_plan_text is not None:
+        result["floorPlanText"] = _dump(plan, floor_plan_text)
+        # The BIM model was built from the floor plan as it was: it stays current with the new
+        # floor plan (the same members, the same types), so its stamp follows.
+        stamps = bim.get("source") or {}
+        new_stamp = source_stamp(result["floorPlanText"])
+        if stamps.get("floorPlan") == source_stamp(floor_plan_text) and new_stamp != stamps.get(
+            "floorPlan"
+        ):
+            stamps["floorPlan"] = new_stamp
+            result["bimText"] = _dump(bim, bim_text)
+    if sub is not None and substructure_text is not None:
+        result["substructureText"] = _dump(sub, substructure_text)
+    return result
+
+
+__all__ = ["apply_proposal", "design_proposal"]

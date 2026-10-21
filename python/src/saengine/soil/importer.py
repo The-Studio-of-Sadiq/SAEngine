@@ -7,12 +7,15 @@ header is the first row with a "Borehole" column):
   ``Water table`` (depth below the ground) and ``Borehole depth`` belong to the borehole: give
   them on any of its rows (the first value counts; a different one later is an error).
 - ``Record``: ``layer``, ``spt`` or ``sample``. When empty, a row with Top and Bottom is a
-  layer, a row with N an SPT record, and any other row with a Depth a sample.
+  layer, a row with N (or N1, N2) an SPT record, and any other row with a Depth a sample.
 - Layers: ``Top``, ``Bottom`` (depths below the ground), ``Description``, ``Soil type`` (clay,
   silt, sand, gravel, organic, fill, rock; when empty, from the USCS group or the last soil
   word of the description), ``USCS`` and the properties below.
-- SPT records: ``Depth``, ``N`` (field blow count), ``Energy ratio`` (%, optional).
-- Samples: ``Depth``, ``Sample type`` and the properties below.
+- SPT records: ``Depth``, ``N`` (field blow count) or the increments ``Seat``, ``N1``, ``N2``
+  (blows per 150 mm; N = N1 + N2), ``Sample no``, ``Energy ratio`` (%, optional). A sheet
+  that numbers the three increments ``N1``, ``N2``, ``N3`` is read with N1 as the seating drive
+  and N = N2 + N3 (a note says so).
+- Samples: ``Depth``, ``Sample type``, ``Sample no`` and the properties below.
 - Properties: ``Unit weight`` and ``Saturated unit weight`` (kN/m³), ``cu`` and ``c`` (kPa),
   ``phi`` (°), ``E`` (MPa), ``Fines``, ``PI``, ``LL``, ``PL`` and ``Moisture`` (%), ``Cc``,
   ``Cr``, ``e0``, ``OCR``. Each record type takes those of the file format it has (a layer
@@ -199,6 +202,16 @@ COLUMNS: tuple[Column, ...] = (
         "SPT: field blow count for 300 mm, uncorrected",
         ("spt", "sptn", "nvalue", "blows", "fieldn"),
     ),
+    Column("seat", "Seat", None, "SPT: blows for the first (seating) 150 mm", ("seating", "n0")),
+    Column("N1", "N1", None, "SPT: blows for the second 150 mm", ("blows2",)),
+    Column("N2", "N2", None, "SPT: blows for the third 150 mm", ("blows3",)),
+    Column(
+        "sampleNumber",
+        "Sample no",
+        None,
+        "SPT record or sample: the sample number, e.g. D-3",
+        ("sampleno", "samplenumber", "sampleid"),
+    ),
     Column("energyRatio", "Energy ratio", "%", "SPT: hammer energy ratio of this test", ("er",)),
     Column("sampleType", "Sample type", None, "Sample: e.g. SPT, UD", ("sample",)),
     Column(
@@ -278,7 +291,7 @@ _SAMPLE_FIELDS = (
     "Cc",
     "e0",
 )
-_TEXT = {"borehole", "record", "description", "soilType", "uscs", "sampleType"}
+_TEXT = {"borehole", "record", "description", "soilType", "uscs", "sampleType", "sampleNumber"}
 
 _WORDS = {
     "clay": "clay",
@@ -422,8 +435,26 @@ def parse_rows(
     header_number, header = rows[header_at]
     columns: list[tuple[Column, float] | None] = []
     ignored = []
+    # Log sheets that number all three 150 mm increments N1, N2, N3 count the seating drive as
+    # N1: their N is N2 + N3. Map them onto seat, N1, N2 (this file format's names).
+    names = {_parse_header(str(c))[0] for c in header}
+    renumber = {}
+    if "n3" in names:
+        seat_given = any(_BY_NAME.get(n) is not None and _BY_NAME[n].key == "seat" for n in names)
+        if seat_given:
+            problems.append(
+                f"row {header_number}: both a seating column and N1, N2, N3: with N3 the "
+                "increments are read as N1 = seating, N2 and N3 = N; remove one of them"
+            )
+            return [], problems, notes
+        renumber = {"n1": "seat", "n2": "n1", "n3": "n2"}
+        notes.append(
+            "The increments are numbered N1, N2, N3: N1 is read as the seating 150 mm and "
+            "N = N2 + N3."
+        )
     for cell in header:
         name, unit = _parse_header(str(cell))
+        name = renumber.get(name, name)
         column = _BY_NAME.get(name)
         if column is None:
             if name:
@@ -487,7 +518,7 @@ def parse_rows(
         if not record:
             if "top" in values or "bottom" in values:
                 record = "layer"
-            elif "N" in values:
+            elif "N" in values or "N1" in values or "N2" in values:
                 record = "spt"
             elif "depth" in values:
                 record = "sample"
@@ -522,8 +553,8 @@ def _extra(values: dict[str, Any], allowed: tuple[str, ...], kind: str) -> list[
     own = {"borehole", "record", *_BOREHOLE_FIELDS}
     by_kind = {
         "layer": {"top", "bottom", "description", "soilType", "uscs"},
-        "spt": {"depth", "N", "energyRatio"},
-        "sample": {"depth", "sampleType"},
+        "spt": {"depth", "N", "seat", "N1", "N2", "sampleNumber", "energyRatio"},
+        "sample": {"depth", "sampleType", "sampleNumber"},
     }[kind]
     return [
         _column_named(k).header
@@ -573,14 +604,28 @@ def _layer(
 def _spt(
     hole: _Borehole, number: int, where: str, values: dict[str, Any], problems: list[str]
 ) -> None:
-    if "depth" not in values or "N" not in values:
-        problems.append(f"{where}: an SPT record needs Depth and N")
+    if "depth" not in values or not ("N" in values or "N1" in values or "N2" in values):
+        problems.append(f"{where}: an SPT record needs Depth and N (or N1 and N2)")
         return
-    n = values["N"]
-    if n != int(n):
-        problems.append(f"{where}: N: {n:g} is not a whole number of blows")
+    record: dict[str, Any] = {"depth": values["depth"]}
+    for key in ("N", "seat", "N1", "N2"):
+        if key in values:
+            n = values[key]
+            if n != int(n):
+                header = _column_named(key).header
+                problems.append(f"{where}: {header}: {n:g} is not a whole number of blows")
+                return
+            record[key] = int(n)
+    if ("N1" in record) != ("N2" in record):
+        problems.append(f"{where}: give both N1 and N2")
         return
-    record: dict[str, Any] = {"depth": values["depth"], "N": int(n)}
+    if "N1" in record and "N" in record and record["N"] != record["N1"] + record["N2"]:
+        problems.append(
+            f"{where}: N {record['N']} is not N1 + N2 = {record['N1']} + {record['N2']}"
+        )
+        return
+    if values.get("sampleNumber"):
+        record["sampleNumber"] = values["sampleNumber"]
     if "energyRatio" in values:
         record["energyRatio"] = values["energyRatio"]
     extra = _extra(values, (), "spt")
@@ -600,6 +645,8 @@ def _sample(
     sample: dict[str, Any] = {"depth": values["depth"]}
     if values.get("sampleType"):
         sample["type"] = values["sampleType"]
+    if values.get("sampleNumber"):
+        sample["number"] = values["sampleNumber"]
     for key in _SAMPLE_FIELDS:
         if key in values:
             sample[key] = values[key]

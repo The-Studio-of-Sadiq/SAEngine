@@ -1,0 +1,205 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Design Reinforcement, on the shared editor frame (editorFrame.css). */
+
+.saengine-fem-proposal-editor {
+	--fem-proposal-pass: var(--sa-ok, var(--vscode-charts-green));
+	--fem-proposal-warn: var(--sa-warn, var(--vscode-charts-orange));
+	--fem-proposal-fail: var(--sa-fail, var(--vscode-charts-red));
+}
+
+.saengine-fem-proposal-editor .fem-proposal-mode {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+}
+
+.saengine-fem-proposal-editor .fem-proposal-select {
+	width: 180px;
+}
+
+.saengine-fem-proposal-editor .fem-proposal-scroll {
+	flex: 1;
+	min-height: 0;
+}
+
+.saengine-fem-proposal-editor .fem-proposal-list {
+	box-sizing: border-box;
+	height: 100%;
+	max-width: 960px;
+	padding: var(--sa-space-2, 8px) var(--sa-space-4, 16px) var(--sa-space-6, 24px);
+	outline: none;
+}
+
+.saengine-fem-proposal-editor .fem-proposal-header {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-3, 12px);
+	padding: var(--sa-space-2, 8px) 0 var(--sa-space-3, 12px);
+	border-bottom: 1px solid var(--sa-border, var(--vscode-panel-border));
+}
+
+.saengine-fem-proposal-editor .fem-proposal-header-text {
+	flex: 1;
+	min-width: 0;
+}
+
+.saengine-fem-proposal-editor .fem-proposal-header-title {
+	font-weight: 600;
+}
+
+.saengine-fem-proposal-editor .fem-proposal-header-detail,
+.saengine-fem-proposal-editor .fem-proposal-facts,
+.saengine-fem-proposal-editor .fem-proposal-note {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-fem-proposal-editor .fem-proposal-header .monaco-button {
+	flex: none;
+	width: auto;
+	padding: 4px 12px;
+}
+
+.saengine-fem-proposal-editor .fem-proposal-note {
+	padding: var(--sa-space-2, 8px) 0;
+}
+
+.saengine-fem-proposal-editor .fem-proposal-row {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--sa-space-3, 12px);
+	padding: var(--sa-space-2, 8px) 0;
+	border-bottom: 1px solid var(--sa-border, var(--vscode-panel-border));
+}
+
+.saengine-fem-proposal-editor .fem-proposal-row.unchanged .fem-proposal-body {
+	opacity: 0.7;
+}
+
+.saengine-fem-proposal-editor .fem-proposal-toggle {
+	flex: none;
+	padding-top: 1px;
+}
+
+.saengine-fem-proposal-editor .fem-proposal-body {
+	flex: 1;
+	min-width: 0;
+}
+
+.saengine-fem-proposal-editor .fem-proposal-type {
+	display: flex;
+	align-items: baseline;
+	gap: var(--sa-space-2, 8px);
+}
+
+.saengine-fem-proposal-editor .fem-proposal-type-id {
+	font-weight: 600;
+}
+
+.saengine-fem-proposal-editor .fem-proposal-type-name {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-fem-proposal-editor .fem-proposal-badge {
+	padding: 0 var(--sa-space-1, 4px);
+	border-radius: var(--sa-radius, 4px);
+	font-size: var(--sa-font-s, 12px);
+	color: var(--vscode-badge-foreground);
+	background: var(--vscode-badge-background);
+}
+
+.saengine-fem-proposal-editor .fem-proposal-badge.muted {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	background: transparent;
+	border: 1px solid var(--sa-border, var(--vscode-panel-border));
+}
+
+.saengine-fem-proposal-editor .fem-proposal-badge.warn {
+	color: var(--vscode-foreground);
+	background: color-mix(in srgb, var(--fem-proposal-warn) 25%, transparent);
+}
+
+.saengine-fem-proposal-editor .fem-proposal-notes {
+	margin-top: 2px;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-fem-proposal-editor .fem-proposal-bars {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--sa-space-1, 4px) var(--sa-space-2, 8px);
+	margin: var(--sa-space-1, 4px) 0 2px;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-fem-proposal-editor .fem-proposal-current {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-fem-proposal-editor .fem-proposal-row.unchanged .fem-proposal-current {
+	color: var(--vscode-foreground);
+}
+
+.saengine-fem-proposal-editor .fem-proposal-arrow {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-fem-proposal-editor .fem-proposal-proposed {
+	font-weight: 600;
+}
+
+.saengine-fem-proposal-editor .fem-proposal-warning {
+	margin-top: var(--sa-space-1, 4px);
+	padding: 2px var(--sa-space-2, 8px);
+	border-left: 3px solid var(--fem-proposal-warn);
+	background: color-mix(in srgb, var(--fem-proposal-warn) 10%, transparent);
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-fem-proposal-editor .fem-proposal-applied {
+	margin: var(--sa-space-2, 8px) 0;
+	padding: var(--sa-space-2, 8px) var(--sa-space-3, 12px);
+	border-radius: var(--sa-radius, 4px);
+	border-left: 3px solid var(--fem-proposal-warn);
+	background: color-mix(in srgb, var(--fem-proposal-warn) 10%, transparent);
+}
+
+.saengine-fem-proposal-editor .fem-proposal-applied.pass {
+	border-left-color: var(--fem-proposal-pass);
+	background: color-mix(in srgb, var(--fem-proposal-pass) 10%, transparent);
+}
+
+.saengine-fem-proposal-editor .fem-proposal-applied.undone {
+	border-left-color: var(--sa-border, var(--vscode-panel-border));
+	background: transparent;
+}
+
+.saengine-fem-proposal-editor .fem-proposal-applied-head {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	gap: var(--sa-space-2, 8px);
+	font-weight: 600;
+}
+
+.saengine-fem-proposal-editor .fem-proposal-applied-counts {
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-fem-proposal-editor .fem-proposal-applied-change {
+	margin-top: 2px;
+	font-size: var(--sa-font-s, 12px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-fem-proposal-editor .fem-proposal-applied .monaco-button {
+	width: auto;
+	margin-top: var(--sa-space-2, 8px);
+	padding: 2px 10px;
+}

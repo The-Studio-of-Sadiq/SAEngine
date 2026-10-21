@@ -173,7 +173,8 @@ def test_round_trip_of_the_sample_is_byte_identical(sample: Path, tmp_path: Path
         "boq",
         "exports",
     ]
-    assert parts["soil"]["placeholder"] is True  # the sample's soil report is the stub
+    # The sample's soil report is filled in (synthetic data, since the site map).
+    assert parts["soil"]["files"][0]["schema"] == "saengine.soilReport/1"
     assert parts["bim"]["files"][0]["schema"] == "saengine.bim/2"
     assert parts["fem"]["missingMainFile"] is True  # derived; regenerated on open
     floor = [f["path"] for f in parts["floorPlan"]["files"]]

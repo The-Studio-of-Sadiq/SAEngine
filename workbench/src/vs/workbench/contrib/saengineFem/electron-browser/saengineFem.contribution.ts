@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { isAbsolute } from '../../../../base/common/path.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
@@ -12,6 +13,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IBoqComputeRequest, IBuildingIfcRequest, IFemDeriveRequest, IFemSolverService, IMepServiceParams, ISoilBearingRequest, IStructureGeometry, IStructureScriptResult, LibraryFileKind, MepServiceMethod } from '../../../../platform/saengine/common/femSolver.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -23,6 +25,8 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { Extensions as OutputExtensions, IOutputChannelRegistry } from '../../../services/output/common/output.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { resultsFolder } from '../browser/femResultsBar.js';
+import { MAP_TILE_ATTRIBUTION_SETTING, MAP_TILE_URL_SETTING, QGIS_PROGRAM_SETTING } from '../../saengineSoil/browser/soilDocument.js';
+import { OSM_TILE_URL } from '../../saengineSoil/browser/soilMap.js';
 import { FEM_OUTPUT_CHANNEL_ID, FEM_PYTHON_SETTING, FemAnalysisRunner } from './femAnalysisRunner.js';
 
 const category = localize2('saengine.category', "SAEngine");
@@ -40,6 +44,29 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.MACHINE,
 			restricted: true,
 			markdownDescription: localize('saengine.python.path', "Python 3.12 interpreter with the `saengine` and `opensees-studio` packages installed. When empty, an installed SAEngine uses its bundled Python (`resources/python`), and SAEngine run from the sources uses the `.venv` next to them."),
+		},
+		// The map's tiles are fetched from this address: only from this machine's settings, so a
+		// received project cannot send the site's position to a server of its choosing.
+		[MAP_TILE_URL_SETTING]: {
+			type: 'string',
+			default: OSM_TILE_URL,
+			scope: ConfigurationScope.MACHINE,
+			restricted: true,
+			markdownDescription: localize('saengine.map.tileUrl', "Address of the map tiles of 1 Soil Report's site map, with `{z}`, `{x}` and `{y}` (for example `https://tile.openstreetmap.org/{z}/{x}/{y}.png`, the default). OpenStreetMap's tiles are © OpenStreetMap contributors (ODbL) and are for light use under its [tile usage policy](https://operations.osmfoundation.org/policies/tiles/): SAEngine shows the attribution, identifies itself and lets the tiles be cached. For heavy use, an office-wide installation or offline work, use your own tile server or a commercial provider and set its address and attribution here. Without a connection the map shows the coordinates and the building outline only."),
+		},
+		[MAP_TILE_ATTRIBUTION_SETTING]: {
+			type: 'string',
+			default: '',
+			scope: ConfigurationScope.MACHINE,
+			markdownDescription: localize('saengine.map.tileAttribution', "The attribution shown on the site map for the tiles of `#saengine.map.tileUrl#` when it is not OpenStreetMap (OpenStreetMap's own attribution is always shown for its tiles)."),
+		},
+		[QGIS_PROGRAM_SETTING]: {
+			type: 'string',
+			default: '',
+			// A program SAEngine starts: only from this machine's settings.
+			scope: ConfigurationScope.MACHINE,
+			restricted: true,
+			markdownDescription: localize('saengine.qgis.program', "The QGIS that **Open in QGIS** starts (the full path of `qgis-bin.exe`, `qgis-ltr-bin.exe` or an OSGeo4W `qgis.bat`). When empty, an installed QGIS is looked for (the Windows uninstall entries, Program Files and OSGeo4W). QGIS is not part of SAEngine."),
 		},
 	},
 });
@@ -424,4 +451,87 @@ CommandsRegistry.registerCommand('saengine.hvac.loads', async (accessor, args: I
 	} finally {
 		cancel?.dispose();
 	}
+});
+
+/**
+ * Design mode (`saengine.design`): the steel every element requires, the bars SAEngine
+ * proposes per object type and foundation, and the part files with a proposal applied.
+ * Internal: the Properties panel, the Design Reinforcement page and Run All call them by id
+ * (femDesign.ts). The first two design every member again (up to a minute or two): the backend
+ * runs them in worker threads, and keeps the required steel beside the results while the
+ * project does not change.
+ */
+interface IDesignCommandArgs {
+	readonly outDir: string;
+	readonly projectPath: string;
+	readonly mode?: 'byType' | 'splitTypes';
+	readonly diameters?: readonly number[];
+	readonly maxSizes?: number;
+}
+
+CommandsRegistry.registerCommand('saengine.design.required', async (accessor, args: IDesignCommandArgs) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'design/required', { outDir: args.outDir, projectPath: args.projectPath });
+});
+
+CommandsRegistry.registerCommand('saengine.design.proposal', async (accessor, args: IDesignCommandArgs) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	const options = {
+		mode: args.mode ?? 'byType',
+		...(args.diameters ? { diameters: args.diameters } : {}),
+		...(args.maxSizes !== undefined ? { maxSizes: args.maxSizes } : {}),
+	};
+	return accessor.get(IFemSolverService).engine(python, 'design/proposal', { outDir: args.outDir, projectPath: args.projectPath, options });
+});
+
+CommandsRegistry.registerCommand('saengine.design.apply', async (accessor, args: { readonly objectsText: string; readonly bimText?: string | null; readonly floorPlanText?: string; readonly substructureText?: string; readonly proposal: object }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'design/applyProposal', {
+		objectsText: args.objectsText,
+		// A project without a building model: the backend applies to an empty one.
+		bimText: args.bimText ?? null,
+		floorPlanText: args.floorPlanText,
+		substructureText: args.substructureText,
+		proposal: args.proposal,
+	});
+});
+
+/**
+ * 1 Soil Report's site map (`saengine.gis.site`): where the site, the boreholes and the
+ * building are in WGS 84 with the nearest BNBC town, the GeoJSON/GeoPackage exchange with
+ * QGIS, and Open in QGIS (when it is installed; QGIS is not bundled). Internal: the Soil Report
+ * editor calls them by id.
+ */
+CommandsRegistry.registerCommand('saengine.soil.location', async (accessor, args: { readonly soilText: string; readonly bimText?: string; readonly settingsText?: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'soil/location', { soilText: args.soilText, bimText: args.bimText, settingsText: args.settingsText });
+});
+
+CommandsRegistry.registerCommand('saengine.soil.gisExport', async (accessor, args: { readonly projectRoot: string; readonly format: 'geojson' | 'gpkg'; readonly outPath: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'soil/gisExport', { projectRoot: args.projectRoot, format: args.format, outPath: args.outPath });
+});
+
+CommandsRegistry.registerCommand('saengine.soil.gisImport', async (accessor, args: { readonly path: string; readonly soilText?: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'soil/gisImport', { path: args.path, soilText: args.soilText });
+});
+
+/** The QGIS Open in QGIS would start (the machine setting, else an installed one), or null. */
+CommandsRegistry.registerCommand('saengine.soil.qgisProgram', async accessor => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	const configured = accessor.get(IConfigurationService).getValue<string>(QGIS_PROGRAM_SETTING)?.trim();
+	const solver = accessor.get(IFemSolverService);
+	// The program is checked again where it is started (openInQgis): it must exist.
+	if (configured && isAbsolute(configured) && await accessor.get(IFileService).exists(URI.file(configured))) {
+		return configured;
+	}
+	const found = await solver.engine(python, 'soil/qgisProgram', {});
+	return typeof found === 'string' ? found : null;
+});
+
+CommandsRegistry.registerCommand('saengine.soil.openInQgis', async (accessor, args: { readonly path: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	const program = accessor.get(IConfigurationService).getValue<string>(QGIS_PROGRAM_SETTING);
+	return accessor.get(IFemSolverService).openInQgis(python, { path: args.path, program });
 });

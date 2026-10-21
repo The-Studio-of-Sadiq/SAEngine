@@ -20,6 +20,25 @@ export const SOIL_COMPUTE_COMMAND = 'saengine.soil.compute';
 export const SOIL_IMPORT_COMMAND = 'saengine.soil.import';
 export const SOIL_TEMPLATE_COMMAND = 'saengine.soil.template';
 
+/**
+ * Desktop commands of the backend for the site map (`saengine.gis`); absent without one, and the
+ * map then shows the project coordinates only. Requests and results are below.
+ */
+export const SOIL_LOCATION_COMMAND = 'saengine.soil.location';
+export const SOIL_GIS_EXPORT_COMMAND = 'saengine.soil.gisExport';
+export const SOIL_GIS_IMPORT_COMMAND = 'saengine.soil.gisImport';
+export const SOIL_QGIS_PROGRAM_COMMAND = 'saengine.soil.qgisProgram';
+export const SOIL_OPEN_IN_QGIS_COMMAND = 'saengine.soil.openInQgis';
+
+/** The tile URL template of the site map (a setting the desktop registers). */
+export const MAP_TILE_URL_SETTING = 'saengine.map.tileUrl';
+
+/** The attribution of the tiles of {@link MAP_TILE_URL_SETTING} when they are not OpenStreetMap's. */
+export const MAP_TILE_ATTRIBUTION_SETTING = 'saengine.map.tileAttribution';
+
+/** The QGIS that Open in QGIS starts (a machine setting; empty: the QGIS found installed). */
+export const QGIS_PROGRAM_SETTING = 'saengine.qgis.program';
+
 /** Commands of the editor: they ask for a file, or take its path (tests, scripts). */
 export const SOIL_IMPORT_FILE_COMMAND = 'saengine.soil.importFile';
 export const SOIL_SAVE_TEMPLATE_COMMAND = 'saengine.soil.saveTemplate';
@@ -64,16 +83,91 @@ export interface ISoilLayer {
 	[key: string]: unknown;
 }
 
+/*
+ * The fields of the log sheet (the consultant's borehole log) follow `saengine.library.soil`
+ * (SptRecord, Sample and its test groups, Site, Borehole.position); written here by hand until
+ * the schema that carries them is generated into the workbench. All are optional, so files
+ * without them read as before.
+ */
+
+/** A refusal recorded as the blows of the test drive and its penetration ("50/100 mm"). */
+export interface ISptRefusal {
+	blows: number;
+	/** Penetration of the test drive after the seating drive [mm], below 300. */
+	penetration: number;
+	[key: string]: unknown;
+}
+
 export interface ISptRecord {
 	depth: number;
-	N: number;
+	/**
+	 * Field N (blows for the last 300 mm): N1 + N2 when the increments are given, a refusal's
+	 * blows extrapolated to 300 mm; the backend works it out when absent.
+	 */
+	N?: number;
+	/** Blows of the seating drive (first 150 mm), not counted in N. */
+	seat?: number;
+	/** Blows of the second and third 150 mm increments. */
+	N1?: number;
+	N2?: number;
+	/** The test drive stopped short of 300 mm: its blows and penetration, or true when not recorded. */
+	refusal?: boolean | ISptRefusal;
+	/** The split spoon sample's number ("D-3") and recovery [%], when no lab sample is listed at the depth. */
+	sampleNumber?: string;
+	recovery?: number;
+	/** Bottom of the drive [mm]; the depth plus 450 mm when not given. */
+	depthTo?: number;
 	energyRatio?: number;
+	[key: string]: unknown;
+}
+
+/** One sieve of a grain size analysis. */
+export interface ISieve {
+	/** Opening [mm]. */
+	size: number;
+	/** Percent passing [%]. */
+	passing: number;
+	[key: string]: unknown;
+}
+
+/** One load step of an oedometer test. */
+export interface IConsolidationPoint {
+	/** Effective vertical pressure [kPa]. */
+	pressure: number;
+	/** Void ratio at the end of the step. */
+	e: number;
+	[key: string]: unknown;
+}
+
+/** One specimen of a triaxial test. */
+export interface ITriaxialSpecimen {
+	/** Cell pressure σ3 [kPa]. */
+	cell: number;
+	/** Deviator stress at failure σ1 − σ3 [kPa]. */
+	deviator: number;
+	/** Pore pressure at failure [kPa] (CU tests). */
+	porePressure?: number;
+	[key: string]: unknown;
+}
+
+/** One specimen of a direct shear test. */
+export interface IShearSpecimen {
+	/** Normal stress [kPa]. */
+	normal: number;
+	/** Peak shear stress [kPa]. */
+	shear: number;
 	[key: string]: unknown;
 }
 
 export interface ISoilSample {
 	depth: number;
+	/** The sample's number on the log ("D-3", "UD-1"). */
+	number?: string;
 	type?: string;
+	/** Bottom of the sample [mm]. */
+	depthTo?: number;
+	/** Recovered length over the driven length [%]. */
+	recovery?: number;
 	moisture?: number;
 	unitWeight?: number;
 	cu?: number;
@@ -84,6 +178,12 @@ export interface ISoilSample {
 	plasticLimit?: number;
 	Cc?: number;
 	e0?: number;
+	grainSize?: { sieves: ISieve[];[key: string]: unknown };
+	consolidation?: { points: IConsolidationPoint[]; e0?: number; Cc?: number; Cr?: number; preconsolidation?: number; cv?: number;[key: string]: unknown };
+	triaxial?: { type?: 'UU' | 'CU' | 'CD'; specimens: ITriaxialSpecimen[]; cu?: number; c?: number; phi?: number; effective?: boolean;[key: string]: unknown };
+	directShear?: { specimens: IShearSpecimen[]; c?: number; phi?: number;[key: string]: unknown };
+	/** Unconfined compression: qu [kPa] (cu = qu/2) and the strain at failure [%]. */
+	ucs?: { qu: number; strain?: number;[key: string]: unknown };
 	[key: string]: unknown;
 }
 
@@ -91,13 +191,55 @@ export interface IBorehole {
 	id: string;
 	x: number;
 	y: number;
+	/**
+	 * Which coordinates place the borehole; when absent: lat/lon if both are given, else the BTM
+	 * easting and northing, else x, y. x, y follow from the others through the site point.
+	 */
+	position?: BoreholePosition;
+	/** WGS 84 [°]. */
+	lat?: number;
+	lon?: number;
+	/** Bangladesh Transverse Mercator [m]. */
+	easting?: number;
+	northing?: number;
 	groundLevel?: number;
 	waterTable?: number;
 	depth?: number;
+	/** Date drilled and the boring method ("wash boring"), as the log sheet's header gives them. */
+	date?: string;
+	method?: string;
 	layers: ISoilLayer[];
 	spt: ISptRecord[];
 	samples: ISoilSample[];
 	[key: string]: unknown;
+}
+
+/**
+ * Where the site is: the project point (x, y) [mm] at (lat, lon) (WGS 84), and the bearing of
+ * the project's +Y axis clockwise from true north [°]. Places the boreholes and the building
+ * outline on the map.
+ */
+export interface ISoilSite {
+	lat?: number;
+	lon?: number;
+	x?: number;
+	y?: number;
+	rotation?: number;
+	address?: string;
+	/** The plot boundary as [lon, lat] points (from QGIS). */
+	boundary?: number[][];
+	[key: string]: unknown;
+}
+
+/** How a borehole is placed: its `position`, else inferred as the backend does. */
+export function boreholePosition(borehole: IBorehole): BoreholePosition {
+	if (borehole.position === 'project' || borehole.position === 'wgs84' || borehole.position === 'btm') {
+		return borehole.position;
+	}
+	if (typeof borehole.lat === 'number' && typeof borehole.lon === 'number') {
+		return 'wgs84';
+	}
+	return typeof borehole.easting === 'number' && typeof borehole.northing === 'number' ? 'btm' : 'project';
 }
 
 /** How the SPT values and the allowable pressure are worked out (`design.practice`). */
@@ -175,6 +317,7 @@ export interface ISoilReport {
 	schema: string;
 	report: { title?: string; consultant?: string; reportNumber?: string; date?: string;[key: string]: unknown };
 	groundLevel: number;
+	site?: ISoilSite;
 	boreholes: IBorehole[];
 	design: ISoilDesign;
 	[key: string]: unknown;
@@ -209,6 +352,126 @@ export interface ISoilTemplateRequest {
 
 export interface ISoilTemplateResult {
 	readonly path?: string;
+	readonly problems?: readonly string[];
+}
+/*
+ * The site map's backend (`saengine.gis.site`): `soil_location()`, `gis_export()`, `gis_import()`
+ * and `qgis_program()` answer in these shapes (null where a value is unknown).
+ */
+
+/** `saengine.soil.location`: where the site, the boreholes and the building are on the earth. */
+export interface ISoilLocationRequest {
+	readonly soilText: string;
+	/** `06 BIM/bim.json`, for the building's outline. */
+	readonly bimText?: string;
+	/** `02 Project Settings/project-settings.json`, for the BNBC location in use. */
+	readonly settingsText?: string;
+}
+
+export interface ILatLon {
+	readonly lat: number;
+	readonly lon: number;
+}
+
+/** Bangladesh Transverse Mercator (EPSG:9678) [m]. */
+export interface IBtm {
+	readonly easting: number;
+	readonly northing: number;
+}
+
+/** How a borehole's position is given (`Borehole.position`); inferred from its fields when absent. */
+export type BoreholePosition = 'project' | 'wgs84' | 'btm';
+
+/** The BNBC values of the nearest listed towns (BNBC 2020 Table 6.2.15 Z, Table 6.2.8 V). */
+export interface ISoilLocationSuggestion {
+	readonly town: string;
+	readonly distanceKm: number;
+	readonly zone?: number | null;
+	readonly Z?: number | null;
+	readonly windSpeed?: number | null;
+	/** The town the wind speed is from, when another town lists it nearer. */
+	readonly windTown?: string | null;
+	readonly windDistanceKm?: number | null;
+	/** The town's id in the project settings' locations, when it is one of them. */
+	readonly settingsLocation?: string | null;
+	readonly source?: string;
+	readonly note?: string;
+	/** What the project settings use now. */
+	readonly current?: { readonly location?: string; readonly zone?: number | null; readonly Z?: number | null; readonly windSpeed?: number | null } | null;
+	/** Whether the settings' values differ from the suggestion. */
+	readonly differs?: boolean;
+}
+
+export interface ISoilLocationResult {
+	readonly site?: (ILatLon & {
+		readonly x?: number;
+		readonly y?: number;
+		readonly rotation?: number;
+		readonly address?: string | null;
+		/** Whether the project grid is placed (the site has its own lat/lon). */
+		readonly georeferenced?: boolean;
+		readonly btm?: IBtm | null;
+	}) | null;
+	/** Every borehole with both positions where known. */
+	readonly boreholes?: readonly {
+		readonly id: string;
+		readonly position?: BoreholePosition;
+		readonly x?: number | null;
+		readonly y?: number | null;
+		readonly lat?: number | null;
+		readonly lon?: number | null;
+		readonly btm?: IBtm | null;
+	}[];
+	/** The building's outline as a closed ring of [lon, lat]. */
+	readonly outline?: readonly (readonly number[])[] | null;
+	/** The same in project coordinates [mm], an open ring of [x, y]. */
+	readonly outlineProject?: readonly (readonly number[])[] | null;
+	readonly outlineSource?: string;
+	readonly suggestion?: ISoilLocationSuggestion | null;
+	readonly problems?: readonly string[];
+}
+
+export type GisFormat = 'geojson' | 'gpkg';
+
+/** `saengine.soil.gisExport`: the site, the boreholes and the outline for QGIS. */
+export interface ISoilGisExportRequest {
+	/** File system path of the project folder. */
+	readonly projectRoot: string;
+	readonly format: GisFormat;
+	readonly outPath: string;
+}
+
+export interface ISoilGisExportResult {
+	readonly path?: string;
+	readonly counts?: { readonly [layer: string]: number };
+	readonly problems?: readonly string[];
+}
+
+/** `saengine.soil.gisImport`: boreholes (points) and the site boundary from a GeoJSON or GeoPackage file. */
+export interface ISoilGisImportRequest {
+	readonly path: string;
+	readonly soilText: string;
+}
+
+export interface ISoilGisImportResult {
+	/** The report with the file's points merged in. */
+	readonly soilText?: string;
+	readonly added?: number | readonly string[];
+	readonly updated?: number | readonly string[];
+	readonly boundary?: boolean | number;
+	readonly notes?: readonly string[];
+	readonly problems?: readonly string[];
+}
+
+/** `saengine.soil.qgisProgram`: the QGIS launcher found on this computer (a path), if any. */
+export type QgisProgramResult = string | { readonly path?: string | null; readonly version?: string | null } | null | undefined;
+
+export interface IOpenInQgisRequest {
+	readonly path: string;
+}
+
+export interface IOpenInQgisResult {
+	readonly ok?: boolean;
 	readonly problems?: readonly string[];
 }
 
@@ -827,6 +1090,8 @@ export interface IFieldSpec {
 	readonly title?: string;
 	/** Column width in the table [px]. */
 	readonly width?: number;
+	/** Decimals shown (4 when not given; depths and lengths in m: 3). */
+	readonly decimals?: number;
 }
 
 const M = localize('soil.unit.m', "m");
@@ -902,6 +1167,12 @@ export const BOREHOLE_FIELDS: readonly IFieldSpec[] = [
 	{ key: 'groundLevel', label: localize('soil.f.groundLevel', "Ground level"), unit: M, kind: 'length', title: localize('soil.f.groundLevelTitle', "Elevation of the existing ground at the borehole on the project datum; empty uses the report's") },
 	{ key: 'waterTable', label: localize('soil.f.waterTable', "Water table"), unit: M, kind: 'depth', min: 0, title: localize('soil.f.waterTableTitle', "Depth of the ground water table below the borehole's ground") },
 	{ key: 'depth', label: localize('soil.f.termination', "Termination depth"), unit: M, kind: 'depth', min: 0 },
+	{ key: 'lat', label: localize('soil.f.lat', "Latitude"), unit: DEG, kind: 'number', min: -90, max: 90, decimals: 7, title: localize('soil.f.latTitle', "WGS 84; when given with the longitude it places the borehole, and X and Y follow from it") },
+	{ key: 'lon', label: localize('soil.f.lon', "Longitude"), unit: DEG, kind: 'number', min: -180, max: 180, decimals: 7 },
+	{ key: 'easting', label: localize('soil.f.easting', "BTM easting"), unit: M, kind: 'number', decimals: 3, title: localize('soil.f.btmTitle', "Bangladesh Transverse Mercator (EPSG:9678), as survey drawings give it; places the borehole when there is no latitude and longitude") },
+	{ key: 'northing', label: localize('soil.f.northing', "BTM northing"), unit: M, kind: 'number', decimals: 3 },
+	{ key: 'date', label: localize('soil.f.dateDrilled', "Date drilled"), kind: 'text' },
+	{ key: 'method', label: localize('soil.f.method', "Method"), kind: 'text', title: localize('soil.f.methodTitle', "How the borehole was drilled, e.g. wash boring, auger, rotary") },
 ];
 
 export const REPORT_FIELDS: readonly IFieldSpec[] = [
@@ -927,7 +1198,7 @@ export function formatField(spec: IFieldSpec, value: unknown): string {
 	if (spec.kind === 'depth' || spec.kind === 'length') {
 		return typeof value === 'number' ? formatNumber(value / 1000, 3) : String(value);
 	}
-	return typeof value === 'number' ? formatNumber(value, 4) : String(value);
+	return typeof value === 'number' ? formatNumber(value, spec.decimals ?? 4) : String(value);
 }
 
 /** A number without trailing zeros, at most `decimals` places. */

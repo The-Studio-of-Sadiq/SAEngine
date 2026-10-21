@@ -439,6 +439,26 @@ def _design(project: Project, step: StepResult) -> dict[str, Any]:
         k: file[k] for k in ("checked", "passed", "failed", "maxUtilisation", "governing")
     }
     step.message = f"{summary.get('passed')} pass, {summary.get('failed')} fail"
+    # Design mode: the steel each element requires next to what is entered, kept beside the
+    # results (design-required.json) for the Properties panel and the report. A failure here
+    # is a note, not a stop: the checks above are the verdict.
+    from saengine.pipeline.design_mode import REQUIRED_FILE, required_summary
+
+    try:
+        required = _handlers().design_required(str(results_folder(model)), str(model))
+    except Exception as error:  # noqa: BLE001 - the checks stand without the required steel
+        step.counts["requiredSteel"] = None
+        step.message += f"; required steel not worked out ({str(error) or type(error).__name__})"
+        return report
+    steel = required_summary(required)
+    step.counts["steelShort"] = steel["short"]
+    step.counts["tooSmall"] = steel["tooSmall"]
+    if (results_folder(model) / REQUIRED_FILE).exists():
+        step.outputs.append(_relative(project, results_folder(model) / REQUIRED_FILE))
+    if steel["short"]:
+        step.message += f"; steel short in {len(steel['short'])} element(s)"
+    if steel["tooSmall"]:
+        step.message += f", {len(steel['tooSmall'])} section(s) too small"
     return report
 
 

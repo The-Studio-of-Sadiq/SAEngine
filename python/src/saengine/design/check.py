@@ -143,11 +143,21 @@ def design(
     materials: MaterialLibrary,
     settings: ProjectSettings,
     soil_text: str | None = None,
+    collect: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """:func:`design_report` with the project's parts already read. ``soil_text`` is no longer
     used: the footings it gave the allowable bearing pressures of are designed in Part 9
-    (:func:`saengine.substructure.substructure_report`)."""
+    (:func:`saengine.substructure.substructure_report`).
+
+    ``collect``: when given, filled with what the checks worked from, for the design mode
+    (:mod:`saengine.design.required`): ``"combinations"``, and per checked beam, column and
+    slab under ``"members"`` and ``"slabs"`` its section or slab context, its analysis pieces
+    with their combined forces, its materials and its checks."""
     combinations, pieces, notes, shell_forces = _demands(project, out_dir, settings)
+    if collect is not None:
+        collect["combinations"] = combinations
+        collect.setdefault("members", [])
+        collect.setdefault("slabs", [])
     types = {o.id: o for o in objects.objects}
     mats = {m.id: m for m in materials.materials}
 
@@ -205,6 +215,7 @@ def design(
                         concrete.concrete.fc,
                         bars.steel.fy,
                         es,
+                        concrete.concrete.maxAggregate,
                     )
                     if section.profile.shape != "rectangle":
                         raise DesignError("beams are checked with rectangular profiles only")
@@ -224,6 +235,7 @@ def design(
                         concrete.concrete.fc,
                         bars.steel.fy,
                         es,
+                        concrete.concrete.maxAggregate,
                     )
                     column_sections[type_id] = (section, InteractionSurface(section))
                 section, surface = column_sections[type_id]
@@ -233,6 +245,23 @@ def design(
             continue
         strength = [c for c in checks if not c["flag"]]
         utilisation = max((c["utilisation"] for c in strength), default=0.0)
+        if collect is not None:
+            collect["members"].append(
+                {
+                    "id": member_id,
+                    "kind": "beam" if isinstance(object_type, Beam) else "column",
+                    "type": type_id,
+                    "object": object_type,
+                    "section": section,
+                    "pieces": own,
+                    "turned": _turned(element),
+                    "fc": concrete.concrete.fc,
+                    "fy": bars.steel.fy,
+                    "es": es,
+                    "aggregate": concrete.concrete.maxAggregate,
+                    "checks": checks,
+                }
+            )
         checked.append(
             {
                 "id": member_id,
@@ -248,7 +277,17 @@ def design(
     for type_id, (section, _) in {**beam_sections, **column_sections}.items():
         notes += [f"{type_id}: {note}" for note in section.notes]
     slabs_seen = _design_slabs(
-        project, building, types, mats, pieces, shell_forces, combinations, checked, skipped, notes
+        project,
+        building,
+        types,
+        mats,
+        pieces,
+        shell_forces,
+        combinations,
+        checked,
+        skipped,
+        notes,
+        collect["slabs"] if collect is not None else None,
     )
     # Footings moved to Part 9 (saengine.substructure): this report designs the superstructure.
     notes.append(DESIGNED_IN_PART_9)
@@ -290,9 +329,11 @@ def _design_slabs(
     checked: list[dict[str, Any]],
     skipped: list[dict[str, Any]],
     notes: list[str],
+    collect: list[dict[str, Any]] | None = None,
 ) -> bool:
     """Checks the slabs of the building model (see :mod:`saengine.design.slab`), adding them to
-    ``checked`` or ``skipped``. True when the building has slabs."""
+    ``checked`` or ``skipped`` (and what they were checked from to ``collect``, see
+    :func:`design`). True when the building has slabs."""
     from saengine.library.sections import section_properties
 
     coords = {n["id"]: np.asarray(n["coords"], dtype=float) for n in project.get("nodes", [])}
@@ -445,6 +486,19 @@ def _design_slabs(
             skip(str(error))
             continue
         strength = [c for c in checks if not c["flag"]]
+        if collect is not None:
+            collect.append(
+                {
+                    "id": slab_id,
+                    "type": type_id,
+                    "object": object_type,
+                    "context": context,
+                    "fc": fc,
+                    "fy": fy,
+                    "es": es,
+                    "checks": checks,
+                }
+            )
         checked.append(
             {
                 "id": slab_id,

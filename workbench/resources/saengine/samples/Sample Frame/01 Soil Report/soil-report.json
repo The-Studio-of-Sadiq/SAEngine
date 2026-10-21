@@ -1,4 +1,692 @@
 {
-	"schema": 1,
-	"part": "soil"
+	"schema": "saengine.soilReport/1",
+	"report": {
+		"title": "Sub-soil investigation, Sample Frame (synthetic sample data)",
+		"consultant": "Example Geotechnical Ltd. (fictitious)",
+		"reportNumber": "SAMPLE-001",
+		"date": "2026-09-14"
+	},
+	"groundLevel": 0,
+	"boreholes": [
+		{
+			"id": "BH-1",
+			"x": -2000,
+			"y": -2000,
+			"groundLevel": 0,
+			"waterTable": 5000,
+			"depth": 30000,
+			"layers": [
+				{
+					"top": 0,
+					"bottom": 1500,
+					"description": "Brownish grey silty clay with brick chips (fill)",
+					"soilType": "fill",
+					"unitWeight": 17.0
+				},
+				{
+					"top": 1500,
+					"bottom": 4000,
+					"description": "Medium dense brown fine sand, trace silt",
+					"soilType": "sand",
+					"uscs": "SP-SM",
+					"unitWeight": 18.0,
+					"saturatedUnitWeight": 19.0,
+					"phi": 32,
+					"finesContent": 10
+				},
+				{
+					"top": 4000,
+					"bottom": 8000,
+					"description": "Stiff to very stiff reddish brown silty clay, mottled (terrace clay)",
+					"soilType": "clay",
+					"uscs": "CL",
+					"unitWeight": 19.0,
+					"saturatedUnitWeight": 19.5,
+					"cu": 90,
+					"plasticityIndex": 20,
+					"liquidLimit": 42,
+					"Cc": 0.16,
+					"Cr": 0.025,
+					"e0": 0.7,
+					"OCR": 8,
+					"finesContent": 92
+				},
+				{
+					"top": 8000,
+					"bottom": 12500,
+					"description": "Medium stiff grey silty clay, trace organic matter",
+					"soilType": "clay",
+					"uscs": "CL",
+					"unitWeight": 18.0,
+					"saturatedUnitWeight": 18.5,
+					"cu": 40,
+					"plasticityIndex": 18,
+					"liquidLimit": 40,
+					"Cc": 0.24,
+					"Cr": 0.04,
+					"e0": 0.85,
+					"OCR": 1.5,
+					"finesContent": 90
+				},
+				{
+					"top": 12500,
+					"bottom": 30000,
+					"description": "Dense to very dense yellowish grey fine sand, trace mica",
+					"soilType": "sand",
+					"uscs": "SP-SM",
+					"unitWeight": 19.5,
+					"saturatedUnitWeight": 20.0,
+					"phi": 36,
+					"finesContent": 8
+				}
+			],
+			"spt": [
+				{
+					"depth": 1500,
+					"seat": 3,
+					"N1": 5,
+					"N2": 6,
+					"sampleNumber": "D-1"
+				},
+				{
+					"depth": 3000,
+					"seat": 4,
+					"N1": 6,
+					"N2": 7,
+					"sampleNumber": "D-2"
+				},
+				{
+					"depth": 4500,
+					"seat": 4,
+					"N1": 7,
+					"N2": 8,
+					"sampleNumber": "D-3"
+				},
+				{
+					"depth": 6000,
+					"seat": 5,
+					"N1": 8,
+					"N2": 9,
+					"sampleNumber": "D-4"
+				},
+				{
+					"depth": 7500,
+					"seat": 5,
+					"N1": 9,
+					"N2": 10,
+					"sampleNumber": "D-5"
+				},
+				{
+					"depth": 9000,
+					"N": 9
+				},
+				{
+					"depth": 10500,
+					"N": 10
+				},
+				{
+					"depth": 12000,
+					"N": 11
+				},
+				{
+					"depth": 13500,
+					"N": 38
+				},
+				{
+					"depth": 15000,
+					"N": 42
+				},
+				{
+					"depth": 16500,
+					"N": 45
+				},
+				{
+					"depth": 18000,
+					"N": 48
+				},
+				{
+					"depth": 19500,
+					"N": 50
+				},
+				{
+					"depth": 21000,
+					"N": 52
+				},
+				{
+					"depth": 22500,
+					"N": 54
+				},
+				{
+					"depth": 24000,
+					"N": 55
+				},
+				{
+					"depth": 25500,
+					"N": 57
+				},
+				{
+					"depth": 27000,
+					"N": 58
+				},
+				{
+					"depth": 28500,
+					"N": 60
+				},
+				{
+					"depth": 30000,
+					"N": 62
+				}
+			],
+			"samples": [
+				{
+					"depth": 3000,
+					"type": "SPT",
+					"moisture": 18,
+					"finesContent": 10
+				},
+				{
+					"depth": 4500,
+					"type": "UD",
+					"moisture": 24,
+					"unitWeight": 19.2,
+					"cu": 94,
+					"liquidLimit": 42,
+					"plasticLimit": 22,
+					"Cc": 0.16,
+					"e0": 0.7
+				},
+				{
+					"depth": 9000,
+					"type": "SPT",
+					"moisture": 32,
+					"finesContent": 90,
+					"number": "D-6",
+					"grainSize": {
+						"sieves": [
+							{
+								"size": 2.0,
+								"passing": 100
+							},
+							{
+								"size": 0.425,
+								"passing": 99
+							},
+							{
+								"size": 0.15,
+								"passing": 97
+							},
+							{
+								"size": 0.075,
+								"passing": 90
+							}
+						]
+					}
+				},
+				{
+					"depth": 15000,
+					"type": "SPT",
+					"moisture": 20,
+					"finesContent": 9,
+					"phi": 36,
+					"number": "D-10",
+					"grainSize": {
+						"sieves": [
+							{
+								"size": 4.75,
+								"passing": 100
+							},
+							{
+								"size": 2.0,
+								"passing": 99
+							},
+							{
+								"size": 0.85,
+								"passing": 96
+							},
+							{
+								"size": 0.425,
+								"passing": 85
+							},
+							{
+								"size": 0.25,
+								"passing": 55
+							},
+							{
+								"size": 0.15,
+								"passing": 25
+							},
+							{
+								"size": 0.075,
+								"passing": 9
+							}
+						]
+					}
+				},
+				{
+					"depth": 25500,
+					"type": "SPT",
+					"moisture": 19,
+					"finesContent": 8
+				}
+			],
+			"date": "2026-08-21",
+			"method": "Wash boring, 100 mm casing"
+		},
+		{
+			"id": "BH-2",
+			"x": 15000,
+			"y": 7000,
+			"groundLevel": -150,
+			"waterTable": 5000,
+			"depth": 30000,
+			"layers": [
+				{
+					"top": 0,
+					"bottom": 1200,
+					"description": "Brownish grey silty clay with brick chips (fill)",
+					"soilType": "fill",
+					"unitWeight": 17.0
+				},
+				{
+					"top": 1200,
+					"bottom": 7000,
+					"description": "Stiff to very stiff reddish brown silty clay, mottled (terrace clay)",
+					"soilType": "clay",
+					"uscs": "CL",
+					"unitWeight": 19.0,
+					"saturatedUnitWeight": 19.5,
+					"cu": 90,
+					"plasticityIndex": 20,
+					"liquidLimit": 42,
+					"Cc": 0.16,
+					"Cr": 0.025,
+					"e0": 0.7,
+					"OCR": 8,
+					"finesContent": 92
+				},
+				{
+					"top": 7000,
+					"bottom": 12000,
+					"description": "Medium stiff grey silty clay, trace organic matter",
+					"soilType": "clay",
+					"uscs": "CL",
+					"unitWeight": 18.0,
+					"saturatedUnitWeight": 18.5,
+					"cu": 40,
+					"plasticityIndex": 18,
+					"liquidLimit": 40,
+					"Cc": 0.24,
+					"Cr": 0.04,
+					"e0": 0.85,
+					"OCR": 1.5,
+					"finesContent": 90
+				},
+				{
+					"top": 12000,
+					"bottom": 30000,
+					"description": "Dense to very dense yellowish grey fine sand, trace mica",
+					"soilType": "sand",
+					"uscs": "SP-SM",
+					"unitWeight": 19.5,
+					"saturatedUnitWeight": 20.0,
+					"phi": 36,
+					"finesContent": 8
+				}
+			],
+			"spt": [
+				{
+					"depth": 1500,
+					"N": 12
+				},
+				{
+					"depth": 3000,
+					"N": 16
+				},
+				{
+					"depth": 4500,
+					"N": 18
+				},
+				{
+					"depth": 6000,
+					"N": 20
+				},
+				{
+					"depth": 7500,
+					"N": 8
+				},
+				{
+					"depth": 9000,
+					"N": 9
+				},
+				{
+					"depth": 10500,
+					"N": 10
+				},
+				{
+					"depth": 12000,
+					"N": 38
+				},
+				{
+					"depth": 13500,
+					"N": 40
+				},
+				{
+					"depth": 15000,
+					"N": 43
+				},
+				{
+					"depth": 16500,
+					"N": 46
+				},
+				{
+					"depth": 18000,
+					"N": 49
+				},
+				{
+					"depth": 19500,
+					"N": 51
+				},
+				{
+					"depth": 21000,
+					"N": 53
+				},
+				{
+					"depth": 22500,
+					"N": 55
+				},
+				{
+					"depth": 24000,
+					"N": 56
+				},
+				{
+					"depth": 25500,
+					"N": 58
+				},
+				{
+					"depth": 27000,
+					"N": 59
+				},
+				{
+					"depth": 28500,
+					"N": 61
+				},
+				{
+					"depth": 30000,
+					"N": 62
+				}
+			],
+			"samples": [
+				{
+					"depth": 3000,
+					"type": "UD",
+					"moisture": 25,
+					"unitWeight": 19.1,
+					"cu": 86,
+					"liquidLimit": 41,
+					"plasticLimit": 21,
+					"Cc": 0.17,
+					"e0": 0.72
+				},
+				{
+					"depth": 4500,
+					"type": "UD",
+					"moisture": 24,
+					"unitWeight": 19.2,
+					"cu": 94,
+					"liquidLimit": 42,
+					"plasticLimit": 22,
+					"Cc": 0.16,
+					"e0": 0.7
+				},
+				{
+					"depth": 9000,
+					"type": "SPT",
+					"moisture": 32,
+					"finesContent": 90
+				},
+				{
+					"depth": 15000,
+					"type": "SPT",
+					"moisture": 20,
+					"finesContent": 9,
+					"phi": 36
+				},
+				{
+					"depth": 25500,
+					"type": "SPT",
+					"moisture": 19,
+					"finesContent": 8
+				}
+			],
+			"date": "2026-08-22",
+			"method": "Wash boring, 100 mm casing"
+		},
+		{
+			"id": "BH-3",
+			"x": 6500,
+			"y": 2500,
+			"groundLevel": 100,
+			"waterTable": 5000,
+			"depth": 30000,
+			"layers": [
+				{
+					"top": 0,
+					"bottom": 1300,
+					"description": "Brownish grey silty clay with brick chips (fill)",
+					"soilType": "fill",
+					"unitWeight": 17.0
+				},
+				{
+					"top": 1300,
+					"bottom": 7500,
+					"description": "Stiff to very stiff reddish brown silty clay, mottled (terrace clay)",
+					"soilType": "clay",
+					"uscs": "CL",
+					"unitWeight": 19.0,
+					"saturatedUnitWeight": 19.5,
+					"cu": 90,
+					"plasticityIndex": 20,
+					"liquidLimit": 42,
+					"Cc": 0.16,
+					"Cr": 0.025,
+					"e0": 0.7,
+					"OCR": 8,
+					"finesContent": 92
+				},
+				{
+					"top": 7500,
+					"bottom": 13000,
+					"description": "Medium stiff grey silty clay, trace organic matter",
+					"soilType": "clay",
+					"uscs": "CL",
+					"unitWeight": 18.0,
+					"saturatedUnitWeight": 18.5,
+					"cu": 40,
+					"plasticityIndex": 18,
+					"liquidLimit": 40,
+					"Cc": 0.24,
+					"Cr": 0.04,
+					"e0": 0.85,
+					"OCR": 1.5,
+					"finesContent": 90
+				},
+				{
+					"top": 13000,
+					"bottom": 30000,
+					"description": "Dense to very dense yellowish grey fine sand, trace mica",
+					"soilType": "sand",
+					"uscs": "SP-SM",
+					"unitWeight": 19.5,
+					"saturatedUnitWeight": 20.0,
+					"phi": 36,
+					"finesContent": 8
+				}
+			],
+			"spt": [
+				{
+					"depth": 1500,
+					"N": 12
+				},
+				{
+					"depth": 3000,
+					"N": 15
+				},
+				{
+					"depth": 4500,
+					"N": 17
+				},
+				{
+					"depth": 6000,
+					"N": 19
+				},
+				{
+					"depth": 7500,
+					"N": 8
+				},
+				{
+					"depth": 9000,
+					"N": 9
+				},
+				{
+					"depth": 10500,
+					"N": 10
+				},
+				{
+					"depth": 12000,
+					"N": 11
+				},
+				{
+					"depth": 13500,
+					"N": 39
+				},
+				{
+					"depth": 15000,
+					"N": 41
+				},
+				{
+					"depth": 16500,
+					"N": 44
+				},
+				{
+					"depth": 18000,
+					"N": 47
+				},
+				{
+					"depth": 19500,
+					"N": 50
+				},
+				{
+					"depth": 21000,
+					"N": 52
+				},
+				{
+					"depth": 22500,
+					"N": 54
+				},
+				{
+					"depth": 24000,
+					"N": 56
+				},
+				{
+					"depth": 25500,
+					"N": 57
+				},
+				{
+					"depth": 27000,
+					"N": 59
+				},
+				{
+					"depth": 28500,
+					"N": 61
+				},
+				{
+					"depth": 30000,
+					"N": 63
+				}
+			],
+			"samples": [
+				{
+					"depth": 3000,
+					"type": "UD",
+					"moisture": 25,
+					"unitWeight": 19.1,
+					"cu": 86,
+					"liquidLimit": 41,
+					"plasticLimit": 21,
+					"Cc": 0.17,
+					"e0": 0.72
+				},
+				{
+					"depth": 4500,
+					"type": "UD",
+					"moisture": 24,
+					"unitWeight": 19.2,
+					"cu": 94,
+					"liquidLimit": 42,
+					"plasticLimit": 22,
+					"Cc": 0.16,
+					"e0": 0.7
+				},
+				{
+					"depth": 9000,
+					"type": "SPT",
+					"moisture": 32,
+					"finesContent": 90
+				},
+				{
+					"depth": 15000,
+					"type": "SPT",
+					"moisture": 20,
+					"finesContent": 9,
+					"phi": 36
+				},
+				{
+					"depth": 25500,
+					"type": "SPT",
+					"moisture": 19,
+					"finesContent": 8
+				}
+			],
+			"date": "2026-08-23",
+			"method": "Wash boring, 100 mm casing",
+			"position": "wgs84",
+			"lon": 90.4000638,
+			"lat": 23.7800225
+		}
+	],
+	"design": {
+		"hammerEnergy": 55,
+		"factorOfSafety": 3,
+		"allowableSettlement": 25,
+		"liquefaction": {
+			"magnitude": 7.5,
+			"pga": null
+		}
+	},
+	"site": {
+		"lat": 23.78,
+		"lon": 90.4,
+		"x": 0,
+		"y": 0,
+		"rotation": 0,
+		"address": "Dhaka (synthetic sample site)",
+		"boundary": [
+			[
+				90.3999607,
+				23.7799641
+			],
+			[
+				90.4001669,
+				23.7799641
+			],
+			[
+				90.4001669,
+				23.7800808
+			],
+			[
+				90.3999607,
+				23.7800808
+			]
+		]
+	}
 }

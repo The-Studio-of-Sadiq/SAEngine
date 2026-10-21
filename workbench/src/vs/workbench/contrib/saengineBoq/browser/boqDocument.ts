@@ -18,8 +18,8 @@ export const BOQ_SCHEMA_ID = 'saengine.boq/1';
 /** Desktop command measuring the bill (registered where the Python backend is). */
 export const BOQ_COMPUTE_COMMAND = 'saengine.boq.compute';
 
-export type BoqGroup = 'earthwork' | 'concrete' | 'masonry' | 'reinforcement' | 'formwork' | 'steel' | 'mep';
-export type BoqUnit = 'm3' | 'm2' | 'kg' | 'nr' | 'm';
+export type BoqGroup = 'earthwork' | 'concrete' | 'masonry' | 'reinforcement' | 'formwork' | 'steel' | 'mep' | 'materials';
+export type BoqUnit = 'm3' | 'm2' | 'kg' | 'nr' | 'm' | 'cft' | 'bag' | 'l';
 
 export interface IBoqBreakdownEntry {
 	readonly element: string;
@@ -110,14 +110,20 @@ export const BOQ_GROUPS: readonly { readonly group: BoqGroup; readonly title: st
 	{ group: 'formwork', title: localize('boq.group.formwork', "Formwork") },
 	{ group: 'steel', title: localize('boq.group.steel', "Structural Steel") },
 	{ group: 'mep', title: localize('boq.group.mep', "MEP Coordination") },
+	{ group: 'materials', title: localize('boq.group.materials', "Materials: Cement, Sand, Stone Chips and Water") },
 ];
 
 /**
  * The items of `group` whose quantities add up to a meaningful total: excavation and backfill are
- * the same earth measured twice, so the earthwork's total is the excavation's.
+ * the same earth measured twice, so the earthwork's total is the excavation's; the materials'
+ * total is their cement in kg (sand and stone are different materials, the bags the same cement).
  */
 export function totalledItems(group: BoqGroup, items: readonly IBoqItem[]): readonly IBoqItem[] {
-	return group === 'earthwork' ? items.filter(i => i.kind === 'excavation') : items;
+	switch (group) {
+		case 'earthwork': return items.filter(i => i.kind === 'excavation');
+		case 'materials': return items.filter(i => i.kind === 'cement');
+		default: return items;
+	}
 }
 
 /** The bill in `text`, or undefined when it is not a measured bill (invalid JSON, the new-project placeholder, ...). */
@@ -177,6 +183,7 @@ export function unitLabel(unit: string): string {
 	switch (unit) {
 		case 'm3': return 'm³';
 		case 'm2': return 'm²';
+		case 'bag': return localize('boq.unit.bags', "bags");
 		default: return unit;
 	}
 }

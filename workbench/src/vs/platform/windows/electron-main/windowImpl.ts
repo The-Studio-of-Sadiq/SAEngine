@@ -941,7 +941,23 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			const serviceUrl = URI.parse(this.productService.extensionsGallery.serviceUrl);
 			urls.push(`${serviceUrl.scheme}://${serviceUrl.authority}/*`);
 		}
+		// SAEngine: the site map's OpenStreetMap tiles. The OSM tile usage policy asks clients to
+		// identify themselves (a User-Agent naming the application) and to send a Referer; the
+		// renderer cannot set either, so they are added here. (One listener per session: Electron
+		// keeps only the last one registered, hence the shared filter.)
+		const osmTiles = ['https://tile.openstreetmap.org/*', 'https://*.tile.openstreetmap.org/*'];
+		urls.push(...osmTiles);
 		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, async (details, cb) => {
+			if (/^https:\/\/([a-c]\.)?tile\.openstreetmap\.org\//.test(details.url)) {
+				const name = this.productService.nameShort;
+				cb({
+					cancel: false, requestHeaders: Object.assign(details.requestHeaders, {
+						'User-Agent': `${name}/${this.productService.version} (structural engineering desktop application; +https://github.com/princekhan7748/saengine)`,
+						'Referer': 'https://github.com/princekhan7748/saengine',
+					})
+				});
+				return;
+			}
 			const headers = await this.getMarketplaceHeaders();
 
 			cb({ cancel: false, requestHeaders: Object.assign(details.requestHeaders, headers) });

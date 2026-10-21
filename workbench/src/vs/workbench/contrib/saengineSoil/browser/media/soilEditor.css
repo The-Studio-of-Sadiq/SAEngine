@@ -876,3 +876,777 @@
 	font-size: 12px;
 	margin-right: 4px;
 }
+
+/* ── the log sheet (Data view: soilGrid.ts over soilSheet.ts) ─────────────── */
+
+.saengine-soil-editor .soil-sheet-header {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--sa-space-2) var(--sa-space-3);
+	margin: var(--sa-space-2) 0 var(--sa-space-3);
+	padding: var(--sa-space-2) var(--sa-space-3);
+	border: 1px solid var(--sa-border);
+	border-radius: var(--sa-radius);
+	background: var(--sa-surface-alt);
+}
+
+.saengine-soil-editor .soil-sheet-field {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 84px;
+}
+
+.saengine-soil-editor .soil-sheet-field .soil-input {
+	width: 108px;
+	border-color: var(--vscode-input-border, var(--sa-border));
+	background: var(--vscode-input-background);
+}
+
+.saengine-soil-editor .soil-sheet-field.derived .soil-input {
+	color: var(--sa-muted);
+	background: transparent;
+}
+
+.saengine-soil-editor .soil-sheet-field-label {
+	font-size: 11px;
+	color: var(--sa-muted);
+	white-space: nowrap;
+}
+
+.saengine-soil-editor .soil-sheet-layout {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--sa-space-4);
+}
+
+.saengine-soil-editor .soil-sheet-main {
+	flex: 1;
+	min-width: 0;
+}
+
+.saengine-soil-editor .soil-sheet-main > .soil-section:first-child {
+	margin-top: 0;
+}
+
+/* The log beside the sheet stays in view while the sheet scrolls. */
+.saengine-soil-editor .soil-sheet-log {
+	flex: none;
+	position: sticky;
+	top: 0;
+	padding-top: var(--sa-space-1);
+}
+
+.saengine-soil-editor .soil-hint {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-1);
+	margin-top: var(--sa-space-1);
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+}
+
+.saengine-soil-editor .soil-grid {
+	position: relative;
+	max-width: 100%;
+}
+
+.saengine-soil-editor .soil-grid-scroll {
+	overflow: auto;
+	max-width: 100%;
+	border: 1px solid var(--sa-border);
+	border-radius: var(--sa-radius);
+	outline: none;
+}
+
+.saengine-soil-editor .soil-grid-scroll:focus-visible,
+.saengine-soil-editor .soil-grid-scroll:focus-within {
+	border-color: var(--vscode-focusBorder);
+}
+
+.saengine-soil-editor .soil-grid-table {
+	border-collapse: separate;
+	border-spacing: 0;
+	table-layout: fixed;
+	font-size: var(--sa-font-s);
+	user-select: none;
+}
+
+.saengine-soil-editor .soil-grid-table th {
+	position: sticky;
+	z-index: 1;
+	padding: 3px 6px;
+	font-weight: 600;
+	text-align: left;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	color: var(--sa-muted);
+	background: var(--sa-surface-alt);
+	border-bottom: 1px solid var(--sa-border);
+}
+
+.saengine-soil-editor .soil-grid-groups th {
+	top: 0;
+	height: 20px;
+	box-sizing: border-box;
+	border-right: 1px solid var(--sa-border);
+}
+
+.saengine-soil-editor .soil-grid-head th {
+	top: 20px;
+	vertical-align: bottom;
+	border-right: 1px solid color-mix(in srgb, var(--sa-border) 50%, transparent);
+}
+
+.saengine-soil-editor .soil-grid-head th.number {
+	text-align: right;
+}
+
+.saengine-soil-editor .soil-grid-head th.computed {
+	font-style: italic;
+}
+
+.saengine-soil-editor .soil-grid-corner {
+	left: 0;
+	z-index: 3 !important;
+}
+
+.saengine-soil-editor .soil-grid-group-toggle {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+	max-width: 100%;
+	padding: 0;
+	border: none;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	cursor: pointer;
+	overflow: hidden;
+}
+
+.saengine-soil-editor .soil-grid-group-toggle:hover {
+	color: var(--vscode-foreground);
+}
+
+.saengine-soil-editor .soil-grid-group-toggle .codicon {
+	font-size: 12px;
+}
+
+.saengine-soil-editor .soil-grid-group.collapsed span:not(.codicon) {
+	display: none;
+}
+
+.saengine-soil-editor .soil-grid-row-header {
+	position: sticky;
+	left: 0;
+	z-index: 2 !important;
+	text-align: right !important;
+	font-weight: 400 !important;
+	font-variant-numeric: tabular-nums;
+	cursor: pointer;
+	border-right: 1px solid var(--sa-border);
+	border-bottom: 1px solid color-mix(in srgb, var(--sa-border) 50%, transparent) !important;
+}
+
+.saengine-soil-editor .soil-grid-row.row-selected .soil-grid-row-header {
+	color: var(--vscode-foreground);
+	background: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.saengine-soil-editor .soil-grid-cell {
+	height: 24px;
+	padding: 0 6px;
+	box-sizing: border-box;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	border-right: 1px solid color-mix(in srgb, var(--sa-border) 40%, transparent);
+	border-bottom: 1px solid color-mix(in srgb, var(--sa-border) 40%, transparent);
+	cursor: cell;
+}
+
+.saengine-soil-editor .soil-grid-cell.number {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-soil-editor .soil-grid-cell.derived,
+.saengine-soil-editor .soil-grid-cell.readonly {
+	color: var(--sa-muted);
+}
+
+.saengine-soil-editor .soil-grid-cell.readonly {
+	background: color-mix(in srgb, var(--sa-surface-alt) 60%, transparent);
+}
+
+.saengine-soil-editor .soil-grid-cell.placeholder {
+	color: var(--sa-muted);
+	font-style: italic;
+}
+
+.saengine-soil-editor .soil-grid-row.new-row .soil-grid-cell {
+	border-bottom: none;
+}
+
+.saengine-soil-editor .soil-grid-cell.selected {
+	background: color-mix(in srgb, var(--vscode-focusBorder) 14%, transparent);
+}
+
+.saengine-soil-editor .soil-grid-cell.active {
+	box-shadow: inset 0 0 0 2px var(--vscode-focusBorder);
+}
+
+.saengine-soil-editor .soil-grid-scroll:not(:focus-within) .soil-grid-cell.active {
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--vscode-focusBorder) 55%, transparent);
+}
+
+.saengine-soil-editor .soil-grid-cell.error {
+	background: color-mix(in srgb, var(--sa-fail) 14%, transparent);
+	box-shadow: inset 0 -2px 0 var(--sa-fail);
+}
+
+.saengine-soil-editor .soil-grid-cell.warning {
+	box-shadow: inset 0 -2px 0 var(--sa-warn);
+}
+
+.saengine-soil-editor .soil-grid-cell.error.active,
+.saengine-soil-editor .soil-grid-cell.warning.active {
+	box-shadow: inset 0 0 0 2px var(--vscode-focusBorder), inset 0 -3px 0 var(--sa-fail);
+}
+
+.saengine-soil-editor .soil-grid-collapsed {
+	background: var(--sa-surface-alt);
+	border-right: 1px solid var(--sa-border);
+}
+
+.saengine-soil-editor .soil-grid-cell.editing {
+	padding: 0;
+	overflow: visible;
+}
+
+.saengine-soil-editor .soil-grid-editor {
+	width: 100%;
+	height: 23px;
+	box-sizing: border-box;
+	padding: 0 5px;
+	border: 2px solid var(--vscode-focusBorder);
+	border-radius: 0;
+	outline: none;
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground, var(--vscode-foreground));
+	font: inherit;
+}
+
+.saengine-soil-editor .soil-grid-editor.number {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-soil-editor .soil-grid-editor.invalid {
+	border-color: var(--sa-fail);
+	background: color-mix(in srgb, var(--sa-fail) 10%, var(--vscode-input-background));
+}
+
+.saengine-soil-editor .soil-grid-editor option {
+	background: var(--vscode-dropdown-background);
+	color: var(--vscode-dropdown-foreground);
+}
+
+.saengine-soil-editor .soil-grid-message {
+	margin-top: var(--sa-space-1);
+	font-size: var(--sa-font-s);
+	color: var(--sa-muted);
+}
+
+.saengine-soil-editor .soil-grid-message.error {
+	color: var(--sa-fail);
+}
+
+.saengine-soil-editor .soil-grid-confirm {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2);
+	margin-bottom: var(--sa-space-2);
+	padding: var(--sa-space-1) var(--sa-space-2);
+	border: 1px solid var(--vscode-focusBorder);
+	border-radius: var(--sa-radius);
+	background: var(--sa-surface-alt);
+	font-size: var(--sa-font-s);
+}
+
+.saengine-soil-editor .soil-grid-confirm[hidden] {
+	display: none;
+}
+
+.saengine-soil-editor .soil-grid-confirm-text {
+	flex: 1;
+}
+
+.saengine-soil-editor .soil-grid-confirm button,
+.saengine-soil-editor .soil-map-banner-apply {
+	height: 22px;
+	padding: 0 var(--sa-space-2);
+	border: 1px solid var(--vscode-button-border, transparent);
+	border-radius: var(--sa-radius);
+	font: inherit;
+	cursor: pointer;
+}
+
+.saengine-soil-editor .soil-grid-confirm-ok,
+.saengine-soil-editor .soil-map-banner-apply {
+	color: var(--vscode-button-foreground);
+	background: var(--vscode-button-background);
+}
+
+.saengine-soil-editor .soil-grid-confirm-ok:hover,
+.saengine-soil-editor .soil-map-banner-apply:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.saengine-soil-editor .soil-grid-confirm-cancel {
+	color: var(--vscode-button-secondaryForeground);
+	background: var(--vscode-button-secondaryBackground);
+}
+
+/* ── lab tests (soilLabPanel.ts) ────────────────────────────────────────── */
+
+.saengine-soil-editor .soil-lab-container {
+	margin-top: var(--sa-space-6);
+}
+
+.saengine-soil-editor .soil-lab-header {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--sa-space-2) var(--sa-space-3);
+	margin-bottom: var(--sa-space-2);
+}
+
+.saengine-soil-editor .soil-lab-dot {
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: var(--sa-accent);
+}
+
+.saengine-soil-editor .soil-lab-body {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	gap: var(--sa-space-4);
+}
+
+.saengine-soil-editor .soil-lab-entries {
+	flex: none;
+	min-width: 200px;
+}
+
+.saengine-soil-editor .soil-lab-type {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2);
+	margin-bottom: var(--sa-space-2);
+	font-size: var(--sa-font-s);
+	color: var(--sa-muted);
+}
+
+.saengine-soil-editor .soil-lab-select {
+	width: auto;
+	border-color: var(--vscode-input-border, var(--sa-border));
+	background: var(--vscode-input-background);
+}
+
+.saengine-soil-editor .soil-lab-result {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--sa-space-3);
+	min-width: 0;
+}
+
+.saengine-soil-editor .soil-lab-values {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 220px;
+	max-width: 320px;
+	font-size: var(--sa-font-s);
+}
+
+.saengine-soil-editor .soil-lab-value {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2);
+	min-height: 24px;
+}
+
+.saengine-soil-editor .soil-lab-value-label {
+	flex: 1;
+	color: var(--sa-muted);
+}
+
+.saengine-soil-editor .soil-lab-value-number {
+	font-variant-numeric: tabular-nums;
+	font-weight: 600;
+}
+
+.saengine-soil-editor .soil-lab-use {
+	margin-left: 0;
+}
+
+.saengine-soil-editor .soil-lab-input {
+	width: 72px;
+	border-color: var(--vscode-input-border, var(--sa-border));
+	background: var(--vscode-input-background);
+}
+
+.saengine-soil-editor .soil-lab-chart {
+	display: block;
+}
+
+.saengine-soil-editor .soil-grid.minor,
+.saengine-soil-editor .soil-lab-chart .soil-grid.minor {
+	stroke: color-mix(in srgb, var(--sa-border) 30%, transparent);
+}
+
+.saengine-soil-editor .soil-lab-line {
+	fill: none;
+	stroke: var(--vscode-charts-blue, #2c6fbe);
+	stroke-width: 1.5;
+}
+
+.saengine-soil-editor .soil-lab-point {
+	fill: var(--sa-surface);
+	stroke: var(--vscode-charts-blue, #2c6fbe);
+	stroke-width: 1.5;
+}
+
+.saengine-soil-editor .soil-fines-line {
+	stroke: var(--sa-warn);
+	stroke-width: 1;
+	stroke-dasharray: 4 3;
+}
+
+.saengine-soil-editor .soil-fines-label {
+	font-size: 10px;
+	fill: var(--sa-warn);
+}
+
+.saengine-soil-editor .soil-mohr {
+	fill: color-mix(in srgb, var(--vscode-charts-blue, #2c6fbe) 6%, transparent);
+	stroke: var(--vscode-charts-blue, #2c6fbe);
+	stroke-width: 1.25;
+}
+
+.saengine-soil-editor .soil-envelope {
+	stroke: var(--sa-fail);
+	stroke-width: 1.5;
+}
+
+/* ── the Map view (soilMapView.ts) ──────────────────────────────────────── */
+
+.saengine-soil-editor .soil-view.map {
+	display: flex;
+	flex-direction: column;
+	padding: 0;
+	overflow: hidden;
+}
+
+.saengine-soil-editor .soil-map-view {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.saengine-soil-editor .soil-map-banner {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2);
+	padding: var(--sa-space-1) var(--sa-space-3);
+	border-bottom: 1px solid var(--sa-border);
+	background: var(--sa-surface-alt);
+	font-size: var(--sa-font-s);
+}
+
+.saengine-soil-editor .soil-map-banner[hidden] {
+	display: none;
+}
+
+.saengine-soil-editor .soil-map-banner-icon {
+	color: var(--sa-warn);
+}
+
+.saengine-soil-editor .soil-map-banner-text {
+	flex: 1;
+}
+
+.saengine-soil-editor .soil-map-body {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+}
+
+.saengine-soil-editor .soil-map-stage {
+	position: relative;
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.saengine-soil-editor .soil-map-area {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
+	background: var(--sa-surface);
+}
+
+.saengine-soil-editor .soil-map-canvas {
+	position: absolute;
+	inset: 0;
+}
+
+.saengine-soil-editor .soil-map-note {
+	position: absolute;
+	left: var(--sa-space-3);
+	top: var(--sa-space-3);
+	max-width: 420px;
+	padding: var(--sa-space-1) var(--sa-space-2);
+	border: 1px solid var(--sa-border);
+	border-radius: var(--sa-radius);
+	background: var(--sa-surface-alt);
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+	line-height: 1.4;
+}
+
+.saengine-soil-editor .soil-map-note[hidden] {
+	display: none;
+}
+
+/* "© OpenStreetMap contributors": always shown, over the map's bottom right corner. */
+.saengine-soil-editor .soil-map-attribution {
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	z-index: 2;
+	padding: 1px 6px;
+	border-top-left-radius: var(--sa-radius);
+	background: color-mix(in srgb, var(--sa-surface) 82%, transparent);
+	font-size: 11px;
+}
+
+.saengine-soil-editor .soil-map-attribution a {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+}
+
+.saengine-soil-editor .soil-map-attribution a:hover {
+	text-decoration: underline;
+}
+
+.saengine-soil-editor .soil-map-panel {
+	flex: none;
+	width: 264px;
+	overflow: auto;
+	padding: var(--sa-space-2) var(--sa-space-3) var(--sa-space-4);
+	border-left: 1px solid var(--sa-border);
+	box-sizing: border-box;
+	font-size: var(--sa-font-s);
+}
+
+.saengine-soil-editor .soil-map-heading {
+	margin: var(--sa-space-3) 0 var(--sa-space-1);
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: var(--sa-muted);
+}
+
+.saengine-soil-editor .soil-map-heading:first-child {
+	margin-top: 0;
+}
+
+.saengine-soil-editor .soil-map-input {
+	width: 100%;
+	margin-bottom: var(--sa-space-1);
+	border-color: var(--vscode-input-border, var(--sa-border));
+	background: var(--vscode-input-background);
+}
+
+.saengine-soil-editor .soil-map-row {
+	display: flex;
+	align-items: baseline;
+	gap: var(--sa-space-2);
+	padding: 2px 0;
+}
+
+.saengine-soil-editor .soil-map-label {
+	flex: none;
+	width: 84px;
+	color: var(--sa-muted);
+}
+
+.saengine-soil-editor .soil-map-value {
+	flex: 1;
+	min-width: 0;
+	white-space: pre-line;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-soil-editor .soil-map-value .soil-input {
+	width: 72px;
+	border-color: var(--vscode-input-border, var(--sa-border));
+	background: var(--vscode-input-background);
+}
+
+.saengine-soil-editor .soil-map-actions {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 2px;
+	margin-top: var(--sa-space-1);
+}
+
+.saengine-soil-editor .soil-map-button {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1);
+	padding: 2px var(--sa-space-1);
+	border: none;
+	border-radius: var(--sa-radius);
+	background: transparent;
+	color: var(--vscode-textLink-foreground);
+	font: inherit;
+	cursor: pointer;
+}
+
+.saengine-soil-editor .soil-map-button:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.saengine-soil-editor .soil-map-list {
+	display: flex;
+	flex-direction: column;
+}
+
+.saengine-soil-editor .soil-map-item {
+	display: flex;
+	flex-direction: column;
+	padding: 3px var(--sa-space-2);
+	border-radius: var(--sa-radius);
+	cursor: pointer;
+	outline: none;
+}
+
+.saengine-soil-editor .soil-map-item:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.saengine-soil-editor .soil-map-item.selected {
+	background: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.saengine-soil-editor .soil-map-item:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.saengine-soil-editor .soil-map-item-id {
+	font-weight: 600;
+}
+
+.saengine-soil-editor .soil-map-item-detail {
+	color: var(--sa-muted);
+	font-variant-numeric: tabular-nums;
+}
+
+/* markers on the map */
+.saengine-soil-editor .soil-map-site {
+	color: var(--sa-fail);
+	font-size: 28px;
+	line-height: 1;
+	cursor: grab;
+	filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+}
+
+.saengine-soil-editor .soil-map-site .codicon {
+	font-size: 28px;
+}
+
+.saengine-soil-editor .soil-map-borehole {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	cursor: grab;
+	outline: none;
+}
+
+.saengine-soil-editor .soil-map-borehole-dot {
+	width: 12px;
+	height: 12px;
+	border: 2px solid var(--sa-surface);
+	border-radius: 50%;
+	background: var(--vscode-charts-blue, #2c6fbe);
+	box-shadow: 0 0 0 1px var(--vscode-charts-blue, #2c6fbe);
+}
+
+.saengine-soil-editor .soil-map-borehole.selected .soil-map-borehole-dot {
+	background: var(--sa-warn);
+	box-shadow: 0 0 0 2px var(--sa-warn);
+}
+
+.saengine-soil-editor .soil-map-borehole-id {
+	padding: 0 3px;
+	border-radius: 2px;
+	background: color-mix(in srgb, var(--sa-surface) 85%, transparent);
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+/* the plain grid of the offline state */
+.saengine-soil-editor .soil-site-grid {
+	display: block;
+}
+
+.saengine-soil-editor .soil-site-outline {
+	fill: color-mix(in srgb, var(--vscode-charts-blue, #2c6fbe) 10%, transparent);
+	stroke: var(--vscode-charts-blue, #2c6fbe);
+	stroke-width: 1.5;
+}
+
+.saengine-soil-editor .soil-site-north path {
+	fill: var(--vscode-foreground);
+}
+
+.saengine-soil-editor .soil-site-origin path {
+	stroke: var(--sa-fail);
+	stroke-width: 1.5;
+}
+
+.saengine-soil-editor .soil-site-borehole {
+	cursor: grab;
+	outline: none;
+}
+
+.saengine-soil-editor .soil-site-borehole circle {
+	fill: var(--vscode-charts-blue, #2c6fbe);
+	stroke: var(--sa-surface);
+	stroke-width: 2;
+}
+
+.saengine-soil-editor .soil-site-borehole.selected circle,
+.saengine-soil-editor .soil-site-borehole:focus-visible circle {
+	fill: var(--sa-warn);
+}
+
+.saengine-soil-editor .soil-site-label {
+	font-size: 11px;
+	font-weight: 600;
+	fill: var(--vscode-foreground);
+}

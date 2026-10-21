@@ -13,6 +13,19 @@ Methods:
 - ``structure/insert`` ``{structureText, geometry}`` -> the structural model with them added
 - ``structure/runScript`` ``{structureText, scriptPath}`` -> the model a script built
 - ``design/report`` ``{outDir, projectPath}`` -> the RC member design checks of a run
+- ``design/required`` ``{outDir, projectPath, options?}`` -> the reinforcement each element
+  requires (``saengine.design.design_required``; kept in ``design-required.json`` beside the
+  results while the project does not change; in a worker thread)
+- ``design/proposal`` ``{outDir, projectPath, options?}`` -> the bars proposed per object type
+  and foundation (``options.mode`` "byType" or "splitTypes"; in a worker thread)
+- ``design/applyProposal`` ``{objectsText, bimText?, proposal, floorPlanText?,
+  substructureText?}`` -> the part files with the proposal applied (pure)
+- ``soil/location`` ``{soilText, bimText?, settingsText?}`` -> the site, boreholes and building
+  outline in WGS 84 with the nearest BNBC town (``saengine.gis.site``)
+- ``soil/gisExport`` ``{projectRoot, format: geojson|gpkg, outPath}`` -> ``{path, counts,
+  problems}``; ``soil/gisImport`` ``{path, soilText?}`` -> ``{soilText, added, updated, ...}``
+- ``soil/qgisProgram`` ``{}`` -> an installed QGIS launcher's path or null;
+  ``soil/qgisCommand`` ``{program, filePath}`` -> the arguments that open the file in it
 - ``boq/compute`` ``{bimText, objectsText, materialsText, projectRoot?}`` -> the bill of
   quantities (``projectRoot``: where the plumbing tanks' last designs give their bars)
 - ``report/build`` ``{projectRoot, outPdf?}`` -> the PDF design report (``{path, pages, warnings}``)
@@ -242,6 +255,29 @@ def create_server() -> JsonRPCServer:
         args = _plain(params)
         return handlers.design_report(args["outDir"], args["projectPath"])
 
+    @server.feature("design/required")
+    @_in_worker
+    def _design_required(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.design_required(args["outDir"], args["projectPath"], args.get("options"))
+
+    @server.feature("design/proposal")
+    @_in_worker
+    def _design_proposal(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.design_proposal(args["outDir"], args["projectPath"], args.get("options"))
+
+    @server.feature("design/applyProposal")
+    def _design_apply_proposal(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.design_apply_proposal(
+            args["objectsText"],
+            args.get("bimText"),
+            args["proposal"],
+            args.get("floorPlanText"),
+            args.get("substructureText"),
+        )
+
     @server.feature("boq/compute")
     def _compute_boq(params: Any) -> dict[str, Any]:
         args = _plain(params)
@@ -298,6 +334,36 @@ def create_server() -> JsonRPCServer:
     def _soil_sources(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.soil_sources(args.get("soilText"), args.get("settingsText"))
+
+    @server.feature("soil/location")
+    @_in_worker
+    def _soil_location(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.soil_location(
+            args.get("soilText"), args.get("bimText"), args.get("settingsText")
+        )
+
+    @server.feature("soil/gisExport")
+    @_in_worker
+    def _soil_gis_export(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.gis_export(args["projectRoot"], args["format"], args["outPath"])
+
+    @server.feature("soil/gisImport")
+    @_in_worker
+    def _soil_gis_import(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.gis_import(args["path"], args.get("soilText"))
+
+    @server.feature("soil/qgisProgram")
+    @_in_worker
+    def _soil_qgis_program(params: Any) -> str | None:
+        return handlers.qgis_program()
+
+    @server.feature("soil/qgisCommand")
+    def _soil_qgis_command(params: Any) -> list[str] | dict[str, Any]:
+        args = _plain(params)
+        return handlers.qgis_command(args["program"], args["filePath"])
 
     @server.feature("substructure/report")
     def _substructure_report(params: Any) -> dict[str, Any]:

@@ -39,6 +39,7 @@ import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { FemDerivation, IFemDeriveOutcome } from './femDerivationBar.js';
+import { DESIGN_REINFORCEMENT_COMMAND } from './femDesign.js';
 import { FemModelEditorInput } from './femModelEditorInput.js';
 import { errorSummary, FEM_RESULT_TABLES_COMMAND, FEM_RUN_CASES_COMMAND, FEM_SHOW_LOG_COMMAND, FemResultsBar, IFemRun, IFemRunOptions, IFemRunOutcome, IFemRunTracker, propertyHeading, propertyNote, propertyRow } from './femResultsBar.js';
 import { loadViewerModule } from './viewerModule.js';
@@ -286,6 +287,12 @@ export class FemModelEditor extends EditorPane {
 	private readonly runAction = this._register(new Action('saengine.fem.editor.run', localize('femEditor.run', "Run Analysis"), ThemeIcon.asClassName(Codicon.play), true, () => this.running ? this.running.cancel() : this.run({})));
 	private readonly runSelectedAction = this._register(new Action('saengine.fem.editor.runSelected', localize('femEditor.runSelected', "Run Selected Cases..."), undefined, true, () => this.run({ pick: true })));
 	private readonly designAction = this._register(new Action('saengine.fem.editor.design', localize('femEditor.design', "Design Utilisation"), ThemeIcon.asClassName(Codicon.checklist), true, async () => this.results?.toggleDesign()));
+	private readonly reinforceAction = this._register(new Action('saengine.fem.editor.designReinforcement', localize('femEditor.designReinforcement', "Design Reinforcement"), ThemeIcon.asClassName(Codicon.symbolRuler), true, async () => {
+		const resource = this.resource;
+		if (resource) {
+			await this.commandService.executeCommand(DESIGN_REINFORCEMENT_COMMAND, resource);
+		}
+	}));
 	private readonly tablesAction = this._register(new Action('saengine.fem.editor.tables', localize('femEditor.tables', "Result Tables"), ThemeIcon.asClassName(Codicon.table), true, async () => this.setTablesVisible(!this.tablesVisible)));
 	private readonly exportAction = this._register(new Action('saengine.fem.editor.export', localize('femEditor.export', "Export Result Tables..."), undefined, true, () => this.exportTables()));
 	private readonly showLogAction = this._register(new Action('saengine.fem.editor.showLog', localize('femEditor.showLog', "Show Log"), undefined, true, () => this.commandService.executeCommand(FEM_SHOW_LOG_COMMAND)));
@@ -493,10 +500,11 @@ export class FemModelEditor extends EditorPane {
 		this.runSelectedAction.enabled = this.nodeCount > 0 && !this.running && !derivation.deriving;
 		this.designAction.enabled = hasResults && results.canShowDesign;
 		this.designAction.checked = results.showsDesign;
+		this.reinforceAction.enabled = hasResults && results.canShowDesign && !this.running;
 		this.tablesAction.enabled = hasResults;
 		this.tablesAction.checked = this.tablesVisible;
 		this.exportAction.enabled = hasResults;
-		const primary: IAction[] = [...(stale ? [this.deriveAction] : []), this.runAction, this.designAction, this.tablesAction, frame.togglePropertiesAction];
+		const primary: IAction[] = [...(stale ? [this.deriveAction] : []), this.runAction, this.designAction, this.reinforceAction, this.tablesAction, frame.togglePropertiesAction];
 		const secondary: IAction[] = [
 			this.runSelectedAction,
 			...(state && !stale ? [this.deriveAgainAction] : []),

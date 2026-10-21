@@ -1262,6 +1262,9 @@ class SlabContext:
     strips: list[Strip] = field(default_factory=list)
     #: Filled by :func:`slab_checks`: the strip averages at every station.
     sections: list[StripSection] = field(default_factory=list)
+    #: Filled by :func:`slab_checks`: the largest one-way shear [N/m] each layer's ρ resists
+    #: (layer name -> (|Vu|, combination, where)), for the design mode.
+    shear: dict[str, tuple[float, str | None, str]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -1361,7 +1364,7 @@ def slab_checks(
     skipped_shells = int(inside.sum())
     flexure = centres[~inside], means[~inside], weights[~inside]
     shear = centres[~near], means[~near], weights[~near]
-    context.strips, context.sections = [], []
+    context.strips, context.sections, context.shear = [], [], {}
     for direction, along in (("X", 0), ("Y", 1)):
         layout = design_strips(direction, frame, extent, context.columns, context.supports, mesh)
         context.strips += layout.strips
@@ -1402,6 +1405,13 @@ def slab_checks(
                     if resisting is None:
                         continue
                     capacity, layer = resisting
+                    seen = context.shear.get(layer)
+                    if seen is None or abs(q) > seen[0]:
+                        context.shear[layer] = (
+                            abs(float(q)),
+                            combinations[c],
+                            f"Q{direction.lower()}; {where(at)}",
+                        )
                     ratio = abs(q) / capacity if capacity > 0 else math.inf
                     best = shear_env.get("all")
                     if best is None or ratio > best[0]:

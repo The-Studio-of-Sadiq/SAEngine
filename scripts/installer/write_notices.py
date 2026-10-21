@@ -66,6 +66,12 @@ Other licence terms to note:
   - SAEngine and opensees-studio are AGPL-3.0; see the source offer above.
   - wntr (Revised BSD, Sandia / NTESS) ships the EPANET 2.2 libraries (MIT) for the plumbing
     hydraulics; their notices are in wntr's licence text below. Neither is copyleft.
+  - pyproj (MIT; the site map's coordinate systems) ships PROJ 9.8 (MIT, its text is in
+    pyproj's licence files below) and, in pyproj.libs, the DLLs PROJ needs: SQLite (public
+    domain), libcurl (curl licence, MIT-style), libtiff (libtiff licence, BSD-style), libjpeg
+    (IJG licence), liblzma (0BSD / public domain), zlib (zlib licence) and the Microsoft Visual
+    C++ runtime msvcp140 (redistributable under the Visual Studio licence). None is copyleft.
+    certifi (MPL-2.0) ships unmodified as a separate package; its source is on PyPI.
 
 {rule}
 """

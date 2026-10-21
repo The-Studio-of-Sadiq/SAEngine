@@ -188,10 +188,13 @@ def section_of(
     fc: float,
     fy: float,
     es: float = STEEL_E,
+    aggregate: float | None = None,
 ) -> RcSection:
     """The section of a member type, with its bars laid out from the reinforcement groups.
 
-    Rectangles: see :func:`_rectangle_bars`. Circles: every group as a ring.
+    Rectangles: see :func:`_rectangle_bars`. Circles: every group as a ring. ``aggregate``:
+    the concrete's largest aggregate size [mm], which sets the least clear spacing of the bars
+    of a row with the bar diameter and 25 mm (ACI 25.2.1).
     """
     if not isinstance(profile, (RectangleProfile, CircleProfile)):
         shape = getattr(profile, "shape", "?")
@@ -214,7 +217,7 @@ def section_of(
                     Bar(r * math.cos(angle), r * math.sin(angle), bar_area(group.dia), group.dia)
                 )
     else:
-        bars, notes = _rectangle_bars(profile, reinforcement, inset)
+        bars, notes = _rectangle_bars(profile, reinforcement, inset, aggregate)
     if not bars:
         raise DesignError("no longitudinal bars")
     return RcSection(
@@ -245,18 +248,62 @@ def _arrange(dias: list[float]) -> list[float]:
     return slots
 
 
+def min_clear_spacing(dia: float, aggregate: float | None = None) -> float:
+    """Least clear spacing [mm] between parallel bars of a row (ACI 25.2.1): the greater of
+    25 mm, the bar diameter and 4/3 of the largest aggregate size."""
+    return max(25.0, dia, 4 / 3 * aggregate if aggregate else 0.0)
+
+
+#: Least clear distance [mm] between two horizontal rows of bars (ACI 25.2.2).
+ROW_CLEAR = 25.0
+
+
+def bars_per_row(width: float, inset: float, dia: float, aggregate: float | None = None) -> int:
+    """How many bars of ``dia`` fit in one row across ``width`` inside ``inset`` (the cover
+    and the transverse bars) at the least clear spacing (ACI 25.2.1); at least 2."""
+    reach = width - 2 * inset - dia  # between the centres of the outer bars
+    pitch = dia + min_clear_spacing(dia, aggregate)
+    return max(2, math.floor(1 + reach / pitch + 1e-9))
+
+
+def _rows(
+    row: list[float], width: float, inset: float, aggregate: float | None
+) -> list[list[float]]:
+    """A face's bars in rows, the outer row first: as many as fit at the least clear spacing
+    (ACI 25.2.1) in the outer row, its end bars kept and the largest bars in it, the rest in
+    further rows."""
+    if len(row) <= 2:
+        return [row]
+    fit = bars_per_row(width, inset, max(row), aggregate)
+    if len(row) <= fit:
+        return [row]
+    middle = sorted(row[1:-1], reverse=True)
+    rows = [[row[0], *_arrange(middle[: fit - 2]), row[-1]]]
+    rest = middle[fit - 2 :]
+    while rest:
+        rows.append(_arrange(rest[:fit]))
+        rest = rest[fit:]
+    return rows
+
+
 def _rectangle_bars(
-    profile: RectangleProfile, reinforcement: LinearReinforcement, inset: float
+    profile: RectangleProfile,
+    reinforcement: LinearReinforcement,
+    inset: float,
+    aggregate: float | None = None,
 ) -> tuple[list[Bar], list[str]]:
     """The bars of a rectangle, from all its bar groups (several groups may share a position,
     e.g. 3T20 + 2T16 bottom: they form one row, larger bars at the ends).
 
     ``top`` and ``bottom`` bars lie in one row inside the cover and the transverse bars, each
-    bar resting on the stirrup; ``sides`` are shared between the two vertical faces, evenly
-    spaced between the top and bottom rows. ``perimeter`` bars: the four largest at the corners,
+    bar resting on the stirrup; when they do not fit in one row at the least clear spacing
+    (ACI 25.2.1: max(25 mm, db, 4/3 of the aggregate)), the bars left over go into further
+    rows inwards, 25 mm clear between the rows (ACI 25.2.2), the outer row keeping its end bars
+    and the largest bars. ``sides`` are shared between the two vertical faces, evenly spaced
+    between the top and bottom rows. ``perimeter`` bars: the four largest at the corners,
     the rest shared between the faces in proportion to their lengths; ``top``, ``bottom`` and
     ``sides`` groups beside a perimeter group are added between its corner bars on those faces
-    (the corners are never counted twice).
+    (the corners are never counted twice; such faces keep one row).
     """
     b, h = profile.xDim, profile.yDim
     dias: dict[str, list[float]] = {"top": [], "bottom": [], "sides": [], "perimeter": []}
@@ -295,24 +342,37 @@ def _rectangle_bars(
 
     bars: list[Bar] = []
     levels: dict[int, float] = {}
-    for name, row, sy in (("top", top, 1), ("bottom", bottom, -1)):
-        if not row:
+    for name, face_bars, sy in (("top", top, 1), ("bottom", bottom, -1)):
+        if not face_bars:
             continue
-        reach = [b / 2 - inset - d / 2 for d in row]
-        heights = [h / 2 - inset - d / 2 for d in row]
-        if min(reach) <= 0 or min(heights) <= 0:
-            raise DesignError("the cover leaves no room for the bars")
-        xs = [0.0] if len(row) == 1 else list(np.linspace(-reach[0], reach[-1], len(row)))
-        bars += [
-            Bar(float(x), sy * y, bar_area(d), d) for x, y, d in zip(xs, heights, row, strict=True)
-        ]
-        levels[sy] = sy * min(heights)
-        gaps = [xs[k + 1] - xs[k] - (row[k] + row[k + 1]) / 2 for k in range(len(row) - 1)]
-        if gaps and min(gaps) < max(25.0, max(row)):
+        rows = [face_bars] if ring else _rows(face_bars, b, inset, aggregate)
+        if len(rows) > 1:
             notes.append(
-                f"{name} row: clear spacing {min(gaps):.0f} mm is below max(25 mm, db); "
-                "the bars are still taken in one row"
+                f"{name} bars in {len(rows)} rows ({' + '.join(str(len(r)) for r in rows)}): "
+                f"they do not fit in one row at the least clear spacing (ACI 25.2.1); "
+                f"{ROW_CLEAR:g} mm clear between the rows (ACI 25.2.2)"
             )
+        edge = h / 2 - inset  # the outer row's bars rest on the stirrup
+        for k, row in enumerate(rows):
+            reach = [b / 2 - inset - d / 2 for d in row]
+            heights = [edge - d / 2 for d in row]
+            if min(reach) <= 0 or min(heights) <= 0:
+                raise DesignError("the cover leaves no room for the bars")
+            xs = [0.0] if len(row) == 1 else list(np.linspace(-reach[0], reach[-1], len(row)))
+            bars += [
+                Bar(float(x), sy * y, bar_area(d), d)
+                for x, y, d in zip(xs, heights, row, strict=True)
+            ]
+            if k == 0:
+                levels[sy] = sy * min(heights)
+                gaps = [xs[j + 1] - xs[j] - (row[j] + row[j + 1]) / 2 for j in range(len(row) - 1)]
+                clear = min_clear_spacing(max(row), aggregate)
+                if gaps and min(gaps) < clear - 1e-6:
+                    notes.append(
+                        f"{name} row: clear spacing {min(gaps):.0f} mm is below {clear:.0f} mm "
+                        "(ACI 25.2.1); the bars are still taken in one row"
+                    )
+            edge -= max(row) + ROW_CLEAR
     for sx, face in ((-1, left), (1, right)):
         if not face:
             continue
@@ -514,19 +574,26 @@ class InteractionSurface:
     cut by chords. The contour at Pu joins the cuts of all meridians.
     """
 
-    def __init__(self, section: RcSection) -> None:
+    def __init__(self, section: RcSection, coarse: bool = False) -> None:
+        """``coarse``: meridians twice as far apart, fewer depths and 2 interpolated spans
+        instead of 4, about four times faster and a little less exact (the design mode's
+        search for the bars uses it, then checks its pick on the full surface)."""
         self.section = section
         self.symmetric = section.symmetric
+        self._subdivisions = 2 if coarse else _SUBDIVISIONS
+        step = 2 * _STEP if coarse else _STEP
         span = math.pi / 2 if self.symmetric else 2 * math.pi
-        steps = round(span / _STEP)
+        steps = round(span / step)
         angles = sorted({*(k * span / steps for k in range(steps + 1)), *self._switches(span)})
         angles = [a for k, a in enumerate(angles) if k == 0 or a - angles[k - 1] > 1e-4]
         eps_ty = section.fy / section.es
         # Depth ratios of the φ transition (ACI Table 21.2.2), both ends included: φ bends the
         # factored diagram inwards at εty and at εty + 0.003, and in between it may curve the
         # wrong way, so chords there need closely spaced points.
-        transition = EPS_CU / (EPS_CU + eps_ty + EPS_CU * np.linspace(0, 1, _TRANSITION_POINTS))
-        ratios = np.unique(np.concatenate([_DEPTHS, transition]))
+        points = 5 if coarse else _TRANSITION_POINTS
+        transition = EPS_CU / (EPS_CU + eps_ty + EPS_CU * np.linspace(0, 1, points))
+        depths = _DEPTHS[::2] if coarse else _DEPTHS
+        ratios = np.unique(np.concatenate([depths, transition]))
         computed = angles if self.symmetric else angles[:-1]  # the full turn: 2π is 0
         base = np.array([self._meridian(a, ratios) for a in computed])
         if not self.symmetric:
@@ -548,9 +615,9 @@ class InteractionSurface:
         return [float(a) for a in both if a < span]
 
     def _interpolate(self, base: np.ndarray) -> np.ndarray:
-        """:data:`_SUBDIVISIONS` meridians per computed span, linear in the angle row by row
+        """:data:`_SUBDIVISIONS` (coarse: 2) meridians per computed span, linear in the angle row by row
         (the closing meridian of a quadrant kept, of the full turn dropped: it is the first)."""
-        s = np.linspace(0, 1, _SUBDIVISIONS, endpoint=False)[:, None, None]
+        s = np.linspace(0, 1, self._subdivisions, endpoint=False)[:, None, None]
         fine = (base[:-1, None] + s * (base[1:, None] - base[:-1, None])).reshape(
             -1, *base.shape[1:]
         )

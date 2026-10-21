@@ -348,6 +348,21 @@
 	font-size: var(--sa-font-s, 12px);
 }
 
+/* The steel required, next to the steel provided. */
+.saengine-fem-model-editor .fem-design-check-steel {
+	font-size: var(--sa-font-s, 12px);
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-fem-model-editor .fem-design-steel.pass .fem-design-check-head .value {
+	color: var(--fem-band-pass);
+}
+
+.saengine-fem-model-editor .fem-design-steel.required-only .fem-design-check-head .value {
+	font-weight: normal;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
 .saengine-fem-model-editor .fem-results-curve svg {
 	display: block;
 	margin: var(--sa-space-1, 4px) 0;

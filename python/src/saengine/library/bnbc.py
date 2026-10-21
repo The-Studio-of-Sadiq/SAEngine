@@ -31,11 +31,11 @@ LOCATIONS: dict[str, Location] = {
     "chattogram": Location("Chattogram", 3, 80.0),
     "coxsbazar": Location("Cox's Bazar", 3, 80.0),
     "khulna": Location("Khulna", 1, 73.3),
-    "rajshahi": Location("Rajshahi", 1, 72.1),
+    "rajshahi": Location("Rajshahi", 1, 49.2),
     "sylhet": Location("Sylhet", 4, 61.1),
     "barishal": Location("Barishal", 1, 78.7),
     "rangpur": Location("Rangpur", 3, 65.3),
-    "mymensingh": Location("Mymensingh", 3, 67.4),
+    "mymensingh": Location("Mymensingh", 4, 67.4),
     "cumilla": Location("Cumilla", 2, 61.4),
 }
 

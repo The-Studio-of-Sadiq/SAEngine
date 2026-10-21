@@ -537,6 +537,28 @@ Sum of the support reactions of each load case, in global axes.
     )
   ]
 
+  #let req = design.required
+  #if req.available and req.tables.len() > 0 [
+    == Reinforcement required
+    The steel each object type requires (flexure with the minimum steel, shear and ties, as
+    the design checks) next to the bars entered, at the location of its members that needs the
+    most. Required and provided are areas per bar group (mm²) or per metre width (mm²/m); for
+    column ties the spacing (mm) is the largest allowed and the one entered.
+    #for t in req.tables [
+      // sticky: the kind's title stays on the page of its table (never alone at a page foot).
+      #block(above: 8pt, below: 4pt, sticky: true, text(weight: "bold", size: 9pt, t.title))
+      #tbl(
+        ("Type", "Members", "Governing", "Required", "Provided", "Unit", "Short", "Result"),
+        t.rows,
+        columns: (auto, auto, 1fr, auto, auto, auto, auto, auto),
+        align: (left, right, left, right, right, left, left, center),
+        bad: t.bad,
+        size: 8pt,
+      )
+    ]
+    #if req.lines.len() > 0 { bullets(req.lines) }
+  ]
+
   #if design.skipped.len() > 0 [
     == Elements not designed
     #tbl(

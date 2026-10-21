@@ -5,6 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import { boreholeDepth, boreholeGround, formatNumber, IBorehole, IBoreholeResult, ISoilReport, SOIL_TYPES, SoilType, soilTypeLabel } from './soilDocument.js';
+import { sptBlows } from './soilSheet.js';
 
 /*
  * The drawings of the soil report, as plain SVG (no chart library): the borehole log (depth
@@ -114,6 +115,8 @@ export interface ILogOptions {
 	readonly maxDepth?: number;
 	/** The design hammer energy, to label N60. */
 	readonly hammerEnergy?: number;
+	/** The narrow log beside the log sheet: the strata and the SPT, the descriptions left to the sheet. */
+	readonly compact?: boolean;
 }
 
 /** The graphical log of one borehole. */
@@ -122,12 +125,12 @@ export function renderBoreholeLog(container: HTMLElement, report: ISoilReport, b
 	const bottom = 20;
 	const axisWidth = 46;
 	const columnX = axisWidth + 20;
-	const columnWidth = 58;
-	const chartWidth = Math.round(Math.max(170, Math.min(300, options.width * 0.32)));
-	const width = Math.max(480, options.width);
+	const columnWidth = options.compact ? 44 : 58;
+	const width = Math.max(options.compact ? 240 : 480, options.width);
+	const chartWidth = options.compact ? width - columnX - columnWidth - 40 : Math.round(Math.max(170, Math.min(300, options.width * 0.32)));
 	const chartX = width - chartWidth - 16;
 	const descriptionX = columnX + columnWidth + 14;
-	const descriptionWidth = Math.max(80, chartX - descriptionX - 24);
+	const descriptionWidth = options.compact ? 0 : Math.max(80, chartX - descriptionX - 24);
 
 	const depthMm = Math.max(1000, options.maxDepth ?? boreholeDepth(borehole));
 	const depthStep = niceStep(depthMm / 1000, 10);
@@ -144,7 +147,9 @@ export function renderBoreholeLog(container: HTMLElement, report: ISoilReport, b
 	// Headers.
 	svg(root, 'text', { x: axisWidth, y: 14, class: 'soil-heading', 'text-anchor': 'end' }, localize('soil.log.depth', "Depth (m)"));
 	svg(root, 'text', { x: columnX + columnWidth / 2, y: 14, class: 'soil-heading', 'text-anchor': 'middle' }, localize('soil.log.strata', "Strata"));
-	svg(root, 'text', { x: descriptionX, y: 14, class: 'soil-heading' }, localize('soil.log.description', "Description"));
+	if (!options.compact) {
+		svg(root, 'text', { x: descriptionX, y: 14, class: 'soil-heading' }, localize('soil.log.description', "Description"));
+	}
 
 	// Depth axis and the grid across the log.
 	for (let d = 0; d <= maxM + 1e-9; d += depthStep) {
@@ -161,6 +166,12 @@ export function renderBoreholeLog(container: HTMLElement, report: ISoilReport, b
 		const y2 = y(Math.max(layer.top, layer.bottom));
 		const stratum = svg(root, 'rect', { x: columnX, y: y1, width: columnWidth, height: Math.max(0, y2 - y1), fill: `url(#${patternId(options.patternPrefix, layer.soilType)})`, class: 'soil-stratum' });
 		svg(stratum, 'title', {}, `${soilTypeLabel(layer.soilType)} ${m(layer.top)}–${m(layer.bottom)} m${layer.description ? `: ${layer.description}` : ''}`);
+		if (options.compact) {
+			if (layer.uscs) {
+				svg(root, 'text', { x: columnX + columnWidth + 4, y: Math.min(y2 - 3, y1 + 12), class: 'soil-n-label' }, layer.uscs);
+			}
+			continue;
+		}
 		svg(root, 'line', { x1: columnX + columnWidth, x2: descriptionX - 4, y1: y2, y2, class: 'soil-boundary' });
 		const box = svg(root, 'foreignObject', { x: descriptionX, y: y1, width: descriptionWidth, height: Math.max(0, y2 - y1) });
 		const text = root.ownerDocument.createElementNS(XHTML_NS, 'div') as HTMLDivElement;
@@ -179,7 +190,7 @@ export function renderBoreholeLog(container: HTMLElement, report: ISoilReport, b
 		box.appendChild(text);
 	}
 	if (!layers.length) {
-		svg(root, 'text', { x: descriptionX, y: top + 18, class: 'soil-muted' }, localize('soil.log.noLayers', "No layers yet: add them in the Data view."));
+		svg(root, 'text', { x: options.compact ? axisWidth + 8 : descriptionX, y: top + 18, class: 'soil-muted' }, localize('soil.log.noLayers', "No layers yet: add them in the Data view."));
 	}
 	const termination = boreholeDepth(borehole);
 	if (termination > 0) {
@@ -196,7 +207,9 @@ export function renderBoreholeLog(container: HTMLElement, report: ISoilReport, b
 	}
 
 	// SPT N (and N60 from the results) against depth.
-	const spt = [...borehole.spt].filter(s => Number.isFinite(s.depth) && Number.isFinite(s.N)).sort((a, b) => a.depth - b.depth);
+	const spt = borehole.spt.map(s => ({ depth: s.depth, N: sptBlows(s), refusal: !!s.refusal }))
+		.filter((s): s is { depth: number; N: number; refusal: boolean } => Number.isFinite(s.depth) && typeof s.N === 'number')
+		.sort((a, b) => a.depth - b.depth);
 	const results = (options.result?.spt ?? []).filter(s => typeof s.N60 === 'number').sort((a, b) => a.depth - b.depth);
 	const maxN = Math.max(50, ...spt.map(s => s.N), ...results.map(s => s.N60!));
 	const nMax = Math.ceil(maxN / 10) * 10;
@@ -220,9 +233,9 @@ export function renderBoreholeLog(container: HTMLElement, report: ISoilReport, b
 		svg(mark, 'title', {}, localize('soil.log.n60Title', "N60 {0} at {1} m", formatNumber(s.N60!, 1), m(s.depth)));
 	}
 	for (const s of spt) {
-		const mark = svg(root, 'circle', { cx: x(s.N), cy: y(s.depth), r: 3.5, class: s.N > nMax ? 'soil-n refusal' : 'soil-n' });
-		svg(mark, 'title', {}, localize('soil.log.nTitle', "N {0} at {1} m", s.N, m(s.depth)));
-		svg(root, 'text', { x: x(s.N) + 7, y: y(s.depth) + 4, class: 'soil-n-label' }, String(s.N));
+		const mark = svg(root, 'circle', { cx: x(s.N), cy: y(s.depth), r: 3.5, class: s.N > nMax || s.refusal ? 'soil-n refusal' : 'soil-n' });
+		svg(mark, 'title', {}, s.refusal ? localize('soil.log.nRefusalTitle', "N {0} at {1} m (refusal)", s.N, m(s.depth)) : localize('soil.log.nTitle', "N {0} at {1} m", s.N, m(s.depth)));
+		svg(root, 'text', { x: x(s.N) + 7, y: y(s.depth) + 4, class: 'soil-n-label' }, s.refusal ? localize('soil.log.nRefusal', "{0} R", s.N) : String(s.N));
 	}
 	if (!spt.length) {
 		svg(root, 'text', { x: chartX + 8, y: top + 18, class: 'soil-muted' }, localize('soil.log.noSpt', "No SPT records"));
@@ -301,7 +314,10 @@ export function renderFence(container: HTMLElement, report: ISoilReport, options
 			svg(water, 'path', { d: `M${x(i) - 12} ${yy - 8}h10l-5 7z` });
 		}
 		for (const record of borehole.spt) {
-			svg(group, 'text', { x: x(i) + columnWidth + 4, y: y(ground - record.depth) + 4, class: 'soil-n-label' }, String(record.N));
+			const n = sptBlows(record);
+			if (n !== undefined) {
+				svg(group, 'text', { x: x(i) + columnWidth + 4, y: y(ground - record.depth) + 4, class: 'soil-n-label' }, String(n));
+			}
 		}
 		const onSelect = options.onSelect;
 		if (onSelect) {

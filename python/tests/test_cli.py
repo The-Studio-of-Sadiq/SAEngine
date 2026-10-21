@@ -57,7 +57,8 @@ def test_validate_the_sample_and_a_broken_project(capsys: pytest.CaptureFixture[
     code, document = run(capsys, "validate", str(sample))
     assert code == EXIT_OK and document["ok"] and document["errors"] == 0
     states = {p["part"]: p["state"] for p in document["parts"]}
-    assert states["soil"] == "placeholder" and states["fem"] == "missing"
+    # The sample has a (synthetic) soil report since the site map: 1 Soil Report is filled in.
+    assert states["soil"] == "ok" and states["fem"] == "missing"
     assert states["bim"] == states["floorPlan"] == states["mep"] == "ok"
 
     materials = sample / "03 Materials" / "materials.json"

@@ -83,8 +83,23 @@ MM = 1e-3  # m per mm
 MM2 = 1e-6  # m² per mm²
 MM3 = 1e-9  # m³ per mm³
 
-Group = Literal["earthwork", "concrete", "masonry", "reinforcement", "formwork", "steel", "mep"]
-Unit = Literal["m3", "m2", "kg", "nr", "m"]
+Group = Literal[
+    "earthwork", "concrete", "masonry", "reinforcement", "formwork", "steel", "mep", "materials"
+]
+Unit = Literal["m3", "m2", "kg", "nr", "m", "cft", "bag", "l"]
+
+#: The materials take-off of the concrete and the masonry's mortar (estimating practice in
+#: Bangladesh and South Asia, not BNBC values): the dry volume of a nominal mix's ingredients
+#: per m³ of wet concrete or mortar, the wet mortar in a m³ of brickwork, the loose bulk
+#: densities that turn cement into kg and a design mix's sand and stone into volumes, the bag.
+DRY_VOLUME_CONCRETE = 1.54
+DRY_VOLUME_MORTAR = 1.30
+BRICKWORK_WET_MORTAR = 0.23  # m³ of wet mortar per m³ of brickwork
+CEMENT_DENSITY = 1440.0  # kg/m³
+SAND_DENSITY = 1600.0  # kg/m³, loose
+STONE_DENSITY = 1450.0  # kg/m³, loose stone chips
+CEMENT_BAG = 50.0  # kg
+CFT = 35.3147  # cubic feet per m³
 
 #: Earthwork and blinding of the foundations of 9 Substructure [mm].
 WORKING_SPACE = 300.0  # around a foundation or tie beam, each side, to the excavation's face
@@ -100,7 +115,23 @@ GROUPS: dict[str, str] = {
     "formwork": "F",
     "steel": "S",
     "mep": "P",
+    "materials": "MT",
 }
+
+#: The measurement of the materials take-off, added when there is any.
+MATERIALS_CONVENTIONS = [
+    (
+        "Materials: cement in kg (and in 50 kg bags), sand and stone chips in cft (1 m³ = "
+        f"{CFT:g} cft) and water in litres, taken off the concrete and the masonry's mortar by "
+        "the mixes in 03 Materials. A nominal mix (cement : sand : stone by volume) is shared out "
+        f"of its dry volume, {DRY_VOLUME_CONCRETE:g} × the wet volume for concrete and "
+        f"{DRY_VOLUME_MORTAR:g} × for mortar; brickwork takes {BRICKWORK_WET_MORTAR:g} m³ of wet "
+        f"mortar per m³. Cement weighs {CEMENT_DENSITY:g} kg/m³ loose. A design mix gives kg per "
+        f"m³; its sand and stone are turned into volumes at {SAND_DENSITY:g} and "
+        f"{STONE_DENSITY:g} kg/m³ loose. Water from the water/cement ratio. These are estimating "
+        "practice values, not BNBC values; no wastage is added, and bags are not rounded up."
+    ),
+]
 
 #: Object kinds in the order of the bill, with their plural names for descriptions.
 KINDS: dict[str, str] = {
@@ -1560,6 +1591,91 @@ class _Measure:
                     kind="bonding",
                 )
 
+    def mix_quantities(self, mix: Any, volume: float, dry_factor: float) -> dict[str, float]:
+        """Cement [kg], sand and stone [m³] and water [l] in ``volume`` [m³] of wet concrete or
+        mortar of ``mix`` (a nominal mix shared out of ``dry_factor`` × the volume)."""
+        if mix.method == "design":
+            out = {
+                "cement": mix.cement * volume,
+                "sand": mix.fineAggregate * volume / SAND_DENSITY,
+                "water": mix.water * volume,
+            }
+            if mix.coarseAggregate:
+                out["stone"] = mix.coarseAggregate * volume / STONE_DENSITY
+            return out
+        dry = volume * dry_factor
+        parts = sum(mix.ratio)
+        cement = dry * mix.ratio[0] / parts * CEMENT_DENSITY
+        out = {"cement": cement, "sand": dry * mix.ratio[1] / parts}
+        if len(mix.ratio) == 3:
+            out["stone"] = dry * mix.ratio[2] / parts
+        if mix.waterCement:
+            out["water"] = mix.waterCement * cement  # kg of water = litres
+        return out
+
+    def measure_materials(self) -> None:
+        """The materials take-off of the concrete and masonry lines (:data:`MATERIALS_CONVENTIONS`):
+        per element, so the items keep their breakdown and their quantities by story."""
+        lines = [
+            line
+            for line in list(self.bill.lines.values())
+            if line.group in ("concrete", "masonry") and line.unit == "m3" and line.material
+        ]
+        missing: dict[str, str] = {}
+        for line in lines:
+            material = self.materials.get(line.material or "")
+            if material is None:
+                continue
+            if line.group == "masonry":
+                mortar_id = material.masonry.mortar if material.masonry else None
+                mortar = self.materials.get(mortar_id or "")
+                if mortar is None or mortar.composition is None:
+                    missing[material.id] = f"masonry {material.id}: its mortar " + (
+                        f"{mortar_id} has no mix" if mortar_id else "is not named"
+                    )
+                    continue
+                mix, share, factor = mortar.composition, BRICKWORK_WET_MORTAR, DRY_VOLUME_MORTAR
+                cement_type = mix.cementType
+            else:
+                if material.composition is None:
+                    missing[material.id] = f"concrete {material.id} has no mix"
+                    continue
+                mix, share, factor = material.composition, 1.0, DRY_VOLUME_CONCRETE
+                cement_type = mix.cementType
+            cement = f"Cement{f' ({cement_type})' if cement_type else ''}"
+            items = {
+                "cement": ((1, cement_type or ""), f"{cement}", "kg", 1.0),
+                "bags": ((2, cement_type or ""), f"{cement} in {CEMENT_BAG:g} kg bags", "bag", 1 / CEMENT_BAG),
+                "sand": ((3,), "Sand (fine aggregate)", "cft", CFT),
+                "stone": ((4,), "Stone chips (coarse aggregate)", "cft", CFT),
+                "water": ((5,), "Water", "l", 1.0),
+            }  # fmt: skip
+            for (element, story, _), volume in line.amounts.items():
+                amounts = self.mix_quantities(mix, volume * share, factor)
+                amounts["bags"] = amounts["cement"]
+                for key, amount in amounts.items():
+                    order, description, unit, scale = items[key]
+                    self.bill.add(
+                        "materials",
+                        order,
+                        description,
+                        unit,
+                        element,
+                        amount * scale,
+                        story=story,
+                        detail=line.description,
+                        kind=key,
+                    )
+        if missing:
+            self.notes.append(
+                "Materials: "
+                + "; ".join(missing[k] for k in sorted(missing))
+                + ", so no cement, sand or stone is taken off for it (add the mix in 03 Materials)."
+            )
+        self.materials_measured = any(
+            line.group == "materials" for line in self.bill.lines.values()
+        )
+
     def finish(self) -> list[str]:
         notes = [*CONVENTIONS]
         if self.substructure is not None and (
@@ -1574,6 +1690,8 @@ class _Measure:
             notes += PLUMBING_CONVENTIONS
         if getattr(self, "services_measured", False):
             notes += SERVICES_CONVENTIONS
+        if getattr(self, "materials_measured", False):
+            notes += MATERIALS_CONVENTIONS
         notes += [*self.building.check_additions(), *self.notes]
         if self.drawn_footings:
             notes.append(
@@ -1611,6 +1729,7 @@ def bill_of_quantities(
     measure.measure_mep()
     measure.measure_plumbing(tank_designs)
     measure.measure_services()
+    measure.measure_materials()
     return BillOfQuantities(
         source=source or BoqSource(), items=measure.bill.items(), notes=measure.finish()
     )

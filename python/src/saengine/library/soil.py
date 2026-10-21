@@ -9,10 +9,27 @@ is worked out on demand.
 Units: mm for lengths, depths and positions (depths are measured down from the borehole's
 ground), kN/m³ for unit weights, kPa for strengths, MPa for moduli, % for ratios and contents,
 degrees for friction angles.
+
+The log sheet: an SPT record keeps the blows of its three 150 mm increments (seating, N1, N2;
+N = N1 + N2) or its refusal, with the sample number and recovery; a sample keeps its number,
+type and depth range and the laboratory tests as optional groups (grading, unconfined
+compression, direct shear, triaxial, consolidation, permeability, chemistry), from which
+:mod:`saengine.soil.lab` derives the values the engine reads (cu, c', φ', fines, PI, Cc, Cr,
+e0, unit weight, the OCR from σ'p) when the sample does not give them itself. A layer takes the
+values its log does not give from the samples within it (their mean; see
+:mod:`saengine.soil.profile`). All of it is optional: files written before (an SPT record with
+only ``depth`` and ``N``, a sample with flat values) load unchanged and mean the same.
+
+The map: ``site`` places the site on the map (WGS 84) and georeferences the project grid:
+the project point (x, y) lies at (lat, lon), the grid turned ``rotation`` from north. A borehole is located in project x/y
+(``position: "project"``, the default), latitude/longitude (``"wgs84"``) or Bangladesh
+Transverse Mercator (``"btm"``, EPSG:9678); x/y, which the engine reads, are then worked out
+on loading (:mod:`saengine.gis.crs`).
 """
 
 from __future__ import annotations
 
+import itertools
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -121,16 +138,90 @@ class Layer(_Model):
         return self
 
 
+#: Blows of one 150 mm increment of the SPT drive.
+Blows = Annotated[int, Field(ge=0, le=300)]
+
+#: The SPT drive after the seating drive [mm]: N counts the blows for it.
+SPT_TEST_DRIVE = 300.0
+
+#: The largest N the model keeps (entered, from the increments or extrapolated).
+SPT_MAX_N = 300
+
+
+class SptRefusal(_Model):
+    """The test drive stopped before 300 mm (e.g. "50/100 mm": 50 blows for 100 mm)."""
+
+    blows: int = Field(ge=1, le=300, description="Blows of the test drive when it stopped.")
+    penetration: float = Field(
+        gt=0,
+        lt=SPT_TEST_DRIVE,
+        description="Penetration of the test drive (after the seating drive) for those blows [mm].",
+    )
+
+    @property
+    def extrapolated(self) -> int:
+        """The blows for 300 mm at the same rate, at most 300."""
+        return min(SPT_MAX_N, round(self.blows * SPT_TEST_DRIVE / self.penetration))
+
+    @property
+    def text(self) -> str:
+        return f"{self.blows}/{self.penetration:g} mm"
+
+
 class SptRecord(_Model):
-    """A standard penetration test (ASTM D1586): the blows for the last 300 mm of the drive."""
+    """A standard penetration test (ASTM D1586) as the log sheet records it: the blows of the
+    three 150 mm increments (the seating drive, then N1 and N2 that make N), or a refusal.
+
+    ``N`` is the field blow count as entered; :attr:`blows` is the one the engine uses: the
+    entered N, else the one worked out (:attr:`derived`): ``N1 + N2`` from the increments, a
+    refusal given as blows and penetration ("50/100 mm") extrapolated to 300 mm (150), a refusal
+    given only as ``true`` (penetration not recorded) as the blows driven, N1 + N2 (N2 may be
+    empty), which errs low (an entered N at or above it is the extrapolated count, not a
+    mismatch); every N is at most 300. The worked-out N is never stored in ``N``, so correcting the
+    increments later changes it. An entered N that differs from the worked-out one is kept and
+    reported by :func:`check`, as are other inconsistencies (:attr:`issues`); only a record that
+    gives no N at all is invalid. Old records with only ``depth`` and ``N`` stay valid.
+    """
 
     depth: Depth = Field(description="Depth of the test below the borehole's ground [mm].")
-    N: int = Field(
+    depthTo: Depth | None = Field(
+        default=None,
+        title="Depth to",
+        description="Bottom of the drive [mm]; the depth plus 450 mm when empty.",
+    )
+    N: int | None = Field(
+        default=None,
         ge=0,
         le=300,
         title="Field N",
-        description="Blow count as measured, uncorrected [blows/300 mm]; refusal as the "
-        "extrapolated count (e.g. 50 blows for 150 mm as 100).",
+        description="Blow count as measured, uncorrected [blows/300 mm]. Empty: worked out as "
+        "N1 + N2 from the increments, or a refusal as the extrapolated count (e.g. 50 blows for "
+        "150 mm as 100); an entered N that differs is used and reported.",
+    )
+    seat: Blows | None = Field(
+        default=None,
+        title="Seating 150 mm",
+        description="Blows for the first 150 mm, the seating drive (not counted in N).",
+    )
+    N1: Blows | None = Field(
+        default=None, title="N1, 2nd 150 mm", description="Blows for the second 150 mm."
+    )
+    N2: Blows | None = Field(
+        default=None, title="N2, 3rd 150 mm", description="Blows for the third 150 mm."
+    )
+    refusal: SptRefusal | bool | None = Field(
+        default=None,
+        description="The test drive stopped short of 300 mm: its blows and penetration (N2 is "
+        "then empty; N1 may be given when the first 150 mm were completed), or true when the "
+        "penetration was not recorded.",
+    )
+    sampleNumber: str | None = Field(
+        default=None, max_length=32, title="Sample number", description="E.g. D-3, SPT-3."
+    )
+    recovery: Percent | None = Field(
+        default=None,
+        title="Recovery",
+        description="Length recovered in the split spoon over the length driven [%].",
     )
     energyRatio: float | None = Field(
         default=None,
@@ -140,13 +231,293 @@ class SptRecord(_Model):
         description="Hammer energy of this test [%]; overrides the report's hammer energy.",
     )
 
+    @model_validator(mode="after")
+    def _blows(self) -> SptRecord:
+        # Only a record that gives no N at all is unreadable; every other inconsistency is
+        # kept as entered and reported by ``issues`` (and so by :func:`check`). ``N`` is never
+        # written here: it stays what the engineer entered, so a saved file does not freeze a
+        # derived N that a later correction of N1, N2 or the refusal would leave stale.
+        if self.N is None and self.derived is None:
+            if self.N1 is not None or self.N2 is not None:
+                raise ValueError("N needs both increments N1 and N2 (or a refusal)")
+            raise ValueError("an SPT record needs N, the increments N1 and N2, or a refusal")
+        return self
+
+    @property
+    def derived(self) -> int | None:
+        """N worked out from the increments or the refusal, or None when they give none."""
+        if isinstance(self.refusal, SptRefusal):
+            return self.refusal.extrapolated
+        total = self._increments
+        return None if total is None else min(SPT_MAX_N, total)
+
+    @property
+    def _increments(self) -> int | None:
+        """N1 + N2 as entered (not capped), or None when they give no N (or a refusal with
+        blows and penetration gives it)."""
+        if isinstance(self.refusal, SptRefusal):
+            return None
+        if self.refusal is True and (self.N1 is not None or self.N2 is not None):
+            return (self.N1 or 0) + (self.N2 or 0)
+        if self.N1 is not None and self.N2 is not None:
+            return self.N1 + self.N2
+        return None
+
+    @property
+    def blows(self) -> int:
+        """The N the engine uses: the entered N, else the one worked out (always one)."""
+        if self.N is not None:
+            return self.N
+        return self.derived or 0
+
+    @property
+    def mismatch(self) -> str | None:
+        """The problem when an entered N differs from the worked-out one (the entered N is
+        used), else None."""
+        derived = self.derived
+        if self.N is None or derived is None or self.N == derived:
+            return None
+        if isinstance(self.refusal, SptRefusal):
+            return (
+                f"N is {self.N} but the refusal {self.refusal.text} scales to {derived} over "
+                f"300 mm; N {self.N} is used"
+            )
+        n2 = self.N2 or 0
+        if self.refusal is True:
+            # The penetration was not recorded: N1 + N2 are the blows driven, a lower bound of
+            # the extrapolated N the engineer may enter (e.g. 50 blows for 150 mm as 100).
+            if self.N >= derived:
+                return None
+            return (
+                f"N is {self.N} but the refusal's increments already add up to N1 + N2 = "
+                f"{self.N1 or 0} + {n2} = {derived}; N {self.N} is used"
+            )
+        total = self._increments
+        return f"N is {self.N} but N1 + N2 = {self.N1 or 0} + {n2} = {total}; N {self.N} is used"
+
+    @property
+    def issues(self) -> list[str]:
+        """Inconsistencies of the record that do not stop it being used."""
+        found = []
+        refusal = self.refusal if isinstance(self.refusal, SptRefusal) else None
+        if refusal is not None:
+            if self.N2 is not None:
+                found.append(
+                    f"a refusal {refusal.text} and N2 {self.N2}: the test drive did not reach "
+                    "300 mm, N2 is ignored"
+                )
+            if self.N1 is not None and (self.N1 > refusal.blows or refusal.penetration <= 150):
+                found.append(
+                    f"N1 {self.N1} does not fit the refusal {refusal.text}: N1 is part of its "
+                    "blows, and the first 150 mm were completed"
+                )
+        elif self.refusal is not True and (self.N1 is None) != (self.N2 is None):
+            given = "N1" if self.N1 is not None else "N2"
+            found.append(f"only {given} of the increments is given; the entered N {self.N} is used")
+        total = self._increments
+        if total is not None and total > SPT_MAX_N and self.N is None:
+            found.append(
+                f"N1 + N2 = {self.N1 or 0} + {self.N2 or 0} = {total} is more than "
+                f"{SPT_MAX_N}; N {SPT_MAX_N} is used"
+            )
+        if self.mismatch is not None:
+            found.append(self.mismatch)
+        if self.depthTo is not None and self.depthTo < self.depth:
+            found.append(
+                f"depth to {self.depthTo:g} mm is above the depth {self.depth:g} mm; it is ignored"
+            )
+        return found
+
+
+#: Sample types of the log sheets (``Sample.type`` takes these or any other text).
+SAMPLE_TYPES = {
+    "SPT": "SPT split spoon (disturbed)",
+    "UD": "Undisturbed (Shelby tube)",
+    "disturbed": "Disturbed (bulk, auger, wash)",
+    "core": "Rock core",
+}
+
+
+class SievePoint(_Model):
+    size: float = Field(gt=0, le=1000, description="Sieve opening or particle size [mm].")
+    passing: Percent = Field(description="Percent finer by mass [%].")
+
+
+class Grading(_Model):
+    """Grain size distribution (ASTM D6913 sieves, D7928 hydrometer): one curve."""
+
+    sieves: list[SievePoint] = Field(
+        default_factory=list,
+        description="Sizes [mm] with the percent passing; the hydrometer's sizes below 0.075 mm "
+        "may follow. Fines, D10/D30/D60, Cu, Cc and the USCS group are derived.",
+    )
+
+    @property
+    def problem(self) -> str | None:
+        """Why the curve cannot be used (it is then ignored and reported by :func:`check`),
+        else None: a repeated sieve size, or more passing a smaller sieve than a larger one."""
+        points = sorted(self.sieves, key=lambda p: -p.size)
+        if len({p.size for p in points}) != len(points):
+            return "grain size: two sieves of the same size; the curve is ignored"
+        for coarse, fine in itertools.pairwise(points):
+            if fine.passing > coarse.passing + 1e-9:
+                return (
+                    f"grain size: {fine.passing:g} % passing {fine.size:g} mm is more than "
+                    f"{coarse.passing:g} % passing {coarse.size:g} mm; the curve is ignored"
+                )
+        return None
+
+
+class Ucs(_Model):
+    """Unconfined compression test (ASTM D2166)."""
+
+    qu: Strength = Field(title="Unconfined strength qu", description="[kPa]; cu = qu/2.")
+    strain: float | None = Field(
+        default=None, ge=0, le=100, title="Strain at failure", description="[%]"
+    )
+
+
+class ShearPoint(_Model):
+    normal: Strength = Field(description="Normal stress σn [kPa].")
+    shear: Strength = Field(description="Peak shear stress τ [kPa].")
+
+
+class DirectShear(_Model):
+    """Direct shear test (ASTM D3080), drained: c' and φ', or the specimens to fit them."""
+
+    c: Strength | None = Field(default=None, title="Cohesion c'", description="[kPa]")
+    phi: float | None = Field(
+        default=None, ge=0, le=50, title="Friction angle φ'", description="[°]"
+    )
+    specimens: list[ShearPoint] = Field(
+        default_factory=list,
+        description="(σn, τ) of the specimens; c' and φ' are fitted when not entered.",
+    )
+
+
+TRIAXIAL_TYPES = {
+    "UU": "Unconsolidated undrained (ASTM D2850)",
+    "CU": "Consolidated undrained (ASTM D4767)",
+    "CD": "Consolidated drained (ASTM D7181)",
+}
+
+
+class TriaxialSpecimen(_Model):
+    cell: Strength = Field(title="Cell pressure σ3", description="[kPa]")
+    deviator: Strength = Field(title="Deviator stress σ1 - σ3", description="At failure [kPa].")
+    porePressure: float | None = Field(
+        default=None,
+        ge=-1000,
+        le=10000,
+        title="Pore pressure u",
+        description="At failure, CU [kPa].",
+    )
+
+
+class Triaxial(_Model):
+    """Triaxial test: the results (cu; c and φ), or the specimens they are worked out from."""
+
+    type: Literal["UU", "CU", "CD"] | None = Field(
+        default=None, title="Test type", json_schema_extra=_labels(list(TRIAXIAL_TYPES.values()))
+    )
+    cu: Strength | None = Field(
+        default=None, title="Undrained shear strength cu", description="UU [kPa]."
+    )
+    c: Strength | None = Field(default=None, title="Cohesion c", description="[kPa]")
+    phi: float | None = Field(
+        default=None, ge=0, le=50, title="Friction angle φ", description="[°]"
+    )
+    effective: bool = Field(
+        default=True,
+        title="Effective stress",
+        description="c and φ are effective (c', φ'): CD, or CU with pore pressures measured. "
+        "Total-stress CU parameters do not feed the drained design.",
+    )
+    specimens: list[TriaxialSpecimen] = Field(
+        default_factory=list,
+        description="UU: cu is the mean (σ1 - σ3)/2; CD, CU: c and φ are fitted to the failure "
+        "points (σ' = σ - u for CU with the pore pressures) when not entered.",
+    )
+
+
+class ConsolidationPoint(_Model):
+    pressure: float = Field(gt=0, description="Effective vertical pressure σ' [kPa].")
+    e: float = Field(gt=0, le=20, description="Void ratio at the end of the increment.")
+
+
+class Consolidation(_Model):
+    """One-dimensional consolidation (oedometer, ASTM D2435)."""
+
+    e0: float | None = Field(default=None, gt=0, le=20, title="Initial void ratio e0")
+    Cc: float | None = Field(default=None, ge=0, le=10, title="Compression index Cc")
+    Cr: float | None = Field(default=None, ge=0, le=10, title="Recompression index Cr")
+    preconsolidation: Strength | None = Field(
+        default=None,
+        title="Preconsolidation pressure σ'p",
+        description="[kPa]; OCR = σ'p/σ'v0 at the sample.",
+    )
+    cv: float | None = Field(
+        default=None, gt=0, title="Coefficient of consolidation cv", description="[m²/year]"
+    )
+    points: list[ConsolidationPoint] = Field(
+        default_factory=list,
+        title="e-log p points",
+        description="In test order; Cc (loading beyond σ'p) and Cr (unloading) are fitted when "
+        "not entered.",
+    )
+
+
+class Permeability(_Model):
+    k: float = Field(gt=0, le=1, title="Coefficient of permeability k", description="[m/s]")
+    method: str | None = Field(
+        default=None, description="E.g. constant head, falling head, field (Lefranc)."
+    )
+
+
+class Chemistry(_Model):
+    """Chemical tests of the soil or the ground water, for the durability of buried concrete."""
+
+    sulphateSoil: float | None = Field(
+        default=None, ge=0, le=100, title="Water-soluble SO4 in soil", description="[% by mass]"
+    )
+    sulphateWater: float | None = Field(
+        default=None, ge=0, title="SO4 in water", description="[mg/L, ppm]"
+    )
+    chlorideSoil: float | None = Field(
+        default=None, ge=0, le=100, title="Chloride Cl in soil", description="[% by mass]"
+    )
+    chlorideWater: float | None = Field(
+        default=None, ge=0, title="Chloride Cl in water", description="[mg/L, ppm]"
+    )
+    pH: float | None = Field(default=None, ge=0, le=14, title="pH")
+    organicContent: Percent | None = Field(
+        default=None, title="Organic content", description="Loss on ignition [% by mass]."
+    )
+
 
 class Sample(_Model):
     """A sample tested in the laboratory. Its values fill in the layer's where the log has none."""
 
-    depth: Depth = Field(description="Depth of the sample below the borehole's ground [mm].")
+    number: str | None = Field(
+        default=None, max_length=32, title="Sample number", description="E.g. UD-2, D-5."
+    )
+    depth: Depth = Field(
+        description="Depth of the sample (its top) below the borehole's ground [mm]."
+    )
+    depthTo: Depth | None = Field(
+        default=None, title="Depth to", description="Bottom of the sample [mm]."
+    )
     type: str | None = Field(
-        default=None, title="Sample type", description="E.g. SPT (disturbed), UD (Shelby tube)."
+        default=None,
+        title="Sample type",
+        description="SPT (split spoon, disturbed), UD (Shelby tube), disturbed, core, or other "
+        "text.",
+        json_schema_extra={"examples": list(SAMPLE_TYPES)},
+    )
+    recovery: Percent | None = Field(
+        default=None,
+        title="Recovery",
+        description="Length recovered over the length driven or pushed [%].",
     )
     moisture: float | None = Field(
         default=None, ge=0, le=1000, title="Moisture content w", description="[%]"
@@ -175,12 +546,133 @@ class Sample(_Model):
     )
     Cc: float | None = Field(default=None, ge=0, le=10, title="Compression index Cc")
     e0: float | None = Field(default=None, gt=0, le=20, title="Initial void ratio e0")
+    nonPlastic: bool = Field(
+        default=False, title="Non-plastic", description="The fines have no plastic limit (NP)."
+    )
+    dryUnitWeight: UnitWeight | None = Field(
+        default=None, title="Dry unit weight γd", description="[kN/m³]"
+    )
+    specificGravity: float | None = Field(
+        default=None, ge=1.5, le=4, title="Specific gravity Gs", description="Of the solids."
+    )
+    grainSize: Grading | None = Field(default=None, title="Grain size distribution")
+    ucs: Ucs | None = Field(default=None, title="Unconfined compression")
+    directShear: DirectShear | None = Field(default=None, title="Direct shear")
+    triaxial: Triaxial | None = None
+    consolidation: Consolidation | None = None
+    permeability: Permeability | None = None
+    chemistry: Chemistry | None = None
+
+    # Like an SPT record, a sample with a data-entry mistake stays readable: the mistake is
+    # reported by :func:`check` (``issues``) and the inconsistent part is ignored, so one typo
+    # does not make the whole soil report unreadable.
+
+    @property
+    def grading(self) -> Grading | None:
+        """The grain size curve when it can be used, else None (see ``Grading.problem``)."""
+        if self.grainSize is None or self.grainSize.problem is not None:
+            return None
+        return self.grainSize
+
+    @property
+    def issues(self) -> list[str]:
+        """Inconsistencies of the sample that do not stop it being used."""
+        found = []
+        if self.depthTo is not None and self.depthTo < self.depth:
+            found.append(
+                f"depth to {self.depthTo:g} mm is above the depth {self.depth:g} mm; it is ignored"
+            )
+        if self.grainSize is not None and self.grainSize.problem is not None:
+            found.append(self.grainSize.problem)
+        return found
+
+    @property
+    def mid(self) -> float:
+        """Mid-depth of the sample [mm] (its depth when the bottom is missing or above it)."""
+        if self.depthTo is None or self.depthTo < self.depth:
+            return self.depth
+        return (self.depth + self.depthTo) / 2
+
+
+#: Coordinate systems a borehole's plan position can be given in (``Borehole.position``).
+POSITIONS = {
+    "project": "Project x/y [mm]",
+    "wgs84": "Latitude/longitude (WGS 84)",
+    "btm": "Bangladesh Transverse Mercator (EPSG:9678) [m]",
+}
+
+
+class Site(_Model):
+    """The site on the map (WGS 84, EPSG:4326). Its point georeferences the project grid: the
+    project point (x, y) lies at (lat, lon), and the project +Y axis points ``rotation``
+    degrees clockwise from true north."""
+
+    lat: float | None = Field(
+        default=None, ge=-90, le=90, title="Latitude", description="Of the site point [°]."
+    )
+    lon: float | None = Field(
+        default=None, ge=-180, le=180, title="Longitude", description="Of the site point [°]."
+    )
+    x: float = Field(default=0, description="The project point at the site point [mm].")
+    y: float = Field(default=0, description="The project point at the site point [mm].")
+    rotation: float = Field(
+        default=0,
+        ge=-360,
+        le=360,
+        title="Grid rotation",
+        description="Direction of the project +Y axis, clockwise from true north [°]; 0 when "
+        "+Y points north and +X east.",
+    )
+    address: str | None = Field(default=None, max_length=300)
+    boundary: list[Annotated[list[float], Field(min_length=2, max_length=2)]] = Field(
+        default_factory=list,
+        title="Site boundary",
+        description="Plot boundary as [longitude, latitude] points (WGS 84), e.g. imported "
+        "from QGIS.",
+    )
+
+    @property
+    def georeferenced(self) -> bool:
+        return self.lat is not None and self.lon is not None
+
+    @property
+    def point(self) -> tuple[float, float] | None:
+        """(latitude, longitude) of the site, or None."""
+        return (self.lat, self.lon) if self.lat is not None and self.lon is not None else None
 
 
 class Borehole(_Model):
     id: str = Field(min_length=1, max_length=64, title="ID", description="E.g. BH-1.")
-    x: float = Field(default=0, description="Plan position in the project coordinates [mm].")
-    y: float = Field(default=0, description="Plan position in the project coordinates [mm].")
+    x: float = Field(
+        default=0,
+        description="Plan position in the project coordinates [mm]; worked out from the "
+        "position the borehole is given in when that is not the project grid.",
+    )
+    y: float = Field(
+        default=0,
+        description="Plan position in the project coordinates [mm]; worked out from the "
+        "position the borehole is given in when that is not the project grid.",
+    )
+    position: Literal["project", "wgs84", "btm"] = Field(
+        default="project",
+        title="Position given in",
+        description="The coordinates that locate the borehole; the others are worked out "
+        "through the site point. When not given: latitude/longitude if the borehole has both, "
+        "else BTM if it has the easting and northing, else the project grid.",
+        json_schema_extra=_labels(list(POSITIONS.values())),
+    )
+    lat: float | None = Field(
+        default=None, ge=-90, le=90, title="Latitude", description="WGS 84 [°]."
+    )
+    lon: float | None = Field(
+        default=None, ge=-180, le=180, title="Longitude", description="WGS 84 [°]."
+    )
+    easting: float | None = Field(
+        default=None, title="BTM easting", description="Bangladesh Transverse Mercator [m]."
+    )
+    northing: float | None = Field(
+        default=None, title="BTM northing", description="Bangladesh Transverse Mercator [m]."
+    )
     groundLevel: float | None = Field(
         default=None,
         title="Ground level",
@@ -198,6 +690,10 @@ class Borehole(_Model):
         description="Depth the borehole was drilled to [mm]; the deepest layer's bottom when "
         "empty.",
     )
+    date: str | None = Field(default=None, max_length=64, title="Date drilled")
+    method: str | None = Field(
+        default=None, max_length=200, description="E.g. wash boring, auger, rotary."
+    )
     layers: list[Layer] = Field(default_factory=list)
     spt: list[SptRecord] = Field(default_factory=list, title="SPT records")
     samples: list[Sample] = Field(default_factory=list, title="Laboratory samples")
@@ -210,6 +706,16 @@ class Borehole(_Model):
         if not self.layers:
             depths += [r.depth for r in self.spt] + [s.depth for s in self.samples]
         return max(depths)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _position(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "position" not in data:
+            if data.get("lat") is not None and data.get("lon") is not None:
+                data = {**data, "position": "wgs84"}
+            elif data.get("easting") is not None and data.get("northing") is not None:
+                data = {**data, "position": "btm"}
+        return data
 
     @model_validator(mode="after")
     def _log(self) -> Borehole:
@@ -225,6 +731,10 @@ class Borehole(_Model):
                     f"gap between layers {i + 1} and {i + 2} ({upper.bottom:g} to "
                     f"{lower.top:g} mm); the layers must be contiguous"
                 )
+        if self.position == "wgs84" and (self.lat is None or self.lon is None):
+            problems.append("a position in latitude/longitude needs both")
+        if self.position == "btm" and (self.easting is None or self.northing is None):
+            problems.append("a position in BTM needs the easting and the northing")
         if self.layers and self.layers[0].top > TOLERANCE:
             problems.append(f"the first layer starts at {self.layers[0].top:g} mm, not at 0")
         if (
@@ -413,6 +923,7 @@ class SoilReport(_Model):
         title="Ground level",
         description="Elevation of the existing ground in the project datum [mm].",
     )
+    site: Site | None = Field(default=None, description="The site on the map.")
     boreholes: list[Borehole] = Field(default_factory=list)
     design: Design = Field(default_factory=Design)
 
@@ -422,6 +933,16 @@ class SoilReport(_Model):
         duplicates = sorted({i for i in ids if ids.count(i) > 1})
         if duplicates:
             raise ValueError(f"two boreholes are called {', '.join(duplicates)}")
+        if self.site is not None and self.site.georeferenced:
+            # The engine reads x/y: work them out of the coordinates a borehole is given in.
+            from saengine.gis.crs import Grid
+
+            grid = Grid(self.site)
+            for borehole in self.boreholes:
+                if borehole.position == "wgs84":
+                    borehole.x, borehole.y = grid.from_wgs84(borehole.lat, borehole.lon)  # type: ignore[arg-type]
+                elif borehole.position == "btm":
+                    borehole.x, borehole.y = grid.from_btm(borehole.easting, borehole.northing)  # type: ignore[arg-type]
         return self
 
     def ground_level(self, borehole: Borehole) -> float:
@@ -442,9 +963,33 @@ def check(report: SoilReport) -> list[str]:
     problems = []
     if not report.boreholes:
         problems.append("boreholes: there are no boreholes")
+    georeferenced = report.site is not None and report.site.georeferenced
     for borehole in report.boreholes:
         if not borehole.layers:
             problems.append(f"{borehole.id}: there are no layers")
         if not borehole.spt:
             problems.append(f"{borehole.id}: there are no SPT records")
+        if borehole.position != "project" and not georeferenced:
+            problems.append(
+                f"{borehole.id}: its position is in {POSITIONS[borehole.position]}, but the site "
+                "has no latitude/longitude to place it in the project grid: x/y are used as stored"
+            )
+        for record in borehole.spt:
+            for issue in record.issues:
+                problems.append(f"{borehole.id}: SPT at {record.depth:g} mm: {issue}")
+        for i, sample in enumerate(borehole.samples):
+            name = sample.number or f"sample {i + 1}"
+            for issue in sample.issues:
+                problems.append(f"{borehole.id}: {name}: {issue}")
+            if (
+                sample.liquidLimit is not None
+                and sample.plasticLimit is not None
+                and sample.plasticLimit > sample.liquidLimit
+            ):
+                problems.append(
+                    f"{borehole.id}: {name}: the plastic limit {sample.plasticLimit:g} % is above "
+                    f"the liquid limit {sample.liquidLimit:g} %"
+                )
+            if sample.nonPlastic and sample.plasticLimit is not None:
+                problems.append(f"{borehole.id}: {name}: non-plastic but has a plastic limit")
     return problems

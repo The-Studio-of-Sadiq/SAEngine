@@ -155,6 +155,7 @@
     "katex": "^0.16.22",
     "kerberos": "2.1.1",
     "libsodium-wrappers": "^0.8.4",
+    "maplibre-gl": "6.12.0",
     "minimist": "^1.2.8",
     "native-is-elevated": "0.9.0",
     "native-keymap": "^3.3.5",
@@ -286,6 +287,8 @@
       "node-addon-api": "7.1.0"
     },
     "koffi": "3.2.1",
+    "@maplibre/geojson-vt": "6.1.2",
+    "@mapbox/tiny-sdf": "2.2.0",
     "serialize-javascript": "^7.0.3",
     "yauzl": "^3.3.1"
   },

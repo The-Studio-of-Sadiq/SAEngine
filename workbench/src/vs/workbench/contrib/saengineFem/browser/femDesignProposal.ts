@@ -1,0 +1,530 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { localize } from '../../../../nls.js';
+import { IFemDesignReport } from './femDesign.js';
+
+/*
+ * Design Reinforcement: the bars the backend proposes for the object types (from the steel the
+ * members of each type require) and the foundations, the rows the engineer includes, and the
+ * edits of the part files that apply them. Pure: the proposal page draws this model.
+ */
+
+/**
+ * `byType`: one set of bars per object type, from its most demanding member (members sharing
+ * a type keep sharing it). `splitTypes`: members needing much less than the governing one move
+ * to new types with lighter bars.
+ */
+export type DesignProposalMode = 'byType' | 'splitTypes';
+
+/** Longitudinal bars of a beam face or a column perimeter (04 Objects `BarGroup`). */
+export interface IDesignBarGroup {
+	readonly position: 'top' | 'bottom' | 'sides' | 'perimeter';
+	readonly count: number;
+	readonly dia: number;
+}
+
+/** Stirrups, ties or a spiral (04 Objects `Transverse`). */
+export interface IDesignTransverse {
+	readonly type?: 'stirrup' | 'tie' | 'spiral';
+	readonly dia: number;
+	readonly spacing: number;
+	readonly legs?: number;
+}
+
+/** One layer of bars of a slab or footing (04 Objects `BarMesh`). */
+export interface IDesignBarMesh {
+	readonly dia: number;
+	readonly spacing: number;
+}
+
+/**
+ * Bars as the backend reports them: an object type's `reinforcement` (linear or planar) with
+ * its description under `text`, or a description alone; null for none.
+ */
+export type DesignBars = string | null | {
+	readonly text?: string;
+	readonly longitudinal?: readonly IDesignBarGroup[];
+	readonly transverse?: IDesignTransverse | null;
+	readonly bottomX?: IDesignBarMesh | null;
+	readonly bottomY?: IDesignBarMesh | null;
+	readonly topX?: IDesignBarMesh | null;
+	readonly topY?: IDesignBarMesh | null;
+};
+
+/** A warning of the proposal: text (`"B1: section too small — ..."`), or text about one type or member. */
+export type DesignProposalWarning = string | { readonly message: string; readonly type?: string; readonly member?: string };
+
+/** `ok`: bars proposed; `unchanged`: the bars entered are those proposed; `tooSmall`: no bars make the section work. */
+export type DesignProposalStatus = 'ok' | 'unchanged' | 'tooSmall';
+
+/** Why no bars are proposed, and the next practical section ("try 300 x 550 mm ..."). */
+export interface IDesignTooSmall {
+	readonly reason: string;
+	readonly suggestion?: string;
+}
+
+/** The bars proposed for one existing object type. */
+export interface IDesignProposalType {
+	readonly type: string;
+	readonly name?: string;
+	readonly kind?: string;
+	readonly current: DesignBars;
+	readonly proposed: DesignBars;
+	readonly status?: DesignProposalStatus;
+	/** The member whose demand sets the bars. */
+	readonly governingMember?: string | null;
+	/** Every member of this type, those the split moves to new types included. */
+	readonly members?: readonly string[];
+	/** Members whose own bars would be much lighter than the type's single-type bars (`byType`). */
+	readonly overDesigned?: readonly string[];
+	/**
+	 * `splitTypes` only: the bars for all its members, as in `byType` mode; the type takes them
+	 * when a member the split moves stays in it (its new type left out).
+	 */
+	readonly byType?: DesignBars;
+	readonly tooSmall?: IDesignTooSmall | null;
+	readonly notes?: readonly string[];
+	readonly warnings?: readonly DesignProposalWarning[];
+	/** False: left out of the apply (set by this page). */
+	readonly apply?: boolean;
+}
+
+/** A type the `splitTypes` mode adds, copied from `from` with lighter bars. */
+export interface IDesignProposalNewType {
+	readonly type: string;
+	readonly from: string;
+	readonly kind?: string;
+	readonly name?: string;
+	readonly proposed: DesignBars;
+	readonly governingMember?: string | null;
+	readonly members: readonly string[];
+	readonly warnings?: readonly DesignProposalWarning[];
+	readonly apply?: boolean;
+}
+
+/** A building model member moved to another type (`splitTypes`); `source`: its floor plan item. */
+export interface IDesignProposalReassign {
+	readonly member: string;
+	readonly from: string;
+	readonly to: string;
+	readonly source?: string | null;
+	readonly apply?: boolean;
+}
+
+/** The bars proposed for a foundation of 9 Substructure (stored on the foundation). */
+export interface IDesignProposalFoundation {
+	readonly id: string;
+	/** "footing", "pileCap", "raft". */
+	readonly type: string;
+	readonly current: DesignBars;
+	readonly proposed: DesignBars;
+	readonly status?: DesignProposalStatus;
+	readonly notes?: readonly string[];
+	/** Its failing checks that bars do not fix (punching, bearing). */
+	readonly otherFailures?: readonly string[];
+	readonly tooSmall?: IDesignTooSmall | null;
+	readonly apply?: boolean;
+}
+
+/** Content of the `saengine.design.proposal` result (and the `proposal` argument of apply). */
+export interface IFemDesignProposal {
+	readonly mode?: DesignProposalMode;
+	readonly types: readonly IDesignProposalType[];
+	readonly newTypes?: readonly IDesignProposalNewType[];
+	readonly reassign?: readonly IDesignProposalReassign[];
+	readonly foundations?: readonly IDesignProposalFoundation[];
+	readonly warnings?: readonly DesignProposalWarning[];
+}
+
+/** A change the apply made, as the backend says it. */
+export type DesignApplyChange = string | { readonly message?: string; readonly text?: string };
+
+/** Content of the `saengine.design.apply` result: the new text of each part file it was given. */
+export interface IFemDesignApplyResult {
+	readonly objectsText: string;
+	readonly bimText?: string | null;
+	readonly floorPlanText?: string | null;
+	readonly substructureText?: string | null;
+	readonly changes?: readonly DesignApplyChange[];
+}
+
+/** One row of the proposal page: an object type (existing or new) or a foundation. */
+export interface IDesignProposalRow {
+	/** `type:<id>` for an existing type, `new:<id>` for one the split adds, `foundation:<id>`. */
+	readonly key: string;
+	readonly type: string;
+	readonly name: string | undefined;
+	readonly kind: string | undefined;
+	/** The existing type a new one is copied from. */
+	readonly from: string | undefined;
+	readonly current: string;
+	readonly proposed: string;
+	/** The proposed bars differ from the current ones (always, for a new type). */
+	readonly changed: boolean;
+	/** No bars make the section work: nothing is proposed. */
+	readonly tooSmall: boolean;
+	readonly governingMember: string | undefined;
+	readonly members: readonly string[];
+	readonly overDesigned: readonly string[];
+	readonly warnings: readonly string[];
+	readonly notes: readonly string[];
+	readonly included: boolean;
+	/** It cannot be applied as the rows stand (it is left out, its toggle locked). */
+	readonly blocked: boolean;
+}
+
+function warningText(warning: DesignProposalWarning): string {
+	return typeof warning === 'string' ? warning : warning.message;
+}
+
+/** The type or member a warning is about: its own field, or the `"B1: "` its text starts with. */
+function warningSubject(warning: DesignProposalWarning): string | undefined {
+	if (typeof warning !== 'string') {
+		return warning.type ?? warning.member;
+	}
+	return /^(?<subject>[^\s:]+): /.exec(warning)?.groups?.subject;
+}
+
+/** A warning shown in its row: without the `"B1: "` the row already says. */
+function rowWarningText(warning: DesignProposalWarning, subject: string): string {
+	const text = warningText(warning);
+	return typeof warning === 'string' && text.startsWith(`${subject}: `) ? text.slice(subject.length + 2) : text;
+}
+
+/** "Section too small: <reason>; try 300 x 550 mm ...". */
+function tooSmallText(tooSmall: IDesignTooSmall): string {
+	return tooSmall.suggestion
+		? localize('femProposal.tooSmallTry', "Section too small: {0}; {1}", tooSmall.reason, tooSmall.suggestion)
+		: localize('femProposal.tooSmall', "Section too small: {0}", tooSmall.reason);
+}
+
+function positionLabel(position: IDesignBarGroup['position']): string {
+	switch (position) {
+		case 'top': return localize('femProposal.top', "top");
+		case 'bottom': return localize('femProposal.bottom', "bottom");
+		case 'sides': return localize('femProposal.sides', "sides");
+		case 'perimeter': return localize('femProposal.perimeter', "around");
+	}
+}
+
+function meshText(mesh: IDesignBarMesh): string {
+	return localize('femProposal.mesh', "Ø{0} @ {1}", mesh.dia, mesh.spacing);
+}
+
+/**
+ * Bars as the drawings write them: the backend's description when it gives one, else "4 Ø20
+ * top, 3 Ø16 bottom, Ø10 @ 150 (4 legs)"; a slab's layers "bottom Ø10 @ 150 X, Ø10 @ 200 Y; top
+ * Ø10 @ 150 X".
+ */
+export function describeBars(bars: DesignBars | undefined): string {
+	if (bars === null || bars === undefined) {
+		return localize('femProposal.noBars', "no bars");
+	}
+	if (typeof bars === 'string') {
+		return bars;
+	}
+	if (bars.text) {
+		return bars.text;
+	}
+	const parts: string[] = [];
+	for (const group of bars.longitudinal ?? []) {
+		parts.push(localize('femProposal.group', "{0} Ø{1} {2}", group.count, group.dia, positionLabel(group.position)));
+	}
+	if (bars.transverse) {
+		const t = bars.transverse;
+		parts.push(t.legs && t.legs !== 2
+			? localize('femProposal.transverseLegs', "Ø{0} @ {1} ({2} legs)", t.dia, t.spacing, t.legs)
+			: localize('femProposal.transverse', "Ø{0} @ {1}", t.dia, t.spacing));
+	}
+	const layer = (label: string, x: IDesignBarMesh | null | undefined, y: IDesignBarMesh | null | undefined) => {
+		const meshes = [
+			...(x ? [localize('femProposal.meshX', "{0} X", meshText(x))] : []),
+			...(y ? [localize('femProposal.meshY', "{0} Y", meshText(y))] : []),
+		];
+		if (meshes.length) {
+			parts.push(localize('femProposal.layer', "{0} {1}", label, meshes.join(', ')));
+		}
+	};
+	layer(localize('femProposal.bottomLayer', "bottom"), bars.bottomX, bars.bottomY);
+	layer(localize('femProposal.topLayer', "top"), bars.topX, bars.topY);
+	return parts.length ? parts.join(bars.bottomX || bars.bottomY || bars.topX || bars.topY ? '; ' : ', ') : localize('femProposal.noBars', "no bars");
+}
+
+/** "13 pass, 2 fail" (and the members not checked). */
+export function describeCheckCounts(report: Pick<IFemDesignReport, 'summary'>): string {
+	const { passed, failed, skipped } = report.summary;
+	return skipped
+		? localize('femProposal.countsSkipped', "{0} pass, {1} fail, {2} not checked", passed, failed, skipped)
+		: localize('femProposal.counts', "{0} pass, {1} fail", passed, failed);
+}
+
+/** "13 pass, 2 fail → 15 pass, 0 fail". */
+export function describeBeforeAfter(before: Pick<IFemDesignReport, 'summary'> | undefined, after: Pick<IFemDesignReport, 'summary'>): string {
+	return before
+		? localize('femProposal.beforeAfter', "{0} → {1}", describeCheckCounts(before), describeCheckCounts(after))
+		: describeCheckCounts(after);
+}
+
+/** A change the apply reports, as text. */
+export function describeChange(change: DesignApplyChange): string {
+	return typeof change === 'string' ? change : change.message ?? change.text ?? '';
+}
+
+/** What a row of the proposal shows of its bars, and whether it can be applied. */
+interface IRowEntry {
+	readonly key: string;
+	readonly tooSmall: boolean;
+	readonly current: string;
+	readonly proposed: string;
+	readonly changed: boolean;
+	readonly included: boolean;
+}
+
+/**
+ * The proposal page's state: the proposal of each mode (fetched once each), the rows of the
+ * mode shown, and the rows included in the apply (by default those whose bars change).
+ */
+export class DesignProposalModel {
+
+	private readonly proposals = new Map<DesignProposalMode, IFemDesignProposal>();
+	/** Rows the engineer toggled, per mode: key -> included. */
+	private readonly toggled = new Map<DesignProposalMode, Map<string, boolean>>();
+
+	constructor(private _mode: DesignProposalMode = 'byType') { }
+
+	get mode(): DesignProposalMode {
+		return this._mode;
+	}
+
+	set mode(mode: DesignProposalMode) {
+		this._mode = mode;
+	}
+
+	/** The proposal of the mode shown, once fetched. */
+	get proposal(): IFemDesignProposal | undefined {
+		return this.proposals.get(this._mode);
+	}
+
+	has(mode: DesignProposalMode): boolean {
+		return this.proposals.has(mode);
+	}
+
+	/** Takes the proposal of `mode`; the rows' toggles start again from their defaults. */
+	setProposal(mode: DesignProposalMode, proposal: IFemDesignProposal): void {
+		this.proposals.set(mode, proposal);
+		this.toggled.delete(mode);
+	}
+
+	/** Forgets every proposal (the inputs changed). */
+	clear(): void {
+		this.proposals.clear();
+		this.toggled.clear();
+	}
+
+	private entry(key: string, status: DesignProposalStatus | undefined, current: DesignBars, proposed: DesignBars): IRowEntry {
+		const tooSmall = status === 'tooSmall' || (status === undefined && (proposed === null || proposed === undefined));
+		const currentText = describeBars(current);
+		const proposedText = tooSmall ? localize('femProposal.noProposal', "no bars proposed") : describeBars(proposed);
+		const changed = !tooSmall && (status ? status === 'ok' : currentText !== proposedText);
+		return { key, tooSmall, current: currentText, proposed: proposedText, changed, included: changed && (this.toggled.get(this._mode)?.get(key) ?? true) };
+	}
+
+	/** A row's warnings: why nothing is proposed, its own, and the general ones about it. */
+	private warningsOf(proposal: IFemDesignProposal, subject: string, own: readonly DesignProposalWarning[] | undefined, tooSmall: IDesignTooSmall | null | undefined): string[] {
+		const general = (proposal.warnings ?? []).filter(w => warningSubject(w) === subject);
+		return [
+			...(tooSmall ? [tooSmallText(tooSmall)] : []),
+			...(own ?? []).map(warningText),
+			// The backend repeats a type's "section too small" among the general warnings.
+			...(tooSmall ? general.filter(w => !warningText(w).includes(tooSmall.reason)) : general).map(w => rowWarningText(w, subject)),
+		];
+	}
+
+	/** The rows of the mode shown: the existing types, the new ones, then the foundations. */
+	rows(): IDesignProposalRow[] {
+		const proposal = this.proposal;
+		if (!proposal) {
+			return [];
+		}
+		const newRows: IDesignProposalRow[] = [];
+		for (const t of proposal.newTypes ?? []) {
+			const source = proposal.types.find(s => s.type === t.from);
+			newRows.push({
+				...this.entry(`new:${t.type}`, 'ok', source?.current ?? null, t.proposed),
+				type: t.type, name: t.name, kind: t.kind ?? source?.kind, from: t.from,
+				governingMember: t.governingMember ?? undefined,
+				members: t.members,
+				overDesigned: [],
+				warnings: this.warningsOf(proposal, t.type, t.warnings, undefined),
+				notes: [],
+				blocked: false,
+			});
+		}
+		const split = this.splitOf(proposal, newRows);
+		const rows: IDesignProposalRow[] = [];
+		for (const t of proposal.types) {
+			const { moved, keptBack } = split.get(t.type) ?? { moved: new Set<string>(), keptBack: [] };
+			// Members the split would move whose new type is left out stay: the type needs bars for
+			// all its members again (the backend applies `byType` then), else it cannot be applied.
+			const whole = keptBack.length > 0 && !!t.byType;
+			const blocked = keptBack.length > 0 && !t.byType;
+			const entry = this.entry(`type:${t.type}`, whole ? undefined : t.status, t.current, whole && t.byType ? t.byType : t.proposed);
+			const keptNote = whole
+				? [localize('femProposal.keptBack', "Bars for all its members (the new type for {0} is left out).", keptBack.join(', '))]
+				: [];
+			rows.push({
+				...entry,
+				included: entry.included && !blocked,
+				type: t.type, name: t.name, kind: t.kind, from: undefined,
+				governingMember: t.governingMember ?? undefined,
+				members: (t.members ?? []).filter(m => !moved.has(m)),
+				overDesigned: (t.overDesigned ?? []).filter(m => !moved.has(m)),
+				warnings: [
+					...this.warningsOf(proposal, t.type, t.warnings, t.tooSmall),
+					...(blocked ? [localize('femProposal.keptBackBlocked', "Its bars were designed without {0}: include their new type too, or propose with Keep Shared Types.", keptBack.join(', '))] : []),
+				],
+				// The backend's notes are about the split's bars.
+				notes: whole ? keptNote : t.notes ?? [],
+				blocked,
+			});
+		}
+		rows.push(...newRows);
+		for (const f of proposal.foundations ?? []) {
+			rows.push({
+				...this.entry(`foundation:${f.id}`, f.status, f.current, f.proposed),
+				type: f.id, name: undefined, kind: f.type, from: undefined,
+				governingMember: undefined,
+				members: [],
+				overDesigned: [],
+				warnings: [...this.warningsOf(proposal, f.id, undefined, f.tooSmall), ...(f.otherFailures ?? [])],
+				notes: f.notes ?? [],
+				blocked: false,
+			});
+		}
+		return rows;
+	}
+
+	/**
+	 * Per existing type, the members the split moves out of it (their new type included) and
+	 * those it would move but that stay (their new type left out), as the backend applies them.
+	 */
+	private splitOf(proposal: IFemDesignProposal, newRows: readonly IDesignProposalRow[]): Map<string, { moved: Set<string>; keptBack: string[] }> {
+		const includedNew = new Set(newRows.filter(r => r.included).map(r => r.type));
+		const split = new Map<string, { moved: Set<string>; keptBack: string[] }>();
+		const add = (from: string, member: string, moves: boolean) => {
+			let entry = split.get(from);
+			if (!entry) {
+				entry = { moved: new Set(), keptBack: [] };
+				split.set(from, entry);
+			}
+			if (moves) {
+				entry.moved.add(member);
+			} else if (!entry.keptBack.includes(member)) {
+				entry.keptBack.push(member);
+			}
+		};
+		if (proposal.reassign) {
+			for (const r of proposal.reassign) {
+				add(r.from, r.member, includedNew.has(r.to));
+			}
+		} else {
+			for (const t of proposal.newTypes ?? []) {
+				for (const member of t.members) {
+					add(t.from, member, includedNew.has(t.type));
+				}
+			}
+		}
+		return split;
+	}
+
+	/** The proposal's warnings about no row in particular. */
+	generalWarnings(): string[] {
+		const proposal = this.proposal;
+		if (!proposal) {
+			return [];
+		}
+		const subjects = new Set([...proposal.types.map(t => t.type), ...(proposal.newTypes ?? []).map(t => t.type), ...(proposal.foundations ?? []).map(f => f.id)]);
+		return (proposal.warnings ?? []).filter(w => {
+			const subject = warningSubject(w);
+			return subject === undefined || !subjects.has(subject);
+		}).map(warningText);
+	}
+
+	/** Includes or leaves out a row of the mode shown (a row whose bars do not change stays out). */
+	setIncluded(key: string, included: boolean): void {
+		let toggled = this.toggled.get(this._mode);
+		if (!toggled) {
+			toggled = new Map();
+			this.toggled.set(this._mode, toggled);
+		}
+		toggled.set(key, included);
+	}
+
+	/** Includes or leaves out every row of the mode shown. */
+	setAllIncluded(included: boolean): void {
+		for (const row of this.rows()) {
+			this.setIncluded(row.key, included);
+		}
+	}
+
+	/** The rows that would be applied. */
+	includedRows(): IDesignProposalRow[] {
+		return this.rows().filter(r => r.included);
+	}
+
+	/**
+	 * The proposal to apply: every entry, those left out marked `apply: false` (the backend skips
+	 * them), and the members moved to a new type left out marked so too (they keep their type,
+	 * which the backend then gives its `byType` bars, as its row shows). Undefined when nothing
+	 * is included.
+	 */
+	applyRequest(): IFemDesignProposal | undefined {
+		const proposal = this.proposal;
+		if (!proposal) {
+			return undefined;
+		}
+		const included = new Set(this.includedRows().map(r => r.key));
+		if (!included.size) {
+			return undefined;
+		}
+		return {
+			...proposal,
+			mode: this._mode,
+			types: proposal.types.map(t => ({ ...t, apply: included.has(`type:${t.type}`) })),
+			...(proposal.newTypes ? { newTypes: proposal.newTypes.map(t => ({ ...t, apply: included.has(`new:${t.type}`) })) } : {}),
+			...(proposal.reassign ? { reassign: proposal.reassign.map(r => ({ ...r, apply: included.has(`new:${r.to}`) })) } : {}),
+			...(proposal.foundations ? { foundations: proposal.foundations.map(f => ({ ...f, apply: included.has(`foundation:${f.id}`) })) } : {}),
+		};
+	}
+}
+
+/** The part files an apply edits, as they are now (undefined: not there, or not sent). */
+export interface IDesignProposalTexts {
+	readonly objectsText: string;
+	readonly bimText: string | undefined;
+	readonly floorPlanText?: string;
+	readonly substructureText?: string;
+}
+
+/** The part files an apply changes, by part id, with their new text. */
+export type DesignProposalEdits = Partial<Record<'objects' | 'bim' | 'floorPlan' | 'substructure', string>>;
+
+/** The text edits an apply result makes: only of files it was given and whose text differs. */
+export function proposalEdits(current: IDesignProposalTexts, result: IFemDesignApplyResult): DesignProposalEdits {
+	const edits: DesignProposalEdits = {};
+	const pairs = [
+		['objects', current.objectsText, result.objectsText],
+		['bim', current.bimText, result.bimText],
+		['floorPlan', current.floorPlanText, result.floorPlanText],
+		['substructure', current.substructureText, result.substructureText],
+	] as const;
+	for (const [part, now, next] of pairs) {
+		if (now !== undefined && typeof next === 'string' && next !== now) {
+			edits[part] = next;
+		}
+	}
+	return edits;
+}

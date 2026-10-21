@@ -11,6 +11,9 @@ import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { DisposableStore, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { setProperty } from '../../../../base/common/jsonEdit.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { basename, dirname, joinPath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -35,26 +38,39 @@ import { BNBC } from '../../../services/saengineProject/common/projectLibraries.
 import { partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import {
-	BOREHOLE_FIELDS, bearingSummary, boreholeDepth, boreholeGround, checkSoilReport, choiceTitle, DESIGN_CHOICES, DESIGN_DEFAULTS, DESIGN_FIELDS, formatField, formatNumber, hasLiquefiable, IBearingCell, IBearingResult, IBorehole, IBoreholeResult, IFieldSpec,
-	ISoilComputeRequest, ISoilImportRequest, ISoilImportResult, ISoilProblem, ISoilReport, ISoilResults, ISoilTemplateRequest, ISoilTemplateResult, LAYER_FIELDS, newBorehole, parseField,
-	IChoiceSpec, ISiteClassFlag, parseSoilReport, readSoilResults, REPORT_FIELDS, resultsBasis, SAMPLE_FIELDS, serializeSoilReport, SOIL_COMPUTE_COMMAND, SOIL_IMPORT_COMMAND, SOIL_TEMPLATE_COMMAND, SOIL_TYPES, siteFlagMeaning, siteFlagsOf, siltNeedsPlasticity, soilSummary, soilTypeLabel, SPT_FIELDS, ISoilLayer,
+	BOREHOLE_FIELDS, bearingSummary, boreholeDepth, boreholePosition, boreholeGround, checkSoilReport, choiceTitle, DESIGN_CHOICES, DESIGN_DEFAULTS, DESIGN_FIELDS, formatField, formatNumber, hasLiquefiable, IBearingCell, IBearingResult, IBorehole, IBoreholeResult, IFieldSpec,
+	ISoilComputeRequest, ISoilImportRequest, ISoilImportResult, ISoilProblem, ISoilReport, ISoilResults, ISoilTemplateRequest, ISoilTemplateResult, newBorehole, parseField,
+	IChoiceSpec, ISiteClassFlag, parseSoilReport, readSoilResults, REPORT_FIELDS, resultsBasis, serializeSoilReport, SOIL_COMPUTE_COMMAND, SOIL_IMPORT_COMMAND, SOIL_TEMPLATE_COMMAND, SOIL_TYPES, siteFlagMeaning, siteFlagsOf, siltNeedsPlasticity, soilSummary, soilTypeLabel,
+	GisFormat, ILatLon, IOpenInQgisRequest, IOpenInQgisResult, ISoilGisExportRequest, ISoilGisExportResult, ISoilGisImportRequest, ISoilGisImportResult, ISoilLocationRequest, ISoilLocationResult, ISoilSample, QgisProgramResult,
+	MAP_TILE_ATTRIBUTION_SETTING, MAP_TILE_URL_SETTING, SOIL_GIS_EXPORT_COMMAND, SOIL_GIS_IMPORT_COMMAND, SOIL_LOCATION_COMMAND, SOIL_OPEN_IN_QGIS_COMMAND, SOIL_QGIS_PROGRAM_COMMAND,
 } from './soilDocument.js';
 import { SoilEditorInput } from './soilEditorInput.js';
+import { IGridState, newGridState, SoilGrid } from './soilGrid.js';
+import { LabTest } from './soilLabTests.js';
+import { SoilLabPanel } from './soilLabPanel.js';
 import { appendSoilPatterns, appendSoilSwatch, renderBoreholeLog, renderFence, renderLiquefactionChart } from './soilLog.js';
+import { IBnbcSuggestion, tileSource } from './soilMap.js';
+import { IMapViewState, ISoilMapHost, SoilMapView } from './soilMapView.js';
+import { SampleSheet, SPT_DRIVE, StrataSheet } from './soilSheet.js';
 
-type View = 'log' | 'data' | 'results';
+type View = 'log' | 'data' | 'results' | 'map';
 
 const VIEWS: readonly { readonly view: View; readonly label: string; readonly icon: ThemeIcon }[] = [
 	{ view: 'log', label: localize('soil.viewLog', "Log"), icon: Codicon.layers },
 	{ view: 'data', label: localize('soil.viewData', "Data"), icon: Codicon.table },
 	{ view: 'results', label: localize('soil.viewResults', "Results"), icon: Codicon.graphLine },
+	{ view: 'map', label: localize('soil.viewMap', "Map"), icon: Codicon.globe },
 ];
+
+/** The column groups of the sheets shown at first: the strength and consolidation of the strata are folded. */
+const STRATA_COLLAPSED = ['weight', 'strength', 'index', 'consolidation'];
+const SAMPLES_COLLAPSED = ['consolidation'];
+
+/** The borehole fields of the log sheet's header, in the order of the consultant's sheet. */
+const HEADER_FIELDS = ['id', 'groundLevel', 'waterTable', 'depth', 'x', 'y', 'lat', 'lon', 'easting', 'northing', 'date', 'method'];
 
 /** The state of the results: not asked yet, being computed, computed, or no backend / failed. */
 type ResultsState = 'idle' | 'computing' | 'ok' | 'missing' | 'error';
-
-/** A row of a data table: the list it is in, for the problem paths ("layers.2.top"). */
-type RowList = 'layers' | 'spt' | 'samples';
 
 let instanceCount = 0;
 
@@ -109,6 +125,39 @@ export class SoilEditor extends EditorPane {
 	private readonly propertiesDisposables = this._register(new DisposableStore());
 	private readonly emptyDisposables = this._register(new DisposableStore());
 	private readonly settings = this._register(new MutableDisposable<IReference<IResolvedTextEditorModel>>());
+	/** `06 BIM/bim.json`, read for the building's outline on the map (opened with the Map view). */
+	private readonly bim = this._register(new MutableDisposable<IReference<IResolvedTextEditorModel>>());
+	private bimRequested = false;
+
+	/** The log sheet's grids and the lab panel, rendered again on every edit with the same state. */
+	private readonly grids: SoilGrid[] = [];
+	private readonly gridStates = new Map<string, IGridState>();
+	private readonly labGridStates = new Map<string, IGridState>();
+	private readonly labDisposables = this._register(new DisposableStore());
+	private labContainer: HTMLElement | undefined;
+	private sampleSheet: SampleSheet | undefined;
+	/** The sample whose lab tests are shown (kept by object, so it survives re-sorting). */
+	private labSample: ISoilSample | undefined;
+	private labTest: LabTest = 'grainSize';
+	/** A render was skipped while a cell was being edited; done after the edit. */
+	private renderPending = false;
+
+	/** The site map: kept while the Map view shows, so the map is not built again on every edit. */
+	private readonly mapView = this._register(new MutableDisposable<SoilMapView>());
+	private readonly mapState: IMapViewState = { coordinateStyle: 'decimal' };
+	private location: ISoilLocationResult | undefined;
+	private locationState: 'idle' | 'computing' | 'ok' | 'missing' | 'error' = 'idle';
+	private locationVersion = 0;
+	private qgis: { readonly path: string; readonly version?: string } | undefined;
+	private qgisAsked = false;
+	private readonly locationScheduler = this._register(new RunOnceScheduler(() => void this.computeLocation(), 400));
+
+	private readonly pendingRenderScheduler = this._register(new RunOnceScheduler(() => {
+		if (this.renderPending) {
+			this.renderView();
+		}
+	}, 100));
+
 	private readonly commitScheduler = this._register(new RunOnceScheduler(() => this.commit(), 300));
 	private readonly computeScheduler = this._register(new RunOnceScheduler(() => void this.compute(), 700));
 	private readonly layoutScheduler = this._register(new RunOnceScheduler(() => this.onMainResized(), 50));
@@ -134,17 +183,29 @@ export class SoilEditor extends EditorPane {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super(SoilEditor.ID, group, telemetryService, themeService, storageService);
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(DEVELOPER_MODE_SETTING)) {
 				this.renderActions();
 			}
+			if ((e.affectsConfiguration(MAP_TILE_URL_SETTING) || e.affectsConfiguration(MAP_TILE_ATTRIBUTION_SETTING)) && this.view === 'map') {
+				this.mapView.clear(); // the map is built again with the new tiles
+				this.mapState.tilesFailed = false;
+				this.renderView();
+			}
 		}));
 		this._register(CommandsRegistry.onDidRegisterCommand(id => {
 			// The backend registers its commands when it starts: compute as soon as it can.
 			if (id === SOIL_COMPUTE_COMMAND && this.resultsState === 'missing') {
 				this.computeScheduler.schedule(0);
+			}
+			if (id === SOIL_LOCATION_COMMAND && this.locationState === 'missing') {
+				this.locationScheduler.schedule(0);
+			}
+			if (id === SOIL_QGIS_PROGRAM_COMMAND) {
+				this.qgisAsked = false;
 			}
 		}));
 	}
@@ -181,10 +242,17 @@ export class SoilEditor extends EditorPane {
 		await super.setInput(input, options, context, token);
 		this.inputDisposables.clear();
 		this.settings.clear();
+		this.bim.clear();
+		this.bimRequested = false;
+		this.mapView.clear();
 		this.model = undefined;
 		this.results = undefined;
 		this.resultsState = 'idle';
+		this.location = undefined;
+		this.locationState = 'idle';
 		this.selected = undefined;
+		this.gridStates.clear();
+		this.labSample = undefined;
 		const reference = await input.resolve();
 		if (token.isCancellationRequested || this.input !== input) {
 			return;
@@ -205,7 +273,12 @@ export class SoilEditor extends EditorPane {
 					return;
 				}
 				this.settings.value = settings;
-				this.inputDisposables.add(settings.object.textEditorModel.onDidChangeContent(() => this.computeScheduler.schedule()));
+				this.inputDisposables.add(settings.object.textEditorModel.onDidChangeContent(() => {
+					this.computeScheduler.schedule();
+					if (this.view === 'map') {
+						this.locationScheduler.schedule(); // the BNBC suggestion follows the settings
+					}
+				}));
 			} catch {
 				// Without settings the backend uses its defaults or the report's PGA.
 			}
@@ -217,7 +290,10 @@ export class SoilEditor extends EditorPane {
 		this.flush();
 		this.inputDisposables.clear();
 		this.settings.clear();
+		this.bim.clear();
+		this.mapView.clear();
 		this.computeScheduler.cancel();
+		this.locationScheduler.cancel();
 		this.model = undefined;
 		this.report = undefined;
 		super.clearInput();
@@ -296,6 +372,9 @@ export class SoilEditor extends EditorPane {
 		this.problems = this.report ? checkSoilReport(this.report) : [];
 		this.render();
 		this.computeScheduler.schedule(this.resultsState === 'idle' ? 0 : undefined);
+		if (this.view === 'map') {
+			this.locationScheduler.schedule();
+		}
 	}
 
 	/** The engineer picked "Report" in the list: keep it when the file reloads. */
@@ -321,6 +400,9 @@ export class SoilEditor extends EditorPane {
 			this.applying = false;
 		}
 		this.computeScheduler.schedule();
+		if (this.view === 'map') {
+			this.locationScheduler.schedule();
+		}
 	}
 
 	private flush(): void {
@@ -413,6 +495,10 @@ export class SoilEditor extends EditorPane {
 		this.flush();
 		this.view = view;
 		this.render();
+		if (view === 'map') {
+			this.locationScheduler.schedule(0);
+			void this.findQgis();
+		}
 	}
 
 	/**
@@ -587,7 +673,13 @@ export class SoilEditor extends EditorPane {
 
 	private onMainResized(): void {
 		const size = `${this.viewElement.clientWidth}x${this.viewElement.clientHeight}`;
-		if (size !== this.lastSize && this.view !== 'data') {
+		if (size === this.lastSize) {
+			return;
+		}
+		if (this.view === 'map') {
+			this.lastSize = size;
+			this.mapView.value?.layout();
+		} else if (this.view !== 'data') {
 			this.renderView();
 		}
 	}
@@ -714,23 +806,58 @@ export class SoilEditor extends EditorPane {
 	// ───────────────────────────── views ─────────────────────────────
 
 	private renderView(): void {
+		// A cell or a field being typed into is not taken away by a render (new results, a
+		// computation finishing): the render waits for the edit to end.
+		const active = this.viewElement.ownerDocument.activeElement;
+		if (this.grids.some(g => g.isEditing()) || this.view === 'data' && active && this.viewElement.contains(active) && isHTMLInputElement(active) && !active.closest('.soil-grid')) {
+			this.renderPending = true;
+			return;
+		}
+		this.renderPending = false;
+		const report = this.report;
+		if (this.view === 'map' && report && this.mapView.value?.element.isConnected) {
+			this.mapView.value.update(this.mapHost(report));
+			return;
+		}
+		const focusedGrid = this.grids.find(g => g.hasFocus())?.sheet.id;
+		const focusedLab = this.labContainer?.contains(active) ?? false;
+		this.mapView.clear();
+		this.disposeGrids();
 		this.viewDisposables.clear();
 		this.inputs.clear();
 		const scroll = this.viewElement.scrollTop;
 		clearNode(this.viewElement);
 		this.viewElement.className = `soil-view ${this.view}`;
 		this.lastSize = `${this.viewElement.clientWidth}x${this.viewElement.clientHeight}`;
-		const report = this.report;
-		if (!report || !report.boreholes.length) {
+		if (!report || !report.boreholes.length && this.view !== 'map') {
 			return;
 		}
 		switch (this.view) {
 			case 'log': this.renderLogView(report); break;
 			case 'data': this.renderDataView(report); break;
 			case 'results': this.renderResultsView(report); break;
+			case 'map': this.renderMapView(report); break;
 		}
 		this.viewElement.scrollTop = scroll;
 		this.renderProblems();
+		if (focusedLab) {
+			this.labGrid()?.focus();
+		} else if (focusedGrid) {
+			this.grids.find(g => g.sheet.id === focusedGrid)?.focus();
+		}
+	}
+
+	private disposeGrids(): void {
+		for (const grid of this.grids.splice(0)) {
+			grid.dispose();
+		}
+		this.labDisposables.clear();
+		this.labContainer = undefined;
+		this.sampleSheet = undefined;
+	}
+
+	private labGrid(): SoilGrid | undefined {
+		return this.grids.find(g => this.labContainer?.contains(g.element));
 	}
 
 	private renderLegend(container: HTMLElement, report: ISoilReport, results: boolean): void {
@@ -785,34 +912,179 @@ export class SoilEditor extends EditorPane {
 
 	// ───────────────────────────── data view ─────────────────────────────
 
+	/**
+	 * The log sheet of the selected borehole, in the order of the consultant's borehole log: the
+	 * header (id, levels, position, date, method), the strata, the samples and SPT (one row per
+	 * test depth), the lab tests of the selected sample, and the log drawn beside them as it is
+	 * typed. With the report selected: one row per borehole.
+	 */
 	private renderDataView(report: ISoilReport): void {
 		const borehole = this.borehole;
 		if (!borehole) {
 			this.renderBoreholeSummary(report);
 			return;
 		}
+		const index = this.selected!;
 		const header = append(this.viewElement, $('.soil-view-header'));
 		append(header, $('span.soil-view-title', undefined, borehole.id));
-		append(header, $('span.soil-view-subtitle', undefined, localize('soil.dataSubtitle', "Depths in m below the borehole's ground; the borehole's position, water table and depth are in Properties.")));
+		append(header, $('span.soil-view-subtitle', undefined, localize('soil.sheetSubtitle', "Depths in m below the borehole's ground. Type into a cell, paste a block from Excel with Ctrl+V; Delete clears, Ctrl+Z undoes.")));
 
-		this.renderTable(borehole, 'layers', localize('soil.layers', "Layers"), LAYER_FIELDS, localize('soil.addLayer', "Add Layer"), () => {
-			const last = [...borehole.layers].sort((a, b) => a.bottom - b.bottom).pop();
-			const top = last?.bottom ?? 0;
-			return { top, bottom: top + 3000, description: '', soilType: last?.soilType ?? 'clay' };
-		});
+		this.renderSheetHeader(report, borehole, index);
+
+		const layout = append(this.viewElement, $('.soil-sheet-layout'));
+		const main = append(layout, $('.soil-sheet-main'));
+		const aside = append(layout, $('.soil-sheet-log'));
+
+		// Strata.
+		const strataSection = append(main, $('.soil-section'));
+		const strataHeading = append(strataSection, $('.soil-section-heading'));
+		append(strataHeading, $('span.soil-section-title', undefined, localize('soil.sheet.strata', "Strata")));
+		append(strataHeading, $('span.soil-section-count', undefined, String(borehole.layers.length)));
+		append(strataHeading, $('span.soil-section-detail', undefined, localize('soil.sheet.strataDetail', "one row per layer, top down; the folded groups open with their arrows")));
+		const strata = new StrataSheet(borehole, index, this.problems);
+		this.addGrid(strataSection, strata, `${index}|strata`, STRATA_COLLAPSED, localize('soil.sheet.strataAria', "Strata of {0}", borehole.id));
+		const silts = borehole.layers.filter(layer => siltNeedsPlasticity(borehole, layer));
+		for (const layer of silts) {
+			const hint = append(strataSection, $('.soil-hint'));
+			append(hint, $(ThemeIcon.asCSSSelector(Codicon.info)));
+			append(hint, $('span', undefined, localize('soil.sheet.siltHint', "The silt {0}–{1} m: is it plastic? Give PI or cu (here or in a sample's LL and PL).", formatNumber(layer.top / 1000, 2), formatNumber(layer.bottom / 1000, 2))));
+		}
+
+		// Samples and SPT.
+		const samplesSection = append(main, $('.soil-section'));
+		const samplesHeading = append(samplesSection, $('.soil-section-heading'));
+		append(samplesHeading, $('span.soil-section-title', undefined, localize('soil.sheet.samples', "Samples and SPT")));
+		const rows = new Set([...borehole.spt.map(s => s.depth), ...borehole.samples.map(s => s.depth)]).size;
+		append(samplesHeading, $('span.soil-section-count', undefined, String(rows)));
+		append(samplesHeading, $('span.soil-section-detail', undefined, localize('soil.sheet.samplesDetail', "N = N1 + N2 (greyed: worked out); the description and USCS are the stratum's")));
 		const sptResults = this.resultOf(borehole)?.spt ?? [];
-		const sptAt = (row: { [key: string]: unknown }) => sptResults.find(s => Math.abs(s.depth - Number(row.depth)) <= 1);
-		this.renderTable(borehole, 'spt', localize('soil.sptRecords', "SPT"), SPT_FIELDS, localize('soil.addSpt', "Add SPT Record"), () => {
-			const last = [...borehole.spt].sort((a, b) => a.depth - b.depth).pop();
-			return { depth: last ? last.depth + 1500 : 1500, N: last?.N ?? 0 };
-		}, sptResults.length ? [
-			{ label: 'N60', title: localize('soil.n60Title', "N corrected to 60% hammer energy (computed)"), value: (row: { [key: string]: unknown }) => sptAt(row)?.N60 },
-			{ label: '(N1)60', title: localize('soil.n160Title', "N60 corrected to an effective overburden of 100 kPa (computed)"), value: (row: { [key: string]: unknown }) => sptAt(row)?.N160 },
-		] : []);
-		this.renderTable(borehole, 'samples', localize('soil.samples', "Lab samples"), SAMPLE_FIELDS, localize('soil.addSample', "Add Sample"), () => {
-			const last = [...borehole.samples].sort((a, b) => a.depth - b.depth).pop();
-			return { depth: last ? last.depth + 3000 : 1500, type: last?.type ?? 'UD' };
+		const samples = this.sampleSheet = new SampleSheet(borehole, sptResults.length ? depth => sptResults.find(s => Math.abs(s.depth - depth) <= 1) : undefined);
+		const sampleState = this.gridState(`${index}|samples`, SAMPLES_COLLAPSED);
+		// The lab panel follows the selected row; after a re-sort the sample finds its row again.
+		const labRow = samples.rowOf(this.labSample);
+		if (labRow >= 0) {
+			sampleState.active = { row: labRow, column: sampleState.active.column };
+		}
+		this.addGrid(samplesSection, samples, `${index}|samples`, SAMPLES_COLLAPSED, localize('soil.sheet.samplesAria', "Samples and SPT of {0}", borehole.id), row => {
+			this.labSample = samples.rowAt(row)?.sample;
+			this.renderLabPanel();
 		});
+		this.labSample = samples.rowAt(sampleState.active.row)?.sample;
+
+		// The lab tests of the selected sample.
+		this.labContainer = append(main, $('.soil-lab-container'));
+		this.renderLabPanel();
+
+		// The log, drawn as the sheet is typed.
+		const result = this.resultOf(borehole);
+		const canvas = append(aside, $('.soil-canvas'));
+		renderBoreholeLog(canvas, report, borehole, { width: 300, height: Math.max(360, this.viewElement.clientHeight - 140), patternPrefix: this.patternPrefix, result, hammerEnergy: report.design.hammerEnergy, compact: true });
+	}
+
+	/** The borehole's header fields above the sheet, as the consultant's log sheet heads its page. */
+	private renderSheetHeader(report: ISoilReport, borehole: IBorehole, index: number): void {
+		const strip = append(this.viewElement, $('.soil-sheet-header'));
+		const placed = boreholePosition(borehole) !== 'project';
+		for (const key of HEADER_FIELDS) {
+			const field = BOREHOLE_FIELDS.find(f => f.key === key);
+			if (!field) {
+				continue;
+			}
+			const item = append(strip, $('label.soil-sheet-field', { title: field.title ?? '' }));
+			append(item, $('span.soil-sheet-field-label', undefined, field.unit ? `${field.label} (${field.unit})` : field.label));
+			const placeholder = key === 'groundLevel' ? formatNumber(report.groundLevel / 1000, 3) : undefined;
+			const input = this.createInput(field, borehole[key], value => {
+				if (value === undefined) {
+					delete borehole[key];
+				} else {
+					borehole[key] = value;
+				}
+				this.changed(false);
+			}, this.problemKey(index, key), placeholder);
+			if ((key === 'x' || key === 'y') && placed) {
+				// The borehole's own lat/lon place it: X and Y follow from them.
+				(input as HTMLInputElement).readOnly = true;
+				item.title = localize('soil.sheet.xyFromMap', "Worked out from the latitude and longitude (or BTM); clear them to place the borehole by X and Y.");
+				item.classList.add('derived');
+			}
+			item.appendChild(input);
+		}
+	}
+
+	private gridState(key: string, collapsed: readonly string[]): IGridState {
+		let state = this.gridStates.get(key);
+		if (!state) {
+			state = newGridState(collapsed);
+			this.gridStates.set(key, state);
+		}
+		return state;
+	}
+
+	private addGrid(container: HTMLElement, sheet: StrataSheet | SampleSheet, key: string, collapsed: readonly string[], ariaLabel: string, onDidChangeActiveRow?: (row: number) => void): SoilGrid {
+		const grid = new SoilGrid(container, {
+			sheet,
+			state: this.gridState(key, collapsed),
+			ariaLabel,
+			onDidWrite: () => this.onSheetWrite(),
+			onDidChangeActiveRow,
+		});
+		this.grids.push(grid);
+		return grid;
+	}
+
+	/** A sheet wrote into the report: store it as one undoable edit and show it again. */
+	private onSheetWrite(): void {
+		if (!this.report) {
+			return;
+		}
+		this.problems = checkSoilReport(this.report);
+		this.commit();
+		this.renderList();
+		this.renderView();
+		this.renderProperties();
+		this.renderStatus();
+	}
+
+	/** The lab tests of the sample selected in the sheet. */
+	private renderLabPanel(): void {
+		const container = this.labContainer;
+		if (!container) {
+			return;
+		}
+		const focused = container.contains(container.ownerDocument.activeElement);
+		const old = this.labGrid();
+		if (old) {
+			this.grids.splice(this.grids.indexOf(old), 1);
+		}
+		this.labDisposables.clear();
+		clearNode(container);
+		const sample = this.labSample;
+		const row = this.sampleSheet?.rowOf(sample) ?? -1;
+		const data = row >= 0 ? this.sampleSheet?.rowAt(row) : undefined;
+		if (!sample || !data) {
+			append(container, $('p.soil-note', undefined, localize('soil.lab.pick', "Select a row with a sample to enter its lab tests: grain size, consolidation, triaxial, direct shear.")));
+			return;
+		}
+		const to = sample.depthTo ?? data.spt?.depthTo ?? (data.spt ? data.depth + SPT_DRIVE : undefined);
+		const depth = typeof to === 'number'
+			? localize('soil.lab.depthRange', "{0}–{1} m", formatNumber(data.depth / 1000, 2), formatNumber(to / 1000, 2))
+			: localize('soil.lab.depthAt', "{0} m", formatNumber(data.depth / 1000, 2));
+		const title = [sample.number, sample.type, depth].filter(Boolean).join(' · ');
+		const panel = this.labDisposables.add(new SoilLabPanel(container, {
+			sample,
+			title,
+			test: this.labTest,
+			gridStates: this.labGridStates,
+			onDidChangeTest: test => {
+				this.labTest = test;
+				this.renderLabPanel();
+			},
+			onDidWrite: () => this.onSheetWrite(),
+		}));
+		this.grids.push(panel.grid);
+		if (focused) {
+			panel.grid.focus();
+		}
 	}
 
 	/** With the report selected: one row per borehole, a click selects it. */
@@ -849,110 +1121,6 @@ export class SoilEditor extends EditorPane {
 				}
 			}));
 		});
-	}
-
-	private renderTable(
-		borehole: IBorehole,
-		list: RowList,
-		title: string,
-		fields: readonly IFieldSpec[],
-		addLabel: string,
-		create: () => { [key: string]: unknown },
-		computed: readonly { readonly label: string; readonly title: string; readonly value: (row: { [key: string]: unknown }) => number | undefined }[] = [],
-	): void {
-		const rows = borehole[list] as { [key: string]: unknown }[];
-		const boreholeIndex = this.report?.boreholes.indexOf(borehole);
-		const section = append(this.viewElement, $('.soil-section'));
-		const heading = append(section, $('.soil-section-heading'));
-		append(heading, $('span.soil-section-title', undefined, title));
-		append(heading, $('span.soil-section-count', undefined, String(rows.length)));
-		const add = append(heading, $<HTMLButtonElement>('button.soil-add', { type: 'button' }));
-		append(add, $(ThemeIcon.asCSSSelector(Codicon.add)));
-		append(add, $('span', undefined, addLabel));
-		this.viewDisposables.add(addDisposableListener(add, EventType.CLICK, () => {
-			rows.push(create());
-			if (list !== 'samples') {
-				rows.sort((a, b) => Number(list === 'layers' ? a.top : a.depth) - Number(list === 'layers' ? b.top : b.depth));
-			}
-			this.changed(true);
-			const index = rows.length - 1;
-			this.inputs.get(this.problemKey(boreholeIndex, `${list}.${index}.${fields[0].key}`))?.focus();
-		}));
-
-		const scroller = append(section, $('.soil-table-scroll'));
-		const width = fields.reduce((sum, field) => sum + (field.width ?? 64), 0) + computed.length * 60 + 28;
-		const table = append(scroller, $('table.soil-table', { 'aria-label': title, style: `width: ${width}px` }));
-		const colgroup = append(table, $('colgroup'));
-		const head = append(append(table, $('thead')), $('tr'));
-		for (const field of fields) {
-			append(colgroup, $('col', { style: `width: ${field.width ?? 64}px` }));
-			const th = append(head, $(field.kind === 'text' || field.kind === 'soilType' ? 'th' : 'th.number', { title: field.title ?? '' }));
-			append(th, $('span', undefined, field.label));
-			if (field.unit) {
-				append(th, $('span.soil-unit', undefined, field.unit));
-			}
-		}
-		for (const column of computed) {
-			append(colgroup, $('col', { style: 'width: 60px' }));
-			const th = append(head, $('th.computed', { title: column.title }));
-			append(th, $('span', undefined, column.label));
-		}
-		append(colgroup, $('col', { style: 'width: 28px' }));
-		append(head, $('th'));
-		const body = append(table, $('tbody'));
-		rows.forEach((row, index) => {
-			const tr = append(body, $('tr'));
-			const updateHint = this.siltHint(borehole, list, row, tr, fields.length + computed.length + 1);
-			for (const field of fields) {
-				const td = append(tr, $('td'));
-				append(td, this.createInput(field, row[field.key], value => {
-					if (value === undefined) {
-						delete row[field.key];
-					} else {
-						row[field.key] = value;
-					}
-					updateHint();
-					this.changed(field.kind === 'soilType');
-				}, this.problemKey(boreholeIndex, `${list}.${index}.${field.key}`)));
-			}
-			for (const column of computed) {
-				const value = column.value(row);
-				append(tr, $('td.number.computed', undefined, typeof value === 'number' ? formatNumber(value, 1) : ''));
-			}
-			const remove = append(append(tr, $('td.soil-row-actions')), $<HTMLButtonElement>('button.soil-remove', { type: 'button', title: localize('soil.removeRow', "Remove"), 'aria-label': localize('soil.removeRow', "Remove") }));
-			append(remove, $(ThemeIcon.asCSSSelector(Codicon.trash)));
-			this.viewDisposables.add(addDisposableListener(remove, EventType.CLICK, () => {
-				rows.splice(index, 1);
-				this.changed(true);
-			}));
-		});
-		if (!rows.length) {
-			append(append(body, $('tr')), $('td.soil-muted', { colspan: String(fields.length + computed.length + 1) }, localize('soil.noRows', "None yet.")));
-		}
-	}
-
-	/**
-	 * Under a silt layer with neither a PI nor a cu, a quiet line asking whether it is plastic
-	 * (the backend treats it as non-plastic, granular). Returns the function that shows or hides
-	 * it as the row is edited; other lists get a no-op.
-	 */
-	private siltHint(borehole: IBorehole, list: RowList, row: { [key: string]: unknown }, tr: HTMLElement, columns: number): () => void {
-		if (list !== 'layers') {
-			return () => { };
-		}
-		const layer = row as ISoilLayer;
-		const hintRow = $('tr.soil-hint-row');
-		tr.after(hintRow);
-		const hint = append(append(hintRow, $('td', { colspan: String(columns) })), $('span.soil-hint'));
-		append(hint, $(ThemeIcon.asCSSSelector(Codicon.info)));
-		append(hint, $('span', undefined, localize('soil.siltPlasticHint', "Is this silt plastic? Give PI or cu.")));
-		const update = () => {
-			const show = siltNeedsPlasticity(borehole, layer);
-			hintRow.hidden = !show;
-			tr.classList.toggle('soil-has-hint', show);
-		};
-		update();
-		return update;
 	}
 
 	private problemKey(boreholeIndex: number | undefined, path: string): string {
@@ -995,6 +1163,9 @@ export class SoilEditor extends EditorPane {
 		disposables.add(addDisposableListener(input, EventType.BLUR, () => {
 			if (!input.classList.contains('invalid')) {
 				this.flush();
+			}
+			if (this.renderPending) {
+				this.pendingRenderScheduler.schedule();
 			}
 		}));
 		if (key) {
@@ -1441,8 +1612,15 @@ export class SoilEditor extends EditorPane {
 
 	private renderBoreholeProperties(panel: HTMLElement, report: ISoilReport, borehole: IBorehole): void {
 		appendPropertyHeading(panel, localize('soil.boreholeHeading', "Borehole {0}", borehole.id));
+		const placed = boreholePosition(borehole) !== 'project';
 		for (const field of BOREHOLE_FIELDS) {
 			const placeholder = field.key === 'groundLevel' ? formatNumber(report.groundLevel / 1000, 3) : undefined;
+			if (placed && (field.key === 'x' || field.key === 'y')) {
+				// Placed by its own lat/lon: X and Y follow from them (the Map view).
+				const row = appendPropertyRow(panel, field.label, localize('soil.xyValue', "{0} m", formatField(field, borehole[field.key])));
+				row.title = localize('soil.sheet.xyFromMap', "Worked out from the latitude and longitude (or BTM); clear them to place the borehole by X and Y.");
+				continue;
+			}
 			this.propertyInput(panel, field, borehole[field.key], value => {
 				// An id already in use is stored too: the check marks it (here and in the list), and
 				// the borehole stays selectable because selection goes by position.
@@ -1553,6 +1731,350 @@ export class SoilEditor extends EditorPane {
 		row.title = choiceTitle(spec);
 	}
 
+	// ───────────────────────────── map view ─────────────────────────────
+
+	private renderMapView(report: ISoilReport): void {
+		this.mapView.value = new SoilMapView(this.viewElement, this.mapHost(report), this.mapState);
+	}
+
+	/** What the map view shows, and where its changes go. */
+	private mapHost(report: ISoilReport): ISoilMapHost {
+		return {
+			report,
+			location: this.location,
+			locationState: this.locationState,
+			tiles: tileSource(this.configurationService.getValue(MAP_TILE_URL_SETTING), this.configurationService.getValue(MAP_TILE_ATTRIBUTION_SETTING)),
+			qgis: this.qgis,
+			selected: this.selected,
+			moveSite: position => this.moveSite(position),
+			setRotation: degrees => {
+				const site = report.site ??= {};
+				if (degrees === undefined || degrees === 0) {
+					delete site.rotation;
+				} else {
+					site.rotation = degrees;
+				}
+				this.changed(true);
+			},
+			moveBorehole: (index, position) => void this.moveBorehole(index, position),
+			moveBoreholeOnGrid: (index, x, y) => {
+				const borehole = report.boreholes[index];
+				if (!borehole) {
+					return;
+				}
+				borehole.x = x;
+				borehole.y = y;
+				// Moved in the project coordinates: its lat/lon (or BTM) now follow from them.
+				delete borehole.lat;
+				delete borehole.lon;
+				delete borehole.easting;
+				delete borehole.northing;
+				delete borehole.position;
+				this.selected = index;
+				this.changed(true);
+			},
+			select: index => this.select(index),
+			applyBnbc: suggestion => this.applyBnbc(suggestion),
+			exportGis: format => void this.exportGis(format),
+			importGis: () => void this.importGis(),
+			openInQgis: () => void this.openInQgis(),
+			openLink: url => void this.openerService.open(URI.parse(url), { openExternal: true }),
+		};
+	}
+
+	private moveSite(position: ILatLon): void {
+		if (!this.report) {
+			return;
+		}
+		const site = this.report.site ??= {};
+		site.lat = Number(position.lat.toFixed(7));
+		site.lon = Number(position.lon.toFixed(7));
+		this.mapState.center = { lat: site.lat, lon: site.lon };
+		this.changed(true);
+	}
+
+	/**
+	 * A borehole dragged on the map (or given its lat/lon): the backend works out its project
+	 * x, y from the site's georeference, and both are stored as one edit.
+	 */
+	private async moveBorehole(index: number, position: ILatLon): Promise<void> {
+		const report = this.report;
+		const borehole = report?.boreholes[index];
+		if (!report || !borehole) {
+			return;
+		}
+		borehole.lat = Number(position.lat.toFixed(7));
+		borehole.lon = Number(position.lon.toFixed(7));
+		if (borehole.position !== undefined || typeof borehole.easting === 'number') {
+			borehole.position = 'wgs84'; // the map's position places it now
+		}
+		this.selected = index;
+		const result = await this.askLocation(serializeSoilReport(report));
+		const placed = result?.boreholes?.find(b => b.id === borehole.id);
+		if (this.report === report && typeof placed?.x === 'number' && typeof placed.y === 'number') {
+			borehole.x = Math.round(placed.x);
+			borehole.y = Math.round(placed.y);
+			this.location = result;
+			this.locationState = 'ok';
+		}
+		if (this.report === report) {
+			this.changed(true);
+		}
+	}
+
+	/** The backend's answer for the report's text, or undefined without a backend or on failure. */
+	private async askLocation(soilText: string): Promise<ISoilLocationResult | undefined> {
+		if (!CommandsRegistry.getCommand(SOIL_LOCATION_COMMAND)) {
+			return undefined;
+		}
+		await this.openBim();
+		const request: ISoilLocationRequest = {
+			soilText,
+			bimText: this.bim.value?.object.textEditorModel.getValue(),
+			settingsText: this.settings.value?.object.textEditorModel.getValue(),
+		};
+		try {
+			return await this.commandService.executeCommand<ISoilLocationResult>(SOIL_LOCATION_COMMAND, request) ?? undefined;
+		} catch {
+			return undefined;
+		}
+	}
+
+	/** Where the site, the boreholes and the building are (debounced after edits while the map shows). */
+	private async computeLocation(): Promise<void> {
+		const model = this.model;
+		if (!model || !this.report) {
+			return;
+		}
+		const version = ++this.locationVersion;
+		if (!CommandsRegistry.getCommand(SOIL_LOCATION_COMMAND)) {
+			this.locationState = 'missing';
+			this.location = undefined;
+			this.updateMapView();
+			return;
+		}
+		this.flush();
+		this.locationState = 'computing';
+		let result: ISoilLocationResult | undefined;
+		let failed = false;
+		try {
+			await this.openBim();
+			result = await this.commandService.executeCommand<ISoilLocationResult>(SOIL_LOCATION_COMMAND, {
+				soilText: model.getValue(),
+				bimText: this.bim.value?.object.textEditorModel.getValue(),
+				settingsText: this.settings.value?.object.textEditorModel.getValue(),
+			} satisfies ISoilLocationRequest) ?? undefined;
+		} catch (error) {
+			failed = true;
+			result = { problems: [error instanceof Error ? error.message : String(error)] };
+		}
+		if (version !== this.locationVersion) {
+			return;
+		}
+		this.location = result;
+		this.locationState = failed || !result ? 'error' : 'ok';
+		this.updateMapView();
+	}
+
+	private updateMapView(): void {
+		if (this.view === 'map' && this.report) {
+			this.mapView.value?.update(this.mapHost(this.report));
+		}
+	}
+
+	/** The building model, for its outline; opened once, with the Map view. */
+	private async openBim(): Promise<void> {
+		const resource = this.resource;
+		const part = partById('bim');
+		if (this.bimRequested || !resource || !part?.mainFile) {
+			return;
+		}
+		this.bimRequested = true;
+		try {
+			const reference = await this.textModelService.createModelReference(joinPath(dirname(dirname(resource)), part.folder, part.mainFile));
+			if (this.resource !== resource) {
+				reference.dispose();
+				return;
+			}
+			this.bim.value = reference;
+			this.inputDisposables.add(reference.object.textEditorModel.onDidChangeContent(() => {
+				if (this.view === 'map') {
+					this.locationScheduler.schedule();
+				}
+			}));
+		} catch {
+			// No building yet: the map has no outline.
+		}
+	}
+
+	/** Asks the backend once for the QGIS on this computer ("Open in QGIS" shows when found). */
+	private async findQgis(): Promise<void> {
+		if (this.qgisAsked || !CommandsRegistry.getCommand(SOIL_QGIS_PROGRAM_COMMAND)) {
+			return;
+		}
+		this.qgisAsked = true;
+		try {
+			const found = await this.commandService.executeCommand<QgisProgramResult>(SOIL_QGIS_PROGRAM_COMMAND, {});
+			const path = typeof found === 'string' ? found : found?.path;
+			this.qgis = path ? { path, version: typeof found === 'object' ? found?.version ?? undefined : undefined } : undefined;
+		} catch {
+			this.qgis = undefined;
+		}
+		this.updateMapView();
+	}
+
+	/**
+	 * The nearest BNBC town into the project settings (only on the engineer's click): its
+	 * location when the settings list it, else Custom with its Z and V; the overrides of a listed
+	 * location are removed, except the wind speed when a nearer other town gives it. One undoable edit of the settings file, its formatting kept.
+	 */
+	applyBnbc(suggestion: IBnbcSuggestion): void {
+		const model = this.settings.value?.object.textEditorModel;
+		if (!model || model.isDisposed()) {
+			this.notificationService.info(localize('soil.map.noSettings', "The project settings could not be opened."));
+			return;
+		}
+		const values: [string, unknown][] = suggestion.location
+			// The wind of a nearer other town (as the banner shows it) stays as the location's override.
+			? [['location', suggestion.location], ['zoneCoefficient', undefined], ['windSpeed', suggestion.windSpeedOverride]]
+			: [['location', 'custom'], ['zoneCoefficient', suggestion.Z], ['windSpeed', suggestion.windSpeed]];
+		const options = model.getOptions();
+		const formatting = { tabSize: options.tabSize, insertSpaces: options.insertSpaces, eol: model.getEOL() };
+		model.pushStackElement();
+		for (const [key, value] of values) {
+			const edits = setProperty(model.getValue(), ['site', key], value, formatting);
+			model.pushEditOperations([], edits.map(edit => {
+				const start = model.getPositionAt(edit.offset);
+				const end = model.getPositionAt(edit.offset + edit.length);
+				return { range: new Range(start.lineNumber, start.column, end.lineNumber, end.column), text: edit.content };
+			}), () => null);
+		}
+		model.pushStackElement();
+		const name = suggestion.location ? BNBC.locations[suggestion.location]?.name ?? suggestion.location : localize('soil.map.custom', "Custom");
+		this.notificationService.info(localize('soil.map.applied', "The project settings now use {0} for the seismic zone and the basic wind speed. Save the settings to keep it.", name));
+	}
+
+	private exportsFolder(): URI | undefined {
+		const resource = this.resource;
+		const part = partById('exports');
+		return resource && part ? joinPath(dirname(dirname(resource)), part.folder) : undefined;
+	}
+
+	/** Exports the site, the boreholes and the outline for QGIS (asks where when `file` is not given). */
+	async exportGis(format: GisFormat, file?: URI): Promise<URI | undefined> {
+		this.flush();
+		const resource = this.resource;
+		if (!resource) {
+			return undefined;
+		}
+		if (!CommandsRegistry.getCommand(SOIL_GIS_EXPORT_COMMAND)) {
+			this.notificationService.info(localize('soil.gisNoBackend', "The GIS exchange needs the SAEngine backend, which is not available in this window."));
+			return undefined;
+		}
+		const extension = format === 'gpkg' ? 'gpkg' : 'geojson';
+		if (!file) {
+			const folder = this.exportsFolder();
+			file = await this.fileDialogService.showSaveDialog({
+				title: format === 'gpkg' ? localize('soil.gisExportGpkgTitle', "Export GeoPackage") : localize('soil.gisExportGeoJsonTitle', "Export GeoJSON"),
+				defaultUri: folder ? joinPath(folder, `site.${extension}`) : undefined,
+				filters: [format === 'gpkg'
+					? { name: localize('soil.gisGpkg', "GeoPackage"), extensions: ['gpkg'] }
+					: { name: localize('soil.gisGeoJson', "GeoJSON"), extensions: ['geojson', 'json'] }],
+			});
+		}
+		if (!file) {
+			return undefined;
+		}
+		try {
+			const request: ISoilGisExportRequest = { projectRoot: dirname(dirname(resource)).fsPath, format, outPath: file.fsPath };
+			const result = await this.commandService.executeCommand<ISoilGisExportResult>(SOIL_GIS_EXPORT_COMMAND, request);
+			if (!result?.path) {
+				this.notificationService.warn(localize('soil.gisExportProblems', "The GIS file could not be written: {0}", (result?.problems ?? []).join('; ')));
+				return undefined;
+			}
+			if (result.problems?.length) {
+				this.notificationService.warn(localize('soil.gisExportedNotes', "Exported {0} with notes: {1}", basename(file), result.problems.join('; ')));
+			} else {
+				this.notificationService.info(localize('soil.gisExported', "Exported the site and the boreholes to {0}.", basename(file)));
+			}
+			return URI.file(result.path);
+		} catch (error) {
+			this.notificationService.error(localize('soil.gisExportFailed', "The GIS file could not be written: {0}", String(error)));
+			return undefined;
+		}
+	}
+
+	/** Imports boreholes (points) from a GeoJSON or GeoPackage file (asks for it when `file` is not given). */
+	async importGis(file?: URI): Promise<void> {
+		this.flush();
+		const model = this.model;
+		if (!model || !this.report) {
+			return;
+		}
+		if (!CommandsRegistry.getCommand(SOIL_GIS_IMPORT_COMMAND)) {
+			this.notificationService.info(localize('soil.gisNoBackend', "The GIS exchange needs the SAEngine backend, which is not available in this window."));
+			return;
+		}
+		if (!file) {
+			const picked = await this.fileDialogService.showOpenDialog({
+				title: localize('soil.gisImportTitle', "Import from GIS"),
+				canSelectFiles: true,
+				canSelectMany: false,
+				filters: [{ name: localize('soil.gisFiles', "GeoPackage, GeoJSON"), extensions: ['gpkg', 'geojson', 'json'] }],
+				defaultUri: this.exportsFolder(),
+			});
+			file = picked?.[0];
+		}
+		if (!file || this.model !== model) {
+			return;
+		}
+		const before = new Set(this.report.boreholes.map(b => b.id));
+		let result: (ISoilGisImportResult & { readonly text?: string }) | undefined;
+		this.setBusy('gisImport', true);
+		try {
+			const request: ISoilGisImportRequest = { path: file.fsPath, soilText: serializeSoilReport(this.report) };
+			result = await this.commandService.executeCommand<ISoilGisImportResult>(SOIL_GIS_IMPORT_COMMAND, request);
+		} catch (error) {
+			this.notificationService.error(localize('soil.importFailed', "{0} could not be imported: {1}", basename(file), String(error)));
+			return;
+		} finally {
+			this.setBusy('gisImport', false);
+		}
+		const text = result?.soilText ?? result?.text;
+		const parsed = text ? parseSoilReport(text) : undefined;
+		if (parsed?.kind !== 'report' || this.model !== model) {
+			this.notificationService.warn(localize('soil.importProblems', "{0} could not be imported: {1}", basename(file), (result?.problems ?? []).join('; ')));
+			return;
+		}
+		this.report = parsed.report;
+		const added = parsed.report.boreholes.filter(b => !before.has(b.id)).length;
+		this.changed(true);
+		const notes = [...result?.problems ?? [], ...result?.notes ?? []];
+		this.notificationService.info(notes.length
+			? localize('soil.importedWithProblems', "Imported {0} with notes: {1}", basename(file), notes.join('; '))
+			: localize('soil.gisImported', "Imported {0}: {1} new borehole(s), the others' positions updated.", basename(file), added));
+	}
+
+	/** Writes the GeoPackage to the exports folder and opens it in QGIS. */
+	async openInQgis(): Promise<void> {
+		const folder = this.exportsFolder();
+		if (!folder || !this.qgis?.path || !CommandsRegistry.getCommand(SOIL_OPEN_IN_QGIS_COMMAND)) {
+			return;
+		}
+		const file = await this.exportGis('gpkg', joinPath(folder, 'site-map.gpkg'));
+		if (!file) {
+			return;
+		}
+		try {
+			const request: IOpenInQgisRequest = { path: file.fsPath };
+			const result = await this.commandService.executeCommand<IOpenInQgisResult>(SOIL_OPEN_IN_QGIS_COMMAND, request);
+			if (result && !result.ok && result.problems?.length) {
+				this.notificationService.warn(localize('soil.qgisFailed', "QGIS could not be started: {0}", result.problems.join('; ')));
+			}
+		} catch (error) {
+			this.notificationService.warn(localize('soil.qgisFailed', "QGIS could not be started: {0}", String(error)));
+		}
+	}
 	// ───────────────────────────── status line ─────────────────────────────
 
 	private renderStatus(): void {

@@ -23,7 +23,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IFemResultEntry, IFemResultList, IFemResultView } from '../../../../platform/saengine/common/femSolver.js';
 import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { EditorFrame, IEditorFrameIconButton, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
-import { describeDesignSummary, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignReport, resultsFolder, runDesign, sortedChecks, writeDesignSummary } from './femDesign.js';
+import { describeDesignSummary, describeSteel, describeSteelRatio, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, otherFailureElements, requiredSteelOf, resultsFolder, runDesign, runDesignRequired, shortElements, sortedChecks, tooSmallElements, writeDesignSummary } from './femDesign.js';
 import { FemSsiPanel } from './femSsi.js';
 
 export { resultsFolder } from './femDesign.js';
@@ -345,6 +345,10 @@ export class FemResultsBar extends Disposable {
 	private signature: string | undefined;
 	/** The design checks of the current run, once asked for (the "Design Utilisation" option). */
 	private design: IFemDesignReport | undefined;
+	/** The steel the members require, read with the checks when the backend offers it. */
+	private required: IFemDesignRequired | undefined;
+	/** The required steel is being worked out (after the checks show). */
+	private requiredLoading = false;
 	private designProblem: string | undefined;
 	private designLoading = false;
 	private designToken = 0;
@@ -590,6 +594,8 @@ export class FemResultsBar extends Disposable {
 
 	private clearDesign(): void {
 		this.design = undefined;
+		this.required = undefined;
+		this.requiredLoading = false;
 		this.designProblem = undefined;
 		this.designLoading = false;
 		this.designToken++;
@@ -617,6 +623,8 @@ export class FemResultsBar extends Disposable {
 		this.designLoading = true;
 		let report: IFemDesignReport | undefined;
 		let problem: string | undefined;
+		// The required steel is extra: without it (no backend yet, or it failed) the checks still show.
+		const required = runDesignRequired(this.commandService, resource).catch(() => undefined);
 		try {
 			report = await runDesign(this.commandService, resource);
 			if (!report) {
@@ -635,7 +643,16 @@ export class FemResultsBar extends Disposable {
 			// The project's part list reads the verdict from beside the results.
 			void writeDesignSummary(this.fileService, resource, report).catch(() => undefined);
 		}
+		// The required steel takes longer (it sizes bars): it joins the checks when it comes, and
+		// the checks shown meanwhile say it is on its way.
+		this.requiredLoading = !!report;
 		this.render();
+		const steel = report ? await required : undefined;
+		if (token === this.designToken && resource === this.resource) {
+			this.required = steel;
+			this.requiredLoading = false;
+			this.render();
+		}
 	}
 
 	private async showResult(): Promise<void> {
@@ -1023,6 +1040,27 @@ export class FemResultsBar extends Disposable {
 			if (report.summary.maxUtilisation !== null && report.summary.governing) {
 				propertyRow(container, localize('femResults.designLargest', "Largest"), localize('femResults.designLargestValue', "{0} in {1}", formatUtilisation(report.summary.maxUtilisation), report.summary.governing));
 			}
+			const steel = this.required?.summary;
+			if (steel) {
+				// Members, not the backend's rows (one per zone, strip and layer).
+				const short = shortElements(this.required);
+				propertyRow(container, localize('femResults.steelShortCount', "Steel short"), short.length
+					? localize('femResults.steelShortMembers', "{0} ({1})", short.length, short.length > 6 ? localize('femResults.steelShortMore', "{0}, ...", short.slice(0, 6).join(', ')) : short.join(', '))
+					: '0');
+				// The backend's summary.tooSmall also holds footings failing bearing or resultant,
+				// which bars cannot fix but a larger section is not the only answer to.
+				const tooSmall = tooSmallElements(this.required);
+				if (tooSmall.length) {
+					propertyRow(container, localize('femResults.steelTooSmallCount', "Too small"), tooSmall.join(', '));
+				}
+				const others = otherFailureElements(this.required);
+				if (others.length) {
+					propertyRow(container, localize('femResults.steelOtherFailures', "Other checks fail"), others.join(', '));
+				}
+				if (steel.assumed?.length) {
+					propertyRow(container, localize('femResults.steelNoBars', "No bars yet"), steel.assumed.join(', '));
+				}
+			}
 			propertyNote(container, localize('femResults.designSelect', "Select a member, or a slab's shell, for its checks."));
 			return;
 		}
@@ -1031,10 +1069,21 @@ export class FemResultsBar extends Disposable {
 			const name = this.view?.elements.find(e => e.id === selection.id)?.name ?? this.view?.shells?.find(s => s.id === selection.id)?.name;
 			const id = name?.split('#')[0];
 			const skipped = id !== undefined ? report.skipped.find(s => s.id === id) : undefined;
+			const steel = requiredSteelOf(this.required, id);
+			if (steel.length) {
+				// A member without bars yet: the steel it needs, not an error.
+				propertyHeading(container, localize('femResults.memberHeading', "{0} ({1} {2})", id, designKindLabel(steel[0].kind), steel[0].type));
+				propertyNote(container, localize('femResults.noBarsYet', "No bars entered yet: the steel it requires is shown. Design Reinforcement proposes bars."));
+				this.renderSteel(container, steel, false);
+				return;
+			}
 			propertyHeading(container, id ?? localize('femResults.elementHeading', "Element {0}", selection.id));
 			propertyNote(container, skipped
 				? localize('femResults.notChecked', "Not checked ({0}): {1}.", skipped.type, skipped.reason)
 				: localize('femResults.noDesign', "This element is not designed (only reinforced-concrete beams, columns and slabs are)."));
+			if (skipped && this.requiredLoading) {
+				propertyNote(container, localize('femResults.steelLoading', "Working out the steel required..."));
+			}
 			return;
 		}
 		propertyHeading(container, localize('femResults.memberHeading', "{0} ({1} {2})", element.id, designKindLabel(element.kind), element.type));
@@ -1054,6 +1103,54 @@ export class FemResultsBar extends Disposable {
 		const governing = checks.find(c => !c.flag);
 		if (governing?.note) {
 			propertyNote(container, localize('femResults.governing', "Governing: {0}.", governing.note));
+		}
+		this.renderSteel(container, requiredSteelOf(this.required, element.id), true);
+		if (this.requiredLoading) {
+			propertyNote(container, localize('femResults.steelLoading', "Working out the steel required..."));
+		}
+	}
+
+	/**
+	 * The steel a member requires next to the steel provided, per quantity (its governing zone,
+	 * strip or layer), with the combination that governs it. `heading`: under a heading of its
+	 * own, below the member's checks.
+	 */
+	private renderSteel(container: HTMLElement, rows: readonly IFemSteelRequirement[], heading: boolean): void {
+		if (!rows.length) {
+			return;
+		}
+		if (heading) {
+			propertyHeading(container, localize('femResults.steelHeading', "Required Steel"));
+		}
+		for (const steel of rows) {
+			if (isOtherFailure(steel)) {
+				// A check bars cannot fix (a footing's bearing): the failure, not a quantity of steel.
+				const row = append(container, $('.fem-design-check.fem-design-steel.fail'));
+				const head = append(row, $('.fem-design-check-head'));
+				append(head, $('span.name', undefined, localize('femResults.otherCheck', "Other check")));
+				append(head, $('span.value', undefined, localize('femResults.otherCheckFails', "fails")));
+				append(row, $('.fem-design-check-steel', undefined, describeSteel(steel)));
+				append(row, $('.fem-design-check-detail', undefined, localize('femResults.otherCheckHint', "Bars do not fix this: change the size or the depth.")));
+				continue;
+			}
+			const verdict = steel.tooSmall ? 'fail' : steel.ok === null ? 'required-only' : steel.ok ? 'pass' : 'fail';
+			const row = append(container, $(`.fem-design-check.fem-design-steel.${verdict}`));
+			const head = append(row, $('.fem-design-check-head'));
+			append(head, $('span.name', undefined, steel.quantity));
+			append(head, $('span.value', undefined, steel.tooSmall
+				? localize('femResults.steelTooSmall', "section too small")
+				: steel.ok === null ? localize('femResults.steelRequired', "required")
+					: steel.ok ? localize('femResults.steelEnough', "enough") : localize('femResults.steelShort', "short")));
+			append(row, $('.fem-design-check-steel', undefined, describeSteel(steel)));
+			const ratio = describeSteelRatio(steel);
+			if (ratio) {
+				append(row, $('.fem-design-check-steel', undefined, ratio));
+			}
+			const where = [steel.location, ...(steel.combination ? [steel.combination] : [])];
+			append(row, $('.fem-design-check-detail', undefined, where.join(', ')));
+			if (steel.notes && (steel.tooSmall || steel.ok === false)) {
+				append(row, $('.fem-design-check-detail', undefined, steel.notes));
+			}
 		}
 	}
 

@@ -111,7 +111,7 @@ schema.
 ok       analysis model: Derived 193 nodes and 195 elements; base shear 103.9 kN, seismic weight 824.8 kN.
 ok       analysis: Analysis complete: 12 case(s).
 skipped  fixed-base run for the soil springs: The supports are not soil springs.
-ok       design checks: 10 pass, 5 fail
+ok       design checks: 10 pass, 5 fail; steel short in 6 element(s)
 ok       foundation design: foundations 0 pass, 1 fail
 ok       MEP coordination, plumbing, HVAC and electrical checks: MEP: failing openings 0, open clashes 0 · plumbing: failing checks 2, floors below the minimum pressure 1 · HVAC: failing checks 2, openings to add 0 · electrical: failing checks 0, openings to add 1
 ok       bill of quantities: BOQ updated
@@ -274,7 +274,7 @@ The steps are the app's Run All (`saengine.runAll`), in its order, writing the s
 | `derive` | Derives the analysis model when it is not derived or a source (building model, settings, object types, materials, the soil report or substructure it took, the MEP loads) changed; `skipped` when current. | `08 FEM/model.osmodel`, `pushover.osmodel`, `thermal.json`, `ssi.json` |
 | `analysis` | Runs every analysis case with OpenSees Studio's runner (`python -m opensees_studio.run`). | `08 FEM/model.results/` |
 | `ssi` | On soil springs only: the fixed-base model and the comparison. | `08 FEM/model-fixed.*`, `ssi-compare.json` |
-| `design` | The RC member design checks. | `08 FEM/model.results/design-summary.json` |
+| `design` | The RC member design checks, then the steel each element requires next to the bars entered (design mode; the message adds the elements short of steel and the sections too small). | `08 FEM/model.results/design-summary.json`, `design-required.json` (kept while the project does not change; the report reads it) |
 | `substructure` | Designs the foundations of 9 Substructure; `skipped` without foundations. | `09 Substructure/substructure.results/summary.json` |
 | `mep` | The coordination of 7 MEP (equipment loads, openings, clashes), its plumbing (BNBC 2020 Part 8 sizing, tank designs, hydraulics), HVAC and electrical checks; the openings still missing are reported, never added. `skipped` while 7 MEP is empty. | `07 MEP/mep.results/` |
 | `boq` | Measures the bill of quantities when a source changed (or the plumbing has just designed tanks whose bars it waits for); `skipped` when current. | `10 BOQ/boq.json` |

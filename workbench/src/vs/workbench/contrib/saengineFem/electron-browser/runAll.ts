@@ -28,7 +28,7 @@ import { hasHvac, HVAC_REPORT_COMMAND, hvacFailures, hvacSummaryFile, IHvacRepor
 import { ELECTRICAL_REPORT_COMMAND, electricalFailures, electricalSummaryFile, hasElectrical, IElectricalReport, readElectricalReport } from '../../saengineMep/browser/electricalDocument.js';
 import { DERIVATION_INPUTS, deriveAnalysisModel, derivationState, partFile, SSI_FILE } from '../browser/femDerivationBar.js';
 import { SSI_COMPARE_COMMAND } from '../browser/femSsi.js';
-import { IFemDesignReport, runDesign, writeDesignSummary } from '../browser/femDesign.js';
+import { IFemDesignReport, IFemDesignRequired, runDesign, runDesignRequired, shortElements, tooSmallElements, writeDesignSummary } from '../browser/femDesign.js';
 import { errorSummary } from '../browser/femResultsBar.js';
 import { FemAnalysisRunner } from './femAnalysisRunner.js';
 
@@ -298,13 +298,25 @@ export class RunAllService implements IRunAllService {
 		return true;
 	}
 
-	private async design(model: URI): Promise<IFemDesignReport> {
+	/**
+	 * The design checks, then (design mode) the steel each element requires, which the backend
+	 * keeps beside the results (`design-required.json`) for the Properties panel and the report.
+	 * The required steel is a note when it cannot be worked out: the checks are the verdict.
+	 * Mirrors `_design` of `saengine.pipeline.run_all`.
+	 */
+	private async design(model: URI): Promise<{ readonly report: IFemDesignReport; readonly required: IFemDesignRequired | undefined }> {
 		const report = await runDesign(this.commandService, model);
 		if (!report) {
 			throw new StepFailure(localize('runAll.designUnavailable', "The design checks are not available."));
 		}
 		await writeDesignSummary(this.fileService, model, report);
-		return report;
+		let required: IFemDesignRequired | undefined;
+		try {
+			required = await runDesignRequired(this.commandService, model);
+		} catch {
+			required = undefined;
+		}
+		return { report, required };
 	}
 
 	/**
@@ -509,15 +521,21 @@ export class RunAllService implements IRunAllService {
 	}
 
 	/** "Done: 13 pass, 3 fail · foundations 6 pass, 1 fail · MEP: failing openings 1, open clashes 2 · plumbing: 3 checks fail, 1 floor below the minimum pressure · HVAC: failing checks 1, openings to add 0, loads not calculated: run Calculate Loads · electrical: failing checks 0, openings to add 1 · BOQ updated · report written", with Open Report. */
-	private showSummary(design: IFemDesignReport, foundations: ISubstructureReport | undefined, checked: IMepChecks | undefined, derived: boolean, boqUpdated: boolean, pdf: URI): void {
+	private showSummary(checks: { readonly report: IFemDesignReport; readonly required: IFemDesignRequired | undefined }, foundations: ISubstructureReport | undefined, checked: IMepChecks | undefined, derived: boolean, boqUpdated: boolean, pdf: URI): void {
 		const mep = checked?.mep;
 		const failedOpenings = mep ? mep.openings.filter(o => !o.ok).length : 0;
 		const openClashes = mep ? mep.clashes.filter(isOpenClash).length : 0;
 		const plumbing = checked?.plumbing ? plumbingFailures(checked.plumbing) : undefined;
 		const hvac = checked?.hvac;
 		const electrical = checked?.electrical;
+		const design = checks.report;
+		const short = shortElements(checks.required).length;
+		const tooSmall = tooSmallElements(checks.required).length;
+		const designText = localize('runAll.summary.design', "{0} pass, {1} fail", design.summary.passed, design.summary.failed)
+			+ (short ? localize('runAll.summary.steelShort', "; steel short in {0} element(s)", short) : '')
+			+ (tooSmall ? localize('runAll.summary.tooSmall', ", {0} section(s) too small", tooSmall) : '');
 		const parts = [
-			localize('runAll.summary.design', "{0} pass, {1} fail", design.summary.passed, design.summary.failed),
+			designText,
 			...(foundations ? [localize('runAll.summary.foundations', "foundations {0} pass, {1} fail", foundations.summary.passed, foundations.summary.failed)] : []),
 			...(mep ? [localize('runAll.summary.mep', "MEP: failing openings {0}, open clashes {1}", failedOpenings, openClashes)] : []),
 			...(plumbing ? [localize('runAll.summary.plumbing', "plumbing: failing checks {0}, floors below the minimum pressure {1}", plumbing.items, plumbing.floorsLow)] : []),
