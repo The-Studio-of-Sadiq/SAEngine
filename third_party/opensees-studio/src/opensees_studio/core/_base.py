@@ -45,7 +45,8 @@ def omit_when_default(*names: str) -> Any:
         data = handler(self)
         fields = type(self).model_fields
         for name in names:
-            if getattr(self, name) == fields[name].default:
+            # A list option (``default_factory=list``) is left out while it is empty.
+            if getattr(self, name) == fields[name].get_default(call_default_factory=True):
                 data.pop(fields[name].alias or name, None)
         return data
 

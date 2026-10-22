@@ -29,15 +29,14 @@ from typing import Any
 import numpy as np
 
 from saengine.design import slab
+from saengine.design import slender as slenderness_design
 from saengine.design.rc import (
-    SLENDERNESS_LIMIT,
     DesignError,
     InteractionSurface,
     RcSection,
     flexure,
     section_of,
     shear,
-    slenderness,
 )
 from saengine.library.bim import (
     AreaElement,
@@ -78,11 +77,6 @@ METHOD = [
         "interaction surface at the demand's axial force in the direction of its moment vector; "
         "φPn,max = 0.80 φ P0 (tied) or 0.85 φ P0 (spiral). Column shear is not checked."
     ),
-    (
-        "Slenderness is reported, not designed for: k = 1, lu = the analysis element's length, "
-        "r = 0.3 h or 0.25 D, against {limit:g} (sway frames, ACI 6.2.5.1); moments are not "
-        "magnified for second-order effects."
-    ),
 ]
 
 
@@ -98,6 +92,11 @@ class _Piece:
     forces: list[np.ndarray]  # per combination: (stations, 6) N, Vy, Vz, T, My, Mz [N, N·m]
     start: np.ndarray | None = None  # end coordinates [m]
     end: np.ndarray | None = None
+    #: Per combination, the part of ``forces`` from its lateral load cases (wind, earthquake,
+    #: response spectrum: the sway moments Ms of slenderness) and from its sustained ones (D,
+    #: SD: βdns); None when not formed.
+    sway: list[np.ndarray] | None = None
+    sustained: list[np.ndarray] | None = None
 
 
 def design_report(out_dir: str | Path, project_path: str | Path) -> dict[str, Any]:
@@ -132,7 +131,48 @@ def design_report(out_dir: str | Path, project_path: str | Path) -> dict[str, An
     objects = ObjectLibrary.model_validate_json(read("04 Objects/objects.json"))
     building = BuildingModel.model_validate_json(read("06 BIM/bim.json"))
     project = json.loads(project_path.read_text(encoding="utf-8"))
+    ensure_seismic_design(out_dir, project_path, settings)
     return design(project, out_dir, building, objects, materials, settings)
+
+
+def ensure_seismic_design(
+    out_dir: str | Path, project_path: str | Path, settings: ProjectSettings
+) -> dict[str, Any] | None:
+    """Integrator glue: when the project designs for earthquake from the response spectrum
+    (``analysis.seismicDesign``, :func:`saengine.fem.seismic_design.design_uses_spectrum`) and
+    the run has response spectrum results, the modal-force run and its summary
+    (``<out_dir>/rs-design``) that :func:`design` reads; run here when missing or stale
+    (:func:`saengine.fem.seismic_design.seismic_design` keeps it while the model and the results
+    do not change), so every caller (the app, Run All, the report) designs with the scaled
+    response spectrum rather than silently with the static EX, EY. None otherwise, or when the
+    run fails (the design then uses the static cases, with a note)."""
+    from saengine.fem import seismic_design
+
+    if not seismic_design.design_uses_spectrum(settings):
+        return None
+    if not (Path(out_dir) / "manifest.json").is_file():
+        return None
+    from saengine.library.settings import read_soil_text, resolve_site_class
+
+    # The site class the analysis used (from the soil report when the settings say so).
+    settings, _ = resolve_site_class(
+        settings, read_soil_text(Path(project_path).resolve().parent.parent)
+    )
+    _SEISMIC_PROBLEMS.pop(str(Path(out_dir)), None)
+    try:
+        summary = seismic_design.seismic_design(out_dir, project_path, settings, run=True)
+    except (OSError, ValueError, KeyError) as error:
+        _SEISMIC_PROBLEMS[str(Path(out_dir))] = str(error)
+        return None
+    if not summary.get("available") and seismic_design.expected_axes(project_path):
+        # The model has response spectrum cases but their results are incomplete (the analysis
+        # is running, or was run without them): say why the design falls back to EX, EY.
+        _SEISMIC_PROBLEMS[str(Path(out_dir))] = "; ".join(summary.get("notes", []))
+    return summary
+
+
+#: Why the response spectrum design could not be run, by results folder (for the notes).
+_SEISMIC_PROBLEMS: dict[str, str] = {}
 
 
 def design(
@@ -144,6 +184,7 @@ def design(
     settings: ProjectSettings,
     soil_text: str | None = None,
     collect: dict[str, Any] | None = None,
+    slenderness: slenderness_design.SlenderOptions | dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """:func:`design_report` with the project's parts already read. ``soil_text`` is no longer
     used: the footings it gave the allowable bearing pressures of are designed in Part 9
@@ -152,14 +193,74 @@ def design(
     ``collect``: when given, filled with what the checks worked from, for the design mode
     (:mod:`saengine.design.required`): ``"combinations"``, and per checked beam, column and
     slab under ``"members"`` and ``"slabs"`` its section or slab context, its analysis pieces
-    with their combined forces, its materials and its checks."""
-    combinations, pieces, notes, shell_forces = _demands(project, out_dir, settings)
+    with their combined forces, its materials and its checks; a column also its demand
+    ``"points"`` with the moments magnified for slenderness.
+
+    ``slenderness``: how column slenderness is designed for
+    (:class:`saengine.design.slender.SlenderOptions`, or the settings' dict of it); the
+    project settings' (:func:`saengine.design.slender.options_from_settings`) when None. The storeys' stability (sway or nonsway) is returned as
+    ``"stability"`` (:func:`saengine.design.slender.storey_rows`)."""
+    from saengine.fem import second_order, seismic_design
+
+    extra: dict[str, Any] = {}
+    if seismic_design.design_uses_spectrum(settings):
+        static: dict[str, Any] = {}
+
+        def static_demands(
+            project: dict[str, Any], out_dir: str | Path, settings: Any, inner: Any = None
+        ) -> Any:
+            found = _demands(project, out_dir, settings, inner)
+            static.update(
+                names=list(found[0]),
+                shells={i: list(rows) for i, rows in found[3].items()},
+                inner=inner if inner is not None else {},
+            )
+            return found
+
+        combinations, pieces, notes, shell_forces = seismic_design.design_demands(
+            project, out_dir, settings, extra, base=static_demands
+        )
+        if "shellSway" not in extra and static:
+            extra["shellSway"] = _spectrum_shell_sway(static, combinations, shell_forces)
+        problem = _SEISMIC_PROBLEMS.pop(str(Path(out_dir)), None)
+        if problem:
+            notes.append(
+                f"the response spectrum design could not be run: {problem}"
+                if "static cases" in problem
+                else f"the response spectrum design could not be run ({problem}): the "
+                "earthquake combinations use the static cases EX, EY"
+            )
+    else:
+        combinations, pieces, notes, shell_forces = _demands(project, out_dir, settings, extra)
+    slender_options = (
+        slenderness_design.SlenderOptions.of(slenderness)
+        if slenderness is not None
+        else slenderness_design.options_from_settings(settings)
+    )
+    if slenderness is None:
+        # Integrator glue: the analysis model says whether it is second order (P-Delta from a
+        # preload, saengine.fem.second_order), whatever the settings say now: δs is applied
+        # to a first-order model and taken as 1 in a second-order one.
+        slender_options.second_order = "pDelta" if second_order.is_second_order(project) else "none"
     if collect is not None:
         collect["combinations"] = combinations
         collect.setdefault("members", [])
         collect.setdefault("slabs", [])
     types = {o.id: o for o in objects.objects}
     mats = {m.id: m for m in materials.materials}
+    context = slenderness_design.SlenderContext(
+        project,
+        building,
+        types,
+        mats,
+        pieces,
+        combinations,
+        extra.get("lateralDisplacements", []),
+        slender_options,
+        {i: (forces, extra.get("shellSway", {}).get(i, [])) for i, forces in shell_forces.items()},
+        [bool(e) for e in extra.get("envelope", [])],
+        extra.get("storeyShear"),
+    )
 
     members: list[tuple[str, str, Any]] = []  # (id, object type id, element or addition)
     for element in building.elements:
@@ -239,13 +340,23 @@ def design(
                     )
                     column_sections[type_id] = (section, InteractionSurface(section))
                 section, surface = column_sections[type_id]
-                checks = _column_checks(section, surface, own, combinations, _turned(element))
+                slender = context.column(
+                    member_id,
+                    section,
+                    own,
+                    _turned(element),
+                    slenderness_design.concrete_modulus(concrete),
+                )
+                checks = _column_checks(
+                    section, surface, own, combinations, _turned(element), slender
+                )
         except DesignError as error:
             skip(str(error))
             continue
         strength = [c for c in checks if not c["flag"]]
         utilisation = max((c["utilisation"] for c in strength), default=0.0)
         if collect is not None:
+            column_points = slender.points if isinstance(object_type, Column) else None
             collect["members"].append(
                 {
                     "id": member_id,
@@ -260,6 +371,7 @@ def design(
                     "es": es,
                     "aggregate": concrete.concrete.maxAggregate,
                     "checks": checks,
+                    "points": column_points,
                 }
             )
         checked.append(
@@ -294,7 +406,9 @@ def design(
     failed = [e for e in checked if not e["ok"]]
     governing = max(checked, key=lambda e: e["utilisation"], default=None)
     code = settings.codes.concrete
-    method = [line.format(code=code, limit=SLENDERNESS_LIMIT) for line in METHOD]
+    method = [line.format(code=code) for line in METHOD]
+    if column_sections:
+        method += slenderness_design.method(slender_options, context.model.lateral_cracked)
     if slabs_seen:
         method += slab.METHOD
     return {
@@ -312,6 +426,9 @@ def design(
             "governing": governing["id"] if governing else None,
         },
         "notes": notes,
+        "stability": slenderness_design.storey_rows(
+            context.storeys, combinations, slender_options.sway_magnifier
+        ),
     }
 
 
@@ -632,11 +749,19 @@ def _strip_outline(strip: Any, axes: Any) -> dict[str, Any]:
 
 
 def _demands(
-    project: dict[str, Any], out_dir: str | Path, settings: ProjectSettings
+    project: dict[str, Any],
+    out_dir: str | Path,
+    settings: ProjectSettings,
+    extra: dict[str, Any] | None = None,
 ) -> tuple[list[str], dict[str, list[_Piece]], list[str], dict[int, list[np.ndarray]]]:
     """The combinations formed, each member's pieces with their section forces per combination,
     notes on what could not be formed, and each shell's forces per combination (one row of
-    N11 N22 N12 M11 M22 M12 Q13 Q23 per integration point, shell axes, N/m and N·m/m)."""
+    N11 N22 N12 M11 M22 M12 Q13 Q23 per integration point, shell axes, N/m and N·m/m).
+
+    ``extra``: when given, filled with ``"factors"`` (each formed combination's ``{case:
+    factor}``), ``"lateralDisplacements"`` (per combination the node displacements of its
+    lateral cases, ``{node: (Ux .. Rz)}`` in m, rad) and ``"shellSway"`` (per shell id and
+    combination the forces of its lateral cases, rows as the shells')."""
     from opensees_studio.services.result_store import load_manifest, load_results
     from opensees_studio.services.results import StaticResults
 
@@ -661,11 +786,18 @@ def _demands(
     shell_case: dict[str, dict[int, np.ndarray]] = {}
     # The temperature case's fixed-end forces, added back to its members (saengine.fem.thermal).
     thermal = load_corrections(Path(out_dir).with_suffix(".osmodel"))
+    displacements: dict[str, dict[int, np.ndarray]] = {}
     for entry in manifest["cases"]:
         results = load_results(entry, out_dir)
         if not isinstance(results, StaticResults):
             continue
         code = _code(entry["case_name"])
+        if extra is not None and slenderness_design.is_lateral(code):
+            displacements[code] = {
+                int(n): np.asarray(rows[-1], dtype=float)[:6]
+                for n, rows in results.node_disp.items()
+                if rows is not None and len(rows)
+            }
         reached = float(results.load_factors[-1]) if len(results.load_factors) else 1.0
         loads = _case_loads(project, int(entry["case_id"]))
         frame_add = end_force_corrections(thermal, code)
@@ -696,6 +828,19 @@ def _demands(
             continue
         names.append(combination.name)
         factors_of.append(factors)
+    lateral = [
+        {c: f for c, f in factors.items() if slenderness_design.is_lateral(c)}
+        for factors in factors_of
+    ]
+    sustained = [
+        {c: f for c, f in factors.items() if c in slenderness_design.SUSTAINED_CASES}
+        for factors in factors_of
+    ]
+    if extra is not None:
+        extra["factors"] = factors_of
+        extra["lateralDisplacements"] = [
+            _combined_displacements(displacements, part) for part in lateral
+        ]
 
     pieces: dict[str, list[_Piece]] = {}
     for e in elements:
@@ -715,6 +860,8 @@ def _demands(
                 ],
                 start=a,
                 end=b,
+                sway=[_part(by_case, e.id, part) for part in lateral],
+                sustained=[_part(by_case, e.id, part) for part in sustained],
             )
         )
 
@@ -724,7 +871,70 @@ def _demands(
         shells[i] = [
             sum(f * shell_case[case][i] for case, f in factors.items()) for factors in factors_of
         ]
+    if extra is not None:
+        # The shells' lateral parts, for the walls' share of the storey shear (slenderness).
+        extra["shellSway"] = {
+            i: [
+                sum(
+                    (f * shell_case[case][i] for case, f in part.items() if case in shell_case),
+                    np.zeros_like(shells[i][c]) if c < len(shells[i]) else np.zeros((1, 8)),
+                )
+                for c, part in enumerate(lateral)
+            ]
+            for i in shell_ids
+        }
     return names, pieces, notes, shells
+
+
+def _spectrum_shell_sway(
+    static: dict[str, Any], names: list[str], shells: dict[int, list[np.ndarray]]
+) -> dict[int, list[np.ndarray]]:
+    """The shells' lateral parts (``extra["shellSway"]`` of :func:`_demands`) for the
+    combinations of :func:`saengine.fem.seismic_design.design_demands`: ``static`` holds what
+    its static run gave (``names``, ``shells`` per combination, ``inner`` with its
+    ``shellSway``). A combination kept as it was keeps its lateral part; a response spectrum
+    pattern ``"<name> [<label>]"`` adds to its static lateral part the ± E it added to the
+    forces (its rows less the static combination's rows), as the frames' sway is."""
+    index = {name: i for i, name in enumerate(static["names"])}
+    before = static["shells"]
+    sway_before = static["inner"].get("shellSway", {})
+    out: dict[int, list[np.ndarray]] = {}
+    for shell_id, rows in shells.items():
+        old = before.get(shell_id, [])
+        old_sway = sway_before.get(shell_id, [])
+        found = []
+        for c, name in enumerate(names):
+            i = index.get(name)
+            if i is None and name.endswith("]") and " [" in name:
+                i = index.get(name.rsplit(" [", 1)[0])
+            if i is None or i >= len(old):
+                found.append(np.zeros_like(rows[c]))
+                continue
+            lateral = old_sway[i] if i < len(old_sway) else np.zeros_like(rows[c])
+            found.append(lateral + (rows[c] - old[i]))
+        out[shell_id] = found
+    return out
+
+
+def _part(by_case: dict[str, dict[int, np.ndarray]], element: int, factors: dict) -> np.ndarray:
+    """The section forces of an element under some cases of a combination (zeros if none)."""
+    found = [f * by_case[case][element] for case, f in factors.items() if case in by_case]
+    if found:
+        return sum(found[1:], found[0])
+    any_case = next(iter(by_case.values()), {})
+    shape = any_case[element].shape if element in any_case else (0, 6)
+    return np.zeros(shape)
+
+
+def _combined_displacements(
+    displacements: dict[str, dict[int, np.ndarray]], factors: dict[str, float]
+) -> dict[int, np.ndarray]:
+    """The node displacements of a combination's cases ``factors``."""
+    result: dict[int, np.ndarray] = {}
+    for case, f in factors.items():
+        for node, value in displacements.get(case, {}).items():
+            result[node] = result.get(node, np.zeros(6)) + f * value
+    return result
 
 
 def _shell_rows(rows: Any) -> np.ndarray:
@@ -888,27 +1098,37 @@ def _column_checks(
     pieces: list[_Piece],
     combinations: list[str],
     turned: bool = False,
+    slender: slenderness_design.ColumnSlenderness | None = None,
 ) -> list[dict[str, Any]]:
+    """Axial compression, axial force with biaxial bending and, with ``slender`` (the column's
+    slenderness, :meth:`saengine.design.slender.SlenderContext.column`), its slenderness
+    checks: the strength check then takes the demand points with the magnified moments."""
     axial = (-math.inf, None, "")
     governing: tuple[float, Any, str | None, str, float] | None = None
-    for piece in pieces:
-        for c, forces in enumerate(piece.forces):
-            values = _profile_forces(piece, turned, forces)
-            count = len(forces)
-            for k in range(count):
-                pu = float(values["P"][k])
-                mux, muy = abs(float(values["Mx"][k])), abs(float(values["My"][k]))
-                if pu > axial[0]:
-                    axial = (pu, combinations[c], _where(piece, k, count))
-                result = surface.check(pu, mux, muy)
-                if governing is None or result.utilisation > governing[0]:
-                    governing = (
-                        result.utilisation,
-                        result,
-                        combinations[c],
-                        _where(piece, k, count),
-                        pu,
+    if slender is not None:
+        points = slender.points
+    else:
+        points = []
+        for piece in pieces:
+            for c, forces in enumerate(piece.forces):
+                values = _profile_forces(piece, turned, forces)
+                count = len(forces)
+                for k in range(count):
+                    points.append(
+                        (
+                            float(values["P"][k]),
+                            abs(float(values["Mx"][k])),
+                            abs(float(values["My"][k])),
+                            combinations[c],
+                            _where(piece, k, count),
+                        )
                     )
+    for pu, mux, muy, combination, where in points:
+        if pu > axial[0]:
+            axial = (pu, combination, where)
+        result = surface.check(pu, mux, muy)
+        if governing is None or result.utilisation > governing[0]:
+            governing = (result.utilisation, result, combination, where, pu)
     checks = [
         _check(
             "Axial compression",
@@ -925,7 +1145,7 @@ def _column_checks(
         checks.append(
             _check(
                 "Axial force and biaxial bending",
-                result.mu / 1e6,
+                result.mu / 1e6 if math.isfinite(result.mu) else 0.0,
                 result.phi_mn / 1e6,
                 "kN·m",
                 combination,
@@ -933,23 +1153,6 @@ def _column_checks(
                 utilisation=utilisation,
             )
         )
-    ratio, where = max(
-        ((slenderness(section, p.length * 1e3), p.name) for p in pieces), key=lambda t: t[0]
-    )
-    checks.append(
-        _check(
-            "Slenderness k lu / r",
-            ratio,
-            SLENDERNESS_LIMIT,
-            "",
-            None,
-            f"{where}; "
-            + (
-                "slender: second-order effects are not included"
-                if ratio > SLENDERNESS_LIMIT
-                else "short column"
-            ),
-            flag=True,
-        )
-    )
+    if slender is not None:
+        checks += slender.checks
     return checks

@@ -76,16 +76,22 @@ _plan["slabs"] = [
 PLAN = FloorPlan.model_validate(_plan)
 
 
-def settings(sequence: bool = True):
+def settings(sequence: bool = True, stiffness: str | None = None):
     s = default_project_settings("Frame")
     s.analysis.constructionSequence = sequence
     s.analysis.responseSpectrum = False
+    if stiffness is not None:
+        s.analysis.stiffness = stiffness
     return s
 
 
-def derivation(sequence: bool = True):
+def derivation(sequence: bool = True, stiffness: str | None = None):
     return derive_fem(
-        generate(PLAN, "s"), OBJECTS, default_material_library(), settings(sequence), {"bim": "x"}
+        generate(PLAN, "s"),
+        OBJECTS,
+        default_material_library(),
+        settings(sequence, stiffness),
+        {"bim": "x"},
     )
 
 

@@ -830,6 +830,195 @@ def _results(
             "drift Cd·δ/I is given too; compare it with the allowable story drift of BNBC 2020 "
             "Part 6 Chapter 2 for the occupancy category (not checked by SAEngine)."
         )
+    out["seismicDesign"] = _seismic_design(model_path, results_dir, settings, warnings)
+    if out["seismicDesign"].get("available") and out["displacements"]:
+        out["notes"][-1] = out["notes"][-1].replace(
+            " (not checked by SAEngine).",
+            "; the design drifts of the response spectrum are checked below.",
+        )
+    out["secondOrder"] = _second_order(model, results_dir, settings, parts)
+    return out
+
+
+def _seismic_design(
+    model_path: Path, results_dir: Path, settings: Any, warnings: list[str]
+) -> dict[str, Any]:
+    """The earthquake design from the response spectrum (``saengine.fem.seismic_design``): the
+    scaling to the static base shear, the orthogonal rule, the accidental torsion, the
+    combinations and the design drifts; ``{"available": False}`` when the design uses the
+    static cases."""
+    from saengine.design.check import ensure_seismic_design
+    from saengine.fem import seismic_design as rs
+
+    if settings is None or not rs.design_uses_spectrum(settings):
+        return {"available": False, "static": True}
+    try:
+        summary = ensure_seismic_design(results_dir, model_path, settings)
+    except Exception as error:  # noqa: BLE001 - the report goes on without it
+        warnings.append(f"The response spectrum design could not be run: {error}")
+        return {"available": False, "static": False}
+    if not summary or not summary.get("available"):
+        return {
+            "available": False,
+            "static": False,
+            "notes": [str(n) for n in (summary or {}).get("notes", [])],
+        }
+    scale = summary["scale"]
+    rows = []
+    for axis in ("x", "y"):
+        v_dyn = float(scale["vDynamic"][axis])
+        if v_dyn <= 0:
+            continue
+        rows.append(
+            [
+                axis.upper(),
+                fmt(scale["vStatic"][axis], 1),
+                fmt(v_dyn, 1),
+                fmt(100 * v_dyn / scale["vStatic"][axis], 1) if scale["vStatic"][axis] else "–",
+                fmt(scale[axis], 3),
+                fmt(100 * summary["massParticipation"][axis], 1),
+            ]
+        )
+    torsion = []
+    for axis, levels in (summary.get("torsion") or {}).items():
+        for level in levels:
+            if level.get("moment"):
+                torsion.append(
+                    [
+                        f"E{axis}",
+                        fmt(level["z"], 2),
+                        fmt(abs(level["force"]) / 1e3, 1),
+                        fmt(level["L"], 2),
+                        fmt(level["moment"] / 1e3, 1),
+                    ]
+                )
+    clauses = summary.get("clauses", {})
+    orthogonal = (
+        f"100 % + 30 %: E = EX + 0.3EY and 0.3EX + EY ({clauses.get('orthogonal', '')}); "
+        "the 5 % shift of the mass in one direction at a time, the larger effect governing: "
+        "AX or 0.3·AY with EX + 0.3EY, AY or 0.3·AX with 0.3EX + EY (BNBC 2020 Part 6 Sec "
+        "2.5.7.6.3, p. 631)"
+        if summary.get("orthogonal")
+        else f"one direction at a time (Seismic Design Category {summary.get('category') or '–'}, "
+        f"{clauses.get('orthogonal', '')})"
+    )
+    return {
+        "available": True,
+        "category": str(summary.get("category") or "–"),
+        "fraction": fmt(100 * float(scale.get("fraction", 0.85)), 0),
+        "clause": str(scale.get("clause", "")),
+        "scale": rows,
+        "orthogonal": orthogonal,
+        "torsionClause": str(clauses.get("torsion", "")),
+        "torsion": torsion,
+        "vertical": fmt(summary.get("verticalCoefficient"), 3),
+        "combinations": [
+            [str(c["name"]), str(c.get("clause", ""))] for c in summary.get("combinations", [])
+        ],
+        "drift": rs.drift_rows(summary),
+        "irregularity": rs.irregularity_rows(summary),
+        "irregularityClause": str(clauses.get("irregularity", "")),
+        "amplificationClause": str(clauses.get("amplification", "")),
+        "torsionAmplification": ", ".join(
+            f"{axis} {fmt(value, 3)}"
+            for axis, value in sorted((summary.get("torsionAmplification") or {}).items())
+        ),
+        "driftFails": [not d["ok"] for d in summary.get("drift", [])],
+        "amplification": fmt(summary.get("amplification"), 2),
+        "notes": [str(n) for n in summary.get("notes", [])],
+    }
+
+
+def _analysed_stiffness(model: dict[str, Any], parts: _Parts) -> str:
+    """The section stiffness the analysis model (``.osmodel``) was built with, read from the
+    model itself: "lateral" when its lateral static cases (W*, E*, R*) carry cracked
+    ``section_overrides`` (saengine.fem.second_order, crackedFor "lateral"), "all" when its
+    frame sections themselves are cracked (found as saengine.design.slender.Model does,
+    against the building members' profiles), else "gross"."""
+    from saengine.design.slender import Model, is_lateral
+
+    for case in model.get("analyses", []):
+        code = str(case.get("name", "")).split(":")[0].strip()
+        if case.get("type") == "Static" and case.get("section_overrides") and is_lateral(code):
+            return "lateral"
+    building, objects, materials = parts.building(), parts.objects(), parts.materials()
+    if building is None or objects is None or materials is None:
+        return "gross"
+    try:
+        found = Model(
+            model,
+            building,
+            {o.id: o for o in objects.objects},
+            None,
+            {m.id: m for m in materials.materials},
+        )
+    except Exception:  # noqa: BLE001 - the description is optional; gross when unknown
+        return "gross"
+    return "all" if found.cracked_frames else "gross"
+
+
+def _second_order(
+    model: dict[str, Any], results_dir: Path, settings: Any, parts: _Parts
+) -> dict[str, Any]:
+    """The cracked stiffness and the P-Delta analysis (``saengine.fem.second_order``): the
+    drift with and without P-Delta per storey and the stability coefficient θ."""
+    from saengine.fem import second_order
+    from saengine.library.settings import derived
+
+    # What the analysed model used, not what the settings say now (they may have changed
+    # since the run, and the results are not re-stamped on a settings change).
+    cracked = _analysed_stiffness(model, parts)
+    stiffness_text = (
+        "cracked sections (BNBC 2020 Part 6 Sec 6.3.10.4.1: columns 0.70 Ig, beams 0.35 Ig, "
+        "walls 0.70 Ig or 0.35 Ig, slabs 0.25 Ig) "
+        + (
+            "for every case"
+            if cracked == "all"
+            else "for the lateral cases (the gravity cases on the gross sections)"
+        )
+        if cracked in ("all", "lateral")
+        else "gross sections"
+    )
+    out: dict[str, Any] = {
+        "pDelta": second_order.is_second_order(model),
+        "stiffness": stiffness_text,
+        "rows": [],
+        "fails": [],
+        "notes": [],
+    }
+    if not out["pDelta"]:
+        return out
+    building = parts.building()
+    special = building is not None and building.source is not None and building.source.structure
+    levels = (
+        sorted({s.elevation / 1e3 for s in building.stories})
+        if building is not None and not special
+        else None
+    )
+    values = derived(settings) if settings is not None else {}
+    result = second_order.drift_amplification(
+        model,
+        results_dir,
+        levels=levels,
+        importance=values.get("seismicImportance"),
+        cd=values.get("Cd"),
+    )
+    for case in result.get("cases", []):
+        for s in case["storeys"]:
+            theta, theta_max = s.get("theta"), s.get("thetaMax")
+            out["rows"].append(
+                [
+                    str(case["case"]),
+                    f"{fmt(s['from'], 2)} to {fmt(s['to'], 2)} m",
+                    fmt(100 * s["firstOrder"], 3),
+                    fmt(100 * s["secondOrder"], 3),
+                    fmt(s["ratio"], 3) if s.get("ratio") else "–",
+                    fmt(theta, 4) if theta is not None else "–",
+                    fmt(theta_max, 3) if theta_max is not None else "–",
+                ]
+            )
+            out["fails"].append(bool(theta is not None and theta_max and theta > theta_max))
+    out["notes"] = [str(n) for n in result.get("notes", [])]
     return out
 
 
@@ -1033,10 +1222,57 @@ def _design(results_dir: Path, model_path: Path, warnings: list[str]) -> dict[st
                     "fails": [_result_label(c) == "FAIL" for c in checks],
                 }
             )
+    slender_rows, slender_fails = [], []
+    for element in report.get("elements", []):
+        for c in element.get("checks", []):
+            s = c.get("slenderness")
+            if not isinstance(s, dict):
+                continue
+            magnified = (
+                f"{fmt(s.get('M2'), 1)} → {fmt(s.get('M2magnified'), 1)}"
+                if not s.get("neglected")
+                else "neglected"
+            )
+            slender_rows.append(
+                [
+                    str(element.get("id")),
+                    str(s.get("axis", "")),
+                    str(s.get("storey") or "–"),
+                    {True: "sway", False: "nonsway"}.get(s.get("sway"), "–"),
+                    fmt(s.get("k"), 2),
+                    fmt(s.get("klu_r"), 1),
+                    fmt(s.get("limit"), 1),
+                    fmt(s.get("deltaNs"), 2) if s.get("deltaNs") is not None else "–",
+                    fmt(s.get("deltaS"), 2) if s.get("deltaS") is not None else "–",
+                    magnified,
+                ]
+            )
+            slender_fails.append(not c.get("ok", True) or bool(c.get("secondOrderRequired")))
+    stability = [
+        [
+            str(r.get("storey") or "–"),
+            f"{fmt(r.get('bottom'), 2)} to {fmt(r.get('top'), 2)} m",
+            str(r.get("direction", "")),
+            fmt(r.get("sumPu"), 0) if r.get("sumPu") is not None else "–",
+            fmt(r.get("Vus"), 1) if r.get("Vus") is not None else "–",
+            fmt(r.get("deltaO"), 2) if r.get("deltaO") is not None else "–",
+            fmt(r.get("Q"), 4) if r.get("Q") is not None else "–",
+            "sway" if r.get("sway") else "nonsway",
+            fmt(r.get("deltaS"), 2) if r.get("deltaS") is not None else "–",
+            str(r.get("combination") or "–"),
+        ]
+        for r in report.get("stability", [])
+    ]
     failed = int(summary.get("failed", 0) or 0)
     if failed:
         warnings.append(f"{failed} element(s) fail their design checks.")
     return {
+        "slenderness": slender_rows,
+        "slendernessFails": slender_fails,
+        "stability": stability,
+        "seismicFromSpectrum": any(
+            "earthquake from the response spectrum" in str(n) for n in report.get("notes", [])
+        ),
         "available": True,
         "code": str(report.get("code", "")),
         "summary": [

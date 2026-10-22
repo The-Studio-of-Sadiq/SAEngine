@@ -474,6 +474,22 @@ CommandsRegistry.registerCommand('saengine.design.required', async (accessor, ar
 	return accessor.get(IFemSolverService).engine(python, 'design/required', { outDir: args.outDir, projectPath: args.projectPath });
 });
 
+/**
+ * The earthquake design from the response spectrum of a run (scaling to 85 % of the static base
+ * shear, orthogonal rule, accidental torsion, drifts; null when the project designs from the
+ * static cases) and what the P-Delta analysis changed. Internal: the results bar calls them by
+ * id (femSeismicDesign.ts) before the design checks.
+ */
+CommandsRegistry.registerCommand('saengine.fem.seismicDesign', async (accessor, args: IDesignCommandArgs) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'fem/seismicDesign', { outDir: args.outDir, projectPath: args.projectPath });
+});
+
+CommandsRegistry.registerCommand('saengine.fem.secondOrder', async (accessor, args: IDesignCommandArgs) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'fem/secondOrder', { outDir: args.outDir, projectPath: args.projectPath });
+});
+
 CommandsRegistry.registerCommand('saengine.design.proposal', async (accessor, args: IDesignCommandArgs) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	const options = {

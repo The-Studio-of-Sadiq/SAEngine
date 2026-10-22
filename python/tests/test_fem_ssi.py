@@ -116,7 +116,10 @@ def single_column():
         }
     )
     building = generate(plan, "s")
-    return building, derive_fem(building, OBJECTS, MATERIALS, default_project_settings("Col"))
+    # Gross sections: the closed-form references use the column's full E·I.
+    settings = default_project_settings("Col")
+    settings.analysis.stiffness = "gross"
+    return building, derive_fem(building, OBJECTS, MATERIALS, settings)
 
 
 def springs(options=None):

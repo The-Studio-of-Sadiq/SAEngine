@@ -207,6 +207,9 @@ def gather(out_dir: str | Path, project_path: str | Path, substructure: bool = T
     building = BuildingModel.model_validate_json(read("06 BIM/bim.json"))
     project = json.loads(project_path.read_text(encoding="utf-8"))
     collect: dict[str, Any] = {}
+    from saengine.design.check import ensure_seismic_design
+
+    ensure_seismic_design(out_dir, project_path, settings)
     report = design(project, out_dir, building, objects, materials, settings, collect=collect)
     gathered = Gathered(
         root, report, collect, objects_text, objects, assumed, materials, building, settings
@@ -489,9 +492,13 @@ Point = tuple[float, float, float, str, str]  # Pu, |Mux|, |Muy| (N, N·mm), com
 
 
 def column_points(member: dict[str, Any], combinations: list[str]) -> list[Point]:
-    """Every station's demand of a collected column member, as its checks take them."""
+    """Every station's demand of a collected column member, as its checks take them: the
+    checks' own points when they collected them (with the moments magnified for slenderness,
+    :mod:`saengine.design.slender`), else the stations' section forces."""
     from saengine.design.check import _profile_forces, _where
 
+    if member.get("points") is not None:
+        return list(member["points"])
     points: list[Point] = []
     for piece in member["pieces"]:
         for c, forces in enumerate(piece.forces):

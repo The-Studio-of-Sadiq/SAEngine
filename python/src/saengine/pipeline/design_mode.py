@@ -125,6 +125,23 @@ def _plain(value: Any) -> Any:
     return value
 
 
+def _ensure_seismic_design(out_dir: str | Path, project_path: str | Path) -> None:
+    """The response spectrum design run (``<out_dir>/rs-design``) before the stamp is taken,
+    so writing it does not make the kept answer stale right after
+    (:func:`saengine.design.check.ensure_seismic_design`)."""
+    from saengine.design.check import ensure_seismic_design
+    from saengine.library.settings import ProjectSettings
+
+    root = Path(project_path).resolve().parent.parent
+    try:
+        settings = ProjectSettings.model_validate_json(
+            (root / "02 Project Settings/project-settings.json").read_text(encoding="utf-8")
+        )
+    except (OSError, ValueError):
+        return
+    ensure_seismic_design(out_dir, project_path, settings)
+
+
 def required(
     out_dir: str | Path,
     project_path: str | Path,
@@ -137,6 +154,7 @@ def required(
     files, so an edit while it runs makes the answer stale, never wrongly current."""
     from saengine.design import design_required
 
+    _ensure_seismic_design(out_dir, project_path)
     stamp = inputs_stamp(out_dir, project_path, options)
     if not fresh:
         cached = kept(out_dir, stamp)

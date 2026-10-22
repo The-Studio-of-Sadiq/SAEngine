@@ -530,10 +530,13 @@ export interface IFemSolverService {
  * options?}`, `design/applyProposal` `{objectsText, bimText?, proposal, floorPlanText?,
  * substructureText?}`, `soil/location` `{soilText, bimText?, settingsText?}`, `soil/gisExport`
  * `{projectRoot, format, outPath}`, `soil/gisImport` `{path, soilText?}` and
- * `soil/qgisProgram` `{}` (a launcher path or null).
+ * `soil/qgisProgram` `{}` (a launcher path or null); the earthquake design from the response
+ * spectrum `fem/seismicDesign` `{outDir, projectPath}` (null when the project designs from the
+ * static cases) and the P-Delta drift amplification `fem/secondOrder` `{outDir, projectPath}`.
  */
 export type EngineMethod =
 	| 'design/required' | 'design/proposal' | 'design/applyProposal'
+	| 'fem/seismicDesign' | 'fem/secondOrder'
 	| 'soil/location' | 'soil/gisExport' | 'soil/gisImport' | 'soil/qgisProgram';
 
 export interface IQgisOpenRequest {

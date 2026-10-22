@@ -505,6 +505,95 @@ Sum of the support reactions of each load case, in global axes.
   bullets(results.notes, size: 8.5pt)
 }
 
+#let rsd = results.seismicDesign
+#if rsd.available [
+  == Earthquake design from the response spectrum
+  The design combinations take E from the response spectrum cases (CQC of the modes), Seismic
+  Design Category #rsd.category. Where the dynamic base shear is less than #rsd.fraction % of
+  the equivalent static base shear, the forces (not the drifts) are scaled up to it
+  (#rsd.clause).
+  #tbl(
+    ("Direction", "V static [kN]", "V dynamic [kN]", "V dyn / V static [%]", "Scale", "Mass [%]"),
+    rsd.scale,
+    columns: (auto, auto, auto, auto, auto, auto),
+    align: (left, right, right, right, right, right),
+  )
+  #bullets((
+    [Orthogonal effects: #rsd.orthogonal.],
+    [Signs: response spectrum results have no sign; the design takes ± the envelope, every
+      force component at its peak (columns and walls at ±N, ±My, ±Mz).],
+    [Vertical component Ev = #rsd.vertical D (E = Eh + Ev with 1.2D, Eh − Ev with 0.9D).],
+  ))
+  #if rsd.torsion.len() > 0 [
+    Accidental torsion, ±0.05 L F at each floor, added to the response spectrum of the same
+    direction (#rsd.torsionClause):
+    #tbl(
+      ("Case", "Level [m]", "F [kN]", "L [m]", "Mta [kN·m]"),
+      rsd.torsion,
+      columns: (auto, auto, auto, auto, auto),
+      align: (left, right, right, right, right),
+    )
+  ]
+  #if rsd.irregularity.len() > 0 [
+    Torsional irregularity (#rsd.irregularityClause): the storey drift at the two edges of the
+    plan across the force, from the scaled response spectrum ± the accidental torsion;
+    irregular above 1.2 times the average, extreme above 1.4. Where irregular in Seismic Design
+    Category C or D the accidental torsion is amplified by Ax = (δmax / 1.2 δavg)², at most 3.0
+    (#rsd.amplificationClause): #rsd.torsionAmplification.
+    #tbl(
+      ("Dir.", "Storey", "Δmax [mm]", "Δavg [mm]", "Δmax / Δavg", "Torsion", "Ax"),
+      rsd.irregularity,
+      columns: (auto, 1fr, auto, auto, auto, auto, auto),
+      align: (left, left, right, right, right, left, right),
+    )
+  ]
+  #if rsd.combinations.len() > 0 [
+    #tbl(
+      ("Design combination with E", "Clause"),
+      rsd.combinations,
+      columns: (1fr, 1fr),
+    )
+  ]
+  #if rsd.drift.len() > 0 [
+    Design storey drift: the response spectrum drift (unscaled, the modal combination of the
+    modal drifts at each plan position, plus the accidental torsion) times Cd/I =
+    #rsd.amplification, against the allowable storey drift.
+    #tbl(
+      ("Dir.", "Storey", "h [m]", "Elastic [mm]", "Cd·δ/I [mm]", "Ratio [%]", "Allowed [%]", "Result"),
+      rsd.drift,
+      columns: (auto, 1fr, auto, auto, auto, auto, auto, auto),
+      align: (left, left, right, right, right, right, right, center),
+      bad: rsd.driftFails,
+    )
+  ]
+  #if rsd.notes.len() > 0 { bullets(rsd.notes, size: 8.5pt) }
+]
+
+#let so = results.secondOrder
+== Section stiffness and second-order effects
+The analysis uses #so.stiffness.
+#if so.pDelta [
+  It is a second-order (P-Delta) analysis: the columns have P-Delta transformations and every
+  case is solved on the stiffness of the structure under the gravity preload (BNBC 2020 Part 6
+  Sec 2.5.7.9 and 6.3.10.4), so the sway moment magnification of the columns is taken as done;
+  their magnification along the length (δns) still applies. Storey drift with and without
+  P-Delta, and the stability coefficient θ = Px Δ / (Vx hsx Cd) of BNBC Eq. 6.2.48 (θ ≤ 0.10:
+  P-Delta need not be considered; above θmax: redesign):
+  #if so.rows.len() > 0 {
+    tbl(
+      ("Case", "Storey", "First order [%]", "P-Delta [%]", "Ratio", "θ", "θmax"),
+      so.rows,
+      columns: (auto, 1fr, auto, auto, auto, auto, auto),
+      align: (left, left, right, right, right, right, right),
+      bad: so.fails,
+    )
+  }
+  #if so.notes.len() > 0 { bullets(so.notes, size: 8.5pt) }
+] else [
+  It is a first-order analysis: the columns are designed for slenderness by moment
+  magnification (BNBC 2020 Part 6 Sec 6.3.10.6 and 6.3.10.7, see Member design).
+]
+
 // ───────────────────────────── 4 member design ─────────────────────────────
 
 = Member design
@@ -514,7 +603,8 @@ Sum of the support reactions of each load case, in global axes.
 #if not design.available [
   #note[The member design checks could not be run: #design.problem]
 ] else [
-  Design to #design.code. Forces are the factored combinations of the static load cases;
+  #let source = if design.seismicFromSpectrum [the static load cases, with the earthquake E from the scaled response spectrum (± the envelope, see Analysis results)] else [the static load cases]
+  Design to #design.code. Forces are the factored combinations of #source\;
   utilisation is demand over design strength (φ applied). Elements whose utilisation exceeds
   1.000 are marked FAIL (utilisations are printed to three decimals, as checked).
 
@@ -557,6 +647,34 @@ Sum of the support reactions of each load case, in global axes.
       )
     ]
     #if req.lines.len() > 0 { bullets(req.lines) }
+  ]
+
+  #if design.stability.len() > 0 [
+    == Stability index Q per storey
+    Storeys are nonsway where Q = ΣPu Δo / (Vus lc) ≤ 0.05 (BNBC 2020 Part 6 Sec 6.3.10.5.2,
+    Eq. 6.6.17), at the combination with the largest Q.
+    #tbl(
+      ("Storey", "Levels", "Dir.", "ΣPu [kN]", "Vus [kN]", "Δo [mm]", "Q", "Frame", "δs", "Combination"),
+      design.stability,
+      columns: (auto, auto, auto, auto, auto, auto, auto, auto, auto, 1fr),
+      align: (left, left, left, right, right, right, right, left, right, left),
+      size: 8pt,
+    )
+  ]
+
+  #if design.slenderness.len() > 0 [
+    == Slenderness
+    Column slenderness per bending axis (BNBC 2020 Part 6 Sec 6.3.10): k lu / r against the limit
+    below which it may be neglected, the moment magnifiers δns and δs, and the governing moment
+    M2 before and after magnification [kN·m].
+    #tbl(
+      ("Column", "Axis", "Storey", "Frame", "k", "k lu / r", "Limit", "δns", "δs", "M2 → Mc"),
+      design.slenderness,
+      columns: (auto, auto, auto, auto, auto, auto, auto, auto, auto, 1fr),
+      align: (left, center, left, left, right, right, right, right, right, right),
+      bad: design.slendernessFails,
+      size: 8pt,
+    )
   ]
 
   #if design.skipped.len() > 0 [

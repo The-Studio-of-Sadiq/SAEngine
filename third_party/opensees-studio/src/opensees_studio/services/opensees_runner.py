@@ -230,6 +230,17 @@ class OpenSeesRunner:
         """
         self.project.validate_case_references(case)
         self._check_ground_motion_records(case)
+        overrides = getattr(case, "section_overrides", None)
+        if overrides:
+            # The case's own sections: the whole case (its preloads too) runs on that model.
+            replaced = {section.id: section for section in overrides}
+            sections = [replaced.get(s.id, s) for s in self.project.sections]
+            runner = OpenSeesRunner(
+                self.project.model_copy(update={"sections": sections}),
+                self._ops,
+                self._on_progress,
+            )
+            return runner.run(case.model_copy(update={"section_overrides": []}), results_dir)
         if isinstance(case, StagedCase):
             return self._run_staged(case)  # builds one model per stage
         if (
@@ -564,7 +575,10 @@ class OpenSeesRunner:
                 for fb in sec.fibres:
                     ops.fiber(fb.y, fb.z, fb.area, fb.material_id)
             case ElasticMembranePlateSection():
-                ops.section("ElasticMembranePlateSection", sec.id, sec.E, sec.nu, sec.h, sec.rho)
+                plate = [sec.Ep_mod] if sec.Ep_mod != 1.0 else []
+                ops.section(
+                    "ElasticMembranePlateSection", sec.id, sec.E, sec.nu, sec.h, sec.rho, *plate
+                )
             case SectionAggregator():
                 # section Aggregator $secTag $matTag1 $dof1 ... <-section $baseSec>
                 args: list[Any] = [sec.id]
@@ -1242,8 +1256,59 @@ class OpenSeesRunner:
                 "Singular stiffness matrix — the solve cannot run.\n" + "\n".join(problems) + hint
             )
 
+    def _read_state(self, links: list[Any], shells: list[Any]) -> tuple[dict[int, np.ndarray], ...]:
+        """The current state: node displacements and reactions, element end forces, link
+        deformations and shell section forces (one flat array per tag)."""
+        ops = self._ops
+        ndf = len(self._dof_idx)
+        ops.reactions()
+        disp: dict[int, np.ndarray] = {}
+        reaction: dict[int, np.ndarray] = {}
+        for node in self.project.nodes:
+            disp[node.id] = np.array(
+                [ops.nodeDisp(node.id, dof) for dof in range(1, ndf + 1)], dtype=float
+            )
+            reaction[node.id] = np.array(
+                [self._reaction(node.id, dof) for dof in range(1, ndf + 1)], dtype=float
+            )
+        forces: dict[int, np.ndarray] = {}
+        for el in self.project.elements:
+            if isinstance(el, SolidElement):
+                continue  # no section forces (stresses follow from the displacements)
+            # Prefer "localForce" — gives [N, V_y, V_z, T, M_y, M_z] per
+            # end in the element's local frame, which is what diagrams
+            # need. Fall back to global eleForce if the element type
+            # doesn't expose localForce (e.g. zeroLength, truss).
+            try:
+                values = ops.eleResponse(el.id, self._force_response(el))
+            except Exception:
+                values = []
+            if not values:
+                values = ops.eleForce(el.id)
+            forces[el.id] = np.asarray(values, dtype=float)
+        # twoNodeLink: basicDeformation next to basicForce, the same order and sign.
+        deformations = {
+            el.id: np.asarray(
+                self._any_ops.eleResponse(el.id, "basicDeformation") or [], dtype=float
+            )
+            for el in links
+        }
+        # Shells: section forces per unit length at each integration point.
+        stresses = {
+            el.id: np.asarray(ops.eleResponse(el.id, "stresses") or [], dtype=float)
+            for el in shells
+        }
+        return disp, reaction, forces, deformations, stresses
+
     def _run_static(self, case: StaticCase) -> StaticResults:
         ops = self._ops
+        links = [el for el in self.project.elements if isinstance(el, TwoNodeLinkElement)]
+        shells = [el for el in self.project.elements if isinstance(el, ShellElement)]
+        baseline: tuple[dict[int, np.ndarray], ...] | None = None
+        if case.preload_case_ids:
+            # Second order from a preload: lock it, then report the increment from its state.
+            self._run_preload_sequence(case.preload_case_ids, case.id)
+            baseline = self._read_state(links, shells)
         self._emit_patterns_for_case(case.pattern_ids)
         self._setup_analysis(case)
 
@@ -1256,8 +1321,7 @@ class OpenSeesRunner:
         element_forces: dict[int, np.ndarray] = {}
         element_deformations: dict[int, np.ndarray] = {}
         shell_forces: dict[int, np.ndarray] = {}
-        links = [el for el in self.project.elements if isinstance(el, TwoNodeLinkElement)]
-        shells = [el for el in self.project.elements if isinstance(el, ShellElement)]
+        targets = (node_disp, node_reaction, element_forces, element_deformations, shell_forces)
 
         for step in range(rows):
             status = 0 if initial and step == 0 else ops.analyze(1)
@@ -1267,39 +1331,14 @@ class OpenSeesRunner:
                     f"(ops.analyze returned {status})."
                 )
             load_factors[step] = ops.getTime()
-            ops.reactions()
-            for node in self.project.nodes:
-                for j, dof in enumerate(range(1, ndf + 1)):
-                    node_disp[node.id][step, j] = ops.nodeDisp(node.id, dof)
-                    node_reaction[node.id][step, j] = self._reaction(node.id, dof)
-            for el in self.project.elements:
-                if isinstance(el, SolidElement):
-                    continue  # no section forces (stresses follow from the displacements)
-                # Prefer "localForce" — gives [N, V_y, V_z, T, M_y, M_z] per
-                # end in the element's local frame, which is what diagrams
-                # need. Fall back to global eleForce if the element type
-                # doesn't expose localForce (e.g. zeroLength, truss).
-                try:
-                    forces = ops.eleResponse(el.id, self._force_response(el))
-                except Exception:
-                    forces = []
-                if not forces:
-                    forces = ops.eleForce(el.id)
-                if el.id not in element_forces:
-                    element_forces[el.id] = np.zeros((rows, len(forces)))
-                element_forces[el.id][step, :] = forces
-            # twoNodeLink: basicDeformation next to basicForce, the same order and sign.
-            for el in links:
-                deformation = self._any_ops.eleResponse(el.id, "basicDeformation") or []
-                if el.id not in element_deformations:
-                    element_deformations[el.id] = np.zeros((rows, len(deformation)))
-                element_deformations[el.id][step, :] = deformation
-            # Shells: section forces per unit length at each integration point.
-            for el in shells:
-                stresses = ops.eleResponse(el.id, "stresses") or []
-                if el.id not in shell_forces:
-                    shell_forces[el.id] = np.zeros((rows, len(stresses)))
-                shell_forces[el.id][step, :] = stresses
+            state = self._read_state(links, shells)
+            for k, (target, current) in enumerate(zip(targets, state, strict=True)):
+                for tag, values in current.items():
+                    if baseline is not None and tag in baseline[k]:
+                        values = values - baseline[k][tag]
+                    if tag not in target:
+                        target[tag] = np.zeros((rows, values.size))
+                    target[tag][step, :] = values
             if not initial or step > 0:
                 self._progress(step + 1 - initial, case.n_steps)
 
@@ -1430,6 +1469,22 @@ class OpenSeesRunner:
     def _run_staged(self, case: StagedCase) -> StaticResults:
         """Each stage: the structure built so far under the stage's loads alone (a fresh linear
         model), the results summed over the stages (see :class:`StagedCase`)."""
+        if case.linear_geometry and any(
+            getattr(e, "geom_transf", "Linear") != "Linear" for e in self.project.elements
+        ):
+            # A first-order construction sequence in a model whose other cases use P-Delta.
+            elements = [
+                e.model_copy(update={"geom_transf": "Linear"})
+                if getattr(e, "geom_transf", "Linear") != "Linear"
+                else e
+                for e in self.project.elements
+            ]
+            runner = OpenSeesRunner(
+                self.project.model_copy(update={"elements": elements}),
+                self._ops,
+                self._on_progress,
+            )
+            return runner._run_staged(case)
         built = {i for stage in case.stages for i in stage.element_ids}
         problems = self._nonlinear_parts(built)
         if problems:
@@ -1833,6 +1888,10 @@ class OpenSeesRunner:
         n_free = free_dof_count(self.project)
         solver, _reason = resolve_modal_solver(case.solver, n_free, case.n_modes)
 
+        if case.preload_case_ids:
+            # The tangent stiffness of the preloaded structure (geometric stiffness with
+            # P-Delta transformations); the static analysis objects are wiped after it.
+            self._run_preload_sequence(case.preload_case_ids, case.id)
         if self.project.needs_transformation:
             self._any_ops.constraints("Transformation")
         eigenvalues = np.array(ops.eigen(f"-{solver}", case.n_modes), dtype=float)

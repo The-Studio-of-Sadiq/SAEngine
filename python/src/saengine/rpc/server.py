@@ -46,6 +46,11 @@ Methods:
 - ``fem/derive`` also takes ``mepText?`` and ``substructureText?`` (else the project's files beside
   ``modelFolder``): the MEP openings and equipment loads, and the foundations of soil springs
 - ``fem/ssiCompare`` ``{projectRoot}`` -> fixed base against soil springs (runs the fixed model)
+- ``fem/seismicDesign`` ``{outDir, projectPath}`` -> the response spectrum design of a run
+  (scaling, orthogonal rule, accidental torsion, drifts, combinations; runs the modal forces
+  once per run; null when the project designs from the static cases; in a worker thread)
+- ``fem/secondOrder`` ``{outDir, projectPath}`` -> the P-Delta drift amplification and the
+  stability coefficient θ of a run (``{"method": "none"}`` for a first-order model)
 - ``mep/report`` ``{projectRoot, outDir?, mepText?}`` -> the MEP coordination report
 - ``mep/suggestSleeves`` ``{projectRoot, mepText?, allowance?}`` -> sleeves for the clashes
 - ``mep/importIfc`` ``{projectRoot, path, copy?}`` -> what an MEP IFC model holds
@@ -251,6 +256,7 @@ def create_server() -> JsonRPCServer:
         return handlers.run_script(args["structureText"], args["scriptPath"])
 
     @server.feature("design/report")
+    @_in_worker
     def _design_report(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.design_report(args["outDir"], args["projectPath"])
@@ -385,6 +391,18 @@ def create_server() -> JsonRPCServer:
     @server.feature("fem/ssiCompare")
     def _ssi_compare(params: Any) -> dict[str, Any]:
         return handlers.ssi_compare(_plain(params)["projectRoot"])
+
+    @server.feature("fem/seismicDesign")
+    @_in_worker
+    def _seismic_design(params: Any) -> dict[str, Any] | None:
+        args = _plain(params)
+        return handlers.seismic_design(args["outDir"], args["projectPath"])
+
+    @server.feature("fem/secondOrder")
+    @_in_worker
+    def _second_order(params: Any) -> dict[str, Any] | None:
+        args = _plain(params)
+        return handlers.second_order_summary(args["outDir"], args["projectPath"])
 
     @server.feature("mep/report")
     def _mep_report(params: Any) -> dict[str, Any]:

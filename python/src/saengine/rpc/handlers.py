@@ -189,7 +189,12 @@ def results_tables(out_dir: str, project_path: str | None = None) -> dict[str, A
         if settings is not None:
             payload = _json.loads(Path(project_file).read_text(encoding="utf-8"))
             thermal = load_corrections(project_file)
-            cases.extend(combination_results(out_dir, payload, settings, thermal))
+            # The response spectrum design combinations (E = the scaled spectrum), when the
+            # project designs from it and its modal-force run is there (fem/seismicDesign).
+            from saengine.fem import seismic_design as rs
+
+            seismic = rs.load_summary(out_dir) if rs.design_uses_spectrum(settings) else None
+            cases.extend(combination_results(out_dir, payload, settings, thermal, seismic=seismic))
     return {"cases": cases}
 
 
@@ -610,6 +615,90 @@ def design_report(out_dir: str, project_path: str) -> dict[str, Any]:
     from saengine.design import design_report as report
 
     return report(out_dir, project_path)
+
+
+def _project_settings(project_path: str) -> Any:
+    """The project settings of the model ``project_path`` (two folders up), with the site class
+    the analysis uses; None when they cannot be read."""
+    from pydantic import ValidationError
+
+    from saengine.library.settings import ProjectSettings, read_soil_text, resolve_site_class
+
+    root = Path(project_path).resolve().parent.parent
+    try:
+        settings = ProjectSettings.model_validate_json(
+            (root / "02 Project Settings/project-settings.json").read_text(encoding="utf-8")
+        )
+    except (OSError, ValidationError):
+        return None
+    return resolve_site_class(settings, read_soil_text(root))[0]
+
+
+def seismic_design(out_dir: str, project_path: str) -> dict[str, Any] | None:
+    """The response spectrum design of a run (``saengine.fem.seismic_design.seismic_design``,
+    run=True: the modal-force run is made once per analysis run): its scaling, orthogonal rule,
+    accidental torsion, drifts and combinations; None when the project designs for earthquake
+    from the static cases (``analysis.seismicDesign``)."""
+    from saengine.design.check import ensure_seismic_design
+    from saengine.fem import seismic_design as rs
+    from saengine.pipeline.design_mode import _plain
+
+    settings = _project_settings(project_path)
+    if settings is None or not rs.design_uses_spectrum(settings):
+        return None
+    summary = ensure_seismic_design(out_dir, project_path, settings)
+    if summary is None:
+        summary = rs.seismic_design(out_dir, project_path, settings, run=False)
+    return _plain({k: v for k, v in summary.items() if k != "run"})
+
+
+def second_order_summary(out_dir: str, project_path: str) -> dict[str, Any] | None:
+    """What the P-Delta analysis of a run changed (``saengine.fem.second_order.
+    drift_amplification`` with the stories, I and Cd): ``{"method": "pDelta", "stiffness",
+    "cases", "notes"}``; ``{"method": "none", "stiffness"}`` for a first-order model."""
+    import json
+
+    from saengine.fem import second_order
+    from saengine.library.settings import derived
+    from saengine.pipeline.design_mode import _plain
+
+    settings = _project_settings(project_path)
+    stiffness = getattr(getattr(settings, "analysis", None), "stiffness", None)
+    try:
+        project = json.loads(Path(project_path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not second_order.is_second_order(project):
+        return {"method": "none", "stiffness": stiffness, "cases": []}
+    levels = _story_levels(project_path)
+    values = derived(settings) if settings is not None else {}
+    result = second_order.drift_amplification(
+        project,
+        out_dir,
+        levels=levels,
+        importance=values.get("seismicImportance"),
+        cd=values.get("Cd"),
+    )
+    return _plain({"method": "pDelta", "stiffness": stiffness, **result})
+
+
+def _story_levels(project_path: str) -> list[float] | None:
+    """The building's storey elevations [m] (``06 BIM/bim.json``); None for a special structure
+    or when it cannot be read."""
+    from pydantic import ValidationError
+
+    from saengine.library.bim import BuildingModel
+
+    root = Path(project_path).resolve().parent.parent
+    try:
+        building = BuildingModel.model_validate_json(
+            (root / "06 BIM/bim.json").read_text(encoding="utf-8")
+        )
+    except (OSError, ValidationError):
+        return None
+    if building.source is not None and building.source.structure is not None:
+        return None
+    return sorted({s.elevation / 1e3 for s in building.stories}) or None
 
 
 def compute_boq(

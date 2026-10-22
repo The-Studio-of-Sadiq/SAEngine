@@ -294,6 +294,10 @@ class Project(BaseModel):
                         f"{prefix}: stage '{stage.name}' builds missing element(s) "
                         f"{', '.join(map(str, missing))}."
                     )
+            sections = {s.id for s in self.sections}
+            for override in getattr(current, "section_overrides", None) or []:
+                if override.id not in sections:
+                    errors.append(f"{prefix}: section override {override.id} replaces nothing.")
             for cid in getattr(current, "preload_case_ids", []):
                 preload = cases.get(cid)
                 if cid in (*chain, current.id):

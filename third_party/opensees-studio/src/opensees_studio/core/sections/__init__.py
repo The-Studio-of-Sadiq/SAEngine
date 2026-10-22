@@ -20,7 +20,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, PositiveInt
 
-from opensees_studio.core._base import Entity
+from opensees_studio.core._base import Entity, omit_when_default
 
 
 # ──────────────────────────── Section shape hint ────────────────────────────
@@ -106,6 +106,16 @@ class ElasticMembranePlateSection(Entity):
     nu: float = Field(..., ge=0.0, lt=0.5, description="Poisson's ratio.")
     h: PositiveFloat = Field(..., description="Plate thickness.")
     rho: float = Field(default=0.0, ge=0.0, description="Mass density per unit volume.")
+    Ep_mod: PositiveFloat = Field(
+        default=1.0,
+        description=(
+            "Factor on the plate (bending) stiffness alone, the membrane stiffness unchanged "
+            "(OpenSees' optional Ep_mod): e.g. 0.25 for a cracked slab's flexure while it "
+            "keeps its full in-plane stiffness. Left out of the file at 1."
+        ),
+    )
+
+    serialize_without_defaults = omit_when_default("Ep_mod")
 
 
 # ──────────────────────────── Fiber primitives ────────────────────────────

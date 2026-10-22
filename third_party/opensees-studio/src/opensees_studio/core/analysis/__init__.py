@@ -24,6 +24,7 @@ from pydantic import (
 
 from opensees_studio.core._base import Entity, omit_when_default
 from opensees_studio.core.modal import KNOWN_SOLVERS, OFFERED_SOLVERS, SOLVER_AUTO
+from opensees_studio.core.sections import Section
 
 Numberer = Literal["Plain", "RCM", "AMD"]
 """DOF numberers offered: each gives its own equation numbering in OpenSeesPy 3.8.0, and an
@@ -116,6 +117,33 @@ class _SolverOptions(Entity):
         return self
 
 
+def _section_overrides_field() -> object:
+    return Field(
+        default_factory=list,
+        description=(
+            "Sections this case uses in place of the model's sections of the same id (e.g. "
+            "cracked stiffness for the lateral cases only, the gravity cases keeping the gross "
+            "sections). The whole case runs on that model, its preload cases included. Left "
+            "out of the file while empty."
+        ),
+    )
+
+
+def _incremental_preload_field() -> object:
+    return Field(
+        default_factory=list,
+        description=(
+            "StaticCase IDs run first, in order, then locked with ``loadConst -time 0.0`` (a "
+            "second-order 'P-Delta load combination'): this case is then solved on the "
+            "structure's tangent stiffness under that preload, which with P-Delta "
+            "transformations includes the geometric stiffness of its axial forces. The results "
+            "are the increment from the preloaded state (the preload's own response is "
+            "subtracted), so a linear algorithm keeps them proportional to this case's loads "
+            "and they superpose in combinations. Left out of the file while empty."
+        ),
+    )
+
+
 class StaticCase(_SolverOptions):
     """Linear or nonlinear static analysis (single load step or pushover)."""
 
@@ -139,10 +167,26 @@ class StaticCase(_SolverOptions):
             "any element (a diaphragm's own centre node) are left out and report zero."
         ),
     )
+    preload_case_ids: list[PositiveInt] = _incremental_preload_field()  # type: ignore[assignment]
+    section_overrides: list[Section] = _section_overrides_field()  # type: ignore[assignment]
 
     serialize_without_defaults = omit_when_default(
-        "numberer", "system_args", "algorithm_args", "release_diaphragms"
+        "numberer",
+        "system_args",
+        "algorithm_args",
+        "release_diaphragms",
+        "preload_case_ids",
+        "section_overrides",
     )
+
+    @model_validator(mode="after")
+    def _preload_needs_diaphragms(self) -> StaticCase:
+        if self.preload_case_ids and self.release_diaphragms:
+            raise ValueError(
+                "A case with release_diaphragms cannot also have preload_case_ids "
+                "(the released model is a different structure from its preload's)."
+            )
+        return self
 
 
 class ModalCase(Entity):
@@ -158,6 +202,19 @@ class ModalCase(Entity):
     type: Literal["Modal"] = "Modal"
     n_modes: PositiveInt = 3
     solver: str = SOLVER_AUTO
+    preload_case_ids: list[PositiveInt] = Field(
+        default_factory=list,
+        description=(
+            "StaticCase IDs run first, then locked (``loadConst``): the eigen analysis then "
+            "uses the tangent stiffness of the preloaded structure, which with P-Delta "
+            "transformations includes the geometric stiffness of the preload's axial forces "
+            "(longer periods). A response spectrum case on this modal case inherits it. Left "
+            "out of the file while empty."
+        ),
+    )
+    section_overrides: list[Section] = _section_overrides_field()  # type: ignore[assignment]
+
+    serialize_without_defaults = omit_when_default("preload_case_ids", "section_overrides")
 
     @field_validator("solver", mode="before")
     @classmethod
@@ -256,6 +313,11 @@ class TransientCase(_SolverOptions):
             "preload phase and before the transient loop — use this for "
             "Tcl-style free-vibration analyses."
         ),
+    )
+    section_overrides: list[Section] = _section_overrides_field()  # type: ignore[assignment]
+
+    serialize_without_defaults = omit_when_default(
+        "numberer", "system_args", "algorithm_args", "section_overrides"
     )
 
 
@@ -374,6 +436,9 @@ class ResponseSpectrumCase(Entity):
             "least this count as closely spaced and produce a warning."
         ),
     )
+    section_overrides: list[Section] = _section_overrides_field()  # type: ignore[assignment]
+
+    serialize_without_defaults = omit_when_default("section_overrides")
 
     @field_validator("damping_ratio", mode="before")
     @classmethod
@@ -419,6 +484,18 @@ class StagedCase(_SolverOptions):
     stages: list[ConstructionStage] = Field(..., min_length=1)
     system: str = "BandGeneral"
     constraints: str = "Plain"
+    linear_geometry: bool = Field(
+        default=False,
+        description=(
+            "Run the stages with Linear geometric transformations whatever the elements have: "
+            "a first-order construction sequence in a model whose other cases use P-Delta "
+            "(summing stages needs a linear model). Left out of the file while false."
+        ),
+    )
+
+    serialize_without_defaults = omit_when_default(
+        "numberer", "system_args", "algorithm_args", "linear_geometry"
+    )
 
     @model_validator(mode="after")
     def _elements_built_once(self) -> StagedCase:

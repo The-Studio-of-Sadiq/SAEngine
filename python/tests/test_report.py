@@ -413,3 +413,22 @@ def test_a_freshly_computed_bill_of_quantities_is_current(tmp_path: Path) -> Non
     _write(root, {settings_file: json.dumps(settings, indent=2)})
     boq = _boq(_Parts(root, []))
     assert boq["status"] == "stale" and settings_file in boq["message"]
+
+
+@pytest.mark.parametrize(
+    ("stiffness", "cracked_for", "expected"),
+    [("gross", "lateral", "gross"), ("aci", "lateral", "lateral"), ("aci", "all", "all")],
+)
+def test_section_stiffness_is_read_from_the_analysed_model(
+    project: Path, stiffness: str, cracked_for: str, expected: str
+) -> None:
+    """The report's "Section stiffness" sentence describes the model that was analysed, not
+    the settings now (the project's settings file stays as it is for every model here)."""
+    from saengine.report.build import _analysed_stiffness
+
+    analysis = SETTINGS.analysis.model_copy(
+        update={"stiffness": stiffness, "crackedFor": cracked_for}
+    )
+    settings = SETTINGS.model_copy(update={"analysis": analysis})
+    d = derive_fem(generate(PLAN, "s"), reinforced(), default_material_library(), settings, None)
+    assert _analysed_stiffness(d.project, _Parts(project, [])) == expected

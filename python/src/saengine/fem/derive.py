@@ -1404,6 +1404,26 @@ def derive_fem(
             summary["springs"] = len(r.foundations)
             summary["nodes"] = len(project["nodes"])
             summary["elements"] = len(project["elements"])
+
+    # ── cracked stiffness and P-Delta (saengine.fem.second_order), after every case exists ──
+    from saengine.fem import second_order
+
+    concrete_sections = set()
+    for key, section_id in b.section_ids.items():
+        if not key or key[0] == "embed":
+            continue
+        object_type = types.get(key[1] if key[0] == "plate" else key[0])
+        material = mats.get(getattr(object_type, "material", None)) if object_type else None
+        if material is not None and material.category.value in ("concrete", "masonry"):
+            concrete_sections.add(section_id)
+    so = second_order.apply_second_order(
+        project,
+        second_order.options_from_settings(settings),
+        concrete_sections=concrete_sections,
+    )
+    project = so.project
+    b.notes.extend(so.notes)
+    summary["secondOrder"] = so.summary
     return Derivation(
         project=project,
         notes=b.notes,

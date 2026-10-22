@@ -118,7 +118,10 @@ def objects(*items: dict[str, Any]) -> ObjectLibrary:
 
 
 def settings(**analysis: Any) -> ProjectSettings:
+    """Default settings on gross sections (the references are closed-form elastic solutions
+    with the members' full E·I); ``analysis`` overrides, ``stiffness="aci"`` among them."""
     s = default_project_settings("Verification")
+    analysis = {"stiffness": "gross", **analysis}
     return s.model_copy(update={"analysis": s.analysis.model_copy(update=analysis)})
 
 

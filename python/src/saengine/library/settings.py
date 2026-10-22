@@ -267,6 +267,60 @@ class Thermal(_Model):
     )
 
 
+class PDeltaFactors(_Model):
+    """Load factors of the gravity preload of the P-Delta analysis."""
+
+    D: float = Field(default=1.2, ge=0, description="Dead load.")
+    SD: float = Field(default=1.2, ge=0, description="Superimposed dead load.")
+    F: float = Field(default=1.2, ge=0, description="Fluid loads (07 MEP equipment contents).")
+    L: float = Field(default=1.0, ge=0, description="Live load.")
+
+
+class Slenderness(_Model):
+    """How column slenderness is designed for (BNBC 2020 Part 6 Sec 6.3.10)."""
+
+    effectiveLength: Literal["unity", "chart"] = Field(
+        default="unity",
+        title="Effective length factor k (nonsway)",
+        description="1.0: conservative, allowed by BNBC 2020 Part 6 Sec 6.3.10.6.3. Chart: the "
+        "nonsway alignment chart with ψ from 0.70 Ig columns, 0.35 Ig beams and 0.25 Ig flat "
+        "plates. Sway storeys always use the sway chart.",
+        json_schema_extra=_labels(["k = 1.0", "Alignment chart"]),
+    )
+    swayMagnifier: Literal["Q", "sumPc"] = Field(
+        default="Q",
+        title="Sway magnifier δs",
+        description="Q: δs = 1/(1 − Q) (BNBC 2020 Part 6 Eq. 6.6.27), at most 1.5. ΣPc: δs = "
+        "1/(1 − ΣPu/(0.75 ΣPc)) (Eq. 6.6.28), Pc with EI/(1 + βdns) of each combination (Sec "
+        "6.3.10.7.4).",
+        json_schema_extra=_labels(["1/(1 − Q)", "ΣPu / ΣPc"]),
+    )
+    stiffness: Literal["0.4EcIg", "bars"] = Field(
+        default="0.4EcIg",
+        title="EI for Pc",
+        description="0.4 Ec Ig/(1 + βdns) (BNBC 2020 Part 6 Eq. 6.6.22) or (0.2 Ec Ig + Es Ise)/"
+        "(1 + βdns) with the bars (Eq. 6.6.21).",
+        json_schema_extra=_labels(["0.4 Ec Ig", "0.2 Ec Ig + Es Ise (with the bars)"]),
+    )
+    fixedBasePsi: float = Field(
+        default=1.0,
+        ge=0,
+        title="ψ at a fixed base",
+        description="End restraint ψ of a column on a fixed support, for the alignment charts.",
+    )
+    driftFactor: float | None = Field(
+        default=None,
+        gt=0,
+        title="Storey drift factor for Q",
+        description="Empty (automatic): 1.0 when the analysed model ran its lateral cases on "
+        "cracked sections (read from the model, not from these settings); with gross sections "
+        "each storey's "
+        "first-order drift Δo is multiplied by its cracked-over-gross drift ratio (columns "
+        "0.70 Ig, beams 0.35 Ig, flat plates 0.25 Ig, walls 0.35 Ig; BNBC 2020 Part 6 Sec "
+        "6.3.10.4.1). A number is used as given.",
+    )
+
+
 class Analysis(_Model):
     """How the analysis model (Part 8) represents the building."""
 
@@ -293,6 +347,115 @@ class Analysis(_Model):
         title="Response spectrum",
         description="Add response spectrum analyses in X and Y with the BNBC design spectrum of "
         "the site (CQC of the modes).",
+    )
+    stiffness: Literal["gross", "aci"] = Field(
+        default="aci",
+        title="Section stiffness",
+        description="Cracked (default): concrete and masonry members with the moments of "
+        "inertia of BNBC 2020 Part 6 Sec 6.3.10.4.1 (columns 0.70 Ig, walls 0.70 Ig or 0.35 Ig "
+        "when cracked, beams 0.35 Ig, flat plates and slabs 0.25 Ig; area 1.0 Ag). BNBC 2020 "
+        "Part 6 Sec 2.5.9.1 (a) requires the response spectrum model to consider the effects "
+        "of cracked sections, and Sec 6.1.10.2 uses these properties for the lateral "
+        "deflections. Gross: the uncracked sections, as before version 0.0.37 (the model is "
+        "then too stiff: periods come out shorter and drifts smaller than BNBC intends).",
+        json_schema_extra=_labels(["Gross sections", "Cracked (ACI / BNBC 6.3.10.4.1)"]),
+    )
+    crackedFor: Literal["all", "lateral"] = Field(
+        default="lateral",
+        title="Cracked stiffness for",
+        description="Lateral cases: wind, earthquake, modal, response spectrum and time "
+        "histories on the cracked sections, the gravity cases on the gross ones. All cases: "
+        "the model's sections are the cracked ones (as ETABS property modifiers).",
+        json_schema_extra=_labels(["All cases", "Lateral cases only"]),
+    )
+    wallsCracked: bool = Field(
+        default=False,
+        title="Walls cracked",
+        description="Walls at 0.35 Ig (cracked) instead of 0.70 Ig (uncracked), BNBC 2020 Part "
+        "6 Sec 6.3.10.4.1.",
+    )
+    secondOrder: Literal["none", "pDelta"] = Field(
+        default="none",
+        title="Second-order analysis",
+        description="None: columns are designed for slenderness by moment magnification (BNBC "
+        "2020 Part 6 Sec 6.3.10.6 and 6.3.10.7). P-Delta: the columns get P-Delta "
+        "transformations and every case is solved on the stiffness of the structure under "
+        "the gravity preload (BNBC 2020 Part 6 Sec 2.5.7.9, 6.3.10.4), so the sway magnifier δs "
+        "is 1 and only the effects along the column length (δns) are added (Sec 6.3.10.2.2).",
+        json_schema_extra=_labels(["None (moment magnification)", "P-Delta analysis"]),
+    )
+    pDeltaFactors: PDeltaFactors = Field(
+        default_factory=PDeltaFactors,
+        title="P-Delta preload factors",
+        description="The gravity loads the P-Delta stiffness is taken under: by default the "
+        "gravity part of 1.2D + 1.0E + 1.0L (BNBC 2020 Part 6 Sec 2.7.3.1).",
+    )
+    firstOrderReference: bool = Field(
+        default=True,
+        title="First-order reference cases",
+        description="With P-Delta, also run each lateral static case first order (EX-1, ...), "
+        "for the drift amplification and the stability coefficient θ of BNBC 2020 Part 6 Sec "
+        "2.5.7.9 in the report.",
+    )
+    slenderness: Slenderness = Field(default_factory=Slenderness, title="Column slenderness")
+    seismicDesign: Literal["static", "responseSpectrum"] = Field(
+        default="responseSpectrum",
+        title="Earthquake design forces",
+        description="Response spectrum: when the response spectrum cases run, E in the design "
+        "combinations is the response spectrum, scaled up to 85 % of the equivalent static base "
+        "shear (BNBC 2020 Part 6 Sec 2.5.9.4), with the accidental torsion and the orthogonal "
+        "rule below (the static cases EX and EY otherwise). Static: the equivalent static cases "
+        "EX and EY.",
+        json_schema_extra=_labels(
+            ["Equivalent static (EX, EY)", "Response spectrum, scaled (BNBC 2.5.9.4)"]
+        ),
+    )
+    seismicOrthogonal: Literal["auto", "always", "never"] = Field(
+        default="auto",
+        title="Orthogonal effects (100 % + 30 %)",
+        description="Automatic: E = EX + 0.3EY and 0.3EX + EY in Seismic Design Category D "
+        "(BNBC 2020 Part 6 Sec 2.5.13.1 (b)); one direction at a time in B and C. Always: also "
+        "for a Category C building with non-parallel systems (irregularity type V).",
+        json_schema_extra=_labels(["By the Seismic Design Category", "Always", "Never"]),
+    )
+    seismicAccidentalTorsion: bool = Field(
+        default=True,
+        title="Accidental torsion",
+        description="Add the static torsional moments ±0.05 L F at each floor (BNBC 2020 Part 6 "
+        "Sec 2.5.7.6.2, Eq. 6.2.43) to the response spectrum; amplified by Ax where the "
+        "building is torsionally irregular in Seismic Design Category C or D (Eq. 6.2.44, Sec "
+        "2.5.5.3.1); with 100 % + 30 % the 5 % shift in one direction at a time, the larger "
+        "effect governing (Sec 2.5.7.6.3).",
+    )
+    seismicVerticalComponent: bool = Field(
+        default=True,
+        title="Vertical earthquake component",
+        description="E = Eh ± Ev with Ev = 0.50 a_h D, a_h = (2/3) Z S (BNBC 2020 Part 6 Sec "
+        "2.5.13.2).",
+    )
+    seismicLiveFactor: float | None = Field(
+        default=None,
+        ge=0,
+        title="Live load factor with E",
+        description="Factor on L in 1.2D + 1.0E + L. Empty: the project's own static earthquake "
+        "combination's (0.5 is permitted for L ≤ 5.0 kN/m² except garages and assembly, BNBC "
+        "2020 Part 6 Sec 2.7.3.1 exception 1).",
+    )
+    seismicRedundancy: float = Field(
+        default=1.0,
+        ge=1.0,
+        le=1.3,
+        title="Redundancy factor ρ (drift)",
+        description="The allowable storey drift of moment frames in Category D is Δa/ρ (BNBC "
+        "2020 Part 6 Sec 2.5.14.1): 1.0, or up to 1.3 for low redundancy.",
+    )
+    seismicSigns: Literal["corners", "plusMinus"] = Field(
+        default="corners",
+        title="Response spectrum signs",
+        description="Response spectrum results have no sign: the design takes ± the envelope, "
+        "every force component at its peak. Corners: columns and walls checked at ±N, ±My, ±Mz "
+        "(8 patterns). ±: +E and −E only.",
+        json_schema_extra=_labels(["±N, ±My, ±Mz (8 patterns)", "+E and −E"]),
     )
     constructionSequence: bool = Field(
         default=False,

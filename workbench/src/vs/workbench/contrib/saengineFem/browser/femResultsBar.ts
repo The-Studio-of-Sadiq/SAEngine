@@ -23,7 +23,8 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IFemResultEntry, IFemResultList, IFemResultView } from '../../../../platform/saengine/common/femSolver.js';
 import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { EditorFrame, IEditorFrameIconButton, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
-import { describeDesignSummary, describeSteel, describeSteelRatio, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, otherFailureElements, requiredSteelOf, resultsFolder, runDesign, runDesignRequired, shortElements, sortedChecks, tooSmallElements, writeDesignSummary } from './femDesign.js';
+import { describeDesignSummary, describeSlenderness, describeSteel, describeSteelRatio, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, isSecondOrderRequired, isSlendernessCheck, otherFailureElements, requiredSteelOf, resultsFolder, runDesign, runDesignRequired, secondOrderRequiredMembers, shortElements, slendernessHeading, sortedChecks, tooSmallElements, writeDesignSummary } from './femDesign.js';
+import { describeScaleOnResult, describeSecondOrder, FemAxis, IFemSecondOrder, isFirstOrderReference, IFemSeismicDesign, runSecondOrder, runSeismicDesign, seismicSection, spectrumAxis, storeyAmplificationRows } from './femSeismicDesign.js';
 import { FemSsiPanel } from './femSsi.js';
 
 export { resultsFolder } from './femDesign.js';
@@ -323,7 +324,12 @@ export class FemResultsBar extends Disposable {
 	private readonly resultsWatch = this._register(new MutableDisposable());
 	private readonly reload = this._register(new RunOnceScheduler(() => void this.load(), 400));
 	/** The design checks' own inputs (reinforcement, materials, combinations) changed. */
-	private readonly redesign = this._register(new RunOnceScheduler(() => this.refreshDesign(), 400));
+	// An edited input (the project settings: response spectrum design, orthogonal rule, torsion)
+	// changes the seismic design as well as the checks: read both again, the seismic design first.
+	private readonly redesign = this._register(new RunOnceScheduler(() => {
+		void this.loadExtras(true);
+		this.refreshDesign();
+	}, 400));
 
 	private resource: URI | undefined;
 	private format = resultFormatter(undefined);
@@ -354,6 +360,16 @@ export class FemResultsBar extends Disposable {
 	private designToken = 0;
 	/** The soil springs' section of the properties panel (models on soil springs). */
 	private readonly ssi: FemSsiPanel;
+	/** The response spectrum scaled for design, when the project designs from it. */
+	private seismic: IFemSeismicDesign | undefined;
+	/** What the second-order (P-Delta) analysis changed, when the run is second order. */
+	private secondOrder: IFemSecondOrder | undefined;
+	private extrasToken = 0;
+	/**
+	 * Settles once the run's response spectrum design has been worked out (or failed, or is not
+	 * offered): the design checks wait for it, since their RS combinations read what it writes.
+	 */
+	private seismicReady: Promise<unknown> = Promise.resolve();
 
 	constructor(
 		frame: EditorFrame,
@@ -478,6 +494,7 @@ export class FemResultsBar extends Disposable {
 		this.views.clear();
 		this.view = undefined;
 		this.clearDesign();
+		this.clearExtras();
 		if (resource) {
 			// A run deletes and writes again the results folder beside the model: watch the model's
 			// folder for it, and the results folder for its manifest (written last).
@@ -565,6 +582,7 @@ export class FemResultsBar extends Disposable {
 		this._version++;
 		this.views.clear();
 		this.clearDesign();
+		void this.loadExtras();
 		if (this.show === 'utilisation') {
 			void this.loadDesign();
 		}
@@ -601,6 +619,46 @@ export class FemResultsBar extends Disposable {
 		this.designToken++;
 	}
 
+	private clearExtras(): void {
+		this.seismic = undefined;
+		this.secondOrder = undefined;
+		this.seismicReady = Promise.resolve();
+		this.extrasToken++;
+	}
+
+	/**
+	 * Reads the run's response spectrum design and second-order analysis, when the backend
+	 * offers them: quiet without them (first-order run, no spectrum, older backend, failure).
+	 * `keep`: a refresh after an input changed, keeping the values shown until the new ones come.
+	 */
+	private async loadExtras(keep = false): Promise<void> {
+		const resource = this.resource;
+		if (!resource || !this.list.results.length) {
+			this.clearExtras();
+			return;
+		}
+		if (keep) {
+			// A refresh: what is shown stays until the new values arrive (no flicker).
+			this.extrasToken++;
+		} else {
+			this.clearExtras();
+		}
+		const token = this.extrasToken;
+		// Set before the first await, so a design started right after this call waits for it.
+		const seismicRun = runSeismicDesign(this.commandService, resource).catch(() => undefined);
+		this.seismicReady = seismicRun;
+		const [seismic, secondOrder] = await Promise.all([
+			seismicRun,
+			runSecondOrder(this.commandService, resource).catch(() => undefined),
+		]);
+		if (token !== this.extrasToken || resource !== this.resource) {
+			return;
+		}
+		this.seismic = seismic ?? undefined;
+		this.secondOrder = secondOrder ?? undefined;
+		this.host.changed();
+	}
+
 	/** Drops the design checks and, while they are shown, runs them again. */
 	private refreshDesign(): void {
 		if (!this.design && !this.designProblem && !this.designLoading) {
@@ -623,6 +681,12 @@ export class FemResultsBar extends Disposable {
 		this.designLoading = true;
 		let report: IFemDesignReport | undefined;
 		let problem: string | undefined;
+		// The response spectrum design writes the summary the design's RS combinations read: run
+		// after it, or the first design after a run could fall back to the static EX / EY.
+		await this.seismicReady;
+		if (token !== this.designToken || resource !== this.resource) {
+			return; // the results changed meanwhile (clearDesign reset the loading state)
+		}
 		// The required steel is extra: without it (no backend yet, or it failed) the checks still show.
 		const required = runDesignRequired(this.commandService, resource).catch(() => undefined);
 		try {
@@ -809,7 +873,10 @@ export class FemResultsBar extends Disposable {
 			if (!this.design) {
 				return { busy: true, text: localize('femResults.designRunning', "Checking the members against the load combinations...") };
 			}
-			return { text: designStatus(this.design) };
+			const secondOrderRequired = secondOrderRequiredMembers(this.design);
+			return secondOrderRequired.length
+				? { severity: 'warning', text: localize('femResults.designSecondOrderStatus', "{0} · second-order analysis required: {1}", designStatus(this.design), secondOrderRequired.join(', ')) }
+				: { text: designStatus(this.design) };
 		}
 		const solidComponent = SOLID_COMPONENTS[this.show];
 		if (solidComponent !== undefined) {
@@ -829,11 +896,17 @@ export class FemResultsBar extends Disposable {
 			}
 		}
 		const text = this.describeOverall();
+		// The response spectrum's scaling for design; the drift amplification of a second-order run.
+		const axis = entry.kind === 'spectrum' ? spectrumAxis(entry.label) : undefined;
+		const scaled = axis ? describeScaleOnResult(this.seismic, axis) : undefined;
+		const secondOrder = (entry.kind === 'static' || entry.kind === 'combination') && this.show !== 'none' && !isFirstOrderReference(entry.label)
+			? describeSecondOrder(this.secondOrder)
+			: undefined;
 		// The temperature case: its member forces include the fixed-end forces added back.
 		const thermal = /^T:/.test(entry.label) && this.show !== 'deformed' && this.show !== 'none'
 			? localize('femResults.thermalNote', "Temperature T: forces include the members' fixed-end forces (added back); analysed without the rigid diaphragms.")
 			: undefined;
-		const shown = [text, thermal].filter(t => !!t).join(' ');
+		const shown = [text, scaled, secondOrder, thermal].filter(t => !!t).join(' ');
 		return shown ? { text: shown } : undefined;
 	}
 
@@ -965,6 +1038,12 @@ export class FemResultsBar extends Disposable {
 				}
 			}
 		}
+		if (entry.kind === 'modal' || entry.kind === 'spectrum') {
+			this.renderSeismic(container, entry.kind === 'spectrum' ? spectrumAxis(entry.label) : undefined, false);
+		}
+		if ((entry.kind === 'static' || entry.kind === 'combination') && this.show !== 'utilisation' && !isFirstOrderReference(entry.label)) {
+			this.renderSecondOrder(container);
+		}
 		if (entry.kind === 'pushover') {
 			propertyHeading(container, localize('femResults.curveHeading', "Capacity Curve"));
 			this.renderCurve(container, entry.frames ?? []);
@@ -1061,6 +1140,11 @@ export class FemResultsBar extends Disposable {
 					propertyRow(container, localize('femResults.steelNoBars', "No bars yet"), steel.assumed.join(', '));
 				}
 			}
+			const secondOrderRequired = secondOrderRequiredMembers(report);
+			if (secondOrderRequired.length) {
+				propertyRow(container, localize('femResults.secondOrderRequiredCount', "Second-order analysis required"), secondOrderRequired.join(', '));
+			}
+			this.renderSeismic(container, undefined, true);
 			propertyNote(container, localize('femResults.designSelect', "Select a member, or a slab's shell, for its checks."));
 			return;
 		}
@@ -1092,17 +1176,34 @@ export class FemResultsBar extends Disposable {
 		append(verdict, $('span.value', undefined, formatUtilisation(element.utilisation)));
 		const checks = sortedChecks(element);
 		for (const check of checks) {
-			const row = append(container, $(`.fem-design-check${check.ok ? '' : '.fail'}${check.flag ? '.flag' : ''}`));
+			const secondOrder = isSecondOrderRequired(check);
+			const row = append(container, $(`.fem-design-check${check.ok ? '' : '.fail'}${check.flag ? '.flag' : ''}${secondOrder ? '.second-order' : ''}`));
 			const head = append(row, $('.fem-design-check-head'));
 			append(head, $('span.name', undefined, check.name));
-			append(head, $('span.value', undefined, formatUtilisation(check.utilisation)));
+			append(head, $('span.value', undefined, secondOrder ? localize('femResults.secondOrderRequired', "second-order analysis required") : formatUtilisation(check.utilisation)));
 			append(row, $('.fem-design-check-detail', undefined, check.combination
 				? localize('femResults.checkUnder', "{0}, {1}", formatCheckValues(check), check.combination)
 				: formatCheckValues(check)));
+			if (secondOrder && check.note) {
+				// The reason: moment magnification is not allowed (or not enough) for it.
+				append(row, $('.fem-design-check-detail', undefined, check.note));
+			}
 		}
 		const governing = checks.find(c => !c.flag);
 		if (governing?.note) {
 			propertyNote(container, localize('femResults.governing', "Governing: {0}.", governing.note));
+		}
+		// A column's slenderness about each axis: how its moments are magnified for it.
+		for (const check of checks.filter(isSlendernessCheck)) {
+			const rows = describeSlenderness(check);
+			if (rows.length) {
+				propertyHeading(container, slendernessHeading(check));
+				// Names kept on one line ("k lu / r"): the values wrap instead.
+				const section = append(container, $('.fem-slenderness'));
+				for (const row of rows) {
+					propertyRow(section, row.name, row.value);
+				}
+			}
 		}
 		this.renderSteel(container, requiredSteelOf(this.required, element.id), true);
 		if (this.requiredLoading) {
@@ -1151,6 +1252,48 @@ export class FemResultsBar extends Disposable {
 			if (steel.notes && (steel.tooSmall || steel.ok === false)) {
 				append(row, $('.fem-design-check-detail', undefined, steel.notes));
 			}
+		}
+	}
+
+	/**
+	 * The response spectrum scaled for design: the factor of each direction (or of `axis` only),
+	 * the orthogonal rule and accidental torsion, the drift; with `combinations`, the design
+	 * combinations with the scaled spectrum as E. Nothing when the project does not design from it
+	 * (the backend returns null). When it does but the run has no spectrum (`available: false`),
+	 * the heading with the backend's notes only, saying why (e.g. enable the response spectrum).
+	 */
+	private renderSeismic(container: HTMLElement, axis: FemAxis | undefined, combinations: boolean): void {
+		for (const item of seismicSection(this.seismic, axis, combinations)) {
+			switch (item.kind) {
+				case 'heading': propertyHeading(container, item.text); break;
+				case 'note': propertyNote(container, item.text); break;
+				case 'row': propertyRow(container, item.name, item.value); break;
+				case 'combination': {
+					const row = append(container, $('.fem-seismic-combination'));
+					append(row, $('.sa-props-row', undefined, item.name));
+					if (item.detail) {
+						append(row, $('.fem-design-check-detail', undefined, item.detail));
+					}
+					break;
+				}
+			}
+		}
+	}
+
+	/** The drift amplification per storey of a second-order (P-Delta) run; nothing for a first-order one. */
+	private renderSecondOrder(container: HTMLElement): void {
+		const secondOrder = this.secondOrder;
+		const note = describeSecondOrder(secondOrder);
+		if (!secondOrder || !note) {
+			return;
+		}
+		propertyHeading(container, localize('femResults.secondOrderHeading', "Second Order"));
+		propertyNote(container, note);
+		for (const row of storeyAmplificationRows(secondOrder)) {
+			propertyRow(container, row.name, row.value);
+		}
+		for (const text of secondOrder?.notes ?? []) {
+			propertyNote(container, text);
 		}
 	}
 

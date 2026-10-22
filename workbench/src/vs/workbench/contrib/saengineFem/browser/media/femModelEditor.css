@@ -343,6 +343,33 @@
 	opacity: 0.75;
 }
 
+/* A column too slender for moment magnification: marked like the failing member's verdict. */
+.saengine-fem-model-editor .fem-design-check.second-order {
+	padding-left: var(--sa-space-2, 8px);
+	border-left: 3px solid var(--fem-band-fail);
+	background: color-mix(in srgb, var(--fem-band-fail) 8%, transparent);
+}
+
+.saengine-fem-model-editor .fem-design-check.second-order .fem-design-check-head .value {
+	font-weight: normal;
+}
+
+/* A column's slenderness: short names ("k lu / r") stay on one line, the values wrap. */
+.saengine-fem-model-editor .fem-slenderness .sa-props-row > .name {
+	flex-shrink: 0;
+	white-space: nowrap;
+}
+
+.saengine-fem-model-editor .fem-slenderness .sa-props-row > .value {
+	min-width: 0;
+}
+
+/* A design combination with the scaled response spectrum as E. */
+.saengine-fem-model-editor .fem-seismic-combination {
+	font-variant-numeric: tabular-nums;
+	margin-bottom: var(--sa-space-1, 4px);
+}
+
 .saengine-fem-model-editor .fem-design-check-detail {
 	color: var(--sa-muted, var(--vscode-descriptionForeground));
 	font-size: var(--sa-font-s, 12px);

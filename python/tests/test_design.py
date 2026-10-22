@@ -446,8 +446,14 @@ def test_frame_beams_sag_at_midspan_and_hog_at_the_supports(frame: Path) -> None
     column = {c["name"]: c for c in elements["C1"]["checks"]}
     assert column["Axial compression"]["demand"] > 0
     assert column["Axial force and biaxial bending"]["utilisation"] < 1
-    slender = column["Slenderness k lu / r"]
-    assert slender["flag"] and slender["demand"] == pytest.approx(3200 / (0.3 * 400), rel=1e-3)
+    # Slenderness per bending axis (saengine.design.slender; tests in test_design_slender.py):
+    # gravity only, so no storey is known to sway: nonsway, k = 1, lu below the beams.
+    slender = [c for name, c in column.items() if name.startswith("Slenderness about")]
+    assert len(slender) == 2
+    for check in slender:
+        s = check["slenderness"]
+        assert s["sway"] is None and s["k"] == 1.0
+        assert s["lu"] < 3200 and check["demand"] == pytest.approx(s["lu"] / s["r"], rel=1e-3)
     summary = report["summary"]
     assert summary["checked"] == 8 and summary["passed"] + summary["failed"] == 8
     assert summary["maxUtilisation"] == max(e["utilisation"] for e in report["elements"])

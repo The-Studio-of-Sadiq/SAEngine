@@ -30,8 +30,52 @@ export interface IFemDesignCheck {
 	readonly combination: string | null;
 	readonly ok: boolean;
 	readonly note: string;
-	/** Reported only: does not make the member fail (e.g. slenderness). */
+	/** Reported only: does not make the member fail. */
 	readonly flag: boolean;
+	/**
+	 * A column's slenderness check ("Slenderness (nonsway, δns = 1.12)"): how it was designed
+	 * for. The backend may give the fields here or directly on the check (see {@link slendernessOf}).
+	 */
+	readonly slenderness?: IFemSlenderness;
+	/** The column is too slender for moment magnification: a second-order analysis is required. */
+	readonly secondOrderRequired?: boolean;
+}
+
+/**
+ * How a column's slenderness is designed for (ACI 318-19 6.2.5, 6.6.4 as BNBC 2020 Part 6
+ * Ch 6 adopts): lengths in mm, moments in kN·m.
+ */
+export interface IFemSlenderness {
+	/** Unbraced length [mm]. */
+	readonly lu: number;
+	/** Effective length factor. */
+	readonly k: number;
+	/** Radius of gyration [mm]. */
+	readonly r: number;
+	readonly klu_r: number;
+	/** The storey is a sway storey; null when not known (one storey, no lateral case). */
+	readonly sway: boolean | null;
+	/** The storey's stability index; null when not worked out. */
+	readonly Q?: number | null;
+	readonly deltaNs?: number | null;
+	readonly deltaS?: number | null;
+	/** The larger end moment, first order [kN·m]. */
+	readonly M2?: number | null;
+	/** M2 magnified (minimum moment included) [kN·m]. */
+	readonly M2magnified?: number | null;
+	/** The k lu / r below which slenderness may be neglected, if the backend reports it. */
+	readonly limit?: number | null;
+	/** The storey ("Storey 2"), if the backend names it. */
+	readonly storey?: string | null;
+	/** The bending axis of the check ("y", "z"). */
+	readonly axis?: string | null;
+	/** k lu / r is at most the limit: slenderness neglected (the check is then a flag). */
+	readonly neglected?: boolean | null;
+	/** Cm of the nonsway magnifier, and the critical load Pc [kN]. */
+	readonly Cm?: number | null;
+	readonly Pc?: number | null;
+	/** "none" or "pDelta": the sway moments come from a P-Delta analysis. */
+	readonly secondOrder?: string | null;
 }
 
 /** A checked beam, column or slab of the building model. */
@@ -372,6 +416,12 @@ export function describeDesignSummary(report: IFemDesignReport): string {
 
 /** A check's demand against capacity: "120.5 of 300.0 kN", or a ratio "0.11 against 0.38". */
 export function formatCheckValues(check: IFemDesignCheck): string {
+	// A column whose slenderness may be neglected is rated against that limit (22, or
+	// 34 - 12 M1/M2), not against the 100 of the second-order analysis: show the limit it uses.
+	const slenderness = check.name.startsWith('Slenderness') ? slendernessOf(check) : undefined;
+	if (slenderness?.neglected && typeof slenderness.limit === 'number') {
+		return localize('femDesign.checkSlenderLimit', "k lu / r {0} against {1} (slenderness may be neglected)", check.demand.toFixed(2), slenderness.limit.toFixed(2));
+	}
 	// Ratios (c/d, slenderness) keep two decimals: one would round a slab's c/d of 0.11 to 0.1.
 	return check.unit
 		? localize('femDesign.checkValues', "{0} of {1} {2}", check.demand.toFixed(1), check.capacity.toFixed(1), check.unit)
@@ -416,4 +466,147 @@ export function describeDesignElement(report: IFemDesignReport, elementId: numbe
 		formatUtilisation(element.utilisation), checks.map(formatCheck).join('; '));
 	const governing = checks.find(c => !c.flag);
 	return governing?.note ? localize('femDesign.governing', "{0} Governing: {1}.", text, governing.note) : text;
+}
+
+// ───────────────────────────── column slenderness ─────────────────────────────
+
+/** Whether a check is a column's slenderness check (designed for, or flagged by an older backend). */
+export function isSlendernessCheck(check: IFemDesignCheck): boolean {
+	return check.name.startsWith('Slenderness') || slendernessOf(check) !== undefined;
+}
+
+/**
+ * How a slenderness check was designed for: the backend's `slenderness` object, or its fields on
+ * the check itself; undefined when it reports none (a flag of an older backend).
+ */
+export function slendernessOf(check: IFemDesignCheck): IFemSlenderness | undefined {
+	if (check.slenderness) {
+		return check.slenderness;
+	}
+	const fields = check as IFemDesignCheck & Partial<IFemSlenderness>;
+	return typeof fields.klu_r === 'number' && typeof fields.lu === 'number' && typeof fields.k === 'number' && typeof fields.r === 'number'
+		? {
+			lu: fields.lu, k: fields.k, r: fields.r, klu_r: fields.klu_r, sway: fields.sway ?? null, Q: fields.Q, deltaNs: fields.deltaNs, deltaS: fields.deltaS,
+			M2: fields.M2, M2magnified: fields.M2magnified, limit: fields.limit, storey: fields.storey, axis: fields.axis, neglected: fields.neglected,
+			Cm: fields.Cm, Pc: fields.Pc, secondOrder: fields.secondOrder,
+		}
+		: undefined;
+}
+
+/** Whether a check says the column needs a second-order analysis (too slender to magnify its moments). */
+export function isSecondOrderRequired(check: IFemDesignCheck): boolean {
+	return check.secondOrderRequired === true || (!check.ok && /second-order analysis (is )?required/i.test(`${check.name} ${check.note}`));
+}
+
+/** The members that need a second-order analysis, in the report's order. */
+export function secondOrderRequiredMembers(report: IFemDesignReport | undefined): string[] {
+	return (report?.elements ?? []).filter(e => e.checks.some(isSecondOrderRequired)).map(e => e.id);
+}
+
+/** One name/value row of a column's slenderness in the properties panel. */
+export interface IFemSlendernessRow {
+	readonly name: string;
+	readonly value: string;
+}
+
+/**
+ * The k lu / r above which moment magnification is not permitted and a second-order analysis is
+ * required (ACI 318-19 6.2.6, as `saengine.design.slender.KLU_R_MAX`).
+ */
+const KLU_R_MAX = 100;
+
+/** The δs above which a second-order analysis is required (as `saengine.design.slender.DELTA_S_MAX`). */
+const DELTA_S_MAX = 1.5;
+
+function formatMillimetres(value: number): string {
+	return localize('femDesign.mm', "{0} mm", value.toLocaleString('en-US', { maximumFractionDigits: 0 }));
+}
+
+function formatKilonewtonMetres(value: number): string {
+	return localize('femDesign.kNm', "{0} kN·m", value.toFixed(1));
+}
+
+/**
+ * A column's slenderness as rows: lu, k, r, k lu / r (against its limit), the storey (sway or
+ * nonsway, with Q), the magnifiers and M2 magnified, and the combination that governs.
+ */
+export function describeSlenderness(check: IFemDesignCheck): IFemSlendernessRow[] {
+	const s = slendernessOf(check);
+	if (!s) {
+		return [];
+	}
+	const rows: IFemSlendernessRow[] = [
+		{ name: localize('femDesign.lu', "Unbraced length lu"), value: formatMillimetres(s.lu) },
+		{ name: localize('femDesign.k', "Effective length factor k"), value: s.k.toFixed(2) },
+		{ name: localize('femDesign.r', "Radius of gyration r"), value: formatMillimetres(s.r) },
+		{
+			name: localize('femDesign.kluR', "k lu / r"),
+			value: s.klu_r > KLU_R_MAX
+				? localize('femDesign.kluRMax', "{0} > {1}: second-order analysis required", s.klu_r.toFixed(1), KLU_R_MAX.toFixed(1))
+				: typeof s.limit !== 'number'
+					? s.klu_r.toFixed(1)
+					: s.neglected
+						? localize('femDesign.kluRNeglected', "{0} ≤ {1}: slenderness neglected", s.klu_r.toFixed(1), s.limit.toFixed(1))
+						// Past the "may be neglected" limit the moments are magnified: that limit never
+						// asks for a second-order analysis (δs > 1.5 or an unstable storey does, below).
+						: localize('femDesign.kluRLimit', "{0} > {1}: moments magnified", s.klu_r.toFixed(1), s.limit.toFixed(1)),
+		},
+	];
+	if (s.klu_r <= KLU_R_MAX && isSecondOrderRequired(check)) {
+		// Required for another reason than k lu / r: the backend's note says which (δs, stability).
+		rows.push({ name: localize('femDesign.secondOrderRow', "Second-order analysis"), value: secondOrderReason(s) });
+	}
+	if (s.sway !== null) {
+		const kind = s.sway ? localize('femDesign.sway', "sway") : localize('femDesign.nonsway', "nonsway");
+		const value = typeof s.Q === 'number' ? localize('femDesign.storeyQ', "{0}, Q = {1}", kind, s.Q.toFixed(3)) : kind;
+		// The storey's name in a row of its own: with the name or the value it squeezes the row.
+		if (s.storey) {
+			rows.push({ name: localize('femDesign.storey', "Storey"), value: s.storey });
+		}
+		rows.push({ name: localize('femDesign.frame', "Frame"), value });
+	}
+	const magnifiers = [
+		...(typeof s.deltaNs === 'number' ? [localize('femDesign.deltaNs', "δns = {0}", s.deltaNs.toFixed(2))] : []),
+		...(typeof s.deltaS === 'number' ? [localize('femDesign.deltaS', "δs = {0}", s.deltaS.toFixed(2))] : []),
+	];
+	if (s.sway && s.secondOrder === 'pDelta') {
+		magnifiers.unshift(localize('femDesign.swayPDelta', "sway moments from the P-Delta analysis"));
+	}
+	if (magnifiers.length) {
+		rows.push({ name: localize('femDesign.magnifier', "Moment magnifier"), value: magnifiers.join(', ') });
+	}
+	if (typeof s.Cm === 'number') {
+		rows.push({
+			name: localize('femDesign.cm', "Cm, Pc"),
+			value: typeof s.Pc === 'number' ? localize('femDesign.cmPc', "{0}, {1} kN", s.Cm.toFixed(2), s.Pc.toLocaleString('en-US', { maximumFractionDigits: 0 })) : s.Cm.toFixed(2),
+		});
+	}
+	if (typeof s.M2 === 'number') {
+		rows.push({
+			name: localize('femDesign.m2', "Moment M2"),
+			value: typeof s.M2magnified === 'number'
+				? localize('femDesign.m2Magnified', "{0} → {1}", formatKilonewtonMetres(s.M2), formatKilonewtonMetres(s.M2magnified))
+				: formatKilonewtonMetres(s.M2),
+		});
+	}
+	if (check.combination) {
+		rows.push({ name: localize('femDesign.slenderCombination', "Governing combination"), value: check.combination });
+	}
+	return rows;
+}
+
+/**
+ * Why a second-order analysis is required when k lu / r is within 100: δs over its 1.5 limit, or
+ * else whatever the check's note says (an unstable storey, a column that buckles).
+ */
+function secondOrderReason(s: IFemSlenderness): string {
+	return typeof s.deltaS === 'number' && s.deltaS > DELTA_S_MAX
+		? localize('femDesign.secondOrderDeltaS', "required: δs = {0} > {1}", s.deltaS.toFixed(2), DELTA_S_MAX.toFixed(1))
+		: localize('femDesign.secondOrderNote', "required (see the check)");
+}
+
+/** A slenderness check's heading: "Slenderness about y", or "Slenderness" without an axis. */
+export function slendernessHeading(check: IFemDesignCheck): string {
+	const axis = slendernessOf(check)?.axis ?? /^Slenderness about (?<axis>\w+)/.exec(check.name)?.groups?.axis;
+	return axis ? localize('femDesign.slendernessAbout', "Slenderness about {0}", axis) : localize('femDesign.slendernessHeading', "Slenderness");
 }
