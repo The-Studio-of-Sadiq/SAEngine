@@ -1,8 +1,8 @@
 {
 	"schema": "saengine.boq/1",
 	"source": {
-		"bim": "4095937f620faa9783b313d15bd6ee381f7ddf30",
-		"objects": "b6329a3e9903474537f2922b1db027dd8706385f",
+		"bim": "ec2a330ee86f3998504ea38c68157368e5976647",
+		"objects": "8e5071eecf9fdcc14df9d386d143304fdd03a09c",
 		"materials": "3fe12b278b2e3c43c8e62699aff518395c1a6b7f",
 		"substructure": "24add05dca2f64378c5594856b57f9df1e104bac",
 		"mep": "c4617615135928550d24d2e811b50a250c1ec5d1",
@@ -235,18 +235,18 @@
 			"code": "C.07",
 			"group": "concrete",
 			"description": "Concrete C24.1 in slabs",
-			"quantity": 9.166,
+			"quantity": 8.098,
 			"unit": "m3",
 			"material": "C24.1",
 			"kind": "slab",
 			"byStory": {
-				"L1": 9.166
+				"L1": 8.098
 			},
 			"breakdown": [
 				{
 					"element": "S1",
 					"story": "L1",
-					"quantity": 3.917
+					"quantity": 2.848
 				},
 				{
 					"element": "S2",
@@ -259,23 +259,18 @@
 			"code": "C.08",
 			"group": "concrete",
 			"description": "Concrete C24.1 in stairs",
-			"quantity": 3.334,
+			"quantity": 2.32,
 			"unit": "m3",
 			"material": "C24.1",
 			"kind": "staircase",
 			"byStory": {
-				"BASE": 3.334
+				"BASE": 2.32
 			},
 			"breakdown": [
 				{
 					"element": "ST1",
 					"story": "BASE",
-					"quantity": 1.667
-				},
-				{
-					"element": "ST2",
-					"story": "BASE",
-					"quantity": 1.667
+					"quantity": 2.32
 				}
 			]
 		},
@@ -322,13 +317,14 @@
 			"code": "R.01",
 			"group": "reinforcement",
 			"description": "Reinforcement B420DWR, 10 mm bars",
-			"quantity": 1278.901,
+			"quantity": 1359.555,
 			"unit": "kg",
 			"material": "B420DWR",
 			"diameter": 10.0,
 			"byStory": {
-				"L1": 1201.667,
-				"L2": 24.988
+				"L1": 1246.095,
+				"L2": 24.988,
+				"BASE": 36.226
 			},
 			"breakdown": [
 				{
@@ -404,28 +400,40 @@
 					"quantity": 26.667
 				},
 				{
+					"element": "W1",
+					"story": "L1",
+					"detail": "vertical",
+					"quantity": 73.519
+				},
+				{
+					"element": "W1",
+					"story": "L1",
+					"detail": "horizontal",
+					"quantity": 73.519
+				},
+				{
 					"element": "S1",
 					"story": "L1",
 					"detail": "bottom X",
-					"quantity": 107.449
+					"quantity": 78.132
 				},
 				{
 					"element": "S1",
 					"story": "L1",
 					"detail": "bottom Y",
-					"quantity": 107.449
+					"quantity": 78.132
 				},
 				{
 					"element": "S1",
 					"story": "L1",
 					"detail": "top X",
-					"quantity": 80.586
+					"quantity": 58.599
 				},
 				{
 					"element": "S1",
 					"story": "L1",
 					"detail": "top Y",
-					"quantity": 80.586
+					"quantity": 58.599
 				},
 				{
 					"element": "S2",
@@ -455,6 +463,18 @@
 					"element": "M1",
 					"detail": "ties",
 					"quantity": 52.247
+				},
+				{
+					"element": "ST1",
+					"story": "BASE",
+					"detail": "distribution",
+					"quantity": 26.966
+				},
+				{
+					"element": "ST1",
+					"story": "BASE",
+					"detail": "landing distribution",
+					"quantity": 9.259
 				}
 			]
 		},
@@ -462,14 +482,32 @@
 			"code": "R.02",
 			"group": "reinforcement",
 			"description": "Reinforcement B420DWR, 12 mm bars",
-			"quantity": 35.556,
+			"quantity": 141.351,
 			"unit": "kg",
 			"material": "B420DWR",
 			"diameter": 12.0,
 			"byStory": {
-				"BASE": 35.556
+				"BASE": 141.351
 			},
 			"breakdown": [
+				{
+					"element": "ST1",
+					"story": "BASE",
+					"detail": "main",
+					"quantity": 62.13
+				},
+				{
+					"element": "ST1",
+					"story": "BASE",
+					"detail": "top",
+					"quantity": 25.888
+				},
+				{
+					"element": "ST1",
+					"story": "BASE",
+					"detail": "landing",
+					"quantity": 17.778
+				},
 				{
 					"element": "F1",
 					"story": "BASE",
@@ -752,24 +790,24 @@
 			"code": "F.06",
 			"group": "formwork",
 			"description": "Formwork to slabs",
-			"quantity": 57.279,
+			"quantity": 50.977,
 			"unit": "m2",
 			"kind": "slab",
 			"byStory": {
-				"L1": 57.279
+				"L1": 50.977
 			},
 			"breakdown": [
 				{
 					"element": "S1",
 					"story": "L1",
 					"detail": "soffit",
-					"quantity": 23.642
+					"quantity": 16.518
 				},
 				{
 					"element": "S1",
 					"story": "L1",
 					"detail": "edges",
-					"quantity": 1.957
+					"quantity": 2.779
 				},
 				{
 					"element": "S2",
@@ -783,18 +821,18 @@
 			"code": "F.07",
 			"group": "formwork",
 			"description": "Formwork to stairs",
-			"quantity": 23.16,
+			"quantity": 15.577,
 			"unit": "m2",
 			"kind": "staircase",
 			"byStory": {
-				"BASE": 23.16
+				"BASE": 15.577
 			},
 			"breakdown": [
 				{
 					"element": "ST1",
 					"story": "BASE",
 					"detail": "soffit",
-					"quantity": 7.74
+					"quantity": 8.737
 				},
 				{
 					"element": "ST1",
@@ -803,16 +841,10 @@
 					"quantity": 3.84
 				},
 				{
-					"element": "ST2",
+					"element": "ST1",
 					"story": "BASE",
-					"detail": "soffit",
-					"quantity": 7.74
-				},
-				{
-					"element": "ST2",
-					"story": "BASE",
-					"detail": "risers",
-					"quantity": 3.84
+					"detail": "landing soffit",
+					"quantity": 3.0
 				}
 			]
 		},
@@ -1131,13 +1163,13 @@
 			"code": "MT.01",
 			"group": "materials",
 			"description": "Cement (OPC)",
-			"quantity": 12376.079,
+			"quantity": 11536.197,
 			"unit": "kg",
 			"kind": "cement",
 			"byStory": {
-				"L1": 9446.69,
+				"L1": 9015.83,
 				"L2": 309.658,
-				"BASE": 1949.251
+				"BASE": 1540.228
 			},
 			"breakdown": [
 				{
@@ -1227,7 +1259,7 @@
 					"element": "S1",
 					"story": "L1",
 					"detail": "Concrete C24.1 in slabs",
-					"quantity": 1579.133
+					"quantity": 1148.273
 				},
 				{
 					"element": "S2",
@@ -1244,13 +1276,7 @@
 					"element": "ST1",
 					"story": "BASE",
 					"detail": "Concrete C24.1 in stairs",
-					"quantity": 672.225
-				},
-				{
-					"element": "ST2",
-					"story": "BASE",
-					"detail": "Concrete C24.1 in stairs",
-					"quantity": 672.225
+					"quantity": 935.428
 				},
 				{
 					"element": "F1",
@@ -1270,13 +1296,13 @@
 			"code": "MT.02",
 			"group": "materials",
 			"description": "Cement (OPC) in 50 kg bags",
-			"quantity": 247.522,
+			"quantity": 230.724,
 			"unit": "bag",
 			"kind": "bags",
 			"byStory": {
-				"L1": 188.934,
+				"L1": 180.317,
 				"L2": 6.193,
-				"BASE": 38.985
+				"BASE": 30.805
 			},
 			"breakdown": [
 				{
@@ -1366,7 +1392,7 @@
 					"element": "S1",
 					"story": "L1",
 					"detail": "Concrete C24.1 in slabs",
-					"quantity": 31.583
+					"quantity": 22.965
 				},
 				{
 					"element": "S2",
@@ -1383,13 +1409,7 @@
 					"element": "ST1",
 					"story": "BASE",
 					"detail": "Concrete C24.1 in stairs",
-					"quantity": 13.445
-				},
-				{
-					"element": "ST2",
-					"story": "BASE",
-					"detail": "Concrete C24.1 in stairs",
-					"quantity": 13.445
+					"quantity": 18.709
 				},
 				{
 					"element": "F1",
@@ -1409,13 +1429,13 @@
 			"code": "MT.03",
 			"group": "materials",
 			"description": "Sand (fine aggregate)",
-			"quantity": 455.268,
+			"quantity": 424.372,
 			"unit": "cft",
 			"kind": "sand",
 			"byStory": {
-				"L1": 347.507,
+				"L1": 331.658,
 				"L2": 11.391,
-				"BASE": 71.705
+				"BASE": 56.659
 			},
 			"breakdown": [
 				{
@@ -1505,7 +1525,7 @@
 					"element": "S1",
 					"story": "L1",
 					"detail": "Concrete C24.1 in slabs",
-					"quantity": 58.09
+					"quantity": 42.241
 				},
 				{
 					"element": "S2",
@@ -1522,13 +1542,7 @@
 					"element": "ST1",
 					"story": "BASE",
 					"detail": "Concrete C24.1 in stairs",
-					"quantity": 24.729
-				},
-				{
-					"element": "ST2",
-					"story": "BASE",
-					"detail": "Concrete C24.1 in stairs",
-					"quantity": 24.729
+					"quantity": 34.411
 				},
 				{
 					"element": "F1",
@@ -1548,13 +1562,13 @@
 			"code": "MT.04",
 			"group": "materials",
 			"description": "Stone chips (coarse aggregate)",
-			"quantity": 910.537,
+			"quantity": 848.744,
 			"unit": "cft",
 			"kind": "stone",
 			"byStory": {
-				"L1": 695.015,
+				"L1": 663.315,
 				"L2": 22.782,
-				"BASE": 143.411
+				"BASE": 113.318
 			},
 			"breakdown": [
 				{
@@ -1644,7 +1658,7 @@
 					"element": "S1",
 					"story": "L1",
 					"detail": "Concrete C24.1 in slabs",
-					"quantity": 116.18
+					"quantity": 84.481
 				},
 				{
 					"element": "S2",
@@ -1661,13 +1675,7 @@
 					"element": "ST1",
 					"story": "BASE",
 					"detail": "Concrete C24.1 in stairs",
-					"quantity": 49.457
-				},
-				{
-					"element": "ST2",
-					"story": "BASE",
-					"detail": "Concrete C24.1 in stairs",
-					"quantity": 49.457
+					"quantity": 68.822
 				},
 				{
 					"element": "F1",
@@ -1687,13 +1695,13 @@
 			"code": "MT.05",
 			"group": "materials",
 			"description": "Water",
-			"quantity": 5569.236,
+			"quantity": 5191.289,
 			"unit": "l",
 			"kind": "water",
 			"byStory": {
-				"L1": 4251.01,
+				"L1": 4057.124,
 				"L2": 139.346,
-				"BASE": 877.163
+				"BASE": 693.103
 			},
 			"breakdown": [
 				{
@@ -1783,7 +1791,7 @@
 					"element": "S1",
 					"story": "L1",
 					"detail": "Concrete C24.1 in slabs",
-					"quantity": 710.61
+					"quantity": 516.723
 				},
 				{
 					"element": "S2",
@@ -1800,13 +1808,7 @@
 					"element": "ST1",
 					"story": "BASE",
 					"detail": "Concrete C24.1 in stairs",
-					"quantity": 302.501
-				},
-				{
-					"element": "ST2",
-					"story": "BASE",
-					"detail": "Concrete C24.1 in stairs",
-					"quantity": 302.501
+					"quantity": 420.943
 				},
 				{
 					"element": "F1",
@@ -1837,8 +1839,6 @@
 		"UGR1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
 		"SEP1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
 		"Materials: concrete C27.6 has no mix, so no cement, sand or stone is taken off for it (add the mix in 03 Materials).",
-		"Object type 'W200' (Wall 200) has no reinforcement; no bars are measured for W1.",
-		"Object type 'BR-SHS' (Brace SHS 150) has no reinforcement; no bars are measured for M2.",
-		"Object type 'ST1200' (Stair 1200 wide) has no reinforcement; no bars are measured for ST1, ST2."
+		"Object type 'BR-SHS' (Brace SHS 150) has no reinforcement; no bars are measured for M2."
 	]
 }

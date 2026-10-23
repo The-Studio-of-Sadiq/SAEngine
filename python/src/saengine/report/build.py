@@ -1263,6 +1263,8 @@ def _design(results_dir: Path, model_path: Path, warnings: list[str]) -> dict[st
         ]
         for r in report.get("stability", [])
     ]
+    walls = _walls(report)
+    stairs = _stairs(report)
     failed = int(summary.get("failed", 0) or 0)
     if failed:
         warnings.append(f"{failed} element(s) fail their design checks.")
@@ -1274,6 +1276,8 @@ def _design(results_dir: Path, model_path: Path, warnings: list[str]) -> dict[st
         )
     return {
         "seismic": seismic,
+        "walls": walls,
+        "stairs": stairs,
         "slenderness": slender_rows,
         "slendernessFails": slender_fails,
         "stability": stability,
@@ -1301,6 +1305,105 @@ def _design(results_dir: Path, model_path: Path, warnings: list[str]) -> dict[st
         "notes": [str(note) for note in report.get("notes", [])],
         "details": details,
     }
+
+
+def _walls(report: dict[str, Any]) -> dict[str, Any]:
+    """Integrator glue: the walls' piers and boundary elements (saengine.design.wall_design)."""
+    piers, piers_bad, boundary, coupling, coupling_bad = [], [], [], [], []
+    for element in report.get("elements", []):
+        if element.get("kind") != "wall":
+            continue
+        for pier in element.get("piers", []) or []:
+            check = _governing(pier)
+            forces = pier.get("forces") or {}
+            piers.append(
+                [
+                    str(element.get("id")),
+                    str(pier.get("id")),
+                    str(pier.get("storey") or "–"),
+                    fmt(pier.get("lw"), 0),
+                    fmt(pier.get("tw"), 0),
+                    fmt(forces.get("P"), 1) if forces else "–",
+                    fmt(forces.get("V2"), 1) if forces else "–",
+                    fmt(forces.get("M3"), 1) if forces else "–",
+                    str(check.get("name", "")) if check else "–",
+                    fmt(pier.get("utilisation"), 3),
+                    "OK" if pier.get("ok") else "FAIL",
+                ]
+            )
+            piers_bad.append(not pier.get("ok"))
+            b = pier.get("boundary")
+            if b:
+                if b.get("method") == "displacement":
+                    test = f"c {fmt(b.get('c'), 0)} vs {fmt(b.get('trigger'), 0)} mm"
+                else:
+                    test = f"σ {fmt(b.get('stress'), 2)} MPa"
+                boundary.append(
+                    [
+                        str(element.get("id")),
+                        str(pier.get("id")),
+                        str(b.get("method", "")),
+                        test,
+                        "required" if b.get("required") else "not required",
+                        fmt(b.get("length"), 0) if b.get("length") else "–",
+                        fmt(b.get("height"), 0) if b.get("height") else "–",
+                    ]
+                )
+        for beam in element.get("couplingBeams", []) or []:
+            check = _governing(beam)
+            coupling.append(
+                [
+                    str(element.get("id")),
+                    str(beam.get("id")),
+                    f"{fmt(beam.get('ln'), 0)} / {fmt(beam.get('h'), 0)}",
+                    "diagonal" if beam.get("diagonal") else "beam",
+                    str(check.get("name", "")) if check else "–",
+                    fmt(beam.get("utilisation"), 3),
+                    "not designed"
+                    if beam.get("ok") is None
+                    else ("OK" if beam.get("ok") else "FAIL"),
+                ]
+            )
+            coupling_bad.append(not beam.get("ok"))
+    return {
+        "piers": piers,
+        "piersBad": piers_bad,
+        "boundary": boundary,
+        "coupling": coupling,
+        "couplingBad": coupling_bad,
+    }
+
+
+def _stairs(report: dict[str, Any]) -> dict[str, Any]:
+    """Integrator glue: the stairs' flights and landings (saengine.design.stairs), per metre."""
+    rows, bad = [], []
+    for element in report.get("elements", []):
+        if element.get("kind") != "staircase":
+            continue
+        for part in element.get("parts", []) or []:
+            prefix = f"{part.get('name')}: "
+            own = [
+                c for c in element.get("checks", []) if str(c.get("name", "")).startswith(prefix)
+            ]
+            strength = [c for c in own if not c.get("flag")]
+            utilisation = max((c.get("utilisation", 0.0) for c in strength), default=None)
+            ok = all(c.get("ok") for c in strength)
+            rows.append(
+                [
+                    str(element.get("id")),
+                    str(part.get("name")),
+                    str(part.get("kind", "")),
+                    fmt(part.get("span"), 0),
+                    fmt(part.get("h"), 0),
+                    fmt(part.get("wu"), 2),
+                    fmt(part.get("mu"), 2),
+                    fmt(part.get("vu"), 2),
+                    fmt(utilisation, 3) if utilisation is not None else "–",
+                    "OK" if ok else "FAIL",
+                ]
+            )
+            bad.append(not ok)
+    return {"parts": rows, "partsBad": bad}
 
 
 DETAILING = "Detailing: "

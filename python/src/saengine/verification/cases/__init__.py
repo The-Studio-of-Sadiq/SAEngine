@@ -21,6 +21,7 @@ from saengine.verification.cases import (
     substructure_deep,
     tanks,
     thermal,
+    walls,
 )
 from saengine.verification.cases.common import Case
 
@@ -33,6 +34,7 @@ CASES: list[Case] = [
     *slenderness.CASES,
     *rs_design.CASES,
     *seismic_detailing.CASES,
+    *walls.CASES,
     *soil.CASES,
     *substructure.CASES,
     *substructure_deep.CASES,

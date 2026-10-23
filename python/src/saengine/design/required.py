@@ -75,6 +75,13 @@ ASSUMED = {
         "topX": {"dia": 10, "spacing": 200},
         "topY": {"dia": 10, "spacing": 200},
     },
+    # Integrator glue: structural walls (saengine.design.wall_design).
+    "wall": {
+        "cover": 25,
+        "vertical": {"dia": 10, "spacing": 200},
+        "horizontal": {"dia": 10, "spacing": 200},
+        "layers": 2,
+    },
 }
 
 #: Beam zones along a member, as shares of its length.
@@ -176,7 +183,7 @@ def with_assumed_bars(
             continue
         if kind == "column" and (o.get("profile") or {}).get("shape") == "circle":
             key = "columnCircle"
-        elif kind in ("beam", "column", "slab"):
+        elif kind in ("beam", "column", "slab") or kind == "wall" and o.get("structural", True):
             key = kind
         else:
             continue
@@ -973,6 +980,84 @@ def slab_rows(collected: dict[str, Any], combinations: list[str], assumed: bool)
     return rows
 
 
+# ─────────────────────────────────────── stairs ───────────────────────────────────────
+
+
+def stair_rows(group: dict[str, Any]) -> list[dict[str, Any]]:
+    """Integrator glue: the rows of a staircase type's stairs from ``collect["stairs"]`` of
+    :func:`saengine.design.stairs.stair_report` (its need enveloped over the type's stairs, per
+    metre width): main bars (and top and landing bars when needed) and distribution bars."""
+    from saengine.design import stairs as stair_design
+
+    need = group["need"]
+    if need is None:
+        return []
+    t = group["object"]
+    bars = stair_design.bars_of(t.reinforcement)
+    too_small = bool(need.too_small)
+    notes = list(dict.fromkeys(need.too_small)) + ["enveloped over the type's stairs"]
+
+    def pick(required: dict[float, float], mesh: Any) -> tuple[float, float] | None:
+        if not required:
+            return None
+        dia = mesh.dia if mesh is not None and mesh.dia in required else min(required)
+        return dia, required[dia]
+
+    layers: list[tuple[str, dict[float, float], Any, float | None]] = [
+        ("main bars", need.main, bars.main if bars else None, need.s_main),
+        ("top bars", need.top, bars.top if bars else None, need.s_main),
+        (
+            "landing bars",
+            need.landing,
+            (bars.landing or bars.main) if bars else None,
+            need.s_landing,
+        ),
+    ]
+    rows = []
+    for member in group["members"]:
+        for name, required, mesh, spacing in layers:
+            found = pick(required, mesh)
+            if found is None:
+                continue
+            dia, area = found
+            rows.append(
+                _row(
+                    member,
+                    "staircase",
+                    group["type"],
+                    name,
+                    f"{name} (Ø{dia:g})",
+                    None,
+                    "",
+                    area,
+                    need.distribution,
+                    None if bars is None or mesh is None else mesh.area,
+                    "mm²/m",
+                    need.governing,
+                    [*notes, f"spacing ≤ {spacing:.0f} mm"],
+                    too_small,
+                )
+            )
+        rows.append(
+            _row(
+                member,
+                "staircase",
+                group["type"],
+                "distribution bars",
+                "distribution bars",
+                None,
+                "",
+                need.distribution,
+                need.distribution,
+                None if bars is None else bars.distribution.area,
+                "mm²/m",
+                None,
+                [f"spacing ≤ {need.s_dist:.0f} mm"],
+            )
+        )
+    return rows
+
+
 # ─────────────────────────────────────── foundations ───────────────────────────────────────
 
 _SHALLOW = re.compile(r"^Flexure ([XY]) \((bottom|top)\)$")
@@ -1223,6 +1308,13 @@ def design_required(
         rows += detailing_rows(member, member["type"] in gathered.assumed)
     for collected in gathered.collect.get("slabs", []):
         rows += slab_rows(collected, combinations, collected["type"] in gathered.assumed)
+    # Integrator glue: wall piers (saengine.design.wall_design) and stairs (stairs.py).
+    from saengine.design import wall_design
+
+    for collected in gathered.collect.get("walls", []):
+        rows += wall_design.required_rows(collected, collected["type"] in gathered.assumed, _row)
+    for group in gathered.collect.get("stairs", []):
+        rows += stair_rows(group)
     for demand in foundation_demands(gathered):
         rows += foundation_rows(demand)
     notes = list(gathered.notes)

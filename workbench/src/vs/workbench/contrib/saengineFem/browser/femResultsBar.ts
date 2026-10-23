@@ -27,6 +27,7 @@ import { describeDesignSummary, describeSlenderness, describeSteel, describeStee
 import { describeScaleOnResult, describeSecondOrder, FemAxis, IFemSecondOrder, isFirstOrderReference, IFemSeismicDesign, runSecondOrder, runSeismicDesign, seismicSection, spectrumAxis, storeyAmplificationRows } from './femSeismicDesign.js';
 import { FemSsiPanel } from './femSsi.js';
 import { describeJointsSummary, describeJointVerdict, detailingSection, FemDetailingItem, generalChecks, IFemDetailingModel, IFemJoint, jointAtNode, jointColouring, jointHeading, jointItems, jointOk, jointsOf, jointsOfMember } from './femSeismicDetailing.js';
+import { checkItems, describeStaircaseVerdict, describeWallsSummary, formatPierForce, IFemPierDiagram, isStaircase, isWall, ownChecks, pierDiagram, staircasesOf, staircaseSection, wallSection } from './femWallsStairs.js';
 
 export { resultsFolder } from './femDesign.js';
 
@@ -1135,7 +1136,10 @@ export class FemResultsBar extends Disposable {
 		}
 	}
 
-	/** The selected member's design checks, the governing first; or why it was not checked. */
+	/**
+	 * The selected member's design checks, the governing first (a wall's with its piers and
+	 * coupling beams); or why it was not checked. Without a selection, the summary and the stairs.
+	 */
 	private renderDesignProperties(container: HTMLElement, selection: FemSelection | undefined): void {
 		const report = this.design;
 		if (!report) {
@@ -1178,6 +1182,11 @@ export class FemResultsBar extends Disposable {
 			if (secondOrderRequired.length) {
 				propertyRow(container, localize('femResults.secondOrderRequiredCount', "Second-order analysis required"), secondOrderRequired.join(', '));
 			}
+			const walls = describeWallsSummary(report);
+			if (walls) {
+				propertyRow(container, localize('femResults.designWalls', "Walls"), walls);
+			}
+			this.renderStairs(container, report);
 			this.renderSeismic(container, undefined, true);
 			propertyNote(container, localize('femResults.designSelect', "Select a member, or a slab's shell, for its checks."));
 			return;
@@ -1198,7 +1207,7 @@ export class FemResultsBar extends Disposable {
 			propertyHeading(container, id ?? localize('femResults.elementHeading', "Element {0}", selection.id));
 			propertyNote(container, skipped
 				? localize('femResults.notChecked', "Not checked ({0}): {1}.", skipped.type, skipped.reason)
-				: localize('femResults.noDesign', "This element is not designed (only reinforced-concrete beams, columns and slabs are)."));
+				: localize('femResults.noDesignWalls', "This element is not designed (only reinforced-concrete beams, columns, slabs and walls are)."));
 			if (skipped && this.requiredLoading) {
 				propertyNote(container, localize('femResults.steelLoading', "Working out the steel required..."));
 			}
@@ -1209,8 +1218,9 @@ export class FemResultsBar extends Disposable {
 		append(verdict, $('span', undefined, element.ok ? localize('femResults.passes', "Passes") : localize('femResults.fails', "Fails")));
 		append(verdict, $('span.value', undefined, formatUtilisation(element.utilisation)));
 		const checks = sortedChecks(element);
-		// The seismic detailing checks count in the utilisation above, but show in their own section.
-		for (const check of generalChecks(checks)) {
+		// The seismic detailing checks count in the utilisation above, but show in their own section;
+		// so do a wall's pier and coupling beam checks and a staircase's flight and geometry checks.
+		for (const check of generalChecks(sortedChecks({ ...element, checks: ownChecks(element) }))) {
 			const secondOrder = isSecondOrderRequired(check);
 			const row = append(container, $(`.fem-design-check${check.ok ? '' : '.fail'}${check.flag ? '.flag' : ''}${secondOrder ? '.second-order' : ''}`));
 			const head = append(row, $('.fem-design-check-head'));
@@ -1241,6 +1251,16 @@ export class FemResultsBar extends Disposable {
 			}
 		}
 		this.renderDetailing(container, detailingSection(report, element, this.model));
+		if (isWall(element)) {
+			const diagram = pierDiagram(element, selection.id);
+			if (diagram) {
+				propertyHeading(container, localize('femResults.pierDiagramHeading', "Pier Forces"));
+				this.renderPierDiagram(container, diagram);
+			}
+			this.renderDetailing(container, wallSection(element, selection.id));
+		} else if (isStaircase(element)) {
+			this.renderDetailing(container, staircaseSection(element));
+		}
 		this.renderSteel(container, requiredSteelOf(this.required, element.id), true);
 		if (this.requiredLoading) {
 			propertyNote(container, localize('femResults.steelLoading', "Working out the steel required..."));
@@ -1272,6 +1292,55 @@ export class FemResultsBar extends Disposable {
 					break;
 				}
 			}
+		}
+	}
+
+	/**
+	 * A wall's pier forces along its height: per storey (top first), bars of P, V2 and M3 under
+	 * each pier's governing combination, each force scaled to its largest; the pier at the
+	 * selected shell marked, a failing pier's label in the failing colour.
+	 */
+	private renderPierDiagram(container: HTMLElement, diagram: IFemPierDiagram): void {
+		const grid = append(container, $('.fem-pier-diagram', { role: 'table', 'aria-label': localize('femResults.pierDiagramAria', "Pier forces per storey") }));
+		const head = append(grid, $('.fem-pier-row.head', { role: 'row' }));
+		append(head, $('span.label', { role: 'columnheader' }, localize('femResults.pierStorey', "Storey")));
+		const columns = [
+			['P', localize('femResults.pierP', "P"), diagram.max.P],
+			['V2', localize('femResults.pierV2', "V2"), diagram.max.V2],
+			['M3', localize('femResults.pierM3', "M3"), diagram.max.M3],
+		] as const;
+		for (const [key, name, max] of columns) {
+			append(head, $('span.force', { role: 'columnheader', title: localize('femResults.pierMax', "{0}: largest {1}", name, formatPierForce(key, max)) }, name));
+		}
+		for (const bar of diagram.bars) {
+			const row = append(grid, $(`.fem-pier-row${bar.selected ? '.selected' : ''}${bar.ok ? '' : '.fail'}`, { role: 'row' }));
+			append(row, $('span.label', { role: 'rowheader', title: bar.governing ? localize('femResults.pierGoverning', "{0} (governing)", bar.label) : bar.label }, bar.label));
+			for (const [key, name, max] of columns) {
+				const value = bar[key];
+				const cell = append(row, $('span.force', { role: 'cell', title: localize('femResults.pierValue', "{0} {1}", name, formatPierForce(key, value)) }));
+				const fill = append(cell, $(`span.bar${value < 0 ? '.negative' : ''}`));
+				fill.style.width = `${max > 0 ? Math.abs(value) / max * 100 : 0}%`;
+			}
+		}
+		propertyNote(container, localize('femResults.pierDiagramNote', "Each pier under its governing combination; bars scaled to the largest of each force, negative values in a second colour. Hover a bar for its value."));
+	}
+
+	/**
+	 * The staircases of the design checks, under the summary: they are not in the analysis model,
+	 * so they cannot be picked in the view; each opens for its geometry, flights and bars.
+	 */
+	private renderStairs(container: HTMLElement, report: IFemDesignReport): void {
+		const stairs = staircasesOf(report);
+		if (!stairs.length) {
+			return;
+		}
+		propertyHeading(container, localize('femResults.stairsHeading', "Stairs"));
+		for (const stair of stairs) {
+			const details = append(container, $(`details.fem-stair${stair.ok ? '' : '.fail'}`));
+			append(details, $('summary', undefined, describeStaircaseVerdict(stair)));
+			// A staircase shown by its parts has no checks of its own; one without parts, a flat list.
+			this.renderDetailing(details, [...checkItems(generalChecks(ownChecks(stair))), ...staircaseSection(stair)]);
+			this.renderSteel(details, requiredSteelOf(this.required, stair.id), true);
 		}
 	}
 

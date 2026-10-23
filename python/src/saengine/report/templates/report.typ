@@ -649,6 +649,61 @@ The analysis uses #so.stiffness.
     #if req.lines.len() > 0 { bullets(req.lines) }
   ]
 
+  #let wl = design.at("walls", default: (piers: (), piersBad: (), boundary: (), coupling: (), couplingBad: ()))
+  #if wl.piers.len() > 0 [
+    == Wall piers
+    Each wall is designed by its piers (the wall between openings in a storey; under a window
+    the whole wall at its bottom level too), from section cuts of the shell model (BNBC 2020
+    Part 6 Sec 6.6, 6.4.8; special structural walls Sec 8.3.6). Forces of the governing
+    combination at the cut it governs (else the pier's bottom): P [kN, compression +], V2 [kN],
+    M3 [kN·m].
+    #tbl(
+      ("Wall", "Pier", "Storey", "lw [mm]", "tw [mm]", "P", "V2", "M3", "Governing check", "Util.", "Result"),
+      wl.piers,
+      columns: (auto, auto, auto, auto, auto, auto, auto, auto, 1fr, auto, auto),
+      align: (left, left, left, right, right, right, right, right, left, right, center),
+      bad: wl.piersBad,
+      size: 7.5pt,
+    )
+    #if wl.boundary.len() > 0 [
+      #block(above: 8pt, below: 4pt, sticky: true, text(weight: "bold", size: 9pt, [Boundary elements (Sec 8.3.6.6)]))
+      #tbl(
+        ("Wall", "Pier", "Method", "Test", "Boundary element", "Length [mm]", "Height [mm]"),
+        wl.boundary,
+        columns: (auto, auto, auto, 1fr, auto, auto, auto),
+        align: (left, left, left, left, left, right, right),
+        size: 8pt,
+      )
+    ]
+    #if wl.coupling.len() > 0 [
+      #block(above: 8pt, below: 4pt, sticky: true, text(weight: "bold", size: 9pt, [Coupling beams (Sec 8.3.6.7)]))
+      #tbl(
+        ("Wall", "Spandrel", "ln / h [mm]", "Bars", "Governing check", "Util.", "Result"),
+        wl.coupling,
+        columns: (auto, auto, auto, auto, 1fr, auto, auto),
+        align: (left, left, right, left, left, right, center),
+        bad: wl.couplingBad,
+        size: 8pt,
+      )
+    ]
+  ]
+
+  #let st = design.at("stairs", default: (parts: (), partsBad: ()))
+  #if st.parts.len() > 0 [
+    == Stairs
+    Flights and landings as one-way slabs per metre width (BNBC 2020 Part 6 Sec 6.7): span
+    [mm], thickness h [mm], factored load wu [kN/m²], moment Mu [kN·m/m] and shear Vu [kN/m];
+    the geometry checks are in the stair's own checks below.
+    #tbl(
+      ("Stair", "Part", "Kind", "Span", "h", "wu", "Mu", "Vu", "Util.", "Result"),
+      st.parts,
+      columns: (auto, auto, auto, auto, auto, auto, auto, auto, auto, auto),
+      align: (left, left, left, right, right, right, right, right, right, center),
+      bad: st.partsBad,
+      size: 8pt,
+    )
+  ]
+
   #if design.stability.len() > 0 [
     == Stability index Q per storey
     Storeys are nonsway where Q = ΣPu Δo / (Vus lc) ≤ 0.05 (BNBC 2020 Part 6 Sec 6.3.10.5.2,

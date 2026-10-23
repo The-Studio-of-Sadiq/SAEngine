@@ -227,12 +227,67 @@ class PlanarReinforcement(_Model):
     topY: BarMesh | None = None
 
 
+class BoundaryHoops(_Model):
+    """Hoops and crossties of a wall's boundary element (BNBC 2020 Part 6 Sec 8.3.6.6(d)(iii),
+    8.3.5.4), or its end ties (8.3.6.6(e)(i))."""
+
+    dia: Length = 10
+    spacing: Length = Field(default=100, description="Vertical spacing [mm].")
+    legsAcross: int = Field(
+        default=2,
+        ge=2,
+        title="Legs across",
+        description="Legs running across the thickness, counted along the length.",
+    )
+    legsAlong: int = Field(
+        default=2,
+        ge=2,
+        title="Legs along",
+        description="Legs running along the length, counted across the thickness.",
+    )
+
+
+class WallBoundary(_Model):
+    """Bars at each end of a wall: a boundary element of a special structural wall (BNBC 2020
+    Part 6 Sec 8.3.6.6), or end bars with ties; the same at both ends."""
+
+    length: Length = Field(description="From the wall's end [mm].")
+    count: int = Field(gt=0, description="Vertical bars per end, in two rows along the faces.")
+    dia: Length
+    hoop: BoundaryHoops | None = Field(default=None, title="Hoops")
+
+
+class CouplingDiagonal(_Model):
+    """One of the two groups of diagonal bars of the coupling beams (spandrels over openings) of
+    a special structural wall (BNBC 2020 Part 6 Sec 8.3.6.7)."""
+
+    count: int = Field(ge=4, description="Bars per group (at least four, 8.3.6.7(d)(ii)).")
+    dia: Length
+    angle: float | None = Field(
+        default=None,
+        gt=0,
+        lt=90,
+        description="Angle to the beam's axis [°]; none: from the depth and span.",
+    )
+
+
 class WallReinforcement(_Model):
     material: Id
     cover: Length
     vertical: BarMesh | None = None
     horizontal: BarMesh | None = None
     layers: Literal[1, 2] = 2
+    boundary: WallBoundary | None = Field(
+        default=None,
+        title="End bars",
+        description="Boundary elements or end bars with ties at each end of the wall; none: "
+        "the web bars only.",
+    )
+    diagonal: CouplingDiagonal | None = Field(
+        default=None,
+        title="Coupling beam diagonals",
+        description="Diagonal bars of the spandrels between piers (special walls).",
+    )
 
 
 class StairReinforcement(_Model):
@@ -240,6 +295,13 @@ class StairReinforcement(_Model):
     cover: Length
     main: BarMesh
     distribution: BarMesh
+    top: BarMesh | None = Field(
+        default=None, description="Top bars over ends entered as continuous; none: no top bars."
+    )
+    landing: BarMesh | None = Field(
+        default=None,
+        description="Main bars of landings spanning across the flights; none: the main mesh.",
+    )
 
 
 # ─────────────────────────────────── object types ───────────────────────────────────
@@ -289,10 +351,23 @@ class Wall(_ObjectBase):
         default=True, description="False for partition/infill walls that carry no lateral load."
     )
     reinforcement: WallReinforcement | None = None
+    braced: bool = Field(
+        default=True,
+        description="Braced top and bottom against lateral translation (BNBC 6.6.5.2).",
+    )
+    restrainedEnds: bool = Field(
+        default=True,
+        title="Restrained ends",
+        description="Restrained against rotation at one or both ends (BNBC 6.6.5.2).",
+    )
+    basement: bool = Field(
+        default=False,
+        description="Exterior basement or foundation wall (BNBC 6.6.3.4, 6.6.5.3).",
+    )
 
 
 class Staircase(_ObjectBase):
-    """Waist-slab staircase flight."""
+    """Waist-slab staircase: a straight flight, or two flights with a half landing."""
 
     kind: Literal["staircase"] = "staircase"
     waistThickness: Length
@@ -300,6 +375,40 @@ class Staircase(_ObjectBase):
     tread: Length
     flightWidth: Length
     reinforcement: StairReinforcement | None = None
+    arrangement: Literal["straight", "dogLegged"] = Field(
+        default="straight",
+        description="One flight from story to story, or two with a half landing between them.",
+    )
+    spanning: Literal["betweenBeams", "landingEdges", "withLandings", "landingsThreeSides"] = Field(
+        default="betweenBeams",
+        description="How the flights span (BNBC 2020 Part 6 Sec 6.7.1.1 (a)-(d)).",
+    )
+    landingLength: float | None = Field(
+        default=None,
+        gt=0,
+        title="Landing length",
+        description="Landing depth along the travel [mm]; none: the flight width.",
+    )
+    landingThickness: float | None = Field(
+        default=None, gt=0, title="Landing thickness", description="[mm]; none: the waist."
+    )
+    supportWidth: float = Field(
+        default=250,
+        ge=0,
+        title="Support width",
+        description="Width of the supporting beams or walls [mm].",
+    )
+    bottomEnd: Literal["simple", "continuous"] = Field(default="simple", title="Bottom end")
+    topEnd: Literal["simple", "continuous"] = Field(default="simple", title="Top end")
+    wellWidth: float = Field(
+        default=0,
+        ge=0,
+        title="Well width",
+        description="Gap between the flights of a dog-legged stair [mm].",
+    )
+    headroom: float | None = Field(
+        default=None, gt=0, description="Clear headroom provided [mm]; none: not checked."
+    )
 
 
 class Footing(_ObjectBase):

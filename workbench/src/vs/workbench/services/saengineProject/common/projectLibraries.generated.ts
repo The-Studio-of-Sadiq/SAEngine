@@ -741,6 +741,42 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			title: 'Beam',
 			type: 'object',
 		},
+		BoundaryHoops: {
+			additionalProperties: false,
+			description: 'Hoops and crossties of a wall\'s boundary element (BNBC 2020 Part 6 Sec 8.3.6.6(d)(iii),\n8.3.5.4), or its end ties (8.3.6.6(e)(i)).',
+			properties: {
+				dia: {
+					default: 10,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Bar diameter',
+					type: 'number',
+				},
+				spacing: {
+					default: 100,
+					description: 'Vertical spacing [mm].',
+					exclusiveMinimum: 0,
+					title: 'Spacing',
+					type: 'number',
+				},
+				legsAcross: {
+					default: 2,
+					description: 'Legs running across the thickness, counted along the length.',
+					minimum: 2,
+					title: 'Legs across',
+					type: 'integer',
+				},
+				legsAlong: {
+					default: 2,
+					description: 'Legs running along the length, counted across the thickness.',
+					minimum: 2,
+					title: 'Legs along',
+					type: 'integer',
+				},
+			},
+			title: 'BoundaryHoops',
+			type: 'object',
+		},
 		Brace: {
 			additionalProperties: false,
 			description: 'Bracing and truss members.',
@@ -962,6 +998,42 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			},
 			required: ['id', 'name', 'material', 'profile'],
 			title: 'Column',
+			type: 'object',
+		},
+		CouplingDiagonal: {
+			additionalProperties: false,
+			description: 'One of the two groups of diagonal bars of the coupling beams (spandrels over openings) of\na special structural wall (BNBC 2020 Part 6 Sec 8.3.6.7).',
+			properties: {
+				count: {
+					description: 'Bars per group (at least four, 8.3.6.7(d)(ii)).',
+					minimum: 4,
+					title: 'Number of bars',
+					type: 'integer',
+				},
+				dia: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Bar diameter',
+					type: 'number',
+				},
+				angle: {
+					anyOf: [
+						{
+							exclusiveMaximum: 90,
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Angle to the beam\'s axis [°]; none: from the depth and span.',
+					title: 'Angle',
+				},
+			},
+			required: ['count', 'dia'],
+			title: 'CouplingDiagonal',
 			type: 'object',
 		},
 		Footing: {
@@ -1670,6 +1742,32 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					$ref: '#/$defs/BarMesh',
 					title: 'Distribution',
 				},
+				top: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BarMesh',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Top bars over ends entered as continuous; none: no top bars.',
+					title: 'Top',
+				},
+				landing: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BarMesh',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Main bars of landings spanning across the flights; none: the main mesh.',
+					title: 'Landing',
+				},
 			},
 			required: ['material', 'cover', 'main', 'distribution'],
 			title: 'StairReinforcement',
@@ -1677,7 +1775,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 		},
 		Staircase: {
 			additionalProperties: false,
-			description: 'Waist-slab staircase flight.',
+			description: 'Waist-slab staircase: a straight flight, or two flights with a half landing.',
 			properties: {
 				id: {
 					maxLength: 64,
@@ -1751,6 +1849,88 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					],
 					default: null,
 					title: 'Reinforcement',
+				},
+				arrangement: {
+					default: 'straight',
+					description: 'One flight from story to story, or two with a half landing between them.',
+					enum: ['straight', 'dogLegged'],
+					title: 'Arrangement',
+					type: 'string',
+				},
+				spanning: {
+					default: 'betweenBeams',
+					description: 'How the flights span (BNBC 2020 Part 6 Sec 6.7.1.1 (a)-(d)).',
+					enum: ['betweenBeams', 'landingEdges', 'withLandings', 'landingsThreeSides'],
+					title: 'Spanning',
+					type: 'string',
+				},
+				landingLength: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Landing depth along the travel [mm]; none: the flight width.',
+					title: 'Landing length',
+				},
+				landingThickness: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[mm]; none: the waist.',
+					title: 'Landing thickness',
+				},
+				supportWidth: {
+					default: 250,
+					description: 'Width of the supporting beams or walls [mm].',
+					minimum: 0,
+					title: 'Support width',
+					type: 'number',
+				},
+				bottomEnd: {
+					default: 'simple',
+					enum: ['simple', 'continuous'],
+					title: 'Bottom end',
+					type: 'string',
+				},
+				topEnd: {
+					default: 'simple',
+					enum: ['simple', 'continuous'],
+					title: 'Top end',
+					type: 'string',
+				},
+				wellWidth: {
+					default: 0,
+					description: 'Gap between the flights of a dog-legged stair [mm].',
+					minimum: 0,
+					title: 'Well width',
+					type: 'number',
+				},
+				headroom: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Clear headroom provided [mm]; none: not checked.',
+					title: 'Headroom',
 				},
 			},
 			required: ['id', 'name', 'material', 'waistThickness', 'riser', 'tread', 'flightWidth'],
@@ -2026,9 +2206,66 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					default: null,
 					title: 'Reinforcement',
 				},
+				braced: {
+					default: true,
+					description: 'Braced top and bottom against lateral translation (BNBC 6.6.5.2).',
+					title: 'Braced',
+					type: 'boolean',
+				},
+				restrainedEnds: {
+					default: true,
+					description: 'Restrained against rotation at one or both ends (BNBC 6.6.5.2).',
+					title: 'Restrained ends',
+					type: 'boolean',
+				},
+				basement: {
+					default: false,
+					description: 'Exterior basement or foundation wall (BNBC 6.6.3.4, 6.6.5.3).',
+					title: 'Basement',
+					type: 'boolean',
+				},
 			},
 			required: ['id', 'name', 'material', 'thickness'],
 			title: 'Wall',
+			type: 'object',
+		},
+		WallBoundary: {
+			additionalProperties: false,
+			description: 'Bars at each end of a wall: a boundary element of a special structural wall (BNBC 2020\nPart 6 Sec 8.3.6.6), or end bars with ties; the same at both ends.',
+			properties: {
+				length: {
+					description: 'From the wall\'s end [mm].',
+					exclusiveMinimum: 0,
+					title: 'Length',
+					type: 'number',
+				},
+				count: {
+					description: 'Vertical bars per end, in two rows along the faces.',
+					exclusiveMinimum: 0,
+					title: 'Number of bars',
+					type: 'integer',
+				},
+				dia: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Bar diameter',
+					type: 'number',
+				},
+				hoop: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BoundaryHoops',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Hoops',
+				},
+			},
+			required: ['length', 'count', 'dia'],
+			title: 'WallBoundary',
 			type: 'object',
 		},
 		WallReinforcement: {
@@ -2076,6 +2313,32 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					enum: [1, 2],
 					title: 'Layers',
 					type: 'integer',
+				},
+				boundary: {
+					anyOf: [
+						{
+							$ref: '#/$defs/WallBoundary',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Boundary elements or end bars with ties at each end of the wall; none: the web bars only.',
+					title: 'End bars',
+				},
+				diagonal: {
+					anyOf: [
+						{
+							$ref: '#/$defs/CouplingDiagonal',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Diagonal bars of the spandrels between piers (special walls).',
+					title: 'Coupling beam diagonals',
 				},
 			},
 			required: ['material', 'cover'],
@@ -6158,6 +6421,27 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 			dia: 10,
 			spacing: 200,
 		},
+	},
+	BoundaryHoops: {
+		dia: 10,
+		spacing: 100,
+		legsAcross: 2,
+		legsAlong: 2,
+	},
+	WallBoundary: {
+		length: 400,
+		count: 4,
+		dia: 16,
+		hoop: {
+			dia: 10,
+			spacing: 100,
+			legsAcross: 2,
+			legsAlong: 2,
+		},
+	},
+	CouplingDiagonal: {
+		count: 4,
+		dia: 20,
 	},
 	StairReinforcement: {
 		material: 'B420DWR',

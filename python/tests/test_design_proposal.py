@@ -437,7 +437,7 @@ def test_sample_byType_proposal_makes_the_design_pass(tmp_path: Path) -> None:
 
     proposal = design_proposal(out, model, {"mode": "byType"}, gathered=gathered)
     by_type = {t["type"]: t for t in proposal["types"]}
-    assert set(by_type) == {"B300x500", "C400x600", "S150"}
+    assert set(by_type) == {"B300x500", "C400x600", "S150", "W200", "ST1200"}
     assert all(t["status"] in ("ok", "unchanged") for t in by_type.values())  # none too small
     assert by_type["B300x500"]["governingMember"] in {"B2", "B4", "B5"}
 
@@ -460,8 +460,10 @@ def test_sample_byType_proposal_makes_the_design_pass(tmp_path: Path) -> None:
         for c in e["checks"]
         if not c["ok"] and not c["flag"]
     ]
+    # Everything passes with the bars proposed: the wall W1 and the dog-legged stair ST1 (riser
+    # 160, tread 327: 2R + T = 647 mm, BNBC Part 3 Sec 1.14.5.2, and Part 4 Table 4.3.5's 327 mm).
     assert failures == []
-    assert after["summary"]["failed"] == 0 and after["summary"]["checked"] == 15
+    assert after["summary"]["failed"] == 0 and after["summary"]["checked"] == 17
 
     # Splitting: the lighter beams get their own types, and the design still passes.
     split = design_proposal(out, model, {"mode": "splitTypes"}, gathered=gathered)
@@ -475,6 +477,6 @@ def test_sample_byType_proposal_makes_the_design_pass(tmp_path: Path) -> None:
     (root / "06 BIM/bim.json").write_text(result["bimText"], encoding="utf-8")
     (root / "05 Floor Plan/floor-plan.json").write_text(result["floorPlanText"], encoding="utf-8")
     again = design_report(out, model)
-    assert again["summary"]["failed"] == 0
+    assert {e["id"] for e in again["elements"] if not e["ok"]} == set()
     moved = {m["member"]: m["to"] for m in split["reassign"]}
     assert {e["id"]: e["type"] for e in again["elements"] if e["id"] in moved} == moved

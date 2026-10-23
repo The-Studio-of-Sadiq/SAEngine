@@ -484,6 +484,30 @@ def _covered(lines: BaseGeometry, owner: BaseGeometry, region: BaseGeometry) -> 
     return total
 
 
+def wall_piers(length: float, height: float, openings: list[Any]) -> int:
+    """The piers of a wall ``length`` by ``height`` [mm]: its solid lengths between the openings
+    that split it (taller than saengine.design.wall_forces.MIN_OPENING of its height, as the
+    wall forces split it), at least 1."""
+    from saengine.design.wall_forces import MIN_OPENING
+
+    cuts = sorted(
+        (max(float(w.offset), 0.0), min(float(w.offset + w.width), length))
+        for w in openings
+        if min(float(w.sill + w.height), height) - max(float(w.sill), 0.0)
+        >= MIN_OPENING * height - 1e-6
+    )
+    piers, at = 0, 0.0
+    for start, end in cuts:
+        if end <= start:
+            continue
+        if start > at + 1e-6:
+            piers += 1
+        at = max(at, end)
+    if length > at + 1e-6:
+        piers += 1
+    return max(piers, 1)
+
+
 def _rectangle(start: list[float], end: list[float], width: float) -> Polygon:
     """The plan of a straight member of ``width`` from ``start`` to ``end``."""
     return LineString([start, end]).buffer(width / 2, cap_style="flat")
@@ -787,19 +811,39 @@ class _Measure:
         area: float,
         runs: tuple[float, float],
         story: str | None,
+        piers: int = 1,
     ) -> None:
-        """``runs``: the length of the vertical and of the horizontal bars [mm]."""
+        """``runs``: the length of the vertical and of the horizontal bars [mm]; ``piers``: the
+        piers the openings split the wall into (end bars at both ends of each, as the design
+        lays them out, saengine.design.walls.pier_section)."""
         reinforcement = object_type.reinforcement
         if reinforcement is None:
             self.no_bars(object_type, element)
             return
-        for detail, mesh, run in (
-            ("vertical", reinforcement.vertical, runs[0]),
-            ("horizontal", reinforcement.horizontal, runs[1]),
+        boundary = getattr(reinforcement, "boundary", None)
+        # End bars replace the vertical web bars over their length at each end.
+        ends = 2 * piers * boundary.length * runs[0] if boundary is not None else 0.0
+        for detail, mesh, run, face in (
+            ("vertical", reinforcement.vertical, runs[0], max(area - ends, 0.0)),
+            ("horizontal", reinforcement.horizontal, runs[1], area),
         ):
             if mesh is not None:
-                total = reinforcement.layers * mesh_length(area, mesh.spacing, run, mesh.dia)
+                total = reinforcement.layers * mesh_length(face, mesh.spacing, run, mesh.dia)
                 self.rebar(element, reinforcement.material, mesh.dia, total, story, detail)
+        if boundary is not None and runs[0] > 0:
+            # Integrator glue: the end bars and their hoops (saengine.design.walls), both ends
+            # of every pier.
+            total = 2 * piers * boundary.count * bar_length(runs[0], boundary.dia)
+            self.rebar(element, reinforcement.material, boundary.dia, total, story, "end bars")
+            hoop = boundary.hoop
+            if hoop is not None:
+                cover = float(reinforcement.cover)
+                across = float(object_type.thickness) - 2 * cover + 2 * HOOK * hoop.dia
+                along = float(boundary.length) - cover + 2 * HOOK * hoop.dia
+                one = hoop.legsAcross * across + hoop.legsAlong * along
+                count = math.floor(runs[0] / hoop.spacing + 1e-9) + 1
+                total = 2 * piers * count * one
+                self.rebar(element, reinforcement.material, hoop.dia, total, story, "end hoops")
 
     def slab(
         self,
@@ -833,9 +877,10 @@ class _Measure:
         runs: tuple[float, float],
         story: str | None,
         less: tuple[float, float] = (0.0, 0.0),
+        piers: int = 1,
     ) -> None:
         """A wall of face ``area`` [mm²]; ``less``: its concrete [mm³] and formwork [mm²] within
-        slabs."""
+        slabs; ``piers``: see :meth:`wall_bars`."""
         material = self.material(element, object_type)
         if material is None:
             return
@@ -846,7 +891,7 @@ class _Measure:
         self.concrete(element, material, "wall", volume, story)
         if material.category == Category.CONCRETE:
             self.formwork(element, "wall", max(2 * area - less[1], 0.0), story, "both faces")
-            self.wall_bars(element, object_type, area, runs, story)
+            self.wall_bars(element, object_type, area, runs, story, piers)
 
     # ── the building model ──
 
@@ -910,7 +955,8 @@ class _Measure:
                         faces = _faces(e.start, e.end, t.thickness)
                         less = self.in_slabs(plan, faces, plan, e.bottom, e.top)
                         story = self.story_at(e.top)
-                        self.wall(e.id, t, area, (height, length), story, less)
+                        piers = wall_piers(length, height, wall_openings.get(e.id, []))
+                        self.wall(e.id, t, area, (height, length), story, less, piers)
                 case FootingElement() if self.substructure is not None:
                     self.drawn_footings.append(e.id)  # 9 Substructure has the foundations
                 case FootingElement():
@@ -1075,28 +1121,55 @@ class _Measure:
             return
         n = max(1, round(rise / t.riser))
         riser, going = rise / n, float(t.tread)
-        drop = float(t.waistThickness) * math.hypot(riser, going) / going
-        foot = drop * going / riser
-        points = [(0.0, 0.0)]
-        for i in range(n):
-            points += [(i * going, (i + 1) * riser), ((i + 1) * going, (i + 1) * riser)]
-        points += [(n * going, n * riser - drop), (min(foot, n * going), 0.0)]
         width = float(t.flightWidth)
         story = stair.base
-        self.concrete(stair.id, material, "staircase", Polygon(points).area * width, story)
-        slope = math.hypot(n * going, rise)
+        # A straight stair is one flight; a dog-legged one two flights of ceil(n/2) and
+        # floor(n/2) risers with a half landing between them (as saengine.design.stairs).
+        dog_legged = getattr(t, "arrangement", "straight") == "dogLegged" and n >= 2
+        flights = [(n + 1) // 2, n // 2] if dog_legged else [n]
+        slope = 0.0
+        for k in flights:
+            drop = float(t.waistThickness) * math.hypot(riser, going) / going
+            foot = drop * going / riser
+            points = [(0.0, 0.0)]
+            for i in range(k):
+                points += [(i * going, (i + 1) * riser), ((i + 1) * going, (i + 1) * riser)]
+            points += [(k * going, k * riser - drop), (min(foot, k * going), 0.0)]
+            self.concrete(stair.id, material, "staircase", Polygon(points).area * width, story)
+            slope += math.hypot(k * going, k * riser)
         self.formwork(stair.id, "staircase", slope * width, story, "soffit")
         self.formwork(stair.id, "staircase", n * riser * width, story, "risers")
+        landing_area = 0.0
+        if dog_legged:
+            depth = float(t.landingLength or width)
+            span = 2 * width + float(getattr(t, "wellWidth", 0.0) or 0.0)
+            thick = float(t.landingThickness or t.waistThickness)
+            landing_area = depth * span
+            self.concrete(stair.id, material, "staircase", landing_area * thick, story)
+            self.formwork(stair.id, "staircase", landing_area, story, "landing soffit")
         reinforcement = t.reinforcement
         if reinforcement is None:
             self.no_bars(t, stair.id)
             return
-        for detail, mesh, run in (
-            ("main", reinforcement.main, slope),
-            ("distribution", reinforcement.distribution, width),
-        ):
-            total = mesh_length(slope * width, mesh.spacing, run, mesh.dia)
-            self.rebar(stair.id, reinforcement.material, mesh.dia, total, story, detail)
+        layers = [
+            ("main", reinforcement.main, slope, slope * width),
+            ("distribution", reinforcement.distribution, width, slope * width),
+        ]
+        if getattr(reinforcement, "top", None) is not None:
+            # Top bars over continuous ends: a quarter of the flight from each such end.
+            ends = (t.bottomEnd == "continuous") + (t.topEnd == "continuous")
+            run = slope / 4
+            layers.append(("top", reinforcement.top, run, ends * run * width))
+        if landing_area > 0:
+            landing = getattr(reinforcement, "landing", None) or reinforcement.main
+            layers += [
+                ("landing", landing, landing_area / depth, landing_area),
+                ("landing distribution", reinforcement.distribution, depth, landing_area),
+            ]
+        for detail, mesh, run, area in layers:
+            total = mesh_length(area, mesh.spacing, run, mesh.dia)
+            if total > 0:
+                self.rebar(stair.id, reinforcement.material, mesh.dia, total, story, detail)
 
     # ── the foundations of 9 Substructure ──
 

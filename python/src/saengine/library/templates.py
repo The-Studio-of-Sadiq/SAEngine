@@ -136,6 +136,14 @@ TEMPLATES: dict[str, dict[str, Any]] = {
         "vertical": {"dia": 12, "spacing": 200},
         "horizontal": {"dia": 10, "spacing": 200},
     },
+    "BoundaryHoops": {"dia": 10, "spacing": 100, "legsAcross": 2, "legsAlong": 2},
+    "WallBoundary": {
+        "length": 400,
+        "count": 4,
+        "dia": 16,
+        "hoop": {"dia": 10, "spacing": 100, "legsAcross": 2, "legsAlong": 2},
+    },
+    "CouplingDiagonal": {"count": 4, "dia": 20},
     "StairReinforcement": {
         "material": _REBAR,
         "cover": 20,

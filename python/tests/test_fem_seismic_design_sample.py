@@ -44,8 +44,9 @@ def test_sample_runs_the_response_spectrum_and_its_forces_are_scaled_up(sample) 
     # V_rs is 41 % (X) and 42 % (Y) of V on the cracked lateral sections, so the forces are
     # scaled by 0.85 / 0.41 = 2.08 and 0.85 / 0.42 = 2.01 (when written).
     # Special moment frame R = 8 in zone 2: 103.9 kN of the earlier rcImf (R 5) in zone 3
-    # x (0.20 / 0.28) x (5 / 8) = 46.4 kN.
-    assert scale["vStatic"]["x"] == pytest.approx(46.40, rel=1e-3)
+    # x (0.20 / 0.28) x (5 / 8) = 46.4 kN, then x 779.7 / 824.8 for the seismic weight the
+    # dog-legged stair's larger well (2.6 x 4.14 m) leaves: 43.86 kN.
+    assert scale["vStatic"]["x"] == pytest.approx(43.86, rel=1e-3)
     for axis in ("x", "y"):
         assert scale[axis] == pytest.approx(0.85 * scale["vStatic"][axis] / scale["vDynamic"][axis])
         assert 1.6 < scale[axis] < 2.4

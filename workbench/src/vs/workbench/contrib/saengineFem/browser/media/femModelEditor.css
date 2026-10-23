@@ -381,6 +381,76 @@
 	color: var(--fem-band-fail);
 }
 
+/* A wall's pier forces per storey: a label column and a bar track for each of P, V2, M3. */
+.saengine-fem-model-editor .fem-pier-diagram {
+	display: grid;
+	grid-template-columns: minmax(56px, auto) repeat(3, minmax(0, 1fr));
+	column-gap: var(--sa-space-2, 8px);
+	row-gap: 2px;
+	margin: var(--sa-space-1, 4px) 0;
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-fem-model-editor .fem-pier-row {
+	display: contents;
+}
+
+.saengine-fem-model-editor .fem-pier-row.head > span {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-weight: 600;
+}
+
+.saengine-fem-model-editor .fem-pier-row > .label {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.saengine-fem-model-editor .fem-pier-row.selected > .label {
+	font-weight: 600;
+}
+
+.saengine-fem-model-editor .fem-pier-row.fail > .label {
+	color: var(--fem-band-fail);
+}
+
+.saengine-fem-model-editor .fem-pier-row:not(.head) > .force {
+	display: flex;
+	align-items: center;
+	height: 14px;
+	border-radius: 2px;
+	background: color-mix(in srgb, var(--sa-muted, var(--vscode-descriptionForeground)) 12%, transparent);
+}
+
+.saengine-fem-model-editor .fem-pier-row.selected > .force {
+	outline: 1px solid var(--vscode-focusBorder);
+}
+
+.saengine-fem-model-editor .fem-pier-row > .force > .bar {
+	height: 100%;
+	border-radius: 2px;
+	background: var(--fem-curve);
+}
+
+/* Not the marker's yellow: it reads as the 0.9 to 1.0 utilisation band. */
+.saengine-fem-model-editor .fem-pier-row > .force > .bar.negative {
+	background: var(--vscode-charts-purple);
+}
+
+/* A staircase of the design checks, opened for its geometry, flights and bars. */
+.saengine-fem-model-editor .fem-stair {
+	margin: var(--sa-space-1, 4px) 0;
+}
+
+.saengine-fem-model-editor .fem-stair > summary {
+	cursor: pointer;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-fem-model-editor .fem-stair.fail > summary {
+	color: var(--fem-band-fail);
+}
+
 /* A design combination with the scaled response spectrum as E. */
 .saengine-fem-model-editor .fem-seismic-combination {
 	font-variant-numeric: tabular-nums;

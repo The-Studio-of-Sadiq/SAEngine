@@ -955,6 +955,17 @@ def design_proposal(
             entry["byType"] = bars_of(by_type_pick.reinforcement, by_type_pick.label)
         types.append(entry)
 
+    # Integrator glue: wall types (saengine.design.wall_design) and staircase types (stairs.py).
+    from saengine.design import stairs as stair_design
+    from saengine.design import wall_design
+
+    types += wall_design.proposal_entries(
+        gathered.collect.get("walls", []), gathered.assumed, originals
+    )
+    types += stair_design.proposal_entries(
+        gathered.collect.get("stairs", []), opts.slab_diameters, opts.min_slab_spacing
+    )
+
     foundations = [_foundation_entry(d, opts) for d in foundation_demands(gathered)]
     for t in types:
         if t["status"] == "tooSmall":

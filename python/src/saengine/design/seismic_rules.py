@@ -10,7 +10,7 @@ What this module decides, from the project settings, materials, object types and
   permits it in that category and at the building's height;
 * the detailing level the category requires (Sec 8.3.2(b)-(e), pp. 1088-1089: D special,
   C intermediate, B ordinary; a lower category may use a higher level) and so which sections of
-  8.3 apply (8.3.3-8.3.12 except 8.3.6, walls, which are designed in a later round);
+  8.3 apply (8.3.3-8.3.12; 8.3.6, special structural walls, designed by saengine.design.walls);
 * the material requirements of Sec 8.3.3.3-8.3.3.5 (pp. 1089-1090) as checks;
 * per member its role (part of the seismic force-resisting system or not, Sec 8.3.3.1(d),
   8.3.12) and whether it needs the combinations with the overstrength factor Ω0 (Sec 2.5.5.6,
@@ -1025,7 +1025,7 @@ def seismic_detailing_scope(
             "8.3.6",
             walls_special and sdc == "D",
             "walls",
-            "special structural walls (not designed by SAEngine yet)",
+            "special structural walls (designed by saengine.design.walls)",
         ),
         "8.3.7": entry("8.3.7", special, "joints", "beam-column joints of special moment frames"),
         "8.3.8": entry("8.3.8", special, "lateral beams and columns", "capacity-design shear"),

@@ -121,7 +121,20 @@
 			"name": "Wall 200",
 			"kind": "wall",
 			"material": "C24.1",
-			"thickness": 200
+			"thickness": 200,
+			"reinforcement": {
+				"material": "B420DWR",
+				"cover": 25,
+				"vertical": {
+					"dia": 10,
+					"spacing": 200
+				},
+				"horizontal": {
+					"dia": 10,
+					"spacing": 200
+				},
+				"layers": 2
+			}
 		},
 		{
 			"id": "F2015",
@@ -146,13 +159,40 @@
 		},
 		{
 			"id": "ST1200",
-			"name": "Stair 1200 wide",
+			"name": "Dog-legged stair 1200 wide",
 			"kind": "staircase",
 			"material": "C24.1",
 			"waistThickness": 150,
 			"riser": 160,
-			"tread": 280,
-			"flightWidth": 1200
+			"tread": 327,
+			"flightWidth": 1200,
+			"reinforcement": {
+				"material": "B420DWR",
+				"cover": 20,
+				"main": {
+					"dia": 12,
+					"spacing": 125
+				},
+				"distribution": {
+					"dia": 10,
+					"spacing": 200
+				},
+				"top": {
+					"dia": 12,
+					"spacing": 150
+				},
+				"landing": {
+					"dia": 12,
+					"spacing": 150
+				}
+			},
+			"arrangement": "dogLegged",
+			"spanning": "landingEdges",
+			"landingLength": 1200,
+			"landingThickness": 150,
+			"wellWidth": 100,
+			"bottomEnd": "continuous",
+			"topEnd": "continuous"
 		},
 		{
 			"id": "BR-SHS",

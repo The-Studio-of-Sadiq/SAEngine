@@ -186,7 +186,8 @@ def test_sample_proposal_zones_resolve_the_member_detailing(analysed: Path, tmp_
     (root / "04 Objects/objects.json").write_text(out["objectsText"], "utf-8")
     run_all(root, ["derive", "analysis"])
     after = _report(root)
-    assert after["summary"]["failed"] == 0  # every beam and column passes, detailing included
+    # Every element passes, detailing included (the stair ST1 meets BNBC's geometry rules).
+    assert {e["id"] for e in after["elements"] if not e["ok"]} == set()
     # The project checks (system permitted, f'c ≥ 21 MPa) pass on the sample.
     assert after["summary"]["seismicChecksFailed"] == 0
 

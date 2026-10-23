@@ -78,11 +78,12 @@ export interface IFemSlenderness {
 	readonly secondOrder?: string | null;
 }
 
-/** A checked beam, column or slab of the building model. */
+/** A checked beam, column, slab, footing, wall or staircase of the building model. */
 export interface IFemDesignElement {
 	/** Building model element id (`B1`, `C3`, `S1`, ...). */
 	readonly id: string;
-	readonly kind: 'beam' | 'column' | 'slab' | 'footing';
+	/** A wall's members are its shells; a staircase has none (it is not in the analysis model). */
+	readonly kind: 'beam' | 'column' | 'slab' | 'footing' | 'wall' | 'staircase';
 	/** Object type id. */
 	readonly type: string;
 	/**
@@ -425,7 +426,17 @@ export function formatCheckValues(check: IFemDesignCheck): string {
 	// Ratios (c/d, slenderness) keep two decimals: one would round a slab's c/d of 0.11 to 0.1.
 	return check.unit
 		? localize('femDesign.checkValues', "{0} of {1} {2}", check.demand.toFixed(1), check.capacity.toFixed(1), check.unit)
-		: localize('femDesign.checkRatio', "{0} against {1}", check.demand.toFixed(2), check.capacity.toFixed(2));
+		: localize('femDesign.checkRatio', "{0} against {1}", ...formatRatios(check.demand, check.capacity));
+}
+
+/**
+ * Two ratios to the same number of decimals: two, or enough for two significant digits of the
+ * smaller (a wall's ρ 0.0124 against 0.0025 as "0.0124 against 0.0025", not "0.01 against 0.0025").
+ */
+function formatRatios(demand: number, capacity: number): [string, string] {
+	const decimals = (v: number) => v !== 0 && Number.isFinite(v) && Math.abs(v) < 0.1 ? Math.min(6, 1 - Math.floor(Math.log10(Math.abs(v)))) : 2;
+	const digits = Math.max(decimals(demand), decimals(capacity));
+	return [demand.toFixed(digits), capacity.toFixed(digits)];
 }
 
 /** A member's checks, the governing (strength) checks first, then the reported-only ones. */
@@ -433,12 +444,14 @@ export function sortedChecks(element: IFemDesignElement): IFemDesignCheck[] {
 	return [...element.checks].sort((a, b) => Number(a.flag) - Number(b.flag) || b.utilisation - a.utilisation);
 }
 
-/** "beam", "column", "slab", "footing". */
+/** "beam", "column", "slab", "footing", "wall", "staircase". */
 export function designKindLabel(kind: IFemDesignElement['kind'] | string): string {
 	return kind === 'beam' ? localize('femDesign.beam', "beam")
 		: kind === 'slab' ? localize('femDesign.slab', "slab")
 			: kind === 'footing' ? localize('femDesign.footing', "footing")
-				: localize('femDesign.column', "column");
+				: kind === 'wall' ? localize('femDesign.wall', "wall")
+					: kind === 'staircase' ? localize('femDesign.staircase', "staircase")
+						: localize('femDesign.column', "column");
 }
 
 function formatCheck(check: IFemDesignCheck): string {

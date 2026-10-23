@@ -112,7 +112,10 @@ def design_report(out_dir: str | Path, project_path: str | Path) -> dict[str, An
     kN·m/m and kN/m; ``flag`` checks are reported but do not make the element fail), per
     skipped element ``{"id", "kind", "type", "reason"}``. Slabs (``kind`` "slab") list their
     shell elements as ``members``; slabs neither reinforced nor analysed as shells are only
-    mentioned in the notes.
+    mentioned in the notes. Structural walls (``kind`` "wall", :mod:`saengine.design.
+    wall_design`: their piers, boundary elements and coupling beams, every shell as
+    ``members``) and stairs (``kind`` "staircase", :mod:`saengine.design.stairs`: designed by
+    hand methods, ``members`` empty) are elements too.
     """
     project_path = Path(project_path)
     root = project_path.resolve().parent.parent
@@ -191,7 +194,9 @@ def design(
     (:func:`saengine.substructure.substructure_report`).
 
     ``collect``: when given, filled with what the checks worked from, for the design mode
-    (:mod:`saengine.design.required`): ``"combinations"``, and per checked beam, column and
+    (:mod:`saengine.design.required`): ``"combinations"``, per wall pier under ``"walls"``
+    (:func:`saengine.design.wall_design.design_walls`), per staircase type under ``"stairs"``
+    (:func:`saengine.design.stairs.stair_report`), and per checked beam, column and
     slab under ``"members"`` and ``"slabs"`` its section or slab context, its analysis pieces
     with their combined forces, its materials and its checks; a column also its demand
     ``"points"`` with the moments magnified for slenderness.
@@ -487,6 +492,34 @@ def design(
         notes,
         collect["slabs"] if collect is not None else None,
     )
+    # Integrator glue: stairs (saengine.design.stairs: hand methods, not in the analysis model)
+    # and structural walls (saengine.design.wall_design: wall_forces' piers, walls' checks).
+    from saengine.design import stairs as stair_design
+    from saengine.design import wall_design
+
+    stairs_found = stair_design.stair_report(
+        building, types, mats, settings, collect, default_rebar=_default_rebar_id(objects, mats)
+    )
+    checked += stairs_found["elements"]
+    skipped += stairs_found["skipped"]
+    notes += stairs_found["notes"]
+    walls_found = wall_design.design_walls(
+        project,
+        out_dir,
+        _with_mep_openings(building, root),
+        types,
+        mats,
+        settings,
+        with_omega,
+        resolved,
+        scope,
+        extra,
+        combinations,
+        collect,
+    )
+    checked += walls_found["elements"]
+    skipped += walls_found["skipped"]
+    notes += walls_found["notes"]
     # Footings moved to Part 9 (saengine.substructure): this report designs the superstructure.
     notes.append(DESIGNED_IN_PART_9)
     failed = [e for e in checked if not e["ok"]]
@@ -497,6 +530,10 @@ def design(
         method += slenderness_design.method(slender_options, context.model.lateral_cracked)
     if slabs_seen:
         method += slab.METHOD
+    if walls_found["designed"]:
+        method += wall_design.METHOD
+    if stairs_found["elements"] or stairs_found["skipped"]:
+        method += stair_design.METHOD
     if scope is not None and scope.get("detailingLevel"):
         method += seismic_detailing.METHOD
     failed_joints = [j for j in joints if not j["ok"]]
@@ -525,6 +562,34 @@ def design(
             context.storeys, combinations, slender_options.sway_magnifier
         ),
     }
+
+
+def _with_mep_openings(building: BuildingModel, root: Path) -> BuildingModel:
+    """The building with the openings 07 MEP cut into the analysis model (as
+    :func:`saengine.fem.derive.derive_fem` derived it), for the walls' piers."""
+    path = root / "07 MEP" / "mep.json"
+    if not path.is_file():
+        return building
+    try:
+        from saengine.library.mep import MepModel
+        from saengine.mep.loads import with_mep_openings
+
+        mep = MepModel.model_validate_json(path.read_text(encoding="utf-8"))
+        return with_mep_openings(building, mep)[0]
+    except (OSError, ValueError):
+        return building
+
+
+def _default_rebar_id(objects: ObjectLibrary, mats: dict[str, Any]) -> str | None:
+    """The reinforcement material the object types use most (for stairs without bars)."""
+    counts: dict[str, int] = {}
+    for o in objects.objects:
+        reinforcement = getattr(o, "reinforcement", None)
+        if reinforcement is not None:
+            counts[reinforcement.material] = counts.get(reinforcement.material, 0) + 1
+    if counts:
+        return max(counts, key=lambda m: counts[m])
+    return None
 
 
 # ─────────────────────────────────────── slabs ───────────────────────────────────────
