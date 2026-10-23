@@ -72,6 +72,18 @@ class SteelProperties(_Model):
     fy: float = Field(gt=0, description="Yield strength [MPa].")
     fu: float | None = Field(default=None, gt=0, description="Ultimate tensile strength [MPa].")
     elongation: float | None = Field(default=None, gt=0, description="Elongation at fracture [%].")
+    fyActual: float | None = Field(
+        default=None,
+        gt=0,
+        title="Actual fy (mill test)",
+        description="Actual yield strength from the mill tests [MPa] (BNBC Sec 8.3.3.4(b)(i)).",
+    )
+    fuActual: float | None = Field(
+        default=None,
+        gt=0,
+        title="Actual fu (mill test)",
+        description="Actual tensile strength from the mill tests [MPa] (BNBC Sec 8.3.3.4(b)(ii)).",
+    )
 
     @model_validator(mode="after")
     def _fu_above_fy(self) -> SteelProperties:

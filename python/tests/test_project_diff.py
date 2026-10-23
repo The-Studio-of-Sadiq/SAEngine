@@ -113,12 +113,12 @@ def test_objects_sections_and_reinforcement():
 def test_settings_location_zone_combinations_and_loads():
     before = load("02 Project Settings/project-settings.json")
     after = copy.deepcopy(before)
-    after["site"]["location"] = "dhaka"
+    after["site"]["location"] = "chattogram"
     after["combinations"].append(dict(before["combinations"][0], name="1.2D+1.6L"))
     after["areaLoads"][0]["live"] = 3
     texts = whats(diff_values("settings", before, after))
     assert texts == [
-        "Site location chattogram → dhaka (seismic zone 3 → 2)",
+        "Site location dhaka → chattogram (seismic zone 2 → 3)",
         "Area load FL: live 2.4 → 3 kN/m²",
         "Load combination 1.2D+1.6L added",
     ]

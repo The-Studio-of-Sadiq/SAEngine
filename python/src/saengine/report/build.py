@@ -1266,7 +1266,14 @@ def _design(results_dir: Path, model_path: Path, warnings: list[str]) -> dict[st
     failed = int(summary.get("failed", 0) or 0)
     if failed:
         warnings.append(f"{failed} element(s) fail their design checks.")
+    seismic = _seismic_detailing(report)
+    if seismic["available"] and seismic["failedChecks"]:
+        warnings.append(
+            f"{seismic['failedChecks']} project-level seismic requirement(s) fail (system, "
+            "materials): see Seismic detailing."
+        )
     return {
+        "seismic": seismic,
         "slenderness": slender_rows,
         "slendernessFails": slender_fails,
         "stability": stability,
@@ -1293,6 +1300,152 @@ def _design(results_dir: Path, model_path: Path, warnings: list[str]) -> dict[st
         "method": [str(line) for line in report.get("method", [])],
         "notes": [str(note) for note in report.get("notes", [])],
         "details": details,
+    }
+
+
+DETAILING = "Detailing: "
+
+
+def _scwb_text(scwb: Any) -> str:
+    if not isinstance(scwb, dict) or scwb.get("ratio") is None:
+        return "–"
+    text = f"{scwb['ratio']:.2f}"
+    return text + (" (n.r.)" if scwb.get("notRequired") else "")
+
+
+def _seismic_detailing(report: dict[str, Any]) -> dict[str, Any]:
+    """The "Seismic detailing" chapter (BNBC 2020 Part 6 Sec 8.3) from the design report's
+    ``seismic`` scope, the members' ``Detailing:`` checks and ``joints``."""
+    scope = report.get("seismic")
+    if not isinstance(scope, dict) or not scope.get("detailingLevel"):
+        return {"available": False, "failedChecks": 0}
+    level = {"special": "Special", "intermediate": "Intermediate", "ordinary": "Ordinary"}
+    lines = [
+        ["Seismic Design Category", f"{scope.get('sdc') or '–'} (Sec 2.5.5.2, Table 6.2.18)"],
+        ["Zone", str(scope.get("zone") or "–")],
+        [
+            "Structural system",
+            f"{scope.get('systemName')} (Table 6.2.19 row {scope.get('systemRow') or '–'})",
+        ],
+        [
+            "R, Ω0, Cd",
+            f"{fmt(scope.get('R'), 2)}, {fmt(scope.get('Omega0'), 2)}, {fmt(scope.get('Cd'), 2)}",
+        ],
+        [
+            "Detailing level",
+            (
+                f"{level.get(scope['detailingLevel'], scope['detailingLevel'])} (Sec 8.3.2; the "
+                f"category requires {scope.get('requiredFrameType') or '–'}, the system's frames are "
+                f"{scope.get('systemFrameType') or 'not part of the system'})"
+            ),
+        ],
+    ]
+    checks = scope.get("checks", [])
+    check_rows = [[str(c.get("name")), _result_label(c), str(c.get("note", ""))] for c in checks]
+    check_bad = [_result_label(c) == "FAIL" for c in checks]
+    applies = [
+        [
+            k,
+            str(v.get("title", "")),
+            f"p. {v.get('page')}",
+            "yes" if v.get("applies") else "no",
+            str(v.get("members", "")) if v.get("applies") else "–",
+        ]
+        for k, v in scope.get("applies", {}).items()
+    ]
+    # Per object type: every detailing check that fails on any member, else the governing one.
+    by_type: dict[tuple[str, str], dict[str, tuple[dict[str, Any], list[str]]]] = {}
+    shears = []
+    for element in report.get("elements", []):
+        if element.get("kind") not in ("beam", "column"):
+            continue
+        key = (str(element.get("type")), str(element.get("kind")))
+        found = by_type.setdefault(key, {})
+        for c in element.get("checks", []):
+            if not str(c.get("name", "")).startswith(DETAILING) or c.get("flag"):
+                continue
+            name = c["name"][len(DETAILING) :]
+            worst, failing = found.get(name, (c, []))
+            if c["utilisation"] >= worst["utilisation"]:
+                worst = c
+            if not c.get("ok"):
+                failing = [*failing, str(element.get("id"))]
+            found[name] = (worst, failing)
+        detailing = element.get("detailing") or {}
+        if detailing.get("Ve") is not None:
+            phi = detailing.get("phiVn")
+            shears.append(
+                [
+                    str(element.get("id")),
+                    str(element.get("kind")),
+                    fmt(detailing.get("Ve"), 1),
+                    fmt(phi, 1) if phi is not None else "–",
+                    fmt(detailing["Ve"] / phi, 3) if phi else "–",
+                    "OK" if phi and detailing["Ve"] <= phi * 1.0005 else "FAIL",
+                ]
+            )
+    member_rows, member_bad = [], []
+    for (type_id, kind), found in sorted(by_type.items()):
+        if not found:
+            continue
+        failing = [(n, w, f) for n, (w, f) in found.items() if f]
+        chosen = failing or [
+            max(((n, w, f) for n, (w, f) in found.items()), key=lambda x: x[1]["utilisation"])
+        ]
+        for name, worst, members in sorted(chosen, key=lambda x: -x[1]["utilisation"]):
+            member_rows.append(
+                [
+                    type_id,
+                    kind,
+                    name,
+                    fmt(worst.get("demand"), 1),
+                    fmt(worst.get("capacity"), 1),
+                    str(worst.get("unit", "")),
+                    fmt(worst.get("utilisation"), 3),
+                    ", ".join(members) if members else "–",
+                ]
+            )
+            member_bad.append(bool(members))
+    joints = report.get("joints", []) or []
+    joint_rows = [
+        [
+            str(j.get("id")),
+            str(j.get("type", "")),
+            ", ".join(j.get("beams", [])),
+            _scwb_text((j.get("scwb") or {}).get("x")),
+            _scwb_text((j.get("scwb") or {}).get("y")),
+            fmt((j.get("shear") or {}).get("Vj"), 1),
+            fmt((j.get("shear") or {}).get("phiVn"), 1),
+            fmt(j.get("utilisation"), 3),
+            "OK" if j.get("ok") else "FAIL",
+        ]
+        for j in joints
+    ]
+    return {
+        "available": True,
+        "lines": lines,
+        "checks": check_rows,
+        "checksBad": check_bad,
+        "failedChecks": sum(check_bad),
+        "applies": applies,
+        "members": member_rows,
+        "membersBad": member_bad,
+        "shears": shears,
+        "shearsBad": [r[-1] == "FAIL" for r in shears],
+        "joints": joint_rows,
+        "jointsBad": [r[-1] == "FAIL" for r in joint_rows],
+        "notes": [str(n) for n in scope.get("notes", [])]
+        + (
+            [
+                (
+                    "Sec 8.3.11 (foundations: column bars into the footing, grade beam ties, pile "
+                    "confinement) is not checked yet: 9 Substructure designs the foundations without "
+                    "it."
+                )
+            ]
+            if scope.get("applies", {}).get("8.3.11", {}).get("applies")
+            else []
+        ),
     }
 
 

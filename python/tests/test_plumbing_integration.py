@@ -298,7 +298,7 @@ def test_bill_ifc_and_report_chapter(sample: Path, report: dict) -> None:
     ]
     boq = json.loads(handlers.compute_boq(*texts, str(sample))["text"])
     items = {i["description"]: i for i in boq["items"]}
-    assert items["Concrete C20.7 in water and septic tanks"]["quantity"] == pytest.approx(
+    assert items["Concrete C24.1 in water and septic tanks"]["quantity"] == pytest.approx(
         T1_CONCRETE, abs=1e-3
     )
     # UGR1 (2.35 m deep, 4.6 x 3.6 m with its toe and working space) and SEP1 (1.7 m, 4.6 x 2.2)

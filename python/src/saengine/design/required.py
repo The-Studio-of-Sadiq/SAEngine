@@ -706,11 +706,90 @@ def column_rows(
                     f"min(16 db, 48 dt, least dimension) = min({16 * largest:.0f}, "
                     f"{48 * tie_dia:.0f}, {min(search.b, search.h):.0f}) (ACI 25.7.2.1)"
                 ),
-                "seismic detailing (ACI 18 / BNBC special frames) is not included",
+                "seismic hoop zones: see the rows of BNBC Sec 8.3 below",
             ],
             at_most=True,
         )
     )
+    return rows
+
+
+def detailing_rows(member: dict[str, Any], assumed: bool) -> list[dict[str, Any]]:
+    """The hoop zones BNBC 2020 Part 6 Sec 8.3 asks of a beam or column (the design report's
+    ``detailing``, :mod:`saengine.design.seismic_detailing`): the largest spacing within lo and
+    elsewhere, and lo, against the type's ``transverse`` (its ``zone`` when given)."""
+    info = member.get("detailing") or {}
+    zones = info.get("zones") or {}
+    if not zones:
+        return []
+    transverse = member["object"].reinforcement.transverse
+    zone = getattr(transverse, "zone", None) if transverse else None
+    kind, element, type_id = member["kind"], member["id"], member["type"]
+    clause = info.get("clause") or "BNBC 2020 Part 6 Sec 8.3"
+    rows = []
+    if zones.get("so") is not None:
+        provided = None
+        if transverse is not None and not assumed:
+            provided = zone.spacing if zone else transverse.spacing
+        rows.append(
+            _row(
+                element,
+                kind,
+                type_id,
+                "ends (lo)",
+                "hoop spacing in lo (max)",
+                None,
+                "",
+                zones["so"],
+                None,
+                provided,
+                "mm",
+                None,
+                [
+                    clause,
+                    zones.get("soRule") or "",
+                    "" if zone else "no end zone entered: the type's spacing",
+                ],
+                at_most=True,
+            )
+        )
+    if zones.get("lo") is not None:
+        rows.append(
+            _row(
+                element,
+                kind,
+                type_id,
+                "ends (lo)",
+                "hoop zone length lo",
+                None,
+                "",
+                zones["lo"],
+                None,
+                None if assumed or zone is None or zone.length is None else zone.length,
+                "mm",
+                None,
+                [clause, "from each joint face"],
+            )
+        )
+    if zones.get("outside") is not None:
+        rows.append(
+            _row(
+                element,
+                kind,
+                type_id,
+                "elsewhere",
+                "hoop spacing elsewhere (max)",
+                None,
+                "",
+                zones["outside"],
+                None,
+                None if transverse is None or assumed else transverse.spacing,
+                "mm",
+                None,
+                [clause],
+                at_most=True,
+            )
+        )
     return rows
 
 
@@ -1140,6 +1219,8 @@ def design_required(
             if member["type"] == type_id and member["id"] in members:
                 index, points = members[member["id"]]
                 rows += column_rows(member, search, index, points, type_id in gathered.assumed)
+    for member in gathered.collect.get("members", []):
+        rows += detailing_rows(member, member["type"] in gathered.assumed)
     for collected in gathered.collect.get("slabs", []):
         rows += slab_rows(collected, combinations, collected["type"] in gathered.assumed)
     for demand in foundation_demands(gathered):

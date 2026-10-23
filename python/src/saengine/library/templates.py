@@ -111,6 +111,8 @@ TEMPLATES: dict[str, dict[str, Any]] = {
     # reinforcement
     "BarGroup": {"position": "bottom", "count": 3, "dia": 16},
     "Transverse": {"type": "stirrup", "dia": 10, "spacing": 150, "legs": 2},
+    "TransverseZone": {"spacing": 100},
+    "SpliceZone": {"spacing": 100},
     "LinearReinforcement": {
         "material": _REBAR,
         "cover": 40,

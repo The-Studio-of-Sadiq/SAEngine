@@ -135,11 +135,71 @@ class BarGroup(_Model):
     dia: Length
 
 
+class TransverseZone(_Model):
+    """The end zones of a beam or column where the seismic detailing asks for closer hoops
+    (BNBC 2020 Part 6 Sec 8.3.4.3, 8.3.5.4, 8.3.9.2, 8.3.10.4, 8.3.10.5)."""
+
+    spacing: Length = Field(description="Hoop or tie spacing within the zone (so) [mm].")
+    length: float | None = Field(
+        default=None,
+        gt=0,
+        description="Zone length from each joint face (lo) [mm]; none: the length the code "
+        "requires.",
+    )
+    first: float | None = Field(
+        default=None, gt=0, description="First hoop or tie from the joint face [mm]."
+    )
+
+
+class SpliceZone(_Model):
+    """Hoops or ties over the lap splices (BNBC 2020 Part 6 Sec 8.3.4.2(b), Figure 6.8.8)."""
+
+    spacing: Length = Field(description="Spacing over the lap splices [mm].")
+
+
 class Transverse(_Model):
     type: Literal["stirrup", "tie", "spiral"]
     dia: Length
-    spacing: Length
+    spacing: Length = Field(
+        description="Spacing outside the end zones (all along without zones) [mm]."
+    )
     legs: int = Field(default=2, ge=1)
+    legsX: int | None = Field(
+        default=None,
+        ge=1,
+        title="Legs along x",
+        description="Column ties: legs running along the profile's x, counted down its depth "
+        "(none: as many as legs, which run along y).",
+    )
+    zone: TransverseZone | None = Field(
+        default=None,
+        title="End zones",
+        description="Closer hoops or ties at the member ends (seismic detailing); none: one "
+        "spacing all along.",
+    )
+    splice: SpliceZone | None = Field(default=None, title="Over lap splices")
+
+
+SeismicRole = Literal["auto", "lateral", "gravity"]
+OmegaCombinations = Literal["auto", "transfer", "collector", "none"]
+
+
+def _role() -> SeismicRole:
+    return Field(
+        default="auto",
+        title="Seismic role",
+        description="Part of the seismic force-resisting system (lateral) or not (gravity, BNBC "
+        "Sec 8.3.12); auto: by the structural system.",
+    )
+
+
+def _omega() -> OmegaCombinations:
+    return Field(
+        default="auto",
+        title="Ω0 combinations",
+        description="Overstrength combinations (BNBC Sec 2.5.5.6, 2.5.13.4): transfer members "
+        "under discontinuous columns or walls, collectors; auto: transfer members are found.",
+    )
 
 
 class LinearReinforcement(_Model):
@@ -196,12 +256,16 @@ class Beam(_ObjectBase):
     kind: Literal["beam"] = "beam"
     profile: Profile
     reinforcement: LinearReinforcement | None = None
+    seismicRole: SeismicRole = _role()
+    omegaCombinations: OmegaCombinations = _omega()
 
 
 class Column(_ObjectBase):
     kind: Literal["column"] = "column"
     profile: Profile
     reinforcement: LinearReinforcement | None = None
+    seismicRole: SeismicRole = _role()
+    omegaCombinations: OmegaCombinations = _omega()
 
 
 class Brace(_ObjectBase):

@@ -30,8 +30,28 @@ export interface IDesignBarGroup {
 export interface IDesignTransverse {
 	readonly type?: 'stirrup' | 'tie' | 'spiral';
 	readonly dia: number;
+	/** The spacing elsewhere (beyond the end zones, when they are given). */
 	readonly spacing: number;
 	readonly legs?: number;
+	/** Column ties: the legs running along the profile's x (absent: as many as `legs`). */
+	readonly legsX?: number | null;
+	/**
+	 * Seismic hoop zones (BNBC 2020 Part 6 Sec 8.3.4.3, 8.3.5.4, 8.3.10; 04 Objects
+	 * `Transverse.zone`): the spacing so within the length lo from each joint face; absent or
+	 * null: one spacing along the member.
+	 */
+	readonly zone?: IDesignTransverseZone | null;
+	/** Hoops over the lap splices (04 Objects `Transverse.splice`). */
+	readonly splice?: { readonly spacing: number } | null;
+}
+
+/** The end zones of a beam's or column's transverse bars (04 Objects `TransverseZone`). */
+export interface IDesignTransverseZone {
+	readonly spacing: number;
+	/** The zone length lo from each joint face [mm]; absent or null: the length the code requires. */
+	readonly length?: number | null;
+	/** The first hoop from the joint face [mm]. */
+	readonly first?: number | null;
 }
 
 /** One layer of bars of a slab or footing (04 Objects `BarMesh`). */
@@ -215,6 +235,21 @@ function meshText(mesh: IDesignBarMesh): string {
 }
 
 /**
+ * The spacing of stirrups or ties: "150", or with seismic hoop zones "100 over 600 at each end,
+ * 150 elsewhere" ("100 within lo at each end, ..." when lo is the code's).
+ */
+export function describeTransverseSpacing(transverse: IDesignTransverse): string {
+	const zone = transverse.zone?.spacing;
+	const length = transverse.zone?.length;
+	if (typeof zone !== 'number' || !(zone > 0) || (zone === transverse.spacing && typeof length !== 'number')) {
+		return String(transverse.spacing);
+	}
+	return typeof length === 'number' && length > 0
+		? localize('femProposal.zones', "{0} over {1} at each end, {2} elsewhere", zone, length, transverse.spacing)
+		: localize('femProposal.zonesLo', "{0} within lo at each end, {1} elsewhere", zone, transverse.spacing);
+}
+
+/**
  * Bars as the drawings write them: the backend's description when it gives one, else "4 Ø20
  * top, 3 Ø16 bottom, Ø10 @ 150 (4 legs)"; a slab's layers "bottom Ø10 @ 150 X, Ø10 @ 200 Y; top
  * Ø10 @ 150 X".
@@ -235,9 +270,10 @@ export function describeBars(bars: DesignBars | undefined): string {
 	}
 	if (bars.transverse) {
 		const t = bars.transverse;
+		const spacing = describeTransverseSpacing(t);
 		parts.push(t.legs && t.legs !== 2
-			? localize('femProposal.transverseLegs', "Ø{0} @ {1} ({2} legs)", t.dia, t.spacing, t.legs)
-			: localize('femProposal.transverse', "Ø{0} @ {1}", t.dia, t.spacing));
+			? localize('femProposal.transverseLegs', "Ø{0} @ {1} ({2} legs)", t.dia, spacing, t.legs)
+			: localize('femProposal.transverse', "Ø{0} @ {1}", t.dia, spacing));
 	}
 	const layer = (label: string, x: IDesignBarMesh | null | undefined, y: IDesignBarMesh | null | undefined) => {
 		const meshes = [

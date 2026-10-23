@@ -26,6 +26,7 @@ import { EditorFrame, IEditorFrameIconButton, IEditorFrameStatus } from '../../s
 import { describeDesignSummary, describeSlenderness, describeSteel, describeSteelRatio, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, isSecondOrderRequired, isSlendernessCheck, otherFailureElements, requiredSteelOf, resultsFolder, runDesign, runDesignRequired, secondOrderRequiredMembers, shortElements, slendernessHeading, sortedChecks, tooSmallElements, writeDesignSummary } from './femDesign.js';
 import { describeScaleOnResult, describeSecondOrder, FemAxis, IFemSecondOrder, isFirstOrderReference, IFemSeismicDesign, runSecondOrder, runSeismicDesign, seismicSection, spectrumAxis, storeyAmplificationRows } from './femSeismicDesign.js';
 import { FemSsiPanel } from './femSsi.js';
+import { describeJointsSummary, describeJointVerdict, detailingSection, FemDetailingItem, generalChecks, IFemDetailingModel, IFemJoint, jointAtNode, jointColouring, jointHeading, jointItems, jointOk, jointsOf, jointsOfMember } from './femSeismicDetailing.js';
 
 export { resultsFolder } from './femDesign.js';
 
@@ -41,7 +42,13 @@ function framesOf(entry: IFemResultEntry): NonNullable<IFemResultEntry['frames']
 	return entry.kind === 'history' || entry.kind === 'pushover' || entry.kind === 'static' ? entry.frames ?? [] : [];
 }
 
-type Show = FemResultQuantity | 'none';
+/** `joints`: the beam-column joints' checks, drawn as utilisation of the members framing in. */
+type Show = FemResultQuantity | 'none' | 'joints';
+
+/** Whether `show` draws design checks (members' utilisation, or the joints'). */
+function isDesignShow(show: Show): boolean {
+	return show === 'utilisation' || show === 'joints';
+}
 
 interface IShowOption {
 	readonly show: Show;
@@ -76,6 +83,11 @@ const SHELL_OPTIONS: readonly IShowOption[] = [
  * independent of the result picked, offered with every static case and combination.
  */
 const DESIGN_OPTION: IShowOption = { show: 'utilisation', label: localize('femResults.design', "Design Utilisation") };
+/**
+ * The beam-column joints of the moment frames (joint shear, strong column / weak beam: BNBC 2020
+ * Part 6 Sec 8.3.5.2, 8.3.7), coloured by their governing check; a joint's node selects it.
+ */
+const JOINTS_OPTION: IShowOption = { show: 'joints', label: localize('femResults.joints', "Joint Checks") };
 const SHELL_COMPONENTS: readonly Show[] = ['N11', 'N22', 'N12', 'M11', 'M22', 'M12', 'Q13', 'Q23'];
 /** Solid stresses, offered when the result has solids with stresses. */
 const SOLID_OPTIONS: readonly IShowOption[] = [
@@ -332,6 +344,8 @@ export class FemResultsBar extends Disposable {
 	}, 400));
 
 	private resource: URI | undefined;
+	/** The analysis model shown (its nodes and elements place the joints). */
+	private model: IFemDetailingModel | undefined;
 	private format = resultFormatter(undefined);
 	private list: IFemResultList = { results: [], stale: false };
 	private key: string | undefined;
@@ -537,17 +551,25 @@ export class FemResultsBar extends Disposable {
 		}
 	}
 
+	/** The analysis model of the resource, as the editor read it: where the joints are. */
+	setModel(model: IFemDetailingModel | undefined): void {
+		this.model = model;
+		if (this.show === 'joints') {
+			this.render();
+		}
+	}
+
 	setSelection(selection: FemSelection | undefined): void {
 		this.selection = selection;
 		this.host.changed();
 	}
 
 	private setShow(show: Show): void {
-		if (show === 'utilisation' && this.show !== 'utilisation') {
+		if (isDesignShow(show) && !isDesignShow(this.show)) {
 			this.showBeforeDesign = this.show;
 		}
 		this.show = show;
-		if (this.show === 'utilisation') {
+		if (isDesignShow(this.show)) {
 			if (this.designProblem) {
 				this.clearDesign(); // choosing it again retries
 			}
@@ -583,7 +605,7 @@ export class FemResultsBar extends Disposable {
 		this.views.clear();
 		this.clearDesign();
 		void this.loadExtras();
-		if (this.show === 'utilisation') {
+		if (isDesignShow(this.show)) {
 			void this.loadDesign();
 		}
 		if (!list.results.some(r => r.key === this.key)) {
@@ -607,7 +629,7 @@ export class FemResultsBar extends Disposable {
 			case 'pushover': return [...STATIC_OPTIONS, ...(this.view?.solids?.some(s => s.stress) ? SOLID_OPTIONS : [])];
 		}
 		const solids = this.view?.solids?.some(s => s.stress) ? SOLID_OPTIONS : [];
-		return [...STATIC_OPTIONS, ...(this.view?.shells?.length ? SHELL_OPTIONS : []), ...solids, DESIGN_OPTION];
+		return [...STATIC_OPTIONS, ...(this.view?.shells?.length ? SHELL_OPTIONS : []), ...solids, DESIGN_OPTION, JOINTS_OPTION];
 	}
 
 	private clearDesign(): void {
@@ -665,7 +687,7 @@ export class FemResultsBar extends Disposable {
 			return; // never asked for
 		}
 		this.clearDesign();
-		if (this.show === 'utilisation') {
+		if (isDesignShow(this.show)) {
 			void this.loadDesign();
 		}
 		this.render();
@@ -799,7 +821,7 @@ export class FemResultsBar extends Disposable {
 		this.modeContainer.classList.toggle('hidden', !modal);
 		const frames = entry ? framesOf(entry) : [];
 		this.timeContainer.classList.toggle('hidden', !frames.length);
-		const scalable = !!entry && this.show !== 'none' && this.show !== 'utilisation' && SOLID_COMPONENTS[this.show] === undefined && !SHELL_COMPONENTS.includes(this.show);
+		const scalable = !!entry && this.show !== 'none' && !isDesignShow(this.show) && SOLID_COMPONENTS[this.show] === undefined && !SHELL_COMPONENTS.includes(this.show);
 		this.scaleContainer.classList.toggle('hidden', !scalable);
 		if (entry) {
 			this.resultPicker.setOptions(this.list.results.map<ISelectOptionItem>(r => ({ text: r.label })), this.list.results.indexOf(entry));
@@ -834,14 +856,18 @@ export class FemResultsBar extends Disposable {
 			this.scaleLabel.textContent = `×${this.scale}`;
 		}
 		const view = this.view;
+		const show = this.show;
 		this.host.setDisplay(
-			view && this.show !== 'none' ? view : undefined,
-			view && this.show !== 'none' ? {
-				show: this.show,
+			view && show !== 'none' ? view : undefined,
+			view && show !== 'none' ? {
+				// The joints are drawn as the utilisation of the members framing into them.
+				show: show === 'joints' ? 'utilisation' : show,
 				scale: this.scale,
 				animate: this.animate,
 				format: this.format,
-				utilisation: this.show === 'utilisation' && this.design ? designUtilisation(this.design) : undefined,
+				utilisation: !this.design ? undefined
+					: show === 'utilisation' ? designUtilisation(this.design)
+						: show === 'joints' ? jointColouring(this.design, this.model) : undefined,
 			} : undefined,
 		);
 		this.renderLegend();
@@ -866,12 +892,16 @@ export class FemResultsBar extends Disposable {
 				link: { label: localize('femResults.runAgain', "Run Analysis"), run: () => this.host.run() },
 			};
 		}
-		if (this.show === 'utilisation') {
+		if (isDesignShow(this.show)) {
 			if (this.designProblem) {
 				return { severity: 'error', text: this.designProblem };
 			}
 			if (!this.design) {
 				return { busy: true, text: localize('femResults.designRunning', "Checking the members against the load combinations...") };
+			}
+			if (this.show === 'joints') {
+				const failing = jointsOf(this.design).some(j => !jointOk(j));
+				return { ...(failing ? { severity: 'warning' as const } : {}), text: describeJointsSummary(this.design) };
 			}
 			const secondOrderRequired = secondOrderRequiredMembers(this.design);
 			return secondOrderRequired.length
@@ -962,9 +992,11 @@ export class FemResultsBar extends Disposable {
 	private renderLegend(): void {
 		clearNode(this.legend);
 		let shown = false;
-		if (this.entry && this.show === 'utilisation' && this.design) {
+		if (this.entry && isDesignShow(this.show) && this.design && (this.show === 'utilisation' || jointsOf(this.design).length)) {
 			// The colours of the 3D view's utilisation bands.
-			append(this.legend, $('.fem-legend-title', undefined, localize('femResults.utilisation', "Utilisation")));
+			append(this.legend, $('.fem-legend-title', undefined, this.show === 'joints'
+				? localize('femResults.jointUtilisation', "Joint Utilisation")
+				: localize('femResults.utilisation', "Utilisation")));
 			for (const [band, label] of [
 				['pass', localize('femResults.designPass', "below 0.9")],
 				['warn', localize('femResults.designWarn', "0.9 to 1.0")],
@@ -1020,6 +1052,8 @@ export class FemResultsBar extends Disposable {
 		const selection = this.selection;
 		if (this.show === 'utilisation') {
 			this.renderDesignProperties(container, selection);
+		} else if (this.show === 'joints') {
+			this.renderJointProperties(container, selection);
 		} else if (selection && view && view.kind !== 'modal') {
 			this.renderSelection(container, selection, view);
 		} else {
@@ -1041,14 +1075,14 @@ export class FemResultsBar extends Disposable {
 		if (entry.kind === 'modal' || entry.kind === 'spectrum') {
 			this.renderSeismic(container, entry.kind === 'spectrum' ? spectrumAxis(entry.label) : undefined, false);
 		}
-		if ((entry.kind === 'static' || entry.kind === 'combination') && this.show !== 'utilisation' && !isFirstOrderReference(entry.label)) {
+		if ((entry.kind === 'static' || entry.kind === 'combination') && !isDesignShow(this.show) && !isFirstOrderReference(entry.label)) {
 			this.renderSecondOrder(container);
 		}
 		if (entry.kind === 'pushover') {
 			propertyHeading(container, localize('femResults.curveHeading', "Capacity Curve"));
 			this.renderCurve(container, entry.frames ?? []);
 		}
-		if (!selection && this.show !== 'utilisation') {
+		if (!selection && !isDesignShow(this.show)) {
 			this.ssi.render(container);
 		}
 		return true;
@@ -1175,7 +1209,8 @@ export class FemResultsBar extends Disposable {
 		append(verdict, $('span', undefined, element.ok ? localize('femResults.passes', "Passes") : localize('femResults.fails', "Fails")));
 		append(verdict, $('span.value', undefined, formatUtilisation(element.utilisation)));
 		const checks = sortedChecks(element);
-		for (const check of checks) {
+		// The seismic detailing checks count in the utilisation above, but show in their own section.
+		for (const check of generalChecks(checks)) {
 			const secondOrder = isSecondOrderRequired(check);
 			const row = append(container, $(`.fem-design-check${check.ok ? '' : '.fail'}${check.flag ? '.flag' : ''}${secondOrder ? '.second-order' : ''}`));
 			const head = append(row, $('.fem-design-check-head'));
@@ -1205,9 +1240,90 @@ export class FemResultsBar extends Disposable {
 				}
 			}
 		}
+		this.renderDetailing(container, detailingSection(report, element, this.model));
 		this.renderSteel(container, requiredSteelOf(this.required, element.id), true);
 		if (this.requiredLoading) {
 			propertyNote(container, localize('femResults.steelLoading', "Working out the steel required..."));
+		}
+	}
+
+	/** Draws the items of a seismic detailing section (a member's, or a joint's). */
+	private renderDetailing(container: HTMLElement, items: readonly FemDetailingItem[]): void {
+		for (const item of items) {
+			switch (item.kind) {
+				case 'heading': propertyHeading(container, item.text); break;
+				case 'subheading': append(container, $('.fem-detailing-group', undefined, item.text)); break;
+				case 'note': propertyNote(container, item.text); break;
+				case 'row': {
+					const row = append(container, $(`.sa-props-row.fem-detailing-row${item.ok === false ? '.fail' : ''}`));
+					append(row, $('span.name', undefined, item.name));
+					append(row, $('span.value', undefined, item.value));
+					break;
+				}
+				case 'check': {
+					const row = append(container, $(`.fem-design-check${item.ok ? '' : '.fail'}`));
+					const head = append(row, $('.fem-design-check-head'));
+					append(head, $('span.name', undefined, item.name));
+					append(head, $('span.value', undefined, item.value));
+					append(row, $('.fem-design-check-detail', undefined, item.detail));
+					if (item.note && !item.ok) {
+						append(row, $('.fem-design-check-detail', undefined, item.note));
+					}
+					break;
+				}
+			}
+		}
+	}
+
+	/**
+	 * The joints view's part of the properties panel: the selected joint (its node) with its
+	 * members, joint shear and strong-column / weak-beam ratios; a selected member's joints; or
+	 * the joints' summary.
+	 */
+	private renderJointProperties(container: HTMLElement, selection: FemSelection | undefined): void {
+		const report = this.design;
+		if (!report) {
+			propertyNote(container, this.designProblem ?? localize('femResults.designRunning', "Checking the members against the load combinations..."));
+			return;
+		}
+		const joints = jointsOf(report);
+		let shown: IFemJoint[] = [];
+		if (selection?.kind === 'node') {
+			const joint = jointAtNode(report, selection.id, this.model);
+			if (!joint) {
+				propertyHeading(container, localize('femResults.nodeHeading', "Node {0}", selection.id));
+				propertyNote(container, localize('femResults.noJointAtNode', "No beam-column joint is checked at this node."));
+				return;
+			}
+			shown = [joint];
+		} else if (selection?.kind === 'element') {
+			const member = designElementOf(report, selection.id);
+			shown = member ? jointsOfMember(report, member.id) : [];
+			if (!shown.length) {
+				propertyHeading(container, member?.id ?? localize('femResults.elementHeading', "Element {0}", selection.id));
+				propertyNote(container, localize('femResults.noJointsOfMember', "This member frames into no checked joint."));
+				return;
+			}
+		}
+		if (!shown.length) {
+			propertyHeading(container, localize('femResults.jointsHeading', "Joint Checks"));
+			propertyNote(container, describeJointsSummary(report));
+			if (joints.length) {
+				propertyNote(container, localize('femResults.jointsSelect', "Select a joint's node, or a beam or column, for its checks."));
+			}
+			return;
+		}
+		for (const joint of shown) {
+			propertyHeading(container, jointHeading(joint));
+			const verdict = describeJointVerdict(joint);
+			const line = append(container, $(`.fem-design-verdict.${verdict.ok ? 'pass' : 'fail'}`));
+			append(line, $('span', undefined, verdict.governing
+				? (verdict.ok ? localize('femResults.jointPassesBy', "Passes ({0})", verdict.governing) : localize('femResults.jointFailsBy', "Fails ({0})", verdict.governing))
+				: (verdict.ok ? localize('femResults.passes', "Passes") : localize('femResults.fails', "Fails"))));
+			if (verdict.utilisation) {
+				append(line, $('span.value', undefined, verdict.utilisation));
+			}
+			this.renderDetailing(container, jointItems(joint));
 		}
 	}
 

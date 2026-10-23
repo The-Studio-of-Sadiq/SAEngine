@@ -5,7 +5,7 @@
 			"id": "C400x600",
 			"name": "Column 400x600",
 			"kind": "column",
-			"material": "C20.7",
+			"material": "C24.1",
 			"profile": {
 				"shape": "rectangle",
 				"xDim": 400,
@@ -33,7 +33,7 @@
 			"id": "C500R",
 			"name": "Round column 500",
 			"kind": "column",
-			"material": "C20.7",
+			"material": "C24.1",
 			"profile": {
 				"shape": "circle",
 				"radius": 250
@@ -60,7 +60,7 @@
 			"id": "B300x500",
 			"name": "Beam 300x500",
 			"kind": "beam",
-			"material": "C20.7",
+			"material": "C24.1",
 			"profile": {
 				"shape": "rectangle",
 				"xDim": 300,
@@ -93,7 +93,7 @@
 			"id": "S150",
 			"name": "Slab 150",
 			"kind": "slab",
-			"material": "C20.7",
+			"material": "C24.1",
 			"thickness": 150,
 			"reinforcement": {
 				"material": "B420DWR",
@@ -120,14 +120,14 @@
 			"id": "W200",
 			"name": "Wall 200",
 			"kind": "wall",
-			"material": "C20.7",
+			"material": "C24.1",
 			"thickness": 200
 		},
 		{
 			"id": "F2015",
 			"name": "Footing 2000x1500",
 			"kind": "footing",
-			"material": "C20.7",
+			"material": "C24.1",
 			"length": 2000,
 			"width": 1500,
 			"thickness": 500,
@@ -148,7 +148,7 @@
 			"id": "ST1200",
 			"name": "Stair 1200 wide",
 			"kind": "staircase",
-			"material": "C20.7",
+			"material": "C24.1",
 			"waistThickness": 150,
 			"riser": 160,
 			"tread": 280,
@@ -158,7 +158,7 @@
 			"id": "BR-SHS",
 			"name": "Brace SHS 150",
 			"kind": "brace",
-			"material": "C20.7",
+			"material": "C24.1",
 			"profile": {
 				"shape": "rectangleHollow",
 				"xDim": 150,

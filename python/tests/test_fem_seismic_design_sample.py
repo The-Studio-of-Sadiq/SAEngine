@@ -36,23 +36,25 @@ def test_sample_runs_the_response_spectrum_and_its_forces_are_scaled_up(sample) 
     _, out, _, settings, summary = sample
     # The sample keeps the default Response spectrum on: RX and RY ran with the analysis.
     assert settings.analysis.responseSpectrum and summary["available"]
-    # Chattogram (zone 3), site class SD, occupancy II: Category D, 100 % + 30 %.
+    # Dhaka (zone 2), site class SD, occupancy II: still Category D (Table 6.2.18), 100 % + 30 %.
     assert summary["category"] == "D" and summary["orthogonal"]
     scale = summary["scale"]
     # The sample is stiff (modes of 0.06-0.15 s, on the rising branch of the spectrum below
     # TB = 0.2 s), while the static base shear takes the approximate period on the plateau:
     # V_rs is 41 % (X) and 42 % (Y) of V on the cracked lateral sections, so the forces are
     # scaled by 0.85 / 0.41 = 2.08 and 0.85 / 0.42 = 2.01 (when written).
-    assert scale["vStatic"]["x"] == pytest.approx(103.9, rel=1e-3)
+    # Special moment frame R = 8 in zone 2: 103.9 kN of the earlier rcImf (R 5) in zone 3
+    # x (0.20 / 0.28) x (5 / 8) = 46.4 kN.
+    assert scale["vStatic"]["x"] == pytest.approx(46.40, rel=1e-3)
     for axis in ("x", "y"):
         assert scale[axis] == pytest.approx(0.85 * scale["vStatic"][axis] / scale["vDynamic"][axis])
         assert 1.6 < scale[axis] < 2.4
         assert summary["massParticipation"][axis] >= 0.90
-    # Ev = 0.5 (2/3) Z S D = 0.5 x (2/3) x 0.28 x 1.35 = 0.126 D.
-    assert summary["verticalCoefficient"] == pytest.approx(0.126)
+    # Ev = 0.5 (2/3) Z S D = 0.5 x (2/3) x 0.20 x 1.35 = 0.09 D.
+    assert summary["verticalCoefficient"] == pytest.approx(0.09)
     assert [c["name"] for c in summary["combinations"]][:2] == [
-        "1.326D + 1.0L ± 1.0E(RS EX + 0.3EY)",
-        "1.326D + 1.0L ± 1.0E(RS 0.3EX + EY)",
+        "1.29D + 1.0L ± 1.0E(RS EX + 0.3EY)",
+        "1.29D + 1.0L ± 1.0E(RS 0.3EX + EY)",
     ]
     # Torsional irregularity (Sec 2.5.5.3.1(i)): the ground storey's wall line at x = 13 m
     # holds one end while the frame end at x = 0 drifts, so in Y the storey is extremely
@@ -98,8 +100,20 @@ def test_sample_design_with_the_response_spectrum(sample) -> None:
     assert sum("RS" in n for n in names) == 8 * 8
     assert any("+N +My +Mz" in n for n in names) and any("−N −My −Mz" in n for n in names)
 
+    # The strength checks only: since the seismic detailing (Sec 8.3), an element's overall
+    # utilisation is often its hoop spacing or Ash, which the response spectrum does not change.
+    strength = ("Flexure", "Shear", "Axial", "One-way shear", "Punching")
+
     def worst(report):
-        return {e["id"]: (e["utilisation"], e["ok"]) for e in report["elements"]}
+        out = {}
+        for e in report["elements"]:
+            checks = [c for c in e["checks"] if c["name"].startswith(strength)]
+            if checks:
+                out[e["id"]] = (
+                    max(c["utilisation"] for c in checks),
+                    all(c["ok"] for c in checks),
+                )
+        return out
 
     before, after = worst(static), worst(spectrum)
     assert before.keys() == after.keys()

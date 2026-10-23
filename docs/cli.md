@@ -111,7 +111,7 @@ schema.
 ok       analysis model: Derived 193 nodes and 195 elements; base shear 103.9 kN, seismic weight 824.8 kN.
 ok       analysis: Analysis complete: 12 case(s).
 skipped  fixed-base run for the soil springs: The supports are not soil springs.
-ok       design checks: 10 pass, 5 fail; steel short in 6 element(s)
+ok       design checks: 0 pass, 15 fail; steel short in 16 element(s)
 ok       foundation design: foundations 0 pass, 1 fail
 ok       MEP coordination, plumbing, HVAC and electrical checks: MEP: failing openings 0, open clashes 0 · plumbing: failing checks 2, floors below the minimum pressure 1 · HVAC: failing checks 2, openings to add 0 · electrical: failing checks 0, openings to add 1
 ok       bill of quantities: BOQ updated
@@ -119,17 +119,25 @@ ok       report: report written
 
   1 Soil Report        done        3 boreholes
   ...
-  8 FEM                failed      5 fail (review the failing members)
+  8 FEM                failed      15 fail (review the failing members)
   9 Substructure       failed      1 fail (review the failing foundations)
   10 BOQ               done        measured
   11 Exports           done        report 19 Oct
 
-Done: 10 pass, 5 fail · foundations 0 pass, 1 fail · MEP: ... · model derived · BOQ updated · report written
+Done: 0 pass, 15 fail · foundations 0 pass, 1 fail · MEP: ... · model derived · BOQ updated · report written
 
 Failing checks:
-  8 FEM: 5 of 15 members fail the design checks (max utilisation 1.873, S1)
+  8 FEM: 15 of 15 members fail the design checks (max utilisation 3.247, C1)
   ...
 ```
+
+The sample is an RC intermediate moment frame in Seismic Design Category D, where BNBC 2020
+Part 6 Sec 8.3.2 asks for special moment frame detailing: its beams and columns fail the
+seismic detailing checks (hoop spacing, confinement, cross ties, capacity shear; `Detailing:`
+checks) as well as a few strength checks. Design Reinforcement proposes bars with hoop zones
+that resolve them; the system itself (not permitted in Category D) and the concrete grade
+(f'c below 21 MPa, Sec 8.3.3.3) stay as project-level findings in the report's Seismic
+detailing chapter.
 
 `--steps` runs some steps only, always in Run All's order: `saengine run-all "Sample Frame"
 --steps design substructure` (or `--steps design,substructure`; the project may also come after
@@ -317,7 +325,7 @@ could be read (`""` for an unknown command); argparse's usage text still goes to
   "project": {"root": "D:\\Projects\\Sample Frame", "name": "Sample Frame", "type": "building"},
   "ok": true,
   "stoppedAt": null,
-  "summary": "Done: 10 pass, 5 fail · foundations 0 pass, 1 fail · ...",
+  "summary": "Done: 0 pass, 15 fail · foundations 0 pass, 1 fail · ...",
   "steps": [
     {
       "id": "design",

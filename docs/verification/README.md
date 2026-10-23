@@ -54,7 +54,9 @@ that the command line works.
   project and says so in its model text. Examples are a tip load, line supports along plate
   edges and a single lumped mass.
 - **Design cases** call the functions the design checks use: `saengine.design.rc`,
-  `saengine.design.slab` and `saengine.design.footing.design_footing`. The reference is plain
+  `saengine.design.slab`, `saengine.design.footing.design_footing` and, for the seismic
+  detailing of BNBC Sec 8.3 (cases DZ1 column confinement, DZ2 joint shear in
+  `cases/seismic_detailing.py`), `saengine.design.ductile_members` and `ductile_joints`. The reference is plain
   arithmetic in the case and does not use any SAEngine helper.
 
 Tolerances are set from the method. They are 1 % for closed-form linear frames, where the

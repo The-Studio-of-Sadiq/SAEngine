@@ -109,7 +109,7 @@ STRUCTURAL_SYSTEMS: dict[str, StructuralSystem] = {
         "Building frame with RC special shear walls", 6.0, 2.5, 5.0
     ),
     "rcOrdinaryWallFrame": StructuralSystem(
-        "Building frame with RC ordinary shear walls", 5.0, 2.5, 4.5
+        "Building frame with RC ordinary shear walls", 5.0, 2.5, 4.25
     ),
     "rcDualSpecial": StructuralSystem(
         "Dual: RC special moment frame and special shear walls", 7.0, 2.5, 5.5

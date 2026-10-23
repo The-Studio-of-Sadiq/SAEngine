@@ -2,10 +2,10 @@
 	"schema": "saengine.boq/1",
 	"source": {
 		"bim": "4095937f620faa9783b313d15bd6ee381f7ddf30",
-		"objects": "208cf81c4f12504fd967771a054f8c6edb9e8405",
-		"materials": "50563593cdcc5ae3ea57a91d1c0379e5e5db980f",
-		"substructure": "1c85c6c69986e74d73ee4249ee870e7ae4786397",
-		"mep": "d0ff0dab748d0d6d14a7922bd91ff93b16bef1e3",
+		"objects": "b6329a3e9903474537f2922b1db027dd8706385f",
+		"materials": "3fe12b278b2e3c43c8e62699aff518395c1a6b7f",
+		"substructure": "24add05dca2f64378c5594856b57f9df1e104bac",
+		"mep": "c4617615135928550d24d2e811b50a250c1ec5d1",
 		"settings": "fe329f8351df78af4c4980a95d5ca6d0310b7ccd"
 	},
 	"items": [
@@ -87,10 +87,10 @@
 		{
 			"code": "C.02",
 			"group": "concrete",
-			"description": "Concrete C20.7 in footings",
+			"description": "Concrete C24.1 in footings",
 			"quantity": 1.5,
 			"unit": "m3",
-			"material": "C20.7",
+			"material": "C24.1",
 			"kind": "footing",
 			"byStory": {
 				"BASE": 1.5
@@ -106,10 +106,10 @@
 		{
 			"code": "C.03",
 			"group": "concrete",
-			"description": "Concrete C20.7 in columns",
+			"description": "Concrete C24.1 in columns",
 			"quantity": 6.945,
 			"unit": "m3",
-			"material": "C20.7",
+			"material": "C24.1",
 			"kind": "column",
 			"byStory": {
 				"L1": 4.545,
@@ -160,10 +160,10 @@
 		{
 			"code": "C.04",
 			"group": "concrete",
-			"description": "Concrete C20.7 in walls",
+			"description": "Concrete C24.1 in walls",
 			"quantity": 2.307,
 			"unit": "m3",
-			"material": "C20.7",
+			"material": "C24.1",
 			"kind": "wall",
 			"byStory": {
 				"L1": 2.307
@@ -179,10 +179,10 @@
 		{
 			"code": "C.05",
 			"group": "concrete",
-			"description": "Concrete C20.7 in beams",
+			"description": "Concrete C24.1 in beams",
 			"quantity": 3.536,
 			"unit": "m3",
-			"material": "C20.7",
+			"material": "C24.1",
 			"kind": "beam",
 			"byStory": {
 				"L1": 3.536
@@ -218,10 +218,10 @@
 		{
 			"code": "C.06",
 			"group": "concrete",
-			"description": "Concrete C20.7 in braces",
+			"description": "Concrete C24.1 in braces",
 			"quantity": 0.031,
 			"unit": "m3",
-			"material": "C20.7",
+			"material": "C24.1",
 			"kind": "brace",
 			"byStory": {},
 			"breakdown": [
@@ -234,10 +234,10 @@
 		{
 			"code": "C.07",
 			"group": "concrete",
-			"description": "Concrete C20.7 in slabs",
+			"description": "Concrete C24.1 in slabs",
 			"quantity": 9.166,
 			"unit": "m3",
-			"material": "C20.7",
+			"material": "C24.1",
 			"kind": "slab",
 			"byStory": {
 				"L1": 9.166
@@ -258,10 +258,10 @@
 		{
 			"code": "C.08",
 			"group": "concrete",
-			"description": "Concrete C20.7 in stairs",
+			"description": "Concrete C24.1 in stairs",
 			"quantity": 3.334,
 			"unit": "m3",
-			"material": "C20.7",
+			"material": "C24.1",
 			"kind": "staircase",
 			"byStory": {
 				"BASE": 3.334
@@ -282,10 +282,10 @@
 		{
 			"code": "C.09",
 			"group": "concrete",
-			"description": "Concrete C20.7 in water and septic tanks",
+			"description": "Concrete C24.1 in water and septic tanks",
 			"quantity": 3.875,
 			"unit": "m3",
-			"material": "C20.7",
+			"material": "C24.1",
 			"kind": "tank",
 			"byStory": {
 				"L1": 3.875
@@ -1131,138 +1131,138 @@
 			"code": "MT.01",
 			"group": "materials",
 			"description": "Cement (OPC)",
-			"quantity": 9724.062,
+			"quantity": 12376.079,
 			"unit": "kg",
 			"kind": "cement",
 			"byStory": {
-				"L1": 7422.399,
-				"L2": 243.302,
-				"BASE": 1531.554
+				"L1": 9446.69,
+				"L2": 309.658,
+				"BASE": 1949.251
 			},
 			"breakdown": [
 				{
 					"element": "C1",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 243.302
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 309.658
 				},
 				{
 					"element": "C2",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 237.6
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 302.4
 				},
 				{
 					"element": "C3",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 240.451
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 306.029
 				},
 				{
 					"element": "C4",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 240.451
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 306.029
 				},
 				{
 					"element": "C5",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 237.6
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 302.4
 				},
 				{
 					"element": "C6",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 240.451
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 306.029
 				},
 				{
 					"element": "C7",
 					"story": "L2",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 243.302
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 309.658
 				},
 				{
 					"element": "M1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 517.018
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 658.022
 				},
 				{
 					"element": "B1",
 					"story": "L1",
-					"detail": "Concrete C20.7 in beams",
-					"quantity": 217.325
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 276.595
 				},
 				{
 					"element": "B2",
 					"story": "L1",
-					"detail": "Concrete C20.7 in beams",
-					"quantity": 263.477
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 335.334
 				},
 				{
 					"element": "B3",
 					"story": "L1",
-					"detail": "Concrete C20.7 in beams",
-					"quantity": 226.195
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 287.885
 				},
 				{
 					"element": "B4",
 					"story": "L1",
-					"detail": "Concrete C20.7 in beams",
-					"quantity": 266.587
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 339.293
 				},
 				{
 					"element": "B5",
 					"story": "L1",
-					"detail": "Concrete C20.7 in beams",
-					"quantity": 146.634
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 186.625
 				},
 				{
 					"element": "W1",
 					"story": "L1",
-					"detail": "Concrete C20.7 in walls",
-					"quantity": 730.858
+					"detail": "Concrete C24.1 in walls",
+					"quantity": 930.182
 				},
 				{
 					"element": "S1",
 					"story": "L1",
-					"detail": "Concrete C20.7 in slabs",
-					"quantity": 1240.747
+					"detail": "Concrete C24.1 in slabs",
+					"quantity": 1579.133
 				},
 				{
 					"element": "S2",
 					"story": "L1",
-					"detail": "Concrete C20.7 in slabs",
-					"quantity": 1663.2
+					"detail": "Concrete C24.1 in slabs",
+					"quantity": 2116.8
 				},
 				{
 					"element": "M2",
-					"detail": "Concrete C20.7 in braces",
-					"quantity": 9.789
+					"detail": "Concrete C24.1 in braces",
+					"quantity": 12.459
 				},
 				{
 					"element": "ST1",
 					"story": "BASE",
-					"detail": "Concrete C20.7 in stairs",
-					"quantity": 528.177
+					"detail": "Concrete C24.1 in stairs",
+					"quantity": 672.225
 				},
 				{
 					"element": "ST2",
 					"story": "BASE",
-					"detail": "Concrete C20.7 in stairs",
-					"quantity": 528.177
+					"detail": "Concrete C24.1 in stairs",
+					"quantity": 672.225
 				},
 				{
 					"element": "F1",
 					"story": "BASE",
-					"detail": "Concrete C20.7 in footings",
-					"quantity": 475.2
+					"detail": "Concrete C24.1 in footings",
+					"quantity": 604.8
 				},
 				{
 					"element": "T1",
 					"story": "L1",
-					"detail": "Concrete C20.7 in water and septic tanks",
-					"quantity": 1227.521
+					"detail": "Concrete C24.1 in water and septic tanks",
+					"quantity": 1562.299
 				}
 			]
 		},
@@ -1270,138 +1270,138 @@
 			"code": "MT.02",
 			"group": "materials",
 			"description": "Cement (OPC) in 50 kg bags",
-			"quantity": 194.481,
+			"quantity": 247.522,
 			"unit": "bag",
 			"kind": "bags",
 			"byStory": {
-				"L1": 148.448,
-				"L2": 4.866,
-				"BASE": 30.631
+				"L1": 188.934,
+				"L2": 6.193,
+				"BASE": 38.985
 			},
 			"breakdown": [
 				{
 					"element": "C1",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 4.866
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 6.193
 				},
 				{
 					"element": "C2",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 4.752
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 6.048
 				},
 				{
 					"element": "C3",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 4.809
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 6.121
 				},
 				{
 					"element": "C4",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 4.809
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 6.121
 				},
 				{
 					"element": "C5",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 4.752
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 6.048
 				},
 				{
 					"element": "C6",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 4.809
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 6.121
 				},
 				{
 					"element": "C7",
 					"story": "L2",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 4.866
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 6.193
 				},
 				{
 					"element": "M1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 10.34
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 13.16
 				},
 				{
 					"element": "B1",
 					"story": "L1",
-					"detail": "Concrete C20.7 in beams",
-					"quantity": 4.346
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 5.532
 				},
 				{
 					"element": "B2",
 					"story": "L1",
-					"detail": "Concrete C20.7 in beams",
-					"quantity": 5.27
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 6.707
 				},
 				{
 					"element": "B3",
 					"story": "L1",
-					"detail": "Concrete C20.7 in beams",
-					"quantity": 4.524
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 5.758
 				},
 				{
 					"element": "B4",
 					"story": "L1",
-					"detail": "Concrete C20.7 in beams",
-					"quantity": 5.332
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 6.786
 				},
 				{
 					"element": "B5",
 					"story": "L1",
-					"detail": "Concrete C20.7 in beams",
-					"quantity": 2.933
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 3.732
 				},
 				{
 					"element": "W1",
 					"story": "L1",
-					"detail": "Concrete C20.7 in walls",
-					"quantity": 14.617
+					"detail": "Concrete C24.1 in walls",
+					"quantity": 18.604
 				},
 				{
 					"element": "S1",
 					"story": "L1",
-					"detail": "Concrete C20.7 in slabs",
-					"quantity": 24.815
+					"detail": "Concrete C24.1 in slabs",
+					"quantity": 31.583
 				},
 				{
 					"element": "S2",
 					"story": "L1",
-					"detail": "Concrete C20.7 in slabs",
-					"quantity": 33.264
+					"detail": "Concrete C24.1 in slabs",
+					"quantity": 42.336
 				},
 				{
 					"element": "M2",
-					"detail": "Concrete C20.7 in braces",
-					"quantity": 0.196
+					"detail": "Concrete C24.1 in braces",
+					"quantity": 0.249
 				},
 				{
 					"element": "ST1",
 					"story": "BASE",
-					"detail": "Concrete C20.7 in stairs",
-					"quantity": 10.564
+					"detail": "Concrete C24.1 in stairs",
+					"quantity": 13.445
 				},
 				{
 					"element": "ST2",
 					"story": "BASE",
-					"detail": "Concrete C20.7 in stairs",
-					"quantity": 10.564
+					"detail": "Concrete C24.1 in stairs",
+					"quantity": 13.445
 				},
 				{
 					"element": "F1",
 					"story": "BASE",
-					"detail": "Concrete C20.7 in footings",
-					"quantity": 9.504
+					"detail": "Concrete C24.1 in footings",
+					"quantity": 12.096
 				},
 				{
 					"element": "T1",
 					"story": "L1",
-					"detail": "Concrete C20.7 in water and septic tanks",
-					"quantity": 24.55
+					"detail": "Concrete C24.1 in water and septic tanks",
+					"quantity": 31.246
 				}
 			]
 		},
@@ -1409,138 +1409,138 @@
 			"code": "MT.03",
 			"group": "materials",
 			"description": "Sand (fine aggregate)",
-			"quantity": 476.948,
+			"quantity": 455.268,
 			"unit": "cft",
 			"kind": "sand",
 			"byStory": {
-				"L1": 364.055,
-				"L2": 11.934,
-				"BASE": 75.12
+				"L1": 347.507,
+				"L2": 11.391,
+				"BASE": 71.705
 			},
 			"breakdown": [
 				{
 					"element": "C1",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 11.934
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 11.391
 				},
 				{
 					"element": "C2",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 11.654
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 11.124
 				},
 				{
 					"element": "C3",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 11.794
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 11.258
 				},
 				{
 					"element": "C4",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 11.794
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 11.258
 				},
 				{
 					"element": "C5",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 11.654
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 11.124
 				},
 				{
 					"element": "C6",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 11.794
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 11.258
 				},
 				{
 					"element": "C7",
 					"story": "L2",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 11.934
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 11.391
 				},
 				{
 					"element": "M1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 25.359
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 24.206
 				},
 				{
 					"element": "B1",
 					"story": "L1",
-					"detail": "Concrete C20.7 in beams",
-					"quantity": 10.659
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 10.175
 				},
 				{
 					"element": "B2",
 					"story": "L1",
-					"detail": "Concrete C20.7 in beams",
-					"quantity": 12.923
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 12.336
 				},
 				{
 					"element": "B3",
 					"story": "L1",
-					"detail": "Concrete C20.7 in beams",
-					"quantity": 11.094
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 10.59
 				},
 				{
 					"element": "B4",
 					"story": "L1",
-					"detail": "Concrete C20.7 in beams",
-					"quantity": 13.076
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 12.481
 				},
 				{
 					"element": "B5",
 					"story": "L1",
-					"detail": "Concrete C20.7 in beams",
-					"quantity": 7.192
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 6.865
 				},
 				{
 					"element": "W1",
 					"story": "L1",
-					"detail": "Concrete C20.7 in walls",
-					"quantity": 35.847
+					"detail": "Concrete C24.1 in walls",
+					"quantity": 34.218
 				},
 				{
 					"element": "S1",
 					"story": "L1",
-					"detail": "Concrete C20.7 in slabs",
-					"quantity": 60.856
+					"detail": "Concrete C24.1 in slabs",
+					"quantity": 58.09
 				},
 				{
 					"element": "S2",
 					"story": "L1",
-					"detail": "Concrete C20.7 in slabs",
-					"quantity": 81.577
+					"detail": "Concrete C24.1 in slabs",
+					"quantity": 77.869
 				},
 				{
 					"element": "M2",
-					"detail": "Concrete C20.7 in braces",
-					"quantity": 0.48
+					"detail": "Concrete C24.1 in braces",
+					"quantity": 0.458
 				},
 				{
 					"element": "ST1",
 					"story": "BASE",
-					"detail": "Concrete C20.7 in stairs",
-					"quantity": 25.906
+					"detail": "Concrete C24.1 in stairs",
+					"quantity": 24.729
 				},
 				{
 					"element": "ST2",
 					"story": "BASE",
-					"detail": "Concrete C20.7 in stairs",
-					"quantity": 25.906
+					"detail": "Concrete C24.1 in stairs",
+					"quantity": 24.729
 				},
 				{
 					"element": "F1",
 					"story": "BASE",
-					"detail": "Concrete C20.7 in footings",
-					"quantity": 23.308
+					"detail": "Concrete C24.1 in footings",
+					"quantity": 22.248
 				},
 				{
 					"element": "T1",
 					"story": "L1",
-					"detail": "Concrete C20.7 in water and septic tanks",
-					"quantity": 60.208
+					"detail": "Concrete C24.1 in water and septic tanks",
+					"quantity": 57.471
 				}
 			]
 		},
@@ -1548,138 +1548,138 @@
 			"code": "MT.04",
 			"group": "materials",
 			"description": "Stone chips (coarse aggregate)",
-			"quantity": 953.895,
+			"quantity": 910.537,
 			"unit": "cft",
 			"kind": "stone",
 			"byStory": {
-				"L1": 728.111,
-				"L2": 23.867,
-				"BASE": 150.24
+				"L1": 695.015,
+				"L2": 22.782,
+				"BASE": 143.411
 			},
 			"breakdown": [
 				{
 					"element": "C1",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 23.867
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 22.782
 				},
 				{
 					"element": "C2",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 23.308
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 22.248
 				},
 				{
 					"element": "C3",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 23.587
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 22.515
 				},
 				{
 					"element": "C4",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 23.587
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 22.515
 				},
 				{
 					"element": "C5",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 23.308
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 22.248
 				},
 				{
 					"element": "C6",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 23.587
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 22.515
 				},
 				{
 					"element": "C7",
 					"story": "L2",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 23.867
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 22.782
 				},
 				{
 					"element": "M1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 50.718
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 48.412
 				},
 				{
 					"element": "B1",
 					"story": "L1",
-					"detail": "Concrete C20.7 in beams",
-					"quantity": 21.319
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 20.35
 				},
 				{
 					"element": "B2",
 					"story": "L1",
-					"detail": "Concrete C20.7 in beams",
-					"quantity": 25.846
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 24.671
 				},
 				{
 					"element": "B3",
 					"story": "L1",
-					"detail": "Concrete C20.7 in beams",
-					"quantity": 22.189
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 21.18
 				},
 				{
 					"element": "B4",
 					"story": "L1",
-					"detail": "Concrete C20.7 in beams",
-					"quantity": 26.151
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 24.963
 				},
 				{
 					"element": "B5",
 					"story": "L1",
-					"detail": "Concrete C20.7 in beams",
-					"quantity": 14.384
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 13.73
 				},
 				{
 					"element": "W1",
 					"story": "L1",
-					"detail": "Concrete C20.7 in walls",
-					"quantity": 71.694
+					"detail": "Concrete C24.1 in walls",
+					"quantity": 68.436
 				},
 				{
 					"element": "S1",
 					"story": "L1",
-					"detail": "Concrete C20.7 in slabs",
-					"quantity": 121.713
+					"detail": "Concrete C24.1 in slabs",
+					"quantity": 116.18
 				},
 				{
 					"element": "S2",
 					"story": "L1",
-					"detail": "Concrete C20.7 in slabs",
-					"quantity": 163.154
+					"detail": "Concrete C24.1 in slabs",
+					"quantity": 155.738
 				},
 				{
 					"element": "M2",
-					"detail": "Concrete C20.7 in braces",
-					"quantity": 0.96
+					"detail": "Concrete C24.1 in braces",
+					"quantity": 0.917
 				},
 				{
 					"element": "ST1",
 					"story": "BASE",
-					"detail": "Concrete C20.7 in stairs",
-					"quantity": 51.812
+					"detail": "Concrete C24.1 in stairs",
+					"quantity": 49.457
 				},
 				{
 					"element": "ST2",
 					"story": "BASE",
-					"detail": "Concrete C20.7 in stairs",
-					"quantity": 51.812
+					"detail": "Concrete C24.1 in stairs",
+					"quantity": 49.457
 				},
 				{
 					"element": "F1",
 					"story": "BASE",
-					"detail": "Concrete C20.7 in footings",
-					"quantity": 46.615
+					"detail": "Concrete C24.1 in footings",
+					"quantity": 44.497
 				},
 				{
 					"element": "T1",
 					"story": "L1",
-					"detail": "Concrete C20.7 in water and septic tanks",
-					"quantity": 120.415
+					"detail": "Concrete C24.1 in water and septic tanks",
+					"quantity": 114.942
 				}
 			]
 		},
@@ -1687,138 +1687,138 @@
 			"code": "MT.05",
 			"group": "materials",
 			"description": "Water",
-			"quantity": 4862.031,
+			"quantity": 5569.236,
 			"unit": "l",
 			"kind": "water",
 			"byStory": {
-				"L1": 3711.2,
-				"L2": 121.651,
-				"BASE": 765.777
+				"L1": 4251.01,
+				"L2": 139.346,
+				"BASE": 877.163
 			},
 			"breakdown": [
 				{
 					"element": "C1",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 121.651
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 139.346
 				},
 				{
 					"element": "C2",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 118.8
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 136.08
 				},
 				{
 					"element": "C3",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 120.226
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 137.713
 				},
 				{
 					"element": "C4",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 120.226
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 137.713
 				},
 				{
 					"element": "C5",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 118.8
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 136.08
 				},
 				{
 					"element": "C6",
 					"story": "L1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 120.226
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 137.713
 				},
 				{
 					"element": "C7",
 					"story": "L2",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 121.651
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 139.346
 				},
 				{
 					"element": "M1",
-					"detail": "Concrete C20.7 in columns",
-					"quantity": 258.509
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 296.11
 				},
 				{
 					"element": "B1",
 					"story": "L1",
-					"detail": "Concrete C20.7 in beams",
-					"quantity": 108.662
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 124.468
 				},
 				{
 					"element": "B2",
 					"story": "L1",
-					"detail": "Concrete C20.7 in beams",
-					"quantity": 131.738
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 150.9
 				},
 				{
 					"element": "B3",
 					"story": "L1",
-					"detail": "Concrete C20.7 in beams",
-					"quantity": 113.098
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 129.548
 				},
 				{
 					"element": "B4",
 					"story": "L1",
-					"detail": "Concrete C20.7 in beams",
-					"quantity": 133.294
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 152.682
 				},
 				{
 					"element": "B5",
 					"story": "L1",
-					"detail": "Concrete C20.7 in beams",
-					"quantity": 73.317
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 83.981
 				},
 				{
 					"element": "W1",
 					"story": "L1",
-					"detail": "Concrete C20.7 in walls",
-					"quantity": 365.429
+					"detail": "Concrete C24.1 in walls",
+					"quantity": 418.582
 				},
 				{
 					"element": "S1",
 					"story": "L1",
-					"detail": "Concrete C20.7 in slabs",
-					"quantity": 620.374
+					"detail": "Concrete C24.1 in slabs",
+					"quantity": 710.61
 				},
 				{
 					"element": "S2",
 					"story": "L1",
-					"detail": "Concrete C20.7 in slabs",
-					"quantity": 831.6
+					"detail": "Concrete C24.1 in slabs",
+					"quantity": 952.56
 				},
 				{
 					"element": "M2",
-					"detail": "Concrete C20.7 in braces",
-					"quantity": 4.894
+					"detail": "Concrete C24.1 in braces",
+					"quantity": 5.606
 				},
 				{
 					"element": "ST1",
 					"story": "BASE",
-					"detail": "Concrete C20.7 in stairs",
-					"quantity": 264.089
+					"detail": "Concrete C24.1 in stairs",
+					"quantity": 302.501
 				},
 				{
 					"element": "ST2",
 					"story": "BASE",
-					"detail": "Concrete C20.7 in stairs",
-					"quantity": 264.089
+					"detail": "Concrete C24.1 in stairs",
+					"quantity": 302.501
 				},
 				{
 					"element": "F1",
 					"story": "BASE",
-					"detail": "Concrete C20.7 in footings",
-					"quantity": 237.6
+					"detail": "Concrete C24.1 in footings",
+					"quantity": 272.16
 				},
 				{
 					"element": "T1",
 					"story": "L1",
-					"detail": "Concrete C20.7 in water and septic tanks",
-					"quantity": 613.76
+					"detail": "Concrete C24.1 in water and septic tanks",
+					"quantity": 703.035
 				}
 			]
 		}

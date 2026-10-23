@@ -694,6 +694,84 @@ The analysis uses #so.stiffness.
   ]
 ]
 
+#let sd = if design.available { design.at("seismic", default: (available: false)) } else { (available: false) }
+#if sd.available [
+  = Seismic detailing
+
+  Earthquake-resistant detailing to BNBC 2020 Part 6 Chapter 8 Sec 8.3 (pp. 1088-1123). The
+  detailing checks below count in each member's utilisation in Member design (their names start
+  with "Detailing:").
+
+  #pairs(sd.lines, width: 45%)
+
+  == General requirements (Sec 8.3.2, 8.3.3)
+  #tbl(
+    ("Requirement", "Result", "Note"),
+    sd.checks,
+    columns: (2fr, auto, 3fr),
+    align: (left, center, left),
+    bad: sd.checksBad,
+    size: 8pt,
+  )
+
+  == Provisions that apply
+  #tbl(
+    ("Section", "Title", "Page", "Applies", "Members"),
+    sd.applies,
+    columns: (auto, 2fr, auto, auto, 1fr),
+    align: (left, left, left, center, left),
+    size: 8pt,
+  )
+
+  #if sd.members.len() > 0 [
+    == Members: governing detailing checks
+    Per object type, every detailing check that fails on any of its members (else the governing
+    one), at its largest utilisation.
+    #tbl(
+      ("Type", "Kind", "Check", "Demand", "Limit", "Unit", "Util.", "Failing members"),
+      sd.members,
+      columns: (auto, auto, 2fr, auto, auto, auto, auto, 1fr),
+      align: (left, left, left, right, right, left, right, left),
+      bad: sd.membersBad,
+      size: 7.5pt,
+    )
+  ]
+
+  #if sd.joints.len() > 0 [
+    == Beam-column joints
+    Strong column / weak beam ΣMnc / ΣMnb ≥ 1.2 (Sec 8.3.5.2, Eq. 6.8.5; "n.r.": not required,
+    the columns carry at most 0.1 Ag f'c) and joint shear Vj against φVn = 0.85 γ √f'c Aj (Sec
+    8.3.7.3) [kN].
+    #tbl(
+      ("Joint", "Type", "Beams", "SCWB x", "SCWB y", "Vj", "φVn", "Util.", "Result"),
+      sd.joints,
+      columns: (auto, auto, 1fr, auto, auto, auto, auto, auto, auto),
+      align: (left, left, left, right, right, right, right, right, center),
+      bad: sd.jointsBad,
+      size: 8pt,
+    )
+  ]
+
+  #if sd.shears.len() > 0 [
+    == Capacity-design shear
+    Ve from the probable moments Mpr (1.25 fy, Sec 8.3.8.1) or the 2E combinations (Sec
+    8.3.10.3) against φVn [kN]; columns: the larger of their two directions.
+    #tbl(
+      ("Member", "Kind", "Ve", "φVn", "Util.", "Result"),
+      sd.shears,
+      columns: (auto, auto, auto, auto, auto, auto),
+      align: (left, left, right, right, right, center),
+      bad: sd.shearsBad,
+      size: 8pt,
+    )
+  ]
+
+  #if sd.notes.len() > 0 [
+    == Notes
+    #bullets(sd.notes, size: 8pt)
+  ]
+]
+
 // ───────────────────────────── MEP coordination ─────────────────────────────
 
 #let mep = data.mep

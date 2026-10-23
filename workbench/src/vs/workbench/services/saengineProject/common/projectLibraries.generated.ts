@@ -538,6 +538,34 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 					description: 'Elongation at fracture [%].',
 					title: 'Elongation',
 				},
+				fyActual: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Actual yield strength from the mill tests [MPa] (BNBC Sec 8.3.3.4(b)(i)).',
+					title: 'Actual fy (mill test)',
+				},
+				fuActual: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Actual tensile strength from the mill tests [MPa] (BNBC Sec 8.3.3.4(b)(ii)).',
+					title: 'Actual fu (mill test)',
+				},
 			},
 			required: ['fy'],
 			title: 'SteelProperties',
@@ -693,6 +721,20 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					],
 					default: null,
 					title: 'Reinforcement',
+				},
+				seismicRole: {
+					default: 'auto',
+					description: 'Part of the seismic force-resisting system (lateral) or not (gravity, BNBC Sec 8.3.12); auto: by the structural system.',
+					enum: ['auto', 'lateral', 'gravity'],
+					title: 'Seismic role',
+					type: 'string',
+				},
+				omegaCombinations: {
+					default: 'auto',
+					description: 'Overstrength combinations (BNBC Sec 2.5.5.6, 2.5.13.4): transfer members under discontinuous columns or walls, collectors; auto: transfer members are found.',
+					enum: ['auto', 'transfer', 'collector', 'none'],
+					title: 'Ω0 combinations',
+					type: 'string',
 				},
 			},
 			required: ['id', 'name', 'material', 'profile'],
@@ -902,6 +944,20 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					],
 					default: null,
 					title: 'Reinforcement',
+				},
+				seismicRole: {
+					default: 'auto',
+					description: 'Part of the seismic force-resisting system (lateral) or not (gravity, BNBC Sec 8.3.12); auto: by the structural system.',
+					enum: ['auto', 'lateral', 'gravity'],
+					title: 'Seismic role',
+					type: 'string',
+				},
+				omegaCombinations: {
+					default: 'auto',
+					description: 'Overstrength combinations (BNBC Sec 2.5.5.6, 2.5.13.4): transfer members under discontinuous columns or walls, collectors; auto: transfer members are found.',
+					enum: ['auto', 'transfer', 'collector', 'none'],
+					title: 'Ω0 combinations',
+					type: 'string',
 				},
 			},
 			required: ['id', 'name', 'material', 'profile'],
@@ -1575,6 +1631,21 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			title: 'Solid',
 			type: 'object',
 		},
+		SpliceZone: {
+			additionalProperties: false,
+			description: 'Hoops or ties over the lap splices (BNBC 2020 Part 6 Sec 8.3.4.2(b), Figure 6.8.8).',
+			properties: {
+				spacing: {
+					description: 'Spacing over the lap splices [mm].',
+					exclusiveMinimum: 0,
+					title: 'Spacing',
+					type: 'number',
+				},
+			},
+			required: ['spacing'],
+			title: 'SpliceZone',
+			type: 'object',
+		},
 		StairReinforcement: {
 			additionalProperties: false,
 			properties: {
@@ -1747,7 +1818,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					type: 'number',
 				},
 				spacing: {
-					description: '[mm]',
+					description: 'Spacing outside the end zones (all along without zones) [mm].',
 					exclusiveMinimum: 0,
 					title: 'Spacing',
 					type: 'number',
@@ -1758,9 +1829,91 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					title: 'Legs',
 					type: 'integer',
 				},
+				legsX: {
+					anyOf: [
+						{
+							minimum: 1,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Column ties: legs running along the profile\'s x, counted down its depth (none: as many as legs, which run along y).',
+					title: 'Legs along x',
+				},
+				zone: {
+					anyOf: [
+						{
+							$ref: '#/$defs/TransverseZone',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Closer hoops or ties at the member ends (seismic detailing); none: one spacing all along.',
+					title: 'End zones',
+				},
+				splice: {
+					anyOf: [
+						{
+							$ref: '#/$defs/SpliceZone',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Over lap splices',
+				},
 			},
 			required: ['type', 'dia', 'spacing'],
 			title: 'Transverse',
+			type: 'object',
+		},
+		TransverseZone: {
+			additionalProperties: false,
+			description: 'The end zones of a beam or column where the seismic detailing asks for closer hoops\n(BNBC 2020 Part 6 Sec 8.3.4.3, 8.3.5.4, 8.3.9.2, 8.3.10.4, 8.3.10.5).',
+			properties: {
+				spacing: {
+					description: 'Hoop or tie spacing within the zone (so) [mm].',
+					exclusiveMinimum: 0,
+					title: 'Spacing',
+					type: 'number',
+				},
+				length: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Zone length from each joint face (lo) [mm]; none: the length the code requires.',
+					title: 'Length',
+				},
+				first: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'First hoop or tie from the joint face [mm].',
+					title: 'First',
+				},
+			},
+			required: ['spacing'],
+			title: 'TransverseZone',
 			type: 'object',
 		},
 		UShapeProfile: {
@@ -3734,7 +3887,7 @@ export const BNBC: IBnbcTables = {
 			name: 'Building frame with RC ordinary shear walls',
 			r: 5.0,
 			omega: 2.5,
-			cd: 4.5,
+			cd: 4.25,
 		},
 		rcDualSpecial: {
 			name: 'Dual: RC special moment frame and special shear walls',
@@ -5948,6 +6101,12 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		dia: 10,
 		spacing: 150,
 		legs: 2,
+	},
+	TransverseZone: {
+		spacing: 100,
+	},
+	SpliceZone: {
+		spacing: 100,
 	},
 	LinearReinforcement: {
 		material: 'B420DWR',
@@ -9683,6 +9842,21 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 			title: 'PlanarReinforcement',
 			type: 'object',
 		},
+		SpliceZone: {
+			additionalProperties: false,
+			description: 'Hoops or ties over the lap splices (BNBC 2020 Part 6 Sec 8.3.4.2(b), Figure 6.8.8).',
+			properties: {
+				spacing: {
+					description: 'Spacing over the lap splices [mm].',
+					exclusiveMinimum: 0,
+					title: 'Spacing',
+					type: 'number',
+				},
+			},
+			required: ['spacing'],
+			title: 'SpliceZone',
+			type: 'object',
+		},
 		TieBeam: {
 			additionalProperties: false,
 			description: 'A tie (grade) beam between two foundations.',
@@ -9765,7 +9939,7 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 					type: 'number',
 				},
 				spacing: {
-					description: '[mm]',
+					description: 'Spacing outside the end zones (all along without zones) [mm].',
 					exclusiveMinimum: 0,
 					title: 'Spacing',
 					type: 'number',
@@ -9776,9 +9950,91 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 					title: 'Legs',
 					type: 'integer',
 				},
+				legsX: {
+					anyOf: [
+						{
+							minimum: 1,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Column ties: legs running along the profile\'s x, counted down its depth (none: as many as legs, which run along y).',
+					title: 'Legs along x',
+				},
+				zone: {
+					anyOf: [
+						{
+							$ref: '#/$defs/TransverseZone',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Closer hoops or ties at the member ends (seismic detailing); none: one spacing all along.',
+					title: 'End zones',
+				},
+				splice: {
+					anyOf: [
+						{
+							$ref: '#/$defs/SpliceZone',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Over lap splices',
+				},
 			},
 			required: ['type', 'dia', 'spacing'],
 			title: 'Transverse',
+			type: 'object',
+		},
+		TransverseZone: {
+			additionalProperties: false,
+			description: 'The end zones of a beam or column where the seismic detailing asks for closer hoops\n(BNBC 2020 Part 6 Sec 8.3.4.3, 8.3.5.4, 8.3.9.2, 8.3.10.4, 8.3.10.5).',
+			properties: {
+				spacing: {
+					description: 'Hoop or tie spacing within the zone (so) [mm].',
+					exclusiveMinimum: 0,
+					title: 'Spacing',
+					type: 'number',
+				},
+				length: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Zone length from each joint face (lo) [mm]; none: the length the code requires.',
+					title: 'Length',
+				},
+				first: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'First hoop or tie from the joint face [mm].',
+					title: 'First',
+				},
+			},
+			required: ['spacing'],
+			title: 'TransverseZone',
 			type: 'object',
 		},
 	},

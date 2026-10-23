@@ -42,7 +42,7 @@
 				"alpha": 0.00001
 			},
 			"concrete": {
-				"fc": 30,
+				"fc": 24.1,
 				"ft": 3.04,
 				"maxAggregate": 20
 			},

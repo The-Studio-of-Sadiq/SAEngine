@@ -306,6 +306,7 @@
 .saengine-fem-model-editor .fem-design-verdict {
 	display: flex;
 	justify-content: space-between;
+	gap: var(--sa-space-2, 8px);
 	margin: var(--sa-space-1, 4px) 0 var(--sa-space-2, 8px);
 	padding: var(--sa-space-1, 4px) var(--sa-space-2, 8px);
 	border-radius: var(--sa-radius, 4px);
@@ -362,6 +363,22 @@
 
 .saengine-fem-model-editor .fem-slenderness .sa-props-row > .value {
 	min-width: 0;
+}
+
+/* Seismic detailing: a group of checks (dimensions, transverse zones, ...) under the section. */
+.saengine-fem-model-editor .fem-detailing-group {
+	margin-top: var(--sa-space-2, 8px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+	font-weight: 600;
+}
+
+.saengine-fem-model-editor .fem-detailing-row > .value {
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-fem-model-editor .fem-detailing-row.fail > .value {
+	color: var(--fem-band-fail);
 }
 
 /* A design combination with the scaled response spectrum as E. */

@@ -721,6 +721,7 @@ export class FemModelEditor extends EditorPane {
 		this.elementCount = model.elements.length;
 		this.derivation?.setDescription(meta?.description);
 		this.results?.setResource(input.resource, this.units);
+		this.results?.setModel(model);
 		this.viewer?.setModel(model);
 		if (wasEmpty && this.nodeCount) {
 			// A model derived into an empty file: frame it (the first fit framed nothing).

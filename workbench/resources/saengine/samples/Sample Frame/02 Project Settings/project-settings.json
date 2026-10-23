@@ -14,11 +14,11 @@
 		"category": "II"
 	},
 	"site": {
-		"location": "chattogram",
+		"location": "dhaka",
 		"siteClass": "SD"
 	},
 	"seismic": {
-		"system": "rcImf"
+		"system": "rcSmf"
 	},
 	"wind": {
 		"exposure": "A"

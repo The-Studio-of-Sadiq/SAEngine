@@ -112,15 +112,16 @@ def test_the_sample_bill_takes_off_its_concrete() -> None:
         read("07 MEP/mep.json"),
     )
     items = bill["items"]
-    c207 = sum(
-        i["quantity"] for i in items if i["group"] == "concrete" and i.get("material") == "C20.7"
+    # The sample's frame concrete is C24.1, a 1:1.5:3 nominal mix (5.5 parts).
+    c241 = sum(
+        i["quantity"] for i in items if i["group"] == "concrete" and i.get("material") == "C24.1"
     )
-    dry = c207 * DRY_VOLUME_CONCRETE
+    dry = c241 * DRY_VOLUME_CONCRETE
     materials = {i["kind"]: (i["quantity"], i["unit"]) for i in items if i["group"] == "materials"}
-    assert materials["cement"] == (pytest.approx(dry / 7 * CEMENT_DENSITY, rel=1e-3), "kg")
-    assert materials["bags"] == (pytest.approx(dry / 7 * CEMENT_DENSITY / 50, rel=1e-3), "bag")
-    assert materials["sand"] == (pytest.approx(dry * 2 / 7 * CFT, rel=1e-3), "cft")
-    assert materials["stone"] == (pytest.approx(dry * 4 / 7 * CFT, rel=1e-3), "cft")
+    assert materials["cement"] == (pytest.approx(dry / 5.5 * CEMENT_DENSITY, rel=1e-3), "kg")
+    assert materials["bags"] == (pytest.approx(dry / 5.5 * CEMENT_DENSITY / 50, rel=1e-3), "bag")
+    assert materials["sand"] == (pytest.approx(dry * 1.5 / 5.5 * CFT, rel=1e-3), "cft")
+    assert materials["stone"] == (pytest.approx(dry * 3 / 5.5 * CFT, rel=1e-3), "cft")
     assert materials["water"][1] == "l"
     # The sample's tank concrete C27.6 has no mix: noted, not guessed.
     assert any("C27.6 has no mix" in n for n in bill["notes"])

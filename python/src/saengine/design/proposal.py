@@ -51,6 +51,7 @@ from saengine.design import bars as B
 from saengine.design import slab as slab_design
 from saengine.design.rc import (
     DesignError,
+    bar_area,
     flexure,
     section_of,
     shear,
@@ -119,6 +120,8 @@ def _beam_label(reinforcement: dict[str, Any]) -> str:
     t = reinforcement.get("transverse")
     if t:
         parts.append(f"{t['type']}s Ø{t['dia']:g} {t.get('legs', 2)} legs @ {t['spacing']:g}")
+        if _zone_text(t):
+            parts[-1] += f" ({_zone_text(t)})"
     return ", ".join(parts)
 
 
@@ -330,8 +333,13 @@ def _column_label(reinforcement: dict[str, Any]) -> str:
     text = f"{group['count']}Ø{group['dia']:g}"
     if t:
         text += f", {t['type']}s Ø{t['dia']:g} @ {t['spacing']:g}"
-        if t.get("legs", 2) > 2:
-            text += f" ({t['legs']} legs)"
+        legs, legs_x = t.get("legs", 2), t.get("legsX")
+        if legs_x and legs_x != legs:
+            text += f" ({legs} × {legs_x} legs)"
+        elif legs > 2:
+            text += f" ({legs} legs)"
+        if _zone_text(t):
+            text += f" ({_zone_text(t)})"
     return text
 
 
@@ -732,6 +740,9 @@ def design_proposal(
             return None
         return (originals.get(type_id) or {}).get("reinforcement")
 
+    collected_by_id = {m["id"]: m for m in gathered.collect.get("members", [])}
+    beam_designers: dict[str, BeamDesigner] = {}
+
     def split(
         type_id: str,
         kind: str,
@@ -744,6 +755,17 @@ def design_proposal(
         """Splits off the over-designed members; returns the remaining members' pick."""
         accepted, remaining = _split(pick, members, opts, propose_for)
         for group, group_pick in accepted:
+            # The new type's own members' seismic detailing (hoop zones, Mn+ >= Mn-/2).
+            own = [collected_by_id[m.id] for m in group if m.id in collected_by_id]
+            if own and kind in ("beam", "column"):
+                if kind == "beam" and type_id in beam_designers:
+                    loads = group[0].loads
+                    for m in group[1:]:
+                        loads = loads.envelope(m.loads)
+                    group_pick = _beam_positive_moment(
+                        beam_designers[type_id], group_pick, loads, own
+                    )
+                _with_seismic(group_pick, kind, own[0]["object"], own, label_of, opts)
             new_id, k = _new_id(type_id, taken)
             governing = max(group, key=lambda m: m.pick.area).id
             new_types.append(
@@ -780,6 +802,7 @@ def design_proposal(
         except DesignError as error:
             warnings.append(f"{type_id}: {error}")
             continue
+        beam_designers[type_id] = designer
         picks = []
         cache: dict[BeamLoads, Pick] = {}
         for member in members:
@@ -792,6 +815,7 @@ def design_proposal(
         for m in picks[1:]:
             envelope = envelope.envelope(m.loads)
         pick = designer.propose(envelope)
+        pick = _beam_positive_moment(designer, pick, envelope, members)
         governing = max(picks, key=lambda m: m.pick.area if m.pick.reinforcement else math.inf).id
         over = _over_designed(pick, picks, opts.over_design) if pick.reinforcement else []
         by_type_pick = pick
@@ -799,6 +823,7 @@ def design_proposal(
             pick = split(
                 type_id, "beam", first["object"].name, _beam_label, pick, picks, designer.propose
             )
+        seismic = _with_seismic(pick, "beam", first["object"], members, _beam_label, opts)
         entry = _entry(
             type_id,
             "beam",
@@ -818,6 +843,7 @@ def design_proposal(
         )
         if mode == "splitTypes":
             entry["byType"] = bars_of(by_type_pick.reinforcement, by_type_pick.label)
+        _seismic_entry(entry, seismic, warnings)
         types.append(entry)
 
     # Columns.
@@ -850,6 +876,8 @@ def design_proposal(
                 picks,
                 lambda loads, s=search: _column_pick(s, loads.index, loads.points),
             )
+        collected = [m for m in gathered.collect.get("members", []) if m["type"] == type_id]
+        seismic = _with_seismic(pick, "column", obj, collected, _column_label, opts)
         governing_points = next((pts for mid, (_, pts) in members.items() if mid == governing), [])
         top = max(governing_points, key=lambda p: math.hypot(p[1], p[2]), default=None)
         entry = _entry(
@@ -870,6 +898,7 @@ def design_proposal(
         )
         if mode == "splitTypes":
             entry["byType"] = bars_of(by_type_pick.reinforcement, by_type_pick.label)
+        _seismic_entry(entry, seismic, warnings)
         types.append(entry)
 
     # Slabs.
@@ -938,6 +967,307 @@ def design_proposal(
         "foundations": foundations,
         "warnings": warnings,
     }
+
+
+# ─────────────────────────────────── seismic detailing ───────────────────────────────────
+
+
+def _zone_text(transverse: dict[str, Any]) -> str:
+    zone = transverse.get("zone") or {}
+    if not zone:
+        return ""
+    text = f"ends @ {zone['spacing']:g}"
+    if zone.get("length"):
+        text += f" over {zone['length']:g}"
+    return text + f", elsewhere @ {transverse['spacing']:g}"
+
+
+def _seismic_members(members: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [m["seismicContext"] for m in members if m.get("seismicContext")]
+
+
+def seismic_transverse(
+    kind: str,
+    obj: Any,
+    reinforcement: dict[str, Any],
+    members: list[dict[str, Any]],
+    fc: float,
+    fy: float,
+    es: float,
+    aggregate: float | None,
+    opts: Options,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """The proposed reinforcement with the hoop zones of BNBC Sec 8.3 for the type's members
+    (their detailing contexts, :class:`saengine.design.seismic_detailing.Designed`), and what
+    the detailing asks of the type: ``{"zones", "sectionTooSmall", "notes"}`` (None when no
+    member has a Sec 8.3 rule).
+
+    Ties: the legs hold every corner and alternate bar (8.1.9.4(c), 8.3.4.3(c), 8.3.5.4(a)(iii))
+    and keep hx ≤ 350 mm (8.3.5.4(c)); the zone spacing is the smallest of every member's lo
+    spacing (so, Ash of Eq. 6.8.7, 6.8.8), its capacity shear's Av/s (Sec 8.3.8, 8.3.10.3, Ve
+    from the proposed bars' Mpr) and the strength design's; the diameter and legs are the
+    lightest (legs × dia²) that keep it at least ``opts.min_stirrup_spacing``. Dimensions
+    the frame type needs (8.3.4.1, 8.3.5.1) are reported as "section too small", nothing
+    is changed for them."""
+    from saengine.design import ductile_members as dm
+    from saengine.design.bars import round_down
+    from saengine.design.seismic_detailing import capacity_av_s
+
+    contexts = _seismic_members(members)
+    if not contexts:
+        return reinforcement, None
+    section = section_of(
+        obj.profile, LinearReinforcement.model_validate(reinforcement), fc, fy, es, aggregate
+    )
+    t = dict(reinforcement["transverse"])
+    circle = isinstance(obj.profile, CircleProfile)
+    b, h = (obj.profile.xDim, obj.profile.yDim) if not circle else (2 * obj.profile.radius,) * 2
+    cover = reinforcement["cover"]
+    special = [c for c in contexts if c["level"] == "special"]
+    too_small: list[str] = []
+    notes: list[str] = []
+    if any(c["lateral"] for c in special):
+        need = dm.minimum_dimensions(kind, "special", h)
+        if kind == "beam" and b < need["width"] - 1e-6:
+            too_small.append(
+                f"width {b:g} mm below max(250 mm, 0.3 h) = {need['width']:g} mm of a special "
+                "moment frame beam (Sec 8.3.4.1(c), (d))"
+            )
+        if kind == "column":
+            if min(b, h) < need["least"] - 1e-6:
+                too_small.append(
+                    f"least dimension {min(b, h):g} mm below 300 mm of a special moment frame "
+                    "column (Sec 8.3.5.1(a))"
+                )
+            if min(b, h) / max(b, h) < need["ratio"] - 1e-9:
+                too_small.append(
+                    f"{b:g} x {h:g} mm: least to perpendicular dimension below 0.4 (Sec 8.3.5.1(b))"
+                )
+            rho = section.steel_area / section.gross_area
+            if rho > dm.SMF_COLUMN_RHO[1] + 1e-9:
+                too_small.append(
+                    f"ρg = {100 * rho:.2f} % above 6 % of a special moment frame column (Sec "
+                    "8.3.5.3(a))"
+                )
+
+    # Legs: every corner and alternate bar held, in the faces the rules cover.
+    legs, legs_x = int(t.get("legs", 2)), int(t.get("legsX") or t.get("legs", 2))
+    if special and not circle:
+        legs = max(
+            legs,
+            dm.held_required(dm._face_bars(section, "y", 1)),
+            dm.held_required(dm._face_bars(section, "y", -1)),
+            2,
+        )
+        if kind == "column":
+            legs_x = max(
+                legs_x,
+                dm.held_required(dm._face_bars(section, "x", 1)),
+                dm.held_required(dm._face_bars(section, "x", -1)),
+                2,
+            )
+    av_s: dict[str, float] = {}
+    for c in contexts:
+        for axis, value in capacity_av_s(section, kind, c).items():
+            av_s[axis] = max(av_s.get(axis, 0.0), value)
+
+    def zones_for(dia: float, ly: int, lx: int) -> dict[str, Any] | None:
+        db = min(bar.dia for bar in section.bars)
+        if kind == "column" and special and not circle:
+            hx = max(dm._hx(b - 2 * cover, dia, db, ly), dm._hx(h - 2 * cover, dia, db, lx))
+            if hx > dm.HX_MAX:
+                return None
+        area = bar_area(dia)
+        shear_spacing = float(t["spacing"])
+        for axis, value in av_s.items():
+            if value > 0:
+                count = ly if axis == "y" else lx
+                shear_spacing = min(shear_spacing, count * area / value)
+        found: dict[str, Any] = {}
+        zones = dm.Zones(t["type"], dia, float(t["spacing"]), ly, lx if kind == "column" else None)
+        for c in contexts:
+            if kind == "beam":
+                need = dm.beam_need(section, c["level"], dia, c["lateral"])
+            else:
+                need = dm.column_need(
+                    section,
+                    c["level"],
+                    c["cover"],
+                    zones,
+                    clear_height=c.get("clearHeight"),
+                    axial=c["axial"][0],
+                    lateral=c["lateral"],
+                    full_height=c.get("fullHeight", False),
+                )
+                if not need.applies:
+                    continue
+            proposed = dm.propose_zones(need, dia, ly, lx, shear_spacing)
+            if proposed is None:
+                continue
+            if "spacing" in proposed:
+                found["spacing"] = min(found.get("spacing", math.inf), proposed["spacing"])
+            if "zone" in proposed:
+                z = found.setdefault("zone", {})
+                for key, pick in (("length", max), ("spacing", min), ("first", min)):
+                    if key in proposed["zone"]:
+                        z[key] = pick(z.get(key, proposed["zone"][key]), proposed["zone"][key])
+            if "splice" in proposed:
+                s = proposed["splice"]["spacing"]
+                found["splice"] = {
+                    "spacing": min(found.get("splice", {"spacing": s})["spacing"], s)
+                }
+        if not found:
+            found["spacing"] = round_down(shear_spacing)
+        smallest = min(
+            [found.get("spacing", math.inf), found.get("zone", {}).get("spacing", math.inf)]
+        )
+        if smallest < opts.min_stirrup_spacing - 1e-6:
+            return None
+        return found
+
+    candidates = sorted(
+        (
+            (dia, ly, lx)
+            for dia in opts.stirrup_diameters
+            if dia >= float(t["dia"]) - 1e-9
+            for ly in range(legs, legs + 3)
+            for lx in (range(legs_x, legs_x + 3) if kind == "column" else (legs_x,))
+        ),
+        key=lambda c: ((c[1] + (c[2] if kind == "column" else 0)) * c[0] ** 2, c[0]),
+    )
+    chosen = None
+    for dia, ly, lx in candidates:
+        found = zones_for(dia, ly, lx)
+        if found is not None:
+            chosen = (dia, ly, lx, found)
+            break
+    if chosen is None:
+        too_small.append(
+            "no ties up to "
+            f"Ø{max(opts.stirrup_diameters):g} with 2 more legs give the seismic hoops at "
+            f"{opts.min_stirrup_spacing:g} mm or more: enlarge the section"
+        )
+        return reinforcement, {"zones": None, "sectionTooSmall": too_small, "notes": notes}
+    dia, ly, lx, found = chosen
+    transverse = {
+        **t,
+        "dia": dia,
+        "legs": ly,
+        "spacing": min(float(t["spacing"]), found["spacing"]),
+    }
+    if kind == "column" and lx != ly:
+        transverse["legsX"] = lx
+    else:
+        transverse.pop("legsX", None)
+    if "zone" in found:
+        zone = dict(found["zone"])
+        zone["spacing"] = min(zone["spacing"], transverse["spacing"])
+        transverse["zone"] = zone
+    else:
+        transverse.pop("zone", None)
+    if "splice" in found:
+        transverse["splice"] = found["splice"]
+    else:
+        transverse.pop("splice", None)
+    if av_s:
+        notes.append(
+            "hoops for the capacity shear Ve (Sec 8.3.8 / 8.3.10.3): Av/s "
+            + ", ".join(f"{axis} {value:.2f} mm²/mm" for axis, value in sorted(av_s.items()))
+        )
+    result = {**reinforcement, "transverse": transverse}
+    return result, {"zones": transverse.get("zone"), "sectionTooSmall": too_small, "notes": notes}
+
+
+def _with_seismic(
+    pick: Pick,
+    kind: str,
+    obj: Any,
+    members: list[dict[str, Any]],
+    label_of,
+    opts: Options,
+) -> dict[str, Any] | None:
+    """Adds the seismic hoop zones to ``pick`` (in place) and returns the detailing info."""
+    if pick.reinforcement is None or not _seismic_members(members):
+        return None
+    first = members[0]
+    try:
+        reinforcement, info = seismic_transverse(
+            kind,
+            obj,
+            pick.reinforcement,
+            members,
+            first["fc"],
+            first["fy"],
+            first["es"],
+            first["aggregate"],
+            opts,
+        )
+    except DesignError as error:
+        return {"zones": None, "sectionTooSmall": [], "notes": [f"seismic detailing: {error}"]}
+    pick.reinforcement = reinforcement
+    pick.label = label_of(reinforcement)
+    if info:
+        pick.notes = [*pick.notes, *info["notes"]]
+    return info
+
+
+def _seismic_entry(
+    entry: dict[str, Any], seismic: dict[str, Any] | None, warnings: list[str]
+) -> None:
+    """The detailing info on a type's entry (``"detailing"``), its "section too small" findings
+    also as warnings (bars cannot fix them)."""
+    entry["detailing"] = seismic
+    if seismic:
+        for reason in seismic["sectionTooSmall"]:
+            warnings.append(
+                f"{entry['type']}: section too small for the seismic detailing — {reason}"
+            )
+
+
+def _beam_positive_moment(
+    designer: BeamDesigner, pick: Pick, loads: BeamLoads, members: list[dict[str, Any]]
+) -> Pick:
+    """Sec 8.3.4.2(a) (special frames, and members outside the system in Category D): at
+    least ρmin = max(0.25 √f'c, 1.4)/fy top and bottom (no 4/3 As relief) and Mn+ at the face
+    at least half of Mn-; the demands are raised until the bars give both (3 tries)."""
+    from saengine.design import ductile_members as dm
+
+    if pick.reinforcement is None:
+        return pick
+    if not any(c["level"] == "special" or not c["lateral"] for c in _seismic_members(members)):
+        return pick
+    rho_min = max(0.25 * math.sqrt(designer.fc), 1.4) / designer.fy
+
+    def floor(area: float, d: float) -> float:
+        """φ Mn of ``area`` at depth ``d`` (rectangular block), a little above."""
+        a = area * designer.fy / (0.85 * designer.fc * designer.b)
+        return 0.9 * area * designer.fy * (d - a / 2) * 1.02
+
+    for _ in range(3):
+        section, sag, hog, _ = designer._analyse(pick.reinforcement)
+        new_sag, new_hog, why = loads.sag, loads.hog, []
+        for top in (True, False):
+            bars = dm.face_steel(section, top)
+            d = dm._face_depth(section, top) or 0.9 * designer.h
+            need = rho_min * designer.b * d
+            if sum(bar.area for bar in bars) < need - 1e-6:
+                if top:
+                    new_hog = max(new_hog, floor(need, d))
+                else:
+                    new_sag = max(new_sag, floor(need, d))
+                why.append(f"{'top' if top else 'bottom'} bars at least ρmin (Sec 8.3.4.2(a))")
+        if sag.mn < 0.5 * hog.mn - 1e-6:
+            new_sag = max(new_sag, 0.5 * hog.phi_mn * 1.02)
+            why.append("bottom bars for Mn+ ≥ Mn-/2 (Sec 8.3.4.2(a))")
+        if not why:
+            return pick
+        loads = BeamLoads(new_sag, new_hog, loads.shear)
+        again = designer.propose(loads)
+        if again.reinforcement is None:
+            return pick
+        again.notes = [*again.notes, *why]
+        pick = again
+    return pick
 
 
 @dataclass(frozen=True)

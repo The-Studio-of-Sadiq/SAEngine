@@ -28,7 +28,7 @@ from typing import Any
 
 import numpy as np
 
-from saengine.design import slab
+from saengine.design import seismic_rules, slab
 from saengine.design import slender as slenderness_design
 from saengine.design.rc import (
     DesignError,
@@ -49,7 +49,7 @@ from saengine.library.bim import (
 )
 from saengine.library.materials import Category, MaterialLibrary
 from saengine.library.objects import Beam, Column, ObjectLibrary, Slab, Wall
-from saengine.library.settings import ProjectSettings
+from saengine.library.settings import LoadCombination, ProjectSettings
 
 #: Said in the notes instead of designing footings: they are Part 9's (saengine.substructure).
 DESIGNED_IN_PART_9 = (
@@ -200,9 +200,33 @@ def design(
     (:class:`saengine.design.slender.SlenderOptions`, or the settings' dict of it); the
     project settings' (:func:`saengine.design.slender.options_from_settings`) when None. The storeys' stability (sway or nonsway) is returned as
     ``"stability"`` (:func:`saengine.design.slender.storey_rows`)."""
+    from saengine.design import seismic_detailing
     from saengine.fem import second_order, seismic_design
 
+    # Integrator glue: which provisions of BNBC Sec 8.3 apply (saengine.design.seismic_rules),
+    # with the site class the analysis used; the elements needing the Ω0 combinations get them.
+    root = Path(out_dir).resolve().parent.parent
+    try:
+        scope, resolved = seismic_detailing.scope_of(settings, materials, objects, building, root)
+    except (ValueError, KeyError, AttributeError) as error:
+        scope, resolved = None, settings
+        scope_problem = str(error)
+    omega_elements = set(scope["omega"]["elements"]) if scope else set()
+    omega_static = (
+        [
+            LoadCombination(**{k: v for k, v in c.items() if k != "clause"})
+            for c in scope["omega"]["combinations"]
+        ]
+        if scope and omega_elements
+        else []
+    )
+
     extra: dict[str, Any] = {}
+    with_omega = (
+        settings.model_copy(update={"combinations": settings.combinations + omega_static})
+        if omega_static
+        else settings
+    )
     if seismic_design.design_uses_spectrum(settings):
         static: dict[str, Any] = {}
 
@@ -217,8 +241,17 @@ def design(
             )
             return found
 
+        summary = None
+        if omega_elements:
+            summary = seismic_design.load_summary(out_dir)
+            if summary and summary.get("combinations"):
+                summary = {
+                    **summary,
+                    "combinations": summary["combinations"]
+                    + seismic_rules.omega_rs_combinations(summary["combinations"], resolved),
+                }
         combinations, pieces, notes, shell_forces = seismic_design.design_demands(
-            project, out_dir, settings, extra, base=static_demands
+            project, out_dir, with_omega, extra, summary=summary, base=static_demands
         )
         if "shellSway" not in extra and static:
             extra["shellSway"] = _spectrum_shell_sway(static, combinations, shell_forces)
@@ -231,7 +264,19 @@ def design(
                 "earthquake combinations use the static cases EX, EY"
             )
     else:
-        combinations, pieces, notes, shell_forces = _demands(project, out_dir, settings, extra)
+        combinations, pieces, notes, shell_forces = _demands(project, out_dir, with_omega, extra)
+    if scope is None:
+        notes.append(f"the seismic detailing scope could not be found: {scope_problem}")
+    omega_indices = [c for c, name in enumerate(combinations) if name.startswith("Ω0: ")]
+    if omega_indices:
+        # Integrator glue: the Ω0 combinations (Sec 2.5.5.6, 2.5.13.4) apply to the elements
+        # scope["omega"] names only; the others carry no force in them, so they never govern.
+        _drop_combinations(pieces, shell_forces, omega_indices, keep=omega_elements)
+        notes.append(
+            "Ω0 combinations (BNBC 2020 Part 6 Sec 2.5.13.4) applied to "
+            + ", ".join(sorted(omega_elements))
+            + " only"
+        )
     slender_options = (
         slenderness_design.SlenderOptions.of(slenderness)
         if slenderness is not None
@@ -271,6 +316,7 @@ def design(
 
     checked: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
+    designed: list[seismic_detailing.Designed] = []
     beam_sections: dict[str, tuple[RcSection, dict[bool, Any]]] = {}
     column_sections: dict[str, tuple[RcSection, InteractionSurface]] = {}
     for member_id, type_id, element in members:
@@ -374,17 +420,57 @@ def design(
                     "points": column_points,
                 }
             )
-        checked.append(
-            {
-                "id": member_id,
-                "kind": "beam" if isinstance(object_type, Beam) else "column",
-                "type": type_id,
-                "members": [p.id for p in own],
-                "checks": checks,
-                "utilisation": utilisation,
-                "ok": all(c["ok"] for c in strength),
-            }
+        entry = {
+            "id": member_id,
+            "kind": "beam" if isinstance(object_type, Beam) else "column",
+            "type": type_id,
+            "members": [p.id for p in own],
+            "checks": checks,
+            "utilisation": utilisation,
+            "ok": all(c["ok"] for c in strength),
+        }
+        checked.append(entry)
+        designed.append(
+            seismic_detailing.Designed(
+                member_id,
+                entry["kind"],
+                element,
+                object_type,
+                section,
+                own,
+                _turned(element),
+                entry,
+                capacities if isinstance(object_type, Beam) else None,
+            )
         )
+
+    # Integrator glue: the earthquake-resistant detailing of BNBC Sec 8.3 (seismic_detailing).
+    joints: list[dict[str, Any]] = []
+    if scope is not None:
+        found = seismic_detailing.apply(
+            project,
+            building,
+            types,
+            designed,
+            combinations,
+            extra,
+            scope,
+            settings,
+            _profile_forces,
+        )
+        joints = found["joints"]
+        notes += found["notes"]
+    if collect is not None:
+        collect["seismic"] = scope
+        collect["joints"] = joints
+        entries = {d.id: d for d in designed}
+        for m in collect["members"]:
+            d = entries.get(m["id"])
+            if d is not None:
+                m["checks"] = d.entry["checks"]
+                m["detailing"] = d.entry.get("detailing")
+                m["seismicContext"] = d.context
+                m["element"] = d.element
 
     for type_id, (section, _) in {**beam_sections, **column_sections}.items():
         notes += [f"{type_id}: {note}" for note in section.notes]
@@ -411,12 +497,17 @@ def design(
         method += slenderness_design.method(slender_options, context.model.lateral_cracked)
     if slabs_seen:
         method += slab.METHOD
+    if scope is not None and scope.get("detailingLevel"):
+        method += seismic_detailing.METHOD
+    failed_joints = [j for j in joints if not j["ok"]]
     return {
         "code": code,
         "method": method,
         "combinations": combinations,
         "elements": checked,
         "skipped": skipped,
+        "seismic": scope,
+        "joints": joints,
         "summary": {
             "checked": len(checked),
             "passed": len(checked) - len(failed),
@@ -424,6 +515,10 @@ def design(
             "skipped": len(skipped),
             "maxUtilisation": governing["utilisation"] if governing else None,
             "governing": governing["id"] if governing else None,
+            "joints": {"checked": len(joints), "failed": len(failed_joints)},
+            "seismicChecksFailed": sum(
+                1 for c in (scope or {}).get("checks", []) if not c["ok"] and not c["flag"]
+            ),
         },
         "notes": notes,
         "stability": slenderness_design.storey_rows(
@@ -886,6 +981,30 @@ def _demands(
     return names, pieces, notes, shells
 
 
+def _drop_combinations(
+    pieces: dict[str, list[_Piece]],
+    shells: dict[int, list[np.ndarray]],
+    indices: list[int],
+    keep: set[str],
+) -> None:
+    """Zeroes the forces of the combinations ``indices`` in every member not in ``keep`` and in
+    every shell, in place (the combination lists stay aligned with the names)."""
+    for member_id, own in pieces.items():
+        if member_id in keep:
+            continue
+        for piece in own:
+            for parts in (piece.forces, piece.sway, piece.sustained):
+                if parts is None:
+                    continue
+                for c in indices:
+                    if c < len(parts) and parts[c] is not None:
+                        parts[c] = np.zeros_like(parts[c])
+    for rows in shells.values():
+        for c in indices:
+            if c < len(rows):
+                rows[c] = np.zeros_like(rows[c])
+
+
 def _spectrum_shell_sway(
     static: dict[str, Any], names: list[str], shells: dict[int, list[np.ndarray]]
 ) -> dict[int, list[np.ndarray]]:
@@ -960,8 +1079,8 @@ def _profile_forces(piece: _Piece, turned: bool, forces: np.ndarray) -> dict[str
     rise = float(piece.axes[2 if along_z else 1][2])
     up = -1.0 if rise < -1e-9 else 1.0
     if along_z:
-        return {"P": -n, "Mx": up * my * 1e3, "Vy": vz, "My": mz * 1e3}
-    return {"P": -n, "Mx": -up * mz * 1e3, "Vy": vy, "My": my * 1e3}
+        return {"P": -n, "Mx": up * my * 1e3, "Vy": vz, "My": mz * 1e3, "Vx": vy}
+    return {"P": -n, "Mx": -up * mz * 1e3, "Vy": vy, "My": my * 1e3, "Vx": vz}
 
 
 def _turned(element: Any) -> bool:
