@@ -8,7 +8,7 @@ run: GitHub only reads the repository root's `.github`.
 |---|---|---|---|
 | `ci.yml`, job `python` | `ubuntu-latest` | push to `main`, `feat/**`, `fix/**`; pull requests to `main` and `feat/**`; manual | ruff (lint and format) on `python/` and `scripts/`; the workflow check and the tests of the CI scripts; `pytest` on `python/`; the verification pack quick run, checked against the expected failures; uploads `verification.json` and the Verification Manual PDF |
 | `ci.yml`, job `workbench` | `ubuntu-latest` | as above | `npm ci` (cached), the viewer packages built, `tsc` typecheck, ESLint on the SAEngine sources, `transpile-client`, the SAEngine unit tests in Electron under xvfb |
-| `release.yml` | `windows-latest` (or `vars.SAENGINE_RELEASE_RUNNER`) | tag `Pre-Alpha-v*`; manual | the full installer with EnergyPlus and LibreCAD, the smoke test, the Verification Manual, and a draft GitHub pre-release with the release files |
+| `release.yml` | `windows-latest` (or `vars.SAENGINE_RELEASE_RUNNER`) | tag `Pre-Alpha-v*`; manual (with a tag: a release; without: a test build) | the full installer with EnergyPlus, LibreCAD and LibreDWG from pinned downloads (cached), the smoke test, the Verification Manual, the setup, `.sha256` and sources zip as an artefact, and for a tag a **draft** GitHub pre-release (never published by the workflow); see [release.md](release.md) |
 
 Both CI jobs run in parallel. A newer push to the same branch or pull request cancels the run
 it supersedes (`concurrency` with `cancel-in-progress`). A release run is never cancelled by
@@ -108,6 +108,9 @@ the setup is not code-signed.
 
 ## Cutting a release
 
+The short version, the caches, test builds, the in-app update check and what is still manual:
+[release.md](release.md). The details:
+
 1. Make the release commit as before: a commit titled `v<x.y.z>` (for example `v0.0.35`). The
    release version is `<x.y.z>-alpha.<N>`, N from the tag. The commit bumps `x.y.z` in both
    `workbench/package.json` and `python/src/saengine/__init__.py` (`__version__`, which `.civil`
@@ -128,10 +131,10 @@ the setup is not code-signed.
    git push origin Pre-Alpha-v5
    ```
 
-   Or run "Release" from the Actions tab (workflow dispatch) with the tag name; there the
-   version can be overridden and "draft" switched off.
+   Or run "Release" from the Actions tab (workflow dispatch) with the tag name and
+   "draft_release" ticked; there the version can be overridden. The release is always a draft.
 4. The workflow builds `dist/SAEngine-x64-user-setup-<version>.exe` with
-   `scripts/build-installer.ps1 -EnergyPlusDir ... -LibreCADDir ... -LibreCADLicenseDir ... -LibreDWGDir ... -LibreDWGLicenseDir ... -AllowUnpinnedSources`,
+   `scripts/build-installer.ps1 -EnergyPlusDir ... -LibreCADDir ... -LibreCADLicenseDir ... -LibreDWGDir ... -LibreDWGLicenseDir ...`,
    runs `scripts/installer/smoke-test.ps1` on it, builds the Verification Manual with the
    bundled Python (checked against the expected failures), and creates the pre-release as a
    **draft** with:
@@ -142,7 +145,8 @@ the setup is not code-signed.
    - the files of `docs/release/<tag>/`.
 5. Review the draft on GitHub (Releases), try the setup, and publish it. Publishing creates the
    tag if the run was started by hand. The run fails instead of overwriting when a release for
-   the tag exists already.
+   the tag exists already. The setup, its `.sha256` and the sources zip are also kept as the
+   run artefact `SAEngine-setup-<version>` for 14 days.
 
 The workflow keeps `THIRD_PARTY_NOTICES.txt`, the LibreCAD and LibreDWG bundle manifests, the sources
 `README.txt`, the setup log and the release notes as the `release-logs` artifact for 14 days.
@@ -199,12 +203,13 @@ and writes `resources\libredwg\SAENGINE-BUNDLE.json`. Its source, `libredwg-0.14
 option: its licence forbids redistributing it.
 
 **Pinning the source archives.** GitHub does not publish hashes of its tag tarballs, and the Qt
-archive publishes md5 sums only, so the LibreCAD and Qt source entries in
-`copyleft-sources.json` start with `"sha256": null`. `fetch-sources.ps1` refuses such an entry
-unless it runs with `-AllowUnpinned`, which `release.yml` passes. It then downloads the archive,
-writes its hash into the sources `README.txt` (marked "not pinned in this build") and prints a
-`::warning::` with the hash. After the first release run, copy those hashes into
-`copyleft-sources.json`; then the flag no longer matters for them.
+archive publishes md5 sums only, so a new LibreCAD or Qt source entry in
+`copyleft-sources.json` may start with `"sha256": null`. `fetch-sources.ps1` refuses such an
+entry unless it runs with `-AllowUnpinned` (`build-installer.ps1 -AllowUnpinnedSources`). It then
+downloads the archive, writes its hash into the sources `README.txt` (marked "not pinned in this
+build") and prints a `::warning::` with the hash: copy it into `copyleft-sources.json`. Every
+entry is pinned today, so `release.yml` no longer passes the flag: an unpinned entry fails the
+release build.
 
 ## The installer additions
 

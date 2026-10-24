@@ -33,6 +33,9 @@
 	"linuxIconName": "saengine",
 	"licenseFileName": "LICENSE.txt",
 	"reportIssueUrl": "https://github.com/princekhan7748/saengine/issues/new",
+	"saengineUpdate": {
+		"releasesUrl": "https://api.github.com/repos/princekhan7748/saengine/releases?per_page=20"
+	},
 	"nodejsArtifactFeed": "",
 	"electronArtifactFeed": "",
 	"urlProtocol": "saengine",

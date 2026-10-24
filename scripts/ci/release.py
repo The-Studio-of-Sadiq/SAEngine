@@ -7,6 +7,11 @@ python -I release.py version --tag Pre-Alpha-v5 [--version 0.0.35-alpha.5]
     ``Pre Alpha Version <N>``. Fails when HEAD is not a release commit and no --version is
     given, so a release is never cut from an arbitrary commit by accident.
 
+python -I release.py version --tag "" [--version X]
+    A test build (workflow_dispatch without a tag): the version is --version or
+    ``<x.y.z of workbench/package.json>-ci.<GITHUB_RUN_NUMBER>``, the tag stays empty and the
+    title is ``Test build <version>``. Nothing is released from a test build.
+
 python -I release.py assets --tag Pre-Alpha-v5 --version 0.0.35-alpha.5 --out DIR
         [--verification-pdf FILE]
     Collects into DIR the files of the release, named as GitHub shows them (an asset name
@@ -22,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -93,6 +99,18 @@ def release_version(tag: str, explicit: str | None, head_title: str) -> str:
     return f"{match['v']}-alpha.{release_number(tag)}"
 
 
+def test_build_version(explicit: str | None, package_version: str, run_number: str) -> str:
+    """The version of a build without a release tag (a CI test build)."""
+    if explicit:
+        return release_version("", explicit, "")
+    core = re.match(r"^[0-9]+\.[0-9]+\.[0-9]+", package_version)
+    if not core:
+        raise ReleaseError(f"workbench/package.json has no x.y.z version ('{package_version}')")
+    if not run_number.isdigit():
+        raise ReleaseError(f"run number '{run_number}' is not a number")
+    return f"{core[0]}-ci.{run_number}"
+
+
 def write_outputs(values: dict[str, str]) -> None:
     for key, value in values.items():
         print(f"{key}={value}")
@@ -154,9 +172,10 @@ def collect_assets(
         assets.append(
             Path(shutil.copy2(verification_pdf, out / "SAEngine.Verification.Manual.pdf"))
         )
-    extras = repo / "docs" / "release" / tag
+    # A test build has no tag, and so no docs/release/<tag>/ folder.
+    extras = repo / "docs" / "release" / tag if tag else None
     notes_template = None
-    if extras.is_dir():
+    if extras is not None and extras.is_dir():
         for path in sorted(extras.iterdir()):
             if path.name in NOTES_FILES or not path.is_file():
                 continue
@@ -193,7 +212,13 @@ def main(argv: list[str] | None = None) -> int:
     assets.add_argument("--verification-pdf", type=Path)
     args = parser.parse_args(argv)
     try:
-        if args.command == "version":
+        if args.command == "version" and not args.tag:
+            package = json.loads((REPO / "workbench" / "package.json").read_text(encoding="utf-8"))
+            value = test_build_version(
+                args.version, package["version"], os.environ.get("GITHUB_RUN_NUMBER", "0")
+            )
+            write_outputs({"tag": "", "version": value, "title": f"Test build {value}"})
+        elif args.command == "version":
             number = release_number(args.tag)
             value = release_version(args.tag, args.version, git("log", "-1", "--format=%s"))
             title_file = REPO / "docs" / "release" / args.tag / "title.txt"
