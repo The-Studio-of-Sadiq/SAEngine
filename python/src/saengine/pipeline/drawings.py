@@ -466,7 +466,13 @@ def _generate(
     (folder / BBS_CSV).write_text(bbs.schedule_csv(schedule), encoding="utf-8-sig", newline="")
     step("sheets")
     errors = check_problems(model, design_report)
-    data = drawing_set(root, detailing=model, schedule=bbs.sheet_table(schedule), title=title)
+    data = drawing_set(
+        root,
+        detailing=model,
+        schedule=bbs.sheet_table(schedule),
+        title=title,
+        design_report=design_report,  # the steel connections' utilisation on their details
+    )
     data.notes = [*data.notes, *_sheet_check_notes(errors)]
     sheet_size = _sheet_settings(settings, size)["size"]
     all_sheets = build_sheets(data, DrawingSettings.from_dict(_sheet_settings(settings, size)))
