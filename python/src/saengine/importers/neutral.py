@@ -210,17 +210,37 @@ def _dims(text: str) -> list[float] | None:
     return [float(v) for v in values if v is not None]
 
 
+#: The thickest flange :func:`estimated_i_shape` gives, as a part of the depth.
+_MAX_FLANGE = 1 / 8
+
+
 def estimated_i_shape(depth: float, mass: float, width: float | None = None) -> o.IShapeProfile:
-    """An I-shape of ``depth`` [mm] and steel ``mass`` [kg/m], its flanges ``width`` wide (by
-    default half the depth) and 1.6 times as thick as the web."""
+    """An I-shape of steel ``mass`` [kg/m] and nominal ``depth`` [mm], its flanges ``width``
+    wide (by default half the depth) and 1.6 times as thick as the web.
+
+    The area A = 2·bf·tf + (d - 2·tf)·tw with tf = 1.6·tw gives the web thickness (the smaller
+    root of the quadratic). Heavy shapes (W14X730: nominally 14 in deep, really 22 in) do not
+    fit their nominal depth: once the flanges would pass 1/8 of the depth, depth and width grow
+    together at that proportion. The thicknesses and the size never shrink as the mass grows,
+    and the area is always the mass's."""
     area = mass / 7850 * 1e6  # mm²
     bf = width or depth / 2
-    tw = area / (3.2 * bf + depth)
-    for _ in range(20):  # A = 2·bf·tf + (d - 2·tf)·tw with tf = 1.6·tw
-        tw = area / (3.2 * bf + depth - 3.2 * tw)
+    tw_max = _MAX_FLANGE * depth / 1.6
+    area_max = tw_max * (3.2 * bf + depth - 3.2 * tw_max)
+    if area > area_max:
+        scale = math.sqrt(area / area_max)
+        bf, depth, tw = bf * scale, depth * scale, tw_max * scale
+    else:
+        b = 3.2 * bf + depth
+        tw = (b - math.sqrt(b * b - 12.8 * area)) / 6.4
     return o.IShapeProfile(
         overallWidth=bf, overallDepth=depth, webThickness=tw, flangeThickness=1.6 * tw
     )
+
+
+#: American column shapes (W8 to W14) from this weight [lb/ft] up are about as wide as they are
+#: deep (W14X90 and up: 14.5 in wide); lighter ones are about half as wide.
+_WIDE_W = {8: 31.0, 10: 49.0, 12: 65.0, 14: 90.0}
 
 
 def placeholder_i_shape(depth: float) -> o.IShapeProfile:
@@ -276,7 +296,9 @@ def named_profile(name: str) -> tuple[Any, str | None]:
     """The profile of a steel section designation and the approximation made (None: exact);
     the profile is None (and the second value says why) when the name cannot be read.
 
-    SAEngine's steel section table is asked first (:func:`table_profile`); tubes, pipes and
+    SAEngine's steel section table is asked first (:func:`table_profile`), then FreeCAD's
+    profile table (:func:`saengine.importers.shapes.freecad_table`: W, HE, IPE, UB, UC, IS
+    shapes ..., root radius ignored, reported); tubes, pipes and
     angles whose names carry their dimensions are read from them (SHS/RHS/HSS/TUBE/BOX d×b×t,
     CHS/PIPE D×t, L/ISA d×b×t). Units (:func:`_name_scale`): SHS, RHS, BOX, CHS and ISA are
     metric (mm), HSS and TS American (inches); TUBE, PIPE and L are read in inches only when
@@ -289,6 +311,14 @@ def named_profile(name: str) -> tuple[Any, str | None]:
     found = table_profile(name)
     if found is not None:
         return found, None
+    from saengine.importers.shapes import freecad_table
+
+    table = freecad_table()
+    listed = table.find(name) if table is not None else None
+    if listed is not None:
+        from pydantic import TypeAdapter
+
+        return TypeAdapter(o.Profile).validate_python(listed[0]), listed[1]
     key = re.sub(r"\s+", "", name.upper())
     inch = 25.4
     m = re.match(r"^(SHS|RHS|HSS|TUBE?|BOX|TS)(\d.*)$", key)
@@ -322,14 +352,17 @@ def named_profile(name: str) -> tuple[Any, str | None]:
         dims = _dims(m.group(2))
         if dims and len(dims) == 3 and m.group(1) in ("UB", "UC"):
             return estimated_i_shape(dims[0], dims[2], dims[1]), (
-                "estimated from the designation (depth, width, mass)"
+                "estimated from the designation (depth, width, mass) — check"
             )
         if dims and len(dims) == 2:
             depth, mass = dims
+            width = None
             if depth < 50:  # W12X26: inches and lb/ft
+                if mass >= _WIDE_W.get(int(depth), math.inf):
+                    width = depth * inch
                 depth, mass = depth * inch, mass * 1.48816394
-            return estimated_i_shape(depth, mass), (
-                "estimated from the designation (depth and mass)"
+            return estimated_i_shape(depth, mass, width), (
+                "estimated from the designation (depth and mass) — check"
             )
     m = re.match(r"^L(\d{1,2})(\d{2})(\d{2})$", key)
     if m:  # STAAD's compact American angle: L40404 = L4x4x4/16 (inches)

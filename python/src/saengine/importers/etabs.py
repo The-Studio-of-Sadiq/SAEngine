@@ -9,28 +9,35 @@ reads the blocks a frame-and-shell building needs and hands them to
 - ``$ GRIDS``: cartesian grid lines (``DIR "X"``: a line at x = COORD) → grid lines;
 - ``$ MATERIAL PROPERTIES``: type, weight per volume, E, ν, α, f'c, fy, fu → materials;
 - ``$ FRAME SECTIONS`` and ``$ CONCRETE SECTIONS``: rectangular and circular concrete (with
-  their column bars), I, channel, angle, tee, box and pipe steel, general sections as the
-  rectangle of the same area and inertia → profiles;
+  their column bars, as sizes and counts or as a pattern and the area of a bar), I, channel,
+  angle, tee, box and pipe steel, general sections as the rectangle of the same area and
+  inertia → profiles; library shapes (named only, ``FILE`` on the first of each library) through
+  the section lookup;
 - ``$ SHELL PROPERTIES`` (and the older slab, deck and wall properties): thickness → slab and
   wall types;
 - ``$ POINT COORDINATES``, ``$ LINE CONNECTIVITIES``, ``$ AREA CONNECTIVITIES`` with the
   ``$ LINE ASSIGNS`` and ``$ AREA ASSIGNS`` that place them on stories → columns, beams, braces,
-  floors, wall panels and openings;
-- ``$ POINT ASSIGNS``: restraints → supports;
+  floors, wall panels and openings; end releases (steel beams and braces pinned at both ends get
+  a simple connection) and property modifiers (BNBC's cracked factors → SAEngine's cracked
+  sections); offsets, insertion points and pier labels are reported;
+- ``$ POINT ASSIGNS``: restraints → supports (point springs are reported; no supports at all is
+  an error of the report);
 - ``$ LOAD PATTERNS`` (or the older ``$ STATIC LOADS``), ``$ LOAD CASES``, ``$ LOAD
   COMBINATIONS``: combinations on SAEngine's cases (Dead and Superimposed Dead → D, Live → L,
-  Roof Live → Lr, Wind → WX/WY, Seismic → EX/EY by the X or Y in their names; response-spectrum
+  Roof Live → Lr, Other named as a fluid → F, Wind → WX/WY, Seismic → EX/EY by the X or Y in
+  their names; response-spectrum
   cases → EX/EY by their ACCEL U1/U2 directions); terms by LOAD / CASE (older files) or
   LOADCASE / LOADCOMBO (ETABS 2013+);
 - ``$ SHELL OBJECT LOADS`` / ``$ AREA OBJECT LOADS`` (and uniform load sets): uniform gravity
-  pressures on the floors → the floor and roof area loads; ``$ FRAME OBJECT LOADS`` and
-  ``$ POINT OBJECT LOADS`` are reported with their totals, not carried over.
+  pressures on the floors → the floor and roof area loads, per slab; ``$ FRAME OBJECT LOADS``
+  and ``$ POINT OBJECT LOADS`` are reported with their totals, not carried over;
+- ``$ MASS SOURCE`` and the auto seismic definitions: reported where SAEngine differs.
 
 Conventions of the format this follows (from its published structure; checked on the synthetic
 files of the tests): a line's or area's points are at the story of its assign, less the number of
 stories given after them (a column ``"1" "1" 1`` runs from the story below up to the story; for a
-brace the first point is the lower one); point coordinates are plan x, y; a ``DIR "GRAV"`` load
-is positive down.
+brace the first point is the lower one); point coordinates are plan x, y, and a third number puts
+the point that far below the story it is used at; a ``DIR "GRAV"`` load is positive down.
 """
 
 from __future__ import annotations
@@ -134,6 +141,10 @@ class E2k:
     line_loads: list[tuple[str, str, dict[str, str]]] = field(default_factory=list)
     area_loads: list[tuple[str, str, dict[str, str]]] = field(default_factory=list)
     combos: dict[str, dict[str, Any]] = field(default_factory=dict)
+    #: Auto seismic definitions: name -> pairs with "TYPE" (UBC 97, User Coefficient, ...).
+    seismic: dict[str, dict[str, str]] = field(default_factory=dict)
+    #: Mass sources: name -> pairs, with "LOADS" [(pattern, factor)].
+    mass_sources: dict[str, dict[str, Any]] = field(default_factory=dict)
     unread: dict[str, int] = field(default_factory=lambda: defaultdict(int))
 
 
@@ -190,6 +201,7 @@ def parse(text: str) -> E2k:
     """The blocks of an e2k file."""
     e = E2k()
     block = ""
+    library = ""
     for raw in text.splitlines():
         line = raw.strip()
         if not line:
@@ -230,7 +242,13 @@ def parse(text: str) -> E2k:
         elif keyword == "MATERIAL":
             e.materials.setdefault(name, {}).update(pairs)
         elif keyword == "FRAMESECTION":
-            e.frame_sections.setdefault(name, {}).update(pairs)
+            section = e.frame_sections.setdefault(name, {})
+            section.update(pairs)
+            # ETABS names the shape library (FILE "AISC14") on the first section from it only.
+            if "FILE" in pairs:
+                library = pairs["FILE"]
+            elif library and "SHAPE" in pairs and not any(k in pairs for k in ("D", "T3")):
+                section.setdefault("FILE", library)
         elif keyword == "CONCRETESECTION":
             e.concrete_sections.setdefault(name, {}).update(pairs)
         elif keyword == "SHELLPROP":
@@ -298,6 +316,15 @@ def parse(text: str) -> E2k:
                 combo["loads"].append((load, _num(pairs, "SF") or 1.0))
             else:
                 combo["pairs"].update(pairs)
+        elif keyword == "SEISMIC" and len(rest) >= 2:
+            e.seismic[name] = {"TYPE": rest[1].text, **_pairs(rest[2:])}
+        elif keyword == "MASSSOURCE":
+            e.mass_sources.setdefault(name, {"LOADS": []}).update(pairs)
+        elif keyword == "MASSSOURCELOAD" and len(rest) >= 3:
+            factor = _number(rest[2].text)
+            if factor is not None:
+                source = e.mass_sources.setdefault(name, {"LOADS": []})
+                source["LOADS"].append((rest[1].text, factor))
         elif keyword not in _QUIET:
             e.unread[block or keyword] += 1
     return e
@@ -344,6 +371,12 @@ def _spectrum_terms(name: str, case: dict[str, Any], report: ImportReport) -> di
     return {_SPECTRUM + "E" + axis: 1.0}
 
 
+#: Names of "Other" patterns that hold fluid loads (SAEngine's F case): F, F1, FL, Fluid, Water,
+#: Liquid, Tank, ... The other "Other" patterns (ETABS's template patterns A, B, C, ...) say
+#: nothing SAEngine can place.
+_FLUID = re.compile(r"^(?:F|FL)(?:\d*|[\s_.-].*)$|^(?:FLUID|WATER|LIQUID|TANK)", re.IGNORECASE)
+
+
 def _pattern_case(name: str, pairs: dict[str, str], report: ImportReport) -> str | None:
     kind = re.sub(r"[^A-Z]", "", pairs.get("TYPE", "").upper())
     if kind in ("DEAD", "SUPERDEAD", "SUPERIMPOSEDDEAD"):
@@ -352,6 +385,8 @@ def _pattern_case(name: str, pairs: dict[str, str], report: ImportReport) -> str
         return "L"
     if kind in ("ROOFLIVE", "REDUCEROOFLIVE"):
         return "Lr"
+    if kind in ("OTHER", "FLUID", "LIQUID") and _FLUID.match(name):
+        return "F"
     if kind in ("WIND", "SEISMIC", "QUAKE", "EARTHQUAKE"):
         axis, guessed = _axis(name)
         if guessed:
@@ -402,6 +437,9 @@ class _Importer:
         self.pattern_cases: dict[str, str | None] = {}
         self.instances: dict[tuple[str, str], str] = {}  # (line or area, story) -> name
         self.lengths: dict[str, float] = {}  # line instance -> length m
+        #: Property modifiers by kind (column, beam, brace, slab, wall): (instance, values).
+        self.modifiers: dict[str, list[tuple[str, dict[str, float]]]] = defaultdict(list)
+        self.labels: dict[str, set[str]] = defaultdict(set)  # pier / spandrel -> labels
 
     def run(self) -> None:
         self._stories()
@@ -415,6 +453,13 @@ class _Importer:
         self._patterns()
         self._loads()
         self._combinations()
+        self._stiffness()
+        self._seismic_and_mass()
+        for key, labels in self.labels.items():
+            for label in sorted(labels):
+                self.report.skip(
+                    f"{key} labels not read (SAEngine groups and designs its walls itself)", label
+                )
         for block, count in self.e.unread.items():
             if count and not block.startswith(("PROGRAM", "CONTROLS", "FILE")):
                 if any(word in block for word in _IGNORED_BLOCKS) or "LOAD CASES" in block:
@@ -638,15 +683,17 @@ class _Importer:
                 if isinstance(found, tuple):
                     found, note = found
                 if found:
+                    library = f" ({s['FILE']})" if s.get("FILE") else ""
                     self.report.approximate(
-                        f"database sections: {note}"
+                        f"database sections{library}: {note}"
                         if note
-                        else "database sections from SAEngine's section table",
+                        else f"database sections{library} from SAEngine's section table",
                         name,
                     )
                     return found
+        library = f" ({s['FILE']})" if s.get("FILE") else ""
         reason = (
-            "sections named from a steel database without their dimensions"
+            f"sections named from a steel database{library} that could not be read"
             if d is None
             else "sections of shapes SAEngine does not read"
         )
@@ -670,15 +717,27 @@ class _Importer:
         if material not in self.e.materials:
             self.report.approximate("column bars without a rebar material left out", name)
             return None, None
-        dia = bar_diameter(rc.get("BARSIZE"))
-        tie = bar_diameter(rc.get("TIESIZE"))
+        # Older files name bar sizes (BARSIZE "#9", NUMBARS3DIR 4); ETABS 2016+ writes a
+        # pattern and the area of one bar (PATTERN "R-4-3" LONGBARAREA 314.2: 4 and 3 bars on
+        # the faces, 10 in all; PATTERN "C-8": 8 round a circle).
+        dia = bar_diameter(rc.get("BARSIZE")) or self._bar_from_area(_num(rc, "LONGBARAREA"))
+        tie = bar_diameter(rc.get("TIESIZE")) or self._bar_from_area(
+            _num(rc, "CONFINEBARAREA", "TIEBARAREA")
+        )
         cover = _num(rc, "COVER")
-        spacing = _num(rc, "TIESPACING")
-        circle = profile["shape"] == "circle" or rc.get("PATTERN", "").upper() == "CIRCLE"
+        spacing = _num(rc, "TIESPACING", "CONFINEBARSPACING")
+        pattern = rc.get("PATTERN", "").upper().replace(" ", "")
+        rectangular = re.fullmatch(r"R-(\d+)-(\d+)", pattern)
+        round_pattern = re.fullmatch(r"C-(\d+)", pattern)
+        circle = profile["shape"] == "circle" or pattern == "CIRCLE" or bool(round_pattern)
         if circle:
             count = int(_num(rc, "NUMBARSCIRC", "NUMBARS") or 0)
+            if round_pattern:
+                count = int(round_pattern.group(1))
         else:
             n3, n2 = int(_num(rc, "NUMBARS3DIR") or 0), int(_num(rc, "NUMBARS2DIR") or 0)
+            if rectangular:
+                n3, n2 = int(rectangular.group(1)), int(rectangular.group(2))
             count = 2 * (n3 + n2) - 4 if n3 >= 2 and n2 >= 2 else 0
         if not (dia and count and cover):
             self.report.approximate(
@@ -691,24 +750,32 @@ class _Importer:
             "longitudinal": [{"position": "perimeter", "count": count, "dia": dia}],
         }
         if tie and spacing:
-            spiral = rc.get("CONFINEMENT", "").upper() == "SPIRAL"
+            spiral = "SPIRAL" in (rc.get("CONFINEMENT", "") + rc.get("TRANSREINF", "")).upper()
             transverse: dict[str, Any] = {
                 "type": "spiral" if spiral else "tie",
                 "dia": tie,
                 "spacing": round(self.u.to_mm(spacing), 3),
             }
-            legs3, legs2 = _num(rc, "NUMR3BARS"), _num(rc, "NUMR2BARS")
+            legs3 = _num(rc, "NUMR3BARS", "NUMCONFINEBARS3")
+            legs2 = _num(rc, "NUMR2BARS", "NUMCONFINEBARS2")
             if not circle and legs3 and legs2:
                 # Column local 2 lies along the profile's x: ties along 3 run along y.
                 transverse["legs"] = int(legs3)
                 transverse["legsX"] = int(legs2)
             bars["transverse"] = transverse
-        if rc.get("DESIGNTYPE", "").upper() == "DESIGN":
+        if "DESIGN" in (rc.get("DESIGNTYPE", "").upper(), rc.get("DESIGNCHECK", "").upper()):
             self.report.approximate(
                 "column bars from the ETABS layout of a section ETABS designs (DESIGNTYPE Design)",
                 name,
             )
         return bars, None
+
+    def _bar_from_area(self, area: float | None) -> float | None:
+        """The diameter [mm, to 0.1 mm] of a bar of ``area`` (file units²)."""
+        if not area or area <= 0:
+            return None
+        dia = round(math.sqrt(4 * area * self.u.mm**2 / math.pi), 1)
+        return dia if 5 <= dia <= 60 else None
 
     def _shell_props(self) -> None:
         for name, p in self.e.shell_props.items():
@@ -752,9 +819,9 @@ class _Importer:
         z = self._level(story, below)
         if p is None or z is None:
             return None
-        if p[2]:
-            self.report.approximate("point offsets below their story ignored", point)
-        return (round(self.u.to_mm(p[0]), 3), round(self.u.to_mm(p[1]), 3), z)
+        # A point's third number puts it that far below the story it is used at.
+        dz = self.u.to_mm(p[2]) if p[2] else 0.0
+        return (round(self.u.to_mm(p[0]), 3), round(self.u.to_mm(p[1]), 3), round(z - dz, 3))
 
     def _lines(self) -> None:
         for label, story, pairs in self.e.line_assigns:
@@ -778,15 +845,91 @@ class _Importer:
                 )
                 continue
             frame_kind = {"COLUMN": "column", "BEAM": "beam", "BRACE": "brace"}.get(kind)
-            if "RELEASE" in pairs:
-                self.report.approximate("end releases ignored (members are continuous)", instance)
-            for key in ("CARDINALPT", "LENGTHOFFI", "LENGTHOFFJ", "OFFSETXI"):
-                if key in pairs and (_number(pairs[key]) or 0) not in (0, 10):
-                    self.report.approximate("insertion points and end offsets ignored", instance)
-                    break
-            self.b.add_frame(instance, section, a, c, frame_kind, _num(pairs, "ANG") or 0.0)  # type: ignore[arg-type]
+            pinned = self._releases(instance, pairs)
+            self._offsets(instance, frame_kind, pairs)
+            material = self.e.frame_sections.get(section, {}).get("MATERIAL", "")
+            self._modifiers(frame_kind or "frame", instance, pairs, material)
+            self._pier(pairs)
+            self.b.add_frame(
+                instance,
+                section,
+                a,
+                c,
+                frame_kind,  # type: ignore[arg-type]
+                _num(pairs, "ANG") or 0.0,
+                pinned,
+            )
             self.instances[(label, story)] = instance
             self.lengths[instance] = math.dist(a, c) / 1000
+
+    def _releases(self, instance: str, pairs: dict[str, str]) -> bool:
+        """Whether a member's ends are both released in bending (pinned); what else it
+        releases is reported, as SAEngine expresses only members pinned at both ends."""
+        released = set(pairs.get("RELEASE", "").upper().split())
+        if not released:
+            return False
+        bending = {"M2I", "M3I", "M2J", "M3J"}
+        if "PINNED" in released:  # ETABS's shorthand: both bending moments at both ends
+            released = (released - {"PINNED"}) | bending
+        at_i, at_j = released & {"M2I", "M3I"}, released & {"M2J", "M3J"}
+        pinned = bool(at_i) and bool(at_j)
+        if pinned and (at_i | at_j) != bending:
+            self.report.approximate(
+                "members released in one bending plane at both ends taken as pinned in both",
+                instance,
+            )
+        elif not pinned and (at_i or at_j):
+            self.report.approximate(
+                "bending releases at one end only not expressed (member continuous there)",
+                f"{instance} ({pairs['RELEASE']})",
+            )
+        if released - bending:
+            self.report.approximate(
+                "axial, shear and torsion releases not expressed",
+                f"{instance} ({pairs['RELEASE']})",
+            )
+        return pinned
+
+    def _offsets(self, instance: str, kind: str | None, pairs: dict[str, str]) -> None:
+        """Reports the offsets and insertion points SAEngine does not model yet."""
+        if any(_num(pairs, key) for key in ("LENGTHOFFI", "LENGTHOFFJ")):
+            self.report.approximate(
+                "end length offsets ignored (SAEngine has no rigid end zones yet)",
+                f"{instance} ({pairs.get('LENGTHOFFI', 0)}, {pairs.get('LENGTHOFFJ', 0)})",
+            )
+        if _num(pairs, "RIGIDZONE"):
+            self.report.approximate(
+                "rigid-zone factors ignored (SAEngine has no rigid end zones yet)",
+                f"{instance} ({pairs['RIGIDZONE']})",
+            )
+        point = int(_num(pairs, "CARDINALPT") or 0)
+        # 10 is the centroid; 8, the top centre, is where SAEngine puts its beams anyway.
+        if point not in (0, 10) and not (kind == "beam" and point == 8):
+            self.report.approximate(
+                "insertion points (cardinal points) other than the centroid ignored",
+                f"{instance} ({point})",
+            )
+        if any(_num(pairs, key) for key in pairs if key.startswith("OFFSET")):
+            self.report.approximate("joint offsets of members ignored", instance)
+
+    def _modifiers(self, kind: str, instance: str, pairs: dict[str, str], material: str) -> None:
+        """Collects a member's or area's property modifiers (``PROPMODI33 0.35``) by kind
+        (concrete members also without any, as SAEngine's cracked sections reach them)."""
+        values = {
+            key[len("PROPMOD") :]: value
+            for key in pairs
+            if key.startswith("PROPMOD") and (value := _num(pairs, key)) is not None
+        }
+        m = self.e.materials.get(material, {})
+        concrete = "CONCRETE" in (m.get("TYPE", "") + m.get("DESIGNTYPE", "")).upper()
+        if values or concrete:
+            self.modifiers[kind].append((instance, values))
+
+    def _pier(self, pairs: dict[str, str]) -> None:
+        for key in ("PIER", "SPANDREL"):
+            label = pairs.get(key, "")
+            if label and label.upper() != "NONE":
+                self.labels[key.lower()].add(label)
 
     def _areas(self) -> None:
         self.area_sets: dict[str, list[tuple[str, float]]] = {}
@@ -814,6 +957,10 @@ class _Importer:
                 )
                 continue
             area_kind = {"FLOOR": "floor", "PANEL": "wall", "RAMP": "floor"}.get(kind)
+            props = self.e.shell_props.get(section, {})
+            material = props.get("MATERIAL") or props.get("SLABMATERIAL") or ""
+            self._modifiers("wall" if kind == "PANEL" else "slab", instance, pairs, material)
+            self._pier(pairs)
             self.b.add_area(instance, section, points, area_kind)  # type: ignore[arg-type]
             self.instances[(label, story)] = instance
             load_set = pairs.get("UNIFLOADSET")
@@ -823,11 +970,14 @@ class _Importer:
     def _supports(self) -> None:
         for point, story, pairs in self.e.point_assigns:
             restraint = pairs.get("RESTRAINT")
-            if not restraint:
-                if "SPRINGPROP" in pairs:
-                    self.report.skip(
-                        "point springs (SAEngine's soil springs come from 9 Substructure)", point
-                    )
+            if "SPRINGPROP" in pairs:
+                self.b.springs += 1
+                self.report.skip(
+                    "point springs not imported (SAEngine's soil springs come from 9 "
+                    "Substructure): check the supports",
+                    f"{point}-{story} ({pairs['SPRINGPROP']})",
+                )
+            if not restraint or restraint.upper() in ("NO", "NONE"):
                 continue
             at = self._xyz(point, story, 0)
             if at is None:
@@ -837,6 +987,134 @@ class _Importer:
             fixity = tuple(d in dofs for d in ("UX", "UY", "UZ", "RX", "RY", "RZ"))
             if any(fixity):
                 self.b.add_support(at, fixity, f"{point}-{story}")
+
+    # ── stiffness, mass and seismic definitions ──
+
+    def _stiffness(self) -> None:
+        """The property modifiers on SAEngine's section stiffness setting.
+
+        SAEngine has no modifiers per member: its cracked sections (02 Project Settings →
+        Analysis model) give concrete columns 0.70 Ig, beams 0.35 Ig, slabs 0.25 Ig and walls
+        0.70 Ig (0.35 Ig cracked). Modifiers that are these factors switch them on for all
+        cases (ETABS's modifiers act in every case); other values, membrane, axial, shear,
+        torsion, mass and weight modifiers are reported as not applied.
+        """
+        cracked = {
+            "column": {"I22": 0.7, "I33": 0.7},
+            "beam": {"I33": 0.35},
+            "slab": {"M11": 0.25, "M22": 0.25},
+            "wall": {"M11": 0.7, "M22": 0.7},
+        }
+        mass_keys = {"M", "W", "MASS", "WEIGHT"}
+        matched: list[str] = []
+        unmodified: list[str] = []
+        walls_cracked = False
+        for kind, entries in self.modifiers.items():
+            for instance, values in entries:
+                values = {k: v for k, v in values.items() if abs(v - 1.0) > 1e-9}
+                for key in sorted(values.keys() & mass_keys):
+                    self.report.approximate(
+                        "mass and weight modifiers not applied",
+                        f"{instance} ({key} {values[key]:g})",
+                    )
+                stiffness = {k: v for k, v in values.items() if k not in mass_keys}
+                expected = cracked.get(kind)
+                if expected is None:
+                    if stiffness:
+                        self.report.approximate(
+                            "property modifiers of braces and other members not applied", instance
+                        )
+                    continue
+                if not stiffness:
+                    unmodified.append(instance)
+                    continue
+                if kind == "wall" and all(
+                    abs(stiffness.get(k, 1.0) - 0.35) < 0.02 for k in expected
+                ):
+                    walls_cracked = True
+                elif not all(abs(stiffness.get(k, 1.0) - v) < 0.02 for k, v in expected.items()):
+                    text = ", ".join(f"{k} {v:g}" for k, v in sorted(stiffness.items()))
+                    self.report.approximate(
+                        "property modifiers SAEngine cannot apply member by member (its cracked "
+                        "section factors apply)",
+                        f"{instance} ({text})",
+                    )
+                    continue
+                matched.append(instance)
+                rest = {k: v for k, v in stiffness.items() if k not in expected}
+                if kind == "beam":
+                    rest.pop("I22", None)
+                if rest:
+                    text = ", ".join(f"{k} {v:g}" for k, v in sorted(rest.items()))
+                    self.report.approximate(
+                        "membrane, axial, shear and torsion modifiers not applied",
+                        f"{instance} ({text})",
+                    )
+        if matched:
+            self.b.analysis.update(
+                {"stiffness": "aci", "crackedFor": "all", "wallsCracked": walls_cracked}
+            )
+            self.report.approximate(
+                "property modifiers as SAEngine's cracked sections in all cases (02 Project "
+                "Settings → Analysis model)",
+                f"{len(matched)} members",
+            )
+            for instance in unmodified:
+                self.report.approximate(
+                    "members without modifiers analysed with cracked sections too", instance
+                )
+        elif unmodified and not any(v for e in self.modifiers.values() for _, v in e):
+            self.report.warn(
+                "The file has no property modifiers (gross sections): SAEngine analyses the "
+                "lateral cases on cracked concrete sections (BNBC 2020 Part 6 Sec 6.3.10.4.1; "
+                "02 Project Settings → Analysis model → Section stiffness)."
+            )
+
+    def _seismic_and_mass(self) -> None:
+        """Reports the auto seismic definitions and how the mass source differs from SAEngine's
+        seismic weight (dead and superimposed dead loads and a share of the live load)."""
+        from saengine.library.bnbc import SEISMIC_LIVE_SHARE
+
+        for name, d in self.e.seismic.items():
+            detail = f"{name}: {d.get('TYPE', '')}"
+            if "SHEARCOEFF" in d:
+                detail += f", C {d['SHEARCOEFF']}, k {d.get('HEIGHTEXPONENT', '1')}"
+            self.report.approximate(
+                "auto seismic definitions replaced by SAEngine's BNBC 2020 loads (02 Project "
+                "Settings)",
+                detail,
+            )
+        sources = self.e.mass_sources
+        if not sources:
+            return
+        name, source = next(
+            ((n, m) for n, m in sources.items() if m.get("ISDEFAULT", "").upper() == "YES"),
+            next(iter(sources.items())),
+        )
+
+        def yes(key: str) -> bool:
+            return source.get(key, "").upper() == "YES"
+
+        differences = []
+        if "INCLUDEELEMENTS" in source and not yes("INCLUDEELEMENTS"):
+            differences.append("without the members' own mass")
+        if yes("INCLUDELOADS"):
+            factors: dict[str, float] = defaultdict(float)
+            for pattern, factor in source.get("LOADS", []):
+                case = self.pattern_cases.get(pattern) or pattern
+                factors[case] = max(factors[case], factor)
+            for case, factor in sorted(factors.items()):
+                expected = 1.0 if case == "D" else SEISMIC_LIVE_SHARE if case == "L" else 0.0
+                if abs(factor - expected) > 1e-6:
+                    differences.append(f"{case} × {factor:g} (SAEngine {expected:g})")
+        if yes("LUMPATSTORIES"):
+            differences.append("lumped at the stories (SAEngine keeps it at the nodes)")
+        if differences:
+            self.report.approximate(
+                f"mass source differs from SAEngine's seismic weight (D + SD + "
+                f"{SEISMIC_LIVE_SHARE:g} L)",
+                f"{name}: {'; '.join(differences)}",
+            )
 
     # ── loads ──
 
@@ -864,6 +1142,10 @@ class _Importer:
             if case is None:
                 self.report.skip(
                     "load patterns of types SAEngine has no case for", f"{name} ({p.get('TYPE')})"
+                )
+            elif case == "F":
+                self.report.approximate(
+                    "patterns of type Other named as fluid loads taken as SAEngine's F", name
                 )
             elif case[0] in "WE":
                 self.report.approximate(
@@ -919,11 +1201,17 @@ class _Importer:
             d = direction.upper()
             down = u.to_kpa(value) * (1.0 if d == "GRAV" else -1.0 if d == "Z" else 0.0)
             area_m2 = self.b.area_of(instance)
-            if case not in ("D", "L", "Lr") or d not in ("GRAV", "Z"):
+            if case not in ("D", "L", "Lr", "F") or d not in ("GRAV", "Z"):
                 self.b.not_carried(
                     "area loads of lateral patterns or directions", case, down * area_m2, instance
                 )
                 continue
+            if case == "F":
+                # SAEngine's F holds the contents of 07 MEP equipment only.
+                self.report.approximate(
+                    "fluid area loads applied as superimposed dead load (D factors)", instance
+                )
+                case = "D"
             self.b.add_area_load(instance, case, down)  # type: ignore[arg-type]
 
     def _combinations(self) -> None:

@@ -919,7 +919,10 @@ def _derive_fem(
             )
             continue
         roof = math.isclose(element.elevation, top)
-        area_load = area_loads.get(settings.roofLoad if roof else settings.floorLoad)
+        load_id = element.areaLoad or (settings.roofLoad if roof else settings.floorLoad)
+        area_load = area_loads.get(load_id)
+        if element.areaLoad and area_load is None:
+            b.notes.append(f"{element.id}: no area load '{load_id}' in the project settings")
         self_weight = (
             (material.mechanical.density or 0.0) * G * object_type.thickness * MM
             if material

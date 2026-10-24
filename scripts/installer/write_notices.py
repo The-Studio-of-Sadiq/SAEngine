@@ -72,8 +72,27 @@ Other licence terms to note:
     (IJG licence), liblzma (0BSD / public domain), zlib (zlib licence) and the Microsoft Visual
     C++ runtime msvcp140 (redistributable under the Visual Studio licence). None is copyleft.
     certifi (MPL-2.0) ships unmodified as a separate package; its source is on PyPI.
+  - FreeCAD's profile table (LGPL-2.1-or-later, the FreeCAD contributors) ships unmodified as
+    data of the SAEngine backend; see "FreeCAD profile table" below.
 
 {rule}
+"""
+
+#: FreeCAD's profile table, copied into the backend by bundle-python.ps1 from
+#: third_party/freecad-profiles (its README.md gives the source, commit and SHA-256).
+FREECAD_COMMIT = "68f4a30a1b4be46176b883fcdab55a9de8c2433d"
+FREECAD = """\
+FreeCAD profile table
+{rule}
+
+resources/python/Lib/site-packages/saengine/importers/data/freecad-profiles.csv is the table of
+standard structural profiles of FreeCAD's BIM workbench (src/Mod/BIM/Presets/profiles.csv at
+commit {commit}, https://github.com/FreeCAD/FreeCAD), unmodified, Copyright the FreeCAD
+contributors, under the GNU Lesser General Public License version 2.1 or later
+(LGPL-2.1-or-later). SAEngine reads it as data (the dimensions of named steel shapes in imported
+models); the file is its own source, and you may replace it with a modified version. It is also
+in the SAEngine source (third_party/freecad-profiles). The licence text follows.
+
 """
 
 #: The licence's clause (4): the bundled program is referred to by this name only.
@@ -281,6 +300,25 @@ def librecad_section(folder: Path, bundle: dict, sources_name: str) -> list[str]
     return out
 
 
+def freecad_section() -> list[str]:
+    """The FreeCAD profile table's notice and licence, when the bundled backend ships it."""
+    import importlib.util
+
+    spec = importlib.util.find_spec("saengine")
+    if spec is None or not spec.submodule_search_locations:
+        return []
+    data = Path(next(iter(spec.submodule_search_locations))) / "importers" / "data"
+    table, licence = data / "freecad-profiles.csv", data / "freecad-profiles.LICENSE.txt"
+    if not table.is_file():
+        return []
+    out = [FREECAD.format(rule=RULE, commit=FREECAD_COMMIT)]
+    if licence.is_file():
+        out.append(f"[{licence.name}]\n")
+        out.append(licence.read_text(encoding="utf-8", errors="replace").rstrip() + "\n")
+    out.append(f"\n{RULE}\n\n")
+    return out
+
+
 def npm_package_root(path: Path) -> Path | None:
     """The package folder of a file inside node_modules (scoped names included)."""
     parts = path.parts
@@ -456,6 +494,7 @@ def main() -> int:
         out.append(f"\n{RULE}\n\n")
     if librecad is not None:
         out.extend(librecad_section(args.librecad, librecad, args.sources_name))
+    out.extend(freecad_section())
     js_out, js_count = js_section(args.js_package)
     out.extend(js_out)
     out.append("Bundled Python packages\n\n")

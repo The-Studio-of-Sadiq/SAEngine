@@ -5199,6 +5199,22 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 					title: 'Boundary',
 					type: 'array',
 				},
+				areaLoad: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Area load from 02 Project Settings; none: the floor or roof load there.',
+					title: 'Area load',
+				},
 			},
 			required: ['id', 'type', 'story', 'boundary'],
 			title: 'PlacedSlab',
@@ -6551,6 +6567,22 @@ export const BIM_SCHEMA: IJSONSchema = {
 					description: 'Elevation of the top [mm].',
 					title: 'Elevation',
 					type: 'number',
+				},
+				areaLoad: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Area load from 02 Project Settings; none: the floor or roof load there.',
+					title: 'Area load',
 				},
 			},
 			required: ['id', 'type', 'boundary', 'elevation'],
