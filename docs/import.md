@@ -162,7 +162,8 @@ Settings:
   AISC16; IPE, HE A/B/M and UPN in Euro; ISMB, ISMC, ISLB, ISWB, ISJB in Indian; UB and UC in
   ArcelorMittal_British), are written by name (`SHAPE "IPE300" FILE "Euro"`: ETABS takes its
   own library's dimensions, reported); the others by their dimensions (I, tube, pipe, channel,
-  angle, tee). Solid steel bars are not written (reported).
+  angle, tee); solid steel bars and rods as ETABS writes them (its rectangle and circle in the
+  steel material).
 - **Slab and wall properties**: slabs are membranes when 02 Project Settings hands slab loads to
   the beams (one-way load distribution for one-way slabs), thin shells when slabs are shells;
   walls thin shells. Non-structural walls are not elements: their weight is an SD line load on
@@ -189,12 +190,15 @@ Settings:
   nearest points); with `--lateral coefficient` the earthquake is ETABS's user coefficient with
   SAEngine's base shear coefficient and height exponent k (ETABS then weighs the building from
   its mass source).
-- **Mass source**: the elements, SD and the code's share of L (0.25), not lumped at the stories.
+- **07 MEP equipment** (with the plumbing's overhead tanks, the HVAC plant and the electrical
+  equipment, as the analysis loads them): empty weight and plinth SD, contents F (a pattern of
+  type Other, in the combinations with their F factor) or as 07 MEP's contentsAs says, impact L;
+  point loads at the supports, or at the quarter points of the footprint (reported).
+- **Mass source**: the elements, SD, the code's share of L (0.25) and F, not lumped at the stories.
 - **Combinations**: 02 Project Settings' combinations as linear additions (D on both D and SD).
 
 Not written (each in the report when the project has it): stairs (not in SAEngine's analysis
-either), footings, solid blocks, 07 MEP equipment loads (weight, contents: F, with their total),
-the temperature case and its combination factors, P-Delta, the response spectrum, accidental
+either), footings, solid blocks, the temperature case and its combination factors, P-Delta, the response spectrum, accidental
 torsion, time histories, pushover and construction sequence definitions.
 
 Reading the export back with the importer gives the same stories, members, sections, area loads

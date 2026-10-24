@@ -139,6 +139,47 @@ class E2kExport:
         return target
 
 
+@dataclass
+class Equipment:
+    """A piece of 07 MEP equipment as ETABS gets it: the plan points [mm] its loads are shared
+    among on the floor of ``story``, and its loads [N] by load pattern."""
+
+    id: str
+    story: str
+    points: list[tuple[float, float]]
+    loads: dict[str, float]
+
+
+def equipment_of(mep: Any, materials: MaterialLibrary) -> list[Equipment]:
+    """The equipment of 07 MEP with its disciplines' (overhead tanks, HVAC plant, electrical
+    equipment), loaded as the analysis loads it (:func:`saengine.mep.loads.equipment_parts`):
+    empty weight and plinth SD, contents F (or as 07 MEP's contentsAs says), impact L. Point-
+    supported items at their supports, the others at the quarter points of their footprint
+    (equal shares there have the footprint's resultant)."""
+    from saengine.mep.geometry import local_to_global
+    from saengine.mep.loads import equipment_parts, with_services_equipment
+
+    mep, _ = with_services_equipment(mep, materials)
+    densities = {m.id: m.mechanical.density for m in materials.materials}
+    cases = [p[0] for p in _PATTERNS] + ["F"]
+    result = []
+    for item in mep.equipment:
+        local = (
+            item.supports
+            if item.loadAs == "points" and item.supports
+            else [
+                [sx * item.length / 4, sy * item.width / 4]
+                for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1))
+            ]
+        )
+        loads: dict[str, float] = defaultdict(float)
+        for part in equipment_parts(item, mep.contentsAs, densities, cases):
+            loads[part.case] += part.total
+        points = local_to_global(item.x, item.y, item.rotation, local)
+        result.append(Equipment(item.id, item.story, points, dict(loads)))
+    return result
+
+
 # ─────────────────────────────────────────── units ───────────────────────────────────────────
 
 
@@ -274,6 +315,7 @@ def write_e2k(
     live_share: float = 0.25,
     library_shapes: bool = True,
     grids: list[tuple[str, str, float]] | None = None,
+    equipment: list[Equipment] | None = None,
     file: str | None = None,
 ) -> E2kExport:
     """The e2k text of a building (see the module notes).
@@ -283,7 +325,8 @@ def write_e2k(
     point loads; ``summary`` its summary (period and base shear coefficient, for
     ``lateral="coefficient"``). Without them the lateral patterns have no loads (reported).
     ``live_share`` is the code's share of the live load in the seismic weight; ``grids`` the
-    grid lines (axis "X" or "Y", label, position [mm]), from the floor plan.
+    grid lines (axis "X" or "Y", label, position [mm]), from the floor plan; ``equipment`` the
+    loads of 07 MEP's equipment (:func:`equipment_of`).
     """
     force, length = (u.upper() for u in units)
     if force not in _FORCE or length not in _LENGTH:
@@ -308,6 +351,7 @@ def write_e2k(
         for axis, label, position in grids or []
     ]
     report.count("gridLines", len(writer.grids))
+    writer.equipment = equipment or []
     text = writer.run(name or settings.project.name)
     return E2kExport(text, report)
 
@@ -345,6 +389,8 @@ class _Writer:
         self.points: dict[tuple[float, float, float], str] = {}
         self.point_xy: dict[str, tuple[float, float, float]] = {}
         self.labels: set[str] = set()
+        self.equipment: list[Equipment] = []
+        self.patterns = list(_PATTERNS)
         self.used_materials: set[str] = set()
         self.frame_sections: dict[str, list[str]] = {}  # type id -> lines
         self.concrete_sections: list[str] = []
@@ -363,6 +409,8 @@ class _Writer:
         self.grids: list[str] = []
         #: (point, story index) of the points the lines and areas use.
         self.used: set[tuple[str, int]] = set()
+        #: The ends of the lines written: member name by (end i, end j).
+        self.places: dict[tuple[tuple[str, int], tuple[str, int]], str] = {}
 
     # ── stories and points ──
 
@@ -501,16 +549,15 @@ class _Writer:
         u = self.u
         shape = p["shape"]
         pairs = ""
-        if shape == "rectangle" and concrete:
+        # Solid rectangles and circles are ETABS's "concrete" shapes whatever their material
+        # (ETABS writes a steel flat bar or rod so too).
+        if shape == "rectangle":
             # Columns: ETABS's depth (local 2) along global X at an angle of 0, as the
             # profile's x at a rotation of 0; beams: depth is the profile's y.
             d, b = (p["xDim"], p["yDim"]) if column else (p["yDim"], p["xDim"])
             pairs = f'SHAPE "Concrete Rectangular"  D {_n(u.len(d))} B {_n(u.len(b))}'
-        elif shape == "circle" and concrete:
+        elif shape == "circle":
             pairs = f'SHAPE "Concrete Circle"  D {_n(u.len(2 * p["radius"]))}'
-        elif shape in ("rectangle", "circle"):
-            self.report.skip("solid steel and other non-concrete bar sections", type_id)
-            return None
         else:
             if not steel:
                 self.report.approximate("steel shapes of a non-steel material", type_id)
@@ -556,7 +603,7 @@ class _Writer:
         if shape == "circleHollow":
             return (
                 f'SHAPE "Steel Pipe"  D {_n(u.len(2 * p["radius"]))} '
-                f"TW {_n(u.len(p['wallThickness']))}"
+                f"T {_n(u.len(p['wallThickness']))}"
             )
         if shape in ("U", "T"):
             name = "Steel Channel" if shape == "U" else "Steel Tee"
@@ -625,10 +672,12 @@ class _Writer:
                 count += 1
                 self.report.approximate("an odd number of column bars rounded up to even", type_id)
             count = max(count, 4)
-            half = count // 2 + 2  # bars along local 3 and local 2 (corners counted twice)
+            # "R-a-b": a bars (corners included) on each face along the depth D (local 2), b on
+            # each face along the width B (local 3), shared in proportion to the faces.
+            half = count // 2 + 2
             d, b = p["xDim"], p["yDim"]  # local 2 (depth) and local 3 (width)
-            n3 = min(max(round(half * b / (b + d)), 2), half - 2)
-            pattern = f"R-{n3}-{half - n3}"
+            along_b = min(max(round(half * b / (b + d)), 2), half - 2)
+            pattern = f"R-{half - along_b}-{along_b}"
         transverse = "SPIRAL" if tie and tie.type == "spiral" else "TIES"
         if tie is None:
             self.report.approximate("columns without ties written with 10 mm ties at 150", type_id)
@@ -726,6 +775,13 @@ class _Writer:
         below = pc[1] - pa[1]
         self.used.update((pa, pc))
         word = {"column": "COLUMN", "beam": "BEAM"}.get(kind, "BRACE")
+        place = (pa, pc)
+        if place in self.places:
+            self.report.approximate(
+                "members on the same line as another (ETABS keeps one of them)",
+                f"{name} ({self.places[place]})",
+            )
+        self.places.setdefault(place, name)
         self.lines.append(f"  LINE  {_q(label)}  {word}  {_q(pa[0])}  {_q(pc[0])}  {below}")
         pairs = f"SECTION {_q(section)}  "
         modifiers = self._modifiers(kind, type_id)
@@ -836,7 +892,7 @@ class _Writer:
                     self.report.count("slabs")
                     slab_hosts[e.id] = (made[0], e.elevation)
                     roof = math.isclose(e.elevation, top)
-                    self._slab_loads(e.id, made, e.areaLoad, roof, _polygon_area(e.boundary))
+                    self._slab_loads(e.id, made, e.areaLoad, roof, self._net_area(e))
             elif isinstance(e, FootingElement):
                 self.report.skip("footings (9 Substructure: ETABS gets fixed bases)", e.id)
             elif isinstance(e, MemberElement):
@@ -967,6 +1023,63 @@ class _Writer:
                 self._pressure(made, "L", load.live, area)
 
     # ── loads ──
+
+    def _net_area(self, slab: SlabElement) -> float:
+        """Plan area [m²] of a slab less its openings (ETABS loads no opening)."""
+        from shapely.geometry import Polygon, box
+        from shapely.ops import unary_union
+
+        outline = Polygon([tuple(p) for p in slab.boundary]).buffer(0)
+        holes = []
+        for o in self.b.additions.slabOpenings:
+            if o.host != slab.id:
+                continue
+            hole = box(o.x - o.xDim / 2, o.y - o.yDim / 2, o.x + o.xDim / 2, o.y + o.yDim / 2)
+            if o.rotation:
+                from shapely import affinity
+
+                hole = affinity.rotate(hole, o.rotation, origin=(o.x, o.y))
+            holes.append(hole)
+        if holes:
+            outline = outline.difference(unary_union(holes))
+        return outline.area / 1e6
+
+    def _equipment_loads(self) -> None:
+        """07 MEP's equipment as point loads shared among its supports (or footprint corners) on
+        the floor of its story."""
+        levels = {s.id: s.elevation for s in self.b.stories}
+        for item in self.equipment:
+            z = levels.get(item.story)
+            if z is None or not item.points:
+                self.report.skip("equipment on no exported story", item.id)
+                continue
+            if abs(z - self.levels[0][1]) <= TOLERANCE:
+                self.report.skip(
+                    "equipment at the base (on the ground, as in SAEngine's analysis)", item.id
+                )
+                continue
+            for case, newton in item.loads.items():
+                if not newton:
+                    continue
+                share = newton / len(item.points)
+                for x, y in item.points:
+                    at = self._point(x, y, z)
+                    if at is None:
+                        continue
+                    self.point_loads.append(
+                        f'  POINTLOAD  {_q(at[0])}  {_q(self._story(at[1]))}  TYPE "FORCE"  '
+                        f"LC {_q(case)}    FZ {_n(self.u.to_force(-share))}"
+                    )
+                self.report.carried[case] += newton / 1000
+            self.report.count("equipment")
+        if self.equipment:
+            self.report.approximate(
+                "07 MEP equipment as point loads at its supports or footprint corners (ETABS "
+                "meshes the floor at them; SAEngine spreads them over the slab's elements)",
+                f"{len(self.equipment)} items",
+            )
+        if any(item.loads.get("F") for item in self.equipment):
+            self.patterns.append(("F", "Other", 0))
 
     def _pressure(self, area: tuple[str, str], case: str, kpa: float, m2: float) -> None:
         if not kpa:
@@ -1146,6 +1259,7 @@ class _Writer:
         self._stories()
         self._geometry()
         self._partition_loads()
+        self._equipment_loads()
         # supports
         for label in sorted(self.base_points, key=int):
             self._assign_point(label, self.levels[0][0], "RESTRAINT", '"UX UY UZ RX RY RZ"')
@@ -1259,7 +1373,7 @@ class _Writer:
         out += ["", "$ LINE ASSIGNS", *self.line_assigns]
         out += ["", "$ AREA ASSIGNS", *self.area_assigns]
         out += ["", "$ LOAD PATTERNS"]
-        for pattern, kind, sw in _PATTERNS:
+        for pattern, kind, sw in self.patterns:
             out.append(f"  LOADPATTERN {_q(pattern)}  TYPE  {_q(kind)}  SELFWEIGHT  {sw}")
         out += seismic
         out += ["", "$ POINT OBJECT LOADS", *self.point_loads]
@@ -1279,6 +1393,7 @@ class _Writer:
             ),
             '  MASSSOURCELOAD  "MsSrc1"  "SD"  1 ',
             f'  MASSSOURCELOAD  "MsSrc1"  "L"  {_n(self.live_share)} ',
+            *(['  MASSSOURCELOAD  "MsSrc1"  "F"  1 '] if self._fluid else []),
             "",
             "$ LOAD CASES",
             '  LOADCASE "Modal"  TYPE  "Modal - Eigen"  INITCOND  "NONE"  ',
@@ -1287,12 +1402,28 @@ class _Writer:
                 "MINMODES  1 EIGENSHIFTFREQ  0 EIGENCUTOFF  0 EIGENTOL  1E-09 "
             ),
         ]
-        for pattern, _, _ in _PATTERNS:
+        for pattern, _, _ in self.patterns:
             out.append(f'  LOADCASE {_q(pattern)}  TYPE  "Linear Static"  INITCOND  "NONE"  ')
             out.append(f"  LOADCASE {_q(pattern)}  LOADPAT  {_q(pattern)}  SF  1 ")
         out += ["", "$ LOAD COMBINATIONS", *self._combinations()]
-        out += ["", "$ END OF MODEL FILE", ""]
+        # ETABS reads nothing of a file without its log block and the END that closes the model.
+        out += [
+            "",
+            "$ LOG",
+            "  STARTCOMMENTS  ",
+            "",
+            f"Exported from SAEngine: {name}",
+            "  ENDCOMMENTS  ",
+            "",
+            "  END",
+            "$ END OF MODEL FILE",
+            "",
+        ]
         return "\n".join(out)
+
+    @property
+    def _fluid(self) -> bool:
+        return any(p[0] == "F" for p in self.patterns)
 
     def _combinations(self) -> list[str]:
         out = []
@@ -1303,6 +1434,8 @@ class _Writer:
                 name, k = f"{c.name} ({k})", k + 1
             taken.add(name.upper())
             terms = [("D", c.D), ("SD", c.D), ("L", c.L), ("Lr", c.Lr)]
+            if self._fluid:
+                terms.append(("F", c.F or 0.0))
             terms += [(case, getattr(c, case)) for case in ("WX", "WY", "EX", "EY")]
             out.append(f'  COMBO {_q(name)}  TYPE "Linear Add"  ')
             for case, factor in terms:
@@ -1474,6 +1607,7 @@ def export_e2k(
         settings,
         name=p.name,
         grids=grids,
+        equipment=equipment_of(mep, materials) if mep is not None else [],
         units=units,
         lateral=lateral,
         derivation=derivation,
@@ -1485,17 +1619,6 @@ def export_e2k(
     report.source["project"] = p.name
     for note in notes:
         report.warn(f"Derivation: {note}")
-    if mep is not None and mep.equipment:
-        fluid = 0.0
-        for pattern in (derivation or {}).get("load_patterns", []):
-            if pattern["name"] == "F":
-                fluid = -sum(n["forces"][2] for n in pattern.get("nodal_loads", [])) / 1000
-        report.skip(
-            "07 MEP equipment loads (weight, contents and impact) not exported",
-            f"{len(mep.equipment)} items",
-        )
-        if fluid:
-            report.not_carried["F"] += fluid
     stale = building.source and building.source.floorPlan
     if stale and plan_text:
         from saengine.library.bim import source_stamp
@@ -1511,8 +1634,10 @@ def export_e2k(
 __all__ = [
     "E2kExport",
     "E2kExportError",
+    "Equipment",
     "ExportReport",
     "designation",
+    "equipment_of",
     "export_e2k",
     "library_shape",
     "write_e2k",

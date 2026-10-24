@@ -16,7 +16,13 @@ from typing import Any
 
 import pytest
 
-from saengine.exporters.etabs import designation, export_e2k, library_shape, write_e2k
+from saengine.exporters.etabs import (
+    Equipment,
+    designation,
+    export_e2k,
+    library_shape,
+    write_e2k,
+)
 from saengine.importers.etabs import read_e2k
 from saengine.importers.project import section_lookup_noted
 from saengine.library import BuildingModel, MaterialLibrary, ObjectLibrary, ProjectSettings
@@ -353,6 +359,22 @@ def test_user_coefficient() -> None:
     ) in result.text
 
 
+def test_equipment_point_loads_and_fluid_pattern() -> None:
+    tank = Equipment("T1", "L2", [(1000.0, 1000.0), (2000.0, 1000.0)], {"SD": 10e3, "F": 20e3})
+    pump = Equipment("P1", "BASE", [(0.0, 0.0)], {"SD": 5e3})
+    result = tiny_export(equipment=[tank, pump])
+    text = result.text
+    loads = [x for x in text.splitlines() if x.strip().startswith("POINTLOAD")]
+    assert sum('LC "SD"' in x and x.rstrip().endswith("FZ -5") for x in loads) == 2
+    assert sum('LC "F"' in x and x.rstrip().endswith("FZ -10") for x in loads) == 2
+    assert 'LOADPATTERN "F"  TYPE  "Other"  SELFWEIGHT  0' in text
+    assert 'MASSSOURCELOAD  "MsSrc1"  "F"  1' in text
+    assert 'COMBO "1.4D"  LOADCASE "F"  SF 1.4' in text
+    report = result.report.to_dict()
+    assert report["exported"]["equipment"] == 1  # the pump stands on the ground
+    assert any(item["examples"] == ["P1"] for item in report["skipped"])
+
+
 # ─────────────────────────────────────── steel names ───────────────────────────────────────
 
 
@@ -428,11 +450,8 @@ def check_round_trip(
     imported_loads = {a.id: a for a in imported.settings.areaLoads}
     assert imported_loads["FL"].finish == pytest.approx(floor.finish + floor.partitions)
     assert imported_loads["FL"].live == pytest.approx(floor.live)
-    carried = imported.report.carried
-    exported = export_report.carried
-    assert carried["L"] + carried.get("Lr", 0) == pytest.approx(
-        exported["L"] + exported.get("Lr", 0), rel=1e-6
-    )
+    # Every load of the project went into the file.
+    assert not any(export_report.not_carried.values())
 
     # Combinations: the same factors on the same cases.
     def factors(c: Any) -> tuple:
@@ -535,4 +554,7 @@ def test_cli_writes_the_e2k_and_its_report(tmp_path: Path, monkeypatch: Any, cap
     assert report["schema"] == "saengine.exportReport/1"
     assert report["exported"]["columns"] == 7
     assert not (project / "08 FEM" / "model.osmodel").exists()  # the project is not touched
-    assert math.isclose(report["loads"]["exportedKN"]["L"], 156.0, rel_tol=1e-6)
+    # The live load on the slabs less their openings (as ETABS loads them), and the overhead
+    # tank's water as F.
+    assert math.isclose(report["loads"]["exportedKN"]["L"], 128.35, rel_tol=1e-4)
+    assert math.isclose(report["loads"]["exportedKN"]["F"], 47.9, rel_tol=1e-4)
