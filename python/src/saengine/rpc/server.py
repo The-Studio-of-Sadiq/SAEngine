@@ -64,6 +64,15 @@ Methods:
   once per run; null when the project designs from the static cases; in a worker thread)
 - ``fem/secondOrder`` ``{outDir, projectPath}`` -> the P-Delta drift amplification and the
   stability coefficient θ of a run (``{"method": "none"}`` for a first-order model)
+- ``fem/storyResponse`` ``{outDir, projectPath}`` -> storey displacements, drifts, forces,
+  shears and overturning per case and combination, modal participation, the design spectrum,
+  base reactions, pushover and time-history curves (``saengine.fem.story_response``; worker)
+- ``fem/memberForces`` ``{outDir, projectPath, member}`` -> a member's section forces and
+  deflection along it per case and combination (``saengine.fem.member_detail``; worker)
+- ``fem/columnInteraction`` ``{outDir, projectPath, member?}`` -> the columns' P-M interaction
+  diagrams and demand points (once per run, cached beside the results; worker)
+- ``fem/exportXlsx`` ``{path, sheets: [{name, columns, rows, notes?}]}`` -> the tables written
+  to an Excel workbook (``{path, sheets}``; worker)
 - ``mep/report`` ``{projectRoot, outDir?, mepText?}`` -> the MEP coordination report
 - ``mep/suggestSleeves`` ``{projectRoot, mepText?, allowance?}`` -> sleeves for the clashes
 - ``mep/importIfc`` ``{projectRoot, path, copy?}`` -> what an MEP IFC model holds
@@ -460,6 +469,30 @@ def create_server() -> JsonRPCServer:
     def _second_order(params: Any) -> dict[str, Any] | None:
         args = _plain(params)
         return handlers.second_order_summary(args["outDir"], args["projectPath"])
+
+    @server.feature("fem/storyResponse")
+    @_in_worker
+    def _story_response(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.story_response(args["outDir"], args["projectPath"])
+
+    @server.feature("fem/memberForces")
+    @_in_worker
+    def _member_forces(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.member_forces(args["outDir"], args["projectPath"], args["member"])
+
+    @server.feature("fem/columnInteraction")
+    @_in_worker
+    def _column_interaction(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.column_interaction(args["outDir"], args["projectPath"], args.get("member"))
+
+    @server.feature("fem/exportXlsx")
+    @_in_worker
+    def _export_xlsx(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.export_xlsx(args["path"], args["sheets"])
 
     @server.feature("mep/report")
     def _mep_report(params: Any) -> dict[str, Any]:
