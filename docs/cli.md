@@ -68,6 +68,7 @@ Results go to **stdout** (text, or one JSON document with `--json`); progress go
 | `saengine check <project>` | The checks for CI: Run All without the bill and the report. |
 | `saengine status <project>` | The status of each part, as the app's part list shows it. |
 | `saengine export <project> --format ifc\|dxf\|csv\|pdf\|drawings\|civil [--out PATH] [--size A1\|A2\|A3]` | Writes an export (`drawings`: the structural drawing set), or a `.civil` archive. |
+| `saengine export --format e2k <project> [<out.e2k>] [--units kN-m\|N-mm] [--lateral loads\|coefficient]` | An ETABS text model of the building and its export report (see [import.md](import.md#exporting-to-etabs)). |
 | `saengine import <file.civil> <dest>` | Extracts an archive into `<dest>/<project name>`. |
 | `saengine import <file.e2k\|.std\|.s2k> <dest>` | A new project from an ETABS, STAAD.Pro or SAP2000 model (see [import.md](import.md)). |
 | `saengine new-building <spec.json> <dest> [--name NAME]` | A new building project generated from its grids and storeys (see [new-building.md](new-building.md)). |
@@ -231,6 +232,19 @@ Wrote ...\Sample Frame\11 Exports\Drawings\bbs.csv
 > saengine export "Sample Frame" --format civil --out "Sample Frame.civil"
 Wrote Sample Frame.civil (19 files, 379162 bytes).
 ```
+
+```console
+> saengine export --format e2k "Sample Frame" "Sample Frame.e2k"
+Deriving the analysis model for the story forces ...
+Wrote Sample Frame.e2k
+Wrote Sample Frame.export-report.json
+  exported: 5 gridLines, 3 frameSections, 7 columns, 5 beams, 2 shellProperties, 1 walls, ...
+  skipped: stairs (not in SAEngine's analysis either: their loads are not applied) (1), e.g. ST1
+```
+
+`e2k` writes an ETABS text model (File → Import → ETABS .e2k Text File) and its export report
+(`<name>.export-report.json`: what was exported, approximated and left out); without a file it
+goes to `11 Exports/ETABS/<project>.e2k`. See [import.md](import.md#exporting-to-etabs).
 
 The files go where the Exports page puts them: the IFC of the building model in
 `11 Exports/IFC/<project>.ifc`, the structural plan of every story in
@@ -428,7 +442,7 @@ could be read (`""` for an unknown command); argparse's usage text still goes to
 **`status`**: `{project, parts: [...as above], next: <part id or null>}`.
 
 **`export`**: `{project, format, files: [paths written]}` (`civil` adds `archive`: the
-archive's `{path, size, files, skipped, problems}`).
+archive's `{path, size, files, skipped, problems}`; `e2k` adds `report`, the export report).
 
 **`import`**: `{import: {root, name, files, problems, migrated, pending}}`.
 
