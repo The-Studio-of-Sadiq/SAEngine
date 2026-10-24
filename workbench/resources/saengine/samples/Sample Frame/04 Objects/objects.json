@@ -198,12 +198,16 @@
 			"id": "BR-SHS",
 			"name": "Brace SHS 150",
 			"kind": "brace",
-			"material": "C24.1",
+			"material": "A572-50",
 			"profile": {
 				"shape": "rectangleHollow",
 				"xDim": 150,
 				"yDim": 150,
 				"wallThickness": 8
+			},
+			"connection": {
+				"type": "gusset",
+				"tabThickness": 10
 			}
 		}
 	]

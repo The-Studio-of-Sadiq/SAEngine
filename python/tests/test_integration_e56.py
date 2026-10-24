@@ -241,7 +241,9 @@ def test_soil_springs_compared_with_the_fixed_base(
     assert {d["level"] for d in comparison["storeyDrift"]} <= {3.2, 6.4, 10.0}
     assert json.loads(_read(root, "08 FEM/ssi-compare.json"))["periods"] == comparison["periods"]
     fixed = json.loads(_read(root, "08 FEM/model-fixed.osmodel"))
-    assert not any(e["type"] == "ZeroLength" for e in fixed["elements"])
+    # No soil springs (the steel brace M2's pinned-end links, "M2/pin", stay in both models).
+    links = [e["name"] for e in fixed["elements"] if e["type"] == "ZeroLength"]
+    assert all(name.split("#")[0].endswith("/pin") for name in links)
 
     # The foundations are designed from the fixed-base run (supports at the column bases).
     from saengine.substructure.context import load_context

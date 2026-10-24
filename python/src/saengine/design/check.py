@@ -28,7 +28,7 @@ from typing import Any
 
 import numpy as np
 
-from saengine.design import seismic_rules, slab
+from saengine.design import seismic_rules, slab, steel_design
 from saengine.design import slender as slenderness_design
 from saengine.design.rc import (
     DesignError,
@@ -38,6 +38,7 @@ from saengine.design.rc import (
     section_of,
     shear,
 )
+from saengine.design.steel import SteelDesignError
 from saengine.library.bim import (
     AreaElement,
     BeamElement,
@@ -48,7 +49,7 @@ from saengine.library.bim import (
     WallElement,
 )
 from saengine.library.materials import Category, MaterialLibrary
-from saengine.library.objects import Beam, Column, ObjectLibrary, Slab, Wall
+from saengine.library.objects import Beam, Brace, Column, ObjectLibrary, Slab, Wall
 from saengine.library.settings import LoadCombination, ProjectSettings
 
 #: Said in the notes instead of designing footings: they are Part 9's (saengine.substructure).
@@ -322,6 +323,7 @@ def design(
     checked: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
     designed: list[seismic_detailing.Designed] = []
+    steel_seen = False
     beam_sections: dict[str, tuple[RcSection, dict[bool, Any]]] = {}
     column_sections: dict[str, tuple[RcSection, InteractionSurface]] = {}
     for member_id, type_id, element in members:
@@ -336,6 +338,36 @@ def design(
         own = pieces.get(member_id, [])
         if object_type is None:
             skip(f"unknown object type '{type_id}'")
+            continue
+        # Integrator glue: structural steel beams, columns and braces (BNBC 2020 Part 6 Ch 10,
+        # saengine.design.steel_design), with their types' simple connections.
+        steel_material = mats.get(object_type.material)
+        if isinstance(object_type, (Beam, Column, Brace)) and steel_design.is_steel(steel_material):
+            if not own:
+                skip("not in the analysis results")
+                continue
+            if not combinations:
+                skip("no load combination could be formed")
+                continue
+            try:
+                entry, steel_collected = steel_design.design_member(
+                    member_id,
+                    steel_design.KINDS[object_type.kind],
+                    object_type,
+                    steel_material,
+                    mats,
+                    own,
+                    combinations,
+                    _turned(element),
+                    project,
+                )
+            except SteelDesignError as error:
+                skip(str(error))
+                continue
+            checked.append(entry)
+            steel_seen = True
+            if collect is not None:
+                collect.setdefault("steel", []).append(steel_collected)
             continue
         if not isinstance(object_type, (Beam, Column)):
             skip(f"{object_type.kind} members are not designed here")
@@ -528,6 +560,8 @@ def design(
     method = [line.format(code=code) for line in METHOD]
     if column_sections:
         method += slenderness_design.method(slender_options, context.model.lateral_cracked)
+    if steel_seen:
+        method += steel_design.METHOD
     if slabs_seen:
         method += slab.METHOD
     if walls_found["designed"]:

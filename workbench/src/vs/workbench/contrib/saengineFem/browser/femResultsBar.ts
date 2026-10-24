@@ -27,6 +27,7 @@ import { describeDesignSummary, describeSlenderness, describeSteel, describeStee
 import { describeScaleOnResult, describeSecondOrder, FemAxis, IFemSecondOrder, isFirstOrderReference, IFemSeismicDesign, runSecondOrder, runSeismicDesign, seismicSection, spectrumAxis, storeyAmplificationRows } from './femSeismicDesign.js';
 import { FemSsiPanel } from './femSsi.js';
 import { describeJointsSummary, describeJointVerdict, detailingSection, FemDetailingItem, generalChecks, IFemDetailingModel, IFemJoint, jointAtNode, jointColouring, jointHeading, jointItems, jointOk, jointsOf, jointsOfMember } from './femSeismicDetailing.js';
+import { describeSteelSummary, memberConnectionChecks, steelSection } from './femSteelDesign.js';
 import { checkItems, describeStaircaseVerdict, describeWallsSummary, formatPierForce, IFemPierDiagram, isStaircase, isWall, ownChecks, pierDiagram, staircasesOf, staircaseSection, wallSection } from './femWallsStairs.js';
 
 export { resultsFolder } from './femDesign.js';
@@ -1186,6 +1187,10 @@ export class FemResultsBar extends Disposable {
 			if (walls) {
 				propertyRow(container, localize('femResults.designWalls', "Walls"), walls);
 			}
+			const steelMembers = describeSteelSummary(report);
+			if (steelMembers) {
+				propertyRow(container, localize('femResults.designSteel', "Steel members"), steelMembers);
+			}
 			this.renderStairs(container, report);
 			this.renderSeismic(container, undefined, true);
 			propertyNote(container, localize('femResults.designSelect', "Select a member, or a slab's shell, for its checks."));
@@ -1207,7 +1212,7 @@ export class FemResultsBar extends Disposable {
 			propertyHeading(container, id ?? localize('femResults.elementHeading', "Element {0}", selection.id));
 			propertyNote(container, skipped
 				? localize('femResults.notChecked', "Not checked ({0}): {1}.", skipped.type, skipped.reason)
-				: localize('femResults.noDesignWalls', "This element is not designed (only reinforced-concrete beams, columns, slabs and walls are)."));
+				: localize('femResults.noDesignSteel', "This element is not designed (only reinforced-concrete beams, columns, slabs and walls, and steel beams, columns and braces are)."));
 			if (skipped && this.requiredLoading) {
 				propertyNote(container, localize('femResults.steelLoading', "Working out the steel required..."));
 			}
@@ -1220,7 +1225,8 @@ export class FemResultsBar extends Disposable {
 		const checks = sortedChecks(element);
 		// The seismic detailing checks count in the utilisation above, but show in their own section;
 		// so do a wall's pier and coupling beam checks and a staircase's flight and geometry checks.
-		for (const check of generalChecks(sortedChecks({ ...element, checks: ownChecks(element) }))) {
+		const isConnection = memberConnectionChecks(element);
+		for (const check of generalChecks(sortedChecks({ ...element, checks: ownChecks(element) })).filter(c => !isConnection(c))) {
 			const secondOrder = isSecondOrderRequired(check);
 			const row = append(container, $(`.fem-design-check${check.ok ? '' : '.fail'}${check.flag ? '.flag' : ''}${secondOrder ? '.second-order' : ''}`));
 			const head = append(row, $('.fem-design-check-head'));
@@ -1250,6 +1256,8 @@ export class FemResultsBar extends Disposable {
 				}
 			}
 		}
+		// A steel member's class, lengths, Cb and governing clause, then its connections.
+		this.renderDetailing(container, steelSection(element));
 		this.renderDetailing(container, detailingSection(report, element, this.model));
 		if (isWall(element)) {
 			const diagram = pierDiagram(element, selection.id);

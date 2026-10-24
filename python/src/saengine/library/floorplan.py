@@ -74,6 +74,13 @@ class Story(_Model):
     id: Id
     name: str = Field(min_length=1)
     elevation: Mm = Field(description="Level of the top of the floor [mm].")
+    similarTo: Id | None = Field(
+        default=None,
+        title="Similar to",
+        description="A typical floor: the story whose plan this one repeats (ETABS's similar "
+        "stories). The floor plan copies every edit to the master and its similar stories; "
+        "their members are still written out on each story.",
+    )
 
 
 class GridPoint(_Model):
@@ -186,6 +193,20 @@ class FloorPlan(_Model):
         duplicates = sorted({i for i in member_ids if member_ids.count(i) > 1})
         if duplicates:
             raise ValueError(f"duplicate member ids: {', '.join(duplicates)}")
+
+        for s in self.stories:
+            if s.similarTo is None:
+                continue
+            master = next((m for m in self.stories if m.id == s.similarTo), None)
+            if master is None:
+                raise ValueError(f"story {s.id}: no story '{s.similarTo}' to be similar to")
+            if master.id == s.id:
+                raise ValueError(f"story {s.id} cannot be similar to itself")
+            if master.similarTo is not None:
+                raise ValueError(
+                    f"story {s.id} is similar to {master.id}, which is itself similar to "
+                    f"{master.similarTo}; make it similar to {master.similarTo}"
+                )
 
         x_labels = {g.label for g in self.grids.x}
         y_labels = {g.label for g in self.grids.y}

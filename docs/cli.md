@@ -67,8 +67,9 @@ Results go to **stdout** (text, or one JSON document with `--json`); progress go
 | `saengine report <project>` | Builds `11 Exports/report.pdf`. |
 | `saengine check <project>` | The checks for CI: Run All without the bill and the report. |
 | `saengine status <project>` | The status of each part, as the app's part list shows it. |
-| `saengine export <project> --format ifc\|dxf\|csv\|pdf\|civil [--out PATH]` | Writes an export, or a `.civil` archive. |
+| `saengine export <project> --format ifc\|dxf\|csv\|pdf\|drawings\|civil [--out PATH] [--size A1\|A2\|A3]` | Writes an export (`drawings`: the structural drawing set), or a `.civil` archive. |
 | `saengine import <file.civil> <dest>` | Extracts an archive into `<dest>/<project name>`. |
+| `saengine import <file.e2k\|.std\|.s2k> <dest>` | A new project from an ETABS, STAAD.Pro or SAP2000 model (see [import.md](import.md)). |
 | `saengine versions status\|list\|save\|diff\|restore\|issue <project> ...` | The project's version history. |
 | `saengine verify [--out DIR] [--pdf]` | Runs SAEngine's verification pack. |
 
@@ -103,11 +104,11 @@ schema.
 
 ```console
 > saengine run-all "Sample Frame"
-[1/8] analysis model
-[2/8] analysis
-[2/8] analysis: D: Dead (self-weight) (Static)
+[1/9] analysis model
+[2/9] analysis
+[2/9] analysis: D: Dead (self-weight) (Static)
 ...
-[8/8] report
+[9/9] drawings
 ok       analysis model: Derived 193 nodes and 195 elements; base shear 103.9 kN, seismic weight 824.8 kN.
 ok       analysis: Analysis complete: 12 case(s).
 skipped  fixed-base run for the soil springs: The supports are not soil springs.
@@ -116,6 +117,7 @@ ok       foundation design: foundations 0 pass, 1 fail
 ok       MEP coordination, plumbing, HVAC and electrical checks: MEP: failing openings 0, open clashes 0 · plumbing: failing checks 2, floors below the minimum pressure 1 · HVAC: failing checks 2, openings to add 0 · electrical: failing checks 0, openings to add 1
 ok       bill of quantities: BOQ updated
 ok       report: report written
+skipped  drawings: drawings not generated yet (11 Exports, Drawings; or --steps drawings)
 
   1 Soil Report        done        3 boreholes
   ...
@@ -144,7 +146,7 @@ detailing chapter.
 the steps, `run-all --steps design substructure "Sample Frame"`; a folder name with a comma, such
 as `"Smith, Dhaka"`, is kept whole. Only a folder named like a step, or like a comma-separated
 list of steps, must come first). The steps are `derive`,
-`analysis`, `ssi`, `design`, `substructure`, `mep`, `boq` and `report`; see
+`analysis`, `ssi`, `design`, `substructure`, `mep`, `boq`, `report` and `drawings`; see
 [Run All, step by step](#run-all-step-by-step). As in the app, a step that cannot be done (an
 invalid building model, a solver failure) stops the run: its status is `failed`, the steps
 after it are `skipped` with the message "Not run: Run All stopped at ...", and the exit code is
@@ -152,6 +154,13 @@ after it are `skipped` with the message "Not run: Run All stopped at ...", and t
 
 The whole sample takes about three minutes the first time (the tank designs of the plumbing
 take most of the MEP step) and less afterwards.
+
+The last step, `drawings`, keeps the structural drawings of `11 Exports/Drawings` current: when a
+drawing set was generated before (the Exports page's Generate Drawings, or `export --format
+drawings`) and is out of date, Run All draws it again with the design checks of the run;
+otherwise it is skipped ("drawings not generated yet" or "drawings up to date"). Drawing a set
+takes from seconds (the sample: about 15 s) to minutes for a large building, so the first set is
+the engineer's choice. `--steps drawings` always draws it.
 
 ### derive, analyse, design, report
 
@@ -211,6 +220,12 @@ Wrote ...\Sample Frame\11 Exports\Floor Plan\L1 Level 1.dxf
 Wrote ...\Sample Frame\11 Exports\boq.csv
 > saengine export "Sample Frame" --format pdf
 Wrote ...\Sample Frame\11 Exports\report.pdf
+> saengine export "Sample Frame" --format drawings
+Wrote ...\Sample Frame\11 Exports\Drawings\S-101 General notes.dxf
+...
+Wrote ...\Sample Frame\11 Exports\Drawings\drawings.pdf
+Wrote ...\Sample Frame\11 Exports\Drawings\bbs.csv
+...
 > saengine export "Sample Frame" --format civil --out "Sample Frame.civil"
 Wrote Sample Frame.civil (19 files, 379162 bytes).
 ```
@@ -219,7 +234,21 @@ The files go where the Exports page puts them: the IFC of the building model in
 `11 Exports/IFC/<project>.ifc`, the structural plan of every story in
 `11 Exports/Floor Plan/<story id> <story name>.dxf` (layers `S-GRID`, `S-COLS`, `S-BEAM`, ...,
 as the app draws them), the bill of quantities in `11 Exports/boq.csv` and the design report in
-`11 Exports/report.pdf`. `--out` writes elsewhere (a folder for `dxf`). A `.civil` archive
+`11 Exports/report.pdf`. The structural drawings (`drawings`) go to `11 Exports/Drawings`: one
+DXF per sheet for LibreCAD (general notes, foundation plan, framing and slab reinforcement
+plans per level, column schedule, beam elevations, footing, wall and stair details, the bar
+bending schedule), all sheets in `drawings.pdf`, PNG previews in `previews/`, the bar bending
+schedule as `bbs.csv` and the record `drawings.json` (the stamps of the files they were drawn
+from, so the app shows when they are out of date). Their title block, sheet size and scales are
+Project Settings' Drawings section; `--size` overrides the sheet size. `--out` writes elsewhere
+(a folder for `dxf`; for `drawings`, the set is generated in the project and copied there).
+With analysis results, the drawings use the design checks of the run, kept in
+`08 FEM/model.results/design-report.json` (Run All's design step writes it; else the first
+generation makes it, about a minute on the sample). Detailing checks that are not met (bars
+anchored too short) and members failing the design checks are printed on standard error as
+"to resolve before issue", listed on the Exports page and written on the general notes sheet
+as a "NOT FOR CONSTRUCTION until these are resolved" note; the set is still written. A
+`.civil` archive
 leaves out the computed caches unless `--include-results`, and the version history unless
 `--include-versions`; it records each part's status.
 
@@ -234,6 +263,11 @@ Imported Sample Frame into D:\Projects\Sample Frame (19 files).
 paths, sizes, checksums); a refused archive leaves nothing behind (exit 3). An existing,
 non-empty project folder is refused unless `--overwrite`; `--name` gives the project another
 name.
+
+An ETABS `.e2k`, STAAD.Pro `.std` or SAP2000 `.s2k` file creates a new project there instead,
+and prints the import report: what was imported, approximated and skipped, and the loads not
+carried over ([import.md](import.md)). `--json`: `{import: {root, name, format, report,
+problems, files}}`.
 
 ### versions
 
@@ -287,6 +321,7 @@ The steps are the app's Run All (`saengine.runAll`), in its order, writing the s
 | `mep` | The coordination of 7 MEP (equipment loads, openings, clashes), its plumbing (BNBC 2020 Part 8 sizing, tank designs, hydraulics), HVAC and electrical checks; the openings still missing are reported, never added. `skipped` while 7 MEP is empty. | `07 MEP/mep.results/` |
 | `boq` | Measures the bill of quantities when a source changed (or the plumbing has just designed tanks whose bars it waits for); `skipped` when current. | `10 BOQ/boq.json` |
 | `report` | Builds the design report. | `11 Exports/report.pdf` |
+| `drawings` | Draws the structural drawings again, with the design checks of the run, when a set was generated before and is out of date; `skipped` when none was generated ("drawings not generated yet") or it is current. Asked for by name (`--steps drawings`), it always draws them. | `11 Exports/Drawings/` (sheet DXFs, `drawings.pdf`, `previews/`, `bbs.csv`, `drawings.json`) |
 
 The summaries are written exactly as the app writes them (the same keys in the same order, tab
 indentation, the source stamps of the files they were computed from), so the app's part list
@@ -358,7 +393,7 @@ could be read (`""` for an unknown command); argparse's usage text still goes to
   `{openingsFailed, openingsPartial, clashesOpen}` and, for the disciplines the file has,
   `{plumbingFailed, floorsLow}`, `{hvacFailed, hvacOpeningsToAdd, hvacLoadsCalculated}`,
   `{electricalFailed, electricalOpeningsToAdd}`; `boq` `{changed: [part ids], items}`; `report`
-  `{pages, warnings}`.
+  `{pages, warnings}`; `drawings` `{sheets, bbsKg, warnings}`.
 - `parts[]`: every part of the project, in order, after the run: `state` (`notStarted`,
   `inProgress`, `done`, `stale`, `failed`, `error`), `text`, `hint` (or null).
 - `failures[].check`: `design` (8 FEM), `foundations` (9 Substructure), `openings`, `plumbing`,

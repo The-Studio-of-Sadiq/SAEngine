@@ -40,7 +40,7 @@ import { IWorkingCopyService } from '../../../services/workingCopy/common/workin
 import { EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { saveProjectEdits } from '../../saengineProject/browser/projectEdits.js';
 import { DESIGN_APPLY_COMMAND, DESIGN_PROPOSAL_COMMAND, designArguments, IFemDesignReport, runDesign } from './femDesign.js';
-import { describeBeforeAfter, describeChange, describeCheckCounts, DesignProposalMode, DesignProposalModel, IDesignProposalRow, IDesignProposalTexts, IFemDesignApplyResult, IFemDesignProposal, proposalEdits } from './femDesignProposal.js';
+import { describeBeforeAfter, describeChange, describeCheckCounts, describeSteelProposal, DesignProposalMode, DesignProposalModel, IDesignProposalRow, IDesignProposalTexts, IFemDesignApplyResult, IFemDesignProposal, proposalEdits } from './femDesignProposal.js';
 import { FemDesignProposalInput } from './femDesignProposalInput.js';
 import { errorSummary } from './femResultsBar.js';
 
@@ -578,8 +578,12 @@ export class FemDesignProposalEditor extends EditorPane {
 			: row.changed
 				? localize('femProposal.includeRow', "Include {0}", row.type)
 				: row.tooSmall
-					? localize('femProposal.tooSmallRow', "No bars make {0} work", row.type)
-					: localize('femProposal.unchangedRow', "{0} keeps its bars", row.type);
+					? row.steel
+						? localize('femProposal.tooSmallSteelRow', "No {0} section makes {1} work", row.steel.family, row.type)
+						: localize('femProposal.tooSmallRow', "No bars make {0} work", row.type)
+					: row.steel
+						? localize('femProposal.unchangedSteelRow', "{0} keeps its section", row.type)
+						: localize('femProposal.unchangedRow', "{0} keeps its bars", row.type);
 		const checkbox = this.renderStore.add(new Checkbox(title, row.included, defaultCheckboxStyles));
 		toggle.appendChild(checkbox.domNode);
 		if (!row.changed || row.blocked || this.applying) {
@@ -599,10 +603,15 @@ export class FemDesignProposalEditor extends EditorPane {
 		if (row.key.startsWith('foundation:')) {
 			append(head, $('span.fem-proposal-badge.muted', undefined, localize('femProposal.foundation', "foundation, {0}", row.kind ?? '')));
 		}
+		if (row.steel) {
+			append(head, $('span.fem-proposal-badge.muted', undefined, localize('femProposal.steelBadge', "steel, {0}", row.steel.family)));
+		}
 		if (row.from) {
 			append(head, $('span.fem-proposal-badge', undefined, localize('femProposal.newFrom', "new, from {0}", row.from)));
 		} else if (row.tooSmall) {
-			append(head, $('span.fem-proposal-badge.warn', undefined, localize('femProposal.tooSmallBadge', "section too small")));
+			append(head, $('span.fem-proposal-badge.warn', undefined, row.steel
+				? localize('femProposal.noSteelBadge', "no section of the family passes")
+				: localize('femProposal.tooSmallBadge', "section too small")));
 		} else if (!row.changed) {
 			append(head, $('span.fem-proposal-badge.muted', undefined, localize('femProposal.noChange', "no change")));
 		}
@@ -625,6 +634,10 @@ export class FemDesignProposalEditor extends EditorPane {
 		}
 		if (facts.length) {
 			append(body, $('.fem-proposal-facts', { title: row.members.join(', ') }, facts.join(' · ')));
+		}
+		const steelFacts = row.steel && describeSteelProposal(row.steel);
+		if (steelFacts) {
+			append(body, $('.fem-proposal-facts', undefined, steelFacts));
 		}
 		if (row.overDesigned.length) {
 			append(body, $('.fem-proposal-facts', undefined, localize('femProposal.overDesigned', "Over-designed with these bars: {0}", row.overDesigned.join(', '))));

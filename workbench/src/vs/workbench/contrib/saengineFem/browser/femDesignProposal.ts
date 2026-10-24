@@ -86,6 +86,25 @@ export interface IDesignTooSmall {
 	readonly suggestion?: string;
 }
 
+/**
+ * A steel member type's section (design mode for steel): the lightest section of its family in
+ * the section table that passes every check of the type's members, kg/m and utilisations as
+ * the backend gives them.
+ */
+export interface IDesignSteelProposal {
+	/** "W", "SHS", "UB", "ISMB". */
+	readonly family: string;
+	readonly current: string;
+	/** Null when no section of the family passes. */
+	readonly proposed: string | null;
+	readonly currentMass?: number | null;
+	readonly proposedMass?: number | null;
+	readonly currentUtilisation?: number | null;
+	readonly proposedUtilisation?: number | null;
+	/** The check that governs the proposed section ("Compression, flexural buckling"). */
+	readonly governingCheck?: string | null;
+}
+
 /** The bars proposed for one existing object type. */
 export interface IDesignProposalType {
 	readonly type: string;
@@ -108,6 +127,15 @@ export interface IDesignProposalType {
 	readonly tooSmall?: IDesignTooSmall | null;
 	readonly notes?: readonly string[];
 	readonly warnings?: readonly DesignProposalWarning[];
+	/** A steel type: its section is proposed instead of bars (`current`, `proposed` then unused). */
+	readonly steel?: IDesignSteelProposal | null;
+	/**
+	 * A steel type as design/steel_proposal.py propose_type gives it (the RC proposal's shape):
+	 * its section family, with `current`/`proposed` `{section, family, text, profile, mass}` and
+	 * the proposed section's utilisation by check. Read with {@link steelProposalOf}.
+	 */
+	readonly family?: string | null;
+	readonly utilisation?: { readonly [check: string]: number } | null;
 	/** False: left out of the apply (set by this page). */
 	readonly apply?: boolean;
 }
@@ -194,6 +222,87 @@ export interface IDesignProposalRow {
 	readonly included: boolean;
 	/** It cannot be applied as the rows stand (it is left out, its toggle locked). */
 	readonly blocked: boolean;
+	/** A steel type's section proposal: its rows show sections, not bars. */
+	readonly steel?: IDesignSteelProposal;
+}
+
+function formatMass(value: number): string {
+	return localize('femProposal.mass', "{0} kg/m", value.toFixed(1));
+}
+
+/** A section of design/steel_proposal.py's `_label`: `{section, family, text, profile, mass}`. */
+interface ISteelSectionLabel {
+	readonly section?: string | null;
+	readonly family?: string | null;
+	readonly text?: string;
+	readonly mass?: number | null;
+}
+
+function steelLabelOf(value: DesignBars | undefined): ISteelSectionLabel | undefined {
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+	const label = value as ISteelSectionLabel;
+	return typeof label.section === 'string' || typeof label.mass === 'number' || typeof label.family === 'string' ? label : undefined;
+}
+
+/**
+ * A type's steel section proposal: its `steel`, or read from the RC-shaped entry that
+ * design/steel_proposal.py propose_type gives (`family`, `current`/`proposed` section labels,
+ * `utilisation` by check); undefined for a concrete type.
+ */
+export function steelProposalOf(t: IDesignProposalType): IDesignSteelProposal | undefined {
+	if (t.steel) {
+		return t.steel;
+	}
+	const current = steelLabelOf(t.current);
+	const proposed = steelLabelOf(t.proposed);
+	if (!current && !proposed && typeof t.family !== 'string') {
+		return undefined;
+	}
+	const byCheck = Object.entries(t.utilisation && typeof t.utilisation === 'object' ? t.utilisation : {})
+		.filter(([, u]) => typeof u === 'number' && Number.isFinite(u))
+		.sort((a, b) => b[1] - a[1]);
+	return {
+		family: t.family ?? current?.family ?? proposed?.family ?? '',
+		current: current?.section ?? current?.text ?? describeBars(t.current),
+		proposed: proposed ? proposed.section ?? proposed.text ?? null : null,
+		currentMass: current?.mass,
+		proposedMass: proposed?.mass,
+		currentUtilisation: undefined,
+		proposedUtilisation: proposed && byCheck.length ? byCheck[0][1] : undefined,
+		governingCheck: proposed && byCheck.length ? byCheck[0][0] : undefined,
+	};
+}
+
+/**
+ * A steel row's facts: "41.7 → 32.9 kg/m (21% lighter), utilisation 0.62 → 0.91, governed by
+ * Compression, flexural buckling".
+ */
+export function describeSteelProposal(steel: IDesignSteelProposal): string {
+	const parts: string[] = [];
+	const { currentMass, proposedMass, currentUtilisation, proposedUtilisation } = steel;
+	if (typeof currentMass === 'number' && typeof proposedMass === 'number' && steel.proposed) {
+		const change = currentMass > 0 ? Math.round((1 - proposedMass / currentMass) * 100) : 0;
+		parts.push(change > 0
+			? localize('femProposal.massLighter', "{0} → {1} ({2}% lighter)", formatMass(currentMass), formatMass(proposedMass), change)
+			: change < 0
+				? localize('femProposal.massHeavier', "{0} → {1} ({2}% heavier)", formatMass(currentMass), formatMass(proposedMass), -change)
+				: localize('femProposal.massSame', "{0} → {1}", formatMass(currentMass), formatMass(proposedMass)));
+	} else if (typeof currentMass === 'number') {
+		parts.push(formatMass(currentMass));
+	}
+	if (typeof proposedUtilisation === 'number' && steel.proposed) {
+		parts.push(typeof currentUtilisation === 'number'
+			? localize('femProposal.steelUtilisation', "utilisation {0} → {1}", currentUtilisation.toFixed(2), proposedUtilisation.toFixed(2))
+			: localize('femProposal.steelUtilisationOnly', "utilisation {0}", proposedUtilisation.toFixed(2)));
+	} else if (typeof currentUtilisation === 'number') {
+		parts.push(localize('femProposal.steelUtilisationOnly', "utilisation {0}", currentUtilisation.toFixed(2)));
+	}
+	if (steel.governingCheck) {
+		parts.push(localize('femProposal.steelGoverning', "governed by {0}", steel.governingCheck));
+	}
+	return parts.join(', ');
 }
 
 function warningText(warning: DesignProposalWarning): string {
@@ -407,7 +516,11 @@ export class DesignProposalModel {
 			// all its members again (the backend applies `byType` then), else it cannot be applied.
 			const whole = keptBack.length > 0 && !!t.byType;
 			const blocked = keptBack.length > 0 && !t.byType;
-			const entry = this.entry(`type:${t.type}`, whole ? undefined : t.status, t.current, whole && t.byType ? t.byType : t.proposed);
+			const steel = steelProposalOf(t);
+			const steelEntry = steel && this.entry(`type:${t.type}`, steel.proposed ? t.status : 'tooSmall', steel.current, steel.proposed);
+			const entry = steelEntry
+				? { ...steelEntry, proposed: steelEntry.tooSmall ? localize('femProposal.noSteelSection', "no {0} section passes", steel.family) : steelEntry.proposed }
+				: this.entry(`type:${t.type}`, whole ? undefined : t.status, t.current, whole && t.byType ? t.byType : t.proposed);
 			const keptNote = whole
 				? [localize('femProposal.keptBack', "Bars for all its members (the new type for {0} is left out).", keptBack.join(', '))]
 				: [];
@@ -425,6 +538,7 @@ export class DesignProposalModel {
 				// The backend's notes are about the split's bars.
 				notes: whole ? keptNote : t.notes ?? [],
 				blocked,
+				...(steel ? { steel } : {}),
 			});
 		}
 		rows.push(...newRows);

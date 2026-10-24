@@ -71,7 +71,7 @@ suite('SAEngine - Grids and stories editor', () => {
 			headers: [
 				['Label', 'Position (mm)'],
 				['Label', 'Position (mm)'],
-				['ID', 'Name', 'Elevation (mm)'],
+				['ID', 'Name', 'Elevation (mm)', 'Similar to'],
 				['Story', 'File', 'Offset X (mm)', 'Offset Y (mm)', 'Scale', 'Rotation (°)', 'Visible'],
 			],
 			x: [{ label: 'A', position: 0 }, { label: 'B', position: 6000 }, { label: 'C', position: 12000 }],

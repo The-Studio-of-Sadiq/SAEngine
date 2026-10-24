@@ -736,6 +736,29 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					title: 'Ω0 combinations',
 					type: 'string',
 				},
+				connection: {
+					anyOf: [
+						{
+							oneOf: [
+								{
+									$ref: '#/$defs/FinPlateConnection',
+								},
+								{
+									$ref: '#/$defs/EndPlateConnection',
+								},
+								{
+									$ref: '#/$defs/BraceGussetConnection',
+								},
+							],
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Steel beams: the simple shear connection at both ends (fin plate or end plate); none: not checked.',
+					title: 'Connection',
+				},
 			},
 			required: ['id', 'name', 'material', 'profile'],
 			title: 'Beam',
@@ -847,9 +870,201 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					],
 					title: 'Profile',
 				},
+				connection: {
+					anyOf: [
+						{
+							oneOf: [
+								{
+									$ref: '#/$defs/FinPlateConnection',
+								},
+								{
+									$ref: '#/$defs/EndPlateConnection',
+								},
+								{
+									$ref: '#/$defs/BraceGussetConnection',
+								},
+							],
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Steel braces: the bolted gusset connection at both ends; none: not checked.',
+					title: 'Connection',
+				},
 			},
 			required: ['id', 'name', 'material', 'profile'],
 			title: 'Brace',
+			type: 'object',
+		},
+		BraceGussetConnection: {
+			additionalProperties: false,
+			description: 'Brace end bolted to a gusset plate welded to the frame.',
+			properties: {
+				boltGrade: {
+					default: 'A325N',
+					description: 'Table 6.10.10 grade.',
+					enum: ['A307', 'A325N', 'A325X', 'A490N', 'A490X', '8.8', '10.9'],
+					title: 'Bolt grade',
+					type: 'string',
+				},
+				boltDiameter: {
+					default: 20,
+					description: '[mm]',
+					enum: [16, 20, 22, 24, 27, 30, 36],
+					title: 'Bolt diameter',
+					type: 'integer',
+				},
+				rows: {
+					default: 3,
+					description: 'Bolts in a line.',
+					maximum: 20,
+					minimum: 1,
+					title: 'Rows',
+					type: 'integer',
+				},
+				pitch: {
+					default: 70,
+					description: 'Bolt spacing along the line [mm].',
+					exclusiveMinimum: 0,
+					title: 'Pitch',
+					type: 'number',
+				},
+				endDistance: {
+					default: 35,
+					description: 'Last bolt to the plate edge, along the line [mm].',
+					exclusiveMinimum: 0,
+					title: 'End distance',
+					type: 'number',
+				},
+				edgeDistance: {
+					default: 35,
+					description: 'Bolt line to the plate edge, across the line [mm].',
+					exclusiveMinimum: 0,
+					title: 'Edge distance',
+					type: 'number',
+				},
+				plateThickness: {
+					default: 10,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Plate thickness',
+					type: 'number',
+				},
+				plateMaterial: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '03 Materials id; none: the member\'s material.',
+					title: 'Plate material',
+				},
+				weldSize: {
+					default: 6,
+					description: 'Fillet weld leg [mm].',
+					exclusiveMinimum: 0,
+					title: 'Weld size',
+					type: 'number',
+				},
+				electrode: {
+					default: 480,
+					description: 'FEXX [MPa] (E70XX ~ 480).',
+					exclusiveMinimum: 0,
+					title: 'Electrode',
+					type: 'number',
+				},
+				shearedEdges: {
+					default: false,
+					description: 'Sheared plate edges (else rolled or thermally cut).',
+					title: 'Sheared edges',
+					type: 'boolean',
+				},
+				type: {
+					const: 'gusset',
+					default: 'gusset',
+					title: 'Type',
+					type: 'string',
+				},
+				lines: {
+					default: 2,
+					description: 'Bolt lines across the brace.',
+					maximum: 4,
+					minimum: 1,
+					title: 'Lines',
+					type: 'integer',
+				},
+				gauge: {
+					default: 60,
+					description: 'Between bolt lines [mm].',
+					exclusiveMinimum: 0,
+					title: 'Gauge',
+					type: 'number',
+				},
+				shearPlanes: {
+					default: 1,
+					maximum: 2,
+					minimum: 1,
+					title: 'Shear planes',
+					type: 'integer',
+				},
+				tabThickness: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Brace tab plate [mm] (hollow, I braces); none: gusset.',
+					title: 'Tab thickness',
+				},
+				tabWelds: {
+					default: 4,
+					description: 'Fillet welds of the tab.',
+					maximum: 4,
+					minimum: 2,
+					title: 'Tab welds',
+					type: 'integer',
+				},
+				tabWeldLength: {
+					default: 150,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Tab weld length',
+					type: 'number',
+				},
+				gussetWeldLength: {
+					default: 300,
+					description: 'Gusset-to-frame weld, each side [mm].',
+					exclusiveMinimum: 0,
+					title: 'Gusset weld length',
+					type: 'number',
+				},
+				gussetFreeLength: {
+					default: 150,
+					description: 'Unbraced gusset length beyond the bolts [mm].',
+					exclusiveMinimum: 0,
+					title: 'Gusset free length',
+					type: 'number',
+				},
+				gussetK: {
+					default: 0.65,
+					description: 'Gusset buckling K.',
+					exclusiveMinimum: 0,
+					title: 'Gusset k',
+					type: 'number',
+				},
+			},
+			title: 'BraceGussetConnection',
 			type: 'object',
 		},
 		CircleHollowProfile: {
@@ -1034,6 +1249,228 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			},
 			required: ['count', 'dia'],
 			title: 'CouplingDiagonal',
+			type: 'object',
+		},
+		EndPlateConnection: {
+			additionalProperties: false,
+			description: 'Shear end plate welded to the beam web, two lines of bolts to the support.',
+			properties: {
+				boltGrade: {
+					default: 'A325N',
+					description: 'Table 6.10.10 grade.',
+					enum: ['A307', 'A325N', 'A325X', 'A490N', 'A490X', '8.8', '10.9'],
+					title: 'Bolt grade',
+					type: 'string',
+				},
+				boltDiameter: {
+					default: 20,
+					description: '[mm]',
+					enum: [16, 20, 22, 24, 27, 30, 36],
+					title: 'Bolt diameter',
+					type: 'integer',
+				},
+				rows: {
+					default: 3,
+					description: 'Bolts in a line.',
+					maximum: 20,
+					minimum: 1,
+					title: 'Rows',
+					type: 'integer',
+				},
+				pitch: {
+					default: 70,
+					description: 'Bolt spacing along the line [mm].',
+					exclusiveMinimum: 0,
+					title: 'Pitch',
+					type: 'number',
+				},
+				endDistance: {
+					default: 35,
+					description: 'Last bolt to the plate edge, along the line [mm].',
+					exclusiveMinimum: 0,
+					title: 'End distance',
+					type: 'number',
+				},
+				edgeDistance: {
+					default: 35,
+					description: 'Bolt line to the plate edge, across the line [mm].',
+					exclusiveMinimum: 0,
+					title: 'Edge distance',
+					type: 'number',
+				},
+				plateThickness: {
+					default: 10,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Plate thickness',
+					type: 'number',
+				},
+				plateMaterial: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '03 Materials id; none: the member\'s material.',
+					title: 'Plate material',
+				},
+				weldSize: {
+					default: 6,
+					description: 'Fillet weld leg [mm].',
+					exclusiveMinimum: 0,
+					title: 'Weld size',
+					type: 'number',
+				},
+				electrode: {
+					default: 480,
+					description: 'FEXX [MPa] (E70XX ~ 480).',
+					exclusiveMinimum: 0,
+					title: 'Electrode',
+					type: 'number',
+				},
+				shearedEdges: {
+					default: false,
+					description: 'Sheared plate edges (else rolled or thermally cut).',
+					title: 'Sheared edges',
+					type: 'boolean',
+				},
+				type: {
+					const: 'endPlate',
+					default: 'endPlate',
+					title: 'Type',
+					type: 'string',
+				},
+				gauge: {
+					default: 90,
+					description: 'Between the two bolt lines [mm].',
+					exclusiveMinimum: 0,
+					title: 'Gauge',
+					type: 'number',
+				},
+				supportThickness: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Support flange/plate [mm]; none: the end plate.',
+					title: 'Support thickness',
+				},
+			},
+			title: 'EndPlateConnection',
+			type: 'object',
+		},
+		FinPlateConnection: {
+			additionalProperties: false,
+			description: 'Single (fin) plate welded to the support, one line of bolts through the beam web.',
+			properties: {
+				boltGrade: {
+					default: 'A325N',
+					description: 'Table 6.10.10 grade.',
+					enum: ['A307', 'A325N', 'A325X', 'A490N', 'A490X', '8.8', '10.9'],
+					title: 'Bolt grade',
+					type: 'string',
+				},
+				boltDiameter: {
+					default: 20,
+					description: '[mm]',
+					enum: [16, 20, 22, 24, 27, 30, 36],
+					title: 'Bolt diameter',
+					type: 'integer',
+				},
+				rows: {
+					default: 3,
+					description: 'Bolts in a line.',
+					maximum: 20,
+					minimum: 1,
+					title: 'Rows',
+					type: 'integer',
+				},
+				pitch: {
+					default: 70,
+					description: 'Bolt spacing along the line [mm].',
+					exclusiveMinimum: 0,
+					title: 'Pitch',
+					type: 'number',
+				},
+				endDistance: {
+					default: 35,
+					description: 'Last bolt to the plate edge, along the line [mm].',
+					exclusiveMinimum: 0,
+					title: 'End distance',
+					type: 'number',
+				},
+				edgeDistance: {
+					default: 35,
+					description: 'Bolt line to the plate edge, across the line [mm].',
+					exclusiveMinimum: 0,
+					title: 'Edge distance',
+					type: 'number',
+				},
+				plateThickness: {
+					default: 10,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Plate thickness',
+					type: 'number',
+				},
+				plateMaterial: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '03 Materials id; none: the member\'s material.',
+					title: 'Plate material',
+				},
+				weldSize: {
+					default: 6,
+					description: 'Fillet weld leg [mm].',
+					exclusiveMinimum: 0,
+					title: 'Weld size',
+					type: 'number',
+				},
+				electrode: {
+					default: 480,
+					description: 'FEXX [MPa] (E70XX ~ 480).',
+					exclusiveMinimum: 0,
+					title: 'Electrode',
+					type: 'number',
+				},
+				shearedEdges: {
+					default: false,
+					description: 'Sheared plate edges (else rolled or thermally cut).',
+					title: 'Sheared edges',
+					type: 'boolean',
+				},
+				type: {
+					const: 'finPlate',
+					default: 'finPlate',
+					title: 'Type',
+					type: 'string',
+				},
+				boltLineOffset: {
+					default: 60,
+					description: 'Support face (weld) to the bolt line, a [mm].',
+					exclusiveMinimum: 0,
+					title: 'Bolt line offset',
+					type: 'number',
+				},
+			},
+			title: 'FinPlateConnection',
 			type: 'object',
 		},
 		Footing: {
@@ -2937,6 +3374,218 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'Codes',
 			type: 'object',
 		},
+		DrawingRevision: {
+			additionalProperties: false,
+			description: 'One revision of the drawing set, as the title block\'s revision table lists it.',
+			properties: {
+				code: {
+					description: 'Its code: 0, A, P1, ...',
+					minLength: 1,
+					title: 'Revision',
+					type: 'string',
+				},
+				date: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Its date, as it is to be printed.',
+					title: 'Date',
+				},
+				description: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'What changed.',
+					title: 'Description',
+				},
+				by: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Initials of who revised it.',
+					title: 'By',
+				},
+			},
+			required: ['code'],
+			title: 'DrawingRevision',
+			type: 'object',
+		},
+		Drawings: {
+			additionalProperties: false,
+			description: 'The structural drawings of 11 Exports: the title block and the sheets. The project\'s\nname, number, client and address come from Project; the fields here print on every sheet.',
+			properties: {
+				firm: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The consulting firm on the title block.',
+					title: 'Firm',
+				},
+				engineer: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The engineer in charge; empty: Project\'s structural engineer.',
+					title: 'Engineer',
+				},
+				drawnBy: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Drawn by',
+				},
+				checkedBy: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Checked by',
+				},
+				approvedBy: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Approved by',
+				},
+				projectNumber: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The drawing set\'s project number; empty: Project\'s number.',
+					title: 'Project number',
+				},
+				status: {
+					default: 'FOR REVIEW',
+					description: 'The issue status on the title block (FOR REVIEW, FOR CONSTRUCTION, ...).',
+					title: 'Status',
+					type: 'string',
+				},
+				revisions: {
+					description: 'The revisions of the set, oldest first; the last is the current revision (0 when there is none).',
+					items: {
+						$ref: '#/$defs/DrawingRevision',
+					},
+					title: 'Revisions',
+					type: 'array',
+				},
+				sheetSize: {
+					default: 'A1',
+					description: 'ISO sheet of every drawing.',
+					enum: ['A1', 'A2', 'A3'],
+					title: 'Sheet size',
+					type: 'string',
+				},
+				planScale: {
+					default: 100,
+					description: 'Foundation and framing plans; a plan that does not fit is drawn at the next smaller scale (noted).',
+					enum: [50, 75, 100, 125, 150, 200, 250],
+					enumDescriptions: ['1:50', '1:75', '1:100', '1:125', '1:150', '1:200', '1:250'],
+					title: 'Plan scale',
+					type: 'integer',
+				},
+				slabScale: {
+					default: 50,
+					description: 'Slab reinforcement plans.',
+					enum: [50, 75, 100, 125, 150, 200, 250],
+					enumDescriptions: ['1:50', '1:75', '1:100', '1:125', '1:150', '1:200', '1:250'],
+					title: 'Slab plan scale',
+					type: 'integer',
+				},
+				elevationScale: {
+					default: 50,
+					description: 'Beam elevations and wall elevations.',
+					enum: [50, 75, 100, 125, 150, 200, 250],
+					enumDescriptions: ['1:50', '1:75', '1:100', '1:125', '1:150', '1:200', '1:250'],
+					title: 'Elevation scale',
+					type: 'integer',
+				},
+				detailScale: {
+					default: 25,
+					description: 'Column sections, beam sections, footing and stair details; a detail that does not fit is drawn at the next smaller scale.',
+					enum: [10, 20, 25, 50],
+					enumDescriptions: ['1:10', '1:20', '1:25', '1:50'],
+					title: 'Detail scale',
+					type: 'integer',
+				},
+				developmentLength: {
+					default: 'simplified',
+					description: 'BNBC 2020 Part 6, 8.2.3: the simplified form (8.2.3.2) or the general Eq. 6.8.1 with cb from the cover and bar spacing (8.2.3.3, Ktr = 0).',
+					enum: ['simplified', 'general'],
+					enumDescriptions: ['Simplified (8.2.3.2)', 'General, Eq. 6.8.1 (8.2.3.3)'],
+					title: 'Development length',
+					type: 'string',
+				},
+				curtail: {
+					default: true,
+					description: 'Stop the extra top bars of beams past the supports; off: every bar runs the full length.',
+					title: 'Cut off beam top bars',
+					type: 'boolean',
+				},
+				boqReinforcement: {
+					default: 'measured',
+					description: 'How 10 BOQ takes the reinforcement: measured by its own rules (the default; the bar bending schedule is reconciled in its notes), or the masses of the bar bending schedule for every element the drawings detail.',
+					enum: ['measured', 'bbs'],
+					enumDescriptions: ['Measured by the BOQ\'s rules', 'From the bar bending schedule'],
+					title: 'BOQ reinforcement',
+					type: 'string',
+				},
+			},
+			title: 'Drawings',
+			type: 'object',
+		},
 		Foundation: {
 			additionalProperties: false,
 			description: 'Soil values of the footing design. The net allowable bearing pressure of each footing\ncomes from 1 Soil Report (its nearest boreholes, at the footing\'s founding level and size)\nunless it is overridden here.',
@@ -3554,6 +4203,10 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			$ref: '#/$defs/Foundation',
 			description: 'Soil values for the footing design (from the soil report).',
 		},
+		drawings: {
+			$ref: '#/$defs/Drawings',
+			description: 'The title block and sheets of the structural drawings (11 Exports).',
+		},
 	},
 	required: ['project', 'floorLoad', 'roofLoad'],
 	title: 'SAEngine project settings',
@@ -3935,6 +4588,18 @@ export const DEFAULT_SETTINGS: object = {
 	foundation: {
 		soilUnitWeight: 18.0,
 		groundLevel: 0.0,
+	},
+	drawings: {
+		status: 'FOR REVIEW',
+		revisions: [],
+		sheetSize: 'A1',
+		planScale: 100,
+		slabScale: 50,
+		elevationScale: 50,
+		detailScale: 25,
+		developmentLength: 'simplified',
+		curtail: true,
+		boqReinforcement: 'measured',
 	},
 };
 
@@ -4518,6 +5183,22 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 					description: 'Level of the top of the floor [mm].',
 					title: 'Elevation',
 					type: 'number',
+				},
+				similarTo: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'A typical floor: the story whose plan this one repeats (ETABS\'s similar stories). The floor plan copies every edit to the master and its similar stories; their members are still written out on each story.',
+					title: 'Similar to',
 				},
 			},
 			required: ['id', 'name', 'elevation'],
@@ -5952,6 +6633,22 @@ export const BIM_SCHEMA: IJSONSchema = {
 					description: 'Level of the top of the floor [mm].',
 					title: 'Elevation',
 					type: 'number',
+				},
+				similarTo: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'A typical floor: the story whose plan this one repeats (ETABS\'s similar stories). The floor plan copies every edit to the master and its similar stories; their members are still written out on each story.',
+					title: 'Similar to',
 				},
 			},
 			required: ['id', 'name', 'elevation'],

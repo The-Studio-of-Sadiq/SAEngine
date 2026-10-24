@@ -19,7 +19,12 @@ The same steps, in the same order, reading and writing the same files as the wor
    ``07 MEP/mep.results/summary.json``;
 7. ``boq``: measures ``10 BOQ/boq.json`` when it is out of date (or waits for tank designs that
    the plumbing step has just made);
-8. ``report``: builds ``11 Exports/report.pdf``.
+8. ``report``: builds ``11 Exports/report.pdf``;
+9. ``drawings``: the structural drawings of ``11 Exports/Drawings``
+   (:mod:`saengine.pipeline.drawings`), drawn again when a set was generated before and is out
+   of date, with the design checks of step 4. A project whose drawings were never generated
+   skips it (generating them takes from seconds to minutes: the engineer starts the first set
+   from the Exports page or with ``--steps drawings``, which always draws them).
 
 As in the app, a step that cannot be done stops the run (the later steps are reported as not
 run). The backend calls are the RPC handlers themselves (:mod:`saengine.rpc.handlers`), called in
@@ -64,6 +69,7 @@ STEPS: tuple[tuple[str, str], ...] = (
     ("mep", "MEP coordination, plumbing, HVAC and electrical checks"),
     ("boq", "bill of quantities"),
     ("report", "report"),
+    ("drawings", "drawings"),
 )
 STEP_IDS: tuple[str, ...] = tuple(s for s, _ in STEPS)
 STEP_LABELS = dict(STEPS)
@@ -426,13 +432,25 @@ def _ssi(project: Project, step: StepResult) -> None:
 
 def _design(project: Project, step: StepResult) -> dict[str, Any]:
     model = project.file("fem")
+    from saengine.pipeline import design_mode
+
+    # The stamp is taken before the design reads the files (an edit meanwhile leaves the kept
+    # checks stale); the checks are kept for the drawings (design-report.json).
+    try:
+        stamp: str | None = design_mode.report_stamp(results_folder(model), model)
+    except Exception:  # noqa: BLE001 - the checks are made without being kept
+        stamp = None
     report = _handlers().design_report(str(results_folder(model)), str(model))
     if not report:
         raise StepFailure("The design checks are not available.")
+    if stamp is not None:
+        design_mode.keep_report(results_folder(model), model, report, stamp)
     target = results_folder(model) / S.DESIGN_SUMMARY_FILE
     file = S.design_summary_file(report)
     write_text(target, S.summary_text(file))
     step.outputs.append(_relative(project, target))
+    if stamp is not None and (results_folder(model) / design_mode.REPORT_FILE).exists():
+        step.outputs.append(_relative(project, results_folder(model) / design_mode.REPORT_FILE))
     summary = S.record(report.get("summary"))
     step.status = "ok"
     step.counts = {
@@ -711,6 +729,50 @@ def _report(project: Project, step: StepResult) -> Path:
     return path
 
 
+# ─────────────────────────────── 9: drawings ───────────────────────────────
+
+
+def _drawings(
+    project: Project, step: StepResult, design_report: dict[str, Any] | None, asked: bool
+) -> None:
+    from saengine.pipeline.drawings import DrawingsError, generate, list_drawings
+
+    if project.type != "building":
+        step.message = "no drawings: a special structure has no building model"
+        return
+    current = list_drawings(project.root)
+    if not asked and not current["sheets"]:
+        step.message = "drawings not generated yet (11 Exports, Drawings; or --steps drawings)"
+        return
+    if not asked and not current["stale"]:
+        step.message = "drawings up to date"
+        return
+    try:
+        answer = generate(project.root, design_report=design_report)
+    except DrawingsError as error:
+        raise StepFailure(str(error)) from error
+    for sheet in answer["sheets"]:
+        if sheet.get("dxf"):
+            step.outputs.append(_relative(project, Path(sheet["dxf"])))
+    if answer.get("pdf"):
+        step.outputs.append(_relative(project, Path(answer["pdf"])))
+    step.status = "ok"
+    step.counts = {
+        "sheets": len(answer["sheets"]),
+        "bbsKg": (answer.get("bbs") or {}).get("total"),
+        "warnings": len(answer.get("problems") or []),
+    }
+    errors = [
+        p
+        for p in answer.get("problems") or []
+        if isinstance(p, dict) and p.get("severity") == "error"
+    ]
+    step.counts["toResolve"] = len(errors)
+    step.message = f"{len(answer['sheets'])} drawing sheets"
+    if errors:
+        step.message += f" ({len(errors)} check(s) to resolve before issue)"
+
+
 # ─────────────────────────────── the run ───────────────────────────────
 
 
@@ -731,6 +793,9 @@ def _summary(result: list[StepResult]) -> str:
     report = by_id.get("report")
     if report and report.status == "ok":
         parts.append("report written")
+    drawings = by_id.get("drawings")
+    if drawings and drawings.status == "ok":
+        parts.append(drawings.message)
     return "Done: " + " · ".join(parts) if parts else "Done."
 
 
@@ -758,9 +823,12 @@ def run_all(
     the app; the steps after it are ``skipped`` ("Not run")."""
     project = root if isinstance(root, Project) else open_project(root)
     wanted = normalise_steps(steps)
+    # The drawings are drawn when asked for by name, else only to keep a generated set current.
+    drawings_asked = steps is not None and "drawings" in wanted
     results = [StepResult(step_id) for step_id in wanted]
     stopped: str | None = None
     tanks_designed = False
+    design_report: dict[str, Any] | None = None
     for index, step in enumerate(results):
         if stopped is not None:
             step.message = f"Not run: Run All stopped at {STEP_LABELS[stopped]}."
@@ -781,7 +849,7 @@ def run_all(
                 case "ssi":
                     _ssi(project, step)
                 case "design":
-                    _design(project, step)
+                    design_report = _design(project, step)
                 case "substructure":
                     _substructure(project, step)
                 case "mep":
@@ -791,6 +859,8 @@ def run_all(
                     _boq(project, step, tanks_designed)
                 case "report":
                     _report(project, step)
+                case "drawings":
+                    _drawings(project, step, design_report, drawings_asked)
         except StepFailure as failure:
             step.status = "failed"
             step.message = str(failure) or "failed"

@@ -20,6 +20,10 @@ Methods:
   and foundation (``options.mode`` "byType" or "splitTypes"; in a worker thread)
 - ``design/applyProposal`` ``{objectsText, bimText?, proposal, floorPlanText?,
   substructureText?}`` -> the part files with the proposal applied (pure)
+- ``import/structural`` ``{path, destParent, name?, overwrite?}`` -> a new project from an
+  ETABS (.e2k), STAAD.Pro (.std) or SAP2000 (.s2k) file (``{root, name, format, report,
+  problems, files}`` or ``{error, problems}``; ``saengine.importers.project``; in a worker
+  thread); ``library/steelSections`` ``{}`` -> the standard steel section table
 - ``soil/location`` ``{soilText, bimText?, settingsText?}`` -> the site, boreholes and building
   outline in WGS 84 with the nearest BNBC town (``saengine.gis.site``)
 - ``soil/gisExport`` ``{projectRoot, format: geojson|gpkg, outPath}`` -> ``{path, counts,
@@ -29,6 +33,12 @@ Methods:
 - ``boq/compute`` ``{bimText, objectsText, materialsText, projectRoot?}`` -> the bill of
   quantities (``projectRoot``: where the plumbing tanks' last designs give their bars)
 - ``report/build`` ``{projectRoot, outPdf?}`` -> the PDF design report (``{path, pages, warnings}``)
+- ``drawings/generate`` ``{projectRoot, sheets?, size?, designReportText?}`` -> the structural
+  drawings written into ``11 Exports/Drawings`` (``{sheets, pdf, bbsCsv, generatedAt, size,
+  stale, notes, problems}``; ``saengine.pipeline.drawings``; in a worker thread; ``sheets``: only
+  those sheet numbers); ``drawings/list`` ``{projectRoot}`` -> the
+  same for the last generation with ``stale``/``staleReason``/``changed``;
+  ``drawings/progress`` ``{projectRoot}`` -> ``{running, step, index, count, message}``
 - ``soil/report`` ``{soilText, settingsText?}`` -> everything computed from the soil report
 - ``soil/allowableBearing`` ``{soilText, settingsText?, x, y, foundingLevel, b, l}`` -> qa [kPa]
   of a footing (lengths in mm)
@@ -96,6 +106,7 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import json
 import os
 import sys
 import threading
@@ -284,6 +295,18 @@ def create_server() -> JsonRPCServer:
             args.get("substructureText"),
         )
 
+    @server.feature("import/structural")
+    @_in_worker
+    def _import_structural(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.import_structural(
+            args["path"], args["destParent"], args.get("name"), bool(args.get("overwrite"))
+        )
+
+    @server.feature("library/steelSections")
+    def _steel_sections(params: Any) -> dict[str, Any]:
+        return handlers.steel_sections()
+
     @server.feature("boq/compute")
     def _compute_boq(params: Any) -> dict[str, Any]:
         args = _plain(params)
@@ -301,6 +324,29 @@ def create_server() -> JsonRPCServer:
     def _build_report(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.build_report(args["projectRoot"], args.get("outPdf"))
+
+    # Detailing, the schedule and the sheets take seconds to tens of seconds: in a worker thread,
+    # with ``drawings/progress`` answering meanwhile; ``drawings/list`` only reads files.
+    @server.feature("drawings/generate")
+    @_in_worker
+    def _drawings_generate(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        # The design report as JSON text: pygls would turn its keys into names (digits, spaces).
+        text = args.get("designReportText")
+        return handlers.drawings_generate(
+            args["projectRoot"],
+            args.get("sheets"),
+            args.get("size"),
+            json.loads(text) if text else None,
+        )
+
+    @server.feature("drawings/list")
+    def _drawings_list(params: Any) -> dict[str, Any]:
+        return handlers.drawings_list(_plain(params)["projectRoot"])
+
+    @server.feature("drawings/progress")
+    def _drawings_progress(params: Any) -> dict[str, Any]:
+        return handlers.drawings_progress(_plain(params)["projectRoot"])
 
     @server.feature("soil/report")
     def _soil_report(params: Any) -> dict[str, Any]:

@@ -83,7 +83,7 @@ export interface IFemDesignElement {
 	/** Building model element id (`B1`, `C3`, `S1`, ...). */
 	readonly id: string;
 	/** A wall's members are its shells; a staircase has none (it is not in the analysis model). */
-	readonly kind: 'beam' | 'column' | 'slab' | 'footing' | 'wall' | 'staircase';
+	readonly kind: 'beam' | 'column' | 'brace' | 'slab' | 'footing' | 'wall' | 'staircase';
 	/** Object type id. */
 	readonly type: string;
 	/**
@@ -444,9 +444,10 @@ export function sortedChecks(element: IFemDesignElement): IFemDesignCheck[] {
 	return [...element.checks].sort((a, b) => Number(a.flag) - Number(b.flag) || b.utilisation - a.utilisation);
 }
 
-/** "beam", "column", "slab", "footing", "wall", "staircase". */
+/** "beam", "column", "brace", "slab", "footing", "wall", "staircase". */
 export function designKindLabel(kind: IFemDesignElement['kind'] | string): string {
 	return kind === 'beam' ? localize('femDesign.beam', "beam")
+		: kind === 'brace' ? localize('femDesign.brace', "brace")
 		: kind === 'slab' ? localize('femDesign.slab', "slab")
 			: kind === 'footing' ? localize('femDesign.footing', "footing")
 				: kind === 'wall' ? localize('femDesign.wall', "wall")

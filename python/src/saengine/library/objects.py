@@ -304,6 +304,82 @@ class StairReinforcement(_Model):
     )
 
 
+# ───────────────────────────── simple steel connections ─────────────────────────────
+# Checked by saengine.design.steel_connections (BNBC 2020 Part 6 Sec 10.10); the models live
+# here so the beam and brace types can carry them.
+
+BoltDiameter = Literal[16, 20, 22, 24, 27, 30, 36]
+BoltGrade = Literal["A307", "A325N", "A325X", "A490N", "A490X", "8.8", "10.9"]
+
+
+class _Bolted(_Model):
+    boltGrade: BoltGrade = Field(default="A325N", description="Table 6.10.10 grade.")
+    boltDiameter: BoltDiameter = Field(default=20, description="[mm]")
+    rows: int = Field(default=3, ge=1, le=20, description="Bolts in a line.")
+    pitch: float = Field(default=70, gt=0, description="Bolt spacing along the line [mm].")
+    endDistance: float = Field(
+        default=35, gt=0, description="Last bolt to the plate edge, along the line [mm]."
+    )
+    edgeDistance: float = Field(
+        default=35, gt=0, description="Bolt line to the plate edge, across the line [mm]."
+    )
+    plateThickness: float = Field(default=10, gt=0, description="[mm]")
+    plateMaterial: str | None = Field(
+        default=None, description="03 Materials id; none: the member's material."
+    )
+    weldSize: float = Field(default=6, gt=0, description="Fillet weld leg [mm].")
+    electrode: float = Field(default=480, gt=0, description="FEXX [MPa] (E70XX ~ 480).")
+    shearedEdges: bool = Field(
+        default=False, description="Sheared plate edges (else rolled or thermally cut)."
+    )
+
+
+class FinPlateConnection(_Bolted):
+    """Single (fin) plate welded to the support, one line of bolts through the beam web."""
+
+    type: Literal["finPlate"] = "finPlate"
+    boltLineOffset: float = Field(
+        default=60, gt=0, description="Support face (weld) to the bolt line, a [mm]."
+    )
+
+
+class EndPlateConnection(_Bolted):
+    """Shear end plate welded to the beam web, two lines of bolts to the support."""
+
+    type: Literal["endPlate"] = "endPlate"
+    gauge: float = Field(default=90, gt=0, description="Between the two bolt lines [mm].")
+    supportThickness: float | None = Field(
+        default=None, gt=0, description="Support flange/plate [mm]; none: the end plate."
+    )
+
+
+class BraceGussetConnection(_Bolted):
+    """Brace end bolted to a gusset plate welded to the frame."""
+
+    type: Literal["gusset"] = "gusset"
+    lines: int = Field(default=2, ge=1, le=4, description="Bolt lines across the brace.")
+    gauge: float = Field(default=60, gt=0, description="Between bolt lines [mm].")
+    shearPlanes: int = Field(default=1, ge=1, le=2)
+    tabThickness: float | None = Field(
+        default=None, gt=0, description="Brace tab plate [mm] (hollow, I braces); none: gusset."
+    )
+    tabWelds: int = Field(default=4, ge=2, le=4, description="Fillet welds of the tab.")
+    tabWeldLength: float = Field(default=150, gt=0, description="[mm]")
+    gussetWeldLength: float = Field(
+        default=300, gt=0, description="Gusset-to-frame weld, each side [mm]."
+    )
+    gussetFreeLength: float = Field(
+        default=150, gt=0, description="Unbraced gusset length beyond the bolts [mm]."
+    )
+    gussetK: float = Field(default=0.65, gt=0, description="Gusset buckling K.")
+
+
+SteelConnection = Annotated[
+    FinPlateConnection | EndPlateConnection | BraceGussetConnection,
+    Field(discriminator="type"),
+]
+
+
 # ─────────────────────────────────── object types ───────────────────────────────────
 
 
@@ -320,6 +396,11 @@ class Beam(_ObjectBase):
     reinforcement: LinearReinforcement | None = None
     seismicRole: SeismicRole = _role()
     omegaCombinations: OmegaCombinations = _omega()
+    connection: SteelConnection | None = Field(
+        default=None,
+        description="Steel beams: the simple shear connection at both ends (fin plate or end "
+        "plate); none: not checked.",
+    )
 
 
 class Column(_ObjectBase):
@@ -335,6 +416,10 @@ class Brace(_ObjectBase):
 
     kind: Literal["brace"] = "brace"
     profile: Profile
+    connection: SteelConnection | None = Field(
+        default=None,
+        description="Steel braces: the bolted gusset connection at both ends; none: not checked.",
+    )
 
 
 class Slab(_ObjectBase):

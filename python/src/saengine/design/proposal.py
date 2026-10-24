@@ -965,6 +965,16 @@ def design_proposal(
     types += stair_design.proposal_entries(
         gathered.collect.get("stairs", []), opts.slab_diameters, opts.min_slab_spacing
     )
+    # Integrator glue: steel beam, column and brace types (saengine.design.steel_design): the
+    # lightest section of the type's family that passes (entries with ``family``; applied as a
+    # new profile, see apply_proposal). Split types are not made for steel.
+    from saengine.design import steel_design
+
+    steel_types, steel_notes = steel_design.proposal_entries(
+        gathered.collect.get("steel", []), originals
+    )
+    types += steel_types
+    warnings += steel_notes
 
     foundations = [_foundation_entry(d, opts) for d in foundation_demands(gathered)]
     for t in types:
@@ -1469,6 +1479,21 @@ def apply_proposal(
         if target is None:
             raise ValueError(f"object type '{entry['type']}' is not in 04 Objects")
         proposed = entry["proposed"]
+        if entry.get("family") is not None and "profile" in proposed:
+            # Integrator glue: a steel type's proposed section (saengine.design.steel_proposal).
+            if entry.get("status") == "unchanged" or target.get("profile") == proposed["profile"]:
+                continue
+            target["profile"] = proposed["profile"]
+            changes.append(
+                _change(
+                    "04 Objects/objects.json",
+                    entry["type"],
+                    "section",
+                    (entry.get("current") or {}).get("text"),
+                    proposed.get("text"),
+                )
+            )
+            continue
         staying = kept_back.get(entry["type"])
         if staying:
             proposed = entry.get("byType")

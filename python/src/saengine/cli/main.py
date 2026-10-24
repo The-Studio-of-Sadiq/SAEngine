@@ -8,7 +8,8 @@ Commands (see ``docs/cli.md`` for examples and the JSON schema)::
     saengine derive|analyse|design|report <project> [--json]
     saengine check <project> [--json]
     saengine status <project> [--json]
-    saengine export <project> --format ifc|dxf|csv|pdf|civil [--out PATH] [--include-results]
+    saengine export <project> --format ifc|dxf|csv|pdf|drawings|civil [--out PATH]
+                    [--size A1|A2|A3] [--include-results]
     saengine import <file.civil> <dest folder> [--name NAME] [--overwrite]
     saengine versions status|list|save|diff|restore|issue <project> ...
     saengine verify [--out DIR] [--pdf] [--fast] [--cases ID ...]
@@ -331,7 +332,7 @@ def cmd_export(args: argparse.Namespace, out: Output) -> int:
     from saengine.pipeline.exports import ExportError, export
 
     try:
-        written = export(project, args.format, out_path)
+        written = export(project, args.format, out_path, size=args.size)
     except ExportError as error:
         raise CommandError(str(error)) from error
     for path in written:
@@ -343,11 +344,56 @@ def cmd_export(args: argparse.Namespace, out: Output) -> int:
     return EXIT_OK
 
 
+def cmd_import_structural(args: argparse.Namespace, out: Output) -> int:
+    """Integrator glue: ``saengine import <file.e2k|.std|.s2k> <dest>`` (saengine.importers)."""
+    from saengine.importers.project import StructuralImportError, import_structural
+
+    try:
+        result = import_structural(args.archive, args.dest, args.name, args.overwrite)
+    except StructuralImportError as error:
+        if out.json:
+            out.document("import", EXIT_ERROR, {"error": str(error), "problems": [str(error)]})
+            return EXIT_ERROR
+        raise CommandError(str(error)) from error
+    report = result["report"]
+    source = report.get("source", {})
+    out.line(
+        f"Imported {source.get('program', result['format'])} model {Path(args.archive).name} "
+        f"as {result['name']} into {result['root']}"
+        + (f" (units {source['units']})." if source.get("units") else ".")
+    )
+    counts = ", ".join(f"{v} {k}" for k, v in (report.get("imported") or {}).items() if v)
+    if counts:
+        out.line(f"  imported: {counts}")
+    for heading in ("approximated", "skipped"):
+        for item in report.get(heading) or []:
+            examples = ", ".join(str(e) for e in (item.get("examples") or [])[:3])
+            out.line(
+                f"  {heading}: {item.get('what')} ({item.get('count')})"
+                + (f", e.g. {examples}" if examples else "")
+            )
+    not_carried = (report.get("loads") or {}).get("notCarriedKN") or {}
+    if any(not_carried.values()):
+        out.line(
+            "  loads not carried over: "
+            + ", ".join(f"{case} {kn:.0f} kN" for case, kn in not_carried.items() if kn)
+        )
+    for warning in report.get("warnings") or []:
+        out.line(f"  warning: {warning}")
+    for problem in result.get("problems") or []:
+        out.line(f"  problem: {problem}")
+    out.document("import", EXIT_OK, {"import": result})
+    return EXIT_OK
+
+
 def cmd_import(args: argparse.Namespace, out: Output) -> int:
+    from saengine.importers.project import FORMATS
     from saengine.project.archive import ArchiveError, import_project
 
     if not Path(args.archive).is_file():
         raise UsageError(f"{args.archive} does not exist")
+    if Path(args.archive).suffix.lower() in FORMATS:
+        return cmd_import_structural(args, out)
     try:
         result = import_project(args.archive, args.dest, name=args.name, overwrite=args.overwrite)
     except ArchiveError as error:
@@ -536,7 +582,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = project_command("run-all", "run all steps, as the app's Run All", optional=True)
     sub.add_argument("--steps", nargs="+", action="extend", metavar="STEP",
                      help="only these steps (derive analysis ssi design substructure mep boq "
-                     "report; spaces or commas), in Run All's order")  # fmt: skip
+                     "report drawings; spaces or commas), in Run All's order")  # fmt: skip
     sub.set_defaults(usage_text=sub.format_usage())
     project_command("derive", "derive the analysis model when it is out of date")
     project_command("analyse", "derive if needed and run every analysis case",
@@ -547,18 +593,24 @@ def build_parser() -> argparse.ArgumentParser:
     project_command("status", "the status of each part, as the app's sidebar shows it")
 
     sub = project_command("export", "write an export of 11 Exports, or a .civil archive")
-    sub.add_argument("--format", required=True, choices=["ifc", "dxf", "csv", "pdf", "civil"])
-    sub.add_argument("--out", help="the file (the folder for dxf) to write")
+    sub.add_argument("--format", required=True,
+                     choices=["ifc", "dxf", "csv", "pdf", "drawings", "civil"])  # fmt: skip
+    sub.add_argument("--out", help="the file (the folder for dxf and drawings) to write")
+    sub.add_argument("--size", choices=["A1", "A2", "A3"],
+                     help="drawings: the sheet size (default: Project Settings' drawings)")  # fmt: skip
     sub.add_argument("--include-results", action="store_true",
                      help="civil: also archive the computed results")  # fmt: skip
     sub.add_argument("--include-versions", action="store_true",
                      help="civil: also archive the version history")  # fmt: skip
 
-    sub = commands.add_parser("import", parents=[common], help="extract a .civil archive",
-                              description="Extract a .civil archive into DEST/<project name>.")  # fmt: skip
-    sub.add_argument("archive", help="the .civil file")
+    sub = commands.add_parser("import", parents=[common],
+                              help="extract a .civil archive, or import an ETABS/STAAD/SAP2000 model",
+                              description="Extract a .civil archive into DEST/<project name>, or "
+                              "create a project there from an ETABS (.e2k), STAAD.Pro (.std) or "
+                              "SAP2000 (.s2k) text file.")  # fmt: skip
+    sub.add_argument("archive", help="the .civil, .e2k, .std or .s2k file")
     sub.add_argument("dest", help="the folder the project folder is created in")
-    sub.add_argument("--name", help="the new project's name (default: the archived one)")
+    sub.add_argument("--name", help="the new project's name (default: the archived or model's one)")
     sub.add_argument("--overwrite", action="store_true", help="into an existing project folder")
 
     sub = commands.add_parser("versions", help="the project's version history",

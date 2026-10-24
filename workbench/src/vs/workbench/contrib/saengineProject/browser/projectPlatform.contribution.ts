@@ -22,6 +22,7 @@ import { VersionsEditor } from './versionsEditor.js';
 import { VersionsEditorInput, VersionsEditorInputSerializer } from './versionsEditorInput.js';
 import { ISaveVersionCommandArgs, VersionsFlows } from './versionsFlows.js';
 import './versionsService.js';
+import './structuralImport.contribution.js';
 
 /*
  * The project as a whole: its archive (`.civil`), its versions and the CAD hand-off of its

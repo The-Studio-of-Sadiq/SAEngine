@@ -351,7 +351,13 @@ def test_special_structure() -> None:
     assert item(boq, "formwork", kind="slab").quantity == pytest.approx(29 + (22 + 4) * 0.15)
     steel = item(boq, "steel", material="A36")
     length = math.hypot(6, 4)
-    assert steel.quantity == pytest.approx((100**2 - 90**2) * 1e-6 * length * 7850, abs=1e-3)
+    # The box is the table's SHS 100x100x5 (its rounded corners: SAEngine's section table).
+    from saengine.library.steel_sections import find
+
+    area = find("SHS 100x100x5").A
+    assert area < 100**2 - 90**2
+    assert steel.quantity == pytest.approx(area * 1e-6 * length * 7850, abs=1e-3)
+    assert "SHS 100x100x5" in steel.description
     assert steel.kind == "brace" and steel.unit == "kg"
 
 

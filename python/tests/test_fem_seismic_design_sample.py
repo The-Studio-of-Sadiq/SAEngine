@@ -45,8 +45,10 @@ def test_sample_runs_the_response_spectrum_and_its_forces_are_scaled_up(sample) 
     # scaled by 0.85 / 0.41 = 2.08 and 0.85 / 0.42 = 2.01 (when written).
     # Special moment frame R = 8 in zone 2: 103.9 kN of the earlier rcImf (R 5) in zone 3
     # x (0.20 / 0.28) x (5 / 8) = 46.4 kN, then x 779.7 / 824.8 for the seismic weight the
-    # dog-legged stair's larger well (2.6 x 4.14 m) leaves: 43.86 kN.
-    assert scale["vStatic"]["x"] == pytest.approx(43.86, rel=1e-3)
+    # dog-legged stair's larger well (2.6 x 4.14 m) leaves: 43.86 kN; the brace M2 in steel
+    # (A572-50, SHS 150x150x8: 0.33 kN/m instead of the concrete box's 0.11 kN/m over 6.8 m)
+    # adds 1.5 kN to the 780 kN: 43.95 kN.
+    assert scale["vStatic"]["x"] == pytest.approx(43.95, rel=1e-3)
     for axis in ("x", "y"):
         assert scale[axis] == pytest.approx(0.85 * scale["vStatic"][axis] / scale["vDynamic"][axis])
         assert 1.6 < scale[axis] < 2.4

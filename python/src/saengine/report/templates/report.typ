@@ -688,6 +688,34 @@ The analysis uses #so.stiffness.
     ]
   ]
 
+  #let sm = design.at("steel", default: (members: (), membersBad: (), connections: (), connectionsBad: ()))
+  #if sm.members.len() > 0 [
+    == Steel members
+    Structural steel beams, columns and braces by LRFD to BNBC 2020 Part 6 Chapter 10: the
+    section (hollow sections with the design wall thickness 0.93 t), its local buckling class,
+    the mass [kg/m], the unbraced lengths and K, and the governing check; every check is in the
+    member's own checks below.
+    #tbl(
+      ("Member", "Kind", "Section", "Material", "Class", "kg/m", "Lengths", "Governing check", "Util.", "Result"),
+      sm.members,
+      columns: (auto, auto, auto, auto, auto, auto, 1fr, auto, auto, auto),
+      align: (left, left, left, left, left, right, left, left, right, center),
+      bad: sm.membersBad,
+      size: 7.5pt,
+    )
+    #if sm.connections.len() > 0 [
+      #block(above: 8pt, below: 4pt, sticky: true, text(weight: "bold", size: 9pt, [Simple connections (Sec 10.10)]))
+      #tbl(
+        ("Member", "Connection", "Governing check", "Util.", "Result", "Assumptions"),
+        sm.connections,
+        columns: (auto, auto, auto, auto, auto, 1fr),
+        align: (left, left, left, right, center, left),
+        bad: sm.connectionsBad,
+        size: 7.5pt,
+      )
+    ]
+  ]
+
   #let st = design.at("stairs", default: (parts: (), partsBad: ()))
   #if st.parts.len() > 0 [
     == Stairs

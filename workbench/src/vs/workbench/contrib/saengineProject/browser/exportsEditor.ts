@@ -36,6 +36,8 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EXPORT_DXF_FOLDER, EXPORT_IFC_FOLDER, exportKind, ISaenginePartStatusService, REPORT_FILE } from '../../../services/saengineProject/common/partStatus.js';
 import { ISaengineProject, ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
+import { DRAWINGS_GENERATE_COMMAND } from './drawingsModel.js';
+import { DrawingsSection } from './drawingsSection.js';
 import { EditorFrame, IEditorFrameStatus } from './editorFrame.js';
 import { ExportsEditorInput } from './exportsEditorInput.js';
 import { LAST_ARCHIVE_STORAGE_KEY, readLastArchive } from './projectArchiveFlows.js';
@@ -107,6 +109,7 @@ export class ExportsEditor extends EditorPane {
 	private frame!: EditorFrame;
 	private scrollable!: DomScrollableElement;
 	private list!: HTMLElement;
+	private drawings!: DrawingsSection;
 	private files = new Map<ExportKind, IExportFile[]>();
 	private scanned = false;
 	/** The last archive written from this project, if it is still where it was written (with its size now). */
@@ -126,6 +129,7 @@ export class ExportsEditor extends EditorPane {
 	private readonly dxfAction = this._register(new Action('saengine.exports.dxf', localize('exports.exportDxf', "Export DXF Floor Plans"), undefined, true, () => this.make('dxf')));
 	private readonly csvAction = this._register(new Action('saengine.exports.csv', localize('exports.exportCsv', "Export Bill of Quantities as CSV..."), undefined, true, () => this.make('csv')));
 	private readonly archiveAction = this._register(new Action('saengine.exports.archive', localize('exports.exportArchive', "Export Project (.civil)..."), undefined, true, () => this.exportArchive()));
+	private readonly drawingsAction = this._register(new Action('saengine.exports.drawings', localize('exports.generateDrawings', "Generate Drawings"), undefined, true, () => this.drawings.generate()));
 	private readonly refreshAction = this._register(new Action('saengine.exports.refresh', localize('exports.refresh', "Refresh"), undefined, true, () => this.scan()));
 
 	constructor(
@@ -146,7 +150,7 @@ export class ExportsEditor extends EditorPane {
 		super(ExportsEditor.ID, group, telemetryService, themeService, storage);
 		this._register(this.storage.onDidChangeValue(StorageScope.WORKSPACE, LAST_ARCHIVE_STORAGE_KEY, this._store)(() => this.scanScheduler.schedule(0)));
 		this._register(CommandsRegistry.onDidRegisterCommand(id => {
-			if (id === ARCHIVE_EXPORT_COMMAND || id === CAD_OPEN_COMMAND) {
+			if (id === ARCHIVE_EXPORT_COMMAND || id === CAD_OPEN_COMMAND || id === DRAWINGS_GENERATE_COMMAND) {
 				this.render();
 			}
 		}));
@@ -161,11 +165,13 @@ export class ExportsEditor extends EditorPane {
 		}));
 		this.frame.element.classList.add('saengine-exports-editor');
 		this.frame.setTitle(localize('exports.title', "Exports"));
-		this.frame.setHelp(localize('exports.help', "What the project hands over: the design report, the building model as IFC, the floor plans as DXF and the bill of quantities as CSV. Each is made from its part and written to the 11 Exports folder. The project archive (.civil) holds the whole project in one file."));
+		this.frame.setHelp(localize('exports.help', "What the project hands over: the design report, the building model as IFC, the floor plans as DXF, the structural drawings (DXF sheets for LibreCAD, one PDF set and the bar bending schedule) and the bill of quantities as CSV. Each is made from its part and written to the 11 Exports folder. The project archive (.civil) holds the whole project in one file."));
 		this.list = $('.exports-list');
 		this.scrollable = this._register(new DomScrollableElement(this.list, { horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Auto }));
 		append(this.frame.main, this.scrollable.getDomNode()).classList.add('exports-scroll');
 		this._register(this.frame.onDidLayoutMain(() => this.scrollable.scanDomNode()));
+		this.drawings = this._register(this.instantiationService.createInstance(DrawingsSection, this.frame));
+		this._register(this.drawings.onDidChange(() => this.scrollable.scanDomNode()));
 	}
 
 	override async setInput(input: ExportsEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -175,6 +181,7 @@ export class ExportsEditor extends EditorPane {
 
 	override clearInput(): void {
 		this.projectDisposables.clear();
+		this.drawings.setProject(undefined);
 		this.renderDisposables.clear();
 		super.clearInput();
 	}
@@ -200,6 +207,7 @@ export class ExportsEditor extends EditorPane {
 		this.files.clear();
 		this.archive = undefined;
 		this.scanned = false;
+		this.drawings.setProject(this.input ? this.projectService.project?.root : undefined);
 		const folder = this.exportsFolder;
 		if (folder && this.input) {
 			this.projectDisposables.add(this.fileService.onDidFilesChange(e => {
@@ -331,6 +339,8 @@ export class ExportsEditor extends EditorPane {
 		}
 		this.renderDisposables.clear();
 		this.firstControl = undefined;
+		// The drawings section is moved, not rebuilt: its focused control gets the focus back.
+		const restoreDrawingsFocus = this.drawings.captureFocus();
 		clearNode(this.list);
 		const project = this.projectService.project;
 		if (!project) {
@@ -344,6 +354,9 @@ export class ExportsEditor extends EditorPane {
 		for (const kind of kinds) {
 			this.renderKind(kind);
 		}
+		// The drawings render themselves (they follow the backend, not the folder).
+		append(this.list, this.drawings.element);
+		restoreDrawingsFocus();
 		this.renderArchive(project);
 		this.updateActions(kinds);
 		this.frame.setStatus(this.status());
@@ -357,9 +370,10 @@ export class ExportsEditor extends EditorPane {
 		this.ifcAction.enabled = has('ifc');
 		this.dxfAction.enabled = has('dxf');
 		this.csvAction.enabled = has('csv') && !kinds?.find(k => k.kind === 'csv')?.blocked;
+		this.drawingsAction.enabled = !!kinds && !!CommandsRegistry.getCommand(DRAWINGS_GENERATE_COMMAND);
 		this.revealFolderAction.enabled = !!kinds;
 		this.archiveAction.enabled = !!kinds && !!CommandsRegistry.getCommand(ARCHIVE_EXPORT_COMMAND);
-		const secondary: IAction[] = [this.printAction, this.ifcAction, ...(has('dxf') ? [this.dxfAction] : []), this.csvAction, new Separator(), this.archiveAction, new Separator(), this.refreshAction];
+		const secondary: IAction[] = [this.printAction, this.ifcAction, ...(has('dxf') ? [this.dxfAction] : []), this.drawingsAction, this.csvAction, new Separator(), this.archiveAction, new Separator(), this.refreshAction];
 		const key = secondary.map(a => a.id).join();
 		if (key !== this.actionsKey) {
 			this.actionsKey = key;

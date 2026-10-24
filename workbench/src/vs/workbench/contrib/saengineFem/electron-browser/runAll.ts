@@ -26,6 +26,7 @@ import { IMepContextTexts, IMepReport, IMepRequest, isOpenClash, MEP_REPORT_COMM
 import { hasPlumbing, IPlumbingReport, PLUMBING_REPORT_COMMAND, plumbingFailures, plumbingSummaryFile, readPlumbingReport } from '../../saengineMep/browser/plumbingDocument.js';
 import { hasHvac, HVAC_REPORT_COMMAND, hvacFailures, hvacSummaryFile, IHvacReport, readHvacReport } from '../../saengineMep/browser/hvacDocument.js';
 import { ELECTRICAL_REPORT_COMMAND, electricalFailures, electricalSummaryFile, hasElectrical, IElectricalReport, readElectricalReport } from '../../saengineMep/browser/electricalDocument.js';
+import { DRAWINGS_GENERATE_COMMAND, DRAWINGS_LIST_COMMAND, readDrawingSet } from '../../saengineProject/browser/drawingsModel.js';
 import { DERIVATION_INPUTS, deriveAnalysisModel, derivationState, partFile, SSI_FILE } from '../browser/femDerivationBar.js';
 import { SSI_COMPARE_COMMAND } from '../browser/femSsi.js';
 import { IFemDesignReport, IFemDesignRequired, runDesign, runDesignRequired, shortElements, tooSmallElements, writeDesignSummary } from '../browser/femDesign.js';
@@ -38,7 +39,7 @@ export const CANCEL_RUN_ALL_COMMAND_ID = 'saengine.runAll.cancel';
 
 const STATUS_ENTRY_ID = 'saengine.runAll.status';
 
-type StepId = 'derive' | 'analysis' | 'ssi' | 'design' | 'substructure' | 'mep' | 'boq' | 'report';
+type StepId = 'derive' | 'analysis' | 'ssi' | 'design' | 'substructure' | 'mep' | 'boq' | 'report' | 'drawings';
 
 
 /** The steps of Run All, in order, with the names the status bar gives them. */
@@ -51,7 +52,11 @@ const STEPS: readonly { readonly id: StepId; readonly label: string }[] = [
 	{ id: 'mep', label: localize('runAll.step.mep', "MEP coordination, plumbing, HVAC and electrical checks") },
 	{ id: 'boq', label: localize('runAll.step.boq', "bill of quantities") },
 	{ id: 'report', label: localize('runAll.step.report', "report") },
+	{ id: 'drawings', label: localize('runAll.step.drawings', "drawings") },
 ];
+
+/** What Run All's drawings step did: drew the set again, found it current, or found none generated yet. */
+type DrawingsOutcome = { readonly kind: 'drawn'; readonly sheets: number } | { readonly kind: 'current' } | { readonly kind: 'none' };
 
 /** A step that could not be done: Run All stops and says which. */
 class StepFailure extends Error { }
@@ -91,8 +96,11 @@ export const IRunAllService = createDecorator<IRunAllService>('saengineRunAllSer
  * `09 Substructure/substructure.results/summary.json`), checks the MEP coordination of 7 MEP
  * and its plumbing (the sleeves still missing are reported, not added; writing
  * `07 MEP/mep.results/summary.json`), measures the bill of quantities if it is
- * out of date and builds the design report. Progress is one status bar entry (click to cancel); the end
- * is one quiet summary, or one error naming the step that failed.
+ * out of date, builds the design report and draws the structural drawings of `11 Exports/Drawings`
+ * again when a set was generated before and is out of date (a project whose drawings were never
+ * generated skips the step: the first set, seconds to minutes of work, is started from the
+ * Exports page). Progress is one status bar entry (click to cancel); the end is one quiet
+ * summary, or one error naming the step that failed.
  */
 export interface IRunAllService {
 	readonly _serviceBrand: undefined;
@@ -189,7 +197,12 @@ export class RunAllService implements IRunAllService {
 			const pdf = await this.buildReport(project);
 			this.check(token);
 
-			this.showSummary(design, foundations, mep, derived, boqUpdated, pdf);
+			step = 8;
+			report();
+			const drawings = await this.drawings(project, design.report);
+			this.check(token);
+
+			this.showSummary(design, foundations, mep, derived, boqUpdated, pdf, drawings);
 		} catch (error) {
 			if (error instanceof CancellationError || token.isCancellationRequested) {
 				this.notificationService.notify({ severity: Severity.Info, message: localize('runAll.cancelled', "Run All cancelled at step {0} of {1} ({2}).", step + 1, STEPS.length, STEPS[step].label) });
@@ -520,8 +533,27 @@ export class RunAllService implements IRunAllService {
 		return URI.file(result.path);
 	}
 
+	/**
+	 * Draws the drawings again when a set was generated before and is out of date, with the
+	 * design checks just made (the backend need not run them again).
+	 */
+	private async drawings(project: ISaengineProject, design: IFemDesignReport): Promise<DrawingsOutcome> {
+		const current = readDrawingSet(await this.commandService.executeCommand<unknown>(DRAWINGS_LIST_COMMAND, { projectRoot: project.root.fsPath }), project.root);
+		if (!current?.sheets.length) {
+			return { kind: 'none' };
+		}
+		if (!current.stale) {
+			return { kind: 'current' };
+		}
+		const answer = readDrawingSet(await this.commandService.executeCommand<unknown>(DRAWINGS_GENERATE_COMMAND, { projectRoot: project.root.fsPath, designReportText: JSON.stringify(design) }), project.root);
+		if (!answer?.sheets.length) {
+			throw new StepFailure(answer?.problems.join(' ') || localize('runAll.drawingsFailed', "The drawings could not be generated."));
+		}
+		return { kind: 'drawn', sheets: answer.sheets.length };
+	}
+
 	/** "Done: 13 pass, 3 fail · foundations 6 pass, 1 fail · MEP: failing openings 1, open clashes 2 · plumbing: 3 checks fail, 1 floor below the minimum pressure · HVAC: failing checks 1, openings to add 0, loads not calculated: run Calculate Loads · electrical: failing checks 0, openings to add 1 · BOQ updated · report written", with Open Report. */
-	private showSummary(checks: { readonly report: IFemDesignReport; readonly required: IFemDesignRequired | undefined }, foundations: ISubstructureReport | undefined, checked: IMepChecks | undefined, derived: boolean, boqUpdated: boolean, pdf: URI): void {
+	private showSummary(checks: { readonly report: IFemDesignReport; readonly required: IFemDesignRequired | undefined }, foundations: ISubstructureReport | undefined, checked: IMepChecks | undefined, derived: boolean, boqUpdated: boolean, pdf: URI, drawings: DrawingsOutcome): void {
 		const mep = checked?.mep;
 		const failedOpenings = mep ? mep.openings.filter(o => !o.ok).length : 0;
 		const openClashes = mep ? mep.clashes.filter(isOpenClash).length : 0;
@@ -546,6 +578,7 @@ export class RunAllService implements IRunAllService {
 			...(derived ? [localize('runAll.summary.derived', "model derived")] : []),
 			boqUpdated ? localize('runAll.summary.boqUpdated', "BOQ updated") : localize('runAll.summary.boqCurrent', "BOQ up to date"),
 			localize('runAll.summary.report', "report written"),
+			...(drawings.kind === 'drawn' ? [localize('runAll.summary.drawings', "{0} drawing sheets drawn", drawings.sheets)] : drawings.kind === 'current' ? [localize('runAll.summary.drawingsCurrent', "drawings up to date")] : []),
 		];
 		this.notificationService.prompt(Severity.Info, localize('runAll.done', "Done: {0}", parts.join(' · ')), [{
 			label: localize('runAll.openReport', "Open Report"),

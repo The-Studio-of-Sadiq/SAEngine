@@ -421,6 +421,19 @@ def test_sample_byType_proposal_makes_the_design_pass(tmp_path: Path) -> None:
     model, out = _run(root, _derive(root))
     before = design_report(out, model)
     assert before["summary"]["failed"] > 0  # the sample's bars are short (beams, slabs)
+    # The steel brace M2's gusset is a simple connection: both its ends are pinned in the
+    # analysis (zero-length links, torsion kept at its foot), and it passes, governed by the
+    # gusset's bolt gauge; its kg/m is the section table's, as in the BOQ (33.9).
+    links = [
+        (e["name"], e["dofs"])
+        for e in json.loads(Path(model).read_text(encoding="utf-8"))["elements"]
+        if e["type"] == "ZeroLength"
+    ]
+    assert links == [("M2/pin", [1, 2, 3, 4]), ("M2/pin#2", [1, 2, 3])]
+    brace = next(e for e in before["elements"] if e["id"] == "M2")
+    assert brace["ok"] and brace["utilisation"] == pytest.approx(0.889, abs=0.005)
+    assert f"{brace['section']['massPerMetre']:.1f}" == "33.9"
+    assert not any("end moment" in c["name"] for c in brace["checks"])
 
     gathered = gather(out, model)
     required = design_required(out, model, gathered=gathered)
@@ -437,9 +450,13 @@ def test_sample_byType_proposal_makes_the_design_pass(tmp_path: Path) -> None:
 
     proposal = design_proposal(out, model, {"mode": "byType"}, gathered=gathered)
     by_type = {t["type"]: t for t in proposal["types"]}
-    assert set(by_type) == {"B300x500", "C400x600", "S150", "W200", "ST1200"}
+    # The steel brace BR-SHS (A572-50) gets a lighter SHS of its family; it is left out here so
+    # the bars are checked on the analysed sections (a new section would need a new analysis).
+    assert set(by_type) == {"B300x500", "C400x600", "S150", "W200", "ST1200", "BR-SHS"}
     assert all(t["status"] in ("ok", "unchanged") for t in by_type.values())  # none too small
     assert by_type["B300x500"]["governingMember"] in {"B2", "B4", "B5"}
+    assert by_type["BR-SHS"]["family"] == "SHS" and by_type["BR-SHS"]["governingMember"] == "M2"
+    by_type["BR-SHS"]["apply"] = False
 
     def read(relative: str) -> str:
         return (root / relative).read_text(encoding="utf-8")
@@ -463,11 +480,14 @@ def test_sample_byType_proposal_makes_the_design_pass(tmp_path: Path) -> None:
     # Everything passes with the bars proposed: the wall W1 and the dog-legged stair ST1 (riser
     # 160, tread 327: 2R + T = 647 mm, BNBC Part 3 Sec 1.14.5.2, and Part 4 Table 4.3.5's 327 mm).
     assert failures == []
-    assert after["summary"]["failed"] == 0 and after["summary"]["checked"] == 17
+    assert after["summary"]["failed"] == 0 and after["summary"]["checked"] == 18
 
     # Splitting: the lighter beams get their own types, and the design still passes.
     split = design_proposal(out, model, {"mode": "splitTypes"}, gathered=gathered)
     assert split["newTypes"], "the sample's beams differ enough to split"
+    for entry in split["types"]:
+        if entry.get("family"):  # steel types: kept, as above
+            entry["apply"] = False
     assert {m["to"] for m in split["reassign"]} == {t["type"] for t in split["newTypes"]}
     result = apply_proposal(
         read("04 Objects/objects.json"), read("06 BIM/bim.json"), split,

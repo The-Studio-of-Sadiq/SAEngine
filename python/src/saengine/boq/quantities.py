@@ -431,6 +431,25 @@ def _kind_order(kind: str) -> int:
     return list(KINDS).index(kind) if kind in KINDS else len(KINDS)
 
 
+def _profile_label(profile: Any) -> str:
+    """A steel profile that is not a table section, by its dimensions [mm]."""
+    p = profile.model_dump() if hasattr(profile, "model_dump") else dict(profile)
+    match p.get("shape"):
+        case "I":
+            dims = (p["overallDepth"], p["overallWidth"], p["webThickness"], p["flangeThickness"])
+        case "U":
+            dims = (p["depth"], p["flangeWidth"], p["webThickness"], p["flangeThickness"])
+        case "L":
+            dims = (p["depth"], p["width"], p["thickness"])
+        case "rectangleHollow":
+            dims = (p["yDim"], p["xDim"], p["wallThickness"])
+        case "circleHollow":
+            dims = (2 * p["radius"], p["wallThickness"])
+        case _:
+            return str(p.get("shape"))
+    return f"{p['shape']} " + "x".join(f"{d:g}" for d in dims)
+
+
 def _perimeter(points: np.ndarray) -> float:
     return float(np.linalg.norm(np.roll(points, -1, axis=0) - points, axis=1).sum())
 
@@ -559,6 +578,7 @@ class _Measure:
         self.unreinforced: dict[str, list[str]] = {}
         self.bad_rebar: set[str] = set()
         self.sections: dict[str, Polygon] = {}
+        self.steel_sections: dict[str, tuple[str | None, float]] = {}
         self.footprints: list[tuple[float, float, BaseGeometry]] = []
         self.plates: dict[str, _Plate] = {}
 
@@ -637,19 +657,48 @@ class _Measure:
         )
 
     def steel(
-        self, element: str, material: Material, kind: str, mass: float, story: str | None
+        self,
+        element: str,
+        material: Material,
+        kind: str,
+        mass: float,
+        story: str | None,
+        section: str | None = None,
+        per_metre: float | None = None,
+        detail: str | None = None,
     ) -> None:
+        """Structural steel [kg], one line per material, element kind and section."""
+        what = f"{section} ({per_metre:.1f} kg/m)" if section and per_metre else section
         self.bill.add(
             "steel",
-            (material.id, _kind_order(kind)),
-            f"Structural steel {material.id} in {KINDS.get(kind, kind)}",
+            (material.id, _kind_order(kind), section or ""),
+            f"Structural steel {material.id}"
+            + (f", {what}" if what else "")
+            + f" in {KINDS.get(kind, kind)}",
             "kg",
             element,
             mass,
             story=story,
+            detail=detail,
             material=material.id,
             kind=kind,
         )
+
+    def steel_section(self, object_type: Any) -> tuple[str | None, float]:
+        """The steel member type's section name (the table's, else the profile's dimensions)
+        and its nominal area [mm²]."""
+        key = f"steel:{object_type.id}"
+        if key not in self.steel_sections:
+            from saengine.library.steel_sections import section_of_profile
+
+            try:
+                s = section_of_profile(object_type.profile)
+            except (TypeError, ValueError, KeyError):
+                self.steel_sections[key] = (None, self.section(object_type).area)
+            else:
+                name = s.name if s.name != "custom" else _profile_label(object_type.profile)
+                self.steel_sections[key] = (name, s.A)
+        return self.steel_sections[key]
 
     def rebar(
         self,
@@ -706,12 +755,17 @@ class _Measure:
         material = self.material(element, object_type)
         if material is None:
             return
-        section = self.section(object_type)
         if material.category == Category.STEEL:
+            # Integrator glue: structural steel by section, kg/m (the table section's nominal
+            # area, saengine.library.steel_sections) × the centreline length.
             density = material.mechanical.density or STEEL_DENSITY
-            mass = count * section.area * MM2 * length * MM * density
-            self.steel(element, material, kind, mass, story)
+            label, area = self.steel_section(object_type)
+            per_metre = area * MM2 * density
+            mass = count * per_metre * length * MM
+            detail = f"{count * length * MM:.2f} m × {per_metre:.2f} kg/m"
+            self.steel(element, material, kind, mass, story, label, per_metre, detail)
             return
+        section = self.section(object_type)
         if material.category not in (Category.CONCRETE, Category.MASONRY):
             self.notes.append(
                 f"{element}: members of {material.category.value} ('{material.id}') are not "
@@ -1870,7 +1924,45 @@ def compute_boq(
         mep,
         designs,
     )
+    _with_bar_schedule(
+        document,
+        {
+            "bim": bim_text,
+            "objects": objects_text,
+            "materials": materials_text,
+            "settings": settings_text,
+            "substructure": substructure_text,
+        },
+        project_root,
+    )
     return document.model_dump(mode="json", by_alias=True, exclude_none=True)
+
+
+def _with_bar_schedule(
+    document: BillOfQuantities, texts: dict[str, str | None], project_root: str | None = None
+) -> None:
+    """The bar bending schedule of the drawings in the bill (:mod:`saengine.boq.schedule`): its
+    reconciliation in the notes, or, with Project Settings' ``drawings.boqReinforcement``
+    "bbs", its bars in place of the measured ones (``project_root``: with the marks and the kept
+    design of the drawings, :func:`saengine.boq.schedule.schedule_of`)."""
+    from saengine.boq.schedule import reconcile_notes, schedule_of, take_from_schedule
+    from saengine.library.settings import ProjectSettings
+
+    take = False
+    if texts.get("settings"):
+        try:
+            settings = ProjectSettings.model_validate_json(texts["settings"] or "")
+            take = settings.drawings.boqReinforcement == "bbs"
+        except ValueError:
+            take = False
+    if not take and not any(i.group == "reinforcement" for i in document.items):
+        return
+    schedule, notes = schedule_of(texts, project_root)
+    if schedule is None or not schedule.rows:
+        document.notes += notes
+        return
+    kept = take_from_schedule(document, schedule) if take else None
+    document.notes += reconcile_notes(document, schedule, kept)
 
 
 def compute_boq_text(

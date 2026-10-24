@@ -24,6 +24,7 @@ import { IContextViewService } from '../../../../platform/contextview/browser/co
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -45,6 +46,7 @@ import { acquireCadEditor, cadBackground, isLightCanvas, releaseCadEditor } from
 import { floorPlanDrawing, IFloorPlan, IMemberShape, storiesOf, storyOfSelection } from './floorPlanDrawing.js';
 import { basePoint, bayAt, changeMemberType, EditResult, IGridNode, moveMember, pickMember, placeColumn, placeLinear, placePolygonSlab, placeSlab, PlacementTool, removeMember, rotateMember, snapPoint, snapToGrid, TOOL_GROUP, TOOL_KINDS } from './floorPlanEdits.js';
 import { FloorPlanEditorInput, siblingPartFile } from './floorPlanEditorInput.js';
+import { copyStory, familyNote, familyOf, inSync, masterOf, setSimilar } from './floorPlanTypical.js';
 
 const FLOOR_PLAN_SCHEMA_ID = 'saengine.floorPlan/1';
 
@@ -199,6 +201,8 @@ export class FloorPlanEditor extends EditorPane {
 	private readonly exportAction = this._register(new Action('saengine.floorPlan.exportDxf', localize('floorPlan.exportDxf', "Export DXF"), undefined, false, () => this.exportDxf()));
 	/** Footings are placed in 9 Substructure since Part 9: the floor plan's Footing tool opens it. */
 	private readonly foundationsAction = this._register(new Action('saengine.floorPlan.openSubstructure', localize('floorPlan.openSubstructure', "Place Footings in 9 Substructure"), ThemeIcon.asClassName(Codicon.symbolStructure), true, async () => this.openPart('substructure')));
+	/** Typical floors: a master story and the stories that repeat its plan. */
+	private readonly typicalAction = this._register(new Action('saengine.floorPlan.typicalFloors', localize('floorPlan.typicalFloors', "Typical Floors..."), ThemeIcon.asClassName(Codicon.layers), false, () => this.editTypicalFloors()));
 	private readonly objectsAction = this._register(new Action('saengine.floorPlan.openObjects', localize('floorPlan.openObjects', "Open Object Types"), undefined, true, async () => this.openPart('objects')));
 	private readonly createAction = this._register(new Action('saengine.floorPlan.create', localize('floorPlan.create', "Create Floor Plan"), undefined, true, () => this.createFloorPlan()));
 
@@ -221,6 +225,7 @@ export class FloorPlanEditor extends EditorPane {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super(FloorPlanEditor.ID, group, telemetryService, themeService, storageService);
 		this._register(this.selectionService.onDidChangeSelection(({ source }) => {
@@ -558,6 +563,7 @@ export class FloorPlanEditor extends EditorPane {
 		this.attachUnderlayAction.enabled = editable && !!input?.story;
 		this.attachUnderlayAction.label = underlay ? localize('floorPlan.replaceUnderlay', "Replace Underlay...") : localize('floorPlan.attachUnderlay', "Attach Underlay...");
 		this.removeUnderlayAction.enabled = editable && !!underlay;
+		this.typicalAction.enabled = editable && storiesOf(parse(this.planModel)).length > 2;
 		this.exportAction.enabled = editable && !!this.editor;
 		const commandLine = !!this.editor?.getChrome().commandLine;
 		this.commandLineAction.enabled = !!this.editor;
@@ -569,6 +575,8 @@ export class FloorPlanEditor extends EditorPane {
 			...tools(['select']),
 			new Separator(),
 			...tools(['column', 'beam', 'wall', 'slab', 'polygonSlab']), this.foundationsAction,
+			new Separator(),
+			this.typicalAction,
 			new Separator(),
 			...(this.narrow ? [] : [...tools(['move', 'rotate', 'delete']), new Separator()]),
 			...(this.compact ? [] : [this.undoAction, this.redoAction, new Separator()]),
@@ -732,7 +740,9 @@ export class FloorPlanEditor extends EditorPane {
 		const result = moveMember(parse(this.planModel), member.group, member.id, delta);
 		if (result.ok) {
 			this.picked = undefined;
-			this.write(result.layout);
+			if (!this.writeEdit(result.layout, this.storyOfMember(member))) {
+				return;
+			}
 			this.selectionService.setSelection({ kind: 'member', group: member.group, id: member.id }, SELECTION_SOURCE);
 			this.setNotice(localize('floorPlan.moved', "Moved {0} by {1}, {2} mm.", member.id, Math.round(delta[0]), Math.round(delta[1])));
 		} else {
@@ -748,7 +758,9 @@ export class FloorPlanEditor extends EditorPane {
 		}
 		const result = rotateMember(parse(this.planModel), member.group, member.id, degrees);
 		if (result.ok) {
-			this.write(result.layout);
+			if (!this.writeEdit(result.layout, this.storyOfMember(member))) {
+				return;
+			}
 			if (this.picked) {
 				this.picked = this.plan?.members.find(m => m.group === member.group && m.id === member.id) ?? this.picked;
 			}
@@ -764,7 +776,9 @@ export class FloorPlanEditor extends EditorPane {
 		if (!isObject(layout) || layout.schema !== FLOOR_PLAN_SCHEMA_ID) {
 			return;
 		}
-		this.write(removeMember(layout, group, id));
+		if (!this.writeEdit(removeMember(layout, group, id), this.storyOfMember({ group, id }))) {
+			return;
+		}
 		const selection = this.selectionService.selection;
 		if (selection?.kind === 'member' && selection.group === group && selection.id === id) {
 			this.selectionService.setSelection(undefined, SELECTION_SOURCE);
@@ -783,8 +797,9 @@ export class FloorPlanEditor extends EditorPane {
 		}
 		const result = placePolygonSlab(parse(this.planModel), type, input.story, corners);
 		if (result.ok) {
-			this.write(result.layout);
-			this.setNotice(localize('floorPlan.placed', "Placed {0}.", result.id));
+			if (this.writeEdit(result.layout, input.story)) {
+				this.setNotice(localize('floorPlan.placed', "Placed {0}.", result.id));
+			}
 		} else {
 			this.setNotice(result.error);
 		}
@@ -890,12 +905,92 @@ export class FloorPlanEditor extends EditorPane {
 			}
 		}
 		if (result.ok) {
-			this.write(result.layout);
-			this.setNotice(localize('floorPlan.placed', "Placed {0}.", result.id));
+			if (this.writeEdit(result.layout, story)) {
+				this.setNotice(localize('floorPlan.placed', "Placed {0}.", result.id));
+			}
 		} else {
 			this.setNotice(result.error);
 		}
 		this.schedulePreview();
+	}
+
+	/** The story whose plan shows a member (a column's or wall's top story). */
+	private storyOfMember(member: { readonly group: IMemberShape['group']; readonly id: string }): string | undefined {
+		return storyOfSelection(parse(this.planModel), { kind: 'member', group: member.group, id: member.id });
+	}
+
+	/**
+	 * Writes a member edit made on the plan of `story`, repeated on the other stories of its
+	 * typical-floor family. Refuses (with a notice) when the family's plans differ, as after a
+	 * story was made similar in Grids & Stories: the status bar offers to copy the master first.
+	 */
+	private writeEdit(layout: object, story: string | undefined): boolean {
+		const before = parse(this.planModel);
+		const family = story ? familyOf(before, story) : [];
+		if (family.length > 1) {
+			if (!inSync(before, family)) {
+				this.setNotice(localize('floorPlan.familyDiffers', "The stories of this typical floor differ; copy the typical floor to them first."));
+				return false;
+			}
+			layout = copyStory(layout, story!, family);
+		}
+		this.write(layout);
+		return true;
+	}
+
+	/** " = Level 2" after a story that repeats Level 2, " (typical)" after a typical floor. */
+	private familyLabel(layout: unknown, story: string): string {
+		const note = familyNote(layout, story);
+		const name = note.master && storiesOf(layout).find(s => s.id === note.master)?.name;
+		return name ? ` = ${name}` : note.similar ? localize('floorPlan.typicalSuffix', " (typical)") : '';
+	}
+
+	/** Copies the typical floor of `story`'s family to its similar stories, as one undoable edit. */
+	private syncFamily(story: string): void {
+		const layout = parse(this.planModel);
+		const master = masterOf(layout, story) ?? story;
+		this.write(copyStory(layout, master, familyOf(layout, master)));
+		this.setNotice(localize('floorPlan.familySynced', "Copied the typical floor to its similar stories."));
+	}
+
+	/** Asks for the typical floor and the stories that repeat it, then copies its plan to them. */
+	private async editTypicalFloors(): Promise<void> {
+		const input = this.input as FloorPlanEditorInput | undefined;
+		const layout = parse(this.planModel);
+		const stories = storiesOf(layout).slice(1); // nothing rises to the lowest story
+		if (!input || stories.length < 2) {
+			return;
+		}
+		const name = new Map(stories.map(s => [s.id, s.name]));
+		const level = (elevation: number) => `${elevation >= 0 ? '+' : ''}${elevation}`;
+		type Item = IQuickPickItem & { readonly story: string };
+		const current = masterOf(layout, input.story ?? '') ?? input.story;
+		const masters: Item[] = stories.map(s => {
+			const size = masterOf(layout, s.id) ? 1 : familyOf(layout, s.id).length;
+			return { story: s.id, label: s.name, description: level(s.elevation), detail: size > 1 ? localize('typical.repeats', "Typical floor of {0} stories", size) : undefined };
+		});
+		const master = await this.quickInputService.pick(masters, {
+			title: localize('typical.title', "Typical Floors"),
+			placeHolder: localize('typical.pickMaster', "The typical floor: the story whose plan the others repeat"),
+			activeItem: masters.find(m => m.story === current),
+		});
+		if (!master) {
+			return;
+		}
+		const others: Item[] = stories.filter(s => s.id !== master.story).map(s => ({ story: s.id, label: s.name, description: level(s.elevation), picked: masterOf(layout, s.id) === master.story }));
+		const similar = await this.quickInputService.pick(others, {
+			title: localize('typical.title', "Typical Floors"),
+			placeHolder: localize('typical.pickSimilar', "Stories that repeat {0} (their plans are replaced by its plan)", master.label),
+			canPickMany: true,
+		});
+		if (!similar) {
+			return;
+		}
+		this.write(setSimilar(parse(this.planModel), master.story, similar.map(s => s.story)));
+		const names = similar.map(s => name.get(s.story) ?? s.story);
+		this.setNotice(!names.length ? localize('typical.none', "{0} is not a typical floor now.", master.label)
+			: names.length === 1 ? localize('typical.one', "{0} repeats {1} now; edits on either apply to both.", names[0], master.label)
+				: localize('typical.many', "{0} stories ({1} to {2}) repeat {3} now; edits on any of them apply to all.", names.length, names[0], names[names.length - 1], master.label));
 	}
 
 	/** Replaces the floor plan with `value` as one undoable edit. */
@@ -932,7 +1027,7 @@ export class FloorPlanEditor extends EditorPane {
 			input.story = this.storyIds[Math.min(1, this.storyIds.length - 1)];
 		}
 		this.storyPicker.setOptions(
-			stories.length ? stories.map(s => ({ text: `${s.name} (${s.elevation >= 0 ? '+' : ''}${s.elevation})` })) : [{ text: localize('floorPlan.noStoriesOption', "(no stories)") }],
+			stories.length ? stories.map(s => ({ text: `${s.name} (${s.elevation >= 0 ? '+' : ''}${s.elevation})${this.familyLabel(layout, s.id)}` })) : [{ text: localize('floorPlan.noStoriesOption', "(no stories)") }],
 			Math.max(0, this.storyIds.indexOf(input.story ?? '')),
 		);
 
@@ -1077,10 +1172,21 @@ export class FloorPlanEditor extends EditorPane {
 			parts.push(localize('floorPlan.cursor', "x {0}, y {1} mm", Math.round(this.hover[0]), Math.round(this.hover[1])));
 		}
 		const noTypes = !!this.placementTool && this.typeIds.length === 0;
+		const story = (this.input as FloorPlanEditorInput | undefined)?.story;
+		const layout = parse(this.planModel);
+		const family = story ? familyOf(layout, story) : [];
+		const differs = family.length > 1 && !inSync(layout, family);
+		if (family.length > 1) {
+			const master = storiesOf(layout).find(s => s.id === family[0])?.name ?? family[0];
+			parts.splice(lead ? 1 : 0, 0, differs
+				? localize('floorPlan.familyOutOfSync', "Typical floor {0}: its {1} stories differ", master, family.length)
+				: localize('floorPlan.familyStatus', "Typical floor {0}: edits repeat on all {1} stories", master, family.length));
+		}
 		frame.setStatus({
 			text: parts.join('  ·  '),
-			severity: problems ? 'warning' : undefined,
-			link: noTypes ? { label: localize('floorPlan.openObjects', "Open Object Types"), run: () => this.openPart('objects') }
+			severity: problems || differs ? 'warning' : undefined,
+			link: differs && story ? { label: localize('floorPlan.copyTypical', "Copy the typical floor to them"), run: () => this.syncFamily(story) }
+				: noTypes ? { label: localize('floorPlan.openObjects', "Open Object Types"), run: () => this.openPart('objects') }
 				: problems ? { label: localize('floorPlan.showProblems', "Details"), run: () => this.frame.setPropertiesVisible(true) }
 					: undefined,
 		});
@@ -1172,7 +1278,9 @@ export class FloorPlanEditor extends EditorPane {
 				if (type && type !== current.type) {
 					const result = changeMemberType(parse(this.planModel), member.group, member.id, type);
 					if (result.ok) {
-						this.write(result.layout);
+						if (!this.writeEdit(result.layout, this.storyOfMember(member))) {
+							return;
+						}
 						this.setNotice(localize('floorPlan.typeChanged', "{0} is a {1} now.", member.id, type));
 					} else {
 						this.setNotice(result.error);

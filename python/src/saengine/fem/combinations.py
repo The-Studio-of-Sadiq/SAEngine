@@ -243,12 +243,17 @@ def combination_results(
     names = {e["id"]: e["name"] for e in project.get("elements", [])}
 
     def last(group: dict[int, Any], key: int, width: int) -> np.ndarray:
+        value = np.zeros(width)
         rows = group.get(key)
-        return (
-            np.asarray(rows[-1], dtype=float)[:width]
-            if rows is not None and len(rows)
-            else np.zeros(width)
-        )
+        if rows is not None and len(rows):
+            row = np.asarray(rows[-1], dtype=float)[:width]
+            value[: len(row)] = row
+        return value
+
+    def frame_like(element: int) -> bool:
+        """Not a pinned end's link (``<member>/pin``, fem.derive): its spring forces are not
+        member end forces."""
+        return not str(names.get(element, "")).split("#")[0].endswith("/pin")
 
     entries: list[dict[str, Any]] = []
     envelope: dict[tuple[int, int], list[float]] = {}
@@ -271,7 +276,9 @@ def combination_results(
             continue
         nodes = sorted({n for case in factors for n in by_case[case].node_disp})
         supports = sorted({n for case in factors for n in by_case[case].node_reaction})
-        elements = sorted({e for case in factors for e in by_case[case].element_forces})
+        elements = sorted(
+            {e for case in factors for e in by_case[case].element_forces if frame_like(e)}
+        )
         disp = {
             n: sum(f * last(by_case[c].node_disp, n, 6) for c, f in factors.items()) for n in nodes
         }
@@ -370,7 +377,14 @@ def _seismic_entries(
     if forces is None:
         return []
     entries = []
-    elements = sorted({e for r in by_case.values() for e in r.element_forces})
+    elements = sorted(
+        {
+            e
+            for r in by_case.values()
+            for e in r.element_forces
+            if not str(names.get(e, "")).split("#")[0].endswith("/pin")
+        }
+    )
     supports = sorted({n for r in by_case.values() for n in r.node_reaction})
     for number, data in enumerate(seismic.get("combinations", []), start=1):
         combination = DesignCombination.from_json(data, set(by_case))

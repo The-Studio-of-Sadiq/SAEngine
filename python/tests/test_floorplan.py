@@ -141,3 +141,40 @@ def test_underlays() -> None:
     ]:
         with pytest.raises(ValidationError, match=message):
             FloorPlan.model_validate(model(underlays=underlays))
+
+
+STORIES = [
+    {"id": "BASE", "name": "Base", "elevation": 0},
+    {"id": "L1", "name": "Level 1", "elevation": 3200},
+    {"id": "L2", "name": "Level 2", "elevation": 6400},
+    {"id": "L3", "name": "Level 3", "elevation": 9600, "similarTo": "L2"},
+    {"id": "L4", "name": "Level 4", "elevation": 12800, "similarTo": "L2"},
+]
+
+
+def test_typical_floors() -> None:
+    plan = FloorPlan.model_validate(model(stories=STORIES))
+    assert [s.similarTo for s in plan.stories] == [None, None, None, "L2", "L2"]
+    dumped = plan.model_dump(mode="json", by_alias=True, exclude_none=True)
+    assert "similarTo" not in dumped["stories"][2] and dumped["stories"][3]["similarTo"] == "L2"
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        ({"similarTo": "L9"}, "story L3: no story 'L9' to be similar to"),
+        ({"similarTo": "L3"}, "story L3 cannot be similar to itself"),
+    ],
+)
+def test_typical_floor_rules(change: dict, message: str) -> None:
+    stories = [dict(s) for s in STORIES]
+    stories[3].update(change)
+    with pytest.raises(ValidationError, match=message):
+        FloorPlan.model_validate(model(stories=stories))
+
+
+def test_typical_floors_do_not_chain() -> None:
+    stories = [dict(s) for s in STORIES]
+    stories[4]["similarTo"] = "L3"
+    with pytest.raises(ValidationError, match="L4 is similar to L3, which is itself similar to L2"):
+        FloorPlan.model_validate(model(stories=stories))

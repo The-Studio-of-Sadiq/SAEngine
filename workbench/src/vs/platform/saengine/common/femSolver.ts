@@ -532,12 +532,20 @@ export interface IFemSolverService {
  * `{projectRoot, format, outPath}`, `soil/gisImport` `{path, soilText?}` and
  * `soil/qgisProgram` `{}` (a launcher path or null); the earthquake design from the response
  * spectrum `fem/seismicDesign` `{outDir, projectPath}` (null when the project designs from the
- * static cases) and the P-Delta drift amplification `fem/secondOrder` `{outDir, projectPath}`.
+ * static cases) and the P-Delta drift amplification `fem/secondOrder` `{outDir, projectPath}`;
+ * the structural drawings of `11 Exports/Drawings` (`saengine.pipeline.drawings`):
+ * `drawings/generate` `{projectRoot, sheets?, size?, designReportText?}` (in a worker thread),
+ * `drawings/list` `{projectRoot}` and `drawings/progress` `{projectRoot}`; a new project from an
+ * ETABS, STAAD.Pro or SAP2000 text file `import/structural` `{path, destParent, name?, overwrite?}`
+ * (`{root, name, format, report, problems, files}` or `{error, problems}`; in a worker thread) and
+ * the standard steel section table `library/steelSections` `{}`.
  */
 export type EngineMethod =
 	| 'design/required' | 'design/proposal' | 'design/applyProposal'
 	| 'fem/seismicDesign' | 'fem/secondOrder'
-	| 'soil/location' | 'soil/gisExport' | 'soil/gisImport' | 'soil/qgisProgram';
+	| 'soil/location' | 'soil/gisExport' | 'soil/gisImport' | 'soil/qgisProgram'
+	| 'drawings/generate' | 'drawings/list' | 'drawings/progress'
+	| 'import/structural' | 'library/steelSections';
 
 export interface IQgisOpenRequest {
 	/** Absolute path of the `.gpkg`, `.geojson` or `.json` file. */

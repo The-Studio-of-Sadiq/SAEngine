@@ -1,0 +1,297 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Part 11, Drawings: the section of the exports page (exportsEditor.css) and the sheet preview. */
+
+.saengine-exports-editor .exports-drawings .exports-description.stale {
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.saengine-exports-editor .exports-drawings .drawings-generate {
+	gap: var(--sa-space-2, 8px);
+}
+
+.saengine-exports-editor .drawings-size {
+	width: 64px;
+}
+
+.saengine-exports-editor .drawings-size .monaco-select-box {
+	height: 24px;
+	padding: 0 6px;
+	border-radius: var(--sa-radius, 4px);
+}
+
+/* the title block settings */
+.saengine-exports-editor .drawings-settings {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	column-gap: var(--sa-space-3, 12px);
+	margin: 0 var(--sa-space-2, 8px) var(--sa-space-2, 8px) calc(18px + var(--sa-space-3, 12px) + var(--sa-space-2, 8px));
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-exports-editor .drawings-settings-toggle {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+	padding: 0;
+	border: none;
+	background: transparent;
+	color: var(--vscode-foreground);
+	font: inherit;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.saengine-exports-editor .drawings-settings-toggle:focus-visible,
+.saengine-exports-editor .drawings-settings-link:focus-visible,
+.saengine-exports-editor .drawings-thumb:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.saengine-exports-editor .drawings-settings-link {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+
+.saengine-exports-editor .drawings-settings-link:hover {
+	text-decoration: underline;
+}
+
+.saengine-exports-editor .drawings-settings-grid {
+	flex-basis: 100%;
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(96px, max-content) minmax(120px, 1fr));
+	gap: 2px var(--sa-space-3, 12px);
+	margin: var(--sa-space-1, 4px) 0 0;
+	padding: var(--sa-space-2, 8px) var(--sa-space-3, 12px);
+	border-radius: var(--sa-radius, 4px);
+	background-color: var(--sa-surface-alt, var(--vscode-sideBar-background));
+}
+
+.saengine-exports-editor .drawings-settings-grid dt {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-exports-editor .drawings-settings-grid dd {
+	margin: 0;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.saengine-exports-editor .drawings-settings-grid dd.muted,
+.saengine-exports-editor .drawings-settings-note {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-exports-editor .drawings-settings-grid dd.muted {
+	font-style: italic;
+}
+
+.saengine-exports-editor .drawings-settings-note {
+	flex-basis: 100%;
+	margin-top: var(--sa-space-1, 4px);
+}
+
+/* the sheets */
+.saengine-exports-editor .drawings-sheets {
+	list-style: none;
+	margin: 0 0 var(--sa-space-2, 8px);
+	padding: 0 var(--sa-space-2, 8px) 0 calc(18px + var(--sa-space-3, 12px) + var(--sa-space-2, 8px) - 26px);
+}
+
+.saengine-exports-editor .drawings-sheet {
+	display: grid;
+	grid-template-columns: 20px 72px 76px minmax(0, 1fr) 36px 168px auto;
+	align-items: center;
+	column-gap: var(--sa-space-2, 8px);
+	min-height: 56px;
+	padding: 2px var(--sa-space-1, 4px);
+	border-radius: var(--sa-radius, 4px);
+	font-size: var(--sa-font-m, 13px);
+}
+
+.saengine-exports-editor .drawings-sheet:not(.drawings-sheet-head):hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.saengine-exports-editor .drawings-sheet-head {
+	min-height: 24px;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+	border-bottom: 1px solid var(--sa-border, var(--vscode-panel-border));
+	border-radius: 0;
+}
+
+.saengine-exports-editor .drawings-sheet .monaco-custom-toggle {
+	margin: 0;
+}
+
+.saengine-exports-editor .drawings-thumb {
+	width: 72px;
+	height: 51px;
+	padding: 0;
+	border: 1px solid var(--sa-border, var(--vscode-panel-border));
+	border-radius: 2px;
+	/* a drawing is black on white whatever the theme: the thumbnail shows the paper */
+	background: #ffffff;
+	cursor: zoom-in;
+	overflow: hidden;
+}
+
+.saengine-exports-editor .drawings-thumb img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+}
+
+.saengine-exports-editor .drawings-thumb.missing {
+	cursor: default;
+	background: var(--sa-surface-alt, var(--vscode-sideBar-background));
+}
+
+.saengine-exports-editor .drawings-thumb.missing img {
+	display: none;
+}
+
+.saengine-exports-editor .drawings-sheet-number {
+	font-variant-numeric: tabular-nums;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.saengine-exports-editor .drawings-sheet-head .drawings-sheet-number {
+	font-weight: normal;
+}
+
+.saengine-exports-editor .drawings-sheet-title {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.saengine-exports-editor .drawings-sheet-scale {
+	margin-left: var(--sa-space-2, 8px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-exports-editor .drawings-sheet-size {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-exports-editor .drawings-sheet-state {
+	font-size: var(--sa-font-s, 12px);
+	color: var(--sa-ok, var(--vscode-testing-iconPassed));
+	white-space: nowrap;
+}
+
+.saengine-exports-editor .drawings-sheet-head .drawings-sheet-state {
+	color: inherit;
+}
+
+.saengine-exports-editor .drawings-sheet.stale .drawings-sheet-state {
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.saengine-exports-editor .drawings-sheet .exports-actions {
+	min-width: 84px;
+}
+
+/* the PDF set, the bar bending schedule and the backend's notes */
+.saengine-exports-editor .drawings-footer {
+	margin: 0 var(--sa-space-2, 8px) var(--sa-space-3, 12px) calc(18px + var(--sa-space-3, 12px) + var(--sa-space-2, 8px));
+}
+
+.saengine-exports-editor .drawings-files {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+}
+
+.saengine-exports-editor .drawings-files .monaco-button {
+	width: auto;
+	padding: 2px 12px;
+	white-space: nowrap;
+}
+
+.saengine-exports-editor .drawings-messages {
+	list-style: none;
+	margin: var(--sa-space-2, 8px) 0 0;
+	padding: 0;
+	font-size: var(--sa-font-s, 12px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-exports-editor .drawings-messages li {
+	display: flex;
+	gap: var(--sa-space-1, 4px);
+	align-items: flex-start;
+	line-height: 18px;
+}
+
+.saengine-exports-editor .drawings-messages li .codicon {
+	flex: none;
+	margin-top: 2px;
+	font-size: 12px;
+}
+
+.saengine-exports-editor .drawings-messages li.error {
+	color: var(--sa-fail, var(--vscode-editorError-foreground));
+}
+
+/* the sheet preview */
+.saengine-drawing-preview .drawing-preview-viewport {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
+	cursor: grab;
+	outline: none;
+	background-color: var(--sa-surface-alt, var(--vscode-sideBar-background));
+}
+
+.saengine-drawing-preview .drawing-preview-viewport:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.saengine-drawing-preview .drawing-preview-viewport.panning {
+	cursor: grabbing;
+}
+
+.saengine-drawing-preview .drawing-preview-image {
+	position: absolute;
+	left: 0;
+	top: 0;
+	transform-origin: 0 0;
+	/* the paper: drawings are black on white whatever the theme */
+	background: #ffffff;
+	box-shadow: 0 1px 6px rgba(0, 0, 0, 0.25);
+	user-select: none;
+	image-rendering: auto;
+}
+
+.saengine-drawing-preview .drawing-preview-image:not([src]) {
+	display: none;
+}
+
+/* the sheets and the files of a set: rebuilt together when the set changes */
+.saengine-exports-editor .drawings-set {
+	display: contents;
+}
+
+.saengine-exports-editor .drawings-settings.closed .drawings-settings-grid,
+.saengine-exports-editor .drawings-settings.closed .drawings-settings-note {
+	display: none;
+}

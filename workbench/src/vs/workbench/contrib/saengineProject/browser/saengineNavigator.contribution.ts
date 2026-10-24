@@ -30,6 +30,8 @@ import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { ISaengineProject, ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { DrawingPreviewEditor } from './drawingPreviewEditor.js';
+import { DrawingPreviewInput, DrawingPreviewInputSerializer } from './drawingPreviewInput.js';
 import { ExportsEditor } from './exportsEditor.js';
 import { ExportsEditorInput, ExportsEditorInputSerializer } from './exportsEditorInput.js';
 import { PLACEHOLDER_PARTS, PlaceholderEditor, placeholderPartOf } from './placeholderEditor.js';
@@ -97,6 +99,13 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	[new SyncDescriptor(ExportsEditorInput)]
 );
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ExportsEditorInput.ID, ExportsEditorInputSerializer);
+
+// A generated drawing sheet (Exports > Drawings), as its picture with zoom and pan.
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(DrawingPreviewEditor, DrawingPreviewEditor.ID, localize('saengineDrawingPreview', "SAEngine Drawing Sheet")),
+	[new SyncDescriptor(DrawingPreviewInput)]
+);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(DrawingPreviewInput.ID, DrawingPreviewInputSerializer);
 
 registerAction2(class extends Action2 {
 	constructor() {

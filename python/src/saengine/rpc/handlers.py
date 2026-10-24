@@ -1442,6 +1442,31 @@ def design_apply_proposal(
     )
 
 
+# ─────────────────────── structural models of other programs, steel sections ───────────────────────
+
+
+def import_structural(
+    path: str, dest_parent: str, name: str | None = None, overwrite: bool = False
+) -> dict[str, Any]:
+    """A new project from an ETABS (.e2k), STAAD.Pro (.std) or SAP2000 (.s2k) text file
+    (``saengine.importers.project.import_structural``): ``{root, name, format, report,
+    problems, files}``, or ``{error, problems}`` when the file cannot be imported."""
+    from saengine.importers.project import StructuralImportError
+    from saengine.importers.project import import_structural as run
+
+    try:
+        return run(path, dest_parent, name, overwrite)
+    except StructuralImportError as error:
+        return {"error": str(error), "problems": [str(error)]}
+
+
+def steel_sections() -> dict[str, Any]:
+    """SAEngine's standard steel section table (``saengine.library.steel_sections``)."""
+    from saengine.library.steel_sections import table_json
+
+    return table_json()
+
+
 # ─────────────────────────────────────── site map and GIS ───────────────────────────────────
 
 
@@ -1488,3 +1513,39 @@ def qgis_command(program: str, file_path: str) -> list[str] | dict[str, Any]:
         return command(program, file_path)
     except ValueError as error:
         return {"problems": [str(error)]}
+
+
+# ───────────────────────────── the structural drawings ─────────────────────────────
+
+
+def drawings_generate(
+    project_root: str,
+    sheets: list[str] | None = None,
+    size: str | None = None,
+    design_report: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Generates the drawings into ``11 Exports/Drawings`` (``saengine.pipeline.drawings``):
+    the answer the Exports page reads, or ``{sheets: [], problems}`` when nothing is drawn.
+    ``design_report``: the design checks Run All has just made (else those of the last run)."""
+    from saengine.pipeline.drawings import DrawingsError, generate
+
+    try:
+        return generate(project_root, sheets or None, size or None, design_report=design_report)
+    except DrawingsError as error:
+        return {"sheets": [], "notes": [], "problems": [str(error)]}
+    except (ValueError, OSError) as error:
+        return {"sheets": [], "notes": [], "problems": [_first_line(error)]}
+
+
+def drawings_list(project_root: str) -> dict[str, Any]:
+    """The last generation's drawings with what is out of date (reads files only)."""
+    from saengine.pipeline.drawings import list_drawings
+
+    return list_drawings(project_root)
+
+
+def drawings_progress(project_root: str) -> dict[str, Any]:
+    """Where a generation of the project is (``{running: false}`` when none runs)."""
+    from saengine.pipeline.drawings import progress
+
+    return progress(project_root)

@@ -26,7 +26,7 @@ pytestmark = pytest.mark.slow
 SAMPLE = (
     Path(__file__).parents[2] / "workbench" / "resources" / "saengine" / "samples" / "Sample Frame"
 )
-STEPS = ["derive", "analysis", "ssi", "design", "substructure", "mep", "boq", "report"]
+STEPS = ["derive", "analysis", "ssi", "design", "substructure", "mep", "boq", "report", "drawings"]
 
 
 def _run(capsys: pytest.CaptureFixture[str], *argv: str) -> tuple[int, dict, str]:
@@ -51,13 +51,15 @@ def ran(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, int, dict, str]
 def test_every_step_ran_and_wrote_the_apps_files(ran):
     root, code, document, progress = ran
     assert [(s["id"], s["status"]) for s in document["steps"]] == [
-        (s, "skipped" if s == "ssi" else "ok") for s in STEPS
+        (s, "skipped" if s in ("ssi", "drawings") else "ok") for s in STEPS
     ]
+    # The sample's drawings were never generated: Run All leaves them to the engineer.
+    assert document["steps"][-1]["message"].startswith("drawings not generated yet")
     assert document["ok"] and document["stoppedAt"] is None
     # The sample has failing members, a failing footing and failing plumbing and HVAC checks.
     assert code == EXIT_CHECKS
     assert {f["part"] for f in document["failures"]} == {"fem", "substructure", "mep"}
-    assert "[1/8] analysis model" in progress and "[8/8] report" in progress
+    assert "[1/9] analysis model" in progress and "[8/9] report" in progress
     for relative in (
         "08 FEM/model.osmodel",
         "08 FEM/model.results/manifest.json",

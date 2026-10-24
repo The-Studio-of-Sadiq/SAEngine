@@ -594,6 +594,101 @@ class LoadCombination(_Model):
         return self
 
 
+class DrawingRevision(_Model):
+    """One revision of the drawing set, as the title block's revision table lists it."""
+
+    code: str = Field(min_length=1, title="Revision", description="Its code: 0, A, P1, ...")
+    date: str | None = Field(default=None, description="Its date, as it is to be printed.")
+    description: str | None = Field(default=None, description="What changed.")
+    by: str | None = Field(default=None, title="By", description="Initials of who revised it.")
+
+
+PLAN_SCALES = (50, 75, 100, 125, 150, 200, 250)
+DETAIL_SCALES = (10, 20, 25, 50)
+
+
+def _scale(default: int, scales: tuple[int, ...], title: str, description: str) -> Any:
+    return Field(
+        default=default,
+        title=title,
+        description=description,
+        json_schema_extra=_labels([f"1:{s}" for s in scales]),
+    )
+
+
+class Drawings(_Model):
+    """The structural drawings of 11 Exports: the title block and the sheets. The project's
+    name, number, client and address come from Project; the fields here print on every sheet."""
+
+    firm: str | None = Field(default=None, description="The consulting firm on the title block.")
+    engineer: str | None = Field(
+        default=None,
+        title="Engineer",
+        description="The engineer in charge; empty: Project's structural engineer.",
+    )
+    drawnBy: str | None = Field(default=None, title="Drawn by")
+    checkedBy: str | None = Field(default=None, title="Checked by")
+    approvedBy: str | None = Field(default=None, title="Approved by")
+    projectNumber: str | None = Field(
+        default=None,
+        title="Project number",
+        description="The drawing set's project number; empty: Project's number.",
+    )
+    status: str = Field(
+        default="FOR REVIEW",
+        description="The issue status on the title block (FOR REVIEW, FOR CONSTRUCTION, ...).",
+    )
+    revisions: list[DrawingRevision] = Field(
+        default_factory=list,
+        description="The revisions of the set, oldest first; the last is the current revision "
+        "(0 when there is none).",
+    )
+    sheetSize: Literal["A1", "A2", "A3"] = Field(
+        default="A1", title="Sheet size", description="ISO sheet of every drawing."
+    )
+    planScale: Literal[PLAN_SCALES] = _scale(  # type: ignore[valid-type]
+        100,
+        PLAN_SCALES,
+        "Plan scale",
+        "Foundation and framing plans; a plan that does not fit is drawn at the next smaller "
+        "scale (noted).",
+    )
+    slabScale: Literal[PLAN_SCALES] = _scale(  # type: ignore[valid-type]
+        50, PLAN_SCALES, "Slab plan scale", "Slab reinforcement plans."
+    )
+    elevationScale: Literal[PLAN_SCALES] = _scale(  # type: ignore[valid-type]
+        50, PLAN_SCALES, "Elevation scale", "Beam elevations and wall elevations."
+    )
+    detailScale: Literal[DETAIL_SCALES] = _scale(  # type: ignore[valid-type]
+        25,
+        DETAIL_SCALES,
+        "Detail scale",
+        "Column sections, beam sections, footing and stair details; a detail that does not fit "
+        "is drawn at the next smaller scale.",
+    )
+    developmentLength: Literal["simplified", "general"] = Field(
+        default="simplified",
+        title="Development length",
+        description="BNBC 2020 Part 6, 8.2.3: the simplified form (8.2.3.2) or the general "
+        "Eq. 6.8.1 with cb from the cover and bar spacing (8.2.3.3, Ktr = 0).",
+        json_schema_extra=_labels(["Simplified (8.2.3.2)", "General, Eq. 6.8.1 (8.2.3.3)"]),
+    )
+    curtail: bool = Field(
+        default=True,
+        title="Cut off beam top bars",
+        description="Stop the extra top bars of beams past the supports; off: every bar runs "
+        "the full length.",
+    )
+    boqReinforcement: Literal["measured", "bbs"] = Field(
+        default="measured",
+        title="BOQ reinforcement",
+        description="How 10 BOQ takes the reinforcement: measured by its own rules (the "
+        "default; the bar bending schedule is reconciled in its notes), or the masses of the "
+        "bar bending schedule for every element the drawings detail.",
+        json_schema_extra=_labels(["Measured by the BOQ's rules", "From the bar bending schedule"]),
+    )
+
+
 class ProjectSettings(_Model):
     schema_: Literal["saengine.projectSettings/1"] = Field(default=SCHEMA_ID, alias="schema")
     project: ProjectInfo
@@ -612,6 +707,10 @@ class ProjectSettings(_Model):
     foundation: Foundation = Field(
         default_factory=Foundation,
         description="Soil values for the footing design (from the soil report).",
+    )
+    drawings: Drawings = Field(
+        default_factory=Drawings,
+        description="The title block and sheets of the structural drawings (11 Exports).",
     )
 
 

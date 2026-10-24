@@ -7,6 +7,10 @@ everything it was worked out from (the part files the design reads, the analysis
 result files, the options and the SAEngine version), so the Properties panel, Run All and the
 report ask for it once per change of the project: :func:`required` returns the kept answer
 while the stamp still matches and works it out again otherwise.
+
+The design checks of a run (:func:`saengine.design.design_report`, about a minute on the
+17-member sample) are kept the same way in ``design-report.json`` (:func:`report`), for the
+drawings (``saengine.pipeline.drawings``) and Run All's design step.
 """
 
 from __future__ import annotations
@@ -25,10 +29,17 @@ import saengine
 
 #: The kept answer, in the results folder of the run.
 REQUIRED_FILE = "design-required.json"
+#: The kept design checks of the run (:func:`report`).
+REPORT_FILE = "design-report.json"
 
 #: Files of the results folder that are written from the results, not by the analysis: they do
 #: not enter the stamp (writing them must not make the kept answer stale).
-_DERIVED = frozenset({REQUIRED_FILE, "design-summary.json"})
+_DERIVED = frozenset({REQUIRED_FILE, REPORT_FILE, "design-summary.json"})
+#: The same by path in the results folder: the response spectrum design's summary is written
+#: again on every design (``saengine.fem.seismic_design.seismic_design`` keeps its run while
+#: the model and the results do not change but rewrites the summary of it), so its time would
+#: make every kept answer stale at once. The run it is made from is stamped.
+_DERIVED_PATHS = frozenset({"rs-design/seismic-design.json"})
 
 #: The part files the design checks and the foundation design read, relative to the project.
 INPUT_FILES = (
@@ -63,17 +74,24 @@ def inputs_stamp(
     out = Path(out_dir)
     if out.is_dir():
         for file in sorted(out.rglob("*")):
-            if file.name in _DERIVED or not file.is_file():
+            relative = file.relative_to(out).as_posix()
+            if (
+                file.name in _DERIVED
+                or relative in _DERIVED_PATHS
+                or (file.name.startswith(".") and file.name.endswith(".tmp"))
+                or not file.is_file()
+            ):
                 continue
             stat = file.stat()
-            add(file.relative_to(out).as_posix(), stat.st_size, stat.st_mtime_ns)
+            add(relative, stat.st_size, stat.st_mtime_ns)
     return digest.hexdigest()
 
 
-def kept(out_dir: str | Path, stamp: str) -> dict[str, Any] | None:
-    """The kept answer when it was worked out from inputs with ``stamp``, else None."""
+def kept(out_dir: str | Path, stamp: str, name: str = REQUIRED_FILE) -> dict[str, Any] | None:
+    """The kept answer (``name``: :data:`REQUIRED_FILE` or :data:`REPORT_FILE`) when it was
+    worked out from inputs with ``stamp``, else None."""
     try:
-        data = json.loads((Path(out_dir) / REQUIRED_FILE).read_text(encoding="utf-8"))
+        data = json.loads((Path(out_dir) / name).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
     if (
@@ -85,7 +103,9 @@ def kept(out_dir: str | Path, stamp: str) -> dict[str, Any] | None:
     return None
 
 
-def keep(out_dir: str | Path, stamp: str, result: dict[str, Any]) -> None:
+def keep(
+    out_dir: str | Path, stamp: str, result: dict[str, Any], name: str = REQUIRED_FILE
+) -> None:
     """Writes the answer beside the results (whole or not at all; a failure is ignored).
 
     Each call writes its own temporary file (process, thread and a random part in the name), so
@@ -95,9 +115,9 @@ def keep(out_dir: str | Path, stamp: str, result: dict[str, Any]) -> None:
     out = Path(out_dir)
     if not out.is_dir():
         return
-    target = out / REQUIRED_FILE
+    target = out / name
     unique = f"{os.getpid()}.{threading.get_ident()}.{uuid.uuid4().hex}"
-    temporary = out / f".{REQUIRED_FILE}.{unique}.tmp"
+    temporary = out / f".{name}.{unique}.tmp"
     data = {"stamp": stamp, "computed": datetime.now(UTC).isoformat(), "result": result}
     try:
         text = json.dumps(data, allow_nan=False, default=_finite)
@@ -162,6 +182,47 @@ def required(
             return cached
     result = _plain(design_required(out_dir, project_path, options))
     keep(out_dir, stamp, result)
+    return result
+
+
+def kept_report(out_dir: str | Path, project_path: str | Path) -> dict[str, Any] | None:
+    """The kept design checks of the run while they are current, else None (cheap: no design,
+    no response spectrum run)."""
+    return kept(out_dir, inputs_stamp(out_dir, project_path), REPORT_FILE)
+
+
+def keep_report(
+    out_dir: str | Path, project_path: str | Path, result: dict[str, Any], stamp: str
+) -> None:
+    """Keeps ``result`` (:func:`saengine.design.design_report`) as the design checks of inputs
+    with ``stamp`` (:func:`inputs_stamp`, taken before the design read the files)."""
+    keep(out_dir, stamp, _plain(result), REPORT_FILE)
+
+
+def report_stamp(out_dir: str | Path, project_path: str | Path) -> str:
+    """The stamp to keep a design report under: the response spectrum design run first (as
+    :func:`required` does), so that writing it does not make the kept report stale."""
+    _ensure_seismic_design(out_dir, project_path)
+    return inputs_stamp(out_dir, project_path)
+
+
+def report(
+    out_dir: str | Path, project_path: str | Path, *, fresh: bool = False
+) -> dict[str, Any] | None:
+    """:func:`saengine.design.design_report` of the run, the kept one while it is current
+    (``fresh``: always work it out again); None when the design checks give nothing."""
+    from saengine.design import design_report
+
+    stamp = report_stamp(out_dir, project_path)
+    if not fresh:
+        cached = kept(out_dir, stamp, REPORT_FILE)
+        if cached is not None:
+            return cached
+    result = design_report(out_dir, project_path)
+    if not result:
+        return None
+    result = _plain(result)
+    keep(out_dir, stamp, result, REPORT_FILE)
     return result
 
 

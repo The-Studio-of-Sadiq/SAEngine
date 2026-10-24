@@ -1,0 +1,1236 @@
+"""Shared parts of the model importers: units, the import report and the project builder.
+
+An importer reads its program's file into the neutral model of :class:`ProjectBuilder`: stories,
+grid lines, materials, frame and shell sections, frame members and areas as 3D geometry in mm,
+supports, area loads and combinations on SAEngine's load cases. :meth:`ProjectBuilder.build`
+turns it into SAEngine's parts:
+
+- ``03 Materials``: the materials, in SAEngine's fixed units (MPa, kg/m³);
+- ``04 Objects``: one object type per section and kind it is used as (column, beam, brace,
+  slab, wall);
+- ``05 Floor Plan``: grid lines and stories, and the members that map onto them: vertical
+  columns and rectangular walls between stories, horizontal beams and slabs at a story level,
+  placed on their nearest grid lines with offsets;
+- ``06 BIM``: the building model generated from that floor plan, with the members that do not
+  map onto it (braces, sloped beams, raking columns) as its inclined members, and rectangular
+  slab openings;
+- ``02 Project Settings``: SAEngine's default settings with the floor and roof area loads and the
+  load combinations of the file.
+
+SAEngine derives its own loads (:mod:`saengine.fem.derive`): self-weight from the material
+densities, superimposed dead and live loads on the slabs from the floor and roof area loads,
+wind and earthquake from the BNBC settings. Loads that have no place there (frame and point
+loads, area loads on walls, lateral load patterns) are not carried over; the report lists them
+with their totals, so the engineer sees how much of the source model's gravity load is missing.
+
+The report (:class:`ImportReport`) counts what was imported by kind and lists what was
+approximated and what was skipped, each with a count and a few examples.
+"""
+
+from __future__ import annotations
+
+import json
+import math
+import re
+from collections import Counter, defaultdict
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any, Literal
+
+from saengine.library.bim import (
+    Additions,
+    BuildingModel,
+    InclinedMember,
+    SlabOpening,
+    generate,
+    source_stamp,
+)
+from saengine.library.floorplan import FloorPlan
+from saengine.library.materials import MaterialLibrary
+from saengine.library.objects import ObjectLibrary
+from saengine.library.settings import (
+    AreaLoad,
+    LoadCombination,
+    ProjectSettings,
+    default_project_settings,
+)
+from saengine.library.settings import check as check_settings
+
+G = 9.80665  # m/s²
+
+#: Coordinates closer than this are the same [mm]; members within it of the vertical (or the
+#: horizontal) are columns (or beams), points within it of a story's level are on it.
+TOLERANCE = 1.0
+
+#: Examples kept for each approximated or skipped item of the report.
+MAX_EXAMPLES = 5
+
+#: SAEngine's load cases that combinations and loads can refer to (see saengine.fem.derive).
+CASES = ("D", "L", "Lr", "WX", "WY", "EX", "EY", "T")
+
+FrameKind = Literal["column", "beam", "brace"]
+AreaKind = Literal["floor", "wall"]
+Point3 = tuple[float, float, float]
+
+# ─────────────────────────────────────────── units ───────────────────────────────────────────
+
+_LENGTH = {
+    "MM": 1.0,
+    "MMS": 1.0,
+    "MILLIMETER": 1.0,
+    "MILLIMETRE": 1.0,
+    "CM": 10.0,
+    "CMS": 10.0,
+    "CENTIMETER": 10.0,
+    "M": 1000.0,
+    "MS": 1000.0,
+    "MET": 1000.0,
+    "METER": 1000.0,
+    "METRE": 1000.0,
+    "METERS": 1000.0,
+    "IN": 25.4,
+    "INCH": 25.4,
+    "INCHES": 25.4,
+    "INC": 25.4,
+    "FT": 304.8,
+    "FEET": 304.8,
+    "FOOT": 304.8,
+    "FEE": 304.8,
+}
+_FORCE = {
+    "N": 1.0,
+    "NEWTON": 1.0,
+    "NEWTONS": 1.0,
+    "NEW": 1.0,
+    "KN": 1000.0,
+    "KNS": 1000.0,
+    "KILONEWTON": 1000.0,
+    "MN": 1.0e6,
+    "LB": 4.4482216152605,
+    "LBS": 4.4482216152605,
+    "POUND": 4.4482216152605,
+    "POUNDS": 4.4482216152605,
+    "KIP": 4448.2216152605,
+    "KIPS": 4448.2216152605,
+    "KGF": G,
+    "KG": G,
+    "KGS": G,
+    "TONF": 1000 * G,
+    "TON": 1000 * G,
+    "MTON": 1000 * G,
+    "MTONS": 1000 * G,
+    "TONNE": 1000 * G,
+    "MTO": 1000 * G,
+}
+
+
+@dataclass(frozen=True)
+class Units:
+    """The force and length units of a file, and conversions to SAEngine's fixed units."""
+
+    force: str = "N"
+    length: str = "MM"
+
+    @classmethod
+    def parse(cls, force: str, length: str) -> Units:
+        f, n = force.strip().upper(), length.strip().upper()
+        if f not in _FORCE:
+            raise ValueError(f"unknown force unit '{force}'")
+        if n not in _LENGTH:
+            raise ValueError(f"unknown length unit '{length}'")
+        return cls(f, n)
+
+    @staticmethod
+    def is_force(token: str) -> bool:
+        return token.strip().upper() in _FORCE
+
+    @staticmethod
+    def is_length(token: str) -> bool:
+        return token.strip().upper() in _LENGTH
+
+    @property
+    def mm(self) -> float:
+        """mm per length unit."""
+        return _LENGTH[self.length]
+
+    @property
+    def newton(self) -> float:
+        """N per force unit."""
+        return _FORCE[self.force]
+
+    @property
+    def label(self) -> str:
+        return f"{self.force.lower()}-{self.length.lower()}"
+
+    def to_mm(self, value: float) -> float:
+        return value * self.mm
+
+    def to_kn(self, value: float) -> float:
+        return value * self.newton / 1000
+
+    def to_mpa(self, value: float) -> float:
+        """A stress (force/length²) in MPa."""
+        return value * self.newton / self.mm**2
+
+    def to_kpa(self, value: float) -> float:
+        """A pressure (force/length²) in kN/m²."""
+        return self.to_mpa(value) * 1000
+
+    def to_kn_per_m(self, value: float) -> float:
+        """A line load (force/length) in kN/m."""
+        return value * self.newton / self.mm
+
+    def to_density(self, weight_per_volume: float) -> float:
+        """A unit weight (force/length³) as a mass density in kg/m³."""
+        return weight_per_volume * self.newton / self.mm**3 * 1e9 / G
+
+
+#: Reinforcing bar designations to diameters [mm]: US (#n), Canadian (nM); metric sizes are
+#: read from their number (16, 16d, T16, Y16, R10, 16mm, ϕ16).
+_US_BARS = {
+    3: 9.525,
+    4: 12.7,
+    5: 15.875,
+    6: 19.05,
+    7: 22.225,
+    8: 25.4,
+    9: 28.65,
+    10: 32.26,
+    11: 35.81,
+    14: 43.0,
+    18: 57.33,
+}
+_CANADIAN_BARS = {10: 11.3, 15: 16.0, 20: 19.5, 25: 25.2, 30: 29.9, 35: 35.7, 45: 43.7, 55: 56.4}
+
+
+def bar_diameter(size: str | None) -> float | None:
+    """The diameter [mm] of a bar designation, or None when it is not one."""
+    if not size:
+        return None
+    text = size.strip().upper().replace(" ", "")
+    us = re.fullmatch(r"#(\d+)", text)
+    if us:
+        return _US_BARS.get(int(us.group(1)))
+    canadian = re.fullmatch(r"(\d+)M", text)
+    if canadian:
+        return _CANADIAN_BARS.get(int(canadian.group(1)))
+    metric = re.fullmatch(r"(?:[TYRHΦϕØ]|DIA)?(\d+(?:\.\d+)?)(?:D|MM)?", text)
+    if metric:
+        value = float(metric.group(1))
+        return value if 5 <= value <= 60 else None
+    return None
+
+
+# ─────────────────────────────────────────── report ───────────────────────────────────────────
+
+
+@dataclass
+class _Entry:
+    count: int = 0
+    examples: list[str] = field(default_factory=list)
+
+
+class ImportReport:
+    """What an import brought in, approximated and skipped."""
+
+    def __init__(self, program: str, file: str | None = None) -> None:
+        self.source: dict[str, Any] = {"program": program, "file": file}
+        self.imported: Counter[str] = Counter()
+        self._approximated: dict[str, _Entry] = {}
+        self._skipped: dict[str, _Entry] = {}
+        self.warnings: list[str] = []
+        #: Loads not carried over, total [kN] (down positive for gravity) per SAEngine case.
+        self.not_carried: dict[str, float] = defaultdict(float)
+        self.carried: dict[str, float] = defaultdict(float)
+
+    def count(self, kind: str, n: int = 1) -> None:
+        self.imported[kind] += n
+
+    @staticmethod
+    def _add(entries: dict[str, _Entry], what: str, example: str | None) -> None:
+        entry = entries.setdefault(what, _Entry())
+        entry.count += 1
+        if example and len(entry.examples) < MAX_EXAMPLES and example not in entry.examples:
+            entry.examples.append(example)
+
+    def approximate(self, what: str, example: str | None = None) -> None:
+        """``what`` was imported, but not as it is in the file."""
+        self._add(self._approximated, what, example)
+
+    def skip(self, what: str, example: str | None = None) -> None:
+        """``what`` was left out."""
+        self._add(self._skipped, what, example)
+
+    def warn(self, text: str) -> None:
+        if text not in self.warnings:
+            self.warnings.append(text)
+
+    @property
+    def approximated(self) -> list[dict[str, Any]]:
+        return [
+            {"what": k, "count": v.count, "examples": v.examples}
+            for k, v in self._approximated.items()
+        ]
+
+    @property
+    def skipped(self) -> list[dict[str, Any]]:
+        return [
+            {"what": k, "count": v.count, "examples": v.examples} for k, v in self._skipped.items()
+        ]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema": "saengine.importReport/1",
+            "source": self.source,
+            "imported": dict(self.imported),
+            "approximated": self.approximated,
+            "skipped": self.skipped,
+            "warnings": list(self.warnings),
+            "loads": {
+                "carriedKN": {k: round(v, 3) for k, v in self.carried.items()},
+                "notCarriedKN": {k: round(v, 3) for k, v in self.not_carried.items()},
+            },
+        }
+
+
+# ─────────────────────────────────────────── ids ───────────────────────────────────────────
+
+
+def _id(name: str, taken: set[str]) -> str:
+    """A unique SAEngine id (``^[A-Za-z0-9._-]+$``, at most 64 characters) for ``name``."""
+    base = re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip("-")[:56] or "X"
+    candidate, k = base, 2
+    while candidate in taken:
+        candidate, k = f"{base}-{k}", k + 1
+    taken.add(candidate)
+    return candidate
+
+
+def _grid_label(name: str, taken: set[str], fallback: str) -> str:
+    base = re.sub(r"[^A-Za-z0-9.'-]+", "", name)[:8] or fallback
+    candidate, k = base, 2
+    while candidate in taken:
+        suffix = f"-{k}"
+        candidate, k = base[: 8 - len(suffix)] + suffix, k + 1
+    taken.add(candidate)
+    return candidate
+
+
+def _letters(index: int) -> str:
+    """A, B, ..., Z, AA, AB, ..."""
+    text = ""
+    index += 1
+    while index:
+        index, rest = divmod(index - 1, 26)
+        text = chr(65 + rest) + text
+    return text
+
+
+def _clean(value: Any) -> Any:
+    """JSON values with whole floats as integers and the rest to 6 decimals."""
+    if isinstance(value, float):
+        rounded = round(value, 6)
+        return int(rounded) if rounded.is_integer() else rounded
+    if isinstance(value, dict):
+        return {k: _clean(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_clean(v) for v in value]
+    return value
+
+
+def json_text(model: Any) -> str:
+    data = (
+        model
+        if isinstance(model, dict)
+        else model.model_dump(mode="json", by_alias=True, exclude_none=True)
+    )
+    return json.dumps(_clean(data), indent="\t", ensure_ascii=False) + "\n"
+
+
+# ─────────────────────────────────────── neutral model ───────────────────────────────────────
+
+
+@dataclass
+class _FrameSection:
+    name: str
+    material: str  # source material name
+    #: SAEngine profile (objects.Profile as JSON) as in a beam: yDim / overallDepth / depth is
+    #: the source program's depth (local 2 axis), xDim / overallWidth its width.
+    profile: dict[str, Any]
+    column_reinforcement: dict[str, Any] | None = None
+    beam_reinforcement: dict[str, Any] | None = None
+
+
+@dataclass
+class _ShellSection:
+    name: str
+    material: str
+    thickness: float  # mm
+
+
+@dataclass
+class _Frame:
+    name: str
+    section: str
+    start: Point3
+    end: Point3
+    kind: FrameKind | None
+    rotation: float
+
+
+@dataclass
+class _Area:
+    name: str
+    section: str
+    points: list[Point3]
+    kind: AreaKind | None
+
+
+@dataclass
+class ImportedProject:
+    """A SAEngine project built by an importer: its parts' texts by path and the report."""
+
+    name: str
+    settings: ProjectSettings
+    materials: MaterialLibrary
+    objects: ObjectLibrary
+    floor_plan: FloorPlan
+    bim: BuildingModel
+    report: ImportReport
+    texts: dict[str, str]
+
+    def problems(self) -> list[str]:
+        """Problems across the parts (references), as SAEngine's editors report them."""
+        return [
+            *self.objects.check_materials(self.materials),
+            *self.floor_plan.check_objects(self.objects),
+            *self.bim.check_objects(self.objects),
+            *self.bim.check_additions(),
+            *check_settings(self.settings),
+        ]
+
+    def write(self, folder: str | Path, manifest: bool = True) -> list[Path]:
+        """Writes the parts (and, with ``manifest``, the project manifest when the folder has
+        none) into ``folder``; returns the files written. Existing part files are replaced."""
+        root = Path(folder)
+        written = []
+        texts = dict(self.texts)
+        if manifest and not any(root.glob("*.saengine")):
+            safe = re.sub(r'[<>:"/\\|?*]+', "-", self.name).strip() or "Imported"
+            texts[f"{safe}.saengine"] = json_text(
+                {
+                    "schema": 1,
+                    "name": self.name,
+                    "created": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                    "type": "building",
+                    "parts": [
+                        "soil",
+                        "settings",
+                        "materials",
+                        "objects",
+                        "floorPlan",
+                        "bim",
+                        "mep",
+                        "fem",
+                        "substructure",
+                        "boq",
+                        "exports",
+                    ],
+                }
+            )
+        for relative, text in texts.items():
+            path = root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+            written.append(path)
+        return written
+
+
+#: Where the parts and the report are written, relative to the project folder.
+PATHS = {
+    "settings": "02 Project Settings/project-settings.json",
+    "materials": "03 Materials/materials.json",
+    "objects": "04 Objects/objects.json",
+    "floorPlan": "05 Floor Plan/floor-plan.json",
+    "bim": "06 BIM/bim.json",
+    "report": "import-report.json",
+}
+
+
+class ProjectBuilder:
+    """Collects a model in the neutral form and builds SAEngine's parts from it.
+
+    All lengths and coordinates are in mm, stresses in MPa, densities in kg/m³, pressures in
+    kN/m², forces in kN; importers convert with :class:`Units`. Names are the source program's;
+    the builder makes SAEngine ids of them.
+    """
+
+    def __init__(self, name: str, report: ImportReport) -> None:
+        self.name = name
+        self.report = report
+        self._materials: dict[str, dict[str, Any]] = {}  # source name -> Material JSON
+        self._material_ids: dict[str, str] = {}
+        self._frame_sections: dict[str, _FrameSection] = {}
+        self._shell_sections: dict[str, _ShellSection] = {}
+        self._stories: list[tuple[str, float]] = []
+        self._grids: dict[str, list[tuple[str, float]]] = {"x": [], "y": []}
+        self._frames: list[_Frame] = []
+        self._areas: list[_Area] = []
+        self._openings: list[tuple[str, list[Point3]]] = []
+        self._supports: list[tuple[Point3, tuple[bool, ...], str]] = []
+        self._area_m2: dict[str, float] = {}
+        self._area_loads: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
+        self._combinations: list[tuple[str, dict[str, float]]] = []
+        self.self_weight = True
+
+    # ── materials and sections ──
+
+    def add_material(
+        self,
+        name: str,
+        category: Literal["concrete", "steel", "rebar", "masonry", "other"],
+        *,
+        E: float | None = None,
+        nu: float | None = None,
+        density: float | None = None,
+        alpha: float | None = None,
+        fc: float | None = None,
+        fy: float | None = None,
+        fu: float | None = None,
+        grade: str | None = None,
+    ) -> None:
+        """A material in SAEngine units (MPa, kg/m³). Missing code values get defaults that the
+        report lists as approximated."""
+        if name in self._materials:
+            return
+        example = name
+        mechanical: dict[str, Any] = {}
+        if category in ("concrete", "steel", "rebar") and not E:
+            if category == "concrete":
+                E = 4700 * math.sqrt(fc or 25.0)
+            else:
+                E = 200000.0
+            self.report.approximate(
+                "material without E: E from the code formula or 200 GPa", example
+            )
+        if E:
+            mechanical["E"] = E
+        if nu is not None and 0 <= nu < 0.5:
+            mechanical["nu"] = nu
+        if density and density > 0:
+            mechanical["density"] = density
+        elif category != "other":
+            self.report.approximate("material without weight: no self-weight from it", example)
+        if alpha is not None and alpha >= 0:
+            mechanical["alpha"] = alpha
+        data: dict[str, Any] = {"name": name, "category": category, "mechanical": mechanical}
+        if category == "concrete":
+            if not fc:
+                fc = 25.0
+                self.report.approximate("concrete without f'c: taken as 25 MPa", example)
+            data["concrete"] = {"fc": fc}
+        elif category in ("steel", "rebar"):
+            if not fy:
+                fy = 250.0 if category == "steel" else 420.0
+                self.report.approximate(
+                    "steel without fy: 250 MPa (structural) or 420 MPa (bars)", example
+                )
+            steel: dict[str, Any] = {"fy": fy, "grade": grade or name}
+            if fu and fu >= fy:
+                steel["fu"] = fu
+            data["steel"] = steel
+        elif category == "masonry":
+            data["masonry"] = {"unit": "masonry (imported)"}
+        data["source"] = {"note": f"Imported from {self.report.source['program']}."}
+        self._materials[name] = data
+
+    def add_frame_section(
+        self,
+        name: str,
+        material: str,
+        profile: dict[str, Any],
+        *,
+        column_reinforcement: dict[str, Any] | None = None,
+        beam_reinforcement: dict[str, Any] | None = None,
+    ) -> None:
+        """A frame section; ``profile`` is a SAEngine profile as in a beam (see _FrameSection).
+        Reinforcement is objects.LinearReinforcement JSON with the *source* rebar material name."""
+        self._frame_sections[name] = _FrameSection(
+            name, material, profile, column_reinforcement, beam_reinforcement
+        )
+
+    def add_shell_section(self, name: str, material: str, thickness: float) -> None:
+        self._shell_sections[name] = _ShellSection(name, material, thickness)
+
+    def has_frame_section(self, name: str) -> bool:
+        return name in self._frame_sections
+
+    def has_shell_section(self, name: str) -> bool:
+        return name in self._shell_sections
+
+    # ── geometry ──
+
+    def add_story(self, name: str, elevation: float) -> None:
+        self._stories.append((name, elevation))
+
+    def add_grid(self, axis: Literal["x", "y"], label: str, position: float) -> None:
+        self._grids[axis].append((label, position))
+
+    def add_frame(
+        self,
+        name: str,
+        section: str,
+        start: Point3,
+        end: Point3,
+        kind: FrameKind | None = None,
+        rotation: float = 0.0,
+    ) -> None:
+        """A frame member; ``kind`` None: by its direction (vertical: column, horizontal: beam,
+        else brace). ``rotation`` [°] about its axis, as the source program's angle."""
+        self._frames.append(_Frame(name, section, tuple(start), tuple(end), kind, rotation))  # type: ignore[arg-type]
+
+    def add_area(
+        self, name: str, section: str, points: list[Point3], kind: AreaKind | None = None
+    ) -> None:
+        self._areas.append(_Area(name, section, [tuple(p) for p in points], kind))  # type: ignore[misc]
+        self._area_m2[name] = polygon_area([tuple(p) for p in points])  # type: ignore[misc]
+
+    def area_of(self, name: str) -> float:
+        """Area [m²] of area ``name`` (0 when unknown)."""
+        return self._area_m2.get(name, 0.0)
+
+    def add_opening(self, name: str, points: list[Point3]) -> None:
+        self._openings.append((name, [tuple(p) for p in points]))  # type: ignore[misc]
+
+    def add_support(self, at: Point3, restraints: tuple[bool, ...], name: str = "") -> None:
+        """Restraints UX UY UZ RX RY RZ of a point."""
+        self._supports.append((tuple(at), tuple(restraints), name or "point"))  # type: ignore[arg-type]
+
+    # ── loads ──
+
+    def add_area_load(self, area: str, case: Literal["D", "L", "Lr"], pressure: float) -> None:
+        """A uniform gravity pressure [kN/m², down] on area ``area`` in case ``case`` (D: the
+        superimposed dead load; self-weight comes from the material densities)."""
+        self._area_loads[area][case] += pressure
+
+    def not_carried(self, what: str, case: str | None, total: float, example: str) -> None:
+        """A load SAEngine does not take over, of ``total`` kN in ``case`` (None: no SAEngine
+        case)."""
+        self.report.skip(what, example)
+        self.report.not_carried[case or "other"] += total
+
+    def add_combination(self, name: str, factors: dict[str, float]) -> None:
+        clean = {k: v for k, v in factors.items() if k in CASES and v}
+        if clean:
+            self._combinations.append((name, clean))
+
+    # ── building the parts ──
+
+    def build(self) -> ImportedProject:
+        report = self.report
+        materials = self._build_materials()
+        levels = self._levels()
+        story_ids: dict[float, str] = {}
+        taken: set[str] = set()
+        stories = []
+        for name, elevation in levels:
+            story_id = _id(name, taken)
+            story_ids[elevation] = story_id
+            stories.append({"id": story_id, "name": name, "elevation": elevation})
+        report.count("stories", len(stories))
+
+        def story_at(z: float) -> str | None:
+            for elevation, story_id in story_ids.items():
+                if abs(elevation - z) <= TOLERANCE:
+                    return story_id
+            return None
+
+        base_z = levels[0][1] if levels else 0.0
+        top_z = levels[-1][1] if levels else 0.0
+        grids = self._build_grids()
+        report.count("gridLines", len(grids["x"]) + len(grids["y"]))
+
+        def at(x: float, y: float) -> dict[str, Any]:
+            gx = min(grids["x"], key=lambda g: abs(g["position"] - x))
+            gy = min(grids["y"], key=lambda g: abs(g["position"] - y))
+            point: dict[str, Any] = {"x": gx["label"], "y": gy["label"]}
+            dx, dy = round(x - gx["position"], 3), round(y - gy["position"], 3)
+            if abs(dx) > 1e-6:
+                point["dx"] = dx
+            if abs(dy) > 1e-6:
+                point["dy"] = dy
+            return point
+
+        types = _Types(self, materials)
+        plan: dict[str, list[dict[str, Any]]] = {
+            "columns": [],
+            "beams": [],
+            "walls": [],
+            "slabs": [],
+        }
+        members: list[InclinedMember] = []
+        ids: set[str] = set()
+
+        for f in self._frames:
+            (x1, y1, z1), (x2, y2, z2) = f.start, f.end
+            if z2 < z1:
+                (x1, y1, z1), (x2, y2, z2) = (x2, y2, z2), (x1, y1, z1)
+            plan_length = math.hypot(x2 - x1, y2 - y1)
+            if plan_length <= TOLERANCE and abs(z2 - z1) <= TOLERANCE:
+                report.skip("frame members of zero length", f.name)
+                continue
+            vertical = plan_length <= TOLERANCE
+            horizontal = abs(z2 - z1) <= TOLERANCE
+            kind = f.kind or ("column" if vertical else "beam" if horizontal else "brace")
+            section = self._frame_sections.get(f.section)
+            if section is None:
+                report.skip(
+                    "frame members whose section could not be imported", f"{f.name} ({f.section})"
+                )
+                continue
+            resolved = types.frame(section, kind)
+            if resolved is None:
+                report.skip("frame members whose material could not be imported", f.name)
+                continue
+            type_id, extra_rotation = resolved
+            member_id = _id(f.name, ids)
+            if kind == "column" and vertical and story_at(z1) and story_at(z2):
+                plan["columns"].append(
+                    {
+                        "id": member_id,
+                        "type": type_id,
+                        "at": at(x1, y1),
+                        "base": story_at(z1),
+                        "top": story_at(z2),
+                        "rotation": round((f.rotation + extra_rotation) % 360, 6),
+                    }
+                )
+                report.count("columns")
+                continue
+            if kind == "beam" and horizontal and story_at(z1):
+                plan["beams"].append(
+                    {
+                        "id": member_id,
+                        "type": type_id,
+                        "story": story_at(z1),
+                        "start": at(*f.start[:2]),
+                        "end": at(*f.end[:2]),
+                    }
+                )
+                report.count("beams")
+                if abs(f.rotation) > 1e-6:
+                    report.approximate("beam rotations about their axis ignored", f.name)
+                continue
+            if kind == "column":
+                report.approximate("raking or off-level columns as inclined members", f.name)
+            elif kind == "beam":
+                report.approximate("sloped or off-level beams as inclined members", f.name)
+            if abs(f.rotation) > 1e-6 and kind != "brace":
+                report.approximate("inclined member rotations about their axis ignored", f.name)
+            members.append(
+                InclinedMember(
+                    id=member_id,
+                    type=type_id,
+                    x1=f.start[0],
+                    y1=f.start[1],
+                    z1=f.start[2],
+                    x2=f.end[0],
+                    y2=f.end[1],
+                    z2=f.end[2],
+                )
+            )
+            report.count("braces" if kind == "brace" else "inclinedMembers")
+
+        slab_ids: dict[str, str] = {}  # area name -> slab id
+        slab_polygons: list[tuple[str, list[tuple[float, float]], float]] = []
+        roof_slabs: set[str] = set()
+        for a in self._areas:
+            section = self._shell_sections.get(a.section)
+            zs = [p[2] for p in a.points]
+            flat = max(zs) - min(zs) <= TOLERANCE
+            kind = a.kind or ("floor" if flat else "wall")
+            if section is None:
+                report.skip("areas whose section could not be imported", f"{a.name} ({a.section})")
+                continue
+            if kind == "floor":
+                story = story_at(zs[0]) if flat else None
+                if story is None:
+                    report.skip("sloped or off-level floor areas", a.name)
+                    continue
+                type_id = types.shell(section, "slab")
+                if type_id is None:
+                    report.skip("areas whose material could not be imported", a.name)
+                    continue
+                slab_id = _id(a.name, ids)
+                outline = _distinct([(p[0], p[1]) for p in a.points])
+                if len(outline) < 3:
+                    report.skip("floor areas with fewer than three corners", a.name)
+                    continue
+                plan["slabs"].append(
+                    {
+                        "id": slab_id,
+                        "type": type_id,
+                        "story": story,
+                        "boundary": [at(*p) for p in outline],
+                    }
+                )
+                slab_ids[a.name] = slab_id
+                slab_polygons.append((slab_id, outline, zs[0]))
+                if abs(zs[0] - top_z) <= TOLERANCE:
+                    roof_slabs.add(a.name)
+                report.count("slabs")
+                continue
+            wall = _wall(a.points)
+            if wall is None or story_at(wall[2]) is None or story_at(wall[3]) is None:
+                report.skip("wall panels that are not rectangles between two stories", a.name)
+                continue
+            type_id = types.shell(section, "wall")
+            if type_id is None:
+                report.skip("areas whose material could not be imported", a.name)
+                continue
+            (sx, sy), (ex, ey), z0, z1 = wall
+            plan["walls"].append(
+                {
+                    "id": _id(a.name, ids),
+                    "type": type_id,
+                    "base": story_at(z0),
+                    "top": story_at(z1),
+                    "start": at(sx, sy),
+                    "end": at(ex, ey),
+                }
+            )
+            report.count("walls")
+
+        openings = self._build_openings(slab_polygons, ids)
+
+        # Supports: SAEngine fixes the bases of the columns and walls at the lowest story.
+        for point, restraints, name in self._supports:
+            if abs(point[2] - base_z) > TOLERANCE:
+                report.skip("supports above the base (SAEngine supports the lowest story)", name)
+                continue
+            if all(restraints[:6]):
+                report.count("supports")
+            elif all(restraints[:3]):
+                report.count("supports")
+                report.approximate("pinned bases analysed as fixed", name)
+            else:
+                report.approximate("partly restrained bases analysed as fixed", name)
+                report.count("supports")
+        if not self._supports:
+            report.warn("The file has no supports: the bases of the lowest story are fixed.")
+
+        settings = self._build_settings(slab_ids, roof_slabs)
+        object_library = ObjectLibrary.model_validate({"objects": types.objects})
+        report.count("objectTypes", len(types.objects))
+        material_library = MaterialLibrary.model_validate({"materials": list(materials.values())})
+        report.count("materials", len(materials))
+
+        floor_plan = FloorPlan.model_validate({"grids": grids, "stories": stories, **plan})
+        plan_text = json_text(floor_plan)
+        bim = generate(
+            floor_plan,
+            source_stamp(plan_text),
+            BuildingModel(additions=Additions(members=members, slabOpenings=openings)),
+        )
+        if not self.self_weight:
+            report.warn(
+                "No load pattern of the file includes the self-weight; SAEngine adds it from the "
+                "material densities."
+            )
+        report.warn(
+            "Wind and earthquake loads are SAEngine's own from the BNBC settings: check the site, "
+            "occupancy and structural system in 02 Project Settings."
+        )
+        texts = {
+            PATHS["settings"]: json_text(settings),
+            PATHS["materials"]: json_text(material_library),
+            PATHS["objects"]: json_text(object_library),
+            PATHS["floorPlan"]: plan_text,
+            PATHS["bim"]: json_text(bim),
+        }
+        texts[PATHS["report"]] = json_text(report.to_dict())
+        return ImportedProject(
+            self.name, settings, material_library, object_library, floor_plan, bim, report, texts
+        )
+
+    def _build_materials(self) -> dict[str, dict[str, Any]]:
+        taken: set[str] = set()
+        result = {}
+        for name, data in self._materials.items():
+            material_id = _id(name, taken)
+            self._material_ids[name] = material_id
+            result[material_id] = {"id": material_id, **data}
+        return result
+
+    def material_id(self, name: str) -> str | None:
+        return self._material_ids.get(name)
+
+    def _levels(self) -> list[tuple[str, float]]:
+        """Stories (name, elevation) bottom up: the file's, or the levels of the horizontal
+        members and slabs and the bottoms of the columns."""
+        levels: list[tuple[str, float]] = []
+        for name, elevation in sorted(self._stories, key=lambda s: s[1]):
+            if levels and abs(levels[-1][1] - elevation) <= TOLERANCE:
+                self.report.approximate("stories at the same level merged", name)
+                continue
+            levels.append((name, elevation))
+        if levels:
+            return levels
+        zs: list[float] = []
+        for f in self._frames:
+            if abs(f.start[2] - f.end[2]) <= TOLERANCE:
+                zs.append(f.start[2])
+            elif math.dist(f.start[:2], f.end[:2]) <= TOLERANCE:
+                zs.extend((f.start[2], f.end[2]))
+        for a in self._areas:
+            if max(p[2] for p in a.points) - min(p[2] for p in a.points) <= TOLERANCE:
+                zs.append(a.points[0][2])
+        values: list[float] = []
+        for z in sorted(zs):
+            if not values or z - values[-1] > TOLERANCE:
+                values.append(round(z, 3))
+        if values:
+            self.report.approximate("stories found from the levels of the beams and floors")
+        return [("Base" if k == 0 else f"Level {k}", z) for k, z in enumerate(values)]
+
+    def _build_grids(self) -> dict[str, list[dict[str, Any]]]:
+        """The file's cartesian grid lines; without them, lines through the column positions
+        (or all points)."""
+        taken: set[str] = set()
+        grids: dict[str, list[dict[str, Any]]] = {"x": [], "y": []}
+        for axis in ("x", "y"):
+            for label, position in sorted(self._grids[axis], key=lambda g: g[1]):
+                if any(abs(g["position"] - position) <= TOLERANCE for g in grids[axis]):
+                    self.report.approximate("grid lines at the same position merged", label)
+                    continue
+                fallback = _letters(len(grids[axis])) if axis == "x" else str(len(grids[axis]) + 1)
+                grids[axis].append(
+                    {"label": _grid_label(label, taken, fallback), "position": position}
+                )
+        if grids["x"] and grids["y"]:
+            return grids
+        points = [f.start for f in self._frames if math.dist(f.start[:2], f.end[:2]) <= TOLERANCE]
+        if not points:
+            points = [p for f in self._frames for p in (f.start, f.end)] + [
+                p for a in self._areas for p in a.points
+            ]
+        if not points:
+            points = [(0.0, 0.0, 0.0)]
+        for axis, index in (("x", 0), ("y", 1)):
+            if grids[axis]:
+                continue
+            values: list[float] = []
+            for v in sorted(p[index] for p in points):
+                if not values or v - values[-1] > TOLERANCE:
+                    values.append(round(v, 3))
+            for k, v in enumerate(values):
+                label = _letters(k) if axis == "x" else str(k + 1)
+                grids[axis].append({"label": _grid_label(label, taken, label), "position": v})
+        if not self._grids["x"] or not self._grids["y"]:
+            self.report.approximate("grid lines made from the column positions")
+        return grids
+
+    def _build_openings(
+        self, slabs: list[tuple[str, list[tuple[float, float]], float]], ids: set[str]
+    ) -> list[SlabOpening]:
+        from shapely.geometry import Point, Polygon
+
+        result = []
+        for name, points in self._openings:
+            xs, ys, zs = zip(*points, strict=True)
+            plan = _distinct([(p[0], p[1]) for p in points])
+            box = (max(xs) - min(xs)) * (max(ys) - min(ys))
+            rectangle = len(plan) == 4 and math.isclose(abs(Polygon(plan).area), box, rel_tol=1e-3)
+            if max(zs) - min(zs) > TOLERANCE or not rectangle or box <= 0:
+                self.report.skip("openings that are not plan rectangles", name)
+                continue
+            cx, cy = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
+            host = next(
+                (
+                    slab_id
+                    for slab_id, outline, z in slabs
+                    if abs(z - zs[0]) <= TOLERANCE and Polygon(outline).contains(Point(cx, cy))
+                ),
+                None,
+            )
+            if host is None:
+                self.report.skip("openings in no imported slab", name)
+                continue
+            result.append(
+                SlabOpening(
+                    id=_id(name, ids),
+                    host=host,
+                    x=cx,
+                    y=cy,
+                    xDim=max(xs) - min(xs),
+                    yDim=max(ys) - min(ys),
+                )
+            )
+            self.report.count("slabOpenings")
+        return result
+
+    def _build_settings(self, slab_ids: dict[str, str], roof_slabs: set[str]) -> ProjectSettings:
+        report = self.report
+        settings = default_project_settings(self.name)
+        loads_by_slab = {name: self._area_loads.get(name, {}) for name in slab_ids}
+        # Which of the file's live cases end up in SAEngine's roof (Lr) and floor (L) loads:
+        # a Live-pattern load on the roof is applied in SAEngine's Lr case, so the combinations
+        # must give Lr the factor the file gave L (and the other way round below the roof).
+        roof_cases = {
+            c for n, v in loads_by_slab.items() if n in roof_slabs for c in ("L", "Lr") if v.get(c)
+        }
+        floor_cases = {
+            c
+            for n, v in loads_by_slab.items()
+            if n not in roof_slabs
+            for c in ("L", "Lr")
+            if v.get(c)
+        }
+        for name, loads in self._area_loads.items():
+            if name not in slab_ids:
+                area = self._area_m2.get(name, 0.0)
+                for case, value in loads.items():
+                    self.not_carried(
+                        "area loads on walls or skipped areas", case, value * area, name
+                    )
+        if any(loads_by_slab.values()):
+            floors = {n: v for n, v in loads_by_slab.items() if n not in roof_slabs}
+            roofs = {n: v for n, v in loads_by_slab.items() if n in roof_slabs}
+            area_loads = {a.id: a for a in settings.areaLoads}
+            for load_id, group, roof in (("FL", floors, False), ("RF", roofs, True)):
+                if not group:
+                    continue
+                finish = self._governing(
+                    [v.get("D", 0.0) for v in group.values()], "superimposed dead load", roof
+                )
+                if roof:
+                    if any(v.get("L") for v in group.values()):
+                        report.approximate(
+                            "live load on the roof taken as roof live load Lr (SAEngine's roof case)"
+                        )
+                    live_values = [v.get("Lr", 0.0) + v.get("L", 0.0) for v in group.values()]
+                else:
+                    if any(v.get("Lr") for v in group.values()):
+                        report.approximate("roof live load below the roof taken as live load L")
+                    live_values = [v.get("L", 0.0) + v.get("Lr", 0.0) for v in group.values()]
+                live = self._governing(live_values, "live load", roof)
+                area_loads[load_id] = AreaLoad(
+                    id=load_id,
+                    name=f"{'Roof' if roof else 'Floors'} (imported)",
+                    use="custom",
+                    live=live,
+                    finish=finish,
+                    partitions=0.0,
+                )
+                report.count("areaLoads")
+                for name in group:
+                    area = self._area_m2.get(name, 0.0)
+                    report.carried["D"] += finish * area
+                    report.carried["Lr" if roof else "L"] += live * area
+            settings.areaLoads = list(area_loads.values())
+        else:
+            report.warn(
+                "The file has no area loads on its floors: SAEngine's default floor and roof "
+                "loads apply (02 Project Settings)."
+            )
+        combinations: list[LoadCombination] = []
+        seen: set[tuple[tuple[str, float], ...]] = set()
+        names: set[str] = set()
+        for name, factors in self._combinations:
+            factors = self._live_factors(name, factors, roof_cases, floor_cases)
+            key = tuple(sorted((k, round(v, 6)) for k, v in factors.items()))
+            if key in seen:
+                report.approximate(
+                    "combinations with the same factors as another one dropped", name
+                )
+                continue
+            seen.add(key)
+            label, k = name, 2
+            while label in names:
+                label, k = f"{name} ({k})", k + 1
+            names.add(label)
+            combinations.append(LoadCombination(name=label, **factors))
+        if combinations:
+            settings.combinations = combinations
+            report.count("combinations", len(combinations))
+        else:
+            report.warn(
+                "The file has no load combinations SAEngine can use: the BNBC 2020 ones apply."
+            )
+        return settings
+
+    def _live_factors(
+        self,
+        name: str,
+        factors: dict[str, float],
+        roof_cases: set[str],
+        floor_cases: set[str],
+    ) -> dict[str, float]:
+        """The combination factors with L / Lr following where the file's live loads went.
+
+        SAEngine applies the roof's live load (RF) in its Lr case and the floors' (FL) in L.
+        When the roof's live load came only from the file's Live pattern, Lr takes the factor
+        the file gave L in this combination; when the floors' came only from Roof Live, L takes
+        the factor of Lr. Where a roof or a floor holds both, the factor of the case SAEngine
+        uses is kept (or the other one's when it has none) and the change is reported.
+        """
+        result = dict(factors)
+        what = "combination factors moved with the live loads"
+
+        def take(target: str, source: str, cases: set[str]) -> None:
+            if source not in cases:
+                return
+            old, new = factors.get(target, 0.0), factors.get(source, 0.0)
+            if target in cases and old:
+                if abs(old - new) > 1e-9:
+                    report_what = (
+                        f"{what}: the {'roof' if target == 'Lr' else 'floor'} holds both live "
+                        f"cases, the {target} factor applies to both"
+                    )
+                    self.report.approximate(report_what, f"{name}: {target} {old:g}")
+                return
+            if abs(old - new) > 1e-9:
+                self.report.approximate(
+                    f"{what}: {source} loads on the {'roof' if target == 'Lr' else 'floors'} "
+                    f"applied in SAEngine's {target}, which takes the {source} factor",
+                    f"{name}: {target} {old:g} → {new:g}",
+                )
+            if new:
+                result[target] = new
+            else:
+                result.pop(target, None)
+
+        take("Lr", "L", roof_cases)
+        take("L", "Lr", floor_cases)
+        return result
+
+    def _governing(self, values: list[float], what: str, roof: bool) -> float:
+        distinct = sorted({round(v, 4) for v in values})
+        if len(distinct) > 1:
+            where = "roof" if roof else "floor"
+            self.report.approximate(
+                f"{where} {what} differs between slabs ({', '.join(f'{v:g}' for v in distinct)} "
+                f"kN/m²): the largest applies to all {where} slabs"
+            )
+        return max(distinct) if distinct else 0.0
+
+
+class _Types:
+    """Object types made from the sections, one per section and kind it is used as."""
+
+    def __init__(self, builder: ProjectBuilder, materials: dict[str, dict[str, Any]]) -> None:
+        self.builder = builder
+        self.materials = materials
+        self.objects: list[dict[str, Any]] = []
+        self._ids: dict[tuple[str, str], str] = {}
+        self._taken: set[str] = set()
+        self._kinds: dict[str, set[str]] = defaultdict(set)
+
+    def _material(self, name: str) -> str | None:
+        return self.builder.material_id(name)
+
+    def _new_id(self, section: str, kind: str) -> str:
+        suffix = {"column": "C", "beam": "B", "brace": "BR", "slab": "S", "wall": "W"}[kind]
+        self._kinds[section].add(kind)
+        if section not in {s for s, _ in self._ids}:
+            return _id(section, self._taken)
+        return _id(f"{section}-{suffix}", self._taken)
+
+    def frame(self, section: _FrameSection, kind: FrameKind) -> tuple[str, float] | None:
+        """(object type id, extra rotation [°] for columns whose profile is turned)."""
+        material = self._material(section.material)
+        if material is None:
+            return None
+        profile = dict(section.profile)
+        extra = 0.0
+        if kind == "column":
+            # The source's depth (local 2) lies along global X at a column angle of 0, and the
+            # profile's x along global X at a rotation of 0: rectangles swap their sides, other
+            # shapes turn by 90°.
+            if profile["shape"] in ("rectangle", "rectangleHollow"):
+                profile["xDim"], profile["yDim"] = profile["yDim"], profile["xDim"]
+            elif profile["shape"] in ("I", "T", "L", "U"):
+                extra = 90.0
+        key = (section.name, kind)
+        if key not in self._ids:
+            type_id = self._new_id(section.name, kind)
+            data: dict[str, Any] = {
+                "id": type_id,
+                "name": f"{section.name} {kind}",
+                "kind": kind,
+                "material": material,
+                "profile": profile,
+            }
+            bars = section.column_reinforcement if kind == "column" else section.beam_reinforcement
+            if bars and kind != "brace":
+                rebar = self._material(bars["material"])
+                if rebar is not None and self.materials[rebar]["category"] == "rebar":
+                    data["reinforcement"] = {**bars, "material": rebar}
+                else:
+                    self.builder.report.approximate(
+                        "reinforcement without a rebar material left to SAEngine's design",
+                        section.name,
+                    )
+            self.objects.append(data)
+            self._ids[key] = type_id
+        return self._ids[key], extra
+
+    def shell(self, section: _ShellSection, kind: Literal["slab", "wall"]) -> str | None:
+        material = self._material(section.material)
+        if material is None:
+            return None
+        key = (section.name, kind)
+        if key not in self._ids:
+            type_id = self._new_id(section.name, kind)
+            self.objects.append(
+                {
+                    "id": type_id,
+                    "name": f"{section.name} {kind}",
+                    "kind": kind,
+                    "material": material,
+                    "thickness": section.thickness,
+                }
+            )
+            self._ids[key] = type_id
+        return self._ids[key]
+
+
+def _distinct(points: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    """``points`` without consecutive repeats (and the closing repeat)."""
+    result: list[tuple[float, float]] = []
+    for p in points:
+        if not result or math.dist(result[-1], p) > TOLERANCE:
+            result.append(p)
+    if len(result) > 1 and math.dist(result[0], result[-1]) <= TOLERANCE:
+        result.pop()
+    return result
+
+
+def _wall(
+    points: list[Point3],
+) -> tuple[tuple[float, float], tuple[float, float], float, float] | None:
+    """(start, end, bottom, top) of a vertical rectangular wall panel, or None."""
+    zs = [p[2] for p in points]
+    bottom, top = min(zs), max(zs)
+    if top - bottom <= TOLERANCE:
+        return None
+    if any(min(abs(z - bottom), abs(z - top)) > TOLERANCE for z in zs):
+        return None
+    lower = _distinct([(p[0], p[1]) for p in points if abs(p[2] - bottom) <= TOLERANCE])
+    upper = _distinct([(p[0], p[1]) for p in points if abs(p[2] - top) <= TOLERANCE])
+    if len(lower) != 2 or len(upper) != 2:
+        return None
+    if not all(any(math.dist(a, b) <= TOLERANCE for b in upper) for a in lower):
+        return None
+    return lower[0], lower[1], bottom, top
+
+
+def polygon_area(points: list[Point3]) -> float:
+    """Area [m²] of a flat polygon in space given in mm (Newell's method)."""
+    nx = ny = nz = 0.0
+    for (x0, y0, z0), (x1, y1, z1) in zip(points, points[1:] + points[:1], strict=True):
+        nx += (y0 - y1) * (z0 + z1)
+        ny += (z0 - z1) * (x0 + x1)
+        nz += (x0 - x1) * (y0 + y1)
+    return math.sqrt(nx * nx + ny * ny + nz * nz) / 2 * 1e-6

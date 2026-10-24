@@ -288,5 +288,19 @@
 	},
 	"foundation": {
 		"allowableBearing": 150
+	},
+	"drawings": {
+		"firm": "Sample Structural Consultants",
+		"drawnBy": "SAE",
+		"checkedBy": "QC",
+		"approvedBy": "PE",
+		"projectNumber": "SF-001",
+		"revisions": [
+			{
+				"code": "0",
+				"date": "2026-10-23",
+				"description": "First issue"
+			}
+		]
 	}
 }

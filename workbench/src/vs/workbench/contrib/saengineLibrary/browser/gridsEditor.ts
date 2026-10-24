@@ -123,7 +123,8 @@ export class GridsEditor extends JsonDocumentEditor {
 		this.form = instantiationService.createInstance(SchemaForm, {
 			root: FLOOR_PLAN_SCHEMA,
 			template: defName => clone((TEMPLATES[defName] ?? {}) as JsonObject),
-			references: () => undefined,
+			// A typical floor repeats another story's plan (see the floor plan's Typical Floors).
+			references: path => path === 'stories.similarTo' ? this.stories.map(s => s.id) : undefined,
 			validate: (path, value) => this.validate(path, value),
 			changed: (_path, structural) => {
 				this.changed(structural);

@@ -324,7 +324,7 @@ def test_run_all_stops_at_a_failed_step(sample: Path, monkeypatch: pytest.Monkey
     ]
     assert result.steps[0].message == "Building model: bad"
     assert result.stopped_at == "derive" and not result.ok and seen == ["derive"]
-    assert result.summary.startswith("Run All stopped at step 1 of 8 (analysis model)")
+    assert result.summary.startswith("Run All stopped at step 1 of 9 (analysis model)")
     assert result.steps[1].message == "Not run: Run All stopped at analysis model."
     with pytest.raises(ValueError, match="unknown step"):
         R.run_all(sample, steps=["derive", "nope"])

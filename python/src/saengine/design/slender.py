@@ -1097,7 +1097,14 @@ class SlenderContext:
         )
         self.types, self.mats, self.pieces = types, mats, pieces
         self._segments: dict[tuple[str, str], list[Segment]] = {}
-        self._nodes = {_key(at): node for node, at in self.model.coords.items()}
+        # A pinned member end's twin node (a simple steel connection) shares the joint's
+        # place: positions resolve to the joint (the pinned member adds no restraint there).
+        from saengine.fem.derive import pinned_twins
+
+        twins = pinned_twins(project)
+        self._nodes = {
+            _key(at): node for node, at in self.model.coords.items() if node not in twins
+        }
         if self.options.sway_magnifier == "sumPc":
             self._sum_pc(building)
 

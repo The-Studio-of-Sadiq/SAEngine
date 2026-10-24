@@ -11,7 +11,9 @@ the Exports page writes them.
 - ``dxf``: the structural plan of every story, ``11 Exports/Floor Plan/<story id> <name>.dxf``
   (``floorPlanDrawing`` of ``floorPlanDrawing.ts``, ported: the same layers, entities and
   sizes). The app writes the DXF with its CAD editor's writer and this module with ezdxf, so the
-  files hold the same drawing but are not byte-identical (header, handles).
+  files hold the same drawing but are not byte-identical (header, handles);
+- ``drawings``: the structural drawing set, ``11 Exports/Drawings/`` (sheet DXFs, ``drawings.pdf``,
+  ``previews/``, ``bbs.csv``; :mod:`saengine.pipeline.drawings`, as the Exports page's Generate).
 """
 
 from __future__ import annotations
@@ -25,7 +27,7 @@ from typing import Any
 from saengine.pipeline.project import Project, write_text
 
 EXPORTS_FOLDER = "11 Exports"
-FORMATS = ("pdf", "ifc", "dxf", "csv")
+FORMATS = ("pdf", "ifc", "dxf", "csv", "drawings")
 _UNSAFE = re.compile(r'[\\/:*?"<>|]')
 
 
@@ -437,8 +439,54 @@ def export_dxf(project: Project, out: Path | None = None) -> list[Path]:
     return written
 
 
-def export(project: Project, fmt: str, out: Path | None = None) -> list[Path]:
-    """Writes export ``fmt`` (:data:`FORMATS`) of ``project``; the files written."""
+# ─────────────────────────────── drawings ───────────────────────────────
+
+
+def export_drawings(
+    project: Project, out: Path | None = None, size: str | None = None
+) -> list[Path]:
+    """The structural drawings (:mod:`saengine.pipeline.drawings`): generated into
+    ``11 Exports/Drawings`` as the Exports page generates them (its record of the set, so the
+    app shows them current), then, with ``out``, copied into that folder (the sheet DXFs, the PDF
+    set, the previews and the bar bending schedule)."""
+    import shutil
+
+    from saengine.pipeline.drawings import DrawingsError, generate
+
+    if project.type != "building":
+        raise ExportError("Drawings are generated from the building model of a building project.")
+    try:
+        answer = generate(project.root, size=size)
+    except DrawingsError as error:
+        raise ExportError(str(error)) from error
+    import sys
+
+    # Failing detailing and design checks: the set is written, but not ready to issue.
+    for problem in answer.get("problems") or []:
+        if isinstance(problem, dict) and problem.get("severity") == "error":
+            print(
+                f"saengine export: to resolve before issue: {problem['message']}", file=sys.stderr
+            )
+    written = [Path(s["dxf"]) for s in answer["sheets"] if s.get("dxf")]
+    written += [Path(p) for p in (answer.get("pdf"), answer.get("bbsCsv")) if p]
+    written += [Path(s["png"]) for s in answer["sheets"] if s.get("png")]
+    if out is None:
+        return written
+    folder = project.root / "11 Exports" / "Drawings"
+    copies = []
+    for path in written:
+        target = out / path.relative_to(folder)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(path, target)
+        copies.append(target)
+    return copies
+
+
+def export(project: Project, fmt: str, out: Path | None = None, **options: Any) -> list[Path]:
+    """Writes export ``fmt`` (:data:`FORMATS`) of ``project``; the files written. ``options``:
+    ``size`` (A1, A2, A3) for the drawings."""
+    if fmt == "drawings":
+        return export_drawings(project, out, options.get("size"))
     writers = {"pdf": export_pdf, "ifc": export_ifc, "csv": export_csv, "dxf": export_dxf}
     if fmt not in writers:
         raise ValueError(f"unknown export format: {fmt}")

@@ -1265,6 +1265,7 @@ def _design(results_dir: Path, model_path: Path, warnings: list[str]) -> dict[st
     ]
     walls = _walls(report)
     stairs = _stairs(report)
+    steel = _steel(report)
     failed = int(summary.get("failed", 0) or 0)
     if failed:
         warnings.append(f"{failed} element(s) fail their design checks.")
@@ -1278,6 +1279,7 @@ def _design(results_dir: Path, model_path: Path, warnings: list[str]) -> dict[st
         "seismic": seismic,
         "walls": walls,
         "stairs": stairs,
+        "steel": steel,
         "slenderness": slender_rows,
         "slendernessFails": slender_fails,
         "stability": stability,
@@ -1371,6 +1373,57 @@ def _walls(report: dict[str, Any]) -> dict[str, Any]:
         "boundary": boundary,
         "coupling": coupling,
         "couplingBad": coupling_bad,
+    }
+
+
+def _steel(report: dict[str, Any]) -> dict[str, Any]:
+    """Integrator glue: the steel members (saengine.design.steel_design) and their
+    connections; a steel member's entry has a ``section`` with its ``family``."""
+    rows, bad, connections, connections_bad = [], [], [], []
+    for element in report.get("elements", []):
+        section = element.get("section")
+        if not isinstance(section, dict) or "family" not in section:
+            continue
+        own = [
+            c
+            for c in element.get("checks", [])
+            if not str(c.get("name", "")).startswith("Connection: ")
+        ]
+        check = _governing({**element, "checks": own})
+        ok = all(c.get("ok") for c in own if not c.get("flag"))
+        rows.append(
+            [
+                str(element.get("id")),
+                str(element.get("kind", "")),
+                str(section.get("label", "")),
+                str(element.get("material", "–")),
+                str(section.get("class", "")),
+                fmt(section.get("massPerMetre"), 1),
+                str(element.get("lengths", "")),
+                str(check.get("name", "")) if check else "–",
+                fmt(check.get("utilisation"), 3) if check else "–",
+                "OK" if ok else "FAIL",
+            ]
+        )
+        bad.append(not ok)
+        for connection in element.get("connections", []) or []:
+            worst = _governing(connection)
+            connections.append(
+                [
+                    str(element.get("id")),
+                    str(connection.get("description") or connection.get("connection", "")),
+                    str(worst.get("name", "")) if worst else "–",
+                    fmt(connection.get("utilisation"), 3),
+                    "OK" if connection.get("ok") else "FAIL",
+                    "; ".join(str(a) for a in connection.get("assumptions", [])),
+                ]
+            )
+            connections_bad.append(not connection.get("ok"))
+    return {
+        "members": rows,
+        "membersBad": bad,
+        "connections": connections,
+        "connectionsBad": connections_bad,
     }
 
 

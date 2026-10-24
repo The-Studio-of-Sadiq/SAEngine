@@ -3,6 +3,7 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IntervalTimer } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { isAbsolute } from '../../../../base/common/path.js';
@@ -18,6 +19,7 @@ import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurati
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { EditorResourceAccessor } from '../../../common/editor.js';
@@ -550,4 +552,73 @@ CommandsRegistry.registerCommand('saengine.soil.openInQgis', async (accessor, ar
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	const program = accessor.get(IConfigurationService).getValue<string>(QGIS_PROGRAM_SETTING);
 	return accessor.get(IFemSolverService).openInQgis(python, { path: args.path, program });
+});
+
+/**
+ * The structural drawings of `11 Exports/Drawings` (`saengine.pipeline.drawings`): generate
+ * (detailing, bar bending schedule, sheet DXFs, the PDF set and the previews; seconds to minutes,
+ * in a backend worker thread, its step shown in the window's progress), and list (the last
+ * generation with what is out of date: reads files only). Internal: the Exports page, the sheet
+ * previews and Run All call them by id (drawingsModel.ts).
+ */
+interface IDrawingsCommandArgs {
+	readonly projectRoot: string;
+	readonly sheets?: readonly string[];
+	readonly size?: string;
+	/** The design checks Run All has just made, as JSON text (else the backend reads the last run's). */
+	readonly designReportText?: string;
+}
+
+interface IDrawingsProgress {
+	readonly running?: boolean;
+	readonly index?: number;
+	readonly count?: number;
+	readonly message?: string;
+}
+
+CommandsRegistry.registerCommand('saengine.drawings.generate', async (accessor, args: IDrawingsCommandArgs) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	const solver = accessor.get(IFemSolverService);
+	const params = {
+		projectRoot: args.projectRoot,
+		...(args.sheets?.length ? { sheets: args.sheets } : {}),
+		...(args.size ? { size: args.size } : {}),
+		...(args.designReportText ? { designReportText: args.designReportText } : {}),
+	};
+	return accessor.get(IProgressService).withProgress({ location: ProgressLocation.Window, title: localize('drawings.generating', "Generating drawings") }, async progress => {
+		const poll = new IntervalTimer();
+		poll.cancelAndSet(() => {
+			solver.engine(python, 'drawings/progress', { projectRoot: args.projectRoot }).then(raw => {
+				const state = raw as IDrawingsProgress | undefined;
+				if (state?.running && state.message && state.index && state.count) {
+					progress.report({ message: localize('drawings.generatingStep', "{0} ({1} of {2})", state.message, state.index, state.count) });
+				}
+			}, () => { /* the generation's own answer reports failures */ });
+		}, 700);
+		try {
+			return await solver.engine(python, 'drawings/generate', params);
+		} finally {
+			poll.dispose();
+		}
+	});
+});
+
+/**
+ * Integrator glue: the backend of the structural import (structuralImportFlows.ts calls it by id,
+ * `saengine.import.structural` `{path, destParent, name}`): `import/structural` writes the new
+ * project into `<destParent>/<name>` (saengine.importers.project) and answers `{root, name,
+ * format, report, problems, files}`, or `{error, problems}` when the file cannot be imported.
+ */
+CommandsRegistry.registerCommand('saengine.import.structural', async (accessor, args: { readonly path: string; readonly destParent: string; readonly name?: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'import/structural', {
+		path: args.path,
+		destParent: args.destParent,
+		...(args.name ? { name: args.name } : {}),
+	});
+});
+
+CommandsRegistry.registerCommand('saengine.drawings.list', async (accessor, args: { readonly projectRoot: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'drawings/list', { projectRoot: args.projectRoot });
 });

@@ -18,6 +18,7 @@ import { joinPath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -34,6 +35,7 @@ import { PROJECT_TYPES, ProjectType } from '../../../services/saengineProject/co
 import { DESIGN_CODES, DesignCode, ProjectOpener } from './projectOpener.js';
 import { appendProjectPath } from './projectParts.js';
 import { StartEditorInput } from './startEditorInput.js';
+import { IMPORT_STRUCTURAL_UI_COMMAND } from './structuralImportModel.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
 
@@ -98,6 +100,7 @@ export class StartEditor extends EditorPane {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IPathService private readonly pathService: IPathService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(StartEditorInput.EDITOR_ID, group, telemetryService, themeService, storageService);
 		this.opener = instantiationService.createInstance(ProjectOpener);
@@ -156,6 +159,8 @@ export class StartEditor extends EditorPane {
 		this.newProjectAction = action(Codicon.newFolder, localize('start.new', "New Project..."), () => void this.renderNewProject());
 		action(Codicon.folderOpened, localize('start.open', "Open Project..."), () => this.run(() => this.opener.pickAndOpen()));
 		action(Codicon.library, localize('start.sample', "Open Sample Project..."), () => this.run(() => this.opener.openSample()));
+		// Another program's model (ETABS, STAAD.Pro, SAP2000) as a new project: the command asks the rest.
+		action(Codicon.cloudDownload, localize('start.import', "Import from ETABS, STAAD or SAP2000..."), () => this.run(async () => { await this.commandService.executeCommand(IMPORT_STRUCTURAL_UI_COMMAND); }));
 
 		this.main = append(shell, $('main.main'));
 	}

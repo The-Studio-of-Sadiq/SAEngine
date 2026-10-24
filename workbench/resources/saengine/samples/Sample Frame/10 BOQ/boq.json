@@ -2,7 +2,7 @@
 	"schema": "saengine.boq/1",
 	"source": {
 		"bim": "ec2a330ee86f3998504ea38c68157368e5976647",
-		"objects": "8e5071eecf9fdcc14df9d386d143304fdd03a09c",
+		"objects": "f91d0e24f431a1860d388e85f0c0988edb0f8fb2",
 		"materials": "3fe12b278b2e3c43c8e62699aff518395c1a6b7f",
 		"substructure": "24add05dca2f64378c5594856b57f9df1e104bac",
 		"mep": "c4617615135928550d24d2e811b50a250c1ec5d1",
@@ -218,22 +218,6 @@
 		{
 			"code": "C.06",
 			"group": "concrete",
-			"description": "Concrete C24.1 in braces",
-			"quantity": 0.031,
-			"unit": "m3",
-			"material": "C24.1",
-			"kind": "brace",
-			"byStory": {},
-			"breakdown": [
-				{
-					"element": "M2",
-					"quantity": 0.031
-				}
-			]
-		},
-		{
-			"code": "C.07",
-			"group": "concrete",
 			"description": "Concrete C24.1 in slabs",
 			"quantity": 8.098,
 			"unit": "m3",
@@ -256,7 +240,7 @@
 			]
 		},
 		{
-			"code": "C.08",
+			"code": "C.07",
 			"group": "concrete",
 			"description": "Concrete C24.1 in stairs",
 			"quantity": 2.32,
@@ -275,7 +259,7 @@
 			]
 		},
 		{
-			"code": "C.09",
+			"code": "C.08",
 			"group": "concrete",
 			"description": "Concrete C24.1 in water and septic tanks",
 			"quantity": 3.875,
@@ -294,7 +278,7 @@
 			]
 		},
 		{
-			"code": "C.10",
+			"code": "C.09",
 			"group": "concrete",
 			"description": "Concrete C27.6 in water and septic tanks",
 			"quantity": 15.32,
@@ -773,22 +757,6 @@
 		{
 			"code": "F.05",
 			"group": "formwork",
-			"description": "Formwork to braces",
-			"quantity": 3.06,
-			"unit": "m2",
-			"kind": "brace",
-			"byStory": {},
-			"breakdown": [
-				{
-					"element": "M2",
-					"detail": "sides and soffit",
-					"quantity": 3.06
-				}
-			]
-		},
-		{
-			"code": "F.06",
-			"group": "formwork",
 			"description": "Formwork to slabs",
 			"quantity": 50.977,
 			"unit": "m2",
@@ -818,7 +786,7 @@
 			]
 		},
 		{
-			"code": "F.07",
+			"code": "F.06",
 			"group": "formwork",
 			"description": "Formwork to stairs",
 			"quantity": 15.577,
@@ -849,7 +817,7 @@
 			]
 		},
 		{
-			"code": "F.08",
+			"code": "F.07",
 			"group": "formwork",
 			"description": "Formwork to water and septic tanks",
 			"quantity": 146.69,
@@ -874,6 +842,23 @@
 					"element": "SEP1",
 					"detail": "inside and outside faces",
 					"quantity": 42.8
+				}
+			]
+		},
+		{
+			"code": "S.01",
+			"group": "steel",
+			"description": "Structural steel A572-50, SHS 150x150x8 (33.9 kg/m) in braces",
+			"quantity": 230.828,
+			"unit": "kg",
+			"material": "A572-50",
+			"kind": "brace",
+			"byStory": {},
+			"breakdown": [
+				{
+					"element": "M2",
+					"detail": "6.80 m × 33.95 kg/m",
+					"quantity": 230.828
 				}
 			]
 		},
@@ -1163,7 +1148,7 @@
 			"code": "MT.01",
 			"group": "materials",
 			"description": "Cement (OPC)",
-			"quantity": 11536.197,
+			"quantity": 11523.739,
 			"unit": "kg",
 			"kind": "cement",
 			"byStory": {
@@ -1268,11 +1253,6 @@
 					"quantity": 2116.8
 				},
 				{
-					"element": "M2",
-					"detail": "Concrete C24.1 in braces",
-					"quantity": 12.459
-				},
-				{
 					"element": "ST1",
 					"story": "BASE",
 					"detail": "Concrete C24.1 in stairs",
@@ -1296,7 +1276,7 @@
 			"code": "MT.02",
 			"group": "materials",
 			"description": "Cement (OPC) in 50 kg bags",
-			"quantity": 230.724,
+			"quantity": 230.475,
 			"unit": "bag",
 			"kind": "bags",
 			"byStory": {
@@ -1401,11 +1381,6 @@
 					"quantity": 42.336
 				},
 				{
-					"element": "M2",
-					"detail": "Concrete C24.1 in braces",
-					"quantity": 0.249
-				},
-				{
 					"element": "ST1",
 					"story": "BASE",
 					"detail": "Concrete C24.1 in stairs",
@@ -1429,7 +1404,7 @@
 			"code": "MT.03",
 			"group": "materials",
 			"description": "Sand (fine aggregate)",
-			"quantity": 424.372,
+			"quantity": 423.914,
 			"unit": "cft",
 			"kind": "sand",
 			"byStory": {
@@ -1534,11 +1509,6 @@
 					"quantity": 77.869
 				},
 				{
-					"element": "M2",
-					"detail": "Concrete C24.1 in braces",
-					"quantity": 0.458
-				},
-				{
 					"element": "ST1",
 					"story": "BASE",
 					"detail": "Concrete C24.1 in stairs",
@@ -1562,7 +1532,7 @@
 			"code": "MT.04",
 			"group": "materials",
 			"description": "Stone chips (coarse aggregate)",
-			"quantity": 848.744,
+			"quantity": 847.828,
 			"unit": "cft",
 			"kind": "stone",
 			"byStory": {
@@ -1667,11 +1637,6 @@
 					"quantity": 155.738
 				},
 				{
-					"element": "M2",
-					"detail": "Concrete C24.1 in braces",
-					"quantity": 0.917
-				},
-				{
 					"element": "ST1",
 					"story": "BASE",
 					"detail": "Concrete C24.1 in stairs",
@@ -1695,7 +1660,7 @@
 			"code": "MT.05",
 			"group": "materials",
 			"description": "Water",
-			"quantity": 5191.289,
+			"quantity": 5185.682,
 			"unit": "l",
 			"kind": "water",
 			"byStory": {
@@ -1800,11 +1765,6 @@
 					"quantity": 952.56
 				},
 				{
-					"element": "M2",
-					"detail": "Concrete C24.1 in braces",
-					"quantity": 5.606
-				},
-				{
 					"element": "ST1",
 					"story": "BASE",
 					"detail": "Concrete C24.1 in stairs",
@@ -1839,6 +1799,6 @@
 		"UGR1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
 		"SEP1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
 		"Materials: concrete C27.6 has no mix, so no cement, sand or stone is taken off for it (add the mix in 03 Materials).",
-		"Object type 'BR-SHS' (Brace SHS 150) has no reinforcement; no bars are measured for M2."
+		"Reinforcement against the bar bending schedule of the drawings (BBS against this bill, per bar size): Ø10 1380.7 kg against 1359.6 kg (+21.1 kg, +1.6 %); Ø12 177.7 kg against 141.4 kg (+36.3 kg, +25.7 %); Ø16 368.2 kg against 342.9 kg (+25.3 kg, +7.4 %); Ø20 642.0 kg against 721.0 kg (-79.0 kg, -11.0 %); in total 2568.5 kg against 2564.8 kg. The schedule cuts the detailed bars (BNBC 2020 laps and hooks, cut-off bars, BS 8666 cutting lengths); this bill measures by the rules above. Set Project Settings, Drawings, BOQ reinforcement to take the schedule's bars instead. Not detailed in the drawings: M1."
 	]
 }

@@ -16,6 +16,10 @@ the loads of ``02 Project Settings`` (BNBC 2020) automatically:
   carry their loads as the consistent nodal loads of their elements. Non-structural walls are
   a line load on the beams they stand on;
 - with a rigid diaphragm (the default) every floor is tied to a node at its centre of mass;
+- steel beams and braces whose type has a simple connection (fin plate, end plate, gusset) are
+  pinned at their ends (:func:`_release_simple_ends`, zero-length links stiff in translation
+  only): their end moments are released, so the analysis matches the connection the design
+  checks;
 - wind and earthquake are equivalent static story forces (:mod:`saengine.fem.loads`) at the
   levels, shared among a level's nodes by their weight; each node's weight also gives its
   lumped mass. Nodes between levels (wall meshes) count towards the nearest level's weight.
@@ -472,6 +476,18 @@ def derive_fem(
                 np.array([member.x2, member.y2, member.z2]),
             )
         )
+    # Members whose steel type has a simple connection: their ends (mm), pinned below.
+    simple_ends: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+
+    def simple(type_id: str) -> bool:
+        object_type = types.get(type_id)
+        material = mats.get(object_type.material) if object_type else None
+        return (
+            getattr(object_type, "connection", None) is not None
+            and material is not None
+            and material.category.value == "steel"
+        )
+
     for source, type_id, a, c in linear:
         axis = c - a
         sec = section(type_id, 0, abs(axis[2]) > abs(axis[0]))
@@ -482,6 +498,8 @@ def derive_fem(
             continue
         lines.append((source, tuple(a), tuple(c)))
         line_sources[source] = (source, sec)
+        if simple(type_id):
+            simple_ends[source] = (np.asarray(a, dtype=float), np.asarray(c, dtype=float))
 
     for element in building.elements:
         if not isinstance(element, MemberElement):
@@ -501,6 +519,8 @@ def derive_fem(
             continue
         lines.append((element.id, tuple(a), tuple(c)))
         line_sources[element.id] = (element.id, sec)
+        if simple(element.type):
+            simple_ends[element.id] = (a.astype(float), c.astype(float))
 
     area_loads_of: dict[str, str | None] = {}
     for element in building.elements:
@@ -1035,6 +1055,9 @@ def derive_fem(
             "no lateral loads: the building has no levels above its base, or the site has no Z or wind speed"
         )
 
+    # ── simple connections: pinned member ends (after the loads and diaphragms) ──
+    pins = _release_simple_ends(b, simple_ends)
+
     # ── project ──
     nodes = []
     for node_id, xyz in sorted(b.coords.items()):
@@ -1090,6 +1113,17 @@ def derive_fem(
                 "formulation": "FourNodeTetrahedron",
                 "nodes": list(solid.nodes),
                 "material_id": solid.material,
+            }
+        )
+    for source, node_id, twin, material_ids, dofs in pins:
+        elements.append(
+            {
+                "id": len(elements) + 1,
+                "name": name(f"{source}/pin"),
+                "type": "ZeroLength",
+                "nodes": [node_id, twin],
+                "material_ids": material_ids,
+                "dofs": dofs,
             }
         )
     # The fluid case F only when it has loads (it is last, so the other cases keep their ids).
@@ -1432,6 +1466,123 @@ def derive_fem(
         thermal=thermal_corrections,
         ssi=ssi_json,
     )
+
+
+#: Stiffness of a pinned end's link in translation [N/m] and in torsion [N·m/rad]: a penalty
+#: well above any member's (a 7 m steel brace's EA/L is about 1e8 N/m), so the link adds no
+#: noticeable flexibility.
+PIN_TRANSLATION = 1e13
+PIN_TORSION = 1e12
+
+
+def _release_simple_ends(
+    b: _Builder, ends: dict[str, tuple[np.ndarray, np.ndarray]]
+) -> list[tuple[str, int, int, list[int], list[int]]]:
+    """Pin the ends of the members in ``ends`` (source -> its two end points, mm): the steel
+    beams and braces whose type has a simple connection (fin plate, end plate, gusset), which
+    transfers shear or axial force but no moment.
+
+    Each pinned end connects to a twin node at the joint's place instead of the joint's node;
+    a zero-length link (``ZeroLength``, named ``<member>/pin``) joins the two with stiff springs
+    in translation only, so no moment passes. (A link element, not an equal-DOF tie: a tie on
+    a floor node that a rigid diaphragm already constrains would be a chain of constraints,
+    which the Transformation handler does not enforce.) A member pinned at both ends keeps its
+    torsion at its first end (the spring about the global axis nearest its own), or it could
+    spin about its axis. An end stays rigid at a support (its reaction stays at the support
+    node) and where nothing else holds the joint's rotation (a free end).
+
+    Returns the links: ``(source, joint node, twin node, material ids, dofs)``; their two
+    elastic materials are added to the builder's materials."""
+    if not ends:
+        return []
+    holds: dict[int, int] = {}
+    for member in b.members:
+        for n in (member.i, member.j):
+            holds[n] = holds.get(n, 0) + 1
+    for shell in b.shells:
+        for n in shell.nodes:
+            holds[n] = holds.get(n, 0) + 1
+    candidates: list[tuple[int, int, int]] = []  # (member index, 0: i / 1: j, node)
+    for index, member in enumerate(b.members):
+        span = ends.get(member.source)
+        if span is None:
+            continue
+        for end, n in ((0, member.i), (1, member.j)):
+            at = b.coords[n] / MM
+            if any(float(np.linalg.norm(at - p)) < 1.0 for p in span):
+                candidates.append((index, end, n))
+    for _, _, n in candidates:
+        holds[n] -= 1
+    twin_id = max(b.coords, default=0) + 1
+    links: list[list[Any]] = []  # [source, node, twin, dofs]
+    pinned: dict[str, list[tuple[int, int]]] = {}  # source -> [(member index, link)]
+    kept: dict[str, list[str]] = {}
+    for index, end, n in candidates:
+        member = b.members[index]
+        restraint = b.restraints.get(n) or [False] * 6
+        if any(restraint[:3]):
+            kept.setdefault("at a support", []).append(member.source)
+            continue
+        if holds.get(n, 0) <= 0 and not any(restraint[3:]):
+            kept.setdefault("at a free end", []).append(member.source)
+            continue
+        twin = twin_id
+        twin_id += 1
+        b.coords[twin] = b.coords[n].copy()
+        if end == 0:
+            member.i = twin
+        else:
+            member.j = twin
+        links.append([member.source, n, twin, [1, 2, 3]])
+        pinned.setdefault(member.source, []).append((index, len(links) - 1))
+    for items in pinned.values():
+        if len(items) < 2:
+            continue
+        index, link = items[0]
+        member = b.members[index]
+        axis = np.abs(b.coords[member.j] - b.coords[member.i])
+        links[link][3] = [1, 2, 3, 4 + int(np.argmax(axis))]
+    for why, sources in kept.items():
+        names = sorted(set(sources))
+        b.notes.append(
+            f"simple connections: {len(sources)} end(s) analysed rigid {why} "
+            f"(e.g. {', '.join(names[:5])}); the design flags the moment there"
+        )
+    if not links:
+        return []
+    translation = len(b.materials) + 1
+    b.materials.append(
+        {
+            "id": translation,
+            "name": "pinned end, translation",
+            "type": "Elastic",
+            "E": PIN_TRANSLATION,
+        }
+    )
+    torsion = len(b.materials) + 1
+    b.materials.append(
+        {"id": torsion, "name": "pinned end, torsion", "type": "Elastic", "E": PIN_TORSION}
+    )
+    b.notes.append(
+        f"simple connections: {len(links)} member end(s) of {len(pinned)} steel member(s) "
+        "pinned (no end moment), e.g. " + ", ".join(sorted(pinned)[:5])
+    )
+    return [
+        (source, n, twin, [translation if d <= 3 else torsion for d in dofs], dofs)
+        for source, n, twin, dofs in links
+    ]
+
+
+def pinned_twins(project: dict[str, Any]) -> dict[int, int]:
+    """The twin nodes of pinned member ends (:func:`_release_simple_ends`) -> their joint's
+    node, from the ``<member>/pin`` links of ``project``."""
+    return {
+        int(e["nodes"][1]): int(e["nodes"][0])
+        for e in project.get("elements", [])
+        if e.get("type") == "ZeroLength"
+        and str(e.get("name") or "").split("#")[0].endswith("/pin")
+        and len(e.get("nodes", [])) == 2
+    }
 
 
 def _rectangle(opening: Any, z: float) -> list[tuple[float, float, float]]:

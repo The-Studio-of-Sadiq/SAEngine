@@ -490,7 +490,10 @@ export class SchemaForm {
 				text: v === null ? localize('schemaForm.notSet', "(not set)") : label(v),
 				description: references && v !== null && !references.includes(v as string) ? localize('schemaForm.missing', "Not defined") : undefined,
 			}));
-			const select = this.disposables.add(new SelectBox(options, Math.max(0, values.indexOf(value ?? null)), this.contextViewService, defaultSelectBoxStyles, { ariaLabel: title }));
+			// A value left out of the file is its default (not the first option) until one is picked.
+			const fallback = schema.default ?? this.resolve(schema).schema.default;
+			const shown = value ?? (fallback !== undefined && values.includes(fallback as JsonValue) ? fallback as JsonValue : null);
+			const select = this.disposables.add(new SelectBox(options, Math.max(0, values.indexOf(shown)), this.contextViewService, defaultSelectBoxStyles, { ariaLabel: title }));
 			select.render(row.control);
 			this.disposables.add(select.onDidSelect(e => {
 				const selected = values[e.index];

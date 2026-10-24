@@ -151,7 +151,8 @@ export function pickMember(shapes: readonly IMemberShape[], point: CadPoint, tol
 	return hits[0];
 }
 
-function nextId(layout: Json, group: MemberGroup): string {
+/** The next free id of `group`: its letter and the lowest unused number. */
+export function nextId(layout: Json, group: MemberGroup): string {
 	const used = new Set(PICK_ORDER.flatMap(g => members(layout, g).map(m => m.id)));
 	let n = 1;
 	while (used.has(`${ID_PREFIX[group]}${n}`)) {
