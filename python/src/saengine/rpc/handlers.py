@@ -555,6 +555,7 @@ def import_geometry(path: str, options: dict[str, Any], objects_text: str | None
 
     from pydantic import ValidationError
 
+    from saengine.library.dwg import DwgError
     from saengine.library.importers import ImportOptions
     from saengine.library.importers import import_geometry as read
 
@@ -572,8 +573,23 @@ def import_geometry(path: str, options: dict[str, Any], objects_text: str | None
         pass  # no layer-named types then
     try:
         return read(path, parsed, kinds).to_json()
+    except DwgError as exc:  # names the file already
+        return {"problems": [str(exc)]}
     except Exception as exc:  # noqa: BLE001 - unreadable files are reported to the user
         return {"problems": [f"{Path(path).name}: {exc}"]}
+
+
+def convert_dwg(path: str, cache: str | None = None) -> dict[str, Any]:
+    """A DWG drawing as DXF (``saengine.library.dwg``): ``{"ok", "dxf", "warnings", "cached"}``,
+    or ``{"ok": False, "code", "message"}`` (``code`` ``"no-converter"`` or ``"failed"``)."""
+    from saengine.library.dwg import ConverterMissing, DwgError, convert
+
+    try:
+        return {"ok": True, **convert(path, cache).to_json()}
+    except ConverterMissing as exc:
+        return {"ok": False, "code": "no-converter", "message": str(exc)}
+    except DwgError as exc:
+        return {"ok": False, "code": "failed", "message": str(exc)}
 
 
 def insert_geometry(structure_text: str, geometry: dict[str, Any]) -> dict[str, Any]:

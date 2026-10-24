@@ -4,10 +4,10 @@
 
 .DESCRIPTION
     gmsh (GPL-2.0+), ifcopenshell and cytriangle (LGPL-3.0), web-ifc (MPL-2.0) and, when the
-    build bundles it, LibreCAD (GPL-2.0) with its Qt 5 DLLs (LGPL-3.0) ship as compiled
-    binaries. Their licences require the distributor to make the corresponding source
-    available: build-installer.ps1 puts these archives in a folder next to the setup, and they
-    are published from the same place as the setup (see docs\install\README.md).
+    build bundles them, LibreCAD (GPL-2.0) with its Qt 5 DLLs (LGPL-3.0) and GNU LibreDWG's
+    dwg2dxf (GPL-3.0+) ship as compiled binaries. Their licences require the distributor to make
+    the corresponding source available: build-installer.ps1 puts these archives in a folder
+    next to the setup, and they are published from the same place as the setup (see docs\install\README.md).
 
     The archives are listed in scripts\installer\copyleft-sources.json with pinned SHA-256
     hashes. Each is downloaded once into <CacheDir> and checked. The script fails when a pinned
@@ -18,9 +18,11 @@
     (resources\librecad\SAENGINE-BUNDLE.json, written by librecad_bundle.py): LibreCAD's own
     source, and the Qt source archive of every Qt module whose DLLs the bundle ships. The script
     fails when the bundle's LibreCAD or Qt version differs from the pinned one, or when it ships
-    a Qt module that has no entry. An entry whose sha256 is null is not pinned yet: it is refused
-    unless -AllowUnpinned is given; then it is downloaded, its hash is printed (pin it) and
-    recorded in README.txt.
+    a Qt module that has no entry. Entries with "component": "libredwg" are collected only with
+    -LibreDWGManifest (resources\libredwg\SAENGINE-BUNDLE.json, written by libredwg_bundle.py),
+    and must pin the bundle's LibreDWG version. An entry whose sha256 is null is not pinned yet:
+    it is refused unless -AllowUnpinned is given; then it is downloaded, its hash is printed (pin
+    it) and recorded in README.txt.
 #>
 [CmdletBinding()]
 param(
@@ -28,6 +30,7 @@ param(
     [Parameter(Mandatory = $true)][string]$CacheDir,
     [Parameter(Mandatory = $true)][string]$OutDir,
     [string]$LibreCADManifest,
+    [string]$LibreDWGManifest,
     [switch]$AllowUnpinned
 )
 
@@ -60,6 +63,11 @@ if ($LibreCADManifest) {
             throw "LibreCAD ships Qt module $module, which copyleft-sources.json has no source entry for. Add one (name qt-$module, qt_module $module)."
         }
     }
+}
+if ($LibreDWGManifest) {
+    $dwgBundle = Get-Content -LiteralPath $LibreDWGManifest -Raw | ConvertFrom-Json
+    $components['libredwg'] = $true
+    $shipped['libredwg'] = $dwgBundle.version
 }
 $unpinned = @()
 
