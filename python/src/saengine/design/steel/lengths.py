@@ -85,10 +85,17 @@ class Segments:
 
 @dataclass
 class LengthOptions:
-    """Overrides: ``k`` per axis ("x", "y", "z"); ``slab_braces_top_flange``."""
+    """Overrides: ``k`` per axis ("x", "y", "z"); ``slab_braces_top_flange``; ``unbraced``:
+    unbraced lengths [m] per axis ("x", "y": compression buckling) and "ltb" (the compression
+    flange, both flanges), which replace the brace points found in the model by points evenly
+    spaced at that length (the design overwrites, :mod:`saengine.design.overwrites`);
+    ``sources``: where an overwritten value came from ("member", "type"; keys "kx", "ky",
+    "Lx", "Ly", "Lb"), for the notes."""
 
     k: dict[str, float] = field(default_factory=dict)
     slab_braces_top_flange: bool = True
+    unbraced: dict[str, float] = field(default_factory=dict)
+    sources: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -102,6 +109,42 @@ class MemberLengths:
     ltb_bottom: Segments  # bottom flange in compression
     k: dict[str, float] = field(default_factory=lambda: {"x": 1.0, "y": 1.0, "z": 1.0})
     notes: list[str] = field(default_factory=list)
+    #: Where overwritten values came from (:attr:`LengthOptions.sources`).
+    sources: dict[str, str] = field(default_factory=dict)
+
+    def overwritten(self, options: LengthOptions | None) -> MemberLengths:
+        """These lengths with the unbraced length overwrites of ``options`` applied (brace
+        points evenly spaced at each given length, the free ends kept)."""
+        if options is None or not (options.unbraced or options.sources):
+            return self
+        given = options.unbraced
+        notes = list(self.notes)
+
+        def spaced(seg: Segments, lu: float | None, what: str) -> Segments:
+            if lu is None or lu <= 0:
+                return seg
+            if lu >= self.length - 1e-9:
+                if lu > self.length + 1e-6:
+                    notes.append(
+                        f"the unbraced length {what} ({lu * 1e3:.0f} mm) is longer than the "
+                        f"member: its length {self.length * 1e3:.0f} mm taken"
+                    )
+                return Segments([0.0, self.length], seg.free_start, seg.free_end)
+            count = int(np.ceil(self.length / lu - 1e-9))
+            points = [min(n * lu, self.length) for n in range(count)] + [self.length]
+            return Segments(sorted(set(points)), seg.free_start, seg.free_end)
+
+        ltb = given.get("ltb")
+        return MemberLengths(
+            length=self.length,
+            x=spaced(self.x, given.get("x"), "about x"),
+            y=spaced(self.y, given.get("y"), "about y"),
+            ltb_top=spaced(self.ltb_top, ltb, "for LTB"),
+            ltb_bottom=spaced(self.ltb_bottom, ltb, "for LTB"),
+            k=dict(self.k),
+            notes=notes,
+            sources={**self.sources, **options.sources},
+        )
 
     @classmethod
     def simple(
@@ -236,7 +279,7 @@ def member_lengths(
         start = np.asarray(pieces[0].start, dtype=float)
         end = np.asarray(pieces[-1].end, dtype=float)
         length = float(np.linalg.norm(end - start))
-        return MemberLengths.simple(length, k=options.k)
+        return MemberLengths.simple(length, k=options.k).overwritten(options)
     origin, axis, length = _frame_axis([p for _, p in ends])
     position = {n: float((p - origin) @ axis) for n, p in ends}
 
@@ -309,7 +352,7 @@ def member_lengths(
         ltb_bottom=ltb_bottom,
         k={"x": 1.0, "y": 1.0, "z": 1.0, **options.k},
         notes=notes,
-    )
+    ).overwritten(options)
 
 
 def positions(pieces: Sequence[Any], stations: int) -> tuple[np.ndarray, list[tuple[int, int]]]:
@@ -335,10 +378,20 @@ def slenderness_note(lengths: MemberLengths) -> str:
         return f"{seg.longest():.2f} m"
 
     return (
-        f"unbraced lengths: about x {text(lengths.x)}, about y {text(lengths.y)}, LTB "
-        f"{text(lengths.ltb_top)} (top flange in compression) / {text(lengths.ltb_bottom)} "
-        f"(bottom); K = {lengths.k.get('x', 1):g} / {lengths.k.get('y', 1):g}"
+        f"unbraced lengths: about x {text(lengths.x)}{source_tag(lengths, 'Lx')}, about y "
+        f"{text(lengths.y)}{source_tag(lengths, 'Ly')}, LTB {text(lengths.ltb_top)} (top flange "
+        f"in compression) / {text(lengths.ltb_bottom)} (bottom){source_tag(lengths, 'Lb')}; "
+        f"K = {lengths.k.get('x', 1):g}{source_tag(lengths, 'kx')} / "
+        f"{lengths.k.get('y', 1):g}{source_tag(lengths, 'ky')}"
         + (f"; {'; '.join(lengths.notes)}" if lengths.notes else "")
+    )
+
+
+def source_tag(lengths: MemberLengths, key: str) -> str:
+    """ " (overwrite)" or " (type overwrite)" when the value ``key`` ("kx", "ky", "Lx", "Ly",
+    "Lb") was overwritten, else ""."""
+    return {"member": " (overwrite)", "type": " (type overwrite)"}.get(
+        lengths.sources.get(key, ""), ""
     )
 
 
@@ -351,4 +404,5 @@ __all__ = [
     "member_lengths",
     "positions",
     "slenderness_note",
+    "source_tag",
 ]
