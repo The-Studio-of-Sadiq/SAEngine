@@ -11,11 +11,13 @@ and the section at d.
 
 What this module does:
 
-- The analysis model (:mod:`saengine.fem.derive`) writes on each analysis frame element
-  ``"faceOffsets": {"i": mm, "j": mm}``: the distance from the element's station origin
-  (``x = 0`` of :func:`saengine.fem.display.element_section_forces`, its i node) to the face of
-  the support at i, and from ``x = L`` back to the face at j; 0 (or absent) where nothing
-  supports that end (a span split by the slab mesh, a beam framing into a girder).
+- The analysis (:mod:`saengine.fem.end_zones`) records per analysis frame element its face
+  offsets ``{"i": mm, "j": mm}``: the distance from its i node to the face of the support at
+  i, and from its j node back to the face at j; 0 (or absent) where nothing supports that end
+  (a span split by the slab mesh, a beam framing into a girder). They come from the results'
+  ``face-forces.json`` (:func:`read_face_forces`, ``face_offsets`` of :func:`at_faces`) or an
+  element's own ``"faceOffsets"`` key, with the forces at the faces per load case, which are
+  exact and preferred (:func:`face_rows_of`, ``face_rows``).
 - :func:`at_faces` gives a member's pieces (``saengine.design.check._Piece``) with the stations
   inside a support replaced by the forces at its face: the axial force, torsion and moments of
   every station between the joint and the face become those at the face, and with
@@ -128,10 +130,16 @@ def element_offsets(element: dict[str, Any] | None) -> tuple[float, float] | Non
     return max(i, 0.0) * 1e-3, max(j, 0.0) * 1e-3
 
 
-def offsets_of(project: dict[str, Any], pieces: list[Any]) -> dict[int, tuple[float, float]] | None:
+def offsets_of(
+    project: dict[str, Any],
+    pieces: list[Any],
+    by_element: dict[Any, dict[str, Any]] | None = None,
+) -> dict[int, tuple[float, float]] | None:
     """Each piece's face offsets [m] from the analysis model ``project`` (or a piece's own
-    ``face_offsets`` attribute, (i, j) in m); None when no piece has any: the analysis was run
-    without them."""
+    ``face_offsets`` attribute, (i, j) in m, or ``by_element``: per element id, int or str,
+    ``{"i": mm, "j": mm}`` as the analysis's face-forces file gives them, see
+    :func:`read_face_forces`); None when no piece has any: the analysis was run without
+    them."""
     by_id = {e.get("id"): e for e in project.get("elements", []) or []}
     found: dict[int, tuple[float, float]] = {}
     seen = False
@@ -141,7 +149,14 @@ def offsets_of(project: dict[str, Any], pieces: list[Any]) -> dict[int, tuple[fl
             found[p.id] = (max(float(own[0]), 0.0), max(float(own[1]), 0.0))
             seen = True
             continue
-        offsets = element_offsets(by_id.get(p.id))
+        given = None
+        if by_element:
+            given = by_element.get(p.id, by_element.get(str(p.id)))
+        offsets = (
+            element_offsets({"faceOffsets": given})
+            if given is not None
+            else element_offsets(by_id.get(p.id))
+        )
         if offsets is not None:
             seen = True
             found[p.id] = offsets
@@ -171,6 +186,37 @@ def _row(values: dict[str, Any]) -> np.ndarray:
     return np.array([float(values.get(k) or 0.0) for k in ("N", "Vy", "Vz", "T", "My", "Mz")])
 
 
+def read_face_forces(out_dir: Any) -> dict[str, Any] | None:
+    """The analysis's face forces file in the results folder ``out_dir`` (``face-forces.json``
+    of :mod:`saengine.fem.end_zones`: ``{"faceOffsets": {element id: {"i"|"j": mm}},
+    "cases": {case code: {element id: {"i"|"j": {N, Vy, Vz, T, My, Mz}}}}}``), or None."""
+    import json
+    from pathlib import Path
+
+    try:
+        data = json.loads((Path(out_dir) / "face-forces.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return None
+    if not isinstance(data, dict) or not data.get("faceOffsets"):
+        return None
+    return data
+
+
+def face_rows_of(
+    data: dict[str, Any] | None, factors_of: list[dict[str, float]], pieces: list[Any]
+) -> dict[int, list[np.ndarray]]:
+    """Per piece id its forces at the faces per combination (:func:`combined_face_rows`) from
+    the face forces file ``data`` (:func:`read_face_forces`); pieces it lacks are left out."""
+    if not data:
+        return {}
+    found = {}
+    for p in pieces:
+        rows = combined_face_rows(data.get("cases", {}), factors_of, p.id)
+        if rows is not None:
+            found[p.id] = rows
+    return found
+
+
 def combined_face_rows(
     face_by_case: dict[str, dict[int, dict[str, dict[str, Any]]]],
     factors_of: list[dict[str, float]],
@@ -184,7 +230,8 @@ def combined_face_rows(
     for factors in factors_of:
         total = np.zeros((2, 6))
         for case, f in factors.items():
-            own = face_by_case.get(case, {}).get(element_id)
+            of_case = face_by_case.get(case, {})
+            own = of_case.get(element_id, of_case.get(str(element_id)))  # type: ignore[call-overload]
             if own is None:
                 return None
             total += f * np.vstack([_row(own.get("i", {})), _row(own.get("j", {}))])
@@ -299,16 +346,18 @@ def at_faces(
     project: dict[str, Any],
     shear_depth: float | None = None,
     face_rows: dict[int, list[np.ndarray]] | None = None,
+    face_offsets: dict[Any, dict[str, Any]] | None = None,
 ) -> Faced:
     """The member's ``pieces`` with the forces inside its supports taken at their faces (see the
     module notes): copies, the originals untouched. ``shear_depth`` [m]: the shear is taken at
     d from each face (BNBC 6.4.1.3.1), else at the face. ``face_rows``: per piece id the
     analysis's forces at its faces per combination (:func:`combined_face_rows`), else they are
-    interpolated from the stations.
+    interpolated from the stations. ``face_offsets``: per element id (int or str) ``{"i": mm,
+    "j": mm}`` (the face forces file's ``faceOffsets``), else read from ``project``.
 
     Each copy gets ``face_labels`` ({station: where}) for the stations moved, which
     ``saengine.design.check._where`` reports."""
-    offsets = offsets_of(project, pieces)
+    offsets = offsets_of(project, pieces, face_offsets)
     if offsets is None or not any(i > 0 or j > 0 for i, j in offsets.values()):
         return Faced(list(pieces), "joints", notes=[JOINT_NOTE])
     out: list[Any] = []
@@ -396,6 +445,8 @@ __all__ = [
     "at_faces",
     "combined_face_rows",
     "element_offsets",
+    "face_rows_of",
     "offsets_of",
+    "read_face_forces",
     "shear_depth",
 ]

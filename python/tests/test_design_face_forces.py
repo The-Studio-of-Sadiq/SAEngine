@@ -188,6 +188,30 @@ def test_analysis_face_forces_combined_and_taken_over_the_interpolation() -> Non
     assert faced.pieces[0].forces[1][-1, 4] == pytest.approx(1.2 * 41e3 + 16e3)
 
 
+def test_the_analysis_face_forces_file(tmp_path) -> None:
+    # The shape saengine.fem.end_zones writes (face-forces.json): string element ids.
+    import json
+
+    data = {
+        "schema": "saengine.faceForces/1",
+        "rigidZoneFactor": 0.5,
+        "faceOffsets": {"7": {"i": 300.0, "j": 300.0}},
+        "cases": {"D": {"7": {"i": {"My": moment(A), "Vz": shear_at(A)}, "j": {"My": moment(A)}}}},
+    }
+    (tmp_path / "face-forces.json").write_text(json.dumps(data), encoding="utf-8")
+    read = face_forces.read_face_forces(tmp_path)
+    assert read is not None and face_forces.read_face_forces(tmp_path / "none") is None
+    piece = _beam([1.4 * _rows()])
+    rows = face_forces.face_rows_of(read, [{"D": 1.4}], [piece])
+    assert rows[7][0][0, 4] == pytest.approx(1.4 * moment(A))
+    # Offsets from the file (the element itself has none in the model).
+    faced = face_forces.at_faces([piece], _project(None, None), 0.54, rows, read["faceOffsets"])
+    assert faced.at_faces and faced.offsets == {7: (0.3, 0.3)}
+    assert faced.pieces[0].forces[0][0, 4] == pytest.approx(1.4 * moment(A))
+    # Shear at d: the file's face shear plus the stations' change from the face to d.
+    assert faced.pieces[0].forces[0][0, 2] == pytest.approx(1.4 * shear_at(A + 0.54))
+
+
 def test_column_strength_points_at_the_beam_soffit() -> None:
     # A 3 m column, the beam 500 mm deep at its top: My linear 10 -> 70 kN·m from the base to
     # the joint; at the soffit (2.5 m) 60 kN·m. The strength points take it, the slenderness
