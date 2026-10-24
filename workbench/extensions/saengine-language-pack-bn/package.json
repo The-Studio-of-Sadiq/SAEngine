@@ -1,0 +1,33 @@
+{
+  "name": "saengine-language-pack-bn",
+  "displayName": "Bangla Language Pack for SAEngine",
+  "description": "Shows SAEngine's own screens in Bangla (বাংলা). Generated from build/saengine/i18n/bn/strings.bn.json.",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "AGPL-3.0-only",
+  "categories": [
+    "Language Packs"
+  ],
+  "engines": {
+    "vscode": "*"
+  },
+  "contributes": {
+    "localizations": [
+      {
+        "languageId": "bn",
+        "languageName": "Bangla",
+        "localizedLanguageName": "বাংলা",
+        "translations": [
+          {
+            "id": "vscode",
+            "path": "./translations/main.i18n.json"
+          },
+          {
+            "id": "vscode.theme-saengine",
+            "path": "./translations/extensions/vscode.theme-saengine.i18n.json"
+          }
+        ]
+      }
+    ]
+  }
+}
