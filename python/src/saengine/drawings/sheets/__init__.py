@@ -1,6 +1,7 @@
 """Structural drawing sheets (11 Exports, drawings): framing and slab plans, the column
 schedule, beam elevations, footing, wall and stair details, the bar bending schedule and the
-general notes, each sheet one DXF (ezdxf) for LibreCAD, all sheets one PDF with PNG previews.
+general notes, each sheet one DXF (ezdxf) for AutoCAD or LibreCAD, all sheets one PDF with PNG
+previews. Layers, linetypes, text and plotting: docs/drawings-layers.md.
 
 How it is called::
 

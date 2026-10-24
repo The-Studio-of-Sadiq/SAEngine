@@ -1,0 +1,44 @@
+FILEDIA
+0
+CMDECHO
+1
+(princ "\nSAE-QA-BEGIN\n")
+(progn (setq s (tblnext "STYLE" T)) (while s (setq f (cdr (assoc 3 s))) (princ (strcat "\nSAE-STYLE|" (cdr (assoc 2 s)) "|" f "|" (if (or (= f "") (findfile f) (findfile (strcat f ".shx")) (findfile (strcat (getenv "WINDIR") "\\Fonts\\" f))) "found" "missing"))) (setq s (tblnext "STYLE"))) (princ))
+(progn (setq s (tblnext "LTYPE" T)) (while s (princ (strcat "\nSAE-LTYPE|" (cdr (assoc 2 s)))) (setq s (tblnext "LTYPE"))) (princ))
+(progn (setq s (tblnext "LAYER" T)) (while s (princ (strcat "\nSAE-LAYER|" (cdr (assoc 2 s)) "|" (itoa (cdr (assoc 62 s))) "|" (cdr (assoc 6 s)))) (setq s (tblnext "LAYER"))) (princ))
+(progn (setq s (tblnext "BLOCK" T)) (while s (if (= 4 (logand 4 (cdr (assoc 70 s)))) (princ (strcat "\nSAE-XREF|" (cdr (assoc 2 s))))) (setq s (tblnext "BLOCK"))) (princ))
+(princ (strcat "\nSAE-ENTITIES|" (itoa (if (setq ss (ssget "_X")) (sslength ss) 0)) "\n"))
+(princ "\nSAE-AUDIT-BEGIN\n")
+AUDIT
+N
+(princ "\nSAE-AUDIT-END\n")
+ZOOM
+E
+(princ (strcat "\nSAE-EXTENTS|" (rtos (car (getvar "EXTMIN")) 2 1) "|" (rtos (cadr (getvar "EXTMIN")) 2 1) "|" (rtos (car (getvar "EXTMAX")) 2 1) "|" (rtos (cadr (getvar "EXTMAX")) 2 1) "\n"))
+(princ "\nSAE-PLOT-BEGIN\n")
+-PLOT
+Y
+Model
+{pc3}
+{paper}
+M
+L
+N
+{plot_area}
+0,0
+Y
+monochrome.ctb
+Y
+A
+"{pdf}"
+N
+Y
+(princ "\nSAE-PLOT-END\n")
+{layout_plot}(princ "\nSAE-SAVE-BEGIN\n")
+SAVEAS
+2018
+"{dwg}"
+(princ "\nSAE-SAVE-END\n")
+(princ "\nSAE-QA-END\n")
+QUIT
+Y
