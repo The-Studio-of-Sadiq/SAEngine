@@ -34,8 +34,8 @@ including the build scripts that produced this installer, is available at
     {source}
 (commit {commit}). The same source is available from the SAEngine contributors on request.
 
-This installation contains four groups of third-party software (and, sections 5 and 6
-below, the separate programs EnergyPlus and LibreCAD when this build bundles them):
+This installation contains four groups of third-party software (and, sections 5 to 7
+below, the separate programs EnergyPlus, LibreCAD and LibreDWG when this build bundles them):
 
 1. The Code - OSS workbench (MIT, Copyright Microsoft Corporation) and its Node.js
    dependencies: see resources/app/LICENSE.txt and resources/app/ThirdPartyNotices.txt.
@@ -141,6 +141,27 @@ LibreCAD {version}
 
 """
 
+LIBREDWG = """\
+GNU LibreDWG {version}
+{rule}
+
+7. resources/libredwg holds dwg2dxf.exe and libredwg-0.dll of GNU LibreDWG {version} (from the
+   official Windows build libredwg-{version}-win64.zip at
+   https://github.com/LibreDWG/libredwg/releases/tag/{version}; no file of it is modified, its
+   other programs, headers and manuals are left out), a separate program that converts the
+   architects' DWG drawings to DXF for the floor plan's underlays and the geometry import. The
+   SAEngine backend runs it as its own process with the paths of the drawings; nothing of it is
+   linked into SAEngine (an aggregate, GPL-3.0 section 5). GNU LibreDWG is free software,
+   Copyright the Free Software Foundation, Inc., under the GNU General Public License version 3
+   or later (GPL-3.0-or-later).
+   Source: the source archive libredwg-{version}.tar.xz is in the folder
+       {sources_name}
+   published next to this installer (the copyleft source offer above covers it), and upstream at
+       https://ftp.gnu.org/gnu/libredwg/libredwg-{version}.tar.xz
+   The licence texts follow ({licenses}).
+
+"""
+
 # Shown in the header; the archives themselves are listed in copyleft-sources.json.
 COPYLEFT_FALLBACK = "  (see copyleft-sources.json; no list was given to this script)\n"
 
@@ -228,7 +249,8 @@ def missing_license_note(name: str, declared: str, lgpl3: str) -> str:
 
 
 def librecad_bundle(folder: Path | None) -> dict | None:
-    """The bundle manifest librecad_bundle.py wrote, when the installer bundles LibreCAD."""
+    """The bundle manifest librecad_bundle.py (libredwg_bundle.py) wrote, when the installer
+    bundles LibreCAD (LibreDWG)."""
     if folder is None:
         return None
     manifest = folder / "SAENGINE-BUNDLE.json"
@@ -237,12 +259,17 @@ def librecad_bundle(folder: Path | None) -> dict | None:
     return json.loads(manifest.read_text(encoding="utf-8"))
 
 
-def shipped_sources(sources: list[dict], librecad: dict | None) -> list[dict]:
+def shipped_sources(
+    sources: list[dict], librecad: dict | None, libredwg: dict | None = None
+) -> list[dict]:
     """Entries of copyleft-sources.json for what ships: optional components only if bundled."""
     shipped = []
     for source in sources:
         component = source.get("component")
-        if component == "librecad":
+        if component == "libredwg":
+            if libredwg is None:
+                continue
+        elif component == "librecad":
             if librecad is None:
                 continue
             module = source.get("qt_module")
@@ -254,13 +281,15 @@ def shipped_sources(sources: list[dict], librecad: dict | None) -> list[dict]:
     return shipped
 
 
-def copyleft_lines(manifest: Path | None, librecad: dict | None = None) -> str:
+def copyleft_lines(
+    manifest: Path | None, librecad: dict | None = None, libredwg: dict | None = None
+) -> str:
     if manifest is None or not manifest.is_file():
         return COPYLEFT_FALLBACK
     sources = json.loads(manifest.read_text(encoding="utf-8"))["sources"]
     return "".join(
         f"  - {s['name']} {s['version']}: {s['license']}; upstream source {s['url']}\n"
-        for s in shipped_sources(sources, librecad)
+        for s in shipped_sources(sources, librecad, libredwg)
     )
 
 
@@ -295,6 +324,24 @@ def librecad_section(folder: Path, bundle: dict, sources_name: str) -> list[str]
         path = folder / name
         if path.is_file():
             out.append(f"[resources/librecad/{name}]\n")
+            out.append(path.read_text(encoding="utf-8", errors="replace").rstrip() + "\n\n")
+    out.append(f"{RULE}\n\n")
+    return out
+
+
+def libredwg_section(folder: Path, bundle: dict, sources_name: str) -> list[str]:
+    out = [
+        LIBREDWG.format(
+            version=bundle.get("version", ""),
+            rule=RULE,
+            sources_name=sources_name,
+            licenses=", ".join(bundle.get("licenses") or []) or "none bundled",
+        )
+    ]
+    for name in bundle.get("licenses") or []:
+        path = folder / name
+        if path.is_file():
+            out.append(f"[resources/libredwg/{name}]\n")
             out.append(path.read_text(encoding="utf-8", errors="replace").rstrip() + "\n\n")
     out.append(f"{RULE}\n\n")
     return out
@@ -465,8 +512,14 @@ def main() -> int:
         type=Path,
         help="resources/librecad, when the installer bundles LibreCAD (its SAENGINE-BUNDLE.json)",
     )
+    parser.add_argument(
+        "--libredwg",
+        type=Path,
+        help="resources/libredwg, when the installer bundles LibreDWG (its SAENGINE-BUNDLE.json)",
+    )
     args = parser.parse_args()
     librecad = librecad_bundle(args.librecad)
+    libredwg = librecad_bundle(args.libredwg)
 
     dists = {}
     for dist in metadata.distributions():
@@ -483,7 +536,7 @@ def main() -> int:
             source=SOURCE_URL,
             commit=args.commit,
             python=python,
-            copyleft=copyleft_lines(args.copyleft_sources, librecad),
+            copyleft=copyleft_lines(args.copyleft_sources, librecad, libredwg),
             sources_name=args.sources_name,
         )
     ]
@@ -494,6 +547,8 @@ def main() -> int:
         out.append(f"\n{RULE}\n\n")
     if librecad is not None:
         out.extend(librecad_section(args.librecad, librecad, args.sources_name))
+    if libredwg is not None:
+        out.extend(libredwg_section(args.libredwg, libredwg, args.sources_name))
     out.extend(freecad_section())
     js_out, js_count = js_section(args.js_package)
     out.extend(js_out)

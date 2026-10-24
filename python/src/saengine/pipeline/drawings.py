@@ -6,7 +6,7 @@ DXF sheets, the PDF set and the PNG previews).
 
 What a generation writes into ``11 Exports/Drawings``:
 
-- one DXF per sheet (``S-101 General notes.dxf``, ...), for LibreCAD;
+- one DXF per sheet (``S-101 General notes.dxf``, ...), for AutoCAD, BricsCAD or LibreCAD;
 - ``drawings.pdf``: every sheet, one page each; ``previews/S-101.png``, ...: the previews;
 - ``bbs.csv``: the bar bending schedule (UTF-8 with a byte order mark, for Excel);
 - ``drawings.json``: this module's record of the set: its sheets, the drawing settings it was

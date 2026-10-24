@@ -251,7 +251,9 @@ The files go where the Exports page puts them: the IFC of the building model in
 `11 Exports/Floor Plan/<story id> <story name>.dxf` (layers `S-GRID`, `S-COLS`, `S-BEAM`, ...,
 as the app draws them), the bill of quantities in `11 Exports/boq.csv` and the design report in
 `11 Exports/report.pdf`. The structural drawings (`drawings`) go to `11 Exports/Drawings`: one
-DXF per sheet for LibreCAD (general notes, foundation plan, framing and slab reinforcement
+DXF per sheet for AutoCAD, BricsCAD or LibreCAD (layers, text and plotting:
+[drawings-layers.md](drawings-layers.md); checking them in AutoCAD:
+[drawings-qa.md](drawings-qa.md)) (general notes, foundation plan, framing and slab reinforcement
 plans per level, column schedule, beam elevations, footing, wall and stair details, the bar
 bending schedule), all sheets in `drawings.pdf`, PNG previews in `previews/`, the bar bending
 schedule as `bbs.csv` and the record `drawings.json` (the stamps of the files they were drawn

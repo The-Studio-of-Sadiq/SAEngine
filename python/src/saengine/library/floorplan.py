@@ -141,7 +141,7 @@ class Underlay(_Model):
     story: Id = Field(description="Story whose plan shows the drawing.")
     file: str = Field(
         min_length=1,
-        pattern=r"\.[dD][xX][fF]$",
+        pattern=r"\.[dD]([xX][fF]|[wW][gG])$",
         description="DXF file, relative to the 05 Floor Plan folder.",
     )
     dx: Mm = Field(default=0, title="Offset X", description="Where the drawing's origin goes [mm].")

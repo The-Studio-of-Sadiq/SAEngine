@@ -5,7 +5,8 @@ or surface model it exported and turns it into members, areas and supports:
 
 - DXF (any CAD program), read with ezdxf: lines, polylines, arcs, circles and splines become
   members (curves as straight pieces); 3D faces, polyface meshes and meshes become areas, and so
-  do closed polylines when an area type is given.
+  do closed polylines when an area type is given. A DWG is converted to DXF first
+  (:mod:`saengine.library.dwg`, GNU LibreDWG as a separate program) and read the same way.
 - IFC (any BIM program), read with IfcOpenShell: beams, columns and members become members along
   their axis; slabs, walls, plates, roofs and coverings become areas on their mid-surface.
 - Rhino (``.3dm``), read with rhino3dm: curves become members; planar faces of surfaces,
@@ -46,7 +47,7 @@ CHORD_TOLERANCE = 25.0
 #: A member is vertical (a column) when it leans less than this from the vertical [°].
 VERTICAL = 1.0
 
-FORMATS = {".dxf": "DXF", ".ifc": "IFC", ".3dm": "Rhino"}
+FORMATS = {".dxf": "DXF", ".dwg": "DWG", ".ifc": "IFC", ".3dm": "Rhino"}
 
 
 class ImportOptions(_Model):
@@ -187,13 +188,20 @@ def _geometry(collected: _Collector, options: ImportOptions, kinds: Mapping[str,
 
 
 def import_geometry(path: str | Path, options: ImportOptions, kinds: Mapping[str, str]) -> Geometry:
-    """The geometry of the DXF, IFC or Rhino file at ``path``; ``kinds`` maps object type ids to
-    their kinds (beam, column, slab...)."""
+    """The geometry of the DXF, DWG, IFC or Rhino file at ``path``; ``kinds`` maps object type
+    ids to their kinds (beam, column, slab...)."""
     path = Path(path)
+    if path.suffix.lower() == ".dwg":
+        from saengine.library import dwg
+
+        with dwg.converted(path) as conversion:
+            g = import_geometry(conversion.dxf, options, kinds)
+        g.notes[:0] = [f"{path.name}: {note}" for note in conversion.warnings]
+        return g
     readers = {".dxf": _read_dxf, ".ifc": _read_ifc, ".3dm": _read_3dm}
     reader = readers.get(path.suffix.lower())
     if reader is None:
-        raise ValueError(f"{path.name}: only DXF, IFC and Rhino (.3dm) files can be imported")
+        raise ValueError(f"{path.name}: only DXF, DWG, IFC and Rhino (.3dm) files can be imported")
     collected, scale_note = reader(path, options.units)
     g = _geometry(collected, options, kinds)
     if scale_note:
