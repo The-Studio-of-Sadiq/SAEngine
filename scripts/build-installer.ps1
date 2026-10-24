@@ -19,7 +19,10 @@
          with a design-day run (scripts\installer\energyplus_runtime.py). With -LibreCADDir,
          copies the LibreCAD program folder (a separate GPL-2.0 program that edits the DXF
          drawings SAEngine exports; never linked) to VSCode-win32-x64\resources\librecad
-         (scripts\installer\librecad_bundle.py). Replaces the Code - OSS launcher
+         (scripts\installer\librecad_bundle.py). With -LibreDWGDir, copies GNU LibreDWG's
+         dwg2dxf (a separate GPL-3.0+ program that converts the architects' DWG drawings to DXF;
+         never linked) to VSCode-win32-x64\resources\libredwg
+         (scripts\installer\libredwg_bundle.py). Replaces the Code - OSS launcher
          bin\saengine.cmd by the SAEngine command line shim (scripts\installer\saengine.cmd,
          python -m saengine.cli); the launcher stays as bin\saengine-app.cmd.
       4. Writes THIRD_PARTY_NOTICES.txt (the viewer bundles' npm packages and the Python
@@ -75,6 +78,17 @@
     Defaults to SAENGINE_LIBRECAD_LICENSES. LibreCAD's own installer ships none; the release
     build requires them.
 
+.PARAMETER LibreDWGDir
+    The official GNU LibreDWG 0.14 Windows build libredwg-0.14-win64.zip, unpacked (the folder
+    with dwg2dxf.exe is found inside). Defaults to the SAENGINE_LIBREDWG_DIR environment
+    variable. Only dwg2dxf.exe and libredwg-0.dll are bundled. Optional: without it the app is
+    built without LibreDWG and DWG underlays and imports ask for the drawing as DXF.
+
+.PARAMETER LibreDWGLicenseDir
+    A folder of licence texts bundled into resources\libredwg\licenses (LibreDWG's COPYING:
+    scripts\ci\fetch_pinned.py libredwg-copying). Defaults to SAENGINE_LIBREDWG_LICENSES. The
+    Windows zip ships none; the release build requires it.
+
 .PARAMETER LibreCADOnly
     Run only the LibreCAD step (into the existing app folder, with its bundled Python or the
     development .venv), for testing it in isolation. With -DryRun nothing is copied.
@@ -105,6 +119,8 @@ param(
     [string]$EnergyPlusDir = $env:SAENGINE_ENERGYPLUS_DIR,
     [string]$LibreCADDir = $env:SAENGINE_LIBRECAD_DIR,
     [string]$LibreCADLicenseDir = $env:SAENGINE_LIBRECAD_LICENSES,
+    [string]$LibreDWGDir = $env:SAENGINE_LIBREDWG_DIR,
+    [string]$LibreDWGLicenseDir = $env:SAENGINE_LIBREDWG_LICENSES,
     [switch]$LibreCADOnly,
     [switch]$DryRun,
     [switch]$AllowUnpinnedSources,
@@ -206,6 +222,22 @@ function Invoke-LibreCADBundle {
     Invoke-Native $Python $bundleArgs 'Bundling LibreCAD'
 }
 
+# GNU LibreDWG: a separate program (GPL-3.0-or-later) the backend runs to convert DWG drawings to
+# DXF; never linked. Only dwg2dxf.exe and libredwg-0.dll are copied, with the licence text, and
+# the copy is checked by running it (libredwg_bundle.py).
+function Invoke-LibreDWGBundle {
+    param([string]$Python, [string]$Dest)
+    $bundleArgs = @('-I', '-B', (Join-Path $installerScripts 'libredwg_bundle.py'), '--source', $LibreDWGDir,
+        '--dest', $Dest, '--expect-version', '0.14')
+    if ($LibreDWGLicenseDir) {
+        foreach ($file in Get-ChildItem -LiteralPath $LibreDWGLicenseDir -File) {
+            $bundleArgs += @('--license', $file.FullName)
+        }
+        $bundleArgs += '--require-licenses'
+    }
+    Invoke-Native $Python $bundleArgs 'Bundling LibreDWG'
+}
+
 # Visual Studio's x64 Visual C++ redistributable folder (VC\Redist\MSVC\<version>\x64\
 # Microsoft.VC14x.CRT) of the newest installation, or $null.
 function Find-VcRuntime {
@@ -287,6 +319,12 @@ if ($LibreCADDir -and -not (Test-Path -LiteralPath $LibreCADDir)) {
 }
 if ($LibreCADLicenseDir -and -not (Test-Path -LiteralPath $LibreCADLicenseDir)) {
     $problems += "-LibreCADLicenseDir (or SAENGINE_LIBRECAD_LICENSES) $LibreCADLicenseDir does not exist."
+}
+if ($LibreDWGDir -and -not (Test-Path -LiteralPath $LibreDWGDir)) {
+    $problems += "-LibreDWGDir (or SAENGINE_LIBREDWG_DIR) $LibreDWGDir does not exist."
+}
+if ($LibreDWGLicenseDir -and -not (Test-Path -LiteralPath $LibreDWGLicenseDir)) {
+    $problems += "-LibreDWGLicenseDir (or SAENGINE_LIBREDWG_LICENSES) $LibreDWGLicenseDir does not exist."
 }
 if ($problems.Count -gt 0) {
     throw ("Cannot build the installer:`n  - " + ($problems -join "`n  - "))
@@ -505,6 +543,18 @@ if ($LibreCADDir) {
 }
 $libreCADManifest = Join-Path $appLibreCAD 'SAENGINE-BUNDLE.json'
 
+$appLibreDWG = Join-Path $appDir 'resources\libredwg'
+Remove-Tree $appLibreDWG
+if ($LibreDWGDir) {
+    Write-Step 'Copying GNU LibreDWG 0.14 (a separate program that converts DWG to DXF) into the app'
+    $started = [Diagnostics.Stopwatch]::StartNew()
+    Invoke-LibreDWGBundle -Python (Join-Path $appPython 'python.exe') -Dest $appLibreDWG
+    $timings['LibreDWG'] = $started.Elapsed
+} else {
+    Write-Host 'LibreDWG is not bundled (no -LibreDWGDir or SAENGINE_LIBREDWG_DIR): DWG drawings will have to be saved as DXF first.'
+}
+$libreDWGManifest = Join-Path $appLibreDWG 'SAENGINE-BUNDLE.json'
+
 # --- 4. Notices ------------------------------------------------------------------------------
 Write-Step 'Writing THIRD_PARTY_NOTICES.txt and LICENSE.txt'
 $sourcesName = "$($product.nameShort)-$Version-third-party-sources"
@@ -514,13 +564,14 @@ Invoke-Native (Join-Path $appPython 'python.exe') @('-I', '-B', (Join-Path $inst
     '--python-license', (Join-Path $appPython 'LICENSE.txt'),
     '--js-package', (Join-Path $repoRoot 'packages\fem-viewer'), '--js-package', (Join-Path $repoRoot 'packages\cad-editor'),
     '--copyleft-sources', (Join-Path $installerScripts 'copyleft-sources.json'), '--sources-name', $sourcesName,
-    '--energyplus', $appEnergyPlus, '--librecad', $appLibreCAD) 'Writing the notices'
+    '--energyplus', $appEnergyPlus, '--librecad', $appLibreCAD, '--libredwg', $appLibreDWG) 'Writing the notices'
 
 Write-Step 'Collecting the source archives of the copyleft binaries'
 $sourcesDir = Join-Path $distDir $sourcesName
 $started = [Diagnostics.Stopwatch]::StartNew()
 $sourcesArgs = @{ RepoRoot = $repoRoot; CacheDir = (Join-Path $workDir 'cache\sources'); OutDir = $sourcesDir }
 if (Test-Path -LiteralPath $libreCADManifest) { $sourcesArgs['LibreCADManifest'] = $libreCADManifest }
+if (Test-Path -LiteralPath $libreDWGManifest) { $sourcesArgs['LibreDWGManifest'] = $libreDWGManifest }
 if ($AllowUnpinnedSources) { $sourcesArgs['AllowUnpinned'] = $true }
 & (Join-Path $installerScripts 'fetch-sources.ps1') @sourcesArgs
 $timings['copyleft sources'] = $started.Elapsed
@@ -551,6 +602,9 @@ if (Test-Path $appEnergyPlus) {
 }
 if (Test-Path $appLibreCAD) {
     $rows += [pscustomobject]@{ Item = '  of which resources\librecad'; Size = Format-Size (Get-FolderSize $appLibreCAD) }
+}
+if (Test-Path $appLibreDWG) {
+    $rows += [pscustomobject]@{ Item = '  of which resources\libredwg'; Size = Format-Size (Get-FolderSize $appLibreDWG) }
 }
 if ($setupFile) {
     $rows += [pscustomobject]@{ Item = (Split-Path -Leaf $setupFile); Size = Format-Size (Get-Item $setupFile).Length }

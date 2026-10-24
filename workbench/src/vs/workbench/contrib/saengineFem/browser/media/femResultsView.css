@@ -1,0 +1,144 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The analysis charts and member pages (femResultsView.ts) in the shared editor frame. */
+
+.saengine-fem-results-view .hidden {
+	display: none !important;
+}
+
+.saengine-fem-results-view .fem-results-view-group {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-1, 4px);
+}
+
+.saengine-fem-results-view .fem-results-view-group + .fem-results-view-group {
+	padding-left: var(--sa-space-2, 8px);
+	border-left: 1px solid var(--sa-border, var(--vscode-panel-border));
+}
+
+.saengine-fem-results-view .fem-results-view-select.result {
+	width: 240px;
+}
+
+.saengine-fem-results-view .fem-results-view-select.direction {
+	width: 110px;
+}
+
+.saengine-fem-results-view .sa-frame-toolbar .monaco-select-box {
+	height: 24px;
+	padding-top: 0;
+	padding-bottom: 0;
+	border-radius: var(--sa-radius, 4px);
+	font-size: var(--sa-font-m, 13px);
+}
+
+.saengine-fem-results-view .sa-frame-main > .monaco-scrollable-element {
+	flex: 1;
+	min-height: 0;
+}
+
+.saengine-fem-results-view .fem-results-view-body {
+	box-sizing: border-box;
+	padding: var(--sa-space-3, 12px) var(--sa-space-4, 16px) var(--sa-space-5, 24px);
+	outline: none;
+	max-width: 1600px;
+}
+
+.saengine-fem-results-view .fem-results-section {
+	margin-bottom: var(--sa-space-5, 24px);
+}
+
+.saengine-fem-results-view .fem-results-heading {
+	margin: 0 0 var(--sa-space-1, 4px);
+	font-size: var(--sa-font-l, 14px);
+	font-weight: 600;
+}
+
+.saengine-fem-results-view .fem-results-help,
+.saengine-fem-results-view .fem-results-note {
+	margin-bottom: var(--sa-space-2, 8px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+	line-height: 1.4;
+}
+
+.saengine-fem-results-view .fem-results-note.warning {
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.saengine-fem-results-view .fem-results-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+	gap: var(--sa-space-4, 16px) var(--sa-space-5, 24px);
+	margin-bottom: var(--sa-space-3, 12px);
+}
+
+.saengine-fem-results-view .fem-results-facts {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--sa-space-2, 8px) var(--sa-space-5, 24px);
+	margin-bottom: var(--sa-space-4, 16px);
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-fem-results-view .fem-results-fact {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.saengine-fem-results-view .fem-results-fact .name {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-fem-results-view .fem-results-fact .value {
+	font-weight: 600;
+}
+
+.saengine-fem-results-view .fem-results-section > .monaco-button {
+	display: inline-flex;
+	width: auto;
+	max-width: max-content;
+	padding: 4px 12px;
+}
+
+.saengine-fem-results-view .fem-results-table-wrap {
+	overflow-x: auto;
+	margin-bottom: var(--sa-space-2, 8px);
+}
+
+.saengine-fem-results-view .fem-table {
+	border-collapse: collapse;
+	font-size: var(--sa-font-s, 12px);
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-fem-results-view .fem-table th {
+	padding: 3px var(--sa-space-3, 12px) 3px 0;
+	text-align: right;
+	font-weight: 600;
+	border-bottom: 1px solid var(--sa-border, var(--vscode-panel-border));
+	white-space: nowrap;
+}
+
+.saengine-fem-results-view .fem-table th:first-child,
+.saengine-fem-results-view .fem-table td:not(.number) {
+	text-align: left;
+}
+
+.saengine-fem-results-view .fem-table td {
+	padding: 2px var(--sa-space-3, 12px) 2px 0;
+	white-space: nowrap;
+}
+
+.saengine-fem-results-view .fem-table td.number {
+	text-align: right;
+}
+
+.saengine-fem-results-view .fem-table tbody tr:nth-child(even) {
+	background: color-mix(in srgb, var(--vscode-foreground) 4%, transparent);
+}

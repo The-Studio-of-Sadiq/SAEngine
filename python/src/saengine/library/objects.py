@@ -110,6 +110,15 @@ class UShapeProfile(_Model):
     filletRadius: float = Field(default=0, ge=0, description="[mm]")
 
 
+class DesignedProfile(_Model):
+    """A section drawn in the Section Designer (``04 Objects/sections/<section>.json``, see
+    :mod:`saengine.library.section_designer`): L/T/C columns, core walls, built-up steel; IFC
+    IfcArbitraryProfileDefWithVoids."""
+
+    shape: Literal["designed"] = "designed"
+    section: Id = Field(description="Id of the designed section (04 Objects/sections).")
+
+
 Profile = Annotated[
     RectangleProfile
     | CircleProfile
@@ -118,7 +127,8 @@ Profile = Annotated[
     | IShapeProfile
     | TShapeProfile
     | LShapeProfile
-    | UShapeProfile,
+    | UShapeProfile
+    | DesignedProfile,
     Field(discriminator="shape"),
 ]
 

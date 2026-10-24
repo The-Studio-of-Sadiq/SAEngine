@@ -43,6 +43,7 @@ import { IProjectDocuments, PropertyAction, propertySheet } from '../../saengine
 import { openOwner } from '../../saengineModel/browser/projectDocuments.js';
 import { propertyHeading, propertyLink, propertyNote, propertyRow, renderPropertySheet } from '../../saengineModel/browser/propertySheetView.js';
 import { EditorFrame, IEditorFrameIconButton } from '../../saengineProject/browser/editorFrame.js';
+import { DWG_TO_DXF_COMMAND } from '../../saengineProject/browser/projectArchiveModel.js';
 import { acquireCadEditor, cadBackground, isLightCanvas, releaseCadEditor } from './cadHost.js';
 import { floorPlanDrawing, gridsOf, IFloorPlan, IMemberShape, storiesOf, storyOfSelection } from './floorPlanDrawing.js';
 import { basePoint, bayAt, changeMemberType, EditResult, IGridNode, moveMember, pickMember, placeColumn, placeLinear, placePolygonSlab, placeSlab, PlacementTool, removeMember, rotateMember, snapPoint, snapToGrid, TOOL_GROUP, TOOL_KINDS } from './floorPlanEdits.js';
@@ -1872,7 +1873,7 @@ export class FloorPlanEditor extends EditorPane {
 		}
 	}
 
-	/** Picks a DXF and attaches it to the current story; files from elsewhere are copied into the project. */
+	/** Picks a DXF or DWG and attaches it to the current story; files from elsewhere are copied into the project. */
 	private async attachUnderlay(): Promise<void> {
 		const input = this.input as FloorPlanEditorInput | undefined;
 		const story = input?.story;
@@ -1884,7 +1885,7 @@ export class FloorPlanEditor extends EditorPane {
 			title: localize('floorPlan.pickUnderlay', "Attach an Architect's Drawing"),
 			canSelectFiles: true,
 			canSelectMany: false,
-			filters: [{ name: localize('floorPlan.dxfFiles', "DXF Drawings"), extensions: ['dxf'] }],
+			filters: [{ name: localize('floorPlan.cadFiles', "Drawings (DXF, DWG)"), extensions: ['dxf', 'dwg'] }],
 			defaultUri: folder,
 		});
 		const source = picked?.[0];
@@ -1897,7 +1898,7 @@ export class FloorPlanEditor extends EditorPane {
 			const underlays = joinPath(folder, 'Underlays');
 			let target = joinPath(underlays, basename(source));
 			for (let n = 2; await this.fileService.exists(target); n++) {
-				target = joinPath(underlays, basename(source).replace(/(\.dxf)$/i, ` (${n})$1`));
+				target = joinPath(underlays, basename(source).replace(/(\.d(?:xf|wg))$/i, ` (${n})$1`));
 			}
 			await this.fileService.copy(source, target);
 			file = relativePath(folder, target)!;
@@ -1936,9 +1937,23 @@ export class FloorPlanEditor extends EditorPane {
 		const file = String(shown.file);
 		let dxf: string;
 		try {
-			dxf = (await this.fileService.readFile(joinPath(dirname(input.resource), file))).value.toString();
-		} catch {
-			this.underlayProblem = localize('floorPlan.underlayMissing', "The underlay {0} could not be read.", file);
+			let source = joinPath(dirname(input.resource), file);
+			if (/\.dwg$/i.test(file)) {
+				// A DWG is shown through its DXF copy, converted (and cached) by the backend.
+				const answer = await this.commandService.executeCommand<{ ok?: boolean; dxf?: string; message?: string }>(DWG_TO_DXF_COMMAND, { path: source.fsPath });
+				if (!answer?.ok || typeof answer.dxf !== 'string') {
+					throw new Error(answer?.message ?? localize('floorPlan.dwgUnavailable', "DWG drawings cannot be converted here."));
+				}
+				source = URI.file(answer.dxf);
+			}
+			dxf = (await this.fileService.readFile(source)).value.toString();
+		} catch (error) {
+			if (this.editor !== editor || this.underlayKey !== key) {
+				return;
+			}
+			this.underlayProblem = /\.dwg$/i.test(file) && error instanceof Error && error.message
+				? localize('floorPlan.underlayDwgFailed', "The underlay {0} could not be read: {1}", file, error.message)
+				: localize('floorPlan.underlayMissing', "The underlay {0} could not be read.", file);
 			await editor.setUnderlay(undefined);
 			this.updateStatus();
 			this.renderProperties();

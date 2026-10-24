@@ -42,18 +42,40 @@ MARGIN = 10.0
 # Width of the title block strip at the right of the sheet [mm].
 TITLE_WIDTH = {"A1": 170.0, "A2": 150.0, "A3": 120.0}
 
-# Text heights on paper [mm]: nothing smaller than 2.5, titles at least 3.5.
+# Text heights on paper [mm], the ISO 3098 series: nothing smaller than 2.5, titles at least 3.5.
 TEXT = 2.5
 TEXT_LARGE = 3.5
 TITLE = 5.0
-SHEET_NUMBER = 8.0
+SHEET_NUMBER = 7.0
+TEXT_HEIGHTS = (TEXT, TEXT_LARGE, TITLE, SHEET_NUMBER)
 CHAR_WIDTH = 0.9  # average advance of a character / text height (DXF height: the capitals')
 
-LINETYPE_SCALE = 6.0  # the setup linetypes of ezdxf are in inch-like units: ~6 mm dashes
+FONT = "arial.ttf"
+FONT_FAMILY = "Arial"
+"""The text font, a TrueType font every Windows has: AutoCAD, BricsCAD and the PDF
+(:mod:`saengine.drawings.sheets.render`) draw the same letters, whose widths :func:`text_width`
+estimates. LibreCAD, which reads no TrueType fonts, draws its own default font instead. No SHX
+font: those are the CAD programs' own files, not everyone's."""
 
-FONT = "romans.shx"
-"""The text font: LibreCAD maps ``romans.shx`` to its own ``romans.lff``; AutoCAD and BricsCAD
-have the SHX font. :mod:`saengine.drawings.sheets.render` uses a TrueType font for the PDF."""
+# Linetypes, SAEngine's own, as dashes and gaps on paper [mm] (ISO 128 proportions); the
+# drawing's LTSCALE is the sheet's scale, so that they plot at these lengths.
+LINETYPES: tuple[tuple[str, str, tuple[float, ...]], ...] = (
+    ("CENTER", "Centre line ____ _ ____ _", (12.0, -3.0, 2.0, -3.0)),
+    ("DASHED", "Dashed __ __ __", (3.0, -1.5)),
+    ("HIDDEN", "Hidden _ _ _ _", (2.0, -1.0)),
+    ("PHANTOM", "Phantom ____ _ _ ____", (12.0, -2.0, 2.0, -2.0, 2.0, -2.0)),
+)
+
+HATCH_SCALES = {
+    "ANSI31": 1.6 / 3.175,  # lines 3.175 apart: 1.6 mm on paper
+    "AR-CONC": 0.05,  # repeats every ~190: ~10 mm on paper, its specks ~1 mm
+}
+"""Hatch pattern scale per unit of the sheet's base scale, for ezdxf's metric (ISO) patterns."""
+
+PLOTTER = "DWG To PDF.pc3"
+PLOT_STYLES = "monochrome.ctb"
+"""The page setup of the sheets' layouts: the PDF plotter and plot style table that come with
+AutoCAD (by name only; other programs use their own)."""
 
 APP_ID = "SAENGINE"
 """XDATA application of the entities that carry their meaning (a bar's mark and length)."""
@@ -71,7 +93,7 @@ LAYERS: tuple[tuple[str, int, str, int, str, bool], ...] = (
     ("S-OPEN", 7, "Continuous", 25, "Openings", True),
     ("S-WALL", 7, "Continuous", 50, "Walls", True),
     ("S-STAIR", 6, "Continuous", 25, "Stairs", True),
-    ("S-FNDN", 4, "DASHED2", 35, "Foundations", True),
+    ("S-FNDN", 4, "HIDDEN", 35, "Foundations", True),
     ("S-CONC", 7, "Continuous", 35, "Concrete outlines of details", True),
     ("S-HATCH", 8, "Continuous", 9, "Hatching of cut concrete", True),
     ("S-REBAR-MAIN", 1, "Continuous", 50, "Main bars", True),
@@ -171,19 +193,31 @@ class TitleInfo:
 
 
 def new_document(scale: float) -> Drawing:
-    """A DXF (R2013, mm) with SAEngine's layers, text styles and the dimension style of a sheet
-    of base scale ``1:scale``."""
-    doc = ezdxf.new("R2013", setup=True, units=ezdxf.units.MM)
-    doc.header["$LTSCALE"] = scale * LINETYPE_SCALE
+    """A DXF (R2013, mm) with SAEngine's layers, linetypes, text style and the dimension style of
+    a sheet of base scale ``1:scale``; nothing else (no table entries that refer to fonts or
+    files a CAD program might not have)."""
+    doc = ezdxf.new("R2013", setup=False, units=ezdxf.units.MM)
+    doc.header["$LTSCALE"] = scale
     doc.header["$PSLTSCALE"] = 0
     doc.header["$LWDISPLAY"] = 1
     doc.header["$TEXTSTYLE"] = "SAE"
+    doc.header["$TEXTSIZE"] = TEXT * scale
+    doc.header["$DIMSCALE"] = scale
+    doc.header["$DIMSTYLE"] = dimstyle_name(scale)
+    for name, description, pattern in LINETYPES:
+        doc.linetypes.add(name, [sum(abs(v) for v in pattern), *pattern], description=description)
     for name, color, linetype, lineweight, description, plot in LAYERS:
         layer = doc.layers.add(name, color=color, linetype=linetype, lineweight=lineweight)
         layer.description = description
         if not plot:
             layer.dxf.plot = 0
-    doc.styles.add("SAE", font=FONT)
+    for style_name in ("Standard", "SAE"):
+        if style_name in doc.styles:
+            text_style = doc.styles.get(style_name)
+        else:
+            text_style = doc.styles.add(style_name, font=FONT)
+        text_style.dxf.font = FONT
+        text_style.set_extended_font_data(FONT_FAMILY)
     doc.appids.add(APP_ID)
     style = doc.dimstyles.add(dimstyle_name(scale))
     style.dxf.dimtxsty = "SAE"
@@ -528,10 +562,11 @@ class Sheet:
         w, h = self.width, self.height
         self.p_rect(0, 0, w, h, "S-SHEET", lineweight=13)
         self.p_rect(MARGIN_LEFT, MARGIN, w - MARGIN, h - MARGIN, "S-SHEET")
-        # centring marks (ISO 5457)
+        # centring marks (ISO 5457), part of the frame: the only drawing outside the border
         for x, y, dx, dy in ((w / 2, 0, 0, 1), (w / 2, h, 0, -1), (0, h / 2, 1, 0)):
-            self.p_line((x, y), (x + dx * (MARGIN + 5 if dx else 0), y + dy * (MARGIN + 5)))
-        self.p_line((w, h / 2), (w - MARGIN - 5, h / 2))
+            end = (x + dx * (MARGIN + 5 if dx else 0), y + dy * (MARGIN + 5))
+            self.p_line((x, y), end, "S-SHEET")
+        self.p_line((w, h / 2), (w - MARGIN - 5, h / 2), "S-SHEET")
         self._title_block()
 
     def _title_block(self) -> None:
@@ -576,8 +611,8 @@ class Sheet:
         # drawing title
         b, t = row(22)
         self.p_text("DRAWING TITLE", x0 + pad, t - pad, TEXT, "TL")
-        title = _wrap(self.title.upper(), tw - 2 * pad, 4.0, 2)
-        self.p_text(title, x0 + pad, b + pad + 1, 4.0, "BL")
+        title = _wrap(self.title.upper(), tw - 2 * pad, TITLE, 2)
+        self.p_text(title, x0 + pad, b + pad, TITLE, "BL")
         # drawn / checked / approved
         b, t = row(12)
         for i, (label, value) in enumerate(
@@ -677,7 +712,18 @@ class Sheet:
         if name in self.doc.layouts:
             return
         paper = self.doc.layouts.new(name)
-        paper.page_setup(size=(self.width, self.height), margins=(0, 0, 0, 0), units="mm")
+        # AutoCAD's PDF plotter and its full-bleed ISO sheet, black and white by the objects'
+        # lineweights: the layout plots as it is (a page setup the plotter does not have
+        # falls back to the plotter's default)
+        paper.page_setup(
+            size=(self.width, self.height),
+            margins=(0, 0, 0, 0),
+            units="mm",
+            scale=(1, 1),
+            name=f"ISO_full_bleed_{self.size}",
+            device=PLOTTER,
+        )
+        paper.dxf_layout.dxf.current_style_sheet = PLOT_STYLES
         paper.add_viewport(
             center=(self.width / 2, self.height / 2),
             size=(self.width, self.height),
@@ -840,14 +886,15 @@ class View:
     def hatch(
         self, points: Iterable[Sequence[float]], pattern: str = "ANSI31", layer: str = "S-HATCH"
     ):
-        """A hatch of the polygon ``points``: ``pattern`` at about 2 mm on paper, or SOLID."""
+        """A hatch of the polygon ``points``: ``pattern`` (ezdxf's metric definition, written
+        into the HATCH) at its size on paper of :data:`HATCH_SCALES`, or SOLID."""
         hatch = self.sheet.msp.add_hatch(color=256, dxfattribs={"layer": layer})
         hatch.paths.add_polyline_path([self.m(*p[:2]) for p in points], is_closed=True)
         if pattern.upper() == "SOLID":
             hatch.set_solid_fill(color=256)
         else:
-            spacing = {"ANSI31": 3.175, "AR-CONC": 6.0}.get(pattern.upper(), 3.175)
-            hatch.set_pattern_fill(pattern, scale=1.6 / spacing * self.sheet.scale)
+            per_paper_mm = HATCH_SCALES.get(pattern.upper(), HATCH_SCALES["ANSI31"])
+            hatch.set_pattern_fill(pattern, color=256, scale=per_paper_mm * self.sheet.scale)
         return hatch
 
     def dot(self, c: Sequence[float], r: float, layer: str = "S-REBAR-MAIN"):

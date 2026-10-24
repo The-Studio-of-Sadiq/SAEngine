@@ -8,8 +8,14 @@ Methods:
 - ``results/list`` ``{outDir, projectPath}`` -> the results that can be shown in 3D
 - ``results/view`` ``{outDir, projectPath, key, mode?}`` -> one result's shape and diagrams
 - ``library/check`` ``{kind, text, materialsText?}`` -> rule violations in a library file
+- ``section/analyse`` ``{text, materialsText?, projectRoot?, capacity?, surface?}`` -> a designed
+  section's properties, interaction diagrams and P-Mx-My surface (Section Designer)
 - ``structure/shapeGeometry`` ``{shape}`` -> a parametric shape's members, areas and supports
-- ``structure/importGeometry`` ``{path, options, objectsText?}`` -> a DXF, IFC or Rhino file's
+- ``structure/importGeometry`` ``{path, options, objectsText?}`` -> a DXF, DWG, IFC or Rhino
+  file's
+- ``cad/convertDwg`` ``{path, cache?}`` -> ``{ok, dxf, warnings, cached}``: a DWG drawing
+  converted to DXF by GNU LibreDWG's dwg2dxf (``saengine.library.dwg``; a separate program, in a
+  worker thread), or ``{ok: false, code, message}`` (``no-converter``, ``failed``)
 - ``structure/insert`` ``{structureText, geometry}`` -> the structural model with them added
 - ``structure/runScript`` ``{structureText, scriptPath}`` -> the model a script built
 - ``design/report`` ``{outDir, projectPath}`` -> the RC member design checks of a run
@@ -65,6 +71,15 @@ Methods:
   once per run; null when the project designs from the static cases; in a worker thread)
 - ``fem/secondOrder`` ``{outDir, projectPath}`` -> the P-Delta drift amplification and the
   stability coefficient θ of a run (``{"method": "none"}`` for a first-order model)
+- ``fem/storyResponse`` ``{outDir, projectPath}`` -> storey displacements, drifts, forces,
+  shears and overturning per case and combination, modal participation, the design spectrum,
+  base reactions, pushover and time-history curves (``saengine.fem.story_response``; worker)
+- ``fem/memberForces`` ``{outDir, projectPath, member}`` -> a member's section forces and
+  deflection along it per case and combination (``saengine.fem.member_detail``; worker)
+- ``fem/columnInteraction`` ``{outDir, projectPath, member?}`` -> the columns' P-M interaction
+  diagrams and demand points (once per run, cached beside the results; worker)
+- ``fem/exportXlsx`` ``{path, sheets: [{name, columns, rows, notes?}]}`` -> the tables written
+  to an Excel workbook (``{path, sheets}``; worker)
 - ``mep/report`` ``{projectRoot, outDir?, mepText?}`` -> the MEP coordination report
 - ``mep/suggestSleeves`` ``{projectRoot, mepText?, allowance?}`` -> sleeves for the clashes
 - ``mep/importIfc`` ``{projectRoot, path, copy?}`` -> what an MEP IFC model holds
@@ -140,6 +155,12 @@ def _plain(value: Any) -> Any:
         return [_plain(v) for v in value]
     return value
 
+
+# This server only reads analysis results (each run writes them from its own process, the
+# manifest last). On Windows HDF5 locks a file exclusively even to read it, so two threads
+# reading the same case (the design checks, and the charts of a run that has just finished)
+# failed with "unable to lock file": no locking here. Set before h5py loads HDF5.
+os.environ.setdefault("HDF5_USE_FILE_LOCKING", "FALSE")
 
 # Long requests (EnergyPlus, tank designs, archives) run in these threads while the server keeps
 # answering. Not pygls's ``server.thread()``: its pool also reads stdin, and a result computed
@@ -260,6 +281,31 @@ def create_server() -> JsonRPCServer:
         args = _plain(params)
         return handlers.check_library(args["kind"], args["text"], args.get("materialsText"))
 
+    @_in_worker
+    def _section_analyse_worker(params: Any) -> dict[str, Any]:
+        from saengine.library.section_designer import analyse
+
+        args = _plain(params)
+        return analyse(
+            args["text"],
+            args.get("materialsText"),
+            args.get("projectRoot"),
+            capacity=args.get("capacity", True),
+            surface=args.get("surface", False),
+        )
+
+    @server.feature("section/analyse")
+    async def _section_analyse(params: Any) -> dict[str, Any]:
+        # The first imports of numpy, sectionproperties and concreteproperties are not safe from
+        # two threads at once (numpy's C extension half-initialised): done here, on the server's
+        # thread, before the analysis goes to a worker.
+        import concreteproperties.concrete_section  # noqa: F401
+        import sectionproperties.analysis.section  # noqa: F401
+
+        import saengine.library.section_designer  # noqa: F401
+
+        return await _section_analyse_worker(params)
+
     @server.feature("bim/generate")
     def _generate_building(params: Any) -> dict[str, Any]:
         args = _plain(params)
@@ -302,11 +348,18 @@ def create_server() -> JsonRPCServer:
         return handlers.shape_geometry(_plain(params)["shape"])
 
     @server.feature("structure/importGeometry")
+    @_in_worker  # a DWG is converted first (seconds)
     def _import_geometry(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.import_geometry(
             args["path"], args.get("options") or {}, args.get("objectsText")
         )
+
+    @server.feature("cad/convertDwg")
+    @_in_worker
+    def _convert_dwg(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.convert_dwg(args["path"], args.get("cache"))
 
     @server.feature("structure/insert")
     def _insert_geometry(params: Any) -> dict[str, Any]:
@@ -509,6 +562,30 @@ def create_server() -> JsonRPCServer:
     def _second_order(params: Any) -> dict[str, Any] | None:
         args = _plain(params)
         return handlers.second_order_summary(args["outDir"], args["projectPath"])
+
+    @server.feature("fem/storyResponse")
+    @_in_worker
+    def _story_response(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.story_response(args["outDir"], args["projectPath"])
+
+    @server.feature("fem/memberForces")
+    @_in_worker
+    def _member_forces(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.member_forces(args["outDir"], args["projectPath"], args["member"])
+
+    @server.feature("fem/columnInteraction")
+    @_in_worker
+    def _column_interaction(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.column_interaction(args["outDir"], args["projectPath"], args.get("member"))
+
+    @server.feature("fem/exportXlsx")
+    @_in_worker
+    def _export_xlsx(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.export_xlsx(args["path"], args["sheets"])
 
     @server.feature("mep/report")
     def _mep_report(params: Any) -> dict[str, Any]:

@@ -555,6 +555,7 @@ def import_geometry(path: str, options: dict[str, Any], objects_text: str | None
 
     from pydantic import ValidationError
 
+    from saengine.library.dwg import DwgError
     from saengine.library.importers import ImportOptions
     from saengine.library.importers import import_geometry as read
 
@@ -572,8 +573,23 @@ def import_geometry(path: str, options: dict[str, Any], objects_text: str | None
         pass  # no layer-named types then
     try:
         return read(path, parsed, kinds).to_json()
+    except DwgError as exc:  # names the file already
+        return {"problems": [str(exc)]}
     except Exception as exc:  # noqa: BLE001 - unreadable files are reported to the user
         return {"problems": [f"{Path(path).name}: {exc}"]}
+
+
+def convert_dwg(path: str, cache: str | None = None) -> dict[str, Any]:
+    """A DWG drawing as DXF (``saengine.library.dwg``): ``{"ok", "dxf", "warnings", "cached"}``,
+    or ``{"ok": False, "code", "message"}`` (``code`` ``"no-converter"`` or ``"failed"``)."""
+    from saengine.library.dwg import ConverterMissing, DwgError, convert
+
+    try:
+        return {"ok": True, **convert(path, cache).to_json()}
+    except ConverterMissing as exc:
+        return {"ok": False, "code": "no-converter", "message": str(exc)}
+    except DwgError as exc:
+        return {"ok": False, "code": "failed", "message": str(exc)}
 
 
 def insert_geometry(structure_text: str, geometry: dict[str, Any]) -> dict[str, Any]:
@@ -1564,6 +1580,37 @@ def drawings_progress(project_root: str) -> dict[str, Any]:
     from saengine.pipeline.drawings import progress
 
     return progress(project_root)
+
+
+def story_response(out_dir: str, project_path: str) -> dict[str, Any]:
+    """The storey response, modal participation, spectrum and curves of a run (the FEM
+    results' charts; ``saengine.fem.story_response``)."""
+    from saengine.fem.story_response import story_response as compute
+
+    return compute(out_dir, project_path)
+
+
+def member_forces(out_dir: str, project_path: str, member: str) -> dict[str, Any]:
+    """A member's section forces and deflection along it for every static case and load
+    combination (the member detail window; ``saengine.fem.member_detail``)."""
+    from saengine.fem.member_detail import member_forces as compute
+
+    return compute(out_dir, project_path, member)
+
+
+def column_interaction(out_dir: str, project_path: str, member: str | None) -> dict[str, Any]:
+    """The P-M interaction diagrams of the run's concrete columns with their demand points
+    (worked out once per run by the design checks; ``saengine.fem.member_detail``)."""
+    from saengine.fem.member_detail import column_interaction as compute
+
+    return compute(out_dir, project_path, member)
+
+
+def export_xlsx(path: str, sheets: list[dict[str, Any]]) -> dict[str, Any]:
+    """Result tables written to an Excel workbook (``saengine.fem.table_export``)."""
+    from saengine.fem.table_export import write_xlsx
+
+    return write_xlsx(path, sheets)
 
 
 # ───────────────────────────────────────── code packs ─────────────────────────────────────────
