@@ -11,7 +11,11 @@ Methods:
 - ``section/analyse`` ``{text, materialsText?, projectRoot?, capacity?, surface?}`` -> a designed
   section's properties, interaction diagrams and P-Mx-My surface (Section Designer)
 - ``structure/shapeGeometry`` ``{shape}`` -> a parametric shape's members, areas and supports
-- ``structure/importGeometry`` ``{path, options, objectsText?}`` -> a DXF, IFC or Rhino file's
+- ``structure/importGeometry`` ``{path, options, objectsText?}`` -> a DXF, DWG, IFC or Rhino
+  file's
+- ``cad/convertDwg`` ``{path, cache?}`` -> ``{ok, dxf, warnings, cached}``: a DWG drawing
+  converted to DXF by GNU LibreDWG's dwg2dxf (``saengine.library.dwg``; a separate program, in a
+  worker thread), or ``{ok: false, code, message}`` (``no-converter``, ``failed``)
 - ``structure/insert`` ``{structureText, geometry}`` -> the structural model with them added
 - ``structure/runScript`` ``{structureText, scriptPath}`` -> the model a script built
 - ``design/report`` ``{outDir, projectPath}`` -> the RC member design checks of a run
@@ -329,11 +333,18 @@ def create_server() -> JsonRPCServer:
         return handlers.shape_geometry(_plain(params)["shape"])
 
     @server.feature("structure/importGeometry")
+    @_in_worker  # a DWG is converted first (seconds)
     def _import_geometry(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.import_geometry(
             args["path"], args.get("options") or {}, args.get("objectsText")
         )
+
+    @server.feature("cad/convertDwg")
+    @_in_worker
+    def _convert_dwg(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.convert_dwg(args["path"], args.get("cache"))
 
     @server.feature("structure/insert")
     def _insert_geometry(params: Any) -> dict[str, Any]:

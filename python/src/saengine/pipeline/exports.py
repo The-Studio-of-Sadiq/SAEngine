@@ -383,13 +383,27 @@ def _js(value: float | None) -> str:
 
 
 def drawing_dxf(entities: list[dict[str, Any]]) -> str:
-    """The DXF text of a drawing (R2013, millimetres), with the floor plan's layers."""
+    """The DXF text of a drawing (R2013, millimetres), with the floor plan's layers, the two
+    linetypes it uses and the drawing sheets' TrueType text style, nothing else: no text styles
+    whose fonts a CAD program would have to substitute (docs/drawings-layers.md)."""
     import io
 
     import ezdxf
     from ezdxf.enums import TextEntityAlignment
+    from ezdxf.tools.standards import linetypes
 
-    doc = ezdxf.new("R2013", setup=True, units=ezdxf.units.MM)
+    from saengine.drawings.sheets.layout import FONT, FONT_FAMILY
+
+    doc = ezdxf.new("R2013", setup=False, units=ezdxf.units.MM)
+    used = {linetype for _, _, linetype, _ in LAYERS if linetype}
+    # ezdxf's definitions, as the app's entity linetype scales (200, 100) expect them
+    for name, description, pattern in linetypes():
+        if name in used:
+            doc.linetypes.add(name, pattern, description=description)
+    style = doc.styles.get("Standard")
+    style.dxf.font = FONT
+    style.set_extended_font_data(FONT_FAMILY)
+    doc.header["$TEXTSTYLE"] = "Standard"
     for name, color, linetype, description in LAYERS:
         layer = doc.layers.add(name, color=color, linetype=linetype or "Continuous")
         layer.description = description

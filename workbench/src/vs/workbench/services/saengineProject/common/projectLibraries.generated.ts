@@ -5357,7 +5357,7 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 				file: {
 					description: 'DXF file, relative to the 05 Floor Plan folder.',
 					minLength: 1,
-					pattern: '\\.[dD][xX][fF]$',
+					pattern: '\\.[dD]([xX][fF]|[wW][gG])$',
 					title: 'File',
 					type: 'string',
 				},

@@ -42,7 +42,7 @@ the program folder, including the bundled Python. It keeps your projects (by def
 | Workbench (app root) | `...\SAEngine\resources\app` |
 | Bundled Python | `...\SAEngine\resources\python\python.exe` (CPython 3.12.10, x64) |
 | Command line | `...\SAEngine\bin\saengine.cmd` (the window launcher: `bin\saengine-app.cmd`) |
-| EnergyPlus, LibreCAD (when bundled) | `...\SAEngine\resources\energyplus`, `...\SAEngine\resources\librecad` (separate programs, with their licences) |
+| EnergyPlus, LibreCAD, LibreDWG (when bundled) | `...\SAEngine\resources\energyplus`, `...\SAEngine\resources\librecad`, `...\SAEngine\resources\libredwg` (separate programs, with their licences) |
 | Backend packages | `...\SAEngine\resources\python\Lib\site-packages` |
 | Licences | `...\SAEngine\LICENSE.txt` (AGPL-3.0), `THIRD_PARTY_NOTICES.txt` (viewer bundles' npm packages, Python packages, source offers), `resources\app\ThirdPartyNotices.txt` (Code - OSS), `LICENSES.chromium.html` |
 | Settings, logs | `%APPDATA%\SAEngine` |
@@ -131,7 +131,9 @@ Setup), `-RefreshConstraints` (re-pin `constraints.txt` from the development `.v
 changed), `-NoPrecompile`, `-EnergyPlusDir` (bundle EnergyPlus 26.2.0), `-LibreCADDir` and
 `-LibreCADLicenseDir` (bundle LibreCAD 2.2.1.6, an installed one such as
 `C:\Program Files\LibreCAD` or its installer unpacked with `7z x`, with its licence texts;
-`-LibreCADOnly -DryRun` tests that step alone), `-AllowUnpinnedSources`, `-MinFreeGB`. The
+`-LibreCADOnly -DryRun` tests that step alone), `-LibreDWGDir` and `-LibreDWGLicenseDir`
+(bundle GNU LibreDWG 0.14's `dwg2dxf` from `libredwg-0.14-win64.zip` unpacked, with its
+`COPYING`, for opening DWG drawings), `-AllowUnpinnedSources`, `-MinFreeGB`. The
 release workflow passes all of them; see `docs/ci.md` for the release build, the pinned
 downloads and the LibreCAD and Qt source offer.
 

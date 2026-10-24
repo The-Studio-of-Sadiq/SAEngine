@@ -25,6 +25,11 @@ export const ARCHIVE_INSPECT_COMMAND = 'saengine.project.inspectArchive';
 export const ARCHIVE_IMPORT_COMMAND = 'saengine.project.import';
 /** `{path}` -> `{program, ok}`: opens a DXF in the bundled LibreCAD, else the system's DXF program. */
 export const CAD_OPEN_COMMAND = 'saengine.cad.open';
+/**
+ * `{path}` -> `{ok, dxf, warnings}` or `{ok: false, code, message}`: a DWG drawing converted to
+ * DXF (cached in a `.dwg-cache` folder beside it) by the bundled GNU LibreDWG.
+ */
+export const DWG_TO_DXF_COMMAND = 'saengine.cad.dwgToDxf';
 
 /** The UI commands (≡ File menu, the Exports page). Each takes its paths as arguments, for tests. */
 export const EXPORT_ARCHIVE_UI_COMMAND = 'saengine.project.exportArchive';

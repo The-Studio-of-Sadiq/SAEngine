@@ -177,7 +177,7 @@ export class StructureModelerEditor extends EditorPane {
 	private readonly redoAction = this._register(new Action('saengine.structure.redo', localize('modeler.redo', "Redo"), ThemeIcon.asClassName(Codicon.redo), false, () => this.undoRedo(true)));
 	private readonly fitAction = this._register(new Action('saengine.structure.fit', localize('modeler.fit', "Zoom to Fit"), ThemeIcon.asClassName(Codicon.screenFull), true, async () => this.modeler?.fit()));
 	private readonly generateAction = this._register(new Action('saengine.structure.generate', localize('modeler.generateTitle', "Add a parametric shape: space truss, plane truss, arch, dome, barrel vault or cable net"), ThemeIcon.asClassName(Codicon.symbolStructure), true, async () => this.openShape()));
-	private readonly importAction = this._register(new Action('saengine.structure.import', localize('modeler.importTitle', "Add the members and surfaces of a DXF, IFC or Rhino (.3dm) file"), ThemeIcon.asClassName(Codicon.cloudDownload), true, () => this.openImport()));
+	private readonly importAction = this._register(new Action('saengine.structure.import', localize('modeler.importTitle', "Add the members and surfaces of a DXF, DWG, IFC or Rhino (.3dm) file"), ThemeIcon.asClassName(Codicon.cloudDownload), true, () => this.openImport()));
 	private readonly scriptAction = this._register(new Action('saengine.structure.script', localize('modeler.scriptTitle', "Run a Python script that builds the model, or start a new one"), ThemeIcon.asClassName(Codicon.symbolMethod), true, () => this.pickScript()));
 	private readonly formAction = this._register(new Action('saengine.structure.form', localize('modeler.form', "Edit Grids and Values"), undefined, true, async () => this.openForm()));
 	private readonly generateMenuAction = this._register(new Action('saengine.structure.generateMenu', localize('modeler.generateMenu', "Generate Shape..."), undefined, true, async () => this.openShape()));
@@ -923,7 +923,7 @@ export class StructureModelerEditor extends EditorPane {
 		const input = this.input as LibraryEditorInput | undefined;
 		const files = await this.fileDialogService.showOpenDialog({
 			title: localize('modeler.importDialog', "Import 3D Geometry"),
-			filters: [{ name: localize('modeler.importFilter', "3D models (DXF, IFC, Rhino)"), extensions: ['dxf', 'ifc', '3dm'] }],
+			filters: [{ name: localize('modeler.importFilter', "3D models (DXF, DWG, IFC, Rhino)"), extensions: ['dxf', 'dwg', 'ifc', '3dm'] }],
 			canSelectFiles: true,
 			canSelectMany: false,
 			defaultUri: input && dirname(dirname(input.resource)),
