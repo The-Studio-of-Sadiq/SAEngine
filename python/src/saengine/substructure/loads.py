@@ -10,7 +10,8 @@ Two kinds of combinations, as is usual for foundations (ACI 318-19 13.2.6.1, 13.
 
 - SERVICE (unfactored) allowable-stress combinations for bearing, settlement and the pile
   loads against their allowable capacities: BNBC 2020 Part 6 2.7.2 (ASCE 7-05 2.4.1), for this
-  project's nominal (service-level) wind: D, D + L + Lr, D + W, D + 0.75L + 0.75Lr + 0.75W,
+  project's nominal (service-level) wind: D, D + L + Lr (enveloping BNBC 2.7.2.1 (2)-(4): D + L,
+  D + Lr and D + 0.75L + Lr), D + W, D + 0.75L + 0.75Lr + 0.75W,
   0.6D + W, D + 0.7E, D + 0.75L + 0.75Lr + 0.525E and 0.6D + 0.7E, wind and earthquake in ±X
   and ±Y, D standing for the dead and superimposed dead cases. When the project's strength
   combinations treat wind as strength-level (no wind factor above 1.0), the ASCE 7-16 2.4.1

@@ -1,6 +1,7 @@
 """Design-mode benchmarks: the reinforcement SAEngine requires and proposes
 (:mod:`saengine.design.bars`, :mod:`saengine.design.required`, :mod:`saengine.design.proposal`)
-against hand calculations to ACI 318-19 (adopted by BNBC 2020 Part 6 Chapter 6).
+against hand calculations to ACI 318-19 (BNBC 2020 Part 6 Chapter 6 is based on an earlier ACI
+318 and is the same or less strict).
 
 Every reference is worked out with plain arithmetic, step by step; none of SAEngine's helpers
 are used for it. Units: mm, MPa, N, N·mm; reported in mm², kN·m, kN, mm.

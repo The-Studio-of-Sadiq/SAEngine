@@ -29,6 +29,7 @@ from saengine.plumbing.tanks import (
     load_patterns,
     min_area,
     model_of,
+    roof_live,
     soil_of,
     support_loads,
     table_cover,
@@ -305,6 +306,16 @@ def test_cover_by_bnbc_table_6_8_3(tmp_path: Path) -> None:
     assert face_cover(spec, "Base", "bottom", 12, options) == 75.0  # cast against earth
     assert face_cover(spec, "South", "outer", 20, options) == 50.0  # Sec 8.1.7.2 (b)
     assert face_cover(spec, "South", "outer", 12, options) == 40.0
+
+
+def test_septic_tank_roof_takes_at_least_7_kpa(tmp_path: Path) -> None:
+    # BNBC Part 8 Sec 6.9.12.14: the septic tank's roof and manhole cover at least 7 kPa live.
+    ctx = context(tmp_path)
+    options = TankOptions()
+    assert roof_live(tank_spec(UGT, ctx), options) == options.roofLive == 1.0
+    septic = tank_spec({**UGT, "kind": "septic"}, ctx)
+    assert roof_live(septic, options) == 7.0
+    assert roof_live(septic, TankOptions(roofLive=12.0)) == 12.0
 
 
 # ─────────────────────────────── stability and weights ───────────────────────────────

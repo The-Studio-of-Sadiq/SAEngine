@@ -3,7 +3,8 @@
 Each case calls the design function the design checks use (:mod:`saengine.design.rc`,
 :mod:`saengine.design.slab`, :mod:`saengine.design.footing`) and works the same quantity out
 by hand, step by step, with plain arithmetic: none of SAEngine's helpers are used for the
-reference. BNBC 2020 Part 6 Chapter 6 adopts ACI 318-19, so the clauses are the same.
+reference. BNBC 2020 Part 6 Chapter 6 is based on an earlier ACI 318 (e.g. Vc = 0.17λ√f'c bw d,
+Eq 6.6.49, without the size factor); the cases check to ACI 318-19, which matches or is stricter.
 
 Units: mm, MPa, N, N·mm; reported in kN, kN·m, kN·m/m, kPa, MPa.
 """

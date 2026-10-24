@@ -24,7 +24,8 @@ upward with the base held along the walls' lines: :func:`saengine.plumbing.tanks
   default: the soil report's level is the one measured at drilling, the design one the
   highest expected; BNBC does not set it).
 - Lr: the roof live load, ``roofLive`` (1.00 kN/m², an ordinary flat roof, BNBC Part 6 Table
-  6.2.3, part1 p536; set it for a roof used otherwise, e.g. a driveway).
+  6.2.3, part1 p536; set it for a roof used otherwise, e.g. a driveway); a septic tank's roof
+  at least 7 kPa (BNBC Part 8 Sec 6.9.12.14, part2 p1107, :data:`SEPTIC_COVER_LIVE`).
 
 Combinations (BNBC 2020 Part 6 Sec 2.7, part1 p684-685)
 - strength (Sec 2.7.3.1): (1) 1.4(D + F); (2) 1.2(D + F) + 1.6H + 0.5Lr, also with H = 0
@@ -112,6 +113,7 @@ import numpy as np
 
 from saengine.design.rc import EPS_CU, PHI_SHEAR, STEEL_E, bar_area, beta1, phi_axial_flexure
 from saengine.design.slab import min_steel_ratio, one_way_shear, wood_armer
+from saengine.plumbing.tables import SEPTIC_COVER_LIVE
 from saengine.plumbing.tanks_model import (
     M11,
     M12,
@@ -156,6 +158,14 @@ STEEL_DENSITY = 7850.0  # kg/m³
 #: Allowance on the bars' weight for laps, hooks and chairs in the quantity estimate.
 LAP_ALLOWANCE = 0.10
 GROUND_KINDS = ("underground", "septic", "rainwater")
+
+
+def roof_live(spec: TankSpec, options: TankOptions) -> float:
+    """The roof live load [kPa]: ``roofLive``, at least 7 kPa on a septic tank (BNBC Part 8 Sec
+    6.9.12.14: the manhole cover and the roof designed for at least 7 kPa)."""
+    if spec.kind == "septic":
+        return max(options.roofLive, SEPTIC_COVER_LIVE)
+    return options.roofLive
 
 
 @dataclass
@@ -977,7 +987,7 @@ def load_patterns(
                 }
             )
     if spec.roof:
-        live = options.roofLive * 1e3
+        live = roof_live(spec, options) * 1e3
         patterns["Lr"] = consistent_forces(
             grid, [Pressure({"Roof"}, lambda _p: live, lambda _a, _b: down)]
         )
@@ -985,9 +995,11 @@ def load_patterns(
             {
                 "case": "Lr",
                 "name": "Roof live load",
-                "value": options.roofLive,
+                "value": roof_live(spec, options),
                 "unit": "kPa",
-                "note": "BNBC Part 6 Table 6.2.3 ordinary flat roof",
+                "note": "BNBC Part 8 Sec 6.9.12.14, septic tank roof and cover at least 7 kPa"
+                if spec.kind == "septic"
+                else "BNBC Part 6 Table 6.2.3 ordinary flat roof",
             }
         )
     return patterns, loads
@@ -1687,7 +1699,7 @@ def bearing(
     weight = volumes(spec)["concrete"] * options.concreteUnitWeight
     weight += water_volume(spec) * (options.liquidUnitWeight or GAMMA_W)
     if spec.roof:
-        weight += lo * wo * (options.roofFinish + options.roofLive)
+        weight += lo * wo * (options.roofFinish + roof_live(spec, options))
     toe_height = df - spec.base
     weight += (bo * lb - lo * wo) * (soil.sigma_v(toe_height) if toe_height > 0 else 0.0)
     cover = max(-spec.top_level, 0.0)
