@@ -141,6 +141,12 @@ def _plain(value: Any) -> Any:
     return value
 
 
+# This server only reads analysis results (each run writes them from its own process, the
+# manifest last). On Windows HDF5 locks a file exclusively even to read it, so two threads
+# reading the same case (the design checks, and the charts of a run that has just finished)
+# failed with "unable to lock file": no locking here. Set before h5py loads HDF5.
+os.environ.setdefault("HDF5_USE_FILE_LOCKING", "FALSE")
+
 # Long requests (EnergyPlus, tank designs, archives) run in these threads while the server keeps
 # answering. Not pygls's ``server.thread()``: its pool also reads stdin, and a result computed
 # there could wait for the client's next message before it was sent.

@@ -229,12 +229,29 @@ def _code(case_name: str) -> str:
     return case_name.split(":")[0].strip()
 
 
+def _add_participation(modes: list[dict[str, Any]], modal: Any, project_path: str | Path) -> None:
+    """Each mode's mass participation in X and Y (``ux``, ``uy``: shares of the mass), for the
+    mode shape's caption; left out when the masses cannot be read."""
+    try:
+        from opensees_studio.services.persistence import load_project
+        from opensees_studio.services.spectrum import mass_participation
+
+        project = load_project(str(project_path))
+        for direction, key in ((1, "ux"), (2, "uy")):
+            for mode in mass_participation(project, modal, direction):
+                if 1 <= mode.mode_number <= len(modes) and np.isfinite(mode.mass_ratio):
+                    modes[mode.mode_number - 1][key] = round(float(mode.mass_ratio), 5)
+    except Exception:  # noqa: BLE001, S110 - the periods are shown without the shares
+        pass
+
+
 def result_list(out_dir: str | Path, project_path: str | Path) -> dict[str, Any]:
     """The results that can be shown: ``{"results": [...], "stale": bool}``.
 
     Each result has a ``key`` (``case:<id>``, ``combination:<n>``), a ``label`` and a ``kind``
     (``static``, ``combination``, ``modal``, ``spectrum``, ``history``, ``pushover``); modal
-    results list their ``modes`` with periods, time histories their ``frames`` (number, time)
+    results list their ``modes`` with periods (and ``ux``, ``uy``: the mass participation in X
+    and Y, when the masses can be read), time histories their ``frames`` (number, time)
     and the ``peak`` frame, where the structure moves most, and pushovers their ``frames``
     (number, control ``displacement``, base ``shear``: the capacity curve) and the ``peak``
     frame, at the largest base shear.
@@ -273,6 +290,7 @@ def result_list(out_dir: str | Path, project_path: str | Path) -> dict[str, Any]
                 {"number": n + 1, "period": float(p) if np.isfinite(p) else None}
                 for n, p in enumerate(loaded.periods)
             ]
+            _add_participation(modes, loaded, project_path)
             results.append(
                 {"key": key, "label": entry["case_name"], "kind": "modal", "modes": modes}
             )
