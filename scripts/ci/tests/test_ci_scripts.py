@@ -98,7 +98,8 @@ def test_download_keeps_only_a_verified_file(tmp_path: Path) -> None:
     data = b"x" * 5000
     calls = []
 
-    def opener(request):
+    def opener(request, timeout=None):
+        assert timeout == fetch.TIMEOUT
         calls.append(request.full_url)
         return io.BytesIO(data)
 
@@ -109,6 +110,44 @@ def test_download_keeps_only_a_verified_file(tmp_path: Path) -> None:
     with pytest.raises(fetch.PinError):
         fetch.download({**item_for(data), "file": "bad.bin", "sha256": "1" * 64}, tmp_path, opener)
     assert not (tmp_path / "bad.bin").exists() and not (tmp_path / "bad.bin.partial").exists()
+
+
+def test_download_retries_and_gives_up(tmp_path: Path) -> None:
+    data = b"y" * 3000
+    failures = [TimeoutError("timed out"), ConnectionResetError("reset")]
+    pauses = []
+
+    def flaky(request, timeout=None):
+        if failures:
+            raise failures.pop(0)
+        return io.BytesIO(data)
+
+    target = fetch.download(item_for(data), tmp_path, opener=flaky, sleep=pauses.append)
+    assert target.read_bytes() == data and pauses == [15, 30]
+
+    def dead(request, timeout=None):
+        raise TimeoutError("timed out")
+
+    pauses.clear()
+    with pytest.raises(fetch.PinError, match="after 4 attempts"):
+        fetch.download({**item_for(data), "file": "dead.bin"}, tmp_path, dead, pauses.append)
+    assert len(pauses) == fetch.ATTEMPTS - 1
+    assert not (tmp_path / "dead.bin.partial").exists()
+
+
+def test_slow_transfer_is_abandoned() -> None:
+    ticks = iter(range(0, 10_000, 100))  # 1 kB every 100 s
+    blocks = [b"z" * 1000] * 5
+
+    class Slow:
+        def read(self, size):
+            return blocks.pop(0) if blocks else b""
+
+    with pytest.raises(TimeoutError, match="kB/s"):
+        fetch.copy_with_deadline(Slow(), io.BytesIO(), clock=lambda: next(ticks))
+    fast = io.BytesIO()
+    fetch.copy_with_deadline(io.BytesIO(b"q" * (3 << 20)), fast, clock=lambda: 0.0)
+    assert len(fast.getvalue()) == 3 << 20
 
 
 def test_unpack_zip_finds_the_program(tmp_path: Path) -> None:
@@ -528,6 +567,27 @@ def test_release_version() -> None:
         release.release_version("Pre-Alpha-v5", None, "Fix the soil page")
     with pytest.raises(release.ReleaseError, match="Pre-Alpha-v"):
         release.release_number("v1.0")
+
+
+def test_test_build_version() -> None:
+    assert release.test_build_version(None, "0.0.42", "17") == "0.0.42-ci.17"
+    assert release.test_build_version("0.0.42-try.1", "0.0.42", "17") == "0.0.42-try.1"
+    with pytest.raises(release.ReleaseError, match="x.y.z"):
+        release.test_build_version(None, "next", "17")
+    with pytest.raises(release.ReleaseError, match="run number"):
+        release.test_build_version(None, "0.0.42", "")
+    with pytest.raises(release.ReleaseError):
+        release.test_build_version("bad version", "0.0.42", "1")
+
+
+def test_test_build_assets_ignore_the_release_folders(tmp_path: Path) -> None:
+    fake_release_repo(tmp_path, "0.0.42-ci.3", "Pre-Alpha-v5")
+    (tmp_path / "docs" / "release" / "stray.pdf").write_bytes(b"%PDF")
+    assets, notes = release.collect_assets("", "0.0.42-ci.3", tmp_path / "out", repo=tmp_path)
+    names = {a.name for a in assets}
+    assert "stray.pdf" not in names and "SAEngine.Testing.Guide.pdf" not in names
+    assert "SAEngine-x64-user-setup-0.0.42-ci.3.exe" in names
+    assert "Alpha software" in notes.read_text(encoding="utf-8")
 
 
 def fake_release_repo(root: Path, version: str, tag: str) -> None:

@@ -1,6 +1,8 @@
-# SAEngine release: builds the Windows x64 user setup with EnergyPlus, LibreCAD and LibreDWG bundled,
-# smoke-tests it, and creates the GitHub pre-release with the same files as the manual
-# releases. A draft by default: review it on GitHub, then publish. How to cut one: docs/ci.md.
+# SAEngine release: builds the Windows x64 user setup with EnergyPlus, LibreCAD and LibreDWG bundled
+# (all from pinned, SHA-256-checked downloads), smoke-tests it, keeps the setup, its .sha256 and the
+# third-party sources zip as a run artefact, and for a release tag creates the GitHub pre-release
+# as a DRAFT. It never publishes: a person reviews the draft and publishes it. Windows minutes
+# cost twice Linux minutes, so it runs only on release tags and by hand. How: docs/release.md.
 name: Release
 
 on:
@@ -9,20 +11,22 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag, Pre-Alpha-v<N> (created on this commit when the release is published)'
-        required: true
-        type: string
-      version:
-        description: 'Version in the file names (default: <x.y.z of the v<x.y.z> commit>-alpha.<N>)'
+        description: 'Release tag Pre-Alpha-v<N>. Empty: a test build of the chosen branch (artefacts only, no release)'
         required: false
         type: string
-      draft:
-        description: 'Create the release as a draft'
+        default: ''
+      version:
+        description: 'Version in the file names (default: <x.y.z of the v<x.y.z> commit>-alpha.<N>; test build: <x.y.z>-ci.<run number>)'
+        required: false
+        type: string
+      draft_release:
+        description: 'With a tag: also create the draft pre-release (never published by the workflow)'
         required: false
         type: boolean
-        default: true
+        default: false
 
-# One release build per tag at a time; a second one waits instead of cancelling the first.
+# One release build per tag (or branch, for test builds) at a time; a second one waits instead
+# of cancelling the first.
 concurrency:
   group: release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
@@ -32,13 +36,15 @@ permissions:
 
 jobs:
   installer:
-    name: Windows installer and pre-release
+    name: Windows installer
     # A larger runner (for example a 4-core Windows larger runner) can be set in the repository
     # variable SAENGINE_RELEASE_RUNNER; see docs/ci.md.
     runs-on: ${{ vars.SAENGINE_RELEASE_RUNNER || 'windows-latest' }}
     timeout-minutes: 300
     env:
-      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      # A tag push releases its tag; a dispatch releases the tag input, or nothing when empty.
+      RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+      CREATE_RELEASE: ${{ github.event_name == 'push' || (inputs.tag != '' && inputs.draft_release) }}
       NPM_ARCH: x64
       VSCODE_ARCH: x64
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -55,6 +61,10 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: workbench/.nvmrc
+          cache: npm
+          cache-dependency-path: |
+            packages/fem-viewer/package-lock.json
+            packages/cad-editor/package-lock.json
 
       - name: Set up Python (for the CI scripts and node-gyp)
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -72,6 +82,13 @@ jobs:
           Get-PSDrive -PSProvider FileSystem | Format-Table Name, @{n='FreeGB';e={[math]::Round($_.Free/1GB,1)}}
           '{0:N1} GB RAM' -f ((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)
 
+      # --- Caches. GitHub scopes caches by ref: a run can restore what runs on its own branch or
+      # tag and on the default branch saved. Test builds by hand on a branch therefore reuse each
+      # other's caches; a tag push only finds what main saved (docs/release.md).
+
+      # EnergyPlus, LibreCAD, LibreDWG, their licence texts (scripts/ci/third-party-binaries.json),
+      # the copyleft source archives (scripts/installer/copyleft-sources.json) and the CPython of
+      # bundle-python.ps1. Every file is checked against its pinned SHA-256 again after a restore.
       - name: Cache the pinned downloads
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -83,9 +100,30 @@ jobs:
           key: release-downloads-${{ hashFiles('scripts/ci/third-party-binaries.json', 'scripts/installer/copyleft-sources.json', 'scripts/installer/bundle-python.ps1') }}
           restore-keys: release-downloads-
 
+      # pip's wheel cache for the bundled Python's backend packages (pinned by constraints.txt).
+      - name: Cache the pip wheels
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~\AppData\Local\pip\Cache
+          key: release-pip-${{ hashFiles('scripts/installer/constraints.txt', 'python/pyproject.toml', 'third_party/opensees-studio/pyproject.toml') }}
+          restore-keys: release-pip-
+
+      # The Electron zip that the gulp packaging downloads (@electron/get's cache), keyed as
+      # Code - OSS's own setup-electron action keys it.
+      - name: Electron cache folder
+        shell: pwsh
+        run: Add-Content -Path $env:GITHUB_ENV -Value "ELECTRON_CACHE_PATH=$(Join-Path $env:LOCALAPPDATA 'electron\Cache')"
+
+      - name: Cache the Electron download
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.ELECTRON_CACHE_PATH }}
+          key: release-electron-${{ env.VSCODE_ARCH }}-${{ hashFiles('workbench/.npmrc', 'workbench/build/checksums/electron.txt') }}
+
       - name: Fetch EnergyPlus 26.2.0, LibreCAD 2.2.1.6, LibreDWG 0.14 and the licence texts (SHA-256 pinned)
         id: thirdparty
         shell: pwsh
+        timeout-minutes: 30
         run: |
           $ErrorActionPreference = 'Stop'
           python -I scripts/ci/fetch_pinned.py --cache "$env:RUNNER_TEMP/third-party-cache" --out "$env:RUNNER_TEMP/third-party" energyplus librecad libredwg
@@ -99,6 +137,7 @@ jobs:
       - name: Build the SAEngine viewer packages
         shell: pwsh
         working-directory: packages
+        timeout-minutes: 30
         run: |
           $ErrorActionPreference = 'Stop'
           foreach ($package in 'fem-viewer', 'cad-editor') {
@@ -108,9 +147,34 @@ jobs:
             Pop-Location
           }
 
-      - name: npm ci (workbench)
+      # Code - OSS's own Windows node_modules cache: the key hashes every package.json and
+      # package-lock.json of the workbench, its build folder and built-in extensions; the archive
+      # is made with 7-Zip (workbench/.github/workflows/node_modules_cache/cache.ps1).
+      - name: Compute the node_modules cache key
         shell: pwsh
         working-directory: workbench
+        run: |
+          $null = New-Item -ItemType Directory -Force .build
+          node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 $env:VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
+
+      - name: Restore node_modules
+        id: node-modules
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: workbench/.build/node_modules_cache
+          key: release-node-modules-win32-${{ hashFiles('workbench/.build/packagelockhash') }}
+
+      - name: Extract node_modules
+        if: steps.node-modules.outputs.cache-hit == 'true'
+        shell: pwsh
+        working-directory: workbench
+        run: ./.github/workflows/node_modules_cache/cache.ps1 extract
+
+      - name: npm ci (workbench)
+        if: steps.node-modules.outputs.cache-hit != 'true'
+        shell: pwsh
+        working-directory: workbench
+        timeout-minutes: 75
         run: |
           $ErrorActionPreference = 'Stop'
           Push-Location build
@@ -130,8 +194,52 @@ jobs:
           npm_config_foreground_scripts: 'true'
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
 
+      # The @saengine/* packages are file:../packages/* junctions: kept out of the archive (it
+      # would store a stale copy of the packages) and made again after an extract.
+      - name: Save node_modules
+        if: steps.node-modules.outputs.cache-hit != 'true'
+        shell: pwsh
+        working-directory: workbench
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Remove-Item -LiteralPath node_modules/@saengine -Recurse -Force -ErrorAction SilentlyContinue
+          ./.github/workflows/node_modules_cache/cache.ps1 archive
+
+      - name: Upload the node_modules cache
+        if: steps.node-modules.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: workbench/.build/node_modules_cache
+          key: ${{ steps.node-modules.outputs.cache-primary-key }}
+
+      - name: Link the SAEngine viewer packages
+        shell: pwsh
+        working-directory: workbench
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $scope = 'node_modules/@saengine'
+          Remove-Item -LiteralPath $scope -Recurse -Force -ErrorAction SilentlyContinue
+          $null = New-Item -ItemType Directory -Force $scope
+          foreach ($package in 'fem-viewer', 'cad-editor') {
+            $null = New-Item -ItemType Junction -Path "$scope/$package" -Target (Resolve-Path "../packages/$package").Path
+          }
+          Get-ChildItem $scope | Format-Table Name, LinkType, Target
+
+      # The built-in extensions the gulp build downloads (product.json builtInExtensions).
+      - name: Built-in extensions cache key
+        shell: pwsh
+        working-directory: workbench
+        run: node build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts > .build/builtindepshash
+
+      - name: Cache the built-in extensions
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: workbench/.build/builtInExtensions
+          key: release-builtin-extensions-${{ hashFiles('workbench/.build/builtindepshash') }}
+
       - name: Build the installer (scripts/build-installer.ps1)
         shell: powershell
+        timeout-minutes: 180
         run: |
           & scripts\build-installer.ps1 -Version '${{ steps.release.outputs.version }}' `
             -EnergyPlusDir '${{ steps.thirdparty.outputs.energyplus_dir }}' `
@@ -139,15 +247,26 @@ jobs:
             -LibreCADLicenseDir "$env:RUNNER_TEMP\librecad-licenses" `
             -LibreDWGDir '${{ steps.thirdparty.outputs.libredwg_dir }}' `
             -LibreDWGLicenseDir "$env:RUNNER_TEMP\libredwg-licenses" `
-            -AllowUnpinnedSources -MinFreeGB 12
+            -MinFreeGB 12
+
+      # ---- SIGNING HOOK (not active) -----------------------------------------------------------
+      # The setup is not code-signed yet. SignPath (free for open-source projects) is planned once
+      # the repository is public: then build-installer.ps1's SAENGINE_SIGN_HOOK signs the app's
+      # executables before Inno Setup and the setup after it (before its .sha256 is written), or
+      # the SignPath GitHub action signs an uploaded artefact here. See docs/release.md.
+      - name: Code signing (not yet)
+        shell: pwsh
+        run: Write-Host '::notice::The setup is not code-signed (SignPath once the repository is public; docs/release.md).'
 
       - name: Smoke test (silent install, bundled Python, app start, uninstall)
         shell: powershell
+        timeout-minutes: 30
         run: |
           & scripts\installer\smoke-test.ps1 -Setup "dist\SAEngine-x64-user-setup-${{ steps.release.outputs.version }}.exe"
 
       - name: Verification Manual (with the bundled Python)
         shell: pwsh
+        timeout-minutes: 45
         run: |
           # The pack exits 1 while a known issue fails; the expected-failure list decides.
           $PSNativeCommandUseErrorActionPreference = $false
@@ -163,7 +282,20 @@ jobs:
             --out "$env:RUNNER_TEMP\release\assets" --verification-pdf "$env:RUNNER_TEMP\verification\verification-manual.pdf"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Create the GitHub pre-release
+      - name: Keep the setup, its SHA-256 and the third-party sources
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: SAEngine-setup-${{ steps.release.outputs.version }}
+          path: |
+            ${{ runner.temp }}/release/assets/SAEngine-x64-user-setup-*.exe
+            ${{ runner.temp }}/release/assets/SAEngine-x64-user-setup-*.exe.sha256
+            ${{ runner.temp }}/release/assets/SAEngine-*-third-party-sources.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Create the draft GitHub pre-release
+        if: env.CREATE_RELEASE == 'true'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -174,12 +306,11 @@ jobs:
             throw "A release for $env:RELEASE_TAG exists already: delete it or use a new tag."
           }
           $global:LASTEXITCODE = 0
-          $draft = if ('${{ github.event_name }}' -eq 'push' -or '${{ inputs.draft }}' -ne 'false') { '--draft' } else { $null }
+          # Always a draft: publishing (which also creates the tag of a dispatched run) is a
+          # person's decision on GitHub, never this workflow's.
           $files = Get-ChildItem "$env:RUNNER_TEMP\release\assets" -File | ForEach-Object { $_.FullName }
-          $arguments = @('release', 'create', $env:RELEASE_TAG, '--prerelease', '--target', '${{ github.sha }}',
-            '--title', '${{ steps.release.outputs.title }}', '--notes-file', '${{ steps.assets.outputs.notes }}')
-          if ($draft) { $arguments += $draft }
-          gh @arguments @files
+          gh release create $env:RELEASE_TAG --draft --prerelease --target '${{ github.sha }}' `
+            --title '${{ steps.release.outputs.title }}' --notes-file '${{ steps.assets.outputs.notes }}' @files
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Keep the build logs and notices

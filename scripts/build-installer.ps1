@@ -32,6 +32,10 @@
          dist\SAEngine-<version>-third-party-sources, to be published next to the setup.
       5. Runs Inno Setup (gulp vscode-win32-x64-user-setup) and copies the setup to
          dist\SAEngine-x64-user-setup-<version>.exe with a .sha256 file next to it.
+         The SAEngine version is stamped into the packaged product.json (saengineVersion),
+         which the in-app update check compares with the GitHub releases.
+         Code signing: not yet (docs\release.md). SAENGINE_SIGN_HOOK may name a script that
+         is called before Inno Setup with the app folder and after it with the setup.
       6. Prints sizes and timings.
 
     Docs: docs\install\README.md
@@ -177,6 +181,23 @@ function Invoke-Gulp {
         $env:NODE_OPTIONS = $previousOptions
     }
     $timings["gulp $Task"] = $started.Elapsed
+}
+
+# SIGNING HOOK (unused until the setup is code-signed; see docs\release.md). When the
+# SAENGINE_SIGN_HOOK environment variable names a PowerShell script, it is called twice:
+# -Stage app -Path <app folder> before Inno Setup (sign SAEngine.exe and the other executables
+# that ship), and -Stage setup -Path <setup .exe> before its SHA-256 is written. It must sign in
+# place and fail (throw or exit non-zero) when it cannot. Without it the build is unsigned.
+function Invoke-SigningHook {
+    param([string]$Stage, [string]$Path)
+    if (-not $env:SAENGINE_SIGN_HOOK) { return }
+    if (-not (Test-Path -LiteralPath $env:SAENGINE_SIGN_HOOK)) {
+        throw "SAENGINE_SIGN_HOOK $env:SAENGINE_SIGN_HOOK does not exist."
+    }
+    Write-Step "Signing ($Stage): $Path"
+    $global:LASTEXITCODE = 0
+    & $env:SAENGINE_SIGN_HOOK -Stage $Stage -Path $Path
+    if ($LASTEXITCODE -ne 0) { throw "The signing hook failed for $Stage (exit code $LASTEXITCODE)." }
 }
 
 function Get-FolderSize([string]$Path) {
@@ -428,6 +449,20 @@ $packagedProduct = Get-Content (Join-Path $appRoot 'product.json') -Raw | Conver
 if (-not ($packagedProduct.PSObject.Properties.Name -contains 'commit') -or -not $packagedProduct.commit) {
     throw "The packaged product.json has no commit, so the app would run as if from sources. Rebuild without -SkipAppBuild."
 }
+# The in-app update check (workbench contrib saengineUpdate) compares this version with the
+# setups of the GitHub releases. Inserted as text: rewriting product.json with ConvertTo-Json
+# would reformat it. Safe to run again (-SkipAppBuild): an existing value is replaced.
+$packagedProductFile = Join-Path $appRoot 'product.json'
+$productText = [IO.File]::ReadAllText($packagedProductFile)
+if ($productText -match '"saengineVersion"\s*:') {
+    $productText = $productText -replace '"saengineVersion"\s*:\s*"[^"]*"', "`"saengineVersion`": `"$Version`""
+} else {
+    $productText = ([regex]'^\s*\{').Replace($productText, "{`n`t`"saengineVersion`": `"$Version`",", 1)
+}
+[IO.File]::WriteAllText($packagedProductFile, $productText, (New-Object Text.UTF8Encoding $false))
+if ((Get-Content -LiteralPath $packagedProductFile -Raw | ConvertFrom-Json).saengineVersion -ne $Version) {
+    throw "Could not stamp saengineVersion $Version into $packagedProductFile."
+}
 if (-not (Test-Path (Join-Path $appDir 'tools\inno_updater.exe'))) {
     Invoke-Gulp 'vscode-win32-x64-inno-updater'
 }
@@ -579,6 +614,7 @@ $timings['copyleft sources'] = $started.Elapsed
 # --- 5. Inno Setup ---------------------------------------------------------------------------
 $setupFile = $null
 if (-not $SkipSetup) {
+    Invoke-SigningHook -Stage 'app' -Path $appDir
     Write-Step 'Building the user setup with Inno Setup (gulp vscode-win32-x64-user-setup, several minutes)'
     Invoke-Gulp 'vscode-win32-x64-user-setup'
     $built = Get-ChildItem -LiteralPath $setupDir -Filter '*.exe' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
@@ -586,6 +622,7 @@ if (-not $SkipSetup) {
     $null = New-Item -ItemType Directory -Path $distDir -Force
     $setupFile = Join-Path $distDir "$($product.nameShort)-x64-user-setup-$Version.exe"
     Copy-Item -LiteralPath $built.FullName -Destination $setupFile -Force
+    Invoke-SigningHook -Stage 'setup' -Path $setupFile
     $hash = (Get-FileHash -LiteralPath $setupFile -Algorithm SHA256).Hash.ToLowerInvariant()
     Set-Content -Path "$setupFile.sha256" -Value "$hash *$(Split-Path -Leaf $setupFile)" -Encoding ascii
 }
