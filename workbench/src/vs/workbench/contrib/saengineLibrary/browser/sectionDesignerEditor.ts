@@ -430,7 +430,7 @@ export class SectionDesignerEditor extends EditorPane {
 		if (!canvas) {
 			return;
 		}
-		clearNode(canvas);
+		canvas.replaceChildren();
 		const section = this.section;
 		if (!section) {
 			return;
@@ -555,7 +555,7 @@ export class SectionDesignerEditor extends EditorPane {
 		const form = append(panel, $('.section-form'));
 		this.textField(form, localize('section.name', "Name"), section.name, value => this.edit(s => { s.name = value || s.id; }, true));
 		this.selectField(form, localize('section.confinement', "Ties"), section.confinement, [['tied', localize('section.tied', "Tied")], ['spiral', localize('section.spiral', "Spiral")]], value => this.edit(s => { s.confinement = value as 'tied' | 'spiral'; }));
-		this.selectField(form, localize('section.rebar', "Bar material"), section.rebar ?? '', this.options(rebar, section.rebar), value => {
+		this.selectField(form, localize('section.rebar', "Bar material"), section.rebar ?? '', this.materialOptions(rebar, section.rebar), value => {
 			this.settings.rebar = value;
 			this.edit(s => { s.rebar = value || undefined; });
 		});
@@ -563,7 +563,7 @@ export class SectionDesignerEditor extends EditorPane {
 
 		appendPropertyHeading(panel, localize('section.heading.drawing', "Drawing"));
 		const drawing = append(panel, $('.section-form'));
-		this.selectField(drawing, localize('section.newMaterial', "New regions"), this.settings.material, this.options(concrete, this.settings.material), value => { this.settings.material = value; });
+		this.selectField(drawing, localize('section.newMaterial', "New regions"), this.settings.material, this.materialOptions(concrete, this.settings.material), value => { this.settings.material = value; });
 		this.selectField(drawing, localize('section.dia', "Bar Ø [mm]"), String(this.settings.dia), BAR_DIAMETERS.map(d => [String(d), String(d)]), value => { this.settings.dia = Number(value); });
 		this.numberField(drawing, localize('section.spacing', "Bar spacing [mm]"), this.settings.spacing, value => { this.settings.spacing = value; });
 		this.numberField(drawing, localize('section.count', "Bars per line / ring"), this.settings.count, value => { this.settings.count = Math.max(1, Math.round(value)); });
@@ -579,7 +579,7 @@ export class SectionDesignerEditor extends EditorPane {
 			if (this.selection?.kind === 'region') {
 				const index = this.selection.index;
 				const region = section.regions[index];
-				this.selectField(sel, localize('section.material', "Material"), region.material, this.options(concrete, region.material), value => this.edit(s => { s.regions[index].material = value; }));
+				this.selectField(sel, localize('section.material', "Material"), region.material, this.materialOptions(concrete, region.material), value => this.edit(s => { s.regions[index].material = value; }));
 				appendPropertyNote(sel, localize('section.regionInfo', "{0} corners, {1} openings", region.outline.length, region.holes.length));
 			} else if (this.selection?.kind === 'bar') {
 				const index = this.selection.index;
@@ -657,7 +657,7 @@ export class SectionDesignerEditor extends EditorPane {
 		}
 	}
 
-	private options(materials: readonly IMaterialChoice[], current: string | undefined): [string, string][] {
+	private materialOptions(materials: readonly IMaterialChoice[], current: string | undefined): [string, string][] {
 		const list: [string, string][] = materials.map(m => [m.id, m.name === m.id ? m.id : `${m.id} (${m.name})`]);
 		if (current && !materials.some(m => m.id === current)) {
 			list.unshift([current, current]);
