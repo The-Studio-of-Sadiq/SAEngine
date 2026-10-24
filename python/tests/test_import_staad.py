@@ -115,7 +115,10 @@ def test_builds_a_valid_project(tmp_path: Path) -> None:
     assert report["imported"]["braces"] == 1
     assert report["imported"]["slabs"] == 2
     assert report["imported"]["stories"] == 3
-    assert "member releases (members analysed as rigidly connected)" in entries(report, "skipped")
+    # 17 START MY MZ: released at one end only, which SAEngine does not express (reported).
+    assert entries(report, "approximated")[
+        "bending releases at one end only not expressed (member continuous there)"
+    ]["examples"] == ["17"]
     # Dead: the member load (5 kN/m over 6 m) has no place in SAEngine; the slab pressures do.
     assert report["loads"]["notCarriedKN"]["D"] == pytest.approx(30)
     assert report["loads"]["carriedKN"]["D"] == pytest.approx(1.5 * 60)
@@ -291,10 +294,15 @@ def test_compact_and_unreadable_section_names() -> None:
     angle, note = named_profile("L40404")  # STAAD's L4x4x1/4
     assert isinstance(angle, o.LShapeProfile) and note
     assert (angle.depth, angle.width, angle.thickness) == pytest.approx((101.6, 101.6, 6.35))
-    for name in ("PIP1143.0", "TUB100505.0", "C10X20", "BEAM"):
+    for name in ("C10X20", "MC10X8", "BEAM"):
         profile, why = named_profile(name)
         assert profile is None and why, name
-    text = NO_PLATES.replace("9 TABLE ST L40404", "9 TABLE ST TUB100505.0")
+    # STAAD's compact metric names: 114 x 3.0 mm pipe, 100 x 50 x 5.0 mm tube.
+    pipe, _ = named_profile("PIP1143.0")
+    assert (pipe.radius, pipe.wallThickness) == pytest.approx((57, 3))
+    tube, _ = named_profile("TUB100505.0")
+    assert (tube.yDim, tube.xDim, tube.wallThickness) == pytest.approx((100, 50, 5))
+    text = NO_PLATES.replace("9 TABLE ST L40404", "9 TABLE ST C10X20")
     project = build(read_staad_text(text))
     report = project.report.to_dict()
     assert report["imported"].get("braces", 0) == 0

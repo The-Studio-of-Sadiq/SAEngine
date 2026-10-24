@@ -76,6 +76,11 @@ class Frame:
     section: str | None = None
     material: str | None = None
     rotation: float = 0.0
+    #: Local actions released at end i and at end j, by SAP2000's names: P (axial), V2, V3,
+    #: T (torsion), M2, M3 (major bending); STAAD's FX, FY, FZ, MX, MY, MZ.
+    releases: tuple[frozenset[str], frozenset[str]] = (frozenset(), frozenset())
+    #: Property modifiers other than 1 by ETABS's names (I22, I33, A, J, M, W ...).
+    modifiers: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
@@ -84,6 +89,8 @@ class Area:
     joints: list[str]
     section: str | None = None
     material: str | None = None
+    #: Property modifiers other than 1 by ETABS's names (M11, M22, F11, M, W ...).
+    modifiers: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
@@ -97,6 +104,9 @@ class SectionDef:
     material: str | None = None
     #: Why the profile is not the file's exact section, when it is not.
     approximation: str | None = None
+    #: A concrete column section's bars (objects.LinearReinforcement JSON, the rebar material
+    #: by the file's name, one of :attr:`TextModel.rebars`).
+    column_reinforcement: dict[str, Any] | None = None
 
 
 @dataclass
@@ -166,6 +176,13 @@ class TextModel:
     lateral_axes: dict[str, tuple[str, float]] = field(
         default_factory=lambda: {"X": ("X", 1.0), "Y": ("Y", 1.0)}
     )
+    #: Spring supports of the file that could not be taken over (reported by the reader).
+    springs: int = 0
+    #: Bar materials (fy, fu in MPa) the sections' reinforcement refers to.
+    rebars: dict[str, MaterialDef] = field(default_factory=dict)
+    #: Whether the file states the members' stiffness modifiers (all members, 1 or not): their
+    #: values then go to SAEngine's cracked-section setting as the ETABS reader does.
+    states_modifiers: bool = False
 
 
 # ─────────────────────────────────────── sections ───────────────────────────────────────
@@ -276,7 +293,7 @@ def table_profile(name: str) -> Any:
 
 
 #: Section families whose designations are metric (mm) or American (inches).
-_METRIC_FAMILIES = {"SHS", "RHS", "BOX", "CHS", "ISA"}
+_METRIC_FAMILIES = {"SHS", "RHS", "BOX", "CHS", "ISA", "A", "UA", "EA"}
 _INCH_FAMILIES = {"HSS", "TS"}
 
 
@@ -290,6 +307,75 @@ def _name_scale(family: str, dims: Sequence[float]) -> tuple[float, str | None]:
     if dims[-1] < 1.0 and max(dims) < 30:
         return 25.4, f"{family} designation read in inches (its thickness is below 1)"
     return 1.0, None
+
+
+#: Nominal pipe sizes [in] -> outside diameter and the standard (STD), extra strong (XS) and
+#: double extra strong (XXS) walls [in] (ASME B36.10M), for STAAD's PIPS, PIPX and PIPD names.
+_PIPES: dict[float, tuple[float, float, float, float | None]] = {
+    0.5: (0.840, 0.109, 0.147, 0.294),
+    0.75: (1.050, 0.113, 0.154, 0.308),
+    1.0: (1.315, 0.133, 0.179, 0.358),
+    1.25: (1.660, 0.140, 0.191, 0.382),
+    1.5: (1.900, 0.145, 0.200, 0.400),
+    2.0: (2.375, 0.154, 0.218, 0.436),
+    2.5: (2.875, 0.203, 0.276, 0.552),
+    3.0: (3.500, 0.216, 0.300, 0.600),
+    3.5: (4.000, 0.226, 0.318, None),
+    4.0: (4.500, 0.237, 0.337, 0.674),
+    5.0: (5.563, 0.258, 0.375, 0.750),
+    6.0: (6.625, 0.280, 0.432, 0.864),
+    8.0: (8.625, 0.322, 0.500, 0.875),
+    10.0: (10.750, 0.365, 0.500, None),
+    12.0: (12.750, 0.375, 0.500, None),
+}
+
+
+def _staad_compact(key: str) -> tuple[Any, str | None] | None:
+    """STAAD's compact names of angles, tubes and pipes (American: tenths of an inch for the
+    legs and sides, sixteenths for the thickness; metric when the thickness has a decimal
+    point), or None when ``key`` is not one."""
+    inch = 25.4
+    m = re.fullmatch(r"L(\d{2})(\d{2})(\d{1,2})", key)
+    if m:  # L40404 = L4.0x4.0x4/16 in; L806010 = L8.0x6.0x10/16
+        d, b, t = int(m.group(1)) / 10, int(m.group(2)) / 10, int(m.group(3)) / 16
+        if 0 < t < min(d, b) / 2:
+            return o.LShapeProfile(depth=d * inch, width=b * inch, thickness=t * inch), (
+                "decoded from STAAD's compact angle name (legs in tenths of an inch, the "
+                "thickness in sixteenths)"
+            )
+    for pattern in (r"TUB(\d{3})(\d{3})(\d+\.\d*)", r"TUB(\d{3})(\d{2})(\d+\.\d*)"):
+        m = re.fullmatch(pattern, key)  # TUB25025010.0 = 250 x 250 x 10.0 mm; TUB100505.0
+        if m:
+            d, b, t = float(m.group(1)), float(m.group(2)), float(m.group(3))
+            if 0 < t < min(d, b) / 2:
+                return o.RectangleHollowProfile(xDim=b, yDim=d, wallThickness=t), (
+                    "decoded from STAAD's compact metric tube name (depth, width, wall in mm)"
+                )
+    m = re.fullmatch(r"TUB(\d{2})(\d{2})(\d{1,2})", key)
+    if m:  # TUB70506 = 7.0 x 5.0 x 6/16 in
+        d, b, t = int(m.group(1)) / 10, int(m.group(2)) / 10, int(m.group(3)) / 16
+        if 0 < t < min(d, b) / 2:
+            return o.RectangleHollowProfile(xDim=b * inch, yDim=d * inch, wallThickness=t * inch), (
+                "decoded from STAAD's compact tube name (sides in tenths of an inch, the wall in "
+                "sixteenths)"
+            )
+    m = re.fullmatch(r"PIP(\d{2,4})(\d\.\d*)", key)
+    if m:  # PIP4066.3 = 406 x 6.3 mm
+        od, t = float(m.group(1)), float(m.group(2))
+        if 0 < t < od / 4:
+            return o.CircleHollowProfile(radius=od / 2, wallThickness=t), (
+                "decoded from STAAD's compact metric pipe name (outside diameter, wall in mm)"
+            )
+    m = re.fullmatch(r"PIP([SXD])(\d{1,3})", key)
+    if m:  # PIPS30 = 3 in standard pipe
+        size = int(m.group(2)) / 10
+        row = _PIPES.get(size)
+        wall = row[{"S": 1, "X": 2, "D": 3}[m.group(1)]] if row else None
+        if row and wall:
+            return o.CircleHollowProfile(radius=row[0] * inch / 2, wallThickness=wall * inch), (
+                "from the nominal pipe size (ASME B36.10 walls), as STAAD's pipe names give it"
+            )
+    return None
 
 
 def named_profile(name: str) -> tuple[Any, str | None]:
@@ -321,6 +407,19 @@ def named_profile(name: str) -> tuple[Any, str | None]:
         return TypeAdapter(o.Profile).validate_python(listed[0]), listed[1]
     key = re.sub(r"\s+", "", name.upper())
     inch = 25.4
+    compact = _staad_compact(key)
+    if compact is not None:
+        return compact
+    m = re.match(r"^HSS([PT])(\d.*)$", key)  # STAAD's round (P) and rectangular (T) HSS
+    if m:
+        dims = _dims(m.group(2))
+        if dims and len(dims) == 2 and m.group(1) == "P":
+            return o.CircleHollowProfile(
+                radius=dims[0] * inch / 2, wallThickness=dims[1] * inch
+            ), None
+        if dims and len(dims) == 3 and m.group(1) == "T":
+            d, b, t = (v * inch for v in dims)
+            return o.RectangleHollowProfile(xDim=b, yDim=d, wallThickness=t), None
     m = re.match(r"^(SHS|RHS|HSS|TUBE?|BOX|TS)(\d.*)$", key)
     if m:
         dims = _dims(m.group(2))
@@ -340,7 +439,7 @@ def named_profile(name: str) -> tuple[Any, str | None]:
             return o.CircleHollowProfile(
                 radius=dims[0] * scale / 2, wallThickness=dims[1] * scale
             ), note
-    m = re.match(r"^(L|ISA)(\d.*)$", key)
+    m = re.match(r"^(L|ISA|A|UA|EA)(\d.*X.*)$", key)
     if m:
         dims = _dims(m.group(2))
         if dims and len(dims) == 3:
@@ -364,14 +463,11 @@ def named_profile(name: str) -> tuple[Any, str | None]:
             return estimated_i_shape(depth, mass, width), (
                 "estimated from the designation (depth and mass) — check"
             )
-    m = re.match(r"^L(\d{1,2})(\d{2})(\d{2})$", key)
-    if m:  # STAAD's compact American angle: L40404 = L4x4x4/16 (inches)
-        d, b, t = float(m.group(1)), float(m.group(2)), int(m.group(3)) / 16
-        if 0 < t < min(d, b) / 3:
-            return o.LShapeProfile(depth=d * inch, width=b * inch, thickness=t * inch), (
-                "decoded from STAAD's compact angle name (d, b in inches, t in sixteenths)"
-            )
-    if re.match(r"^(L|ISA|PIPE?|TUBE?|HSS|SHS|RHS|CHS|TS|BOX|C|MC|ISMC|UPN|T|WT)\d", key):
+    if "_" in key or re.match(
+        r"^(L|ISA|A|UA|EA|PIPE?|PIP[SXD]|TUBE?|TUB|HSS[PT]?|SHS|RHS|CHS|TS|BOX|C|MC|ISMC|UPN|T|WT)"
+        r"\d",
+        key,
+    ):
         # Angles, tubes, pipes, channels and tees are not I-shapes: a placeholder I would
         # change stiffness and weight by orders of magnitude, so the member is left out.
         return None, "a name of a non-I family that could not be read"
@@ -385,6 +481,33 @@ def named_profile(name: str) -> tuple[Any, str | None]:
 
 
 # ─────────────────────────────────────── building ───────────────────────────────────────
+
+
+_BENDING = frozenset({"M2", "M3"})
+
+
+def pinned_ends(frame: Frame, report: ImportReport) -> bool:
+    """Whether a member's ends are both released in bending (pinned, what SAEngine expresses);
+    what else it releases is reported (the same rules as the ETABS reader)."""
+    at_i, at_j = (r & _BENDING for r in frame.releases)
+    if not (frame.releases[0] or frame.releases[1]):
+        return False
+    pinned = bool(at_i) and bool(at_j)
+    if pinned and (at_i | at_j) != _BENDING:
+        report.approximate(
+            "members released in one bending plane at both ends taken as pinned in both", frame.id
+        )
+    elif not pinned and (at_i or at_j):
+        report.approximate(
+            "bending releases at one end only not expressed (member continuous there)", frame.id
+        )
+    others = (frame.releases[0] | frame.releases[1]) - _BENDING
+    if others:
+        report.approximate(
+            "axial, shear and torsion releases not expressed",
+            f"{frame.id} ({' '.join(sorted(others))})",
+        )
+    return pinned
 
 
 def _category(defn: MaterialDef) -> str:
@@ -573,8 +696,27 @@ def build(model: TextModel, name: str | None = None) -> ImportedProject:
             taken = any(s == sdef.name for s, _ in frame_names)
             section_name = f"{sdef.name} {mat}" if taken else sdef.name
             frame_names[(sdef.name, mat)] = section_name
+            bars = sdef.column_reinforcement
+            if bars is not None:
+                rebar = model.rebars.get(bars["material"])
+                if rebar is None:
+                    report.approximate("column bars without a rebar material left out", sdef.name)
+                    bars = None
+                elif bars["material"] not in used:
+                    builder.add_material(
+                        bars["material"],
+                        "rebar",
+                        E=rebar.E,
+                        density=rebar.density,
+                        fy=rebar.fy,
+                        fu=rebar.fu,
+                    )
+                    used.add(bars["material"])
             builder.add_frame_section(
-                section_name, mat, sdef.profile.model_dump(mode="json", exclude_none=True)
+                section_name,
+                mat,
+                sdef.profile.model_dump(mode="json", exclude_none=True),
+                column_reinforcement=bars,
             )
             if sdef.approximation:
                 report.approximate(f"sections {sdef.approximation}; check in 04 Objects", sdef.name)
@@ -584,6 +726,7 @@ def build(model: TextModel, name: str | None = None) -> ImportedProject:
             tuple(float(v) for v in joints[f.i]),  # type: ignore[arg-type]
             tuple(float(v) for v in joints[f.j]),  # type: ignore[arg-type]
             rotation=f.rotation,
+            pinned=pinned_ends(f, report),
         )
         added_frames.add(f.id)
 
@@ -607,6 +750,7 @@ def build(model: TextModel, name: str | None = None) -> ImportedProject:
         builder.add_area(a.id, section_name, [tuple(float(v) for v in joints[j]) for j in a.joints])  # type: ignore[misc]
 
     # ── supports ──
+    builder.springs = model.springs
     for jid, restraint in model.supports.items():
         if jid not in joints:
             report.skip("supports at undefined joints", jid)
@@ -798,6 +942,8 @@ def build(model: TextModel, name: str | None = None) -> ImportedProject:
                 what = f"{what} (no place for them in SAEngine yet)"
             builder.not_carried(what, target, amount, f"{case.name}: {load.target}")
     builder.self_weight = selfweight
+    if model.states_modifiers:
+        _stiffness(model, builder, report, added_frames, added_areas)
 
     # ── combinations ──
     for cname, factors in model.combinations:
@@ -829,6 +975,114 @@ def build(model: TextModel, name: str | None = None) -> ImportedProject:
     report.count("joints", len(joints))
     report.count("loadCases", len(model.cases))
     return builder.build()
+
+
+_CRACKED = {
+    "column": {"I22": 0.7, "I33": 0.7},
+    "beam": {"I33": 0.35},
+    "slab": {"M11": 0.25, "M22": 0.25},
+    "wall": {"M11": 0.7, "M22": 0.7},
+}
+_MASS_KEYS = {"M", "W", "MASS", "WEIGHT"}
+
+
+def _stiffness(
+    model: TextModel,
+    builder: ProjectBuilder,
+    report: ImportReport,
+    frames: set[str],
+    areas: set[str],
+) -> None:
+    """The members' property modifiers on SAEngine's section stiffness setting, by the ETABS
+    reader's rules: SAEngine has no modifiers per member; its cracked sections give concrete
+    columns 0.70 Ig, beams 0.35 Ig, slabs 0.25 Ig and walls 0.70 Ig (0.35 cracked). Modifiers
+    that are these factors switch them on for all cases; other values, membrane, axial, shear,
+    torsion, mass and weight modifiers are reported as not applied."""
+    joints = model.joints
+
+    def concrete(material: str | None, section: SectionDef | None) -> bool:
+        name = material or (section.material if section else None)
+        d = model.materials.get(name or "")
+        return d is not None and _category(d) == "concrete"
+
+    entries: list[tuple[str, str, dict[str, float], bool]] = []
+    for f in model.frames:
+        if f.id not in frames:
+            continue
+        d = joints[f.j] - joints[f.i]
+        horizontal = abs(float(d[2])) < 1.0
+        vertical = math.hypot(float(d[0]), float(d[1])) < 1.0
+        kind = "column" if vertical else "beam" if horizontal else "brace"
+        section = model.sections.get(f.section or "")
+        entries.append((kind, f.id, f.modifiers, concrete(f.material, section)))
+    for ar in model.areas:
+        if ar.id not in areas:
+            continue
+        zs = [float(joints[j][2]) for j in ar.joints]
+        kind = "slab" if max(zs) - min(zs) < 1.0 else "wall"
+        section = model.area_sections.get(ar.section or "")
+        entries.append((kind, ar.id, ar.modifiers, concrete(ar.material, section)))
+    matched: list[str] = []
+    unmodified: list[str] = []
+    walls_cracked = False
+    any_modifier = False
+    for kind, instance, given, is_concrete in entries:
+        values = {k: v for k, v in given.items() if abs(v - 1.0) > 1e-9}
+        any_modifier |= bool(values)
+        for key in sorted(values.keys() & _MASS_KEYS):
+            report.approximate(
+                "mass and weight modifiers not applied", f"{instance} ({key} {values[key]:g})"
+            )
+        stiffness = {k: v for k, v in values.items() if k not in _MASS_KEYS}
+        expected = _CRACKED.get(kind)
+        if expected is None:
+            if stiffness:
+                report.approximate(
+                    "property modifiers of braces and other members not applied", instance
+                )
+            continue
+        if not stiffness:
+            if is_concrete:
+                unmodified.append(instance)
+            continue
+        if kind == "wall" and all(abs(stiffness.get(k, 1.0) - 0.35) < 0.02 for k in expected):
+            walls_cracked = True
+        elif not all(abs(stiffness.get(k, 1.0) - v) < 0.02 for k, v in expected.items()):
+            text = ", ".join(f"{k} {v:g}" for k, v in sorted(stiffness.items()))
+            report.approximate(
+                "property modifiers SAEngine cannot apply member by member (its cracked section "
+                "factors apply)",
+                f"{instance} ({text})",
+            )
+            continue
+        matched.append(instance)
+        rest = {k: v for k, v in stiffness.items() if k not in expected}
+        if kind == "beam":
+            rest.pop("I22", None)
+        if rest:
+            text = ", ".join(f"{k} {v:g}" for k, v in sorted(rest.items()))
+            report.approximate(
+                "membrane, axial, shear and torsion modifiers not applied", f"{instance} ({text})"
+            )
+    if matched:
+        builder.analysis.update(
+            {"stiffness": "aci", "crackedFor": "all", "wallsCracked": walls_cracked}
+        )
+        report.approximate(
+            "property modifiers as SAEngine's cracked sections in all cases (02 Project Settings "
+            "→ Analysis model)",
+            f"{len(matched)} members",
+        )
+        for instance in unmodified:
+            report.approximate(
+                "members without modifiers analysed with cracked sections too", instance
+            )
+    elif unmodified and not any_modifier:
+        report.warn(
+            "The file has no property modifiers (gross sections): SAEngine analyses the lateral "
+            "cases on cracked concrete sections (BNBC 2020 Part 6 Sec 6.3.10.4.1; 02 Project "
+            "Settings → Analysis model → Section stiffness)."
+        )
 
 
 def total_area(points: list[np.ndarray]) -> float:

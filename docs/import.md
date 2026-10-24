@@ -111,19 +111,79 @@ again with **SAEngine: Show Import Report** (the last import). In short:
   case), not analysed. Add them in SAEngine or check that its own loads cover them.
 - **Offsets, insertion points, local axis rotations**: end length offsets, rigid-zone factors,
   cardinal points other than the centroid (a beam's top centre is SAEngine's own placement) and
-  joint offsets are reported; SAEngine has no rigid end zones yet.
+  joint offsets are reported; members run joint to joint.
 - **Reported, not read**: pier and spandrel labels; the mass source where it differs from
   SAEngine's seismic weight (D + SD + 0.25 L, not lumped at the stories); auto seismic
   definitions (user coefficients, UBC, ASCE: SAEngine's BNBC 2020 loads apply).
 - Envelope, SRSS and absolute combinations; modal and time-history definitions; non-cartesian
   grids; ribbed, waffle and deck slabs (become solid slabs); auto-select, nonprismatic and
-  double sections; STAAD compact tube/pipe/channel names.
+  double sections; American channel names (C, MC) and timber names, which have no table yet.
 - Beam bars are left to SAEngine's design (the files give covers only).
 
+## STAAD.Pro files
+
+The reader follows STAAD's command language as its technical reference describes it:
+
+- **Commands** may be abbreviated as STAAD allows (`MEMB LOAD`, `JOINT COORD`, `UNITS`, `SELF`,
+  `REP`, `PR` for `PRISMATIC`, `YRA` for `YRANGE`); `UNIT` lines apply to what follows them.
+- **Generation**: joint and member generation lines; `REPEAT` repeats the previous line (or
+  its last repetition), `REPEAT ALL` everything back to the last `REPEAT ALL` that new data
+  followed (`REPEAT ALL 0` starts a section); element incidences with `TO` and `REPEAT`;
+  `DEFINE MESH` / `GENERATE ELEMENT` quadrilateral meshes (joints at existing joints' places
+  shared, reported: check the element numbering); cylindrical coordinates; `JTORIG`;
+  `DELETE MEMBERS`.
+- **Groups** (`START GROUP DEFINITION`) in any list; **physical members** (`DEFINE PMEMBER`)
+  with their properties, constants and loads on the members that make them up.
+- **Releases**: `MEMBER RELEASE` (partial releases of half or more as full ones, springs as
+  rigid, reported) and `MEMBER TRUSS` (and a `STAAD TRUSS` model) as members pinned at both
+  ends; offsets, cables, tension- and compression-only, cracked and inactive members reported.
+- **Beta angles** turn the members: STAAD's local axes (a vertical member's local z along global
+  Z with Y up; its local y along global Y with `SET Z UP`) become the angle SAEngine's columns
+  take.
+- **Supports**: `FIXED`, `PINNED`, `FIXED BUT`; spring directions (`KFY ...`) are left free and
+  generated soil springs (`ELASTIC MAT`, `PLATE MAT`) are not imported, both reported (a model
+  with springs only is an error); inclined supports are taken in global axes.
+- **Loads**: `SELFWEIGHT`, joint loads, member and physical-member loads (`UNI`, `CON`, `LIN`,
+  `TRAP` as their mean over the loaded length; local, global and projected directions), element
+  pressures (`TRAP` as its mean), floor loads, `REPEAT LOAD`, and `REFERENCE LOAD` with `DEFINE
+  REFERENCE LOADS`. A line the reader does not know keeps the load case open; generated wind,
+  seismic and moving loads are reported.
+- **Section names**: STAAD's compact names are decoded: angles `L40404` (4.0 x 4.0 x 4/16 in:
+  legs in tenths of an inch, thickness in sixteenths), tubes `TUB70506` and `TUB25025010.0`
+  (metric when the wall has a decimal point), pipes `PIPS30` / `PIPX` / `PIPD` (nominal size,
+  ASME B36.10 walls) and `PIP4066.3`, round and rectangular HSS (`HSSP10X0.5`,
+  `HSST12X10X0.5`), metric angles (`A125X125X8`, `UA150X150X10`). No placeholder I-shape is
+  made for a name of another family.
+
+## SAP2000 files
+
+The reader uses the database tables of the `.s2k` text export (the tables listed in the
+module, `saengine.importers.sap2000`), and in addition:
+
+- **Releases** (`FRAME RELEASE ASSIGNMENTS 1 - GENERAL`) as for ETABS; partial fixity reported.
+- **Property modifiers** of members and areas multiplied with their sections' own, then the
+  ETABS rules above; a file whose concrete members have none gets the warning that SAEngine
+  analyses the lateral cases on cracked sections.
+- **Library shapes written by name only** (`FromFile=Yes`, no dimensions) through the section
+  tables; section-designer sections as general ones; nonprismatic sections reported.
+- **Column bars** (`FRAME SECTION PROPERTIES 02 - CONCRETE COLUMN`) with the bar material
+  (`MATERIAL PROPERTIES 03E - REBAR DATA`).
+- **Frame loads** in local directions on SAP2000's default frame axes turned by the frame's
+  angle; projected loads on the projected length.
+- **Reported, not imported**: end offsets and insertion points, joint, area and line springs
+  (a model with springs only is an error), constraints (SAEngine makes its own floor
+  diaphragms), added masses, links, solids, cables, tendons, tension and compression limits,
+  temperature and ground-displacement loads, auto lateral loads.
+
+## How the importers are tested
+
 The ETABS importer has been run on 58 real ETABS 22.5 exports (CSI's verification models and a
-model drawn in ETABS): all import, each approximation in the report. The tests reproduce each
-pattern in synthetic files; check the first import of each program's real export against its
-own model (the report's counts and the base reactions under D).
+model drawn in ETABS): all import, each approximation in the report. The STAAD.Pro and SAP2000
+readers are tested on synthetic files written from the programs' published formats (STAAD.Pro's
+command language, SAP2000's database tables); they have not been checked against real exports
+yet. The tests reproduce each pattern in synthetic files; check the first import of each
+program's real export against its own model (the report's counts and the base reactions under
+D).
 
 ## Simple steel connections in the analysis
 
