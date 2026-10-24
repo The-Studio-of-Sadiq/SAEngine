@@ -455,6 +455,90 @@ class Table:
         )
 
 
+# ─────────────────────────────────── structural steel ───────────────────────────────────
+
+Point3 = tuple[float, float, float]
+
+
+@dataclass
+class SteelMember:
+    """A structural steel beam, column or brace between two points in space (mm), with its
+    section and its mass as the bill of quantities measures it (``mass`` None: not in it)."""
+
+    id: str
+    mark: str
+    kind: str  # beam | column | brace
+    section: str  # "SHS 150x150x8", "W310x39", ...
+    shape: str  # the 04 Objects profile shape (I, U, L, rectangleHollow, circleHollow, ...)
+    depth: float  # mm, in the member's elevation (across its axis)
+    width: float  # mm, in plan
+    start: Point3
+    end: Point3
+    grade: str = ""  # the material's grade ("ASTM A572 Grade 50")
+    material: str = ""  # the 03 Materials id
+    mass: float | None = None  # kg, the BOQ's
+    connection: str = ""  # the connection mark at both ends ("CN1"), "" none
+
+    @property
+    def length(self) -> float:
+        return math.dist(self.start, self.end)
+
+    @property
+    def mass_per_metre(self) -> float | None:
+        """kg/m as the BOQ's mass over the centreline length (the BOQ measures it so)."""
+        if self.mass is None or self.length <= 0:
+            return None
+        return self.mass / (self.length / 1000)
+
+
+@dataclass
+class SteelConnectionDetail:
+    """A designed simple connection (:mod:`saengine.design.steel_connections`) as drawn: the
+    connection of an object type (``data``: its 04 Objects JSON), the member section it
+    connects, where it is used and what the design checks found."""
+
+    mark: str
+    kind: str  # finPlate | endPlate | gusset
+    data: dict[str, Any]
+    section: str
+    shape: str
+    depth: float  # mm, the member's depth (a brace: across the axis in its elevation)
+    width: float
+    web: float  # mm, web (hollow: wall) thickness
+    flange: float  # mm
+    members: list[str] = field(default_factory=list)
+    plate_grade: str = ""
+    angle: float = 45.0  # a brace's slope from the horizontal [degrees]
+    whitmore: float | None = None  # mm, the Whitmore width the design checks
+    utilisation: float | None = None
+    ok: bool | None = None
+
+    @property
+    def ends(self) -> int:
+        return 2 * len(self.members)
+
+    @property
+    def bolts(self) -> int:
+        """Bolts at one end."""
+        lines = int(self.data.get("lines", 2 if self.kind == "endPlate" else 1))
+        return int(self.data.get("rows", 1)) * lines
+
+
+@dataclass
+class SteelSet:
+    """The project's structural steel: members, connections, the BOQ's steel items
+    ``(code, description, kg)`` and their total."""
+
+    members: list[SteelMember] = field(default_factory=list)
+    connections: list[SteelConnectionDetail] = field(default_factory=list)
+    boq_items: list[tuple[str, str, float]] = field(default_factory=list)
+    boq_total: float | None = None
+    boq_source: str = ""  # where the masses come from ("10 BOQ/boq.json", ...)
+    grades: list[str] = field(default_factory=list)
+    bolt_grades: list[str] = field(default_factory=list)
+    electrodes: list[float] = field(default_factory=list)
+
+
 @dataclass
 class DrawingSet:
     """Everything the sheets draw."""
@@ -470,4 +554,5 @@ class DrawingSet:
     bbs: list[Table] = field(default_factory=list)  # the bar schedule, then its totals
     notes: list[str] = field(default_factory=list)  # general notes
     tables: list[Table] = field(default_factory=list)  # notes tables (lap and development, ...)
+    steel: SteelSet = field(default_factory=SteelSet)
     problems: list[str] = field(default_factory=list)
