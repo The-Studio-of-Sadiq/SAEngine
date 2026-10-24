@@ -36,7 +36,22 @@ What the derivation does:
 - Wind and earthquake are applied as BNBC equivalent static storey forces; the response
   spectrum cases are added when *Response spectrum* is on.
 - Cracked section stiffness (BNBC 6.3.10.4.1: columns 0.70 Ig, beams 0.35 Ig, walls 0.70 or
-  0.35 Ig, slabs 0.25 Ig) is used for the lateral cases, gross sections for gravity.
+  0.35 Ig, slabs 0.25 Ig) is used for the lateral cases, gross sections for gravity; the
+  engineer's stiffness modifiers (object types, members) replace them where given.
+- Since version 0.0.44, as the usual commercial analysis programs model a building: the seismic
+  mass is lumped at the story levels (the lower half of the first storey goes to the base);
+  beams and columns have **rigid end zones** (rigid zone factor 0.5) and their forces are also
+  reported at the support faces (`08 FEM/faces.json`, the results' `face-forces.json`), where
+  the design takes them: beams at the column faces with the shear at d (BNBC 2020 Part 6 Sec
+  6.1.6.3 and 6.4.1.3.1), columns at the beam soffit and the top of the slab (SAEngine's
+  practice); the eccentric static cases EXP, EXN, EYP, EYN are added; shells are meshed at
+  500 mm; the line and point loads of `05 Floor Plan/loads.json` are applied.
+- The report (Analysis model) shows how W was formed: W per level with its parts, the weight
+  that went to the base, the period used, the accidental torsion cases, the line loads and the
+  mesh check.
+- **Mesh check** (Run All, after the analysis): the beams' gravity end moments on the project's
+  mesh and on one twice as coarse; a change above 5 % shows a warning (*Mesh check: ... the mesh
+  is not converged*), written to `08 FEM/model.results/mesh-check.json`. It never stops Run All.
 
 ## Load cases
 

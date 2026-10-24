@@ -165,16 +165,24 @@ def _is_embed(element: dict[str, Any], section: dict[str, Any] | None) -> bool:
     )
 
 
-def _cracked(section: dict[str, Any], role: str, options: SecondOrderOptions) -> dict[str, Any]:
+def _cracked(
+    section: dict[str, Any],
+    role: str,
+    options: SecondOrderOptions,
+    keep: frozenset[str] | set[str] = frozenset(),
+) -> dict[str, Any]:
+    """The section with the code's cracked factors; ``keep``: properties the engineer's
+    stiffness modifiers set (they replace the cracked factor of that property)."""
     out = dict(section)
     if role in ("column", "beam"):
         factor = ACI_FACTORS[role]
         for key in ("Iz", "Iy"):
-            if out.get(key) is not None:
+            if out.get(key) is not None and key not in keep:
                 out[key] = out[key] * factor
     elif role == "slab":
-        out["Ep_mod"] = ACI_FACTORS["slab"] * out.get("Ep_mod", 1.0)
-    elif role == "wall":
+        if "Ep_mod" not in keep:
+            out["Ep_mod"] = ACI_FACTORS["slab"] * out.get("Ep_mod", 1.0)
+    elif role == "wall" and "E" not in keep:
         out["E"] = (
             out["E"] * ACI_FACTORS["wallCracked" if options.wallsCracked else "wallUncracked"]
         )
@@ -227,11 +235,14 @@ def apply_second_order(
     project: dict[str, Any],
     options: SecondOrderOptions,
     concrete_sections: set[int] | None = None,
+    modified: dict[int, set[str]] | None = None,
 ) -> SecondOrderModel:
     """``project`` with the cracked stiffness and the P-Delta analysis of ``options``.
 
     ``concrete_sections``: the ids of the concrete (and masonry) sections, whose stiffness the
     ACI factors reduce; None takes the sections with E up to :data:`CONCRETE_E_MAX`.
+    ``modified``: per section id the properties set by stiffness modifiers ("Iz", "Iy", "E",
+    "Ep_mod"), which keep their value (no cracked factor on top).
     The input is not changed.
     """
     notes: list[str] = []
@@ -272,6 +283,7 @@ def apply_second_order(
         # One role per section: a section shared by two kinds of member is split (a gross
         # copy under a new id for the second kind).
         role_of: dict[int, str] = {}
+        keep_of: dict[int, set[str]] = {k: set(v) for k, v in (modified or {}).items()}
         split: dict[tuple[int, str], int] = {}
         next_id = max(sections, default=0) + 1
         for e in p.get("elements", []):
@@ -287,6 +299,8 @@ def apply_second_order(
                 p["sections"].append(twin)
                 sections[next_id] = twin
                 role_of[next_id] = role
+                if sid in keep_of:
+                    keep_of[next_id] = keep_of[sid]
                 split[key] = next_id
                 next_id += 1
             e["section_id"] = split[key]
@@ -303,7 +317,7 @@ def apply_second_order(
                 continue
             if not concrete(section):
                 continue
-            cracked = _cracked(section, role, options)
+            cracked = _cracked(section, role, options, keep_of.get(sid, set()))
             counts[role] = counts.get(role, 0) + 1
             if options.crackedFor == "all":
                 gross_copies.append(copy.deepcopy(section))
@@ -599,11 +613,17 @@ def storey_drifts(
     return rows
 
 
-def _frame_axes(a: np.ndarray, b: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """A frame's local axes as OpenSees Studio's runner builds them (vecxz (1, 0, 0) for a
-    member closer to Z than to X, else (0, 0, 1); y = vecxz × x, z = x × y)."""
+def _frame_axes(
+    a: np.ndarray, b: np.ndarray, vecxz: Any = None
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """A frame's local axes as OpenSees Studio's runner builds them (the element's own
+    ``vecxz`` when it has one, else (1, 0, 0) for a member closer to Z than to X, else
+    (0, 0, 1); y = vecxz × x, z = x × y)."""
     x = (b - a) / float(np.linalg.norm(b - a))
-    vecxz = np.array([1.0, 0.0, 0.0]) if abs(x[2]) > abs(x[0]) else np.array([0.0, 0.0, 1.0])
+    if vecxz is not None:
+        vecxz = np.asarray(vecxz, dtype=float)
+    else:
+        vecxz = np.array([1.0, 0.0, 0.0]) if abs(x[2]) > abs(x[0]) else np.array([0.0, 0.0, 1.0])
     y = np.cross(vecxz, x)
     y /= float(np.linalg.norm(y))
     return x, y, np.cross(x, y)
@@ -631,7 +651,7 @@ def loads_above(project: dict[str, Any], factors: dict[str, float], z: float) ->
             a, b = (coords[n] for n in element["nodes"][:2])
             if (a[2] + b[2]) / 2 <= z + 1e-3:
                 continue
-            x, y, zl = _frame_axes(a, b)
+            x, y, zl = _frame_axes(a, b, element.get("vecxz"))
             w = load.get("wx", 0.0) * x + load.get("wy", 0.0) * y + load.get("wz", 0.0) * zl
             total += factor * w * float(np.linalg.norm(b - a))
     return total

@@ -56,7 +56,7 @@ MODEL_SOURCES = {
 }
 
 #: Upstream files recorded only when the derivation used them (the soil report's site class).
-MODEL_OPTIONAL_SOURCES = {"soil": SOIL_FILE}
+MODEL_OPTIONAL_SOURCES = {"soil": SOIL_FILE, "loads": "05 Floor Plan/loads.json"}
 
 #: Upstream files of the bill of quantities, by the keys of its ``source`` stamps.
 BOQ_SOURCES = {
@@ -750,6 +750,7 @@ def _model_summary(
                 if values.get(key) is not None:
                     text = fmt(values[key], digits)
                     summary["derived"].append([label, f"{text} {unit}".strip()])
+            summary["derived"] += _derivation_rows(values, root)
 
     run_rows, run_warnings = [], []
     for entry in manifest.get("cases", []):
@@ -774,6 +775,67 @@ def _model_summary(
     return summary
 
 
+def _derivation_rows(values: dict[str, Any], root: Path) -> list[list[str]]:
+    """How W was formed (per level, what went to the base), the period used, the accidental
+    torsion cases, the line loads on members and the mesh check, as label-value rows."""
+    rows: list[list[str]] = []
+    if values.get("periodMethod") == "analysis" and values.get("periodUsed_s") is not None:
+        rows.append(
+            [
+                "Period used T (X)",
+                (
+                    f"{fmt(values['periodUsed_s'], 3)} s (modal, at most "
+                    f"{fmt(values.get('periodCap_s') or 0, 3)} s = 1.4 Ta, BNBC 2020 Part 6 Sec "
+                    "2.5.7.2 (a))"
+                ),
+            ]
+        )
+    weight = values.get("seismicWeight") or {}
+    if weight.get("note"):
+        rows.append(["Seismic weight W formed", str(weight["note"])])
+    for level in weight.get("levels", []) or []:
+        parts = level.get("parts_kN") or {}
+        shown = ", ".join(f"{k} {fmt(v, 1)}" for k, v in parts.items() if v)
+        rows.append(
+            [
+                f"W at {level.get('story') or fmt(level.get('z_m', 0), 2) + ' m'}",
+                f"{fmt(level.get('weight_kN', 0), 1)} kN" + (f" ({shown})" if shown else ""),
+            ]
+        )
+    if weight.get("toBase_kN"):
+        rows.append(["Weight to the base (not in W)", f"{fmt(weight['toBase_kN'], 1)} kN"])
+    torsion = values.get("accidentalTorsion")
+    if torsion:
+        rows.append(
+            [
+                "Accidental torsion",
+                (
+                    "static cases EXP, EXN, EYP, EYN: the story masses shifted ±5 % of the "
+                    "building's width across the force (BNBC 2020 Part 6 Sec 2.5.7.6.2)"
+                ),
+            ]
+        )
+    loads = values.get("memberLoads") or []
+    if loads:
+        rows.append(
+            [
+                "Line and point loads on members",
+                "; ".join(
+                    f"{row['story']} {row['case']} {fmt(row['total_kN'], 1)} kN" for row in loads
+                ),
+            ]
+        )
+    from saengine.fem.mesh_check import MESH_CHECK_FILE
+
+    try:
+        check = json.loads((root / RESULTS_DIR / MESH_CHECK_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        check = None
+    if isinstance(check, dict) and check.get("note"):
+        rows.append(["Mesh check", str(check["note"])])
+    return rows
+
+
 def _derive_again(root: Path, parts: _Parts) -> Any:
     from saengine.fem.derive import derive_fem
     from saengine.library import mep as mep_library
@@ -784,6 +846,9 @@ def _derive_again(root: Path, parts: _Parts) -> Any:
     if any(value is None for value in inputs):
         return None
     try:
+        from saengine.library import line_loads
+
+        member_loads = line_loads.parse(parts.text(line_loads.LOADS_FILE))
         mep = mep_library.parse(parts.text(mep_library.MEP_FILE))
         springs = inputs[3].analysis.supports == "soilSprings"
         return derive_fem(
@@ -797,6 +862,7 @@ def _derive_again(root: Path, parts: _Parts) -> Any:
             if springs
             else None,
             soil_text=read_soil_text(root) if springs else None,
+            member_loads=member_loads if member_loads.loads else None,
         )
     except Exception as error:  # noqa: BLE001 - the report goes on without these notes
         parts.warnings.append(f"The derivation notes could not be recomputed: {error}")

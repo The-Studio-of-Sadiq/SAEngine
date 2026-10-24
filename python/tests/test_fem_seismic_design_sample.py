@@ -47,8 +47,11 @@ def test_sample_runs_the_response_spectrum_and_its_forces_are_scaled_up(sample) 
     # x (0.20 / 0.28) x (5 / 8) = 46.4 kN, then x 779.7 / 824.8 for the seismic weight the
     # dog-legged stair's larger well (2.6 x 4.14 m) leaves: 43.86 kN; the brace M2 in steel
     # (A572-50, SHS 150x150x8: 0.33 kN/m instead of the concrete box's 0.11 kN/m over 6.8 m)
-    # adds 1.5 kN to the 780 kN: 43.95 kN.
-    assert scale["vStatic"]["x"] == pytest.approx(43.95, rel=1e-3)
+    # adds 1.5 kN to the 780 kN: 43.95 kN. Since version 0.0.44 the mass is lumped at the story
+    # levels (the lower half of the first storey, 64.7 kN, goes to the base, BNBC 2020 Part 6
+    # Sec 2.5.7.3 counts what participates) and live loads above 3 kN/m² count with 50 %: W =
+    # 720.9 kN, V = 0.05625 x 720.9 = 40.55 kN.
+    assert scale["vStatic"]["x"] == pytest.approx(40.55, rel=1e-3)
     for axis in ("x", "y"):
         assert scale[axis] == pytest.approx(0.85 * scale["vStatic"][axis] / scale["vDynamic"][axis])
         assert 1.6 < scale[axis] < 2.4

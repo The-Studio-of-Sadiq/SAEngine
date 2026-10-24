@@ -324,6 +324,42 @@ class Slenderness(_Model):
     )
 
 
+class ExtraMass(_Model):
+    """A weight added to the seismic mass of a story (equipment not modelled, a tank's water)."""
+
+    story: str | None = Field(
+        default=None, description="Id of the story it goes to (or give the elevation z)."
+    )
+    z: float | None = Field(default=None, title="Elevation z", description="[mm]")
+    weight: float = Field(gt=0, description="[kN]")
+    x: float | None = Field(
+        default=None, description="Plan position [mm]; empty: the story's centre of mass."
+    )
+    y: float | None = Field(default=None, description="[mm]")
+
+
+class MassSource(_Model):
+    """What forms the seismic weight W and the masses (BNBC 2020 Part 6 Sec 2.5.7.3: the dead
+    load including partitions, 25 % of the live load (50 % above 3 kN/m²) and permanent
+    equipment and retained liquid in full)."""
+
+    dead: float = Field(default=1.0, ge=0, title="Dead load factor", description="On D.")
+    superimposed: float = Field(
+        default=1.0, ge=0, title="Superimposed dead factor", description="On SD."
+    )
+    liveShare: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        title="Live load share",
+        description="Empty: the code's (25 %, 50 % for live loads above 3 kN/m²). A number "
+        "replaces both (the code's are minimums).",
+    )
+    extraMasses: list[ExtraMass] = Field(
+        default_factory=list, title="Extra masses", description="Weights added per story."
+    )
+
+
 class Analysis(_Model):
     """How the analysis model (Part 8) represents the building."""
 
@@ -343,7 +379,78 @@ class Analysis(_Model):
         json_schema_extra=_labels(["Rigid", "Flexible (from the modelled elements)"]),
     )
     meshSize: float = Field(
-        default=1000, ge=100, title="Mesh size", description="Largest side of a shell element [mm]."
+        default=500,
+        ge=100,
+        title="Mesh size",
+        description="Largest side of a shell element [mm]. 500 mm (before version 0.0.44: "
+        "1000 mm): beams on shell slabs get their gravity moments within about 5 % of a "
+        "converged mesh.",
+    )
+    meshBySpan: bool = Field(
+        default=True,
+        title="Mesh by slab span",
+        description="Shell slabs meshed no coarser than their shorter span / 8 where that is "
+        "finer than the mesh size (at least 200 mm).",
+    )
+    meshCheck: bool = Field(
+        default=True,
+        title="Mesh convergence check",
+        description="Run All also solves the gravity cases on a mesh twice as coarse and warns "
+        "when a beam end moment changes by more than 5 % (the mesh is then too coarse).",
+    )
+    massLumping: Literal["storyLevels", "levelAbove"] = Field(
+        default="storyLevels",
+        title="Seismic mass",
+        description="Story levels: every node's weight goes to the nearest story level (to its "
+        "diaphragm), the lower half of the first story to the base, where it does not take part "
+        "(as the usual analysis programs lump it). Level above (before version 0.0.44): every "
+        "weight counts for the first level above the base and its mass stays where it is.",
+        json_schema_extra=_labels(
+            ["Lumped at the story levels", "Each node's own (lower first story to level 1)"]
+        ),
+    )
+    massSource: MassSource = Field(
+        default_factory=lambda: MassSource(),
+        title="Mass source",
+        description="What forms the seismic weight W (BNBC 2020 Part 6 Sec 2.5.7.3): factors on "
+        "the dead loads, the live load share and extra masses.",
+    )
+    accidentalEccentricity: bool = Field(
+        default=True,
+        title="Eccentric static earthquake cases",
+        description="Add the static cases EXP, EXN, EYP, EYN: EX and EY with the story masses "
+        "shifted ±5 % of the building's width across the force (BNBC 2020 Part 6 Sec 2.5.7.6.2, "
+        "Eq. 6.2.43). With equivalent static design, every E combination is checked with both.",
+    )
+    periodMethod: Literal["approximate", "analysis"] = Field(
+        default="approximate",
+        title="Period for the static base shear",
+        description="Approximate: Ta = Ct·hn^m (BNBC 2020 Part 6 Eq. 6.2.38). Analysis: the "
+        "modal period of each direction, at most 1.4 Ta (Sec 2.5.7.2 (a)) and not below Ta.",
+        json_schema_extra=_labels(["Approximate Ta", "From the modal analysis (≤ 1.4 Ta)"]),
+    )
+    endOffsets: bool = Field(
+        default=True,
+        title="End offsets (rigid zones)",
+        description="Beams and columns end at the faces of their supports: the part inside a "
+        "joint is a rigid zone of the rigid zone factor times its length, and the forces are "
+        "also reported at the support faces, where the design takes them (beams at the column "
+        "faces, columns at the beam soffit and the top of the slab).",
+    )
+    rigidZoneFactor: float = Field(
+        default=0.5,
+        ge=0,
+        le=1,
+        title="Rigid zone factor",
+        description="Share of an end offset that is rigid (0: the whole length flexible, the "
+        "forces still read at the faces; 1: fully rigid).",
+    )
+    exactColumnRotation: bool = Field(
+        default=True,
+        title="Columns at any angle",
+        description="A column turned by an angle that is not a multiple of 90° is analysed and "
+        "designed on its own axes (before version 0.0.44 it was rounded to the nearest quarter "
+        "turn).",
     )
     responseSpectrum: bool = Field(
         default=True,

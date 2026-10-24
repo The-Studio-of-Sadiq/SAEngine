@@ -54,6 +54,17 @@ You do not have to enter bars before the analysis: a type without bars is checke
 combinations** (*Auto*, *Transfer*, *Collector*, *None*) for members that need the overstrength
 combinations.
 
+## Stiffness modifiers and design overwrites
+
+Beams, columns and braces have **Stiffness Modifiers** (A, As2, As3, J, I22, I33, mass, weight)
+and **Design Overwrites** (k major and minor, unbraced lengths Lu, the lateral-torsional length
+Lb of steel beams, framing braced or sway for columns); slabs and walls have membrane, bending,
+mass and weight. Empty fields take the code's values (concrete and masonry: the cracked factors
+of BNBC 2020 Part 6 Sec 6.3.10.4.1 in the code pack). A member in the floor plan may set its own,
+which win over its type's. A stiffness modifier replaces the cracked factor of that property in
+every case; As2 and As3 are not used by the analysis yet (its frame elements have no shear
+deformation).
+
 ## Rules
 
 IDs are unique; the material must exist; reinforcement must be a rebar material; a pile cap's

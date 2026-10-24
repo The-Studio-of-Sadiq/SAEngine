@@ -65,6 +65,26 @@ suite('SAEngine - FEM derivation', () => {
 		});
 	});
 
+	test('counts the member loads once recorded, or once they have a load for a model derived without them', () => {
+		const wall = JSON.stringify({ schema: 'saengine.memberLoads/1', wallTypes: [], loads: [{ id: 'L1', story: 'L1', member: 'B1', value: 10 }] });
+		const none = JSON.stringify({ schema: 'saengine.memberLoads/1', wallTypes: [], loads: [] });
+		const texts = new Map<string, string | undefined>([['bim', 'b'], ['settings', 's'], ['objects', 'o'], ['materials', 'm'], ['loads', wall]]);
+		const sources = `bim=${sourceStamp('b')}; settings=${sourceStamp('s')}; objects=${sourceStamp('o')}; materials=${sourceStamp('m')}`;
+		assert.deepStrictEqual({
+			added: derivationState(`Sources: ${sources}`, texts).changed,
+			empty: derivationState(`Sources: ${sources}`, new Map([...texts, ['loads', none]])).changed,
+			missing: derivationState(`Sources: ${sources}`, new Map([...texts, ['loads', undefined]])).changed,
+			current: derivationState(`Sources: ${sources}; loads=${sourceStamp(wall)}`, texts).changed,
+			edited: derivationState(`Sources: ${sources}; loads=${sourceStamp(none)}`, texts).changed,
+		}, {
+			added: ['Line Loads'],
+			empty: [],
+			missing: [],
+			current: [],
+			edited: ['Line Loads'],
+		});
+	});
+
 	test('stamps only what the analysis model takes from MEP, as the Python side does', () => {
 		// The same text and stamp as python/tests/test_integration_e56.py::test_mep_stamp_matches_the_workbench.
 		const text = '{"schema": "saengine.mep/1", "contentsAs": "fluid", "equipment": [{"id": "EQ1", "name": "Tank Ø2", "x": 1.0, "y": 2500.5, "operatingWeight": 1e-7, "impact": 0.000001, "rotation": 2.5e22, "big": 1e21, "neg": -0.0}], "openings": [{"id": "OP1", "service": "DN100 drain", "diameter": 100}], "shafts": [], "ifcModels": [{"path": "07 MEP/a.ifc", "visible": true}]}';

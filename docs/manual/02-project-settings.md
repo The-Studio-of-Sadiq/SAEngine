@@ -130,7 +130,16 @@ combinations used for foundation bearing are built in by 9 Substructure.
 | --- | --- | --- |
 | Slabs | Loads to beams | Slab loads go to the beams by the 45° rule; *Shells* models the slabs as shell elements |
 | Floor diaphragm | Rigid | or flexible |
-| Mesh size | 1000 mm | for shells |
+| Mesh size | 500 mm | for shells (1000 mm before version 0.0.44) |
+| Mesh by slab span | On | shell slabs no coarser than their shorter span / 8 |
+| Mesh convergence check | On | Run All solves the gravity cases again on a mesh twice as coarse and warns when a beam end moment changes by more than 5 % |
+| Seismic mass | Lumped at the story levels | each node's weight to the nearest level; the lower half of the first storey goes to the base and does not take part (as the usual analysis programs lump it). *Each node's own* is the behaviour before 0.0.44 |
+| Mass source | D ×1, SD ×1, live load by the code | the code's live share is 25 %, 50 % for live loads above 3 kN/m² (BNBC 2020 Part 6 Sec 2.5.7.3, p. 628); extra masses per story |
+| Eccentric static earthquake cases | On | EXP, EXN, EYP, EYN: EX and EY with the story masses shifted ±5 % across the force (Sec 2.5.7.6.2); with equivalent static design every E combination is checked with both |
+| Period for the static base shear | Approximate Ta | or *From the modal analysis*, at most 1.4 Ta (Sec 2.5.7.2 (a), p. 627) and not below Ta |
+| End offsets (rigid zones) | On | beams end at the column faces, columns at the beam soffit; the part inside the joint is rigid over the rigid zone factor |
+| Rigid zone factor | 0.5 | 0: the whole length flexible (forces still read at the faces); 1: fully rigid |
+| Columns at any angle | On | a column turned by an angle that is not a multiple of 90° is analysed and designed on its own axes |
 | Response spectrum | On | adds the response-spectrum cases RX, RY (BNBC design spectrum, CQC, 5 % damping) |
 | Section stiffness | Cracked (ACI) for lateral cases | |
 | Second-order analysis | None (moment magnification) | or P-Delta analysis |

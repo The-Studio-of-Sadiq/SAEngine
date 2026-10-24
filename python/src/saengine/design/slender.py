@@ -734,7 +734,7 @@ class Model:
                 int(e["id"]),
                 source,
                 (nodes[0], nodes[1]),
-                np.array(local_axes(a, b)),
+                np.array(local_axes(a, b, e.get("vecxz"))),
                 e_mod,
                 float(section.get("Iy") or 0.0) * gross,
                 float(section.get("Iz") or 0.0) * gross,
@@ -1095,6 +1095,8 @@ class SlenderContext:
         Cm, δns, δs as given, each shown with its source in the check's note."""
         self.options = SlenderOptions.of(options)
         self.overwrites: dict[str, Any] = dict(overwrites or {})
+        # Columns at their own angle (analysis.exactColumnRotation): read from the model.
+        self.exact_rotation = any(e.get("vecxz") for e in project.get("elements", []))
         self.combinations = combinations
         self.spectrum = [bool(s) for s in (spectrum or [])]
         self.model = Model(project, building, types, self.options.model_cracked, mats)
@@ -1231,7 +1233,9 @@ class SlenderContext:
                 continue
             ec, dims = props
             section = self._bars_section(object_type) if self.options.stiffness == "bars" else None
-            turned = round((element.rotation or 0.0) / 90) % 2 == 1
+            from saengine.fem.derive import analysed_turns
+
+            turned = analysed_turns(element.rotation or 0.0, self.exact_rotation) % 2 == 1
             given = self.overwrites.get(element.id)
             for axis in ("x", "y"):
                 unit, direction, _h, ig, ise = _axis_frame(own[0], turned, axis, dims, section)

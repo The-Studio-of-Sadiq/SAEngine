@@ -381,6 +381,15 @@ CommandsRegistry.registerCommand('saengine.fem.ssiCompare', async (accessor, arg
 	return problemsOrResult(await accessor.get(IFemSolverService).ssiCompare(python, args.projectRoot), ['periods']);
 });
 
+/**
+ * The mesh convergence check (`saengine.fem.mesh_check`): the beams' gravity end moments on the
+ * project's mesh and on one twice as coarse. Internal: Run All calls it by id.
+ */
+CommandsRegistry.registerCommand('saengine.fem.meshCheck', async (accessor, args: { readonly projectRoot: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return problemsOrResult(await accessor.get(IFemSolverService).meshCheck(python, args.projectRoot), ['maxChangePercent', 'skipped']);
+});
+
 /** What the MEP editor asks the backend: the project folder (its saved files are read) and the editor's text of `mep.json`. */
 interface IMepCommandArgs {
 	readonly projectRoot: string;

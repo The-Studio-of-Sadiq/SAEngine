@@ -87,6 +87,11 @@ export class SaenginePartStatusService extends Disposable implements ISaenginePa
 				texts.set(part.id, await this.readText(joinPath(project.root, part.folder, part.mainFile)));
 			}
 		}));
+		// The member loads beside the floor plan: a source of the analysis model, not a part.
+		const floorPlan = partById('floorPlan');
+		if (floorPlan) {
+			texts.set('loads', await this.readText(joinPath(project.root, floorPlan.folder, 'loads.json')));
+		}
 		const fem = partById('fem')!;
 		const femFolder = joinPath(project.root, fem.folder);
 		const results = joinPath(femFolder, FEM_RESULTS_FOLDER);

@@ -1,0 +1,40 @@
+{
+  "$schema": "../../../schemas/deadLoads.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 2.2.4, Tables 6.2.1 and 6.2.2 (pp. 529-531)"
+  ],
+  "source": "BNBC 2020 Part 6 Sec 2.2.4, Table 6.2.2 (pp. 530-531): weights of construction materials, given per thickness and stated here as unit weights",
+  "masonry": {
+    "burntClayBrick": 19.1,
+    "sandLimeBrick": 19.8
+  },
+  "plaster": {
+    "cement": 23.0,
+    "lime": 19.1
+  },
+  "wallTypes": [
+    {
+      "id": "BW125",
+      "name": "125 mm brick wall, plastered both faces",
+      "thickness": 125,
+      "masonry": "burntClayBrick",
+      "plaster": 12.5,
+      "plasterFaces": 2
+    },
+    {
+      "id": "BW250",
+      "name": "250 mm brick wall, plastered both faces",
+      "thickness": 250,
+      "masonry": "burntClayBrick",
+      "plaster": 12.5,
+      "plasterFaces": 2
+    }
+  ],
+  "sources": {
+    "masonry.burntClayBrick": "BNBC 2020 Part 6 Table 6.2.2 (p. 530): brick masonry work, excl. plaster, burnt clay, 1.910 kN/m² per 100 mm thickness",
+    "masonry.sandLimeBrick": "BNBC 2020 Part 6 Table 6.2.2 (p. 530): sand-lime, 1.980 kN/m² per 100 mm thickness",
+    "plaster.cement": "BNBC 2020 Part 6 Table 6.2.2 (p. 531): cement plaster, 0.230 kN/m² per 10 mm thickness",
+    "plaster.lime": "BNBC 2020 Part 6 Table 6.2.2 (p. 531): lime plaster, 0.191 kN/m² per 10 mm thickness",
+    "wallTypes": "SAEngine choice: the common 125 mm (5 in) and 250 mm (10 in) walls of Bangladeshi practice with 12.5 mm (1/2 in) plaster on each face"
+  }
+}

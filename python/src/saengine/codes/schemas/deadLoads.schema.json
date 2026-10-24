@@ -1,0 +1,115 @@
+{
+  "$defs": {
+    "WallTypeRow": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "thickness": {
+          "description": "Masonry thickness [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Thickness",
+          "type": "number"
+        },
+        "masonry": {
+          "description": "Key into 'masonry'.",
+          "title": "Masonry",
+          "type": "string"
+        },
+        "plaster": {
+          "default": 0,
+          "description": "Plaster on each face [mm].",
+          "minimum": 0,
+          "title": "Plaster",
+          "type": "number"
+        },
+        "plasterFaces": {
+          "default": 2,
+          "maximum": 2,
+          "minimum": 0,
+          "title": "Plasterfaces",
+          "type": "integer"
+        },
+        "plasterKind": {
+          "default": "cement",
+          "description": "Key into 'plaster'.",
+          "title": "Plasterkind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "thickness",
+        "masonry"
+      ],
+      "title": "WallTypeRow",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Unit weights of masonry and plaster [kN/m³] and the default wall types of member loads\n(line loads of walls on beams, :mod:`saengine.library.line_loads`).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "masonry": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "title": "Masonry",
+      "type": "object"
+    },
+    "plaster": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "title": "Plaster",
+      "type": "object"
+    },
+    "wallTypes": {
+      "items": {
+        "$ref": "#/$defs/WallTypeRow"
+      },
+      "title": "Walltypes",
+      "type": "array"
+    }
+  },
+  "required": [
+    "masonry",
+    "plaster"
+  ],
+  "title": "DeadLoadsTable",
+  "type": "object",
+  "$id": "saengine.codePack.deadLoads/1"
+}

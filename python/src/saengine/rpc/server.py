@@ -66,6 +66,8 @@ Methods:
 - ``fem/derive`` also takes ``mepText?`` and ``substructureText?`` (else the project's files beside
   ``modelFolder``): the MEP openings and equipment loads, and the foundations of soil springs
 - ``fem/ssiCompare`` ``{projectRoot}`` -> fixed base against soil springs (runs the fixed model)
+- ``fem/meshCheck`` ``{projectRoot}`` -> the mesh convergence check of Run All (runs the gravity
+  cases on the project's mesh and a coarser one; ``{"skipped"}`` when not needed)
 - ``fem/seismicDesign`` ``{outDir, projectPath}`` -> the response spectrum design of a run
   (scaling, orthogonal rule, accidental torsion, drifts, combinations; runs the modal forces
   once per run; null when the project designs from the static cases; in a worker thread)
@@ -328,6 +330,7 @@ def create_server() -> JsonRPCServer:
             args.get("soilText"),
             args.get("mepText"),
             args.get("substructureText"),
+            args.get("loadsText"),
         )
 
     @server.feature("bim/ifc")
@@ -546,6 +549,11 @@ def create_server() -> JsonRPCServer:
     @server.feature("substructure/ensure")
     def _substructure_ensure(params: Any) -> dict[str, Any]:
         return handlers.substructure_ensure(_plain(params)["projectRoot"])
+
+    @server.feature("fem/meshCheck")
+    @_in_worker
+    def _mesh_check(params: Any) -> dict[str, Any]:
+        return handlers.mesh_check(_plain(params)["projectRoot"])
 
     @server.feature("fem/ssiCompare")
     def _ssi_compare(params: Any) -> dict[str, Any]:

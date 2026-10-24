@@ -68,8 +68,9 @@ def test_sample_with_p_delta_has_a_small_drift_amplification(tmp_path: Path) -> 
     for case in cases.values():
         assert case["storeys"]
         assert 1.0 < case["maxRatio"] < 1.05, case
-        # The roof storey (one light column) is barely amplified: ratio 1.000.
-        assert all(-1e-6 < s["impliedTheta"] < 0.05 for s in case["storeys"]), case
+        # The roof storey (one light column) is barely amplified: ratio 1.000 (to within the
+        # solver's round-off: θ of the order of -3e-6 since the end offsets of 0.0.44).
+        assert all(-1e-5 < s["impliedTheta"] < 0.05 for s in case["storeys"]), case
     # BNBC Eq 6.2.48 θ (I = 1.0, Cd = 5.5 assumed here): far below 0.10 and θmax.
     bnbc = drift_amplification(
         second.project, root / "08 FEM" / "model.results", importance=1.0, cd=5.5

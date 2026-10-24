@@ -94,22 +94,103 @@ def test_saengine_at_picks_the_sub_element():
     assert C.saengine_at(span, "L", 3.0) is None
 
 
-def test_column_components_in_global_axes():
+def test_column_components_on_the_reference_axes():
     # a vertical member: SAEngine local y = -Y, local z = +X
     axes = {"y": [0.0, -1.0, 0.0], "z": [1.0, 0.0, 0.0]}
-    s = C.moment_components("column", [0, 0, 0, 0, 4.0, 3.0], axes)
-    assert s == {"Mx": pytest.approx(3.0), "My": pytest.approx(4.0)}
-    # the reference at angle 0: M2 about X, M3 about Y; at 90°, they swap
-    assert C.reference_components("column", {"M2": 3.0, "M3": 4.0}, 0.0) == {
-        "Mx": pytest.approx(3.0),
-        "My": pytest.approx(4.0),
-    }
-    r90 = C.reference_components("column", {"M2": 4.0, "M3": -3.0}, 90.0)
-    assert r90["Mx"] == pytest.approx(3.0) and r90["My"] == pytest.approx(4.0)
-    assert C.reference_components("beam", {"M2": 1.0, "M3": 9.0}, 0.0) == {
+    bottom, top = [0.0, 0.0, 0.0], [0.0, 0.0, 3.0]
+    # the reference at angle 0: local 2 = X, local 3 = Y
+    s = C.moment_components("column", [0, 0, 0, 0, 4.0, 3.0], axes, C.reference_axes(bottom, top))
+    assert s == {"M2": pytest.approx(3.0), "M3": pytest.approx(4.0)}
+    assert C.reference_components("column", {"M2": -3.0, "M3": 4.0}) == {"M2": 3.0, "M3": 4.0}
+    # at 90° the reference's local 2 is Y: the components swap
+    s90 = C.moment_components(
+        "column", [0, 0, 0, 0, 4.0, 3.0], axes, C.reference_axes(bottom, top, 90.0)
+    )
+    assert s90["M2"] == pytest.approx(4.0) and s90["M3"] == pytest.approx(3.0)
+    assert C.reference_components("beam", {"M2": 1.0, "M3": 9.0}) == {
         "Mmajor": 9.0,
         "Mminor": 1.0,
     }
+
+
+def test_reference_axes_follow_the_documented_defaults():
+    beam = C.reference_axes([0, 0, 3], [6, 0, 3])
+    assert beam["e2"] == pytest.approx([0, 0, 1]) and beam["e3"] == pytest.approx([0, -1, 0])
+    col = C.reference_axes([0, 0, 0], [0, 0, 3], 135.0)
+    r = math.sqrt(0.5)
+    assert col["e2"] == pytest.approx([-r, r, 0]) and col["e3"] == pytest.approx([-r, -r, 0])
+
+
+def test_mirror_angle_gives_the_reference_saengine_axes():
+    # a column at 135° analysed with its own vecxz: SAEngine's local z is the vecxz
+    r = math.sqrt(0.5)
+    assert C.mirror_angle([0, 0, 0], [0, 0, 3], [-r, r, 0]) == pytest.approx(135.0)
+    # an unturned column and a beam along X need no angle
+    assert C.mirror_angle([0, 0, 0], [0, 0, 3], [1, 0, 0]) == 0.0
+    assert C.mirror_angle([0, 0, 3], [6, 0, 3], [0, 0, 1]) == 0.0
+    # a brace sloping in the vertical YZ plane: SAEngine (vecxz = X) has local y in that
+    # plane and local z = X horizontal, the reference's default local 2 is in the plane:
+    # a quarter turn makes its local 3 SAEngine's y, so M3 is SAEngine's My
+    pi, pj = [0, 0, 0], [0, 1, 3]
+    x = C._unit([0, 1, 3])
+    y = C._unit(C._cross([1, 0, 0], x))
+    z = C._cross(x, y)
+    angle = C.mirror_angle(pi, pj, z)
+    assert abs(angle) == pytest.approx(90.0)
+    ref = C.reference_axes(pi, pj, angle)
+    assert abs(C._dot(ref["e3"], y)) == pytest.approx(1.0)
+    m = C.moment_components("brace", [0, 0, 0, 0, 7.0, 2.0], {"y": y, "z": z}, ref)
+    assert m == {"Mmajor": pytest.approx(7.0), "Mminor": pytest.approx(2.0)}
+    # with the default axes the same moments would be the other way round
+    m0 = C.moment_components(
+        "brace", [0, 0, 0, 0, 7.0, 2.0], {"y": y, "z": z}, C.reference_axes(pi, pj)
+    )
+    assert m0 == {"Mmajor": pytest.approx(2.0), "Mminor": pytest.approx(7.0)}
+
+
+def test_rigid_end_offsets_start_the_statics_at_the_faces():
+    # a 5 m cantilever with 0.5 m rigid zones and a 10 kN tip load: OpenSees localForce
+    # (-jntOffset) gives My_i = -45 at the face (0.5 m), the reaction moment is 50
+    span = {
+        "kind": "beam",
+        "subs": [
+            {
+                "na": 0.0,
+                "nb": 5.0,
+                "a": 0.5,
+                "b": 4.5,
+                "axes": {},
+                "cases": {"D": {"fi": [0, 0, 10, 0, -45, 0], "w": [0, 0, 0]}},
+            }
+        ],
+    }
+    assert abs(C.saengine_at(span, "D", 0.5)["f"][4]) == pytest.approx(45.0)
+    assert abs(C.saengine_at(span, "D", 0.0)["f"][4]) == pytest.approx(50.0)
+    assert abs(C.saengine_at(span, "D", 4.5)["f"][4]) == pytest.approx(5.0)
+    # a reversed element (node i at the span's end) measures from its own face
+    rev = {"kind": "beam", "subs": [{**span["subs"][0], "na": 5.0, "nb": 0.0, "a": 4.5, "b": 0.5}]}
+    assert abs(C.saengine_at(rev, "D", 4.5)["f"][4]) == pytest.approx(45.0)
+
+
+def test_span_load_acts_on_the_flexible_length_only():
+    # 6 m between joints, 0.3 m rigid zones, w = 10 kN/m on the 5.4 m flexible part, pinned
+    # at the faces: Vz_i = 27, My = 0 at the face; mid-span wL²/8 of the flexible length
+    sub = {
+        "na": 0.0,
+        "nb": 6.0,
+        "a": 0.3,
+        "b": 5.7,
+        "axes": {},
+        "cases": {"D": {"fi": [0, 0, 27, 0, 0, 0], "w": [0, 0, -10]}},
+    }
+    span = {"kind": "beam", "subs": [sub]}
+    assert abs(C.saengine_at(span, "D", 3.0)["f"][4]) == pytest.approx(10 * 5.4**2 / 8)
+    # inside the rigid zone at j: the shear carries on with no load (27 - 54 = -27)
+    at_face = C.saengine_at(span, "D", 5.7)["f"]
+    at_node = C.saengine_at(span, "D", 6.0)["f"]
+    assert abs(at_face[4]) == pytest.approx(0.0, abs=1e-9)
+    assert abs(at_node[2]) == pytest.approx(27.0)
+    assert abs(at_node[4]) == pytest.approx(27.0 * 0.3)
 
 
 def _synthetic(ref_scale: float = 1.0):
@@ -243,6 +324,43 @@ def test_compare_end_to_end(tmp_path: Path):
     assert data["tolerances"]["period"]["rel"] == 0.02
 
 
+def test_mirror_beam_moment_flag_does_not_blame_the_mesh():
+    reasons = C.reasons_for("mirror", {"analysisSettings": {"slabs": "shells", "meshSize": 1000}})
+    assert "not the mesh" in reasons["faceMoment"]
+
+
+def test_native_skew_reason_only_when_the_column_was_snapped():
+    def span(vecxz):
+        return {
+            "label": "C2",
+            "kind": "column",
+            "angle": 135.0,
+            "start": [0, 0, 0],
+            "end": [0, 0, 3],
+            "length": 3.0,
+            "subs": [
+                {
+                    "na": 0.0,
+                    "nb": 3.0,
+                    "a": 0.0,
+                    "b": 3.0,
+                    "vecxz": vecxz,
+                    "axes": {"y": [0, -1, 0], "z": [1, 0, 0]},
+                    "cases": {"D": {"fi": [0, 0, 0, 0, 10, 0], "w": [0, 0, 0]}},
+                }
+            ],
+        }
+
+    row = {"case": "D", "sta": 0.0, "P": 0, "M2": 20.0, "M3": 20.0}
+    frames = {"C2": {"first": [row], "last": [{**row, "sta": 3.0}], "lastStart": 0.0}}
+    ref = {"mode": "native", "runs": [{"cases": ["D"], "frames": frames}]}
+    for vecxz, snapped in ((None, True), ([-0.7071, 0.7071, 0], False)):
+        sae = {"members": [span(vecxz)], "analysisSettings": {}}
+        flags = [q for q in C.compare(sae, ref, "native") if q.status == "FLAG"]
+        assert flags
+        assert all(("snapped" in q.reason) == snapped for q in flags)
+
+
 def test_compare_flags_a_period_difference_with_the_mirror_reason():
     sae, ref = _synthetic(ref_scale=1.05)
     by = {(x.name, x.case): x for x in C.compare(sae, ref, "mirror")}
@@ -250,3 +368,94 @@ def test_compare_flags_a_period_difference_with_the_mirror_reason():
     assert t1.status == "FLAG" and "solver" in t1.reason
     assert by[("base FX", "EX")].status == "FLAG"
     assert math.isclose(by[("base FX", "EX")].diff_pct, 5.0, rel_tol=1e-6)
+
+
+def test_mirror_input_loads_the_flexible_length_and_turns_skewed_frames(tmp_path: Path):
+    pytest.importorskip("saengine.fem.derive")
+    sys.path.insert(0, str(HERE))
+    X = load("sae_export")
+    project = tmp_path / "P"
+    (project / "06 BIM").mkdir(parents=True)
+    (project / "08 FEM").mkdir()
+    bim = {"stories": [{"id": "Base", "elevation": 0}, {"id": "L1", "elevation": 3000}]}
+    (project / "06 BIM" / "bim.json").write_text(json.dumps(bim), encoding="utf-8")
+    r = math.sqrt(0.5)
+    free, fixed = [False] * 6, [True] * 6
+    model = {
+        "nodes": [
+            {"id": 1, "coords": [0, 0, 0], "mass": [0] * 6, "restraint": fixed},
+            {"id": 2, "coords": [0, 0, 3], "mass": [0] * 6, "restraint": free},
+            {"id": 3, "coords": [6, 0, 3], "mass": [0] * 6, "restraint": free},
+        ],
+        "sections": [
+            {
+                "id": 1,
+                "type": "ElasticSection",
+                "name": "C1",
+                "E": 2.5e10,
+                "G": 1e10,
+                "A": 0.09,
+                "J": 1e-3,
+                "Iy": 6e-4,
+                "Iz": 7e-4,
+            },
+        ],
+        "elements": [
+            {
+                "id": 1,
+                "name": "C2",
+                "type": "ElasticBeamColumn",
+                "nodes": [1, 2],
+                "section_id": 1,
+                "vecxz": [-r, r, 0.0],
+            },
+            {
+                "id": 2,
+                "name": "B1",
+                "type": "ElasticBeamColumn",
+                "nodes": [2, 3],
+                "section_id": 1,
+                "joint_offsets": [0.3, 0, 0, -0.3, 0, 0],
+            },
+        ],
+        "load_patterns": [
+            {
+                "id": 1,
+                "name": "D",
+                "type": "Plain",
+                "nodal_loads": [{"node_id": 2, "forces": [0, 0, -3000, 0, 0, 0]}],
+                "element_loads": [{"element_id": 2, "wx": 0, "wy": 0, "wz": -10000}],
+            },
+        ],
+        "analyses": [{"type": "Static", "name": "D", "pattern_ids": [1]}],
+        "mp_constraints": [],
+    }
+    (project / "08 FEM" / "model.osmodel").write_text(json.dumps(model), encoding="utf-8")
+    out = X.mirror_input(project, [])
+    frames = {f["member"]: f for f in out["frames"]}
+    assert frames["C2"]["angle"] == pytest.approx(135.0)
+    assert frames["B1"]["angle"] == 0.0
+    span_load = out["elem_loads"]["D"][0]
+    assert span_load["d0"] == pytest.approx(0.05) and span_load["d1"] == pytest.approx(0.95)
+    assert span_load["length"] == pytest.approx(5.4)
+    assert span_load["g"] == pytest.approx([0, 0, -10])  # local z of a beam along X is +Z
+    assert X.flexible_ends(model["elements"][1]) == pytest.approx((0.3, 0.3))
+    # native mode gives the reference's automatic end offsets SAEngine's rigid-zone factor
+    from types import SimpleNamespace
+
+    settings = SimpleNamespace(analysis=SimpleNamespace())
+    assert X.rigid_zone_factor(project, model, settings) == 0.5
+    (project / "08 FEM" / "faces.json").write_text('{"rigidZoneFactor": 0.75}', encoding="utf-8")
+    assert X.rigid_zone_factor(project, model, settings) == 0.75
+    plain = {"elements": [e for e in model["elements"] if "joint_offsets" not in e]}
+    assert X.rigid_zone_factor(project, plain, settings) is None
+
+
+def test_rigid_zone_reasons_name_the_axial_and_torsion_convention():
+    plain = {"members": [{"subs": [{"rigid": [0.0, 0.0]}]}], "analysisSettings": {}}
+    zoned = {"members": [{"subs": [{"rigid": [0.25, 0.0]}]}], "analysisSettings": {}}
+    assert not C.has_rigid_zones(plain) and C.has_rigid_zones(zoned)
+    assert "torsion" in C.reasons_for("mirror", zoned)["period"]
+    assert "torsion" not in C.reasons_for("mirror", plain)["period"]
+    assert "same factor" in C.reasons_for("native", zoned)["faceMoment"]
+    assert "same factor" not in C.reasons_for("native", plain)["faceMoment"]

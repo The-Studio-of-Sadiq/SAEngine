@@ -48,7 +48,9 @@ if (-not $SkipSaengine) {
   Copy-Item -Recurse $src $work
   # the copy derives and analyses afresh
   foreach ($f in @("08 FEM\model.osmodel", "08 FEM\model.results")) { $p = Join-Path $work $f; if (Test-Path $p) { Remove-Item -Recurse -Force $p } }
-  & $Python (Join-Path $PSScriptRoot "sae_export.py") --project $work --out $data --members $Members
+  # An empty -Members is left out (PowerShell drops an empty argument, leaving --members bare).
+  $memberArgs = if ($Members) { @("--members", $Members) } else { @() }
+  & $Python (Join-Path $PSScriptRoot "sae_export.py") --project $work --out $data @memberArgs
   if ($LASTEXITCODE -ne 0) { Write-Error "SAEngine export failed ($LASTEXITCODE)"; exit 3 }
 }
 
@@ -60,10 +62,15 @@ foreach ($md in $modes) {
   New-Item -ItemType Directory -Force $dir | Out-Null
   $ref = Join-Path $data "reference_$md.json"
   & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "etabs_run.ps1") -InputJson (Join-Path $data "${md}_input.json") -OutputJson $ref -WorkDir (Join-Path $Out "models\$md") -EtabsDir $EtabsDir
-  if ($LASTEXITCODE -ne 0) {
+  $code = $LASTEXITCODE
+  if ($code -eq 2) {
+    # refused (e.g. an instance is running that the harness did not start): leave it alone
+    Write-Warning "the reference run ($md) refused to start; nothing was started or stopped"; $status = 3; continue
+  }
+  if ($code -ne 0) {
     Write-Warning "the reference run ($md) reported an error; see $ref"; $status = 3
-    # a run that died without closing the program: stop only the program's own process
-    Get-Process -Name "ETABS" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    # a run that died without closing the program: stop only the process that run started
+    Write-Host (Stop-OwnEtabs "$ref.pid")
   }
   & $Python (Join-Path $PSScriptRoot "compare.py") --saengine (Join-Path $data "saengine.json") --reference $ref --input (Join-Path $data "${md}_input.json") --out $dir --project $name --date $date
   if ($LASTEXITCODE -ne 0) { $status = 3 }

@@ -161,10 +161,25 @@ moved and rotated.
 
 ## Loads
 
-The floor plan editor has **no load entries**. Floor and roof loads are the area loads of
+Floor and roof loads are the area loads of
 [Project Settings](02-project-settings.md#area-loads); self-weight comes from the object types. A
 slab may name its own area load (`areaLoad` in the file, written by the importers); the editor
 does not show or edit it in this version.
+
+**Line and point loads on members** (brick walls on beams, a tank on a beam) are kept in
+`05 Floor Plan/loads.json`, beside the floor plan. Select beams and click **Line Load on ...** in
+the Properties panel: a wall type × height (125 mm and 250 mm brick walls from the code pack's
+unit weights, BNBC 2020 Part 6 Table 6.2.2, less an openings percentage) or a value in kN/m, in a
+load case (SD by default). **Point Load...** puts a load in kN on a beam at a distance from its
+start, or on a column's joint. The **Loads** list of the story edits or deletes them; the plan
+draws them. A load on a typical floor applies to every story like it unless *This story only*.
+The analysis model applies them as member loads (they count in the seismic weight as their case
+does) and the report lists their totals per story.
+
+**Stiffness modifiers and design overwrites** of the selected members (Properties panel, below
+the member's fields): factors on A, J, I22, I33, mass and weight (shells: membrane, bending), and
+k, unbraced lengths and framing for the design. An empty field inherits the object type's value,
+then the code's cracked factor. Each change is one undoable edit.
 
 ## New Building from Grid
 

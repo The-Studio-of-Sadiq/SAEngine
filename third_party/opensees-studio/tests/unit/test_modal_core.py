@@ -65,6 +65,20 @@ def test_arpack_falls_back_to_dense_for_tiny_models() -> None:
     assert resolve_modal_solver("genBandArpack", 7, 3)[0] == "genBandArpack"
 
 
+def test_few_dof_with_mass_route_to_dense_or_condensed() -> None:
+    """Masses lumped at a few floors: ARPACK's basis (max(2 * n_modes, n_modes + 8)) must stay
+    below the DOF with mass; else dense up to CONDENSED_MIN_FREE_DOF, condensed above it."""
+    from opensees_studio.core.modal import CONDENSED_MIN_FREE_DOF, arpack_basis
+
+    assert arpack_basis(3) == 11 and arpack_basis(12) == 24
+    assert resolve_modal_solver("genBandArpack", 5000, 6, 40)[0] == "genBandArpack"
+    assert resolve_modal_solver("genBandArpack", 2000, 6, 6)[0] == "fullGenLapack"
+    solver, reason = resolve_modal_solver("auto", CONDENSED_MIN_FREE_DOF + 1, 6, 6)
+    assert solver == "condensed" and "DOF with mass" in reason
+    assert resolve_modal_solver("auto", 5000, 2, 10)[0] == "condensed"  # 2 + 8 >= 10
+    assert resolve_modal_solver("auto", 5000, 2, 11)[0] == "genBandArpack"
+
+
 def test_symm_band_lapack_is_refused_with_the_massless_dof_message() -> None:
     with pytest.raises(ValueError, match="positive definite mass"):
         resolve_modal_solver("symmBandLapack", 48, 6)

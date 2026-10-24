@@ -307,6 +307,9 @@
   },
   "dampingEta": 1.0,
   "liveShare": 0.25,
+  "heavyLiveLimit": 3.0,
+  "heavyLiveShare": 0.5,
+  "periodUpperFactor": 1.4,
   "minimumScale": 0.85,
   "accidentalEccentricity": 0.05,
   "orthogonalShare": 0.3,
@@ -333,6 +336,9 @@
     "torsionAmplificationMax": "BNBC 2020 Part 6 Sec 2.5.7.6.2, eq. 6.2.44 (p. 630)",
     "pgaFactor": "BNBC 2020 Part 6 Sec 2.5.13.2 (p. 646), a_h = (2/3) Z S",
     "verticalFactor": "BNBC 2020 Part 6 Sec 2.5.13.2, eq. 6.2.56 (pp. 645-646)",
-    "dampingEta": "5 % damping: η = 1 (page not checked)"
+    "dampingEta": "5 % damping: η = 1 (page not checked)",
+    "heavyLiveLimit": "BNBC 2020 Part 6 Sec 2.5.7.3 (b) (p. 628): live load above 3 kN/m², a minimum of 50 percent",
+    "heavyLiveShare": "BNBC 2020 Part 6 Sec 2.5.7.3 (b) (p. 628)",
+    "periodUpperFactor": "BNBC 2020 Part 6 Sec 2.5.7.2 (a) (p. 627): not more than 40 percent above Ta of Eq. 6.2.38"
   }
 }

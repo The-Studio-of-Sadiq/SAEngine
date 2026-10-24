@@ -1,0 +1,71 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The loads section of the floor plan's properties panel (floorPlanLoads.ts): the Line Load and
+ * Point Load forms and a dense Loads list, on the panel's sa-props styles. */
+
+.floor-plan-loads .hidden {
+	display: none;
+}
+
+.floor-plan-loads .floor-plan-prop-control {
+	flex: 1;
+	min-width: 0;
+}
+
+.floor-plan-loads .floor-plan-loads-check {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-1, 4px);
+	color: var(--vscode-descriptionForeground);
+}
+
+.floor-plan-loads .floor-plan-loads-table {
+	width: 100%;
+	border-collapse: collapse;
+	table-layout: auto;
+	margin: var(--sa-space-1, 4px) 0;
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+}
+
+.floor-plan-loads .floor-plan-loads-table th {
+	text-align: left;
+	font-weight: 600;
+	color: var(--vscode-descriptionForeground);
+	border-bottom: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
+	padding: 2px 4px;
+	white-space: nowrap;
+}
+
+.floor-plan-loads .floor-plan-loads-table td {
+	padding: 2px 4px;
+	vertical-align: middle;
+}
+
+.floor-plan-loads .floor-plan-loads-table tr.detail td {
+	padding-top: 0;
+	border-bottom: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
+	white-space: normal;
+}
+
+.floor-plan-loads .floor-plan-loads-table td.value {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+}
+
+.floor-plan-loads .floor-plan-loads-table td.value .monaco-inputbox {
+	width: 64px;
+}
+
+.floor-plan-loads .floor-plan-loads-table td .monaco-select-box {
+	min-width: 48px;
+}
+
+.floor-plan-loads .floor-plan-loads-table .unit,
+.floor-plan-loads .floor-plan-loads-table td.source {
+	color: var(--vscode-descriptionForeground);
+}

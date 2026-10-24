@@ -27,6 +27,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from compare import mirror_angle, reference_axes  # the harness's own module
+
 G = 9.80665
 MM = 0.001
 #: The cases compared member by member.
@@ -49,14 +52,30 @@ def _last(values: Any) -> list[float]:
     return [float(v) for v in (a[-1] if a.ndim > 1 else a)]
 
 
-def local_axes(a: list[float], b: list[float]) -> tuple[list[float], list[float], list[float]]:
-    """The element axes SAEngine's analysis model uses (saengine.fem.derive.local_axes)."""
+def local_axes(
+    a: list[float], b: list[float], vecxz: list[float] | None = None
+) -> tuple[list[float], list[float], list[float]]:
+    """The element axes SAEngine's analysis model uses (saengine.fem.derive.local_axes), from
+    the element's own ``vecxz`` when it has one (a column at a skew angle)."""
     import numpy as np
 
     from saengine.fem.derive import local_axes as derive_axes
 
-    x, y, z = derive_axes(np.asarray(a, dtype=float), np.asarray(b, dtype=float))
+    a_, b_ = np.asarray(a, dtype=float), np.asarray(b, dtype=float)
+    if vecxz is None:
+        x, y, z = derive_axes(a_, b_)
+    else:
+        x, y, z = derive_axes(a_, b_, [float(v) for v in vecxz])
     return [float(v) for v in x], [float(v) for v in y], [float(v) for v in z]
+
+
+def flexible_ends(e: dict[str, Any]) -> tuple[float, float]:
+    """The rigid lengths at ends i and j of a frame element (m): the lengths of its joint
+    offsets (OpenSees ``-jntOffset``, global vectors from each node to its flexible end)."""
+    offsets = _joint_offsets(e)
+    if not offsets:
+        return 0.0, 0.0
+    return math.hypot(*offsets[:3]), math.hypot(*offsets[3:])
 
 
 # ─────────────────────────────── running SAEngine ───────────────────────────────
@@ -356,7 +375,13 @@ def saengine_results(
                 lo, hi = min(ti, tj), max(ti, tj)
                 if hi < 1e-6 or lo > length - 1e-6:
                     continue
-                x, y, z = local_axes(pi, pj)
+                x, y, z = local_axes(pi, pj, e.get("vecxz"))
+                # OpenSees reports the end forces at the flexible ends (the faces) when the
+                # element has rigid end offsets: the statics start there, not at the nodes
+                ri, rj = flexible_ends(e)
+                step = 1.0 if tj >= ti else -1.0
+                fa, fb = ti + step * ri, tj - step * rj
+                angle = mirror_angle(pi, pj, z)
                 cases = {}
                 for case in MEMBER_CASES:
                     r = results.get(case)
@@ -371,13 +396,20 @@ def saengine_results(
                     {
                         "element": e["id"],
                         "name": e["name"],
-                        "a": ti,
-                        "b": tj,
+                        "na": ti,
+                        "nb": tj,
+                        "a": fa,
+                        "b": fb,
+                        "rigid": [ri, rj],
+                        "vecxz": e.get("vecxz"),
                         "axes": {"x": x, "y": y, "z": z},
+                        # the mirror's frame: drawn from node i, turned so its axes are SAEngine's
+                        "refAngle": angle,
+                        "refAxes": reference_axes(pi, pj, angle),
                         "cases": cases,
                     }
                 )
-            subs.sort(key=lambda s: min(s["a"], s["b"]))
+            subs.sort(key=lambda s: min(s["na"], s["nb"]))
             spans_out.append({**span, "length": length, "subs": subs})
     res["members"] = spans_out
     face = _face_forces(out_dir)
@@ -457,10 +489,15 @@ def mirror_input(project: Path, spans: list[dict[str, Any]]) -> dict[str, Any]:
         {"name": s["id"], "height": (s["elevation"] - stories[i]["elevation"]) * MM}
         for i, s in enumerate(stories[1:])
     ]
+    # A diaphragm's master node carries the story's lumped mass and loads (the seismic mass
+    # lumped at the story levels, the story forces): it is kept as a joint of its diaphragm.
+    loaded = {x["node_id"] for p in model["load_patterns"] for x in p.get("nodal_loads", [])}
+    carrying = {n["id"] for n in model["nodes"] if any(n.get("mass") or []) or n["id"] in loaded}
+    kept = used | (retained & carrying)
     for n in model["nodes"]:
         if n["id"] in alias:
             continue
-        if n["id"] in retained and n["id"] not in used:
+        if n["id"] in retained and n["id"] not in kept:
             continue  # the diaphragm's master node: the other program makes its own
         mass = [v / 1e3 for v in n.get("mass", [0.0] * 6)]
         out["nodes"].append(
@@ -553,6 +590,8 @@ def mirror_input(project: Path, spans: list[dict[str, Any]]) -> dict[str, Any]:
             rel_i = _released(tied.get(i)) if i in alias else None
             rel_j = _released(tied.get(j)) if j in alias else None
             offsets = _joint_offsets(e)
+            pi, pj = nodes[i]["coords"], nodes[j]["coords"]
+            _, _, z = local_axes(pi, pj, e.get("vecxz"))
             frame = {
                 "id": e["id"],
                 "name": f"F{e['id']}",
@@ -563,6 +602,9 @@ def mirror_input(project: Path, spans: list[dict[str, Any]]) -> dict[str, Any]:
                 "relI": rel_i,
                 "relJ": rel_j,
                 "offsets": offsets,
+                # the reference's frame angle that gives it SAEngine's local axes (a skewed
+                # column's vecxz, a sloped member in a vertical YZ plane)
+                "angle": mirror_angle(pi, pj, z),
             }
             pair = frozenset((main(i), main(j)))
             if pair in seen_pairs:
@@ -616,8 +658,12 @@ def mirror_input(project: Path, spans: list[dict[str, Any]]) -> dict[str, Any]:
         for x in p.get("element_loads", []):
             e = elements[x["element_id"]]
             pi, pj = (nodes[k]["coords"] for k in e["nodes"])
-            ax, ay, az = local_axes(pi, pj)
+            ax, ay, az = local_axes(pi, pj, e.get("vecxz"))
             g = [(x["wx"] * ax[k] + x["wy"] * ay[k] + x["wz"] * az[k]) / 1e3 for k in range(3)]
+            # SAEngine's element carries its span load over its flexible length only (the
+            # load on a rigid zone is already a nodal load at the joint): load the same part
+            ri, rj = flexible_ends(e)
+            full = math.dist(pi, pj)
             target = (
                 f"F{e['id']}" if any(f["id"] == e["id"] for f in out["frames"]) else f"LK{e['id']}"
             )
@@ -625,14 +671,16 @@ def mirror_input(project: Path, spans: list[dict[str, Any]]) -> dict[str, Any]:
                 {
                     "frame": target,
                     "g": g,
-                    "length": math.dist(pi, pj),
+                    "length": full - ri - rj,
+                    "d0": ri / full,
+                    "d1": 1.0 - rj / full,
                     "ends": [main(k) for k in e["nodes"]],
                 }
             )
         out["elem_loads"][p["name"]] = els
     for k, c in enumerate(model.get("mp_constraints", []), start=1):
         nodes_tied = [main(n) for n in c["constrained_nodes"]]
-        if c["retained_node"] in used:
+        if c["retained_node"] in kept:
             nodes_tied.append(main(c["retained_node"]))
         out["diaphragms"].append({"name": f"D{k}", "nodes": sorted(set(nodes_tied))})
     # the probes: first and last sub-element of each span
@@ -646,7 +694,7 @@ def mirror_input(project: Path, spans: list[dict[str, Any]]) -> dict[str, Any]:
                 "label": span["label"],
                 "first": f"F{first['element']}",
                 "last": f"F{last['element']}",
-                "lastStart": min(last["a"], last["b"]),
+                "lastStart": min(last["na"], last["nb"]),
                 "length": span["length"],
             }
         )
@@ -1180,6 +1228,12 @@ def native_input(
     out["modal"] = next(
         (int(a.get("n_modes", 12)) for a in model["analyses"] if a["type"] == "Modal"), 12
     )
+    out["rigidZoneFactor"] = rigid_zone_factor(project, model, settings)
+    if out["rigidZoneFactor"] is not None:
+        notes.append(
+            f"SAEngine's model has rigid end zones: the reference's automatic end offsets take "
+            f"the same rigid-zone factor {out['rigidZoneFactor']:g}"
+        )
     out["materials"] = list(used_mats.values())
     out["frame_sections"] = list(frame_secs.values())
     out["area_sections"] = list(area_secs.values())
@@ -1194,6 +1248,22 @@ def native_input(
         for s in spans
     ]
     return out
+
+
+def rigid_zone_factor(project: Path, model: dict[str, Any], settings: Any) -> float | None:
+    """The rigid-zone factor of SAEngine's end offsets (D3), when its analysis model has rigid
+    end zones: from ``08 FEM/faces.json``, else the analysis settings, else 0.5 (the D3
+    default). None when no element has joint offsets."""
+    if not any(_joint_offsets(e) for e in model["elements"] if e["type"] == "ElasticBeamColumn"):
+        return None
+    try:
+        faces = json.loads(_read(project, "08 FEM/faces.json") or "{}")
+        if faces.get("rigidZoneFactor") is not None:
+            return float(faces["rigidZoneFactor"])
+    except (ValueError, TypeError):
+        pass
+    value = getattr(settings.analysis, "rigidZoneFactor", None)
+    return float(value) if value is not None else 0.5
 
 
 def _rect_opening(o: Any, z: float) -> list[list[float]]:

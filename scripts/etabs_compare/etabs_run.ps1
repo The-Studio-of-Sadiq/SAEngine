@@ -17,7 +17,10 @@ param(
 $ErrorActionPreference = "Stop"
 . "$PSScriptRoot\etabs_lib.ps1"
 
-try { Assert-CanRun $EtabsDir } catch { Write-Error $_.Exception.Message; exit 2 }
+$PidFile = "$OutputJson.pid"
+if (Test-Path $PidFile) { Remove-Item -Force $PidFile }
+# a refusal exits 2 (Write-Error would end the script with 1 under ErrorActionPreference Stop)
+try { Assert-CanRun $EtabsDir } catch { [Console]::Error.WriteLine($_.Exception.Message); exit 2 }
 [void][Reflection.Assembly]::LoadFrom((Join-Path $EtabsDir "ETABSv1.dll"))
 $in = Get-Content $InputJson -Raw | ConvertFrom-Json
 $mode = $in.mode
@@ -92,6 +95,8 @@ function Build-Mirror($m) {
   foreach ($f in $in.frames) {
     $nm = ""
     Check ($m.FrameObj.AddByPoint("N$($f.i)", "N$($f.j)", [ref]$nm, $f.sec, $f.name)) "frame $($f.name)"
+    # SAEngine's local axes (a skewed column's vecxz, a sloped member in a vertical YZ plane)
+    if ($f.angle -and [Math]::Abs([double]$f.angle) -gt 1e-6) { Check ($m.FrameObj.SetLocalAxes($f.name, [double]$f.angle, $OBJ)) "angle $($f.name)" }
     if ($f.offsets) {
       $o = @($f.offsets | ForEach-Object { [double]$_ })
       $l1 = [Math]::Sqrt($o[0] * $o[0] + $o[1] * $o[1] + $o[2] * $o[2]); $l2 = [Math]::Sqrt($o[3] * $o[3] + $o[4] * $o[4] + $o[5] * $o[5])
@@ -138,7 +143,9 @@ function Build-Mirror($m) {
         foreach ($e in $x.ends) { [double[]]$lv = @(($x.g[0] * $x.length / 2), ($x.g[1] * $x.length / 2), ($x.g[2] * $x.length / 2), 0, 0, 0); Check ($m.PointObj.SetLoadForce("N$e", $p, [ref]$lv, $false, "Global", $OBJ)) "link load" }
         continue
       }
-      for ($d = 0; $d -lt 3; $d++) { $g = [double]$x.g[$d]; if ([Math]::Abs($g) -gt 1e-12) { Check ($m.FrameObj.SetLoadDistributed($x.frame, $p, 1, 4 + $d, 0, 1, $g, $g, "Global", $true, $false, $OBJ)) "span load" } }
+      # over the flexible length only: SAEngine already put the rigid zones' share on the joints
+      $d0 = if ($null -ne $x.d0) { [double]$x.d0 } else { 0.0 }; $d1 = if ($null -ne $x.d1) { [double]$x.d1 } else { 1.0 }
+      for ($d = 0; $d -lt 3; $d++) { $g = [double]$x.g[$d]; if ([Math]::Abs($g) -gt 1e-12) { Check ($m.FrameObj.SetLoadDistributed($x.frame, $p, 1, 4 + $d, $d0, $d1, $g, $g, "Global", $true, $false, $OBJ)) "span load" } }
     }
   }
   # the mesh is SAEngine's: no automatic floor or wall meshing
@@ -171,6 +178,8 @@ function Build-Native($m) {
     Check ($m.FrameObj.AddByCoord([double]$f.i[0], [double]$f.i[1], [double]$f.i[2], [double]$f.j[0], [double]$f.j[1], [double]$f.j[2], [ref]$nm, $f.sec, $f.name, "Global")) "frame $($f.name)"
     if ($nm -ne $f.name) { L "frame $($f.name) became $nm" }
     if ([double]$f.angle -ne 0) { Check ($m.FrameObj.SetLocalAxes($nm, [double]$f.angle, $OBJ)) "angle $($f.name)" }
+    # SAEngine's rigid end zones (D3): automatic end offsets with the same rigid-zone factor
+    if ($null -ne $in.rigidZoneFactor) { Check ($m.FrameObj.SetEndLengthOffset($nm, $true, 0, 0, [double]$in.rigidZoneFactor, $OBJ)) "end offsets $($f.name)" }
     if ($f.pinned) {
       [bool[]]$ii = @($false, $false, $false, $false, $true, $true); [bool[]]$jj = @($false, $false, $false, $true, $true, $true)
       [double[]]$z1 = @(0, 0, 0, 0, 0, 0); [double[]]$z2 = @(0, 0, 0, 0, 0, 0)
@@ -185,6 +194,10 @@ function Build-Native($m) {
     Check ($m.PointObj.AddCartesian([double]$k.i[0], [double]$k.i[1], [double]$k.i[2], [ref]$p1, "", "Global", $false, 0)) "link point"
     Check ($m.PointObj.AddCartesian([double]$k.j[0], [double]$k.j[1], [double]$k.j[2], [ref]$p2, "", "Global", $false, 0)) "link point"
     $ln = ""; Check ($m.LinkObj.AddByPoint($p1, $p2, [ref]$ln, $false, "P$($k.name)", $k.name)) "link $($k.name)"
+  }
+  if ($null -ne $in.rigidZoneFactor) {
+    # the API ignores the factor of automatic offsets: set it in the assignments table
+    L (Edit-TableField $m "Frame Assignments - End Length Offsets" "Rigid|RZ" ("{0:G6}" -f [double]$in.rigidZoneFactor))
   }
   $diaphragm = $false
   foreach ($a in $in.areas) {
@@ -266,7 +279,9 @@ function Set-Modifiers($m, $group) {
 $out = [ordered]@{ program = "commercial"; mode = $mode; runs = @(); log = $global:RunLog }
 try {
   $m = Start-Etabs $EtabsDir
-  L "program started (hidden)"
+  # the process this run started: the only one the caller may stop if the run dies
+  if ($global:EtabsPid) { Set-Content -Encoding ascii -Path $PidFile -Value "$($global:EtabsPid) $($global:EtabsStart.ToString('o'))" }
+  L "program started (hidden, pid $($global:EtabsPid))"
   Check ($m.InitializeNewModel([ETABSv1.eUnits]::kN_m_C)) "new model"
   if ($mode -eq "mirror") { Build-Mirror $m } else { Build-Native $m }
   Check ($m.LoadCases.ModalEigen.SetCase("Modal")) "modal case"
@@ -296,6 +311,12 @@ try {
   $out.error = $_.Exception.Message
 } finally {
   Stop-Etabs
+  # wait for the run's own process to close; stop it (and only it) if ApplicationExit did not
+  if ($global:EtabsPid) {
+    $deadline = (Get-Date).AddSeconds(60)
+    while ((Get-Process -Id $global:EtabsPid -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
+    if (Get-Process -Id $global:EtabsPid -ErrorAction SilentlyContinue) { L (Stop-OwnEtabs $PidFile) }
+  }
   $out.seconds = ((Get-Date) - $t0).TotalSeconds
   $out | ConvertTo-Json -Depth 10 | Set-Content -Encoding utf8 $OutputJson
 }

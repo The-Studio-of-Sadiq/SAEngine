@@ -17,14 +17,24 @@ Two modes (default: both):
 - **mirror**: SAEngine's derived analysis model (`08 FEM/model.osmodel`) rebuilt node by node:
   the same joints, frame and shell elements, sections, cracked modifiers per case, releases,
   joint masses, nodal and span loads, rigid diaphragms; no automatic meshing and no mass
-  lumping in ETABS. A **solver check**: differences point at SAEngine's solver, its
-  element formulations or the mesh.
+  lumping in ETABS. Each frame is turned so that ETABS's local axes are SAEngine's (a skewed
+  column's own `vecxz`, a member sloping in a vertical YZ plane), and SAEngine's rigid end
+  offsets (`joint_offsets`, OpenSees `-jntOffset`) become fully rigid end-length offsets; span
+  loads act on the flexible length only, as in SAEngine, which already moved the rigid zones'
+  share to the joints. A **solver check**: both programs solve the same mesh, so differences
+  point at the solvers or the element formulations, never at the mesh. One convention remains:
+  ETABS's rigid zones stiffen bending and shear only (axial and torsional deformation stay over
+  the full length, CSI Analysis Reference Manual Eqn. 7-7), while OpenSees `-jntOffset` zones
+  are rigid in every direction; on the sample this shows as a torsional mode (T3) about 6 %
+  apart while T1, T2, reactions, drifts and member moments agree.
 - **native**: the physical model (`06 BIM` with `04 Objects`, `03 Materials`, the settings'
   area loads, partitions on the beams below them and the MEP equipment) drawn the way an ETABS
   user would draw it: storeys, columns, beams, braces, walls and slabs as objects with
   openings, ETABS's own meshing, automatic end offsets, thin shells, a mass source of self mass
   plus SD and the code pack's live-load share, and the static earthquake as ETABS's "user
-  coefficient" load with SAEngine's coefficient C = Sa and exponent k. A **conventions check**:
+  coefficient" load with SAEngine's coefficient C = Sa and exponent k. When SAEngine's model
+  has rigid end zones (D3), ETABS's automatic end offsets take the same rigid-zone factor
+  (`08 FEM/faces.json`, else the analysis settings, else 0.5); otherwise ETABS's default. A **conventions check**:
   differences are the modelling conventions (seismic-weight lumping, rigid end zones, mesh,
   shell type), each FLAG carrying a short reason.
 
@@ -40,12 +50,15 @@ Quantities and tolerances:
 | Storey drifts at the centre of mass (EX, EY) | 5 % |
 | Member moments at the support faces (D, SD, L, EX, EY) | 5 % (floor 2 % of the member's largest moment) |
 
-Member forces: in **native** mode at the stations where ETABS reports them (its support faces,
-from its automatic end offsets), SAEngine's forces evaluated at the same stations by statics
-from its element end forces and span loads; in **mirror** mode at the joints. Columns compare
-the moments about global X and Y, beams and braces the major and minor moments; magnitudes
-only (the programs' sign conventions differ). A column is compared storey by storey
-(`C1@L2`).
+Member forces: at the end stations where ETABS reports them (in **native** mode its support
+faces, from its automatic end offsets; in **mirror** mode the joints, or the faces where the
+frame has end offsets). SAEngine's forces are evaluated at the same stations by statics from
+its element end forces and span loads. With rigid end zones OpenSees reports the end forces at
+the flexible ends (the faces), so the statics start there, and a station inside a rigid zone
+is reached with no span load on the zone. Moments are compared on ETABS's frame axes: M3
+(major) and M2 (minor), SAEngine's moment vector projected on them; magnitudes only (the
+programs' sign conventions differ). For a column local 2 is global X turned by its angle. A
+column is compared storey by storey (`C1@L2`).
 
 ## How to run
 
@@ -78,7 +91,9 @@ Steps, also usable one by one:
 2. `powershell -File etabs_run.ps1 -InputJson <x_input.json> -OutputJson <ref.json> -WorkDir <dir>`:
    builds, runs (one run per stiffness set: gross for gravity, cracked for the lateral cases
    and the modes, as SAEngine) and reads ETABS's results. Always closes ETABS (`ApplicationExit`
-   in `finally`).
+   in `finally`). It records the process it started (`<ref.json>.pid`: id and start time);
+   if a run dies, only that process is stopped, never another ETABS session. A run that
+   refuses to start (exit code 2, e.g. because an instance is already open) stops nothing.
 3. `python compare.py --saengine saengine.json --reference ref.json --out <dir>`.
 
 A building of 6 storeys takes a few minutes per mode (ETABS's API calls dominate).

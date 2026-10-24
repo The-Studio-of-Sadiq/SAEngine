@@ -13,6 +13,7 @@ import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { mepModelStamp, sourceStamp } from '../../../services/saengineProject/common/partSources.js';
+import { loadsHaveContent } from '../../../services/saengineProject/common/partStatus.js';
 import { ISaengineProjectService, PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
 
 /** Desktop command deriving the analysis model with the Python models (see `saengine.fem.derive`). */
@@ -40,15 +41,23 @@ export const SOIL_DERIVATION_SOURCE = { part: 'soil', key: 'soil', label: locali
  */
 export const MEP_DERIVATION_SOURCE = { part: 'mep', key: 'mep', label: localize('fem.source.mep', "MEP") } as const;
 export const SUBSTRUCTURE_DERIVATION_SOURCE = { part: 'substructure', key: 'substructure', label: localize('fem.source.substructure', "Substructure") } as const;
+/**
+ * The line and point loads on members (`05 Floor Plan/loads.json`, `saengine.library.line_loads`):
+ * a source once it has a load (key `loads`). Not a part of its own: a file beside the floor plan.
+ */
+export const LOADS_DERIVATION_SOURCE = { part: 'loads', key: 'loads', label: localize('fem.source.loads', "Line Loads") } as const;
+/** The loads file's name, beside the floor plan (`saengine.library.line_loads.LOADS_FILE`). */
+export const MEMBER_LOADS_FILE = 'loads.json';
 
-/** Every part the derivation may read: the sources above, the soil report, MEP and the substructure. */
-export const DERIVATION_INPUTS: readonly string[] = [...DERIVATION_SOURCES.map(s => s.part), SOIL_DERIVATION_SOURCE.part, MEP_DERIVATION_SOURCE.part, SUBSTRUCTURE_DERIVATION_SOURCE.part];
+/** Every part the derivation may read: the sources above, the soil report, MEP, the substructure and the member loads. */
+export const DERIVATION_INPUTS: readonly string[] = [...DERIVATION_SOURCES.map(s => s.part), SOIL_DERIVATION_SOURCE.part, MEP_DERIVATION_SOURCE.part, SUBSTRUCTURE_DERIVATION_SOURCE.part, LOADS_DERIVATION_SOURCE.part];
 
 interface IFemDerivation {
 	readonly text?: string;
 	readonly pushoverText?: string;
 	readonly thermalText?: string;
 	readonly ssiText?: string;
+	readonly facesText?: string;
 	readonly notes?: readonly string[];
 	readonly summary?: { readonly [key: string]: number };
 	readonly problems?: readonly string[];
@@ -60,6 +69,8 @@ export const PUSHOVER_FILE = 'pushover.osmodel';
 export const THERMAL_FILE = 'thermal.json';
 /** The column bases' soil springs, beside the model when the supports are soil springs (`saengine.fem.ssi`). */
 export const SSI_FILE = 'ssi.json';
+/** The members' support face offsets, beside the model when the settings model end offsets (`saengine.fem.end_zones`). */
+export const FACES_FILE = 'faces.json';
 
 /** Whether the MEP file `text` has anything the analysis model takes: equipment, openings or shafts. */
 export function mepHasContent(text: string | undefined): boolean {
@@ -74,8 +85,11 @@ export function mepHasContent(text: string | undefined): boolean {
 	}
 }
 
-/** The main file of project part `id` (`08 FEM/model.osmodel`, ...). */
+/** The main file of project part `id` (`08 FEM/model.osmodel`, ...); `loads`: the member loads beside the floor plan. */
 export function partFile(root: URI, id: string): URI {
+	if (id === LOADS_DERIVATION_SOURCE.part) {
+		return joinPath(dirname(partFile(root, 'floorPlan')), MEMBER_LOADS_FILE);
+	}
 	const part = PROJECT_PARTS.find(p => p.id === id)!;
 	return joinPath(root, part.folder, part.mainFile!);
 }
@@ -124,6 +138,12 @@ export function derivationState(description: unknown, texts: ReadonlyMap<string,
 	if (recorded.has(mep.key) ? mepText === undefined || recorded.get(mep.key) !== mepModelStamp(mepText) : recorded.size > 0 && mepHasContent(mepText)) {
 		changed.push(mep.label);
 	}
+	// The member loads likewise: once recorded, and once they have a load.
+	const loads = LOADS_DERIVATION_SOURCE;
+	const loadsText = texts.get(loads.part);
+	if (recorded.has(loads.key) ? loadsText === undefined || recorded.get(loads.key) !== sourceStamp(loadsText) : recorded.size > 0 && loadsHaveContent(loadsText)) {
+		changed.push(loads.label);
+	}
 	return { derived: recorded.size > 0, changed };
 }
 
@@ -151,11 +171,14 @@ export async function deriveAnalysisModel(commandService: ICommandService, fileS
 	const soilText = texts.get(SOIL_DERIVATION_SOURCE.part);
 	const mepText = texts.get(MEP_DERIVATION_SOURCE.part);
 	const substructureText = texts.get(SUBSTRUCTURE_DERIVATION_SOURCE.part);
+	// A missing loads file is sent as empty, so the backend does not read a stale one from disk.
+	const loadsText = texts.get(LOADS_DERIVATION_SOURCE.part) ?? '';
 	const result = await commandService.executeCommand<IFemDerivation>(DERIVE_COMMAND, {
 		bimText, objectsText, materialsText, settingsText, modelFolder: dirname(resource).fsPath,
 		...(soilText !== undefined ? { soilText } : {}),
 		...(mepText !== undefined ? { mepText } : {}),
 		...(substructureText !== undefined ? { substructureText } : {}),
+		loadsText,
 	});
 	if (!result?.text) {
 		return { ok: false, message: (result?.problems ?? []).join('; '), notes: [] };
@@ -173,6 +196,7 @@ export async function deriveAnalysisModel(commandService: ICommandService, fileS
 	};
 	await side(THERMAL_FILE, result.thermalText);
 	await side(SSI_FILE, result.ssiText);
+	await side(FACES_FILE, result.facesText);
 	await fileService.writeFile(resource, VSBuffer.fromString(result.text));
 	if (result.pushoverText) {
 		await fileService.writeFile(joinPath(folder, PUSHOVER_FILE), VSBuffer.fromString(result.pushoverText));

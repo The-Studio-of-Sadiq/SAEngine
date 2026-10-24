@@ -487,11 +487,14 @@ COMBINATION = LoadCombination(name="1.2D + 1.6L + 1.6Lr", D=1.2, L=1.6, Lr=1.6)
 
 
 def shell_settings(name: str, mesh: float = 500):
+    """Shell slabs at ``mesh`` exactly (no span rule), without end offsets: the slab checks
+    against hand statics (the columns' rigid-zone self-weight would be in the nodal totals)."""
     s = default_project_settings(name)
+    analysis = {"slabs": "shells", "meshSize": mesh, "meshBySpan": False, "endOffsets": False}
     return s.model_copy(
         update={
             "combinations": [COMBINATION],
-            "analysis": s.analysis.model_copy(update={"slabs": "shells", "meshSize": mesh}),
+            "analysis": s.analysis.model_copy(update=analysis),
         }
     )
 

@@ -226,6 +226,10 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 		return this.request(python, 'fem/ssiCompare', { projectRoot });
 	}
 
+	meshCheck(python: string, projectRoot: string): Promise<object> {
+		return this.request(python, 'fem/meshCheck', { projectRoot });
+	}
+
 	mepReport(python: string, projectRoot: string, mepText?: string): Promise<object> {
 		return this.request(python, 'mep/report', { projectRoot, mepText });
 	}

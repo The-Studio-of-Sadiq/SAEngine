@@ -64,7 +64,7 @@ def _elements(project: dict[str, Any]) -> list[_Element]:
                 i=nodes[0],
                 j=nodes[1],
                 length=float(np.linalg.norm(b - a)),
-                axes=np.array(local_axes(a, b)),
+                axes=np.array(local_axes(a, b, e.get("vecxz"))),
                 ei_y=modulus * section["Iz"] if modulus and section.get("Iz") else None,
                 ei_z=modulus * section["Iy"] if modulus and section.get("Iy") else None,
             )

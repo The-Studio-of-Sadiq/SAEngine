@@ -44,6 +44,8 @@ TABLE_HELP: dict[str, str] = {
     "occupancyCategories": "Occupancy (risk) categories with their seismic and wind importance "
     "factors.",
     "areaLoads": "Minimum live loads by use of the floor area, in kN/m2.",
+    "deadLoads": "Unit weights of masonry and plaster (kN/m3) and the wall types whose weight "
+    "the line loads of walls on beams take (loads.json of the floor plan).",
     "combinations": "Load cases (loadCases); the strength, temperature and gravity combinations, "
     "lists matched by name; the dead load factors of the seismic combinations "
     "(seismicDeadUpper, seismicDeadLower); and the overstrength (Omega0) note (overstrength). "
