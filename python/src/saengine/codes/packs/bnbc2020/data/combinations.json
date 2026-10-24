@@ -1,0 +1,125 @@
+{
+  "$schema": "../../../schemas/combinations.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 2.7.3.1 (p. 685)"
+  ],
+  "source": "BNBC 2020 Part 6 Sec 2.7.3.1 (p. 685); D includes the superimposed dead load SD",
+  "loadCases": {
+    "D": "Dead (self-weight)",
+    "SD": "Superimposed dead (finishes, partitions)",
+    "L": "Live",
+    "Lr": "Roof live",
+    "WX": "Wind in X",
+    "WY": "Wind in Y",
+    "EX": "Earthquake in X",
+    "EY": "Earthquake in Y",
+    "F": "Fluids (equipment contents)",
+    "T": "Temperature"
+  },
+  "strength": [
+    {
+      "name": "1.4D",
+      "factors": {
+        "D": 1.4
+      }
+    },
+    {
+      "name": "1.2D + 1.6L + 0.5Lr",
+      "factors": {
+        "D": 1.2,
+        "L": 1.6,
+        "Lr": 0.5
+      }
+    },
+    {
+      "name": "1.2D + 1.6Lr + 1.0L",
+      "factors": {
+        "D": 1.2,
+        "Lr": 1.6,
+        "L": 1.0
+      }
+    },
+    {
+      "name": "1.2D + 1.6Lr + 0.8W",
+      "factors": {
+        "D": 1.2,
+        "Lr": 1.6,
+        "W": 0.8
+      }
+    },
+    {
+      "name": "1.2D + 1.6W + 1.0L + 0.5Lr",
+      "factors": {
+        "D": 1.2,
+        "W": 1.6,
+        "L": 1.0,
+        "Lr": 0.5
+      }
+    },
+    {
+      "name": "1.2D + 1.0E + 1.0L",
+      "factors": {
+        "D": 1.2,
+        "E": 1.0,
+        "L": 1.0
+      }
+    },
+    {
+      "name": "0.9D + 1.6W",
+      "factors": {
+        "D": 0.9,
+        "W": 1.6
+      }
+    },
+    {
+      "name": "0.9D + 1.0E",
+      "factors": {
+        "D": 0.9,
+        "E": 1.0
+      }
+    }
+  ],
+  "temperature": [
+    {
+      "name": "1.2D + 1.2T + 1.6L + 0.5Lr",
+      "factors": {
+        "D": 1.2,
+        "T": 1.2,
+        "L": 1.6,
+        "Lr": 0.5
+      }
+    },
+    {
+      "name": "1.2D - 1.2T + 1.6L + 0.5Lr",
+      "factors": {
+        "D": 1.2,
+        "T": -1.2,
+        "L": 1.6,
+        "Lr": 0.5
+      }
+    }
+  ],
+  "gravity": [
+    {
+      "name": "1.4D",
+      "factors": {
+        "D": 1.4
+      }
+    },
+    {
+      "name": "1.2D + 1.6L",
+      "factors": {
+        "D": 1.2,
+        "L": 1.6
+      }
+    }
+  ],
+  "seismicDeadUpper": 1.2,
+  "seismicDeadLower": 0.9,
+  "overstrength": "Em = Ω0 Eh ± Ev in the combinations with E (Sec 2.5.13.4, p. 646): 1.2D + Ω0 Eh + Ev + L and 0.9D + Ω0 Eh − Ev",
+  "sources": {
+    "temperature": "BNBC 2020 Part 6 Sec 2.7.3.1 combination 2 with T, 1.2(D + F + T) (p. 685)",
+    "seismicDeadUpper": "BNBC 2020 Part 6 Sec 2.7.3.1 combination 5 (p. 685)",
+    "seismicDeadLower": "BNBC 2020 Part 6 Sec 2.7.3.1 combination 7 (p. 685)"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "$schema": "../../../schemas/steel.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Chapter 10"
+  ],
+  "source": "BNBC 2020 Part 6 Chapter 10 (LRFD; AISC 360-05 provisions)",
+  "phi": {
+    "tensionYield": 0.9,
+    "tensionRupture": 0.75,
+    "compression": 0.9,
+    "flexure": 0.9,
+    "shear": 0.9,
+    "bolt": 0.75,
+    "bearing": 0.75,
+    "blockShear": 0.75,
+    "weld": 0.75,
+    "plateFlexure": 0.9
+  },
+  "slenderness": {
+    "compression": 150.0,
+    "tension": 300.0
+  },
+  "netAreaMax": 0.85,
+  "sources": {
+    "phi": "BNBC 2020 Part 6 Chapter 10; connections: Eqs. 6.10.168, 6.10.173a, 6.10.178, 6.10.162-163 (bnbc-2020-part2.pdf pp. 121-135); plate flexure 0.9 from memory",
+    "slenderness": "BNBC 2020 Part 6 Sec 10.5.2 (KL/r), 10.4.1 (L/r)",
+    "netAreaMax": "BNBC 2020 Part 6 Sec 10.10.4.1 Eq. 6.10.175"
+  }
+}

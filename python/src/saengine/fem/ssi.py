@@ -144,13 +144,12 @@ def options_from_settings(settings: Any) -> SsiOptions:
 def peak_acceleration(settings: Any) -> float | None:
     """Effective peak ground acceleration [g] of the site, the BNBC 2020 design spectrum's
     plateau / 2.5 with I = R = 1 (``(2/3) Z S``, ASCE 7's SDS/2.5); None without Z."""
-    from saengine.library import bnbc
+    from saengine.fem.seismic_design import peak_ground_acceleration
     from saengine.library.settings import derived
 
-    z = derived(settings)["Z"]
-    if not z:
+    if not derived(settings)["Z"]:
         return None
-    return 2 / 3 * float(z) * bnbc.SITE_FACTORS[settings.site.siteClass].s
+    return peak_ground_acceleration(settings)
 
 
 def shear_modulus_ratio(acceleration: float | None) -> float:

@@ -1,0 +1,121 @@
+{
+  "$defs": {
+    "Combination": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "factors": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Factors",
+          "type": "object"
+        }
+      },
+      "required": [
+        "name",
+        "factors"
+      ],
+      "title": "Combination",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Load cases and load combinations by category.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "loadCases": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Load case id -> title.",
+      "title": "Loadcases",
+      "type": "object"
+    },
+    "strength": {
+      "description": "Strength (LRFD/USD) combinations.",
+      "items": {
+        "$ref": "#/$defs/Combination"
+      },
+      "title": "Strength",
+      "type": "array"
+    },
+    "service": {
+      "items": {
+        "$ref": "#/$defs/Combination"
+      },
+      "title": "Service",
+      "type": "array"
+    },
+    "temperature": {
+      "description": "Strength combinations with T (rise +, fall -).",
+      "items": {
+        "$ref": "#/$defs/Combination"
+      },
+      "title": "Temperature",
+      "type": "array"
+    },
+    "gravity": {
+      "description": "The strength combinations with gravity loads only.",
+      "items": {
+        "$ref": "#/$defs/Combination"
+      },
+      "title": "Gravity",
+      "type": "array"
+    },
+    "seismicDeadUpper": {
+      "description": "D factor of the strength combination with E and L (before + Ev).",
+      "title": "Seismicdeadupper",
+      "type": "number"
+    },
+    "seismicDeadLower": {
+      "description": "D factor of the strength combination with E and no L (before - Ev).",
+      "title": "Seismicdeadlower",
+      "type": "number"
+    },
+    "overstrength": {
+      "default": "",
+      "description": "How Em applies: text for the report (Ω0 from the seismic systems table).",
+      "title": "Overstrength",
+      "type": "string"
+    }
+  },
+  "required": [
+    "loadCases",
+    "strength",
+    "seismicDeadUpper",
+    "seismicDeadLower"
+  ],
+  "title": "CombinationsTable",
+  "type": "object",
+  "$id": "saengine.codePack.combinations/1"
+}

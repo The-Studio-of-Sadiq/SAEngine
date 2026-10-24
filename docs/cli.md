@@ -73,6 +73,7 @@ Results go to **stdout** (text, or one JSON document with `--json`); progress go
 | `saengine new-building <spec.json> <dest> [--name NAME]` | A new building project generated from its grids and storeys (see [new-building.md](new-building.md)). |
 | `saengine versions status\|list\|save\|diff\|restore\|issue <project> ...` | The project's version history. |
 | `saengine verify [--out DIR] [--pdf]` | Runs SAEngine's verification pack. |
+| `saengine codepack list\|show\|new\|validate\|diff ...` | Design code packs: list, inspect, start, check and compare them (see [code-packs.md](code-packs.md)). |
 
 ### validate
 

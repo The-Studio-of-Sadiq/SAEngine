@@ -1,0 +1,115 @@
+{
+  "$defs": {
+    "Exposure": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "alpha": {
+          "exclusiveMinimum": 0,
+          "title": "Alpha",
+          "type": "number"
+        },
+        "zg": {
+          "description": "Gradient height [m].",
+          "exclusiveMinimum": 0,
+          "title": "Zg",
+          "type": "number"
+        }
+      },
+      "required": [
+        "description",
+        "alpha",
+        "zg"
+      ],
+      "title": "Exposure",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "exposures": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Exposure"
+      },
+      "title": "Exposures",
+      "type": "object"
+    },
+    "directionality": {
+      "description": "Kd for buildings.",
+      "title": "Directionality",
+      "type": "number"
+    },
+    "topographic": {
+      "description": "Kzt (flat terrain).",
+      "title": "Topographic",
+      "type": "number"
+    },
+    "gust": {
+      "description": "G of a rigid building.",
+      "title": "Gust",
+      "type": "number"
+    },
+    "cpWindward": {
+      "title": "Cpwindward",
+      "type": "number"
+    },
+    "cpLeeward": {
+      "items": {
+        "maxItems": 2,
+        "minItems": 2,
+        "prefixItems": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "number"
+          }
+        ],
+        "type": "array"
+      },
+      "title": "Cpleeward",
+      "type": "array"
+    }
+  },
+  "required": [
+    "exposures",
+    "directionality",
+    "topographic",
+    "gust",
+    "cpWindward",
+    "cpLeeward"
+  ],
+  "title": "WindTable",
+  "type": "object",
+  "$id": "saengine.codePack.wind/1"
+}

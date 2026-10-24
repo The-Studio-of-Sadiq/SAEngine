@@ -1,0 +1,13 @@
+{
+  "$schema": "../../../schemas/zoneCoefficients.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Table 6.2.14 (p. 615)"
+  ],
+  "source": "BNBC 2020 Part 6 Table 6.2.14 (p. 615)",
+  "zones": {
+    "1": 0.12,
+    "2": 0.2,
+    "3": 0.28,
+    "4": 0.36
+  }
+}

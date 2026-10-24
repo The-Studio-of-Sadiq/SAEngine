@@ -1,0 +1,56 @@
+{
+  "$schema": "../../../schemas/detailing.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 8.3 (pp. 1088-1122)"
+  ],
+  "source": "BNBC 2020 Part 6 Sec 8.3 (pp. 1088-1122)",
+  "special": {
+    "axialShare": 0.1,
+    "beamRhoMax": 0.025,
+    "columnRho": [
+      0.01,
+      0.06
+    ],
+    "beamMinWidth": 250.0,
+    "beamMinRatio": 0.3,
+    "columnMinDimension": 300.0,
+    "columnMinRatio": 0.4,
+    "fytConfinementMax": 700.0,
+    "hxMax": 350.0,
+    "unsupportedClear": 150.0,
+    "beamFirstHoop": 50.0
+  },
+  "joints": {
+    "probableStress": 1.25,
+    "strongColumnRatio": 1.2,
+    "axialLimit": 0.1,
+    "gamma": {
+      "4": 1.7,
+      "3": 1.2,
+      "opposite": 1.2,
+      "other": 1.0
+    },
+    "vcZeroAxial": 0.05
+  },
+  "walls": {
+    "relaxedShare": 0.083,
+    "twoCurtainShare": 0.17,
+    "driftMin": 0.007,
+    "stressRequired": 0.2,
+    "stressStop": 0.15,
+    "fytConfinementMax": 700.0,
+    "hxMax": 350.0
+  },
+  "lintels": {
+    "minBearing": 100.0,
+    "bearing": 150.0,
+    "deflectionRatio": 600.0,
+    "probable": 1.25
+  },
+  "sources": {
+    "special": "BNBC 2020 Part 6 Sec 8.3.4, 8.3.5 (pp. 1090-1100), 8.1.9.4(c)",
+    "joints": "BNBC 2020 Part 6 Sec 8.3.5.2(b), 8.3.7 (pp. 1096, 1108-1110), 8.3.8.2(a) (p. 1112)",
+    "walls": "BNBC 2020 Part 6 Sec 8.3.6.2, 8.3.6.6 (pp. 1100-1105)",
+    "lintels": "SAEngine lintel design (design/lintels.py CLAUSES)"
+  }
+}

@@ -45,9 +45,9 @@ from typing import Any
 
 import numpy as np
 
+from saengine.codes import context as code_context
 from saengine.fem import loads as fl
 from saengine.fem.mesh import Surface, Volume, mesh, shell_node_shares
-from saengine.library import bnbc
 from saengine.library.bim import (
     AreaElement,
     BeamElement,
@@ -303,6 +303,38 @@ def local_axes(a: np.ndarray, b: np.ndarray) -> tuple[np.ndarray, np.ndarray, np
 
 
 def derive_fem(
+    building: BuildingModel,
+    objects: ObjectLibrary,
+    materials: MaterialLibrary,
+    settings: ProjectSettings,
+    sources: dict[str, str] | None = None,
+    model_dir: str | Path | None = None,
+    mep: Any = None,
+    substructure: Any = None,
+    soil_text: str | None = None,
+    column_supports: str | None = None,
+) -> Derivation:
+    """The OpenSees Studio project of ``building`` with the loads of ``settings``, under the
+    project's code pack (``settings.codePack``; its project-local packs looked for in the
+    project of :func:`saengine.codes.context.project`, else the one holding ``model_dir``).
+    See :func:`_derive_fem`."""
+    root = code_context.project_root() or code_context.find_project_root(model_dir)
+    with code_context.using(code_context.pack_for(settings, root)):
+        return _derive_fem(
+            building,
+            objects,
+            materials,
+            settings,
+            sources,
+            model_dir,
+            mep,
+            substructure,
+            soil_text,
+            column_supports,
+        )
+
+
+def _derive_fem(
     building: BuildingModel,
     objects: ObjectLibrary,
     materials: MaterialLibrary,
@@ -794,8 +826,10 @@ def derive_fem(
                 add_nodal("D", node_id, down * w, top_stage(solid.nodes))
                 add_weight(node_id, w)
 
+    live_share = code_context.table("seismic").liveShare
+
     def seismic_share(case: str) -> float:
-        return 1.0 if case in ("D", "SD") else bnbc.SEISMIC_LIVE_SHARE if case == "L" else 0.0
+        return 1.0 if case in ("D", "SD") else live_share if case == "L" else 0.0
 
     def shell_pressure(shell: _Shell, case: str, pressure: float) -> None:
         """A uniform downward pressure (N/m²) on a shell, as its consistent nodal loads."""
@@ -1184,7 +1218,7 @@ def derive_fem(
     analyses = [
         {
             "id": number,
-            "name": f"{case}: {bnbc.LOAD_CASES[case]}",
+            "name": f"{case}: {code_context.table('combinations').loadCases[case]}",
             "type": "Static",
             "pattern_ids": [number],
             "n_steps": 1,
@@ -1216,7 +1250,7 @@ def derive_fem(
         dead = analyses[CASES.index("D")]
         analyses[CASES.index("D")] = {
             "id": dead["id"],
-            "name": f"D: {bnbc.LOAD_CASES['D']}, construction sequence",
+            "name": f"D: {code_context.table('combinations').loadCases['D']}, construction sequence",
             "type": "Staged",
             "stages": stages,
             "system": "BandGeneral",
@@ -1227,7 +1261,7 @@ def derive_fem(
             {
                 **dead,
                 "id": dead_preload,
-                "name": f"D0: {bnbc.LOAD_CASES['D']}, applied at once",
+                "name": f"D0: {code_context.table('combinations').loadCases['D']}, applied at once",
             }
         )
         b.notes.append(

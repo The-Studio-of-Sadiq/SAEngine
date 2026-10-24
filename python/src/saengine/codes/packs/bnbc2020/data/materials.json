@@ -1,0 +1,36 @@
+{
+  "$schema": "../../../schemas/materials.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 8.3.3 (pp. 1089-1090)"
+  ],
+  "source": "BNBC 2020 Part 6 Chapters 6, 8 and 10",
+  "concreteStrain": 0.003,
+  "steelE": 200000.0,
+  "steelShearModulus": 77200.0,
+  "seismicFcMin": 21.0,
+  "lightweightFcMax": 35.0,
+  "lightweightDensity": 1850.0,
+  "seismicRebarFy": [
+    275.0,
+    300.0,
+    350.0,
+    400.0,
+    420.0
+  ],
+  "seismicRebarFyMax": 420.0,
+  "gradeTolerance": 0.02,
+  "fyActualMargin": 125.0,
+  "fyRetestMargin": 20.0,
+  "fuFyMin": 1.25,
+  "sources": {
+    "concreteStrain": "ACI 318 22.2.2.1 (as the code's Chapter 6; page not checked)",
+    "steelShearModulus": "BNBC 2020 Part 6 Sec 10.5.4",
+    "seismicFcMin": "BNBC 2020 Part 6 Sec 8.3.3.3 (p. 1089)",
+    "lightweightFcMax": "BNBC 2020 Part 6 Sec 8.3.3.3 (p. 1089)",
+    "lightweightDensity": "BNBC 2020 Part 6 Sec 6.1 definitions (p. 868)",
+    "seismicRebarFy": "BNBC 2020 Part 6 Sec 8.3.3.4(b) (pp. 1089-1090)",
+    "gradeTolerance": "SAEngine choice (Grade 420 entered as 415 MPa)",
+    "fyActualMargin": "BNBC 2020 Part 6 Sec 8.3.3.4(b)(i) (pp. 1089-1090)",
+    "fuFyMin": "BNBC 2020 Part 6 Sec 8.3.3.4(b)(ii) (pp. 1089-1090)"
+  }
+}

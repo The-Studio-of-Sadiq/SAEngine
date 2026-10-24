@@ -3,7 +3,8 @@
 Pure functions: given the building's levels, weights and plan, they return the equivalent
 static seismic and wind forces per level and the beam loads of slab areas. The derivation of the
 analysis model (:mod:`saengine.fem.derive`) applies them; every formula names its clause, and
-:mod:`saengine.library.bnbc` holds the coefficients.
+the code pack in force (:func:`saengine.codes.context.current`, BNBC 2020 by default) holds
+the coefficients.
 
 Units: m, kN, s.
 """
@@ -14,21 +15,27 @@ import math
 from dataclasses import dataclass
 from itertools import pairwise
 
-from saengine.library import bnbc
+from saengine.codes import context as code_context
 
 # ───────────────────────── seismic: equivalent static force method ─────────────────────────
 
 
 def approximate_period(height: float, system: str) -> float:
     """Fundamental period T = Ct·hn^m [s] for a building ``height`` metres tall."""
-    ct, m = bnbc.PERIOD_COEFFICIENTS[bnbc.SYSTEM_PERIOD_FAMILY.get(system, "other")]
+    seismic = code_context.table("seismic")
+    row = seismic.systems.get(system)
+    family = (row.periodFamily if row else None) or "other"
+    coefficient = seismic.periodCoefficients[family]
+    ct, m = coefficient.Ct, coefficient.m
     return ct * height**m
 
 
 def normalized_spectrum(period: float, site_class: str) -> float:
     """Normalized acceleration response spectrum Cs(T) for the site class (5 % damping)."""
-    s, tb, tc, td = bnbc.SITE_FACTORS[site_class]
-    eta = bnbc.DAMPING_ETA
+    seismic = code_context.table("seismic")
+    site = seismic.siteClasses[site_class]
+    s, tb, tc, td = site.S, site.TB, site.TC, site.TD
+    eta = seismic.dampingEta
     if period <= tb:
         return s * (1 + period / tb * (2.5 * eta - 1))
     if period <= tc:
@@ -63,17 +70,19 @@ def vertical_distribution(
 
 def exposure_coefficient(height: float, exposure: str) -> float:
     """Velocity pressure exposure coefficient Kz at ``height`` metres (Table 6.2.11)."""
-    alpha, zg = bnbc.EXPOSURE_PROFILES[exposure]
+    profile = code_context.table("wind").exposures[exposure]
+    alpha, zg = profile.alpha, profile.zg
     return 2.01 * (max(height, 4.57) / zg) ** (2 / alpha)
 
 
 def velocity_pressure(height: float, speed: float, exposure: str, importance: float) -> float:
     """qz = 0.000613·Kz·Kzt·Kd·V²·I [kN/m²], V in m/s."""
+    wind = code_context.table("wind")
     return (
         0.000613
         * exposure_coefficient(height, exposure)
-        * bnbc.WIND_KZT
-        * bnbc.WIND_KD
+        * wind.topographic
+        * wind.directionality
         * speed**2
         * importance
     )
@@ -81,7 +90,7 @@ def velocity_pressure(height: float, speed: float, exposure: str, importance: fl
 
 def leeward_coefficient(aspect: float) -> float:
     """Leeward wall Cp for a plan aspect L/B (depth along the wind over width across it)."""
-    points = bnbc.WIND_CP_LEEWARD
+    points = code_context.table("wind").cpLeeward
     if aspect <= points[0][0]:
         return points[0][1]
     for (a0, c0), (a1, c1) in pairwise(points):
@@ -101,21 +110,18 @@ def wind_level_forces(
     """
     if not heights:
         return []
+    wind = code_context.table("wind")
     roof = heights[-1]
     leeward = (
         velocity_pressure(roof, speed, exposure, importance)
-        * bnbc.WIND_GUST
+        * wind.gust
         * leeward_coefficient(depth / width)
     )
     forces = []
     for i, z in enumerate(heights):
         below = z - (z - (heights[i - 1] if i else 0.0)) / 2
         above = z + ((heights[i + 1] - z) / 2 if i + 1 < len(heights) else 0.0)
-        windward = (
-            velocity_pressure(z, speed, exposure, importance)
-            * bnbc.WIND_GUST
-            * bnbc.WIND_CP_WINDWARD
-        )
+        windward = velocity_pressure(z, speed, exposure, importance) * wind.gust * wind.cpWindward
         forces.append((windward - leeward) * width * (above - below))
     return forces
 

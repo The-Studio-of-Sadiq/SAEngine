@@ -115,7 +115,7 @@ class Foundation(_Model):
         default=None,
         title="Punching reinforcement",
         description="Studs or stirrups round its columns, checked where the concrete alone is "
-        "not enough (isolated, combined footings; empty: none).",
+        "not enough (isolated, combined footings and rafts; empty: none).",
     )
     pileType: Id | None = Field(default=None, title="Pile type", description="Pile caps.")
     piles: list[Point2] | None = Field(

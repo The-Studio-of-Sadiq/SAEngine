@@ -1,0 +1,338 @@
+{
+  "$schema": "../../../schemas/seismic.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 2.5 (pp. 609-648)"
+  ],
+  "source": "BNBC 2020 Part 6 Sec 2.5 (pp. 609-648)",
+  "siteClasses": {
+    "SA": {
+      "description": "Rock or rock-like formation, at most 5 m of weaker material on top (Vs > 800 m/s)",
+      "S": 1.0,
+      "TB": 0.15,
+      "TC": 0.4,
+      "TD": 2.0
+    },
+    "SB": {
+      "description": "Very dense sand, gravel or very stiff clay (Vs 360-800 m/s, N > 50, su > 250 kPa)",
+      "S": 1.2,
+      "TB": 0.15,
+      "TC": 0.5,
+      "TD": 2.0
+    },
+    "SC": {
+      "description": "Dense or medium dense sand, gravel or stiff clay (Vs 180-360 m/s, N 15-50, su 70-250 kPa)",
+      "S": 1.15,
+      "TB": 0.2,
+      "TC": 0.6,
+      "TD": 2.0
+    },
+    "SD": {
+      "description": "Loose-to-medium cohesionless soil or soft-to-firm cohesive soil (Vs < 180 m/s, N < 15, su < 70 kPa)",
+      "S": 1.35,
+      "TB": 0.2,
+      "TC": 0.8,
+      "TD": 2.0
+    },
+    "SE": {
+      "description": "Surface alluvium of SC or SD, 5-20 m thick, on material with Vs > 800 m/s",
+      "S": 1.4,
+      "TB": 0.15,
+      "TC": 0.5,
+      "TD": 2.0
+    }
+  },
+  "systems": {
+    "rcSmf": {
+      "name": "RC special moment frame",
+      "R": 8.0,
+      "Omega0": 3.0,
+      "Cd": 5.5,
+      "row": "C.4 (p. 623)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": null
+      },
+      "frame": "special",
+      "specialWalls": false,
+      "concrete": true,
+      "momentFrame": true,
+      "periodFamily": "concreteMomentFrame"
+    },
+    "rcImf": {
+      "name": "RC intermediate moment frame",
+      "R": 5.0,
+      "Omega0": 3.0,
+      "Cd": 4.5,
+      "row": "C.5 (p. 623)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": 0.0
+      },
+      "frame": "intermediate",
+      "specialWalls": false,
+      "concrete": true,
+      "momentFrame": true,
+      "periodFamily": "concreteMomentFrame"
+    },
+    "rcOmf": {
+      "name": "RC ordinary moment frame",
+      "R": 3.0,
+      "Omega0": 3.0,
+      "Cd": 2.5,
+      "row": "C.5 [sic, the 6th row] (p. 623)",
+      "heightLimits": {
+        "B": null,
+        "C": 0.0,
+        "D": 0.0
+      },
+      "frame": "ordinary",
+      "specialWalls": false,
+      "concrete": true,
+      "momentFrame": true,
+      "periodFamily": "concreteMomentFrame"
+    },
+    "rcSpecialWallFrame": {
+      "name": "Building frame with RC special shear walls",
+      "R": 6.0,
+      "Omega0": 2.5,
+      "Cd": 5.0,
+      "row": "B.5 (p. 622)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": 50.0
+      },
+      "frame": null,
+      "specialWalls": true,
+      "concrete": true,
+      "momentFrame": false,
+      "periodFamily": null
+    },
+    "rcOrdinaryWallFrame": {
+      "name": "Building frame with RC ordinary shear walls",
+      "R": 5.0,
+      "Omega0": 2.5,
+      "Cd": 4.25,
+      "row": "B.6 (p. 622)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": 0.0
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": true,
+      "momentFrame": false,
+      "periodFamily": null
+    },
+    "rcDualSpecial": {
+      "name": "Dual: RC special moment frame and special shear walls",
+      "R": 7.0,
+      "Omega0": 2.5,
+      "Cd": 5.5,
+      "row": "D.3 (p. 623)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": null
+      },
+      "frame": "special",
+      "specialWalls": true,
+      "concrete": true,
+      "momentFrame": false,
+      "periodFamily": null
+    },
+    "steelSmf": {
+      "name": "Steel special moment frame",
+      "R": 8.0,
+      "Omega0": 3.0,
+      "Cd": 5.5,
+      "row": "C.1 (p. 622)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": null
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": false,
+      "momentFrame": true,
+      "periodFamily": "steelMomentFrame"
+    },
+    "steelOmf": {
+      "name": "Steel ordinary moment frame",
+      "R": 3.5,
+      "Omega0": 3.0,
+      "Cd": 3.0,
+      "row": "C.3 (p. 622)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": 0.0
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": false,
+      "momentFrame": true,
+      "periodFamily": "steelMomentFrame"
+    },
+    "steelScbf": {
+      "name": "Steel special concentrically braced frame",
+      "R": 6.0,
+      "Omega0": 2.0,
+      "Cd": 5.0,
+      "row": "B.3 (p. 622)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": 50.0
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": false,
+      "momentFrame": false,
+      "periodFamily": null
+    }
+  },
+  "periodCoefficients": {
+    "concreteMomentFrame": {
+      "Ct": 0.0466,
+      "m": 0.9
+    },
+    "steelMomentFrame": {
+      "Ct": 0.0724,
+      "m": 0.8
+    },
+    "other": {
+      "Ct": 0.0488,
+      "m": 0.75
+    }
+  },
+  "designCategories": {
+    "occupancyGroups": {
+      "I": "I-III",
+      "II": "I-III",
+      "III": "I-III",
+      "IV": "IV"
+    },
+    "bySiteClass": {
+      "SA": {
+        "I-III": [
+          "B",
+          "C",
+          "C",
+          "D"
+        ],
+        "IV": [
+          "C",
+          "D",
+          "D",
+          "D"
+        ]
+      },
+      "SB": {
+        "I-III": [
+          "B",
+          "C",
+          "D",
+          "D"
+        ],
+        "IV": [
+          "C",
+          "D",
+          "D",
+          "D"
+        ]
+      },
+      "SC": {
+        "I-III": [
+          "B",
+          "C",
+          "D",
+          "D"
+        ],
+        "IV": [
+          "C",
+          "D",
+          "D",
+          "D"
+        ]
+      },
+      "SD": {
+        "I-III": [
+          "C",
+          "D",
+          "D",
+          "D"
+        ],
+        "IV": [
+          "D",
+          "D",
+          "D",
+          "D"
+        ]
+      },
+      "SE": {
+        "I-III": [
+          "D",
+          "D",
+          "D",
+          "D"
+        ],
+        "IV": [
+          "D",
+          "D",
+          "D",
+          "D"
+        ]
+      }
+    },
+    "aliases": {
+      "S1": "SE",
+      "S2": "SE"
+    }
+  },
+  "requiredDetailing": {
+    "D": "special",
+    "C": "intermediate",
+    "B": "ordinary"
+  },
+  "allowableDrift": {
+    "I": 0.02,
+    "II": 0.02,
+    "III": 0.015,
+    "IV": 0.01
+  },
+  "dampingEta": 1.0,
+  "liveShare": 0.25,
+  "minimumScale": 0.85,
+  "accidentalEccentricity": 0.05,
+  "orthogonalShare": 0.3,
+  "massParticipation": 0.9,
+  "torsionIrregular": 1.2,
+  "torsionExtreme": 1.4,
+  "torsionAmplificationMax": 3.0,
+  "pgaFactor": 0.6666666666666666,
+  "verticalFactor": 0.5,
+  "sources": {
+    "siteClasses": "BNBC 2020 Part 6 Table 6.2.13 (p. 609) descriptions; Table 6.2.16 (p. 616) S, TB, TC, TD",
+    "systems": "BNBC 2020 Part 6 Sec 2.5.5.4, Table 6.2.19 (pp. 619-624)",
+    "periodCoefficients": "BNBC 2020 Part 6 Table 6.2.20 (p. 628)",
+    "designCategories": "BNBC 2020 Part 6 Sec 2.5.5.2, Table 6.2.18 (p. 617)",
+    "requiredDetailing": "BNBC 2020 Part 6 Sec 8.3.2(b)-(d) (pp. 1088-1089)",
+    "allowableDrift": "BNBC 2020 Part 6 Table 6.2.21 (p. 648), all other structures",
+    "liveShare": "BNBC 2020 Part 6 Sec 2.5.7, seismic weight W (p. 628)",
+    "minimumScale": "BNBC 2020 Part 6 Sec 2.5.9.4 (p. 635)",
+    "accidentalEccentricity": "BNBC 2020 Part 6 Sec 2.5.7.6.2 (p. 630)",
+    "orthogonalShare": "BNBC 2020 Part 6 Sec 2.5.13.1(b) (p. 645)",
+    "massParticipation": "BNBC 2020 Part 6 Sec 2.5.9.2 (p. 634)",
+    "torsionIrregular": "BNBC 2020 Part 6 Sec 2.5.5.3.1(i) (p. 617)",
+    "torsionExtreme": "BNBC 2020 Part 6 Sec 2.5.5.3.1(i) (p. 617)",
+    "torsionAmplificationMax": "BNBC 2020 Part 6 Sec 2.5.7.6.2, eq. 6.2.44 (p. 630)",
+    "pgaFactor": "BNBC 2020 Part 6 Sec 2.5.13.2 (p. 646), a_h = (2/3) Z S",
+    "verticalFactor": "BNBC 2020 Part 6 Sec 2.5.13.2, eq. 6.2.56 (pp. 645-646)",
+    "dampingEta": "5 % damping: η = 1 (page not checked)"
+  }
+}

@@ -32,7 +32,9 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { BNBC, DEFAULT_SETTINGS, SETTINGS_SCHEMA, TEMPLATES, THERMAL_COMBINATIONS } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { ISaengineProjectService, partById, PROJECT_TYPES, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
-import { EditorFrame } from '../../saengineProject/browser/editorFrame.js';
+import { appendPropertyRow, EditorFrame } from '../../saengineProject/browser/editorFrame.js';
+import './media/codePacks.css';
+import { changePackWarning, chosenPackId, CODES_LIST_COMMAND, coverageLabel, DEFAULT_CODE_PACK, ICodePackInfo, ICodePackOption, packOptionBlock, packOptions, readCodePacks } from './codePacksModel.js';
 import { clone, IDocumentFrameActions, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditorInput } from './libraryEditorInput.js';
 import { humanize, JsonObject, JsonValue, SchemaForm, titleCase } from './schemaForm.js';
@@ -129,6 +131,9 @@ const SECTION_OF: { readonly [key: string]: string } = {
 	roofLoad: 'areaLoads',
 };
 
+/** Settings edited in the toolbar rather than in a section: the design code (code pack). */
+const TOOLBAR_KEYS: ReadonlySet<string> = new Set(['codePack']);
+
 /**
  * The sections of the settings form: one per top-level setting of the schema (an object, a
  * list), in schema order; plain values join the section named in {@link SECTION_OF}.
@@ -136,7 +141,7 @@ const SECTION_OF: { readonly [key: string]: string } = {
 export function settingsSections(schema: IJSONSchema): ISettingsSection[] {
 	const sections: { id: string; title: string; keys: string[] }[] = [];
 	for (const [key, property] of Object.entries(schema.properties ?? {})) {
-		if (property.const !== undefined) {
+		if (property.const !== undefined || TOOLBAR_KEYS.has(key)) {
 			continue;
 		}
 		const owner = SECTION_OF[key];
@@ -170,6 +175,14 @@ export class SettingsEditor extends JsonDocumentEditor {
 	private typeSelect: SelectBox | undefined;
 	private typeSlot: HTMLElement | undefined;
 	private typeHover: { update(content: string): void } | undefined;
+	/** The design code (code pack) the project uses, in the toolbar after the project type. */
+	private packSelect: SelectBox | undefined;
+	private packSlot: HTMLElement | undefined;
+	private packHover: { update(content: string): void } | undefined;
+	/** The packs installed (from `saengine.codes.list`); undefined until the backend answers. */
+	private packs: ICodePackInfo[] | undefined;
+	private packChoices: ICodePackOption[] = [];
+	private packsVersion = 0;
 	private sectionId = SECTIONS[0]?.id;
 	private problemBox: HTMLElement | undefined;
 	private readonly form: SchemaForm;
@@ -223,14 +236,114 @@ export class SettingsEditor extends JsonDocumentEditor {
 			if (id === SOIL_SOURCES_COMMAND) {
 				this.sourcesScheduler.schedule(0);
 			}
+			if (id === CODES_LIST_COMMAND) {
+				void this.refreshPacks();
+			}
 		}));
 	}
 
 	// ───────────────────────────── values from the soil report ─────────────────────────────
 
+	/** Integration glue: packs made or installed on the Code Packs page meanwhile are offered when the settings are shown again. */
+	protected override setEditorVisible(visible: boolean): void {
+		super.setEditorVisible(visible);
+		if (visible && this.input) {
+			void this.refreshPacks();
+		}
+	}
+
 	protected override onWillLoadInput(): void {
 		this.sources = undefined;
 		void this.trackSoil();
+		void this.refreshPacks();
+	}
+
+	// ───────────────────────────── the design code (code pack) ─────────────────────────────
+
+	/** Asks the backend which code packs are installed (built-in, the user's, the project's). */
+	private async refreshPacks(): Promise<void> {
+		if (!CommandsRegistry.getCommand(CODES_LIST_COMMAND)) {
+			return; // until the backend offers code packs, the built-in BNBC 2020 alone is shown
+		}
+		const version = ++this.packsVersion;
+		let packs: ICodePackInfo[] | undefined;
+		try {
+			packs = readCodePacks(await this.commands.executeCommand<unknown>(CODES_LIST_COMMAND, { root: this.project.project?.root.fsPath }));
+		} catch {
+			packs = undefined;
+		}
+		if (version === this.packsVersion) {
+			this.packs = packs;
+			this.renderCodePack();
+			this.renderValues();
+			this.renderStatus();
+		}
+	}
+
+	/** The chosen pack as installed here (undefined when the settings name one not installed). */
+	private get chosenPack(): ICodePackInfo | undefined {
+		const id = chosenPackId(this.document);
+		const scopes = ['project', 'user', 'builtin'];
+		return [...(this.packs ?? [])].sort((a, b) => scopes.indexOf(a.scope) - scopes.indexOf(b.scope)).find(p => p.id === id);
+	}
+
+	/** The governing code's name ("BNBC 2020"), for the help, the status and the values panel. */
+	private get codeName(): string {
+		const id = chosenPackId(this.document);
+		return id === DEFAULT_CODE_PACK ? (this.chosenPack?.name ?? BNBC.edition) : (this.chosenPack?.name ?? id);
+	}
+
+	private createCodePack(frame: EditorFrame): void {
+		const slot = this.packSlot = append(frame.controlsSlot, $('.settings-code-pack'));
+		append(slot, $('span.sa-frame-label', undefined, localize('settings.designCode', "Design code")));
+		const select = this.packSelect = this._register(new SelectBox([], 0, this.contextViewService, defaultSelectBoxStyles, {
+			ariaLabel: localize('settings.designCode', "Design code"),
+		}));
+		const box = append(slot, $('.settings-code-pack-select'));
+		select.render(box);
+		this.packHover = this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), box, ''));
+		this._register(select.onDidSelect(e => void this.changeCodePack(this.packChoices[e.index])));
+	}
+
+	/** The selector follows the settings' `codePack` and the packs installed. */
+	private renderCodePack(): void {
+		const select = this.packSelect;
+		if (!select) {
+			return;
+		}
+		this.packSlot?.classList.toggle('hidden', !this.document);
+		const chosen = chosenPackId(this.document);
+		this.packChoices = packOptions(this.packs ?? [], chosen);
+		const index = Math.max(0, this.packChoices.findIndex(o => o.id === chosen));
+		// A pack with errors cannot be loaded by analysis or design, so it cannot be chosen.
+		select.setOptions(this.packChoices.map(o => ({ text: o.label, description: o.description, isDisabled: o.unusable && o.id !== chosen })), index);
+		const option = this.packChoices[index];
+		this.packHover?.update(this.packs === undefined
+			? localize('settings.designCodeStandIn', "{0}. Other code packs become available when SAEngine offers them (≡ > Code Packs...).", option?.label ?? BNBC.edition)
+			: option?.description || option?.label || '');
+	}
+
+	/** Switches the project to another pack after warning that the design results change. */
+	private async changeCodePack(option: ICodePackOption | undefined): Promise<void> {
+		const document = this.document;
+		const from = chosenPackId(document);
+		if (!document || !option || option.id === from) {
+			return;
+		}
+		const block = packOptionBlock(option);
+		if (block) {
+			await this.dialogService.error(block.message, block.detail);
+			this.renderCodePack();
+			return;
+		}
+		const fromLabel = this.packChoices.find(o => o.id === from)?.label ?? from;
+		const { confirmed } = await this.dialogService.confirm({ type: 'warning', ...changePackWarning(fromLabel, option), primaryButton: localize('settings.changeCodeButton', "&&Change Design Code") });
+		if (confirmed && this.document === document) {
+			document.codePack = option.id;
+			this.changed(true);
+		} else {
+			this.renderCodePack();
+		}
 	}
 
 	/** Follows the soil report (Part 1), whose boreholes give the site class and qa. */
@@ -366,8 +479,9 @@ export class SettingsEditor extends JsonDocumentEditor {
 		const frame = this.documentFrame!;
 		frame.element.classList.add('saengine-settings-editor');
 		frame.setTitle(localize('settings.title', "Project Settings"));
-		frame.setHelp(localize('settings.intro', "Codes, occupancy, site and loads of the project. {0} is the governing code: its tables give the code values in the panel on the right, and every one can be overridden. The floor plan, the building model and the analysis read these settings.", BNBC.edition));
+		frame.setHelp(localize('settings.intro', "Codes, occupancy, site and loads of the project. The design code (a code pack, {0} by default) is chosen in the toolbar: its tables give the code values in the panel on the right, and every one can be overridden. The floor plan, the building model and the analysis read these settings. ≡ > Code Packs lists the packs installed and makes new ones.", BNBC.edition));
 		this.createProjectType(frame);
+		this.createCodePack(frame);
 
 		body.classList.add('sa-sections');
 		this.nav = append(body, $('.sa-section-list', { role: 'listbox', tabIndex: 0, 'aria-label': localize('settings.sections', "Sections") }));
@@ -520,6 +634,7 @@ export class SettingsEditor extends JsonDocumentEditor {
 	protected render(): void {
 		this.problemBox = undefined;
 		this.renderProjectType();
+		this.renderCodePack();
 		this.renderNav();
 		this.renderPage();
 		this.renderValues();
@@ -624,6 +739,18 @@ export class SettingsEditor extends JsonDocumentEditor {
 		if (!this.document) {
 			return;
 		}
+		// The design code first: which pack, its edition and what it provides itself.
+		const pack = this.chosenPack;
+		appendPropertyRow(panel, localize('settings.designCode', "Design code"), this.packChoices.find(o => o.id === chosenPackId(this.document))?.label ?? this.codeName);
+		if (pack?.edition && pack.edition !== pack.name) {
+			appendPropertyRow(panel, localize('settings.edition', "Edition"), pack.edition);
+		}
+		if (pack?.covers.length) {
+			const chips = append(panel, $('.settings-code-pack-chips', { 'aria-label': localize('settings.packProvides', "Provides") }));
+			for (const area of pack.covers) {
+				append(chips, $('span', undefined, coverageLabel(area)));
+			}
+		}
 		const table = append(panel, $('.settings-values', { role: 'table', 'aria-label': localize('settings.codeValues', "Code Values") }));
 		const soil = this.sources?.soil;
 		for (const value of codeValues(this.document, soil?.class ? { class: soil.class, label: soil.label } : undefined)) {
@@ -641,6 +768,9 @@ export class SettingsEditor extends JsonDocumentEditor {
 			}
 		}
 		append(panel, $('.sa-props-note', undefined, localize('settings.valuesNote', "From the {0} tables for the site, occupancy and structural system. * overridden in the settings. Hover a value for its source.", BNBC.edition)));
+		if (chosenPackId(this.document) !== DEFAULT_CODE_PACK) {
+			append(panel, $('.sa-props-note', undefined, localize('settings.valuesOtherPack', "These preview values come from the {0} tables built into this editor; the tables of {1} apply when the project is analysed and designed.", BNBC.edition, this.codeName)));
+		}
 	}
 
 	protected renderProblems(): void {
@@ -686,6 +816,6 @@ export class SettingsEditor extends JsonDocumentEditor {
 			});
 			return;
 		}
-		frame.setStatus({ text: localize('settings.status', "{0} governs; every code value can be overridden. Read by the floor plan, the building model and the analysis.", BNBC.edition) });
+		frame.setStatus({ text: localize('settings.status', "{0} governs; every code value can be overridden. Read by the floor plan, the building model and the analysis.", this.codeName) });
 	}
 }

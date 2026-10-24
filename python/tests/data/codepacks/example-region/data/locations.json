@@ -1,0 +1,20 @@
+{
+  "$help": "Two invented towns added to BNBC's list, and Chattogram's basic wind speed changed; every other town comes from bnbc2020 unchanged.",
+  "$sources": ["Example local schedule, Table 1"],
+  "source": "BNBC 2020 Part 6 Tables 6.2.8 and 6.2.15, with the example local schedule, Table 1",
+  "locations": {
+    "northford": {
+      "name": "Northford",
+      "zone": 3,
+      "windSpeed": 58.0
+    },
+    "saltmarsh": {
+      "name": "Saltmarsh",
+      "zone": 1,
+      "windSpeed": 84.5
+    },
+    "chattogram": {
+      "windSpeed": 82.0
+    }
+  }
+}

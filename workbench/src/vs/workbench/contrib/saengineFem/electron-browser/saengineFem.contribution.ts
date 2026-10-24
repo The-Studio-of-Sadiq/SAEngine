@@ -125,7 +125,7 @@ registerAction2(class extends Action2 {
  */
 CommandsRegistry.registerCommand('saengine.library.check', async (accessor, kind: LibraryFileKind, text: string, materialsText?: string) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
-	return accessor.get(IFemSolverService).checkLibrary(python, kind, text, materialsText);
+	return accessor.get(IFemSolverService).checkLibrary(python, kind, text, materialsText, accessor.get(ISaengineProjectService).project?.root.fsPath);
 });
 
 /**
@@ -200,12 +200,12 @@ CommandsRegistry.registerCommand('saengine.fem.resultView', async (accessor, mod
 
 CommandsRegistry.registerCommand('saengine.bim.generateFromStructure', async (accessor, structureText: string, bimText?: string) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
-	return accessor.get(IFemSolverService).generateBuildingFromStructure(python, structureText, bimText);
+	return accessor.get(IFemSolverService).generateBuildingFromStructure(python, structureText, bimText, accessor.get(ISaengineProjectService).project?.root.fsPath);
 });
 
 CommandsRegistry.registerCommand('saengine.bim.generate', async (accessor, floorPlanText: string, bimText?: string) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
-	return accessor.get(IFemSolverService).generateBuilding(python, floorPlanText, bimText);
+	return accessor.get(IFemSolverService).generateBuilding(python, floorPlanText, bimText, accessor.get(ISaengineProjectService).project?.root.fsPath);
 });
 
 /**
@@ -258,7 +258,8 @@ CommandsRegistry.registerCommand('saengine.boq.compute', async (accessor, args: 
  */
 CommandsRegistry.registerCommand('saengine.soil.compute', async (accessor, args: { soilText: string; settingsText?: string }) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
-	return accessor.get(IFemSolverService).soilReport(python, args.soilText, args.settingsText);
+	// The project folder: the settings' code pack may be one of the project's own.
+	return accessor.get(IFemSolverService).soilReport(python, args.soilText, args.settingsText, accessor.get(ISaengineProjectService).project?.root.fsPath);
 });
 
 /**
@@ -285,7 +286,7 @@ CommandsRegistry.registerCommand('saengine.soil.template', async (accessor, args
 /** Net allowable bearing pressure of one footing from the soil report (lengths in mm). */
 CommandsRegistry.registerCommand('saengine.soil.allowableBearing', async (accessor, request: ISoilBearingRequest) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
-	return accessor.get(IFemSolverService).soilAllowableBearing(python, request);
+	return accessor.get(IFemSolverService).soilAllowableBearing(python, { ...request, projectRoot: request.projectRoot ?? accessor.get(ISaengineProjectService).project?.root.fsPath });
 });
 
 /**
@@ -294,7 +295,7 @@ CommandsRegistry.registerCommand('saengine.soil.allowableBearing', async (access
  */
 CommandsRegistry.registerCommand('saengine.soil.sources', async (accessor, args: { soilText?: string; settingsText?: string }) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
-	return accessor.get(IFemSolverService).soilSources(python, args.soilText, args.settingsText);
+	return accessor.get(IFemSolverService).soilSources(python, args.soilText, args.settingsText, accessor.get(ISaengineProjectService).project?.root.fsPath);
 });
 
 /** The PDF design report of the project. Internal: the report command calls it by id. */
@@ -522,7 +523,7 @@ CommandsRegistry.registerCommand('saengine.design.apply', async (accessor, args:
  */
 CommandsRegistry.registerCommand('saengine.soil.location', async (accessor, args: { readonly soilText: string; readonly bimText?: string; readonly settingsText?: string }) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
-	return accessor.get(IFemSolverService).engine(python, 'soil/location', { soilText: args.soilText, bimText: args.bimText, settingsText: args.settingsText });
+	return accessor.get(IFemSolverService).engine(python, 'soil/location', { soilText: args.soilText, bimText: args.bimText, settingsText: args.settingsText, projectRoot: accessor.get(ISaengineProjectService).project?.root.fsPath });
 });
 
 CommandsRegistry.registerCommand('saengine.soil.gisExport', async (accessor, args: { readonly projectRoot: string; readonly format: 'geojson' | 'gpkg'; readonly outPath: string }) => {

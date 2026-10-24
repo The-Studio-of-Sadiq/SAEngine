@@ -49,6 +49,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from saengine.codes import context as code_context
 from saengine.pipeline import summaries as S
 from saengine.pipeline.project import Project, open_project, read_text, write_text
 from saengine.pipeline.status import (
@@ -822,6 +823,14 @@ def run_all(
     each step and with the solver's progress. A step that cannot be done stops the run, as in
     the app; the steps after it are ``skipped`` ("Not run")."""
     project = root if isinstance(root, Project) else open_project(root)
+    # The project's own code packs (02 Project Settings/code-packs) are found while it runs.
+    with code_context.project(project.root):
+        return _run_all(project, steps, progress)
+
+
+def _run_all(
+    project: Project, steps: Iterable[str] | None, progress: Progress | None
+) -> RunAllResult:
     wanted = normalise_steps(steps)
     # The drawings are drawn when asked for by name, else only to keep a generated set current.
     drawings_asked = steps is not None and "drawings" in wanted

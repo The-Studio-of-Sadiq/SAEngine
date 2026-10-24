@@ -172,6 +172,39 @@ CommandsRegistry.registerCommand(VERSIONS_MARK_ISSUED_COMMAND, async (accessor, 
 	return orThrow(await call(accessor, 'versions/markIssued', { projectRoot: args.projectRoot, version: args.version, label: args.label, author: author(accessor, args) }));
 });
 
+// --- Code packs -------------------------------------------------------------------------------
+// The commands the Design code selector (Project Settings) and the Code Packs page call by id
+// (`../../saengineLibrary/browser/codePacksModel.ts`), forwarded to `saengine.codes`.
+
+CommandsRegistry.registerCommand('saengine.codes.list', async (accessor, raw: unknown) => {
+	return call(accessor, 'codes/list', { root: str(bag(raw).root) });
+});
+
+CommandsRegistry.registerCommand('saengine.codes.show', async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return orThrow(await call(accessor, 'codes/show', { id: args.id, root: str(args.root) }));
+});
+
+CommandsRegistry.registerCommand('saengine.codes.new', async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return orThrow(await call(accessor, 'codes/new', { id: args.id, name: str(args.name), extends: str(args.extends), scope: args.scope === 'project' ? 'project' : 'user', dest: str(args.dest), root: str(args.root) }));
+});
+
+CommandsRegistry.registerCommand('saengine.codes.install', async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return orThrow(await call(accessor, 'codes/install', { path: args.path, scope: args.scope === 'project' ? 'project' : 'user', root: str(args.root) }));
+});
+
+CommandsRegistry.registerCommand('saengine.codes.validate', async (accessor, raw: unknown) => {
+	const args = bag(typeof raw === 'string' ? { path: raw } : raw);
+	return call(accessor, 'codes/validate', { path: args.path, root: str(args.root) });
+});
+
+CommandsRegistry.registerCommand('saengine.codes.trust', async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return orThrow(await call(accessor, 'codes/trust', { id: args.id, trusted: args.trusted === true, root: str(args.root) }));
+});
+
 // --- CAD --------------------------------------------------------------------------------------
 
 /**

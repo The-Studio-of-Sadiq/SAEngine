@@ -135,17 +135,19 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 		return this.request(python, 'results/view', { outDir, projectPath: project, key, mode });
 	}
 
-	async checkLibrary(python: string, kind: LibraryFileKind, text: string, companionText?: string): Promise<readonly ILibraryProblem[]> {
-		const result = await this.request<{ problems: ILibraryProblem[] }>(python, 'library/check', { kind, text, materialsText: companionText });
+	async checkLibrary(python: string, kind: LibraryFileKind, text: string, companionText?: string, projectRoot?: string): Promise<readonly ILibraryProblem[]> {
+		// `projectRoot`: the settings' code pack may be one of the project's own (02 Project Settings/code-packs).
+		const result = await this.request<{ problems: ILibraryProblem[] }>(python, 'library/check', { kind, text, materialsText: companionText, projectRoot });
 		return result.problems;
 	}
 
-	generateBuilding(python: string, floorPlanText: string, bimText: string | undefined): Promise<IGeneratedBuilding> {
-		return this.request(python, 'bim/generate', { floorPlanText, bimText });
+	// `projectRoot` (here and in the soil requests below): the settings' code pack may be one of the project's own.
+	generateBuilding(python: string, floorPlanText: string, bimText: string | undefined, projectRoot?: string): Promise<IGeneratedBuilding> {
+		return this.request(python, 'bim/generate', { floorPlanText, bimText, projectRoot });
 	}
 
-	generateBuildingFromStructure(python: string, structureText: string, bimText: string | undefined): Promise<IGeneratedBuilding> {
-		return this.request(python, 'bim/generateFromStructure', { structureText, bimText });
+	generateBuildingFromStructure(python: string, structureText: string, bimText: string | undefined, projectRoot?: string): Promise<IGeneratedBuilding> {
+		return this.request(python, 'bim/generateFromStructure', { structureText, bimText, projectRoot });
 	}
 
 	buildingIfc(python: string, request: IBuildingIfcRequest): Promise<IBuildingIfc> {
@@ -184,8 +186,8 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 		return this.request(python, 'report/build', { projectRoot, outPdf });
 	}
 
-	soilReport(python: string, soilText: string, settingsText?: string): Promise<object> {
-		return this.request(python, 'soil/report', { soilText, settingsText });
+	soilReport(python: string, soilText: string, settingsText?: string, projectRoot?: string): Promise<object> {
+		return this.request(python, 'soil/report', { soilText, settingsText, projectRoot });
 	}
 
 	soilAllowableBearing(python: string, request: ISoilBearingRequest): Promise<ISoilBearing> {
@@ -200,8 +202,8 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 		return this.request(python, 'soil/template', { path });
 	}
 
-	soilSources(python: string, soilText: string | undefined, settingsText: string | undefined): Promise<ISoilSources> {
-		return this.request(python, 'soil/sources', { soilText, settingsText });
+	soilSources(python: string, soilText: string | undefined, settingsText: string | undefined, projectRoot?: string): Promise<ISoilSources> {
+		return this.request(python, 'soil/sources', { soilText, settingsText, projectRoot });
 	}
 
 	substructureReport(python: string, projectRoot: string): Promise<object> {

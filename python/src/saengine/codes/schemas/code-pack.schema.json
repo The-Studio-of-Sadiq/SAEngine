@@ -1,0 +1,250 @@
+{
+  "$defs": {
+    "Source": {
+      "additionalProperties": true,
+      "description": "A document the pack's values come from (a code, a standard, a gazette notification).",
+      "properties": {
+        "id": {
+          "description": "Short reference used in the tables' clause refs, e.g. 'BNBC'.",
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "edition": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Edition"
+        },
+        "publisher": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Publisher"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        }
+      },
+      "required": [
+        "id",
+        "title"
+      ],
+      "title": "Source",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "``pack.json``: what the pack is, which pack it builds on and which tables it provides.",
+  "properties": {
+    "$schema": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Path of the JSON Schema, for editors.",
+      "title": "$Schema"
+    },
+    "$comment": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "$Comment"
+    },
+    "schema": {
+      "const": "saengine.codePack/1",
+      "default": "saengine.codePack/1",
+      "title": "Schema",
+      "type": "string"
+    },
+    "id": {
+      "description": "Unique id: lower case letters, digits, '.', '_' and '-', e.g. 'bnbc2020'.",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "name": {
+      "description": "Readable name, e.g. 'BNBC 2020'.",
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "edition": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Edition or year of the code.",
+      "title": "Edition"
+    },
+    "country": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "ISO 3166 country code, e.g. 'BD'.",
+      "title": "Country"
+    },
+    "region": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "State, province or city, when local.",
+      "title": "Region"
+    },
+    "version": {
+      "default": "1.0.0",
+      "description": "Version of the pack itself.",
+      "title": "Version",
+      "type": "string"
+    },
+    "extends": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Id of the pack this one builds on; tables not provided here are inherited.",
+      "title": "Extends"
+    },
+    "covers": {
+      "description": "The areas (table names) this pack provides, e.g. ['locations', 'wind'].",
+      "items": {
+        "type": "string"
+      },
+      "title": "Covers",
+      "type": "array"
+    },
+    "description": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Description"
+    },
+    "sources": {
+      "description": "The documents the values come from.",
+      "items": {
+        "$ref": "#/$defs/Source"
+      },
+      "title": "Sources",
+      "type": "array"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "description": "Clause references per table, e.g. {'combinations': ['BNBC Part 6 2.7.3']}; a data file's own '$sources' take precedence.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "author": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Author"
+    },
+    "licence": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "SPDX id of the pack's licence.",
+      "title": "Licence"
+    },
+    "hooks": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Python file in the pack (e.g. 'hooks.py') whose top-level functions override design functions of the same name. Imported only when the user trusts the pack; editing the file revokes the trust.",
+      "title": "Hooks"
+    }
+  },
+  "required": [
+    "id",
+    "name"
+  ],
+  "title": "SAEngine code pack",
+  "type": "object",
+  "$id": "saengine.codePack/1"
+}

@@ -1,0 +1,33 @@
+{
+  "additionalProperties": false,
+  "description": "Seismic zone coefficient Z (peak ground acceleration in g) by zone.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "zones": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "title": "Zones",
+      "type": "object"
+    }
+  },
+  "required": [
+    "zones"
+  ],
+  "title": "ZoneCoefficientsTable",
+  "type": "object",
+  "$id": "saengine.codePack.zoneCoefficients/1"
+}

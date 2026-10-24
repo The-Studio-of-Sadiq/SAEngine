@@ -78,7 +78,7 @@ from typing import Any, Literal
 
 import numpy as np
 
-from saengine.library import bnbc
+from saengine.codes import context as code_context
 
 #: Folder of the modal-force run inside the analysis results folder.
 RS_FOLDER = "rs-design"
@@ -200,18 +200,25 @@ def scale_factor(v_static: float, v_dynamic: float, fraction: float = MINIMUM_FR
 
 
 def zone_of(z: float | None) -> int | None:
-    """The seismic zone (1-4) of a zone coefficient Z: the zone whose Z is nearest."""
+    """The seismic zone (1-4) of a zone coefficient Z: the zone whose Z is nearest (zones of
+    the code pack in force)."""
     if not z:
         return None
-    return min(bnbc.ZONE_COEFFICIENT, key=lambda k: abs(bnbc.ZONE_COEFFICIENT[k] - z))
+    zones = code_context.table("zoneCoefficients").zones
+    return min(zones, key=lambda k: abs(zones[k] - z))
 
 
 def seismic_design_category(zone: int | None, site_class: str, occupancy: str) -> str | None:
-    """Table 6.2.18 (p. 617): "B", "C" or "D"; None without a zone."""
+    """Table 6.2.18 (p. 617): "B", "C" or "D"; None without a zone. From the code pack in
+    force (``seismic.designCategories``); a site class without a row takes the last row (SE)."""
     if zone is None:
         return None
-    rows = _SDC.get(site_class, _SDC["SE"])
-    return rows[1 if occupancy == "IV" else 0][int(zone) - 1]
+    table = code_context.table("seismic").designCategories
+    rows = table.bySiteClass
+    site = table.aliases.get(site_class, site_class)
+    row = rows.get(site) or rows.get("SE") or list(rows.values())[-1]
+    group = table.occupancyGroups.get(occupancy) or next(iter(row))
+    return row[group][int(zone) - 1]
 
 
 def orthogonal_required(category: str | None, option: str = "auto") -> bool:
@@ -225,10 +232,13 @@ def orthogonal_required(category: str | None, option: str = "auto") -> bool:
 
 def peak_ground_acceleration(settings: Any) -> float:
     """a_h = (2/3)·Z·S [g] (Sec 2.5.13.2, p. 646); 0 without Z."""
-    from saengine.library.settings import derived
+    from saengine.library.settings import code_pack, derived
 
     z = derived(settings)["Z"]
-    return 2 / 3 * float(z) * bnbc.SITE_FACTORS[settings.site.siteClass].s if z else 0.0
+    if not z:
+        return 0.0
+    seismic = code_pack(settings).table("seismic")
+    return seismic.pgaFactor * float(z) * seismic.siteClasses[settings.site.siteClass].S
 
 
 def vertical_coefficient(settings: Any) -> float:
@@ -241,7 +251,8 @@ def allowable_drift_ratio(
 ) -> float:
     """Δa / hsx: Table 6.2.21 (p. 648), "all other structures", divided by ρ for moment frames
     in Category D (Sec 2.5.14.1, p. 647)."""
-    ratio = ALLOWABLE_DRIFT.get(occupancy, ALLOWABLE_DRIFT["II"])
+    drift = code_context.table("seismic").allowableDrift
+    ratio = drift.get(occupancy, drift["II"])
     if category == "D" and system in MOMENT_FRAMES and redundancy > 0:
         ratio /= redundancy
     return ratio
@@ -1014,6 +1025,7 @@ def seismic_combinations(
 # ─────────────────────────────────────── the design ───────────────────────────────────────
 
 
+@code_context.in_project_pack(path_params=("project_path", "out_dir"))
 def seismic_design(
     out_dir: str | Path,
     project_path: str | Path,
@@ -1263,6 +1275,7 @@ def load_summary(out_dir: str | Path) -> dict[str, Any] | None:
     return summary if summary.get("schema") == SUMMARY_SCHEMA else None
 
 
+@code_context.in_project_pack(path_params=("out_dir",))
 def design_demands(
     project: dict[str, Any],
     out_dir: str | Path,

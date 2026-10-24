@@ -1,0 +1,148 @@
+{
+  "$defs": {
+    "SteelPhi": {
+      "additionalProperties": {
+        "exclusiveMinimum": 0,
+        "maximum": 1,
+        "type": "number"
+      },
+      "description": "φ of structural steel (extra keys allowed for hooks, also 0 < φ <= 1).",
+      "properties": {
+        "tensionYield": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tensionyield",
+          "type": "number"
+        },
+        "tensionRupture": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tensionrupture",
+          "type": "number"
+        },
+        "compression": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Compression",
+          "type": "number"
+        },
+        "flexure": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Flexure",
+          "type": "number"
+        },
+        "shear": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Shear",
+          "type": "number"
+        },
+        "bolt": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Bolt",
+          "type": "number"
+        },
+        "bearing": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Bearing",
+          "type": "number"
+        },
+        "blockShear": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Blockshear",
+          "type": "number"
+        },
+        "weld": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Weld",
+          "type": "number"
+        },
+        "plateFlexure": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Plateflexure",
+          "type": "number"
+        }
+      },
+      "required": [
+        "tensionYield",
+        "tensionRupture",
+        "compression",
+        "flexure",
+        "shear",
+        "bolt",
+        "bearing",
+        "blockShear",
+        "weld",
+        "plateFlexure"
+      ],
+      "title": "SteelPhi",
+      "type": "object"
+    },
+    "SteelSlenderness": {
+      "additionalProperties": false,
+      "properties": {
+        "compression": {
+          "description": "KL/r limit of compression members.",
+          "exclusiveMinimum": 0,
+          "title": "Compression",
+          "type": "number"
+        },
+        "tension": {
+          "description": "L/r limit of tension members.",
+          "exclusiveMinimum": 0,
+          "title": "Tension",
+          "type": "number"
+        }
+      },
+      "required": [
+        "compression",
+        "tension"
+      ],
+      "title": "SteelSlenderness",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "phi": {
+      "$ref": "#/$defs/SteelPhi"
+    },
+    "slenderness": {
+      "$ref": "#/$defs/SteelSlenderness"
+    },
+    "netAreaMax": {
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Netareamax",
+      "type": "number"
+    }
+  },
+  "required": [
+    "phi",
+    "slenderness",
+    "netAreaMax"
+  ],
+  "title": "SteelTable",
+  "type": "object",
+  "$id": "saengine.codePack.steel/1"
+}

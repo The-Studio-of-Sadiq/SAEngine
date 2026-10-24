@@ -32,6 +32,7 @@ from typing import Any
 import numpy as np
 
 import saengine
+from saengine.codes import context as code_context
 
 TEMPLATE = Path(__file__).parent / "templates" / "report.typ"
 
@@ -145,7 +146,9 @@ def build_report(
     not be written.
     """
     root = Path(project_root)
-    data = report_data(root, version=version)
+    # The project's own code packs (02 Project Settings/code-packs) are found while it is built.
+    with code_context.project(root):
+        data = report_data(root, version=version)
     if "problems" in data:
         return {"problems": data["problems"]}
     target = Path(out_pdf) if out_pdf else root / DEFAULT_OUTPUT
@@ -408,6 +411,8 @@ def _meta(name: str, settings: Any, version: str | None, today: date) -> dict[st
         ):
             if value:
                 details.append([label, value])
+    if settings is not None:
+        details.append(["Code pack", code_pack_text(settings)])
     return {
         "title": "Structural Design Report",
         "project": name,
@@ -420,13 +425,45 @@ def _meta(name: str, settings: Any, version: str | None, today: date) -> dict[st
     }
 
 
-def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[str, Any]) -> dict:
-    from saengine.library import bnbc
+def code_pack_text(settings: Any) -> str:
+    """The code pack the project follows, as the report's front matter states it: "<name>
+    (<id>), <edition>, pack version <v>", with "modified by: <pack>" when it extends another
+    pack, and where a user or project copy replaces a built-in pack."""
+    from saengine.codes import CodePackError
+    from saengine.library.settings import code_pack
 
+    try:
+        pack = code_pack(settings)
+    except CodePackError as error:
+        return f"{settings.codePack}: {error}"
+    facts = code_context.front_matter(pack)
+    text = f"{facts['name']} ({facts['id']})"
+    if facts["edition"] and facts["edition"] != facts["name"]:
+        text += f", {facts['edition']}"
+    text += f", pack version {facts['version']}"
+    if facts["extends"] and facts["extends"] != facts["id"]:
+        try:
+            base = code_context.pack_for({"codePack": facts["extends"]})
+            text = f"{base.name} ({base.id}), modified by: {text}"
+        except CodePackError:
+            text += f", extends {facts['extends']}"
+    if facts["replacesBuiltin"]:
+        text += f" - a {facts['scope']} copy at {facts['path']}, modified from the built-in code"
+    return text
+
+
+def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[str, Any]) -> dict:
     basis: dict[str, Any] = {}
     if settings is not None:
-        from saengine.library.settings import derived
+        from saengine.codes import CodePackError
+        from saengine.library.settings import code_pack, derived
 
+        try:
+            pack = code_pack(settings)
+        except CodePackError as error:
+            parts.warnings.append(f"Code pack: {error}")
+            return basis
+        parts.warnings.extend(f"Code pack {pack.id}: {w.message}" for w in pack.warnings)
         values = derived(settings)
         codes = settings.codes
         basis["codes"] = [
@@ -435,9 +472,10 @@ def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[s
             ["Steel", codes.steel],
             ["Design method", "Strength design (LRFD)"],
         ]
-        location = bnbc.LOCATIONS.get(settings.site.location)
-        category = bnbc.OCCUPANCY_CATEGORIES.get(settings.occupancy.category)
-        system = bnbc.STRUCTURAL_SYSTEMS.get(settings.seismic.system)
+        location = pack.table("locations").locations.get(settings.site.location)
+        category = pack.table("occupancyCategories").categories.get(settings.occupancy.category)
+        system = pack.table("seismic").systems.get(settings.seismic.system)
+        uses = pack.table("areaLoads").uses
         basis["site"] = [
             ["Building use", settings.occupancy.use.capitalize()],
             [
@@ -467,7 +505,7 @@ def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[s
             [
                 load.id,
                 load.name,
-                bnbc.AREA_USES[load.use].name if load.use in bnbc.AREA_USES else "Custom",
+                uses[load.use].name if load.use in uses else "Custom",
                 fmt(load.live, 2),
                 fmt(load.finish, 2),
                 fmt(load.partitions, 2),

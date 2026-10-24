@@ -26,6 +26,7 @@ from __future__ import annotations
 import math
 from typing import Any, Literal, NamedTuple
 
+from saengine.codes import context as code_context
 from saengine.library import bnbc
 
 FrameType = Literal["special", "intermediate", "ordinary"]
@@ -170,6 +171,7 @@ def _check(
 # ─────────────────────────────────────── the system ───────────────────────────────────────
 
 
+@code_context.in_project_pack()
 def seismic_design_category(settings: Any) -> tuple[str | None, int | None]:
     """(category "B"/"C"/"D" or None without a zone, zone 1-4) of Table 6.2.18 (p. 617) from the
     settings' zone (the location's, or the zone nearest the entered Z), site class and occupancy
