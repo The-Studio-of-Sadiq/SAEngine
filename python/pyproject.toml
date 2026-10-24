@@ -43,6 +43,8 @@ version = { attr = "saengine.__version__" }
 [tool.setuptools.package-data]
 "saengine.report" = ["templates/*.typ"]
 "saengine.verification" = ["templates/*.typ"]
+# Copied in by scripts/installer/bundle-python.ps1 from third_party/freecad-profiles.
+"saengine.importers" = ["data/freecad-profiles.csv", "data/freecad-profiles.LICENSE.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

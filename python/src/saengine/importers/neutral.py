@@ -296,7 +296,9 @@ def named_profile(name: str) -> tuple[Any, str | None]:
     """The profile of a steel section designation and the approximation made (None: exact);
     the profile is None (and the second value says why) when the name cannot be read.
 
-    SAEngine's steel section table is asked first (:func:`table_profile`); tubes, pipes and
+    SAEngine's steel section table is asked first (:func:`table_profile`), then FreeCAD's
+    profile table (:func:`saengine.importers.shapes.freecad_table`: W, HE, IPE, UB, UC, IS
+    shapes ..., root radius ignored, reported); tubes, pipes and
     angles whose names carry their dimensions are read from them (SHS/RHS/HSS/TUBE/BOX d×b×t,
     CHS/PIPE D×t, L/ISA d×b×t). Units (:func:`_name_scale`): SHS, RHS, BOX, CHS and ISA are
     metric (mm), HSS and TS American (inches); TUBE, PIPE and L are read in inches only when
@@ -309,6 +311,14 @@ def named_profile(name: str) -> tuple[Any, str | None]:
     found = table_profile(name)
     if found is not None:
         return found, None
+    from saengine.importers.shapes import freecad_table
+
+    table = freecad_table()
+    listed = table.find(name) if table is not None else None
+    if listed is not None:
+        from pydantic import TypeAdapter
+
+        return TypeAdapter(o.Profile).validate_python(listed[0]), listed[1]
     key = re.sub(r"\s+", "", name.upper())
     inch = 25.4
     m = re.match(r"^(SHS|RHS|HSS|TUBE?|BOX|TS)(\d.*)$", key)

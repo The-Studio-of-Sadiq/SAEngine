@@ -1,19 +1,23 @@
 """A table of library steel shapes for the importers' section lookup.
 
 ETABS writes the shapes of its libraries (AISC14, Sections8, BSShapes, Indian ...) by name only
-(``SHAPE "W14X90"``), so the importer needs a table to give them dimensions. Which table SAEngine
-ships is the owner's decision; this module reads one in the comma-separated layout of FreeCAD's
-profile presets (``Category,Name,class,dimensions in mm``) from wherever it is, and makes a
-lookup for :func:`saengine.importers.etabs.read_e2k` of it:
+(``SHAPE "W14X90"``), so the importers need a table to give them dimensions. SAEngine ships
+FreeCAD's profile table (``third_party/freecad-profiles``, LGPL-2.1-or-later; installed as
+``saengine/importers/data/freecad-profiles.csv``): :func:`freecad_table` reads it, and
+:func:`saengine.importers.neutral.named_profile` asks it after SAEngine's own section table, for
+all three importers. Another table in the same layout (``Category,Name,class,dimensions in mm``)
+can be used the same way:
 
     lookup = table_lookup(ProfileTable.read(path), fallback=section_lookup_noted)
     read_e2k(path, section_lookup=lookup)
 
 Profile classes and their numbers: ``H`` (I and H shapes) width, height, web thickness, flange
-thickness; ``RH`` (rectangular hollow) width, height, wall; ``C`` (circular hollow) outside
-diameter, wall; ``U`` (channels) height, width, web thickness, flange thickness; ``L`` (angles)
-height, width, thickness; ``T`` (tees) width, height, web thickness, flange thickness; ``R``
-(solid rectangles) width, height. Root radii are not in such a table: the properties come from
+thickness; ``RH`` (rectangular hollow) depth, width, wall; ``C`` (circular hollow) outside
+diameter, wall; ``U`` (channels) depth, width, web thickness, flange thickness; ``L`` (angles)
+the two legs and the thickness; ``T`` (tees) width, height, web thickness, flange thickness;
+``R`` (solid rectangles) width, height. (FreeCAD's comments call the first number of ``RH`` and
+``U`` the width, but its rows give the depth first, as the names do: ``RHS50x25``, ``ISJC100``
+100 deep.) Root radii are not in such a table: the properties come from
 the plate outline (reported). Names are matched without case, spaces and separators
 (``W14X90`` = ``W14x90``, ``HE200A`` = ``HEA200``); an Indian name without its variant
 (``ISHB150`` for ``ISHB150(1)``/``ISHB150(2)``) takes the first variant (reported).
@@ -22,6 +26,7 @@ the plate outline (reported). Names are matched without case, spaces and separat
 from __future__ import annotations
 
 import csv
+import functools
 import re
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
@@ -56,7 +61,7 @@ def _profile(kind: str, d: list[float]) -> dict[str, Any] | None:
                 "flangeThickness": tf,
             }
         if kind == "RH":
-            b, h, t = d[:3]
+            h, b, t = d[:3]
             return {"shape": "rectangleHollow", "xDim": b, "yDim": h, "wallThickness": t}
         if kind == "C":
             od, t = d[:2]
@@ -150,4 +155,18 @@ def table_lookup(table: ProfileTable, fallback: Lookup | None = None) -> Lookup:
     return lookup
 
 
-__all__ = ["Lookup", "ProfileTable", "shape_key", "table_lookup"]
+#: Where FreeCAD's profile table is: installed with the package, or in a checkout of the repo.
+FREECAD_TABLE = (
+    Path(__file__).parent / "data" / "freecad-profiles.csv",
+    Path(__file__).resolve().parents[4] / "third_party" / "freecad-profiles" / "profiles.csv",
+)
+
+
+@functools.cache
+def freecad_table() -> ProfileTable | None:
+    """FreeCAD's profile table, or None when this installation has none."""
+    path = next((p for p in FREECAD_TABLE if p.is_file()), None)
+    return ProfileTable.read(path, "the FreeCAD profile table") if path else None
+
+
+__all__ = ["FREECAD_TABLE", "Lookup", "ProfileTable", "freecad_table", "shape_key", "table_lookup"]

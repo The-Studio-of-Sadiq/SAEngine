@@ -197,9 +197,47 @@ def test_library_shapes_by_name_and_user_shapes_exactly(project) -> None:  # typ
     estimated = approximated[
         "database sections (AISC14): estimated from the designation (depth and mass) — check"
     ]
-    assert set(estimated["examples"]) >= {"W14X500", "W14X90"}  # FILE named on the first only
+    assert estimated["examples"] == ["W14X500"]  # not in the FreeCAD table (W14 up to x132)
+    # FILE "AISC14" is given on W14X500 only; W14X90 after it is from the same library.
+    table = approximated[
+        "database sections (AISC14): from the FreeCAD profile table, root radius ignored"
+    ]
+    assert table["examples"] == ["W14X90"]
+    w14 = next(o for o in project.objects.objects if o.id == "W14X90-pinned")
+    assert (w14.profile.overallWidth, w14.profile.overallDepth) == (368.808, 356.108)
     user = next(o for o in project.objects.objects if o.id == "UserI")
     assert (user.profile.overallDepth, user.profile.flangeThickness) == (400, 12)
+
+
+def test_vendored_freecad_table() -> None:
+    """The vendored table is the file its README names (SHA-256), and the importers find it."""
+    import hashlib
+    import re
+    from pathlib import Path
+
+    folder = Path(__file__).parents[2] / "third_party" / "freecad-profiles"
+    readme = (folder / "README.md").read_text(encoding="utf-8")
+    digest = hashlib.sha256((folder / "profiles.csv").read_bytes()).hexdigest()
+    assert re.search(r"SHA-256 of `profiles.csv` \| `([0-9a-f]{64})`", readme).group(1) == digest
+    assert "LGPL-2.1-or-later" in readme
+    assert "GNU LESSER GENERAL PUBLIC LICENSE" in (folder / "LICENSE").read_text(encoding="utf-8")
+
+    for name, expected in [
+        ("W14X90", {"overallWidth": 368.808, "overallDepth": 356.108}),
+        ("W14x90", {"overallWidth": 368.808, "overallDepth": 356.108}),
+        ("UB305x165x40", {"overallWidth": 165, "overallDepth": 303.4}),
+        ("ISHB150", {"overallDepth": 150, "webThickness": 5.4}),
+        ("RHS50X25X2.9", {"xDim": 25, "yDim": 50}),
+        ("ISJC100", {"depth": 100, "flangeWidth": 45}),
+    ]:
+        profile, note = named_profile(name)
+        assert note.startswith("from the FreeCAD profile table, root radius ignored"), name
+        assert {k: getattr(profile, k) for k in expected} == expected, name
+    # SAEngine's own table (with root radii) comes first; names the FreeCAD table lacks are
+    # estimated and flagged.
+    assert named_profile("ISMB300")[1] is None
+    profile, note = named_profile("W14X145")
+    assert profile.shape == "I" and note.endswith("check")
 
 
 def test_profile_table_lookup() -> None:

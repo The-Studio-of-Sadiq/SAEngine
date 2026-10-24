@@ -41,16 +41,21 @@ CurrUnits`. A file without a unit line is read in kN and m, with a warning.
 - **Sections**: rectangular and circular concrete; I, channel, angle, tee, box (SHS/RHS) and pipe
   steel from their dimensions. Sections named only by a designation are read the same way by all
   three importers: SAEngine's standard section table first (IPE, HEA, HEB, ISMB, ISMC, L, SHS,
-  RHS, CHS; `HE200A` = HEA 200), then names that carry their dimensions, then W/UB/UC estimates
+  RHS, CHS; `HE200A` = HEA 200), then FreeCAD's profile table (below), then names that carry
+  their dimensions, then W/UB/UC estimates
   from depth and mass and placeholder I-shapes (both reported as approximated, the estimates as
   "estimated from the designation — check"). The estimate never fails: heavy shapes that do not
   fit their nominal depth (W14X730 is 22 in deep) grow in depth and width with the flanges held
   at 1/8 of the depth, and W8–W14 column shapes are taken as wide as they are deep. ETABS writes
   its library shapes by name only (`SHAPE "W14X90"`, with `FILE "AISC14"` on the first shape of
-  each library); the report names the library. A table of library shapes can be plugged in with
-  `saengine.importers.shapes` (a table in FreeCAD's profile-preset layout, asked before the
-  estimates; which table SAEngine ships is still open). User-defined shapes (`SHAPE "Steel
-  I/Wide Flange" D B TF TW`) are read exactly. Units of a
+  each library); the report names the library. FreeCAD's profile table (`third_party/freecad-profiles`, LGPL-2.1-or-later:
+  American W4–W27 (W14 up to W14x132), HEA/HEB/HEM, IPE, INP, UPE, UB, UC, CHS, RHS and the
+  Indian I, channel, angle, tee, RHS and SHS sections; its timber and aluminium rows are kept
+  for later use), reported as "from the FreeCAD profile
+  table, root radius ignored" (the table has no root radii); names that differ only in case or
+  separators match (`W14X90` = `W14x90`), and an Indian name without its variant (`ISHB150`)
+  takes the first one (`ISHB150(1)`, reported). Names in neither table are estimated as above.
+  User-defined shapes (`SHAPE "Steel I/Wide Flange" D B TF TW`) are read exactly. Units of a
   designation follow its family: SHS, RHS, BOX, CHS and ISA are millimetres (`SHS25X25X2.5` is
   25 mm), HSS and TS inches; TUBE, PIPE and L are read in inches only when the thickness is
   below 1 (reported). Names that cannot be read are skipped with their members (reported).
