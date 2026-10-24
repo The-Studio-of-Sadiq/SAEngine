@@ -51,7 +51,7 @@ New pile type: bored, 500 mm, 18 m.
 
 **Design options** (nothing selected): pile capacity from the *Soil report (per layer)* or the
 *BNBC SPT equations*; factors of safety for pile compression and uplift (default 2.5, BNBC Table
-6.3.10a; compression raised to 3.0 without a pile load test at the site) and for bearing
+6.3.10a; both raised to 3.0 without a pile load test at the site, Secs 3.10.1.18 and 3.11.3) and for bearing
 (default: the soil report's); *Pile load test at the site*; raft mesh size (500 mm); subgrade
 modulus ks (default: the soil report's).
 

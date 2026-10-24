@@ -63,7 +63,8 @@ SHALLOW_METHOD = [
     ),
     (
         "Bearing under the allowable-stress combinations of BNBC 2020 Part 6 2.7.2 "
-        "(ASCE 7-05 2.4.1) for nominal wind: D, D + L + Lr, D + W, "
+        "(ASCE 7-05 2.4.1) for nominal wind: D, D + L + Lr (enveloping BNBC D + L, D + Lr and "
+        "D + 0.75L + Lr), D + W, "
         "D + 0.75L + 0.75Lr + 0.75W, 0.6D + W, D + 0.7E, D + 0.75L + 0.75Lr + 0.525E, "
         "0.6D + 0.7E; W and E in ±X and ±Y (with strength-level wind, ASCE 7-16 2.4.1: "
         "0.6W and 0.45W). Gross pressure q = P/A ± Mx/Sx ± My/Sy with the footing's weight "

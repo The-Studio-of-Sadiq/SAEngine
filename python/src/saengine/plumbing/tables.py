@@ -527,7 +527,7 @@ SEPTIC_FLOW_OTHER = 10.0
 SEPTIC_REDUCTION: dict[str, tuple[float, str]] = {
     "school": (0.25, "Table 8.S.1 (ii) primary and secondary school"),
     "college": (0.25, "Table 8.S.1 (iii) institution of higher learning"),
-    "preschool": (0.08, "Table 8.S.1 (iv) kindergarten"),
+    "preschool": (0.08, "Table 8.S.1 (iv) community centre, kindergarten"),
     "office": (0.50, "Table 8.S.1 (xi) office, no. of staff"),
     "hotel": (0.70, "Table 8.S.1 (x) hotel, no. of beds"),
     "shop": (0.25, "Table 8.S.1 (vi) market, hawker/employee"),

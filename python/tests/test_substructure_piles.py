@@ -86,7 +86,10 @@ def test_bored_pile_integrates_the_shaft_by_hand() -> None:
     assert any("3.10.1.18" in n for n in r["notes"])
     expected = min(q_ult / 3.0, (qs_clay + qs_sand) / 1.5 + qb / 3.0 - weight)
     assert r["Qa"] == pytest.approx(expected, rel=1e-3)
-    assert r["Ta"] == pytest.approx((0.7 * (qs_clay + qs_sand) + weight) / 2.5, rel=1e-3)
+    # Uplift by analysis: BNBC Sec 3.11.3 asks FS ≥ 3.0 as well.
+    assert r["factors"]["uplift"] == 3.0
+    assert any("3.11.3" in n for n in r["notes"])
+    assert r["Ta"] == pytest.approx((0.7 * (qs_clay + qs_sand) + weight) / 3.0, rel=1e-3)
     clay = r["layers"][0]
     assert clay["excluded"] == 1500 and clay["Qs"] == pytest.approx(qs_clay, abs=0.06)
 

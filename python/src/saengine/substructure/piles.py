@@ -45,8 +45,10 @@ of 3.0 against bearing failure, or 2.0 when the design rests on a load test at t
 good quality control (``FactorsOfSafety.load_test``); Table 6.3.10a's factors by construction
 control (Permanent structure: 2.0 good, 2.5 normal, 2.8 poor, 3.0 very poor;
 :data:`TABLE_6_3_10A`) assume load test data (Table 6.3.10b), so without a load test the
-compression factor is raised to at least 3.0 (a note says so; uplift keeps its factor, the
-clause being about bearing failure). Partial
+compression factor is raised to at least 3.0 (a note says so). Sec 3.11.3 (part1 p796) asks
+the same of uplift: a factor of safety of at least 3.0 on an uplift capacity found by analysis,
+2.0 on one from a load test (2.0 and 1.5 where the uplift comes from wind or earthquake; not
+used, the uplift checks mix the cases), so the uplift factor is raised alike. Partial
 factors of 1.5 on skin friction and 3.0 on end bearing may be used independently, the
 allowable load being the minimum of the two: ``Qa = min(Qult / FS, Qs/1.5 + Qb/3.0 - W)``
 (W is not factored in the partial form). Sec 3.10.4.10: the same factors apply to bored piles.
@@ -89,8 +91,8 @@ PARTIAL_SKIN = 1.5
 PARTIAL_BASE = 3.0
 #: Factor of safety of the SPT relations (BNBC Secs 3.10.1.13, 3.10.1.16, 3.10.4.5, 3.10.4.7).
 SPT_FS = 3.5
-#: Least overall factor of safety in compression without / with a load test at the site
-#: (BNBC Sec 3.10.1.18; Sec 3.10.4.10 for bored piles).
+#: Least overall factor of safety without / with a load test at the site: compression (BNBC
+#: Sec 3.10.1.18; Sec 3.10.4.10 for bored piles) and uplift (Sec 3.11.3).
 NO_LOAD_TEST_FS = 3.0
 LOAD_TEST_FS = 2.0
 #: Uplift: the share of the skin friction that resists pulling out (BNBC Eq 6.3.12).
@@ -129,30 +131,40 @@ class FactorsOfSafety:
     load_test: bool = False
 
     def for_method(self, method: str) -> FactorsOfSafety:
-        """The least overall factor in compression: 3.0 without a load test at the site, 2.0
-        with one (Sec 3.10.1.18, bored piles by Sec 3.10.4.10); 3.5 with the SPT relations."""
+        """The least overall factors: 3.0 without a load test at the site, 2.0 with one, in
+        compression (Sec 3.10.1.18, bored piles by Sec 3.10.4.10) and in uplift (Sec 3.11.3);
+        3.5 with the SPT relations."""
         least = LOAD_TEST_FS if self.load_test else NO_LOAD_TEST_FS
         compression = max(self.compression, least)
-        uplift = self.uplift
+        uplift = max(self.uplift, least)
         if method == "bnbcSpt":
             compression, uplift = max(compression, SPT_FS), max(uplift, SPT_FS)
         return FactorsOfSafety(compression, uplift, self.skin, self.base, self.load_test)
 
     def raised(self, method: str) -> str | None:
-        """A note when :meth:`for_method` raises the compression factor."""
-        used = self.for_method(method).compression
-        if used <= self.compression:
-            return None
-        if method == "bnbcSpt" and used == SPT_FS:
-            return (
-                f"FS in compression raised from {self.compression:g} to {SPT_FS:g}: BNBC asks "
-                "for 3.5 with the SPT relations"
+        """A note when :meth:`for_method` raises the compression or the uplift factor."""
+        factors = self.for_method(method)
+        used = factors.compression
+        notes = []
+        if used > self.compression:
+            if method == "bnbcSpt" and used == SPT_FS:
+                notes.append(
+                    f"FS in compression raised from {self.compression:g} to {SPT_FS:g}: BNBC "
+                    "asks for 3.5 with the SPT relations"
+                )
+            else:
+                notes.append(
+                    f"FS in compression raised from {self.compression:g} to {used:g}: BNBC 2020 "
+                    "Sec 3.10.1.18 asks at least 3.0 unless the design rests on a load test at "
+                    "the site (Table 6.3.10a's values assume load test data, Table 6.3.10b)"
+                )
+        if method != "bnbcSpt" and factors.uplift > self.uplift:
+            notes.append(
+                f"FS in uplift raised from {self.uplift:g} to {factors.uplift:g}: BNBC 2020 Sec "
+                "3.11.3 asks at least 3.0 on an uplift capacity found by analysis, 2.0 from a "
+                "load test"
             )
-        return (
-            f"FS in compression raised from {self.compression:g} to {used:g}: BNBC 2020 Sec "
-            "3.10.1.18 asks at least 3.0 unless the design rests on a load test at the site "
-            "(Table 6.3.10a's values assume load test data, Table 6.3.10b)"
-        )
+        return "; ".join(notes) or None
 
 
 def table_factor(structure: str = "permanent", control: str = "normal") -> float:
