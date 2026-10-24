@@ -262,9 +262,8 @@ def create_server() -> JsonRPCServer:
         args = _plain(params)
         return handlers.check_library(args["kind"], args["text"], args.get("materialsText"))
 
-    @server.feature("section/analyse")
     @_in_worker
-    def _section_analyse(params: Any) -> dict[str, Any]:
+    def _section_analyse_worker(params: Any) -> dict[str, Any]:
         from saengine.library.section_designer import analyse
 
         args = _plain(params)
@@ -275,6 +274,18 @@ def create_server() -> JsonRPCServer:
             capacity=args.get("capacity", True),
             surface=args.get("surface", False),
         )
+
+    @server.feature("section/analyse")
+    async def _section_analyse(params: Any) -> dict[str, Any]:
+        # The first imports of numpy, sectionproperties and concreteproperties are not safe from
+        # two threads at once (numpy's C extension half-initialised): done here, on the server's
+        # thread, before the analysis goes to a worker.
+        import concreteproperties.concrete_section  # noqa: F401
+        import sectionproperties.analysis.section  # noqa: F401
+
+        import saengine.library.section_designer  # noqa: F401
+
+        return await _section_analyse_worker(params)
 
     @server.feature("bim/generate")
     def _generate_building(params: Any) -> dict[str, Any]:

@@ -477,6 +477,8 @@ export interface IPropertyRow {
 
 /** The properties table: name, value and unit per row. */
 export function propertyRows(p: ISectionProperties): IPropertyRow[] {
+	// Ixy of a symmetric section comes out as round-off (1e-4 mm⁴ against 1e12): shown as 0.
+	const ixy = Math.abs(p.ixy) < 1e-9 * Math.sqrt(Math.abs(p.ixx * p.iyy)) ? 0 : p.ixy;
 	const row = (label: string, value: number | null, unit: string, title?: string): IPropertyRow => ({ label, value: formatNumber(value), unit, title });
 	return [
 		row(localize('section.prop.area', "A"), p.area, 'mm²', localize('section.prop.areaTitle', "Area (transformed to the reference material)")),
@@ -484,7 +486,7 @@ export function propertyRows(p: ISectionProperties): IPropertyRow[] {
 		row(localize('section.prop.cy', "ȳ"), p.cy, 'mm', localize('section.prop.cyTitle', "Centroid y")),
 		row(localize('section.prop.ixx', "Ixx"), p.ixx, 'mm⁴', localize('section.prop.ixxTitle', "Second moment of area about the horizontal centroidal axis")),
 		row(localize('section.prop.iyy', "Iyy"), p.iyy, 'mm⁴', localize('section.prop.iyyTitle', "Second moment of area about the vertical centroidal axis")),
-		row(localize('section.prop.ixy', "Ixy"), p.ixy, 'mm⁴', localize('section.prop.ixyTitle', "Product of inertia")),
+		row(localize('section.prop.ixy', "Ixy"), ixy, 'mm⁴', localize('section.prop.ixyTitle', "Product of inertia")),
 		row(localize('section.prop.i11', "I11"), p.i11, 'mm⁴', localize('section.prop.i11Title', "Major principal moment of inertia")),
 		row(localize('section.prop.i22', "I22"), p.i22, 'mm⁴', localize('section.prop.i22Title', "Minor principal moment of inertia")),
 		row(localize('section.prop.angle', "θ"), p.principalAngle, '°', localize('section.prop.angleTitle', "Angle from x to the major principal axis")),

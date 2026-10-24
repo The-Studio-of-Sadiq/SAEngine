@@ -37,9 +37,9 @@ suite('SAEngine - Section Designer model', () => {
 		assert.deepStrictEqual(offsetRing([...rectangle(400, 600)].reverse(), 50).sort(), offsetRing(rectangle(400, 600), 50).sort());
 		// A hole grows into the concrete around it.
 		assert.deepStrictEqual(offsetRing(rectangle(200, 200), 50, true), [[-150, -150], [150, -150], [150, 150], [-150, 150]]);
-		// The re-entrant corner of an L moves diagonally.
+		// The re-entrant corner of an L moves diagonally away from the notch.
 		const l = templateRegions('L', { b: 600, h: 600, t: 250 }, 'C30')[0].outline;
-		assert.deepStrictEqual(offsetRing(l, 50)[3], [-300 + 250 + 50, -300 + 250 + 50]);
+		assert.deepStrictEqual(offsetRing(l, 50)[3], [-300 + 250 - 50, -300 + 250 - 50]);
 	});
 
 	test('bars along the edges keep the cover and the spacing', () => {
@@ -93,7 +93,7 @@ suite('SAEngine - Section Designer model', () => {
 	});
 
 	test('numbers, ticks and property rows', () => {
-		assert.strictEqual(formatNumber(237500), '2.375 × 10⁵');
+		assert.strictEqual(formatNumber(237500), '237.5 × 10³');
 		assert.strictEqual(formatNumber(6648163377.19), '6.648 × 10⁹');
 		assert.strictEqual(formatNumber(235.526), '235.5');
 		assert.strictEqual(formatNumber(null), '—');

@@ -7,7 +7,7 @@
  * the theme through the SAEngine tokens, so light and dark themes need no rules of their own. */
 
 .saengine-section-designer {
-	--section-concrete: color-mix(in srgb, var(--vscode-descriptionForeground) 22%, var(--sa-surface));
+	--section-concrete: color-mix(in srgb, var(--vscode-descriptionForeground) 30%, var(--sa-surface));
 	--section-steel: color-mix(in srgb, var(--vscode-charts-blue, #2c6fbe) 30%, var(--sa-surface));
 	--section-bar: var(--vscode-charts-red, #c62f2f);
 	--section-line: color-mix(in srgb, var(--vscode-foreground) 70%, transparent);

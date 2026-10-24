@@ -348,7 +348,8 @@ export class SectionDesignerEditor extends EditorPane {
 		try {
 			analysis = await this.commandService.executeCommand<ISectionAnalysis>(SECTION_ANALYSE_COMMAND, model.getValue());
 		} catch (error) {
-			failure = error instanceof Error ? error.message : String(error);
+			// A backend error carries its traceback: its first line says what went wrong.
+			failure = (error instanceof Error ? error.message : String(error)).split(/\r?\n/)[0].trim().slice(0, 300);
 		}
 		if (version !== this.analyseVersion || this.input !== input) {
 			return; // a newer analysis is on its way

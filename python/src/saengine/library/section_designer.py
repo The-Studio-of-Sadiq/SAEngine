@@ -474,6 +474,12 @@ class Phi:
         return self.compression + (self.tension - self.compression) * (eps_t - eps_ty) / EPS_CU
 
 
+#: Strain of the bars and plates' stress-strain profile end. ACI 318 / BNBC put no limit on the
+#: steel strain (fy beyond εy); concreteproperties drops the stress past the profile's end, which
+#: at 0.05 (as design/rc.py) left the bars of very shallow neutral axes without force.
+_NO_RUPTURE = 1.0
+
+
 @dataclass(frozen=True)
 class _RcBar:
     """A bar as :class:`saengine.design.rc.InteractionSurface` reads it."""
@@ -561,7 +567,7 @@ class DesignedRcSection:
                     name=m.id,
                     density=m.density * 1e-9,
                     stress_strain_profile=SteelElasticPlastic(
-                        yield_strength=m.fy or 0.0, elastic_modulus=m.E, fracture_strain=0.05
+                        yield_strength=m.fy or 0.0, elastic_modulus=m.E, fracture_strain=_NO_RUPTURE
                     ),
                     colour="steelblue",
                 )
@@ -575,7 +581,7 @@ class DesignedRcSection:
                     name=m.id,
                     density=m.density * 1e-9,
                     stress_strain_profile=SteelElasticPlastic(
-                        yield_strength=m.fy or 0.0, elastic_modulus=m.E, fracture_strain=0.05
+                        yield_strength=m.fy or 0.0, elastic_modulus=m.E, fracture_strain=_NO_RUPTURE
                     ),
                     colour="grey",
                 ),
@@ -704,14 +710,36 @@ class DesignedRcSection:
         )
         return [*(float(r) * d_bar for r in ratios), math.inf]
 
+    def tension(self) -> dict[str, float]:
+        """Uniform tension: bars and plates at yield, the concrete cracked (the end of every
+        meridian on the tension side); moments about the centroid (unsymmetric bars)."""
+        cx, cy = self.centroid
+        forces = [
+            (-b.area * (m.fy or 0.0), b.x, b.y)
+            for b, m in zip(self.bars, self.bar_mats, strict=True)
+        ]
+        for region, m in zip(self.section.regions, self.region_mats, strict=True):
+            if m.category != "concrete":
+                polygon = _polygon(region)
+                forces.append(
+                    (-polygon.area * (m.fy or 0.0), polygon.centroid.x, polygon.centroid.y)
+                )
+        p = sum(f for f, _, _ in forces)
+        mx = sum(f * (y - cy) for f, _, y in forces)
+        my = sum(f * (x - cx) for f, x, _ in forces)
+        phi = self.phi.tension
+        row = {"P": p, "Mx": mx, "My": my, "phi": phi, "epsT": math.inf}
+        row.update(phiP=phi * p, phiMx=phi * mx, phiMy=phi * my, phiPcapped=phi * p)
+        return row
+
     def meridian(self, theta: float, count: int = 18) -> list[dict[str, float]]:
-        """Points of the P-M diagram at neutral-axis angle ``theta``, from tension to uniform
-        compression, with ``phiPcapped``: φP at most φPn,max (ACI 22.4.2.1)."""
+        """Points of the P-M diagram at neutral-axis angle ``theta``, from uniform tension to
+        uniform compression, with ``phiPcapped``: φP at most φPn,max (ACI 22.4.2.1)."""
         cap = self.phi_pn_max
         rows = [self.point(theta, d) for d in self._depths(theta, count)]
         for row in rows:
             row["phiPcapped"] = min(row["phiP"], cap)
-        return rows
+        return [self.tension(), *rows]
 
     def uniaxial(self, axis: Literal["x", "y"] = "x", count: int = 18) -> dict[str, Any]:
         """The interaction diagram for bending about ``axis``: both signs of the moment, as rows

@@ -253,6 +253,9 @@ def test_uniaxial_diagram_points_match_design_rc() -> None:
         0.85 * 30 * (400 * 600 - reference.steel_area) + 420 * reference.steel_area, rel=1e-6
     )
     assert max(p["phiP"] for p in diagram["points"]) == pytest.approx(reference.phi_pn_max)
+    # Uniform tension: all bars at fy (no rupture strain, as ACI), φ for tension.
+    assert min(p["P"] for p in diagram["points"]) == pytest.approx(-420 * reference.steel_area)
+    assert min(p["phiP"] for p in diagram["points"]) == pytest.approx(-reference.phi_tension)
 
 
 def test_t_wall_point_matches_hand_strain_compatibility() -> None:
