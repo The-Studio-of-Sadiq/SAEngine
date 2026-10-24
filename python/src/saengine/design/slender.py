@@ -70,7 +70,8 @@ BNBC 2020 Part 6 Sec 6.3.10 (part 1 of the code, pp. 910-915; ACI 318's provisio
   6.2.6: above it a nonlinear second-order analysis is required; BNBC has no such clause).
 - Design overwrites (:mod:`saengine.design.overwrites`, per member or object type): k and lu
   per axis replace the values above, ``framing`` "braced" designs the column as nonsway and
-  "sway" as sway whatever Q says, Cm, δns and δs given replace the worked-out ones; the
+  "sway" as sway whatever Q says (with the alignment chart's sway k, or k = 2, the
+  cantilever's, where an end is not framed), Cm, δns and δs given replace the worked-out ones; the
   check's note shows each with its source ("k = 1.20 (overwrite)").
 - Design at the faces (:func:`saengine.design.face_forces.at_faces`): the strength check's
   station points may take the forces at the beam soffit and the top of the slab
@@ -91,6 +92,11 @@ import numpy as np
 NONSWAY_Q = 0.05
 """Stability index up to which a storey is nonsway (BNBC 6.3.10.5.2, Eq. 6.6.17)."""
 SWAY_LIMIT = 22.0
+#: k of a column designed as sway by an overwrite where an end is not framed by beams in the
+#: direction (no alignment chart value): the cantilever's, the least k a sway column with a
+#: free end can have (SAEngine's rule, conservative; give k as an overwrite to replace it).
+UNFRAMED_SWAY_K = 2.0
+UNFRAMED_SWAY_NOTE = " (sway, an end not framed: the cantilever's k; give k to replace it)"
 """k lu / r up to which slenderness is neglected in sway storeys (BNBC Eq. 6.6.13)."""
 NONSWAY_CAP = 40.0
 """Cap of 34 - 12 M1/M2 for nonsway storeys (BNBC Eq. 6.6.14)."""
@@ -1235,9 +1241,18 @@ class SlenderContext:
                 if given and given.get("framing") == "braced":
                     continue  # designed as braced: not one of the storey's sway columns
                 for seg in self.segments(element.id, own, unit, direction):
-                    if seg.storey is None or (seg.k_s is None and k_given is None):
+                    sway_given = given is not None and given.get("framing") == "sway"
+                    if seg.storey is None or (
+                        seg.k_s is None and k_given is None and not sway_given
+                    ):
                         continue
-                    k_seg = k_given if k_given is not None else seg.k_s
+                    k_seg = (
+                        k_given
+                        if k_given is not None
+                        else seg.k_s
+                        if seg.k_s is not None
+                        else UNFRAMED_SWAY_K
+                    )
                     lu_seg = lu_given if lu_given is not None else seg.lu
                     pcs = []
                     for c in range(n):
@@ -1398,10 +1413,19 @@ class SlenderContext:
             if framing == "braced":
                 sway_storey = False
             elif framing == "sway":
-                sway_storey = seg.storey is not None
+                # Designed as sway whatever its storey: δs from the storey, or the δs given
+                # (without either, 1 and the note asks for it).
+                sway_storey = True
             else:
                 sway_storey = seg.storey is not None and bool(seg.storey.sway) and seg.framed
-            k_auto = seg.k_s if sway_storey and seg.k_s is not None else seg.k_ns
+            k_auto, k_note = seg.k_ns, ""
+            if sway_storey and seg.k_s is not None:
+                k_auto = seg.k_s
+            elif sway_storey:
+                # Overwritten as sway, an end not framed by beams in this direction: no
+                # alignment chart k; the cantilever's (fixed at one end, free to sway at the
+                # other), the least a sway column with a free end can have.
+                k_auto, k_note = UNFRAMED_SWAY_K, UNFRAMED_SWAY_NOTE
             k_used = k_given if k_given is not None else k_auto
             # k of Pc along the length (6.3.10.6): the nonsway one, or the one given for a
             # column designed as braced.
@@ -1439,11 +1463,11 @@ class SlenderContext:
                 # Sway magnification of the end moments (6.3.10.7).
                 ds = 1.0
                 sway_applies = sway_storey and slender > SWAY_LIMIT and opts.second_order == "none"
-                if sway_applies and seg.storey is not None and pu > 0:
+                if sway_applies and pu > 0 and (ds_given is not None or seg.storey is not None):
                     ds = (
                         float(ds_given)
                         if ds_given is not None
-                        else seg.storey.delta_s(c, opts.sway_magnifier)
+                        else seg.storey.delta_s(c, opts.sway_magnifier)  # type: ignore[union-attr]
                     )
                 ds_member[c] = max(ds_member[c], ds) if math.isfinite(ds) else math.inf
                 if ds > worst["ds"][0]:
@@ -1463,6 +1487,7 @@ class SlenderContext:
                     "sway": sway_storey if framing else None,
                     "framing": framing,
                     "given": given,
+                    "k_note": "" if k_given is not None else k_note,
                 }
                 if not math.isfinite(ds):
                     magnified[c] = True
@@ -1601,7 +1626,9 @@ class SlenderContext:
             label = f"{kind}, δs = {_fmt(ds)}, δns = {_fmt(dns)}"
         else:
             label = f"{kind}, δns = {_fmt(dns)}"
-        k_text = given.k_text(axis) if given and given.k(axis) is not None else ""
+        k_text = (
+            given.k_text(axis) if given and given.k(axis) is not None else best.get("k_note", "")
+        )
         lu_text = given.lu_text(axis) if given and given.lu(axis) is not None else ""
         parts = [
             f"lu = {lu:.0f} mm{lu_text}, k = {best['k']:.2f}{k_text}, r = {r:.0f} mm",
@@ -1618,6 +1645,8 @@ class SlenderContext:
             parts.append(f"braced by {', '.join(seg.braced_by)}: k = 1")
         if best.get("framing") and given is not None:
             parts.append(f"designed as {best['framing']}{given.text('framing')}")
+            if best["framing"] == "sway" and storey is None and given.get("deltaS") is None:
+                parts.append("no storey to work δs out from: δs = 1, give δs as an overwrite")
         elif storey is not None and seg.framed:
             qm, _ = storey.q_max
             parts.append(

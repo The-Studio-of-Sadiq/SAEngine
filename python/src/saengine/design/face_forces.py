@@ -7,7 +7,9 @@ moments at faces of support" for beams built integrally with their supports. Sec
 (p 922) lets sections closer than d to the face of a support be designed for the shear at d
 (6.4.1.3.1) when (a) the support reaction introduces compression into the end region, (b) the
 loads act at or near the top of the member and (c) no concentrated load acts between the face
-and the section at d.
+and the section at d. Sec 6.1.6.3 covers beams only: designing columns for the forces at the
+beam soffit and the top of the slab is SAEngine's practice (the project's decision, as a
+commercial analysis program does), not that clause (:data:`COLUMN_PRACTICE`).
 
 What this module does:
 
@@ -17,7 +19,19 @@ What this module does:
   (a span split by the slab mesh, a beam framing into a girder). They come from the results'
   ``face-forces.json`` (:func:`read_face_forces`, ``face_offsets`` of :func:`at_faces`) or an
   element's own ``"faceOffsets"`` key, with the forces at the faces per load case, which are
-  exact and preferred (:func:`face_rows_of`, ``face_rows``).
+  exact and preferred (:func:`face_rows_of`, ``face_rows``). The offset is the member's: where
+  it is longer than the element it is recorded on (the first short element of a meshed beam),
+  the face lies on a later element of the member, and every element before it lies inside the
+  support.
+- **Rigid end zones.** The analysis makes the end of an element rigid over ``rigidZoneFactor``
+  of its offset (OpenSees ``geomTransf -jntOffset``, the element's ``joint_offsets``): its
+  ``localForce`` then acts at the ends of the flexible part, and the check's stations
+  (``saengine.fem.display.element_section_forces``) run from the flexible end i over the node to
+  node length. :func:`at_faces` reads every force at its true place: the distance ``x`` from
+  the node is ``x - ri`` along the stations (the convention of
+  :func:`saengine.fem.end_zones.section_at`), and the pieces it returns are re-stationed from the
+  node (each station at its distance from the node, the rigid zones taking the forces at the
+  flexible ends; those inside a support then take the face's).
 - :func:`at_faces` gives a member's pieces (``saengine.design.check._Piece``) with the stations
   inside a support replaced by the forces at its face: the axial force, torsion and moments of
   every station between the joint and the face become those at the face, and with
@@ -54,6 +68,7 @@ import numpy as np
 #: d from the face when allowed.
 _AT_FACE = (0, 3, 4, 5)
 _SHEARS = (1, 2)
+_TOL = 1e-9
 
 JOINT_NOTE = (
     "forces at the joints: the analysis model has no support face offsets (run the analysis "
@@ -61,6 +76,11 @@ JOINT_NOTE = (
 )
 FACE_CLAUSE = "BNBC 2020 Part 6 Sec 6.1.6.3"
 SHEAR_CLAUSE = "BNBC 2020 Part 6 Sec 6.4.1.3.1"
+#: Columns at the beam soffit: SAEngine's practice, not a BNBC clause (6.1.6.3 covers beams).
+COLUMN_PRACTICE = (
+    "SAEngine's practice for columns; BNBC 2020 Part 6 Sec 6.1.6.3 permits face design for "
+    "beams only"
+)
 
 METHOD = [
     (
@@ -69,8 +89,13 @@ METHOD = [
         "at the column and wall faces (the positive moments in the span unchanged) and for the "
         "shear at d from the face (6.4.1.3.1: the support compresses the end of the beam, the "
         "loads act at its top; with a point load within d of a face the shear at the face "
-        "should be taken), columns for the forces at the beam soffit and the top of the slab."
-    )
+        "should be taken)."
+    ),
+    (
+        "Columns are designed for the forces at the beam soffit and the top of the slab: "
+        "SAEngine's practice, as a commercial analysis program designs them (6.1.6.3 covers "
+        "beams only); their slenderness end moments M1 and M2 stay the joints'."
+    ),
 ]
 
 
@@ -81,7 +106,8 @@ class Faced:
     pieces: list[Any]
     #: "analysis" (the analysis's face offsets), "joints" (none: the joint forces kept).
     source: str
-    #: Per piece id the offsets (i, j) from its station origin to the support faces [m].
+    #: Per piece id the offsets (i, j) from its node to the support faces [m] (the member's: a
+    #: face may lie on a later piece).
     offsets: dict[int, tuple[float, float]] = field(default_factory=dict)
     shear_depth: float | None = None  # m
     notes: list[str] = field(default_factory=list)
@@ -90,16 +116,25 @@ class Faced:
     def at_faces(self) -> bool:
         return self.source == "analysis"
 
-    def describe(self) -> str:
-        """The note the checks carry: where their forces were taken."""
-        if not self.at_faces:
-            return JOINT_NOTE
+    def _distance(self) -> str:
         ends = [v for pair in self.offsets.values() for v in pair if v > 0]
         if not ends:
-            return f"forces at the support faces ({FACE_CLAUSE})"
+            return ""
         low, high = min(ends), max(ends)
         span = f"{low:.2f}" if math.isclose(low, high, abs_tol=5e-3) else f"{low:.2f} to {high:.2f}"
-        return f"forces at the support faces ({FACE_CLAUSE}, {span} m from the joints)"
+        return f", {span} m from the joints"
+
+    def describe(self, column: bool = False) -> str:
+        """The note the checks carry: where their forces were taken (``column``: a column's,
+        at the beam soffit and the top of the slab)."""
+        if not self.at_faces:
+            return JOINT_NOTE
+        if column:
+            return (
+                f"forces at the beam soffit and the top of the slab ({COLUMN_PRACTICE}"
+                f"{self._distance()})"
+            )
+        return f"forces at the support faces ({FACE_CLAUSE}{self._distance()})"
 
     def shear_note(self) -> str:
         if not self.at_faces:
@@ -112,6 +147,14 @@ class Faced:
 # ─────────────────────────────────── offsets ───────────────────────────────────
 
 
+def _mm(value: Any, key: str = "offset") -> float:
+    """A length in mm of the face offsets: a number, or the faces file's ``{"offset": mm,
+    "rigid": mm, "at": ...}`` (its ``key``)."""
+    if isinstance(value, dict):
+        value = value.get(key)
+    return float(value or 0.0)
+
+
 def element_offsets(element: dict[str, Any] | None) -> tuple[float, float] | None:
     """The face offsets (i, j) [m] an analysis element carries (``"faceOffsets"`` in mm), or
     None when it has none."""
@@ -121,8 +164,8 @@ def element_offsets(element: dict[str, Any] | None) -> tuple[float, float] | Non
     if not isinstance(raw, dict):
         return None
     try:
-        i = float(raw.get("i") or 0.0)
-        j = float(raw.get("j") or 0.0)
+        i = _mm(raw.get("i"))
+        j = _mm(raw.get("j"))
     except (TypeError, ValueError):
         return None
     if not (math.isfinite(i) and math.isfinite(j)):
@@ -163,6 +206,26 @@ def offsets_of(
         else:
             found[p.id] = (0.0, 0.0)
     return found if seen else None
+
+
+def rigid_of(project: dict[str, Any], pieces: list[Any]) -> dict[int, tuple[float, float]]:
+    """Each piece's rigid end zones (i, j) [m]: its own ``rigid_offsets`` attribute, else the
+    length of its element's ``joint_offsets`` in the analysis model ``project`` (as
+    :func:`saengine.fem.end_zones.element_offsets` reads them); (0, 0) without."""
+    by_id = {e.get("id"): e for e in project.get("elements", []) or []}
+    found: dict[int, tuple[float, float]] = {}
+    for p in pieces:
+        own = getattr(p, "rigid_offsets", None)
+        if own is not None:
+            found[p.id] = (max(float(own[0]), 0.0), max(float(own[1]), 0.0))
+            continue
+        raw = (by_id.get(p.id) or {}).get("joint_offsets")
+        if raw and len(raw) >= 6:
+            vec = np.asarray(raw[:6], dtype=float)
+            found[p.id] = (float(np.linalg.norm(vec[0:3])), float(np.linalg.norm(vec[3:6])))
+        else:
+            found[p.id] = (0.0, 0.0)
+    return found
 
 
 def shear_depth(section: Any) -> float | None:
@@ -265,80 +328,128 @@ def _interpolate(rows: np.ndarray, length: float, x: float) -> np.ndarray:
     return out
 
 
-def _clamp(
-    rows: np.ndarray,
-    length: float,
-    i_face: float,
-    j_face: float,
-    i_shear: float,
-    j_shear: float,
-    face_rows: np.ndarray | None,
-) -> tuple[np.ndarray, set[int], set[int]]:
-    """``rows`` with the stations inside the faces taken at the faces (and the shears inside the
-    sections at d taken there): the new rows, the stations moved to a face, and those whose
-    shear only moved."""
-    n = len(rows)
-    xs = np.linspace(0.0, length, n)
-    out = np.array(rows, dtype=float, copy=True)
-    moved: set[int] = set()
-    shear_only: set[int] = set()
-    cols = list(_AT_FACE)
-    shears = list(_SHEARS)
-    at_i = face_rows[0] if face_rows is not None else _interpolate(rows, length, i_face)
-    at_j = face_rows[1] if face_rows is not None else _interpolate(rows, length, length - j_face)
-    v_i = _interpolate(rows, length, i_shear) if i_shear > i_face else at_i
-    v_j = _interpolate(rows, length, length - j_shear) if j_shear > j_face else at_j
-    if face_rows is not None:
-        # The analysis's own face rows: the shear at d moves from them by the stations' slope.
-        if i_shear > i_face:
-            v_i = at_i + _interpolate(rows, length, i_shear) - _interpolate(rows, length, i_face)
-        if j_shear > j_face:
-            v_j = (
-                at_j
-                + _interpolate(rows, length, length - j_shear)
-                - _interpolate(rows, length, length - j_face)
-            )
-    tol = 1e-9
-    for k, x in enumerate(xs):
-        if i_face > 0 and x < i_face - tol:
-            out[k, cols] = at_i[cols]
-            moved.add(k)
-        elif j_face > 0 and x > length - j_face + tol:
-            out[k, cols] = at_j[cols]
-            moved.add(k)
-        if i_face > 0 and x < i_shear - tol:
-            out[k, shears] = v_i[shears]
-            if k not in moved:
-                shear_only.add(k)
-        elif j_face > 0 and x > length - j_shear + tol:
-            out[k, shears] = v_j[shears]
-            if k not in moved:
-                shear_only.add(k)
-    return out, moved, shear_only
+@dataclass
+class _Curve:
+    """One combination's station rows of an analysis element, read at distances from its node
+    i: the stations run from the flexible end i (``ri`` from the node) over ``length``."""
+
+    rows: np.ndarray
+    length: float
+    ri: float = 0.0
+    rj: float = 0.0
+
+    def at(self, x: float) -> np.ndarray:
+        """The forces at ``x`` [m] from the node i; inside a rigid zone, those at its flexible
+        end."""
+        flexible = max(self.length - self.ri - self.rj, 0.0)
+        return _interpolate(self.rows, self.length, min(max(x - self.ri, 0.0), flexible))
+
+    def from_node(self) -> np.ndarray:
+        """The rows re-stationed from the node (as many, evenly over the node to node length)."""
+        if self.ri <= 0 and self.rj <= 0:
+            return np.array(self.rows, dtype=float, copy=True)
+        xs = np.linspace(0.0, self.length, len(self.rows))
+        return np.array([self.at(float(x)) for x in xs])
 
 
-def _clamp_list(
-    parts: list[np.ndarray] | None,
-    bounds: tuple[float, float, float, float, float],
-    rows_of: list[np.ndarray] | None,
-    moved_all: set[int],
-    shear_all: set[int],
-) -> list[np.ndarray] | None:
-    """:func:`_clamp` of each combination's rows of ``parts`` (``bounds``: length, the faces
-    and the sections at d), the stations moved added to ``moved_all`` and ``shear_all``."""
-    if parts is None:
-        return None
-    done = []
-    for c, rows in enumerate(parts):
-        if rows is None or not len(rows):
-            done.append(rows)
-            continue
-        given = rows_of[c] if rows_of and c < len(rows_of) else None
-        new, moved, shear_only = _clamp(np.asarray(rows, dtype=float), *bounds, given)
-        moved_all.update(moved)
-        shear_all.update(shear_only)
-        done.append(new)
-    return done
+@dataclass
+class _Face:
+    """A support face of the member: recorded on piece ``owner`` (its id) at end ``side``,
+    ``offset`` [m] from that piece's node; it lies on chain piece ``land`` at ``x`` [m] from
+    that piece's node i, beyond the chain pieces ``inside`` (wholly inside the support)."""
+
+    owner: int
+    side: str
+    offset: float
+    land: int
+    x: float
+    shear_x: float
+    inside: list[int]
+    #: The analysis's forces at this face per combination (rows N .. Mz), or None.
+    given: list[np.ndarray] | None
+
+
+def _chain(pieces: list[Any]) -> list[int]:
+    """The pieces' order along the member (each starting where the one before ends), from their
+    end coordinates; their own order when that cannot be told."""
+    n = len(pieces)
+    if n < 2 or any(
+        getattr(p, "start", None) is None or getattr(p, "end", None) is None for p in pieces
+    ):
+        return list(range(n))
+
+    def same(a: Any, b: Any) -> bool:
+        return float(np.linalg.norm(np.asarray(a, float) - np.asarray(b, float))) < 1e-6
+
+    heads = [
+        k
+        for k, p in enumerate(pieces)
+        if not any(same(q.end, p.start) for m, q in enumerate(pieces) if m != k)
+    ]
+    if len(heads) != 1:
+        return list(range(n))
+    order = [heads[0]]
+    while len(order) < n:
+        last = pieces[order[-1]]
+        following = [k for k, q in enumerate(pieces) if k not in order and same(q.start, last.end)]
+        if len(following) != 1:
+            return list(range(n))
+        order.append(following[0])
+    return order
+
+
+def _faces(
+    chain: list[Any],
+    offsets: dict[int, tuple[float, float]],
+    face_rows: dict[int, list[np.ndarray]] | None,
+    depth: float,
+    notes: list[str],
+) -> list[_Face]:
+    """The member's support faces, each located on the chain (a face beyond a short piece lies
+    on a later one), the sections at d placed (``depth``, 0 for the shear at the face)."""
+    lengths = [float(p.length) for p in chain]
+    found: list[_Face] = []
+    for idx, piece in enumerate(chain):
+        for side, offset in zip(("i", "j"), offsets.get(piece.id, (0.0, 0.0)), strict=True):
+            if offset <= 0:
+                continue
+            step = 1 if side == "i" else -1
+            k, rest, inside = idx, offset, []
+            while 0 <= k < len(chain) and rest >= lengths[k] - _TOL:
+                inside.append(k)
+                rest -= lengths[k]
+                k += step
+            if not 0 <= k < len(chain):
+                notes.append(f"{piece.name}: the support covers the member, its forces kept")
+                continue
+            x = rest if side == "i" else lengths[k] - rest
+            given = None
+            if face_rows and piece.id in face_rows:
+                given = [np.asarray(r)[0 if side == "i" else 1] for r in face_rows[piece.id]]
+            found.append(_Face(piece.id, side, offset, k, x, x, inside, given))
+    # Faces past one another (the supports overlap the clear span): their forces kept.
+    starts = np.concatenate([[0.0], np.cumsum(lengths)])
+    pos = {id(f): starts[f.land] + f.x for f in found}
+    overlap: set[int] = set()
+    for f in found:
+        for g in found:
+            if f.side == "i" and g.side == "j" and pos[id(f)] >= pos[id(g)] - _TOL:
+                overlap.update((id(f), id(g)))
+    if overlap:
+        names = sorted({chain[f.land].name for f in found if id(f) in overlap})
+        notes.append(f"{', '.join(names)}: the supports cover the element, its forces kept")
+        found = [f for f in found if id(f) not in overlap]
+    # The sections at d, on the piece the face lies on (no further than its ends); where those
+    # of the two faces of one piece meet, both at mid clear span.
+    for f in found:
+        f.shear_x = f.x + depth if f.side == "i" else f.x - depth
+        f.shear_x = min(max(f.shear_x, 0.0), lengths[f.land])
+    for f in found:
+        for g in found:
+            if f.side == "i" and g.side == "j" and f.land == g.land and f.shear_x > g.shear_x:
+                middle = (f.x + g.x) / 2
+                f.shear_x = g.shear_x = middle
+    return found
 
 
 def at_faces(
@@ -353,79 +464,141 @@ def at_faces(
     d from each face (BNBC 6.4.1.3.1), else at the face. ``face_rows``: per piece id the
     analysis's forces at its faces per combination (:func:`combined_face_rows`), else they are
     interpolated from the stations. ``face_offsets``: per element id (int or str) ``{"i": mm,
-    "j": mm}`` (the face forces file's ``faceOffsets``), else read from ``project``.
+    "j": mm}`` (the face forces file's ``faceOffsets``), else read from ``project``. The rigid
+    end zones come from ``project`` (its elements' ``joint_offsets``, :func:`rigid_of`).
 
     Each copy gets ``face_labels`` ({station: where}) for the stations moved, which
     ``saengine.design.check._where`` reports."""
     offsets = offsets_of(project, pieces, face_offsets)
     if offsets is None or not any(i > 0 or j > 0 for i, j in offsets.values()):
         return Faced(list(pieces), "joints", notes=[JOINT_NOTE])
-    out: list[Any] = []
     notes: list[str] = []
-    for piece in pieces:
-        i_face, j_face = offsets.get(piece.id, (0.0, 0.0))
-        length = float(piece.length)
-        if i_face <= 0 and j_face <= 0:
-            out.append(piece)
-            continue
-        if i_face + j_face >= length:
-            # The supports overlap the whole piece (a stub between two faces): keep it whole.
-            notes.append(f"{piece.name}: the supports cover the element, its forces kept")
-            out.append(piece)
-            continue
-        d = shear_depth or 0.0
-        i_shear = i_face + d if i_face > 0 else 0.0
-        j_shear = j_face + d if j_face > 0 else 0.0
-        clear = length - i_face - j_face
-        if i_shear - i_face + j_shear - j_face > clear:
-            # The sections at d meet: both at mid-clear-span.
-            i_shear = i_face + clear / 2 if i_face > 0 else 0.0
-            j_shear = j_face + clear / 2 if j_face > 0 else 0.0
-        bounds = (length, i_face, j_face, i_shear, j_shear)
-        moved_all: set[int] = set()
-        shear_all: set[int] = set()
+    order = _chain(pieces)
+    chain = [pieces[k] for k in order]
+    rigid = rigid_of(project, pieces)
+    depth = shear_depth if shear_depth and shear_depth > 0 else 0.0
+    faces = _faces(chain, offsets, face_rows, depth, notes)
+
+    def curves(kind: str) -> list[list[_Curve | None] | None]:
+        found: list[list[_Curve | None] | None] = []
+        for p in chain:
+            parts = getattr(p, kind, None)
+            if parts is None:
+                found.append(None)
+                continue
+            ri, rj = rigid.get(p.id, (0.0, 0.0))
+            found.append(
+                [
+                    _Curve(np.asarray(rows, dtype=float), float(p.length), ri, rj)
+                    if rows is not None and len(rows)
+                    else None
+                    for rows in parts
+                ]
+            )
+        return found
+
+    touched = {f.land for f in faces} | {k for f in faces for k in f.inside}
+    touched |= {k for k, p in enumerate(chain) if any(rigid.get(p.id, (0.0, 0.0)))}
+    moved_of: dict[int, set[int]] = {k: set() for k in touched}
+    shear_of: dict[int, set[int]] = {k: set() for k in touched}
+    new_parts: dict[tuple[int, str], list[Any]] = {}
+    cols, shears = list(_AT_FACE), list(_SHEARS)
+    for kind in ("forces", "sway", "sustained"):
+        of_kind = curves(kind)
+        for k in touched:
+            parts = of_kind[k]
+            if parts is None:
+                continue
+            done: list[Any] = []
+            for c, curve in enumerate(parts):
+                if curve is None:
+                    done.append(getattr(chain[k], kind)[c])
+                    continue
+                rows = curve.from_node()
+                xs = np.linspace(0.0, curve.length, len(rows))
+                for f in faces:
+                    if k != f.land and k not in f.inside:
+                        continue
+                    land_parts = of_kind[f.land]
+                    land = land_parts[c] if land_parts is not None else None
+                    if land is None:
+                        continue
+                    given = (
+                        f.given[c] if kind == "forces" and f.given and c < len(f.given) else None
+                    )
+                    at = given if given is not None else land.at(f.x)
+                    shear = at
+                    if not math.isclose(f.shear_x, f.x, abs_tol=_TOL):
+                        shear = land.at(f.shear_x)
+                        if given is not None:
+                            # The analysis's face row, moved to d by the stations' change.
+                            shear = given + shear - land.at(f.x)
+                    if k in f.inside:
+                        rows[:, cols] = at[cols]
+                        rows[:, shears] = shear[shears]
+                        moved_of[k].update(range(len(rows)))
+                        continue
+                    sign = 1.0 if f.side == "i" else -1.0
+                    for s, x in enumerate(xs):
+                        if sign * (f.x - x) > _TOL:
+                            rows[s, cols] = at[cols]
+                            moved_of[k].add(s)
+                        if sign * (f.shear_x - x) > _TOL:
+                            rows[s, shears] = shear[shears]
+                            shear_of[k].add(s)
+                done.append(rows)
+            new_parts[(k, kind)] = done
+
+    face_of: dict[int, list[_Face]] = {}
+    for f in faces:
+        for k in [f.land, *f.inside]:
+            face_of.setdefault(k, []).append(f)
+    with_d = depth > 0
+    replaced: dict[int, Any] = {}
+    for k in touched:
+        piece = chain[k]
         copied = copy.copy(piece)
-        copied.forces = _clamp_list(
-            piece.forces, bounds, (face_rows or {}).get(piece.id), moved_all, shear_all
-        )
-        # The lateral and sustained parts have no face rows of their own: interpolated.
-        copied.sway = _clamp_list(getattr(piece, "sway", None), bounds, None, moved_all, shear_all)
-        copied.sustained = _clamp_list(
-            getattr(piece, "sustained", None), bounds, None, moved_all, shear_all
-        )
+        for kind in ("forces", "sway", "sustained"):
+            if (k, kind) in new_parts:
+                setattr(copied, kind, new_parts[(k, kind)])
         count = len(piece.forces[0]) if piece.forces else 0
+        length = float(piece.length)
         labels: dict[int, str] = {}
-        with_d = shear_depth is not None and shear_depth > 0
-        for k in sorted(moved_all):
-            x = length * k / max(count - 1, 1)
-            near_i = x < length / 2
-            off = i_face if near_i else j_face
+        for s in sorted(moved_of[k]):
+            x = length * s / max(count - 1, 1)
+            near = [f for f in face_of.get(k, []) if (f.side == "i") == (x < length / 2)]
+            near = near or face_of.get(k, [])
+            off = near[0].offset if near else 0.0
             text = f"{piece.name} at the support face, {off:.2f} m from the joint"
             if with_d:
                 text += ", shear at d from the face"
-            labels[k] = text
-        for k in sorted(shear_all - moved_all):
-            labels[k] = (
-                f"{piece.name} at {k / max(count - 1, 1):.2f} L (shear taken at d from the face)"
+            labels[s] = text
+        for s in sorted(shear_of[k] - moved_of[k]):
+            labels[s] = (
+                f"{piece.name} at {s / max(count - 1, 1):.2f} L (shear taken at d from the face)"
             )
         copied.face_labels = labels
-        out.append(copied)
+        replaced[id(piece)] = copied
+    kept = {f.owner for f in faces}
     return Faced(
-        out,
+        [replaced.get(id(p), p) for p in pieces],
         "analysis",
-        offsets={k: v for k, v in offsets.items() if v[0] > 0 or v[1] > 0},
+        offsets={k: v for k, v in offsets.items() if k in kept and (v[0] > 0 or v[1] > 0)},
         shear_depth=shear_depth if shear_depth and shear_depth > 0 else None,
         notes=notes,
     )
 
 
 def annotate(checks: list[dict[str, Any]], faced: Faced) -> list[dict[str, Any]]:
-    """Adds where the forces were taken to the beam or column ``checks`` (flexure and axial
-    with bending: the faces; shear: the faces or d from them), in place; returns them."""
+    """Adds where the forces were taken to the beam or column ``checks`` (flexure and, for
+    columns, axial force with bending: the faces; shear: the faces or d from them), in place;
+    returns them."""
     for check in checks:
         name = check.get("name", "")
-        if name.startswith(("Flexure", "Axial force and")):
+        if name.startswith("Flexure"):
             extra = faced.describe()
+        elif name.startswith("Axial force and"):
+            extra = faced.describe(column=True)
         elif name == "Shear" or name.startswith("Minimum stirrups"):
             extra = faced.shear_note()
         else:
@@ -436,6 +609,7 @@ def annotate(checks: list[dict[str, Any]], faced: Faced) -> list[dict[str, Any]]
 
 
 __all__ = [
+    "COLUMN_PRACTICE",
     "FACE_CLAUSE",
     "JOINT_NOTE",
     "METHOD",
@@ -448,5 +622,6 @@ __all__ = [
     "face_rows_of",
     "offsets_of",
     "read_face_forces",
+    "rigid_of",
     "shear_depth",
 ]

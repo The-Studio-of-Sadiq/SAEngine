@@ -241,3 +241,133 @@ def test_interpolation_is_exact_for_a_parabola() -> None:
         assert face_forces._interpolate(rows, 4.0, x)[0] == pytest.approx(x * x - 3 * x + 2)
     # Two stations: a straight line between them (2 at 0, 0.75 at the other end).
     assert math.isclose(face_forces._interpolate(rows[:2], 4.0, 2.0)[0], (2 + 0.75) / 2)
+
+
+# ───────────── rigid end zones (OpenSees -jntOffset) and faces beyond a short element ─────────────
+
+
+def test_rigid_end_zones_read_at_their_true_place() -> None:
+    # The analysis's own convention: 600 mm columns (a = 0.30 m), rigid zones 0.5 a = 0.15 m
+    # at both ends, so the flexible part (5.7 m) is fixed-fixed under w = 20 kN/m:
+    # localForce M = w Lf² / 12 = 54.15 kN·m at its ends. The check's stations
+    # (element_section_forces) run from the flexible end i over the node to node 6 m.
+    from types import SimpleNamespace
+
+    from saengine.fem.display import element_section_forces
+    from saengine.fem.end_zones import section_at
+
+    ri = 0.15
+    flexible = L - 2 * ri
+    end = np.zeros(12)
+    end[1], end[5] = W * flexible / 2, W * flexible**2 / 12
+    load = np.array([0.0, -W, 0.0])
+    stations = element_section_forces(SimpleNamespace(length=L), end, load)
+    piece = _beam([stations])
+    project = {
+        "nodes": [],
+        "elements": [
+            {
+                "id": 7,
+                "joint_offsets": [ri, 0, 0, -ri, 0, 0],
+                "faceOffsets": {"i": A * 1e3, "j": A * 1e3},
+            }
+        ],
+    }
+    d = 0.54
+    faced = face_forces.at_faces([piece], project, shear_depth=d)
+    rows = faced.pieces[0].forces[0]
+    # The face moment, as end_zones.section_at gives it (x - ri along the flexible part):
+    # w Lf²/12 - w (a - ri)(Lf - (a - ri)) / 2 = 54.15 - 8.33 = 45.83 kN·m, at both faces.
+    exact = section_at(end, load, A - ri)
+    assert abs(exact[5]) == pytest.approx(45.825e3)
+    assert rows[0, 5] == pytest.approx(exact[5], rel=1e-9)
+    assert rows[-1, 5] == pytest.approx(exact[5], rel=1e-9)
+    # Shear at d from the face: w (Lf / 2 - (a - ri) - d) = 20 (2.85 - 0.15 - 0.54) = 43.2 kN.
+    assert abs(rows[0, 1]) == pytest.approx(43.2e3, rel=1e-9)
+    assert abs(rows[-1, 1]) == pytest.approx(43.2e3, rel=1e-9)
+    # Re-stationed from the node: mid-span (3 m from the node, 2.85 m into the flexible part)
+    # carries w Lf² / 24 = 27.08 kN·m, and every station is the analysis's at its place.
+    assert rows[5, 5] == pytest.approx(W * flexible**2 / 24)
+    xs = np.linspace(0.0, L, STATIONS)
+    for k in range(2, STATIONS - 2):
+        assert rows[k, 5] == pytest.approx(section_at(end, load, xs[k] - ri)[5], abs=1e-6)
+    # Without the rigid zone read (the stations taken from the joint) the i face moment
+    # would be 17 % low; the joint forces mode leaves the analysis's stations as they are.
+    unshifted = face_forces._interpolate(stations, L, A)[5]
+    assert abs(unshifted) < 0.85 * abs(exact[5])
+    assert face_forces.rigid_of(project, [piece]) == {7: (pytest.approx(ri), pytest.approx(ri))}
+
+
+def _meshed() -> list[_Piece]:
+    """The 6 m beam meshed into 0.25 + 5.5 + 0.25 m elements (ids 11, 12, 13), each with its
+    own stations of the joint-to-joint diagram; listed out of order."""
+    bounds = [(0.0, 0.25, 11), (0.25, 5.75, 12), (5.75, 6.0, 13)]
+    pieces = []
+    for x0, x1, eid in bounds:
+        xs = np.linspace(x0, x1, STATIONS)
+        rows = np.zeros((STATIONS, 6))
+        rows[:, 2] = [shear_at(x) for x in xs]
+        rows[:, 4] = [moment(x) for x in xs]
+        pieces.append(
+            _Piece(
+                f"B1#{eid}",
+                eid,
+                x1 - x0,
+                depth_along_z=True,
+                axes=np.eye(3),
+                forces=[rows],
+                start=np.array([x0, 0.0, 3.0]),
+                end=np.array([x1, 0.0, 3.0]),
+                sway=[np.zeros((STATIONS, 6))],
+                sustained=[0.5 * rows],
+            )
+        )
+    return [pieces[1], pieces[2], pieces[0]]
+
+
+def test_face_beyond_a_short_meshed_element() -> None:
+    # The analysis records the 0.30 m offsets on the joint elements (11 at i, 13 at j), whose
+    # 0.25 m is shorter: the faces lie 0.05 m into element 12. Elements 11 and 13 are wholly
+    # inside the supports and take the face forces; element 12 is clamped up to its faces.
+    pieces = _meshed()
+    offsets = {"11": {"i": 300.0}, "13": {"j": 300.0}}
+    d = 0.54
+    faced = face_forces.at_faces(pieces, {"elements": []}, d, None, offsets)
+    by = {p.id: p for p in faced.pieces}
+    assert [p.id for p in faced.pieces] == [12, 13, 11]  # the caller's order kept
+    for eid in (11, 13):
+        np.testing.assert_allclose(by[eid].forces[0][:, 4], moment(A), rtol=1e-9)
+        np.testing.assert_allclose(by[eid].sustained[0][:, 4], 0.5 * moment(A), rtol=1e-9)
+        assert set(by[eid].face_labels) == set(range(STATIONS))
+    np.testing.assert_allclose(np.abs(by[11].forces[0][:, 2]), shear_at(A + d), rtol=1e-9)
+    middle = by[12].forces[0]
+    assert middle[0, 4] == pytest.approx(moment(A)) and middle[-1, 4] == pytest.approx(moment(A))
+    assert middle[1, 4] == pytest.approx(moment(0.25 + 0.55))  # beyond the face: unchanged
+    # Shear at d (0.84 m from the joint): station 1 of element 12 sits at 0.80 m, inside.
+    assert middle[1, 2] == pytest.approx(shear_at(A + d))
+    assert middle[2, 2] == pytest.approx(shear_at(0.25 + 1.1))
+    assert "0.30 m from the joint" in by[11].face_labels[0]
+    assert faced.offsets == {11: (0.3, 0.0), 13: (0.0, 0.3)} and not faced.notes
+    # The analysis's face rows (recorded on the joint element) are taken over the parabola.
+    given = {11: [np.array([[0, 0, 50e3, 0, 40e3, 0], [0] * 6])]}
+    faced = face_forces.at_faces(pieces, {"elements": []}, d, given, offsets)
+    by = {p.id: p for p in faced.pieces}
+    assert by[11].forces[0][3, 4] == pytest.approx(40e3)
+    assert by[12].forces[0][0, 4] == pytest.approx(40e3)
+    # Its shear moved to d by the stations' change from the face: 50 - (V(0.30) - V(0.84)).
+    assert by[12].forces[0][0, 2] == pytest.approx(50e3 + shear_at(A + d) - shear_at(A))
+
+
+def test_column_checks_do_not_cite_the_beam_clause() -> None:
+    piece = _beam([_rows()])
+    faced = face_forces.at_faces([piece], _project(), 0.54)
+    checks = face_forces.annotate(
+        [{"name": "Axial force and biaxial bending"}, {"name": "Flexure, hogging (top bars)"}],
+        faced,
+    )
+    column, beam = checks[0]["note"], checks[1]["note"]
+    assert column.startswith("forces at the beam soffit and the top of the slab")
+    assert "SAEngine's practice for columns" in column and "beams only" in column
+    assert "(BNBC 2020 Part 6 Sec 6.1.6.3," not in column
+    assert beam.startswith("forces at the support faces (BNBC 2020 Part 6 Sec 6.1.6.3")
+    assert "beams only" in face_forces.METHOD[1]
