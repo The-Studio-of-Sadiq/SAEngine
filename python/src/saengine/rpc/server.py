@@ -8,6 +8,8 @@ Methods:
 - ``results/list`` ``{outDir, projectPath}`` -> the results that can be shown in 3D
 - ``results/view`` ``{outDir, projectPath, key, mode?}`` -> one result's shape and diagrams
 - ``library/check`` ``{kind, text, materialsText?}`` -> rule violations in a library file
+- ``section/analyse`` ``{text, materialsText?, projectRoot?, capacity?, surface?}`` -> a designed
+  section's properties, interaction diagrams and P-Mx-My surface (Section Designer)
 - ``structure/shapeGeometry`` ``{shape}`` -> a parametric shape's members, areas and supports
 - ``structure/importGeometry`` ``{path, options, objectsText?}`` -> a DXF, IFC or Rhino file's
 - ``structure/insert`` ``{structureText, geometry}`` -> the structural model with them added
@@ -259,6 +261,20 @@ def create_server() -> JsonRPCServer:
     def _check_library(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.check_library(args["kind"], args["text"], args.get("materialsText"))
+
+    @server.feature("section/analyse")
+    @_in_worker
+    def _section_analyse(params: Any) -> dict[str, Any]:
+        from saengine.library.section_designer import analyse
+
+        args = _plain(params)
+        return analyse(
+            args["text"],
+            args.get("materialsText"),
+            args.get("projectRoot"),
+            capacity=args.get("capacity", True),
+            surface=args.get("surface", False),
+        )
 
     @server.feature("bim/generate")
     def _generate_building(params: Any) -> dict[str, Any]:

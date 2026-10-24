@@ -101,6 +101,7 @@ TEMPLATES: dict[str, dict[str, Any]] = {
         "flangeThickness": 10,
     },
     "LShapeProfile": {"shape": "L", "depth": 75, "width": 75, "thickness": 6},
+    "DesignedProfile": {"shape": "designed", "section": "SD1"},
     "UShapeProfile": {
         "shape": "U",
         "depth": 200,
