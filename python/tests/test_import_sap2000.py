@@ -82,7 +82,7 @@ def test_builds_a_valid_project(tmp_path: Path) -> None:
     report = project.report.to_dict()
     assert report["source"]["units"] == "KN, m, C"
     assert report["imported"]["columns"] == 8 and report["imported"]["braces"] == 1
-    assert "pinned bases analysed as fixed" in entries(report, "approximated")
+    assert {b.fixity for b in project.bim.supports} == {"pinned"}  # pinned bases stay pinned
     assert "envelope, absolute and SRSS combinations" in entries(report, "skipped")
     assert report["loads"]["notCarriedKN"] == pytest.approx({"D": 30, "L": 10, "WY": 4})
     combos = {c.name: c for c in project.settings.combinations}

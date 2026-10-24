@@ -15,7 +15,7 @@ the command line:
 > saengine import "Office.e2k" "D:\Projects" --name "Office"
 Imported ETABS model Office.e2k as Office into D:\Projects\Office (units kn-m).
   imported: 3 stories, 5 gridLines, 12 columns, 14 beams, 1 braces, 4 slabs, 1 walls, ...
-  approximated: end releases ignored (members are continuous) (1), e.g. D1-Story1
+  approximated: pinned steel beams and braces as simple connections (...) (1), e.g. D1-Story1
   skipped: point loads (1), e.g. 5-Story2 Live
   loads not carried over: L 20 kN, D 60 kN
 ```
@@ -42,16 +42,50 @@ CurrUnits`. A file without a unit line is read in kN and m, with a warning.
   steel from their dimensions. Sections named only by a designation are read the same way by all
   three importers: SAEngine's standard section table first (IPE, HEA, HEB, ISMB, ISMC, L, SHS,
   RHS, CHS; `HE200A` = HEA 200), then names that carry their dimensions, then W/UB/UC estimates
-  from depth and mass and placeholder I-shapes (both reported as approximated). Units of a
+  from depth and mass and placeholder I-shapes (both reported as approximated, the estimates as
+  "estimated from the designation — check"). The estimate never fails: heavy shapes that do not
+  fit their nominal depth (W14X730 is 22 in deep) grow in depth and width with the flanges held
+  at 1/8 of the depth, and W8–W14 column shapes are taken as wide as they are deep. ETABS writes
+  its library shapes by name only (`SHAPE "W14X90"`, with `FILE "AISC14"` on the first shape of
+  each library); the report names the library. A table of library shapes can be plugged in with
+  `saengine.importers.shapes` (a table in FreeCAD's profile-preset layout, asked before the
+  estimates; which table SAEngine ships is still open). User-defined shapes (`SHAPE "Steel
+  I/Wide Flange" D B TF TW`) are read exactly. Units of a
   designation follow its family: SHS, RHS, BOX, CHS and ISA are millimetres (`SHS25X25X2.5` is
   25 mm), HSS and TS inches; TUBE, PIPE and L are read in inches only when the thickness is
   below 1 (reported). Names that cannot be read are skipped with their members (reported).
   General sections become the rectangle of the same area and inertia (approximated).
 - **Materials**: concrete (f'c), steel (Fy, Fu), E, ν, unit weight.
-- **Supports**: restraints at the base.
+- **Supports**: SAEngine fixes the bases of the columns and walls of the lowest story itself.
+  A pinned restraint (translations only) there becomes a pinned support of the building model,
+  which frees the column base's rotations; restraints elsewhere (a brace's foot, a support above
+  the base) become building-model supports too. Column bases the file leaves free stay fixed
+  (reported). Point springs are not imported; a file without restraints is an **error** in the
+  report ("Error: ..." at the top of the warnings, and `errors`).
+- **Points below their story**: an ETABS point's third number (`POINT "8" 150 0 3120`) puts it
+  that far below the story it is used at.
+- **Walls**: a panel that is a rectangle between two stories is a wall. Panels that are not
+  (ETABS mesh pieces, the panels round a door or window) are merged with the panels in line with
+  them, story by story, into one wall whose gaps become wall openings (doors where they reach
+  the floor); panels that make no such wall are reported one by one.
+- **Releases**: steel beams and braces released in bending at both ends (`RELEASE "PINNED"`,
+  `"M2I M3I M2J M3J"`) get a simple connection (fin plate or gusset, default bolting: check it
+  in 04 Objects), which pins them in the analysis. Releases at one end only, of concrete
+  members, and axial, shear and torsion releases are reported (members continuous).
+- **Property modifiers**: SAEngine has no modifiers per member. Modifiers that are BNBC 2020
+  6.3.10.4.1's cracked factors (columns 0.70, beams 0.35, slabs 0.25, walls 0.70 or 0.35 Ig)
+  switch on SAEngine's cracked sections for all cases; other values and membrane, axial, shear,
+  torsion, mass and weight modifiers are reported as not applied.
+- **Column bars**: older files' bar sizes and counts, and ETABS 2016+ patterns
+  (`PATTERN "R-4-3" LONGBARAREA 314.2`: 10 bars of 20 mm; `"C-8"` round a circle).
 - **Loads**: uniform gravity area loads on floors and roofs become the project's floor and roof
   loads (D, SD, L, Lr); STAAD floor loads on levels with imported slabs, SAP2000 area loads
-  (also "uniform to frame", carried as slab pressure).
+  (also "uniform to frame", carried as slab pressure). Loads stay per slab: slabs with the same
+  loads share an area load, the group with the most area is the floor (roof) load and the other
+  groups are area loads of their own, named on their slabs (`areaLoad` of the floor-plan slab).
+  ETABS "Other" patterns named as fluid loads (F, F1, FL, Fluid, Water, Liquid, Tank) are
+  SAEngine's F in the combinations; their area loads are applied as superimposed dead load (F
+  holds the contents of 07 MEP equipment only), reported.
 - **Combinations**: linear combinations on SAEngine's cases (Dead/Superimposed → D/SD, Live → L,
   Roof Live → Lr, wind → WX/WY, seismic → EX/EY by the axis in the name or, for ETABS response
   spectrum cases, their ACCEL directions). Combinations of combinations are expanded;
@@ -68,20 +102,23 @@ again with **SAEngine: Show Import Report** (the last import). In short:
   Response spectrum terms become the equivalent static EX/EY (the spectrum function, damping and
   scaling are not imported).
 - **Loads not carried over**: point and frame loads, and STAAD floor loads on levels with no
-  slabs, are reported with their totals (`loads.notCarriedKN`), not analysed. Add them in
-  SAEngine or check that its own loads cover them.
-- **Releases, offsets, insertion points, local axis rotations** are ignored (members are
-  continuous); pinned bases are analysed as fixed; springs are skipped. To pin imported steel
-  beams or braces, give their object type a simple connection (fin plate, end plate or gusset)
-  in 04 Objects: SAEngine then pins those member ends in the analysis (see below).
-- Envelope, SRSS and absolute combinations; modal, time-history and mass-source definitions;
-  non-cartesian grids; ribbed, waffle and deck slabs (become solid slabs); auto-select,
-  nonprismatic and double sections; STAAD compact tube/pipe/channel names.
-- Beam and column bars are left to SAEngine's design (the files give covers only).
+  slabs, are reported with their totals (`loads.notCarriedKN`, and a warning with the totals per
+  case), not analysed. Add them in SAEngine or check that its own loads cover them.
+- **Offsets, insertion points, local axis rotations**: end length offsets, rigid-zone factors,
+  cardinal points other than the centroid (a beam's top centre is SAEngine's own placement) and
+  joint offsets are reported; SAEngine has no rigid end zones yet.
+- **Reported, not read**: pier and spandrel labels; the mass source where it differs from
+  SAEngine's seismic weight (D + SD + 0.25 L, not lumped at the stories); auto seismic
+  definitions (user coefficients, UBC, ASCE: SAEngine's BNBC 2020 loads apply).
+- Envelope, SRSS and absolute combinations; modal and time-history definitions; non-cartesian
+  grids; ribbed, waffle and deck slabs (become solid slabs); auto-select, nonprismatic and
+  double sections; STAAD compact tube/pipe/channel names.
+- Beam bars are left to SAEngine's design (the files give covers only).
 
-The parsers were written from the formats' published structure and tested on synthetic files;
-check the first import of each program's real export against its own model (the report's
-counts and the base reactions under D).
+The ETABS importer has been run on 58 real ETABS 22.5 exports (CSI's verification models and a
+model drawn in ETABS): all import, each approximation in the report. The tests reproduce each
+pattern in synthetic files; check the first import of each program's real export against its
+own model (the report's counts and the base reactions under D).
 
 ## Simple steel connections in the analysis
 

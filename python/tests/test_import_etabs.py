@@ -88,7 +88,8 @@ def test_frame_imports_into_valid_parts(tmp_path: Path) -> None:
     wall = plan.walls[0]
     assert (wall.base, wall.top, wall.start.x, wall.end.x) == ("Base", "Story1", "C", "C")
     brace = bim.additions.members[0]
-    assert (brace.type, brace.z1, brace.x2, brace.z2) == ("HSS150x8", 0, 6000, 3500)
+    # Released in bending at both ends: a steel brace with a simple (gusset) connection.
+    assert (brace.type, brace.z1, brace.x2, brace.z2) == ("HSS150x8-pinned", 0, 6000, 3500)
 
     concrete = materials.get("C25")
     assert concrete.concrete.fc == pytest.approx(25)
@@ -107,12 +108,13 @@ def test_frame_imports_into_valid_parts(tmp_path: Path) -> None:
     assert (bars.transverse.dia, bars.transverse.spacing) == (10, 150)
     beam = kinds["B300x500"]
     assert (beam.profile.xDim, beam.profile.yDim, beam.reinforcement) == (300, 500, None)
-    tube = kinds["HSS150x8"]
+    tube = kinds["HSS150x8-pinned"]
     assert (tube.kind, tube.profile.shape, tube.profile.wallThickness) == (
         "brace",
         "rectangleHollow",
         8,
     )
+    assert tube.connection is not None and tube.connection.type == "gusset"
     assert (kinds["S150"].thickness, kinds["W200"].thickness) == (150, 200)
 
     loads = {a.id: a for a in settings.areaLoads}
@@ -127,12 +129,13 @@ def test_frame_imports_into_valid_parts(tmp_path: Path) -> None:
     assert report["imported"]["braces"] == 1 and report["imported"]["supports"] == 6
     skipped = {s["what"]: s for s in report["skipped"]}
     assert skipped["frame loads"]["examples"] == ["B3-Story1 SDL"]
-    assert "sections named from a steel database without their dimensions" in skipped
+    assert "sections named from a steel database that could not be read" in skipped
     assert "envelope, SRSS and absolute combinations" in skipped
     assert report["loads"]["notCarriedKN"] == {"D": 60.0, "L": 20.0}  # 10 kN/m x 6 m, 20 kN
     assert report["loads"]["carriedKN"] == {"D": SDL, "L": LIVE, "Lr": ROOF_LIVE}
     approximated = {a["what"] for a in report["approximated"]}
-    assert "end releases ignored (members are continuous)" in approximated
+    assert any(a.startswith("pinned steel beams and braces as simple") for a in approximated)
+    assert "axial, shear and torsion releases not expressed" in approximated  # TI
 
 
 def test_section_lookup_and_kip_inch_units() -> None:
@@ -203,7 +206,8 @@ $ SHELL OBJECT LOADS
     assert roof.live == pytest.approx(2.394, rel=1e-3)  # 50 psf
     assert any("roof live" in a["what"] for a in project.report.approximated)
     assert "supports" not in project.report.imported
-    assert project.report.warnings[0].startswith("The file has no supports")
+    assert project.report.errors[0].startswith("The file has no supports")
+    assert project.report.warnings[0].startswith("Error: The file has no supports")
 
 
 def test_roof_live_in_live_pattern_keeps_its_factor() -> None:
@@ -360,5 +364,8 @@ $ LOAD COMBINATIONS
     assert project.bim.additions.slabOpenings[0].xDim == 1000
     assert [(c.name, c.D, c.L) for c in project.settings.combinations] == [("COMB1", 1.2, 1.6)]
     approximated = {a["what"] for a in project.report.approximated}
-    assert "pinned bases analysed as fixed" in approximated
+    # The pinned base of C1 frees its rotations; the other column bases have no restraint in
+    # the file, but SAEngine fixes them (reported).
+    assert [(b.at, b.fixity) for b in project.bim.supports] == [([0, 0, 0], "pinned")]
+    assert any(a.startswith("column bases the file leaves free") for a in approximated)
     assert "grid lines made from the column positions" in approximated

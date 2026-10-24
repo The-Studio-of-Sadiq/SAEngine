@@ -122,6 +122,11 @@ class PlacedSlab(_Placed):
     boundary: list[GridPoint] = Field(
         min_length=3, description="Corners, in order around the slab."
     )
+    areaLoad: Id | None = Field(
+        default=None,
+        title="Area load",
+        description="Area load from 02 Project Settings; none: the floor or roof load there.",
+    )
 
 
 class PlacedFooting(_Placed):
