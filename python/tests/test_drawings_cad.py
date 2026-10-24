@@ -191,3 +191,27 @@ def test_qa_harness_skips_without_autocad(tmp_path: Path, monkeypatch) -> None:
         assert sheet["ezdxf"]["odd_text_heights"] == []
         assert sheet["ezdxf"]["out_of_border_count"] == 0
         assert sheet["ezdxf"]["sheet"]["size"] == "A3"
+
+
+def test_floor_plan_dxf_has_only_its_own_tables() -> None:
+    """The per-storey floor plan DXFs (11 Exports/Floor Plan): the Arial text style alone and
+    only the linetypes their layers use (ezdxf's, as the app's linetype scales expect)."""
+    from saengine.pipeline.exports import LAYERS as PLAN_LAYERS
+    from saengine.pipeline.exports import drawing_dxf
+
+    entities = [
+        {
+            "kind": "line",
+            "layer": "S-GRID",
+            "start": (0, 0),
+            "end": (6000, 0),
+            "linetypeScale": 200,
+        },
+        {"kind": "text", "layer": "S-GRID-IDEN", "position": (0, 500), "height": 350, "text": "A"},
+    ]
+    doc = ezdxf.read(__import__("io").StringIO(drawing_dxf(entities)))
+    assert [(s.dxf.name, s.dxf.font) for s in doc.styles] == [("Standard", FONT)]
+    used = {linetype for _, _, linetype, _ in PLAN_LAYERS if linetype}
+    assert {lt.dxf.name.upper() for lt in doc.linetypes} == STANDARD_LINETYPES | used
+    assert not doc.audit().has_errors
+    assert next(iter(doc.modelspace().query("TEXT"))).dxf.style == "Standard"

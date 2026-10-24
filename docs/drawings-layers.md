@@ -110,5 +110,14 @@ all sheets, and the result matches `drawings.pdf`. In LibreCAD (model space only
 model space at 1:N on the sheet's size. A program without that plotter falls back to its own
 default device and keeps the paper size and scale.
 
+## Floor plan exports
+
+The per-storey floor plans (`11 Exports/Floor Plan/<story>.dxf`, `saengine export --format
+dxf`) are real-size plans without a sheet, drawn as the app's floor plan editor draws them, on
+their own layers (`S-GRID`, `S-GRID-IDEN`, `S-COLS`, `S-BEAM`, `S-WALL`, `S-SLAB`, `S-FNDN`,
+`S-ANNO-IDEN`). They follow the same rules for CAD programs: one text style (`Standard`,
+Arial) and only the linetypes their layers use (`CENTER`, `DASHED`, ezdxf's definitions, which
+the entities' own linetype scales of 200 and 100 are made for).
+
 The frame follows ISO 5457: 20 mm binding margin on the left, 10 mm elsewhere, centring marks,
 the title block in a strip at the right. Nothing but the frame lies outside the border.

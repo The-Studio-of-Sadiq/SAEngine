@@ -24,6 +24,10 @@ it will open it. For each sheet DXF of `11 Exports/Drawings` it:
 3. **LibreCAD** (when installed): converts the DXF with its headless `dxf2pdf` command
    (`S-1xx.librecad.pdf`), the bundled viewer's view of the sheet.
 
+A DXF that is not a sheet (the floor plans of `11 Exports/Floor Plan`, which have no frame) is
+checked the same way, except that AutoCAD plots its extents fitted to A1 and there is no layout
+plot, text-height or border check.
+
 It writes `report.json` and `report.md` (one row per sheet, then the details) into `--out`.
 
 ## Run it

@@ -103,7 +103,12 @@ def ezdxf_check(path: Path) -> dict[str, Any]:
     for e in msp.query("TEXT MTEXT"):
         heights[round(e.dxf.char_height if e.dxftype() == "MTEXT" else e.dxf.height, 3)] += 1
     paper_heights = Counter({round(h / scale, 2): n for h, n in heights.items()})
-    odd_heights = sorted(h for h in paper_heights if h not in PLOT_TEXT_HEIGHTS)
+    # plot heights only on a sheet; a real-size plan (a floor plan export) has none
+    odd_heights = (
+        sorted(h for h in paper_heights if h not in PLOT_TEXT_HEIGHTS)
+        if geometry.get("scale")
+        else []
+    )
     ext = bbox.extents(msp, fast=True)
     out_of_sheet: list[str] = []
     out_of_border: list[str] = []
@@ -208,15 +213,19 @@ def acad_check(
     layout_pdf = out / f"{stem}.layout.pdf"
     for f in (pdf, dwg, layout_pdf):
         f.unlink(missing_ok=True)
+    is_sheet = bool(sheet.get("size") and sheet.get("scale"))
     size, scale = sheet.get("size") or "A1", sheet.get("scale") or 1
     pw, ph = PAPER[size]
+    if is_sheet:  # the sheet's frame at its scale, then its layout by its own page setup
+        plot_area, layout_plot = f"W\n0,0\n{pw * scale:g},{ph * scale:g}\n1:{scale:g}", LAYOUT_PLOT
+    else:  # a DXF that is no sheet (a floor plan export): its extents fitted to A1
+        plot_area, layout_plot = "E\nF", ""
     script = TEMPLATE.read_text(encoding="utf-8")
     for key, value in {
+        "{plot_area}": plot_area,
+        "{layout_plot}": layout_plot,
         "{pc3}": "DWG To PDF.pc3",
         "{paper}": PDF_PAPER[size],
-        "{x1}": f"{pw * scale:g}",
-        "{y1}": f"{ph * scale:g}",
-        "{scale}": f"{scale:g}",
         "{pdf}": str(pdf),
         "{dwg}": str(dwg),
         "{layout}": stem,  # the sheet's paper space layout, named after its number
@@ -227,12 +236,27 @@ def acad_check(
     code, text = run_console(exe, ["/i", str(dxf), "/s", str(scr), "/l", "en-US"], out, timeout)
     log.write_text(text, encoding="utf-8")
     result = parse_acad_log(text, code, pdf, dwg)
-    result["layout_plot_ok"] = layout_pdf.is_file() and layout_pdf.stat().st_size > 0
+    result["layout_plot_ok"] = (
+        (layout_pdf.is_file() and layout_pdf.stat().st_size > 0) if is_sheet else None
+    )
     result["layout_pdf"] = str(layout_pdf) if layout_pdf.is_file() else None
     layout = _between(text.split("\n"), "SAE-LAYOUT-BEGIN", "SAE-LAYOUT-END")
     result["layout_messages"] = [ln.strip() for ln in layout if ln.strip()][-12:]
     return result
 
+
+LAYOUT_PLOT = """(princ "\\nSAE-LAYOUT-BEGIN\\n")
+-PLOT
+N
+{layout}
+
+DWG To PDF.pc3
+"{layout_pdf}"
+N
+Y
+(princ "\\nSAE-LAYOUT-END\\n")
+"""
+"""Plots a sheet's paper space layout by its own page setup (only the sheets have one)."""
 
 AUDIT_TOTAL = re.compile(r"Total errors found\s+(\d+)\s+fixed\s+(\d+)", re.IGNORECASE)
 SUBSTITUTE = re.compile(r"Substituting \[(.+?)\] for \[(.+?)\]", re.IGNORECASE)
@@ -397,7 +421,7 @@ def markdown(report: dict[str, Any]) -> str:
                 sf=len(a.get("substituted_fonts", [])) if a else "-",
                 w=len(a.get("warnings", [])) if a else "-",
                 pdf="ok" if a.get("plot_ok") else ("FAIL" if a else "-"),
-                lpdf="ok" if a.get("layout_plot_ok") else ("FAIL" if a else "-"),
+                lpdf={True: "ok", False: "FAIL"}.get(a.get("layout_plot_ok"), "-"),
                 dwg="ok" if a.get("dwg_ok") else ("FAIL" if a else "-"),
                 lc="ok" if lc.get("pdf") else ("FAIL" if lc else "-"),
             )
@@ -419,7 +443,7 @@ def markdown(report: dict[str, Any]) -> str:
         details += [f"- AutoCAD missing font: {m}" for m in a.get("missing_fonts", [])]
         details += [f"- AutoCAD substituted font: {m}" for m in a.get("substituted_fonts", [])]
         details += [f"- AutoCAD: {m}" for m in a.get("warnings", [])]
-        if a and not a.get("layout_plot_ok"):
+        if a and a.get("layout_plot_ok") is False:
             details += [f"- layout plot: {m}" for m in a.get("layout_messages", [])]
         if details:
             out += [f"## {s['name']}", "", *details, ""]

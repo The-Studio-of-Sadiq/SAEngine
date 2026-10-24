@@ -24,10 +24,7 @@ Model
 M
 L
 N
-W
-0,0
-{x1},{y1}
-1:{scale}
+{plot_area}
 0,0
 Y
 monochrome.ctb
@@ -37,17 +34,7 @@ A
 N
 Y
 (princ "\nSAE-PLOT-END\n")
-(princ "\nSAE-LAYOUT-BEGIN\n")
--PLOT
-N
-{layout}
-
-DWG To PDF.pc3
-"{layout_pdf}"
-N
-Y
-(princ "\nSAE-LAYOUT-END\n")
-(princ "\nSAE-SAVE-BEGIN\n")
+{layout_plot}(princ "\nSAE-SAVE-BEGIN\n")
 SAVEAS
 2018
 "{dwg}"
