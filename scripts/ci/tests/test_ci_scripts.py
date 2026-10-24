@@ -406,6 +406,26 @@ def test_notices_librecad_section(tmp_path: Path) -> None:
     assert notices.librecad_bundle(tmp_path / "missing") is None
 
 
+def test_notices_freecad_profile_table(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import importlib.util
+    import types
+
+    package = tmp_path / "saengine"
+    monkeypatch.setattr(
+        importlib.util,
+        "find_spec",
+        lambda name: types.SimpleNamespace(submodule_search_locations=[str(package)]),
+    )
+    assert notices.freecad_section() == []  # a backend without the table
+    data = package / "importers" / "data"
+    data.mkdir(parents=True)
+    (data / "freecad-profiles.csv").write_text("UB,UB127x76x13,H,76,127,4,7.6\n")
+    (data / "freecad-profiles.LICENSE.txt").write_text("GNU LESSER GENERAL PUBLIC LICENSE 2.1")
+    text = "".join(notices.freecad_section())
+    assert "FreeCAD profile table" in text and "LGPL-2.1-or-later" in text
+    assert notices.FREECAD_COMMIT in text and "[freecad-profiles.LICENSE.txt]" in text
+
+
 # ── release.py ──────────────────────────────────────────────────────────────────────────────
 
 

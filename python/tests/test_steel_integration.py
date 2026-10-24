@@ -246,18 +246,20 @@ def test_section_lookup_by_database_name():
         assert section_lookup_noted(name) == (profile.model_dump(), note), name
     assert section_lookup("HE200A")["overallDepth"] == 190
     assert section_lookup_noted("HE200A")[1] is None  # in the table: exact
-    assert "estimated" in section_lookup_noted("W14X90")[1]
+    assert section_lookup("W14X90")["overallDepth"] == 356.108  # FreeCAD's profile table
+    assert "estimated" in section_lookup_noted("W14X426")[1]  # not in it: estimated
     assert section_lookup("C10X20") is None
 
 
 def test_etabs_import_keeps_database_sections_staad_reads(tmp_path):
     """An ETABS frame section named only by a database designation (W14X90 in the test file)
-    is read as the STAAD and SAP2000 importers read it, and reported as approximated."""
+    is read as the STAAD and SAP2000 importers read it (FreeCAD's profile table), and reported
+    as approximated."""
     result = import_structural(DATA / "two_story_frame.e2k", tmp_path, "Lookup")
     report = result["report"]
     approximated = {a["what"]: a for a in report["approximated"]}
     entry = next(a for what, a in approximated.items() if what.startswith("database sections"))
-    assert "W14X90" in entry["examples"] and "estimated" in entry["what"]
+    assert "W14X90" in entry["examples"] and "FreeCAD profile table" in entry["what"]
     skipped = [s["what"] for s in report["skipped"]]
     assert not any("steel database" in what for what in skipped)
 

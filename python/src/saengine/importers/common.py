@@ -12,10 +12,12 @@ turns it into SAEngine's parts:
   columns and rectangular walls between stories, horizontal beams and slabs at a story level,
   placed on their nearest grid lines with offsets;
 - ``06 BIM``: the building model generated from that floor plan, with the members that do not
-  map onto it (braces, sloped beams, raking columns) as its inclined members, and rectangular
-  slab openings;
-- ``02 Project Settings``: SAEngine's default settings with the floor and roof area loads and the
-  load combinations of the file.
+  map onto it (braces, sloped beams, raking columns) as its inclined members, rectangular
+  slab openings, wall openings (gaps of merged wall panels) and the supports that differ from
+  SAEngine's own fixed bases (pinned bases, supports elsewhere);
+- ``02 Project Settings``: SAEngine's default settings with the floor and roof area loads (slabs
+  with other loads get area loads of their own, named on the floor-plan slab), the load
+  combinations and the analysis values the file fixes (cracked sections).
 
 SAEngine derives its own loads (:mod:`saengine.fem.derive`): self-weight from the material
 densities, superimposed dead and live loads on the slabs from the floor and roof area loads,
@@ -29,10 +31,12 @@ approximated and what was skipped, each with a count and a few examples.
 
 from __future__ import annotations
 
+import itertools
 import json
 import math
 import re
 from collections import Counter, defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -40,9 +44,11 @@ from typing import Any, Literal
 
 from saengine.library.bim import (
     Additions,
+    BimSupport,
     BuildingModel,
     InclinedMember,
     SlabOpening,
+    WallOpening,
     generate,
     source_stamp,
 )
@@ -67,7 +73,7 @@ TOLERANCE = 1.0
 MAX_EXAMPLES = 5
 
 #: SAEngine's load cases that combinations and loads can refer to (see saengine.fem.derive).
-CASES = ("D", "L", "Lr", "WX", "WY", "EX", "EY", "T")
+CASES = ("D", "L", "Lr", "WX", "WY", "EX", "EY", "T", "F")
 
 FrameKind = Literal["column", "beam", "brace"]
 AreaKind = Literal["floor", "wall"]
@@ -240,6 +246,8 @@ class ImportReport:
         self._approximated: dict[str, _Entry] = {}
         self._skipped: dict[str, _Entry] = {}
         self.warnings: list[str] = []
+        #: What makes the imported model unusable as it stands (also first in the warnings).
+        self.errors: list[str] = []
         #: Loads not carried over, total [kN] (down positive for gravity) per SAEngine case.
         self.not_carried: dict[str, float] = defaultdict(float)
         self.carried: dict[str, float] = defaultdict(float)
@@ -266,6 +274,13 @@ class ImportReport:
         if text not in self.warnings:
             self.warnings.append(text)
 
+    def error(self, text: str) -> None:
+        """A problem the engineer must fix before the model can be used: listed in ``errors``
+        and, for readers that show only the warnings, at the top of them."""
+        if text not in self.errors:
+            self.errors.append(text)
+            self.warnings.insert(len(self.errors) - 1, f"Error: {text}")
+
     @property
     def approximated(self) -> list[dict[str, Any]]:
         return [
@@ -287,6 +302,7 @@ class ImportReport:
             "approximated": self.approximated,
             "skipped": self.skipped,
             "warnings": list(self.warnings),
+            "errors": list(self.errors),
             "loads": {
                 "carriedKN": {k: round(v, 3) for k, v in self.carried.items()},
                 "notCarriedKN": {k: round(v, 3) for k, v in self.not_carried.items()},
@@ -377,6 +393,7 @@ class _Frame:
     end: Point3
     kind: FrameKind | None
     rotation: float
+    pinned: bool = False  # both ends released in bending
 
 
 @dataclass
@@ -482,7 +499,14 @@ class ProjectBuilder:
         self._area_m2: dict[str, float] = {}
         self._area_loads: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
         self._combinations: list[tuple[str, dict[str, float]]] = []
+        #: Slab id -> the area load of its own (slabs on the settings' floor or roof load are
+        #: not listed); filled when the settings are built.
+        self.slab_loads: dict[str, str] = {}
         self.self_weight = True
+        #: Point springs of the file SAEngine could not take over (see the supports).
+        self.springs = 0
+        #: Values for the settings' analysis model (``Analysis`` fields) the file fixes.
+        self.analysis: dict[str, Any] = {}
 
     # ── materials and sections ──
 
@@ -585,10 +609,15 @@ class ProjectBuilder:
         end: Point3,
         kind: FrameKind | None = None,
         rotation: float = 0.0,
+        pinned: bool = False,
     ) -> None:
         """A frame member; ``kind`` None: by its direction (vertical: column, horizontal: beam,
-        else brace). ``rotation`` [°] about its axis, as the source program's angle."""
-        self._frames.append(_Frame(name, section, tuple(start), tuple(end), kind, rotation))  # type: ignore[arg-type]
+        else brace). ``rotation`` [°] about its axis, as the source program's angle. ``pinned``:
+        both ends released in bending (steel beams and braces get a simple connection, which
+        SAEngine analyses as pinned ends; other members are reported as continuous)."""
+        self._frames.append(
+            _Frame(name, section, tuple(start), tuple(end), kind, rotation, pinned)  # type: ignore[arg-type]
+        )
 
     def add_area(
         self, name: str, section: str, points: list[Point3], kind: AreaKind | None = None
@@ -671,6 +700,8 @@ class ProjectBuilder:
         }
         members: list[InclinedMember] = []
         ids: set[str] = set()
+        column_bases: list[tuple[float, float, str]] = []
+        self._wall_bases: list[tuple[tuple[float, float], tuple[float, float]]] = []
 
         for f in self._frames:
             (x1, y1, z1), (x2, y2, z2) = f.start, f.end
@@ -689,7 +720,23 @@ class ProjectBuilder:
                     "frame members whose section could not be imported", f"{f.name} ({f.section})"
                 )
                 continue
-            resolved = types.frame(section, kind)
+            simple = False
+            if f.pinned:
+                steel = self._materials.get(section.material, {}).get("category") == "steel"
+                if steel and kind in ("beam", "brace"):
+                    simple = True
+                    report.approximate(
+                        "pinned steel beams and braces as simple connections (default bolting: "
+                        "check the connection in 04 Objects)",
+                        f.name,
+                    )
+                else:
+                    report.approximate(
+                        "end releases of concrete members and columns not expressed (members "
+                        "continuous)",
+                        f.name,
+                    )
+            resolved = types.frame(section, kind, simple)
             if resolved is None:
                 report.skip("frame members whose material could not be imported", f.name)
                 continue
@@ -707,6 +754,8 @@ class ProjectBuilder:
                     }
                 )
                 report.count("columns")
+                if abs(z1 - base_z) <= TOLERANCE:
+                    column_bases.append((x1, y1, f.name))
                 continue
             if kind == "beam" and horizontal and story_at(z1):
                 plan["beams"].append(
@@ -742,6 +791,7 @@ class ProjectBuilder:
             )
             report.count("braces" if kind == "brace" else "inclinedMembers")
 
+        panels: list[tuple[_Area, _ShellSection]] = []  # wall panels
         slab_ids: dict[str, str] = {}  # area name -> slab id
         slab_polygons: list[tuple[str, list[tuple[float, float]], float]] = []
         roof_slabs: set[str] = set()
@@ -781,44 +831,14 @@ class ProjectBuilder:
                     roof_slabs.add(a.name)
                 report.count("slabs")
                 continue
-            wall = _wall(a.points)
-            if wall is None or story_at(wall[2]) is None or story_at(wall[3]) is None:
-                report.skip("wall panels that are not rectangles between two stories", a.name)
-                continue
-            type_id = types.shell(section, "wall")
-            if type_id is None:
-                report.skip("areas whose material could not be imported", a.name)
-                continue
-            (sx, sy), (ex, ey), z0, z1 = wall
-            plan["walls"].append(
-                {
-                    "id": _id(a.name, ids),
-                    "type": type_id,
-                    "base": story_at(z0),
-                    "top": story_at(z1),
-                    "start": at(sx, sy),
-                    "end": at(ex, ey),
-                }
-            )
-            report.count("walls")
+            panels.append((a, section))
 
+        wall_openings = self._build_walls(
+            panels, [z for _, z in levels], story_at, types, at, ids, plan["walls"]
+        )
         openings = self._build_openings(slab_polygons, ids)
 
-        # Supports: SAEngine fixes the bases of the columns and walls at the lowest story.
-        for point, restraints, name in self._supports:
-            if abs(point[2] - base_z) > TOLERANCE:
-                report.skip("supports above the base (SAEngine supports the lowest story)", name)
-                continue
-            if all(restraints[:6]):
-                report.count("supports")
-            elif all(restraints[:3]):
-                report.count("supports")
-                report.approximate("pinned bases analysed as fixed", name)
-            else:
-                report.approximate("partly restrained bases analysed as fixed", name)
-                report.count("supports")
-        if not self._supports:
-            report.warn("The file has no supports: the bases of the lowest story are fixed.")
+        supports = self._build_supports(base_z, column_bases)
 
         settings = self._build_settings(slab_ids, roof_slabs)
         object_library = ObjectLibrary.model_validate({"objects": types.objects})
@@ -826,13 +846,28 @@ class ProjectBuilder:
         material_library = MaterialLibrary.model_validate({"materials": list(materials.values())})
         report.count("materials", len(materials))
 
+        for slab in plan["slabs"]:
+            if slab["id"] in self.slab_loads:
+                slab["areaLoad"] = self.slab_loads[slab["id"]]
         floor_plan = FloorPlan.model_validate({"grids": grids, "stories": stories, **plan})
         plan_text = json_text(floor_plan)
         bim = generate(
             floor_plan,
             source_stamp(plan_text),
-            BuildingModel(additions=Additions(members=members, slabOpenings=openings)),
+            BuildingModel(
+                additions=Additions(
+                    members=members, slabOpenings=openings, wallOpenings=wall_openings
+                )
+            ),
         )
+        bim.supports = supports
+        lost = {k: v for k, v in report.not_carried.items() if abs(v) >= 0.0005}
+        if lost:
+            totals = ", ".join(f"{k} {v:.3g} kN" for k, v in sorted(lost.items()))
+            report.warn(
+                f"Loads of the file not carried over ({totals}; frame, point and other loads, "
+                "listed under skipped): add them in SAEngine before using the results."
+            )
         if not self.self_weight:
             report.warn(
                 "No load pattern of the file includes the self-weight; SAEngine adds it from the "
@@ -931,6 +966,250 @@ class ProjectBuilder:
             self.report.approximate("grid lines made from the column positions")
         return grids
 
+    def _build_walls(
+        self,
+        panels: list[tuple[_Area, _ShellSection]],
+        levels: list[float],
+        story_at: Callable[[float], str | None],
+        types: _Types,
+        at: Callable[[float, float], dict[str, Any]],
+        ids: set[str],
+        walls: list[dict[str, Any]],
+    ) -> list[WallOpening]:
+        """The wall panels as floor-plan walls (appended to ``walls``) and their openings.
+
+        A panel that is a rectangle between two stories is a wall. Panels that are not (ETABS
+        mesh pieces, the panels round a door or window, a panel outlining one) are merged with
+        the panels in line with them, story by story: each piece of the merged outline between
+        two stories becomes one wall, and its gaps wall openings (doors where they reach the
+        floor). Panels that make no such wall (partial height, gaps at a wall's top or ends,
+        outside the stories) are reported one by one.
+        """
+        from shapely.geometry import Polygon, box
+        from shapely.ops import unary_union
+
+        report = self.report
+        result: list[WallOpening] = []
+
+        def add_wall(
+            name: str,
+            section: _ShellSection,
+            start: tuple[float, float],
+            end: tuple[float, float],
+            z0: float,
+            z1: float,
+        ) -> str | None:
+            type_id = types.shell(section, "wall")
+            if type_id is None:
+                report.skip("areas whose material could not be imported", name)
+                return None
+            wall_id = _id(name, ids)
+            walls.append(
+                {
+                    "id": wall_id,
+                    "type": type_id,
+                    "base": story_at(z0),
+                    "top": story_at(z1),
+                    "start": at(*start),
+                    "end": at(*end),
+                }
+            )
+            report.count("walls")
+            if abs(z0 - levels[0]) <= TOLERANCE:
+                self._wall_bases.append((start, end))
+            return wall_id
+
+        # Panels by the vertical plane they lie in: (angle, offset, origin, direction, panels).
+        lines: list[tuple[float, float, tuple[float, float], tuple[float, float], list[Any]]] = []
+        for a, section in panels:
+            plan = _distinct([(p[0], p[1]) for p in a.points])
+            pair = max(
+                ((p, q) for p in plan for q in plan), key=lambda pq: math.dist(*pq), default=None
+            )
+            if pair is None or math.dist(*pair) <= TOLERANCE:
+                report.skip("areas that are neither flat floors nor vertical walls", a.name)
+                continue
+            (x0, y0), (x1, y1) = pair
+            length = math.dist(*pair)
+            dx, dy = (x1 - x0) / length, (y1 - y0) / length
+            if dx < -1e-9 or (abs(dx) <= 1e-9 and dy < 0):
+                dx, dy = -dx, -dy
+            if any(abs((x - x0) * dy - (y - y0) * dx) > TOLERANCE for x, y in plan):
+                report.skip("areas that are neither flat floors nor vertical walls", a.name)
+                continue
+            angle, offset = math.atan2(dy, dx), dx * y0 - dy * x0
+            line = next(
+                (g for g in lines if abs(g[0] - angle) < 1e-4 and abs(g[1] - offset) <= TOLERANCE),
+                None,
+            )
+            if line is None:
+                line = (angle, offset, (x0, y0), (dx, dy), [])
+                lines.append(line)
+            rectangle = _wall(a.points)
+            whole = (
+                rectangle is not None
+                and story_at(rectangle[2]) is not None
+                and story_at(rectangle[3]) is not None
+            )
+            line[4].append((a, section, rectangle if whole else None))
+
+        for _, _, (ox, oy), (dx, dy), members in lines:
+            if all(rectangle is not None for _, _, rectangle in members):
+                for a, section, rectangle in members:
+                    start, end, z0, z1 = rectangle
+                    add_wall(a.name, section, start, end, z0, z1)
+                continue
+            shapes = []
+            for a, section, _ in members:
+                outline = [((x - ox) * dx + (y - oy) * dy, z) for x, y, z in a.points]
+                shapes.append((a, section, Polygon(outline).buffer(0)))
+            union = (
+                unary_union([shape for _, _, shape in shapes])
+                .buffer(0.5, join_style=2)
+                .buffer(-0.5, join_style=2)
+            )
+            done: set[str] = set()
+            left, _, right, _ = union.bounds
+            for z0, z1 in itertools.pairwise(levels):
+                piece = union.intersection(box(left - 1, z0, right + 1, z1))
+                for part in getattr(piece, "geoms", [piece]):
+                    if part.is_empty or part.geom_type != "Polygon" or part.area < 1.0:
+                        continue
+                    inside = [m for m in shapes if m[2].intersection(part).area > 1.0]
+                    names = [a.name for a, _, _ in inside]
+                    done.update(names)
+                    u0, b0, u1, b1 = part.bounds
+                    gaps = box(u0, b0, u1, b1).difference(part)
+                    holes = [g for g in getattr(gaps, "geoms", [gaps]) if g.area > 1.0]
+                    fits = abs(b0 - z0) <= TOLERANCE and abs(b1 - z1) <= TOLERANCE
+                    for g in holes:
+                        g0, h0, g1, h1 = g.bounds
+                        fits = fits and (
+                            g.area >= (g1 - g0) * (h1 - h0) * 0.999
+                            and h1 < b1 - TOLERANCE
+                            and g0 > u0 + TOLERANCE
+                            and g1 < u1 - TOLERANCE
+                        )
+                    if not fits:
+                        for name in names:
+                            report.skip(
+                                "wall panels that make no wall between two stories (partial "
+                                "height, or gaps at a wall's top or ends)",
+                                name,
+                            )
+                        continue
+                    main = max(inside, key=lambda m: m[2].intersection(part).area)
+                    if len({section.name for _, section, _ in inside}) > 1:
+                        report.approximate(
+                            "merged wall panels of different sections as the largest one's",
+                            main[0].name,
+                        )
+                    wall_id = add_wall(
+                        main[0].name,
+                        main[1],
+                        (ox + u0 * dx, oy + u0 * dy),
+                        (ox + u1 * dx, oy + u1 * dy),
+                        z0,
+                        z1,
+                    )
+                    if wall_id is None:
+                        continue
+                    if len(inside) > 1:
+                        more = "..." if len(names) > 4 else ""
+                        report.approximate(
+                            "wall panels in line merged into one wall per story (mesh pieces, "
+                            "panels round openings)",
+                            f"{wall_id}: {', '.join(names[:4])}{more}",
+                        )
+                    for k, g in enumerate(sorted(holes, key=lambda g: g.bounds[0]), 1):
+                        g0, h0, g1, h1 = g.bounds
+                        result.append(
+                            WallOpening(
+                                id=_id(f"{wall_id}-O{k}", ids),
+                                host=wall_id,
+                                offset=round(g0 - u0, 3),
+                                sill=round(max(h0 - b0, 0.0), 3),
+                                width=round(g1 - g0, 3),
+                                height=round(h1 - h0, 3),
+                            )
+                        )
+                        report.count("wallOpenings")
+            for a, _, _ in shapes:
+                if a.name not in done:
+                    report.skip("wall panels outside the stories", a.name)
+        return result
+
+    def _build_supports(
+        self, base_z: float, column_bases: list[tuple[float, float, str]]
+    ) -> list[BimSupport]:
+        """The file's supports as building-model supports where they differ from SAEngine's own.
+
+        SAEngine fixes the bases of the columns and walls at the lowest story itself. A fixed
+        support there needs nothing more; a pinned one (translations only) becomes a pinned
+        building-model support, which frees the column base's rotations. Supports elsewhere
+        (a brace's foot, a support above the base) become building-model supports. Column bases
+        the file leaves free stay fixed (reported), and a file without supports is an error.
+        """
+        report = self.report
+        result: list[BimSupport] = []
+        taken: set[str] = set()
+        supported: set[tuple[float, float]] = set()
+
+        def on_wall(x: float, y: float) -> bool:
+            return any(_segment_distance((x, y), a, b) <= TOLERANCE for a, b in self._wall_bases)
+
+        for (x, y, z), restraints, name in self._supports:
+            translations, rotations = restraints[:3], restraints[3:6]
+            if all(translations):
+                fixity: Literal["fixed", "pinned"] = "fixed" if any(rotations) else "pinned"
+                if any(rotations) and not all(rotations):
+                    report.approximate("supports with some rotations restrained as fixed", name)
+            else:
+                fixity = "pinned"
+                report.approximate(
+                    "supports free in a translation (rollers, guides) as pinned", name
+                )
+            report.count("supports")
+            at_base = abs(z - base_z) <= TOLERANCE
+            if at_base:
+                supported.add((round(x), round(y)))
+            if at_base and on_wall(x, y):
+                if fixity == "pinned":
+                    report.approximate("pinned supports under walls analysed as fixed", name)
+                continue
+            column = at_base and any(
+                math.dist((x, y), (cx, cy)) <= TOLERANCE for cx, cy, _ in column_bases
+            )
+            if column and fixity == "fixed":
+                continue
+            if not at_base:
+                report.approximate(
+                    "supports above the base as building-model supports (check they sit on a "
+                    "member end)",
+                    name,
+                )
+            result.append(BimSupport(id=_id(f"S-{name}", taken), at=[x, y, z], fixity=fixity))
+        if self._supports:
+            for x, y, name in column_bases:
+                if (round(x), round(y)) not in supported and not any(
+                    math.dist((x, y), s) <= TOLERANCE for s in supported
+                ):
+                    report.approximate(
+                        "column bases the file leaves free, fixed by SAEngine (it fixes the "
+                        "columns and walls of the lowest story)",
+                        name,
+                    )
+        else:
+            springs = (
+                f" ({self.springs} point springs could not be imported)" if self.springs else ""
+            )
+            report.error(
+                f"The file has no supports SAEngine can use{springs}: SAEngine fixes the bases "
+                "of the columns and walls of the lowest story. Check the supports before using "
+                "the results."
+            )
+        return result
+
     def _build_openings(
         self, slabs: list[tuple[str, list[tuple[float, float]], float]], ids: set[str]
     ) -> list[SlabOpening]:
@@ -973,6 +1252,10 @@ class ProjectBuilder:
     def _build_settings(self, slab_ids: dict[str, str], roof_slabs: set[str]) -> ProjectSettings:
         report = self.report
         settings = default_project_settings(self.name)
+        if self.analysis:
+            settings.analysis = type(settings.analysis).model_validate(
+                {**settings.analysis.model_dump(), **self.analysis}
+            )
         loads_by_slab = {name: self._area_loads.get(name, {}) for name in slab_ids}
         # Which of the file's live cases end up in SAEngine's roof (Lr) and floor (L) loads:
         # a Live-pattern load on the roof is applied in SAEngine's Lr case, so the combinations
@@ -1001,33 +1284,48 @@ class ProjectBuilder:
             for load_id, group, roof in (("FL", floors, False), ("RF", roofs, True)):
                 if not group:
                     continue
-                finish = self._governing(
-                    [v.get("D", 0.0) for v in group.values()], "superimposed dead load", roof
+                if roof and any(v.get("L") for v in group.values()):
+                    report.approximate(
+                        "live load on the roof taken as roof live load Lr (SAEngine's roof case)"
+                    )
+                if not roof and any(v.get("Lr") for v in group.values()):
+                    report.approximate("roof live load below the roof taken as live load L")
+                # Slabs with the same loads share an area load; the group with the most area
+                # is the floor (roof) load of the settings, the others are the slabs' own.
+                groups: dict[tuple[float, float], list[str]] = defaultdict(list)
+                for name, v in group.items():
+                    key = (round(v.get("D", 0.0), 4), round(v.get("L", 0.0) + v.get("Lr", 0.0), 4))
+                    groups[key].append(name)
+                ranked = sorted(
+                    groups.items(),
+                    key=lambda g: -sum(self._area_m2.get(n, 0.0) for n in g[1]),
                 )
-                if roof:
-                    if any(v.get("L") for v in group.values()):
-                        report.approximate(
-                            "live load on the roof taken as roof live load Lr (SAEngine's roof case)"
-                        )
-                    live_values = [v.get("Lr", 0.0) + v.get("L", 0.0) for v in group.values()]
-                else:
-                    if any(v.get("Lr") for v in group.values()):
-                        report.approximate("roof live load below the roof taken as live load L")
-                    live_values = [v.get("L", 0.0) + v.get("Lr", 0.0) for v in group.values()]
-                live = self._governing(live_values, "live load", roof)
-                area_loads[load_id] = AreaLoad(
-                    id=load_id,
-                    name=f"{'Roof' if roof else 'Floors'} (imported)",
-                    use="custom",
-                    live=live,
-                    finish=finish,
-                    partitions=0.0,
-                )
-                report.count("areaLoads")
-                for name in group:
-                    area = self._area_m2.get(name, 0.0)
-                    report.carried["D"] += finish * area
-                    report.carried["Lr" if roof else "L"] += live * area
+                for k, ((finish, live), names) in enumerate(ranked):
+                    own = f"{load_id}-{k + 1}" if k else load_id
+                    label = "Roof" if roof else "Floors"
+                    area_loads[own] = AreaLoad(
+                        id=own,
+                        name=f"{label} (imported)"
+                        if not k
+                        else f"{label} (imported) {k + 1}: SD {finish:g}, live {live:g} kN/m²",
+                        use="custom",
+                        live=live,
+                        finish=finish,
+                        partitions=0.0,
+                    )
+                    report.count("areaLoads")
+                    for name in names:
+                        if k:
+                            self.slab_loads[slab_ids[name]] = own
+                        area = self._area_m2.get(name, 0.0)
+                        report.carried["D"] += finish * area
+                        report.carried["Lr" if roof else "L"] += live * area
+                if len(ranked) > 1:
+                    report.approximate(
+                        f"{'roof' if roof else 'floor'} slabs with loads of their own (an area "
+                        "load per group of slabs with the same loads, 02 Project Settings)",
+                        ", ".join(f"SD {f:g} / L {v:g} kN/m²: {len(n)}" for (f, v), n in ranked),
+                    )
             settings.areaLoads = list(area_loads.values())
         else:
             report.warn(
@@ -1105,16 +1403,6 @@ class ProjectBuilder:
         take("L", "Lr", floor_cases)
         return result
 
-    def _governing(self, values: list[float], what: str, roof: bool) -> float:
-        distinct = sorted({round(v, 4) for v in values})
-        if len(distinct) > 1:
-            where = "roof" if roof else "floor"
-            self.report.approximate(
-                f"{where} {what} differs between slabs ({', '.join(f'{v:g}' for v in distinct)} "
-                f"kN/m²): the largest applies to all {where} slabs"
-            )
-        return max(distinct) if distinct else 0.0
-
 
 class _Types:
     """Object types made from the sections, one per section and kind it is used as."""
@@ -1137,8 +1425,11 @@ class _Types:
             return _id(section, self._taken)
         return _id(f"{section}-{suffix}", self._taken)
 
-    def frame(self, section: _FrameSection, kind: FrameKind) -> tuple[str, float] | None:
-        """(object type id, extra rotation [°] for columns whose profile is turned)."""
+    def frame(
+        self, section: _FrameSection, kind: FrameKind, simple: bool = False
+    ) -> tuple[str, float] | None:
+        """(object type id, extra rotation [°] for columns whose profile is turned). ``simple``:
+        a steel beam or brace type with a simple connection (pinned ends), default bolting."""
         material = self._material(section.material)
         if material is None:
             return None
@@ -1152,16 +1443,22 @@ class _Types:
                 profile["xDim"], profile["yDim"] = profile["yDim"], profile["xDim"]
             elif profile["shape"] in ("I", "T", "L", "U"):
                 extra = 90.0
-        key = (section.name, kind)
+        key = (section.name, f"{kind}-pinned" if simple else kind)
         if key not in self._ids:
-            type_id = self._new_id(section.name, kind)
+            type_id = (
+                _id(f"{section.name}-pinned", self._taken)
+                if simple
+                else self._new_id(section.name, kind)
+            )
             data: dict[str, Any] = {
                 "id": type_id,
-                "name": f"{section.name} {kind}",
+                "name": f"{section.name} {kind}{' (pinned ends)' if simple else ''}",
                 "kind": kind,
                 "material": material,
                 "profile": profile,
             }
+            if simple:
+                data["connection"] = {"type": "finPlate" if kind == "beam" else "gusset"}
             bars = section.column_reinforcement if kind == "column" else section.beam_reinforcement
             if bars and kind != "brace":
                 rebar = self._material(bars["material"])
@@ -1224,6 +1521,17 @@ def _wall(
     if not all(any(math.dist(a, b) <= TOLERANCE for b in upper) for a in lower):
         return None
     return lower[0], lower[1], bottom, top
+
+
+def _segment_distance(
+    p: tuple[float, float], a: tuple[float, float], b: tuple[float, float]
+) -> float:
+    """Distance [mm] from ``p`` to the segment ``a``-``b`` in plan."""
+    ax, ay = b[0] - a[0], b[1] - a[1]
+    length2 = ax * ax + ay * ay
+    t = 0.0 if not length2 else ((p[0] - a[0]) * ax + (p[1] - a[1]) * ay) / length2
+    t = min(1.0, max(0.0, t))
+    return math.dist(p, (a[0] + t * ax, a[1] + t * ay))
 
 
 def polygon_area(points: list[Point3]) -> float:

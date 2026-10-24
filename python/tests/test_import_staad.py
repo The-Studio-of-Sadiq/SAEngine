@@ -93,13 +93,9 @@ LOAD COMB 2
     # Each UNIT line applies to what follows it: the property line is in mm.
     assert model.sections["R400x400"].profile.xDim == pytest.approx(400)
     w = model.sections["W12X26"]
-    assert w.approximation and w.profile.overallDepth == pytest.approx(12 * 25.4)
-    # 26 lb/ft = 38.7 kg/m of steel: the estimated I-shape has that area.
-    area = (
-        2 * w.profile.overallWidth * w.profile.flangeThickness
-        + (w.profile.overallDepth - 2 * w.profile.flangeThickness) * w.profile.webThickness
-    )
-    assert area == pytest.approx(26 * 1.48816394 / 7850 * 1e6, rel=1e-3)
+    # From FreeCAD's profile table: the real depth (12.22 in), not the nominal 12 in.
+    assert w.approximation == "from the FreeCAD profile table, root radius ignored"
+    assert (w.profile.overallWidth, w.profile.overallDepth) == (164.846, 310.388)
     steel = model.materials[frames["4"].material]
     assert steel.E == pytest.approx(200_000) and steel.density == pytest.approx(78.5e3 / 9.80665)
     assert model.supports["1"] == (True, True, True, False, False, False)

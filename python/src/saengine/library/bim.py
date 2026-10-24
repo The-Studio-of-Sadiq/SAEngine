@@ -112,6 +112,11 @@ class SlabElement(_Element):
     kind: Literal["slab"] = "slab"
     boundary: list[Point2] = Field(min_length=3)
     elevation: Mm = Field(description="Elevation of the top [mm].")
+    areaLoad: Id | None = Field(
+        default=None,
+        title="Area load",
+        description="Area load from 02 Project Settings; none: the floor or roof load there.",
+    )
 
 
 class FootingElement(_Element):
@@ -391,6 +396,7 @@ def generate(plan: FloorPlan, stamp: str, previous: BuildingModel | None = None)
                 source=s.id,
                 boundary=[at(p) for p in s.boundary],
                 elevation=level[s.story],
+                areaLoad=s.areaLoad,
             )
         )
     for f in plan.footings:
@@ -416,6 +422,7 @@ def generate(plan: FloorPlan, stamp: str, previous: BuildingModel | None = None)
         stories=[s.model_copy() for s in plan.stories],
         elements=[*elements, *own],
         additions=previous.additions.model_copy(deep=True) if previous else Additions(),
+        supports=[s.model_copy() for s in previous.supports] if previous else [],
     )
 
 

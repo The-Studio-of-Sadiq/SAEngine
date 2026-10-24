@@ -132,6 +132,17 @@ foreach ($project in $projects) {
             $dataFiles += [pscustomobject]@{ Project = $project.Name; Relative = ($relative -replace '^src/', '') }
         }
     }
+    if ($project.Name -eq 'saengine') {
+        # FreeCAD's profile table (third_party/freecad-profiles, LGPL-2.1-or-later) and its
+        # licence ship as package data of the importers; write_notices.py lists them.
+        $freecad = Join-Path $RepoRoot 'third_party\freecad-profiles'
+        $dataDir = Join-Path $target 'src\saengine\importers\data'
+        $null = New-Item -ItemType Directory -Path $dataDir -Force
+        foreach ($pair in @(@('profiles.csv', 'freecad-profiles.csv'), @('LICENSE', 'freecad-profiles.LICENSE.txt'))) {
+            Copy-Item -LiteralPath (Join-Path $freecad $pair[0]) -Destination (Join-Path $dataDir $pair[1])
+            $dataFiles += [pscustomobject]@{ Project = 'saengine'; Relative = "saengine/importers/data/$($pair[1])" }
+        }
+    }
     Write-Host "$($project.Name): $copied tracked source files"
     $installTargets += $target
 }
