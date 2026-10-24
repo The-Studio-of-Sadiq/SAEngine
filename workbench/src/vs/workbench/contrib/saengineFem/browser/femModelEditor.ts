@@ -275,6 +275,8 @@ export class FemModelEditor extends EditorPane {
 	/** The result drawn over the model, kept for a viewer created later. */
 	private shownResult: { readonly view: IFemResultView; readonly display: FemResultDisplay } | undefined;
 	private nodeCount = 0;
+	/** The open input's model has been read (until then the status says it is being read). */
+	private modelRead = false;
 	private elementCount = 0;
 	private units: string | undefined;
 	private lastDerivation: IFemDeriveOutcome | undefined;
@@ -370,6 +372,7 @@ export class FemModelEditor extends EditorPane {
 		await super.setInput(input, options, context, token);
 		this.inputDisposables.clear();
 		this.lastDerivation = undefined;
+		this.modelRead = false;
 		this.updateChrome(); // a run of this model may already be going
 		void this.derivation?.setResource(input.resource);
 
@@ -391,7 +394,8 @@ export class FemModelEditor extends EditorPane {
 
 	override clearInput(): void {
 		this.inputDisposables.clear();
-		this.results?.setResource(undefined, undefined);
+		// Hidden (another tab of the group shown), not closed: keep the results read so far.
+		this.results?.suspend();
 		super.clearInput();
 	}
 
@@ -576,6 +580,10 @@ export class FemModelEditor extends EditorPane {
 		if (derivation?.deriving) {
 			return { busy: true, text: localize('femEditor.deriving', "Deriving the analysis model from the building model...") };
 		}
+		if (!this.modelRead) {
+			// Not "not derived" or "not analysed" before the model and its results are read.
+			return { busy: true, text: localize('femEditor.reading', "Reading the analysis model...") };
+		}
 		const results = this.results?.status();
 		if (results) {
 			return results;
@@ -701,6 +709,7 @@ export class FemModelEditor extends EditorPane {
 			// opensees-studio fills omitted lists with defaults, so a new project's model may have none yet.
 			model = { ...parsed, ndm: parsed.ndm ?? 3, nodes: parsed.nodes ?? [], elements: parsed.elements ?? [] };
 		} catch (error) {
+			this.modelRead = true;
 			if (!token.isCancellationRequested) {
 				this.showMessage(localize('femModelEditor.readFailed', "Unable to read the model: {0}", String(error)));
 			}
@@ -709,6 +718,7 @@ export class FemModelEditor extends EditorPane {
 		if (token.isCancellationRequested || this.input !== input) {
 			return;
 		}
+		this.modelRead = true;
 		if (!Array.isArray(model.nodes) || !Array.isArray(model.elements)) {
 			this.showMessage(localize('femModelEditor.invalid', "This file is not an OpenSees Studio model (missing nodes or elements)."));
 			return;

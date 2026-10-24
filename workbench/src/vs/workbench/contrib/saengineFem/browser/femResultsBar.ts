@@ -362,6 +362,12 @@ export class FemResultsBar extends Disposable {
 	private problem: string | undefined;
 	private readonly views = new Map<string, IFemResultView>();
 	private request = 0;
+	/** The result list is being read and none is known yet: the status says so, not "not analysed". */
+	private listing = false;
+	/** The result being read from the backend while the view still shows the last one. */
+	private pending: string | undefined;
+	/** Hidden with its editor: the watchers are off and the results read so far are kept. */
+	private suspended = false;
 	private _version = 0;
 	/** The run and result list last read (see `load`). */
 	private signature: string | undefined;
@@ -496,6 +502,11 @@ export class FemResultsBar extends Disposable {
 	setResource(resource: URI | undefined, units: string | undefined): void {
 		this.format = resultFormatter(units);
 		if (resource?.toString() === this.resource?.toString()) {
+			if (resource && this.suspended) {
+				// Shown again: what was read is still shown; a run made meanwhile is read again.
+				this.follow(resource);
+				void this.load();
+			}
 			this.render();
 			return;
 		}
@@ -506,50 +517,68 @@ export class FemResultsBar extends Disposable {
 		this.resultsWatch.clear();
 		this.list = { results: [], stale: false };
 		this.signature = undefined;
+		this.listing = false;
+		this.pending = undefined;
 		this.key = undefined;
 		this.views.clear();
 		this.view = undefined;
 		this.clearDesign();
 		this.clearExtras();
 		if (resource) {
-			// A run deletes and writes again the results folder beside the model: watch the model's
-			// folder for it, and the results folder for its manifest (written last).
-			const results = resultsFolder(resource);
-			const watchResults = () => {
-				const store = new DisposableStore();
-				const watcher = store.add(this.fileService.createWatcher(results, { recursive: false, excludes: [] }));
-				store.add(watcher.onDidChange(e => {
-					if (e.contains(joinPath(results, 'manifest.json'))) {
-						this.reload.schedule();
-					}
-				}));
-				this.resultsWatch.value = store;
-			};
-			const watcher = this.fileService.createWatcher(dirname(resource), { recursive: false, excludes: [] });
-			this.watch.add(watcher);
-			this.watch.add(watcher.onDidChange(e => {
-				if (e.contains(results)) {
-					watchResults();
-					this.reload.schedule();
-				} else if (e.contains(resource)) {
-					this.reload.schedule();
-				}
-			}));
-			watchResults();
-			// The design checks also read the project's object types, materials, settings and
-			// building model: editing the bars changes them without a new run.
-			for (const input of designInputs(resource)) {
-				const folder = this.fileService.createWatcher(dirname(input), { recursive: false, excludes: [] });
-				this.watch.add(folder);
-				this.watch.add(folder.onDidChange(e => {
-					if (e.contains(input)) {
-						this.redesign.schedule();
-					}
-				}));
-			}
+			this.follow(resource);
 			void this.load();
 		} else {
 			this.render();
+		}
+	}
+
+	/** Hides with the editor: stops watching the results but keeps them for when it is shown again. */
+	suspend(): void {
+		this.stopPlaying();
+		this.watch.clear();
+		this.resultsWatch.clear();
+		this.suspended = true;
+	}
+
+	/** Watches the results of `resource` and the inputs of its design checks. */
+	private follow(resource: URI): void {
+		this.suspended = false;
+		this.watch.clear();
+		this.resultsWatch.clear();
+		// A run deletes and writes again the results folder beside the model: watch the model's
+		// folder for it, and the results folder for its manifest (written last).
+		const results = resultsFolder(resource);
+		const watchResults = () => {
+			const store = new DisposableStore();
+			const watcher = store.add(this.fileService.createWatcher(results, { recursive: false, excludes: [] }));
+			store.add(watcher.onDidChange(e => {
+				if (e.contains(joinPath(results, 'manifest.json'))) {
+					this.reload.schedule();
+				}
+			}));
+			this.resultsWatch.value = store;
+		};
+		const watcher = this.fileService.createWatcher(dirname(resource), { recursive: false, excludes: [] });
+		this.watch.add(watcher);
+		this.watch.add(watcher.onDidChange(e => {
+			if (e.contains(results)) {
+				watchResults();
+				this.reload.schedule();
+			} else if (e.contains(resource)) {
+				this.reload.schedule();
+			}
+		}));
+		watchResults();
+		// The design checks also read the project's object types, materials, settings and
+		// building model: editing the bars changes them without a new run.
+		for (const input of designInputs(resource)) {
+			const folder = this.fileService.createWatcher(dirname(input), { recursive: false, excludes: [] });
+			this.watch.add(folder);
+			this.watch.add(folder.onDidChange(e => {
+				if (e.contains(input)) {
+					this.redesign.schedule();
+				}
+			}));
 		}
 	}
 
@@ -585,6 +614,10 @@ export class FemResultsBar extends Disposable {
 		if (!resource) {
 			return;
 		}
+		if (!this.list.results.length) {
+			this.listing = true;
+			this.host.changed();
+		}
 		let list: IFemResultList;
 		try {
 			list = await this.commandService.executeCommand<IFemResultList>(LIST_COMMAND, resource) ?? { results: [], stale: false };
@@ -598,7 +631,12 @@ export class FemResultsBar extends Disposable {
 			return;
 		}
 		const signature = `${manifest}|${JSON.stringify(list)}`;
+		const wasListing = this.listing;
+		this.listing = false;
 		if (signature === this.signature) {
+			if (wasListing) {
+				this.host.changed();
+			}
 			return;
 		}
 		this.signature = signature;
@@ -754,12 +792,21 @@ export class FemResultsBar extends Disposable {
 		}
 		const framed = entry.kind === 'modal' || framesOf(entry).length > 0;
 		const id = `${entry.key}/${framed ? this.mode : 0}`;
+		const request = ++this.request;
+		this.pending = undefined;
 		let view = this.views.get(id);
 		if (!view) {
-			const request = ++this.request;
+			if (!this.playing) {
+				// A busy backend can take a while: say so, or the last result looks like the new one.
+				this.pending = entry.label;
+				this.host.changed();
+			}
 			try {
 				view = await this.commandService.executeCommand<IFemResultView>(VIEW_COMMAND, resource, entry.key, framed ? this.mode : undefined);
 			} catch (error) {
+				if (request === this.request) {
+					this.pending = undefined;
+				}
 				this.view = undefined;
 				this.problem = localize('femResults.failed', "The result could not be read: {0}", errorSummary(error));
 				this.render();
@@ -768,6 +815,7 @@ export class FemResultsBar extends Disposable {
 			if (request !== this.request || resource !== this.resource) {
 				return;
 			}
+			this.pending = undefined;
 			if (view) {
 				this.views.set(id, view);
 			}
@@ -882,7 +930,10 @@ export class FemResultsBar extends Disposable {
 	status(): IEditorFrameStatus | undefined {
 		const entry = this.entry;
 		if (!entry) {
-			return undefined;
+			return this.listing ? { busy: true, text: localize('femResults.listing', "Reading the analysis results...") } : undefined;
+		}
+		if (this.pending) {
+			return { busy: true, text: localize('femResults.reading', "Reading {0}...", this.pending) };
 		}
 		if (this.problem) {
 			return { severity: 'error', text: this.problem };

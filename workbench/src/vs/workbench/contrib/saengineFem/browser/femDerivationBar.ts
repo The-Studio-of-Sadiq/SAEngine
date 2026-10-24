@@ -199,6 +199,8 @@ export class FemDerivation extends Disposable {
 	private description: unknown;
 	private resource: URI | undefined;
 	private requested: URI | undefined;
+	/** The sources of the requested model are being read (see `setResource`). */
+	private reading = false;
 	private _deriving = false;
 
 	constructor(
@@ -223,10 +225,10 @@ export class FemDerivation extends Disposable {
 		return this._deriving;
 	}
 
-	/** The state, when the open file is the project's analysis model. */
+	/** The state, when the open file is the project's analysis model and its sources are read. */
 	get state(): IFemDerivationState | undefined {
-		if (!this.resource) {
-			return undefined;
+		if (!this.resource || this.reading) {
+			return undefined; // unread sources would all look changed
 		}
 		return derivationState(this.description, this.texts());
 	}
@@ -241,6 +243,7 @@ export class FemDerivation extends Disposable {
 		this.requested = resource;
 		this.store.clear();
 		this.models.clear();
+		this.reading = true;
 		const root = this.projectService.project?.root;
 		const model = root && partFile(root, 'fem');
 		this.resource = model && resource && (isEqual(resource, model) || isEqual(resource, joinPath(dirname(model), PUSHOVER_FILE))) ? resource : undefined;
@@ -256,6 +259,9 @@ export class FemDerivation extends Disposable {
 					// A missing part file shows as changed until it is restored.
 				}
 			}
+		}
+		if (this.requested === resource) {
+			this.reading = false;
 		}
 		this.onDidChange();
 	}
