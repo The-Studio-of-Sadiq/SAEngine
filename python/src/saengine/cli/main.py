@@ -306,7 +306,10 @@ def cmd_validate(args: argparse.Namespace, out: Output) -> int:
 
 def cmd_export(args: argparse.Namespace, out: Output) -> int:
     project = _open(args.project)
-    out_path = Path(args.out) if args.out else None
+    target_arg = args.out or getattr(args, "target", None)
+    out_path = Path(target_arg) if target_arg else None
+    if args.format == "e2k":
+        return cmd_export_e2k(args, out, project, out_path)
     if args.format == "civil":
         from saengine.project.archive import ArchiveError, export_project, safe_name
 
@@ -344,6 +347,47 @@ def cmd_export(args: argparse.Namespace, out: Output) -> int:
     out.document("export", EXIT_OK, {
         "project": _project_json(project), "format": args.format,
         "files": [str(p) for p in written],
+    })  # fmt: skip
+    return EXIT_OK
+
+
+def cmd_export_e2k(
+    args: argparse.Namespace, out: Output, project: Any, out_path: Path | None
+) -> int:
+    """``saengine export --format e2k <project> [<out.e2k>]``: an ETABS text model
+    (saengine.exporters.etabs) and its export report beside it."""
+    from saengine.exporters.etabs import E2kExportError, export_e2k
+
+    target = out_path or project.root / "11 Exports" / "ETABS" / f"{project.name}.e2k"
+    if target.is_dir():
+        target = target / f"{project.name}.e2k"
+    units = ("N", "MM") if args.units == "N-mm" else ("KN", "M")
+    out.progress("Deriving the analysis model for the story forces ...")
+    try:
+        result = export_e2k(project.root, units=units, lateral=args.lateral)
+        written = result.write(target)
+    except (E2kExportError, OSError) as error:
+        raise CommandError(str(error)) from error
+    report = result.report.to_dict()
+    report_path = written.with_name(f"{written.stem}.export-report.json")
+    report_path.write_text(json.dumps(report, indent="\t", ensure_ascii=False) + "\n", "utf-8")
+    out.line(f"Wrote {written}")
+    out.line(f"Wrote {report_path}")
+    counts = ", ".join(f"{v} {k}" for k, v in report["exported"].items() if v)
+    if counts:
+        out.line(f"  exported: {counts}")
+    for heading in ("approximated", "skipped"):
+        for item in report[heading]:
+            examples = ", ".join(str(e) for e in item["examples"][:3])
+            out.line(
+                f"  {heading}: {item['what']} ({item['count']})"
+                + (f", e.g. {examples}" if examples else "")
+            )
+    for warning in report["warnings"]:
+        out.line(f"  warning: {warning}")
+    out.document("export", EXIT_OK, {
+        "project": _project_json(project), "format": "e2k",
+        "files": [str(written), str(report_path)], "report": report,
     })  # fmt: skip
     return EXIT_OK
 
@@ -627,10 +671,17 @@ def build_parser() -> argparse.ArgumentParser:
     project_command("check", "run the checks, write no deliverables; exit 1 when a check fails")
     project_command("status", "the status of each part, as the app's sidebar shows it")
 
-    sub = project_command("export", "write an export of 11 Exports, or a .civil archive")
+    sub = project_command("export", "write an export of 11 Exports, a .civil archive, or an "
+                          "ETABS text model (.e2k)")  # fmt: skip
+    sub.add_argument("target", nargs="?", help="e2k: the .e2k file to write (as --out)")
     sub.add_argument("--format", required=True,
-                     choices=["ifc", "dxf", "csv", "pdf", "drawings", "civil"])  # fmt: skip
+                     choices=["ifc", "dxf", "csv", "pdf", "drawings", "civil", "e2k"])  # fmt: skip
     sub.add_argument("--out", help="the file (the folder for dxf and drawings) to write")
+    sub.add_argument("--units", choices=["kN-m", "N-mm"], default="kN-m",
+                     help="e2k: the file's units (default: %(default)s)")  # fmt: skip
+    sub.add_argument("--lateral", choices=["loads", "coefficient"], default="loads",
+                     help="e2k: earthquake as SAEngine's story forces (loads) or as an ETABS "
+                     "user coefficient (default: %(default)s)")  # fmt: skip
     sub.add_argument("--size", choices=["A1", "A2", "A3"],
                      help="drawings: the sheet size (default: Project Settings' drawings)")  # fmt: skip
     sub.add_argument("--include-results", action="store_true",

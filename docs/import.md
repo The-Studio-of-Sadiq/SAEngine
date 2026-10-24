@@ -135,3 +135,69 @@ ends keeps its torsion at its first end. An end stays rigid where the joint is a
 support reaction must stay at the support node) or where nothing else holds the joint's rotation
 (a free end); the design then flags the moment reaching that connection ("end moment at a simple
 connection", a flag that does not count towards the utilisation).
+
+## Exporting to ETABS
+
+The other way round: `saengine export --format e2k <project> [<out.e2k>]` writes the building as
+an ETABS text model (in ETABS: File → Import → ETABS .e2k Text File) and its export report
+`<name>.export-report.json` (`saengine.exportReport/1`: `exported` counts, `approximated`,
+`skipped`, `warnings`, and `loads.exportedKN` / `notExportedKN` per case). Without a file it
+goes to `11 Exports/ETABS/<project>.e2k`. `--units N-mm` writes N and mm (default kN and m);
+`--lateral coefficient` writes the earthquake as an ETABS user coefficient instead of
+SAEngine's story forces. The code is `saengine.exporters.etabs` (`export_e2k` for a project,
+`write_e2k` for parts in memory).
+
+What is written, from the building model (06 BIM), its object types and materials and 02 Project
+Settings:
+
+- **Stories and grids**: the stories (the lowest as the base), typical floors (`similarTo`) as
+  similar stories of their master; the floor plan's grid lines as one cartesian system.
+- **Materials** used by what is exported: concrete (f'c), steel and rebar (fy, fu; fu 1.25 fy
+  when missing, reported), E, ν, α, unit weight.
+- **Frame sections**, one per object type: concrete rectangles and circles; columns with their
+  bars as an ETABS pattern (`PATTERN "R-4-3"`: the perimeter bars split between the faces in
+  proportion to their lengths; `"C-8"` round a circle) checked, not designed; beams with their
+  covers to the bar centres and the bar areas. Steel shapes that are a shape of SAEngine's steel
+  table or of FreeCAD's profile table, and that an ETABS library holds by that name (W in
+  AISC16; IPE, HE A/B/M and UPN in Euro; ISMB, ISMC, ISLB, ISWB, ISJB in Indian; UB and UC in
+  ArcelorMittal_British), are written by name (`SHAPE "IPE300" FILE "Euro"`: ETABS takes its
+  own library's dimensions, reported); the others by their dimensions (I, tube, pipe, channel,
+  angle, tee). Solid steel bars are not written (reported).
+- **Slab and wall properties**: slabs are membranes when 02 Project Settings hands slab loads to
+  the beams (one-way load distribution for one-way slabs), thin shells when slabs are shells;
+  walls thin shells. Non-structural walls are not elements: their weight is an SD line load on
+  the beams under them (the part on no beam is reported with its total).
+- **Objects**: columns (split at each story they pass), beams at their story, braces and other
+  inclined members, structural walls story by story, slabs, slab openings (with 07 MEP's
+  openings and shafts, as the analysis cuts them) and wall openings. A point off a story level
+  is written below the story above it (ETABS's point offset). Column angles: the rotation, less
+  90° for I, T, L and channel columns (ETABS lays their depth along local 2). Steel beams and
+  braces with a simple connection are released in bending at both ends.
+- **Stiffness**: with cracked sections (Analysis model → Section stiffness), SAEngine's factors as
+  property modifiers: columns I 0.70, beams I 0.35, shell slabs 0.25 in bending, walls 0.70 (0.35
+  cracked) on all their stiffness. ETABS's modifiers act in every case: SAEngine's "lateral cases
+  only" is reported.
+- **Supports and diaphragms**: the bases of the columns and walls at the lowest story fixed (as
+  SAEngine fixes them) and the building-model supports; a rigid diaphragm `D1` on the slabs and
+  every point of the stories above the base (none when the diaphragm is flexible). Soil springs
+  are written as fixed bases (reported).
+- **Loads**: patterns D (self-weight from the materials), SD, L, Lr, WX, WY, EX, EY, each with its
+  linear static case, and a modal case. The floor and roof loads per slab (finish and partitions
+  SD, live L, on the roof Lr). Wind and earthquake are SAEngine's own BNBC 2020 story forces,
+  derived as Run All derives the analysis model (about half a minute on the sample), as point
+  loads at each story's centre of mass, tied to the diaphragm (a flexible diaphragm: at the
+  nearest points); with `--lateral coefficient` the earthquake is ETABS's user coefficient with
+  SAEngine's base shear coefficient and height exponent k (ETABS then weighs the building from
+  its mass source).
+- **Mass source**: the elements, SD and the code's share of L (0.25), not lumped at the stories.
+- **Combinations**: 02 Project Settings' combinations as linear additions (D on both D and SD).
+
+Not written (each in the report when the project has it): stairs (not in SAEngine's analysis
+either), footings, solid blocks, 07 MEP equipment loads (weight, contents: F, with their total),
+the temperature case and its combination factors, P-Delta, the response spectrum, accidental
+torsion, time histories, pushover and construction sequence definitions.
+
+Reading the export back with the importer gives the same stories, members, sections, area loads
+and combinations (the tests check this on the sample, a generated building and a synthetic
+model); the brick-wall line loads come back as frame loads "not carried over" (the importer
+does not take frame loads), and wall openings drawn as opening panels are not read back.
