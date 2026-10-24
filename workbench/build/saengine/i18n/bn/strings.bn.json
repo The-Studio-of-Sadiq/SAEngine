@@ -1917,9 +1917,8 @@
 				},
 				"membersTable.none": {
 					"en": "No members are placed yet. Place them in the floor plan, or create a building from its grids (File > New Building from Grid).",
-					"bn": "এখনও কোনো মেম্বার বসানো হয়নি। ফ্লোর প্ল্যানে বসান, অথবা গ্রিড থেকে একটি ভবন তৈরি করুন (ফাইল > গ্রিড থেকে নতুন ভবন)।",
-					"status": "review",
-					"note": "Menu path File > New Building from Grid: Bangla must match how that menu item is translated elsewhere."
+					"bn": "এখনও কোনো মেম্বার বসানো হয়নি। ফ্লোর প্ল্যানে বসান, অথবা গ্রিড থেকে একটি বিল্ডিং তৈরি করুন (File > গ্রিড থেকে নতুন বিল্ডিং...)।",
+					"status": "translated"
 				},
 				"membersTable.statusSelected": {
 					"en": "{0} of {1} members shown · {2} selected",
@@ -5517,9 +5516,8 @@
 				},
 				"runAll.summary.hvacEstimate": {
 					"en": "HVAC: failing checks {0}, openings to add {1}, loads not calculated: run Calculate Loads",
-					"bn": "HVAC: ফেল করা চেক {0}, যোগ করতে হবে এমন ওপেনিং {1}, লোড হিসাব করা হয়নি: লোড হিসাব করুন রান করুন",
-					"status": "review",
-					"note": "Command name \"Calculate Loads\" rendered as লোড হিসাব করুন; must match the HVAC command label translation."
+					"bn": "HVAC: ফেল করা চেক {0}, যোগ করতে হবে এমন ওপেনিং {1}, লোড হিসাব করা হয়নি: \"লোড হিসাব করুন\" রান করুন",
+					"status": "translated"
 				},
 				"runAll.summary.hvac": {
 					"en": "HVAC: failing checks {0}, openings to add {1}",
@@ -5629,8 +5627,7 @@
 				"saengine.qgis.program": {
 					"en": "The QGIS that **Open in QGIS** starts (the full path of `qgis-bin.exe`, `qgis-ltr-bin.exe` or an OSGeo4W `qgis.bat`). When empty, an installed QGIS is looked for (the Windows uninstall entries, Program Files and OSGeo4W). QGIS is not part of SAEngine.",
 					"bn": "**QGIS-এ খুলুন** যে QGIS চালু করে (`qgis-bin.exe`, `qgis-ltr-bin.exe` বা OSGeo4W-এর `qgis.bat`-এর পূর্ণ পাথ)। খালি থাকলে, ইনস্টল করা QGIS খোঁজা হয় (Windows আনইনস্টল এন্ট্রি, Program Files ও OSGeo4W-এ)। QGIS SAEngine-এর অংশ নয়।",
-					"status": "review",
-					"note": "Command name \"Open in QGIS\" rendered as QGIS-এ খুলুন; must match the command label translation."
+					"status": "translated"
 				},
 				"femAnalysisOutput": {
 					"en": "SAEngine Analysis",
@@ -8127,8 +8124,7 @@
 				"elecView.riserNote": {
 					"en": "Add Openings proposes the openings it needs through the floors it passes outside a shaft.",
 					"bn": "ওপেনিং যোগ করুন — শ্যাফটের বাইরে যে ফ্লোরগুলো দিয়ে এটি যায় সেখানে প্রয়োজনীয় ওপেনিং প্রস্তাব করে।",
-					"status": "review",
-					"note": "\"Add Openings\" is a command name; check it matches the translated command label."
+					"status": "translated"
 				},
 				"elecView.trayHeading": {
 					"en": "Cable tray {0}",
