@@ -157,6 +157,7 @@ export default defineConfig(
 			'src/vs/workbench/contrib/saengine*/**/*.ts',
 			'src/vs/platform/saengine/**/*.ts',
 			'src/vs/workbench/services/saengine*/**/*.ts',
+			'build/saengine/**/*.ts',
 		],
 		rules: {
 			'header/header': [
