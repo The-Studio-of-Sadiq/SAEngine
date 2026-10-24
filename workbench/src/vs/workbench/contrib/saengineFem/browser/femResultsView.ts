@@ -574,6 +574,8 @@ export class FemResultsEditor extends EditorPane {
 				series.push({
 					name: axis,
 					color: AXIS_COLORS[axis],
+					// Storey forces act at the levels: points, not a line between them.
+					style: quantity === 'force' ? 'points' : 'line',
 					points: profile.map(p => [p.value * unit.scale, p.z]),
 					tooltips: profile.map(p => `${axis}, ${p.level} (${p.z.toFixed(2)} m): ${[show(p.value), unit.unit].filter(Boolean).join(' ')}`),
 				});

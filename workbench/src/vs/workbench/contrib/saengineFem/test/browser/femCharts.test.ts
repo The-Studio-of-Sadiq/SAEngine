@@ -58,7 +58,7 @@ suite('SAEngine - FEM charts', () => {
 		assert.strictEqual(modeText({ number: 2, period: 0.121, ux: 0.033, uy: 0 }), 'Mode 2: T = 0.121 s, UX 3.3 %, UY 0.0 %');
 		assert.strictEqual(modeText({ number: 1, period: 0.5 }), 'Mode 1: T = 0.500 s');
 		const spectrum = { name: 'BNBC', periods: [0, 0.1, 1], accelerations: [1, 2, 0.2], damping: 0.05 };
-		assert.deepStrictEqual([spectrumAt(spectrum, 0.05), spectrumAt(spectrum, 0.55), spectrumAt(spectrum, 3)], [1.5, 1.1, 0.2]);
+		assert.deepStrictEqual([spectrumAt(spectrum, 0.05), spectrumAt(spectrum, 0.55), spectrumAt(spectrum, 3)].map(v => Number(v.toFixed(9))), [1.5, 1.1, 0.2]);
 		const table = modalTable({ case: 'Modal', modes, required: 0.9 });
 		assert.deepStrictEqual(table.rows[0], [1, 0.5, 2, 70, 1, 70, 1]);
 	});

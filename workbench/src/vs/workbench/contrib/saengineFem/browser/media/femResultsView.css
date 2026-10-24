@@ -99,8 +99,10 @@
 	font-weight: 600;
 }
 
-.saengine-fem-results-view .monaco-button {
+.saengine-fem-results-view .fem-results-section > .monaco-button {
+	display: inline-flex;
 	width: auto;
+	max-width: max-content;
 	padding: 4px 12px;
 }
 
