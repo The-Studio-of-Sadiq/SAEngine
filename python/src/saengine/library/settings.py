@@ -13,6 +13,9 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from saengine.codes import context as code_context
+from saengine.codes.manifest import PACK_ID_PATTERN
+from saengine.codes.registry import DEFAULT_PACK, CodePack, CodePackError
 from saengine.library import bnbc
 from saengine.library.labels import field_title
 from saengine.library.materials import Id
@@ -692,6 +695,15 @@ class Drawings(_Model):
 class ProjectSettings(_Model):
     schema_: Literal["saengine.projectSettings/1"] = Field(default=SCHEMA_ID, alias="schema")
     project: ProjectInfo
+    codePack: str = Field(
+        default=DEFAULT_PACK,
+        pattern=PACK_ID_PATTERN,
+        title="Design code",
+        description="Id of the code pack the project follows (its towns and hazard values, "
+        "importance factors, structural systems, live load minimums, load combinations and "
+        "seismic and wind coefficients). Built-in: bnbc2020. A project's own packs live in "
+        "02 Project Settings/code-packs/<id>/; the user's in the SAEngine user folder.",
+    )
     codes: Codes = Field(default_factory=Codes)
     occupancy: Occupancy = Field(default_factory=Occupancy)
     site: Site = Field(default_factory=Site)
@@ -714,13 +726,17 @@ class ProjectSettings(_Model):
     )
 
 
-def strength_combinations(thermal: bool = False) -> list[LoadCombination]:
-    """BNBC 2020 strength combinations (2.7.3), with wind and earthquake in ±X and ±Y; with
-    ``thermal``, combination 2 also with ±T (:func:`saengine.fem.thermal.strength_combinations_with_t`)
-    right after it, the combination without T kept. The fluid factor F follows D (see
-    :class:`LoadCombination`)."""
+def strength_combinations(
+    thermal: bool = False, pack: CodePack | None = None
+) -> list[LoadCombination]:
+    """The code pack's strength combinations (BNBC 2020 2.7.3 by default), with wind and
+    earthquake in ±X and ±Y; with ``thermal``, combination 2 also with ±T
+    (:func:`saengine.fem.thermal.strength_combinations_with_t`) right after it, the combination
+    without T kept. The fluid factor F follows D (see :class:`LoadCombination`)."""
+    pack = pack or code_context.current()
+    table = pack.table("combinations")
     result = []
-    for name, factors in bnbc.STRENGTH_COMBINATIONS:
+    for name, factors in ((c.name, dict(c.factors)) for c in table.strength):
         lateral = next((case for case in ("W", "E") if case in factors), None)
         if lateral is None:
             result.append(LoadCombination(name=name, **factors))
@@ -773,21 +789,30 @@ def default_project_settings(name: str = "Project") -> ProjectSettings:
     )
 
 
+def code_pack(settings: ProjectSettings | None = None) -> CodePack:
+    """The code pack the settings choose (``codePack``), with the project-local packs of the
+    project in :func:`saengine.codes.context.project`. Raises :class:`CodePackError` when it is
+    not installed or cannot be used (:func:`check` reports that)."""
+    return code_context.pack_for(settings)
+
+
 def derived(settings: ProjectSettings) -> dict[str, Any]:
-    """The code values the settings imply, each with where it comes from."""
-    location = bnbc.LOCATIONS.get(settings.site.location)
-    category = bnbc.OCCUPANCY_CATEGORIES[settings.occupancy.category]
-    system = bnbc.STRUCTURAL_SYSTEMS[settings.seismic.system]
-    zone_z = bnbc.ZONE_COEFFICIENT[location.zone] if location else None
+    """The code values the settings imply (from the project's code pack), each with where it
+    comes from."""
+    pack = code_pack(settings)
+    location = pack.table("locations").locations.get(settings.site.location)
+    category = pack.table("occupancyCategories").categories[settings.occupancy.category]
+    system = pack.table("seismic").systems[settings.seismic.system]
+    zone_z = pack.table("zoneCoefficients").zones[location.zone] if location else None
     return {
         "zone": location.zone if location else None,
         "Z": settings.site.zoneCoefficient or zone_z,
-        "windSpeed": settings.site.windSpeed or (location.wind_speed if location else None),
-        "seismicImportance": category.seismic_importance,
-        "windImportance": category.wind_importance,
-        "R": settings.seismic.r or system.r,
-        "omega": settings.seismic.omega or system.omega,
-        "Cd": settings.seismic.cd or system.cd,
+        "windSpeed": settings.site.windSpeed or (location.windSpeed if location else None),
+        "seismicImportance": category.seismicImportance,
+        "windImportance": category.windImportance,
+        "R": settings.seismic.r or system.R,
+        "omega": settings.seismic.omega or system.Omega0,
+        "Cd": settings.seismic.cd or system.Cd,
     }
 
 
@@ -800,12 +825,37 @@ def check(settings: ProjectSettings) -> list[str]:
     for field, value in (("floorLoad", settings.floorLoad), ("roofLoad", settings.roofLoad)):
         if value not in ids:
             problems.append(f"{field}: there is no area load '{value}'")
-    for load in settings.areaLoads:
-        use = bnbc.AREA_USES.get(load.use)
-        if use and load.live < use.live:
+    try:
+        pack: CodePack | None = code_pack(settings)
+    except CodePackError as e:
+        pack = None
+        problems.append(f"codePack: {e}")
+    if pack is not None:
+        uses = pack.table("areaLoads").uses
+        edition = pack.edition or pack.name
+        for load in settings.areaLoads:
+            use = uses.get(load.use)
+            if use and load.live < use.live:
+                problems.append(
+                    f"{load.id}: live load {load.live} kN/m² is below the {edition} minimum of {use.live} kN/m² for {use.name.lower()}"
+                )
+        if (
+            settings.site.location != "custom"
+            and settings.site.location not in pack.table("locations").locations
+        ):
             problems.append(
-                f"{load.id}: live load {load.live} kN/m² is below the BNBC 2020 minimum of {use.live} kN/m² for {use.name.lower()}"
+                f"site: the code pack '{pack.id}' has no location '{settings.site.location}'"
             )
+        for where, key, values in (
+            (
+                "occupancy",
+                settings.occupancy.category,
+                pack.table("occupancyCategories").categories,
+            ),
+            ("seismic", settings.seismic.system, pack.table("seismic").systems),
+        ):
+            if key not in values:
+                problems.append(f"{where}: the code pack '{pack.id}' has no '{key}'")
     if settings.site.location == "custom":
         if settings.site.zoneCoefficient is None:
             problems.append("site: a custom location needs the seismic zone coefficient Z")

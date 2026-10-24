@@ -1,0 +1,270 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The Code Packs page, on the shared editor frame (editorFrame.css). */
+
+.saengine-code-packs-editor .code-packs-scroll {
+	flex: 1;
+	min-height: 0;
+}
+
+.saengine-code-packs-editor .code-packs-list {
+	box-sizing: border-box;
+	height: 100%;
+	max-width: 880px;
+	padding: var(--sa-space-2, 8px) var(--sa-space-4, 16px) var(--sa-space-6, 24px);
+	outline: none;
+}
+
+.saengine-code-packs-editor .code-packs-group + .code-packs-group {
+	margin-top: var(--sa-space-4, 16px);
+}
+
+.saengine-code-packs-editor .code-packs-group-title {
+	padding: var(--sa-space-1, 4px) var(--sa-space-2, 8px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.saengine-code-packs-editor .code-packs-empty {
+	padding: var(--sa-space-1, 4px) var(--sa-space-2, 8px) var(--sa-space-2, 8px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-code-packs-editor .code-packs-row {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--sa-space-3, 12px);
+	padding: var(--sa-space-2, 8px);
+	border-radius: var(--sa-radius, 4px);
+	cursor: pointer;
+}
+
+.saengine-code-packs-editor .code-packs-row:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.saengine-code-packs-editor .code-packs-row.selected {
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground);
+}
+
+.saengine-code-packs-editor .code-packs-list:focus .code-packs-row.selected {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+	outline: 1px solid var(--vscode-list-focusOutline);
+	outline-offset: -1px;
+}
+
+.saengine-code-packs-editor .code-packs-icon {
+	flex: none;
+	margin-top: 1px;
+	font-size: 16px;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-code-packs-editor .code-packs-text {
+	flex: 1;
+	min-width: 0;
+}
+
+.saengine-code-packs-editor .code-packs-head {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+}
+
+.saengine-code-packs-editor .code-packs-name {
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.saengine-code-packs-editor .code-packs-badge {
+	padding: 0 6px;
+	border-radius: 999px;
+	font-size: 11px;
+	line-height: 16px;
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+}
+
+/* A pack with the same id in a higher scope is in force: this one is listed, quietly. */
+.saengine-code-packs-editor .code-packs-badge.shadowed {
+	background-color: transparent;
+	color: var(--vscode-descriptionForeground);
+	border: 1px solid var(--vscode-widget-border, var(--vscode-contrastBorder, transparent));
+}
+
+.saengine-code-packs-editor .code-packs-row.shadowed:not(.selected) .code-packs-name {
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-code-packs-editor .code-packs-meta {
+	margin-top: 2px;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.saengine-code-packs-editor .code-packs-row.selected .code-packs-meta,
+.saengine-code-packs-editor .code-packs-row.selected .code-packs-icon {
+	color: inherit;
+	opacity: 0.85;
+}
+
+.saengine-code-packs-editor .code-packs-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin-top: 6px;
+}
+
+.saengine-code-packs-editor .code-packs-chips.detail {
+	margin: var(--sa-space-1, 4px) 0 var(--sa-space-2, 8px);
+}
+
+.saengine-code-packs-editor .code-packs-chip {
+	padding: 0 6px;
+	border: 1px solid var(--sa-border, var(--vscode-panel-border));
+	border-radius: var(--sa-radius, 4px);
+	font-size: 11px;
+	line-height: 18px;
+	white-space: nowrap;
+}
+
+.saengine-code-packs-editor .code-packs-end {
+	flex: none;
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-code-packs-editor .code-packs-problems {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.saengine-code-packs-editor .code-packs-row.selected .code-packs-problems span:not(.codicon) {
+	color: inherit;
+}
+
+.saengine-code-packs-editor .code-packs-trust.trusted {
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.saengine-code-packs-editor .code-packs-trust.untrusted {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+/* details, in the properties panel */
+.saengine-code-packs-editor .code-packs-detail-title {
+	margin: var(--sa-space-1, 4px) 0 var(--sa-space-2, 8px);
+	font-size: 14px;
+	font-weight: 600;
+}
+
+.saengine-code-packs-editor .code-packs-path {
+	flex-wrap: wrap;
+}
+
+.saengine-code-packs-editor .code-packs-path .value {
+	flex-basis: 100%;
+	margin-top: 2px;
+	text-align: left;
+	word-break: break-all;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-code-packs-editor .code-packs-sources,
+.saengine-code-packs-editor .code-packs-problem-list {
+	list-style: none;
+	margin: var(--sa-space-1, 4px) 0 var(--sa-space-2, 8px);
+	padding: 0;
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-code-packs-editor .code-packs-sources li,
+.saengine-code-packs-editor .code-packs-problem-list li {
+	display: flex;
+	gap: 6px;
+	padding: 2px 0;
+}
+
+.saengine-code-packs-editor .code-packs-source-table {
+	flex: none;
+	min-width: 88px;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-code-packs-editor .code-packs-problem-list .codicon {
+	flex: none;
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.saengine-code-packs-editor .code-packs-trust-state {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: var(--sa-space-1, 4px) 0;
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-code-packs-editor .code-packs-trust-state.trusted .codicon {
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.saengine-code-packs-editor .code-packs-trust-button {
+	margin-top: var(--sa-space-2, 8px);
+}
+
+.saengine-code-packs-editor .code-packs-trust-button .monaco-button {
+	width: auto;
+	padding: 2px 12px;
+}
+
+/* the Design code selector of 02 Project Settings */
+.saengine-library-editor .settings-code-pack {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+	margin-left: var(--sa-space-3, 12px);
+}
+
+.saengine-library-editor .settings-code-pack-select {
+	width: 240px;
+}
+
+.saengine-library-editor .settings-code-pack-select .monaco-select-box {
+	height: 26px;
+	padding: 0 22px 0 6px;
+	text-overflow: ellipsis;
+}
+
+.saengine-library-editor .settings-code-pack-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin: var(--sa-space-1, 4px) 0 var(--sa-space-2, 8px);
+}
+
+.saengine-library-editor .settings-code-pack-chips span {
+	padding: 0 6px;
+	border: 1px solid var(--sa-border, var(--vscode-panel-border));
+	border-radius: var(--sa-radius, 4px);
+	font-size: 11px;
+	line-height: 18px;
+}

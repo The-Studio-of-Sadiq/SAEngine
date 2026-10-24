@@ -246,5 +246,5 @@ def test_rpc_handlers(tmp_path: Path) -> None:
     assert len(StructuralModel.model_validate_json(inserted["text"]).members) == 12
     missing = handlers.import_geometry(str(tmp_path / "x.step"), {}, None)
     assert missing["problems"] == [
-        "x.step: x.step: only DXF, IFC and Rhino (.3dm) files can be imported"
+        "x.step: x.step: only DXF, DWG, IFC and Rhino (.3dm) files can be imported"
     ]

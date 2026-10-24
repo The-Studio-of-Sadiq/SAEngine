@@ -1,0 +1,60 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Table 6.2.8 (p. 600)",
+    "BNBC 2020 Part 6 Table 6.2.15 (p. 615)"
+  ],
+  "source": "BNBC 2020 Part 6 Table 6.2.8 (p. 600) basic wind speeds; Table 6.2.15 (p. 615) seismic zone coefficients of towns (zone = the Z of the town in zoneCoefficients)",
+  "locations": {
+    "dhaka": {
+      "name": "Dhaka",
+      "zone": 2,
+      "windSpeed": 65.7
+    },
+    "chattogram": {
+      "name": "Chattogram",
+      "zone": 3,
+      "windSpeed": 80.0
+    },
+    "coxsbazar": {
+      "name": "Cox's Bazar",
+      "zone": 3,
+      "windSpeed": 80.0
+    },
+    "khulna": {
+      "name": "Khulna",
+      "zone": 1,
+      "windSpeed": 73.3
+    },
+    "rajshahi": {
+      "name": "Rajshahi",
+      "zone": 1,
+      "windSpeed": 49.2
+    },
+    "sylhet": {
+      "name": "Sylhet",
+      "zone": 4,
+      "windSpeed": 61.1
+    },
+    "barishal": {
+      "name": "Barishal",
+      "zone": 1,
+      "windSpeed": 78.7
+    },
+    "rangpur": {
+      "name": "Rangpur",
+      "zone": 3,
+      "windSpeed": 65.3
+    },
+    "mymensingh": {
+      "name": "Mymensingh",
+      "zone": 4,
+      "windSpeed": 67.4
+    },
+    "cumilla": {
+      "name": "Cumilla",
+      "zone": 2,
+      "windSpeed": 61.4
+    }
+  }
+}

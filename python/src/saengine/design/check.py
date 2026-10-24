@@ -28,6 +28,7 @@ from typing import Any
 
 import numpy as np
 
+from saengine.codes import context as code_context
 from saengine.design import seismic_rules, slab, steel_design
 from saengine.design import slender as slenderness_design
 from saengine.design.rc import (
@@ -179,6 +180,7 @@ def ensure_seismic_design(
 _SEISMIC_PROBLEMS: dict[str, str] = {}
 
 
+@code_context.in_project_pack(path_params=("out_dir",))
 def design(
     project: dict[str, Any],
     out_dir: str | Path,

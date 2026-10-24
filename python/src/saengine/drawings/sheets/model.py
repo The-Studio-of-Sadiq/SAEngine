@@ -363,6 +363,36 @@ class FootingDetail:
 
 
 @dataclass
+class LintelDetail:
+    """A lintel over an opening of a wall (:mod:`saengine.design.lintels`), in the wall's
+    elevation: from ``x0`` to ``x1`` along the wall, its underside ``bottom`` above the wall's
+    bottom, ``depth`` [mm]; bottom and top bars ``(count, dia, mark)``, stirrups ``(dia,
+    spacing, mark)``."""
+
+    opening: str
+    x0: float
+    x1: float
+    bottom: float
+    depth: float
+    width: float
+    bottom_bars: tuple[int, float, str] | None = None
+    top_bars: tuple[int, float, str] | None = None
+    stirrups: tuple[float, float, str] | None = None
+
+    @property
+    def text(self) -> str:
+        parts = []
+        for bars, face in ((self.bottom_bars, "B"), (self.top_bars, "T")):
+            if bars:
+                mark = f"{bars[2]} " if bars[2] else ""
+                parts.append(f"{mark}{bars[0]}Ø{bars[1]:g} {face}")
+        if self.stirrups:
+            mark = f"{self.stirrups[2]} " if self.stirrups[2] else ""
+            parts.append(f"{mark}Ø{self.stirrups[0]:g}@{self.stirrups[1]:g}")
+        return ", ".join(parts)
+
+
+@dataclass
 class WallDetail:
     mark: str
     members: list[str]
@@ -378,6 +408,7 @@ class WallDetail:
     hoops: Mesh | None = None
     openings: list[tuple[float, float, float, float]] = field(default_factory=list)  # x, sill, w, h
     levels: list[tuple[str, float]] = field(default_factory=list)  # name, height above bottom
+    lintels: list[LintelDetail] = field(default_factory=list)
 
 
 @dataclass

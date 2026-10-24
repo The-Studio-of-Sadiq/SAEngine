@@ -1,0 +1,369 @@
+{
+  "$defs": {
+    "DesignCategories": {
+      "additionalProperties": false,
+      "properties": {
+        "occupancyGroups": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Occupancygroups",
+          "type": "object"
+        },
+        "bySiteClass": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          },
+          "title": "Bysiteclass",
+          "type": "object"
+        },
+        "aliases": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Aliases",
+          "type": "object"
+        }
+      },
+      "required": [
+        "occupancyGroups",
+        "bySiteClass"
+      ],
+      "title": "DesignCategories",
+      "type": "object"
+    },
+    "PeriodCoefficient": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "Ct": {
+          "exclusiveMinimum": 0,
+          "title": "Ct",
+          "type": "number"
+        },
+        "m": {
+          "exclusiveMinimum": 0,
+          "title": "M",
+          "type": "number"
+        }
+      },
+      "required": [
+        "Ct",
+        "m"
+      ],
+      "title": "PeriodCoefficient",
+      "type": "object"
+    },
+    "SiteClass": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "S": {
+          "description": "Soil factor.",
+          "exclusiveMinimum": 0,
+          "title": "S",
+          "type": "number"
+        },
+        "TB": {
+          "minimum": 0,
+          "title": "Tb",
+          "type": "number"
+        },
+        "TC": {
+          "minimum": 0,
+          "title": "Tc",
+          "type": "number"
+        },
+        "TD": {
+          "minimum": 0,
+          "title": "Td",
+          "type": "number"
+        }
+      },
+      "required": [
+        "description",
+        "S",
+        "TB",
+        "TC",
+        "TD"
+      ],
+      "title": "SiteClass",
+      "type": "object"
+    },
+    "StructuralSystem": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "R": {
+          "exclusiveMinimum": 0,
+          "title": "R",
+          "type": "number"
+        },
+        "Omega0": {
+          "exclusiveMinimum": 0,
+          "title": "Omega0",
+          "type": "number"
+        },
+        "Cd": {
+          "exclusiveMinimum": 0,
+          "title": "Cd",
+          "type": "number"
+        },
+        "row": {
+          "default": "",
+          "description": "Row of the code's system table.",
+          "title": "Row",
+          "type": "string"
+        },
+        "heightLimits": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Heightlimits",
+          "type": "object"
+        },
+        "frame": {
+          "anyOf": [
+            {
+              "enum": [
+                "special",
+                "intermediate",
+                "ordinary"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frame"
+        },
+        "specialWalls": {
+          "default": false,
+          "title": "Specialwalls",
+          "type": "boolean"
+        },
+        "concrete": {
+          "default": true,
+          "title": "Concrete",
+          "type": "boolean"
+        },
+        "momentFrame": {
+          "default": false,
+          "title": "Momentframe",
+          "type": "boolean"
+        },
+        "periodFamily": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Periodfamily"
+        }
+      },
+      "required": [
+        "name",
+        "R",
+        "Omega0",
+        "Cd"
+      ],
+      "title": "StructuralSystem",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Site classes, spectrum, systems, SDC and the plain numbers of the seismic analysis.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "siteClasses": {
+      "additionalProperties": {
+        "$ref": "#/$defs/SiteClass"
+      },
+      "title": "Siteclasses",
+      "type": "object"
+    },
+    "systems": {
+      "additionalProperties": {
+        "$ref": "#/$defs/StructuralSystem"
+      },
+      "title": "Systems",
+      "type": "object"
+    },
+    "periodCoefficients": {
+      "additionalProperties": {
+        "$ref": "#/$defs/PeriodCoefficient"
+      },
+      "title": "Periodcoefficients",
+      "type": "object"
+    },
+    "designCategories": {
+      "$ref": "#/$defs/DesignCategories"
+    },
+    "requiredDetailing": {
+      "additionalProperties": {
+        "enum": [
+          "special",
+          "intermediate",
+          "ordinary"
+        ],
+        "type": "string"
+      },
+      "title": "Requireddetailing",
+      "type": "object"
+    },
+    "allowableDrift": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "description": "Δa/hsx by occupancy category.",
+      "title": "Allowabledrift",
+      "type": "object"
+    },
+    "dampingEta": {
+      "default": 1.0,
+      "title": "Dampingeta",
+      "type": "number"
+    },
+    "liveShare": {
+      "description": "Share of the floor live load in the seismic weight.",
+      "title": "Liveshare",
+      "type": "number"
+    },
+    "minimumScale": {
+      "description": "Least share of the static base shear for RS.",
+      "title": "Minimumscale",
+      "type": "number"
+    },
+    "accidentalEccentricity": {
+      "title": "Accidentaleccentricity",
+      "type": "number"
+    },
+    "orthogonalShare": {
+      "title": "Orthogonalshare",
+      "type": "number"
+    },
+    "massParticipation": {
+      "title": "Massparticipation",
+      "type": "number"
+    },
+    "torsionIrregular": {
+      "title": "Torsionirregular",
+      "type": "number"
+    },
+    "torsionExtreme": {
+      "title": "Torsionextreme",
+      "type": "number"
+    },
+    "torsionAmplificationMax": {
+      "title": "Torsionamplificationmax",
+      "type": "number"
+    },
+    "pgaFactor": {
+      "description": "a_h = pgaFactor · Z · S.",
+      "title": "Pgafactor",
+      "type": "number"
+    },
+    "verticalFactor": {
+      "description": "Ev = verticalFactor · a_h · D.",
+      "title": "Verticalfactor",
+      "type": "number"
+    }
+  },
+  "required": [
+    "siteClasses",
+    "systems",
+    "periodCoefficients",
+    "designCategories",
+    "requiredDetailing",
+    "allowableDrift",
+    "liveShare",
+    "minimumScale",
+    "accidentalEccentricity",
+    "orthogonalShare",
+    "massParticipation",
+    "torsionIrregular",
+    "torsionExtreme",
+    "torsionAmplificationMax",
+    "pgaFactor",
+    "verticalFactor"
+  ],
+  "title": "SeismicTable",
+  "type": "object",
+  "$id": "saengine.codePack.seismic/1"
+}

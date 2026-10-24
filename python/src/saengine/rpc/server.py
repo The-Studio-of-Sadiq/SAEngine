@@ -9,7 +9,11 @@ Methods:
 - ``results/view`` ``{outDir, projectPath, key, mode?}`` -> one result's shape and diagrams
 - ``library/check`` ``{kind, text, materialsText?}`` -> rule violations in a library file
 - ``structure/shapeGeometry`` ``{shape}`` -> a parametric shape's members, areas and supports
-- ``structure/importGeometry`` ``{path, options, objectsText?}`` -> a DXF, IFC or Rhino file's
+- ``structure/importGeometry`` ``{path, options, objectsText?}`` -> a DXF, DWG, IFC or Rhino
+  file's
+- ``cad/convertDwg`` ``{path, cache?}`` -> ``{ok, dxf, warnings, cached}``: a DWG drawing
+  converted to DXF by GNU LibreDWG's dwg2dxf (``saengine.library.dwg``; a separate program, in a
+  worker thread), or ``{ok: false, code, message}`` (``no-converter``, ``failed``)
 - ``structure/insert`` ``{structureText, geometry}`` -> the structural model with them added
 - ``structure/runScript`` ``{structureText, scriptPath}`` -> the model a script built
 - ``design/report`` ``{outDir, projectPath}`` -> the RC member design checks of a run
@@ -27,7 +31,7 @@ Methods:
 - ``library/generateBuilding`` ``{spec, destParent, name?, overwrite?}`` -> a new building
   project generated from its grids and storeys (``{root, name, notes, summary, settingsPatch,
   files}`` or ``{error}``; ``saengine.project.new_building``; in a worker thread)
-- ``soil/location`` ``{soilText, bimText?, settingsText?}`` -> the site, boreholes and building
+- ``soil/location`` ``{soilText, bimText?, settingsText?, projectRoot?}`` -> the site, boreholes and building
   outline in WGS 84 with the nearest BNBC town (``saengine.gis.site``)
 - ``soil/gisExport`` ``{projectRoot, format: geojson|gpkg, outPath}`` -> ``{path, counts,
   problems}``; ``soil/gisImport`` ``{path, soilText?}`` -> ``{soilText, added, updated, ...}``
@@ -42,13 +46,14 @@ Methods:
   those sheet numbers); ``drawings/list`` ``{projectRoot}`` -> the
   same for the last generation with ``stale``/``staleReason``/``changed``;
   ``drawings/progress`` ``{projectRoot}`` -> ``{running, step, index, count, message}``
-- ``soil/report`` ``{soilText, settingsText?}`` -> everything computed from the soil report
-- ``soil/allowableBearing`` ``{soilText, settingsText?, x, y, foundingLevel, b, l}`` -> qa [kPa]
+- ``soil/report`` ``{soilText, settingsText?, projectRoot?}`` -> everything computed from the soil report
+- ``soil/allowableBearing`` ``{soilText, settingsText?, x, y, foundingLevel, b, l,
+  projectRoot?}`` -> qa [kPa]
   of a footing (lengths in mm)
 - ``soil/import`` ``{path, soilText?}`` -> the soil report with a CSV or Excel file's boreholes
 - ``soil/template`` ``{path}`` -> writes the borehole import template
 - ``soil/settlement`` ``{soilText, borehole, b, l, df, q}`` -> a footing's settlement
-- ``soil/sources`` ``{soilText?, settingsText?}`` -> where the site class and qa come from
+- ``soil/sources`` ``{soilText?, settingsText?, projectRoot?}`` -> where the site class and qa come from
 - ``fem/derive`` also takes ``soilText?`` (else the project's soil report beside ``modelFolder``)
 - ``bim/ifc`` and ``boq/compute`` also take ``substructureText?`` and ``settingsText?``: the
   foundations of 9 Substructure (once it is no longer the placeholder) and the ground level
@@ -91,6 +96,13 @@ Methods:
 - ``project/inspectArchive`` ``{path, currentVersion?, verify?}`` -> ``{manifest, problems, ok}``
 - ``project/importArchive`` ``{path, destParent, name?, overwrite?, currentVersion?, migrate?}``
   -> ``{root, name, files, problems, migrated, pending}`` (in a worker thread)
+- ``codes/list`` ``{root?}`` -> every code pack (``PackInfo``: built-in, the user's, the
+  project's, shadowed ones included); ``codes/show`` ``{id, root?}`` -> the pack in force with
+  its manifest; ``codes/new`` ``{id, name, extends, scope?, dest?, root?}`` -> ``{path}`` of a new
+  pack's skeleton; ``codes/install`` ``{path, scope, root?}``; ``codes/validate`` ``{path,
+  root?}``; ``codes/trust`` ``{id, trusted, root?}`` (``saengine.codes``). Every request with a
+  ``projectRoot``/``root``/``projectPath``/``modelFolder``/``outDir`` runs with that project's
+  own code packs available (:mod:`saengine.codes.context`).
 - ``versions/status`` ``{projectRoot}``, ``versions/list`` ``{projectRoot, limit?}``,
   ``versions/save`` ``{projectRoot, message, author?, issued?, label?}``, ``versions/diff``
   ``{projectRoot, fromVersion?, toVersion?}``, ``versions/restore`` ``{projectRoot, version, parts?, author?,
@@ -120,6 +132,7 @@ from typing import Any, BinaryIO
 from pygls.protocol import JsonRPCProtocol, default_converter
 from pygls.server import JsonRPCServer
 
+from saengine.codes import context as code_context
 from saengine.rpc import handlers
 
 
@@ -138,12 +151,41 @@ def _plain(value: Any) -> Any:
 _WORKERS = ThreadPoolExecutor(max_workers=4, thread_name_prefix="saengine-rpc")
 
 
+#: Parameters that name the project (or a file or folder inside it) a request works on.
+_ROOT_PARAMS = ("projectRoot", "root", "projectPath", "modelFolder", "outDir")
+
+
+def _request_root(params: Any) -> str | None:
+    for key in _ROOT_PARAMS:
+        value = params.get(key) if isinstance(params, dict) else getattr(params, key, None)
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+def _scoped(handler: Callable[[Any], Any]) -> Callable[[Any], Any]:
+    """``handler`` run with the request's project as the code packs' project (integration glue:
+    a project's own code packs, ``02 Project Settings/code-packs``, are found while it runs;
+    :func:`saengine.codes.context.project`)."""
+
+    @functools.wraps(handler)
+    def call(params: Any) -> Any:
+        root = _request_root(params)
+        if root is None:
+            return handler(params)
+        with code_context.project(root):
+            return handler(params)
+
+    return call
+
+
 def _in_worker(handler: Callable[[Any], Any]) -> Callable[[Any], Any]:
     """``handler`` run in a worker thread; its answer is sent as soon as it is ready."""
+    scoped = _scoped(handler)
 
     @functools.wraps(handler)
     async def run(params: Any) -> Any:
-        return await asyncio.get_running_loop().run_in_executor(_WORKERS, handler, params)
+        return await asyncio.get_running_loop().run_in_executor(_WORKERS, scoped, params)
 
     return run
 
@@ -168,7 +210,7 @@ def _versions_worker(handler: Callable[[dict[str, Any]], Any]) -> Callable[[Any]
 
     def locked(params: Any) -> Any:
         args = _plain(params)
-        with _project_lock(str(args["projectRoot"])):
+        with _project_lock(str(args["projectRoot"])), code_context.project(args["projectRoot"]):
             return handler(args)
 
     @functools.wraps(handler)
@@ -180,6 +222,17 @@ def _versions_worker(handler: Callable[[dict[str, Any]], Any]) -> Callable[[Any]
 
 def create_server() -> JsonRPCServer:
     server = JsonRPCServer(protocol_cls=JsonRPCProtocol, converter_factory=default_converter)
+    feature = server.feature
+
+    def scoped_feature(*args: Any, **kwargs: Any) -> Callable[[Callable], Callable]:
+        register = feature(*args, **kwargs)
+
+        def decorate(fn: Callable) -> Callable:
+            return register(fn if asyncio.iscoroutinefunction(fn) else _scoped(fn))
+
+        return decorate
+
+    server.feature = scoped_feature  # type: ignore[method-assign]
 
     @server.feature("saengine/info")
     def _info(params: Any) -> dict[str, Any]:
@@ -253,11 +306,18 @@ def create_server() -> JsonRPCServer:
         return handlers.shape_geometry(_plain(params)["shape"])
 
     @server.feature("structure/importGeometry")
+    @_in_worker  # a DWG is converted first (seconds)
     def _import_geometry(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.import_geometry(
             args["path"], args.get("options") or {}, args.get("objectsText")
         )
+
+    @server.feature("cad/convertDwg")
+    @_in_worker
+    def _convert_dwg(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.convert_dwg(args["path"], args.get("cache"))
 
     @server.feature("structure/insert")
     def _insert_geometry(params: Any) -> dict[str, Any]:
@@ -637,6 +697,44 @@ def create_server() -> JsonRPCServer:
         return handlers.versions_mark_issued(
             args["projectRoot"], args["version"], args["label"], args.get("author")
         )
+
+    # Code packs (Project Settings' Design code, the Code Packs page).
+    @server.feature("codes/list")
+    def _codes_list(params: Any) -> list[dict[str, Any]]:
+        return handlers.codes_list(_plain(params).get("root"))
+
+    @server.feature("codes/show")
+    def _codes_show(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.codes_show(args["id"], args.get("root"))
+
+    @server.feature("codes/new")
+    def _codes_new(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.codes_new(
+            args["id"],
+            args.get("name") or "",
+            args.get("extends"),
+            args.get("scope") or "user",
+            args.get("dest"),
+            args.get("root"),
+        )
+
+    @server.feature("codes/install")
+    @_in_worker
+    def _codes_install(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.codes_install(args["path"], args.get("scope") or "user", args.get("root"))
+
+    @server.feature("codes/validate")
+    def _codes_validate(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.codes_validate(args["path"], args.get("root"))
+
+    @server.feature("codes/trust")
+    def _codes_trust(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.codes_trust(args["id"], bool(args.get("trusted")), args.get("root"))
 
     return server
 

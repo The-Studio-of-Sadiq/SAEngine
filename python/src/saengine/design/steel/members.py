@@ -56,6 +56,7 @@ from saengine.design.steel.lengths import (
     member_lengths,
     positions,
     slenderness_note,
+    source_tag,
 )
 from saengine.design.steel.properties import ShapeProperties, shape_properties
 
@@ -1128,7 +1129,9 @@ def check_member(
                     klr,
                     KL_R_COMPRESSION,
                     st.combination,
-                    f"K = {kx:g} / {ky:g}, L = {lx:.0f} / {ly:.0f} mm; {where}",
+                    f"K = {kx:g}{source_tag(lengths, 'kx')} / {ky:g}{source_tag(lengths, 'ky')}, "
+                    f"L = {lx:.0f}{source_tag(lengths, 'Lx')} / {ly:.0f}"
+                    f"{source_tag(lengths, 'Ly')} mm; {where}",
                     S + "Sec 10.5.2",
                 )
                 if kind == "column":
@@ -1294,7 +1297,9 @@ def design_steel_member(
         lengths = member_lengths(project, pieces, turned, options.lengths)
     else:
         s, _ = positions(pieces, 2)
-        lengths = MemberLengths.simple(float(s[-1] - s[0]), k=options.lengths.k)
+        lengths = MemberLengths.simple(float(s[-1] - s[0]), k=options.lengths.k).overwritten(
+            options.lengths
+        )
     stations = member_stations(pieces, combinations, turned)
     checks = check_member(shape, steel, stations, lengths, kind, options)
     for note in (*shape.notes, *steel.notes):

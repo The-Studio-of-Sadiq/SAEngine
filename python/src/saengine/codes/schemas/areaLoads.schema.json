@@ -1,0 +1,69 @@
+{
+  "$defs": {
+    "AreaUse": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "live": {
+          "description": "Minimum uniformly distributed live load [kN/m²].",
+          "minimum": 0,
+          "title": "Live",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "live"
+      ],
+      "title": "AreaUse",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Minimum live loads by use of the floor area.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "uses": {
+      "additionalProperties": {
+        "$ref": "#/$defs/AreaUse"
+      },
+      "title": "Uses",
+      "type": "object"
+    }
+  },
+  "required": [
+    "uses"
+  ],
+  "title": "AreaLoadsTable",
+  "type": "object",
+  "$id": "saengine.codePack.areaLoads/1"
+}

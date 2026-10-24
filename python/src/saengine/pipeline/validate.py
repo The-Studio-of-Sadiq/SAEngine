@@ -110,6 +110,7 @@ def _library(project: Project, part: str, model_name: str) -> Any:
 
 def validate_part(project: Project, part: str) -> PartValidation:
     """The problems of part ``part`` of ``project``."""
+    from saengine.codes import context as code_context
     from saengine.library.check import check_library
 
     path = project.file(part)
@@ -134,7 +135,9 @@ def validate_part(project: Project, part: str) -> PartValidation:
     problems: list[dict[str, Any]] = []
     if part in LIBRARY_KINDS:
         companion = LIBRARY_KINDS[part]
-        found = check_library(part, text, project.text(companion) if companion else None)  # type: ignore[arg-type]
+        # The settings' code pack may be one of the project's own (02 Project Settings/code-packs).
+        with code_context.project(project.root):
+            found = check_library(part, text, project.text(companion) if companion else None)  # type: ignore[arg-type]
         problems = [
             _problem(p["message"], path=p.get("path") or "", index=p.get("index")) for p in found
         ]

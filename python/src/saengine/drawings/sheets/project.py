@@ -35,6 +35,7 @@ from saengine.drawings.sheets.model import (
     Grid,
     Level,
     LinkZone,
+    LintelDetail,
     Mesh,
     PlanBeam,
     PlanColumn,
@@ -728,7 +729,38 @@ def wall_detail(e: dict[str, Any], t: Any, bim: Any, levels: dict[str, Level]) -
         ),
         openings=openings,
         levels=names,
+        lintels=lintel_details(e, bottom),
     )
+
+
+def lintel_details(e: dict[str, Any], bottom: float) -> list[LintelDetail]:
+    """The lintels of a wall's detailing element (``bars`` with ``at.opening``, the roles
+    "lintel bottom", "lintel top", "lintel stirrup"), in the wall's elevation."""
+    found: dict[str, LintelDetail] = {}
+    for bar in e.get("bars", []):
+        at = bar.get("at") or {}
+        opening = at.get("opening")
+        role = str(bar.get("role", ""))
+        if not opening or not role.startswith("lintel"):
+            continue
+        detail = found.get(opening)
+        if detail is None:
+            detail = found[opening] = LintelDetail(
+                str(opening),
+                float(at.get("from", 0.0)),
+                float(at.get("to", 0.0)),
+                float(at.get("bottom", bottom)) - bottom,
+                float(at.get("depth", 150.0)),
+                float(at.get("width", 0.0)),
+            )
+        mark = str(bar.get("mark") or "")
+        if role == "lintel bottom":
+            detail.bottom_bars = (int(bar.get("count", 0)), float(bar["dia"]), mark)
+        elif role == "lintel top":
+            detail.top_bars = (int(bar.get("count", 0)), float(bar["dia"]), mark)
+        elif role == "lintel stirrup":
+            detail.stirrups = (float(bar["dia"]), float(at.get("spacing", 0.0)), mark)
+    return [found[k] for k in sorted(found)]
 
 
 def stair_detail(e: dict[str, Any], t: Any, levels: dict[str, Level]) -> StairDetail:

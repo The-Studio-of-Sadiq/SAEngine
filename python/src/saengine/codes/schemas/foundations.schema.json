@@ -1,0 +1,120 @@
+{
+  "$defs": {
+    "StrutAndTie": {
+      "additionalProperties": false,
+      "properties": {
+        "tieArm": {
+          "description": "Lever arm of the tie as a share of the effective depth.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tiearm",
+          "type": "number"
+        },
+        "betaCCC": {
+          "description": "βn of a C-C-C node.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Betaccc",
+          "type": "number"
+        },
+        "betaCCT": {
+          "description": "βn of a C-C-T node.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Betacct",
+          "type": "number"
+        }
+      },
+      "required": [
+        "tieArm",
+        "betaCCC",
+        "betaCCT"
+      ],
+      "title": "StrutAndTie",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "pileSafety": {
+      "additionalProperties": {
+        "maxItems": 4,
+        "minItems": 4,
+        "prefixItems": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "number"
+          }
+        ],
+        "type": "array"
+      },
+      "title": "Pilesafety",
+      "type": "object"
+    },
+    "pileControls": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Pilecontrols",
+      "type": "array"
+    },
+    "partialSkin": {
+      "title": "Partialskin",
+      "type": "number"
+    },
+    "partialBase": {
+      "title": "Partialbase",
+      "type": "number"
+    },
+    "sptSafety": {
+      "title": "Sptsafety",
+      "type": "number"
+    },
+    "noLoadTestSafety": {
+      "title": "Noloadtestsafety",
+      "type": "number"
+    },
+    "loadTestSafety": {
+      "title": "Loadtestsafety",
+      "type": "number"
+    },
+    "strutAndTie": {
+      "$ref": "#/$defs/StrutAndTie"
+    }
+  },
+  "required": [
+    "pileSafety",
+    "pileControls",
+    "partialSkin",
+    "partialBase",
+    "sptSafety",
+    "noLoadTestSafety",
+    "loadTestSafety",
+    "strutAndTie"
+  ],
+  "title": "FoundationsTable",
+  "type": "object",
+  "$id": "saengine.codePack.foundations/1"
+}

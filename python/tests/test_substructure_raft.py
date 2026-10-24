@@ -182,3 +182,40 @@ def test_raft_punching_adds_the_weight_inside_the_section(tmp_path: Path) -> Non
     assert check["demand"] == pytest.approx(expected, rel=0.02)
     # Leaving the weight out would understate Vu by own × A_in (about 300 kN here).
     assert check["demand"] - (3000 - pressure * area_in) > 0.9 * own * area_in
+
+
+def test_raft_punching_proposes_and_checks_shear_reinforcement(tmp_path: Path) -> None:
+    # A 600 mm raft under a 500 mm column with Pu = 3000 kN: vu about 1.4 MPa against
+    # φ vc = 0.75 × 0.33 √28 λs (λs = 0.81 for d = 505 mm) = 1.07 MPa, so the concrete alone
+    # fails and studs are proposed (saengine.design.punching, as for footings and flat slabs);
+    # a given layout is checked.
+    bars = PlanarReinforcement.model_validate(
+        {"material": "B420", "cover": 75, "bottomX": {"dia": 20, "spacing": 150},
+         "bottomY": {"dia": 20, "spacing": 150}}
+    )  # fmt: skip
+    spec = RaftSpec(
+        "R7", square(3000), 600, 25000, 28, 420, bars, [RaftColumn("C1", 0, 0, 500, 500)],
+        20000, mesh_size=250, compression_only=False,
+    )  # fmt: skip
+    load = np.array([3000e3, 0.0, 0.0])
+    results = raft.run_raft(spec, {"U: U": ([load], 1.2)}, tmp_path)
+    (plain,) = raft._punching(spec, results, {"U": [load]}, {"U": 1.2})
+    assert plain["name"] == "Punching at C1"
+    layout = plain["shearReinforcement"]
+    assert layout["kind"] == "studs" and layout["lines"] >= 1
+    assert plain["ok"] and plain["utilisation"] <= 1.0
+    assert "soil" in plain["note"] and "studs" in plain["note"]
+    # The proposal re-checks the one layout of the raft at every column.
+    assert callable(plain.recheck)
+    again = plain.recheck({**layout, "dia": layout["bar"], "firstLine": layout["s0"],
+                           "spacing": layout["s"]})  # fmt: skip
+    assert again is not None and again["ok"]
+    # A given layout too light for it is checked, failing, with a fresh proposal beside it.
+    from saengine.library.objects import PunchingReinforcement
+
+    spec.punching_reinforcement = PunchingReinforcement.model_validate(
+        {"kind": "studs", "dia": 10, "perLine": 8, "lines": 1, "firstLine": 100, "spacing": 150}
+    )
+    (given,) = raft._punching(spec, results, {"U": [load]}, {"U": 1.2})
+    assert not given["ok"]
+    assert given["proposedReinforcement"] is not None

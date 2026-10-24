@@ -131,7 +131,7 @@ the setup is not code-signed.
    Or run "Release" from the Actions tab (workflow dispatch) with the tag name; there the
    version can be overridden and "draft" switched off.
 4. The workflow builds `dist/SAEngine-x64-user-setup-<version>.exe` with
-   `scripts/build-installer.ps1 -EnergyPlusDir ... -LibreCADDir ... -LibreCADLicenseDir ... -AllowUnpinnedSources`,
+   `scripts/build-installer.ps1 -EnergyPlusDir ... -LibreCADDir ... -LibreCADLicenseDir ... -LibreDWGDir ... -LibreDWGLicenseDir ... -AllowUnpinnedSources`,
    runs `scripts/installer/smoke-test.ps1` on it, builds the Verification Manual with the
    bundled Python (checked against the expected failures), and creates the pre-release as a
    **draft** with:
@@ -144,7 +144,7 @@ the setup is not code-signed.
    tag if the run was started by hand. The run fails instead of overwriting when a release for
    the tag exists already.
 
-The workflow keeps `THIRD_PARTY_NOTICES.txt`, the LibreCAD bundle manifest, the sources
+The workflow keeps `THIRD_PARTY_NOTICES.txt`, the LibreCAD and LibreDWG bundle manifests, the sources
 `README.txt`, the setup log and the release notes as the `release-logs` artifact for 14 days.
 
 ## Third-party programs in the release
@@ -159,6 +159,8 @@ checked again, not trusted.
 | LibreCAD installer `LibreCAD-v2.2.1.6-win64-msvc.exe` | 2.2.1.6 | `0cd876d0...4f95b`, GitHub's own `digest` of the release asset |
 | LibreCAD's `LICENSE` and `licenses/gpl-2.0.txt` | 2.2.1.6 | sha256 of the files at the tag |
 | Qt's `LICENSE.LGPLv3` and `LICENSE.GPL3` (qtbase) | 5.15.2 | sha256 of the files at the tag |
+| GNU LibreDWG for Windows x64 `libredwg-0.14-win64.zip` | 0.14 | `1ad7e153...10fea8`, GitHub's own `digest` of the release asset (the GNU-signed release) |
+| LibreDWG's `COPYING` (GPL-3.0 text) | 0.14 | sha256 of the file at the tag |
 
 To bump one, change url, file, size and sha256 together. For a GitHub release asset, the hash
 is the `digest` field of `GET /repos/<owner>/<repo>/releases/tags/<tag>`.
@@ -183,6 +185,18 @@ Qt module the bundle ships (`qtbase`, `qtsvg`, `qtimageformats`, `qttools` are l
 source into the third-party sources, and the notices name the Qt version and link to
 `download.qt.io`. Pointing to Qt's servers alone would be weaker: the GPL-3.0 section 6(d),
 which the LGPL-3.0 uses, leaves the distributor responsible for the source staying available.
+
+**GNU LibreDWG** is GPL-3.0-or-later. Its `dwg2dxf` converts the architects' DWG drawings to
+DXF for the floor plan's underlays and the geometry import (`saengine.library.dwg`); SAEngine
+ships it as a separate program in `resources\libredwg` and the backend runs it as its own
+process (an aggregate, never linked; without it a DWG is refused with a message asking for the
+drawing as DXF). `scripts/installer/libredwg_bundle.py` copies only `dwg2dxf.exe` and
+`libredwg-0.dll` from the official Windows zip (the iconv and PCRE2 DLLs serve only `dwggrep`),
+adds LibreDWG's `COPYING` (the zip ships no licence file), runs `dwg2dxf --version` from the copy
+and writes `resources\libredwg\SAENGINE-BUNDLE.json`. Its source, `libredwg-0.14.tar.xz` from
+`ftp.gnu.org` (byte-identical to the GitHub release asset), is pinned in
+`copyleft-sources.json` and collected with `-LibreDWGManifest`. ODA File Converter is not an
+option: its licence forbids redistributing it.
 
 **Pinning the source archives.** GitHub does not publish hashes of its tag tarballs, and the Qt
 archive publishes md5 sums only, so the LibreCAD and Qt source entries in

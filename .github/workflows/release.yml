@@ -1,4 +1,4 @@
-# SAEngine release: builds the Windows x64 user setup with EnergyPlus and LibreCAD bundled,
+# SAEngine release: builds the Windows x64 user setup with EnergyPlus, LibreCAD and LibreDWG bundled,
 # smoke-tests it, and creates the GitHub pre-release with the same files as the manual
 # releases. A draft by default: review it on GitHub, then publish. How to cut one: docs/ci.md.
 name: Release
@@ -78,20 +78,23 @@ jobs:
           path: |
             ${{ runner.temp }}/third-party-cache
             ${{ runner.temp }}/librecad-licenses
+            ${{ runner.temp }}/libredwg-licenses
             workbench/.build/saengine-installer/cache
           key: release-downloads-${{ hashFiles('scripts/ci/third-party-binaries.json', 'scripts/installer/copyleft-sources.json', 'scripts/installer/bundle-python.ps1') }}
           restore-keys: release-downloads-
 
-      - name: Fetch EnergyPlus 26.2.0, LibreCAD 2.2.1.6 and the licence texts (SHA-256 pinned)
+      - name: Fetch EnergyPlus 26.2.0, LibreCAD 2.2.1.6, LibreDWG 0.14 and the licence texts (SHA-256 pinned)
         id: thirdparty
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          python -I scripts/ci/fetch_pinned.py --cache "$env:RUNNER_TEMP/third-party-cache" --out "$env:RUNNER_TEMP/third-party" energyplus librecad
+          python -I scripts/ci/fetch_pinned.py --cache "$env:RUNNER_TEMP/third-party-cache" --out "$env:RUNNER_TEMP/third-party" energyplus librecad libredwg
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -I scripts/ci/fetch_pinned.py --cache "$env:RUNNER_TEMP/librecad-licenses" librecad-license librecad-gpl-2.0 qt-lgpl-3.0 qt-gpl-3.0
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Get-ChildItem "$env:RUNNER_TEMP/librecad-licenses" -Filter '*.partial' | Remove-Item -Force
+          python -I scripts/ci/fetch_pinned.py --cache "$env:RUNNER_TEMP/libredwg-licenses" libredwg-copying
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-ChildItem "$env:RUNNER_TEMP/librecad-licenses", "$env:RUNNER_TEMP/libredwg-licenses" -Filter '*.partial' | Remove-Item -Force
 
       - name: Build the SAEngine viewer packages
         shell: pwsh
@@ -134,6 +137,8 @@ jobs:
             -EnergyPlusDir '${{ steps.thirdparty.outputs.energyplus_dir }}' `
             -LibreCADDir '${{ steps.thirdparty.outputs.librecad_dir }}' `
             -LibreCADLicenseDir "$env:RUNNER_TEMP\librecad-licenses" `
+            -LibreDWGDir '${{ steps.thirdparty.outputs.libredwg_dir }}' `
+            -LibreDWGLicenseDir "$env:RUNNER_TEMP\libredwg-licenses" `
             -AllowUnpinnedSources -MinFreeGB 12
 
       - name: Smoke test (silent install, bundled Python, app start, uninstall)
@@ -185,6 +190,7 @@ jobs:
           path: |
             VSCode-win32-x64/THIRD_PARTY_NOTICES.txt
             VSCode-win32-x64/resources/librecad/SAENGINE-BUNDLE.json
+            VSCode-win32-x64/resources/libredwg/SAENGINE-BUNDLE.json
             dist/*-third-party-sources/README.txt
             ${{ runner.temp }}/SAEngine-smoke/setup.log
             ${{ runner.temp }}/release/release-notes.md

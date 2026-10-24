@@ -94,7 +94,8 @@ types: the foundations with the same definition (form, size, reinforcement, conc
 type named after the first of them, and that label (F1, PC2) is the code when free. The role
 letters are T top, B bottom, F side face, S stirrups, X cross ties (beams); V vertical, D
 dowels (starter bars), H ties or hoops, P spirals (columns); BX, BY, TX, TY bottom and top
-bars along x and y (slabs, footings); V, H, E end bars, K boundary hoops (walls); M main, N
+bars along x and y (slabs, footings); V, H, E end bars, K boundary hoops (walls), LB, LT, LS
+the bottom bars, top hangers and stirrups of the lintels over a wall's openings; M main, N
 distribution, T top, L landing, LN landing distribution (stairs). Identical bars of the same type (same diameter, shape and dimensions)
 share a mark across members. Marks are deterministic, and ``previous`` (the ``marks`` of an
 earlier model) keeps every unchanged bar's mark even when other types or bars change.
@@ -797,6 +798,7 @@ class _Ctx:
     options: dict[str, Any]
     notes: list[str] = field(default_factory=list)
     joints: list[Any] = field(default_factory=list)
+    lintels: list[dict[str, Any]] | None = None  # designed here when no report was given
 
     def fc(self, material_id: str) -> float:
         m = self.materials.get(material_id) if self.materials is not None else None
@@ -2545,8 +2547,17 @@ def _detail_walls(ctx: _Ctx) -> list[dict[str, Any]]:
             },
         }
         out.append(element)
+        lintels = _detail_lintels(ctx, wall, element)
+        if lintels:
+            # A wall drawn for its lintels only (masonry): its elevation needs its size.
+            element["at"].update(length=math.dist(wall.start, wall.end))
+            if getattr(t, "thickness", None):
+                element["at"].update(thickness=float(t.thickness))
         if t is None or getattr(t, "kind", None) != "wall" or t.reinforcement is None:
-            element["notes"].append("no wall reinforcement: not detailed")
+            element["notes"].append(
+                "no wall reinforcement: not detailed"
+                + (f" (the lintels over {', '.join(lintels)} are)" if lintels else "")
+            )
             continue
         r = t.reinforcement
         fc, fy, grade = ctx.fc(t.material), ctx.fy(r.material), ctx.grade(r.material)
@@ -2725,6 +2736,146 @@ def _detail_walls(ctx: _Ctx) -> list[dict[str, Any]]:
                 )  # fmt: skip
         _ = step
     return out
+
+
+#: Lintels: the first stirrup from each end of the lintel [mm] (practice, as FIRST_STIRRUP).
+LINTEL_FIRST_STIRRUP = 50.0
+
+
+def _high_wind(settings: Any) -> bool:
+    """Whether the site is a high-wind region for the lintel bars (7.9.6.3): the basic wind
+    speed over 200 km/h, decided as design/check.py decides it for the design report."""
+    if settings is None:
+        return False
+    from saengine.library.settings import derived
+
+    try:
+        wind = float(derived(settings).get("windSpeed") or 0.0)
+    except (ValueError, KeyError, AttributeError, TypeError):
+        wind = 0.0
+    return wind * 3.6 > 200.0
+
+
+def _lintels_of(ctx: _Ctx) -> list[dict[str, Any]]:
+    """The lintels designed over the openings of masonry and partition walls
+    (:func:`saengine.design.lintels.lintels_of`, the design report's ``kind: "lintel"``
+    elements); designed here, as the design report does, when no report was given."""
+    found = [e for e in ctx.report.values() if e.get("kind") == "lintel"]
+    if found or ctx.report:
+        return found
+    if ctx.lintels is None:
+        from saengine.design import lintels as lintel_design
+
+        try:
+            types = dict(ctx.types)
+            mats = {m.id: m for m in ctx.materials.materials} if ctx.materials else {}
+            result = lintel_design.lintels_of(
+                ctx.building, types, mats, ctx.settings, high_wind=_high_wind(ctx.settings)
+            )
+            ctx.lintels = list(result["elements"])
+        except (ValueError, AttributeError, KeyError) as error:
+            ctx.notes.append(f"lintels could not be designed for the drawings: {error}")
+            ctx.lintels = []
+    return ctx.lintels
+
+
+def _detail_lintels(ctx: _Ctx, wall: Any, element: dict[str, Any]) -> list[str]:
+    """The bars of the lintels over the openings of ``wall`` (their design by
+    :mod:`saengine.design.lintels`) added to the wall's element: bottom bars (``LB``), top
+    hangers (``LT``) and closed stirrups (``LS``), each with ``at.opening``; returns the
+    openings' ids.
+
+    The lintel runs the opening's clear width plus its bearing at each end (the design's span
+    less the clear width is one bearing; Sec 7.4.3.2, p 1015), or the opening plus 600 mm each
+    side where the design asks for the bars to run that far (7.9.6.3, p 1045, high wind
+    regions); the bars run its length less the cover at each end, straight; ld of the bottom
+    bars is checked from mid-span (the section of the largest moment) to the bar's end
+    (8.2.3); stirrups with 135° hooks (8.1.2.1(c)) from 50 mm off each end at the design's
+    spacing."""
+    from saengine.design.lintels import COVER, WIND_BAR_EXTENSION
+
+    openings = {o.id: o for o in ctx.building.additions.wallOpenings if o.host == wall.id}
+    done = []
+    for found in _lintels_of(ctx):
+        o = openings.get(str(found.get("id")))
+        if o is None:
+            continue
+        bars = found.get("bars") or {}
+        clear = float(found.get("clear") or o.width)
+        bearing = max(float(found.get("span") or clear) - clear, 0.0)
+        high_wind = any(
+            str(c.get("name", "")).startswith("Lintel span") and not c.get("flag", True)
+            for c in found.get("checks", [])
+        )
+        reach = max(bearing, WIND_BAR_EXTENSION) if high_wind else bearing
+        b, h = float(found.get("b") or 0), float(found.get("h") or 0)
+        length = clear + 2 * reach
+        x0 = float(o.offset) - reach
+        head = float(wall.bottom) + float(o.sill) + float(o.height)
+        steel = str(found.get("steel") or "")
+        grade = ctx.grade(steel) if steel else None
+        fy = ctx.fy(steel) if steel else 420.0
+        fc = ctx.fc(str(found.get("concrete") or ""))
+        cover = COVER
+        at = {"opening": o.id, "from": round(x0, 1), "to": round(x0 + length, 1),
+              "bottom": round(head, 1), "depth": h, "width": b}  # fmt: skip
+        run = length - 2 * cover
+        remarks = f"lintel over {o.id}"
+        for key, role, letter in (("bottom", "lintel bottom", "LB"), ("top", "lintel top", "LT")):
+            if not bars.get(key):
+                continue
+            count, db = int(bars[key][0]), float(bars[key][1])
+            element["bars"].append(
+                _bar(
+                    role, letter, db, "straight", count, {"A": run}, run,
+                    {**at, "face": key}, bend=bend_diameter(db).value, grade=grade,
+                    remarks=remarks,
+                )
+            )  # fmt: skip
+            if key == "bottom":
+                ld = ctx.ld(db, fy, fc)
+                element["checks"].append(
+                    _check(
+                        f"{o.id}: bottom Ø{db:g} developed from mid-span",
+                        ld,
+                        run / 2,
+                        _page("8.2.3", "1076-1078"),
+                    )
+                )
+        if bars.get("stirrups"):
+            legs, ds, spacing = (
+                int(bars["stirrups"][0]),
+                float(bars["stirrups"][1]),
+                float(bars["stirrups"][2]),
+            )
+            hook = standard_hook(ds, 135, transverse=True)
+            a, c = b - 2 * cover, h - 2 * cover
+            first = LINTEL_FIRST_STIRRUP
+            count = int(max(length - 2 * first, 0.0) // spacing) + 1
+            stirrup = _bar(
+                "lintel stirrup", "LS", ds, "stirrup", count, {"A": a, "B": c},
+                stirrup_length(a, c, ds, hook), {**at, "spacing": spacing, "legs": legs},
+                bend=hook.bend_dia, grade=grade, remarks=remarks,
+            )  # fmt: skip
+            element["bars"].append(stirrup)
+            element["transverse"].append(
+                {"from": round(x0 + first, 1), "to": round(x0 + length - first, 1),
+                 "spacing": spacing, "count": count, "zone": "lintel", "_bar": stirrup}
+            )  # fmt: skip
+            if legs > 2:
+                element["notes"].append(
+                    f"{o.id}: {legs}-leg stirrups: the inner legs are not scheduled"
+                )
+        element.setdefault("lintels", []).append(
+            {"opening": o.id, "from": at["from"], "to": at["to"], "bottom": at["bottom"],
+             "depth": h, "width": b, "label": found.get("label", ""), "ok": found.get("ok")}
+        )  # fmt: skip
+        if found.get("ok") is False:
+            element["notes"].append(
+                f"the lintel over {o.id} fails its design check: detailed as designed"
+            )
+        done.append(o.id)
+    return done
 
 
 # ─────────────────────────────────────────── stairs ───────────────────────────────────────────
@@ -3044,7 +3195,7 @@ _PREFIX = {
     "pileCap": "PC",
 }
 _ROLE_ORDER = ["T", "B", "F", "S", "X", "V", "D", "H", "P", "BX", "BY", "TX", "TY", "E", "K",
-               "M", "N", "L", "LN"]  # fmt: skip
+               "M", "N", "L", "LN", "LB", "LT", "LS"]  # fmt: skip
 
 
 def _signature(element: dict[str, Any], bar: dict[str, Any]) -> str:

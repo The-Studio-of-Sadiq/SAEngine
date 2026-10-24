@@ -4228,6 +4228,13 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			$ref: '#/$defs/ProjectInfo',
 			title: 'Project',
 		},
+		codePack: {
+			default: 'bnbc2020',
+			description: 'Id of the code pack the project follows (its towns and hazard values, importance factors, structural systems, live load minimums, load combinations and seismic and wind coefficients). Built-in: bnbc2020. A project\'s own packs live in 02 Project Settings/code-packs/<id>/; the user\'s in the SAEngine user folder.',
+			pattern: '^[a-z0-9][a-z0-9._-]{0,63}$',
+			title: 'Design code',
+			type: 'string',
+		},
 		codes: {
 			$ref: '#/$defs/Codes',
 		},
@@ -4296,6 +4303,7 @@ export const DEFAULT_SETTINGS: object = {
 	project: {
 		name: 'Project',
 	},
+	codePack: 'bnbc2020',
 	codes: {
 		general: 'BNBC 2020',
 		concrete: 'BNBC 2020 Part 6 Chapter 6',
@@ -5314,7 +5322,7 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 				file: {
 					description: 'DXF file, relative to the 05 Floor Plan folder.',
 					minLength: 1,
-					pattern: '\\.[dD][xX][fF]$',
+					pattern: '\\.[dD]([xX][fF]|[wW][gG])$',
 					title: 'File',
 					type: 'string',
 				},
@@ -10730,7 +10738,7 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Studs or stirrups round its columns, checked where the concrete alone is not enough (isolated, combined footings; empty: none).',
+					description: 'Studs or stirrups round its columns, checked where the concrete alone is not enough (isolated, combined footings and rafts; empty: none).',
 					title: 'Punching reinforcement',
 				},
 				pileType: {

@@ -1,0 +1,151 @@
+{
+  "$schema": "../../../schemas/concrete.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Chapter 6"
+  ],
+  "source": "BNBC 2020 Part 6 Chapter 6 and SAEngine practice (see sources)",
+  "barDiameters": {
+    "all": [
+      10.0,
+      12.0,
+      16.0,
+      20.0,
+      25.0,
+      32.0
+    ],
+    "main": [
+      12.0,
+      16.0,
+      20.0,
+      25.0,
+      32.0
+    ],
+    "column": [
+      16.0,
+      20.0,
+      25.0,
+      32.0
+    ],
+    "slab": [
+      10.0,
+      12.0,
+      16.0
+    ],
+    "stirrup": [
+      8.0,
+      10.0,
+      12.0
+    ],
+    "wall": [
+      10.0,
+      12.0,
+      16.0,
+      20.0
+    ],
+    "boundary": [
+      16.0,
+      20.0,
+      25.0,
+      32.0
+    ],
+    "hoop": [
+      10.0,
+      12.0
+    ],
+    "lintel": [
+      10.0,
+      12.0,
+      16.0,
+      20.0,
+      25.0
+    ]
+  },
+  "spacingStep": 25.0,
+  "minSlabSpacing": 100.0,
+  "minStirrupSpacing": 75.0,
+  "columnRho": [
+    0.01,
+    0.08
+  ],
+  "beamRatioMax": 0.04,
+  "slabStrainMin": 0.004,
+  "fytShearMax": 420.0,
+  "slendernessLimit": 22.0,
+  "twoWayThickness": {
+    "280.0": [
+      33.0,
+      36.0,
+      36.0
+    ],
+    "420.0": [
+      30.0,
+      33.0,
+      33.0
+    ],
+    "520.0": [
+      28.0,
+      31.0,
+      31.0
+    ]
+  },
+  "oneWaySlabThickness": [
+    20.0,
+    24.0,
+    28.0
+  ],
+  "beamThickness": [
+    16.0,
+    18.5,
+    21.0
+  ],
+  "cover": {
+    "lintel": 25.0,
+    "stair": 20.0,
+    "pileCap": 50.0
+  },
+  "crackedStiffness": {
+    "column": 0.7,
+    "beam": 0.35,
+    "plate": 0.25,
+    "wall": 0.35
+  },
+  "slender": {
+    "nonswayQ": 0.05,
+    "swayLimit": 22.0,
+    "nonswayCap": 40.0,
+    "kluRMax": 100.0,
+    "deltaSMax": 1.5,
+    "momentRatioMax": 1.4
+  },
+  "walls": {
+    "rhoSmallBars": [
+      0.0012,
+      0.002
+    ],
+    "rhoOtherBars": [
+      0.0015,
+      0.0025
+    ],
+    "smallBarMax": 16.0,
+    "smallBarFy": 420.0,
+    "rhoShear": 0.0025,
+    "twoLayerThickness": 250.0,
+    "spacingMax": 450.0
+  },
+  "sources": {
+    "barDiameters": "BDS ISO 6935-2 sizes in common use (SAEngine practice)",
+    "spacingStep": "SAEngine practice",
+    "minSlabSpacing": "SAEngine practice (site), not a code limit",
+    "columnRho": "ACI 318 10.6.1.1 (as the code's Chapter 6; page not checked)",
+    "beamRatioMax": "SAEngine practice (congestion), not a code clause",
+    "slabStrainMin": "ACI 318 7.3.3.1, 8.3.3.1 (page not checked)",
+    "fytShearMax": "BNBC 2020 Part 6 Sec 6.4.3.2 (p. 924)",
+    "twoWayThickness": "BNBC 2020 Part 6 Table 6.6.3 (p. 902), no drop panels",
+    "oneWaySlabThickness": "BNBC 2020 Part 6 Table 6.6.1 (p. 900), by continuous ends 0, 1, 2",
+    "beamThickness": "BNBC 2020 Part 6 Table 6.6.1 (p. 900), by continuous ends 0, 1, 2",
+    "cover": "SAEngine assumptions when no reinforcement is entered",
+    "crackedStiffness": "BNBC 2020 Part 6 Sec 6.3.10.4.1",
+    "slender": "BNBC 2020 Part 6 Sec 6.3.10 (Eqs. 6.6.13, 6.6.14, 6.6.17)",
+    "walls": "BNBC 2020 Part 6 Sec 6.6.3.2-6.6.3.4, 6.4.8.9 and 8.3.6.2(a)"
+  }
+}

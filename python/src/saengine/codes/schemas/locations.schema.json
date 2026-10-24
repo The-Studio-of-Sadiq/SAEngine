@@ -1,0 +1,75 @@
+{
+  "$defs": {
+    "Location": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "zone": {
+          "description": "Seismic zone (index into zoneCoefficients).",
+          "title": "Zone",
+          "type": "integer"
+        },
+        "windSpeed": {
+          "description": "Basic wind speed V [m/s].",
+          "exclusiveMinimum": 0,
+          "title": "Windspeed",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "zone",
+        "windSpeed"
+      ],
+      "title": "Location",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Towns with their seismic zone and basic wind speed.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "locations": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Location"
+      },
+      "title": "Locations",
+      "type": "object"
+    }
+  },
+  "required": [
+    "locations"
+  ],
+  "title": "LocationsTable",
+  "type": "object",
+  "$id": "saengine.codePack.locations/1"
+}

@@ -1,0 +1,287 @@
+{
+  "$defs": {
+    "Joints": {
+      "additionalProperties": false,
+      "description": "Plain numbers of special moment frame beam-column joints.",
+      "properties": {
+        "probableStress": {
+          "description": "Probable stress factor of bars (1.25 fy).",
+          "minimum": 1,
+          "title": "Probablestress",
+          "type": "number"
+        },
+        "strongColumnRatio": {
+          "description": "ΣMnc/ΣMnb least.",
+          "minimum": 1,
+          "title": "Strongcolumnratio",
+          "type": "number"
+        },
+        "axialLimit": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Axiallimit",
+          "type": "number"
+        },
+        "gamma": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Gamma",
+          "type": "object"
+        },
+        "vcZeroAxial": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Vczeroaxial",
+          "type": "number"
+        }
+      },
+      "required": [
+        "probableStress",
+        "strongColumnRatio",
+        "axialLimit",
+        "gamma",
+        "vcZeroAxial"
+      ],
+      "title": "Joints",
+      "type": "object"
+    },
+    "LintelLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "minBearing": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Minbearing",
+          "type": "number"
+        },
+        "bearing": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Bearing",
+          "type": "number"
+        },
+        "deflectionRatio": {
+          "description": "span / deflection limit",
+          "exclusiveMinimum": 0,
+          "title": "Deflectionratio",
+          "type": "number"
+        },
+        "probable": {
+          "minimum": 1,
+          "title": "Probable",
+          "type": "number"
+        }
+      },
+      "required": [
+        "minBearing",
+        "bearing",
+        "deflectionRatio",
+        "probable"
+      ],
+      "title": "LintelLimits",
+      "type": "object"
+    },
+    "SpecialFrames": {
+      "additionalProperties": false,
+      "description": "Plain-number limits of special moment frame members.",
+      "properties": {
+        "axialShare": {
+          "description": "Pu/(Ag·f'c) above which a member is a column.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Axialshare",
+          "type": "number"
+        },
+        "beamRhoMax": {
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Beamrhomax",
+          "type": "number"
+        },
+        "columnRho": {
+          "description": "(least, largest) ρ of columns.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Columnrho",
+          "type": "array"
+        },
+        "beamMinWidth": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Beamminwidth",
+          "type": "number"
+        },
+        "beamMinRatio": {
+          "description": "Least width/depth of beams.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Beamminratio",
+          "type": "number"
+        },
+        "columnMinDimension": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Columnmindimension",
+          "type": "number"
+        },
+        "columnMinRatio": {
+          "description": "Least short/long side of columns.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Columnminratio",
+          "type": "number"
+        },
+        "fytConfinementMax": {
+          "description": "Largest fyt of confinement [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Fytconfinementmax",
+          "type": "number"
+        },
+        "hxMax": {
+          "description": "Largest hx [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Hxmax",
+          "type": "number"
+        },
+        "unsupportedClear": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Unsupportedclear",
+          "type": "number"
+        },
+        "beamFirstHoop": {
+          "description": "First hoop from the column face [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Beamfirsthoop",
+          "type": "number"
+        }
+      },
+      "required": [
+        "axialShare",
+        "beamRhoMax",
+        "columnRho",
+        "beamMinWidth",
+        "beamMinRatio",
+        "columnMinDimension",
+        "columnMinRatio",
+        "fytConfinementMax",
+        "hxMax",
+        "unsupportedClear",
+        "beamFirstHoop"
+      ],
+      "title": "SpecialFrames",
+      "type": "object"
+    },
+    "SpecialWalls": {
+      "additionalProperties": false,
+      "description": "Plain numbers of special structural walls.",
+      "properties": {
+        "relaxedShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Relaxedshare",
+          "type": "number"
+        },
+        "twoCurtainShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Twocurtainshare",
+          "type": "number"
+        },
+        "driftMin": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Driftmin",
+          "type": "number"
+        },
+        "stressRequired": {
+          "description": "Boundary elements required above · f'c.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Stressrequired",
+          "type": "number"
+        },
+        "stressStop": {
+          "description": "Boundary elements may stop below · f'c.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Stressstop",
+          "type": "number"
+        },
+        "fytConfinementMax": {
+          "exclusiveMinimum": 0,
+          "title": "Fytconfinementmax",
+          "type": "number"
+        },
+        "hxMax": {
+          "exclusiveMinimum": 0,
+          "title": "Hxmax",
+          "type": "number"
+        }
+      },
+      "required": [
+        "relaxedShare",
+        "twoCurtainShare",
+        "driftMin",
+        "stressRequired",
+        "stressStop",
+        "fytConfinementMax",
+        "hxMax"
+      ],
+      "title": "SpecialWalls",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "special": {
+      "$ref": "#/$defs/SpecialFrames"
+    },
+    "joints": {
+      "$ref": "#/$defs/Joints"
+    },
+    "walls": {
+      "$ref": "#/$defs/SpecialWalls"
+    },
+    "lintels": {
+      "$ref": "#/$defs/LintelLimits"
+    }
+  },
+  "required": [
+    "special",
+    "joints",
+    "walls",
+    "lintels"
+  ],
+  "title": "DetailingTable",
+  "type": "object",
+  "$id": "saengine.codePack.detailing/1"
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "../../../schemas/factors.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 6.2.3 (pp. 897-898)"
+  ],
+  "source": "BNBC 2020 Part 6 Sec 6.2.3.2 (p. 897)",
+  "phi": {
+    "tension": 0.9,
+    "compressionTied": 0.65,
+    "compressionSpiral": 0.75,
+    "shear": 0.75,
+    "punching": 0.75,
+    "shearSeismic": 0.6,
+    "diagonalCoupling": 0.85,
+    "joint": 0.85,
+    "strutAndTie": 0.75,
+    "stiffnessReduction": 0.75
+  },
+  "sources": {
+    "shearSeismic": "BNBC 2020 Part 6 Sec 6.2.3.3(a)",
+    "diagonalCoupling": "BNBC 2020 Part 6 Sec 6.2.3.3(c)",
+    "joint": "BNBC 2020 Part 6 Sec 6.2.3.3(c) (p. 898)",
+    "stiffnessReduction": "BNBC 2020 Part 6 Eqs. 6.6.19 and 6.6.28"
+  }
+}
