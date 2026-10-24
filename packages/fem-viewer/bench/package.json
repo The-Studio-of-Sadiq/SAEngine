@@ -1,0 +1,5 @@
+{
+  "name": "fem-viewer-bench",
+  "private": true,
+  "main": "run.cjs"
+}
