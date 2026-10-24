@@ -18,8 +18,8 @@ from saengine.fem.story_response import (
     _overturning,
     _shears,
     _storey_loads,
-    story_response,
     storey_levels,
+    story_response,
 )
 from saengine.fem.table_export import sheet_name, write_xlsx
 from saengine.library import default_material_library
@@ -79,8 +79,7 @@ def test_demand_points_keep_what_matters_per_combination() -> None:
 def test_column_interaction_is_worked_out_once_per_run(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import saengine.design.rc as rc
-    import saengine.design.required as required
+    from saengine.design import rc, required
 
     out = tmp_path / "08 FEM" / "model.results"
     out.mkdir(parents=True)
@@ -117,8 +116,9 @@ def test_column_interaction_is_worked_out_once_per_run(
         }
 
         class Gathered:
-            collect = {"members": [member, {"id": "B1", "kind": "beam", "points": None}]}
-            assumed = {"C400"}
+            def __init__(self) -> None:
+                self.collect = {"members": [member, {"id": "B1", "kind": "beam", "points": None}]}
+                self.assumed = {"C400"}
 
         return Gathered()
 
@@ -142,14 +142,21 @@ def test_tables_to_excel(tmp_path: Path) -> None:
     from openpyxl import load_workbook
 
     taken: set[str] = set()
-    assert sheet_name("Storey drifts: 1.2D + 1.6L [X/Y]", taken) == "Storey drifts  1.2D + 1.6L  X Y"
+    assert (
+        sheet_name("Storey drifts: 1.2D + 1.6L [X/Y]", taken) == "Storey drifts  1.2D + 1.6L  X Y"
+    )
     assert sheet_name("Storey drifts: 1.2D + 1.6L [X/Y]", taken).endswith(" (2)")
     path = tmp_path / "out" / "results.xlsx"
     written = write_xlsx(
         path,
         [
             {"name": "Joint displacements", "columns": ["Node", "ux [mm]"], "rows": [[1, 2.5]]},
-            {"name": "Reactions", "columns": ["Node", "Fz [kN]"], "rows": [[1, -10]], "notes": ["n"]},
+            {
+                "name": "Reactions",
+                "columns": ["Node", "Fz [kN]"],
+                "rows": [[1, -10]],
+                "notes": ["n"],
+            },
         ],
     )
     assert written["sheets"] == 2
