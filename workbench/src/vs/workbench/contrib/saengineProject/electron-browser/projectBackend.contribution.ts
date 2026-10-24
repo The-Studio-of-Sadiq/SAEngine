@@ -19,7 +19,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
 import { FemAnalysisRunner } from '../../saengineFem/electron-browser/femAnalysisRunner.js';
-import { ARCHIVE_EXPORT_COMMAND, ARCHIVE_EXTENSION, ARCHIVE_IMPORT_COMMAND, ARCHIVE_INSPECT_COMMAND, CAD_OPEN_COMMAND, OPEN_ARCHIVE_UI_COMMAND } from '../browser/projectArchiveModel.js';
+import { ARCHIVE_EXPORT_COMMAND, ARCHIVE_EXTENSION, ARCHIVE_IMPORT_COMMAND, ARCHIVE_INSPECT_COMMAND, CAD_OPEN_COMMAND, DWG_TO_DXF_COMMAND, OPEN_ARCHIVE_UI_COMMAND } from '../browser/projectArchiveModel.js';
 import { ProjectOverviewInput } from '../browser/projectOverviewInput.js';
 import { StartEditorInput } from '../browser/startEditorInput.js';
 import { VERSIONS_DIFF_COMMAND, VERSIONS_LIST_COMMAND, VERSIONS_MARK_ISSUED_COMMAND, VERSIONS_RESTORE_COMMAND, VERSIONS_SAVE_COMMAND, VERSIONS_STATUS_COMMAND } from '../browser/versionsModel.js';
@@ -28,7 +28,7 @@ import { VERSIONS_DIFF_COMMAND, VERSIONS_LIST_COMMAND, VERSIONS_MARK_ISSUED_COMM
  * The backend of the project archive (`.civil`), the version history and the CAD hand-off: the
  * commands the UI of `../browser/projectPlatform.contribution.ts` calls by id, forwarded to the
  * Python backend (`saengine.project.archive` and `saengine.project.versions` over JSON-RPC) and
- * to the shared process (LibreCAD). Also opens a `.civil` file the operating system hands over.
+ * to the shared process (LibreCAD); DWG drawings are converted to DXF by the backend (LibreDWG). Also opens a `.civil` file the operating system hands over.
  */
 
 /** The author of saved versions, "Name <email>". */
@@ -172,6 +172,39 @@ CommandsRegistry.registerCommand(VERSIONS_MARK_ISSUED_COMMAND, async (accessor, 
 	return orThrow(await call(accessor, 'versions/markIssued', { projectRoot: args.projectRoot, version: args.version, label: args.label, author: author(accessor, args) }));
 });
 
+// --- Code packs -------------------------------------------------------------------------------
+// The commands the Design code selector (Project Settings) and the Code Packs page call by id
+// (`../../saengineLibrary/browser/codePacksModel.ts`), forwarded to `saengine.codes`.
+
+CommandsRegistry.registerCommand('saengine.codes.list', async (accessor, raw: unknown) => {
+	return call(accessor, 'codes/list', { root: str(bag(raw).root) });
+});
+
+CommandsRegistry.registerCommand('saengine.codes.show', async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return orThrow(await call(accessor, 'codes/show', { id: args.id, root: str(args.root) }));
+});
+
+CommandsRegistry.registerCommand('saengine.codes.new', async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return orThrow(await call(accessor, 'codes/new', { id: args.id, name: str(args.name), extends: str(args.extends), scope: args.scope === 'project' ? 'project' : 'user', dest: str(args.dest), root: str(args.root) }));
+});
+
+CommandsRegistry.registerCommand('saengine.codes.install', async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return orThrow(await call(accessor, 'codes/install', { path: args.path, scope: args.scope === 'project' ? 'project' : 'user', root: str(args.root) }));
+});
+
+CommandsRegistry.registerCommand('saengine.codes.validate', async (accessor, raw: unknown) => {
+	const args = bag(typeof raw === 'string' ? { path: raw } : raw);
+	return call(accessor, 'codes/validate', { path: args.path, root: str(args.root) });
+});
+
+CommandsRegistry.registerCommand('saengine.codes.trust', async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return orThrow(await call(accessor, 'codes/trust', { id: args.id, trusted: args.trusted === true, root: str(args.root) }));
+});
+
 // --- CAD --------------------------------------------------------------------------------------
 
 /**
@@ -197,6 +230,11 @@ CommandsRegistry.registerCommand(CAD_OPEN_COMMAND, async (accessor, raw: unknown
 	// The operating system's handler for .dxf files (ShellExecute on Windows): no shell string.
 	const ok = await accessor.get(INativeHostService).openExternal(url);
 	return { ok, program: 'system', args: [url] };
+});
+
+/** `{path}` -> `{ok, dxf, warnings, cached}` or `{ok: false, code, message}`: a DWG as DXF. */
+CommandsRegistry.registerCommand(DWG_TO_DXF_COMMAND, async (accessor, raw: unknown) => {
+	return call(accessor, 'cad/convertDwg', { path: str(bag(typeof raw === 'string' ? { path: raw } : raw).path) ?? '' });
 });
 
 // --- A .civil file opened from the operating system ----------------------------------------

@@ -68,6 +68,13 @@ BNBC 2020 Part 6 Sec 6.3.10 (part 1 of the code, pp. 910-915; ACI 318's provisio
 - Limits: total moment with second-order effects <= 1.4 times the first-order moment
   (6.3.10.2.1, the first-order moment taken as max(M2, M2,min)); k lu / r <= 100 (ACI 318-19
   6.2.6: above it a nonlinear second-order analysis is required; BNBC has no such clause).
+- Design overwrites (:mod:`saengine.design.overwrites`, per member or object type): k and lu
+  per axis replace the values above, ``framing`` "braced" designs the column as nonsway and
+  "sway" as sway whatever Q says, Cm, δns and δs given replace the worked-out ones; the
+  check's note shows each with its source ("k = 1.20 (overwrite)").
+- Design at the faces (:func:`saengine.design.face_forces.at_faces`): the strength check's
+  station points may take the forces at the beam soffit and the top of the slab
+  (``face_pieces``); M1 and M2 of the magnification stay the joints' (conservative).
 
 Units: mm, N, N·mm (the analysis model's m, N, N·m converted where read).
 """
@@ -1069,14 +1076,19 @@ class SlenderContext:
         shells: dict[int, tuple[list[np.ndarray], list[np.ndarray]]] | None = None,
         spectrum: list[bool] | None = None,
         storey_shear: list[Any] | None = None,
+        overwrites: dict[str, Any] | None = None,
     ) -> None:
         """``shells``: per analysis shell id its forces per combination and their lateral
         parts (rows of N11 .. Q23), so that the walls count in each storey's ΣPu and Vus.
         ``spectrum``: per combination whether its earthquake is the response spectrum's
         envelope (± E, no sign: single curvature and Cm = 1.0, see the module notes).
         ``storey_shear``: per combination None or its response spectrum storey shear function
-        (:func:`storeys`, ``extra["storeyShear"]`` of saengine.fem.seismic_design.design_demands)."""
+        (:func:`storeys`, ``extra["storeyShear"]`` of saengine.fem.seismic_design.design_demands).
+        ``overwrites``: per member id its design overwrites
+        (:class:`saengine.design.overwrites.Resolved`): k, lu, the framing (braced or sway) and
+        Cm, δns, δs as given, each shown with its source in the check's note."""
         self.options = SlenderOptions.of(options)
+        self.overwrites: dict[str, Any] = dict(overwrites or {})
         self.combinations = combinations
         self.spectrum = [bool(s) for s in (spectrum or [])]
         self.model = Model(project, building, types, self.options.model_cracked, mats)
@@ -1214,12 +1226,19 @@ class SlenderContext:
             ec, dims = props
             section = self._bars_section(object_type) if self.options.stiffness == "bars" else None
             turned = round((element.rotation or 0.0) / 90) % 2 == 1
+            given = self.overwrites.get(element.id)
             for axis in ("x", "y"):
                 unit, direction, _h, ig, ise = _axis_frame(own[0], turned, axis, dims, section)
                 smallest: dict[int, tuple[Storey, list[float]]] = {}
+                k_given = given.k(axis) if given else None
+                lu_given = given.lu(axis) if given else None
+                if given and given.get("framing") == "braced":
+                    continue  # designed as braced: not one of the storey's sway columns
                 for seg in self.segments(element.id, own, unit, direction):
-                    if seg.storey is None or seg.k_s is None:
+                    if seg.storey is None or (seg.k_s is None and k_given is None):
                         continue
+                    k_seg = k_given if k_given is not None else seg.k_s
+                    lu_seg = lu_given if lu_given is not None else seg.lu
                     pcs = []
                     for c in range(n):
                         pu = p_sus = 0.0
@@ -1238,7 +1257,7 @@ class SlenderContext:
                             section.es if section is not None else 0.0,
                             ise if section is not None else None,
                         )
-                        pcs.append(critical_load(ei, seg.k_s, seg.lu))
+                        pcs.append(critical_load(ei, k_seg, lu_seg))
                     key = id(seg.storey)
                     if key not in smallest:
                         smallest[key] = (seg.storey, pcs)
@@ -1272,9 +1291,20 @@ class SlenderContext:
     # ── the design of one column ──
 
     def column(
-        self, member: str, section: Any, own: list[Any], turned: bool, ec: float
+        self,
+        member: str,
+        section: Any,
+        own: list[Any],
+        turned: bool,
+        ec: float,
+        face_pieces: list[Any] | None = None,
     ) -> ColumnSlenderness:
-        """The slenderness checks and the magnified demand points of a column member."""
+        """The slenderness checks and the magnified demand points of a column member.
+
+        ``face_pieces``: the member's pieces with the forces at the beam soffit and the top of
+        the slab (:func:`saengine.design.face_forces.at_faces`): the strength check's station
+        points take them, while the end moments M1, M2 of the magnification stay the joints'
+        (``own``: conservative, the moments along the length are magnified from them)."""
         from saengine.design.check import _profile_forces, _where
 
         dims = _dimensions(section)
@@ -1289,7 +1319,7 @@ class SlenderContext:
 
         points: list[tuple[float, float, float, str, str]] = []
         by_axis = {r.axis: r for r in results}
-        for piece in own:
+        for piece in face_pieces if face_pieces is not None else own:
             for c, forces in enumerate(piece.forces):
                 values = _profile_forces(piece, turned, forces)
                 sway = (
@@ -1354,12 +1384,30 @@ class SlenderContext:
         best: dict[str, Any] | None = None  # the governing segment and combination
         # The worst of every combination: (value, combination) of δs, Mc / M1st, k lu / r.
         worst: dict[str, Any] = {"ds": (1.0, None), "ratio": (0.0, None), "buckles": None}
+        # The member's design overwrites (saengine.design.overwrites): member > type > auto.
+        given = self.overwrites.get(member)
+        k_given = given.k(axis) if given else None
+        lu_given = given.lu(axis) if given else None
+        framing = given.get("framing") if given else None
+        cm_given = given.get("cm") if given else None
+        dns_given = given.get("deltaNs") if given else None
+        ds_given = given.get("deltaS") if given else None
         for seg in segs:
             for p in seg.pieces:
                 segment_of[p.id] = seg
-            sway_storey = seg.storey is not None and bool(seg.storey.sway) and seg.framed
-            k_used = seg.k_s if sway_storey and seg.k_s is not None else seg.k_ns
-            slender = k_used * seg.lu / r
+            if framing == "braced":
+                sway_storey = False
+            elif framing == "sway":
+                sway_storey = seg.storey is not None
+            else:
+                sway_storey = seg.storey is not None and bool(seg.storey.sway) and seg.framed
+            k_auto = seg.k_s if sway_storey and seg.k_s is not None else seg.k_ns
+            k_used = k_given if k_given is not None else k_auto
+            # k of Pc along the length (6.3.10.6): the nonsway one, or the one given for a
+            # column designed as braced.
+            k_pc = k_given if k_given is not None and not sway_storey else seg.k_ns
+            lu = lu_given if lu_given is not None else seg.lu
+            slender = k_used * lu / r
             reversed_ = [p.start[2] > p.end[2] for p in seg.pieces]
             consistent = len(set(reversed_)) == 1
             for c in range(n):
@@ -1392,7 +1440,11 @@ class SlenderContext:
                 ds = 1.0
                 sway_applies = sway_storey and slender > SWAY_LIMIT and opts.second_order == "none"
                 if sway_applies and seg.storey is not None and pu > 0:
-                    ds = seg.storey.delta_s(c, opts.sway_magnifier)
+                    ds = (
+                        float(ds_given)
+                        if ds_given is not None
+                        else seg.storey.delta_s(c, opts.sway_magnifier)
+                    )
                 ds_member[c] = max(ds_member[c], ds) if math.isfinite(ds) else math.inf
                 if ds > worst["ds"][0]:
                     worst["ds"] = (ds, c)
@@ -1407,6 +1459,10 @@ class SlenderContext:
                     "ds": ds,
                     "k": k_used,
                     "slender": slender,
+                    "lu": lu,
+                    "sway": sway_storey if framing else None,
+                    "framing": framing,
+                    "given": given,
                 }
                 if not math.isfinite(ds):
                     magnified[c] = True
@@ -1439,11 +1495,13 @@ class SlenderContext:
                 ei = effective_ei(
                     ec, ig, beta, section.es, ise if opts.stiffness == "bars" else None
                 )
-                pc = critical_load(ei, seg.k_ns, seg.lu)
+                pc = critical_load(ei, k_pc, lu)
                 m2_min = minimum_moment(pu, h)
-                cm = cm_factor(ratio, transverse)
+                cm = float(cm_given) if cm_given is not None else cm_factor(ratio, transverse)
                 d_ns = delta_ns(cm, pu, pc)
                 d_ns_min = delta_ns(1.0, pu, pc)  # Cm = 1 when M2,min governs (6.3.10.6.5)
+                if dns_given is not None:
+                    d_ns = d_ns_min = float(dns_given)
                 with_min = d_ns * m2 if m2 >= m2_min else d_ns_min * m2_min
                 mc[c] = max(mc[c], with_min)
                 mc_no_min[c] = max(mc_no_min[c], d_ns * m2)
@@ -1486,6 +1544,10 @@ class SlenderContext:
         c = best["c"]
         storey = seg.storey
         sway = None if storey is None or not seg.framed else storey.sway
+        if best.get("framing"):  # designed as braced or sway (overwrite)
+            sway = bool(best.get("sway"))
+        given = best.get("given")
+        lu = best.get("lu", seg.lu)
         q = storey.q[c] if storey is not None else None
         slender = best["slender"]
         designed = not best.get("neglected", False)
@@ -1539,8 +1601,10 @@ class SlenderContext:
             label = f"{kind}, δs = {_fmt(ds)}, δns = {_fmt(dns)}"
         else:
             label = f"{kind}, δns = {_fmt(dns)}"
+        k_text = given.k_text(axis) if given and given.k(axis) is not None else ""
+        lu_text = given.lu_text(axis) if given and given.lu(axis) is not None else ""
         parts = [
-            f"lu = {seg.lu:.0f} mm, k = {best['k']:.2f}, r = {r:.0f} mm",
+            f"lu = {lu:.0f} mm{lu_text}, k = {best['k']:.2f}{k_text}, r = {r:.0f} mm",
             f"{seg.pieces[0].name} to {seg.pieces[-1].name}"
             if len(seg.pieces) > 1
             else seg.pieces[0].name,
@@ -1552,12 +1616,20 @@ class SlenderContext:
             )
         elif seg.braced_by:
             parts.append(f"braced by {', '.join(seg.braced_by)}: k = 1")
-        if storey is not None and seg.framed:
+        if best.get("framing") and given is not None:
+            parts.append(f"designed as {best['framing']}{given.text('framing')}")
+        elif storey is not None and seg.framed:
             qm, _ = storey.q_max
             parts.append(
                 f"storey {storey.name} ({direction}): {kind}"
                 + (f", Q = {qm:.3f}" if qm is not None else ", no lateral load")
             )
+        if given is not None:
+            parts += [
+                f"{label_} = {given.get(name):g}{given.text(name)}"
+                for name, label_ in (("cm", "Cm"), ("deltaNs", "δns"), ("deltaS", "δs"))
+                if given.get(name) is not None
+            ]
         if designed and "cm" in best and best.get("cm") is not None:
             parts.append(
                 f"Cm = {best['cm']:.2f}, βdns = {best['beta']:.2f}, Pc = {best['pc'] / 1e3:.0f} kN"
@@ -1583,8 +1655,11 @@ class SlenderContext:
         )
         m2 = best.get("m2", best["first"])
         result["slenderness"] = {
-            "lu": round(seg.lu, 1),
+            "lu": round(lu, 1),
             "k": round(best["k"], 3),
+            "kSource": (given.source("k3" if axis == "x" else "k2") if given else "default"),
+            "luSource": (given.source("Lu3" if axis == "x" else "Lu2") if given else "default"),
+            "framing": best.get("framing"),
             "r": round(r, 1),
             "klu_r": round(slender, 2),
             "sway": sway,

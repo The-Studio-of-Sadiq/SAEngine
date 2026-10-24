@@ -1,0 +1,49 @@
+{
+  "$schema": "../../../schemas/foundations.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Chapter 3"
+  ],
+  "source": "BNBC 2020 Part 6 Chapter 3",
+  "pileSafety": {
+    "monument": [
+      2.3,
+      3.0,
+      3.5,
+      4.0
+    ],
+    "permanent": [
+      2.0,
+      2.5,
+      2.8,
+      3.0
+    ],
+    "temporary": [
+      1.4,
+      2.0,
+      2.3,
+      2.8
+    ]
+  },
+  "pileControls": [
+    "good",
+    "normal",
+    "poor",
+    "veryPoor"
+  ],
+  "partialSkin": 1.5,
+  "partialBase": 3.0,
+  "sptSafety": 3.5,
+  "noLoadTestSafety": 3.0,
+  "loadTestSafety": 2.0,
+  "strutAndTie": {
+    "tieArm": 0.9,
+    "betaCCC": 1.0,
+    "betaCCT": 0.8
+  },
+  "sources": {
+    "pileSafety": "BNBC 2020 Part 6 Table 6.3.10a (p. 750)",
+    "partialSkin": "BNBC 2020 Part 6 Sec 3.10.1.18",
+    "sptSafety": "BNBC 2020 Part 6 Secs 3.10.1.13, 3.10.1.16, 3.10.4.5, 3.10.4.7",
+    "noLoadTestSafety": "BNBC 2020 Part 6 Sec 3.10.1.18, 3.10.4.10"
+  }
+}

@@ -49,6 +49,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from saengine.codes import context as code_context
 from saengine.library import bnbc
 from saengine.library.bim import generate, source_stamp
 from saengine.library.defaults import default_material_library
@@ -96,6 +97,12 @@ AREA_USE_OF: dict[str, str] = {
 #: schools and assembly as buildings where many people gather (III); the rest II.
 CATEGORY_OF_USE: dict[str, str] = {"healthcare": "IV", "educational": "III", "assembly": "III"}
 CATEGORY_RANK = ("I", "II", "III", "IV")
+
+
+#: Steel ratio the lateral sizing allows a column [-]: a column that needs more is enlarged,
+#: leaving the design mode room above it (ρ up to 8 %, 6 % in special frames) for what this
+#: preliminary method leaves out (practice).
+RHO_TARGET = 0.025
 
 
 class _Spec(BaseModel):
@@ -167,6 +174,18 @@ class BuildingSpec(_Spec):
     )
     columnGroupStoreys: int = Field(
         default=3, ge=1, le=20, description="Storeys per column type change."
+    )
+    lateralSizing: Literal["auto", "gravity"] = Field(
+        default="auto",
+        description="Column sizes: 'auto' also for the wind and earthquake moments (portal "
+        "method, P-M interaction, strong column / weak beam) in Seismic Design Categories C and "
+        "D, and for wind in B; 'gravity' the axial rule only.",
+    )
+    columnRho: float = Field(
+        default=RHO_TARGET,
+        ge=0.01,
+        le=0.06,
+        description="Steel ratio the lateral column sizing allows before it enlarges a column.",
     )
     beamSpanDepth: float | None = Field(
         default=15,
@@ -307,6 +326,593 @@ def _system(kind: str, sdc: str | None, height_m: float) -> tuple[str, bool, lis
     raise ValueError(f"no structural system for {kind} in Seismic Design Category {category}")
 
 
+# ─────────────────────────────────── lateral (P–M) column sizing ───────────────────────────────────
+
+#: Largest column side the lateral sizing tries [mm].
+MAX_SIDE = 1500.0
+#: Accidental eccentricity of the storey forces, as a share of the plan dimension across them
+#: (the static method's 5 %), for the share of the edge frames.
+ACCIDENTAL = 0.05
+#: Allowance on the beams' estimated flexural strength for the bars rounded up by the design
+#: (strong column / weak beam): practice.
+BEAM_BARS_ALLOWANCE = 1.15
+#: The portal method's inflection points as a share of the storey height above its bottom:
+#: mid-height, the lowest storey (fixed base) at two thirds.
+INFLECTION = 0.5
+INFLECTION_BASE = 2 / 3
+#: Axial forces of the strong column / weak beam check rounded outwards to this [N].
+AXIAL_STEP = 50e3
+#: Demand points whose axial forces are within this [N] are compared as at one force (the
+#: weaker ones dropped before the interaction check): a speed-up, at most this much off in P.
+PRUNE_STEP = 10e3
+
+
+def _prune(points: list[tuple[Any, ...]]) -> list[tuple[Any, ...]]:
+    """The demand points (Pu, Mux, Muy, ...) less those another point within
+    :data:`PRUNE_STEP` of its axial force exceeds in both moments (the interaction check
+    takes the worst, so they cannot govern unless Pu itself does: the largest and least Pu
+    are kept)."""
+    if len(points) < 50:
+        return points
+    bins: dict[int, list[tuple[Any, ...]]] = {}
+    for p in points:
+        bins.setdefault(round(p[0] / PRUNE_STEP), []).append(p)
+    kept = [max(points, key=lambda p: p[0]), min(points, key=lambda p: p[0])]
+    for group in bins.values():
+        group.sort(key=lambda p: (-p[1], -p[2]))
+        best_y = -math.inf
+        for p in group:
+            if p[2] > best_y:
+                kept.append(p)
+                best_y = p[2]
+    return kept
+
+
+#: Integrator glue (performance): the column searches (and their interaction surfaces) of the
+#: lateral sizing by (side, f'c, fy, Es, ρ, concrete), shared by the generator's calls.
+_SEARCHES: dict[tuple[Any, ...], Any] = {}
+
+
+class LateralSizing(BaseModel):
+    """What :func:`lateral_column_sizes` found: the sides by (storey group, position), the
+    governing demand of each, the base shears and notes."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    sides: dict[tuple[int, str], float]
+    governing: dict[tuple[int, str], str] = Field(default_factory=dict)
+    baseShear: dict[str, float] = Field(default_factory=dict)
+    swayFactor: dict[str, float] = Field(default_factory=dict)
+    notes: list[str] = Field(default_factory=list)
+
+
+# The generator runs under the pack the settings choose (integration glue): derived(settings)
+# and the wind/seismic coefficient tables of fem.loads then come from the same pack.
+@code_context.in_project_pack()
+def lateral_column_sizes(
+    settings: ProjectSettings,
+    sdc: str | None,
+    *,
+    xs: list[float],
+    ys: list[float],
+    heights: list[float],
+    groups: list[list[int]],
+    side_of: dict[tuple[int, int, int], float],
+    position: Any,
+    parts: dict[str, Any],
+    beams: dict[tuple[tuple[int, int], tuple[int, int]], tuple[float, float]],
+    beam_loads: dict[tuple[tuple[int, int], tuple[int, int]], tuple[float, float]],
+    slab_t: float,
+    frame_share: float,
+    special: bool,
+    seismic: bool,
+    wind: bool,
+    fc: float,
+    fy: float,
+    es: float,
+    ec: float,
+    concrete: str,
+    col_min: float,
+    rho_target: float = RHO_TARGET,
+) -> LateralSizing:
+    """Column sides (square) for the combined axial force and moments of the strength
+    combinations with wind and earthquake, by the portal method. ``side_of``: the current side
+    of every column ``(i, j, k)`` (grid indices, storey 1..n; the gravity sizes on the first
+    call); ``parts``: the service loads at each column (``dead``, ``live``, ``roof`` live [kN],
+    every storey from the roof down to it) and ``levels`` (the dead load added at each level
+    [kN], the seismic weight); ``beams``: (width, depth) of the beams by grid line piece and
+    ``beam_loads`` their (dead, live) service line loads [kN/m]; ``frame_share`` the share of
+    the storey shear the frames take (1 moment frames, 0.25 dual systems); ``seismic``,
+    ``wind``: which lateral loads count.
+
+    The method (stated in the notes it returns):
+
+    - earthquake: the equivalent static force method of the analysis model itself
+      (:mod:`saengine.fem.loads`: T = Ct hn^m, Sa = (2/3)(Z I / R) Cs, V = Sa W, the forces
+      by Fx = V wx hx^k / Σ wi hi^k), W the dead and superimposed dead load of every level and
+      the code's share of the floor live load, the beams at their full depth
+      (``seismicLevels``, as fem.derive counts it);
+      the strength combinations with E those of the design (:func:`saengine.fem.seismic_design.
+      seismic_combinations`: 1.2D + Ev, 0.9D - Ev, 100 % + 30 % in Category D); the share of
+      the edge frames raised for the accidental eccentricity of 5 % of the plan dimension;
+    - wind: the analysis model's wind forces (:func:`saengine.fem.loads.wind_level_forces`)
+      with the settings' combinations that have WX or WY;
+    - the portal method in every frame line: the storey shear shared equally among the frame
+      lines of a direction (rigid floors, frames alike), within a line the interior columns
+      taking twice the shear of the end columns, inflection points at mid-height of the columns
+      (two thirds of the lowest storey above its fixed base) and at mid-span of the beams; the
+      beam shears give the end columns their axial forces;
+    - the sway magnifier of the moment magnification method on the lateral moments
+      (:func:`saengine.design.slender.delta_s_q`: δs = 1 / (1 - Q), Q = ΣPu Δo / (Vus lc),
+      the design's default form), Δo / V of the storey by Wilbur's storey stiffness (the first
+      storey on a fixed base), the columns at 0.7 Ig and the beams at 0.35 Ig; and M2,min = Pu (15 + 0.03 h) on each axis; the columns of a storey are made
+      stiff enough for δs <= 1.5 (the design's limit, Sec 6.3.10.7.3, above which it asks for
+      a second-order analysis), so the moments are magnified by at most 1.5;
+    - a column type carries every member's demand, biaxial (P, Mx, My), on the interaction
+      surface of the design (:class:`saengine.design.required.ColumnSearch`) with a bar layout
+      of ρ at most ``rho_target``; in special moment frames also ΣMnc ≥ 1.2 ΣMnb at the floors
+      where the columns carry more than 0.1 Ag f'c (Sec 8.3.5.2, :func:`saengine.design.
+      ductile_joints.lowest_column_moment` of the type's least layout that carries it), the
+      beams' Mn estimated from the bars their own portal and gravity moments need
+      (:func:`saengine.design.bars.beam_flexure_need`, at least As,min, Mn+ at least half of
+      Mn- as Sec 8.3.4.2(a)) times 1.15 for the bars rounded up.
+    """
+    from saengine.design import ductile_joints as dj
+    from saengine.design import slender
+    from saengine.design.bars import beam_flexure_need, beam_min_area, with_minimum
+    from saengine.design.required import ColumnSearch, Options
+    from saengine.fem import loads as fl
+    from saengine.fem import seismic_design as sd
+    from saengine.library.objects import Column
+    from saengine.library.settings import derived
+
+    nx, ny, n = len(xs), len(ys), len(heights) - 1
+    group_of = {k: g for g, members in enumerate(groups) for k in members}
+    values = derived(settings)
+    base = [0.0]
+    for k in range(1, n + 1):
+        base.append(base[-1] + heights[k])
+    out = LateralSizing(sides={})
+    lx_m, ly_m = (xs[-1] - xs[0]) / 1000, (ys[-1] - ys[0]) / 1000
+
+    # ── storey forces [kN] per direction and load ──
+    forces: dict[str, list[float]] = {}
+    if seismic and values["Z"]:
+        weights = parts.get("seismicLevels", parts["levels"])[1:]
+        period = fl.approximate_period(base[-1] / 1000, settings.seismic.system)
+        sa = fl.design_acceleration(
+            period, settings.site.siteClass, values["Z"], values["seismicImportance"], values["R"]
+        )
+        v = sa * sum(weights)
+        levels = [(base[k] / 1000, weights[k - 1]) for k in range(1, n + 1)]
+        forces["EX"] = forces["EY"] = fl.vertical_distribution(levels, v, period)
+        out.baseShear["E"] = round(v, 1)
+        out.notes.append(
+            f"Earthquake: T = {period:.2f} s, Sa = {sa:.4f} g, W = {sum(weights):.0f} kN (dead "
+            f"and superimposed dead of the levels, {code_context.table('seismic').liveShare:.0%} of the floor "
+            "live load and the beams at full depth, as the analysis model counts it), "
+            f"V = {v:.0f} kN each way (the "
+            "analysis model's static method)."
+        )
+    if wind and values["windSpeed"]:
+        rel = [base[k] / 1000 for k in range(1, n + 1)]
+        args = (values["windSpeed"], settings.wind.exposure, values["windImportance"])
+        forces["WX"] = fl.wind_level_forces(rel, ly_m, lx_m, *args)
+        forces["WY"] = fl.wind_level_forces(rel, lx_m, ly_m, *args)
+        out.baseShear["WX"] = round(sum(forces["WX"]), 1)
+        out.baseShear["WY"] = round(sum(forces["WY"]), 1)
+        out.notes.append(
+            f"Wind: V = {sum(forces['WX']):.0f} kN along X, {sum(forces['WY']):.0f} kN along Y "
+            "(service, the analysis model's wind forces)."
+        )
+    if not forces or frame_share <= 0:
+        out.sides = {}
+        return out
+
+    # ── portal method: column shears, moments, axial forces per load ──
+    # Per load case: moment [kN·m] at the column's governing end and axial force [kN] (with
+    # the forces to +x / +y) of every column (i, j, k).
+    moment: dict[str, dict[tuple[int, int, int], float]] = {}
+    axial: dict[str, dict[tuple[int, int, int], float]] = {}
+    beam_moment: dict[str, dict[tuple[tuple[int, int], tuple[int, int], int], float]] = {}
+    for case, f in forces.items():
+        along_x = case.endswith("X")
+        lines = ny if along_x else nx
+        count = nx if along_x else ny
+        coords = xs if along_x else ys
+        across = ys if along_x else xs
+        centre = (across[0] + across[-1]) / 2
+        spread = sum((c - centre) ** 2 for c in across)
+        dim = across[-1] - across[0]
+        shear = [0.0] * (n + 2)
+        for k in range(n, 0, -1):
+            shear[k] = shear[k + 1] + f[k - 1]
+        m_case, n_case, b_case = {}, {}, {}
+        for line in range(lines):
+            torsion = 1.0
+            if case.startswith("E") and spread > 0:
+                torsion = 1 + ACCIDENTAL * dim * abs(across[line] - centre) * lines / spread
+            shares = [
+                (1 if c in (0, count - 1) else 2) / (2 * (count - 1)) if count > 1 else 1.0
+                for c in range(count)
+            ]
+            v_col = {
+                (c, k): shear[k] * frame_share / lines * torsion * shares[c]
+                for c in range(count)
+                for k in range(1, n + 1)
+            }
+            carried = [0.0] * count
+            for k in range(n, 0, -1):
+                # The joints at the top of storey k: column moments above and below.
+                for c in range(count):
+                    key = (c, line, k) if along_x else (line, c, k)
+                    up = INFLECTION_BASE if k == 1 else INFLECTION
+                    h = heights[k] / 1000
+                    m_case[key] = v_col[(c, k)] * h * up
+                    n_case[key] = 0.0
+                left = 0.0
+                beam_v = []
+                for c in range(count - 1):
+                    joint = (
+                        v_col[(c, k)]
+                        * heights[k]
+                        / 1000
+                        * (1 - (INFLECTION_BASE if k == 1 else INFLECTION))
+                    )
+                    if k < n:
+                        joint += v_col[(c, k + 1)] * heights[k + 1] / 1000 * INFLECTION
+                    mb = joint - left
+                    span = (coords[c + 1] - coords[c]) / 1000
+                    beam_v.append(2 * mb / span)
+                    a = (c, line) if along_x else (line, c)
+                    b = (c + 1, line) if along_x else (line, c + 1)
+                    b_case[(a, b, k)] = mb
+                    left = mb
+                for c in range(count):
+                    carried[c] += (beam_v[c - 1] if c > 0 else 0.0) - (
+                        beam_v[c] if c < count - 1 else 0.0
+                    )
+                for c in range(count):
+                    key = (c, line, k) if along_x else (line, c, k)
+                    n_case[key] = carried[c]
+        moment[case], axial[case], beam_moment[case] = m_case, n_case, b_case
+
+    # ── combinations: (name, D, L, Lr, {case: factor}) ──
+    combos: list[tuple[str, float, float, float, dict[str, float]]] = []
+    for c in settings.combinations:
+        if c.EX or c.EY or c.T:
+            continue
+        cases = {k: float(getattr(c, k)) for k in ("WX", "WY") if getattr(c, k) and k in forces}
+        if cases or not (c.WX or c.WY):
+            combos.append((c.name, c.D, c.L, c.Lr, cases))
+    if "EX" in forces:
+        options = sd.options_from_settings(settings)
+        orthogonal = sd.orthogonal_required(sdc, getattr(options, "orthogonal", "auto"))
+        for row in sd.seismic_combinations(settings, options, orthogonal, False):
+            loads_ = row["loads"]
+            env = row["envelope"]
+            cases = {"EX": env.get("RX", 0.0), "EY": env.get("RY", 0.0)}
+            combos.append((row["name"], loads_.get("D", 0.0), loads_.get("L", 0.0), 0.0, cases))
+
+    # Gravity moments of the columns [kN·m] (dead, live) about x and y: half the difference of
+    # the fixed-end moments w l² / 12 of the beams either side of the joint at their top.
+    unbalanced: dict[tuple[int, int, bool], tuple[float, float]] = {}
+    for i in range(nx):
+        for j in range(ny):
+            for along_x in (True, False):
+                dead = live = 0.0
+                for a, b in beams:
+                    if (i, j) not in (a, b) or (a[1] == b[1]) != along_x:
+                        continue
+                    wd, wl = beam_loads.get((a, b), (0.0, 0.0))
+                    span = math.dist((xs[a[0]], ys[a[1]]), (xs[b[0]], ys[b[1]])) / 1000
+                    sign = 1.0 if (i, j) == a else -1.0
+                    dead += sign * wd * span**2 / 12
+                    live += sign * wl * span**2 / 12
+                unbalanced[(i, j, along_x)] = (abs(dead) / 2, abs(live) / 2)
+
+    def gravity(key: tuple[int, int, int], d: float, live: float, lr: float) -> float:
+        return d * parts["dead"][key] + live * parts["live"][key] + lr * parts["roof"][key]
+
+    # ── sway magnifiers per storey, direction and combination ──
+    # Q = ΣPu Δo / (Vus lc) with the storey drift of the frames by Wilbur's storey stiffness:
+    # Δo / V = h / (48 Ec) (4 h / ΣKc + (hb + h) / ΣKb,below + (h + ha) / ΣKb,above), the first
+    # storey on its fixed base h1 / (48 Ec) (4 h1 / ΣKc + (h1 + h2) / (ΣKb + ΣKc / 12)), Kc =
+    # 0.7 Ic / h of the storey's columns, Kb = 0.35 Ib / l of a floor's beams (a flat plate: its
+    # strips at 0.25 Ig); Q does not depend on V, and δs = 1 / (1 - Q) (the design's default
+    # form).
+    def floor_beams(along_x: bool) -> float:
+        total = 0.0
+        for (a, b), (bw, bh) in beams.items():
+            if (a[1] == b[1]) == along_x:
+                span = math.dist((xs[a[0]], ys[a[1]]), (xs[b[0]], ys[b[1]]))
+                total += 0.35 * bw * bh**3 / 12 / span
+        if total <= 0:  # a flat plate: each panel's strip across its span at 0.25 Ig
+            spans, other = (xs, ys) if along_x else (ys, xs)
+            width = other[-1] - other[0]
+            total = sum(
+                0.25 * width * slab_t**3 / 12 / (spans[m + 1] - spans[m])
+                for m in range(len(spans) - 1)
+            )
+        return total
+
+    kb = {True: floor_beams(True), False: floor_beams(False)}
+    sway: dict[tuple[int, str, str], float] = {}
+    # The design fails a storey with δs > DELTA_S_MAX (second-order analysis required, Sec
+    # 6.3.10.7.3): the columns' stiffness ΣKc each storey needs for Q <= 1 - 1/DELTA_S_MAX, as a
+    # factor on the storey's present ΣKc (every column's side then times its fourth root).
+    q_max = 1 - 1 / slender.DELTA_S_MAX
+    stiffen: dict[int, float] = {}
+    beams_too_flexible: set[tuple[int, str]] = set()
+    for k in range(1, n + 1):
+        kc = sum(
+            0.7 * side_of[(i, j, k)] ** 4 / 12 / heights[k] for i in range(nx) for j in range(ny)
+        )
+        h = heights[k]
+        below = heights[k - 1] if k > 1 else h
+        above = heights[k + 1] if k < n else h
+
+        def flexibility(sum_kc: float, sum_kb: float, k=k, h=h, below=below, above=above) -> float:
+            """Δo / V [mm/kN] of the storey (Wilbur)."""
+            if k == 1:
+                bracket = 4 * h / sum_kc + (h + above) / (sum_kb + sum_kc / 12)
+            else:
+                bracket = 4 * h / sum_kc + (below + h) / sum_kb + (h + above) / sum_kb
+            return h / (48 * ec) * bracket * 1e3
+
+        for name, d, live, lr, cases in combos:
+            sum_pu = sum(gravity((i, j, k), d, live, lr) for i in range(nx) for j in range(ny))
+            for case in cases:
+                along_x = case.endswith("X")
+
+                def q_of(
+                    factor: float, sum_pu=sum_pu, along_x=along_x, kc=kc, h=h, flex_of=flexibility
+                ) -> float:
+                    # At frame_share of the shear, the columns' ΣKc times ``factor``.
+                    flex = flex_of(kc * factor, kb[along_x]) * frame_share
+                    return slender.stability_index(sum_pu, flex, 1.0, h)
+
+                q = q_of(1.0)
+                sway[(k, name, case)] = slender.delta_s_q(q)
+                if q > q_max and sum_pu > 0:
+                    # The least factor on ΣKc with Q <= q_max (Q falls as ΣKc grows).
+                    if q_of(1e6) > q_max:
+                        beams_too_flexible.add((k, case[-1]))
+                        continue
+                    lo, hi = 1.0, 2.0
+                    while q_of(hi) > q_max:
+                        lo, hi = hi, hi * 2
+                    for _ in range(40):
+                        mid = (lo + hi) / 2
+                        lo, hi = (mid, hi) if q_of(mid) > q_max else (lo, mid)
+                    stiffen[k] = max(stiffen.get(k, 1.0), hi)
+    worst_sway = {}
+    for (_k, _name, case), value in sway.items():
+        axis = case[-1]
+        worst_sway[axis] = max(worst_sway.get(axis, 1.0), value)
+    out.swayFactor = {k: round(v, 3) for k, v in worst_sway.items()}
+
+    def magnifier(k: int, name: str, case: str) -> float:
+        """δs on the storey's lateral moments: at most DELTA_S_MAX where the columns are made
+        stiff enough for it (below), else (beams too flexible) the storey's own, at most 2.5."""
+        cap = 2.5 if (k, case[-1]) in beams_too_flexible else slender.DELTA_S_MAX
+        return min(sway[(k, name, case)], cap)
+
+    # ── the demand points of every column, at a trial side ──
+    def points(
+        key: tuple[int, int, int], side: float
+    ) -> list[tuple[float, float, float, str, str]]:
+        found = []
+        for name, d, live, lr, cases in combos:
+            pg = gravity(key, d, live, lr)
+            # Moments [kN·m] about the column's x axis (bending in Y: forces along Y) and y.
+            mx = sum(
+                f * moment[c][key] * magnifier(key[2], name, c)
+                for c, f in cases.items()
+                if c.endswith("Y")
+            )
+            my = sum(
+                f * moment[c][key] * magnifier(key[2], name, c)
+                for c, f in cases.items()
+                if c.endswith("X")
+            )
+            # Bending in Y (about x) from the beams along Y; in X from those along X.
+            gy, gx = unbalanced[(key[0], key[1], False)], unbalanced[(key[0], key[1], True)]
+            live_f = live if key[2] < len(heights) - 1 else lr
+            mx = abs(mx) + d * gy[0] + live_f * gy[1]
+            my = abs(my) + d * gx[0] + live_f * gx[1]
+            nx_ = sum(f * axial[c][key] for c, f in cases.items() if c.endswith("X"))
+            ny_ = sum(f * axial[c][key] for c, f in cases.items() if c.endswith("Y"))
+            for sx, sy in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
+                pu = (pg + sx * nx_ + sy * ny_) * 1e3  # N
+                m_min = slender.minimum_moment(pu, side)
+                found.append((pu, max(abs(mx) * 1e6, m_min), abs(my) * 1e6, name, f"{key}"))
+                found.append((pu, abs(mx) * 1e6, max(abs(my) * 1e6, m_min), name, f"{key}"))
+        return found
+
+    def search(side: float) -> ColumnSearch:
+        key = (side, fc, fy, es, rho_target, concrete)
+        if key not in _SEARCHES:
+            if len(_SEARCHES) > 64:
+                _SEARCHES.clear()
+            obj = Column.model_validate(
+                _template(
+                    "Column",
+                    id=f"C{side:g}x{side:g}",
+                    material=concrete,
+                    profile={"shape": "rectangle", "xDim": side, "yDim": side},
+                )
+            )
+            _SEARCHES[key] = ColumnSearch(obj, fc, fy, es, None, Options(rho_max=rho_target))
+        return _SEARCHES[key]
+
+    def utilisation(side: float, demand: list) -> float:
+        found = search(side)
+        if not found.layouts:
+            return math.inf
+        return found.utilisation(len(found.layouts) - 1, _prune(demand))
+
+    least_sections: dict[float, Any] = {}
+
+    def least_section(side: float) -> Any:
+        """The section of the side's least layout, one object per side (the strengths of
+        :mod:`saengine.design.ductile_joints` are memoised by section object)."""
+        if side not in least_sections:
+            least_sections[side] = search(side).section(0)
+        return least_sections[side]
+
+    # ── beams' nominal strengths at the joints (strong column / weak beam) ──
+    def beam_mn(edge: tuple[tuple[int, int], tuple[int, int]], k: int) -> tuple[float, float]:
+        """(Mn-, Mn+) [kN·m] of a beam at storey level k from the bars its moments need."""
+        bw, bh = beams[edge]
+        wd, wl = beam_loads.get(edge, (0.0, 0.0))
+        span = math.dist((xs[edge[0][0]], ys[edge[0][1]]), (xs[edge[1][0]], ys[edge[1][1]]))
+        span_m = span / 1000
+        lateral = 0.0
+        for name, _d, _l, _lr, cases in combos:
+            lateral = max(
+                lateral, sum(abs(f * beam_moment[c].get((*edge, k), 0.0)) for c, f in cases.items())
+            )
+        hog = max(
+            (1.2 * wd + 1.6 * wl) * span_m**2 / 12,
+            (1.2 * wd + 1.0 * wl) * span_m**2 / 12 + lateral,
+        )
+        sag = max(lateral - 0.9 * wd * span_m**2 / 12, 0.0)
+        d = bh - 60.0
+        minimum = beam_min_area(bw, d, fc, fy)
+
+        def mn(mu: float) -> float:
+            area = with_minimum(beam_flexure_need(mu * 1e6, bw, d, 60.0, fc, fy, es).area, minimum)
+            area = max(area, minimum)
+            a = area * fy / (0.85 * fc * bw)
+            return area * fy * (d - a / 2) / 1e6 * BEAM_BARS_ALLOWANCE
+
+        mn_hog = mn(hog)
+        return mn_hog, max(mn(sag), mn_hog / 2)
+
+    joint_beams: dict[tuple[int, int, bool], list[tuple[tuple[int, int], tuple[int, int]]]] = {}
+    for edge in beams:
+        a, b = edge
+        along_x = a[1] == b[1]
+        for end in (a, b):
+            joint_beams.setdefault((*end, along_x), []).append(edge)
+    mnb_cache: dict[tuple[int, int, int, bool], float] = {}
+
+    def sum_mnb(i: int, j: int, k: int, along_x: bool) -> float:
+        key = (i, j, k, along_x)
+        if key not in mnb_cache:
+            framing = joint_beams.get((i, j, along_x), [])
+            strengths = [beam_mn(e, k) for e in framing]
+            if len(strengths) == 2:
+                (h1, s1), (h2, s2) = strengths
+                total = max(h1 + s2, s1 + h2)
+            else:
+                total = max((h for h, _ in strengths), default=0.0)
+            mnb_cache[key] = total
+        return mnb_cache[key]
+
+    # ── size every (group, position) from the top group down ──
+    kinds = ("interior", "edge", "corner")
+    mnc_of: dict[tuple[int, str], tuple[float, float]] = {}  # (Mnc about x, y) [kN·m]
+    for g in range(len(groups) - 1, -1, -1):
+        for kind in kinds:
+            members = [
+                (i, j, k)
+                for i in range(nx)
+                for j in range(ny)
+                for k in groups[g]
+                if position(i, j) == kind
+            ]
+            if not members:
+                continue
+            side = max(max(side_of[m] for m in members), col_min)
+            why = "gravity"
+            # The storey stiffness for δs <= DELTA_S_MAX (every column of the storey scaled).
+            stiff = max(
+                (side_of[m] * stiffen[m[2]] ** 0.25 for m in members if m[2] in stiffen),
+                default=0.0,
+            )
+            if stiff > side:
+                side = min(ceil_to(stiff, 50), MAX_SIDE)
+                why = f"sway: δs ≤ {slender.DELTA_S_MAX:g} (Sec 6.3.10.7.3)"
+            tried: dict[float, float] = {}
+
+            def fits(trial: float, members: list = members, tried: dict = tried) -> float:
+                if trial not in tried:
+                    tried[trial] = utilisation(
+                        trial, [p for m in members for p in points(m, trial)]
+                    )
+                return tried[trial]
+
+            # The P-M size: the capacity at a fixed ρ grows about as the side cubed, so a
+            # failing side is first scaled by the cube root of its utilisation, then stepped.
+            u = fits(side)
+            if u > 1.0:
+                why = f"P-M with ρ ≤ {rho_target:g}"
+                guess = min(ceil_to(side * u ** (1 / 3), 50), MAX_SIDE)
+                while guess > side + 50 and fits(guess - 50) <= 1.0:
+                    guess -= 50
+                side = guess
+                while fits(side) > 1.0 and side < MAX_SIDE:
+                    side += 50.0
+                if fits(side) > 1.0:
+                    out.notes.append(
+                        f"Columns {kind} L{groups[g][0]}-L{groups[g][-1]}: no side up to "
+                        f"{MAX_SIDE:g} mm carries the demand with ρ ≤ {rho_target:g}; check "
+                        "the system."
+                    )
+            # Strong column / weak beam with the least layout (ρ about 1 %, on the safe side:
+            # the design may put more bars in).
+            while special and side < MAX_SIDE:
+                demand = [p for m in members for p in points(m, side)]
+                pus = [p[0] for p in demand]
+                if max(pus) <= dj.AXIAL_LIMIT * side * side * fc:
+                    break
+                section = least_section(side)
+                # The range widened to whole 50 kN (the lowest Mn is at an end of it: on the
+                # safe side), so the strengths are shared between the column types.
+                pmin = math.floor(min(pus) / AXIAL_STEP) * AXIAL_STEP
+                pmax = math.ceil(max(pus) / AXIAL_STEP) * AXIAL_STEP
+                about_x = dj.lowest_column_moment(section, pmin, pmax, math.pi / 2)[0] / 1e6
+                # A square section with a doubly symmetric bar layout: the same about y.
+                about_y = (
+                    about_x
+                    if section.symmetric
+                    else dj.lowest_column_moment(section, pmin, pmax, 0.0)[0] / 1e6
+                )
+                mnc = (about_x, about_y)
+                weak = None
+                for i, j, k in members:
+                    if k >= n:
+                        continue
+                    above = (
+                        mnc if (k + 1) in groups[g] else mnc_of.get((group_of[k + 1], kind), mnc)
+                    )
+                    for along_x, axis in ((True, 1), (False, 0)):
+                        need = dj.STRONG_COLUMN_RATIO * sum_mnb(i, j, k, along_x)
+                        if mnc[axis] + above[axis] < need - 1e-6:
+                            weak = (i, j, k)
+                            break
+                    if weak:
+                        break
+                if weak is None:
+                    mnc_of[(g, kind)] = mnc
+                    break
+                why = f"strong column / weak beam at {letters(weak[0])}{weak[1] + 1} L{weak[2]}"
+                side += 50.0
+            out.sides[(g, kind)] = side
+            out.governing[(g, kind)] = why
+    if beams_too_flexible:
+        where = ", ".join(f"L{k} {axis}" for k, axis in sorted(beams_too_flexible))
+        out.notes.append(
+            f"Storeys {where}: δs = 1/(1 - Q) stays above {slender.DELTA_S_MAX:g} however stiff "
+            "the columns are (the beams of the floor above are too flexible): the design will "
+            "ask for a second-order analysis (Sec 6.3.10.7.3); deepen the beams or add walls."
+        )
+    return out
+
+
+@code_context.in_project_pack()
 def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None) -> dict[str, Any]:
     """The parts of a building generated from ``spec`` (a :class:`BuildingSpec` or its JSON).
 
@@ -560,6 +1166,69 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
             (a, b) for a in (i - 1, i) for b in (j - 1, j) if 0 <= a < nx - 1 and 0 <= b < ny - 1
         ]
 
+    def service_loads(
+        sides: dict[tuple[int, int, int], float],
+    ) -> tuple[dict[tuple[int, int, int], float], dict[str, Any]]:
+        """Service loads at each column, from the roof down [kN], and their parts: ``dead``
+        (with the superimposed dead), floor ``live`` and ``roof`` live, and ``levels`` the
+        dead load added at each level (the seismic weight)."""
+        out: dict[tuple[int, int, int], float] = {}
+        dead: dict[tuple[int, int, int], float] = {}
+        live: dict[tuple[int, int, int], float] = {}
+        roof: dict[tuple[int, int, int], float] = {}
+        level_dead = [0.0] * (n + 1)
+        level_live = [0.0] * (n + 1)
+        level_overlap = [0.0] * (n + 1)
+        for i in range(nx):
+            for j in range(ny):
+                p = pd = pl = pr = 0.0
+                for k in range(n, 0, -1):
+                    before = pd
+                    sd = q_roof_sd if k == n else q_floor_sd
+                    q_live = roof_load.live if k == n else floor_load.live
+                    for a, b in adjacent_panels(i, j):
+                        area = (xs[a + 1] - xs[a]) * (ys[b + 1] - ys[b]) / 4 / 1e6
+                        t = slab_of[(a, b)][0]
+                        p += area * (t / 1000 * gamma + sd + q_live)
+                        pd += area * (t / 1000 * gamma + sd)
+                        if k == n:
+                            pr += area * q_live
+                        else:
+                            pl += area * q_live
+                    if not flat:
+                        t_least = min(v[0] for v in slab_of.values())
+                        for (a, b), (bw, bh) in beam_size.items():
+                            if (i, j) in (a, b) and (a, b) not in core_lines:
+                                span = math.dist((xs[a[0]], ys[a[1]]), (xs[b[0]], ys[b[1]]))
+                                w = span / 2 / 1000 * bw / 1000 * (bh - t_least) / 1000 * gamma
+                                p += w
+                                pd += w
+                                level_overlap[k] += w * t_least / (bh - t_least)
+                    side = sides[(i, j, k)] / 1000
+                    w = side * side * heights[k] / 1000 * gamma
+                    p += w
+                    pd += w
+                    out[(i, j, k)] = p
+                    dead[(i, j, k)], live[(i, j, k)], roof[(i, j, k)] = pd, pl, pr
+                    level_dead[k] += pd - before
+                    if k < n:
+                        level_live[k] += (
+                            sum(
+                                (xs[a + 1] - xs[a]) * (ys[b + 1] - ys[b]) / 4 / 1e6
+                                for a, b in adjacent_panels(i, j)
+                            )
+                            * floor_load.live
+                        )
+        # The seismic weight of each level as the analysis model counts it (fem.derive): the
+        # dead load, the code's share of the floor live load (no roof live) and the beams at
+        # their full depth (the analysis model's frame members overlap the slab).
+        seismic = [
+            d + code_context.table("seismic").liveShare * lv + o
+            for d, lv, o in zip(level_dead, level_live, level_overlap, strict=True)
+        ]
+        return out, {"dead": dead, "live": live, "roof": roof, "levels": level_dead,
+                     "seismicLevels": seismic}  # fmt: skip
+
     groups: list[list[int]] = []
     count = math.ceil(n / s.columnGroupStoreys)
     sizes = [n // count + (1 if k < n % count else 0) for k in range(count)]
@@ -595,26 +1264,7 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
             for i in range(nx - 1):
                 for j in range(ny - 1):
                     slab_of[(i, j)] = (flat_t, "flat", flat_how)
-        # Service loads at each column, from the roof down [kN].
-        for i in range(nx):
-            for j in range(ny):
-                p = 0.0
-                for k in range(n, 0, -1):
-                    sd = q_roof_sd if k == n else q_floor_sd
-                    q_live = roof_load.live if k == n else floor_load.live
-                    for a, b in adjacent_panels(i, j):
-                        area = (xs[a + 1] - xs[a]) * (ys[b + 1] - ys[b]) / 4 / 1e6
-                        t = slab_of[(a, b)][0]
-                        p += area * (t / 1000 * gamma + sd + q_live)
-                    if not flat:
-                        t_least = min(v[0] for v in slab_of.values())
-                        for (a, b), (bw, bh) in beam_size.items():
-                            if (i, j) in (a, b) and (a, b) not in core_lines:
-                                span = math.dist((xs[a[0]], ys[a[1]]), (xs[b[0]], ys[b[1]]))
-                                p += span / 2 / 1000 * bw / 1000 * (bh - t_least) / 1000 * gamma
-                    side = col_side[(i, j, k)] / 1000
-                    p += side * side * heights[k] / 1000 * gamma
-                    loads[(i, j, k)] = p
+        loads, load_parts = service_loads(col_side)
         # Sizes by storey group and position.
         group_side = {}
         for (i, j, k), p in loads.items():
@@ -636,6 +1286,79 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
         if new_sides == col_side:
             break
         col_side = new_sides
+
+    # ── columns for wind and earthquake (P–M), where the category asks for it ──
+    lateral: LateralSizing | None = None
+    gravity_side = dict(group_side)
+    governing: dict[tuple[int, str], str] = {}
+    seismic_on = sdc in ("C", "D")
+    lateral_on = s.lateralSizing == "auto" and (seismic_on or sdc == "B")
+    frame_share = 1.0
+    if walls_on:
+        # Dual systems: the frames take at least a quarter of the storey shear; otherwise the
+        # walls take it all and the frames are gravity frames.
+        frame_share = 0.25 if system_id == "rcDualSpecial" else 0.0
+    if lateral_on and frame_share > 0:
+        t_least = min(v[0] for v in slab_of.values())
+        beam_loads: dict[tuple[tuple[int, int], tuple[int, int]], tuple[float, float]] = {}
+        for edge, (bw, bh) in beam_size.items():
+            if edge in core_lines:
+                continue
+            strip = edge_strip(*edge)[0] / 1000
+            stem = bw / 1000 * (bh - t_least) / 1000 * gamma
+            beam_loads[edge] = (
+                strip * (t_least / 1000 * gamma + q_floor_sd) + stem,
+                strip * floor_load.live,
+            )
+        frame_beams = {e: v for e, v in beam_size.items() if e not in core_lines}
+        es = rebar.mechanical.E or 200_000.0
+        ec = concrete.mechanical.E or 4700 * math.sqrt(fc)
+        for _ in range(4):
+            lateral = lateral_column_sizes(
+                final,
+                sdc,
+                xs=xs,
+                ys=ys,
+                heights=heights,
+                groups=groups,
+                side_of=col_side,
+                position=position,
+                parts=load_parts,
+                beams=frame_beams,
+                beam_loads=beam_loads,
+                slab_t=t_least,
+                frame_share=frame_share,
+                special=special,
+                seismic=seismic_on,
+                wind=True,
+                fc=fc,
+                fy=fy,
+                es=es,
+                ec=ec,
+                concrete=s.concrete,
+                col_min=col_min,
+                rho_target=s.columnRho,
+            )
+            if not lateral.sides:
+                break
+            governing.update({k: v for k, v in lateral.governing.items() if v != "gravity"})
+            new_group = {key: max(side, lateral.sides.get(key, 0.0)) for key, side in
+                         group_side.items()}  # fmt: skip
+            for kind in POSITION_FACTOR:
+                for g in range(len(groups) - 2, -1, -1):
+                    if (g, kind) in new_group and (g + 1, kind) in new_group:
+                        new_group[(g, kind)] = max(new_group[(g, kind)], new_group[(g + 1, kind)])
+            new_sides = {
+                (i, j, k): new_group[(group_of[k], position(i, j))]
+                for i in range(nx)
+                for j in range(ny)
+                for k in range(1, n + 1)
+            }
+            group_side = new_group
+            if new_sides == col_side:
+                break
+            col_side = new_sides
+            loads, load_parts = service_loads(col_side)
 
     if special:
         narrow = [
@@ -1098,7 +1821,56 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
         + ", ".join(f"{story_ids[g[0]]}-{story_ids[g[-1]]}" for g in groups)
         + ") and position, never larger above than below."
     )
-    if sdc in ("C", "D"):
+    if lateral is not None and lateral.sides:
+        enlarged = sorted(
+            f"{story_ids[groups[g][0]]}-{story_ids[groups[g][-1]]} {kind} "
+            f"{gravity_side[(g, kind)]:g} -> {group_side[(g, kind)]:g} mm"
+            + (f" ({governing[(g, kind)]})" if (g, kind) in governing else "")
+            for (g, kind) in group_side
+            if group_side[(g, kind)] > gravity_side.get((g, kind), 0.0)
+        )
+        loads_text = "wind and earthquake" if seismic_on else "wind"
+        notes.append(
+            f"Columns for {loads_text} (Seismic Design Category {sdc}): PRELIMINARY P-M sizing "
+            "by the portal method. Storey forces of the analysis model's own static methods "
+            "(fem.loads: the equivalent static earthquake force with W the dead and "
+            "superimposed dead load of the levels plus "
+            f"{code_context.table('seismic').liveShare:.0%} of the floor live load and the "
+            "beams at full depth, "
+            "as the analysis model counts it, and the wind forces); the "
+            "storey shear "
+            f"{'shared' if frame_share == 1 else f'x {frame_share:g} (dual system) shared'} "
+            "equally among the frame lines of each direction (rigid floors), interior columns "
+            "of a line taking twice the end columns' shear, inflection points at mid-height "
+            "(2/3 of the lowest storey above the fixed base) and mid-span of the beams, the "
+            "edge frames' share raised for a 5 % accidental eccentricity (earthquake); gravity "
+            "moments half the unbalanced w l²/12 of the beams at each joint; the settings' "
+            "wind combinations and the design's earthquake combinations (1.2D + Ev, 0.9D - Ev"
+            + (", 100 % + 30 %" if seismic_on and sdc == "D" else "")
+            + "); lateral moments times the storey's sway magnifier δs = 1/(1 - Q), Q = ΣPu "
+            "Δo/(Vus lc) with Δo of the frames by Wilbur's storey stiffness (columns 0.7 Ig, "
+            "beams 0.35 Ig) (largest "
+            f"{', '.join(f'{k} {v:.2f}' for k, v in lateral.swayFactor.items())}"
+            "), the columns of a storey made stiff enough for δs ≤ 1.5 (Sec 6.3.10.7.3: above "
+            "it the design asks for a second-order analysis), M2,min on each axis; every member of a column type carried on the design's "
+            f"interaction surface (biaxial) with ρ ≤ {s.columnRho:g}"
+            + (
+                ", and strong column / weak beam ΣMnc ≥ 1.2 ΣMnb (Sec 8.3.5.2) with the beams' "
+                "Mn from the bars their portal and gravity moments need (+15 % for rounding) "
+                "and the column type's least layout"
+                if special
+                else ""
+            )
+            + ". Not included: P-delta beyond δs, joint shear (Sec 8.3.7), the beams' "
+            "capacity shear, irregularities, the response spectrum's own distribution. "
+            + (
+                "Enlarged: " + "; ".join(enlarged) + "."
+                if enlarged
+                else "No column needed more than its gravity size."
+            )
+        )
+        notes += [f"Lateral sizing: {note}" for note in lateral.notes]
+    elif sdc in ("C", "D"):
         # Integrator glue (review): the sizes above carry gravity only; say so loudly where
         # the earthquake usually governs the columns.
         notes.insert(
@@ -1151,6 +1923,20 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
         "beamTypes": sorted({o["id"] for o in objects if o["kind"] == "beam"}),
         "slabTypes": sorted({o["id"] for o in objects if o["kind"] == "slab"}),
         "families": families,
+        "lateralSizing": (
+            {
+                "baseShear": lateral.baseShear,
+                "swayFactor": lateral.swayFactor,
+                "gravityColumnTypes": {
+                    f"{story_ids[groups[g][0]]}-{story_ids[groups[g][-1]]} {kind}": (
+                        f"C{side:g}x{side:g}"
+                    )
+                    for (g, kind), side in sorted(gravity_side.items())
+                },
+            }
+            if lateral is not None and lateral.sides
+            else None
+        ),
         # Integrator glue: the service load the columns were sized for at the base [kN], by
         # grid intersection (the verification pack's gravity check sums them).
         "baseServiceLoads": {

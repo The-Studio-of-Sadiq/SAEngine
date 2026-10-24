@@ -1,0 +1,49 @@
+{
+  "$schema": "../../../schemas/wind.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 2.4"
+  ],
+  "source": "BNBC 2020 Part 6 Sec 2.4 (pp. 549-603)",
+  "exposures": {
+    "A": {
+      "description": "Urban, suburban, wooded",
+      "alpha": 7.0,
+      "zg": 365.76
+    },
+    "B": {
+      "description": "Open terrain, scattered obstructions",
+      "alpha": 9.5,
+      "zg": 274.32
+    },
+    "C": {
+      "description": "Flat open country, coastal",
+      "alpha": 11.5,
+      "zg": 213.36
+    }
+  },
+  "directionality": 0.85,
+  "topographic": 1.0,
+  "gust": 0.85,
+  "cpWindward": 0.8,
+  "cpLeeward": [
+    [
+      1.0,
+      -0.5
+    ],
+    [
+      2.0,
+      -0.3
+    ],
+    [
+      4.0,
+      -0.2
+    ]
+  ],
+  "sources": {
+    "exposures": "BNBC 2020 Part 6 Table 6.2.11 (p. 602) and its α, zg",
+    "directionality": "BNBC 2020 Part 6 Table 6.2.12 (p. 603)",
+    "gust": "BNBC 2020 Part 6 Sec 2.4.8.1 (p. 553), rigid structures",
+    "cpWindward": "BNBC 2020 Part 6 Figure 6.2.6 (page not checked)",
+    "cpLeeward": "BNBC 2020 Part 6 Figure 6.2.6 (page not checked)"
+  }
+}

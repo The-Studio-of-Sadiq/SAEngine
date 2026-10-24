@@ -1,0 +1,91 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "concreteStrain": {
+      "description": "εcu at the extreme compression fibre.",
+      "title": "Concretestrain",
+      "type": "number"
+    },
+    "steelE": {
+      "description": "Es of reinforcement [MPa].",
+      "title": "Steele",
+      "type": "number"
+    },
+    "steelShearModulus": {
+      "description": "G of structural steel [MPa].",
+      "title": "Steelshearmodulus",
+      "type": "number"
+    },
+    "seismicFcMin": {
+      "title": "Seismicfcmin",
+      "type": "number"
+    },
+    "lightweightFcMax": {
+      "title": "Lightweightfcmax",
+      "type": "number"
+    },
+    "lightweightDensity": {
+      "title": "Lightweightdensity",
+      "type": "number"
+    },
+    "seismicRebarFy": {
+      "description": "Permitted fy of seismic reinforcement.",
+      "items": {
+        "type": "number"
+      },
+      "title": "Seismicrebarfy",
+      "type": "array"
+    },
+    "seismicRebarFyMax": {
+      "title": "Seismicrebarfymax",
+      "type": "number"
+    },
+    "gradeTolerance": {
+      "title": "Gradetolerance",
+      "type": "number"
+    },
+    "fyActualMargin": {
+      "title": "Fyactualmargin",
+      "type": "number"
+    },
+    "fyRetestMargin": {
+      "title": "Fyretestmargin",
+      "type": "number"
+    },
+    "fuFyMin": {
+      "title": "Fufymin",
+      "type": "number"
+    }
+  },
+  "required": [
+    "concreteStrain",
+    "steelE",
+    "steelShearModulus",
+    "seismicFcMin",
+    "lightweightFcMax",
+    "lightweightDensity",
+    "seismicRebarFy",
+    "seismicRebarFyMax",
+    "gradeTolerance",
+    "fyActualMargin",
+    "fyRetestMargin",
+    "fuFyMin"
+  ],
+  "title": "MaterialsTable",
+  "type": "object",
+  "$id": "saengine.codePack.materials/1"
+}

@@ -1,0 +1,26 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "example-region",
+  "name": "Example region (BNBC 2020 with local values)",
+  "edition": "BNBC 2020 + example local schedule",
+  "country": "BD",
+  "region": "Example region",
+  "version": "1.0.0",
+  "extends": "bnbc2020",
+  "covers": ["locations", "combinations"],
+  "description": "An example of a regional pack for the authoring guide and the tests: two invented towns, a different basic wind speed for Chattogram and 0.5L in the seismic strength combination. The values are invented: do not use this pack for design.",
+  "sources": [
+    {
+      "id": "EXAMPLE",
+      "title": "Example local schedule (invented for the SAEngine tests)",
+      "edition": "2026"
+    }
+  ],
+  "clauses": {
+    "locations": ["Example local schedule, Table 1"],
+    "combinations": ["Example local schedule, clause 4.2"]
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only",
+  "hooks": null
+}

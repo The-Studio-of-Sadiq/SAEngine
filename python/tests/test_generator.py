@@ -31,6 +31,9 @@ SPEC = {
     "storyCount": 10,
     "groundHeight": 3500,
     "typicalHeight": 3000,
+    # The hand checks below are of the gravity sizing; the lateral (P-M) sizing of Category C
+    # and D has its own tests at the end.
+    "lateralSizing": "gravity",
 }
 
 
@@ -448,11 +451,141 @@ def test_gravity_only_columns_are_flagged_in_category_c_and_d() -> None:
     """Review: the default Dhaka building is Category D with gravity-only column sizes; the
     notes must say so first."""
     small = {"gridsX": [6000] * 3, "gridsY": [5000] * 2, "storyCount": 6}
+    gravity = {**small, "lateralSizing": "gravity"}
     for extra in ({}, {"location": "rajshahi", "occupancy": "healthcare"}):
-        result = generate_building({**small, **extra})
+        result = generate_building({**gravity, **extra})
         sdc = result["summary"]["sdc"]
         warned = result["notes"][0].startswith(f"WARNING - Seismic Design Category {sdc}")
         assert warned == (sdc in ("C", "D"))
         if sdc == "D":
             assert "GRAVITY ONLY" in result["notes"][0]
-    assert generate_building(small)["summary"]["sdc"] == "D"  # the wizard's default case
+    assert generate_building(gravity)["summary"]["sdc"] == "D"  # the wizard's default case
+
+
+@pytest.fixture(scope="module")
+def six_storeys() -> tuple[dict, dict]:
+    """The wizard's default case (3 x 6 m by 2 x 5 m, 6 storeys, Dhaka: Category D, special
+    moment frame), sized for gravity only and with the lateral (P-M) sizing."""
+    small = {"gridsX": [6000] * 3, "gridsY": [5000] * 2, "storyCount": 6}
+    return generate_building({**small, "lateralSizing": "gravity"}), generate_building(small)
+
+
+def test_lateral_sizing_in_category_d_enlarges_the_columns(six_storeys) -> None:
+    gravity, lateral = six_storeys
+    assert lateral["summary"]["sdc"] == "D"
+    # No gravity-only warning; the method is stated instead.
+    assert not any(n.startswith("WARNING - Seismic Design Category") for n in lateral["notes"])
+    method = next(n for n in lateral["notes"] if "PRELIMINARY P-M sizing" in n)
+    for words in ("portal method", "strong column / weak beam", "Sec 8.3.5.2", "δs"):
+        assert words in method
+    info = lateral["summary"]["lateralSizing"]
+    assert info["baseShear"]["E"] > 0 and info["baseShear"]["WX"] > 0
+    assert gravity["summary"]["lateralSizing"] is None
+
+    def sides(result: dict) -> dict[str, float]:
+        kinds = types(result)
+        return {
+            c["id"]: kinds[c["type"]]["profile"]["xDim"] for c in result["floorPlan"]["columns"]
+        }
+
+    before, after = sides(gravity), sides(lateral)
+    assert all(after[c] >= before[c] for c in before)
+    # The corner and edge columns, gravity-sized at 300-350 mm, are enlarged most.
+    assert after["C-A1-L1"] > before["C-A1-L1"] and after["C-A2-L4"] > before["C-A2-L4"]
+    # Special moment frame: least dimension 300 mm (8.3.5.1); never larger above than below;
+    # grouped into types by storey group and position as before.
+    assert min(after.values()) >= 300
+    for i in "ABCD":
+        for j in "123":
+            column = [after[f"C-{i}{j}-L{k}"] for k in range(1, 7)]
+            assert column == sorted(column, reverse=True)
+    assert len({c["type"] for c in lateral["floorPlan"]["columns"]}) <= 6
+    # The footings carry the heavier columns' weight: the base loads grew.
+    assert sum(lateral["summary"]["baseServiceLoads"].values()) > sum(
+        gravity["summary"]["baseServiceLoads"].values()
+    )
+
+
+def test_lateral_sizing_uses_the_analysis_seismic_weight_and_the_sway_limit(six_storeys) -> None:
+    """W of the static method as fem.derive counts it (dead, 25 % of the floor live load, the
+    beams at full depth), and every storey's δs within the design's 1.5 (Sec 6.3.10.7.3)."""
+    import re
+
+    from saengine.design.slender import DELTA_S_MAX
+    from saengine.library import bnbc
+
+    _gravity, lateral = six_storeys
+    note = next(n for n in lateral["notes"] if "Earthquake: T =" in n)
+    assert f"{bnbc.SEISMIC_LIVE_SHARE:.0%} of the floor live load" in note
+    w = float(re.search(r"W = (\d+) kN", note).group(1))
+    v = float(re.search(r"V = (\d+) kN", note).group(1))
+    # 18 m x 10 m: the floors' live load share alone (2 kPa offices, 5 floors) is 450 kN, so W
+    # is well above the dead-only weight; V = Sa W with Sa = 0.05625 g (T = 0.63 s, SD, Dhaka).
+    dead_base = sum(lateral["summary"]["baseServiceLoads"].values())
+    assert w > 0.25 * 2.0 * 180 * 5
+    assert v == pytest.approx(0.05625 * w, rel=0.01)
+    assert w < dead_base  # the base loads carry the full live load and the footings
+    sway = lateral["summary"]["lateralSizing"]["swayFactor"]
+    assert all(value <= DELTA_S_MAX + 1e-3 for value in sway.values())
+    assert not any("however stiff the columns are" in n for n in lateral["notes"])
+
+
+def test_lateral_sizing_stiffens_storeys_for_the_sway_limit_or_says_why_not() -> None:
+    """Ten storeys: along X the columns are made stiff enough for δs <= 1.5; along Y (one 5 m
+    beam per frame line, sized for gravity) no column size gets there: the notes say the design
+    will ask for a second-order analysis and to deepen the beams."""
+    from saengine.design.slender import DELTA_S_MAX
+
+    tall = generate_building({"gridsX": [6000] * 3, "gridsY": [5000] * 2, "storyCount": 10,
+                              "columnGroupStoreys": 5})  # fmt: skip
+    sway = tall["summary"]["lateralSizing"]["swayFactor"]
+    assert sway["X"] <= DELTA_S_MAX + 1e-3
+    if sway["Y"] > DELTA_S_MAX + 1e-3:
+        flexible = next(n for n in tall["notes"] if "however stiff the columns are" in n)
+        assert "Sec 6.3.10.7.3" in flexible and "deepen the beams" in flexible
+    method = next(n for n in tall["notes"] if "PRELIMINARY P-M sizing" in n)
+    assert "δs ≤ 1.5" in method
+
+
+def test_lateral_sizing_prunes_points_and_uses_the_design_surface() -> None:
+    """The demand pruning keeps the governing points, and the capacity is the design's own
+    column search (interaction surface of :mod:`saengine.design.rc`)."""
+    from saengine.design.required import ColumnSearch, Options
+    from saengine.library.generator import _prune, _template
+    from saengine.library.objects import Column
+
+    # _prune keeps the governing points: the largest and least Pu and the moment envelope.
+    points = [(p * 1e4, m, 1e6 - m, "U", "c") for p in range(30) for m in (0.0, 5e5, 1e6)]
+    points += [(p * 1e4 + 3e3, 2e5, 2e5, "U", "c") for p in range(30)]  # dominated
+    kept = _prune(points)
+    assert len(kept) < len(points)
+    assert max(p[0] for p in kept) == max(p[0] for p in points)
+    assert min(p[0] for p in kept) == min(p[0] for p in points)
+    for p in points:  # every dropped point is within PRUNE_STEP of a kept one at least as big
+        assert (
+            any(abs(q[0] - p[0]) <= 1e4 and q[1] >= p[1] and q[2] >= p[2] for q in kept)
+            or p in kept
+        )
+    # The search the sizing uses is the design's own (ColumnSearch on the interaction surface).
+    obj = Column.model_validate(
+        _template("Column", id="C400x400", material="C24.1",
+                  profile={"shape": "rectangle", "xDim": 400, "yDim": 400})
+    )  # fmt: skip
+    search = ColumnSearch(obj, 24.1, 420, 200000, None, Options(rho_max=0.025))
+    last = len(search.layouts) - 1
+    assert search.utilisation(last, [(1000e3, 100e6, 0.0)]) < 1.0
+    assert search.utilisation(last, [(1000e3, 400e6, 0.0)]) > 1.0
+
+
+def test_lateral_sizing_off_and_in_low_categories() -> None:
+    # Rajshahi on site class SC: Category B, where only the wind moments are added (the
+    # earthquake is left to the analysis, as the gravity sizing did).
+    small = {"gridsX": [6000] * 2, "gridsY": [5000], "storyCount": 2, "location": "rajshahi",
+             "siteClass": "SC"}  # fmt: skip
+    wind = generate_building(small)
+    assert wind["summary"]["sdc"] == "B"
+    assert set(wind["summary"]["lateralSizing"]["baseShear"]) == {"WX", "WY"}
+    assert any(n.startswith("Columns for wind (Seismic Design Category B)") for n in wind["notes"])
+    off = generate_building({**small, "lateralSizing": "gravity"})
+    assert off["summary"]["lateralSizing"] is None
+    assert not any("P-M sizing" in n for n in off["notes"])

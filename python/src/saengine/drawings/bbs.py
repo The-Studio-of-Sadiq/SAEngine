@@ -744,7 +744,7 @@ def sheet_table(schedule: BarSchedule) -> dict[str, Any]:
 
 MESH_KINDS = ("slab", "wall", "stair", "staircase", "footing", "pile cap", "pile_cap", "pilecap")
 # Bars of a mesh element that the BOQ books as longitudinal bars: wall end (boundary) bars.
-LONGITUDINAL_ROLES = ("longitudinal", "end", "boundary bar")
+LONGITUDINAL_ROLES = ("longitudinal", "end", "boundary bar", "lintel")
 
 
 def _category(transverse: bool, role: str, kind: str) -> str:

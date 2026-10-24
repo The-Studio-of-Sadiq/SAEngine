@@ -13,6 +13,7 @@ Commands (see ``docs/cli.md`` for examples and the JSON schema)::
     saengine import <file.civil> <dest folder> [--name NAME] [--overwrite]
     saengine versions status|list|save|diff|restore|issue <project> ...
     saengine verify [--out DIR] [--pdf] [--fast] [--cases ID ...]
+    saengine codepack list|show <id>|new <id> --extends ID --dest DIR|validate <dir>|diff <a> <b>
 
 Results go to stdout (text, or one JSON document with ``--json``), progress to stderr.
 
@@ -30,6 +31,9 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
+
+from saengine.cli.codepack import cmd_codepack
+from saengine.cli.codepack import register as register_codepack
 
 EXIT_OK = 0
 EXIT_CHECKS = 1
@@ -691,6 +695,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_argument("--fast", action="store_true", help="skip the slow cases")
     sub.add_argument("--cases", nargs="+", metavar="ID", help="only these cases")
     sub.add_argument("--jobs", type=int, help="parallel processes")
+
+    register_codepack(commands, common)
     return parser
 
 
@@ -709,6 +715,7 @@ HANDLERS = {
     "new-building": cmd_new_building,
     "versions": cmd_versions,
     "verify": cmd_verify,
+    "codepack": cmd_codepack,
 }
 
 
@@ -730,7 +737,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "analyze":
         args.command = "analyse"
     out = Output(getattr(args, "json", False), getattr(args, "quiet", False))
-    command = args.command if args.command != "versions" else f"versions {args.action}"
+    command = (
+        f"{args.command} {args.action}"
+        if args.command in ("versions", "codepack")
+        else args.command
+    )
     try:
         return HANDLERS[args.command](args, out)
     except ArgumentsError as error:

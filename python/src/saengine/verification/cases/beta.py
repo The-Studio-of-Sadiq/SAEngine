@@ -237,7 +237,9 @@ def generator_gravity(_: Path) -> Outcome:
     return Outcome(
         reference,
         [Quantity("Σ base service loads of the columns", "kN", total, generated, 0.005)],
-        ["the generator's columns are sized from these loads (gravity only, preliminary)"],
+        [
+            "the generator's columns are sized from these loads (gravity, and in Seismic Design Category C/D also the portal-method P-M sizing; preliminary)"
+        ],
     )
 
 

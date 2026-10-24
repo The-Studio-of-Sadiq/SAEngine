@@ -1,0 +1,74 @@
+{
+  "$defs": {
+    "OccupancyCategory": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "seismicImportance": {
+          "exclusiveMinimum": 0,
+          "title": "Seismicimportance",
+          "type": "number"
+        },
+        "windImportance": {
+          "exclusiveMinimum": 0,
+          "title": "Windimportance",
+          "type": "number"
+        }
+      },
+      "required": [
+        "description",
+        "seismicImportance",
+        "windImportance"
+      ],
+      "title": "OccupancyCategory",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Occupancy (risk) categories of buildings with their importance factors.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "categories": {
+      "additionalProperties": {
+        "$ref": "#/$defs/OccupancyCategory"
+      },
+      "title": "Categories",
+      "type": "object"
+    }
+  },
+  "required": [
+    "categories"
+  ],
+  "title": "OccupancyCategoriesTable",
+  "type": "object",
+  "$id": "saengine.codePack.occupancyCategories/1"
+}

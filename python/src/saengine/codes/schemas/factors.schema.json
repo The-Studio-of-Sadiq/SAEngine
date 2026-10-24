@@ -1,0 +1,125 @@
+{
+  "$defs": {
+    "ConcretePhi": {
+      "additionalProperties": {
+        "exclusiveMinimum": 0,
+        "maximum": 1,
+        "type": "number"
+      },
+      "description": "φ of reinforced concrete (extra keys allowed for hooks, also 0 < φ <= 1).",
+      "properties": {
+        "tension": {
+          "description": "Tension-controlled sections.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tension",
+          "type": "number"
+        },
+        "compressionTied": {
+          "description": "Compression-controlled, tied.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Compressiontied",
+          "type": "number"
+        },
+        "compressionSpiral": {
+          "description": "Compression-controlled, spiral.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Compressionspiral",
+          "type": "number"
+        },
+        "shear": {
+          "description": "Shear and torsion.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Shear",
+          "type": "number"
+        },
+        "punching": {
+          "description": "Two-way (punching) shear.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Punching",
+          "type": "number"
+        },
+        "shearSeismic": {
+          "description": "Shear of members whose nominal shear is not governed.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Shearseismic",
+          "type": "number"
+        },
+        "diagonalCoupling": {
+          "description": "Diagonally reinforced coupling beams.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Diagonalcoupling",
+          "type": "number"
+        },
+        "joint": {
+          "description": "Beam-column joints of special moment frames.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Joint",
+          "type": "number"
+        },
+        "strutAndTie": {
+          "description": "Strut-and-tie models.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Strutandtie",
+          "type": "number"
+        },
+        "stiffnessReduction": {
+          "description": "φK of the slender column moment magnifier.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Stiffnessreduction",
+          "type": "number"
+        }
+      },
+      "required": [
+        "tension",
+        "compressionTied",
+        "compressionSpiral",
+        "shear",
+        "punching",
+        "shearSeismic",
+        "diagonalCoupling",
+        "joint",
+        "strutAndTie",
+        "stiffnessReduction"
+      ],
+      "title": "ConcretePhi",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Strength reduction factors φ.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "phi": {
+      "$ref": "#/$defs/ConcretePhi"
+    }
+  },
+  "required": [
+    "phi"
+  ],
+  "title": "FactorsTable",
+  "type": "object",
+  "$id": "saengine.codePack.factors/1"
+}

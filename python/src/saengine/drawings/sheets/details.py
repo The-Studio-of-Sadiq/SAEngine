@@ -1,5 +1,6 @@
 """Details: footings and pile caps (plan and section with the mesh and the column starters),
-structural walls (elevation with the web bars and the end zones, plan section), stairs (section
+walls (elevation with the web bars, the end zones and the lintels over the openings with their
+bar marks, plan section), stairs (section
 along a flight with its bars, plan).
 
 The views are laid out in paper millimetres; the drawings are insets at the detail scale.
@@ -10,7 +11,13 @@ from __future__ import annotations
 import math
 
 from saengine.drawings.sheets.layout import TEXT, View, ViewSpec, tag, text_width
-from saengine.drawings.sheets.model import FootingDetail, Mesh, StairDetail, WallDetail
+from saengine.drawings.sheets.model import (
+    FootingDetail,
+    LintelDetail,
+    Mesh,
+    StairDetail,
+    WallDetail,
+)
 
 BLINDING = 75.0  # mm of lean concrete under a footing, drawn
 
@@ -305,6 +312,8 @@ def wall_detail(w: WallDetail, scale: float = 50, section_scale: float = 25) -> 
                 y += w.horizontal.spacing
         for x0 in (0.0, L - w.boundary_length) if w.boundary_length else ():
             e.rect(x0, 0, x0 + w.boundary_length, H, "S-REBAR-LINK", linetype="DASHED")
+        for k, lt in enumerate(w.lintels):
+            _lintel(e, lt, k)
         for name, z in w.levels:
             e.line((-300, z), (0, z), "S-TEXT")
             e.text(f"{name} {z / 1000:+.3f}", (-300 - e.real(1), z), TEXT, "MR")
@@ -386,6 +395,36 @@ def wall_detail(w: WallDetail, scale: float = 50, section_scale: float = 25) -> 
         pad=(2, 2, 2, 2),
         subtitle=f"{t:g} THK   ELEVATION 1:{E:g}, SECTION 1:{S:g}",
         key=f"wall:{w.mark}",
+    )
+
+
+def _lintel(e: View, lt: LintelDetail, index: int) -> None:
+    """A lintel in a wall's elevation: its outline, the bottom and top bars along it, the
+    stirrups at their spacing (every one up to 40, else the end ones and a dimension), and
+    its label with the bar marks above the wall's top or the next free line."""
+    x0, x1, y0 = lt.x0, lt.x1, lt.bottom
+    y1 = y0 + lt.depth
+    e.rect(x0, y0, x1, y1, "S-CONC")
+    c = 25.0
+    for bars, y in ((lt.bottom_bars, y0 + c), (lt.top_bars, y1 - c)):
+        if bars:
+            e.line((x0 + c, y), (x1 - c, y), "S-REBAR-MAIN", lineweight=18)
+    if lt.stirrups:
+        _, spacing, _ = lt.stirrups
+        first = 50.0
+        count = int(max(x1 - x0 - 2 * first, 0.0) // spacing) + 1 if spacing > 0 else 0
+        step_x = spacing
+        if count > 40:
+            count, step_x = 2, x1 - x0 - 2 * first
+        for i in range(count):
+            x = x0 + first + i * step_x
+            e.line((x, y0 + c / 2), (x, y1 - c / 2), "S-REBAR-LINK")
+    text = f"LINTEL {lt.opening}: {lt.text}" if lt.text else f"LINTEL {lt.opening}"
+    e.label(
+        text,
+        ((x0 + x1) / 2, y1),
+        [(0, 8 + 6 * (index % 3), "BC"), (10, 8 + 6 * (index % 3), "BL")],
+        leader=True,
     )
 
 

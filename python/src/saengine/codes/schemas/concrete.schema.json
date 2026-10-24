@@ -1,0 +1,465 @@
+{
+  "$defs": {
+    "BarDiameters": {
+      "additionalProperties": {
+        "items": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "type": "array"
+      },
+      "description": "Bar size sets [mm] by use (extra sets allowed).",
+      "properties": {
+        "all": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "All",
+          "type": "array"
+        },
+        "main": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Main",
+          "type": "array"
+        },
+        "column": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Column",
+          "type": "array"
+        },
+        "slab": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Slab",
+          "type": "array"
+        },
+        "stirrup": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Stirrup",
+          "type": "array"
+        },
+        "wall": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Wall",
+          "type": "array"
+        },
+        "boundary": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Boundary",
+          "type": "array"
+        },
+        "hoop": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Hoop",
+          "type": "array"
+        },
+        "lintel": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Lintel",
+          "type": "array"
+        }
+      },
+      "required": [
+        "all",
+        "main",
+        "column",
+        "slab",
+        "stirrup",
+        "wall",
+        "boundary",
+        "hoop",
+        "lintel"
+      ],
+      "title": "BarDiameters",
+      "type": "object"
+    },
+    "Covers": {
+      "additionalProperties": false,
+      "description": "Assumed clear covers [mm] by element.",
+      "properties": {
+        "lintel": {
+          "exclusiveMinimum": 0,
+          "title": "Lintel",
+          "type": "number"
+        },
+        "stair": {
+          "exclusiveMinimum": 0,
+          "title": "Stair",
+          "type": "number"
+        },
+        "pileCap": {
+          "exclusiveMinimum": 0,
+          "title": "Pilecap",
+          "type": "number"
+        }
+      },
+      "required": [
+        "lintel",
+        "stair",
+        "pileCap"
+      ],
+      "title": "Covers",
+      "type": "object"
+    },
+    "CrackedStiffness": {
+      "additionalProperties": false,
+      "description": "Cracked-section stiffness factors (share of the gross moment of inertia).",
+      "properties": {
+        "column": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Column",
+          "type": "number"
+        },
+        "beam": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Beam",
+          "type": "number"
+        },
+        "plate": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Plate",
+          "type": "number"
+        },
+        "wall": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Wall",
+          "type": "number"
+        }
+      },
+      "required": [
+        "column",
+        "beam",
+        "plate",
+        "wall"
+      ],
+      "title": "CrackedStiffness",
+      "type": "object"
+    },
+    "SlenderLimits": {
+      "additionalProperties": false,
+      "description": "Slender column limits (moment magnifier method).",
+      "properties": {
+        "nonswayQ": {
+          "description": "Stability index Q at or below which a storey is nonsway.",
+          "exclusiveMinimum": 0,
+          "title": "Nonswayq",
+          "type": "number"
+        },
+        "swayLimit": {
+          "description": "k·lu/r below which a sway column is short.",
+          "exclusiveMinimum": 0,
+          "title": "Swaylimit",
+          "type": "number"
+        },
+        "nonswayCap": {
+          "description": "Upper cap of the nonsway k·lu/r limit.",
+          "exclusiveMinimum": 0,
+          "title": "Nonswaycap",
+          "type": "number"
+        },
+        "kluRMax": {
+          "description": "k·lu/r above which second-order analysis is required.",
+          "exclusiveMinimum": 0,
+          "title": "Klurmax",
+          "type": "number"
+        },
+        "deltaSMax": {
+          "description": "δs above which second-order analysis is required.",
+          "minimum": 1,
+          "title": "Deltasmax",
+          "type": "number"
+        },
+        "momentRatioMax": {
+          "description": "M2 (2nd order)/M2 (1st order) limit.",
+          "minimum": 1,
+          "title": "Momentratiomax",
+          "type": "number"
+        }
+      },
+      "required": [
+        "nonswayQ",
+        "swayLimit",
+        "nonswayCap",
+        "kluRMax",
+        "deltaSMax",
+        "momentRatioMax"
+      ],
+      "title": "SlenderLimits",
+      "type": "object"
+    },
+    "WallSteel": {
+      "additionalProperties": false,
+      "description": "Minimum steel and spacing of structural walls.",
+      "properties": {
+        "rhoSmallBars": {
+          "description": "(vertical, horizontal) ρ, small bars.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Rhosmallbars",
+          "type": "array"
+        },
+        "rhoOtherBars": {
+          "description": "(vertical, horizontal) ρ, other bars.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Rhootherbars",
+          "type": "array"
+        },
+        "smallBarMax": {
+          "description": "Largest bar [mm] counted as a small bar.",
+          "exclusiveMinimum": 0,
+          "title": "Smallbarmax",
+          "type": "number"
+        },
+        "smallBarFy": {
+          "description": "Least fy [MPa] of the small-bar ratios.",
+          "exclusiveMinimum": 0,
+          "title": "Smallbarfy",
+          "type": "number"
+        },
+        "rhoShear": {
+          "description": "Least ρ of special walls (both ways).",
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Rhoshear",
+          "type": "number"
+        },
+        "twoLayerThickness": {
+          "description": "Thickness [mm] from which two layers apply.",
+          "exclusiveMinimum": 0,
+          "title": "Twolayerthickness",
+          "type": "number"
+        },
+        "spacingMax": {
+          "description": "Largest bar spacing [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Spacingmax",
+          "type": "number"
+        }
+      },
+      "required": [
+        "rhoSmallBars",
+        "rhoOtherBars",
+        "smallBarMax",
+        "smallBarFy",
+        "rhoShear",
+        "twoLayerThickness",
+        "spacingMax"
+      ],
+      "title": "WallSteel",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "barDiameters": {
+      "$ref": "#/$defs/BarDiameters",
+      "description": "Bar size sets [mm] by use."
+    },
+    "spacingStep": {
+      "title": "Spacingstep",
+      "type": "number"
+    },
+    "minSlabSpacing": {
+      "title": "Minslabspacing",
+      "type": "number"
+    },
+    "minStirrupSpacing": {
+      "title": "Minstirrupspacing",
+      "type": "number"
+    },
+    "columnRho": {
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "title": "Columnrho",
+      "type": "array"
+    },
+    "beamRatioMax": {
+      "title": "Beamratiomax",
+      "type": "number"
+    },
+    "slabStrainMin": {
+      "title": "Slabstrainmin",
+      "type": "number"
+    },
+    "fytShearMax": {
+      "title": "Fytshearmax",
+      "type": "number"
+    },
+    "slendernessLimit": {
+      "title": "Slendernesslimit",
+      "type": "number"
+    },
+    "twoWayThickness": {
+      "additionalProperties": {
+        "maxItems": 3,
+        "minItems": 3,
+        "prefixItems": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "number"
+          }
+        ],
+        "type": "array"
+      },
+      "title": "Twowaythickness",
+      "type": "object"
+    },
+    "oneWaySlabThickness": {
+      "maxItems": 3,
+      "minItems": 3,
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "title": "Onewayslabthickness",
+      "type": "array"
+    },
+    "beamThickness": {
+      "maxItems": 3,
+      "minItems": 3,
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "title": "Beamthickness",
+      "type": "array"
+    },
+    "cover": {
+      "$ref": "#/$defs/Covers",
+      "description": "Assumed covers [mm] by element."
+    },
+    "crackedStiffness": {
+      "$ref": "#/$defs/CrackedStiffness"
+    },
+    "slender": {
+      "$ref": "#/$defs/SlenderLimits"
+    },
+    "walls": {
+      "$ref": "#/$defs/WallSteel"
+    }
+  },
+  "required": [
+    "barDiameters",
+    "spacingStep",
+    "minSlabSpacing",
+    "minStirrupSpacing",
+    "columnRho",
+    "beamRatioMax",
+    "slabStrainMin",
+    "fytShearMax",
+    "slendernessLimit",
+    "twoWayThickness",
+    "oneWaySlabThickness",
+    "beamThickness",
+    "cover",
+    "crackedStiffness",
+    "slender",
+    "walls"
+  ],
+  "title": "ConcreteTable",
+  "type": "object",
+  "$id": "saengine.codePack.concrete/1"
+}

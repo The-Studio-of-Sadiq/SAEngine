@@ -57,6 +57,26 @@
       "url": "https://raw.githubusercontent.com/qt/qtbase/v5.15.2/LICENSE.GPL3",
       "size": 35147,
       "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
+    },
+    {
+      "name": "libredwg",
+      "version": "0.14",
+      "license": "GPL-3.0-or-later",
+      "file": "libredwg-0.14-win64.zip",
+      "url": "https://github.com/LibreDWG/libredwg/releases/download/0.14/libredwg-0.14-win64.zip",
+      "size": 12084779,
+      "sha256": "1ad7e15344d20b3426c3435b078d82fb84b35062815946b2cca9c5fc9810fea8",
+      "unpack": "zip",
+      "program": "dwg2dxf.exe"
+    },
+    {
+      "name": "libredwg-copying",
+      "version": "0.14",
+      "license": "GPL-3.0 text (LibreDWG's COPYING at the tag; the Windows zip ships none)",
+      "file": "COPYING",
+      "url": "https://raw.githubusercontent.com/LibreDWG/libredwg/0.14/COPYING",
+      "size": 35147,
+      "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
     }
   ]
 }

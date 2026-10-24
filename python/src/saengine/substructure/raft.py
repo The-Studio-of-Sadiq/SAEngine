@@ -88,6 +88,8 @@ from typing import Any
 
 import numpy as np
 
+from saengine.design import punching
+from saengine.design.punching import Demand
 from saengine.design.rc import PHI_SHEAR, STEEL_E
 from saengine.design.slab import (
     ColumnJoint,
@@ -155,6 +157,10 @@ class RaftSpec:
     surcharge: float = 0.0  # kPa, dead load on the raft besides its weight
     compression_only: bool = True
     notes: list[str] = field(default_factory=list)
+    #: The raft's punching studs or stirrups (``objects.PunchingReinforcement``) or None: checked
+    #: where given, else proposed where the concrete alone is not enough
+    #: (:mod:`saengine.design.punching`).
+    punching_reinforcement: Any = None
 
 
 @dataclass
@@ -812,6 +818,7 @@ def _punching(
         capacity = punching_capacity(spec.fc, d, section.b0, beta, section.alpha_s)
         phi_vc = PHI_SHEAR * capacity.vc
         worst = None
+        demands = []
         for name, loads in strength.items():
             w = results.w[f"U: {name}"]
             if spec.compression_only:
@@ -824,30 +831,99 @@ def _punching(
             soil = float(reaction[inside].sum())
             vu = max(float(loads[k][0]) + own - soil, 0.0)
             moment = np.array([float(loads[k][1]), float(loads[k][2])])
-            stress = punching_stress(section, vu, float(moment @ v), float(moment @ u))
+            m_u, m_v = float(moment @ v), float(moment @ u)
+            stress = punching_stress(section, vu, m_u, m_v)
+            demands.append(Demand(vu, m_u, m_v, name))
             if worst is None or stress.vu > worst[0]:
                 worst = (stress.vu, stress, vu, name, soil, own)
         if worst is None:
             continue
         vu_max, stress, vu, name, soil, own = worst
         area = section.b0 * d
-        checks.append(
-            _check(
-                f"Punching at {column.id}",
-                vu_max * area / 1e3,
-                phi_vc * area / 1e3,
-                "kN",
-                name,
-                f"{section.location} column, b0 = {section.b0:.0f} mm, d = {d:.0f} mm (bottom), "
-                f"Vu = P + weight inside - soil inside = {vu / 1e3:.0f} kN (weight and "
-                f"surcharge {own / 1e3:.0f} kN, soil {soil / 1e3:.0f} kN), "
-                f"vu = {vu_max:.3f} MPa (direct {stress.direct:.3f}, γv "
-                f"{stress.gamma_v[0]:.2f}/{stress.gamma_v[1]:.2f}), vc = {capacity.vc:.3f} MPa "
-                f"(ACI 22.6.5.2, λs = {capacity.lambda_s:.2f}); shown as v b0 d",
-                utilisation=vu_max / phi_vc,
-            )
+        plain = _check(
+            f"Punching at {column.id}",
+            vu_max * area / 1e3,
+            phi_vc * area / 1e3,
+            "kN",
+            name,
+            f"{section.location} column, b0 = {section.b0:.0f} mm, d = {d:.0f} mm (bottom), "
+            f"Vu = P + weight inside - soil inside = {vu / 1e3:.0f} kN (weight and "
+            f"surcharge {own / 1e3:.0f} kN, soil {soil / 1e3:.0f} kN), "
+            f"vu = {vu_max:.3f} MPa (direct {stress.direct:.3f}, γv "
+            f"{stress.gamma_v[0]:.2f}/{stress.gamma_v[1]:.2f}), vc = {capacity.vc:.3f} MPa "
+            f"(ACI 22.6.5.2, λs = {capacity.lambda_s:.2f}); shown as v b0 d",
+            utilisation=vu_max / phi_vc,
         )
+        if vu_max > phi_vc or spec.punching_reinforcement is not None:
+            free_body = (
+                f"Vu = P + weight inside - soil inside = {vu / 1e3:.0f} kN ({name}; weight and "
+                f"surcharge {own / 1e3:.0f} kN, soil {soil / 1e3:.0f} kN)"
+            )
+            plain = _punching_with_reinforcement(spec, column, d, demands, bottom, plain, free_body)
+        checks.append(plain)
     return checks
+
+
+def _punching_with_reinforcement(
+    spec: RaftSpec,
+    column: RaftColumn,
+    d: float,
+    demands: list[Demand],
+    bottom: list[Any],
+    plain: dict[str, Any],
+    free_body: str,
+) -> dict[str, Any]:
+    """The punching check of a column on the raft redone with shear reinforcement
+    (:func:`saengine.design.punching.slab_punching`, as a flat slab's or a footing's): the
+    raft's given studs or stirrups checked, else a layout proposed, over every strength
+    combination. ``demands``: each combination's net Vu (the column load and the raft's
+    factored weight inside the critical section less the soil reaction there) and the
+    column's moments. The outer sections beyond the last line take the same Vu (no further
+    soil relief: on the safe side)."""
+    given = spec.punching_reinforcement
+    kind = given.kind if given is not None else "studs"
+    fyt = (given.fyt if given is not None else None) or (
+        punching.STUD_FY if kind == "studs" else min(spec.fy, punching.STIRRUP_FY_MAX)
+    )
+    provided = None
+    if given is not None:
+        provided = punching.ShearReinforcement(
+            kind, float(given.dia), int(given.perLine), int(given.lines),
+            float(given.firstLine), float(given.spacing), float(fyt),
+        )  # fmt: skip
+    cover = spec.reinforcement.cover if spec.reinforcement is not None else 75.0
+    flexural = max((layer.dia for layer in bottom), default=16.0)
+
+    def run(layout: Any) -> Any:
+        return punching.slab_punching(
+            (column.x, column.y),
+            column.c1,
+            column.c2,
+            column.angle,
+            d,
+            spec.outline,
+            demands,
+            spec.fc,
+            thickness=spec.thickness,
+            kind=layout.kind if layout is not None else kind,
+            fyt=layout.fyt if layout is not None else fyt,
+            covers=(cover, cover),
+            flexural_bar=flexural,
+            provided=layout,
+        )
+
+    name = plain["name"]
+    try:
+        result = run(provided)
+    except (ValueError, ArithmeticError) as error:
+        plain["note"] += f"; shear reinforcement not designed: {error}"
+        return plain
+    if result is None:
+        return plain
+    row = punching.recheckable(result.check(name), name, run, spec.fy, provided)
+    # The free body of the governing combination, as without reinforcement.
+    row["note"] = f"{free_body}; {row['note']}"
+    return row
 
 
 # ─────────────────────────────────────── in the report ───────────────────────────────────────
@@ -1014,6 +1090,7 @@ def design_raft(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str]]:
         mesh_size=ctx.substructure.design.raftMeshSize,
         unit_weight=density * 9.80665e-3,
         surcharge=surcharge,
+        punching_reinforcement=getattr(foundation, "punchingReinforcement", None),
     )
     with tempfile.TemporaryDirectory(prefix="saengine-raft-") as folder:
         try:

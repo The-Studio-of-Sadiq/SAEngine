@@ -7,7 +7,7 @@
     1. Runs the setup with /VERYSILENT into -InstallDir, without the PATH, file-association,
        desktop-icon and run-after-install tasks; checks the bin shims (saengine.cmd, the
        command line; saengine-app.cmd, the window launcher) and, when bundled, LibreCAD with
-       its licences. Runs "bin\saengine.cmd --help" when the backend has saengine.cli.
+       its licences and LibreDWG's dwg2dxf (it runs, and the backend finds it). Runs "bin\saengine.cmd --help" when the backend has saengine.cli.
     2. With the bundled resources\python\python.exe, from a folder outside the repository and
        with a hostile Python environment (PYTHONHOME pointing nowhere, PYTHONPATH and a user
        site-packages that shadow numpy): checks the isolation, imports the backend, makes the JSON-RPC
@@ -109,6 +109,26 @@ Measure-Step 'silent install' {
             throw 'THIRD_PARTY_NOTICES.txt does not name the bundled LibreCAD.'
         }
         Write-Host "LibreCAD $($bundle.version) (Qt $($bundle.qt_version)) is bundled."
+    }
+    # GNU LibreDWG, when this build bundles it: dwg2dxf runs, and the backend finds it there.
+    $libreDWG = Join-Path $InstallDir 'resources\libredwg'
+    if (Test-Path (Join-Path $libreDWG 'SAENGINE-BUNDLE.json')) {
+        $bundle = Get-Content (Join-Path $libreDWG 'SAENGINE-BUNDLE.json') -Raw | ConvertFrom-Json
+        foreach ($file in @('dwg2dxf.exe', 'libredwg-0.dll') + @($bundle.licenses)) {
+            if (-not (Test-Path (Join-Path $libreDWG $file))) { throw "The LibreDWG bundle lacks $file." }
+        }
+        $answer = & (Join-Path $libreDWG 'dwg2dxf.exe') --version
+        if ($LASTEXITCODE -ne 0 -or "$answer" -notmatch "dwg2dxf $([regex]::Escape($bundle.version))") {
+            throw "The bundled dwg2dxf answered '$answer' (exit code $LASTEXITCODE)."
+        }
+        $found = & (Join-Path $InstallDir 'resources\python\python.exe') -I -c 'from saengine.library.dwg import find_converter; print(find_converter())'
+        if (-not "$found".Trim().EndsWith('resources\libredwg\dwg2dxf.exe', [StringComparison]::OrdinalIgnoreCase)) {
+            throw "The backend finds '$found' instead of the bundled dwg2dxf."
+        }
+        if ((Get-Content (Join-Path $InstallDir 'THIRD_PARTY_NOTICES.txt') -Raw) -notmatch 'GNU LibreDWG') {
+            throw 'THIRD_PARTY_NOTICES.txt does not name the bundled GNU LibreDWG.'
+        }
+        Write-Host "GNU LibreDWG $($bundle.version) is bundled."
     }
 }
 

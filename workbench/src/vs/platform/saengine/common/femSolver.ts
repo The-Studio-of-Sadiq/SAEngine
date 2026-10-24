@@ -311,6 +311,8 @@ export interface ISoilBearingRequest {
 	readonly foundingLevel: number;
 	readonly b: number;
 	readonly l: number;
+	/** The project folder, so a code pack stored in the project (02 Project Settings/code-packs) is found. */
+	readonly projectRoot?: string;
 }
 
 export interface ISoilBearing {
@@ -387,16 +389,16 @@ export interface IFemSolverService {
 	/** One result's deflected shape, force diagrams and reactions (`mode`: modal results). */
 	getResultView(python: string, outDir: string, project: string, key: string, mode?: number): Promise<IFemResultView>;
 	/** Runs the model rules on a project file; `companionText` is the file it references (materials for objects, objects for the floor plan and bim). */
-	checkLibrary(python: string, kind: LibraryFileKind, text: string, companionText?: string): Promise<readonly ILibraryProblem[]>;
+	checkLibrary(python: string, kind: LibraryFileKind, text: string, companionText?: string, projectRoot?: string): Promise<readonly ILibraryProblem[]>;
 
 	/**
 	 * The building model generated from the floor plan, keeping the model's own elements
 	 * (see `saengine.library.bim`). Problems are returned when either file has errors.
 	 */
-	generateBuilding(python: string, floorPlanText: string, bimText: string | undefined): Promise<IGeneratedBuilding>;
+	generateBuilding(python: string, floorPlanText: string, bimText: string | undefined, projectRoot?: string): Promise<IGeneratedBuilding>;
 
 	/** The building model of a special structure, from its structural model (`structure.json`). */
-	generateBuildingFromStructure(python: string, structureText: string, bimText: string | undefined): Promise<IGeneratedBuilding>;
+	generateBuildingFromStructure(python: string, structureText: string, bimText: string | undefined, projectRoot?: string): Promise<IGeneratedBuilding>;
 
 	/** The building model as IFC (IfcOpenShell), with each element's IFC GlobalId. */
 	buildingIfc(python: string, request: IBuildingIfcRequest): Promise<IBuildingIfc>;
@@ -429,7 +431,7 @@ export interface IFemSolverService {
 	 * Everything computed from the soil report (`saengine.soil.soil_report`): per borehole and
 	 * for the project, or `{problems}`. Plain JSON, read by the Soil Report editor.
 	 */
-	soilReport(python: string, soilText: string, settingsText?: string): Promise<object>;
+	soilReport(python: string, soilText: string, settingsText?: string, projectRoot?: string): Promise<object>;
 
 	/** Net allowable bearing pressure of one footing from the soil report. */
 	soilAllowableBearing(python: string, request: ISoilBearingRequest): Promise<ISoilBearing>;
@@ -441,7 +443,7 @@ export interface IFemSolverService {
 	soilTemplate(python: string, path: string): Promise<ISoilTemplate>;
 
 	/** Where the site class and the allowable bearing pressure come from, for Project Settings. */
-	soilSources(python: string, soilText: string | undefined, settingsText: string | undefined): Promise<ISoilSources>;
+	soilSources(python: string, soilText: string | undefined, settingsText: string | undefined, projectRoot?: string): Promise<ISoilSources>;
 
 	/**
 	 * The design checks of the project's saved substructure (`saengine.substructure.substructure_report`),
@@ -581,7 +583,14 @@ export interface IQgisOpenResult {
  */
 export type ProjectPlatformMethod =
 	| 'project/exportArchive' | 'project/inspectArchive' | 'project/importArchive'
-	| 'versions/status' | 'versions/list' | 'versions/save' | 'versions/diff' | 'versions/restore' | 'versions/markIssued';
+	| 'versions/status' | 'versions/list' | 'versions/save' | 'versions/diff' | 'versions/restore' | 'versions/markIssued'
+	// Code packs (`saengine.codes`): `codes/list` `{root?}`, `codes/show` `{id, root?}`, `codes/new`
+	// `{id, name, extends, scope?, dest?, root?}`, `codes/install` `{path, scope, root?}`,
+	// `codes/validate` `{path, root?}`, `codes/trust` `{id, trusted, root?}`.
+	| 'codes/list' | 'codes/show' | 'codes/new' | 'codes/install' | 'codes/validate' | 'codes/trust'
+	// A DWG drawing as DXF (`saengine.library.dwg`, GNU LibreDWG's dwg2dxf as a separate program):
+	// `cad/convertDwg` `{path, cache?}` -> `{ok, dxf, warnings, cached}` or `{ok: false, code, message}`.
+	| 'cad/convertDwg';
 
 export interface ICadOpenRequest {
 	/** Absolute path of the `.dxf` file. */

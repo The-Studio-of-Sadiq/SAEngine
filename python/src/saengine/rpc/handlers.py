@@ -555,6 +555,7 @@ def import_geometry(path: str, options: dict[str, Any], objects_text: str | None
 
     from pydantic import ValidationError
 
+    from saengine.library.dwg import DwgError
     from saengine.library.importers import ImportOptions
     from saengine.library.importers import import_geometry as read
 
@@ -572,8 +573,23 @@ def import_geometry(path: str, options: dict[str, Any], objects_text: str | None
         pass  # no layer-named types then
     try:
         return read(path, parsed, kinds).to_json()
+    except DwgError as exc:  # names the file already
+        return {"problems": [str(exc)]}
     except Exception as exc:  # noqa: BLE001 - unreadable files are reported to the user
         return {"problems": [f"{Path(path).name}: {exc}"]}
+
+
+def convert_dwg(path: str, cache: str | None = None) -> dict[str, Any]:
+    """A DWG drawing as DXF (``saengine.library.dwg``): ``{"ok", "dxf", "warnings", "cached"}``,
+    or ``{"ok": False, "code", "message"}`` (``code`` ``"no-converter"`` or ``"failed"``)."""
+    from saengine.library.dwg import ConverterMissing, DwgError, convert
+
+    try:
+        return {"ok": True, **convert(path, cache).to_json()}
+    except ConverterMissing as exc:
+        return {"ok": False, "code": "no-converter", "message": str(exc)}
+    except DwgError as exc:
+        return {"ok": False, "code": "failed", "message": str(exc)}
 
 
 def insert_geometry(structure_text: str, geometry: dict[str, Any]) -> dict[str, Any]:
@@ -1595,3 +1611,127 @@ def export_xlsx(path: str, sheets: list[dict[str, Any]]) -> dict[str, Any]:
     from saengine.fem.table_export import write_xlsx
 
     return write_xlsx(path, sheets)
+
+
+# ───────────────────────────────────────── code packs ─────────────────────────────────────────
+
+
+def _pack_root(root: str | None) -> Path | None:
+    from saengine.codes import context as code_context
+
+    return code_context.find_project_root(root) if root else None
+
+
+def _pack_info(info: Any, root: Path | None) -> dict[str, Any]:
+    """A :class:`saengine.codes.PackInfo` as the Code Packs page reads it, with the manifest's
+    author, licence, description and sources when the pack's pack.json can be read."""
+    from saengine.codes.manifest import MANIFEST_FILE, PackManifest
+
+    result = info.model_dump(mode="json")
+    try:
+        manifest = PackManifest.model_validate_json(
+            (Path(info.path) / MANIFEST_FILE).read_text(encoding="utf-8-sig")
+        )
+    except (OSError, ValueError):
+        return result
+    result.update(
+        author=manifest.author,
+        licence=manifest.licence,
+        description=manifest.description,
+        sources=[s.model_dump(mode="json", exclude_none=True) for s in manifest.sources],
+        clauses=manifest.clauses,
+    )
+    return result
+
+
+def codes_list(root: str | None = None) -> list[dict[str, Any]]:
+    """Every code pack found (built-in, the user's, the project's), shadowed ones included."""
+    from saengine.codes import registry
+
+    base = _pack_root(root)
+    return [p.model_dump(mode="json") for p in registry.list_packs(base)]
+
+
+def codes_show(pack_id: str, root: str | None = None) -> dict[str, Any]:
+    """The pack in force with this id, with its manifest's details."""
+    from saengine.codes import CodePackError, registry
+
+    base = _pack_root(root)
+    try:
+        return _pack_info(registry.info(pack_id, base), base)
+    except CodePackError as error:
+        return _refusal(error)
+
+
+def codes_new(
+    pack_id: str,
+    name: str,
+    extends: str | None,
+    scope: str = "user",
+    dest: str | None = None,
+    root: str | None = None,
+) -> dict[str, Any]:
+    """Writes a new pack's skeleton (:func:`saengine.codes.template.new_pack`) into ``dest``,
+    else the user's packs or the project's (``scope``): ``{path}`` of its folder."""
+    from saengine.codes import registry
+    from saengine.codes.template import TemplateError, new_pack
+
+    base = _pack_root(root)
+    if not dest:
+        if scope == "project":
+            if base is None:
+                return _refusal(ValueError("a project pack needs the project folder"))
+            dest = str(registry.project_packs_dir(base))
+        else:
+            dest = str(registry.user_packs_dir())
+    try:
+        folder = new_pack(dest, pack_id, name or pack_id, extends or None, project_root=base)
+    except TemplateError as error:
+        return _refusal(error)
+    registry.clear_cache()
+    return {"ok": True, "path": str(folder), "manifest": str(folder / "pack.json")}
+
+
+def codes_install(path: str, scope: str = "user", root: str | None = None) -> dict[str, Any]:
+    """Copies a pack folder or .zip into the user's packs or the project's: its info."""
+    from saengine.codes import CodePackError, registry
+
+    base = _pack_root(root)
+    try:
+        info = registry.install(Path(path), "project" if scope == "project" else "user", base)
+    except (CodePackError, OSError) as error:
+        return _refusal(error)
+    return _pack_info(info, base)
+
+
+def codes_validate(path: str, root: str | None = None) -> dict[str, Any]:
+    """The pack in ``path`` resolved against the installed packs, with its problems and the
+    authoring warnings of :func:`saengine.codes.template.validate_pack`."""
+    from saengine.codes import registry
+
+    base = _pack_root(root)
+    from saengine.codes.template import validate_pack
+
+    info = registry.validate(Path(path), base).model_dump(mode="json")
+    try:
+        report = validate_pack(Path(path), base).to_json()
+    except (OSError, ValueError) as error:  # the authoring checks are extra: never a failure
+        report = {"problems": [{"level": "warning", "message": _first_line(error)}]}
+    seen = {p.get("message") for p in info.get("problems", [])}
+    for problem in report.get("problems", []):
+        if problem.get("message") not in seen:
+            info.setdefault("problems", []).append(
+                {"severity": problem.get("level", "warning"), "message": problem["message"]}
+            )
+    return info
+
+
+def codes_trust(pack_id: str, trusted: bool, root: str | None = None) -> dict[str, Any]:
+    """Trusts (or stops trusting) the hooks of the pack in force with this id."""
+    from saengine.codes import CodePackError, registry
+
+    base = _pack_root(root)
+    try:
+        return _pack_info(registry.set_trusted(pack_id, bool(trusted), base), base)
+    except CodePackError as error:
+        return _refusal(error)

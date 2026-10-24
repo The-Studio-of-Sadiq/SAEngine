@@ -1,0 +1,81 @@
+{
+  "$schema": "../../../schemas/areaLoads.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Table 6.2.3 (pp. 533-539)"
+  ],
+  "source": "BNBC 2020 Part 6 Table 6.2.3 (pp. 533-539, a selection)",
+  "uses": {
+    "residential": {
+      "name": "Residential: rooms and private corridors",
+      "live": 2.0
+    },
+    "residentialPublic": {
+      "name": "Residential: public rooms and corridors",
+      "live": 4.8
+    },
+    "office": {
+      "name": "Office",
+      "live": 2.4
+    },
+    "officeLobby": {
+      "name": "Office: lobbies and first-floor corridors",
+      "live": 4.8
+    },
+    "corridorAbove": {
+      "name": "Corridors above the first floor",
+      "live": 3.8
+    },
+    "classroom": {
+      "name": "School: classrooms",
+      "live": 1.9
+    },
+    "hospitalWard": {
+      "name": "Hospital: patient rooms",
+      "live": 1.9
+    },
+    "operatingRoom": {
+      "name": "Hospital: operating rooms, laboratories",
+      "live": 2.9
+    },
+    "assemblyFixed": {
+      "name": "Assembly: fixed seats",
+      "live": 2.9
+    },
+    "assemblyMovable": {
+      "name": "Assembly: movable seats, lobbies",
+      "live": 4.8
+    },
+    "retailGround": {
+      "name": "Retail: first floor",
+      "live": 4.8
+    },
+    "retailUpper": {
+      "name": "Retail: upper floors",
+      "live": 3.6
+    },
+    "storageLight": {
+      "name": "Storage: light",
+      "live": 6.0
+    },
+    "storageHeavy": {
+      "name": "Storage: heavy",
+      "live": 12.0
+    },
+    "parking": {
+      "name": "Parking: passenger vehicles",
+      "live": 1.9
+    },
+    "stairs": {
+      "name": "Stairs and exits",
+      "live": 4.8
+    },
+    "roof": {
+      "name": "Roof: ordinary flat, pitched or curved",
+      "live": 1.0
+    },
+    "roofGarden": {
+      "name": "Roof: gardens and assembly use",
+      "live": 4.8
+    }
+  }
+}
