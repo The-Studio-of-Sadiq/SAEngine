@@ -44,6 +44,14 @@ function framesOf(entry: IFemResultEntry): NonNullable<IFemResultEntry['frames']
 	return entry.kind === 'history' || entry.kind === 'pushover' || entry.kind === 'static' ? entry.frames ?? [] : [];
 }
 
+/**
+ * The result a new run opens at: the first load combination of the project settings (what the
+ * members are designed for), else the first static case, else the first result.
+ */
+export function defaultResult(results: readonly IFemResultEntry[]): IFemResultEntry | undefined {
+	return results.find(r => r.kind === 'combination') ?? results.find(r => r.kind === 'static') ?? results[0];
+}
+
 /** `joints`: the beam-column joints' checks, drawn as utilisation of the members framing in. */
 type Show = FemResultQuantity | 'none' | 'joints';
 
@@ -120,8 +128,25 @@ const CURVE_HEIGHT = 110;
 const FRAME_INTERVAL = 60;
 const COMPONENTS: readonly Show[] = ['N', 'Vy', 'Vz', 'T', 'My', 'Mz'];
 
-/** Steps of the scale multiplier offered by the − and + buttons. */
-const SCALES = [0.25, 0.5, 1, 2, 4, 8, 16];
+/** The scale slider: the multiplier is 2 to the slider's value, ×1/8 to ×32. */
+const SCALE_MIN_EXPONENT = -3;
+const SCALE_MAX_EXPONENT = 5;
+const SCALE_STEP = 0.25;
+
+/** "×1.4": the scale multiplier as the slider shows it. */
+export function scaleText(scale: number): string {
+	return `×${scale >= 10 ? scale.toFixed(0) : scale >= 1 ? Number(scale.toFixed(1)).toString() : Number(scale.toPrecision(2)).toString()}`;
+}
+
+/** A mode with its period and mass participation, as the mode picker and the caption say it. */
+export function modeText(mode: { readonly number: number; readonly period: number | null; readonly ux?: number; readonly uy?: number }): string {
+	if (mode.period === null) {
+		return localize('femResults.modeOnly', "Mode {0}", mode.number);
+	}
+	return mode.ux === undefined || mode.uy === undefined
+		? localize('femResults.modePeriodCaption', "Mode {0}: T = {1} s", mode.number, mode.period.toFixed(3))
+		: localize('femResults.modeShareCaption', "Mode {0}: T = {1} s, UX {2} %, UY {3} %", mode.number, mode.period.toFixed(3), (100 * mode.ux).toFixed(1), (100 * mode.uy).toFixed(1));
+}
 
 type Quantity = FemValueQuantity;
 
@@ -157,6 +182,10 @@ export const FEM_RUN_CASES_COMMAND = 'saengine.fem.runCases';
 export const FEM_RESULT_TABLES_COMMAND = 'saengine.fem.resultTables';
 /** Opens the "SAEngine Analysis" output channel holding the log of the last run. */
 export const FEM_SHOW_LOG_COMMAND = 'saengine.fem.showLog';
+/** `(model?: URI)`: opens the Analysis Charts of the last run. */
+export const FEM_SHOW_CHARTS_COMMAND = 'saengine.fem.showCharts';
+/** `(model: URI, member: string)`: opens a member's details (forces along it, P-M, steel). */
+export const FEM_SHOW_MEMBER_COMMAND = 'saengine.fem.showMember';
 
 /** Where a run is, for a progress bar and a status line. */
 export interface IFemRunProgress {
@@ -331,7 +360,11 @@ export class FemResultsBar extends Disposable {
 	private readonly timeCaption: HTMLElement;
 	private readonly playButton: IEditorFrameIconButton;
 	private readonly scaleContainer: HTMLElement;
+	private readonly scaleSlider: HTMLInputElement;
 	private readonly scaleLabel: HTMLElement;
+	private readonly labelsButton: IEditorFrameIconButton;
+	/** Force diagrams: every member's largest and least value labelled. */
+	private memberLabels = false;
 	private playing = false;
 	private playToken = 0;
 	private readonly watch = this._register(new DisposableStore());
@@ -424,12 +457,14 @@ export class FemResultsBar extends Disposable {
 		// A modal result: the mode shown, and whether its shape oscillates.
 		this.modeContainer = group(frame.controlsSlot, 'mode');
 		append(this.modeContainer, $('span.sa-frame-label', undefined, localize('femResults.mode', "Mode")));
+		this._register(frame.createIconButton(this.modeContainer, Codicon.chevronLeft, localize('femResults.previousMode', "Previous Mode"), () => this.stepMode(-1)));
 		this.modePicker = this._register(new SelectBox([], 0, contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('femResults.modeAria', "Mode shown") }));
 		this.modePicker.render(append(this.modeContainer, $('.fem-results-select.mode')));
 		this._register(this.modePicker.onDidSelect(({ index }) => {
 			this.mode = index + 1;
 			void this.showResult();
 		}));
+		this._register(frame.createIconButton(this.modeContainer, Codicon.chevronRight, localize('femResults.nextMode', "Next Mode"), () => this.stepMode(1)));
 		this.animateButton = this._register(frame.createIconButton(this.modeContainer, Codicon.debugPause, localize('femResults.animate', "Animate the Mode Shape"), () => {
 			this.animate = !this.animate;
 			this.render();
@@ -450,9 +485,24 @@ export class FemResultsBar extends Disposable {
 
 		// How large the deflections and diagrams are drawn.
 		this.scaleContainer = group(frame.controlsSlot, 'scale');
-		this._register(frame.createIconButton(this.scaleContainer, Codicon.remove, localize('femResults.smaller', "Draw Smaller"), () => this.step(-1)));
+		append(this.scaleContainer, $('span.sa-frame-label', undefined, localize('femResults.scale', "Scale")));
+		this.scaleSlider = append(this.scaleContainer, $<HTMLInputElement>('input.fem-results-scale-slider', {
+			type: 'range', min: String(SCALE_MIN_EXPONENT), max: String(SCALE_MAX_EXPONENT), step: String(SCALE_STEP), value: '0',
+			'aria-label': localize('femResults.scaleAria', "How large the deflections and diagrams are drawn"),
+		}));
+		this._register(addDisposableListener(this.scaleSlider, EventType.INPUT, () => {
+			this.scale = Math.pow(2, Number(this.scaleSlider.value));
+			this.render();
+		}));
+		this._register(addDisposableListener(this.scaleSlider, EventType.DBLCLICK, () => {
+			this.scale = 1; // back to the automatic size
+			this.render();
+		}));
 		this.scaleLabel = append(this.scaleContainer, $('span.fem-results-scale'));
-		this._register(frame.createIconButton(this.scaleContainer, Codicon.add, localize('femResults.larger', "Draw Larger"), () => this.step(1)));
+		this.labelsButton = this._register(frame.createIconButton(this.scaleContainer, Codicon.symbolNumeric, localize('femResults.labelMembers', "Label Every Member's Largest and Least Value"), () => {
+			this.memberLabels = !this.memberLabels;
+			this.render();
+		}));
 
 		this.render();
 	}
@@ -650,7 +700,7 @@ export class FemResultsBar extends Disposable {
 		}
 		if (!list.results.some(r => r.key === this.key)) {
 			this.stopPlaying();
-			this.key = list.results[0]?.key;
+			this.key = defaultResult(list.results)?.key;
 			this.mode = this.firstFrame();
 		}
 		await this.showResult();
@@ -857,10 +907,14 @@ export class FemResultsBar extends Disposable {
 		}
 	}
 
-	private step(direction: number): void {
-		const index = SCALES.indexOf(this.scale);
-		this.scale = SCALES[Math.max(0, Math.min(SCALES.length - 1, index + direction))];
-		this.render();
+	/** Shows the previous or next mode of a modal result (wrapping around). */
+	private stepMode(direction: number): void {
+		const count = this.entry?.modes?.length ?? 0;
+		if (!count) {
+			return;
+		}
+		this.mode = ((this.mode - 1 + direction + count) % count) + 1;
+		void this.showResult();
 	}
 
 	private render(): void {
@@ -878,7 +932,9 @@ export class FemResultsBar extends Disposable {
 			if (modal) {
 				const modes = entry.modes ?? [];
 				this.modePicker.setOptions(modes.map<ISelectOptionItem>(m => ({
-					text: m.period === null ? String(m.number) : localize('femResults.modeOption', "{0} (T = {1} s)", m.number, m.period.toFixed(3)),
+					text: m.period === null ? String(m.number) : m.ux === undefined || m.uy === undefined
+						? localize('femResults.modeOption', "{0} (T = {1} s)", m.number, m.period.toFixed(3))
+						: localize('femResults.modeOptionShares', "{0} (T = {1} s, UX {2} %, UY {3} %)", m.number, m.period.toFixed(3), (100 * m.ux).toFixed(0), (100 * m.uy).toFixed(0)),
 				})), Math.max(0, this.mode - 1));
 				const animatable = this.show === 'deformed';
 				this.animateButton.element.classList.toggle('hidden', !animatable);
@@ -903,7 +959,12 @@ export class FemResultsBar extends Disposable {
 			}
 			const options = this.showOptions();
 			this.showPicker.setOptions(options.map<ISelectOptionItem>(o => ({ text: o.label })), Math.max(0, options.findIndex(o => o.show === this.show)));
-			this.scaleLabel.textContent = `×${this.scale}`;
+			this.scaleLabel.textContent = scaleText(this.scale);
+			this.scaleSlider.value = String(Math.log2(this.scale));
+			const diagram = COMPONENTS.includes(this.show);
+			this.labelsButton.element.classList.toggle('hidden', !diagram);
+			this.labelsButton.element.classList.toggle('checked', diagram && this.memberLabels);
+			this.labelsButton.element.setAttribute('aria-pressed', String(diagram && this.memberLabels));
 		}
 		const view = this.view;
 		const show = this.show;
@@ -914,6 +975,7 @@ export class FemResultsBar extends Disposable {
 				show: show === 'joints' ? 'utilisation' : show,
 				scale: this.scale,
 				animate: this.animate,
+				memberLabels: this.memberLabels,
 				format: this.format,
 				utilisation: !this.design ? undefined
 					: show === 'utilisation' ? designUtilisation(this.design)
@@ -1003,7 +1065,7 @@ export class FemResultsBar extends Disposable {
 		if (view.kind === 'modal') {
 			const mode = this.entry?.modes?.[this.mode - 1];
 			return mode?.period !== null && mode?.period !== undefined
-				? localize('femResults.modePeriod', "Mode {0}: period {1} s, frequency {2} Hz.", mode.number, mode.period.toFixed(3), (1 / mode.period).toFixed(2))
+				? localize('femResults.modePeriodStatus', "{0}; frequency {1} Hz. The shape's size is arbitrary.", modeText(mode), (1 / mode.period).toFixed(2))
 				: undefined;
 		}
 		const component = COMPONENTS.indexOf(this.show);
@@ -1062,7 +1124,23 @@ export class FemResultsBar extends Disposable {
 			shown = true;
 		} else if (this.entry) {
 			const contour = this.contourRange();
-			if (contour) {
+			const diagram = this.diagramRange();
+			const mode = this.entry.kind === 'modal' ? this.entry.modes?.[this.mode - 1] : undefined;
+			if (mode && this.show === 'deformed') {
+				append(this.legend, $('.fem-legend-title', undefined, modeText(mode)));
+				if (mode.period !== null && mode.period > 0) {
+					append(this.legend, $('.fem-legend-row', undefined, localize('femResults.modeFrequency', "f = {0} Hz; size arbitrary", (1 / mode.period).toFixed(2))));
+				}
+				shown = true;
+			} else if (diagram) {
+				append(this.legend, $('.fem-legend-title', undefined, this.showOptions().find(o => o.show === this.show)?.label ?? ''));
+				for (const [kind, label] of [['positive', diagram.max], ['negative', diagram.min]] as const) {
+					const row = append(this.legend, $('.fem-legend-row'));
+					append(row, $(`span.fem-diagram-swatch.${kind}`));
+					append(row, $('span', undefined, label));
+				}
+				shown = true;
+			} else if (contour) {
 				append(this.legend, $('.fem-legend-title', undefined, this.showOptions().find(o => o.show === this.show)?.label ?? ''));
 				const row = append(this.legend, $('.fem-legend-row'));
 				append(row, $('span', undefined, contour.min));
@@ -1072,6 +1150,36 @@ export class FemResultsBar extends Disposable {
 			}
 		}
 		this.legend.classList.toggle('visible', shown);
+	}
+
+	/** A force diagram's largest and least value over the members shown ("max 12.3 kN·m in B1"). */
+	private diagramRange(): { readonly max: string; readonly min: string } | undefined {
+		const component = COMPONENTS.indexOf(this.show);
+		const view = this.view;
+		if (component < 0 || !view) {
+			return undefined;
+		}
+		let max: { value: number; name: string } | undefined;
+		let min: { value: number; name: string } | undefined;
+		for (const element of view.elements) {
+			for (const forces of element.forces ?? []) {
+				const value = forces[component];
+				if (!max || value > max.value) {
+					max = { value, name: element.name };
+				}
+				if (!min || value < min.value) {
+					min = { value, name: element.name };
+				}
+			}
+		}
+		if (!max || !min) {
+			return undefined;
+		}
+		const quantity: Quantity = component < 3 ? 'force' : 'moment';
+		return {
+			max: localize('femResults.diagramMax', "max {0} in {1}", this.format(quantity, max.value), max.name.split('#')[0]),
+			min: localize('femResults.diagramMin', "min {0} in {1}", this.format(quantity, min.value), min.name.split('#')[0]),
+		};
 	}
 
 	/** The lowest and highest value of a shell or solid contour, as the 3D view colours it. */

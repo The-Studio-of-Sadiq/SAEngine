@@ -1,0 +1,199 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IFemResultEntry } from '../../../../../platform/saengine/common/femSolver.js';
+import { niceTicks, renderChart, tickText } from '../../browser/femChart.js';
+import { closedPmCurve, describeMode, elasticDriftLimit, extremes, filterRows, IFemColumnDiagram, IFemMemberForces, IFemStoryResponse, IFemStoryResult, isEarthquakeResult, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, sortRows, spectrumAt, storeyProfile, storeyTable, workbookSheets } from '../../browser/femChartData.js';
+import { defaultResult, modeText, scaleText } from '../../browser/femResultsBar.js';
+import { chartUnits, memberNames } from '../../browser/femResultsView.js';
+import { cameraOf, gridLines, IFilterModel, modelLevels, viewChoices, visibleElements } from '../../browser/femViewFilter.js';
+
+const row = (name: string, z: number, values: Partial<Record<string, number | null>>) => ({
+	name, z, height: null, dispX: null, dispY: null, avgDispX: null, avgDispY: null, driftX: null, driftY: null,
+	forceX: null, forceY: null, shearX: null, shearY: null, overturningX: null, overturningY: null, ...values,
+});
+
+const EX: IFemStoryResult = {
+	key: 'case:7', label: 'EX: Earthquake in X', kind: 'static', baseReaction: [-30000, 0, 0, 0, 0, 0],
+	storeys: [
+		row('Base', 0, { dispX: 0, overturningX: 160000 }),
+		row('Level 1', 3, { dispX: 0.003, driftX: 0.001, forceX: 10000, shearX: 30000, overturningX: 60000 }),
+		row('Level 2', 6, { dispX: 0.0075, driftX: 0.0015, forceX: 20000, shearX: 20000, overturningX: 0 }),
+	],
+};
+
+suite('SAEngine - FEM charts', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('storey profiles: values at the levels, shears and drifts over their storeys', () => {
+		assert.deepStrictEqual(storeyProfile(EX, 'disp', 'X').map(p => [p.value, p.z]), [[0, 0], [0.003, 3], [0.0075, 6]]);
+		assert.deepStrictEqual(storeyProfile(EX, 'shear', 'X').map(p => [p.value, p.z]), [[30000, 0], [30000, 3], [20000, 3], [20000, 6]]);
+		assert.deepStrictEqual(storeyProfile(EX, 'drift', 'X').map(p => p.level), ['Level 1', 'Level 1', 'Level 2', 'Level 2']);
+		assert.deepStrictEqual(storeyProfile(EX, 'force', 'Y'), []);
+		assert.strictEqual(profilePeak(storeyProfile(EX, 'overturning', 'X'))?.value, 160000);
+	});
+
+	test('the drift limit is the allowable design drift over Cd/I, for earthquake results', () => {
+		assert.strictEqual(elasticDriftLimit({ ratio: 0.02, cd: 5, importance: 1.25, clause: '' }), 0.005);
+		assert.strictEqual(elasticDriftLimit({ ratio: 0.02, cd: null, importance: null, clause: '' }), 0.02);
+		assert.strictEqual(elasticDriftLimit(null), undefined);
+		assert.deepStrictEqual(['EX: Earthquake in X', '0.9D + 1.0EY', 'RX: Response spectrum X', '1.2D + 1.6L', 'WX: Wind in X', 'EQ-free'].map(isEarthquakeResult), [true, true, true, false, false, false]);
+	});
+
+	test('modal: the mode reaching 90 %, captions, the spectrum at a period', () => {
+		const modes = [
+			{ number: 1, period: 0.5, frequency: 2, uX: 0.7, uY: 0.01, sumUX: 0.7, sumUY: 0.01 },
+			{ number: 2, period: 0.4, frequency: 2.5, uX: 0.01, uY: 0.8, sumUX: 0.71, sumUY: 0.81 },
+			{ number: 3, period: 0.2, frequency: 5, uX: 0.2, uY: 0.1, sumUX: 0.91, sumUY: 0.91 },
+		];
+		assert.strictEqual(modesToReach(modes, 'X', 0.9), 3);
+		assert.strictEqual(modesToReach(modes.slice(0, 2), 'Y', 0.9), undefined);
+		assert.strictEqual(describeMode(modes[1], 2), 'Mode 2: T = 0.400 s, UX 1.0 %, UY 80.0 %');
+		assert.strictEqual(modeText({ number: 2, period: 0.121, ux: 0.033, uy: 0 }), 'Mode 2: T = 0.121 s, UX 3.3 %, UY 0.0 %');
+		assert.strictEqual(modeText({ number: 1, period: 0.5 }), 'Mode 1: T = 0.500 s');
+		const spectrum = { name: 'BNBC', periods: [0, 0.1, 1], accelerations: [1, 2, 0.2], damping: 0.05 };
+		assert.deepStrictEqual([spectrumAt(spectrum, 0.05), spectrumAt(spectrum, 0.55), spectrumAt(spectrum, 3)], [1.5, 1.1, 0.2]);
+		const table = modalTable({ case: 'Modal', modes, required: 0.9 });
+		assert.deepStrictEqual(table.rows[0], [1, 0.5, 2, 70, 1, 70, 1]);
+	});
+
+	test('members: values, envelope and extremes along the member', () => {
+		const detail: IFemMemberForces = {
+			member: 'B1', kind: 'beam', length: 2, elements: ['B1'], stations: [0, 1, 2], notes: [],
+			results: [
+				{ key: 'case:1', label: 'D', kind: 'static', forces: [[0, 1, 0, 0, 5, 0], [0, 0, 0, 0, -3, 0], [0, -1, 0, 0, 5, 0]], deflection: [[0, 0, 0], [0, 0, -0.002], [0, 0, 0]] },
+				{ key: 'combination:1', label: '1.4D', kind: 'combination', forces: [[0, 1.4, 0, 0, 7, 0], [0, 0, 0, 0, -4.2, 0], [0, -1.4, 0, 0, 7, 0]], deflection: [[0, 0, 0], [0, 0, -0.0028], [0, 0, 0]] },
+				{ key: 'combination:2', label: '0.9D', kind: 'combination', forces: [[0, 0.9, 0, 0, 4.5, 0], [0, 0, 0, 0, -2.7, 0], [0, -0.9, 0, 0, 4.5, 0]], deflection: [[0, 0, 0], [0, 0, -0.0018], [0, 0, 0]] },
+			],
+		};
+		assert.deepStrictEqual(memberValues(detail.results[0], 'My'), [5, -3, 5]);
+		assert.deepStrictEqual(memberValues(detail.results[0], 'u3'), [0, -0.002, 0]);
+		const envelope = memberEnvelope(detail, 'My');
+		assert.deepStrictEqual([envelope.max, envelope.min, envelope.minBy[1]], [[7, -2.7, 7], [4.5, -4.2, 4.5], '1.4D']);
+		assert.deepStrictEqual(extremes(detail.stations, [5, -3, 5]), { max: { value: 5, at: 0 }, min: { value: -3, at: 1 } });
+	});
+
+	test('a P-M curve is closed to the axis at both ends', () => {
+		const diagram: IFemColumnDiagram = {
+			type: 'C400', assumedBars: false, phiPnMax: 3000, phiTension: 1000, contour: null, governing: null, points: [],
+			curves: { x: [[-1000, 0], [500, 300], [3000, 150]], y: [] },
+		};
+		assert.deepStrictEqual(closedPmCurve(diagram, 'x'), [[0, -1000], [0, -1000], [300, 500], [150, 3000], [0, 3000]]);
+		assert.deepStrictEqual(closedPmCurve(diagram, 'y'), []);
+	});
+
+	test('tables: storeys in kN and mm, sorting, filtering, workbook sheets', () => {
+		const response: IFemStoryResponse = {
+			levels: [], results: [EX], modal: null, spectrum: null, driftLimit: null, pushover: [], histories: [], notes: [],
+		};
+		const table = storeyTable(response, { length: v => v * 1000, force: v => v / 1000, moment: v => v / 1000 });
+		assert.deepStrictEqual(table.rows[0].slice(0, 9), ['EX: Earthquake in X', 'Level 2', 6, 7.5, '', 0.0015, '', 20, '']);
+		assert.strictEqual(table.rows.length, 3);
+
+		const rows = [['C10', 3], ['C2', -1], ['B1', ''], ['C1', 10]];
+		assert.deepStrictEqual(sortRows(rows, 0, false).map(r => r[0]), ['B1', 'C1', 'C2', 'C10']);
+		assert.deepStrictEqual(sortRows(rows, 1, true).map(r => r[0]), ['C1', 'C10', 'C2', 'B1']);
+		assert.deepStrictEqual(filterRows([['C3', '1.4D'], ['C3', '0.9D + EX'], ['B1', '1.4D']], 'c3 1.4').map(r => r[1]), ['1.4D']);
+		assert.strictEqual(filterRows(rows, '  ').length, 4);
+
+		const sheets = workbookSheets([
+			{ caseName: 'D', tables: [{ name: 'Displacements', title: 'Node displacements', columns: ['Node', 'ux'], rows: [[1, 0.1]], notes: ['m'] }] },
+			{ caseName: '1.4D', tables: [{ name: 'Displacements', title: 'Node displacements', columns: ['Node', 'ux'], rows: [[1, 0.14]], notes: ['m'] }] },
+		], [table]);
+		assert.deepStrictEqual(sheets.map(s => s.name), ['Storey response', 'Displacements']);
+		assert.deepStrictEqual(sheets[1].rows, [['D', 1, 0.1], ['1.4D', 1, 0.14]]);
+		assert.deepStrictEqual(sheets[1].columns, ['Result', 'Node', 'ux']);
+	});
+
+	test('a new run opens at the first combination, else the first static case', () => {
+		const entry = (key: string, kind: IFemResultEntry['kind']): IFemResultEntry => ({ key, label: key, kind });
+		assert.strictEqual(defaultResult([entry('case:10', 'modal'), entry('case:1', 'static'), entry('combination:1', 'combination')])?.key, 'combination:1');
+		assert.strictEqual(defaultResult([entry('case:10', 'modal'), entry('case:1', 'static')])?.key, 'case:1');
+		assert.strictEqual(defaultResult([entry('case:10', 'modal')])?.key, 'case:10');
+		assert.strictEqual(defaultResult([]), undefined);
+	});
+
+	test('the members to pick: frame members by name, naturally sorted', () => {
+		assert.deepStrictEqual(memberNames([
+			{ name: 'C10', nodes: [1, 2] }, { name: 'C3#2', nodes: [2, 3] }, { name: 'C3', nodes: [3, 4] }, { name: 'B1', nodes: [4, 5] },
+			{ name: 'S1', nodes: [1, 2, 3, 4] }, { name: 'C3/embed#2', nodes: [5, 6] }, { nodes: [6, 7] },
+		]), ['B1', 'C3', 'C10']);
+	});
+
+	test('chart units, scale text, ticks', () => {
+		assert.deepStrictEqual(chartUnits('SI (m, N, kg, s, Pa)').force, { scale: 1e-3, unit: 'kN' });
+		assert.deepStrictEqual(chartUnits(undefined).length, { scale: 1, unit: '' });
+		assert.deepStrictEqual([scaleText(1), scaleText(Math.pow(2, 0.5)), scaleText(0.125), scaleText(32)], ['×1', '×1.4', '×0.13', '×32']);
+		assert.deepStrictEqual(niceTicks(0, 0.0072), [0, 0.002, 0.004, 0.006, 0.008]);
+		assert.deepStrictEqual(niceTicks(-45, 130), [-50, 0, 50, 100, 150]);
+		assert.deepStrictEqual(niceTicks(0, 0.868), [0, 0.2, 0.4, 0.6, 0.8, 1]); // up to the largest value, not below it
+		assert.deepStrictEqual([tickText(0), tickText(1234.5678), tickText(0.00012), tickText(250000)], ['0', '1235', '1.2e-4', '2.5e+5']);
+	});
+
+	test('a chart is drawn as SVG with its legend and caption', () => {
+		const parent = mainWindow.document.createElement('div');
+		const figure = renderChart(parent, {
+			title: 'Storey Shear', xLabel: 'Shear [kN]', yLabel: 'Elevation [m]',
+			series: [{ name: 'X', color: 'blue', points: [[30, 0], [30, 3], [20, 3], [20, 6]] }, { name: 'Y', color: 'orange', style: 'points', points: [[1, 1]] }],
+			guides: [{ axis: 'x', value: 25, label: 'limit' }],
+			caption: 'X: largest 30 kN at Level 1',
+		});
+		const svg = figure.querySelector('svg')!;
+		assert.strictEqual(svg.getAttribute('role'), 'img');
+		assert.ok(svg.getAttribute('aria-label')!.includes('largest 30 kN'));
+		assert.strictEqual(figure.querySelectorAll('.fem-chart-series').length, 2);
+		assert.strictEqual(figure.querySelectorAll('.fem-chart-guide').length, 1);
+		assert.deepStrictEqual([...figure.querySelectorAll('.fem-chart-legend-item')].map(e => e.textContent), ['X', 'Y', 'limit']);
+		assert.strictEqual(figure.querySelector('figcaption')?.textContent, 'X: largest 30 kN at Level 1');
+		// Every marker says its values.
+		assert.ok([...figure.querySelectorAll('circle title')].every(t => (t.textContent ?? '').length > 0));
+	});
+});
+
+suite('SAEngine - FEM view filters', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	// Two bays in X, one in Y, one storey 3 m high on a rigid diaphragm.
+	const model: IFilterModel = {
+		nodes: [
+			{ id: 1, coords: [0, 0, 0], restraint: [true] }, { id: 2, coords: [5, 0, 0], restraint: [true] }, { id: 3, coords: [10, 0, 0], restraint: [true] },
+			{ id: 4, coords: [0, 4, 0], restraint: [true] }, { id: 5, coords: [5, 4, 0], restraint: [true] }, { id: 6, coords: [10, 4, 0], restraint: [true] },
+			{ id: 11, coords: [0, 0, 3] }, { id: 12, coords: [5, 0, 3] }, { id: 13, coords: [10, 0, 3] },
+			{ id: 14, coords: [0, 4, 3] }, { id: 15, coords: [5, 4, 3] }, { id: 16, coords: [10, 4, 3] },
+			{ id: 20, coords: [5, 2, 3] },
+		],
+		elements: [
+			{ id: 1, name: 'C1', type: 'ElasticBeamColumn', nodes: [1, 11] }, { id: 2, name: 'C2', type: 'ElasticBeamColumn', nodes: [2, 12] },
+			{ id: 3, name: 'C3', type: 'ElasticBeamColumn', nodes: [3, 13] }, { id: 4, name: 'C4', type: 'ElasticBeamColumn', nodes: [4, 14] },
+			{ id: 5, name: 'C5', type: 'ElasticBeamColumn', nodes: [5, 15] }, { id: 6, name: 'C6', type: 'ElasticBeamColumn', nodes: [6, 16] },
+			{ id: 7, name: 'B1', type: 'ElasticBeamColumn', nodes: [11, 12] }, { id: 8, name: 'B1#2', type: 'ElasticBeamColumn', nodes: [12, 13] },
+			{ id: 9, name: 'B2', type: 'ElasticBeamColumn', nodes: [12, 15] },
+			{ id: 10, name: 'S1', type: 'Shell', nodes: [11, 12, 15, 14] },
+		],
+		mp_constraints: [{ type: 'RigidDiaphragm', retained_node: 20 }],
+	};
+
+	test('levels from the diaphragms and the supports; grid lines shared by columns', () => {
+		assert.deepStrictEqual(modelLevels(model), [0, 3]);
+		assert.deepStrictEqual(gridLines(model), { x: [0, 5, 10], y: [0, 4] });
+		const massOnly: IFilterModel = { ...model, mp_constraints: [], nodes: model.nodes.map(n => n.coords[2] === 3 ? { ...n, mass: [100, 100, 0] } : n) };
+		assert.deepStrictEqual(modelLevels(massOnly), [0, 3]);
+	});
+
+	test('a plan, an elevation and a storey show their elements', () => {
+		assert.strictEqual(visibleElements(model, { kind: 'all' }), undefined);
+		assert.deepStrictEqual([...visibleElements(model, { kind: 'plan', z: 3, name: 'Roof' })!].sort((a, b) => a - b), [7, 8, 9, 10]);
+		assert.deepStrictEqual([...visibleElements(model, { kind: 'elevation', axis: 'y', at: 0 })!].sort((a, b) => a - b), [1, 2, 3, 7, 8]);
+		assert.deepStrictEqual([...visibleElements(model, { kind: 'elevation', axis: 'x', at: 5 })!].sort((a, b) => a - b), [2, 5, 9]);
+		assert.strictEqual(visibleElements(model, { kind: 'storey', bottom: 0, top: 3, name: 'Roof' })!.size, 10);
+		assert.deepStrictEqual([cameraOf({ kind: 'plan', z: 3, name: '' }), cameraOf({ kind: 'elevation', axis: 'x', at: 0 }), cameraOf({ kind: 'elevation', axis: 'y', at: 0 }), cameraOf({ kind: 'all' })], ['top', 'side', 'front', '3d']);
+		assert.deepStrictEqual(viewChoices(model).map(v => v.choice.kind), ['all', 'plan', 'elevation', 'elevation', 'elevation', 'elevation', 'elevation', 'storey']);
+	});
+});

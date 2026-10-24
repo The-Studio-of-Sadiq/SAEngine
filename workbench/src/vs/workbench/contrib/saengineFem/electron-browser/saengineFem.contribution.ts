@@ -27,6 +27,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { Extensions as OutputExtensions, IOutputChannelRegistry } from '../../../services/output/common/output.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { resultsFolder } from '../browser/femResultsBar.js';
+import { FemModelEditorInput } from '../browser/femModelEditorInput.js';
 import { MAP_TILE_ATTRIBUTION_SETTING, MAP_TILE_URL_SETTING, QGIS_PROGRAM_SETTING } from '../../saengineSoil/browser/soilDocument.js';
 import { OSM_TILE_URL } from '../../saengineSoil/browser/soilMap.js';
 import { FEM_OUTPUT_CHANNEL_ID, FEM_PYTHON_SETTING, FemAnalysisRunner } from './femAnalysisRunner.js';
@@ -100,7 +101,11 @@ registerAction2(class extends Action2 {
 			notificationService.info(localize('femRunAnalysis.noModel', "Open an .osmodel file to run its analysis."));
 			return;
 		}
-		await runner.run(model);
+		const outcome = await runner.run(model);
+		if (outcome.status === 'done') {
+			// The results open in the 3D view, not in the log (the log stays under Show Log).
+			await editorService.openEditor(new FemModelEditorInput(model), { pinned: true });
+		}
 	}
 });
 
@@ -490,6 +495,32 @@ CommandsRegistry.registerCommand('saengine.fem.seismicDesign', async (accessor, 
 CommandsRegistry.registerCommand('saengine.fem.secondOrder', async (accessor, args: IDesignCommandArgs) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	return accessor.get(IFemSolverService).engine(python, 'fem/secondOrder', { outDir: args.outDir, projectPath: args.projectPath });
+});
+
+/**
+ * The FEM results' charts, member detail window and Excel export (femResultsView.ts): the storey
+ * response of a run, a member's forces along it, the columns' interaction diagrams (worked out
+ * once per run by the design checks, minutes the first time) and tables written to `.xlsx`.
+ * Internal: called by id.
+ */
+CommandsRegistry.registerCommand('saengine.fem.storyResponse', async (accessor, model: URI) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'fem/storyResponse', { outDir: resultsFolder(model).fsPath, projectPath: model.fsPath });
+});
+
+CommandsRegistry.registerCommand('saengine.fem.memberForces', async (accessor, model: URI, member: string) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'fem/memberForces', { outDir: resultsFolder(model).fsPath, projectPath: model.fsPath, member });
+});
+
+CommandsRegistry.registerCommand('saengine.fem.columnInteraction', async (accessor, model: URI, member?: string) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'fem/columnInteraction', { outDir: resultsFolder(model).fsPath, projectPath: model.fsPath, member });
+});
+
+CommandsRegistry.registerCommand('saengine.fem.exportXlsx', async (accessor, target: URI, sheets: readonly object[]) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'fem/exportXlsx', { path: target.fsPath, sheets });
 });
 
 CommandsRegistry.registerCommand('saengine.design.proposal', async (accessor, args: IDesignCommandArgs) => {

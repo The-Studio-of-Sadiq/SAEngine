@@ -545,3 +545,75 @@
 .saengine-fem-model-editor .fem-ssi-problem {
 	color: var(--vscode-errorForeground);
 }
+
+/* ── the selected member's details button in the properties panel ─────────── */
+
+.saengine-fem-model-editor .fem-member-link {
+	margin: var(--sa-space-2, 8px) 0;
+}
+
+.saengine-fem-model-editor .fem-member-link .monaco-button {
+	width: auto;
+	padding: 3px 10px;
+}
+
+/* ── scale slider, member labels toggle, diagram legend, view picker ──────── */
+
+.saengine-fem-model-editor .fem-results-scale-slider {
+	width: 110px;
+}
+
+.saengine-fem-model-editor .fem-results-group.scale .sa-frame-icon-button.checked {
+	background: var(--vscode-inputOption-activeBackground);
+	color: var(--vscode-inputOption-activeForeground);
+	outline: 1px solid var(--vscode-inputOption-activeBorder, transparent);
+}
+
+.saengine-fem-model-editor .fem-diagram-swatch {
+	width: 10px;
+	height: 10px;
+	border-radius: 2px;
+	flex: none;
+}
+
+/* the diagram colours of the 3D view (theme charts blue and red) */
+.saengine-fem-model-editor .fem-diagram-swatch.positive {
+	background: var(--vscode-charts-blue);
+}
+
+.saengine-fem-model-editor .fem-diagram-swatch.negative {
+	background: var(--vscode-charts-red);
+}
+
+.saengine-fem-model-editor .fem-results-select.view {
+	width: 230px;
+}
+
+/* ── tables: filter and sortable headings ─────────────────────────────────── */
+
+.saengine-fem-model-editor .fem-tables-filter {
+	width: 200px;
+}
+
+.saengine-fem-model-editor .fem-tables-filter .monaco-inputbox {
+	height: 22px;
+	border-radius: var(--sa-radius, 4px);
+}
+
+.saengine-fem-model-editor .fem-table-sort {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+	padding: 0;
+	border: none;
+	background: none;
+	color: inherit;
+	font: inherit;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.saengine-fem-model-editor .fem-table-sort:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}

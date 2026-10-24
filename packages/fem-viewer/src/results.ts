@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as THREE from 'three';
-import { FemModel, FemNode, FemResultDisplay, FemResultElement, FemResultQuantity, FemResultView, FORCE_COMPONENTS, formatUtilisation, outerFaces, SHELL_COMPONENTS, SOLID_COMPONENTS, utilisationBand } from './model.js';
+import { FemModel, FemNode, FemResultDisplay, FemResultElement, FemResultQuantity, FemResultView, FemVisibleElements, FORCE_COMPONENTS, formatUtilisation, outerFaces, SHELL_COMPONENTS, SOLID_COMPONENTS, utilisationBand } from './model.js';
 
 export interface ResultColors {
 	readonly deformed: string;
@@ -32,6 +32,9 @@ export function contourColor(t: number): [number, number, number] {
 	return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
 }
 
+/** Most member labels drawn at once (each is a sprite): beyond it, the largest values only. */
+const MAX_MEMBER_LABELS = 400;
+
 /** Share of the model size the largest value is drawn at (scale 1). */
 const DEFORMED_SHARE = 0.06;
 const DIAGRAM_SHARE = 0.08;
@@ -54,18 +57,37 @@ export class ResultOverlay {
 	readonly group = new THREE.Group();
 	private readonly modelElements: Map<number, FemModel['elements'][number]>;
 	private animated: { readonly attribute: THREE.BufferAttribute; readonly base: Float32Array; readonly delta: Float32Array } | undefined;
+	/** The labels with their size under a perspective camera (see {@link setLabelScale}). */
+	private readonly labels: { readonly sprite: THREE.Sprite; readonly width: number; readonly height: number }[] = [];
 
 	constructor(
 		private readonly model: FemModel,
-		private readonly results: FemResultView,
+		private results: FemResultView,
 		private readonly display: FemResultDisplay,
 		private readonly colors: ResultColors,
 		/** Model size (bounding box diagonal, world units). */
 		private readonly size: number,
 		private readonly toWorld: (coords: readonly number[]) => THREE.Vector3,
 		private readonly selectedElement: number | undefined,
+		/** Only these elements (and their nodes) are drawn; all when undefined. */
+		visible: FemVisibleElements = undefined,
 	) {
 		this.modelElements = new Map(model.elements.map(e => [e.id, e]));
+		if (visible) {
+			// The part of the result that belongs to what is shown.
+			const nodes = new Set<number>();
+			for (const id of visible) {
+				this.modelElements.get(id)?.nodes.forEach(n => nodes.add(n));
+			}
+			this.results = {
+				...results,
+				nodes: results.nodes.filter(n => nodes.has(n[0])),
+				reactions: results.reactions.filter(r => nodes.has(r[0])),
+				elements: results.elements.filter(e => visible.has(e.id)),
+				shells: results.shells?.filter(s => visible.has(s.id)),
+				solids: results.solids?.filter(s => visible.has(s.id)),
+			};
+		}
 		if (display.show === 'deformed') {
 			this.drawDeformed();
 		} else if (SHELL_COMPONENTS.includes(display.show)) {
@@ -99,7 +121,19 @@ export class ResultOverlay {
 		animated.attribute.needsUpdate = true;
 	}
 
+	/**
+	 * Labels keep their size on screen without attenuation only under a perspective camera; an
+	 * orthographic one (plans, elevations) gives `factor`, the world size of the same share of
+	 * the view, by which their sizes are multiplied.
+	 */
+	setLabelScale(factor: number): void {
+		for (const { sprite, width, height } of this.labels) {
+			sprite.scale.set(width * factor, height * factor, 1);
+		}
+	}
+
 	dispose(): void {
+		this.labels.length = 0;
 		for (const child of [...this.group.children]) {
 			this.group.remove(child);
 			child.traverse(object => {
@@ -315,8 +349,65 @@ export class ResultOverlay {
 			lines.setAttribute('color', new THREE.Float32BufferAttribute(outlineColors, 3));
 			this.group.add(new THREE.LineSegments(lines, new THREE.LineBasicMaterial({ vertexColors: true })));
 		}
-		if (largest && this.selectedElement === undefined) {
+		if (this.display.memberLabels && this.selectedElement === undefined) {
+			this.labelMembers(component, quantityKind);
+		} else if (largest && this.selectedElement === undefined) {
 			this.addLabel(this.display.format(quantityKind, largest.value), largest.at, largest.value >= 0 ? this.colors.positive : this.colors.negative);
+		}
+	}
+
+	/**
+	 * The largest and the least value of every member (the elements named `B1`, `B1#2`, ...),
+	 * at the diagram's tip; zero values and values below 1 % of the model's peak are left out.
+	 */
+	private labelMembers(component: number, quantityKind: 'force' | 'moment'): void {
+		const nodes = this.nodes();
+		const [axis, sign] = DIAGRAM_SIDE[FORCE_COMPONENTS[component]];
+		let peak = 0;
+		for (const element of this.results.elements) {
+			for (const f of element.forces ?? []) {
+				peak = Math.max(peak, Math.abs(f[component]));
+			}
+		}
+		if (peak <= 0) {
+			return;
+		}
+		const factor = this.display.scale * DIAGRAM_SHARE * this.size / peak;
+		const members = new Map<string, { max?: { value: number; at: THREE.Vector3 }; min?: { value: number; at: THREE.Vector3 } }>();
+		for (const element of this.results.elements) {
+			const forces = element.forces;
+			if (!forces?.length) {
+				continue;
+			}
+			const side = this.toWorld(element[axis]).normalize().multiplyScalar(sign * factor);
+			const member = element.name.split('#')[0];
+			const entry = members.get(member) ?? {};
+			forces.forEach((f, k) => {
+				const value = f[component];
+				const base = this.stationPoint(element, k, forces.length, nodes);
+				if (!base) {
+					return;
+				}
+				if (!entry.max || value > entry.max.value) {
+					entry.max = { value, at: base.clone().addScaledVector(side, value) };
+				}
+				if (!entry.min || value < entry.min.value) {
+					entry.min = { value, at: base.clone().addScaledVector(side, value) };
+				}
+			});
+			members.set(member, entry);
+		}
+		const labels: { value: number; at: THREE.Vector3 }[] = [];
+		for (const { max, min } of members.values()) {
+			for (const extreme of [max, min]) {
+				if (extreme && Math.abs(extreme.value) >= 0.01 * peak && !labels.some(l => l.at.distanceToSquared(extreme.at) < 1e-12)) {
+					labels.push(extreme);
+				}
+			}
+		}
+		labels.sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+		for (const label of labels.slice(0, MAX_MEMBER_LABELS)) {
+			this.addLabel(this.display.format(quantityKind, label.value), label.at, label.value >= 0 ? this.colors.positive : this.colors.negative, 0.032);
 		}
 	}
 
@@ -510,7 +601,7 @@ export class ResultOverlay {
 	}
 
 	/** A text label at `position`, a constant size on screen. */
-	private addLabel(text: string, position: THREE.Vector3, color: string): void {
+	private addLabel(text: string, position: THREE.Vector3, color: string, height = 0.04): void {
 		const ratio = 2;
 		const fontSize = 12 * ratio;
 		const canvas = document.createElement('canvas');
@@ -532,8 +623,8 @@ export class ResultOverlay {
 		const texture = new THREE.CanvasTexture(canvas);
 		texture.colorSpace = THREE.SRGBColorSpace;
 		const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, sizeAttenuation: false, depthTest: false, transparent: true }));
-		const height = 0.04;
 		sprite.scale.set(height * canvas.width / canvas.height, height, 1);
+		this.labels.push({ sprite, width: height * canvas.width / canvas.height, height });
 		sprite.center.set(0, 0);
 		sprite.position.copy(position);
 		sprite.renderOrder = 10;
