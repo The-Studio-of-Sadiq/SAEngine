@@ -707,6 +707,9 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 						{
 							$ref: '#/$defs/UShapeProfile',
 						},
+						{
+							$ref: '#/$defs/DesignedProfile',
+						},
 					],
 					title: 'Profile',
 				},
@@ -866,6 +869,9 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 						},
 						{
 							$ref: '#/$defs/UShapeProfile',
+						},
+						{
+							$ref: '#/$defs/DesignedProfile',
 						},
 					],
 					title: 'Profile',
@@ -1181,6 +1187,9 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 						{
 							$ref: '#/$defs/UShapeProfile',
 						},
+						{
+							$ref: '#/$defs/DesignedProfile',
+						},
 					],
 					title: 'Profile',
 				},
@@ -1249,6 +1258,29 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			},
 			required: ['count', 'dia'],
 			title: 'CouplingDiagonal',
+			type: 'object',
+		},
+		DesignedProfile: {
+			additionalProperties: false,
+			description: 'A section drawn in the Section Designer (``04 Objects/sections/<section>.json``, see\n:mod:`saengine.library.section_designer`): L/T/C columns, core walls, built-up steel; IFC\nIfcArbitraryProfileDefWithVoids.',
+			properties: {
+				shape: {
+					const: 'designed',
+					default: 'designed',
+					title: 'Shape',
+					type: 'string',
+				},
+				section: {
+					description: 'Id of the designed section (04 Objects/sections).',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Section',
+					type: 'string',
+				},
+			},
+			required: ['section'],
+			title: 'DesignedProfile',
 			type: 'object',
 		},
 		EndPlateConnection: {
@@ -1757,6 +1789,9 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 						},
 						{
 							$ref: '#/$defs/UShapeProfile',
+						},
+						{
+							$ref: '#/$defs/DesignedProfile',
 						},
 					],
 					title: 'Profile',
@@ -7161,6 +7196,10 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		depth: 75,
 		width: 75,
 		thickness: 6,
+	},
+	DesignedProfile: {
+		shape: 'designed',
+		section: 'SD1',
 	},
 	UShapeProfile: {
 		shape: 'U',

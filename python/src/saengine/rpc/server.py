@@ -8,6 +8,8 @@ Methods:
 - ``results/list`` ``{outDir, projectPath}`` -> the results that can be shown in 3D
 - ``results/view`` ``{outDir, projectPath, key, mode?}`` -> one result's shape and diagrams
 - ``library/check`` ``{kind, text, materialsText?}`` -> rule violations in a library file
+- ``section/analyse`` ``{text, materialsText?, projectRoot?, capacity?, surface?}`` -> a designed
+  section's properties, interaction diagrams and P-Mx-My surface (Section Designer)
 - ``structure/shapeGeometry`` ``{shape}`` -> a parametric shape's members, areas and supports
 - ``structure/importGeometry`` ``{path, options, objectsText?}`` -> a DXF, DWG, IFC or Rhino
   file's
@@ -263,6 +265,31 @@ def create_server() -> JsonRPCServer:
     def _check_library(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.check_library(args["kind"], args["text"], args.get("materialsText"))
+
+    @_in_worker
+    def _section_analyse_worker(params: Any) -> dict[str, Any]:
+        from saengine.library.section_designer import analyse
+
+        args = _plain(params)
+        return analyse(
+            args["text"],
+            args.get("materialsText"),
+            args.get("projectRoot"),
+            capacity=args.get("capacity", True),
+            surface=args.get("surface", False),
+        )
+
+    @server.feature("section/analyse")
+    async def _section_analyse(params: Any) -> dict[str, Any]:
+        # The first imports of numpy, sectionproperties and concreteproperties are not safe from
+        # two threads at once (numpy's C extension half-initialised): done here, on the server's
+        # thread, before the analysis goes to a worker.
+        import concreteproperties.concrete_section  # noqa: F401
+        import sectionproperties.analysis.section  # noqa: F401
+
+        import saengine.library.section_designer  # noqa: F401
+
+        return await _section_analyse_worker(params)
 
     @server.feature("bim/generate")
     def _generate_building(params: Any) -> dict[str, Any]:

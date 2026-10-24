@@ -549,7 +549,8 @@ export type EngineMethod =
 	| 'fem/seismicDesign' | 'fem/secondOrder'
 	| 'soil/location' | 'soil/gisExport' | 'soil/gisImport' | 'soil/qgisProgram'
 	| 'drawings/generate' | 'drawings/list' | 'drawings/progress'
-	| 'import/structural' | 'library/steelSections' | 'library/generateBuilding';
+	| 'import/structural' | 'library/steelSections' | 'library/generateBuilding'
+	| 'section/analyse';
 
 export interface IQgisOpenRequest {
 	/** Absolute path of the `.gpkg`, `.geojson` or `.json` file. */

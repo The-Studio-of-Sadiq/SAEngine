@@ -129,6 +129,17 @@ CommandsRegistry.registerCommand('saengine.library.check', async (accessor, kind
 });
 
 /**
+ * Properties and interaction diagrams of a designed section (the Section Designer's text) with
+ * the Python models; the project's materials and code pack apply. Internal: the Section
+ * Designer calls it by id.
+ */
+CommandsRegistry.registerCommand('saengine.section.analyse', async (accessor, text: string, options?: { capacity?: boolean; surface?: boolean }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	const projectRoot = accessor.get(ISaengineProjectService).project?.root.fsPath;
+	return accessor.get(IFemSolverService).engine(python, 'section/analyse', { text, projectRoot, capacity: options?.capacity ?? true, surface: options?.surface ?? false });
+});
+
+/**
  * Generates the building model (`bim.json` text) from the floor plan with the Python models.
  * Internal: the Building Model editor calls it by id.
  */
