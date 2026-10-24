@@ -1,0 +1,437 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * What the FEM results' charts, member windows and tables show, worked out from the backend's
+ * answers (`saengine.fem.story_response`, `saengine.fem.member_detail`): plain data, no DOM.
+ * Values stay in the model's units (SAEngine: m, N, N·m); the views format them.
+ */
+
+import { safeIntl } from '../../../../base/common/date.js';
+import { localize } from '../../../../nls.js';
+import { FemTableCell } from '../../../../platform/saengine/common/femSolver.js';
+
+/** `(model: URI) => IFemStoryResponse`: the storey response and curves of the last run. */
+export const FEM_STORY_RESPONSE_COMMAND = 'saengine.fem.storyResponse';
+/** `(model: URI, member: string) => IFemMemberForces`. */
+export const FEM_MEMBER_FORCES_COMMAND = 'saengine.fem.memberForces';
+/** `(model: URI, member?: string) => IFemColumnInteraction`: slow the first time after a run. */
+export const FEM_COLUMN_INTERACTION_COMMAND = 'saengine.fem.columnInteraction';
+/** `(target: URI, sheets: IFemSheet[]) => { path, sheets }`: an Excel workbook. */
+export const FEM_EXPORT_XLSX_COMMAND = 'saengine.fem.exportXlsx';
+
+export type FemAxis2 = 'X' | 'Y';
+
+export interface IFemStoreyRow {
+	readonly name: string;
+	/** Elevation of the level [m]. */
+	readonly z: number;
+	/** Height of the storey below the level [m]; null at the base. */
+	readonly height: number | null;
+	readonly dispX: number | null;
+	readonly dispY: number | null;
+	readonly avgDispX: number | null;
+	readonly avgDispY: number | null;
+	/** The storey below the level: largest drift ratio, null at the base. */
+	readonly driftX: number | null;
+	readonly driftY: number | null;
+	/** Force at the level, shear in the storey below it. */
+	readonly forceX: number | null;
+	readonly forceY: number | null;
+	readonly shearX: number | null;
+	readonly shearY: number | null;
+	/** Overturning moment at the level from the forces above it. */
+	readonly overturningX: number | null;
+	readonly overturningY: number | null;
+}
+
+export interface IFemStoryResult {
+	readonly key: string;
+	readonly label: string;
+	readonly kind: 'static' | 'combination' | 'spectrum';
+	/** Bottom up, the base first. */
+	readonly storeys: readonly IFemStoreyRow[];
+	/** Sum over the supports: Fx, Fy, Fz, Mx, My, Mz; null for a response spectrum case. */
+	readonly baseReaction: readonly number[] | null;
+}
+
+export interface IFemModeRow {
+	readonly number: number;
+	readonly period: number | null;
+	readonly frequency: number | null;
+	/** Mass participation ratios (0 … 1) and their running sums; null when not known. */
+	readonly uX: number | null;
+	readonly uY: number | null;
+	readonly sumUX: number | null;
+	readonly sumUY: number | null;
+}
+
+export interface IFemStoryResponse {
+	readonly levels: readonly { readonly z: number; readonly name: string }[];
+	readonly results: readonly IFemStoryResult[];
+	readonly modal: { readonly case: string; readonly modes: readonly IFemModeRow[]; readonly required: number } | null;
+	readonly spectrum: { readonly name: string; readonly periods: readonly number[]; readonly accelerations: readonly number[]; readonly damping: number | null } | null;
+	readonly driftLimit: { readonly ratio: number; readonly cd: number | null; readonly importance: number | null; readonly clause: string } | null;
+	readonly pushover: readonly { readonly key: string; readonly label: string; readonly displacement: readonly number[]; readonly shear: readonly number[] }[];
+	readonly histories: readonly { readonly key: string; readonly label: string; readonly node: number; readonly time: readonly number[]; readonly displacement: readonly (readonly number[])[] }[];
+	readonly notes: readonly string[];
+}
+
+export interface IFemMemberResult {
+	readonly key: string;
+	readonly label: string;
+	readonly kind: 'static' | 'combination';
+	/** N, Vy, Vz, T, My, Mz at each station (member axes, tension positive). */
+	readonly forces: readonly (readonly number[])[];
+	/** Local u1, u2, u3 relative to the chord between the ends. */
+	readonly deflection: readonly (readonly number[])[];
+}
+
+export interface IFemMemberForces {
+	readonly member: string;
+	readonly kind: 'column' | 'beam' | 'brace';
+	readonly length: number;
+	readonly elements: readonly string[];
+	/** Distance of each station from the member's start [m]. */
+	readonly stations: readonly number[];
+	readonly results: readonly IFemMemberResult[];
+	readonly notes: readonly string[];
+}
+
+export interface IFemColumnDiagram {
+	readonly type: string;
+	readonly assumedBars: boolean;
+	readonly phiPnMax: number;
+	readonly phiTension: number;
+	/** [P kN, φMn kN·m] from tension to φPn,max, about the section's x and y axes. */
+	readonly curves: { readonly x: readonly (readonly number[])[]; readonly y: readonly (readonly number[])[] };
+	/** The φMnx-φMny contour [kN·m] at the governing axial force. */
+	readonly contour: readonly (readonly number[])[] | null;
+	readonly governing: { readonly utilisation: number; readonly P: number; readonly combination: string; readonly where: string } | null;
+	readonly points: readonly { readonly combination: string; readonly where: string; readonly P: number; readonly Mx: number; readonly My: number }[];
+}
+
+export interface IFemColumnInteraction {
+	readonly columns: { readonly [member: string]: IFemColumnDiagram };
+	readonly notes: readonly string[];
+}
+
+/** A table as the tables panel shows it and the export writes it. */
+export interface IFemSheet {
+	readonly name: string;
+	readonly columns: readonly string[];
+	readonly rows: readonly (readonly FemTableCell[])[];
+	readonly notes?: readonly string[];
+}
+
+// ───────────────────────────── storey response ─────────────────────────────
+
+export type StoreyQuantity = 'disp' | 'drift' | 'force' | 'shear' | 'overturning';
+
+export const STOREY_QUANTITIES: readonly StoreyQuantity[] = ['disp', 'drift', 'shear', 'force', 'overturning'];
+
+export function storeyQuantityLabel(quantity: StoreyQuantity): string {
+	switch (quantity) {
+		case 'disp': return localize('femChart.disp', "Storey Displacement");
+		case 'drift': return localize('femChart.drift', "Inter-Storey Drift Ratio");
+		case 'force': return localize('femChart.force', "Storey Forces");
+		case 'shear': return localize('femChart.shear', "Storey Shear");
+		case 'overturning': return localize('femChart.overturning', "Overturning Moment");
+	}
+}
+
+/** A point of a storey profile: the value and the elevation [m] it is drawn at. */
+export interface IProfilePoint {
+	readonly value: number;
+	readonly z: number;
+	readonly level: string;
+}
+
+function rowValue(row: IFemStoreyRow, quantity: StoreyQuantity, axis: FemAxis2): number | null {
+	switch (quantity) {
+		case 'disp': return axis === 'X' ? row.dispX : row.dispY;
+		case 'drift': return axis === 'X' ? row.driftX : row.driftY;
+		case 'force': return axis === 'X' ? row.forceX : row.forceY;
+		case 'shear': return axis === 'X' ? row.shearX : row.shearY;
+		case 'overturning': return axis === 'X' ? row.overturningX : row.overturningY;
+	}
+}
+
+/**
+ * The profile of `quantity` up the building, as ETABS draws its story response plots: values at
+ * the levels (displacements, forces, overturning), or constant over each storey (shear, drift:
+ * a vertical segment from the storey's bottom to its top level).
+ */
+export function storeyProfile(result: IFemStoryResult, quantity: StoreyQuantity, axis: FemAxis2): IProfilePoint[] {
+	const rows = result.storeys;
+	const points: IProfilePoint[] = [];
+	const perStorey = quantity === 'shear' || quantity === 'drift';
+	rows.forEach((row, k) => {
+		const value = rowValue(row, quantity, axis);
+		if (value === null) {
+			return;
+		}
+		if (perStorey && k > 0) {
+			points.push({ value, z: rows[k - 1].z, level: row.name }, { value, z: row.z, level: row.name });
+		} else if (!perStorey) {
+			points.push({ value, z: row.z, level: row.name });
+		}
+	});
+	return points;
+}
+
+/** The largest magnitude of a profile and where it is (undefined for an empty profile). */
+export function profilePeak(points: readonly IProfilePoint[]): IProfilePoint | undefined {
+	let best: IProfilePoint | undefined;
+	for (const p of points) {
+		if (!best || Math.abs(p.value) > Math.abs(best.value)) {
+			best = p;
+		}
+	}
+	return best;
+}
+
+/**
+ * The drift ratio the analysis may reach: BNBC 2020's allowable design drift Δa/hsx divided by
+ * Cd/I (the design drift is Cd·δ/I, Part 6 Sec 2.5.7.1). Undefined without the limit.
+ */
+export function elasticDriftLimit(limit: IFemStoryResponse['driftLimit']): number | undefined {
+	if (!limit) {
+		return undefined;
+	}
+	const amplification = limit.cd && limit.importance ? limit.cd / limit.importance : 1;
+	return limit.ratio / amplification;
+}
+
+/** Whether a result is an earthquake load (a static E case, an RS case, or a combination with one). */
+export function isEarthquakeResult(label: string): boolean {
+	return /(^|[^A-Za-z])(E|EX|EY|RX|RY|Eh|Ev)([^A-Za-z]|$)/.test(label);
+}
+
+// ───────────────────────────── modal ─────────────────────────────
+
+/** The first mode whose cumulative participation reaches `required` in an axis, or undefined. */
+export function modesToReach(modes: readonly IFemModeRow[], axis: FemAxis2, required: number): number | undefined {
+	return modes.find(m => (axis === 'X' ? m.sumUX : m.sumUY) !== null && (axis === 'X' ? m.sumUX! : m.sumUY!) >= required - 1e-9)?.number;
+}
+
+/** "Mode 2: T = 0.121 s, UX 3.3 %, UY 0.0 %": the caption of a mode shape. */
+export function describeMode(mode: IFemModeRow | undefined, number: number): string {
+	if (!mode || mode.period === null) {
+		return localize('femChart.modeOnly', "Mode {0}", number);
+	}
+	const pct = (v: number | null) => v === null ? '–' : (100 * v).toFixed(1);
+	return mode.uX === null && mode.uY === null
+		? localize('femChart.modePeriod', "Mode {0}: T = {1} s", number, mode.period.toFixed(3))
+		: localize('femChart.modeCaption', "Mode {0}: T = {1} s, UX {2} %, UY {3} %", number, mode.period.toFixed(3), pct(mode.uX), pct(mode.uY));
+}
+
+/** The modal periods on the design spectrum: [T, Sa(T)] by linear interpolation, clamped. */
+export function spectrumAt(spectrum: NonNullable<IFemStoryResponse['spectrum']>, period: number): number {
+	const p = spectrum.periods;
+	const a = spectrum.accelerations;
+	if (!p.length) {
+		return 0;
+	}
+	if (period <= p[0]) {
+		return a[0];
+	}
+	for (let k = 1; k < p.length; k++) {
+		if (period <= p[k]) {
+			const t = (period - p[k - 1]) / (p[k] - p[k - 1]);
+			return a[k - 1] + t * (a[k] - a[k - 1]);
+		}
+	}
+	return a[a.length - 1];
+}
+
+// ───────────────────────────── members ─────────────────────────────
+
+export const MEMBER_COMPONENTS = ['N', 'Vy', 'Vz', 'T', 'My', 'Mz'] as const;
+export type MemberComponent = typeof MEMBER_COMPONENTS[number];
+
+/** The value at each station of one force component (or deflection u2/u3) of a result. */
+export function memberValues(result: IFemMemberResult, component: MemberComponent | 'u2' | 'u3'): number[] {
+	if (component === 'u2' || component === 'u3') {
+		const index = component === 'u2' ? 1 : 2;
+		return result.deflection.map(d => d[index]);
+	}
+	const index = MEMBER_COMPONENTS.indexOf(component);
+	return result.forces.map(f => f[index]);
+}
+
+/** Per station the largest and least value over the combinations (the envelope). */
+export function memberEnvelope(detail: IFemMemberForces, component: MemberComponent | 'u2' | 'u3'): { readonly max: number[]; readonly min: number[]; readonly maxBy: string[]; readonly minBy: string[] } {
+	const combos = detail.results.filter(r => r.kind === 'combination');
+	const used = combos.length ? combos : detail.results;
+	const max = detail.stations.map(() => -Infinity);
+	const min = detail.stations.map(() => Infinity);
+	const maxBy = detail.stations.map(() => '');
+	const minBy = detail.stations.map(() => '');
+	for (const result of used) {
+		memberValues(result, component).forEach((v, k) => {
+			if (v > max[k]) {
+				max[k] = v;
+				maxBy[k] = result.label;
+			}
+			if (v < min[k]) {
+				min[k] = v;
+				minBy[k] = result.label;
+			}
+		});
+	}
+	return { max, min, maxBy, minBy };
+}
+
+/** The largest and the least value of a diagram and where they are [m from the start]. */
+export function extremes(stations: readonly number[], values: readonly number[]): { readonly max: { readonly value: number; readonly at: number }; readonly min: { readonly value: number; readonly at: number } } | undefined {
+	if (!values.length) {
+		return undefined;
+	}
+	let hi = 0;
+	let lo = 0;
+	values.forEach((v, k) => {
+		if (v > values[hi]) {
+			hi = k;
+		}
+		if (v < values[lo]) {
+			lo = k;
+		}
+	});
+	return { max: { value: values[hi], at: stations[hi] }, min: { value: values[lo], at: stations[lo] } };
+}
+
+/**
+ * A P-M curve closed into the diagram engineers draw: from pure tension along the computed
+ * capacities up to φPn,max, then the cap to the P axis.
+ */
+export function closedPmCurve(diagram: IFemColumnDiagram, axis: 'x' | 'y'): number[][] {
+	const curve = diagram.curves[axis].map(p => [p[1], p[0]]); // [M, P]
+	if (!curve.length) {
+		return [];
+	}
+	return [[0, curve[0][1]], ...curve, [0, diagram.phiPnMax]];
+}
+
+// ───────────────────────────── tables ─────────────────────────────
+
+/** The storey response of every result as one table (SI as the model; kN, mm in the views). */
+export function storeyTable(response: IFemStoryResponse, format: { length(v: number): number; force(v: number): number; moment(v: number): number }): IFemSheet {
+	const columns = [
+		localize('femTable.result', "Result"), localize('femTable.level', "Level"), localize('femTable.elevation', "Elevation [m]"),
+		localize('femTable.dispX', "Ux max [mm]"), localize('femTable.dispY', "Uy max [mm]"),
+		localize('femTable.driftX', "Drift X"), localize('femTable.driftY', "Drift Y"),
+		localize('femTable.shearX', "Shear X [kN]"), localize('femTable.shearY', "Shear Y [kN]"),
+		localize('femTable.forceX', "Force X [kN]"), localize('femTable.forceY', "Force Y [kN]"),
+		localize('femTable.otmX', "Overturning (X forces) [kN·m]"), localize('femTable.otmY', "Overturning (Y forces) [kN·m]"),
+	];
+	const rows: FemTableCell[][] = [];
+	const cell = (v: number | null, f: (v: number) => number): FemTableCell => v === null ? '' : f(v);
+	const same = (v: number) => v;
+	for (const result of response.results) {
+		for (const row of [...result.storeys].reverse()) {
+			rows.push([
+				result.label, row.name, row.z,
+				cell(row.dispX, format.length), cell(row.dispY, format.length),
+				cell(row.driftX, same), cell(row.driftY, same),
+				cell(row.shearX, format.force), cell(row.shearY, format.force),
+				cell(row.forceX, format.force), cell(row.forceY, format.force),
+				cell(row.overturningX, format.moment), cell(row.overturningY, format.moment),
+			]);
+		}
+	}
+	return { name: localize('femTable.storeys', "Storey response"), columns, rows, notes: response.notes };
+}
+
+/** The modal periods and mass participation (in %) as a table. */
+export function modalTable(modal: NonNullable<IFemStoryResponse['modal']>): IFemSheet {
+	const pct = (v: number | null): FemTableCell => v === null ? '' : 100 * v;
+	return {
+		name: localize('femTable.modal', "Modal participation"),
+		columns: [
+			localize('femTable.mode', "Mode"), localize('femTable.period', "Period [s]"), localize('femTable.frequency', "Frequency [Hz]"),
+			localize('femTable.ux', "UX [%]"), localize('femTable.uy', "UY [%]"), localize('femTable.sumUx', "Sum UX [%]"), localize('femTable.sumUy', "Sum UY [%]"),
+		],
+		rows: modal.modes.map(m => [m.number, m.period ?? '', m.frequency ?? '', pct(m.uX), pct(m.uY), pct(m.sumUX), pct(m.sumUY)]),
+		notes: [localize('femTable.modalNote', "BNBC 2020 Part 6 Sec 2.5.9.2: the modes included must reach {0} % of the mass in each direction.", Math.round(100 * modal.required))],
+	};
+}
+
+/** The base reactions of the static cases and combinations. */
+export function baseReactionTable(response: IFemStoryResponse, format: { force(v: number): number; moment(v: number): number }): IFemSheet {
+	return {
+		name: localize('femTable.base', "Base reactions"),
+		columns: [
+			localize('femTable.result', "Result"),
+			'Fx [kN]', 'Fy [kN]', 'Fz [kN]', 'Mx [kN·m]', 'My [kN·m]', 'Mz [kN·m]',
+		],
+		rows: response.results.filter(r => r.baseReaction).map(r => [
+			r.label,
+			...r.baseReaction!.slice(0, 3).map(format.force),
+			...r.baseReaction!.slice(3, 6).map(format.moment),
+		]),
+	};
+}
+
+// ───────────────────────────── sorting and filtering ─────────────────────────────
+
+/** Rows sorted by a column (numbers numerically, text naturally), stable. */
+export function sortRows<T extends readonly FemTableCell[]>(rows: readonly T[], column: number, descending: boolean): T[] {
+	const collator = safeIntl.Collator(undefined, { numeric: true, sensitivity: 'base' }).value;
+	return rows
+		.map((row, index) => ({ row, index }))
+		.sort((a, b) => {
+			const x = a.row[column];
+			const y = b.row[column];
+			// Numbers, then text, then blank cells, whichever way the column is sorted.
+			const rank = (v: FemTableCell | undefined) => typeof v === 'number' ? 0 : v === undefined || v === '' ? 2 : 1;
+			const ranks = rank(x) - rank(y);
+			if (ranks) {
+				return ranks;
+			}
+			const order = typeof x === 'number' && typeof y === 'number' ? x - y : collator.compare(String(x ?? ''), String(y ?? ''));
+			return (descending ? -order : order) || a.index - b.index;
+		})
+		.map(e => e.row);
+}
+
+/**
+ * Rows matching a filter: every word of it must appear in some cell of the row (case
+ * insensitive), so "C3 1.4D" finds member C3's rows under 1.4D.
+ */
+export function filterRows<T extends readonly FemTableCell[]>(rows: readonly T[], filter: string, format: (cell: FemTableCell) => string = String): T[] {
+	const words = filter.toLowerCase().split(/\s+/).filter(Boolean);
+	if (!words.length) {
+		return [...rows];
+	}
+	return rows.filter(row => {
+		const cells = row.map(c => format(c).toLowerCase());
+		return words.every(w => cells.some(c => c.includes(w)));
+	});
+}
+
+/**
+ * The tables of every case and combination as workbook sheets: one sheet per kind of table
+ * (displacements, reactions, element forces, ...) with the result in a first column, so Excel's
+ * filters find a member under every combination; then the summary tables.
+ */
+export function workbookSheets(cases: readonly { readonly caseName: string; readonly tables: readonly { readonly name: string; readonly title: string; readonly columns: readonly string[]; readonly rows: readonly (readonly FemTableCell[])[]; readonly notes: readonly string[] }[] }[], summary: readonly IFemSheet[] = []): IFemSheet[] {
+	const sheets = new Map<string, { name: string; columns: string[]; rows: FemTableCell[][]; notes: Set<string> }>();
+	for (const c of cases) {
+		for (const table of c.tables) {
+			const key = `${table.name}|${table.columns.join('|')}`;
+			let sheet = sheets.get(key);
+			if (!sheet) {
+				sheet = { name: table.name || table.title, columns: [localize('femTable.result', "Result"), ...table.columns], rows: [], notes: new Set() };
+				sheets.set(key, sheet);
+			}
+			for (const row of table.rows) {
+				sheet.rows.push([c.caseName, ...row]);
+			}
+			table.notes.forEach(n => sheet!.notes.add(n));
+		}
+	}
+	return [...summary, ...[...sheets.values()].map(s => ({ name: s.name, columns: s.columns, rows: s.rows, notes: [...s.notes] }))];
+}

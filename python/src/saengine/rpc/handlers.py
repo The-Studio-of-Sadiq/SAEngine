@@ -1582,6 +1582,37 @@ def drawings_progress(project_root: str) -> dict[str, Any]:
     return progress(project_root)
 
 
+def story_response(out_dir: str, project_path: str) -> dict[str, Any]:
+    """The storey response, modal participation, spectrum and curves of a run (the FEM
+    results' charts; ``saengine.fem.story_response``)."""
+    from saengine.fem.story_response import story_response as compute
+
+    return compute(out_dir, project_path)
+
+
+def member_forces(out_dir: str, project_path: str, member: str) -> dict[str, Any]:
+    """A member's section forces and deflection along it for every static case and load
+    combination (the member detail window; ``saengine.fem.member_detail``)."""
+    from saengine.fem.member_detail import member_forces as compute
+
+    return compute(out_dir, project_path, member)
+
+
+def column_interaction(out_dir: str, project_path: str, member: str | None) -> dict[str, Any]:
+    """The P-M interaction diagrams of the run's concrete columns with their demand points
+    (worked out once per run by the design checks; ``saengine.fem.member_detail``)."""
+    from saengine.fem.member_detail import column_interaction as compute
+
+    return compute(out_dir, project_path, member)
+
+
+def export_xlsx(path: str, sheets: list[dict[str, Any]]) -> dict[str, Any]:
+    """Result tables written to an Excel workbook (``saengine.fem.table_export``)."""
+    from saengine.fem.table_export import write_xlsx
+
+    return write_xlsx(path, sheets)
+
+
 # ───────────────────────────────────────── code packs ─────────────────────────────────────────
 
 

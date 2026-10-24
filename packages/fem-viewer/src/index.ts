@@ -5,10 +5,10 @@
 import * as THREE from 'three';
 import * as OBC from '@thatopen/components';
 import { roundPointMaterial, subtleNodeColor, usableTheme } from './theme.js';
-import { FemElement, FemModel, FemNode, FemResultDisplay, FemResultView, FemSelection, outerFaces, sameSelection } from './model.js';
+import { FemCameraView, FemElement, FemModel, FemNode, FemResultDisplay, FemResultView, FemSelection, FemVisibleElements, outerFaces, sameSelection } from './model.js';
 import { ResultOverlay } from './results.js';
 
-export type { FemElement, FemModel, FemNode, FemResultDisplay, FemResultElement, FemResultQuantity, FemResultShell, FemResultSolid, FemResultView, FemSelection, FemValueQuantity } from './model.js';
+export type { FemCameraView, FemElement, FemModel, FemNode, FemResultDisplay, FemResultElement, FemResultQuantity, FemResultShell, FemResultSolid, FemResultView, FemSelection, FemValueQuantity, FemVisibleElements } from './model.js';
 export { FORCE_COMPONENTS, SHELL_COMPONENTS, SOLID_COMPONENTS, formatUtilisation, UTILISATION_WARN, utilisationBand } from './model.js';
 export { contourColor } from './results.js';
 
@@ -41,6 +41,14 @@ export interface FemViewer {
 	/** Draws an analysis result over the model (undefined: the model alone). */
 	setResults(results: FemResultView | undefined, display?: FemResultDisplay): void;
 	setTheme(theme: Partial<FemViewerTheme>): void;
+	/** Draws only these elements and their nodes (a floor, an elevation, a storey); undefined: all. */
+	setVisibleElements(elements: FemVisibleElements): void;
+	/**
+	 * Looks at the model in 3D (perspective, orbiting) or straight down the model's Z (`top`: a
+	 * plan), along its Y (`front`: an X-Z elevation) or along its X (`side`: a Y-Z elevation),
+	 * orthographic, and frames what is drawn.
+	 */
+	setCameraView(view: FemCameraView): Promise<void>;
 	fit(): Promise<void>;
 	/** Call when the container changes size and the browser has not reported it (e.g. hidden tabs). */
 	layout(): void;
@@ -97,6 +105,8 @@ class FemViewerImpl implements FemViewer {
 	private readonly highlight = new THREE.Group();
 	private readonly resultGroup = new THREE.Group();
 	private results: { readonly view: FemResultView; readonly display: FemResultDisplay } | undefined;
+	private visible: FemVisibleElements;
+	private cameraView: FemCameraView = '3d';
 	private overlay: ResultOverlay | undefined;
 	private animation: number | undefined;
 	private readonly raycaster = new THREE.Raycaster();
@@ -126,6 +136,9 @@ class FemViewerImpl implements FemViewer {
 		this.world.scene.three.add(this.resultGroup);
 
 		this.applyTheme();
+
+		// Labels: the same size on screen under the orthographic camera as under the perspective one.
+		this.renderer.onBeforeUpdate.add(() => this.overlay?.setLabelScale(this.labelScale()));
 
 		const canvas = this.renderer.three.domElement;
 		canvas.addEventListener('pointerdown', this.onPointerDown);
@@ -166,6 +179,24 @@ class FemViewerImpl implements FemViewer {
 		this.renderResults();
 	}
 
+	setVisibleElements(elements: FemVisibleElements): void {
+		this.visible = elements && elements.size ? new Set(elements) : undefined;
+		this.rebuild();
+		this.renderHighlight();
+		this.renderResults();
+	}
+
+	async setCameraView(view: FemCameraView): Promise<void> {
+		this.cameraView = view;
+		const orthographic = view !== '3d';
+		if ((this.camera.projection.current === 'Orthographic') !== orthographic) {
+			await this.camera.projection.set(orthographic ? 'Orthographic' : 'Perspective');
+		}
+		// A plan or an elevation pans and zooms; only the 3D view orbits.
+		this.camera.set(orthographic ? 'Plan' : 'Orbit');
+		await this.fit();
+	}
+
 	async fit(): Promise<void> {
 		const box = new THREE.Box3().setFromObject(this.modelGroup);
 		if (box.isEmpty()) {
@@ -173,8 +204,16 @@ class FemViewerImpl implements FemViewer {
 		}
 		const sphere = box.getBoundingSphere(new THREE.Sphere());
 		const radius = Math.max(sphere.radius, 1);
-		const eye = sphere.center.clone().add(new THREE.Vector3(1, 0.8, 1.2).normalize().multiplyScalar(radius * 2.6));
-		await this.camera.controls.setLookAt(eye.x, eye.y, eye.z, sphere.center.x, sphere.center.y, sphere.center.z, true);
+		// World Y is the model's Z (up); world -Z is the model's Y.
+		const direction = this.cameraView === 'top' ? new THREE.Vector3(0, 1, 1e-4)
+			: this.cameraView === 'front' ? new THREE.Vector3(0, 0, 1)
+				: this.cameraView === 'side' ? new THREE.Vector3(1, 0, 0)
+					: new THREE.Vector3(1, 0.8, 1.2);
+		const eye = sphere.center.clone().add(direction.normalize().multiplyScalar(radius * 2.6));
+		await this.camera.controls.setLookAt(eye.x, eye.y, eye.z, sphere.center.x, sphere.center.y, sphere.center.z, false);
+		if (this.cameraView !== '3d') {
+			await this.camera.controls.fitToSphere(new THREE.Sphere(sphere.center, radius * 1.05), false);
+		}
 	}
 
 	layout(): void {
@@ -215,8 +254,10 @@ class FemViewerImpl implements FemViewer {
 		const positions: number[] = [];
 		this.memberIds = [];
 		// Solids show their outer faces; the struts tying frames into them are not drawn.
-		const solids = model.elements.filter(e => e.type === 'Solid');
-		const hidden = (e: FemElement) => e.type === 'Solid' || /\/embed(#\d+)?$/.test(e.name ?? '');
+		const solids = model.elements.filter(e => e.type === 'Solid' && (!this.visible || this.visible.has(e.id)));
+		const visible = this.visible;
+		const shown = (e: FemElement) => !visible || visible.has(e.id);
+		const hidden = (e: FemElement) => e.type === 'Solid' || /\/embed(#\d+)?$/.test(e.name ?? '') || !shown(e);
 		for (const element of model.elements) {
 			if (hidden(element)) {
 				continue;
@@ -286,7 +327,7 @@ class FemViewerImpl implements FemViewer {
 		const facePositions: number[] = [];
 		this.faceIds = [];
 		for (const element of model.elements) {
-			if (element.nodes.length < 3 || element.type === 'Solid') {
+			if (element.nodes.length < 3 || element.type === 'Solid' || !shown(element)) {
 				continue;
 			}
 			const pts = element.nodes.map(id => nodeById.get(id)).filter((n): n is FemNode => !!n).map(n => toWorld(model, n.coords));
@@ -316,8 +357,9 @@ class FemViewerImpl implements FemViewer {
 			}
 		}
 
-		// Nodes.
-		const marked = model.nodes.filter(n => !solidOnly.has(n.id));
+		// Nodes: of the elements shown (all of them with nothing filtered).
+		const used = visible ? new Set(model.elements.filter(shown).flatMap(e => e.nodes)) : undefined;
+		const marked = model.nodes.filter(n => !solidOnly.has(n.id) && (!used || used.has(n.id)));
 		this.nodeIds = marked.map(n => n.id);
 		const nodePositions = marked.flatMap(n => toWorld(model, n.coords).toArray());
 		if (nodePositions.length) {
@@ -335,7 +377,7 @@ class FemViewerImpl implements FemViewer {
 		supportGeometry.translate(0, -scale * 0.02, 0);
 		const supportMaterial = new THREE.MeshBasicMaterial({ color: this.theme.support });
 		for (const node of model.nodes) {
-			if (!node.restraint?.some(Boolean) || solidOnly.has(node.id)) {
+			if (!node.restraint?.some(Boolean) || solidOnly.has(node.id) || (used && !used.has(node.id))) {
 				continue;
 			}
 			const support = new THREE.Mesh(supportGeometry, supportMaterial);
@@ -373,7 +415,7 @@ class FemViewerImpl implements FemViewer {
 			fail: theme.fail,
 			label: theme.node,
 			labelBackground: theme.background,
-		}, this.modelScale(model), coords => toWorld(model, coords), this.selection?.kind === 'element' ? this.selection.id : undefined);
+		}, this.modelScale(model), coords => toWorld(model, coords), this.selection?.kind === 'element' ? this.selection.id : undefined, this.visible);
 		this.overlay = overlay;
 		this.resultGroup.add(overlay.group);
 		if (overlay.isAnimated) {
@@ -464,6 +506,16 @@ class FemViewerImpl implements FemViewer {
 			return [[n[0], n[1]]];
 		}
 		return n.map((id, i) => [id, n[(i + 1) % n.length]] as [number, number]);
+	}
+
+	/** 1 under the perspective camera; under the orthographic one, the view's world height per its NDC height times the perspective's focal factor. */
+	private labelScale(): number {
+		if (this.camera.projection.current !== 'Orthographic') {
+			return 1;
+		}
+		const ortho = this.camera.threeOrtho;
+		const focal = 1 / Math.tan(THREE.MathUtils.degToRad(this.camera.threePersp.fov) / 2);
+		return focal * (ortho.top - ortho.bottom) / (2 * ortho.zoom);
 	}
 
 	private modelScale(model: FemModel): number {

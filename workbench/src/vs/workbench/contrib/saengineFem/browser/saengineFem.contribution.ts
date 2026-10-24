@@ -9,6 +9,9 @@ import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -24,6 +27,8 @@ import { FemDesignProposalEditor } from './femDesignProposalEditor.js';
 import { FemDesignProposalInput, FemDesignProposalInputSerializer } from './femDesignProposalInput.js';
 import { FemModelEditor } from './femModelEditor.js';
 import { FemModelEditorInput, FemModelEditorInputSerializer } from './femModelEditorInput.js';
+import { FEM_SHOW_CHARTS_COMMAND, FEM_SHOW_MEMBER_COMMAND } from './femResultsBar.js';
+import { FemResultsEditor, FemResultsInput, FemResultsInputSerializer, memberNames } from './femResultsView.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
@@ -47,6 +52,91 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 );
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(FemDesignProposalInput.ID, FemDesignProposalInputSerializer);
 
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(FemResultsEditor, FemResultsInput.EDITOR_ID, localize('femResultsEditor', "Analysis Results")),
+	[new SyncDescriptor(FemResultsInput)]
+);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(FemResultsInput.ID, FemResultsInputSerializer);
+
+/** The project's analysis model (`08 FEM/model.osmodel`), or `model` when given. */
+function analysisModel(accessor: ServicesAccessor, model: unknown): URI | undefined {
+	const project = accessor.get(ISaengineProjectService).project;
+	const fem = partById('fem');
+	return URI.isUri(model) ? model : project && fem?.mainFile ? joinPath(project.root, fem.folder, fem.mainFile) : undefined;
+}
+
+/**
+ * Opens the Analysis Charts of the last run of `model` (by default the project's analysis
+ * model): storey response, modal participation, spectrum, base reactions, curves.
+ */
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: FEM_SHOW_CHARTS_COMMAND,
+			title: localize2('saengine.fem.showCharts', "Show Analysis Charts"),
+			metadata: { description: localize2('saengine.fem.showCharts.description', "Storey displacements, drifts, shears, forces and overturning, modal participation and the design spectrum of the last analysis run. Argument: the analysis model (URI); by default the project's.") },
+			category: localize2('saengine.category', "SAEngine"),
+			icon: Codicon.graph,
+			f1: true,
+			precondition: ProjectOpenContext,
+			menu: { id: PROJECT_MENU, group: '1_project', order: 5 },
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, model?: URI): Promise<void> {
+		const target = analysisModel(accessor, model);
+		if (target) {
+			await accessor.get(IEditorService).openEditor(new FemResultsInput(target, { kind: 'charts' }), { pinned: true });
+		}
+	}
+});
+
+/**
+ * Picks a frame member of the analysis model (by name: `B1`, `C3`, ...) and opens its details:
+ * the keyboard's way to what a click on a member in the 3D view offers.
+ */
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'saengine.fem.pickMember',
+			title: localize2('saengine.fem.pickMember', "Show Member Details..."),
+			metadata: { description: localize2('saengine.fem.pickMember.description', "Forces and deflection along a beam, column or brace for each case, combination or the envelope; a column's P-M interaction diagram; a beam's required and provided steel.") },
+			category: localize2('saengine.category', "SAEngine"),
+			f1: true,
+			precondition: ProjectOpenContext,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, model?: URI): Promise<void> {
+		const target = analysisModel(accessor, model);
+		const quickInputService = accessor.get(IQuickInputService);
+		const editorService = accessor.get(IEditorService);
+		if (!target) {
+			return;
+		}
+		let members: string[] = [];
+		try {
+			const parsed = JSON.parse((await accessor.get(IFileService).readFile(target)).value.toString());
+			members = memberNames(parsed?.elements ?? []);
+		} catch {
+			members = [];
+		}
+		const picked = await quickInputService.pick(members.map<IQuickPickItem>(label => ({ label })), {
+			placeHolder: members.length ? localize('saengine.fem.pickMember.placeholder', "Member to show (beams, columns, braces of the analysis model)") : localize('saengine.fem.pickMember.none', "The analysis model has no frame members: derive it first."),
+		});
+		if (picked) {
+			await editorService.openEditor(new FemResultsInput(target, { kind: 'member', member: picked.label }), { pinned: true });
+		}
+	}
+});
+
+/** `(model: URI, member: string)`: opens a member's details (forces along it, P-M, steel). Internal. */
+CommandsRegistry.registerCommand(FEM_SHOW_MEMBER_COMMAND, async (accessor, model: URI, member: string) => {
+	if (URI.isUri(model) && typeof member === 'string' && member) {
+		await accessor.get(IEditorService).openEditor(new FemResultsInput(model, { kind: 'member', member }), { pinned: true });
+	}
+});
+
 /**
  * Opens Design Reinforcement: bars proposed for the object types from the last analysis run of
  * `model` (by default the project's `08 FEM/model.osmodel`).
@@ -66,9 +156,7 @@ registerAction2(class extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, model?: URI): Promise<void> {
-		const project = accessor.get(ISaengineProjectService).project;
-		const fem = partById('fem');
-		const target = URI.isUri(model) ? model : project && fem?.mainFile ? joinPath(project.root, fem.folder, fem.mainFile) : undefined;
+		const target = analysisModel(accessor, model);
 		if (target) {
 			await accessor.get(IEditorService).openEditor(new FemDesignProposalInput(target), { pinned: true });
 		}
