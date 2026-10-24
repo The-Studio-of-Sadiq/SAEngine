@@ -5,6 +5,9 @@ built as a native fork of Code - OSS. Engineering features are implemented as
 native workbench contributions (not webview extensions), and existing
 open-source engines are reused wherever they exist.
 
+**User manual:** [docs/manual](docs/manual/README.md) — every part, four step-by-step tutorials
+and a glossary, also as one PDF ([SAEngine-User-Manual.pdf](docs/manual/SAEngine-User-Manual.pdf)).
+
 ## Modules
 
 1. Soil report importer and form generator
