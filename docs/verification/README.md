@@ -61,6 +61,10 @@ that the command line works.
   2020 Part 6 Sec 6.6, 6.4.8 and 8.3.6 (`saengine.design.walls`) have cases DV1 (special wall
   shear, αc), DV2 (ordinary wall in-plane shear), DV3 (a P-M point of a wall section), DV4
   (boundary elements) and DV5 (a diagonally reinforced coupling beam) in `cases/walls.py`.
+  The beta items have DX1 (punching with headed shear studs, `saengine.design.punching`), DX2
+  (a P-M point of a flanged T wall, `saengine.design.wall_flanges`), DX3 (a lintel over a door,
+  `saengine.design.lintels`) and DX4 (the building generator's base loads against the
+  building's gravity load, `saengine.library.generator`) in `cases/beta.py`.
 
 Tolerances are set from the method. They are 1 % for closed-form linear frames, where the
 element formulation is exact, 0.5 % for design hand calculations (SAEngine rounds reported

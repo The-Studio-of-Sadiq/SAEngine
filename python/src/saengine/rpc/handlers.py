@@ -1460,6 +1460,21 @@ def import_structural(
         return {"error": str(error), "problems": [str(error)]}
 
 
+def new_building(
+    spec: dict[str, Any], dest_parent: str, name: str | None = None, overwrite: bool = False
+) -> dict[str, Any]:
+    """Integrator glue: a new building project from a grid and storeys
+    (``saengine.project.new_building.create_building``, the generator of
+    ``saengine.library.generator``): ``{root, name, notes, summary, settingsPatch, files}``, or
+    ``{error}`` when the spec is not valid or the folder holds files already."""
+    from saengine.project.new_building import NewBuildingError, create_building
+
+    try:
+        return create_building(spec, dest_parent, name, overwrite)
+    except NewBuildingError as error:
+        return {"error": str(error), "notes": []}
+
+
 def steel_sections() -> dict[str, Any]:
     """SAEngine's standard steel section table (``saengine.library.steel_sections``)."""
     from saengine.library.steel_sections import table_json

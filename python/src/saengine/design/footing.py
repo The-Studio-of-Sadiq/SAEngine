@@ -11,6 +11,10 @@ Part 9 (:func:`saengine.substructure.substructure_report`), and the drawn footin
 
 Each footing of the building model collects the columns whose base lies inside its plan outline
 and takes their support reactions, case by case, as the loads its columns put on it.
+
+Punching: :func:`footing_punching` (from :mod:`saengine.design.punching`) gives the same check
+as the footing design where no shear reinforcement is needed, and the headed studs or stirrups
+(or a thicker footing) where it is (BNBC 2020 Part 6 Sec 6.4.10.3, 6.4.10.5).
 """
 
 from __future__ import annotations
@@ -21,6 +25,7 @@ from typing import Any
 
 import numpy as np
 
+from saengine.design.punching import ShearReinforcement, footing_punching
 from saengine.design.rc import STEEL_E
 from saengine.library.bim import BuildingModel, ColumnElement, FootingElement
 from saengine.library.materials import Category, MaterialLibrary
@@ -59,12 +64,14 @@ __all__ = [
     "FootingSpec",
     "G",
     "Loads",
+    "ShearReinforcement",
     "SoilBearing",
     "SoilPressure",
     "StripFlexure",
     "column_action",
     "design_footing",
     "footing_checks",
+    "footing_punching",
     "gamma_v",
     "manual_bearing",
     "mesh_area",

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from saengine.verification.cases import (
     analysis,
+    beta,
     design,
     design_mode,
     electrical,
@@ -37,6 +38,7 @@ CASES: list[Case] = [
     *rs_design.CASES,
     *seismic_detailing.CASES,
     *walls.CASES,
+    *beta.CASES,
     *soil.CASES,
     *substructure.CASES,
     *substructure_deep.CASES,

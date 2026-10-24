@@ -63,7 +63,7 @@ function isObject(value: unknown): value is Json {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function members(layout: Json, group: MemberGroup): Json[] {
+export function members(layout: Json, group: MemberGroup): Json[] {
 	const list = layout[group];
 	return Array.isArray(list) ? list.filter(isObject) : [];
 }
@@ -115,7 +115,7 @@ export function bayAt(layout: unknown, point: CadPoint): IBay | undefined {
 	return { x: [x0, x1], y: [y0, y1], corners: [[px0, py0], [px1, py0], [px1, py1], [px0, py1]] };
 }
 
-function insidePolygon([x, y]: CadPoint, points: readonly CadPoint[]): boolean {
+export function insidePolygon([x, y]: CadPoint, points: readonly CadPoint[]): boolean {
 	let inside = false;
 	for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
 		const [xi, yi] = points[i];
@@ -127,7 +127,7 @@ function insidePolygon([x, y]: CadPoint, points: readonly CadPoint[]): boolean {
 	return inside;
 }
 
-function distanceToSegment([px, py]: CadPoint, [ax, ay]: CadPoint, [bx, by]: CadPoint): number {
+export function distanceToSegment([px, py]: CadPoint, [ax, ay]: CadPoint, [bx, by]: CadPoint): number {
 	const [dx, dy] = [bx - ax, by - ay];
 	const t = dx || dy ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy))) : 0;
 	return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));

@@ -53,8 +53,10 @@ Special structural walls (Sec 8.3.6, pp. 1100-1107), when the seismic scope says
   of all segments sharing a lateral force is the integrator's, across walls). φ = 0.60 where Vn
   is less than the shear at the nominal flexural strength (Vu Mn / Mu at Pu), else 0.75
   (6.2.3.3(a), p. 898).
-- 8.3.6.5: flexure and axial load by 6.3.2 and 6.3.3 (the same P-M surface); flanges (T, L from
-  intersecting walls) are not taken: rectangular piers only.
+- 8.3.6.5: flexure and axial load by 6.3.2 and 6.3.3 (the same P-M surface) of the rectangular
+  pier here; walls meeting at an L, T, C or X are designed as one flanged section (effective
+  flange widths of 8.3.6.5(b)) by :mod:`saengine.design.wall_flanges`, called from
+  :mod:`saengine.design.wall_design`, which marks the superseded pier rows.
 - 8.3.6.6 boundary elements: (b) for walls continuous from the base to the top with one
   critical section, where c >= lw / (600 (δu/hw)), δu/hw not less than 0.007 (Eq. 6.8.10), c
   the largest neutral-axis depth for the factored axial force and the nominal moment; the

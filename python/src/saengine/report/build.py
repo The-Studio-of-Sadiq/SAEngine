@@ -76,7 +76,18 @@ RESULT_TYPES = {
 }
 
 #: Element kinds of the design tables, in this order; any other kind follows alphabetically.
-KIND_ORDER = ["footing", "pileCap", "pile", "column", "wall", "beam", "brace", "slab", "staircase"]
+KIND_ORDER = [
+    "footing",
+    "pileCap",
+    "pile",
+    "column",
+    "wall",
+    "beam",
+    "brace",
+    "slab",
+    "staircase",
+    "lintel",
+]
 
 KIND_TITLES = {
     "footing": "Footings",
@@ -88,6 +99,7 @@ KIND_TITLES = {
     "brace": "Braces",
     "slab": "Slabs",
     "staircase": "Stairs",
+    "lintel": "Lintels",
     "member": "Members",
 }
 
@@ -1265,6 +1277,8 @@ def _design(results_dir: Path, model_path: Path, warnings: list[str]) -> dict[st
     ]
     walls = _walls(report)
     stairs = _stairs(report)
+    lintels = _lintels(report)
+    punching = _punching(report)
     steel = _steel(report)
     failed = int(summary.get("failed", 0) or 0)
     if failed:
@@ -1279,6 +1293,8 @@ def _design(results_dir: Path, model_path: Path, warnings: list[str]) -> dict[st
         "seismic": seismic,
         "walls": walls,
         "stairs": stairs,
+        "lintels": lintels,
+        "punching": punching,
         "steel": steel,
         "slenderness": slender_rows,
         "slendernessFails": slender_fails,
@@ -1457,6 +1473,66 @@ def _stairs(report: dict[str, Any]) -> dict[str, Any]:
             )
             bad.append(not ok)
     return {"parts": rows, "partsBad": bad}
+
+
+def _bars_text(bars: Any) -> str:
+    if not bars:
+        return "–"
+    return f"{bars[0]} Ø{fmt(bars[1], 0)}"
+
+
+def _lintels(report: dict[str, Any]) -> dict[str, Any]:
+    """Integrator glue: the lintels over openings (saengine.design.lintels) with their bars."""
+    rows, bad = [], []
+    for element in report.get("elements", []):
+        if element.get("kind") != "lintel":
+            continue
+        bars = element.get("bars") or {}
+        links = bars.get("stirrups")
+        loads = element.get("loads") or {}
+        rows.append(
+            [
+                str(element.get("id")),
+                str(element.get("host", "")),
+                fmt(element.get("span"), 0),
+                f"{fmt(element.get('b'), 0)} × {fmt(element.get('h'), 0)}",
+                fmt(loads.get("Mu"), 2),
+                fmt(loads.get("Vu"), 2),
+                _bars_text(bars.get("bottom")),
+                _bars_text(bars.get("top")),
+                f"{links[0]}L Ø{fmt(links[1], 0)} @ {fmt(links[2], 0)}" if links else "–",
+                fmt(element.get("utilisation"), 3),
+                "OK" if element.get("ok") else "FAIL",
+            ]
+        )
+        bad.append(not element.get("ok"))
+    return {"rows": rows, "bad": bad}
+
+
+def _punching(report: dict[str, Any]) -> dict[str, Any]:
+    """Integrator glue: the punching shear reinforcement (saengine.design.punching) given or
+    proposed at columns of flat slabs."""
+    rows, bad = [], []
+    for element in report.get("elements", []):
+        for c in element.get("checks", []):
+            r = c.get("shearReinforcement")
+            if not str(c.get("name", "")).startswith("Punching at") or not isinstance(r, dict):
+                continue
+            rows.append(
+                [
+                    str(element.get("id")),
+                    str(c.get("name", ""))[len("Punching at ") :],
+                    "headed studs" if r.get("kind") == "studs" else "stirrups",
+                    f"Ø{fmt(r.get('bar'), 0)}",
+                    str(r.get("perLine")),
+                    str(r.get("lines")),
+                    f"{fmt(r.get('s0'), 0)} / {fmt(r.get('s'), 0)}",
+                    fmt(c.get("utilisation"), 3),
+                    _result_label(c),
+                ]
+            )
+            bad.append(_result_label(c) == "FAIL")
+    return {"rows": rows, "bad": bad}
 
 
 DETAILING = "Detailing: "

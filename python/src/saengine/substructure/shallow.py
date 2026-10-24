@@ -439,6 +439,9 @@ class FootingSpec:
     es: float = STEEL_E
     unit_weight: float = 2400 * G * 1e-9  # N/mm³
     notes: list[str] = field(default_factory=list)
+    #: Integrator glue: the foundation's punching studs or stirrups
+    #: (``objects.PunchingReinforcement``) or None (saengine.design.punching).
+    punching_reinforcement: Any = None
 
     def depths(self, face: str = "bottom") -> dict[str, float]:
         """Effective depth [mm] of each direction's bars of a ``face``, by axis ("u" for the X
@@ -729,6 +732,9 @@ def design_footing(
 
     unchecked: set[str] = set()
     states: dict[str, list[str]] = {}  # factored combinations by unusual pressure state
+    # Integrator glue: per column, every strength combination's punching demand, for the shear
+    # reinforcement of saengine.design.punching where the concrete alone is not enough.
+    punch_demands: dict[str, list[tuple[str, float, float, float, Any]]] = {}
 
     def keep(name: str, utilisation: float, *rest: Any) -> None:
         if name not in governing or utilisation > governing[name][0]:
@@ -891,6 +897,17 @@ def design_footing(
             if not column.punching:
                 continue
             pu, cu_moment, cv_moment = float(f[0]), float(f[1]), float(f[2])
+            punch_demands.setdefault(column.id, []).append(
+                (
+                    name,
+                    pu,
+                    cu_moment,
+                    cv_moment,
+                    lambda a0, a1, b0_, b1_, p=pressure, w=weight: (
+                        p.over(a0, a1, b0_, b1_) - w * (a1 - a0) * (b1_ - b0_)
+                    ),
+                )
+            )
             u0, u1 = column.u - column.cu / 2 - d / 2, column.u + column.cu / 2 + d / 2
             v0, v1 = column.v - column.cv / 2 - d / 2, column.v + column.cv / 2 + d / 2
             sides = {
@@ -960,7 +977,10 @@ def design_footing(
         "Flexure X (top)",
         "Flexure Y (top)",
     ]
-    checks += [_kept(name, governing[name]) for name in order if name in governing]
+    reinforced = _punching_reinforcement(spec, governing, punch_demands, notes)
+    checks += [
+        reinforced.get(name) or _kept(name, governing[name]) for name in order if name in governing
+    ]
 
     # Minimum reinforcement (ACI 7.6.1.1, 13.3.4.1): each bottom direction.
     ratio = min_steel_ratio(fy)
@@ -984,6 +1004,80 @@ def design_footing(
             )
         )
     return checks, notes
+
+
+def _punching_reinforcement(
+    spec: FootingSpec,
+    governing: dict[str, tuple[float, float, float, str, str, str]],
+    demands: dict[str, list[tuple[str, float, float, float, Any]]],
+    notes: list[str],
+) -> dict[str, dict[str, Any]]:
+    """Integrator glue: the punching checks of the columns whose concrete alone is not enough
+    (or whose foundation gives studs or stirrups) redone with the shear reinforcement of
+    :func:`saengine.design.punching.footing_punching`: the given layout checked, else one
+    proposed, over every strength combination."""
+    from saengine.design import punching
+
+    given = spec.punching_reinforcement
+    out: dict[str, dict[str, Any]] = {}
+    for column in spec.columns:
+        name = f"Punching at {column.id}"
+        if name not in governing or not demands.get(column.id):
+            continue
+        if governing[name][0] <= 1.0 and given is None:
+            continue
+        kind = given.kind if given is not None else "studs"
+        fyt = (given.fyt if given is not None else None) or (
+            punching.STUD_FY if kind == "studs" else min(spec.fy, 420.0)
+        )
+        provided = None
+        if given is not None:
+            provided = punching.ShearReinforcement(
+                kind,
+                float(given.dia),
+                int(given.perLine),
+                int(given.lines),
+                float(given.firstLine),
+                float(given.spacing),
+                float(fyt),
+            )
+        bars = [m.dia for m in (spec.bottom_x, spec.bottom_y) if m is not None]
+
+        def run(
+            layout: Any,
+            column: Any = column,
+            kind: str = kind,
+            fyt: float = fyt,
+            bars: list[float] = bars,
+        ) -> Any:
+            return punching.footing_punching(
+                column.u,
+                column.v,
+                column.cu,
+                column.cv,
+                spec.length,
+                spec.width,
+                spec.d,
+                spec.fc,
+                demands[column.id],
+                kind=layout.kind if layout is not None else kind,
+                fyt=layout.fyt if layout is not None else fyt,
+                thickness=spec.thickness,
+                covers=(spec.cover, 50.0),
+                flexural_bar=max(bars, default=16.0),
+                provided=layout,
+            )
+
+        try:
+            result = run(provided)
+        except (ValueError, ArithmeticError) as error:
+            notes.append(f"{spec.id}: punching reinforcement at {column.id} not designed: {error}")
+            continue
+        if result is not None:
+            # Re-checkable with another layout, and a fresh proposal where the given one fails
+            # (the design mode's one layout per footing, saengine.design.proposal).
+            out[name] = punching.recheckable(result.check(name), name, run, spec.fy, provided)
+    return out
 
 
 def _kept(name: str, value: tuple[float, float, float, str, str, str]) -> dict[str, Any]:
@@ -1296,6 +1390,7 @@ def place_footing(ctx: Any, foundation: Any) -> Placed:
         top_x=reinforcement.topX,
         top_y=reinforcement.topY,
         unit_weight=density * G * 1e-9,
+        punching_reinforcement=getattr(foundation, "punchingReinforcement", None),
     )
     if min(spec.depths("bottom").values()) <= 0:
         raise Skip("the cover and bars leave no effective depth")

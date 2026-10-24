@@ -218,6 +218,20 @@ def design(
         scope, resolved = None, settings
         scope_problem = str(error)
     omega_elements = set(scope["omega"]["elements"]) if scope else set()
+    # Integrator glue: the elements Sec 2.5.5.6.1 adds beyond seismic_rules' (girders carrying
+    # transfer beams, walls under them, transfer slabs; saengine.design.overstrength).
+    from saengine.design import overstrength
+
+    try:
+        omega_extra = overstrength.overstrength_scope(settings, building, objects, materials)
+    except (ValueError, KeyError, AttributeError, TypeError) as error:
+        omega_extra = {"ids": [], "combinations": [], "notes": [], "added": []}
+        omega_extra["notes"].append(f"the Ω0 elements could not all be found: {error}")
+    if omega_extra["ids"] and scope is not None:
+        omega_elements |= set(omega_extra["ids"])
+        scope["omega"]["elements"] = sorted(omega_elements)
+        if not scope["omega"].get("combinations"):
+            scope["omega"]["combinations"] = omega_extra["combinations"]
     omega_static = (
         [
             LoadCombination(**{k: v for k, v in c.items() if k != "clause"})
@@ -277,12 +291,21 @@ def design(
     if omega_indices:
         # Integrator glue: the Ω0 combinations (Sec 2.5.5.6, 2.5.13.4) apply to the elements
         # scope["omega"] names only; the others carry no force in them, so they never govern.
-        _drop_combinations(pieces, shell_forces, omega_indices, keep=omega_elements)
+        _drop_combinations(
+            pieces,
+            shell_forces,
+            omega_indices,
+            keep=omega_elements,
+            keep_shells=_shells_of(project, omega_elements),
+        )
         notes.append(
             "Ω0 combinations (BNBC 2020 Part 6 Sec 2.5.13.4) applied to "
             + ", ".join(sorted(omega_elements))
             + " only"
         )
+        if omega_extra["ids"]:
+            notes.append(overstrength.em_factors(settings)["clause"])
+    notes += omega_extra["notes"]
     slender_options = (
         slenderness_design.SlenderOptions.of(slenderness)
         if slenderness is not None
@@ -552,6 +575,21 @@ def design(
     checked += walls_found["elements"]
     skipped += walls_found["skipped"]
     notes += walls_found["notes"]
+    # Integrator glue: lintels over the openings of masonry and partition walls
+    # (saengine.design.lintels; hand design, not in the analysis model).
+    from saengine.design import lintels as lintel_design
+    from saengine.library.settings import derived
+
+    try:
+        wind = float(derived(settings).get("windSpeed") or 0.0)
+    except (ValueError, KeyError, AttributeError, TypeError):
+        wind = 0.0
+    lintels_found = lintel_design.lintels_of(
+        building, types, mats, settings, high_wind=wind * 3.6 > 200.0
+    )
+    checked += lintels_found["elements"]
+    skipped += lintels_found["skipped"]
+    notes += lintels_found["notes"]
     # Footings moved to Part 9 (saengine.substructure): this report designs the superstructure.
     notes.append(DESIGNED_IN_PART_9)
     failed = [e for e in checked if not e["ok"]]
@@ -566,6 +604,16 @@ def design(
         method += slab.METHOD
     if walls_found["designed"]:
         method += wall_design.METHOD
+    if lintels_found["elements"]:
+        method += lintel_design.METHOD
+    if slabs_seen and any(
+        c["name"].startswith("Punching at") and c.get("shearReinforcement")
+        for e in checked
+        for c in e.get("checks", [])
+    ):
+        from saengine.design.punching import PUNCHING_METHOD
+
+        method += PUNCHING_METHOD
     if stairs_found["elements"] or stairs_found["skipped"]:
         method += stair_design.METHOD
     if scope is not None and scope.get("detailingLevel"):
@@ -753,6 +801,8 @@ def _design_slabs(
         context = slab.SlabContext(
             boundary=outline, axes=axes, supports=supports_at.get(round(level), [])
         )
+        # Integrator glue: the type's punching studs or stirrups (saengine.design.punching).
+        context.punching = getattr(object_type, "punchingReinforcement", None)
         flat = object_type.system == "flat"
         context.columns = _slab_columns(
             building, types, pieces, outline, level, notes if flat else []
@@ -1080,14 +1130,25 @@ def _demands(
     return names, pieces, notes, shells
 
 
+def _shells_of(project: dict[str, Any], ids: set[str]) -> set[int]:
+    """The analysis shells of the building elements ``ids`` (named ``<id>`` or ``<id>#n``)."""
+    return {
+        int(e["id"])
+        for e in project.get("elements", [])
+        if e.get("type") == "Shell" and (e.get("name") or "").split("#")[0] in ids
+    }
+
+
 def _drop_combinations(
     pieces: dict[str, list[_Piece]],
     shells: dict[int, list[np.ndarray]],
     indices: list[int],
     keep: set[str],
+    keep_shells: set[int] | None = None,
 ) -> None:
     """Zeroes the forces of the combinations ``indices`` in every member not in ``keep`` and in
-    every shell, in place (the combination lists stay aligned with the names)."""
+    every shell not in ``keep_shells``, in place (the combination lists stay aligned with the
+    names)."""
     for member_id, own in pieces.items():
         if member_id in keep:
             continue
@@ -1098,7 +1159,9 @@ def _drop_combinations(
                 for c in indices:
                     if c < len(parts) and parts[c] is not None:
                         parts[c] = np.zeros_like(parts[c])
-    for rows in shells.values():
+    for shell, rows in shells.items():
+        if keep_shells and shell in keep_shells:
+            continue
         for c in indices:
             if c < len(rows):
                 rows[c] = np.zeros_like(rows[c])

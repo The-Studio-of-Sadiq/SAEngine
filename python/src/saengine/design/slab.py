@@ -1265,6 +1265,9 @@ class SlabContext:
     #: Filled by :func:`slab_checks`: the largest one-way shear [N/m] each layer's ρ resists
     #: (layer name -> (|Vu|, combination, where)), for the design mode.
     shear: dict[str, tuple[float, str | None, str]] = field(default_factory=dict)
+    #: Integrator glue: the slab type's punching reinforcement (``objects.PunchingReinforcement``)
+    #: or None; checked (and else proposed) where the concrete alone is not enough.
+    punching: Any = None
 
 
 @dataclass(frozen=True)
@@ -1503,7 +1506,9 @@ def slab_checks(
         )
 
     if system == "flat":
-        checks += _punching_checks(layers, fc, combinations, context)
+        checks += _punching_checks(
+            layers, fc, combinations, context, h=h, fy=fy, cover=reinforcement.cover
+        )
     return checks
 
 
@@ -1633,6 +1638,10 @@ def _punching_checks(
     fc: float,
     combinations: list[str],
     context: SlabContext,
+    *,
+    h: float | None = None,
+    fy: float = 420.0,
+    cover: float = 20.0,
 ) -> list[dict[str, Any]]:
     from saengine.design.check import _check
 
@@ -1676,15 +1685,93 @@ def _punching_checks(
             f"vc = min({a:.3f}, {b:.3f}, {cc:.3f}) MPa, λs = {capacity.lambda_s:.2f}, "
             f"αs = {section.alpha_s:g}, β = {beta:.2f}; shown as v b0 d"
         )
-        checks.append(
-            _check(
-                f"Punching at {column.id}",
-                vu_max * area / 1e3,
-                phi_vc * area / 1e3,
-                "kN",
-                combination,
-                note,
-                utilisation=vu_max / phi_vc,
-            )
+        row = _check(
+            f"Punching at {column.id}",
+            vu_max * area / 1e3,
+            phi_vc * area / 1e3,
+            "kN",
+            combination,
+            note,
+            utilisation=vu_max / phi_vc,
         )
+        if vu_max > phi_vc or context.punching is not None:
+            # Integrator glue: shear reinforcement (saengine.design.punching): the studs or
+            # stirrups of the slab type checked, else proposed; every combination's demand.
+            row = _punching_with_reinforcement(
+                column, d, fc, combinations, context, h, fy, cover, top, row
+            )
+            if not row["note"].startswith(note):
+                # The column's own Vu of the governing combination, as without reinforcement.
+                row["note"] = (
+                    f"Vu = {vu / 1e3:.1f} kN at the column ({combination}); " + row["note"]
+                )
+        checks.append(row)
     return checks
+
+
+def _punching_with_reinforcement(
+    column: ColumnJoint,
+    d: float,
+    fc: float,
+    combinations: list[str],
+    context: SlabContext,
+    h: float | None,
+    fy: float,
+    cover: float,
+    top: list[Layer],
+    plain: dict[str, Any],
+) -> dict[str, Any]:
+    from saengine.design import punching
+
+    t = math.radians(column.angle)
+    u = np.array([math.cos(t), math.sin(t), 0.0])
+    v = np.array([-math.sin(t), math.cos(t), 0.0])
+    demands = [
+        punching.Demand(max(-float(f[2]), 0.0), float(m @ v), float(m @ u), combinations[c])
+        for c, (f, m) in enumerate(zip(column.forces, column.moments, strict=True))
+    ]
+    given = context.punching
+    provided = None
+    kind = "studs"
+    fyt = None
+    if given is not None:
+        kind = given.kind
+        fyt = given.fyt or (punching.STUD_FY if kind == "studs" else min(fy, 420.0))
+        provided = punching.ShearReinforcement(
+            kind, float(given.dia), int(given.perLine), int(given.lines),
+            float(given.firstLine), float(given.spacing), float(fyt),
+        )  # fmt: skip
+    elif kind == "stirrups":
+        fyt = min(fy, 420.0)
+
+    def run(
+        layout: punching.ShearReinforcement | None,
+    ) -> punching.PunchingResult | None:
+        return punching.slab_punching(
+            column.centre,
+            column.c1,
+            column.c2,
+            column.angle,
+            d,
+            context.boundary,
+            demands,
+            fc,
+            thickness=h,
+            kind=layout.kind if layout is not None else kind,
+            fyt=layout.fyt if layout is not None else fyt,
+            covers=(cover, cover),
+            flexural_bar=max(layer.dia for layer in top),
+            provided=layout,
+        )
+
+    try:
+        result = run(provided)
+    except (ValueError, ArithmeticError) as error:
+        plain["note"] += f"; shear reinforcement not designed: {error}"
+        return plain
+    if result is None:
+        return plain
+    name = f"Punching at {column.id}"
+    # Re-checkable with another layout, and a fresh proposal where the given one fails (the
+    # design mode's one layout per slab type, saengine.design.proposal.punching_layout).
+    return punching.recheckable(result.check(name), name, run, fy, provided)

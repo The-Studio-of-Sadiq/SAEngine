@@ -24,6 +24,9 @@ Methods:
   ETABS (.e2k), STAAD.Pro (.std) or SAP2000 (.s2k) file (``{root, name, format, report,
   problems, files}`` or ``{error, problems}``; ``saengine.importers.project``; in a worker
   thread); ``library/steelSections`` ``{}`` -> the standard steel section table
+- ``library/generateBuilding`` ``{spec, destParent, name?, overwrite?}`` -> a new building
+  project generated from its grids and storeys (``{root, name, notes, summary, settingsPatch,
+  files}`` or ``{error}``; ``saengine.project.new_building``; in a worker thread)
 - ``soil/location`` ``{soilText, bimText?, settingsText?}`` -> the site, boreholes and building
   outline in WGS 84 with the nearest BNBC town (``saengine.gis.site``)
 - ``soil/gisExport`` ``{projectRoot, format: geojson|gpkg, outPath}`` -> ``{path, counts,
@@ -301,6 +304,14 @@ def create_server() -> JsonRPCServer:
         args = _plain(params)
         return handlers.import_structural(
             args["path"], args["destParent"], args.get("name"), bool(args.get("overwrite"))
+        )
+
+    @server.feature("library/generateBuilding")
+    @_in_worker
+    def _new_building(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.new_building(
+            args["spec"], args["destParent"], args.get("name"), bool(args.get("overwrite"))
         )
 
     @server.feature("library/steelSections")

@@ -227,6 +227,39 @@ class PlanarReinforcement(_Model):
     topY: BarMesh | None = None
 
 
+class PunchingReinforcement(_Model):
+    """Shear reinforcement for punching around each column of a flat slab or footing: headed
+    shear studs (BNBC 2020 Part 6 Sec 6.4.10.5) or stirrups (6.4.10.3), in peripheral lines
+    parallel to the column faces (:mod:`saengine.design.punching`). Checked only where the
+    concrete alone is not enough."""
+
+    kind: Literal["studs", "stirrups"] = Field(
+        default="studs",
+        description="Headed shear studs (6.4.10.5) or stirrup legs (6.4.10.3, d >= 150 mm).",
+        json_schema_extra={"enumDescriptions": ["Headed shear studs", "Stirrups"]},
+    )
+    dia: Length = Field(default=12, description="Stud shank or stirrup bar diameter [mm].")
+    perLine: int = Field(
+        default=8,
+        ge=4,
+        title="Per line",
+        description="Studs (or stirrup legs) on one peripheral line round the column.",
+    )
+    lines: int = Field(default=4, ge=1, description="Peripheral lines out from the column.")
+    firstLine: Length = Field(
+        default=50,
+        title="First line",
+        description="Distance of the first line from the column face [mm] (at most d/2).",
+    )
+    spacing: Length = Field(description="Between the lines [mm] (at most 0.75 d or 0.5 d).")
+    fyt: float | None = Field(
+        default=None,
+        gt=0,
+        description="Yield strength [MPa]; empty: 350 for studs, the slab bars' (at most 420) "
+        "for stirrups.",
+    )
+
+
 class BoundaryHoops(_Model):
     """Hoops and crossties of a wall's boundary element (BNBC 2020 Part 6 Sec 8.3.6.6(d)(iii),
     8.3.5.4), or its end ties (8.3.6.6(e)(i))."""
@@ -427,6 +460,12 @@ class Slab(_ObjectBase):
     thickness: Length
     system: Literal["oneWay", "twoWay", "flat"] = "twoWay"
     reinforcement: PlanarReinforcement | None = None
+    punchingReinforcement: PunchingReinforcement | None = Field(
+        default=None,
+        title="Punching reinforcement",
+        description="Studs or stirrups round the columns of a flat slab, checked where the "
+        "concrete alone is not enough (empty: none).",
+    )
 
 
 class Wall(_ObjectBase):

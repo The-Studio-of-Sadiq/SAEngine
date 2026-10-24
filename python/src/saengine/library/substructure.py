@@ -21,7 +21,11 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from saengine.library.labels import field_title
 from saengine.library.materials import Category, Id, MaterialLibrary
-from saengine.library.objects import LinearReinforcement, PlanarReinforcement
+from saengine.library.objects import (
+    LinearReinforcement,
+    PlanarReinforcement,
+    PunchingReinforcement,
+)
 
 SCHEMA_ID = "saengine.substructure/1"
 SUBSTRUCTURE_FILE = "09 Substructure/substructure.json"
@@ -107,6 +111,12 @@ class Foundation(_Model):
     )
     material: Id | None = Field(default=None, description="Concrete material id (03 Materials).")
     reinforcement: PlanarReinforcement | None = None
+    punchingReinforcement: PunchingReinforcement | None = Field(
+        default=None,
+        title="Punching reinforcement",
+        description="Studs or stirrups round its columns, checked where the concrete alone is "
+        "not enough (isolated, combined footings; empty: none).",
+    )
     pileType: Id | None = Field(default=None, title="Pile type", description="Pile caps.")
     piles: list[Point2] | None = Field(
         default=None,

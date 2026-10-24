@@ -56,7 +56,7 @@
       "ships": "resources/librecad (the Qt 5 DLLs and plug-ins of qtbase that LibreCAD links dynamically)",
       "file": "qtbase-everywhere-src-5.15.2.tar.xz",
       "url": "https://download.qt.io/archive/qt/5.15/5.15.2/submodules/qtbase-everywhere-src-5.15.2.tar.xz",
-      "sha256": null
+      "sha256": "909fad2591ee367993a75d7e2ea50ad4db332f05e1c38dd7a5a274e156a4e0f8"
     },
     {
       "name": "qt-qtsvg",
@@ -67,7 +67,7 @@
       "ships": "resources/librecad (the Qt 5 DLLs and plug-ins of qtsvg that LibreCAD links dynamically)",
       "file": "qtsvg-everywhere-src-5.15.2.tar.xz",
       "url": "https://download.qt.io/archive/qt/5.15/5.15.2/submodules/qtsvg-everywhere-src-5.15.2.tar.xz",
-      "sha256": null
+      "sha256": "8bc3c2c1bc2671e9c67d4205589a8309b57903721ad14c60ea21a5d06acb585e"
     },
     {
       "name": "qt-qtimageformats",
@@ -78,7 +78,7 @@
       "ships": "resources/librecad (the Qt 5 DLLs and plug-ins of qtimageformats that LibreCAD links dynamically)",
       "file": "qtimageformats-everywhere-src-5.15.2.tar.xz",
       "url": "https://download.qt.io/archive/qt/5.15/5.15.2/submodules/qtimageformats-everywhere-src-5.15.2.tar.xz",
-      "sha256": null
+      "sha256": "bf8285c7ce04284527ab823ddc7cf48a1bb79131db3a7127342167f4814253d7"
     },
     {
       "name": "qt-qttools",
@@ -89,7 +89,7 @@
       "ships": "resources/librecad (the Qt 5 DLLs and plug-ins of qttools that LibreCAD links dynamically)",
       "file": "qttools-everywhere-src-5.15.2.tar.xz",
       "url": "https://download.qt.io/archive/qt/5.15/5.15.2/submodules/qttools-everywhere-src-5.15.2.tar.xz",
-      "sha256": null
+      "sha256": "c189d0ce1ff7c739db9a3ace52ac3e24cb8fd6dbf234e49f075249b38f43c1cc"
     }
   ]
 }

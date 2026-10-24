@@ -32,6 +32,7 @@ import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { PROJECT_TYPES, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
+import { NEW_BUILDING_COMMAND } from './newBuildingModel.js';
 import { DESIGN_CODES, DesignCode, ProjectOpener } from './projectOpener.js';
 import { appendProjectPath } from './projectParts.js';
 import { StartEditorInput } from './startEditorInput.js';
@@ -157,6 +158,8 @@ export class StartEditor extends EditorPane {
 			return button;
 		};
 		this.newProjectAction = action(Codicon.newFolder, localize('start.new', "New Project..."), () => void this.renderNewProject());
+		// A whole building from its grids and storeys, in the New Building wizard.
+		action(Codicon.symbolStructure, localize('start.newBuilding', "New Building from Grid..."), () => this.run(async () => { await this.commandService.executeCommand(NEW_BUILDING_COMMAND); }));
 		action(Codicon.folderOpened, localize('start.open', "Open Project..."), () => this.run(() => this.opener.pickAndOpen()));
 		action(Codicon.library, localize('start.sample', "Open Sample Project..."), () => this.run(() => this.opener.openSample()));
 		// Another program's model (ETABS, STAAD.Pro, SAP2000) as a new project: the command asks the rest.

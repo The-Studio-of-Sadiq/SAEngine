@@ -618,6 +618,22 @@ CommandsRegistry.registerCommand('saengine.import.structural', async (accessor, 
 	});
 });
 
+/**
+ * Integrator glue: the backend of the New Building wizard (newBuildingWizard.ts calls it by id,
+ * `saengine.library.generateBuilding` `{spec, destParent, name}`): `library/generateBuilding`
+ * generates the building from its grids and storeys into `<destParent>/<name>`
+ * (saengine.project.new_building, saengine.library.generator) and answers `{root, name, notes,
+ * summary, settingsPatch, files}`, or `{error}`.
+ */
+CommandsRegistry.registerCommand('saengine.library.generateBuilding', async (accessor, args: { readonly spec: object; readonly destParent: string; readonly name?: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'library/generateBuilding', {
+		spec: args.spec,
+		destParent: args.destParent,
+		...(args.name ? { name: args.name } : {}),
+	});
+});
+
 CommandsRegistry.registerCommand('saengine.drawings.list', async (accessor, args: { readonly projectRoot: string }) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	return accessor.get(IFemSolverService).engine(python, 'drawings/list', { projectRoot: args.projectRoot });

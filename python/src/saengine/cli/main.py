@@ -386,6 +386,37 @@ def cmd_import_structural(args: argparse.Namespace, out: Output) -> int:
     return EXIT_OK
 
 
+def cmd_new_building(args: argparse.Namespace, out: Output) -> int:
+    """Integrator glue: ``saengine new-building <spec.json> <dest>`` (saengine.project.
+    new_building, the generator of saengine.library.generator)."""
+    from saengine.project.new_building import NewBuildingError, create_building
+
+    path = Path(args.spec)
+    if not path.is_file():
+        raise UsageError(f"{args.spec} does not exist")
+    try:
+        spec = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError) as error:
+        raise UsageError(f"{args.spec} is not a JSON file: {error}") from error
+    if not isinstance(spec, dict):
+        raise UsageError(f"{args.spec}: the spec must be a JSON object")
+    try:
+        result = create_building(spec, args.dest, args.name, args.overwrite)
+    except NewBuildingError as error:
+        if out.json:
+            out.document("new-building", EXIT_ERROR, {"error": str(error)})
+            return EXIT_ERROR
+        raise CommandError(str(error)) from error
+    counts = (result.get("summary") or {}).get("counts") or {}
+    out.line(f"Generated {result['name']} into {result['root']}.")
+    if counts:
+        out.line("  " + ", ".join(f"{v} {k}" for k, v in counts.items() if v))
+    for note in result["notes"]:
+        out.line(f"  note: {note}")
+    out.document("new-building", EXIT_OK, {"newBuilding": result})
+    return EXIT_OK
+
+
 def cmd_import(args: argparse.Namespace, out: Output) -> int:
     from saengine.importers.project import FORMATS
     from saengine.project.archive import ArchiveError, import_project
@@ -613,6 +644,16 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_argument("--name", help="the new project's name (default: the archived or model's one)")
     sub.add_argument("--overwrite", action="store_true", help="into an existing project folder")
 
+    sub = commands.add_parser("new-building", parents=[common],
+                              help="generate a new building project from its grids and storeys",
+                              description="Generate a new building project into DEST/<name> from "
+                              "a JSON spec: the generator's BuildingSpec or the app wizard's "
+                              "saengine.newBuilding/1 document (see docs/new-building.md).")  # fmt: skip
+    sub.add_argument("spec", help="the spec .json file")
+    sub.add_argument("dest", help="the folder the project folder is created in")
+    sub.add_argument("--name", help="the new project's name (default: the spec's)")
+    sub.add_argument("--overwrite", action="store_true", help="into an existing project folder")
+
     sub = commands.add_parser("versions", help="the project's version history",
                               description="The project's version history (git).")  # fmt: skip
     actions = sub.add_subparsers(dest="action", metavar="ACTION")
@@ -665,6 +706,7 @@ HANDLERS = {
     "status": cmd_status,
     "export": cmd_export,
     "import": cmd_import,
+    "new-building": cmd_new_building,
     "versions": cmd_versions,
     "verify": cmd_verify,
 }

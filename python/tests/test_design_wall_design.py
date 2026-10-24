@@ -206,7 +206,11 @@ def _expected(pier: dict, special: bool, drift: float | None, cuts=("bottom", "m
 def test_ordinary_wall_is_its_piers_checks(monkeypatch) -> None:
     found = _run(monkeypatch, None)
     (wall,) = found["elements"]
-    assert wall["kind"] == "wall" and wall["wallType"] == "ordinary" and not wall["couplingBeams"]
+    assert wall["kind"] == "wall" and wall["wallType"] == "ordinary"
+    # The spandrel over the door (between P1 and P2) is designed as a beam (ln/h = 1.25: deep).
+    (beam,) = wall["couplingBeams"]
+    assert beam["id"] == "W1/L1/S1" and beam["mode"] == "deep" and beam["ok"] is not None
+    assert beam["bars"]["bottom"] == beam["bars"]["top"]
     # The two piers and the continuous section at the base (one solid segment, two piers).
     assert [p["id"] for p in wall["piers"]] == ["W1/L1 (whole wall)", "W1/L1/P1", "W1/L1/P2"]
     p1 = next(p for p in wall["piers"] if p["id"] == "W1/L1/P1")
@@ -216,14 +220,16 @@ def test_ordinary_wall_is_its_piers_checks(monkeypatch) -> None:
     assert whole["whole"] and whole["lw"] == 5000
     section = {**FOUND["sections"][0], "pier": "W1/L1 (whole wall)"}
     assert whole["checks"] == _expected(section, False, None, ("bottom",)).checks
-    # The wall's checks are all its piers', each note led by its pier; the spandrel over the
-    # door is not designed, and listed as such (skipped, and a wall note), never as passing;
-    # the governing forces are those of the governing check's combination at the bottom.
-    assert len(wall["checks"]) == sum(len(p["checks"]) for p in wall["piers"])
-    assert all(c["note"].startswith(("W1/L1/P", "W1/L1 (whole")) for c in wall["checks"])
-    assert [(s["id"], s["kind"]) for s in found["skipped"]] == [("W1/L1/S1", "spandrel")]
-    assert any(n.startswith("W1/L1/S1: spandrel") for n in wall["notes"])
-    assert wall["utilisation"] == max(p["utilisation"] for p in wall["piers"])
+    # The wall's checks are all its piers' and the spandrel's, each note led by its part; the
+    # governing forces are those of the governing check's combination at the bottom.
+    assert len(wall["checks"]) == sum(len(p["checks"]) for p in wall["piers"]) + len(beam["checks"])
+    assert all(
+        c["note"].startswith(("W1/L1/P", "W1/L1 (whole", "W1/L1/S1")) for c in wall["checks"]
+    )
+    assert found["skipped"] == []
+    assert wall["utilisation"] == max(
+        [p["utilisation"] for p in wall["piers"]] + [beam["utilisation"]]
+    )
     assert p1["forces"]["combination"] in (EQ, GRAVITY)
     assert wall["members"] == [1, 2, 3] and wall["curtains"] == 2 and wall["boundary"] is None
 
@@ -252,9 +258,11 @@ def test_special_wall_drift_boundary_and_coupling_beam(monkeypatch) -> None:
     assert 300e3 < 0.33 * 250 * 800 * math.sqrt(24.1)
     assert beam["id"] == "W1/L1/S1" and beam["ln"] == 1000 and beam["h"] == 800
     assert any("8.3.6.7(c)" in n for n in beam["notes"])
-    # No diagonal bars entered and no strength check applies: not designed, not passing.
-    assert beam["checks"] == [] and beam["ok"] is None and beam["utilisation"] is None
-    assert any(s["id"] == "W1/L1/S1" and "8.3.6.7" in s["reason"] for s in found["skipped"])
+    # No diagonal bars entered: designed to the beam rules (8.3.6.7(c)) with the special
+    # moment frame beam rules and the capacity-design shear.
+    assert beam["mode"] == "either" and beam["ok"] is not None and beam["checks"]
+    assert any(c["name"].startswith("Capacity-design shear") for c in beam["checks"])
+    assert not any(s["id"] == "W1/L1/S1" for s in found["skipped"])
     # The design mode gets every pier with what it was checked from.
     assert {c["id"] for c in collect["walls"]} == {p["id"] for p in wall["piers"]}
     assert all(c["special"] and c["drift"] == pytest.approx(drift) for c in collect["walls"])

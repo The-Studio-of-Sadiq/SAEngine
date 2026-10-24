@@ -1958,6 +1958,71 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			title: 'PlanarReinforcement',
 			type: 'object',
 		},
+		PunchingReinforcement: {
+			additionalProperties: false,
+			description: 'Shear reinforcement for punching around each column of a flat slab or footing: headed\nshear studs (BNBC 2020 Part 6 Sec 6.4.10.5) or stirrups (6.4.10.3), in peripheral lines\nparallel to the column faces (:mod:`saengine.design.punching`). Checked only where the\nconcrete alone is not enough.',
+			properties: {
+				kind: {
+					default: 'studs',
+					description: 'Headed shear studs (6.4.10.5) or stirrup legs (6.4.10.3, d >= 150 mm).',
+					enum: ['studs', 'stirrups'],
+					enumDescriptions: ['Headed shear studs', 'Stirrups'],
+					title: 'Kind',
+					type: 'string',
+				},
+				dia: {
+					default: 12,
+					description: 'Stud shank or stirrup bar diameter [mm].',
+					exclusiveMinimum: 0,
+					title: 'Bar diameter',
+					type: 'number',
+				},
+				perLine: {
+					default: 8,
+					description: 'Studs (or stirrup legs) on one peripheral line round the column.',
+					minimum: 4,
+					title: 'Per line',
+					type: 'integer',
+				},
+				lines: {
+					default: 4,
+					description: 'Peripheral lines out from the column.',
+					minimum: 1,
+					title: 'Lines',
+					type: 'integer',
+				},
+				firstLine: {
+					default: 50,
+					description: 'Distance of the first line from the column face [mm] (at most d/2).',
+					exclusiveMinimum: 0,
+					title: 'First line',
+					type: 'number',
+				},
+				spacing: {
+					description: 'Between the lines [mm] (at most 0.75 d or 0.5 d).',
+					exclusiveMinimum: 0,
+					title: 'Spacing',
+					type: 'number',
+				},
+				fyt: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Yield strength [MPa]; empty: 350 for studs, the slab bars\' (at most 420) for stirrups.',
+					title: 'Fyt',
+				},
+			},
+			required: ['spacing'],
+			title: 'PunchingReinforcement',
+			type: 'object',
+		},
 		RectangleHollowProfile: {
 			additionalProperties: false,
 			description: 'IfcRectangleHollowProfileDef (box, RHS/SHS).',
@@ -2088,6 +2153,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					],
 					default: null,
 					title: 'Reinforcement',
+				},
+				punchingReinforcement: {
+					anyOf: [
+						{
+							$ref: '#/$defs/PunchingReinforcement',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Studs or stirrups round the columns of a flat slab, checked where the concrete alone is not enough (empty: none).',
+					title: 'Punching reinforcement',
 				},
 			},
 			required: ['id', 'name', 'material', 'thickness'],
@@ -7094,6 +7172,14 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		dia: 10,
 		spacing: 150,
 	},
+	PunchingReinforcement: {
+		kind: 'studs',
+		dia: 12,
+		perLine: 8,
+		lines: 4,
+		firstLine: 50,
+		spacing: 100,
+	},
 	PlanarReinforcement: {
 		material: 'B420DWR',
 		cover: 25,
@@ -10602,6 +10688,19 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 					default: null,
 					title: 'Reinforcement',
 				},
+				punchingReinforcement: {
+					anyOf: [
+						{
+							$ref: '#/$defs/PunchingReinforcement',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Studs or stirrups round its columns, checked where the concrete alone is not enough (isolated, combined footings; empty: none).',
+					title: 'Punching reinforcement',
+				},
 				pileType: {
 					anyOf: [
 						{
@@ -10821,6 +10920,71 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 			},
 			required: ['material', 'cover'],
 			title: 'PlanarReinforcement',
+			type: 'object',
+		},
+		PunchingReinforcement: {
+			additionalProperties: false,
+			description: 'Shear reinforcement for punching around each column of a flat slab or footing: headed\nshear studs (BNBC 2020 Part 6 Sec 6.4.10.5) or stirrups (6.4.10.3), in peripheral lines\nparallel to the column faces (:mod:`saengine.design.punching`). Checked only where the\nconcrete alone is not enough.',
+			properties: {
+				kind: {
+					default: 'studs',
+					description: 'Headed shear studs (6.4.10.5) or stirrup legs (6.4.10.3, d >= 150 mm).',
+					enum: ['studs', 'stirrups'],
+					enumDescriptions: ['Headed shear studs', 'Stirrups'],
+					title: 'Kind',
+					type: 'string',
+				},
+				dia: {
+					default: 12,
+					description: 'Stud shank or stirrup bar diameter [mm].',
+					exclusiveMinimum: 0,
+					title: 'Bar diameter',
+					type: 'number',
+				},
+				perLine: {
+					default: 8,
+					description: 'Studs (or stirrup legs) on one peripheral line round the column.',
+					minimum: 4,
+					title: 'Per line',
+					type: 'integer',
+				},
+				lines: {
+					default: 4,
+					description: 'Peripheral lines out from the column.',
+					minimum: 1,
+					title: 'Lines',
+					type: 'integer',
+				},
+				firstLine: {
+					default: 50,
+					description: 'Distance of the first line from the column face [mm] (at most d/2).',
+					exclusiveMinimum: 0,
+					title: 'First line',
+					type: 'number',
+				},
+				spacing: {
+					description: 'Between the lines [mm] (at most 0.75 d or 0.5 d).',
+					exclusiveMinimum: 0,
+					title: 'Spacing',
+					type: 'number',
+				},
+				fyt: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Yield strength [MPa]; empty: 350 for studs, the slab bars\' (at most 420) for stirrups.',
+					title: 'Fyt',
+				},
+			},
+			required: ['spacing'],
+			title: 'PunchingReinforcement',
 			type: 'object',
 		},
 		SpliceZone: {

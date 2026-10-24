@@ -123,6 +123,14 @@ TEMPLATES: dict[str, dict[str, Any]] = {
         "transverse": {"type": "stirrup", "dia": 10, "spacing": 150, "legs": 2},
     },
     "BarMesh": {"dia": 10, "spacing": 150},
+    "PunchingReinforcement": {
+        "kind": "studs",
+        "dia": 12,
+        "perLine": 8,
+        "lines": 4,
+        "firstLine": 50,
+        "spacing": 100,
+    },
     "PlanarReinforcement": {
         "material": _REBAR,
         "cover": 25,

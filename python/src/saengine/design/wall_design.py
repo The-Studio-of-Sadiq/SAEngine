@@ -10,7 +10,10 @@ level, the whole wall at the band's bottom level as one more "pier" (the continu
 the critical section of BNBC 2020 Part 6 Sec 8.3.6.6(b) at a wall's base); and for special
 structural walls (the seismic scope puts Sec 8.3.6 in force, :func:`walls.special_applies`)
 the boundary elements and the coupling beams (the spandrels over openings between two piers,
-:func:`walls.coupling_beam_checks`).
+:func:`walls.coupling_beam_checks`). Spandrels over an opening between two piers that no
+diagonal bars design are designed as beams (:func:`saengine.design.lintels.spandrel_design`),
+and walls meeting in plan as flanged sections (:func:`design_flanged`,
+:mod:`saengine.design.wall_flanges`).
 
 The wall's height hw (for αc and the boundary elements' height) is that of the stack of
 collinear wall elements it belongs to; δu/hw for the displacement-based boundary elements
@@ -53,6 +56,18 @@ METHOD = [
         "(displacement-based with δu = Cd δe / I where the wall rises from the base, else the "
         "0.2 f'c stress trigger); coupling beams by 8.3.6.7. Under a window the whole wall at "
         "its bottom level is checked too (the continuous section)."
+    ),
+    (
+        "Flanged walls (Sec 8.3.6.5): walls meeting at an L, T or C in a storey are checked as "
+        "one section per direction, the walls along it webs and the others flanges of "
+        "effective width min(half the distance to the adjacent web, 25 % of the wall height) "
+        "beyond the web face (8.3.6.5(b), also for ordinary walls), with the sum of their "
+        "piers' forces: axial force and biaxial bending by strain compatibility on the "
+        "composite section, the webs' shear together (8.3.6.4(d)), boundary elements at the "
+        "web ends and flanges (8.3.6.6(c), (d)(ii)); the rectangular piers' P-M and boundary "
+        "rows are then informative. Spandrels over an opening between two piers without "
+        "diagonal bars are designed as beams (8.3.6.7(a), (c); the capacity-design shear of "
+        "8.3.8.1(a) for special walls)."
     ),
 ]
 
@@ -232,9 +247,11 @@ def design_walls(
     combinations: list[str],
     collect: dict[str, Any] | None = None,
     mep: Any = None,
+    flanged: bool = True,
 ) -> dict[str, Any]:
     """The walls designed: ``{"elements", "skipped", "notes", "designed"}`` (``designed``: True
-    when a wall was checked, for the report's method). ``with_omega``: the settings with the
+    when a wall was checked, for the report's method). ``flanged``: walls meeting at an L, T or
+    C are checked as flanged sections too (:func:`design_flanged`). ``with_omega``: the settings with the
     Ω0 combinations check.py added (for the elements ``scope["omega"]`` names); ``resolved``:
     the settings with the site class the analysis used; ``extra``: check.py's ``extra``
     (``factors``, ``envelope``, ``lateralDisplacements``) for δu; ``combinations``: check.py's
@@ -353,6 +370,7 @@ def design_walls(
     except (KeyError, TypeError, ValueError, ZeroDivisionError, AttributeError):
         drift_factor = None
 
+    infos: dict[str, dict[str, Any]] = {}
     for e, t, bars, concrete, steel in ready:
         piers = piers_of.get(e.id, [])
         if not piers:
@@ -405,10 +423,25 @@ def design_walls(
         beams: list[dict[str, Any]] = []
         if special:
             beams = _coupling_beams(e, t, spandrels_of.get(e.id, []), piers, fc, fy, story_names)
-            for b in beams:
-                for c in b["checks"]:
-                    note = f"{b['id']}: {c['note']}" if c["note"] else b["id"]
-                    wall.checks.append({**c, "note": note})
+        # Spandrels over an opening between two piers that no diagonal bars design: as beams
+        # (8.3.6.7(a), (c) for special walls; Chapter 6 for ordinary walls).
+        beams = _beam_spandrels(
+            e,
+            t,
+            spandrels_of.get(e.id, []),
+            piers,
+            beams,
+            fc,
+            fy,
+            es,
+            special,
+            earthquake,
+            story_names,
+        )
+        for b in beams:
+            for c in b["checks"]:
+                note = f"{b['id']}: {c['note']}" if c["note"] else b["id"]
+                wall.checks.append({**c, "note": note})
         designed = {b["id"] for b in beams if b["ok"] is not None}
         by_id = {b["id"]: b for b in beams}
         for s in spandrels_of.get(e.id, []):
@@ -465,6 +498,17 @@ def design_walls(
                 "notes": list(dict.fromkeys(own_notes)),
             }
         )
+        infos[e.id] = {
+            "fc": fc,
+            "fy": fy,
+            "es": es,
+            "special": special,
+            "drift": drift,
+            "height": hw,
+            "continuous": continuous,
+        }
+    if flanged and elements:
+        notes += design_flanged(building, types, elements, piers_of, infos, earthquake, story_names)
     return {"elements": elements, "skipped": skipped, "notes": notes, "designed": bool(elements)}
 
 
@@ -709,6 +753,220 @@ def _coupling_beams(
             }
         )
     return out
+
+
+def _beam_spandrels(
+    wall: Any,
+    wall_type: Any,
+    spandrels: list[dict[str, Any]],
+    piers: list[dict[str, Any]],
+    beams: list[dict[str, Any]],
+    fc: float,
+    fy: float,
+    es: float,
+    special: bool,
+    earthquake: set[str],
+    story_names: dict[str, str],
+) -> list[dict[str, Any]]:
+    """``beams`` (the coupling beams checked with diagonal bars) with every spandrel over an
+    opening between two piers that they leave without a strength check designed as a beam
+    (:func:`saengine.design.lintels.spandrel_design`): special walls' flexural (ln/h > 4) and
+    "either" coupling beams without diagonal bars (8.3.6.7(a), (c)), ordinary walls' spandrels."""
+    from saengine.design import lintels
+
+    by_id = {b["id"]: b for b in beams}
+    cover = float(wall_type.reinforcement.cover)
+    out = list(beams)
+    for s in spandrels:
+        if s.get("position") != "above":
+            continue
+        beside = [p for p in piers if s["spandrel"] in p.get("spandrels", [])]
+        if len(beside) < 2:
+            continue
+        old = by_id.get(s["spandrel"])
+        if old is not None and old["ok"] is not None:
+            continue  # designed with its diagonal bars
+        names = {n for rows in (s.get("cuts") or {}).values() for n in (rows or {})}
+        found = lintels.spandrel_design(
+            s,
+            fc,
+            fy,
+            special=special,
+            earthquake={n for n in names if _is_earthquake(n, earthquake)},
+            cover=cover,
+            es=es,
+        )
+        if found["ok"] is None:
+            continue  # diagonal bars required: the coupling beam's own failing row stays
+        entry = {
+            "id": s["spandrel"],
+            "storey": story_names.get(s.get("storey"), s.get("storey") or ""),
+            "ln": found["ln"],
+            "h": found["h"],
+            "mode": found["mode"],
+            "diagonal": False,
+            "checks": found["checks"],
+            "utilisation": found["utilisation"],
+            "ok": found["ok"],
+            "bars": found["bars"],
+            "label": found["label"],
+            "notes": [
+                *(
+                    n
+                    for n in (old["notes"] if old else [])
+                    if "not designed" not in n and "not done here" not in n
+                ),
+                *found["notes"],
+            ],
+        }
+        if old is not None:
+            out[out.index(old)] = entry
+        else:
+            out.append(entry)
+    return out
+
+
+def design_flanged(
+    building: Any,
+    types: dict[str, Any],
+    elements: list[dict[str, Any]],
+    piers_of: dict[str, list[dict[str, Any]]],
+    infos: dict[str, dict[str, Any]],
+    earthquake: set[str],
+    story_names: dict[str, str],
+) -> list[str]:
+    """Walls meeting at an L, T or C checked as one flanged section per storey
+    (:mod:`saengine.design.wall_flanges`), in place on the wall ``elements``: each wall of a
+    group gets ``flanged`` entries ``{"id", "walls", "storey", "sections", "checks",
+    "utilisation", "ok", "boundary", "notes"}`` and their checks (led by the group's id); its
+    piers' rectangular P-M and boundary-element rows in that storey become informative
+    (superseded). A storey where a door or window splits a wall of the group keeps the
+    rectangular piers (a note). Returns notes for the report."""
+    from saengine.design import wall_flanges as WF
+
+    by_id = {e["id"]: e for e in elements}
+    notes: list[str] = []
+    designed = {k for k in infos if k in by_id}
+    groups = WF.wall_groups(building, types, designed)
+    # Walls touching a group that are not designed RC walls (brick infill against a core, an
+    # RC wall without bars): not taken as flanges, said so.
+    grouped = {leg.id for g in groups for leg in g.legs}
+    for g in WF.wall_groups(building, types):
+        others = sorted(leg.id for leg in g.legs if leg.id not in designed)
+        touched = sorted(leg.id for leg in g.legs if leg.id in grouped)
+        if others and touched:
+            notes.append(
+                f"walls: {', '.join(others)} meet{'s' if len(others) == 1 else ''} "
+                f"{', '.join(touched)} but {'is' if len(others) == 1 else 'are'} not a designed "
+                "RC wall: not taken as a flange (left out of the flanged section)"
+            )
+    superseded = ("Axial force and bending P-M3-M2", "Boundary element")
+    for group in groups:
+        info = [infos[leg.id] for leg in group.legs]
+        fc, fy = min(i["fc"] for i in info), min(i["fy"] for i in info)
+        es = info[0]["es"]
+        special = any(i["special"] for i in info)
+        drifts = [i["drift"] for i in info if i["drift"] is not None]
+        drift = max(drifts) if drifts else None
+        height = max(i["height"] for i in info)
+        continuous = all(i["continuous"] for i in info)
+        storeys: dict[str, dict[str, list[dict[str, Any]]]] = {}
+        for leg in group.legs:
+            for p in piers_of.get(leg.id, []):
+                storeys.setdefault(p.get("storey") or "", {}).setdefault(leg.id, []).append(p)
+        for storey, found in storeys.items():
+            name = f"{group.id}/{storey}"
+            if len(found) < len(group.legs):
+                continue  # the walls do not share this storey
+            whole = all(
+                len(ps) == 1 and abs(float(ps[0]["lw"]) - group.leg(w).length) <= 1.0
+                for w, ps in found.items()
+            )
+            if not whole:
+                notes.append(
+                    f"walls: {name}: an opening splits a wall of the group: its rectangular "
+                    "piers are checked, not the flanged section"
+                )
+                continue
+            piers = {w: ps[0] for w, ps in found.items()}
+            cut_names = {
+                n for p in piers.values() for rows in p.get("cuts", {}).values() for n in rows or {}
+            }
+            seismic = {n for n in cut_names if _is_earthquake(n, earthquake)}
+            forces = WF.group_forces(group, piers, seismic)
+            if not forces:
+                notes.append(f"walls: {name}: no combination common to its piers' cuts")
+                continue
+            try:
+                d = WF.flanged_checks(
+                    group,
+                    forces,
+                    fc,
+                    fy,
+                    es,
+                    height=height,
+                    special=special,
+                    drift=drift,
+                    continuous=continuous,
+                )
+            except DesignError as error:
+                notes.append(f"walls: {name}: flanged section not checked: {error}")
+                continue
+            strength = [c for c in d.checks if not c["flag"]]
+            entry = {
+                "id": name,
+                "walls": [leg.id for leg in group.legs],
+                "storey": story_names.get(storey, storey),
+                "junctions": [
+                    {"walls": [j.a, j.b], "kind": j.kind, "at": [round(v, 1) for v in j.point]}
+                    for j in group.junctions
+                ],
+                "sections": [WF.section_json(s) for s in d.sections],
+                "checks": d.checks,
+                "utilisation": d.utilisation,
+                "ok": all(c["ok"] for c in strength),
+                "boundary": d.boundary,
+                "notes": list(dict.fromkeys(d.notes)),
+            }
+            pier_names = {p["pier"] for p in piers.values()}
+            for leg in group.legs:
+                element = by_id[leg.id]
+                element.setdefault("flanged", []).append(entry)
+                for c in d.checks:
+                    note = f"{name} (flanged): {c['note']}" if c["note"] else f"{name} (flanged)"
+                    element["checks"].append({**c, "note": note})
+                for pier in element["piers"]:
+                    if pier["id"] not in pier_names:
+                        continue
+                    for c in pier["checks"]:
+                        if c["name"].startswith(superseded) and not c["flag"]:
+                            c["flag"] = True
+                            c["note"] = (c["note"] + "; " if c["note"] else "") + (
+                                f"superseded by the flanged section {name}"
+                            )
+                    own = [c for c in pier["checks"] if not c["flag"]]
+                    pier["utilisation"] = max((c["utilisation"] for c in own), default=0.0)
+                    pier["ok"] = all(c["ok"] for c in own)
+                    for c in element["checks"]:
+                        lead = str(c.get("note") or "")
+                        if (
+                            c["name"].startswith(superseded)
+                            and not c["flag"]
+                            and (lead == pier["id"] or lead.startswith(f"{pier['id']}:"))
+                        ):
+                            c["flag"] = True
+                            c["note"] = lead + f"; superseded by the flanged section {name}"
+        for leg in group.legs:
+            element = by_id[leg.id]
+            own = [c for c in element["checks"] if not c["flag"]]
+            element["utilisation"] = max((c["utilisation"] for c in own), default=0.0)
+            element["ok"] = all(c["ok"] for c in own)
+    if any(e.get("flanged") for e in elements):
+        notes.append(
+            "walls: walls meeting at an L, T or C are checked as flanged sections (BNBC 2020 "
+            "Part 6 Sec 8.3.6.5); their piers' rectangular P-M and boundary rows are informative"
+        )
+    return notes
 
 
 # ─────────────────────────────────────── design mode ───────────────────────────────────────

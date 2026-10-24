@@ -53,6 +53,10 @@
 	width: 200px;
 }
 
+.saengine-floor-plan .floor-plan-select.fill {
+	width: 220px;
+}
+
 /* Inline controls of the active tool: the type picker, the typed move or angle. */
 .saengine-floor-plan .floor-plan-inline {
 	display: flex;

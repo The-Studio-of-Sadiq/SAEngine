@@ -953,6 +953,7 @@ def design_proposal(
             ]
         if mode == "splitTypes":
             entry["byType"] = bars_of(by_type_pick.reinforcement, by_type_pick.label)
+        _with_punching(entry, itertools.chain.from_iterable(x["checks"] for x in collected))
         types.append(entry)
 
     # Integrator glue: wall types (saengine.design.wall_design) and staircase types (stairs.py).
@@ -977,6 +978,14 @@ def design_proposal(
     warnings += steel_notes
 
     foundations = [_foundation_entry(d, opts) for d in foundation_demands(gathered)]
+    # Integrator glue: the footings' punching studs or stirrups (saengine.design.punching).
+    checks_of = {
+        r["id"]: r.get("checks", [])
+        for r in (gathered.substructure or {}).get("foundations", [])
+        if isinstance(r, dict) and "id" in r
+    }
+    for entry in foundations:
+        _with_punching(entry, checks_of.get(entry["id"], []))
     for t in types:
         if t["status"] == "tooSmall":
             warnings.append(f"{t['type']}: section too small — {t['tooSmall']['reason']}")
@@ -1310,6 +1319,175 @@ class _ColumnLoads:
 # ─────────────────────────────────────── foundations ───────────────────────────────────────
 
 
+#: Lines the shared layout may get beyond its first merge while the re-check asks for them.
+PUNCHING_EXTRA_LINES = 10
+
+
+def punching_layout(
+    checks: Any,
+) -> tuple[dict[str, Any] | None, list[str], list[str]]:
+    """Integrator glue: one ``punchingReinforcement`` (04 Objects' slab type, 09 Substructure's
+    foundation; :class:`saengine.library.objects.PunchingReinforcement`) for every column of
+    the punching checks, from the layout each column got (``shearReinforcement``; where the
+    given layout fails, the one proposed without it, ``proposedReinforcement``):
+
+    - the larger diameter and elements per line, the shorter first line and spacing;
+    - enough lines to reach as far from the face as the farthest-reaching column's own layout
+      (``ceil((max extent - s0) / s) + 1`` with extent = s0 + (lines - 1) s), since the outer
+      critical section of each column must lie at least as far out as its own layout put it;
+    - then, where the rows can be re-checked (:class:`saengine.design.punching.PunchingRow`),
+      checked at every column again, a line added while a column fails (at most
+      :data:`PUNCHING_EXTRA_LINES`).
+
+    Returns (layout or None, the columns where no layout works (a thicker member is needed),
+    the columns the shared layout still fails (then no layout is proposed))."""
+    rows: list[tuple[str, Any, dict[str, Any]]] = []
+    thicken: list[str] = []
+    for c in checks:
+        name = str(c.get("name", ""))
+        if not name.startswith("Punching at"):
+            continue
+        column = name[len("Punching at ") :]
+        r = (
+            c["proposedReinforcement"]
+            if "proposedReinforcement" in c
+            else c.get("shearReinforcement")
+        )
+        if isinstance(r, dict):
+            rows.append((column, c, r))
+        elif not c.get("ok", True):
+            thicken.append(column)
+    if not rows:
+        return None, thicken, []
+    kind = "studs" if any(r["kind"] == "studs" for _, _, r in rows) else "stirrups"
+    same = [r for _, _, r in rows if r["kind"] == kind]
+    s0 = min(float(r["s0"]) for r in same)
+    s = min(float(r["s"]) for r in same)
+    extent = max(float(r["s0"]) + (int(r["lines"]) - 1) * float(r["s"]) for r in same)
+    lines = max(
+        max(int(r["lines"]) for r in same),
+        math.ceil((extent - s0) / s - 1e-9) + 1,
+    )
+    layout: dict[str, Any] = {
+        "kind": kind,
+        "dia": max(float(r["bar"]) for r in same),
+        "perLine": max(int(r["perLine"]) for r in same),
+        "lines": lines,
+        "firstLine": s0,
+        "spacing": s,
+    }
+    fyt = {float(r["fyt"]) for r in same if r.get("fyt")}
+    if len(fyt) == 1:
+        layout["fyt"] = fyt.pop()
+    rechecks = [(column, getattr(c, "recheck", None)) for column, c, _ in rows]
+    rechecks = [(column, f) for column, f in rechecks if f is not None]
+    # Columns of the other kind are not covered by this layout unless the re-check says so.
+    uncovered = [column for column, _, r in rows if r["kind"] != kind]
+    if not rechecks:
+        return layout, thicken, uncovered
+
+    def fails(f: Any) -> bool:
+        try:
+            row = f(layout)
+        except (ValueError, ArithmeticError, KeyError):
+            return True
+        return row is not None and not row.get("ok", False)
+
+    checked = {column for column, _ in rechecks}
+    unchecked = [column for column in uncovered if column not in checked]
+    failing: list[str] = []
+    for _ in range(PUNCHING_EXTRA_LINES + 1):
+        failing = [column for column, f in rechecks if fails(f)]
+        if not failing:
+            return layout, thicken, unchecked
+        layout["lines"] += 1
+    return None, thicken, failing + unchecked
+
+
+def _punching_text(layout: dict[str, Any] | None) -> str | None:
+    if not layout:
+        return None
+    what = "headed studs" if layout["kind"] == "studs" else "stirrup legs"
+    return (
+        f"Ø{layout['dia']:g} {what}, {layout['perLine']} per line, {layout['lines']} lines, "
+        f"first {layout['firstLine']:g} mm from the face, @ {layout['spacing']:g} mm"
+    )
+
+
+def _with_punching(entry: dict[str, Any], checks: Any) -> None:
+    """Adds the punching reinforcement proposed for a slab type or foundation to its entry:
+    ``punching`` ``{"current", "proposed", "text"}`` and notes."""
+    checks = list(checks)
+    layout, thicken, uncovered = punching_layout(checks)
+    given_fails = sorted(
+        {
+            str(c["name"])[len("Punching at ") :]
+            for c in checks
+            if str(c.get("name", "")).startswith("Punching at") and "proposedReinforcement" in c
+        }
+    )
+    if given_fails:
+        entry["notes"] = [
+            *entry.get("notes", []),
+            (
+                f"punching at {', '.join(given_fails)}: the given studs or stirrups are not "
+                "enough; a new layout is proposed from the columns' demands"
+            ),
+        ]
+    if layout is not None:
+        rechecked = any(getattr(c, "recheck", None) is not None for c in checks)
+        entry["punching"] = {"proposed": layout, "text": _punching_text(layout)}
+        entry["notes"] = [
+            *entry.get("notes", []),
+            (
+                f"punching: {_punching_text(layout)} round every column of it (one layout for "
+                "all: the larger bar and elements per line, the shorter first line and "
+                "spacing, lines reaching as far as the farthest column's own layout"
+                + ("; checked again at every column" if rechecked else "")
+                + "; BNBC 2020 Part 6 Sec 6.4.10)"
+            ),
+        ]
+    if uncovered:
+        entry["notes"] = [
+            *entry.get("notes", []),
+            (
+                f"punching at {', '.join(sorted(set(uncovered)))}: one stud or stirrup layout "
+                "for the whole type does not pass at these columns"
+                + (" (none is proposed)" if layout is None else "")
+                + ": give them their own slab type or footing, or detail them by hand"
+            ),
+        ]
+    if thicken:
+        entry["notes"] = [
+            *entry.get("notes", []),
+            (
+                f"punching at {', '.join(sorted(set(thicken)))}: no stud or stirrup layout is "
+                "enough: thicken, add a drop panel or a larger column"
+            ),
+        ]
+
+
+def _apply_punching(
+    entry: dict[str, Any], target: dict[str, Any], file: str, changes: list[dict[str, Any]]
+) -> None:
+    punching = entry.get("punching")
+    if not punching or punching.get("apply") is False or not punching.get("proposed"):
+        return
+    before = target.get("punchingReinforcement")
+    if _normal(before or {}) == _normal(punching["proposed"]):
+        return
+    target["punchingReinforcement"] = copy.deepcopy(punching["proposed"])
+    changes.append(
+        _change(
+            file,
+            entry.get("type") if file.startswith("04") else entry["id"],
+            "punching reinforcement",
+            _punching_text(before),
+            punching.get("text"),
+        )
+    )
+
+
 def _foundation_entry(demand: Any, opts: Options) -> dict[str, Any]:
     current = demand.current.model_dump(mode="json", exclude_none=True) if demand.current else None
     reinforcement: dict[str, Any] = {
@@ -1478,6 +1656,7 @@ def apply_proposal(
         target = by_id.get(entry["type"])
         if target is None:
             raise ValueError(f"object type '{entry['type']}' is not in 04 Objects")
+        _apply_punching(entry, target, "04 Objects/objects.json", changes)
         proposed = entry["proposed"]
         if entry.get("family") is not None and "profile" in proposed:
             # Integrator glue: a steel type's proposed section (saengine.design.steel_proposal).
@@ -1576,6 +1755,7 @@ def apply_proposal(
             target = found.get(entry["id"])
             if target is None:
                 continue
+            _apply_punching(entry, target, "09 Substructure/substructure.json", changes)
             after = reinforcement_of(entry["proposed"])
             if target.get("reinforcement") == after:
                 continue

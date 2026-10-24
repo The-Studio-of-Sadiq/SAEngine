@@ -149,6 +149,7 @@ KINDS: dict[str, str] = {
     "brace": "braces",
     "slab": "slabs",
     "staircase": "stairs",
+    "lintel": "lintels",
     "solid": "solid blocks",
     "plinth": "equipment plinths",
     "tank": "water and septic tanks",
@@ -1046,6 +1047,8 @@ class _Measure:
             t = self.object_type(stair.id, stair.type, (o.Staircase,), "staircase")
             if t:
                 self.stair(stair, t)
+        self.lintels()
+        self.slab_studs(slabs)
         if self.substructure is not None:
             self.foundations(self.substructure)
 
@@ -1225,6 +1228,103 @@ class _Measure:
             if total > 0:
                 self.rebar(stair.id, reinforcement.material, mesh.dia, total, story, detail)
 
+    # ── lintels and punching reinforcement (integrator glue) ──
+
+    def lintels(self) -> None:
+        """The lintels over the openings of masonry and partition walls, sized and reinforced
+        as :func:`saengine.design.lintels.lintels_of` designs them (the default gravity
+        combinations): concrete b h (clear + 2 bearings), soffit and side formwork, the bars
+        over that length, links at their spacing."""
+        if not self.building.additions.wallOpenings:
+            return
+        from saengine.design import lintels as lintel_design
+
+        try:
+            found = lintel_design.lintels_of(self.building, self.types, self.materials, None)
+        except (ValueError, KeyError, AttributeError, TypeError, ArithmeticError) as error:
+            self.notes.append(f"Lintels not measured: {error}.")
+            return
+        walls = {e.id: e for e in self.building.elements if isinstance(e, WallElement)}
+        for lintel in found["elements"]:
+            material = self.materials.get(lintel["concrete"])
+            if material is None:
+                continue
+            host = walls.get(lintel.get("host"))
+            story = self.story_at(host.bottom) if host is not None else None
+            length = float(lintel["clear"]) + 2 * lintel_design.BEARING
+            b, h = float(lintel["b"]), float(lintel["h"])
+            self.concrete(lintel["id"], material, "lintel", b * h * length, story)
+            self.formwork(lintel["id"], "lintel", float(lintel["clear"]) * b, story, "soffit")
+            self.formwork(lintel["id"], "lintel", 2 * h * length, story, "sides")
+            bars = lintel.get("bars") or {}
+            for detail in ("bottom", "top"):
+                group = bars.get(detail)
+                if group:
+                    count, dia = int(group[0]), float(group[1])
+                    total = count * bar_length(length - 2 * lintel_design.COVER, dia)
+                    self.rebar(lintel["id"], lintel["steel"], dia, total, story, detail)
+            links = bars.get("stirrups")
+            if links:
+                legs, dia, spacing = int(links[0]), float(links[1]), float(links[2])
+                n = math.floor((length - 2 * lintel_design.COVER) / spacing) + 1
+                inner_b = b - 2 * lintel_design.COVER
+                inner_h = h - 2 * lintel_design.COVER
+                each = 2 * (inner_b + inner_h) + (legs - 2) * inner_h + 20 * dia
+                self.rebar(lintel["id"], lintel["steel"], dia, n * each, story, "links")
+        if found["elements"]:
+            self.notes.append(
+                f"Lintels: {len(found['elements'])} over openings in masonry and partition "
+                "walls, as designed with the default gravity combinations; the masonry is not "
+                "reduced by their volume."
+            )
+
+    def studs(
+        self,
+        element: str,
+        given: Any,
+        thickness: float,
+        cover: float,
+        columns: int,
+        material_id: str,
+        story: str | None,
+    ) -> None:
+        """Punching studs or stirrup legs round ``columns`` columns (``given`` an
+        ``objects.PunchingReinforcement``), measured as bars of the member's depth less the
+        covers (stirrups: two legs and the bends per pair)."""
+        if not given or columns <= 0:
+            return
+        height = max(thickness - 2 * cover, 0.0)
+        count = int(given.perLine) * int(given.lines) * columns
+        if given.kind == "studs":
+            each, detail = height, "headed shear studs"
+        else:
+            each, detail = height + 10 * float(given.dia), "punching stirrup legs"
+        self.rebar(element, material_id, float(given.dia), count * each, story, detail)
+
+    def slab_studs(self, slabs: list[tuple[Any, Any]]) -> None:
+        """The punching studs or stirrups of flat slab types round each column under them."""
+        columns = [e for e in self.building.elements if isinstance(e, ColumnElement)]
+        for e, t in slabs:
+            given = getattr(t, "punchingReinforcement", None)
+            if given is None or t.reinforcement is None:
+                continue
+            outline = Polygon([(float(x), float(y)) for x, y in e.boundary])
+            under = [
+                c
+                for c in columns
+                if abs(float(c.top) - float(e.elevation)) < TOLERANCE + 1
+                and outline.buffer(1.0).contains(Point(float(c.position[0]), float(c.position[1])))
+            ]
+            self.studs(
+                e.id,
+                given,
+                float(t.thickness),
+                float(t.reinforcement.cover),
+                len(under),
+                t.reinforcement.material,
+                self.story_at(e.elevation),
+            )
+
     # ── the foundations of 9 Substructure ──
 
     def foundations(self, substructure: Substructure) -> None:
@@ -1259,6 +1359,7 @@ class _Measure:
                     1.0, (ground - bottom + BLINDING) / BLINDING
                 )
 
+        by_id = {f.id: f for f in substructure.foundations}
         for f in solids.foundations:
             plan = Polygon(f.outline)
             kind = {"pileCap": "pileCap", "raft": "raft"}.get(f.type, "footing")
@@ -1286,6 +1387,17 @@ class _Measure:
                 if mesh is not None:
                     total = mesh_length(plan.area, mesh.spacing, run, mesh.dia)
                     self.rebar(f.id, reinforcement.material, mesh.dia, total, story, detail)
+            own = by_id.get(f.id)
+            if own is not None and getattr(own, "punchingReinforcement", None) is not None:
+                self.studs(
+                    f.id,
+                    own.punchingReinforcement,
+                    f.thickness,
+                    float(reinforcement.cover),
+                    max(len(own.columns), 1),
+                    reinforcement.material,
+                    story,
+                )
 
         for pile in solids.piles:
             self.pile(pile, story)

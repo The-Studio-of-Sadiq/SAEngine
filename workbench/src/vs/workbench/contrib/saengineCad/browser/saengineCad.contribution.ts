@@ -27,6 +27,8 @@ import { CadEditorPane } from './cadEditor.js';
 import { CadEditorInput, CadEditorInputSerializer } from './cadEditorInput.js';
 import { FloorPlanEditor } from './floorPlanEditor.js';
 import { FloorPlanEditorInput, FloorPlanEditorInputSerializer } from './floorPlanEditorInput.js';
+// Integrator glue: the Members Table registers its editor, command, undo/redo and working-copy handler.
+import './floorPlanTable.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(CadEditorPane, CadEditorInput.EDITOR_ID, localize('cadEditor', "CAD Drawing")),
@@ -138,6 +140,39 @@ registerAction2(class extends Action2 {
 		}
 	}
 });
+
+/*
+ * Integrator glue: the floor plan's selection and bulk tools in the command palette. The keys
+ * (Ctrl+A, Ctrl+C, Ctrl+V, Delete, ":") are the editor's own (FloorPlanEditor.onKey), so these
+ * commands carry no keybindings that would run twice.
+ */
+const BULK_COMMANDS: readonly { readonly id: 'selectAll' | 'selectByType' | 'copyToStories' | 'mirror' | 'deleteSelection'; readonly title: ReturnType<typeof localize2> }[] = [
+	{ id: 'selectAll', title: localize2('floorPlan.cmd.selectAll', "Select All on Story") },
+	{ id: 'selectByType', title: localize2('floorPlan.cmd.selectByType', "Select by Type...") },
+	{ id: 'copyToStories', title: localize2('floorPlan.cmd.copyToStories', "Copy Selection to Stories...") },
+	{ id: 'mirror', title: localize2('floorPlan.cmd.mirror', "Mirror Selection...") },
+	{ id: 'deleteSelection', title: localize2('floorPlan.cmd.deleteSelection', "Delete Selection") },
+];
+for (const command of BULK_COMMANDS) {
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: `saengine.floorPlan.bulk.${command.id}`,
+				title: command.title,
+				category: localize2('floorPlan.category', "Floor Plan"),
+				f1: true,
+				precondition: ActiveEditorContext.isEqualTo(FloorPlanEditor.ID),
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const pane = accessor.get(IEditorService).activeEditorPane;
+			if (pane instanceof FloorPlanEditor) {
+				await pane.runBulkAction(command.id);
+			}
+		}
+	});
+}
 
 /** Exports every story's structural plan as DXF (the Exports page runs it): opens 5 Floor Plan and exports from it. */
 CommandsRegistry.registerCommand('saengine.floorPlan.exportDxf', async (accessor: ServicesAccessor) => {

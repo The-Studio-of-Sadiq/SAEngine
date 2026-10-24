@@ -70,6 +70,7 @@ Results go to **stdout** (text, or one JSON document with `--json`); progress go
 | `saengine export <project> --format ifc\|dxf\|csv\|pdf\|drawings\|civil [--out PATH] [--size A1\|A2\|A3]` | Writes an export (`drawings`: the structural drawing set), or a `.civil` archive. |
 | `saengine import <file.civil> <dest>` | Extracts an archive into `<dest>/<project name>`. |
 | `saengine import <file.e2k\|.std\|.s2k> <dest>` | A new project from an ETABS, STAAD.Pro or SAP2000 model (see [import.md](import.md)). |
+| `saengine new-building <spec.json> <dest> [--name NAME]` | A new building project generated from its grids and storeys (see [new-building.md](new-building.md)). |
 | `saengine versions status\|list\|save\|diff\|restore\|issue <project> ...` | The project's version history. |
 | `saengine verify [--out DIR] [--pdf]` | Runs SAEngine's verification pack. |
 
@@ -268,6 +269,24 @@ An ETABS `.e2k`, STAAD.Pro `.std` or SAP2000 `.s2k` file creates a new project t
 and prints the import report: what was imported, approximated and skipped, and the loads not
 carried over ([import.md](import.md)). `--json`: `{import: {root, name, format, report,
 problems, files}}`.
+
+### new-building
+
+```console
+> saengine new-building office.json "D:\Projects"
+Generated Office Block into D:\Projects\Office Block.
+  72 columns, 102 beams, 36 slabs, 12 foundations
+  note: Seismic Design Category D (zone 2, site class SD, occupancy category II); system RC special moment frame.
+  ...
+```
+
+`<spec.json>` is the generator's spec (`{"name", "gridsX", "gridsY", "storyCount",
+"typicalHeight", "groundHeight", "system", "footing", "location", "occupancy", ...}`, lengths in
+mm) or the document the app's *New Building from Grid* wizard sends (`schema:
+"saengine.newBuilding/1"`). The project is written into `<dest>/<name>`; a folder that holds files
+already is refused (exit 3) unless `--overwrite`. Every note says how a size was chosen: the
+sizes are preliminary (see [new-building.md](new-building.md)). `--json`: `{newBuilding: {root,
+name, notes, summary, settingsPatch, files}}`.
 
 ### versions
 

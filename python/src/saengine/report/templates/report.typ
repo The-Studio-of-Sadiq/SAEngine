@@ -732,6 +732,38 @@ The analysis uses #so.stiffness.
     )
   ]
 
+  #let li = design.at("lintels", default: (rows: (), bad: ()))
+  #if li.rows.len() > 0 [
+    == Lintels
+    Lintels over the openings of masonry and partition walls, simply supported (BNBC 2020 Part 6
+    Sec 7.4.3.2): span [mm], section b × h [mm], Mu [kN·m], Vu [kN] and the bars designed.
+    #tbl(
+      ("Opening", "Wall", "Span", "b × h", "Mu", "Vu", "Bottom", "Top", "Links", "Util.", "Result"),
+      li.rows,
+      columns: (auto, auto, auto, auto, auto, auto, auto, auto, 1fr, auto, auto),
+      align: (left, left, right, center, right, right, left, left, left, right, center),
+      bad: li.bad,
+      size: 7.5pt,
+    )
+  ]
+
+  #let pu = design.at("punching", default: (rows: (), bad: ()))
+  #if pu.rows.len() > 0 [
+    == Punching shear reinforcement
+    Headed shear studs (BNBC 2020 Part 6 Sec 6.4.10.5) or stirrups (6.4.10.3) round the columns
+    where the concrete alone is not enough: elements per peripheral line, lines, first line from
+    the column face and the spacing of the lines s0 / s [mm]; proposed unless the slab type gives
+    them.
+    #tbl(
+      ("Slab", "Column", "Kind", "Dia.", "Per line", "Lines", "s0 / s", "Util.", "Result"),
+      pu.rows,
+      columns: (auto, auto, auto, auto, auto, auto, auto, auto, auto),
+      align: (left, left, left, right, right, right, right, right, center),
+      bad: pu.bad,
+      size: 8pt,
+    )
+  ]
+
   #if design.stability.len() > 0 [
     == Stability index Q per storey
     Storeys are nonsway where Q = ΣPu Δo / (Vus lc) ≤ 0.05 (BNBC 2020 Part 6 Sec 6.3.10.5.2,

@@ -1,0 +1,158 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The Members Table on the shared editor frame (editorFrame.css): filters in the toolbar, one
+ * dense table, rows selected as in a list. */
+
+.saengine-members-table .members-filter {
+	width: 140px;
+}
+
+.saengine-members-table .members-filter.type {
+	width: 160px;
+}
+
+.saengine-members-table .members-search {
+	width: 170px;
+}
+
+.saengine-members-table .members-scroll {
+	flex: 1;
+	min-height: 0;
+}
+
+.saengine-members-table .members-body {
+	box-sizing: border-box;
+	min-height: 100%;
+	padding: var(--sa-space-2, 8px) var(--sa-space-4, 16px) var(--sa-space-6, 24px);
+	outline: none;
+}
+
+.saengine-members-table .members-body:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.saengine-members-table .members-table {
+	width: 100%;
+	min-width: 640px;
+	max-width: 1100px;
+	border-collapse: collapse;
+	table-layout: fixed;
+	user-select: none;
+}
+
+.saengine-members-table col.id { width: 72px; }
+.saengine-members-table col.kind { width: 84px; }
+.saengine-members-table col.type { width: 180px; }
+.saengine-members-table col.story { width: 190px; }
+
+.saengine-members-table th,
+.saengine-members-table td {
+	padding: 0 var(--sa-space-2, 8px);
+	height: 24px;
+	line-height: 24px;
+	text-align: left;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.saengine-members-table thead th {
+	position: sticky;
+	top: 0;
+	padding: 0;
+	background-color: var(--sa-surface, var(--vscode-editor-background));
+	border-bottom: 1px solid var(--sa-border);
+	font-weight: normal;
+}
+
+.saengine-members-table thead .sort {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	width: 100%;
+	height: 24px;
+	padding: 0 var(--sa-space-2, 8px);
+	border: none;
+	background: none;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font: inherit;
+	font-size: var(--sa-font-s, 12px);
+	text-align: left;
+	cursor: pointer;
+}
+
+.saengine-members-table thead .sort:hover {
+	color: var(--vscode-foreground);
+}
+
+.saengine-members-table thead .sort:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.saengine-members-table thead th[aria-sort="ascending"] .sort,
+.saengine-members-table thead th[aria-sort="descending"] .sort {
+	color: var(--vscode-foreground);
+}
+
+.saengine-members-table tr.member {
+	cursor: default;
+}
+
+.saengine-members-table tr.member:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.saengine-members-table tr.member.selected {
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground, inherit);
+}
+
+.saengine-members-table .members-body:focus tr.member.selected {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground, inherit);
+}
+
+.saengine-members-table .members-body:focus tr.member.focused {
+	outline: 1px solid var(--vscode-list-focusOutline, var(--vscode-focusBorder));
+	outline-offset: -1px;
+}
+
+.saengine-members-table td.id {
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-members-table td.kind,
+.saengine-members-table td.location {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-members-table tr.selected td.kind,
+.saengine-members-table tr.selected td.location {
+	color: inherit;
+}
+
+/* Object type and story change in place: a quiet underline on the selected rows says so. */
+.saengine-members-table tr.selected td.editable:not(.editing) {
+	cursor: pointer;
+	text-decoration: underline dotted;
+	text-underline-offset: 3px;
+}
+
+.saengine-members-table td.editing {
+	padding: 0 2px;
+	overflow: visible;
+}
+
+.saengine-members-table td.editing .monaco-select-box {
+	height: 22px;
+}
+
+.saengine-members-table .members-empty {
+	margin: var(--sa-space-4, 16px) var(--sa-space-2, 8px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
