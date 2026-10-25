@@ -7,8 +7,6 @@ starting points for the engineer to replace with test results.
 
 from __future__ import annotations
 
-import math
-
 from saengine.library.bim import BuildingModel
 from saengine.library.floorplan import FloorPlan, GridLine, Grids, Story
 from saengine.library.materials import (
@@ -21,6 +19,8 @@ from saengine.library.materials import (
     NominalMix,
     Source,
     SteelProperties,
+    concrete_modulus,
+    modulus_of_rupture,
 )
 from saengine.library.objects import ObjectLibrary
 
@@ -38,12 +38,12 @@ def _concrete(psi: int, mix: NominalMix | None) -> Material:
         name=f"Concrete f'c {fc:g} MPa ({psi} psi)",
         category=Category.CONCRETE,
         mechanical=Mechanical(
-            E=round(4700 * math.sqrt(fc), -1),
+            E=concrete_modulus(fc),
             nu=0.2,
             density=CONCRETE_DENSITY,
             alpha=1.0e-5,
         ),
-        concrete=ConcreteProperties(fc=fc, ft=round(0.62 * math.sqrt(fc), 2), maxAggregate=20),
+        concrete=ConcreteProperties(fc=fc, ft=modulus_of_rupture(fc), maxAggregate=20),
         composition=mix,
         source=Source(
             standard="BNBC 2020 Part 6 / ACI 318-19",
@@ -124,7 +124,83 @@ def default_material_library() -> MaterialLibrary:
 
 
 def default_object_library() -> ObjectLibrary:
-    return ObjectLibrary()
+    """The object types a new project starts with, so the floor plan's Fill and draw tools have
+    something to place: a 400x400 column, a 250x450 beam, a 125 mm two-way slab, a 200 mm RC
+    wall and a 125 mm brick partition, of 3500 psi concrete (C24.1) and B420DWR bars. Typical
+    starting sizes for a low-rise frame in Bangladesh, for the engineer to size."""
+    rebar = "B420DWR"
+    return ObjectLibrary.model_validate(
+        {
+            "objects": [
+                {
+                    "id": "C400x400",
+                    "name": "Column 400x400",
+                    "kind": "column",
+                    "material": "C24.1",
+                    "profile": {"shape": "rectangle", "xDim": 400, "yDim": 400},
+                    "reinforcement": {
+                        "material": rebar,
+                        "cover": 40,
+                        "longitudinal": [{"position": "perimeter", "count": 8, "dia": 16}],
+                        "transverse": {"type": "tie", "dia": 10, "spacing": 150, "legs": 2},
+                    },
+                },
+                {
+                    "id": "B250x450",
+                    "name": "Beam 250x450",
+                    "kind": "beam",
+                    "material": "C24.1",
+                    "profile": {"shape": "rectangle", "xDim": 250, "yDim": 450},
+                    "reinforcement": {
+                        "material": rebar,
+                        "cover": 40,
+                        "longitudinal": [
+                            {"position": "top", "count": 2, "dia": 16},
+                            {"position": "bottom", "count": 3, "dia": 16},
+                        ],
+                        "transverse": {"type": "stirrup", "dia": 10, "spacing": 150, "legs": 2},
+                    },
+                },
+                {
+                    "id": "S125",
+                    "name": "Slab 125",
+                    "kind": "slab",
+                    "material": "C24.1",
+                    "thickness": 125,
+                    "system": "twoWay",
+                    "reinforcement": {
+                        "material": rebar,
+                        "cover": 20,
+                        "bottomX": {"dia": 10, "spacing": 150},
+                        "bottomY": {"dia": 10, "spacing": 150},
+                    },
+                },
+                {
+                    "id": "W200",
+                    "name": "RC wall 200",
+                    "kind": "wall",
+                    "material": "C24.1",
+                    "thickness": 200,
+                    "structural": True,
+                    "reinforcement": {
+                        "material": rebar,
+                        "cover": 25,
+                        "layers": 2,
+                        "vertical": {"dia": 12, "spacing": 200},
+                        "horizontal": {"dia": 10, "spacing": 200},
+                    },
+                },
+                {
+                    "id": "W125B",
+                    "name": "Brick partition 125",
+                    "kind": "wall",
+                    "material": "BRICK-1",
+                    "thickness": 125,
+                    "structural": False,
+                },
+            ]
+        }
+    )
 
 
 def default_floor_plan() -> FloorPlan:

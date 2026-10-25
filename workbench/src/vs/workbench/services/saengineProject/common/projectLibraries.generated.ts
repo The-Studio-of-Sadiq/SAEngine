@@ -15,7 +15,16 @@ export interface IBnbcTables {
 	readonly locations: { readonly [id: string]: { readonly name: string; readonly zone: number; readonly windSpeed: number } };
 	readonly categories: { readonly [id: string]: { readonly description: string; readonly seismicImportance: number; readonly windImportance: number } };
 	readonly areaUses: { readonly [id: string]: { readonly name: string; readonly live: number } };
-	readonly systems: { readonly [id: string]: { readonly name: string; readonly r: number; readonly omega: number; readonly cd: number } };
+	/** Table 6.2.19: R, Ω0, Cd; its row; the height limit [m] by Seismic Design Category (null: no limit, 0: not permitted); the frame's seismic detailing. */
+	readonly systems: { readonly [id: string]: { readonly name: string; readonly r: number; readonly omega: number; readonly cd: number; readonly row: string; readonly heightLimits: { readonly [sdc: string]: number | null }; readonly frame: string | null } };
+	/** Table 6.2.18: the Seismic Design Category by site class, occupancy group and zone (in zone order). */
+	readonly designCategories: { readonly occupancyGroups: { readonly [category: string]: string }; readonly bySiteClass: { readonly [siteClass: string]: { readonly [group: string]: readonly string[] } }; readonly aliases: { readonly [siteClass: string]: string } };
+	/** Sec 8.3.2: the least seismic detailing by Seismic Design Category. */
+	readonly requiredDetailing: { readonly [sdc: string]: string };
+	/** Sec 2.4: Kd (Table 6.2.12), Kzt (flat terrain) and G (rigid building). */
+	readonly wind: { readonly directionality: number; readonly topographic: number; readonly gust: number };
+	/** Concrete relations of f'c: Ec = ec √f'c (Sec 6.1.7.1), fr = fr √f'c (Eq. 6.6.3), and the deviation flagged. */
+	readonly concrete: { readonly ec: number; readonly fr: number; readonly deviation: number };
 	readonly siteClasses: { readonly [id: string]: string };
 	readonly exposures: { readonly [id: string]: string };
 	readonly loadCases: { readonly [id: string]: string };
@@ -71,8 +80,8 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Tensile strength / modulus of rupture [MPa].',
-					title: 'Tensile strength fr',
+					description: 'Tensile strength / modulus of rupture [MPa]. Follows f\'c (fr = 0.62 √f\'c, BNBC 2020 Part 6 Eq. 6.6.3) until another value is entered.',
+					title: 'Modulus of rupture fr',
 				},
 				maxAggregate: {
 					anyOf: [
@@ -350,7 +359,7 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Young\'s modulus [MPa].',
+					description: 'Young\'s modulus [MPa]. Concrete: follows f\'c (Ec = 4700 √f\'c, BNBC 2020 Part 6 Sec 6.1.7.1) until another value is entered.',
 					title: 'Young\'s modulus E',
 				},
 				nu: {
@@ -3653,7 +3662,128 @@ export const DEFAULT_MATERIALS: object = {
 
 export const DEFAULT_OBJECTS: object = {
 	schema: 'saengine.objects/1',
-	objects: [],
+	objects: [
+		{
+			id: 'C400x400',
+			name: 'Column 400x400',
+			material: 'C24.1',
+			kind: 'column',
+			profile: {
+				shape: 'rectangle',
+				xDim: 400.0,
+				yDim: 400.0,
+			},
+			reinforcement: {
+				material: 'B420DWR',
+				cover: 40.0,
+				longitudinal: [
+					{
+						position: 'perimeter',
+						count: 8,
+						dia: 16.0,
+					},
+				],
+				transverse: {
+					type: 'tie',
+					dia: 10.0,
+					spacing: 150.0,
+					legs: 2,
+				},
+			},
+			seismicRole: 'auto',
+			omegaCombinations: 'auto',
+		},
+		{
+			id: 'B250x450',
+			name: 'Beam 250x450',
+			material: 'C24.1',
+			kind: 'beam',
+			profile: {
+				shape: 'rectangle',
+				xDim: 250.0,
+				yDim: 450.0,
+			},
+			reinforcement: {
+				material: 'B420DWR',
+				cover: 40.0,
+				longitudinal: [
+					{
+						position: 'top',
+						count: 2,
+						dia: 16.0,
+					},
+					{
+						position: 'bottom',
+						count: 3,
+						dia: 16.0,
+					},
+				],
+				transverse: {
+					type: 'stirrup',
+					dia: 10.0,
+					spacing: 150.0,
+					legs: 2,
+				},
+			},
+			seismicRole: 'auto',
+			omegaCombinations: 'auto',
+		},
+		{
+			id: 'S125',
+			name: 'Slab 125',
+			material: 'C24.1',
+			kind: 'slab',
+			thickness: 125.0,
+			system: 'twoWay',
+			reinforcement: {
+				material: 'B420DWR',
+				cover: 20.0,
+				bottomX: {
+					dia: 10.0,
+					spacing: 150.0,
+				},
+				bottomY: {
+					dia: 10.0,
+					spacing: 150.0,
+				},
+			},
+		},
+		{
+			id: 'W200',
+			name: 'RC wall 200',
+			material: 'C24.1',
+			kind: 'wall',
+			thickness: 200.0,
+			structural: true,
+			reinforcement: {
+				material: 'B420DWR',
+				cover: 25.0,
+				vertical: {
+					dia: 12.0,
+					spacing: 200.0,
+				},
+				horizontal: {
+					dia: 10.0,
+					spacing: 200.0,
+				},
+				layers: 2,
+			},
+			braced: true,
+			restrainedEnds: true,
+			basement: false,
+		},
+		{
+			id: 'W125B',
+			name: 'Brick partition 125',
+			material: 'BRICK-1',
+			kind: 'wall',
+			thickness: 125.0,
+			structural: false,
+			braced: true,
+			restrainedEnds: true,
+			basement: false,
+		},
+	],
 };
 
 export const SETTINGS_SCHEMA: IJSONSchema = {
@@ -3680,7 +3810,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				meshSize: {
 					default: 500,
-					description: 'Largest side of a shell element [mm], and with slabs as loads to beams the largest beam element (the slabs\' triangles and trapezoids are applied over it). 500 mm (before version 0.0.44: 1000 mm): beams on shell slabs get their gravity moments within about 5 % of a converged mesh.',
+					description: 'Largest side of a shell element [mm], and with slabs as loads to beams the largest beam element (the slabs\' triangles and trapezoids are applied over it). 500 mm: beams on shell slabs get their gravity moments within about 5 % of a converged mesh.',
 					minimum: 100,
 					title: 'Mesh size',
 					type: 'number',
@@ -3699,7 +3829,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				massLumping: {
 					default: 'storyLevels',
-					description: 'Story levels: every node\'s weight goes to the nearest story level (to its diaphragm), the lower half of the first story to the base, where it does not take part (as the usual analysis programs lump it). Level above (before version 0.0.44): every weight counts for the first level above the base and its mass stays where it is.',
+					description: 'Story levels: every node\'s weight goes to the nearest story level (to its diaphragm), the lower half of the first story to the base, where it does not take part (as the usual analysis programs lump it). Level above: every weight counts for the first level above the base and its mass stays where it is.',
 					enum: ['storyLevels', 'levelAbove'],
 					enumDescriptions: ['Lumped at the story levels', 'Each node\'s own (lower first story to level 1)'],
 					title: 'Seismic mass',
@@ -3718,13 +3848,13 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				windTorsionCases: {
 					default: true,
-					description: 'Add the torsional wind cases WTX, WTY and design every one-direction wind combination for the four design wind load cases of BNBC 2020 Part 6 Figure 6.2.9 (Sec 2.4.11.3): full, 75 % with torsion e = ±0.15 B, 75 % in both directions, 56.3 % in both with both torsions. Off: Cases 1 and 3 only (before version 0.0.45: Case 1).',
+					description: 'Add the torsional wind cases WTX, WTY and design every one-direction wind combination for the four design wind load cases of BNBC 2020 Part 6 Figure 6.2.9 (Sec 2.4.11.3): full, 75 % with torsion e = ±0.15 B, 75 % in both directions, 56.3 % in both with both torsions. Off: Cases 1 and 3 only.',
 					title: 'Wind torsional cases',
 					type: 'boolean',
 				},
 				patternLive: {
 					default: 'bnbc',
-					description: 'BNBC 2020 Part 6 Sec 6.1.12.2: live load on two adjacent spans and on alternate spans of the column grid, as extra cases LP1, LP2 ... enveloped with the full live load. BNBC: adjacent spans on each floor alone (one case per pair and floor) and alternate spans as a checkerboard over the floors. Adjacent on alternate floors: fewer cases, support moments up to about 2 % lower. Alternate spans only. Off: the full live load on every span (before version 0.0.45).',
+					description: 'BNBC 2020 Part 6 Sec 6.1.12.2: live load on two adjacent spans and on alternate spans of the column grid, as extra cases LP1, LP2 ... enveloped with the full live load. BNBC: adjacent spans on each floor alone (one case per pair and floor) and alternate spans as a checkerboard over the floors. Adjacent on alternate floors: fewer cases, support moments up to about 2 % lower. Alternate spans only. Off: the full live load on every span.',
 					enum: ['bnbc', 'bnbcAlternateFloors', 'alternate', 'off'],
 					enumDescriptions: ['BNBC 6.1.12.2 (adjacent each floor, alternate checkerboard)', 'BNBC, adjacent on alternate floors (fewer cases)', 'Alternate spans only', 'Off (full live load only)'],
 					title: 'Live load arrangement',
@@ -3732,7 +3862,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				deflection: {
 					default: 'sensitive',
-					description: 'Beams are checked for deflection (BNBC 2020 Part 6 Sec 6.2.5) unless they are at least as deep as Table 6.6.1 asks: immediate live-load deflection l/360 (l/180 roofs) and, after the nonstructural elements are attached, l/480 where they are likely to be damaged (masonry partitions, the usual case) or l/240 where not (Table 6.6.2). Off: not checked (before version 0.0.45).',
+					description: 'Beams are checked for deflection (BNBC 2020 Part 6 Sec 6.2.5) unless they are at least as deep as Table 6.6.1 asks: immediate live-load deflection l/360 (l/180 roofs) and, after the nonstructural elements are attached, l/480 where they are likely to be damaged (masonry partitions, the usual case) or l/240 where not (Table 6.6.2). Off: not checked.',
 					enum: ['sensitive', 'insensitive', 'off'],
 					enumDescriptions: ['Partitions likely to be damaged (l/480)', 'Not likely to be damaged (l/240)', 'Off'],
 					title: 'Beam deflection limits',
@@ -3770,7 +3900,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				exactColumnRotation: {
 					default: true,
-					description: 'A column turned by an angle that is not a multiple of 90° is analysed and designed on its own axes (before version 0.0.44 it was rounded to the nearest quarter turn).',
+					description: 'A column turned by an angle that is not a multiple of 90° is analysed and designed on its own axes.',
 					title: 'Columns at any angle',
 					type: 'boolean',
 				},
@@ -3782,7 +3912,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				stiffness: {
 					default: 'aci',
-					description: 'Cracked (default): concrete and masonry members with the moments of inertia of BNBC 2020 Part 6 Sec 6.3.10.4.1 (columns 0.70 Ig, walls 0.70 Ig or 0.35 Ig when cracked, beams 0.35 Ig, flat plates and slabs 0.25 Ig; area 1.0 Ag). BNBC 2020 Part 6 Sec 2.5.9.1 (a) requires the response spectrum model to consider the effects of cracked sections, and Sec 6.1.10.2 uses these properties for the lateral deflections. Gross: the uncracked sections, as before version 0.0.37 (the model is then too stiff: periods come out shorter and drifts smaller than BNBC intends).',
+					description: 'Cracked (default): concrete and masonry members with the moments of inertia of BNBC 2020 Part 6 Sec 6.3.10.4.1 (columns 0.70 Ig, walls 0.70 Ig or 0.35 Ig when cracked, beams 0.35 Ig, flat plates and slabs 0.25 Ig; area 1.0 Ag). BNBC 2020 Part 6 Sec 2.5.9.1 (a) requires the response spectrum model to consider the effects of cracked sections, and Sec 6.1.10.2 uses these properties for the lateral deflections. Gross: the uncracked sections (the model is then too stiff: periods come out shorter and drifts smaller than BNBC intends).',
 					enum: ['gross', 'aci'],
 					enumDescriptions: ['Gross sections', 'Cracked (ACI / BNBC 6.3.10.4.1)'],
 					title: 'Section stiffness',
@@ -3790,7 +3920,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				crackedFor: {
 					default: 'lateral',
-					description: 'Lateral cases: wind, earthquake, modal, response spectrum and time histories on the cracked sections, the gravity cases on the gross ones. All cases: the model\'s sections are the cracked ones (as ETABS property modifiers).',
+					description: 'Lateral cases: wind, earthquake, modal, response spectrum and time histories on the cracked sections, the gravity cases on the gross ones. All cases: the model\'s sections are the cracked ones (as property modifiers on the sections).',
 					enum: ['all', 'lateral'],
 					enumDescriptions: ['All cases', 'Lateral cases only'],
 					title: 'Cracked stiffness for',
@@ -4362,37 +4492,44 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				D: {
 					default: 0,
+					description: 'Factor on the dead load D, which includes the superimposed dead load SD (floor finish, partitions; BNBC 2020 Part 6 Sec 2.7.3).',
 					title: 'D',
 					type: 'number',
 				},
 				L: {
 					default: 0,
+					description: 'Factor on the live load L.',
 					title: 'L',
 					type: 'number',
 				},
 				Lr: {
 					default: 0,
+					description: 'Factor on the roof live load Lr.',
 					title: 'Lr',
 					type: 'number',
 				},
 				WX: {
 					default: 0,
-					title: 'W x',
+					description: 'Factor on the wind load along X.',
+					title: 'Wx',
 					type: 'number',
 				},
 				WY: {
 					default: 0,
-					title: 'W y',
+					description: 'Factor on the wind load along Y.',
+					title: 'Wy',
 					type: 'number',
 				},
 				EX: {
 					default: 0,
-					title: 'E x',
+					description: 'Factor on the earthquake load along X.',
+					title: 'Ex',
 					type: 'number',
 				},
 				EY: {
 					default: 0,
-					title: 'E y',
+					description: 'Factor on the earthquake load along Y.',
+					title: 'Ey',
 					type: 'number',
 				},
 				T: {
@@ -4501,7 +4638,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					default: 1.2,
 					description: 'Superimposed dead load.',
 					minimum: 0,
-					title: 'S d',
+					title: 'SD',
 					type: 'number',
 				},
 				F: {
@@ -4629,8 +4766,8 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			additionalProperties: false,
 			properties: {
 				system: {
-					default: 'rcImf',
-					description: 'Seismic force-resisting system (Table 6.2.19).',
+					default: 'rcSmf',
+					description: 'Seismic force-resisting system (Table 6.2.19). It gives R, Ω0 and Cd and the seismic detailing of the members; it must be permitted in the Seismic Design Category of the site (Table 6.2.18).',
 					enum: ['rcSmf', 'rcImf', 'rcOmf', 'rcSpecialWallFrame', 'rcOrdinaryWallFrame', 'rcDualSpecial', 'steelSmf', 'steelOmf', 'steelScbf'],
 					enumDescriptions: ['RC special moment frame', 'RC intermediate moment frame', 'RC ordinary moment frame', 'Building frame with RC special shear walls', 'Building frame with RC ordinary shear walls', 'Dual: RC special moment frame and special shear walls', 'Steel special moment frame', 'Steel ordinary moment frame', 'Steel special concentrically braced frame'],
 					title: 'Structural system',
@@ -4721,7 +4858,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Overrides the location\'s value.',
+					description: 'Overrides the location\'s value (BNBC 2020 Table 6.2.14: 0.12, 0.20, 0.28 or 0.36 by zone).',
 					title: 'Seismic zone coefficient Z',
 				},
 				windSpeed: {
@@ -4735,7 +4872,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Overrides the location\'s value [m/s].',
+					description: 'Overrides the location\'s value [m/s] (BNBC 2020 Table 6.2.8).',
 					title: 'Basic wind speed',
 				},
 			},
@@ -4908,6 +5045,49 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					title: 'Exposure',
 					type: 'string',
 				},
+				directionality: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 1,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Overrides the code\'s value for buildings (BNBC 2020 Table 6.2.12).',
+					title: 'Directionality factor Kd',
+				},
+				topographic: {
+					anyOf: [
+						{
+							minimum: 1,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Overrides the code\'s value for flat terrain; above 1 on hills, ridges and escarpments (BNBC 2020 Sec 2.4.7).',
+					title: 'Topographic factor Kzt',
+				},
+				gust: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Overrides the code\'s value for a rigid building (BNBC 2020 Sec 2.4.8.1). A flexible building (natural frequency below 1 Hz) needs Gf of Sec 2.4.8.2 here.',
+					title: 'Gust effect factor G',
+				},
 			},
 			title: 'Wind',
 			type: 'object',
@@ -5017,7 +5197,7 @@ export const DEFAULT_SETTINGS: object = {
 		siteClass: 'SD',
 	},
 	seismic: {
-		system: 'rcImf',
+		system: 'rcSmf',
 	},
 	wind: {
 		exposure: 'A',
@@ -5592,55 +5772,167 @@ export const BNBC: IBnbcTables = {
 			r: 8.0,
 			omega: 3.0,
 			cd: 5.5,
+			row: 'C.4 (p. 623)',
+			heightLimits: {
+				B: null,
+				C: null,
+				D: null,
+			},
+			frame: 'special',
 		},
 		rcImf: {
 			name: 'RC intermediate moment frame',
 			r: 5.0,
 			omega: 3.0,
 			cd: 4.5,
+			row: 'C.5 (p. 623)',
+			heightLimits: {
+				B: null,
+				C: null,
+				D: 0.0,
+			},
+			frame: 'intermediate',
 		},
 		rcOmf: {
 			name: 'RC ordinary moment frame',
 			r: 3.0,
 			omega: 3.0,
 			cd: 2.5,
+			row: 'C.5 [sic, the 6th row] (p. 623)',
+			heightLimits: {
+				B: null,
+				C: 0.0,
+				D: 0.0,
+			},
+			frame: 'ordinary',
 		},
 		rcSpecialWallFrame: {
 			name: 'Building frame with RC special shear walls',
 			r: 6.0,
 			omega: 2.5,
 			cd: 5.0,
+			row: 'B.5 (p. 622)',
+			heightLimits: {
+				B: null,
+				C: null,
+				D: 50.0,
+			},
+			frame: null,
 		},
 		rcOrdinaryWallFrame: {
 			name: 'Building frame with RC ordinary shear walls',
 			r: 5.0,
 			omega: 2.5,
 			cd: 4.25,
+			row: 'B.6 (p. 622)',
+			heightLimits: {
+				B: null,
+				C: null,
+				D: 0.0,
+			},
+			frame: null,
 		},
 		rcDualSpecial: {
 			name: 'Dual: RC special moment frame and special shear walls',
 			r: 7.0,
 			omega: 2.5,
 			cd: 5.5,
+			row: 'D.3 (p. 623)',
+			heightLimits: {
+				B: null,
+				C: null,
+				D: null,
+			},
+			frame: 'special',
 		},
 		steelSmf: {
 			name: 'Steel special moment frame',
 			r: 8.0,
 			omega: 3.0,
 			cd: 5.5,
+			row: 'C.1 (p. 622)',
+			heightLimits: {
+				B: null,
+				C: null,
+				D: null,
+			},
+			frame: null,
 		},
 		steelOmf: {
 			name: 'Steel ordinary moment frame',
 			r: 3.5,
 			omega: 3.0,
 			cd: 3.0,
+			row: 'C.3 (p. 622)',
+			heightLimits: {
+				B: null,
+				C: null,
+				D: 0.0,
+			},
+			frame: null,
 		},
 		steelScbf: {
 			name: 'Steel special concentrically braced frame',
 			r: 6.0,
 			omega: 2.0,
 			cd: 5.0,
+			row: 'B.3 (p. 622)',
+			heightLimits: {
+				B: null,
+				C: null,
+				D: 50.0,
+			},
+			frame: null,
 		},
+	},
+	designCategories: {
+		occupancyGroups: {
+			I: 'I-III',
+			II: 'I-III',
+			III: 'I-III',
+			IV: 'IV',
+		},
+		bySiteClass: {
+			SA: {
+				'I-III': ['B', 'C', 'C', 'D'],
+				IV: ['C', 'D', 'D', 'D'],
+			},
+			SB: {
+				'I-III': ['B', 'C', 'D', 'D'],
+				IV: ['C', 'D', 'D', 'D'],
+			},
+			SC: {
+				'I-III': ['B', 'C', 'D', 'D'],
+				IV: ['C', 'D', 'D', 'D'],
+			},
+			SD: {
+				'I-III': ['C', 'D', 'D', 'D'],
+				IV: ['D', 'D', 'D', 'D'],
+			},
+			SE: {
+				'I-III': ['D', 'D', 'D', 'D'],
+				IV: ['D', 'D', 'D', 'D'],
+			},
+		},
+		aliases: {
+			S1: 'SE',
+			S2: 'SE',
+		},
+	},
+	requiredDetailing: {
+		D: 'special',
+		C: 'intermediate',
+		B: 'ordinary',
+	},
+	wind: {
+		directionality: 0.85,
+		topographic: 1.0,
+		gust: 0.85,
+	},
+	concrete: {
+		ec: 4700.0,
+		fr: 0.62,
+		deviation: 0.1,
 	},
 	siteClasses: {
 		SA: 'Rock or rock-like formation, at most 5 m of weaker material on top (Vs > 800 m/s)',
@@ -8791,6 +9083,23 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		],
 		transverse: {
 			type: 'stirrup',
+			dia: 10,
+			spacing: 150,
+			legs: 2,
+		},
+	},
+	'LinearReinforcement:column': {
+		material: 'B420DWR',
+		cover: 40,
+		longitudinal: [
+			{
+				position: 'perimeter',
+				count: 8,
+				dia: 16,
+			},
+		],
+		transverse: {
+			type: 'tie',
 			dia: 10,
 			spacing: 150,
 			legs: 2,

@@ -123,6 +123,14 @@ TEMPLATES: dict[str, dict[str, Any]] = {
         ],
         "transverse": {"type": "stirrup", "dia": 10, "spacing": 150, "legs": 2},
     },
+    # A column's bars go round its perimeter, held by ties ("<defName>:<kind>" is the template
+    # of that definition in an object of that kind).
+    "LinearReinforcement:column": {
+        "material": _REBAR,
+        "cover": 40,
+        "longitudinal": [{"position": "perimeter", "count": 8, "dia": 16}],
+        "transverse": {"type": "tie", "dia": 10, "spacing": 150, "legs": 2},
+    },
     "BarMesh": {"dia": 10, "spacing": 150},
     "PunchingReinforcement": {
         "kind": "studs",

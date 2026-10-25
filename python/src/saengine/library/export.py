@@ -19,6 +19,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from saengine.codes.tables import builtin_table
 from saengine.library import bnbc
 from saengine.library.bim import BuildingModel
 from saengine.library.defaults import (
@@ -29,7 +30,12 @@ from saengine.library.defaults import (
 )
 from saengine.library.floorplan import FloorPlan
 from saengine.library.importers import ImportInput
-from saengine.library.materials import MaterialLibrary
+from saengine.library.materials import (
+    DEVIATION_LIMIT,
+    EC_COEFFICIENT,
+    FR_COEFFICIENT,
+    MaterialLibrary,
+)
 from saengine.library.mep import MepModel
 from saengine.library.objects import ObjectLibrary
 from saengine.library.script import TEMPLATE as SCRIPT_TEMPLATE
@@ -61,7 +67,16 @@ export interface IBnbcTables {
 	readonly locations: { readonly [id: string]: { readonly name: string; readonly zone: number; readonly windSpeed: number } };
 	readonly categories: { readonly [id: string]: { readonly description: string; readonly seismicImportance: number; readonly windImportance: number } };
 	readonly areaUses: { readonly [id: string]: { readonly name: string; readonly live: number } };
-	readonly systems: { readonly [id: string]: { readonly name: string; readonly r: number; readonly omega: number; readonly cd: number } };
+	/** Table 6.2.19: R, Ω0, Cd; its row; the height limit [m] by Seismic Design Category (null: no limit, 0: not permitted); the frame's seismic detailing. */
+	readonly systems: { readonly [id: string]: { readonly name: string; readonly r: number; readonly omega: number; readonly cd: number; readonly row: string; readonly heightLimits: { readonly [sdc: string]: number | null }; readonly frame: string | null } };
+	/** Table 6.2.18: the Seismic Design Category by site class, occupancy group and zone (in zone order). */
+	readonly designCategories: { readonly occupancyGroups: { readonly [category: string]: string }; readonly bySiteClass: { readonly [siteClass: string]: { readonly [group: string]: readonly string[] } }; readonly aliases: { readonly [siteClass: string]: string } };
+	/** Sec 8.3.2: the least seismic detailing by Seismic Design Category. */
+	readonly requiredDetailing: { readonly [sdc: string]: string };
+	/** Sec 2.4: Kd (Table 6.2.12), Kzt (flat terrain) and G (rigid building). */
+	readonly wind: { readonly directionality: number; readonly topographic: number; readonly gust: number };
+	/** Concrete relations of f'c: Ec = ec √f'c (Sec 6.1.7.1), fr = fr √f'c (Eq. 6.6.3), and the deviation flagged. */
+	readonly concrete: { readonly ec: number; readonly fr: number; readonly deviation: number };
 	readonly siteClasses: { readonly [id: string]: string };
 	readonly exposures: { readonly [id: string]: string };
 	readonly loadCases: { readonly [id: string]: string };
@@ -122,6 +137,8 @@ def _ts(value: Any, indent: int = 0) -> str:
 
 def bnbc_tables() -> dict[str, Any]:
     """BNBC 2020 tables the settings editor shows derived values from."""
+    seismic = builtin_table("seismic", bnbc.PACK_ID)
+    wind = builtin_table("wind", bnbc.PACK_ID)
     return {
         "edition": bnbc.EDITION,
         "zoneCoefficient": {str(k): v for k, v in bnbc.ZONE_COEFFICIENT.items()},
@@ -139,9 +156,25 @@ def bnbc_tables() -> dict[str, Any]:
         },
         "areaUses": {k: {"name": v.name, "live": v.live} for k, v in bnbc.AREA_USES.items()},
         "systems": {
-            k: {"name": v.name, "r": v.r, "omega": v.omega, "cd": v.cd}
-            for k, v in bnbc.STRUCTURAL_SYSTEMS.items()
+            k: {
+                "name": v.name,
+                "r": v.R,
+                "omega": v.Omega0,
+                "cd": v.Cd,
+                "row": v.row,
+                "heightLimits": v.heightLimits,
+                "frame": v.frame,
+            }
+            for k, v in seismic.systems.items()
         },
+        "designCategories": seismic.designCategories.model_dump(mode="json"),
+        "requiredDetailing": seismic.requiredDetailing,
+        "wind": {
+            "directionality": wind.directionality,
+            "topographic": wind.topographic,
+            "gust": wind.gust,
+        },
+        "concrete": {"ec": EC_COEFFICIENT, "fr": FR_COEFFICIENT, "deviation": DEVIATION_LIMIT},
         "siteClasses": bnbc.SITE_CLASSES,
         "exposures": bnbc.EXPOSURES,
         "loadCases": bnbc.LOAD_CASES,

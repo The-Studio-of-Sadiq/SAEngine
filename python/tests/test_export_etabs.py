@@ -554,7 +554,7 @@ def test_cli_writes_the_e2k_and_its_report(tmp_path: Path, monkeypatch: Any, cap
     assert report["schema"] == "saengine.exportReport/1"
     assert report["exported"]["columns"] == 7
     assert not (project / "08 FEM" / "model.osmodel").exists()  # the project is not touched
-    # The live load on the slabs less their openings (as ETABS loads them), and the overhead
-    # tank's water as F.
-    assert math.isclose(report["loads"]["exportedKN"]["L"], 128.35, rel_tol=1e-4)
+    # The live load on the slabs less their openings (as ETABS loads them; residential floors
+    # at 2.0 kN/m²), and the overhead tank's water as F.
+    assert math.isclose(report["loads"]["exportedKN"]["L"], 107.012, rel_tol=1e-4)
     assert math.isclose(report["loads"]["exportedKN"]["F"], 47.9, rel_tol=1e-4)
