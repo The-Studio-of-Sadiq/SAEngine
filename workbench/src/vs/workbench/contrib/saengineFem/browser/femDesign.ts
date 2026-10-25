@@ -128,6 +128,10 @@ export interface IFemDesignReport {
 	readonly combinations: readonly string[];
 	readonly elements: readonly IFemDesignElement[];
 	readonly skipped: readonly IFemDesignSkipped[];
+	/**
+	 * The totals count the members, the beam-column joints and the building's seismic checks
+	 * (system permitted in the category, bar grades); `elements` the members alone.
+	 */
 	readonly summary: {
 		readonly checked: number;
 		readonly passed: number;
@@ -135,6 +139,12 @@ export interface IFemDesignReport {
 		readonly skipped: number;
 		readonly maxUtilisation: number | null;
 		readonly governing: string | null;
+		readonly elements?: { readonly checked: number; readonly passed: number; readonly failed: number };
+		readonly joints?: { readonly checked: number; readonly failed: number };
+		readonly seismicChecks?: number;
+		readonly seismicChecksFailed?: number;
+		/** Object types not checked for want of bars (Design Reinforcement proposes them). */
+		readonly noBars?: readonly string[];
 	};
 	readonly notes: readonly string[];
 }
