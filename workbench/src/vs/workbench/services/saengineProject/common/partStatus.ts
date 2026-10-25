@@ -7,15 +7,18 @@ import { Event } from '../../../../base/common/event.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { boqSourceStamp, mepModelStamp, recordedStamp, sourceStamp, upstreamPart } from './partSources.js';
+import { DEFAULT_MATERIALS, DEFAULT_SETTINGS } from './projectLibraries.generated.js';
 import { IProjectPart } from './saengineProject.js';
 
 /*
- * How far each part of a project has got, from its files on disk: not started (a placeholder
- * or missing file), in progress, done, stale (an upstream part changed since this part was
- * produced), failed (the design checks found failing members) or error (an unreadable file).
+ * How far each part of a project has got, from its files on disk (never from unsaved editor
+ * buffers): not started (a placeholder, missing or empty file), defaults (the settings or
+ * materials a new project starts with, not changed yet), in progress, done, stale (an upstream
+ * part changed since this part was produced), failed (the design checks found failing members)
+ * or error (an unreadable file).
  */
 
-export type PartState = 'notStarted' | 'inProgress' | 'done' | 'stale' | 'failed' | 'error';
+export type PartState = 'notStarted' | 'defaults' | 'inProgress' | 'done' | 'stale' | 'failed' | 'error';
 
 export interface IPartStatus {
 	/** Id of the part (see `PROJECT_PARTS`). */
@@ -569,6 +572,43 @@ function startHint(part: string): string {
 	}
 }
 
+/** `value` as JSON with every object's keys sorted, so equal documents compare equal whatever their key order. */
+function canonical(value: unknown): string {
+	return JSON.stringify(value, (_key, v) => typeof v === 'object' && v !== null && !Array.isArray(v)
+		? Object.fromEntries(Object.keys(v).sort().map(k => [k, (v as JsonObject)[k]]))
+		: v);
+}
+
+function object(value: unknown): JsonObject {
+	return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as JsonObject : {};
+}
+
+/**
+ * Whether a settings or materials file still holds what a new project starts with. The settings
+ * are compared apart from what the new-project dialog fills in: the project name and the
+ * concrete and steel codes. Projects whose settings were written with other values (New
+ * Building from Grid, the importers) or with older defaults count as changed.
+ */
+export function holdsDefaults(document: JsonObject, part: string): boolean {
+	if (part === 'materials') {
+		return canonical(document) === canonical(DEFAULT_MATERIALS);
+	}
+	const defaults = DEFAULT_SETTINGS as JsonObject;
+	const codes = object(document.codes);
+	const expected = {
+		...defaults,
+		project: { name: object(document.project).name },
+		codes: { ...object(defaults.codes), concrete: codes.concrete, steel: codes.steel },
+	};
+	return canonical(document) === canonical(expected);
+}
+
+/** The members a floor plan places (columns, beams, walls, slabs and footings) or a structural model draws (members and areas). */
+export function modelMemberCount(document: JsonObject, part: string): number {
+	const keys = part === 'structure' ? ['members', 'areas'] : ['columns', 'beams', 'walls', 'slabs', 'footings'];
+	return keys.reduce((sum, key) => sum + (Array.isArray(document[key]) ? (document[key] as unknown[]).length : 0), 0);
+}
+
 function documentStatus(part: string, inputs: IPartStatusInputs): IPartStatus {
 	const text = inputs.texts.get(part);
 	if (text === undefined) {
@@ -581,7 +621,30 @@ function documentStatus(part: string, inputs: IPartStatusInputs): IPartStatus {
 	if (isPlaceholder(document, part)) {
 		return status(part, 'notStarted', NOT_STARTED(), startHint(part));
 	}
-	return status(part, 'done');
+	switch (part) {
+		case 'settings':
+		case 'materials':
+			return holdsDefaults(document, part)
+				? status(part, 'defaults', localize('partStatus.defaults', "defaults"), localize('partStatus.reviewDefaults', "review the defaults"))
+				: status(part, 'done');
+		case 'objects': {
+			const types = Array.isArray(document.objects) ? document.objects.length : 0;
+			if (!types) {
+				return status(part, 'notStarted', NOT_STARTED(), startHint(part));
+			}
+			return status(part, 'done', types === 1 ? localize('partStatus.objects.one', "1 type") : localize('partStatus.objects.count', "{0} types", types));
+		}
+		case 'floorPlan':
+		case 'structure': {
+			const members = modelMemberCount(document, part);
+			if (!members) {
+				return status(part, 'notStarted', NOT_STARTED(), startHint(part));
+			}
+			return status(part, 'done', members === 1 ? localize('partStatus.members.one', "1 member") : localize('partStatus.members.count', "{0} members", members));
+		}
+		default:
+			return status(part, 'done');
+	}
 }
 
 function defaultFormatDate(time: number): string {
@@ -605,8 +668,9 @@ export function computePartStatuses(parts: readonly IProjectPart[], inputs: IPar
 }
 
 /**
- * The first part, in workflow order, that needs doing, with its index; the parts whose modules
- * are not written yet (soil report, MEP, substructure) are skipped.
+ * The first part, in workflow order, that needs doing (settings or materials still holding the
+ * defaults need reviewing), with its index; the optional parts (soil report, MEP, substructure)
+ * are skipped.
  */
 export function nextStep(statuses: readonly IPartStatus[]): { readonly index: number; readonly status: IPartStatus } | undefined {
 	const index = statuses.findIndex(s => s.state !== 'done' && !OPTIONAL_PARTS.has(s.part));
