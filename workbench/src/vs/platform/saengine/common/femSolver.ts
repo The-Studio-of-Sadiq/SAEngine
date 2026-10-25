@@ -617,11 +617,13 @@ export interface ICadOpenResult {
  * running EnergyPlus version 26.2.0 (a separate process, up to half a minute);
  * `mep/hvacCancelLoads` stops it; `mep/hvacProposePlant`, `mep/hvacDuctOpenings`; the tables
  * `mep/hvacTables` and `mep/hvacConstructions`; `mep/electricalReport`,
- * `mep/electricalProposeEquipment`, `mep/electricalOpenings` and the table `mep/electricalUses`.
+ * `mep/electricalProposeEquipment`, `mep/electricalOpenings` and the table `mep/electricalUses`;
+ * `mep/fireReport` (BNBC 2020 Part 4), `mep/fireProposals` and `mep/fireOpenings`.
  */
 export type MepServiceMethod =
 	| 'mep/hvacReport' | 'mep/hvacLoads' | 'mep/hvacCancelLoads' | 'mep/hvacProposePlant' | 'mep/hvacDuctOpenings' | 'mep/hvacTables' | 'mep/hvacConstructions'
-	| 'mep/electricalReport' | 'mep/electricalProposeEquipment' | 'mep/electricalOpenings' | 'mep/electricalUses';
+	| 'mep/electricalReport' | 'mep/electricalProposeEquipment' | 'mep/electricalOpenings' | 'mep/electricalUses'
+	| 'mep/fireReport' | 'mep/fireProposals' | 'mep/fireOpenings';
 
 /** What a {@link MepServiceMethod} is asked about (none for the tables and the cancel). */
 export interface IMepServiceParams {

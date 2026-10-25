@@ -1094,6 +1094,255 @@ class Electrical(_Model):
         return self
 
 
+# ─────────────────────────── fire protection (BNBC 2020 Part 4) ───────────────────────────
+
+FIRE_HAZARDS = {
+    "lightI": "Light hazard-I",
+    "lightII": "Light hazard-II",
+    "ordinaryI": "Ordinary hazard-I",
+    "ordinaryII": "Ordinary hazard-II",
+    "ordinaryIII": "Ordinary hazard-III",
+    "extra": "Extra hazard",
+}
+FIRE_RISER_SYSTEMS = {
+    "standpipe": "Standpipe (hydrant) riser",
+    "sprinkler": "Sprinkler riser",
+    "combined": "Combined standpipe and sprinkler riser",
+}
+FIRE_PUMP_DUTIES = {
+    "main": "Main fire pump",
+    "standby": "Standby fire pump",
+    "jockey": "Jockey (pressurising) pump",
+}
+
+
+class FireBuilding(_Model):
+    """What Part 4 Chapter 5 asks of the building besides its stories."""
+
+    construction: Literal["typeIA", "modifiedIA", "other"] = Field(
+        default="typeIA",
+        description="Sec 5.2: monolithic construction to the Code is Type I-A; offsite, "
+        "prestressed, prefabricated or encased steel Modified Type I-A; any other: performance "
+        "based fire protection (Sec 5.2.5).",
+        json_schema_extra=_labels(
+            ["Type I-A (monolithic RC)", "Modified Type I-A", "Other (performance based)"]
+        ),
+    )
+    corridor: Literal["central", "singleOpen"] = Field(
+        default="central",
+        description="Hostels, hotels and schools (Sec 5.3.3, 5.3.4, 5.4): central corridor with "
+        "rooms on both sides, or a single loaded open corridor of 3 m or more.",
+        json_schema_extra=_labels(["Central corridor", "Single loaded open corridor (3 m+)"]),
+    )
+    dwellingUnits: int | None = Field(
+        default=None,
+        ge=0,
+        title="Dwelling units",
+        description="Flats (A3): 30 or more need a fire protection plan (Sec 5.1.6(c)).",
+    )
+    occupantLoad: float | None = Field(
+        default=None,
+        ge=0,
+        title="Occupant load",
+        description="Industry (G1): above 150 the protection is performance based (Sec 5.9.1).",
+    )
+    falseCeiling: float | None = Field(
+        default=None,
+        ge=0,
+        title="False ceiling",
+        description="Largest space under one false ceiling [m²] (offices: above 500 m² an "
+        "automatic fire alarm above and below it, Sec 5.7(ix)).",
+    )
+
+
+class FireSupply(_Model):
+    """The water-based systems: hose, pipes, storage and pumps."""
+
+    hose: Literal["small", "large", "firstAid"] = Field(
+        default="small",
+        description="Hose at the outlets (Sec 4.2.3.11): small stream 63/50 mm or large stream "
+        "100 mm (300 kPa at the outlet), first-aid 38 mm (200 kPa) (Sec 4.2.3.3).",
+        json_schema_extra=_labels(
+            ["Small stream (63 or 50 mm)", "Large stream (100 mm)", "First aid (38 mm)"]
+        ),
+    )
+    material: Literal["steel", "GI", "copper"] = Field(
+        default="steel",
+        description="Pipe (Tables 4.4.3 and 4.4.8); sprinkler pipe schedules of Table 4.4.5 "
+        "(steel) or 4.4.6 (copper).",
+        json_schema_extra=_labels(["Black steel", "Galvanised steel", "Copper"]),
+    )
+    storage: Literal["dedicated", "plumbingReserve"] = Field(
+        default="dedicated",
+        description="The fire water in its own tanks (fire.tanks), or as the fire reserve of "
+        "the plumbing tanks (plumbing.supply.fireReserve, Figure 4.4.6).",
+        json_schema_extra=_labels(["Dedicated fire tanks", "Fire reserve in the plumbing tanks"]),
+    )
+    pumpType: Literal["endSuction", "splitCase", "verticalTurbine"] = Field(
+        default="endSuction",
+        title="Pump type",
+        description="Centrifugal pumps (end suction, split case) need a flooded suction (Sec "
+        "4.2.2.5); a vertical turbine pump stands over a tank below it.",
+        json_schema_extra=_labels(
+            ["End suction centrifugal", "Split case centrifugal", "Vertical turbine"]
+        ),
+    )
+    standby: Literal["diesel", "electric"] = Field(
+        default="diesel",
+        description="The secondary fire pump (Sec 4.2.2.5): diesel engine, or electric on an "
+        "alternate power supply.",
+        json_schema_extra=_labels(["Diesel engine", "Electric, alternate supply"]),
+    )
+    fireEngineOnCover: bool = Field(
+        default=False,
+        title="Fire engine on the cover",
+        description="No space for the fire engine beside the ground tank: its cover slab "
+        "carries the fire engine (Sec 4.2.3.8).",
+    )
+    fireEngineWeight: float | None = Field(
+        default=None,
+        gt=0,
+        title="Fire engine weight",
+        description="Gross weight of the local fire engine [kN]; empty: 160 kN (from memory, "
+        "to be checked with the Fire Service).",
+    )
+
+
+class FireStory(_Model):
+    """A story's use and what protects it."""
+
+    story: Id = Field(description="Building-model story.")
+    occupancy: Occupancy = Field(  # type: ignore[valid-type]
+        default="office",
+        description="Use (Part 3 occupancy group in brackets): it sets the systems (Part 4 "
+        "Chapter 5) and the hazard (Table 4.4.1).",
+        json_schema_extra=_labels(
+            [f"{OCCUPANCIES[k].label} ({OCCUPANCIES[k].group})" for k in OCCUPANCY_KEYS]
+        ),
+    )
+    area: float | None = Field(
+        default=None, gt=0, description="Gross floor area [m²]; empty: the story's slabs."
+    )
+    undivided: float | None = Field(
+        default=None,
+        gt=0,
+        description="Largest single effective undivided space [m²]; empty: the floor area.",
+    )
+    hazard: Literal[tuple(FIRE_HAZARDS)] | None = Field(  # type: ignore[valid-type]
+        default=None,
+        description="Table 4.4.1 hazard; empty: of the occupancy group.",
+        json_schema_extra=_labels(list(FIRE_HAZARDS.values())),
+    )
+    sprinklered: bool | None = Field(
+        default=None, description="Sprinklers on this story; empty: where Part 4 requires them."
+    )
+    ceiling: Literal["beams", "openJoists", "other"] = Field(
+        default="beams",
+        description="Construction above the sprinklers (Table 4.4.7).",
+        json_schema_extra=_labels(
+            ["Floor on beams or girders", "Open wood joists", "Other construction"]
+        ),
+    )
+
+
+class FireRiser(_Model):
+    """A vertical fire main: standpipe, sprinkler or combined riser."""
+
+    id: Id
+    system: Literal[tuple(FIRE_RISER_SYSTEMS)] = Field(  # type: ignore[valid-type]
+        default="standpipe", json_schema_extra=_labels(list(FIRE_RISER_SYSTEMS.values()))
+    )
+    x: Mm = Field(description="Plan X [mm].")
+    y: Mm = Field(description="Plan Y [mm].")
+    fromStory: Id = Field(title="From story", description="Story it starts at (not cut).")
+    toStory: Id = Field(title="To story", description="Highest story whose floor it cuts.")
+    shaft: Id | None = Field(default=None, description="Shaft it runs in.")
+    diameter: Length | None = Field(default=None, description="Nominal [mm]; empty: sized.")
+
+
+class FireMain(_Model):
+    """A horizontal fire or sprinkler main below a floor (its beam sleeves are proposed)."""
+
+    id: Id
+    story: Id = Field(description="Story whose ceiling space it runs in.")
+    path: list[Point2] = Field(min_length=2, description="Plan path [[x, y], ...] mm.")
+    diameter: Length | None = Field(default=None, description="Nominal [mm]; empty: sized.")
+    bottom: Mm | None = Field(
+        default=None,
+        description="Pipe bottom above the story's floor [mm]; empty: 150 mm "
+        "below the soffit of the slab above (as the cable trays).",
+    )
+
+
+class FirePump(_Model):
+    """A fire pump set (its weight loads the floor it stands on)."""
+
+    id: Id
+    duty: Literal[tuple(FIRE_PUMP_DUTIES)] = Field(  # type: ignore[valid-type]
+        default="main", json_schema_extra=_labels(list(FIRE_PUMP_DUTIES.values()))
+    )
+    story: Id = Field(description="Building-model story it stands on.")
+    x: Mm = Field(description="Centre, plan X [mm].")
+    y: Mm = Field(description="Centre, plan Y [mm].")
+    length: Length | None = Field(default=None, description="Along X [mm].")
+    width: Length | None = Field(default=None, description="Along Y [mm].")
+    height: Length | None = None
+    flow: float | None = Field(default=None, gt=0, description="Rated flow [l/min].")
+    head: float | None = Field(default=None, gt=0, description="Rated head [m].")
+    power: float | None = Field(default=None, gt=0, description="Motor or engine [kW].")
+    operatingWeight: float | None = Field(
+        default=None, gt=0, title="Operating weight", description="Set with water [kN]."
+    )
+    sized: bool = Field(default=False, description="Proposed by SAEngine (editable).")
+    equipment: Id | None = Field(
+        default=None, description="An equipment of 07 MEP that is this pump (loaded once)."
+    )
+
+
+class FirePumpRoom(_Model):
+    """The fire pump room: its outline is checked against the sets it must hold."""
+
+    story: Id
+    outline: list[Point2] = Field(min_length=3, description="Inside face of the walls [mm].")
+
+
+class Fire(_Model):
+    """The fire protection the structure coordinates with (BNBC 2020 Part 4)."""
+
+    building: FireBuilding = Field(default_factory=FireBuilding)
+    supply: FireSupply = Field(default_factory=FireSupply)
+    hydrant: bool | None = Field(
+        default=None,
+        description="A hydrant (standpipe) system; empty: where Part 4 requires one. Where "
+        "Part 4 allows 'portable extinguishers or hydrants', true chooses hydrants.",
+    )
+    detection: bool | None = Field(
+        default=None, description="Automatic detection; empty: where Part 4 requires it."
+    )
+    stories: list[FireStory] = Field(default_factory=list)
+    risers: list[FireRiser] = Field(default_factory=list)
+    mains: list[FireMain] = Field(default_factory=list)
+    tanks: list[PlumbingTank] = Field(
+        default_factory=list,
+        description="Fire water reservoirs (kinds overhead and underground), designed as the "
+        "plumbing tanks.",
+    )
+    pumps: list[FirePump] = Field(default_factory=list)
+    pumpRoom: FirePumpRoom | None = Field(default=None, title="Pump room")
+
+    @model_validator(mode="after")
+    def _ids(self) -> Fire:
+        ids = [x.id for x in (*self.risers, *self.mains, *self.tanks, *self.pumps)]
+        duplicates = sorted({i for i in ids if ids.count(i) > 1})
+        if duplicates:
+            raise ValueError(f"duplicate fire ids: {', '.join(duplicates)}")
+        stories = [s.story for s in self.stories]
+        twice = sorted({s for s in stories if stories.count(s) > 1})
+        if twice:
+            raise ValueError(f"fire stories listed twice: {', '.join(twice)}")
+        return self
+
+
 class MepModel(_Model):
     schema_: Literal["saengine.mep/1"] = Field(default=SCHEMA_ID, alias="schema")
     equipment: list[Equipment] = Field(default_factory=list)
@@ -1124,6 +1373,11 @@ class MepModel(_Model):
         default=None,
         description="Supply, plant rooms, risers, trays and lightning protection, coordinated "
         "to BNBC 2020 Part 8 Chapter 1.",
+    )
+    fire: Fire | None = Field(
+        default=None,
+        description="Fire protection: the systems required, standpipes, sprinklers, fire "
+        "pumps and the fire reservoir, to BNBC 2020 Part 4.",
     )
 
     @model_validator(mode="after")
@@ -1189,6 +1443,7 @@ def check(mep: MepModel, building: Any = None) -> list[str]:
     linked = [
         *(mep.hvac.plant if mep.hvac is not None else []),
         *(mep.electrical.equipment if mep.electrical is not None else []),
+        *(mep.fire.pumps if mep.fire is not None else []),
     ]
     for item in linked:
         if item.equipment is not None and item.equipment not in equipment:

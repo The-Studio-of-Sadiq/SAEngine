@@ -204,7 +204,8 @@ export function allIds(document: IMep): string[] {
 	const p = plumbingOf(document);
 	const hvac = record(document.hvac);
 	const electrical = record(document.electrical);
-	const listed = [hvac.plant, hvac.ducts, electrical.equipment, electrical.risers, electrical.trays]
+	const fire = record(document.fire);
+	const listed = [hvac.plant, hvac.ducts, electrical.equipment, electrical.risers, electrical.trays, fire.risers, fire.mains, fire.tanks, fire.pumps]
 		.flatMap(list => records<Record<string, unknown>>(list).map(item => item.id).filter((id): id is string => typeof id === 'string'));
 	return [...usedIds(document), ...(p ? [...p.risers, ...p.tanks, ...p.roof.drains].map(item => item.id) : []), ...listed];
 }

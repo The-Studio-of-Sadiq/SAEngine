@@ -76,29 +76,37 @@ import { renderElectricalReport } from './electricalResults.js';
 import {
 	renderElecEquipmentProperties, renderElecRiserProperties, renderElectricalData, renderElectricalSummaryProperties, renderLocalElectrical, renderTrayProperties,
 } from './electricalView.js';
+import {
+	checkFire, ensureFire, FIRE_OPENINGS_COMMAND, FIRE_PROPOSE_COMMAND, FIRE_REPORT_COMMAND, FIRE_RISER_SYSTEMS, fireExtent, fireFailures, fireOf, fireRiserLabel, fireRiserLetters,
+	fireRiserOnStory, FireRiserSystem, fireSummary, fireSummaryFile, fireTankStory, hasFire, IFireReport, mergeFireProposals, newFireRiser, readFireProposals, readFireReport,
+} from './fireDocument.js';
+import { renderFire } from './firePlan.js';
+import { renderFireReport } from './fireResults.js';
+import { renderFireData, renderFirePumpProperties, renderFireRiserProperties, renderFireSummaryProperties, renderFireTankProperties } from './fireView.js';
 import { IMepFormHost } from './mepForm.js';
 import { problemsOf, roofStory, storyAbove } from './mepRead.js';
 
 type View = 'plan' | 'data' | 'results';
 
 /** What can be dragged in the plan, the disciplines' items (drawn on top) first. */
-type DragKind = 'riser' | 'drain' | 'tank' | 'plant' | 'duct' | 'elecEquipment' | 'elecRiser' | 'tray' | 'equipment' | 'shaft';
-const DRAG_KINDS: readonly DragKind[] = ['riser', 'drain', 'tank', 'plant', 'elecEquipment', 'elecRiser', 'duct', 'tray', 'equipment', 'shaft'];
+type DragKind = 'riser' | 'drain' | 'tank' | 'plant' | 'duct' | 'elecEquipment' | 'elecRiser' | 'tray' | 'fireRiser' | 'firePump' | 'fireTank' | 'equipment' | 'shaft';
+const DRAG_KINDS: readonly DragKind[] = ['riser', 'drain', 'tank', 'plant', 'elecEquipment', 'elecRiser', 'fireRiser', 'firePump', 'fireTank', 'duct', 'tray', 'equipment', 'shaft'];
 
 /** The attribute each draggable kind carries in the plan (mepPlan.ts and the discipline plans). */
 const DRAG_ATTRIBUTES: { readonly [K in DragKind]: string } = {
 	riser: 'data-riser', drain: 'data-drain', tank: 'data-tank', plant: 'data-plant', duct: 'data-duct', elecEquipment: 'data-elec-equipment', elecRiser: 'data-elec-riser', tray: 'data-tray',
-	equipment: 'data-equipment', shaft: 'data-shaft',
+	fireRiser: 'data-fire-riser', firePump: 'data-fire-pump', fireTank: 'data-fire-tank', equipment: 'data-equipment', shaft: 'data-shaft',
 };
 
 /** What the editor shows: the coordination of the services with the structure, or one discipline's set-up. */
-type Discipline = 'coordination' | 'plumbing' | 'hvac' | 'electrical';
+type Discipline = 'coordination' | 'plumbing' | 'hvac' | 'electrical' | 'fire';
 
 const DISCIPLINE_VIEWS: readonly { readonly discipline: Discipline; readonly label: string }[] = [
 	{ discipline: 'coordination', label: localize('mep.disciplineCoordination', "Coordination") },
 	{ discipline: 'plumbing', label: localize('mep.disciplinePlumbing', "Plumbing") },
 	{ discipline: 'hvac', label: localize('mep.disciplineHvac', "HVAC") },
 	{ discipline: 'electrical', label: localize('mep.disciplineElectrical', "Electrical") },
+	{ discipline: 'fire', label: localize('mep.disciplineFire', "Fire") },
 ];
 
 /** A path being drawn in the plan: a duct of a system, or a cable tray. */
@@ -238,6 +246,11 @@ export class MepEditor extends EditorPane {
 	private elecUses: readonly IElecUse[] = STATIC_ELEC_USES;
 	private elecUsesFromBackend = false;
 
+	private fireReport: IFireReport | undefined;
+	private fireState: ReportState = 'idle';
+	private fireError: string | undefined;
+	private fireVersion = 0;
+
 	/** The duct or tray being drawn in the plan, and the line that follows the pointer from its last point. */
 	private drawing: IDrawing | undefined;
 	private drawRubber: SVGLineElement | undefined;
@@ -316,6 +329,12 @@ export class MepEditor extends EditorPane {
 	private readonly elecOpeningsAction = this._register(new Action('saengine.mep.editor.elecOpenings', localize('elec.openings', "Add Openings"), ThemeIcon.asClassName(Codicon.circleLargeOutline), true, () => this.addServiceOpenings('electrical')));
 	private readonly recomputeElectricalAction = this._register(new Action('saengine.mep.editor.recomputeElectrical', localize('elec.recompute', "Check the Electrical Services Again"), undefined, true, () => this.computeElectricalReport()));
 
+	private readonly fireRiserActions = FIRE_RISER_SYSTEMS.map(system => this._register(new Action(`saengine.mep.editor.addFireRiser.${system}`, localize('fire.addRiserSystem', "{0} ({1})", fireRiserLabel(system), fireRiserLetters(system)), undefined, true, async () => this.addFireRiser(system))));
+	private readonly addFireRiserAction = new SubmenuAction('saengine.mep.editor.addFireRiser', localize('fire.addRiser', "Add Riser"), this.fireRiserActions, ThemeIcon.asClassName(Codicon.arrowUp));
+	private readonly proposeFireAction = this._register(new Action('saengine.mep.editor.proposeFire', localize('fire.propose', "Propose Pumps and Tank"), ThemeIcon.asClassName(Codicon.wand), true, () => this.proposeFire()));
+	private readonly fireSleevesAction = this._register(new Action('saengine.mep.editor.fireSleeves', localize('fire.sleeves', "Add Sleeves"), ThemeIcon.asClassName(Codicon.circleLargeOutline), true, () => this.addServiceOpenings('fire')));
+	private readonly recomputeFireAction = this._register(new Action('saengine.mep.editor.recomputeFire', localize('fire.recompute', "Check the Fire Protection Again"), undefined, true, () => this.computeFireReport()));
+
 	constructor(
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -341,7 +360,8 @@ export class MepEditor extends EditorPane {
 		this._register(CommandsRegistry.onDidRegisterCommand(id => {
 			// The backend registers its commands when it starts: check as soon as it can.
 			if ((id === MEP_REPORT_COMMAND && this.reportState === 'missing') || (id === PLUMBING_REPORT_COMMAND && this.plumbingState === 'missing')
-				|| (id === HVAC_REPORT_COMMAND && this.hvacState === 'missing') || (id === ELECTRICAL_REPORT_COMMAND && this.electricalState === 'missing')) {
+				|| (id === HVAC_REPORT_COMMAND && this.hvacState === 'missing') || (id === ELECTRICAL_REPORT_COMMAND && this.electricalState === 'missing')
+				|| (id === FIRE_REPORT_COMMAND && this.fireState === 'missing')) {
 				this.reportScheduler.schedule(0);
 			}
 			if (id === PLUMBING_OCCUPANCIES_COMMAND) {
@@ -403,6 +423,8 @@ export class MepEditor extends EditorPane {
 		this.hvacState = 'idle';
 		this.electricalReport = undefined;
 		this.electricalState = 'idle';
+		this.fireReport = undefined;
+		this.fireState = 'idle';
 		this.cancelDrawing(false);
 		this.selection = undefined;
 		this.selectedClash = undefined;
@@ -573,6 +595,9 @@ export class MepEditor extends EditorPane {
 			case 'elecEquipment': return selection.index < (electricalOf(document)?.equipment.length ?? 0);
 			case 'elecRiser': return selection.index < (electricalOf(document)?.risers.length ?? 0);
 			case 'tray': return selection.index < (electricalOf(document)?.trays.length ?? 0);
+			case 'fireRiser': return selection.index < (fireOf(document)?.risers.length ?? 0);
+			case 'firePump': return selection.index < (fireOf(document)?.pumps.length ?? 0);
+			case 'fireTank': return selection.index < (fireOf(document)?.tanks.length ?? 0);
 			default: return true;
 		}
 	}
@@ -698,7 +723,7 @@ export class MepEditor extends EditorPane {
 		}
 		const target = e.target as Element | null;
 		const pick = (attribute: string) => target?.closest(`[${attribute}]`)?.getAttribute(attribute);
-		for (const kind of ['riser', 'drain', 'tank', 'plant', 'elecEquipment', 'elecRiser', 'duct', 'tray'] as const) {
+		for (const kind of ['riser', 'drain', 'tank', 'plant', 'elecEquipment', 'elecRiser', 'fireRiser', 'firePump', 'fireTank', 'duct', 'tray'] as const) {
 			const index = pick(DRAG_ATTRIBUTES[kind]);
 			if (index) {
 				this.select({ kind, index: Number(index) });
@@ -785,13 +810,17 @@ export class MepEditor extends EditorPane {
 		const plumbing = plumbingOf(document);
 		const hvac = hvacOf(document);
 		const electrical = electricalOf(document);
+		const fire = fireOf(document);
 		const point = drag.kind === 'equipment' ? document.equipment[drag.index]
 			: drag.kind === 'riser' ? plumbing?.risers[drag.index]
 				: drag.kind === 'tank' ? plumbing?.tanks[drag.index]
 					: drag.kind === 'drain' ? plumbing?.roof.drains[drag.index]
 						: drag.kind === 'plant' ? hvac?.plant[drag.index]
 							: drag.kind === 'elecEquipment' ? electrical?.equipment[drag.index]
-								: drag.kind === 'elecRiser' ? electrical?.risers[drag.index] : undefined;
+								: drag.kind === 'elecRiser' ? electrical?.risers[drag.index]
+									: drag.kind === 'fireRiser' ? fire?.risers[drag.index]
+										: drag.kind === 'firePump' ? fire?.pumps[drag.index]
+											: drag.kind === 'fireTank' ? fire?.tanks[drag.index] : undefined;
 		const move = (points: readonly Point[]) => points.map(p => [p[0] + dx, p[1] + dy] as Point);
 		if (point) {
 			point.x = point.x + dx;
@@ -845,7 +874,7 @@ export class MepEditor extends EditorPane {
 	private keepsSelectionAcrossStories(): boolean {
 		const selection = this.selection;
 		const duct = selection?.kind === 'duct' && this.document ? hvacOf(this.document)?.ducts[selection.index] : undefined;
-		return selection?.kind === 'opening' || selection?.kind === 'riser' || selection?.kind === 'elecRiser' || !!duct?.riser;
+		return selection?.kind === 'opening' || selection?.kind === 'riser' || selection?.kind === 'elecRiser' || selection?.kind === 'fireRiser' || !!duct?.riser;
 	}
 
 	/** Starts drawing a duct of `system` or a cable tray on the story shown: its points are clicked in the plan. */
@@ -1023,6 +1052,9 @@ export class MepEditor extends EditorPane {
 			case 'elecEquipment': electricalOf(document)?.equipment.splice(selection.index, 1); break;
 			case 'elecRiser': electricalOf(document)?.risers.splice(selection.index, 1); break;
 			case 'tray': electricalOf(document)?.trays.splice(selection.index, 1); break;
+			case 'fireRiser': fireOf(document)?.risers.splice(selection.index, 1); break;
+			case 'firePump': fireOf(document)?.pumps.splice(selection.index, 1); break;
+			case 'fireTank': fireOf(document)?.tanks.splice(selection.index, 1); break;
 			default: return;
 		}
 		this.selection = undefined;
@@ -1234,20 +1266,21 @@ export class MepEditor extends EditorPane {
 	}
 
 	private hasContent(document: IMep): boolean {
-		return document.equipment.length + document.openings.length + document.shafts.length + document.ifcModels.length > 0 || hasPlumbing(document) || hasHvac(document) || hasElectrical(document);
+		return document.equipment.length + document.openings.length + document.shafts.length + document.ifcModels.length > 0 || hasPlumbing(document) || hasHvac(document) || hasElectrical(document) || hasFire(document);
 	}
 
-	/** The file's problems: the coordination's, the plumbing's, the HVAC's and the electrical services'. */
+	/** The file's problems: the coordination's, the plumbing's, the HVAC's, the electrical services' and the fire protection's. */
 	private check(document: IMep): IMepProblem[] {
 		return [
 			...checkMep(document, this.context), ...checkPlumbing(document, this.context),
 			...checkHvac(document, this.context, this.hvacCities, this.hvacUses), ...checkElectrical(document, this.context, this.elecUses),
+			...checkFire(document, this.context),
 		];
 	}
 
 	/** Every report, after an edit (the cooling loads only on Calculate Loads). */
 	private async computeReports(): Promise<void> {
-		await Promise.all([this.computeReport(), this.computePlumbingReport(), this.computeHvacReport(), this.computeElectricalReport()]);
+		await Promise.all([this.computeReport(), this.computePlumbingReport(), this.computeHvacReport(), this.computeElectricalReport(), this.computeFireReport()]);
 	}
 
 	/** Asks the backend for the report (debounced after every edit). */
@@ -1310,7 +1343,8 @@ export class MepEditor extends EditorPane {
 		const plumbing = this.plumbingState === 'ok' && this.plumbingReport ? { plumbing: plumbingSummaryFile(document, this.plumbingReport) } : {};
 		const hvac = this.hvacState === 'ok' && this.hvacReport ? { hvac: hvacSummaryFile(document, this.hvacReport) } : {};
 		const electrical = this.electricalState === 'ok' && this.electricalReport ? { electrical: electricalSummaryFile(document, this.electricalReport) } : {};
-		const content = JSON.stringify({ ...mepSummaryFile(document, report, model.getValue(), new Date(), sourceTexts), ...plumbing, ...hvac, ...electrical }, undefined, '\t') + '\n';
+		const fire = this.fireState === 'ok' && this.fireReport ? { fire: fireSummaryFile(document, this.fireReport) } : {};
+		const content = JSON.stringify({ ...mepSummaryFile(document, report, model.getValue(), new Date(), sourceTexts), ...plumbing, ...hvac, ...electrical, ...fire }, undefined, '\t') + '\n';
 		this.fileService.writeFile(joinPath(dirname(this.resource), MEP_SUMMARY_FILE), VSBuffer.fromString(content)).catch(() => { /* the part list then shows the count only */ });
 	}
 
@@ -1320,7 +1354,7 @@ export class MepEditor extends EditorPane {
 		if (!this.frame) {
 			return;
 		}
-		for (const discipline of ['plumbing', 'hvac', 'electrical'] as const) {
+		for (const discipline of ['plumbing', 'hvac', 'electrical', 'fire'] as const) {
 			this.frame.element.classList.toggle(discipline, this.discipline === discipline);
 		}
 		this.updateViewButtons();
@@ -1376,6 +1410,7 @@ export class MepEditor extends EditorPane {
 		const plumbing = document ? plumbingOf(document) : undefined;
 		const hvac = document ? hvacOf(document) : undefined;
 		const electrical = document ? electricalOf(document) : undefined;
+		const fire = document ? fireOf(document) : undefined;
 		const named = selection?.kind === 'equipment' ? document?.equipment[selection.index]?.id
 			: selection?.kind === 'opening' ? document?.openings[selection.index]?.id
 				: selection?.kind === 'shaft' ? document?.shafts[selection.index]?.id
@@ -1386,7 +1421,10 @@ export class MepEditor extends EditorPane {
 								: selection?.kind === 'duct' ? hvac?.ducts[selection.index]?.id
 									: selection?.kind === 'elecEquipment' ? electrical?.equipment[selection.index]?.id
 										: selection?.kind === 'elecRiser' ? electrical?.risers[selection.index]?.id
-											: selection?.kind === 'tray' ? electrical?.trays[selection.index]?.id : undefined;
+											: selection?.kind === 'tray' ? electrical?.trays[selection.index]?.id
+												: selection?.kind === 'fireRiser' ? fire?.risers[selection.index]?.id
+													: selection?.kind === 'firePump' ? fire?.pumps[selection.index]?.id
+														: selection?.kind === 'fireTank' ? fire?.tanks[selection.index]?.id : undefined;
 		this.deleteAction.enabled = !!named;
 		this.deleteAction.label = named ? localize('mep.deleteNamed', "Delete {0}", named) : localize('mep.delete', "Delete");
 		this.recomputeAction.enabled = !!document && this.hasContent(document);
@@ -1395,6 +1433,8 @@ export class MepEditor extends EditorPane {
 		this.riserSleevesAction.enabled = !!plumbing?.risers.length;
 		this.recomputeHvacAction.enabled = !!document && hasHvac(document);
 		this.recomputeElectricalAction.enabled = !!document && hasElectrical(document);
+		this.recomputeFireAction.enabled = !!document && hasFire(document);
+		this.fireSleevesAction.enabled = !!(fire?.risers.length || fire?.mains.length);
 		this.calculateLoadsAction.enabled = !this.hvacLoads;
 		const discipline = this.discipline;
 		const primary: IAction[] = !usable ? [frame.togglePropertiesAction] : plumbingView ? [
@@ -1403,10 +1443,12 @@ export class MepEditor extends EditorPane {
 			this.addPlantAction, this.drawDuctAction, this.proposePlantAction, this.ductOpeningsAction, this.calculateLoadsAction, this.deleteAction, frame.togglePropertiesAction,
 		] : discipline === 'electrical' ? [
 			this.addElecEquipmentAction, this.addElecRiserAction, this.drawTrayAction, this.proposeEquipmentAction, this.elecOpeningsAction, this.deleteAction, frame.togglePropertiesAction,
+		] : discipline === 'fire' ? [
+			this.addFireRiserAction, this.proposeFireAction, this.fireSleevesAction, this.deleteAction, frame.togglePropertiesAction,
 		] : [
 			this.addEquipmentAction, this.addSleeveAction, this.addShaftAction, this.importIfcAction, this.suggestAction, this.deleteAction, frame.togglePropertiesAction,
 		];
-		const recompute = plumbingView ? this.recomputePlumbingAction : discipline === 'hvac' ? this.recomputeHvacAction : discipline === 'electrical' ? this.recomputeElectricalAction : this.recomputeAction;
+		const recompute = plumbingView ? this.recomputePlumbingAction : discipline === 'hvac' ? this.recomputeHvacAction : discipline === 'electrical' ? this.recomputeElectricalAction : discipline === 'fire' ? this.recomputeFireAction : this.recomputeAction;
 		const secondary: IAction[] = usable ? [recompute] : [];
 		if (this.developerMode || this.parseError) {
 			if (secondary.length) {
@@ -1479,6 +1521,15 @@ export class MepEditor extends EditorPane {
 					break;
 				case 'results': this.renderElectricalResults(document); break;
 			}
+		} else if (this.discipline === 'fire') {
+			switch (this.view) {
+				case 'plan': this.renderPlanView(document); break;
+				case 'data':
+					renderFireData(this.viewElement, this.formHost(document), this.occupancies, this.fireDataActions());
+					this.markSelectedRows();
+					break;
+				case 'results': this.renderFireResults(document); break;
+			}
 		} else {
 			switch (this.view) {
 				case 'plan': this.renderPlanView(document); break;
@@ -1531,6 +1582,14 @@ export class MepEditor extends EditorPane {
 				return localize('elec.planSubtitle', "level {0} m · equipment: {1}, {2} kN · risers: {3}{4} · click to select, drag to move",
 					level, equipment.length, formatNumber(equipment.reduce((s, e) => s + (e.operatingWeight ?? 0), 0), 1), risers,
 					lightning ? localize('elec.planSubtitleLps', " · lightning protection") : '');
+			}
+			case 'fire': {
+				const fire = fireOf(document);
+				const risers = fire?.risers.filter(r => fireRiserOnStory(r, this.context, story.id)).length ?? 0;
+				const pumps = fire?.pumps.filter(p => p.story === story.id) ?? [];
+				const tanks = fire?.tanks.filter(t => fireTankStory(t, this.context) === story.id).length ?? 0;
+				return localize('fire.planSubtitle', "level {0} m · risers: {1} · pump sets: {2}, {3} kN · fire tanks: {4} · click to select, drag to move",
+					level, risers, pumps.length, formatNumber(pumps.reduce((s, p) => s + (p.operatingWeight ?? 0), 0), 1), tanks);
 			}
 			default: {
 				const onStory = document.equipment.filter(e => e.story === story.id);
@@ -1605,6 +1664,17 @@ export class MepEditor extends EditorPane {
 			item('beam-above', localize('hvac.legendBeamAbove', "Beam above"));
 			item('shaft', localize('mep.legendShaft', "Shaft"));
 			item('sleeve', localize('mep.legendSleeve', "Sleeve or opening"));
+		} else if (discipline === 'fire') {
+			const fire = fireOf(document);
+			item('fire-riser', localize('fire.legendRiser', "Riser (SP standpipe, SR sprinkler, CR combined)"));
+			item('fire-pump', localize('fire.legendPump', "Pump set"));
+			item('fire-tank', localize('fire.legendTank', "Fire tank"));
+			if (fire?.mains.some(m => m.story === story?.id)) {
+				item('fire-main', localize('fire.legendMain', "Fire main"));
+			}
+			item('beam-above', localize('hvac.legendBeamAbove', "Beam above"));
+			item('shaft', localize('mep.legendShaft', "Shaft"));
+			item('sleeve', localize('mep.legendSleeve', "Sleeve or opening"));
 		} else {
 			item('equipment', localize('mep.legendEquipment', "Equipment"));
 			item('shaft', localize('mep.legendShaft', "Shaft"));
@@ -1627,7 +1697,8 @@ export class MepEditor extends EditorPane {
 		const plumbingReport = this.plumbingState === 'ok' ? this.plumbingReport : undefined;
 		const hvacReport = this.hvacState === 'ok' ? this.hvacReport : undefined;
 		const electricalReport = this.electricalState === 'ok' ? this.electricalReport : undefined;
-		const ceiling = discipline === 'hvac' || discipline === 'electrical' ? storyAbove(this.context, story.id)?.id : undefined;
+		const fireReport = this.fireState === 'ok' ? this.fireReport : undefined;
+		const ceiling = discipline === 'hvac' || discipline === 'electrical' || discipline === 'fire' ? storyAbove(this.context, story.id)?.id : undefined;
 		const draft = (root: SVGElement, planView: IPlanView) => {
 			this.planRoot = root;
 			this.drawRubber = drawing && drawing.story === story.id ? renderDraft(root, planView, drawing.points, drawing.width, drawing.kind === 'duct' ? `hvac-draft sys-${drawing.system ?? 'supply'}` : 'elec-draft') : undefined;
@@ -1651,6 +1722,10 @@ export class MepEditor extends EditorPane {
 				renderElectrical(root, planView, document, this.context, { story: story.id, selection: this.selection, report: electricalReport });
 				draft(root, planView);
 			},
+		} : discipline === 'fire' ? {
+			layer: 'fire', ceiling,
+			extraExtent: fireExtent(document, this.context, story.id),
+			overlay: (root: SVGElement, planView: IPlanView) => renderFire(root, planView, document, this.context, { story: story.id, selection: this.selection, report: fireReport }),
 		} : {};
 		this.planView = renderPlan(canvas, document, this.context, {
 			width, height, story: story.id, selection: this.selection, openingBands: bands, clashes, selectedClash: this.selectedClash, ...layer,
@@ -2377,6 +2452,15 @@ export class MepEditor extends EditorPane {
 			} else if (s?.kind === 'tray' && electricalOf(document)?.trays[s.index]) {
 				renderTrayProperties(panel, this.formHost(document), ensureElectrical(document).trays[s.index], s.index);
 				paths = [`electrical.trays.${s.index}.`];
+			} else if (s?.kind === 'fireRiser' && fireOf(document)?.risers[s.index]) {
+				renderFireRiserProperties(panel, this.formHost(document), ensureFire(document).risers[s.index], s.index);
+				paths = [`fire.risers.${s.index}.`];
+			} else if (s?.kind === 'firePump' && fireOf(document)?.pumps[s.index]) {
+				renderFirePumpProperties(panel, this.formHost(document), ensureFire(document).pumps[s.index], s.index);
+				paths = [`fire.pumps.${s.index}.`];
+			} else if (s?.kind === 'fireTank' && fireOf(document)?.tanks[s.index]) {
+				renderFireTankProperties(panel, this.formHost(document), ensureFire(document).tanks[s.index], s.index);
+				paths = [`fire.tanks.${s.index}.`];
 			} else if (s?.kind === 'element') {
 				this.renderElementProperties(panel, document, s.id);
 			} else if (this.discipline === 'hvac') {
@@ -2385,6 +2469,9 @@ export class MepEditor extends EditorPane {
 			} else if (this.discipline === 'electrical') {
 				renderElectricalSummaryProperties(panel, this.formHost(document), this.electricalState === 'ok' ? this.electricalReport : undefined);
 				paths = ['electrical.'];
+			} else if (this.discipline === 'fire') {
+				renderFireSummaryProperties(panel, this.formHost(document), this.fireState === 'ok' ? this.fireReport : undefined);
+				paths = ['fire.'];
 			} else if (this.discipline === 'plumbing') {
 				this.renderPlumbingSummaryProperties(panel, document);
 				paths = ['plumbing.'];
@@ -2707,6 +2794,11 @@ export class MepEditor extends EditorPane {
 			this.renderDisciplineStatus('electrical.', [electricalSummary(document, ok)], hasElectrical(document), this.electricalState, !!ok && electricalFailures(ok) > 0, false);
 			return;
 		}
+		if (this.discipline === 'fire') {
+			const ok = this.fireState === 'ok' ? this.fireReport : undefined;
+			this.renderDisciplineStatus('fire.', [fireSummary(document, ok)], hasFire(document), this.fireState, !!ok && fireFailures(ok) > 0, false);
+			return;
+		}
 		const ok = this.reportState === 'ok' ? this.report : undefined;
 		const parts = [mepSummary(document, ok)];
 		if (this.reportState === 'missing') {
@@ -2767,15 +2859,16 @@ export class MepEditor extends EditorPane {
 		if (!problem) {
 			return;
 		}
-		const match = /^(?<list>equipment|openings|shafts|plumbing\.risers|plumbing\.tanks|plumbing\.roof\.drains|hvac\.plant|hvac\.ducts|electrical\.equipment|electrical\.risers|electrical\.trays)\.(?<index>\d+)\./.exec(problem.path);
+		const match = /^(?<list>equipment|openings|shafts|plumbing\.risers|plumbing\.tanks|plumbing\.roof\.drains|hvac\.plant|hvac\.ducts|electrical\.equipment|electrical\.risers|electrical\.trays|fire\.risers|fire\.pumps|fire\.tanks)\.(?<index>\d+)\./.exec(problem.path);
 		const index = Number(match?.groups?.index);
 		const kinds: { [list: string]: MepSelection['kind'] } = {
 			'plumbing.risers': 'riser', 'plumbing.tanks': 'tank', 'plumbing.roof.drains': 'drain', 'hvac.plant': 'plant', 'hvac.ducts': 'duct',
 			'electrical.equipment': 'elecEquipment', 'electrical.risers': 'elecRiser', 'electrical.trays': 'tray',
+			'fire.risers': 'fireRiser', 'fire.pumps': 'firePump', 'fire.tanks': 'fireTank',
 		};
 		const disciplineKind = match?.groups?.list ? kinds[match.groups.list] : undefined;
 		this.cancelDrawing(false);
-		this.discipline = problem.path.startsWith('plumbing.') ? 'plumbing' : problem.path.startsWith('hvac.') ? 'hvac' : problem.path.startsWith('electrical.') ? 'electrical' : 'coordination';
+		this.discipline = problem.path.startsWith('plumbing.') ? 'plumbing' : problem.path.startsWith('hvac.') ? 'hvac' : problem.path.startsWith('electrical.') ? 'electrical' : problem.path.startsWith('fire.') ? 'fire' : 'coordination';
 		if (disciplineKind && disciplineKind !== 'element') {
 			const selection: MepSelection = { kind: disciplineKind, index };
 			this.selection = selection;
@@ -2865,6 +2958,15 @@ export class MepEditor extends EditorPane {
 				return riser && this.story && elecRiserOnStory(riser, this.context, this.story) ? this.story : riser?.fromStory;
 			}
 			case 'tray': return this.document ? electricalOf(this.document)?.trays[selection.index]?.story : undefined;
+			case 'fireRiser': {
+				const riser = this.document ? fireOf(this.document)?.risers[selection.index] : undefined;
+				return riser && this.story && fireRiserOnStory(riser, this.context, this.story) ? this.story : riser?.fromStory;
+			}
+			case 'firePump': return this.document ? fireOf(this.document)?.pumps[selection.index]?.story : undefined;
+			case 'fireTank': {
+				const tank = this.document ? fireOf(this.document)?.tanks[selection.index] : undefined;
+				return tank ? fireTankStory(tank, this.context) : undefined;
+			}
 			default: return undefined;
 		}
 	}
@@ -3744,26 +3846,30 @@ export class MepEditor extends EditorPane {
 	}
 
 	/** The openings the ducts (or the risers and trays) need through beams, slabs and walls: one undoable edit. */
-	async addServiceOpenings(discipline: 'hvac' | 'electrical'): Promise<void> {
+	async addServiceOpenings(discipline: 'hvac' | 'electrical' | 'fire'): Promise<void> {
 		this.flush();
 		const request = this.request();
 		const document = this.document;
 		if (!request || !document) {
 			return;
 		}
-		const command = discipline === 'hvac' ? HVAC_DUCT_OPENINGS_COMMAND : ELECTRICAL_OPENINGS_COMMAND;
-		const has = discipline === 'hvac' ? !!hvacOf(document)?.ducts.length : !!(electricalOf(document)?.risers.length || electricalOf(document)?.trays.length);
+		const command = discipline === 'hvac' ? HVAC_DUCT_OPENINGS_COMMAND : discipline === 'fire' ? FIRE_OPENINGS_COMMAND : ELECTRICAL_OPENINGS_COMMAND;
+		const has = discipline === 'hvac' ? !!hvacOf(document)?.ducts.length
+			: discipline === 'fire' ? !!(fireOf(document)?.risers.length || fireOf(document)?.mains.length)
+				: !!(electricalOf(document)?.risers.length || electricalOf(document)?.trays.length);
 		if (!has) {
 			this.notificationService.info(discipline === 'hvac'
 				? localize('hvac.openingsNeedDucts', "Draw the ducts first: the openings are where they cross the beams, slabs and walls.")
-				: localize('elec.openingsNeedRisers', "Add the risers and trays first: the openings are where they pass the floors, beams and walls."));
+				: discipline === 'fire' ? localize('fire.sleevesNeedRisers', "Add the fire risers first: the sleeves are where they pass the floors (and the mains the beams).")
+					: localize('elec.openingsNeedRisers', "Add the risers and trays first: the openings are where they pass the floors, beams and walls."));
 			return;
 		}
 		if (!CommandsRegistry.getCommand(command)) {
 			const open = discipline === 'hvac' ? allCrossings(document, this.context).filter(c => !c.opening).length : 0;
 			this.notificationService.info(discipline === 'hvac'
 				? localize('hvac.openingsNoBackend', "Proposing the duct openings (sized and checked) needs the SAEngine backend, which is not available in this window. {0} beam crossings without an opening are marked in the plan; add an opening through a beam by selecting it in the plan.", open)
-				: localize('elec.openingsNoBackend', "Proposing the openings for the risers and trays needs the SAEngine backend, which is not available in this window."));
+				: discipline === 'fire' ? localize('fire.sleevesNoBackend', "Proposing the sleeves for the fire risers and mains needs the SAEngine backend, which is not available in this window.")
+					: localize('elec.openingsNoBackend', "Proposing the openings for the risers and trays needs the SAEngine backend, which is not available in this window."));
 			return;
 		}
 		this.setBusy('serviceOpenings', true);
@@ -4042,9 +4148,11 @@ export class MepEditor extends EditorPane {
 	private resultRow(document: IMep, body: HTMLElement, id: string): HTMLElement {
 		const hvac = hvacOf(document);
 		const electrical = electricalOf(document);
+		const fire = fireOf(document);
 		const find = (list: readonly { id: string }[] | undefined) => list?.findIndex(item => item.id === id) ?? -1;
 		const candidates: [Exclude<MepSelection['kind'], 'element'>, number][] = [
 			['plant', find(hvac?.plant)], ['duct', find(hvac?.ducts)], ['elecEquipment', find(electrical?.equipment)], ['elecRiser', find(electrical?.risers)], ['tray', find(electrical?.trays)],
+			['fireRiser', find(fire?.risers)], ['firePump', find(fire?.pumps)], ['fireTank', find(fire?.tanks)],
 			['opening', find(document.openings)], ['shaft', find(document.shafts)],
 		];
 		const hit = candidates.find(([, index]) => index >= 0);
@@ -4099,6 +4207,135 @@ export class MepEditor extends EditorPane {
 			row: (body, id) => this.resultRow(document, body, id),
 		});
 		this.markSelectedRows();
+	}
+
+	private renderFireResults(document: IMep): void {
+		const view = this.viewElement;
+		if (this.renderDisciplineState(view, this.fireState, hasFire(document), this.fireError, {
+			nothing: localize('fire.resultsNothing', "No fire protection to check yet"),
+			nothingText: localize('fire.resultsNothingText', "Give the storeys' use (Data) and add the standpipe and sprinkler risers: the systems BNBC 2020 Part 4 requires, the fire water and reservoir, the pumps, the hydraulic calculation, the hanger loads and the sleeves appear here."),
+			computing: localize('fire.computing', "Checking the fire protection..."),
+			failed: localize('fire.reportFailed', "The fire protection could not be checked"),
+			missingText: localize('fire.backendMissingText', "The systems Part 4 requires, the water and reservoir, the hydraulic calculation (EPANET), the pump sets and the fire tanks' designs are computed by the SAEngine Python backend; it is not running in this window. The fire protection can still be set up and laid out."),
+		})) {
+			return;
+		}
+		renderFireReport(view, this.fireReport!, {
+			storyName: id => this.storyName(id),
+			tableHead: (table, columns) => this.tableHead(table, columns),
+			row: (body, id) => this.resultRow(document, body, id),
+		});
+		this.markSelectedRows();
+	}
+
+	// ───────────────────────────── fire protection ─────────────────────────────
+
+	addFireRiser(system: FireRiserSystem): void {
+		const document = this.document;
+		if (!document || !this.story || this.noStories()) {
+			return;
+		}
+		const fire = ensureFire(document);
+		fire.risers.push(newFireRiser(document, this.context, system, this.story));
+		this.added({ kind: 'fireRiser', index: fire.risers.length - 1 });
+	}
+
+	/** The fire tank and pump sets the backend proposes from the demand and the hydraulics: one undoable edit. */
+	async proposeFire(): Promise<void> {
+		this.flush();
+		const request = this.request();
+		const document = this.document;
+		if (!request || !document) {
+			return;
+		}
+		if (!fireOf(document)?.stories.length) {
+			this.notificationService.info(localize('fire.proposeNeedsStories', "Give the storeys' use first (Data): the systems, the water and the pumps follow from it."));
+			return;
+		}
+		if (!CommandsRegistry.getCommand(FIRE_PROPOSE_COMMAND)) {
+			this.notificationService.info(localize('fire.proposeNoBackend', "Proposing the fire pumps and tank needs the SAEngine backend, which is not available in this window."));
+			return;
+		}
+		this.setBusy('proposeFire', true);
+		let answer: ReturnType<typeof readFireProposals>;
+		try {
+			answer = readFireProposals(await this.commandService.executeCommand<unknown>(FIRE_PROPOSE_COMMAND, request));
+		} catch (error) {
+			this.notificationService.error(localize('fire.proposeFailed', "The fire pumps and tank could not be proposed: {0}", error instanceof Error ? error.message : String(error)));
+			return;
+		} finally {
+			this.setBusy('proposeFire', false);
+		}
+		if (this.document !== document || !answer) {
+			return;
+		}
+		const touched: unknown[] = mergeFireProposals(document, answer.tanks, answer.pumps);
+		if (!touched.length) {
+			this.notificationService.info([localize('fire.proposeNone', "Nothing to propose: the fire protection needs no pumps or tank, or already has them."), ...answer.notes].join(' '));
+			return;
+		}
+		const fire = ensureFire(document);
+		const pump = fire.pumps.find(p => touched.includes(p));
+		const tank = fire.tanks.find(t => touched.includes(t));
+		if (pump) {
+			this.added({ kind: 'firePump', index: fire.pumps.indexOf(pump) }, pump.story);
+		} else if (tank) {
+			this.added({ kind: 'fireTank', index: fire.tanks.indexOf(tank) }, fireTankStory(tank, this.context));
+		}
+		this.notificationService.info([
+			touched.length === 1 ? localize('fire.proposedOne', "Proposed 1 item; edit it to the selected equipment's data (undo restores the file).") : localize('fire.proposed', "Proposed {0} items; edit them to the selected equipment's data (undo restores the file).", touched.length),
+			...answer.notes,
+		].join(' '));
+	}
+
+	async computeFireReport(): Promise<void> {
+		const document = this.document;
+		const version = ++this.fireVersion;
+		const request = this.request();
+		if (!document || !request || !hasFire(document)) {
+			this.setBusy('fire', false);
+			this.fireReport = undefined;
+			this.fireState = 'idle';
+			this.renderReportDependent();
+			return;
+		}
+		if (!CommandsRegistry.getCommand(FIRE_REPORT_COMMAND)) {
+			this.setBusy('fire', false);
+			this.fireReport = undefined;
+			this.fireState = 'missing';
+			this.renderReportDependent();
+			return;
+		}
+		this.flush();
+		const sourceTexts = this.siteTexts();
+		this.fireState = this.fireReport ? 'ok' : 'computing';
+		this.setBusy('fire', true);
+		let report: IFireReport | undefined;
+		let error: string | undefined;
+		try {
+			report = readFireReport(await this.commandService.executeCommand<unknown>(FIRE_REPORT_COMMAND, request));
+			if (!report) {
+				error = localize('fire.reportEmpty', "The backend gave no fire report.");
+			}
+		} catch (e) {
+			error = e instanceof Error ? e.message : String(e);
+		}
+		if (version !== this.fireVersion) {
+			return;
+		}
+		this.setBusy('fire', false);
+		this.fireReport = report;
+		this.fireState = report ? 'ok' : 'error';
+		this.fireError = error;
+		this.renderReportDependent();
+		this.writeSummary(document, sourceTexts);
+	}
+
+	private fireDataActions() {
+		return {
+			addRiser: (system: FireRiserSystem) => this.addFireRiser(system),
+			propose: () => void this.proposeFire(),
+		};
 	}
 
 	private hvacDataActions() {

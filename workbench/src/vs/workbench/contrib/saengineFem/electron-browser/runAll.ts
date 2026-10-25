@@ -26,6 +26,7 @@ import { IMepContextTexts, IMepReport, IMepRequest, isOpenClash, MEP_REPORT_COMM
 import { hasPlumbing, IPlumbingReport, PLUMBING_REPORT_COMMAND, plumbingFailures, plumbingSummaryFile, readPlumbingReport } from '../../saengineMep/browser/plumbingDocument.js';
 import { hasHvac, HVAC_REPORT_COMMAND, hvacFailures, hvacSummaryFile, IHvacReport, readHvacReport } from '../../saengineMep/browser/hvacDocument.js';
 import { ELECTRICAL_REPORT_COMMAND, electricalFailures, electricalSummaryFile, hasElectrical, IElectricalReport, readElectricalReport } from '../../saengineMep/browser/electricalDocument.js';
+import { FIRE_REPORT_COMMAND, fireFailures, fireSummaryFile, hasFire, IFireReport, readFireReport } from '../../saengineMep/browser/fireDocument.js';
 import { DRAWINGS_GENERATE_COMMAND, DRAWINGS_LIST_COMMAND, readDrawingSet } from '../../saengineProject/browser/drawingsModel.js';
 import { DERIVATION_INPUTS, deriveAnalysisModel, derivationState, partFile, SSI_FILE } from '../browser/femDerivationBar.js';
 import { SSI_COMPARE_COMMAND } from '../browser/femSsi.js';
@@ -49,7 +50,7 @@ const STEPS: readonly { readonly id: StepId; readonly label: string }[] = [
 	{ id: 'ssi', label: localize('runAll.step.ssi', "fixed-base run for the soil springs") },
 	{ id: 'design', label: localize('runAll.step.design', "design checks") },
 	{ id: 'substructure', label: localize('runAll.step.substructure', "foundation design") },
-	{ id: 'mep', label: localize('runAll.step.mep', "MEP coordination, plumbing, HVAC and electrical checks") },
+	{ id: 'mep', label: localize('runAll.step.mep', "MEP coordination, plumbing, HVAC, electrical and fire checks") },
 	{ id: 'boq', label: localize('runAll.step.boq', "bill of quantities") },
 	{ id: 'report', label: localize('runAll.step.report', "report") },
 	{ id: 'drawings', label: localize('runAll.step.drawings', "drawings") },
@@ -73,6 +74,7 @@ interface IMepChecks {
 	readonly plumbing?: IPlumbingReport;
 	readonly hvac?: IServiceCheck<IHvacReport>;
 	readonly electrical?: IServiceCheck<IElectricalReport>;
+	readonly fire?: IServiceCheck<IFireReport>;
 }
 
 function record(value: unknown): { readonly [key: string]: unknown } {
@@ -417,7 +419,8 @@ export class RunAllService implements IRunAllService {
 		const withPlumbing = hasPlumbing(document);
 		const withHvac = hasHvac(document);
 		const withElectrical = hasElectrical(document);
-		if (parsed.kind === 'placeholder' || (!document.equipment.length && !document.openings.length && !document.shafts.length && !document.ifcModels.length && !withPlumbing && !withHvac && !withElectrical)) {
+		const withFire = hasFire(document);
+		if (parsed.kind === 'placeholder' || (!document.equipment.length && !document.openings.length && !document.shafts.length && !document.ifcModels.length && !withPlumbing && !withHvac && !withElectrical && !withFire)) {
 			return undefined;
 		}
 		const texts = await this.readParts(project, MEP_SOURCE_PARTS);
@@ -452,15 +455,20 @@ export class RunAllService implements IRunAllService {
 		if (withElectrical) {
 			electrical = await this.serviceReport(ELECTRICAL_REPORT_COMMAND, request, readElectricalReport, openingsOf, localize('runAll.electricalUnavailable', "The electrical checks are not available."));
 		}
+		let fire: IServiceCheck<IFireReport> | undefined;
+		if (withFire) {
+			fire = await this.serviceReport(FIRE_REPORT_COMMAND, request, readFireReport, openingsOf, localize('runAll.fireUnavailable', "The fire checks are not available."));
+		}
 		const sourceTexts: IMepContextTexts = Object.fromEntries(MEP_SOURCE_PARTS.map(id => [id, texts.get(id)]));
 		const summary = {
 			...mepSummaryFile(document, report, text, new Date(), sourceTexts),
 			...(plumbing ? { plumbing: plumbingSummaryFile(document, plumbing) } : {}),
 			...(hvac ? { hvac: hvacSummaryFile(document, hvac.report) } : {}),
 			...(electrical ? { electrical: electricalSummaryFile(document, electrical.report) } : {}),
+			...(fire ? { fire: fireSummaryFile(document, fire.report) } : {}),
 		};
 		await this.fileService.writeFile(joinPath(dirname(resource), MEP_SUMMARY_FILE), VSBuffer.fromString(JSON.stringify(summary, undefined, '\t') + '\n'));
-		return { mep: report, plumbing, hvac, electrical };
+		return { mep: report, plumbing, hvac, electrical, fire };
 	}
 
 	/** A discipline's report of 7 MEP by its command, read, with the openings it still needs; a step failure when it is not available. */
@@ -560,6 +568,7 @@ export class RunAllService implements IRunAllService {
 		const plumbing = checked?.plumbing ? plumbingFailures(checked.plumbing) : undefined;
 		const hvac = checked?.hvac;
 		const electrical = checked?.electrical;
+		const fire = checked?.fire;
 		const design = checks.report;
 		const short = shortElements(checks.required).length;
 		const tooSmall = tooSmallElements(checks.required).length;
@@ -575,6 +584,7 @@ export class RunAllService implements IRunAllService {
 				? localize('runAll.summary.hvacEstimate', "HVAC: failing checks {0}, openings to add {1}, loads not calculated: run Calculate Loads", hvacFailures(hvac.report), hvac.missingOpenings)
 				: localize('runAll.summary.hvac', "HVAC: failing checks {0}, openings to add {1}", hvacFailures(hvac.report), hvac.missingOpenings)] : []),
 			...(electrical ? [localize('runAll.summary.electrical', "electrical: failing checks {0}, openings to add {1}", electricalFailures(electrical.report), electrical.missingOpenings)] : []),
+			...(fire ? [localize('runAll.summary.fire', "fire: failing checks {0}, sleeves to add {1}", fireFailures(fire.report), fire.missingOpenings)] : []),
 			...(derived ? [localize('runAll.summary.derived', "model derived")] : []),
 			boqUpdated ? localize('runAll.summary.boqUpdated', "BOQ updated") : localize('runAll.summary.boqCurrent', "BOQ up to date"),
 			localize('runAll.summary.report', "report written"),

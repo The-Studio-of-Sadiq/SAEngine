@@ -8,6 +8,7 @@ from saengine.verification.cases import (
     design,
     design_mode,
     electrical,
+    fire,
     hvac_air,
     hvac_loads,
     hydraulics,
@@ -47,6 +48,7 @@ CASES: list[Case] = [
     *hydraulics.CASES,
     *tanks.CASES,
     *electrical.CASES,
+    *fire.CASES,
     *hvac_air.CASES,
     *hvac_loads.CASES,
 ]

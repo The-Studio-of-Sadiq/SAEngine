@@ -267,5 +267,14 @@
 			"downConductors": "structuralRebar",
 			"earthing": "foundation"
 		}
+	},
+	"fire": {
+		"stories": [
+			{
+				"story": "BASE",
+				"occupancy": "office",
+				"area": 65
+			}
+		]
 	}
 }
