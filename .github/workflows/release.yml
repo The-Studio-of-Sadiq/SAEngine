@@ -37,9 +37,12 @@ permissions:
 jobs:
   installer:
     name: Windows installer
-    # A larger runner (for example a 4-core Windows larger runner) can be set in the repository
-    # variable SAENGINE_RELEASE_RUNNER; see docs/ci.md.
-    runs-on: ${{ vars.SAENGINE_RELEASE_RUNNER || 'windows-latest' }}
+    # windows-2022 (Visual Studio 2022, MSVC v143), as Code - OSS's own Windows builds: on
+    # windows-latest (Server 2025 with Visual Studio 2026) node-gyp's link of keytar and
+    # tree-sitter failed with "LNK1181: cannot open input file 'delayimp.lib'". A larger runner
+    # (for example a 4-core Windows larger runner) can be set in the repository variable
+    # SAENGINE_RELEASE_RUNNER; it needs Visual Studio 2022 with the x64 C++ tools. See docs/ci.md.
+    runs-on: ${{ vars.SAENGINE_RELEASE_RUNNER || 'windows-2022' }}
     timeout-minutes: 300
     env:
       # A tag push releases its tag; a dispatch releases the tag input, or nothing when empty.
@@ -70,6 +73,23 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
+
+      # node-gyp builds the native modules with the newest Visual Studio it finds and the first
+      # Python on PATH unless told otherwise; pin both, and fail in seconds (not after 20 minutes
+      # of npm ci) when the image has no VS 2022 x64 toolset with delayimp.lib.
+      - name: C++ build tools for node-gyp
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          & $vswhere -products '*' -format text -nologo | Select-String 'displayName|installationVersion|installationPath'
+          $vs = & $vswhere -products '*' -version '[17.0,18.0)' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath | Select-Object -First 1
+          if (-not $vs) { throw 'No Visual Studio 2022 with the x64 C++ tools (VC.Tools.x86.x64) on this runner.' }
+          $libs = @(Get-ChildItem -Path (Join-Path $vs 'VC\Tools\MSVC') -Filter delayimp.lib -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Directory.Name -eq 'x64' -and $_.Directory.Parent.Name -eq 'lib' })
+          $libs | ForEach-Object { Write-Host "delayimp.lib: $($_.FullName)" }
+          if ($libs.Count -eq 0) { throw "Visual Studio 2022 at $vs has no MSVC lib\x64\delayimp.lib." }
+          Add-Content -Path $env:GITHUB_ENV -Value 'npm_config_msvs_version=2022'
+          Add-Content -Path $env:GITHUB_ENV -Value "npm_config_python=$(Join-Path $env:pythonLocation 'python.exe')"
 
       - name: Version and title
         id: release

@@ -8,7 +8,7 @@ run: GitHub only reads the repository root's `.github`.
 |---|---|---|---|
 | `ci.yml`, job `python` | `ubuntu-latest` | push to `main`, `feat/**`, `fix/**`; pull requests to `main` and `feat/**`; manual | ruff (lint and format) on `python/` and `scripts/`; the workflow check and the tests of the CI scripts; `pytest` on `python/`; the verification pack quick run, checked against the expected failures; uploads `verification.json` and the Verification Manual PDF |
 | `ci.yml`, job `workbench` | `ubuntu-latest` | as above | `npm ci` (cached), the viewer packages built, `tsc` typecheck, ESLint on the SAEngine sources, `transpile-client`, the SAEngine unit tests in Electron under xvfb |
-| `release.yml` | `windows-latest` (or `vars.SAENGINE_RELEASE_RUNNER`) | tag `Pre-Alpha-v*`; manual (with a tag: a release; without: a test build) | the full installer with EnergyPlus, LibreCAD and LibreDWG from pinned downloads (cached), the smoke test, the Verification Manual, the setup, `.sha256` and sources zip as an artefact, and for a tag a **draft** GitHub pre-release (never published by the workflow); see [release.md](release.md) |
+| `release.yml` | `windows-2022` (or `vars.SAENGINE_RELEASE_RUNNER`) | tag `Pre-Alpha-v*`; manual (with a tag: a release; without: a test build) | the full installer with EnergyPlus, LibreCAD and LibreDWG from pinned downloads (cached), the smoke test, the Verification Manual, the setup, `.sha256` and sources zip as an artefact, and for a tag a **draft** GitHub pre-release (never published by the workflow); see [release.md](release.md) |
 
 Both CI jobs run in parallel. A newer push to the same branch or pull request cancels the run
 it supersedes (`concurrency` with `cancel-in-progress`). A release run is never cancelled by
@@ -85,12 +85,22 @@ runners):
 | CI, `python` job | 20 to 60 min (the full pytest suite takes most of it; measure on the first run) | 20 to 60 |
 | CI, `workbench` job, cache hit | 20 to 30 min (typecheck and transpile dominate) | 20 to 30 |
 | CI, `workbench` job, cache miss (a lockfile changed) | 35 to 50 min | 35 to 50 |
-| Release | 90 to 180 min on `windows-latest` | 180 to 360 |
+| Release | 90 to 180 min on `windows-2022` | 180 to 360 |
 
 So one push costs about 40 to 90 minutes, and a release about 3 to 6 hours of the allowance.
 To spend less: push work-in-progress commits together (superseded runs are cancelled), and run
 the workflows manually when a branch is ready instead of on every push (remove `feat/**` from
 `on.push.branches`).
+
+**Runner image.** The release job runs on `windows-2022` (Visual Studio 2022, MSVC v143), the
+image Code - OSS's own Windows builds use. On `windows-latest` (Windows Server 2025 with Visual
+Studio 2026 Enterprise) node-gyp's link of `keytar` and `tree-sitter` failed with
+`LNK1181: cannot open input file 'delayimp.lib'` (run 40138429763). The step "C++ build tools for
+node-gyp" checks for Visual Studio 2022 with the x64 C++ tools and `lib\x64\delayimp.lib`, then
+pins node-gyp to it (`npm_config_msvs_version=2022`) and to the Python of `setup-python`
+(`npm_config_python`; the image's default Python is a newer one). A local build is not affected:
+Visual Studio Build Tools 2026 (MSVC 14.51) links these modules. When GitHub retires
+`windows-2022`, try `windows-2025-vs2026` again and drop the version pin.
 
 **Runner size.** The installer build runs gulp with an 8 GB heap and needs about 10 GB of disk.
 GitHub's standard Windows runner for private repositories is small (2 vCPU and 7 GB of RAM at

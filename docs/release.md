@@ -53,7 +53,7 @@ largest entry (1 to 2 GB).
    - **Actions, Release, Run workflow** on that branch with tag `Pre-Alpha-v<N>` and
      "draft_release" ticked (reuses the branch's caches), or
    - push the tag: `git tag Pre-Alpha-v<N>` then `git push origin Pre-Alpha-v<N>`.
-3. Wait for the run (90 to 180 minutes on `windows-latest`). Download the
+3. Wait for the run (90 to 180 minutes on `windows-2022`). Download the
    `SAEngine-setup-<version>` artefact or open the draft under Releases, install it on a test
    PC and check it.
 4. **Publish the draft by hand** on GitHub. Publishing a dispatched draft creates the tag on
