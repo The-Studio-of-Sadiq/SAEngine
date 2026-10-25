@@ -424,7 +424,8 @@ def check_round_trip(
     assert counts["beams"] == original.get("beam", 0)
     assert counts["slabs"] == original.get("slab", 0)
     assert counts.get("walls", 0) == original.get("wall", 0)
-    assert counts["stories"] == len(building.stories)
+    # The import counts the storeys above the base (N12).
+    assert counts["stories"] == len(building.stories) - 1
     assert counts.get("braces", 0) + counts.get("inclinedMembers", 0) == len(
         building.additions.members
     )
@@ -475,9 +476,11 @@ def test_tiny_model_round_trip(tmp_path: Path) -> None:
     assert column.reinforcement.longitudinal[0].count == 8
     assert column.reinforcement.longitudinal[0].dia == pytest.approx(16, abs=0.05)
     assert column.reinforcement.transverse.spacing == pytest.approx(150)
-    # The brick wall's weight on the beam comes back as a load not carried (frame loads).
+    # The brick wall's weight on the beam comes back as a member load (N10), not as a lost load.
     wall = 1900 * 9.80665 * 0.125 * 3.0 / 1000 * 5.0  # kN
-    assert imported.report.not_carried["D"] == pytest.approx(wall, rel=1e-6)
+    assert imported.report.not_carried.get("D", 0.0) == pytest.approx(0.0, abs=1e-9)
+    assert imported.report.imported["memberLineLoads"] == 1
+    assert imported.report.carried["D"] >= wall * (1 - 1e-6)
     assert imported.report.imported["slabOpenings"] == 1
 
 
