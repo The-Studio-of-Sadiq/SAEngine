@@ -213,10 +213,31 @@ _GATHERED: tuple[str, str, bool, Any, dict[str, Any] | None] | None = None
 #: The design report made last on its own (:func:`checks`): (results folder, stamp, report).
 _REPORT: tuple[str, str, dict[str, Any]] | None = None
 _memo_lock = threading.Lock()
+#: Held while the checks are worked out: requests that arrive meanwhile (the proposal editor
+#: asks for the checks and the proposal at once, the RPC server serves them in two threads) wait
+#: and take the answer kept, rather than designing every member a second time.
+_work_lock = threading.RLock()
 
 
 def _folder(out_dir: str | Path) -> str:
     return str(Path(out_dir).resolve())
+
+
+def _has_assumed_bars(project_path: str | Path) -> bool:
+    """Whether some concrete object types have no bars (the gathered checks then use assumed
+    ones and differ from the design report); True when the files cannot be read."""
+    from saengine.design.required import with_assumed_bars
+    from saengine.library.materials import MaterialLibrary
+
+    root = Path(project_path).resolve().parent.parent
+    try:
+        materials = MaterialLibrary.model_validate_json(
+            (root / "03 Materials/materials.json").read_text(encoding="utf-8")
+        )
+        objects_text = (root / "04 Objects/objects.json").read_text(encoding="utf-8")
+        return bool(with_assumed_bars(objects_text, materials)[1])
+    except (OSError, ValueError):
+        return True
 
 
 def gathered(
@@ -236,17 +257,18 @@ def gathered(
     global _GATHERED
     stamp = stamp or report_stamp(out_dir, project_path)
     folder = _folder(out_dir)
-    with _memo_lock:
-        memo = _GATHERED
-    if memo and memo[:2] == (folder, stamp) and (memo[2] or not substructure):
-        return memo[3]
-    result = gather(out_dir, project_path, substructure)
-    # The design report as design_report makes it: the same checks of the same object types,
-    # unless some were checked with assumed bars.
-    report_copy = None if result.assumed else copy.deepcopy(result.report)
-    with _memo_lock:
-        _GATHERED = (folder, stamp, substructure, result, report_copy)
-    return result
+    with _work_lock:
+        with _memo_lock:
+            memo = _GATHERED
+        if memo and memo[:2] == (folder, stamp) and (memo[2] or not substructure):
+            return memo[3]
+        result = gather(out_dir, project_path, substructure)
+        # The design report as design_report makes it: the same checks of the same object types,
+        # unless some were checked with assumed bars.
+        report_copy = None if result.assumed else copy.deepcopy(result.report)
+        with _memo_lock:
+            _GATHERED = (folder, stamp, substructure, result, report_copy)
+        return result
 
 
 def checks(
@@ -254,22 +276,41 @@ def checks(
 ) -> dict[str, Any]:
     """:func:`saengine.design.design_report` of the run (unchanged, before :func:`_plain`):
     the one this process made last while the inputs have ``stamp`` (from :func:`gathered` or
-    from an earlier call), else made now. Each call returns its own copy."""
+    from an earlier call), else made now. Each call returns its own copy.
+
+    Made now, it comes from :func:`gathered` (one run of the checks then serves the design
+    proposal and the required steel too), unless some object types have no bars."""
     from saengine.design import design_report
 
     global _REPORT
     stamp = stamp or report_stamp(out_dir, project_path)
     folder = _folder(out_dir)
-    with _memo_lock:
-        memo, alone = _GATHERED, _REPORT
-    if memo and memo[:2] == (folder, stamp) and memo[4] is not None:
-        return copy.deepcopy(memo[4])
-    if alone and alone[:2] == (folder, stamp):
-        return copy.deepcopy(alone[2])
-    result = design_report(out_dir, project_path)
-    with _memo_lock:
-        _REPORT = (folder, stamp, copy.deepcopy(result))
-    return result
+
+    def known() -> dict[str, Any] | None:
+        with _memo_lock:
+            memo, alone = _GATHERED, _REPORT
+        if memo and memo[:2] == (folder, stamp) and memo[4] is not None:
+            return copy.deepcopy(memo[4])
+        if alone and alone[:2] == (folder, stamp):
+            return copy.deepcopy(alone[2])
+        return None
+
+    found = known()
+    if found is not None:
+        return found
+    with _work_lock:
+        found = known()
+        if found is not None:
+            return found
+        if not _has_assumed_bars(project_path):
+            gathered(out_dir, project_path, stamp, substructure=False)
+            found = known()
+            if found is not None:
+                return found
+        result = design_report(out_dir, project_path)
+        with _memo_lock:
+            _REPORT = (folder, stamp, copy.deepcopy(result))
+        return result
 
 
 def forget() -> None:
@@ -307,7 +348,10 @@ def report(
     (``fresh``: always work it out again); None when the design checks give nothing."""
     from saengine.design import design_report
 
-    stamp = report_stamp(out_dir, project_path)
+    try:
+        stamp = report_stamp(out_dir, project_path)
+    except Exception:  # noqa: BLE001 - not kept, but the checks are still made
+        return _plain(design_report(out_dir, project_path)) or None
     if fresh:
         result = design_report(out_dir, project_path)
     else:

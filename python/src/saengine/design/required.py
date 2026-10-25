@@ -668,8 +668,12 @@ class ColumnSearch:
         return self._surfaces[key]
 
     def utilisation(self, index: int, points: list[Point], coarse: bool = True) -> float:
+        return self.surface(index, coarse).max_utilisation([p[:3] for p in points])
+
+    def carries(self, index: int, points: list[Point], coarse: bool = True) -> bool:
+        """Whether layout ``index`` carries every point (stops at the first that it does not)."""
         surface = self.surface(index, coarse)
-        return max((surface.check(p[0], p[1], p[2]).utilisation for p in points), default=0.0)
+        return surface.max_utilisation([p[:3] for p in points], stop_above=1.0) <= 1.0
 
     def smallest(self, points: list[Point]) -> int | None:
         """The index of the smallest layout whose coarse surface carries ``points`` (bisection
@@ -677,11 +681,11 @@ class ColumnSearch:
         if not self.layouts:
             return None
         lo, hi = 0, len(self.layouts) - 1
-        if self.utilisation(hi, points) > 1.0:
+        if not self.carries(hi, points):
             return None
         while lo < hi:
             mid = (lo + hi) // 2
-            if self.utilisation(mid, points) <= 1.0:
+            if self.carries(mid, points):
                 hi = mid
             else:
                 lo = mid + 1
@@ -691,7 +695,7 @@ class ColumnSearch:
         """``index`` or the next layouts up, the first that the full surface (the checks')
         carries ``points`` with."""
         for k in range(index, len(self.layouts)):
-            if self.utilisation(k, points, coarse=False) <= 1.0:
+            if self.carries(k, points, coarse=False):
                 return k
         return None
 
