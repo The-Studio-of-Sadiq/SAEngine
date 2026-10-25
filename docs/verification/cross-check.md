@@ -17,7 +17,82 @@ It is a **solver check**: the three programs solve the same mesh, so a differenc
 element formulation, a modelling convention or a bug, never at the mesh. The code is in
 `scripts/crosscheck/`; it runs locally, never in CI.
 
-RESULTS_PLACEHOLDER
+## Results (2026-10-25, SAEngine 0.0.44 on `feat/ui-ux-redesign` at 0d3041e8)
+
+PASS/FLAG counts per program (P = PyNite 3.2.0, C = CalculiX 2.23), with the largest
+difference where nothing is flagged. Every model was built and analysed by SAEngine itself (Run
+All's derivation and analysis for the sample and the generated buildings).
+
+| Model | Size | Reactions | Displacements | Drifts | Periods / modal mass | Member forces | Shell resultants |
+|---|---|---|---|---|---|---|---|
+| Cantilever (4 m, 300 x 500) | 2 nodes, 1 frame | P 4/0 (0.00 %)<br>C 2/0 (0.00 %) | P 2/0 (0.00 %)<br>C 2/0 (0.00 %) | - | P 3/0 (0.00 %)<br>C 3/0 (0.00 %) | P 12/0 (0.00 %)<br>C 10/0 (0.00 %) | - |
+| Portal frame | 4 nodes, 3 frames | P 4/0 (0.00 %)<br>C 2/0 (0.00 %) | P 2/0 (0.00 %)<br>C 2/0 (0.00 %) | - | P 3/0 (0.00 %)<br>C 3/0 (0.00 %) | P 36/0 (0.00 %)<br>C 30/0 (0.00 %) | - |
+| Fixed-ended beam with rigid zones | 8 nodes, 5 frames | P 4/0 (0.00 %)<br>C 2/0 (0.00 %) | - | - | - | P 72/0 (0.00 %)<br>C 60/0 (0.00 %) | - |
+| Simply supported plate (2 m, 20 mm) | 441 nodes, 400 shells | P 3/0 (0.00 %)<br>C 1/0 (0.00 %) | P 1/0 (0.10 %)<br>C 1/0 (0.71 %) | - | - | - | P 12/0 (0.62 %)<br>C 8/**4** |
+| Sample Frame | 425 nodes, 90 frames, 340 shells | P 36/0 (0.24 %)<br>C 12/0 (0.12 %) | P 24/0 (4.08 %)<br>C 24/0 (4.06 %) | P 8/0 (0.21 %)<br>C 8/0 (1.64 %) | P 9/0 (1.35 %)<br>C 9/0 (3.65 %) | P 507/**21**<br>C 391/**49** | P 71/**25**<br>C 53/**43** |
+| Generated frame 3 x 2 bays, 6 storeys | 90 nodes, 174 frames | P 36/0 (0.01 %)<br>C 12/0 (0.00 %) | P 20/0 (0.01 %)<br>C 20/0 (0.04 %) | P 48/0 (0.01 %)<br>C 48/0 (0.00 %) | P 9/0 (0.00 %)<br>C 9/0 (0.00 %) | P 504/0 (3.68 %)<br>C 420/0 (4.30 %) | - |
+| Generated flat slab, 10 storeys | 3026 nodes, 320 frames, 2880 shells | P 36/0 (0.01 %)<br>C 12/0 (0.00 %) | P 24/0 (0.08 %)<br>C 24/0 (0.42 %) | P 80/0 (0.08 %)<br>C 80/0 (0.42 %) | P 9/0 (0.25 %)<br>C 9/0 (1.09 %) | P 144/0 (0.46 %)<br>C 120/0 (2.84 %) | P 83/**13**<br>C 47/**49** |
+| Generated frame with core, 10 storeys | 3026 nodes, 450 frames, 2880 shells | P 36/0 (0.01 %)<br>C 12/0 (0.00 %) | P 24/0 (0.07 %)<br>C 24/0 (0.40 %) | P 80/0 (0.08 %)<br>C 80/0 (0.42 %) | P 9/0 (0.27 %)<br>C 9/0 (1.04 %) | P 504/0 (4.68 %)<br>C 420/0 (4.93 %) | P 82/**14**<br>C 52/**44** |
+
+Examples of the values (SAEngine / PyNite / CalculiX): the 10-storey core building's T1 =
+0.6280 / 0.6279 / 0.6272 s and roof displacement under EX 11.82 / 11.82 / 11.78 mm; the
+6-storey frame's T1 = 2.007 s in all three; the plate's centre deflection 0.684 / 0.683 / 0.679
+mm (Navier: 0.683 mm); the sample's T1 = 0.1774 / 0.1775 / 0.1772 s.
+
+**Every reaction, displacement, drift, period, effective modal mass and frame force away from
+shells passes in both programs.** The FLAGs are all in shell resultants and in members that
+share their nodes with shells, and they are formulation differences, not solver errors:
+
+- **Shell resultants at element centres** (plate: 4 C; sample: 25 P, 43 C; flat slab: 13 P,
+  49 C; core: 14 P, 44 C). SAEngine's ASDShellQ4 (OpenSees), PyNite's MITC4 and CalculiX's US3
+  triangles agree on the global behaviour (drifts within 0.4 %, the plate's mean moment within
+  0.5 %) but not element by element where stresses change fast: wall corners, wall ends under
+  concentrated column loads, the wall's triangular elements, the plate's twisting moments near
+  its corners. CalculiX differs most because each quadrilateral becomes two US3 triangles with a
+  near-constant membrane strain (too stiff in in-plane bending, so wall membrane forces differ by
+  tens of percent and up to 4-12x at wall ends); PyNite's MITC4 stays within about 5-20 % except
+  at the sample's triangular wall element and near-zero values. The mean plate moment (the
+  quantity a slab design uses) agrees; the largest principal value differs where the twisting
+  moment dominates.
+- **Members framing into shells, sample only** (21 P, 49 C, 5-28 % with a few above 100 % on
+  near-zero values): column C3 runs along the edge of wall W1 and shares every node with it, so
+  its share of the load depends on the wall's membrane formulation; beam B1#3 shares its nodes
+  with slab S1, so the beam-slab split depends on the plate formulation. The frames of the
+  generated buildings, away from walls, all pass.
+
+No FLAG points at a solver or translation error in SAEngine.
+
+### Findings about SAEngine (for the next core round; not fixed here)
+
+1. **Accidental-eccentricity cases analysed on gross sections.**
+   `python/src/saengine/fem/second_order.py`: `LATERAL_CASES = ("WX", "WY", "EX", "EY")`
+   drives `is_lateral()` in `apply_second_order`, so with `crackedFor = "lateral"` the cases
+   EXP, EXN, EYP, EYN (derive.py, `ECCENTRIC_CASES`) get no `section_overrides`: they are
+   solved on the gross (uncracked) sections while EX and EY use the cracked ones. Expected: the
+   eccentric cases use the same lateral overrides as EX/EY (and the same P-Delta treatment: the
+   first-order reference copies are also made for `LATERAL_CASES` only). Actual, on the Sample
+   Frame: the roof displacement under EXP is 0.0674 mm against 0.0833 mm under EX with the same
+   storey forces plus torsion (19 % less), and in the generated buildings the eccentric cases'
+   roof displacements are 25-59 % below EX/EY (6-storey frame: 31.2 mm under EXP against
+   76.1 mm under EX; `ir.json` groups them with the gravity cases). Both
+   independent programs reproduce SAEngine's numbers, so this is a modelling setting, not a
+   solver error, but the drift and torsion checks of the eccentric cases are unconservative.
+2. **A generated flat-slab building has no slab in its analysis model.**
+   `python/src/saengine/library/generator.py`, `generate_building(system="flatSlab")` leaves
+   `settings.analysis.slabs` at its default `"loadsToBeams"`, although that setting's own
+   description says flat slabs are meshed as shells. With no beams, the derived model has no
+   slab elements: the slab loads arrive as nodal loads on the column and wall nodes, there is
+   no plate bending and no slab-column frame action (the "flat slab" is columns cantilevering
+   from the base plus the core walls). Expected: `slabs = "shells"` for a flat-slab system.
+   (The cross-check of this model is still valid as a solver check of what was derived.)
+3. **Changing the equation solver from BandGeneral to UmfPack** (merged in PR #22) changes no
+   result: the corpus run before and after the merge agrees to round-off (largest differences
+   on values of 10⁻¹⁰ N and 10⁻²² m).
+
+Version note: the 0.0.45 features (slab load shapes, pattern live load, wind torsion cases)
+were not yet on `feat/ui-ux-redesign` when this was merged and run (its head 0d3041e8 still
+reads 0.0.44); rerun the cross-check once they land.
+
 
 ## Setting it up
 

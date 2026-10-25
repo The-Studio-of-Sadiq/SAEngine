@@ -172,7 +172,9 @@ def test_translation(ir: dict, tmp_path: Path) -> None:
     inp = tmp_path / "t.inp"
     deck.write(inp, [("D", ir["cases"]["D"])], 0)
     text = inp.read_text()
-    assert text.count("TYPE=U1, ELSET") == 1 and "*EQUATION" in text
+    # the frame section, and the negligible beam of the support joint the rigid zone ties to
+    # (a node only equations use gets one, so its rotations are DOFs)
+    assert text.count("TYPE=U1, ELSET") == 2 and "*EQUATION" in text
     # the rigid zone's follower and the twin (6 + 6 tied DOFs), the tip mass in X and Y (2)
     assert len(deck.resolved) == 14
     # local direction 1 is SAEngine's local y; I11 = Iz, I22 = Iy
