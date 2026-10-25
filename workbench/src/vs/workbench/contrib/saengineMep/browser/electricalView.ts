@@ -13,7 +13,7 @@ import { pathLength, roofStory, staticListNote, storyFloorArea } from './mepRead
 import { resultSection, value } from './mepResults.js';
 import {
 	connectedLoads, DOWN_CONDUCTORS, downConductorsLabel, EARTHINGS, earthingLabel, ELEC_KINDS, ELEC_RISER_KINDS, elecKindLabel, ElecKind, elecLetters, ElecRiserKind, elecStoryRow, electricalOf,
-	ensureElectrical, IElecEquipment, IElecRiser, IElectricalReport, IElecUse, ITray, LIGHTNING_LEVELS, ratingUnit, riserKindLabel, riserLetters, sourceOf, VOLTAGES, voltageLabel,
+	ensureElectrical, IElecEquipment, IElecRiser, IElectricalReport, IElecUse, ITray, LIGHTNING_LEVELS, loadBreakdownText, ratingUnit, riserKindLabel, riserLetters, sourceOf, VOLTAGES, voltageLabel,
 } from './electricalDocument.js';
 
 /*
@@ -48,7 +48,7 @@ function useOption(use: IElecUse): { value: string; label: string } {
 	return { value: use.key, label: use.nonAc !== undefined ? localize('elecView.useOption', "{0} ({1} / {2} W/m²)", use.label, use.nonAc, use.ac ?? '—') : use.label };
 }
 
-export function renderElectricalData(view: HTMLElement, host: IMepFormHost, uses: readonly IElecUse[], usesFromBackend: boolean, actions: IElectricalActions): void {
+export function renderElectricalData(view: HTMLElement, host: IMepFormHost, uses: readonly IElecUse[], usesFromBackend: boolean, actions: IElectricalActions, report?: IElectricalReport): void {
 	const document = host.document;
 	const electrical = electricalOf(document);
 	const e = () => ensureElectrical(document);
@@ -74,33 +74,49 @@ export function renderElectricalData(view: HTMLElement, host: IMepFormHost, uses
 	const rows = electrical?.stories ?? [];
 	const stories = host.section(localize('elecView.stories', "Loads by storey"), rows.length);
 	if (!usesFromBackend) {
-		append(stories, $('p.mep-note.plb-static-note', undefined, staticListNote(localize('elecView.usesWhat', "Occupancies of BNBC Table 8.1.17 (PDF part 2 pp. 766 and 767), with their minimum unit loads non-A/C / A/C"))));
+		append(stories, $('p.mep-note.plb-static-note', undefined, staticListNote(localize('elecView.usesWhat', "the occupancies of BNBC Table 8.1.17"))));
 	}
 	const table = append(append(stories, $('.mep-table-scroll')), $('table.mep-table'));
 	const columns = [
 		{ label: localize('elecView.f.story', "Storey"), width: 110 }, { label: localize('elecView.f.use', "Occupancy"), width: 300 },
 		{ label: E.lighting.label, unit: WM2, numeric: true, width: 72 }, { label: E.power.label, unit: WM2, numeric: true, width: 72 }, { label: E.other.label, unit: KW, numeric: true, width: 72 },
-		{ label: localize('elecView.f.area', "Floor"), unit: localize('elecView.unit.m2', "m²"), numeric: true, width: 64 }, { label: localize('elecView.f.connected', "Connected"), unit: KW, numeric: true, width: 80 }, { label: '', width: 28 },
+		{ label: localize('elecView.f.area', "Floor"), unit: localize('elecView.unit.m2', "m²"), numeric: true, width: 64 },
+		{ label: localize('elecView.f.used', "Used"), unit: WM2, numeric: true, width: 64, title: localize('elecView.f.usedTitle', "The unit load the backend uses: lighting + power, at least the minimum of BNBC Table 8.1.17, plus the A/C share") },
+		{ label: localize('elecView.f.connected', "Connected"), unit: KW, numeric: true, width: 80 }, { label: '', width: 28 },
 	];
 	host.tableHead(table, columns);
 	const body = append(table, $('tbody'));
+	// The backend's figures where it has answered (the defaults it applied, the unit load it used); the entered densities otherwise.
+	const computed = new Map((report?.stories ?? []).map(s => [s.story, s]));
 	const loads = new Map(connectedLoads(document, host.context).map(l => [l.story, l]));
 	for (const storyId of storyRowIds(host.context, rows)) {
 		const index = rows.findIndex(r => r.story === storyId);
 		const row = rows[index];
+		const result = computed.get(storyId);
 		const tr = append(body, $(`tr.mep-row${row ? '' : '.plb-empty-row'}`));
 		const path = (field: string) => index >= 0 ? `electrical.stories.${index}.${field}` : `electrical.new.${storyId}.${field}`;
 		const target = () => elecStoryRow(e(), storyId);
 		append(tr, $('td', undefined, host.storyName(storyId)));
-		append(append(tr, $('td')), host.selectInput(uses.map(useOption), String(row?.use ?? ''), v => host.setOptional(target(), 'use', v), path('use'), localize('elecView.f.useOf', "Occupancy of {0}", host.storyName(storyId)), true));
-		const use = uses.find(u => u.key === row?.use);
+		const defaultUse = result && result.useSource !== 'entered' && result.useLabel ? localize('elecView.useDefault', "{0} (building use, Project Settings)", result.useLabel) : true;
+		const select = append(append(tr, $('td')), host.selectInput(uses.map(useOption), String(row?.use ?? ''), v => host.setOptional(target(), 'use', v), path('use'), localize('elecView.f.useOf', "Occupancy of {0}", host.storyName(storyId)), defaultUse));
+		select.title = select.selectedOptions[0]?.textContent ?? '';
 		for (const field of [E.lighting, E.power, E.other]) {
-			const placeholder = field === E.power && use?.ac !== undefined ? localize('elecView.minPlaceholder', "≥ {0}", use.ac) : undefined;
-			append(append(tr, $('td')), host.textInput(field, row?.[field.key], v => host.setField(target(), field.key, v), path(field.key), placeholder));
+			// A blank lighting or power shows what the backend put in its place (the rest of the Table 8.1.17 density).
+			const derived = field === E.lighting ? result?.lighting : field === E.power ? result?.power : undefined;
+			const placeholder = row?.[field.key] === undefined && derived !== undefined ? formatNumber(derived, 1) : undefined;
+			const input = append(append(tr, $('td')), host.textInput(field, row?.[field.key], v => host.setField(target(), field.key, v), path(field.key), placeholder));
+			if (placeholder && !input.title) {
+				input.title = localize('elecView.derivedTitle', "Blank: {0} W/m² used (the rest of the BNBC Table 8.1.17 density after the other one)", placeholder);
+			}
 		}
-		const area = storyFloorArea(host.context, storyId);
+		const area = result?.area ?? storyFloorArea(host.context, storyId);
 		append(tr, $('td.number.mep-muted-cell', undefined, area ? formatNumber(area, 0) : ''));
-		append(tr, $('td.number.mep-muted-cell', undefined, value(loads.get(storyId)?.total || undefined, 1)));
+		const used = append(tr, $('td.number.mep-muted-cell', undefined, value(result?.density, 1)));
+		if (result?.breakdown.length) {
+			used.title = loadBreakdownText(result);
+		}
+		const connected = result ? result.connected : loads.get(storyId)?.total || undefined;
+		append(tr, $('td.number.mep-muted-cell', undefined, value(connected, 1)));
 		if (row) {
 			host.removeButton(tr, () => {
 				e().stories.splice(index, 1);
@@ -110,6 +126,9 @@ export function renderElectricalData(view: HTMLElement, host: IMepFormHost, uses
 			append(tr, $('td'));
 		}
 	}
+	append(stories, $('p.mep-note', undefined, report
+		? localize('elecView.loadsNote', "BNBC 2020 Part 8 Table 8.1.17 (Sec 1.3.2.5) gives one minimum density for the lighting and the power together, and a higher one with air conditioning. A blank occupancy takes the building use of Project Settings; a blank lighting or power takes the rest of the table's density (shown in grey). Hover Used for the breakdown; Results lists it by storey.")
+		: localize('elecView.loadsNoteLocal', "Connected shows the densities you entered only. The BNBC Table 8.1.17 minimums, the building-use default and the A/C share are applied by the backend; open Results to compute them.")));
 
 	// Lightning protection.
 	const lightning = host.section(localize('elecView.lightning', "Lightning protection"), undefined);

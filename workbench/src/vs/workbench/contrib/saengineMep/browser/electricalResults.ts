@@ -6,7 +6,7 @@
 import { $, append } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { formatNumber } from '../../saengineSoil/browser/soilDocument.js';
-import { elecKindLabel, electricalFailures, IElectricalReport, IRunResult, riserKindLabel } from './electricalDocument.js';
+import { elecKindLabel, electricalFailures, IElectricalReport, IRunResult, loadBreakdownText, riserKindLabel } from './electricalDocument.js';
 import { openingsTable, shaftsTable } from './hvacResults.js';
 import { barChart, checksTable, IResultsHost, noteSection, resultSection, statusCell, tiles, utilisationCell, value } from './mepResults.js';
 
@@ -21,6 +21,7 @@ import { barChart, checksTable, IResultsHost, noteSection, resultSection, status
 const KW = localize('elecResults.unit.kw', "kW");
 const KVA = localize('elecResults.unit.kva', "kVA");
 const M2 = localize('elecResults.unit.m2', "m²");
+const WM2 = localize('elecResults.unit.wm2', "W/m²");
 
 export interface IElectricalResultsHost extends IResultsHost {
 	/** Shows the column in the plan of the lowest story. */
@@ -62,20 +63,40 @@ export function renderElectricalReport(view: HTMLElement, report: IElectricalRep
 			parts: [{ value: row.kva ?? row.demand ?? row.connected ?? 0, className: 'elec-bar-demand', label: localize('elecResults.demandPart', "Demand") }],
 			text: row.kva !== undefined ? `${formatNumber(row.kva, 0)} kVA` : row.demand !== undefined ? `${formatNumber(row.demand, 0)} kW` : '',
 		})), localize('elecResults.chartAria', "Demand per story"));
+		// Each story's unit load, part by part (lighting, power and socket outlets, the A/C share), with where each comes from.
 		const table = append(section, $('table.mep-table.mep-result-table'));
 		host.tableHead(table, [
-			{ label: localize('elecResults.f.story', "Story"), width: 130 }, { label: localize('elecResults.f.area', "Area"), unit: M2, numeric: true, width: 80 },
-			{ label: localize('elecResults.f.connected', "Connected"), unit: KW, numeric: true, width: 90 }, { label: localize('elecResults.f.demand', "Demand"), unit: KW, numeric: true, width: 90 },
-			{ label: localize('elecResults.f.kva', "Demand"), unit: KVA, numeric: true, width: 90 }, { label: localize('elecResults.f.note', "Note"), width: 260 },
+			{ label: localize('elecResults.f.story', "Story"), width: 110 }, { label: localize('elecResults.f.use', "Occupancy"), width: 170 },
+			{ label: localize('elecResults.f.area', "Area"), unit: M2, numeric: true, width: 70 },
+			{ label: localize('elecResults.f.lighting', "Lighting"), unit: WM2, numeric: true, width: 72 }, { label: localize('elecResults.f.power', "Power"), unit: WM2, numeric: true, width: 72, title: localize('elecResults.f.powerTitle', "Power and socket outlets") },
+			{ label: localize('elecResults.f.ac', "A/C"), unit: WM2, numeric: true, width: 60, title: localize('elecResults.f.acTitle', "The air-conditioning share of Table 8.1.17 (A/C less non-A/C density); 0 where the hvac plant's own load is counted") },
+			{ label: localize('elecResults.f.unit', "Unit load"), unit: WM2, numeric: true, width: 76 },
+			{ label: localize('elecResults.f.connected', "Connected"), unit: KW, numeric: true, width: 84 }, { label: localize('elecResults.f.demand', "Demand"), unit: KW, numeric: true, width: 76 },
+			{ label: localize('elecResults.f.kva', "Demand"), unit: KVA, numeric: true, width: 76 }, { label: localize('elecResults.f.source', "Source"), width: 300 },
 		]);
 		const body = append(table, $('tbody'));
 		for (const row of report.stories) {
 			const tr = append(body, $('tr'));
 			append(tr, $('td', undefined, host.storyName(row.story)));
-			for (const [n, digits] of [[row.area, 0], [row.connected, 1], [row.demand, 1], [row.kva, 1]] as const) {
+			const use = append(tr, $('td.mep-wrap', undefined, row.useLabel ?? row.use ?? ''));
+			if (row.useSource && row.useSource !== 'entered') {
+				append(use, $('span.mep-muted', undefined, ` (${localize('elecResults.useDefault', "building use")})`));
+				use.title = row.useSource;
+			}
+			// Lighting and power blank together: Table 8.1.17 gives them as one figure, shown across both columns.
+			const together = row.lighting === undefined && row.power === undefined ? row.breakdown.find(p => p.part === 'lightingAndPower')?.density : undefined;
+			append(tr, $('td.number', undefined, value(row.area, 0)));
+			if (together !== undefined) {
+				append(tr, $('td.number', { colspan: '2' }, localize('elecResults.together', "{0} together", formatNumber(together, 1))));
+			} else {
+				append(tr, $('td.number', undefined, value(row.lighting, 1)), $('td.number', undefined, value(row.power, 1)));
+			}
+			for (const [n, digits] of [[row.acShare, 1], [row.density, 1], [row.connected, 1], [row.demand, 1], [row.kva, 1]] as const) {
 				append(tr, $('td.number', undefined, value(n, digits)));
 			}
-			append(tr, $('td.mep-wrap', undefined, row.note ?? ''));
+			const sources = row.breakdown.length ? loadBreakdownText(row) : '';
+			const note = append(tr, $('td.mep-wrap.mep-pre', undefined, [sources, row.note ?? ''].filter(Boolean).join('\n')));
+			note.title = note.textContent ?? '';
 		}
 		// The loads the stories' unit loads leave out: the air-conditioning plant, the motors, the extra loads.
 		const others: [number | undefined, string][] = [
@@ -86,14 +107,14 @@ export function renderElectricalReport(view: HTMLElement, report: IElectricalRep
 		for (const [kw, label] of others) {
 			if (kw) {
 				const tr = append(body, $('tr'));
-				append(tr, $('td', { colspan: '2' }, label));
+				append(tr, $('td', { colspan: '7' }, label));
 				append(tr, $('td.number', undefined, value(kw, 1)));
 				append(tr, $('td'), $('td'), $('td'));
 			}
 		}
 		if (report.total) {
 			const tr = append(body, $('tr.plb-total'));
-			append(tr, $('td', { colspan: '2' }, localize('elecResults.total', "Total")));
+			append(tr, $('td', { colspan: '7' }, localize('elecResults.total', "Total")));
 			for (const [n, digits] of [[report.total.connected, 1], [report.total.demand, 1], [report.total.kva, 1]] as const) {
 				append(tr, $('td.number', undefined, value(n, digits)));
 			}
