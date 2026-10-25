@@ -127,6 +127,24 @@ const VIEWS: readonly { readonly view: View; readonly label: string; readonly ic
 /** The state of the report: not asked yet, being computed, computed, or no backend / failed. */
 type ReportState = 'idle' | 'computing' | 'ok' | 'missing' | 'error';
 
+/** One word for a labelled action on a narrow window (its full name stays in the tooltip). */
+function shortActionLabel(action: IAction): string {
+	const id = action.id.replace('saengine.mep.editor.', '');
+	switch (id) {
+		case 'addEquipment': case 'addElecEquipment': return localize('mep.short.equipment', "Equipment");
+		case 'addShaft': return localize('mep.short.shaft', "Shaft");
+		case 'addRiser': case 'addElecRiser': case 'addFireRiser': return localize('mep.short.riser', "Riser");
+		case 'addTank': return localize('mep.short.tank', "Tank");
+		case 'sizeTanks': return localize('mep.short.sizeTanks', "Size");
+		case 'addPlant': return localize('mep.short.plant', "Plant");
+		case 'drawDuct': return localize('mep.short.duct', "Duct");
+		case 'calculateLoads': return localize('mep.short.loads', "Loads");
+		case 'drawTray': return localize('mep.short.tray', "Tray");
+		case 'proposeFire': return localize('mep.short.pumps', "Pumps");
+		default: return action.label;
+	}
+}
+
 /** How long Calculate Loads waits for the backend before it gives up [min]. */
 const HVAC_LOADS_TIMEOUT_MIN = 8;
 
@@ -1434,7 +1452,9 @@ export class MepEditor extends EditorPane {
 			if (action.class) {
 				append(button, $(`span.${action.class.split(' ').join('.')}`));
 			}
+			// The full label on wide windows, one word on narrow ones (1366 px: the toolbar has room for little more than icons).
 			append(button, $('span.mep-text-action-label', undefined, action.label));
+			append(button, $('span.mep-text-action-short', undefined, shortActionLabel(action)));
 			if (action instanceof SubmenuAction) {
 				append(button, $(ThemeIcon.asCSSSelector(Codicon.chevronDown)));
 				button.setAttribute('aria-haspopup', 'menu');

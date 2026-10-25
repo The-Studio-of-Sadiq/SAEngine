@@ -456,7 +456,7 @@ def _summarise_checks(report: dict[str, Any]) -> None:
         # The sizing's line gives the flow only: with the hydraulics, its head and motor too.
         duty = (
             f"Pump {pump['flow'] * 60:.1f} l/min at {pump.get('tdh', 0):.1f} m head, "
-            f"{pump.get('shaftPower', 0):.2f} kW at the shaft: a {pump['motor']:g} kW motor"
+            f"{pump.get('shaftPower', 0):.2g} kW at the shaft: a {pump['motor']:g} kW motor"
         )
         summary = [duty if s.startswith("Pump ") else s for s in summary]
     report["summary"] = [*summary, line]

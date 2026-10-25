@@ -1726,11 +1726,36 @@
 	cursor: default;
 }
 
-/* Narrow windows: the label goes, the tooltip and the icon stay. */
-@media (max-width: 1500px) {
+.mep-text-actions .mep-text-action .mep-text-action-short {
+	display: none;
+}
+
+/* Narrow windows: one word beside the icon, the full name in the tooltip. */
+@media (max-width: 1700px) {
 	.mep-text-actions .mep-text-action .mep-text-action-label {
-		max-width: 9em;
-		overflow: hidden;
-		text-overflow: ellipsis;
+		display: none;
 	}
+
+	.mep-text-actions .mep-text-action .mep-text-action-short {
+		display: inline;
+	}
+
+	.mep-text-actions .mep-text-action {
+		padding: 0 3px;
+		gap: 2px;
+	}
+
+	.mep-text-actions {
+		gap: 2px;
+	}
+
+	/* The submenu still opens on click; its chevron takes room the narrow toolbar lacks. */
+	.mep-text-actions .mep-text-action .codicon-chevron-down {
+		display: none;
+	}
+}
+
+/* The labelled actions keep their width; the view switch beside them gives way first. */
+.saengine-mep-editor .sa-frame-end:has(.mep-text-actions) {
+	flex-shrink: 0;
 }

@@ -72,7 +72,7 @@ export function renderElectricalReport(view: HTMLElement, report: IElectricalRep
 			{ label: localize('elecResults.f.ac', "A/C"), unit: WM2, numeric: true, width: 60, title: localize('elecResults.f.acTitle', "The air-conditioning share of Table 8.1.17 (A/C less non-A/C density); 0 where the hvac plant's own load is counted") },
 			{ label: localize('elecResults.f.unit', "Unit load"), unit: WM2, numeric: true, width: 76 },
 			{ label: localize('elecResults.f.connected', "Connected"), unit: KW, numeric: true, width: 84 }, { label: localize('elecResults.f.demand', "Demand"), unit: KW, numeric: true, width: 76 },
-			{ label: localize('elecResults.f.kva', "Demand"), unit: KVA, numeric: true, width: 76 }, { label: localize('elecResults.f.source', "Source"), width: 300 },
+			{ label: localize('elecResults.f.kva', "Demand"), unit: KVA, numeric: true, width: 76 },
 		]);
 		const body = append(table, $('tbody'));
 		for (const row of report.stories) {
@@ -94,9 +94,7 @@ export function renderElectricalReport(view: HTMLElement, report: IElectricalRep
 			for (const [n, digits] of [[row.acShare, 1], [row.density, 1], [row.connected, 1], [row.demand, 1], [row.kva, 1]] as const) {
 				append(tr, $('td.number', undefined, value(n, digits)));
 			}
-			const sources = row.breakdown.length ? loadBreakdownText(row) : '';
-			const note = append(tr, $('td.mep-wrap.mep-pre', undefined, [sources, row.note ?? ''].filter(Boolean).join('\n')));
-			note.title = note.textContent ?? '';
+			tr.title = loadBreakdownText(row);
 		}
 		// The loads the stories' unit loads leave out: the air-conditioning plant, the motors, the extra loads.
 		const others: [number | undefined, string][] = [
@@ -109,7 +107,7 @@ export function renderElectricalReport(view: HTMLElement, report: IElectricalRep
 				const tr = append(body, $('tr'));
 				append(tr, $('td', { colspan: '7' }, label));
 				append(tr, $('td.number', undefined, value(kw, 1)));
-				append(tr, $('td'), $('td'), $('td'));
+				append(tr, $('td'), $('td'));
 			}
 		}
 		if (report.total) {
@@ -118,7 +116,15 @@ export function renderElectricalReport(view: HTMLElement, report: IElectricalRep
 			for (const [n, digits] of [[report.total.connected, 1], [report.total.demand, 1], [report.total.kva, 1]] as const) {
 				append(tr, $('td.number', undefined, value(n, digits)));
 			}
-			append(tr, $('td'));
+		}
+		// Where each storey's unit load comes from, part by part.
+		const sources = append(section, $('ul.plb-summary.elec-load-sources'));
+		for (const row of report.stories) {
+			if (row.breakdown.length || row.note) {
+				const li = append(sources, $('li'));
+				append(li, $('strong', undefined, `${host.storyName(row.story)}: `));
+				append(li, $('span', undefined, [loadBreakdownText(row).split('\n').join('; '), row.note ?? ''].filter(Boolean).join('; ')));
+			}
 		}
 	}
 

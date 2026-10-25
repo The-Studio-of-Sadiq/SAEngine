@@ -235,7 +235,7 @@ export function renderPlumbingReport(view: HTMLElement, report: IPlumbingReport,
 			const parts = [
 				pump.flow !== undefined ? localize('plb.pumpFlow', "{0} L/s", formatNumber(pump.flow, 2)) : '',
 				pump.head !== undefined ? localize('plb.pumpHead', "{0} m head", formatNumber(pump.head, 1)) : '',
-				pump.power !== undefined ? localize('plb.pumpPower', "{0} kW at the shaft", formatNumber(pump.power, 2)) : '',
+				pump.power !== undefined ? localize('plb.pumpPower', "{0} kW at the shaft", formatNumber(pump.power, pump.power < 0.1 ? 3 : 2)) : '',
 				pump.motor !== undefined ? localize('plb.pumpMotor', "motor {0} kW (the next standard rating, IEC 60072-1)", formatNumber(pump.motor, 2)) : '',
 			].filter(Boolean);
 			const line = append(hydraulics, $('p.plb-pump'));
