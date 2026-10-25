@@ -101,6 +101,16 @@ STONE_DENSITY = 1450.0  # kg/m³, loose stone chips
 CEMENT_BAG = 50.0  # kg
 CFT = 35.3147  # cubic feet per m³
 
+#: The nominal mix assumed for a concrete with no mix in 03 Materials (cement : sand : stone by
+#: volume), by f'c [MPa]: the nominal mixes of IS 456:2000 Table 9 (M10 1:3:6, M15 1:2:4, M20
+#: 1:1.5:3), the richest one above M20, where a design mix is the practice. Estimating practice,
+#: not BNBC values: enter the mix in 03 Materials to replace it.
+ASSUMED_MIXES: tuple[tuple[float, tuple[float, float, float]], ...] = (
+    (12.0, (1.0, 3.0, 6.0)),
+    (17.0, (1.0, 2.0, 4.0)),
+    (math.inf, (1.0, 1.5, 3.0)),
+)
+
 #: Earthwork and blinding of the foundations of 9 Substructure [mm].
 WORKING_SPACE = 300.0  # around a foundation or tie beam, each side, to the excavation's face
 BLINDING = 75.0  # lean concrete under foundations and tie beams
@@ -348,6 +358,11 @@ class BillOfQuantities(_Model):
     source: BoqSource = Field(default_factory=BoqSource)
     items: list[BoqItem] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
+    problems: list[str] = Field(
+        default_factory=list,
+        description="What the bill could not measure (no bars on a type, a tank not designed, "
+        "a mortar with no mix, ...): while there are any the bill is incomplete.",
+    )
 
     def total(self, group: str, unit: str | None = None) -> float:
         return sum(i.quantity for i in self.items if i.group == group and unit in (None, i.unit))
@@ -397,7 +412,10 @@ class _Bill:
         at = (element, story, detail)
         line.amounts[at] = line.amounts.get(at, 0.0) + quantity
 
-    def items(self) -> list[BoqItem]:
+    def items(self, types: dict[str, str] | None = None) -> list[BoqItem]:
+        """The items of the bill; ``types``: the object type of each element id, the detail of
+        its breakdown entries that have none (the section it was measured with)."""
+        types = types or {}
         groups = list(GROUPS)
         lines = sorted(self.lines.values(), key=lambda li: (groups.index(li.group), li.order))
         items = []
@@ -420,7 +438,12 @@ class _Bill:
                     diameter=line.diameter,
                     byStory={s: round(q, 3) for s, q in stories.items()},
                     breakdown=[
-                        BreakdownEntry(element=e, story=s, detail=d, quantity=round(q, 3))
+                        BreakdownEntry(
+                            element=e,
+                            story=s,
+                            detail=d if d is not None or e not in types else f"type {types[e]}",
+                            quantity=round(q, 3),
+                        )
                         for (e, s, d), q in line.amounts.items()
                     ],
                 )
@@ -1861,6 +1884,7 @@ class _Measure:
             if line.group in ("concrete", "masonry") and line.unit == "m3" and line.material
         ]
         missing: dict[str, str] = {}
+        assumed: dict[str, str] = {}
         for line in lines:
             material = self.materials.get(line.material or "")
             if material is None:
@@ -1876,10 +1900,15 @@ class _Measure:
                 mix, share, factor = mortar.composition, BRICKWORK_WET_MORTAR, DRY_VOLUME_MORTAR
                 cement_type = mix.cementType
             else:
-                if material.composition is None:
-                    missing[material.id] = f"concrete {material.id} has no mix"
-                    continue
-                mix, share, factor = material.composition, 1.0, DRY_VOLUME_CONCRETE
+                mix = material.composition
+                if mix is None:
+                    mix = assumed_mix(material)
+                    ratio = ":".join(f"{r:g}" for r in mix.ratio)
+                    assumed[material.id] = (
+                        f"concrete {material.id} has no mix: {ratio} assumed "
+                        f"(f'c {_fc(material):g} MPa)"
+                    )
+                share, factor = 1.0, DRY_VOLUME_CONCRETE
                 cement_type = mix.cementType
             cement = f"Cement{f' ({cement_type})' if cement_type else ''}"
             items = {
@@ -1905,10 +1934,18 @@ class _Measure:
                         detail=line.description,
                         kind=key,
                     )
-        if missing:
+        if assumed:
             self.notes.append(
                 "Materials: "
-                + "; ".join(missing[k] for k in sorted(missing))
+                + "; ".join(assumed[k] for k in sorted(assumed))
+                + ", a nominal mix of IS 456:2000 Table 9 by strength, no water (enter the mix "
+                "in 03 Materials to replace it)."
+            )
+        if missing:
+            self.missing_mixes = [missing[k] for k in sorted(missing)]
+            self.notes.append(
+                "Materials: "
+                + "; ".join(self.missing_mixes)
                 + ", so no cement, sand or stone is taken off for it (add the mix in 03 Materials)."
             )
         self.materials_measured = any(
@@ -1949,6 +1986,39 @@ class _Measure:
             )
         return notes
 
+    def problems(self) -> list[str]:
+        """What the bill could not measure, short, for the editor's warning rows and the part's
+        status (the notes keep the details)."""
+        out = []
+        if self.unreinforced:
+            types = sorted(self.unreinforced)
+            count = sum(len(v) for v in self.unreinforced.values())
+            out.append(
+                f"No reinforcement measured for {count} element(s) of {len(types)} object type(s) "
+                f"with no bars ({', '.join(types[:6])}{', ...' if len(types) > 6 else ''}): run "
+                "the design (Run All, or Design mode in 8 FEM) to propose bars, or enter them in "
+                "04 Objects."
+            )
+        for text in getattr(self, "missing_mixes", []):
+            out.append(f"No cement or sand for {text} (add the mix in 03 Materials).")
+        out += [
+            n for n in self.notes if TANK_BARS_PENDING in n or n.rstrip().endswith("not measured.")
+        ]
+        return out
+
+
+def _fc(material: Material) -> float:
+    return material.concrete.fc if material.concrete is not None else 0.0
+
+
+def assumed_mix(material: Material) -> Any:
+    """The nominal mix taken off a concrete with no mix in 03 Materials (:data:`ASSUMED_MIXES`)."""
+    from saengine.library.materials import NominalMix
+
+    fc = _fc(material)
+    ratio = next(r for limit, r in ASSUMED_MIXES if fc <= limit + 1e-9)
+    return NominalMix(ratio=list(ratio))
+
 
 def bill_of_quantities(
     building: BuildingModel,
@@ -1976,8 +2046,12 @@ def bill_of_quantities(
 
     measure.fire_measured = measure_fire(measure, tank_designs)
     measure.measure_materials()
+    notes = measure.finish()
     return BillOfQuantities(
-        source=source or BoqSource(), items=measure.bill.items(), notes=measure.finish()
+        source=source or BoqSource(),
+        items=measure.bill.items({e.id: e.type for e in building.elements if e.type}),
+        notes=notes,
+        problems=measure.problems(),
     )
 
 

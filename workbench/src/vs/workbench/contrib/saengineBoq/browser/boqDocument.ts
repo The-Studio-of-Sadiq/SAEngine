@@ -47,6 +47,16 @@ export interface IBoqDocument {
 	readonly source?: { readonly [part: string]: string | undefined };
 	readonly items: readonly IBoqItem[];
 	readonly notes?: readonly string[];
+	/** What the bill could not measure (no bars on a type, a tank not designed, ...): while there are any the bill is incomplete. */
+	readonly problems?: readonly string[];
+}
+
+/**
+ * What the bill could not measure, as its warning rows show them; their count is the part's
+ * problem count (an incomplete bill is not "measured").
+ */
+export function boqProblems(document: IBoqDocument | undefined): readonly string[] {
+	return document?.problems ?? [];
 }
 
 /** Arguments of {@link BOQ_COMPUTE_COMMAND}: the texts of the source files. */
@@ -171,6 +181,34 @@ export function awaitsTankDesigns(document: IBoqDocument | undefined): boolean {
 /** The words of the bill's note on a plumbing tank whose bars wait for its design. */
 const TANK_BARS_PENDING = 'its bars are not measured: it has no current design';
 
+/**
+ * The total rows of a group in the table: only like with like. The earthwork (excavation and
+ * backfill are the same earth twice) and the MEP coordination (counts and lengths of different
+ * things) have none; the materials total each material (cement in kg, bags, sand, ...) that is on
+ * more than one line (cement of two types), never sand with stone.
+ */
+export function totalRows(group: BoqGroup, items: readonly IBoqItem[]): { readonly label?: string; readonly unit: BoqUnit; readonly total: number }[] {
+	switch (group) {
+		case 'earthwork':
+		case 'mep':
+			return [];
+		case 'materials': {
+			const byKind = new Map<string, IBoqItem[]>();
+			for (const item of items) {
+				const key = `${item.kind ?? item.description}|${item.unit}`;
+				byKind.set(key, [...byKind.get(key) ?? [], item]);
+			}
+			return [...byKind.values()].filter(same => same.length > 1).map(same => ({
+				label: same[0].description.replace(/\s*\(.*\)/, ''),
+				unit: same[0].unit,
+				total: same.reduce((sum, item) => sum + item.quantity, 0),
+			}));
+		}
+		default:
+			return totals(items);
+	}
+}
+
 /** The total of each unit among `items`, in the order the units first appear. */
 export function totals(items: readonly IBoqItem[]): { readonly unit: BoqUnit; readonly total: number }[] {
 	const sums = new Map<BoqUnit, number>();
@@ -185,13 +223,34 @@ export function unitLabel(unit: string): string {
 		case 'm3': return 'm³';
 		case 'm2': return 'm²';
 		case 'bag': return localize('boq.unit.bags', "bags");
+		case 'sft': return 'sft';
+		case 'rft': return 'rft';
 		default: return unit;
 	}
+}
+
+/** Imperial factors of the metric units the bill measures in: cubic, square and running feet. */
+const IMPERIAL: { readonly [unit: string]: { readonly unit: string; readonly factor: number } } = {
+	m3: { unit: 'cft', factor: 35.3147 },
+	m2: { unit: 'sft', factor: 10.7639 },
+	m: { unit: 'rft', factor: 3.28084 },
+};
+
+/** `quantity` in `unit`, or in feet (cft, sft, rft) when `imperial`; other units are unchanged. */
+export function displayQuantity(quantity: number, unit: string, imperial: boolean): { readonly quantity: number; readonly unit: string } {
+	const to = imperial ? IMPERIAL[unit] : undefined;
+	return to ? { quantity: quantity * to.factor, unit: to.unit } : { quantity, unit };
 }
 
 /** A quantity as the bill shows it: volumes to the litre, areas and masses to two decimals, counts whole. */
 export function formatQuantity(quantity: number, unit: string): string {
 	return quantity.toFixed(unit === 'm3' ? 3 : unit === 'nr' ? 0 : 2);
+}
+
+/** A quantity with its unit, in feet when `imperial` (see {@link displayQuantity}). */
+export function quantityText(quantity: number, unit: string, imperial = false): string {
+	const shown = displayQuantity(quantity, unit, imperial);
+	return `${formatQuantity(shown.quantity, shown.unit)} ${unitLabel(shown.unit)}`;
 }
 
 /**

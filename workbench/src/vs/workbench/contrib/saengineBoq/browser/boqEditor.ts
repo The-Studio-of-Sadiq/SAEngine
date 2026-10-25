@@ -12,10 +12,12 @@ import { Action, IAction, Separator } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { setProperty } from '../../../../base/common/jsonEdit.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Range } from '../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
@@ -28,7 +30,7 @@ import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
@@ -39,7 +41,7 @@ import { DEVELOPER_MODE_SETTING } from '../../../services/saengineProject/common
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
-import { BOQ_COMPUTE_COMMAND, BOQ_GROUPS, BOQ_SOURCES, BoqGroup, boqComputeArgs, changedSources, formatQuantity, totalledItems, IBoqComputeResult, IBoqDocument, IBoqItem, parseBoq, totals, unitLabel } from './boqDocument.js';
+import { BOQ_COMPUTE_COMMAND, BOQ_GROUPS, BOQ_SOURCES, BoqGroup, boqComputeArgs, boqProblems, changedSources, displayQuantity, formatQuantity, totalledItems, IBoqComputeResult, IBoqDocument, IBoqItem, parseBoq, quantityText, totalRows, totals, unitLabel } from './boqDocument.js';
 import { BoqEditorInput } from './boqEditorInput.js';
 import { exportBoqCsv } from './boqExport.js';
 
@@ -54,6 +56,20 @@ function shortGroupName(group: BoqGroup): string {
 		case 'steel': return localize('boq.short.steel', "Steel");
 		case 'mep': return localize('boq.short.mep', "MEP");
 		case 'materials': return localize('boq.short.materials', "Cement");
+	}
+}
+
+/** Where the viewer's choice of units (metric or feet) is kept. */
+const IMPERIAL_STORAGE_KEY = 'saengine.boq.imperial';
+
+/** How the bill takes the reinforcement (Project Settings → Drawings, `drawings.boqReinforcement`). */
+type ReinforcementSource = 'measured' | 'bbs';
+
+function reinforcementSource(settingsText: string | undefined): ReinforcementSource {
+	try {
+		return JSON.parse(settingsText ?? '')?.drawings?.boqReinforcement === 'bbs' ? 'bbs' : 'measured';
+	} catch {
+		return 'measured';
 	}
 }
 
@@ -100,12 +116,15 @@ export class BoqEditor extends EditorPane {
 	private readonly expandAllAction = this._register(new Action('saengine.boq.editor.expandAll', localize('boq.expandAll', "Expand All"), undefined, true, async () => this.setAllExpanded(true)));
 	private readonly collapseAllAction = this._register(new Action('saengine.boq.editor.collapseAll', localize('boq.collapseAll', "Collapse All"), undefined, true, async () => this.setAllExpanded(false)));
 	private readonly openJsonAction = this._register(new Action('saengine.boq.editor.openJson', localize('boq.openJson', "Open as JSON"), undefined, true, () => this.openAsJson()));
+	private readonly imperialAction = this._register(new Action('saengine.boq.editor.imperial', localize('boq.imperial', "Show in Feet (cft, sft, rft)"), undefined, true, async () => this.setImperial(!this.imperial)));
+	private readonly measuredBarsAction = this._register(new Action('saengine.boq.editor.barsMeasured', localize('boq.barsMeasured', "Reinforcement: Measured by the BOQ's Rules"), undefined, true, () => this.setReinforcementSource('measured')));
+	private readonly scheduleBarsAction = this._register(new Action('saengine.boq.editor.barsSchedule', localize('boq.barsSchedule', "Reinforcement: From the Bar Bending Schedule"), undefined, true, () => this.setReinforcementSource('bbs')));
 
 	constructor(
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private readonly storage: IStorageService,
 		@ISaengineProjectService private readonly projectService: ISaengineProjectService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -119,7 +138,7 @@ export class BoqEditor extends EditorPane {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
 	) {
-		super(BoqEditor.ID, group, telemetryService, themeService, storageService);
+		super(BoqEditor.ID, group, telemetryService, themeService, storage);
 		// Editors restore before the project is detected: find the source files once it is.
 		this._register(this.projectService.onDidChangeProject(async () => {
 			if (this.input) {
@@ -190,6 +209,16 @@ export class BoqEditor extends EditorPane {
 		return this.model && !this.model.isDisposed() ? parseBoq(this.model.getValue()) : undefined;
 	}
 
+	/** Whether volumes, areas and lengths show in feet (cft, sft, rft): the viewer's choice, kept. */
+	private get imperial(): boolean {
+		return this.storage.getBoolean(IMPERIAL_STORAGE_KEY, StorageScope.PROFILE, false);
+	}
+
+	private setImperial(imperial: boolean): void {
+		this.storage.store(IMPERIAL_STORAGE_KEY, imperial, StorageScope.PROFILE, StorageTarget.USER);
+		this.render();
+	}
+
 	private get developerMode(): boolean {
 		return this.configurationService.getValue<boolean>(DEVELOPER_MODE_SETTING) === true;
 	}
@@ -254,10 +283,19 @@ export class BoqEditor extends EditorPane {
 		const hasItems = !!document?.items.length;
 		this.expandAllAction.enabled = this.collapseAllAction.enabled = hasItems;
 
-		const primary: IAction[] = [...(stale ? [this.updateAction] : []), frame.togglePropertiesAction];
+		const bars = reinforcementSource(this.sources.get('settings')?.getValue());
+		this.measuredBarsAction.checked = bars === 'measured';
+		this.scheduleBarsAction.checked = bars === 'bbs';
+		this.measuredBarsAction.enabled = this.scheduleBarsAction.enabled = !this.computing && this.sources.has('settings');
+		this.imperialAction.checked = this.imperial;
+		const primary: IAction[] = [...(stale ? [this.updateAction] : []), this.exportAction, frame.togglePropertiesAction];
 		const secondary: IAction[] = [
 			...(stale ? [] : [this.updateAgainAction]),
-			this.exportAction,
+			new Separator(),
+			this.measuredBarsAction,
+			this.scheduleBarsAction,
+			new Separator(),
+			this.imperialAction,
 			new Separator(),
 			this.expandAllAction,
 			this.collapseAllAction,
@@ -311,11 +349,21 @@ export class BoqEditor extends EditorPane {
 				link: { label: localize('boq.updateLink', "Update"), run: () => void this.compute() },
 			};
 		}
+		const problems = boqProblems(document);
+		if (problems.length) {
+			return {
+				severity: 'warning',
+				text: problems.length === 1
+					? localize('boq.incompleteOne', "Incomplete: 1 problem. {0}", problems[0])
+					: localize('boq.incomplete', "Incomplete: {0} problems, listed above the bill.", problems.length),
+				link: { label: localize('boq.updateLink', "Update"), run: () => void this.compute() },
+			};
+		}
 		const sums: string[] = [];
 		for (const { group } of BOQ_GROUPS) {
 			const items = document.items.filter(i => i.group === group);
 			if (items.length) {
-				const values = totals(totalledItems(group, items)).map(({ unit, total }) => `${formatQuantity(total, unit)} ${unitLabel(unit)}`).join(', ');
+				const values = totals(totalledItems(group, items)).map(({ unit, total }) => quantityText(total, unit, this.imperial)).join(', ');
 				sums.push(localize('boq.groupTotal', "{0} {1}", shortGroupName(group), values));
 			}
 		}
@@ -365,9 +413,8 @@ export class BoqEditor extends EditorPane {
 		const item = document.items.find(i => i.code === this.selected);
 		if (item) {
 			appendPropertyHeading(panel, `${item.code}  ${item.description}`);
-			const unit = unitLabel(item.unit);
 			appendPropertyRow(panel, localize('boq.propGroup', "Group"), groupTitle(item.group));
-			appendPropertyRow(panel, localize('boq.quantity', "Quantity"), `${formatQuantity(item.quantity, item.unit)} ${unit}`);
+			appendPropertyRow(panel, localize('boq.quantity', "Quantity"), quantityText(item.quantity, item.unit, this.imperial));
 			if (item.material) {
 				appendPropertyRow(panel, localize('boq.propMaterial', "Material"), item.material);
 			}
@@ -382,11 +429,24 @@ export class BoqEditor extends EditorPane {
 			if (stories.length) {
 				appendPropertyHeading(panel, localize('boq.byStoryHeading', "By story"));
 				for (const [story, quantity] of stories) {
-					appendPropertyRow(panel, story, `${formatQuantity(quantity, item.unit)} ${unit}`);
+					appendPropertyRow(panel, story, quantityText(quantity, item.unit, this.imperial));
+				}
+				// What is on no story (foundations, special-structure members): the rows add up to the item.
+				const other = item.quantity - stories.reduce((sum, [, quantity]) => sum + quantity, 0);
+				if (other > 0.0005 * Math.max(1, item.quantity)) {
+					appendPropertyRow(panel, localize('boq.noStory', "Other (no story)"), quantityText(other, item.unit, this.imperial));
 				}
 			}
 		} else {
 			appendPropertyNote(panel, localize('boq.selectRow', "Select a row for its details."));
+		}
+
+		const problems = boqProblems(document);
+		if (problems.length) {
+			appendPropertyHeading(panel, localize('boq.problemsHeading', "Not measured ({0})", problems.length));
+			for (const problem of problems) {
+				appendPropertyNote(panel, problem);
+			}
 		}
 
 		appendPropertyHeading(panel, localize('boq.sourcesHeading', "Measured from"));
@@ -457,6 +517,29 @@ export class BoqEditor extends EditorPane {
 		}
 	}
 
+	/**
+	 * Sets how the bill takes the reinforcement (Project Settings' `drawings.boqReinforcement`),
+	 * saves the settings and measures the bill again: the setting is not one of the bill's
+	 * stamped sources, so the bill would not go out of date by itself.
+	 */
+	private async setReinforcementSource(value: ReinforcementSource): Promise<void> {
+		const model = this.sources.get('settings');
+		if (!model || model.isDisposed() || reinforcementSource(model.getValue()) === value) {
+			return;
+		}
+		const options = model.getOptions();
+		const edits = setProperty(model.getValue(), ['drawings', 'boqReinforcement'], value, { tabSize: options.tabSize, insertSpaces: options.insertSpaces, eol: model.getEOL() });
+		model.pushStackElement();
+		model.pushEditOperations([], edits.map(edit => {
+			const start = model.getPositionAt(edit.offset);
+			const end = model.getPositionAt(edit.offset + edit.length);
+			return { range: new Range(start.lineNumber, start.column, end.lineNumber, end.column), text: edit.content };
+		}), () => null);
+		model.pushStackElement();
+		await this.textFileService.save(model.uri);
+		await this.compute();
+	}
+
 	private setAllExpanded(expanded: boolean): void {
 		this.expanded.clear();
 		if (expanded) {
@@ -497,7 +580,7 @@ export class BoqEditor extends EditorPane {
 
 	private showContextMenu(item: IBoqItem, e: MouseEvent): void {
 		const open = this.expanded.has(item.code);
-		const quantity = `${formatQuantity(item.quantity, item.unit)} ${unitLabel(item.unit)}`;
+		const quantity = quantityText(item.quantity, item.unit, this.imperial);
 		const actions: IAction[] = [
 			new Action('saengine.boq.row.toggle', open ? localize('boq.hideBreakdown', "Hide Breakdown") : localize('boq.showBreakdown', "Show Breakdown"), undefined, true, async () => this.toggle(item.code)),
 			new Separator(),
@@ -518,6 +601,17 @@ export class BoqEditor extends EditorPane {
 		this.rows.clear();
 		clearNode(this.body);
 		const document = this.model ? this.document : undefined;
+		const problems = boqProblems(document);
+		if (problems.length) {
+			const box = append(this.body, $('.boq-problems', { role: 'status' }));
+			append(box, $('.boq-problems-title', undefined, localize('boq.problemsTitle', "This bill is incomplete: {0} thing(s) could not be measured", problems.length)));
+			const list = append(box, $('ul'));
+			for (const problem of problems) {
+				const entry = append(list, $('li'));
+				append(entry, $(`span${ThemeIcon.asCSSSelector(Codicon.warning)}`));
+				append(entry, $('span', undefined, problem));
+			}
+		}
 		if (document?.items.length) {
 			const table = append(this.body, $('table.boq-table', { role: 'treegrid', 'aria-label': localize('boq.toolbar', "Bill of Quantities") }));
 			const columns = append(table, $('colgroup'));
@@ -554,8 +648,9 @@ export class BoqEditor extends EditorPane {
 			append(code, $(`span.boq-twistie${ThemeIcon.asCSSSelector(open ? Codicon.chevronDown : Codicon.chevronRight)}`));
 			append(code, $('span', undefined, item.code));
 			append(row, $('td.description', undefined, item.description));
-			append(row, $('td.number', undefined, formatQuantity(item.quantity, item.unit)));
-			append(row, $('td.unit', undefined, unitLabel(item.unit)));
+			const shown = displayQuantity(item.quantity, item.unit, this.imperial);
+			append(row, $('td.number', undefined, formatQuantity(shown.quantity, shown.unit)));
+			append(row, $('td.unit', undefined, unitLabel(shown.unit)));
 			this.bodyDisposables.add(addDisposableListener(row, EventType.CLICK, () => this.toggle(item.code)));
 			this.bodyDisposables.add(addDisposableListener(row, EventType.FOCUS, () => this.select(item.code)));
 			this.bodyDisposables.add(addDisposableListener(row, EventType.CONTEXT_MENU, (e: MouseEvent) => {
@@ -571,13 +666,14 @@ export class BoqEditor extends EditorPane {
 				row.focus();
 			}
 		}
-		// Excavation and backfill do not add up: the earthwork has no total row.
-		for (const { unit, total } of items[0]?.group === 'earthwork' ? [] : totals(items)) {
+		// Only like with like (totalRows): no total of excavation with backfill, sand with stone, or counts.
+		for (const { label, unit, total } of items[0] ? totalRows(items[0].group, items) : []) {
+			const shown = displayQuantity(total, unit, this.imperial);
 			const row = append(body, $('tr.boq-total'));
 			append(row, $('td.code'));
-			append(row, $('td', undefined, localize('boq.total', "Total")));
-			append(row, $('td.number', undefined, formatQuantity(total, unit)));
-			append(row, $('td.unit', undefined, unitLabel(unit)));
+			append(row, $('td', undefined, label ? localize('boq.totalOf', "Total {0}", label) : localize('boq.total', "Total")));
+			append(row, $('td.number', undefined, formatQuantity(shown.quantity, shown.unit)));
+			append(row, $('td.unit', undefined, unitLabel(shown.unit)));
 		}
 	}
 
@@ -616,8 +712,9 @@ export class BoqEditor extends EditorPane {
 			append(row, $('td', undefined, entry.element));
 			append(row, $('td', undefined, entry.story ?? ''));
 			append(row, $('td.detail', undefined, entry.detail ?? ''));
-			append(row, $('td.number', undefined, formatQuantity(entry.quantity, item.unit)));
-			append(row, $('td.unit', undefined, unitLabel(item.unit)));
+			const shown = displayQuantity(entry.quantity, item.unit, this.imperial);
+			append(row, $('td.number', undefined, formatQuantity(shown.quantity, shown.unit)));
+			append(row, $('td.unit', undefined, unitLabel(shown.unit)));
 		}
 		if (!item.breakdown?.length) {
 			append(append(body, $('tr')), $('td.muted', { colspan: '5' }, localize('boq.noBreakdown', "No breakdown by element was recorded.")));
