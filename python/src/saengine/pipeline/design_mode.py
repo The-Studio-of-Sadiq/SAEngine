@@ -11,10 +11,16 @@ while the stamp still matches and works it out again otherwise.
 The design checks of a run (:func:`saengine.design.design_report`, about a minute on the
 17-member sample) are kept the same way in ``design-report.json`` (:func:`report`), for the
 drawings (``saengine.pipeline.drawings``) and Run All's design step.
+
+Both come from one run of the design checks: :func:`gathered` keeps the last checks gathered in
+the process (:func:`saengine.design.required.gather`, which also gives the design report) while
+the stamp matches, so Run All's design step, its required steel, the report and the column
+view (``saengine.fem.member_detail``) design the members once (:func:`checks`).
 """
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import math
@@ -34,7 +40,7 @@ REPORT_FILE = "design-report.json"
 
 #: Files of the results folder that are written from the results, not by the analysis: they do
 #: not enter the stamp (writing them must not make the kept answer stale).
-_DERIVED = frozenset({REQUIRED_FILE, REPORT_FILE, "design-summary.json"})
+_DERIVED = frozenset({REQUIRED_FILE, REPORT_FILE, "design-summary.json", "column-interaction.json"})
 #: The same by path in the results folder: the response spectrum design's summary is written
 #: again on every design (``saengine.fem.seismic_design.seismic_design`` keeps its run while
 #: the model and the results do not change but rewrites the summary of it), so its time would
@@ -180,9 +186,85 @@ def required(
         cached = kept(out_dir, stamp)
         if cached is not None:
             return cached
-    result = _plain(design_required(out_dir, project_path, options))
+    gathering = gathered(out_dir, project_path, stamp)
+    result = _plain(design_required(out_dir, project_path, options, gathering))
     keep(out_dir, stamp, result)
     return result
+
+
+# ───────────────────────── the design checks, once per change ─────────────────────────
+
+#: The checks gathered last in this process: (results folder, stamp, with the substructure,
+#: the Gathered, a copy of its design report taken before anyone used it or None). One only: a
+#: large building's gathered checks take hundreds of MB.
+_GATHERED: tuple[str, str, bool, Any, dict[str, Any] | None] | None = None
+#: The design report made last on its own (:func:`checks`): (results folder, stamp, report).
+_REPORT: tuple[str, str, dict[str, Any]] | None = None
+_memo_lock = threading.Lock()
+
+
+def _folder(out_dir: str | Path) -> str:
+    return str(Path(out_dir).resolve())
+
+
+def gathered(
+    out_dir: str | Path,
+    project_path: str | Path,
+    stamp: str | None = None,
+    *,
+    substructure: bool = True,
+) -> Any:
+    """:func:`saengine.design.required.gather` of the run: the one gathered last in this
+    process while its inputs have ``stamp`` (:func:`report_stamp`, taken before the checks read
+    the files; worked out here when None), else gathered again and kept in its place.
+    ``substructure``: the foundations' demands are needed too (else a gathering without them
+    does)."""
+    from saengine.design.required import gather
+
+    global _GATHERED
+    stamp = stamp or report_stamp(out_dir, project_path)
+    folder = _folder(out_dir)
+    with _memo_lock:
+        memo = _GATHERED
+    if memo and memo[:2] == (folder, stamp) and (memo[2] or not substructure):
+        return memo[3]
+    result = gather(out_dir, project_path, substructure)
+    # The design report as design_report makes it: the same checks of the same object types,
+    # unless some were checked with assumed bars.
+    report_copy = None if result.assumed else copy.deepcopy(result.report)
+    with _memo_lock:
+        _GATHERED = (folder, stamp, substructure, result, report_copy)
+    return result
+
+
+def checks(
+    out_dir: str | Path, project_path: str | Path, stamp: str | None = None
+) -> dict[str, Any]:
+    """:func:`saengine.design.design_report` of the run (unchanged, before :func:`_plain`):
+    the one this process made last while the inputs have ``stamp`` (from :func:`gathered` or
+    from an earlier call), else made now. Each call returns its own copy."""
+    from saengine.design import design_report
+
+    global _REPORT
+    stamp = stamp or report_stamp(out_dir, project_path)
+    folder = _folder(out_dir)
+    with _memo_lock:
+        memo, alone = _GATHERED, _REPORT
+    if memo and memo[:2] == (folder, stamp) and memo[4] is not None:
+        return copy.deepcopy(memo[4])
+    if alone and alone[:2] == (folder, stamp):
+        return copy.deepcopy(alone[2])
+    result = design_report(out_dir, project_path)
+    with _memo_lock:
+        _REPORT = (folder, stamp, copy.deepcopy(result))
+    return result
+
+
+def forget() -> None:
+    """Drops the checks kept in this process (:func:`gathered`, :func:`checks`)."""
+    global _GATHERED, _REPORT
+    with _memo_lock:
+        _GATHERED = _REPORT = None
 
 
 def kept_report(out_dir: str | Path, project_path: str | Path) -> dict[str, Any] | None:
@@ -214,11 +296,13 @@ def report(
     from saengine.design import design_report
 
     stamp = report_stamp(out_dir, project_path)
-    if not fresh:
+    if fresh:
+        result = design_report(out_dir, project_path)
+    else:
         cached = kept(out_dir, stamp, REPORT_FILE)
         if cached is not None:
             return cached
-    result = design_report(out_dir, project_path)
+        result = checks(out_dir, project_path, stamp)
     if not result:
         return None
     result = _plain(result)
