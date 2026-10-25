@@ -24,7 +24,15 @@ export interface BuildingViewerTheme {
 	readonly footing: string;
 	readonly stair: string;
 	readonly member: string;
+	/** Equipment, tanks, pipes, ducts and cable runs of 7 MEP. */
+	readonly mep: string;
 }
+
+/** The groups of elements the view can show or hide, each with its own colour. */
+export type BuildingLayer = 'column' | 'beam' | 'wall' | 'slab' | 'footing' | 'stair' | 'member' | 'mep';
+
+/** Camera directions of the view presets. */
+export type BuildingViewPreset = 'iso' | 'top' | 'front' | 'side';
 
 export interface BuildingViewerOptions {
 	/** Folder URL (with trailing slash) holding `fragments-worker.mjs` and `web-ifc/`. */
@@ -43,6 +51,17 @@ export interface BuildingViewer {
 	setSelection(elementId: string | undefined): Promise<void>;
 	setTheme(theme: Partial<BuildingViewerTheme>): Promise<void>;
 	fit(): Promise<void>;
+	/** Looks at the whole building from a preset direction. */
+	setView(preset: BuildingViewPreset): Promise<void>;
+	/** The layers the loaded building has elements in: how many, and their colour (for a legend). */
+	layers(): Promise<readonly { readonly layer: BuildingLayer; readonly count: number; readonly color: string }[]>;
+	/** Shows or hides a layer. */
+	setLayerVisible(layer: BuildingLayer, visible: boolean): Promise<void>;
+	/**
+	 * Shows only these elements (SAEngine ids) of the elements the view knows, e.g. one story;
+	 * `undefined` shows them all. Hidden layers stay hidden.
+	 */
+	setVisibleElements(elementIds: readonly string[] | undefined): Promise<void>;
 	/** Call when the container changes size without the browser reporting it. */
 	layout(): void;
 	dispose(): void;
@@ -59,17 +78,31 @@ const defaultTheme: BuildingViewerTheme = {
 	footing: '#d7954b',
 	stair: '#d4d4d4',
 	member: '#f14c4c',
+	mep: '#e0a800',
 };
 
-const CATEGORIES: readonly [keyof BuildingViewerTheme, RegExp][] = [
+const CATEGORIES: readonly [BuildingLayer, RegExp][] = [
 	['column', /^IFCCOLUMN$/],
 	['beam', /^IFCBEAM$/],
 	['wall', /^IFCWALL/],
 	['slab', /^IFCSLAB$/],
-	['footing', /^IFCFOOTING$/],
+	['footing', /^IFC(FOOTING|PILE)$/],
 	['stair', /^IFCSTAIR/],
 	['member', /^IFCMEMBER$/],
+	// The IFC4 classes 7 MEP writes (see saengine.library.ifc): plant, tanks, segments, lifts.
+	['mep', /^IFC(TANK|PUMP|CHILLER|COOLINGTOWER|UNITARYEQUIPMENT|FAN|TRANSFORMER|ELECTRIC\w*|SOLARDEVICE|PIPESEGMENT|DUCTSEGMENT|CABLESEGMENT|CABLECARRIERSEGMENT|TRANSPORTELEMENT)$/],
 ];
+
+/** Directions from the target to the camera of the view presets (y is up). */
+const PRESETS: Readonly<Record<BuildingViewPreset, THREE.Vector3>> = {
+	iso: new THREE.Vector3(1, 0.8, 1.2),
+	top: new THREE.Vector3(0, 1, 0.0001), // a hair off vertical keeps the orbit's up axis defined
+	front: new THREE.Vector3(0, 0, 1),
+	side: new THREE.Vector3(1, 0, 0),
+};
+
+/** Wheel zoom per notch: gentler than camera-controls' default, so a building does not jump past. */
+const DOLLY_SPEED = 0.35;
 
 class BuildingViewerImpl implements BuildingViewer {
 
@@ -93,6 +126,10 @@ class BuildingViewerImpl implements BuildingViewer {
 	/** Class colour of every coloured item. */
 	private readonly itemColors = new Map<number, string>();
 	private fitted = false;
+	/** Local ids of each layer's items in the loaded model. */
+	private layerItems = new Map<BuildingLayer, number[]>();
+	private readonly hiddenLayers = new Set<BuildingLayer>();
+	private visibleElements: ReadonlySet<string> | undefined;
 
 	private pointerDown: { x: number; y: number } | undefined;
 	private readonly onPointerDown = (e: PointerEvent) => { this.pointerDown = { x: e.clientX, y: e.clientY }; };
@@ -116,6 +153,8 @@ class BuildingViewerImpl implements BuildingViewer {
 		this.fragments = this.components.get(OBC.FragmentsManager);
 		this.fragments.init(`${options.assetBaseUrl}fragments-worker.mjs`);
 		// Fragments stream their geometry by view: refresh it when the camera settles.
+		this.camera.controls.dollySpeed = DOLLY_SPEED;
+		this.camera.controls.dollyToCursor = true;
 		this.camera.controls.addEventListener('rest', () => void this.fragments.core.update(true));
 		this.fragments.list.onItemSet.add(({ value: model }) => {
 			model.useCamera(this.camera.three);
@@ -161,6 +200,7 @@ class BuildingViewerImpl implements BuildingViewer {
 			}
 		});
 		await this.applyColors();
+		await this.applyVisibility();
 		await this.applySelection();
 		if (!this.fitted) {
 			this.fitted = true;
@@ -186,14 +226,40 @@ class BuildingViewerImpl implements BuildingViewer {
 	}
 
 	async fit(): Promise<void> {
+		await this.setView('iso');
+	}
+
+	async setView(preset: BuildingViewPreset): Promise<void> {
 		const box = this.model?.box;
 		if (!box || box.isEmpty()) {
 			return;
 		}
 		const sphere = box.getBoundingSphere(new THREE.Sphere());
 		const radius = Math.max(sphere.radius, 1);
-		const eye = sphere.center.clone().add(new THREE.Vector3(1, 0.8, 1.2).normalize().multiplyScalar(radius * 2.4));
+		const eye = sphere.center.clone().add(PRESETS[preset].clone().normalize().multiplyScalar(radius * 2.4));
 		await this.camera.controls.setLookAt(eye.x, eye.y, eye.z, sphere.center.x, sphere.center.y, sphere.center.z, true);
+	}
+
+	async layers(): Promise<readonly { readonly layer: BuildingLayer; readonly count: number; readonly color: string }[]> {
+		return CATEGORIES.map(([layer]) => ({ layer, count: this.layerItems.get(layer)?.length ?? 0, color: this.theme[layer] })).filter(l => l.count > 0);
+	}
+
+	async setLayerVisible(layer: BuildingLayer, visible: boolean): Promise<void> {
+		if (visible === this.hiddenLayers.has(layer)) {
+			if (visible) {
+				this.hiddenLayers.delete(layer);
+			} else {
+				this.hiddenLayers.add(layer);
+			}
+			await this.applyVisibility();
+			await this.fragments.core.update(true);
+		}
+	}
+
+	async setVisibleElements(elementIds: readonly string[] | undefined): Promise<void> {
+		this.visibleElements = elementIds && new Set(elementIds);
+		await this.applyVisibility();
+		await this.fragments.core.update(true);
 	}
 
 	layout(): void {
@@ -225,16 +291,41 @@ class BuildingViewerImpl implements BuildingViewer {
 		const model = this.model;
 		this.itemColors.clear();
 		this.highlighted = undefined;
+		this.layerItems = new Map();
 		if (!model) {
 			return;
 		}
 		const items = await model.getItemsOfCategories(CATEGORIES.map(([, pattern]) => pattern));
 		for (const [key, pattern] of CATEGORIES) {
 			const ids = Object.entries(items).filter(([category]) => pattern.test(category.toUpperCase())).flatMap(([, list]) => list);
+			this.layerItems.set(key, ids);
 			if (ids.length) {
 				ids.forEach(id => this.itemColors.set(id, this.theme[key]));
 				await model.highlight(ids, this.material(this.theme[key]));
 			}
+		}
+	}
+
+	/** Shows everything, then hides the hidden layers and the elements outside the filter. */
+	private async applyVisibility(): Promise<void> {
+		const model = this.model;
+		if (!model) {
+			return;
+		}
+		await model.resetVisible();
+		const hidden = new Set<number>();
+		for (const layer of this.hiddenLayers) {
+			this.layerItems.get(layer)?.forEach(id => hidden.add(id));
+		}
+		if (this.visibleElements) {
+			for (const [id, local] of this.localIds) {
+				if (!this.visibleElements.has(id)) {
+					hidden.add(local);
+				}
+			}
+		}
+		if (hidden.size) {
+			await model.setVisible([...hidden], false);
 		}
 	}
 
