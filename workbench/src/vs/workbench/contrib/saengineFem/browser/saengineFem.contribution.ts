@@ -28,7 +28,7 @@ import { FemDesignProposalInput, FemDesignProposalInputSerializer } from './femD
 import { FemModelEditor } from './femModelEditor.js';
 import { FemModelEditorInput, FemModelEditorInputSerializer } from './femModelEditorInput.js';
 import { FEM_SHOW_CHARTS_COMMAND, FEM_SHOW_MEMBER_COMMAND } from './femResultsBar.js';
-import { FemResultsEditor, FemResultsInput, FemResultsInputSerializer, memberNames } from './femResultsView.js';
+import { FemResultsEditor, FemResultsInput, FemResultsInputSerializer, IFemResultsEditorOptions, memberNames } from './femResultsView.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
@@ -130,10 +130,14 @@ registerAction2(class extends Action2 {
 	}
 });
 
-/** `(model: URI, member: string)`: opens a member's details (forces along it, P-M, steel). Internal. */
-CommandsRegistry.registerCommand(FEM_SHOW_MEMBER_COMMAND, async (accessor, model: URI, member: string) => {
+/**
+ * `(model: URI, member: string, result?: string)`: opens a member's details (forces along it,
+ * P-M, steel) at `result`, the label of the case or combination the 3D view shows. Internal.
+ */
+CommandsRegistry.registerCommand(FEM_SHOW_MEMBER_COMMAND, async (accessor, model: URI, member: string, result?: string) => {
 	if (URI.isUri(model) && typeof member === 'string' && member) {
-		await accessor.get(IEditorService).openEditor(new FemResultsInput(model, { kind: 'member', member }), { pinned: true });
+		const options: IFemResultsEditorOptions = { pinned: true, result: typeof result === 'string' ? result : undefined };
+		await accessor.get(IEditorService).openEditor(new FemResultsInput(model, { kind: 'member', member }), options);
 	}
 });
 
