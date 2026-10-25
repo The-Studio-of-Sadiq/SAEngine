@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
+import { language } from '../../../../base/common/platform.js';
 
 /*
  * Importing a model of another structural program (ETABS .e2k, STAAD.Pro .std, SAP2000 .s2k)
@@ -130,13 +131,15 @@ export interface IImportReport {
 	readonly counts: IImportCounts;
 	readonly approximated: readonly IImportReportItem[];
 	readonly skipped: readonly IImportReportItem[];
+	/** What SAEngine makes its own in place of the file's (wind and earthquake loads from BNBC 2020): not lost. */
+	readonly replaced: readonly IImportReportItem[];
 	readonly warnings: readonly IImportReportItem[];
 	/** The file it was imported from, when the backend says. */
 	readonly source: string | undefined;
 	/** The program's version, when the backend says ("21.0.0"). */
 	readonly version: string | undefined;
 	/** Load totals [kN] by SAEngine load case: carried over to the project, and not carried over. */
-	readonly loads: { readonly carried: IImportLoadTotals; readonly notCarried: IImportLoadTotals };
+	readonly loads: { readonly carried: IImportLoadTotals; readonly notCarried: IImportLoadTotals; readonly replaced: IImportLoadTotals };
 	/** Report lines the UI could not read (a shape it does not know): shown as a warning, never dropped silently. */
 	readonly unread: number;
 }
@@ -239,6 +242,7 @@ export function readImportReport(value: unknown): IImportReport {
 	}
 	const approximated = readItems(bag.approximated);
 	const skipped = readItems(bag.skipped);
+	const replaced = readItems(bag.replaced);
 	const warnings = readItems(bag.warnings);
 	const loads = bagOf(bag.loads);
 	return {
@@ -247,14 +251,16 @@ export function readImportReport(value: unknown): IImportReport {
 		counts: counts as IImportCounts,
 		approximated: approximated.items,
 		skipped: skipped.items,
+		replaced: replaced.items,
 		warnings: warnings.items,
 		source: stringOf(bag.source) ?? stringOf(source.file) ?? stringOf(bag.path),
 		version: stringOf(bag.version) ?? stringOf(source.version),
 		loads: {
 			carried: readLoadTotals(loads.carriedKN ?? loads.carried),
 			notCarried: readLoadTotals(loads.notCarriedKN ?? loads.notCarried),
+			replaced: readLoadTotals(loads.replacedByBnbcKN),
 		},
-		unread: approximated.unread + skipped.unread + warnings.unread,
+		unread: approximated.unread + skipped.unread + replaced.unread + warnings.unread,
 	};
 }
 
@@ -348,7 +354,7 @@ export function notCarriedTotal(report: IImportReport): number {
 }
 
 function formatKN(kN: number): string {
-	return (Math.round(kN * 10) / 10).toLocaleString();
+	return (Math.round(kN * 10) / 10).toLocaleString(language);
 }
 
 function describeLoadTotals(totals: IImportLoadTotals): string | undefined {
@@ -359,6 +365,11 @@ function describeLoadTotals(totals: IImportLoadTotals): string | undefined {
 /** "D 60 kN, L 20 kN": the load not carried over by SAEngine load case, largest first; undefined when none. */
 export function describeNotCarried(report: IImportReport): string | undefined {
 	return describeLoadTotals(report.loads.notCarried);
+}
+
+/** "WX 120 kN, EX 300 kN": the file's wind and earthquake loads SAEngine replaces with its own (BNBC 2020); undefined when none. */
+export function describeReplaced(report: IImportReport): string | undefined {
+	return describeLoadTotals(report.loads.replaced);
 }
 
 /** "D 180 kN, L 120 kN": the load carried over by SAEngine load case; undefined when the backend does not say. */

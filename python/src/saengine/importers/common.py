@@ -21,12 +21,17 @@ turns it into SAEngine's parts:
 
 SAEngine derives its own loads (:mod:`saengine.fem.derive`): self-weight from the material
 densities, superimposed dead and live loads on the slabs from the floor and roof area loads,
-wind and earthquake from the BNBC settings. Loads that have no place there (frame and point
-loads, area loads on walls, lateral load patterns) are not carried over; the report lists them
-with their totals, so the engineer sees how much of the source model's gravity load is missing.
+wind and earthquake from the BNBC settings. The file's member and joint loads of gravity cases
+become SAEngine's member loads (``05 Floor Plan/loads.json``, :mod:`saengine.library.
+line_loads`) on the floor-plan beams and columns (:meth:`ProjectBuilder._build_member_loads`).
+Loads that have no place there (loads on braces and inclined members, area loads on walls, loads
+at supports) are not carried over; the report lists them with their totals, so the engineer
+sees how much of the source model's gravity load is missing. Loads of wind and earthquake cases
+are listed apart, as replaced by SAEngine's own (they are not lost).
 
 The report (:class:`ImportReport`) counts what was imported by kind and lists what was
-approximated and what was skipped, each with a count and a few examples.
+approximated, what was skipped and what SAEngine replaces, each with a count and a few examples;
+the items all importers share are worded once, in :data:`ITEMS`.
 """
 
 from __future__ import annotations
@@ -42,6 +47,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
+from saengine.library import line_loads as ll
 from saengine.library.bim import (
     Additions,
     BimSupport,
@@ -231,44 +237,156 @@ def bar_diameter(size: str | None) -> float | None:
 # ─────────────────────────────────────────── report ───────────────────────────────────────────
 
 
+#: The report's items every importer can give, by key: (list, what). The importers word these
+#: items the same through :meth:`ImportReport.note`, and each item carries its key, so a reader
+#: of the report can tell them apart without matching the wording. Lists: "approximated" (in,
+#: not as in the file), "skipped" (left out), "replaced" (SAEngine makes its own in their place:
+#: wind and earthquake loads from the BNBC 2020 settings).
+ITEMS: dict[str, tuple[str, str]] = {
+    # ── loads SAEngine replaces with its own ──
+    "loads.lateral.generated": (
+        "replaced",
+        (
+            "wind and earthquake load generators of the file (SAEngine makes its own wind and "
+            "earthquake loads from BNBC 2020, 02 Project Settings)"
+        ),
+    ),
+    "loads.lateral.cases": (
+        "replaced",
+        "wind and earthquake load cases (SAEngine applies its own BNBC 2020 loads in their place)",
+    ),
+    "loads.lateral.joint": ("replaced", "joint loads of wind and earthquake cases"),
+    "loads.lateral.member": ("replaced", "member loads of wind and earthquake cases"),
+    "loads.lateral.area": ("replaced", "area and floor loads of wind and earthquake cases"),
+    # ── loads left out ──
+    "loads.noCase.joint": ("skipped", "joint loads of load cases SAEngine has no case for"),
+    "loads.noCase.member": ("skipped", "member loads of load cases SAEngine has no case for"),
+    "loads.noCase.area": ("skipped", "area and floor loads of load cases SAEngine has no case for"),
+    "loads.patterns.noCase": ("skipped", "load patterns of types SAEngine has no case for"),
+    "loads.member.notOnBeam": (
+        "skipped",
+        (
+            "member loads on columns, braces and inclined members (SAEngine's member loads are on "
+            "floor-plan beams)"
+        ),
+    ),
+    "loads.member.notImported": ("skipped", "member loads on members that were not imported"),
+    "loads.member.direction": (
+        "skipped",
+        "member loads with no vertical part (horizontal, or in local axes not read)",
+    ),
+    "loads.member.moments": ("skipped", "member moments"),
+    "loads.joint.direction": ("skipped", "joint loads with no vertical part (horizontal)"),
+    "loads.joint.moments": ("skipped", "joint moments"),
+    "loads.joint.support": (
+        "skipped",
+        (
+            "joint loads at supports (they go straight into the support; add them to the "
+            "foundation loads)"
+        ),
+    ),
+    "loads.joint.noMember": ("skipped", "joint loads at points with no column or beam"),
+    "combinations.envelope": ("skipped", "envelope, SRSS and absolute combinations"),
+    # ── loads taken over, not as in the file ──
+    "loads.member.partial": (
+        "approximated",
+        (
+            "line loads on part of a beam as a point load of their total at the middle of the "
+            "loaded part"
+        ),
+    ),
+    "loads.member.varying": (
+        "approximated",
+        "trapezoidal and triangular member loads as their mean over the loaded length",
+    ),
+    "loads.horizontal": (
+        "approximated",
+        "horizontal parts of member and joint loads of gravity cases left out",
+    ),
+    "loads.fluid": (
+        "approximated",
+        "fluid member and joint loads as superimposed dead loads (D factors)",
+    ),
+    "loads.joint.onBeam": (
+        "approximated",
+        "joint loads with no column below them as point loads on the beam there",
+    ),
+    "settings.defaultAreaLoads": (
+        "approximated",
+        (
+            "area loads not in the file: SAEngine's defaults kept, named '(SAEngine default)' "
+            "(02 Project Settings)"
+        ),
+    ),
+    "combinations.noFluid": (
+        "approximated",
+        (
+            "combinations with F (fluid) 0: the file has no fluid loads (set F in 02 Project "
+            "Settings if 07 MEP adds tanks)"
+        ),
+    ),
+}
+
+
 @dataclass
 class _Entry:
     count: int = 0
     examples: list[str] = field(default_factory=list)
+    key: str | None = None
 
 
 class ImportReport:
-    """What an import brought in, approximated and skipped."""
+    """What an import brought in, approximated, skipped and left to SAEngine's own loads."""
 
     def __init__(self, program: str, file: str | None = None) -> None:
         self.source: dict[str, Any] = {"program": program, "file": file}
         self.imported: Counter[str] = Counter()
         self._approximated: dict[str, _Entry] = {}
         self._skipped: dict[str, _Entry] = {}
+        self._replaced: dict[str, _Entry] = {}
         self.warnings: list[str] = []
         #: What makes the imported model unusable as it stands (also first in the warnings).
         self.errors: list[str] = []
         #: Loads not carried over, total [kN] (down positive for gravity) per SAEngine case.
         self.not_carried: dict[str, float] = defaultdict(float)
         self.carried: dict[str, float] = defaultdict(float)
+        #: Wind and earthquake loads of the file that SAEngine replaces with its own from the
+        #: BNBC 2020 settings, their size [kN] per SAEngine case: not lost loads.
+        self.replaced: dict[str, float] = defaultdict(float)
 
     def count(self, kind: str, n: int = 1) -> None:
         self.imported[kind] += n
 
     @staticmethod
-    def _add(entries: dict[str, _Entry], what: str, example: str | None) -> None:
-        entry = entries.setdefault(what, _Entry())
+    def _add(
+        entries: dict[str, _Entry], what: str, example: str | None, key: str | None = None
+    ) -> None:
+        entry = entries.setdefault(what, _Entry(key=key))
         entry.count += 1
         if example and len(entry.examples) < MAX_EXAMPLES and example not in entry.examples:
             entry.examples.append(example)
 
-    def approximate(self, what: str, example: str | None = None) -> None:
+    def approximate(self, what: str, example: str | None = None, key: str | None = None) -> None:
         """``what`` was imported, but not as it is in the file."""
-        self._add(self._approximated, what, example)
+        self._add(self._approximated, what, example, key)
 
-    def skip(self, what: str, example: str | None = None) -> None:
+    def skip(self, what: str, example: str | None = None, key: str | None = None) -> None:
         """``what`` was left out."""
-        self._add(self._skipped, what, example)
+        self._add(self._skipped, what, example, key)
+
+    def replace(self, what: str, example: str | None = None, key: str | None = None) -> None:
+        """``what`` (wind and earthquake loads) is left to SAEngine, which makes its own."""
+        self._add(self._replaced, what, example, key)
+
+    def note(self, key: str, example: str | None = None) -> None:
+        """The shared item ``key`` of :data:`ITEMS`, in its list and wording."""
+        kind, what = ITEMS[key]
+        entries = {
+            "approximated": self._approximated,
+            "skipped": self._skipped,
+            "replaced": self._replaced,
+        }[kind]
+        self._add(entries, what, example, key)
 
     def warn(self, text: str) -> None:
         if text not in self.warnings:
@@ -281,18 +399,28 @@ class ImportReport:
             self.errors.append(text)
             self.warnings.insert(len(self.errors) - 1, f"Error: {text}")
 
+    @staticmethod
+    def _items(entries: dict[str, _Entry]) -> list[dict[str, Any]]:
+        items = []
+        for what, entry in entries.items():
+            item: dict[str, Any] = {"what": what, "count": entry.count, "examples": entry.examples}
+            if entry.key:
+                item["key"] = entry.key
+            items.append(item)
+        return items
+
     @property
     def approximated(self) -> list[dict[str, Any]]:
-        return [
-            {"what": k, "count": v.count, "examples": v.examples}
-            for k, v in self._approximated.items()
-        ]
+        return self._items(self._approximated)
 
     @property
     def skipped(self) -> list[dict[str, Any]]:
-        return [
-            {"what": k, "count": v.count, "examples": v.examples} for k, v in self._skipped.items()
-        ]
+        return self._items(self._skipped)
+
+    @property
+    def replaced_items(self) -> list[dict[str, Any]]:
+        """The wind and earthquake loads and generators SAEngine makes its own of."""
+        return self._items(self._replaced)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -301,11 +429,13 @@ class ImportReport:
             "imported": dict(self.imported),
             "approximated": self.approximated,
             "skipped": self.skipped,
+            "replaced": self.replaced_items,
             "warnings": list(self.warnings),
             "errors": list(self.errors),
             "loads": {
                 "carriedKN": {k: round(v, 3) for k, v in self.carried.items()},
                 "notCarriedKN": {k: round(v, 3) for k, v in self.not_carried.items()},
+                "replacedByBnbcKN": {k: round(v, 3) for k, v in self.replaced.items()},
             },
         }
 
@@ -405,6 +535,32 @@ class _Area:
 
 
 @dataclass
+class _MemberLoad:
+    """A load on frame member ``frame``: ``force`` (x, y, z; Z up) in kN/m along it (a line
+    load) or in kN (a point load), ``start`` [mm] from the member's start (a line load's loaded
+    part, a point load's place; None: the start, or the middle for a point load) and ``length``
+    [mm] of a line load's loaded part (None: to the member's end)."""
+
+    frame: str
+    case: str | None
+    force: Point3
+    point: bool
+    start: float | None
+    length: float | None
+    example: str
+
+
+@dataclass
+class _JointLoad:
+    """A force (x, y, z; Z up) [kN] at a point [mm]."""
+
+    at: Point3
+    case: str | None
+    force: Point3
+    example: str
+
+
+@dataclass
 class ImportedProject:
     """A SAEngine project built by an importer: its parts' texts by path and the report."""
 
@@ -416,10 +572,14 @@ class ImportedProject:
     bim: BuildingModel
     report: ImportReport
     texts: dict[str, str]
+    #: The file's member and joint loads on the floor-plan beams and columns (None: none).
+    member_loads: ll.MemberLoads | None = None
 
     def problems(self) -> list[str]:
         """Problems across the parts (references), as SAEngine's editors report them."""
+        loads = ll.check(self.member_loads, self.floor_plan) if self.member_loads else []
         return [
+            *loads,
             *self.objects.check_materials(self.materials),
             *self.floor_plan.check_objects(self.objects),
             *self.bim.check_objects(self.objects),
@@ -471,6 +631,7 @@ PATHS = {
     "objects": "04 Objects/objects.json",
     "floorPlan": "05 Floor Plan/floor-plan.json",
     "bim": "06 BIM/bim.json",
+    "memberLoads": ll.LOADS_FILE,
     "report": "import-report.json",
 }
 
@@ -499,6 +660,8 @@ class ProjectBuilder:
         self._area_m2: dict[str, float] = {}
         self._area_loads: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
         self._combinations: list[tuple[str, dict[str, float]]] = []
+        self._member_loads: list[_MemberLoad] = []
+        self._joint_loads: list[_JointLoad] = []
         #: Slab id -> the area load of its own (slabs on the settings' floor or roof load are
         #: not listed); filled when the settings are built.
         self.slab_loads: dict[str, str] = {}
@@ -649,6 +812,49 @@ class ProjectBuilder:
         self.report.skip(what, example)
         self.report.not_carried[case or "other"] += total
 
+    def not_carried_item(self, key: str, case: str | None, total: float, example: str) -> None:
+        """:meth:`not_carried` with the shared wording of item ``key`` (:data:`ITEMS`)."""
+        self.report.note(key, example)
+        self.report.not_carried[case or "other"] += total
+
+    def lateral_load(self, key: str, case: str, size: float, example: str) -> None:
+        """A load of a wind or earthquake case ``case``, of ``size`` kN: SAEngine replaces it
+        with its own from the BNBC 2020 settings (item ``key`` of :data:`ITEMS`)."""
+        self.report.note(key, example)
+        self.report.replaced[case] += abs(size)
+
+    def add_member_load(
+        self,
+        frame: str,
+        case: str | None,
+        force: tuple[float, float, float],
+        *,
+        point: bool = False,
+        start: float | None = None,
+        length: float | None = None,
+        example: str = "",
+    ) -> None:
+        """A load on frame member ``frame`` in SAEngine case ``case`` (None: the file's case
+        has none): ``force`` (x, y, z with Z up, global) in kN/m for a line load, kN for a
+        ``point`` load; ``start`` [mm] from the member's start (a line load's loaded part, a
+        point load's place; None: the start, a point load the middle) and ``length`` [mm] the
+        loaded part of a line load (None: to the member's end). Loads on floor-plan beams go
+        to ``05 Floor Plan/loads.json``; the others are reported (see :meth:`build`)."""
+        self._member_loads.append(
+            _MemberLoad(frame, case, tuple(force), point, start, length, example or frame)  # type: ignore[arg-type]
+        )
+
+    def add_joint_load(
+        self,
+        at: Point3,
+        case: str | None,
+        force: tuple[float, float, float],
+        example: str = "",
+    ) -> None:
+        """A force (x, y, z with Z up, global) [kN] at point ``at`` [mm] in case ``case``: a
+        point load at the top of the column below it (or at a beam's end), see :meth:`build`."""
+        self._joint_loads.append(_JointLoad(tuple(at), case, tuple(force), example))  # type: ignore[arg-type]
+
     def add_combination(self, name: str, factors: dict[str, float]) -> None:
         clean = {k: v for k, v in factors.items() if k in CASES and v}
         if clean:
@@ -667,7 +873,8 @@ class ProjectBuilder:
             story_id = _id(name, taken)
             story_ids[elevation] = story_id
             stories.append({"id": story_id, "name": name, "elevation": elevation})
-        report.count("stories", len(stories))
+        # The lowest level is the base, not a story: a two-story frame has three levels.
+        report.count("stories", max(len(stories) - 1, 0))
 
         def story_at(z: float) -> str | None:
             for elevation, story_id in story_ids.items():
@@ -701,6 +908,11 @@ class ProjectBuilder:
         members: list[InclinedMember] = []
         ids: set[str] = set()
         column_bases: list[tuple[float, float, str]] = []
+        #: Where the frames went, for their loads: name -> floor-plan beam (id, story, start,
+        #: end) or column (id, x, y, bottom, top) [mm]; frames not on the floor plan: None.
+        beam_of: dict[str, tuple[str, str, Point3, Point3]] = {}
+        column_of: dict[str, tuple[str, float, float, float, float]] = {}
+        placed: dict[str, None] = {}
         self._wall_bases: list[tuple[tuple[float, float], tuple[float, float]]] = []
 
         for f in self._frames:
@@ -754,6 +966,7 @@ class ProjectBuilder:
                     }
                 )
                 report.count("columns")
+                column_of[f.name] = (member_id, x1, y1, z1, z2)
                 if abs(z1 - base_z) <= TOLERANCE:
                     column_bases.append((x1, y1, f.name))
                 continue
@@ -768,6 +981,7 @@ class ProjectBuilder:
                     }
                 )
                 report.count("beams")
+                beam_of[f.name] = (member_id, story_at(z1), f.start, f.end)  # type: ignore[assignment]
                 if abs(f.rotation) > 1e-6:
                     report.approximate("beam rotations about their axis ignored", f.name)
                 continue
@@ -790,6 +1004,7 @@ class ProjectBuilder:
                 )
             )
             report.count("braces" if kind == "brace" else "inclinedMembers")
+            placed[f.name] = None
 
         panels: list[tuple[_Area, _ShellSection]] = []  # wall panels
         slab_ids: dict[str, str] = {}  # area name -> slab id
@@ -861,22 +1076,34 @@ class ProjectBuilder:
             ),
         )
         bim.supports = supports
+        member_loads = self._build_member_loads(
+            beam_of, column_of, placed, story_at, base_z, floor_plan
+        )
         lost = {k: v for k, v in report.not_carried.items() if abs(v) >= 0.0005}
         if lost:
             totals = ", ".join(f"{k} {v:.3g} kN" for k, v in sorted(lost.items()))
             report.warn(
-                f"Loads of the file not carried over ({totals}; frame, point and other loads, "
-                "listed under skipped): add them in SAEngine before using the results."
+                f"Loads of the file not carried over ({totals}; listed under skipped): add them "
+                "in SAEngine before using the results."
             )
+        replaced = {k: v for k, v in report.replaced.items() if abs(v) >= 0.0005}
         if not self.self_weight:
             report.warn(
                 "No load pattern of the file includes the self-weight; SAEngine adds it from the "
                 "material densities."
             )
-        report.warn(
-            "Wind and earthquake loads are SAEngine's own from the BNBC settings: check the site, "
-            "occupancy and structural system in 02 Project Settings."
-        )
+        if replaced:
+            totals = ", ".join(f"{k} {v:.3g} kN" for k, v in sorted(replaced.items()))
+            report.warn(
+                f"Wind and earthquake loads of the file ({totals}) are replaced by SAEngine's own "
+                "from the BNBC settings (listed under replaced, not lost): check the site, "
+                "occupancy and structural system in 02 Project Settings."
+            )
+        else:
+            report.warn(
+                "Wind and earthquake loads are SAEngine's own from the BNBC settings: check the "
+                "site, occupancy and structural system in 02 Project Settings."
+            )
         texts = {
             PATHS["settings"]: json_text(settings),
             PATHS["materials"]: json_text(material_library),
@@ -884,9 +1111,19 @@ class ProjectBuilder:
             PATHS["floorPlan"]: plan_text,
             PATHS["bim"]: json_text(bim),
         }
+        if member_loads is not None:
+            texts[PATHS["memberLoads"]] = json_text(member_loads)
         texts[PATHS["report"]] = json_text(report.to_dict())
         return ImportedProject(
-            self.name, settings, material_library, object_library, floor_plan, bim, report, texts
+            self.name,
+            settings,
+            material_library,
+            object_library,
+            floor_plan,
+            bim,
+            report,
+            texts,
+            member_loads,
         )
 
     def _build_materials(self) -> dict[str, dict[str, Any]]:
@@ -900,6 +1137,150 @@ class ProjectBuilder:
 
     def material_id(self, name: str) -> str | None:
         return self._material_ids.get(name)
+
+    def _build_member_loads(
+        self,
+        beam_of: dict[str, tuple[str, str, Point3, Point3]],
+        column_of: dict[str, tuple[str, float, float, float, float]],
+        placed: dict[str, None],
+        story_at: Callable[[float], str | None],
+        base_z: float,
+        plan: FloorPlan,
+    ) -> ll.MemberLoads | None:
+        """The file's member and joint loads as SAEngine's member loads (``05 Floor Plan/
+        loads.json``, :mod:`saengine.library.line_loads`); None when none could be placed.
+
+        Loads of gravity cases go onto the floor-plan beams: a line load along a whole beam stays
+        a line load, one on part of a beam becomes a point load of its total at the middle of the
+        loaded part, a point load stays at its place. A joint load becomes a point load at the
+        top of the column below the point, else on the beam through it. Only the vertical part
+        is kept; the file's dead (and fluid) loads go to SAEngine's superimposed dead case SD,
+        as SAEngine adds the self-weight itself. Each load applies to its own story only. Loads
+        of wind and earthquake cases are replaced by SAEngine's own (BNBC 2020); loads on other
+        members, at supports or of cases SAEngine has no case for are reported as not carried.
+        """
+        report = self.report
+        if not self._member_loads and not self._joint_loads:
+            return None
+        frames = {f.name: f for f in self._frames}
+        loads: list[ll.LineLoad | ll.PointLoad] = []
+        lateral = ("WX", "WY", "EX", "EY")
+
+        def gravity(
+            kind: str, case: str | None, force: Point3, amount: float, example: str
+        ) -> tuple[str, float] | None:
+            """(member-load case, down part [kN/m or kN]) of a load; None when it is not
+            carried (reported). ``amount``: what turns the force into a total [kN]."""
+            fx, fy, fz = force
+            size = math.sqrt(fx * fx + fy * fy + fz * fz)
+            if case in lateral:
+                self.lateral_load(f"loads.lateral.{kind}", case, size * amount, example)
+                return None
+            down = -fz
+            if case not in ("D", "L", "Lr", "F"):
+                total = down if abs(down) > 1e-12 else size
+                self.not_carried_item(f"loads.noCase.{kind}", case, total * amount, example)
+                return None
+            if abs(down) <= 1e-12:
+                self.not_carried_item(f"loads.{kind}.direction", case, size * amount, example)
+                return None
+            if math.hypot(fx, fy) > 1e-6 * abs(down):
+                report.note("loads.horizontal", example)
+            if case == "F":
+                report.note("loads.fluid", example)
+            return ("SD" if case in ("D", "F") else case), down
+
+        def add(load: ll.LineLoad | ll.PointLoad, total: float) -> None:
+            loads.append(load)
+            report.count("memberLineLoads" if isinstance(load, ll.LineLoad) else "memberPointLoads")
+            report.carried["D" if load.case == "SD" else load.case] += total
+
+        for m in self._member_loads:
+            frame = frames.get(m.frame)
+            length = math.dist(frame.start, frame.end) if frame else 0.0
+            start = max(m.start or 0.0, 0.0)
+            loaded = 0.0 if m.point else (m.length if m.length is not None else length - start)
+            amount = 1.0 if m.point else loaded / 1000
+            mapped = gravity("member", m.case, m.force, amount, m.example)
+            if mapped is None:
+                continue
+            case, down = mapped
+            if m.frame not in beam_of:
+                key = (
+                    "loads.member.notOnBeam"
+                    if m.frame in column_of or m.frame in placed
+                    else "loads.member.notImported"
+                )
+                self.not_carried_item(key, m.case, down * amount, m.example)
+                continue
+            beam, story, a, b = beam_of[m.frame]
+            span = math.dist(a[:2], b[:2])
+            common: dict[str, Any] = {"id": f"imported-{len(loads) + 1}", "story": story}
+            common.update(member=beam, case=case, thisStoryOnly=True, note=f"Imported: {m.example}")
+            if m.point:
+                at = m.start if m.start is not None else span / 2
+                at = round(min(max(at, 0.0), span), 3)
+                add(ll.PointLoad(**common, value=round(down, 6), distance=at), down)
+                continue
+            start = min(start, span)
+            loaded = min(max(loaded, 0.0), span - start)
+            if start <= TOLERANCE and loaded >= span - start - TOLERANCE:
+                add(ll.LineLoad(**common, value=round(down, 6)), down * span / 1000)
+                continue
+            report.note("loads.member.partial", m.example)
+            total = down * loaded / 1000
+            middle = round(start + loaded / 2, 3)
+            add(ll.PointLoad(**common, value=round(total, 6), distance=middle), total)
+
+        for j in self._joint_loads:
+            mapped = gravity("joint", j.case, j.force, 1.0, j.example)
+            if mapped is None:
+                continue
+            case, down = mapped
+            x, y, z = j.at
+            story = story_at(z)
+            common = {"id": f"imported-{len(loads) + 1}", "case": case, "thisStoryOnly": True}
+            common["note"] = f"Imported: {j.example}"
+            column = next(
+                (
+                    c
+                    for c, cx, cy, bottom, top in column_of.values()
+                    if math.hypot(cx - x, cy - y) <= TOLERANCE
+                    and bottom + TOLERANCE < z <= top + TOLERANCE
+                ),
+                None,
+            )
+            if column is not None and story is not None:
+                add(ll.PointLoad(**common, story=story, member=column, value=round(down, 6)), down)
+                continue
+            beam = next(
+                (
+                    (bid, bstory, a, b)
+                    for bid, bstory, a, b in beam_of.values()
+                    if abs(a[2] - z) <= TOLERANCE
+                    and _segment_distance((x, y), a[:2], b[:2]) <= TOLERANCE
+                ),
+                None,
+            )
+            if beam is not None:
+                bid, bstory, a, b = beam
+                at = round(min(math.dist(a[:2], (x, y)), math.dist(a[:2], b[:2])), 3)
+                report.note("loads.joint.onBeam", j.example)
+                load = ll.PointLoad(
+                    **common, story=bstory, member=bid, value=round(down, 6), distance=at
+                )
+                add(load, down)
+                continue
+            key = "loads.joint.support" if abs(z - base_z) <= TOLERANCE else "loads.joint.noMember"
+            self.not_carried_item(key, j.case, down, j.example)
+
+        if not loads:
+            return None
+        # The code pack's wall types, as a new loads file has them (none without the table).
+        result = ll.MemberLoads(wallTypes=ll.default_wall_types(), loads=loads)
+        for problem in ll.check(result, plan):
+            report.warn(f"Imported member loads: {problem}")
+        return result
 
     def _levels(self) -> list[tuple[str, float]]:
         """Stories (name, elevation) bottom up: the file's, or the levels of the horizontal
@@ -1332,6 +1713,15 @@ class ProjectBuilder:
                 "The file has no area loads on its floors: SAEngine's default floor and roof "
                 "loads apply (02 Project Settings)."
             )
+        # The area loads the file did not give (the stairs', and the floors' or roof's when it
+        # has none there) are SAEngine's defaults: named so, and listed.
+        for area_load in settings.areaLoads:
+            if not area_load.name.endswith("(imported)") and "(imported) " not in area_load.name:
+                report.note("settings.defaultAreaLoads", area_load.name)
+                area_load.name = f"{area_load.name} (SAEngine default)"
+        # SAEngine's F (fluid, the contents of 07 MEP equipment) follows D by default (factor
+        # D where D > 1); a file without fluid loads gives F no factor.
+        fluid = any(factors.get("F") for _, factors in self._combinations)
         combinations: list[LoadCombination] = []
         seen: set[tuple[tuple[str, float], ...]] = set()
         names: set[str] = set()
@@ -1344,6 +1734,10 @@ class ProjectBuilder:
                 )
                 continue
             seen.add(key)
+            if "F" not in factors:
+                if not fluid and factors.get("D", 0.0) > 1.0:
+                    report.note("combinations.noFluid", name)
+                factors = {**factors, "F": 0.0}
             label, k = name, 2
             while label in names:
                 label, k = f"{name} ({k})", k + 1
