@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CadEntitySpec, CadGeneratedDrawing, CadLayerSpec, CadPoint } from '@saengine/cad-editor';
+import { localize } from '../../../../nls.js';
 import { centroid } from '../../../../platform/saengine/common/geometry.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { MemberGroup, ModelSelection } from '../../../services/saengineProject/common/modelSelection.js';
@@ -56,6 +57,22 @@ type Json = { readonly [key: string]: unknown };
 interface IGridPoint { readonly x: string; readonly y: string; readonly dx?: number; readonly dy?: number }
 
 
+/** Characters a member id may have (`saengine.library.materials.Id`). */
+export const ID_CHARS = /[^A-Za-z0-9._-]/g;
+
+/**
+ * The label of member `id` on the plan: its id without the story it was copied to ("B5-L3" is
+ * B5 on L3), so a member at one place keeps one label up the building, as on drawings.
+ */
+export function planLabel(layout: unknown, id: string): string {
+	const dash = id.lastIndexOf('-');
+	if (dash <= 0) {
+		return id;
+	}
+	const suffix = id.slice(dash + 1);
+	return storiesOf(layout).some(s => s.id.replace(ID_CHARS, '') === suffix) ? id.slice(0, dash) : id;
+}
+
 /** Where a drawn member is in plan, for picking it with the mouse. */
 export interface IMemberShape {
 	readonly group: MemberGroup;
@@ -69,6 +86,8 @@ export interface IFloorPlan {
 	readonly members: readonly IMemberShape[];
 	/** Members that could not be drawn, e.g. with an unknown object type or grid line. */
 	readonly problems: readonly string[];
+	/** Members drawn but likely wrong: a slab on nothing, a slab with a beam across it. */
+	readonly warnings: readonly string[];
 }
 
 function isObject(value: unknown): value is Json {
@@ -81,6 +100,24 @@ function list(value: unknown): Json[] {
 
 function num(value: unknown): number | undefined {
 	return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+export function insidePolygon([x, y]: CadPoint, points: readonly CadPoint[]): boolean {
+	let inside = false;
+	for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+		const [xi, yi] = points[i];
+		const [xj, yj] = points[j];
+		if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) {
+			inside = !inside;
+		}
+	}
+	return inside;
+}
+
+export function distanceToSegment([px, py]: CadPoint, [ax, ay]: CadPoint, [bx, by]: CadPoint): number {
+	const [dx, dy] = [bx - ax, by - ay];
+	const t = dx || dy ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy))) : 0;
+	return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
 }
 
 function rotate([x, y]: CadPoint, degrees: number): CadPoint {
@@ -192,6 +229,61 @@ export function gridsOf(layout: unknown): { readonly x: ReadonlyMap<string, numb
 }
 
 /**
+ * The size of an object type in mm, as drawings give it: "300×500" (width × depth), "Ø500",
+ * "t 150" for a slab or wall, "2000×1500" for a footing; undefined when it has none.
+ */
+export function sectionLabel(type: Json | undefined): string | undefined {
+	if (!type) {
+		return undefined;
+	}
+	const profile = isObject(type.profile) ? type.profile : undefined;
+	const n = (key: string) => profile ? num(profile[key]) : undefined;
+	if (profile?.shape === 'rectangle' && n('xDim') && n('yDim')) {
+		return `${n('xDim')}×${n('yDim')}`;
+	}
+	if ((profile?.shape === 'circle' || profile?.shape === 'circleHollow') && n('radius')) {
+		return `Ø${2 * n('radius')!}`;
+	}
+	if (num(type.thickness)) {
+		return `t ${num(type.thickness)}`;
+	}
+	return num(type.length) && num(type.width) ? `${num(type.length)}×${num(type.width)}` : undefined;
+}
+
+/** "B5 300×500", "C1 Ø500": a label with its section's size in mm, when the type has one. */
+function withSize(label: string, type: Json | undefined): string {
+	const size = type && isObject(type.profile) ? sectionLabel(type) : undefined;
+	return size ? `${label} ${size}` : label;
+}
+
+/**
+ * Why slab `id` (corners `points`) may be wrong: nothing under it at all (no beam or wall along
+ * an edge, no column under it), or a beam or wall across it, where the slab is not split.
+ */
+function slabWarnings(id: string, points: readonly CadPoint[], supports: readonly (readonly [CadPoint, CadPoint])[], columns: readonly CadPoint[]): string[] {
+	const onEdge = (p: CadPoint) => points.some((q, i) => distanceToSegment(p, q, points[(i + 1) % points.length]) <= 1);
+	const warnings: string[] = [];
+	const edgeHeld = points.some((q, i) => {
+		const r = points[(i + 1) % points.length];
+		const mid: CadPoint = [(q[0] + r[0]) / 2, (q[1] + r[1]) / 2];
+		// A beam or wall along the edge (not one that only ends on it).
+		const along = ([a, b]: readonly [CadPoint, CadPoint]) => Math.abs((b[0] - a[0]) * (r[1] - q[1]) - (b[1] - a[1]) * (r[0] - q[0])) <= 1e-6 * Math.hypot(b[0] - a[0], b[1] - a[1]) * Math.hypot(r[0] - q[0], r[1] - q[1]);
+		return supports.some(support => along(support) && distanceToSegment(mid, support[0], support[1]) <= 1);
+	});
+	if (!edgeHeld && !columns.some(c => insidePolygon(c, points) || onEdge(c))) {
+		warnings.push(localize('plan.slabUnsupported', "{0}: no beam, wall or column supports it; place beams along its edges or columns under it.", id));
+	}
+	const across = supports.some(([a, b]) => [0.25, 0.5, 0.75].some(t => {
+		const p: CadPoint = [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
+		return insidePolygon(p, points) && !onEdge(p);
+	}));
+	if (across) {
+		warnings.push(localize('plan.slabCrossed', "{0}: a beam or wall runs across it, but the slab is not split there; replace it with a Polygon Slab on each side.", id));
+	}
+	return warnings;
+}
+
+/**
  * The plan of story `storyId`: grids with bubbles, the columns and walls rising to it (plans
  * look down from just below the level), and the beams, slabs and footings at its level.
  */
@@ -204,6 +296,7 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 
 	const entities: CadEntitySpec[] = [];
 	const problems: string[] = [];
+	const warnings: string[] = [];
 	const members: IMemberShape[] = [];
 	const shape = (group: MemberGroup, member: Json, outline: IMemberShape['outline']) => {
 		if (typeof member.id === 'string') {
@@ -233,19 +326,23 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 		bubble(label, [x1 + BUBBLE_RADIUS, y]);
 	}
 	if (level === undefined) {
-		return { drawing: { layers: LAYERS, entities }, members, problems };
+		return { drawing: { layers: LAYERS, entities }, members, problems, warnings };
 	}
 
 	// ── members ──
-	const point = (member: Json, value: unknown): CadPoint | undefined => {
+	const resolve = (value: unknown): CadPoint | undefined => {
 		const p = isObject(value) ? value as unknown as IGridPoint : undefined;
 		const x = p && xLines.get(p.x);
 		const y = p && yLines.get(p.y);
-		if (x === undefined || y === undefined) {
+		return x === undefined || y === undefined ? undefined : [x + (num(p!.dx) ?? 0), y + (num(p!.dy) ?? 0)];
+	};
+	const point = (member: Json, value: unknown): CadPoint | undefined => {
+		const at = resolve(value);
+		if (!at) {
+			const p = isObject(value) ? value : undefined;
 			problems.push(`${member.id}: grid point ${p ? `${p.x}-${p.y}` : '?'} does not exist`);
-			return undefined;
 		}
-		return [x + (num(p!.dx) ?? 0), y + (num(p!.dy) ?? 0)];
+		return at;
 	};
 	const typeOf = (member: Json): Json | undefined => {
 		const type = typeof member.type === 'string' ? types.get(member.type) : undefined;
@@ -254,11 +351,9 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 		}
 		return type;
 	};
-	const label = (member: Json, position: CadPoint) => {
-		if (typeof member.id === 'string') {
-			entities.push({ kind: 'text', layer: FLOOR_PLAN_LAYERS.labels, position, height: LABEL_TEXT, text: member.id });
-		}
-	};
+	/** A member's label on the plan: one per place up the building (see {@link planLabel}). */
+	const labelOf = (member: Json) => typeof member.id === 'string' ? planLabel(model, member.id) : '?';
+	const text = (position: CadPoint, value: string) => entities.push({ kind: 'text', layer: FLOOR_PLAN_LAYERS.labels, position, height: LABEL_TEXT, text: value });
 	/** Columns and walls cross a plan when they start below the level and reach it. */
 	const spans = (member: Json) => {
 		const base = elevation.get(member.base as string);
@@ -277,6 +372,19 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 		return points;
 	};
 
+	// The beams on the story and the walls rising to it: what slabs rest on, and what labels keep clear of.
+	const beams = list(model.beams).filter(b => b.story === storyId);
+	const walls = list(model.walls).filter(spans);
+	const supports: [CadPoint, CadPoint][] = [];
+	for (const member of [...beams, ...walls]) {
+		const [start, end] = [resolve(member.start), resolve(member.end)];
+		if (start && end) {
+			supports.push([start, end]);
+		}
+	}
+	const columnPoints = list(model.columns).filter(spans).map(c => resolve(c.at)).filter((p): p is CadPoint => !!p);
+	const clear = (p: CadPoint) => supports.every(([a, b]) => distanceToSegment(p, a, b) > LABEL_TEXT * 1.2);
+
 	for (const slab of list(model.slabs).filter(s => s.story === storyId)) {
 		const type = typeOf(slab);
 		const corners = list(slab.boundary).map(c => point(slab, c));
@@ -287,9 +395,13 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 		entities.push({ kind: 'polyline', layer: FLOOR_PLAN_LAYERS.slabs, points, closed: true });
 		shape('slabs', slab, { kind: 'polygon', points });
 		const thickness = num(type.thickness);
-		entities.push({ kind: 'text', layer: FLOOR_PLAN_LAYERS.labels, position: centroid(points)!, height: LABEL_TEXT, text: thickness ? `${slab.id} (${thickness})` : String(slab.id) });
+		// At the centre, moved up or down off a beam that crosses it.
+		const center = centroid(points)!;
+		const at = [0, 1.5, -1.5, 3, -3].map(k => [center[0], center[1] + k * LABEL_TEXT] as CadPoint).find(clear) ?? center;
+		text(at, thickness ? `${labelOf(slab)} (${thickness})` : labelOf(slab));
+		warnings.push(...slabWarnings(labelOf(slab), points, supports, columnPoints));
 	}
-	for (const beam of list(model.beams).filter(b => b.story === storyId)) {
+	for (const beam of beams) {
 		const type = typeOf(beam);
 		const [start, end] = [point(beam, beam.start), point(beam, beam.end)];
 		const width = type && isObject(type.profile) ? profileWidth(type.profile) : undefined;
@@ -297,12 +409,22 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 			continue;
 		}
 		const outline = band(FLOOR_PLAN_LAYERS.beams, start, end, width, BEAM_LINETYPE_SCALE);
-		if (outline) {
-			shape('beams', beam, { kind: 'polygon', points: outline });
+		if (!outline) {
+			continue;
 		}
-		label(beam, centroid([start, end])!);
+		shape('beams', beam, { kind: 'polygon', points: outline });
+		// Beside the beam (above it, left of a vertical one), not struck through by its lines.
+		const name = withSize(labelOf(beam), type);
+		const length = Math.hypot(end[0] - start[0], end[1] - start[1]);
+		let [nx, ny] = [-(end[1] - start[1]) / length, (end[0] - start[0]) / length];
+		if (ny < -1e-9 || (Math.abs(ny) <= 1e-9 && nx > 0)) {
+			[nx, ny] = [-nx, -ny];
+		}
+		const offset = width / 2 + LABEL_TEXT * 0.9 + Math.abs(nx) * name.length * LABEL_TEXT * 0.32;
+		const mid = centroid([start, end])!;
+		text([mid[0] + nx * offset, mid[1] + ny * offset], name);
 	}
-	for (const wall of list(model.walls).filter(spans)) {
+	for (const wall of walls) {
 		const type = typeOf(wall);
 		const [start, end] = [point(wall, wall.start), point(wall, wall.end)];
 		const thickness = type && num(type.thickness);
@@ -321,14 +443,20 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 		if (!at || !outline) {
 			continue;
 		}
+		let corner: CadPoint;
 		if (outline.kind === 'circle') {
 			entities.push({ kind: 'circle', layer: FLOOR_PLAN_LAYERS.columns, center: at, radius: outline.radius });
 			shape('columns', column, { kind: 'circle', center: at, radius: outline.radius });
+			corner = [at[0] + outline.radius, at[1] + outline.radius];
 		} else {
 			const points = translate(outline.points, at, num(column.rotation) ?? 0);
 			entities.push({ kind: 'polyline', layer: FLOOR_PLAN_LAYERS.columns, points, closed: true });
 			shape('columns', column, { kind: 'polygon', points });
+			corner = [Math.max(...points.map(p => p[0])), Math.max(...points.map(p => p[1]))];
 		}
+		// Above and right of the column, clear of the grid lines through it.
+		const name = withSize(labelOf(column), type);
+		text([corner[0] + LABEL_TEXT * 0.4 + name.length * LABEL_TEXT * 0.32, corner[1] + LABEL_TEXT * 0.9], name);
 	}
 	for (const footing of list(model.footings).filter(f => f.story === storyId)) {
 		const type = typeOf(footing);
@@ -340,7 +468,7 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 		const points = translate(rectangle(length, width), at, num(footing.rotation) ?? 0);
 		entities.push({ kind: 'polyline', layer: FLOOR_PLAN_LAYERS.footings, points, closed: true });
 		shape('footings', footing, { kind: 'polygon', points });
-		label(footing, at);
+		text(at, labelOf(footing));
 	}
-	return { drawing: { layers: LAYERS, entities }, members, problems };
+	return { drawing: { layers: LAYERS, entities }, members, problems, warnings };
 }
