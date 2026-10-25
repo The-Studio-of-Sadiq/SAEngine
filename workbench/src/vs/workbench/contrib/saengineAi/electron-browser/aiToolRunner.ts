@@ -387,7 +387,6 @@ export function resultFile(kind: ResultKind): string | undefined {
 		case 'mep': return `${folder('mep')}/${MEP_SUMMARY_FILE}`;
 		case 'boq': return `${folder('boq')}/${partById('boq')?.mainFile}`;
 	}
-	return undefined;
 }
 
 function textResult(text: string): MCP.CallToolResult {

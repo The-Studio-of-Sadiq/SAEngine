@@ -79,13 +79,14 @@ suite('SAEngine - AI server (HTTP)', () => {
 	test('requests without the token, from a browser or under another host are refused', () => withServer(async (server, auth) => {
 		const port = server.info.port;
 		const refused: IResponse[] = [];
-		for (const options of [
+		const attempts: { method?: string; headers?: Record<string, string>; body?: unknown }[] = [
 			{ body: INITIALIZE },
 			{ headers: { Authorization: 'Bearer wrong' }, body: INITIALIZE },
 			{ headers: { ...auth, Origin: 'https://evil.example' }, body: INITIALIZE },
 			{ headers: { ...auth, Host: `evil.example:${port}` }, body: INITIALIZE },
 			{ method: 'OPTIONS', headers: { Origin: 'https://evil.example', 'Access-Control-Request-Method': 'POST' } },
-		]) {
+		];
+		for (const options of attempts) {
 			refused.push(await request(port, options));
 		}
 		assert.deepStrictEqual(refused.map(r => r.status), [401, 401, 403, 403, 403]);
