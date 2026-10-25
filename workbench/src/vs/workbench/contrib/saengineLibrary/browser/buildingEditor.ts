@@ -886,8 +886,8 @@ export class BuildingEditor extends JsonDocumentEditor {
 		}
 		this.frame.setPropertiesVisible(true);
 		this.renderProperties();
-		this.problemsHeading?.scrollIntoView({ block: 'start' });
-		this.problemsHeading?.focus();
+		this.problemsHeading?.scrollIntoView({ block: 'nearest' });
+		this.problemsHeading?.focus({ preventScroll: true });
 	}
 
 	protected render(): void {
@@ -933,7 +933,7 @@ export class BuildingEditor extends JsonDocumentEditor {
 		}
 		stories.forEach((story, i) => {
 			const below = stories[i - 1];
-			append(storyTable, $('span', undefined, String(story.name ?? story.id) + (i === 0 && stories.length > 1 ? ` ${localize('building.baseSuffix', "(base)")}` : '')));
+			append(storyTable, $('span', undefined, String(story.name ?? story.id) + (i === 0 && stories.length > 1 && !/base/i.test(String(story.name ?? story.id)) ? ` ${localize('building.baseSuffix', "(base)")}` : '')));
 			append(storyTable, $('span', undefined, String(story.id)));
 			append(storyTable, $('span.number', undefined, String(story.elevation)));
 			append(storyTable, $('span.number', undefined, below ? String(Number(story.elevation) - Number(below.elevation)) : '—'));

@@ -168,10 +168,17 @@ export class GridsEditor extends JsonDocumentEditor {
 		const resource = this.resource;
 		const wasDirty = !resource || this.textFiles.isDirty(resource);
 		super.commit();
+		this.shownLayout = this.layout(); // its own edit is not news for the next undo's message
 		if (resource && !wasDirty && this.textFiles.isDirty(resource)) {
 			void this.textFiles.save(resource).then(() => this.renderStatus());
 		}
 		this.updateUndoRedo();
+	}
+
+	/** A copy of the document's grids and stories. */
+	private layout(): JsonObject | undefined {
+		const layout: JsonObject | undefined = this.document && { grids: this.document.grids ?? null, stories: this.document.stories ?? null };
+		return layout && clone(layout);
 	}
 
 	/**
@@ -184,11 +191,17 @@ export class GridsEditor extends JsonDocumentEditor {
 			return;
 		}
 		this.flush();
+		const wasDirty = this.textFiles.isDirty(resource);
 		this.undoing = redo ? 'redo' : 'undo';
 		try {
 			await (redo ? this.undoRedoService.redo(resource) : this.undoRedoService.undo(resource));
 		} finally {
 			this.undoing = undefined;
+		}
+		// Like an edit: saved at once when the floor plan had nothing else unsaved.
+		if (!wasDirty && this.textFiles.isDirty(resource)) {
+			await this.textFiles.save(resource);
+			this.renderStatus();
 		}
 		this.updateUndoRedo();
 	}
@@ -208,8 +221,7 @@ export class GridsEditor extends JsonDocumentEditor {
 	protected override load(): void {
 		const before = this.shownLayout;
 		super.load();
-		const layout: JsonObject | undefined = this.document && { grids: this.document.grids ?? null, stories: this.document.stories ?? null };
-		const after = layout && clone(layout);
+		const after = this.layout();
 		this.shownLayout = after;
 		if (before && after) {
 			const changes = describeGridChanges(before, after);

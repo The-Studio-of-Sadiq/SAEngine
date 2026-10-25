@@ -78,7 +78,7 @@ const defaultTheme: BuildingViewerTheme = {
 	footing: '#d7954b',
 	stair: '#d4d4d4',
 	member: '#f14c4c',
-	mep: '#e0a800',
+	mep: '#2bb3a3',
 };
 
 const CATEGORIES: readonly [BuildingLayer, RegExp][] = [

@@ -571,6 +571,12 @@ export class SectionDesignerEditor extends EditorPane {
 				ring.forEach((p, i) => {
 					const q = ring[(i + 1) % ring.length];
 					const length = Math.hypot(q[0] - p[0], q[1] - p[1]);
+					// An outer edge as long as the section is wide or deep: the overall dimension says it.
+					const full = (p[1] === q[1] && (p[1] === extent.minY || p[1] === extent.maxY) && Math.abs(length - (extent.maxX - extent.minX)) < 0.01)
+						|| (p[0] === q[0] && (p[0] === extent.minX || p[0] === extent.maxX) && Math.abs(length - (extent.maxY - extent.minY)) < 0.01);
+					if (full) {
+						return;
+					}
 					const mid: Point = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
 					// Beside the edge, on the side away from the middle of the section.
 					let [nx, ny] = [(q[1] - p[1]) / (length || 1), -(q[0] - p[0]) / (length || 1)];
@@ -850,7 +856,7 @@ export class SectionDesignerEditor extends EditorPane {
 				});
 			}
 			clearNode(body);
-			this.drawChart(body, analysis.uniaxial![this.chartAxis], Math.max(260, host.clientHeight - 90));
+			this.drawChart(body, analysis.uniaxial![this.chartAxis], Math.max(240, host.clientHeight - 150));
 		};
 		const dismiss = () => {
 			overlay.remove();
