@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { groundLevelStamp, mepModelStamp, sourceStamp } from '../../common/partSources.js';
-import { computePartStatuses, exportKind, IPartStatusInputs, nextStep } from '../../common/partStatus.js';
+import { applyPartChecks, computePartStatuses, exportKind, IPartStatusInputs, nextStep, partChecksFile } from '../../common/partStatus.js';
 import { DEFAULT_FLOOR_PLAN, DEFAULT_MATERIALS, DEFAULT_SETTINGS } from '../../common/projectLibraries.generated.js';
 import { PROJECT_PARTS, projectParts } from '../../common/saengineProject.js';
 
@@ -82,12 +82,15 @@ suite('SAEngine - PartStatus', () => {
 			'fem: notStarted not derived',
 			'fem: error invalid file',
 			'fem: stale stale',
-			'fem: done analysed',
+			'fem: inProgress analysed',
 			'fem: stale stale',
 			'fem: done 13 pass',
 			'fem: failed 3 fail',
-			'fem: done analysed',
+			'fem: inProgress analysed',
 		]);
+		// Design checks that checked nothing are not a pass (G1).
+		const none = JSON.stringify({ checked: 0, passed: 0, failed: 0, maxUtilisation: null, governing: null, computed: '2026-10-16T00:00:00Z' });
+		assert.strictEqual(fem({}, { femModelTime: 10, femResultsTime: 20, designSummaryText: none, designSummaryTime: 25 }), 'fem: inProgress nothing checked');
 	});
 
 	test('bill of quantities, building model, report and other parts', () => {
@@ -107,7 +110,7 @@ suite('SAEngine - PartStatus', () => {
 			'boq: error invalid file',
 			'bim: stale stale',
 			'bim: notStarted not built',
-			'exports: done report day 42',
+			'exports: inProgress report day 42',
 			'materials: error invalid file',
 			'settings: notStarted not started',
 		]);
@@ -152,7 +155,7 @@ suite('SAEngine - PartStatus', () => {
 			lines: [exportsLine({ exportFiles: 0 }), exportsLine({ exportFiles: 1 }), exportsLine({ exportFiles: 3 }), exportsLine({ exportFiles: 3, reportTime: 7 })],
 			kinds: ['report.pdf', 'IFC/Frame.ifc', 'Floor Plan\\L1 Ground.dxf', 'boq.csv', 'IFC/notes.txt', 'Floor Plan/old/L1.csv', 'other.pdf'].map(exportKind),
 		}, {
-			lines: ['exports: notStarted no report', 'exports: inProgress 1 file, no report', 'exports: inProgress 3 files, no report', 'exports: done report day 7'],
+			lines: ['exports: notStarted no report', 'exports: inProgress 1 file, no report', 'exports: inProgress 3 files, no report', 'exports: inProgress report day 7'],
 			kinds: ['report', 'ifc', 'dxf', 'csv', undefined, undefined, undefined],
 		});
 	});
@@ -400,7 +403,7 @@ suite('SAEngine - PartStatus', () => {
 			state('fem', { mep: JSON.stringify({ ...JSON.parse(mep), ifcModels: [{ path: '07 MEP/HVAC.ifc', discipline: 'mechanical', visible: false }] }), fem: withMep }),
 			state('fem', { mep: JSON.stringify({ ...JSON.parse(mep), equipment: [{ id: 'EQ1', name: 'Roof tank' }] }), fem: withMep }),
 			state('fem', { mep: JSON.stringify({ ...JSON.parse(mep), equipment: [{ id: 'EQ2' }] }), fem: withMep }),
-		], ['done', 'stale', 'done', 'stale', 'stale', 'done', 'stale', 'done', 'done', 'stale']);
+		], ['inProgress', 'stale', 'inProgress', 'stale', 'stale', 'done', 'stale', 'inProgress', 'inProgress', 'stale']);
 	});
 
 	test('the next step skips the parts that are not written yet', () => {
@@ -504,5 +507,44 @@ suite('SAEngine - PartStatus', () => {
 		const imported = { ...generated, materials: JSON.stringify({ schema: 'saengine.materials/1', materials: [{ id: 'CONC35' }] }) };
 		assert.deepStrictEqual(summary({ texts: new Map(Object.entries(imported)) }).slice(1, 3), ['settings: done', 'materials: done']);
 		assert.strictEqual(nextOf(imported), 'fem: derive the analysis model');
+	});
+
+	test('part checks: problems fail a part, unchecked items keep it in progress, old checks are ignored', () => {
+		const settings = (counts: Parameters<typeof partChecksFile>[1], text = SOURCES.settings) =>
+			summary(project({}, { checksTexts: new Map([['settings', JSON.stringify(partChecksFile('settings', counts, new Map([['settings', text]])))]]) }))[1];
+		assert.deepStrictEqual([
+			settings({ problems: 2, items: [{ severity: 'error', message: 'Z must be positive', where: 'seismic.zone' }] }),
+			settings({ problems: 1 }),
+			settings({ problems: 0 }),
+			// Made from another file than the saved one: ignored until written again.
+			settings({ problems: 3 }, '{}'),
+		], ['settings: failed 2 problems', 'settings: failed 1 problem', 'settings: done', 'settings: done']);
+		const objects = JSON.stringify(partChecksFile('objects', { problems: 0, checked: 2, total: 5 }, new Map([['objects', SOURCES.objects]])));
+		assert.strictEqual(summary(project({}, { checksTexts: new Map([['objects', objects]]) }))[3], 'objects: inProgress 2 of 5 checked');
+		const [, , , , , bim] = computePartStatuses(PROJECT_PARTS, project({}));
+		const check = (counts: Parameters<typeof partChecksFile>[1]) => partChecksFile('bim', counts, new Map());
+		assert.deepStrictEqual([
+			applyPartChecks(bim, check({ problems: 0, unsupported: 1 })).state,
+			applyPartChecks(bim, check({ problems: 0, failed: 2 })).text,
+			applyPartChecks(bim, check({ problems: 0, checked: 4, total: 4 })),
+			applyPartChecks({ ...bim, state: 'notStarted' }, check({ problems: 4 })).state,
+			applyPartChecks({ ...bim, state: 'stale' }, check({ problems: 4 })).state,
+		], ['inProgress', '2 fail', bim, 'notStarted', 'stale']);
+		// The hint names the first problem.
+		assert.strictEqual(applyPartChecks(bim, check({ problems: 1, items: [{ severity: 'error', message: 'Opening past the wall end' }] })).hint, 'Opening past the wall end');
+	});
+
+	test('the report is done only once the design passes; skipped foundations are not all pass', () => {
+		const pass = JSON.stringify({ checked: 13, passed: 13, failed: 0 });
+		const fail = JSON.stringify({ checked: 13, passed: 10, failed: 3 });
+		const timing = { femModelTime: 1, femResultsTime: 2, designSummaryTime: 3 };
+		assert.deepStrictEqual([
+			summary(project({}, { ...timing, designSummaryText: pass, reportTime: 4 }))[10],
+			summary(project({}, { ...timing, designSummaryText: fail, reportTime: 4 }))[10],
+			summary(project({}, { ...timing, designSummaryText: pass, reportTime: 2.5 }))[10],
+		], ['exports: done report day 4', 'exports: failed report, design fails', 'exports: stale stale']);
+		const foundations = JSON.stringify({ schema: 'saengine.substructure/1', foundations: [{ id: 'F1' }, { id: 'F2' }] });
+		const skipped = JSON.stringify({ foundations: 2, checked: 1, passed: 1, failed: 0, skipped: 1, source: { substructure: sourceStamp(foundations) } });
+		assert.strictEqual(summary(project({ substructure: foundations }, { substructureSummaryText: skipped, substructureSummaryTime: 3 }))[8], 'substructure: inProgress 1 not checked');
 	});
 });

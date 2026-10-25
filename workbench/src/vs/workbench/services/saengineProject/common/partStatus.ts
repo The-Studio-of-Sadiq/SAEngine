@@ -66,6 +66,127 @@ export interface IPartStatusInputs {
 	readonly mepSummaryText?: string;
 	/** Modification time of that summary. */
 	readonly mepSummaryTime?: number;
+	/** Text of each part's checks file ({@link PART_CHECKS_FILE}) by part id, for the parts that have one. */
+	readonly checksTexts?: ReadonlyMap<string, string | undefined>;
+}
+
+/**
+ * Part checks: the one way a part tells the part list how its checks went, so the sidebar, the
+ * overview and the part's own editor say the same thing. Whoever checks a part (its editor when it
+ * validates a saved file, Run All, the backend) writes `<part folder>/checks.json`:
+ *
+ * ```json
+ * { "schema": "saengine.partChecks/1", "part": "settings",
+ *   "problems": 2,                        // input problems to fix (validation): the part fails
+ *   "checked": 14, "total": 18,           // items checked of those that need checking (optional)
+ *   "failed": 1,                          // checked items that fail (optional)
+ *   "unsupported": 0,                     // items the checks cannot handle (optional)
+ *   "source": { "settings": "<stamp>" },  // `sourceStamp` of each saved file the counts read
+ *   "items": [{ "severity": "error", "message": "…", "where": "loads.live" }] }  // optional, a few
+ * ```
+ *
+ * A part is done only when its own rule says so and its checks, when it has any, are current
+ * (every `source` stamp matches the saved file; a missing file is recorded as "") and say: no
+ * problems, nothing failing, nothing unsupported and everything checked (`checked == total`).
+ * Checks that are not current are ignored until they are written again. Parts without a checks
+ * file keep their own rule. The service writes the file for the workbench
+ * (`ISaenginePartStatusService.reportChecks`); `saengine.pipeline.status.write_part_checks` does
+ * for Python.
+ */
+export const PART_CHECKS_FILE = 'checks.json';
+export const PART_CHECKS_SCHEMA_ID = 'saengine.partChecks/1';
+
+export interface IPartCheckItem {
+	readonly severity: 'error' | 'warning';
+	readonly message: string;
+	/** Where in the part (a field path, a member id), if known. */
+	readonly where?: string;
+}
+
+/** The counts of a part's checks, as a writer reports them (see {@link PART_CHECKS_FILE}). */
+export interface IPartCheckCounts {
+	readonly problems: number;
+	readonly checked?: number;
+	readonly total?: number;
+	readonly failed?: number;
+	readonly unsupported?: number;
+	readonly items?: readonly IPartCheckItem[];
+}
+
+/** A part's checks file. */
+export interface IPartChecks extends IPartCheckCounts {
+	readonly schema: typeof PART_CHECKS_SCHEMA_ID;
+	readonly part: string;
+	/** The stamp of each saved part file the counts were made from, by part id ("" for a missing file). */
+	readonly source: { readonly [part: string]: string };
+}
+
+/** At most this many items are kept in a checks file (the part's own editor lists them all). */
+export const PART_CHECK_ITEMS = 20;
+
+/** The checks file of `part` with `counts` made from the saved files `sources` (part id to text, undefined when missing). */
+export function partChecksFile(part: string, counts: IPartCheckCounts, sources: ReadonlyMap<string, string | undefined>): IPartChecks {
+	const source: { [part: string]: string } = {};
+	for (const [id, text] of sources) {
+		source[id] = text === undefined ? '' : sourceStamp(text);
+	}
+	const items = counts.items?.slice(0, PART_CHECK_ITEMS);
+	return {
+		schema: PART_CHECKS_SCHEMA_ID, part, problems: counts.problems,
+		...(counts.checked !== undefined ? { checked: counts.checked } : {}),
+		...(counts.total !== undefined ? { total: counts.total } : {}),
+		...(counts.failed !== undefined ? { failed: counts.failed } : {}),
+		...(counts.unsupported !== undefined ? { unsupported: counts.unsupported } : {}),
+		...(items?.length ? { items } : {}),
+		source,
+	};
+}
+
+/** The checks of `text` when it is a checks file of `part` that is still current for `texts`. */
+export function currentPartChecks(part: string, text: string | undefined, texts: ReadonlyMap<string, string | undefined>): IPartChecks | undefined {
+	const value = text !== undefined ? parse(text) : undefined;
+	if (!value || value.schema !== PART_CHECKS_SCHEMA_ID || value.part !== part || typeof value.problems !== 'number') {
+		return undefined;
+	}
+	const source = value.source;
+	if (typeof source !== 'object' || source === null || Array.isArray(source) || !sourcesUnchanged(texts, source as JsonObject)) {
+		return undefined;
+	}
+	return value as unknown as IPartChecks;
+}
+
+function positive(value: unknown): number {
+	return typeof value === 'number' && value > 0 ? value : 0;
+}
+
+/**
+ * `own` (the part's own rule) with its checks applied: problems and failures make it failed,
+ * unsupported or unchecked items keep it in progress. Not started, unreadable and stale parts
+ * keep their own state (they must be redone first).
+ */
+export function applyPartChecks(own: IPartStatus, checks: IPartChecks | undefined): IPartStatus {
+	if (!checks || own.state === 'notStarted' || own.state === 'error' || own.state === 'stale') {
+		return own;
+	}
+	const problems = positive(checks.problems);
+	if (problems > 0) {
+		return status(own.part, 'failed', problems === 1 ? localize('partStatus.checks.oneProblem', "1 problem") : localize('partStatus.checks.problems', "{0} problems", problems), checks.items?.[0]?.message ?? localize('partStatus.checks.fix', "fix the problems"));
+	}
+	const failed = positive(checks.failed);
+	if (failed > 0) {
+		return own.state === 'failed' ? own : status(own.part, 'failed', localize('partStatus.checks.fail', "{0} fail", failed), checks.items?.[0]?.message ?? localize('partStatus.checks.review', "review the failing checks"));
+	}
+	if (own.state === 'failed') {
+		return own;
+	}
+	const unsupported = positive(checks.unsupported);
+	if (unsupported > 0) {
+		return status(own.part, 'inProgress', localize('partStatus.checks.unsupported', "{0} not supported", unsupported), checks.items?.[0]?.message ?? localize('partStatus.checks.unsupportedHint', "these items cannot be checked yet"));
+	}
+	if (typeof checks.total === 'number' && typeof checks.checked === 'number' && checks.checked < checks.total) {
+		return status(own.part, 'inProgress', localize('partStatus.checks.partly', "{0} of {1} checked", checks.checked, checks.total), localize('partStatus.checks.checkRest', "check the rest"));
+	}
+	return own;
 }
 
 /** File names the status reads besides the parts' main files. */
@@ -212,11 +333,15 @@ function femStatus(inputs: IPartStatusInputs): IPartStatus {
 		return status('fem', 'stale', STALE(), localize('partStatus.fem.runAgain', "run the analysis again"));
 	}
 	const summary = parseDesignSummary(inputs.designSummaryText);
+	// Done only once the design checks ran on these results, checked something and found no failure.
 	if (!summary || (inputs.designSummaryTime !== undefined && inputs.designSummaryTime < inputs.femResultsTime)) {
-		return status('fem', 'done', localize('partStatus.fem.analysed', "analysed"));
+		return status('fem', 'inProgress', localize('partStatus.fem.analysed', "analysed"), localize('partStatus.fem.design', "run the design checks"));
 	}
 	if (summary.failed > 0) {
 		return status('fem', 'failed', localize('partStatus.fem.fail', "{0} fail", summary.failed), localize('partStatus.fem.review', "review the failing members"));
+	}
+	if (summary.checked === 0) {
+		return status('fem', 'inProgress', localize('partStatus.fem.noneChecked', "nothing checked"), localize('partStatus.fem.noneCheckedHint', "no member was design-checked: open the design results"));
 	}
 	return status('fem', 'done', localize('partStatus.fem.pass', "{0} pass", summary.passed));
 }
@@ -512,6 +637,10 @@ interface ISubstructureSummary {
 	readonly checked: number;
 	readonly passed: number;
 	readonly failed: number;
+	/** Foundations not checked (no loads, no soil, an unsupported type); optional, 0 when absent. */
+	readonly skipped?: number;
+	/** Columns without a support node or foundation the checks cannot handle; optional. */
+	readonly unsupported?: number;
 	/**
 	 * The stamp of each part file the checks read, by part id ("" for a file that was missing):
 	 * the substructure, soil report, settings, materials, object types and building model.
@@ -564,6 +693,11 @@ function substructureStatus(inputs: IPartStatusInputs): IPartStatus {
 	if (summary.failed > 0) {
 		return status('substructure', 'failed', localize('partStatus.substructure.fail', "{0} fail", summary.failed), localize('partStatus.substructure.review', "review the failing foundations"));
 	}
+	// All pass only when every foundation was checked (U2): skipped or unsupported ones are not.
+	const unchecked = positive(summary.skipped) + positive(summary.unsupported);
+	if (unchecked > 0) {
+		return status('substructure', 'inProgress', localize('partStatus.substructure.unchecked', "{0} not checked", unchecked), localize('partStatus.substructure.checkRest', "check the foundations that were skipped"));
+	}
 	return status('substructure', 'done', foundations);
 }
 
@@ -605,8 +739,8 @@ function object(value: unknown): JsonObject {
 
 /**
  * Whether a settings or materials file still holds what a new project starts with. The settings
- * are compared apart from what the new-project dialog fills in: the project name and the
- * concrete and steel codes. Projects whose settings were written with other values (New
+ * are compared apart from what the new-project dialog fills in: the project name, the concrete
+ * and steel codes, the site's location and the building's use. Projects whose settings were written with other values (New
  * Building from Grid, the importers) or with older defaults count as changed.
  */
 export function holdsDefaults(document: JsonObject, part: string): boolean {
@@ -619,6 +753,9 @@ export function holdsDefaults(document: JsonObject, part: string): boolean {
 		...defaults,
 		project: { name: object(document.project).name },
 		codes: { ...object(defaults.codes), concrete: codes.concrete, steel: codes.steel },
+		// The new-project form also picks the site and the building's use; the rest still needs review.
+		site: { ...object(defaults.site), location: object(document.site).location },
+		occupancy: { ...object(defaults.occupancy), use: object(document.occupancy).use },
 	};
 	return canonical(document) === canonical(expected);
 }
@@ -673,7 +810,7 @@ function defaultFormatDate(time: number): string {
 
 /** The status of each of `parts` (a project's parts, in workflow order). */
 export function computePartStatuses(parts: readonly IProjectPart[], inputs: IPartStatusInputs, formatDate: (time: number) => string = defaultFormatDate): IPartStatus[] {
-	return parts.map(part => {
+	const own = (part: IProjectPart): IPartStatus => {
 		switch (part.id) {
 			case 'soil': return soilStatus(inputs);
 			case 'fem': return femStatus(inputs);
@@ -684,17 +821,55 @@ export function computePartStatuses(parts: readonly IProjectPart[], inputs: IPar
 			case 'mep': return mepStatus(inputs);
 			default: return documentStatus(part.id, inputs);
 		}
-	});
+	};
+	const statuses = parts.map(part => applyPartChecks(own(part), currentPartChecks(part.id, inputs.checksTexts?.get(part.id), inputs.texts)));
+	// The report says what the design checks found, so it is done only when they pass (R4).
+	const exports = statuses.findIndex(s => s.part === 'exports');
+	const fem = statuses.find(s => s.part === 'fem');
+	if (exports >= 0 && fem) {
+		statuses[exports] = exportsWithDesign(statuses[exports], fem, inputs);
+	}
+	return statuses;
 }
 
 /**
+ * The exports once the report exists: stale when it is older than the design checks (or the
+ * analysis results), failed while the analysis model's members fail, in progress while they are
+ * not checked; otherwise its own status.
+ */
+function exportsWithDesign(exports: IPartStatus, fem: IPartStatus, inputs: IPartStatusInputs): IPartStatus {
+	if (exports.state !== 'done' || inputs.reportTime === undefined) {
+		return exports;
+	}
+	const newest = Math.max(inputs.designSummaryTime ?? 0, inputs.femResultsTime ?? 0);
+	if (newest > inputs.reportTime) {
+		return status('exports', 'stale', STALE(), localize('partStatus.exports.buildAgain', "build the design report again"));
+	}
+	if (fem.state === 'failed') {
+		return status('exports', 'failed', localize('partStatus.exports.designFails', "report, design fails"), localize('partStatus.exports.fixDesign', "fix the failing members, then build the report again"));
+	}
+	if (fem.state !== 'done' || !parseDesignSummary(inputs.designSummaryText)?.checked) {
+		return status('exports', 'inProgress', exports.text, localize('partStatus.exports.check', "run the design checks, then build the report again"));
+	}
+	return exports;
+}
+
+/** States of an optional part that still need the engineer: it was started and is broken. */
+const OPTIONAL_NEEDS_WORK: ReadonlySet<PartState> = new Set(['failed', 'error', 'stale']);
+
+/**
  * The first part, in workflow order, that needs doing (settings or materials still holding the
- * defaults need reviewing), with its index; the optional parts (soil report, MEP, substructure)
- * are skipped.
+ * defaults need reviewing), with its index. The optional parts (soil report, MEP, substructure)
+ * count only once they fail, are stale or cannot be read.
  */
 export function nextStep(statuses: readonly IPartStatus[]): { readonly index: number; readonly status: IPartStatus } | undefined {
-	const index = statuses.findIndex(s => s.state !== 'done' && !OPTIONAL_PARTS.has(s.part));
+	const index = statuses.findIndex(s => s.state !== 'done' && (!OPTIONAL_PARTS.has(s.part) || OPTIONAL_NEEDS_WORK.has(s.state)));
 	return index < 0 ? undefined : { index, status: statuses[index] };
+}
+
+/** The optional parts that were started but are not done (shown when nothing else is left). */
+export function openOptionalParts(statuses: readonly IPartStatus[]): IPartStatus[] {
+	return statuses.filter(s => OPTIONAL_PARTS.has(s.part) && s.state !== 'done' && s.state !== 'notStarted');
 }
 
 export const ISaenginePartStatusService = createDecorator<ISaenginePartStatusService>('saenginePartStatusService');
@@ -708,4 +883,11 @@ export interface ISaenginePartStatusService {
 	readonly onDidChange: Event<void>;
 
 	statusOf(part: string): IPartStatus | undefined;
+
+	/**
+	 * Records how the checks of `part` went in its checks file (see {@link PART_CHECKS_FILE}),
+	 * made from the saved files of `sources` (default: the part's own main file). The statuses
+	 * follow once the file is written; an unchanged file is not rewritten.
+	 */
+	reportChecks(part: string, counts: IPartCheckCounts, sources?: readonly string[]): Promise<void>;
 }

@@ -111,7 +111,9 @@ def test_the_sidebar_shows_the_results_as_current(ran):
     assert statuses["fem"].state == "failed" and statuses["fem"].text.endswith(" fail")
     assert statuses["substructure"].state == "failed"
     assert statuses["mep"].state == "failed"
-    assert statuses["boq"].state == "done" and statuses["exports"].state == "done"
+    assert statuses["boq"].state == "done"
+    # The report shows a failing design, so Exports is not "done" either (R4).
+    assert statuses["exports"].state == "failed"
     assert [p["state"] for p in document["parts"]] == [
         s.state for s in part_statuses(open_project(root))
     ]

@@ -39,8 +39,8 @@ def placeholder(part: str) -> str:
 SOURCES = {
     "settings": '{"schema": "saengine.projectSettings/1"}',
     "materials": '{"materials": []}',
-    "objects": '{"objects": []}',
-    "floorPlan": '{"schema": "saengine.floorPlan/1"}',
+    "objects": '{"objects": [{"id": "C1"}]}',
+    "floorPlan": '{"schema": "saengine.floorPlan/1", "columns": [{"id": "C1"}]}',
 }
 BIM = json.dumps(
     {"schema": "saengine.bim/2", "source": {"floorPlan": source_stamp(SOURCES["floorPlan"])},
@@ -85,8 +85,8 @@ def test_status_of_a_derived_project_not_analysed():
         "soil: notStarted not started",
         "settings: done",
         "materials: done",
-        "objects: done",
-        "floorPlan: done",
+        "objects: done 1 type",
+        "floorPlan: done 1 member",
         "bim: done",
         "mep: notStarted not started",
         "fem: inProgress not analysed",
@@ -117,12 +117,16 @@ def test_status_of_the_analysis_model():
         "fem: notStarted not derived",
         "fem: error invalid file",
         "fem: stale stale",
-        "fem: done analysed",
+        "fem: inProgress analysed",
         "fem: stale stale",
         "fem: done 13 pass",
         "fem: failed 3 fail",
-        "fem: done analysed",
+        "fem: inProgress analysed",
     ]
+    nothing = json.dumps({"checked": 0, "passed": 0, "failed": 0})
+    assert fem(
+        femModelTime=1, femResultsTime=2, designSummaryText=nothing, designSummaryTime=3
+    ) == ("fem: inProgress nothing checked")
 
 
 def test_status_of_the_bill_the_building_model_and_the_report():
@@ -133,7 +137,7 @@ def test_status_of_the_bill_the_building_model_and_the_report():
         line({"boq": BOQ})[9],
         line({"boq": BOQ, "objects": '{"objects": [1]}'})[9],
         line({"boq": "["})[9],
-        line({"floorPlan": '{"schema": "saengine.floorPlan/1", "grids": {}}'})[5],
+        line({"floorPlan": '{"schema": "saengine.floorPlan/1", "columns": [1, 2]}'})[5],
         line({"bim": json.dumps({"schema": "saengine.bim/2", "elements": []})})[5],
         line(reportTime=42)[10],
         line({"materials": "{"})[2],
@@ -144,7 +148,7 @@ def test_status_of_the_bill_the_building_model_and_the_report():
         "boq: error invalid file",
         "bim: stale stale",
         "bim: notStarted not built",
-        "exports: done report day 42",
+        "exports: inProgress report day 42",
         "materials: error invalid file",
         "settings: notStarted not started",
     ]
@@ -384,3 +388,96 @@ def test_member_loads_count_once_recorded_or_once_they_have_a_load():
     current = f"Sources: {sources}; loads={source_stamp(wall)}"
     assert R.derivation_state(current, texts) == (True, [])
     assert R.derivation_state(current, {**texts, "loads": none}) == (True, ["Line Loads"])
+
+
+def test_status_of_a_new_project_is_not_done():
+    """K2: a new project's settings and materials hold the defaults, its objects and floor
+    plan are empty (``partStatus.test.ts``, "a new project")."""
+    from saengine.library.defaults import default_material_library
+    from saengine.library.export import library_json
+    from saengine.library.settings import default_project_settings
+
+    settings = library_json(default_project_settings())
+    settings = {**settings, "project": {"name": "Building"}}
+    new = inputs({
+        "settings": json.dumps(settings), "materials": json.dumps(library_json(
+            default_material_library())), "objects": '{"objects": []}',
+        "floorPlan": '{"schema": "saengine.floorPlan/1", "columns": []}', "bim": None,
+        "fem": None,
+    })  # fmt: skip
+    assert lines(new)[1:6] == [
+        "settings: defaults defaults",
+        "materials: defaults defaults",
+        "objects: notStarted not started",
+        "floorPlan: notStarted not started",
+        "bim: notStarted not built",
+    ]
+    assert next_step(compute_part_statuses(PROJECT_PARTS, new))[1].part == "settings"
+    changed = {**settings, "project": {"name": "Building", "location": "dhaka"}}
+    assert lines(inputs({"settings": json.dumps(changed)}))[1] == "settings: done"
+
+
+def test_part_checks_make_a_part_honest(tmp_path: Path):
+    """The part checks file (``checks.json``): problems fail a part, unchecked items keep it in
+    progress, checks of a changed file are ignored."""
+    from saengine.pipeline.status import (
+        PART_CHECKS_FILE,
+        apply_part_checks,
+        part_checks_file,
+        write_part_checks,
+    )
+
+    def settings(counts: dict, text: str = SOURCES["settings"]) -> str:
+        checks = json.dumps(part_checks_file("settings", counts, {"settings": text}))
+        return lines(inputs(checksTexts={"settings": checks}))[1]
+
+    assert settings({"problems": 2, "items": [{"severity": "error", "message": "Z < 0"}]}) == (
+        "settings: failed 2 problems"
+    )
+    assert settings({"problems": 0}) == "settings: done"
+    assert settings({"problems": 3}, text="{}") == "settings: done"  # not current: ignored
+    objects = json.dumps(
+        part_checks_file("objects", {"problems": 0, "checked": 2, "total": 5},
+                         {"objects": SOURCES["objects"]})
+    )  # fmt: skip
+    assert (
+        lines(inputs(checksTexts={"objects": objects}))[3] == "objects: inProgress 2 of 5 checked"
+    )
+    unsupported = part_checks_file("bim", {"problems": 0, "unsupported": 1}, {})
+    assert apply_part_checks(
+        compute_part_statuses(PROJECT_PARTS, inputs())[5], unsupported
+    ).state == ("inProgress")
+    # Not started stays not started.
+    blank = compute_part_statuses(PROJECT_PARTS, inputs({"objects": '{"objects": []}'}))[3]
+    assert apply_part_checks(blank, {"problems": 4}) == blank
+    # Written next to the part's main file; the inputs read it back.
+    root = tmp_path / "p"
+    shutil.copytree(SAMPLE, root)
+    project = open_project(root)
+    target = write_part_checks(project, "settings", {"problems": 1})
+    assert target == root / "02 Project Settings" / PART_CHECKS_FILE
+    statuses = {s.part: s for s in R.part_statuses(project)}
+    assert statuses["settings"].state == "failed"
+
+
+def test_report_and_foundations_follow_the_checks():
+    """R4: the report is done only once the design passes; U2: skipped foundations are not
+    "all pass"."""
+    passing = json.dumps({"checked": 13, "passed": 13, "failed": 0})
+    failing = json.dumps({"checked": 13, "passed": 10, "failed": 3})
+    timing = {"femModelTime": 1, "femResultsTime": 2, "designSummaryTime": 3}
+    assert [
+        lines(inputs(designSummaryText=passing, reportTime=4, **timing))[10],
+        lines(inputs(designSummaryText=failing, reportTime=4, **timing))[10],
+        lines(inputs(designSummaryText=passing, reportTime=2.5, **timing))[10],
+    ] == [
+        "exports: done report day 4",
+        "exports: failed report, design fails",
+        "exports: stale stale",
+    ]
+    foundations = json.dumps({"schema": "saengine.substructure/1", "foundations": [{"id": "F1"}]})
+    skipped = json.dumps({"foundations": 2, "checked": 1, "passed": 1, "failed": 0, "skipped": 1,
+                          "source": {"substructure": source_stamp(foundations)}})  # fmt: skip
+    statuses = lines(inputs({"substructure": foundations}, substructureSummaryText=skipped,
+                            substructureSummaryTime=3))  # fmt: skip
+    assert statuses[8] == "substructure: inProgress 1 not checked"
