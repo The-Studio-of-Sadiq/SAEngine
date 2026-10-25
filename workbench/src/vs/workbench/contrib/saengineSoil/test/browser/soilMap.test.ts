@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILatLon, ISoilLocationResult, ISoilReport, newSoilReport } from '../../browser/soilDocument.js';
-import { bnbcSuggestion, boreholePoints, formatBtm, formatDegrees, formatDistance, formatDms, formatLatLon, gridExtent, inBangladesh, mapState, OSM_ATTRIBUTION, OSM_TILE_URL, outlineProject, outlineRings, parseLatLon, sitePosition, tileSource } from '../../browser/soilMap.js';
+import { bnbcSuggestion, boreholePoints, boundsOf, spreadLabels, formatBtm, formatDegrees, formatDistance, formatDms, formatLatLon, gridExtent, inBangladesh, mapState, OSM_ATTRIBUTION, OSM_TILE_URL, outlineProject, outlineRings, parseLatLon, sitePosition, tileSource } from '../../browser/soilMap.js';
 
 function report(extra: Partial<ISoilReport> = {}): ISoilReport {
 	return {
@@ -178,5 +178,18 @@ suite('SAEngine - Soil site map', () => {
 			{ minX: -7000, minY: -7000, maxX: 17000, maxY: 17000 },
 			{ minX: -10000, minY: -10000, maxX: 10000, maxY: 10000 },
 		]);
+	});
+
+	test('frames all boreholes and keeps their labels apart', () => {
+		assert.deepStrictEqual({
+			bounds: boundsOf([{ lat: 23.81, lon: 90.41 }, { lat: 23.8, lon: 90.42 }, { lat: 23.805, lon: 90.4 }]),
+			one: boundsOf([{ lat: 23.81, lon: 90.41 }]),
+			// Two labels on top of each other and one well apart.
+			offsets: spreadLabels([{ x: 100, y: 100, width: 40 }, { x: 110, y: 104, width: 40 }, { x: 300, y: 100, width: 40 }], 14),
+		}, {
+			bounds: [[90.4, 23.8], [90.42, 23.81]],
+			one: undefined,
+			offsets: [0, 14, 0],
+		});
 	});
 });

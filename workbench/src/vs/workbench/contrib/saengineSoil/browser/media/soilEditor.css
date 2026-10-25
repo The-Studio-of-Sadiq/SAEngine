@@ -1864,3 +1864,61 @@
 	font-weight: 600;
 	fill: var(--vscode-foreground);
 }
+
+/* Results from before the last edit: dimmed until the new ones arrive. */
+.saengine-soil-editor.soil-stale .soil-view.results .soil-section.result,
+.saengine-soil-editor.soil-stale .soil-n60,
+.saengine-soil-editor.soil-stale .soil-n60-line,
+.saengine-soil-editor.soil-stale .soil-computed {
+	opacity: 0.45;
+	transition: opacity 0.15s;
+}
+
+/* A thin layer's description: one line, the rest on hover; a leader to its layer. */
+.saengine-soil-editor .soil-description.thin .soil-description-type {
+	font-weight: 600;
+}
+
+.saengine-soil-editor .soil-leader {
+	fill: none;
+	stroke: var(--sa-muted);
+	stroke-width: 1;
+}
+
+/* A termination depth with layers drawn below it. */
+.saengine-soil-editor .soil-termination.problem {
+	stroke: var(--vscode-errorForeground);
+	stroke-dasharray: 4 2;
+}
+
+.saengine-soil-editor .soil-termination-label {
+	font-size: 10px;
+	fill: var(--vscode-errorForeground);
+}
+
+/* The class by N̄ or by s̄u that governs a borehole's site class. */
+.saengine-soil-editor .soil-governs-cell {
+	font-weight: 700;
+}
+
+/* "Show details": what the backend printed, for a bug report. */
+.saengine-soil-editor .soil-details-toggle {
+	display: inline-block;
+	margin: 6px 0;
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+
+.saengine-soil-editor .soil-details {
+	max-height: 240px;
+	overflow: auto;
+	margin: 0;
+	padding: 8px;
+	font-family: var(--monaco-monospace-font);
+	font-size: 11px;
+	white-space: pre-wrap;
+	text-align: left;
+	background: var(--vscode-textCodeBlock-background);
+	border: 1px solid var(--sa-border);
+	border-radius: 4px;
+}

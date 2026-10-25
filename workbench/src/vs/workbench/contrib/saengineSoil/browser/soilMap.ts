@@ -342,3 +342,41 @@ export function gridExtent(points: readonly { readonly x: number; readonly y: nu
 	maxY = cy + half;
 	return { minX, minY, maxX, maxY };
 }
+
+/** A label at a point on screen: its anchor (left, middle) and width [px]. */
+export interface ILabelBox {
+	readonly x: number;
+	readonly y: number;
+	readonly width: number;
+}
+
+/**
+ * How far down to move each label [px] so none overlaps another: labels are placed top to
+ * bottom (then left to right), each one stepping down a line while it overlaps one placed.
+ */
+export function spreadLabels(labels: readonly ILabelBox[], lineHeight = 14): number[] {
+	const order = labels.map((_, i) => i).sort((a, b) => labels[a].y - labels[b].y || labels[a].x - labels[b].x);
+	const placed: { x1: number; x2: number; y1: number; y2: number }[] = [];
+	const offsets = labels.map(() => 0);
+	for (const i of order) {
+		const { x, y, width } = labels[i];
+		let dy = 0;
+		const overlaps = () => placed.some(p => x < p.x2 && x + width > p.x1 && y + dy - lineHeight / 2 < p.y2 && y + dy + lineHeight / 2 > p.y1);
+		for (let step = 0; step < 8 && overlaps(); step++) {
+			dy += lineHeight;
+		}
+		offsets[i] = dy;
+		placed.push({ x1: x, x2: x + width, y1: y + dy - lineHeight / 2, y2: y + dy + lineHeight / 2 });
+	}
+	return offsets;
+}
+
+/** The south-west and north-east corners around the points, or undefined for fewer than two. */
+export function boundsOf(points: readonly ILatLon[]): [[number, number], [number, number]] | undefined {
+	if (points.length < 2) {
+		return undefined;
+	}
+	const lons = points.map(p => p.lon);
+	const lats = points.map(p => p.lat);
+	return [[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]];
+}
