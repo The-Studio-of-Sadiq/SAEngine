@@ -374,6 +374,25 @@ def test_service_combinations_follow_bnbc_2_7_2() -> None:
     assert strength_level["D + 0.75L + 0.45WY"] == {"D": 1.0, "L": 0.75, "WY": 0.45}
 
 
+def test_service_combinations_take_the_figure_6_2_9_wind_cases() -> None:
+    """Bearing is checked under every design wind load case (Sec 2.4.11.3, p. 559): Case 3
+    (0.75 of both directions) and, with WTX/WTY analysed, Cases 2 and 4."""
+    combos = dict(service_combinations(["D", "L", "WX", "WY", "WTX", "WTY"]))
+    assert combos["D + WX"] == {"D": 1.0, "WX": 1.0}
+    assert combos["D + 0.75WX - 0.75WY [Case 3 -WY]"] == {"D": 1.0, "WX": 0.75, "WY": -0.75}
+    case2 = combos["D + 0.75WX + 0.75WTX [Case 2 +e]"]
+    assert case2 == {"D": 1.0, "WX": 0.75, "WTX": 0.75}
+    with_live = [f for n, f in combos.items() if n.startswith("D + 0.75L") and "Case 4" in n]
+    assert with_live
+    for f in with_live:
+        assert f["L"] == 0.75
+        for c in ("WX", "WY", "WTX", "WTY"):
+            assert abs(f[c]) == pytest.approx(0.75 * 0.563)
+    # Without the torsional cases analysed: Cases 1 and 3 only.
+    plain = [n for n, _ in service_combinations(["D", "WX", "WY"])]
+    assert any("Case 3" in n for n in plain) and not any("Case 2" in n for n in plain)
+
+
 def test_uplifted_part_hogs_under_its_own_weight() -> None:
     spec = square_footing()
     loads = {"0.9D + 1.0EX": [np.array([100 * KN, 0.0, 100 * KN * 1000])]}

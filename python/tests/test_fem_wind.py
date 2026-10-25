@@ -221,6 +221,26 @@ def test_wind_torsion_rows(bay, monkeypatch) -> None:
         assert row["torsion_kNm"] == pytest.approx(row["force_kN"] * row["e_m"])
 
 
+def test_flexible_analysis_option_keeps_the_torsional_cases(bay, monkeypatch) -> None:
+    # The Exception of Sec 2.4.11.3 (p. 559) is for buildings "designed with flexible
+    # diaphragms"; diaphragm = "flexible" only models the RC floors' in-plane stiffness, so a
+    # one-storey building above the (lowered) height limit still gets Cases 2 and 4.
+    from saengine.fem.derive import derive_fem
+    from saengine.library.settings import default_project_settings
+
+    cases = WindDesignCases(0.75, 0.15, 0.75, 0.563, exemptHeight=1.0)
+    monkeypatch.setattr(fl, "wind_design_cases", lambda: cases)
+    settings = default_project_settings("Bay")
+    settings = settings.model_copy(
+        update={"analysis": settings.analysis.model_copy(update={"diaphragm": "flexible"})},
+        deep=True,
+    )
+    building, objects, materials = bay
+    d = derive_fem(building, objects, materials, settings, {"bim": "abc"})
+    assert not d.summary["wind"]["exempt"]
+    assert d.summary["wind"]["torsionCases"] == ["WTX", "WTY"]
+
+
 def test_planar_frame_reports_no_width(monkeypatch) -> None:
     # A one-line frame (A1-B1, 6 m along X): wind in X sees no face across it. It used to fall
     # back silently to 1 m; now WX is empty and a note says why, so 0 kN is not read as a result.

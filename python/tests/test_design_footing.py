@@ -659,11 +659,13 @@ def test_net_pressure_takes_off_the_overburden_qa_is_net_of(frame: tuple[dict, P
     low = by_name(same[0]["checks"])["Bearing (service)"]
     high = by_name(raised[0]["checks"])["Bearing (service)"]
     assert high["capacity"] == low["capacity"]  # the same soil qa: Df below BH-1's ground
-    # (The governing combination, D + 0.75L + 0.75Lr - 0.75WY, is in partial contact at the
-    # lower ground, so the 18 kPa does not add exactly to qmax there: 16.2 kPa with the end
-    # offsets and lumped masses of 0.0.44, 14.9 kPa since the wind of 0.0.45 acts on each
-    # storey's own face at its centre.)
-    assert high["demand"] - low["demand"] == pytest.approx(18 - 1.5, abs=2.0)
+    # (The governing combination is in partial contact at the lower ground, so the 18 kPa
+    # does not add in full to qmax there: the uniform pressure widens the contact, so qmax
+    # rises by at most 16.5 kPa. Since bearing is checked under every wind case of BNBC Figure
+    # 6.2.9 it is D + 0.75L + 0.75Lr - 0.5625WX - 0.5625WY [Case 3 -WY] at 14.2 kPa; taking
+    # off 45 kPa instead would have lowered it.)
+    assert "Case 3" in low["combination"]
+    assert 12.0 <= high["demand"] - low["demand"] <= 18 - 1.5 + 0.1
     assert "net = gross - 27.0 kPa, the overburden γ Df below the finished ground" in low["note"]
     assert (
         "net = gross - 28.5 kPa, the overburden at the founding level below BH-1's"

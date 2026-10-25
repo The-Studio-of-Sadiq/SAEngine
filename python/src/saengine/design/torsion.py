@@ -248,6 +248,7 @@ class TorsionDesign:
     phi: float
     flanges: bool
     notes: tuple[str, ...] = field(default=())
+    av_s: float = 0.0  # mm²/mm, all legs: the shear's Av/s at this station (set by the caller)
 
     @property
     def section_ok(self) -> bool:

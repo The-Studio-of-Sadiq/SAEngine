@@ -506,24 +506,31 @@ def torsion_rows(member: dict[str, Any], assumed: bool) -> list[dict[str, Any]]:
     leg = None
     if transverse is not None and not assumed and transverse.spacing:
         leg = bar_area(transverse.dia) / transverse.spacing * 1000
+    # Each outer leg carries At/s and its share of the shear's Av/s, as the design check does
+    # (saengine.design.torsion.torsion_checks); two legs when the stirrups are not known.
+    legs = transverse.legs if transverse is not None and not assumed and transverse.legs else 2
+    av_s = float(getattr(design, "av_s", 0.0))
     return [
         _row(
             element,
             "beam",
             type_id,
             "torsion",
-            "closed stirrups At/s per leg (with the shear's Av/s at the governing station)",
+            "closed stirrups At/s + Av/(n s) per outer leg (shear at the governing station)",
             design.tu_design / 1e6,
             "kN·m",
-            design.at_s * 1000,
+            (design.at_s + av_s / legs) * 1000,
             design.at_s_min * 1000,
             leg,
             "mm²/m",
             None,
             [
                 f"Tu = {design.tu / 1e6:.1f} kN·m ({design.kind})",
+                (
+                    f"At/s = {design.at_s * 1000:.0f} mm²/m per leg, shear Av/s = "
+                    f"{av_s * 1000:.0f} mm²/m over {legs} legs (Sec 6.4.4.3.8)"
+                ),
                 f"s ≤ {design.s_max:.0f} mm (Sec 6.4.4.6.1)",
-                "the shear's Av/s is added per leg (Sec 6.4.4.3.8)",
             ],
             not design.section_ok,
             bool(transverse is not None and not assumed and transverse.spacing > design.s_max),

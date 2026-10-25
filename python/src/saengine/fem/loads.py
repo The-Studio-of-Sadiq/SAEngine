@@ -256,7 +256,9 @@ def wind_torsion_exempt(
 ) -> bool:
     """Whether a building needs only Cases 1 and 3 (Sec 2.4.11.3, Exception, p. 559): one
     storey with h ≤ 9.1 m, or two storeys or less designed with flexible diaphragms (light-frame
-    construction, the third exempt kind, is not one SAEngine models)."""
+    construction, the third exempt kind, is not one SAEngine models). ``rigid_diaphragms`` is
+    False only for floors designed as flexible diaphragms, not for RC slabs analysed with their
+    modelled in-plane stiffness (SAEngine's derive passes True)."""
     if storeys <= 1 and height <= cases.exemptHeight:
         return True
     return storeys <= 2 and not rigid_diaphragms

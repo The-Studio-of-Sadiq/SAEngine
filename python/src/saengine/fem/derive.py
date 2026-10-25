@@ -1636,7 +1636,10 @@ def _derive_fem(
             values["windSpeed"],
             settings.wind.exposure,
             values["windImportance"],
-            rigid=options.diaphragm == "rigid",
+            # BNBC's exception is for buildings "designed with flexible diaphragms"; the
+            # analysis option diaphragm = "flexible" only models the floors' in-plane stiffness
+            # from their beams and shells (semi-rigid RC slabs), so it does not qualify.
+            rigid=True,
             torsion=bool(option(options, "windTorsionCases", True)),
             story_names=story_names,
         )
@@ -2479,8 +2482,8 @@ def _wind_loads(
     elif exempt:
         notes.append(
             "wind: Cases 1 and 3 of BNBC 2020 Figure 6.2.9 only (Sec 2.4.11.3, Exception: one "
-            f"storey with h ≤ {cases.exemptHeight:g} m, or two storeys or less with flexible "
-            "diaphragms)"
+            f"storey with h ≤ {cases.exemptHeight:g} m; the exception for flexible diaphragms "
+            "does not apply to RC floors)"
         )
     elif not torsion:
         notes.append(

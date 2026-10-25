@@ -61,7 +61,9 @@ def _service_combinations(
     ``D`` stands for the dead and superimposed dead cases. Wind is nominal (service-level) as
     BNBC 2020 Part 6 defines it, with the 2.7.2 combinations (ASCE 7-05 2.4.1): D + W,
     D + 0.75L + 0.75Lr + 0.75W and 0.6D + W; ``strength_level_wind`` takes the ASCE 7-16 2.4.1
-    factors 0.6W and 0.45W instead. Earthquake is strength-level: 0.7E and 0.525E."""
+    factors 0.6W and 0.45W instead. Each wind term is each design wind load case of BNBC 2020
+    Figure 6.2.9 (Sec 2.4.11.3: Case 1, and Cases 2-4 with WTX, WTY when they were analysed),
+    named "<combination> [Case k ...]". Earthquake is strength-level: 0.7E and 0.525E."""
     cases = set(cases)
     dead = [c for c in ("D", "SD") if c in cases]
     if not dead:
@@ -88,6 +90,7 @@ def _service_combinations(
     if live:
         result.append(terms((1.0, dead), (1.0, live)))
     wind = (0.6, 0.45, 0.6) if strength_level_wind else (1.0, 0.75, 1.0)
+    variants = _wind_variants(cases)
     for lateral, alone, with_live, light in (
         ("W", *wind),
         ("E", 0.7, 0.525, 0.7),
@@ -97,11 +100,50 @@ def _service_combinations(
             if case not in cases:
                 continue
             for sign in (1.0, -1.0):
-                result.append(terms((1.0, dead), (sign * alone, [case])))
-                if live:
-                    result.append(terms((1.0, dead), (0.75, live), (sign * with_live, [case])))
-                result.append(terms((0.6, dead), (sign * light, [case])))
+                # Wind: each design wind load case of Figure 6.2.9 (Case 1 alone, Cases 2-4
+                # when the model has them), as in the strength combinations.
+                shapes = variants(case, sign) if lateral == "W" else [("", {case: sign})]
+                for label, shape in shapes:
+                    suffix = f" [{label}]" if label else ""
+                    for head, scale in (
+                        ([(1.0, dead)], alone),
+                        ([(1.0, dead), (0.75, live)] if live else None, with_live),
+                        ([(0.6, dead)], light),
+                    ):
+                        if head is None:
+                            continue
+                        lateral_terms = [(scale * f, [c]) for c, f in shape.items()]
+                        name, factors = terms(*head, *lateral_terms)
+                        result.append((name + suffix, factors))
     return result
+
+
+def _wind_variants(cases: set[str]) -> Any:
+    """``(case, sign) -> [(label, {case: unit factor})]``: the design wind load cases of BNBC
+    2020 Part 6 Sec 2.4.11.3 and Figure 6.2.9 (p. 559 and pp. 574-575) of one wind direction,
+    from :func:`saengine.fem.loads.wind_design_variants` (one definition with the strength
+    combinations); Case 1 is labelled "" and duplicates are dropped. Only Case 1 when the code
+    pack has no design cases."""
+    from saengine.fem import loads as fl
+
+    design_cases = fl.wind_design_cases()
+    torsion = all(c in cases for c in fl.WIND_TORSION_CASES.values())
+
+    def variants(case: str, sign: float) -> list[tuple[str, dict[str, float]]]:
+        if design_cases is None:
+            return [("", {case: sign})]
+        out: list[tuple[str, dict[str, float]]] = []
+        seen: set[tuple[tuple[str, float], ...]] = set()
+        for label, factors in fl.wind_design_variants({case: sign}, design_cases, torsion):
+            factors = {c: f for c, f in factors.items() if f and c in cases}
+            key = tuple(sorted((c, round(f, 9)) for c, f in factors.items()))
+            if not factors or key in seen:
+                continue
+            seen.add(key)
+            out.append(("" if label == "Case 1" else label, factors))
+        return out
+
+    return variants
 
 
 def case_reactions(out_dir: str | Path) -> dict[str, dict[int, np.ndarray]]:

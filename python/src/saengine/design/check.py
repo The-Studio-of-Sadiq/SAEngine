@@ -20,6 +20,7 @@ puts the top bars in tension (hogging) and negative My the bottom bars (sagging)
 
 from __future__ import annotations
 
+import dataclasses
 import itertools
 import json
 import math
@@ -2179,6 +2180,11 @@ def _beam_torsion_checks(
             best = (ratio, design, point)
     assert best is not None
     _, design, (tu, vu, mu, _, combination, where) = best
+    # The shear's Av/s at the governing station, for Required steel's per-leg At/s + Av/(n s).
+    design = dataclasses.replace(
+        design,
+        av_s=torsion_design.shear_av_s(vu, design.vc, ts.d, design.fyt, design.phi, rules.fy_max),
+    )
     hogging = mu > 0
     try:
         d = section.effective_depth(top=hogging)

@@ -314,3 +314,32 @@ def test_foundation_demands_from_the_substructure_checks() -> None:
     assert cap_demand.failing and "thicker" in cap_demand.failing[0]
     assert raft_demand.moments["topY"].value == pytest.approx(80e6)
     assert raft_demand.failing and "larger foundation" in raft_demand.failing[0]
+
+
+def test_torsion_row_adds_the_shear_av_s_per_leg() -> None:
+    """Required steel's stirrup row asks each outer leg for At/s + Av/(n s), as the torsion
+    design check does (Sec 6.4.4.3.8), not At/s alone."""
+    from types import SimpleNamespace
+
+    from saengine.design.required import torsion_rows
+    from saengine.design.torsion import TorsionDesign
+
+    design = TorsionDesign(
+        tu=30e6, tu_design=30e6, kind="equilibrium", phi_tth=8e6, phi_tcr=30e6, required=True,
+        reduced=False, at_s=0.40, at_s_min=0.15, al=600.0, al_min=300.0, av_2at_s_min=0.3,
+        s_max=250.0, long_dia_min=10.0, stress=2.0, stress_limit=3.0, vc=100e3, fy=420.0,
+        fyt=420.0, phi=0.75, flanges=False, av_s=0.50,
+    )  # fmt: skip
+    transverse = SimpleNamespace(dia=10.0, spacing=150.0, legs=2)
+    member = {
+        "torsion": design,
+        "object": SimpleNamespace(reinforcement=SimpleNamespace(transverse=transverse)),
+        "id": "B1",
+        "type": "beam",
+    }
+    row = torsion_rows(member, assumed=False)[0]
+    assert row["required"] == pytest.approx((0.40 + 0.50 / 2) * 1000)
+    leg = math.pi * 25 / 150 * 1000  # Ø10 at 150: 523.6 mm²/m per leg
+    assert row["provided"] == pytest.approx(leg, abs=0.1)
+    # 523.6 covers At/s = 400 alone but not At/s + Av/(2s) = 650: the row fails.
+    assert row["ok"] is False
