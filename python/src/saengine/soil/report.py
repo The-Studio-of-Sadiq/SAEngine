@@ -2,7 +2,9 @@
 
 Functions take the file texts (``01 Soil Report/soil-report.json`` and, optionally,
 ``02 Project Settings/project-settings.json``) and return plain dicts, ``{"problems": [...]}``
-when the soil report cannot be read.
+when the soil report cannot be read. :func:`soil_report` computes each borehole on its own:
+one with a mistake, or one the computation fails on, is left out (``skipped``, with why in
+``warnings`` and, for a failure, the traceback in ``details``) and the others are computed.
 
 Lengths and depths are in mm (as in the file), pressures in kPa, ks in kN/m³, settlements in
 mm.
@@ -12,6 +14,7 @@ from __future__ import annotations
 
 import json
 import math
+import traceback
 from typing import Any
 
 from pydantic import ValidationError
@@ -64,6 +67,62 @@ def parse(soil_text: str) -> SoilReport | list[str]:
         return SoilReport.model_validate(data)
     except ValidationError as exc:
         return messages(exc, data)
+
+
+def parse_boreholes(soil_text: str) -> tuple[SoilReport | None, list[str], list[str]]:
+    """The report with only its valid boreholes, the problems of the others and their ids.
+
+    One borehole with a mistake (overlapping layers, an SPT below its bottom, a repeated id)
+    leaves the others to be computed. None (with the problems) when the report itself cannot
+    be read: not JSON, or its design options or site are wrong."""
+    try:
+        data = json.loads(soil_text) if soil_text.strip() else {}
+    except json.JSONDecodeError as exc:
+        return None, [f"Soil report: not valid JSON ({exc.msg}, line {exc.lineno})"], []
+    if is_placeholder(data) or data == {}:
+        return SoilReport(), [], []
+    try:
+        return SoilReport.model_validate(data), [], []
+    except ValidationError as exc:
+        first = exc
+    boreholes = data.get("boreholes") if isinstance(data, dict) else None
+    if not isinstance(boreholes, list):
+        return None, messages(first, data), []
+    shell = {k: v for k, v in data.items() if k != "boreholes"}
+    problems: list[str] = []
+    bad: set[int] = set()
+    seen: set[Any] = set()
+    for i, hole in enumerate(boreholes):
+        alone = {**shell, "boreholes": [hole]}
+        try:
+            SoilReport.model_validate(alone)
+        except ValidationError as exc:
+            bad.add(i)
+            problems += messages(exc, alone)
+            continue
+        if hole.get("id") in seen:
+            bad.add(i)
+            problems.append(f"Soil report: two boreholes are called {hole.get('id')}")
+        seen.add(hole.get("id"))
+    kept = [hole for i, hole in enumerate(boreholes) if i not in bad]
+    try:
+        report = SoilReport.model_validate({**shell, "boreholes": kept})
+    except ValidationError:
+        return None, messages(first, data), []
+    skipped = [
+        str(hole.get("id") or f"borehole {i + 1}")
+        if isinstance(hole, dict)
+        else f"borehole {i + 1}"
+        for i, hole in enumerate(boreholes)
+        if i in bad
+    ]
+    return report, problems, skipped
+
+
+def _failure(borehole: str, exc: Exception, problems: list[str], details: list[str]) -> None:
+    """A borehole the computation failed on: a short problem, the traceback for the details."""
+    problems.append(f"{borehole}: its results could not be computed ({type(exc).__name__}: {exc})")
+    details.append(f"{borehole}:\n" + "".join(traceback.format_exception(exc)))
 
 
 def _settings(settings_text: str | None) -> tuple[ProjectSettings, list[str]]:
@@ -204,14 +263,33 @@ def classify(
 
 def soil_report(soil_text: str, settings_text: str | None = None) -> dict[str, Any]:
     """Everything computed from the soil report, per borehole and for the project."""
-    report = parse(soil_text)
-    if isinstance(report, list):
-        return {"problems": report}
+    report, problems, skipped = parse_boreholes(soil_text)
+    if report is None:
+        return {"problems": problems}
+    details: list[str] = []
     settings, notes = _settings(settings_text)
     notes += check(report)
     design = report.design
-    profiles = [Profile(report, b) for b in report.boreholes]
-    classified = classify(report, settings, profiles)
+    profiles = []
+    for b in report.boreholes:
+        try:
+            profiles.append(Profile(report, b))
+        except Exception as exc:  # noqa: BLE001 - one borehole must not blank the others
+            _failure(b.id, exc, problems, details)
+            skipped.append(b.id)
+    try:
+        classified = classify(report, settings, profiles)
+    except Exception:  # noqa: BLE001 - find the borehole(s) it fails on and leave them out
+        kept = []
+        for p in profiles:
+            try:
+                classify(report, settings, [p])
+                kept.append(p)
+            except Exception as exc:  # noqa: BLE001
+                _failure(p.id, exc, problems, details)
+                skipped.append(p.id)
+        profiles = kept
+        classified = classify(report, settings, profiles)
     sites, screenings = classified["sites"], classified["screenings"]
     amax, amax_note, liquefiable = (
         classified["amax"],
@@ -224,7 +302,13 @@ def soil_report(soil_text: str, settings_text: str | None = None) -> dict[str, A
             f"The project settings use site class {settings.site.siteClass}; the boreholes give "
             f"{project_site['class']}. Update Project Settings → Site class."
         )
-    boreholes = [_borehole(p, sites[p.id], screenings[p.id]) for p in profiles]
+    boreholes = []
+    for p in profiles:
+        try:
+            boreholes.append(_borehole(p, sites[p.id], screenings[p.id]))
+        except Exception as exc:  # noqa: BLE001 - one borehole must not blank the others
+            _failure(p.id, exc, problems, details)
+            skipped.append(p.id)
     if liquefiable:
         notes.append(
             site_class.S2_NOTE.format(cls=project_site["class"] or "SD")
@@ -254,6 +338,10 @@ def soil_report(soil_text: str, settings_text: str | None = None) -> dict[str, A
             ),
         },
         "notes": notes,
+        # Per borehole; "problems" stays the key of a report that cannot be read at all.
+        "warnings": problems,
+        "skipped": skipped,
+        "details": details,
     }
 
 

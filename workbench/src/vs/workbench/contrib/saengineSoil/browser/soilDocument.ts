@@ -493,6 +493,9 @@ export interface ISiteClassResult {
 	/** Depth the average is taken over [mm]. */
 	readonly depth?: number;
 	readonly note?: string;
+	/** The class by N̄ and by s̄u of Table 6.2.13 (the softer governs). */
+	readonly byN?: string;
+	readonly bySu?: string;
 }
 
 /** One footing size of the allowable bearing table. */
@@ -620,6 +623,10 @@ export interface ISoilResults {
 	readonly permissibleSettlementSource?: string;
 	readonly problems?: readonly string[];
 	readonly notes?: readonly string[];
+	/** The boreholes left out of the results (a mistake in them, or the computation failed). */
+	readonly skipped?: readonly string[];
+	/** What a failed computation printed (tracebacks), behind "Show details". */
+	readonly details?: readonly string[];
 }
 
 // ───────────────────────────── the backend's results ─────────────────────────────
@@ -635,6 +642,9 @@ export interface IBackendSiteClass {
 	readonly su?: Maybe<number>;
 	readonly depth?: Maybe<number>;
 	readonly note?: Maybe<string>;
+	/** The class by N̄ and by s̄u alone. */
+	readonly byN?: Maybe<string>;
+	readonly bySu?: Maybe<string>;
 	/** The project's: the governing borehole's id. */
 	readonly governing?: Maybe<string>;
 	/** Special classes the profile may be (S1, S2): objects or "S2: why" strings. */
@@ -705,6 +715,24 @@ export interface IBackendSoilReport {
 	readonly methods?: { readonly spt?: Maybe<string>; readonly bearing?: Maybe<string>; readonly liquefaction?: Maybe<string>; readonly siteClass?: Maybe<string>; readonly settlement?: Maybe<string> };
 	readonly problems?: readonly string[];
 	readonly notes?: readonly string[];
+	/** Per borehole: why one was left out (the report itself was read). */
+	readonly warnings?: readonly string[];
+	readonly skipped?: readonly string[];
+	readonly details?: readonly string[];
+}
+
+/**
+ * A backend error for the engineer: one line (a Python traceback's last line, the exception),
+ * and the whole text as the details for a bug report.
+ */
+export function splitError(message: string): { readonly summary: string; readonly details?: string } {
+	const lines = message.split(/\r?\n/).map(l => l.trimEnd()).filter(Boolean);
+	if (lines.length <= 1) {
+		return { summary: message.trim() };
+	}
+	const traceback = lines.findIndex(l => l.includes('Traceback (most recent call last)'));
+	const summary = traceback >= 0 ? lines[lines.length - 1].trim() : lines[0].trim();
+	return { summary, details: message.trim() };
 }
 
 function num(value: unknown): number | undefined {
@@ -753,7 +781,7 @@ export function readSoilResults(raw: unknown): ISoilResults | undefined {
 		}
 		return {
 			id,
-			siteClass: site && str(site.class) ? { class: str(site.class)!, nBar: num(site.N) ?? null, suBar: num(site.su) ?? null, depth: num(site.depth), note: str(site.note) } : undefined,
+			siteClass: site && str(site.class) ? { class: str(site.class)!, nBar: num(site.N) ?? null, suBar: num(site.su) ?? null, depth: num(site.depth), note: str(site.note), byN: str(site.byN), bySu: str(site.bySu) } : undefined,
 			spt: list(b.profile).filter(isRecord).map(s => ({ depth: s.depth, N: s.N, N60: num(s.N60), N160: num(s.N160), N160cs: cs.get(s.depth) })),
 			liquefaction: liquefaction ? {
 				method: liquefactionMethod,
@@ -822,8 +850,10 @@ export function readSoilResults(raw: unknown): ISoilResults | undefined {
 		siteClassFlags: readFlags(backend),
 		permissibleSettlement: permissible?.value,
 		permissibleSettlementSource: permissible?.source,
-		problems: strings(backend.problems),
+		problems: [...strings(backend.problems), ...strings(backend.warnings)],
 		notes: strings(backend.notes),
+		skipped: strings(backend.skipped),
+		details: strings(backend.details),
 	};
 }
 
@@ -1041,6 +1071,57 @@ export function nextBoreholeId(report: ISoilReport): string {
 	return `BH-${n}`;
 }
 
+/** What to do with an imported borehole whose id the report already has. */
+export type DuplicateChoice = 'replace' | 'keepBoth' | 'skip';
+
+export interface IMergeResult {
+	readonly added: readonly string[];
+	readonly replaced: readonly string[];
+	/** Kept both: the imported borehole under a new id. */
+	readonly renamed: readonly { readonly from: string; readonly to: string }[];
+	readonly skipped: readonly string[];
+}
+
+/** The ids of `incoming` boreholes the report already has, in the file's order. */
+export function duplicateIds(report: ISoilReport, incoming: readonly IBorehole[]): string[] {
+	const ids = new Set(report.boreholes.map(b => b.id));
+	return incoming.filter(b => ids.has(b.id)).map(b => b.id);
+}
+
+/**
+ * Merges imported boreholes into the report: a new id is added at the end; an id the report
+ * has is replaced in place, kept beside it under the next free "-2", "-3" suffix, or skipped.
+ */
+export function mergeBoreholes(report: ISoilReport, incoming: readonly IBorehole[], choice: DuplicateChoice): IMergeResult {
+	const added: string[] = [];
+	const replaced: string[] = [];
+	const renamed: { from: string; to: string }[] = [];
+	const skipped: string[] = [];
+	const used = new Set([...report.boreholes.map(b => b.id), ...incoming.map(b => b.id)]);
+	for (const borehole of incoming) {
+		const index = report.boreholes.findIndex(b => b.id === borehole.id);
+		if (index < 0) {
+			report.boreholes.push(borehole);
+			added.push(borehole.id);
+		} else if (choice === 'replace') {
+			report.boreholes[index] = borehole;
+			replaced.push(borehole.id);
+		} else if (choice === 'skip') {
+			skipped.push(borehole.id);
+		} else {
+			let n = 2;
+			while (used.has(`${borehole.id}-${n}`)) {
+				n++;
+			}
+			const to = `${borehole.id}-${n}`;
+			used.add(to);
+			renamed.push({ from: borehole.id, to });
+			report.boreholes.push({ ...borehole, id: to });
+		}
+	}
+	return { added, replaced, renamed, skipped };
+}
+
 /**
  * A new borehole beside the last one with nothing logged yet: no termination depth, no layers,
  * no records. The engineer enters them from the log sheet; nothing is made up.
@@ -1067,6 +1148,19 @@ export function boreholeDepth(borehole: IBorehole): number {
 	];
 	return Math.max(0, ...depths);
 }
+
+/** The depth the borehole was drilled to as logged: its termination depth, else the deepest record [mm]. */
+export function terminationDepth(borehole: IBorehole): number {
+	return typeof borehole.depth === 'number' ? borehole.depth : boreholeDepth(borehole);
+}
+
+/** Whether a sample has lab results (an SPT row without them is not a lab sample). */
+export function hasLabData(sample: ISoilSample): boolean {
+	return Object.entries(sample).some(([key, value]) => !SAMPLE_RECORD_KEYS.has(key) && value !== undefined && value !== null && value !== '');
+}
+
+/** What a sample row records besides lab results: where it was taken and how. */
+const SAMPLE_RECORD_KEYS = new Set(['depth', 'depthTo', 'type', 'number', 'description', 'uscs', 'recovery']);
 
 /** The ground elevation of a borehole [mm]: its own, or the report's. */
 export function boreholeGround(report: ISoilReport, borehole: IBorehole): number {
@@ -1333,8 +1427,40 @@ export function checkSoilReport(report: ISoilReport): ISoilProblem[] {
 		if (!borehole.layers.length) {
 			problem({ borehole: id, path: 'layers', message: localize('soil.p.noLayers', "{0} has no layers yet.", id), severity: 'warning' });
 		}
+		const away = distanceFromSite(report, borehole);
+		if (away !== undefined && away > FAR_FROM_SITE) {
+			const path = boreholePosition(borehole) === 'wgs84' ? 'lat' : 'x';
+			problem({ borehole: id, path, message: localize('soil.p.farFromSite', "{0} is {1} m from the site: check its position.", id, formatNumber(away, 0)), severity: 'warning' });
+		}
 	});
 	return problems;
+}
+
+/** A borehole further than this from the site point is probably misplaced [m]. */
+export const FAR_FROM_SITE = 200;
+
+/**
+ * How far a borehole is from the site point on the map [m]: by latitude and longitude when it
+ * is placed by them, else by its project X and Y from the site's project point. Undefined when
+ * the site has no position, or the borehole is placed by BTM (that needs the backend).
+ */
+export function distanceFromSite(report: ISoilReport, borehole: IBorehole): number | undefined {
+	const site = report.site;
+	if (typeof site?.lat !== 'number' || typeof site.lon !== 'number') {
+		return undefined;
+	}
+	const position = boreholePosition(borehole);
+	if (position === 'wgs84' && typeof borehole.lat === 'number' && typeof borehole.lon === 'number') {
+		const radians = Math.PI / 180;
+		const dLat = (borehole.lat - site.lat) * radians;
+		const dLon = (borehole.lon - site.lon) * radians;
+		const a = Math.sin(dLat / 2) ** 2 + Math.cos(site.lat * radians) * Math.cos(borehole.lat * radians) * Math.sin(dLon / 2) ** 2;
+		return 2 * 6371008.8 * Math.asin(Math.min(1, Math.sqrt(a)));
+	}
+	if (position === 'project') {
+		return Math.hypot(borehole.x - (site.x ?? 0), borehole.y - (site.y ?? 0)) / 1000;
+	}
+	return undefined;
 }
 
 /** What the sidebar says about the part (see `partStatus`): "3 boreholes", "no boreholes". */

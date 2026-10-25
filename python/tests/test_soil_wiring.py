@@ -165,10 +165,15 @@ def test_soil_handlers() -> None:
 def test_soil_template_and_import_round_trip(tmp_path: Path) -> None:
     template = tmp_path / "boreholes.csv"
     assert handlers.soil_template(str(template)) == {"path": str(template)}
+    # The template's example borehole is never imported (it would replace a real BH-1).
     imported = handlers.import_soil(str(template), PLACEHOLDER)
-    # The template's example borehole imports into the empty report.
-    assert [b["id"] for b in json.loads(imported["text"])["boreholes"]] == ["BH-1"]
-    assert imported["notes"][0].startswith("BH-1: added (3 layers")
+    assert "EXAMPLE-1" in imported["problems"][0]
+    rows = template.read_text(encoding="utf-8-sig").splitlines()
+    rows += [row.replace("EXAMPLE-1", "BH-7", 1) for row in rows[1:]]
+    template.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    imported = handlers.import_soil(str(template), PLACEHOLDER)
+    assert [b["id"] for b in json.loads(imported["text"])["boreholes"]] == ["BH-7"]
+    assert any(n.startswith("BH-7: added (3 layers") for n in imported["notes"])
 
 
 def test_soil_methods_over_the_stdio_server(tmp_path: Path) -> None:
@@ -200,7 +205,7 @@ def test_soil_methods_over_the_stdio_server(tmp_path: Path) -> None:
         template = str(tmp_path / "t.xlsx")
         assert _rpc(proc, 3, "soil/template", {"path": template})["result"] == {"path": template}
         imported = _rpc(proc, 4, "soil/import", {"path": template, "soilText": PLACEHOLDER})
-        assert "text" in imported["result"]
+        assert "EXAMPLE-1" in imported["result"]["problems"][0]
         settlement = _rpc(
             proc,
             5,
