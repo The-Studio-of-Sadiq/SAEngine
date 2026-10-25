@@ -120,6 +120,28 @@ suite('SAEngine - FEM derivation', () => {
 		});
 	});
 
+	test('stamps the fire pumps and overhead fire tanks, not ground tanks or labels, as the Python side does', () => {
+		// The same text and stamp as python/tests/test_fire.py::test_mep_stamp_takes_the_fire_pumps_and_overhead_tanks.
+		const text = '{"schema": "saengine.mep/1", "equipment": [], "fire": {"supply": {"standby": "electric"}, "stories": [{"story": "L1"}], "pumps": [{"id": "FP1", "duty": "main", "story": "B1", "x": 1500.5, "y": 2000, "name": "x"}], "tanks": [{"id": "FT1", "kind": "overhead", "story": "ROOF", "x": 9500, "y": 2500}, {"id": "FT2", "kind": "underground", "x": 1, "y": 2}]}}';
+		assert.deepStrictEqual({
+			stamp: mepModelStamp(text),
+			pumpMoved: mepModelStamp(text.replace('1500.5', '1600')) === mepModelStamp(text),
+			standbyChanged: mepModelStamp(text.replace('"electric"', '"diesel"')) === mepModelStamp(text),
+			groundMoved: mepModelStamp(text.replace('"x": 1,', '"x": 5,')) === mepModelStamp(text),
+			relabelled: mepModelStamp(text.replace('"name": "x"', '"name": "y"')) === mepModelStamp(text),
+			storiesOnly: mepModelStamp('{"schema": "saengine.mep/1", "equipment": [], "fire": {"stories": [{"story": "L1"}]}}') === mepModelStamp('{"schema": "saengine.mep/1", "equipment": []}'),
+			hasContent: [mepHasContent(text), mepHasContent('{"fire": {"stories": [{"story": "L1"}], "tanks": [{"id": "FT2", "kind": "underground"}]}}')],
+		}, {
+			stamp: 'a3ba7667df075cddcf264621c03d52fd95bd27a2',
+			pumpMoved: false,
+			standbyChanged: false,
+			groundMoved: true,
+			relabelled: true,
+			storiesOnly: true,
+			hasContent: [true, false],
+		});
+	});
+
 	test('stamps the plumbing\'s overhead tanks, not its ground tanks, as the Python side does', () => {
 		// The same text and stamps as python/tests/test_plumbing_integration.py::test_mep_stamp_of_the_plumbing_tanks_matches_the_workbench.
 		const text = '{"schema": "saengine.mep/1", "equipment": [], "plumbing": {"stories": [{"story": "L1"}], "tanks": [{"id": "T1", "kind": "overhead", "story": "L3", "x": 9500, "y": 2500.5, "length": 2200}, {"id": "SEP1", "kind": "septic", "x": 1, "y": 2}]}}';

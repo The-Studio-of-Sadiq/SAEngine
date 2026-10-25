@@ -1212,10 +1212,11 @@ class FireStory(_Model):
     """A story's use and what protects it."""
 
     story: Id = Field(description="Building-model story.")
-    occupancy: Occupancy = Field(  # type: ignore[valid-type]
-        default="office",
+    occupancy: Occupancy | None = Field(  # type: ignore[valid-type]
+        default=None,
         description="Use (Part 3 occupancy group in brackets): it sets the systems (Part 4 "
-        "Chapter 5) and the hazard (Table 4.4.1).",
+        "Chapter 5) and the hazard (Table 4.4.1); empty: the story's use in Plumbing, else "
+        "office.",
         json_schema_extra=_labels(
             [f"{OCCUPANCIES[k].label} ({OCCUPANCIES[k].group})" for k in OCCUPANCY_KEYS]
         ),

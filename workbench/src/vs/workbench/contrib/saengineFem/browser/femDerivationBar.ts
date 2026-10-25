@@ -78,8 +78,9 @@ export function mepHasContent(text: string | undefined): boolean {
 		const value = text ? JSON.parse(text) : undefined;
 		const listed = (list: unknown) => Array.isArray(list) && list.length > 0;
 		return typeof value === 'object' && value !== null && (['equipment', 'openings', 'shafts'].some(key => listed(value[key]))
-			// The HVAC plant and the electrical equipment load the model as equipment too.
-			|| listed(value.hvac?.plant) || listed(value.electrical?.equipment));
+			// The HVAC plant, the electrical equipment, the fire pumps and overhead fire tanks load the model as equipment too.
+			|| listed(value.hvac?.plant) || listed(value.electrical?.equipment) || listed(value.fire?.pumps)
+			|| (Array.isArray(value.fire?.tanks) && value.fire.tanks.some((t: { kind?: unknown } | null) => t?.kind === 'overhead')));
 	} catch {
 		return false;
 	}

@@ -164,13 +164,14 @@ def _group(rules: list[Rule], ctx: Context, key: str, stories: list[str], underg
     elif group == "F2":
         if underground:
             rule(T.cite("5.8.2", "(iii)"), "underground mercantile: automatic alarm, sprinklers "
-                 "and standpipe with portable extinguishers",
-                 required=["automaticAlarm", "sprinklers", "hydrant", "extinguishers"])  # fmt: skip
+                 "and standpipe with performance based portable extinguishers",
+                 required=["automaticAlarm", "sprinklers", "hydrant"],
+                 performance=["extinguishers"])  # fmt: skip
             return
         if ctx.undivided > 500:
-            rule(T.cite("5.8.2", "(ii)"), "over 500 m² undivided on a floor: manual alarm, "
-                 "hydrants and portable extinguishers",
-                 required=["manualAlarm", "hydrant", "extinguishers"])  # fmt: skip
+            rule(T.cite("5.8.2", "(ii)"), "over 500 m² undivided on a floor: manual alarm and "
+                 "hydrants with performance based portable extinguishers",
+                 required=["manualAlarm", "hydrant"], performance=["extinguishers"])  # fmt: skip
         else:
             rule(T.cite("5.8.2", "(i)"), "manual alarm with portable extinguishers or hydrant",
                  required=["manualAlarm"], any_of=["extinguishers", "hydrant"])  # fmt: skip
@@ -273,7 +274,13 @@ def requirements(
     level (m above ground), sprinklered}`` of each fire story; ``height`` the building's [m],
     ``storeys`` its stories above ground, ``top_occupied`` the highest occupied floor [m];
     ``building`` the 07 MEP ``fire.building``."""
-    high_rise = storeys > T.HIGH_RISE_STOREYS or top_occupied > T.HIGH_RISE_HEIGHT
+    # Part 1 (p6): more than 10 storeys or 33 m high; Part 3 Sec 2.4.4 (p94): an occupied floor
+    # more than 33 m above the ground.
+    high_rise = (
+        storeys > T.HIGH_RISE_STOREYS
+        or height > T.HIGH_RISE_HEIGHT
+        or top_occupied > T.HIGH_RISE_HEIGHT
+    )
     floors = [s["area"] for s in stories if s["level"] >= 0] or [s["area"] for s in stories]
     ctx = Context(
         high_rise=high_rise,
@@ -362,9 +369,11 @@ def requirements(
         "height": round(height, 2),
         "topOccupied": round(top_occupied, 2),
         "highRiseNote": (
-            f"{storeys} {'storey' if storeys == 1 else 'storeys'} above ground, highest occupied floor {top_occupied:.1f} m: "
+            f"{storeys} {'storey' if storeys == 1 else 'storeys'} above ground, {height:.1f} m "
+            f"high, highest occupied floor {top_occupied:.1f} m: "
             f"{'high-rise' if high_rise else 'not high-rise'} (more than "
-            f"{T.HIGH_RISE_STOREYS} storeys or 33 m, {T.PAGES['high-rise']})"
+            f"{T.HIGH_RISE_STOREYS} storeys, 33 m high or an occupied floor above 33 m, "
+            f"{T.PAGES['high-rise']})"
         ),
         "systems": [
             {

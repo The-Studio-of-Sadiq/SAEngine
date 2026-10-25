@@ -131,7 +131,7 @@ def systems_case(_: Path) -> Outcome:
                 "offices, high-rise (Sec 5.7(xi)): manual alarm + hydrant system",
                 (
                     "B1 large shops below ground (Sec 5.8.2(iii)): automatic alarm + sprinklers + "
-                    "standpipe + portable extinguishers"
+                    "standpipe; portable extinguishers performance based"
                 ),
                 "4 systems required: manual alarm, hydrant, sprinklers, automatic alarm",
             ],

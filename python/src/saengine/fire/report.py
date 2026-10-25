@@ -90,6 +90,33 @@ def _new_id(base: str, taken: set[str]) -> str:
     return f"{base}{i}"
 
 
+def fire_stories(mep: MepModel) -> tuple[list[Any], list[str]]:
+    """The fire section's stories with their use resolved, and notes: a story's use is entered
+    once, in Plumbing; a fire story without one takes its plumbing use (else office), and the
+    plumbing stories the fire section does not list are fire stories too."""
+    from saengine.library.mep import FireStory
+
+    fire = mep.fire
+    if fire is None:
+        return [], []
+    plumbing = {s.story: s.occupancy for s in mep.plumbing.stories} if mep.plumbing else {}
+    out, notes, defaulted = [], [], []
+    for s in fire.stories:
+        occupancy = s.occupancy or plumbing.get(s.story)
+        if occupancy is None:
+            defaulted.append(s.story)
+        out.append(s.model_copy(update={"occupancy": occupancy or "office"}))
+    listed = {s.story for s in fire.stories}
+    from_plumbing = [k for k in plumbing if k not in listed]
+    out.extend(FireStory(story=k, occupancy=plumbing[k]) for k in from_plumbing)
+    taken = [s.story for s in fire.stories if s.occupancy is None and s.story in plumbing]
+    if taken or from_plumbing:
+        notes.append(f"use of {', '.join([*taken, *from_plumbing])} as in Plumbing")
+    if defaulted:
+        notes.append(f"{', '.join(defaulted)}: no use given here or in Plumbing: office taken")
+    return out, notes
+
+
 def references(mep: MepModel, building: Building) -> list[str]:
     """Problems with the stories and shafts the fire section refers to."""
     fire = mep.fire
@@ -191,15 +218,15 @@ def fire_results(
     fire = mep.fire
     if fire is None:
         return _empty(problems, "07 MEP has no fire section")
-    notes: list[str] = []
+    entries, notes = fire_stories(mep)
     checks: list[dict[str, Any]] = []
-    order = building.ordered([s.story for s in fire.stories]) if building.known else [
-        s.story for s in fire.stories]  # fmt: skip
+    order = building.ordered([s.story for s in entries]) if building.known else [
+        s.story for s in entries]  # fmt: skip
     material = fire.supply.material
 
     # Stories.
     rows: list[dict[str, Any]] = []
-    for entry in fire.stories:
+    for entry in entries:
         if building.known and entry.story not in building.stories:
             continue
         area = entry.area or building.floor_area(entry.story)
@@ -218,7 +245,7 @@ def fire_results(
         })  # fmt: skip
     rows.sort(key=lambda r: r["level"])
     if not rows:
-        return _empty(problems, "no fire stories: add the stories and their occupancy")
+        return _empty(problems, "no fire stories: give the stories' use (here or in Plumbing)")
     levels = [building.height(s) / 1000.0 for s in building.stories] if building.known else [
         r["level"] for r in rows]  # fmt: skip
     height = max(max(levels, default=0.0), max(r["level"] for r in rows))
@@ -1240,6 +1267,9 @@ def fire_equipment(mep: MepModel, materials: Any = None) -> tuple[list[dict[str,
     if fire is None:
         return [], []
     out, notes = [], []
+    plumbing_overhead = [
+        t for t in (mep.plumbing.tanks if mep.plumbing is not None else []) if t.kind == "overhead"
+    ]
     for p in fire.pumps:
         if p.equipment:
             notes.append(f"{p.id}: its weight is that of equipment {p.equipment}")
@@ -1277,6 +1307,14 @@ def fire_equipment(mep: MepModel, materials: Any = None) -> tuple[list[dict[str,
             continue
         if t.equipment is not None:
             notes.append(f"{t.id}: its weight is that of equipment {t.equipment}")
+            continue
+        same = next((p for p in plumbing_overhead if p.story == t.story
+                     and abs(p.x - t.x) <= (p.length or 0) / 2
+                     and abs(p.y - t.y) <= (p.width or 0) / 2), None)  # fmt: skip
+        if same is not None:
+            notes.append(f"{t.id}: stands where plumbing tank {same.id} is; its weight is taken "
+                         f"as {same.id}'s (enter the tank once: in Plumbing with its fire "
+                         f"reserve, or here)")  # fmt: skip
             continue
         try:
             from saengine.plumbing.tanks import tank_equipment

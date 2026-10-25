@@ -9,7 +9,7 @@ import { appendPropertyHeading, appendPropertyNote, appendPropertyRow } from '..
 import { formatNumber, IFieldSpec } from '../../saengineSoil/browser/soilDocument.js';
 import { IMepFormHost, ITEM_FIELDS, settingsGrid, storyRowIds, UNIT_KN, UNIT_MM } from './mepForm.js';
 import { storyFloorArea } from './mepRead.js';
-import { IOccupancy, ITank } from './plumbingDocument.js';
+import { IOccupancy, ITank, plumbingOf } from './plumbingDocument.js';
 import {
 	CEILINGS, CONSTRUCTIONS, CORRIDORS, ensureFire, FIRE_HAZARDS, FIRE_PUMP_DUTIES, FIRE_RISER_SYSTEMS, fireChoiceLabel, fireOf, firePumpLabel, firePumpLetters, fireRiserLabel, fireRiserLetters,
 	fireStatusLabel, fireStoryRow, FireRiserSystem, hazardLabel, HOSES, IFirePump, IFireReport, IFireRiser, PIPE_MATERIALS, PUMP_TYPES, STANDBYS, STORAGES,
@@ -76,7 +76,7 @@ export function renderFireData(view: HTMLElement, host: IMepFormHost, occupancie
 	choice(() => f().building, 'construction', CONSTRUCTIONS, localize('fireView.f.construction', "Construction"), fire?.building.construction, localize('fireView.f.constructionTitle', "Sec 5.2: any other than Type I-A needs performance based fire protection"));
 	choice(() => f().building, 'corridor', CORRIDORS, localize('fireView.f.corridor', "Corridor"), fire?.building.corridor, localize('fireView.f.corridorTitle', "Hostels, hotels and schools (Sec 5.3.3, 5.3.4, 5.4)"));
 	for (const field of [E.dwellingUnits, E.occupantLoad, E.falseCeiling]) {
-		setting(field.label, host.textInput(field, fire?.building[field.key], v => host.setField(f().building, field.key, v), `fire.building.${field.key}`), field.unit, field.title);
+		setting(field.label, host.textInput(field, fire?.building[field.key], v => host.setField(f().building, field.key, v), `fire.building.${field.key}`), (field as IFieldSpec).unit, field.title);
 	}
 	setting(localize('fireView.f.hydrant', "Hydrant system"), triState(host, fire?.hydrant, v => {
 		if (v === undefined) {
@@ -113,11 +113,18 @@ export function renderFireData(view: HTMLElement, host: IMepFormHost, occupancie
 		{ label: localize('fireView.f.story', "Storey"), width: 110 }, { label: localize('fireView.f.occupancy', "Use (Part 3 group)"), width: 300 },
 		{ label: E.area.label, unit: M2, numeric: true, width: 76 }, { label: E.undivided.label, unit: M2, numeric: true, width: 76 },
 		{ label: localize('fireView.f.hazard', "Hazard"), width: 160 }, { label: localize('fireView.f.sprinklered', "Sprinklers"), width: 140 },
+		{ label: localize('fireView.f.ceiling', "Above the sprinklers"), width: 190 },
 		{ label: localize('fireView.f.slabs', "Slabs"), unit: M2, numeric: true, width: 64 }, { label: '', width: 28 },
 	];
 	host.tableHead(table, columns);
 	const body = append(table, $('tbody'));
-	const occupancyOptions = occupancies.map(o => ({ value: o.key, label: o.source ? `${o.label} (${o.source.split(' ').pop()})` : o.label }));
+	const occupancyOptions = occupancies.map(o => {
+		const group = o.group ?? o.source?.split(' ').pop();
+		return { value: o.key, label: group ? `${o.label} (${group})` : o.label };
+	});
+	// A storey's use is entered once, in Plumbing: an empty fire use takes it (else office).
+	const plumbingUse = new Map((plumbingOf(document)?.stories ?? []).map(s => [s.story, s.occupancy]));
+	const useLabel = (key: string | undefined) => occupancyOptions.find(o => o.value === key)?.label ?? key ?? '';
 	for (const storyId of storyRowIds(host.context, rows)) {
 		const index = rows.findIndex(r => r.story === storyId);
 		const row = rows[index];
@@ -125,7 +132,11 @@ export function renderFireData(view: HTMLElement, host: IMepFormHost, occupancie
 		const path = (field: string) => index >= 0 ? `fire.stories.${index}.${field}` : `fire.new.${storyId}.${field}`;
 		const target = () => fireStoryRow(f(), storyId);
 		append(tr, $('td', undefined, host.storyName(storyId)));
-		append(append(tr, $('td')), host.selectInput(occupancyOptions, String(row?.occupancy ?? ''), v => host.setOptional(target(), 'occupancy', v), path('occupancy'), localize('fireView.f.occupancyOf', "Use of {0}", host.storyName(storyId)), true));
+		const inherited = plumbingUse.get(storyId);
+		const fallback = inherited
+			? localize('fireView.asPlumbing', "As Plumbing: {0}", useLabel(inherited))
+			: row ? localize('fireView.officeDefault', "Office (no use in Plumbing)") : '—';
+		append(append(tr, $('td')), host.selectInput([{ value: '', label: fallback }, ...occupancyOptions], String(row?.occupancy ?? ''), v => host.setOptional(target(), 'occupancy', v), path('occupancy'), localize('fireView.f.occupancyOf', "Use of {0}", host.storyName(storyId))));
 		for (const field of [E.area, E.undivided]) {
 			append(append(tr, $('td')), host.textInput(field, row?.[field.key], v => host.setField(target(), field.key, v), path(field.key)));
 		}
@@ -139,6 +150,7 @@ export function renderFireData(view: HTMLElement, host: IMepFormHost, occupancie
 			}
 			host.changed(true);
 		}, path('sprinklered'), localize('fireView.f.sprinklered', "Sprinklers")));
+		append(append(tr, $('td')), host.selectInput(options(CEILINGS), String(row?.ceiling ?? ''), v => host.setOptional(target(), 'ceiling', v), path('ceiling'), localize('fireView.f.ceilingOf', "Construction above the sprinklers of {0} (Table 4.4.7)", host.storyName(storyId)), true));
 		const area = storyFloorArea(host.context, storyId);
 		append(tr, $('td.number.mep-muted-cell', undefined, area ? formatNumber(area, 0) : ''));
 		if (row) {
@@ -150,7 +162,7 @@ export function renderFireData(view: HTMLElement, host: IMepFormHost, occupancie
 			append(tr, $('td'));
 		}
 	}
-	append(stories, $('p.mep-note', undefined, localize('fireView.storiesNote', "Give the occupied storeys' use: the hazard follows Table 4.4.1 by the Part 3 group unless chosen; sprinklers where Part 4 requires them unless chosen.")));
+	append(stories, $('p.mep-note', undefined, localize('fireView.storiesNote', "Each storey's use comes from Plumbing unless chosen here: the hazard follows Table 4.4.1 by the Part 3 group unless chosen; sprinklers where Part 4 requires them unless chosen.")));
 
 	renderRiserTable(host, actions);
 	renderPumpTable(host, actions);

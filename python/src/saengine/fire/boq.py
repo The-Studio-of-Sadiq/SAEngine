@@ -34,10 +34,11 @@ def measure_fire(measure: Any, designs: dict[str, Any] | None = None) -> bool:
     whether there was anything to measure."""
     mep = measure.mep
     fire = getattr(mep, "fire", None)
-    if fire is None or not (fire.stories or fire.risers or fire.tanks or fire.pumps):
+    from saengine.fire.report import fire_results, fire_stories
+
+    if fire is None or not (fire_stories(mep)[0] or fire.risers or fire.tanks or fire.pumps):
         return False
     from saengine.boq.quantities import MM2, MM3, TANK_BARS_PENDING, WORKING_SPACE
-    from saengine.fire.report import fire_results
     from saengine.library.mep import FIRE_PUMP_DUTIES
     from saengine.plumbing.project import tank_stamp
     from saengine.plumbing.tanks import TankContext, tank_spec, volumes

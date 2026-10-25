@@ -74,6 +74,23 @@ def test_underground_mercantile_needs_sprinklers() -> None:
     assert status["hydrant"] == "required"  # 5.8.2(ii): B1's 800 m² undivided over 500 m²
 
 
+def test_covered_and_underground_mercantile_extinguishers_performance_based() -> None:
+    # Sec 5.8.2(ii)-(iii) (p351): "... with performance based portable fire extinguisher"
+    covered = _status([{"story": "GF", "occupancy": "largeShop", "area": 800}])
+    assert covered["hydrant"] == covered["manualAlarm"] == "required"
+    assert covered["extinguishers"] == "performance"
+    under = _status([{"story": "B1", "occupancy": "largeShop", "area": 400, "level": -3.5}])
+    assert under["sprinklers"] == "required" and under["extinguishers"] == "performance"
+
+
+def test_high_rise_by_the_building_height() -> None:
+    # Part 1 definitions (p6): more than 10 storeys or 33 m high; Part 3 Sec 2.4.4 (p94): an
+    # occupied floor above 33 m. A 34 m building whose top occupied floor is at 30 m is high-rise.
+    rows = [{"story": "L1", "occupancy": "residentialFlat", "area": 400}]
+    assert _status(rows, height=34.0, storeys=9, top_occupied=30.0)["hydrant"] == "required"
+    assert _status(rows, height=33.0, storeys=9, top_occupied=30.0)["hydrant"] == "notRequired"
+
+
 def test_moderate_industry_and_hazardous() -> None:
     small = _status([{"story": "GF", "occupancy": "industryModerate", "area": 700}])
     big = _status([{"story": "GF", "occupancy": "industryModerate", "area": 900}])
@@ -129,6 +146,20 @@ def test_epanet_against_hazen_williams_by_hand() -> None:
     assert sol["head"] == pytest.approx(hand, rel=0.005)
     assert velocity(1500, 100) == pytest.approx(q / (math.pi * 0.1023**2 / 4))
     assert size_for(1500) == 88  # 75 mm: 5.2 m/s over the 5 m/s limit
+
+
+def test_hydraulic_sprinkler_flow_by_hand(report: dict[str, Any]) -> None:
+    # ordinary hazard-I: 6.1 mm/min over 139 m² (NFPA 13, from memory) = 848 l/min at least;
+    # each head at least its share of the density or K sqrt(p min), K 80, p 0.5 bar
+    sp = report["hydraulics"]["sprinkler"]
+    assert sp["density"] * sp["designArea"] == pytest.approx(848, abs=1)
+    assert sp["sprinklerFlow"] >= sp["density"] * sp["designArea"]
+    assert sp["headFlow"] >= max(T.K_FACTOR * math.sqrt(T.MIN_HEAD_PRESSURE / 100), 0.0)
+    assert sp["leastPressure"] == pytest.approx((sp["least"] / T.K_FACTOR) ** 2 * 100, rel=0.01)
+    # the reservoir: 1900 + 1000 (two standpipes) + max(2650 Table 4.4.1, hydraulic) l/min x 75 min
+    dem = report["demand"]
+    assert dem["flow"] == pytest.approx(1900 + 1000 + max(2650, sp["sprinklerFlow"]))
+    assert dem["volume"] == pytest.approx(dem["flow"] * 75 / 1000)
 
 
 def test_pumps_and_supports() -> None:
@@ -216,6 +247,62 @@ def test_overhead_fire_tank_loads_the_structure_once() -> None:
     assert "FT9" not in groups["fire"]
 
 
+def test_fire_tank_entered_as_a_plumbing_tank_is_loaded_once() -> None:
+    from saengine.mep.loads import services_equipment
+
+    tank = {"id": "T9", "kind": "overhead", "story": "ROOF", "x": 15000, "y": 10000,
+            "length": 4000, "width": 3000, "waterDepth": 1500, "freeboard": 300,
+            "construction": "rc", "walls": 200, "base": 200, "roof": 125}  # fmt: skip
+    fire = high_rise_fire()
+    fire["tanks"] = [{**tank, "id": "FT9", "x": 15500}]
+    mep = MepModel.model_validate({"fire": fire, "plumbing": {"tanks": [tank]}})
+    loads, notes = services_equipment(mep)
+    tanks = [e.id for e in loads if e.kind == "tank"]
+    assert tanks == ["T9-tank"] and any("FT9: stands where plumbing tank T9 is" in n for n in notes)
+
+
+def test_dedicated_fire_tanks_take_the_reserve_out_of_the_plumbing_tanks() -> None:
+    from saengine.plumbing.building import Building
+    from saengine.plumbing.storage import fire_reserve
+
+    plumbing = {"stories": [{"story": "L10", "occupancy": "office"}]}
+    building = Building.of(high_rise_bim())
+    alone = MepModel.model_validate({"plumbing": plumbing})
+    assert fire_reserve(alone.plumbing, building)[0] > 0  # tall: Part 8 Sec 5.9.1.2(c)
+    fire = high_rise_fire()
+    with_fire = MepModel.model_validate({"plumbing": plumbing, "fire": fire})
+    assert fire_reserve(with_fire.plumbing, building, with_fire.fire)[0] > 0  # no fire tank yet
+    fire["tanks"] = [{"id": "FT1", "kind": "underground", "x": -5000, "y": 12000,
+                      "length": 16000, "width": 10000, "waterDepth": 2700}]  # fmt: skip
+    dedicated = MepModel.model_validate({"plumbing": plumbing, "fire": fire})
+    reserve, notes = fire_reserve(dedicated.plumbing, building, dedicated.fire)
+    assert reserve == 0 and "FT1" in notes[0]
+    fire["supply"] = {"storage": "plumbingReserve"}
+    shared = MepModel.model_validate({"plumbing": plumbing, "fire": fire})
+    assert fire_reserve(shared.plumbing, building, shared.fire)[0] > 0
+
+
+def test_story_use_comes_from_plumbing() -> None:
+    fire = high_rise_fire()
+    for row in fire["stories"]:
+        row.pop("occupancy")
+    plumbing = {"stories": [{"story": "B1", "occupancy": "largeShop"},
+                            *({"story": r["story"], "occupancy": "office"}
+                              for r in fire["stories"][1:])]}  # fmt: skip
+    mep = MepModel.model_validate({"fire": fire, "plumbing": plumbing})
+    mine, bim, objects = high_rise()
+    a = fire_results(mep, bim, objects, hydraulics=False)
+    b = fire_results(mine, bim, objects, hydraulics=False)
+    assert [(r["story"], r["occupancy"]) for r in a["stories"]] == [
+        (r["story"], r["occupancy"]) for r in b["stories"]
+    ]
+    assert any("as in Plumbing" in n for n in a["notes"])
+    # a plumbing story the fire section does not list is a fire story too
+    fire["stories"] = fire["stories"][:3]
+    mep = MepModel.model_validate({"fire": fire, "plumbing": plumbing})
+    assert len(fire_results(mep, bim, objects, hydraulics=False)["stories"]) == len(b["stories"])
+
+
 def test_report_from_files_summary_and_bill(tmp_path: Path) -> None:
     from saengine.boq.quantities import compute_boq
     from saengine.library import default_material_library
@@ -277,3 +364,46 @@ def test_sample_gets_extinguishers_only_and_no_new_loads() -> None:
     assert [e.id for e in services_equipment(mep)[0]] == [
         e.id for e in services_equipment(without)[0]
     ]
+
+
+# ─────────────────────────────── the analysis model and the part list ───────────────────────────────
+
+
+def test_mep_stamp_takes_the_fire_pumps_and_overhead_tanks() -> None:
+    """The same text and stamp are in femDerivationBar.test.ts (mepModelStamp)."""
+    from saengine.fem.derive import mep_stamp
+
+    text = (
+        '{"schema": "saengine.mep/1", "equipment": [], "fire": {"supply": {"standby": "electric"}, '
+        '"stories": [{"story": "L1"}], "pumps": [{"id": "FP1", "duty": "main", "story": "B1", '
+        '"x": 1500.5, "y": 2000, "name": "x"}], "tanks": [{"id": "FT1", "kind": "overhead", '
+        '"story": "ROOF", "x": 9500, "y": 2500}, {"id": "FT2", "kind": "underground", "x": 1, '
+        '"y": 2}]}}'
+    )
+    assert mep_stamp(text) == "a3ba7667df075cddcf264621c03d52fd95bd27a2"
+    assert mep_stamp(text.replace("1500.5", "1600")) != mep_stamp(text)  # a pump moved
+    assert mep_stamp(text.replace('"electric"', '"diesel"')) != mep_stamp(text)  # its weight
+    assert mep_stamp(text.replace('"x": 1,', '"x": 5,')) == mep_stamp(text)  # a ground tank
+    assert mep_stamp(text.replace('"name": "x"', '"name": "y"')) == mep_stamp(text)
+    # stories only: nothing loads the model, the stamp is that of no fire section
+    bare = '{"schema": "saengine.mep/1", "equipment": []}'
+    only = '{"schema": "saengine.mep/1", "equipment": [], "fire": {"stories": [{"story": "L1"}]}}'
+    assert mep_stamp(only) == mep_stamp(bare)
+
+
+def test_part_status_counts_the_fire_checks() -> None:
+    from saengine.library.bim import source_stamp
+    from saengine.pipeline.status import StatusInputs, mep_status
+
+    text = json.dumps({"schema": "saengine.mep/1", "fire": {"stories": [{"story": "L1"}]}})
+    base = {"openingsFailed": 0, "clashesOpen": 0, "source": {"mep": source_stamp(text)}}
+
+    def status(summary: dict[str, Any]) -> tuple[str, str]:
+        inputs = StatusInputs(texts={"mep": text}, mepSummaryText=json.dumps(summary),
+                              mepSummaryTime=1.0)  # fmt: skip
+        result = mep_status(inputs)
+        return result.state, result.text
+
+    assert status(base) == ("inProgress", "fire not checked")
+    assert status({**base, "fire": {"failed": 2}}) == ("failed", "2 fire checks fail")
+    assert status({**base, "fire": {"failed": 0}}) == ("done", "services checked")
