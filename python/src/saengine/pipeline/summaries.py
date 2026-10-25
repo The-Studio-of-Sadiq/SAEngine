@@ -277,11 +277,27 @@ def substructure_summary_file(
 ) -> dict[str, Any]:
     """``substructureSummaryFile`` of the substructure document and its report."""
     summary = substructure_report_summary(raw) or {}
+    given = record(raw.get("summary"))
+    # Batch 9 (U2): checked of total and the verdict, as the editor's substructureSummaryFile.
+    checked = summary.get("checked") or 0
+    total = optional_number(given.get("total"))
+    total = total if total is not None else checked + len(records(raw.get("skipped")))
+    unsupported = [str(u) for u in given.get("unsupported") or [] if isinstance(u, str)]
+    status = given.get("status")
+    if status not in ("pass", "fail", "incomplete", "none"):
+        status = (
+            "fail" if summary.get("failed") else
+            "none" if not checked else
+            "incomplete" if checked < total or unsupported else "pass"
+        )  # fmt: skip
     result: dict[str, Any] = {
         "foundations": len(document.get("foundations", [])),
         "checked": summary.get("checked"),
+        "total": total,
         "passed": summary.get("passed"),
         "failed": summary.get("failed"),
+        "unsupported": unsupported,
+        "status": status,
         "maxUtilisation": summary.get("maxUtilisation"),
         "governing": summary.get("governing"),
         "computed": iso_time(computed),
