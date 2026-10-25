@@ -95,7 +95,7 @@ saengine import "Office.e2k" "D:\Projects" --name "Office"
 
 - **There is no automatic comparison** of SAEngine's results with those of the source program.
   Compare by hand (Tutorial 4 shows how).
-- The ETABS importer has been run on 58 real ETABS 22.5 exports (according to
-  [docs/import.md](../import.md)); real-file testing of the STAAD.Pro and SAP2000 importers could
-  not be confirmed for this manual. Check the first import of each program's export against its own model (the report's
-  counts and the base reactions under D).
+- The importers are tested on synthetic files written from each program's published format (see
+  [docs/import.md](../import.md)), not yet on exports from licensed copies. Check the first
+  import of each program's export against its own model (the report's counts and the base
+  reactions under D).

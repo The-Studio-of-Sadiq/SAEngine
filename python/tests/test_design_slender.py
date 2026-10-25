@@ -306,6 +306,22 @@ def test_minimum_moment_governs_with_cm_one() -> None:
     assert axis.mc_no_min[0] == pytest.approx(dns * 5e6, rel=1e-6)
 
 
+@pytest.mark.parametrize("noise", [(2.7e-12, 2.0e-12), (2.0e-12, -1.5e-12), (0.0, 0.0)])
+def test_round_off_end_moments_are_no_moments(noise: tuple[float, float]) -> None:
+    # A column without first-order moments (one with a free top under gravity) gets end moments
+    # of the solver's round-off, of either sign: M1/M2 is not their ratio (it decided between
+    # 34 - 12 x 0.74 and 40 by chance) but that of no moments, single curvature, M1/M2 = 1:
+    # limit 22 < k lu / r = 3900 / 150 = 26, designed for M2,min with Cm = 1.
+    total = [_rows(-1e6, *noise)]
+    piece = _piece(4.5, total, [np.zeros((STATIONS, 6))], total)
+    context = _context(piece, ["1.4D"], [{}], height=4.5)
+    axis = _about_y(context.column("C1", SECTION, [piece], False, EC))
+    s = axis.check["slenderness"]
+    assert s["klu_r"] == pytest.approx(26.0) and s["limit"] == pytest.approx(22.0)
+    assert not s["neglected"] and s["Cm"] == 1.0 and s["M2"] == 0.0
+    assert s["M2min"] == pytest.approx(30.0) and "M2,min governs" in axis.check["note"]
+
+
 def _sway_case(delta: float, options=None):
     """1.2D + 1.0EX: Pu = 2000 kN (1200 kN of it dead), Vus = 100 kN along X, the floor
     displaced ``delta`` m along X by EX; end moments Mns = 20 / -10, Ms = 200 / -150 kN·m."""

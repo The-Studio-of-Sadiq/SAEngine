@@ -177,11 +177,9 @@ module, `saengine.importers.sap2000`), and in addition:
 
 ## How the importers are tested
 
-The ETABS importer has been run on 58 real ETABS 22.5 exports (CSI's verification models and a
-model drawn in ETABS): all import, each approximation in the report. The STAAD.Pro and SAP2000
-readers are tested on synthetic files written from the programs' published formats (STAAD.Pro's
-command language, SAP2000's database tables); they have not been checked against real exports
-yet. The tests reproduce each pattern in synthetic files; check the first import of each
+All three readers are tested on synthetic files written from the programs' published formats
+(ETABS's e2k text, STAAD.Pro's command language, SAP2000's database tables); they have not been
+checked against exports made with licensed copies of the programs yet. The tests reproduce each pattern in synthetic files; check the first import of each
 program's real export against its own model (the report's counts and the base reactions under
 D).
 

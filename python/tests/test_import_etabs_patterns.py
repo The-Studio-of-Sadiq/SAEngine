@@ -1,4 +1,5 @@
-"""The patterns real ETABS 22 exports use, each reproduced in a small synthetic e2k model.
+"""Patterns of the e2k format (offsets, modifiers, releases, per-slab loads, springs, bar
+patterns), each reproduced in a small synthetic e2k model.
 
 The model (written by hand for these tests, N and mm): two stories (L1 at 3200 mm, L2 at
 6200 mm) on grids A-B (0, 6000) and 1-2 (0, 5000); 400x600 columns with their bars as a pattern

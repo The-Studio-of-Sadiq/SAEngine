@@ -1041,16 +1041,17 @@ export function nextBoreholeId(report: ISoilReport): string {
 	return `BH-${n}`;
 }
 
-/** A new borehole beside the last one, 10 m deep, one layer, no records. */
+/**
+ * A new borehole beside the last one with nothing logged yet: no termination depth, no layers,
+ * no records. The engineer enters them from the log sheet; nothing is made up.
+ */
 export function newBorehole(report: ISoilReport): IBorehole {
 	const last = report.boreholes[report.boreholes.length - 1];
 	return {
 		id: nextBoreholeId(report),
 		x: last ? last.x + 10000 : 0,
 		y: last ? last.y : 0,
-		waterTable: last?.waterTable,
-		depth: 10000,
-		layers: [{ top: 0, bottom: 10000, description: '', soilType: 'clay' }],
+		layers: [],
 		spt: [],
 		samples: [],
 	};
@@ -1282,44 +1283,55 @@ export function checkSoilReport(report: ISoilReport): ISoilProblem[] {
 		const problem = (p: Omit<ISoilProblem, 'index'>) => problems.push({ ...p, index: boreholeIndex });
 		const id = String(borehole.id ?? '');
 		if (!id) {
-			problem({ message: localize('soil.p.noId', "A borehole has no id."), severity: 'error' });
+			problem({ path: 'id', message: localize('soil.p.noId', "A borehole has no id."), severity: 'error' });
 		} else if (seen.has(id)) {
 			problem({ borehole: id, path: 'id', message: localize('soil.p.duplicateId', "Two boreholes are called {0}.", id), severity: 'error' });
 		}
 		seen.add(id);
+		// What the backend refuses (library/soil.py Borehole) is an error: the report cannot be read until it is fixed.
 		const layers = [...borehole.layers].map((layer, index) => ({ layer, index })).sort((a, b) => a.layer.top - b.layer.top);
+		const termination = typeof borehole.depth === 'number' ? borehole.depth : undefined;
 		let previousBottom = 0;
 		layers.forEach(({ layer, index }, order) => {
+			const n = order + 1;
 			if (!(layer.bottom > layer.top)) {
-				problem({ borehole: id, path: `layers.${index}.bottom`, message: localize('soil.p.layerThickness', "{0}: layer {1} ends at or above its top.", id, index + 1), severity: 'error' });
+				problem({ borehole: id, path: `layers.${index}.bottom`, message: localize('soil.p.layerThickness', "{0}: layer {1} ends at or above its top.", id, n), severity: 'error' });
 			}
-			if (order === 0 && layer.top > 0) {
-				problem({ borehole: id, path: `layers.${index}.top`, message: localize('soil.p.firstLayer', "{0}: the first layer starts below the ground ({1} m).", id, formatNumber(layer.top / 1000)), severity: 'warning' });
+			if (order === 0 && layer.top > 1) {
+				problem({ borehole: id, path: `layers.${index}.top`, message: localize('soil.p.firstLayer', "{0}: layer 1 starts at {1} m; the first layer starts at the ground (0 m).", id, formatNumber(layer.top / 1000)), severity: 'error' });
 			} else if (order > 0 && Math.abs(layer.top - previousBottom) > 1) {
 				problem({
-					borehole: id, path: `layers.${index}.top`, severity: 'warning', message: layer.top > previousBottom
-						? localize('soil.p.gap', "{0}: a gap between {1} m and {2} m.", id, formatNumber(previousBottom / 1000), formatNumber(layer.top / 1000))
-						: localize('soil.p.overlap', "{0}: layers overlap between {1} m and {2} m.", id, formatNumber(layer.top / 1000), formatNumber(previousBottom / 1000)),
+					borehole: id, path: `layers.${index}.top`, severity: 'error', message: layer.top > previousBottom
+						? localize('soil.p.gap', "{0}: a gap between layer {1} and layer {2} ({3} m to {4} m).", id, n - 1, n, formatNumber(previousBottom / 1000), formatNumber(layer.top / 1000))
+						: localize('soil.p.overlap', "{0}: layer {1} overlaps layer {2} ({3} m to {4} m).", id, n, n - 1, formatNumber(layer.top / 1000), formatNumber(previousBottom / 1000)),
 				});
+			}
+			if (termination !== undefined && layer.bottom > termination + 1) {
+				problem({ borehole: id, path: `layers.${index}.bottom`, message: localize('soil.p.layerBelow', "{0}: layer {1} ends at {2} m, below the termination depth {3} m.", id, n, formatNumber(layer.bottom / 1000), formatNumber(termination / 1000)), severity: 'error' });
 			}
 			previousBottom = Math.max(previousBottom, layer.bottom);
 		});
-		if (typeof borehole.depth === 'number') {
+		// The bottom of the borehole as the backend takes it: the termination depth, else the deepest layer.
+		const bottom = Math.max(termination ?? 0, ...borehole.layers.map(l => Number(l.bottom) || 0));
+		if (termination !== undefined || borehole.layers.length) {
 			borehole.spt.forEach((record, index) => {
-				if (record.depth > borehole.depth! + 1) {
-					problem({ borehole: id, path: `spt.${index}.depth`, message: localize('soil.p.sptBelow', "{0}: an SPT at {1} m is below the termination depth.", id, formatNumber(record.depth / 1000)), severity: 'warning' });
+				if (record.depth > bottom + 1) {
+					problem({ borehole: id, path: `spt.${index}.depth`, message: localize('soil.p.sptBelow', "{0}: the SPT at {1} m is below the bottom of the borehole ({2} m).", id, formatNumber(record.depth / 1000), formatNumber(bottom / 1000)), severity: 'error' });
 				}
 			});
+		}
+		if (termination !== undefined && typeof borehole.waterTable === 'number' && borehole.waterTable > termination + 1) {
+			problem({ borehole: id, path: 'waterTable', message: localize('soil.p.waterBelow', "{0}: the water table ({1} m) is below the termination depth {2} m.", id, formatNumber(borehole.waterTable / 1000), formatNumber(termination / 1000)), severity: 'warning' });
 		}
 		const sptDepths = new Set<number>();
 		borehole.spt.forEach((record, index) => {
 			if (sptDepths.has(record.depth)) {
-				problem({ borehole: id, path: `spt.${index}.depth`, message: localize('soil.p.sptTwice', "{0}: two SPT records at {1} m.", id, formatNumber(record.depth / 1000)), severity: 'warning' });
+				problem({ borehole: id, path: `spt.${index}.depth`, message: localize('soil.p.sptTwice', "{0}: two SPT records at {1} m.", id, formatNumber(record.depth / 1000)), severity: 'error' });
 			}
 			sptDepths.add(record.depth);
 		});
 		if (!borehole.layers.length) {
-			problem({ borehole: id, message: localize('soil.p.noLayers', "{0} has no layers yet.", id), severity: 'warning' });
+			problem({ borehole: id, path: 'layers', message: localize('soil.p.noLayers', "{0} has no layers yet.", id), severity: 'warning' });
 		}
 	});
 	return problems;

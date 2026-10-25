@@ -32,8 +32,9 @@
 	--sa-surface-alt: var(--vscode-sideBar-background, var(--vscode-editor-background));
 	--sa-accent: var(--vscode-focusBorder);
 
-	/* Status dots: pass / near the limit / fail / not run yet */
+	/* Status dots: pass / defaults to review / near the limit / fail / not run yet */
 	--sa-ok: var(--vscode-charts-green, #2e8540);
+	--sa-info: var(--vscode-charts-blue, #1a73c4);
 	--sa-warn: var(--vscode-charts-orange, #c2620e);
 	--sa-fail: var(--vscode-charts-red, #c62f2f);
 	/* Idle: muted text pulled a quarter towards the sidebar, so it reads as quieter than text but

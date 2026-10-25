@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { groundLevelStamp, mepModelStamp, sourceStamp } from '../../common/partSources.js';
 import { computePartStatuses, exportKind, IPartStatusInputs, nextStep } from '../../common/partStatus.js';
+import { DEFAULT_FLOOR_PLAN, DEFAULT_MATERIALS, DEFAULT_SETTINGS } from '../../common/projectLibraries.generated.js';
 import { PROJECT_PARTS, projectParts } from '../../common/saengineProject.js';
 
 const placeholder = (part: string) => JSON.stringify({ schema: 1, part });
@@ -14,8 +15,8 @@ const placeholder = (part: string) => JSON.stringify({ schema: 1, part });
 const SOURCES = {
 	settings: '{"schema": "saengine.projectSettings/1"}',
 	materials: '{"materials": []}',
-	objects: '{"objects": []}',
-	floorPlan: '{"schema": "saengine.floorPlan/1"}',
+	objects: '{"objects": [{"id": "C1"}]}',
+	floorPlan: '{"schema": "saengine.floorPlan/1", "columns": [{"id": "C1"}]}',
 };
 const BIM = JSON.stringify({ schema: 'saengine.bim/2', source: { floorPlan: sourceStamp(SOURCES.floorPlan) }, elements: [] });
 
@@ -51,8 +52,8 @@ suite('SAEngine - PartStatus', () => {
 			'soil: notStarted not started',
 			'settings: done',
 			'materials: done',
-			'objects: done',
-			'floorPlan: done',
+			'objects: done 1 type',
+			'floorPlan: done 1 member',
 			'bim: done',
 			'mep: notStarted not started',
 			'fem: inProgress not analysed',
@@ -157,9 +158,11 @@ suite('SAEngine - PartStatus', () => {
 	});
 
 	test('a special structure builds its model from the structural model', () => {
-		const structure = '{"schema": "saengine.structure/1"}';
+		const structure = '{"schema": "saengine.structure/1", "members": [{"id": "M1"}, {"id": "M2"}]}';
 		const bim = JSON.stringify({ schema: 'saengine.bim/2', source: { structure: sourceStamp(structure) }, elements: [] });
-		assert.deepStrictEqual(summary(project({ structure, bim }), projectParts('structure')).slice(4, 6), ['structure: done', 'bim: done']);
+		assert.deepStrictEqual(summary(project({ structure, bim }), projectParts('structure')).slice(4, 6), ['structure: done 2 members', 'bim: done']);
+		const empty = '{"schema": "saengine.structure/1", "members": [], "areas": []}';
+		assert.deepStrictEqual(summary(project({ structure: empty }), projectParts('structure'))[4], 'structure: notStarted not started');
 	});
 
 	test('substructure: placeholder, foundations, checked against the saved file and the results', () => {
@@ -405,5 +408,101 @@ suite('SAEngine - PartStatus', () => {
 		const next = nextStep(statuses);
 		assert.deepStrictEqual({ index: next?.index, part: next?.status.part, hint: next?.status.hint }, { index: 7, part: 'fem', hint: 'run the analysis' });
 		assert.strictEqual(nextStep(statuses.map(s => ({ ...s, state: 'done' }))), undefined);
+	});
+
+	/** The main files a new project starts with, as the new-project flow writes them (see `PROJECT_PARTS`). */
+	function newProject(name = 'Building'): { [part: string]: string | undefined } {
+		return Object.fromEntries(PROJECT_PARTS.filter(p => p.mainFile).map(p => [p.id, p.initialContent?.(name)]));
+	}
+
+	const nextOf = (texts: { [part: string]: string | undefined }) => {
+		const next = nextStep(computePartStatuses(PROJECT_PARTS, { texts: new Map(Object.entries(texts)) }));
+		return `${next?.status.part}: ${next?.status.hint}`;
+	};
+
+	test('a new project: settings and materials hold the defaults, no object types, no members', () => {
+		const texts = newProject();
+		assert.deepStrictEqual(summary({ texts: new Map(Object.entries(texts)) }), [
+			'soil: notStarted not started',
+			'settings: defaults defaults',
+			'materials: defaults defaults',
+			'objects: notStarted not started',
+			'floorPlan: notStarted not started',
+			'bim: notStarted not built',
+			'mep: notStarted not started',
+			'fem: notStarted not derived',
+			'substructure: notStarted not started',
+			'boq: notStarted not measured',
+			'exports: notStarted no report',
+		]);
+		// The design code the new-project dialog chose (ACI 318-19 here) still counts as the defaults.
+		const settings = JSON.parse(texts.settings!);
+		const aci = JSON.stringify({ ...settings, codes: { ...settings.codes, concrete: 'ACI 318-19', steel: 'AISC 360-22' } }, undefined, '\t');
+		const changedSettings = JSON.stringify({ ...settings, occupancy: { use: 'office', category: 'II' } });
+		const changedMaterials = JSON.stringify({ ...DEFAULT_MATERIALS, materials: (DEFAULT_MATERIALS as { materials: object[] }).materials.slice(1) });
+		const objects = JSON.stringify({ schema: 'saengine.objects/1', objects: [{ id: 'C400' }, { id: 'B300x500' }] });
+		const floorPlan = JSON.stringify({ ...DEFAULT_FLOOR_PLAN, columns: [{ id: 'C1' }] });
+		// The next step walks the parts that really need work, in workflow order.
+		assert.deepStrictEqual([
+			nextOf({ ...texts, settings: aci }),
+			nextOf({ ...texts, settings: changedSettings }),
+			nextOf({ ...texts, settings: changedSettings, materials: changedMaterials }),
+			nextOf({ ...texts, settings: changedSettings, materials: changedMaterials, objects }),
+			nextOf({ ...texts, settings: changedSettings, materials: changedMaterials, objects, floorPlan }),
+		], [
+			'settings: review the defaults',
+			'materials: review the defaults',
+			'objects: define the object types',
+			'floorPlan: draw the floor plan',
+			'bim: build the building model',
+		]);
+		// Key order, formatting and the project name do not count as a change; an invalid file is an error.
+		const reordered = JSON.stringify(Object.fromEntries(Object.entries(JSON.parse(newProject('Other').settings!)).reverse()));
+		assert.deepStrictEqual(summary({ texts: new Map([['settings', reordered], ['materials', JSON.stringify(DEFAULT_MATERIALS)]]) }).slice(1, 3), ['settings: defaults defaults', 'materials: defaults defaults']);
+		assert.deepStrictEqual(summary({ texts: new Map([['settings', '{'], ['materials', undefined]]) }).slice(1, 3), ['settings: error invalid file', 'materials: notStarted not started']);
+	});
+
+	test('the floor plan counts only saved members, never an unsaved or empty plan', () => {
+		// The statuses read the saved files only (see `SaenginePartStatusService`), never an editor
+		// buffer; a plan with grids and storeys but no members counts as not started.
+		const floorPlan = (plan: object | undefined) => summary(project({ floorPlan: plan && JSON.stringify(plan) }))[4];
+		assert.deepStrictEqual([
+			floorPlan(undefined),
+			floorPlan(DEFAULT_FLOOR_PLAN),
+			floorPlan({ schema: 'saengine.floorPlan/1' }),
+			floorPlan({ ...DEFAULT_FLOOR_PLAN, beams: [{ id: 'B1' }], walls: [{ id: 'W1' }] }),
+			floorPlan({ ...DEFAULT_FLOOR_PLAN, slabs: [{ id: 'S1' }] }),
+			floorPlan({ ...DEFAULT_FLOOR_PLAN, footings: [{ id: 'F1' }] }),
+			summary(project({ objects: '{"schema": "saengine.objects/1", "objects": []}' }))[3],
+		], [
+			'floorPlan: notStarted not started',
+			'floorPlan: notStarted not started',
+			'floorPlan: notStarted not started',
+			'floorPlan: done 2 members',
+			'floorPlan: done 1 member',
+			'floorPlan: done 1 member',
+			'objects: notStarted not started',
+		]);
+	});
+
+	test('a generated or imported project: its object types and floor plan are done, settings with its own values too', () => {
+		// New Building from Grid and the importers write the default settings with the project's
+		// occupancy, area loads and analysis values, and their own object types and members.
+		const settings = JSON.stringify({ ...DEFAULT_SETTINGS, project: { name: 'Grid Test' }, occupancy: { use: 'office', category: 'II' } });
+		const objects = JSON.stringify({ schema: 'saengine.objects/1', objects: [{ id: 'C1' }, { id: 'B1' }, { id: 'S1' }] });
+		const floorPlan = JSON.stringify({ ...DEFAULT_FLOOR_PLAN, columns: [{ id: 'C1' }, { id: 'C2' }], beams: [{ id: 'B1' }], slabs: [{ id: 'S1' }] });
+		const bim = JSON.stringify({ schema: 'saengine.bim/2', source: { floorPlan: sourceStamp(floorPlan) }, elements: [] });
+		const generated = { ...newProject('Grid Test'), settings, objects, floorPlan, bim };
+		assert.deepStrictEqual(summary({ texts: new Map(Object.entries(generated)) }).slice(1, 6), [
+			'settings: done',
+			'materials: defaults defaults',
+			'objects: done 3 types',
+			'floorPlan: done 4 members',
+			'bim: done',
+		]);
+		// An imported model brings its own materials too.
+		const imported = { ...generated, materials: JSON.stringify({ schema: 'saengine.materials/1', materials: [{ id: 'CONC35' }] }) };
+		assert.deepStrictEqual(summary({ texts: new Map(Object.entries(imported)) }).slice(1, 3), ['settings: done', 'materials: done']);
+		assert.strictEqual(nextOf(imported), 'fem: derive the analysis model');
 	});
 });

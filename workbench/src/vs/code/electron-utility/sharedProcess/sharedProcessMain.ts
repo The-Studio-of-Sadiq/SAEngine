@@ -159,6 +159,8 @@ import { ILocalGitService } from '../../../platform/git/common/localGitService.j
 import { LocalGitService } from '../../../platform/git/node/localGitService.js';
 import { FEM_SOLVER_CHANNEL, IFemSolverService } from '../../../platform/saengine/common/femSolver.js';
 import { FemSolverService } from '../../../platform/saengine/node/femSolverService.js';
+import { SAENGINE_AI_CHANNEL } from '../../../platform/saengine/common/saengineAi.js';
+import { SaengineAiChannel } from '../../../platform/saengine/node/saengineAiServer.js';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
@@ -525,6 +527,9 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
 		// SAEngine FEM backend
 		this.server.registerChannel(FEM_SOLVER_CHANNEL, ProxyChannel.fromService(accessor.get(IFemSolverService), this._store));
+
+		// SAEngine MCP server (AI assistants), off until a window allows it
+		this.server.registerChannel(SAENGINE_AI_CHANNEL, this._register(new SaengineAiChannel(this.server, accessor.get(ILogService))));
 
 		// Playwright
 		const agentNetworkFilterService = this._register(new AgentNetworkFilterService(accessor.get(IConfigurationService)));

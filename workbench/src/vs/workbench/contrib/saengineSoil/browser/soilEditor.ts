@@ -6,6 +6,7 @@
 import '../../saengineLibrary/browser/media/modelEditors.css';
 import './media/soilEditor.css';
 import { $, addDisposableListener, append, clearNode, Dimension, EventType, isHTMLInputElement } from '../../../../base/browser/dom.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Action, IAction, Separator } from '../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -24,6 +25,7 @@ import { CommandsRegistry, ICommandService } from '../../../../platform/commands
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -45,6 +47,7 @@ import {
 	MAP_TILE_ATTRIBUTION_SETTING, MAP_TILE_URL_SETTING, SOIL_GIS_EXPORT_COMMAND, SOIL_GIS_IMPORT_COMMAND, SOIL_LOCATION_COMMAND, SOIL_OPEN_IN_QGIS_COMMAND, SOIL_QGIS_PROGRAM_COMMAND,
 } from './soilDocument.js';
 import { SoilEditorInput } from './soilEditorInput.js';
+import { canCreate, DEFAULT_VIEW, editBoreholeEntry, ENTRY_STEPS, EntryStep, entryProblems, entryStepOf, firstStepWithError, goToStep, IEntryProblem, IEntryState, newBoreholeEntry, nextStep, shownProblems, SoilView } from './soilEntry.js';
 import { IGridState, newGridState, SoilGrid } from './soilGrid.js';
 import { LabTest } from './soilLabTests.js';
 import { SoilLabPanel } from './soilLabPanel.js';
@@ -53,11 +56,10 @@ import { IBnbcSuggestion, tileSource } from './soilMap.js';
 import { IMapViewState, ISoilMapHost, SoilMapView } from './soilMapView.js';
 import { SampleSheet, SPT_DRIVE, StrataSheet } from './soilSheet.js';
 
-type View = 'log' | 'data' | 'results' | 'map';
+type View = SoilView;
 
 const VIEWS: readonly { readonly view: View; readonly label: string; readonly icon: ThemeIcon }[] = [
 	{ view: 'log', label: localize('soil.viewLog', "Log"), icon: Codicon.layers },
-	{ view: 'data', label: localize('soil.viewData', "Data"), icon: Codicon.table },
 	{ view: 'results', label: localize('soil.viewResults', "Results"), icon: Codicon.graphLine },
 	{ view: 'map', label: localize('soil.viewMap', "Map"), icon: Codicon.globe },
 ];
@@ -66,8 +68,15 @@ const VIEWS: readonly { readonly view: View; readonly label: string; readonly ic
 const STRATA_COLLAPSED = ['weight', 'strength', 'index', 'consolidation'];
 const SAMPLES_COLLAPSED = ['consolidation'];
 
-/** The borehole fields of the log sheet's header, in the order of the consultant's sheet. */
-const HEADER_FIELDS = ['id', 'groundLevel', 'waterTable', 'depth', 'x', 'y', 'lat', 'lon', 'easting', 'northing', 'date', 'method'];
+/** The borehole's details on the entry screen, grouped as the consultant's log sheet heads its page. */
+const DETAIL_GROUPS: readonly { readonly label: string; readonly fields: readonly string[] }[] = [
+	{ label: localize('soil.entry.gBorehole', "Borehole"), fields: ['id', 'date', 'method'] },
+	{ label: localize('soil.entry.gDepths', "Depths and levels"), fields: ['depth', 'waterTable', 'groundLevel'] },
+	{ label: localize('soil.entry.gLocation', "Location"), fields: ['x', 'y', 'lat', 'lon', 'easting', 'northing'] },
+];
+
+/** The details the borehole cannot be created without. */
+const REQUIRED_DETAILS = new Set(['id', 'depth']);
 
 /** The state of the results: not asked yet, being computed, computed, or no backend / failed. */
 type ResultsState = 'idle' | 'computing' | 'ok' | 'missing' | 'error';
@@ -76,9 +85,10 @@ let instanceCount = 0;
 
 /**
  * The soil report (`01 Soil Report/soil-report.json`) on the shared editor frame. Boreholes are
- * listed on the left; the Log view draws the selected one (strata, water table, SPT N against
- * depth) or the fence of all of them, the Data view edits their layers, SPT records and lab
- * samples, and the Results view shows what the backend computes from them: the site class, the
+ * listed on the left; a borehole is entered (and edited) on the entry screen, in the order of the
+ * consultant's log sheet: details, strata, SPT and lab. The Log view draws the selected one
+ * (strata, water table, SPT N against depth) or the fence of all of them, and the Results view
+ * shows what the backend computes from them: the site class, the
  * allowable bearing pressure by footing size, the liquefaction screening, the modulus of
  * subgrade reaction and the pile design parameters. The JSON text model stays the document:
  * every edit is one undoable text edit, so save, dirty state and undo come from the text file.
@@ -98,8 +108,14 @@ export class SoilEditor extends EditorPane {
 	private parseError: string | undefined;
 	private problems: ISoilProblem[] = [];
 	private applying = false;
-	private view: View = 'log';
+	private view: View = DEFAULT_VIEW;
 	private fence = false;
+	/** The borehole entry screen, while it is open (it takes the place of the view). */
+	private entry: IEntryState | undefined;
+	/** What the entry screen focuses after its next render: its first field, or its grid. */
+	private entryFocus = false;
+	/** The parts of the entry screen that follow its problems without a render. */
+	private entryParts: { title: HTMLElement; problems: HTMLElement; steps: Map<EntryStep, HTMLElement>; messages: Map<string, HTMLElement> } | undefined;
 	/** The selected borehole's index in the report (ids may repeat); undefined selects the report itself. */
 	private selected: number | undefined;
 	private results: ISoilResults | undefined;
@@ -110,7 +126,7 @@ export class SoilEditor extends EditorPane {
 	private readonly busy = new Set<string>();
 	private actionsKey: string | undefined;
 	private lastSize = '';
-	/** The inputs of the data view by problem key ("0|layers.0.top": borehole index and path). */
+	/** The inputs of the entry screen by problem key ("0|depth": borehole index and path). */
 	private readonly inputs = new Map<string, HTMLElement>();
 	/** The inputs of the properties panel by problem key ("0|id"). */
 	private readonly propertyInputs = new Map<string, HTMLElement>();
@@ -251,6 +267,7 @@ export class SoilEditor extends EditorPane {
 		this.location = undefined;
 		this.locationState = 'idle';
 		this.selected = undefined;
+		this.entry = undefined;
 		this.gridStates.clear();
 		this.labSample = undefined;
 		const reference = await input.resolve();
@@ -368,6 +385,9 @@ export class SoilEditor extends EditorPane {
 			if (this.selected === undefined && count && !this.reportSelectedOnPurpose) {
 				this.selected = 0;
 			}
+			if (this.entry && this.entry.index >= count) {
+				this.entry = undefined; // undone: the borehole being entered is gone
+			}
 		}
 		this.problems = this.report ? checkSoilReport(this.report) : [];
 		this.render();
@@ -424,23 +444,106 @@ export class SoilEditor extends EditorPane {
 			this.commitScheduler.schedule();
 			this.renderList();
 			this.renderProblems();
+			this.updateEntryProblems();
 			this.renderStatus();
 		}
 	}
 
 	// ───────────────────────────── actions ─────────────────────────────
 
-	/** Adds a borehole beside the last one and selects it in the Data view. */
+	/**
+	 * Adds a borehole beside the last one, with nothing logged yet, and opens the entry screen on
+	 * its details. Its log and results are drawn once it is created.
+	 */
 	addBorehole(): void {
 		if (!this.report) {
 			return;
 		}
+		this.leaveEntry();
 		const borehole = newBorehole(this.report);
 		this.report.boreholes.push(borehole);
 		this.selected = this.report.boreholes.length - 1;
 		this.reportSelectedOnPurpose = false;
-		this.view = this.view === 'results' ? 'data' : this.view;
+		this.fence = false;
+		this.entry = newBoreholeEntry(this.selected);
+		this.entryFocus = true;
 		this.changed(true);
+	}
+
+	/** Opens the entry screen on the selected borehole (the same screen as for a new one). */
+	editBorehole(step?: EntryStep): void {
+		const borehole = this.borehole;
+		if (!this.report || !borehole || this.selected === undefined) {
+			return;
+		}
+		this.flush();
+		if (this.entry?.index !== this.selected) {
+			this.entry = editBoreholeEntry(this.selected, borehole, step);
+		} else if (step) {
+			goToStep(this.entry, step);
+		}
+		this.fence = false;
+		this.entryFocus = true;
+		this.render();
+	}
+
+	/** Create (or Save): with no errors left the entry closes and the log and results are drawn. */
+	private finishEntry(): void {
+		const entry = this.entry;
+		const report = this.report;
+		if (!entry || !report) {
+			return;
+		}
+		this.flush();
+		const problems = entryProblems(report, entry.index);
+		if (!canCreate(problems)) {
+			entry.tried = true;
+			goToStep(entry, firstStepWithError(problems) ?? entry.step);
+			this.renderView();
+			this.entryParts?.problems.focus();
+			return;
+		}
+		this.entry = undefined;
+		this.selected = entry.index;
+		this.view = DEFAULT_VIEW;
+		this.render();
+		this.computeScheduler.schedule(0);
+	}
+
+	/** Cancel: a new borehole is removed, an edited one put back as it was (one undoable edit). */
+	private cancelEntry(): void {
+		const entry = this.entry;
+		const report = this.report;
+		if (!entry || !report) {
+			return;
+		}
+		this.entry = undefined;
+		if (entry.isNew) {
+			report.boreholes.splice(entry.index, 1);
+			this.selected = report.boreholes.length ? Math.min(entry.index, report.boreholes.length - 1) : undefined;
+		} else if (entry.snapshot && report.boreholes[entry.index]) {
+			report.boreholes[entry.index] = JSON.parse(entry.snapshot);
+		}
+		this.changed(true);
+		this.computeScheduler.schedule(0);
+	}
+
+	/** Leaves the entry screen for another borehole or view; what was entered stays (it is saved as typed). */
+	private leaveEntry(): void {
+		if (this.entry) {
+			this.flush();
+			this.entry = undefined;
+			this.computeScheduler.schedule(0);
+		}
+	}
+
+	private goToEntryStep(step: EntryStep): void {
+		if (this.entry) {
+			this.flush();
+			goToStep(this.entry, step);
+			this.entryFocus = true;
+			this.renderView();
+		}
 	}
 
 	private deleteBorehole(): void {
@@ -448,6 +551,7 @@ export class SoilEditor extends EditorPane {
 		if (!this.report || !borehole) {
 			return;
 		}
+		this.entry = undefined;
 		const index = this.report.boreholes.indexOf(borehole);
 		this.report.boreholes.splice(index, 1);
 		this.selected = this.report.boreholes.length ? Math.min(index, this.report.boreholes.length - 1) : undefined;
@@ -459,6 +563,7 @@ export class SoilEditor extends EditorPane {
 		if (!this.report || !borehole) {
 			return;
 		}
+		this.leaveEntry();
 		const copy: IBorehole = JSON.parse(JSON.stringify(borehole));
 		copy.id = newBorehole(this.report).id;
 		copy.x = borehole.x + 5000;
@@ -486,6 +591,7 @@ export class SoilEditor extends EditorPane {
 			return;
 		}
 		this.flush();
+		this.leaveEntry();
 		this.selected = index;
 		this.reportSelectedOnPurpose = index === undefined;
 		this.render();
@@ -493,6 +599,7 @@ export class SoilEditor extends EditorPane {
 
 	private showView(view: View): void {
 		this.flush();
+		this.leaveEntry();
 		this.view = view;
 		this.render();
 		if (view === 'map') {
@@ -623,6 +730,11 @@ export class SoilEditor extends EditorPane {
 			this.renderResultsDependent();
 			return;
 		}
+		if (this.entry) {
+			// A borehole is being entered: its results come with Create (the entry computes as it closes).
+			this.setBusy('compute', false);
+			return;
+		}
 		this.flush();
 		this.resultsState = this.results ? 'ok' : 'computing';
 		this.setBusy('compute', true);
@@ -662,9 +774,9 @@ export class SoilEditor extends EditorPane {
 		this.renderStatus();
 	}
 
-	/** The parts that show results: the Results view, N60 in the log and data views, and the status. */
+	/** The parts that show results: the Results view, N60 in the log, and the status. */
 	private renderResultsDependent(): void {
-		if (this.view === 'results' || this.view === 'log' || this.view === 'data' && this.selected !== undefined) {
+		if (!this.entry && (this.view === 'results' || this.view === 'log')) {
 			this.renderView();
 		}
 		this.renderProperties();
@@ -676,10 +788,13 @@ export class SoilEditor extends EditorPane {
 		if (size === this.lastSize) {
 			return;
 		}
+		if (this.entry) {
+			return; // the entry screen flows with the width by itself
+		}
 		if (this.view === 'map') {
 			this.lastSize = size;
 			this.mapView.value?.layout();
-		} else if (this.view !== 'data') {
+		} else {
 			this.renderView();
 		}
 	}
@@ -687,7 +802,7 @@ export class SoilEditor extends EditorPane {
 	private updateViewButtons(): void {
 		const usable = !!this.report;
 		for (const [view, button] of this.viewButtons) {
-			const active = view === this.view;
+			const active = !this.entry && view === this.view;
 			button.classList.toggle('active', active);
 			button.setAttribute('aria-selected', String(active));
 			button.disabled = !usable;
@@ -701,7 +816,7 @@ export class SoilEditor extends EditorPane {
 		}
 		const usable = !!this.report;
 		const hasBorehole = !!this.borehole;
-		this.addAction.enabled = this.importAction.enabled = usable;
+		this.addAction.enabled = this.importAction.enabled = usable && !this.entry;
 		this.deleteAction.enabled = this.duplicateAction.enabled = hasBorehole;
 		this.recomputeAction.enabled = !!this.report?.boreholes.length;
 		this.deleteAction.label = hasBorehole ? localize('soil.deleteNamed', "Delete {0}", this.borehole!.id) : localize('soil.deleteBorehole', "Delete Borehole");
@@ -710,7 +825,7 @@ export class SoilEditor extends EditorPane {
 			this.addAction,
 			this.importAction,
 			this.templateAction,
-			...(this.view === 'log' && (this.report?.boreholes.length ?? 0) > 1 ? [this.fenceAction] : []),
+			...(this.view === 'log' && !this.entry && (this.report?.boreholes.length ?? 0) > 1 ? [this.fenceAction] : []),
 			this.deleteAction,
 			frame.togglePropertiesAction,
 		] : [frame.togglePropertiesAction];
@@ -782,7 +897,9 @@ export class SoilEditor extends EditorPane {
 		}
 		report.boreholes.forEach((borehole, index) => {
 			const siteClass = this.resultOf(borehole)?.siteClass?.class;
-			const detail = siteClass
+			const detail = !borehole.layers.length && typeof borehole.depth !== 'number'
+				? localize('soil.listDetailNew', "not entered yet")
+				: siteClass
 				? localize('soil.listDetailClass', "{0} m · {1}", formatNumber(boreholeDepth(borehole) / 1000, 1), siteClass)
 				: borehole.layers.length === 1
 					? localize('soil.listDetailOne', "{0} m · 1 layer", formatNumber(boreholeDepth(borehole) / 1000, 1))
@@ -809,13 +926,13 @@ export class SoilEditor extends EditorPane {
 		// A cell or a field being typed into is not taken away by a render (new results, a
 		// computation finishing): the render waits for the edit to end.
 		const active = this.viewElement.ownerDocument.activeElement;
-		if (this.grids.some(g => g.isEditing()) || this.view === 'data' && active && this.viewElement.contains(active) && isHTMLInputElement(active) && !active.closest('.soil-grid')) {
+		if (this.grids.some(g => g.isEditing()) || this.entry && active && this.viewElement.contains(active) && isHTMLInputElement(active) && !active.closest('.soil-grid')) {
 			this.renderPending = true;
 			return;
 		}
 		this.renderPending = false;
 		const report = this.report;
-		if (this.view === 'map' && report && this.mapView.value?.element.isConnected) {
+		if (!this.entry && this.view === 'map' && report && this.mapView.value?.element.isConnected) {
 			this.mapView.value.update(this.mapHost(report));
 			return;
 		}
@@ -825,22 +942,34 @@ export class SoilEditor extends EditorPane {
 		this.disposeGrids();
 		this.viewDisposables.clear();
 		this.inputs.clear();
+		this.entryParts = undefined;
 		const scroll = this.viewElement.scrollTop;
+		const entryStep = this.viewElement.dataset.step;
 		clearNode(this.viewElement);
-		this.viewElement.className = `soil-view ${this.view}`;
+		const entry = this.entry;
+		this.viewElement.className = entry ? 'soil-view entry' : `soil-view ${this.view}`;
+		this.viewElement.dataset.step = entry?.step ?? '';
 		this.lastSize = `${this.viewElement.clientWidth}x${this.viewElement.clientHeight}`;
 		if (!report || !report.boreholes.length && this.view !== 'map') {
 			return;
 		}
-		switch (this.view) {
-			case 'log': this.renderLogView(report); break;
-			case 'data': this.renderDataView(report); break;
-			case 'results': this.renderResultsView(report); break;
-			case 'map': this.renderMapView(report); break;
+		if (entry) {
+			this.renderEntry(report, entry);
+		} else {
+			switch (this.view) {
+				case 'log': this.renderLogView(report); break;
+				case 'results': this.renderResultsView(report); break;
+				case 'map': this.renderMapView(report); break;
+			}
 		}
-		this.viewElement.scrollTop = scroll;
+		// Another step starts at its top; a render of the same one keeps its place.
+		this.viewElement.scrollTop = entry && entryStep !== entry.step ? 0 : scroll;
 		this.renderProblems();
-		if (focusedLab) {
+		this.updateEntryProblems();
+		if (this.entryFocus) {
+			this.entryFocus = false;
+			this.focusEntry();
+		} else if (focusedLab) {
 			this.labGrid()?.focus();
 		} else if (focusedGrid) {
 			this.grids.find(g => g.sheet.id === focusedGrid)?.focus();
@@ -899,64 +1028,158 @@ export class SoilEditor extends EditorPane {
 			}
 			parts.push(localize('soil.logGround', "ground level {0} m", formatNumber(boreholeGround(report, borehole) / 1000, 2)));
 			append(header, $('span.soil-view-subtitle', undefined, parts.join(' · ')));
+			append(header, $('span.soil-view-gap'));
+			const edit = this.viewDisposables.add(new Button(header, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: localize('soil.editTitle', "Change the borehole's details, strata, SPT records and lab results") }));
+			edit.label = `$(${Codicon.edit.id}) ${localize('soil.editBorehole', "Edit Borehole")}`;
+			edit.element.classList.add('soil-edit-button');
+			this.viewDisposables.add(edit.onDidClick(() => this.editBorehole()));
 		}
 		const result = borehole ? this.resultOf(borehole) : undefined;
 		this.renderLegend(this.viewElement, report, !fence && !!result?.spt?.some(s => typeof s.N60 === 'number'));
 		const canvas = append(this.viewElement, $('.soil-canvas'));
 		if (fence) {
 			renderFence(canvas, report, { width, height, patternPrefix: this.patternPrefix, selected: this.selected, onSelect: index => this.openLog(index) });
+			if (!borehole) {
+				this.renderBoreholeSummary(report);
+			}
 		} else {
 			renderBoreholeLog(canvas, report, borehole, { width, height, patternPrefix: this.patternPrefix, result, hammerEnergy: report.design.hammerEnergy });
 		}
 	}
 
-	// ───────────────────────────── data view ─────────────────────────────
+	// ───────────────────────────── entry screen ─────────────────────────────
 
 	/**
-	 * The log sheet of the selected borehole, in the order of the consultant's borehole log: the
-	 * header (id, levels, position, date, method), the strata, the samples and SPT (one row per
-	 * test depth), the lab tests of the selected sample, and the log drawn beside them as it is
-	 * typed. With the report selected: one row per borehole.
+	 * The borehole entry screen: one page in the order of the consultant's log sheet, a step at a
+	 * time (details, strata, SPT and lab), with what is wrong said in plain words under the step.
+	 * What is typed is saved as it is typed (one undoable edit each); the log, the SPT graph and
+	 * the results are drawn after Create (or Save). Adding and editing a borehole use this screen.
 	 */
-	private renderDataView(report: ISoilReport): void {
-		const borehole = this.borehole;
+	private renderEntry(report: ISoilReport, entry: IEntryState): void {
+		const borehole = report.boreholes[entry.index];
 		if (!borehole) {
-			this.renderBoreholeSummary(report);
 			return;
 		}
-		const index = this.selected!;
-		const header = append(this.viewElement, $('.soil-view-header'));
-		append(header, $('span.soil-view-title', undefined, borehole.id));
-		append(header, $('span.soil-view-subtitle', undefined, localize('soil.sheetSubtitle', "Depths in m below the borehole's ground. Type into a cell, paste a block from Excel with Ctrl+V; Delete clears, Ctrl+Z undoes.")));
+		const index = entry.index;
+		const page = append(this.viewElement, $('.soil-entry'));
 
-		this.renderSheetHeader(report, borehole, index);
+		const header = append(page, $('.soil-view-header'));
+		const title = append(header, $('span.soil-view-title'));
+		append(header, $('span.soil-view-subtitle', undefined, entry.isNew
+			? localize('soil.entry.newSubtitle', "Fill in the log sheet. The log, the SPT graph and the results are drawn when you create the borehole.")
+			: localize('soil.entry.editSubtitle', "Changes are kept as you type; the log and the results are drawn again when you save.")));
 
-		const layout = append(this.viewElement, $('.soil-sheet-layout'));
-		const main = append(layout, $('.soil-sheet-main'));
-		const aside = append(layout, $('.soil-sheet-log'));
+		const steps = append(page, $('.soil-entry-steps', { role: 'tablist', 'aria-label': localize('soil.entry.stepsAria', "Log sheet steps") }));
+		const stepElements = new Map<EntryStep, HTMLElement>();
+		ENTRY_STEPS.forEach((info, i) => {
+			const active = info.step === entry.step;
+			const button = append(steps, $<HTMLButtonElement>('button.soil-entry-step', { type: 'button', role: 'tab', 'aria-selected': String(active), title: info.detail }));
+			button.classList.toggle('active', active);
+			append(button, $('span.soil-entry-step-number', undefined, String(i + 1)));
+			append(button, $('span.soil-entry-step-label', undefined, info.label));
+			append(button, $(`span.soil-entry-step-problem${ThemeIcon.asCSSSelector(Codicon.error)}`));
+			this.viewDisposables.add(addDisposableListener(button, EventType.CLICK, () => this.goToEntryStep(info.step)));
+			stepElements.set(info.step, button);
+		});
 
-		// Strata.
-		const strataSection = append(main, $('.soil-section'));
-		const strataHeading = append(strataSection, $('.soil-section-heading'));
-		append(strataHeading, $('span.soil-section-title', undefined, localize('soil.sheet.strata', "Strata")));
-		append(strataHeading, $('span.soil-section-count', undefined, String(borehole.layers.length)));
-		append(strataHeading, $('span.soil-section-detail', undefined, localize('soil.sheet.strataDetail', "one row per layer, top down; the folded groups open with their arrows")));
+		const body = append(page, $('.soil-entry-body'));
+		const messages = new Map<string, HTMLElement>();
+		switch (entry.step) {
+			case 'details': this.renderEntryDetails(body, report, borehole, index, messages); break;
+			case 'strata': this.renderEntryStrata(body, borehole, index); break;
+			case 'tests': this.renderEntryTests(body, report, borehole, index); break;
+		}
+
+		const problems = append(page, $('.soil-entry-problems', { tabIndex: -1, role: 'status', 'aria-live': 'polite' }));
+
+		const footer = append(page, $('.soil-entry-footer'));
+		this.entryButton(footer, localize('soil.entry.cancel', "Cancel"), true, () => this.cancelEntry(), entry.isNew
+			? localize('soil.entry.cancelNewTitle', "Discard this borehole")
+			: localize('soil.entry.cancelEditTitle', "Put the borehole back as it was before this edit"));
+		append(footer, $('span.soil-entry-footer-gap'));
+		const previous = nextStep(entry.step, -1);
+		const next = nextStep(entry.step, 1);
+		if (previous) {
+			this.entryButton(footer, localize('soil.entry.back', "Back"), true, () => this.goToEntryStep(previous));
+		}
+		if (next) {
+			this.entryButton(footer, localize('soil.entry.next', "Next: {0}", ENTRY_STEPS.find(s => s.step === next)!.label), false, () => this.goToEntryStep(next));
+		}
+		this.entryButton(footer, entry.isNew ? localize('soil.entry.create', "Create Borehole") : localize('soil.entry.save', "Save"), !!next, () => this.finishEntry());
+
+		this.entryParts = { title, problems, steps: stepElements, messages };
+	}
+
+	private entryButton(container: HTMLElement, label: string, secondary: boolean, run: () => void, title?: string): Button {
+		const button = this.viewDisposables.add(new Button(container, { ...defaultButtonStyles, secondary, title }));
+		button.label = label;
+		this.viewDisposables.add(button.onDidClick(run));
+		return button;
+	}
+
+	/** Step 1: the borehole's details, in groups; each field says under it what is wrong with it. */
+	private renderEntryDetails(body: HTMLElement, report: ISoilReport, borehole: IBorehole, index: number, messages: Map<string, HTMLElement>): void {
+		const placed = boreholePosition(borehole) !== 'project';
+		for (const group of DETAIL_GROUPS) {
+			const section = append(body, $('.soil-entry-group'));
+			append(section, $('.soil-entry-group-title', undefined, group.label));
+			const fields = append(section, $('.soil-entry-fields'));
+			for (const key of group.fields) {
+				const field = BOREHOLE_FIELDS.find(f => f.key === key);
+				if (!field) {
+					continue;
+				}
+				const item = append(fields, $('label.soil-entry-field', { title: field.title ?? '' }));
+				const label = append(item, $('span.soil-entry-field-label', undefined, field.unit ? `${field.label} (${field.unit})` : field.label));
+				if (REQUIRED_DETAILS.has(key)) {
+					append(label, $('span.soil-entry-required', { 'aria-hidden': 'true' }, ' *'));
+				}
+				const placeholder = key === 'groundLevel' ? formatNumber(report.groundLevel / 1000, 3) : undefined;
+				const input = this.createInput(field, borehole[key], value => {
+					if (value === undefined) {
+						delete borehole[key];
+					} else {
+						borehole[key] = value;
+					}
+					this.changed(false);
+				}, this.problemKey(index, key), placeholder);
+				if ((key === 'x' || key === 'y') && placed) {
+					// The borehole's own lat/lon (or BTM) place it: X and Y follow from them.
+					(input as HTMLInputElement).readOnly = true;
+					item.title = localize('soil.sheet.xyFromMap', "Worked out from the latitude and longitude (or BTM); clear them to place the borehole by X and Y.");
+					item.classList.add('derived');
+				}
+				item.appendChild(input);
+				messages.set(key, append(item, $('span.soil-entry-field-message')));
+			}
+			if (group.fields.includes('x')) {
+				append(section, $('p.soil-entry-note', undefined, localize('soil.entry.locationNote', "Give X and Y on the project grid, or the latitude and longitude, or the BTM easting and northing as the survey drawing gives them. The Map view can place it too.")));
+			}
+		}
+	}
+
+	/** Step 2: the strata, one row per layer from the ground down, with all the width it needs. */
+	private renderEntryStrata(body: HTMLElement, borehole: IBorehole, index: number): void {
+		const section = append(body, $('.soil-section.soil-entry-sheet'));
+		this.sheetHeading(section, localize('soil.sheet.strata', "Strata"), borehole.layers.length,
+			localize('soil.entry.strataHint', "One row per layer, from the ground down"),
+			localize('soil.entry.strataHelp', "Type into a cell or paste a block copied from Excel with Ctrl+V. Enter, Tab and the arrows move; Delete clears; Ctrl+Z undoes. The grey groups (unit weight, strength, index, consolidation) open with their arrows."));
 		const strata = new StrataSheet(borehole, index, this.problems);
-		this.addGrid(strataSection, strata, `${index}|strata`, STRATA_COLLAPSED, localize('soil.sheet.strataAria', "Strata of {0}", borehole.id));
-		const silts = borehole.layers.filter(layer => siltNeedsPlasticity(borehole, layer));
-		for (const layer of silts) {
-			const hint = append(strataSection, $('.soil-hint'));
+		this.addGrid(section, strata, `${index}|strata`, STRATA_COLLAPSED, localize('soil.sheet.strataAria', "Strata of {0}", borehole.id));
+		for (const layer of borehole.layers.filter(l => siltNeedsPlasticity(borehole, l))) {
+			const hint = append(section, $('.soil-hint'));
 			append(hint, $(ThemeIcon.asCSSSelector(Codicon.info)));
 			append(hint, $('span', undefined, localize('soil.sheet.siltHint', "The silt {0}–{1} m: is it plastic? Give PI or cu (here or in a sample's LL and PL).", formatNumber(layer.top / 1000, 2), formatNumber(layer.bottom / 1000, 2))));
 		}
+	}
 
-		// Samples and SPT.
-		const samplesSection = append(main, $('.soil-section'));
-		const samplesHeading = append(samplesSection, $('.soil-section-heading'));
-		append(samplesHeading, $('span.soil-section-title', undefined, localize('soil.sheet.samples', "Samples and SPT")));
+	/** Step 3: the SPT records and samples in the consultant's order, then the selected sample's lab tests. */
+	private renderEntryTests(body: HTMLElement, report: ISoilReport, borehole: IBorehole, index: number): void {
+		const section = append(body, $('.soil-section.soil-entry-sheet'));
 		const rows = new Set([...borehole.spt.map(s => s.depth), ...borehole.samples.map(s => s.depth)]).size;
-		append(samplesHeading, $('span.soil-section-count', undefined, String(rows)));
-		append(samplesHeading, $('span.soil-section-detail', undefined, localize('soil.sheet.samplesDetail', "N = N1 + N2 (greyed: worked out); the description and USCS are the stratum's")));
+		this.sheetHeading(section, localize('soil.sheet.samples', "Samples and SPT"), rows,
+			localize('soil.entry.testsHint', "One row per test depth; N = N1 + N2 is worked out"),
+			localize('soil.entry.testsHelp', "Seat is the first 150 mm (not counted); N1 and N2 the next two 150 mm, and N is worked out from them (greyed). Mark a refusal with R or 50/100. N60 uses the report's hammer energy ({0}%, in the Report's properties) unless the row's ER gives its own. The description and USCS are the stratum's. Paste a block from Excel with Ctrl+V.", formatNumber(report.design.hammerEnergy ?? DESIGN_DEFAULTS.hammerEnergy)));
 		const sptResults = this.resultOf(borehole)?.spt ?? [];
 		const samples = this.sampleSheet = new SampleSheet(borehole, sptResults.length ? depth => sptResults.find(s => Math.abs(s.depth - depth) <= 1) : undefined);
 		const sampleState = this.gridState(`${index}|samples`, SAMPLES_COLLAPSED);
@@ -965,50 +1188,81 @@ export class SoilEditor extends EditorPane {
 		if (labRow >= 0) {
 			sampleState.active = { row: labRow, column: sampleState.active.column };
 		}
-		this.addGrid(samplesSection, samples, `${index}|samples`, SAMPLES_COLLAPSED, localize('soil.sheet.samplesAria', "Samples and SPT of {0}", borehole.id), row => {
+		this.addGrid(section, samples, `${index}|samples`, SAMPLES_COLLAPSED, localize('soil.sheet.samplesAria', "Samples and SPT of {0}", borehole.id), row => {
 			this.labSample = samples.rowAt(row)?.sample;
 			this.renderLabPanel();
 		});
 		this.labSample = samples.rowAt(sampleState.active.row)?.sample;
 
-		// The lab tests of the selected sample.
-		this.labContainer = append(main, $('.soil-lab-container'));
+		// The lab tests of the selected sample (optional).
+		this.labContainer = append(body, $('.soil-lab-container'));
 		this.renderLabPanel();
-
-		// The log, drawn as the sheet is typed.
-		const result = this.resultOf(borehole);
-		const canvas = append(aside, $('.soil-canvas'));
-		renderBoreholeLog(canvas, report, borehole, { width: 300, height: Math.max(360, this.viewElement.clientHeight - 140), patternPrefix: this.patternPrefix, result, hammerEnergy: report.design.hammerEnergy, compact: true });
 	}
 
-	/** The borehole's header fields above the sheet, as the consultant's log sheet heads its page. */
-	private renderSheetHeader(report: ISoilReport, borehole: IBorehole, index: number): void {
-		const strip = append(this.viewElement, $('.soil-sheet-header'));
-		const placed = boreholePosition(borehole) !== 'project';
-		for (const key of HEADER_FIELDS) {
-			const field = BOREHOLE_FIELDS.find(f => f.key === key);
-			if (!field) {
-				continue;
+	/** A sheet's heading: its title, its row count, a one-line hint and the rest behind a help mark. */
+	private sheetHeading(section: HTMLElement, title: string, count: number, hint: string, help: string): void {
+		const heading = append(section, $('.soil-section-heading'));
+		append(heading, $('span.soil-section-title', undefined, title));
+		append(heading, $('span.soil-section-count', undefined, String(count)));
+		append(heading, $('span.soil-section-detail', undefined, hint));
+		append(heading, $(`span.soil-help${ThemeIcon.asCSSSelector(Codicon.question)}`, { title: help, 'aria-label': help, role: 'img' }));
+	}
+
+	/** Gives the entry screen the keyboard: the first field of the details, or the step's grid. */
+	private focusEntry(): void {
+		if (this.entry?.step === 'details') {
+			const first = this.inputs.get(this.problemKey(this.entry.index, DETAIL_GROUPS[0].fields[0]));
+			if (first && isHTMLInputElement(first)) {
+				first.focus();
+				first.select();
 			}
-			const item = append(strip, $('label.soil-sheet-field', { title: field.title ?? '' }));
-			append(item, $('span.soil-sheet-field-label', undefined, field.unit ? `${field.label} (${field.unit})` : field.label));
-			const placeholder = key === 'groundLevel' ? formatNumber(report.groundLevel / 1000, 3) : undefined;
-			const input = this.createInput(field, borehole[key], value => {
-				if (value === undefined) {
-					delete borehole[key];
-				} else {
-					borehole[key] = value;
-				}
-				this.changed(false);
-			}, this.problemKey(index, key), placeholder);
-			if ((key === 'x' || key === 'y') && placed) {
-				// The borehole's own lat/lon place it: X and Y follow from them.
-				(input as HTMLInputElement).readOnly = true;
-				item.title = localize('soil.sheet.xyFromMap', "Worked out from the latitude and longitude (or BTM); clear them to place the borehole by X and Y.");
-				item.classList.add('derived');
-			}
-			item.appendChild(input);
+		} else {
+			this.grids[0]?.focus();
 		}
+	}
+
+	/**
+	 * Shows the entry's problems without a render (typing keeps its field): under the fields, in the
+	 * list under the step, as marks on the steps, and the title follows the id.
+	 */
+	private updateEntryProblems(): void {
+		const parts = this.entryParts;
+		const entry = this.entry;
+		const report = this.report;
+		const borehole = entry && report?.boreholes[entry.index];
+		if (!parts || !entry || !report || !borehole) {
+			return;
+		}
+		parts.title.textContent = entry.isNew
+			? localize('soil.entry.newTitle', "New borehole {0}", borehole.id)
+			: localize('soil.entry.editTitle', "Edit borehole {0}", borehole.id);
+		const problems = entryProblems(report, entry.index);
+		for (const info of ENTRY_STEPS) {
+			const shown = shownProblems(entry, problems, info.step).some(p => p.severity === 'error');
+			parts.steps.get(info.step)?.classList.toggle('has-problem', shown);
+		}
+		const shown = shownProblems(entry, problems);
+		for (const [key, element] of parts.messages) {
+			const problem = shown.find(p => p.path === key);
+			element.textContent = problem?.message ?? '';
+			element.className = `soil-entry-field-message ${problem?.severity ?? ''}`;
+			this.inputs.get(this.problemKey(entry.index, key))?.classList.toggle('problem', problem?.severity === 'error');
+		}
+		clearNode(parts.problems);
+		const listed = shown.filter((p: IEntryProblem) => entry.step !== 'details' || !p.path || !parts.messages.has(p.path));
+		const others = entry.tried ? problems.filter(p => p.step !== entry.step && p.severity === 'error') : [];
+		for (const problem of listed) {
+			const line = append(parts.problems, $(`.soil-entry-problem.${problem.severity}`));
+			append(line, $(ThemeIcon.asCSSSelector(problem.severity === 'error' ? Codicon.error : Codicon.warning)));
+			append(line, $('span', undefined, problem.message));
+		}
+		if (others.length) {
+			const line = append(parts.problems, $('.soil-entry-problem.error'));
+			append(line, $(ThemeIcon.asCSSSelector(Codicon.error)));
+			const steps = ENTRY_STEPS.filter(s => others.some(p => p.step === s.step)).map(s => s.label).join(', ');
+			append(line, $('span', undefined, localize('soil.entry.otherSteps', "Also to fix before creating it: {0}.", steps)));
+		}
+		parts.problems.hidden = !parts.problems.childElementCount;
 	}
 
 	private gridState(key: string, collapsed: readonly string[]): IGridState {
@@ -1087,11 +1341,11 @@ export class SoilEditor extends EditorPane {
 		}
 	}
 
-	/** With the report selected: one row per borehole, a click selects it. */
+	/** With the report selected, under the fence: one row per borehole, a click opens its log. */
 	private renderBoreholeSummary(report: ISoilReport): void {
-		const header = append(this.viewElement, $('.soil-view-header'));
+		const header = append(this.viewElement, $('.soil-view-header.soil-summary-header'));
 		append(header, $('span.soil-view-title', undefined, localize('soil.allBoreholes', "Boreholes")));
-		append(header, $('span.soil-view-subtitle', undefined, localize('soil.summarySubtitle', "Select a borehole to edit its layers, SPT records and lab samples.")));
+		append(header, $('span.soil-view-subtitle', undefined, localize('soil.summarySubtitle', "Select a borehole to see its log; Edit Borehole there changes it.")));
 		const table = append(this.viewElement, $('table.soil-table.soil-summary'));
 		const head = append(append(table, $('thead')), $('tr'));
 		for (const [label, unit] of [[localize('soil.f.id', "ID"), ''], ['X', 'm'], ['Y', 'm'], [localize('soil.f.groundLevel', "Ground level"), 'm'], [localize('soil.f.waterTable', "Water table"), 'm'], [localize('soil.f.depthShort', "Depth"), 'm'], [localize('soil.layers', "Layers"), ''], [localize('soil.sptRecords', "SPT"), ''], [localize('soil.samples', "Lab samples"), '']]) {
@@ -1610,27 +1864,39 @@ export class SoilEditor extends EditorPane {
 		}
 	}
 
+	/**
+	 * The selected borehole at a glance. Its details are entered in one place, the entry screen
+	 * (Edit Borehole); the panel shows them and links there.
+	 */
 	private renderBoreholeProperties(panel: HTMLElement, report: ISoilReport, borehole: IBorehole): void {
 		appendPropertyHeading(panel, localize('soil.boreholeHeading', "Borehole {0}", borehole.id));
-		const placed = boreholePosition(borehole) !== 'project';
-		for (const field of BOREHOLE_FIELDS) {
-			const placeholder = field.key === 'groundLevel' ? formatNumber(report.groundLevel / 1000, 3) : undefined;
-			if (placed && (field.key === 'x' || field.key === 'y')) {
-				// Placed by its own lat/lon: X and Y follow from them (the Map view).
-				const row = appendPropertyRow(panel, field.label, localize('soil.xyValue', "{0} m", formatField(field, borehole[field.key])));
-				row.title = localize('soil.sheet.xyFromMap', "Worked out from the latitude and longitude (or BTM); clear them to place the borehole by X and Y.");
-				continue;
-			}
-			this.propertyInput(panel, field, borehole[field.key], value => {
-				// An id already in use is stored too: the check marks it (here and in the list), and
-				// the borehole stays selectable because selection goes by position.
-				if (value === undefined) {
-					delete borehole[field.key];
-				} else {
-					borehole[field.key] = value;
+		const value = (key: string, fallback = '—') => {
+			const field = BOREHOLE_FIELDS.find(f => f.key === key)!;
+			const text = formatField(field, borehole[key]);
+			return text ? (field.unit ? `${text} ${field.unit}` : text) : fallback;
+		};
+		appendPropertyRow(panel, localize('soil.f.termination', "Termination depth"), value('depth'));
+		appendPropertyRow(panel, localize('soil.f.waterTable', "Water table"), value('waterTable', localize('soil.notMet', "not met")));
+		appendPropertyRow(panel, localize('soil.f.groundLevel', "Ground level"), typeof borehole.groundLevel === 'number' ? value('groundLevel') : localize('soil.groundOfReport', "{0} m (the report's)", formatNumber(report.groundLevel / 1000, 3)));
+		appendPropertyRow(panel, localize('soil.position', "Position"), boreholePosition(borehole) === 'project'
+			? localize('soil.positionXY', "X {0}, Y {1}", value('x'), value('y'))
+			: typeof borehole.lat === 'number' && typeof borehole.lon === 'number'
+				? `${formatNumber(borehole.lat, 6)}°, ${formatNumber(borehole.lon, 6)}°`
+				: localize('soil.positionBtm', "BTM {0} E, {1} N", value('easting'), value('northing')));
+		if (borehole.date || borehole.method) {
+			appendPropertyRow(panel, localize('soil.drilled', "Drilled"), [borehole.date, borehole.method].filter(Boolean).join(' · '));
+		}
+		if (!this.entry) {
+			const link = append(panel, $<HTMLAnchorElement>('a.soil-prop-link', { role: 'button', tabIndex: 0 }));
+			append(link, $(ThemeIcon.asCSSSelector(Codicon.edit)));
+			append(link, $('span', undefined, localize('soil.editBoreholeDetails', "Edit Borehole")));
+			this.propertiesDisposables.add(addDisposableListener(link, EventType.CLICK, () => this.editBorehole()));
+			this.propertiesDisposables.add(addDisposableListener(link, EventType.KEY_DOWN, e => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					this.editBorehole();
 				}
-				this.changed(false);
-			}, this.problemKey(this.selected, field.key), placeholder);
+			}));
 		}
 		const result = this.resultOf(borehole);
 		appendPropertyHeading(panel, localize('soil.contents', "Records"));
@@ -2131,12 +2397,24 @@ export class SoilEditor extends EditorPane {
 		if (!problem) {
 			return;
 		}
-		this.selected = problem.index ?? this.selected;
-		this.view = problem.path && problem.path.includes('.') ? 'data' : this.view;
+		if (problem.index !== undefined && this.report?.boreholes[problem.index]) {
+			// A borehole's problem is fixed on its entry screen, at the step it belongs to.
+			if (this.entry && this.entry.index !== problem.index) {
+				this.leaveEntry();
+			}
+			this.selected = problem.index;
+			this.reportSelectedOnPurpose = false;
+			const step = entryStepOf(problem.path);
+			this.editBorehole(step);
+			this.entry!.tried = true;
+			this.updateEntryProblems();
+			const input = problem.path ? this.inputs.get(this.problemKey(problem.index, problem.path)) : undefined;
+			input?.focus();
+			return;
+		}
 		this.frame.setPropertiesVisible(true);
 		this.render();
 		const key = problem.path ? this.problemKey(problem.index, problem.path) : undefined;
-		const input = key ? this.inputs.get(key) ?? this.propertyInputs.get(key) : undefined;
-		input?.focus();
+		this.propertyInputs.get(key ?? '')?.focus();
 	}
 }

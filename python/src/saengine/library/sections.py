@@ -4,12 +4,20 @@ This is the bridge from an object type's IFC-style profile to the elastic sectio
 properties the FEM model needs (A, I, J). Axes follow sectionproperties: x is horizontal
 (the profile's width), y vertical (its depth); ``ixx`` is the major-axis moment of inertia
 for a beam bending under gravity.
+
+:func:`section_properties` meshes and solves a profile once per process: a building has a few
+distinct profiles but thousands of elements, and the analysis model, the design checks and the
+others all ask for them (the answer is cached by the profile's dimensions; a designed section
+by its whole definition, so editing it gives a new entry).
 """
 
 from __future__ import annotations
 
+import functools
+import json
 from dataclasses import dataclass
 
+from pydantic import TypeAdapter
 from sectionproperties.analysis.section import Section
 from sectionproperties.pre.geometry import Geometry
 from sectionproperties.pre.library import primitive_sections, steel_sections
@@ -93,14 +101,39 @@ def profile_geometry(profile: o.Profile) -> Geometry:
 
 
 def section_properties(profile: o.Profile) -> SectionProperties:
-    geometry = profile_geometry(profile)
-    # Mesh size relative to the section: fine enough for J, quick enough for interactive use.
-    xmin, xmax, ymin, ymax = geometry.calculate_extents()
-    mesh = max(xmax - xmin, ymax - ymin) ** 2 / 400
-    if isinstance(profile, o.DesignedProfile):  # thin walls and plates: finer (see mesh_size)
+    """The profile's properties, worked out once per distinct profile (:func:`profile_key`)."""
+    return _properties(profile_key(profile))
+
+
+def profile_key(profile: o.Profile) -> str:
+    """What the properties of ``profile`` depend on, as text: its shape and dimensions, or for
+    a designed section the section itself (read from the project)."""
+    if isinstance(profile, o.DesignedProfile):
         from saengine.library import section_designer
 
-        mesh = section_designer.mesh_size(section_designer.resolve(profile))
+        section = section_designer.resolve(profile).model_dump(mode="json", by_alias=True)
+        return json.dumps({"designed": section}, sort_keys=True)
+    return json.dumps(profile.model_dump(mode="json"), sort_keys=True)
+
+
+_PROFILE = TypeAdapter(o.Profile)
+
+
+@functools.lru_cache(maxsize=512)
+def _properties(key: str) -> SectionProperties:
+    data = json.loads(key)
+    if "designed" in data:
+        from saengine.library import section_designer
+
+        section = section_designer.DesignedSection.model_validate(data["designed"])
+        geometry = section_designer.outline_geometry(section)
+        # Thin walls and plates: finer (see mesh_size).
+        mesh = section_designer.mesh_size(section)
+    else:
+        geometry = profile_geometry(_PROFILE.validate_python(data))
+        # Mesh size relative to the section: fine enough for J, quick enough for interactive use.
+        xmin, xmax, ymin, ymax = geometry.calculate_extents()
+        mesh = max(xmax - xmin, ymax - ymin) ** 2 / 400
     geometry.create_mesh(mesh_sizes=mesh)
     section = Section(geometry)
     section.calculate_geometric_properties()

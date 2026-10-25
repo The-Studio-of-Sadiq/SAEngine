@@ -92,6 +92,12 @@ UNITS = "SI (m, N, kg, s, Pa)"
 #: ask for it (:mod:`saengine.fem.thermal`).
 CASES = ["D", "SD", "L", "Lr", "WX", "WY", "EX", "EY", "F"]
 
+#: The equation solver of every analysis case. Rigid diaphragms tie each floor's master node to
+#: all of that floor's shell nodes, so a banded solver's band spans the floor: BandGeneral needed
+#: gigabytes (and failed) on a 10-storey flat plate at the 500 mm mesh, where the sparse UmfPack
+#: solves it in seconds with the same displacements.
+SOLVER = "UmfPack"
+
 #: Restraint of a diaphragm's own node: free in plan, held out of plane.
 _IN_PLAN = [False, False, True, True, True, False]
 
@@ -1713,7 +1719,7 @@ def _derive_fem(
             "pattern_ids": [number],
             "n_steps": 1,
             "load_factor_increment": 1.0,
-            "system": "BandGeneral",
+            "system": SOLVER,
             "constraints": "Plain",
             "integrator": "LoadControl",
             "algorithm": "Linear",
@@ -1743,7 +1749,7 @@ def _derive_fem(
             "name": f"D: {code_context.table('combinations').loadCases['D']}, construction sequence",
             "type": "Staged",
             "stages": stages,
-            "system": "BandGeneral",
+            "system": SOLVER,
             "constraints": "Plain",
         }
         dead_preload = len(analyses) + 1
@@ -1848,7 +1854,7 @@ def _derive_fem(
                     "pattern_ids": [pattern_id],
                     "dt": record["dt"],
                     "n_steps": record["npts"],
-                    "system": "BandGeneral",
+                    "system": SOLVER,
                     "algorithm": "Newton",
                     "rayleigh_mode1_damping": history.damping,
                     "preload_case_ids": [dead_preload, CASES.index("SD") + 1],

@@ -40,7 +40,8 @@ BNBC 2020 Part 6 Sec 6.3.10 (part 1 of the code, pp. 910-915; ACI 318's provisio
   own shear across (:data:`MIN_SHEAR_SHARE`, :data:`ORTHOGONAL_SHARE`). A storey is sway
   when any combination's Q exceeds 0.05.
 - Slenderness neglected (6.3.10.1): k lu / r <= 22 in sway storeys; <= 34 - 12 (M1/M2) <= 40
-  in nonsway ones (M1/M2 positive in single curvature), per combination.
+  in nonsway ones (M1/M2 positive in single curvature), per combination; end moments of the
+  solver's round-off (:data:`ROUNDOFF_MOMENT`) are none, and no end moments are M1/M2 = 1.
 - Nonsway magnification (6.3.10.6): Mc = δns M2, δns = Cm / (1 - Pu / (0.75 Pc)) >= 1,
   Pc = π² EI / (k lu)², EI = 0.4 Ec Ig / (1 + βdns) (Eq. 6.6.22, the default: it does not
   depend on the bars, so the design mode's bar search keeps the same demand) or
@@ -100,6 +101,10 @@ UNFRAMED_SWAY_NOTE = " (sway, an end not framed: the cantilever's k; give k to r
 """k lu / r up to which slenderness is neglected in sway storeys (BNBC Eq. 6.6.13)."""
 NONSWAY_CAP = 40.0
 """Cap of 34 - 12 M1/M2 for nonsway storeys (BNBC Eq. 6.6.14)."""
+ROUNDOFF_MOMENT = 1e-6
+"""End moments up to this share of M2,min (at least of 1 N·mm) are the solver's round-off (a
+column without first-order moment, e.g. one with a free top under gravity): taken as zero, so
+that M1/M2 is not a ratio of noise; without end moments M1/M2 = 1 (single curvature)."""
 KLU_R_MAX = 100.0
 """k lu / r above which ACI 318-19 6.2.6 requires a nonlinear second-order analysis."""
 DELTA_S_MAX = 1.5
@@ -1501,9 +1506,11 @@ class SlenderContext:
                     continue
                 m2 = max(abs(end_b), abs(end_t))
                 m1 = min(abs(end_b), abs(end_t))
+                if m2 <= ROUNDOFF_MOMENT * max(minimum_moment(pu, h), 1.0):
+                    m1 = m2 = 0.0  # round-off: no first-order end moments
                 spectral = c < len(self.spectrum) and self.spectrum[c]
                 # A response spectrum combination: no sign, single curvature and Cm = 1.0.
-                same_sign = spectral or end_b * end_t > 0
+                same_sign = spectral or m2 == 0 or end_b * end_t > 0
                 ratio = (m1 / m2 if m2 > 0 else 1.0) * (1 if same_sign else -1)
                 transverse = spectral or not consistent or _curved(m_all + (ds - 1) * ms_all)
                 if sway_storey:
