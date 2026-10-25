@@ -261,10 +261,18 @@
 	margin: var(--sa-space-1, 4px) 0 var(--sa-space-2, 8px);
 }
 
-.saengine-library-editor .settings-code-pack-chips span {
+.saengine-library-editor .settings-code-pack-chips .settings-code-pack-chip {
 	padding: 0 6px;
 	border: 1px solid var(--sa-border, var(--vscode-panel-border));
 	border-radius: var(--sa-radius, 4px);
+	background: none;
+	color: inherit;
+	font: inherit;
 	font-size: 11px;
 	line-height: 18px;
+	cursor: pointer;
+}
+
+.saengine-library-editor .settings-code-pack-chips .settings-code-pack-chip:hover {
+	background: var(--vscode-toolbar-hoverBackground);
 }

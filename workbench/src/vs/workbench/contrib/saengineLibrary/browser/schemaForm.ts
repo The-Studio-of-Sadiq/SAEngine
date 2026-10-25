@@ -30,7 +30,7 @@ export interface ISchemaFormContext {
 	template(defName: string): JsonObject;
 	/** Allowed ids for a reference field, by dotted path from the item (`reinforcement.material`). */
 	references(path: string): readonly string[] | undefined;
-	/** Extra rules for a string field: an error message, or undefined. */
+	/** Extra rules for a field (its text as typed), checked before the schema's: an error message, or undefined. */
 	validate(path: string, value: string): string | undefined;
 	/** The item changed in place. `structural` changes (added/removed groups) need a re-render. */
 	changed(path: string, structural: boolean): void;
@@ -44,6 +44,18 @@ export interface ISchemaFormContext {
 	 * previous spacing; undefined uses the definition's template.
 	 */
 	newItem?(path: string, list: readonly JsonValue[]): JsonObject | undefined;
+	/**
+	 * What an empty optional field stands for (the code value an override replaces, the value
+	 * derived from other fields), shown greyed in the field: "8 (BNBC 2020 Table 6.2.19)".
+	 */
+	placeholder?(path: string): string | undefined;
+	/** The option text of a reference (`references`) in its list, e.g. an area load with its loads; undefined: the id. */
+	referenceLabel?(path: string, id: string): string | undefined;
+	/**
+	 * A field started (`true`) or finished (`false`) being typed in: the editor keeps the
+	 * keystrokes of one field as one undo step.
+	 */
+	editing?(active: boolean): void;
 }
 
 /** How {@link SchemaForm.render} lays the form out. */
@@ -112,6 +124,8 @@ export class SchemaForm {
 	private inlineCells = false;
 	/** Top-level groups and lists render without their heading (see {@link ISchemaFormRenderOptions}). */
 	private flat = false;
+	/** The text fields of the rendered form by path, so a value derived elsewhere can be shown in place. */
+	private readonly inputs = new Map<string, { readonly box: InputBox; readonly placeholder: () => void }>();
 
 	constructor(
 		private readonly ctx: ISchemaFormContext,
@@ -121,6 +135,7 @@ export class SchemaForm {
 
 	render(container: HTMLElement, schema: IJSONSchema, value: JsonObject, skip: readonly string[] = [], options: ISchemaFormRenderOptions = {}): void {
 		this.disposables.clear();
+		this.inputs.clear();
 		this.flat = !!options.flat;
 		this.renderObject(container, this.resolve(schema).schema, value, '', skip);
 	}
@@ -132,6 +147,31 @@ export class SchemaForm {
 
 	dispose(): void {
 		this.disposables.dispose();
+	}
+
+	/**
+	 * Shows `value` in the text field at `path` without rebuilding the form (a value the editor
+	 * derived from another field, e.g. E from f'c), unless that field is being typed in.
+	 */
+	showValue(path: string, value: JsonValue | undefined): void {
+		const input = this.inputs.get(path);
+		if (input && !input.box.hasFocus()) {
+			input.box.value = value === undefined || value === null ? '' : String(value);
+		}
+	}
+
+	/** Puts the cursor in the text field at `path` (e.g. the ID of a new entry), its text selected. */
+	focus(path: string): void {
+		const input = this.inputs.get(path);
+		input?.box.focus();
+		input?.box.select();
+	}
+
+	/** Refreshes the greyed placeholders of the empty fields (see {@link ISchemaFormContext.placeholder}). */
+	refreshPlaceholders(): void {
+		for (const input of this.inputs.values()) {
+			input.placeholder();
+		}
 	}
 
 	// ───────────────────────────── schema helpers ─────────────────────────────
@@ -234,11 +274,12 @@ export class SchemaForm {
 		}
 		const group = append(container, $('.form-group'));
 		const header = append(group, $('.form-group-header'));
+		let include: Checkbox | undefined;
 		if (optional) {
-			const include = this.disposables.add(new Checkbox(title, owner[key] !== undefined && owner[key] !== null, defaultCheckboxStyles));
+			include = this.disposables.add(new Checkbox(title, owner[key] !== undefined && owner[key] !== null, defaultCheckboxStyles));
 			header.appendChild(include.domNode);
 			this.disposables.add(include.onChange(() => {
-				if (include.checked) {
+				if (include!.checked) {
 					owner[key] = this.ctx.template(resolved.defName!);
 				} else {
 					delete owner[key];
@@ -246,7 +287,12 @@ export class SchemaForm {
 				this.ctx.changed(path, true);
 			}));
 		}
-		append(header, $('span.form-group-title', undefined, title));
+		const groupTitle = append(header, $('span.form-group-title', undefined, title));
+		if (optional) {
+			// The title toggles the group like its checkbox does.
+			groupTitle.classList.add('clickable');
+			this.disposables.add(addDisposableListener(groupTitle, EventType.CLICK, () => include?.domNode.click()));
+		}
 		if (!optional && owner[key] === undefined && resolved.defName) {
 			// Files written before the section existed: its defaults, saved with the next edit.
 			owner[key] = this.ctx.template(resolved.defName);
@@ -474,6 +520,10 @@ export class SchemaForm {
 		// Readable names for enum values ("RC special moment frame" for "rcSmf"), when the schema has them.
 		const labels = references ? undefined : schema.enumDescriptions ?? this.resolve(schema).schema.enumDescriptions;
 		const label = (v: JsonValue) => {
+			const reference = references && typeof v === 'string' ? this.ctx.referenceLabel?.(path.replace(/\.\d+(?=\.|$)/g, ''), v) : undefined;
+			if (reference) {
+				return reference;
+			}
 			const index = this.enumValues(schema)?.indexOf(v) ?? -1;
 			if (labels && index >= 0 && labels[index]) {
 				return labels[index];
@@ -510,6 +560,11 @@ export class SchemaForm {
 		if (schema.type === 'boolean') {
 			const checkbox = this.disposables.add(new Checkbox(title, value === true || (value === undefined && schema.default === true), defaultCheckboxStyles));
 			row.control.appendChild(checkbox.domNode);
+			if (row.label) {
+				// The label toggles the checkbox, as a label does.
+				row.label.classList.add('clickable');
+				this.disposables.add(addDisposableListener(row.label, EventType.CLICK, () => checkbox.domNode.click()));
+			}
 			this.disposables.add(checkbox.onChange(() => {
 				owner[key] = checkbox.checked;
 				this.ctx.changed(path, false);
@@ -535,7 +590,7 @@ export class SchemaForm {
 
 	// ───────────────────────────── widgets ─────────────────────────────
 
-	private fieldRow(container: HTMLElement, title: string, description: string | undefined): { control: HTMLElement } {
+	private fieldRow(container: HTMLElement, title: string, description: string | undefined): { control: HTMLElement; label?: HTMLElement } {
 		if (this.inlineCells) {
 			const cell = append(container, $('.form-control.form-cell'));
 			// The column heading, shown only when a narrow table stacks its rows (see renderObjectArray).
@@ -546,13 +601,15 @@ export class SchemaForm {
 		const head = append(row, $('.form-label-cell'));
 		const label = append(head, $('label.form-label', undefined, title));
 		const help = description?.replace(UNIT, '').replace(/\s+\./, '.').trim();
+		const control = append(row, $('.form-control'));
 		if (help && help !== '.') {
-			// The description behind a quiet "?" beside the label (and on the label itself).
+			// The description behind a "?" beside the label (and on the label and the field itself).
 			const icon = append(head, $(`span.form-help${ThemeIcon.asCSSSelector(Codicon.question)}`, { 'aria-hidden': 'true' }));
-			this.disposables.add(this.hoverService.setupDelayedHover(label, { content: help }));
-			this.disposables.add(this.hoverService.setupDelayedHover(icon, { content: help }));
+			for (const target of [label, icon, control]) {
+				this.disposables.add(this.hoverService.setupDelayedHover(target, { content: help }));
+			}
 		}
-		return { control: append(row, $('.form-control')) };
+		return { control, label };
 	}
 
 	/**
@@ -575,7 +632,7 @@ export class SchemaForm {
 			if (schema.type === 'integer' && trimmed !== '' && !Number.isInteger(Number(trimmed))) {
 				return localize('schemaForm.integer', "Enter a whole number.");
 			}
-			return validator(numeric && trimmed !== '' ? Number(trimmed) : trimmed) || (!numeric ? this.ctx.validate(path, trimmed) : undefined) || undefined;
+			return this.ctx.validate(path, trimmed) || validator(numeric && trimmed !== '' ? Number(trimmed) : trimmed) || undefined;
 		};
 		const box = this.disposables.add(new InputBox(container, this.contextViewService, {
 			inputBoxStyles: defaultInputBoxStyles,
@@ -583,13 +640,27 @@ export class SchemaForm {
 			validationOptions: { validation: text => { const error = check(text); return error ? { content: error, type: MessageType.ERROR } : null; } },
 		}));
 		box.value = initial;
-		if (schema.default !== undefined && schema.default !== null && typeof schema.default !== 'object') {
-			// An empty field means the schema's default (an underlay's offset 0, scale 1): show it
-			// greyed in the field. Set on the element, not as the InputBox placeholder, which would
-			// also show it as the hover of a field that has a value.
-			box.inputElement.placeholder = String(schema.default);
-		}
+		const placeholder = () => {
+			// An empty field means the schema's default (an underlay's offset 0, scale 1) or, for an
+			// override, the value it overrides: show it greyed in the field. Set on the element, not
+			// as the InputBox placeholder, which would also show it as the hover of a field that has a value.
+			const own = this.ctx.placeholder?.(path);
+			box.inputElement.placeholder = own ?? (schema.default !== undefined && schema.default !== null && typeof schema.default !== 'object' ? String(schema.default) : '');
+		};
+		placeholder();
+		this.inputs.set(path, { box, placeholder });
+		// The problem stays written below the field (not only in a popup while it has focus), and
+		// says that the file keeps its last valid value meanwhile.
+		const field = container.closest<HTMLElement>('.form-field, .form-cell') ?? container;
+		const message = append(field, $('.form-message', { role: 'alert' }));
+		const showMessage = (text: string) => {
+			const error = check(text);
+			message.textContent = error ? localize('schemaForm.notApplied', "{0} Not applied: the file keeps its last valid value.", error) : '';
+			field.classList.toggle('invalid', !!error);
+		};
+		showMessage(initial);
 		this.disposables.add(box.onDidChange(text => {
+			showMessage(text);
 			if (check(text) !== undefined) {
 				return;
 			}
@@ -597,6 +668,8 @@ export class SchemaForm {
 			apply(optional && trimmed === '' ? undefined : numeric ? Number(trimmed) : trimmed);
 			this.ctx.changed(path, false);
 		}));
+		this.disposables.add(addDisposableListener(box.inputElement, EventType.FOCUS, () => this.ctx.editing?.(true)));
+		this.disposables.add(addDisposableListener(box.inputElement, EventType.BLUR, () => this.ctx.editing?.(false)));
 	}
 
 	/** A small borderless icon button (remove a row, add a part), with a hover. */

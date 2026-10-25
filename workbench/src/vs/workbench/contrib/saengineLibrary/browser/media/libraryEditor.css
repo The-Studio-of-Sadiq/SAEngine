@@ -198,7 +198,22 @@
 }
 
 .saengine-library-editor .settings-values .sa-props-row > .value {
-	white-space: nowrap;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+/* long values wrap in the narrow panel; it never scrolls sideways */
+.saengine-library-editor .saengine-editor-frame .settings-values,
+.saengine-library-editor .settings-code-pack-chips {
+	overflow-x: hidden;
+}
+
+.saengine-library-editor .settings-values .sa-props-row.problem > .value {
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.saengine-library-editor .settings-values-action {
+	margin: var(--sa-space-1, 4px) 0 var(--sa-space-2, 8px);
 }
 
 .saengine-library-editor .settings-overridden {
@@ -357,10 +372,28 @@
 
 .saengine-library-editor .form-label {
 	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	overflow-wrap: anywhere;
 	color: var(--vscode-foreground);
+}
+
+.saengine-library-editor .form-label.clickable,
+.saengine-library-editor .form-group-title.clickable {
+	cursor: pointer;
+}
+
+/* a field's problem, written below it (the popup only shows while it has focus) */
+.saengine-library-editor .form-message {
+	grid-column: 1 / -1;
+	color: var(--vscode-inputValidation-errorForeground, var(--vscode-errorForeground));
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-library-editor .form-message:empty {
+	display: none;
+}
+
+.saengine-library-editor .form-field.invalid .form-message {
+	padding: 2px 0 4px;
 }
 
 /* the description behind a quiet "?", shown with the row's hover or focus */
@@ -368,7 +401,7 @@
 	flex: none;
 	font-size: 12px;
 	color: var(--sa-muted, var(--vscode-descriptionForeground));
-	opacity: 0;
+	opacity: 0.55;
 	cursor: help;
 	transition: opacity 0.1s;
 }
@@ -634,6 +667,14 @@
 	max-width: none;
 }
 
+.saengine-library-editor .form-table .form-cell.invalid {
+	flex-wrap: wrap;
+}
+
+.saengine-library-editor .form-cell > .form-message {
+	flex-basis: 100%;
+}
+
 .saengine-library-editor .form-table .form-cell > .monaco-inputbox,
 .saengine-library-editor .form-table .form-cell > .monaco-select-box {
 	flex: 1;
@@ -852,4 +893,44 @@
 .saengine-library-editor .building-3d .building-views .monaco-button.active {
 	color: var(--vscode-button-foreground);
 	background-color: var(--vscode-button-background);
+}
+
+/* the "Generate from BNBC 2020" button in the Load Combinations title, and the section's note */
+.saengine-library-editor .sa-form-page-title .settings-generate {
+	display: inline-block;
+	margin-left: var(--sa-space-3, 12px);
+	vertical-align: middle;
+	font-size: var(--sa-font-s, 12px);
+	font-weight: normal;
+	text-transform: none;
+	letter-spacing: normal;
+}
+
+.saengine-library-editor .settings-generate .monaco-button {
+	padding: 2px 8px;
+}
+
+.saengine-library-editor .settings-section-note {
+	max-width: 760px;
+	margin-bottom: var(--sa-space-2, 8px);
+}
+
+.saengine-library-editor .settings-values-problem {
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.saengine-library-editor .settings-values .sa-props-row.problem > .value > .codicon {
+	margin-right: var(--sa-space-1, 4px);
+	font-size: 12px;
+	vertical-align: -2px;
+}
+
+.saengine-library-editor .settings-source-warning {
+	display: block;
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.saengine-library-editor .settings-source-warning > .codicon {
+	margin-right: var(--sa-space-1, 4px);
+	vertical-align: -2px;
 }

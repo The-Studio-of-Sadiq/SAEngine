@@ -6,6 +6,7 @@
 import { $, addDisposableListener, append, clearNode, EventType } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
 import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { Action } from '../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
@@ -25,11 +26,12 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ISoilSources } from '../../../../platform/saengine/common/femSolver.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { BNBC, DEFAULT_SETTINGS, SETTINGS_SCHEMA, TEMPLATES, THERMAL_COMBINATIONS } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { ISaengineProjectService, partById, PROJECT_TYPES, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
 import { appendPropertyRow, EditorFrame } from '../../saengineProject/browser/editorFrame.js';
@@ -70,11 +72,71 @@ export function codeCombinations(settings: JsonObject): JsonValue[] {
 }
 
 /** One derived code value: what it is, its value, and where it comes from. */
-interface ICodeValue {
+export interface ICodeValue {
 	readonly label: string;
 	readonly value: string;
 	readonly source: string;
 	readonly overridden?: boolean;
+	/** What the short value stands for ("SD": its description), shown on hover. */
+	readonly detail?: string;
+	/** The value breaks a rule of the code (a system not permitted in the category). */
+	readonly problem?: string;
+}
+
+/** Seismic detailing levels, lowest first (BNBC 2020 Part 6 Sec 8.3.2). */
+const DETAILING = ['ordinary', 'intermediate', 'special'];
+
+/** The seismic zone of a zone coefficient Z: the zone whose Z is nearest (Table 6.2.14). */
+export function zoneOf(z: number): number {
+	const zones = Object.entries(BNBC.zoneCoefficient);
+	return Number(zones.reduce((best, zone) => Math.abs(zone[1] - z) < Math.abs(best[1] - z) ? zone : best)[0]);
+}
+
+/** The Seismic Design Category of the site and what it asks of the structural system. */
+export interface IDesignCategory {
+	readonly sdc: string;
+	readonly zone: number;
+	readonly siteClass: string;
+	/** False when the system is NP (not permitted) in the category (Table 6.2.19). */
+	readonly permitted: boolean;
+	/** The system's frame detailing and the least the category needs (Sec 8.3.2). */
+	readonly detailing: string | null;
+	readonly required: string | undefined;
+	/** The system's frame detailing is below what the category needs. */
+	readonly tooLittleDetailing: boolean;
+	/** The permitted system of the same material to switch to (a special moment frame). */
+	readonly alternative: string | undefined;
+}
+
+/**
+ * BNBC 2020 Part 6 Sec 2.5.5.2, Table 6.2.18 (p. 617): the Seismic Design Category from the
+ * zone (the location's, or the one nearest an entered Z), the site class the analysis uses and
+ * the occupancy category; and Table 6.2.19 (pp. 619-624), Sec 8.3.2 (pp. 1088-1089): whether
+ * the structural system is permitted and detailed enough in it. The same rules as
+ * `saengine.library.settings.design_category`. Undefined without a zone.
+ */
+export function designCategory(settings: JsonObject, siteClass: string): IDesignCategory | undefined {
+	const object = (key: string) => (isObject(settings[key]) ? settings[key] : {}) as JsonObject;
+	const site = object('site');
+	const z = typeof site.zoneCoefficient === 'number' ? site.zoneCoefficient : undefined;
+	const zone = z !== undefined ? zoneOf(z) : BNBC.locations[String(site.location)]?.zone;
+	if (zone === undefined) {
+		return undefined;
+	}
+	const table = BNBC.designCategories;
+	const rows = table.bySiteClass;
+	const row = rows[table.aliases[siteClass] ?? siteClass] ?? Object.values(rows)[Object.keys(rows).length - 1];
+	const group = table.occupancyGroups[String(object('occupancy').category)] ?? Object.keys(row)[0];
+	const sdc = row[group][zone - 1];
+	const systemId = String(object('seismic').system);
+	const system = BNBC.systems[systemId];
+	const limit = system?.heightLimits[sdc];
+	const permitted = !(limit !== null && limit !== undefined && limit <= 0);
+	const required = BNBC.requiredDetailing[sdc];
+	const detailing = system?.frame ?? null;
+	const tooLittleDetailing = !!detailing && !!required && DETAILING.indexOf(detailing) < DETAILING.indexOf(required);
+	const alternative = !permitted || tooLittleDetailing ? (systemId.startsWith('steel') ? 'steelSmf' : 'rcSmf') : undefined;
+	return { sdc, zone, siteClass, permitted, detailing, required, tooLittleDetailing, alternative: alternative !== systemId ? alternative : undefined };
 }
 
 /**
@@ -91,31 +153,72 @@ export function codeValues(settings: JsonObject, soilSiteClass?: { readonly clas
 	const wind = object('wind');
 	const location = BNBC.locations[String(site.location)];
 	const category = BNBC.categories[String(occupancy.category)];
-	const system = BNBC.systems[String(seismic.system)];
+	const systemId = String(seismic.system);
+	const system = BNBC.systems[systemId];
 	const override = (value: JsonValue | undefined) => typeof value === 'number' ? value : undefined;
 	const values: ICodeValue[] = [];
-	const push = (label: string, value: number | string | undefined, source: string, overridden = false) => {
-		values.push({ label, value: value === undefined ? '—' : typeof value === 'number' ? format(value) : value, source, overridden });
+	const push = (label: string, value: number | string | undefined, source: string, extra: { overridden?: boolean; detail?: string; problem?: string } = {}) => {
+		values.push({ label, value: value === undefined ? '—' : typeof value === 'number' ? format(value) : value, source, ...extra });
 	};
 	const z = override(site.zoneCoefficient);
-	push(localize('code.zone', "Seismic zone"), location ? String(location.zone) : undefined, localize('code.zoneSource', "Seismic zoning map"));
-	push(localize('code.z', "Zone coefficient Z"), z ?? (location ? BNBC.zoneCoefficient[String(location.zone)] : undefined), localize('code.zSource', "Table 6.2.14"), z !== undefined);
+	if (z !== undefined && !location) {
+		push(localize('code.zone', "Seismic zone"), zoneOf(z), localize('code.zoneOfZ', "Table 6.2.14: the zone whose Z is nearest the entered {0}", format(z)));
+	} else {
+		push(localize('code.zone', "Seismic zone"), location ? String(location.zone) : undefined, localize('code.zoneSource', "Seismic zoning map"));
+	}
+	push(localize('code.z', "Zone coefficient Z"), z ?? (location ? BNBC.zoneCoefficient[String(location.zone)] : undefined), localize('code.zSource', "Table 6.2.14"), { overridden: z !== undefined });
 	const v = override(site.windSpeed);
-	push(localize('code.windSpeed', "Basic wind speed V (m/s)"), v ?? location?.windSpeed, localize('code.windSource', "Table 6.2.8"), v !== undefined);
+	push(localize('code.windSpeed', "Basic wind speed V (m/s)"), v ?? location?.windSpeed, localize('code.windSource', "Table 6.2.8"), { overridden: v !== undefined });
 	push(localize('code.seismicImportance', "Seismic importance factor I"), category?.seismicImportance, localize('code.seismicImportanceSource', "Table 6.2.17"));
 	push(localize('code.windImportance', "Wind importance factor I"), category?.windImportance, localize('code.windImportanceSource', "Table 6.2.9"));
+	const fromSoil = !!soilSiteClass && site.siteClassSource !== 'entered';
+	const siteClass = fromSoil ? soilSiteClass!.class : String(site.siteClass);
+	// The class itself ("SD"); its description on hover keeps the narrow panel from overflowing.
+	push(localize('code.siteClass', "Site class"), siteClass, fromSoil
+		? localize('code.siteClassFromSoil', "Table 6.2.13, from 1 Soil Report: {0}", soilSiteClass!.label)
+		: localize('code.siteClassSource', "Table 6.2.13"), { detail: BNBC.siteClasses[siteClass] });
+	const sdc = designCategory(settings, siteClass);
+	push(localize('code.sdc', "Seismic Design Category"), sdc?.sdc, sdc
+		? localize('code.sdcSource', "Table 6.2.18 (p. 617): zone {0}, site class {1}, occupancy category {2}", sdc.zone, sdc.siteClass, String(occupancy.category))
+		: localize('code.sdcNone', "Table 6.2.18: needs the zone (a location, or Z)"));
+	const row = system?.row ? localize('code.systemRow', "Table 6.2.19 row {0}", system.row) : localize('code.systemSource', "Table 6.2.19");
 	for (const [key, label] of [['r', localize('code.r', "Response reduction factor R")], ['omega', localize('code.omega', "Overstrength factor Ω0")], ['cd', localize('code.cd', "Deflection amplification Cd")]] as const) {
 		const own = override(seismic[key]);
-		push(label, own ?? system?.[key], localize('code.systemSource', "Table 6.2.19"), own !== undefined);
+		push(label, own ?? system?.[key], row, { overridden: own !== undefined });
 	}
-	if (soilSiteClass && site.siteClassSource !== 'entered') {
-		push(localize('code.siteClass', "Site class"), BNBC.siteClasses[soilSiteClass.class], localize('code.siteClassFromSoil', "Table 6.2.13, from 1 Soil Report: {0}", soilSiteClass.label));
-	} else {
-		push(localize('code.siteClass', "Site class"), BNBC.siteClasses[String(site.siteClass)], localize('code.siteClassSource', "Table 6.2.13"));
-	}
-	push(localize('code.exposure', "Wind exposure"), BNBC.exposures[String(wind.exposure)], localize('code.exposureSource', "6.2.9.3"));
+	// One system gives R, Ω0, Cd and the members' seismic detailing.
+	const problem = sdc && !sdc.permitted
+		? localize('code.systemNotPermitted', "{0} is not permitted in Seismic Design Category {1} ({2}). Category {1} needs {3} seismic detailing (Sec 8.3.2).", system?.name ?? systemId, sdc.sdc, row, sdc.required ?? '')
+		: sdc?.tooLittleDetailing
+			? localize('code.systemDetailing', "{0} has {1} detailing; Seismic Design Category {2} needs {3} detailing (Sec 8.3.2).", system?.name ?? systemId, sdc.detailing ?? '', sdc.sdc, sdc.required ?? '')
+			: undefined;
+	push(localize('code.detailing', "Seismic detailing"), system ? (system.frame ?? localize('code.detailingWalls', "per the system")) : undefined,
+		localize('code.detailingSource', "Sec 8.3.2 (pp. 1088-1089), from the structural system {0}", system?.name ?? systemId), { problem });
+	push(localize('code.exposure', "Wind exposure"), String(wind.exposure), localize('code.exposureSource', "6.2.9.3"), { detail: BNBC.exposures[String(wind.exposure)] });
+	const kd = override(wind.directionality);
+	push(localize('code.kd', "Directionality factor Kd"), kd ?? BNBC.wind.directionality, localize('code.kdSource', "Table 6.2.12"), { overridden: kd !== undefined });
+	const kzt = override(wind.topographic);
+	push(localize('code.kzt', "Topographic factor Kzt"), kzt ?? BNBC.wind.topographic, localize('code.kztSource', "Sec 2.4.7, flat terrain"), { overridden: kzt !== undefined });
+	const gust = override(wind.gust);
+	push(localize('code.gust', "Gust effect factor G"), gust ?? BNBC.wind.gust, localize('code.gustSource', "Sec 2.4.8.1, rigid building; a flexible building (natural frequency below 1 Hz) needs Gf of Sec 2.4.8.2 entered in Wind"), { overridden: gust !== undefined });
 	return values;
 }
+
+/** The floors' area use (Table 6.2.3) for each building use, offered when the building use changes. */
+const FLOOR_USE: { readonly [use: string]: string } = {
+	residential: 'residential',
+	office: 'office',
+	educational: 'classroom',
+	healthcare: 'hospitalWard',
+	assembly: 'assemblyMovable',
+	retail: 'retailUpper',
+	industrial: 'storageLight',
+	storage: 'storageLight',
+	parking: 'parking',
+};
+
+/** The Code Values panel starts closed below this editor width, so the forms keep their tables. */
+const NARROW_WIDTH = 1500;
 
 /** A section of the settings: one page of the form, listed on the left. */
 export interface ISettingsSection {
@@ -186,8 +289,11 @@ export class SettingsEditor extends JsonDocumentEditor {
 	private sectionId = SECTIONS[0]?.id;
 	private problemBox: HTMLElement | undefined;
 	private readonly form: SchemaForm;
+	/** The Code Values panel was closed for a narrow editor (and opens again when it is wide). */
+	private autoCollapsed = false;
 
 	private readonly navDisposables = this._register(new DisposableStore());
+	private readonly pageDisposables = this._register(new DisposableStore());
 	private readonly valuesDisposables = this._register(new DisposableStore());
 
 	/** The soil report (unsaved edits included): where the site class and qa come from. */
@@ -218,6 +324,7 @@ export class SettingsEditor extends JsonDocumentEditor {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ITextFileService private readonly textFiles: ITextFileService,
 	) {
 		super(SettingsEditor.ID, group, telemetryService, themeService, storageService, commands, editorService, textModels, project);
 		this.trackDeveloperMode(configurationService);
@@ -229,8 +336,17 @@ export class SettingsEditor extends JsonDocumentEditor {
 			changed: (path, structural) => this.onChanged(path, structural),
 			mode: path => path === 'site.siteClass' && this.siteClassFromSoil ? 'hidden' : undefined,
 			newItem: (path, list) => this.newItem(path, list),
+			placeholder: path => this.placeholder(path),
+			referenceLabel: (path, id) => this.referenceLabel(path, id),
+			editing: active => this.fieldEditing(active),
 		});
 		this._register({ dispose: () => this.form.dispose() });
+		// Unsaved settings show a Save link in the status line.
+		this._register(this.textFiles.files.onDidChangeDirty(model => {
+			if (this.resource && model.resource.toString() === this.resource.toString()) {
+				this.renderStatus();
+			}
+		}));
 		// The backend's commands are registered by the desktop contributions, possibly after this editor.
 		this._register(CommandsRegistry.onDidRegisterCommand(id => {
 			if (id === SOIL_SOURCES_COMMAND) {
@@ -302,7 +418,16 @@ export class SettingsEditor extends JsonDocumentEditor {
 		const box = append(slot, $('.settings-code-pack-select'));
 		select.render(box);
 		this.packHover = this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), box, ''));
-		this._register(select.onDidSelect(e => void this.changeCodePack(this.packChoices[e.index])));
+		this._register(select.onDidSelect(e => {
+			const option = this.packChoices[e.index];
+			if (option) {
+				void this.changeCodePack(option);
+				return;
+			}
+			// The entries after the packs: manage or install packs on the Code Packs page.
+			this.renderCodePack();
+			void this.commands.executeCommand(e.index === this.packChoices.length ? 'saengine.codePacks.show' : 'saengine.codePacks.install');
+		}));
 	}
 
 	/** The selector follows the settings' `codePack` and the packs installed. */
@@ -316,10 +441,14 @@ export class SettingsEditor extends JsonDocumentEditor {
 		this.packChoices = packOptions(this.packs ?? [], chosen);
 		const index = Math.max(0, this.packChoices.findIndex(o => o.id === chosen));
 		// A pack with errors cannot be loaded by analysis or design, so it cannot be chosen.
-		select.setOptions(this.packChoices.map(o => ({ text: o.label, description: o.description, isDisabled: o.unusable && o.id !== chosen })), index);
+		select.setOptions([
+			...this.packChoices.map(o => ({ text: o.label, description: o.description, isDisabled: o.unusable && o.id !== chosen })),
+			{ text: localize('settings.managePacks', "Manage Code Packs..."), description: localize('settings.managePacksDescription', "Lists the code packs installed and makes new ones (Code Packs page).") },
+			{ text: localize('settings.installPack', "Install Code Pack..."), description: localize('settings.installPackDescription', "Installs a code pack from a folder or .zip.") },
+		], index);
 		const option = this.packChoices[index];
 		this.packHover?.update(this.packs === undefined
-			? localize('settings.designCodeStandIn', "{0}. Other code packs become available when SAEngine offers them (≡ > Code Packs...).", option?.label ?? BNBC.edition)
+			? localize('settings.designCodeStandIn', "{0}. Other code packs become available when SAEngine offers them (Manage Code Packs... in this list).", option?.label ?? BNBC.edition)
 			: option?.description || option?.label || '');
 	}
 
@@ -438,6 +567,14 @@ export class SettingsEditor extends JsonDocumentEditor {
 			if (text !== undefined) {
 				append(site, $('span.settings-source-value', undefined, text));
 			}
+			// S1 and S2 (soft clays, liquefiable soils) need a site-specific study.
+			const flags = ((soil as { readonly flags?: readonly string[] } | undefined)?.flags ?? []).filter(f => f === 'S1' || f === 'S2');
+			if (flags.length) {
+				row.classList.remove('hidden');
+				const warning = append(site, $('span.settings-source-warning'));
+				append(warning, $(`span${ThemeIcon.asCSSSelector(Codicon.warning)}`));
+				append(warning, $('span', undefined, localize('settings.siteSpecific', "1 Soil Report flags site class {0} (Table 6.2.13): {1} Sec 2.5.3.1 asks for a site-specific study. The analysis meanwhile uses the class shown above.", flags.join(', '), BNBC.edition)));
+			}
 		}
 		const bearing = this.bearingSourceCell;
 		if (bearing) {
@@ -479,7 +616,7 @@ export class SettingsEditor extends JsonDocumentEditor {
 		const frame = this.documentFrame!;
 		frame.element.classList.add('saengine-settings-editor');
 		frame.setTitle(localize('settings.title', "Project Settings"));
-		frame.setHelp(localize('settings.intro', "Codes, occupancy, site and loads of the project. The design code (a code pack, {0} by default) is chosen in the toolbar: its tables give the code values in the panel on the right, and every one can be overridden. The floor plan, the building model and the analysis read these settings. ≡ > Code Packs lists the packs installed and makes new ones.", BNBC.edition));
+		frame.setHelp(localize('settings.intro', "Codes, occupancy, site and loads of the project. The design code (a code pack, {0} by default) is chosen in the toolbar: its tables give the code values in the panel on the right, and every one can be overridden. The floor plan, the building model and the analysis read these settings. Manage Code Packs... at the end of the design code list shows the packs installed and makes new ones.", BNBC.edition));
 		this.createProjectType(frame);
 		this.createCodePack(frame);
 
@@ -487,6 +624,8 @@ export class SettingsEditor extends JsonDocumentEditor {
 		this.nav = append(body, $('.sa-section-list', { role: 'listbox', tabIndex: 0, 'aria-label': localize('settings.sections', "Sections") }));
 		this.page = append(body, $('.sa-form-page'));
 		this._register(addDisposableListener(this.nav, EventType.KEY_DOWN, e => this.onNavKey(new StandardKeyboardEvent(e))));
+		// A field's help does not linger over other fields while the page scrolls.
+		this._register(addDisposableListener(this.page, EventType.SCROLL, () => this.hoverService.hideHover(true)));
 	}
 
 	/**
@@ -503,6 +642,25 @@ export class SettingsEditor extends JsonDocumentEditor {
 		select.render(box);
 		this.typeHover = this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), box, ''));
 		this._register(select.onDidSelect(e => void this.changeProjectType(PROJECT_TYPES[e.index].type)));
+	}
+
+	override layout(dimension: Parameters<JsonDocumentEditor['layout']>[0]): void {
+		super.layout(dimension);
+		const frame = this.documentFrame;
+		if (!frame) {
+			return;
+		}
+		// Below about 1500 px the panel would squeeze the combination and area load tables into
+		// stacked cards: it starts closed there (the toolbar button opens it) and opens again wider.
+		if (dimension.width < NARROW_WIDTH && frame.isPropertiesVisible && !this.autoCollapsed) {
+			this.autoCollapsed = true;
+			frame.setPropertiesVisible(false);
+		} else if (dimension.width >= NARROW_WIDTH && this.autoCollapsed) {
+			this.autoCollapsed = false;
+			if (!frame.isPropertiesVisible) {
+				frame.setPropertiesVisible(true);
+			}
+		}
 	}
 
 	protected override documentFrameActions(): IDocumentFrameActions {
@@ -541,7 +699,69 @@ export class SettingsEditor extends JsonDocumentEditor {
 		return path === 'floorLoad' || path === 'roofLoad' ? this.areaLoads.map(a => String(a.id)) : undefined;
 	}
 
+	/** The floor and roof selectors name each area load with its loads: "FL: Floors (L 2, finish 1.2, partitions 1 kN/m²)". */
+	private referenceLabel(path: string, id: string): string | undefined {
+		if (path !== 'floorLoad' && path !== 'roofLoad') {
+			return undefined;
+		}
+		const load = this.areaLoads.find(a => a.id === id);
+		if (!load) {
+			return undefined;
+		}
+		const number = (value: JsonValue | undefined) => typeof value === 'number' ? format(value) : '0';
+		return localize('settings.loadOption', "{0}: {1} (L {2}, finish {3}, partitions {4} kN/m²)", id, String(load.name ?? ''), number(load.live), number(load.finish), number(load.partitions));
+	}
+
+	private get location() {
+		const site = isObject(this.document?.site) ? this.document.site : {};
+		return BNBC.locations[String(site.location)];
+	}
+
+	private get system() {
+		const seismic = isObject(this.document?.seismic) ? this.document.seismic : {};
+		return BNBC.systems[String(seismic.system)];
+	}
+
+	/** An empty override shows the value it would replace, with its table. */
+	private placeholder(path: string): string | undefined {
+		const location = this.location;
+		const system = this.system;
+		const row = system?.row ? localize('settings.rowShort', "Table 6.2.19 row {0}", system.row) : localize('settings.tableSystems', "Table 6.2.19");
+		switch (path) {
+			case 'site.zoneCoefficient': return location ? localize('settings.zPlaceholder', "{0} ({1}, Table 6.2.14)", format(BNBC.zoneCoefficient[String(location.zone)]), location.name) : localize('settings.zRequired', "required for a custom location");
+			case 'site.windSpeed': return location ? localize('settings.vPlaceholder', "{0} ({1}, Table 6.2.8)", format(location.windSpeed), location.name) : localize('settings.vRequired', "required for a custom location");
+			case 'seismic.r': return system ? `${format(system.r)} (${row})` : undefined;
+			case 'seismic.omega': return system ? `${format(system.omega)} (${row})` : undefined;
+			case 'seismic.cd': return system ? `${format(system.cd)} (${row})` : undefined;
+			case 'wind.directionality': return localize('settings.kdPlaceholder', "{0} (Table 6.2.12)", format(BNBC.wind.directionality));
+			case 'wind.topographic': return localize('settings.kztPlaceholder', "{0} (flat terrain)", format(BNBC.wind.topographic));
+			case 'wind.gust': return localize('settings.gustPlaceholder', "{0} (rigid, Sec 2.4.8.1)", format(BNBC.wind.gust));
+			case 'foundation.allowableBearing': return localize('settings.qaPlaceholder', "from 1 Soil Report");
+		}
+		if (/^combinations\.\d+\.F$/.test(path)) {
+			return localize('settings.fPlaceholder', "as D");
+		}
+		return undefined;
+	}
+
 	private validate(path: string, value: string): string | undefined {
+		const number = value === '' ? undefined : Number(value);
+		if (number !== undefined && isFinite(number)) {
+			const system = this.system;
+			const symbol = { 'seismic.r': 'R', 'seismic.omega': 'Ω0', 'seismic.cd': 'Cd' }[path];
+			if (symbol && number <= 0) {
+				return system
+					? localize('settings.factorPositive', "{0} must be above 0. {1} Table 6.2.19 gives {2} for {3}; clear the field to use it.", symbol, BNBC.edition, format(system[path === 'seismic.r' ? 'r' : path === 'seismic.omega' ? 'omega' : 'cd']), system.name)
+					: localize('settings.factorPositiveNoSystem', "{0} must be above 0.", symbol);
+			}
+			if (path === 'site.zoneCoefficient' && (number <= 0 || number >= 1)) {
+				return localize('settings.zRange', "Z is a fraction of g between 0 and 1: {0} Table 6.2.14 gives 0.12, 0.20, 0.28 or 0.36 by zone.", BNBC.edition);
+			}
+			if (path === 'site.windSpeed' && number <= 0) {
+				return localize('settings.vRange', "Enter the basic wind speed in m/s (3-second gust at 10 m, {0} Table 6.2.8).", BNBC.edition);
+			}
+			return undefined;
+		}
 		const match = /^areaLoads\.(?<index>\d+)\.id$/.exec(path);
 		if (match) {
 			const own = this.areaLoads[Number(match.groups!.index)];
@@ -569,8 +789,62 @@ export class SettingsEditor extends JsonDocumentEditor {
 		}
 		this.changed(structural);
 		if (!structural) {
+			this.form.refreshPlaceholders();
 			this.renderValues();
 			this.renderSources();
+		}
+		if (path === 'occupancy.use') {
+			void this.offerFloorUse();
+		}
+	}
+
+	/** After the building use changes: offers the floors' area load the code gives for that use. */
+	private async offerFloorUse(): Promise<void> {
+		const document = this.document;
+		const occupancy = isObject(document?.occupancy) ? document.occupancy : {};
+		const useId = FLOOR_USE[String(occupancy.use)];
+		const use = useId ? BNBC.areaUses[useId] : undefined;
+		const floor = this.areaLoads.find(a => a.id === document?.floorLoad);
+		if (!document || !use || !floor || floor.use === useId) {
+			return;
+		}
+		const { confirmed } = await this.dialogService.confirm({
+			message: localize('settings.floorUseConfirm', "Update the floor load {0} to {1}?", String(floor.id), use.name),
+			detail: localize('settings.floorUseDetail', "The floors ({0}) are loaded as {1} at {2} kN/m². {3} Table 6.2.3 gives {4} kN/m² for {5}.", String(floor.name ?? floor.id), String(BNBC.areaUses[String(floor.use)]?.name ?? floor.use), format(Number(floor.live)), BNBC.edition, format(use.live), use.name),
+			primaryButton: localize('settings.floorUseButton', "&&Update Floor Load"),
+			cancelButton: localize('settings.floorUseKeep', "Keep"),
+		});
+		if (confirmed && this.document === document && this.areaLoads.includes(floor)) {
+			floor.use = useId;
+			floor.live = use.live;
+			this.changed(true);
+		}
+	}
+
+	/** Switches the structural system to one the Seismic Design Category permits (after asking). */
+	private async switchSystem(target: string): Promise<void> {
+		const document = this.document;
+		const system = BNBC.systems[target];
+		if (!document || !system) {
+			return;
+		}
+		const seismic = isObject(document.seismic) ? document.seismic : (document.seismic = {});
+		const overrides = ['r', 'omega', 'cd'].filter(k => seismic[k] !== undefined);
+		const { confirmed } = await this.dialogService.confirm({
+			message: localize('settings.switchSystemConfirm', "Switch the structural system to {0}?", system.name),
+			detail: [
+				localize('settings.switchSystemDetail', "R, Ω0 and Cd become {0}, {1} and {2} ({3} Table 6.2.19 row {4}), and the members are designed and detailed as {5} (Sec 8.3).", format(system.r), format(system.omega), format(system.cd), BNBC.edition, system.row, system.name),
+				...(overrides.length ? [localize('settings.switchSystemOverrides', "The overrides of R, Ω0 and Cd, which belonged to the old system, are cleared.")] : []),
+				localize('settings.switchSystemUndo', "Edit > Undo brings the old system back."),
+			].join(' '),
+			primaryButton: localize('settings.switchSystemButton', "&&Switch System"),
+		});
+		if (confirmed && this.document === document) {
+			seismic.system = target;
+			for (const key of overrides) {
+				delete seismic[key];
+			}
+			this.changed(true);
 		}
 	}
 
@@ -677,12 +951,20 @@ export class SettingsEditor extends JsonDocumentEditor {
 	}
 
 	private renderPage(): void {
+		this.pageDisposables.clear();
 		clearNode(this.page);
 		const section = this.section;
 		if (!this.document || !section) {
 			return;
 		}
-		append(this.page, $('.sa-form-page-title', undefined, section.title));
+		const title = append(this.page, $('.sa-form-page-title', undefined, section.title));
+		if (section.id === 'combinations') {
+			// The code's combinations, one click from the section (also in the ... menu).
+			const button = this.pageDisposables.add(new Button(append(title, $('span.settings-generate')), { ...defaultButtonStyles, secondary: true, supportIcons: true, title: this.resetAction.tooltip }));
+			button.label = `$(${Codicon.sync.id}) ${localize('settings.generateCombinations', "Generate from {0}", BNBC.edition)}`;
+			this.pageDisposables.add(button.onDidClick(() => void this.resetCombinations()));
+			append(this.page, $('.sa-props-note.settings-section-note', undefined, localize('settings.combinationsNote', "Factors on the load cases. D includes the superimposed dead load SD (finish, partitions). T applies to the temperature case (Analysis model › Temperature) and is 0 elsewhere; F, on the fluid loads of 07 MEP, follows D when empty. Hover a column heading for its meaning.")));
+		}
 		this.problemBox = append(this.page, $('.library-problems'));
 		this.renderSectionProblems();
 		const skip = Object.keys(SETTINGS_SCHEMA.properties ?? {}).filter(key => !section.keys.includes(key));
@@ -746,26 +1028,49 @@ export class SettingsEditor extends JsonDocumentEditor {
 			appendPropertyRow(panel, localize('settings.edition', "Edition"), pack.edition);
 		}
 		if (pack?.covers.length) {
+			// What the pack provides; each opens the pack on the Code Packs page, where its tables are.
 			const chips = append(panel, $('.settings-code-pack-chips', { 'aria-label': localize('settings.packProvides', "Provides") }));
-			for (const area of pack.covers) {
-				append(chips, $('span', undefined, coverageLabel(area)));
+			for (const label of new Set(pack.covers.map(coverageLabel))) {
+				const chip = append(chips, $<HTMLButtonElement>('button.settings-code-pack-chip', { type: 'button' }, label));
+				this.valuesDisposables.add(this.hoverService.setupDelayedHover(chip, { content: localize('settings.chipHover', "{0} of {1}: show the pack's tables on the Code Packs page", label, pack.name) }));
+				this.valuesDisposables.add(addDisposableListener(chip, EventType.CLICK, () => void this.commands.executeCommand('saengine.codePacks.show')));
 			}
 		}
 		const table = append(panel, $('.settings-values', { role: 'table', 'aria-label': localize('settings.codeValues', "Code Values") }));
 		const soil = this.sources?.soil;
+		const problems: string[] = [];
 		for (const value of codeValues(this.document, soil?.class ? { class: soil.class, label: soil.label } : undefined)) {
 			const row = append(table, $('.sa-props-row', { role: 'row' }));
 			append(row, $('span.name', { role: 'cell' }, value.label));
-			const cell = append(row, $('span.value', { role: 'cell' }, value.value));
+			const cell = append(row, $('span.value', { role: 'cell' }));
+			if (value.problem) {
+				row.classList.add('problem');
+				append(cell, $(`span${ThemeIcon.asCSSSelector(Codicon.warning)}`));
+				problems.push(value.problem);
+			}
+			append(cell, $('span', undefined, value.value));
 			if (value.overridden) {
 				row.classList.add('overridden');
 			}
-			// Where the value comes from, on hover: the table, or that it was overridden.
+			// Where the value comes from, on hover: what it stands for, the table, or that it was overridden.
 			const source = value.overridden ? localize('settings.overriddenSource', "Overridden in the settings ({0} gives it in {1}).", BNBC.edition, value.source) : localize('settings.source', "{0}, {1}", BNBC.edition, value.source);
-			this.valuesDisposables.add(this.hoverService.setupDelayedHover(row, { content: source }));
+			const content = [value.detail ? `${value.value}: ${value.detail}` : undefined, source, value.problem].filter(Boolean).join('\n');
+			this.valuesDisposables.add(this.hoverService.setupDelayedHover(row, { content }));
 			if (value.overridden) {
 				append(cell, $('span.settings-overridden', { 'aria-label': localize('settings.overridden', "overridden") }, '*'));
 			}
+		}
+		// A system the Seismic Design Category does not permit: say so and offer the switch.
+		const site = isObject(this.document.site) ? this.document.site : {};
+		const category = designCategory(this.document, soil?.class && site.siteClassSource !== 'entered' ? soil.class : String(site.siteClass));
+		if (problems.length) {
+			append(panel, $('.sa-props-note.settings-values-problem', { role: 'alert' }, problems.join(' ')));
+		}
+		if (category?.alternative) {
+			const target = BNBC.systems[category.alternative];
+			const button = this.valuesDisposables.add(new Button(append(panel, $('.settings-values-action')), { ...defaultButtonStyles, supportIcons: true }));
+			button.label = localize('settings.switchSystem', "Switch to {0}", target?.name ?? category.alternative);
+			this.valuesDisposables.add(button.onDidClick(() => void this.switchSystem(category.alternative!)));
 		}
 		append(panel, $('.sa-props-note', undefined, localize('settings.valuesNote', "From the {0} tables for the site, occupancy and structural system. * overridden in the settings. Hover a value for its source.", BNBC.edition)));
 		if (chosenPackId(this.document) !== DEFAULT_CODE_PACK) {
@@ -813,6 +1118,16 @@ export class SettingsEditor extends JsonDocumentEditor {
 					? localize('settings.oneProblem', "1 problem: {0}", first.message)
 					: localize('settings.problems', "{0} problems. {1}", this.problems.length, first.message),
 				link: section && section !== this.section ? { label: localize('settings.showProblem', "Show"), run: () => this.selectSection(section.id) } : undefined,
+			});
+			return;
+		}
+		const resource = this.resource;
+		if (resource && this.textFiles.isDirty(resource)) {
+			// Run All and the other parts read the saved file: make the unsaved edits hard to miss.
+			frame.setStatus({
+				severity: 'warning',
+				text: localize('settings.unsaved', "Unsaved changes: the analysis and the other parts read the saved settings."),
+				link: { label: localize('settings.save', "Save"), run: () => void this.textFiles.save(resource) },
 			});
 			return;
 		}

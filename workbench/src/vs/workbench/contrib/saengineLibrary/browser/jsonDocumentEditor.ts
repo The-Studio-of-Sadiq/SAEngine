@@ -133,9 +133,9 @@ export abstract class JsonDocumentEditor extends EditorPane {
 		themeService: IThemeService,
 		storageService: IStorageService,
 		private readonly commandService: ICommandService,
-		private readonly editorService: IEditorService,
-		private readonly textModelService: ITextModelService,
-		private readonly projectService: ISaengineProjectService,
+		protected readonly editorService: IEditorService,
+		protected readonly textModelService: ITextModelService,
+		protected readonly projectService: ISaengineProjectService,
 	) {
 		super(id, group, telemetryService, themeService, storageService);
 	}
@@ -337,7 +337,24 @@ export abstract class JsonDocumentEditor extends EditorPane {
 		this.documentFrame?.setStatus({ severity: 'warning', text: error.message });
 	}
 
-	/** Writes the document to the text model as one undoable edit. */
+	/** A form field is being typed in: its commits join one undo step, closed by {@link fieldEditing}(false). */
+	private typing = false;
+	/** The undo step of the field being typed is open (its first commit is made). */
+	private undoOpen = false;
+
+	/** A form field started or finished being typed in (`SchemaForm`'s `editing`): one undo step per field. */
+	protected fieldEditing(active: boolean): void {
+		if (!active) {
+			this.flush();
+			if (this.undoOpen && this.model && !this.model.isDisposed()) {
+				this.model.pushStackElement();
+			}
+			this.undoOpen = false;
+		}
+		this.typing = active;
+	}
+
+	/** Writes the document to the text model as one undoable edit (while a field is typed, the field's one). */
 	protected commit(): void {
 		this.commitScheduler.cancel();
 		if (!this.model || !this.document || this.model.isDisposed()) {
@@ -349,9 +366,15 @@ export abstract class JsonDocumentEditor extends EditorPane {
 		}
 		this.applying = true;
 		try {
-			this.model.pushStackElement();
+			if (!this.undoOpen) {
+				this.model.pushStackElement();
+			}
 			this.model.pushEditOperations([], [{ range: this.model.getFullModelRange(), text }], () => null);
-			this.model.pushStackElement();
+			if (this.typing) {
+				this.undoOpen = true;
+			} else {
+				this.model.pushStackElement();
+			}
 		} finally {
 			this.applying = false;
 		}
