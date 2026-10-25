@@ -25,6 +25,8 @@ export type StructuralSystemChoice = 'rcFrame' | 'rcFrameCore' | 'flatSlab';
 /** The foundations the generator places (integrator: combined footings and pile caps are added in 09 Substructure). */
 export type FootingChoice = 'isolated' | 'mat' | 'none';
 export type OccupancyCategory = 'I' | 'II' | 'III' | 'IV';
+/** BNBC 2020 site classes (Part 6, Table 6.2.13), as in the project settings (`site.siteClass`). */
+export type SiteClass = 'SA' | 'SB' | 'SC' | 'SD' | 'SE';
 
 export const SYSTEM_CHOICES: readonly { readonly value: StructuralSystemChoice; readonly label: string; readonly description: string }[] = [
 	{ value: 'rcFrame', label: localize('system.rcFrame', "RC frame"), description: localize('system.rcFrame.description', "Columns at every grid intersection, beams on every grid line, a slab in every bay.") },
@@ -63,8 +65,11 @@ export interface INewBuildingSpec {
 	/** Material ids of `03 Materials` (the default materials). */
 	readonly materials: { readonly concrete: string; readonly rebar: string };
 	readonly footing: FootingChoice;
-	/** BNBC 2020 location id of the project settings (`site.location`). */
-	readonly site: { readonly location: string };
+	/**
+	 * BNBC 2020 location id of the project settings (`site.location`), and the site class: without
+	 * a soil report it is an assumption (`siteClassSource: 'assumed'`), which the report says.
+	 */
+	readonly site: { readonly location: string; readonly siteClass: SiteClass; readonly siteClassSource: 'assumed' };
 	/** Project settings `occupancy`: building use and BNBC occupancy category. */
 	readonly occupancy: { readonly use: string; readonly category: OccupancyCategory };
 	readonly designCode: 'bnbc';
@@ -85,6 +90,7 @@ export interface INewBuildingForm {
 	readonly rebar: string;
 	readonly footing: FootingChoice;
 	readonly location: string;
+	readonly siteClass: SiteClass;
 	readonly use: string;
 	readonly category: OccupancyCategory;
 }
@@ -102,6 +108,7 @@ export const DEFAULT_FORM: INewBuildingForm = {
 	rebar: 'B500DWR',
 	footing: 'isolated',
 	location: 'dhaka',
+	siteClass: 'SD',
 	use: 'residential',
 	category: 'II',
 };
@@ -264,7 +271,7 @@ export function buildSpec(form: INewBuildingForm, validateName: (name: string) =
 			system: form.system,
 			materials: { concrete: form.concrete, rebar: form.rebar },
 			footing: form.footing,
-			site: { location: form.location },
+			site: { location: form.location, siteClass: form.siteClass, siteClassSource: 'assumed' },
 			occupancy: { use: form.use, category: form.category },
 			designCode: 'bnbc',
 		},
@@ -316,11 +323,86 @@ export function centralBay(spacings: readonly number[]): number {
 	return Math.max(0, spacings.length - 1);
 }
 
+/**
+ * Why `folder` cannot hold a new project, or undefined. It must be a full path: a relative one,
+ * or a Windows drive-relative one ("C:Users") or rooted one without a drive ("\Users"), would
+ * resolve against the folder the app runs in. Whether it exists is checked separately.
+ */
+export function folderError(folder: string, windows: boolean): string | undefined {
+	const path = folder.trim();
+	if (!path) {
+		return localize('folder.empty', "Choose the folder the project goes in.");
+	}
+	const absolute = windows
+		? /^[a-zA-Z]:[\\/]/.test(path) || /^[\\/]{2}[^\\/]+[\\/][^\\/]+/.test(path)
+		: path.startsWith('/');
+	if (!absolute) {
+		return windows
+			? localize('folder.relativeWindows', "Enter the full path of a folder, starting with the drive, e.g. C:\\Users\\you\\Documents.")
+			: localize('folder.relative', "Enter the full path of a folder, starting with /.");
+	}
+	if (windows && /[<>"|?*]/.test(path.slice(2))) {
+		return localize('folder.invalid', "A folder path cannot contain < > \" | ? or *.");
+	}
+	return undefined;
+}
+
+/** One row of the sizes table of the result page. */
+export interface IGeneratedSize {
+	readonly what: string;
+	readonly size: string;
+}
+
+/** What the generator built, as the result page shows it (from its `summary`). */
+export interface IGenerateSummary {
+	/** Seismic design category, when the generator gave it. */
+	readonly sdc?: string;
+	/** Member counts: [label, count]. */
+	readonly counts: readonly (readonly [string, number])[];
+	readonly sizes: readonly IGeneratedSize[];
+}
+
 /** What the generator answered: the new project's folder and its notes, or why it failed. */
 export interface IGenerateOutcome {
 	readonly root?: string;
 	readonly notes: readonly string[];
+	readonly summary?: IGenerateSummary;
 	readonly error?: string;
+}
+
+const COUNT_LABELS: readonly (readonly [string, string])[] = [
+	['columns', localize('count.columns', "Columns")],
+	['beams', localize('count.beams', "Beams")],
+	['walls', localize('count.walls', "Walls")],
+	['slabs', localize('count.slabs', "Slabs")],
+	['foundations', localize('count.foundations', "Footings")],
+];
+
+/** The generator's `summary` (counts and the types it chose), read defensively. */
+export function readGenerateSummary(value: unknown): IGenerateSummary | undefined {
+	if (typeof value !== 'object' || value === null) {
+		return undefined;
+	}
+	const record = value as { readonly [key: string]: unknown };
+	const counts = (typeof record.counts === 'object' && record.counts !== null ? record.counts : {}) as { readonly [key: string]: unknown };
+	const sizes: IGeneratedSize[] = [];
+	const columnTypes = typeof record.columnTypes === 'object' && record.columnTypes !== null ? record.columnTypes as { readonly [key: string]: unknown } : {};
+	for (const [what, size] of Object.entries(columnTypes)) {
+		if (typeof size === 'string') {
+			sizes.push({ what: localize('size.columns', "Columns {0}", what), size });
+		}
+	}
+	for (const [key, label] of [['beamTypes', localize('size.beams', "Beams")], ['slabTypes', localize('size.slabs', "Slabs")]] as const) {
+		const types = Array.isArray(record[key]) ? (record[key] as unknown[]).filter((t): t is string => typeof t === 'string') : [];
+		if (types.length) {
+			sizes.push({ what: label, size: types.join(', ') });
+		}
+	}
+	return {
+		sdc: typeof record.sdc === 'string' ? record.sdc : undefined,
+		counts: COUNT_LABELS.map(([key, label]) => [label, Number(counts[key]) || 0] as const).filter(([, n]) => n > 0),
+		sizes,
+	};
 }
 
 function noteText(note: unknown): string | undefined {
@@ -352,7 +434,8 @@ export function readGenerateResult(value: unknown): IGenerateOutcome {
 	if (typeof record.error === 'string' && record.error) {
 		return { notes, error: record.error };
 	}
-	return root ? { root, notes } : { notes, error: localize('generate.noRoot', "The generator did not say where it wrote the project.") };
+	const summary = readGenerateSummary(record.summary);
+	return root ? { root, notes, ...(summary ? { summary } : {}) } : { notes, error: localize('generate.noRoot', "The generator did not say where it wrote the project.") };
 }
 
 /** The building just generated, stored until its window opens. */
