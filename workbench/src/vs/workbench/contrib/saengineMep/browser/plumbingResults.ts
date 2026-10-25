@@ -182,7 +182,8 @@ export function renderPlumbingReport(view: HTMLElement, report: IPlumbingReport,
 	// The checks of the sizing (P1).
 	if (report.checks.length) {
 		const checks = section(view, localize('plb.checks', "Checks"), localize('plb.checksDetail', "storage, risers, stacks, drains, rainwater, septic tank, soak well and separations"));
-		targets.failure ??= checksTable(checks, host, report.checks);
+		const failure = checksTable(checks, host, report.checks);
+		targets.failure ??= failure;
 	}
 
 	// Tank design (P2).
@@ -246,7 +247,8 @@ export function renderPlumbingReport(view: HTMLElement, report: IPlumbingReport,
 			}
 		}
 		if (report.hydraulicChecks.length) {
-			targets.failure ??= checksTable(hydraulics, host, report.hydraulicChecks, SHOWN_CHECKS);
+			const failure = checksTable(hydraulics, host, report.hydraulicChecks, SHOWN_CHECKS);
+			targets.failure ??= failure;
 		}
 	}
 

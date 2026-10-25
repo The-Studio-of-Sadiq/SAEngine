@@ -930,7 +930,7 @@ export function readPlumbingReport(raw: unknown): IPlumbingReport | undefined {
 	const p1Pump = isRecord(storage.pump) ? storage.pump : undefined;
 	let pump: IPlumbingReport['pump'];
 	if (p3Pump) {
-		pump = { flow: optionalNumber(p3Pump.flow), head: optionalNumber(p3Pump.tdh ?? p3Pump.head), power: optionalNumber(p3Pump.shaftPower ?? p3Pump.power), motor: optionalNumber(p3Pump.motor), note: optionalString(p3Pump.note) };
+		pump = { flow: optionalNumber(p3Pump.flow), head: optionalNumber(p3Pump.tdh ?? p3Pump.head), power: optionalNumber(p3Pump.shaftPower ?? p3Pump.power), ...(optionalNumber(p3Pump.motor) !== undefined ? { motor: optionalNumber(p3Pump.motor) } : {}), note: optionalString(p3Pump.note) };
 	} else if (p1Pump) {
 		const lpm = optionalNumber(p1Pump.flow);
 		pump = { flow: lpm === undefined ? undefined : lpm / 60, note: optionalString(p1Pump.note) };
