@@ -56,14 +56,34 @@ def test_secondary_beams_split_the_beams_they_rest_on_and_cantilevers_stay_free(
     model, nodes = _derive(
         tmp_path,
         [
-            {"id": "B90", "type": "B300x500", "story": "L1",
-             "start": {"x": "A", "y": "1", "dx": 3000}, "end": {"x": "A", "y": "2", "dx": 3000}},
-            {"id": "B91", "type": "B300x500", "story": "L1",
-             "start": {"x": "C", "y": "1"}, "end": {"x": "C", "y": "1", "dx": 1500}},
-            {"id": "B92", "type": "B300x500", "story": "L2",
-             "start": {"x": "A", "y": "1"}, "end": {"x": "B", "y": "2"}},
-            {"id": "B93", "type": "B300x500", "story": "L2",
-             "start": {"x": "A", "y": "2"}, "end": {"x": "A", "y": "1", "dx": 2459.016, "dy": 2049.18}},
+            {
+                "id": "B90",
+                "type": "B300x500",
+                "story": "L1",
+                "start": {"x": "A", "y": "1", "dx": 3000},
+                "end": {"x": "A", "y": "2", "dx": 3000},
+            },
+            {
+                "id": "B91",
+                "type": "B300x500",
+                "story": "L1",
+                "start": {"x": "C", "y": "1"},
+                "end": {"x": "C", "y": "1", "dx": 1500},
+            },
+            {
+                "id": "B92",
+                "type": "B300x500",
+                "story": "L2",
+                "start": {"x": "A", "y": "1"},
+                "end": {"x": "B", "y": "2"},
+            },
+            {
+                "id": "B93",
+                "type": "B300x500",
+                "story": "L2",
+                "start": {"x": "A", "y": "2"},
+                "end": {"x": "A", "y": "1", "dx": 2459.016, "dy": 2049.18},
+            },
         ],
     )
     degree: dict[tuple, int] = {}
