@@ -15,6 +15,7 @@
 }
 
 .monaco-workbench .sa-state-dot.sa-state-ok { background-color: var(--sa-ok, #2e8540); }
+.monaco-workbench .sa-state-dot.sa-state-info { background-color: var(--sa-info, #1a73c4); }
 .monaco-workbench .sa-state-dot.sa-state-warn { background-color: var(--sa-warn, #c2620e); }
 .monaco-workbench .sa-state-dot.sa-state-fail { background-color: var(--sa-fail, #c62f2f); }
 .monaco-workbench .sa-state-dot.sa-state-idle { border: 1.5px solid var(--sa-idle, #8a9099); }
