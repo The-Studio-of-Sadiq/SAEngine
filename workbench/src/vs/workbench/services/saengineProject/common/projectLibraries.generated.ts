@@ -621,7 +621,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				dia: {
 					description: '[mm]',
 					exclusiveMinimum: 0,
-					title: 'Bar diameter',
+					title: 'Diameter',
 					type: 'number',
 				},
 			},
@@ -636,7 +636,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				dia: {
 					description: '[mm]',
 					exclusiveMinimum: 0,
-					title: 'Bar diameter',
+					title: 'Diameter',
 					type: 'number',
 				},
 				spacing: {
@@ -810,7 +810,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					default: 10,
 					description: '[mm]',
 					exclusiveMinimum: 0,
-					title: 'Bar diameter',
+					title: 'Diameter',
 					type: 'number',
 				},
 				spacing: {
@@ -1324,7 +1324,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				dia: {
 					description: '[mm]',
 					exclusiveMinimum: 0,
-					title: 'Bar diameter',
+					title: 'Diameter',
 					type: 'number',
 				},
 				angle: {
@@ -2389,7 +2389,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					default: 12,
 					description: 'Stud shank or stirrup bar diameter [mm].',
 					exclusiveMinimum: 0,
-					title: 'Bar diameter',
+					title: 'Diameter',
 					type: 'number',
 				},
 				perLine: {
@@ -3001,7 +3001,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				dia: {
 					description: '[mm]',
 					exclusiveMinimum: 0,
-					title: 'Bar diameter',
+					title: 'Diameter',
 					type: 'number',
 				},
 				spacing: {
@@ -3053,7 +3053,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					title: 'Over lap splices',
+					title: 'Lap splices',
 				},
 			},
 			required: ['type', 'dia', 'spacing'],
@@ -3268,7 +3268,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				dia: {
 					description: '[mm]',
 					exclusiveMinimum: 0,
-					title: 'Bar diameter',
+					title: 'Diameter',
 					type: 'number',
 				},
 				hoop: {
@@ -12330,7 +12330,7 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 				dia: {
 					description: '[mm]',
 					exclusiveMinimum: 0,
-					title: 'Bar diameter',
+					title: 'Diameter',
 					type: 'number',
 				},
 			},
@@ -12345,7 +12345,7 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 				dia: {
 					description: '[mm]',
 					exclusiveMinimum: 0,
-					title: 'Bar diameter',
+					title: 'Diameter',
 					type: 'number',
 				},
 				spacing: {
@@ -12913,7 +12913,7 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 					default: 12,
 					description: 'Stud shank or stirrup bar diameter [mm].',
 					exclusiveMinimum: 0,
-					title: 'Bar diameter',
+					title: 'Diameter',
 					type: 'number',
 				},
 				perLine: {
@@ -13055,7 +13055,7 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 				dia: {
 					description: '[mm]',
 					exclusiveMinimum: 0,
-					title: 'Bar diameter',
+					title: 'Diameter',
 					type: 'number',
 				},
 				spacing: {
@@ -13107,7 +13107,7 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					title: 'Over lap splices',
+					title: 'Lap splices',
 				},
 			},
 			required: ['type', 'dia', 'spacing'],

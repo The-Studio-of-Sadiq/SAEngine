@@ -23,7 +23,7 @@ LABELS: dict[str, str] = {
     "fineAggregate": "Fine aggregate (sand)",
     "xDim": "Width",
     "yDim": "Depth",
-    "dia": "Bar diameter",
+    "dia": "Diameter",
     "count": "Number of bars",
     "legs": "Legs",
     "bottomX": "Bottom layer, X",

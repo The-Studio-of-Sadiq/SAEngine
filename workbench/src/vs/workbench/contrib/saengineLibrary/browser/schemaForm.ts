@@ -497,14 +497,14 @@ export class SchemaForm {
 		const min = schema.minItems ?? 0;
 		const max = schema.maxItems ?? Number.MAX_SAFE_INTEGER;
 		if (list.length > min) {
-			this.iconButton(parts, Codicon.remove, localize('schemaForm.removePart', "Remove part"), () => {
+			this.iconButton(parts, Codicon.remove, localize('schemaForm.removePart', "Remove the last value of {0}", title), () => {
 				list.pop();
 				owner[key] = list;
 				this.ctx.changed(path, true);
 			});
 		}
 		if (list.length < max) {
-			this.iconButton(parts, Codicon.add, localize('schemaForm.addPart', "Add part"), () => {
+			this.iconButton(parts, Codicon.add, localize('schemaForm.addPart', "Add a value to {0}", title), () => {
 				owner[key] = [...list, 1];
 				this.ctx.changed(path, true);
 			});
