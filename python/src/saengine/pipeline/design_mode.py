@@ -39,8 +39,20 @@ REQUIRED_FILE = "design-required.json"
 REPORT_FILE = "design-report.json"
 
 #: Files of the results folder that are written from the results, not by the analysis: they do
-#: not enter the stamp (writing them must not make the kept answer stale).
-_DERIVED = frozenset({REQUIRED_FILE, REPORT_FILE, "design-summary.json", "column-interaction.json"})
+#: not enter the stamp (writing them must not make the kept answer stale). The face forces
+#: (``saengine.fem.end_zones.FACE_FORCES_FILE``) are written by the first design after a run,
+#: after its stamp was taken; the column view's diagrams (``saengine.fem.member_detail.
+#: CACHE_FILE``) when it is opened. Any other file counts, so an output of the analysis that is
+#: new to this list makes the kept answers stale rather than wrongly current.
+_DERIVED = frozenset(
+    {
+        REQUIRED_FILE,
+        REPORT_FILE,
+        "design-summary.json",
+        "column-interaction.json",
+        "face-forces.json",
+    }
+)
 #: The same by path in the results folder: the response spectrum design's summary is written
 #: again on every design (``saengine.fem.seismic_design.seismic_design`` keeps its run while
 #: the model and the results do not change but rewrites the summary of it), so its time would

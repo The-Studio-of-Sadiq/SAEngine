@@ -183,12 +183,20 @@ def test_checks_with_assumed_bars_are_not_the_report(
     assert design_mode.checks(out, model) == {"elements": [], "alone": 1}
 
 
-def test_the_column_view_does_not_make_the_kept_answers_stale(tmp_path: Path) -> None:
+def test_files_written_after_the_stamp_do_not_make_the_kept_answers_stale(
+    tmp_path: Path,
+) -> None:
+    from saengine.fem.end_zones import FACE_FORCES_FILE
     from saengine.fem.member_detail import CACHE_FILE
 
     out, model = _project(tmp_path)
     stamp = design_mode.inputs_stamp(out, model)
-    for name in (*design_mode._DERIVED, CACHE_FILE):
+    # The first design after a run writes the face forces; the column view its diagrams.
+    for name in (FACE_FORCES_FILE, CACHE_FILE, *design_mode._DERIVED):
         (out / name).write_text(json.dumps({"written": name}), "utf-8")
-    assert CACHE_FILE in design_mode._DERIVED
     assert design_mode.inputs_stamp(out, model) == stamp
+    design_mode.keep(out, stamp, {"elements": []})
+    assert design_mode.kept(out, design_mode.inputs_stamp(out, model)) == {"elements": []}
+    # An output of the analysis does.
+    (out / "case-2.h5").write_bytes(b"more results")
+    assert design_mode.inputs_stamp(out, model) != stamp
