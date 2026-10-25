@@ -134,9 +134,16 @@ def test_sample_columns_slenderness(report) -> None:
     # 22.5) of the columns whose governing combination is a response spectrum one: taken in
     # single curvature with nearly equal end moments (limit 34 - 12 |M1/M2| ~ 22), they are
     # designed with Cm = 1.0 and δns ~ 1.01. The long raking members are designed too.
+    # C7 stands on level 1 with nothing framing into its top: lu is its full 3200 mm (k lu / r
+    # = 26.7 about the 400 mm faces) and, without first-order moments under gravity (round-off
+    # only, M1/M2 = 1: limit 22), it is designed for M2,min.
     for member, s in designed:
         assert s["deltaNs"] < 1.1, member
-        if member.startswith("C"):
-            assert s["klu_r"] == pytest.approx(22.5, abs=0.1) and s["Cm"] == 1.0
+        if member == "C7":
+            assert s["lu"] == pytest.approx(3200) and s["klu_r"] == pytest.approx(26.67, abs=0.1)
+            assert s["limit"] == pytest.approx(22.0) and s["M2"] == 0.0 and s["Cm"] == 1.0
+        elif member.startswith("C"):
+            assert s["lu"] == pytest.approx(2700) and s["klu_r"] == pytest.approx(22.5, abs=0.1)
+            assert s["Cm"] == 1.0
     assert any(not member.startswith("C") for member, _ in designed)
     assert any(member.startswith("C") for member, _ in designed)
