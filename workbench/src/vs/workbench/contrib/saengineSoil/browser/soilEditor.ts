@@ -23,14 +23,15 @@ import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { DEFAULT_EDITOR_ASSOCIATION, IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
@@ -40,9 +41,9 @@ import { BNBC } from '../../../services/saengineProject/common/projectLibraries.
 import { partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import {
-	BOREHOLE_FIELDS, bearingSummary, boreholeDepth, boreholePosition, boreholeGround, checkSoilReport, choiceTitle, DESIGN_CHOICES, DESIGN_DEFAULTS, DESIGN_FIELDS, formatField, formatNumber, hasLiquefiable, IBearingCell, IBearingResult, IBorehole, IBoreholeResult, IFieldSpec,
+	BOREHOLE_FIELDS, bearingSummary, boreholeDepth, DuplicateChoice, duplicateIds, hasLabData, mergeBoreholes, terminationDepth, boreholePosition, boreholeGround, checkSoilReport, choiceTitle, DESIGN_CHOICES, DESIGN_DEFAULTS, DESIGN_FIELDS, formatField, formatNumber, hasLiquefiable, IBearingCell, IBearingResult, IBorehole, IBoreholeResult, IFieldSpec,
 	ISoilComputeRequest, ISoilImportRequest, ISoilImportResult, ISoilProblem, ISoilReport, ISoilResults, ISoilTemplateRequest, ISoilTemplateResult, newBorehole, parseField,
-	IChoiceSpec, ISiteClassFlag, parseSoilReport, readSoilResults, REPORT_FIELDS, resultsBasis, serializeSoilReport, SOIL_COMPUTE_COMMAND, SOIL_IMPORT_COMMAND, SOIL_TEMPLATE_COMMAND, SOIL_TYPES, siteFlagMeaning, siteFlagsOf, siltNeedsPlasticity, soilSummary, soilTypeLabel,
+	IChoiceSpec, ISiteClassFlag, parseSoilReport, readSoilResults, splitError, REPORT_FIELDS, resultsBasis, serializeSoilReport, SOIL_COMPUTE_COMMAND, SOIL_IMPORT_COMMAND, SOIL_TEMPLATE_COMMAND, SOIL_TYPES, siteFlagMeaning, siteFlagsOf, siltNeedsPlasticity, soilSummary, soilTypeLabel,
 	GisFormat, ILatLon, IOpenInQgisRequest, IOpenInQgisResult, ISoilGisExportRequest, ISoilGisExportResult, ISoilGisImportRequest, ISoilGisImportResult, ISoilLocationRequest, ISoilLocationResult, ISoilSample, QgisProgramResult,
 	MAP_TILE_ATTRIBUTION_SETTING, MAP_TILE_URL_SETTING, SOIL_GIS_EXPORT_COMMAND, SOIL_GIS_IMPORT_COMMAND, SOIL_LOCATION_COMMAND, SOIL_OPEN_IN_QGIS_COMMAND, SOIL_QGIS_PROGRAM_COMMAND,
 } from './soilDocument.js';
@@ -77,6 +78,9 @@ const DETAIL_GROUPS: readonly { readonly label: string; readonly fields: readonl
 
 /** The details the borehole cannot be created without. */
 const REQUIRED_DETAILS = new Set(['id', 'depth']);
+
+/** Below this editor width [px] the map takes the properties panel's room. */
+const NARROW_WIDTH = 1500;
 
 /** The state of the results: not asked yet, being computed, computed, or no backend / failed. */
 type ResultsState = 'idle' | 'computing' | 'ok' | 'missing' | 'error';
@@ -157,6 +161,14 @@ export class SoilEditor extends EditorPane {
 	private labTest: LabTest = 'grainSize';
 	/** A render was skipped while a cell was being edited; done after the edit. */
 	private renderPending = false;
+	/** The results on screen are from before the last edit (dimmed until the new ones arrive). */
+	private stale = false;
+	/** The editor's width at the last layout [px]. */
+	private layoutWidth = 0;
+	/** The properties panel was hidden to make room (the entry screen, a narrow map). */
+	private autoHidden = false;
+	/** Whether the details (tracebacks) of the results' problems are shown. */
+	private detailsShown = false;
 
 	/** The site map: kept while the Map view shows, so the map is not built again on every edit. */
 	private readonly mapView = this._register(new MutableDisposable<SoilMapView>());
@@ -177,6 +189,8 @@ export class SoilEditor extends EditorPane {
 	private readonly commitScheduler = this._register(new RunOnceScheduler(() => this.commit(), 300));
 	private readonly computeScheduler = this._register(new RunOnceScheduler(() => void this.compute(), 700));
 	private readonly layoutScheduler = this._register(new RunOnceScheduler(() => this.onMainResized(), 50));
+	/** A borehole's lat/lon (or BTM) typed on the entry screen: its X and Y follow from the backend. */
+	private readonly positionScheduler = this._register(new RunOnceScheduler(() => void this.updateDerivedPosition(), 600));
 
 	private readonly addAction = this._register(new Action('saengine.soil.editor.add', localize('soil.addBorehole', "Add Borehole"), ThemeIcon.asClassName(Codicon.add), true, async () => this.addBorehole()));
 	private readonly importAction = this._register(new Action('saengine.soil.editor.import', localize('soil.import', "Import CSV/Excel..."), ThemeIcon.asClassName(Codicon.cloudDownload), true, () => this.importFile()));
@@ -200,6 +214,8 @@ export class SoilEditor extends EditorPane {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
 	) {
 		super(SoilEditor.ID, group, telemetryService, themeService, storageService);
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -317,7 +333,41 @@ export class SoilEditor extends EditorPane {
 	}
 
 	override layout(dimension: Dimension): void {
+		this.layoutWidth = dimension.width;
 		this.frame.layout(dimension.width, dimension.height);
+		this.autoProperties();
+	}
+
+	/**
+	 * The properties panel makes room for the entry screen (whose grids need the width) and, on
+	 * a narrow screen, for the map; it comes back after them unless the engineer changed it.
+	 */
+	private autoProperties(): void {
+		const frame = this.frame;
+		if (!frame) {
+			return;
+		}
+		const needsRoom = !!this.entry || this.view === 'map' && this.layoutWidth > 0 && this.layoutWidth < NARROW_WIDTH;
+		if (needsRoom && frame.isPropertiesVisible && !this.autoHidden) {
+			this.autoHidden = true;
+			frame.setPropertiesVisible(false);
+		} else if (!needsRoom && this.autoHidden) {
+			this.autoHidden = false;
+			frame.setPropertiesVisible(true);
+		}
+	}
+
+	/** Dims the computed values until the computation for the latest edit comes back. */
+	private markStale(): void {
+		if (!this.stale && this.results) {
+			this.stale = true;
+			this.frame?.element.classList.add('soil-stale');
+		}
+	}
+
+	private clearStale(): void {
+		this.stale = false;
+		this.frame?.element.classList.remove('soil-stale');
 	}
 
 	override focus(): void {
@@ -390,6 +440,7 @@ export class SoilEditor extends EditorPane {
 			}
 		}
 		this.problems = this.report ? checkSoilReport(this.report) : [];
+		this.markStale(); // undo, redo, revert: the results follow
 		this.render();
 		this.computeScheduler.schedule(this.resultsState === 'idle' ? 0 : undefined);
 		if (this.view === 'map') {
@@ -400,10 +451,17 @@ export class SoilEditor extends EditorPane {
 	/** The engineer picked "Report" in the list: keep it when the file reloads. */
 	private reportSelectedOnPurpose = false;
 
-	/** Writes the report to the text model as one undoable edit. */
-	private commit(): void {
+	/** What the next commit does, for the "Undid ..." message (typing is committed after a pause). */
+	private pendingLabel: string | undefined;
+	/** What each undoable edit did, by the text model's alternative version id after it. */
+	private readonly undoLabels = new Map<number, string>();
+
+	/** Writes the report to the text model as one undoable edit; `label` says what it does. */
+	private commit(label?: string): void {
 		this.commitScheduler.cancel();
 		const model = this.model;
+		label ??= this.pendingLabel;
+		this.pendingLabel = undefined;
 		if (!model || !this.report || model.isDisposed()) {
 			return;
 		}
@@ -419,6 +477,8 @@ export class SoilEditor extends EditorPane {
 		} finally {
 			this.applying = false;
 		}
+		this.undoLabels.set(model.getAlternativeVersionId(), label ?? this.editLabel());
+		this.markStale();
 		this.computeScheduler.schedule();
 		if (this.view === 'map') {
 			this.locationScheduler.schedule();
@@ -431,16 +491,45 @@ export class SoilEditor extends EditorPane {
 		}
 	}
 
+	/** What an edit without its own label changed: the selected borehole, or the report. */
+	private editLabel(): string {
+		const borehole = this.entry ? this.report?.boreholes[this.entry.index] : this.borehole;
+		return borehole ? localize('soil.undo.editBorehole', "the edit of {0}", borehole.id) : localize('soil.undo.editReport', "the edit of the report");
+	}
+
+	/**
+	 * Undo or redo of the file's edits (Ctrl+Z / Ctrl+Y anywhere in the editor but a text field),
+	 * saying what was undone: a second undo never reverts an unrelated edit silently.
+	 */
+	async undoRedo(redo: boolean): Promise<void> {
+		const model = this.model;
+		const resource = this.resource;
+		if (!model || !resource) {
+			return;
+		}
+		this.flush();
+		if (redo ? !this.undoRedoService.canRedo(resource) : !this.undoRedoService.canUndo(resource)) {
+			this.notificationService.status(redo ? localize('soil.nothingToRedo', "Nothing to redo.") : localize('soil.nothingToUndo', "Nothing to undo."), { hideAfter: 3000 });
+			return;
+		}
+		const before = this.undoLabels.get(model.getAlternativeVersionId());
+		await (redo ? this.undoRedoService.redo(resource) : this.undoRedoService.undo(resource));
+		const label = (redo ? this.undoLabels.get(model.getAlternativeVersionId()) : before) ?? localize('soil.undo.anEdit', "an edit of the soil report");
+		this.notificationService.info(redo ? localize('soil.redid', "Redid {0}.", label) : localize('soil.undid', "Undid {0}.", label));
+	}
+
 	/** After an edit in place: structural edits save and re-render at once, typing is batched. */
-	private changed(structural: boolean): void {
+	private changed(structural: boolean, label?: string): void {
 		if (!this.report) {
 			return;
 		}
 		this.problems = checkSoilReport(this.report);
 		if (structural) {
-			this.commit();
+			this.commit(label);
 			this.render();
 		} else {
+			this.pendingLabel = label ?? this.pendingLabel;
+			this.markStale();
 			this.commitScheduler.schedule();
 			this.renderList();
 			this.renderProblems();
@@ -467,7 +556,7 @@ export class SoilEditor extends EditorPane {
 		this.fence = false;
 		this.entry = newBoreholeEntry(this.selected);
 		this.entryFocus = true;
-		this.changed(true);
+		this.changed(true, localize('soil.undo.add', "adding {0}", borehole.id));
 	}
 
 	/** Opens the entry screen on the selected borehole (the same screen as for a new one). */
@@ -524,7 +613,7 @@ export class SoilEditor extends EditorPane {
 		} else if (entry.snapshot && report.boreholes[entry.index]) {
 			report.boreholes[entry.index] = JSON.parse(entry.snapshot);
 		}
-		this.changed(true);
+		this.changed(true, localize('soil.undo.cancel', "cancelling the entry"));
 		this.computeScheduler.schedule(0);
 	}
 
@@ -546,16 +635,40 @@ export class SoilEditor extends EditorPane {
 		}
 	}
 
-	private deleteBorehole(): void {
+	/**
+	 * Deletes the selected borehole, after asking when it has anything logged. The entry screen
+	 * and the properties go with it; the list keeps the keyboard, so Ctrl+Z brings it back.
+	 */
+	async deleteBorehole(): Promise<void> {
+		const report = this.report;
 		const borehole = this.borehole;
-		if (!this.report || !borehole) {
+		if (!report || !borehole) {
+			return;
+		}
+		this.flush();
+		if (borehole.layers.length + borehole.spt.length + borehole.samples.length) {
+			const { confirmed } = await this.dialogService.confirm({
+				type: Severity.Warning,
+				message: localize('soil.deleteConfirm', "Delete borehole {0}?", borehole.id),
+				detail: localize('soil.deleteConfirmDetail', "It has {0} layer(s), {1} SPT record(s) and {2} sample(s). Ctrl+Z brings it back.", borehole.layers.length, borehole.spt.length, borehole.samples.length),
+				primaryButton: localize({ key: 'soil.deleteButton', comment: ['&& denotes a mnemonic'] }, "&&Delete"),
+			});
+			if (!confirmed || this.report !== report) {
+				return;
+			}
+		}
+		const index = report.boreholes.indexOf(borehole);
+		if (index < 0) {
 			return;
 		}
 		this.entry = undefined;
-		const index = this.report.boreholes.indexOf(borehole);
-		this.report.boreholes.splice(index, 1);
-		this.selected = this.report.boreholes.length ? Math.min(index, this.report.boreholes.length - 1) : undefined;
-		this.changed(true);
+		this.entryParts = undefined;
+		report.boreholes.splice(index, 1);
+		this.selected = report.boreholes.length ? Math.min(index, report.boreholes.length - 1) : undefined;
+		this.reportSelectedOnPurpose = this.selected === undefined;
+		this.propertiesFor = undefined; // the panel is built again for what is selected now
+		this.changed(true, localize('soil.undo.delete', "deleting {0}", borehole.id));
+		this.list.focus();
 	}
 
 	private duplicateBorehole(): void {
@@ -570,7 +683,7 @@ export class SoilEditor extends EditorPane {
 		const index = this.report.boreholes.indexOf(borehole) + 1;
 		this.report.boreholes.splice(index, 0, copy);
 		this.selected = index;
-		this.changed(true);
+		this.changed(true, localize('soil.undo.duplicate', "duplicating {0} as {1}", borehole.id, copy.id));
 	}
 
 	/** Shows the log of one borehole (from the fence). */
@@ -638,11 +751,13 @@ export class SoilEditor extends EditorPane {
 		if (!file || this.model !== model) {
 			return;
 		}
-		const before = new Set(this.report.boreholes.map(b => b.id));
+		// The backend reads the file on its own (an empty report with this one's design); the
+		// boreholes are merged here, so an id the report already has is never replaced unasked.
 		let result: ISoilImportResult | undefined;
 		this.setBusy('import', true);
 		try {
-			const request: ISoilImportRequest = { path: file.fsPath, soilText: serializeSoilReport(this.report) };
+			const empty: ISoilReport = { ...this.report, boreholes: [] };
+			const request: ISoilImportRequest = { path: file.fsPath, soilText: serializeSoilReport(empty) };
 			result = await this.commandService.executeCommand<ISoilImportResult>(SOIL_IMPORT_COMMAND, request);
 		} catch (error) {
 			this.notificationService.error(localize('soil.importFailed', "{0} could not be imported: {1}", basename(file), String(error)));
@@ -655,19 +770,62 @@ export class SoilEditor extends EditorPane {
 			return;
 		}
 		const parsed = parseSoilReport(result.text);
-		if (parsed.kind !== 'report' || this.model !== model) {
+		const report = this.report;
+		if (parsed.kind !== 'report' || this.model !== model || !report) {
 			return;
 		}
-		this.report = parsed.report;
-		const added = parsed.report.boreholes.filter(b => !before.has(b.id));
-		const first = added[0] ?? parsed.report.boreholes[0];
-		this.selected = first ? parsed.report.boreholes.indexOf(first) : undefined;
-		this.changed(true);
-		if (result.problems?.length) {
-			this.notificationService.warn(localize('soil.importedWithProblems', "Imported {0} with notes: {1}", basename(file), result.problems.join('; ')));
-		} else {
-			this.notificationService.info(localize('soil.imported', "Imported {0}: {1} new borehole(s).", basename(file), added.length));
+		const incoming = parsed.report.boreholes;
+		const duplicates = duplicateIds(report, incoming);
+		let choice: DuplicateChoice = 'replace';
+		if (duplicates.length) {
+			const picked = await this.askDuplicates(basename(file), duplicates);
+			if (!picked || this.report !== report || this.model !== model) {
+				return;
+			}
+			choice = picked;
 		}
+		const merged = mergeBoreholes(report, incoming, choice);
+		const first = [...merged.added, ...merged.renamed.map(r => r.to), ...merged.replaced][0];
+		const index = first === undefined ? -1 : report.boreholes.findIndex(b => b.id === first);
+		this.selected = index >= 0 ? index : this.selected;
+		this.reportSelectedOnPurpose = false;
+		this.leaveEntry();
+		this.changed(true, localize('soil.undo.import', "import of {0}", basename(file)));
+		const parts = [localize('soil.importAdded', "{0} added", merged.added.length + merged.renamed.length)];
+		if (merged.replaced.length) {
+			parts.push(localize('soil.importReplaced', "{0} replaced ({1})", merged.replaced.length, merged.replaced.join(', ')));
+		}
+		if (merged.renamed.length) {
+			parts.push(localize('soil.importRenamed', "kept both as {0}", merged.renamed.map(r => r.to).join(', ')));
+		}
+		if (merged.skipped.length) {
+			parts.push(localize('soil.importSkipped', "{0} skipped ({1})", merged.skipped.length, merged.skipped.join(', ')));
+		}
+		const summary = localize('soil.imported', "Imported {0}: {1}.", basename(file), parts.join(', '));
+		if (result.problems?.length) {
+			this.notificationService.warn(localize('soil.importedWithNotes', "{0} Notes: {1}", summary, result.problems.join('; ')));
+		} else {
+			this.notificationService.info(summary);
+		}
+	}
+
+	/** Asks what to do with imported boreholes whose ids the report already has; undefined cancels. */
+	private async askDuplicates(file: string, ids: readonly string[]): Promise<DuplicateChoice | undefined> {
+		const { result } = await this.dialogService.prompt<DuplicateChoice | undefined>({
+			type: Severity.Warning,
+			message: ids.length === 1
+				? localize('soil.importDuplicateOne', "{0} has a borehole {1}, and so has this report.", file, ids[0])
+				: localize('soil.importDuplicateMany', "{0} has boreholes this report already has: {1}.", file, ids.join(', ')),
+			detail: localize('soil.importDuplicateDetail', "Keep Both adds the file's under a new id ({0}-2). Replace overwrites the report's borehole with the file's. Skip imports only the new boreholes.", ids[0]),
+			// The default (Enter) loses nothing: Keep Both.
+			buttons: [
+				{ label: localize({ key: 'soil.importKeepBoth', comment: ['&& denotes a mnemonic'] }, "&&Keep Both"), run: () => 'keepBoth' },
+				{ label: localize({ key: 'soil.importReplace', comment: ['&& denotes a mnemonic'] }, "&&Replace"), run: () => 'replace' },
+				{ label: localize({ key: 'soil.importSkip', comment: ['&& denotes a mnemonic'] }, "&&Skip"), run: () => 'skip' },
+			],
+			cancelButton: { label: localize('soil.importCancel', "Cancel"), run: () => undefined },
+		});
+		return result;
 	}
 
 	/** Writes a CSV or Excel template for the boreholes (asks where when `file` is not given). */
@@ -677,7 +835,9 @@ export class SoilEditor extends EditorPane {
 			return;
 		}
 		if (!file) {
-			const folder = this.resource ? dirname(this.resource) : undefined;
+			// Beside the project's parts, not in the soil report's own folder (the template is a
+			// working file the engineer fills in and sends around, not part of the report).
+			const folder = this.resource ? dirname(dirname(this.resource)) : await this.fileDialogService.defaultFilePath();
 			file = await this.fileDialogService.showSaveDialog({
 				title: localize('soil.templateTitle', "Save Borehole Template"),
 				defaultUri: folder ? joinPath(folder, 'boreholes-template.xlsx') : undefined,
@@ -696,7 +856,11 @@ export class SoilEditor extends EditorPane {
 			if (result?.problems?.length) {
 				this.notificationService.warn(localize('soil.templateProblems', "The template could not be saved: {0}", result.problems.join('; ')));
 			} else {
-				this.notificationService.info(localize('soil.templateSaved', "Saved the borehole template to {0}. Fill it in and import it.", basename(file)));
+				const saved = file;
+				this.notificationService.prompt(Severity.Info, localize('soil.templateSaved', "Saved the borehole template to {0}. Fill it in and import it.", saved.fsPath), [
+					{ label: localize('soil.templateOpen', "Open"), run: () => void this.openerService.open(saved, { openExternal: true }) },
+					{ label: localize('soil.templateReveal', "Reveal in File Explorer"), run: () => void this.commandService.executeCommand('revealFileInOS', saved) },
+				]);
 			}
 		} catch (error) {
 			this.notificationService.error(localize('soil.templateFailed', "The template could not be saved: {0}", String(error)));
@@ -720,6 +884,7 @@ export class SoilEditor extends EditorPane {
 			this.setBusy('compute', false); // an earlier computation may still be on its way
 			this.results = undefined;
 			this.resultsState = 'idle';
+			this.clearStale();
 			this.renderResultsDependent();
 			return;
 		}
@@ -727,6 +892,7 @@ export class SoilEditor extends EditorPane {
 			this.setBusy('compute', false);
 			this.results = undefined;
 			this.resultsState = 'missing';
+			this.clearStale();
 			this.renderResultsDependent();
 			return;
 		}
@@ -756,6 +922,7 @@ export class SoilEditor extends EditorPane {
 		this.results = results;
 		this.resultsState = results ? 'ok' : 'error';
 		this.resultsError = error;
+		this.clearStale();
 		this.renderResultsDependent();
 	}
 
@@ -772,6 +939,7 @@ export class SoilEditor extends EditorPane {
 		this.renderView();
 		this.renderProperties();
 		this.renderStatus();
+		this.autoProperties();
 	}
 
 	/** The parts that show results: the Results view, N60 in the log, and the status. */
@@ -896,14 +1064,13 @@ export class SoilEditor extends EditorPane {
 			append(this.list, $('.soil-list-heading', undefined, localize('soil.boreholes', "Boreholes")));
 		}
 		report.boreholes.forEach((borehole, index) => {
+			// One format: depth, layers, and the site class once it is computed.
 			const siteClass = this.resultOf(borehole)?.siteClass?.class;
+			const depth = formatNumber(terminationDepth(borehole) / 1000, 1);
+			const layers = borehole.layers.length === 1 ? localize('soil.listDetailOne', "{0} m · 1 layer", depth) : localize('soil.listDetail', "{0} m · {1} layers", depth, borehole.layers.length);
 			const detail = !borehole.layers.length && typeof borehole.depth !== 'number'
 				? localize('soil.listDetailNew', "not entered yet")
-				: siteClass
-				? localize('soil.listDetailClass', "{0} m · {1}", formatNumber(boreholeDepth(borehole) / 1000, 1), siteClass)
-				: borehole.layers.length === 1
-					? localize('soil.listDetailOne', "{0} m · 1 layer", formatNumber(boreholeDepth(borehole) / 1000, 1))
-					: localize('soil.listDetail', "{0} m · {1} layers", formatNumber(boreholeDepth(borehole) / 1000, 1), borehole.layers.length);
+				: siteClass ? `${layers} · ${siteClass}` : layers;
 			item(index, borehole.id || localize('soil.unnamed', "(no id)"), detail, Codicon.circleSmallFilled);
 		});
 	}
@@ -1022,7 +1189,7 @@ export class SoilEditor extends EditorPane {
 			append(header, $('span.soil-view-subtitle', undefined, localize('soil.fenceSubtitle', "on the project datum; click one to open its log")));
 		} else {
 			append(header, $('span.soil-view-title', undefined, borehole.id));
-			const parts = [localize('soil.logDepth', "{0} m deep", formatNumber(boreholeDepth(borehole) / 1000, 2))];
+			const parts = [localize('soil.logDepth', "{0} m deep", formatNumber(terminationDepth(borehole) / 1000, 2))];
 			if (typeof borehole.waterTable === 'number') {
 				parts.push(localize('soil.logWater', "water table {0} m", formatNumber(borehole.waterTable / 1000, 2)));
 			}
@@ -1140,6 +1307,9 @@ export class SoilEditor extends EditorPane {
 						delete borehole[key];
 					} else {
 						borehole[key] = value;
+					}
+					if (key === 'lat' || key === 'lon' || key === 'easting' || key === 'northing') {
+						this.placeBy(borehole, index);
 					}
 					this.changed(false);
 				}, this.problemKey(index, key), placeholder);
@@ -1364,8 +1534,8 @@ export class SoilEditor extends EditorPane {
 				formatNumber(borehole.y / 1000, 2),
 				formatNumber(boreholeGround(report, borehole) / 1000, 2),
 				typeof borehole.waterTable === 'number' ? formatNumber(borehole.waterTable / 1000, 2) : '—',
-				formatNumber(boreholeDepth(borehole) / 1000, 2),
-				String(borehole.layers.length), String(borehole.spt.length), String(borehole.samples.length),
+				formatNumber(terminationDepth(borehole) / 1000, 2),
+				String(borehole.layers.length), String(borehole.spt.length), String(borehole.samples.filter(hasLabData).length),
 			];
 			cells.forEach((text, i) => append(row, $(i ? 'td.number' : 'td', undefined, text)));
 			this.viewDisposables.add(addDisposableListener(row, EventType.CLICK, () => this.select(index)));
@@ -1462,9 +1632,18 @@ export class SoilEditor extends EditorPane {
 				? localize('soil.computing', "Computing the results...")
 				: this.resultsState === 'error' ? localize('soil.computeFailed', "The results could not be computed")
 					: localize('soil.backendMissing', "Backend not available")));
-			append(state, $('.soil-results-state-text', undefined, this.resultsState === 'error'
-				? this.resultsError ?? ''
-				: this.resultsState === 'missing' ? localize('soil.backendMissingText', "The site class, bearing capacity, liquefaction screening and pile parameters are computed by the SAEngine Python backend, which is not running in this window. The boreholes can still be edited; the results appear once the backend is available.") : ''));
+			if (this.resultsState === 'error') {
+				const { summary, details } = splitError(this.resultsError ?? '');
+				append(state, $('.soil-results-state-text', undefined, summary));
+				if (details) {
+					this.appendDetails(state, [details]);
+				}
+				const retry = this.viewDisposables.add(new Button(state, { ...defaultButtonStyles, secondary: true }));
+				retry.label = localize('soil.recompute', "Compute Results Again");
+				this.viewDisposables.add(retry.onDidClick(() => void this.compute()));
+			} else if (this.resultsState === 'missing') {
+				append(state, $('.soil-results-state-text', undefined, localize('soil.backendMissingText', "The site class, bearing capacity, liquefaction screening and pile parameters are computed by the SAEngine Python backend, which is not running in this window. The boreholes can still be edited; the results appear once the backend is available.")));
+			}
 			return;
 		}
 		const results = this.results;
@@ -1475,6 +1654,12 @@ export class SoilEditor extends EditorPane {
 		append(header, $('span.soil-view-title', undefined, localize('soil.resultsTitle', "Results")));
 		append(header, $('span.soil-view-subtitle', undefined, localize('soil.resultsSubtitle', "Computed from the boreholes and the project settings; not stored in the report.")));
 
+		if (results.skipped?.length) {
+			const row = append(view, $('.soil-flag.soil-skipped', { role: 'note' }));
+			append(row, $(`span.soil-flag-icon${ThemeIcon.asCSSSelector(Codicon.warning)}`));
+			const text = append(row, $('.soil-flag-text'));
+			append(text, $('span.soil-flag-title', undefined, localize('soil.skipped', "Not computed: {0}. The other boreholes are; see the notes below for why.", results.skipped.join(', '))));
+		}
 		this.renderBasis(view, report, results);
 		const flags = this.renderSiteClass(view, report, results);
 		this.renderBearing(view, report, results);
@@ -1496,7 +1681,32 @@ export class SoilEditor extends EditorPane {
 			for (const note of notes) {
 				append(section, $('p.soil-note', undefined, note));
 			}
+			if (results.details?.length) {
+				this.appendDetails(section, results.details);
+			}
 		}
+	}
+
+	/** A "Show details" toggle over what the backend printed (a traceback), for a bug report. */
+	private appendDetails(container: HTMLElement, details: readonly string[]): void {
+		const toggle = append(container, $<HTMLAnchorElement>('a.soil-details-toggle', { role: 'button', tabIndex: 0, 'aria-expanded': String(this.detailsShown) }));
+		toggle.textContent = this.detailsShown ? localize('soil.hideDetails', "Hide details") : localize('soil.showDetails', "Show details");
+		const pre = append(container, $('pre.soil-details'));
+		pre.textContent = details.join('\n');
+		pre.hidden = !this.detailsShown;
+		const flip = () => {
+			this.detailsShown = !this.detailsShown;
+			pre.hidden = !this.detailsShown;
+			toggle.textContent = this.detailsShown ? localize('soil.hideDetails', "Hide details") : localize('soil.showDetails', "Show details");
+			toggle.setAttribute('aria-expanded', String(this.detailsShown));
+		};
+		this.viewDisposables.add(addDisposableListener(toggle, EventType.CLICK, flip));
+		this.viewDisposables.add(addDisposableListener(toggle, EventType.KEY_DOWN, e => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				flip();
+			}
+		}));
 	}
 
 	private resultSection(view: HTMLElement, title: string, detail?: string): HTMLElement {
@@ -1566,11 +1776,26 @@ export class SoilEditor extends EditorPane {
 				append(text, $('span.soil-flag-detail', undefined, localize('soil.flagBoreholes', "Boreholes: {0}.", flag.boreholes.join(', '))));
 			}
 		}
-		const rows = report.boreholes.map(b => {
-			const site = this.resultOf(b)?.siteClass;
-			return [b.id, site?.class ?? '—', typeof site?.nBar === 'number' ? formatNumber(site.nBar, 1) : '—', typeof site?.suBar === 'number' ? formatNumber(site.suBar, 0) : '—', typeof site?.depth === 'number' ? formatNumber(site.depth / 1000, 1) : '—'];
+		// By N̄ and by s̄u side by side; the softer governs (Table 6.2.13), in bold.
+		const sites = report.boreholes.map(b => this.resultOf(b)?.siteClass);
+		const rows = report.boreholes.map((b, i) => {
+			const site = sites[i];
+			return [
+				b.id, site?.class ?? '—',
+				typeof site?.nBar === 'number' ? formatNumber(site.nBar, 1) : '—', site?.byN ?? '—',
+				typeof site?.suBar === 'number' ? formatNumber(site.suBar, 0) : '—', site?.bySu ?? '—',
+				typeof site?.depth === 'number' ? formatNumber(site.depth / 1000, 1) : '—',
+			];
 		});
-		this.simpleTable(section, [[localize('soil.borehole', "Borehole")], [localize('soil.class', "Class")], ['N̄'], ['s̄u', 'kPa'], [localize('soil.over', "Over"), 'm']], rows, column => column > 1);
+		const table = this.simpleTable(section, [[localize('soil.borehole', "Borehole")], [localize('soil.class', "Class")], ['N̄'], [localize('soil.byN', "By N̄")], ['s̄u', 'kPa'], [localize('soil.bySu', "By s̄u")], [localize('soil.over', "Over"), 'm']], rows, column => column === 2 || column === 4 || column === 6);
+		sites.forEach((site, i) => {
+			const cells = table.tBodies[0]?.rows[i]?.cells;
+			for (const column of [3, 5]) {
+				const by = column === 3 ? site?.byN : site?.bySu;
+				cells?.[column]?.classList.toggle('soil-governs-cell', !!by && by === site?.class);
+			}
+		});
+		append(section, $('p.soil-note', undefined, localize('soil.byNote', "Each borehole's class is the softer of its class by N̄ and by s̄u (bold); a liquefiable borehole is S2 and uses SD meanwhile.")));
 		return flags;
 	}
 
@@ -1740,7 +1965,11 @@ export class SoilEditor extends EditorPane {
 			const liquefaction = b.liquefaction!;
 			const lpi = liquefaction.LPI;
 			const minFs = Math.min(...liquefaction.points.map(p => typeof p.FS === 'number' ? p.FS : Infinity));
-			return [b.id, Number.isFinite(minFs) ? formatNumber(minFs, 2) : '—', typeof lpi === 'number' ? formatNumber(lpi, 1) : '—', liquefaction.category ?? (typeof lpi === 'number' ? this.lpiRisk(lpi) : '—'), this.liquefiableText(b)];
+			if (!Number.isFinite(minFs)) {
+				// Nothing screened (dry, clay, too deep): an LPI of 0 would read as "safe".
+				return [b.id, '—', '—', localize('soil.noData', "no data"), localize('soil.notScreened', "no test screened")];
+			}
+			return [b.id, formatNumber(minFs, 2), typeof lpi === 'number' ? formatNumber(lpi, 1) : '—', liquefaction.category ?? (typeof lpi === 'number' ? this.lpiRisk(lpi) : '—'), this.liquefiableText(b)];
 		});
 		const tables = append(row, $('.soil-liquefaction-tables'));
 		const table = this.simpleTable(tables, [[localize('soil.borehole', "Borehole")], [localize('soil.minFs', "Min FS")], ['LPI'], [localize('soil.risk', "Risk")], [localize('soil.liquefiable', "Liquefiable")]], rows, column => column === 1 || column === 2);
@@ -1878,11 +2107,16 @@ export class SoilEditor extends EditorPane {
 		appendPropertyRow(panel, localize('soil.f.termination', "Termination depth"), value('depth'));
 		appendPropertyRow(panel, localize('soil.f.waterTable', "Water table"), value('waterTable', localize('soil.notMet', "not met")));
 		appendPropertyRow(panel, localize('soil.f.groundLevel', "Ground level"), typeof borehole.groundLevel === 'number' ? value('groundLevel') : localize('soil.groundOfReport', "{0} m (the report's)", formatNumber(report.groundLevel / 1000, 3)));
-		appendPropertyRow(panel, localize('soil.position', "Position"), boreholePosition(borehole) === 'project'
-			? localize('soil.positionXY', "X {0}, Y {1}", value('x'), value('y'))
-			: typeof borehole.lat === 'number' && typeof borehole.lon === 'number'
-				? `${formatNumber(borehole.lat, 6)}°, ${formatNumber(borehole.lon, 6)}°`
+		// One position, with what places it; the others follow from it.
+		const position = boreholePosition(borehole);
+		appendPropertyRow(panel, localize('soil.position', "Position"), position === 'project'
+			? localize('soil.positionXY', "X {0}, Y {1} (project grid)", value('x'), value('y'))
+			: position === 'wgs84'
+				? localize('soil.positionLatLon', "{0}°, {1}° (latitude, longitude)", formatNumber(borehole.lat ?? NaN, 6), formatNumber(borehole.lon ?? NaN, 6))
 				: localize('soil.positionBtm', "BTM {0} E, {1} N", value('easting'), value('northing')));
+		if (position !== 'project') {
+			appendPropertyRow(panel, localize('soil.positionGrid', "On the grid"), localize('soil.positionXYDerived', "X {0}, Y {1}", value('x'), value('y')));
+		}
 		if (borehole.date || borehole.method) {
 			appendPropertyRow(panel, localize('soil.drilled', "Drilled"), [borehole.date, borehole.method].filter(Boolean).join(' · '));
 		}
@@ -1902,29 +2136,33 @@ export class SoilEditor extends EditorPane {
 		appendPropertyHeading(panel, localize('soil.contents', "Records"));
 		appendPropertyRow(panel, localize('soil.layers', "Layers"), String(borehole.layers.length));
 		appendPropertyRow(panel, localize('soil.sptRecords', "SPT"), String(borehole.spt.length));
-		appendPropertyRow(panel, localize('soil.samples', "Lab samples"), String(borehole.samples.length));
+		appendPropertyRow(panel, localize('soil.samples', "Lab samples"), String(borehole.samples.filter(hasLabData).length));
 		if (result) {
+			const computed = (row: HTMLElement) => row.classList.add('soil-computed');
 			appendPropertyHeading(panel, localize('soil.resultsTitle', "Results"));
 			if (result.siteClass) {
-				appendPropertyRow(panel, localize('soil.siteClass', "Site class"), result.siteClass.class);
+				computed(appendPropertyRow(panel, localize('soil.siteClass', "Site class"), result.siteClass.class));
 				if (typeof result.siteClass.nBar === 'number') {
-					appendPropertyRow(panel, 'N̄', formatNumber(result.siteClass.nBar, 1));
+					computed(appendPropertyRow(panel, 'N̄', formatNumber(result.siteClass.nBar, 1)));
 				}
 			}
 			if (result.settlement) {
 				const permissible = result.settlement.permissible ?? this.results?.permissibleSettlement;
-				appendPropertyRow(panel, localize('soil.settlement', "Settlement"), typeof permissible === 'number'
+				computed(appendPropertyRow(panel, localize('soil.settlement', "Settlement"), typeof permissible === 'number'
 					? localize('soil.settlementPermissible', "{0} mm (permissible {1} mm)", formatNumber(result.settlement.total, 1), formatNumber(permissible, 0))
-					: localize('soil.settlementValue', "{0} mm", formatNumber(result.settlement.total, 1)));
+					: localize('soil.settlementValue', "{0} mm", formatNumber(result.settlement.total, 1))));
 			}
 			if (typeof result.ks === 'number') {
-				appendPropertyRow(panel, 'ks', localize('soil.ksValue', "{0} kN/m³", formatNumber(result.ks, 0)));
+				computed(appendPropertyRow(panel, 'ks', localize('soil.ksValue', "{0} kN/m³", formatNumber(result.ks, 0))));
 			}
-			if (typeof result.liquefaction?.LPI === 'number') {
-				appendPropertyRow(panel, 'LPI', `${formatNumber(result.liquefaction.LPI, 1)} (${result.liquefaction.category ?? this.lpiRisk(result.liquefaction.LPI)})`);
+			const screened = result.liquefaction?.points.some(p => typeof p.FS === 'number');
+			if (result.liquefaction && !screened) {
+				computed(appendPropertyRow(panel, 'LPI', localize('soil.noDataScreened', "no data (no test screened)")));
+			} else if (typeof result.liquefaction?.LPI === 'number') {
+				computed(appendPropertyRow(panel, 'LPI', `${formatNumber(result.liquefaction.LPI, 1)} (${result.liquefaction.category ?? this.lpiRisk(result.liquefaction.LPI)})`));
 			}
-			if (result.liquefaction) {
-				appendPropertyRow(panel, localize('soil.liquefiable', "Liquefiable"), this.liquefiableText(result));
+			if (result.liquefaction && screened) {
+				computed(appendPropertyRow(panel, localize('soil.liquefiable', "Liquefiable"), this.liquefiableText(result)));
 			}
 		}
 	}
@@ -2086,6 +2324,60 @@ export class SoilEditor extends EditorPane {
 		if (this.report === report) {
 			this.changed(true);
 		}
+	}
+
+	/**
+	 * A latitude/longitude (or BTM) typed on the entry screen places the borehole: it becomes its
+	 * one position (an imported borehole says "project" otherwise, and the typed values would be
+	 * ignored), X and Y turn read-only and follow from it. Cleared, X and Y place it again.
+	 */
+	private placeBy(borehole: IBorehole, index: number): void {
+		if (typeof borehole.lat === 'number' && typeof borehole.lon === 'number') {
+			borehole.position = 'wgs84';
+		} else if (typeof borehole.easting === 'number' && typeof borehole.northing === 'number') {
+			borehole.position = 'btm';
+		} else {
+			borehole.position = 'project';
+		}
+		const placed = borehole.position !== 'project';
+		for (const key of ['x', 'y']) {
+			const input = this.inputs.get(this.problemKey(index, key));
+			if (input && isHTMLInputElement(input)) {
+				input.readOnly = placed;
+				input.parentElement?.classList.toggle('derived', placed);
+			}
+		}
+		if (placed) {
+			this.positionScheduler.schedule(); // X and Y follow from it
+		}
+	}
+
+	/**
+	 * After a latitude/longitude (or BTM) is typed on the entry screen: the backend works out the
+	 * borehole's X and Y, which the read-only X and Y fields then show, so the two never disagree.
+	 */
+	private async updateDerivedPosition(): Promise<void> {
+		const report = this.report;
+		const entry = this.entry;
+		const borehole = entry && report?.boreholes[entry.index];
+		if (!report || !entry || !borehole || boreholePosition(borehole) === 'project') {
+			return;
+		}
+		const result = await this.askLocation(serializeSoilReport(report));
+		const placed = result?.boreholes?.find(b => b.id === borehole.id);
+		if (this.report !== report || typeof placed?.x !== 'number' || typeof placed.y !== 'number') {
+			return;
+		}
+		borehole.x = Math.round(placed.x);
+		borehole.y = Math.round(placed.y);
+		for (const key of ['x', 'y'] as const) {
+			const input = this.inputs.get(this.problemKey(entry.index, key));
+			const field = BOREHOLE_FIELDS.find(f => f.key === key);
+			if (input && isHTMLInputElement(input) && field) {
+				input.value = formatField(field, borehole[key]);
+			}
+		}
+		this.changed(false);
 	}
 
 	/** The backend's answer for the report's text, or undefined without a backend or on failure. */
