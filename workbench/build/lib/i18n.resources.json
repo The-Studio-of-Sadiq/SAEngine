@@ -707,6 +707,14 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/saengineAi",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/saengineSaveStatus",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/saengineSubstructure",
 			"project": "vscode-workbench"
 		},
