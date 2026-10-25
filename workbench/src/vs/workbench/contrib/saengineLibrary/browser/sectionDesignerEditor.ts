@@ -30,10 +30,11 @@ import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { appendPropertyHeading, appendPropertyNote, EditorFrame } from '../../saengineProject/browser/editorFrame.js';
+import { renderChart } from '../../saengineFem/browser/femChart.js';
 import { svg } from '../../saengineSoil/browser/soilLog.js';
 import { SectionDesignerInput } from './sectionDesignerInput.js';
 import {
-	barArea, barsAlongEdges, barsLine, barsRing, bounds, chartScale, diagramPath, formatNumber, hitTest, IBar, IDesignedSection, ISectionAnalysis, IUniaxial,
+	barArea, barsAlongEdges, barsLine, barsRing, bounds, formatNumber, hitTest, IBar, IDesignedSection, interactionCurve, ISectionAnalysis, IUniaxial,
 	moveSelection, parseSection, Point, pointInRegion, propertyRows, rectangle, Ring, Selection, serializeSection, snapPoint, TEMPLATE_DEFAULTS, TemplateKind, templateLabel, templateRegions,
 } from './sectionDesignerModel.js';
 
@@ -630,28 +631,19 @@ export class SectionDesignerEditor extends EditorPane {
 			}));
 		}
 		const diagram: IUniaxial = analysis.uniaxial![this.chartAxis];
-		const width = 300, height = 260;
-		const pad = [46, 10, 10, 30] as const;
-		const scale = chartScale(diagram, width, height, pad);
-		const chart = svg(append(panel, $('.section-chart')), 'svg', {
-			viewBox: `0 0 ${width} ${height}`, class: 'section-chart-svg', role: 'img',
-			'aria-label': localize('section.chartAria', "P-M interaction diagram about {0}: φPn,max {1} kN", this.chartAxis, formatNumber(diagram.phiPnMax / 1e3)),
+		renderChart(append(panel, $('.section-chart')), {
+			title: localize('section.chartTitle', "P-M interaction about {0}", this.chartAxis),
+			xLabel: this.chartAxis === 'x' ? 'Mx [kN·m]' : 'My [kN·m]',
+			yLabel: 'P [kN]',
+			xFormat: formatNumber,
+			yFormat: formatNumber,
+			series: [
+				{ name: localize('section.nominal', "Nominal Pn, Mn"), color: 'foreground', style: 'dashed', points: interactionCurve(diagram, false) },
+				{ name: localize('section.design', "Design φPn, φMn"), color: 'blue', points: interactionCurve(diagram, true) },
+			],
+			caption: localize('section.chartAria', "P-M interaction diagram about {0}: φPn,max {1} kN", this.chartAxis, formatNumber(diagram.phiPnMax / 1e3)),
+			height: 260,
 		});
-		for (const m of scale.mTicks) {
-			svg(chart, 'line', { x1: scale.x(m), y1: pad[2], x2: scale.x(m), y2: height - pad[3], class: m === 0 ? 'axis' : 'grid' });
-			svg(chart, 'text', { x: scale.x(m), y: height - pad[3] + 12, class: 'tick', 'text-anchor': 'middle' }, formatNumber(m));
-		}
-		for (const p of scale.pTicks) {
-			svg(chart, 'line', { x1: pad[0], y1: scale.y(p), x2: width - pad[1], y2: scale.y(p), class: p === 0 ? 'axis' : 'grid' });
-			svg(chart, 'text', { x: pad[0] - 4, y: scale.y(p) + 3, class: 'tick', 'text-anchor': 'end' }, formatNumber(p));
-		}
-		svg(chart, 'text', { x: width - pad[1], y: height - 4, class: 'label', 'text-anchor': 'end' }, this.chartAxis === 'x' ? 'Mx [kN·m]' : 'My [kN·m]');
-		svg(chart, 'text', { x: 4, y: pad[2] + 2, class: 'label' }, 'P [kN]');
-		svg(chart, 'path', { d: diagramPath(diagram, scale, false), class: 'nominal' });
-		svg(chart, 'path', { d: diagramPath(diagram, scale, true), class: 'design' });
-		const legend = append(panel, $('.section-legend'));
-		append(legend, $('span.nominal', undefined, localize('section.nominal', "Nominal Pn, Mn")));
-		append(legend, $('span.design', undefined, localize('section.design', "Design φPn, φMn")));
 		if (analysis.phi) {
 			appendPropertyNote(panel, localize('section.phiNote', "φ from the code pack: {0} tension-controlled, {1} compression-controlled; φPn,max = {2} kN, P0 = {3} kN.", analysis.phi.tension, analysis.phi.compression, formatNumber(diagram.phiPnMax / 1e3), formatNumber(diagram.p0 / 1e3)));
 		}

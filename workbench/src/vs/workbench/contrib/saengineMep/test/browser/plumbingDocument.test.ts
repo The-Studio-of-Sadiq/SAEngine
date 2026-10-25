@@ -202,7 +202,7 @@ suite('SAEngine MEP plumbing', () => {
 		});
 		// Without P3, the pump comes from P1's storage (6.75 L/min = 0.1125 L/s).
 		assert.deepStrictEqual(readPlumbingReport({ ...REPORT, hydraulics: undefined })?.pump, { flow: 0.1125, note: '3.24 m³ in 8 h' });
-		assert.deepStrictEqual(readOccupancies({ occupancies: [{ key: 'office', label: 'Office', lpcd: 45 }, { label: 'no key' }] }), [{ key: 'office', label: 'Office', lpcd: 45, source: undefined }]);
+		assert.deepStrictEqual(readOccupancies({ occupancies: [{ key: 'office', label: 'Office', lpcd: 45, group: 'E1' }, { label: 'no key' }] }), [{ key: 'office', label: 'Office', lpcd: 45, source: undefined, group: 'E1' }]);
 		assert.deepStrictEqual([readOccupancies([]), STATIC_OCCUPANCIES.find(o => o.key === 'office')?.lpcd], [undefined, 45]);
 	});
 

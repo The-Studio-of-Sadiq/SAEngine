@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CadEntitySpec, CadGeneratedDrawing, CadLayerSpec, CadPoint } from '@saengine/cad-editor';
+import { centroid } from '../../../../platform/saengine/common/geometry.js';
+import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { MemberGroup, ModelSelection } from '../../../services/saengineProject/common/modelSelection.js';
 
 export type { MemberGroup };
@@ -164,18 +166,6 @@ function profileWidth(profile: Json): number | undefined {
 	return Math.max(...xs) - Math.min(...xs);
 }
 
-function centroid(points: readonly CadPoint[]): CadPoint {
-	return [points.reduce((s, p) => s + p[0], 0) / points.length, points.reduce((s, p) => s + p[1], 0) / points.length];
-}
-
-/** The stories of the model, lowest first. */
-export function storiesOf(layout: unknown): { readonly id: string; readonly name: string; readonly elevation: number }[] {
-	return list(isObject(layout) ? layout.stories : undefined)
-		.filter(s => typeof s.id === 'string' && num(s.elevation) !== undefined)
-		.map(s => ({ id: s.id as string, name: typeof s.name === 'string' && s.name ? s.name : s.id as string, elevation: s.elevation as number }))
-		.sort((a, b) => a.elevation - b.elevation);
-}
-
 /**
  * The story whose plan shows `selection`: the story itself, or a member's story (the top story
  * of columns and walls, which plans show from the story they rise to).
@@ -297,7 +287,7 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 		entities.push({ kind: 'polyline', layer: FLOOR_PLAN_LAYERS.slabs, points, closed: true });
 		shape('slabs', slab, { kind: 'polygon', points });
 		const thickness = num(type.thickness);
-		entities.push({ kind: 'text', layer: FLOOR_PLAN_LAYERS.labels, position: centroid(points), height: LABEL_TEXT, text: thickness ? `${slab.id} (${thickness})` : String(slab.id) });
+		entities.push({ kind: 'text', layer: FLOOR_PLAN_LAYERS.labels, position: centroid(points)!, height: LABEL_TEXT, text: thickness ? `${slab.id} (${thickness})` : String(slab.id) });
 	}
 	for (const beam of list(model.beams).filter(b => b.story === storyId)) {
 		const type = typeOf(beam);
@@ -310,7 +300,7 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 		if (outline) {
 			shape('beams', beam, { kind: 'polygon', points: outline });
 		}
-		label(beam, centroid([start, end]));
+		label(beam, centroid([start, end])!);
 	}
 	for (const wall of list(model.walls).filter(spans)) {
 		const type = typeOf(wall);

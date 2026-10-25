@@ -229,7 +229,9 @@ def stamp(text: str) -> str:
 #: labels of its items are left out, as are the MEP IFC models. The plumbing's overhead tanks
 #: (which load the model) are stamped as ``plumbingTanks``, the HVAC plant as ``hvacPlant`` and
 #: the electrical equipment as ``electricalEquipment`` (with the supply's ``transformerType``,
-#: which gives a transformer's typical weight, as ``transformerType``) when there are any.
+#: which gives a transformer's typical weight, as ``transformerType``), the fire pumps as
+#: ``firePumps`` (with the supply's ``standby``, which gives a standby set's typical weight, as
+#: ``fireStandby``) and the overhead fire tanks as ``fireTanks`` when there are any.
 MEP_MODEL_KEYS = ("contentsAs", "equipment", "openings", "shafts")
 _MEP_LABELS = ("name", "service")
 
@@ -325,6 +327,21 @@ def mep_stamp(text: str) -> str:
         supply = electrical.get("supply")
         if isinstance(supply, dict) and "transformerType" in supply:
             content["transformerType"] = supply["transformerType"]
+    fire = document.get("fire")
+    pumps = fire.get("pumps") if isinstance(fire, dict) else None
+    if isinstance(pumps, list) and pumps:
+        content["firePumps"] = _unlabelled(pumps)
+        supply = fire.get("supply")
+        if isinstance(supply, dict) and "standby" in supply:
+            content["fireStandby"] = supply["standby"]
+    fire_tanks = fire.get("tanks") if isinstance(fire, dict) else None
+    fire_overhead = (
+        [t for t in fire_tanks if isinstance(t, dict) and t.get("kind") == "overhead"]
+        if isinstance(fire_tanks, list)
+        else []
+    )
+    if fire_overhead:
+        content["fireTanks"] = fire_overhead
     return stamp(js_json(content))
 
 

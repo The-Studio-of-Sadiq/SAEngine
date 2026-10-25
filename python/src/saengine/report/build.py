@@ -239,6 +239,7 @@ def report_data(
     report["plumbing"] = _plumbing(parts)
     report["hvac"] = _guarded(_hvac, parts, "HVAC")
     report["electrical"] = _guarded(_electrical, parts, "electrical")
+    report["fire"] = _guarded(_fire, parts, "fire")
     report["boq"] = _boq(parts)
     report["limitations"] = {
         "design": report["design"].get("notes", []),
@@ -246,6 +247,7 @@ def report_data(
         "plumbing": report["plumbing"].get("notes", []),
         "hvac": report["hvac"].get("notes", []),
         "electrical": report["electrical"].get("notes", []),
+        "fire": report["fire"].get("notes", []),
         "boq": report["boq"].get("notes", []),
         "soil": report["soil"].get("notes", []),
         "foundations": report["foundations"].get("notes", []),
@@ -3113,6 +3115,21 @@ def _electrical(parts: _Parts) -> dict[str, Any]:
         "method": [str(m) for m in report.get("method") or []],
         "notes": notes,
     }
+
+
+def _fire(parts: _Parts) -> dict[str, Any]:
+    """The fire protection chapter (Part 7, BNBC 2020 Part 4): :mod:`saengine.fire.chapter`;
+    not printed while 07 MEP has no fire section."""
+    from saengine.fire.chapter import fire_chapter
+    from saengine.library.mep import MEP_FILE, parse
+
+    try:
+        mep = parse(parts.text(MEP_FILE))
+    except ValueError as error:
+        return {"available": False, "problem": f"{MEP_FILE} is not valid: {error}", "notes": []}
+    if mep.fire is None:
+        return {"available": False, "problem": "", "notes": []}
+    return fire_chapter(parts.root, mep, _service_loads(parts, mep, "fire"))
 
 
 def _boq(parts: _Parts) -> dict[str, Any]:

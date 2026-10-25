@@ -18,6 +18,7 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { FemRunEvent, FemRunExitCode, IFemCaseResults, IFemResultTable, IFemRunExit, IFemSolverService } from '../../../../platform/saengine/common/femSolver.js';
+import { formatCell } from '../browser/femChartData.js';
 import { resultsFolder } from '../browser/femDesign.js';
 import { errorSummary, IFemRunOptions, IFemRunOutcome, IFemRunTracker } from '../browser/femResultsBar.js';
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
@@ -353,13 +354,6 @@ export class FemAnalysisRunner {
 /** "Static", "Modal", ... of an opensees-studio case type ("StaticCase"). */
 function caseTypeLabel(type: string): string {
 	return type.replace(/Case$/, '');
-}
-
-function formatCell(value: number | string): string {
-	if (typeof value === 'number') {
-		return Number.isInteger(value) ? String(value) : value.toPrecision(6);
-	}
-	return value;
 }
 
 function formatTable(table: IFemResultTable): string {

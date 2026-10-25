@@ -267,5 +267,13 @@
 			"downConductors": "structuralRebar",
 			"earthing": "foundation"
 		}
+	},
+	"fire": {
+		"stories": [
+			{
+				"story": "BASE",
+				"area": 65
+			}
+		]
 	}
 }

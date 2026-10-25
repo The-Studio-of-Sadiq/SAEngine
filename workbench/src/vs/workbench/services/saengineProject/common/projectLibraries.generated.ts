@@ -14078,6 +14078,668 @@ export const MEP_SCHEMA: IJSONSchema = {
 			title: 'FacadeGlazing',
 			type: 'object',
 		},
+		Fire: {
+			additionalProperties: false,
+			description: 'The fire protection the structure coordinates with (BNBC 2020 Part 4).',
+			properties: {
+				building: {
+					$ref: '#/$defs/FireBuilding',
+					title: 'Building',
+				},
+				supply: {
+					$ref: '#/$defs/FireSupply',
+					title: 'Supply',
+				},
+				hydrant: {
+					anyOf: [
+						{
+							type: 'boolean',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'A hydrant (standpipe) system; empty: where Part 4 requires one. Where Part 4 allows \'portable extinguishers or hydrants\', true chooses hydrants.',
+					title: 'Hydrant',
+				},
+				detection: {
+					anyOf: [
+						{
+							type: 'boolean',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Automatic detection; empty: where Part 4 requires it.',
+					title: 'Detection',
+				},
+				stories: {
+					items: {
+						$ref: '#/$defs/FireStory',
+					},
+					title: 'Stories',
+					type: 'array',
+				},
+				risers: {
+					items: {
+						$ref: '#/$defs/FireRiser',
+					},
+					title: 'Risers',
+					type: 'array',
+				},
+				mains: {
+					items: {
+						$ref: '#/$defs/FireMain',
+					},
+					title: 'Mains',
+					type: 'array',
+				},
+				tanks: {
+					description: 'Fire water reservoirs (kinds overhead and underground), designed as the plumbing tanks.',
+					items: {
+						$ref: '#/$defs/PlumbingTank',
+					},
+					title: 'Tanks',
+					type: 'array',
+				},
+				pumps: {
+					items: {
+						$ref: '#/$defs/FirePump',
+					},
+					title: 'Pumps',
+					type: 'array',
+				},
+				pumpRoom: {
+					anyOf: [
+						{
+							$ref: '#/$defs/FirePumpRoom',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Pump room',
+				},
+			},
+			title: 'Fire',
+			type: 'object',
+		},
+		FireBuilding: {
+			additionalProperties: false,
+			description: 'What Part 4 Chapter 5 asks of the building besides its stories.',
+			properties: {
+				construction: {
+					default: 'typeIA',
+					description: 'Sec 5.2: monolithic construction to the Code is Type I-A; offsite, prestressed, prefabricated or encased steel Modified Type I-A; any other: performance based fire protection (Sec 5.2.5).',
+					enum: ['typeIA', 'modifiedIA', 'other'],
+					enumDescriptions: ['Type I-A (monolithic RC)', 'Modified Type I-A', 'Other (performance based)'],
+					title: 'Construction',
+					type: 'string',
+				},
+				corridor: {
+					default: 'central',
+					description: 'Hostels, hotels and schools (Sec 5.3.3, 5.3.4, 5.4): central corridor with rooms on both sides, or a single loaded open corridor of 3 m or more.',
+					enum: ['central', 'singleOpen'],
+					enumDescriptions: ['Central corridor', 'Single loaded open corridor (3 m+)'],
+					title: 'Corridor',
+					type: 'string',
+				},
+				dwellingUnits: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Flats (A3): 30 or more need a fire protection plan (Sec 5.1.6(c)).',
+					title: 'Dwelling units',
+				},
+				occupantLoad: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Industry (G1): above 150 the protection is performance based (Sec 5.9.1).',
+					title: 'Occupant load',
+				},
+				falseCeiling: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Largest space under one false ceiling [m²] (offices: above 500 m² an automatic fire alarm above and below it, Sec 5.7(ix)).',
+					title: 'False ceiling',
+				},
+			},
+			title: 'FireBuilding',
+			type: 'object',
+		},
+		FireMain: {
+			additionalProperties: false,
+			description: 'A horizontal fire or sprinkler main below a floor (its beam sleeves are proposed).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				story: {
+					description: 'Story whose ceiling space it runs in.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				path: {
+					description: 'Plan path [[x, y], ...] mm.',
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					minItems: 2,
+					title: 'Path',
+					type: 'array',
+				},
+				diameter: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Nominal [mm]; empty: sized.',
+					title: 'Diameter',
+				},
+				bottom: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Pipe bottom above the story\'s floor [mm]; empty: 150 mm below the soffit of the slab above (as the cable trays).',
+					title: 'Bottom',
+				},
+			},
+			required: ['id', 'story', 'path'],
+			title: 'FireMain',
+			type: 'object',
+		},
+		FirePump: {
+			additionalProperties: false,
+			description: 'A fire pump set (its weight loads the floor it stands on).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				duty: {
+					default: 'main',
+					enum: ['main', 'standby', 'jockey'],
+					enumDescriptions: ['Main fire pump', 'Standby fire pump', 'Jockey (pressurising) pump'],
+					title: 'Duty',
+					type: 'string',
+				},
+				story: {
+					description: 'Building-model story it stands on.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				x: {
+					description: 'Centre, plan X [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					description: 'Centre, plan Y [mm].',
+					title: 'Y',
+					type: 'number',
+				},
+				length: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Along X [mm].',
+					title: 'Length',
+				},
+				width: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Along Y [mm].',
+					title: 'Width',
+				},
+				height: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Height',
+				},
+				flow: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Rated flow [l/min].',
+					title: 'Flow',
+				},
+				head: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Rated head [m].',
+					title: 'Head',
+				},
+				power: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Motor or engine [kW].',
+					title: 'Power',
+				},
+				operatingWeight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Set with water [kN].',
+					title: 'Operating weight',
+				},
+				sized: {
+					default: false,
+					description: 'Proposed by SAEngine (editable).',
+					title: 'Sized',
+					type: 'boolean',
+				},
+				equipment: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'An equipment of 07 MEP that is this pump (loaded once).',
+					title: 'Equipment',
+				},
+			},
+			required: ['id', 'story', 'x', 'y'],
+			title: 'FirePump',
+			type: 'object',
+		},
+		FirePumpRoom: {
+			additionalProperties: false,
+			description: 'The fire pump room: its outline is checked against the sets it must hold.',
+			properties: {
+				story: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				outline: {
+					description: 'Inside face of the walls [mm].',
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					minItems: 3,
+					title: 'Outline',
+					type: 'array',
+				},
+			},
+			required: ['story', 'outline'],
+			title: 'FirePumpRoom',
+			type: 'object',
+		},
+		FireRiser: {
+			additionalProperties: false,
+			description: 'A vertical fire main: standpipe, sprinkler or combined riser.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				system: {
+					default: 'standpipe',
+					enum: ['standpipe', 'sprinkler', 'combined'],
+					enumDescriptions: ['Standpipe (hydrant) riser', 'Sprinkler riser', 'Combined standpipe and sprinkler riser'],
+					title: 'System',
+					type: 'string',
+				},
+				x: {
+					description: 'Plan X [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					description: 'Plan Y [mm].',
+					title: 'Y',
+					type: 'number',
+				},
+				fromStory: {
+					description: 'Story it starts at (not cut).',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'From story',
+					type: 'string',
+				},
+				toStory: {
+					description: 'Highest story whose floor it cuts.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'To story',
+					type: 'string',
+				},
+				shaft: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Shaft it runs in.',
+					title: 'Shaft',
+				},
+				diameter: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Nominal [mm]; empty: sized.',
+					title: 'Diameter',
+				},
+			},
+			required: ['id', 'x', 'y', 'fromStory', 'toStory'],
+			title: 'FireRiser',
+			type: 'object',
+		},
+		FireStory: {
+			additionalProperties: false,
+			description: 'A story\'s use and what protects it.',
+			properties: {
+				story: {
+					description: 'Building-model story.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				occupancy: {
+					anyOf: [
+						{
+							enum: ['singleFamily', 'apartmentLarge', 'residentialFlat', 'apartmentSmall', 'staffQuarter', 'townSingleFamily', 'townApartment', 'townSmallApartment', 'townStaffQuarter', 'villagePrivate', 'villagePublic', 'dormitory', 'hotel', 'school', 'college', 'preschool', 'childCare', 'custodialCapable', 'custodialIncapable', 'penalChildren', 'penalAdults', 'hospital', 'hospitalLarge', 'emergencyMedical', 'nursesQuarters', 'office', 'laboratory', 'essentialServices', 'shop', 'largeShop', 'refueling', 'industryLow', 'industryModerate', 'storageLow', 'storageModerate', 'assemblyLargeFixed', 'assemblySmallFixed', 'assemblyLarge', 'assemblySmall', 'sports', 'hazardExplosion', 'hazardChemical', 'hazardBiological', 'hazardRadiation', 'parking', 'privateGarage', 'repairGarage', 'utility', 'tanksTowers'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Use (Part 3 occupancy group in brackets): it sets the systems (Part 4 Chapter 5) and the hazard (Table 4.4.1); empty: the story\'s use in Plumbing, else office.',
+					enumDescriptions: ['Single family dwelling, high income (city) (A1)', 'Big apartment > 2500 sft, high income (city) (A3)', 'Moderate apartment < 2000 sft, middle income (city) (A3)', 'Small apartment < 1500 sft (city) (A3)', 'Junior staff flat < 1000 sft (city) (A3)', 'Single family dwelling (town) (A1)', 'Moderate apartment < 2000 sft (town) (A3)', 'Small apartment < 1500 sft (town) (A3)', 'Junior staff flat < 1000 sft (town) (A3)', 'Village, private source (A1)', 'Village, public source (A1)', 'Mess, boarding house, dormitory, hostel (A4)', 'Hotel, lodging house (per bed) (A5)', 'Educational up to higher secondary (B1)', 'Training and above higher secondary (B2)', 'Pre-school (B3)', 'Institution for care of children (C1)', 'Custodial institution, capable adults (C2)', 'Custodial institution, incapable adults (C3)', 'Penal and mental institution, children (C4)', 'Penal and mental institution, adults (C5)', 'Normal medical facility (small hospital) (D1)', 'Big hospital (over 100 beds) (D1)', 'Emergency medical facility (D2)', 'Nurses and medical quarters (D2)', 'Office (E1)', 'Research and testing laboratory (E2)', 'Essential services (E3)', 'Small shops and market (F1)', 'Large shops and market (F2)', 'Refueling station (F3)', 'Low hazard industry (G1)', 'Moderate hazard industry (G2)', 'Low fire risk storage (H1)', 'Moderate fire risk storage (H2)', 'Large assembly with fixed seats (per seat) (I1)', 'Small assembly with fixed seats (per seat) (I2)', 'Large assembly without fixed seats (I3)', 'Small assembly without fixed seats (I4)', 'Sports facility (I5)', 'Explosion hazard building (J1)', 'Chemical hazard building (J2)', 'Biological hazard building (J3)', 'Radiation hazard building (J4)', 'Parking garage (visitors) (K1)', 'Private garage (visitors) (K2)', 'Repair garage (visitors) (K3)', 'Utility (L)', 'Fences, tanks and towers (M2)'],
+					title: 'Occupancy',
+				},
+				area: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Gross floor area [m²]; empty: the story\'s slabs.',
+					title: 'Area',
+				},
+				undivided: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Largest single effective undivided space [m²]; empty: the floor area.',
+					title: 'Undivided',
+				},
+				hazard: {
+					anyOf: [
+						{
+							enum: ['lightI', 'lightII', 'ordinaryI', 'ordinaryII', 'ordinaryIII', 'extra'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Table 4.4.1 hazard; empty: of the occupancy group.',
+					enumDescriptions: ['Light hazard-I', 'Light hazard-II', 'Ordinary hazard-I', 'Ordinary hazard-II', 'Ordinary hazard-III', 'Extra hazard'],
+					title: 'Hazard',
+				},
+				sprinklered: {
+					anyOf: [
+						{
+							type: 'boolean',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Sprinklers on this story; empty: where Part 4 requires them.',
+					title: 'Sprinklered',
+				},
+				ceiling: {
+					default: 'beams',
+					description: 'Construction above the sprinklers (Table 4.4.7).',
+					enum: ['beams', 'openJoists', 'other'],
+					enumDescriptions: ['Floor on beams or girders', 'Open wood joists', 'Other construction'],
+					title: 'Ceiling',
+					type: 'string',
+				},
+			},
+			required: ['story'],
+			title: 'FireStory',
+			type: 'object',
+		},
+		FireSupply: {
+			additionalProperties: false,
+			description: 'The water-based systems: hose, pipes, storage and pumps.',
+			properties: {
+				hose: {
+					default: 'small',
+					description: 'Hose at the outlets (Sec 4.2.3.11): small stream 63/50 mm or large stream 100 mm (300 kPa at the outlet), first-aid 38 mm (200 kPa) (Sec 4.2.3.3).',
+					enum: ['small', 'large', 'firstAid'],
+					enumDescriptions: ['Small stream (63 or 50 mm)', 'Large stream (100 mm)', 'First aid (38 mm)'],
+					title: 'Hose',
+					type: 'string',
+				},
+				material: {
+					default: 'steel',
+					description: 'Pipe (Tables 4.4.3 and 4.4.8); sprinkler pipe schedules of Table 4.4.5 (steel) or 4.4.6 (copper).',
+					enum: ['steel', 'GI', 'copper'],
+					enumDescriptions: ['Black steel', 'Galvanised steel', 'Copper'],
+					title: 'Material',
+					type: 'string',
+				},
+				storage: {
+					default: 'dedicated',
+					description: 'The fire water in its own tanks (fire.tanks), or as the fire reserve of the plumbing tanks (plumbing.supply.fireReserve, Figure 4.4.6).',
+					enum: ['dedicated', 'plumbingReserve'],
+					enumDescriptions: ['Dedicated fire tanks', 'Fire reserve in the plumbing tanks'],
+					title: 'Storage',
+					type: 'string',
+				},
+				pumpType: {
+					default: 'endSuction',
+					description: 'Centrifugal pumps (end suction, split case) need a flooded suction (Sec 4.2.2.5); a vertical turbine pump stands over a tank below it.',
+					enum: ['endSuction', 'splitCase', 'verticalTurbine'],
+					enumDescriptions: ['End suction centrifugal', 'Split case centrifugal', 'Vertical turbine'],
+					title: 'Pump type',
+					type: 'string',
+				},
+				standby: {
+					default: 'diesel',
+					description: 'The secondary fire pump (Sec 4.2.2.5): diesel engine, or electric on an alternate power supply.',
+					enum: ['diesel', 'electric'],
+					enumDescriptions: ['Diesel engine', 'Electric, alternate supply'],
+					title: 'Standby',
+					type: 'string',
+				},
+				fireEngineOnCover: {
+					default: false,
+					description: 'No space for the fire engine beside the ground tank: its cover slab carries the fire engine (Sec 4.2.3.8).',
+					title: 'Fire engine on the cover',
+					type: 'boolean',
+				},
+				fireEngineWeight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Gross weight of the local fire engine [kN]; empty: 160 kN (from memory, to be checked with the Fire Service).',
+					title: 'Fire engine weight',
+				},
+			},
+			title: 'FireSupply',
+			type: 'object',
+		},
 		Fixtures: {
 			additionalProperties: false,
 			description: 'Number of each plumbing fixture on a story.',
@@ -16011,6 +16673,19 @@ export const MEP_SCHEMA: IJSONSchema = {
 			default: null,
 			description: 'Supply, plant rooms, risers, trays and lightning protection, coordinated to BNBC 2020 Part 8 Chapter 1.',
 			title: 'Electrical',
+		},
+		fire: {
+			anyOf: [
+				{
+					$ref: '#/$defs/Fire',
+				},
+				{
+					type: 'null',
+				},
+			],
+			default: null,
+			description: 'Fire protection: the systems required, standpipes, sprinklers, fire pumps and the fire reservoir, to BNBC 2020 Part 4.',
+			title: 'Fire',
 		},
 	},
 	title: 'SAEngine MEP coordination',

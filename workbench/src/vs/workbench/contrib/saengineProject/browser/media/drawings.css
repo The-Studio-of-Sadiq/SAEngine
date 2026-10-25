@@ -13,16 +13,6 @@
 	gap: var(--sa-space-2, 8px);
 }
 
-.saengine-exports-editor .drawings-size {
-	width: 64px;
-}
-
-.saengine-exports-editor .drawings-size .monaco-select-box {
-	height: 24px;
-	padding: 0 6px;
-	border-radius: var(--sa-radius, 4px);
-}
-
 /* the title block settings */
 .saengine-exports-editor .drawings-settings {
 	display: flex;

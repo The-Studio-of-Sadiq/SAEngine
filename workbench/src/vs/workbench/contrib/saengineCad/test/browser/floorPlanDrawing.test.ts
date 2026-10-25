@@ -7,7 +7,8 @@ import assert from 'assert';
 import type { CadEntitySpec } from '@saengine/cad-editor';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DEFAULT_FLOOR_PLAN, DEFAULT_OBJECTS } from '../../../../services/saengineProject/common/projectLibraries.generated.js';
-import { floorPlanDrawing, profileOutline, storiesOf } from '../../browser/floorPlanDrawing.js';
+import { storiesOf } from '../../../../services/saengineProject/common/floorPlanMembers.js';
+import { floorPlanDrawing, profileOutline } from '../../browser/floorPlanDrawing.js';
 
 /** One line per entity, rounded, so a whole plan reads as a snapshot. */
 function describe(entity: CadEntitySpec): string {

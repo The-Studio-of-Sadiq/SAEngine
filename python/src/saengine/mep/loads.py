@@ -805,6 +805,40 @@ def electrical_equipment_loads(
     return out, notes
 
 
+def fire_equipment_loads(
+    mep: MepModel, taken: set[str], origin: dict[str, str] | None = None, materials: Any = None
+) -> tuple[list[Equipment], list[str]]:
+    """The fire pumps and overhead fire tanks of ``mep.fire`` as equipment for the analysis loads
+    (:func:`saengine.fire.report.fire_equipment`: typical sets where no size or weight is given;
+    pumps vibrate; a tank's water is its contents, fluid F), and notes. Never counted twice:
+    linked items and items under an equipment of their story are left to that equipment."""
+    if mep.fire is None:
+        return [], []
+    from saengine.fire.report import fire_equipment
+
+    entries, notes = fire_equipment(mep, materials)
+    out: list[Equipment] = []
+    for entry in entries:
+        item_id = entry["id"].removeprefix("EQ-").removesuffix("-tank")
+        entered = _entered_as_equipment(mep, item_id)
+        if entered is not None:
+            notes.append(
+                f"{item_id}: equipment {entered.id} of 07 MEP has its id; its weight is taken as "
+                f"{entered.id}'s (link them in 07 MEP, or rename one)"
+            )
+            continue
+        base = entry["id"]
+        entry = {**entry, "id": _unique(base, taken)}
+        notes.extend(_renamed(item_id, entry["id"], base))
+        try:
+            out.append(Equipment.model_validate(entry))
+            if origin is not None:
+                origin[entry["id"]] = item_id
+        except ValueError as error:
+            notes.append(f"{entry['id']}: its load could not be made ({error}); not loaded")
+    return out, notes
+
+
 def services_by_discipline(
     mep: MepModel, materials: Any = None
 ) -> tuple[dict[str, dict[str, Equipment]], list[str]]:
@@ -817,15 +851,18 @@ def services_by_discipline(
     origin: dict[str, str] = {}
     plant, plant_notes = hvac_plant_equipment(mep, taken, origin)
     electrical, electrical_notes = electrical_equipment_loads(mep, taken, origin)
+    fire, fire_notes = fire_equipment_loads(mep, taken, origin, materials)
     notes = [
         *tank_notes,
         *(f"HVAC: {n}" for n in plant_notes),
         *(f"electrical: {n}" for n in electrical_notes),
+        *(f"fire: {n}" for n in fire_notes),
     ]
     groups = {
         "plumbing": {t.id: t for t in tanks},
         "hvac": {origin[e.id]: e for e in plant},
         "electrical": {origin[e.id]: e for e in electrical},
+        "fire": {origin[e.id]: e for e in fire},
     }
     return groups, notes
 
@@ -860,6 +897,10 @@ def has_model_content(mep: MepModel) -> bool:
         or (mep.plumbing is not None and any(t.kind == "overhead" for t in mep.plumbing.tanks))
         or (mep.hvac is not None and mep.hvac.plant)
         or (mep.electrical is not None and mep.electrical.equipment)
+        or (
+            mep.fire is not None
+            and (mep.fire.pumps or any(t.kind == "overhead" for t in mep.fire.tanks))
+        )
     )
 
 

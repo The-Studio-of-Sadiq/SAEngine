@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { clampPanelWidth, readFrameState } from '../../browser/editorFrame.js';
+import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, clampPanelWidth, readFrameState } from '../../browser/editorFrame.js';
 
 suite('SAEngine - editor frame', () => {
 
@@ -44,5 +45,30 @@ suite('SAEngine - editor frame', () => {
 			{ visible: true, width: 320 },
 			{ visible: true, width: 280 },
 		]);
+	});
+
+	test('property sheet rows: a heading with a detail, values as text or elements, problems marked', () => {
+		const panel = mainWindow.document.createElement('div');
+		appendPropertyHeading(panel, 'C1', 'C400');
+		appendPropertyHeading(panel, 'Placement');
+		appendPropertyRow(panel, 'Story', 'Level 1');
+		appendPropertyRow(panel, 'Type', 'NOPE', true);
+		const link = mainWindow.document.createElement('a');
+		link.textContent = 'Edit';
+		appendPropertyRow(panel, 'Object', link);
+		appendPropertyNote(panel, 'Read-only.');
+		assert.deepStrictEqual({
+			headings: [...panel.querySelectorAll('.sa-props-heading')].map(h => [h.textContent, h.querySelector('.sa-props-detail')?.textContent]),
+			values: [...panel.querySelectorAll('.sa-props-row')].map(r => [r.querySelector('.name')?.textContent, r.querySelector('.value')?.textContent, r.querySelector('.value')!.classList.contains('problem')]),
+			icon: !!panel.querySelector('.value.problem > .codicon-warning'),
+			element: panel.querySelectorAll('.sa-props-row')[2].querySelector('.value > a') === link,
+			note: panel.querySelector('.sa-props-note')?.textContent,
+		}, {
+			headings: [['C1C400', 'C400'], ['Placement', undefined]],
+			values: [['Story', 'Level 1', false], ['Type', 'NOPE', true], ['Object', 'Edit', false]],
+			icon: true,
+			element: true,
+			note: 'Read-only.',
+		});
 	});
 });

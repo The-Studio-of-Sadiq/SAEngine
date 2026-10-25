@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { copyStory, familyNote, familyOf, inSync, masterOf, setSimilar } from '../../browser/floorPlanTypical.js';
+import { copyStory, familyNote, familyOf, inSync, masterOf, onStory as ownStory, placedEdit, placeKey, repeatFamily, repeatOnFamilies, setSimilar, storyBelow } from '../../browser/floorPlanTypical.js';
 
 suite('SAEngine - Floor plan typical floors', () => {
 
@@ -124,6 +124,40 @@ suite('SAEngine - Floor plan typical floors', () => {
 			kept: 6,
 			merged: [null, null, 'L5', 'L5', 'L5', null],
 			emptied: [],
+		});
+	});
+
+	test('helpers: the story below, the story and place of a member, footings included', () => {
+		const layout = plan(stories(), { ...bay('L1', 'BASE', 1), footings: [{ id: 'F1', type: 'F1500', story: 'BASE', at: { ...A1, dx: 100 } }] });
+		const column = (layout.columns as Json[])[0];
+		const footing = (layout.footings as Json[])[0];
+		assert.deepStrictEqual({
+			below: [storyBelow(layout, 'L1'), storyBelow(layout, 'BASE')],
+			onStory: [ownStory(layout, 'columns', column, 'L1'), ownStory(layout, 'columns', column, 'L2'), ownStory(layout, 'footings', footing, 'BASE')],
+			keys: [placeKey('columns', column), placeKey('footings', footing), placeKey('beams', (layout.beams as Json[])[0])],
+			edits: [placedEdit(layout, 'columns', column), placedEdit(layout, 'footings', footing)],
+		}, {
+			below: ['BASE', undefined],
+			onStory: [true, false, true],
+			keys: ['A/1/0/0', 'A/1/100/0', 'A/1/0/0 B/1/0/0'],
+			edits: [{ group: 'columns', key: 'A/1/0/0', story: 'L1' }, undefined],
+		});
+	});
+
+	test('one rule for edits on typical floors: repeat on an alike family, refuse when its stories differ', () => {
+		const alike = plan(stories({ L3: 'L2' }), { beams: [...bay('L2', 'L1', 1).beams, ...bay('L3', 'L2', 5).beams] });
+		const differ = plan(stories({ L3: 'L2' }), { beams: [...bay('L2', 'L1', 1).beams, { ...bay('L3', 'L2', 5).beams[0], type: 'B350' }] });
+		const edited = (layout: Json) => ({ ...layout, beams: (layout.beams as Json[]).map(b => b.id === 'B1' ? { ...b, type: 'B400' } : b) });
+		const edit = placedEdit(alike, 'beams', (alike.beams as Json[])[0])!;
+		const repeated = repeatOnFamilies(alike, edited(alike), [edit], { type: 'B400' });
+		assert.deepStrictEqual({
+			families: [repeatFamily(alike, 'L3'), repeatFamily(differ, 'L3'), repeatFamily(alike, 'L1')],
+			repeated: (repeated!.beams as Json[]).map(b => `${b.id}:${b.type}`),
+			refused: repeatOnFamilies(differ, edited(differ), [edit], { type: 'B400' }),
+		}, {
+			families: [['L2', 'L3'], undefined, ['L1']],
+			repeated: ['B1:B400', 'B5:B400'],
+			refused: undefined,
 		});
 	});
 });

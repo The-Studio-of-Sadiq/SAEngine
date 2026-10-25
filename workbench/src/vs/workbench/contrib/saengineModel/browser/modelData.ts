@@ -6,6 +6,8 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
+import { polygonArea } from '../../../../platform/saengine/common/geometry.js';
+import { formatPoint, IFloorPlanStory, location, onPlanOf, storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { MemberGroup, ModelSelection } from '../../../services/saengineProject/common/modelSelection.js';
 import { recordedStamp, sourceStamp } from '../../../services/saengineProject/common/partSources.js';
 
@@ -105,7 +107,7 @@ function str(value: unknown): string {
 	return typeof value === 'string' ? value : value === undefined ? '—' : String(value);
 }
 
-interface IStory { readonly id: string; readonly name: string; readonly elevation: number }
+type IStory = IFloorPlanStory;
 
 class Model {
 	readonly plan: Json | undefined;
@@ -118,10 +120,7 @@ class Model {
 	constructor(readonly docs: IProjectDocuments) {
 		this.plan = isObject(docs.floorPlan) && docs.floorPlan.schema === FLOOR_PLAN_SCHEMA_ID ? docs.floorPlan : undefined;
 		const plan = this.plan ?? {};
-		this.stories = list(plan.stories)
-			.filter(s => typeof s.id === 'string' && num(s.elevation) !== undefined)
-			.map(s => ({ id: s.id as string, name: typeof s.name === 'string' && s.name ? s.name : s.id as string, elevation: s.elevation as number }))
-			.sort((a, b) => a.elevation - b.elevation);
+		this.stories = storiesOf(plan);
 		const grids = isObject(plan.grids) ? plan.grids : {};
 		const lines = (axis: 'x' | 'y') => new Map(list(grids[axis]).filter(g => typeof g.label === 'string' && num(g.position) !== undefined).map(g => [g.label as string, g.position as number]));
 		this.x = lines('x');
@@ -140,14 +139,7 @@ class Model {
 
 	/** Members shown on the plan of `story`: columns and walls rising to it, the rest at its level. */
 	onStory(group: MemberGroup, story: IStory): Json[] {
-		return this.members(group).filter(m => {
-			if (group === 'columns' || group === 'walls') {
-				const base = this.story(m.base);
-				const top = this.story(m.top);
-				return !!base && !!top && base.elevation < story.elevation && story.elevation <= top.elevation;
-			}
-			return m.story === story.id;
-		});
+		return this.members(group).filter(m => onPlanOf(group, m, story, this.stories));
 	}
 
 	point(value: unknown): { label: string; at?: [number, number] } {
@@ -156,10 +148,9 @@ class Model {
 		}
 		const dx = num(value.dx) ?? 0;
 		const dy = num(value.dy) ?? 0;
-		const offset = dx || dy ? ` (${dx >= 0 ? '+' : ''}${dx}, ${dy >= 0 ? '+' : ''}${dy})` : '';
 		const x = this.x.get(value.x as string);
 		const y = this.y.get(value.y as string);
-		return { label: `${str(value.x)}-${str(value.y)}${offset}`, at: x !== undefined && y !== undefined ? [x + dx, y + dy] : undefined };
+		return { label: formatPoint(value), at: x !== undefined && y !== undefined ? [x + dx, y + dy] : undefined };
 	}
 
 	/** Build state of the building model against the current floor plan (or structural model). */
@@ -173,18 +164,8 @@ class Model {
 	}
 }
 
-function memberDescription(model: Model, group: MemberGroup, member: Json): string {
-	const type = str(member.type);
-	switch (group) {
-		case 'columns':
-		case 'footings':
-			return `${type} · ${model.point(member.at).label}`;
-		case 'beams':
-		case 'walls':
-			return `${type} · ${model.point(member.start).label} → ${model.point(member.end).label}`;
-		case 'slabs':
-			return `${type} · ${list(member.boundary).map(p => model.point(p).label).join(', ')}`;
-	}
+function memberDescription(group: MemberGroup, member: Json): string {
+	return `${str(member.type)} · ${location(group, member)}`;
 }
 
 /** The Model Explorer tree: the floor plan by story, the object types, and the building model. */
@@ -200,7 +181,7 @@ export function modelTree(docs: IProjectDocuments): IModelNode[] {
 		const memberNode = (group: MemberGroup, member: Json, parent: string): IModelNode => {
 			const problem = model.types.has(member.type as string) ? undefined : localize('tree.unknownType', "Unknown object type '{0}'", str(member.type));
 			return {
-				id: `${parent}/${member.id}`, label: member.id as string, description: memberDescription(model, group, member),
+				id: `${parent}/${member.id}`, label: member.id as string, description: memberDescription(group, member),
 				icon: GROUPS.find(g => g.group === group)!.icon, selection: { kind: 'member', group, id: member.id as string }, part: 'floorPlan', problem,
 			};
 		};
@@ -330,15 +311,6 @@ function typeRows(model: Model, type: Json): IPropertyRow[] {
 
 function at(point: { label: string; at?: [number, number] }): string {
 	return point.at ? `${point.label}  (x ${Number(point.at[0].toFixed(1))}, y ${Number(point.at[1].toFixed(1))})` : localize('prop.missingPoint', "{0} (grid line missing)", point.label);
-}
-
-function polygonArea(points: readonly [number, number][]): number {
-	let sum = 0;
-	points.forEach(([x1, y1], i) => {
-		const [x2, y2] = points[(i + 1) % points.length];
-		sum += x1 * y2 - x2 * y1;
-	});
-	return Math.abs(sum) / 2;
 }
 
 /** The read-only property sheet of `selection`, or undefined when it no longer exists. */

@@ -181,9 +181,9 @@ export function selectionSummary(selection: readonly IMemberRef[]): string {
 export interface ICommonFields {
 	/** Per group: the object type all its selected members have, or undefined when they differ. */
 	readonly types: ReadonlyMap<MemberGroup, string | undefined>;
-	/** The rotation all selected columns and footings have, when only those are selected and they agree. */
+	/** The rotation all selected columns have, when only columns are selected and they agree. */
 	readonly rotation: number | undefined;
-	/** Whether every selected member is a column or footing. */
+	/** Whether every selected member is a column (footings turn in 9 Substructure). */
 	readonly rotatable: boolean;
 }
 
@@ -196,7 +196,7 @@ export function commonFields(layout: unknown, selection: readonly IMemberRef[]):
 		const [only] = values;
 		types.set(group, values.size === 1 && typeof only === 'string' ? only : undefined);
 	}
-	const rotatable = selection.length > 0 && selection.every(r => r.group === 'columns' || r.group === 'footings');
+	const rotatable = selection.length > 0 && selection.every(r => r.group === 'columns');
 	const rotations = new Set(found.map(f => Number(f.member!.rotation) || 0));
 	const [rotation] = rotations;
 	return { types, rotation: rotatable && rotations.size === 1 ? rotation : undefined, rotatable };

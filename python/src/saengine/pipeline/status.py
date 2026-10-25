@@ -245,6 +245,16 @@ def _mep_has_content(inputs: StatusInputs) -> bool:
         or _has_overhead_tank(document)
         or _section_count(document, "hvac", ("plant",)) > 0
         or _section_count(document, "electrical", ("equipment",)) > 0
+        or _section_count(document, "fire", ("pumps",)) > 0
+        or _has_overhead_fire_tank(document)
+    )
+
+
+def _has_overhead_fire_tank(document: dict[str, Any]) -> bool:
+    fire = _section(document, "fire")
+    tanks = fire.get("tanks") if fire else None
+    return isinstance(tanks, list) and any(
+        isinstance(t, dict) and t.get("kind") == "overhead" for t in tanks
     )
 
 
@@ -290,7 +300,10 @@ def mep_status(inputs: StatusInputs) -> PartStatus:
     electrical_items = _section_count(
         value, "electrical", ("stories", "equipment", "risers", "trays")
     )
-    if not any(count.values()) and not plumbing_items and not hvac_items and not electrical_items:
+    fire_items = _section_count(value, "fire", ("stories", "risers", "mains", "tanks", "pumps"))
+    if not any(count.values()) and not any(
+        (plumbing_items, hvac_items, electrical_items, fire_items)
+    ):
         return _status("mep", "notStarted", NOT_STARTED, _start_hint("mep"))
     parsed = _parse(inputs.mepSummaryText) if inputs.mepSummaryText is not None else None
     summary = (
@@ -331,6 +344,7 @@ def mep_status(inputs: StatusInputs) -> PartStatus:
 
     hvac = service("hvac")
     electrical = service("electrical")
+    fire = service("fire")
     openings_failed = summary["openingsFailed"]
     failing = [
         (openings_failed,
@@ -346,6 +360,9 @@ def mep_status(inputs: StatusInputs) -> PartStatus:
          _plural(electrical and electrical["failed"], "1 electrical check fails",
                  "{0} electrical checks fail"),
          "review the electrical services", f"electrical {_js(electrical and electrical['failed'])}"),
+        (fire["failed"] if fire else 0,
+         _plural(fire and fire["failed"], "1 fire check fails", "{0} fire checks fail"),
+         "review the fire protection", f"fire {_js(fire and fire['failed'])}"),
     ]  # fmt: skip
     failing = [f for f in failing if f[0] > 0]
     if len(failing) == 1:
@@ -375,6 +392,8 @@ def mep_status(inputs: StatusInputs) -> PartStatus:
         return _status(
             "mep", "inProgress", "electrical not checked", "open the electrical results or Run All"
         )
+    if fire_items and not fire:
+        return _status("mep", "inProgress", "fire not checked", "open the fire results or Run All")
     if summary["clashesOpen"] > 0:
         return _status(
             "mep", "inProgress", _plural(summary["clashesOpen"], "1 clash", "{0} clashes"),
@@ -389,7 +408,7 @@ def mep_status(inputs: StatusInputs) -> PartStatus:
             "run the analysis to check the openings' strength",
         )
     equipment = count["equipment"]
-    if not equipment and (hvac or electrical):
+    if not equipment and (hvac or electrical or fire):
         return _status("mep", "done", "services checked")
     if not equipment and plumbing:
         return _status(

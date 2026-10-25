@@ -204,7 +204,8 @@ export function allIds(document: IMep): string[] {
 	const p = plumbingOf(document);
 	const hvac = record(document.hvac);
 	const electrical = record(document.electrical);
-	const listed = [hvac.plant, hvac.ducts, electrical.equipment, electrical.risers, electrical.trays]
+	const fire = record(document.fire);
+	const listed = [hvac.plant, hvac.ducts, electrical.equipment, electrical.risers, electrical.trays, fire.risers, fire.mains, fire.tanks, fire.pumps]
 		.flatMap(list => records<Record<string, unknown>>(list).map(item => item.id).filter((id): id is string => typeof id === 'string'));
 	return [...usedIds(document), ...(p ? [...p.risers, ...p.tanks, ...p.roof.drains].map(item => item.id) : []), ...listed];
 }
@@ -292,6 +293,8 @@ export interface IOccupancy {
 	readonly lpcd?: number;
 	/** Where it comes from ("BNBC Table 8.5.1(d) E1"). */
 	readonly source?: string;
+	/** Its BNBC Part 3 occupancy group ("E1"), when the backend gives it. */
+	readonly group?: string;
 }
 
 /**
@@ -324,7 +327,7 @@ export function readOccupancies(raw: unknown): IOccupancy[] | undefined {
 		const key = typeof o.key === 'string' ? o.key : typeof o.id === 'string' ? o.id : '';
 		const label = typeof o.label === 'string' ? o.label : typeof o.name === 'string' ? o.name : key;
 		const lpcd = typeof o.lpcd === 'number' ? o.lpcd : typeof o.consumption === 'number' ? o.consumption : undefined;
-		return { key, label, lpcd, source: typeof o.source === 'string' ? o.source : typeof o.table === 'string' ? o.table : undefined };
+		return { key, label, lpcd, source: typeof o.source === 'string' ? o.source : typeof o.table === 'string' ? o.table : undefined, group: typeof o.group === 'string' ? o.group : undefined };
 	}).filter(o => o.key);
 	return occupancies.length ? occupancies : undefined;
 }

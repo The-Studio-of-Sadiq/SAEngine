@@ -1929,6 +1929,10 @@ class _Measure:
             notes += PLUMBING_CONVENTIONS
         if getattr(self, "services_measured", False):
             notes += SERVICES_CONVENTIONS
+        if getattr(self, "fire_measured", False):
+            from saengine.fire.boq import FIRE_CONVENTIONS
+
+            notes += FIRE_CONVENTIONS
         if getattr(self, "materials_measured", False):
             notes += MATERIALS_CONVENTIONS
         notes += [*self.building.check_additions(), *self.notes]
@@ -1968,6 +1972,9 @@ def bill_of_quantities(
     measure.measure_mep()
     measure.measure_plumbing(tank_designs)
     measure.measure_services()
+    from saengine.fire.boq import measure_fire
+
+    measure.fire_measured = measure_fire(measure, tank_designs)
     measure.measure_materials()
     return BillOfQuantities(
         source=source or BoqSource(), items=measure.bill.items(), notes=measure.finish()
@@ -2014,10 +2021,11 @@ def compute_boq(
     substructure, ground = _inputs(substructure_text, settings_text)
     mep = parse_mep(mep_text) if mep_text is not None else None
     designs = None
-    if project_root and mep is not None and mep.plumbing is not None:
+    if project_root and mep is not None and (mep.plumbing is not None or mep.fire is not None):
+        from saengine.fire.report import read_fire_designs
         from saengine.plumbing.project import read_designs
 
-        designs = read_designs(project_root)
+        designs = {**read_designs(project_root), **read_fire_designs(project_root)}
     earthwork = substructure is not None and bool(substructure.foundations or substructure.tieBeams)
     document = bill_of_quantities(
         BuildingModel.model_validate_json(bim_text),

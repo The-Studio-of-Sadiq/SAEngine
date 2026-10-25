@@ -15,7 +15,7 @@ The same steps, in the same order, reading and writing the same files as the wor
    ``substructure.json``, designs the foundations, writes
    ``09 Substructure/substructure.results/summary.json``;
 6. ``mep``: the coordination of 7 MEP, its plumbing, HVAC (never starting EnergyPlus: its cached
-   loads when they match, else the estimate) and electrical checks, writing
+   loads when they match, else the estimate), electrical and fire checks, writing
    ``07 MEP/mep.results/summary.json``;
 7. ``boq``: measures ``10 BOQ/boq.json`` when it is out of date (or waits for tank designs that
    the plumbing step has just made);
@@ -50,6 +50,7 @@ from pathlib import Path
 from typing import Any
 
 from saengine.codes import context as code_context
+from saengine.fire.summary import fire_failures, fire_summary_file, has_fire
 from saengine.pipeline import summaries as S
 from saengine.pipeline.project import Project, open_project, read_text, write_text
 from saengine.pipeline.status import (
@@ -67,7 +68,7 @@ STEPS: tuple[tuple[str, str], ...] = (
     ("ssi", "fixed-base run for the soil springs"),
     ("design", "design checks"),
     ("substructure", "foundation design"),
-    ("mep", "MEP coordination, plumbing, HVAC and electrical checks"),
+    ("mep", "MEP coordination, plumbing, HVAC, electrical and fire checks"),
     ("boq", "bill of quantities"),
     ("report", "report"),
     ("drawings", "drawings"),
@@ -218,10 +219,13 @@ def mep_has_content(text: str | None) -> bool:
 
     hvac = value.get("hvac") if isinstance(value.get("hvac"), dict) else {}
     electrical = value.get("electrical") if isinstance(value.get("electrical"), dict) else {}
+    fire = value.get("fire") if isinstance(value.get("fire"), dict) else {}
     return (
         any(listed(value.get(k)) for k in ("equipment", "openings", "shafts"))
         or listed(hvac.get("plant"))
         or listed(electrical.get("equipment"))
+        or listed(fire.get("pumps"))
+        or any(isinstance(t, dict) and t.get("kind") == "overhead" for t in fire.get("tanks") or [])
     )
 
 
@@ -581,9 +585,10 @@ def _mep(project: Project, step: StepResult) -> dict[str, Any] | None:
     with_plumbing = kind == "document" and S.has_plumbing(document)
     with_hvac = kind == "document" and S.has_hvac(document)
     with_electrical = kind == "document" and S.has_electrical(document)
+    with_fire = kind == "document" and has_fire(document)
     if kind == "placeholder" or (
         not any(document[k] for k in ("equipment", "openings", "shafts", "ifcModels"))
-        and not (with_plumbing or with_hvac or with_electrical)
+        and not (with_plumbing or with_hvac or with_electrical or with_fire)
     ):
         step.message = "There is nothing to check in 07 MEP."
         return None
@@ -613,6 +618,12 @@ def _mep(project: Project, step: StepResult) -> dict[str, Any] | None:
         if not isinstance(electrical, dict):
             raise StepFailure("The electrical checks are not available.")
         checked["electrical"] = electrical
+    if with_fire:
+        fire = handlers.fire_report(root, text)
+        _problems_only(fire, ("requirements", "checks"))
+        if not isinstance(fire, dict):
+            raise StepFailure("The fire checks are not available.")
+        checked["fire"] = fire
     file = S.mep_summary_file(document, raw, text, texts)
     if "plumbing" in checked:
         file["plumbing"] = S.plumbing_summary_file(document, checked["plumbing"])
@@ -620,6 +631,8 @@ def _mep(project: Project, step: StepResult) -> dict[str, Any] | None:
         file["hvac"] = S.hvac_summary_file(document, checked["hvac"])
     if "electrical" in checked:
         file["electrical"] = S.electrical_summary_file(document, checked["electrical"])
+    if "fire" in checked:
+        file["fire"] = fire_summary_file(document, checked["fire"])
     target = resource.parent / S.MEP_SUMMARY_FILE
     write_text(target, S.summary_text(file))
     step.outputs.append(_relative(project, target))
@@ -655,6 +668,11 @@ def _mep(project: Project, step: StepResult) -> dict[str, Any] | None:
         parts.append(
             f"electrical: failing checks {counts['electricalFailed']}, openings to add {missing}"
         )
+    if "fire" in checked:
+        missing = S.openings_to_add(checked["fire"])
+        counts["fireFailed"] = fire_failures(checked["fire"])
+        counts["fireOpeningsToAdd"] = missing
+        parts.append(f"fire: failing checks {counts['fireFailed']}, sleeves to add {missing}")
     step.counts = counts
     step.message = " · ".join(parts)
     return checked

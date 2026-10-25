@@ -1294,6 +1294,138 @@ The analysis uses #so.stiffness.
   #note[The electrical services could not be reported: #el.problem]
 ]
 
+// ───────────────────────────── fire protection ─────────────────────────────
+
+#let fi = data.at("fire", default: (available: false, problem: "", notes: ()))
+#if fi.available [
+  = Fire protection
+
+  The fire protection of 7 MEP for its coordination with the structure (BNBC 2020 Part 4):
+  which systems the building needs and why, the fire water and its reservoir, the fire pumps
+  and their room, the fire tanks designed as the plumbing tanks and their weights, the hanger and
+  riser-support loads and the sleeves through the slabs and beams. The fire protection design
+  itself is the services engineer's; values from NFPA are from memory, to be checked.
+
+  == Summary
+  #pairs(fi.summary, width: 6%)
+  #if fi.failed > 0 {
+    note[*#fi.failed fire check(s) fail.* They are highlighted below.]
+  }
+
+  == Systems required
+  #fi.highRise
+  #if fi.firePlan != "" [ A fire protection plan is required (Part 4 Sec 5.1.6): #fi.firePlan.]
+  #tbl(
+    ("System", "Part 4", "Designed", "Why"),
+    fi.systems,
+    columns: (auto, auto, auto, 1fr),
+    align: (left, left, center, left),
+    size: 8pt,
+  )
+
+  #if fi.stories.len() > 0 [
+    == Floors
+    Per story: the use (Part 3 group), the Table 4.4.1 hazard, the floor area [m²], the
+    sprinkler heads (a layout estimate, Table 4.4.7), portable extinguishers, manual call points
+    and detectors.
+    #tbl(
+      ("Story", "Use", "Hazard", "Area", "Heads", "Ext.", "Call pts", "Detectors"),
+      fi.stories,
+      columns: (auto, 1fr, auto, auto, auto, auto, auto, auto),
+      align: (left, left, left, right, right, right, right, right),
+      size: 8pt,
+    )
+  ]
+
+  #if fi.water.len() > 0 [
+    == Fire water and pumps
+    #pairs(fi.water, width: 30%)
+    #if fi.requiredPumps.len() > 0 [
+      Pump sets the duty needs (Table 4.4.2 rating; typical sizes [mm] and operating weights
+      [kN], to be replaced with the selected sets'):
+      #tbl(
+        ("Pump", "Duty", "kW", "Size", "Weight"),
+        fi.requiredPumps,
+        columns: (1fr, auto, auto, auto, auto),
+        align: (left, right, right, right, right),
+        size: 8pt,
+      )
+    ]
+    #if fi.pumpRoom != "" [ Pump room: #fi.pumpRoom ]
+  ]
+
+  #if fi.pumps.len() > 0 or fi.tanks.len() > 0 [
+    == On the structure
+    #if fi.pumps.len() > 0 [
+      #tbl(
+        ("Id", "Pump", "Story", "Duty", "kW", "Size", "In the analysis"),
+        fi.pumps,
+        columns: (auto, 1fr, auto, auto, auto, auto, 1fr),
+        align: (left, left, left, right, right, right, left),
+        size: 8pt,
+      )
+    ]
+    #if fi.tanks.len() > 0 [
+      Fire tanks (inside length x width x water depth [mm]), designed as the plumbing tanks:
+      #tbl(
+        ("Id", "Kind", "Size", "Design", "In the analysis"),
+        fi.tanks,
+        columns: (auto, auto, auto, 1fr, 1fr),
+        align: (left, left, right, left, left),
+        size: 8pt,
+      )
+    ]
+  ]
+
+  #if fi.supports.len() > 0 [
+    == Hangers and riser supports
+    Design loads for the inserts and anchors in the structure [kN]:
+    #tbl(
+      ("Pipe", "Kind", "Spacing [m]", "Load", "Basis"),
+      fi.supports,
+      columns: (auto, auto, auto, auto, 1fr),
+      align: (left, left, right, right, left),
+      size: 8pt,
+    )
+  ]
+
+  #if fi.openings.len() > 0 [
+    == Sleeves
+    Sleeves the fire risers and mains still need (added to 7 MEP by its Add Sleeves command):
+    #tbl(
+      ("Sleeve", "Through", "Dia. [mm]", "For"),
+      fi.openings,
+      columns: (auto, auto, auto, 1fr),
+      align: (left, left, right, left),
+      size: 8pt,
+    )
+  ]
+
+  #if fi.tests.len() > 0 [
+    == Test pressures
+    #tbl(("System", "Pressure", "Basis"), fi.tests, columns: (auto, auto, 1fr),
+      align: (left, right, left), size: 8pt)
+  ]
+
+  == Checks
+  #tbl(
+    ("Check", "Demand", "Capacity", "Unit", "Util.", "Result", "Clause"),
+    fi.checks,
+    columns: (1fr, auto, auto, auto, auto, auto, 1fr),
+    align: (left, right, right, left, right, center, left),
+    bad: fi.checkFails,
+    size: 8pt,
+  )
+
+  #if fi.method.len() > 0 [
+    == Method
+    #bullets(fi.method)
+  ]
+] else if fi.problem != "" [
+  = Fire protection
+  #note[The fire protection could not be reported: #fi.problem]
+]
+
 // ───────────────────────────── 5 bill of quantities ─────────────────────────────
 
 = Bill of quantities
@@ -1358,6 +1490,11 @@ what the software did not check or assumed; the engineer must consider each one.
 #if el.available [
   == Electrical coordination
   #if lim.electrical.len() > 0 { bullets(lim.electrical) } else { empty[No notes.] }
+]
+
+#if fi.available [
+  == Fire protection
+  #if lim.at("fire", default: ()).len() > 0 { bullets(lim.fire) } else { empty[No notes.] }
 ]
 
 == Bill of quantities

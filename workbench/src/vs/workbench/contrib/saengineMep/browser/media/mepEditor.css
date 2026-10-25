@@ -1543,3 +1543,114 @@
 	font-weight: 600;
 	font-variant-numeric: tabular-nums;
 }
+
+/* fire protection (firePlan.ts): risers as rings, pump sets and tanks as footprints, mains as pipes */
+.saengine-mep-editor {
+	--fire-c: var(--vscode-charts-red, #c4314b);
+	--fire-pump: color-mix(in srgb, var(--vscode-charts-red, #c4314b) 75%, var(--vscode-foreground));
+	--fire-tank: var(--vscode-charts-blue, #2c6fbe);
+}
+
+.saengine-mep-editor .fire-riser,
+.saengine-mep-editor .fire-pump,
+.saengine-mep-editor .fire-tank {
+	cursor: move;
+}
+
+.saengine-mep-editor .fire-riser-ring {
+	fill: color-mix(in srgb, var(--fire-c) 18%, var(--sa-surface));
+	stroke: var(--fire-c);
+	stroke-width: 1.75;
+}
+
+.saengine-mep-editor .fire-riser.sys-sprinkler .fire-riser-ring {
+	stroke-dasharray: 4 2;
+}
+
+.saengine-mep-editor .fire-riser-letters,
+.saengine-mep-editor .fire-pump-letters {
+	font-size: 8.5px;
+	font-weight: 700;
+	fill: var(--vscode-foreground);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .fire-riser.selected .fire-riser-ring,
+.saengine-mep-editor .fire-pump.selected .fire-pump-shape,
+.saengine-mep-editor .fire-tank.selected .fire-tank-shape {
+	stroke: var(--mep-select);
+	stroke-width: 2.5;
+}
+
+.saengine-mep-editor .fire-pump-shape {
+	fill: color-mix(in srgb, var(--fire-pump) 14%, var(--sa-surface));
+	stroke: var(--fire-pump);
+	stroke-width: 1.5;
+}
+
+.saengine-mep-editor .fire-pump.sized .fire-pump-shape,
+.saengine-mep-editor .fire-tank.sized .fire-tank-shape {
+	stroke-dasharray: 5 2;
+}
+
+.saengine-mep-editor .fire-tank-shape {
+	fill: color-mix(in srgb, var(--fire-tank) 12%, var(--sa-surface));
+	stroke: var(--fire-tank);
+	stroke-width: 1.5;
+}
+
+.saengine-mep-editor .fire-tank.ground .fire-tank-shape {
+	fill: color-mix(in srgb, var(--fire-tank) 6%, transparent);
+}
+
+.saengine-mep-editor .fire-tank.failed .fire-tank-shape {
+	stroke: var(--sa-fail);
+}
+
+.saengine-mep-editor .fire-tank-label {
+	font-size: 10.5px;
+	font-weight: 600;
+	fill: var(--vscode-foreground);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .fire-main-line {
+	fill: none;
+	stroke: color-mix(in srgb, var(--fire-c) 70%, var(--sa-surface));
+	stroke-linejoin: round;
+	stroke-linecap: round;
+}
+
+.saengine-mep-editor .fire-pump-room-shape {
+	fill: none;
+	stroke: var(--fire-pump);
+	stroke-width: 1.25;
+	stroke-dasharray: 6 3;
+	pointer-events: none;
+}
+
+.saengine-mep-editor .fire-label {
+	font-size: 10.5px;
+	fill: var(--sa-muted);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .mep-swatch.fire-riser { width: 10px; border: 1.75px solid var(--fire-c); border-radius: 50%; background: color-mix(in srgb, var(--fire-c) 18%, var(--sa-surface)); }
+.saengine-mep-editor .mep-swatch.fire-pump { border: 1px solid var(--fire-pump); background: color-mix(in srgb, var(--fire-pump) 14%, var(--sa-surface)); }
+.saengine-mep-editor .mep-swatch.fire-tank { border: 1px solid var(--fire-tank); background: color-mix(in srgb, var(--fire-tank) 12%, var(--sa-surface)); }
+.saengine-mep-editor .mep-swatch.fire-main { height: 0; border-top: 3px solid color-mix(in srgb, var(--fire-c) 70%, var(--sa-surface)); }
+
+/* fire results: the systems Part 4 requires */
+.saengine-mep-editor .fire-status {
+	display: inline-block;
+	padding: 0 6px;
+	border-radius: 8px;
+	font-size: 11px;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.saengine-mep-editor .fire-status.required { background: color-mix(in srgb, var(--fire-c) 18%, transparent); color: var(--vscode-foreground); }
+.saengine-mep-editor .fire-status.performance { background: color-mix(in srgb, var(--vscode-charts-orange, #c2620e) 18%, transparent); color: var(--vscode-foreground); }
+.saengine-mep-editor .fire-status.recommended { background: color-mix(in srgb, var(--vscode-charts-blue, #2c6fbe) 14%, transparent); color: var(--vscode-foreground); }
+.saengine-mep-editor .fire-status.notRequired { color: var(--sa-muted); }

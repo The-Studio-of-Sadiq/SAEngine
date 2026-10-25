@@ -28,7 +28,8 @@ import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { FemTableCell, IFemCaseResults, IFemResultTable, IFemResultView } from '../../../../platform/saengine/common/femSolver.js';
+import { csvText } from '../../../../platform/saengine/common/csv.js';
+import { IFemCaseResults, IFemResultTable, IFemResultView } from '../../../../platform/saengine/common/femSolver.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -38,12 +39,13 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
-import { EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
+import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { FemDerivation, IFemDeriveOutcome } from './femDerivationBar.js';
 import { DESIGN_REINFORCEMENT_COMMAND } from './femDesign.js';
 import { FemModelEditorInput } from './femModelEditorInput.js';
-import { errorSummary, FEM_RESULT_TABLES_COMMAND, FEM_RUN_CASES_COMMAND, FEM_SHOW_CHARTS_COMMAND, FEM_SHOW_LOG_COMMAND, FEM_SHOW_MEMBER_COMMAND, FemResultsBar, IFemRun, IFemRunOptions, IFemRunOutcome, IFemRunTracker, propertyHeading, propertyNote, propertyRow } from './femResultsBar.js';
-import { baseReactionTable, FEM_EXPORT_XLSX_COMMAND, FEM_STORY_RESPONSE_COMMAND, filterRows, IFemSheet, IFemStoryResponse, modalTable, sortRows, storeyTable, workbookSheets } from './femChartData.js';
+import { errorSummary, FEM_RESULT_TABLES_COMMAND, FEM_RUN_CASES_COMMAND, FEM_SHOW_CHARTS_COMMAND, FEM_SHOW_LOG_COMMAND, FEM_SHOW_MEMBER_COMMAND, FemResultsBar, IFemRun, IFemRunOptions, IFemRunOutcome, IFemRunTracker } from './femResultsBar.js';
+import { baseReactionTable, exportCell, FEM_EXPORT_XLSX_COMMAND, FEM_STORY_RESPONSE_COMMAND, filterRows, formatCell, IFemSheet, IFemStoryResponse, modalTable, sortRows, storeyTable, workbookSheets } from './femChartData.js';
+import { renderSheetRows } from './femChart.js';
 import { chartUnits } from './femResultsView.js';
 import { cameraOf, FemViewChoice, IFilterModel, viewChoices, visibleElements } from './femViewFilter.js';
 import { loadViewerModule } from './viewerModule.js';
@@ -56,32 +58,20 @@ export function memberOf(name: string): string {
 /** Rows of a result table drawn at once; the export has them all. */
 const MAX_TABLE_ROWS = 500;
 
-/** A table cell as the tables panel and the export write it. */
-function formatCell(value: FemTableCell): string {
-	if (typeof value === 'number') {
-		return Number.isInteger(value) ? String(value) : value.toPrecision(6);
-	}
-	return value;
-}
-
-function csvField(value: string): string {
-	return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
-}
-
 /** All result tables as CSV: per table a heading row (case, table), its columns and its rows. */
 export function resultTablesCsv(cases: readonly IFemCaseResults[]): string {
-	const lines: string[] = [];
+	const lines: string[][] = [];
 	for (const c of cases) {
 		for (const table of c.tables) {
 			if (lines.length) {
-				lines.push('');
+				lines.push([]);
 			}
-			lines.push([c.caseName, table.title].map(csvField).join(','));
-			lines.push(table.columns.map(csvField).join(','));
-			lines.push(...table.rows.map(row => row.map(cell => csvField(formatCell(cell))).join(',')));
+			lines.push([c.caseName, table.title]);
+			lines.push([...table.columns]);
+			lines.push(...table.rows.map(row => row.map(exportCell)));
 		}
 	}
-	return lines.join('\r\n') + '\r\n';
+	return csvText(lines);
 }
 
 /**
@@ -316,13 +306,7 @@ class FemTablesPanel extends Disposable {
 				focus[index]?.focus(); // keyboard users keep their place
 			}));
 		});
-		const body = append(element, $('tbody'));
-		for (const row of rows.slice(0, MAX_TABLE_ROWS)) {
-			const tr = append(body, $('tr'));
-			for (const cell of row) {
-				append(tr, $(typeof cell === 'number' ? 'td.number' : 'td', undefined, formatCell(cell)));
-			}
-		}
+		renderSheetRows(append(element, $('tbody')), rows.slice(0, MAX_TABLE_ROWS));
 		return buttons;
 	}
 }
@@ -785,29 +769,29 @@ export class FemModelEditor extends EditorPane {
 		this.propertiesStore.clear();
 		this.results?.renderProperties(panel);
 		this.renderMemberLink(panel);
-		propertyHeading(panel, localize('femEditor.modelHeading', "Model"));
-		propertyRow(panel, localize('femEditor.nodes', "Nodes"), String(this.nodeCount));
-		propertyRow(panel, localize('femEditor.elements', "Elements"), String(this.elementCount));
+		appendPropertyHeading(panel, localize('femEditor.modelHeading', "Model"));
+		appendPropertyRow(panel, localize('femEditor.nodes', "Nodes"), String(this.nodeCount));
+		appendPropertyRow(panel, localize('femEditor.elements', "Elements"), String(this.elementCount));
 		if (this.units) {
-			propertyRow(panel, localize('femEditor.units', "Units"), this.units);
+			appendPropertyRow(panel, localize('femEditor.units', "Units"), this.units);
 		}
 		const state = this.derivation?.state;
 		if (state) {
-			propertyRow(panel, localize('femEditor.derivation', "Derived"), !state.derived
+			appendPropertyRow(panel, localize('femEditor.derivation', "Derived"), !state.derived
 				? localize('femEditor.derivationNo', "Not yet")
 				: state.changed.length ? localize('femEditor.derivationStale', "Out of date") : localize('femEditor.derivationCurrent', "Up to date"));
 			if (state.derived && state.changed.length) {
-				propertyNote(panel, localize('femEditor.changedSources', "Changed since: {0}.", state.changed.join(', ')));
+				appendPropertyNote(panel, localize('femEditor.changedSources', "Changed since: {0}.", state.changed.join(', ')));
 			}
 		}
 		const last = this.lastDerivation;
 		if (last?.ok && !this.results?.hasResults) {
-			propertyNote(panel, last.message);
+			appendPropertyNote(panel, last.message);
 		}
 		if (last?.ok && last.notes.length) {
-			propertyHeading(panel, localize('femEditor.notesHeading', "Derivation Notes"));
+			appendPropertyHeading(panel, localize('femEditor.notesHeading', "Derivation Notes"));
 			for (const note of last.notes) {
-				propertyNote(panel, note);
+				appendPropertyNote(panel, note);
 			}
 		}
 	}

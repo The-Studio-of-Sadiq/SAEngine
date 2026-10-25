@@ -49,8 +49,8 @@ import { IMPORT_SCHEMA, SCRIPT_TEMPLATE, SHAPE_SCHEMA, STRUCTURE_SCHEMA, TEMPLAT
 import { partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { loadViewerModule } from '../../saengineFem/browser/viewerModule.js';
-import { formatPropertyValue, propertyHeading, propertyNote, propertyRow, schemaUnit } from '../../saengineModel/browser/propertySheetView.js';
-import { EditorFrame } from '../../saengineProject/browser/editorFrame.js';
+import { formatPropertyValue, schemaUnit } from '../../saengineModel/browser/propertySheetView.js';
+import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame } from '../../saengineProject/browser/editorFrame.js';
 import { LibraryEditorInput } from '../../saengineLibrary/browser/libraryEditorInput.js';
 import { humanize, ISchemaFormContext, JsonObject, SchemaForm } from '../../saengineLibrary/browser/schemaForm.js';
 import { addArea, addBlock, addMember, addSupport, copyElements, divideMember, EditResult, isStructure, mirrorElements, moveElements, parseOffset, removeElements } from './structureEdits.js';
@@ -582,36 +582,36 @@ export class StructureModelerEditor extends EditorPane {
 			if (!item) {
 				continue;
 			}
-			propertyHeading(details, entity.id, humanize(entity.kind));
+			appendPropertyHeading(details, entity.id, humanize(entity.kind));
 			for (const [key, value] of Object.entries(item)) {
 				if (key === 'id' || value === null || value === undefined) {
 					continue;
 				}
 				// With the unit the schema gives (mm, °), as the floor plan's member sheet shows them.
-				propertyRow(details, humanize(key), formatPropertyValue(value, schemaUnit(STRUCTURE_SCHEMA, ENTITY_DEFINITIONS[entity.kind], key)));
+				appendPropertyRow(details, humanize(key), formatPropertyValue(value, schemaUnit(STRUCTURE_SCHEMA, ENTITY_DEFINITIONS[entity.kind], key)));
 			}
 			const kind = typeof item.type === 'string' ? this.kinds.get(item.type) : undefined;
 			if (kind) {
-				propertyRow(details, localize('modeler.typeKind', "Type kind"), humanize(kind));
+				appendPropertyRow(details, localize('modeler.typeKind', "Type kind"), humanize(kind));
 			}
 		}
 		if (this.selection.length > shown.length) {
-			propertyNote(details, localize('modeler.moreSelected', "And {0} more.", this.selection.length - shown.length));
+			appendPropertyNote(details, localize('modeler.moreSelected', "And {0} more.", this.selection.length - shown.length));
 		}
 		if (shown.length) {
-			propertyNote(details, localize('modeler.editInForm', "Change the values in Grids and Values (More Actions)."));
+			appendPropertyNote(details, localize('modeler.editInForm', "Change the values in Grids and Values (More Actions)."));
 			return;
 		}
-		propertyHeading(details, localize('modeler.modelHeading', "Structural Model"));
-		propertyRow(details, localize('modeler.members', "Members"), String(list(doc.members).length));
-		propertyRow(details, localize('modeler.areas', "Areas"), String(list(doc.areas).length));
-		propertyRow(details, localize('modeler.blocks', "Blocks"), String(list(doc.blocks).length));
-		propertyRow(details, localize('modeler.supports', "Supports"), String(list(doc.supports).length));
-		propertyRow(details, localize('modeler.gridSystems', "Grid systems"), String(list(doc.grids).length));
+		appendPropertyHeading(details, localize('modeler.modelHeading', "Structural Model"));
+		appendPropertyRow(details, localize('modeler.members', "Members"), String(list(doc.members).length));
+		appendPropertyRow(details, localize('modeler.areas', "Areas"), String(list(doc.areas).length));
+		appendPropertyRow(details, localize('modeler.blocks', "Blocks"), String(list(doc.blocks).length));
+		appendPropertyRow(details, localize('modeler.supports', "Supports"), String(list(doc.supports).length));
+		appendPropertyRow(details, localize('modeler.gridSystems', "Grid systems"), String(list(doc.grids).length));
 		if (this.levels.length) {
-			propertyRow(details, localize('modeler.levels', "Levels"), this.levels.map(l => `${l.label} (${l.z})`).join(', '));
+			appendPropertyRow(details, localize('modeler.levels', "Levels"), this.levels.map(l => `${l.label} (${l.z})`).join(', '));
 		}
-		propertyNote(details, localize('modeler.selectHint', "Click an element to see its values; Shift+click adds to the selection."));
+		appendPropertyNote(details, localize('modeler.selectHint', "Click an element to see its values; Shift+click adds to the selection."));
 	}
 
 	private updatePreview(): void {
