@@ -28,6 +28,7 @@ export interface IProjectDocuments {
 	readonly objects?: unknown;
 	readonly materials?: unknown;
 	readonly bim?: unknown;
+	readonly mep?: unknown;
 }
 
 export interface IModelNode {
@@ -168,7 +169,7 @@ function memberDescription(group: MemberGroup, member: Json): string {
 	return `${str(member.type)} · ${location(group, member)}`;
 }
 
-/** The Model Explorer tree: the floor plan by story, the object types, and the building model. */
+/** The Model Explorer tree: the floor plan by story, the object types, the building model (BIM) and the MEP services. */
 export function modelTree(docs: IProjectDocuments): IModelNode[] {
 	const model = new Model(docs);
 	const nodes: IModelNode[] = [];
@@ -233,7 +234,7 @@ export function modelTree(docs: IProjectDocuments): IModelNode[] {
 	const status = model.buildingStatus();
 	const elements = list(isObject(docs.bim) ? docs.bim.elements : undefined);
 	nodes.push({
-		id: 'bim', label: localize('tree.bim', "Building Model"), icon: Codicon.symbolStructure, part: 'bim',
+		id: 'bim', label: localize('tree.bimPart', "BIM (Building Model)"), icon: Codicon.symbolStructure, part: 'bim',
 		description: status === 'none' ? localize('tree.bimNone', "not built yet") : status === 'outdated'
 			? (docs.structureText !== undefined ? localize('tree.bimOutdatedStructure', "Structural Model changed since built") : localize('tree.bimOutdated', "Floor Plan changed since built"))
 			: localize('tree.bimCurrent', "up to date"),
@@ -247,7 +248,40 @@ export function modelTree(docs: IProjectDocuments): IModelNode[] {
 			return { id: `bim:${group}`, label, description: String(count), icon, part: 'bim' };
 		}).filter(n => n.description !== '0'),
 	});
+	if (docs.mep !== undefined) {
+		nodes.push(mepNode(docs.mep));
+	}
 	return nodes;
+}
+
+/** What the MEP part holds, by service; each item opens the MEP editor. */
+const MEP_LISTS: readonly { readonly id: string; readonly label: string; readonly icon: ThemeIcon; readonly path: readonly string[]; readonly describe: (item: Json) => string }[] = [
+	{ id: 'shafts', label: localize('mep.shafts', "Shafts"), icon: Codicon.symbolArray, path: ['shafts'], describe: i => `${str(i.service)} · ${str(i.fromStory)} → ${str(i.toStory)}` },
+	{ id: 'openings', label: localize('mep.openings', "Openings"), icon: Codicon.circleLarge, path: ['openings'], describe: i => `${str(i.kind)} · ${str(i.host)}` },
+	{ id: 'equipment', label: localize('mep.equipment', "Equipment"), icon: Codicon.package, path: ['equipment'], describe: i => str(i.kind) },
+	{ id: 'risers', label: localize('mep.plumbingRisers', "Plumbing Risers"), icon: Codicon.arrowUp, path: ['plumbing', 'risers'], describe: i => `${str(i.system)} · ${str(i.fromStory)} → ${str(i.toStory)}` },
+	{ id: 'tanks', label: localize('mep.tanks', "Water Tanks"), icon: Codicon.database, path: ['plumbing', 'tanks'], describe: i => `${str(i.kind)} · ${str(i.story)}` },
+	{ id: 'plant', label: localize('mep.hvacPlant', "HVAC Plant"), icon: Codicon.package, path: ['hvac', 'plant'], describe: i => `${str(i.kind)} · ${str(i.story)}` },
+	{ id: 'ducts', label: localize('mep.ducts', "Ducts"), icon: Codicon.dash, path: ['hvac', 'ducts'], describe: i => `${str(i.system)} · ${str(i.story)}` },
+	{ id: 'electrical', label: localize('mep.electricalEquipment', "Electrical Equipment"), icon: Codicon.zap, path: ['electrical', 'equipment'], describe: i => `${str(i.kind)} · ${str(i.story)}` },
+	{ id: 'electricalRisers', label: localize('mep.electricalRisers', "Electrical Risers"), icon: Codicon.arrowUp, path: ['electrical', 'risers'], describe: i => `${str(i.kind)} · ${str(i.fromStory)} → ${str(i.toStory)}` },
+	{ id: 'trays', label: localize('mep.trays', "Cable Trays"), icon: Codicon.dash, path: ['electrical', 'trays'], describe: i => str(i.story) },
+];
+
+function mepNode(mep: unknown): IModelNode {
+	const lists = MEP_LISTS.map(l => {
+		const items = list(l.path.reduce<unknown>((value, key) => isObject(value) ? value[key] : undefined, mep));
+		return {
+			id: `mep:${l.id}`, label: l.label, description: String(items.length), icon: l.icon, part: 'mep',
+			children: items.map((item, index) => ({ id: `mep:${l.id}/${str(item.id ?? index)}`, label: str(item.id ?? index + 1), description: l.describe(item), icon: l.icon, part: 'mep' })),
+		};
+	}).filter(n => n.children.length);
+	const count = lists.reduce((n, l) => n + l.children.length, 0);
+	return {
+		id: 'mep', label: localize('tree.mep', "MEP"), icon: Codicon.tools, part: 'mep',
+		description: count ? localize('tree.mepCount', "{0} items", count) : localize('tree.mepEmpty', "nothing placed yet"),
+		children: lists,
+	};
 }
 
 /** The structural model of a special structure: its grid systems, members, areas and supports. */
