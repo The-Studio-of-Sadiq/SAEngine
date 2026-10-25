@@ -692,7 +692,7 @@ export class FloorPlanEditor extends EditorPane {
 		const list = append(this.frame.element, $('datalist'));
 		list.id = `saengine-floor-plan-commands-${FloorPlanEditor.datalists++}`;
 		for (const command of COMMAND_HELP) {
-			const option = append(list, $('option'));
+			const option = append(list, $<HTMLOptionElement>('option'));
 			option.value = command.usage.split(' ')[0];
 			option.label = `${command.usage}: ${command.description}`;
 		}
