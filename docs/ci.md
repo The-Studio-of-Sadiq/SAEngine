@@ -8,7 +8,7 @@ run: GitHub only reads the repository root's `.github`.
 |---|---|---|---|
 | `ci.yml`, job `python` | `ubuntu-latest` | push to `main`, `feat/**`, `fix/**`; pull requests to `main` and `feat/**`; manual | ruff (lint and format) on `python/` and `scripts/`; the workflow check and the tests of the CI scripts; `pytest` on `python/`; the verification pack quick run, checked against the expected failures; uploads `verification.json` and the Verification Manual PDF |
 | `ci.yml`, job `workbench` | `ubuntu-latest` | as above | `npm ci` (cached), the viewer packages built, `tsc` typecheck, ESLint on the SAEngine sources, `transpile-client`, the SAEngine unit tests in Electron under xvfb |
-| `release.yml` | `windows-latest` (or `vars.SAENGINE_RELEASE_RUNNER`) | tag `Pre-Alpha-v*`; manual | the full installer with EnergyPlus and LibreCAD, the smoke test, the Verification Manual, and a draft GitHub pre-release with the release files |
+| `release.yml` | `windows-2022` (or `vars.SAENGINE_RELEASE_RUNNER`) | tag `Pre-Alpha-v*`; manual (with a tag: a release; without: a test build) | the full installer with EnergyPlus, LibreCAD and LibreDWG from pinned downloads (cached), the smoke test, the Verification Manual, the setup, `.sha256` and sources zip as an artefact, and for a tag a **draft** GitHub pre-release (never published by the workflow); see [release.md](release.md) |
 
 Both CI jobs run in parallel. A newer push to the same branch or pull request cancels the run
 it supersedes (`concurrency` with `cancel-in-progress`). A release run is never cancelled by
@@ -85,12 +85,22 @@ runners):
 | CI, `python` job | 20 to 60 min (the full pytest suite takes most of it; measure on the first run) | 20 to 60 |
 | CI, `workbench` job, cache hit | 20 to 30 min (typecheck and transpile dominate) | 20 to 30 |
 | CI, `workbench` job, cache miss (a lockfile changed) | 35 to 50 min | 35 to 50 |
-| Release | 90 to 180 min on `windows-latest` | 180 to 360 |
+| Release | 90 to 180 min on `windows-2022` | 180 to 360 |
 
 So one push costs about 40 to 90 minutes, and a release about 3 to 6 hours of the allowance.
 To spend less: push work-in-progress commits together (superseded runs are cancelled), and run
 the workflows manually when a branch is ready instead of on every push (remove `feat/**` from
 `on.push.branches`).
+
+**Runner image.** The release job runs on `windows-2022` (Visual Studio 2022, MSVC v143), the
+image Code - OSS's own Windows builds use. On `windows-latest` (Windows Server 2025 with Visual
+Studio 2026 Enterprise) node-gyp's link of `keytar` and `tree-sitter` failed with
+`LNK1181: cannot open input file 'delayimp.lib'` (run 40138429763). The step "C++ build tools for
+node-gyp" checks for Visual Studio 2022 with the x64 C++ tools and `lib\x64\delayimp.lib`, then
+pins node-gyp to it (`npm_config_msvs_version=2022`) and to the Python of `setup-python`
+(`npm_config_python`; the image's default Python is a newer one). A local build is not affected:
+Visual Studio Build Tools 2026 (MSVC 14.51) links these modules. When GitHub retires
+`windows-2022`, try `windows-2025-vs2026` again and drop the version pin.
 
 **Runner size.** The installer build runs gulp with an 8 GB heap and needs about 10 GB of disk.
 GitHub's standard Windows runner for private repositories is small (2 vCPU and 7 GB of RAM at
@@ -107,6 +117,9 @@ token only downloads Electron and the built-in extensions with a higher rate lim
 the setup is not code-signed.
 
 ## Cutting a release
+
+The short version, the caches, test builds, the in-app update check and what is still manual:
+[release.md](release.md). The details:
 
 1. Make the release commit as before: a commit titled `v<x.y.z>` (for example `v0.0.35`). The
    release version is `<x.y.z>-alpha.<N>`, N from the tag. The commit bumps `x.y.z` in both
@@ -128,10 +141,10 @@ the setup is not code-signed.
    git push origin Pre-Alpha-v5
    ```
 
-   Or run "Release" from the Actions tab (workflow dispatch) with the tag name; there the
-   version can be overridden and "draft" switched off.
+   Or run "Release" from the Actions tab (workflow dispatch) with the tag name and
+   "draft_release" ticked; there the version can be overridden. The release is always a draft.
 4. The workflow builds `dist/SAEngine-x64-user-setup-<version>.exe` with
-   `scripts/build-installer.ps1 -EnergyPlusDir ... -LibreCADDir ... -LibreCADLicenseDir ... -AllowUnpinnedSources`,
+   `scripts/build-installer.ps1 -EnergyPlusDir ... -LibreCADDir ... -LibreCADLicenseDir ... -LibreDWGDir ... -LibreDWGLicenseDir ...`,
    runs `scripts/installer/smoke-test.ps1` on it, builds the Verification Manual with the
    bundled Python (checked against the expected failures), and creates the pre-release as a
    **draft** with:
@@ -142,9 +155,10 @@ the setup is not code-signed.
    - the files of `docs/release/<tag>/`.
 5. Review the draft on GitHub (Releases), try the setup, and publish it. Publishing creates the
    tag if the run was started by hand. The run fails instead of overwriting when a release for
-   the tag exists already.
+   the tag exists already. The setup, its `.sha256` and the sources zip are also kept as the
+   run artefact `SAEngine-setup-<version>` for 14 days.
 
-The workflow keeps `THIRD_PARTY_NOTICES.txt`, the LibreCAD bundle manifest, the sources
+The workflow keeps `THIRD_PARTY_NOTICES.txt`, the LibreCAD and LibreDWG bundle manifests, the sources
 `README.txt`, the setup log and the release notes as the `release-logs` artifact for 14 days.
 
 ## Third-party programs in the release
@@ -159,6 +173,8 @@ checked again, not trusted.
 | LibreCAD installer `LibreCAD-v2.2.1.6-win64-msvc.exe` | 2.2.1.6 | `0cd876d0...4f95b`, GitHub's own `digest` of the release asset |
 | LibreCAD's `LICENSE` and `licenses/gpl-2.0.txt` | 2.2.1.6 | sha256 of the files at the tag |
 | Qt's `LICENSE.LGPLv3` and `LICENSE.GPL3` (qtbase) | 5.15.2 | sha256 of the files at the tag |
+| GNU LibreDWG for Windows x64 `libredwg-0.14-win64.zip` | 0.14 | `1ad7e153...10fea8`, GitHub's own `digest` of the release asset (the GNU-signed release) |
+| LibreDWG's `COPYING` (GPL-3.0 text) | 0.14 | sha256 of the file at the tag |
 
 To bump one, change url, file, size and sha256 together. For a GitHub release asset, the hash
 is the `digest` field of `GET /repos/<owner>/<repo>/releases/tags/<tag>`.
@@ -184,13 +200,26 @@ source into the third-party sources, and the notices name the Qt version and lin
 `download.qt.io`. Pointing to Qt's servers alone would be weaker: the GPL-3.0 section 6(d),
 which the LGPL-3.0 uses, leaves the distributor responsible for the source staying available.
 
+**GNU LibreDWG** is GPL-3.0-or-later. Its `dwg2dxf` converts the architects' DWG drawings to
+DXF for the floor plan's underlays and the geometry import (`saengine.library.dwg`); SAEngine
+ships it as a separate program in `resources\libredwg` and the backend runs it as its own
+process (an aggregate, never linked; without it a DWG is refused with a message asking for the
+drawing as DXF). `scripts/installer/libredwg_bundle.py` copies only `dwg2dxf.exe` and
+`libredwg-0.dll` from the official Windows zip (the iconv and PCRE2 DLLs serve only `dwggrep`),
+adds LibreDWG's `COPYING` (the zip ships no licence file), runs `dwg2dxf --version` from the copy
+and writes `resources\libredwg\SAENGINE-BUNDLE.json`. Its source, `libredwg-0.14.tar.xz` from
+`ftp.gnu.org` (byte-identical to the GitHub release asset), is pinned in
+`copyleft-sources.json` and collected with `-LibreDWGManifest`. ODA File Converter is not an
+option: its licence forbids redistributing it.
+
 **Pinning the source archives.** GitHub does not publish hashes of its tag tarballs, and the Qt
-archive publishes md5 sums only, so the LibreCAD and Qt source entries in
-`copyleft-sources.json` start with `"sha256": null`. `fetch-sources.ps1` refuses such an entry
-unless it runs with `-AllowUnpinned`, which `release.yml` passes. It then downloads the archive,
-writes its hash into the sources `README.txt` (marked "not pinned in this build") and prints a
-`::warning::` with the hash. After the first release run, copy those hashes into
-`copyleft-sources.json`; then the flag no longer matters for them.
+archive publishes md5 sums only, so a new LibreCAD or Qt source entry in
+`copyleft-sources.json` may start with `"sha256": null`. `fetch-sources.ps1` refuses such an
+entry unless it runs with `-AllowUnpinned` (`build-installer.ps1 -AllowUnpinnedSources`). It then
+downloads the archive, writes its hash into the sources `README.txt` (marked "not pinned in this
+build") and prints a `::warning::` with the hash: copy it into `copyleft-sources.json`. Every
+entry is pinned today, so `release.yml` no longer passes the flag: an unpinned entry fails the
+release build.
 
 ## The installer additions
 

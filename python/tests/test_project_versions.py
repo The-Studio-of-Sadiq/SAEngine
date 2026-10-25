@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -67,6 +68,9 @@ def project(tmp_path: Path) -> Path:
     """A fresh copy of the sample in a folder with spaces, with computed caches present."""
     root = tmp_path / "Office Projects" / "Sample Frame"
     shutil.copytree(SAMPLE, root)
+    # Git keeps no empty folders: the sample's empty part folders exist only after a run.
+    for folder in ("08 FEM", "11 Exports"):
+        (root / folder).mkdir(exist_ok=True)
     write_json(root, SOIL, SOIL_REPORT)
     fem = root / "08 FEM"
     (fem / "model.results").mkdir(parents=True)
@@ -622,8 +626,12 @@ def test_links_submodules_and_modes_of_a_developer_repository_are_kept(project: 
     repo.close()
     assert run.mode in (0o100644, 0o100755)
     _push_tree(project, entries)
-    # The developer's checkout on Windows: the link as a text file, the submodule as a folder.
-    (project / "run-link").write_text("tools/run.sh", encoding="utf-8")
+    # The developer's checkout: on Windows the link is a text file, elsewhere a real symlink;
+    # the submodule is a folder.
+    if sys.platform == "win32":
+        (project / "run-link").write_text("tools/run.sh", encoding="utf-8")
+    else:
+        (project / "run-link").symlink_to("tools/run.sh")
     (project / "vendor" / "lib").mkdir(parents=True)
     (project / "vendor" / "lib" / ".git").write_text("gitdir: ../../.git/modules/lib\n", "utf-8")
     assert versions.status(project)["clean"]

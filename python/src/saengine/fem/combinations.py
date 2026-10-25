@@ -34,6 +34,10 @@ _FACTOR_CASES = {
     "EY": ("EY",),
     "T": ("T",),
     "F": ("F",),
+    "EXP": ("EXP",),
+    "EXN": ("EXN",),
+    "EYP": ("EYP",),
+    "EYN": ("EYN",),
 }
 #: Cases a combination may name that a model need not have: the fluid case F exists only when
 #: 07 MEP puts equipment contents in it, so a combination without its results is formed without
@@ -51,13 +55,60 @@ def combination_factors(
     optional cases (:data:`OPTIONAL_CASES`) without results are left out."""
     factors: dict[str, float] = {}
     for field, cases in _FACTOR_CASES.items():
-        value = getattr(combination, field)
+        value = getattr(combination, field, 0)
         if value:
             for case in cases:
                 if present is not None and case in OPTIONAL_CASES and case not in present:
                     continue
                 factors[case] = value
     return factors
+
+
+#: The eccentric static earthquake cases (``analysis.accidentalEccentricity``,
+#: :data:`saengine.fem.derive.ECCENTRIC_CASES`) of each static case.
+ECCENTRIC_OF = {"EX": ("EXP", "EXN"), "EY": ("EYP", "EYN")}
+
+
+class EccentricCombination(LoadCombination):
+    """A project combination with its earthquake on an eccentric static case (formed by
+    :func:`eccentric_combinations`, never stored)."""
+
+    EXP: float = 0
+    EXN: float = 0
+    EYP: float = 0
+    EYN: float = 0
+
+
+def model_cases(project: dict[str, Any]) -> set[str]:
+    """The case codes of an analysis model's analyses ("EX", "EXP", ...)."""
+    return {str(a.get("name", "")).split(":")[0].strip() for a in project.get("analyses", [])}
+
+
+def eccentric_combinations(
+    combinations: list[LoadCombination], present: set[str]
+) -> list[LoadCombination] | None:
+    """The combinations with each earthquake case replaced by its two eccentric cases (BNBC
+    2020 Part 6 Sec 2.5.7.6.2: the masses shifted ±5 % across the force), when the model has
+    them (``present``); a combination with EX becomes "... [+e]" on EXP and "... [-e]" on EXN
+    (likewise EY). None when the model has no eccentric cases."""
+    if not all(c in present for pair in ECCENTRIC_OF.values() for c in pair):
+        return None
+    out: list[LoadCombination] = []
+    for combination in combinations:
+        lateral = [case for case in ECCENTRIC_OF if getattr(combination, case, 0)]
+        if not lateral:
+            out.append(combination)
+            continue
+        data = combination.model_dump(by_alias=True)
+        for sign, label in ((0, "+e"), (1, "-e")):
+            update = {case: 0.0 for case in lateral}
+            update.update(
+                {ECCENTRIC_OF[case][sign]: getattr(combination, case) for case in lateral}
+            )
+            out.append(
+                EccentricCombination(**{**data, **update, "name": f"{combination.name} [{label}]"})
+            )
+    return out
 
 
 #: The static cases a project combination names for the earthquake: replaced by the response

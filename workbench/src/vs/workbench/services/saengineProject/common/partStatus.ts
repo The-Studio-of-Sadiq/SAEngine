@@ -122,7 +122,7 @@ const SOIL_SCHEMA_ID = 'saengine.soilReport/1';
 /** The key a derived analysis model records the soil report's stamp under, when its settings take the site class from it. */
 const FEM_SOIL_SOURCE = 'soil';
 /** Sources an analysis model records only when they give it something: soil springs' foundations, MEP's loads and holes. */
-const FEM_RECORDED_SOURCES = ['substructure', 'mep'];
+const FEM_RECORDED_SOURCES = ['substructure', 'mep', 'loads'];
 
 /** The stamp an analysis model records for source part `part`: of what it takes for MEP, the whole file's otherwise. */
 function femSourceStamp(part: string, text: string): string {
@@ -197,7 +197,9 @@ function femStatus(inputs: IPartStatusInputs): IPartStatus {
 	// The substructure and MEP likewise; MEP also when it has content a model without it lacks.
 	const recordedChanged = FEM_RECORDED_SOURCES.some(part => recorded.has(part) && changed(inputs.texts, part, recorded.get(part), femSourceStamp));
 	const mepAdded = !recorded.has('mep') && mepHasContent(inputs);
-	if (soilChanged || recordedChanged || mepAdded || FEM_SOURCES.some(part => changed(inputs.texts, part, recorded.get(part)))) {
+	// The member loads (`05 Floor Plan/loads.json`) likewise, once they have a load.
+	const loadsAdded = !recorded.has('loads') && loadsHaveContent(inputs.texts.get('loads'));
+	if (soilChanged || recordedChanged || mepAdded || loadsAdded || FEM_SOURCES.some(part => changed(inputs.texts, part, recorded.get(part)))) {
 		return status('fem', 'stale', STALE(), localize('partStatus.fem.deriveAgain', "derive the analysis model again"));
 	}
 	if (inputs.femResultsTime === undefined) {
@@ -319,6 +321,19 @@ function hvacCount(document: JsonObject): number {
 /** How many storeys, equipment, risers and trays the electrical services of an MEP file have. */
 function electricalCount(document: JsonObject): number {
 	return sectionCount(document, 'electrical', ['stories', 'equipment', 'risers', 'trays']);
+}
+
+/** Whether a member loads file `text` (`05 Floor Plan/loads.json`) has a load; an unreadable file counts (deriving reports it). */
+export function loadsHaveContent(text: string | undefined): boolean {
+	if (!text || !text.trim()) {
+		return false;
+	}
+	try {
+		const value = JSON.parse(text);
+		return Array.isArray(value?.loads) && value.loads.length > 0;
+	} catch {
+		return true;
+	}
 }
 
 /** Whether 7 MEP has anything for the analysis model or the bill: equipment, openings, shafts, an overhead plumbing tank, HVAC plant or electrical equipment. */

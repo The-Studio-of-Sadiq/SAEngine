@@ -4,6 +4,10 @@ The files are listed in ``scripts/ci/third-party-binaries.json`` (url, file, siz
 for an archive how to unpack it). Each download lands in ``<cache>/<file>.partial`` and is only
 renamed to ``<cache>/<file>`` once its size and SHA-256 match the pin, so a cut-off or tampered
 download never reaches the build. A file already in the cache is checked again, not trusted.
+A download never hangs: connecting and every read time out after ``TIMEOUT`` seconds, a
+transfer slower than ``MIN_SPEED`` bytes/s over ``SPEED_WINDOW`` seconds is abandoned, and a
+failed attempt is retried ``ATTEMPTS`` times in all with a growing pause (a release build
+once hung for three hours on a stalled source download).
 
     python -I fetch_pinned.py --cache DIR --out DIR energyplus librecad librecad-license
     python -I fetch_pinned.py --verify FILE --name energyplus     (only checks a local file)
@@ -22,17 +26,24 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import http.client
 import json
 import os
 import shutil
 import subprocess
 import sys
+import time
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
 
 MANIFEST = Path(__file__).with_name("third-party-binaries.json")
 CHUNK = 1 << 20
+TIMEOUT = 60
+MIN_SPEED = 50_000
+SPEED_WINDOW = 120
+ATTEMPTS = 4
 
 
 class PinError(Exception):
@@ -80,7 +91,24 @@ def verify(path: Path, item: dict) -> str:
     return actual
 
 
-def download(item: dict, cache: Path, opener=urllib.request.urlopen) -> Path:
+def copy_with_deadline(response, handle, clock=time.monotonic) -> None:
+    """Copies ``response`` to ``handle``; :class:`TimeoutError` when it runs too slowly."""
+    window_start = clock()
+    window_bytes = 0
+    while block := response.read(CHUNK):
+        handle.write(block)
+        window_bytes += len(block)
+        elapsed = clock() - window_start
+        if elapsed >= SPEED_WINDOW:
+            if window_bytes / elapsed < MIN_SPEED:
+                raise TimeoutError(
+                    f"{window_bytes / elapsed / 1000:.1f} kB/s over {elapsed:.0f} s, "
+                    f"below {MIN_SPEED / 1000:.0f} kB/s"
+                )
+            window_start, window_bytes = clock(), 0
+
+
+def download(item: dict, cache: Path, opener=urllib.request.urlopen, sleep=time.sleep) -> Path:
     """``<cache>/<file>``, downloaded when missing, checked either way."""
     cache.mkdir(parents=True, exist_ok=True)
     target = cache / item["file"]
@@ -94,9 +122,20 @@ def download(item: dict, cache: Path, opener=urllib.request.urlopen) -> Path:
             target.unlink()
     partial = target.with_name(target.name + ".partial")
     request = urllib.request.Request(item["url"], headers={"User-Agent": "saengine-ci"})
-    print(f"download {item['url']}")
-    with opener(request) as response, partial.open("wb") as handle:
-        shutil.copyfileobj(response, handle, CHUNK)
+    for attempt in range(1, ATTEMPTS + 1):
+        print(f"download {item['url']}" + (f" (attempt {attempt})" if attempt > 1 else ""))
+        try:
+            with opener(request, timeout=TIMEOUT) as response, partial.open("wb") as handle:
+                copy_with_deadline(response, handle)
+            break
+        except (OSError, urllib.error.URLError, http.client.HTTPException) as error:
+            # OSError covers socket timeouts, resets and TimeoutError from the speed check.
+            partial.unlink(missing_ok=True)
+            if attempt == ATTEMPTS:
+                raise PinError(f"{item['url']}: {error} (after {ATTEMPTS} attempts)") from error
+            pause = 15 * attempt
+            print(f"failed   {error}; retrying in {pause} s")
+            sleep(pause)
     try:
         verify(partial, item)
     except PinError:

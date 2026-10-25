@@ -97,7 +97,7 @@ export interface IFemResultEntry {
 	readonly key: string;
 	readonly label: string;
 	readonly kind: 'static' | 'combination' | 'modal' | 'spectrum' | 'history' | 'pushover';
-	readonly modes?: readonly { readonly number: number; readonly period: number | null }[];
+	readonly modes?: readonly { readonly number: number; readonly period: number | null; readonly ux?: number; readonly uy?: number }[];
 	/**
 	 * A time history's or a pushover's frames (up to 200 of its steps): the time, or the control
 	 * displacement and base shear (the capacity curve); a staged (construction sequence) static
@@ -467,6 +467,13 @@ export interface IFemSolverService {
 	 */
 	ssiCompare(python: string, projectRoot: string): Promise<object>;
 
+	/**
+	 * The mesh convergence check of Run All (`saengine.fem.mesh_check`): the beams' gravity end
+	 * moments on the project's mesh and on one twice as coarse (also written to
+	 * `08 FEM/model.results/mesh-check.json`); `{skipped}` when not needed, or `{problems}`.
+	 */
+	meshCheck(python: string, projectRoot: string): Promise<object>;
+
 	/** The MEP coordination report of the project (`saengine.mep.mep_report`), plain JSON read by the MEP editor, or `{problems}`. */
 	mepReport(python: string, projectRoot: string, mepText?: string): Promise<object>;
 
@@ -547,9 +554,11 @@ export interface IFemSolverService {
 export type EngineMethod =
 	| 'design/required' | 'design/proposal' | 'design/applyProposal'
 	| 'fem/seismicDesign' | 'fem/secondOrder'
+	| 'fem/storyResponse' | 'fem/memberForces' | 'fem/columnInteraction' | 'fem/exportXlsx'
 	| 'soil/location' | 'soil/gisExport' | 'soil/gisImport' | 'soil/qgisProgram'
 	| 'drawings/generate' | 'drawings/list' | 'drawings/progress'
-	| 'import/structural' | 'library/steelSections' | 'library/generateBuilding';
+	| 'import/structural' | 'library/steelSections' | 'library/generateBuilding'
+	| 'section/analyse';
 
 export interface IQgisOpenRequest {
 	/** Absolute path of the `.gpkg`, `.geojson` or `.json` file. */
@@ -586,7 +595,10 @@ export type ProjectPlatformMethod =
 	// Code packs (`saengine.codes`): `codes/list` `{root?}`, `codes/show` `{id, root?}`, `codes/new`
 	// `{id, name, extends, scope?, dest?, root?}`, `codes/install` `{path, scope, root?}`,
 	// `codes/validate` `{path, root?}`, `codes/trust` `{id, trusted, root?}`.
-	| 'codes/list' | 'codes/show' | 'codes/new' | 'codes/install' | 'codes/validate' | 'codes/trust';
+	| 'codes/list' | 'codes/show' | 'codes/new' | 'codes/install' | 'codes/validate' | 'codes/trust'
+	// A DWG drawing as DXF (`saengine.library.dwg`, GNU LibreDWG's dwg2dxf as a separate program):
+	// `cad/convertDwg` `{path, cache?}` -> `{ok, dxf, warnings, cached}` or `{ok: false, code, message}`.
+	| 'cad/convertDwg';
 
 export interface ICadOpenRequest {
 	/** Absolute path of the `.dxf` file. */

@@ -1,5 +1,5 @@
 {
-  "_comment": "Upstream source archives of the copyleft components shipped as binaries (GPL, LGPL, MPL). scripts/installer/fetch-sources.ps1 downloads them, checks the SHA-256 and copies them to dist/ next to the setup, to be published from the same place as the setup (GPL-2.0 section 3, GPL-3.0/LGPL-3.0 section 6(d), MPL-2.0 section 3.2(a)). Keep 'version' equal to what ships: constraints.txt for Python packages, packages/fem-viewer/package.json for web-ifc, resources/librecad/SAENGINE-BUNDLE.json (librecad_bundle.py) for entries with 'component': 'librecad' (LibreCAD itself and the Qt modules whose DLLs it ships, 'qt_module'); those are collected only when the build bundles LibreCAD. Bump url, file and sha256 together. A null sha256 is not pinned yet: fetch-sources.ps1 refuses it unless run with -AllowUnpinned, then prints the hash to pin here.",
+  "_comment": "Upstream source archives of the copyleft components shipped as binaries (GPL, LGPL, MPL). scripts/installer/fetch-sources.ps1 downloads them, checks the SHA-256 and copies them to dist/ next to the setup, to be published from the same place as the setup (GPL-2.0 section 3, GPL-3.0/LGPL-3.0 section 6(d), MPL-2.0 section 3.2(a)). Keep 'version' equal to what ships: constraints.txt for Python packages, packages/fem-viewer/package.json for web-ifc, resources/librecad/SAENGINE-BUNDLE.json (librecad_bundle.py) for entries with 'component': 'librecad' (LibreCAD itself and the Qt modules whose DLLs it ships, 'qt_module'); those are collected only when the build bundles LibreCAD; resources/libredwg/SAENGINE-BUNDLE.json (libredwg_bundle.py) for 'component': 'libredwg', collected only when the build bundles LibreDWG. Bump url, file and sha256 together. A null sha256 is not pinned yet: fetch-sources.ps1 refuses it unless run with -AllowUnpinned, then prints the hash to pin here.",
   "sources": [
     {
       "name": "gmsh",
@@ -90,6 +90,16 @@
       "file": "qttools-everywhere-src-5.15.2.tar.xz",
       "url": "https://download.qt.io/archive/qt/5.15/5.15.2/submodules/qttools-everywhere-src-5.15.2.tar.xz",
       "sha256": "c189d0ce1ff7c739db9a3ace52ac3e24cb8fd6dbf234e49f075249b38f43c1cc"
+    },
+    {
+      "name": "libredwg",
+      "component": "libredwg",
+      "version": "0.14",
+      "license": "GPL-3.0-or-later",
+      "ships": "resources/libredwg (dwg2dxf.exe and libredwg-0.dll, a separate program)",
+      "file": "libredwg-0.14.tar.xz",
+      "url": "https://ftp.gnu.org/gnu/libredwg/libredwg-0.14.tar.xz",
+      "sha256": "62ebb73b984f865960f20ed26619ea5f8789d5e3fd088fa40a2598384da81275"
     }
   ]
 }

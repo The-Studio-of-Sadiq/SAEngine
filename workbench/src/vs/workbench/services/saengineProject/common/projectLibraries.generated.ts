@@ -707,6 +707,9 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 						{
 							$ref: '#/$defs/UShapeProfile',
 						},
+						{
+							$ref: '#/$defs/DesignedProfile',
+						},
 					],
 					title: 'Profile',
 				},
@@ -758,6 +761,32 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Steel beams: the simple shear connection at both ends (fin plate or end plate); none: not checked.',
 					title: 'Connection',
+				},
+				modifiers: {
+					anyOf: [
+						{
+							$ref: '#/$defs/FrameModifiers',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Factors on the analysis section properties (empty: the code\'s cracked factors for concrete and masonry, else 1).',
+					title: 'Stiffness modifiers',
+				},
+				designOverwrites: {
+					anyOf: [
+						{
+							$ref: '#/$defs/DesignOverwrites',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'k, unbraced lengths and framing for the design (empty: automatic).',
+					title: 'Design overwrites',
 				},
 			},
 			required: ['id', 'name', 'material', 'profile'],
@@ -867,6 +896,9 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 						{
 							$ref: '#/$defs/UShapeProfile',
 						},
+						{
+							$ref: '#/$defs/DesignedProfile',
+						},
 					],
 					title: 'Profile',
 				},
@@ -892,6 +924,32 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Steel braces: the bolted gusset connection at both ends; none: not checked.',
 					title: 'Connection',
+				},
+				modifiers: {
+					anyOf: [
+						{
+							$ref: '#/$defs/FrameModifiers',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Factors on the analysis section properties (empty: the code\'s cracked factors for concrete and masonry, else 1).',
+					title: 'Stiffness modifiers',
+				},
+				designOverwrites: {
+					anyOf: [
+						{
+							$ref: '#/$defs/DesignOverwrites',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'k, unbraced lengths and framing for the design (empty: automatic).',
+					title: 'Design overwrites',
 				},
 			},
 			required: ['id', 'name', 'material', 'profile'],
@@ -1181,6 +1239,9 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 						{
 							$ref: '#/$defs/UShapeProfile',
 						},
+						{
+							$ref: '#/$defs/DesignedProfile',
+						},
 					],
 					title: 'Profile',
 				},
@@ -1209,6 +1270,32 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					enum: ['auto', 'transfer', 'collector', 'none'],
 					title: 'Ω0 combinations',
 					type: 'string',
+				},
+				modifiers: {
+					anyOf: [
+						{
+							$ref: '#/$defs/FrameModifiers',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Factors on the analysis section properties (empty: the code\'s cracked factors for concrete and masonry, else 1).',
+					title: 'Stiffness modifiers',
+				},
+				designOverwrites: {
+					anyOf: [
+						{
+							$ref: '#/$defs/DesignOverwrites',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'k, unbraced lengths and framing for the design (empty: automatic).',
+					title: 'Design overwrites',
 				},
 			},
 			required: ['id', 'name', 'material', 'profile'],
@@ -1249,6 +1336,151 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			},
 			required: ['count', 'dia'],
 			title: 'CouplingDiagonal',
+			type: 'object',
+		},
+		DesignOverwrites: {
+			additionalProperties: false,
+			description: 'Design overwrites of a member or of an object type (empty fields inherit).',
+			properties: {
+				k2: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Effective length factor for bending about the profile\'s y-axis.',
+					title: 'k minor (2)',
+				},
+				k3: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Effective length factor for bending about the profile\'s x-axis.',
+					title: 'k major (3)',
+				},
+				Lb: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Laterally unbraced length of the compression flange (steel) [mm].',
+					title: 'Lb',
+				},
+				Lu2: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Unbraced length for bending about the profile\'s y-axis [mm].',
+					title: 'Lu minor (2)',
+				},
+				Lu3: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Unbraced length for bending about the profile\'s x-axis [mm].',
+					title: 'Lu major (3)',
+				},
+				framing: {
+					anyOf: [
+						{
+							enum: ['braced', 'sway'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Braced (nonsway) or sway; none: from the storey\'s stability index.',
+					title: 'Framing',
+				},
+				momentMagnifiers: {
+					anyOf: [
+						{
+							$ref: '#/$defs/MomentMagnifiers',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Cm, δns, δs given (RC columns).',
+					title: 'Moment magnifiers',
+				},
+				liveLoadReduction: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 1.0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Live load reduction factor (placeholder: not applied yet).',
+					title: 'Live load reduction',
+				},
+			},
+			title: 'DesignOverwrites',
+			type: 'object',
+		},
+		DesignedProfile: {
+			additionalProperties: false,
+			description: 'A section drawn in the Section Designer (``04 Objects/sections/<section>.json``, see\n:mod:`saengine.library.section_designer`): L/T/C columns, core walls, built-up steel; IFC\nIfcArbitraryProfileDefWithVoids.',
+			properties: {
+				shape: {
+					const: 'designed',
+					default: 'designed',
+					title: 'Shape',
+					type: 'string',
+				},
+				section: {
+					description: 'Id of the designed section (04 Objects/sections).',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Section',
+					type: 'string',
+				},
+			},
+			required: ['section'],
+			title: 'DesignedProfile',
 			type: 'object',
 		},
 		EndPlateConnection: {
@@ -1554,6 +1786,126 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			title: 'Footing',
 			type: 'object',
 		},
+		FrameModifiers: {
+			additionalProperties: false,
+			description: 'Factors on a frame member\'s section properties (empty: inherit).',
+			properties: {
+				A: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Area A',
+				},
+				As2: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Shear area As2',
+				},
+				As3: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Shear area As3',
+				},
+				J: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Torsion J',
+				},
+				I22: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'I22 (minor)',
+				},
+				I33: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'I33 (major)',
+				},
+				mass: {
+					anyOf: [
+						{
+							maximum: 10,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Mass',
+				},
+				weight: {
+					anyOf: [
+						{
+							maximum: 10,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Weight',
+				},
+			},
+			title: 'FrameModifiers',
+			type: 'object',
+		},
 		IShapeProfile: {
 			additionalProperties: false,
 			description: 'IfcIShapeProfileDef (W, HE, IPE, built-up I).',
@@ -1687,6 +2039,57 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			title: 'LinearReinforcement',
 			type: 'object',
 		},
+		MomentMagnifiers: {
+			additionalProperties: false,
+			description: 'Moment magnification factors given instead of worked out (RC columns, BNBC 6.3.10).',
+			properties: {
+				cm: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 1.0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Equivalent moment factor Cm.',
+					title: 'Cm',
+				},
+				deltaNs: {
+					anyOf: [
+						{
+							minimum: 1.0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Nonsway moment magnifier δns (>= 1).',
+					title: 'δns',
+				},
+				deltaS: {
+					anyOf: [
+						{
+							minimum: 1.0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Sway moment magnifier δs (>= 1).',
+					title: 'δs',
+				},
+			},
+			title: 'MomentMagnifiers',
+			type: 'object',
+		},
 		Pile: {
 			additionalProperties: false,
 			properties: {
@@ -1757,6 +2160,9 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 						},
 						{
 							$ref: '#/$defs/UShapeProfile',
+						},
+						{
+							$ref: '#/$defs/DesignedProfile',
 						},
 					],
 					title: 'Profile',
@@ -2090,6 +2496,70 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			title: 'RectangleProfile',
 			type: 'object',
 		},
+		ShellModifiers: {
+			additionalProperties: false,
+			description: 'Factors on a shell\'s (slab\'s, wall\'s) stiffness, mass and weight (empty: inherit).',
+			properties: {
+				membrane: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Membrane',
+				},
+				bending: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Bending',
+				},
+				mass: {
+					anyOf: [
+						{
+							maximum: 10,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Mass',
+				},
+				weight: {
+					anyOf: [
+						{
+							maximum: 10,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Weight',
+				},
+			},
+			title: 'ShellModifiers',
+			type: 'object',
+		},
 		Slab: {
 			additionalProperties: false,
 			properties: {
@@ -2166,6 +2636,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Studs or stirrups round the columns of a flat slab, checked where the concrete alone is not enough (empty: none).',
 					title: 'Punching reinforcement',
+				},
+				modifiers: {
+					anyOf: [
+						{
+							$ref: '#/$defs/ShellModifiers',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Factors on the analysis shell stiffness, mass and weight (empty: the code\'s cracked factors for concrete and masonry, else 1).',
+					title: 'Stiffness modifiers',
 				},
 			},
 			required: ['id', 'name', 'material', 'thickness'],
@@ -2739,6 +3222,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					title: 'Basement',
 					type: 'boolean',
 				},
+				modifiers: {
+					anyOf: [
+						{
+							$ref: '#/$defs/ShellModifiers',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Factors on the analysis shell stiffness, mass and weight (empty: the code\'s cracked factors for concrete and masonry, else 1).',
+					title: 'Stiffness modifiers',
+				},
 			},
 			required: ['id', 'name', 'material', 'thickness'],
 			title: 'Wall',
@@ -3183,11 +3679,70 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					type: 'string',
 				},
 				meshSize: {
-					default: 1000,
-					description: 'Largest side of a shell element [mm].',
+					default: 500,
+					description: 'Largest side of a shell element [mm]. 500 mm (before version 0.0.44: 1000 mm): beams on shell slabs get their gravity moments within about 5 % of a converged mesh.',
 					minimum: 100,
 					title: 'Mesh size',
 					type: 'number',
+				},
+				meshBySpan: {
+					default: true,
+					description: 'Shell slabs meshed no coarser than their shorter span / 8 where that is finer than the mesh size (at least 200 mm).',
+					title: 'Mesh by slab span',
+					type: 'boolean',
+				},
+				meshCheck: {
+					default: true,
+					description: 'Run All also solves the gravity cases on a mesh twice as coarse and warns when a beam end moment changes by more than 5 % (the mesh is then too coarse).',
+					title: 'Mesh convergence check',
+					type: 'boolean',
+				},
+				massLumping: {
+					default: 'storyLevels',
+					description: 'Story levels: every node\'s weight goes to the nearest story level (to its diaphragm), the lower half of the first story to the base, where it does not take part (as the usual analysis programs lump it). Level above (before version 0.0.44): every weight counts for the first level above the base and its mass stays where it is.',
+					enum: ['storyLevels', 'levelAbove'],
+					enumDescriptions: ['Lumped at the story levels', 'Each node\'s own (lower first story to level 1)'],
+					title: 'Seismic mass',
+					type: 'string',
+				},
+				massSource: {
+					$ref: '#/$defs/MassSource',
+					description: 'What forms the seismic weight W (BNBC 2020 Part 6 Sec 2.5.7.3): factors on the dead loads, the live load share and extra masses.',
+					title: 'Mass source',
+				},
+				accidentalEccentricity: {
+					default: true,
+					description: 'Add the static cases EXP, EXN, EYP, EYN: EX and EY with the story masses shifted ±5 % of the building\'s width across the force (BNBC 2020 Part 6 Sec 2.5.7.6.2, Eq. 6.2.43). With equivalent static design, every E combination is checked with both.',
+					title: 'Eccentric static earthquake cases',
+					type: 'boolean',
+				},
+				periodMethod: {
+					default: 'approximate',
+					description: 'Approximate: Ta = Ct·hn^m (BNBC 2020 Part 6 Eq. 6.2.38). Analysis: the modal period of each direction, at most 1.4 Ta (Sec 2.5.7.2 (a)) and not below Ta.',
+					enum: ['approximate', 'analysis'],
+					enumDescriptions: ['Approximate Ta', 'From the modal analysis (≤ 1.4 Ta)'],
+					title: 'Period for the static base shear',
+					type: 'string',
+				},
+				endOffsets: {
+					default: true,
+					description: 'Beams and columns end at the faces of their supports: the part inside a joint is a rigid zone of the rigid zone factor times its length, and the forces are also reported at the support faces, where the design takes them (beams at the column faces, columns at the beam soffit and the top of the slab).',
+					title: 'End offsets (rigid zones)',
+					type: 'boolean',
+				},
+				rigidZoneFactor: {
+					default: 0.5,
+					description: 'Share of an end offset that is rigid (0: the whole length flexible, the forces still read at the faces; 1: fully rigid).',
+					maximum: 1,
+					minimum: 0,
+					title: 'Rigid zone factor',
+					type: 'number',
+				},
+				exactColumnRotation: {
+					default: true,
+					description: 'A column turned by an angle that is not a multiple of 90° is analysed and designed on its own axes (before version 0.0.44 it was rounded to the nearest quarter turn).',
+					title: 'Columns at any angle',
+					type: 'boolean',
 				},
 				responseSpectrum: {
 					default: true,
@@ -3664,6 +4219,73 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'Drawings',
 			type: 'object',
 		},
+		ExtraMass: {
+			additionalProperties: false,
+			description: 'A weight added to the seismic mass of a story (equipment not modelled, a tank\'s water).',
+			properties: {
+				story: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Id of the story it goes to (or give the elevation z).',
+					title: 'Story',
+				},
+				z: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[mm]',
+					title: 'Elevation z',
+				},
+				weight: {
+					description: '[kN]',
+					exclusiveMinimum: 0,
+					title: 'Weight',
+					type: 'number',
+				},
+				x: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Plan position [mm]; empty: the story\'s centre of mass.',
+					title: 'X',
+				},
+				y: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[mm]',
+					title: 'Y',
+				},
+			},
+			required: ['weight'],
+			title: 'ExtraMass',
+			type: 'object',
+		},
 		Foundation: {
 			additionalProperties: false,
 			description: 'Soil values of the footing design. The net allowable bearing pressure of each footing\ncomes from 1 Soil Report (its nearest boreholes, at the footing\'s founding level and size)\nunless it is overridden here.',
@@ -3765,6 +4387,51 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			},
 			required: ['name'],
 			title: 'LoadCombination',
+			type: 'object',
+		},
+		MassSource: {
+			additionalProperties: false,
+			description: 'What forms the seismic weight W and the masses (BNBC 2020 Part 6 Sec 2.5.7.3: the dead\nload including partitions, 25 % of the live load (50 % above 3 kN/m²) and permanent\nequipment and retained liquid in full).',
+			properties: {
+				dead: {
+					default: 1.0,
+					description: 'On D.',
+					minimum: 0,
+					title: 'Dead load factor',
+					type: 'number',
+				},
+				superimposed: {
+					default: 1.0,
+					description: 'On SD.',
+					minimum: 0,
+					title: 'Superimposed dead factor',
+					type: 'number',
+				},
+				liveShare: {
+					anyOf: [
+						{
+							maximum: 1,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Empty: the code\'s (25 %, 50 % for live loads above 3 kN/m²). A number replaces both (the code\'s are minimums).',
+					title: 'Live load share',
+				},
+				extraMasses: {
+					description: 'Weights added per story.',
+					items: {
+						$ref: '#/$defs/ExtraMass',
+					},
+					title: 'Extra masses',
+					type: 'array',
+				},
+			},
+			title: 'MassSource',
 			type: 'object',
 		},
 		Occupancy: {
@@ -4634,7 +5301,20 @@ export const DEFAULT_SETTINGS: object = {
 	analysis: {
 		slabs: 'loadsToBeams',
 		diaphragm: 'rigid',
-		meshSize: 1000.0,
+		meshSize: 500.0,
+		meshBySpan: true,
+		meshCheck: true,
+		massLumping: 'storyLevels',
+		massSource: {
+			dead: 1.0,
+			superimposed: 1.0,
+			extraMasses: [],
+		},
+		accidentalEccentricity: true,
+		periodMethod: 'approximate',
+		endOffsets: true,
+		rigidZoneFactor: 0.5,
+		exactColumnRotation: true,
 		responseSpectrum: true,
 		stiffness: 'aci',
 		crackedFor: 'lateral',
@@ -4956,6 +5636,248 @@ export const BNBC: IBnbcTables = {
 
 export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 	$defs: {
+		DesignOverwrites: {
+			additionalProperties: false,
+			description: 'Design overwrites of a member or of an object type (empty fields inherit).',
+			properties: {
+				k2: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Effective length factor for bending about the profile\'s y-axis.',
+					title: 'k minor (2)',
+				},
+				k3: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Effective length factor for bending about the profile\'s x-axis.',
+					title: 'k major (3)',
+				},
+				Lb: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Laterally unbraced length of the compression flange (steel) [mm].',
+					title: 'Lb',
+				},
+				Lu2: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Unbraced length for bending about the profile\'s y-axis [mm].',
+					title: 'Lu minor (2)',
+				},
+				Lu3: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Unbraced length for bending about the profile\'s x-axis [mm].',
+					title: 'Lu major (3)',
+				},
+				framing: {
+					anyOf: [
+						{
+							enum: ['braced', 'sway'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Braced (nonsway) or sway; none: from the storey\'s stability index.',
+					title: 'Framing',
+				},
+				momentMagnifiers: {
+					anyOf: [
+						{
+							$ref: '#/$defs/MomentMagnifiers',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Cm, δns, δs given (RC columns).',
+					title: 'Moment magnifiers',
+				},
+				liveLoadReduction: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 1.0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Live load reduction factor (placeholder: not applied yet).',
+					title: 'Live load reduction',
+				},
+			},
+			title: 'DesignOverwrites',
+			type: 'object',
+		},
+		FrameModifiers: {
+			additionalProperties: false,
+			description: 'Factors on a frame member\'s section properties (empty: inherit).',
+			properties: {
+				A: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Area A',
+				},
+				As2: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Shear area As2',
+				},
+				As3: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Shear area As3',
+				},
+				J: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Torsion J',
+				},
+				I22: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'I22 (minor)',
+				},
+				I33: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'I33 (major)',
+				},
+				mass: {
+					anyOf: [
+						{
+							maximum: 10,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Mass',
+				},
+				weight: {
+					anyOf: [
+						{
+							maximum: 10,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Weight',
+				},
+			},
+			title: 'FrameModifiers',
+			type: 'object',
+		},
 		GridLine: {
 			additionalProperties: false,
 			description: 'One grid line (IfcGridAxis): X lines are vertical in plan, Y lines horizontal.',
@@ -5037,6 +5959,57 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 			title: 'Grids',
 			type: 'object',
 		},
+		MomentMagnifiers: {
+			additionalProperties: false,
+			description: 'Moment magnification factors given instead of worked out (RC columns, BNBC 6.3.10).',
+			properties: {
+				cm: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 1.0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Equivalent moment factor Cm.',
+					title: 'Cm',
+				},
+				deltaNs: {
+					anyOf: [
+						{
+							minimum: 1.0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Nonsway moment magnifier δns (>= 1).',
+					title: 'δns',
+				},
+				deltaS: {
+					anyOf: [
+						{
+							minimum: 1.0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Sway moment magnifier δs (>= 1).',
+					title: 'δs',
+				},
+			},
+			title: 'MomentMagnifiers',
+			type: 'object',
+		},
 		PlacedBeam: {
 			additionalProperties: false,
 			properties: {
@@ -5069,6 +6042,32 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 				end: {
 					$ref: '#/$defs/GridPoint',
 					title: 'End',
+				},
+				modifiers: {
+					anyOf: [
+						{
+							$ref: '#/$defs/FrameModifiers',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Factors on the analysis section properties (empty: the code\'s cracked factors for concrete and masonry, else 1).',
+					title: 'Stiffness modifiers',
+				},
+				designOverwrites: {
+					anyOf: [
+						{
+							$ref: '#/$defs/DesignOverwrites',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'k, unbraced lengths and framing for the design (empty: automatic).',
+					title: 'Design overwrites',
 				},
 			},
 			required: ['id', 'type', 'story', 'start', 'end'],
@@ -5118,6 +6117,32 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 					description: 'Rotation of the section about its axis [°].',
 					title: 'Rotation',
 					type: 'number',
+				},
+				modifiers: {
+					anyOf: [
+						{
+							$ref: '#/$defs/FrameModifiers',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Factors on the analysis section properties (empty: the code\'s cracked factors for concrete and masonry, else 1).',
+					title: 'Stiffness modifiers',
+				},
+				designOverwrites: {
+					anyOf: [
+						{
+							$ref: '#/$defs/DesignOverwrites',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'k, unbraced lengths and framing for the design (empty: automatic).',
+					title: 'Design overwrites',
 				},
 			},
 			required: ['id', 'type', 'at', 'base', 'top'],
@@ -5215,6 +6240,19 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 					description: 'Area load from 02 Project Settings; none: the floor or roof load there.',
 					title: 'Area load',
 				},
+				modifiers: {
+					anyOf: [
+						{
+							$ref: '#/$defs/ShellModifiers',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Factors on the analysis shell stiffness, mass and weight (empty: the code\'s cracked factors for concrete and masonry, else 1).',
+					title: 'Stiffness modifiers',
+				},
 			},
 			required: ['id', 'type', 'story', 'boundary'],
 			title: 'PlacedSlab',
@@ -5260,9 +6298,86 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 					$ref: '#/$defs/GridPoint',
 					title: 'End',
 				},
+				modifiers: {
+					anyOf: [
+						{
+							$ref: '#/$defs/ShellModifiers',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Factors on the analysis shell stiffness, mass and weight (empty: the code\'s cracked factors for concrete and masonry, else 1).',
+					title: 'Stiffness modifiers',
+				},
 			},
 			required: ['id', 'type', 'base', 'top', 'start', 'end'],
 			title: 'PlacedWall',
+			type: 'object',
+		},
+		ShellModifiers: {
+			additionalProperties: false,
+			description: 'Factors on a shell\'s (slab\'s, wall\'s) stiffness, mass and weight (empty: inherit).',
+			properties: {
+				membrane: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Membrane',
+				},
+				bending: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Bending',
+				},
+				mass: {
+					anyOf: [
+						{
+							maximum: 10,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Mass',
+				},
+				weight: {
+					anyOf: [
+						{
+							maximum: 10,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Weight',
+				},
+			},
+			title: 'ShellModifiers',
 			type: 'object',
 		},
 		Story: {
@@ -5322,7 +6437,7 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 				file: {
 					description: 'DXF file, relative to the 05 Floor Plan folder.',
 					minLength: 1,
-					pattern: '\\.[dD][xX][fF]$',
+					pattern: '\\.[dD]([xX][fF]|[wW][gG])$',
 					title: 'File',
 					type: 'string',
 				},
@@ -6137,6 +7252,32 @@ export const BIM_SCHEMA: IJSONSchema = {
 					title: 'Elevation',
 					type: 'number',
 				},
+				modifiers: {
+					anyOf: [
+						{
+							$ref: '#/$defs/FrameModifiers',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Factors on the analysis section properties (empty: the code\'s cracked factors for concrete and masonry, else 1).',
+					title: 'Stiffness modifiers',
+				},
+				designOverwrites: {
+					anyOf: [
+						{
+							$ref: '#/$defs/DesignOverwrites',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'k, unbraced lengths and framing for the design (empty: automatic).',
+					title: 'Design overwrites',
+				},
 			},
 			required: ['id', 'type', 'start', 'end', 'elevation'],
 			title: 'BeamElement',
@@ -6311,9 +7452,157 @@ export const BIM_SCHEMA: IJSONSchema = {
 					title: 'Rotation',
 					type: 'number',
 				},
+				modifiers: {
+					anyOf: [
+						{
+							$ref: '#/$defs/FrameModifiers',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Factors on the analysis section properties (empty: the code\'s cracked factors for concrete and masonry, else 1).',
+					title: 'Stiffness modifiers',
+				},
+				designOverwrites: {
+					anyOf: [
+						{
+							$ref: '#/$defs/DesignOverwrites',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'k, unbraced lengths and framing for the design (empty: automatic).',
+					title: 'Design overwrites',
+				},
 			},
 			required: ['id', 'type', 'position', 'bottom', 'top'],
 			title: 'ColumnElement',
+			type: 'object',
+		},
+		DesignOverwrites: {
+			additionalProperties: false,
+			description: 'Design overwrites of a member or of an object type (empty fields inherit).',
+			properties: {
+				k2: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Effective length factor for bending about the profile\'s y-axis.',
+					title: 'k minor (2)',
+				},
+				k3: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Effective length factor for bending about the profile\'s x-axis.',
+					title: 'k major (3)',
+				},
+				Lb: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Laterally unbraced length of the compression flange (steel) [mm].',
+					title: 'Lb',
+				},
+				Lu2: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Unbraced length for bending about the profile\'s y-axis [mm].',
+					title: 'Lu minor (2)',
+				},
+				Lu3: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Unbraced length for bending about the profile\'s x-axis [mm].',
+					title: 'Lu major (3)',
+				},
+				framing: {
+					anyOf: [
+						{
+							enum: ['braced', 'sway'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Braced (nonsway) or sway; none: from the storey\'s stability index.',
+					title: 'Framing',
+				},
+				momentMagnifiers: {
+					anyOf: [
+						{
+							$ref: '#/$defs/MomentMagnifiers',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Cm, δns, δs given (RC columns).',
+					title: 'Moment magnifiers',
+				},
+				liveLoadReduction: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 1.0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Live load reduction factor (placeholder: not applied yet).',
+					title: 'Live load reduction',
+				},
+			},
+			title: 'DesignOverwrites',
 			type: 'object',
 		},
 		FootingElement: {
@@ -6381,6 +7670,126 @@ export const BIM_SCHEMA: IJSONSchema = {
 			},
 			required: ['id', 'type', 'position', 'elevation'],
 			title: 'FootingElement',
+			type: 'object',
+		},
+		FrameModifiers: {
+			additionalProperties: false,
+			description: 'Factors on a frame member\'s section properties (empty: inherit).',
+			properties: {
+				A: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Area A',
+				},
+				As2: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Shear area As2',
+				},
+				As3: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Shear area As3',
+				},
+				J: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Torsion J',
+				},
+				I22: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'I22 (minor)',
+				},
+				I33: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'I33 (major)',
+				},
+				mass: {
+					anyOf: [
+						{
+							maximum: 10,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Mass',
+				},
+				weight: {
+					anyOf: [
+						{
+							maximum: 10,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Weight',
+				},
+			},
+			title: 'FrameModifiers',
 			type: 'object',
 		},
 		InclinedMember: {
@@ -6509,6 +7918,121 @@ export const BIM_SCHEMA: IJSONSchema = {
 			title: 'MemberElement',
 			type: 'object',
 		},
+		MomentMagnifiers: {
+			additionalProperties: false,
+			description: 'Moment magnification factors given instead of worked out (RC columns, BNBC 6.3.10).',
+			properties: {
+				cm: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 1.0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Equivalent moment factor Cm.',
+					title: 'Cm',
+				},
+				deltaNs: {
+					anyOf: [
+						{
+							minimum: 1.0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Nonsway moment magnifier δns (>= 1).',
+					title: 'δns',
+				},
+				deltaS: {
+					anyOf: [
+						{
+							minimum: 1.0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Sway moment magnifier δs (>= 1).',
+					title: 'δs',
+				},
+			},
+			title: 'MomentMagnifiers',
+			type: 'object',
+		},
+		ShellModifiers: {
+			additionalProperties: false,
+			description: 'Factors on a shell\'s (slab\'s, wall\'s) stiffness, mass and weight (empty: inherit).',
+			properties: {
+				membrane: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Membrane',
+				},
+				bending: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Bending',
+				},
+				mass: {
+					anyOf: [
+						{
+							maximum: 10,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Mass',
+				},
+				weight: {
+					anyOf: [
+						{
+							maximum: 10,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Weight',
+				},
+			},
+			title: 'ShellModifiers',
+			type: 'object',
+		},
 		SlabElement: {
 			additionalProperties: false,
 			properties: {
@@ -6583,6 +8107,19 @@ export const BIM_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Area load from 02 Project Settings; none: the floor or roof load there.',
 					title: 'Area load',
+				},
+				modifiers: {
+					anyOf: [
+						{
+							$ref: '#/$defs/ShellModifiers',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Factors on the analysis shell stiffness, mass and weight (empty: the code\'s cracked factors for concrete and masonry, else 1).',
+					title: 'Stiffness modifiers',
 				},
 			},
 			required: ['id', 'type', 'boundary', 'elevation'],
@@ -6842,6 +8379,19 @@ export const BIM_SCHEMA: IJSONSchema = {
 					description: '[mm]',
 					title: 'Top',
 					type: 'number',
+				},
+				modifiers: {
+					anyOf: [
+						{
+							$ref: '#/$defs/ShellModifiers',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Factors on the analysis shell stiffness, mass and weight (empty: the code\'s cracked factors for concrete and masonry, else 1).',
+					title: 'Stiffness modifiers',
 				},
 			},
 			required: ['id', 'type', 'start', 'end', 'bottom', 'top'],
@@ -7162,6 +8712,10 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		width: 75,
 		thickness: 6,
 	},
+	DesignedProfile: {
+		shape: 'designed',
+		section: 'SD1',
+	},
 	UShapeProfile: {
 		shape: 'U',
 		depth: 200,
@@ -7470,10 +9024,44 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		D: 1.2,
 		L: 1.6,
 	},
+	FrameModifiers: {
+		I33: 0.35,
+	},
+	ShellModifiers: {
+		bending: 0.25,
+	},
+	DesignOverwrites: {
+		k3: 1.0,
+	},
+	MomentMagnifiers: {
+		cm: 1.0,
+	},
+	MassSource: {
+		dead: 1.0,
+		superimposed: 1.0,
+	},
+	ExtraMass: {
+		story: 'L1',
+		weight: 50,
+	},
 	Analysis: {
 		slabs: 'loadsToBeams',
 		diaphragm: 'rigid',
-		meshSize: 1000.0,
+		meshSize: 500.0,
+		meshBySpan: true,
+		meshCheck: true,
+		massLumping: 'storyLevels',
+		massSource: {
+			dead: 1.0,
+			superimposed: 1.0,
+			liveShare: null,
+			extraMasses: [],
+		},
+		accidentalEccentricity: true,
+		periodMethod: 'approximate',
+		endOffsets: true,
+		rigidZoneFactor: 0.5,
+		exactColumnRotation: true,
 		responseSpectrum: true,
 		stiffness: 'aci',
 		crackedFor: 'lateral',

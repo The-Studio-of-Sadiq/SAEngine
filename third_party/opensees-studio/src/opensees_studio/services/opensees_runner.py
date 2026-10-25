@@ -91,9 +91,14 @@ from opensees_studio.core import (
     ZeroLengthElement,
     ZeroLengthSectionElement,
 )
+from opensees_studio.core.constraints import constrained_nodes
 from opensees_studio.core.modal import (
+    CONDENSED_MAX_COORDINATES,
+    SOLVER_CONDENSED,
+    SOLVER_DENSE,
     dof_indices,
     free_dof_count,
+    mass_dof_bound,
     normalize_mode_sign,
     orthogonalize_degenerate_modes,
     resolve_modal_solver,
@@ -616,8 +621,8 @@ class OpenSeesRunner:
         )
         node_coords = {n.id: np.array(n.coords, dtype=float) for n in self.project.nodes}
 
-        # Allocate (transf_type, vecxz_tuple) → tag, lazily.
-        combo_to_tag: dict[tuple[str, tuple[float, float, float]], int] = {}
+        # Allocate (transf_type, vecxz_tuple[, joint offsets]) → tag, lazily.
+        combo_to_tag: dict[tuple[Any, ...], int] = {}
         self._element_geom_transf_tag: dict[int, int] = {}
         next_tag = 1
 
@@ -633,12 +638,15 @@ class OpenSeesRunner:
                 self._element_geom_transf_tag[el.id] = combo_to_tag[key]
                 continue
 
-            # 3D: pick vecxz orthogonal to the element axis.
+            # 3D: pick vecxz orthogonal to the element axis (unless the element gives its own).
             p0 = node_coords[el.nodes[0]]
             p1 = node_coords[el.nodes[1]]
             axis = p1 - p0
             length = float(np.linalg.norm(axis))
-            if length < 1e-12:
+            own = getattr(el, "vecxz", None)
+            if own is not None:
+                vecxz = tuple(float(v) for v in own)
+            elif length < 1e-12:
                 # Degenerate element; fall back to horizontal default.
                 vecxz = (0.0, 0.0, 1.0)
             else:
@@ -650,10 +658,15 @@ class OpenSeesRunner:
                 else:
                     vecxz = (0.0, 0.0, 1.0)
 
-            key = (el.geom_transf, vecxz)
+            # Rigid end offsets: one transformation per element that has them.
+            offsets = getattr(el, "joint_offsets", None)
+            key = (el.geom_transf, vecxz) if offsets is None else (el.geom_transf, vecxz, el.id)
             if key not in combo_to_tag:
                 combo_to_tag[key] = next_tag
-                self._ops.geomTransf(el.geom_transf, next_tag, *vecxz)
+                extra: list[Any] = (
+                    [] if offsets is None else ["-jntOffset", *(float(v) for v in offsets)]
+                )
+                self._ops.geomTransf(el.geom_transf, next_tag, *vecxz, *extra)
                 next_tag += 1
             self._element_geom_transf_tag[el.id] = combo_to_tag[key]
 
@@ -1886,25 +1899,34 @@ class OpenSeesRunner:
         ndf = len(self._dof_idx)
 
         n_free = free_dof_count(self.project)
-        solver, _reason = resolve_modal_solver(case.solver, n_free, case.n_modes)
+        solver, _reason = resolve_modal_solver(
+            case.solver, n_free, case.n_modes, mass_dof_bound(self.project)
+        )
 
         if case.preload_case_ids:
             # The tangent stiffness of the preloaded structure (geometric stiffness with
             # P-Delta transformations); the static analysis objects are wiped after it.
             self._run_preload_sequence(case.preload_case_ids, case.id)
-        if self.project.needs_transformation:
-            self._any_ops.constraints("Transformation")
-        eigenvalues = np.array(ops.eigen(f"-{solver}", case.n_modes), dtype=float)
-
+        reduced = None
+        if solver == SOLVER_CONDENSED:
+            reduced = None if case.preload_case_ids else self._mass_coordinates()
+            if reduced is None:
+                solver = SOLVER_DENSE  # a preload or a mass layout the condensation leaves out
         raw_shapes: dict[int, dict[int, np.ndarray]] = {}
-        for mode in range(1, case.n_modes + 1):
-            raw_shapes[mode] = {
-                node.id: np.array(
-                    [ops.nodeEigenvector(node.id, mode, dof) for dof in range(1, ndf + 1)],
-                    dtype=float,
-                )
-                for node in self.project.nodes
-            }
+        if reduced is not None:
+            eigenvalues, raw_shapes = self._condensed_modes(case.n_modes, *reduced)
+        else:
+            if self.project.needs_transformation:
+                self._any_ops.constraints("Transformation")
+            eigenvalues = np.array(ops.eigen(f"-{solver}", case.n_modes), dtype=float)
+            for mode in range(1, case.n_modes + 1):
+                raw_shapes[mode] = {
+                    node.id: np.array(
+                        [ops.nodeEigenvector(node.id, mode, dof) for dof in range(1, ndf + 1)],
+                        dtype=float,
+                    )
+                    for node in self.project.nodes
+                }
         node_mass = {
             node.id: np.array([node.mass[i] for i in self._dof_idx], dtype=float)
             for node in self.project.nodes
@@ -1927,6 +1949,120 @@ class OpenSeesRunner:
             solver=solver,
             n_free_dof=n_free,
         )
+
+    def _mass_coordinates(self) -> tuple[list[tuple[int, list[float]]], np.ndarray] | None:
+        """The coordinates with mass of a condensed eigen solve: ``(loads, M)``, one unit load
+        (node, ndf-vector) per coordinate and the mass matrix in those coordinates. A rigid
+        diaphragm contributes its retained node's in-plane translations and rotation, with the
+        mass and polar inertia of all its nodes about it; every other unrestrained DOF with mass
+        one coordinate. None when the condensation does not apply (a diaphragm not
+        perpendicular to Z, a mass on a node tied by another constraint, too many
+        coordinates): the caller then solves dense."""
+        idx = self._dof_idx
+        ndf = len(idx)
+        position = {c: k for k, c in enumerate(idx)}
+        nodes = {n.id: n for n in self.project.nodes}
+        diaphragms: list[RigidDiaphragmConstraint] = []
+        in_diaphragm: set[int] = set()
+        tied: set[int] = set()
+        for mp in self.project.mp_constraints:
+            if isinstance(mp, RigidDiaphragmConstraint):
+                if mp.perp_dir != 3 or ndf != 6:
+                    return None
+                diaphragms.append(mp)
+                in_diaphragm.update([mp.retained_node, *mp.constrained_nodes])
+            else:
+                tied.update(constrained_nodes(mp))
+
+        def unit(node: int, canonical: int) -> tuple[int, list[float]]:
+            vector = [0.0] * ndf
+            vector[position[canonical]] = 1.0
+            return node, vector
+
+        loads: list[tuple[int, list[float]]] = []
+        blocks: list[tuple[list[int], np.ndarray]] = []
+        plane = (0, 1, 5)
+        for mp in diaphragms:
+            master = nodes[mp.retained_node]
+            block = np.zeros((3, 3))
+            for nid in (mp.retained_node, *mp.constrained_nodes):
+                node = nodes[nid]
+                dx = node.coords[0] - master.coords[0]
+                dy = node.coords[1] - master.coords[1]
+                t = np.array([[1.0, 0.0, -dy], [0.0, 1.0, dx], [0.0, 0.0, 1.0]])
+                block += t.T @ np.diag([node.mass[c] for c in plane]) @ t
+            keep = [k for k, c in enumerate(plane) if not master.restraint[c] and block[k, k] > 0]
+            start = len(loads)
+            loads.extend(unit(master.id, plane[k]) for k in keep)
+            blocks.append((list(range(start, len(loads))), block[np.ix_(keep, keep)]))
+        for node in self.project.nodes:
+            for c in idx:
+                if not node.mass[c] or node.restraint[c]:
+                    continue
+                if node.id in in_diaphragm and c in plane:
+                    continue
+                if node.id in tied:
+                    return None
+                loads.append(unit(node.id, c))
+                blocks.append(([len(loads) - 1], np.array([[float(node.mass[c])]])))
+        if not loads or len(loads) > CONDENSED_MAX_COORDINATES:
+            return None
+        mass = np.zeros((len(loads), len(loads)))
+        for rows, block in blocks:
+            mass[np.ix_(rows, rows)] = block
+        return loads, mass
+
+    def _condensed_modes(
+        self, n_modes: int, loads: list[tuple[int, list[float]]], mass: np.ndarray
+    ) -> tuple[np.ndarray, dict[int, dict[int, np.ndarray]]]:
+        """Eigenvalues and mode shapes from the stiffness condensed onto the coordinates with
+        mass (:meth:`_mass_coordinates`). One linear static solve per coordinate gives the
+        displacement fields ``U`` and the flexibility ``F`` among the coordinates; the massless
+        DOF carry no inertia, so ``F·M·φ = φ/ω²`` is the exact eigen problem, and each mode
+        shape is the static response to its inertia forces, ``U·M·φ·ω²`` (mass-normalized, as
+        OpenSees returns them). Direct, so as reproducible as the dense solver."""
+        ops = self._ops
+        ndf = len(self._dof_idx)
+        ids = [n.id for n in self.project.nodes]
+        series = 1 + max([t.id for t in self.project.time_series] + [0])
+        pattern = 1 + max([p.id for p in self.project.load_patterns] + [0])
+        ops.wipeAnalysis()
+        ops.timeSeries("Constant", series)
+        ops.system("BandGeneral")
+        ops.numberer("RCM")
+        ops.constraints(self._constraints_handler("Plain"))
+        ops.test("NormDispIncr", 1e-8, 10)
+        ops.algorithm("Linear", "-factorOnce")
+        ops.integrator("LoadControl", 1.0)
+        ops.analysis("Static")
+        fields = np.zeros((len(ids) * ndf, len(loads)))
+        flexibility = np.zeros((len(loads), len(loads)))
+        row = {nid: k * ndf for k, nid in enumerate(ids)}
+        for k, (node, vector) in enumerate(loads):
+            ops.pattern("Plain", pattern, series)
+            ops.load(node, *vector)
+            if ops.analyze(1) != 0:
+                raise RuntimeError(f"Condensed eigen analysis: the unit load {k + 1} failed.")
+            for nid in ids:
+                fields[row[nid] : row[nid] + ndf, k] = ops.nodeDisp(nid)[:ndf]
+            ops.remove("loadPattern", pattern)
+            ops.reset()
+        for a, (node, vector) in enumerate(loads):
+            flexibility[a, :] = np.asarray(vector) @ fields[row[node] : row[node] + ndf, :]
+        flexibility = (flexibility + flexibility.T) / 2
+        values, vectors = np.linalg.eigh(mass)
+        root = vectors @ np.diag(np.sqrt(np.clip(values, 0.0, None))) @ vectors.T
+        lam, psi = np.linalg.eigh(root @ flexibility @ root)
+        order = np.argsort(lam)[::-1]
+        positive = [k for k in order if lam[k] > 1e-12 * max(lam[order[0]], 1e-300)]
+        chosen = positive[:n_modes]
+        eigenvalues = np.array([1.0 / lam[k] for k in chosen], dtype=float)
+        shapes: dict[int, dict[int, np.ndarray]] = {}
+        for mode, k in enumerate(chosen, start=1):
+            full = fields @ (root @ psi[:, k]) / lam[k]
+            shapes[mode] = {nid: full[row[nid] : row[nid] + ndf].copy() for nid in ids}
+        ops.wipeAnalysis()
+        return eigenvalues, shapes
 
     def _run_transient(self, case: TransientCase, results_dir: Path) -> TransientResults:
         ops = self._ops

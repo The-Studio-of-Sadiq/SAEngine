@@ -368,3 +368,19 @@ def test_floor_plan_drawing_like_the_app(sample: Path):
         "polygon", [(-150, -250), (150, -250), (150, 250), (-150, 250)])  # fmt: skip
     grid_only, _ = floor_plan_drawing(layout, objects, "nowhere")
     assert {e["layer"] for e in grid_only} == {"S-GRID", "S-GRID-IDEN"}
+
+
+def test_member_loads_count_once_recorded_or_once_they_have_a_load():
+    """``05 Floor Plan/loads.json`` as a source of the analysis model, as femDerivationBar.ts."""
+    from saengine.library.bim import source_stamp
+
+    wall = json.dumps({"loads": [{"id": "L1", "story": "L1", "member": "B1", "value": 10}]})
+    none = json.dumps({"loads": []})
+    texts = {"bim": "b", "settings": "s", "objects": "o", "materials": "m", "loads": wall}
+    sources = "; ".join(f"{k}={source_stamp(v)}" for k, v in list(texts.items())[:4])
+    assert R.derivation_state(f"Sources: {sources}", texts) == (True, ["Line Loads"])
+    assert R.derivation_state(f"Sources: {sources}", {**texts, "loads": none}) == (True, [])
+    assert R.derivation_state(f"Sources: {sources}", {**texts, "loads": None}) == (True, [])
+    current = f"Sources: {sources}; loads={source_stamp(wall)}"
+    assert R.derivation_state(current, texts) == (True, [])
+    assert R.derivation_state(current, {**texts, "loads": none}) == (True, ["Line Loads"])

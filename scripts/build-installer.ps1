@@ -19,7 +19,10 @@
          with a design-day run (scripts\installer\energyplus_runtime.py). With -LibreCADDir,
          copies the LibreCAD program folder (a separate GPL-2.0 program that edits the DXF
          drawings SAEngine exports; never linked) to VSCode-win32-x64\resources\librecad
-         (scripts\installer\librecad_bundle.py). Replaces the Code - OSS launcher
+         (scripts\installer\librecad_bundle.py). With -LibreDWGDir, copies GNU LibreDWG's
+         dwg2dxf (a separate GPL-3.0+ program that converts the architects' DWG drawings to DXF;
+         never linked) to VSCode-win32-x64\resources\libredwg
+         (scripts\installer\libredwg_bundle.py). Replaces the Code - OSS launcher
          bin\saengine.cmd by the SAEngine command line shim (scripts\installer\saengine.cmd,
          python -m saengine.cli); the launcher stays as bin\saengine-app.cmd.
       4. Writes THIRD_PARTY_NOTICES.txt (the viewer bundles' npm packages and the Python
@@ -29,6 +32,10 @@
          dist\SAEngine-<version>-third-party-sources, to be published next to the setup.
       5. Runs Inno Setup (gulp vscode-win32-x64-user-setup) and copies the setup to
          dist\SAEngine-x64-user-setup-<version>.exe with a .sha256 file next to it.
+         The SAEngine version is stamped into the packaged product.json (saengineVersion),
+         which the in-app update check compares with the GitHub releases.
+         Code signing: not yet (docs\release.md). SAENGINE_SIGN_HOOK may name a script that
+         is called before Inno Setup with the app folder and after it with the setup.
       6. Prints sizes and timings.
 
     Docs: docs\install\README.md
@@ -75,6 +82,17 @@
     Defaults to SAENGINE_LIBRECAD_LICENSES. LibreCAD's own installer ships none; the release
     build requires them.
 
+.PARAMETER LibreDWGDir
+    The official GNU LibreDWG 0.14 Windows build libredwg-0.14-win64.zip, unpacked (the folder
+    with dwg2dxf.exe is found inside). Defaults to the SAENGINE_LIBREDWG_DIR environment
+    variable. Only dwg2dxf.exe and libredwg-0.dll are bundled. Optional: without it the app is
+    built without LibreDWG and DWG underlays and imports ask for the drawing as DXF.
+
+.PARAMETER LibreDWGLicenseDir
+    A folder of licence texts bundled into resources\libredwg\licenses (LibreDWG's COPYING:
+    scripts\ci\fetch_pinned.py libredwg-copying). Defaults to SAENGINE_LIBREDWG_LICENSES. The
+    Windows zip ships none; the release build requires it.
+
 .PARAMETER LibreCADOnly
     Run only the LibreCAD step (into the existing app folder, with its bundled Python or the
     development .venv), for testing it in isolation. With -DryRun nothing is copied.
@@ -105,6 +123,8 @@ param(
     [string]$EnergyPlusDir = $env:SAENGINE_ENERGYPLUS_DIR,
     [string]$LibreCADDir = $env:SAENGINE_LIBRECAD_DIR,
     [string]$LibreCADLicenseDir = $env:SAENGINE_LIBRECAD_LICENSES,
+    [string]$LibreDWGDir = $env:SAENGINE_LIBREDWG_DIR,
+    [string]$LibreDWGLicenseDir = $env:SAENGINE_LIBREDWG_LICENSES,
     [switch]$LibreCADOnly,
     [switch]$DryRun,
     [switch]$AllowUnpinnedSources,
@@ -163,6 +183,23 @@ function Invoke-Gulp {
     $timings["gulp $Task"] = $started.Elapsed
 }
 
+# SIGNING HOOK (unused until the setup is code-signed; see docs\release.md). When the
+# SAENGINE_SIGN_HOOK environment variable names a PowerShell script, it is called twice:
+# -Stage app -Path <app folder> before Inno Setup (sign SAEngine.exe and the other executables
+# that ship), and -Stage setup -Path <setup .exe> before its SHA-256 is written. It must sign in
+# place and fail (throw or exit non-zero) when it cannot. Without it the build is unsigned.
+function Invoke-SigningHook {
+    param([string]$Stage, [string]$Path)
+    if (-not $env:SAENGINE_SIGN_HOOK) { return }
+    if (-not (Test-Path -LiteralPath $env:SAENGINE_SIGN_HOOK)) {
+        throw "SAENGINE_SIGN_HOOK $env:SAENGINE_SIGN_HOOK does not exist."
+    }
+    Write-Step "Signing ($Stage): $Path"
+    $global:LASTEXITCODE = 0
+    & $env:SAENGINE_SIGN_HOOK -Stage $Stage -Path $Path
+    if ($LASTEXITCODE -ne 0) { throw "The signing hook failed for $Stage (exit code $LASTEXITCODE)." }
+}
+
 function Get-FolderSize([string]$Path) {
     if (-not (Test-Path -LiteralPath $Path)) { return 0 }
     $sum = (Get-ChildItem -LiteralPath $Path -Recurse -File -Force | Measure-Object -Property Length -Sum).Sum
@@ -204,6 +241,22 @@ function Invoke-LibreCADBundle {
     else { Write-Warning 'No Microsoft.VC14x.CRT folder found (vswhere): the bundled LibreCAD needs the Visual C++ runtime installed on the PC.' }
     if ($Plan) { $bundleArgs += '--dry-run' }
     Invoke-Native $Python $bundleArgs 'Bundling LibreCAD'
+}
+
+# GNU LibreDWG: a separate program (GPL-3.0-or-later) the backend runs to convert DWG drawings to
+# DXF; never linked. Only dwg2dxf.exe and libredwg-0.dll are copied, with the licence text, and
+# the copy is checked by running it (libredwg_bundle.py).
+function Invoke-LibreDWGBundle {
+    param([string]$Python, [string]$Dest)
+    $bundleArgs = @('-I', '-B', (Join-Path $installerScripts 'libredwg_bundle.py'), '--source', $LibreDWGDir,
+        '--dest', $Dest, '--expect-version', '0.14')
+    if ($LibreDWGLicenseDir) {
+        foreach ($file in Get-ChildItem -LiteralPath $LibreDWGLicenseDir -File) {
+            $bundleArgs += @('--license', $file.FullName)
+        }
+        $bundleArgs += '--require-licenses'
+    }
+    Invoke-Native $Python $bundleArgs 'Bundling LibreDWG'
 }
 
 # Visual Studio's x64 Visual C++ redistributable folder (VC\Redist\MSVC\<version>\x64\
@@ -287,6 +340,12 @@ if ($LibreCADDir -and -not (Test-Path -LiteralPath $LibreCADDir)) {
 }
 if ($LibreCADLicenseDir -and -not (Test-Path -LiteralPath $LibreCADLicenseDir)) {
     $problems += "-LibreCADLicenseDir (or SAENGINE_LIBRECAD_LICENSES) $LibreCADLicenseDir does not exist."
+}
+if ($LibreDWGDir -and -not (Test-Path -LiteralPath $LibreDWGDir)) {
+    $problems += "-LibreDWGDir (or SAENGINE_LIBREDWG_DIR) $LibreDWGDir does not exist."
+}
+if ($LibreDWGLicenseDir -and -not (Test-Path -LiteralPath $LibreDWGLicenseDir)) {
+    $problems += "-LibreDWGLicenseDir (or SAENGINE_LIBREDWG_LICENSES) $LibreDWGLicenseDir does not exist."
 }
 if ($problems.Count -gt 0) {
     throw ("Cannot build the installer:`n  - " + ($problems -join "`n  - "))
@@ -389,6 +448,20 @@ if (-not (Test-Path $exe) -or -not (Test-Path (Join-Path $appRoot 'out\main.js')
 $packagedProduct = Get-Content (Join-Path $appRoot 'product.json') -Raw | ConvertFrom-Json
 if (-not ($packagedProduct.PSObject.Properties.Name -contains 'commit') -or -not $packagedProduct.commit) {
     throw "The packaged product.json has no commit, so the app would run as if from sources. Rebuild without -SkipAppBuild."
+}
+# The in-app update check (workbench contrib saengineUpdate) compares this version with the
+# setups of the GitHub releases. Inserted as text: rewriting product.json with ConvertTo-Json
+# would reformat it. Safe to run again (-SkipAppBuild): an existing value is replaced.
+$packagedProductFile = Join-Path $appRoot 'product.json'
+$productText = [IO.File]::ReadAllText($packagedProductFile)
+if ($productText -match '"saengineVersion"\s*:') {
+    $productText = $productText -replace '"saengineVersion"\s*:\s*"[^"]*"', "`"saengineVersion`": `"$Version`""
+} else {
+    $productText = ([regex]'^\s*\{').Replace($productText, "{`n`t`"saengineVersion`": `"$Version`",", 1)
+}
+[IO.File]::WriteAllText($packagedProductFile, $productText, (New-Object Text.UTF8Encoding $false))
+if ((Get-Content -LiteralPath $packagedProductFile -Raw | ConvertFrom-Json).saengineVersion -ne $Version) {
+    throw "Could not stamp saengineVersion $Version into $packagedProductFile."
 }
 if (-not (Test-Path (Join-Path $appDir 'tools\inno_updater.exe'))) {
     Invoke-Gulp 'vscode-win32-x64-inno-updater'
@@ -505,6 +578,18 @@ if ($LibreCADDir) {
 }
 $libreCADManifest = Join-Path $appLibreCAD 'SAENGINE-BUNDLE.json'
 
+$appLibreDWG = Join-Path $appDir 'resources\libredwg'
+Remove-Tree $appLibreDWG
+if ($LibreDWGDir) {
+    Write-Step 'Copying GNU LibreDWG 0.14 (a separate program that converts DWG to DXF) into the app'
+    $started = [Diagnostics.Stopwatch]::StartNew()
+    Invoke-LibreDWGBundle -Python (Join-Path $appPython 'python.exe') -Dest $appLibreDWG
+    $timings['LibreDWG'] = $started.Elapsed
+} else {
+    Write-Host 'LibreDWG is not bundled (no -LibreDWGDir or SAENGINE_LIBREDWG_DIR): DWG drawings will have to be saved as DXF first.'
+}
+$libreDWGManifest = Join-Path $appLibreDWG 'SAENGINE-BUNDLE.json'
+
 # --- 4. Notices ------------------------------------------------------------------------------
 Write-Step 'Writing THIRD_PARTY_NOTICES.txt and LICENSE.txt'
 $sourcesName = "$($product.nameShort)-$Version-third-party-sources"
@@ -514,13 +599,14 @@ Invoke-Native (Join-Path $appPython 'python.exe') @('-I', '-B', (Join-Path $inst
     '--python-license', (Join-Path $appPython 'LICENSE.txt'),
     '--js-package', (Join-Path $repoRoot 'packages\fem-viewer'), '--js-package', (Join-Path $repoRoot 'packages\cad-editor'),
     '--copyleft-sources', (Join-Path $installerScripts 'copyleft-sources.json'), '--sources-name', $sourcesName,
-    '--energyplus', $appEnergyPlus, '--librecad', $appLibreCAD) 'Writing the notices'
+    '--energyplus', $appEnergyPlus, '--librecad', $appLibreCAD, '--libredwg', $appLibreDWG) 'Writing the notices'
 
 Write-Step 'Collecting the source archives of the copyleft binaries'
 $sourcesDir = Join-Path $distDir $sourcesName
 $started = [Diagnostics.Stopwatch]::StartNew()
 $sourcesArgs = @{ RepoRoot = $repoRoot; CacheDir = (Join-Path $workDir 'cache\sources'); OutDir = $sourcesDir }
 if (Test-Path -LiteralPath $libreCADManifest) { $sourcesArgs['LibreCADManifest'] = $libreCADManifest }
+if (Test-Path -LiteralPath $libreDWGManifest) { $sourcesArgs['LibreDWGManifest'] = $libreDWGManifest }
 if ($AllowUnpinnedSources) { $sourcesArgs['AllowUnpinned'] = $true }
 & (Join-Path $installerScripts 'fetch-sources.ps1') @sourcesArgs
 $timings['copyleft sources'] = $started.Elapsed
@@ -528,6 +614,7 @@ $timings['copyleft sources'] = $started.Elapsed
 # --- 5. Inno Setup ---------------------------------------------------------------------------
 $setupFile = $null
 if (-not $SkipSetup) {
+    Invoke-SigningHook -Stage 'app' -Path $appDir
     Write-Step 'Building the user setup with Inno Setup (gulp vscode-win32-x64-user-setup, several minutes)'
     Invoke-Gulp 'vscode-win32-x64-user-setup'
     $built = Get-ChildItem -LiteralPath $setupDir -Filter '*.exe' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
@@ -535,6 +622,7 @@ if (-not $SkipSetup) {
     $null = New-Item -ItemType Directory -Path $distDir -Force
     $setupFile = Join-Path $distDir "$($product.nameShort)-x64-user-setup-$Version.exe"
     Copy-Item -LiteralPath $built.FullName -Destination $setupFile -Force
+    Invoke-SigningHook -Stage 'setup' -Path $setupFile
     $hash = (Get-FileHash -LiteralPath $setupFile -Algorithm SHA256).Hash.ToLowerInvariant()
     Set-Content -Path "$setupFile.sha256" -Value "$hash *$(Split-Path -Leaf $setupFile)" -Encoding ascii
 }
@@ -551,6 +639,9 @@ if (Test-Path $appEnergyPlus) {
 }
 if (Test-Path $appLibreCAD) {
     $rows += [pscustomobject]@{ Item = '  of which resources\librecad'; Size = Format-Size (Get-FolderSize $appLibreCAD) }
+}
+if (Test-Path $appLibreDWG) {
+    $rows += [pscustomobject]@{ Item = '  of which resources\libredwg'; Size = Format-Size (Get-FolderSize $appLibreDWG) }
 }
 if ($setupFile) {
     $rows += [pscustomobject]@{ Item = (Split-Path -Leaf $setupFile); Size = Format-Size (Get-Item $setupFile).Length }

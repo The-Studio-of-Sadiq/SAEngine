@@ -28,11 +28,24 @@ import { hasHvac, HVAC_REPORT_COMMAND, hvacFailures, hvacSummaryFile, IHvacRepor
 import { ELECTRICAL_REPORT_COMMAND, electricalFailures, electricalSummaryFile, hasElectrical, IElectricalReport, readElectricalReport } from '../../saengineMep/browser/electricalDocument.js';
 import { FIRE_REPORT_COMMAND, fireFailures, fireSummaryFile, hasFire, IFireReport, readFireReport } from '../../saengineMep/browser/fireDocument.js';
 import { DRAWINGS_GENERATE_COMMAND, DRAWINGS_LIST_COMMAND, readDrawingSet } from '../../saengineProject/browser/drawingsModel.js';
-import { DERIVATION_INPUTS, deriveAnalysisModel, derivationState, partFile, SSI_FILE } from '../browser/femDerivationBar.js';
+import { DERIVATION_INPUTS, deriveAnalysisModel, derivationState, LOADS_DERIVATION_SOURCE, partFile, SSI_FILE } from '../browser/femDerivationBar.js';
 import { SSI_COMPARE_COMMAND } from '../browser/femSsi.js';
 import { IFemDesignReport, IFemDesignRequired, runDesign, runDesignRequired, shortElements, tooSmallElements, writeDesignSummary } from '../browser/femDesign.js';
 import { errorSummary } from '../browser/femResultsBar.js';
 import { FemAnalysisRunner } from './femAnalysisRunner.js';
+
+/** Internal command of the mesh convergence check (`saengine.fem.mesh_check`). */
+const MESH_CHECK_COMMAND = 'saengine.fem.meshCheck';
+
+/** What the mesh check answers (read defensively). */
+interface IMeshCheck {
+	readonly warning?: boolean;
+	readonly maxChangePercent?: number;
+	readonly coarseSize_mm?: number;
+	readonly skipped?: string;
+}
+import { FemModelEditorInput } from '../browser/femModelEditorInput.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 /** Command id of Run All, and of cancelling it (the status bar entry runs it). */
 export const RUN_ALL_COMMAND_ID = 'saengine.runAll';
@@ -128,6 +141,7 @@ export class RunAllService implements IRunAllService {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IEditorService private readonly editorService: IEditorService,
 	) { }
 
 	get running(): boolean {
@@ -169,6 +183,9 @@ export class RunAllService implements IRunAllService {
 			if (outcome.status !== 'done') {
 				throw new StepFailure(outcome.message ?? outcome.status);
 			}
+			report(localize('runAll.meshCheck', "mesh check"));
+			await this.checkMesh(project);
+			this.check(token);
 
 			step = 2;
 			report();
@@ -204,7 +221,11 @@ export class RunAllService implements IRunAllService {
 			const drawings = await this.drawings(project, design.report);
 			this.check(token);
 
-			this.showSummary(design, foundations, mep, derived, boqUpdated, pdf, drawings);
+			// The engineer lands on the results (in 3D, the charts a click away), not on a summary
+			// alone. Only now: the FEM editor works out the response spectrum design of the run as it
+			// opens, which the design checks above also write (rs-design), so not while they run.
+			await this.showResults(model);
+			this.showSummary(model, design, foundations, mep, derived, boqUpdated, pdf, drawings);
 		} catch (error) {
 			if (error instanceof CancellationError || token.isCancellationRequested) {
 				this.notificationService.notify({ severity: Severity.Info, message: localize('runAll.cancelled', "Run All cancelled at step {0} of {1} ({2}).", step + 1, STEPS.length, STEPS[step].label) });
@@ -277,12 +298,12 @@ export class RunAllService implements IRunAllService {
 		const texts = new Map<string, string | undefined>();
 		for (const id of ids) {
 			const part = partById(id);
-			if (!part?.mainFile) {
+			if (!part?.mainFile && id !== LOADS_DERIVATION_SOURCE.part) {
 				texts.set(id, undefined);
 				continue;
 			}
 			try {
-				const content = await this.fileService.readFile(joinPath(project.root, part.folder, part.mainFile));
+				const content = await this.fileService.readFile(part?.mainFile ? joinPath(project.root, part.folder, part.mainFile) : partFile(project.root, id));
 				texts.set(id, content.value.toString());
 			} catch {
 				texts.set(id, undefined);
@@ -390,6 +411,27 @@ export class RunAllService implements IRunAllService {
 			await this.commandService.executeCommand(SSI_COMPARE_COMMAND, { projectRoot: project.root.fsPath });
 		} catch (error) {
 			throw new StepFailure(errorSummary(error));
+		}
+	}
+
+	/**
+	 * The mesh convergence check (`analysis.meshCheck`, `saengine.fem.mesh_check`): a warning
+	 * when a beam's gravity end moment changes by more than 5 % on a mesh twice as coarse; never
+	 * stops Run All (mirrors `_analysis` of `saengine.pipeline.run_all`).
+	 */
+	private async checkMesh(project: ISaengineProject): Promise<void> {
+		let result: IMeshCheck | undefined;
+		try {
+			result = await this.commandService.executeCommand<IMeshCheck>(MESH_CHECK_COMMAND, { projectRoot: project.root.fsPath });
+		} catch (error) {
+			this.notificationService.notify({ severity: Severity.Warning, message: localize('runAll.meshCheckFailed', "The mesh check could not be run: {0}", errorSummary(error)) });
+			return;
+		}
+		if (result?.warning) {
+			this.notificationService.notify({
+				severity: Severity.Warning,
+				message: localize('runAll.meshWarning', "Mesh check: the beams' gravity end moments change by up to {0} % on a mesh twice as coarse ({1} mm); the mesh is not converged. Make Mesh Size smaller in Project Settings, Analysis model.", (result.maxChangePercent ?? 0).toFixed(1), result.coarseSize_mm ?? 0),
+			});
 		}
 	}
 
@@ -561,7 +603,7 @@ export class RunAllService implements IRunAllService {
 	}
 
 	/** "Done: 13 pass, 3 fail · foundations 6 pass, 1 fail · MEP: failing openings 1, open clashes 2 · plumbing: 3 checks fail, 1 floor below the minimum pressure · HVAC: failing checks 1, openings to add 0, loads not calculated: run Calculate Loads · electrical: failing checks 0, openings to add 1 · BOQ updated · report written", with Open Report. */
-	private showSummary(checks: { readonly report: IFemDesignReport; readonly required: IFemDesignRequired | undefined }, foundations: ISubstructureReport | undefined, checked: IMepChecks | undefined, derived: boolean, boqUpdated: boolean, pdf: URI, drawings: DrawingsOutcome): void {
+	private showSummary(model: URI, checks: { readonly report: IFemDesignReport; readonly required: IFemDesignRequired | undefined }, foundations: ISubstructureReport | undefined, checked: IMepChecks | undefined, derived: boolean, boqUpdated: boolean, pdf: URI, drawings: DrawingsOutcome): void {
 		const mep = checked?.mep;
 		const failedOpenings = mep ? mep.openings.filter(o => !o.ok).length : 0;
 		const openClashes = mep ? mep.clashes.filter(isOpenClash).length : 0;
@@ -591,8 +633,20 @@ export class RunAllService implements IRunAllService {
 			...(drawings.kind === 'drawn' ? [localize('runAll.summary.drawings', "{0} drawing sheets drawn", drawings.sheets)] : drawings.kind === 'current' ? [localize('runAll.summary.drawingsCurrent', "drawings up to date")] : []),
 		];
 		this.notificationService.prompt(Severity.Info, localize('runAll.done', "Done: {0}", parts.join(' · ')), [{
+			label: localize('runAll.showResults', "Show Results"),
+			run: () => this.showResults(model),
+		}, {
 			label: localize('runAll.openReport', "Open Report"),
 			run: () => this.openerService.open(pdf, { openExternal: true }),
 		}]);
+	}
+
+	/** Opens the analysis model's results in the 3D view (the FEM editor picks a design combination). */
+	private async showResults(model: URI): Promise<void> {
+		try {
+			await this.editorService.openEditor(new FemModelEditorInput(model), { pinned: true });
+		} catch {
+			// The summary still says what was done; the results are in 8 FEM.
+		}
 	}
 }

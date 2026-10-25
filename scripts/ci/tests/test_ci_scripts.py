@@ -36,6 +36,7 @@ fetch = load(CI / "fetch_pinned.py")
 checker = load(CI / "check_verification.py")
 release = load(CI / "release.py")
 bundle = load(INSTALLER / "librecad_bundle.py")
+dwg_bundle = load(INSTALLER / "libredwg_bundle.py")
 notices = load(INSTALLER / "write_notices.py")
 
 
@@ -62,12 +63,16 @@ def test_manifest_pins_every_download() -> None:
         "librecad-gpl-2.0",
         "qt-lgpl-3.0",
         "qt-gpl-3.0",
+        "libredwg",
+        "libredwg-copying",
     } == set(items)
     assert (
         items["energyplus"]["sha256"]
         == "15ab698803f459444ec3e97ee52ab9f99db93a583819c7821b17dfcd7b4461e7"
     )
     assert items["librecad"]["url"].endswith("/v2.2.1.6/LibreCAD-v2.2.1.6-win64-msvc.exe")
+    assert items["libredwg"]["url"].endswith("/0.14/libredwg-0.14-win64.zip")
+    assert items["libredwg"]["unpack"] == "zip" and items["libredwg"]["program"] == "dwg2dxf.exe"
     assert all(item["url"].startswith("https://") for item in items.values())
 
 
@@ -93,7 +98,8 @@ def test_download_keeps_only_a_verified_file(tmp_path: Path) -> None:
     data = b"x" * 5000
     calls = []
 
-    def opener(request):
+    def opener(request, timeout=None):
+        assert timeout == fetch.TIMEOUT
         calls.append(request.full_url)
         return io.BytesIO(data)
 
@@ -104,6 +110,44 @@ def test_download_keeps_only_a_verified_file(tmp_path: Path) -> None:
     with pytest.raises(fetch.PinError):
         fetch.download({**item_for(data), "file": "bad.bin", "sha256": "1" * 64}, tmp_path, opener)
     assert not (tmp_path / "bad.bin").exists() and not (tmp_path / "bad.bin.partial").exists()
+
+
+def test_download_retries_and_gives_up(tmp_path: Path) -> None:
+    data = b"y" * 3000
+    failures = [TimeoutError("timed out"), ConnectionResetError("reset")]
+    pauses = []
+
+    def flaky(request, timeout=None):
+        if failures:
+            raise failures.pop(0)
+        return io.BytesIO(data)
+
+    target = fetch.download(item_for(data), tmp_path, opener=flaky, sleep=pauses.append)
+    assert target.read_bytes() == data and pauses == [15, 30]
+
+    def dead(request, timeout=None):
+        raise TimeoutError("timed out")
+
+    pauses.clear()
+    with pytest.raises(fetch.PinError, match="after 4 attempts"):
+        fetch.download({**item_for(data), "file": "dead.bin"}, tmp_path, dead, pauses.append)
+    assert len(pauses) == fetch.ATTEMPTS - 1
+    assert not (tmp_path / "dead.bin.partial").exists()
+
+
+def test_slow_transfer_is_abandoned() -> None:
+    ticks = iter(range(0, 10_000, 100))  # 1 kB every 100 s
+    blocks = [b"z" * 1000] * 5
+
+    class Slow:
+        def read(self, size):
+            return blocks.pop(0) if blocks else b""
+
+    with pytest.raises(TimeoutError, match="kB/s"):
+        fetch.copy_with_deadline(Slow(), io.BytesIO(), clock=lambda: next(ticks))
+    fast = io.BytesIO()
+    fetch.copy_with_deadline(io.BytesIO(b"q" * (3 << 20)), fast, clock=lambda: 0.0)
+    assert len(fast.getvalue()) == 3 << 20
 
 
 def test_unpack_zip_finds_the_program(tmp_path: Path) -> None:
@@ -406,6 +450,29 @@ def test_notices_librecad_section(tmp_path: Path) -> None:
     assert notices.librecad_bundle(tmp_path / "missing") is None
 
 
+def test_notices_list_libredwg_source_only_when_bundled(tmp_path: Path) -> None:
+    sources = json.loads((INSTALLER / "copyleft-sources.json").read_text(encoding="utf-8"))
+    assert "libredwg" not in [s["name"] for s in notices.shipped_sources(sources["sources"], None)]
+    shipped = notices.shipped_sources(sources["sources"], None, {"version": "0.14"})
+    assert [s["name"] for s in shipped][-1] == "libredwg"
+    assert shipped[-1]["version"] == "0.14" and shipped[-1]["file"] == "libredwg-0.14.tar.xz"
+    assert shipped[-1]["sha256"]
+
+
+def test_notices_libredwg_section(tmp_path: Path) -> None:
+    folder = tmp_path / "libredwg"
+    (folder / "licenses").mkdir(parents=True)
+    (folder / "licenses" / "COPYING").write_text("GNU GENERAL PUBLIC LICENSE Version 3")
+    data = {"version": "0.14", "licenses": ["licenses/COPYING"]}
+    (folder / "SAENGINE-BUNDLE.json").write_text(json.dumps(data))
+    loaded = notices.librecad_bundle(folder)
+    text = "".join(notices.libredwg_section(folder, loaded, "SAEngine-1-third-party-sources"))
+    assert "GNU LibreDWG 0.14" in text and "GPL-3.0-or-later" in text
+    assert "https://ftp.gnu.org/gnu/libredwg/libredwg-0.14.tar.xz" in text
+    assert "[resources/libredwg/licenses/COPYING]" in text and "Version 3" in text
+    assert "SAEngine-1-third-party-sources" in text
+
+
 def test_notices_freecad_profile_table(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import importlib.util
     import types
@@ -426,6 +493,70 @@ def test_notices_freecad_profile_table(tmp_path: Path, monkeypatch: pytest.Monke
     assert notices.FREECAD_COMMIT in text and "[freecad-profiles.LICENSE.txt]" in text
 
 
+# ── libredwg_bundle.py ──────────────────────────────────────────────────────────────────────
+
+
+def fake_libredwg(root: Path) -> Path:
+    folder = root / "unpacked"
+    for name in ("dwg2dxf.exe", "libredwg-0.dll", "dwgread.exe", "libiconv-2.dll", "README.txt"):
+        (folder / name).parent.mkdir(parents=True, exist_ok=True)
+        (folder / name).write_bytes(b"MZ" + name.encode())
+    (folder / "include").mkdir()
+    (folder / "include" / "dwg.h").write_text("/* */")
+    return root
+
+
+def test_libredwg_bundle_keeps_only_the_converter(tmp_path: Path) -> None:
+    source = fake_libredwg(tmp_path / "zip")
+    copying = tmp_path / "COPYING"
+    copying.write_text("GNU GENERAL PUBLIC LICENSE Version 3")
+    dest = tmp_path / "app" / "resources" / "libredwg"
+    manifest = dwg_bundle.bundle(
+        source, dest, [copying], "0.14", require_licenses=True, check=False
+    )
+    assert sorted(p.relative_to(dest).as_posix() for p in dest.rglob("*") if p.is_file()) == [
+        "SAENGINE-BUNDLE.json",
+        "dwg2dxf.exe",
+        "libredwg-0.dll",
+        "licenses/COPYING",
+    ]
+    saved = json.loads((dest / "SAENGINE-BUNDLE.json").read_text(encoding="utf-8"))
+    assert saved == manifest
+    assert (saved["version"], saved["license"], saved["licenses"], saved["files"]) == (
+        "0.14",
+        "GPL-3.0-or-later",
+        ["licenses/COPYING"],
+        3,
+    )
+    assert saved["source"] == "unpacked"
+
+
+def test_libredwg_bundle_refusals(tmp_path: Path) -> None:
+    source = fake_libredwg(tmp_path / "zip")
+    dest = tmp_path / "dest"
+    with pytest.raises(dwg_bundle.BundleError, match="COPYING"):
+        dwg_bundle.bundle(source, dest, [], require_licenses=True, check=False)
+    (source / "unpacked" / "libredwg-0.dll").unlink()
+    with pytest.raises(dwg_bundle.BundleError, match="libredwg-0.dll"):
+        dwg_bundle.bundle(source, dest, check=False)
+    (tmp_path / "empty").mkdir()
+    with pytest.raises(dwg_bundle.BundleError, match="holds no dwg2dxf.exe"):
+        dwg_bundle.bundle(tmp_path / "empty", dest, check=False)
+    # A program that does not run is refused when checked.
+    (source / "unpacked" / "libredwg-0.dll").write_bytes(b"MZ")
+    with pytest.raises(dwg_bundle.BundleError, match="does not run|answered"):
+        dwg_bundle.bundle(source, dest)
+    assert not dest.exists()
+
+
+def test_libredwg_bundle_dry_run(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    source = fake_libredwg(tmp_path / "zip")
+    dest = tmp_path / "dest"
+    dwg_bundle.bundle(source, dest, check=False, dry_run=True, expect_version="0.14")
+    assert not dest.exists()
+    assert "copy dwg2dxf.exe" in capsys.readouterr().out
+
+
 # ── release.py ──────────────────────────────────────────────────────────────────────────────
 
 
@@ -436,6 +567,27 @@ def test_release_version() -> None:
         release.release_version("Pre-Alpha-v5", None, "Fix the soil page")
     with pytest.raises(release.ReleaseError, match="Pre-Alpha-v"):
         release.release_number("v1.0")
+
+
+def test_test_build_version() -> None:
+    assert release.test_build_version(None, "0.0.42", "17") == "0.0.42-ci.17"
+    assert release.test_build_version("0.0.42-try.1", "0.0.42", "17") == "0.0.42-try.1"
+    with pytest.raises(release.ReleaseError, match="x.y.z"):
+        release.test_build_version(None, "next", "17")
+    with pytest.raises(release.ReleaseError, match="run number"):
+        release.test_build_version(None, "0.0.42", "")
+    with pytest.raises(release.ReleaseError):
+        release.test_build_version("bad version", "0.0.42", "1")
+
+
+def test_test_build_assets_ignore_the_release_folders(tmp_path: Path) -> None:
+    fake_release_repo(tmp_path, "0.0.42-ci.3", "Pre-Alpha-v5")
+    (tmp_path / "docs" / "release" / "stray.pdf").write_bytes(b"%PDF")
+    assets, notes = release.collect_assets("", "0.0.42-ci.3", tmp_path / "out", repo=tmp_path)
+    names = {a.name for a in assets}
+    assert "stray.pdf" not in names and "SAEngine.Testing.Guide.pdf" not in names
+    assert "SAEngine-x64-user-setup-0.0.42-ci.3.exe" in names
+    assert "Alpha software" in notes.read_text(encoding="utf-8")
 
 
 def fake_release_repo(root: Path, version: str, tag: str) -> None:

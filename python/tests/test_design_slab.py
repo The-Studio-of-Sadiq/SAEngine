@@ -313,6 +313,24 @@ def test_face_stations_keep_the_shear_of_an_interior_support(mesh: float) -> Non
     assert averages[4850][0] == pytest.approx(-2975, rel=1e-6)
 
 
+def test_a_row_of_shells_out_of_line_is_one_position_along() -> None:
+    # The middle strip of the one-bay frame's slab on its 625 mm mesh: 600 x 625 shells, the
+    # mesh estimated at 612.4 mm, rows of four shells across 600 mm apart along. The row at
+    # x = 3.3 m is out of line by 4-10 mm, across the edge of a quarter-mesh step (21.5 x
+    # 153.1 = 3291.6 mm): counted as two positions, a parabola through the two rows next to the
+    # station at x = 3 m bent to the 1 mm scatter (20 kN·m/m from 7.5). A field constant along
+    # the strip averages to its mean across at every station (the row's scatter tilts a fit by
+    # 0.002 %; through two positions counted as three: 3.56 and 11.58 either side of the row).
+    strip = Strip("X", "middle", "test", 1250.0, 3750.0, 200.0, 5800.0, 6000.0, 200.0, 200.0)
+    across = np.tile([1562.5, 2187.5, 2812.5, 3437.5], 10)
+    along = np.repeat(300.0 + 600.0 * np.arange(10), 4)
+    along[20:24] += [-5.0, -9.0, -4.0, -10.0]  # 3295, 3291, 3296, 3290 mm
+    values = np.where(np.isin(across, [2187.5, 2812.5]), 7.9, 7.2)[:, None]
+    averages = strip_average(strip, along, across, values, 612.4, areas=np.ones(len(along)))
+    assert [at for at, _ in averages] == pytest.approx(200.0 + 560.0 * np.arange(11))
+    assert all(value[0] == pytest.approx(7.55, rel=1e-4) for _, value in averages)
+
+
 def test_a_wall_supports_the_slabs_at_its_top_not_one_it_stands_on() -> None:
     from types import SimpleNamespace
 
@@ -487,11 +505,14 @@ COMBINATION = LoadCombination(name="1.2D + 1.6L + 1.6Lr", D=1.2, L=1.6, Lr=1.6)
 
 
 def shell_settings(name: str, mesh: float = 500):
+    """Shell slabs at ``mesh`` exactly (no span rule), without end offsets: the slab checks
+    against hand statics (the columns' rigid-zone self-weight would be in the nodal totals)."""
     s = default_project_settings(name)
+    analysis = {"slabs": "shells", "meshSize": mesh, "meshBySpan": False, "endOffsets": False}
     return s.model_copy(
         update={
             "combinations": [COMBINATION],
-            "analysis": s.analysis.model_copy(update={"slabs": "shells", "meshSize": mesh}),
+            "analysis": s.analysis.model_copy(update=analysis),
         }
     )
 
@@ -843,3 +864,28 @@ def test_two_way_slab_on_beams_passes_under_gravity(
     assert edge["kind"] == "column"
     assert edge["outline"] == [[0.2, 0.0], [5.8, 0.0], [5.8, 1.25], [0.2, 1.25]]
     assert sum(s["kind"] == "middle" for s in strips) == 2
+
+
+def test_strip_moments_of_a_mesh_with_rows_out_of_line(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> None:
+    # The two-way slab of the one-bay frame at 600 and 625 mm: the 625 mm shells (600 x 625,
+    # 80 quads) have rows whose centres scatter by up to 10 mm along, which once counted as two
+    # positions and bent a station's parabola (see the test of a row out of line).
+    slab = {"thickness": 150, "system": "twoWay", "reinforcement": planar().model_dump()}
+    fine, coarse = (
+        checks_of(
+            analyse(
+                tmp_path_factory.mktemp("rows"),
+                generate(PLAN, "s"),
+                objects(slab),
+                shell_settings("2", mesh),
+            ),
+            "S1",
+        )
+        for mesh in (600, 625)
+    )
+    for name in (f"Flexure {face} {d} (Wood-Armer)" for face in ("bottom", "top") for d in "XY"):
+        # Measured (600 -> 625): bottom X 7.66 -> 7.74, bottom Y 7.80 -> 7.82, top X 4.68 ->
+        # 4.55, top Y 3.93 -> 3.90 kN·m/m (at 625 before: 20.21, 11.35, 4.55, 10.05).
+        assert coarse[name]["demand"] == pytest.approx(fine[name]["demand"], rel=0.1), name

@@ -72,6 +72,7 @@ import os
 import shutil
 import subprocess
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -375,6 +376,51 @@ def spectrum_stiffness(
     return list(rs.get("section_overrides", []) or []), preloads
 
 
+def diaphragm_rotations(
+    project: dict[str, Any],
+) -> dict[int, Callable[[dict[Any, Any]], float]]:
+    """Per rigid diaphragm's retained node, a function giving the floor's rotation about Z from
+    nodal translations ``{node: [ux, uy, ...]}`` (as the response spectrum's modal peaks, which
+    carry no rotations): the floor is rigid in plan, so ``u_n = u_m + θ·(−dy, dx)`` and θ is the
+    least-squares fit over its nodes (exact for a rigid floor)."""
+    coords = {int(n["id"]): np.asarray(n["coords"], dtype=float) for n in project.get("nodes", [])}
+    found: dict[int, Callable[[dict[Any, Any]], float]] = {}
+    for mp in project.get("mp_constraints", []) or []:
+        if mp.get("type") != "RigidDiaphragm" or int(mp.get("perp_dir", 3)) != 3:
+            continue
+        master = int(mp["retained_node"])
+        if master not in coords:
+            continue
+        arms = {
+            int(n): coords[int(n)][:2] - coords[master][:2]
+            for n in mp.get("constrained_nodes", [])
+            if int(n) in coords
+        }
+
+        def theta(
+            peaks: dict[Any, Any], master: int = master, arms: dict[int, np.ndarray] = arms
+        ) -> float:
+            def at(node: int) -> np.ndarray | None:
+                u = peaks.get(node, peaks.get(str(node)))
+                return None if u is None else np.asarray(u, dtype=float)[:2]
+
+            base = at(master)
+            if base is None:
+                return 0.0
+            top = bottom = 0.0
+            for node, (dx, dy) in arms.items():
+                u = at(node)
+                if u is None:
+                    continue
+                du = u - base
+                top += dx * du[1] - dy * du[0]
+                bottom += dx * dx + dy * dy
+            return top / bottom if bottom > 1e-12 else 0.0
+
+        found[master] = theta
+    return found
+
+
 def modal_force_model(
     project: dict[str, Any], spectra: dict[str, dict[str, Any]], torsion: bool = True
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -412,8 +458,9 @@ def modal_force_model(
     first_pattern = max((int(p["id"]) for p in kept_patterns), default=0) + 1
     first_case = max(kept_cases, default=0) + 1
     masses = {
-        n["id"]: np.asarray(n.get("mass", [0.0] * 6), dtype=float)[:3] for n in project["nodes"]
+        n["id"]: np.asarray(n.get("mass", [0.0] * 6), dtype=float)[:6] for n in project["nodes"]
     }
+    turns = diaphragm_rotations(project)
     patterns: list[dict[str, Any]] = list(kept_patterns)
     analyses: list[dict[str, Any]] = list(kept_cases.values())
     cases: list[dict[str, Any]] = []
@@ -448,9 +495,14 @@ def modal_force_model(
                 m = masses.get(int(node_id))
                 if m is None or not np.any(m):
                     continue
-                force = omega**2 * m * np.asarray(u, dtype=float)[:3]
+                force = np.zeros(6)
+                force[:3] = omega**2 * m[:3] * np.asarray(u, dtype=float)[:3]
+                # The polar inertia lumped on a diaphragm's node turns with the floor: its
+                # inertia moment I·θ (θ from the floor's translations, the peaks having none).
+                if m[5] and int(node_id) in turns:
+                    force[5] = omega**2 * m[5] * turns[int(node_id)](peaks)
                 if np.any(force):
-                    nodal.append({"node_id": int(node_id), "forces": [*map(float, force), 0, 0, 0]})
+                    nodal.append({"node_id": int(node_id), "forces": [*map(float, force)]})
             if nodal:
                 add(
                     f"R{axis}{index + 1}: mode {mode['mode_number']} in {axis}",
@@ -495,6 +547,65 @@ def _run(model: dict[str, Any], folder: Path, ids: list[int] | None = None) -> P
             f"the response spectrum force run failed: {lines[-1] if lines else done.returncode}"
         )
     return out
+
+
+def fundamental_periods(project: dict[str, Any], folder: Path | None = None) -> dict[str, Any]:
+    """The fundamental period of the analysis model in X and in Y from its modal case (run on
+    its own, on the stiffness the modal case has: cracked sections, P-Delta preload): per
+    direction ``{"period" s, "mode", "massRatio"}``, the mode with the largest effective mass
+    in that direction (BNBC 2020 Part 6 Sec 2.5.7.2 (a), p. 627: a structural dynamics
+    procedure such as modal eigenvalue analysis). Raises ``ValueError`` when the model has no
+    modal case or masses, or the run fails. ``folder``: where to run (a temporary folder by
+    default)."""
+    import tempfile
+
+    from opensees_studio.services.result_store import load_manifest, load_results
+
+    analyses = {a["id"]: a for a in project.get("analyses", [])}
+    modal = next((a for a in analyses.values() if a.get("type") == "Modal"), None)
+    if modal is None:
+        raise ValueError("the model has no modal case")
+    kept = [modal] + [analyses[i] for i in modal.get("preload_case_ids", []) or [] if i in analyses]
+    model = {**project, "analyses": kept, "spectra": [], "ground_motions": []}
+    model["load_patterns"] = [
+        p for p in project.get("load_patterns", []) if p.get("type", "Plain") == "Plain"
+    ]
+    model["time_series"] = [s for s in project.get("time_series", []) if "record_id" not in s]
+    # Every DOF with mass counts in the generalized mass, the polar inertia lumped on a
+    # diaphragm's node (I·θ²) too, as in OpenSees Studio's mass participation.
+    mass = {
+        int(n["id"]): np.asarray(n.get("mass", [0.0] * 6), dtype=float)[:6]
+        for n in project.get("nodes", [])
+    }
+    mass = {n: np.pad(m, (0, 6 - m.size)) for n, m in mass.items()}
+    total = np.sum([m[:2] for m in mass.values()], axis=0) if mass else np.zeros(2)
+    if not np.any(total[:2]):
+        raise ValueError("the model has no masses")
+    with tempfile.TemporaryDirectory(prefix="saengine-period-") as tmp:
+        out = _run(model, Path(folder or tmp), [int(modal["id"])])
+        results = None
+        for entry in load_manifest(out)["cases"]:
+            if entry.get("result_type") == "ModalResults" or int(entry["case_id"]) == modal["id"]:
+                results = load_results(entry, out)
+                break
+        if results is None or not hasattr(results, "mode_shapes"):
+            raise ValueError("the modal case gave no modes")
+        best: dict[str, dict[str, Any]] = {}
+        for k, period in enumerate(results.periods, start=1):
+            shape = results.mode_shapes.get(k, {})
+            vectors = {int(n): np.asarray(v, dtype=float)[:6] for n, v in shape.items()}
+            vectors = {n: np.pad(v, (0, 6 - v.size)) for n, v in vectors.items()}
+            generalized = sum(float(mass[n] @ (v * v)) for n, v in vectors.items() if n in mass)
+            if generalized <= 0:
+                continue
+            for axis, name in ((0, "X"), (1, "Y")):
+                gamma = sum(float(mass[n][axis] * v[axis]) for n, v in vectors.items() if n in mass)
+                ratio = gamma**2 / generalized / float(total[axis] or 1.0)
+                if ratio > best.get(name, {}).get("massRatio", -1.0):
+                    best[name] = {"period": float(period), "mode": k, "massRatio": ratio}
+    if set(best) != {"X", "Y"}:
+        raise ValueError("no mode moves the building in X and in Y")
+    return best
 
 
 # ─────────────────────────────────────── the results ───────────────────────────────────────

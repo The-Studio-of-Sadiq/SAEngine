@@ -5,7 +5,7 @@ result with an independent reference: a closed-form solution, a published benchm
 calculation written out step by step in the case. Each compared quantity passes when SAEngine's
 value is within a stated relative tolerance of the reference.
 
-The code is in `python/src/saengine/verification/`. The cases are in `cases/analysis.py` and
+The code is in `python/src/saengine/verification/`. The cases are in `cases/analysis.py`, `cases/parity.py` (the analysis model's conventions of version 0.0.44) and
 `cases/design.py`, the runner is `run.py`, and the PDF template is `templates/verification.typ`.
 
 ## Running it
@@ -87,6 +87,10 @@ was widened to make a case pass; where SAEngine is off, the case fails.
 | A8 | Simply supported square plate under uniform load (shells): central deflection and moment | Timoshenko & Woinowsky-Krieger, α = 0.00406, β = 0.0479 (ν = 0.3) |
 | A9 | Solid cantilever block (tetrahedra) under its self-weight: tip deflection at the default mesh, the finest allowed (100 mm) and 50 mm | Timoshenko beam (bending + shear) |
 | A10 | Construction sequence: shortening of a three-storey column built storey by storey under its self-weight, and the same load applied at once | Statics of a column built in stages, linear elastic (staged: (j - 1/2 + j(n - j)) Wh/EA; at once: (j(n + 1/2) - j(j + 1)/2) Wh/EA) |
+| AP1 | Seismic weight W of a two-storey bay lumped at the story levels: W per level, the weight to the base and the lateral mass | BNBC 2020 Part 6 Sec 2.5.7.3 (p. 628), hand sum of the dead, superimposed and 25 % live loads |
+| AP2 | Eccentric static earthquake case EXP: the torsion it adds to EX at each floor | BNBC 2020 Part 6 Sec 2.5.7.6.2, Eq. 6.2.43 (p. 630): M = 0.05 L F |
+| AP3 | Beam with rigid end zones (factor 0.5) between held joints under 10 kN/m: moment and shear at the column face | Fixed-ended flexible length: w Lf²/12 − w Lf x/2 + w x²/2 |
+| AP4 | 125 mm brick wall (line load from loads.json) on a beam with pinned ends: reactions and mid-span moment | wL/2, wL²/8; wall weight from BNBC 2020 Part 6 Table 6.2.2 (pp. 530-531) |
 | D1 | RC beam φMn, singly reinforced | ACI 318-19 22.2, 21.2.2 |
 | D2 | RC beam shear with and without stirrups | ACI 318-19 Table 22.5.5.1 (a) and (c), λs |
 | D3 | Tied column φPn,max and the balanced point | ACI 318-19 22.4.2, strain compatibility |
@@ -117,6 +121,10 @@ largest deviation in each case:
 | A8 | 0.9952 | 2 % | D8 | 1.0000 | 0.5 % |
 | A9 | 0.9247 (fail) | 5 % | D9 | 0.9942 | 1 % |
 | A10 | 1.0000 | 1 % | D10 | 1.0000 | 0.5 % |
+| AP1 | 1.0000 | 0.1 % | | | |
+| AP2 | 1.0000 | 0.1 % | | | |
+| AP3 | 1.0000 | 1 % | | | |
+| AP4 | 1.0000 | 0.1 % | | | |
 | | | | D11 | 0.9999 | 0.5 % |
 | | | | D12 | 1.0024 | 1 % |
 

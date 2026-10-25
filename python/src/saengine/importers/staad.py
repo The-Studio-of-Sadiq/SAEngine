@@ -1,33 +1,44 @@
 """Import of a STAAD.Pro input file (``.std``) into a SAEngine project.
 
 The reader follows the STAAD command language: free-format commands, one per line or several
-separated by ``;``, a trailing ``-`` continuing a line, ``*`` comment lines, and ``UNIT`` lines
-that may change the length and force units anywhere. It reads:
+separated by ``;``, a trailing ``-`` continuing a line, ``*`` comment lines, ``UNIT`` lines that
+may change the length and force units anywhere, and command words abbreviated as STAAD allows
+(``MEMB LOAD``, ``JOINT COORD``, ``REP``, ``UNITS``, ``SELF``). It reads:
 
-- ``STAAD SPACE|PLANE``, ``SET Z UP`` (otherwise Y is up and the model is turned to Z up);
-- ``JOINT COORDINATES`` with generation (``i1 x1 y1 z1 i2 x2 y2 z2 [inc]``) and ``REPEAT`` /
-  ``REPEAT ALL``;
-- ``MEMBER INCIDENCES`` (with ``m i j [m2 [minc [jinc]]]`` and ``REPEAT``),
-  ``ELEMENT INCIDENCES [SHELL]`` (with ``TO`` generation);
-- ``MEMBER PROPERTY``: ``PRISMATIC YD ZD`` (rectangle), ``YD`` alone (circle), ``AX IZ``
-  (an equivalent rectangle, approximated), ``TABLE ST name`` (by name, see
+- ``STAAD SPACE|PLANE|TRUSS``, ``SET Z UP`` (otherwise Y is up and the model is turned to Z up);
+- ``JOINT COORDINATES`` (also ``CYLINDRICAL [REVERSE]``) with generation (``i1 x1 y1 z1 i2 x2
+  y2 z2 [inc]``), ``REPEAT`` (the previous line, or the last repetition of it) and ``REPEAT ALL``
+  (everything back to the last ``REPEAT ALL`` that was followed by new data), ``JTORIG``;
+- ``MEMBER INCIDENCES`` (``m i j [m2 [minc [jinc]]]``), ``ELEMENT INCIDENCES [SHELL]`` (``TO``
+  generation), both with ``REPEAT`` / ``REPEAT ALL``; ``DELETE MEMBERS``;
+- ``START GROUP DEFINITION``: group names (``_BEAMS``) in any list;
+- ``DEFINE PMEMBER`` (physical members): ``PMEMBER PROPERTY``, ``PMEMBER CONSTANTS`` and
+  ``PMEMBER LOAD`` on the members that make them up;
+- ``MEMBER PROPERTY``: ``PRISMATIC YD ZD`` (rectangle), ``YD`` alone (circle), ``AX IZ`` (an
+  equivalent rectangle, approximated), ``TABLE ST name`` (by name, see
   :func:`~saengine.importers.neutral.named_profile`), ``PIPE OD ID``, ``TUBE TH WT DT``;
 - ``ELEMENT PROPERTY ... THICKNESS``;
 - ``DEFINE MATERIAL`` (``ISOTROPIC``, ``E``, ``POISSON``, ``DENSITY``, ``TYPE``, ``STRENGTH``)
-  and ``CONSTANTS`` (``MATERIAL``, ``E``, ``POISSON``, ``DENSITY`` by member list, the built-in
-  STEEL and CONCRETE);
-- ``SUPPORTS`` (``FIXED``, ``PINNED``, ``FIXED BUT ...`` approximated);
-- ``LOAD n`` (``LOADTYPE``, ``TITLE``) with ``SELFWEIGHT``, ``JOINT LOAD``, ``MEMBER LOAD``
-  (``UNI``, ``CON``, ``TRAP`` as its mean), ``ELEMENT LOAD ... PR``, ``FLOOR LOAD``;
+  and ``CONSTANTS`` (``MATERIAL``, ``E``, ``POISSON``, ``DENSITY``, ``BETA`` by member list, the
+  built-in STEEL and CONCRETE);
+- ``MEMBER RELEASE`` (bending released at both ends: pinned), ``MEMBER TRUSS`` (pinned),
+  ``MEMBER OFFSET``, cables, tension- and compression-only and inactive members (reported);
+- ``SUPPORTS`` (``FIXED``, ``PINNED``, ``FIXED BUT ...``; springs, inclined, enforced supports and
+  generated soil springs reported);
+- ``LOAD n`` (``LOADTYPE``, ``TITLE``) with ``SELFWEIGHT``, ``JOINT LOAD``, ``MEMBER LOAD`` and
+  ``PMEMBER LOAD`` (``UNI``, ``CON``, ``LIN`` and ``TRAP`` as their mean over the loaded length;
+  global, projected and local directions), ``ELEMENT LOAD`` (``PR``, ``TRAP`` as its mean),
+  ``FLOOR LOAD``, ``REPEAT LOAD`` and ``REFERENCE LOAD`` (``DEFINE REFERENCE LOADS``);
   ``LOAD COMBINATION n``.
 
-Everything else (releases, offsets, groups, generated wind and seismic loads, design
-parameters, analysis commands) is skipped and counted in the import report.
+Everything else (generated wind and seismic loads, design parameters, analysis commands) is
+skipped and listed in the import report.
 """
 
 from __future__ import annotations
 
 import itertools
+import math
 import re
 from pathlib import Path
 
@@ -56,19 +67,25 @@ FORMAT = "STAAD.Pro"
 _LENGTHS = {
     "METER": 1000.0,
     "METERS": 1000.0,
+    "METRES": 1000.0,
     "MET": 1000.0,
+    "METE": 1000.0,
     "M": 1000.0,
     "MMS": 1.0,
     "MM": 1.0,
     "MMS.": 1.0,
+    "MILLIMETER": 1.0,
     "CM": 10.0,
     "CMS": 10.0,
+    "CENTIMETER": 10.0,
     "FEET": 304.8,
     "FT": 304.8,
     "FOOT": 304.8,
+    "FEE": 304.8,
     "INCHES": 25.4,
     "INCH": 25.4,
     "IN": 25.4,
+    "INC": 25.4,
     "DME": 100.0,
     "KM": 1e6,
 }
@@ -87,11 +104,14 @@ _FORCES = {
     "POUNDS": 4.4482216152605,
     "LB": 4.4482216152605,
     "LBS": 4.4482216152605,
+    "POU": 4.4482216152605,
     "KG": 9.80665,
     "KGS": 9.80665,
     "MTON": 9806.65,
     "MTONS": 9806.65,
+    "MTO": 9806.65,
     "DNS": 10.0,
+    "KNEWTON": 1000.0,
 }
 
 #: STAAD's built-in materials in kN and m (E, POISSON, DENSITY [kN/m³]).
@@ -101,46 +121,79 @@ _BUILT_IN = {
     "ALUMINUM": (6.89476e7, 0.33, 26.6018, "steel"),
 }
 
-_COMMANDS = {
-    "STAAD",
-    "SET",
-    "UNIT",
-    "JOINT",
-    "MEMBER",
-    "MEMB",
-    "ELEMENT",
-    "ELEM",
-    "DEFINE",
-    "END",
-    "CONSTANTS",
-    "CONSTANT",
-    "SUPPORTS",
-    "SUPPORT",
-    "LOAD",
-    "LOADING",
-    "PERFORM",
-    "PRINT",
-    "FINISH",
-    "PARAMETER",
-    "PARAMETERS",
-    "START",
-    "CHECK",
-    "SELECT",
-    "INPUT",
-    "PAGE",
-    "SPRING",
-    "INACTIVE",
-    "DELETE",
-    "CUT",
-    "SECTION",
-    "DESIGN",
-    "TAKE",
-    "STEEL",
-    "CONCRETE",
-    "PDELTA",
-    "CHANGE",
-    "STARTING",
+#: Command words and the shortest abbreviation STAAD accepts for each.
+_HEADS = {
+    "STAAD": 5,
+    "SET": 3,
+    "UNIT": 3,
+    "JOINT": 3,
+    "MEMBER": 3,
+    "ELEMENT": 3,
+    "PMEMBER": 4,
+    "DEFINE": 3,
+    "END": 3,
+    "CONSTANTS": 4,
+    "SUPPORTS": 3,
+    "LOAD": 4,
+    "PERFORM": 4,
+    "PRINT": 3,
+    "FINISH": 3,
+    "PARAMETER": 4,
+    "START": 4,
+    "CHECK": 4,
+    "SELECT": 4,
+    "INPUT": 4,
+    "PAGE": 4,
+    "SPRING": 4,
+    "INACTIVE": 4,
+    "DELETE": 4,
+    "CUT": 3,
+    "SECTION": 4,
+    "DESIGN": 4,
+    "TAKE": 4,
+    "STEEL": 4,
+    "CONCRETE": 4,
+    "PDELTA": 4,
+    "CHANGE": 4,
+    "SELFWEIGHT": 4,
+    "REPEAT": 3,
+    "FLOOR": 4,
+    "CALCULATE": 4,
+    "SURFACE": 4,
+    "JTORIG": 4,
+    "SLAVE": 4,
+    "TIMBER": 4,
+    "GROUP": 4,
+    "MASTER": 4,
+    "GENERATE": 3,
 }
+_SECOND = {
+    "INCIDENCES": 3,
+    "COORDINATES": 3,
+    "PROPERTY": 3,
+    "RELEASE": 3,
+    "TRUSS": 3,
+    "OFFSET": 3,
+    "LOAD": 3,
+    "CABLE": 3,
+    "TENSION": 3,
+    "COMPRESSION": 4,
+    "CRACKED": 4,
+    "CONSTANTS": 4,
+    "WEIGHT": 3,
+    "MATERIAL": 3,
+    "PMEMBER": 4,
+    "REFERENCE": 3,
+    "COMBINATION": 4,
+}
+
+#: Generated loads: the load generators' commands (SAEngine makes its own wind and seismic).
+_GENERATED = re.compile(
+    r"^(WIND|SEISMIC|SPECTRUM|TIME|GROUND|UBC|IBC|AIJ|CFE|NTC|RPA|NRC|IS|COLOMBIAN|TURKISH|GB|"
+    r"AS|NBC|CODE|BS|EN|EURO|KOREAN|TAIWAN|IRAN|CHILE|SOUTH|NZS|PERU|NOTIONAL|ACCIDENTAL|"
+    r"DIRECT|MOVING|SNOW|CALIFORNIA|NORTH|WAVE|1893|PRESSURE|TEMP|TEMPERATURE|STRAIN|"
+    r"STRAINRATE|PRESTRESS|POSTSTRESS|FIXED|ONEWAY|AREA|BLAST|ASCE)$"
+)
 
 
 def _num(token: str) -> float | None:
@@ -148,6 +201,19 @@ def _num(token: str) -> float | None:
         return float(token)
     except ValueError:
         return None
+
+
+def _canon(token: str, table: dict[str, int]) -> str:
+    """The full command word an abbreviation stands for (``MEMB`` -> ``MEMBER``,
+    ``UNITS`` -> ``UNIT``), else the token."""
+    for full, shortest in table.items():
+        if len(token) >= shortest and (full.startswith(token) or token.startswith(full)):
+            return full
+    return token
+
+
+def _unit(v: np.ndarray) -> np.ndarray:
+    return v / np.linalg.norm(v)
 
 
 class _Reader:
@@ -158,20 +224,42 @@ class _Reader:
         self.force = 1000.0
         self.unit_seen = False
         self.z_up = False
+        self.truss_model = False
         self.block = ""
         self.joints: dict[int, np.ndarray] = {}  # file axes, mm
-        self.joint_lines: list[list[int]] = []
-        self.repeat_all_from = 0
+        self.cylindrical = ""
+        self.origin = np.zeros(3)
+        self.origin_from = 0
+        # Rows for REPEAT: each a list of ids (a data line, or one repetition).
+        self.joint_rows: list[list[int]] = []
+        self.joint_all_from = 0
+        self.joint_all_pending = False
         self.members: dict[int, tuple[int, int]] = {}
-        self.member_lines: list[list[int]] = []
-        self.member_repeat_all_from = 0
+        self.member_rows: list[list[int]] = []
+        self.member_all_from = 0
+        self.member_all_pending = False
         self.plates: dict[int, list[int]] = {}
+        self.plate_rows: list[list[int]] = []
+        self.plate_all_from = 0
+        self.plate_all_pending = False
+        self.groups: dict[str, list[int]] = {}
+        self.group_kind = ""
+        self.group_current: str | None = None
+        self.pmembers: dict[int, list[int]] = {}
+        self.pmember_mode = False
         self.member_section: dict[int, str] = {}
         self.plate_thickness: dict[int, float] = {}
         self.definitions: dict[str, dict[str, float | str]] = {}
         self.defining: str | None = None
         self.member_props: dict[int, dict[str, float | str]] = {}
+        self.beta: dict[int, float] = {}
+        self.releases: dict[int, tuple[set[str], set[str]]] = {}
+        self.trusses: set[int] = set()
+        self.deleted: set[int] = set()
         self.case: LoadCase | None = None
+        self.case_key: str | None = None
+        self.references: dict[str, LoadCase] = {}
+        self.in_reference = False
         self.combination: tuple[str, dict[str, float]] | None = None
         self.text = text
 
@@ -204,16 +292,77 @@ class _Reader:
     def vertical(self) -> str:
         return "Z" if self.z_up else "Y"
 
+    def local_axes(self, m: int) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+        """Member ``m``'s local x, y, z in the file's axes (STAAD's rules: a vertical member's
+        local z along global Z with Y up, its local y along global Y with Z up, measured; other
+        members' local y in the vertical plane through them, upwards), turned by its beta."""
+        if m not in self.members:
+            return None
+        i, j = self.members[m]
+        if i not in self.joints or j not in self.joints:
+            return None
+        d = self.joints[j] - self.joints[i]
+        if np.linalg.norm(d) < 1e-9:
+            return None
+        x = _unit(d)
+        up = np.array([0.0, 0.0, 1.0]) if self.z_up else np.array([0.0, 1.0, 0.0])
+        if abs(float(x @ up)) > 0.999:
+            if self.z_up:
+                y = np.array([0.0, 1.0, 0.0])
+                z = np.cross(x, y)
+            else:
+                z = np.array([0.0, 0.0, 1.0])
+                y = np.cross(z, x)
+        else:
+            z = _unit(np.cross(x, up))
+            y = np.cross(z, x)
+        b = math.radians(self.beta.get(m, 0.0))
+        y, z = math.cos(b) * y + math.sin(b) * z, -math.sin(b) * y + math.cos(b) * z
+        return x, y, z
+
+    def rotation(self, m: int) -> float:
+        """The member's angle as SAP2000/ETABS give it (local 2 = STAAD's local y): what the
+        builder takes, from STAAD's local axes and beta."""
+        axes = self.local_axes(m)
+        if axes is None:
+            return 0.0
+        e1 = self.axes(*axes[0])
+        y = self.axes(*axes[1])
+        if math.hypot(e1[0], e1[1]) < 1e-3:
+            e2 = np.array([1.0, 0.0, 0.0])
+            e3 = np.cross(e1, e2)
+        else:
+            e3 = _unit(np.cross(e1, np.array([0.0, 0.0, 1.0])))
+            e2 = np.cross(e3, e1)
+        angle = math.degrees(math.atan2(float(y @ e3), float(y @ e2)))
+        return round(angle, 6) % 360
+
     # ── lists ──
 
     def id_list(self, tokens: list[str], start: int = 0) -> tuple[list[int], int]:
-        """The ids of a STAAD list (``1 2 5 TO 9 BY 2``, ``ALL``) from ``tokens[start]``, and
-        the index after it."""
+        """The ids of a STAAD list (``1 2 5 TO 9 BY 2``, ``ALL``, ``_GROUP``) from
+        ``tokens[start]``, and the index after it."""
         ids: list[int] = []
         k = start
         while k < len(tokens):
             t = tokens[k]
-            if t in ("MEMB", "MEMBER", "JOINT", "JOI", "PLA", "PLATE", "ELEM", "ELEMENT", "LIST"):
+            if t in (
+                "MEMB",
+                "MEMBER",
+                "MEMBERS",
+                "JOINT",
+                "JOI",
+                "JOINTS",
+                "PLA",
+                "PLATE",
+                "PLATES",
+                "ELEM",
+                "ELEMENT",
+                "ELEMENTS",
+                "LIST",
+                "MEM",
+                "MEMBE",
+            ):
                 k += 1
                 continue
             if t == "ALL":
@@ -230,7 +379,10 @@ class _Reader:
                 ids += list(range(ids[-1] + step, end + 1, step))
                 continue
             if t.startswith("_"):
-                self.report.skip("group names in lists", t)
+                if t in self.groups:
+                    ids += self.groups[t]
+                else:
+                    self.report.skip("group names in lists that are not defined", t)
                 k += 1
                 continue
             value = _num(t)
@@ -240,6 +392,21 @@ class _Reader:
             k += 1
         return ids, k
 
+    def member_ids(self, ids: list[int], tokens: list[str] | None = None) -> list[int]:
+        """Members of a list of members, or of physical members in a PMEMBER command (``ALL``:
+        every member)."""
+        if not self.pmember_mode:
+            return ids
+        if tokens is not None and "ALL" in tokens:
+            return sorted(self.members)
+        out: list[int] = []
+        for p in ids:
+            if p in self.pmembers:
+                out += self.pmembers[p]
+            else:
+                self.report.skip("physical members that are not defined", str(p))
+        return out
+
     # ── statements ──
 
     def statements(self) -> list[list[str]]:
@@ -247,7 +414,7 @@ class _Reader:
         pending = ""
         for raw in self.text.splitlines():
             line = raw.strip()
-            if not line or line.startswith("*"):
+            if not line or line.startswith(("*", "<#", "#>")):
                 continue
             if line.endswith("-"):  # continued on the next line
                 pending += line[:-1] + " "
@@ -259,7 +426,7 @@ class _Reader:
         result = []
         for line in lines:
             for part in line.split(";"):
-                tokens = part.replace(",", " ").upper().split()
+                tokens = part.replace(",", " ").replace('"', " ").upper().split()
                 if tokens:
                     result.append(tokens)
         return result
@@ -279,21 +446,63 @@ class _Reader:
 
     def statement(self, tokens: list[str]) -> None:
         head = tokens[0]
-        if head == "UNIT":
-            self.unit(tokens)
+        if _num(head) is None and not head.startswith("_"):
+            canon = _canon(head, _HEADS)
+            if self.block in ("joints", "members", "plates") and head == "R":
+                canon = "REPEAT"
+            if canon == "UNIT":
+                self.unit(tokens)
+                return
+            tokens = [canon, *tokens[1:]]
+            if len(tokens) > 1 and canon in (
+                "MEMBER",
+                "ELEMENT",
+                "JOINT",
+                "PMEMBER",
+                "LOAD",
+                "REPEAT",
+                "DEFINE",
+            ):
+                tokens[1] = _canon(tokens[1], _SECOND)
+        head = tokens[0]
+        if self.block == "groups":
+            self.group_line(tokens)
+            return
+        if self.block == "usertable":
+            if head == "END":
+                self.block = ""
             return
         first_alpha = _num(head) is None
         if first_alpha and self.block_keyword(tokens):
             return
-        if first_alpha and (head in _COMMANDS or head.startswith("LOAD")):
+        if first_alpha and head == "REPEAT" and self.block in ("joints", "members", "plates"):
+            self.data(tokens)
+            return
+        if first_alpha and (head in _HEADS or head.startswith("LOAD")):
             self.command(tokens)
             return
-        if first_alpha and head not in ("REPEAT", "TO", "ALL") and not head.startswith("_"):
+        if first_alpha and head not in ("TO", "ALL") and not head.startswith("_"):
+            if self.case is not None and self.block.startswith("load"):
+                self.generated_or_unknown(tokens)
+                return
             if self.block not in ("skip",):
                 self.report.skip("commands not read", " ".join(tokens[:3]))
             self.block = "skip"
             return
         self.data(tokens)
+
+    def generated_or_unknown(self, tokens: list[str]) -> None:
+        """A line in a load case that is not a load the reader knows: the case stays open."""
+        assert self.case is not None
+        if _GENERATED.match(tokens[0]) or (len(tokens) > 1 and tokens[1] == "LOAD"):
+            self.report.skip(
+                "generated wind, seismic and other loads not read (SAEngine makes its own wind "
+                "and earthquake loads from BNBC)",
+                f"{self.case.name}: {' '.join(tokens[:3])}",
+            )
+        else:
+            self.report.skip("load commands not read", f"{self.case.name}: {' '.join(tokens[:3])}")
+        self.block = "load-other"
 
     def block_keyword(self, tokens: list[str]) -> bool:
         """Lines starting with a word that belong to the current block."""
@@ -325,42 +534,66 @@ class _Reader:
         ):
             self.constants_line(tokens)
             return True
-        if self.block.startswith("load") and self.case is not None:
-            if head in ("SELFWEIGHT", "SELF"):
+        if self.block == "joints" and head == "JTORIG":
+            values = [_num(t) for t in tokens[1:4]]
+            if len(values) == 3 and all(v is not None for v in values):
+                shift = np.array([float(v) for v in values if v is not None]) * self.length
+                for n in [j for row in self.joint_rows[self.origin_from :] for j in row]:
+                    self.joints[n] = self.joints[n] + shift
+            return True
+        if self.block == "pmembers" and head == "PMEMBER":
+            return False
+        if self.block == "mesh-points" and len(tokens) >= 3 and len(head) <= 2:
+            self.mesh_point(tokens)
+            return True
+        if self.block == "mesh" and head == "MESH":
+            self.mesh(tokens)
+            return True
+        if self.case is not None and self.block.startswith("load"):
+            if head == "SELFWEIGHT":
                 self.selfweight(tokens)
                 return True
-            if (
-                len(tokens) > 1
-                and tokens[1].startswith("LOAD")
-                and head
-                in (
-                    "JOINT",
-                    "MEMBER",
-                    "ELEMENT",
-                    "FLOOR",
-                    "ONEWAY",
-                    "AREA",
-                    "REPEAT",
-                    "WIND",
-                    "TEMPERATURE",
-                    "TEMP",
-                )
+            second = tokens[1] if len(tokens) > 1 else ""
+            if head == "REPEAT" and second == "LOAD":
+                self.block = "load-repeat"
+                return True
+            if head == "REFERENCE" or (head.startswith("REF") and second.startswith("LOA")):
+                self.block = "load-reference"
+                return True
+            if second.startswith("LOAD") and head in (
+                "JOINT",
+                "MEMBER",
+                "ELEMENT",
+                "PMEMBER",
+                "FLOOR",
+                "ONEWAY",
+                "AREA",
+                "TEMPERATURE",
+                "TEMP",
+                "STRAIN",
+                "PRESTRESS",
+                "POSTSTRESS",
+                "FIXED",
             ):
                 self.block = {
                     "JOINT": "load-joint",
                     "MEMBER": "load-member",
+                    "PMEMBER": "load-pmember",
                     "ELEMENT": "load-element",
                     "FLOOR": "load-floor",
                 }.get(head, "load-other")
                 if self.block == "load-other":
                     self.report.skip(f"{head.lower()} loads (not read)", f"{self.case.name}")
                 return True
-            if self.block == "load-floor" and head in ("YRANGE", "XRANGE", "ZRANGE"):
+            if head == "SUPPORTS" and second.startswith("DISP"):
+                self.report.skip("support displacements (not read)", self.case.name)
+                self.block = "load-other"
+                return True
+            if self.block == "load-floor" and head[:3] in ("YRA", "XRA", "ZRA"):
                 self.floor_load(tokens)
                 return True
-            if head in ("SEISMIC", "WIND", "SPECTRUM", "TIME", "GROUND", "PRESSURE"):
-                self.report.skip("generated or dynamic loads (not read)", self.case.name)
-                self.block = "load-other"
+            if self.block == "load-reference" and re.match(r"^R\d+$", head):
+                self.reference_data(tokens)
                 return True
         if self.block == "supports" and head in ("FIXED", "PINNED"):
             return False
@@ -370,8 +603,11 @@ class _Reader:
         head = tokens[0]
         second = tokens[1] if len(tokens) > 1 else ""
         if head == "STAAD":
-            if second in ("PLANE", "TRUSS"):
-                self.report.warn(f"STAAD {second.lower()} model: read as a 3D model")
+            if second == "PLANE":
+                self.report.warn("STAAD plane model: read as a 3D model")
+            elif second == "TRUSS":
+                self.truss_model = True
+                self.report.warn("STAAD truss model: read as a 3D model, its members pinned")
             self.block = ""
             return
         if head == "SET":
@@ -395,6 +631,9 @@ class _Reader:
             if second == "LIST":
                 self.block = "skip"
                 return
+            if self.in_reference and re.match(r"^R\d+$", second):
+                self.new_case(second, tokens[2:], reference=True)
+                return
             if _num(second) is None:
                 self.block = "skip"
                 return
@@ -402,14 +641,20 @@ class _Reader:
             return
         self.finish_case()
         if head == "JOINT" and second.startswith("COORD"):
-            if "CYLINDRICAL" in tokens:
-                self.report.skip("cylindrical joint coordinates")
-                self.block = "skip"
-                return
+            self.cylindrical = ""
+            if "CYLINDRICAL" in tokens or "CYL" in tokens:
+                self.cylindrical = "reverse" if any(t.startswith("REV") for t in tokens) else "z"
+                self.report.approximate(
+                    "cylindrical joint coordinates converted to Cartesian", " ".join(tokens[2:4])
+                )
+            self.origin_from = len(self.joint_rows)
             self.block = "joints"
-            self.data(tokens[2:]) if len(tokens) > 2 else None
+            rest = [t for t in tokens[2:] if _num(t) is not None]
+            if rest:
+                self.data(rest)
             return
-        if head in ("MEMBER", "MEMB"):
+        if head in ("MEMBER", "PMEMBER"):
+            self.pmember_mode = head == "PMEMBER"
             if second.startswith("INCI"):
                 self.block = "members"
                 if len(tokens) > 2:
@@ -423,49 +668,122 @@ class _Reader:
                 return
             if second.startswith("TRUSS"):
                 self.block = "truss"
+                if len(tokens) > 2:
+                    self.data(tokens[2:])
+                return
+            if second in ("CONSTANTS",):
+                self.block = "constants"
+                return
+            if second in ("OFFSET", "CABLE", "TENSION", "COMPRESSION", "CRACKED"):
+                self.block = "member-" + second.lower()
+                if len(tokens) > 2:
+                    self.data(tokens[2:])
                 return
             self.report.skip("member commands not read", " ".join(tokens[:2]))
             self.block = "skip"
             return
-        if head in ("ELEMENT", "ELEM"):
+        if head == "ELEMENT":
+            self.pmember_mode = False
             if second.startswith("INCI"):
                 if "SOLID" in tokens:
                     self.report.skip("solid elements")
-                    self.block = "skip"
+                    self.block = "solids"
                     return
                 self.block = "plates"
                 return
             if second.startswith("PROP"):
                 self.block = "eprop"
                 return
+            self.report.skip("element commands not read", " ".join(tokens[:3]))
             self.block = "skip"
             return
         if head == "DEFINE":
             if second == "MATERIAL":
                 self.block = "material"
                 return
+            if second == "PMEMBER":
+                self.block = "pmembers"
+                return
+            if second == "REFERENCE":
+                self.in_reference = True
+                self.block = ""
+                return
+            if second == "MESH":
+                self.block = "mesh-points"
+                return
             self.report.skip("DEFINE commands not read", " ".join(tokens[:3]))
             self.block = "skip"
             return
         if head == "END":
+            if "REFERENCE" in tokens or (len(tokens) > 2 and tokens[2].startswith("REF")):
+                self.in_reference = False
             self.block = ""
             self.defining = None
             return
-        if head.startswith("CONSTANT"):
+        if head == "CONSTANTS":
+            self.pmember_mode = False
             self.block = "constants"
             return
-        if head.startswith("SUPPORT"):
+        if head == "SUPPORTS":
             self.block = "supports"
             return
-        if head in ("PERFORM", "PRINT", "FINISH", "PARAMETER", "PARAMETERS", "CHECK", "SELECT"):
+        if head == "INACTIVE":
+            self.block = "inactive"
+            if len(tokens) > 2:
+                self.data(tokens[2:])
+            return
+        if head == "DELETE":
+            if second.startswith("MEM"):
+                self.block = "delete"
+                if len(tokens) > 2:
+                    self.data(tokens[2:])
+                return
+            self.report.skip("DELETE commands not read", " ".join(tokens[:2]))
+            self.block = "skip"
+            return
+        if head == "GENERATE" or (head.startswith("GEN") and second.startswith("ELE")):
+            self.block = "mesh"
+            return
+        if head == "SPRING":
+            self.report.skip("tension- or compression-only springs", " ".join(tokens[:3]))
+            self.block = "skip"
+            return
+        if head in ("PERFORM", "PRINT", "FINISH", "PARAMETER", "CHECK", "SELECT"):
             self.block = "skip"
             return
         if head == "START":
             if "GROUP" in tokens:
-                self.report.skip("group definitions (lists by group name are skipped)")
+                self.block = "groups"
+                return
+            if "USER" in tokens:
+                self.block = "usertable"
+                self.report.skip("user tables (UPT sections are not read)")
+                return
             self.block = "skip"
             return
         self.block = "skip"
+
+    # ── groups ──
+
+    def group_line(self, tokens: list[str]) -> None:
+        head = tokens[0]
+        if head == "END":
+            self.block = ""
+            return
+        if head in ("JOINT", "MEMBER", "ELEMENT", "GEOMETRY", "SOLID", "FLOOR"):
+            self.group_kind = head
+            tokens = tokens[1:]
+            if not tokens:
+                return
+            head = tokens[0]
+        if head.startswith("_"):
+            self.group_current = head
+            ids, _ = self.id_list(tokens, 1)
+            self.groups[head] = ids
+            return
+        if self.group_current is not None and _num(head) is not None:
+            ids, _ = self.id_list(tokens)
+            self.groups[self.group_current] += ids
 
     # ── data lines per block ──
 
@@ -484,122 +802,177 @@ class _Reader:
         elif block == "supports":
             self.support_data(tokens)
         elif block == "release":
-            ids, _ = self.id_list(tokens)
-            for m in ids:
-                self.report.skip("member releases (members analysed as rigidly connected)", str(m))
+            self.release_data(tokens)
         elif block == "truss":
             ids, _ = self.id_list(tokens)
+            self.trusses.update(self.member_ids(ids))
+        elif block == "pmembers":
+            ids, k = self.id_list(tokens)
+            rest = tokens[k:]
+            if len(rest) >= 2 and rest[0] == "PMEMBER" and _num(rest[1]) is not None:
+                self.pmembers[int(float(rest[1]))] = ids
+        elif block.startswith("member-"):
+            ids, _ = self.id_list(tokens)
+            what = {
+                "member-offset": "member offsets ignored (members run joint to joint)",
+                "member-cable": "cables analysed as ordinary members (no tension-only behaviour)",
+                "member-tension": "tension-only members analysed as ordinary members",
+                "member-compression": "compression-only members analysed as ordinary members",
+                "member-cracked": "cracked member stiffness reductions not applied",
+            }[block]
+            for m in self.member_ids(ids):
+                self.report.approximate(what, str(m))
+            if block == "member-cable":
+                self.trusses.update(self.member_ids(ids))
+        elif block == "inactive":
+            ids, _ = self.id_list(tokens)
             for m in ids:
-                self.report.approximate("truss members analysed as frame members", str(m))
+                self.report.approximate(
+                    "inactive members imported as active (STAAD leaves them out of an analysis)",
+                    str(m),
+                )
+        elif block == "delete":
+            ids, _ = self.id_list(tokens)
+            self.deleted.update(ids)
         elif block == "constants":
             self.constants_line(tokens)
         elif block == "load-joint":
             self.joint_load(tokens)
-        elif block == "load-member":
-            self.member_load(tokens)
+        elif block in ("load-member", "load-pmember"):
+            self.member_load(tokens, physical=block == "load-pmember")
         elif block == "load-element":
             self.element_load(tokens)
+        elif block == "load-repeat":
+            self.repeat_load(tokens)
+        elif block == "load-reference":
+            self.reference_data(tokens)
         elif block == "comb":
             self.combination_data(tokens)
-        elif block in ("load", "load-floor", "load-other", "skip", "", "material"):
-            if block == "load-other" and tokens and tokens[0] == "REPEAT":
-                pass
-        else:
-            pass
+
+    # ── geometry ──
 
     def joint_data(self, tokens: list[str]) -> None:
         if tokens[0] == "REPEAT":
-            self.repeat(tokens, joints=True)
+            self.repeat(tokens, "joints")
             return
         values = [_num(t) for t in tokens]
         if any(v is None for v in values) or len(values) < 3:
             self.report.skip("joint lines not read", " ".join(tokens))
             return
         nums: list[float] = [v for v in values if v is not None]
-        line: list[int] = []
         if len(nums) == 3:  # plane model: n x y
             nums = [*nums, 0.0]
         n1 = int(nums[0])
-        p1 = np.array(nums[1:4]) * self.length
-        self.joints[n1] = p1
-        line.append(n1)
+        p1 = np.array(nums[1:4])
+        row = [n1]
+        points = {n1: p1}
         if len(nums) >= 8:
             n2 = int(nums[4])
-            p2 = np.array(nums[5:8]) * self.length
+            p2 = np.array(nums[5:8])
             inc = int(nums[8]) if len(nums) > 8 else 1
-            steps = (n2 - n1) // inc
+            steps = (n2 - n1) // inc if inc else 0
             for k in range(1, steps + 1):
                 n = n1 + k * inc
-                self.joints[n] = p1 + (p2 - p1) * k / steps
-                line.append(n)
-        self.joint_lines.append(line)
+                points[n] = p1 + (p2 - p1) * k / steps
+                row.append(n)
+        for n, p in points.items():
+            self.joints[n] = self.cartesian(p) * self.length
+        self.add_row("joints", row)
 
-    def repeat(self, tokens: list[str], joints: bool) -> None:
-        all_ = len(tokens) > 1 and tokens[1] == "ALL"
+    def cartesian(self, p: np.ndarray) -> np.ndarray:
+        """A point of the file's coordinates (cylindrical ones converted) in its axes."""
+        if not self.cylindrical:
+            return p
+        r = p[0]
+        if self.cylindrical == "z":  # r, θ, z about global Z
+            t = math.radians(p[1])
+            return np.array([r * math.cos(t), r * math.sin(t), p[2]])
+        t = math.radians(p[2])  # reverse: r, y, θ about global Y
+        return np.array([r * math.cos(t), p[1], r * math.sin(t)])
+
+    def add_row(self, kind: str, row: list[int]) -> None:
+        prefix = {"joints": "joint", "members": "member", "plates": "plate"}[kind]
+        rows = getattr(self, f"{prefix}_rows")
+        rows.append(row)
+        if getattr(self, f"{prefix}_all_pending"):
+            setattr(self, f"{prefix}_all_from", len(rows) - 1)
+            setattr(self, f"{prefix}_all_pending", False)
+
+    def repeat(self, tokens: list[str], kind: str) -> None:
+        """``REPEAT n ...`` (the last row n times) or ``REPEAT ALL n ...`` (every row back to
+        the last REPEAT ALL followed by new data), numbered on from the highest id."""
+        prefix = {"joints": "joint", "members": "member", "plates": "plate"}[kind]
+        rows: list[list[int]] = getattr(self, f"{prefix}_rows")
+        all_ = len(tokens) > 1 and tokens[1].startswith("A")
         values = [_num(t) for t in tokens[2 if all_ else 1 :]]
         if not values or any(v is None for v in values):
             self.report.skip("REPEAT lines not read", " ".join(tokens))
             return
         n = int(values[0] or 0)
         rest = [float(v) for v in values[1:] if v is not None]
-        lines = self.joint_lines if joints else self.member_lines
-        if all_:
-            start = self.repeat_all_from if joints else self.member_repeat_all_from
-            pattern = [i for line in lines[start:] for i in line]
-        else:
-            pattern = lines[-1] if lines else []
-        if not pattern:
+        if all_ and n == 0:  # REPEAT ALL 0: starts a section to repeat
+            setattr(self, f"{prefix}_all_from", len(rows))
+            setattr(self, f"{prefix}_all_pending", False)
             return
-        if joints:
-            increment = max(self.joints)
+        start = getattr(self, f"{prefix}_all_from")
+        base = [i for row in rows[start:] for i in row] if all_ else (rows[-1] if rows else [])
+        if not base:
+            return
+        if kind == "joints":
             increments = [rest[3 * k : 3 * k + 3] for k in range(len(rest) // 3)] or [[0, 0, 0]]
             offset = np.zeros(3)
-            new: list[int] = []
             for k in range(1, n + 1):
                 step = increments[k - 1] if len(increments) >= n else increments[0]
                 offset = offset + np.array(step + [0.0] * (3 - len(step))) * self.length
-                for j in pattern:
-                    self.joints[j + k * increment] = self.joints[j] + offset
-                    new.append(j + k * increment)
-            self.joint_lines.append(new)
-            if all_:
-                self.repeat_all_from = len(self.joint_lines)
+                top = max(self.joints)
+                new = []
+                for idx, j in enumerate(base):
+                    self.joints[top + 1 + idx] = self.joints[j] + offset
+                    new.append(top + 1 + idx)
+                rows.append(new)
         else:
-            mi = int(rest[0]) if rest else max(self.members)
+            items = self.members if kind == "members" else self.plates
+            mi = int(rest[0]) if rest else max(items) - min(base) + 1
             ji = int(rest[1]) if len(rest) > 1 else max(self.joints)
-            new = []
             for k in range(1, n + 1):
-                for m in pattern:
-                    i, j = self.members[m]
-                    self.members[m + k * mi] = (i + k * ji, j + k * ji)
-                    new.append(m + k * mi)
-            self.member_lines.append(new)
-            if all_:
-                self.member_repeat_all_from = len(self.member_lines)
+                new = []
+                for e in base:
+                    if kind == "members":
+                        i, j = self.members[e]
+                        self.members[e + k * mi] = (i + k * ji, j + k * ji)
+                    else:
+                        self.plates[e + k * mi] = [x + k * ji for x in self.plates[e]]
+                    new.append(e + k * mi)
+                rows.append(new)
+        if all_:
+            setattr(self, f"{prefix}_all_pending", True)
 
     def member_data(self, tokens: list[str]) -> None:
         if tokens[0] == "REPEAT":
-            self.repeat(tokens, joints=False)
+            self.repeat(tokens, "members")
             return
         values = [_num(t) for t in tokens]
         if any(v is None for v in values) or len(values) < 3:
             self.report.skip("member lines not read", " ".join(tokens))
             return
         m, i, j = (int(v) for v in values[:3])  # type: ignore[arg-type]
-        line = [m]
+        row = [m]
         self.members[m] = (i, j)
         if len(values) >= 4:
             m2 = int(values[3])  # type: ignore[arg-type]
             minc = int(values[4]) if len(values) > 4 else 1  # type: ignore[arg-type]
             jinc = int(values[5]) if len(values) > 5 else 1  # type: ignore[arg-type]
             k = 1
-            while m + k * minc <= m2:
+            while minc > 0 and m + k * minc <= m2:
                 self.members[m + k * minc] = (i + k * jinc, j + k * jinc)
-                line.append(m + k * minc)
+                row.append(m + k * minc)
                 k += 1
-        self.member_lines.append(line)
+        self.add_row("members", row)
 
     def plate_data(self, tokens: list[str]) -> None:
+        if tokens[0] == "REPEAT":
+            self.repeat(tokens, "plates")
+            return
         if "TO" in tokens:
             k = tokens.index("TO")
             head, tail = tokens[:k], tokens[k + 1 :]
@@ -612,17 +985,87 @@ class _Reader:
         e = int(values[0])  # type: ignore[arg-type]
         nodes = [int(v) for v in values[1:]]  # type: ignore[arg-type]
         self.plates[e] = nodes
+        row = [e]
         if tail:
             e2 = int(float(tail[0]))
             einc = int(float(tail[1])) if len(tail) > 1 else 1
             ninc = int(float(tail[2])) if len(tail) > 2 else 1
             k = 1
-            while e + k * einc <= e2:
+            while einc > 0 and e + k * einc <= e2:
                 self.plates[e + k * einc] = [n + k * ninc for n in nodes]
+                row.append(e + k * einc)
                 k += 1
+        self.add_row("plates", row)
+
+    # ── generated meshes ──
+
+    def mesh_point(self, tokens: list[str]) -> None:
+        """A super-element corner of DEFINE MESH: ``A JOINT 7`` or ``A x y z``."""
+        if not hasattr(self, "mesh_points"):
+            self.mesh_points: dict[str, np.ndarray] = {}
+        if tokens[1].startswith("JOI") and len(tokens) > 2 and _num(tokens[2]) is not None:
+            n = int(float(tokens[2]))
+            if n in self.joints:
+                self.mesh_points[tokens[0]] = self.joints[n].copy()
+            return
+        values = [_num(t) for t in tokens[1:4]]
+        if len(values) == 3 and all(v is not None for v in values):
+            point = np.array([float(v) for v in values if v is not None])
+            self.mesh_points[tokens[0]] = self.cartesian(point) * self.length
+
+    def mesh(self, tokens: list[str]) -> None:
+        """``MESH ABCD n1 [n2]``: quadrilaterals over the bilinear patch A-B-C-D, n1 along AB
+        and n2 along BC; joints at existing joints' places are shared, new ones and the
+        elements numbered on from the highest."""
+        points = getattr(self, "mesh_points", {})
+        corners = tokens[1] if len(tokens) > 1 else ""
+        counts = [int(float(t)) for t in tokens[2:4] if _num(t) is not None]
+        if len(corners) != 4 or not counts or any(c not in points for c in corners):
+            self.report.skip(
+                "mesh generation not read (triangles, unknown corners)", " ".join(tokens)
+            )
+            return
+        n1 = counts[0]
+        n2 = counts[1] if len(counts) > 1 else n1
+        a, b, c, d = (points[k] for k in corners)
+        index: dict[tuple[int, int, int], int] = {
+            tuple(round(float(v)) for v in p): j for j, p in self.joints.items()
+        }
+        grid: dict[tuple[int, int], int] = {}
+        for i in range(n1 + 1):
+            for j in range(n2 + 1):
+                u, v = i / n1, j / n2
+                p = (1 - u) * (1 - v) * a + u * (1 - v) * b + u * v * c + (1 - u) * v * d
+                key = tuple(round(float(x)) for x in p)
+                if key not in index:
+                    n = max(self.joints, default=0) + 1
+                    self.joints[n] = p
+                    index[key] = n
+                grid[(i, j)] = index[key]
+        start = max([*self.members, *self.plates], default=0) + 1
+        e = start
+        for j in range(n2):
+            for i in range(n1):
+                self.plates[e] = [
+                    grid[(i, j)],
+                    grid[(i + 1, j)],
+                    grid[(i + 1, j + 1)],
+                    grid[(i, j + 1)],
+                ]
+                e += 1
+        self.report.approximate(
+            "meshes generated from DEFINE MESH by SAEngine's reading of STAAD's rule (check the "
+            "element numbering)",
+            " ".join(tokens[:2]),
+        )
+
+    # ── properties ──
 
     def member_property(self, tokens: list[str]) -> None:
+        if tokens[0] in ("AMERICAN", "BRITISH", "EUROPEAN", "INDIAN", "JAPANESE", "CANADIAN"):
+            return
         ids, k = self.id_list(tokens)
+        ids = self.member_ids(ids, tokens[:k])
         spec = tokens[k:]
         if not ids or not spec:
             self.report.skip("member property lines not read", " ".join(tokens))
@@ -643,7 +1086,7 @@ class _Reader:
             if value is not None and _num(a) is None:
                 params[a] = value
         sections = self.model.sections
-        if kind.startswith("PRI"):
+        if kind == "PR" or kind.startswith("PRI"):
             mm = {k: v * self.length for k, v in params.items()}
             if "YD" in mm and "ZD" in mm:
                 name = f"R{mm['ZD']:g}x{mm['YD']:g}"
@@ -679,6 +1122,8 @@ class _Reader:
             if len(spec) < 3:
                 return None
             table, designation = spec[1], spec[2]
+            if table == "ST" and designation in ("PIPE", "TUBE"):
+                return self.section(spec[2:])
             if table != "ST":
                 self.report.skip(
                     "compound table sections (double angles, tees, ...)", f"{table} {designation}"
@@ -719,10 +1164,12 @@ class _Reader:
         if not ids or len(spec) < 2 or not spec[0].startswith("TH"):
             self.report.skip("element property lines not read", " ".join(tokens))
             return
-        value = _num(spec[1])
-        if value is None:
+        values = [v for v in (_num(t) for t in spec[1:5]) if v is not None]
+        if not values:
             return
-        t = value * self.length
+        if len({round(v, 9) for v in values}) > 1:
+            self.report.approximate("plates of varying thickness taken at their mean", str(ids[0]))
+        t = sum(values) / len(values) * self.length
         for e in ids:
             self.plate_thickness[e] = t
 
@@ -762,20 +1209,30 @@ class _Reader:
 
     def constants_line(self, tokens: list[str]) -> None:
         head = tokens[0]
-        if head in ("BETA", "G", "ALPHA", "DAMP", "CDAMP"):
-            if head == "BETA":
-                ids, _ = self.id_list(tokens, 2)
+        if head in ("G", "ALPHA", "DAMP", "CDAMP"):
+            return
+        if head == "BETA":
+            value = _num(tokens[1]) if len(tokens) > 1 else None
+            ids, _ = self.id_list(tokens, 2)
+            ids = self.member_ids(ids) or sorted(self.members)
+            if value is None:
                 for m in ids:
                     self.report.approximate(
-                        "member beta angles ignored (profiles not rotated)", str(m)
+                        "beta angles given as ANGLE, RANGLE or a reference point ignored",
+                        f"{m} ({' '.join(tokens[1:3])})",
                     )
+                return
+            for m in ids:
+                self.beta[m] = value
             return
-        if len(tokens) < 3:
+        if len(tokens) < 2:
             return
         target, value_token = head, tokens[1]
         ids, _ = self.id_list(tokens, 2)
         if not ids:
             ids = sorted({*self.members, *self.plates})
+        elif self.pmember_mode:
+            ids = self.member_ids(ids, tokens[2:])
         if target == "MATERIAL":
             for m in ids:
                 self.member_props.setdefault(m, {})["material"] = value_token
@@ -796,36 +1253,126 @@ class _Reader:
         for m in ids:
             self.member_props.setdefault(m, {})[key] = converted
 
-    def support_data(self, tokens: list[str]) -> None:
+    def release_data(self, tokens: list[str]) -> None:
         ids, k = self.id_list(tokens)
+        ids = self.member_ids(ids)
         spec = tokens[k:]
         if not ids or not spec:
             return
+        where = spec[0]
+        ends: tuple[int, ...] | None = None
+        if where.startswith("STA"):
+            ends = (0,)
+        elif where.startswith("END"):
+            ends = (1,)
+        elif where.startswith("BOT"):
+            ends = (0, 1)
+        if ends is None:
+            self.report.skip("member release lines not read", " ".join(tokens))
+            return
+        names = {"FX": "P", "FY": "V2", "FZ": "V3", "MX": "T", "MY": "M2", "MZ": "M3"}
+        released: set[str] = set()
+        springs = []
+        partial: list[tuple[str, float]] = []
+        rest = spec[1:]
+        idx = 0
+        while idx < len(rest):
+            t = rest[idx]
+            value = _num(rest[idx + 1]) if idx + 1 < len(rest) else None
+            if t in names:
+                released.add(names[t])
+                idx += 1
+            elif t.startswith("K") and t[1:] in names:
+                springs.append(t)
+                idx += 2
+            elif t in ("MP", "MPX", "MPY", "MPZ") and value is not None:
+                targets = {"MP": ("T", "M2", "M3"), "MPX": ("T",), "MPY": ("M2",), "MPZ": ("M3",)}[
+                    t
+                ]
+                for name in targets:
+                    partial.append((name, value))
+                idx += 2
+            else:
+                idx += 1
+        for m in ids:
+            if springs:
+                self.report.approximate(
+                    "spring releases at member ends taken as rigid connections",
+                    f"{m} ({' '.join(springs)})",
+                )
+            for name, factor in partial:
+                if factor >= 0.5:
+                    released.add(name)
+                    self.report.approximate(
+                        "partial moment releases of half or more taken as full releases",
+                        f"{m} ({name} {factor:g})",
+                    )
+                else:
+                    self.report.approximate(
+                        "partial moment releases under half taken as rigid connections",
+                        f"{m} ({name} {factor:g})",
+                    )
+            current = self.releases.setdefault(m, (set(), set()))
+            for e in ends:
+                current[e].update(released)
+
+    def support_data(self, tokens: list[str]) -> None:
+        ids, k = self.id_list(tokens)
+        spec = tokens[k:]
+        if not spec:
+            return
         kind = spec[0]
+        if kind in ("ELASTIC", "PLATE", "FOUNDATION") or (len(spec) > 1 and spec[1] == "MAT"):
+            self.model.springs += max(len(ids), 1)
+            self.report.skip(
+                "soil springs generated by STAAD (ELASTIC MAT, PLATE MAT, foundations) not "
+                "imported (SAEngine's soil springs come from 9 Substructure)",
+                " ".join(tokens[:4]),
+            )
+            return
+        if not ids:
+            return
+        inclined = kind.startswith("INC")
+        if inclined:
+            self.report.approximate(
+                "inclined supports taken in the global axes", " ".join(str(i) for i in ids[:5])
+            )
+            spec = [t for t in spec[1:] if _num(t) is None] or ["FIXED"]
+            kind = spec[0]
         if kind.startswith("FIX"):
             restraint = [True] * 6
             if "BUT" in spec:
                 axis = {"FX": 0, "FY": 2, "FZ": 1, "MX": 3, "MY": 5, "MZ": 4}
                 if self.z_up:
                     axis = {"FX": 0, "FY": 1, "FZ": 2, "MX": 3, "MY": 4, "MZ": 5}
-                for t in spec[spec.index("BUT") + 1 :]:
+                springs: list[str] = []
+                after = spec[spec.index("BUT") + 1 :]
+                for idx, t in enumerate(after):
                     if t in axis:
                         restraint[axis[t]] = False
-                    elif t.startswith("K"):
-                        self.report.approximate("spring supports taken as released", " ".join(spec))
-                        break
+                    elif t.startswith("K") and t[1:] in axis:
+                        restraint[axis[t[1:]]] = False
+                        value = after[idx + 1] if idx + 1 < len(after) else ""
+                        springs.append(f"{t} {value}")
+                if springs:
+                    self.model.springs += len(ids)
+                    self.report.skip(
+                        "spring supports: the spring directions left free (SAEngine's soil "
+                        "springs come from 9 Substructure)",
+                        f"{ids[0]}: {' '.join(springs)}",
+                    )
         elif kind.startswith("PIN"):
             restraint = [True, True, True, False, False, False]
         else:
             for j in ids:
-                self.report.skip("supports not read (enforced, inclined, foundation)", str(j))
+                self.report.skip("supports not read (enforced, multilinear, ...)", str(j))
             return
         for j in ids:
             self.model.supports[str(j)] = tuple(restraint)
 
     # ── loads ──
 
-    def new_case(self, number: str, rest: list[str]) -> None:
+    def new_case(self, number: str, rest: list[str], reference: bool = False) -> None:
         loadtype = ""
         title = " ".join(rest)
         if "LOADTYPE" in rest:
@@ -836,13 +1383,17 @@ class _Reader:
                 loadtype = " ".join(after[:t])
                 title = " ".join(after[t + 1 :])
             else:
-                loadtype = " ".join(after)
-                title = ""
+                loadtype = " ".join(after[:1])
+                title = " ".join(after[1:])
         elif "TITLE" in rest:
             title = " ".join(rest[rest.index("TITLE") + 1 :])
         self.case = LoadCase(name=f"{number} {title}".strip())
         self.case.kind = _kind(loadtype, title)
-        self.model.cases[number] = self.case
+        self.case_key = number
+        if reference:
+            self.references[number] = self.case
+        else:
+            self.model.cases[number] = self.case
         self.block = "load"
 
     def finish_case(self) -> None:
@@ -851,12 +1402,16 @@ class _Reader:
             self.combination = None
         if self.case is not None and self.case.kind == "other" and self.case.selfweight:
             self.case.kind = "D"
-        self.case = None if self.block.startswith("load") or self.block == "comb" else self.case
+        if self.block.startswith("load") or self.block == "comb":
+            self.case = None
+            self.case_key = None
 
     def selfweight(self, tokens: list[str]) -> None:
         assert self.case is not None
         direction = tokens[1] if len(tokens) > 1 else self.vertical()
         factor = _num(tokens[2]) if len(tokens) > 2 else -1.0
+        if direction not in ("X", "Y", "Z"):
+            direction, factor = self.vertical(), -1.0
         if direction != self.vertical() or factor is None:
             self.report.skip("self-weight not acting vertically", self.case.name)
             return
@@ -865,6 +1420,53 @@ class _Reader:
                 "self-weight on part of the model taken on all of it", self.case.name
             )
         self.case.selfweight += -factor
+
+    def add_scaled(self, source: LoadCase, factor: float) -> None:
+        assert self.case is not None
+        for load in source.loads:
+            self.case.loads.append(
+                Load(
+                    load.kind,
+                    load.target,
+                    load.value * factor,
+                    zrange=load.zrange,
+                    length=load.length,
+                    xrange=load.xrange,
+                    yrange=load.yrange,
+                )
+            )
+        self.case.selfweight += source.selfweight * factor
+
+    def repeat_load(self, tokens: list[str]) -> None:
+        assert self.case is not None
+        values = [_num(t) for t in tokens]
+        if any(v is None for v in values):
+            return
+        for a, b in zip(values[0::2], values[1::2], strict=False):
+            key = str(int(a))  # type: ignore[arg-type]
+            source = self.model.cases.get(key)
+            if source is None or source is self.case:
+                self.report.skip(
+                    "REPEAT LOAD of cases that are not read", f"{self.case.name}: {key}"
+                )
+                continue
+            self.add_scaled(source, float(b))  # type: ignore[arg-type]
+            if self.case.kind == "other" and source.kind != "other":
+                self.case.kind = source.kind
+
+    def reference_data(self, tokens: list[str]) -> None:
+        assert self.case is not None
+        for a, b in itertools.pairwise(tokens):
+            value = _num(b)
+            if value is None or not re.match(r"^R\d+$", a):
+                continue
+            source = self.references.get(a)
+            if source is None:
+                self.report.skip("reference loads that are not defined", f"{self.case.name}: {a}")
+                continue
+            self.add_scaled(source, value)
+            if self.case.kind == "other" and source.kind != "other":
+                self.case.kind = source.kind
 
     def direction(self, token: str) -> np.ndarray | None:
         """The global SAEngine unit vector of a STAAD global direction (GX, GY, GZ, PX...)."""
@@ -887,94 +1489,198 @@ class _Reader:
                 force += self.axes(*{"FX": (1, 0, 0), "FY": (0, 1, 0), "FZ": (0, 0, 1)}[a]) * (
                     v * self.force
                 )
-            elif a in ("MX", "MY", "MZ"):
+            elif a in ("MX", "MY", "MZ") and abs(v) > 0:
                 moments = True
         if moments:
             self.report.skip("joint moments", self.case.name)
         for j in ids:
             self.case.loads.append(Load("joint", str(j), force.copy()))
 
-    def member_load(self, tokens: list[str]) -> None:
+    def member_length(self, m: int) -> float:
+        """Member ``m``'s length [mm] (0 when unknown)."""
+        if m not in self.members:
+            return 0.0
+        i, j = self.members[m]
+        if i not in self.joints or j not in self.joints:
+            return 0.0
+        return float(np.linalg.norm(self.joints[j] - self.joints[i]))
+
+    def member_load(self, tokens: list[str], physical: bool = False) -> None:
+        """A MEMBER LOAD (or PMEMBER LOAD) line: its total over the loaded length, as a uniform
+        load per member (or a point load), in SAEngine's axes."""
         assert self.case is not None
         ids, k = self.id_list(tokens)
         spec = tokens[k:]
-        if len(spec) < 3:
+        if len(spec) < 3 or not ids:
             return
         kind, dir_token = spec[0], spec[1]
         numbers = [v for v in (_num(t) for t in spec[2:]) if v is not None]
-        unit = self.direction(dir_token)
         local = dir_token in ("X", "Y", "Z")
-        if unit is None and not local:
+        if self.direction(dir_token) is None and not local:
             self.report.skip(
                 "member loads in directions not read", f"{self.case.name}: {dir_token}"
             )
             return
-        if local:
-            self.report.approximate(
-                "member loads in local axes taken as global (local y as vertical)",
-                f"{self.case.name}: {dir_token}",
-            )
-            unit = (
-                self.axes(0, 1, 0)
-                if dir_token == "Y"
-                else self.axes(1, 0, 0)
-                if dir_token == "X"
-                else self.axes(0, 0, 1)
-            )
-        if dir_token.startswith("P"):
-            self.report.approximate(
-                "projected member loads taken on the member length", self.case.name
-            )
-        if kind.startswith("UNI") and numbers:
-            w = numbers[0]
-            length = None
-            if len(numbers) >= 3:
-                length = (numbers[2] - numbers[1]) * self.length
-                self.report.approximate("partial uniform loads kept by their total", self.case.name)
-            for m in ids:
-                self.case.loads.append(
-                    Load(
-                        "uniform",
-                        str(m),
-                        unit * (w * self.force / (self.length / 1000)),
-                        length=length,
+        if kind.startswith(("UMOM", "UMO", "CMOM", "CMO")):
+            self.report.skip("member moments (not read)", f"{self.case.name}: {kind}")
+            return
+        name = self.case.name
+        # Per (physical) member: the list of (member, its start station, length) [mm].
+        chains: list[list[tuple[int, float, float]]] = []
+        for target in ids:
+            if physical:
+                if target not in self.pmembers:
+                    self.report.skip("physical members that are not defined", str(target))
+                    continue
+                station = 0.0
+                chain = []
+                for m in self.pmembers[target]:
+                    length = self.member_length(m)
+                    chain.append((m, station, length))
+                    station += length
+                chains.append(chain)
+            else:
+                chains.append([(target, 0.0, self.member_length(target))])
+        mm = self.length
+        for chain in chains:
+            total_length = sum(c[2] for c in chain)
+            if total_length <= 0:
+                continue
+            if kind.startswith("CON"):
+                if not numbers:
+                    continue
+                at = numbers[1] * mm if len(numbers) > 1 else total_length / 2
+                at = min(max(at, 0.0), total_length)
+                for m, start, length in chain:
+                    if start - 1e-6 <= at <= start + length + 1e-6:
+                        unit = self.load_vector(m, dir_token, name)
+                        if unit is not None:
+                            self.case.loads.append(
+                                Load("point", str(m), unit * (numbers[0] * self.force))
+                            )
+                        break
+                continue
+            # Distributed: intensity w(s) linear from (s1, w1) to (s2, w2), s along the member.
+            if kind.startswith("UNI"):
+                if not numbers:
+                    continue
+                w1 = w2 = numbers[0]
+                s1 = numbers[1] * mm if len(numbers) > 2 else 0.0
+                s2 = numbers[2] * mm if len(numbers) > 2 else total_length
+                if len(numbers) == 2:
+                    s1, s2 = numbers[1] * mm, total_length
+                elif len(numbers) > 2 and numbers[1] == 0 and numbers[2] == 0:
+                    s1, s2 = 0.0, total_length
+            elif kind.startswith("TRAP"):
+                if len(numbers) < 2:
+                    continue
+                w1, w2 = numbers[0], numbers[1]
+                s1 = numbers[2] * mm if len(numbers) >= 4 else 0.0
+                s2 = numbers[3] * mm if len(numbers) >= 4 else total_length
+            elif kind.startswith("LIN"):
+                if len(numbers) < 2:
+                    continue
+                if len(numbers) >= 3 and abs(numbers[0]) + abs(numbers[1]) == 0:
+                    w1 = w2 = numbers[2] / 2  # triangular, peak at mid-length: half on average
+                    self.report.approximate(
+                        "triangular member loads taken as their mean", f"{name}: {chain[0][0]}"
                     )
+                else:
+                    w1, w2 = numbers[0], numbers[1]
+                s1, s2 = 0.0, total_length
+            else:
+                self.report.skip("member loads not read", f"{name}: {kind}")
+                continue
+            s1, s2 = (min(max(s, 0.0), total_length) for s in (s1, s2))
+            if s2 < s1:
+                s1, s2 = s2, s1
+            if s2 - s1 <= 1e-9:
+                continue
+            if abs(w1 - w2) > 1e-12:
+                self.report.approximate(
+                    "trapezoidal and linear member loads taken as their mean over the loaded "
+                    "length",
+                    f"{name}: {chain[0][0]}",
                 )
-        elif kind.startswith("CON") and numbers:
-            for m in ids:
-                self.case.loads.append(Load("point", str(m), unit * (numbers[0] * self.force)))
-        elif kind.startswith("TRAP") and len(numbers) >= 2:
-            self.report.approximate("trapezoidal member loads taken as their mean", self.case.name)
-            w = (numbers[0] + numbers[1]) / 2
-            length = (numbers[3] - numbers[2]) * self.length if len(numbers) >= 4 else None
-            for m in ids:
+
+            def w_at(
+                s: float, w1: float = w1, w2: float = w2, s1: float = s1, s2: float = s2
+            ) -> float:
+                return w1 + (w2 - w1) * (s - s1) / (s2 - s1)
+
+            if (s1 > 1e-6 or s2 < total_length - 1e-6) and len(chain) == 1:
+                self.report.approximate("partial member loads kept by their total", name)
+            for m, start, length in chain:
+                a, b = max(s1, start), min(s2, start + length)
+                if b - a <= 1e-9:
+                    continue
+                mean = (w_at(a) + w_at(b)) / 2
+                unit = self.load_vector(m, dir_token, name)
+                if unit is None:
+                    continue
                 self.case.loads.append(
-                    Load(
-                        "uniform",
-                        str(m),
-                        unit * (w * self.force / (self.length / 1000)),
-                        length=length,
-                    )
+                    Load("uniform", str(m), unit * (mean * self.force / (mm / 1000)), length=b - a)
                 )
-        else:
-            self.report.skip("member loads not read (moments, linear)", f"{self.case.name}: {kind}")
+
+    def load_vector(self, m: int, token: str, case_name: str) -> np.ndarray | None:
+        """The SAEngine unit vector of a member load direction (projected loads scaled to the
+        projected length)."""
+        if token in ("X", "Y", "Z"):
+            axes = self.local_axes(m)
+            if axes is None:
+                return None
+            return self.axes(*axes["XYZ".index(token)])
+        unit = self.direction(token)
+        if unit is None:
+            return None
+        if token.startswith("P"):
+            i, j = self.members.get(m, (0, 0))
+            if i in self.joints and j in self.joints:
+                d = self.axes(*_unit(self.joints[j] - self.joints[i]))
+                return unit * math.sqrt(max(0.0, 1.0 - float(d @ unit) ** 2))
+        return unit
 
     def element_load(self, tokens: list[str]) -> None:
         assert self.case is not None
         ids, k = self.id_list(tokens)
         spec = tokens[k:]
-        if not spec or spec[0] != "PR":
-            self.report.skip("element loads not read", f"{self.case.name}: {' '.join(spec[:2])}")
+        if not spec:
             return
-        unit = self.direction(spec[1]) if len(spec) > 2 else None
-        value = _num(spec[2] if unit is not None else spec[1]) if len(spec) > 1 else None
-        if value is None:
+        if spec[0] == "JOINTS" or not ids:
+            self.report.skip("element loads not read", f"{self.case.name}: {' '.join(tokens[:3])}")
+            return
+        kind = spec[0]
+        if kind.startswith("PR"):
+            unit = self.direction(spec[1]) if len(spec) > 2 else None
+            if len(spec) > 1 and spec[1] in ("LX", "LY"):
+                self.report.skip("element loads along the plate (LX, LY) not read", self.case.name)
+                return
+            value = _num(spec[2] if unit is not None else spec[1]) if len(spec) > 1 else None
+            if value is None:
+                return
+            if len([t for t in spec if _num(t) is not None]) > 1:
+                self.report.approximate(
+                    "partial element pressures taken on the whole element", self.case.name
+                )
+        elif kind.startswith("TRA"):
+            rest = spec[1:]
+            unit = self.direction(rest[0]) if rest else None
+            if rest and rest[0] in ("LX", "LY"):
+                self.report.skip("element loads along the plate (LX, LY) not read", self.case.name)
+                return
+            if unit is not None:
+                rest = rest[1:]
+            values = [v for v in (_num(t) for t in rest) if v is not None]
+            if not values:
+                return
+            value = sum(values) / len(values)
+            self.report.approximate(
+                "varying element pressures (TRAP) taken as their mean", self.case.name
+            )
+        else:
+            self.report.skip("element loads not read", f"{self.case.name}: {kind}")
             return
         pressure = value * self.force / (self.length / 1000) ** 2
-        if len([t for t in spec if _num(t) is not None]) > 1:
-            self.report.approximate(
-                "partial element pressures taken on the whole element", self.case.name
-            )
         for e in ids:
             vector = unit
             if vector is None:  # local z: the normal by the node order
@@ -995,8 +1701,8 @@ class _Reader:
         for t in tokens:
             v = _num(t)
             if v is None:
-                current = t
-                params.setdefault(t, [])
+                current = _canon(t, {"XRANGE": 3, "YRANGE": 3, "ZRANGE": 3, "FLOAD": 4})
+                params.setdefault(current, [])
             elif current:
                 params[current].append(v)
         up = "ZRANGE" if self.z_up else "YRANGE"
@@ -1091,13 +1797,32 @@ class _Reader:
                 materials[key] = name
             return materials[key]
 
+        for n in sorted(self.deleted & set(self.members)):
+            self.report.approximate("members deleted by DELETE MEMBERS left out", str(n))
         for n, (i, j) in sorted(self.members.items()):
-            if n in self.plates:
+            if n in self.plates or n in self.deleted:
                 continue
             section = self.member_section.get(n)
             if section is None:
                 self.report.skip("members without a property", str(n))
-            m.frames.append(Frame(str(n), str(i), str(j), section, material_of(n)))
+            releases = self.releases.get(n, (set(), set()))
+            if n in self.trusses or self.truss_model:
+                both = {"M2", "M3"}
+                releases = (releases[0] | both, releases[1] | both)
+                self.report.approximate(
+                    "truss members analysed as frame members pinned at both ends", str(n)
+                )
+            m.frames.append(
+                Frame(
+                    str(n),
+                    str(i),
+                    str(j),
+                    section,
+                    material_of(n),
+                    rotation=self.frame_rotation(n, section),
+                    releases=(frozenset(releases[0]), frozenset(releases[1])),
+                )
+            )
         for n, nodes in sorted(self.plates.items()):
             t = self.plate_thickness.get(n)
             name = None
@@ -1107,6 +1832,25 @@ class _Reader:
             m.areas.append(Area(str(n), [str(x) for x in nodes], name, material_of(n)))
         if not m.units:
             m.units = "kN, m"
+
+    def frame_rotation(self, n: int, section: str | None) -> float:
+        """The builder's angle of member ``n``: STAAD's local axes as SAP2000's angle, folded
+        to 0-180° for sections symmetric about both axes (a half turn changes nothing)."""
+        angle = self.rotation(n)
+        sdef = self.model.sections.get(section or "")
+        symmetric = sdef is not None and isinstance(
+            sdef.profile,
+            o.RectangleProfile
+            | o.CircleProfile
+            | o.IShapeProfile
+            | o.RectangleHollowProfile
+            | o.CircleHollowProfile,
+        )
+        if symmetric:
+            angle %= 180
+        if abs(angle) < 1e-6 or abs(angle - 360) < 1e-6:
+            return 0.0
+        return round(angle, 6)
 
 
 def _kind(loadtype: str, title: str) -> str:

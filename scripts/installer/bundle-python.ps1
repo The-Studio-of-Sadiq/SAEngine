@@ -37,6 +37,8 @@ $PbsAsset = 'cpython-3.12.10+20250409-x86_64-pc-windows-msvc-install_only_stripp
 $PbsSha256 = '08670ab68f041481b8127b2ea27e01ddf56131e61fcf845f489024fddcd3deec'
 $PbsUrl = "https://github.com/astral-sh/python-build-standalone/releases/download/$PbsRelease/$($PbsAsset.Replace('+', '%2B'))"
 
+. (Join-Path $PSScriptRoot 'download.ps1')
+
 function Invoke-Checked {
     param([string]$FilePath, [string[]]$Arguments, [string]$What)
     # Windows PowerShell turns a native command's stderr into terminating errors under 'Stop'
@@ -69,12 +71,7 @@ $null = New-Item -ItemType Directory -Path $cacheDir -Force
 # 1. Download and verify.
 $archive = Join-Path $cacheDir $PbsAsset
 if (-not (Test-Path -LiteralPath $archive)) {
-    Write-Host "Downloading $PbsUrl"
-    $partial = "$archive.partial"
-    $ProgressPreference = 'SilentlyContinue'
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    Invoke-WebRequest -Uri $PbsUrl -OutFile $partial -UseBasicParsing
-    Move-Item -LiteralPath $partial -Destination $archive -Force
+    Save-Download -Uri $PbsUrl -OutFile $archive
 }
 $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
 if ($actual -ne $PbsSha256) {

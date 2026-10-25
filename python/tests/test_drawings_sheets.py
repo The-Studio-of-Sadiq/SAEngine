@@ -200,7 +200,7 @@ def test_layers_styles_and_dimension_style() -> None:
         )
     assert doc.layers.get("S-GRID").dxf.linetype == "CENTER"
     assert doc.layers.get("S-VIEWPORT").dxf.plot == 0
-    assert doc.styles.get("SAE").dxf.font == "romans.shx"
+    assert doc.styles.get("SAE").dxf.font == "arial.ttf"
     style = doc.dimstyles.get("SAE-50")
     assert (style.dxf.dimscale, style.dxf.dimtxt, style.dxf.dimblk) == (50, 2.5, "ARCHTICK")
     assert doc.units == ezdxf.units.MM

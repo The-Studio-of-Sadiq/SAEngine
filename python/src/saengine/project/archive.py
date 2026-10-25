@@ -75,6 +75,9 @@ COMPUTED_PATHS: tuple[str, ...] = (
     "09 Substructure/substructure.results/",
     # Any other results folder of an OpenSees Studio run (``<model>.results``).
     "**/*.results/",
+    # The DXF copies of DWG drawings (underlays), converted again from the DWG when missing
+    # (saengine.library.dwg).
+    "**/.dwg-cache/",
 )
 
 #: The deliverables folder (report PDF, IFC, DXF, CSV), included unless ``include_exports`` is

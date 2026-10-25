@@ -12,6 +12,7 @@ import pytest
 
 from saengine.fem.combinations import combination_results
 from saengine.fem.derive import derive_fem
+from saengine.fem.end_zones import element_offsets
 from saengine.library import FloorPlan, ObjectLibrary, default_floor_plan, default_material_library
 from saengine.library.bim import generate
 from saengine.library.settings import default_project_settings
@@ -84,13 +85,13 @@ def applied(project: dict, name: str) -> np.ndarray:
     total = sum((np.array(n["forces"][:3]) for n in pattern["nodal_loads"]), np.zeros(3))
     for load in pattern["element_loads"]:
         a, b = (coords[n] for n in elements[load["element_id"]]["nodes"])
+        # Element loads act on the flexible length (rigid end zones, saengine.fem.end_zones).
+        span = np.linalg.norm(b - a) - sum(element_offsets(elements[load["element_id"]]))
         x = (b - a) / np.linalg.norm(b - a)
         vecxz = np.array([1.0, 0, 0]) if abs(x[2]) > abs(x[0]) else np.array([0, 0, 1.0])
         y = np.cross(vecxz, x)
         y /= np.linalg.norm(y)
-        total = total + (
-            load["wx"] * x + load["wy"] * y + load["wz"] * np.cross(x, y)
-        ) * np.linalg.norm(b - a)
+        total = total + (load["wx"] * x + load["wy"] * y + load["wz"] * np.cross(x, y)) * span
     return total
 
 
@@ -111,6 +112,10 @@ def test_derived_model_is_valid_with_bnbc_loads() -> None:
         "WY",
         "EX",
         "EY",
+        "EXP",
+        "EXN",
+        "EYP",
+        "EYN",
     ]
     # The slab's area loads reach the beams in full: 30 m² of roof (L1 is the top story), so the
     # roof's finish and roof live load apply, and no floor live load.
@@ -144,7 +149,7 @@ def test_analysis_runs_and_combinations_balance(tmp_path: Path) -> None:
             "--project",
             str(model),
             "--cases",
-            *map(str, range(1, 10)),
+            *map(str, [a["id"] for a in d.project["analyses"] if a["type"] in ("Static", "Modal")]),
             "--out",
             str(out),
         ],

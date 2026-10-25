@@ -40,6 +40,8 @@ class Surface:
     direction: Point = (1.0, 0.0, 0.0)
     #: Normal the shells' node order should give (up for slabs).
     normal: Point | None = None
+    #: Largest element side on this surface (mm), when finer than the mesh's size.
+    size: float | None = None
 
 
 @dataclass
@@ -112,10 +114,18 @@ def mesh(
         gmsh.option.setNumber("Mesh.MeshSizeMin", min(size, 1.0))
         gmsh.option.setNumber("Mesh.MeshSizeFromPoints", 0)
         gmsh.option.setNumber("Mesh.RecombineAll", 0 if volumes else 1)
-        if volumes:
-            # Each block's points carry its finer size (and the mesh grades away from it).
+        finer = sorted(
+            (s for s in surfaces if s.size is not None and s.size < size),
+            key=lambda s: -float(s.size or 0.0),
+        )
+        if volumes or finer:
+            # Each block's or finer surface's points carry its size (the mesh grades away).
             gmsh.option.setNumber("Mesh.MeshSizeFromPoints", 1)
             gmsh.model.mesh.setSize(gmsh.model.getEntities(0), size)
+            for surface in finer:  # coarsest first: where surfaces meet, the finer size wins
+                for piece in pieces.get(surface.key, []):
+                    corners = gmsh.model.getBoundary([piece], recursive=True)
+                    gmsh.model.mesh.setSize(corners, float(surface.size or size))
             for volume in volumes:
                 block = min(size, _smallest_dimension(volume) / BLOCK_LAYERS)
                 for piece in pieces.get(volume.key, []):

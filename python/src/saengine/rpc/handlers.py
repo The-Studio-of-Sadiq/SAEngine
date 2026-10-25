@@ -392,6 +392,7 @@ def derive_fem(
     soil_text: str | None = None,
     mep_text: str | None = None,
     substructure_text: str | None = None,
+    loads_text: str | None = None,
 ) -> dict[str, Any]:
     """The analysis model (``model.osmodel`` text) of the building model with the settings' loads.
 
@@ -406,6 +407,12 @@ def derive_fem(
     given. The MEP file's stamp (of what the model takes from it, ``derive.mep_stamp``) is recorded
     (key ``mep``) once it is more than the placeholder,
     the substructure's (key ``substructure``) when the supports are soil springs.
+
+    ``loads_text`` (``05 Floor Plan/loads.json``, :mod:`saengine.library.line_loads`, read
+    beside ``model_folder`` when not given): the line and point loads on members; its stamp is
+    recorded (key ``loads``) once it has a load. With end offsets the result also has
+    ``"facesText"``, the support face offsets for ``08 FEM/faces.json``
+    (:mod:`saengine.fem.end_zones`).
 
     The site class is resolved here (``saengine.library.settings.resolve_site_class``): with
     the source "From the soil report", the soil report's governing class replaces the entered
@@ -463,6 +470,16 @@ def derive_fem(
         return {"problems": [f"MEP: {_first_line(exc)}"]}
     if mep_text and _has_content(mep):
         stamps["mep"] = mep_stamp(mep_text)
+    from saengine.library import line_loads as ll
+
+    if loads_text is None and root is not None:
+        loads_text = _read(root / ll.LOADS_FILE)
+    try:
+        member_loads = ll.parse(loads_text)
+    except ValueError as exc:
+        return {"problems": [f"Line loads: {_first_line(exc)}"]}
+    if member_loads.loads:
+        stamps["loads"] = stamp(loads_text or "")
     substructure = None
     if settings.analysis.supports == "soilSprings":
         if substructure_text is None and root is not None:
@@ -484,6 +501,7 @@ def derive_fem(
         mep=mep if _has_content(mep) else None,
         substructure=substructure,
         soil_text=soil_text,
+        member_loads=member_loads if member_loads.loads else None,
     )
     result = {
         "text": json.dumps(derivation.project, indent="\t", ensure_ascii=False) + "\n",
@@ -498,6 +516,8 @@ def derive_fem(
         result["thermalText"] = json.dumps(derivation.thermal)
     if derivation.ssi is not None:
         result["ssiText"] = json.dumps(derivation.ssi, indent="\t", ensure_ascii=False) + "\n"
+    if derivation.faces is not None:
+        result["facesText"] = json.dumps(derivation.faces, ensure_ascii=False)
     return result
 
 
@@ -555,6 +575,7 @@ def import_geometry(path: str, options: dict[str, Any], objects_text: str | None
 
     from pydantic import ValidationError
 
+    from saengine.library.dwg import DwgError
     from saengine.library.importers import ImportOptions
     from saengine.library.importers import import_geometry as read
 
@@ -572,8 +593,23 @@ def import_geometry(path: str, options: dict[str, Any], objects_text: str | None
         pass  # no layer-named types then
     try:
         return read(path, parsed, kinds).to_json()
+    except DwgError as exc:  # names the file already
+        return {"problems": [str(exc)]}
     except Exception as exc:  # noqa: BLE001 - unreadable files are reported to the user
         return {"problems": [f"{Path(path).name}: {exc}"]}
+
+
+def convert_dwg(path: str, cache: str | None = None) -> dict[str, Any]:
+    """A DWG drawing as DXF (``saengine.library.dwg``): ``{"ok", "dxf", "warnings", "cached"}``,
+    or ``{"ok": False, "code", "message"}`` (``code`` ``"no-converter"`` or ``"failed"``)."""
+    from saengine.library.dwg import ConverterMissing, DwgError, convert
+
+    try:
+        return {"ok": True, **convert(path, cache).to_json()}
+    except ConverterMissing as exc:
+        return {"ok": False, "code": "no-converter", "message": str(exc)}
+    except DwgError as exc:
+        return {"ok": False, "code": "failed", "message": str(exc)}
 
 
 def insert_geometry(structure_text: str, geometry: dict[str, Any]) -> dict[str, Any]:
@@ -1282,6 +1318,27 @@ def ssi_compare(project_root: str) -> dict[str, Any]:
     return _mep_call(lambda: compare(project_root))
 
 
+def mesh_check(project_root: str) -> dict[str, Any]:
+    """The mesh convergence check of Run All (``saengine.fem.mesh_check``): the beams' gravity
+    end moments on the project's mesh and on one twice as coarse, written to ``08 FEM/
+    model.results/mesh-check.json``; ``{"skipped": why}`` when the project needs none,
+    ``{"problems"}`` when it could not be run."""
+    from saengine.fem import mesh_check as mc
+
+    root = Path(project_root)
+    try:
+        why = mc.needs_check(root)
+        if why is not None:
+            return {"skipped": why}
+        result = mc.project_mesh_convergence(root)
+    except (OSError, ValueError, KeyError) as error:
+        return {"problems": [f"mesh check: {_first_line(error)}"]}
+    folder = root / "08 FEM" / "model.results"
+    if folder.is_dir():
+        (folder / mc.MESH_CHECK_FILE).write_text(mc.dumps(result), encoding="utf-8")
+    return result
+
+
 def substructure_ensure(project_root: str) -> dict[str, Any]:
     """Writes the building model's footings into ``substructure.json`` while it is still the
     placeholder (``saengine.substructure.handover.ensure_migrated``)."""
@@ -1607,6 +1664,37 @@ def drawings_progress(project_root: str) -> dict[str, Any]:
     from saengine.pipeline.drawings import progress
 
     return progress(project_root)
+
+
+def story_response(out_dir: str, project_path: str) -> dict[str, Any]:
+    """The storey response, modal participation, spectrum and curves of a run (the FEM
+    results' charts; ``saengine.fem.story_response``)."""
+    from saengine.fem.story_response import story_response as compute
+
+    return compute(out_dir, project_path)
+
+
+def member_forces(out_dir: str, project_path: str, member: str) -> dict[str, Any]:
+    """A member's section forces and deflection along it for every static case and load
+    combination (the member detail window; ``saengine.fem.member_detail``)."""
+    from saengine.fem.member_detail import member_forces as compute
+
+    return compute(out_dir, project_path, member)
+
+
+def column_interaction(out_dir: str, project_path: str, member: str | None) -> dict[str, Any]:
+    """The P-M interaction diagrams of the run's concrete columns with their demand points
+    (worked out once per run by the design checks; ``saengine.fem.member_detail``)."""
+    from saengine.fem.member_detail import column_interaction as compute
+
+    return compute(out_dir, project_path, member)
+
+
+def export_xlsx(path: str, sheets: list[dict[str, Any]]) -> dict[str, Any]:
+    """Result tables written to an Excel workbook (``saengine.fem.table_export``)."""
+    from saengine.fem.table_export import write_xlsx
+
+    return write_xlsx(path, sheets)
 
 
 # ───────────────────────────────────────── code packs ─────────────────────────────────────────

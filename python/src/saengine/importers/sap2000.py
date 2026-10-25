@@ -19,19 +19,29 @@ trailing ``_``). The reader uses:
   DEFINITIONS`` with ``CASE - STATIC 1 - LOAD ASSIGNMENTS`` (cases made of patterns);
 - ``FRAME LOADS - DISTRIBUTED`` (mean of the two ends over the loaded length), ``FRAME LOADS -
   POINT``, ``JOINT LOADS - FORCE``, ``AREA LOADS - UNIFORM`` and ``- UNIFORM TO FRAME``;
-- ``COMBINATION DEFINITIONS`` (linear additive, combinations of combinations expanded).
+- ``COMBINATION DEFINITIONS`` (linear additive, combinations of combinations expanded);
+- ``FRAME RELEASE ASSIGNMENTS 1 - GENERAL`` (bending released at both ends: pinned; partial
+  fixity reported), ``FRAME PROPERTY MODIFIERS`` and ``AREA STIFFNESS MODIFIERS`` with the
+  sections' own modifiers (BNBC's cracked factors -> SAEngine's cracked sections, as the ETABS
+  reader), ``FRAME SECTION PROPERTIES 02 - CONCRETE COLUMN`` (column bars) and
+  ``MATERIAL PROPERTIES 03E - REBAR DATA``;
+- reported and not imported: end offsets and insertion points, joint springs and other
+  springs, constraints (diaphragms), added masses, links, solids, cables and tendons, auto
+  lateral loads.
 
-Other tables are skipped and listed in the import report.
+Frame loads in local directions use SAP2000's default frame axes turned by the frame's angle;
+projected loads act on the projected length. Other tables are skipped and listed in the report.
 """
 
 from __future__ import annotations
 
+import math
 import re
 from pathlib import Path
 
 import numpy as np
 
-from saengine.importers.common import ImportedProject, ImportReport, Units
+from saengine.importers.common import ImportedProject, ImportReport, Units, bar_diameter
 from saengine.importers.neutral import (
     Area,
     FileUnits,
@@ -78,6 +88,30 @@ _USED = {
     "AREA LOADS - UNIFORM",
     "AREA LOADS - UNIFORM TO FRAME",
     "COMBINATION DEFINITIONS",
+    "FRAME RELEASE ASSIGNMENTS 1 - GENERAL",
+    "FRAME RELEASE ASSIGNMENTS 2 - PARTIAL FIXITY",
+    "FRAME OFFSET ALONG LENGTH ASSIGNMENTS",
+    "FRAME INSERTION POINT ASSIGNMENTS",
+    "FRAME PROPERTY MODIFIERS",
+    "AREA STIFFNESS MODIFIERS",
+    "FRAME SECTION PROPERTIES 02 - CONCRETE COLUMN",
+    "FRAME SECTION PROPERTIES 03 - CONCRETE BEAM",
+    "MATERIAL PROPERTIES 03E - REBAR DATA",
+    "JOINT SPRING ASSIGNMENTS 1 - UNCOUPLED",
+    "JOINT SPRING ASSIGNMENTS 2 - COUPLED",
+    "AREA SPRING ASSIGNMENTS",
+    "FRAME LINE SPRING ASSIGNMENTS",
+    "JOINT CONSTRAINT ASSIGNMENTS",
+    "JOINT ADDED MASS ASSIGNMENTS",
+    "CONNECTIVITY - LINK",
+    "CONNECTIVITY - SOLID",
+    "CONNECTIVITY - CABLE",
+    "CONNECTIVITY - TENDON",
+    "JOINT LOADS - GROUND DISPLACEMENT",
+    "FRAME LOADS - TEMPERATURE",
+    "AREA LOADS - TEMPERATURE",
+    "AREA LOADS - SURFACE PRESSURE",
+    "FRAME TENSION AND COMPRESSION LIMITS",
 }
 #: Tables that only hold what SAEngine derives or does not need: not reported as skipped.
 _QUIET = re.compile(
@@ -144,6 +178,53 @@ _KINDS = {
 }
 
 
+#: Modifier fields of frames and frame sections -> ETABS's names (as the shared rules use them).
+_FRAME_MODIFIERS = {
+    "AMod": "A",
+    "A2Mod": "AS2",
+    "A3Mod": "AS3",
+    "JMod": "J",
+    "I2Mod": "I22",
+    "I3Mod": "I33",
+    "MMod": "M",
+    "WMod": "W",
+}
+#: Modifier fields of areas and area sections.
+_AREA_MODIFIERS = {
+    "F11Mod": "F11",
+    "F22Mod": "F22",
+    "F12Mod": "F12",
+    "M11Mod": "M11",
+    "M22Mod": "M22",
+    "M12Mod": "M12",
+    "V13Mod": "V13",
+    "V23Mod": "V23",
+    "MMod": "M",
+    "WMod": "W",
+}
+
+
+def _modifiers(
+    record: dict[str, str], names: dict[str, str], keep_ones: bool = False
+) -> dict[str, float]:
+    out = {}
+    for key, name in names.items():
+        value = _float(record, key)
+        if value is not None and (keep_ones or abs(value - 1.0) > 1e-9):
+            out[name] = value
+    return out
+
+
+def _combined(section: dict[str, float], member: dict[str, float]) -> dict[str, float]:
+    """A member's modifiers times its section's, those other than 1."""
+    out = {}
+    for key in section.keys() | member.keys():
+        value = section.get(key, 1.0) * member.get(key, 1.0)
+        if abs(value - 1.0) > 1e-9:
+            out[key] = value
+    return out
+
+
 class _Reader:
     def __init__(self, text: str, file: str) -> None:
         self.tables = tables(text)
@@ -151,6 +232,8 @@ class _Reader:
         self.report = self.model.report
         self.units = FileUnits()
         self.normals: dict[str, np.ndarray] = {}
+        #: Section name -> its own property modifiers (other than 1).
+        self.section_modifiers: dict[str, dict[str, float]] = {}
 
     def rows(self, name: str) -> list[dict[str, str]]:
         return self.tables.get(name, [])
@@ -163,9 +246,11 @@ class _Reader:
         self.read_geometry()
         self.read_materials()
         self.read_sections()
+        self.read_assignments()
         self.read_supports()
         self.read_loads()
         self.read_combinations()
+        self.read_other_objects()
         return self.model
 
     def read_units(self) -> None:
@@ -261,6 +346,9 @@ class _Reader:
         concrete = {
             r.get("Material"): r for r in self.rows("MATERIAL PROPERTIES 03B - CONCRETE DATA")
         }
+        rebar_data = {
+            r.get("Material"): r for r in self.rows("MATERIAL PROPERTIES 03E - REBAR DATA")
+        }
         for r in self.rows("MATERIAL PROPERTIES 02 - BASIC MECHANICAL PROPERTIES"):
             name = r.get("Material")
             if not name:
@@ -279,8 +367,14 @@ class _Reader:
                 if kind.startswith("concrete")
                 else None,
             )
-            if kind.startswith(("rebar", "tendon")):
-                continue  # bars and tendons: not the material of a member
+            if kind.startswith("rebar"):
+                bars = rebar_data.get(name) or steel.get(name) or {}
+                fy, fu = _float(bars, "Fy"), _float(bars, "Fu")
+                d.fy, d.fu = (u.mpa(fy) if fy else None), (u.mpa(fu) if fu else None)
+                self.model.rebars[name] = d
+                continue
+            if kind.startswith("tendon"):
+                continue  # tendons: not the material of a member
             if name in steel:
                 fy, fu = _float(steel[name], "Fy"), _float(steel[name], "Fu")
                 d.fy, d.fu = (u.mpa(fy) if fy else None), (u.mpa(fu) if fu else None)
@@ -303,8 +397,19 @@ class _Reader:
             t3, t2, tf, tw = dim("t3"), dim("t2"), dim("tf"), dim("tw")
             profile = None
             approximation = None
+            library = r.get("SectInFile") or name
+            steel_shape = shape.startswith(
+                ("i/wide", "i-", "i section", "box", "pipe", "channel", "angle", "tee")
+            )
             try:
-                if shape.startswith("rect") or shape == "concrete rectangular":
+                if shape.startswith("nonprismatic"):
+                    self.report.skip("nonprismatic (tapered) frame sections", name)
+                    continue
+                if steel_shape and t3 <= 0:
+                    # A library shape written by name only: the section tables give it.
+                    profile, approximation = named_profile(library)
+                    approximation = approximation or "of a library read by name"
+                elif shape.startswith("rect") or shape == "concrete rectangular":
                     profile = rectangle(t2, t3)
                 elif shape.startswith("circ"):
                     profile = circle_profile(t3 / 2)
@@ -338,13 +443,14 @@ class _Reader:
                     profile = o.TShapeProfile(
                         depth=t3, flangeWidth=t2, webThickness=tw, flangeThickness=tf
                     )
-                elif shape.startswith("general") or shape == "":
+                elif shape.startswith(("general", "sd section", "section designer")) or shape == "":
                     area = (_float(r, "Area", 0.0) or 0.0) * mm**2
                     inertia = (_float(r, "I33", 0.0) or 0.0) * mm**4
                     profile = equivalent_rectangle(area, inertia)
                     approximation = (
-                        "given by their properties: a rectangle of the same area and major "
-                        "inertia (minor inertia and torsion differ)"
+                        "given by their properties (general and section-designer sections): a "
+                        "rectangle of the same area and major inertia (minor inertia and torsion "
+                        "differ)"
                     )
                 else:
                     profile, approximation = named_profile(r.get("SectInFile") or name)
@@ -359,6 +465,12 @@ class _Reader:
             self.model.sections[name] = SectionDef(
                 name, profile, material=r.get("Material"), approximation=approximation
             )
+            modifiers = _modifiers(r, _FRAME_MODIFIERS)
+            if modifiers:
+                self.section_modifiers[name] = modifiers
+            if "I3Mod" in r:
+                self.model.states_modifiers = True
+        self.read_column_bars()
         for r in self.rows("AREA SECTION PROPERTIES"):
             name = r.get("Section")
             if not name:
@@ -375,6 +487,171 @@ class _Reader:
             self.model.area_sections[name] = SectionDef(
                 name, thickness=thickness * mm, material=r.get("Material")
             )
+            modifiers = _modifiers(r, _AREA_MODIFIERS)
+            if modifiers:
+                self.section_modifiers[name] = modifiers
+
+    def read_column_bars(self) -> None:
+        """Column bars of concrete column sections (FRAME SECTION PROPERTIES 02); beams' bars
+        are left to SAEngine's design."""
+        u = self.units
+        for r in self.rows("FRAME SECTION PROPERTIES 02 - CONCRETE COLUMN"):
+            name = r.get("SectionName") or ""
+            sdef = self.model.sections.get(name)
+            if sdef is None:
+                continue
+            material = r.get("RebarMatL") or ""
+            circle = (r.get("ReinfConfig") or "").lower().startswith("circ")
+            dia = bar_diameter(r.get("BarSizeL"))
+            cover = _float(r, "Cover")
+            if circle:
+                count = int(_float(r, "NumBarsCirc", 0) or 0)
+            else:
+                n3 = int(_float(r, "NumBars3Dir", 0) or 0)
+                n2 = int(_float(r, "NumBars2Dir", 0) or 0)
+                count = 2 * (n3 + n2) - 4 if n3 >= 2 and n2 >= 2 else 0
+            if not (dia and count and cover):
+                self.report.approximate(
+                    "column bars that could not be read left to SAEngine's design", name
+                )
+                continue
+            bars: dict = {
+                "material": material,
+                "cover": round(u.length * cover, 3),
+                "longitudinal": [{"position": "perimeter", "count": count, "dia": dia}],
+            }
+            tie = bar_diameter(r.get("BarSizeC"))
+            spacing = _float(r, "SpacingC")
+            if tie and spacing:
+                spiral = (r.get("LatReinf") or "").lower().startswith("spiral")
+                transverse: dict = {
+                    "type": "spiral" if spiral else "tie",
+                    "dia": tie,
+                    "spacing": round(u.length * spacing, 3),
+                }
+                legs3, legs2 = _float(r, "NumCBars3"), _float(r, "NumCBars2")
+                if not circle and legs3 and legs2:
+                    # Column local 2 lies along the profile's x: ties along 3 run along y.
+                    transverse["legs"] = int(legs3)
+                    transverse["legsX"] = int(legs2)
+                bars["transverse"] = transverse
+            if (r.get("ReinfType") or "").lower() == "design":
+                self.report.approximate(
+                    "column bars from the layout of a section the file designs (ReinfType Design)",
+                    name,
+                )
+            sdef.column_reinforcement = bars
+        for r in self.rows("FRAME SECTION PROPERTIES 03 - CONCRETE BEAM"):
+            self.report.approximate(
+                "beam bars left to SAEngine's design (the file gives covers)", r.get("SectionName")
+            )
+
+    def read_assignments(self) -> None:
+        """Releases, modifiers, offsets and insertion points of frames; modifiers of areas."""
+        frames = {f.id: f for f in self.model.frames}
+        areas = {a.id: a for a in self.model.areas}
+        names = ("P", "V2", "V3", "T", "M2", "M3")
+        for r in self.rows("FRAME RELEASE ASSIGNMENTS 1 - GENERAL"):
+            f = frames.get(r.get("Frame", ""))
+            if f is None:
+                continue
+            at_i = frozenset(n for n in names if _yes(r.get(f"{n}I")))
+            at_j = frozenset(n for n in names if _yes(r.get(f"{n}J")))
+            f.releases = (at_i, at_j)
+            if _yes(r.get("PartialFix")):
+                self.report.approximate(
+                    "partial fixity springs at released ends taken as full releases", f.id
+                )
+        for r in self.rows("FRAME OFFSET ALONG LENGTH ASSIGNMENTS"):
+            fid = r.get("Frame", "")
+            automatic = (r.get("LengthType") or "").lower().startswith("auto")
+            if automatic or _float(r, "OffsetI", 0.0) or _float(r, "OffsetJ", 0.0):
+                self.report.approximate(
+                    "end length offsets and rigid-zone factors ignored (members run joint to "
+                    "joint)",
+                    f"{fid} ({r.get('LengthType', '')} {r.get('OffsetI', 0)}, "
+                    f"{r.get('OffsetJ', 0)}, factor {r.get('RigidFact', 0)})",
+                )
+        for r in self.rows("FRAME INSERTION POINT ASSIGNMENTS"):
+            fid = r.get("Frame", "")
+            point = (r.get("CardinalPt") or "10").split()[0]
+            f = frames.get(fid)
+            beam = f is not None and self._horizontal(f)
+            # 10 is the centroid; 8, the top centre, is where SAEngine puts its beams anyway.
+            if point not in ("10", "11") and not (beam and point == "8"):
+                self.report.approximate(
+                    "insertion points (cardinal points) other than the centroid ignored",
+                    f"{fid} ({r.get('CardinalPt')})",
+                )
+            if any(_float(r, k, 0.0) for k in r if k.startswith("JtOff")):
+                self.report.approximate("joint offsets of members ignored", fid)
+        for r in self.rows("FRAME PROPERTY MODIFIERS"):
+            f = frames.get(r.get("Frame", ""))
+            if f is not None:
+                f.modifiers = _modifiers(r, _FRAME_MODIFIERS, keep_ones=True)
+                self.model.states_modifiers = True
+        for r in self.rows("AREA STIFFNESS MODIFIERS"):
+            a = areas.get(r.get("Area", ""))
+            if a is not None:
+                a.modifiers = _modifiers(r, _AREA_MODIFIERS, keep_ones=True)
+                self.model.states_modifiers = True
+        # SAP2000 multiplies a member's modifiers with its section's.
+        for f in self.model.frames:
+            own = self.section_modifiers.get(f.section or "", {})
+            f.modifiers = _combined(own, f.modifiers)
+        for a in self.model.areas:
+            own = self.section_modifiers.get(a.section or "", {})
+            a.modifiers = _combined(own, a.modifiers)
+
+    def _horizontal(self, f: Frame) -> bool:
+        j = self.model.joints
+        return f.i in j and f.j in j and abs(float(j[f.j][2] - j[f.i][2])) < 1.0
+
+    def read_other_objects(self) -> None:
+        """What SAEngine does not import, reported: springs, constraints, masses, links,
+        solids, cables and tendons."""
+        springs = 0
+        for r in self.rows("JOINT SPRING ASSIGNMENTS 1 - UNCOUPLED") + self.rows(
+            "JOINT SPRING ASSIGNMENTS 2 - COUPLED"
+        ):
+            if any(
+                _float(r, k, 0.0) for k in r if re.fullmatch(r"[UR]\d+|K\w*|U\d+U\d+|R\d+R\d+", k)
+            ):
+                springs += 1
+                self.report.skip(
+                    "point springs not imported (SAEngine's soil springs come from 9 "
+                    "Substructure): check the supports",
+                    r.get("Joint"),
+                )
+        self.model.springs += springs
+        for table, what in (
+            ("AREA SPRING ASSIGNMENTS", "area springs not imported"),
+            ("FRAME LINE SPRING ASSIGNMENTS", "line springs on frames not imported"),
+            ("JOINT ADDED MASS ASSIGNMENTS", "added joint masses not imported"),
+            (
+                "FRAME TENSION AND COMPRESSION LIMITS",
+                "tension and compression limits of frames not imported (linear members)",
+            ),
+        ):
+            for r in self.rows(table):
+                self.report.skip(what, r.get("Area") or r.get("Frame") or r.get("Joint"))
+        constraints = sorted(
+            {r.get("Constraint", "") for r in self.rows("JOINT CONSTRAINT ASSIGNMENTS")}
+        )
+        for name in constraints:
+            self.report.approximate(
+                "joint constraints (diaphragms, bodies) not imported: SAEngine makes its own rigid "
+                "floor diaphragms",
+                name,
+            )
+        for table, key, what in (
+            ("CONNECTIVITY - LINK", "Link", "link elements not imported"),
+            ("CONNECTIVITY - SOLID", "Solid", "solid elements not imported"),
+            ("CONNECTIVITY - CABLE", "Cable", "cables not imported"),
+            ("CONNECTIVITY - TENDON", "Tendon", "tendons not imported"),
+        ):
+            for r in self.rows(table):
+                self.report.skip(what, r.get(key))
 
     def read_supports(self) -> None:
         for r in self.rows("JOINT RESTRAINT ASSIGNMENTS"):
@@ -395,6 +672,13 @@ class _Reader:
             design = (r.get("DesignType") or "").upper()
             case = LoadCase(name=name, kind=_KINDS.get(design, "other"))
             case.selfweight = _float(r, "SelfWtMult", 0.0) or 0.0
+            auto = (r.get("AutoLoad") or "").strip()
+            if auto and auto.upper() != "NONE":
+                self.report.skip(
+                    "auto lateral loads of load patterns not read (SAEngine makes its own wind "
+                    "and earthquake loads from BNBC)",
+                    f"{name} ({auto})",
+                )
             if case.kind == "other" and design:
                 self.report.skip(
                     "load patterns of types SAEngine has no case for", f"{name} ({design})"
@@ -422,15 +706,40 @@ class _Reader:
                 if area is not None and d == "3" and area in self.normals:
                     return self.normals[area]
                 if frame is not None and frame in frames:
-                    f = frames[frame]
-                    if f.i in m.joints and f.j in m.joints:
-                        x = m.joints[f.j] - m.joints[f.i]
-                        x = x / np.linalg.norm(x)
-                        if d == "1":
-                            return x
-                        if d == "2" and abs(x[2]) < 0.999:  # local 2: up for beams
-                            return np.array([0.0, 0.0, 1.0])
+                    axes = frame_axes(frames[frame])
+                    if axes is not None:
+                        return axes[int(d) - 1]
             return None
+
+        def frame_axes(f: Frame) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+            """SAP2000's default frame axes (local 1 from i to j; a vertical frame's local 2
+            along +X, any other frame's 1-2 plane vertical with local 2 upwards) turned by the
+            frame's angle about local 1."""
+            if f.i not in m.joints or f.j not in m.joints:
+                return None
+            x = m.joints[f.j] - m.joints[f.i]
+            if np.linalg.norm(x) < 1e-9:
+                return None
+            e1 = x / np.linalg.norm(x)
+            if math.hypot(e1[0], e1[1]) < 1e-3:
+                e2 = np.array([1.0, 0.0, 0.0])
+                e3 = np.cross(e1, e2)
+            else:
+                e3 = np.cross(e1, np.array([0.0, 0.0, 1.0]))
+                e3 = e3 / np.linalg.norm(e3)
+                e2 = np.cross(e3, e1)
+            a = math.radians(f.rotation)
+            return e1, math.cos(a) * e2 + math.sin(a) * e3, -math.sin(a) * e2 + math.cos(a) * e3
+
+        def projected(v: np.ndarray, frame: str) -> np.ndarray:
+            """A projected load's vector scaled to the frame's length projected normal to it."""
+            f = frames.get(frame)
+            if f is None or f.i not in m.joints or f.j not in m.joints:
+                return v
+            x = m.joints[f.j] - m.joints[f.i]
+            x = x / np.linalg.norm(x)
+            unit = v / np.linalg.norm(v)
+            return v * math.sqrt(max(0.0, 1.0 - float(x @ unit) ** 2))
 
         def case_of(r: dict[str, str]) -> LoadCase | None:
             name = r.get("LoadPat")
@@ -450,7 +759,7 @@ class _Reader:
                 self.report.skip("frame loads in local directions not read", f"{case.name}: {fid}")
                 continue
             if "PROJ" in (r.get("Dir") or "").upper():
-                self.report.approximate("projected frame loads taken on the member length", fid)
+                v = projected(v, fid)
             fa, fb = _float(r, "FOverLA", 0.0) or 0.0, _float(r, "FOverLB", 0.0) or 0.0
             length = lengths.get(fid, 0.0)
             if r.get("AbsDistA") is not None and r.get("AbsDistB") is not None:
@@ -463,7 +772,8 @@ class _Reader:
                 ) * length
             if abs(fa - fb) > 1e-9:
                 self.report.approximate(
-                    "trapezoidal frame loads taken as their mean", f"{case.name}: {fid}"
+                    "trapezoidal frame loads taken as their mean over the loaded length",
+                    f"{case.name}: {fid}",
                 )
             case.loads.append(
                 Load("uniform", fid, v * u.n_per_m((fa + fb) / 2), length=abs(loaded) or None)
@@ -517,10 +827,13 @@ class _Reader:
         for name in (
             "AREA LOADS - SURFACE PRESSURE",
             "FRAME LOADS - TEMPERATURE",
+            "AREA LOADS - TEMPERATURE",
+            "JOINT LOADS - GROUND DISPLACEMENT",
         ):
             for r in self.rows(name):
                 self.report.skip(
-                    f"{name.lower()}", f"{r.get('LoadPat')}: {r.get('Area') or r.get('Frame')}"
+                    f"{name.lower()}",
+                    f"{r.get('LoadPat')}: {r.get('Area') or r.get('Frame') or r.get('Joint')}",
                 )
 
     def read_combinations(self) -> None:

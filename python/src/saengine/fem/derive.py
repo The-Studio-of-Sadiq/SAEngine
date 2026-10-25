@@ -28,8 +28,24 @@ Load combinations are not part of the analysis model (OpenSees Studio has no com
 object): the analysis runs each load case once and the combinations of the project settings
 are formed from those results, which is exact for this linear elastic model.
 
-Known simplifications are reported as notes: stairs are not in the stiffness model, and
-columns rotated by other than a multiple of 90° use the nearest one.
+Options of the settings (``analysis``; absent: the behaviour before version 0.0.44):
+
+- ``massLumping``: "storyLevels" lumps every node's weight at the nearest story level (the
+  lower half of the first storey goes to the base and does not participate), "levelAbove"
+  leaves the masses at the nodes; the summary reports W per level and how it was formed
+  (``seismicWeight``). ``massSource``: factors on the dead and superimposed dead loads, the
+  live share (by default the code pack's: 25 %, 50 % above 3 kN/m², BNBC 2020 Part 6 Sec
+  2.5.7.3) and extra masses;
+- ``accidentalEccentricity``: the static cases EXP, EXN, EYP, EYN (Sec 2.5.7.6.2);
+- ``periodMethod``: "approximate" (Ta, eq. 6.2.38) or "analysis" (the modal period, at most
+  1.4 Ta, Sec 2.5.7.2 (a));
+- ``meshBySpan``: shell slabs no coarser than their shorter span / 8;
+- ``endOffsets`` and ``rigidZoneFactor``: rigid end zones of beams and columns, forces at the
+  support faces (:mod:`saengine.fem.end_zones`).
+
+Columns turned by other than a multiple of 90° are analysed at their angle (their elements'
+``vecxz``). Known simplifications are reported as notes: stairs are not in the stiffness model,
+and inclined members rotated by other than a multiple of 90° use the nearest one.
 """
 
 from __future__ import annotations
@@ -66,6 +82,8 @@ from saengine.library.structure import plane_of
 
 G = 9.80665  # m/s²
 MM = 0.001  # m per mm
+#: Nodes this close [m] to equally near levels count as half way between them (mass lumping).
+TIE_M = 1e-6
 UNITS = "SI (m, N, kg, s, Pa)"
 
 #: Load cases of the analysis model, in this order (see bnbc.LOAD_CASES). The fluid case F (the
@@ -76,6 +94,84 @@ CASES = ["D", "SD", "L", "Lr", "WX", "WY", "EX", "EY", "F"]
 
 #: Restraint of a diaphragm's own node: free in plan, held out of plane.
 _IN_PLAN = [False, False, True, True, True, False]
+
+#: The static earthquake cases with the accidental eccentricity of BNBC 2020 Part 6 Sec
+#: 2.5.7.6.2 (p. 630, eq. 6.2.43: M_ta,i = e_ai·F_i, e_ai = ±0.05·L_i, the same direction at
+#: every floor): case -> (its earthquake case, sign of the shift of the storey masses along
+#: the axis across the force: +Y for EX, +X for EY). After the other cases, when the settings
+#: ask for them (``analysis.accidentalEccentricity``).
+ECCENTRIC_CASES: dict[str, tuple[str, int]] = {
+    "EXP": ("EX", 1),
+    "EXN": ("EX", -1),
+    "EYP": ("EY", 1),
+    "EYN": ("EY", -1),
+}
+_CASE_LABELS = {
+    "EXP": "Earthquake in X, masses shifted +5 % along Y",
+    "EXN": "Earthquake in X, masses shifted -5 % along Y",
+    "EYP": "Earthquake in Y, masses shifted +5 % along X",
+    "EYN": "Earthquake in Y, masses shifted -5 % along X",
+}
+
+#: Seismic weight (BNBC 2020 Part 6 Sec 2.5.7.3, p. 628): live loads above 3 kN/m² (the pack's
+#: ``seismic.heavyLiveLimit``) count with at least 50 % (``seismic.heavyLiveShare``, this the
+#: default), the others with the pack's ``liveShare`` (25 %). The rule applies only once the
+#: pack holds ``heavyLiveLimit`` (a pack without it keeps the W of earlier versions).
+HEAVY_LIVE_SHARE = 0.5
+#: BNBC 2020 Part 6 Sec 2.5.7.2 (a) (p. 627): a period from the structure's properties shall not
+#: exceed the approximate period (eq. 6.2.38) by more than 40 percent. Default until the code
+#: pack holds it (``seismic.periodUpperFactor``).
+PERIOD_UPPER_FACTOR = 1.4
+#: Smallest shell element the span rule of the mesh gives [mm].
+MIN_SPAN_MESH = 200.0
+#: The mesh size rule: shell slabs no coarser than their shorter span over this.
+SPAN_DIVISIONS = 8
+
+
+def option(part: Any, name: str, default: Any) -> Any:
+    """``part.name`` when the settings have it (and it is not None), else ``default``: the
+    settings of this round are added by the integrator; until then today's behaviour holds."""
+    value = part.get(name) if isinstance(part, dict) else getattr(part, name, None)
+    return default if value is None else value
+
+
+def quarter_turns(rotation: float) -> int | None:
+    """Quarter turns of a column's ``rotation`` [°] when it is a multiple of 90°, else None
+    (the column is then analysed at its own angle, :func:`column_vecxz`)."""
+    turns = round(rotation / 90)
+    return turns if abs(rotation - 90 * turns) <= 1e-6 else None
+
+
+def analysed_turns(rotation: float, exact: bool) -> int:
+    """The quarter turns by which the analysis swaps a column's section: with ``exact``
+    (``analysis.exactColumnRotation``) only a multiple of 90° swaps it (any other angle turns
+    the element's axes instead, :func:`column_vecxz`: 0 turns); without it the angle rounded to
+    quarter turns, as before. The design and slenderness must use the same rule:
+    ``analysed_turns(rotation, exact) % 2 == 1`` is a column whose axes are swapped."""
+    turns = quarter_turns(rotation)
+    if exact:
+        return turns or 0
+    return round(rotation / 90)
+
+
+def column_vecxz(rotation: float) -> tuple[float, float, float] | None:
+    """The ``vecxz`` of a vertical member turned by ``rotation`` [°] (not a multiple of 90°):
+    the profile's x axis in plan, so the local axes follow the profile (local z along its x
+    axis, as an unturned column's local z is global X). None for a multiple of 90° (the quarter
+    turns swap the section's inertias instead, and the runner's own vecxz is used)."""
+    if quarter_turns(rotation) is not None:
+        return None
+    angle = math.radians(rotation)
+    return (round(math.cos(angle), 12), round(math.sin(angle), 12), 0.0)
+
+
+def case_label(case: str) -> str:
+    """The description of a load case: the code pack's, or that of an eccentric case."""
+    labels = code_context.table("combinations").loadCases
+    try:
+        return labels[case]
+    except (KeyError, TypeError):
+        return _CASE_LABELS.get(case, case)
 
 
 #: Periods of the tabulated design spectrum [s]: fine where it turns, coarse in its tail.
@@ -236,6 +332,10 @@ class _Member:
     section: int
     density: float  # kg/m³
     area: float  # m²
+    #: The local x-z plane vector of a column turned by other than a multiple of 90°.
+    vecxz: tuple[float, float, float] | None = None
+    #: Rigid end zones at i and j [m] (along the member, :mod:`saengine.fem.end_zones`).
+    rigid: tuple[float, float] = (0.0, 0.0)
 
 
 @dataclass
@@ -268,6 +368,9 @@ class Derivation:
     thermal: dict[str, Any] | None = None
     #: The soil springs of the column bases (``08 FEM/ssi.json``), with ``supports`` "soilSprings".
     ssi: dict[str, Any] | None = None
+    #: The member end offsets (``08 FEM/faces.json``, :mod:`saengine.fem.end_zones`), when the
+    #: settings model end offsets.
+    faces: dict[str, Any] | None = None
 
 
 class _Builder:
@@ -283,6 +386,8 @@ class _Builder:
         self.section_ids: dict[tuple[Any, ...], int] = {}
         self.restraints: dict[int, list[bool]] = {}
         self.notes: list[str] = []
+        #: Per section id the properties its stiffness modifiers set (no cracked factor on top).
+        self.modified: dict[int, set[str]] = {}
 
     def node(self, x_mm: float, y_mm: float, z_mm: float) -> int:
         key = (round(x_mm), round(y_mm), round(z_mm))
@@ -293,10 +398,18 @@ class _Builder:
         return self.nodes[key]
 
 
-def local_axes(a: np.ndarray, b: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """The element axes OpenSees Studio uses (its runner picks vecxz from the element axis)."""
+def local_axes(
+    a: np.ndarray, b: np.ndarray, vecxz: Sequence[float] | None = None
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """The element axes OpenSees Studio uses: from the element's own ``vecxz`` when it has one,
+    else the runner's (picked from the element axis)."""
     x = (b - a) / np.linalg.norm(b - a)
-    vecxz = np.array([1.0, 0, 0]) if abs(x[2]) > abs(x[0]) else np.array([0, 0, 1.0])
+    if vecxz is not None:
+        vecxz = np.asarray(vecxz, dtype=float)
+    elif abs(x[2]) > abs(x[0]):
+        vecxz = np.array([1.0, 0, 0])
+    else:
+        vecxz = np.array([0, 0, 1.0])
     y = np.cross(vecxz, x)
     y /= np.linalg.norm(y)
     return x, y, np.cross(x, y)
@@ -313,6 +426,7 @@ def derive_fem(
     substructure: Any = None,
     soil_text: str | None = None,
     column_supports: str | None = None,
+    member_loads: Any = None,
 ) -> Derivation:
     """The OpenSees Studio project of ``building`` with the loads of ``settings``, under the
     project's code pack (``settings.codePack``; its project-local packs looked for in the
@@ -331,6 +445,7 @@ def derive_fem(
             substructure,
             soil_text,
             column_supports,
+            member_loads,
         )
 
 
@@ -345,6 +460,7 @@ def _derive_fem(
     substructure: Any = None,
     soil_text: str | None = None,
     column_supports: str | None = None,
+    member_loads: Any = None,
 ) -> Derivation:
     """The OpenSees Studio project of ``building`` with the loads of ``settings``.
 
@@ -375,6 +491,19 @@ def _derive_fem(
     mats = {m.id: m for m in materials.materials}
     levels = sorted({s.elevation for s in building.stories})
     base = levels[0] if levels else 0.0
+    # Stiffness modifiers per element (saengine.library.modifiers): the member's over its type's.
+    from saengine.library.modifiers import resolve_modifiers
+
+    modifiers_of: dict[str, dict[str, float]] = {}
+    for element in building.elements:
+        found = resolve_modifiers(element, types.get(element.type))
+        if found:
+            modifiers_of[element.id] = {k: v for k, (v, _) in found.items()}
+    if modifiers_of:
+        b.notes.append(
+            f"stiffness modifiers: {len(modifiers_of)} element(s) with the engineer's factors "
+            "(they replace the code's cracked factors of those properties, in every case)"
+        )
     # Special structures (drawn in 3D, Part 5 structural model) have explicit supports and no
     # floors: no base fixity by level, no diaphragms, no story forces.
     special = building.source is not None and building.source.structure is not None
@@ -384,7 +513,7 @@ def _derive_fem(
         return nu if nu is not None else (0.2 if material.category.value == "concrete" else 0.3)
 
     def section(
-        type_id: str, quarter_turns: int, vertical: bool
+        type_id: str, quarter_turns: int, vertical: bool, mods: dict[str, float] | None = None
     ) -> tuple[int, float, float] | None:
         """Elastic section of an object type in a member along or across the vertical.
 
@@ -392,6 +521,7 @@ def _derive_fem(
         local z is global X, a horizontal member's local z is global Z (up). The profile's x-axis
         inertia (``ixx``: about its width, the strong axis of a beam) goes in Iz for a vertical
         member and in Iy for a horizontal one; quarter turns of a column swap the axes.
+        ``mods``: stiffness modifiers (A, J, I33 on the profile's x-axis, I22 on its y-axis).
         """
         object_type = types.get(type_id)
         material = mats.get(object_type.material) if object_type else None
@@ -400,26 +530,35 @@ def _derive_fem(
         mech = material.mechanical
         if not mech.E:
             return None
-        key = (type_id, quarter_turns % 2, vertical)
+        stiff = {k: v for k, v in (mods or {}).items() if k in ("A", "J", "I22", "I33")}
+        key = (type_id, quarter_turns % 2, vertical, *sorted(stiff.items()))
         if key not in b.section_ids:
             props = section_properties(object_type.profile)
-            about_x, about_y = props.ixx * MM**4, props.iyy * MM**4
+            about_x = props.ixx * MM**4 * stiff.get("I33", 1.0)
+            about_y = props.iyy * MM**4 * stiff.get("I22", 1.0)
+            names = ("I33", "I22")
             if quarter_turns % 2:
                 about_x, about_y = about_y, about_x
+                names = ("I22", "I33")
             iz, iy = (about_x, about_y) if vertical else (about_y, about_x)
+            slots = dict(zip(("Iz", "Iy") if vertical else ("Iy", "Iz"), names, strict=True))
             b.section_ids[key] = len(b.sections) + 1
+            kept = {slot for slot, name in slots.items() if name in stiff}
+            if kept:
+                b.modified[b.section_ids[key]] = kept
             b.sections.append(
                 {
                     "id": b.section_ids[key],
                     "name": f"{type_id} {'column' if vertical else 'beam'}"
-                    + (" (rotated)" if quarter_turns % 2 else ""),
+                    + (" (rotated)" if quarter_turns % 2 else "")
+                    + (" (modified)" if stiff else ""),
                     "type": "ElasticSection",
                     "E": mech.E * 1e6,
-                    "A": props.area * MM**2,
+                    "A": props.area * MM**2 * stiff.get("A", 1.0),
                     "Iz": iz,
                     "Iy": iy,
                     "G": mech.E * 1e6 / (2 * (1 + poisson(material))),
-                    "J": props.j * MM**4,
+                    "J": props.j * MM**4 * stiff.get("J", 1.0),
                 }
             )
         return (
@@ -428,28 +567,38 @@ def _derive_fem(
             section_properties(object_type.profile).area * MM**2,
         )
 
-    def plate(type_id: str) -> tuple[int, float, float] | None:
-        """Plate section of a wall or slab type: (section id, density, thickness m)."""
+    def plate(
+        type_id: str, mods: dict[str, float] | None = None
+    ) -> tuple[int, float, float] | None:
+        """Plate section of a wall or slab type: (section id, density, thickness m); ``mods``:
+        stiffness modifiers (``membrane`` on E, ``bending`` on the plate bending)."""
         object_type = types.get(type_id)
         material = mats.get(object_type.material) if object_type else None
         if object_type is None or material is None or not material.mechanical.E:
             return None
         thickness = object_type.thickness * MM
-        key = ("plate", type_id)
+        stiff = {k: v for k, v in (mods or {}).items() if k in ("membrane", "bending")}
+        key = ("plate", type_id, *sorted(stiff.items()))
         if key not in b.section_ids:
             b.section_ids[key] = len(b.sections) + 1
-            b.sections.append(
-                {
-                    "id": b.section_ids[key],
-                    "name": f"{type_id} {object_type.kind}",
-                    "type": "ElasticMembranePlateSection",
-                    "E": material.mechanical.E * 1e6,
-                    "nu": poisson(material),
-                    "h": thickness,
-                    # The mass is lumped at the nodes with the loads, as for the frames.
-                    "rho": 0.0,
+            membrane = stiff.get("membrane", 1.0)
+            plate_section = {
+                "id": b.section_ids[key],
+                "name": f"{type_id} {object_type.kind}" + (" (modified)" if stiff else ""),
+                "type": "ElasticMembranePlateSection",
+                "E": material.mechanical.E * 1e6 * membrane,
+                "nu": poisson(material),
+                "h": thickness,
+                # The mass is lumped at the nodes with the loads, as for the frames.
+                "rho": 0.0,
+            }
+            if stiff:
+                plate_section["Ep_mod"] = stiff.get("bending", 1.0) / membrane
+                b.modified[b.section_ids[key]] = {
+                    *(["E"] if "membrane" in stiff else []),
+                    *(["Ep_mod"] if "bending" in stiff else []),
                 }
-            )
+            b.sections.append(plate_section)
         return b.section_ids[key], material.mechanical.density or 0.0, thickness
 
     # ── geometry: frames as lines, structural walls (and shell slabs) as surfaces ──
@@ -460,15 +609,25 @@ def _derive_fem(
     supports: list[tuple[float, float, float]] = []
     partitions: list[tuple[WallElement, float]] = []  # non-structural walls, N/m
 
+    member_vecxz: dict[str, tuple[float, float, float]] = {}
+    exact_angles = bool(option(options, "exactColumnRotation", False))
     for element in building.elements:
         if not isinstance(element, ColumnElement):
             continue
-        turns = round(element.rotation / 90)
-        if abs(element.rotation - 90 * turns) > 1e-6:
+        # A multiple of 90° swaps the section's axes; with exactColumnRotation any other angle
+        # turns the element's own axes with the profile (its vecxz), so the column is analysed
+        # at its true angle; without it (old projects, until the design reads the same axes) the
+        # angle is rounded to quarter turns, as before.
+        vecxz = column_vecxz(element.rotation) if exact_angles else None
+        turns = analysed_turns(element.rotation, exact_angles)
+        if vecxz is not None:
+            member_vecxz[element.id] = vecxz
+        elif abs(element.rotation - 90 * turns) > 1e-6:
             b.notes.append(
-                f"{element.id}: rotation {element.rotation}° is analysed as {90 * turns % 360}°"
+                f"{element.id}: rotation {element.rotation}° is analysed as "
+                f"{90 * turns % 360}° (exactColumnRotation is off)"
             )
-        sec = section(element.type, turns, True)
+        sec = section(element.type, turns, True, modifiers_of.get(element.id))
         if sec is None:
             b.notes.append(
                 f"{element.id}: no elastic section (object type, material or E missing); left out"
@@ -508,6 +667,16 @@ def _derive_fem(
                 np.array([member.x2, member.y2, member.z2]),
             )
         )
+    # Line and point loads of 05 Floor Plan/loads.json (saengine.fem.member_loads): beams are
+    # split where point loads sit, so each has its node.
+    from saengine.fem import member_loads as ml
+
+    member_set = (
+        ml.member_loads(building, member_loads)
+        if member_loads is not None and member_loads.loads
+        else None
+    )
+    cuts = ml.split_points(member_set) if member_set is not None else {}
     # Members whose steel type has a simple connection: their ends (mm), pinned below.
     simple_ends: dict[str, tuple[np.ndarray, np.ndarray]] = {}
 
@@ -522,14 +691,19 @@ def _derive_fem(
 
     for source, type_id, a, c in linear:
         axis = c - a
-        sec = section(type_id, 0, abs(axis[2]) > abs(axis[0]))
+        sec = section(type_id, 0, abs(axis[2]) > abs(axis[0]), modifiers_of.get(source))
         if sec is None:
             b.notes.append(
                 f"{source}: no elastic section (object type, material or E missing); left out"
             )
             continue
-        lines.append((source, tuple(a), tuple(c)))
-        line_sources[source] = (source, sec)
+        if source in cuts:
+            for k, (p, q) in enumerate(ml.split_line(a, c, cuts[source])):
+                lines.append((f"{source}/p{k}", p, q))
+                line_sources[f"{source}/p{k}"] = (source, sec)
+        else:
+            lines.append((source, tuple(a), tuple(c)))
+            line_sources[source] = (source, sec)
         if simple(type_id):
             simple_ends[source] = (np.asarray(a, dtype=float), np.asarray(c, dtype=float))
 
@@ -603,7 +777,7 @@ def _derive_fem(
             weight = density * G * object_type.thickness * MM * (element.top - element.bottom) * MM
             partitions.append((element, weight))
             continue
-        sec = plate(element.type)
+        sec = plate(element.type, modifiers_of.get(element.id))
         if sec is None:
             b.notes.append(f"{element.id}: no plate section (material or E missing); left out")
             continue
@@ -650,7 +824,7 @@ def _derive_fem(
         for element in building.elements:
             if not isinstance(element, SlabElement):
                 continue
-            sec = plate(element.type)
+            sec = plate(element.type, modifiers_of.get(element.id))
             if sec is None:
                 continue  # reported with the slab loads below
             z = element.elevation
@@ -709,7 +883,23 @@ def _derive_fem(
         if element.supported:
             supported_faces.append((plane[0] * MM, plane[1], [q * MM for q in points]))
 
-    meshed = mesh(lines, surfaces, options.meshSize, volumes)
+    # Mesh size: the settings' size; with the span rule, shell slabs no coarser than their
+    # shorter span / 8 (so the beams' gravity moments converge: the mesh check of Run All).
+    # ``meshScale`` (not a setting: the mesh check, saengine.fem.mesh_check) scales both.
+    scale = float(option(options, "meshScale", 1.0))
+    mesh_size = float(options.meshSize) * scale
+    if option(options, "meshBySpan", False):
+        slab_ids = {e.id for e in building.elements if isinstance(e, SlabElement)}
+        for surface in surfaces:
+            if surface.key not in slab_ids:
+                continue
+            xs = [p[0] for p in surface.outline]
+            ys = [p[1] for p in surface.outline]
+            span = min(max(xs) - min(xs), max(ys) - min(ys))
+            finer = max(MIN_SPAN_MESH, span / SPAN_DIVISIONS) * scale
+            if finer < mesh_size:
+                surface.size = finer
+    meshed = mesh(lines, surfaces, mesh_size, volumes)
     node_of = {tag: b.node(*xyz) for tag, xyz in meshed.nodes.items()}
     for key, segments in meshed.lines.items():
         if key.endswith("/base"):
@@ -720,7 +910,9 @@ def _derive_fem(
         source, sec = line_sources[key]
         for i, j in segments:
             if node_of[i] != node_of[j]:
-                b.members.append(_Member(source, node_of[i], node_of[j], *sec))
+                b.members.append(
+                    _Member(source, node_of[i], node_of[j], *sec, vecxz=member_vecxz.get(source))
+                )
     for key, elements in meshed.surfaces.items():
         source, sec = surface_sources[key]
         for nodes in elements:
@@ -782,7 +974,7 @@ def _derive_fem(
     def add_element_load(case: str, index: int, vector: np.ndarray) -> None:
         """A uniform load (global N/m) on member ``index``, applied in its local axes."""
         member = b.members[index]
-        x, y, z = local_axes(b.coords[member.i], b.coords[member.j])
+        x, y, z = local_axes(b.coords[member.i], b.coords[member.j], member.vecxz)
         local = np.array([vector @ x, vector @ y, vector @ z])
         total = patterns[case]["element"].setdefault(index, np.zeros(3))
         total += local
@@ -801,21 +993,40 @@ def _derive_fem(
             pattern = stage_patterns.setdefault(k, {"nodal": {}, "element": {}})
             pattern["nodal"].setdefault(node_id, np.zeros(6))[:3] += force
 
-    def add_weight(node_id: int, weight: float) -> None:
-        node_weight[node_id] = node_weight.get(node_id, 0.0) + weight
+    # The mass source: the seismic weight W (BNBC 2020 Part 6 Sec 2.5.7.3, p. 628) is the dead
+    # load (D: self-weight and partition walls; SD: finishes and partitions), a share of the
+    # live load and the permanent equipment and retained liquid; the user's mass source may
+    # factor each and add masses (``analysis.massSource``).
+    mass_source = option(options, "massSource", None)
+    part_factor = {
+        "D": float(option(mass_source, "dead", 1.0)),
+        "SD": float(option(mass_source, "superimposed", 1.0)),
+        "L": 1.0,
+        "other": 1.0,
+    }
+    #: Per node its weight [N] by part (D, SD, L, other): the formation of W in the summary.
+    node_parts: dict[int, dict[str, float]] = {}
 
-    def share_weight(index: int, w: float, factor: float) -> None:
+    def add_weight(node_id: int, weight: float, part: str = "D") -> None:
+        weight *= part_factor.get(part, 1.0)
+        node_weight[node_id] = node_weight.get(node_id, 0.0) + weight
+        parts = node_parts.setdefault(node_id, {})
+        parts[part] = parts.get(part, 0.0) + weight
+
+    def share_weight(index: int, w: float, factor: float, part: str = "D") -> None:
         member = b.members[index]
         half = w * float(np.linalg.norm(b.coords[member.j] - b.coords[member.i])) / 2 * factor
-        add_weight(member.i, half)
-        add_weight(member.j, half)
+        add_weight(member.i, half, part)
+        add_weight(member.j, half, part)
 
     down = np.array([0.0, 0.0, -1.0])
     for index, member in enumerate(b.members):
         w = member.density * member.area * G
         if w:
-            add_element_load("D", index, down * w)
-            share_weight(index, w, 1.0)
+            # The weight and mass modifiers of the member (saengine.library.modifiers).
+            own = modifiers_of.get(member.source, {})
+            add_element_load("D", index, down * w * own.get("weight", 1.0))
+            share_weight(index, w, own.get("mass", 1.0))
 
     for solid in b.solids:
         corners = [b.coords[n] for n in solid.nodes]
@@ -826,18 +1037,39 @@ def _derive_fem(
                 add_nodal("D", node_id, down * w, top_stage(solid.nodes))
                 add_weight(node_id, w)
 
-    live_share = code_context.table("seismic").liveShare
+    seismic_table = code_context.table("seismic")
+    live_share = seismic_table.liveShare
+    # The heavy-live rule (Sec 2.5.7.3 (b)) is new: it holds once the code pack carries its
+    # numbers (heavyLiveLimit, heavyLiveShare), so a pack without them keeps the old W.
+    heavy_limit_value = getattr(seismic_table, "heavyLiveLimit", None)
+    heavy_limit = float(heavy_limit_value) if heavy_limit_value is not None else math.inf
+    heavy_share = float(getattr(seismic_table, "heavyLiveShare", None) or HEAVY_LIVE_SHARE)
+    user_live_share = option(mass_source, "liveShare", None)
 
-    def seismic_share(case: str) -> float:
-        return 1.0 if case in ("D", "SD") else live_share if case == "L" else 0.0
+    def seismic_share(case: str, pressure: float | None = None) -> float:
+        """The share of a load of ``case`` in the seismic weight; ``pressure`` (N/m²): of a live
+        load, its intensity (above 3 kN/m² at least 50 %, Sec 2.5.7.3 (b))."""
+        if case in ("D", "SD"):
+            return 1.0
+        if case != "L":
+            return 0.0
+        if user_live_share is not None:
+            return float(user_live_share)
+        if pressure is not None and pressure > heavy_limit * 1e3 + 1e-9:
+            return max(live_share, heavy_share)
+        return live_share
+
+    def part_of(case: str) -> str:
+        return case if case in ("D", "SD", "L") else "other"
 
     def shell_pressure(shell: _Shell, case: str, pressure: float) -> None:
         """A uniform downward pressure (N/m²) on a shell, as its consistent nodal loads."""
         shares = shell_node_shares([b.coords[n] for n in shell.nodes])
         stage = top_stage(shell.nodes)
+        share = seismic_share(case, pressure)
         for node_id, area in zip(shell.nodes, shares, strict=True):
             add_nodal(case, node_id, down * pressure * area, stage)
-            add_weight(node_id, pressure * area * seismic_share(case))
+            add_weight(node_id, pressure * area * share, part_of(case))
 
     by_pair = {frozenset((m.i, m.j)): index for index, m in enumerate(b.members)}
 
@@ -851,11 +1083,14 @@ def _derive_fem(
         p1: np.ndarray,
         load: float,
         share: float | None = None,
+        part: str | None = None,
     ) -> bool:
         """A uniform line load (N/m, down) along ``p0``-``p1``: beams along it carry their part,
         the nodes on it the rest. False when part of it has no node to go to. ``share``: the part
-        of it in the seismic weight (by default that of its case)."""
+        of it in the seismic weight (by default that of its case); ``part``: the part of W it
+        counts in (by default that of its case)."""
         w = seismic_share(case) if share is None else share
+        part = part or part_of(case)
         axis = p1 - p0
         length = float(np.linalg.norm(axis))
         on_line = sorted(
@@ -869,11 +1104,11 @@ def _derive_fem(
             index = by_pair.get(frozenset((n0, n1)))
             if index is not None:
                 add_element_load(case, index, down * load)
-                share_weight(index, load, w)
+                share_weight(index, load, w, part)
             else:
                 for node_id in (n0, n1):
                     add_nodal(case, node_id, down * load * span / 2, stage_of(float(p0[2])))
-                    add_weight(node_id, load * span / 2 * w)
+                    add_weight(node_id, load * span / 2 * w, part)
         if not complete and case == "D":
             b.notes.append(
                 f"{source}: part of its load has no beam, wall or column to go to; not applied"
@@ -885,7 +1120,8 @@ def _derive_fem(
         if shell.source in walls:
             _, density, thickness = surface_sources[shell.source][1]
             if density:
-                shell_pressure(shell, "D", density * G * thickness)
+                factor = modifiers_of.get(shell.source, {}).get("weight", 1.0)
+                shell_pressure(shell, "D", density * G * thickness * factor)
 
     for element, weight in partitions:
         if math.isclose(element.bottom, base) or not weight:
@@ -924,7 +1160,11 @@ def _derive_fem(
         if element.areaLoad and area_load is None:
             b.notes.append(f"{element.id}: no area load '{load_id}' in the project settings")
         self_weight = (
-            (material.mechanical.density or 0.0) * G * object_type.thickness * MM
+            (material.mechanical.density or 0.0)
+            * G
+            * object_type.thickness
+            * MM
+            * modifiers_of.get(element.id, {}).get("weight", 1.0)
             if material
             else 0.0
         )
@@ -951,7 +1191,9 @@ def _derive_fem(
                 if edge.load:
                     p0 = np.array([*corners[edge.index], z])
                     p1 = np.array([*corners[(edge.index + 1) % len(corners)], z])
-                    line_load(element.id, case, p0, p1, edge.load)
+                    line_load(
+                        element.id, case, p0, p1, edge.load, share=seismic_share(case, pressure)
+                    )
 
     # ── equipment of 07 MEP: its weight, contents and impact on the slabs it stands on ──
     b.notes.extend(mep_notes)
@@ -973,7 +1215,7 @@ def _derive_fem(
         )
         for load in eq.nodal:
             add_nodal(load.case, load.node, np.array(load.force))
-            add_weight(load.node, load.weight)
+            add_weight(load.node, load.weight, "other")
         for line in eq.lines:
             line_load(
                 line.source,
@@ -982,65 +1224,247 @@ def _derive_fem(
                 np.array(line.end),
                 line.load,
                 share=line.weight_share,
+                part="other",
             )
         b.notes += eq.notes
 
-    # ── levels: the story elevations with nodes; nodes between count for the nearest ──
+    # ── line and point loads on members (05 Floor Plan/loads.json) ──
+    if member_set is not None:
+
+        def point_load(case: str, node_id: int, force: float, z: float) -> None:
+            add_nodal(case, node_id, down * force, stage_of(z))
+            add_weight(node_id, force * seismic_share(case), part_of(case))
+
+        b.notes += ml.apply(member_set, b.coords, line_load, point_load)
+
+    # ── levels: the story elevations with nodes ──
+    # Mass lumping (``analysis.massLumping``): "storyLevels" (as a commercial analysis program
+    # lumps lateral mass at the stories) gives the weight of every node between levels to the
+    # nearest level, at its diaphragm's node, and the weight of the nodes nearer the base than
+    # the first level (the lower half of the first storey, the supports' own share included)
+    # to the base, where it does not participate; a node exactly half way between two levels
+    # gives half its weight to each, so W does not depend on whether the mesh has a node there.
+    # "levelAbove" (before version 0.0.44) counts every node's weight for the nearest level
+    # above the base (the whole first storey with the first level, the supports' share
+    # included) and leaves its mass where it is. Either way W + the base's share is the whole
+    # weight, whatever the mesh.
+    lumping = option(options, "massLumping", "levelAbove")
     above = [round(lv * MM, 6) for lv in levels if lv > base]
+    base_m = base * MM
     level_nodes: dict[float, list[int]] = {h: [] for h in above}
-    level_weight: dict[float, float] = dict.fromkeys(above, 0.0)
     for node_id, xyz in b.coords.items():
         if node_id in b.restraints or not above:
             continue
         nearest = min(above, key=lambda h: abs(h - xyz[2]))
-        level_weight[nearest] += node_weight.get(node_id, 0.0)
         if abs(xyz[2] - nearest) < 1e-6:
             level_nodes[nearest].append(node_id)
     heights = [h for h in above if level_nodes[h]] if not special else []
-    weights = [level_weight[h] for h in heights]
+    on_level = {n for h in heights for n in level_nodes[h]}
+    #: Weights [N] that go to a level but not to a node of it: (plan position m or None for the
+    #: level's centre of mass, weight, parts).
+    lumped: dict[float, list[tuple[np.ndarray | None, float, dict[str, float]]]] = {
+        h: [] for h in heights
+    }
+    to_base = 0.0
+    base_parts: dict[str, float] = {}
+    if lumping == "storyLevels" and heights:
+        targets = [base_m, *heights]
+        for node_id, w in list(node_weight.items()):
+            if node_id in on_level or not w:
+                continue
+            z = float(b.coords[node_id][2])
+            gap = min(abs(h - z) for h in targets)
+            # Half way between two levels: half to each (TIE_M, round-off of the coordinates).
+            nearest = [h for h in targets if abs(h - z) - gap < TIE_M]
+            parts = node_parts.pop(node_id, {})
+            node_weight[node_id] = 0.0
+            share = 1.0 / len(nearest)
+            for h in nearest:
+                if h == base_m:
+                    to_base += w * share
+                    for k, v in parts.items():
+                        base_parts[k] = base_parts.get(k, 0.0) + v * share
+                else:
+                    lumped[h].append(
+                        (
+                            b.coords[node_id][:2].copy(),
+                            w * share,
+                            {k: v * share for k, v in parts.items()},
+                        )
+                    )
+    story_names = {round(s.elevation * MM, 6): s.name for s in building.stories}
+    story_levels = {s.id: round(s.elevation * MM, 6) for s in building.stories}
+    extra_total = 0.0
+    for extra in option(mass_source, "extraMasses", None) or []:
+        story = option(extra, "story", None)
+        z = story_levels.get(story) if story is not None else None
+        if z is None and option(extra, "z", None) is not None:
+            z = float(option(extra, "z", 0.0)) * MM
+        weight = float(option(extra, "weight", 0.0)) * 1e3  # kN -> N
+        if z is None or not heights or not weight:
+            b.notes.append(
+                f"mass source: an extra mass of {weight / 1e3:g} kN has no story; left out"
+            )
+            continue
+        h = min(heights, key=lambda level: abs(level - z))
+        x, y = option(extra, "x", None), option(extra, "y", None)
+        position = np.array([float(x), float(y)]) * MM if x is not None and y is not None else None
+        lumped[h].append((position, weight, {"extra": weight}))
+        extra_total += weight
 
     # ── rigid diaphragms: each floor tied to a node at its centre of mass ──
     constraints: list[dict[str, Any]] = []
-    if options.diaphragm == "rigid":
-        for h in heights:
-            tied = level_nodes[h]
-            if len(tied) < 2:
-                continue
-            total = sum(node_weight.get(n, 0.0) for n in tied)
-            centre = (
-                sum(b.coords[n] * node_weight.get(n, 0.0) for n in tied) / total
-                if total
-                else sum(b.coords[n] for n in tied) / len(tied)
-            )
-            key = (round(centre[0] / MM), round(centre[1] / MM), round(centre[2] / MM))
-            if key in b.nodes and b.nodes[key] in tied:
-                retained = b.nodes[key]  # a node of the floor is at its centre
-            else:
-                retained = b.node(*key)
-                b.restraints[retained] = list(_IN_PLAN)
-            constraints.append(
-                {
-                    "type": "RigidDiaphragm",
-                    "perp_dir": 3,
-                    "retained_node": retained,
-                    "constrained_nodes": sorted(n for n in tied if n != retained),
-                }
-            )
+    retained_of: dict[float, int] = {}
+    rotary: dict[int, float] = {}  # node -> mass moment of inertia about Z [kg·m²]
+
+    def take(node_id: int, w: float, parts: dict[str, float]) -> None:
+        node_weight[node_id] = node_weight.get(node_id, 0.0) + w
+        own = node_parts.setdefault(node_id, {})
+        for k, v in parts.items():
+            own[k] = own.get(k, 0.0) + v
+
+    for h in heights:
+        tied = level_nodes[h]
+        rigid = options.diaphragm == "rigid" and len(tied) >= 2
+        placed = [(p, w) for p, w, _ in lumped[h] if p is not None]
+        total = sum(node_weight.get(n, 0.0) for n in tied) + sum(w for _, w in placed)
+        if total:
+            plan = (
+                sum(b.coords[n][:2] * node_weight.get(n, 0.0) for n in tied)
+                + sum((p * w for p, w in placed), np.zeros(2))
+            ) / total
+        else:
+            plan = sum(b.coords[n][:2] for n in tied) / len(tied)
+        if not rigid:
+            # No diaphragm node: each lumped weight goes to the level's node nearest in plan.
+            for p, w, parts in lumped[h]:
+                at = plan if p is None else p
+                target = min(tied, key=lambda n, at=at: float(np.sum((b.coords[n][:2] - at) ** 2)))
+                take(target, w, parts)
+            continue
+        key = (round(plan[0] / MM), round(plan[1] / MM), round(h / MM))
+        if key in b.nodes and b.nodes[key] in tied:
+            retained = b.nodes[key]  # a node of the floor is at its centre
+        else:
+            retained = b.node(*key)
+            b.restraints[retained] = list(_IN_PLAN)
+        retained_of[h] = retained
+        for p, w, parts in lumped[h]:
+            take(retained, w, parts)
+            if p is not None:
+                r2 = float(np.sum((p - b.coords[retained][:2]) ** 2))
+                rotary[retained] = rotary.get(retained, 0.0) + w / G * r2
+        constraints.append(
+            {
+                "type": "RigidDiaphragm",
+                "perp_dir": 3,
+                "retained_node": retained,
+                "constrained_nodes": sorted(n for n in tied if n != retained),
+            }
+        )
+
+    # Each level's weight: its nodes' and the nodes between that count for it (with
+    # "levelAbove" the nearest level above the base, the supports' share with the first level;
+    # with "storyLevels" none are left).
+    level_weight: dict[float, float] = dict.fromkeys(above, 0.0)
+    level_parts: dict[float, dict[str, float]] = {h: {} for h in above}
+    for node_id, xyz in b.coords.items():
+        if not above:
+            continue
+        nearest = min(above, key=lambda h: abs(h - xyz[2]))
+        level_weight[nearest] += node_weight.get(node_id, 0.0)
+        for k, v in node_parts.get(node_id, {}).items():
+            level_parts[nearest][k] = level_parts[nearest].get(k, 0.0) + v
+    weights = [level_weight[h] for h in heights]
+    # The nodes sharing a level's lateral forces: its own and its diaphragm's node when that
+    # carries weight (lumped from between the levels).
+    force_nodes: dict[float, list[int]] = {}
+    for h in heights:
+        nodes_here = list(level_nodes[h])
+        master = retained_of.get(h)
+        if master is not None and master not in nodes_here and node_weight.get(master, 0.0):
+            nodes_here.append(master)
+        force_nodes[h] = nodes_here
+
+    def level_shares(h: float) -> dict[int, float]:
+        nodes_here = force_nodes[h]
+        total = sum(node_weight.get(n, 0.0) for n in nodes_here)
+        return {
+            n: node_weight.get(n, 0.0) / total if total else 1 / len(nodes_here) for n in nodes_here
+        }
 
     # ── lateral loads: equivalent static story forces, shared among a level's nodes by weight ──
     values = derived(settings)
-    base_m = base * MM
     hn = (heights[-1] - base_m) if heights else 0.0
     summary: dict[str, Any] = {"levels": len(heights), "weight_kN": sum(weights) / 1e3}
+    if member_set is not None:
+        summary["memberLoads"] = member_set.summary()
+    eccentricity = float(getattr(seismic_table, "accidentalEccentricity", None) or 0.05)
+    eccentric = bool(option(options, "accidentalEccentricity", False)) and bool(heights)
+    period_method = option(options, "periodMethod", "approximate")
+
+    def seismic_loads(
+        periods: dict[str, float],
+    ) -> tuple[dict[str, dict[int, np.ndarray]], dict[str, Any]]:
+        """The nodal loads (6 components, N and N·m) of EX and EY (and with the accidental
+        eccentricity EXP, EXN, EYP, EYN) for the periods of X and Y, and their summary."""
+        out: dict[str, dict[int, np.ndarray]] = {}
+        info: dict[str, Any] = {"levels": []}
+        rel_levels = [(h - base_m, w) for h, w in zip(heights, weights, strict=True)]
+        forces_of: dict[str, list[float]] = {}
+        for axis, case in ((0, "EX"), (1, "EY")):
+            period = periods[case[1]]
+            sa = fl.design_acceleration(
+                period,
+                settings.site.siteClass,
+                values["Z"],
+                values["seismicImportance"],
+                values["R"],
+            )
+            shear = sa * sum(weights)
+            forces = fl.vertical_distribution(rel_levels, shear, period)
+            forces_of[case] = forces
+            info[case] = {"period_s": period, "Sa_g": sa, "base_shear_kN": shear / 1e3}
+            nodal = out.setdefault(case, {})
+            for level, h in enumerate(heights):
+                for node_id, share in level_shares(h).items():
+                    nodal.setdefault(node_id, np.zeros(6))[axis] += forces[level] * share
+        if eccentric:
+            for case, (source, sign) in ECCENTRIC_CASES.items():
+                nodal = {n: v.copy() for n, v in out[source].items()}
+                across = 1 if source == "EX" else 0
+                for level, h in enumerate(heights):
+                    here = [b.coords[n] for n in level_nodes[h]]
+                    span = float(max(c[across] for c in here) - min(c[across] for c in here))
+                    force = forces_of[source][level]
+                    # Masses shifted by +e along Y turn the X forces by -F·e about Z; shifted by
+                    # +e along X, the Y forces by +F·e (eq. 6.2.43).
+                    moment = sign * eccentricity * span * force * (-1 if source == "EX" else 1)
+                    for node_id, vector in _torsion_forces(
+                        b.coords, level_shares(h), retained_of.get(h), moment
+                    ).items():
+                        nodal.setdefault(node_id, np.zeros(6))[:] += vector
+                    info["levels"].append(
+                        {
+                            "case": case,
+                            "z": round(h, 6),
+                            "force_kN": force / 1e3,
+                            "L_m": span,
+                            "e_m": eccentricity * span,
+                            "moment_kNm": moment / 1e3,
+                        }
+                    )
+                out[case] = nodal
+        return out, info
+
+    approximate = 0.0
     if heights and values["Z"] and values["windSpeed"]:
-        period = fl.approximate_period(hn, settings.seismic.system)
-        sa = fl.design_acceleration(
-            period, settings.site.siteClass, values["Z"], values["seismicImportance"], values["R"]
-        )
-        base_shear = sa * sum(weights)
-        story_forces = fl.vertical_distribution(
-            [(h - base_m, w) for h, w in zip(heights, weights, strict=True)], base_shear, period
-        )
+        approximate = fl.approximate_period(hn, settings.seismic.system)
+        loads, info = seismic_loads({"X": approximate, "Y": approximate})
+        for case, nodal in loads.items():
+            target = patterns.setdefault(case, {"nodal": {}, "element": {}})["nodal"]
+            for node_id, vector in nodal.items():
+                target.setdefault(node_id, np.zeros(6))[:] += vector
         xs = [xyz[0] for xyz in b.coords.values()]
         ys = [xyz[1] for xyz in b.coords.values()]
         extent_x, extent_y = (max(xs) - min(xs)) or 1.0, (max(ys) - min(ys)) or 1.0
@@ -1064,24 +1488,23 @@ def _derive_fem(
             ),
         }
         for level, h in enumerate(heights):
-            nodes_here = level_nodes[h]
-            total = sum(node_weight.get(n, 0.0) for n in nodes_here)
-            for node_id in nodes_here:
-                share = node_weight.get(node_id, 0.0) / total if total else 1 / len(nodes_here)
-                add_nodal("EX", node_id, np.array([story_forces[level] * share, 0, 0]))
-                add_nodal("EY", node_id, np.array([0, story_forces[level] * share, 0]))
+            for node_id, share in level_shares(h).items():
                 add_nodal("WX", node_id, np.array([wind["WX"][level] * 1e3 * share, 0, 0]))
                 add_nodal("WY", node_id, np.array([0, wind["WY"][level] * 1e3 * share, 0]))
         summary.update(
             {
-                "period_s": period,
-                "Cs": fl.normalized_spectrum(period, settings.site.siteClass),
-                "Sa_g": sa,
-                "base_shear_kN": base_shear / 1e3,
+                "period_s": approximate,
+                "Cs": fl.normalized_spectrum(approximate, settings.site.siteClass),
+                "Sa_g": info["EX"]["Sa_g"],
+                "base_shear_kN": info["EX"]["base_shear_kN"],
                 "wind_X_kN": sum(wind["WX"]),
                 "wind_Y_kN": sum(wind["WY"]),
+                "periodMethod": "approximate",
+                "seismic": {k: v for k, v in info.items() if k != "levels"},
             }
         )
+        if eccentric:
+            summary["accidentalTorsion"] = info["levels"]
     elif special:
         b.notes.append(
             "special structure: no equivalent static wind or earthquake loads (they suit "
@@ -1092,8 +1515,43 @@ def _derive_fem(
             "no lateral loads: the building has no levels above its base, or the site has no Z or wind speed"
         )
 
+    # ── the seismic weight W and how it was formed ──
+    if heights:
+        summary["seismicWeight"] = _seismic_weight_summary(
+            lumping,
+            heights,
+            level_weight,
+            level_parts,
+            lumped,
+            story_names,
+            to_base,
+            base_parts,
+            extra_total,
+            {
+                "dead": part_factor["D"],
+                "superimposed": part_factor["SD"],
+                "liveShare": user_live_share if user_live_share is not None else live_share,
+                "heavyLiveShare": heavy_share,
+                "heavyLiveLimit_kPa": None if heavy_limit_value is None else heavy_limit,
+            },
+        )
+        b.notes.append(summary["seismicWeight"]["note"])
+
     # ── simple connections: pinned member ends (after the loads and diaphragms) ──
     pins = _release_simple_ends(b, simple_ends)
+
+    # ── end offsets: rigid end zones, forces at the support faces (saengine.fem.end_zones) ──
+    faces = None
+    if option(options, "endOffsets", False) and not special:
+        faces = _rigid_end_zones(
+            b,
+            building,
+            types,
+            float(option(options, "rigidZoneFactor", 0.5)),
+            set(simple_ends),
+            [patterns, stage_patterns],
+            exact_angles,
+        )
 
     # ── project ──
     nodes = []
@@ -1106,7 +1564,9 @@ def _derive_fem(
                 "id": node_id,
                 "name": "",
                 "coords": [round(float(v), 6) for v in xyz],
-                "mass": [0.0] * 6 if fixed else [mass, mass, 0.0, 0.0, 0.0, 0.0],
+                "mass": [0.0] * 6
+                if fixed
+                else [mass, mass, 0.0, 0.0, 0.0, round(rotary.get(node_id, 0.0), 6)],
                 "restraint": restraint,
             }
         )
@@ -1118,18 +1578,26 @@ def _derive_fem(
         return source if counts[source] == 1 else f"{source}#{counts[source]}"
 
     for member in b.members:
-        elements.append(
-            {
-                "id": len(elements) + 1,
-                "name": name(member.source),
-                "type": "ElasticBeamColumn",
-                "nodes": [member.i, member.j],
-                "section_id": member.section,
-                "geom_transf": "Linear",
-                "rho": 0.0,
-                "consistent_mass": False,
-            }
-        )
+        frame: dict[str, Any] = {
+            "id": len(elements) + 1,
+            "name": name(member.source),
+            "type": "ElasticBeamColumn",
+            "nodes": [member.i, member.j],
+            "section_id": member.section,
+            "geom_transf": "Linear",
+            "rho": 0.0,
+            "consistent_mass": False,
+        }
+        if member.vecxz is not None:
+            frame["vecxz"] = list(member.vecxz)
+        if any(member.rigid):
+            axis = b.coords[member.j] - b.coords[member.i]
+            unit = axis / np.linalg.norm(axis)
+            frame["joint_offsets"] = [
+                *(round(float(v), 6) for v in unit * member.rigid[0]),
+                *(round(float(v), 6) for v in -unit * member.rigid[1]),
+            ]
+        elements.append(frame)
     for shell in b.shells:
         elements.append(
             {
@@ -1165,6 +1633,8 @@ def _derive_fem(
         )
     # The fluid case F only when it has loads (it is last, so the other cases keep their ids).
     cases = [c for c in CASES if c != "F" or patterns[c]["nodal"] or patterns[c]["element"]]
+    # The eccentric earthquake cases after them (only when asked for, so the others keep ids).
+    cases += [c for c in ECCENTRIC_CASES if c in patterns]
     load_patterns = []
     for number, case in enumerate(cases, start=1):
         pattern = patterns[case]
@@ -1221,7 +1691,7 @@ def _derive_fem(
     analyses = [
         {
             "id": number,
-            "name": f"{case}: {code_context.table('combinations').loadCases[case]}",
+            "name": f"{case}: {case_label(case)}",
             "type": "Static",
             "pattern_ids": [number],
             "n_steps": 1,
@@ -1282,7 +1752,7 @@ def _derive_fem(
                 "id": modal_id,
                 "name": "Modal",
                 "type": "Modal",
-                "n_modes": max(1, min(12, 3 * len(heights))),
+                "n_modes": _mode_count(nodes, constraints, len(heights)),
                 "solver": "auto",
             }
         )
@@ -1405,7 +1875,9 @@ def _derive_fem(
     if options.pushover is not None:
         from saengine.fem.nonlinear import pushover_model
 
-        keys = {sid: key for key, sid in b.section_ids.items() if key[0] not in ("plate", "embed")}
+        keys = {
+            sid: key[:3] for key, sid in b.section_ids.items() if key[0] not in ("plate", "embed")
+        }
         pushover, more = pushover_model(
             project, keys, types, mats, node_weight, base * MM, options.pushover
         )
@@ -1421,7 +1893,10 @@ def _derive_fem(
             thermal_sections,
         )
 
-        keys = {sid: key for key, sid in b.section_ids.items()}
+        keys = {
+            sid: key[:2] if key[0] in ("plate", "embed") else key[:3]
+            for key, sid in b.section_ids.items()
+        }
         t = options.thermal
         case = add_thermal_case(
             project,
@@ -1491,10 +1966,23 @@ def _derive_fem(
         project,
         second_order.options_from_settings(settings),
         concrete_sections=concrete_sections,
+        modified=b.modified,
     )
     project = so.project
     b.notes.extend(so.notes)
     summary["secondOrder"] = so.summary
+
+    # ── the period from the modal analysis (BNBC 2020 Part 6 Sec 2.5.7.2 (a), p. 627) ──
+    if period_method == "analysis" and approximate:
+        _analysis_period(
+            project,
+            summary,
+            b.notes,
+            approximate,
+            seismic_table,
+            seismic_loads,
+            lambda t: fl.normalized_spectrum(t, settings.site.siteClass),
+        )
     return Derivation(
         project=project,
         notes=b.notes,
@@ -1502,7 +1990,356 @@ def _derive_fem(
         pushover=pushover,
         thermal=thermal_corrections,
         ssi=ssi_json,
+        faces=faces if faces and faces["elements"] else None,
     )
+
+
+def _analysis_period(
+    project: dict[str, Any],
+    summary: dict[str, Any],
+    notes: list[str],
+    approximate: float,
+    seismic_table: Any,
+    seismic_loads: Any,
+    normalized: Any,
+) -> None:
+    """Replace the static earthquake loads of ``project`` (EX, EY and the eccentric cases) by
+    those of the modal period in each direction, not below the approximate period Ta and
+    capped at 1.4 times it
+    (Sec 2.5.7.2 (a): a period from the structure's properties "shall not exceed the
+    approximate fundamental period determined by Eq. 6.2.38 by more than 40 percent")."""
+    import subprocess
+
+    from saengine.fem.seismic_design import fundamental_periods
+
+    try:
+        modal = fundamental_periods(project)
+    except (ValueError, OSError, subprocess.SubprocessError) as error:
+        notes.append(
+            f"period: the modal analysis failed ({error}); the approximate period "
+            f"Ta = {approximate:.3f} s is used"
+        )
+        return
+    factor = float(getattr(seismic_table, "periodUpperFactor", None) or PERIOD_UPPER_FACTOR)
+    cap = factor * approximate
+    # Not below Ta either: BNBC gives only the upper limit, but a period below Ta would take a
+    # short building onto the rising branch of the spectrum (T < TB) and lower its base shear;
+    # like a commercial analysis program (and ASCE 7 practice) the approximate period is the
+    # lower bound.
+    periods = {axis: min(max(modal[axis]["period"], approximate), cap) for axis in ("X", "Y")}
+    loads, info = seismic_loads(periods)
+    by_name = {p.get("name"): p for p in project.get("load_patterns", [])}
+    for case, nodal in loads.items():
+        pattern = by_name.get(case)
+        if pattern is None:
+            continue
+        pattern["nodal_loads"] = [
+            {"node_id": n, "forces": [round(float(f), 3) for f in v]}
+            for n, v in sorted(nodal.items())
+        ]
+    # The top-level row stays that of EX, as with the approximate period (period_s keeps Ta,
+    # the report's "approximate period"; Cs, Sa and V are those of the period used in X, so
+    # V = Sa·W still holds); EY's are under "seismic".
+    summary.update(
+        {
+            "periodMethod": "analysis",
+            "periodCap_s": cap,
+            "periodModal": modal,
+            "periodUsed_s": periods["X"],
+            "Cs": normalized(periods["X"]),
+            "Sa_g": info["EX"]["Sa_g"],
+            "base_shear_kN": info["EX"]["base_shear_kN"],
+            "seismic": {k: v for k, v in info.items() if k != "levels"},
+        }
+    )
+    if "accidentalTorsion" in summary:
+        summary["accidentalTorsion"] = info["levels"]
+    notes.append(
+        "period from the modal analysis (BNBC 2020 Part 6 Sec 2.5.7.2 (a)): "
+        + "; ".join(
+            f"{axis}: T = {modal[axis]['period']:.3f} s (mode {modal[axis]['mode']})"
+            + (f", capped at 1.4 Ta = {cap:.3f} s" if modal[axis]["period"] > cap else "")
+            + (
+                f", not below Ta = {approximate:.3f} s"
+                if modal[axis]["period"] < approximate
+                else ""
+            )
+            + f", V = {info['E' + axis]['base_shear_kN']:.1f} kN"
+            for axis in ("X", "Y")
+        )
+    )
+
+
+def _rigid_end_zones(
+    b: _Builder,
+    building: BuildingModel,
+    types: dict[str, Any],
+    factor: float,
+    skip: set[str],
+    pattern_groups: list[dict[str, dict[str, Any]]],
+    exact_angles: bool = True,
+) -> dict[str, Any]:
+    """End offsets of the beams at the columns they frame into and of the columns at the
+    floors on them (:mod:`saengine.fem.end_zones`): sets each end member's rigid zones
+    (``factor`` × the offset), moves the uniform loads of ``pattern_groups`` (case -> {"nodal",
+    "element"}) on the rigid zones to the joints, and returns the faces record
+    (``08 FEM/faces.json``). ``skip``: members left without offsets (pinned steel ends)."""
+    from saengine.fem.end_zones import (
+        FACES_SCHEMA,
+        RIGID_SHARE_LIMIT,
+        profile_depth,
+        support_reach,
+    )
+
+    columns = {
+        # The angle the column is analysed at (rounded to quarter turns without exact angles).
+        e.id: (types[e.type].profile, e.rotation if exact_angles else 90 * round(e.rotation / 90))
+        for e in building.elements
+        if isinstance(e, ColumnElement) and hasattr(types.get(e.type), "profile")
+    }
+    beams = {
+        e.id: profile_depth(types[e.type].profile)
+        for e in building.elements
+        if isinstance(e, BeamElement) and hasattr(types.get(e.type), "profile")
+    }
+    slabs = {
+        e.id: float(getattr(types.get(e.type), "thickness", 0.0) or 0.0)
+        for e in building.elements
+        if isinstance(e, SlabElement)
+    }
+    chains: dict[str, list[int]] = {}
+    for index, member in enumerate(b.members):
+        chains.setdefault(member.source, []).append(index)
+    columns_at: dict[int, list[str]] = {}
+    depth_at: dict[int, float] = {}  # node -> deepest beam framing in [mm]
+    for index, member in enumerate(b.members):
+        for n in (member.i, member.j):
+            if member.source in columns:
+                columns_at.setdefault(n, []).append(member.source)
+            elif beams.get(member.source):
+                depth_at[n] = max(depth_at.get(n, 0.0), float(beams[member.source] or 0.0))
+    slab_at: dict[int, float] = {}
+    for shell in b.shells:
+        if shell.source in slabs:
+            for n in shell.nodes:
+                slab_at[n] = max(slab_at.get(n, 0.0), slabs[shell.source])
+
+    def length(index: int) -> float:
+        m = b.members[index]
+        return float(np.linalg.norm(b.coords[m.j] - b.coords[m.i]))
+
+    # (end member index, "i"|"j", offset m, the chain walked from the joint: [(index, reversed)])
+    ends: list[tuple[int, str, float, list[tuple[int, bool]]]] = []
+    for source, chain in chains.items():
+        if source in skip:
+            continue
+        first, last = b.members[chain[0]], b.members[chain[-1]]
+        if source in beams:
+            run = b.coords[last.j] - b.coords[first.i]
+            plan = (float(run[0]), float(run[1]))
+            for end, node, direction, walk in (
+                ("i", first.i, plan, [(k, False) for k in chain]),
+                ("j", last.j, (-plan[0], -plan[1]), [(k, True) for k in reversed(chain)]),
+            ):
+                reach = max(
+                    (
+                        support_reach(columns[c][0], columns[c][1], direction)
+                        for c in columns_at.get(node, [])
+                    ),
+                    default=0.0,
+                )
+                if reach > 0:
+                    ends.append((walk[0][0], end, reach * MM, walk))
+        elif source in columns:
+            for position, index in enumerate(chain):
+                top = b.members[index].j
+                if b.coords[top][2] < b.coords[b.members[index].i][2]:
+                    continue
+                depth = depth_at.get(top) or slab_at.get(top, 0.0)
+                if depth > 0:
+                    walk = [(k, True) for k in reversed(chain[: position + 1])]
+                    ends.append((index, "j", depth * MM, walk))
+
+    faces: dict[str, dict[str, Any]] = {}
+    capped: list[str] = []
+    for index, end, offset, walk in ends:
+        member = b.members[index]
+        rigid = factor * offset
+        limit = RIGID_SHARE_LIMIT * length(index)
+        if rigid > limit:
+            rigid = limit
+            capped.append(member.source)
+        zones = list(member.rigid)
+        zones[0 if end == "i" else 1] = rigid
+        member.rigid = (zones[0], zones[1])
+        # Where the face is: walk the member from the joint.
+        covered, at = 0.0, (index + 1, 0.0)
+        for k, backwards in walk:
+            span = length(k)
+            if offset <= covered + span + 1e-9 or k == walk[-1][0]:
+                into = min(offset - covered, span)
+                at = (k + 1, span - into if backwards else into)
+                break
+            covered += span
+        faces.setdefault(str(index + 1), {})[end] = {
+            "offset": round(offset / MM, 1),
+            "rigid": round(rigid / MM, 1),
+            "at": [at[0], round(at[1], 6)],
+        }
+
+    # The uniform loads on the rigid zones go straight to the joints (the element carries its
+    # load over its flexible length): force w·r and its moment about the joint.
+    for group in pattern_groups:
+        for pattern in group.values():
+            for index, local in pattern["element"].items():
+                member = b.members[index]
+                ri, rj = member.rigid
+                if not ri and not rj:
+                    continue
+                a, c = b.coords[member.i], b.coords[member.j]
+                x, y, z = local_axes(a, c, member.vecxz)
+                g = local[0] * x + local[1] * y + local[2] * z
+                for node, r, sign in ((member.i, ri, 1.0), (member.j, rj, -1.0)):
+                    if not r:
+                        continue
+                    force = g * r
+                    moment = np.cross(sign * x * r / 2, force)
+                    vector = pattern["nodal"].setdefault(node, np.zeros(6))
+                    vector[:3] += force
+                    vector[3:] += moment
+    if faces:
+        b.notes.append(
+            f"end offsets: {len(ends)} member end(s) at column faces and beam soffits, rigid "
+            f"zone factor {factor:g} (the design reads the forces at the faces)"
+            + (
+                f"; the rigid zone of {len(set(capped))} member(s) is limited to "
+                f"{RIGID_SHARE_LIMIT:.0%} of a short element (e.g. {', '.join(sorted(set(capped))[:3])})"
+                if capped
+                else ""
+            )
+        )
+    return {"schema": FACES_SCHEMA, "rigidZoneFactor": factor, "elements": faces}
+
+
+def _mode_count(nodes: list[dict[str, Any]], constraints: list[dict[str, Any]], levels: int) -> int:
+    """The modes of the modal case: 3 per level, at most 12, and not more than the DOF with
+    mass (masses lumped at the story levels have few: 3 per diaphragm). All of those modes
+    carry mass, so none is dropped: when ARPACK cannot find that many, OpenSees Studio solves
+    dense or, in a large model, condenses the stiffness onto the DOF with mass (exact)."""
+    wanted = min(12, 3 * levels)
+    return max(1, min(wanted, _mass_dofs(nodes, constraints)))
+
+
+def _mass_dofs(nodes: list[dict[str, Any]], constraints: list[dict[str, Any]]) -> int:
+    """The number of independent degrees of freedom with mass (the rank of the mass matrix
+    after the rigid diaphragms): each diaphragm with mass has 3 (X, Y, RZ), every other node
+    one per DOF with mass. No more modes than this exist (the others have infinite
+    frequency), which matters once the masses are lumped at the story levels."""
+    tied: dict[int, int] = {}
+    for k, c in enumerate(constraints):
+        tied[c["retained_node"]] = k
+        for n in c["constrained_nodes"]:
+            tied[n] = k
+    count, diaphragms = 0, set()
+    for node in nodes:
+        mass = node.get("mass") or [0.0] * 6
+        if not any(mass):
+            continue
+        if node["id"] in tied:
+            diaphragms.add(tied[node["id"]])
+        else:
+            count += sum(1 for m in mass if m)
+    return count + 3 * len(diaphragms)
+
+
+def _torsion_forces(
+    coords: dict[int, np.ndarray], shares: dict[int, float], master: int | None, moment: float
+) -> dict[int, np.ndarray]:
+    """Nodal loads (6 components) of a torsional moment ``moment`` [N·m] about Z at a level:
+    on its rigid diaphragm's node when it has one, else as forces ``α·s·(−dy, dx)`` on its nodes
+    (``s`` their share of the storey force, ``d`` from the shares' centre, α = M / Σ s·r²): no
+    net force, moment M."""
+    if not moment:
+        return {}
+    if master is not None:
+        return {master: np.array([0.0, 0.0, 0.0, 0.0, 0.0, moment])}
+    total = sum(shares.values())
+    if not total:
+        return {}
+    centre = sum(coords[n][:2] * s for n, s in shares.items()) / total
+    polar = sum(s * float(np.sum((coords[n][:2] - centre) ** 2)) for n, s in shares.items())
+    if polar <= 1e-12:
+        return {next(iter(shares)): np.array([0.0, 0.0, 0.0, 0.0, 0.0, moment])}
+    alpha = moment / polar
+    out = {}
+    for n, s in shares.items():
+        dx, dy = coords[n][:2] - centre
+        out[n] = np.array([-alpha * s * dy, alpha * s * dx, 0.0, 0.0, 0.0, 0.0])
+    return out
+
+
+def _seismic_weight_summary(
+    lumping: str,
+    heights: list[float],
+    level_weight: dict[float, float],
+    level_parts: dict[float, dict[str, float]],
+    lumped: dict[float, list[tuple[Any, float, dict[str, float]]]],
+    story_names: dict[float, str],
+    to_base: float,
+    base_parts: dict[str, float],
+    extra: float,
+    source: dict[str, Any],
+) -> dict[str, Any]:
+    """The seismic weight W per level and how it was formed (kN): ``{"method", "levels":
+    [{"story", "z_m", "weight_kN", "parts_kN": {D, SD, L, other, extra}, "lumped_kN"}],
+    "total_kN", "toBase_kN", "toBaseParts_kN", "extra_kN", "source", "note"}``."""
+    rows = []
+    for h in heights:
+        parts = {k: round(v / 1e3, 3) for k, v in sorted(level_parts.get(h, {}).items())}
+        rows.append(
+            {
+                "story": story_names.get(round(h, 6), ""),
+                "z_m": round(h, 6),
+                "weight_kN": round(level_weight[h] / 1e3, 3),
+                "parts_kN": parts,
+                "lumped_kN": round(sum(w for _, w, _ in lumped.get(h, [])) / 1e3, 3),
+            }
+        )
+    total = sum(level_weight[h] for h in heights)
+    live = source.get("liveShare")
+    if lumping == "storyLevels":
+        how = (
+            "lumped at the story levels: each node's weight to the nearest level (its "
+            f"diaphragm's node), {to_base / 1e3:.1f} kN of the lower half of the first storey to "
+            "the base (not participating)"
+        )
+    else:
+        how = (
+            "each node's weight counted for the nearest level above the base (the lower half "
+            "of the first storey with the first level), the masses left at the nodes"
+        )
+    note = (
+        f"seismic weight W = {total / 1e3:.1f} kN (BNBC 2020 Part 6 Sec 2.5.7.3): dead load "
+        f"x{source['dead']:g}, superimposed dead x{source['superimposed']:g}, live load x{live:g}"
+        + (
+            f" (x{source['heavyLiveShare']:g} above {source['heavyLiveLimit_kPa']:g} kN/m²), "
+            if source.get("heavyLiveLimit_kPa") is not None
+            else ", "
+        )
+        + "equipment and liquids in full"
+        + (f", extra masses {extra / 1e3:.1f} kN" if extra else "")
+        + f"; {how}"
+    )
+    return {
+        "method": lumping,
+        "levels": rows,
+        "total_kN": round(total / 1e3, 3),
+        "toBase_kN": round(to_base / 1e3, 3),
+        "toBaseParts_kN": {k: round(v / 1e3, 3) for k, v in sorted(base_parts.items())},
+        "extra_kN": round(extra / 1e3, 3),
+        "source": source,
+        "note": note,
+    }
 
 
 #: Stiffness of a pinned end's link in translation [N/m] and in torsion [N·m/rad]: a penalty

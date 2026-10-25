@@ -85,6 +85,10 @@ def profile_geometry(profile: o.Profile) -> Geometry:
                 r=profile.filletRadius,
                 n_r=8 if profile.filletRadius else 1,
             )
+        case o.DesignedProfile():
+            from saengine.library import section_designer
+
+            return section_designer.outline_geometry(section_designer.resolve(profile))
     raise TypeError(f"unsupported profile: {profile!r}")
 
 
@@ -92,7 +96,12 @@ def section_properties(profile: o.Profile) -> SectionProperties:
     geometry = profile_geometry(profile)
     # Mesh size relative to the section: fine enough for J, quick enough for interactive use.
     xmin, xmax, ymin, ymax = geometry.calculate_extents()
-    geometry.create_mesh(mesh_sizes=max(xmax - xmin, ymax - ymin) ** 2 / 400)
+    mesh = max(xmax - xmin, ymax - ymin) ** 2 / 400
+    if isinstance(profile, o.DesignedProfile):  # thin walls and plates: finer (see mesh_size)
+        from saengine.library import section_designer
+
+        mesh = section_designer.mesh_size(section_designer.resolve(profile))
+    geometry.create_mesh(mesh_sizes=mesh)
     section = Section(geometry)
     section.calculate_geometric_properties()
     section.calculate_warping_properties()

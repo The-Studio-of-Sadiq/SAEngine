@@ -305,6 +305,49 @@
       "title": "Liveshare",
       "type": "number"
     },
+    "heavyLiveLimit": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Live loads above this [kN/m²] count in the seismic weight with heavyLiveShare (empty: every live load with liveShare).",
+      "title": "Heavylivelimit"
+    },
+    "heavyLiveShare": {
+      "anyOf": [
+        {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Share of a heavy live load in the seismic weight.",
+      "title": "Heavyliveshare"
+    },
+    "periodUpperFactor": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 1,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "A period from the structure's properties is at most this times the approximate period Ta (empty: 1.4).",
+      "title": "Periodupperfactor"
+    },
     "minimumScale": {
       "description": "Least share of the static base shear for RS.",
       "title": "Minimumscale",

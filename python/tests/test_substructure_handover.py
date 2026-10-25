@@ -506,7 +506,7 @@ def test_report_prints_a_foundations_chapter(frame: tuple[dict, Path], tmp_path:
 
     result = build_report(root, tmp_path / "report.pdf")
     assert result["pages"] > 3
-    import pymupdf
+    from pypdf import PdfReader
 
-    text = "".join(page.get_text() for page in pymupdf.open(result["path"]))
+    text = "".join(page.extract_text() for page in PdfReader(result["path"]).pages)
     assert "Foundations" in text and "Governing checks" in text

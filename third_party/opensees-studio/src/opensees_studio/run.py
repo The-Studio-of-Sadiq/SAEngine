@@ -144,7 +144,12 @@ def _uses_eigen(case: Any) -> bool:
 def _routed_to_arpack(project: Any, case: Any) -> bool:
     """True when ``case`` would run its eigen analysis with ARPACK."""
     from opensees_studio.core import ModalCase, ResponseSpectrumCase
-    from opensees_studio.core.modal import SOLVER_ARPACK, free_dof_count, resolve_modal_solver
+    from opensees_studio.core.modal import (
+        SOLVER_ARPACK,
+        free_dof_count,
+        mass_dof_bound,
+        resolve_modal_solver,
+    )
 
     modal = case
     if isinstance(case, ResponseSpectrumCase):
@@ -159,7 +164,9 @@ def _routed_to_arpack(project: Any, case: Any) -> bool:
     if not isinstance(modal, ModalCase):
         return False
     try:
-        solver, _reason = resolve_modal_solver(modal.solver, free_dof_count(project), modal.n_modes)
+        solver, _reason = resolve_modal_solver(
+            modal.solver, free_dof_count(project), modal.n_modes, mass_dof_bound(project)
+        )
     except ValueError:
         return False  # the runner reports the refusal itself
     return solver == SOLVER_ARPACK

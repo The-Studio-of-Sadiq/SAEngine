@@ -286,7 +286,21 @@ def design(
                 "earthquake combinations use the static cases EX, EY"
             )
     else:
+        # Integrator glue: with the eccentric static cases (analysis.accidentalEccentricity),
+        # each E combination is checked with the masses shifted both ways (BNBC 2020 Part 6
+        # Sec 2.5.7.6.2): EX becomes EXP and EXN, EY becomes EYP and EYN.
+        from saengine.fem.combinations import eccentric_combinations, model_cases
+
+        expanded = eccentric_combinations(with_omega.combinations, model_cases(project))
+        if expanded is not None:
+            with_omega = with_omega.model_copy(update={"combinations": expanded})
         combinations, pieces, notes, shell_forces = _demands(project, out_dir, with_omega, extra)
+        if expanded is not None:
+            notes.append(
+                "accidental torsion: each earthquake combination is checked with the eccentric "
+                "static cases EXP/EXN (EYP/EYN), the story masses shifted ±5 % across the force "
+                "(BNBC 2020 Part 6 Sec 2.5.7.6.2)"
+            )
     if scope is None:
         notes.append(f"the seismic detailing scope could not be found: {scope_problem}")
     omega_indices = [c for c, name in enumerate(combinations) if name.startswith("Ω0: ")]
@@ -324,6 +338,18 @@ def design(
         collect.setdefault("slabs", [])
     types = {o.id: o for o in objects.objects}
     mats = {m.id: m for m in materials.materials}
+    # Integrator glue: the design overwrites (saengine.design.overwrites: k, unbraced lengths,
+    # framing; the member's over its object type's) for the column slenderness and steel.
+    from saengine.design import overwrites as design_overwrites
+
+    resolved_overwrites = design_overwrites.resolve_all(
+        [
+            (e.id, e, types.get(e.type))
+            for e in building.elements
+            if isinstance(e, (BeamElement, ColumnElement, MemberElement))
+        ]
+        + [(a.id, a, types.get(a.type)) for a in building.additions.members]
+    )
     context = slenderness_design.SlenderContext(
         project,
         building,
@@ -336,14 +362,26 @@ def design(
         {i: (forces, extra.get("shellSway", {}).get(i, [])) for i, forces in shell_forces.items()},
         [bool(e) for e in extra.get("envelope", [])],
         extra.get("storeyShear"),
+        resolved_overwrites,
     )
 
+    exact = exact_rotation(project)
     members: list[tuple[str, str, Any]] = []  # (id, object type id, element or addition)
     for element in building.elements:
         if isinstance(element, (BeamElement, ColumnElement, MemberElement)):
             members.append((element.id, element.type, element))
     for addition in building.additions.members:
         members.append((addition.id, addition.type, addition))
+    # Integrator glue: the forces at the support faces (saengine.design.face_forces) from the
+    # analysis's face offsets and face forces (saengine.fem.end_zones, face-forces.json).
+    from saengine.design import face_forces
+
+    face_data = _face_forces_file(out_dir)
+    face_offsets = (face_data or {}).get("faceOffsets")
+    static_factors = (
+        extra.get("factors") if not seismic_design.design_uses_spectrum(settings) else None
+    )
+    faced_any = False
 
     checked: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
@@ -383,8 +421,9 @@ def design(
                     mats,
                     own,
                     combinations,
-                    _turned(element),
+                    _turned(element, exact),
                     project,
+                    design_overwrites.steel_options(resolved_overwrites.get(member_id)),
                 )
             except SteelDesignError as error:
                 skip(str(error))
@@ -415,6 +454,7 @@ def design(
             skip(f"unknown reinforcement material '{object_type.reinforcement.material}'")
             continue
         es = bars.mechanical.E or 200_000.0
+        joints_own = own
         try:
             if isinstance(object_type, Beam):
                 if type_id not in beam_sections:
@@ -433,9 +473,22 @@ def design(
                         {hog: flexure(section, hog) for hog in (False, True)},
                     )
                 section, capacities = beam_sections[type_id]
-                checks = _beam_checks(
-                    section, capacities, object_type, own, combinations, _turned(element)
+                faced = face_forces.at_faces(
+                    own,
+                    project,
+                    shear_depth=face_forces.shear_depth(section),
+                    face_rows=face_forces.face_rows_of(face_data, static_factors, own)
+                    if static_factors
+                    else None,
+                    face_offsets=face_offsets,
                 )
+                own = faced.pieces
+                checks = _beam_checks(
+                    section, capacities, object_type, own, combinations, _turned(element, exact)
+                )
+                if faced.at_faces:
+                    face_forces.annotate(checks, faced)
+                faced_any = faced_any or faced.at_faces
             else:
                 if type_id not in column_sections:
                     section = section_of(
@@ -448,16 +501,33 @@ def design(
                     )
                     column_sections[type_id] = (section, InteractionSurface(section))
                 section, surface = column_sections[type_id]
+                # Slenderness from the joint forces (M1, M2 at the joints, conservative); the
+                # strength checks at the beam soffit and the top of the slab.
                 slender = context.column(
                     member_id,
                     section,
-                    own,
-                    _turned(element),
+                    joints_own,
+                    _turned(element, exact),
                     slenderness_design.concrete_modulus(concrete),
                 )
-                checks = _column_checks(
-                    section, surface, own, combinations, _turned(element), slender
+                faced = face_forces.at_faces(
+                    own,
+                    project,
+                    face_rows=face_forces.face_rows_of(face_data, static_factors, own)
+                    if static_factors
+                    else None,
+                    face_offsets=face_offsets,
                 )
+                own = faced.pieces
+                checks = _column_checks(
+                    section, surface, own, combinations, _turned(element, exact), slender
+                )
+                if faced.at_faces:
+                    face_forces.annotate(checks, faced)
+                faced_any = faced_any or faced.at_faces
+            given = resolved_overwrites.get(member_id)
+            if given:
+                notes.extend(f"{member_id}: {note}" for note in given.notes())
         except DesignError as error:
             skip(str(error))
             continue
@@ -473,7 +543,7 @@ def design(
                     "object": object_type,
                     "section": section,
                     "pieces": own,
-                    "turned": _turned(element),
+                    "turned": _turned(element, exact),
                     "fc": concrete.concrete.fc,
                     "fy": bars.steel.fy,
                     "es": es,
@@ -500,7 +570,7 @@ def design(
                 object_type,
                 section,
                 own,
-                _turned(element),
+                _turned(element, exact),
                 entry,
                 capacities if isinstance(object_type, Beam) else None,
             )
@@ -600,6 +670,10 @@ def design(
     method = [line.format(code=code) for line in METHOD]
     if column_sections:
         method += slenderness_design.method(slender_options, context.model.lateral_cracked)
+    if faced_any:
+        method += face_forces.METHOD
+    elif beam_sections or column_sections:
+        notes.append(face_forces.JOINT_NOTE)
     if steel_seen:
         method += steel_design.METHOD
     if slabs_seen:
@@ -646,6 +720,37 @@ def design(
             context.storeys, combinations, slender_options.sway_magnifier
         ),
     }
+
+
+def _face_forces_file(out_dir: str | Path) -> dict[str, Any] | None:
+    """The results' face forces (``face-forces.json``, :mod:`saengine.fem.end_zones`), written
+    from the model's ``faces.json`` and the results when missing or older than the results;
+    None when the model has no support face offsets."""
+    from saengine.design.face_forces import read_face_forces
+    from saengine.fem import end_zones
+
+    out = Path(out_dir)
+    model_path = out.with_suffix(".osmodel")
+    faces = model_path.parent / end_zones.FACES_FILE
+    manifest = out / "manifest.json"
+    if not faces.is_file() or not manifest.is_file():
+        return None
+    target = out / end_zones.FACE_FORCES_FILE
+    # The temperature case's fixed-end forces (beside the model) are part of the face forces.
+    from saengine.fem.thermal import SIDE_FILE
+
+    thermal = model_path.with_name(SIDE_FILE)
+    try:
+        sources = [manifest, faces, *([thermal] if thermal.is_file() else [])]
+        fresh = target.is_file() and target.stat().st_mtime >= max(
+            p.stat().st_mtime for p in sources
+        )
+        if not fresh:
+            end_zones.write_face_forces(model_path, out)
+    except (OSError, ValueError, KeyError) as error:
+        _SEISMIC_PROBLEMS.setdefault(f"faces:{out}", str(error))
+        return None
+    return read_face_forces(out)
 
 
 def _with_mep_openings(building: BuildingModel, root: Path) -> BuildingModel:
@@ -1247,9 +1352,21 @@ def _profile_forces(piece: _Piece, turned: bool, forces: np.ndarray) -> dict[str
     return {"P": -n, "Mx": -up * mz * 1e3, "Vy": vy, "My": my * 1e3, "Vx": vz}
 
 
-def _turned(element: Any) -> bool:
+def _turned(element: Any, exact: bool = False) -> bool:
+    """Whether the analysis swapped a column's section axes (the rule of
+    :func:`saengine.fem.derive.analysed_turns`): ``exact`` when the model analyses columns at
+    their own angle (its elements carry ``vecxz``, :func:`exact_rotation`)."""
+    from saengine.fem.derive import analysed_turns
+
     rotation = getattr(element, "rotation", 0.0) or 0.0
-    return round(rotation / 90) % 2 == 1
+    return analysed_turns(rotation, exact) % 2 == 1
+
+
+def exact_rotation(project: dict[str, Any]) -> bool:
+    """Whether the analysis model turns columns by their exact angle (``analysis.
+    exactColumnRotation``): read from the model (an element with its own ``vecxz``), so the
+    design follows the model that was analysed."""
+    return any(e.get("vecxz") for e in project.get("elements", []))
 
 
 # ─────────────────────────────────────── checks ───────────────────────────────────────

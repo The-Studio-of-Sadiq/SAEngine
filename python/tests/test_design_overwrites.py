@@ -173,3 +173,46 @@ def test_steel_length_overwrites() -> None:
     steel = ow.steel_options(r)
     assert steel.lengths.unbraced["ltb"] == 2.0 and steel.lengths.k["x"] == 1.5
     assert ow.steel_options(None).lengths.unbraced == {}
+
+
+def _free_top(overwrites: dict, piece: _Piece):
+    """test_design_slender's column 4 m tall and nothing at its top (a stub between the
+    levels): neither end framed, no alignment chart k."""
+    project, building, types = _frame(6.0)
+    project["elements"] = project["elements"][:1]
+    project["nodes"] = project["nodes"][:2]
+    project["nodes"][1]["coords"] = [0, 0, 4.0]
+    column = building.elements[0].model_copy(update={"top": 4000})
+    building = building.model_copy(update={"elements": [column]})
+    return SlenderContext(
+        project, building, types, {}, {"C1": [piece]}, ["1.4D"], [{}], overwrites=overwrites
+    )
+
+
+def test_sway_overwrite_of_an_unframed_column_takes_the_cantilever_k() -> None:
+    # Overwritten as sway, an unframed column takes k = 2 (the cantilever's, the least for a
+    # sway column with a free end), not the nonsway k = 1, and says so.
+    total = [_rows(-3e6, 60e3, 100e3)]
+    stub = _piece(4.0, total, [np.zeros((STATIONS, 6))], [_rows(-1.5e6, 0, 0)])
+    plain = _about_y(_free_top({}, stub).column("C1", SECTION, [stub], False, EC))
+    assert plain.check["slenderness"]["k"] == 1.0 and plain.check["slenderness"]["kSway"] is None
+    forced = {"C1": ow.resolve(None, {"designOverwrites": {"framing": "sway"}})}
+    axis = _about_y(_free_top(forced, stub).column("C1", SECTION, [stub], False, EC))
+    s = axis.check["slenderness"]
+    assert s["sway"] is True and s["k"] == 2.0
+    assert s["klu_r"] == pytest.approx(2.0 * 4000 / 150, rel=1e-3)  # 53.3 > 22: slender
+    assert not s["neglected"]
+    note = axis.check["note"]
+    assert "k = 2.00 (sway, an end not framed: the cantilever's k" in note
+    assert "designed as sway (type overwrite)" in note and "give δs" in note
+    # A k given wins, without the note; a δs given is used.
+    given = {
+        "C1": ow.resolve(
+            {"designOverwrites": {"k2": 1.6, "momentMagnifiers": {"deltaS": 1.2}}},
+            {"designOverwrites": {"framing": "sway"}},
+        )
+    }
+    axis = _about_y(_free_top(given, stub).column("C1", SECTION, [stub], False, EC))
+    assert axis.check["slenderness"]["k"] == 1.6
+    assert axis.check["slenderness"]["deltaS"] == pytest.approx(1.2)
+    assert "cantilever" not in axis.check["note"] and "k = 1.60 (overwrite)" in axis.check["note"]

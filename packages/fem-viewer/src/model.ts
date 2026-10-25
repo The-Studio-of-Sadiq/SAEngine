@@ -134,7 +134,21 @@ export interface FemResultDisplay {
 	 * are not coloured.
 	 */
 	readonly utilisation?: { readonly [elementId: number]: number };
+	/**
+	 * Force diagrams: label every member's largest and least value (a member is the analysis
+	 * elements of one name before `#`: `B1`, `B1#2`, ...), not only the largest of the model.
+	 */
+	readonly memberLabels?: boolean;
 }
+
+/**
+ * Which part of the model is drawn: the elements listed (a floor, a grid line's elevation, one
+ * storey), with their nodes; undefined draws all of it.
+ */
+export type FemVisibleElements = ReadonlySet<number> | undefined;
+
+/** How the camera looks at the model: freely in 3D, or straight down a model axis (orthographic). */
+export type FemCameraView = '3d' | 'top' | 'front' | 'side';
 
 /** Utilisation below which a member is shown as passing with margin. */
 export const UTILISATION_WARN = 0.9;

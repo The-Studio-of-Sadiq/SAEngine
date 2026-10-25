@@ -152,7 +152,8 @@ def test_stdio_methods_are_registered(project: Path, tmp_path: Path) -> None:
         first = saved["version"]["id"]
         settings = project / "02 Project Settings" / "project-settings.json"
         text = settings.read_text(encoding="utf-8")
-        settings.write_text(text.replace('"chattogram"', '"dhaka"'), encoding="utf-8")
+        assert '"dhaka"' in text  # the sample is in Dhaka: move it so the settings change
+        settings.write_text(text.replace('"dhaka"', '"chattogram"'), encoding="utf-8")
         _rpc(proc, 10, "versions/save", {"projectRoot": str(project), "message": "Two"})
         # Two versions compared by id: the names are not "from"/"to", which pygls would rename.
         compared = _rpc(

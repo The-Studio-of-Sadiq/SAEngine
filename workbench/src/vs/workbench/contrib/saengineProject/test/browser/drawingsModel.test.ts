@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DrawingPreviewInput, DrawingPreviewInputSerializer, sameSheet } from '../../browser/drawingPreviewInput.js';
@@ -13,6 +14,8 @@ import {
 } from '../../browser/drawingsModel.js';
 
 const root = URI.file('C:\\Projects\\Frame');
+/** A file of the drawings folder, joined as the model joins it (off Windows the root keeps its backslashes). */
+const inDrawings = (name: string) => joinPath(root, '11 Exports', 'Drawings', name);
 
 /** A set as the backend answers it, with paths relative to the project and an absolute one. */
 const answer = {
@@ -63,7 +66,7 @@ suite('SAEngine - drawings', () => {
 			readTime('2026-10-23T09:30:00Z'),
 			readTime('yesterday'),
 		], [
-			URI.file('C:\\Projects\\Frame\\11 Exports\\Drawings\\S-101.dxf').fsPath,
+			inDrawings('S-101.dxf').fsPath,
 			URI.file('D:\\elsewhere\\x.pdf').fsPath,
 			undefined,
 			1792747800000,
@@ -74,12 +77,11 @@ suite('SAEngine - drawings', () => {
 	});
 
 	test('the answer of generate and list', () => {
-		const sheetsDir = 'C:\\Projects\\Frame\\11 Exports\\Drawings\\';
-		const file = (name: string) => URI.file(sheetsDir + name).fsPath;
+		const file = (name: string) => inDrawings(name).fsPath;
 		assert.deepStrictEqual(paths(readDrawingSet(answer, root)), {
 			sheets: [
 				{ number: 'S-101', title: 'Ground floor framing plan', dxf: file('S-101.dxf'), pdfPage: 1, png: file('S-101.png'), size: 'A1', scale: '1:100', stale: false },
-				{ number: 'S-201', title: 'Column schedule', dxf: file('S-201.dxf'), pdfPage: 2, png: file('S-201.png'), size: undefined, scale: undefined, stale: true },
+				{ number: 'S-201', title: 'Column schedule', dxf: URI.file('C:\\Projects\\Frame\\11 Exports\\Drawings\\S-201.dxf').fsPath, pdfPage: 2, png: file('S-201.png'), size: undefined, scale: undefined, stale: true },
 			],
 			pdf: file('Frame drawings.pdf'),
 			bbsCsv: file('bbs.csv'),
@@ -232,7 +234,7 @@ suite('SAEngine - drawings', () => {
 		];
 		// The sheet of a (re-)listed set, found by its picture, as the preview shows it.
 		const set = readDrawingSet(answer, root);
-		const found = findPreviewSheet(set, URI.file('C:\\Projects\\Frame\\11 Exports\\Drawings\\S-201.png'), root);
+		const found = findPreviewSheet(set, inDrawings('S-201.png'), root);
 		assert.deepStrictEqual([results, changes, sameSheet(sheet, { ...sheet, title: 'other' }), found?.number, found?.stale, found?.pdf?.fsPath, found?.root?.fsPath, findPreviewSheet(set, URI.file('C:\\x.png'), root)], [
 			[false, true, false], ['S-101 stale'], false, 'S-201', true, set?.pdf?.fsPath, root.fsPath, undefined,
 		]);

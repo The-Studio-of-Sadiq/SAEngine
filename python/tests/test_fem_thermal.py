@@ -255,6 +255,33 @@ def test_fixed_beam_heated_uniformly(tmp_path: Path) -> None:
     assert result.node_reaction[3][-1][0] == pytest.approx(-n0)
 
 
+def test_face_forces_include_the_fixed_end_forces(tmp_path: Path) -> None:
+    """The face forces file (saengine.fem.end_zones) of the temperature case carries the
+    fixed-end forces, as the design's stations do: a fixed beam heated uniformly is in
+    compression N = -E A α ΔT at its faces too (the raw localForce alone is zero)."""
+    from saengine.fem.end_zones import FACES_FILE, face_forces
+
+    length = 6.0
+    project = _project(
+        {1: (0, 0, 0), 2: (length / 2, 0, 0), 3: (length, 0, 0)},
+        {1: FIXED, 3: FIXED},
+        [_frame_section(1, A_B, I_B)],
+        [_frame(1, 1, 2, 1), _frame(2, 2, 3, 1)],
+    )
+    case = add_thermal_case(project, {1: ThermalSection(ALPHA, H)}, ThermalOptions(uniform=20))
+    model, out, _ = run_model(project, tmp_path, [case.analysis_id])
+    write_corrections(model, case.corrections)
+    faces = {
+        "schema": "saengine.faces/1",
+        "rigidZoneFactor": 0.0,
+        "elements": {"1": {"i": {"offset": 200.0, "rigid": 0.0, "at": [1, 0.2]}}},
+    }
+    (model.parent / FACES_FILE).write_text(json.dumps(faces), encoding="utf-8")
+    face = face_forces(model, out)["cases"][CASE]["1"]["i"]
+    assert face["N"] == pytest.approx(-E * A_B * ALPHA * 20, rel=1e-6)
+    assert face["Mz"] == pytest.approx(0.0, abs=1e-3)
+
+
 def test_free_beam_expands_without_force(tmp_path: Path) -> None:
     """A cantilever is free to expand and curl: u = α ΔTu L, w = -κ L² / 2, no forces."""
     length = 4.0
@@ -541,6 +568,9 @@ def test_rigid_diaphragm_released_for_the_case(tmp_path: Path, derived: dict[str
     bare["mp_constraints"] = []
     used = {n for e in bare["elements"] for n in e["nodes"]}
     bare["nodes"] = [n for n in bare["nodes"] if n["id"] in used]
+    # The loads lumped at the diaphragms' own nodes (story masses, static earthquake) go too.
+    for p in bare["load_patterns"]:
+        p["nodal_loads"] = [load for load in p["nodal_loads"] if load["node_id"] in used]
     for a in bare["analyses"]:
         a.pop("release_diaphragms", None)
     bare_result, bare_forces = _run(bare, case, tmp_path / "bare")

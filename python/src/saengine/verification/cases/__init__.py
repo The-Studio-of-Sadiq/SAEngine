@@ -13,6 +13,7 @@ from saengine.verification.cases import (
     hvac_loads,
     hydraulics,
     mep,
+    parity,
     plumbing,
     rs_design,
     seismic_detailing,
@@ -30,6 +31,7 @@ from saengine.verification.cases.common import Case
 
 CASES: list[Case] = [
     *analysis.CASES,
+    *parity.CASES,
     *thermal.CASES,
     *ssi.CASES,
     *design.CASES,

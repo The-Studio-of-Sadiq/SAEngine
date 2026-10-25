@@ -105,6 +105,25 @@ def check_library(kind: Kind, text: str, materials_text: str | None = None) -> l
             problems.append(
                 _problem(ids.index(object_id) if object_id in ids else None, "material", detail)
             )
+        from saengine.codes.context import project_root
+        from saengine.library.section_designer import list_sections
+
+        root = project_root()
+        if root is not None:  # designed profiles name a file of 04 Objects/sections
+            designed = set(list_sections(root))
+            for index, o in enumerate(library.objects):
+                profile = getattr(o, "profile", None)
+                if (
+                    getattr(profile, "shape", None) == "designed"
+                    and profile.section not in designed
+                ):
+                    problems.append(
+                        _problem(
+                            index,
+                            "profile.section",
+                            f"no designed section '{profile.section}' in 04 Objects/sections",
+                        )
+                    )
         return problems
     return []
 

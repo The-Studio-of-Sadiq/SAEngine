@@ -193,6 +193,13 @@ class _Writer:
         )
 
     def profile(self, type_id: str, profile: Any) -> Any:
+        if type_id not in self.profiles and profile.shape == "designed":
+            from saengine.library import section_designer
+
+            section = section_designer.resolve(profile)
+            self.profiles[type_id] = section_designer.ifc_profile(
+                self.run, self.file, section, type_id
+            )
         if type_id not in self.profiles:
             ifc_class, attributes = _PROFILES[profile.shape]
             ifc_profile = self.run(

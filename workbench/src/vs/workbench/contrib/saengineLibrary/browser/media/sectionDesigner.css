@@ -1,0 +1,249 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The Section Designer (sectionDesignerEditor.ts) in the shared editor frame. Colours come from
+ * the theme through the SAEngine tokens, so light and dark themes need no rules of their own. */
+
+.saengine-section-designer {
+	--section-concrete: color-mix(in srgb, var(--vscode-descriptionForeground) 30%, var(--sa-surface));
+	--section-steel: color-mix(in srgb, var(--vscode-charts-blue, #2c6fbe) 30%, var(--sa-surface));
+	--section-bar: var(--vscode-charts-red, #c62f2f);
+	--section-line: color-mix(in srgb, var(--vscode-foreground) 70%, transparent);
+	--section-grid: color-mix(in srgb, var(--vscode-foreground) 7%, transparent);
+	--section-grid-major: color-mix(in srgb, var(--vscode-foreground) 14%, transparent);
+	--section-selected: var(--vscode-focusBorder);
+	--section-nominal: var(--sa-muted);
+	--section-design: var(--vscode-charts-blue, #2c6fbe);
+}
+
+.saengine-section-designer .section-select,
+.saengine-section-designer .section-input {
+	height: 24px;
+	box-sizing: border-box;
+	padding: 0 6px;
+	border: 1px solid var(--vscode-input-border, var(--sa-border));
+	border-radius: 2px;
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground, var(--vscode-foreground));
+	font-family: inherit;
+	font-size: var(--sa-font-s);
+	min-width: 0;
+}
+
+.saengine-section-designer .section-select:focus,
+.saengine-section-designer .section-input:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.saengine-section-designer .section-template {
+	margin-left: var(--sa-space-2);
+}
+
+/* ── canvas ─────────────────────────────────────────────────────────────── */
+
+.saengine-section-designer .section-canvas-host {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+	background: var(--sa-surface);
+}
+
+.saengine-section-designer .section-canvas {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	cursor: crosshair;
+	touch-action: none;
+}
+
+.saengine-section-designer .section-canvas[data-tool="select"] {
+	cursor: default;
+}
+
+.saengine-section-designer .section-canvas:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.saengine-section-designer .section-grid line {
+	stroke: var(--section-grid);
+	stroke-width: 1;
+}
+
+.saengine-section-designer .section-grid line.major {
+	stroke: var(--section-grid-major);
+}
+
+.saengine-section-designer .section-grid line.axis {
+	stroke: var(--sa-muted);
+	stroke-dasharray: 4 3;
+}
+
+.saengine-section-designer .section-region {
+	fill: var(--section-concrete);
+	stroke: var(--section-line);
+	stroke-width: 1.2;
+}
+
+.saengine-section-designer .section-region.steel {
+	fill: var(--section-steel);
+}
+
+.saengine-section-designer .section-region.selected {
+	stroke: var(--section-selected);
+	stroke-width: 2.5;
+}
+
+.saengine-section-designer .section-bar {
+	fill: var(--section-bar);
+	stroke: var(--sa-surface);
+	stroke-width: 0.8;
+}
+
+.saengine-section-designer .section-bar.selected {
+	stroke: var(--section-selected);
+	stroke-width: 2.5;
+}
+
+.saengine-section-designer .section-bar.draft {
+	opacity: 0.5;
+}
+
+.saengine-section-designer .section-draft {
+	fill: color-mix(in srgb, var(--section-selected) 12%, transparent);
+	stroke: var(--section-selected);
+	stroke-width: 1.5;
+	stroke-dasharray: 5 3;
+}
+
+.saengine-section-designer .section-snap {
+	fill: none;
+	stroke: var(--section-selected);
+	stroke-width: 1.5;
+}
+
+.saengine-section-designer .section-centroid circle,
+.saengine-section-designer .section-centroid line {
+	fill: none;
+	stroke: var(--vscode-foreground);
+	stroke-width: 1.2;
+}
+
+.saengine-section-designer .section-shear-centre {
+	fill: none;
+	stroke: var(--vscode-charts-orange, #c2620e);
+	stroke-width: 1.5;
+}
+
+/* ── properties panel ───────────────────────────────────────────────────── */
+
+.saengine-section-designer .section-form {
+	display: grid;
+	gap: var(--sa-space-1);
+	margin-bottom: var(--sa-space-2);
+}
+
+.saengine-section-designer .section-field {
+	display: grid;
+	grid-template-columns: 130px 1fr;
+	align-items: center;
+	gap: var(--sa-space-2);
+	font-size: var(--sa-font-s);
+}
+
+.saengine-section-designer .section-field .name {
+	color: var(--sa-muted);
+}
+
+.saengine-section-designer .section-properties {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: var(--sa-font-s);
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-section-designer .section-properties th {
+	text-align: left;
+	font-weight: normal;
+	color: var(--sa-muted);
+	padding: 1px var(--sa-space-2) 1px 0;
+}
+
+.saengine-section-designer .section-properties td.value {
+	text-align: right;
+	padding: 1px var(--sa-space-1);
+}
+
+.saengine-section-designer .section-properties td.unit {
+	color: var(--sa-muted);
+	padding-left: var(--sa-space-1);
+}
+
+.saengine-section-designer .section-problems {
+	margin: 0 0 var(--sa-space-2);
+	padding-left: var(--sa-space-4);
+	color: var(--sa-fail);
+	font-size: var(--sa-font-s);
+}
+
+.saengine-section-designer .section-axes {
+	margin-bottom: var(--sa-space-2);
+}
+
+.saengine-section-designer .section-chart-svg {
+	width: 100%;
+	height: auto;
+	display: block;
+}
+
+.saengine-section-designer .section-chart-svg .grid {
+	stroke: var(--section-grid-major);
+}
+
+.saengine-section-designer .section-chart-svg .axis {
+	stroke: var(--sa-muted);
+}
+
+.saengine-section-designer .section-chart-svg .tick,
+.saengine-section-designer .section-chart-svg .label {
+	fill: var(--sa-muted);
+	font-size: 10px;
+}
+
+.saengine-section-designer .section-chart-svg .nominal {
+	fill: none;
+	stroke: var(--section-nominal);
+	stroke-width: 1.2;
+	stroke-dasharray: 4 3;
+}
+
+.saengine-section-designer .section-chart-svg .design {
+	fill: color-mix(in srgb, var(--section-design) 10%, transparent);
+	stroke: var(--section-design);
+	stroke-width: 1.8;
+}
+
+.saengine-section-designer .section-legend {
+	display: flex;
+	gap: var(--sa-space-3);
+	font-size: var(--sa-font-s);
+	color: var(--sa-muted);
+	margin: var(--sa-space-1) 0;
+}
+
+.saengine-section-designer .section-legend span::before {
+	content: '';
+	display: inline-block;
+	width: 16px;
+	margin-right: var(--sa-space-1);
+	vertical-align: middle;
+	border-top: 2px solid var(--section-design);
+}
+
+.saengine-section-designer .section-legend span.nominal::before {
+	border-top: 1.5px dashed var(--section-nominal);
+}
