@@ -15,6 +15,8 @@
 
 import './media/femChart.css';
 import { $, append } from '../../../../base/browser/dom.js';
+import { FemTableCell } from '../../../../platform/saengine/common/femSolver.js';
+import { formatCell, IFemSheet } from './femChartData.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
 
@@ -109,6 +111,29 @@ function svg<K extends keyof SVGElementTagNameMap>(parent: Element, tag: K, attr
 	}
 	parent.appendChild(element);
 	return element;
+}
+
+/** Appends the rows of a result table to its `tbody`, numbers right-aligned ({@link formatCell}). */
+export function renderSheetRows(body: HTMLElement, rows: readonly (readonly FemTableCell[])[]): void {
+	for (const row of rows) {
+		const tr = append(body, $('tr'));
+		for (const cell of row) {
+			append(tr, $(typeof cell === 'number' ? 'td.number' : 'td', undefined, formatCell(cell)));
+		}
+	}
+}
+
+/** Draws a result table (a sheet) into `container`: its columns, rows and notes. */
+export function renderSheet(container: HTMLElement, sheet: IFemSheet): void {
+	const table = append(append(container, $('.fem-results-table-wrap')), $('table.fem-table'));
+	const head = append(append(table, $('thead')), $('tr'));
+	for (const column of sheet.columns) {
+		append(head, $('th', undefined, column));
+	}
+	renderSheetRows(append(table, $('tbody')), sheet.rows);
+	for (const note of sheet.notes ?? []) {
+		append(container, $('.fem-results-note', undefined, note));
+	}
 }
 
 function title(parent: Element, text: string): void {

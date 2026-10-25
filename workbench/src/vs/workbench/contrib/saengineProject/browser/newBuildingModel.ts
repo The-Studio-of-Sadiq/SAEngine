@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
+import { gridLabel, IGridLine } from '../../../services/saengineProject/common/gridLabels.js';
 
 /*
  * The New Building wizard's model: the grid spacings and storey heights as engineers type them
@@ -36,12 +37,6 @@ export const FOOTING_CHOICES: readonly { readonly value: FootingChoice; readonly
 	{ value: 'mat', label: localize('footing.mat', "Mat (raft)") },
 	{ value: 'none', label: localize('footing.none', "None (add in 09 Substructure)") },
 ];
-
-/** A grid line of the floor plan (as in `floor-plan.json`). */
-export interface IGridLine {
-	readonly label: string;
-	readonly position: number;
-}
 
 /** A story of the floor plan (as in `floor-plan.json`); the first is the base. */
 export interface IStorySpec {
@@ -175,18 +170,6 @@ export function formatLengths(values: readonly number[]): string {
 		i = j;
 	}
 	return parts.join(', ');
-}
-
-/** Grid labels as on Bangladeshi drawings and the sample: A, B, ... Z, AA, AB, ... across X; 1, 2, 3 ... along Y. */
-export function gridLabel(axis: 'x' | 'y', index: number): string {
-	if (axis === 'y') {
-		return String(index + 1);
-	}
-	let label = '';
-	for (let n = index + 1; n > 0; n = Math.floor((n - 1) / 26)) {
-		label = String.fromCharCode(65 + (n - 1) % 26) + label;
-	}
-	return label;
 }
 
 /** The grid lines of an axis from its spacings, the first at 0. */

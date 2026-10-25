@@ -79,12 +79,24 @@ suite('SAEngine - Soil report', () => {
 		] };
 		assert.deepStrictEqual(checkSoilReport(report).map(p => `${p.severity} ${p.index} ${p.borehole ?? ''} ${p.path ?? ''}`), [
 			'error 1 BH-2 layers.1.bottom',
-			'warning 1 BH-2 layers.1.top',
-			'warning 1 BH-2 spt.0.depth',
-			'warning 1 BH-2 spt.1.depth',
-			'warning 1 BH-2 spt.1.depth',
+			'error 1 BH-2 layers.1.top',
+			'error 1 BH-2 spt.0.depth',
+			'error 1 BH-2 spt.1.depth',
+			'error 1 BH-2 spt.1.depth',
 			'error 2 BH-2 id',
-			'warning 2 BH-2 ',
+			'warning 2 BH-2 layers',
+		]);
+	});
+
+	test('checks the layers and the water table against the termination depth, in plain words', () => {
+		const report: ISoilReport = { ...newSoilReport(), boreholes: [
+			borehole('BH-1', { depth: 8000, waterTable: 8500, spt: [{ depth: 1500, N: 3 }] }),
+			borehole('BH-2', { depth: undefined, spt: [{ depth: 9500, N: 20 }] }),
+		] };
+		assert.deepStrictEqual(checkSoilReport(report).map(p => `${p.severity} ${p.index} ${p.path}: ${p.message}`), [
+			'error 0 layers.1.bottom: BH-1: layer 2 ends at 9 m, below the termination depth 8 m.',
+			'warning 0 waterTable: BH-1: the water table (8.5 m) is below the termination depth 8 m.',
+			'error 1 spt.0.depth: BH-2: the SPT at 9.5 m is below the bottom of the borehole (9 m).',
 		]);
 	});
 
@@ -197,11 +209,12 @@ suite('SAEngine - Soil report', () => {
 		const added = newBorehole(report);
 		assert.deepStrictEqual({
 			next: nextBoreholeId(report),
-			added: [added.id, added.x, added.layers.length],
+			added,
 			summaries: [soilSummary(newSoilReport()), soilSummary({ ...report, boreholes: [borehole('BH-1')] }), soilSummary(report)],
 		}, {
 			next: 'BH-2',
-			added: ['BH-2', 10000, 1],
+			// Nothing made up: no termination depth, no layer, no water table copied from a neighbour.
+			added: { id: 'BH-2', x: 10000, y: 0, layers: [], spt: [], samples: [] },
 			summaries: ['no boreholes', '1 borehole', '2 boreholes'],
 		});
 	});

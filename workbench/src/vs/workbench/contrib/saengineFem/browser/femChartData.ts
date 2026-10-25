@@ -126,6 +126,22 @@ export interface IFemSheet {
 	readonly notes?: readonly string[];
 }
 
+/**
+ * A table cell as the views show it: numbers to four significant digits (whole numbers as they
+ * are). The CSV and Excel exports keep full precision ({@link exportCell}).
+ */
+export function formatCell(value: FemTableCell): string {
+	if (typeof value === 'number') {
+		return Number.isInteger(value) ? String(value) : Number(value.toPrecision(4)).toString();
+	}
+	return value;
+}
+
+/** A table cell as the exports write it: numbers at full precision. */
+export function exportCell(value: FemTableCell): string {
+	return String(value);
+}
+
 // ───────────────────────────── storey response ─────────────────────────────
 
 export type StoreyQuantity = 'disp' | 'drift' | 'force' | 'shear' | 'overturning';

@@ -10,6 +10,7 @@
  */
 
 import { localize } from '../../../../nls.js';
+import { signedArea } from '../../../../platform/saengine/common/geometry.js';
 
 export const SECTION_SCHEMA = 'saengine.section/1';
 /** Folder of the designed sections, relative to the project root. */
@@ -128,17 +129,6 @@ export function newSection(id: string, concrete: string, rebar: string): IDesign
 }
 
 // ───────────────────────────── geometry ─────────────────────────────
-
-/** Signed area (anticlockwise positive) [mm²]. */
-export function signedArea(ring: readonly Point[]): number {
-	let sum = 0;
-	for (let i = 0; i < ring.length; i++) {
-		const [x0, y0] = ring[i];
-		const [x1, y1] = ring[(i + 1) % ring.length];
-		sum += x0 * y1 - x1 * y0;
-	}
-	return sum / 2;
-}
 
 /** Net area of a region (outline less holes) [mm²]. */
 export function regionArea(region: IRegion): number {
@@ -512,55 +502,11 @@ export function propertyRows(p: ISectionProperties): IPropertyRow[] {
 
 // ───────────────────────────── chart ─────────────────────────────
 
-/** "Nice" tick values covering min..max, about `count` of them. */
-export function niceTicks(min: number, max: number, count = 5): number[] {
-	if (!(max > min)) {
-		return [min];
-	}
-	const raw = (max - min) / Math.max(1, count);
-	const magnitude = Math.pow(10, Math.floor(Math.log10(raw)));
-	const step = [1, 2, 2.5, 5, 10].map(m => m * magnitude).find(s => s >= raw) ?? 10 * magnitude;
-	const ticks: number[] = [];
-	for (let v = Math.ceil(min / step) * step; v <= max + step * 1e-9; v += step) {
-		ticks.push(Math.abs(v) < step * 1e-9 ? 0 : v);
-	}
-	return ticks;
-}
-
-export interface IChartScale {
-	readonly x: (m: number) => number;
-	readonly y: (p: number) => number;
-	readonly mTicks: number[];
-	readonly pTicks: number[];
-}
-
 /**
- * Scales of the interaction chart in display units (kN·m across, kN up, compression up) over a
- * plot of `width` x `height` px inside `pad` px margins (left, right, top, bottom).
+ * The interaction diagram as closed curves in display units, [M kN·m, P kN] with compression
+ * up: the nominal (`factored` false) or the design points.
  */
-export function chartScale(diagram: IUniaxial, width: number, height: number, pad: readonly [number, number, number, number]): IChartScale {
-	const m = diagram.points.map(p => p.M / 1e6);
-	const p = diagram.points.map(q => q.P / 1e3);
-	const mTicks = niceTicks(Math.min(0, ...m), Math.max(0, ...m), 4);
-	const pTicks = niceTicks(Math.min(0, ...p), Math.max(0, ...p), 5);
-	const [left, right, top, bottom] = pad;
-	const m0 = Math.min(mTicks[0], ...m), m1 = Math.max(mTicks[mTicks.length - 1], ...m);
-	const p0 = Math.min(pTicks[0], ...p), p1 = Math.max(pTicks[pTicks.length - 1], ...p);
-	const sx = (width - left - right) / ((m1 - m0) || 1);
-	const sy = (height - top - bottom) / ((p1 - p0) || 1);
-	return {
-		x: value => left + (value - m0) * sx,
-		y: value => height - bottom - (value - p0) * sy,
-		mTicks,
-		pTicks,
-	};
-}
-
-/** An SVG path through the diagram's nominal (`factored` false) or design points. */
-export function diagramPath(diagram: IUniaxial, scale: IChartScale, factored: boolean): string {
-	return diagram.points.map((q, i) => {
-		const x = scale.x((factored ? q.phiM : q.M) / 1e6);
-		const y = scale.y((factored ? q.phiP : q.P) / 1e3);
-		return `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`;
-	}).join(' ') + ' Z';
+export function interactionCurve(diagram: IUniaxial, factored: boolean): number[][] {
+	const points = diagram.points.map(q => [(factored ? q.phiM : q.M) / 1e6, (factored ? q.phiP : q.P) / 1e3]);
+	return points.length ? [...points, points[0]] : [];
 }

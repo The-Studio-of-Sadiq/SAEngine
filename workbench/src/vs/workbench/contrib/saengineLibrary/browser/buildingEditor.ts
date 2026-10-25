@@ -39,8 +39,8 @@ import { ISaengineProjectService, partById, PROJECT_PARTS } from '../../../servi
 import { loadViewerModule, viewerAssetBaseUrl } from '../../saengineFem/browser/viewerModule.js';
 import { propertySheet } from '../../saengineModel/browser/modelData.js';
 import { openOwner } from '../../saengineModel/browser/projectDocuments.js';
-import { formatPropertyValue, propertyHeading, propertyNote, propertyRow, renderPropertySheet, schemaUnit } from '../../saengineModel/browser/propertySheetView.js';
-import { EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
+import { formatPropertyValue, renderPropertySheet, schemaUnit } from '../../saengineModel/browser/propertySheetView.js';
+import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { clone, IDocumentFrameActions, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditorInput } from './libraryEditorInput.js';
 import { humanize, JsonObject, JsonValue, SchemaForm } from './schemaForm.js';
@@ -658,14 +658,14 @@ export class BuildingEditor extends JsonDocumentEditor {
 		clearNode(panel);
 		const document = this.document;
 		if (!document) {
-			propertyNote(panel, localize('building.propertiesEmpty', "Build the building model to see its elements here."));
+			appendPropertyNote(panel, localize('building.propertiesEmpty', "Build the building model to see its elements here."));
 			return;
 		}
 		const found = this.selectedElement ? this.findElement(this.selectedElement) : undefined;
 		if (found) {
 			const { item, list } = found;
 			const kindLabel = ELEMENT_KINDS.find(k => k.kind === item.kind)?.label;
-			propertyHeading(panel, String(item.id), list === 'elements' ? (typeof item.kind === 'string' ? humanize(item.kind) : kindLabel) : humanize(list));
+			appendPropertyHeading(panel, String(item.id), list === 'elements' ? (typeof item.kind === 'string' ? humanize(item.kind) : kindLabel) : humanize(list));
 			append(panel, $('.sa-props-section', undefined, localize('building.elementSection', "Building Model")));
 			// The schema definition of the item, for the units of its values (mm, °).
 			const definition = list === 'elements'
@@ -676,10 +676,10 @@ export class BuildingEditor extends JsonDocumentEditor {
 					continue;
 				}
 				const text = key === 'kind' && typeof value === 'string' ? humanize(value) : formatPropertyValue(value, definition ? schemaUnit(BIM_SCHEMA, definition, key) : undefined);
-				propertyRow(panel, key === 'source' ? localize('building.sourceRow', "From {0}", this.sourceName) : humanize(key), text);
+				appendPropertyRow(panel, key === 'source' ? localize('building.sourceRow', "From {0}", this.sourceName) : humanize(key), text);
 			}
 			if (typeof item.source !== 'string' && list === 'elements') {
-				propertyNote(panel, localize('building.ownElement', "An element of the building model itself: rebuilding keeps it."));
+				appendPropertyNote(panel, localize('building.ownElement', "An element of the building model itself: rebuilding keeps it."));
 			}
 			const group = ELEMENT_KINDS.find(k => k.kind === item.kind)?.group;
 			const sheet = group && typeof item.source === 'string' && !this.special ? propertySheet({ kind: 'member', group, id: item.source }, {
@@ -700,28 +700,28 @@ export class BuildingEditor extends JsonDocumentEditor {
 			return;
 		}
 		const elements = Array.isArray(document.elements) ? document.elements.filter(isObject) : [];
-		propertyHeading(panel, localize('building.modelHeading', "Building Model"));
-		propertyRow(panel, localize('building.storiesRow', "Stories"), String(Array.isArray(document.stories) ? document.stories.length : 0));
+		appendPropertyHeading(panel, localize('building.modelHeading', "Building Model"));
+		appendPropertyRow(panel, localize('building.storiesRow', "Stories"), String(Array.isArray(document.stories) ? document.stories.length : 0));
 		for (const { kind, label } of ELEMENT_KINDS) {
 			const count = elements.filter(e => e.kind === kind).length;
 			if (count) {
-				propertyRow(panel, label, String(count));
+				appendPropertyRow(panel, label, String(count));
 			}
 		}
 		const additions = isObject(document.additions) ? document.additions : {};
 		const added = Object.keys(ADDITION_LISTS).reduce((n, list) => n + (Array.isArray(additions[list]) ? (additions[list] as JsonValue[]).length : 0), 0);
-		propertyRow(panel, localize('building.additionsRow', "Additions"), String(added));
-		propertyRow(panel, localize('building.builtRow', "Built from the {0}", this.sourceName), this.stale ? localize('building.outOfDate', "Out of date") : localize('building.upToDate', "Up to date"), this.stale);
+		appendPropertyRow(panel, localize('building.additionsRow', "Additions"), String(added));
+		appendPropertyRow(panel, localize('building.builtRow', "Built from the {0}", this.sourceName), this.stale ? localize('building.outOfDate', "Out of date") : localize('building.upToDate', "Up to date"), this.stale);
 		if (this.ifcNote) {
-			propertyNote(panel, this.ifcNote);
+			appendPropertyNote(panel, this.ifcNote);
 		}
 		if (this.problems.length) {
-			propertyHeading(panel, localize('building.problemsHeading', "Problems"));
+			appendPropertyHeading(panel, localize('building.problemsHeading', "Problems"));
 			for (const problem of this.problems) {
-				propertyNote(panel, problem.message);
+				appendPropertyNote(panel, problem.message);
 			}
 		}
-		propertyNote(panel, localize('building.selectHint', "Select an element in the 3D view to see its properties."));
+		appendPropertyNote(panel, localize('building.selectHint', "Select an element in the 3D view to see its properties."));
 	}
 
 	private parse(text: string | undefined): JsonValue | undefined {

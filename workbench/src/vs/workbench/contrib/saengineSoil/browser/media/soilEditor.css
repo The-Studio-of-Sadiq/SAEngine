@@ -877,64 +877,278 @@
 	margin-right: 4px;
 }
 
-/* ── the log sheet (Data view: soilGrid.ts over soilSheet.ts) ─────────────── */
+/* ── the borehole entry screen (soilEditor.ts renderEntry, soilEntry.ts) ──── */
 
-.saengine-soil-editor .soil-sheet-header {
-	display: flex;
-	flex-wrap: wrap;
-	gap: var(--sa-space-2) var(--sa-space-3);
-	margin: var(--sa-space-2) 0 var(--sa-space-3);
-	padding: var(--sa-space-2) var(--sa-space-3);
-	border: 1px solid var(--sa-border);
-	border-radius: var(--sa-radius);
-	background: var(--sa-surface-alt);
+.saengine-soil-editor .soil-view.entry {
+	padding-bottom: 0;
 }
 
-.saengine-soil-editor .soil-sheet-field {
+.saengine-soil-editor .soil-entry {
 	display: flex;
 	flex-direction: column;
-	gap: 2px;
-	min-width: 84px;
 }
 
-.saengine-soil-editor .soil-sheet-field .soil-input {
-	width: 108px;
+.saengine-soil-editor .soil-entry > .soil-view-header {
+	flex-wrap: wrap;
+	row-gap: 2px;
+}
+
+.saengine-soil-editor .soil-entry > .soil-view-header .soil-view-title {
+	white-space: nowrap;
+}
+
+.saengine-soil-editor .soil-view-header .soil-view-gap {
+	flex: 1;
+}
+
+.saengine-soil-editor .soil-view-header .soil-edit-button {
+	flex: none;
+	width: auto;
+	padding: 2px 10px;
+	align-self: center;
+}
+
+.saengine-soil-editor .soil-entry-steps {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--sa-space-1);
+	margin: var(--sa-space-1) 0 var(--sa-space-3);
+	padding-bottom: var(--sa-space-2);
+	border-bottom: 1px solid var(--sa-border);
+}
+
+.saengine-soil-editor .soil-entry-step {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-2);
+	padding: 4px 12px 4px 6px;
+	border: 1px solid transparent;
+	border-radius: 999px;
+	font: inherit;
+	color: var(--sa-muted);
+	background: transparent;
+	cursor: pointer;
+}
+
+.saengine-soil-editor .soil-entry-step:hover {
+	color: var(--vscode-foreground);
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.saengine-soil-editor .soil-entry-step.active {
+	color: var(--vscode-foreground);
+	border-color: var(--sa-border);
+	background: var(--sa-surface-alt);
+	font-weight: 600;
+}
+
+.saengine-soil-editor .soil-entry-step:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.saengine-soil-editor .soil-entry-step-number {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	border-radius: 50%;
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--sa-muted);
+	border: 1px solid var(--sa-border);
+}
+
+.saengine-soil-editor .soil-entry-step.active .soil-entry-step-number {
+	color: var(--vscode-button-foreground);
+	background: var(--vscode-button-background);
+	border-color: transparent;
+}
+
+.saengine-soil-editor .soil-entry-step-problem {
+	display: none;
+	color: var(--vscode-errorForeground);
+	font-size: 12px;
+}
+
+.saengine-soil-editor .soil-entry-step.has-problem .soil-entry-step-problem {
+	display: inline-block;
+}
+
+.saengine-soil-editor .soil-entry-body {
+	min-width: 0;
+}
+
+.saengine-soil-editor .soil-entry-group {
+	max-width: 780px;
+	margin-bottom: var(--sa-space-4);
+}
+
+.saengine-soil-editor .soil-entry-group-title {
+	margin-bottom: var(--sa-space-2);
+	font-weight: 600;
+}
+
+.saengine-soil-editor .soil-entry-fields {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+	gap: var(--sa-space-2) var(--sa-space-3);
+}
+
+.saengine-soil-editor .soil-entry-field {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	min-width: 0;
+}
+
+.saengine-soil-editor .soil-entry-field-label {
+	font-size: var(--sa-font-s);
+	color: var(--sa-muted);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.saengine-soil-editor .soil-entry-required {
+	color: var(--vscode-errorForeground);
+}
+
+.saengine-soil-editor .soil-entry-field .soil-input {
+	width: 100%;
+	box-sizing: border-box;
+	height: 26px;
 	border-color: var(--vscode-input-border, var(--sa-border));
 	background: var(--vscode-input-background);
 }
 
-.saengine-soil-editor .soil-sheet-field.derived .soil-input {
+.saengine-soil-editor .soil-entry-field .soil-input.problem {
+	border-color: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
+}
+
+.saengine-soil-editor .soil-entry-field.derived .soil-input {
 	color: var(--sa-muted);
 	background: transparent;
 }
 
-.saengine-soil-editor .soil-sheet-field-label {
+.saengine-soil-editor .soil-entry-field-message {
+	min-height: 0;
 	font-size: 11px;
+	line-height: 14px;
+}
+
+.saengine-soil-editor .soil-entry-field-message.error {
+	color: var(--vscode-errorForeground);
+}
+
+.saengine-soil-editor .soil-entry-field-message.warning {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.saengine-soil-editor .soil-entry-note {
+	margin: var(--sa-space-2) 0 0;
 	color: var(--sa-muted);
-	white-space: nowrap;
+	font-size: var(--sa-font-s);
 }
 
-.saengine-soil-editor .soil-sheet-layout {
-	display: flex;
-	align-items: flex-start;
-	gap: var(--sa-space-4);
-}
-
-.saengine-soil-editor .soil-sheet-main {
-	flex: 1;
+/* The sheets take the whole width; a wide sheet scrolls inside its grid, not the page. */
+.saengine-soil-editor .soil-entry-sheet {
+	margin-top: 0;
 	min-width: 0;
 }
 
-.saengine-soil-editor .soil-sheet-main > .soil-section:first-child {
-	margin-top: 0;
+.saengine-soil-editor .soil-entry-sheet .soil-section-detail {
+	min-width: 0;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
-/* The log beside the sheet stays in view while the sheet scrolls. */
-.saengine-soil-editor .soil-sheet-log {
+.saengine-soil-editor .soil-help {
 	flex: none;
+	color: var(--sa-muted);
+	cursor: help;
+}
+
+.saengine-soil-editor .soil-entry-problems {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sa-space-1);
+	margin-top: var(--sa-space-3);
+	padding: var(--sa-space-2) var(--sa-space-3);
+	border-radius: var(--sa-radius);
+	background: color-mix(in srgb, var(--vscode-errorForeground) 7%, transparent);
+	outline: none;
+}
+
+.saengine-soil-editor .soil-entry-problems[hidden] {
+	display: none;
+}
+
+.saengine-soil-editor .soil-entry-problem {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--sa-space-2);
+	font-size: var(--sa-font-s);
+}
+
+.saengine-soil-editor .soil-entry-problem .codicon {
+	flex: none;
+	margin-top: 1px;
+}
+
+.saengine-soil-editor .soil-entry-problem.error .codicon {
+	color: var(--vscode-errorForeground);
+}
+
+.saengine-soil-editor .soil-entry-problem.warning .codicon {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+/* The buttons stay in view at the bottom of the page while a long sheet scrolls. */
+.saengine-soil-editor .soil-entry-footer {
 	position: sticky;
-	top: 0;
-	padding-top: var(--sa-space-1);
+	bottom: 0;
+	z-index: 3;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--sa-space-2);
+	margin-top: var(--sa-space-4);
+	padding: var(--sa-space-2) 0 var(--sa-space-3);
+	border-top: 1px solid var(--sa-border);
+	background: var(--sa-surface);
+}
+
+.saengine-soil-editor .soil-entry-footer .monaco-button {
+	width: auto;
+	padding: 4px 14px;
+}
+
+.saengine-soil-editor .soil-entry-footer-gap {
+	flex: 1;
+}
+
+.saengine-soil-editor .soil-prop-link {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1);
+	margin: var(--sa-space-2) 0 0;
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+
+.saengine-soil-editor .soil-prop-link:hover {
+	text-decoration: underline;
+}
+
+.saengine-soil-editor .soil-prop-link:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+}
+
+.saengine-soil-editor .soil-summary-header {
+	margin-top: var(--sa-space-5, 24px);
 }
 
 .saengine-soil-editor .soil-hint {

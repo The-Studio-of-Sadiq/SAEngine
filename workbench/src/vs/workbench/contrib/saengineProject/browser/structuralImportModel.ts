@@ -32,6 +32,11 @@ export interface IStructuralFormatInfo {
 	readonly extensions: readonly string[];
 }
 
+/**
+ * The programs SAEngine imports from, for the file dialog's filters and the labels only: which
+ * format a file is, and whether it can be read, the backend decides (`importers/project.py`
+ * `FORMATS`).
+ */
 export const STRUCTURAL_FORMATS: readonly IStructuralFormatInfo[] = [
 	{ format: 'etabs', label: localize('import.etabs', "ETABS"), extensions: ['e2k', '$et'] },
 	{ format: 'staad', label: localize('import.staad', "STAAD.Pro"), extensions: ['std'] },
@@ -44,17 +49,6 @@ export function importFilters(): { name: string; extensions: string[] }[] {
 		{ name: localize('import.filterAll', "ETABS, STAAD.Pro or SAP2000 text files"), extensions: STRUCTURAL_FORMATS.flatMap(f => [...f.extensions]) },
 		...STRUCTURAL_FORMATS.map(f => ({ name: localize('import.filterOne', "{0} (*.{1})", f.label, f.extensions.join(', *.')), extensions: [...f.extensions] })),
 	];
-}
-
-function extensionOf(fileName: string): string {
-	const dot = fileName.lastIndexOf('.');
-	return dot > 0 ? fileName.slice(dot + 1).toLowerCase() : '';
-}
-
-/** The program a file comes from, by its extension; undefined when it is none of them. */
-export function detectFormat(fileName: string): StructuralFormat | undefined {
-	const extension = extensionOf(fileName);
-	return STRUCTURAL_FORMATS.find(f => f.extensions.includes(extension))?.format;
 }
 
 /** "ETABS", "STAAD.Pro", "SAP2000"; the backend's own name for another format. */

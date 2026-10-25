@@ -103,6 +103,11 @@ Methods:
 - ``mep/electricalProposeEquipment`` ``{projectRoot, mepText?}`` -> ``{equipment, notes}``
 - ``mep/electricalOpenings`` ``{projectRoot, mepText?}`` -> ``{openings, notes}`` still missing
 - ``mep/electricalUses`` ``{}`` -> ``{uses}`` BNBC Table 8.1.17's rows
+- ``mep/fireReport`` ``{projectRoot, mepText?}`` -> the fire protection report (BNBC 2020 Part 4
+  systems, sprinklers, hydraulics, reservoir, pumps, ``tankDesigns``, missing sleeves; in a
+  worker thread, as the plumbing report)
+- ``mep/fireProposals`` ``{projectRoot, mepText?}`` -> ``{tanks, pumps, notes}`` proposed
+- ``mep/fireOpenings`` ``{projectRoot, mepText?}`` -> ``{openings, notes}`` still missing
 - ``project/exportArchive`` ``{projectRoot, outPath, includeResults?, includeVersions?,
   includeExports?, note?, saengineVersion?}`` -> ``{path, size, files, skipped, problems}``: the
   project as one ``.civil`` file (``saengine.project.archive``; in a worker thread)
@@ -683,6 +688,23 @@ def create_server() -> JsonRPCServer:
     def _electrical_openings(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.electrical_openings(args["projectRoot"], args.get("mepText"))
+
+    # The fire tanks' first designs take as long as the plumbing tanks': in a worker thread.
+    @server.feature("mep/fireReport")
+    @_in_worker
+    def _fire_report(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fire_report(args["projectRoot"], args.get("mepText"))
+
+    @server.feature("mep/fireProposals")
+    def _fire_proposals(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fire_propose(args["projectRoot"], args.get("mepText"))
+
+    @server.feature("mep/fireOpenings")
+    def _fire_openings(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fire_openings(args["projectRoot"], args.get("mepText"))
 
     @server.feature("mep/electricalUses")
     def _electrical_uses(params: Any) -> dict[str, Any]:

@@ -6,7 +6,6 @@
 import './media/drawings.css';
 import { $, addDisposableListener, append, clearNode, EventType, getActiveElement, getWindow, isHTMLElement } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -19,18 +18,17 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { defaultButtonStyles, defaultCheckboxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
 import { DrawingPreviewInput, IDrawingPreviewSheet } from './drawingPreviewInput.js';
 import {
 	drawingSetKey, drawingSettingsRows, drawingsDescription, DRAWINGS_GENERATE_COMMAND, DRAWINGS_LIST_COMMAND, findPreviewSheet, generateArgs, generateLabel, IDrawingSet, IDrawingSettings, IDrawingSheet,
-	keepSelection, previewSheet, readDrawingSet, readDrawingSettings, selectedSheets, SHEET_SIZES, SheetSize,
+	keepSelection, previewSheet, readDrawingSet, readDrawingSettings, selectedSheets,
 } from './drawingsModel.js';
 import { EditorFrame } from './editorFrame.js';
 import { CAD_OPEN_COMMAND, OPEN_DXF_IN_CAD_UI_COMMAND } from './projectArchiveModel.js';
@@ -60,7 +58,7 @@ interface IThumbnail extends IDisposable {
  * with their title block settings. It lives in the exports list as one section that renders
  * itself: the exports page appends {@link element} where it belongs and calls {@link setProject}.
  *
- * The heading (with the size and the Generate button) is built once and updated in place; the
+ * The heading (with the Generate button) is built once and updated in place; the
  * settings are rebuilt only when they change, and the sheet list only when the backend's answer
  * changes, giving the focus back to the same control. Ticking sheets changes nothing but the
  * ticks and the button, so the keyboard stays where it is.
@@ -74,15 +72,12 @@ export class DrawingsSection extends Disposable {
 	private settings: IDrawingSettings = readDrawingSettings(undefined);
 	private listed = false;
 	private busy = false;
-	private size: SheetSize | undefined;
 	private selection = new Set<string>();
 	private settingsOpen = true;
 	private listVersion = 0;
 
 	private readonly description: HTMLElement;
 	private readonly when: HTMLElement;
-	private readonly picker: SelectBox;
-	private pickerIndex = -1;
 	private readonly generateButton: Button;
 	private readonly settingsBlock: HTMLElement;
 	private readonly setSlot: HTMLElement;
@@ -114,7 +109,6 @@ export class DrawingsSection extends Disposable {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IEditorService private readonly editorService: IEditorService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IContextViewService contextViewService: IContextViewService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 	) {
 		super();
@@ -128,12 +122,6 @@ export class DrawingsSection extends Disposable {
 		this.description = append(text, $('.exports-description'));
 		this.when = append(row, $('.exports-when'));
 		const actions = append(row, $('.exports-actions.drawings-generate'));
-		this.picker = this._register(new SelectBox(SHEET_SIZES.map(s => ({ text: s })), 0, contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('drawings.sizeAria', "Sheet size") }));
-		this.picker.render(this.named(append(actions, $('.drawings-size')), 'size', () => this.picker.focus()));
-		this._register(this.picker.onDidSelect(e => {
-			this.size = SHEET_SIZES[e.index];
-			this.pickerIndex = e.index;
-		}));
 		this.generateButton = this._register(new Button(actions, { ...defaultButtonStyles, supportIcons: true }));
 		this.named(this.generateButton.element, 'generate');
 		this._register(this.generateButton.onDidClick(() => void this.generate()));
@@ -170,7 +158,6 @@ export class DrawingsSection extends Disposable {
 		this.set = undefined;
 		this.listed = false;
 		this.selection.clear();
-		this.size = undefined;
 		this.settings = readDrawingSettings(undefined);
 		if (root) {
 			this.projectDisposables.add(this.fileService.onDidFilesChange(e => {
@@ -339,12 +326,6 @@ export class DrawingsSection extends Disposable {
 			this.when.textContent = this.listed && available ? localize('drawings.notMade', "Not made yet") : '';
 			this.when.classList.add('muted');
 		}
-		const index = Math.max(0, SHEET_SIZES.indexOf(this.size ?? this.settings.sheetSize));
-		if (index !== this.pickerIndex) {
-			this.pickerIndex = index;
-			this.picker.select(index);
-		}
-		this.picker.setEnabled(available && !this.busy);
 	}
 
 	/** The ticks and what the Generate button says about them (nothing is built again). */
@@ -574,7 +555,7 @@ export class DrawingsSection extends Disposable {
 
 	// ───────────────────────────── actions ─────────────────────────────
 
-	/** Draws all sheets, or the selected ones, at the chosen size. */
+	/** Draws all sheets, or the selected ones, at the sheet size of the Project Settings (`drawings.sheetSize`). */
 	async generate(): Promise<void> {
 		const root = this.root;
 		if (!root || this.busy || !this.available) {
@@ -591,7 +572,7 @@ export class DrawingsSection extends Disposable {
 		this.frame.showProgress();
 		this.update();
 		try {
-			const result = await this.commandService.executeCommand(DRAWINGS_GENERATE_COMMAND, generateArgs(root.fsPath, { sheets, size: this.size ?? this.settings.sheetSize }));
+			const result = await this.commandService.executeCommand(DRAWINGS_GENERATE_COMMAND, generateArgs(root.fsPath, { sheets, size: this.settings.sheetSize }));
 			if (root.toString() !== this.root?.toString()) {
 				return;
 			}

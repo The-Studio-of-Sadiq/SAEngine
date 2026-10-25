@@ -92,6 +92,12 @@ UNITS = "SI (m, N, kg, s, Pa)"
 #: ask for it (:mod:`saengine.fem.thermal`).
 CASES = ["D", "SD", "L", "Lr", "WX", "WY", "EX", "EY", "F"]
 
+#: The equation solver of every analysis case. Rigid diaphragms tie each floor's master node to
+#: all of that floor's shell nodes, so a banded solver's band spans the floor: BandGeneral needed
+#: gigabytes (and failed) on a 10-storey flat plate at the 500 mm mesh, where the sparse UmfPack
+#: solves it in seconds with the same displacements.
+SOLVER = "UmfPack"
+
 #: Restraint of a diaphragm's own node: free in plan, held out of plane.
 _IN_PLAN = [False, False, True, True, True, False]
 
@@ -216,7 +222,9 @@ def stamp(text: str) -> str:
 #: labels of its items are left out, as are the MEP IFC models. The plumbing's overhead tanks
 #: (which load the model) are stamped as ``plumbingTanks``, the HVAC plant as ``hvacPlant`` and
 #: the electrical equipment as ``electricalEquipment`` (with the supply's ``transformerType``,
-#: which gives a transformer's typical weight, as ``transformerType``) when there are any.
+#: which gives a transformer's typical weight, as ``transformerType``), the fire pumps as
+#: ``firePumps`` (with the supply's ``standby``, which gives a standby set's typical weight, as
+#: ``fireStandby``) and the overhead fire tanks as ``fireTanks`` when there are any.
 MEP_MODEL_KEYS = ("contentsAs", "equipment", "openings", "shafts")
 _MEP_LABELS = ("name", "service")
 
@@ -312,6 +320,21 @@ def mep_stamp(text: str) -> str:
         supply = electrical.get("supply")
         if isinstance(supply, dict) and "transformerType" in supply:
             content["transformerType"] = supply["transformerType"]
+    fire = document.get("fire")
+    pumps = fire.get("pumps") if isinstance(fire, dict) else None
+    if isinstance(pumps, list) and pumps:
+        content["firePumps"] = _unlabelled(pumps)
+        supply = fire.get("supply")
+        if isinstance(supply, dict) and "standby" in supply:
+            content["fireStandby"] = supply["standby"]
+    fire_tanks = fire.get("tanks") if isinstance(fire, dict) else None
+    fire_overhead = (
+        [t for t in fire_tanks if isinstance(t, dict) and t.get("kind") == "overhead"]
+        if isinstance(fire_tanks, list)
+        else []
+    )
+    if fire_overhead:
+        content["fireTanks"] = fire_overhead
     return stamp(js_json(content))
 
 
@@ -1696,7 +1719,7 @@ def _derive_fem(
             "pattern_ids": [number],
             "n_steps": 1,
             "load_factor_increment": 1.0,
-            "system": "BandGeneral",
+            "system": SOLVER,
             "constraints": "Plain",
             "integrator": "LoadControl",
             "algorithm": "Linear",
@@ -1726,7 +1749,7 @@ def _derive_fem(
             "name": f"D: {code_context.table('combinations').loadCases['D']}, construction sequence",
             "type": "Staged",
             "stages": stages,
-            "system": "BandGeneral",
+            "system": SOLVER,
             "constraints": "Plain",
         }
         dead_preload = len(analyses) + 1
@@ -1831,7 +1854,7 @@ def _derive_fem(
                     "pattern_ids": [pattern_id],
                     "dt": record["dt"],
                     "n_steps": record["npts"],
-                    "system": "BandGeneral",
+                    "system": SOLVER,
                     "algorithm": "Newton",
                     "rayleigh_mode1_damping": history.damping,
                     "preload_case_ids": [dead_preload, CASES.index("SD") + 1],

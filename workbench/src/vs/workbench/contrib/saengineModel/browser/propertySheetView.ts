@@ -5,11 +5,10 @@
 
 import './media/propertySheet.css';
 import { $, addDisposableListener, append, EventType } from '../../../../base/browser/dom.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
+import { appendPropertyHeading, appendPropertyRow } from '../../saengineProject/browser/editorFrame.js';
 import { IPropertySheet, PropertyAction } from './modelData.js';
 import { OPEN_OWNER_LABELS } from './projectDocuments.js';
 
@@ -17,38 +16,6 @@ import { OPEN_OWNER_LABELS } from './projectDocuments.js';
  * A property sheet (see `propertySheet`) in the properties panel of the SAEngine editor frame:
  * a title, then per section a heading and name/value rows (the frame's `sa-props-*` styles).
  */
-
-/** A heading of the properties panel. */
-export function propertyHeading(container: HTMLElement, text: string, detail?: string): HTMLElement {
-	const heading = append(container, $('.sa-props-heading'));
-	append(heading, $('span', undefined, text));
-	if (detail) {
-		append(heading, $('span.sa-props-detail', undefined, detail));
-	}
-	return heading;
-}
-
-/** A name/value row; `problem` marks the value with a warning. */
-export function propertyRow(container: HTMLElement, name: string, value: string | HTMLElement, problem?: boolean): HTMLElement {
-	const row = append(container, $('.sa-props-row'));
-	append(row, $('span.name', undefined, name));
-	const cell = append(row, $('span.value'));
-	if (problem) {
-		cell.classList.add('problem');
-		append(cell, $(`span${ThemeIcon.asCSSSelector(Codicon.warning)}`)).setAttribute('aria-hidden', 'true');
-	}
-	if (typeof value === 'string') {
-		append(cell, $('span', undefined, value));
-	} else {
-		append(cell, value);
-	}
-	return row;
-}
-
-/** A muted note under the rows. */
-export function propertyNote(container: HTMLElement, text: string): HTMLElement {
-	return append(container, $('.sa-props-note', undefined, text));
-}
 
 /** A link in the panel ("Edit in Object Types"); its listeners go to `store`. */
 export function propertyLink(container: HTMLElement, label: string, run: () => void, store: DisposableStore): HTMLElement {
@@ -68,11 +35,11 @@ export function propertyLink(container: HTMLElement, label: string, run: () => v
  * floor plan does not link to itself); `onAction` runs the others.
  */
 export function renderPropertySheet(container: HTMLElement, sheet: IPropertySheet, store: DisposableStore, onAction: (action: PropertyAction) => void, skip: readonly PropertyAction[] = []): void {
-	propertyHeading(container, sheet.title, sheet.subtitle);
+	appendPropertyHeading(container, sheet.title, sheet.subtitle);
 	for (const section of sheet.sections) {
 		append(container, $('.sa-props-section', undefined, section.title));
 		for (const row of section.rows) {
-			propertyRow(container, row.label, row.value, row.problem);
+			appendPropertyRow(container, row.label, row.value, row.problem);
 		}
 	}
 	const actions = sheet.actions.filter(action => !skip.includes(action));

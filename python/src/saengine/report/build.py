@@ -239,6 +239,7 @@ def report_data(
     report["plumbing"] = _plumbing(parts)
     report["hvac"] = _guarded(_hvac, parts, "HVAC")
     report["electrical"] = _guarded(_electrical, parts, "electrical")
+    report["fire"] = _guarded(_fire, parts, "fire")
     report["boq"] = _boq(parts)
     report["limitations"] = {
         "design": report["design"].get("notes", []),
@@ -246,6 +247,7 @@ def report_data(
         "plumbing": report["plumbing"].get("notes", []),
         "hvac": report["hvac"].get("notes", []),
         "electrical": report["electrical"].get("notes", []),
+        "fire": report["fire"].get("notes", []),
         "boq": report["boq"].get("notes", []),
         "soil": report["soil"].get("notes", []),
         "foundations": report["foundations"].get("notes", []),
@@ -1260,10 +1262,10 @@ def _kind_title(kind: str) -> str:
 
 
 def _design(results_dir: Path, model_path: Path, warnings: list[str]) -> dict[str, Any]:
-    from saengine.design import design_report
+    from saengine.pipeline.design_mode import checks
 
     try:
-        report = design_report(results_dir, model_path)
+        report = checks(results_dir, model_path)  # Run All's design step's, while current
     except Exception as error:  # noqa: BLE001 - the report goes on without the design
         message = str(error) or type(error).__name__
         warnings.append(f"The member design could not be checked: {message}")
@@ -3054,6 +3056,21 @@ def _electrical(parts: _Parts) -> dict[str, Any]:
         "method": [str(m) for m in report.get("method") or []],
         "notes": notes,
     }
+
+
+def _fire(parts: _Parts) -> dict[str, Any]:
+    """The fire protection chapter (Part 7, BNBC 2020 Part 4): :mod:`saengine.fire.chapter`;
+    not printed while 07 MEP has no fire section."""
+    from saengine.fire.chapter import fire_chapter
+    from saengine.library.mep import MEP_FILE, parse
+
+    try:
+        mep = parse(parts.text(MEP_FILE))
+    except ValueError as error:
+        return {"available": False, "problem": f"{MEP_FILE} is not valid: {error}", "notes": []}
+    if mep.fire is None:
+        return {"available": False, "problem": "", "notes": []}
+    return fire_chapter(parts.root, mep, _service_loads(parts, mep, "fire"))
 
 
 def _boq(parts: _Parts) -> dict[str, Any]:

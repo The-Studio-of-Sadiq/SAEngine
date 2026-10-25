@@ -5,10 +5,11 @@
 
 import type { CadPoint } from '@saengine/cad-editor';
 import { localize } from '../../../../nls.js';
-import { gridsOf, MemberGroup, storiesOf } from './floorPlanDrawing.js';
-import { anchor, distanceToSegment, insidePolygon, members, nextId, resolvePoint } from './floorPlanEdits.js';
+import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
+import { gridsOf, MemberGroup } from './floorPlanDrawing.js';
+import { anchor, distanceToSegment, insidePolygon, members, nextId, notRotatableMessage, resolvePoint } from './floorPlanEdits.js';
 import { IMemberRef, insideRect, IRect } from './floorPlanSelection.js';
-import { familyOf } from './floorPlanTypical.js';
+import { familyOf, storyBelow } from './floorPlanTypical.js';
 
 /*
  * Edits of many members at once on the floor plan (`05 Floor Plan/floor-plan.json`): delete,
@@ -147,12 +148,6 @@ function normalize(degrees: number): number {
 	return Number((((degrees % 360) + 360) % 360).toFixed(3));
 }
 
-function storyBelow(layout: unknown, story: string): string | undefined {
-	const ids = storiesOf(layout).map(s => s.id);
-	const index = ids.indexOf(story);
-	return index > 0 ? ids[index - 1] : undefined;
-}
-
 function itemsOf(layout: Json, refs: readonly IMemberRef[]): { group: MemberGroup; member: Json }[] {
 	return refs.map(ref => ({ group: ref.group, member: find(layout, ref) })).filter((i): i is { group: MemberGroup; member: Json } => !!i.member);
 }
@@ -172,21 +167,6 @@ export function deleteMembers(layout: unknown, refs: readonly IMemberRef[]): Bul
 		next[group] = members(next, group).filter(m => !ids.has(m.id as string));
 	}
 	return { ok: true, layout: next, ids: [], placed: 0, skipped: 0 };
-}
-
-/** Gives the selected members of `group` object type `type`. */
-export function changeTypes(layout: unknown, refs: readonly IMemberRef[], group: MemberGroup, type: string): BulkResult {
-	const targets = refs.filter(r => r.group === group);
-	if (!targets.length) {
-		return nothingSelected();
-	}
-	if (!type) {
-		return { ok: false, error: localize('edit.noType', "Choose an object type.") };
-	}
-	const next = clone(layout);
-	const ids = new Set(targets.map(r => r.id));
-	next[group] = members(next, group).map(m => ids.has(m.id as string) ? { ...m, type } : m);
-	return { ok: true, layout: next, ids: targets, placed: 0, skipped: 0 };
 }
 
 /** Moves the selected members by `delta` [mm], each point re-anchored to its nearest grid intersection. */
@@ -310,9 +290,9 @@ export function rotateMembers(layout: unknown, refs: readonly IMemberRef[], degr
 	if (!Number.isFinite(degrees)) {
 		return { ok: false, error: localize('edit.badAngle', "Enter an angle in degrees.") };
 	}
-	const turning = refs.filter(r => rotatable(r.group));
+	const turning = refs.filter(r => r.group === 'columns'); // footings turn in 9 Substructure
 	if (!turning.length) {
-		return { ok: false, error: localize('edit.notRotatable', "Only columns and footings rotate; beams, walls and slabs follow their points.") };
+		return { ok: false, error: notRotatableMessage() };
 	}
 	const next = clone(layout);
 	for (const ref of turning) {

@@ -147,7 +147,7 @@ def plumbing_results(
     notes.extend(demand["notes"])
 
     # Storage and pump.
-    vol = volumes(plumbing, building, demand["daily"])
+    vol = volumes(plumbing, building, demand["daily"], mep.fire)
     pumping = pump(plumbing, demand["daily"])
     inflow = plumbing.supply.inflow or pumping["peakHourly"]
     taken = {t.id for t in plumbing.tanks} | {r.id for r in plumbing.risers}

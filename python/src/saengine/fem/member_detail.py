@@ -10,7 +10,8 @@ The member detail window of the FEM results (ETABS's "frame detail"):
 - :func:`column_interaction`: a concrete column's φ-factored P-M interaction curves about its
   section x and y axes and the P-Mx-My contour at the governing axial force, with the demand
   points of every load combination. Worked out by SAEngine's own design checks
-  (:func:`saengine.design.required.gather`, :class:`saengine.design.rc.InteractionSurface`):
+  (:func:`saengine.design.required.gather`, :class:`saengine.design.rc.InteractionSurface`;
+  Run All's own gathering while current, :func:`saengine.pipeline.design_mode.gathered`):
   slow (minutes), so once per run for all columns, kept in ``column-interaction.json`` beside
   the results while the run and the design inputs stay the same.
 
@@ -307,7 +308,7 @@ def column_interaction(
     section's own x and y axes as the design checks take them). Worked out once per run and
     kept beside the results."""
     from saengine.design.rc import InteractionSurface
-    from saengine.design.required import gather
+    from saengine.pipeline import design_mode
 
     out_dir, project_path = Path(out_dir), Path(project_path)
     cache = out_dir / CACHE_FILE
@@ -318,7 +319,8 @@ def column_interaction(
         except (OSError, ValueError):
             cached = None
         if not cached or cached.get("schema") != CACHE_SCHEMA or cached.get("stamp") != stamp:
-            gathered = gather(out_dir, project_path, substructure=False)
+            # Run All's design step's checks while they are current (design_mode.gathered).
+            gathered = design_mode.gathered(out_dir, project_path, substructure=False)
             surfaces: dict[str, Any] = {}
             columns: dict[str, Any] = {}
             for entry in gathered.collect.get("members", []):

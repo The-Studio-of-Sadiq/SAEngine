@@ -7,15 +7,18 @@ import { Event } from '../../../../base/common/event.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { boqSourceStamp, mepModelStamp, recordedStamp, sourceStamp, upstreamPart } from './partSources.js';
+import { DEFAULT_MATERIALS, DEFAULT_SETTINGS } from './projectLibraries.generated.js';
 import { IProjectPart } from './saengineProject.js';
 
 /*
- * How far each part of a project has got, from its files on disk: not started (a placeholder
- * or missing file), in progress, done, stale (an upstream part changed since this part was
- * produced), failed (the design checks found failing members) or error (an unreadable file).
+ * How far each part of a project has got, from its files on disk (never from unsaved editor
+ * buffers): not started (a placeholder, missing or empty file), defaults (the settings or
+ * materials a new project starts with, not changed yet), in progress, done, stale (an upstream
+ * part changed since this part was produced), failed (the design checks found failing members)
+ * or error (an unreadable file).
  */
 
-export type PartState = 'notStarted' | 'inProgress' | 'done' | 'stale' | 'failed' | 'error';
+export type PartState = 'notStarted' | 'defaults' | 'inProgress' | 'done' | 'stale' | 'failed' | 'error';
 
 export interface IPartStatus {
 	/** Id of the part (see `PROJECT_PARTS`). */
@@ -323,6 +326,17 @@ function electricalCount(document: JsonObject): number {
 	return sectionCount(document, 'electrical', ['stories', 'equipment', 'risers', 'trays']);
 }
 
+/** How many storeys, risers, mains, tanks and pumps the fire protection of an MEP file has. */
+function fireCount(document: JsonObject): number {
+	return sectionCount(document, 'fire', ['stories', 'risers', 'mains', 'tanks', 'pumps']);
+}
+
+/** Whether the fire protection of an MEP file has an overhead fire tank (it loads the model). */
+function hasOverheadFireTank(document: JsonObject): boolean {
+	const tanks = mepSection(document, 'fire')?.tanks;
+	return Array.isArray(tanks) && tanks.some(t => typeof t === 'object' && t !== null && (t as JsonObject).kind === 'overhead');
+}
+
 /** Whether a member loads file `text` (`05 Floor Plan/loads.json`) has a load; an unreadable file counts (deriving reports it). */
 export function loadsHaveContent(text: string | undefined): boolean {
 	if (!text || !text.trim()) {
@@ -336,11 +350,12 @@ export function loadsHaveContent(text: string | undefined): boolean {
 	}
 }
 
-/** Whether 7 MEP has anything for the analysis model or the bill: equipment, openings, shafts, an overhead plumbing tank, HVAC plant or electrical equipment. */
+/** Whether 7 MEP has anything for the analysis model or the bill: equipment, openings, shafts, an overhead plumbing tank, HVAC plant, electrical equipment, fire pumps or an overhead fire tank. */
 function mepHasContent(inputs: IPartStatusInputs): boolean {
 	const document = mepDocument(inputs);
 	return !!document && (['equipment', 'openings', 'shafts'].some(key => Array.isArray(document[key]) && (document[key] as unknown[]).length > 0) || hasOverheadTank(document)
-		|| sectionCount(document, 'hvac', ['plant']) > 0 || sectionCount(document, 'electrical', ['equipment']) > 0);
+		|| sectionCount(document, 'hvac', ['plant']) > 0 || sectionCount(document, 'electrical', ['equipment']) > 0
+		|| sectionCount(document, 'fire', ['pumps']) > 0 || hasOverheadFireTank(document));
 }
 
 /** How many storeys, risers, tanks and roof drains the plumbing of an MEP file has. */
@@ -382,6 +397,8 @@ interface IMepSummary {
 	readonly hvac?: IServiceSummary;
 	/** The electrical checks (supply, rooms, risers, trays, lightning), when the file has them and they ran. */
 	readonly electrical?: IServiceSummary;
+	/** The fire protection checks (BNBC Part 4 systems, water, pumps, sleeves), when the file has them and they ran. */
+	readonly fire?: IServiceSummary;
 }
 
 /** The HVAC or electrical checks' part of the MEP summary (the MEP editor and Run All write it). */
@@ -411,7 +428,8 @@ function mepStatus(inputs: IPartStatusInputs): IPartStatus {
 	const plumbingItems = plumbingCount(value);
 	const hvacItems = hvacCount(value);
 	const electricalItems = electricalCount(value);
-	if (!count('equipment') && !count('openings') && !count('shafts') && !count('ifcModels') && !plumbingItems && !hvacItems && !electricalItems) {
+	const fireItems = fireCount(value);
+	if (!count('equipment') && !count('openings') && !count('shafts') && !count('ifcModels') && !plumbingItems && !hvacItems && !electricalItems && !fireItems) {
 		return status('mep', 'notStarted', NOT_STARTED(), startHint('mep'));
 	}
 	const parsed = inputs.mepSummaryText !== undefined ? parse(inputs.mepSummaryText) : undefined;
@@ -427,18 +445,20 @@ function mepStatus(inputs: IPartStatusInputs): IPartStatus {
 	// The plumbing results also read the soil report (soak well, flotation, bearing, ground tanks):
 	// once it has changed they are stale.
 	const plumbing = recorded && (typeof recorded.source !== 'object' || recorded.source === null || sourcesUnchanged(inputs.texts, recorded.source)) ? recorded : undefined;
-	const service = (key: 'hvac' | 'electrical') => {
+	const service = (key: 'hvac' | 'electrical' | 'fire') => {
 		const recorded = summary[key];
 		return typeof recorded === 'object' && recorded !== null && typeof recorded.failed === 'number' ? recorded : undefined;
 	};
 	const hvac = service('hvac');
 	const electrical = service('electrical');
+	const fire = service('fire');
 	// Every discipline with failing checks, so one does not hide another.
 	const failing = [
 		{ failed: summary.openingsFailed, label: () => summary.openingsFailed === 1 ? localize('partStatus.mep.oneFail', "1 opening fails") : localize('partStatus.mep.fail', "{0} openings fail", summary.openingsFailed), hint: () => localize('partStatus.mep.review', "review the failing openings"), name: () => localize('partStatus.mep.openingsName', "openings {0}", summary.openingsFailed) },
 		{ failed: plumbing?.failed ?? 0, label: () => plumbing?.failed === 1 ? localize('partStatus.mep.plumbingOneFail', "1 plumbing check fails") : localize('partStatus.mep.plumbingFail', "{0} plumbing checks fail", plumbing?.failed), hint: () => localize('partStatus.mep.plumbingReview', "review the plumbing"), name: () => localize('partStatus.mep.plumbingName', "plumbing {0}", plumbing?.failed) },
 		{ failed: hvac?.failed ?? 0, label: () => hvac?.failed === 1 ? localize('partStatus.mep.hvacOneFail', "1 HVAC check fails") : localize('partStatus.mep.hvacFail', "{0} HVAC checks fail", hvac?.failed), hint: () => localize('partStatus.mep.hvacReview', "review the ducts' openings and the plant"), name: () => localize('partStatus.mep.hvacName', "HVAC {0}", hvac?.failed) },
 		{ failed: electrical?.failed ?? 0, label: () => electrical?.failed === 1 ? localize('partStatus.mep.electricalOneFail', "1 electrical check fails") : localize('partStatus.mep.electricalFail', "{0} electrical checks fail", electrical?.failed), hint: () => localize('partStatus.mep.electricalReview', "review the electrical services"), name: () => localize('partStatus.mep.electricalName', "electrical {0}", electrical?.failed) },
+		{ failed: fire?.failed ?? 0, label: () => fire?.failed === 1 ? localize('partStatus.mep.fireOneFail', "1 fire check fails") : localize('partStatus.mep.fireFail', "{0} fire checks fail", fire?.failed), hint: () => localize('partStatus.mep.fireReview', "review the fire protection"), name: () => localize('partStatus.mep.fireName', "fire {0}", fire?.failed) },
 	].filter(item => item.failed > 0);
 	if (failing.length === 1) {
 		return status('mep', 'failed', failing[0].label(), failing[0].hint());
@@ -459,6 +479,9 @@ function mepStatus(inputs: IPartStatusInputs): IPartStatus {
 	if (electricalItems && !electrical) {
 		return status('mep', 'inProgress', localize('partStatus.mep.electricalNotChecked', "electrical not checked"), localize('partStatus.mep.checkElectrical', "open the electrical results or Run All"));
 	}
+	if (fireItems && !fire) {
+		return status('mep', 'inProgress', localize('partStatus.mep.fireNotChecked', "fire not checked"), localize('partStatus.mep.checkFire', "open the fire results or Run All"));
+	}
 	if (summary.clashesOpen > 0) {
 		return status('mep', 'inProgress', summary.clashesOpen === 1 ? localize('partStatus.mep.oneClash', "1 clash") : localize('partStatus.mep.clashes', "{0} clashes", summary.clashesOpen), localize('partStatus.mep.coordinate', "coordinate the clashes"));
 	}
@@ -468,7 +491,7 @@ function mepStatus(inputs: IPartStatusInputs): IPartStatus {
 		return status('mep', 'inProgress', partial === 1 ? localize('partStatus.mep.onePartial', "1 opening not fully checked") : localize('partStatus.mep.partial', "{0} openings not fully checked", partial), localize('partStatus.mep.analyse', "run the analysis to check the openings' strength"));
 	}
 	const equipment = count('equipment');
-	if (!equipment && (hvac || electrical)) {
+	if (!equipment && (hvac || electrical || fire)) {
 		return status('mep', 'done', localize('partStatus.mep.servicesChecked', "services checked"));
 	}
 	if (!equipment && plumbing) {
@@ -569,6 +592,43 @@ function startHint(part: string): string {
 	}
 }
 
+/** `value` as JSON with every object's keys sorted, so equal documents compare equal whatever their key order. */
+function canonical(value: unknown): string {
+	return JSON.stringify(value, (_key, v) => typeof v === 'object' && v !== null && !Array.isArray(v)
+		? Object.fromEntries(Object.keys(v).sort().map(k => [k, (v as JsonObject)[k]]))
+		: v);
+}
+
+function object(value: unknown): JsonObject {
+	return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as JsonObject : {};
+}
+
+/**
+ * Whether a settings or materials file still holds what a new project starts with. The settings
+ * are compared apart from what the new-project dialog fills in: the project name and the
+ * concrete and steel codes. Projects whose settings were written with other values (New
+ * Building from Grid, the importers) or with older defaults count as changed.
+ */
+export function holdsDefaults(document: JsonObject, part: string): boolean {
+	if (part === 'materials') {
+		return canonical(document) === canonical(DEFAULT_MATERIALS);
+	}
+	const defaults = DEFAULT_SETTINGS as JsonObject;
+	const codes = object(document.codes);
+	const expected = {
+		...defaults,
+		project: { name: object(document.project).name },
+		codes: { ...object(defaults.codes), concrete: codes.concrete, steel: codes.steel },
+	};
+	return canonical(document) === canonical(expected);
+}
+
+/** The members a floor plan places (columns, beams, walls, slabs and footings) or a structural model draws (members and areas). */
+export function modelMemberCount(document: JsonObject, part: string): number {
+	const keys = part === 'structure' ? ['members', 'areas'] : ['columns', 'beams', 'walls', 'slabs', 'footings'];
+	return keys.reduce((sum, key) => sum + (Array.isArray(document[key]) ? (document[key] as unknown[]).length : 0), 0);
+}
+
 function documentStatus(part: string, inputs: IPartStatusInputs): IPartStatus {
 	const text = inputs.texts.get(part);
 	if (text === undefined) {
@@ -581,7 +641,30 @@ function documentStatus(part: string, inputs: IPartStatusInputs): IPartStatus {
 	if (isPlaceholder(document, part)) {
 		return status(part, 'notStarted', NOT_STARTED(), startHint(part));
 	}
-	return status(part, 'done');
+	switch (part) {
+		case 'settings':
+		case 'materials':
+			return holdsDefaults(document, part)
+				? status(part, 'defaults', localize('partStatus.defaults', "defaults"), localize('partStatus.reviewDefaults', "review the defaults"))
+				: status(part, 'done');
+		case 'objects': {
+			const types = Array.isArray(document.objects) ? document.objects.length : 0;
+			if (!types) {
+				return status(part, 'notStarted', NOT_STARTED(), startHint(part));
+			}
+			return status(part, 'done', types === 1 ? localize('partStatus.objects.one', "1 type") : localize('partStatus.objects.count', "{0} types", types));
+		}
+		case 'floorPlan':
+		case 'structure': {
+			const members = modelMemberCount(document, part);
+			if (!members) {
+				return status(part, 'notStarted', NOT_STARTED(), startHint(part));
+			}
+			return status(part, 'done', members === 1 ? localize('partStatus.members.one', "1 member") : localize('partStatus.members.count', "{0} members", members));
+		}
+		default:
+			return status(part, 'done');
+	}
 }
 
 function defaultFormatDate(time: number): string {
@@ -605,8 +688,9 @@ export function computePartStatuses(parts: readonly IProjectPart[], inputs: IPar
 }
 
 /**
- * The first part, in workflow order, that needs doing, with its index; the parts whose modules
- * are not written yet (soil report, MEP, substructure) are skipped.
+ * The first part, in workflow order, that needs doing (settings or materials still holding the
+ * defaults need reviewing), with its index; the optional parts (soil report, MEP, substructure)
+ * are skipped.
  */
 export function nextStep(statuses: readonly IPartStatus[]): { readonly index: number; readonly status: IPartStatus } | undefined {
 	const index = statuses.findIndex(s => s.state !== 'done' && !OPTIONAL_PARTS.has(s.part));

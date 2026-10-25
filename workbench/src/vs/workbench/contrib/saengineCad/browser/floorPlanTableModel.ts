@@ -5,9 +5,11 @@
 
 import { compareFileNames } from '../../../../base/common/comparers.js';
 import { localize } from '../../../../nls.js';
-import { MemberGroup, storiesOf } from './floorPlanDrawing.js';
-import { changeMemberType, TOOL_GROUP, TOOL_KINDS } from './floorPlanEdits.js';
-import { familyOf, inSync } from './floorPlanTypical.js';
+import { csvText } from '../../../../platform/saengine/common/csv.js';
+import { location, onPlanOf, rises, storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
+import { MemberGroup } from './floorPlanDrawing.js';
+import { footingsOwnedMessage, setMembersType, TOOL_GROUP, TOOL_KINDS } from './floorPlanEdits.js';
+import { familyDiffersMessage, placedEdit, placeKey, repeatOnFamilies } from './floorPlanTypical.js';
 
 /*
  * The Members Table's model: a row for every member placed on the floor plan
@@ -54,42 +56,6 @@ function members(layout: unknown, group: MemberGroup): Json[] {
 	return Array.isArray(list) ? list.filter(isObject) : [];
 }
 
-const RISING = new Set<MemberGroup>(['columns', 'walls']);
-
-/** A grid point in labels: "A-1", with its offset in mm when it has one. */
-export function formatPoint(value: unknown): string {
-	if (!isObject(value)) {
-		return '?';
-	}
-	const [dx, dy] = [Number(value.dx) || 0, Number(value.dy) || 0];
-	const at = `${value.x}-${value.y}`;
-	const signed = (v: number) => v > 0 ? `+${v}` : String(v);
-	return dx || dy ? `${at} (${signed(dx)}, ${signed(dy)})` : at;
-}
-
-function formatBoundary(boundary: unknown): string {
-	const points = Array.isArray(boundary) ? boundary.filter(isObject) : [];
-	const plain = points.every(p => !p.dx && !p.dy);
-	const xs = [...new Set(points.map(p => String(p.x)))];
-	const ys = [...new Set(points.map(p => String(p.y)))];
-	if (points.length === 4 && plain && xs.length === 2 && ys.length === 2) {
-		return `${xs.join('–')} / ${ys.join('–')}`;
-	}
-	return points.map(formatPoint).join(' · ');
-}
-
-function location(group: MemberGroup, member: Json): string {
-	switch (group) {
-		case 'columns':
-		case 'footings':
-			return formatPoint(member.at);
-		case 'slabs':
-			return formatBoundary(member.boundary);
-		default:
-			return `${formatPoint(member.start)} → ${formatPoint(member.end)}`;
-	}
-}
-
 /** Every member of the floor plan, in plan order: groups, then stories from the bottom, then ids. */
 export function memberRows(layout: unknown): IMemberRow[] {
 	const stories = storiesOf(layout);
@@ -101,8 +67,8 @@ export function memberRows(layout: unknown): IMemberRow[] {
 			if (typeof member.id !== 'string') {
 				continue;
 			}
-			const story = String((RISING.has(group) ? member.top : member.story) ?? '');
-			const base = RISING.has(group) ? String(member.base ?? '') : undefined;
+			const story = String((rises(group) ? member.top : member.story) ?? '');
+			const base = rises(group) ? String(member.base ?? '') : undefined;
 			rows.push({
 				group,
 				id: member.id,
@@ -129,8 +95,8 @@ export interface IRowFilter {
 }
 
 export function filterRows(layout: unknown, rows: readonly IMemberRow[], filter: IRowFilter): IMemberRow[] {
-	const elevation = new Map(storiesOf(layout).map(s => [s.id, s.elevation]));
-	const level = filter.story ? elevation.get(filter.story) : undefined;
+	const stories = storiesOf(layout);
+	const story = filter.story ? stories.find(s => s.id === filter.story) : undefined;
 	const text = filter.text?.trim().toLowerCase();
 	return rows.filter(row => {
 		if (filter.group && row.group !== filter.group) {
@@ -140,13 +106,8 @@ export function filterRows(layout: unknown, rows: readonly IMemberRow[], filter:
 			return false;
 		}
 		if (filter.story) {
-			if (row.base !== undefined && level !== undefined) {
-				const bottom = elevation.get(row.base) ?? Infinity;
-				const top = elevation.get(row.story) ?? -Infinity;
-				if (!(bottom < level && level <= top)) {
-					return false;
-				}
-			} else if (row.story !== filter.story) {
+			const member = row.base !== undefined ? { base: row.base, top: row.story } : { story: row.story };
+			if (row.base !== undefined && story ? !onPlanOf(row.group, member, story, stories) : row.story !== filter.story) {
 				return false;
 			}
 		}
@@ -190,7 +151,7 @@ export function typeOptions(objects: unknown, group: MemberGroup): [string, stri
 /** The stories a member of `group` can be put on: any for beams, slabs and footings; above the lowest for columns and walls. */
 export function storyOptions(layout: unknown, group: MemberGroup): { readonly id: string; readonly name: string }[] {
 	const stories = storiesOf(layout);
-	return RISING.has(group) ? stories.slice(1) : stories;
+	return rises(group) ? stories.slice(1) : stories;
 }
 
 export type TableEdit = { readonly ok: true; readonly layout: Json; readonly changed: number; readonly skipped: readonly string[] } | { readonly ok: false; readonly error: string };
@@ -200,108 +161,34 @@ export interface IRowRef {
 	readonly id: string;
 }
 
-/** A type edit of a member on the plan of one story: where it is, so it can be repeated on typical floors. */
-interface IPlacedEdit {
-	readonly group: MemberGroup;
-	readonly key: string;
-	readonly story: string;
-}
-
-/** The story below `story`, which its columns and walls rise from. */
-function storyBelow(layout: unknown, story: string): string | undefined {
-	const ids = storiesOf(layout).map(s => s.id);
-	const index = ids.indexOf(story);
-	return index > 0 ? ids[index - 1] : undefined;
-}
-
-/** Whether `member` is on the plan of `story` alone, as typical floors compare them (floorPlanTypical.ts). */
-function onStory(layout: unknown, group: MemberGroup, member: Json, story: string): boolean {
-	return RISING.has(group) ? member.top === story && member.base === storyBelow(layout, story) : member.story === story;
-}
-
 /**
- * Repeats type edits on typical floors: every edited member on a story of a typical-floor family
- * whose plans were alike before the edit gets the same type at the same place on every story of
- * that family (as the floor plan does). Edits on several stories of one family all apply; families
- * that already differed are left as they are.
+ * Gives the members `refs` object type `type` (floorPlanEdits.setMembersType); members whose group
+ * cannot take it, and footings, are skipped. On a typical floor the type repeats at the same place
+ * on every story of its family, and the edit is refused when their plans differ, as in the floor
+ * plan (floorPlanTypical.repeatOnFamilies).
  */
-function repeatOnTypicalFloors(before: unknown, after: Json, edits: readonly IPlacedEdit[], type: string): Json {
-	const synced = new Map<string, readonly string[]>();
-	const familyFor = (story: string) => {
-		let family = synced.get(story);
-		if (!family) {
-			const all = familyOf(before, story);
-			family = all.length > 1 && inSync(before, all) ? all : [];
-			all.forEach(s => synced.set(s, family!));
-		}
-		return family;
-	};
-	const next = JSON.parse(JSON.stringify(after)) as Json;
-	for (const edit of edits) {
-		for (const story of familyFor(edit.story)) {
-			for (const member of members(next, edit.group)) {
-				if (onStory(next, edit.group, member, story) && placeKey(edit.group, member) === edit.key) {
-					member.type = type;
-				}
-			}
-		}
-	}
-	return next;
-}
-
-/** Gives the members `refs` object type `type`; members whose group cannot take it are skipped. */
 export function setRowsType(layout: unknown, objects: unknown, refs: readonly IRowRef[], type: string): TableEdit {
-	if (!refs.length) {
-		return { ok: false, error: localize('table.noRows', "Select the members to change.") };
+	const result = setMembersType(layout, refs, type, group => typeOptions(objects, group).some(([id]) => id === type));
+	if (!result.ok) {
+		return result;
 	}
-	let next = layout as Json;
-	const skipped: string[] = [];
-	const edits: IPlacedEdit[] = [];
-	let changed = 0;
-	for (const ref of refs) {
-		if (!typeOptions(objects, ref.group).some(([id]) => id === type)) {
-			skipped.push(ref.id);
-			continue;
-		}
-		const result = changeMemberType(next, ref.group, ref.id, type);
-		if (!result.ok) {
-			skipped.push(ref.id);
-			continue;
-		}
+	const edits = result.changed.flatMap(ref => {
 		const member = members(result.layout, ref.group).find(m => m.id === ref.id);
-		const story = member && (RISING.has(ref.group) ? member.top : member.story);
-		if (member && typeof story === 'string' && ref.group !== 'footings' && onStory(result.layout, ref.group, member, story)) {
-			edits.push({ group: ref.group, key: placeKey(ref.group, member), story });
-		}
-		next = result.layout;
-		changed++;
+		const edit = member && placedEdit(result.layout, ref.group, member);
+		return edit ? [edit] : [];
+	});
+	const next = repeatOnFamilies(layout, result.layout, edits, { type });
+	if (!next) {
+		return { ok: false, error: familyDiffersMessage() };
 	}
-	if (!changed) {
-		return { ok: false, error: localize('table.typeNone', "{0} cannot be given to the selected members.", type) };
-	}
-	return { ok: true, layout: repeatOnTypicalFloors(layout, next, edits, type), changed, skipped };
-}
-
-function pointKey(value: unknown): string {
-	return isObject(value) ? `${value.x}/${value.y}/${Number(value.dx) || 0}/${Number(value.dy) || 0}` : '?';
-}
-
-function placeKey(group: MemberGroup, member: Json): string {
-	switch (group) {
-		case 'columns':
-		case 'footings':
-			return pointKey(member.at);
-		case 'slabs':
-			return (Array.isArray(member.boundary) ? member.boundary : []).map(pointKey).sort().join(' ');
-		default:
-			return [pointKey(member.start), pointKey(member.end)].sort().join(' ');
-	}
+	return { ok: true, layout: next, changed: result.changed.length, skipped: result.skipped };
 }
 
 /**
- * Puts the members `refs` on `story`. Beams, slabs and footings move to it; columns and walls
- * then rise to it, over as many stories as before. A member is skipped (and named) when that
- * would put it below the base or onto another member at the same place.
+ * Puts the members `refs` on `story`. Beams and slabs move to it; columns and walls then rise to
+ * it, over as many stories as before. A member is skipped (and named) when that would put it
+ * below the base or onto another member at the same place; footings are skipped too (9
+ * Substructure places them).
  */
 export function setRowsStory(layout: unknown, refs: readonly IRowRef[], story: string): TableEdit {
 	const stories = storiesOf(layout);
@@ -316,12 +203,12 @@ export function setRowsStory(layout: unknown, refs: readonly IRowRef[], story: s
 	for (const ref of refs) {
 		const list = members(next, ref.group);
 		const member = list.find(m => m.id === ref.id);
-		if (!member) {
+		if (!member || ref.group === 'footings') {
 			skipped.push(ref.id);
 			continue;
 		}
 		let update: Json;
-		if (RISING.has(ref.group)) {
+		if (rises(ref.group)) {
 			const span = Math.max(1, ids.indexOf(member.top as string) - ids.indexOf(member.base as string));
 			if (index - span < 0) {
 				skipped.push(ref.id);
@@ -339,7 +226,7 @@ export function setRowsStory(layout: unknown, refs: readonly IRowRef[], story: s
 			if (other === member || placeKey(ref.group, other) !== key) {
 				return false;
 			}
-			if (!RISING.has(ref.group)) {
+			if (!rises(ref.group)) {
 				return other.story === story;
 			}
 			const [otherLow, otherHigh] = range(other.base, other.top);
@@ -356,15 +243,11 @@ export function setRowsStory(layout: unknown, refs: readonly IRowRef[], story: s
 		changed++;
 	}
 	if (!changed) {
-		return { ok: false, error: skipped.length
+		return { ok: false, error: refs.every(ref => ref.group === 'footings') ? footingsOwnedMessage() : skipped.length
 			? localize('table.storyNone', "The selected members cannot go on {0}: it would put them below the base or onto another member.", stories[index].name)
 			: localize('table.storySame', "The selected members are on {0} already.", stories[index].name) };
 	}
 	return { ok: true, layout: next, changed, skipped };
-}
-
-function csvField(value: string): string {
-	return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 
 /** The rows as CSV (RFC 4180), as the table shows them. */
@@ -373,7 +256,7 @@ export function membersCsv(rows: readonly IMemberRow[], storyName: (id: string) 
 	for (const row of rows) {
 		lines.push([row.id, GROUP_LABELS[row.group], row.type, storyName(row.story), row.base !== undefined ? storyName(row.base) : '', row.location]);
 	}
-	return lines.map(line => line.map(csvField).join(',')).join('\r\n') + '\r\n';
+	return csvText(lines);
 }
 
 /** The row range from `anchor` to `target` (shift-click), by key `group/id`. */

@@ -35,10 +35,11 @@ import { EditorInputCapabilities, IEditorOpenContext, IUntypedEditorInput } from
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { gridLabel } from '../../../services/saengineProject/common/gridLabels.js';
 import { BNBC, DEFAULT_MATERIALS, SETTINGS_SCHEMA } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { ISaengineProject, ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import {
-	buildSpec, centralBay, DEFAULT_FORM, FOOTING_CHOICES, FormField, formatSummary, GENERATE_BUILDING_COMMAND, gridLabel, IGenerateOutcome, INewBuildingForm, IPendingBuilding, OccupancyCategory,
+	buildSpec, centralBay, DEFAULT_FORM, FOOTING_CHOICES, FormField, formatSummary, GENERATE_BUILDING_COMMAND, IGenerateOutcome, INewBuildingForm, IPendingBuilding, OccupancyCategory,
 	parseSpacings, PENDING_BUILDING_STORAGE_KEY, readGenerateResult, readPendingBuilding, storyHeights, summarize, SYSTEM_CHOICES,
 } from './newBuildingModel.js';
 import { ProjectOpener } from './projectOpener.js';

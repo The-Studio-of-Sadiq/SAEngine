@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
+import { IGridLine } from '../../../services/saengineProject/common/gridLabels.js';
+import { centroid, polygonArea } from '../../../../platform/saengine/common/geometry.js';
 import { sourceStamp } from '../../../services/saengineProject/common/partSources.js';
 import { formatNumber } from '../../saengineSoil/browser/soilDocument.js';
 
@@ -207,11 +209,6 @@ export interface IStory {
 	readonly id: string;
 	readonly name: string;
 	readonly elevation: number;
-}
-
-export interface IGridLine {
-	readonly label: string;
-	readonly position: number;
 }
 
 export interface IColumn {
@@ -618,20 +615,8 @@ export function equipmentSupport(equipment: IEquipment, context: IMepContext): I
 	return { points: points.length, onSlab, slabs: [...slabs].sort(), overOpenings: [...over.values()] };
 }
 
-export function polygonArea(points: readonly (readonly [number, number])[]): number {
-	let area = 0;
-	for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
-		area += (points[j][0] + points[i][0]) * (points[j][1] - points[i][1]);
-	}
-	return Math.abs(area) / 2;
-}
-
-export function centroid(points: readonly (readonly [number, number])[]): Point | undefined {
-	if (!points.length) {
-		return undefined;
-	}
-	return [points.reduce((s, p) => s + p[0], 0) / points.length, points.reduce((s, p) => s + p[1], 0) / points.length];
-}
+/** Re-exported for the MEP editor; the geometry lives in platform/saengine/common/geometry.ts. */
+export { centroid, polygonArea };
 
 /**
  * Whether a shaft cuts the floor of a story: the stories above the one it starts at
