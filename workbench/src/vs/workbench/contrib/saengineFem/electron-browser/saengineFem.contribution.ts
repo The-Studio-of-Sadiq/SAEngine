@@ -674,6 +674,17 @@ CommandsRegistry.registerCommand('saengine.import.structural', async (accessor, 
 });
 
 /**
+ * Integrator glue: the backend of the ETABS export (the Exports page calls it by id,
+ * `saengine.export.e2k` `{projectRoot}`): `export/e2k` writes `11 Exports/ETABS/<project>.e2k`
+ * and its export report (saengine.exporters.etabs) and answers `{path, reportPath, report}`, or
+ * `{error}` when the project cannot be exported.
+ */
+CommandsRegistry.registerCommand('saengine.export.e2k', async (accessor, args: { readonly projectRoot: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'export/e2k', { projectRoot: args.projectRoot });
+});
+
+/**
  * Integrator glue: the backend of the New Building wizard (newBuildingWizard.ts calls it by id,
  * `saengine.library.generateBuilding` `{spec, destParent, name}`): `library/generateBuilding`
  * generates the building from its grids and storeys into `<destParent>/<name>`

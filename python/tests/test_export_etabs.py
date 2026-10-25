@@ -558,3 +558,21 @@ def test_cli_writes_the_e2k_and_its_report(tmp_path: Path, monkeypatch: Any, cap
     # tank's water as F.
     assert math.isclose(report["loads"]["exportedKN"]["L"], 128.35, rel_tol=1e-4)
     assert math.isclose(report["loads"]["exportedKN"]["F"], 47.9, rel_tol=1e-4)
+
+
+def test_app_export_writes_into_the_exports_folder(tmp_path: Path, monkeypatch: Any) -> None:
+    """The Exports page's ``export/e2k``: ``11 Exports/ETABS/<project>.e2k`` and its report, or
+    the reason it cannot export."""
+    from saengine.exporters import etabs
+
+    project = tmp_path / "Sample Frame"
+    shutil.copytree(SAMPLE, project)
+    real = etabs.export_e2k
+    monkeypatch.setattr(etabs, "export_e2k", lambda *a, **k: real(*a, **k, derive=False))
+    answer = etabs.rpc_export_e2k({"projectRoot": str(project)})
+    target = project / "11 Exports" / "ETABS" / "Sample Frame.e2k"
+    assert Path(answer["path"]) == target and target.exists()
+    assert Path(answer["reportPath"]) == target.with_name("Sample Frame.export-report.json")
+    assert answer["report"]["exported"]["columns"] == 7
+    missing = etabs.rpc_export_e2k({"projectRoot": str(tmp_path / "nowhere")})
+    assert set(missing) == {"error"} and missing["error"]
