@@ -63,7 +63,7 @@ export class FemResultsInput extends EditorInput {
 	static readonly EDITOR_ID = 'workbench.editor.saengine.femResults';
 
 	/** What the tab shows, kept while another tab of its group is shown. */
-	readonly state: { picked?: string; directions?: string } = {};
+	readonly state: { picked?: string; directions?: string; response?: IFemStoryResponse; member?: IFemMemberForces } = {};
 
 	constructor(readonly model: URI, readonly page: FemResultsPage) {
 		super();
@@ -312,7 +312,11 @@ export class FemResultsEditor extends EditorPane {
 	override async setInput(input: FemResultsInput, options: IFemResultsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		this.inputStore.clear();
-		this.response = this.member = this.interaction = undefined;
+		// Shown again: what was read is shown at once while it is read again (a busy backend
+		// can take a minute to answer).
+		this.response = input.state.response;
+		this.member = input.state.member;
+		this.interaction = undefined;
 		this.required = undefined;
 		this.interactionState = 'idle';
 		this.requiredState = 'idle';
@@ -397,9 +401,17 @@ export class FemResultsEditor extends EditorPane {
 			this.listKeys = list?.results.map(r => r.key) ?? [];
 			this.stale = !!list?.stale;
 			if (input.page.kind === 'charts') {
-				this.response = await this.commandService.executeCommand<IFemStoryResponse>(FEM_STORY_RESPONSE_COMMAND, input.model);
+				const response = await this.commandService.executeCommand<IFemStoryResponse>(FEM_STORY_RESPONSE_COMMAND, input.model);
+				if (request !== this.request) {
+					return;
+				}
+				this.response = input.state.response = response;
 			} else {
-				this.member = await this.commandService.executeCommand<IFemMemberForces>(FEM_MEMBER_FORCES_COMMAND, input.model, input.page.member);
+				const member = await this.commandService.executeCommand<IFemMemberForces>(FEM_MEMBER_FORCES_COMMAND, input.model, input.page.member);
+				if (request !== this.request) {
+					return;
+				}
+				this.member = input.state.member = member;
 				this.interaction = undefined;
 				this.interactionState = 'idle';
 				this.required = undefined;
