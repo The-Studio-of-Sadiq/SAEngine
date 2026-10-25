@@ -16,10 +16,10 @@ from pydantic import ValidationError
 
 from saengine.library.bim import BuildingModel
 from saengine.library.floorplan import FloorPlan
-from saengine.library.materials import MaterialLibrary
+from saengine.library.materials import MaterialLibrary, plausibility
 from saengine.library.objects import ObjectLibrary
 from saengine.library.settings import ProjectSettings
-from saengine.library.settings import check as check_settings
+from saengine.library.settings import problems as settings_problems
 from saengine.library.structure import StructuralModel
 
 Kind = Literal["materials", "objects", "settings", "floorPlan", "structure", "bim"]
@@ -89,6 +89,12 @@ def check_library(kind: Kind, text: str, materials_text: str | None = None) -> l
             problems.append(_problem(index, path, _clean(error["msg"])))
         return problems
 
+    if isinstance(library, MaterialLibrary):
+        return [
+            _problem(index, path, message)
+            for index, material in enumerate(library.materials)
+            for path, message in plausibility(material)
+        ]
     if kind == "objects" and materials_text is not None and isinstance(library, ObjectLibrary):
         try:
             materials = MaterialLibrary.model_validate_json(materials_text)
@@ -173,4 +179,4 @@ def _check_settings(data: Any) -> list[dict[str, Any]]:
             )
             for error in exc.errors()
         ]
-    return [_problem(None, message.split(":")[0], message) for message in check_settings(settings)]
+    return [_problem(None, path, message) for path, message in settings_problems(settings)]

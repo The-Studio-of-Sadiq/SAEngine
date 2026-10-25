@@ -11,8 +11,12 @@ Units: m, kN, s.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from itertools import pairwise
+from typing import Any
 
 from saengine.codes import context as code_context
 from saengine.fem.slab_load_shapes import EdgeProfile, slab_load_shapes
@@ -67,6 +71,32 @@ def vertical_distribution(
 
 # ───────────────────────── wind: main wind-force resisting system ─────────────────────────
 
+#: The project's overrides of Kd, Kzt and G (Project Settings > Wind), while its loads are made.
+_WIND_OVERRIDES: ContextVar[dict[str, float] | None] = ContextVar("wind_overrides", default=None)
+
+
+@contextmanager
+def wind_overrides(wind: Any) -> Iterator[None]:
+    """Kd, Kzt and G of the settings' ``wind`` (``directionality``, ``topographic``, ``gust``)
+    instead of the code pack's, where given, for the wind loads made inside."""
+    values = {
+        k: float(v)
+        for k in ("directionality", "topographic", "gust")
+        if (v := getattr(wind, k, None)) is not None
+    }
+    token = _WIND_OVERRIDES.set(values)
+    try:
+        yield
+    finally:
+        _WIND_OVERRIDES.reset(token)
+
+
+def wind_factor(name: str) -> float:
+    """Kd ("directionality"), Kzt ("topographic") or G ("gust"): the project's override, else
+    the code pack's (BNBC 2020 Table 6.2.12, Sec 2.4.7, Sec 2.4.8.1)."""
+    own = (_WIND_OVERRIDES.get() or {}).get(name)
+    return own if own is not None else float(getattr(code_context.table("wind"), name))
+
 
 def exposure_coefficient(height: float, exposure: str) -> float:
     """Velocity pressure exposure coefficient Kz at ``height`` metres (Table 6.2.11)."""
@@ -77,12 +107,11 @@ def exposure_coefficient(height: float, exposure: str) -> float:
 
 def velocity_pressure(height: float, speed: float, exposure: str, importance: float) -> float:
     """qz = 0.000613·Kz·Kzt·Kd·V²·I [kN/m²], V in m/s."""
-    wind = code_context.table("wind")
     return (
         0.000613
         * exposure_coefficient(height, exposure)
-        * wind.topographic
-        * wind.directionality
+        * wind_factor("topographic")
+        * wind_factor("directionality")
         * speed**2
         * importance
     )
@@ -169,11 +198,15 @@ def wind_levels(
         width = spans[i][1] - spans[i][0]
         if width <= 0:
             return 0.0
-        return qh * wind.gust * leeward_coefficient(depths[i] / width)
+        return qh * wind_factor("gust") * leeward_coefficient(depths[i] / width)
 
     out = []
     for i, z in enumerate(heights):
-        windward = velocity_pressure(z, speed, exposure, importance) * wind.gust * wind.cpWindward
+        windward = (
+            velocity_pressure(z, speed, exposure, importance)
+            * wind_factor("gust")
+            * wind.cpWindward
+        )
         parts = [(i, (z - (heights[i - 1] if i else 0.0)) / 2)]
         if i + 1 < n:
             parts.append((i + 1, (heights[i + 1] - z) / 2))
