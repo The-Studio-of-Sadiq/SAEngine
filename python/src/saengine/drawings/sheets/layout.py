@@ -1160,6 +1160,27 @@ def pack(
     return [s for s in sheets if s]
 
 
+def centred(
+    page: list[tuple[ViewSpec, float, float]], area: Rect
+) -> list[tuple[ViewSpec, float, float]]:
+    """The views of a packed sheet (:func:`pack`) moved together so that their boxes are centred
+    in ``area``: a small building's plan in the middle of the sheet, not in its top-left corner.
+    Views larger than the area stay where they are."""
+    if not page:
+        return page
+    left = min(x for _, x, _ in page)
+    bottom = min(y for _, _, y in page)
+    right = max(x + spec.size[0] for spec, x, _ in page)
+    top = max(y + spec.size[1] for spec, _, y in page)
+    dx = max(0.0, ((area[2] - area[0]) - (right - left)) / 2) + area[0] - left
+    dy = max(0.0, ((area[3] - area[1]) - (top - bottom)) / 2) + area[1] - bottom
+    if right - left > area[2] - area[0] + 1e-6:
+        dx = 0.0
+    if top - bottom > area[3] - area[1] + 1e-6:
+        dy = 0.0
+    return [(spec, x + dx, y + dy) for spec, x, y in page]
+
+
 def fits(spec: ViewSpec, area: Rect) -> bool:
     w, h = spec.size
     return w <= area[2] - area[0] + 1e-6 and h <= area[3] - area[1] + 1e-6
