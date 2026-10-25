@@ -107,8 +107,9 @@ class MemorySampler:
     times per started process, for the interpreter a virtual environment's ``python.exe``
     launcher starts: that child is the solver."""
 
-    #: Samples a started process is looked at for the child its launcher starts.
-    LAUNCHER_LOOKS = 4
+    #: Samples a started process is looked at for the child its launcher starts (5 s: on a
+    #: loaded machine the launcher may take seconds to start it).
+    LAUNCHER_LOOKS = 20
 
     def __init__(self, pids: list[int], interval: float = 0.25) -> None:
         self.pids = pids
