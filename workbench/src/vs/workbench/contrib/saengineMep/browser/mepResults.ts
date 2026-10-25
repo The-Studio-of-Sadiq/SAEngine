@@ -21,6 +21,8 @@ export interface ITableColumn {
 	readonly unit?: string;
 	readonly numeric?: boolean;
 	readonly width?: number;
+	/** The header's tooltip; else its label and unit (a narrow column's label can be cut). */
+	readonly title?: string;
 }
 
 /** What the result pages need from the editor. */
@@ -93,8 +95,9 @@ export function utilisationCell(row: HTMLElement, u: number | undefined, status:
 	append(td, $(`span.mep-util-value.band-${band}`, undefined, formatUtilisation(u)));
 }
 
-/** The checks as a table, failing and highest utilisation first; past `shown`, the rest fold into "All N checks". */
-export function checksTable(parent: HTMLElement, host: Pick<IResultsHost, 'tableHead'>, checks: readonly IMepCheck[], shown = Infinity): void {
+/** The checks as a table, failing and highest utilisation first; past `shown`, the rest fold into "All N checks". Returns the first failing row. */
+export function checksTable(parent: HTMLElement, host: Pick<IResultsHost, 'tableHead'>, checks: readonly IMepCheck[], shown = Infinity): HTMLElement | undefined {
+	let firstFailure: HTMLElement | undefined;
 	const ordered = [...checks].sort((a, b) => statusRank(b.status) - statusRank(a.status) || (b.utilisation ?? 0) - (a.utilisation ?? 0));
 	const table = (rows: readonly IMepCheck[], into: HTMLElement) => {
 		const element = append(into, $('table.mep-table.mep-result-table'));
@@ -112,6 +115,7 @@ export function checksTable(parent: HTMLElement, host: Pick<IResultsHost, 'table
 			append(tr, $('td.mep-wrap', undefined, [check.combination, check.note].filter(Boolean).join(' · ')));
 			if (check.status === 'fail') {
 				tr.classList.add('failed');
+				firstFailure ??= tr;
 			}
 		}
 	};
@@ -121,6 +125,7 @@ export function checksTable(parent: HTMLElement, host: Pick<IResultsHost, 'table
 		append(more, $('summary', undefined, localize('mepResults.allChecks', "All {0} checks", ordered.length)));
 		table(ordered.slice(shown), more);
 	}
+	return firstFailure;
 }
 
 /** Paragraphs of notes under a heading (nothing when there are none). */

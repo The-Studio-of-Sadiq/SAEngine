@@ -7,7 +7,7 @@ import { $, append } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { formatNumber } from '../../saengineSoil/browser/soilDocument.js';
 import { svg } from '../../saengineSoil/browser/soilLog.js';
-import { checksTable, resultSection, statusCell, statusText, value } from './mepResults.js';
+import { checksTable, resultSection, statusCell, statusText, value, ITableColumn } from './mepResults.js';
 import { IFloorHead, IPlumbingReport, ISizedItem, plumbingFailures, PlumbingStatus, systemLabel, tankKindLabel } from './plumbingDocument.js';
 
 /*
@@ -24,7 +24,7 @@ export interface IPlumbingResultsHost {
 	occupancyName(key: string): string;
 	/** A table row that selects the riser, tank or drain with `id` (else a plain row). */
 	row(body: HTMLElement, id: string): HTMLElement;
-	tableHead(table: HTMLElement, columns: readonly { label: string; unit?: string; numeric?: boolean; width?: number }[]): void;
+	tableHead(table: HTMLElement, columns: readonly ITableColumn[]): void;
 }
 
 const MM = localize('plb.unit.mm', "mm");
@@ -45,21 +45,39 @@ export function renderPlumbingReport(view: HTMLElement, report: IPlumbingReport,
 
 	// Tiles.
 	const tiles = append(view, $('.mep-tiles'));
-	const tile = (text: string, label: string, band?: PlumbingStatus) => {
+	// What the failing tiles scroll to, set as the sections below are drawn.
+	const targets: { failure?: HTMLElement; heads?: HTMLElement } = {};
+	/** `target`: which element the tile scrolls to. */
+	const tile = (text: string, label: string, band?: PlumbingStatus, target?: keyof typeof targets) => {
 		const element = append(tiles, $('.mep-tile'));
 		append(element, $(`span.mep-tile-value${band ? `.band-${band}` : ''}`, undefined, text));
 		append(element, $('span.mep-tile-label', undefined, label));
+		if (target) {
+			// A failing tile takes the engineer to the first failure (the checks are spread over several sections).
+			element.classList.add('mep-tile-link');
+			element.tabIndex = 0;
+			element.setAttribute('role', 'button');
+			element.title = localize('plb.tileGoTo', "Show the first failure");
+			const go = () => targets[target]?.scrollIntoView({ block: 'center' });
+			element.addEventListener('click', go);
+			element.addEventListener('keydown', e => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					go();
+				}
+			});
+		}
 	};
 	if (report.dailyDemand !== undefined) {
 		tile(localize('plb.m3dValue', "{0} m³/d", formatNumber(report.dailyDemand / 1000, 2)), localize('plb.tileDemand', "daily water demand"));
 	}
 	if (report.overheadRequired !== undefined) {
-		tile(localize('plb.m3Value', "{0} m³", formatNumber(report.overheadRequired, 2)), localize('plb.tileOverhead', "overhead storage needed"));
+		tile(localize('plb.m3Value', "{0} m³", formatNumber(report.overheadRequired, 2)), localize('plb.tileOverhead', "overhead water storage needed"));
 	}
 	const { items, floorsLow } = plumbingFailures(report);
-	tile(String(items), localize('plb.tileFails', "checks fail"), items ? 'fail' : 'ok');
+	tile(String(items), localize('plb.tileFails', "checks fail"), items ? 'fail' : 'ok', items ? 'failure' : undefined);
 	if (report.floors.length) {
-		tile(String(floorsLow), localize('plb.tileFloors', "floors below the minimum pressure"), floorsLow ? 'fail' : 'ok');
+		tile(String(floorsLow), localize('plb.tileFloors', "floors below the minimum pressure"), floorsLow ? 'fail' : 'ok', floorsLow ? 'heads' : undefined);
 	}
 	if (report.summary.length) {
 		const summary = append(view, $('ul.plb-summary'));
@@ -111,7 +129,8 @@ export function renderPlumbingReport(view: HTMLElement, report: IPlumbingReport,
 			const table = append(demand, $('table.mep-table.mep-result-table'));
 			host.tableHead(table, [
 				{ label: localize('plb.f.storage', "Storage"), width: 160 }, { label: localize('plb.f.tank', "Tank"), width: 80 },
-				{ label: localize('plb.f.required', "Required"), unit: M3, numeric: true, width: 90 }, { label: localize('plb.f.provided', "Provided"), unit: M3, numeric: true, width: 90 },
+				{ label: localize('plb.f.required', "Required"), unit: M3, numeric: true, width: 90, title: localize('plb.f.requiredTitle', "The water the code needs stored (BNBC 2020 Part 8 Sec 5.9.1.2)") },
+				{ label: localize('plb.f.provided', "Provided"), unit: M3, numeric: true, width: 90, title: localize('plb.f.providedTitle', "The water the tank holds: inside length less the partitions × width × water depth (not the freeboard)") },
 				{ label: localize('plb.f.status', "Status"), width: 80 }, { label: localize('plb.f.note', "Note"), width: 300 },
 			]);
 			const body = append(table, $('tbody'));
@@ -163,17 +182,25 @@ export function renderPlumbingReport(view: HTMLElement, report: IPlumbingReport,
 	// The checks of the sizing (P1).
 	if (report.checks.length) {
 		const checks = section(view, localize('plb.checks', "Checks"), localize('plb.checksDetail', "storage, risers, stacks, drains, rainwater, septic tank, soak well and separations"));
-		checksTable(checks, host, report.checks);
+		targets.failure ??= checksTable(checks, host, report.checks);
 	}
 
 	// Tank design (P2).
-	if (report.tanks.length) {
+	if (report.tanks.length || report.tankDesignsPending) {
 		const tanks = section(view, localize('plb.tankDesign', "Tank design"), localize('plb.tankDesignDetail', "walls, base and roof as RC plates; the governing checks first"));
+		if (report.tankDesignsPending) {
+			append(tanks, $('p.mep-note.plb-pending', undefined, report.tankDesignsPending === 1
+				? localize('plb.tankPendingOne', "Designing 1 tank (a plate model of its walls, base and roof): the first design of a tank takes a minute or two, later ones are cached. The rest of the results are final.")
+				: localize('plb.tankPending', "Designing {0} tanks (plate models of their walls, bases and roofs): the first design of a tank takes a minute or two, later ones are cached. The rest of the results are final.", report.tankDesignsPending)));
+		}
 		for (const tank of report.tanks) {
 			const card = append(tanks, $(`.plb-tank-card${tank.status === 'fail' ? '.failed' : ''}`));
+			if (tank.status === 'fail') {
+				targets.failure ??= card;
+			}
 			const title = append(card, $('.plb-tank-card-title'));
 			append(title, $('span.plb-tank-card-id', undefined, tank.id));
-			append(title, $('span.mep-muted-inline', undefined, [tank.kind ? tankKindLabel(tank.kind) : '', tank.capacity !== undefined ? localize('plb.m3Value', "{0} m³", formatNumber(tank.capacity, 1)) : ''].filter(Boolean).join(' · ')));
+			append(title, $('span.mep-muted-inline', undefined, [tank.kind ? tankKindLabel(tank.kind) : '', tank.capacity !== undefined ? localize('plb.tankWater', "{0} m³ of water", formatNumber(tank.capacity, 1)) : ''].filter(Boolean).join(' · ')));
 			append(title, $(`span.plb-pill.band-${tank.status}`, undefined, statusText(tank.status)));
 			if (tank.checks.length) {
 				checksTable(card, host, tank.checks, SHOWN_CHECKS);
@@ -200,14 +227,16 @@ export function renderPlumbingReport(view: HTMLElement, report: IPlumbingReport,
 			? localize('plb.hydraulicsDetail', "residual head at each floor against the required {0} m", formatNumber(report.requiredHead, 1))
 			: localize('plb.hydraulicsDetailNone', "residual head at each floor"));
 		if (report.floors.length) {
-			headChart(append(hydraulics, $('.plb-head-chart')), report.floors, host);
+			targets.heads = append(hydraulics, $('.plb-head-chart'));
+			headChart(targets.heads, report.floors, host);
 		}
 		if (report.pump) {
 			const pump = report.pump;
 			const parts = [
 				pump.flow !== undefined ? localize('plb.pumpFlow', "{0} L/s", formatNumber(pump.flow, 2)) : '',
 				pump.head !== undefined ? localize('plb.pumpHead', "{0} m head", formatNumber(pump.head, 1)) : '',
-				pump.power !== undefined ? localize('plb.pumpPower', "{0} kW", formatNumber(pump.power, 2)) : '',
+				pump.power !== undefined ? localize('plb.pumpPower', "{0} kW at the shaft", formatNumber(pump.power, 2)) : '',
+				pump.motor !== undefined ? localize('plb.pumpMotor', "motor {0} kW (the next standard rating, IEC 60072-1)", formatNumber(pump.motor, 2)) : '',
 			].filter(Boolean);
 			const line = append(hydraulics, $('p.plb-pump'));
 			append(line, $('span.plb-pump-label', undefined, localize('plb.pump', "Pump duty")));
@@ -217,7 +246,7 @@ export function renderPlumbingReport(view: HTMLElement, report: IPlumbingReport,
 			}
 		}
 		if (report.hydraulicChecks.length) {
-			checksTable(hydraulics, host, report.hydraulicChecks, SHOWN_CHECKS);
+			targets.failure ??= checksTable(hydraulics, host, report.hydraulicChecks, SHOWN_CHECKS);
 		}
 	}
 

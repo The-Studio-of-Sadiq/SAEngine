@@ -297,26 +297,6 @@ export interface IOccupancy {
 	readonly group?: string;
 }
 
-/**
- * Until the backend lists its occupancies ({@link PLUMBING_OCCUPANCIES_COMMAND}), these: rows of
- * BNBC 2020 Part 8 Table 8.5.1(a) (residential, cities: PDF part 2 p. 1034, Gazette p. 4815) and Table 8.5.1(d)
- * (other occupancies: PDF p. 1036, Gazette p. 4817), full-facility consumption; keys as P1 (saengine.plumbing.tables). The backend's list replaces it.
- */
-export const STATIC_OCCUPANCIES: readonly IOccupancy[] = [
-	{ key: 'singleFamily', label: localize('plb.occ.house', "Single family dwelling"), lpcd: 260, source: 'Table 8.5.1(a) A1' },
-	{ key: 'apartmentLarge', label: localize('plb.occ.large', "Big apartment (> 2500 sft)"), lpcd: 200, source: 'Table 8.5.1(a) A3' },
-	{ key: 'residentialFlat', label: localize('plb.occ.flat', "Moderate apartment (< 2000 sft)"), lpcd: 180, source: 'Table 8.5.1(a) y1' },
-	{ key: 'dormitory', label: localize('plb.occ.hostel', "Mess, boarding house, hostel"), lpcd: 135, source: 'Table 8.5.1(d) A4' },
-	{ key: 'hotel', label: localize('plb.occ.hotel', "Hotel (per bed)"), lpcd: 300, source: 'Table 8.5.1(d) A5' },
-	{ key: 'school', label: localize('plb.occ.school', "School (up to higher secondary)"), lpcd: 70, source: 'Table 8.5.1(d) B1' },
-	{ key: 'college', label: localize('plb.occ.college', "Training and higher education"), lpcd: 100, source: 'Table 8.5.1(d) B2' },
-	{ key: 'hospital', label: localize('plb.occ.hospitalSmall', "Small hospital"), lpcd: 340, source: 'Table 8.5.1(d) D1' },
-	{ key: 'hospitalLarge', label: localize('plb.occ.hospital', "Big hospital (over 100 beds)"), lpcd: 450, source: 'Table 8.5.1(d) D1' },
-	{ key: 'office', label: localize('plb.occ.office', "Office"), lpcd: 45, source: 'Table 8.5.1(d) E1' },
-	{ key: 'shop', label: localize('plb.occ.shop', "Shops and market"), lpcd: 45, source: 'Table 8.5.1(d) F1' },
-	{ key: 'industryLow', label: localize('plb.occ.industrial', "Low hazard industry"), lpcd: 40, source: 'Table 8.5.1(d) G1' },
-];
-
 /** The backend's occupancy list, read defensively: `[...]` or `{ occupancies: [...] }`. */
 export function readOccupancies(raw: unknown): IOccupancy[] | undefined {
 	const list = Array.isArray(raw) ? raw : isRecord(raw) && Array.isArray(raw.occupancies) ? raw.occupancies : undefined;
@@ -811,11 +791,14 @@ export interface IPlumbingReport {
 	readonly checks: readonly IPlumbingCheck[];
 	/** P2: the tanks' RC design. */
 	readonly tanks: readonly ITankDesign[];
+	/** Tanks whose design is still running (the quick first pass gives only the cached designs). */
+	readonly tankDesignsPending: number;
 	/** P3: the hydraulics' checks (heads, velocities, the city main). */
 	readonly hydraulicChecks: readonly IPlumbingCheck[];
 	readonly floors: readonly IFloorHead[];
 	readonly requiredHead?: number;
-	readonly pump?: { readonly flow?: number; readonly head?: number; readonly power?: number; readonly note?: string };
+	/** Flow [L/s], head [m], shaft power and the standard motor chosen [kW]. */
+	readonly pump?: { readonly flow?: number; readonly head?: number; readonly power?: number; readonly motor?: number; readonly note?: string };
 	/** The backend's references for the sections (BNBC table and page). */
 	readonly references: { readonly demand?: string; readonly storage?: string; readonly rainwater?: string; readonly septic?: string; readonly soakWell?: string };
 	readonly notes: readonly string[];
@@ -947,7 +930,7 @@ export function readPlumbingReport(raw: unknown): IPlumbingReport | undefined {
 	const p1Pump = isRecord(storage.pump) ? storage.pump : undefined;
 	let pump: IPlumbingReport['pump'];
 	if (p3Pump) {
-		pump = { flow: optionalNumber(p3Pump.flow), head: optionalNumber(p3Pump.tdh ?? p3Pump.head), power: optionalNumber(p3Pump.shaftPower ?? p3Pump.power), note: optionalString(p3Pump.note) };
+		pump = { flow: optionalNumber(p3Pump.flow), head: optionalNumber(p3Pump.tdh ?? p3Pump.head), power: optionalNumber(p3Pump.shaftPower ?? p3Pump.power), motor: optionalNumber(p3Pump.motor), note: optionalString(p3Pump.note) };
 	} else if (p1Pump) {
 		const lpm = optionalNumber(p1Pump.flow);
 		pump = { flow: lpm === undefined ? undefined : lpm / 60, note: optionalString(p1Pump.note) };
@@ -973,7 +956,8 @@ export function readPlumbingReport(raw: unknown): IPlumbingReport | undefined {
 		})),
 		septic: septicRows,
 		checks,
-		tanks: records<Record<string, unknown>>(raw.tankDesigns).map(readTankDesign),
+		tanks: records<Record<string, unknown>>(raw.tankDesigns).filter(t => t.pending !== true).map(readTankDesign),
+		tankDesignsPending: records<Record<string, unknown>>(raw.tankDesigns).filter(t => t.pending === true).length,
 		hydraulicChecks: records<Record<string, unknown>>(hydraulics.checks).map(readCheck),
 		floors: hydraulicFloors.map(f => {
 			const head = num(f.head);

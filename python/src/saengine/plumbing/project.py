@@ -33,7 +33,7 @@ MATERIALS_FILE = "03 Materials/materials.json"
 BIM_FILE = "06 BIM/bim.json"
 SETTINGS_FILE = "02 Project Settings/project-settings.json"
 #: Version of the cached design entries: a change to the design invalidates them.
-DESIGN_CACHE_VERSION = 3
+DESIGN_CACHE_VERSION = 4
 
 
 def finite(value: Any) -> Any:
@@ -131,11 +131,14 @@ def design_tanks(
     soil_text: str | None = None,
     options: dict[str, Any] | None = None,
     cache: bool = True,
+    cached_only: bool = False,
 ) -> list[dict[str, Any]]:
     """The design of each tank (:func:`saengine.plumbing.tanks.design_tank`), or ``{id, kind,
     error}`` for one that cannot be designed yet. With ``cache``, a tank whose data, materials,
     soil report and options are unchanged since its last design is not run again, and the
-    designs are written to :data:`DESIGNS_FILE` (only those of the current tanks are kept)."""
+    designs are written to :data:`DESIGNS_FILE` (only those of the current tanks are kept).
+    ``cached_only``: a tank without a current cached design is not designed but returned as
+    ``{id, kind, pending: True}`` (the quick first pass of the report; nothing is written)."""
     from saengine.plumbing.tanks import TankContext, design_tank
 
     root = Path(root)
@@ -148,6 +151,9 @@ def design_tanks(
         entry = old.get(key)
         if entry is not None and isinstance(entry.get("result"), dict):
             result = entry["result"]
+        elif cached_only:
+            out.append({"id": tank.get("id"), "kind": tank.get("kind"), "pending": True})
+            continue
         else:
             if context is None:
                 context = TankContext.build(materials, soil_text, options, root / MODELS_DIR)
@@ -159,7 +165,7 @@ def design_tanks(
         out.append(result)
         if "error" not in result:
             kept[key] = {"id": tank.get("id"), "tank": tank_stamp(tank), "result": result}
-    if cache and (kept.keys() != old.keys()):
+    if cache and not cached_only and (kept.keys() != old.keys()):
         path = root / DESIGNS_FILE
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -260,7 +266,7 @@ def full_report(
     project_root: str | Path,
     mep_text: str | None = None,
     *,
-    designs: bool = True,
+    designs: bool | str = True,
     hydraulics: bool = True,
 ) -> dict[str, Any]:
     """The plumbing report of a project for the workbench (``saengine.plumbing.report``):
@@ -269,7 +275,9 @@ def full_report(
     design of each tank of ``plumbing.tanks``, sized where it gives no size), ``hydraulics``
     (:func:`saengine.plumbing.hydraulics.water_hydraulics` with the sizing's sizes) and
     ``sources`` (the stamps of the files read). Never raises: ``{problems}`` when 07 MEP cannot
-    be read. ``mep_text``: the editor's unsaved text of ``07 MEP/mep.json``."""
+    be read. ``mep_text``: the editor's unsaved text of ``07 MEP/mep.json``. ``designs``:
+    ``"cached"`` gives only the tank designs already cached and lists the others as pending
+    (``tankDesignsPending``: how many), so the editor shows the rest of the report at once."""
     from saengine.plumbing.report import plumbing_report
 
     root = Path(project_root)
@@ -294,11 +302,14 @@ def full_report(
             report["checks"].append(sleeves_check(missing))
         if designs and mep.plumbing.tanks:
             report["tankDesigns"] = project_tank_designs(
-                root, mep, report, materials_text, soil_text
+                root, mep, report, materials_text, soil_text, cached_only=designs == "cached"
             )
-            report["checks"].extend(linked_weight_checks(mep, report["tankDesigns"]))
+            report["tankDesignsPending"] = sum(1 for d in report["tankDesigns"] if d.get("pending"))
+            done = [d for d in report["tankDesigns"] if not d.get("pending")]
+            report["checks"].extend(linked_weight_checks(mep, done))
         if hydraulics:
             report["hydraulics"] = _hydraulics(root, mep, report)
+    _summarise_checks(report)
     report["sources"] = {
         "mep": _stamp(text),
         "bim": _stamp(_read(root, BIM_FILE)),
@@ -315,6 +326,7 @@ def project_tank_designs(
     report: dict[str, Any],
     materials_text: str | None,
     soil_text: str | None,
+    cached_only: bool = False,
 ) -> list[dict[str, Any]]:
     """The designs of the project's tanks (the user's, sized where they give no size)."""
     from saengine.library.materials import MaterialLibrary
@@ -331,7 +343,7 @@ def project_tank_designs(
         _with_proposals(t.model_dump(mode="json", exclude_none=True), proposals)
         for t in mep.plumbing.tanks
     ]
-    return design_tanks(root, tanks, materials, materials_text, soil_text)
+    return design_tanks(root, tanks, materials, materials_text, soil_text, cached_only=cached_only)
 
 
 #: An equipment tank that stands for a plumbing tank may weigh this much less than the tank's
@@ -416,6 +428,38 @@ def _hydraulics(root: Path, mep: MepModel, report: dict[str, Any]) -> dict[str, 
             "floors": [], "risers": [], "pump": None, "zones": [], "mains": None, "checks": [],
             "notes": [], "problems": [f"the hydraulics failed: {error!r}"],
         }  # fmt: skip
+
+
+def _summarise_checks(report: dict[str, Any]) -> None:
+    """The summary's line of the checks counts every check the editor counts (the sizing's,
+    the hydraulics' and the tank designs', :func:`plumbing_failures`) and names the failing ones,
+    so it agrees with the tile; the sizing's own line counted only its checks."""
+    checks = [c for c in report.get("checks") or [] if isinstance(c, dict)]
+    checks += [
+        c for c in (report.get("hydraulics") or {}).get("checks") or [] if isinstance(c, dict)
+    ]
+    for design in report.get("tankDesigns") or []:
+        checks += [
+            {**c, "name": f"{design.get('id')}: {c.get('name')}"}
+            for c in design.get("checks") or []
+            if isinstance(c, dict)
+        ]
+    failed = [str(c.get("name")) for c in checks if c.get("ok") is False]
+    line = f"{len(failed)} of {len(checks)} checks fail" + (
+        f": {', '.join(failed)}" if failed else ""
+    )
+    if report.get("tankDesignsPending"):
+        line += f" ({report['tankDesignsPending']} tank designs still running)"
+    summary = [s for s in report.get("summary") or [] if " checks fail" not in s]
+    pump = (report.get("hydraulics") or {}).get("pump")
+    if isinstance(pump, dict) and pump.get("motor") is not None and pump.get("flow") is not None:
+        # The sizing's line gives the flow only: with the hydraulics, its head and motor too.
+        duty = (
+            f"Pump {pump['flow'] * 60:.1f} l/min at {pump.get('tdh', 0):.1f} m head, "
+            f"{pump.get('shaftPower', 0):.2f} kW at the shaft: a {pump['motor']:g} kW motor"
+        )
+        summary = [duty if s.startswith("Pump ") else s for s in summary]
+    report["summary"] = [*summary, line]
 
 
 def plumbing_failures(report: dict[str, Any]) -> tuple[int, int]:

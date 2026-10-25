@@ -140,7 +140,7 @@ def septic_tank(plumbing: Any, building: Building, tank: Any = None) -> dict[str
     if imhoff:
         notes.append(
             f"{resident:g} residential users > {T.SEPTIC_MAX_USERS}: an Imhoff tank shall be "
-            "used (Sec 6.9.13.2, part2 p1107), not septic tanks; SAEngine does not design "
+            "used (Sec 6.9.13.2 (p1107)), not septic tanks; SAEngine does not design "
             "Imhoff tanks, so no septic tank or soak well is proposed (the figures below are "
             "for information only)"
         )
@@ -161,7 +161,7 @@ def septic_tank(plumbing: Any, building: Building, tank: Any = None) -> dict[str
             resident,
             float(T.SEPTIC_MAX_USERS),
             "persons",
-            "Sec 6.9.12.9; above 300 an Imhoff tank, Sec 6.9.13.2 (part2 p1106-1107)",
+            "Sec 6.9.12.9; above 300 an Imhoff tank, Sec 6.9.13.2 (p1106-1107)",
         ),
     )
     notes.insert(
