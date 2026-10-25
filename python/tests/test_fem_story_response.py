@@ -240,11 +240,59 @@ def test_storey_response_of_a_one_storey_bay(solved: tuple[Path, Path, dict]) ->
     assert response["spectrum"]["periods"] and response["driftLimit"]["ratio"] == 0.02
 
 
+def test_spectrum_charts_share_the_design_drift_and_scale(solved: tuple[Path, Path, dict]) -> None:
+    from saengine.fem import seismic_design as rs
+
+    out, model, project = solved
+    response = story_response(out, model)
+    rx = next(r for r in response["results"] if r["label"].startswith("RX"))
+    # Without the spectrum design of this run the forces are unscaled, and said to be.
+    assert rx["forceScale"] is None and response["spectrumDesign"] is None
+    assert any("unscaled" in n for n in response["notes"])
+    # The drift is the spectrum design's: the modal drifts combined, not the peaks' difference.
+    levels = [lv["z"] for lv in response["levels"]]
+    design = rs.storey_drifts(project, rs._spectra(out), levels, 1.0, float("inf"))
+    x = next(d for d in design if d["direction"] == "X")
+    assert rx["storeys"][1]["driftX"] == pytest.approx(x["ratio"], rel=1e-9)
+
+    # With it (written for this run), the storey forces and shears are at the design level.
+    summary = out / rs.RS_FOLDER / rs.SUMMARY_FILE
+    summary.parent.mkdir(exist_ok=True)
+    drift = [{**x, "ratio": 0.01, "allowableRatio": 0.02, "ok": True}]
+    summary.write_text(
+        json.dumps(
+            {
+                "schema": rs.SUMMARY_SCHEMA,
+                "available": True,
+                "scale": {"x": 2.0, "y": 3.0, "clause": rs.CLAUSES["scale"]},
+                "drift": drift,
+                "run": {"stamp": rs._stamp(out, model, False)},
+            }
+        ),
+        encoding="utf-8",
+    )
+    try:
+        scaled = story_response(out, model)
+    finally:
+        summary.unlink()
+    sx = next(r for r in scaled["results"] if r["label"].startswith("RX"))
+    assert sx["forceScale"] == 2.0
+    assert sx["storeys"][1]["shearX"] == pytest.approx(2 * rx["storeys"][1]["shearX"])
+    assert sx["storeys"][0]["overturningX"] == pytest.approx(2 * rx["storeys"][0]["overturningX"])
+    assert sx["storeys"][1]["driftX"] == rx["storeys"][1]["driftX"]  # drifts stay unscaled
+    assert scaled["spectrumDesign"]["scale"] == {"X": 2.0, "Y": 3.0}
+    assert scaled["spectrumDesign"]["drift"][0]["ratio"] == 0.01
+
+
 def test_member_forces_of_a_column(solved: tuple[Path, Path, dict]) -> None:
     out, model, project = solved
     column = next(e["name"] for e in project["elements"] if e.get("name", "").startswith("C"))
     detail = member_detail.member_forces(out, model, member_detail.member_of(column))
     assert detail["kind"] == "column" and detail["stations"][0] == 0.0
+    section_id = next(e["section_id"] for e in project["elements"] if e["name"] == column)
+    assert detail["section"] == next(
+        s["name"] for s in project["sections"] if s["id"] == section_id
+    )
     assert detail["stations"][-1] == pytest.approx(detail["length"])
     dead = next(r for r in detail["results"] if r["label"].startswith("D"))
     n = [f[0] for f in dead["forces"]]
