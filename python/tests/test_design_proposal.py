@@ -336,15 +336,16 @@ def test_apply_proposal_is_a_pure_edit() -> None:
     # The BIM model stays current with the floor plan it was built from.
     stamp = json.loads(result["bimText"])["source"]["floorPlan"]
     assert stamp == source_stamp(result["floorPlanText"])
-    assert json.loads(result["substructureText"])["foundations"][0]["reinforcement"] == footing_bars
-    assert result["substructureText"].startswith('{\n  "foundations"')
+    # Foundations are designed in 9 Substructure: an older caller's foundations and
+    # substructure text are ignored (X12, no duplication).
+    assert "substructureText" not in result
+    assert sub_text == json.dumps(sub, indent=2)
     files = [c["file"] for c in result["changes"]]
     assert files == [
         "04 Objects/objects.json",
         "04 Objects/objects.json",
         "06 BIM/bim.json",
         "05 Floor Plan/floor-plan.json",
-        "09 Substructure/substructure.json",
     ]
     # A type that is not there is an error, not a silent no-op.
     assert result["changes"][0]["message"] == "B1: bottom 3Ø16 → new"
