@@ -8,9 +8,9 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import {
 	applyPileLayout, applyProposal, capSize, carriedAlready, checkSubstructure, foundationOutlines, governingCheck, IFoundation, importFoundations, ISiteContext, ISubstructure, maxPressure, minPileSpacing, newFooting, newPileCap, newRaft, newSubstructure, newTieBeam, parseIdList, parseMesh, parseSubstructure, pileFactorsUsed, pileLayout, pilePositions,
-	proposalFor, readSiteContext, readSizingProposal, readSubstructureReport, SUBSTRUCTURE_SCHEMA_ID, substructureSummary, substructureSummaryFile, uncoveredColumns, utilisationBand,
+	checkStateText, documentSignatures, minimumMesh, proposalFor, readSiteContext, substructureCheckState, uncoveredBases, readSizingProposal, readSubstructureReport, SUBSTRUCTURE_SCHEMA_ID, substructureSummary, substructureSummaryFile, uncoveredColumns, utilisationBand,
 } from '../../browser/substructureDocument.js';
-import { renderPlan, renderRaftHeatMap } from '../../browser/substructurePlan.js';
+import { renderPlan, renderRaftHeatMap, tieBeamEnds } from '../../browser/substructurePlan.js';
 
 /*
  * Synthetic data only: a two-bay frame of 400 x 600 columns on a 6 m x 5 m grid, one column
@@ -143,7 +143,7 @@ suite('SAEngine - Substructure', () => {
 			raft: [raft.id, raft.outline, raft.thickness],
 			tie,
 		}, {
-			isolated: ['F1', 'isolated', ['C1'], 1500, 1500, 450, 'M25', { material: 'G60', cover: 75, bottomX: { dia: 12, spacing: 150 }, bottomY: { dia: 12, spacing: 150 } }],
+			isolated: ['F1', 'isolated', ['C1'], 1500, 1500, 450, 'M25', { material: 'G60', cover: 75, bottomX: { dia: 12, spacing: 125 }, bottomY: { dia: 12, spacing: 125 } }],
 			combined: ['F2', 'combined', [3000, 0], undefined, 7500, 1500, 600],
 			cap: ['F3', 'P1', 4, 2300, 2300, 1000],
 			capPiles: [[-750, 4250], [750, 4250], [750, 5750], [-750, 5750]],
@@ -333,7 +333,7 @@ suite('SAEngine - Substructure', () => {
 				{
 					id: 'F3', type: 'pileCap', checks: [{ name: 'Minimum steel', demand: 1, capacity: 2, unit: '', utilisation: 2, ok: false, note: '', flag: true }], ok: true,
 					piles: [{ index: 1, u: -750, v: 0, serviceMax: 400.5, serviceMin: -12, strengthMax: 560 }],
-					capacity: { pileType: 'P1', borehole: 'BH-1', Qs: 600, Qb: 400, Qult: 1000, Qa: 400, Ta: 240 },
+					capacity: { pileType: 'P1', borehole: 'BH-1', Qs: 600, Qb: 400, Qult: 1000, Qa: 400, Ta: 240, base: { layer: 3, qb: 2000 } },
 				},
 			],
 			tieBeams: [{ id: 'TB1', type: 'tieBeam', checks: [], utilisation: 0.3, ok: true }],
@@ -367,14 +367,68 @@ suite('SAEngine - Substructure', () => {
 			capacities: [{ pileType: 'P1', borehole: 'BH-1', skin: 600, base: 400, ultimate: 1000, compression: 400, uplift: 240, method: undefined, note: undefined }],
 			ties: ['TB1'],
 			skipped: [{ id: 'R1', type: 'raft', reason: 'rafts are not designed yet' }],
-			summary: { checked: 3, passed: 2, failed: 1, maxUtilisation: 1.12, governing: 'F1' },
-			text: '2 foundations · 1 fail · max pressure 142 kPa (qa 150)',
+			summary: { checked: 3, total: 4, passed: 2, failed: 1, maxUtilisation: 1.12, governing: 'F1', unsupported: [], status: 'fail' },
+			text: '2 foundations · 2 of 2 checked · 1 fail · max pressure 142 kPa (qa 150)',
 			noReport: '2 foundations',
 			bands: ['ok', 'warn', 'warn', 'fail', 'none'],
 			notReport: undefined,
 			governing: ['Punching shear', undefined],
-			file: { foundations: 2, checked: 3, passed: 2, failed: 1, maxUtilisation: 1.12, governing: 'F1', computed: '1970-01-01T00:00:00.000Z', source: { substructure: 'abc', soil: '' } },
+			file: { foundations: 2, checked: 2, total: 2, passed: 1, failed: 1, unsupported: [], status: 'fail', maxUtilisation: 1.12, governing: 'F1', computed: '1970-01-01T00:00:00.000Z', source: { substructure: 'abc', soil: '' } },
 		});
+	});
+
+	test('the minimum mesh of a new foundation meets As,min = 0.0018 h within the spacing limits', () => {
+		const meshes = [300, 450, 500, 600, 1000].map(h => ({ h, mesh: minimumMesh(h) }));
+		assert.deepStrictEqual(meshes.map(m => m.mesh), [
+			// 540 mm²/m: 12@200 (565); 810: 12@125 (905); 900: 12@125 (905); 1080: 16@175 (1149); 1800: 20@150 (2094).
+			{ dia: 12, spacing: 200 }, { dia: 12, spacing: 125 }, { dia: 12, spacing: 125 }, { dia: 16, spacing: 175 }, { dia: 20, spacing: 150 },
+		]);
+		for (const { h, mesh } of meshes) {
+			assert.ok(Math.PI * mesh.dia ** 2 / 4 * 1000 / mesh.spacing >= 0.0018 * h * 1000, `h ${h}`);
+		}
+		// A raft starts with top bars too (it hogs between the columns).
+		const raft = newRaft(document(), CONTEXT, CONTEXT.columns.slice(0, 2))!;
+		assert.deepStrictEqual([raft.reinforcement?.topX, raft.reinforcement?.bottomY], [{ dia: 16, spacing: 175 }, { dia: 16, spacing: 175 }]);
+	});
+
+	test('checks of an edited foundation are stale, and all pass only when all were checked', () => {
+		const result = (id: string, ok = true) => ({ id, type: 'isolated', checks: [], utilisation: 0.5, ok });
+		const doc = document([
+			{ id: 'F1', type: 'isolated', columns: ['C1'], length: 1500, width: 1500, thickness: 450 },
+			{ id: 'F2', type: 'isolated', columns: ['C2'], length: 1500, width: 1500, thickness: 450 },
+		]);
+		const checkedFor = documentSignatures(doc);
+		const report = readSubstructureReport({ foundations: [result('F1'), result('F2')], tieBeams: [], skipped: [], summary: {} })!;
+		const all = substructureCheckState(doc, report, checkedFor, []);
+		// Nothing was checked for F2: not "all pass" (U2).
+		const partial = substructureCheckState(doc, readSubstructureReport({ foundations: [result('F1')], skipped: [{ id: 'F2', reason: 'no results' }] })!, checkedFor, []);
+		const none = substructureCheckState(doc, readSubstructureReport({ foundations: [], skipped: [{ id: 'F1' }, { id: 'F2' }] })!, checkedFor, []);
+		const uncovered = substructureCheckState(doc, report, checkedFor, ['C3']);
+		// A new size after the save: F1's checks describe the old footing (U1); a note does not count.
+		doc.foundations[0].length = 2500;
+		doc.foundations[1].note = 'checked by hand';
+		const edited = substructureCheckState(doc, report, checkedFor, []);
+		assert.deepStrictEqual({
+			all: [all.status, checkStateText(all)],
+			partial: [partial.status, checkStateText(partial)],
+			none: none.status,
+			uncovered: uncovered.status,
+			edited: [edited.status, edited.stale, checkStateText(edited)],
+			summary: report.summary.status,
+		}, {
+			all: ['pass', '2 of 2 checked · all pass'],
+			partial: ['incomplete', '1 of 2 checked · 1 not checked'],
+			none: 'none',
+			uncovered: 'incomplete',
+			edited: ['incomplete', 1, '1 of 2 checked · 1 changed since checked'],
+			summary: 'pass',
+		});
+	});
+
+	test('columns and walls without a foundation', () => {
+		const context: ISiteContext = { ...CONTEXT, walls: [{ id: 'W1', start: [0, 0], end: [6000, 0], thickness: 200 }] };
+		const doc = document([{ id: 'F1', type: 'isolated', columns: ['C1'], length: 1500, width: 1500, thickness: 450 }]);
+		assert.deepStrictEqual(uncoveredBases(doc, context), [...uncoveredColumns(doc, context).map(c => c.id), 'W1']);
 	});
 
 	test('the pile factors of safety the design uses, as the backend raises them', () => {
@@ -399,7 +453,7 @@ suite('SAEngine - Substructure', () => {
 			foundations: [
 				{
 					id: 'R1', type: 'raft', checks: [], utilisation: 0.5, ok: true, pressure: { net: 75.5, qa: 150 },
-					raft: { nodes: [[0, 0], [500, 0]], elements: [], pressure: [80, 95.5], settlement: [12, 14.25], meshSize: 500, summary: { maxPressure: 95.5, maxPressureCombination: 'D + L', maxSettlement: 14.25, maxDifferential: 2.25, maxAngularDistortion: 0.0045 } },
+					raft: { nodes: [[0, 0], [500, 0]], elements: [], pressure: [80, 95.5], settlement: [12, 14.25], meshSize: 500, summary: { maxPressure: 95.5, maxPressureCombination: 'D + L', maxSettlement: 14.25, maxDifferential: 2.25, maxAngularDistortion: 0.0045 }, columns: [{ id: 'C1', x: 0, y: 0, settlement: 12, pressure: 80 }] },
 				},
 				{
 					id: 'PC1', type: 'pileCap', checks: [], utilisation: 0.5, ok: true, sizes: { pileType: 'P1' },
@@ -411,6 +465,7 @@ suite('SAEngine - Substructure', () => {
 			raft: {
 				points: [{ x: 0, y: 0, pressure: 80, settlement: 12 }, { x: 500, y: 0, pressure: 95.5, settlement: 14.25 }], meshSize: 500,
 				maxPressure: 95.5, allowablePressure: undefined, maxSettlement: 14.25, differentialSettlement: 2.25, angularDistortion: 0.0045, combination: 'D + L',
+				columns: [{ id: 'C1', x: 0, y: 0, pressure: 80, settlement: 12 }],
 			},
 			capacity: [{ pileType: 'P1', borehole: 'BH-2', skin: 600, base: 400, ultimate: 1000, compression: 400, uplift: 240, method: 'per layer', note: undefined }],
 			// The raft's net pressure against qa, not its gross maximum (95.5 with the overburden).
@@ -426,7 +481,7 @@ suite('SAEngine - Substructure', () => {
 			{ id: 'S1', type: 'strip', path: [[6000, 0], [6000, 5000]], width: 1000, thickness: 450 },
 		]);
 		doc.tieBeams.push({ id: 'TB1', from: 'F1', to: 'F2', type: 'B300x500' });
-		const plan = renderPlan(container, doc, CONTEXT, { width: 800, height: 600, selectedFoundations: new Set([1]), selectedColumns: new Set(['C4']), proposals: [{ id: 'F1', type: 'isolated', columns: ['C1'], length: 2000, width: 2000, thickness: 500 }], bands: new Map([['F1', 'fail' as const]]) });
+		const plan = renderPlan(container, doc, CONTEXT, { width: 800, height: 600, selectedFoundations: new Set([1]), selectedColumns: new Set(['C4']), proposals: [{ id: 'F1', type: 'isolated', columns: ['C1'], length: 2000, width: 2000, thickness: 500 }], bands: new Map([['F1', 'fail' as const]]), utilisations: new Map([['F1', 1.12]]) });
 		const raftContainer = mainWindow.document.createElement('div');
 		const range = renderRaftHeatMap(raftContainer, { id: 'R1', type: 'raft', outline: [[0, 0], [1000, 0], [1000, 1000], [0, 1000]], thickness: 600 }, {
 			points: [{ x: 250, y: 250, pressure: 80 }, { x: 750, y: 250, pressure: 100 }, { x: 250, y: 750, pressure: 120 }, { x: 750, y: 750, pressure: 140 }],
@@ -445,9 +500,14 @@ suite('SAEngine - Substructure', () => {
 			heatCells: raftContainer.querySelectorAll('.sub-heat-cell').length,
 			hottest: raftContainer.querySelectorAll('.sub-heat-7').length,
 			range,
+			utilisation: plan.querySelector('.sub-foundation-util')?.textContent,
+			// The tie beam runs between the columns its foundations carry (C1 to C3), not their centres.
+			tieEnds: tieBeamEnds(doc.foundations[0], doc.foundations[1], CONTEXT),
 		}, {
 			foundations: 3, selected: 1, failing: 1, piles: 4, columns: 4, selectedColumns: 1, ties: 1, boreholes: 2, grid: 4, proposals: 1,
 			heatCells: 4, hottest: 1, range: { min: 80, max: 140 },
+			utilisation: '1.12',
+			tieEnds: [[CONTEXT.columns[0].x, CONTEXT.columns[0].y], [CONTEXT.columns[2].x, CONTEXT.columns[2].y]],
 		});
 	});
 });
