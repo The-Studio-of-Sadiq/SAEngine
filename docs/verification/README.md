@@ -87,7 +87,7 @@ was widened to make a case pass; where SAEngine is off, the case fails.
 | A8 | Simply supported square plate under uniform load (shells): central deflection and moment | Timoshenko & Woinowsky-Krieger, α = 0.00406, β = 0.0479 (ν = 0.3) |
 | A9 | Solid cantilever block (tetrahedra) under its self-weight: tip deflection at the default mesh, the finest allowed (100 mm) and 50 mm | Timoshenko beam (bending + shear) |
 | A10 | Construction sequence: shortening of a three-storey column built storey by storey under its self-weight, and the same load applied at once | Statics of a column built in stages, linear elastic (staged: (j - 1/2 + j(n - j)) Wh/EA; at once: (j(n + 1/2) - j(j + 1)/2) Wh/EA) |
-| AP1 | Seismic weight W of a two-storey bay lumped at the story levels: W per level and the lateral mass | BNBC 2020 Part 6 Sec 2.5.7.3 (p. 628), hand sum of the dead, superimposed and 25 % live loads |
+| AP1 | Seismic weight W of a two-storey bay lumped at the story levels: W per level, the weight to the base and the lateral mass | BNBC 2020 Part 6 Sec 2.5.7.3 (p. 628), hand sum of the dead, superimposed and 25 % live loads |
 | AP2 | Eccentric static earthquake case EXP: the torsion it adds to EX at each floor | BNBC 2020 Part 6 Sec 2.5.7.6.2, Eq. 6.2.43 (p. 630): M = 0.05 L F |
 | AP3 | Beam with rigid end zones (factor 0.5) between held joints under 10 kN/m: moment and shear at the column face | Fixed-ended flexible length: w Lf²/12 − w Lf x/2 + w x²/2 |
 | AP4 | 125 mm brick wall (line load from loads.json) on a beam with pinned ends: reactions and mid-span moment | wL/2, wL²/8; wall weight from BNBC 2020 Part 6 Table 6.2.2 (pp. 530-531) |

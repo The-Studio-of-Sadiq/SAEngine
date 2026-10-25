@@ -187,6 +187,11 @@ def face_forces(model_path: str | Path, out_dir: str | Path | None = None) -> di
         manifest = load_manifest(out_dir)
     except (OSError, ValueError):
         return result
+    # The temperature case's fixed-end forces, added back as the design's stations do
+    # (saengine.fem.thermal; design.check._demands).
+    from saengine.fem.thermal import end_force_corrections, load_corrections
+
+    thermal = load_corrections(model_path)
     elements = {int(e["id"]): e for e in project.get("elements", [])}
     patterns = {p["id"]: p for p in project.get("load_patterns", [])}
     analyses = {a["id"]: a for a in project.get("analyses", [])}
@@ -210,6 +215,9 @@ def face_forces(model_path: str | Path, out_dir: str | Path | None = None) -> di
             if rows is not None and len(rows)
         }
         code = str(entry["case_name"]).split(":")[0].strip()
+        for e, add in end_force_corrections(thermal, code).items():
+            if e in end_forces:
+                end_forces[e] = end_forces[e] + reached * add[:12]
         forces = face_section_forces(
             elements, end_forces, {k: v * reached for k, v in loads.items()}, faces
         )

@@ -172,11 +172,11 @@ def test_lumping_sends_the_lower_half_storey_to_the_base() -> None:
     assert w0["method"] == "levelAbove" and w0["toBase_kN"] == 0
     # What goes to the base is what W loses.
     assert w0["total_kN"] - w["total_kN"] == pytest.approx(w["toBase_kN"], abs=2e-3)
-    # The wall (6 m x 0.2 m) and the two columns at its ends (meshed with it) below about
-    # mid-height of the first storey: their nodes up to 1.2-1.6 m at a 400 mm mesh, each with a
-    # 400 mm strip (the base row is fixed in either case).
-    per_metre = DENSITY * G * (0.2 * 6.0 + 2 * 0.16) / 1e3
-    assert per_metre * 1.0 < w["toBase_kN"] < per_metre * 1.6
+    # The wall (6 m x 0.2 m) and the four columns below mid-height of the first storey (1.6 m),
+    # the supports' own share included; within a few per cent, as the wall's mesh is not
+    # regular and its nodes take their tributary weight whole to the nearer level.
+    per_metre = DENSITY * G * (0.2 * 6.0 + 4 * 0.16) / 1e3
+    assert w["toBase_kN"] == pytest.approx(per_metre * 1.6, rel=0.05)
     # Nodes between the levels keep no mass; each diaphragm node carries its lumped weight and
     # the moment of inertia of it about the vertical.
     coords = {n["id"]: n["coords"] for n in lumped.project["nodes"]}
@@ -192,6 +192,58 @@ def test_lumping_sends_the_lower_half_storey_to_the_base() -> None:
     total = sum(n["mass"][0] for n in lumped.project["nodes"]) * G / 1e3
     assert total == pytest.approx(w["total_kN"], rel=1e-4)
     assert all(coords)
+
+
+@pytest.mark.parametrize("lumping", ["storyLevels", "levelAbove"])
+def test_seismic_weight_does_not_depend_on_the_mesh(lumping: str) -> None:
+    """The weight of the supports' own nodes is not lost (to the base with "storyLevels", with
+    the first level with "levelAbove"), and a node half way between two levels gives half to
+    each: W + the base's share is the whole weight at any mesh, "levelAbove" gives the same W
+    at any mesh, and "storyLevels" stays close to the hand value of the lower half storey."""
+    rows = []
+    for mesh in (400, 500, 1000):
+        d = derivation(walls=True, massLumping=lumping, meshSize=mesh, meshBySpan=False)
+        w = d.summary["seismicWeight"]
+        rows.append((w["total_kN"], w["toBase_kN"]))
+    whole = [total + base for total, base in rows]
+    assert whole == pytest.approx([whole[0]] * 3, abs=2e-3)  # the summary rounds to 1 N
+    if lumping == "levelAbove":
+        assert [base for _, base in rows] == [0, 0, 0]
+        return
+    # The lower half of the first storey by hand: the wall and the four columns over 1.6 m.
+    # Nodal lumping on the wall's irregular mesh leaves W within 1 % of it at any mesh.
+    lower = DENSITY * G * 1.6 * (0.2 * 6.0 + 4 * 0.16) / 1e3
+    assert [total for total, _ in rows] == pytest.approx([whole[0] - lower] * 3, rel=1e-2)
+
+
+def test_seismic_weight_of_the_sample_does_not_depend_on_the_mesh() -> None:
+    """The shipped sample (walls, slabs and frames) at 500 and 1000 mm: W + the base's share is
+    the same, and W itself changes by less than 0.5 % (measured 574.76 and 576.62 kN, the
+    base's share 99.82 and 97.96 kN: nodes between the levels on the walls' irregular mesh take
+    their tributary weight whole to the nearer level)."""
+    from saengine.report.build import _Parts
+
+    root = (
+        Path(__file__).parents[2] / "workbench" / "resources" / "saengine" / "samples"
+    ) / "Sample Frame"
+    parts = _Parts(root, [])
+    settings = parts.settings()
+    rows = []
+    for mesh in (500, 1000):
+        analysis = settings.analysis.model_copy(
+            update={"meshSize": mesh, "meshBySpan": False, "massLumping": "storyLevels"}
+        )
+        d = derive_fem(
+            parts.building(),
+            parts.objects(),
+            parts.materials(),
+            settings.model_copy(update={"analysis": analysis}),
+        )
+        w = d.summary["seismicWeight"]
+        rows.append((w["total_kN"], w["toBase_kN"]))
+    (fine, fine_base), (coarse, coarse_base) = rows
+    assert fine + fine_base == pytest.approx(coarse + coarse_base, abs=2e-3)
+    assert coarse == pytest.approx(fine, rel=5e-3)
 
 
 def test_mass_source_factors_and_extra_mass() -> None:

@@ -146,6 +146,7 @@ def story_mass(folder: Path) -> Outcome:
         + share * floor.live * 30e3
     )
     level2 = gamma * (slab + beams + 4 * 0.16 * 1.6) + (roof.finish + roof.partitions) * 30e3
+    to_base = gamma * 4 * 0.16 * 1.6  # the columns' lower half of the first storey
     w = d.summary["seismicWeight"]
     masses = sum(n["mass"][0] for n in d.project["nodes"]) * G
     reference = Reference(
@@ -164,6 +165,10 @@ def story_mass(folder: Path) -> Outcome:
                 f"level 2: γ (4.5 + 3.3 + 4 × 0.16 × 1.6) + ({roof.finish:g} + {roof.partitions:g})"
                 f" × 30 = {fmt(level2 / 1e3)} kN (roof live load Lr not in W)"
             ),
+            (
+                f"to the base (not in W): γ × 4 × 0.16 × 1.6 = {fmt(to_base / 1e3)} kN, the "
+                "columns' lower half of the first storey"
+            ),
         ],
     )
     return Outcome(
@@ -171,6 +176,7 @@ def story_mass(folder: Path) -> Outcome:
         [
             Quantity("W at level 1", "kN", level1 / 1e3, w["levels"][0]["weight_kN"], SUMS),
             Quantity("W at level 2", "kN", level2 / 1e3, w["levels"][1]["weight_kN"], SUMS),
+            Quantity("Weight to the base", "kN", to_base / 1e3, w["toBase_kN"], SUMS),
             Quantity("Lateral mass × g", "kN", (level1 + level2) / 1e3, masses / 1e3, SUMS),
         ],
     )

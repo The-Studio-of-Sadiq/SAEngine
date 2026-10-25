@@ -736,9 +736,14 @@ def _face_forces_file(out_dir: str | Path) -> dict[str, Any] | None:
     if not faces.is_file() or not manifest.is_file():
         return None
     target = out / end_zones.FACE_FORCES_FILE
+    # The temperature case's fixed-end forces (beside the model) are part of the face forces.
+    from saengine.fem.thermal import SIDE_FILE
+
+    thermal = model_path.with_name(SIDE_FILE)
     try:
+        sources = [manifest, faces, *([thermal] if thermal.is_file() else [])]
         fresh = target.is_file() and target.stat().st_mtime >= max(
-            manifest.stat().st_mtime, faces.stat().st_mtime
+            p.stat().st_mtime for p in sources
         )
         if not fresh:
             end_zones.write_face_forces(model_path, out)

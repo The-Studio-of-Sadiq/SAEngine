@@ -1154,10 +1154,9 @@ def _fit(
 ) -> np.ndarray:
     """A weighted least-squares polynomial along the strip of at most ``degree`` through the
     points, taken at ``at``: of lower degree when the points lie at fewer distinct positions
-    along (a quarter mesh size apart) than it needs."""
+    along (:func:`_positions`, a quarter mesh size apart) than it needs."""
     scale = max(mesh, 1.0)
-    distinct = len(np.unique(np.round(along / (scale / 4))))
-    degree = min(degree, distinct - 1)
+    degree = min(degree, _positions(along, scale / 4) - 1)
     flat = values.reshape(len(values), -1)
     if degree <= 0:
         mean = weights @ flat / weights.sum()
@@ -1167,6 +1166,19 @@ def _fit(
     root = np.sqrt(weights)[:, None]
     solution = np.linalg.lstsq(basis * root, flat * root, rcond=None)[0]
     return solution[0].reshape(values.shape[1:])
+
+
+def _positions(along: np.ndarray, tolerance: float) -> int:
+    """How many distinct positions the points lie at: in order along, a point further than
+    ``tolerance`` from the first point of the current position starts the next (as
+    :func:`strip_weights` groups points). A row of shells whose centres scatter by a few mm (an
+    irregular mesh) is one position wherever it lies; rounding to fixed steps would count a row
+    across a step's edge twice, and a parabola through two rows would bend to their scatter."""
+    count, first = 0, -math.inf
+    for value in np.sort(along):
+        if value - first > tolerance:
+            count, first = count + 1, float(value)
+    return count
 
 
 def element_means(

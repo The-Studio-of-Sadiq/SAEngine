@@ -82,6 +82,8 @@ from saengine.library.structure import plane_of
 
 G = 9.80665  # m/s²
 MM = 0.001  # m per mm
+#: Nodes this close [m] to equally near levels count as half way between them (mass lumping).
+TIE_M = 1e-6
 UNITS = "SI (m, N, kg, s, Pa)"
 
 #: Load cases of the analysis model, in this order (see bnbc.LOAD_CASES). The fluid case F (the
@@ -1239,10 +1241,13 @@ def _derive_fem(
     # Mass lumping (``analysis.massLumping``): "storyLevels" (as a commercial analysis program
     # lumps lateral mass at the stories) gives the weight of every node between levels to the
     # nearest level, at its diaphragm's node, and the weight of the nodes nearer the base than
-    # the first level (the lower half of the first storey) to the base, where it does not
-    # participate; "levelAbove" (before version 0.0.44) counts every node's weight for the
-    # nearest level above the base (the lower half of the first storey with the first level)
-    # and leaves its mass where it is.
+    # the first level (the lower half of the first storey, the supports' own share included)
+    # to the base, where it does not participate; a node exactly half way between two levels
+    # gives half its weight to each, so W does not depend on whether the mesh has a node there.
+    # "levelAbove" (before version 0.0.44) counts every node's weight for the nearest level
+    # above the base (the whole first storey with the first level, the supports' share
+    # included) and leaves its mass where it is. Either way W + the base's share is the whole
+    # weight, whatever the mesh.
     lumping = option(options, "massLumping", "levelAbove")
     above = [round(lv * MM, 6) for lv in levels if lv > base]
     base_m = base * MM
@@ -1265,18 +1270,28 @@ def _derive_fem(
     if lumping == "storyLevels" and heights:
         targets = [base_m, *heights]
         for node_id, w in list(node_weight.items()):
-            if node_id in b.restraints or node_id in on_level or not w:
+            if node_id in on_level or not w:
                 continue
             z = float(b.coords[node_id][2])
-            nearest = min(targets, key=lambda h: (abs(h - z), -h))
+            gap = min(abs(h - z) for h in targets)
+            # Half way between two levels: half to each (TIE_M, round-off of the coordinates).
+            nearest = [h for h in targets if abs(h - z) - gap < TIE_M]
             parts = node_parts.pop(node_id, {})
             node_weight[node_id] = 0.0
-            if nearest == base_m:
-                to_base += w
-                for k, v in parts.items():
-                    base_parts[k] = base_parts.get(k, 0.0) + v
-            else:
-                lumped[nearest].append((b.coords[node_id][:2].copy(), w, parts))
+            share = 1.0 / len(nearest)
+            for h in nearest:
+                if h == base_m:
+                    to_base += w * share
+                    for k, v in parts.items():
+                        base_parts[k] = base_parts.get(k, 0.0) + v * share
+                else:
+                    lumped[h].append(
+                        (
+                            b.coords[node_id][:2].copy(),
+                            w * share,
+                            {k: v * share for k, v in parts.items()},
+                        )
+                    )
     story_names = {round(s.elevation * MM, 6): s.name for s in building.stories}
     story_levels = {s.id: round(s.elevation * MM, 6) for s in building.stories}
     extra_total = 0.0
@@ -1349,12 +1364,12 @@ def _derive_fem(
         )
 
     # Each level's weight: its nodes' and the nodes between that count for it (with
-    # "levelAbove" the nearest level above the base; with "storyLevels" none are left).
+    # "levelAbove" the nearest level above the base, the supports' share with the first level;
+    # with "storyLevels" none are left).
     level_weight: dict[float, float] = dict.fromkeys(above, 0.0)
     level_parts: dict[float, dict[str, float]] = {h: {} for h in above}
-    masters = set(retained_of.values())
     for node_id, xyz in b.coords.items():
-        if (node_id in b.restraints and node_id not in masters) or not above:
+        if not above:
             continue
         nearest = min(above, key=lambda h: abs(h - xyz[2]))
         level_weight[nearest] += node_weight.get(node_id, 0.0)
