@@ -145,6 +145,9 @@ jobs:
         run: |
           bash ./.github/workflows/node_modules_cache/cache.sh extract
           bash ../scripts/ci/link-saengine-packages.sh link
+          # npm's postinstall writes .build/typings/electron.d.ts, which the cache leaves out
+          # (it skips .build/): fetch it (checksum-pinned) or the typecheck misses 'electron'.
+          node build/npm/electronTypes.ts
 
       - name: npm ci (workbench)
         if: steps.node-modules.outputs.cache-hit != 'true'

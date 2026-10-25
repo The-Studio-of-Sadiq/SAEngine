@@ -99,6 +99,34 @@ export function niceStep(range: number, count: number): number {
 	return (fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10) * power;
 }
 
+/** Tick labels of the depth axis stay at least this far apart [px]. */
+const DEPTH_TICK_SPACING = 40;
+
+/** A log keeps at least this many px per m, so a deep borehole (75 m, 150 m) grows and scrolls. */
+const MIN_PX_PER_M = 16;
+
+export interface IDepthScale {
+	/** The depth the axis runs to [m]: the borehole's, rounded up to a round step. */
+	readonly maxM: number;
+	/** px per m. */
+	readonly scale: number;
+	/** The step of the depth ticks [m]. */
+	readonly step: number;
+}
+
+/**
+ * The depth scale of a log: it fills `height` px, or grows past it at {@link MIN_PX_PER_M} for a
+ * deep borehole (no depth limit), with round ticks as close as the space allows.
+ */
+export function depthScale(depthMm: number, height: number): IDepthScale {
+	const depthM = Math.max(1, depthMm / 1000);
+	const round = niceStep(depthM, 10);
+	const maxM = Math.ceil(depthM / round - 1e-9) * round;
+	const scale = Math.max(MIN_PX_PER_M, height / maxM);
+	const step = niceStep(maxM, Math.max(2, maxM * scale / DEPTH_TICK_SPACING));
+	return { maxM, scale, step };
+}
+
 /** A depth in m from mm, for labels. */
 function m(value: number): string {
 	return formatNumber(value / 1000, 2);
@@ -132,10 +160,7 @@ export function renderBoreholeLog(container: HTMLElement, report: ISoilReport, b
 	const descriptionX = columnX + columnWidth + 14;
 	const descriptionWidth = options.compact ? 0 : Math.max(80, chartX - descriptionX - 24);
 
-	const depthMm = Math.max(1000, options.maxDepth ?? boreholeDepth(borehole));
-	const depthStep = niceStep(depthMm / 1000, 10);
-	const maxM = Math.ceil(depthMm / 1000 / depthStep) * depthStep;
-	const scale = Math.max(16, (options.height - top - bottom) / maxM); // px per m
+	const { maxM, scale, step: depthStep } = depthScale(options.maxDepth ?? boreholeDepth(borehole), options.height - top - bottom);
 	const height = Math.round(top + maxM * scale + bottom);
 	const y = (depth: number) => top + depth / 1000 * scale;
 
@@ -190,7 +215,7 @@ export function renderBoreholeLog(container: HTMLElement, report: ISoilReport, b
 		box.appendChild(text);
 	}
 	if (!layers.length) {
-		svg(root, 'text', { x: options.compact ? axisWidth + 8 : descriptionX, y: top + 18, class: 'soil-muted' }, localize('soil.log.noLayers', "No layers yet: add them in the Data view."));
+		svg(root, 'text', { x: options.compact ? axisWidth + 8 : descriptionX, y: top + 18, class: 'soil-muted' }, localize('soil.log.noLayers', "No layers yet: add them with Edit Borehole."));
 	}
 	const termination = boreholeDepth(borehole);
 	if (termination > 0) {

@@ -71,6 +71,7 @@ export function partResource(project: ISaengineProject, part: IProjectPart): URI
 export function stateClass(state: PartState | undefined): string {
 	switch (state) {
 		case 'done': return 'sa-state-ok';
+		case 'defaults': return 'sa-state-info';
 		case 'inProgress':
 		case 'stale': return 'sa-state-warn';
 		case 'failed':
@@ -83,6 +84,7 @@ export function stateClass(state: PartState | undefined): string {
 export function stateLabel(status: IPartStatus | undefined): string {
 	switch (status?.state) {
 		case 'done': return localize('partState.done', "Done");
+		case 'defaults': return localize('partState.defaults', "Defaults, not reviewed yet");
 		case 'inProgress': return localize('partState.inProgress', "In progress");
 		case 'stale': return localize('partState.stale', "Out of date");
 		case 'failed': return localize('partState.failed', "Design checks fail");
@@ -98,6 +100,7 @@ export function stateText(status: IPartStatus | undefined): string {
 	}
 	switch (status?.state) {
 		case 'done': return localize('partText.done', "done");
+		case 'defaults': return localize('partText.defaults', "defaults");
 		case 'inProgress': return localize('partText.inProgress', "in progress");
 		case 'stale': return localize('partText.stale', "stale");
 		case 'failed': return localize('partText.failed', "checks fail");
