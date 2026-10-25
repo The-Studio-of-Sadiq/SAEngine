@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from saengine.project import diff
 from saengine.project.diff import diff_file, diff_part, diff_values, part_for_path
 
 SAMPLE = Path(__file__).resolve().parents[2] / "workbench/resources/saengine/samples/Sample Frame"
@@ -227,8 +228,19 @@ def test_invalid_json_falls_back_to_text_summary():
 
 
 def test_deeply_nested_json_falls_back_instead_of_failing():
+    # 5000 levels: Windows' parser gives up (RecursionError -> text summary); Linux parses it
+    # and summarises the content. Either way there is one change and no crash.
     deep = b"[" * 5000 + b"]" * 5000
     changes = diff_file("materials", "03 Materials/materials.json", b'{"a": 1}', deep)
+    assert len(changes) == 1 and changes[0]["kind"] == "changed"
+
+
+def test_json_too_deep_to_parse_gets_the_text_summary(monkeypatch: pytest.MonkeyPatch):
+    def too_deep(text: str) -> object:
+        raise RecursionError("maximum recursion depth exceeded")
+
+    monkeypatch.setattr(diff.json, "loads", too_deep)
+    changes = diff_file("materials", "03 Materials/materials.json", b'{"a": 1}', b'{"a": 2}')
     assert len(changes) == 1 and changes[0]["kind"] == "changed"
     assert changes[0]["what"].startswith("materials.json")
 
