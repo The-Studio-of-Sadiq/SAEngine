@@ -678,7 +678,6 @@ def main(argv: list[str] | None = None) -> int:
     if unknown or not args.cases:
         parser.error(f"give buildings of --list (unknown: {', '.join(unknown) or 'none given'})")
     import opensees_studio
-
     import saengine
 
     # The shared environment may install both editable from another checkout: measure this one.
