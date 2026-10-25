@@ -328,7 +328,10 @@ def test_soil_and_foundations_chapter(project: Path, tmp_path: Path) -> None:
     _write(copy, {"01 Soil Report/soil-report.json": '{"schema": 1, "part": "soil"}'})
     data = report_data(copy)
     assert data["soil"] == {"available": False, "notes": []}
-    assert dict(data["basis"]["site"])["Site class (Table 6.2.13)"] == "SD (entered)"
+    # The settings take the class from the soil report, which gives none: assumed, not entered.
+    assert dict(data["basis"]["site"])["Site class (Table 6.2.13)"] == (
+        "SD, assumed (Project Settings; the soil report has no boreholes)"
+    )
 
     # N = 8 throughout: SD, the class the model was derived with (entered): still current.
     _write(copy, {"01 Soil Report/soil-report.json": soil_text(8)})

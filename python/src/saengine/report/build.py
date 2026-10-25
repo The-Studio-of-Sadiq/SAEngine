@@ -171,11 +171,61 @@ def build_report(
     result: dict[str, Any] = {
         "path": str(target),
         "warnings": list(data["warnings"]) + typst_warnings,
+        "status": data["status"],
     }
+    try:
+        summary_file(target).write_text(
+            json.dumps({**data["status"], "warnings": len(result["warnings"])}, indent="\t") + "\n",
+            encoding="utf-8",
+        )
+    except OSError:
+        pass  # the PDF is written; the Exports row then shows no design result
     pages = count_pages(pdf)
     if pages:
         result["pages"] = pages
     return result
+
+
+def summary_file(pdf: Path) -> Path:
+    """The design result of a report (``report.summary.json`` beside ``report.pdf``), for the
+    Exports row: ``{"state", "checked", "failed", "foundationsChecked", "foundationsFailed",
+    "headline", "warnings"}``, see :func:`design_status`."""
+    return pdf.with_name(pdf.stem + ".summary.json")
+
+
+def design_status(report: dict[str, Any]) -> dict[str, Any]:
+    """The design result the cover leads with: ``state`` "fail" when an element or foundation
+    fails its checks, "pass" when every one checked passes, "unchecked" when nothing was."""
+    design = report.get("design") or {}
+    fdn = report.get("foundations") or {}
+    checked = int(design.get("checked", 0) or 0) if design.get("available") else 0
+    failed = int(design.get("failed", 0) or 0) if design.get("available") else 0
+    f_checked = int(fdn.get("checked", 0) or 0) if fdn.get("available") else 0
+    f_failed = int(fdn.get("failed", 0) or 0) if fdn.get("available") else 0
+    parts = []
+    if failed:
+        parts.append(f"{failed} of {checked} members fail their design checks")
+    if f_failed:
+        parts.append(f"{f_failed} of {f_checked} foundations or tie beams fail")
+    if parts:
+        state, headline = "fail", "DESIGN FAILS: " + "; ".join(parts) + "."
+    elif checked or f_checked:
+        what = [f"all {checked} members"] if checked else []
+        what += [f"all {f_checked} foundations and tie beams"] if f_checked else []
+        state, headline = "pass", "Design checks pass: " + " and ".join(what) + "."
+    else:
+        state = "unchecked"
+        headline = "The design was not checked: " + (
+            str(design.get("problem")) if design.get("problem") else "no member was designed."
+        )
+    return {
+        "state": state,
+        "headline": headline,
+        "checked": checked,
+        "failed": failed,
+        "foundationsChecked": f_checked,
+        "foundationsFailed": f_failed,
+    }
 
 
 def render_pdf(data: dict[str, Any]) -> tuple[bytes, list[str]]:
@@ -241,6 +291,7 @@ def report_data(
     report["electrical"] = _guarded(_electrical, parts, "electrical")
     report["fire"] = _guarded(_fire, parts, "fire")
     report["boq"] = _boq(parts)
+    report["status"] = design_status(report)
     report["limitations"] = {
         "design": report["design"].get("notes", []),
         "mep": report["mep"].get("notes", []),
@@ -415,10 +466,27 @@ def _meta(name: str, settings: Any, version: str | None, today: date) -> dict[st
                 details.append([label, value])
     if settings is not None:
         details.append(["Code pack", code_pack_text(settings)])
+    # The title block of the drawings (Project Settings → Drawings), for the signatures.
+    sign: list[list[str]] = []
+    drawings = getattr(settings, "drawings", None) if settings is not None else None
+    if drawings is not None:
+        engineer = drawings.engineer or (info.engineer if info is not None else None)
+        revision = drawings.revisions[-1].code if drawings.revisions else "0"
+        for label, value in (
+            ("Firm", drawings.firm),
+            ("Engineer in charge", engineer),
+            ("Prepared by", drawings.drawnBy),
+            ("Checked by", drawings.checkedBy),
+            ("Approved by", drawings.approvedBy),
+            ("Issue status", drawings.status),
+            ("Revision", str(revision)),
+        ):
+            sign.append([label, value or ""])
     return {
         "title": "Structural Design Report",
         "project": name,
         "details": details,
+        "titleBlock": sign,
         "code": settings.codes.concrete if settings is not None else "–",
         "date": f"{today.day} {today:%B %Y}",
         "isoDate": today.isoformat(),
@@ -632,6 +700,15 @@ def _materials(parts: _Parts) -> list[list[str]]:
                     walk(item)
 
         walk(objects.model_dump(mode="json"))
+    # No bars entered yet (a generated project before its design): the rebar the design assumes.
+    assumed: str | None = None
+    rebar_ids = {m.id for m in library.materials if m.category.value == "rebar"}
+    if used is not None and not used & rebar_ids:
+        from saengine.design.required import _default_rebar
+
+        assumed = _default_rebar(objects.model_dump(mode="json"), library)
+        if assumed:
+            used.add(assumed)
     rows = []
     for material in library.materials:
         category = material.category.value
@@ -653,7 +730,12 @@ def _materials(parts: _Parts) -> list[list[str]]:
         rows.append(
             [
                 material.id,
-                material.name,
+                material.name
+                + (
+                    " (assumed by the design: no bars entered yet)"
+                    if material.id == assumed
+                    else ""
+                ),
                 category.capitalize(),
                 strength,
                 f"{fmt(modulus, 0)} MPa" if modulus else "–",
@@ -1004,15 +1086,13 @@ def _results(
             "Story drift: the largest difference of the horizontal displacement in the load's "
             "direction between nodes on one plan position at consecutive story levels, divided "
             "by the story height (elastic, from the analysis). For earthquake cases the design "
-            "drift Cd·δ/I is given too; compare it with the allowable story drift of BNBC 2020 "
-            "Part 6 Chapter 2 for the occupancy category (not checked by SAEngine)."
+            "drift Cd·δ/I is compared with the allowable story drift Δa/hsx of BNBC 2020 Part 6 "
+            "Table 6.2.21 (p. 648, all other structures) for the occupancy category; for moment "
+            "frames in Seismic Design Category D it is divided by ρ (Sec 2.5.14.1), as the "
+            "response spectrum's design drifts below. BNBC sets no drift limit for wind."
         )
     out["seismicDesign"] = _seismic_design(model_path, results_dir, settings, warnings)
-    if out["seismicDesign"].get("available") and out["displacements"]:
-        out["notes"][-1] = out["notes"][-1].replace(
-            " (not checked by SAEngine).",
-            "; the design drifts of the response spectrum are checked below.",
-        )
+    out["displacementFails"] = [row[-1] == "FAIL" for row in out["displacements"]]
     out["secondOrder"] = _second_order(model, results_dir, settings, parts)
     return out
 
@@ -1244,12 +1324,18 @@ def _drifts(
                 here[(round(xyz[0] * 1e3), round(xyz[1] * 1e3))] = node_id
         at_level.append(here)
     amplify = None
+    allowable = None
     if settings is not None:
+        from saengine.fem.seismic_design import allowable_drift_ratio
         from saengine.library.settings import derived
 
         values = derived(settings)
         if values["Cd"] and values["seismicImportance"]:
             amplify = values["Cd"] / values["seismicImportance"]
+        try:
+            allowable = allowable_drift_ratio(settings.occupancy.category)
+        except Exception:  # noqa: BLE001 - a code pack without the table: no limit printed
+            allowable = None
 
     rows = []
     for entry, result in loaded:
@@ -1276,11 +1362,10 @@ def _drifts(
                 if drift is None or ratio > drift:
                     drift = ratio
                     where = f"{fmt(levels[k - 1], 2)} to {fmt(levels[k], 2)} m"
-        design = (
-            fmt(amplify * drift * 100, 3)
-            if drift is not None and amplify and code.startswith("E")
-            else "–"
-        )
+        earthquake = drift is not None and bool(amplify) and code.startswith("E")
+        design = fmt(amplify * drift * 100, 3) if earthquake else "–"
+        limit = fmt(allowable * 100, 2) if earthquake and allowable else "–"
+        exceeds = earthquake and allowable is not None and amplify * drift > allowable + 1e-12
         rows.append(
             [
                 str(entry["case_name"]),
@@ -1288,6 +1373,8 @@ def _drifts(
                 fmt(drift * 100, 3) if drift is not None else "–",
                 where or "–",
                 design,
+                limit,
+                ("FAIL" if exceeds else "OK") if limit != "–" else "–",
             ]
         )
     return rows
@@ -1478,6 +1565,7 @@ def _design(results_dir: Path, model_path: Path, warnings: list[str]) -> dict[st
             ["Governing element", str(governing) if governing else "–"],
         ],
         "failed": failed,
+        "checked": int(summary.get("checked", 0) or 0),
         "combinations": [str(c) for c in report.get("combinations", [])],
         "tables": tables,
         "skipped": [
@@ -1891,6 +1979,12 @@ def _site_class_text(parts: _Parts) -> str:
         return "–"
     if site["source"] == "soilReport":
         return f"{site['class']}, from 1 Soil Report ({site['soil']['detail']})"
+    settings = parts.settings()
+    if settings is not None and settings.site.siteClassSource == "soilReport":
+        # Meant to come from the soil report, which gives none: the settings' class is assumed.
+        soil = site.get("soil") or {}
+        why = str(soil.get("note") or "the soil report gives no class").rstrip(".")
+        return f"{site['class']}, assumed (Project Settings; {why[:1].lower() + why[1:]})"
     return f"{site['class']} (entered)"
 
 
@@ -2373,6 +2467,7 @@ def _foundations(parts: _Parts) -> dict[str, Any]:
             ["Governing", str(governing) if governing else "–"],
         ],
         "failed": failed,
+        "checked": int(summary.get("checked", 0) or 0),
         "rows": rows,
         "fails": fails,
         "pressures": pressures,
