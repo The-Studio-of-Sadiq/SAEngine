@@ -5,13 +5,13 @@
 
 import './media/floorPlanLoads.css';
 import type { CadEntitySpec, CadLayerSpec, CadPoint } from '@saengine/cad-editor';
-import { $, addDisposableListener, append, EventType } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType, getWindow } from '../../../../base/browser/dom.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { dirname, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ITextModel } from '../../../../editor/common/model.js';
@@ -299,17 +299,35 @@ export const PARAPET_HEIGHT = 1000;
  * the story above); on the top story, a parapet.
  */
 export function defaultWallHeight(layout: unknown, objects: unknown, beamId: string): number {
+	return wallHeightBasis(layout, objects, beamId).height;
+}
+
+/**
+ * {@link defaultWallHeight} with how it is worked out, for the Line Load form: "3600 (Level 2 to
+ * Level 3) − 500 (depth of B9) = 3100 mm", or why it is a parapet.
+ */
+export function wallHeightBasis(layout: unknown, objects: unknown, beamId: string): { readonly height: number; readonly basis: string } {
 	const beam = beamsOf(layout).find(b => b.id === beamId);
 	const stories = storiesOf(layout);
 	const index = stories.findIndex(s => s.id === beam?.story);
+	const parapet = { height: PARAPET_HEIGHT, basis: localize('loads.parapetBasis', "{0} mm: a parapet (no story above {1}).", PARAPET_HEIGHT, beamId) };
 	if (!beam || index < 0 || index === stories.length - 1) {
-		return PARAPET_HEIGHT;
+		return parapet;
 	}
 	const key = beamKey(beam);
 	const above = beamsOf(layout).find(b => b.story === stories[index + 1].id && beamKey(b) === key);
-	const depth = (typeof above?.id === 'string' ? beamDepth(layout, objects, above.id) : undefined) ?? beamDepth(layout, objects, beamId) ?? 0;
-	const height = stories[index + 1].elevation - stories[index].elevation - depth;
-	return height > 0 ? Math.round(height) : PARAPET_HEIGHT;
+	const aboveDepth = typeof above?.id === 'string' ? beamDepth(layout, objects, above.id) : undefined;
+	const depth = aboveDepth ?? beamDepth(layout, objects, beamId) ?? 0;
+	const storyHeight = stories[index + 1].elevation - stories[index].elevation;
+	const height = storyHeight - depth;
+	if (height <= 0) {
+		return parapet;
+	}
+	const source = aboveDepth !== undefined ? String(above!.id) : beamId;
+	return {
+		height: Math.round(height),
+		basis: localize('loads.heightBasis', "{0} ({1} to {2}) − {3} (depth of {4}) = {5} mm", round(storyHeight, 0), stories[index].name, stories[index + 1].name, round(depth, 0), source, Math.round(height)),
+	};
 }
 
 /** Whether beam `other` runs the other way from beam `beamId` (same place, start and end swapped). */
@@ -746,6 +764,8 @@ type Form = { readonly kind: 'line'; readonly beams: readonly string[] } | { rea
 export class FloorPlanLoadsPanel extends Disposable {
 
 	private form: Form | undefined;
+	/** Set when a form opens, so its first render brings it into view and focuses it. */
+	private opened = false;
 	private showAll = false;
 
 	constructor(
@@ -759,6 +779,7 @@ export class FloorPlanLoadsPanel extends Disposable {
 	openLineLoad(selected: readonly { readonly group: MemberGroup; readonly id: string }[]): boolean {
 		const beams = selected.filter(m => m.group === 'beams').map(m => m.id);
 		this.form = beams.length ? { kind: 'line', beams } : undefined;
+		this.opened = !!this.form;
 		return !!this.form;
 	}
 
@@ -766,6 +787,7 @@ export class FloorPlanLoadsPanel extends Disposable {
 	openPointLoad(selected: readonly { readonly group: MemberGroup; readonly id: string }[]): boolean {
 		const member = selected.length === 1 && (selected[0].group === 'beams' || selected[0].group === 'columns') ? selected[0] : undefined;
 		this.form = member ? { kind: 'point', member } : undefined;
+		this.opened = !!this.form;
 		return !!this.form;
 	}
 
@@ -787,10 +809,22 @@ export class FloorPlanLoadsPanel extends Disposable {
 				this.form = undefined;
 			}
 		}
-		if (this.form?.kind === 'line' && context.editable) {
-			this.renderLineForm(section, store, context, loads, this.form.beams);
-		} else if (this.form?.kind === 'point' && context.editable) {
-			this.renderPointForm(section, store, context, loads, this.form.member);
+		if (this.form && context.editable) {
+			if (this.form.kind === 'line') {
+				this.renderLineForm(section, store, context, loads, this.form.beams);
+			} else {
+				this.renderPointForm(section, store, context, loads, this.form.member);
+			}
+			if (this.opened) {
+				// Below the fold on a laptop otherwise: bring the form up and put the cursor in it.
+				this.opened = false;
+				const form = section.querySelector<HTMLElement>('.floor-plan-loads-form');
+				const handle = getWindow(section).requestAnimationFrame(() => {
+					form?.scrollIntoView({ block: 'nearest' });
+					form?.querySelector<HTMLInputElement>('input')?.focus();
+				});
+				store.add(toDisposable(() => getWindow(section).cancelAnimationFrame(handle)));
+			}
 		} else {
 			const links = append(section, $('.sa-props-links'));
 			const beams = context.selected.filter(m => m.group === 'beams');
@@ -869,7 +903,7 @@ export class FloorPlanLoadsPanel extends Disposable {
 		let fromWall = types.length > 0;
 		let typeIndex = Math.max(0, types.findIndex(t => t.id === 'BW250'));
 		let caseIndex = 0;
-		const height = defaultWallHeight(context.layout, context.objects, beams[0]);
+		const { height, basis } = wallHeightBasis(context.layout, context.objects, beams[0]);
 		const form = append(section, $('.floor-plan-loads-form'));
 		const wallRows: HTMLElement[] = [];
 		/** The form's controls, set as they are made (the callbacks run after that). */
@@ -920,6 +954,7 @@ export class FloorPlanLoadsPanel extends Disposable {
 			void this.write(edit.loads, edit.ids.length === 1 ? localize('loads.addedOne', "Added line load {0}.", edit.ids[0]) : localize('loads.addedMany', "Added {0} line loads.", edit.ids.length), context);
 		};
 		c.height = this.input(form, store, localize('loads.height', "Height (mm)"), String(height), localize('loads.heightHint', "Storey height less the beam depth"), refresh, apply);
+		appendPropertyNote(form, beams.length > 1 ? localize('loads.heightBasisMany', "{0} (for {1}; edit it if the beams differ)", basis, beams[0]) : basis);
 		c.openings = this.input(form, store, localize('loads.openings', "Openings (%)"), '0', localize('loads.openingsHint', "Doors and windows, % of the wall face"), refresh, apply);
 		for (let i = before; i < form.childElementCount; i++) {
 			wallRows.push(form.children[i] as HTMLElement);
@@ -1001,7 +1036,7 @@ export class FloorPlanLoadsPanel extends Disposable {
 		const table = append(section, $('table.floor-plan-loads-table'));
 		const head = append(append(table, $('thead')), $('tr'));
 		// Two lines per load, to fit the panel: member, case, value and Delete; then story, kind and how it is formed.
-		for (const title of [localize('loads.colMember', "Member"), localize('loads.colCase', "Case"), localize('loads.colValue', "Value"), '']) {
+		for (const title of [localize('loads.colMember', "Member"), localize('loads.colCase', "Case"), localize('loads.colHeight', "Wall height"), localize('loads.colLoad', "Load"), '']) {
 			append(head, $('th', undefined, title));
 		}
 		const body = append(table, $('tbody'));
@@ -1019,8 +1054,17 @@ export class FloorPlanLoadsPanel extends Disposable {
 			} else {
 				caseCell.textContent = row.case;
 			}
-			const valueCell = append(tr, $('td.value'));
+			const heightCell = append(tr, $('td.value'));
+			const loadCell = append(tr, $('td.value'));
 			const wall = !isPoint(load) ? load.wall : undefined;
+			const unit = row.kind === 'point' ? localize('loads.kNUnit', "kN") : localize('loads.kNmUnit', "kN/m");
+			if (wall) {
+				// The wall's load follows its height.
+				loadCell.textContent = row.value === undefined ? '?' : `${round(row.value)} ${unit}`;
+			} else {
+				heightCell.textContent = '–';
+			}
+			const valueCell = wall ? heightCell : loadCell;
 			if (context.editable) {
 				// A wall's height is edited (its kN/m follows); else the value itself.
 				const box = store.add(new InputBox(valueCell, this.contextViewService, {
@@ -1042,18 +1086,18 @@ export class FloorPlanLoadsPanel extends Disposable {
 					}
 					void this.write(updateLoad(loads, row.id, wall ? { height: v } : { value: v }), localize('loads.changed', "Changed {0}.", row.id), context);
 				}));
-				append(valueCell, $('span.unit', undefined, wall ? localize('loads.mmUnit', "mm") : row.kind === 'point' ? localize('loads.kNUnit', "kN") : localize('loads.kNmUnit', "kN/m")));
+				append(valueCell, $('span.unit', undefined, wall ? localize('loads.mmUnit', "mm") : unit));
 			} else {
-				valueCell.textContent = row.valueLabel;
+				valueCell.textContent = wall ? `${wall.height} ${localize('loads.mmUnit', "mm")}` : row.valueLabel;
 			}
 			const actions = append(tr, $('td'));
 			if (context.editable) {
 				propertyLink(actions, localize('loads.delete', "Delete"), () => void this.write(removeLoads(loads, [row.id]), localize('loads.deleted', "Deleted {0}.", row.id), context), store);
 			}
-			const story = row.stories > 1 ? localize('loads.storyFamily', "{0} (+{1})", row.storyName, row.stories - 1) : row.storyName;
+			const story = row.stories > 1 ? localize('loads.storyFamily', "{0}, repeats on {1} stories", row.storyName, row.stories) : row.storyName;
 			const kind = row.kind === 'point' ? localize('loads.kindPoint', "point") : localize('loads.kindLine', "line");
 			const source = wall ? localize('loads.wallSourceValue', "{0} = {1}", row.source, row.valueLabel) : row.source;
-			append(append(body, $('tr.detail')), $('td.source', { colSpan: 4 }, localize('loads.detail', "{0} · {1}, {2} · {3}", row.id, story, kind, source)));
+			append(append(body, $('tr.detail')), $('td.source', { colSpan: 5 }, localize('loads.detail', "{0} · {1}, {2} · {3}", row.id, story, kind, source)));
 		}
 		appendPropertyNote(section, localize('loads.totalNote', "Total {0} kN on the stories listed (each typical-floor load counted on every story it is on). Loads go to the analysis as their load case; walls are superimposed dead load by default.", round(total, 1)));
 	}

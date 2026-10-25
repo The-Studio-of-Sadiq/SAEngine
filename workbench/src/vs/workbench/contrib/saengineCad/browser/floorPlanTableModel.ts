@@ -7,8 +7,8 @@ import { compareFileNames } from '../../../../base/common/comparers.js';
 import { localize } from '../../../../nls.js';
 import { csvText } from '../../../../platform/saengine/common/csv.js';
 import { location, onPlanOf, rises, storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
-import { MemberGroup } from './floorPlanDrawing.js';
-import { footingsOwnedMessage, setMembersType, TOOL_GROUP, TOOL_KINDS } from './floorPlanEdits.js';
+import { MemberGroup, sectionLabel } from './floorPlanDrawing.js';
+import { footingsOwnedMessage, resolvePoint, setMembersType, TOOL_GROUP, TOOL_KINDS } from './floorPlanEdits.js';
 import { familyDiffersMessage, placedEdit, placeKey, repeatOnFamilies } from './floorPlanTypical.js';
 
 /*
@@ -45,6 +45,10 @@ export interface IMemberRow {
 	readonly elevation: number;
 	/** Where it is, in grid labels: "A-1", "A-1 (+150, 0)", "A-1 → B-1", "A–B / 1–2". */
 	readonly location: string;
+	/** Its object type's size: "300×500", "Ø500", "t 150" (slabs, walls); '' when unknown. */
+	readonly section: string;
+	/** Length of a beam or wall in plan, height of a column [mm]; undefined for slabs and footings. */
+	readonly length?: number;
 }
 
 function isObject(value: unknown): value is Json {
@@ -57,9 +61,21 @@ function members(layout: unknown, group: MemberGroup): Json[] {
 }
 
 /** Every member of the floor plan, in plan order: groups, then stories from the bottom, then ids. */
-export function memberRows(layout: unknown): IMemberRow[] {
+export function memberRows(layout: unknown, objects?: unknown): IMemberRow[] {
 	const stories = storiesOf(layout);
 	const byId = new Map(stories.map(s => [s.id, s]));
+	const types = new Map((isObject(objects) && Array.isArray(objects.objects) ? objects.objects.filter(isObject) : []).map(o => [o.id, o]));
+	const lengthOf = (group: MemberGroup, member: Json): number | undefined => {
+		if (group === 'columns') {
+			const [base, top] = [byId.get(String(member.base))?.elevation, byId.get(String(member.top))?.elevation];
+			return base !== undefined && top !== undefined ? top - base : undefined;
+		}
+		if (group === 'beams' || group === 'walls') {
+			const [a, b] = [resolvePoint(layout, member.start), resolvePoint(layout, member.end)];
+			return a && b ? Math.round(Math.hypot(b[0] - a[0], b[1] - a[1])) : undefined;
+		}
+		return undefined;
+	};
 	const name = (id: string) => byId.get(id)?.name ?? id;
 	const rows: IMemberRow[] = [];
 	for (const group of MEMBER_GROUPS) {
@@ -78,6 +94,8 @@ export function memberRows(layout: unknown): IMemberRow[] {
 				storyLabel: base !== undefined ? localize('row.span', "{0} – {1}", name(base), name(story)) : name(story),
 				elevation: byId.get(story)?.elevation ?? Number.NaN,
 				location: location(group, member),
+				section: sectionLabel(types.get(member.type)) ?? '',
+				length: lengthOf(group, member),
 			});
 		}
 	}
@@ -115,7 +133,7 @@ export function filterRows(layout: unknown, rows: readonly IMemberRow[], filter:
 	});
 }
 
-export type SortKey = 'id' | 'group' | 'type' | 'story' | 'location';
+export type SortKey = 'id' | 'group' | 'type' | 'section' | 'length' | 'story' | 'location';
 
 export interface ISort {
 	readonly key: SortKey;
@@ -134,6 +152,8 @@ export function sortRows(rows: readonly IMemberRow[], sort: ISort): IMemberRow[]
 		type: (a: IMemberRow, b: IMemberRow) => compareFileNames(a.type, b.type),
 		story: byStory,
 		location: (a: IMemberRow, b: IMemberRow) => compareFileNames(a.location, b.location),
+		section: (a: IMemberRow, b: IMemberRow) => compareFileNames(a.section, b.section),
+		length: (a: IMemberRow, b: IMemberRow) => (a.length ?? Infinity) - (b.length ?? Infinity),
 	}[sort.key];
 	const sign = sort.descending ? -1 : 1;
 	return [...rows].sort((a, b) => sign * primary(a, b) || byGroup(a, b) || byStory(a, b) || byId(a, b));
@@ -252,9 +272,9 @@ export function setRowsStory(layout: unknown, refs: readonly IRowRef[], story: s
 
 /** The rows as CSV (RFC 4180), as the table shows them. */
 export function membersCsv(rows: readonly IMemberRow[], storyName: (id: string) => string): string {
-	const lines = [['ID', 'Kind', 'Object Type', 'Story', 'Base', 'Location']];
+	const lines = [['ID', 'Kind', 'Object Type', 'Section (mm)', 'Length (mm)', 'Story', 'Base', 'Location']];
 	for (const row of rows) {
-		lines.push([row.id, GROUP_LABELS[row.group], row.type, storyName(row.story), row.base !== undefined ? storyName(row.base) : '', row.location]);
+		lines.push([row.id, GROUP_LABELS[row.group], row.type, row.section, row.length === undefined ? '' : String(row.length), storyName(row.story), row.base !== undefined ? storyName(row.base) : '', row.location]);
 	}
 	return csvText(lines);
 }

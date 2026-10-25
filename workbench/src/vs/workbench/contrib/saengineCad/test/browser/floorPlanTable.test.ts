@@ -187,10 +187,10 @@ suite('SAEngine - Members table', () => {
 			noAnchor: rowRange(rows, undefined, rowKey(rows[1])),
 		}, {
 			csv: [
-				'ID,Kind,Object Type,Story,Base,Location',
-				'C10,Column,C400,Level 1,BASE,"A-1 (+150, 0)"',
-				'C2,Column,C400,L2,BASE,B-1',
-				'B1,Beam,B300,Level 1,,A-1 → B-1',
+				'ID,Kind,Object Type,Section (mm),Length (mm),Story,Base,Location',
+				'C10,Column,C400,,3200,Level 1,BASE,"A-1 (+150, 0)"',
+				'C2,Column,C400,,6400,L2,BASE,B-1',
+				'B1,Beam,B300,,6000,Level 1,,A-1 → B-1',
 				'',
 			],
 			range: ['columns/C10', 'columns/C2', 'beams/B1'],

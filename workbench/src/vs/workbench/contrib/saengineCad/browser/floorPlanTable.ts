@@ -174,6 +174,8 @@ const COLUMNS: readonly IColumn[] = [
 	{ key: 'id', label: localize('column.id', "ID"), className: 'id' },
 	{ key: 'group', label: localize('column.kind', "Kind"), className: 'kind' },
 	{ key: 'type', label: localize('column.type', "Object Type"), className: 'type' },
+	{ key: 'section', label: localize('column.section', "Section (mm)"), className: 'section' },
+	{ key: 'length', label: localize('column.length', "Length (mm)"), className: 'length' },
 	{ key: 'story', label: localize('column.story', "Story"), className: 'story' },
 	{ key: 'location', label: localize('column.location', "Location"), className: 'location' },
 ];
@@ -365,7 +367,7 @@ export class MembersTableEditor extends EditorPane {
 	private renderRows(reveal = false): void {
 		this.cellEditor.clear();
 		const layout = this.layoutJson;
-		const all = memberRows(layout);
+		const all = memberRows(layout, parse(this.objectsModel));
 		const keys = new Set(all.map(rowKey));
 		for (const key of [...this.selected]) {
 			if (!keys.has(key)) {
@@ -410,6 +412,8 @@ export class MembersTableEditor extends EditorPane {
 			const editable = row.group === 'footings' ? '' : '.editable';
 			const type = append(tr, $(`td.type${editable}`, { title: typeNames.get(row.type) ?? row.type }, row.type || '—'));
 			this.typeCells.set(key, type);
+			append(tr, $('td.section', undefined, row.section || '—'));
+			append(tr, $('td.length', { title: row.group === 'columns' ? localize('membersTable.height', "Height of the column") : '' }, row.length === undefined ? '' : String(row.length)));
 			const story = append(tr, $(`td.story${editable}`, undefined, row.base !== undefined ? `${names.get(row.base) ?? row.base} – ${names.get(row.story) ?? row.story}` : names.get(row.story) ?? row.story));
 			append(tr, $('td.location', { title: row.location }, row.location));
 			if (this.focused === key) {
