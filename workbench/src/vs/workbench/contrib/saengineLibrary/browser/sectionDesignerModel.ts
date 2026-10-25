@@ -242,6 +242,49 @@ export function templateLabel(kind: TemplateKind): string {
 	}
 }
 
+/** The dimensions each template is drawn from, with their names, for its parameter form. */
+export function templateFields(kind: TemplateKind): readonly { readonly key: keyof ITemplateParams; readonly label: string }[] {
+	const b = { key: 'b' as const, label: localize('section.param.b', "Width b [mm]") };
+	const h = { key: 'h' as const, label: localize('section.param.h', "Depth h [mm]") };
+	const t = { key: 't' as const, label: kind === 'I' ? localize('section.param.tw', "Web thickness tw [mm]") : localize('section.param.t', "Thickness t [mm]") };
+	const tf = { key: 'tf' as const, label: localize('section.param.tf', "Flange thickness tf [mm]") };
+	switch (kind) {
+		case 'rectangle': return [b, h];
+		case 'circle': return [{ key: 'b', label: localize('section.param.d', "Diameter D [mm]") }];
+		case 'L': case 'box': return [b, h, t];
+		case 'T': case 'C': case 'I': return [b, h, t, tf];
+		case 'core': return [b, h, t, { key: 'opening', label: localize('section.param.opening', "Door opening [mm]") }];
+	}
+}
+
+/** Whether a template's dimensions draw a valid shape (thicknesses inside the outline). */
+export function templateProblem(kind: TemplateKind, p: ITemplateParams): string | undefined {
+	const { b, h, t } = p;
+	const tf = p.tf ?? t;
+	if (!(b > 0) || (kind !== 'circle' && !(h > 0))) {
+		return localize('section.param.positive', "The width and depth must be more than 0.");
+	}
+	if (kind === 'rectangle' || kind === 'circle') {
+		return undefined;
+	}
+	if (!(t > 0) || !(tf > 0)) {
+		return localize('section.param.thickness', "The thicknesses must be more than 0.");
+	}
+	if (t >= b || tf >= h / (kind === 'L' || kind === 'T' ? 1 : 2) || (kind === 'box' || kind === 'core') && (2 * t >= b || 2 * t >= h)) {
+		return localize('section.param.tooThick', "The thicknesses must leave room inside the outline.");
+	}
+	if (kind === 'core' && !((p.opening ?? 0) > 0 && (p.opening ?? 0) < b - 4 * t)) {
+		return localize('section.param.openingProblem', "The door opening must be more than 0 and leave a jamb of 2t on each side.");
+	}
+	return undefined;
+}
+
+/** Whether two sets of regions are the same shapes (to the 0.01 mm the file keeps). */
+export function sameRegions(a: readonly IRegion[], b: readonly IRegion[]): boolean {
+	const same = (p: readonly Point[], q: readonly Point[]) => p.length === q.length && p.every((v, i) => Math.abs(v[0] - q[i][0]) < 0.01 && Math.abs(v[1] - q[i][1]) < 0.01);
+	return a.length === b.length && a.every((r, i) => r.material === b[i].material && same(r.outline, b[i].outline) && r.holes.length === b[i].holes.length && r.holes.every((hole, k) => same(hole, b[i].holes[k])));
+}
+
 /** An anticlockwise rectangle centred on the origin. */
 export function rectangle(b: number, h: number, cx = 0, cy = 0): Ring {
 	return [[cx - b / 2, cy - h / 2], [cx + b / 2, cy - h / 2], [cx + b / 2, cy + h / 2], [cx - b / 2, cy + h / 2]];
@@ -321,6 +364,14 @@ export function barsRing(center: Point, radius: number, count: number, dia: numb
 export function barsAlongEdges(region: IRegion, inset: number, dia: number, spacing: number): IBar[] {
 	const bars: IBar[] = [];
 	const rings = [offsetRing(region.outline, inset), ...region.holes.map(h => offsetRing(h, inset, true))];
+	// The corner bars' coordinates: a bar between corners close to one moves onto its line, so the
+	// bars of parallel faces line up (an L's leg with its inner corner) instead of nearly lining up.
+	const corners = rings.flat();
+	const align = (value: number, axis: 0 | 1, from: number, to: number) => {
+		const [lo, hi] = from < to ? [from, to] : [to, from];
+		const near = corners.map(c => c[axis]).filter(c => c > lo + dia && c < hi - dia && Math.abs(c - value) < spacing / 4);
+		return near.length ? near.reduce((a, c) => Math.abs(c - value) < Math.abs(a - value) ? c : a) : value;
+	};
 	for (const ring of rings) {
 		for (let i = 0; i < ring.length; i++) {
 			const p = ring[i];
@@ -329,7 +380,13 @@ export function barsAlongEdges(region: IRegion, inset: number, dia: number, spac
 			const count = Math.max(1, Math.ceil(length / spacing));
 			for (let k = 0; k < count; k++) {
 				const s = k / count;
-				addBar(bars, { x: round(p[0] + s * (q[0] - p[0])), y: round(p[1] + s * (q[1] - p[1])), dia });
+				let x = p[0] + s * (q[0] - p[0]), y = p[1] + s * (q[1] - p[1]);
+				if (k > 0 && Math.abs(p[1] - q[1]) < 1e-6) {
+					x = align(x, 0, p[0], q[0]); // a horizontal face
+				} else if (k > 0 && Math.abs(p[0] - q[0]) < 1e-6) {
+					y = align(y, 1, p[1], q[1]); // a vertical face
+				}
+				addBar(bars, { x: round(x), y: round(y), dia });
 			}
 		}
 	}
@@ -465,10 +522,30 @@ export interface IPropertyRow {
 	readonly title?: string;
 }
 
-/** The properties table: name, value and unit per row. */
-export function propertyRows(p: ISectionProperties): IPropertyRow[] {
-	// Ixy of a symmetric section comes out as round-off (1e-4 mm⁴ against 1e12): shown as 0.
+/**
+ * The properties without the round-off of the analysis: a centroid or shear centre of a
+ * symmetric section comes out as 1e-14 mm (against a section hundreds of mm across) and Ixy as
+ * 1e-4 mm⁴ (against 1e12); those are 0, and so is the principal angle then.
+ */
+export function cleanProperties(p: ISectionProperties): ISectionProperties {
+	const size = Math.sqrt(Math.abs(p.area)) || 1;
+	const coordinate = (v: number) => Math.abs(v) < 1e-9 * size ? 0 : v;
 	const ixy = Math.abs(p.ixy) < 1e-9 * Math.sqrt(Math.abs(p.ixx * p.iyy)) ? 0 : p.ixy;
+	return {
+		...p,
+		cx: coordinate(p.cx),
+		cy: coordinate(p.cy),
+		scx: coordinate(p.scx),
+		scy: coordinate(p.scy),
+		ixy,
+		principalAngle: ixy === 0 && Math.abs(p.principalAngle) < 1e-6 ? 0 : p.principalAngle,
+	};
+}
+
+/** The properties table: name, value and unit per row. */
+export function propertyRows(properties: ISectionProperties): IPropertyRow[] {
+	const p = cleanProperties(properties);
+	const ixy = p.ixy;
 	const row = (label: string, value: number | null, unit: string, title?: string): IPropertyRow => ({ label, value: formatNumber(value), unit, title });
 	return [
 		row(localize('section.prop.area', "A"), p.area, 'mm²', localize('section.prop.areaTitle', "Area (transformed to the reference material)")),
