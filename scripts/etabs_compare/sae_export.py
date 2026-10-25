@@ -58,7 +58,6 @@ def local_axes(
     """The element axes SAEngine's analysis model uses (saengine.fem.derive.local_axes), from
     the element's own ``vecxz`` when it has one (a column at a skew angle)."""
     import numpy as np
-
     from saengine.fem.derive import local_axes as derive_axes
 
     a_, b_ = np.asarray(a, dtype=float), np.asarray(b, dtype=float)
