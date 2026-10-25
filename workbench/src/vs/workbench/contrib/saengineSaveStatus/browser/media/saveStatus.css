@@ -1,0 +1,57 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .part.statusbar > .items-container > #saengine-save-status {
+	position: relative;
+}
+
+/* A thin bar along the bottom edge of the entry while saving. */
+.monaco-workbench .part.statusbar #saengine-save-status > .saengine-save-progress {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	height: 2px;
+	overflow: hidden;
+	pointer-events: none;
+	visibility: hidden;
+}
+
+.monaco-workbench .part.statusbar #saengine-save-status > .saengine-save-progress.active {
+	visibility: visible;
+}
+
+.monaco-workbench .part.statusbar #saengine-save-status > .saengine-save-progress > .saengine-save-progress-bit {
+	width: 35%;
+	height: 100%;
+	background-color: var(--vscode-progressBar-background);
+}
+
+.monaco-workbench .part.statusbar #saengine-save-status > .saengine-save-progress.active:not(.pending) > .saengine-save-progress-bit {
+	animation: saengine-save-run 1s ease-in-out infinite;
+}
+
+/* Auto save will write shortly: the full bar pulses instead of running. */
+.monaco-workbench .part.statusbar #saengine-save-status > .saengine-save-progress.pending > .saengine-save-progress-bit {
+	width: 100%;
+	animation: saengine-save-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes saengine-save-run {
+	from { transform: translateX(-100%); }
+	to { transform: translateX(290%); }
+}
+
+@keyframes saengine-save-pulse {
+	0%, 100% { opacity: 0.25; }
+	50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.monaco-workbench .part.statusbar #saengine-save-status > .saengine-save-progress > .saengine-save-progress-bit {
+		width: 100%;
+		animation: none !important;
+	}
+}
