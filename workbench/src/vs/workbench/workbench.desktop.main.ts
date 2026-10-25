@@ -179,6 +179,7 @@ import './contrib/browserView/electron-browser/browserView.contribution.js';
 import './contrib/saengineFem/electron-browser/saengineFem.contribution.js';
 import './contrib/saengineFem/electron-browser/runAll.contribution.js';
 import './contrib/saengineProject/electron-browser/projectBackend.contribution.js';
+import './contrib/saengineUpdate/electron-browser/saengineUpdate.contribution.js';
 
 // Splash
 import './contrib/splash/electron-browser/splash.contribution.js';

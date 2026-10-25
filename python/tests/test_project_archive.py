@@ -44,6 +44,9 @@ def files_of(root: Path) -> dict[str, bytes]:
 def sample(tmp_path: Path) -> Path:
     root = tmp_path / "src" / "Sample Frame"
     shutil.copytree(SAMPLE, root)
+    # Git keeps no empty folders: the sample's empty part folders exist only after a run.
+    for folder in ("08 FEM", "11 Exports"):
+        (root / folder).mkdir(exist_ok=True)
     return root
 
 

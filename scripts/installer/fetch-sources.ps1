@@ -37,6 +37,8 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+. (Join-Path $PSScriptRoot 'download.ps1')
+
 $manifest = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'copyleft-sources.json') -Raw | ConvertFrom-Json
 $constraints = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'constraints.txt')
 $webIfc = Get-Content -LiteralPath (Join-Path $RepoRoot 'packages\fem-viewer\node_modules\web-ifc\package.json') -Raw | ConvertFrom-Json
@@ -74,8 +76,6 @@ $unpinned = @()
 $null = New-Item -ItemType Directory -Path $CacheDir -Force
 if (Test-Path -LiteralPath $OutDir) { Remove-Item -LiteralPath $OutDir -Recurse -Force }
 $null = New-Item -ItemType Directory -Path $OutDir -Force
-$ProgressPreference = 'SilentlyContinue'
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $lines = @(
     'Source code of the copyleft components in the SAEngine installer',
@@ -97,10 +97,7 @@ foreach ($source in $manifest.sources) {
     }
     $archive = Join-Path $CacheDir $source.file
     if (-not (Test-Path -LiteralPath $archive)) {
-        Write-Host "Downloading $($source.url)"
-        $partial = "$archive.partial"
-        Invoke-WebRequest -Uri $source.url -OutFile $partial -UseBasicParsing
-        Move-Item -LiteralPath $partial -Destination $archive -Force
+        Save-Download -Uri $source.url -OutFile $archive
     }
     $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
     if (-not $source.sha256) {

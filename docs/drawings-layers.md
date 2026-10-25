@@ -31,6 +31,11 @@ linetype and lineweight), except the north arrow's solid fill.
 | `S-HATCH` | 8 grey | Continuous | 0.09 | Hatching of cut concrete, blinding |
 | `S-REBAR-MAIN` | 1 red | Continuous | 0.50 | Main bars (lines and dots in section) |
 | `S-REBAR-LINK` | 5 blue | Continuous | 0.25 | Links, ties, stirrups, wall hoops |
+| `S-STEEL` | 30 orange | Continuous | 0.50 | Structural steel members (plans, elevations, details) |
+| `S-STEEL-AXIS` | 30 | `CENTER` | 0.18 | Steel members' work lines (centre lines) |
+| `S-STEEL-PLATE` | 4 cyan | Continuous | 0.35 | Connection plates: gussets, tabs, fin and end plates; the Whitmore section (dashed) |
+| `S-BOLT` | 1 red | Continuous | 0.25 | Bolts, drawn as their holes with a cross |
+| `S-WELD` | 6 magenta | Continuous | 0.25 | Weld symbols (AWS A2.4) and their text |
 | `S-DIMS` | 2 yellow | Continuous | 0.18 | Dimensions |
 | `S-TEXT` | 7 | Continuous | 0.25 | Marks, labels, leaders, view titles |
 | `S-TABLE` | 7 | Continuous | 0.25 | Schedules and tables (BBS, column schedule) |
@@ -109,6 +114,30 @@ The layout's page setup is AutoCAD's `DWG To PDF.pc3`, paper `ISO full bleed A1/
 all sheets, and the result matches `drawings.pdf`. In LibreCAD (model space only), print the
 model space at 1:N on the sheet's size. A program without that plotter falls back to its own
 default device and keeps the paper size and scale.
+
+## Structural steel sheets
+
+When the project has structural steel members (object types whose material is a steel of
+03 Materials), the set gets steel sheets after the concrete ones (`drawings/sheets/steel.py`):
+steel general notes with the steel items of the bill of quantities and a bolt list; a steel
+framing plan per level (steel beams as heavy single lines, braces below the level dashed,
+concrete members for reference); an elevation per braced plane (a grid line, or the brace's
+own plane); the steel member schedule; the connection details at 1:5 (1:10 when a detail does
+not fit the sheet).
+
+- Masses are the bill of quantities' (`10 BOQ/boq.json`, per member from its breakdown), so
+  the schedule's total is the BOQ's steel total; a bill older than 06 BIM, 04 Objects or
+  03 Materials is measured again in memory by the BOQ module, and the problems say so.
+- Connections are the designed ones of the object types (`connection` of 04 Objects, checked
+  by `design/steel_connections.py`): bolts, pitch, gauge, end and edge distances, plates and
+  welds as given there; the Whitmore width is the design module's, drawn at the bolt row
+  deepest in the gusset with the 30° spread from the row nearest the brace. The tab clearance
+  to the frame (50 mm) and the brace setback (50 mm) are drafting values, noted on the sheet.
+- Weld symbols follow **AWS A2.4**: the arrow, the reference line, the fillet triangle with
+  its perpendicular leg on the left (below the line: arrow side, above: other side, both: both
+  sides), the leg size left of it, the length right of it, notes in the tail.
+- Bolts are drawn as their holes with a cross; the bolt circles carry their row and line as
+  XDATA (`SAENGINE`), the steel lines their member mark and section.
 
 ## Floor plan exports
 

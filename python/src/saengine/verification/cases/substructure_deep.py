@@ -91,7 +91,7 @@ def bored_pile_case(_: Path) -> Outcome:
     weight = 24 * area * length
     q_ult = qs + qb - weight
     qa = min(q_ult / 3.0, qs / 1.5 + qb / 3.0 - weight)
-    ta = (0.7 * qs + weight) / 2.5
+    ta = (0.7 * qs + weight) / 3.0
     steps = [
         (
             "Bored pile D = 0.5 m, L = 18 m, head 1.5 m below the ground (tip at 19.5 m); clay "
@@ -110,19 +110,19 @@ def bored_pile_case(_: Path) -> Outcome:
         (
             "No load test at the site: BNBC Sec 3.10.1.18 asks an overall FS of at least 3.0 in "
             "compression (Table 6.3.10a's 2.5 for normal control assumes load test data, Table "
-            "6.3.10b); uplift keeps Table 6.3.10a's 2.5"
+            "6.3.10b); uplift by analysis also at least 3.0 (Sec 3.11.3)"
         ),
         (
             f"Qult = Qs + Qb - W = {fmt(q_ult)} kN; Qa = min(Qult/3.0, Qs/1.5 + Qb/3 - W) = "
             f"min({fmt(q_ult / 3.0)}, {fmt(qs / 1.5 + qb / 3 - weight)}) = {fmt(qa)} kN"
         ),
-        f"Uplift: Ta = (0.7 Qs + W)/2.5 = {fmt(ta)} kN",
+        f"Uplift: Ta = (0.7 Qs + W)/3.0 = {fmt(ta)} kN",
     ]
     return Outcome(
         Reference(
             source="O'Neill & Reese (1999), FHWA-IF-99-025 (α and β methods, Nc*); BNBC 2020 "
             "Part 6 Eqs 6.3.11-6.3.13, Sec 3.10.1.18 (FS ≥ 3.0 without a load test; partial 1.5 "
-            "and 3.0) and Table 6.3.10a (uplift 2.5)",
+            "and 3.0) and Sec 3.11.3 (uplift FS ≥ 3.0 by analysis)",
             formula="Qs = π D ∫ fs dz, Qb = qb A, Qult = Qs + Qb - W, Qa = min(Qult/FS, Qs/1.5 + "
             "Qb/3 - W), Ta = (0.7 Qs + W)/FS",
             steps=steps,

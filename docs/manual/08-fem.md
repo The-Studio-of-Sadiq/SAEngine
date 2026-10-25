@@ -3,8 +3,8 @@
 Part 8 is the analysis model and its results, and the design of the members. It is what ETABS
 calls the *analysis* and *concrete frame design*: SAEngine derives a finite-element model from
 the building model, analyses it with **OpenSeesPy**, combines the results with the load
-combinations of Project Settings and checks every member to BNBC 2020 (ACI 318-19 clauses and
-factors) or AISC 360-22.
+combinations of Project Settings and checks every member to ACI 318-19 clauses and factors (BNBC 2020
+Part 6 Chapter 6 is based on an earlier ACI 318) or AISC 360-22.
 
 File: `08 FEM/model.osmodel`, with the results in `08 FEM/model.results/`. Open it with
 **8 FEM**. The editor is the **FEM Model Viewport**.

@@ -37,7 +37,8 @@ Group checks (service combinations):
   the 2:1 spread, Schmertmann in sand) and shown with BNBC Table 6.3.8's limit (Sec 3.10.5
   refers to the shallow foundations' limits).
 
-Cap design (strength combinations, ACI 318-19 as BNBC 2020 adopts it), with the pile reactions
+Cap design (strength combinations, ACI 318-19; BNBC 2020 Part 6 Ch 6 follows an earlier ACI 318
+without the size factor λs, so ACI 318-19 is the more conservative), with the pile reactions
 of the column loads alone (the cap's own factored weight adds to the reactions and loads the
 cap back in nearly the same places, so both are left out):
 

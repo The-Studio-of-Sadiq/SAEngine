@@ -67,7 +67,7 @@ Code basis: BNBC 2020 Part 6 Chapter 8 "Detailing of Reinforcement in Concrete S
   supports to 0.30 ln from the face (the column strip value, which governs; the longer span at
   a support between unequal spans, 6.5.3.8.2), bottom bars at least 150 mm into the supports.
 
-Practice where BNBC gives no figure (from memory, to be checked): the extra top bars of beams
+Practice where BNBC gives no figure (not a BNBC rule; office practice): the extra top bars of beams
 over a support run to 0.30 ln from the face (as Figure 6.6.20 for slabs; ACI SP-66's typical
 beam details use 0.30-0.33 ln), but never less than ld from the face; all bottom bars of beams
 run into the supports (no bottom cut-off, which satisfies 8.2.8.1 and is safe); the continuous
@@ -600,7 +600,7 @@ def standard_top_extent(ln: float, ld: float, fraction: float = BEAM_TOP_EXTENT)
     return Rule(
         value,
         f"max({fraction:g} ln, ld) = max({fraction * ln:.0f}, {ld:.0f})",
-        f"practice (from memory, to be checked); ld: {_page('8.2.9.2, 8.2.7.4', 1081)}",
+        f"practice (not in BNBC); ld: {_page('8.2.9.2, 8.2.7.4', '1081, 1080')}",
     )
 
 
@@ -1222,7 +1222,7 @@ def _detail_beam_line(ctx: _Ctx, line: dict[str, Any]) -> dict[str, Any]:
         element["notes"].append(
             f"top bars: {n_cont} of {n_top} continuous (at least two, 8.3.4.2(a); at least 1/3, "
             "8.2.9.3), the others over the supports to max(0.30 ln, ld) from the face "
-            "(practice, from memory, to be checked)"
+            "(practice, not a BNBC rule)"
         )
     db_main = max([d for _, d in tops + bottoms] or [16.0])
     d_eff = h - inset - db_main / 2

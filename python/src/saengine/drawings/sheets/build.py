@@ -13,8 +13,10 @@ How it is called::
 
 Sheet order and numbers (``S-101`` on): general notes and tables; the foundation plan; the
 framing plans per level; the slab reinforcement plans; the column schedule; the beam elevations;
-the footing, wall and stair details; the bar bending schedule. A category takes as many sheets
-as its views need; small views share a sheet.
+the footing, wall and stair details; the bar bending schedule; then, with structural steel
+(:mod:`.steel`), the steel notes, framing plans, braced elevations, member schedule and
+connection details. A category takes as many sheets as its views need; small views share a
+sheet.
 
 Why one DXF per sheet in model space: LibreCAD 2.2 edits the model space only (it has no paper
 space layouts), so every sheet is complete there, plans at real size; each DXF also carries a
@@ -30,6 +32,7 @@ from pathlib import Path
 from typing import Any
 
 from saengine.drawings.sheets import details, plans, schedules
+from saengine.drawings.sheets import steel as st
 from saengine.drawings.sheets.layout import Sheet, ViewSpec, drawing_area, fits, pack, paper_size
 from saengine.drawings.sheets.model import DrawingSet
 
@@ -81,6 +84,7 @@ class _Category:
     specs: list[ViewSpec]
     plan: bool = False
     scale_text: str | None = None
+    notes: list[str] | None = None  # the sheets' notes (plans: the plans' notes)
 
 
 def _fit_plan(
@@ -238,6 +242,7 @@ def categories(data: DrawingSet, settings: DrawingSettings) -> tuple[list[_Categ
         )
     if specs:
         out.append(_Category("Bar bending schedule", 1, specs, scale_text="NTS"))
+    out += _steel_categories(data, settings, area, problems)
     for category in out:
         for spec in category.specs:
             if not fits(spec, area):
@@ -280,12 +285,74 @@ def build_sheets(data: DrawingSet, settings: DrawingSettings | None = None) -> l
             sheet.category = cat.title  # type: ignore[attr-defined]
             for spec, x, y in page:
                 sheet.view(spec, x, y)
-            if cat.plan:
+            if cat.notes:
+                sheet.notes(cat.notes)
+            elif cat.plan:
                 sheet.notes(_plan_notes(data))
             sheet.finish()
             sheets.append(sheet)
             number += 1
     return sheets
+
+
+def _steel_categories(
+    data: DrawingSet, settings: DrawingSettings, area, problems: list[str]
+) -> list[_Category]:
+    """The structural steel sheets, after the concrete ones (none without steel members):
+    notes and quantities, framing plans, elevations of the braced bays, the member schedule,
+    the connection details."""
+    steel = data.steel
+    if not steel.members:
+        return []
+    b = data.building
+    height = area[3] - area[1]
+    width = area[2] - area[0]
+    out: list[_Category] = []
+    specs = [schedules.notes_spec(st.steel_notes(steel), title="Steel general notes")]
+    for table in (st.quantities_table(steel), st.bolt_table(steel)):
+        if table.rows:
+            specs += schedules.table_specs(
+                table, height, key=f"steel-table:{table.title}", max_width=width
+            )
+    out.append(_Category("Steel general notes", 1, specs, scale_text="NTS", notes=[]))
+    by_scale: dict[float, list[ViewSpec]] = {}
+    for lv in sorted(b.levels, key=lambda lv: lv.elevation):
+        if st.level_has_steel(steel, lv, b.levels):
+            spec, p = _fit_plan(
+                lambda s, lv=lv: st.steel_plan(b, steel, lv, s), settings.plan_scale, area
+            )
+            problems += p
+            if spec is not None:
+                by_scale.setdefault(spec.scale, []).append(spec)
+    for scale, specs in by_scale.items():
+        out.append(_Category("Steel framing plans", scale, specs, plan=True, notes=st.PLAN_NOTES))
+    by_scale = {}
+    for line in st.elevation_lines(b, steel):
+        spec, p = _fit_plan(
+            lambda s, line=line: st.steel_elevation(b, steel, line, s),
+            settings.elevation_scale,
+            area,
+        )
+        problems += p
+        by_scale.setdefault(spec.scale, []).append(spec)
+    for scale, specs in by_scale.items():
+        out.append(_Category("Steel elevations", scale, specs, notes=st.ELEVATION_NOTES))
+    specs = schedules.table_specs(
+        st.member_schedule(steel, b.levels), height, key="steel-members", max_width=width
+    )
+    out.append(_Category("Steel member schedule", 1, specs, scale_text="NTS", notes=[]))
+    specs = [st.connection_detail(c, max_size=(width, height)) for c in steel.connections]
+    if specs:
+        out.append(
+            _Category(
+                "Steel connection details",
+                st.CONNECTION_SCALE,
+                specs,
+                scale_text=f"1:{st.CONNECTION_SCALE:g}",
+                notes=st.CONNECTION_NOTES,
+            )
+        )
+    return out
 
 
 def _plan_notes(data: DrawingSet) -> list[str]:

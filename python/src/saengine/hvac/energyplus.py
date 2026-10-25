@@ -91,13 +91,14 @@ def find_energyplus(explicit: str | Path | None = None) -> Path | None:
     """The EnergyPlus executable (``explicit``: a folder or the exe, before the others), or
     None when there is none."""
     for candidate in ([Path(explicit)] if explicit else []) + _candidates():
-        exe = candidate if candidate.suffix.lower() == ".exe" or candidate.name == EXE else None
-        exe = exe or candidate / EXE
-        try:
-            if exe.is_file():
-                return exe
-        except OSError:
-            continue
+        # A candidate is the exe itself or its folder; on Linux and macOS the bundled folder
+        # (resources/energyplus) has the same name as the exe, so try both.
+        for exe in (candidate, candidate / EXE):
+            try:
+                if exe.is_file():
+                    return exe
+            except OSError:
+                continue
     return None
 
 

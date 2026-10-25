@@ -255,7 +255,8 @@ DXF per sheet for AutoCAD, BricsCAD or LibreCAD (layers, text and plotting:
 [drawings-layers.md](drawings-layers.md); checking them in AutoCAD:
 [drawings-qa.md](drawings-qa.md)) (general notes, foundation plan, framing and slab reinforcement
 plans per level, column schedule, beam elevations, footing, wall and stair details, the bar
-bending schedule), all sheets in `drawings.pdf`, PNG previews in `previews/`, the bar bending
+bending schedule; with structural steel, the steel notes, framing plans, braced elevations,
+member schedule and connection details after them), all sheets in `drawings.pdf`, PNG previews in `previews/`, the bar bending
 schedule as `bbs.csv` and the record `drawings.json` (the stamps of the files they were drawn
 from, so the app shows when they are out of date). Their title block, sheet size and scales are
 Project Settings' Drawings section; `--size` overrides the sheet size. `--out` writes elsewhere

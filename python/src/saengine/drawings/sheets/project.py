@@ -863,12 +863,14 @@ def drawing_set(
     detailing: dict[str, Any] | None = None,
     schedule: dict[str, Any] | None = None,
     title: dict[str, Any] | None = None,
+    design_report: dict[str, Any] | None = None,
 ) -> DrawingSet:
     """Everything the sheets of the project at ``project_root`` draw (see the module notes).
     ``detailing``: the detailing model (run when left out); ``schedule``: the BBS table of
     :func:`saengine.drawings.bbs.sheet_table` (made from the detailing when left out);
     ``title``: drawing settings over the project settings (``TitleInfo`` keys: firm, drawn,
-    checked, approved, revision, revisions, date, status, ...)."""
+    checked, approved, revision, revisions, date, status, ...); ``design_report``: the design
+    checks (the steel connections' utilisation on their details)."""
     from saengine.library.bim import BuildingModel
     from saengine.library.floorplan import FloorPlan
     from saengine.library.materials import MaterialLibrary
@@ -937,6 +939,13 @@ def drawing_set(
     if dias and concrete and fy:
         data.tables.append(lap_table(dias, fy, concrete))
     data.tables.append(cover_table(objects))
+    if materials is not None:
+        from saengine.drawings.sheets.steel import steel_set
+
+        data.steel, problems = steel_set(
+            root, texts, bim, objects, materials, substructure, design_report
+        )
+        data.problems += problems
     return data
 
 

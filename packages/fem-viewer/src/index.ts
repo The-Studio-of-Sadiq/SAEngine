@@ -5,7 +5,8 @@
 import * as THREE from 'three';
 import * as OBC from '@thatopen/components';
 import { roundPointMaterial, subtleNodeColor, usableTheme } from './theme.js';
-import { FemCameraView, FemElement, FemModel, FemNode, FemResultDisplay, FemResultView, FemSelection, FemVisibleElements, outerFaces, sameSelection } from './model.js';
+import { Floats, ModelIndex } from './geometry.js';
+import { FemCameraView, FemElement, FemModel, FemResultDisplay, FemResultView, FemSelection, FemVisibleElements, outerFaces, sameSelection } from './model.js';
 import { ResultOverlay } from './results.js';
 
 export type { FemCameraView, FemElement, FemModel, FemNode, FemResultDisplay, FemResultElement, FemResultQuantity, FemResultShell, FemResultSolid, FemResultView, FemSelection, FemValueQuantity, FemVisibleElements } from './model.js';
@@ -71,15 +72,27 @@ const defaultTheme: FemViewerTheme = {
 	fail: '#f14c4c',
 };
 
-/** Model space (Z up in 3D, Y up in 2D) to three.js world space (Y up). */
-function toWorld(model: FemModel, coords: readonly number[]): THREE.Vector3 {
-	const x = coords[0] ?? 0;
-	const y = coords[1] ?? 0;
-	if (model.ndm < 3) {
-		return new THREE.Vector3(x, y, 0);
-	}
-	return new THREE.Vector3(x, coords[2] ?? 0, -y);
+function sameTheme(a: FemViewerTheme, b: FemViewerTheme): boolean {
+	return (Object.keys(a) as (keyof FemViewerTheme)[]).every(key => a[key] === b[key]);
 }
+
+function sameElements(a: FemVisibleElements, b: FemVisibleElements): boolean {
+	if (!a || !b) {
+		return a === b;
+	}
+	if (a.size !== b.size) {
+		return false;
+	}
+	for (const id of a) {
+		if (!b.has(id)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+/** Element names of the struts tying frames and shells into solids (not drawn). */
+const EMBED = /\/embed(#\d+)?$/;
 
 class FemViewerImpl implements FemViewer {
 
@@ -93,10 +106,14 @@ class FemViewerImpl implements FemViewer {
 
 	private theme: FemViewerTheme;
 	private model: FemModel | undefined;
+	/** The model's nodes in world space and its elements by id, shared with the results. */
+	private index: ModelIndex | undefined;
 	private selection: FemSelection | undefined;
 
-	private members: THREE.LineSegments | undefined;
+	private members: THREE.LineSegments<THREE.BufferGeometry, THREE.LineBasicMaterial> | undefined;
 	private memberIds: number[] = [];
+	/** The outline of the solids (dimmed under a result, as the members). */
+	private solidEdges: THREE.LineSegments<THREE.BufferGeometry, THREE.LineBasicMaterial> | undefined;
 	private nodes: THREE.Points | undefined;
 	private nodeIds: number[] = [];
 	/** The shells' faces, as triangles, and the element of each triangle. */
@@ -148,6 +165,7 @@ class FemViewerImpl implements FemViewer {
 	setModel(model: FemModel): void {
 		const first = !this.model;
 		this.model = model;
+		this.index = new ModelIndex(model);
 		this.rebuild();
 		this.renderHighlight();
 		this.renderResults();
@@ -162,17 +180,25 @@ class FemViewerImpl implements FemViewer {
 		}
 		this.selection = selection;
 		this.renderHighlight();
-		this.renderResults();
+		// Only the labels follow the selection: the result's drawing stays.
+		this.overlay?.setSelectedElement(this.selectedElement());
 	}
 
 	setResults(view: FemResultView | undefined, display?: FemResultDisplay): void {
+		const dimmed = !!this.results;
 		this.results = view && display ? { view, display } : undefined;
-		this.rebuild();
+		if (dimmed !== !!this.results) {
+			this.applyDimming();
+		}
 		this.renderResults();
 	}
 
 	setTheme(theme: Partial<FemViewerTheme>): void {
-		this.theme = { ...this.theme, ...usableTheme(theme) };
+		const next = { ...this.theme, ...usableTheme(theme) };
+		if (sameTheme(next, this.theme)) {
+			return; // the host restyles often; redrawing a large model each time would stall
+		}
+		this.theme = next;
 		this.applyTheme();
 		this.rebuild();
 		this.renderHighlight();
@@ -180,7 +206,11 @@ class FemViewerImpl implements FemViewer {
 	}
 
 	setVisibleElements(elements: FemVisibleElements): void {
-		this.visible = elements && elements.size ? new Set(elements) : undefined;
+		const visible = elements && elements.size ? new Set(elements) : undefined;
+		if (sameElements(visible, this.visible)) {
+			return;
+		}
+		this.visible = visible;
 		this.rebuild();
 		this.renderHighlight();
 		this.renderResults();
@@ -240,62 +270,61 @@ class FemViewerImpl implements FemViewer {
 		this.clearGroup(this.modelGroup);
 		this.pickTargets.length = 0;
 		this.members = undefined;
+		this.solidEdges = undefined;
 		this.nodes = undefined;
 		this.faces = undefined;
-		const model = this.model;
-		if (!model) {
+		const index = this.index;
+		if (!index) {
 			return;
 		}
-
-		const nodeById = new Map<number, FemNode>(model.nodes.map(n => [n.id, n]));
-		const scale = this.modelScale(model);
+		const model = index.model;
+		const world = index.world;
+		const scale = index.size;
 
 		// Members: every element is drawn as its edge loop (2-node elements as one segment).
-		const positions: number[] = [];
+		const positions = new Floats();
 		this.memberIds = [];
 		// Solids show their outer faces; the struts tying frames into them are not drawn.
-		const solids = model.elements.filter(e => e.type === 'Solid' && (!this.visible || this.visible.has(e.id)));
 		const visible = this.visible;
 		const shown = (e: FemElement) => !visible || visible.has(e.id);
-		const hidden = (e: FemElement) => e.type === 'Solid' || /\/embed(#\d+)?$/.test(e.name ?? '') || !shown(e);
+		const solids = model.elements.filter(e => e.type === 'Solid' && shown(e));
 		for (const element of model.elements) {
-			if (hidden(element)) {
+			if (element.type === 'Solid' || !shown(element) || EMBED.test(element.name ?? '')) {
 				continue;
 			}
-			for (const [a, b] of this.edges(element)) {
-				const na = nodeById.get(a);
-				const nb = nodeById.get(b);
-				if (!na || !nb) {
+			const n = element.nodes;
+			const segments = n.length < 2 ? 0 : n.length === 2 ? 1 : n.length;
+			for (let k = 0; k < segments; k++) {
+				const a = index.offset(n[k]);
+				const b = index.offset(n[(k + 1) % n.length]);
+				if (a < 0 || b < 0) {
 					continue;
 				}
-				const pa = toWorld(model, na.coords);
-				const pb = toWorld(model, nb.coords);
-				positions.push(pa.x, pa.y, pa.z, pb.x, pb.y, pb.z);
+				positions.pushFrom(world, a, 3);
+				positions.pushFrom(world, b, 3);
 				this.memberIds.push(element.id);
 			}
 		}
 		if (positions.length) {
 			const geometry = new THREE.BufferGeometry();
-			geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-			// Under a result the model steps back.
-			const dimmed = !!this.results;
-			this.members = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ color: this.theme.member, transparent: dimmed, opacity: dimmed ? 0.35 : 1 }));
+			geometry.setAttribute('position', positions.attribute());
+			this.members = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ color: this.theme.member }));
 			this.modelGroup.add(this.members);
 			this.pickTargets.push(this.members);
 		}
 
 		if (solids.length) {
 			const faces = outerFaces(solids);
-			const points: number[] = [];
+			const points = new Floats();
 			// Only the feature edges, where the surface folds (the solid's own outline): every
 			// triangle edge of a fine mesh would grey the solid out.
 			const sharing = new Map<string, { a: THREE.Vector3; b: THREE.Vector3; normals: THREE.Vector3[] }>();
 			for (const face of faces) {
-				const pts = face.nodes.map(id => nodeById.get(id)).filter((n): n is FemNode => !!n).map(n => toWorld(model, n.coords));
+				const pts = face.nodes.map(id => index.point(id)).filter((p): p is THREE.Vector3 => !!p);
 				if (pts.length !== 3) {
 					continue;
 				}
-				points.push(...pts.flatMap(p => p.toArray()));
+				pts.forEach(p => points.pushVector(p));
 				const normal = pts[1].clone().sub(pts[0]).cross(pts[2].clone().sub(pts[0])).normalize();
 				face.nodes.forEach((a, k) => {
 					const b = face.nodes[(k + 1) % 3];
@@ -305,43 +334,51 @@ class FemViewerImpl implements FemViewer {
 					sharing.set(key, entry);
 				});
 			}
-			const edges: number[] = [];
+			const edges = new Floats();
 			for (const { a, b, normals: [n1, n2] } of sharing.values()) {
 				if (!n2 || Math.abs(n1.dot(n2)) < 0.94) {
-					edges.push(...a.toArray(), ...b.toArray());
+					edges.pushVector(a);
+					edges.pushVector(b);
 				}
 			}
 			const surface = new THREE.BufferGeometry();
-			surface.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+			surface.setAttribute('position', points.attribute());
 			this.modelGroup.add(new THREE.Mesh(surface, new THREE.MeshBasicMaterial({
 				color: this.theme.member, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false,
 			})));
 			const lines = new THREE.BufferGeometry();
-			lines.setAttribute('position', new THREE.Float32BufferAttribute(edges, 3));
-			const dimmed = !!this.results;
-			this.modelGroup.add(new THREE.LineSegments(lines, new THREE.LineBasicMaterial({ color: this.theme.member, transparent: true, opacity: dimmed ? 0.15 : 0.35 })));
+			lines.setAttribute('position', edges.attribute());
+			this.solidEdges = new THREE.LineSegments(lines, new THREE.LineBasicMaterial({ color: this.theme.member, transparent: true }));
+			this.modelGroup.add(this.solidEdges);
 		}
+		this.applyDimming();
 
 		// Shell-like elements (3+ nodes) also get a translucent face so they read as areas; a click
 		// on the face selects the element.
-		const facePositions: number[] = [];
+		const facePositions = new Floats();
 		this.faceIds = [];
+		const corners: number[] = [];
 		for (const element of model.elements) {
 			if (element.nodes.length < 3 || element.type === 'Solid' || !shown(element)) {
 				continue;
 			}
-			const pts = element.nodes.map(id => nodeById.get(id)).filter((n): n is FemNode => !!n).map(n => toWorld(model, n.coords));
-			if (pts.length < 3) {
-				continue;
+			corners.length = 0;
+			for (const id of element.nodes) {
+				const o = index.offset(id);
+				if (o >= 0) {
+					corners.push(o);
+				}
 			}
-			for (let i = 1; i < pts.length - 1; i++) {
-				facePositions.push(...pts[0].toArray(), ...pts[i].toArray(), ...pts[i + 1].toArray());
+			for (let i = 1; i < corners.length - 1; i++) {
+				facePositions.pushFrom(world, corners[0], 3);
+				facePositions.pushFrom(world, corners[i], 3);
+				facePositions.pushFrom(world, corners[i + 1], 3);
 				this.faceIds.push(element.id);
 			}
 		}
 		if (facePositions.length) {
 			const geometry = new THREE.BufferGeometry();
-			geometry.setAttribute('position', new THREE.Float32BufferAttribute(facePositions, 3));
+			geometry.setAttribute('position', facePositions.attribute());
 			this.faces = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
 				color: this.theme.member, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false,
 			}));
@@ -350,21 +387,37 @@ class FemViewerImpl implements FemViewer {
 		}
 
 		// Nodes only solids use are not marked (or picked): a solid's mesh would bury it in them.
-		const solidOnly = new Set(solids.flatMap(e => e.nodes));
-		for (const element of model.elements) {
-			if (element.type !== 'Solid') {
-				element.nodes.forEach(n => solidOnly.delete(n));
+		const solidOnly = new Set<number>();
+		if (solids.length) {
+			solids.forEach(e => e.nodes.forEach(n => solidOnly.add(n)));
+			for (const element of model.elements) {
+				if (element.type !== 'Solid') {
+					element.nodes.forEach(n => solidOnly.delete(n));
+				}
 			}
 		}
 
 		// Nodes: of the elements shown (all of them with nothing filtered).
-		const used = visible ? new Set(model.elements.filter(shown).flatMap(e => e.nodes)) : undefined;
-		const marked = model.nodes.filter(n => !solidOnly.has(n.id) && (!used || used.has(n.id)));
-		this.nodeIds = marked.map(n => n.id);
-		const nodePositions = marked.flatMap(n => toWorld(model, n.coords).toArray());
+		let used: Set<number> | undefined;
+		if (visible) {
+			used = new Set();
+			for (const element of model.elements) {
+				if (visible.has(element.id)) {
+					element.nodes.forEach(n => used!.add(n));
+				}
+			}
+		}
+		const nodePositions = new Floats();
+		this.nodeIds = [];
+		model.nodes.forEach((node, i) => {
+			if (!solidOnly.has(node.id) && (!used || used.has(node.id))) {
+				nodePositions.pushFrom(world, i * 3, 3);
+				this.nodeIds.push(node.id);
+			}
+		});
 		if (nodePositions.length) {
 			const geometry = new THREE.BufferGeometry();
-			geometry.setAttribute('position', new THREE.Float32BufferAttribute(nodePositions, 3));
+			geometry.setAttribute('position', nodePositions.attribute());
 			// Small round dots, faded towards the background: the members carry the picture.
 			this.nodes = new THREE.Points(geometry, roundPointMaterial(subtleNodeColor(this.theme.node, this.theme.background), 5));
 			this.modelGroup.add(this.nodes);
@@ -372,17 +425,36 @@ class FemViewerImpl implements FemViewer {
 		}
 
 		// Supports: a small pyramid under every node with any restrained DOF, except the nodes of a
-		// supported solid face (a carpet of them would hide the solid): its face shows it.
-		const supportGeometry = new THREE.ConeGeometry(scale * 0.025, scale * 0.04, 4);
-		supportGeometry.translate(0, -scale * 0.02, 0);
-		const supportMaterial = new THREE.MeshBasicMaterial({ color: this.theme.support });
-		for (const node of model.nodes) {
-			if (!node.restraint?.some(Boolean) || solidOnly.has(node.id) || (used && !used.has(node.id))) {
-				continue;
+		// supported solid face (a carpet of them would hide the solid): its face shows it. One
+		// instanced mesh draws them all.
+		const supported: number[] = [];
+		model.nodes.forEach((node, i) => {
+			if (node.restraint?.some(Boolean) && !solidOnly.has(node.id) && (!used || used.has(node.id))) {
+				supported.push(i);
 			}
-			const support = new THREE.Mesh(supportGeometry, supportMaterial);
-			support.position.copy(toWorld(model, node.coords));
-			this.modelGroup.add(support);
+		});
+		if (supported.length) {
+			const supportGeometry = new THREE.ConeGeometry(scale * 0.025, scale * 0.04, 4);
+			supportGeometry.translate(0, -scale * 0.02, 0);
+			const supports = new THREE.InstancedMesh(supportGeometry, new THREE.MeshBasicMaterial({ color: this.theme.support }), supported.length);
+			const matrix = new THREE.Matrix4();
+			supported.forEach((i, k) => supports.setMatrixAt(k, matrix.makeTranslation(world[i * 3], world[i * 3 + 1], world[i * 3 + 2])));
+			supports.computeBoundingSphere();
+			this.modelGroup.add(supports);
+		}
+	}
+
+	/** Under a result the model steps back. */
+	private applyDimming(): void {
+		const dimmed = !!this.results;
+		const members = this.members?.material;
+		if (members && members.transparent !== dimmed) {
+			members.transparent = dimmed;
+			members.opacity = dimmed ? 0.35 : 1;
+			members.needsUpdate = true;
+		}
+		if (this.solidEdges) {
+			this.solidEdges.material.opacity = dimmed ? 0.15 : 0.35;
 		}
 	}
 
@@ -400,12 +472,12 @@ class FemViewerImpl implements FemViewer {
 
 	private renderResults(): void {
 		this.clearResults();
-		const model = this.model;
-		if (!model || !this.results) {
+		const index = this.index;
+		if (!index || !this.results) {
 			return;
 		}
 		const theme = this.theme;
-		const overlay = new ResultOverlay(model, this.results.view, this.results.display, {
+		const overlay = new ResultOverlay(index, this.results.view, this.results.display, {
 			deformed: theme.deformed,
 			positive: theme.positive,
 			negative: theme.negative,
@@ -415,7 +487,7 @@ class FemViewerImpl implements FemViewer {
 			fail: theme.fail,
 			label: theme.node,
 			labelBackground: theme.background,
-		}, this.modelScale(model), coords => toWorld(model, coords), this.selection?.kind === 'element' ? this.selection.id : undefined, this.visible);
+		}, this.selectedElement(), this.visible);
 		this.overlay = overlay;
 		this.resultGroup.add(overlay.group);
 		if (overlay.isAnimated) {
@@ -430,31 +502,30 @@ class FemViewerImpl implements FemViewer {
 
 	private renderHighlight(): void {
 		this.clearGroup(this.highlight);
-		const model = this.model;
+		const index = this.index;
 		const selection = this.selection;
-		if (!model || !selection) {
+		if (!index || !selection) {
 			return;
 		}
 		const color = this.theme.selection;
-		const nodeById = new Map<number, FemNode>(model.nodes.map(n => [n.id, n]));
 		if (selection.kind === 'node') {
-			const node = nodeById.get(selection.id);
-			if (node) {
-				const geometry = new THREE.BufferGeometry().setFromPoints([toWorld(model, node.coords)]);
+			const point = index.point(selection.id);
+			if (point) {
+				const geometry = new THREE.BufferGeometry().setFromPoints([point]);
 				this.highlight.add(new THREE.Points(geometry, roundPointMaterial(color, 10, { depthTest: false })));
 			}
 			return;
 		}
-		const element = model.elements.find(e => e.id === selection.id);
+		const element = index.elements.get(selection.id);
 		if (!element) {
 			return;
 		}
 		const pts: THREE.Vector3[] = [];
 		for (const [a, b] of this.edges(element)) {
-			const na = nodeById.get(a);
-			const nb = nodeById.get(b);
-			if (na && nb) {
-				pts.push(toWorld(model, na.coords), toWorld(model, nb.coords));
+			const pa = index.point(a);
+			const pb = index.point(b);
+			if (pa && pb) {
+				pts.push(pa, pb);
 			}
 		}
 		const geometry = new THREE.BufferGeometry().setFromPoints(pts);
@@ -465,7 +536,7 @@ class FemViewerImpl implements FemViewer {
 		const down = this.pointerDown;
 		this.pointerDown = undefined;
 		// Ignore orbit/pan drags; only a stationary click selects.
-		if (e.button !== 0 || !down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4 || !this.model) {
+		if (e.button !== 0 || !down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4 || !this.index) {
 			return;
 		}
 		const rect = this.renderer.three.domElement.getBoundingClientRect();
@@ -473,7 +544,7 @@ class FemViewerImpl implements FemViewer {
 			((e.clientX - rect.left) / rect.width) * 2 - 1,
 			-((e.clientY - rect.top) / rect.height) * 2 + 1,
 		);
-		const threshold = this.modelScale(this.model) * 0.01;
+		const threshold = this.index.size * 0.01;
 		this.raycaster.params.Line = { threshold };
 		this.raycaster.params.Points = { threshold: threshold * 1.5 };
 		this.raycaster.setFromCamera(ndc, this.camera.three);
@@ -518,17 +589,16 @@ class FemViewerImpl implements FemViewer {
 		return focal * (ortho.top - ortho.bottom) / (2 * ortho.zoom);
 	}
 
-	private modelScale(model: FemModel): number {
-		const box = new THREE.Box3();
-		for (const node of model.nodes) {
-			box.expandByPoint(toWorld(model, node.coords));
-		}
-		return box.isEmpty() ? 1 : Math.max(box.getSize(new THREE.Vector3()).length(), 1);
+	private selectedElement(): number | undefined {
+		return this.selection?.kind === 'element' ? this.selection.id : undefined;
 	}
 
 	private clearGroup(group: THREE.Group): void {
 		for (const child of [...group.children]) {
 			group.remove(child);
+			if (child instanceof THREE.InstancedMesh) {
+				child.dispose(); // its instance matrices
+			}
 			const mesh = child as THREE.Mesh;
 			mesh.geometry?.dispose();
 			const material = mesh.material;

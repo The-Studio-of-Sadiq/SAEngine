@@ -32,8 +32,9 @@ the drawing title block.
 | Steel | **BNBC 2020 Part 6 Chapter 10** (default) or AISC 360-22 |
 | Design method | Strength design (LRFD), fixed |
 
-The design checks use the ACI 318-19 clauses and factors that BNBC 2020 Part 6 Chapter 6
-follows.
+The design checks use ACI 318-19 clauses and factors. BNBC 2020 Part 6 Chapter 6 is based on an
+earlier ACI 318 and gives the same or less strict values (for example one-way shear
+Vc = 0.17λ√f'c bw d, Eq 6.6.49, without the size factor).
 
 ### Occupancy
 - **Building use:** Residential (default), Office, Educational, Health care, Assembly, Retail,
@@ -83,7 +84,7 @@ The site can also be filled from the soil report's map (**Apply to Project Setti
 R, Ω0 and Cd can each be overridden.
 
 ### Wind
-**Exposure** A (urban, suburban, wooded; default), B or C (BNBC 6.2.9.3).
+**Exposure** A (urban, suburban, wooded; default), B or C (BNBC Part 6 Sec 2.4.6.3).
 
 ### Area Loads
 The floor loads of the project, in kN/m². Each area load has an ID, a name, a **use** (BNBC
