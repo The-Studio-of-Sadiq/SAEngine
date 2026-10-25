@@ -845,8 +845,16 @@ def main() -> int:
     stdin = _claim_stdin()
     stdout = _claim_stdout()
     server = create_server()
-    # WNTR's first import takes a second or two: done ahead of the editor's first request.
-    threading.Thread(target=handlers.warm_plumbing, name="warm-plumbing", daemon=True).start()
-    threading.Thread(target=handlers.warm_services, name="warm-services", daemon=True).start()
+    # numpy's extension must finish initialising before any thread imports it: two threads
+    # importing it at once fail with "partially initialized module" (seen on the first soil
+    # report while the warm-ups ran). So import it here, then warm up in one thread, in turn.
+    import numpy  # noqa: F401
+
+    def warm() -> None:
+        # WNTR's first import takes a second or two: done ahead of the editor's first request.
+        handlers.warm_plumbing()
+        handlers.warm_services()
+
+    threading.Thread(target=warm, name="warm-imports", daemon=True).start()
     server.start_io(stdin, stdout)
     return 0
