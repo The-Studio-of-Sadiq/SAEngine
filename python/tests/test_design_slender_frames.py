@@ -596,3 +596,34 @@ def test_response_spectrum_shell_sway_carried_through() -> None:
     names = ["A", "B [+N]", "B [-N]"]
     found = _spectrum_shell_sway(static, names, {9: [r_a, r_b + e, r_b - e]})
     assert [f.tolist() for f in found[9]] == [s_a.tolist(), (s_b + e).tolist(), (s_b - e).tolist()]
+
+
+def test_lu_is_the_clear_height_below_the_beams_with_end_offsets() -> None:
+    # The parity bay (400 × 400 columns, 300 × 500 beams on every side at 3.2 and 6.4 m) derived
+    # with the default settings, end offsets on: the columns' tops get rigid zones and their
+    # forces at the beam soffit, but the joints stay at the floor levels, so the unsupported
+    # length below each floor is still the clear height under the 500 mm beams (BNBC 2020 Part 6
+    # Sec 6.3.10.1.1), 3200 - 500 = 2700 mm, in both directions.
+    from test_fem_parity import OBJECTS, derivation, plan
+
+    from saengine.library.bim import generate
+
+    d = derivation()
+    column = next(e for e in d.project["elements"] if e["name"] == "C1")
+    assert any(column.get("joint_offsets", [0.0] * 6))  # end offsets on (the default)
+    coords = {n["id"]: np.array(n["coords"], dtype=float) for n in d.project["nodes"]}
+    own = []
+    for e in d.project["elements"]:
+        if e["type"] == "ElasticBeamColumn" and e["name"].split("#")[0] == "C1":
+            a, b = (coords[n] for n in e["nodes"])
+            own.append(
+                _Piece(
+                    e["name"], e["id"], float(np.linalg.norm(b - a)), False, COLUMN_AXES, [], a, b
+                )
+            )
+    types = {o.id: o for o in OBJECTS.objects}
+    context = SlenderContext(d.project, generate(plan(), "s"), types, {}, {"C1": own}, [], [])
+    for unit, direction in ((X, "X"), (np.array([0, 1.0, 0]), "Y")):
+        segments = context.segments("C1", own, unit, direction)
+        assert [round(s.lc) for s in segments] == [3200, 3200], direction
+        assert [s.lu for s in segments] == [pytest.approx(2700.0)] * 2, direction

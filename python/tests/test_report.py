@@ -18,6 +18,7 @@ from saengine.fem.derive import derive_fem, stamp
 from saengine.library import default_material_library
 from saengine.library.bim import generate
 from saengine.library.settings import LoadCombination
+from saengine.pipeline import design_mode
 from saengine.report import build_report, report_data
 from saengine.report.build import _boq, _Parts, count_pages, fmt, project_name
 
@@ -224,6 +225,7 @@ def test_any_element_kind_gets_a_table(project: Path, monkeypatch: pytest.Monkey
         }
 
     monkeypatch.setattr(design_module, "design_report", fake)
+    design_mode.forget()  # the checks the module's report kept in this process
     design = report_data(project)["design"]
     assert [t["title"] for t in design["tables"]] == ["Footings", "Slabs", "Retaining walls"]
     assert design["tables"][0]["rows"][0][-1] == "FAIL"

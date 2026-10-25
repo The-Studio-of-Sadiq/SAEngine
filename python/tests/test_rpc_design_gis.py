@@ -182,13 +182,16 @@ def test_required_steel_is_kept_until_an_input_changes(
 ) -> None:
     calls: list[int] = []
 
-    def fake(out_dir: Any, project_path: Any, options: Any = None) -> dict[str, Any]:
+    def fake(
+        out_dir: Any, project_path: Any, options: Any = None, gathered: Any = None
+    ) -> dict[str, Any]:
         calls.append(1)
         return {"elements": [], "summary": {"elements": 0}, "worked": len(calls)}
 
     import saengine.design
 
     monkeypatch.setattr(saengine.design, "design_required", fake)
+    monkeypatch.setattr(design_mode, "gathered", lambda *_, **__: None)
     out, model = _project(tmp_path)
     first = design_mode.required(out, model)
     assert design_mode.required(out, model) == first and len(calls) == 1

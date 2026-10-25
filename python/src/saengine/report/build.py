@@ -1319,10 +1319,10 @@ def _kind_title(kind: str) -> str:
 
 
 def _design(results_dir: Path, model_path: Path, warnings: list[str]) -> dict[str, Any]:
-    from saengine.design import design_report
+    from saengine.pipeline.design_mode import checks
 
     try:
-        report = design_report(results_dir, model_path)
+        report = checks(results_dir, model_path)  # Run All's design step's, while current
     except Exception as error:  # noqa: BLE001 - the report goes on without the design
         message = str(error) or type(error).__name__
         warnings.append(f"The member design could not be checked: {message}")

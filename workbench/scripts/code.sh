@@ -48,6 +48,11 @@ function code() {
 		DISABLE_TEST_EXTENSION=""
 	fi
 
+	# SAEngine AI assistants (docs/ai-assistants.md): SAENGINE_AI=1 starts the MCP server of each dev window
+	if [ "$SAENGINE_AI" = "1" ]; then
+		echo "SAEngine AI: MCP server on; address and token are printed below and saved to <user-data-dir>/saengine-ai-window-<id>.json"
+	fi
+
 	# Launch Code
 	exec "$CODE" . $DISABLE_TEST_EXTENSION "$@"
 }
