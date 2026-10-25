@@ -6,6 +6,8 @@
 import './media/saengineTokens.css';
 import '../../../services/saengineProject/browser/partStatusService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -210,6 +212,43 @@ registerAction2(class extends Action2 {
 		return openOverview(accessor.get(IEditorService));
 	}
 });
+
+/**
+ * Ctrl+1…9 open parts 1 to 9 (G19). They replace the editor-group shortcuts outside developer
+ * mode, where SAEngine has one editor group.
+ */
+for (let number = 1; number <= 9; number++) {
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: `saengine.project.openPart${number}`,
+				title: localize2('saengine.openPartN', "Open Part {0}", number),
+				category,
+				f1: true,
+				precondition: projectOpen,
+				keybinding: {
+					primary: KeyMod.CtrlCmd | (KeyCode.Digit0 + number),
+					when: ContextKeyExpr.and(projectOpen, ContextKeyExpr.not('saengineDeveloperMode')),
+					weight: KeybindingWeight.WorkbenchContrib + 10,
+				},
+			});
+		}
+
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			const projectService = accessor.get(ISaengineProjectService);
+			const project = projectService.project;
+			const part = projectService.parts[number - 1];
+			if (project && part) {
+				await openPart(project, part, {
+					editorService: accessor.get(IEditorService),
+					fileService: accessor.get(IFileService),
+					openerService: accessor.get(IOpenerService),
+					commandService: accessor.get(ICommandService),
+				});
+			}
+		}
+	});
+}
 
 registerAction2(class extends Action2 {
 	constructor() {

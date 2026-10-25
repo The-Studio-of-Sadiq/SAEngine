@@ -110,7 +110,7 @@ export function stateText(status: IPartStatus | undefined): string {
 }
 
 /** How many trailing path segments (the project folder and its parents) always stay visible. */
-const PATH_TAIL_SEGMENTS = 3;
+const PATH_TAIL_SEGMENTS = 2;
 
 /**
  * The path of a project folder as `head` + `tail`: home-relative (`~`), with the last folders
@@ -139,7 +139,8 @@ export function appendProjectPath(parent: HTMLElement, root: URI, userHome: URI 
 
 /**
  * Opens the editor of a part: its main file, with the editor registered for it. Part 11 has no
- * main file: it opens the exports page.
+ * main file: it opens the exports page. Parts open as preview tabs, so browsing the parts reuses
+ * one tab; a tab is kept once it is edited or double-clicked (G14).
  */
 export async function openPart(project: ISaengineProject, part: IProjectPart, services: {
 	readonly editorService: IEditorService;
@@ -149,8 +150,8 @@ export async function openPart(project: ISaengineProject, part: IProjectPart, se
 }, options?: { readonly preserveFocus?: boolean }): Promise<void> {
 	const resource = partResource(project, part);
 	if (resource) {
-		await services.editorService.openEditor({ resource, options: { pinned: true, preserveFocus: options?.preserveFocus } });
+		await services.editorService.openEditor({ resource, options: { pinned: false, preserveFocus: options?.preserveFocus } });
 	} else if (part.id === 'exports') {
-		await services.editorService.openEditor(ExportsEditorInput.instance, { pinned: true, preserveFocus: options?.preserveFocus });
+		await services.editorService.openEditor(ExportsEditorInput.instance, { pinned: false, preserveFocus: options?.preserveFocus });
 	}
 }

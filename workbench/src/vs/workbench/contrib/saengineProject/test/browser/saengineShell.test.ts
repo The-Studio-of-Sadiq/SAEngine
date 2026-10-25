@@ -15,7 +15,7 @@ import { ViewPane } from '../../../../browser/parts/views/viewPane.js';
 import { ViewPaneContainer } from '../../../../browser/parts/views/viewPaneContainer.js';
 import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainerLocation } from '../../../../common/views.js';
 import { PROJECT_PARTS, STRUCTURE_PART } from '../../../../services/saengineProject/common/saengineProject.js';
-import { applyDeveloperItems, ConfigurationDefaultsSwitch, gateSubmenus, IDeveloperItemsHost, IDeveloperItemsSnapshot, parseDeveloperItemsSnapshot, partEditorLabels, ViewsGate } from '../../browser/saengineShell.js';
+import { applyDeveloperItems, ConfigurationDefaultsSwitch, gateMenuItems, gateSubmenus, IDeveloperItemsHost, IDeveloperItemsSnapshot, parseDeveloperItemsSnapshot, partEditorLabels, ViewsGate } from '../../browser/saengineShell.js';
 
 const DEVELOPER = ContextKeyExpr.has('saengineDeveloperModeTest');
 
@@ -117,6 +117,23 @@ suite('SAEngine - window shell', () => {
 		store.add(MenuRegistry.appendMenuItem(parent, { submenu: kept, title: 'File' }));
 		gateSubmenus(parent, new Set([code]), DEVELOPER);
 		assert.deepStrictEqual(MenuRegistry.getMenuItems(parent).map(item => item.when?.serialize()), ['saengineDeveloperModeTest && saengineShellTest.menu', undefined]);
+	});
+
+	test('code-editor items of a menu get the developer mode condition, also when added later', async () => {
+		const menu = new MenuId('saengineShellTest.fileMenu');
+		const sub = new MenuId('saengineShellTest.prefs');
+		store.add(MenuRegistry.appendMenuItem(menu, { command: { id: 'saengine.test.save', title: 'Save' } }));
+		store.add(MenuRegistry.appendMenuItem(menu, { command: { id: 'workbench.test.openFolder', title: 'Open Folder' } }));
+		store.add(MenuRegistry.appendMenuItem(menu, { submenu: sub, title: 'Preferences' }));
+		store.add(gateMenuItems(menu, id => id.startsWith('saengine.') || id === sub.id, DEVELOPER));
+		store.add(MenuRegistry.appendMenuItem(menu, { command: { id: 'workbench.test.later', title: 'Later' }, when: ContextKeyExpr.has('saengineShellTest.later') }));
+		await Promise.resolve(); // the registry tells its listeners in a microtask
+		assert.deepStrictEqual(MenuRegistry.getMenuItems(menu).map(item => item.when?.serialize()), [
+			undefined,
+			'saengineDeveloperModeTest',
+			undefined,
+			'saengineDeveloperModeTest && saengineShellTest.later',
+		]);
 	});
 
 	test('developer items follow the mode and keep what the user chose', () => {

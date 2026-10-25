@@ -77,6 +77,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	},
 });
 
+/**
+ * Why a check failed: `message` for the engineer (plain words, no HTTP codes), `detail` for the
+ * log (G18).
+ */
+class UpdateCheckError extends Error {
+	constructor(message: string, readonly detail: string) {
+		super(message);
+	}
+}
+
 export const ISAEngineUpdateService = createDecorator<ISAEngineUpdateService>('saengineUpdateService');
 
 export interface ISAEngineUpdateService {
@@ -140,9 +150,12 @@ class SAEngineUpdateService implements ISAEngineUpdateService {
 			update = pickUpdate(releases, current);
 			this.logService.info(`[saengine update] running ${current}; newest offered: ${update?.version ?? 'none'}`);
 		} catch (error) {
-			this.logService.warn(`[saengine update] ${toErrorMessage(error)}`);
+			this.logService.warn(`[saengine update] ${error instanceof UpdateCheckError ? error.detail : toErrorMessage(error)}`);
 			if (manual) {
-				this.notificationService.error(localize('update.failed', "Could not check for SAEngine updates: {0}", toErrorMessage(error)));
+				// Not the engineer's fault and nothing to fix in the app: information, not an error.
+				this.notificationService.info(error instanceof UpdateCheckError
+					? error.message
+					: localize('update.offline', "SAEngine could not reach its release list just now (no internet connection?). Try again later."));
 			}
 			return;
 		} finally {
@@ -190,17 +203,17 @@ class SAEngineUpdateService implements ISAEngineUpdateService {
 			}, cts.token);
 			const status = context.res.statusCode ?? 0;
 			if (status === 404) {
-				throw new Error(localize('update.notFound', "the release list was not found (HTTP 404); the repository may not be public yet"));
+				throw new UpdateCheckError(localize('update.notFound', "SAEngine's releases are not published online yet. You get new versions from whoever gave you SAEngine."), `release list not found at ${url} (HTTP 404); the repository may not be public yet`);
 			}
 			if (status === 403 || status === 429) {
-				throw new Error(localize('update.rateLimited', "GitHub refused the request (HTTP {0}), probably its rate limit; try again later", status));
+				throw new UpdateCheckError(localize('update.rateLimited', "Too many update checks from this network just now. Try again in an hour."), `GitHub refused the request (HTTP ${status}), probably its rate limit`);
 			}
 			if (status !== 200) {
-				throw new Error(localize('update.httpStatus', "GitHub answered HTTP {0}", status));
+				throw new UpdateCheckError(localize('update.unavailable', "The release list is not available just now. Try again later."), `GitHub answered HTTP ${status} for ${url}`);
 			}
 			const releases = await asJson<IGitHubRelease[]>(context);
 			if (!Array.isArray(releases)) {
-				throw new Error(localize('update.badResponse', "GitHub's answer is not a list of releases"));
+				throw new UpdateCheckError(localize('update.unavailable', "The release list is not available just now. Try again later."), `the answer from ${url} is not a list of releases`);
 			}
 			return releases;
 		} finally {
