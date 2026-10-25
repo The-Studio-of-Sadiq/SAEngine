@@ -460,7 +460,7 @@ export abstract class JsonDocumentEditor extends EditorPane {
 		if (frame) {
 			if (message !== this.documentOutdatedKey) {
 				this.documentOutdatedKey = message;
-				this.documentOutdatedPill.value = message === undefined ? undefined : frame.createPill(localize('outdated.pill', "Out of date"), {
+				this.documentOutdatedPill.value = message === undefined ? undefined : frame.createPill(recorded ? localize('outdated.pill', "Out of date") : localize('outdated.pillNotBuilt', "Not built"), {
 					severity: 'warn',
 					icon: Codicon.warning,
 					title: localize('outdated.pillTitle', "{0} Click to update from the {1}.", message, name),

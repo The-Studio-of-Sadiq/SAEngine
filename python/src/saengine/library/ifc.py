@@ -1054,13 +1054,12 @@ def _export_additions(
 
     for stair in additions.stairs:
         object_type = w.types.get(stair.type)
-        if (
-            object_type is None
-            or object_type.kind != "staircase"
-            or stair.base not in levels
-            or stair.top not in levels
-        ):
-            skipped.append(f"{stair.id}: needs a staircase type and two stories")
+        missing = [s for s in (stair.base, stair.top) if s not in levels]
+        if missing:
+            skipped.append(f"{stair.id}: no story '{missing[0]}'")
+            continue
+        if object_type is None or object_type.kind != "staircase":
+            skipped.append(f"{stair.id}: '{stair.type}' is not a staircase type")
             continue
         bottom, top = levels[stair.base], levels[stair.top]
         rise = top - bottom
