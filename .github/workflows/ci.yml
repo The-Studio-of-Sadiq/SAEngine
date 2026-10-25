@@ -3,11 +3,18 @@
 # installer is built only for releases (release.yml). What runs where and why: docs/ci.md.
 name: CI
 
+# Runs on pull requests (not drafts, not docs-only) and by hand. Pushes to feat/** do not run
+# CI: their changes arrive through PRs (checked there) or after the same checks run locally, and
+# the private repo has a monthly minutes quota. Run it by hand on a branch when needed
+# (Actions > CI > Run workflow); that also refreshes the node_modules cache.
 on:
   push:
-    branches: [main, 'feat/**', 'fix/**']
+    branches: [main]
+    paths-ignore: ['docs/**', '**/*.md']
   pull_request:
     branches: [main, 'feat/**']
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore: ['docs/**', '**/*.md']
   workflow_dispatch:
 
 # A newer push to the same branch or pull request cancels the run it supersedes.
@@ -21,10 +28,14 @@ permissions:
 env:
   PYTHON_VERSION: '3.12'
   FORCE_COLOR: '1'
+  # The full checks (slow pytest end-to-end runs, the verification pack): on main and by hand.
+  # A PR into feat/** runs everything else.
+  FULL: ${{ github.event_name != 'pull_request' || github.base_ref == 'main' }}
 
 jobs:
   python:
     name: Python (ruff, pytest, verification pack)
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -71,9 +82,15 @@ jobs:
 
       - name: Pytest
         working-directory: python
-        run: python -m pytest -q --durations=15
+        run: |
+          if [ "$FULL" = true ]; then
+            python -m pytest -q --durations=15
+          else
+            python -m pytest -q --durations=15 -m "not slow"
+          fi
 
       - name: Verification pack (quick run)
+        if: env.FULL == 'true'
         working-directory: python
         # The pack exits 1 whenever any case fails, and A9 is a known failure in the fast set.
         # The exit code is therefore ignored here; the next step decides against the explicit
@@ -81,10 +98,11 @@ jobs:
         run: python -m saengine.verification --fast --pdf --out "$RUNNER_TEMP/verification" || true
 
       - name: Check the verification pack against the expected failures
+        if: always() && env.FULL == 'true'
         run: python scripts/ci/check_verification.py "$RUNNER_TEMP/verification/verification.json"
 
       - name: Keep the verification results
-        if: always()
+        if: always() && env.FULL == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: verification
@@ -96,6 +114,7 @@ jobs:
 
   workbench:
     name: Workbench (typecheck, eslint, SAEngine unit tests)
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 90
     defaults:
@@ -162,14 +181,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Save node_modules
-        if: steps.node-modules.outputs.cache-hit != 'true' && github.event_name == 'push'
+        if: steps.node-modules.outputs.cache-hit != 'true' && github.event_name != 'pull_request'
         run: |
           bash ../scripts/ci/link-saengine-packages.sh unlink
           bash ./.github/workflows/node_modules_cache/cache.sh archive
           bash ../scripts/ci/link-saengine-packages.sh link
 
       - name: Upload the node_modules cache
-        if: steps.node-modules.outputs.cache-hit != 'true' && github.event_name == 'push'
+        if: steps.node-modules.outputs.cache-hit != 'true' && github.event_name != 'pull_request'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: workbench/.build/node_modules_cache
