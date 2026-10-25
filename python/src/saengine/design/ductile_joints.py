@@ -821,13 +821,12 @@ def _column_shear_depth(section: RcSection, frame: ColumnFrame) -> tuple[float, 
     if isinstance(section.profile, CircleProfile):
         diameter = 2 * section.profile.radius
         return diameter, 0.8 * diameter
-    u = np.array([math.cos(frame.compression), math.sin(frame.compression)])
-    along = [(b.x * u[0] + b.y * u[1], b.area) for b in section.bars]
-    far = [(s, a) for s, a in along if s < 0]
-    if not far:
-        return frame.across, 0.8 * frame.along
-    centroid = sum(s * a for s, a in far) / sum(a for _, a in far)
-    return frame.across, frame.along / 2 - centroid
+    # One rule for d with the non-ductile column shear (saengine.design.column_shear): bars on
+    # the centre line are not in the far half (counting them pulled d in, 305 mm instead of
+    # 340 mm for 3 bars a face of a 400 mm column).
+    from saengine.design.column_shear import shear_depth
+
+    return frame.across, shear_depth(section, frame.compression)
 
 
 def column_capacity_shear(

@@ -172,6 +172,69 @@
       "title": "CrackedStiffness",
       "type": "object"
     },
+    "DeflectionLimitsGroup": {
+      "additionalProperties": false,
+      "description": "Span divisors of the computed deflection limits, ξ and the cantilever thickness divisors\n(BNBC 2020 Part 6 Sec 6.2.5).",
+      "properties": {
+        "liveFloor": {
+          "description": "Floors: immediate live-load deflection <= l/this.",
+          "exclusiveMinimum": 0,
+          "title": "Livefloor",
+          "type": "number"
+        },
+        "liveRoof": {
+          "description": "Flat roofs: immediate live-load deflection.",
+          "exclusiveMinimum": 0,
+          "title": "Liveroof",
+          "type": "number"
+        },
+        "attachedSensitive": {
+          "description": "After attachment, elements likely to be damaged: l/this.",
+          "exclusiveMinimum": 0,
+          "title": "Attachedsensitive",
+          "type": "number"
+        },
+        "attachedInsensitive": {
+          "description": "After attachment, elements not likely to be damaged: l/this.",
+          "exclusiveMinimum": 0,
+          "title": "Attachedinsensitive",
+          "type": "number"
+        },
+        "xi": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Months -> ξ.",
+          "minProperties": 1,
+          "title": "Xi",
+          "type": "object"
+        },
+        "cantileverBeam": {
+          "description": "Least beam depth of a cantilever: l/this.",
+          "exclusiveMinimum": 0,
+          "title": "Cantileverbeam",
+          "type": "number"
+        },
+        "cantileverSlab": {
+          "description": "Least slab thickness of a cantilever: l/this.",
+          "exclusiveMinimum": 0,
+          "title": "Cantileverslab",
+          "type": "number"
+        }
+      },
+      "required": [
+        "liveFloor",
+        "liveRoof",
+        "attachedSensitive",
+        "attachedInsensitive",
+        "xi",
+        "cantileverBeam",
+        "cantileverSlab"
+      ],
+      "title": "DeflectionLimitsGroup",
+      "type": "object"
+    },
     "SlenderLimits": {
       "additionalProperties": false,
       "description": "Slender column limits (moment magnifier method).",
@@ -222,6 +285,74 @@
         "momentRatioMax"
       ],
       "title": "SlenderLimits",
+      "type": "object"
+    },
+    "TorsionLimits": {
+      "additionalProperties": false,
+      "description": "Limits and choices of the torsion design of beams (BNBC 2020 Part 6 Sec 6.4.4).",
+      "properties": {
+        "theta": {
+          "description": "Angle θ of the compression diagonals [°].",
+          "maximum": 60,
+          "minimum": 30,
+          "title": "Theta",
+          "type": "number"
+        },
+        "aoShare": {
+          "description": "Ao / Aoh.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Aoshare",
+          "type": "number"
+        },
+        "spacingMax": {
+          "description": "Largest spacing of closed stirrups [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Spacingmax",
+          "type": "number"
+        },
+        "perimeterDivisor": {
+          "description": "s <= ph / this.",
+          "exclusiveMinimum": 0,
+          "title": "Perimeterdivisor",
+          "type": "number"
+        },
+        "longitudinalSpacingMax": {
+          "description": "Longitudinal bars apart at most [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Longitudinalspacingmax",
+          "type": "number"
+        },
+        "longitudinalDiaRatio": {
+          "description": "Longitudinal bar diameter >= this × s.",
+          "exclusiveMinimum": 0,
+          "title": "Longitudinaldiaratio",
+          "type": "number"
+        },
+        "longitudinalDiaMin": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Longitudinaldiamin",
+          "type": "number"
+        },
+        "fyMax": {
+          "description": "Largest fy, fyt of torsion steel [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Fymax",
+          "type": "number"
+        }
+      },
+      "required": [
+        "theta",
+        "aoShare",
+        "spacingMax",
+        "perimeterDivisor",
+        "longitudinalSpacingMax",
+        "longitudinalDiaRatio",
+        "longitudinalDiaMin",
+        "fyMax"
+      ],
+      "title": "TorsionLimits",
       "type": "object"
     },
     "WallSteel": {
@@ -439,6 +570,30 @@
     },
     "walls": {
       "$ref": "#/$defs/WallSteel"
+    },
+    "torsion": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TorsionLimits"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Torsion design of beams (saengine.design.torsion)."
+    },
+    "deflection": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DeflectionLimitsGroup"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Deflection limits (saengine.design.deflection)."
     }
   },
   "required": [

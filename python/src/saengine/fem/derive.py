@@ -50,6 +50,7 @@ and inclined members rotated by other than a multiple of 90° use the nearest on
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import itertools
 import math
@@ -57,12 +58,13 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from itertools import pairwise
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from saengine.codes import context as code_context
 from saengine.fem import loads as fl
+from saengine.fem import slab_load_shapes as sls
 from saengine.fem.mesh import Surface, Volume, mesh, shell_node_shares
 from saengine.library.bim import (
     AreaElement,
@@ -79,6 +81,9 @@ from saengine.library.objects import ObjectLibrary
 from saengine.library.sections import section_properties
 from saengine.library.settings import ProjectSettings, derived
 from saengine.library.structure import plane_of
+
+if TYPE_CHECKING:
+    from saengine.fem import pattern_live
 
 G = 9.80665  # m/s²
 MM = 0.001  # m per mm
@@ -117,6 +122,8 @@ _CASE_LABELS = {
     "EXN": "Earthquake in X, masses shifted -5 % along Y",
     "EYP": "Earthquake in Y, masses shifted +5 % along X",
     "EYN": "Earthquake in Y, masses shifted -5 % along X",
+    "WTX": "Torsion of the wind in X (BNBC 2020 Part 6 Figure 6.2.9, e = 0.15 B)",
+    "WTY": "Torsion of the wind in Y (BNBC 2020 Part 6 Figure 6.2.9, e = 0.15 B)",
 }
 
 #: Seismic weight (BNBC 2020 Part 6 Sec 2.5.7.3, p. 628): live loads above 3 kN/m² (the pack's
@@ -683,6 +690,56 @@ def _derive_fem(
         else None
     )
     cuts = ml.split_points(member_set) if member_set is not None else {}
+    # Beams that carry slabs' load shapes (slabs not in the model as plates): cut into members
+    # of the mesh size, so the triangles and trapezoids reach their moments
+    # (saengine.fem.slab_load_shapes.division_points). The end members keep the joint zone
+    # whole (slab_load_shapes.joint_clearance), so the rigid end zones of the end offsets are
+    # not capped at a share of a short piece (_rigid_end_zones).
+    if options.slabs != "shells":
+        from saengine.fem.end_zones import support_reach
+
+        beam_size = float(options.meshSize) * float(option(options, "meshScale", 1.0))
+        zone_factor = (
+            float(option(options, "rigidZoneFactor", 0.5))
+            if option(options, "endOffsets", False) and not special
+            else 0.0
+        )
+        column_faces = [
+            (
+                np.array(e.position, dtype=float),
+                float(e.bottom),
+                float(e.top),
+                types[e.type].profile,
+                e.rotation if exact_angles else 90 * round(e.rotation / 90),
+            )
+            for e in building.elements
+            if isinstance(e, ColumnElement) and hasattr(types.get(e.type), "profile")
+        ]
+
+        def joint_clear(at: np.ndarray, toward: np.ndarray, elevation: float) -> float:
+            if not zone_factor:
+                return 0.0
+            direction = (float(toward[0] - at[0]), float(toward[1] - at[1]))
+            reach = max(
+                (
+                    support_reach(profile, rotation, direction)
+                    for position, bottom, top, profile, rotation in column_faces
+                    if float(np.linalg.norm(position - at)) < 1.0
+                    and bottom - 1.0 <= elevation <= top + 1.0
+                ),
+                default=0.0,
+            )
+            return sls.joint_clearance(reach, zone_factor)
+
+        for element in building.elements:
+            if isinstance(element, BeamElement):
+                s0 = np.array(element.start, dtype=float)
+                s1 = np.array(element.end, dtype=float)
+                z = float(element.elevation)
+                clear = (joint_clear(s0, s1, z), joint_clear(s1, s0, z))
+                cuts.setdefault(element.id, []).extend(
+                    sls.division_points((*s0, z), (*s1, z), beam_size, clear)
+                )
     # Members whose steel type has a simple connection: their ends (mm), pinned below.
     simple_ends: dict[str, tuple[np.ndarray, np.ndarray]] = {}
 
@@ -977,6 +1034,17 @@ def _derive_fem(
     def top_stage(node_ids: Any) -> int:
         return stage_of(max(float(b.coords[n][2]) for n in node_ids))
 
+    # Live load arrangements (analysis.patternLive, saengine.fem.pattern_live): every live load
+    # (case L) is logged with the point that places it in a bay (``live_at``: a shell's centre,
+    # a slab panel's centroid; else the node or the member's middle) [mm], and copied into the
+    # arrangement cases once all loads are in.
+    live_log: list[tuple[str, int, np.ndarray, tuple[float, float, float]]] = []
+    live_at: list[tuple[float, float, float] | None] = [None]
+
+    def log_live(kind: str, target: int, vector: np.ndarray, at: np.ndarray) -> None:
+        where = live_at[0] or (float(at[0]) / MM, float(at[1]) / MM, float(at[2]) / MM)
+        live_log.append((kind, target, vector.copy(), where))
+
     def add_element_load(case: str, index: int, vector: np.ndarray) -> None:
         """A uniform load (global N/m) on member ``index``, applied in its local axes."""
         member = b.members[index]
@@ -984,6 +1052,8 @@ def _derive_fem(
         local = np.array([vector @ x, vector @ y, vector @ z])
         total = patterns[case]["element"].setdefault(index, np.zeros(3))
         total += local
+        if case == "L":
+            log_live("element", index, local, (b.coords[member.i] + b.coords[member.j]) / 2)
         if staged and case == "D":
             stage = stage_patterns.setdefault(
                 top_stage((member.i, member.j)), {"nodal": {}, "element": {}}
@@ -994,6 +1064,8 @@ def _derive_fem(
         """A nodal force (global N); ``stage``: the construction stage of the element it comes
         from (by default the stage of the node's level)."""
         patterns[case]["nodal"].setdefault(node_id, np.zeros(6))[:3] += force
+        if case == "L":
+            log_live("nodal", node_id, np.asarray(force, dtype=float), b.coords[node_id])
         if staged and case == "D":
             k = stage if stage is not None else top_stage((node_id,))
             pattern = stage_patterns.setdefault(k, {"nodal": {}, "element": {}})
@@ -1073,9 +1145,12 @@ def _derive_fem(
         shares = shell_node_shares([b.coords[n] for n in shell.nodes])
         stage = top_stage(shell.nodes)
         share = seismic_share(case, pressure)
+        middle = np.mean([b.coords[n] for n in shell.nodes], axis=0) / MM
+        live_at[0] = (float(middle[0]), float(middle[1]), float(middle[2]))
         for node_id, area in zip(shell.nodes, shares, strict=True):
             add_nodal(case, node_id, down * pressure * area, stage)
             add_weight(node_id, pressure * area * share, part_of(case))
+        live_at[0] = None
 
     by_pair = {frozenset((m.i, m.j)): index for index, m in enumerate(b.members)}
 
@@ -1090,11 +1165,16 @@ def _derive_fem(
         load: float,
         share: float | None = None,
         part: str | None = None,
+        profile: sls.EdgeProfile | None = None,
     ) -> bool:
         """A uniform line load (N/m, down) along ``p0``-``p1``: beams along it carry their part,
         the nodes on it the rest. False when part of it has no node to go to. ``share``: the part
         of it in the seismic weight (by default that of its case); ``part``: the part of W it
-        counts in (by default that of its case)."""
+        counts in (by default that of its case); ``profile``: a varying load instead (a slab's
+        triangle or trapezoid, stations in m from ``p0``; ``load`` is then not used): each member
+        takes its mean over the member and a pair of nodal forces that make up its moment
+        (:func:`saengine.fem.slab_load_shapes.segment_loads`), the end loads go to the end
+        nodes."""
         w = seismic_share(case) if share is None else share
         part = part or part_of(case)
         axis = p1 - p0
@@ -1105,16 +1185,37 @@ def _derive_fem(
             if _on_segment(xyz, p0, p1)
         )
         complete = bool(on_line) and on_line[0][0] < 1e-6 and on_line[-1][0] > 1 - 1e-6
+        stage = stage_of(float(p0[2]))
         for (t0, n0), (t1, n1) in pairwise(on_line):
             span = (t1 - t0) * length
             index = by_pair.get(frozenset((n0, n1)))
-            if index is not None:
-                add_element_load(case, index, down * load)
-                share_weight(index, load, w, part)
+            if profile is None:
+                mean, ends = load, (0.0, 0.0)
+                reactions = (load * span / 2, load * span / 2)
             else:
-                for node_id in (n0, n1):
-                    add_nodal(case, node_id, down * load * span / 2, stage_of(float(p0[2])))
-                    add_weight(node_id, load * span / 2 * w, part)
+                mean, f0, f1 = sls.segment_loads(profile, t0 * length, t1 * length)
+                ends = (f0, f1)
+                reactions = profile.reactions(t0 * length, t1 * length)
+            if index is not None:
+                add_element_load(case, index, down * mean)
+                share_weight(index, mean, w, part)
+                for node_id, force in zip((n0, n1), ends, strict=True):
+                    if force:
+                        add_nodal(case, node_id, down * force, stage)
+                        add_weight(node_id, force * w, part)
+            else:
+                for node_id, force in zip((n0, n1), reactions, strict=True):
+                    add_nodal(case, node_id, down * force, stage)
+                    add_weight(node_id, force * w, part)
+        if profile is not None:
+            for (t, node_id), force, at in zip(
+                (on_line[0], on_line[-1]) if on_line else (), profile.end_loads, (0.0, 1.0)
+            ):
+                if force and abs(t - at) < 1e-6:
+                    add_nodal(case, node_id, down * force, stage)
+                    add_weight(node_id, force * w, part)
+                elif force:
+                    complete = False
         if not complete and case == "D":
             b.notes.append(
                 f"{source}: part of its load has no beam, wall or column to go to; not applied"
@@ -1190,16 +1291,34 @@ def _derive_fem(
             )
         corners = [(x * MM, y * MM) for x, y in element.boundary]
         z = element.elevation * MM
+        # A panel's live load is placed in its bay by the panel's centroid (its edges lie on
+        # the grid lines).
+        from saengine.fem.pattern_live import centroid
+
+        panel = centroid(element.boundary)
+        live_at[0] = (panel[0], panel[1], float(element.elevation))
+        noted = False
         for case, pressure in pressures.items():
             if not pressure:
                 continue
-            for edge in fl.slab_edge_loads(corners, pressure, object_type.system):
-                if edge.load:
+            shape = sls.slab_load_shapes(corners, pressure, object_type.system)
+            if not noted:
+                b.notes += [f"{element.id}: {note}" for note in shape.notes]
+                noted = True
+            for edge in shape.edges:
+                if edge.total:
                     p0 = np.array([*corners[edge.index], z])
                     p1 = np.array([*corners[(edge.index + 1) % len(corners)], z])
                     line_load(
-                        element.id, case, p0, p1, edge.load, share=seismic_share(case, pressure)
+                        element.id,
+                        case,
+                        p0,
+                        p1,
+                        edge.load,
+                        share=seismic_share(case, pressure),
+                        profile=edge,
                     )
+        live_at[0] = None
 
     # ── equipment of 07 MEP: its weight, contents and impact on the slabs it stands on ──
     b.notes.extend(mep_notes)
@@ -1242,6 +1361,22 @@ def _derive_fem(
             add_weight(node_id, force * seismic_share(case), part_of(case))
 
         b.notes += ml.apply(member_set, b.coords, line_load, point_load)
+
+    # ── the arrangements of the live load (BNBC 2020 Part 6 Sec 6.1.12.2) ──
+    live_cases = _live_arrangements(
+        building,
+        types,
+        mats,
+        settings,
+        option(options, "patternLive", "off"),
+        live_log,
+        patterns,
+        b,
+    )
+    summary_live = {
+        "mode": option(options, "patternLive", "off"),
+        "cases": [{"case": p.name, "label": p.label, "clause": p.clause} for p in live_cases],
+    }
 
     # ── levels: the story elevations with nodes ──
     # Mass lumping (``analysis.massLumping``): "storyLevels" (as a commercial analysis program
@@ -1405,6 +1540,8 @@ def _derive_fem(
     summary: dict[str, Any] = {"levels": len(heights), "weight_kN": sum(weights) / 1e3}
     if member_set is not None:
         summary["memberLoads"] = member_set.summary()
+    if summary_live["cases"]:
+        summary["patternLive"] = summary_live
     eccentricity = float(getattr(seismic_table, "accidentalEccentricity", None) or 0.05)
     eccentric = bool(option(options, "accidentalEccentricity", False)) and bool(heights)
     period_method = option(options, "periodMethod", "approximate")
@@ -1463,63 +1600,72 @@ def _derive_fem(
                 out[case] = nodal
         return out, info
 
+    # Earthquake and wind each need only their own site values (BNBC 2020 Part 6 Sec 2.5 the
+    # zone coefficient Z, Sec 2.4 the basic wind speed V); a missing one is reported, and its
+    # cases stay empty, never the other's.
     approximate = 0.0
-    if heights and values["Z"] and values["windSpeed"]:
+    if heights and values["Z"]:
         approximate = fl.approximate_period(hn, settings.seismic.system)
         loads, info = seismic_loads({"X": approximate, "Y": approximate})
         for case, nodal in loads.items():
             target = patterns.setdefault(case, {"nodal": {}, "element": {}})["nodal"]
             for node_id, vector in nodal.items():
                 target.setdefault(node_id, np.zeros(6))[:] += vector
-        xs = [xyz[0] for xyz in b.coords.values()]
-        ys = [xyz[1] for xyz in b.coords.values()]
-        extent_x, extent_y = (max(xs) - min(xs)) or 1.0, (max(ys) - min(ys)) or 1.0
-        rel = [h - base_m for h in heights]
-        wind = {
-            "WX": fl.wind_level_forces(
-                rel,
-                extent_y,
-                extent_x,
-                values["windSpeed"],
-                settings.wind.exposure,
-                values["windImportance"],
-            ),
-            "WY": fl.wind_level_forces(
-                rel,
-                extent_x,
-                extent_y,
-                values["windSpeed"],
-                settings.wind.exposure,
-                values["windImportance"],
-            ),
-        }
-        for level, h in enumerate(heights):
-            for node_id, share in level_shares(h).items():
-                add_nodal("WX", node_id, np.array([wind["WX"][level] * 1e3 * share, 0, 0]))
-                add_nodal("WY", node_id, np.array([0, wind["WY"][level] * 1e3 * share, 0]))
         summary.update(
             {
                 "period_s": approximate,
                 "Cs": fl.normalized_spectrum(approximate, settings.site.siteClass),
                 "Sa_g": info["EX"]["Sa_g"],
                 "base_shear_kN": info["EX"]["base_shear_kN"],
-                "wind_X_kN": sum(wind["WX"]),
-                "wind_Y_kN": sum(wind["WY"]),
                 "periodMethod": "approximate",
                 "seismic": {k: v for k, v in info.items() if k != "levels"},
             }
         )
         if eccentric:
             summary["accidentalTorsion"] = info["levels"]
-    elif special:
+    if heights and values["windSpeed"]:
+        wind_notes = _wind_loads(
+            b,
+            heights,
+            base_m,
+            level_nodes,
+            retained_of,
+            level_shares,
+            patterns,
+            summary,
+            values["windSpeed"],
+            settings.wind.exposure,
+            values["windImportance"],
+            rigid=options.diaphragm == "rigid",
+            torsion=bool(option(options, "windTorsionCases", True)),
+            story_names=story_names,
+        )
+        b.notes.extend(wind_notes)
+    if special:
         b.notes.append(
             "special structure: no equivalent static wind or earthquake loads (they suit "
             "buildings with floors); gravity loads only for now"
         )
+    elif not heights:
+        b.notes.append("no lateral loads: the building has no levels above its base")
     else:
-        b.notes.append(
-            "no lateral loads: the building has no levels above its base, or the site has no Z or wind speed"
-        )
+        missing = []
+        if not values["Z"]:
+            missing.append("Z")
+            b.notes.append(
+                "no earthquake loads: the site has no seismic zone coefficient Z (Project "
+                "settings → Site: a location with a zone, or Z); EX and EY are empty, and every "
+                "combination with them is formed without earthquake"
+            )
+        if not values["windSpeed"]:
+            missing.append("windSpeed")
+            b.notes.append(
+                "no wind loads: the site has no basic wind speed V (Project settings → Site: a "
+                "location with a speed, or V); WX and WY are empty, and every combination with "
+                "them is formed without wind"
+            )
+        if missing:
+            summary["lateralMissing"] = missing
 
     # ── the seismic weight W and how it was formed ──
     if heights:
@@ -1641,6 +1787,10 @@ def _derive_fem(
     cases = [c for c in CASES if c != "F" or patterns[c]["nodal"] or patterns[c]["element"]]
     # The eccentric earthquake cases after them (only when asked for, so the others keep ids).
     cases += [c for c in ECCENTRIC_CASES if c in patterns]
+    # The torsional wind cases (BNBC Figure 6.2.9) and the live load arrangements after them.
+    cases += [c for c in fl.WIND_TORSION_CASES.values() if c in patterns]
+    cases += [p.name for p in live_cases]
+    extra_labels = {p.name: p.label for p in live_cases}
     load_patterns = []
     for number, case in enumerate(cases, start=1):
         pattern = patterns[case]
@@ -1697,7 +1847,7 @@ def _derive_fem(
     analyses = [
         {
             "id": number,
-            "name": f"{case}: {case_label(case)}",
+            "name": f"{case}: {extra_labels.get(case) or case_label(case)}",
             "type": "Static",
             "pattern_ids": [number],
             "n_steps": 1,
@@ -2284,6 +2434,151 @@ def _torsion_forces(
     return out
 
 
+def _wind_loads(
+    b: _Builder,
+    heights: list[float],
+    base_m: float,
+    level_nodes: dict[float, list[int]],
+    retained_of: dict[float, int],
+    level_shares: Any,
+    patterns: dict[str, dict[str, Any]],
+    summary: dict[str, Any],
+    speed: float,
+    exposure: str,
+    importance: float,
+    *,
+    rigid: bool,
+    torsion: bool,
+    story_names: dict[float, str] | None = None,
+) -> list[str]:
+    """The equivalent static wind loads WX and WY (BNBC 2020 Part 6 Sec 2.4.11.2) and the
+    torsional cases WTX and WTY (Sec 2.4.11.3 and Figure 6.2.9, pp. 559 and 574-575) into
+    ``patterns``; returns the notes.
+
+    Each storey's face is that of its own level's extent across the wind (a setback tower is
+    narrower than its podium, :func:`saengine.fem.loads.wind_levels`). A level's force is shared
+    among its nodes like the earthquake's (by weight), plus the couple that puts its resultant
+    at the geometric centre of the face it takes, not at the centre of mass. WTX and WTY are the
+    moments F·e alone, e = 0.15·B (B the face's width) counter-clockwise; the combinations take
+    them with ± and the factors of Cases 2 and 4 (:func:`saengine.fem.loads.wind_design_variants`).
+    """
+    notes: list[str] = []
+    rel = [h - base_m for h in heights]
+    extents = []
+    for h in heights:
+        xy = np.array([b.coords[n][:2] for n in level_nodes[h]], dtype=float)
+        extents.append((xy.min(axis=0), xy.max(axis=0)))
+    cases = fl.wind_design_cases()
+    exempt = cases is not None and fl.wind_torsion_exempt(len(heights), rel[-1], rigid, cases)
+    with_torsion = cases is not None and torsion and not exempt
+    if cases is None:
+        notes.append(
+            "wind: the code pack has no design wind load cases (BNBC 2020 Figure 6.2.9); only "
+            "Case 1 (WX, WY), no torsional or simultaneous wind cases"
+        )
+    elif exempt:
+        notes.append(
+            "wind: Cases 1 and 3 of BNBC 2020 Figure 6.2.9 only (Sec 2.4.11.3, Exception: one "
+            f"storey with h ≤ {cases.exemptHeight:g} m, or two storeys or less with flexible "
+            "diaphragms)"
+        )
+    elif not torsion:
+        notes.append(
+            "wind: the torsional cases of BNBC 2020 Figure 6.2.9 (Cases 2 and 4) are turned off "
+            "(analysis option windTorsionCases), though Sec 2.4.11.3 requires them here"
+        )
+    rows: dict[str, list[dict[str, float]]] = {}
+    totals: dict[str, float] = {}
+    no_width: dict[str, list[str]] = {}
+    for axis, case in ((0, "WX"), (1, "WY")):
+        across = 1 - axis
+        spans = [(float(lo[across]), float(hi[across])) for lo, hi in extents]
+        depths = [float(hi[axis] - lo[axis]) for lo, hi in extents]
+        # A level whose nodes have no extent across the wind (a planar frame, or nodes on one
+        # line) has no face of its own: say so rather than report 0 kN as a result.
+        flat = [
+            _story_label(story_names or {}, h)
+            for h, (low, high) in zip(heights, spans, strict=True)
+            if high - low <= _WIND_MIN_WIDTH
+        ]
+        if flat:
+            direction = "X" if axis == 0 else "Y"
+            whole = len(flat) == len(heights)
+            notes.append(
+                f"wind in {direction}: "
+                + (
+                    f"no level has any width across the wind, so {case} is empty and every "
+                    f"combination with {case} is formed without wind in {direction} (a planar "
+                    "or one-line model; apply wind by hand as nodal loads)"
+                    if whole
+                    else f"level(s) {', '.join(flat)} have no width of their own across the "
+                    "wind; their storeys' faces take no wind pressure"
+                )
+            )
+            no_width[case] = flat
+        levels = fl.wind_levels(rel, spans, depths, speed, exposure, importance)
+        moments = (
+            fl.wind_torsion_moments(levels, cases.eccentricity)
+            if with_torsion and cases is not None
+            else None
+        )
+        target = patterns.setdefault(case, {"nodal": {}, "element": {}})["nodal"]
+        twist = (
+            patterns.setdefault(fl.WIND_TORSION_CASES[case], {"nodal": {}, "element": {}})["nodal"]
+            if moments is not None
+            else None
+        )
+        rows[case] = []
+        for i, (h, level) in enumerate(zip(heights, levels, strict=True)):
+            shares = level_shares(h)
+            total = sum(shares.values())
+            centre = sum(b.coords[n][:2] * s for n, s in shares.items()) / total
+            force = level.force * 1e3  # kN -> N
+            for node_id, share in shares.items():
+                target.setdefault(node_id, np.zeros(6))[axis] += force * share
+            # The couple from the shares' centre to the face's: a force F along X at y = c
+            # turns by -F·(c - y0) about Z; along Y at x = c by +F·(c - x0).
+            offset = level.centre - float(centre[across])
+            couple = force * offset * (-1 if axis == 0 else 1)
+            master = retained_of.get(h)
+            for node_id, vector in _torsion_forces(b.coords, shares, master, couple).items():
+                target.setdefault(node_id, np.zeros(6))[:] += vector
+            row = {
+                "z": round(h, 6),
+                "force_kN": level.force,
+                "B_m": level.width,
+                "centre_m": level.centre,
+                "offset_m": offset,
+            }
+            if moments is not None and twist is not None:
+                moment = moments[i] * 1e3  # kN·m -> N·m
+                for node_id, vector in _torsion_forces(b.coords, shares, master, moment).items():
+                    twist.setdefault(node_id, np.zeros(6))[:] += vector
+                row["e_m"] = cases.eccentricity * level.torsion_arm if cases else 0.0
+                row["torsion_kNm"] = moments[i]
+            rows[case].append(row)
+        totals[case] = sum(level.force for level in levels)
+    summary["wind_X_kN"] = totals["WX"]
+    summary["wind_Y_kN"] = totals["WY"]
+    summary["wind"] = {
+        "levels": rows,
+        "torsionCases": [fl.WIND_TORSION_CASES[c] for c in ("WX", "WY")] if with_torsion else [],
+        "designCases": None if cases is None else dict(vars(cases)),
+        "exempt": exempt,
+        "noWidth": no_width,
+    }
+    return notes
+
+
+#: A level narrower than this across the wind [m] has no face of its own (a numerical zero).
+_WIND_MIN_WIDTH = 1e-6
+
+
+def _story_label(story_names: dict[float, str], h: float) -> str:
+    """A level's name for a note: its storey name when it has one, else its z [m]."""
+    return story_names.get(round(h, 6)) or f"z = {h:g} m"
+
+
 def _seismic_weight_summary(
     lumping: str,
     heights: list[float],
@@ -2554,3 +2849,84 @@ def _on_segment(point: np.ndarray, a: np.ndarray, b: np.ndarray, tolerance: floa
     length2 = float(axis @ axis)
     t = float((point - a) @ axis / length2) if length2 else 0.0
     return -1e-6 <= t <= 1 + 1e-6 and float(np.linalg.norm(a + t * axis - point)) <= tolerance
+
+
+def _live_arrangements(
+    building: BuildingModel,
+    types: dict[str, Any],
+    mats: dict[str, Any],
+    settings: ProjectSettings,
+    mode: str,
+    live_log: list[tuple[str, int, np.ndarray, tuple[float, float, float]]],
+    patterns: dict[str, dict[str, Any]],
+    b: _Builder,
+) -> list[pattern_live.LivePattern]:
+    """The live load arrangement cases (``analysis.patternLive``, BNBC 2020 Part 6 Sec
+    6.1.12.2, :mod:`saengine.fem.pattern_live`) into ``patterns``: each live load logged
+    (``live_log``: kind, member index or node, load vector, placing point [mm]) goes to the
+    arrangements whose bays hold its point. Arrangements that load nothing are left out.
+    Returns the arrangements kept (they carry no seismic weight and no construction stage)."""
+    from saengine.fem import pattern_live
+
+    if mode == "off" or not live_log:
+        return []
+    points = [tuple(e.position) for e in building.elements if isinstance(e, ColumnElement)]
+    for e in building.elements:
+        if isinstance(e, WallElement) and getattr(types.get(e.type), "structural", False):
+            points += [tuple(e.start), tuple(e.end)]
+    if not points:
+        return []
+    # Flat-slab floors whose live load is at most 3/4 of the dead load need no arrangement
+    # (Sec 6.5.7.6.2); beams and one-way slabs always do (pattern_live.patterns_required).
+    area_loads = {a.id: a for a in settings.areaLoads}
+    needed, reasons = [], []
+    for element in building.elements:
+        if not isinstance(element, SlabElement):
+            continue
+        slab_type = types.get(element.type)
+        load = area_loads.get(element.areaLoad or settings.floorLoad)
+        if slab_type is None or load is None:
+            continue
+        material = mats.get(slab_type.material)
+        density = (material.mechanical.density or 0.0) if material else 0.0
+        dead = load.finish + load.partitions + density * G * slab_type.thickness * MM / 1e3
+        ok, why = pattern_live.patterns_required(slab_type.system, dead, load.live)
+        needed.append(ok)
+        reasons.append(why)
+    if needed and not any(needed):
+        b.notes.append(f"live load arrangements: not needed ({reasons[0]})")
+        return []
+    grid = pattern_live.Grid.of(points, levels=[at[2] for *_, at in live_log])
+    arrangements = pattern_live.live_patterns(
+        grid,
+        adjacent=mode in ("bnbc", "bnbcAlternateFloors"),
+        adjacent_floors="alternate" if mode == "bnbcAlternateFloors" else "each",
+    )
+    kept = []
+    for arrangement in arrangements:
+        pattern: dict[str, Any] = {"nodal": {}, "element": {}}
+        for kind, target, vector, (x, y, z) in live_log:
+            if not arrangement.loads(grid, x, y, z):
+                continue
+            if kind == "nodal":
+                pattern["nodal"].setdefault(target, np.zeros(6))[:3] += vector
+            else:
+                pattern["element"].setdefault(target, np.zeros(3))[:] += vector
+        if pattern["nodal"] or pattern["element"]:
+            patterns[arrangement.name] = pattern
+            kept.append(arrangement)
+    # Number the kept ones LP1, LP2 ... in order.
+    renamed = []
+    for k, arrangement in enumerate(kept, start=1):
+        name = f"LP{k}"
+        if name != arrangement.name:
+            patterns[name] = patterns.pop(arrangement.name)
+            arrangement = dataclasses.replace(arrangement, name=name)
+        renamed.append(arrangement)
+    if renamed:
+        b.notes.append(
+            f"live load arrangements: {len(renamed)} cases LP1-LP{len(renamed)} (BNBC 2020 Part "
+            "6 Sec 6.1.12.2: adjacent and alternate bays of the column grid; the design "
+            "envelopes them with the full live load L)"
+        )
+    return renamed

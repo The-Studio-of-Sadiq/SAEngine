@@ -114,7 +114,9 @@ def test_report_data_of_the_frame(data: dict) -> None:
 
     # The model is current: its derivation's values are recomputed.
     model = data["model"]
-    assert dict(model["rows"])["Nodes"] == "9"
+    # 8 frame nodes, the diaphragm's node and the nodes of the beams cut into members for the
+    # slab's load shapes (0.0.45; as tests/test_fem_derive.py).
+    assert dict(model["rows"])["Nodes"] == "57"
     derived = dict(model["derived"])
     assert "Equivalent static base shear V" in derived
     assert all(row[3] == "Complete" for row in model["run"])

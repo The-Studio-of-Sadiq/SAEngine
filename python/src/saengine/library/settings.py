@@ -382,9 +382,10 @@ class Analysis(_Model):
         default=500,
         ge=100,
         title="Mesh size",
-        description="Largest side of a shell element [mm]. 500 mm (before version 0.0.44: "
-        "1000 mm): beams on shell slabs get their gravity moments within about 5 % of a "
-        "converged mesh.",
+        description="Largest side of a shell element [mm], and with slabs as loads to beams the "
+        "largest beam element (the slabs' triangles and trapezoids are applied over it). 500 mm "
+        "(before version 0.0.44: 1000 mm): beams on shell slabs get their gravity moments "
+        "within about 5 % of a converged mesh.",
     )
     meshBySpan: bool = Field(
         default=True,
@@ -421,6 +422,56 @@ class Analysis(_Model):
         description="Add the static cases EXP, EXN, EYP, EYN: EX and EY with the story masses "
         "shifted ±5 % of the building's width across the force (BNBC 2020 Part 6 Sec 2.5.7.6.2, "
         "Eq. 6.2.43). With equivalent static design, every E combination is checked with both.",
+    )
+    windTorsionCases: bool = Field(
+        default=True,
+        title="Wind torsional cases",
+        description="Add the torsional wind cases WTX, WTY and design every one-direction wind "
+        "combination for the four design wind load cases of BNBC 2020 Part 6 Figure 6.2.9 "
+        "(Sec 2.4.11.3): full, 75 % with torsion e = ±0.15 B, 75 % in both directions, 56.3 % "
+        "in both with both torsions. Off: Cases 1 and 3 only (before version 0.0.45: Case 1).",
+    )
+    patternLive: Literal["bnbc", "bnbcAlternateFloors", "alternate", "off"] = Field(
+        default="bnbc",
+        title="Live load arrangement",
+        description="BNBC 2020 Part 6 Sec 6.1.12.2: live load on two adjacent spans and on "
+        "alternate spans of the column grid, as extra cases LP1, LP2 ... enveloped with the "
+        "full live load. BNBC: adjacent spans on each floor alone (one case per pair and floor) "
+        "and alternate spans as a checkerboard over the floors. Adjacent on alternate floors: "
+        "fewer cases, support moments up to about 2 % lower. Alternate spans only. Off: the "
+        "full live load on every span (before version 0.0.45).",
+        json_schema_extra=_labels(
+            [
+                "BNBC 6.1.12.2 (adjacent each floor, alternate checkerboard)",
+                "BNBC, adjacent on alternate floors (fewer cases)",
+                "Alternate spans only",
+                "Off (full live load only)",
+            ]
+        ),
+    )
+    deflection: Literal["sensitive", "insensitive", "off"] = Field(
+        default="sensitive",
+        title="Beam deflection limits",
+        description="Beams are checked for deflection (BNBC 2020 Part 6 Sec 6.2.5) unless they "
+        "are at least as deep as Table 6.6.1 asks: immediate live-load deflection l/360 "
+        "(l/180 roofs) and, after the nonstructural elements are attached, l/480 where they are "
+        "likely to be damaged (masonry partitions, the usual case) or l/240 where not "
+        "(Table 6.6.2). Off: not checked (before version 0.0.45).",
+        json_schema_extra=_labels(
+            [
+                "Partitions likely to be damaged (l/480)",
+                "Not likely to be damaged (l/240)",
+                "Off",
+            ]
+        ),
+    )
+    sustainedLive: float = Field(
+        default=0.25,
+        ge=0,
+        le=1,
+        title="Sustained share of the live load",
+        description="Share of the live load taken as sustained for the long-term deflection "
+        "(an SAEngine assumption for residential and office floors; raise it for storage).",
     )
     periodMethod: Literal["approximate", "analysis"] = Field(
         default="approximate",

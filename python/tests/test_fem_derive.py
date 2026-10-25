@@ -100,8 +100,10 @@ def test_derived_model_is_valid_with_bnbc_loads() -> None:
 
     d = derivation()
     project = Project.model_validate(d.project)
-    # 8 frame nodes and the rigid diaphragm's node at the floor's centre of mass.
-    assert (len(project.nodes), len(project.elements), d.summary["supports"]) == (9, 8, 4)
+    # 8 frame nodes, the beams cut into members of at most the mesh size (500 mm) for the
+    # slab's load shapes (the end members keep the joint zones whole: 0.0.45) and the rigid
+    # diaphragm's node at the floor's centre of mass.
+    assert (len(project.nodes), len(project.elements), d.summary["supports"]) == (57, 56, 4)
     assert d.summary["diaphragms"] == 1
     assert [p["name"] for p in d.project["load_patterns"]] == [
         "D",
@@ -127,7 +129,7 @@ def test_derived_model_is_valid_with_bnbc_loads() -> None:
     weight = 2400 * 9.80665 * (0.15 * 30 + 4 * 0.16 * 3.2 + 0.15 * 22)
     assert applied(d.project, "D")[2] == pytest.approx(-weight, rel=1e-6)
     assert applied(d.project, "EX")[0] == pytest.approx(d.summary["base_shear_kN"] * 1e3, rel=1e-6)
-    beam = next(e for e in d.project["elements"] if e["name"] == "B1")
+    beam = next(e for e in d.project["elements"] if e["name"].split("#")[0] == "B1")
     # Beam sections carry the strong axis in Iy (gravity bends horizontal beams about local y).
     section = next(s for s in d.project["sections"] if s["id"] == beam["section_id"])
     assert (section["Iy"], section["Iz"]) == pytest.approx(
@@ -179,8 +181,10 @@ def test_analysis_runs_and_combinations_balance(tmp_path: Path) -> None:
     assert not listing["stale"]
     view = result_view(out, model, keys["1.2D + 1.6L + 0.5Lr"])
     assert sum(r[3] for r in view["reactions"]) == pytest.approx(total[3], rel=1e-6)
-    beam = next(e for e in view["elements"] if e["name"] == "B1")
-    assert beam["forces"][0][4] > 0 > beam["forces"][len(beam["forces"]) // 2][4]  # hog, sag
+    # B1 is a chain of members B1, B1#1 ...: hogging at its first end, sagging in the span.
+    pieces = [e for e in view["elements"] if e["name"].split("#")[0] == "B1"]
+    first = next(e for e in pieces if e["name"] == "B1")
+    assert first["forces"][0][4] > 0 > min(f[4] for e in pieces for f in e["forces"])
     modal = next(r for r in listing["results"] if r["kind"] == "modal")
     shape = result_view(out, model, modal["key"], 1)
     assert max(abs(c) for n in shape["nodes"] for c in n[1:4]) == pytest.approx(1.0)

@@ -32,7 +32,12 @@ from saengine.library.materials import Category, MaterialLibrary
 from saengine.library.objects import CircleProfile, Column, Footing, ObjectLibrary, RectangleProfile
 from saengine.library.settings import ProjectSettings
 from saengine.substructure.loads import case_reactions as _case_reactions
-from saengine.substructure.loads import column_action, service_combinations
+from saengine.substructure.loads import (
+    column_action,
+    is_strength_level_wind,
+    service_combinations,
+    strength_combinations,
+)
 from saengine.substructure.loads import combine as _combine
 from saengine.substructure.shallow import (
     Bearing,
@@ -159,8 +164,6 @@ def footing_checks(
     from it at the footing's position, founding level and size (:class:`SoilBearing`), unless
     Project Settings → Foundation gives the override.
     """
-    from saengine.fem.combinations import combination_factors
-
     footings = [e for e in building.elements if isinstance(e, FootingElement)]
     if not footings:
         return [], [], []
@@ -182,15 +185,10 @@ def footing_checks(
             if key in supports:
                 bases.append((element, supports[key]))
 
-    strength: list[tuple[str, dict[str, float]]] = []
-    for combination in settings.combinations:
-        factors = combination_factors(combination, set(by_case))
-        if all(case in by_case for case in factors):
-            strength.append((combination.name, factors))
-    # Wind is nominal when a strength combination factors it above 1.0 (1.6W, BNBC 2.7.3).
-    wind_factors = [abs(f) for _, fs in strength for case, f in fs.items() if case[:1] == "W"]
-    strength_level_wind = bool(wind_factors) and max(wind_factors) <= 1.0 + 1e-9
-    service = service_combinations(by_case, strength_level_wind)
+    # The same combinations as 9 Substructure (the design wind load cases of BNBC Figure 6.2.9
+    # included, 0.0.45): one definition in saengine.substructure.loads.
+    strength = strength_combinations(settings, by_case)
+    service = service_combinations(by_case, is_strength_level_wind(strength))
     dead = {name: factors.get("D", factors.get("SD", 0.0)) for name, factors in strength}
 
     elements: list[dict[str, Any]] = []

@@ -1,0 +1,294 @@
+{
+  "$defs": {
+    "OneWayTable": {
+      "additionalProperties": false,
+      "description": "BNBC 6.1.4.3: M = w ln² / divisor; shear 1.15 w ln / 2 at the first interior support.",
+      "properties": {
+        "positive": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Positive",
+          "type": "object"
+        },
+        "negative": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Negative",
+          "type": "object"
+        },
+        "shortSpanMax": {
+          "exclusiveMinimum": 0,
+          "title": "Shortspanmax",
+          "type": "number"
+        },
+        "spanRatioMax": {
+          "minimum": 1,
+          "title": "Spanratiomax",
+          "type": "number"
+        },
+        "liveToDeadMax": {
+          "exclusiveMinimum": 0,
+          "title": "Livetodeadmax",
+          "type": "number"
+        },
+        "shearFirstInterior": {
+          "minimum": 1,
+          "title": "Shearfirstinterior",
+          "type": "number"
+        }
+      },
+      "required": [
+        "positive",
+        "negative",
+        "shortSpanMax",
+        "spanRatioMax",
+        "liveToDeadMax",
+        "shearFirstInterior"
+      ],
+      "title": "OneWayTable",
+      "type": "object"
+    },
+    "TwoWayLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "maxSpanRatio": {
+          "description": "Longer/shorter centre-to-centre span (6.5.8.2.2).",
+          "exclusiveMinimum": 0,
+          "title": "Maxspanratio",
+          "type": "number"
+        },
+        "beamDepthRatio": {
+          "description": "Least beam depth / slab thickness (6.5.8.2.1).",
+          "exclusiveMinimum": 0,
+          "title": "Beamdepthratio",
+          "type": "number"
+        },
+        "alphaRatioMin": {
+          "description": "Least αf1 l2/l1 (6.5.8.2.3).",
+          "exclusiveMinimum": 0,
+          "title": "Alpharatiomin",
+          "type": "number"
+        }
+      },
+      "required": [
+        "maxSpanRatio",
+        "beamDepthRatio",
+        "alphaRatioMin"
+      ],
+      "title": "TwoWayLimits",
+      "type": "object"
+    },
+    "TwoWayTables": {
+      "additionalProperties": false,
+      "description": "BNBC Tables 6.6.8-6.6.11: one row per span ratio m = la/lb (ascending), nine cases per\nrow (None: no negative moment, that direction's edges discontinuous).",
+      "properties": {
+        "ratios": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Ratios",
+          "type": "array"
+        },
+        "cases": {
+          "additionalProperties": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Cases",
+          "type": "object"
+        },
+        "negativeA": {
+          "items": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array"
+          },
+          "title": "Negativea",
+          "type": "array"
+        },
+        "negativeB": {
+          "items": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array"
+          },
+          "title": "Negativeb",
+          "type": "array"
+        },
+        "deadA": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Deada",
+          "type": "array"
+        },
+        "deadB": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Deadb",
+          "type": "array"
+        },
+        "liveA": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Livea",
+          "type": "array"
+        },
+        "liveB": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Liveb",
+          "type": "array"
+        },
+        "loadA": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Loada",
+          "type": "array"
+        },
+        "loadB": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Loadb",
+          "type": "array"
+        }
+      },
+      "required": [
+        "ratios",
+        "cases",
+        "negativeA",
+        "negativeB",
+        "deadA",
+        "deadB",
+        "liveA",
+        "liveB",
+        "loadA",
+        "loadB"
+      ],
+      "title": "TwoWayTables",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "twoWay": {
+      "$ref": "#/$defs/TwoWayTables"
+    },
+    "twoWayLimits": {
+      "$ref": "#/$defs/TwoWayLimits"
+    },
+    "oneWay": {
+      "$ref": "#/$defs/OneWayTable"
+    },
+    "maxSpacing": {
+      "additionalProperties": {
+        "maxItems": 2,
+        "minItems": 2,
+        "prefixItems": [
+          {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          }
+        ],
+        "type": "array"
+      },
+      "title": "Maxspacing",
+      "type": "object"
+    },
+    "brickAggregateFactor": {
+      "minimum": 1,
+      "title": "Brickaggregatefactor",
+      "type": "number"
+    },
+    "discontinuousEdgeShare": {
+      "description": "SAEngine practice, not a BNBC clause: top bars at a discontinuous edge for this share of the positive moment.",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Discontinuousedgeshare",
+      "type": "number"
+    }
+  },
+  "required": [
+    "twoWay",
+    "twoWayLimits",
+    "oneWay",
+    "maxSpacing",
+    "brickAggregateFactor",
+    "discontinuousEdgeShare"
+  ],
+  "title": "SlabCoefficientsTable",
+  "type": "object",
+  "$id": "saengine.codePack.slabCoefficients/1"
+}

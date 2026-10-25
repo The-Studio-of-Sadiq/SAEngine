@@ -489,7 +489,71 @@ def beam_rows(member: dict[str, Any], demand: BeamDemand, assumed: bool) -> list
                 wide,
             )
         )
+    rows += torsion_rows(member, assumed)
     return rows
+
+
+def torsion_rows(member: dict[str, Any], assumed: bool) -> list[dict[str, Any]]:
+    """The closed stirrups and longitudinal steel a beam's torsion needs (BNBC 2020 Part 6
+    Sec 6.4.4), from the torsion design of its checks (``member["torsion"]``, saengine.design.
+    torsion; none below the threshold)."""
+    design = member.get("torsion")
+    if design is None:
+        return []
+    obj = member["object"]
+    transverse = obj.reinforcement.transverse
+    element, type_id = member["id"], member["type"]
+    leg = None
+    if transverse is not None and not assumed and transverse.spacing:
+        leg = bar_area(transverse.dia) / transverse.spacing * 1000
+    return [
+        _row(
+            element,
+            "beam",
+            type_id,
+            "torsion",
+            "closed stirrups At/s per leg (with the shear's Av/s at the governing station)",
+            design.tu_design / 1e6,
+            "kN·m",
+            design.at_s * 1000,
+            design.at_s_min * 1000,
+            leg,
+            "mm²/m",
+            None,
+            [
+                f"Tu = {design.tu / 1e6:.1f} kN·m ({design.kind})",
+                f"s ≤ {design.s_max:.0f} mm (Sec 6.4.4.6.1)",
+                "the shear's Av/s is added per leg (Sec 6.4.4.3.8)",
+            ],
+            not design.section_ok,
+            bool(transverse is not None and not assumed and transverse.spacing > design.s_max),
+        ),
+        _row(
+            element,
+            "beam",
+            type_id,
+            "torsion",
+            "longitudinal bars Al around the perimeter",
+            design.tu_design / 1e6,
+            "kN·m",
+            design.al,
+            design.al_min,
+            None,
+            "mm²",
+            None,
+            [
+                (
+                    "on top of the flexural bars of the moment at the same station "
+                    "(Sec 6.4.4.3.8; the design check compares the sum with all the bars)"
+                ),
+                (
+                    f"bars ≥ Ø{max(design.long_dia_min, 10.0):.0f}, ≤ 300 mm apart, one in "
+                    "each corner (Sec 6.4.4.6.2)"
+                ),
+            ],
+            not design.section_ok,
+        ),
+    ]
 
 
 # ─────────────────────────────────────── columns ───────────────────────────────────────
@@ -863,8 +927,16 @@ def slab_layer_rules(system: str, h: float, span: str | None) -> dict[str, tuple
 
 
 def slab_envelope(collected: dict[str, Any], combinations: list[str]) -> dict[str, Peak]:
-    """The slab's largest Wood-Armer moment per layer [N·m/m] over all its strips."""
+    """The slab's largest Wood-Armer moment per layer [N·m/m] over all its strips (a slab on
+    beams designed by the coefficient methods: its design moments,
+    :attr:`saengine.design.slab.CoefficientDesign.envelope`)."""
     envelope = {name: Peak() for name in slab_design.LAYERS}
+    design = collected.get("coefficients")
+    if design is not None:
+        for name, (value, combination, where) in design.envelope.items():
+            if name in envelope:
+                envelope[name].take(value, combination, where)
+        return envelope
     for strip in strip_demands(collected, combinations):
         for name, peak in strip.peaks.items():
             envelope[name].take(peak.value, peak.combination, f"{strip.name}, {peak.where}")
@@ -921,7 +993,39 @@ def slab_rows(collected: dict[str, Any], combinations: list[str], assumed: bool)
     rules = slab_layer_rules(obj.system, h, span)
     shear = collected["context"].shear
     rows = []
-    for strip in strip_demands(collected, combinations):
+    design = collected.get("coefficients")
+    if design is not None:
+        method = "BNBC 6.5.8" if design.method == "twoWay" else "BNBC 6.1.4.3"
+        for name, peak in envelope.items():
+            in_span = design.span is None or name[-1] == design.span
+            required, minimum, notes, small = slab_layer_need(
+                name, peak.value * 1e3, depths[name], h, fc, fy, es, in_span, None
+            )
+            layer = layers.get(name)
+            notes += [
+                f"{method} coefficients",
+                f"spacing ≤ {rules[name][0]:.0f} mm ({rules[name][1]})",
+                peak.where,
+            ]
+            rows.append(
+                _row(
+                    collected["id"],
+                    "slab",
+                    collected["type"],
+                    f"{name} ({method} coefficients)",
+                    f"{name[:-1]} {name[-1]} bars",
+                    peak.value / 1e3,
+                    "kN·m/m",
+                    required,
+                    minimum,
+                    None if assumed or layer is None else layer.area,
+                    "mm²/m",
+                    peak.combination,
+                    notes,
+                    small,
+                )
+            )
+    for strip in [] if design is not None else strip_demands(collected, combinations):
         for name, peak in strip.peaks.items():
             in_span = span is None or name[-1] == span
             required, minimum, notes, small = slab_layer_need(

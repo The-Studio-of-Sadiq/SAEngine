@@ -252,6 +252,19 @@ class Exposure(_Row):
     zg: float = Field(gt=0, description="Gradient height [m].")
 
 
+class WindDesignCasesRow(_Row):
+    """The design wind load cases of the main wind-force resisting system (BNBC 2020 Part 6
+    Sec 2.4.11.3 and Figure 6.2.9): read by :func:`saengine.fem.loads.wind_design_cases`."""
+
+    partial: float = Field(gt=0, le=1, description="Case 2: share of the pressure with torsion.")
+    eccentricity: float = Field(ge=0, description="Case 2 and 4: e / B.")
+    simultaneous: float = Field(gt=0, le=1, description="Case 3: share of each direction.")
+    simultaneousTorsional: float = Field(
+        gt=0, le=1, description="Case 4: share of each direction with both torsions."
+    )
+    exemptHeight: float = Field(gt=0, description="Exception: one-storey height limit h [m].")
+
+
 class WindTable(TableModel):
     exposures: dict[str, Exposure]
     directionality: float = Field(description="Kd for buildings.")
@@ -260,6 +273,11 @@ class WindTable(TableModel):
     cpWindward: float
     #: (L/B, Cp) points of the leeward wall coefficient.
     cpLeeward: list[tuple[float, float]]
+    designCases: WindDesignCasesRow | None = Field(
+        default=None,
+        description="Factors of the design wind load cases 2-4 (torsional, simultaneous); "
+        "None: Case 1 only.",
+    )
 
 
 # ─────────────────────────────────────── materials, factors ───────────────────────────────────────
@@ -418,6 +436,36 @@ class WallSteel(_Group):
     spacingMax: Positive = Field(description="Largest bar spacing [mm].")
 
 
+class TorsionLimits(_Group):
+    """Limits and choices of the torsion design of beams (BNBC 2020 Part 6 Sec 6.4.4)."""
+
+    theta: float = Field(ge=30, le=60, description="Angle θ of the compression diagonals [°].")
+    aoShare: Share = Field(description="Ao / Aoh.")
+    spacingMax: Positive = Field(description="Largest spacing of closed stirrups [mm].")
+    perimeterDivisor: Positive = Field(description="s <= ph / this.")
+    longitudinalSpacingMax: Positive = Field(description="Longitudinal bars apart at most [mm].")
+    longitudinalDiaRatio: Positive = Field(description="Longitudinal bar diameter >= this × s.")
+    longitudinalDiaMin: Positive = Field(description="[mm]")
+    fyMax: Positive = Field(description="Largest fy, fyt of torsion steel [MPa].")
+
+
+class DeflectionLimitsGroup(_Group):
+    """Span divisors of the computed deflection limits, ξ and the cantilever thickness divisors
+    (BNBC 2020 Part 6 Sec 6.2.5)."""
+
+    liveFloor: Positive = Field(description="Floors: immediate live-load deflection <= l/this.")
+    liveRoof: Positive = Field(description="Flat roofs: immediate live-load deflection.")
+    attachedSensitive: Positive = Field(
+        description="After attachment, elements likely to be damaged: l/this."
+    )
+    attachedInsensitive: Positive = Field(
+        description="After attachment, elements not likely to be damaged: l/this."
+    )
+    xi: dict[float, Positive] = Field(min_length=1, description="Months -> ξ.")
+    cantileverBeam: Positive = Field(description="Least beam depth of a cantilever: l/this.")
+    cantileverSlab: Positive = Field(description="Least slab thickness of a cantilever: l/this.")
+
+
 class ConcreteTable(TableModel):
     barDiameters: BarDiameters = Field(description="Bar size sets [mm] by use.")
     spacingStep: float
@@ -436,6 +484,12 @@ class ConcreteTable(TableModel):
     crackedStiffness: CrackedStiffness
     slender: SlenderLimits
     walls: WallSteel
+    torsion: TorsionLimits | None = Field(
+        default=None, description="Torsion design of beams (saengine.design.torsion)."
+    )
+    deflection: DeflectionLimitsGroup | None = Field(
+        default=None, description="Deflection limits (saengine.design.deflection)."
+    )
 
     @model_validator(mode="after")
     def _check_ratios(self) -> ConcreteTable:
@@ -564,6 +618,76 @@ class FoundationsTable(TableModel):
     strutAndTie: StrutAndTie
 
 
+class TwoWayTables(BaseModel):
+    """BNBC Tables 6.6.8-6.6.11: one row per span ratio m = la/lb (ascending), nine cases per
+    row (None: no negative moment, that direction's edges discontinuous)."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    ratios: list[Positive] = Field(min_length=2)
+    #: case -> [continuous long edges, continuous short edges]
+    cases: dict[str, tuple[int, int]]
+    negativeA: list[list[float | None]]
+    negativeB: list[list[float | None]]
+    deadA: list[list[float]]
+    deadB: list[list[float]]
+    liveA: list[list[float]]
+    liveB: list[list[float]]
+    loadA: list[list[float]]
+    loadB: list[list[float]]
+
+    @model_validator(mode="after")
+    def _check_shape(self) -> TwoWayTables:
+        if self.ratios != sorted(self.ratios):
+            raise ValueError("ratios must ascend")
+        for name in (
+            "negativeA",
+            "negativeB",
+            "deadA",
+            "deadB",
+            "liveA",
+            "liveB",
+            "loadA",
+            "loadB",
+        ):
+            rows = getattr(self, name)
+            if len(rows) != len(self.ratios) or any(len(r) != len(self.cases) for r in rows):
+                raise ValueError(f"{name}: one row per ratio, one value per case")
+        return self
+
+
+class TwoWayLimits(_Group):
+    maxSpanRatio: Positive = Field(description="Longer/shorter centre-to-centre span (6.5.8.2.2).")
+    beamDepthRatio: Positive = Field(description="Least beam depth / slab thickness (6.5.8.2.1).")
+    alphaRatioMin: Positive = Field(description="Least αf1 l2/l1 (6.5.8.2.3).")
+
+
+class OneWayTable(BaseModel):
+    """BNBC 6.1.4.3: M = w ln² / divisor; shear 1.15 w ln / 2 at the first interior support."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    positive: dict[str, Positive]  # endUnrestrained, endIntegral, interior
+    negative: dict[str, Positive]  # firstInteriorTwoSpans, firstInteriorMoreSpans, ...
+    shortSpanMax: Positive
+    spanRatioMax: float = Field(ge=1)
+    liveToDeadMax: Positive
+    shearFirstInterior: float = Field(ge=1)
+
+
+class SlabCoefficientsTable(TableModel):
+    twoWay: TwoWayTables
+    twoWayLimits: TwoWayLimits
+    oneWay: OneWayTable
+    #: [times h, at most mm] per rule: twoWay, oneWay, temperature.
+    maxSpacing: dict[str, tuple[Positive, Positive]]
+    brickAggregateFactor: float = Field(ge=1)
+    discontinuousEdgeShare: Share = Field(
+        description="SAEngine practice, not a BNBC clause: top bars at a discontinuous edge "
+        "for this share of the positive moment."
+    )
+
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -580,6 +704,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "detailing": DetailingTable,
     "steel": SteelTable,
     "foundations": FoundationsTable,
+    "slabCoefficients": SlabCoefficientsTable,
 }
 
 

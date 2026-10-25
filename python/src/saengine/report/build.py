@@ -815,6 +815,65 @@ def _derivation_rows(values: dict[str, Any], root: Path) -> list[list[str]]:
                 ),
             ]
         )
+    missing = values.get("lateralMissing") or []
+    if missing:
+        rows.append(
+            [
+                "Lateral loads missing",
+                "the site has no "
+                + " and no ".join(
+                    {
+                        "Z": "seismic zone coefficient Z (no EX, EY)",
+                        "windSpeed": "basic wind speed V (no WX, WY)",
+                    }.get(m, m)
+                    for m in missing
+                ),
+            ]
+        )
+    wind = values.get("wind") or {}
+    for case, storeys in (wind.get("noWidth") or {}).items():
+        rows.append(
+            [
+                f"{case}: no width across the wind",
+                ", ".join(storeys) + ": these storeys' faces take no wind pressure",
+            ]
+        )
+    for case, levels in (wind.get("levels") or {}).items():
+        for level in levels:
+            text = (
+                f"{fmt(level.get('force_kN', 0), 1)} kN, mean face width {fmt(level.get('B_m', 0), 2)} m, "
+                f"centre {fmt(level.get('centre_m', 0), 2)} m"
+                f" ({fmt(level.get('offset_m', 0), 2)} m from the centre of the shares)"
+            )
+            if "torsion_kNm" in level:
+                text += (
+                    f"; Mt = {fmt(level['torsion_kNm'], 1)} kN·m with e = 0.15·B per face = "
+                    f"{fmt(level.get('e_m', 0), 2)} m (BNBC 2020 Part 6 Figure 6.2.9)"
+                )
+            rows.append([f"Wind {case} at z = {fmt(level.get('z', 0), 2)} m", text])
+    if wind.get("torsionCases"):
+        rows.append(
+            [
+                "Wind design cases",
+                "torsional cases "
+                + ", ".join(wind["torsionCases"])
+                + ": each one-direction wind combination is designed for Cases 1-4 of BNBC 2020 "
+                "Part 6 Figure 6.2.9 (Sec 2.4.11.3)",
+            ]
+        )
+    elif wind.get("exempt"):
+        rows.append(
+            ["Wind design cases", "Cases 1 and 3 only (BNBC 2020 Part 6 Sec 2.4.11.3, Exception)"]
+        )
+    live = values.get("patternLive") or {}
+    if live.get("cases"):
+        rows.append(
+            [
+                "Live load arrangements",
+                f"{len(live['cases'])} cases (BNBC 2020 Part 6 Sec 6.1.12.2), enveloped with the "
+                "full live load: " + "; ".join(f"{c['case']}: {c['label']}" for c in live["cases"]),
+            ]
+        )
     loads = values.get("memberLoads") or []
     if loads:
         rows.append(

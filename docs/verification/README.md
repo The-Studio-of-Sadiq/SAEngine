@@ -103,10 +103,16 @@ was widened to make a case pass; where SAEngine is off, the case fails.
 | D10 | SPT corrections of the Bangladesh consultant practice: σ'v per row, CN, N60 with rod-length factors, (N1)60 and the dilatancy N' | Peck, Hanson and Thornburn (1974) CN; Terzaghi and Peck dilatancy correction |
 | D11 | Settlement-limited allowable bearing pressure with N' averaged over the zone from Df - B/2 to Df + 2B | Meyerhof (1965) as modified by Bowles, 25 mm |
 | D12 | Liquefaction factor of safety at one SPT test with amax = (2/3) Z S | BNBC 2020 Sec 3.9.5 (Eqs 6.3.6-6.3.8, rd = 1 - 0.015z, no 0.65 factor), CRR by Youd et al. (2001) |
+| AN1 | Slab load on a beam: the 45° triangle of a square two-way panel applied member by member (`cases/correctness.py`): edge total, fixed-end and midspan moments, simple-span midspan moment | 5 w L²/96, w L²/32, w L²/12 (BNBC 2020 Part 6 Sec 6.5.6.8.1, p. 955) |
+| DN1 | Two-way slab by the coefficient method, case 4, m = 0.80 and the interpolation at m = 0.825 | BNBC 2020 Part 6 Tables 6.6.8-6.6.10 (pp. 961-964), values read from the code |
+| AN2 | Live load arrangement on three equal spans: end-span and support moments of the envelope and of the full load | Three-moment equation: 0.10125 wL², 7 wL²/60; 0.08 wL², wL²/10 (BNBC 2020 Part 6 Sec 6.1.12.2, p. 894) |
+| DN2 | Beam torsion: φTth, At/s, Al and the section limit | BNBC 2020 Part 6 Sec 6.4.4, Eqs. 6.6.59, 6.6.61-6.6.63 |
+| DN3 | Deflection: Icr, Mcr, Ie and the immediate deflection of a simple span | BNBC 2020 Part 6 Eqs. 6.6.1-6.6.3; 5 w l⁴/384 Ec Ie |
+| AN3 | Wind torsional case WTX of a three-storey bay: total torsion and no net force | BNBC 2020 Part 6 Figure 6.2.9 (p. 574): Mt = F · 0.15 B per level |
 
 ## Results at the time of writing
 
-21 of the 22 cases pass; A9 fails on the known issue below. The table lists the
+92 of the 93 cases pass (0.0.45); A9 fails on the known issue below. The table lists the
 largest deviation in each case:
 
 | Case | Ratio | Tolerance | Case | Ratio | Tolerance |

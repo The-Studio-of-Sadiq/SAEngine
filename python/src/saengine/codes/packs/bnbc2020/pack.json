@@ -20,7 +20,8 @@
     "concrete",
     "detailing",
     "steel",
-    "foundations"
+    "foundations",
+    "slabCoefficients"
   ],
   "description": "Bangladesh National Building Code 2020, Part 6 (Structural Design): loads, wind and earthquake, load combinations, reinforced concrete, seismic detailing, structural steel and foundations. The values SAEngine used before code packs, transcribed from its modules; every table names its clauses and pages.",
   "sources": [
@@ -32,20 +33,60 @@
     }
   ],
   "clauses": {
-    "locations": ["BNBC 2020 Part 6 Table 6.2.8 (p. 600)", "BNBC 2020 Part 6 Table 6.2.15 (p. 615)"],
-    "zoneCoefficients": ["BNBC 2020 Part 6 Table 6.2.14 (p. 615)"],
-    "occupancyCategories": ["BNBC 2020 Part 6 Table 6.1.1 (p. 480)", "Table 6.2.9 (p. 601)", "Table 6.2.17 (p. 616)"],
-    "areaLoads": ["BNBC 2020 Part 6 Table 6.2.3 (pp. 533-539)"],
-    "deadLoads": ["BNBC 2020 Part 6 Sec 2.2.4, Tables 6.2.1 and 6.2.2 (pp. 529-531)"],
-    "combinations": ["BNBC 2020 Part 6 Sec 2.7.3.1 (p. 685)"],
-    "seismic": ["BNBC 2020 Part 6 Sec 2.5 (pp. 609-648)"],
-    "wind": ["BNBC 2020 Part 6 Sec 2.4"],
-    "materials": ["BNBC 2020 Part 6 Sec 8.3.3 (pp. 1089-1090)"],
-    "factors": ["BNBC 2020 Part 6 Sec 6.2.3 (pp. 897-898)"],
-    "concrete": ["BNBC 2020 Part 6 Chapter 6"],
-    "detailing": ["BNBC 2020 Part 6 Sec 8.3 (pp. 1088-1122)"],
-    "steel": ["BNBC 2020 Part 6 Chapter 10"],
-    "foundations": ["BNBC 2020 Part 6 Chapter 3, Table 6.3.10a (p. 750)"]
+    "locations": [
+      "BNBC 2020 Part 6 Table 6.2.8 (p. 600)",
+      "BNBC 2020 Part 6 Table 6.2.15 (p. 615)"
+    ],
+    "zoneCoefficients": [
+      "BNBC 2020 Part 6 Table 6.2.14 (p. 615)"
+    ],
+    "occupancyCategories": [
+      "BNBC 2020 Part 6 Table 6.1.1 (p. 480)",
+      "Table 6.2.9 (p. 601)",
+      "Table 6.2.17 (p. 616)"
+    ],
+    "areaLoads": [
+      "BNBC 2020 Part 6 Table 6.2.3 (pp. 533-539)"
+    ],
+    "deadLoads": [
+      "BNBC 2020 Part 6 Sec 2.2.4, Tables 6.2.1 and 6.2.2 (pp. 529-531)"
+    ],
+    "combinations": [
+      "BNBC 2020 Part 6 Sec 2.7.3.1 (p. 685)"
+    ],
+    "seismic": [
+      "BNBC 2020 Part 6 Sec 2.5 (pp. 609-648)"
+    ],
+    "wind": [
+      "BNBC 2020 Part 6 Sec 2.4",
+      "Sec 2.4.11.3 and Figure 6.2.9 (pp. 559, 574-575): design wind load cases"
+    ],
+    "materials": [
+      "BNBC 2020 Part 6 Sec 8.3.3 (pp. 1089-1090)"
+    ],
+    "factors": [
+      "BNBC 2020 Part 6 Sec 6.2.3 (pp. 897-898)"
+    ],
+    "concrete": [
+      "BNBC 2020 Part 6 Chapter 6",
+      "Sec 6.4.4 (pp. 926-931): torsion",
+      "Sec 6.2.5 (pp. 899-903): deflection"
+    ],
+    "detailing": [
+      "BNBC 2020 Part 6 Sec 8.3 (pp. 1088-1122)"
+    ],
+    "steel": [
+      "BNBC 2020 Part 6 Chapter 10"
+    ],
+    "foundations": [
+      "BNBC 2020 Part 6 Chapter 3, Table 6.3.10a (p. 750)"
+    ],
+    "slabCoefficients": [
+      "BNBC 2020 Part 6 Sec 6.5.8, Tables 6.6.8-6.6.11 (pp. 960-966)",
+      "Sec 6.1.4.3 (p. 891)",
+      "Sec 8.1.6 (p. 1068)",
+      "Sec 8.1.11.2 (p. 1075)"
+    ]
   },
   "author": "SAEngine contributors",
   "licence": "AGPL-3.0-only"

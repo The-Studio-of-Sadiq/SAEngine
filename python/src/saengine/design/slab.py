@@ -624,12 +624,14 @@ def two_way_thickness(
 
 @dataclass(frozen=True)
 class EdgeBeam:
-    """A beam in the plan (mm) with its flexural stiffness E I [N·mm²] and width [mm]."""
+    """A beam in the plan (mm) with its flexural stiffness E I [N·mm²], width and total depth
+    [mm] (0: not known; the coefficient method's depth rule then cannot be checked)."""
 
     start: tuple[float, float]
     end: tuple[float, float]
     ei: float
     width: float
+    depth: float = 0.0
 
 
 def minimum_thickness(
@@ -797,6 +799,9 @@ class LineSupport:
     start: tuple[float, float]
     end: tuple[float, float]
     width: float  # mm
+    #: "beam", "wall" or "" (not stated). Only the coefficient methods use it: a side of a
+    #: panel counts as on a wall only where a "wall" support lies, never by default.
+    kind: str = ""
 
 
 @dataclass(frozen=True)
@@ -1787,3 +1792,967 @@ def _punching_with_reinforcement(
     # Re-checkable with another layout, and a fresh proposal where the given one fails (the
     # design mode's one layout per slab type, saengine.design.proposal.punching_layout).
     return punching.recheckable(result.check(name), name, run, fy, provided)
+
+
+# ──────────────────── coefficient method: slabs on beams (slabs: loadsToBeams) ────────────────────
+#
+# With the analysis's slabs as "loadsToBeams" (the default) the slabs are not in the analysis
+# model: they hand their loads to the beams. Such a slab is designed here from its own loads by
+# the methods BNBC 2020 Part 6 gives for slabs on beams and walls:
+#
+# - two-way panels: Sec 6.5.8 (pp. 960-966), the coefficient method of Tables 6.6.8 (negative
+#   moments, w = dead + live), 6.6.9 (dead load positive), 6.6.10 (live load positive) and 6.6.11
+#   (the shares Wa, Wb of the load in the two directions); M = C w l² with la, lb the clear
+#   spans in the short and long directions (notation, p. 880), m = la / lb, nine cases by which
+#   edges are continuous (a crosshatched edge "continues across, or is fixed at the support");
+#   scope (Sec 6.5.8.2): supported on all four edges by walls or beams with a total depth of at
+#   least 3 times the slab's, rectangular, centre-to-centre spans no more than 2 : 1, and
+#   αf1 l2 / l1 >= 1;
+# - one-way slabs (and panels longer than 2 : 1): Sec 6.1.4.3 (p. 891), the approximate moments
+#   and shears of continuous one-way slabs, within its limits (a)-(e).
+#
+# The numbers are the code pack's ``slabCoefficients`` table.
+
+#: The report's method text of the coefficient design (with :data:`METHOD`).
+COEFFICIENT_METHOD = (
+    "Slabs on beams (analysis slabs 'loadsToBeams', not in the analysis model): designed from "
+    "their own loads. Two-way panels by the coefficient method of BNBC 2020 Part 6 Sec 6.5.8 "
+    "(Tables 6.6.8-6.6.11): Ma,neg = Ca,neg w la², Ma,pos = Ca,dl wD la² + Ca,ll wL la² (and b "
+    "with lb), la and lb the clear spans (short, long: centre lines less half the supports' "
+    "widths), the case by which edges have a slab beyond them, coefficients interpolated in "
+    "m = la/lb; scope checked: rectangular, on beams (total depth >= 3h) or walls on all four "
+    "edges, centre-to-centre spans <= 2 : 1, αf l2/l1 >= 1 (beam's own section). Top bars at a "
+    "discontinuous edge for 1/3 of the positive moment (SAEngine practice, not a BNBC clause). "
+    "One-way slabs (and two-way types longer than 2 : 1) by BNBC Sec 6.1.4.3: w ln²/14 (end "
+    "span) or /16 (interior span) positive, /9 or /10 at the exterior face of the first "
+    "interior support (two, more spans), /11 at other interior faces, /12 for spans <= 3.048 m, "
+    "/24 (beam) or /16 (wall) at a discontinuous end, the negative ln the mean of the adjacent "
+    "clear spans; outside its limits (a single span, adjacent spans differing by more than "
+    "20 %, L > 3D) the bounds w ln²/8 (positive) and w ln,max²/8 (interior support) instead. "
+    "Every gravity combination of the project (its dead and live factors) is enveloped. Shear "
+    "per metre: Wa w la / 2 at the long edges, Wb w lb / 2 at the short edges (Table 6.6.11), "
+    "1.15 w ln / 2 at the first interior support of an end span (Sec 6.1.4.3), against φVc of "
+    "the bars in tension there. As,min (Sec 8.1.11.2: 0.0020 below fy 420, 0.0018 x 420/fy, "
+    ">= 0.0014; x 1.5 with brick aggregate) in both bottom layers and in a top layer that "
+    "resists a negative moment; spacing <= 2h and 450 mm two-way (Sec 6.5.8.6.2, 8.1.6.6), 3h "
+    "and 450 mm along a one-way span (8.1.6.5), 5h and 450 mm across it (8.1.6.7)."
+)
+
+
+def coefficient_table() -> dict[str, Any]:
+    """The code pack's ``slabCoefficients`` table as plain data."""
+    from saengine.codes import context as code_context
+
+    table = code_context.table("slabCoefficients")
+    if hasattr(table, "model_dump"):
+        return table.model_dump(by_alias=True)
+    return table
+
+
+@dataclass(frozen=True)
+class GravityCombination:
+    """A combination's factors on a slab's dead load (D + SD) and live load (L, or Lr on a
+    roof)."""
+
+    name: str
+    dead: float
+    live: float
+
+
+def gravity_combinations(
+    combinations: Sequence[Any], roof: bool = False
+) -> list[GravityCombination]:
+    """The gravity parts of project combinations (``LoadCombination``: ``D``, ``L``, ``Lr``):
+    each one with a positive dead or live factor and no negative one (a combination that
+    relieves gravity does not govern a slab on beams). Lateral cases are left out: a slab on
+    beams is not in the analysis model and carries no lateral moment."""
+    out: list[GravityCombination] = []
+    for c in combinations:
+        dead = float(getattr(c, "D", 0) or 0)
+        live = float(getattr(c, "Lr" if roof else "L", 0) or 0)
+        if dead < 0 or live < 0 or (dead <= 0 and live <= 0):
+            continue
+        out.append(GravityCombination(str(getattr(c, "name", "")), dead, live))
+    return out
+
+
+@dataclass(frozen=True)
+class PanelSide:
+    """One side of a rectangular panel: its support (beam or wall) and whether a slab is
+    beyond it (``neighbour``: its index in the neighbours given, None: a discontinuous edge)."""
+
+    name: str  # "x-", "x+" (the ends of the span along x), "y-", "y+"
+    length: float  # mm, centre line
+    support: str
+    width: float  # mm, of the support
+    wall: bool  # a wall ("wall" LineSupport) supports some of it
+    beam: EdgeBeam | None  # the most flexible beam along it (None: walls only)
+    neighbour: int | None
+    beams: tuple[EdgeBeam, ...] = ()  # every beam along it
+
+    @property
+    def continuous(self) -> bool:
+        return self.neighbour is not None
+
+
+@dataclass(frozen=True)
+class CoefficientPanel:
+    """A rectangular slab panel in its axes (mm): its extent (s0, s1 along x, t0, t1 along
+    y) and sides."""
+
+    s0: float
+    s1: float
+    t0: float
+    t1: float
+    sides: dict[str, PanelSide]
+
+    @property
+    def lx(self) -> float:
+        return self.s1 - self.s0
+
+    @property
+    def ly(self) -> float:
+        return self.t1 - self.t0
+
+    def clear(self, direction: str) -> float:
+        """The clear span along ``direction`` ("X", "Y"): the centre-line span less half the
+        widths of the supports at its two ends."""
+        d = direction.lower()
+        span = self.lx if d == "x" else self.ly
+        return span - (self.sides[f"{d}-"].width + self.sides[f"{d}+"].width) / 2
+
+
+def _union_length(pieces: list[tuple[float, float]]) -> float:
+    total, end = 0.0, -math.inf
+    for a, b in sorted(pieces):
+        if b <= end:
+            continue
+        total += b - max(a, end)
+        end = b
+    return total
+
+
+_SideGeometry = tuple[int, float, float, float, tuple[float, float]]
+
+
+def _box_sides(s0: float, s1: float, t0: float, t1: float) -> dict[str, _SideGeometry]:
+    """The sides of a box in the slab's axes: (index of the coordinate along it, its position
+    across, from, to, outward)."""
+    return {
+        "x-": (1, s0, t0, t1, (-1.0, 0.0)),
+        "x+": (1, s1, t0, t1, (1.0, 0.0)),
+        "y-": (0, t0, s0, s1, (0.0, -1.0)),
+        "y+": (0, t1, s0, s1, (0.0, 1.0)),
+    }
+
+
+def _on_side(
+    frame: PlanFrame,
+    side: _SideGeometry,
+    start: Sequence[float],
+    end: Sequence[float],
+    half: float,
+    tolerance: float = 5.0,
+) -> tuple[float, float] | None:
+    """The part (from, to along it, mm) of a side a plan segment within ``half`` of its line
+    covers (None: off its line, or less than ``tolerance`` of it)."""
+    along, at, lo, hi, _ = side
+    p, q = frame.local(start), frame.local(end)
+    across = 1 - along
+    if abs(p[across] - at) > half + tolerance or abs(q[across] - at) > half + tolerance:
+        return None
+    a, b = sorted((p[along], q[along]))
+    a, b = max(a, lo), min(b, hi)
+    return (a, b) if b - a > tolerance else None
+
+
+@dataclass(frozen=True)
+class NeighbourExtent:
+    """A slab beyond a side that is not a coefficient panel (``reason``): its extent in the
+    slab's axes (its box, centre lines, mm) and its box sides not supported along 95 % of their
+    length (``free``; there it may cantilever)."""
+
+    lx: float
+    ly: float
+    reason: str
+    free: frozenset[str]
+
+    def extent(self, direction: str) -> float:
+        return self.lx if direction.lower() == "x" else self.ly
+
+    def cantilevers(self, side: str) -> bool:
+        """Whether this slab, beyond the side ``side`` ("x-" ...) of a panel, may cantilever
+        from their shared support: its far side (the same name) and both its sides across it
+        are unsupported. Held on a side across the shared edge it spans to that support
+        instead (a slab on three edges does not cantilever)."""
+        across = ("y-", "y+") if side[0] == "x" else ("x-", "x+")
+        return side in self.free and all(name in self.free for name in across)
+
+
+def neighbour_extent(
+    outline: Sequence[Sequence[float]],
+    axes: SlabAxes,
+    supports: Sequence[LineSupport],
+    reason: str,
+) -> NeighbourExtent:
+    """The :class:`NeighbourExtent` of a slab outline (plan, mm) that is not a panel."""
+    frame = PlanFrame(axes)
+    local = [frame.local(p) for p in outline]
+    s0, s1 = min(p[0] for p in local), max(p[0] for p in local)
+    t0, t1 = min(p[1] for p in local), max(p[1] for p in local)
+    free = set()
+    for name, side in _box_sides(s0, s1, t0, t1).items():
+        pieces = [
+            piece
+            for support in supports
+            if (piece := _on_side(frame, side, support.start, support.end, support.width / 2))
+        ]
+        if _union_length(pieces) < 0.95 * (side[3] - side[2]):
+            free.add(name)
+    return NeighbourExtent(s1 - s0, t1 - t0, reason, frozenset(free))
+
+
+def coefficient_panel(
+    boundary: Sequence[Sequence[float]],
+    axes: SlabAxes,
+    supports: Sequence[LineSupport],
+    neighbours: Sequence[Sequence[Sequence[float]]] = (),
+    beams: Sequence[EdgeBeam] = (),
+) -> CoefficientPanel:
+    """The panel a slab outline (plan, mm) makes for the coefficient methods. ``supports``:
+    the beams and walls at its level (``LineSupport``; one within half its width of a side's
+    line supports it; walls with kind "wall"); ``beams``: the beams with their stiffness and
+    depth (``EdgeBeam``; collinear beams along a side count together); ``neighbours``: the
+    other slabs' outlines at its level (a side with one beyond it is continuous).
+
+    Raises ValueError (the reason) when the outline is not a rectangle in the slab's axes, a
+    side is not supported along at least 95 % of its length, or a part of a side is on neither
+    a known beam (``beams``) nor a "wall" support (its scope could not be checked)."""
+    frame = PlanFrame(axes)
+    local = [frame.local(p) for p in boundary]
+    if len(local) < 4:
+        raise ValueError("not a rectangular panel (fewer than 4 corners)")
+    s0, s1 = min(p[0] for p in local), max(p[0] for p in local)
+    t0, t1 = min(p[1] for p in local), max(p[1] for p in local)
+    tolerance = 5.0
+    box = (s1 - s0) * (t1 - t0)
+    on_box = all(
+        min(abs(s - s0), abs(s - s1)) <= tolerance or min(abs(t - t0), abs(t - t1)) <= tolerance
+        for s, t in local
+    )
+    if box <= 0 or not on_box or abs(_polygon_area(local) - box) > 0.01 * box:
+        raise ValueError(
+            "not a rectangular panel in the slab's axes (BNBC 6.5.8.2.2 and 6.1.4.3 cover "
+            "rectangular panels): analyse the slabs as shells to design it"
+        )
+    ends = _box_sides(s0, s1, t0, t1)
+    sides: dict[str, PanelSide] = {}
+    for name, (along, at, lo, hi, out) in ends.items():
+        length = hi - lo
+        covered: list[tuple[float, float]] = []
+        found: list[tuple[float, LineSupport]] = []
+        walls: list[tuple[float, float]] = []
+        for support in supports:
+            piece = _on_side(frame, ends[name], support.start, support.end, support.width / 2)
+            if piece is not None:
+                covered.append(piece)
+                found.append((piece[1] - piece[0], support))
+                if support.kind == "wall":
+                    walls.append(piece)
+        if _union_length(covered) < 0.95 * length:
+            raise ValueError(
+                f"side {name} is not supported by beams or walls along its length (the "
+                "coefficient methods need supports on all edges, BNBC 6.5.8.2.1): analyse the "
+                "slabs as shells to design it"
+            )
+        support = max(found, key=lambda item: item[0])[1]
+        # The beams along the side, together (a side may be two beams, e.g. split at a
+        # cross-beam); a part not on a known beam must be on a wall.
+        on: list[EdgeBeam] = []
+        known = list(walls)
+        for candidate in beams:
+            piece = _on_side(frame, ends[name], candidate.start, candidate.end, candidate.width / 2)
+            if piece is not None:
+                on.append(candidate)
+                known.append(piece)
+        if _union_length(known) < 0.95 * length:
+            raise ValueError(
+                f"side {name} is supported by a beam whose stiffness and depth are not known "
+                "(or a support not stated to be a wall): the coefficient methods' scope (BNBC "
+                "6.5.8.2) cannot be checked; analyse the slabs as shells to design it"
+            )
+        beam = min(on, key=lambda item: item.ei) if on else None
+        middle = (lo + hi) / 2
+        mid = frame.plan(at, middle) if along == 1 else frame.plan(middle, at)
+        outward = frame.ux * out[0] + frame.uy * out[1]
+        probe = mid + outward * max(100.0, support.width / 2 + 50.0)
+        neighbour = next((k for k, other in enumerate(neighbours) if _inside(probe, other)), None)
+        sides[name] = PanelSide(
+            name, length, support.id, support.width, bool(walls), beam, neighbour, tuple(on)
+        )
+    return CoefficientPanel(s0, s1, t0, t1, sides)
+
+
+def two_way_case(long_continuous: int, short_continuous: int) -> int:
+    """The case (1-9) of BNBC Tables 6.6.8-6.6.11 for the number of continuous long edges
+    (length lb, at the ends of the short span la) and continuous short edges."""
+    cases = coefficient_table()["twoWay"]["cases"]
+    for case, (n_long, n_short) in cases.items():
+        if n_long == long_continuous and n_short == short_continuous:
+            return int(case)
+    raise ValueError(f"no case for {long_continuous} long and {short_continuous} short edges")
+
+
+@dataclass(frozen=True)
+class TwoWayCoefficients:
+    """Coefficients of one case at m = la / lb: negative (None: that direction's edges are
+    discontinuous), dead and live load positive, and the load shares Wa, Wb."""
+
+    case: int
+    m: float
+    neg_a: float | None
+    neg_b: float | None
+    dead_a: float
+    dead_b: float
+    live_a: float
+    live_b: float
+    load_a: float
+    load_b: float
+
+
+def two_way_coefficients(m: float, case: int) -> TwoWayCoefficients:
+    """BNBC Tables 6.6.8-6.6.11 at ``m`` (0.5 <= m <= 1; linear between the tabulated
+    ratios) for ``case``."""
+    table = coefficient_table()["twoWay"]
+    ratios = [float(r) for r in table["ratios"]]
+    if not ratios[0] - 1e-9 <= m <= ratios[-1] + 1e-9:
+        raise ValueError(f"m = {m:.3f} is outside the tables ({ratios[0]} to {ratios[-1]})")
+    m = min(max(m, ratios[0]), ratios[-1])
+    k = min(max(i for i, r in enumerate(ratios) if r <= m + 1e-12), len(ratios) - 2)
+    f = (m - ratios[k]) / (ratios[k + 1] - ratios[k])
+    column = case - 1
+
+    def value(name: str) -> float | None:
+        lo, hi = table[name][k][column], table[name][k + 1][column]
+        if lo is None or hi is None:
+            return None
+        return float(lo) + (float(hi) - float(lo)) * f
+
+    def given(name: str) -> float:
+        result = value(name)
+        if result is None:
+            raise ValueError(f"no {name} coefficient for case {case}")
+        return result
+
+    return TwoWayCoefficients(
+        case,
+        m,
+        value("negativeA"),
+        value("negativeB"),
+        given("deadA"),
+        given("deadB"),
+        given("liveA"),
+        given("liveB"),
+        given("loadA"),
+        given("loadB"),
+    )
+
+
+@dataclass(frozen=True)
+class OneWayEnd:
+    """One end of a one-way span: its negative moment M = w ln² / ``divisor`` with the ``ln``
+    it applies to [mm], the shear V = ``shear`` w ln / 2, and what it is."""
+
+    side: str
+    divisor: float
+    ln: float
+    shear: float
+    what: str
+
+
+@dataclass(frozen=True)
+class OneWaySpan:
+    """The coefficients of a one-way span (BNBC 6.1.4.3): the positive moment w ln² /
+    ``positive``, the two ends, and whether its limits held (else the bounds w l²/8)."""
+
+    direction: str  # "X" or "Y"
+    ln: float  # mm, clear span
+    positive: float
+    ends: tuple[OneWayEnd, OneWayEnd]
+    within_limits: bool
+    notes: tuple[str, ...]
+
+
+def one_way_span(
+    panel: CoefficientPanel,
+    direction: str,
+    neighbours: Sequence[CoefficientPanel | NeighbourExtent | None],
+    dead: float,
+    live: float,
+) -> OneWaySpan:
+    """The BNBC 6.1.4.3 coefficients of ``panel`` spanning along ``direction``. ``neighbours``:
+    the other slabs (by the sides' neighbour index): their panels, or for one that is not a
+    panel its :class:`NeighbourExtent` (the limits are then taken as not met, with its extent as
+    its span, and where it may cantilever beyond that support the larger of the bound and w
+    l²/2 over its extent); ``dead``, ``live``: the service loads (any one unit, for limit (d),
+    L <= 3D).
+
+    Limits (a) two or more spans, (b) adjacent spans within 20 % and (d) are checked; (c)
+    uniform load and (e) prismatic hold for a slab of one thickness under area loads. Outside
+    them the bounds are used: w ln²/8 positive (a simple span) and w ln,max²/8 at an interior
+    support (a propped span's fixed end), with the exterior ends as within the limits.
+
+    Raises ValueError when a continuous side's neighbour is not given (None)."""
+    table = coefficient_table()["oneWay"]
+    positive_of, negative_of = table["positive"], table["negative"]
+    short = float(table["shortSpanMax"])
+    d = direction.lower()
+    ln = panel.clear(direction)
+    sides = (panel.sides[f"{d}-"], panel.sides[f"{d}+"])
+    continuous = [s.continuous for s in sides]
+    notes: list[str] = []
+    limits = True
+    if not any(continuous):
+        limits = False
+        notes.append("a single span: BNBC 6.1.4.3 (a) needs two or more spans")
+    if dead > 0 and live > float(table["liveToDeadMax"]) * dead:
+        limits = False
+        notes.append(f"live load {live:g} > 3 x dead load {dead:g} (BNBC 6.1.4.3 (d))")
+    others: dict[str, float] = {}
+    cantilevers: dict[str, float] = {}
+    for side in sides:
+        if not side.continuous:
+            continue
+        other = neighbours[side.neighbour] if side.neighbour is not None else None
+        if other is None:
+            raise ValueError(f"the slab beyond {side.name} is not known")
+        if isinstance(other, NeighbourExtent):
+            limits = False
+            other_ln = other.extent(direction)
+            notes.append(
+                f"the slab beyond {side.name} is not a coefficient panel ({other.reason}): "
+                f"BNBC 6.1.4.3 taken as not met, its span taken as its extent {other_ln:.0f} mm"
+            )
+            if other.cantilevers(side.name):
+                cantilevers[side.name] = other_ln
+        else:
+            other_ln = other.clear(direction)
+        others[side.name] = other_ln
+        if max(ln, other_ln) > float(table["spanRatioMax"]) * min(ln, other_ln):
+            limits = False
+            notes.append(
+                f"spans {ln:.0f} and {other_ln:.0f} mm at {side.name} differ by more than 20 % "
+                "(BNBC 6.1.4.3 (b))"
+            )
+    end_span = sum(continuous) == 1
+    ends: list[OneWayEnd] = []
+    for side in sides:
+        if not side.continuous:
+            divisor = float(negative_of["exteriorColumn" if side.wall else "exteriorSpandrel"])
+            what = "discontinuous end on a " + ("wall" if side.wall else "spandrel beam")
+            if ln <= short and limits:
+                divisor, what = float(negative_of["shortSpans"]), what + f", span <= {short:g} mm"
+            ends.append(OneWayEnd(side.name, divisor, ln, 1.0, what))
+            continue
+        other_ln = others[side.name]
+        mean = (ln + other_ln) / 2
+        shear = 1.0
+        if end_span:
+            other = neighbours[side.neighbour] if side.neighbour is not None else None
+            far = None
+            if isinstance(other, CoefficientPanel):
+                far = other.sides[side.name]  # its side on the far end, the same way
+            two = far is not None and not far.continuous
+            key = "firstInteriorTwoSpans" if two else "firstInteriorMoreSpans"
+            what = "exterior face of the first interior support, " + (
+                "two spans" if two else "more than two spans"
+            )
+            shear = float(table["shearFirstInterior"])
+        else:
+            key, what = "otherInterior", "interior support"
+        divisor = float(negative_of[key])
+        if ln <= short and other_ln <= short:
+            divisor, what = float(negative_of["shortSpans"]), what + f", spans <= {short:g} mm"
+        if not limits:
+            divisor, mean = 8.0, max(ln, other_ln)
+            what += "; outside the limits: w ln,max²/8"
+        lc = cantilevers.get(side.name)
+        if lc is not None and lc**2 / 2 > mean**2 / divisor:
+            divisor, mean = 2.0, lc
+            what += "; the slab beyond may cantilever (a side of it unsupported): w l²/2 over it"
+        ends.append(OneWayEnd(side.name, divisor, mean, shear, what))
+    if not limits:
+        positive = 8.0
+        notes.append("outside BNBC 6.1.4.3: bounds w ln²/8 used (analyse as shells for economy)")
+    else:
+        positive = float(positive_of["interior" if all(continuous) else "endIntegral"])
+    return OneWaySpan(direction, ln, positive, (ends[0], ends[1]), limits, tuple(notes))
+
+
+@dataclass
+class CoefficientDesign:
+    """A slab on beams designed by the coefficient methods (:func:`coefficient_design`).
+
+    ``method``: "twoWay" (BNBC 6.5.8) or "oneWay" (6.1.4.3); ``envelope``: the design moment of
+    each layer [N·m/m] and ``shear`` the one-way shear each layer's ρ resists [N/m], as (value,
+    combination, where) like :attr:`SlabContext.shear`; ``span``: the one-way span direction;
+    ``side_shares``: the load per metre [kN/m] each side hands to its support under 1 kN/m²
+    (Table 6.6.11 shares, or half the one-way span), for reference."""
+
+    method: str
+    envelope: dict[str, tuple[float, str | None, str]]
+    shear: dict[str, tuple[float, str | None, str]]
+    span: str | None
+    checks: list[dict[str, Any]]
+    notes: list[str]
+    case: int | None = None
+    m: float | None = None
+    side_shares: dict[str, float] = field(default_factory=dict)
+
+
+def coefficient_design(
+    system: str,
+    h: float,
+    reinforcement: PlanarReinforcement,
+    fc: float,
+    fy: float,
+    es: float,
+    dead: float,
+    live: float,
+    combinations: Sequence[GravityCombination],
+    context: SlabContext,
+    neighbours: Sequence[Sequence[Sequence[float]]] = (),
+    beams: Sequence[EdgeBeam] = (),
+    ec: float | None = None,
+    brick_aggregate: bool = False,
+) -> CoefficientDesign:
+    """Design a slab on beams by BNBC's coefficient methods (:data:`COEFFICIENT_METHOD`).
+
+    ``dead``, ``live``: its service loads [kN/m²] (self-weight + finishes + partitions; live,
+    or roof live); ``combinations``: their factors (:func:`gravity_combinations`); ``context``:
+    its outline, axes and supports (and its minimum thickness, reported as by
+    :func:`slab_checks`; its ``shear`` and ``notes`` are filled); ``neighbours``: the other
+    slabs' outlines at its level; ``beams``: the beams at its level with their stiffness and
+    depth; ``ec``: the slab concrete's E [MPa] for αf (None: not checked).
+
+    Raises ValueError (the reason) for a flat slab, a panel the methods do not cover, or no
+    combination."""
+
+    if system == "flat":
+        raise ValueError("a flat slab is designed from shells (analysis slabs: shells)")
+    if not combinations:
+        raise ValueError("no gravity load combination")
+    table = coefficient_table()
+    panel = coefficient_panel(context.boundary, context.axes, context.supports, neighbours, beams)
+    # The panels beyond the sides (for the one-way spans next to this one).
+    others: list[CoefficientPanel | NeighbourExtent | None] = [None] * len(neighbours)
+    for side in panel.sides.values():
+        if side.neighbour is not None and others[side.neighbour] is None:
+            outline = neighbours[side.neighbour]
+            try:
+                others[side.neighbour] = coefficient_panel(
+                    outline, context.axes, context.supports, neighbours, beams
+                )
+            except ValueError as error:
+                others[side.neighbour] = neighbour_extent(
+                    outline, context.axes, context.supports, str(error).split(":")[0]
+                )
+    # Sides with a slab beyond that is not a panel (a balcony, a partly supported or irregular
+    # slab): its moment at the shared support is not known.
+    unknown = {
+        name: other
+        for name, side in panel.sides.items()
+        if side.neighbour is not None
+        and isinstance(other := others[side.neighbour], NeighbourExtent)
+    }
+    notes: list[str] = []
+    lx, ly = panel.clear("X"), panel.clear("Y")
+    if min(lx, ly) <= 0:
+        raise ValueError("the supports leave no clear span")
+    limits = table["twoWayLimits"]
+    method = "oneWay" if system == "oneWay" else "twoWay"
+    # The same test (and tolerance at exactly 2 : 1) as the slab's loads on its beams.
+    from saengine.fem.slab_load_shapes import spans_one_way
+
+    if method == "twoWay" and spans_one_way(
+        max(panel.lx, panel.ly), min(panel.lx, panel.ly), float(limits["maxSpanRatio"])
+    ):
+        method = "oneWay"
+        notes.append(
+            f"centre-to-centre spans {max(panel.lx, panel.ly):.0f} x "
+            f"{min(panel.lx, panel.ly):.0f} mm, more than 2 : 1 (BNBC 6.5.8.2.2): designed as "
+            "a one-way slab"
+        )
+    if method == "twoWay":
+        _two_way_scope(panel, h, ec, limits)
+
+    w_d = [c.dead * dead * 1e3 for c in combinations]  # N/m²
+    w_l = [c.live * live * 1e3 for c in combinations]
+    w = [a + b for a, b in zip(w_d, w_l, strict=True)]
+    envelope: dict[str, tuple[float, str | None, str]] = {n: (0.0, None, "") for n in LAYERS}
+    demand_shear: dict[str, tuple[float, str | None, str]] = {}
+    share = float(table["discontinuousEdgeShare"])
+
+    def take(name: str, values: list[float], where: str) -> None:
+        k = int(max(range(len(values)), key=lambda i: values[i]))
+        if values[k] > envelope[name][0]:
+            envelope[name] = (float(values[k]), combinations[k].name, where)
+
+    def take_shear(name: str, values: list[float], where: str) -> None:
+        k = int(max(range(len(values)), key=lambda i: values[i]))
+        if name not in demand_shear or values[k] > demand_shear[name][0]:
+            demand_shear[name] = (float(values[k]), combinations[k].name, where)
+
+    side_shares: dict[str, float] = {}
+    case: int | None = None
+    m: float | None = None
+    span: str | None = None
+    if method == "twoWay":
+        a = "X" if lx <= ly else "Y"
+        b = "Y" if a == "X" else "X"
+        la, lb = (lx, ly) if a == "X" else (ly, lx)
+        long_sides = (panel.sides[f"{a.lower()}-"], panel.sides[f"{a.lower()}+"])
+        short_sides = (panel.sides[f"{b.lower()}-"], panel.sides[f"{b.lower()}+"])
+        # A side with an unknown slab beyond: discontinuous for the case (the larger positive
+        # moments), and its top bars also for the negative coefficient as if continuous and,
+        # where that slab may cantilever, w l²/2 over its extent.
+        known = {
+            name: side.continuous and name not in unknown for name, side in panel.sides.items()
+        }
+        case = two_way_case(
+            sum(known[s.name] for s in long_sides), sum(known[s.name] for s in short_sides)
+        )
+        m = la / lb
+        if m < 0.5:
+            notes.append(f"clear spans la/lb = {m:.2f} below 0.5: the tables' 0.5 row is used")
+            m = 0.5
+        c = two_way_coefficients(m, case)
+        c_as_continuous = c
+        if unknown:
+            c_as_continuous = two_way_coefficients(
+                m,
+                two_way_case(
+                    sum(s.continuous for s in long_sides), sum(s.continuous for s in short_sides)
+                ),
+            )
+            for name, other in unknown.items():
+                notes.append(
+                    f"the slab beyond {name} is not a coefficient panel ({other.reason}): that "
+                    "edge taken as discontinuous for the case, its top bars also as continuous"
+                    + (" and for the cantilever beyond" if other.cantilevers(name) else "")
+                )
+        geometry = f"case {case}, la = {la:.0f} mm ({a}), lb = {lb:.0f} mm, m = {m:.3f}"
+        for direction, label, length, dl, ll, neg, load, sides_of, neg_cont in (
+            (a, "a", la / 1e3, c.dead_a, c.live_a, c.neg_a, c.load_a, long_sides,
+             c_as_continuous.neg_a),
+            (b, "b", lb / 1e3, c.dead_b, c.live_b, c.neg_b, c.load_b, short_sides,
+             c_as_continuous.neg_b),
+        ):  # fmt: skip
+            positive = [(dl * wd + ll * wl) * length**2 for wd, wl in zip(w_d, w_l, strict=True)]
+            take(
+                f"bottom{direction}",
+                positive,
+                f"M{label},pos = C{label},dl wD l{label}² + C{label},ll wL l{label}² (C = "
+                f"{dl:.4f}, {ll:.4f}); {geometry}",
+            )
+            if neg is not None:
+                edges = ", ".join(s.name for s in sides_of if known[s.name])
+                take(
+                    f"top{direction}",
+                    [neg * x * length**2 for x in w],
+                    f"M{label},neg = C{label},neg w l{label}² (C = {neg:.4f}) at {edges}; "
+                    f"{geometry}",
+                )
+            if not all(known[s.name] for s in sides_of):
+                edges = ", ".join(s.name for s in sides_of if not known[s.name])
+                take(
+                    f"top{direction}",
+                    [share * p for p in positive],
+                    f"discontinuous edge {edges}: {share:.2f} x M{label},pos (SAEngine practice, "
+                    f"not a BNBC clause); {geometry}",
+                )
+            for s in sides_of:
+                other = unknown.get(s.name)
+                if other is not None:
+                    if neg_cont is not None:
+                        take(
+                            f"top{direction}",
+                            [neg_cont * x * length**2 for x in w],
+                            f"M{label},neg = C{label},neg w l{label}² (C = {neg_cont:.4f}) at "
+                            f"{s.name}, taken as continuous (the slab beyond is not a "
+                            f"panel); {geometry}",
+                        )
+                    if other.cantilevers(s.name):
+                        lc = other.extent(direction) / 1e3
+                        take(
+                            f"top{direction}",
+                            [x * lc**2 / 2 for x in w],
+                            f"w l²/2 at {s.name}: the slab beyond may cantilever (a side of it "
+                            f"unsupported), l = {lc * 1e3:.0f} mm; {geometry}",
+                        )
+                side_shares[s.name] = load * length / 2
+                take_shear(
+                    f"{'top' if s.continuous else 'bottom'}{direction}",
+                    [load * x * length / 2 for x in w],
+                    f"V = W{label} w l{label} / 2 at {s.name} (W{label} = {load:.2f}, Table "
+                    f"6.6.11); {geometry}",
+                )
+    else:
+        direction = "X" if lx <= ly else "Y"
+        span = direction
+        result = one_way_span(panel, direction, others, dead, live)
+        notes += list(result.notes)
+        length = result.ln / 1e3
+        geometry = f"one-way along {direction}, ln = {result.ln:.0f} mm"
+        take(
+            f"bottom{direction}",
+            [x * length**2 / result.positive for x in w],
+            f"w ln²/{result.positive:g} (BNBC 6.1.4.3); {geometry}",
+        )
+        for end in result.ends:
+            take(
+                f"top{direction}",
+                [x * (end.ln / 1e3) ** 2 / end.divisor for x in w],
+                f"w ln²/{end.divisor:g} at {end.side} ({end.what}), ln = {end.ln:.0f} mm; "
+                f"{geometry}",
+            )
+            continuous = panel.sides[end.side].continuous
+            take_shear(
+                f"{'top' if continuous else 'bottom'}{direction}",
+                [end.shear * x * length / 2 for x in w],
+                f"V = {end.shear:g} w ln / 2 at {end.side}; {geometry}",
+            )
+            side_shares[end.side] = end.shear * length / 2
+        across = "y" if direction == "X" else "x"
+        side_shares[f"{across}-"] = side_shares[f"{across}+"] = 0.0
+
+    checks = _coefficient_checks(
+        method, span, h, reinforcement, fc, fy, es, envelope, demand_shear, context,
+        brick_aggregate, table["maxSpacing"],
+    )  # fmt: skip
+    context.notes += notes
+    return CoefficientDesign(
+        method, envelope, dict(context.shear), span, checks, notes, case, m, side_shares
+    )
+
+
+def _two_way_scope(
+    panel: CoefficientPanel, h: float, ec: float | None, limits: dict[str, Any]
+) -> None:
+    """BNBC 6.5.8.2.1 (beams at least 3h deep; walls pass) and 6.5.8.2.3 (αf1 l2/l1 >= 1,
+    αf of the beam's own section over the slab width to the panels' centre lines, the mean of
+    the two sides along l1, each by its most flexible beam; a side on walls only counts as
+    infinitely stiff). Raises ValueError."""
+    for side in panel.sides.values():
+        for beam in side.beams or ((side.beam,) if side.beam is not None else ()):
+            if not beam.depth or beam.depth >= float(limits["beamDepthRatio"]) * h:
+                continue
+            raise ValueError(
+                f"a beam at {side.name} ({side.support}) is {beam.depth:.0f} mm deep, less "
+                f"than 3 x {h:g} mm (BNBC 6.5.8.2.1): analyse the slabs as shells to design it"
+            )
+    if not ec:
+        return
+    for direction in ("x", "y"):
+        across = "y" if direction == "x" else "x"
+        l1 = panel.lx if direction == "x" else panel.ly
+        l2 = panel.ly if direction == "x" else panel.lx
+        alphas = []
+        for name in (f"{across}-", f"{across}+"):  # the sides running along l1
+            side = panel.sides[name]
+            if side.beam is None:
+                alphas.append(math.inf)
+                continue
+            width = l2 / 2 * (2 if side.continuous else 1)
+            alphas.append(side.beam.ei / (ec * width * h**3 / 12))
+        alpha = sum(alphas) / len(alphas)
+        if alpha * l2 / l1 < float(limits["alphaRatioMin"]):
+            raise ValueError(
+                f"αf l2/l1 = {alpha * l2 / l1:.2f} < 1 for the beams along {direction.upper()} "
+                "(BNBC 6.5.8.2.3): analyse the slabs as shells to design it"
+            )
+
+
+def _coefficient_checks(
+    method: str,
+    span: str | None,
+    h: float,
+    reinforcement: PlanarReinforcement,
+    fc: float,
+    fy: float,
+    es: float,
+    envelope: dict[str, tuple[float, str | None, str]],
+    demand_shear: dict[str, tuple[float, str | None, str]],
+    context: SlabContext,
+    brick_aggregate: bool,
+    spacing: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """The checks of a coefficient design, in the shape of :func:`slab_checks`'s."""
+    from saengine.design.check import _check
+
+    layers = layers_of(reinforcement, h)
+    capacities = {
+        name: (layer_capacity(layer.area, layer.d, fc, fy, es) if layer is not None else None)
+        for name, layer in layers.items()
+    }
+    checks: list[dict[str, Any]] = []
+    source = "BNBC 6.5.8" if method == "twoWay" else "BNBC 6.1.4.3"
+    for name in LAYERS:
+        face, direction = name[:-1], name[-1]
+        demand, combination, where = envelope[name]
+        capacity = capacities[name]
+        label = f"Flexure {face} {direction} ({source} coefficients)"
+        if capacity is None:
+            if demand <= NO_DEMAND:
+                continue
+            checks.append(
+                _check(
+                    label,
+                    demand / 1e3,
+                    0.0,
+                    "kN·m/m",
+                    combination,
+                    f"no {face} {direction} bars for {demand / 1e3:.2f} kN·m/m; {where}",
+                )
+            )
+            continue
+        layer = layers[name]
+        assert layer is not None
+        note = (
+            f"{_bars(layer)}: As = {capacity.area:.0f} mm²/m, d = {capacity.d:.0f} mm, "
+            f"φ = {capacity.phi:.2f}; {where}"
+        )
+        checks.append(
+            _check(label, demand / 1e3, capacity.phi_mn / 1e6, "kN·m/m", combination, note)
+        )
+    present = {n: c for n, c in capacities.items() if c is not None}
+    if present:
+        name, worst = max(present.items(), key=lambda item: item[1].c_d)
+        checks.append(
+            _check(
+                "Net tensile strain c/d (ACI 7.3.3.1, 8.3.3.1)",
+                worst.c_d,
+                worst.c_d_limit,
+                "",
+                None,
+                f"{name}: c = {worst.c:.1f} mm, d = {worst.d:.0f} mm, εt = {worst.eps_t:.4f}",
+                utilisation=worst.c_d / worst.c_d_limit,
+            )
+        )
+    # One-way shear: resisted with the ρ of the layer in tension at that edge (else the other
+    # face's layer of the same direction).
+    context.shear = {}
+    worst_shear: tuple[float, float, float, str | None, str] | None = None
+    for name, (vu, combination, where) in demand_shear.items():
+        direction = name[-1]
+        other = f"{'bottom' if name.startswith('top') else 'top'}{direction}"
+        resisting = next((n for n in (name, other) if capacities[n] is not None), None)
+        if resisting is None:
+            continue
+        capacity = capacities[resisting]
+        assert capacity is not None
+        phi_vc = one_way_shear(capacity.area / (1000 * capacity.d), capacity.d, fc)[0]
+        seen = context.shear.get(resisting)
+        if seen is None or vu > seen[0]:
+            context.shear[resisting] = (vu, combination, where)
+        ratio = vu / phi_vc if phi_vc > 0 else math.inf
+        if worst_shear is None or ratio > worst_shear[0]:
+            worst_shear = (ratio, vu, phi_vc, combination, f"ρ of {resisting}; {where}")
+    if worst_shear is not None:
+        ratio, vu, phi_vc, combination, where = worst_shear
+        checks.append(
+            _check(
+                "One-way shear",
+                vu / 1e3,
+                phi_vc / 1e3,
+                "kN/m",
+                combination,
+                f"φVc = 0.75 · 0.66 λs ρ^(1/3) √f'c b d (ACI 22.5.5.1 (c), no shear bars); {where}",
+                utilisation=ratio,
+            )
+        )
+    if present:
+        checks.append(_coefficient_min_steel(h, fy, capacities, envelope, brick_aggregate, span))
+        checks.append(_coefficient_spacing(h, layers, method, span, spacing))
+    if context.thickness is not None:
+        t = context.thickness
+        checks.append(
+            _check(f"Min. thickness (Table {t.table})", t.required, h, "mm", None, t.note, True)
+        )
+    return checks
+
+
+def _coefficient_min_steel(
+    h: float,
+    fy: float,
+    capacities: dict[str, LayerCapacity | None],
+    envelope: dict[str, tuple[float, str | None, str]],
+    brick_aggregate: bool,
+    span: str | None,
+) -> dict[str, Any]:
+    """As,min of BNBC 8.1.11.2 (by 6.5.8.6.1 two-way, 6.3.5.4 and 8.1.11.1 one-way) in both
+    bottom layers (the span directions; across a one-way span the shrinkage and temperature
+    bars) and in a top layer that resists a negative moment; x 1.5 with brick aggregate
+    (8.1.11.2 (b))."""
+    from saengine.design.check import _check
+
+    factor = float(coefficient_table()["brickAggregateFactor"]) if brick_aggregate else 1.0
+    ratio = min_steel_ratio(fy) * factor
+    as_min = ratio * 1000 * h
+    found: list[tuple[float, float, float, str]] = []
+    for name in LAYERS:
+        if not name.startswith("bottom") and envelope[name][0] <= NO_DEMAND:
+            continue
+        capacity = capacities[name]
+        provided = capacity.area if capacity is not None else 0.0
+        utilisation = as_min / provided if provided > 0 else math.inf
+        found.append((utilisation, as_min, provided, name + ("" if capacity else " (no bars)")))
+    utilisation, required, provided, what = max(found, key=lambda item: item[0])
+    note = f"As,min = {ratio:.4f} Ag = {as_min:.0f} mm²/m; governing: {what}"
+    if brick_aggregate:
+        note += "; brick aggregate: x 1.5 (8.1.11.2 (b))"
+    if span is not None:
+        note += f"; one-way slab spanning {span}"
+    return _check(
+        "Min. reinforcement (BNBC 8.1.11.2)",
+        required,
+        provided,
+        "mm²/m",
+        None,
+        note,
+        utilisation=utilisation,
+    )
+
+
+def _coefficient_spacing(
+    h: float, layers: dict[str, Layer | None], method: str, span: str | None, limits: dict
+) -> dict[str, Any]:
+    """Largest bar spacing: two-way min(2h, 450 mm) (BNBC 6.5.8.6.2, 8.1.6.6); one-way
+    min(3h, 450 mm) along the span (8.1.6.5), min(5h, 450 mm) across it (8.1.6.7)."""
+    from saengine.design.check import _check
+
+    worst: tuple[float, Layer, float, str] | None = None
+    for layer in layers.values():
+        if layer is None:
+            continue
+        if method == "twoWay":
+            key, clause = "twoWay", "6.5.8.6.2, 8.1.6.6"
+        elif layer.name[-1] == span:
+            key, clause = "oneWay", "8.1.6.5"
+        else:
+            key, clause = "temperature", "8.1.6.7"
+        times, most = (float(v) for v in limits[key])
+        limit = min(times * h, most)
+        ratio = layer.spacing / limit
+        if worst is None or ratio > worst[0]:
+            worst = (ratio, layer, limit, f"BNBC {clause}: min({times:g}h, {most:g} mm)")
+    assert worst is not None
+    _, layer, limit, clause = worst
+    return _check(
+        "Max. spacing",
+        layer.spacing,
+        limit,
+        "mm",
+        None,
+        f"{layer.name} at {layer.spacing:.0f} mm; {clause}",
+    )

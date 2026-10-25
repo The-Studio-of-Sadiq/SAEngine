@@ -129,13 +129,17 @@ combinations used for foundation bearing are built in by 9 Substructure.
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| Slabs | Loads to beams | Slab loads go to the beams by the 45° rule; *Shells* models the slabs as shell elements |
+| Slabs | Loads to beams | Slab loads go to the beams by the 45° rule as triangles and trapezoids (since 0.0.45; before, a uniform load of the same total), and the slabs are designed by BNBC's coefficient methods (Sec 6.5.8, 6.1.4.3); *Shells* models the slabs as shell elements |
 | Floor diaphragm | Rigid | or flexible |
-| Mesh size | 500 mm | for shells (1000 mm before version 0.0.44) |
+| Mesh size | 500 mm | for shells, and the largest beam element with slabs as loads to beams (1000 mm before version 0.0.44) |
 | Mesh by slab span | On | shell slabs no coarser than their shorter span / 8 |
 | Mesh convergence check | On | Run All solves the gravity cases again on a mesh twice as coarse and warns when a beam end moment changes by more than 5 % |
 | Seismic mass | Lumped at the story levels | each node's weight to the nearest level; the lower half of the first storey (the supports' own share included) goes to the base and does not take part (as the usual analysis programs lump it); a node exactly half way between two levels gives half to each, so W hardly depends on the mesh. *Each node's own* is the convention before 0.0.44: the whole first storey counts with the first level. Since 0.0.44 it also counts the supports' own share (the lower half of the elements at the supports), which 0.0.43 left out, so its W no longer changes with the mesh |
 | Mass source | D ×1, SD ×1, live load by the code | the code's live share is 25 %, 50 % for live loads above 3 kN/m² (BNBC 2020 Part 6 Sec 2.5.7.3, p. 628); extra masses per story |
+| Wind torsional cases | On | WTX, WTY and the four design wind load cases of BNBC 2020 Part 6 Figure 6.2.9 (Sec 2.4.11.3) for every one-direction wind combination; off: Cases 1 and 3 |
+| Live load arrangement | BNBC 6.1.12.2 | cases LP1, LP2 ...: live load on adjacent spans (each floor alone) and on alternate spans (a checkerboard over the floors) of the column grid, each gravity combination with live load checked with each; or adjacent spans on alternate floors (fewer cases, support moments up to about 2 % lower), alternate spans only, or off |
+| Beam deflection limits | Partitions likely to be damaged | Table 6.6.2: l/360 (l/180 roofs) live load, l/480 after attachment; *not likely to be damaged*: l/240, and beams as deep as Table 6.6.1 asks are not computed; or off |
+| Sustained share of the live load | 0.25 | for the long-term deflection (SAEngine assumption) |
 | Eccentric static earthquake cases | On | EXP, EXN, EYP, EYN: EX and EY with the story masses shifted ±5 % across the force (Sec 2.5.7.6.2); with equivalent static design every E combination is checked with both |
 | Period for the static base shear | Approximate Ta | or *From the modal analysis*, at most 1.4 Ta (Sec 2.5.7.2 (a), p. 627) and not below Ta |
 | End offsets (rigid zones) | On | beams end at the column faces, columns at the beam soffit; the part inside the joint is rigid over the rigid zone factor |

@@ -8,4 +8,4 @@ opensees-studio objects into JSON for the workbench.
 
 # The SAEngine release this backend belongs to: always workbench/package.json's "version" (bumped
 # together; tests/test_version.py checks it). Archives (.civil) record it.
-__version__ = "0.0.44"
+__version__ = "0.0.45"

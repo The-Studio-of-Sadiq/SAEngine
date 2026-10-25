@@ -11,11 +11,11 @@ Units: m, kN, s.
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 from itertools import pairwise
 
 from saengine.codes import context as code_context
+from saengine.fem.slab_load_shapes import EdgeProfile, slab_load_shapes
 
 # ───────────────────────── seismic: equivalent static force method ─────────────────────────
 
@@ -102,83 +102,228 @@ def leeward_coefficient(aspect: float) -> float:
 def wind_level_forces(
     heights: list[float], width: float, depth: float, speed: float, exposure: str, importance: float
 ) -> list[float]:
-    """Wind force at each level [kN] for wind across a building ``width`` wide and ``depth`` deep.
+    """Wind force at each level [kN] for wind across a building ``width`` wide and ``depth`` deep
+    at every storey (a prismatic building; :func:`wind_levels` takes each storey's own extent).
 
     Windward pressure qz·G·Cp varies with height; leeward suction qh·G·Cp uses the roof height.
     Each level takes the wall area from halfway down to the level below to halfway up to the one
     above (the roof level the half below it).
     """
-    if not heights:
+    n = len(heights)
+    return [
+        level.force
+        for level in wind_levels(
+            heights, [(0.0, width)] * n, [depth] * n, speed, exposure, importance
+        )
+    ]
+
+
+@dataclass(frozen=True)
+class WindLevel:
+    """The wind load a level takes (BNBC 2020 Part 6 Sec 2.4.11.2): ``force`` [kN] along the
+    wind; ``centre`` [m], the position across the wind of its resultant, the geometric centre of
+    the face it takes (Sec 2.4.11.3, p. 559: the eccentricity is "measured from the geometric
+    center of the building face"); ``width`` [m], that face's mean width B across the wind;
+    ``torsion_width`` [m], the force-weighted width Σ(F_i·B_i)/F of its part-faces, so that the
+    torsion of Figure 6.2.9 (p. 574), e = 0.15·B on each part-face, sums to F·0.15·torsion_width
+    (at a setback level larger than F·0.15·width); None means ``width`` (one face)."""
+
+    force: float
+    centre: float
+    width: float
+    torsion_width: float | None = None
+
+    @property
+    def torsion_arm(self) -> float:
+        """The width B the torsional eccentricity e = k·B is taken of [m]."""
+        return self.width if self.torsion_width is None else self.torsion_width
+
+
+def wind_levels(
+    heights: list[float],
+    spans: list[tuple[float, float]],
+    depths: list[float],
+    speed: float,
+    exposure: str,
+    importance: float,
+) -> list[WindLevel]:
+    """The wind load of each level of a building whose storeys differ in plan (setbacks,
+    podiums): storey ``i`` (from level ``i - 1``, or the base, up to level ``i``) has the face
+    ``spans[i]`` = (low, high) across the wind [m] and the depth ``depths[i]`` along it.
+
+    Level ``i`` takes the lower half of storey ``i`` with that storey's face and the upper half
+    of storey ``i + 1`` with that one's (the roof the half below it). Windward pressure
+    qz·G·Cp at the level's height; leeward suction qh·G·Cp(L/B) at the roof height h with each
+    storey's own L/B (Figure 6.2.6). The resultant acts at the area- and pressure-weighted
+    centre of the two half-faces.
+    """
+    n = len(heights)
+    if not n:
         return []
+    if len(spans) != n or len(depths) != n:
+        raise ValueError("wind_levels: one span and one depth per level")
     wind = code_context.table("wind")
-    roof = heights[-1]
-    leeward = (
-        velocity_pressure(roof, speed, exposure, importance)
-        * wind.gust
-        * leeward_coefficient(depth / width)
-    )
-    forces = []
+    qh = velocity_pressure(heights[-1], speed, exposure, importance)
+
+    def leeward(i: int) -> float:
+        width = spans[i][1] - spans[i][0]
+        if width <= 0:
+            return 0.0
+        return qh * wind.gust * leeward_coefficient(depths[i] / width)
+
+    out = []
     for i, z in enumerate(heights):
-        below = z - (z - (heights[i - 1] if i else 0.0)) / 2
-        above = z + ((heights[i + 1] - z) / 2 if i + 1 < len(heights) else 0.0)
         windward = velocity_pressure(z, speed, exposure, importance) * wind.gust * wind.cpWindward
-        forces.append((windward - leeward) * width * (above - below))
-    return forces
+        parts = [(i, (z - (heights[i - 1] if i else 0.0)) / 2)]
+        if i + 1 < n:
+            parts.append((i + 1, (heights[i + 1] - z) / 2))
+        force = moment = area = twist = 0.0
+        for storey, tributary in parts:
+            low, high = spans[storey]
+            width = max(high - low, 0.0)
+            f = (windward - leeward(storey)) * width * tributary
+            force += f
+            moment += f * (low + high) / 2
+            twist += f * width
+            area += width * tributary
+        tributary_height = sum(t for _, t in parts)
+        width = area / tributary_height if tributary_height else 0.0
+        if force:
+            centre = moment / force
+        else:
+            low, high = spans[i]
+            centre = (low + high) / 2
+        out.append(WindLevel(force, centre, width, twist / force if force else width))
+    return out
+
+
+def wind_torsion_moments(levels: list[WindLevel], eccentricity: float) -> list[float]:
+    """The torsional moment at each level [kN·m] of the wind ``levels`` displaced by
+    ``eccentricity``·B across the wind (BNBC 2020 Part 6 Figure 6.2.9, p. 574: Case 2,
+    M_T = 0.75·(P_WX + P_LX)·B_X·e_X with e_X = ±0.15·B_X; here unfactored, F·e with
+    F = (P_W + P_L)·B per unit height, the 0.75 or 0.563 going in the combinations, see
+    :func:`wind_design_variants`). Positive counter-clockwise about Z (the sign is ±).
+
+    At a setback level each part-face takes its own e = 0.15·B_i, so the moment is
+    Σ F_i·0.15·B_i = F·0.15·:attr:`WindLevel.torsion_arm`, not F·0.15 times the mean width."""
+    return [level.force * eccentricity * level.torsion_arm for level in levels]
+
+
+#: The torsional wind case of each wind case: its moments alone (no force), from
+#: :func:`wind_torsion_moments`.
+WIND_TORSION_CASES = {"WX": "WTX", "WY": "WTY"}
+
+
+@dataclass(frozen=True)
+class WindDesignCases:
+    """The factors of the design wind load cases (BNBC 2020 Part 6 Sec 2.4.11.3 and Figure
+    6.2.9, pp. 559 and 574-575), from the code pack's wind table (``designCases``).
+
+    ``partial``: Case 2, the share of the pressure with the torsion (0.75); ``eccentricity``:
+    e / B (0.15); ``simultaneous``: Case 3, the share of each direction acting together
+    (0.75); ``simultaneousTorsional``: Case 4, the share of each direction with both torsions
+    (0.563); ``exemptHeight``: the exception's one-storey height limit h [m] (9.1) under which,
+    and for two storeys or less with flexible diaphragms, only Cases 1 and 3 apply."""
+
+    partial: float
+    eccentricity: float
+    simultaneous: float
+    simultaneousTorsional: float
+    exemptHeight: float
+
+
+def wind_design_cases() -> WindDesignCases | None:
+    """The design wind load cases of the code pack in force; None when its wind table has none
+    (only Case 1 then: the caller reports it)."""
+    table = getattr(code_context.table("wind"), "designCases", None)
+    if table is None:
+        return None
+
+    def value(name: str) -> float:
+        return float(table[name] if isinstance(table, dict) else getattr(table, name))
+
+    return WindDesignCases(
+        partial=value("partial"),
+        eccentricity=value("eccentricity"),
+        simultaneous=value("simultaneous"),
+        simultaneousTorsional=value("simultaneousTorsional"),
+        exemptHeight=value("exemptHeight"),
+    )
+
+
+def wind_torsion_exempt(
+    storeys: int, height: float, rigid_diaphragms: bool, cases: WindDesignCases
+) -> bool:
+    """Whether a building needs only Cases 1 and 3 (Sec 2.4.11.3, Exception, p. 559): one
+    storey with h ≤ 9.1 m, or two storeys or less designed with flexible diaphragms (light-frame
+    construction, the third exempt kind, is not one SAEngine models)."""
+    if storeys <= 1 and height <= cases.exemptHeight:
+        return True
+    return storeys <= 2 and not rigid_diaphragms
+
+
+def _sign(value: float) -> str:
+    return "+" if value > 0 else "-"
+
+
+def wind_design_variants(
+    factors: dict[str, float], cases: WindDesignCases, torsion: bool = True
+) -> list[tuple[str, dict[str, float]]]:
+    """The design wind load cases of a combination (Figure 6.2.9) as ``(label, {case:
+    factor})`` on WX, WY, WTX and WTY, from its wind factors ``factors`` (``{"WX": f}`` or
+    ``{"WY": f}``, the sign the wind's direction). A combination with both WX and WY (made by
+    hand) or neither is returned unchanged. Without ``torsion`` (an exempt building,
+    :func:`wind_torsion_exempt`, or a model without WTX and WTY) only Cases 1 and 3.
+
+    - Case 1: the combination itself;
+    - Case 2: 0.75 of it with ±0.75 of its torsion (e = ±0.15·B);
+    - Case 3: 0.75 of it with ±0.75 of the other direction;
+    - Case 4: 0.563 of it with ±0.563 of the other direction and ±0.563 of both torsions.
+
+    The other direction and each torsion take the factor's magnitude with both signs ("plus or
+    minus, whichever causes the more severe load effect", Sec 2.4.11.3).
+    """
+    wx, wy = factors.get("WX", 0.0), factors.get("WY", 0.0)
+    if bool(wx) == bool(wy):
+        return [("", {k: v for k, v in factors.items() if v})]
+    own, other = ("WX", "WY") if wx else ("WY", "WX")
+    f = wx or wy
+    pm = (1.0, -1.0)
+    out: list[tuple[str, dict[str, float]]] = [("Case 1", {own: f})]
+    if torsion:
+        p = cases.partial * f
+        for s in pm:
+            out.append((f"Case 2 {_sign(s)}e", {own: p, WIND_TORSION_CASES[own]: s * abs(p)}))
+    q = cases.simultaneous * f
+    for s in pm:
+        out.append((f"Case 3 {_sign(s)}{other}", {own: q, other: s * abs(q)}))
+    if torsion:
+        r = cases.simultaneousTorsional * f
+        for s in pm:
+            for t1 in pm:
+                for t2 in pm:
+                    out.append(
+                        (
+                            f"Case 4 {_sign(s)}{other} {_sign(t1)}e{own[1]} {_sign(t2)}e{other[1]}",
+                            {
+                                own: r,
+                                other: s * abs(r),
+                                WIND_TORSION_CASES[own]: t1 * abs(r),
+                                WIND_TORSION_CASES[other]: t2 * abs(r),
+                            },
+                        )
+                    )
+    return out
 
 
 # ───────────────────────── slab areas to beams ─────────────────────────
 
 
-@dataclass(frozen=True)
-class EdgeLoad:
-    """A uniform line load [kN/m] on edge ``index`` of a slab outline (from corner i to i+1)."""
-
-    index: int
-    load: float
-
-
 def slab_edge_loads(
     corners: list[tuple[float, float]], pressure: float, system: str
-) -> list[EdgeLoad]:
-    """Uniform line loads on a slab's edges carrying ``pressure`` [kN/m²] on its area.
-
-    Rectangles follow the yield-line (45°) rule: two-way slabs give the short edges triangles of
-    w·lx²/4 and the long edges trapezoids of w·lx·(2ly - lx)/4; one-way slabs (or two-way with
-    ly/lx > 2) carry everything to the long edges. Each is applied as the uniform load of the same
-    total. Other outlines share the load among their edges in proportion to their length.
-    """
-    n = len(corners)
-    lengths = [math.dist(corners[i], corners[(i + 1) % n]) for i in range(n)]
-    area = (
-        abs(
-            sum(x0 * y1 - x1 * y0 for (x0, y0), (x1, y1) in zip(corners, corners[1:] + corners[:1]))
-        )
-        / 2
-    )
-    if n == 4 and _is_rectangle(corners):
-        lx, ly = min(lengths[0], lengths[1]), max(lengths[0], lengths[1])
-        one_way = system == "oneWay" or ly / lx > 2
-        loads = []
-        for i, length in enumerate(lengths):
-            long_edge = math.isclose(length, ly) and not math.isclose(lx, ly)
-            if one_way:
-                total = pressure * lx * ly / 2 if long_edge else 0.0
-            elif long_edge:
-                total = pressure * lx * (2 * ly - lx) / 4
-            else:
-                total = pressure * lx**2 / 4
-            loads.append(EdgeLoad(i, total / length))
-        return loads
-    perimeter = sum(lengths)
-    return [EdgeLoad(i, pressure * area / perimeter) for i in range(n)]
-
-
-def _is_rectangle(corners: list[tuple[float, float]]) -> bool:
-    (ax, ay), (bx, by), (cx, cy), (dx, dy) = corners
-
-    def dot(u: tuple[float, float], v: tuple[float, float]) -> float:
-        return u[0] * v[0] + u[1] * v[1]
-
-    edges = [(bx - ax, by - ay), (cx - bx, cy - by), (dx - cx, dy - cy), (ax - dx, ay - dy)]
-    scale = max(math.hypot(*e) for e in edges)
-    return all(abs(dot(edges[i], edges[(i + 1) % 4])) <= 1e-6 * scale**2 for i in range(4))
+) -> list[EdgeProfile]:
+    """The load shapes on a slab's edges carrying ``pressure`` on its area: triangles and
+    trapezoids by the 45° rule (BNBC 2020 Part 6 Sec 6.5.6.8.1, p. 955), see
+    :func:`saengine.fem.slab_load_shapes.slab_load_shapes`. ``EdgeProfile.load`` is the mean
+    intensity (the uniform load of the same total this function gave before 0.0.45)."""
+    return slab_load_shapes(corners, pressure, system).edges

@@ -20,6 +20,7 @@ puts the top bars in tension (hogging) and negative My the bottom bars (sagging)
 
 from __future__ import annotations
 
+import itertools
 import json
 import math
 from dataclasses import dataclass
@@ -29,8 +30,10 @@ from typing import Any
 import numpy as np
 
 from saengine.codes import context as code_context
-from saengine.design import seismic_rules, slab, steel_design
+from saengine.design import column_shear, seismic_rules, slab, steel_design
+from saengine.design import deflection as deflection_design
 from saengine.design import slender as slenderness_design
+from saengine.design import torsion as torsion_design
 from saengine.design.rc import (
     DesignError,
     InteractionSurface,
@@ -50,7 +53,15 @@ from saengine.library.bim import (
     WallElement,
 )
 from saengine.library.materials import Category, MaterialLibrary
-from saengine.library.objects import Beam, Brace, Column, ObjectLibrary, Slab, Wall
+from saengine.library.objects import (
+    Beam,
+    Brace,
+    Column,
+    ObjectLibrary,
+    RectangleProfile,
+    Slab,
+    Wall,
+)
 from saengine.library.settings import LoadCombination, ProjectSettings
 
 #: Said in the notes instead of designing footings: they are Part 9's (saengine.substructure).
@@ -70,16 +81,42 @@ METHOD = [
         "Beams: sagging (bottom bars) and hogging (top bars) moments about the strong axis, and "
         "shear φ(Vc + Vs) with Vc = 0.17 λ √f'c b d when Av >= Av,min, else "
         "0.66 λs λ ρw^(1/3) √f'c b d (ACI Table 22.5.5.1, λ = 1, ρw of the face with fewer "
-        "bars). Weak-axis bending, torsion and axial force in beams are not checked; shear is "
+        "bars). Weak-axis bending and axial force in beams are not checked; shear is "
         "taken at every station, including the supports. The top of a beam is the face of its "
         "depth axis that points up."
     ),
     (
+        "Beam torsion (BNBC 2020 Part 6 Sec 6.4.4): neglected below the threshold φTth; above "
+        "it the section limit (Eq. 6.6.59), closed stirrups At/s with the shear's Av/s per "
+        "outer leg, the longitudinal steel Al on top of the flexural steel the simultaneous "
+        "moment needs, and the detailing of Sec 6.4.4.6. A beam whose end is free or which "
+        "carries a cantilever slab is designed for the full Tu (equilibrium torsion); a beam "
+        "framed at both ends for Tu reduced to at most φTcr (compatibility torsion, Sec "
+        "6.4.4.2.2): the moments this releases are not redistributed to the adjoining members "
+        "by SAEngine."
+    ),
+    (
+        "Beam deflection (BNBC 2020 Part 6 Sec 6.2.5): each span between its supports, from the "
+        "analysis's unfactored D + SD and L (Lr on the roof) deflections relative to the chord, "
+        "scaled by the analysis E I over Ec Ie (Eq. 6.6.1, Ie at midspan, at the support of a "
+        "cantilever; the rectangle without the slab flange, on the safe side), the long-term "
+        "part λΔ = ξ/(1 + 50ρ') on D + SD and the sustained share of L; limits of Table 6.6.2. "
+        "With partitions not likely to be damaged a beam at least as deep as Table 6.6.1 asks "
+        "is not computed."
+    ),
+    (
         "Columns: axial force with biaxial bending, the capacity read from the φ-factored "
         "interaction surface at the demand's axial force in the direction of its moment vector; "
-        "φPn,max = 0.80 φ P0 (tied) or 0.85 φ P0 (spiral). Column shear is not checked."
+        "φPn,max = 0.80 φ P0 (tied) or 0.85 φ P0 (spiral). Column shear from the analysis "
+        "along each profile axis, Vc with the simultaneous axial force (BNBC 2020 Part 6 Eqs. "
+        "6.6.50, 6.6.54), the tie spacing limits of Sec 6.4.3.4 (the capacity-design shear of "
+        "special and intermediate frames is checked with the seismic detailing)."
     ),
 ]
+
+
+#: The unfactored gravity cases the deflection checks use.
+SERVICE_CASES = ("D", "SD", "L", "Lr")
 
 
 @dataclass
@@ -249,8 +286,40 @@ def design(
         if omega_static
         else settings
     )
+    # Integrator glue (0.0.45): the design wind load cases of BNBC 2020 Part 6 Figure 6.2.9
+    # (Sec 2.4.11.3) and the live load arrangements of Sec 6.1.12.2, from the cases the model
+    # has (saengine.fem.combinations).
+    from saengine.fem.combinations import (
+        model_cases,
+        pattern_live_combinations,
+        wind_case_combinations,
+    )
+
+    present = model_cases(project)
+    formed = list(with_omega.combinations)
+    pre_notes: list[str] = []
+    by_wind = wind_case_combinations(formed, present)
+    if by_wind is not None and len(by_wind) > len(formed):
+        pre_notes.append(
+            "wind: each one-direction wind combination is checked for the design wind load "
+            "cases of BNBC 2020 Part 6 Figure 6.2.9 (Sec 2.4.11.3): Case 1, "
+            + ("Case 2 (0.75 with the torsion e = ±0.15 B), " if {"WTX", "WTY"} <= present else "")
+            + "Case 3 (0.75 in both directions)"
+            + (", Case 4 (0.563 in both with both torsions)" if {"WTX", "WTY"} <= present else "")
+        )
+        formed = by_wind
+    by_pattern = pattern_live_combinations(formed, present)
+    if by_pattern is not None and len(by_pattern) > len(formed):
+        count = len([c for c in present if c.startswith("LP") and c[2:].isdigit()])
+        pre_notes.append(
+            f"live load arrangements: each gravity combination with live load is also checked "
+            f"with L on the {count} arrangements LP1-LP{count} (BNBC 2020 Part 6 Sec 6.1.12.2)"
+        )
+        formed = by_pattern
+    if len(formed) != len(with_omega.combinations):
+        with_omega = with_omega.model_copy(update={"combinations": formed})
+    static: dict[str, Any] = {}
     if seismic_design.design_uses_spectrum(settings):
-        static: dict[str, Any] = {}
 
         def static_demands(
             project: dict[str, Any], out_dir: str | Path, settings: Any, inner: Any = None
@@ -301,6 +370,8 @@ def design(
                 "static cases EXP/EXN (EYP/EYN), the story masses shifted ±5 % across the force "
                 "(BNBC 2020 Part 6 Sec 2.5.7.6.2)"
             )
+    notes = pre_notes + notes
+    service = extra.get("service") or (static.get("inner") or {}).get("service") or {}
     if scope is None:
         notes.append(f"the seismic detailing scope could not be found: {scope_problem}")
     omega_indices = [c for c, name in enumerate(combinations) if name.startswith("Ω0: ")]
@@ -388,6 +459,7 @@ def design(
     designed: list[seismic_detailing.Designed] = []
     steel_seen = False
     beam_sections: dict[str, tuple[RcSection, dict[bool, Any]]] = {}
+    framing: _BeamFraming | None = None
     column_sections: dict[str, tuple[RcSection, InteractionSurface]] = {}
     for member_id, type_id, element in members:
         object_type = types.get(type_id)
@@ -455,6 +527,7 @@ def design(
             continue
         es = bars.mechanical.E or 200_000.0
         joints_own = own
+        torsion_found = None
         try:
             if isinstance(object_type, Beam):
                 if type_id not in beam_sections:
@@ -489,6 +562,34 @@ def design(
                 if faced.at_faces:
                     face_forces.annotate(checks, faced)
                 faced_any = faced_any or faced.at_faces
+                # Integrator glue (0.0.45): torsion (saengine.design.torsion) and deflection
+                # (saengine.design.deflection) of beams of the building model.
+                if isinstance(element, BeamElement):
+                    framing = framing or _BeamFraming(building, types)
+                    torsion_rows, torsion_found = _beam_torsion_checks(
+                        element,
+                        object_type,
+                        section,
+                        own,
+                        combinations,
+                        _turned(element, exact),
+                        framing,
+                        bars.steel.fy,
+                    )
+                    checks += torsion_rows
+                    checks += _beam_deflection_checks(
+                        element,
+                        section,
+                        joints_own,
+                        _turned(element, exact),
+                        framing,
+                        project,
+                        service,
+                        settings,
+                        slenderness_design.concrete_modulus(concrete),
+                        bars.steel.fy,
+                        notes,
+                    )
             else:
                 if type_id not in column_sections:
                     section = section_of(
@@ -524,6 +625,13 @@ def design(
                 )
                 if faced.at_faces:
                     face_forces.annotate(checks, faced)
+                # Integrator glue (0.0.45): the shear of every column from the analysis forces
+                # with the axial force's effect on Vc (saengine.design.column_shear).
+                checks += column_shear.column_shear_checks(
+                    section,
+                    object_type.reinforcement.transverse,
+                    _shear_points(own, combinations, _turned(element, exact)),
+                )
                 faced_any = faced_any or faced.at_faces
             given = resolved_overwrites.get(member_id)
             if given:
@@ -550,6 +658,9 @@ def design(
                     "aggregate": concrete.concrete.maxAggregate,
                     "checks": checks,
                     "points": column_points,
+                    # The torsion design at the governing station (saengine.design.torsion), for
+                    # the required steel and the proposal; None below the threshold.
+                    "torsion": torsion_found,
                 }
             )
         entry = {
@@ -618,6 +729,7 @@ def design(
         skipped,
         notes,
         collect["slabs"] if collect is not None else None,
+        settings,
     )
     # Integrator glue: stairs (saengine.design.stairs: hand methods, not in the analysis model)
     # and structural walls (saengine.design.wall_design: wall_forces' piers, walls' checks).
@@ -676,8 +788,10 @@ def design(
         notes.append(face_forces.JOINT_NOTE)
     if steel_seen:
         method += steel_design.METHOD
-    if slabs_seen:
+    if "shells" in slabs_seen:
         method += slab.METHOD
+    if "coefficients" in slabs_seen:
+        method.append(slab.COEFFICIENT_METHOD)
     if walls_found["designed"]:
         method += wall_design.METHOD
     if lintels_found["elements"]:
@@ -796,10 +910,14 @@ def _design_slabs(
     skipped: list[dict[str, Any]],
     notes: list[str],
     collect: list[dict[str, Any]] | None = None,
-) -> bool:
+    settings: ProjectSettings | None = None,
+) -> set[str]:
     """Checks the slabs of the building model (see :mod:`saengine.design.slab`), adding them to
     ``checked`` or ``skipped`` (and what they were checked from to ``collect``, see
-    :func:`design`). True when the building has slabs."""
+    :func:`design`). True when the building has slabs. Slabs not analysed as shells (slabs as
+    loads to beams) are designed by BNBC's coefficient methods from their own loads (with
+    ``settings``: its area loads and combinations; :func:`saengine.design.slab.
+    coefficient_design`)."""
     from saengine.library.sections import section_properties
 
     coords = {n["id"]: np.asarray(n["coords"], dtype=float) for n in project.get("nodes", [])}
@@ -823,7 +941,7 @@ def _design_slabs(
                 (element.id, element.type, outline, slab.outline_axes(element.outline), level)
             )
     if not candidates:
-        return False
+        return set()
 
     beams_at: dict[float, list[slab.EdgeBeam]] = {}
     for element in building.elements:
@@ -844,10 +962,15 @@ def _design_slabs(
                 tuple(element.end),
                 material.mechanical.E * ixx,
                 float(getattr(profile, "xDim", 0.0) or 0.0),
+                float(getattr(profile, "yDim", 0.0) or 0.0),
             )
         )
 
     supports_at = _line_supports(building, types, [c[4] for c in candidates])
+    elements_by_id = {e.id: e for e in building.elements}
+    stories = [float(s.elevation) for s in building.stories]
+    top_level = max(stories) if stories else math.inf
+    coefficient_seen = shells_seen = False
 
     for slab_id, type_id, outline, axes, level in candidates:
         object_type = types.get(type_id)
@@ -859,13 +982,11 @@ def _design_slabs(
         if not isinstance(object_type, Slab):
             skip(f"unknown slab type '{type_id}'")
             continue
-        if not own:
-            if object_type.reinforcement is None:
-                notes.append(
-                    f"{slab_id}: slab not designed (no reinforcement, not analysed as shells)"
-                )
-            else:
-                skip("not analysed as shells: set the analysis's slabs to shells to design it")
+        if not own and object_type.reinforcement is None:
+            notes.append(f"{slab_id}: slab not designed (no reinforcement, not analysed as shells)")
+            continue
+        if not own and settings is None:
+            skip("not analysed as shells: set the analysis's slabs to shells to design it")
             continue
         concrete = mats.get(object_type.material)
         if concrete is None or concrete.category != Category.CONCRETE or not concrete.concrete:
@@ -888,6 +1009,43 @@ def _design_slabs(
         fc, fy = concrete.concrete.fc, bars.steel.fy
         es = bars.mechanical.E or 200_000.0
 
+        if not own and settings is not None:
+            # Integrator glue (0.0.45): a slab on beams (not in the analysis model) designed by
+            # the coefficient methods from its own loads (saengine.design.slab).
+            found = _coefficient_slab(
+                slab_id,
+                type_id,
+                object_type,
+                elements_by_id.get(slab_id),
+                outline,
+                axes,
+                level,
+                top_level,
+                concrete,
+                fc,
+                fy,
+                es,
+                settings,
+                supports_at.get(round(level), []),
+                [
+                    other
+                    for other_id, _, other, _, other_level in candidates
+                    if other_id != slab_id and abs(other_level - level) <= 1
+                ],
+                beams_at.get(round(level), []),
+                notes,
+            )
+            if isinstance(found, str):
+                skip(found)
+                continue
+            entry, collected = found
+            checked.append(entry)
+            if collect is not None:
+                collect.append(collected)
+            coefficient_seen = True
+            continue
+
+        shells_seen = True
         shells: list[slab.ShellPoint] = []
         for e in own:
             points = [coords[n] for n in e["nodes"]]
@@ -980,7 +1138,101 @@ def _design_slabs(
             }
         )
         notes += [f"{slab_id}: {note}" for note in context.notes]
-    return True
+    return ({"shells"} if shells_seen else set()) | (
+        {"coefficients"} if coefficient_seen else set()
+    )
+
+
+def _coefficient_slab(
+    slab_id: str,
+    type_id: str,
+    object_type: Slab,
+    element: Any,
+    outline: list[tuple[float, float]],
+    axes: Any,
+    level: float,
+    top_level: float,
+    concrete: Any,
+    fc: float,
+    fy: float,
+    es: float,
+    settings: ProjectSettings,
+    supports: list[slab.LineSupport],
+    neighbours: list[list[tuple[float, float]]],
+    beams: list[slab.EdgeBeam],
+    notes: list[str],
+) -> tuple[dict[str, Any], dict[str, Any]] | str:
+    """A slab on beams by the coefficient methods (:func:`saengine.design.slab.
+    coefficient_design`): (its checked entry, what it was checked from) or the reason it is
+    not designed. Its loads as the analysis model's (saengine.fem.derive): self-weight (times
+    the weight modifier), finishes and partitions of its area load, its live load (the roof's
+    live load on the top level)."""
+    from saengine.library.modifiers import resolve_modifiers
+
+    if axes is None:
+        return "not a horizontal slab (inclined areas are not designed yet)"
+    roof = level >= top_level - 1.0
+    area_loads = {a.id: a for a in settings.areaLoads}
+    load_id = getattr(element, "areaLoad", None) or (
+        settings.roofLoad if roof else settings.floorLoad
+    )
+    area_load = area_loads.get(load_id) if load_id else None
+    density = concrete.mechanical.density or 0.0
+    weight = resolve_modifiers(element, object_type).get("weight", (1.0, ""))[0]
+    self_weight = density * 9.80665 * object_type.thickness * 1e-3 / 1e3 * weight  # kN/m²
+    dead = self_weight + ((area_load.finish + area_load.partitions) if area_load else 0.0)
+    live = area_load.live if area_load else 0.0
+    context = slab.SlabContext(boundary=outline, axes=axes, supports=supports)
+    ec = concrete.mechanical.E or 4700 * math.sqrt(fc)
+    try:
+        context.thickness = slab.minimum_thickness(
+            outline, axes, object_type.system, object_type.thickness, fy, ec, neighbours, beams
+        )
+    except (ValueError, ZeroDivisionError) as error:
+        notes.append(f"{slab_id}: minimum thickness not checked: {error}")
+    try:
+        design = slab.coefficient_design(
+            object_type.system,
+            object_type.thickness,
+            object_type.reinforcement,
+            fc,
+            fy,
+            es,
+            dead,
+            live,
+            slab.gravity_combinations(settings.combinations, roof),
+            context,
+            neighbours,
+            beams,
+            ec=ec,
+        )
+    except ValueError as error:
+        return str(error)
+    strength = [c for c in design.checks if not c["flag"]]
+    notes.extend(f"{slab_id}: {note}" for note in context.notes)
+    entry = {
+        "id": slab_id,
+        "kind": "slab",
+        "type": type_id,
+        "members": [],
+        "checks": design.checks,
+        "utilisation": max((c["utilisation"] for c in strength), default=0.0),
+        "ok": all(c["ok"] for c in strength),
+        "strips": [],
+        "method": design.method,
+    }
+    collected = {
+        "id": slab_id,
+        "type": type_id,
+        "object": object_type,
+        "context": context,
+        "fc": fc,
+        "fy": fy,
+        "es": es,
+        "checks": design.checks,
+        "coefficients": design,
+    }
+    return entry, collected
 
 
 def _line_supports(
@@ -996,11 +1248,13 @@ def _line_supports(
         if isinstance(element, BeamElement):
             levels = [element.elevation]
             width = float(getattr(getattr(support_type, "profile", None), "xDim", 0.0) or 0.0)
+            kind = "beam"
         elif isinstance(element, WallElement) and isinstance(support_type, Wall):
             if not support_type.structural:
                 continue
             levels = [at for at in slab_levels if element.bottom + 1 < at < element.top + 1]
             width = float(support_type.thickness)
+            kind = "wall"
         else:
             continue
         for at in dict.fromkeys(round(level) for level in levels):
@@ -1010,6 +1264,7 @@ def _line_supports(
                     (float(element.start[0]), float(element.start[1])),
                     (float(element.end[0]), float(element.end[1])),
                     width,
+                    kind,
                 )
             )
     return supports_at
@@ -1143,7 +1398,7 @@ def _demands(
         if not isinstance(results, StaticResults):
             continue
         code = _code(entry["case_name"])
-        if extra is not None and slenderness_design.is_lateral(code):
+        if extra is not None and (slenderness_design.is_lateral(code) or code in SERVICE_CASES):
             displacements[code] = {
                 int(n): np.asarray(rows[-1], dtype=float)[:6]
                 for n, rows in results.node_disp.items()
@@ -1192,6 +1447,11 @@ def _demands(
         extra["lateralDisplacements"] = [
             _combined_displacements(displacements, part) for part in lateral
         ]
+        # The unfactored gravity cases, for the deflection checks (saengine.design.deflection).
+        extra["service"] = {
+            "forces": {c: by_case[c] for c in SERVICE_CASES if c in by_case},
+            "displacements": {c: displacements[c] for c in SERVICE_CASES if c in displacements},
+        }
 
     pieces: dict[str, list[_Piece]] = {}
     for e in elements:
@@ -1556,3 +1816,572 @@ def _column_checks(
     if slender is not None:
         checks += slender.checks
     return checks
+
+
+# ───────────────────── integrator glue (0.0.45): column shear, beam torsion, deflection ─────────────────────
+
+
+def _shear_points(
+    pieces: list[_Piece], combinations: list[str], turned: bool
+) -> list[tuple[float, float, float, str | None, str]]:
+    """Every station's (Pu [N, compression positive], Vx, Vy [N, along the profile's x and y],
+    combination, where) of a column, for :func:`saengine.design.column_shear.
+    column_shear_checks`."""
+    points = []
+    for piece in pieces:
+        for c, forces in enumerate(piece.forces):
+            values = _profile_forces(piece, turned, forces)
+            count = len(forces)
+            for k in range(count):
+                points.append(
+                    (
+                        float(values["P"][k]),
+                        float(values["Vx"][k]),
+                        float(values["Vy"][k]),
+                        combinations[c],
+                        _where(piece, k, count),
+                    )
+                )
+    return points
+
+
+#: Plan tolerance [mm] of the framing found from the building model (a point on a line).
+_ON_LINE = 1.0
+
+
+class _BeamFraming:
+    """How the beams of a building model are held, from the model itself [mm]: the columns
+    and structural walls along a beam (its supports), the beams its ends meet, the slabs beside
+    it. For the torsion kind and the deflection spans of :func:`design`."""
+
+    def __init__(self, building: BuildingModel, types: dict[str, Any]) -> None:
+        self.columns: list[tuple[np.ndarray, float, float, float]] = []
+        self.walls: list[tuple[np.ndarray, np.ndarray, float, float, float]] = []
+        self.beams: list[tuple[str, np.ndarray, np.ndarray, float]] = []
+        self.slabs: list[tuple[Any, float, float]] = []
+        self.supports: list[tuple[np.ndarray, np.ndarray, float, float]] = []
+        stories = [float(s.elevation) for s in building.stories]
+        self.top = max(stories) if stories else math.inf
+        for e in building.elements:
+            object_type = types.get(e.type)
+            profile = getattr(object_type, "profile", None)
+            if isinstance(e, ColumnElement):
+                if isinstance(profile, RectangleProfile):
+                    reach = max(profile.xDim, profile.yDim) / 2
+                elif profile is not None and getattr(profile, "radius", None):
+                    reach = float(profile.radius)
+                else:
+                    reach = 0.0
+                self.columns.append(
+                    (np.array(e.position, dtype=float), float(e.bottom), float(e.top), reach)
+                )
+            elif isinstance(e, WallElement) and getattr(object_type, "structural", False):
+                self.walls.append(
+                    (
+                        np.array(e.start, dtype=float),
+                        np.array(e.end, dtype=float),
+                        float(e.bottom),
+                        float(e.top),
+                        float(getattr(object_type, "thickness", 0.0) or 0.0) / 2,
+                    )
+                )
+            elif isinstance(e, BeamElement):
+                self.beams.append(
+                    (
+                        e.id,
+                        np.array(e.start, dtype=float),
+                        np.array(e.end, dtype=float),
+                        float(e.elevation),
+                    )
+                )
+        from shapely.geometry import Polygon
+
+        for e in building.elements:
+            object_type = types.get(e.type)
+            if isinstance(e, SlabElement) and isinstance(object_type, Slab):
+                polygon = Polygon([(float(x), float(y)) for x, y in e.boundary])
+                if polygon.is_valid and polygon.area > 0:
+                    self.slabs.append((polygon, float(object_type.thickness), float(e.elevation)))
+        # Lines that hold a slab's edge: beams, structural walls.
+        for _, a, c, z in self.beams:
+            self.supports.append((a, c, z, z))
+        for a, c, bottom, top, _ in self.walls:
+            self.supports.append((a, c, bottom, top))
+
+    @staticmethod
+    def _station(point: np.ndarray, a: np.ndarray, c: np.ndarray) -> tuple[float, float]:
+        """(t along a-c from a [0, 1], distance from the line [mm])."""
+        axis = c - a
+        length = float(np.linalg.norm(axis))
+        t = float((point - a) @ axis) / length**2
+        foot = a + t * axis
+        return t, float(np.linalg.norm(point - foot))
+
+    def support_stations(self, element: BeamElement) -> list[float]:
+        """The stations t [0, 1] along a beam where a column or a structural wall holds it (a
+        column within its half-size of the line, at the beam's level; one within its half-size
+        of an end holds that end). Supports closer than their half-sizes are one."""
+        a, c = np.array(element.start, dtype=float), np.array(element.end, dtype=float)
+        length = float(np.linalg.norm(c - a))
+        z = float(element.elevation)
+        found: list[tuple[float, float]] = []  # (t, half-size [mm])
+        for position, bottom, top, reach in self.columns:
+            if not bottom - 1.0 <= z <= top + 1.0:
+                continue
+            t, off = self._station(position, a, c)
+            margin = (reach + _ON_LINE) / length
+            if off <= reach + _ON_LINE and -margin <= t <= 1 + margin:
+                if t <= margin:
+                    t = 0.0
+                elif t >= 1 - margin:
+                    t = 1.0
+                found.append((t, reach))
+        for w0, w1, bottom, top, half in self.walls:
+            if not bottom - 1.0 <= z <= top + 1.0:
+                continue
+            for end in (a, c):
+                t_wall, off = self._station(end, w0, w1)
+                if off <= half + _ON_LINE and -1e-6 <= t_wall <= 1 + 1e-6:
+                    found.append((0.0 if end is a else 1.0, half))
+            # A wall crossing the beam.
+            hit = _segment_cross(a, c, w0, w1)
+            if hit is not None:
+                found.append((hit, half))
+        merged: list[tuple[float, float]] = []
+        for t, reach in sorted(found):
+            if merged and (t - merged[-1][0]) * length <= merged[-1][1] + reach + _ON_LINE:
+                # One support: keep an end station where there is one.
+                if t in (0.0, 1.0):
+                    merged[-1] = (t, max(reach, merged[-1][1]))
+                continue
+            merged.append((t, reach))
+        return [t for t, _ in merged]
+
+    def end_held(self, element: BeamElement, end: int) -> bool:
+        """Whether a beam's end (0: start, 1: end) is held: a column or wall there, or another
+        beam it frames into (the end on that beam's line, not a collinear continuation)."""
+        stations = self.support_stations(element)
+        a, c = np.array(element.start, dtype=float), np.array(element.end, dtype=float)
+        length = float(np.linalg.norm(c - a))
+        if any(abs(t - end) * length <= 1.0 + _ON_LINE for t in stations):
+            return True
+        point = c if end else a
+        direction = (c - a) / length
+        for other_id, b0, b1, z in self.beams:
+            if other_id == element.id or abs(z - float(element.elevation)) > 1.0:
+                continue
+            t, off = self._station(point, b0, b1)
+            if off > _ON_LINE or not -1e-6 <= t <= 1 + 1e-6:
+                continue
+            other = (b1 - b0) / float(np.linalg.norm(b1 - b0))
+            if abs(float(direction @ other)) < 0.999:
+                return True
+        return False
+
+    def continues(self, element: BeamElement, end: int) -> bool:
+        """Whether a collinear beam continues beyond a beam's end (a continuous end)."""
+        a, c = np.array(element.start, dtype=float), np.array(element.end, dtype=float)
+        point = c if end else a
+        direction = (c - a) / float(np.linalg.norm(c - a)) * (1 if end else -1)
+        for other_id, b0, b1, z in self.beams:
+            if other_id == element.id or abs(z - float(element.elevation)) > 1.0:
+                continue
+            for near, far in ((b0, b1), (b1, b0)):
+                if float(np.linalg.norm(near - point)) <= _ON_LINE:
+                    away = (far - near) / float(np.linalg.norm(far - near))
+                    if float(direction @ away) > 0.999:
+                        return True
+        return False
+
+    def slab_beside(self, element: BeamElement, width: float) -> tuple[float, int]:
+        """(thickness [mm], sides 0-2) of the slabs cast with a beam: those at its level beside
+        its middle."""
+        from shapely.geometry import Point
+
+        a, c = np.array(element.start, dtype=float), np.array(element.end, dtype=float)
+        axis = (c - a) / float(np.linalg.norm(c - a))
+        normal = np.array([-axis[1], axis[0]])
+        middle = (a + c) / 2
+        thickness, sides = 0.0, 0
+        for sign in (1, -1):
+            probe = Point(*(middle + sign * normal * (width / 2 + 50.0)))
+            beside = [
+                t
+                for polygon, t, z in self.slabs
+                if abs(z - float(element.elevation)) <= 1.0 and polygon.covers(probe)
+            ]
+            if beside:
+                sides += 1
+                thickness = max(thickness, *beside)
+        return thickness, sides
+
+    def carries_cantilever(self, element: BeamElement, width: float) -> bool:
+        """Whether a slab beside a beam is a cantilever from it: an edge of it parallel to the
+        beam has no beam or wall under it (less than 95 % held) and neither has any edge across
+        the beam (held on an edge across, the slab spans to that support instead)."""
+        from shapely.geometry import LineString, Point
+
+        a, c = np.array(element.start, dtype=float), np.array(element.end, dtype=float)
+        axis = (c - a) / float(np.linalg.norm(c - a))
+        normal = np.array([-axis[1], axis[0]])
+        middle = (a + c) / 2
+        z0 = float(element.elevation)
+        line = LineString([tuple(a), tuple(c)])
+
+        def held(edge: Any) -> bool:
+            covered = 0.0
+            for s0, s1, bottom, top in self.supports:
+                if not bottom - 1.0 <= z0 <= top + 1.0:
+                    continue
+                support = LineString([tuple(s0), tuple(s1)]).buffer(width / 2 + 50.0)
+                covered += edge.intersection(support).length
+            return covered >= 0.95 * edge.length
+
+        for polygon, _, z in self.slabs:
+            if abs(z - z0) > 1.0:
+                continue
+            if not any(
+                polygon.covers(Point(*(middle + sign * normal * (width / 2 + 50.0))))
+                for sign in (1, -1)
+            ):
+                continue
+            free_parallel, held_across = False, False
+            for p, q in itertools.pairwise(list(polygon.exterior.coords)):
+                edge = LineString([p, q])
+                if edge.length <= 1.0 or edge.hausdorff_distance(line) <= width / 2 + _ON_LINE:
+                    continue  # this beam's own edge
+                along = np.array(q, dtype=float) - np.array(p, dtype=float)
+                parallel = abs(float(along @ axis)) >= 0.985 * float(np.linalg.norm(along))
+                if parallel and not held(edge):
+                    free_parallel = True
+                elif not parallel and held(edge):
+                    held_across = True
+            if free_parallel and not held_across:
+                return True
+        return False
+
+
+def _segment_cross(a: np.ndarray, c: np.ndarray, p: np.ndarray, q: np.ndarray) -> float | None:
+    """The station t (0, 1) along a-c where segment p-q crosses it, or None."""
+    r, s = c - a, q - p
+    denominator = float(r[0] * s[1] - r[1] * s[0])
+    if abs(denominator) < 1e-9:
+        return None
+    t = float((p - a)[0] * s[1] - (p - a)[1] * s[0]) / denominator
+    u = float((p - a)[0] * r[1] - (p - a)[1] * r[0]) / denominator
+    if 0 < t < 1 and -1e-9 <= u <= 1 + 1e-9:
+        return t
+    return None
+
+
+#: The torsion design is tried at this many stations of highest Tu (above half the threshold).
+_TORSION_CANDIDATES = 24
+
+
+def _beam_torsion_checks(
+    element: BeamElement,
+    beam: Beam,
+    section: RcSection,
+    pieces: list[_Piece],
+    combinations: list[str],
+    turned: bool,
+    framing: _BeamFraming,
+    fy: float,
+) -> tuple[list[dict[str, Any]], Any]:
+    """The torsion rows of a beam (BNBC 2020 Part 6 Sec 6.4.4, :mod:`saengine.design.torsion`)
+    at its governing station (below the threshold one reported-only row), and the torsion
+    design there (:class:`saengine.design.torsion.TorsionDesign`; None when not required)."""
+    from saengine.design.bars import singly_area
+
+    try:
+        rules = torsion_design.TorsionRules.from_pack()
+    except (AttributeError, KeyError, TypeError):
+        return [], None  # the code pack has no torsion group
+    reinforcement = beam.reinforcement
+    if reinforcement is None:
+        return [], None
+    width = section.width
+    thickness, sides = framing.slab_beside(element, width)
+    try:
+        ts = torsion_design.TorsionSection.of(section, reinforcement.cover, thickness, sides)
+        ts.core  # noqa: B018 - raises when the cover leaves no room
+    except (DesignError, ValueError) as error:
+        return [
+            _check(
+                "Torsion (Sec 6.4.4)", 0.0, 0.0, "kN·m", None, f"not checked: {error}", flag=True
+            )
+        ], None
+    held = framing.end_held(element, 0) and framing.end_held(element, 1)
+    kind, why = torsion_design.torsion_kind(held, framing.carries_cantilever(element, width))
+    transverse = reinforcement.transverse
+    stirrups = (
+        (transverse.dia, transverse.legs, transverse.spacing)
+        if transverse is not None and transverse.spacing
+        else None
+    )
+    resistance = shear(
+        section,
+        transverse.dia if transverse else None,
+        transverse.legs if transverse else 0,
+        transverse.spacing if transverse else None,
+    )
+    fc = section.fc
+    threshold = torsion_design.threshold_torsion(ts, fc)
+    points: list[tuple[float, float, float, float, str, str]] = []
+    for piece in pieces:
+        for c, forces in enumerate(piece.forces):
+            values = _profile_forces(piece, turned, forces)
+            count = len(forces)
+            for k in range(count):
+                points.append(
+                    (
+                        abs(float(forces[k, 3])) * 1e3,  # N·m -> N·mm
+                        abs(float(values["Vy"][k])),
+                        float(values["Mx"][k]),
+                        float(values["P"][k]),
+                        combinations[c],
+                        _where(piece, k, count),
+                    )
+                )
+    if not points:
+        return [], None
+    points.sort(key=lambda p: -p[0])
+    candidates = [p for p in points[:_TORSION_CANDIDATES] if p[0] > 0.5 * threshold] or points[:1]
+    best: tuple[float, Any, tuple[float, float, float, float, str, str]] | None = None
+    for point in candidates:
+        tu, vu, mu, nu, _, _ = point
+        design = torsion_design.design_torsion(
+            ts,
+            tu,
+            vu,
+            fc,
+            fy,
+            fy,
+            kind,
+            nu=nu,
+            vc=resistance.vc,
+            rules=rules,
+            spacing=stirrups[2] if stirrups else None,
+        )
+        if not design.required:
+            ratio = design.tu_design / design.phi_tth if design.phi_tth else 0.0
+        else:
+            ratio = 1.0 + design.stress / design.stress_limit
+            if stirrups is not None:
+                dia, legs, spacing = stirrups
+                av_s = torsion_design.shear_av_s(
+                    vu, design.vc, ts.d, design.fyt, design.phi, rules.fy_max
+                )
+                ratio = max(
+                    ratio, 1.0 + (design.at_s + av_s / legs) * spacing / (dia**2 * math.pi / 4)
+                )
+        if best is None or ratio > best[0]:
+            best = (ratio, design, point)
+    assert best is not None
+    _, design, (tu, vu, mu, _, combination, where) = best
+    hogging = mu > 0
+    try:
+        d = section.effective_depth(top=hogging)
+    except DesignError:
+        d = ts.d
+    as_flexure = singly_area(abs(mu), width, d, fc, fy)
+    if as_flexure is None:
+        as_flexure = section.steel_area  # the concrete cannot carry the moment: no room for Al
+    rows = torsion_design.torsion_checks(
+        design,
+        ts,
+        vu,
+        stirrups,
+        section.steel_area,
+        as_flexure,
+        combination,
+        where,
+        bars=section.bars,
+        rules=rules,
+    )
+    if rows:
+        rows[0]["note"] = f"{why}; " + rows[0]["note"]
+    return rows, (design if design.required else None)
+
+
+def _beam_deflection_checks(
+    element: BeamElement,
+    section: RcSection,
+    pieces: list[_Piece],
+    turned: bool,
+    framing: _BeamFraming,
+    project: dict[str, Any],
+    service: dict[str, Any],
+    settings: ProjectSettings,
+    ec: float,
+    fy: float,
+    notes: list[str],
+) -> list[dict[str, Any]]:
+    """The deflection rows of a beam (BNBC 2020 Part 6 Sec 6.2.5, Table 6.6.2,
+    :mod:`saengine.design.deflection`): each span between the columns and walls holding it,
+    and a free end as a cantilever."""
+    mode = getattr(settings.analysis, "deflection", "sensitive") or "sensitive"
+    if mode == "off" or not pieces:
+        return []
+    try:
+        limits = deflection_design.DeflectionLimits.from_pack()
+    except (AttributeError, KeyError, TypeError):
+        return []  # the code pack has no deflection group
+    forces = service.get("forces") or {}
+    moved = service.get("displacements") or {}
+    if "D" not in forces or "D" not in moved:
+        return []
+    roof = float(element.elevation) >= framing.top - 1.0
+    live_cases = [c for c in ("L", "Lr") if c in forces and c in moved]
+    sensitive = mode == "sensitive"
+    sustained = float(getattr(settings.analysis, "sustainedLive", 0.25))
+    a = np.array([*element.start, element.elevation], dtype=float) / 1e3
+    c = np.array([*element.end, element.elevation], dtype=float) / 1e3
+    axis = c - a
+    length = float(np.linalg.norm(axis))
+    nodes_of = {e["id"]: e.get("nodes", []) for e in project.get("elements", [])}
+    sections = {s["id"]: s for s in project.get("sections", [])}
+    section_of_element = {e["id"]: e.get("section_id") for e in project.get("elements", [])}
+    coords = {n["id"]: np.asarray(n["coords"], dtype=float) for n in project.get("nodes", [])}
+
+    # (t along the beam, node) and per piece its stations between its nodes.
+    stations: list[tuple[float, int, _Piece, int]] = []
+    for piece in pieces:
+        ids = nodes_of.get(piece.id) or []
+        if len(ids) < 2:
+            continue
+        count = len(forces["D"].get(piece.id, ())) or 2
+        for node, k in ((ids[0], 0), (ids[-1], count - 1)):
+            t = float((coords[node] - a) @ axis) / length**2
+            stations.append((t, node, piece, k))
+    if not stations:
+        return []
+    stations.sort(key=lambda s: s[0])
+
+    def uz(case: str, node: int) -> float:
+        return float(moved.get(case, {}).get(node, np.zeros(6))[2]) * 1e3  # m -> mm
+
+    def moment(case: str, piece: _Piece, k: int) -> float:
+        rows = forces.get(case, {}).get(piece.id)
+        if rows is None:
+            return 0.0
+        values = _profile_forces(piece, turned, np.asarray(rows, dtype=float))
+        return float(values["Mx"][min(k, len(values["Mx"]) - 1)])  # N·mm, + hogging
+
+    supports = framing.support_stations(element)
+    spans: list[tuple[float, float, str]] = []  # (t0, t1, "span" | "start" | "end")
+    if len(supports) >= 2:
+        spans += [(t0, t1, "span") for t0, t1 in itertools.pairwise(supports)]
+    for end in (0, 1):
+        edge = (supports[0] if end == 0 else supports[-1]) if supports else None
+        if (
+            edge is not None
+            and abs(edge - end) > 1e-3
+            and not framing.end_held(element, end)
+            and not framing.continues(element, end)
+        ):
+            spans.append((0.0, edge, "start") if end == 0 else (edge, 1.0, "end"))
+    if not spans:
+        # Held by beams only (a secondary beam): the span between its ends.
+        if framing.end_held(element, 0) and framing.end_held(element, 1):
+            spans = [(0.0, 1.0, "span")]
+        else:
+            return []
+    rows: list[dict[str, Any]] = []
+    h = section.depth
+    for number, (t0, t1, kind) in enumerate(spans, start=1):
+        span_mm = (t1 - t0) * length * 1e3
+        if span_mm <= 0:
+            continue
+        cantilever = kind != "span"
+        inside = [s for s in stations if t0 - 1e-6 <= s[0] <= t1 + 1e-6]
+        if len(inside) < 2:
+            continue
+        where = f"{element.id}" + (f" span {number}" if len(spans) > 1 else "")
+        if not sensitive:
+            ends = int(t0 > 1e-3 or framing.continues(element, 0)) + int(
+                t1 < 1 - 1e-3 or framing.continues(element, 1)
+            )
+            least = deflection_design.beam_minimum_depth(span_mm, ends, fy, cantilever, limits)
+            if h >= least:
+                rows.append(
+                    _check(
+                        "Deflection: depth exempts the calculation (Table 6.6.1)",
+                        least,
+                        h,
+                        "mm",
+                        "service",
+                        f"h = {h:.0f} mm >= {least:.0f} mm for l = {span_mm:.0f} mm "
+                        f"(partitions not likely to be damaged); {where}",
+                        flag=True,
+                    )
+                )
+                continue
+        # Deflection of each node relative to the chord (a cantilever: the tip below the
+        # support), D + SD and the live cases.
+        dead_cases = [c for c in ("D", "SD") if c in moved]
+
+        def relative(
+            cases: list[str],
+            t: float,
+            node: int,
+            inside: list[tuple[float, int, _Piece, int]] = inside,
+            cantilever: bool = cantilever,
+            kind: str = kind,
+        ) -> float:
+            first, last = inside[0], inside[-1]
+            if cantilever:
+                support = first if kind == "end" else last
+                return sum(uz(cs, support[1]) - uz(cs, node) for cs in cases)
+            share = (t - first[0]) / (last[0] - first[0]) if last[0] > first[0] else 0.0
+            chord = sum((1 - share) * uz(cs, first[1]) + share * uz(cs, last[1]) for cs in cases)
+            return chord - sum(uz(cs, node) for cs in cases)
+
+        if cantilever:
+            tip = inside[-1] if kind == "end" else inside[0]
+            at = inside[0] if kind == "end" else inside[-1]  # the support: Ie there
+            governing = tip
+            m_station = at
+        else:
+            governing = max(inside, key=lambda s: relative(dead_cases + live_cases, s[0], s[1]))
+            m_station = governing
+        d_dead = relative(dead_cases, governing[0], governing[1])
+        d_live = relative(live_cases, governing[0], governing[1]) if live_cases else 0.0
+        _, _, piece, k = m_station
+        m_dead = sum(moment(cs, piece, k) for cs in dead_cases)
+        m_live = sum(moment(cs, piece, k) for cs in live_cases)
+        if not cantilever:  # sagging at midspan
+            m_dead, m_live = -m_dead, -m_live
+        section_id = section_of_element.get(piece.id)
+        props = sections.get(section_id, {})
+        along_z = piece.depth_along_z != turned
+        inertia = float(props.get("Iy" if along_z else "Iz", 0.0) or 0.0)
+        ei = float(props.get("E", 0.0) or 0.0) * inertia * 1e6  # N·m² -> N·mm²
+        if ei <= 0 or d_dead + d_live <= 0:
+            continue
+        try:
+            stiffness = deflection_design.section_stiffness(section, ec, hogging=cantilever)
+            result = deflection_design.span_deflection(
+                span_mm,
+                stiffness,
+                section.fc,
+                ec,
+                ei,
+                (max(m_dead, 0.0), d_dead),
+                (max(m_live, 0.0), d_live),
+                sustained,
+                roof=roof,
+                sensitive=sensitive,
+                limits=limits,
+            )
+        except (DesignError, ValueError) as error:
+            notes.append(f"{where}: deflection not checked: {error}")
+            continue
+        rows += deflection_design.deflection_checks(
+            result,
+            roof=roof,
+            sensitive=sensitive,
+            where=where + (" (cantilever)" if cantilever else ""),
+            limits=limits,
+        )
+    return rows

@@ -40,6 +40,7 @@ the workbench applies the proposal as one undoable edit.
 from __future__ import annotations
 
 import copy
+import dataclasses
 import itertools
 import json
 import math
@@ -106,10 +107,20 @@ class BeamLoads:
     sag: float  # N·mm
     hog: float
     shear: float  # N
+    #: Torsion (saengine.design.torsion, BNBC 2020 Part 6 Sec 6.4.4): At/s per leg of the closed
+    #: stirrups [mm²/mm], the longitudinal Al [mm²] and the stirrups' largest spacing [mm].
+    at_s: float = 0.0
+    al: float = 0.0
+    torsion_s_max: float = math.inf
 
     def envelope(self, other: BeamLoads) -> BeamLoads:
         return BeamLoads(
-            max(self.sag, other.sag), max(self.hog, other.hog), max(self.shear, other.shear)
+            max(self.sag, other.sag),
+            max(self.hog, other.hog),
+            max(self.shear, other.shear),
+            max(self.at_s, other.at_s),
+            max(self.al, other.al),
+            min(self.torsion_s_max, other.torsion_s_max),
         )
 
 
@@ -227,9 +238,7 @@ class BeamDesigner:
                     too_small="; ".join(need.too_small),
                     suggestion=self.bigger(loads),
                 )
-            stirrups = B.choose_stirrups(
-                shear_need, self.b, opts.stirrup_diameters, opts.min_stirrup_spacing
-            )
+            stirrups = self._choose_stirrups(shear_need, loads)
             if stirrups is None:
                 return Pick(
                     None,
@@ -243,14 +252,17 @@ class BeamDesigner:
             stirrup = stirrups.dia
         assert need is not None and stirrups is not None
         inset = self.cover + stirrups.dia
+        # Torsion: Al on top of the flexural bars, half at each face (Sec 6.4.4.3.8); the side
+        # bars of Sec 6.4.4.6.2 are added by reinforcement().
+        al_face = loads.al / 2
         scale = 1.0
         for _ in range(8):
             bottoms = B.face_options(
-                need.bottom * scale, self.b, inset, opts.diameters, self.aggregate
+                (need.bottom + al_face) * scale, self.b, inset, opts.diameters, self.aggregate
             )[:5]
-            tops = B.face_options(need.top * scale, self.b, inset, opts.diameters, self.aggregate)[
-                :5
-            ]
+            tops = B.face_options(
+                (need.top + al_face) * scale, self.b, inset, opts.diameters, self.aggregate
+            )[:5]
             combos = [
                 (top, bottom)
                 for top, bottom in itertools.product(tops, bottoms)
@@ -261,7 +273,7 @@ class BeamDesigner:
             )
             for top, bottom in combos:
                 for option in self._stirrup_options(stirrups, loads, top, bottom):
-                    reinforcement = self.reinforcement(top, bottom, option)
+                    reinforcement = self.reinforcement(top, bottom, option, loads)
                     utilisation = self.verify(reinforcement, loads)
                     if utilisation is not None:
                         notes = []
@@ -286,27 +298,58 @@ class BeamDesigner:
     def _stirrup_options(self, first: B.Stirrups, loads: BeamLoads, top: Any, bottom: Any):
         """The stirrups picked at the assumed depth, then those for the arrangement's own d."""
         yield first
-        probe = self.reinforcement(top, bottom, first)
+        probe = self.reinforcement(top, bottom, first, loads)
         section = self._analyse(probe)[0]
         try:
             d = section.effective_depth(top=False)
         except DesignError:
             return
         need = B.beam_shear_need(loads.shear, self.b, d, self.fc, self.fy)
-        again = B.choose_stirrups(
-            need, self.b, self.options.stirrup_diameters, self.options.min_stirrup_spacing
-        )
+        again = self._choose_stirrups(need, loads)
         if again is not None and again != first:
             yield again
 
-    def reinforcement(self, top: B.FaceBars, bottom: B.FaceBars, stirrups: B.Stirrups):
+    def _choose_stirrups(self, need: B.ShearNeed, loads: BeamLoads) -> B.Stirrups | None:
+        """The stirrups for the shear and, with torsion, closed stirrups whose outer legs carry
+        At/s each on top of their share of Av/s (two legs: the inner legs of four would not
+        count for torsion), at most at the torsion spacing (Sec 6.4.4.3.8, 6.4.4.6.1)."""
+        opts = self.options
+        if loads.at_s <= 0:
+            return B.choose_stirrups(need, self.b, opts.stirrup_diameters, opts.min_stirrup_spacing)
+        torsion_need = dataclasses.replace(
+            need,
+            av_s=need.av_s + 2 * loads.at_s,
+            s_max=min(need.s_max, loads.torsion_s_max),
+        )
+        # Two legs only: below 300 mm width choose_stirrups tries two legs alone.
+        return B.choose_stirrups(
+            torsion_need, min(self.b, 299.0), opts.stirrup_diameters, opts.min_stirrup_spacing
+        )
+
+    def reinforcement(
+        self,
+        top: B.FaceBars,
+        bottom: B.FaceBars,
+        stirrups: B.Stirrups,
+        loads: BeamLoads | None = None,
+    ):
+        sides = self.sides
+        if loads is not None and loads.at_s > 0 and not sides:
+            # Sec 6.4.4.6.2: longitudinal torsion bars at most 300 mm apart around the
+            # perimeter, at least 0.042 s and 10 mm: side bars on each face when deep.
+            inside = self.h - 2 * (self.cover + stirrups.dia)
+            per_face = max(0, math.ceil(inside / 300.0) - 1)
+            least = max(0.042 * stirrups.spacing, 10.0)
+            dia = next((d for d in sorted(self.options.diameters) if d >= least), 12.0)
+            if per_face:
+                sides = [{"position": "sides", "count": 2 * per_face, "dia": dia}]
         return {
             "material": self.material,
             "cover": self.cover,
             "longitudinal": [
                 {"position": "top", "count": top.count, "dia": top.dia},
                 {"position": "bottom", "count": bottom.count, "dia": bottom.dia},
-                *self.sides,
+                *sides,
             ],
             "transverse": {
                 "type": self.kind,
@@ -319,8 +362,14 @@ class BeamDesigner:
 
 def _beam_loads(member: dict[str, Any], combinations: list[str]) -> BeamLoads:
     demand = beam_demand(member, combinations)
+    torsion = member.get("torsion")
     return BeamLoads(
-        demand.overall("sag").value, demand.overall("hog").value, demand.overall("shear").value
+        demand.overall("sag").value,
+        demand.overall("hog").value,
+        demand.overall("shear").value,
+        torsion.at_s if torsion is not None else 0.0,
+        torsion.al if torsion is not None else 0.0,
+        torsion.s_max if torsion is not None else math.inf,
     )
 
 
@@ -807,7 +856,12 @@ def design_proposal(
         cache: dict[BeamLoads, Pick] = {}
         for member in members:
             loads = _beam_loads(member, combinations)
-            key = BeamLoads(*(round(v, -3) for v in (loads.sag, loads.hog, loads.shear)))
+            key = BeamLoads(
+                *(round(v, -3) for v in (loads.sag, loads.hog, loads.shear)),
+                round(loads.at_s, 4),
+                round(loads.al, -1),
+                loads.torsion_s_max,
+            )
             if key not in cache:
                 cache[key] = designer.propose(loads)
             picks.append(MemberPick(member["id"], loads, cache[key]))
@@ -1291,7 +1345,7 @@ def _beam_positive_moment(
             why.append("bottom bars for Mn+ ≥ Mn-/2 (Sec 8.3.4.2(a))")
         if not why:
             return pick
-        loads = BeamLoads(new_sag, new_hog, loads.shear)
+        loads = dataclasses.replace(loads, sag=new_sag, hog=new_hog)
         again = designer.propose(loads)
         if again.reinforcement is None:
             return pick

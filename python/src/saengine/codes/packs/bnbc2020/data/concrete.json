@@ -132,6 +132,30 @@
     "twoLayerThickness": 250.0,
     "spacingMax": 450.0
   },
+  "torsion": {
+    "theta": 45.0,
+    "aoShare": 0.85,
+    "spacingMax": 300.0,
+    "perimeterDivisor": 8.0,
+    "longitudinalSpacingMax": 300.0,
+    "longitudinalDiaRatio": 0.042,
+    "longitudinalDiaMin": 10.0,
+    "fyMax": 420.0
+  },
+  "deflection": {
+    "liveFloor": 360.0,
+    "liveRoof": 180.0,
+    "attachedSensitive": 480.0,
+    "attachedInsensitive": 240.0,
+    "xi": {
+      "3": 1.0,
+      "6": 1.2,
+      "12": 1.4,
+      "60": 2.0
+    },
+    "cantileverBeam": 8.0,
+    "cantileverSlab": 10.0
+  },
   "sources": {
     "barDiameters": "BDS ISO 6935-2 sizes in common use (SAEngine practice)",
     "spacingStep": "SAEngine practice",
@@ -146,6 +170,8 @@
     "cover": "SAEngine assumptions when no reinforcement is entered",
     "crackedStiffness": "BNBC 2020 Part 6 Sec 6.3.10.4.1",
     "slender": "BNBC 2020 Part 6 Sec 6.3.10 (Eqs. 6.6.13, 6.6.14, 6.6.17)",
-    "walls": "BNBC 2020 Part 6 Sec 6.6.3.2-6.6.3.4, 6.4.8.9 and 8.3.6.2(a)"
+    "walls": "BNBC 2020 Part 6 Sec 6.6.3.2-6.6.3.4, 6.4.8.9 and 8.3.6.2(a)",
+    "torsion": "BNBC 2020 Part 6 Sec 6.4.4.3 (θ, Ao = 0.85 Aoh, fy and fyt <= 420 MPa: pp. 928-929) and Sec 6.4.4.6 (spacing ph/8 and 300 mm, longitudinal bars 300 mm apart, diameter >= 0.042 s and 10 mm: p. 931)",
+    "deflection": "BNBC 2020 Part 6 Table 6.6.2 (p. 902): l/180, l/360, l/480, l/240; Sec 6.2.5.2.5 (p. 901): ξ; Table 6.6.1 (p. 900): cantilevers l/8 (beams), l/10 (one-way slabs)"
   }
 }

@@ -281,7 +281,8 @@ def test_eccentric_cases_add_the_torsion_f_times_e(diaphragm: str) -> None:
     2.5.7.6.2): masses shifted +Y turn the X forces by -F·e, shifted +X the Y forces by +F·e."""
     d = derivation(accidentalEccentricity=True, diaphragm=diaphragm)
     names = [p["name"] for p in d.project["load_patterns"]]
-    assert names[-4:] == ["EXP", "EXN", "EYP", "EYN"]
+    # After the eight cases; the torsional wind cases WTX, WTY follow them (0.0.45).
+    assert names[8:12] == ["EXP", "EXN", "EYP", "EYN"]
     assert [a["name"].split(":")[0] for a in d.project["analyses"][8:12]] == names[8:12]
     coords = {n["id"]: np.array(n["coords"]) for n in d.project["nodes"]}
 
@@ -308,7 +309,8 @@ def test_eccentric_cases_add_the_torsion_f_times_e(diaphragm: str) -> None:
         axis = 0 if source == "EX" else 1
         for z, (force, moment) in plain.items():
             torsion = shifted[z][1] - moment
-            assert shifted[z][0] == pytest.approx(force, abs=1e-2)
+            # Nodal forces are written to 1 mN: the many nodes of the cut beams (0.0.45) add up.
+            assert shifted[z][0] == pytest.approx(force, abs=0.05)
             assert torsion == pytest.approx(sign * 0.05 * span * force[axis], rel=1e-3)
     levels = d.summary["accidentalTorsion"]
     assert {row["case"] for row in levels} == {"EXP", "EXN", "EYP", "EYN"}
@@ -501,9 +503,12 @@ def test_derived_end_offsets_and_their_loads() -> None:
     d = derivation(endOffsets=True, rigidZoneFactor=0.5)
     elements = {e["id"]: e for e in d.project["elements"]}
     coords = {n["id"]: np.array(n["coords"]) for n in d.project["nodes"]}
+    # B11 is a chain B11, B11#1 ... (cut for the slab's load shapes, 0.0.45): its i-end zone on
+    # the first member, its j-end zone on the last.
     beam = next(e for e in d.project["elements"] if e["name"] == "B11")
+    last = _last_piece(d.project, "B11")
     assert np.linalg.norm(beam["joint_offsets"][:3]) == pytest.approx(0.1)
-    assert np.linalg.norm(beam["joint_offsets"][3:]) == pytest.approx(0.1)
+    assert np.linalg.norm(last["joint_offsets"][3:]) == pytest.approx(0.1)
     column = next(e for e in d.project["elements"] if e["name"] == "C1")
     assert np.linalg.norm(column["joint_offsets"][3:]) == pytest.approx(0.25)
     assert np.linalg.norm(column["joint_offsets"][:3]) == pytest.approx(0.0)
@@ -552,9 +557,17 @@ def test_face_forces_of_an_analysed_bay(tmp_path: Path) -> None:
     data = json.loads(path.read_text(encoding="utf-8"))
     assert set(data["cases"]) == {"D", "SD"}
     beam = next(e for e in d.project["elements"] if e["name"] == "B11")
+    last = _last_piece(d.project, "B11")
     face = data["cases"]["D"][str(beam["id"])]["i"]
     assert set(face) == {"N", "Vy", "Vz", "T", "My", "Mz"}
-    assert data["faceOffsets"][str(beam["id"])] == {"i": 200.0, "j": 200.0}
+    assert data["faceOffsets"][str(beam["id"])] == {"i": 200.0}
+    assert data["faceOffsets"][str(last["id"])] == {"j": 200.0}
+
+
+def _last_piece(project: dict, name: str) -> dict:
+    """The last member of a beam's chain (``name``, ``name#1`` ...)."""
+    chain = [e for e in project["elements"] if e["name"].split("#")[0] == name]
+    return max(chain, key=lambda e: int(e["name"].split("#")[1]) if "#" in e["name"] else 0)
 
 
 # ─────────────────────────────── columns at any angle ───────────────────────────────

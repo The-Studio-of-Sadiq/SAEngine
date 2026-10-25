@@ -39,11 +39,19 @@
       -0.2
     ]
   ],
+  "designCases": {
+    "partial": 0.75,
+    "eccentricity": 0.15,
+    "simultaneous": 0.75,
+    "simultaneousTorsional": 0.563,
+    "exemptHeight": 9.1
+  },
   "sources": {
     "exposures": "BNBC 2020 Part 6 Table 6.2.11 (p. 602) and its α, zg",
     "directionality": "BNBC 2020 Part 6 Table 6.2.12 (p. 603)",
     "gust": "BNBC 2020 Part 6 Sec 2.4.8.1 (p. 553), rigid structures",
     "cpWindward": "BNBC 2020 Part 6 Figure 6.2.6 (page not checked)",
-    "cpLeeward": "BNBC 2020 Part 6 Figure 6.2.6 (page not checked)"
+    "cpLeeward": "BNBC 2020 Part 6 Figure 6.2.6 (page not checked)",
+    "designCases": "BNBC 2020 Part 6 Sec 2.4.11.3 (p. 559) and Figure 6.2.9 (pp. 574-575)"
   }
 }

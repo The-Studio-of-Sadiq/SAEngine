@@ -156,11 +156,14 @@ def combine(per_case: dict[str, list[np.ndarray]], factors: dict[str, float]) ->
 def strength_combinations(
     settings: ProjectSettings, cases: set[str] | dict[str, Any]
 ) -> list[tuple[str, dict[str, float]]]:
-    """The project's strength combinations whose cases were all analysed."""
-    from saengine.fem.combinations import combination_factors
+    """The project's strength combinations whose cases were all analysed, each one-direction
+    wind combination for the design wind load cases of BNBC 2020 Part 6 Figure 6.2.9 when the
+    model has them (:func:`saengine.fem.combinations.wind_case_combinations`)."""
+    from saengine.fem.combinations import combination_factors, wind_case_combinations
 
     result: list[tuple[str, dict[str, float]]] = []
-    for combination in settings.combinations:
+    formed = wind_case_combinations(list(settings.combinations), set(cases))
+    for combination in formed if formed is not None else settings.combinations:
         factors = combination_factors(combination, set(cases))
         if all(case in cases for case in factors):
             result.append((combination.name, factors))

@@ -30,11 +30,22 @@ What the derivation does:
 - Columns, beams and inclined members become elastic beam-column elements; walls (and slabs
   when *Slabs* is set to *Shells*) become shell elements meshed with Gmsh.
 - Column and wall bases on the lowest storey are fixed (or on soil springs).
-- With *Slabs: Loads to beams* (default), slab loads go to the beams by the 45° rule; a rigid
-  diaphragm ties each floor.
+- With *Slabs: Loads to beams* (default), slab loads go to the beams by the 45° rule as
+  triangles and trapezoids (since version 0.0.45; irregular panels by their bisector split),
+  each beam cut into members of the mesh size; a rigid diaphragm ties each floor. Before 0.0.45
+  each edge got a uniform load of the same total, which understated the beams' midspan moments
+  by up to 25 % and their end moments by up to 20 %.
 - Steel members with simple connections are pinned at their ends.
 - Wind and earthquake are applied as BNBC equivalent static storey forces; the response
-  spectrum cases are added when *Response spectrum* is on.
+  spectrum cases are added when *Response spectrum* is on. Each needs only its own site value
+  (Z for earthquake, V for wind): a missing one is reported and its cases stay empty. Since
+  0.0.45 each storey's wind acts on that storey's own face width at the face's centre, the
+  torsional cases WTX and WTY (e = 0.15 B, BNBC Figure 6.2.9) are added, and every
+  one-direction wind combination is designed for the four design wind load cases.
+- Since 0.0.45, **live load arrangements** (BNBC 6.1.12.2, *Live load arrangement* in Project
+  Settings): cases LP1, LP2 ... with the live load on alternate bays (a checkerboard over the
+  floors) and on adjacent bays (each floor alone) of the column grid; every gravity
+  combination with live load is also designed with each of them.
 - Cracked section stiffness (BNBC 6.3.10.4.1: columns 0.70 Ig, beams 0.35 Ig, walls 0.70 or
   0.35 Ig, slabs 0.25 Ig) is used for the lateral cases, gross sections for gravity; the
   engineer's stiffness modifiers (object types, members) replace them where given.
@@ -137,9 +148,9 @@ governing combination, and a **Required Steel** section (*required 1,257 mm², p
 
 | Element | Checked |
 | --- | --- |
-| RC beams (rectangular) | Sagging and hogging flexure, shear φ(Vc + Vs). Not checked: weak-axis bending, torsion, axial force in beams. |
-| RC columns (rectangular, circular) | Axial force with biaxial bending (interaction surface); slenderness by moment magnification or P-Delta (*k lu / r*, *Moment magnifier*). |
-| Slabs | Per strip and layer (Wood-Armer), one-way shear. |
+| RC beams (rectangular) | Sagging and hogging flexure, shear φ(Vc + Vs); torsion (BNBC 6.4.4: threshold, section limit, closed stirrups, Al and its detailing); deflection (BNBC 6.2.5, Ie, Table 6.6.2 limits). Not checked: weak-axis bending, axial force in beams. |
+| RC columns (rectangular, circular) | Axial force with biaxial bending (interaction surface); slenderness by moment magnification or P-Delta (*k lu / r*, *Moment magnifier*); shear with the axial force's effect on Vc and the tie spacing limits. |
+| Slabs | Shells: per strip and layer (Wood-Armer), one-way shear. Loads to beams (since 0.0.45): BNBC's coefficient methods (two-way Sec 6.5.8, one-way Sec 6.1.4.3), minimum thickness and steel. |
 | Structural walls | Piers, boundary elements, coupling beams. |
 | Stairs | By hand methods (span/thickness). |
 | Steel beams, columns, braces | BNBC Part 6 Chapter 10 / AISC 360-22, with simple connections. |
@@ -216,10 +227,10 @@ springs `model-fixed.osmodel` and `ssi-compare.json`.
 
 ## Not confirmed / limitations
 
-- No beam or slab deflection check (L/240 and similar) was found in the design; static wind and
-  earthquake drifts are tabulated in the report, the response-spectrum drift is checked.
-- Column shear is covered by the seismic capacity-shear checks, not by the general strength
-  checks.
+- Beam deflection is checked from the analysis's deflections with Ie at midspan on the
+  rectangle (no flange); slab deflection by the minimum thickness of Tables 6.6.1 and 6.6.3.
+- Beam torsion framed at both ends is designed as compatibility torsion (at most φTcr); the
+  moments this releases are not redistributed to the adjoining members.
 - *Section too small* suggestions are information only; there is no button that enlarges a
   section.
 - Advanced analyses (pushover, time history, construction sequence, temperature, soil-structure

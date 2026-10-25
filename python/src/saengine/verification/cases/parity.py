@@ -243,7 +243,9 @@ def rigid_end_zone_beam(folder: Path) -> Outcome:
         generate(plan, "v"),
         objects(COLUMN, BEAM),
         MATERIALS,
-        settings(endOffsets=True, rigidZoneFactor=0.5, diaphragm="flexible"),
+        # One element between the joints: a mesh size longer than the beam (since 0.0.45 a beam
+        # is cut into members of the mesh size for the slabs' load shapes).
+        settings(endOffsets=True, rigidZoneFactor=0.5, diaphragm="flexible", meshSize=10000),
     )
     project = d.project
     beam = [e for e in project["elements"] if str(e.get("name", "")).startswith("B11")]
@@ -326,7 +328,8 @@ def line_load_beam(folder: Path) -> Outcome:
         generate(plan, "v"),
         objects(COLUMN, STEEL_BEAM),
         MATERIALS,
-        settings(diaphragm="flexible"),
+        # One element between the joints (every node but the twins is held below).
+        settings(diaphragm="flexible", meshSize=10000),
         member_loads=loads,
     )
     project = d.project

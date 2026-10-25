@@ -39,6 +39,67 @@
       ],
       "title": "Exposure",
       "type": "object"
+    },
+    "WindDesignCasesRow": {
+      "additionalProperties": false,
+      "description": "The design wind load cases of the main wind-force resisting system (BNBC 2020 Part 6\nSec 2.4.11.3 and Figure 6.2.9): read by :func:`saengine.fem.loads.wind_design_cases`.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "partial": {
+          "description": "Case 2: share of the pressure with torsion.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Partial",
+          "type": "number"
+        },
+        "eccentricity": {
+          "description": "Case 2 and 4: e / B.",
+          "minimum": 0,
+          "title": "Eccentricity",
+          "type": "number"
+        },
+        "simultaneous": {
+          "description": "Case 3: share of each direction.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Simultaneous",
+          "type": "number"
+        },
+        "simultaneousTorsional": {
+          "description": "Case 4: share of each direction with both torsions.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Simultaneoustorsional",
+          "type": "number"
+        },
+        "exemptHeight": {
+          "description": "Exception: one-storey height limit h [m].",
+          "exclusiveMinimum": 0,
+          "title": "Exemptheight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "partial",
+        "eccentricity",
+        "simultaneous",
+        "simultaneousTorsional",
+        "exemptHeight"
+      ],
+      "title": "WindDesignCasesRow",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -99,6 +160,18 @@
       },
       "title": "Cpleeward",
       "type": "array"
+    },
+    "designCases": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WindDesignCasesRow"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Factors of the design wind load cases 2-4 (torsional, simultaneous); None: Case 1 only."
     }
   },
   "required": [

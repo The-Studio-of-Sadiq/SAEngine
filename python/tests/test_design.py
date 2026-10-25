@@ -421,8 +421,24 @@ def frame(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return root
 
 
+def _station(model: dict, note: str) -> float:
+    """The position along its whole beam (0 to 1) of a check's station "B1#3 at 0.40 L"."""
+    import re
+
+    name, at = re.search(r"(\S+) at ([\d.]+) L$", note).groups()
+    coords = {n["id"]: np.array(n["coords"]) for n in model["nodes"]}
+    chain = [e for e in model["elements"] if e["name"].split("#")[0] == name.split("#")[0]]
+    ends = [(coords[e["nodes"][0]], coords[e["nodes"][1]], e["name"]) for e in chain]
+    start = min((a for a, _, _ in ends), key=lambda p: (p[0], p[1]))
+    finish = max((b for _, b, _ in ends), key=lambda p: (p[0], p[1]))
+    a, b, _ = next(x for x in ends if x[2] == name)
+    point = a + float(at) * (b - a)
+    return float(np.linalg.norm(point - start) / np.linalg.norm(finish - start))
+
+
 def test_frame_beams_sag_at_midspan_and_hog_at_the_supports(frame: Path) -> None:
     report = design_report(frame / "08 FEM" / "model.results", frame / "08 FEM" / "model.osmodel")
+    model = json.loads((frame / "08 FEM" / "model.osmodel").read_text(encoding="utf-8"))
     json.dumps(report)  # JSON-ready
     assert report["code"] == "BNBC 2020 Part 6 Chapter 6"
     assert report["combinations"] == [GRAVITY.name]
@@ -434,8 +450,10 @@ def test_frame_beams_sag_at_midspan_and_hog_at_the_supports(frame: Path) -> None
         hogging = checks["Flexure, hogging (top bars)"]
         assert sagging["demand"] > 0 and hogging["demand"] > 0
         assert sagging["combination"] == GRAVITY.name
-        # Uniform gravity load on a frame beam: largest sagging at midspan, hogging at an end.
-        assert sagging["note"].endswith("at 0.50 L"), sagging["note"]
+        # Gravity load on a frame beam: largest sagging at midspan, hogging at an end. The beam
+        # is a chain of members (cut for the slab's load shapes, 0.0.45): the sagging station
+        # lies within a member length of the middle of the beam.
+        assert abs(_station(model, sagging["note"]) - 0.5) < 0.1, sagging["note"]
         assert hogging["note"].endswith(("at 0.00 L", "at 1.00 L")), hogging["note"]
         assert checks["Shear"]["note"].endswith(("at 0.00 L", "at 1.00 L"))
         # Both capacities come from the bar layout: 3T20 bottom, 3T16 top.

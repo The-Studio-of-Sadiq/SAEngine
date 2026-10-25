@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from pydantic import Field
 
 from saengine.library.settings import LoadCombination, ProjectSettings
 
@@ -38,6 +39,8 @@ _FACTOR_CASES = {
     "EXN": ("EXN",),
     "EYP": ("EYP",),
     "EYN": ("EYN",),
+    "WTX": ("WTX",),
+    "WTY": ("WTY",),
 }
 #: Cases a combination may name that a model need not have: the fluid case F exists only when
 #: 07 MEP puts equipment contents in it, so a combination without its results is formed without
@@ -61,7 +64,102 @@ def combination_factors(
                 if present is not None and case in OPTIONAL_CASES and case not in present:
                     continue
                 factors[case] = value
+    # Cases a formed combination adds by name (CaseCombination: the torsional wind cases, the
+    # live load arrangements), never stored in the settings.
+    for case, value in (getattr(combination, "cases", None) or {}).items():
+        if value:
+            factors[case] = factors.get(case, 0.0) + value
     return factors
+
+
+class CaseCombination(LoadCombination):
+    """A project combination with factors on further analysis cases by name (``cases``: the
+    torsional wind cases WTX, WTY of :func:`wind_case_combinations`, the live load arrangements
+    LP1, LP2 ... of :func:`pattern_live_combinations`). Formed for the design, never stored."""
+
+    cases: dict[str, float] = Field(default_factory=dict)
+
+
+def wind_case_combinations(
+    combinations: list[LoadCombination], present: set[str] | frozenset[str]
+) -> list[LoadCombination] | None:
+    """The combinations with each one-direction wind combination expanded into the design wind
+    load cases of BNBC 2020 Part 6 Sec 2.4.11.3 and Figure 6.2.9 (Case 1 as given, Cases 2-4
+    with the shares of the code pack's ``wind.designCases`` and the torsional cases WTX, WTY when
+    the model has them), named "<name> [Case k ...]". None when the code pack has no design
+    cases or the model has neither wind case."""
+    from saengine.fem import loads as fl
+
+    cases = fl.wind_design_cases()
+    if cases is None or not ({"WX", "WY"} & set(present)):
+        return None
+    torsion = all(c in present for c in fl.WIND_TORSION_CASES.values())
+    out: list[LoadCombination] = []
+    for combination in combinations:
+        variants = fl.wind_design_variants(
+            {"WX": combination.WX, "WY": combination.WY}, cases, torsion=torsion
+        )
+        if len(variants) == 1 and variants[0][0] == "":
+            out.append(combination)
+            continue
+        data = combination.model_dump(by_alias=True)
+        seen: set[tuple[tuple[str, float], ...]] = set()
+        for label, factors in variants:
+            key = tuple(sorted((k, round(v, 9)) for k, v in factors.items()))
+            if key in seen:
+                continue
+            seen.add(key)
+            if label == "Case 1":
+                out.append(combination)
+                continue
+            extra = {k: v for k, v in factors.items() if k not in ("WX", "WY")}
+            out.append(
+                CaseCombination(
+                    **{
+                        **data,
+                        "WX": factors.get("WX", 0.0),
+                        "WY": factors.get("WY", 0.0),
+                        "cases": {**(data.get("cases") or {}), **extra},
+                        "name": f"{combination.name} [{label}]",
+                    }
+                )
+            )
+    return out
+
+
+def pattern_live_combinations(
+    combinations: list[LoadCombination], present: set[str] | frozenset[str]
+) -> list[LoadCombination] | None:
+    """The project's combinations followed by, for each gravity combination with live load
+    (no wind or earthquake), one per live load arrangement the model has (cases LP1, LP2 ...,
+    :mod:`saengine.fem.pattern_live`, BNBC 2020 Part 6 Sec 6.1.12.2) with the live case L
+    replaced by the arrangement's case at the same factor, named "<name> [LPk]". None when the
+    model has no arrangements."""
+    arrangements = sorted(
+        (c for c in present if c.startswith("LP") and c[2:].isdigit()), key=lambda c: int(c[2:])
+    )
+    if not arrangements:
+        return None
+    out = list(combinations)
+    for combination in combinations:
+        if combination.L <= 0:
+            continue
+        # Lateral: wind (W*), earthquake (E*) or response spectrum (R*) cases.
+        if any(case[:1] in "WER" for case in combination_factors(combination)):
+            continue
+        data = combination.model_dump(by_alias=True)
+        for case in arrangements:
+            out.append(
+                CaseCombination(
+                    **{
+                        **data,
+                        "L": 0.0,
+                        "cases": {**(data.get("cases") or {}), case: combination.L},
+                        "name": f"{combination.name} [{case}]",
+                    }
+                )
+            )
+    return out
 
 
 #: The eccentric static earthquake cases (``analysis.accidentalEccentricity``,
