@@ -23,7 +23,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IFemResultEntry, IFemResultList, IFemResultView } from '../../../../platform/saengine/common/femSolver.js';
 import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameIconButton, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
-import { describeDesignSummary, describeSlenderness, describeSteel, describeSteelRatio, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, isSecondOrderRequired, isSlendernessCheck, otherFailureElements, requiredSteelOf, resultsFolder, runDesign, runDesignRequired, secondOrderRequiredMembers, shortElements, slendernessHeading, sortedChecks, tooSmallElements, writeDesignSummary } from './femDesign.js';
+import { describeDesignCounts, describeDesignSummary, describeSlenderness, describeSteel, describeSteelRatio, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, isSecondOrderRequired, isSlendernessCheck, otherFailureElements, requiredSteelOf, resultsFolder, runDesign, runDesignRequired, secondOrderRequiredMembers, shortElements, slendernessHeading, sortedChecks, tooSmallElements, writeDesignSummary } from './femDesign.js';
 import { describeScaleOnResult, describeSecondOrder, FemAxis, IFemSecondOrder, isFirstOrderReference, IFemSeismicDesign, runSecondOrder, runSeismicDesign, seismicSection, spectrumAxis, storeyAmplificationRows } from './femSeismicDesign.js';
 import { FemSsiPanel } from './femSsi.js';
 import { describeJointsSummary, describeJointVerdict, detailingSection, FemDetailingItem, generalChecks, IFemDetailingModel, IFemJoint, jointAtNode, jointColouring, jointHeading, jointItems, jointOk, jointsOf, jointsOfMember } from './femSeismicDetailing.js';
@@ -299,12 +299,12 @@ export function errorSummary(error: unknown): string {
 
 /** "13 members pass, 3 fail · largest utilisation 2.62 in F1 · 1 not checked · BNBC 2020": the status line's design summary. */
 function designStatus(report: IFemDesignReport): string {
-	const { passed, failed, skipped, maxUtilisation, governing } = report.summary;
+	const { skipped, maxUtilisation, governing } = report.summary;
 	if (!report.elements.length) {
 		return describeDesignSummary(report);
 	}
 	return [
-		localize('femResults.designCounts', "{0} members pass, {1} fail", passed, failed),
+		describeDesignCounts(report.summary),
 		...(maxUtilisation !== null && governing ? [localize('femResults.designMax', "largest utilisation {0} in {1}", formatUtilisation(maxUtilisation), governing)] : []),
 		...(skipped ? [localize('femResults.designSkippedCount', "{0} not checked", skipped)] : []),
 		report.code,

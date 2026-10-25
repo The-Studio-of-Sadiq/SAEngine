@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { describeSteel, describeSteelRatio, designArguments, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, otherFailureElements, requiredSteelOf, shortElements, tooSmallElements } from '../../browser/femDesign.js';
+import { describeDesignCounts, describeSteel, describeSteelRatio, designArguments, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, otherFailureElements, requiredSteelOf, shortElements, tooSmallElements } from '../../browser/femDesign.js';
 import { describeBars, describeBeforeAfter, describeChange, describeFailing, describeTransverseSpacing, DesignProposalModel, failingItems, IFemDesignProposal, notFixedBy, proposalEdits } from '../../browser/femDesignProposal.js';
 
 const B1_CURRENT = { material: 'B500', cover: 40, longitudinal: [{ position: 'top' as const, count: 3, dia: 16 }, { position: 'bottom' as const, count: 3, dia: 16 }], transverse: { type: 'stirrup' as const, dia: 10, spacing: 200, legs: 2 } };
@@ -113,6 +113,19 @@ suite('SAEngine - FEM design proposal', () => {
 			'System permitted in Seismic Design Category D (Table 6.2.19 row 3); B5 (Deflection); C2 (P-M interaction); joints J1, J2 (joint shear)',
 			'System permitted in Seismic Design Category D (Table 6.2.19 row 3); C2 (P-M interaction); joints J1, J2 (joint shear)',
 			[],
+		]);
+	});
+
+	test('the design counts: members, then joints and building checks (X4)', () => {
+		const base = { checked: 27, passed: 26, failed: 1, skipped: 0, maxUtilisation: 1.1, governing: 'C1' };
+		assert.deepStrictEqual([
+			describeDesignCounts({ ...base, elements: { checked: 18, passed: 18, failed: 0 }, joints: { checked: 6, failed: 0 }, seismicChecks: 3, seismicChecksFailed: 1 }),
+			describeDesignCounts({ ...base, elements: { checked: 18, passed: 17, failed: 1 }, joints: { checked: 0, failed: 0 }, seismicChecksFailed: 0 }),
+			describeDesignCounts(base),
+		], [
+			'18 members pass, 0 fail; 6 joints, 0 fail; 1 building check fails',
+			'17 members pass, 1 fail',
+			'26 members pass, 1 fail',
 		]);
 	});
 

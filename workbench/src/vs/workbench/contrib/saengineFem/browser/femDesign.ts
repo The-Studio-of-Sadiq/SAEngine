@@ -407,15 +407,34 @@ export function designElementOf(report: IFemDesignReport, elementId: number): IF
 	return report.elements.find(e => e.members.includes(elementId));
 }
 
+/**
+ * "16 members pass, 2 fail; 6 joints, 1 fails; 1 building check fails": the members' counts,
+ * then the joints and the building's seismic checks when there are any (the totals hold all
+ * three; an older backend's totals are the members').
+ */
+export function describeDesignCounts(summary: IFemDesignReport['summary']): string {
+	const members = summary.elements ?? summary;
+	const parts = [localize('femDesign.counts', "{0} members pass, {1} fail", members.passed, members.failed)];
+	if (summary.elements && summary.joints?.checked) {
+		parts.push(localize('femDesign.jointCounts', "{0} joints, {1} fail", summary.joints.checked, summary.joints.failed));
+	}
+	if (summary.elements && summary.seismicChecksFailed) {
+		parts.push(summary.seismicChecksFailed === 1
+			? localize('femDesign.buildingCheckFails', "1 building check fails")
+			: localize('femDesign.buildingChecksFail', "{0} building checks fail", summary.seismicChecksFailed));
+	}
+	return parts.join('; ');
+}
+
 /** "12 members pass, 2 fail, 3 not checked." */
 export function describeDesignSummary(report: IFemDesignReport): string {
-	const { passed, failed, skipped } = report.summary;
+	const { skipped } = report.summary;
 	if (!report.elements.length) {
 		return skipped
 			? localize('femDesign.noneChecked', "No member could be checked ({0} not checked: select one for the reason, or see the notes).", skipped)
 			: localize('femDesign.noMembersOrSlabs', "There are no reinforced-concrete beams, columns or slabs to check.");
 	}
-	const counts = localize('femDesign.counts', "{0} members pass, {1} fail", passed, failed);
+	const counts = describeDesignCounts(report.summary);
 	const largest = report.summary.maxUtilisation !== null && report.summary.governing
 		? localize('femDesign.largest', "largest utilisation {0} in {1}", formatUtilisation(report.summary.maxUtilisation), report.summary.governing)
 		: undefined;
