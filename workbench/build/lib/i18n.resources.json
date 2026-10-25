@@ -665,6 +665,58 @@
 		{
 			"name": "vs/workbench/services/request",
 			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/saengineBoq",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/saengineCad",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/saengineFem",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/saengineLibrary",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/saengineMep",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/saengineModel",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/saengineProject",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/saengineReport",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/saengineSoil",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/saengineStructure",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/saengineSubstructure",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/saengineUpdate",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/saengineProject",
+			"project": "vscode-workbench"
 		}
 	],
 	"sessions": [
