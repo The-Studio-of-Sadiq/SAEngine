@@ -284,6 +284,16 @@
 	stroke-dasharray: none;
 }
 
+/* The services' equipment on the coordination plan: read-only, edited in its own discipline. */
+.saengine-mep-editor .mep-service-equipment .mep-equipment-shape {
+	fill: color-mix(in srgb, var(--mep-equipment) 8%, transparent);
+	stroke-dasharray: 4 3;
+}
+
+.saengine-mep-editor .mep-service-equipment.not-applied .mep-equipment-shape {
+	stroke: var(--sa-danger, var(--vscode-errorForeground));
+}
+
 .saengine-mep-editor .mep-equipment-foot {
 	fill: var(--mep-equipment);
 }
@@ -498,6 +508,10 @@
 	white-space: normal;
 	min-width: 200px;
 	color: var(--sa-muted);
+}
+
+.saengine-mep-editor .mep-table td.mep-pre {
+	white-space: pre-line;
 }
 
 .saengine-mep-editor .mep-table td.mep-muted {
@@ -1654,3 +1668,69 @@
 .saengine-mep-editor .fire-status.performance { background: color-mix(in srgb, var(--vscode-charts-orange, #c2620e) 18%, transparent); color: var(--vscode-foreground); }
 .saengine-mep-editor .fire-status.recommended { background: color-mix(in srgb, var(--vscode-charts-blue, #2c6fbe) 14%, transparent); color: var(--vscode-foreground); }
 .saengine-mep-editor .fire-status.notRequired { color: var(--sa-muted); }
+
+/* A link to where an item is edited (another discipline's tab). */
+.saengine-mep-editor button.mep-link {
+	border: none;
+	background: none;
+	padding: 0;
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	font: inherit;
+	text-align: start;
+}
+
+.saengine-mep-editor button.mep-link:hover {
+	text-decoration: underline;
+}
+
+/* A tile that leads to its failures. */
+.saengine-mep-editor .mep-tile.mep-tile-link {
+	cursor: pointer;
+}
+
+.saengine-mep-editor .mep-tile.mep-tile-link:hover,
+.saengine-mep-editor .mep-tile.mep-tile-link:focus-visible {
+	border-color: var(--vscode-focusBorder);
+}
+
+/* The discipline's main actions, labelled, beside the icon toolbar. */
+.mep-text-actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex-wrap: nowrap;
+}
+
+.mep-text-actions .mep-text-action {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	height: 24px;
+	padding: 0 6px;
+	border: 1px solid var(--vscode-button-secondaryBackground, transparent);
+	border-radius: 4px;
+	background: transparent;
+	color: var(--vscode-foreground);
+	font: inherit;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.mep-text-actions .mep-text-action:hover:not(:disabled) {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.mep-text-actions .mep-text-action:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+/* Narrow windows: the label goes, the tooltip and the icon stay. */
+@media (max-width: 1500px) {
+	.mep-text-actions .mep-text-action .mep-text-action-label {
+		max-width: 9em;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+}

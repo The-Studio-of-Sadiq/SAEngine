@@ -21,7 +21,7 @@ import { ITextModelService } from '../../../../editor/common/services/resolverSe
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -43,7 +43,7 @@ import { formatField, formatNumber, IFieldSpec, parseField } from '../../saengin
 import {
 	checkMep, DISCIPLINES, disciplineLabel, EMPTY_CONTEXT, EQUIPMENT_KINDS, EQUIPMENT_PRESETS, equipmentArea, equipmentKindLabel, equipmentPressure, findHost, formatUtilisation, guessDiscipline, hostKindLabel, hostStory, IClash, IEquipment, IEquipmentPreset,
 	IIfcModel, IImportIfcRequest, IMep, IMepContext, IMepContextTexts, IMepProblem, IMepReport, IMepRequest, IOpening, IShaft, MEP_IFC_FOLDER, MEP_IMPORT_IFC_COMMAND, MEP_REPORT_COMMAND, MEP_SUGGEST_SLEEVES_COMMAND, MEP_SUMMARY_FILE, mepSummary, mepSummaryFile,
-	newEquipment, newShaft, newSleeve, OPENING_KINDS, OPENING_SHAPES, openingKindLabel, openingPoint, openingShapeLabel, parseMep, plinthWeight, Point, polygonArea, readIfcImport, readMepContext, readMepReport, readSleeveSuggestions, serializeMep, shaftOnStory, sleeveForClash,
+	allEquipment, equipmentOwnerLabel, IEquipmentLoad, newEquipment, newShaft, newSleeve, OPENING_KINDS, OPENING_SHAPES, openingKindLabel, openingPoint, openingShapeLabel, parseMep, plinthWeight, Point, polygonArea, readIfcImport, readMepContext, readMepReport, readSleeveSuggestions, serializeMep, shaftOnStory, sleeveForClash,
 	idError, isOpenClash, isPartlyChecked, IStory, nextId, storyAt, storyElements, storyLoads, utilisationBand,
 } from './mepDocument.js';
 import { MepEditorInput } from './mepEditorInput.js';
@@ -51,7 +51,7 @@ import { IPlanClash, IPlanView, MepSelection, renderPlan } from './mepPlan.js';
 import {
 	allIds, checkPlumbing, constructionLabel, ensurePlumbing, FIXTURES, fixtureLabel, fixtureTotals, hasPlumbing, IOccupancy, IPlumbing, IPlumbingReport, IRiser, IRoofDrain, ITank, isGroundTank, mergeSizedTanks,
 	newRiser, newRoofDrain, newTank, PIPE_MATERIALS, PLUMBING_OCCUPANCIES_COMMAND, PLUMBING_REPORT_COMMAND, PLUMBING_SIZE_TANKS_COMMAND, PLUMBING_SLEEVES_COMMAND, PLUMBING_SYSTEMS, plumbingFailures, plumbingOf,
-	plumbingSummary, plumbingSummaryFile, PlumbingSystem, readOccupancies, readPlumbingReport, readSizedTanks, riserOnStory, sourceLabel, STATIC_OCCUPANCIES, storyRow, SUPPLY_SOURCES, systemLabel, systemLetters,
+	plumbingSummary, plumbingSummaryFile, PlumbingSystem, readOccupancies, readPlumbingReport, readSizedTanks, riserOnStory, sourceLabel, storyRow, SUPPLY_SOURCES, systemLabel, systemLetters,
 	TANK_CONSTRUCTIONS, TANK_KINDS, tankCapacity, TankKind, tankKindLabel, tankStory,
 } from './plumbingDocument.js';
 import { plumbingExtent, renderPlumbing } from './plumbingPlan.js';
@@ -60,7 +60,7 @@ import {
 	allCrossings, checkHvac, DUCT_SYSTEMS, ductLetters, ductOnStory, ductSystemLabel, DuctSystem, ensureHvac, HVAC_CONSTRUCTIONS_COMMAND, HVAC_DUCT_OPENINGS_COMMAND, HVAC_LOADS_COMMAND,
 	HVAC_PROPOSE_PLANT_COMMAND, HVAC_REPORT_COMMAND, HVAC_TABLES_COMMAND, hasHvac, hvacExtent, hvacFailures, hvacOf, hvacSummary, hvacSummaryFile, IConstructions, IHvacCity, IHvacReport, IHvacUse,
 	IPlant, mergeProposedPlant, newDuct, newPlant, newRiserDuct, PLANT_KINDS, plantKindLabel, plantLetters, PlantKind, readConstructions, readHvacReport, readHvacTables, readProposedPlant,
-	STATIC_CITIES, STATIC_CONSTRUCTIONS, STATIC_USES,
+	STATIC_CONSTRUCTIONS,
 } from './hvacDocument.js';
 import { renderDraft, renderHvac } from './hvacPlan.js';
 import { renderHvacReport } from './hvacResults.js';
@@ -69,7 +69,6 @@ import {
 	checkElectrical, ELEC_KINDS, ELEC_RISER_KINDS, elecKindLabel, ElecKind, elecLetters, elecRiserOnStory, ElecRiserKind, ELECTRICAL_OPENINGS_COMMAND, ELECTRICAL_PROPOSE_COMMAND,
 	ELECTRICAL_REPORT_COMMAND, ELECTRICAL_USES_COMMAND, electricalExtent, electricalFailures, electricalOf, electricalSummary, electricalSummaryFile, ensureElectrical, hasElectrical, IElecEquipment,
 	IElectricalReport, IElecUse, mergeProposedEquipment, newElecEquipment, newElecRiser, newTray, readElecUses, readElectricalReport, readProposedEquipment, riserKindLabel, riserLetters,
-	STATIC_ELEC_USES,
 } from './electricalDocument.js';
 import { renderElectrical } from './electricalPlan.js';
 import { renderElectricalReport } from './electricalResults.js';
@@ -84,6 +83,7 @@ import { renderFire } from './firePlan.js';
 import { renderFireReport } from './fireResults.js';
 import { renderFireData, renderFirePumpProperties, renderFireRiserProperties, renderFireSummaryProperties, renderFireTankProperties } from './fireView.js';
 import { IMepFormHost } from './mepForm.js';
+import { ITableColumn } from './mepResults.js';
 import { problemsOf, roofStory, storyAbove } from './mepRead.js';
 
 type View = 'plan' | 'data' | 'results';
@@ -126,6 +126,9 @@ const VIEWS: readonly { readonly view: View; readonly label: string; readonly ic
 
 /** The state of the report: not asked yet, being computed, computed, or no backend / failed. */
 type ReportState = 'idle' | 'computing' | 'ok' | 'missing' | 'error';
+
+/** How long Calculate Loads waits for the backend before it gives up [min]. */
+const HVAC_LOADS_TIMEOUT_MIN = 8;
 
 /** The parts the plan is drawn against, by the key of {@link IMepContextTexts}. */
 const SITE_PARTS: readonly (readonly [keyof IMepContextTexts, string])[] = [
@@ -225,7 +228,7 @@ export class MepEditor extends EditorPane {
 	private plumbingState: ReportState = 'idle';
 	private plumbingError: string | undefined;
 	private plumbingVersion = 0;
-	private occupancies: readonly IOccupancy[] = STATIC_OCCUPANCIES;
+	private occupancies: readonly IOccupancy[] = [];
 	private occupanciesFromBackend = false;
 	private hvacReport: IHvacReport | undefined;
 	private hvacState: ReportState = 'idle';
@@ -233,8 +236,8 @@ export class MepEditor extends EditorPane {
 	private hvacVersion = 0;
 	/** The cooling load calculation running (EnergyPlus): its cancellation. */
 	private hvacLoads: CancellationTokenSource | undefined;
-	private hvacCities: readonly IHvacCity[] = STATIC_CITIES;
-	private hvacUses: readonly IHvacUse[] = STATIC_USES;
+	private hvacCities: readonly IHvacCity[] = [];
+	private hvacUses: readonly IHvacUse[] = [];
 	private hvacTablesFromBackend = false;
 	private constructions: IConstructions = STATIC_CONSTRUCTIONS;
 	private constructionsFromBackend = false;
@@ -243,7 +246,7 @@ export class MepEditor extends EditorPane {
 	private electricalState: ReportState = 'idle';
 	private electricalError: string | undefined;
 	private electricalVersion = 0;
-	private elecUses: readonly IElecUse[] = STATIC_ELEC_USES;
+	private elecUses: readonly IElecUse[] = [];
 	private elecUsesFromBackend = false;
 
 	private fireReport: IFireReport | undefined;
@@ -317,7 +320,7 @@ export class MepEditor extends EditorPane {
 	private readonly drawDuctAction = new SubmenuAction('saengine.mep.editor.drawDuct', localize('hvac.drawDuct', "Draw Duct"), this.ductActions, ThemeIcon.asClassName(Codicon.edit));
 	private readonly proposePlantAction = this._register(new Action('saengine.mep.editor.proposePlant', localize('hvac.proposePlant', "Propose Plant"), ThemeIcon.asClassName(Codicon.wand), true, () => this.proposePlant()));
 	private readonly ductOpeningsAction = this._register(new Action('saengine.mep.editor.ductOpenings', localize('hvac.ductOpenings', "Add Duct Openings"), ThemeIcon.asClassName(Codicon.circleLargeOutline), true, () => this.addServiceOpenings('hvac')));
-	private readonly calculateLoadsAction = this._register(new Action('saengine.mep.editor.calculateLoads', localize('hvac.calculateLoads', "Calculate Loads"), ThemeIcon.asClassName(Codicon.flame), true, () => this.calculateLoads()));
+	private readonly calculateLoadsAction = this._register(new Action('saengine.mep.editor.calculateLoads', localize('hvac.calculateLoads', "Calculate Loads"), ThemeIcon.asClassName(Codicon.play), true, () => this.calculateLoads()));
 	private readonly recomputeHvacAction = this._register(new Action('saengine.mep.editor.recomputeHvac', localize('hvac.recompute', "Check the HVAC Again"), undefined, true, () => this.computeHvacReport()));
 
 	private readonly elecEquipmentActions = ELEC_KINDS.map(kind => this._register(new Action(`saengine.mep.editor.addElec.${kind}`, localize('elec.addKind', "{0} ({1})", elecKindLabel(kind), elecLetters(kind)), undefined, true, async () => this.addElecEquipment(kind))));
@@ -350,6 +353,7 @@ export class MepEditor extends EditorPane {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IProgressService private readonly progressService: IProgressService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super(MepEditor.ID, group, telemetryService, themeService, storageService);
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -1340,12 +1344,60 @@ export class MepEditor extends EditorPane {
 		if (!report || !model || !this.resource || this.input?.isDirty() || this.document !== document) {
 			return;
 		}
-		const plumbing = this.plumbingState === 'ok' && this.plumbingReport ? { plumbing: plumbingSummaryFile(document, this.plumbingReport) } : {};
-		const hvac = this.hvacState === 'ok' && this.hvacReport ? { hvac: hvacSummaryFile(document, this.hvacReport) } : {};
-		const electrical = this.electricalState === 'ok' && this.electricalReport ? { electrical: electricalSummaryFile(document, this.electricalReport) } : {};
-		const fire = this.fireState === 'ok' && this.fireReport ? { fire: fireSummaryFile(document, this.fireReport) } : {};
+		// Once, when every discipline the file has has answered: written report by report, the
+		// part list's status jumped from one discipline's failures to another's.
+		if (this.disciplineStates(document).some(([, state]) => state === 'idle' || state === 'computing')) {
+			return;
+		}
+		const failures = this.disciplineFailures(document);
+		const plumbing = failures.plumbing !== undefined && this.plumbingReport ? { plumbing: plumbingSummaryFile(document, this.plumbingReport) } : {};
+		const hvac = failures.hvac !== undefined && this.hvacReport ? { hvac: hvacSummaryFile(document, this.hvacReport) } : {};
+		const electrical = failures.electrical !== undefined && this.electricalReport ? { electrical: electricalSummaryFile(document, this.electricalReport) } : {};
+		const fire = failures.fire !== undefined && this.fireReport ? { fire: fireSummaryFile(document, this.fireReport) } : {};
 		const content = JSON.stringify({ ...mepSummaryFile(document, report, model.getValue(), new Date(), sourceTexts), ...plumbing, ...hvac, ...electrical, ...fire }, undefined, '\t') + '\n';
 		this.fileService.writeFile(joinPath(dirname(this.resource), MEP_SUMMARY_FILE), VSBuffer.fromString(content)).catch(() => { /* the part list then shows the count only */ });
+	}
+
+	/** The state of each discipline's report that the file has (the coordination's always). */
+	private disciplineStates(document: IMep): [Discipline, ReportState][] {
+		const states: [Discipline, ReportState][] = [['coordination', this.reportState]];
+		if (hasPlumbing(document)) {
+			states.push(['plumbing', this.plumbingReport?.tankDesignsPending ? 'computing' : this.plumbingState]);
+		}
+		if (hasHvac(document)) {
+			states.push(['hvac', this.hvacState]);
+		}
+		if (hasElectrical(document)) {
+			states.push(['electrical', this.electricalState]);
+		}
+		if (hasFire(document)) {
+			states.push(['fire', this.fireState]);
+		}
+		return states;
+	}
+
+	/**
+	 * The failing checks of each discipline whose report is in, counted as the part list counts
+	 * them (the summary file): the coordination's failing openings and open clashes.
+	 */
+	private disciplineFailures(document: IMep): { [K in Discipline]?: number } {
+		const failures: { [K in Discipline]?: number } = {};
+		if (this.reportState === 'ok' && this.report) {
+			failures.coordination = this.report.openings.filter(o => !o.ok).length + this.report.clashes.filter(isOpenClash).length;
+		}
+		if (hasPlumbing(document) && this.plumbingState === 'ok' && this.plumbingReport) {
+			failures.plumbing = plumbingSummaryFile(document, this.plumbingReport).failed;
+		}
+		if (hasHvac(document) && this.hvacState === 'ok' && this.hvacReport) {
+			failures.hvac = hvacFailures(this.hvacReport);
+		}
+		if (hasElectrical(document) && this.electricalState === 'ok' && this.electricalReport) {
+			failures.electrical = electricalFailures(this.electricalReport);
+		}
+		if (hasFire(document) && this.fireState === 'ok' && this.fireReport) {
+			failures.fire = fireFailures(this.fireReport);
+		}
+		return failures;
 	}
 
 	// ───────────────────────────── rendering ─────────────────────────────
@@ -1363,6 +1415,46 @@ export class MepEditor extends EditorPane {
 		this.renderView();
 		this.renderProperties();
 		this.renderStatus();
+	}
+
+	private readonly labelledActions = this._register(new DisposableStore());
+	private labelledGroup: HTMLElement | undefined;
+
+	/** Text buttons for `actions` in the frame's end slot; a submenu opens its menu under the button. */
+	private renderLabelledActions(frame: EditorFrame, actions: readonly IAction[]): void {
+		this.labelledActions.clear();
+		this.labelledGroup?.remove();
+		this.labelledGroup = undefined;
+		if (!actions.length) {
+			return;
+		}
+		const group = this.labelledGroup = append(frame.endSlot, $('.mep-text-actions'));
+		for (const action of actions) {
+			const button = append(group, $<HTMLButtonElement>('button.mep-text-action', { type: 'button', title: action.tooltip || action.label }));
+			if (action.class) {
+				append(button, $(`span.${action.class.split(' ').join('.')}`));
+			}
+			append(button, $('span.mep-text-action-label', undefined, action.label));
+			if (action instanceof SubmenuAction) {
+				append(button, $(ThemeIcon.asCSSSelector(Codicon.chevronDown)));
+				button.setAttribute('aria-haspopup', 'menu');
+			}
+			const sync = () => {
+				button.disabled = !action.enabled;
+				button.title = action.tooltip || action.label;
+			};
+			sync();
+			if (action instanceof Action) {
+				this.labelledActions.add(action.onDidChange(sync));
+			}
+			this.labelledActions.add(addDisposableListener(button, EventType.CLICK, () => {
+				if (action instanceof SubmenuAction) {
+					this.contextMenuService.showContextMenu({ getAnchor: () => button, getActions: () => action.actions });
+				} else {
+					action.run();
+				}
+			}));
+		}
 	}
 
 	private renderReportDependent(): void {
@@ -1456,10 +1548,18 @@ export class MepEditor extends EditorPane {
 			}
 			secondary.push(this.openTextAction);
 		}
-		const key = `${primary.map(a => a.id).join()}|${secondary.map(a => a.id).join()}`;
+		// The discipline's main actions as labelled buttons (an icon alone did not say what it does); the rest stay icons.
+		const labelled: IAction[] = !usable ? [] : plumbingView ? [this.addRiserAction, this.addTankAction, this.sizeTanksAction]
+			: discipline === 'hvac' ? [this.addPlantAction, this.drawDuctAction, this.calculateLoadsAction]
+				: discipline === 'electrical' ? [this.addElecEquipmentAction, this.addElecRiserAction, this.drawTrayAction]
+					: discipline === 'fire' ? [this.addFireRiserAction, this.proposeFireAction]
+						: [this.addEquipmentAction, this.addShaftAction];
+		const icons = primary.filter(a => !labelled.includes(a));
+		const key = `${labelled.map(a => a.id).join()}|${icons.map(a => a.id).join()}|${secondary.map(a => a.id).join()}`;
 		if (key !== this.actionsKey) {
 			this.actionsKey = key;
-			frame.setActions(primary, secondary);
+			frame.setActions(icons, secondary);
+			this.renderLabelledActions(frame, labelled);
 		}
 	}
 
@@ -1507,7 +1607,7 @@ export class MepEditor extends EditorPane {
 				case 'data':
 					renderHvacData(this.viewElement, this.formHost(document), {
 						cities: this.hvacCities, uses: this.hvacUses, constructions: this.constructions, tablesFromBackend: this.hvacTablesFromBackend, constructionsFromBackend: this.constructionsFromBackend,
-					}, this.hvacDataActions());
+					}, this.hvacDataActions(), this.hvacState === 'ok' ? this.hvacReport?.station : undefined);
 					this.markSelectedRows();
 					break;
 				case 'results': this.renderHvacResults(document); break;
@@ -1516,7 +1616,7 @@ export class MepEditor extends EditorPane {
 			switch (this.view) {
 				case 'plan': this.renderPlanView(document); break;
 				case 'data':
-					renderElectricalData(this.viewElement, this.formHost(document), this.elecUses, this.elecUsesFromBackend, this.electricalDataActions());
+					renderElectricalData(this.viewElement, this.formHost(document), this.elecUses, this.elecUsesFromBackend, this.electricalDataActions(), this.electricalState === 'ok' ? this.electricalReport : undefined);
 					this.markSelectedRows();
 					break;
 				case 'results': this.renderElectricalResults(document); break;
@@ -1561,18 +1661,22 @@ export class MepEditor extends EditorPane {
 			return localize('mep.planSubtitleNone', "Build the building model to lay out the services on its stories.");
 		}
 		const level = formatNumber(story.elevation / 1000, 2);
+		// Counts on this level, with the building's where they differ (Properties and the status line count the building).
+		const count = (here: number, all: number) => here === all ? String(here) : localize('mep.countHereAll', "{0} on this level ({1} in the building)", here, all);
+		const kn = (items: readonly { operatingWeight?: number }[]) => formatNumber(items.reduce((s, e) => s + (e.operatingWeight || 0), 0), 1);
 		switch (this.discipline) {
 			case 'plumbing': {
 				const plumbing = plumbingOf(document);
-				return localize('plb.planSubtitle', "level {0} m · risers and stacks: {1}, tanks: {2} · click to select, drag to move",
-					level, plumbing?.risers.filter(r => riserOnStory(r, this.context, story.id)).length ?? 0, plumbing?.tanks.filter(t => tankStory(t, this.context) === story.id).length ?? 0);
+				return localize('plb.planSubtitle', "level {0} m · risers and stacks: {1} · tanks: {2} · click to select, drag to move",
+					level, count(plumbing?.risers.filter(r => riserOnStory(r, this.context, story.id)).length ?? 0, plumbing?.risers.length ?? 0),
+					count(plumbing?.tanks.filter(t => tankStory(t, this.context) === story.id).length ?? 0, plumbing?.tanks.length ?? 0));
 			}
 			case 'hvac': {
 				const hvac = hvacOf(document);
 				const plant = hvac?.plant.filter(p => p.story === story.id) ?? [];
 				const ducts = hvac?.ducts.filter(d => ductOnStory(d, this.context, story.id)).length ?? 0;
 				return localize('hvac.planSubtitle', "level {0} m · plant: {1}, {2} kN · ducts: {3} · the beams above dashed · click to select, drag to move",
-					level, plant.length, formatNumber(plant.reduce((s, p) => s + (p.operatingWeight ?? 0), 0), 1), ducts);
+					level, count(plant.length, hvac?.plant.length ?? 0), kn(plant), count(ducts, hvac?.ducts.length ?? 0));
 			}
 			case 'electrical': {
 				const electrical = electricalOf(document);
@@ -1580,7 +1684,7 @@ export class MepEditor extends EditorPane {
 				const risers = electrical?.risers.filter(r => elecRiserOnStory(r, this.context, story.id)).length ?? 0;
 				const lightning = electrical?.lightning.enabled && (story.id === roofStory(this.context)?.id || story.id === this.context.stories[0]?.id);
 				return localize('elec.planSubtitle', "level {0} m · equipment: {1}, {2} kN · risers: {3}{4} · click to select, drag to move",
-					level, equipment.length, formatNumber(equipment.reduce((s, e) => s + (e.operatingWeight ?? 0), 0), 1), risers,
+					level, count(equipment.length, electrical?.equipment.length ?? 0), kn(equipment), count(risers, electrical?.risers.length ?? 0),
 					lightning ? localize('elec.planSubtitleLps', " · lightning protection") : '');
 			}
 			case 'fire': {
@@ -1589,12 +1693,14 @@ export class MepEditor extends EditorPane {
 				const pumps = fire?.pumps.filter(p => p.story === story.id) ?? [];
 				const tanks = fire?.tanks.filter(t => fireTankStory(t, this.context) === story.id).length ?? 0;
 				return localize('fire.planSubtitle', "level {0} m · risers: {1} · pump sets: {2}, {3} kN · fire tanks: {4} · click to select, drag to move",
-					level, risers, pumps.length, formatNumber(pumps.reduce((s, p) => s + (p.operatingWeight ?? 0), 0), 1), tanks);
+					level, count(risers, fire?.risers.length ?? 0), count(pumps.length, fire?.pumps.length ?? 0), kn(pumps), count(tanks, fire?.tanks.length ?? 0));
 			}
 			default: {
-				const onStory = document.equipment.filter(e => e.story === story.id);
-				return localize('mep.planSubtitle', "level {0} m · {1} equipment, {2} kN · click to select, drag equipment and shafts to move them",
-					level, onStory.length, formatNumber(onStory.reduce((sum, e) => sum + (e.operatingWeight || 0), 0), 1));
+				// Every discipline's equipment, as the tiles and the status line count it.
+				const all = allEquipment(document, this.report);
+				const onStory = all.filter(e => e.story === story.id);
+				return localize('mep.planSubtitle', "level {0} m · equipment: {1}, {2} kN · click to select, drag equipment and shafts to move them",
+					level, count(onStory.length, all.length), kn(onStory));
 			}
 		}
 	}
@@ -1729,6 +1835,7 @@ export class MepEditor extends EditorPane {
 		} : {};
 		this.planView = renderPlan(canvas, document, this.context, {
 			width, height, story: story.id, selection: this.selection, openingBands: bands, clashes, selectedClash: this.selectedClash, ...layer,
+			servicesEquipment: discipline === 'coordination' ? allEquipment(document, this.report).filter(e => e.discipline !== 'coordination') : undefined,
 		});
 		this.viewDisposables.add(addDisposableListener(canvas, EventType.CLICK, e => this.onPlanClick(e)));
 		this.viewDisposables.add(addDisposableListener(canvas, EventType.DBLCLICK, e => {
@@ -1771,12 +1878,13 @@ export class MepEditor extends EditorPane {
 		return section;
 	}
 
-	private tableHead(table: HTMLElement, columns: readonly { label: string; unit?: string; numeric?: boolean; width?: number }[]): void {
+	private tableHead(table: HTMLElement, columns: readonly ITableColumn[]): void {
 		const colgroup = append(table, $('colgroup'));
 		const head = append(append(table, $('thead')), $('tr'));
 		for (const column of columns) {
 			append(colgroup, $('col', { style: `width: ${column.width ?? 72}px` }));
 			const th = append(head, $(column.numeric ? 'th.number' : 'th'));
+			th.title = column.title ?? (column.unit ? `${column.label} (${column.unit})` : column.label);
 			append(th, $('span', undefined, column.label));
 			if (column.unit) {
 				append(th, $('span.mep-unit', undefined, column.unit));
@@ -1858,6 +1966,32 @@ export class MepEditor extends EditorPane {
 		});
 		if (!document.equipment.length) {
 			append(append(body, $('tr')), $('td.mep-muted', { colspan: String(columns.length) }, localize('mep.noEquipment', "None yet. Add equipment from the toolbar: start from a preset and edit it to the supplier's data.")));
+		}
+		// The services' equipment, read-only here: each is edited in its own discipline (one place per item).
+		const services = allEquipment(document, this.report).filter(e => e.discipline !== 'coordination');
+		if (services.length) {
+			append(section, $('.mep-subheading', undefined, localize('mep.servicesEquipment', "From the services ({0})", services.length)));
+			const other = append(append(section, $('.mep-table-scroll')), $('table.mep-table'));
+			this.tableHead(other, [
+				{ label: F.id.label, width: 84 }, { label: localize('mep.f.owner', "Entered in"), width: 110 }, { label: localize('mep.f.kind', "Kind"), width: 130 }, { label: localize('mep.f.story', "Story"), width: 100 },
+				{ label: F.x.label, unit: M, numeric: true }, { label: F.y.label, unit: M, numeric: true }, { label: F.operatingWeight.label, unit: KN, numeric: true, width: 84 },
+				{ label: localize('mep.f.applied', "Applied"), width: 90 },
+			]);
+			const otherBody = append(other, $('tbody'));
+			for (const e of services) {
+				const tr = append(otherBody, $('tr'));
+				append(tr, $('td', undefined, e.sourceId));
+				const link = append(append(tr, $('td')), $<HTMLButtonElement>('button.mep-link', { type: 'button', title: localize('mep.ownerOpen', "Edit {0} in {1}", e.sourceId, equipmentOwnerLabel(e.discipline)) }, equipmentOwnerLabel(e.discipline)));
+				this.viewDisposables.add(addDisposableListener(link, EventType.CLICK, () => this.revealOwnedEquipment(e)));
+				append(tr, $('td', undefined, e.kind ? equipmentKindLabel(e.kind) : ''));
+				append(tr, $('td', undefined, this.storyName(e.story)));
+				append(tr, $('td.number', undefined, e.x === undefined ? '' : formatNumber(e.x / 1000, 2)));
+				append(tr, $('td.number', undefined, e.y === undefined ? '' : formatNumber(e.y / 1000, 2)));
+				append(tr, $('td.number', undefined, e.operatingWeight === undefined ? '' : formatNumber(e.operatingWeight, 1)));
+				append(tr, $(`td${!e.applied && !e.onGrade ? '.band-fail' : ''}`, undefined, e.applied ? localize('mep.appliedYes', "on the frame") : e.onGrade ? localize('mep.appliedGrade', "on grade") : localize('mep.appliedNo', "not applied")));
+			}
+		} else if (this.reportState === 'computing' || this.reportState === 'idle') {
+			append(section, $('p.mep-note', undefined, localize('mep.servicesComputing', "The plumbing, HVAC, electrical and fire equipment are listed here once the backend has read them.")));
 		}
 	}
 
@@ -2082,9 +2216,9 @@ export class MepEditor extends EditorPane {
 		input.setAttribute('aria-invalid', String(!!error));
 	}
 
-	private selectInput(options: readonly { value: string; label: string }[], current: string, store: (value: string) => void, key: string, label: string, allowNone = false): HTMLSelectElement {
+	private selectInput(options: readonly { value: string; label: string }[], current: string, store: (value: string) => void, key: string, label: string, allowNone: boolean | string = false): HTMLSelectElement {
 		const select = $<HTMLSelectElement>('select.mep-select', { 'aria-label': label });
-		const all = [...(allowNone ? [{ value: '', label: '—' }] : []), ...options];
+		const all = [...(allowNone ? [{ value: '', label: typeof allowNone === 'string' ? allowNone : '—' }] : []), ...options];
 		if (current && !all.some(o => o.value === current)) {
 			all.push({ value: current, label: current });
 		}
@@ -2092,7 +2226,12 @@ export class MepEditor extends EditorPane {
 			const element = append(select, $<HTMLOptionElement>('option', { value: option.value }, option.label));
 			element.selected = option.value === current;
 		}
-		this.inputStore.add(addDisposableListener(select, EventType.CHANGE, () => store(select.value)));
+		// The full text on hover where the column cuts the select (E13).
+		select.title = select.selectedOptions[0]?.textContent ?? '';
+		this.inputStore.add(addDisposableListener(select, EventType.CHANGE, () => {
+			select.title = select.selectedOptions[0]?.textContent ?? '';
+			store(select.value);
+		}));
 		this.inputMap.set(key, select);
 		return select;
 	}
@@ -2112,7 +2251,8 @@ export class MepEditor extends EditorPane {
 			}
 			const problem = this.problems.find(p => p.path === key);
 			input.classList.toggle('warning', !!problem);
-			input.title = problem?.message ?? '';
+			const select = input.tagName === 'SELECT' ? input as HTMLSelectElement : undefined;
+			input.title = problem?.message ?? (select ? select.selectedOptions[0]?.textContent ?? '' : isHTMLInputElement(input) && input.placeholder && !input.value ? input.title : '');
 		}
 	}
 
@@ -2189,9 +2329,20 @@ export class MepEditor extends EditorPane {
 			append(element, $(`span.mep-tile-value${band ? `.band-${band}` : ''}`, undefined, value));
 			append(element, $('span.mep-tile-label', undefined, label));
 		};
-		const total = report.stories.length ? report.stories.reduce((s, x) => s + x.load, 0) : report.equipment.reduce((s, e) => s + (e.load ?? 0), 0);
-		tile(String(document.equipment.length), localize('mep.tileEquipment', "equipment"));
-		tile(localize('mep.knValue', "{0} kN", formatNumber(total, 0)), localize('mep.tileLoad', "equipment load on the structure"));
+		// Every discipline's equipment (the services' merged by the backend); the load on the frame leaves out what stands on grade or off the slabs.
+		const equipment = allEquipment(document, report);
+		const total = equipment.filter(e => e.applied).reduce((s, e) => s + (e.load ?? 0), 0);
+		const own = document.equipment.length;
+		tile(String(equipment.length), equipment.length === own ? localize('mep.tileEquipment', "equipment")
+			: localize('mep.tileEquipmentServices', "equipment ({0} here, {1} from the services)", own, equipment.length - own));
+		tile(localize('mep.knValue', "{0} kN", formatNumber(total, 0)), localize('mep.tileLoad', "equipment load on the frame"));
+		const grade = equipment.filter(e => e.onGrade).reduce((s, e) => s + (e.load ?? 0), 0);
+		const off = equipment.filter(e => !e.applied && !e.onGrade);
+		if (off.length) {
+			tile(String(off.length), localize('mep.tileNotApplied', "equipment off the slabs: loads not applied"), 'fail');
+		} else if (grade) {
+			tile(localize('mep.knValue', "{0} kN", formatNumber(grade, 0)), localize('mep.tileOnGrade', "on grade (to the ground slab and foundations)"));
+		}
 		const failed = report.openings.filter(o => !o.ok).length;
 		const partial = report.openings.filter(isPartlyChecked).length;
 		tile(String(failed), partial
@@ -2206,48 +2357,85 @@ export class MepEditor extends EditorPane {
 	}
 
 	private renderStoryLoads(view: HTMLElement, report: IMepReport): void {
-		const rows = report.stories.length ? report.stories : undefined;
-		if (!rows && !report.equipment.length) {
+		const document = this.document;
+		const equipment = document ? allEquipment(document, report) : report.equipment;
+		if (!equipment.length) {
 			return;
 		}
-		const section = this.resultSection(view, localize('mep.storyLoads', "Equipment loads by story"));
+		const section = this.resultSection(view, localize('mep.storyLoads', "Equipment loads by story"), localize('mep.storyLoadsDetail', "on the frame; on grade (the base level: to the ground slab and the foundations); off the slabs (not applied: move it onto a slab)"));
 		const table = append(section, $('table.mep-table.mep-result-table'));
 		this.tableHead(table, [
 			{ label: localize('mep.f.story', "Story"), width: 140 }, { label: localize('mep.f.count', "Equipment"), numeric: true, width: 80 },
-			{ label: localize('mep.f.load', "Load"), unit: KN, numeric: true, width: 90 }, { label: localize('mep.note', "Note"), width: 300 },
+			{ label: localize('mep.f.loadFrame', "On the frame"), unit: KN, numeric: true, width: 100 }, { label: localize('mep.f.loadGrade', "On grade"), unit: KN, numeric: true, width: 90 },
+			{ label: localize('mep.f.loadOff', "Not applied"), unit: KN, numeric: true, width: 90 },
 		]);
 		const body = append(table, $('tbody'));
-		const list = rows ?? [...new Set(report.equipment.map(e => e.story ?? ''))].map(story => ({
-			story, count: report.equipment.filter(e => (e.story ?? '') === story).length, load: report.equipment.filter(e => (e.story ?? '') === story).reduce((s, e) => s + (e.load ?? 0), 0), note: undefined,
-		}));
-		for (const row of list) {
+		const stories = [...new Set(equipment.map(e => e.story ?? ''))].sort((a, b) => (this.context.stories.findIndex(s => s.id === b)) - (this.context.stories.findIndex(s => s.id === a)));
+		const sum = (list: readonly IEquipmentLoad[]) => list.reduce((s, e) => s + (e.load ?? 0), 0);
+		for (const story of stories) {
+			const here = equipment.filter(e => (e.story ?? '') === story);
 			const tr = append(body, $('tr'));
-			append(tr, $('td', undefined, this.storyName(row.story)));
-			append(tr, $('td.number', undefined, row.count === undefined ? '' : String(row.count)));
-			append(tr, $('td.number', undefined, formatNumber(row.load, 1)));
-			append(tr, $('td.mep-wrap', undefined, row.note ?? ''));
-		}
-		if (report.equipment.length) {
-			append(section, $('.mep-subheading', undefined, localize('mep.byEquipment', "By equipment")));
-			const detail = append(section, $('table.mep-table.mep-result-table'));
-			this.tableHead(detail, [
-				{ label: F.id.label, width: 64 }, { label: localize('mep.f.story', "Story"), width: 120 }, { label: localize('mep.f.loads', "Loads"), width: 90 },
-				{ label: localize('mep.f.load', "Load"), unit: KN, numeric: true, width: 80 }, { label: localize('mep.f.pressure', "Load"), unit: KPA, numeric: true, width: 72 },
-				{ label: localize('mep.f.loadCase', "Load case"), width: 80 }, { label: localize('mep.note', "Note"), width: 260 },
-			]);
-			const detailBody = append(detail, $('tbody'));
-			for (const e of report.equipment) {
-				const index = this.document?.equipment.findIndex(x => x.id === e.id) ?? -1;
-				const tr = index >= 0 ? this.selectableRow(detailBody, { kind: 'equipment', index }) : append(detailBody, $('tr'));
-				append(tr, $('td', undefined, e.id));
-				append(tr, $('td', undefined, this.storyName(e.story)));
-				append(tr, $('td', undefined, e.host ?? ''));
-				append(tr, $('td.number', undefined, e.load === undefined ? '' : formatNumber(e.load, 1)));
-				append(tr, $('td.number', undefined, e.pressure === undefined ? '' : formatNumber(e.pressure, 1)));
-				append(tr, $('td', undefined, e.loadCase ?? ''));
-				append(tr, $('td.mep-wrap', undefined, e.note ?? ''));
+			append(tr, $('td', undefined, this.storyName(story)));
+			append(tr, $('td.number', undefined, String(here.length)));
+			const off = here.filter(e => !e.applied && !e.onGrade);
+			for (const list of [here.filter(e => e.applied), here.filter(e => e.onGrade), off]) {
+				const td = append(tr, $('td.number', undefined, list.length ? formatNumber(sum(list), 1) : ''));
+				td.classList.toggle('band-fail', list === off && list.length > 0);
 			}
 		}
+		append(section, $('.mep-subheading', undefined, localize('mep.byEquipment', "By equipment")));
+		const detail = append(section, $('table.mep-table.mep-result-table'));
+		this.tableHead(detail, [
+			{ label: F.id.label, width: 84 }, { label: localize('mep.f.owner', "Entered in"), width: 110 }, { label: localize('mep.f.story', "Story"), width: 110 },
+			{ label: localize('mep.f.loads', "Loads"), width: 80, title: localize('mep.f.loadsTitle', "The slab it loads") },
+			{ label: localize('mep.f.load', "Load"), unit: KN, numeric: true, width: 80 }, { label: localize('mep.f.pressure', "Load"), unit: KPA, numeric: true, width: 72 },
+			{ label: localize('mep.f.loadCase', "Load case"), width: 80 }, { label: localize('mep.f.applied', "Applied"), width: 90 }, { label: localize('mep.note', "Note"), width: 260 },
+		]);
+		const detailBody = append(detail, $('tbody'));
+		for (const e of equipment) {
+			const index = e.discipline === 'coordination' ? this.document?.equipment.findIndex(x => x.id === e.sourceId) ?? -1 : -1;
+			const tr = index >= 0 ? this.selectableRow(detailBody, { kind: 'equipment', index }) : append(detailBody, $('tr'));
+			append(tr, $('td', undefined, e.sourceId));
+			const owner = append(tr, $('td'));
+			if (e.discipline === 'coordination') {
+				owner.textContent = localize('mep.ownerHere', "Coordination");
+			} else {
+				const link = append(owner, $<HTMLButtonElement>('button.mep-link', { type: 'button', title: localize('mep.ownerOpen', "Edit {0} in {1}", e.sourceId, equipmentOwnerLabel(e.discipline)) }, equipmentOwnerLabel(e.discipline)));
+				this.viewDisposables.add(addDisposableListener(link, EventType.CLICK, event => {
+					event.stopPropagation();
+					this.revealOwnedEquipment(e);
+				}));
+			}
+			append(tr, $('td', undefined, this.storyName(e.story)));
+			append(tr, $('td', undefined, e.host ?? ''));
+			append(tr, $('td.number', undefined, e.load === undefined ? '' : formatNumber(e.load, 1)));
+			append(tr, $('td.number', undefined, e.pressure === undefined ? '' : formatNumber(e.pressure, 1)));
+			append(tr, $('td', undefined, e.loadCase ?? ''));
+			append(tr, $(`td${!e.applied && !e.onGrade ? '.band-fail' : ''}`, undefined, e.applied ? localize('mep.appliedYes', "on the frame") : e.onGrade ? localize('mep.appliedGrade', "on grade") : localize('mep.appliedNo', "not applied")));
+			append(tr, $('td.mep-wrap', undefined, e.note ?? ''));
+		}
+	}
+
+	/** Opens the discipline that owns a service's equipment and selects it there (it is edited there, not here). */
+	private revealOwnedEquipment(e: IEquipmentLoad): void {
+		const document = this.document;
+		if (!document) {
+			return;
+		}
+		const lists: { [discipline: string]: [string, readonly { id: string }[]][] } = {
+			plumbing: [['plumbing.tanks', plumbingOf(document)?.tanks ?? []]],
+			hvac: [['hvac.plant', hvacOf(document)?.plant ?? []]],
+			electrical: [['electrical.equipment', electricalOf(document)?.equipment ?? []]],
+			fire: [['fire.pumps', fireOf(document)?.pumps ?? []], ['fire.tanks', fireOf(document)?.tanks ?? []]],
+		};
+		for (const [path, list] of lists[e.discipline] ?? []) {
+			const index = list.findIndex(item => item.id === e.sourceId);
+			if (index >= 0) {
+				this.revealProblem({ path: `${path}.${index}.id`, severity: 'warning', message: '' });
+				return;
+			}
+		}
+		this.showDiscipline(e.discipline as Discipline);
 	}
 
 	/** Without the backend: the operating weights per story, summed here. */
@@ -2738,14 +2926,16 @@ export class MepEditor extends EditorPane {
 		const story = this.context.stories.find(s => s.id === this.story);
 		if (story) {
 			appendPropertyHeading(panel, story.name);
-			const onStory = document.equipment.filter(e => e.story === story.id);
+			const onStory = allEquipment(document, this.report).filter(e => e.story === story.id);
 			appendPropertyRow(panel, localize('mep.equipmentHeading', "Equipment"), String(onStory.length));
 			appendPropertyRow(panel, localize('mep.f.operatingTotal', "Operating weight"), localize('mep.knValue', "{0} kN", formatNumber(onStory.reduce((s, e) => s + (e.operatingWeight || 0), 0), 1)));
 			const elements = storyElements(this.context, story.id);
 			appendPropertyRow(panel, localize('mep.f.floor', "Floor"), localize('mep.floorValue', "{0} slabs, {1} beams", elements.slabs.length, elements.beams.length));
 		}
 		appendPropertyHeading(panel, localize('mep.summaryHeading', "MEP"));
-		appendPropertyRow(panel, localize('mep.equipmentHeading', "Equipment"), String(document.equipment.length));
+		const everything = allEquipment(document, this.report);
+		appendPropertyRow(panel, localize('mep.equipmentHeading', "Equipment"), everything.length === document.equipment.length ? String(everything.length)
+			: localize('mep.equipmentSplit', "{0} ({1} here)", everything.length, document.equipment.length));
 		appendPropertyRow(panel, localize('mep.openingsHeading', "Sleeves and openings"), String(document.openings.length));
 		appendPropertyRow(panel, localize('mep.shaftsHeading', "Shafts"), String(document.shafts.length));
 		appendPropertyRow(panel, localize('mep.modelsHeading', "MEP IFC models"), String(document.ifcModels.length));
@@ -2801,6 +2991,17 @@ export class MepEditor extends EditorPane {
 		}
 		const ok = this.reportState === 'ok' ? this.report : undefined;
 		const parts = [mepSummary(document, ok)];
+		// The other disciplines' failures, as the part list counts them, so the two agree.
+		const failures = this.disciplineFailures(document);
+		const failing = (['plumbing', 'hvac', 'electrical', 'fire'] as const).filter(d => (failures[d] ?? 0) > 0);
+		for (const discipline of failing) {
+			const n = failures[discipline] ?? 0;
+			parts.push(n === 1 ? localize('mep.statusDisciplineFail', "{0}: 1 check fails", equipmentOwnerLabel(discipline)) : localize('mep.statusDisciplineFails', "{0}: {1} checks fail", equipmentOwnerLabel(discipline), n));
+		}
+		const waiting = this.disciplineStates(document).filter(([d, state]) => d !== 'coordination' && state === 'computing').length;
+		if (waiting) {
+			parts.push(localize('mep.statusWaiting', "checking {0} more", waiting));
+		}
 		if (this.reportState === 'missing') {
 			parts.push(localize('mep.statusNoBackend', "checks need the backend"));
 		} else if (this.reportState === 'error') {
@@ -2808,15 +3009,21 @@ export class MepEditor extends EditorPane {
 		}
 		const problems = this.problems;
 		const errors = problems.filter(p => p.severity === 'error').length;
-		const failed = !!ok && (ok.openings.some(o => !o.ok) || ok.clashes.some(isOpenClash));
+		const failed = !!ok && (ok.openings.some(o => !o.ok) || ok.clashes.some(isOpenClash)) || failing.length > 0;
 		const partial = !!ok && ok.openings.some(isPartlyChecked);
 		const status: IEditorFrameStatus = {
 			text: parts.join(' · '),
 			severity: errors || failed ? 'error' : problems.length || partial || this.reportState === 'error' ? 'warning' : undefined,
-			busy: this.reportState === 'computing',
+			busy: this.reportState === 'computing' || waiting > 0,
 			link: problems.length ? {
 				label: localize('mep.statusProblems', "{0} problem(s)", problems.length),
 				run: () => this.revealFirstProblem(),
+			} : failing.length ? {
+				label: localize('mep.statusShowDiscipline', "Show {0} results", equipmentOwnerLabel(failing[0])),
+				run: () => {
+					this.discipline = failing[0];
+					this.showView('results');
+				},
 			} : ok && this.view !== 'results' ? {
 				label: localize('mep.statusShowResults', "Results"),
 				run: () => this.showView('results'),
@@ -3121,16 +3328,29 @@ export class MepEditor extends EditorPane {
 		this.setBusy('plumbing', true);
 		let report: IPlumbingReport | undefined;
 		let error: string | undefined;
-		try {
-			report = readPlumbingReport(await this.commandService.executeCommand<unknown>(PLUMBING_REPORT_COMMAND, request));
-			if (!report) {
-				error = localize('plb.reportEmpty', "The backend gave no plumbing report.");
+		const ask = async (designs: true | 'cached') => {
+			try {
+				report = readPlumbingReport(await this.commandService.executeCommand<unknown>(PLUMBING_REPORT_COMMAND, { ...request, designs }));
+				error = report ? undefined : localize('plb.reportEmpty', "The backend gave no plumbing report.");
+			} catch (e) {
+				error = e instanceof Error ? e.message : String(e);
 			}
-		} catch (e) {
-			error = e instanceof Error ? e.message : String(e);
-		}
+		};
+		// First everything but the tank designs not yet cached (seconds), then those (a minute or two each, the first time).
+		await ask('cached');
 		if (version !== this.plumbingVersion) {
 			return;
+		}
+		const pending = (report as IPlumbingReport | undefined)?.tankDesignsPending ?? 0;
+		if (pending && report) {
+			this.plumbingReport = report;
+			this.plumbingState = 'ok';
+			this.plumbingError = undefined;
+			this.renderReportDependent();
+			await ask(true);
+			if (version !== this.plumbingVersion) {
+				return;
+			}
 		}
 		this.setBusy('plumbing', false);
 		this.plumbingReport = report;
@@ -3200,7 +3420,7 @@ export class MepEditor extends EditorPane {
 		const storyIds = [...this.context.stories.map(s => s.id).reverse(), ...rows.map(r => r.story).filter(id => !known.has(id))];
 		const fixtures = this.section(localize('plb.fixtures', "Fixtures by storey"), rows.length);
 		if (!this.occupanciesFromBackend) {
-			append(fixtures, $('p.mep-note.plb-static-note', undefined, localize('plb.staticOccupancies', "Occupancies: the BNBC Table 8.5.1 rows SAEngine starts from (full facility); the backend's list replaces them when it is available.")));
+			append(fixtures, $('p.mep-note.plb-static-note', undefined, localize('plb.loadingOccupancies', "Loading the occupancies of BNBC Table 8.5.1 from the backend...")));
 		}
 		const table = append(append(fixtures, $('.mep-table-scroll')), $('table.mep-table.plb-fixtures'));
 		const columns = [
@@ -3918,12 +4138,18 @@ export class MepEditor extends EditorPane {
 			this.notificationService.info(localize('hvac.loadsNoBackend', "Calculating the cooling loads needs the SAEngine backend (EnergyPlus runs as a separate process); it is not available in this window."));
 			return;
 		}
+		// Without EnergyPlus there is nothing to run: the report already shows the estimate.
+		if (this.hvacReport?.energyPlusFound === false) {
+			this.notificationService.info(localize('hvac.loadsNoEnergyPlus', "EnergyPlus 26.2 is not installed, so the cooling loads shown are SAEngine's estimate (see Method in Results). Install EnergyPlus, or set SAENGINE_ENERGYPLUS to its folder, then run Calculate Loads again."));
+			return;
+		}
 		const source = this.hvacLoads = new CancellationTokenSource();
 		this.calculateLoadsAction.enabled = false;
 		this.setBusy('hvacLoads', true);
 		this.renderStatus();
 		let answer: unknown;
 		let error: string | undefined;
+		let timedOut = false;
 		try {
 			await this.progressService.withProgress({
 				location: ProgressLocation.Notification,
@@ -3938,12 +4164,22 @@ export class MepEditor extends EditorPane {
 						resolve(undefined);
 					});
 				});
-				answer = await Promise.race([this.commandService.executeCommand<unknown>(HVAC_LOADS_COMMAND, request, source.token), cancelled]);
+				// Never wait forever (EnergyPlus stops itself after 5 min a run; the backend may also be busy).
+				const timeout = new Promise<never>((_, reject) => {
+					const handle = setTimeout(() => {
+						// Reject before cancelling, so the race ends with this error and not the cancellation.
+						timedOut = true;
+						reject(new Error(localize('hvac.loadsTimeout', "no answer from the backend in {0} minutes", HVAC_LOADS_TIMEOUT_MIN)));
+						source.cancel();
+					}, HVAC_LOADS_TIMEOUT_MIN * 60_000);
+					source.token.onCancellationRequested(() => clearTimeout(handle));
+				});
+				answer = await Promise.race([this.commandService.executeCommand<unknown>(HVAC_LOADS_COMMAND, request, source.token), cancelled, timeout]);
 			}, () => source.cancel());
 		} catch (e) {
 			error = e instanceof Error ? e.message : String(e);
 		}
-		const cancelled = source.token.isCancellationRequested;
+		const cancelled = source.token.isCancellationRequested && !timedOut;
 		source.dispose();
 		this.hvacLoads = undefined;
 		this.calculateLoadsAction.enabled = true;
