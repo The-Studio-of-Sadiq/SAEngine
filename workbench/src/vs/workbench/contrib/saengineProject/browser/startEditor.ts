@@ -71,7 +71,7 @@ function renderMark(parent: HTMLElement): void {
 
 /** The building uses Project Settings offers (`occupancy.use`), from the settings schema. */
 function occupancyUses(): { readonly value: string; readonly label: string }[] {
-	const use = SETTINGS_SCHEMA.$defs?.['Occupancy']?.properties?.['use'];
+	const use = SETTINGS_SCHEMA.$defs?.Occupancy?.properties?.use;
 	const values = (use?.enum ?? []) as string[];
 	return values.map((value, i) => ({ value, label: use?.enumDescriptions?.[i] ?? value }));
 }
