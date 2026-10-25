@@ -3,7 +3,9 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MemberGroup, storiesOf } from './floorPlanDrawing.js';
+import { localize } from '../../../../nls.js';
+import { rises, storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
+import { MemberGroup } from './floorPlanDrawing.js';
 import { nextId } from './floorPlanEdits.js';
 
 /*
@@ -46,26 +48,30 @@ export function familyOf(layout: unknown, story: string): string[] {
 }
 
 /** The story below `story`, which its columns and walls rise from. */
-function storyBelow(layout: unknown, story: string): string | undefined {
+export function storyBelow(layout: unknown, story: string): string | undefined {
 	const ids = storiesOf(layout).map(s => s.id);
 	const index = ids.indexOf(story);
 	return index > 0 ? ids[index - 1] : undefined;
 }
 
-/** Whether `member` of `group` is on the plan of `story` alone: a beam or slab at it, a column or wall rising one story to it. */
-function onStory(layout: unknown, group: MemberGroup, member: Json, story: string): boolean {
-	if (group === 'beams' || group === 'slabs') {
-		return member.story === story;
-	}
-	return member.top === story && member.base === storyBelow(layout, story);
+/**
+ * Whether `member` of `group` is on the plan of `story` alone: a beam, slab or footing at it, a
+ * column or wall rising one story to it.
+ */
+export function onStory(layout: unknown, group: MemberGroup, member: Json, story: string): boolean {
+	return rises(group) ? member.top === story && member.base === storyBelow(layout, story) : member.story === story;
 }
 
-const pointKey = (p: unknown) => isObject(p) ? `${p.x}/${p.y}/${Number(p.dx) || 0}/${Number(p.dy) || 0}` : '?';
+/** A grid point with its offset, as a key ("A/1/0/0"). */
+export function pointKey(p: unknown): string {
+	return isObject(p) ? `${p.x}/${p.y}/${Number(p.dx) || 0}/${Number(p.dy) || 0}` : '?';
+}
 
 /** Where a member is, independent of its story and id. */
-function placeKey(group: MemberGroup, member: Json): string {
+export function placeKey(group: MemberGroup, member: Json): string {
 	switch (group) {
 		case 'columns':
+		case 'footings':
 			return pointKey(member.at);
 		case 'slabs':
 			return (Array.isArray(member.boundary) ? member.boundary : []).map(pointKey).sort().join(' ');
@@ -80,6 +86,69 @@ function signature(layout: Json, story: string): string {
 		.filter(m => onStory(layout, group, m, story))
 		.map(m => `${group}|${placeKey(group, m)}|${m.type}|${Number(m.rotation) || 0}`))
 		.sort().join('\n');
+}
+
+/** The notice when an edit is refused because the stories of a typical floor differ. */
+export function familyDiffersMessage(): string {
+	return localize('typical.familyDiffers', "The stories of this typical floor differ; copy the typical floor to them first.");
+}
+
+/**
+ * The stories an edit on the plan of `story` repeats on: its typical-floor family (the story
+ * alone when it has none), or undefined when the family's plans differ. Such an edit is refused
+ * ({@link familyDiffersMessage}) until the master is copied to them, as after a story was made
+ * similar in Grids & Stories: the floor plan and the Members Table follow this one rule.
+ */
+export function repeatFamily(layout: unknown, story: string): readonly string[] | undefined {
+	const family = familyOf(layout, story);
+	return family.length > 1 && !inSync(layout, family) ? undefined : family;
+}
+
+/** An edit of one member on the plan of `story`: where it is, so it can be repeated on typical floors. */
+export interface IPlacedEdit {
+	readonly group: MemberGroup;
+	readonly key: string;
+	readonly story: string;
+}
+
+/** Where `member` is, when it is on the plan of one story alone (footings, owned by 9 Substructure, never are). */
+export function placedEdit(layout: unknown, group: MemberGroup, member: Json): IPlacedEdit | undefined {
+	const story = rises(group) ? member.top : member.story;
+	return group !== 'footings' && typeof story === 'string' && onStory(layout, group, member, story)
+		? { group, key: placeKey(group, member), story }
+		: undefined;
+}
+
+/**
+ * Repeats per-member edits on typical floors: every member at the same place as an edited one,
+ * on every story of the edited story's family, gets `update` (edits on several stories of one
+ * family all apply). `before` is the model before the edits, `after` with them. Undefined when a
+ * family's plans differ ({@link repeatFamily}).
+ */
+export function repeatOnFamilies(before: unknown, after: Json, edits: readonly IPlacedEdit[], update: Json): Json | undefined {
+	const families = new Map<string, readonly string[] | undefined>();
+	for (const edit of edits) {
+		if (!families.has(edit.story)) {
+			const family = repeatFamily(before, edit.story);
+			for (const story of family ?? [edit.story]) {
+				families.set(story, family);
+			}
+		}
+		if (!families.get(edit.story)) {
+			return undefined;
+		}
+	}
+	const next = JSON.parse(JSON.stringify(after)) as Json;
+	for (const edit of edits) {
+		for (const story of families.get(edit.story)!) {
+			for (const member of members(next, edit.group)) {
+				if (onStory(next, edit.group, member, story) && placeKey(edit.group, member) === edit.key) {
+					Object.assign(member, update);
+				}
+			}
+		}
+	}
+	return next;
 }
 
 /** Whether every story of the family has the same plan. */

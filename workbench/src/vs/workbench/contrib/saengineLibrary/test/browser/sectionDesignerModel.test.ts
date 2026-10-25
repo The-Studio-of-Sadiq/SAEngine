@@ -5,9 +5,10 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { signedArea } from '../../../../../platform/saengine/common/geometry.js';
 import {
-	barsAlongEdges, barsLine, barsRing, chartScale, diagramPath, formatNumber, hitTest, IUniaxial, moveSelection, newSection, niceTicks,
-	offsetRing, parseSection, pointInRegion, propertyRows, rectangle, regionArea, serializeSection, signedArea, snapPoint, TEMPLATE_DEFAULTS, templateRegions,
+	barsAlongEdges, barsLine, barsRing, formatNumber, hitTest, interactionCurve, IUniaxial, moveSelection, newSection,
+	offsetRing, parseSection, pointInRegion, propertyRows, rectangle, regionArea, serializeSection, snapPoint, TEMPLATE_DEFAULTS, templateRegions,
 } from '../../browser/sectionDesignerModel.js';
 
 suite('SAEngine - Section Designer model', () => {
@@ -97,8 +98,6 @@ suite('SAEngine - Section Designer model', () => {
 		assert.strictEqual(formatNumber(6648163377.19), '6.648 × 10⁹');
 		assert.strictEqual(formatNumber(235.526), '235.5');
 		assert.strictEqual(formatNumber(null), '—');
-		assert.deepStrictEqual(niceTicks(-500, 3800, 5), [0, 1000, 2000, 3000]);
-		assert.deepStrictEqual(niceTicks(0, 100, 4), [0, 25, 50, 75, 100]);
 		const rows = propertyRows({
 			referenceMaterial: 'C30', E: 25700, area: 237500, cx: 235.5, cy: 235.5, ixx: 6.6e9, iyy: 6.6e9, ixy: -2.9e9, i11: 9.5e9, i22: 3.7e9, principalAngle: -135,
 			rx: 167, ry: 167, sxTop: 1.8e7, sxBottom: 2.8e7, syRight: 1.8e7, syLeft: 2.8e7, zx: null, zy: null, j: 4.4e9, cw: 5.6e13, asx: 1.5e5, asy: 1.5e5,
@@ -108,7 +107,7 @@ suite('SAEngine - Section Designer model', () => {
 		assert.ok(!rows.some(r => r.label === 'Zx'), 'no plastic moduli for composite sections');
 	});
 
-	test('chart scale puts compression up and the origin inside', () => {
+	test('interaction curves are closed, in kNÂ·m and kN', () => {
 		const diagram: IUniaxial = {
 			axis: 'x', phiPnMax: 3.7e6, phiTension: 1.1e6, p0: 7.1e6, points: [
 				{ P: -1.2e6, M: 0, phiP: -1.1e6, phiM: 0, phi: 0.9, epsT: null },
@@ -117,12 +116,8 @@ suite('SAEngine - Section Designer model', () => {
 				{ P: 0, M: -3.3e8, phiP: 0, phiM: -3.0e8, phi: 0.9, epsT: 0.01 },
 			],
 		};
-		const scale = chartScale(diagram, 300, 260, [46, 10, 10, 30]);
-		assert.ok(scale.y(7100) < scale.y(0) && scale.y(0) < scale.y(-1200));
-		assert.ok(scale.x(-330) < scale.x(0) && scale.x(0) < scale.x(330));
-		assert.ok(scale.x(-330) >= 46 - 1e-9 && scale.x(330) <= 290 + 1e-9);
-		const path = diagramPath(diagram, scale, true);
-		assert.ok(path.startsWith('M') && path.endsWith('Z'));
-		assert.strictEqual(path.split('L').length, 4);
+		assert.deepStrictEqual(interactionCurve(diagram, false), [[0, -1200], [330, 0], [0, 7100], [-330, 0], [0, -1200]]);
+		assert.deepStrictEqual(interactionCurve(diagram, true), [[0, -1100], [300, 0], [0, 3700], [-300, 0], [0, -1100]]);
+		assert.deepStrictEqual(interactionCurve({ ...diagram, points: [] }, true), []);
 	});
 });

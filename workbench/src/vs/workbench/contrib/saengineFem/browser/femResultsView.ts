@@ -24,7 +24,6 @@ import { IContextViewService } from '../../../../platform/contextview/browser/co
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { FemTableCell } from '../../../../platform/saengine/common/femSolver.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
@@ -35,8 +34,8 @@ import { EditorInputCapabilities, IEditorOpenContext, IEditorSerializer, IUntype
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
-import { ChartColor, IChartSeries, renderChart } from './femChart.js';
-import { baseReactionTable, closedPmCurve, describeMode, elasticDriftLimit, extremes, FEM_COLUMN_INTERACTION_COMMAND, FEM_MEMBER_FORCES_COMMAND, FEM_STORY_RESPONSE_COMMAND, FemAxis2, IFemColumnDiagram, IFemColumnInteraction, IFemMemberForces, IFemSheet, IFemStoryResponse, IFemStoryResult, isEarthquakeResult, MemberComponent, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, spectrumAt, storeyProfile, StoreyQuantity, storeyQuantityLabel, STOREY_QUANTITIES } from './femChartData.js';
+import { ChartColor, IChartSeries, renderChart, renderSheet } from './femChart.js';
+import { baseReactionTable, closedPmCurve, describeMode, elasticDriftLimit, extremes, FEM_COLUMN_INTERACTION_COMMAND, FEM_MEMBER_FORCES_COMMAND, FEM_STORY_RESPONSE_COMMAND, FemAxis2, IFemColumnDiagram, IFemColumnInteraction, IFemMemberForces, IFemStoryResponse, IFemStoryResult, isEarthquakeResult, MemberComponent, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, spectrumAt, storeyProfile, StoreyQuantity, storeyQuantityLabel, STOREY_QUANTITIES } from './femChartData.js';
 import { IFemDesignRequired, IFemSteelRequirement, resultsFolder, runDesignRequired } from './femDesign.js';
 import { errorSummary, IFemRunTracker } from './femResultsBar.js';
 
@@ -515,7 +514,7 @@ export class FemResultsEditor extends EditorPane {
 		const reactions = baseReactionTable(response, { force: v => v * this.units.force.scale, moment: v => v * this.units.moment.scale });
 		if (reactions.rows.length) {
 			const section = this.section(localize('femResults.baseHeading', "Base Reactions"), localize('femResults.baseHelp', "The sum of the support reactions of each static case and combination (the supports push on the structure)."));
-			this.renderTable(section, reactions);
+			renderSheet(section, reactions);
 		}
 		for (const curve of response.pushover) {
 			const section = this.section(localize('femResults.pushoverHeading', "Pushover: {0}", curve.label));
@@ -656,7 +655,7 @@ export class FemResultsEditor extends EditorPane {
 			include: { x: [0.5, modal.modes.length + 0.5] },
 			caption: modal.modes[0] ? describeMode(modal.modes[0], 1) : undefined,
 		});
-		this.renderTable(section, modalTable(modal));
+		renderSheet(section, modalTable(modal));
 	}
 
 	private renderSpectrum(response: IFemStoryResponse): void {
@@ -883,31 +882,11 @@ export class FemResultsEditor extends EditorPane {
 				caption: rows.some(r => r.ok === false) ? localize('femResults.steelShort', "Bars short of the requirement: {0}", rows.filter(r => r.ok === false).map(r => `${r.location} ${r.quantity}`).join(', ')) : undefined,
 			});
 		}
-		this.renderTable(section, {
+		renderSheet(section, {
 			name: localize('femResults.steelTable', "Steel required"),
 			columns: [localize('femResults.location', "Location"), localize('femResults.quantity', "Quantity"), localize('femResults.requiredCol', "Required"), localize('femResults.providedCol', "Provided"), localize('femResults.unitCol', "Unit"), localize('femResults.combinationCol', "Combination"), localize('femResults.okCol', "OK")],
 			rows: rows.map(r => [r.location, r.quantity, r.required, r.provided ?? '', r.unit, r.combination ?? '', r.ok === null ? '' : r.ok ? localize('femResults.yes', "yes") : localize('femResults.no', "no")]),
 		});
-	}
-
-	// ───────────────────────────── tables ─────────────────────────────
-
-	private renderTable(container: HTMLElement, sheet: IFemSheet): void {
-		const table = append(append(container, $('.fem-results-table-wrap')), $('table.fem-table'));
-		const head = append(append(table, $('thead')), $('tr'));
-		for (const column of sheet.columns) {
-			append(head, $('th', undefined, column));
-		}
-		const body = append(table, $('tbody'));
-		for (const row of sheet.rows) {
-			const tr = append(body, $('tr'));
-			for (const cell of row) {
-				append(tr, $(typeof cell === 'number' ? 'td.number' : 'td', undefined, formatCell(cell)));
-			}
-		}
-		for (const note of sheet.notes ?? []) {
-			append(container, $('.fem-results-note', undefined, note));
-		}
 	}
 }
 
@@ -923,12 +902,4 @@ export function memberNames(elements: readonly { readonly name?: string; readonl
 		}
 	}
 	return [...names].sort(safeIntl.Collator(undefined, { numeric: true }).value.compare);
-}
-
-/** A table cell: numbers to four significant digits (whole numbers as they are). */
-export function formatCell(value: FemTableCell): string {
-	if (typeof value === 'number') {
-		return Number.isInteger(value) ? String(value) : Number(value.toPrecision(4)).toString();
-	}
-	return value;
 }

@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { filterRows, formatPoint, memberRows, membersCsv, rowKey, rowRange, setRowsStory, setRowsType, sortRows, storyOptions, typeOptions } from '../../browser/floorPlanTableModel.js';
+import { formatPoint } from '../../../../services/saengineProject/common/floorPlanMembers.js';
+import { filterRows, memberRows, membersCsv, rowKey, rowRange, setRowsStory, setRowsType, sortRows, storyOptions, typeOptions } from '../../browser/floorPlanTableModel.js';
 
 suite('SAEngine - Members table', () => {
 
@@ -125,6 +126,32 @@ suite('SAEngine - Members table', () => {
 			types: ['C1:C500', 'C2:C500', 'C3:C500', 'C4:C500', 'C5:C500', 'C6:C500'],
 			changed: 2,
 			skipped: [],
+		});
+	});
+
+	test('type edits on a typical floor whose stories differ are refused, as on the floor plan', () => {
+		const typical = {
+			...layout,
+			stories: [...layout.stories.slice(0, 2), { ...layout.stories[2], similarTo: 'L1' }],
+			beams: [layout.beams[0], { ...layout.beams[1], type: 'B350' }],
+			columns: [], slabs: [], footings: [],
+		};
+		const edit = setRowsType(typical, objects, [{ group: 'beams', id: 'B1' }], 'B350');
+		assert.deepStrictEqual(edit, { ok: false, error: 'The stories of this typical floor differ; copy the typical floor to them first.' });
+	});
+
+	test('footings are listed but not edited: 9 Substructure owns them', () => {
+		const typeEdit = setRowsType(layout, objects, [{ group: 'footings', id: 'F1' }], 'PC4');
+		const storyEdit = setRowsStory(layout, [{ group: 'footings', id: 'F1' }], 'L1');
+		const mixed = setRowsType(layout, objects, [{ group: 'footings', id: 'F1' }, { group: 'columns', id: 'C2' }], 'C500');
+		assert.deepStrictEqual({
+			typeEdit,
+			storyEdit,
+			mixed: mixed.ok ? [mixed.changed, mixed.skipped] : mixed.error,
+		}, {
+			typeEdit: { ok: false, error: 'Footings are placed and edited in 9 Substructure.' },
+			storyEdit: { ok: false, error: 'Footings are placed and edited in 9 Substructure.' },
+			mixed: [1, ['F1']],
 		});
 	});
 

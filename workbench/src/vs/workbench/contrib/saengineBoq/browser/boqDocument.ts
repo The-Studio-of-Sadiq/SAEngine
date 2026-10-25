@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
+import { csvText } from '../../../../platform/saengine/common/csv.js';
 import { boqSourceStamp, recordedStamp } from '../../../services/saengineProject/common/partSources.js';
 
 /*
@@ -193,11 +194,6 @@ export function formatQuantity(quantity: number, unit: string): string {
 	return quantity.toFixed(unit === 'm3' ? 3 : unit === 'nr' ? 0 : 2);
 }
 
-function csvField(value: string | number | undefined): string {
-	const text = value === undefined ? '' : String(value);
-	return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
-
 /**
  * The bill as CSV (RFC 4180): one `item` row per item, followed by an `element` row per entry
  * of its breakdown. Item quantities and element quantities are in separate columns, so summing
@@ -212,5 +208,5 @@ export function toCsv(document: IBoqDocument): string {
 			rows.push(['element', item.code, item.group, item.description, entry.element, entry.story, entry.detail, '', entry.quantity, item.unit]);
 		}
 	}
-	return rows.map(row => row.map(csvField).join(',')).join('\r\n') + '\r\n';
+	return csvText(rows);
 }

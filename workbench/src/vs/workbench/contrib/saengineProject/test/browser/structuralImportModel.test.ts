@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import {
-	countRows, defaultImportName, describeCarried, describeImportSummary, describeItem, describeNotCarried, detectFormat, formatLabel, importFilters, needsReview, readImportResult, readLastImport, sameFolder, uniqueImportName,
+	countRows, defaultImportName, describeCarried, describeImportSummary, describeItem, describeNotCarried, formatLabel, importFilters, needsReview, readImportResult, readLastImport, sameFolder, uniqueImportName,
 } from '../../browser/structuralImportModel.js';
 
 /*
@@ -58,11 +58,7 @@ suite('SAEngine structural import model', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('detects the program by extension and names the project from the file', () => {
-		assert.deepStrictEqual(
-			['Tower.e2k', 'tower.$ET', 'frame.STD', 'bridge.s2k', 'b.$2k', 'plan.dxf', 'noext'].map(detectFormat),
-			['etabs', 'etabs', 'staad', 'sap2000', 'sap2000', undefined, undefined],
-		);
+	test('names the project from the file', () => {
 		assert.deepStrictEqual(
 			[defaultImportName('C:\\m\\Office: Block A.e2k'), defaultImportName('/m/frame.std'), defaultImportName('.e2k'), formatLabel('staad'), formatLabel('robot')],
 			['Office Block A', 'frame', 'Imported Model', 'STAAD.Pro', 'robot'],

@@ -7,8 +7,8 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFemResultEntry } from '../../../../../platform/saengine/common/femSolver.js';
-import { niceTicks, renderChart, tickText } from '../../browser/femChart.js';
-import { closedPmCurve, describeMode, elasticDriftLimit, extremes, filterRows, IFemColumnDiagram, IFemMemberForces, IFemStoryResponse, IFemStoryResult, isEarthquakeResult, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, sortRows, spectrumAt, storeyProfile, storeyTable, workbookSheets } from '../../browser/femChartData.js';
+import { niceTicks, renderChart, renderSheet, tickText } from '../../browser/femChart.js';
+import { closedPmCurve, exportCell, formatCell, describeMode, elasticDriftLimit, extremes, filterRows, IFemColumnDiagram, IFemMemberForces, IFemStoryResponse, IFemStoryResult, isEarthquakeResult, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, sortRows, spectrumAt, storeyProfile, storeyTable, workbookSheets } from '../../browser/femChartData.js';
 import { defaultResult, modeText, scaleText } from '../../browser/femResultsBar.js';
 import { chartUnits, memberNames } from '../../browser/femResultsView.js';
 import { cameraOf, gridLines, IFilterModel, modelLevels, viewChoices, visibleElements } from '../../browser/femViewFilter.js';
@@ -153,6 +153,24 @@ suite('SAEngine - FEM charts', () => {
 		assert.strictEqual(figure.querySelector('figcaption')?.textContent, 'X: largest 30 kN at Level 1');
 		// Every marker says its values.
 		assert.ok([...figure.querySelectorAll('circle title')].every(t => (t.textContent ?? '').length > 0));
+	});
+
+	test('tables: four significant digits on screen, full precision in the exports', () => {
+		assert.deepStrictEqual(
+			[formatCell(0.000123456), formatCell(12345.678), formatCell(3), formatCell(1.5), formatCell('C3#2'), exportCell(0.000123456789), exportCell('C3')],
+			['0.0001235', '12350', '3', '1.5', 'C3#2', '0.000123456789', 'C3'],
+		);
+		const parent = mainWindow.document.createElement('div');
+		renderSheet(parent, { name: 'Modes', columns: ['Mode', 'T [s]'], rows: [[1, 0.876543], ['2', 0.5]], notes: ['Mass participation from the eigen solver.'] });
+		assert.deepStrictEqual({
+			head: [...parent.querySelectorAll('th')].map(th => th.textContent),
+			cells: [...parent.querySelectorAll('td')].map(td => `${td.className}:${td.textContent}`),
+			note: parent.querySelector('.fem-results-note')?.textContent,
+		}, {
+			head: ['Mode', 'T [s]'],
+			cells: ['number:1', 'number:0.8765', ':2', 'number:0.5'],
+			note: 'Mass participation from the eigen solver.',
+		});
 	});
 });
 

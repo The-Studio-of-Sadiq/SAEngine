@@ -5,7 +5,9 @@
 
 import type { CadPoint } from '@saengine/cad-editor';
 import { localize } from '../../../../nls.js';
-import { gridsOf, IMemberShape, MemberGroup, storiesOf } from './floorPlanDrawing.js';
+import { polygonArea } from '../../../../platform/saengine/common/geometry.js';
+import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
+import { gridsOf, IMemberShape, MemberGroup } from './floorPlanDrawing.js';
 
 /*
  * Edits to the floor plan (`05 Floor Plan/floor-plan.json`): placing members on grid
@@ -303,15 +305,6 @@ export function basePoint(layout: unknown, group: MemberGroup, id: string): CadP
 	return resolvePoint(layout, first);
 }
 
-function polygonArea(points: readonly CadPoint[]): number {
-	let sum = 0;
-	points.forEach(([x1, y1], i) => {
-		const [x2, y2] = points[(i + 1) % points.length];
-		sum += x1 * y2 - x2 * y1;
-	});
-	return sum / 2;
-}
-
 function changeMember(layout: unknown, group: MemberGroup, id: string, change: (member: Json) => Json | string): EditResult {
 	const next = JSON.parse(JSON.stringify(layout)) as Json;
 	const list = members(next, group);
@@ -361,10 +354,15 @@ export function moveMember(layout: unknown, group: MemberGroup, id: string, delt
 	});
 }
 
-/** Sets the rotation of a column or footing, in degrees (kept within 0–360). */
+/** Why a member other than a column does not rotate on the floor plan. */
+export function notRotatableMessage(): string {
+	return localize('edit.notRotatable', "Only columns rotate here; beams, walls and slabs follow their points, and footings turn in 9 Substructure.");
+}
+
+/** Sets the rotation of a column, in degrees (kept within 0–360). */
 export function rotateMember(layout: unknown, group: MemberGroup, id: string, degrees: number): EditResult {
-	if (group !== 'columns' && group !== 'footings') {
-		return { ok: false, error: localize('edit.notRotatable', "Only columns and footings rotate; beams, walls and slabs follow their points.") };
+	if (group !== 'columns') {
+		return { ok: false, error: group === 'footings' ? footingsOwnedMessage() : notRotatableMessage() };
 	}
 	if (!Number.isFinite(degrees)) {
 		return { ok: false, error: localize('edit.badAngle', "Enter an angle in degrees.") };
@@ -373,12 +371,56 @@ export function rotateMember(layout: unknown, group: MemberGroup, id: string, de
 	return changeMember(layout, group, id, member => ({ ...member, rotation: angle }));
 }
 
-/** Gives a member another object type (of a kind its group places: see {@link TOOL_KINDS}). */
-export function changeMemberType(layout: unknown, group: MemberGroup, id: string, type: string): EditResult {
+/** Why the floor plan does not change footings: since Part 9 they are placed and edited in 9 Substructure. */
+export function footingsOwnedMessage(): string {
+	return localize('edit.footingsOwned', "Footings are placed and edited in 9 Substructure.");
+}
+
+export type TypeEditResult =
+	| { readonly ok: true; readonly layout: Json; readonly changed: readonly { readonly group: MemberGroup; readonly id: string }[]; readonly skipped: readonly string[] }
+	| { readonly ok: false; readonly error: string };
+
+/**
+ * Gives the members `refs` object type `type` (of a kind their group places: see {@link TOOL_KINDS}).
+ * Members that are gone, footings ({@link footingsOwnedMessage}) and members of a group that
+ * `accepts` says cannot take the type are skipped and named; with none changed, the edit is
+ * refused. Typical floors are not repeated here: see floorPlanTypical.ts.
+ */
+export function setMembersType(layout: unknown, refs: readonly { readonly group: MemberGroup; readonly id: string }[], type: string, accepts: (group: MemberGroup) => boolean = () => true): TypeEditResult {
+	if (!refs.length) {
+		return { ok: false, error: localize('edit.noMembers', "Select the members to change.") };
+	}
 	if (!type) {
 		return { ok: false, error: localize('edit.noType', "Choose an object type.") };
 	}
-	return changeMember(layout, group, id, member => ({ ...member, type }));
+	const typeNone = localize('edit.typeNone', "{0} cannot be given to the selected members.", type);
+	const next = JSON.parse(JSON.stringify(layout)) as Json;
+	const changed: { group: MemberGroup; id: string }[] = [];
+	const skipped: string[] = [];
+	let reason: string | undefined;
+	for (const ref of refs) {
+		const member = members(next, ref.group).find(m => m.id === ref.id);
+		reason = !member ? localize('edit.missing', "{0} no longer exists.", ref.id)
+			: ref.group === 'footings' ? footingsOwnedMessage()
+				: !accepts(ref.group) ? typeNone
+					: undefined;
+		if (!member || reason) {
+			skipped.push(ref.id);
+			continue;
+		}
+		member.type = type;
+		changed.push({ group: ref.group, id: ref.id });
+	}
+	if (!changed.length) {
+		return { ok: false, error: refs.length === 1 && reason ? reason : typeNone };
+	}
+	return { ok: true, layout: next, changed, skipped };
+}
+
+/** Gives a member another object type: {@link setMembersType} for one member. */
+export function changeMemberType(layout: unknown, group: MemberGroup, id: string, type: string): EditResult {
+	const result = setMembersType(layout, [{ group, id }], type);
+	return result.ok ? { ok: true, layout: result.layout, id } : result;
 }
 
 /** A slab bounded by `points` (in order around it) on `story`. */
@@ -387,7 +429,7 @@ export function placePolygonSlab(layout: unknown, type: string, story: string, p
 	if (distinct.length >= 2 && Math.hypot(distinct[0][0] - distinct[distinct.length - 1][0], distinct[0][1] - distinct[distinct.length - 1][1]) < 1) {
 		distinct.pop();
 	}
-	if (distinct.length < 3 || Math.abs(polygonArea(distinct)) < 1e4) {
+	if (distinct.length < 3 || polygonArea(distinct) < 1e4) {
 		return { ok: false, error: localize('edit.polygonTooSmall', "A slab needs at least three corners around an area.") };
 	}
 	const boundary = distinct.map(p => anchor(layout, p));
