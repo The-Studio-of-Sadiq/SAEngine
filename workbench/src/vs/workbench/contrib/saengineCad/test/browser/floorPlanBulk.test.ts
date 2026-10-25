@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { BulkResult, bulkNotice, changeTypes, copyMembers, copyToClipboard, copyToStories, deleteMembers, fill, mirrorMembers, moveMembers, parseCommand, paste, rotateMembers } from '../../browser/floorPlanBulk.js';
+import { BulkResult, bulkNotice, copyMembers, copyToClipboard, copyToStories, deleteMembers, fill, mirrorMembers, moveMembers, parseCommand, paste, rotateMembers } from '../../browser/floorPlanBulk.js';
 import { inSync } from '../../browser/floorPlanTypical.js';
 
 suite('SAEngine - Floor plan bulk edits', () => {
@@ -67,7 +67,7 @@ suite('SAEngine - Floor plan bulk edits', () => {
 		assert.deepStrictEqual([result.placed, result.skipped], [2, 2]);
 	});
 
-	test('move, copy (array), mirror, rotate, change type and delete act on the whole selection', () => {
+	test('move, copy (array), mirror, rotate and delete act on the whole selection', () => {
 		const base = ok(fill(empty, 'columns', 'C400', 'L1', { min: [-1, -1], max: [1, 5001] })).layout; // C1 at A1, C2 at A2
 		const refs = [{ group: 'columns' as const, id: 'C1' }, { group: 'columns' as const, id: 'C2' }];
 		const moved = ok(moveMembers(base, refs, [250, 0]));
@@ -75,7 +75,6 @@ suite('SAEngine - Floor plan bulk edits', () => {
 		const mirrored = ok(mirrorMembers(ok(rotateMembers(base, refs, 30)).layout, refs, 'x', 'B'));
 		const onLine = ok(mirrorMembers(ok(copyMembers(base, refs, [6000, 0])).layout, [{ group: 'columns', id: 'C3' }], 'x', 'B'));
 		const flipped = ok(mirrorMembers(base, [{ group: 'columns', id: 'C1' }], 'y', '2', false));
-		const typed = ok(changeTypes(base, refs, 'columns', 'C500'));
 		const deleted = ok(deleteMembers(base, [refs[0]]));
 		assert.deepStrictEqual({
 			moved: list(moved.layout, 'columns').map(c => c.at),
@@ -83,7 +82,6 @@ suite('SAEngine - Floor plan bulk edits', () => {
 			mirrored: list(mirrored.layout, 'columns').map(c => `${c.id}@${(c.at as Layout).x}${(c.at as Layout).y}/${c.rotation}`),
 			onLine: [onLine.placed, onLine.skipped],
 			flipped: list(flipped.layout, 'columns').map(c => `${c.id}@${(c.at as Layout).x}${(c.at as Layout).y}`),
-			typed: list(typed.layout, 'columns').map(c => c.type),
 			deleted: list(deleted.layout, 'columns').map(c => c.id),
 			rotateBeam: error(rotateMembers(base, [{ group: 'beams', id: 'B1' }], 90)),
 			copyOnTop: error(copyMembers(base, refs, [0, 0])),
@@ -93,9 +91,8 @@ suite('SAEngine - Floor plan bulk edits', () => {
 			mirrored: ['C1@A1/30', 'C2@A2/30', 'C3@C1/150', 'C4@C2/150'],
 			onLine: [0, 1],
 			flipped: ['C1@A2', 'C2@A2'],
-			typed: ['C500', 'C500'],
 			deleted: ['C2'],
-			rotateBeam: 'Only columns and footings rotate; beams, walls and slabs follow their points.',
+			rotateBeam: 'Only columns rotate here; beams, walls and slabs follow their points, and footings turn in 9 Substructure.',
 			copyOnTop: 'Give the copy a distance; a copy on top of the original is skipped.',
 		});
 	});

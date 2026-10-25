@@ -52,7 +52,8 @@ import { ITextFileService } from '../../../services/textfile/common/textfiles.js
 import { IWorkingCopyEditorService } from '../../../services/workingCopy/common/workingCopyEditorService.js';
 import { EditorFrame } from '../../saengineProject/browser/editorFrame.js';
 import { PROJECT_MENU, ProjectOpenContext } from '../../saengineProject/browser/projectMenu.js';
-import { storiesOf } from './floorPlanDrawing.js';
+import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
+import { footingsOwnedMessage } from './floorPlanEdits.js';
 import { siblingPartFile } from './floorPlanEditorInput.js';
 import {
 	filterRows, GROUP_LABELS, IMemberRow, IRowFilter, ISort, MEMBER_GROUPS, memberRows, membersCsv, rowKey, rowRange, setRowsStory, setRowsType, SortKey, sortRows,
@@ -405,9 +406,11 @@ export class MembersTableEditor extends EditorPane {
 			tr.classList.toggle('focused', this.focused === key);
 			append(tr, $('td.id', undefined, row.id));
 			append(tr, $('td.kind', undefined, GROUP_LABELS[row.group]));
-			const type = append(tr, $('td.type.editable', { title: typeNames.get(row.type) ?? row.type }, row.type || '—'));
+			// Footings are listed for reference; 9 Substructure places and edits them.
+			const editable = row.group === 'footings' ? '' : '.editable';
+			const type = append(tr, $(`td.type${editable}`, { title: typeNames.get(row.type) ?? row.type }, row.type || '—'));
 			this.typeCells.set(key, type);
-			const story = append(tr, $('td.story.editable', undefined, row.base !== undefined ? `${names.get(row.base) ?? row.base} – ${names.get(row.story) ?? row.story}` : names.get(row.story) ?? row.story));
+			const story = append(tr, $(`td.story${editable}`, undefined, row.base !== undefined ? `${names.get(row.base) ?? row.base} – ${names.get(row.story) ?? row.story}` : names.get(row.story) ?? row.story));
 			append(tr, $('td.location', { title: row.location }, row.location));
 			if (this.focused === key) {
 				focusedRow = tr;
@@ -522,6 +525,10 @@ export class MembersTableEditor extends EditorPane {
 
 	private editCell(row: IMemberRow, field: 'type' | 'story', cell: HTMLElement): void {
 		this.cellEditor.clear();
+		if (row.group === 'footings') {
+			this.notificationService.info(footingsOwnedMessage());
+			return;
+		}
 		const layout = this.layoutJson;
 		const options = field === 'type'
 			? typeOptions(parse(this.objectsModel), row.group).map(([id, name]) => ({ id, text: id === name ? id : `${id} — ${name}` }))

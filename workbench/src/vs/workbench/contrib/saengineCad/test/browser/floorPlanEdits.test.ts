@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { floorPlanDrawing } from '../../browser/floorPlanDrawing.js';
-import { anchor, basePoint, bayAt, changeMemberType, EditResult, moveMember, pickMember, placeColumn, placeFooting, placeLinear, placePolygonSlab, placeSlab, removeMember, rotateMember, snapPoint, snapToGrid } from '../../browser/floorPlanEdits.js';
+import { anchor, basePoint, bayAt, changeMemberType, EditResult, moveMember, pickMember, placeColumn, placeFooting, placeLinear, placePolygonSlab, placeSlab, removeMember, rotateMember, setMembersType, snapPoint, snapToGrid } from '../../browser/floorPlanEdits.js';
 
 suite('SAEngine - Floor plan edits', () => {
 
@@ -145,7 +145,7 @@ suite('SAEngine - Floor plan edits', () => {
 			rotation: 270,
 			polygon: [['S1', [{ x: 'A', y: '1' }, { x: 'B', y: '1' }, { x: 'A', y: '2', dx: 2900, dy: -1000 }]]],
 			refused: [
-				'Only columns and footings rotate; beams, walls and slabs follow their points.',
+				'Only columns rotate here; beams, walls and slabs follow their points, and footings turn in 9 Substructure.',
 				'Choose a different point to move to.',
 				'C9 no longer exists.',
 				'A slab needs at least three corners around an area.',
@@ -162,6 +162,32 @@ suite('SAEngine - Floor plan edits', () => {
 		}, {
 			type: 'C600',
 			refused: ['Choose an object type.', 'C9 no longer exists.'],
+		});
+	});
+
+	test('several members take a type at once; footings and members of other groups are skipped', () => {
+		const one = model(placeColumn(empty, 'C400', 'L1', A1));
+		const layout = model(placeColumn(one, 'C400', 'L1', B1));
+		const withFooting: { [key: string]: unknown } = { ...layout, footings: [{ id: 'F1', type: 'F1500', story: 'BASE', at: { x: 'A', y: '1' }, rotation: 0 }] };
+		const refs = [{ group: 'columns' as const, id: 'C1' }, { group: 'columns' as const, id: 'C2' }, { group: 'footings' as const, id: 'F1' }, { group: 'beams' as const, id: 'B1' }];
+		const result = setMembersType(withFooting, refs, 'C600', group => group === 'columns');
+		assert.ok(result.ok);
+		assert.deepStrictEqual({
+			types: (result.layout.columns as { type: unknown }[]).map(c => c.type),
+			changed: result.changed,
+			skipped: result.skipped,
+			footing: (result.layout.footings as { type: unknown }[])[0].type,
+			before: (withFooting.columns as { type: unknown }[]).map(c => c.type),
+			refused: [setMembersType(withFooting, [], 'C600'), setMembersType(withFooting, [refs[2]], 'PC4'), setMembersType(withFooting, [refs[0]], 'B300', group => group === 'beams')].map(r => r.ok ? 'ok' : r.error),
+			rotateFooting: outcome(rotateMember(withFooting, 'footings', 'F1', 90)),
+		}, {
+			types: ['C600', 'C600'],
+			changed: [{ group: 'columns', id: 'C1' }, { group: 'columns', id: 'C2' }],
+			skipped: ['F1', 'B1'],
+			footing: 'F1500',
+			before: ['C400', 'C400'],
+			refused: ['Select the members to change.', 'Footings are placed and edited in 9 Substructure.', 'B300 cannot be given to the selected members.'],
+			rotateFooting: 'Footings are placed and edited in 9 Substructure.',
 		});
 	});
 });

@@ -8,7 +8,8 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { DEFAULT_FLOOR_PLAN, FLOOR_PLAN_SCHEMA } from '../../../../services/saengineProject/common/projectLibraries.generated.js';
-import { nextGridLine, nextLetters, nextStory } from '../../browser/gridsEditor.js';
+import { nextLetters } from '../../../../services/saengineProject/common/gridLabels.js';
+import { nextGridLine, nextStory } from '../../browser/gridsEditor.js';
 import { JsonObject, SchemaForm } from '../../browser/schemaForm.js';
 
 suite('SAEngine - Grids and stories editor', () => {

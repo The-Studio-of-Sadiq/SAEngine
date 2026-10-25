@@ -41,18 +41,19 @@ import { newFloorPlan } from '../../../services/saengineProject/common/partSourc
 import { PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
 import { IProjectDocuments, PropertyAction, propertySheet } from '../../saengineModel/browser/modelData.js';
 import { openOwner } from '../../saengineModel/browser/projectDocuments.js';
-import { propertyHeading, propertyLink, propertyNote, propertyRow, renderPropertySheet } from '../../saengineModel/browser/propertySheetView.js';
+import { propertyLink, renderPropertySheet } from '../../saengineModel/browser/propertySheetView.js';
 import { editNotice, IMemberRef as IModifierMemberRef, memberTargets, modifiersView, readCodeStiffness, resetMembersGroup, setMembersField } from '../../saengineModel/browser/modifiersModel.js';
 import { renderModifiers } from '../../saengineModel/browser/modifiersPanel.js';
-import { EditorFrame, IEditorFrameIconButton } from '../../saengineProject/browser/editorFrame.js';
+import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameIconButton } from '../../saengineProject/browser/editorFrame.js';
 import { DWG_TO_DXF_COMMAND } from '../../saengineProject/browser/projectArchiveModel.js';
 import { acquireCadEditor, cadBackground, isLightCanvas, releaseCadEditor } from './cadHost.js';
-import { floorPlanDrawing, gridsOf, IFloorPlan, IMemberShape, storiesOf, storyOfSelection } from './floorPlanDrawing.js';
-import { basePoint, bayAt, changeMemberType, EditResult, IGridNode, moveMember, pickMember, placeColumn, placeLinear, placePolygonSlab, placeSlab, PlacementTool, removeMember, rotateMember, snapPoint, snapToGrid, TOOL_GROUP, TOOL_KINDS } from './floorPlanEdits.js';
+import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
+import { floorPlanDrawing, gridsOf, IFloorPlan, IMemberShape, storyOfSelection } from './floorPlanDrawing.js';
+import { basePoint, bayAt, changeMemberType, EditResult, footingsOwnedMessage, notRotatableMessage, IGridNode, moveMember, pickMember, placeColumn, placeLinear, placePolygonSlab, placeSlab, PlacementTool, removeMember, rotateMember, setMembersType, snapPoint, snapToGrid, TOOL_GROUP, TOOL_KINDS } from './floorPlanEdits.js';
 import { FloorPlanEditorInput, siblingPartFile } from './floorPlanEditorInput.js';
 import { FloorPlanLoadsFile, FloorPlanLoadsPanel, LOAD_LAYER_SPECS, loadsDrawing } from './floorPlanLoads.js';
-import { copyStory, familyNote, familyOf, inSync, masterOf, setSimilar } from './floorPlanTypical.js';
-import { BulkResult, bulkNotice, BulkVerb, changeTypes, copyMembers, copyToClipboard, copyToStories, deleteMembers, fill, FillDirection, FillKind, FloorPlanCommand, IFloorPlanClipboard, mirrorMembers, moveMembers, parseCommand, paste, rotateMembers } from './floorPlanBulk.js';
+import { copyStory, familyDiffersMessage, familyNote, familyOf, inSync, masterOf, repeatFamily, setSimilar } from './floorPlanTypical.js';
+import { BulkResult, bulkNotice, BulkVerb, copyMembers, copyToClipboard, copyToStories, deleteMembers, fill, FillDirection, FillKind, FloorPlanCommand, IFloorPlanClipboard, mirrorMembers, moveMembers, parseCommand, paste, rotateMembers } from './floorPlanBulk.js';
 import { combine, commonFields, countByGroup, IMemberRef, IRect, prune, rectOf, sameMember, selectAll, selectByType, selectInWindow, selectionSummary, typesOnPlan, windowMode } from './floorPlanSelection.js';
 
 const FLOOR_PLAN_SCHEMA_ID = 'saengine.floorPlan/1';
@@ -85,7 +86,7 @@ const TOOLS: readonly { readonly tool: Tool; readonly label: string; readonly ic
 	{ tool: 'polygonSlab', label: localize('tool.polygonSlab', "Polygon Slab"), icon: Codicon.symbolConstant, hint: localize('hint.polygonSlab', "Click the slab's corners; finish on the first corner, with Enter or a right-click. Corners snap to intersections and grid lines.") },
 	{ tool: 'fill', label: localize('tool.fill', "Fill"), icon: Codicon.table, hint: localize('hint.fill', "Drag a window over the grid to place members on every intersection, segment or bay inside it.") },
 	{ tool: 'move', label: localize('tool.move', "Move"), icon: Codicon.move, hint: localize('hint.move', "Click the member to move.") },
-	{ tool: 'rotate', label: localize('tool.rotate', "Rotate"), icon: Codicon.refresh, hint: localize('hint.rotate', "Click a column or footing to rotate.") },
+	{ tool: 'rotate', label: localize('tool.rotate', "Rotate"), icon: Codicon.refresh, hint: localize('hint.rotate', "Click a column to rotate it (footings turn in 9 Substructure).") },
 	{ tool: 'delete', label: localize('tool.delete', "Delete"), icon: Codicon.trash, hint: localize('hint.delete', "Click a member on this story to delete it.") },
 ];
 
@@ -901,6 +902,26 @@ export class FloorPlanEditor extends EditorPane {
 		return this.plan && this.editor ? pickMember(this.plan.members, point, PICK_PIXELS * this.editor.unitsPerPixel()) : undefined;
 	}
 
+	/**
+	 * The member under `point` that the edit tools (move, rotate, delete) may change: footings are
+	 * shown on the plan but owned by 9 Substructure, so picking one says so (`notify`) and gives none.
+	 */
+	private pickEditable(point: CadPoint, notify = true): IMemberShape | undefined {
+		const shape = this.pick(point);
+		if (shape?.group !== 'footings') {
+			return shape;
+		}
+		if (notify) {
+			this.setNotice(footingsOwnedMessage());
+		}
+		return undefined;
+	}
+
+	/** The selection the bulk edits change: footings are left out (9 Substructure owns them). */
+	private get editableSelection(): IMemberRef[] {
+		return this.selected.filter(r => r.group !== 'footings');
+	}
+
 	/** The rotation a column or footing has now, in degrees. */
 	private rotationOf(shape: { readonly group: string; readonly id: string }): number {
 		const layout = parse(this.planModel);
@@ -1032,7 +1053,11 @@ export class FloorPlanEditor extends EditorPane {
 	/** Runs a floor plan command (from the command line, the keyboard, the menu or the properties panel) on the selection. */
 	private runCommand(command: Exclude<FloorPlanCommand, { readonly kind: 'error' }>): void {
 		const layout = parse(this.planModel);
-		const refs = this.selected;
+		const refs = command.kind === 'select' ? this.selected : this.editableSelection;
+		if (!refs.length && this.selected.length && command.kind !== 'select' && command.kind !== 'fill') {
+			this.setNotice(footingsOwnedMessage()); // only footings are selected
+			return;
+		}
 		const shapes = this.plan?.members ?? [];
 		switch (command.kind) {
 			case 'select': {
@@ -1080,7 +1105,7 @@ export class FloorPlanEditor extends EditorPane {
 			return;
 		}
 		const layout = parse(this.planModel);
-		const result = copyToStories(layout, this.selected, story, stories);
+		const result = copyToStories(layout, this.editableSelection, story, stories);
 		const names = storiesOf(layout).filter(s => stories.includes(s.id)).map(s => s.name);
 		this.applyBulk(result, 'copied', false, result.ok ? localize('floorPlan.copiedToStories', "Copied {0} member(s) to {1} (and their typical floors); skipped {2} already there.", result.placed, names.join(', '), result.skipped) : undefined);
 	}
@@ -1154,7 +1179,7 @@ export class FloorPlanEditor extends EditorPane {
 
 	/** Ctrl+C: keeps the selection for Ctrl+V, with its lower left corner as the base point. */
 	private copySelection(): void {
-		const data = copyToClipboard(parse(this.planModel), this.selected);
+		const data = copyToClipboard(parse(this.planModel), this.editableSelection);
 		if (!data) {
 			this.setNotice(localize('bulk.nothing', "Select members first."));
 			return;
@@ -1229,7 +1254,7 @@ export class FloorPlanEditor extends EditorPane {
 			return;
 		}
 		if (this.tool === 'delete') {
-			const shape = this.pick(point);
+			const shape = this.pickEditable(point);
 			if (shape) {
 				this.deleteMember(shape.group, shape.id);
 			}
@@ -1239,10 +1264,10 @@ export class FloorPlanEditor extends EditorPane {
 			if (this.picked) {
 				this.moveTo(this.snapFree(point));
 			} else {
-				this.picked = this.pick(point);
+				this.picked = this.pickEditable(point, false);
 				this.setNotice(this.picked
-					? localize('floorPlan.moveTarget', "Click where {0} goes (its {1} is the base point), or type the displacement.", this.picked.id, this.picked.group === 'columns' || this.picked.group === 'footings' ? localize('base.location', "location") : this.picked.group === 'slabs' ? localize('base.corner', "first corner") : localize('base.start', "start"))
-					: localize('floorPlan.pickMember', "Click a member on this story."));
+					? localize('floorPlan.moveTarget', "Click where {0} goes (its {1} is the base point), or type the displacement.", this.picked.id, this.picked.group === 'columns' ? localize('base.location', "location") : this.picked.group === 'slabs' ? localize('base.corner', "first corner") : localize('base.start', "start"))
+					: this.pick(point)?.group === 'footings' ? footingsOwnedMessage() : localize('floorPlan.pickMember', "Click a member on this story."));
 				this.updateToolbar();
 				this.renderProperties();
 			}
@@ -1253,14 +1278,17 @@ export class FloorPlanEditor extends EditorPane {
 			const shape = this.pick(point);
 			if (shape && this.picked && shape.group === this.picked.group && shape.id === this.picked.id) {
 				this.rotateTo(this.rotationOf(shape) + 90);
-			} else if (shape && shape.group !== 'columns' && shape.group !== 'footings') {
+			} else if (shape?.group === 'footings') {
 				this.picked = undefined;
-				this.setNotice(localize('edit.notRotatable', "Only columns and footings rotate; beams, walls and slabs follow their points."));
+				this.setNotice(footingsOwnedMessage());
+			} else if (shape && shape.group !== 'columns') {
+				this.picked = undefined;
+				this.setNotice(notRotatableMessage());
 			} else {
 				this.picked = shape;
 				this.setNotice(shape
 					? localize('floorPlan.rotateHow', "Type the angle of {0}, or click it again to turn it 90°.", shape.id)
-					: localize('floorPlan.pickRotatable', "Click a column or footing on this story."));
+					: localize('floorPlan.pickRotatable', "Click a column on this story."));
 			}
 			this.updateToolbar();
 			this.renderProperties();
@@ -1333,13 +1361,12 @@ export class FloorPlanEditor extends EditorPane {
 	 * story was made similar in Grids & Stories: the status bar offers to copy the master first.
 	 */
 	private writeEdit(layout: object, story: string | undefined): boolean {
-		const before = parse(this.planModel);
-		const family = story ? familyOf(before, story) : [];
+		const family = story ? repeatFamily(parse(this.planModel), story) : [];
+		if (!family) {
+			this.setNotice(familyDiffersMessage());
+			return false;
+		}
 		if (family.length > 1) {
-			if (!inSync(before, family)) {
-				this.setNotice(localize('floorPlan.familyDiffers', "The stories of this typical floor differ; copy the typical floor to them first."));
-				return false;
-			}
 			layout = copyStory(layout, story!, family);
 		}
 		this.write(layout);
@@ -1499,7 +1526,7 @@ export class FloorPlanEditor extends EditorPane {
 					marker(target);
 				} else {
 					const shape = this.plan && pickMember(this.plan.members, point, PICK_PIXELS * units);
-					if (shape && (this.tool === 'move' || shape.group === 'columns' || shape.group === 'footings')) {
+					if (shape && shape.group !== 'footings' && (this.tool === 'move' || shape.group === 'columns')) {
 						entities.push(...outlineEntities(shape, layer));
 					}
 				}
@@ -1678,17 +1705,17 @@ export class FloorPlanEditor extends EditorPane {
 			const underlay = this.underlayOf(docs.floorPlan, story);
 			if (underlay) {
 				append(panel, $('.sa-props-section', undefined, localize('floorPlan.underlaySection', "Underlay")));
-				propertyRow(panel, localize('floorPlan.underlayFile', "File"), String(underlay.file));
-				propertyRow(panel, localize('floorPlan.underlayShown', "Shown"), underlay.visible === false ? localize('no', "No") : localize('yes', "Yes"));
+				appendPropertyRow(panel, localize('floorPlan.underlayFile', "File"), String(underlay.file));
+				appendPropertyRow(panel, localize('floorPlan.underlayShown', "Shown"), underlay.visible === false ? localize('no', "No") : localize('yes', "Yes"));
 			}
-			propertyNote(panel, localize('floorPlan.selectHint', "Select a member in the plan to see and change its properties."));
+			appendPropertyNote(panel, localize('floorPlan.selectHint', "Select a member in the plan to see and change its properties."));
 		}
 		this.renderLoads(panel);
 		const problems = [...(this.plan?.problems ?? []), ...(this.underlayProblem ? [this.underlayProblem] : [])];
 		if (problems.length) {
-			propertyHeading(panel, localize('floorPlan.problemsHeading', "Problems"));
+			appendPropertyHeading(panel, localize('floorPlan.problemsHeading', "Problems"));
 			for (const problem of problems) {
-				propertyNote(panel, problem);
+				appendPropertyNote(panel, problem);
 			}
 		}
 	}
@@ -1749,6 +1776,12 @@ export class FloorPlanEditor extends EditorPane {
 			return;
 		}
 		const store = this.propertiesDisposables;
+		if (member.group === 'footings') {
+			// Shown on the plan for reference; 9 Substructure places and edits them.
+			appendPropertyNote(panel, footingsOwnedMessage());
+			propertyLink(append(panel, $('.sa-props-links')), localize('floorPlan.editInSubstructure', "Edit in 9 Substructure"), () => this.openPart('substructure'), store);
+			return;
+		}
 		append(panel, $('.sa-props-section', undefined, localize('floorPlan.editSection', "Change")));
 		const tool = (Object.keys(TOOL_GROUP) as PlacementTool[]).find(t => TOOL_GROUP[t] === member.group);
 		const types = tool ? this.typesOfKinds(TOOL_KINDS[tool]) : [];
@@ -1770,7 +1803,7 @@ export class FloorPlanEditor extends EditorPane {
 					}
 				}
 			}));
-			propertyRow(panel, localize('floorPlan.memberType', "Type"), cell).classList.add('editable');
+			appendPropertyRow(panel, localize('floorPlan.memberType', "Type"), cell).classList.add('editable');
 		}
 		const input = (label: string, value: string, placeholder: string, apply: (text: string) => void) => {
 			const cell = $('.floor-plan-prop-control');
@@ -1783,9 +1816,9 @@ export class FloorPlanEditor extends EditorPane {
 					apply(box.value);
 				}
 			}));
-			propertyRow(panel, label, cell).classList.add('editable');
+			appendPropertyRow(panel, label, cell).classList.add('editable');
 		};
-		if (member.group === 'columns' || member.group === 'footings') {
+		if (member.group === 'columns') {
 			input(localize('floorPlan.rotation', "Rotation (°)"), String(this.rotationOf(member)), localize('floorPlan.angleHint', "Angle in degrees"), text => this.rotateTo(Number(text), member));
 		}
 		input(localize('floorPlan.moveBy', "Move by (mm)"), '', localize('floorPlan.displacementHint', "Δx, Δy in mm, e.g. 150, 0"), text => {
@@ -1797,7 +1830,7 @@ export class FloorPlanEditor extends EditorPane {
 			}
 		});
 		this.renderCopyInput(panel);
-		propertyNote(panel, localize('floorPlan.editNote', "Press Enter to apply. Each change is one undoable edit."));
+		appendPropertyNote(panel, localize('floorPlan.editNote', "Press Enter to apply. Each change is one undoable edit."));
 		this.renderModifierGroups(panel, [{ group: member.group, id: member.id }]);
 		const links = append(panel, $('.sa-props-links'));
 		this.renderBulkLinks(links);
@@ -1817,7 +1850,7 @@ export class FloorPlanEditor extends EditorPane {
 				apply(box.value);
 			}
 		}));
-		propertyRow(panel, label, cell).classList.add('editable');
+		appendPropertyRow(panel, label, cell).classList.add('editable');
 	}
 
 	/** "Copy by (mm)": dx, dy and how many copies (an array). */
@@ -1848,15 +1881,15 @@ export class FloorPlanEditor extends EditorPane {
 		const refs = this.selected;
 		const store = this.propertiesDisposables;
 		const common = commonFields(layout, refs);
-		propertyHeading(panel, selectionSummary(refs));
+		appendPropertyHeading(panel, selectionSummary(refs));
 		const editable = this.layoutState === 'ok';
 		for (const [group, count] of countByGroup(refs)) {
 			const tool = (Object.keys(TOOL_GROUP) as PlacementTool[]).find(t => TOOL_GROUP[t] === group);
 			const types = tool ? this.typesOfKinds(TOOL_KINDS[tool]) : [];
 			const current = common.types.get(group);
 			const label = localize('floorPlan.groupType', "Type of {0}", GROUP_LABEL[group]);
-			if (!editable || !types.length) {
-				propertyRow(panel, label, current ?? localize('floorPlan.various', "(various)"));
+			if (!editable || !types.length || group === 'footings') {
+				appendPropertyRow(panel, label, current ?? localize('floorPlan.various', "(various)"));
 				continue;
 			}
 			const options = [...(current ? [] : [{ text: localize('floorPlan.variousTypes', "(various: choose one for all {0})", count) }]), ...types.map(([, name]) => ({ text: name }))];
@@ -1867,10 +1900,11 @@ export class FloorPlanEditor extends EditorPane {
 			store.add(picker.onDidSelect(({ index }) => {
 				const type = types[index - offset]?.[0];
 				if (type && type !== current) {
-					this.applyBulk(changeTypes(parse(this.planModel), this.selected, group, type), undefined, false, localize('floorPlan.typesChanged', "{0} {1} are {2} now.", count, GROUP_LABEL[group], type));
+					const result = setMembersType(parse(this.planModel), this.selected.filter(r => r.group === group), type);
+					this.applyBulk(result.ok ? { ok: true, layout: result.layout, ids: result.changed, placed: 0, skipped: result.skipped.length } : result, undefined, false, localize('floorPlan.typesChanged', "{0} {1} are {2} now.", count, GROUP_LABEL[group], type));
 				}
 			}));
-			propertyRow(panel, label, cell).classList.add('editable');
+			appendPropertyRow(panel, label, cell).classList.add('editable');
 		}
 		if (!editable) {
 			return;
@@ -1888,7 +1922,7 @@ export class FloorPlanEditor extends EditorPane {
 		});
 		this.renderCopyInput(panel);
 		this.renderModifierGroups(panel, refs);
-		propertyNote(panel, localize('floorPlan.bulkNote', "Press Enter to apply; each change is one undoable edit of all {0} members. Moved members keep their nearest grid point plus an offset.", refs.length));
+		appendPropertyNote(panel, localize('floorPlan.bulkNote', "Press Enter to apply; each change is one undoable edit of all {0} members. Moved members keep their nearest grid point plus an offset.", refs.length));
 		const links = append(panel, $('.sa-props-links'));
 		this.renderBulkLinks(links);
 		propertyLink(links, localize('floorPlan.deleteSelected', "Delete {0} Members", refs.length), () => this.runCommand({ kind: 'delete' }), store);

@@ -18,6 +18,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { gridLabel, IGridLine, nextGridLabel } from '../../../services/saengineProject/common/gridLabels.js';
 import { newFloorPlan } from '../../../services/saengineProject/common/partSources.js';
 import { FLOOR_PLAN_SCHEMA, TEMPLATES } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { ISaengineProjectService, PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
@@ -38,25 +39,7 @@ const MEMBER_LISTS = ['columns', 'beams', 'walls', 'slabs', 'footings'];
 /** Default spacing for the first added grid line or story, before there is one to repeat [mm]. */
 const DEFAULT_SPACING = { x: 6000, y: 5000, story: 3200 };
 
-export interface IGridLine { readonly label: string; readonly position: number }
 export interface IStory { readonly id: string; readonly name: string; readonly elevation: number }
-
-/** "A" -> "B", "Z" -> "AA", "AZ" -> "BA" (spreadsheet-style column letters). */
-export function nextLetters(label: string): string {
-	const chars = label.toUpperCase().split('');
-	for (let i = chars.length - 1; i >= 0; i--) {
-		if (chars[i] !== 'Z') {
-			chars[i] = String.fromCharCode(chars[i].charCodeAt(0) + 1);
-			return chars.join('');
-		}
-		chars[i] = 'A';
-	}
-	return 'A' + chars.join('');
-}
-
-function nextLabel(label: string): string {
-	return /^\d+$/.test(label) ? String(Number(label) + 1) : /^[A-Za-z]+$/.test(label) ? nextLetters(label) : `${label}1`;
-}
 
 /**
  * The grid line after `lines`: the next label (letters for X, numbers for Y, skipping labels
@@ -64,9 +47,9 @@ function nextLabel(label: string): string {
  */
 export function nextGridLine(lines: readonly IGridLine[], axis: 'x' | 'y', used: ReadonlySet<string>): IGridLine {
 	const last = lines[lines.length - 1];
-	let label = last ? nextLabel(last.label) : (axis === 'x' ? 'A' : '1');
+	let label = last ? nextGridLabel(last.label) : gridLabel(axis, 0);
 	while (used.has(label)) {
-		label = nextLabel(label);
+		label = nextGridLabel(label);
 	}
 	const spacing = lines.length >= 2 ? last.position - lines[lines.length - 2].position : DEFAULT_SPACING[axis];
 	return { label, position: last ? last.position + spacing : 0 };

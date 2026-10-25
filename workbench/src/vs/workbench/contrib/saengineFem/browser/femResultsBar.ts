@@ -22,7 +22,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IFemResultEntry, IFemResultList, IFemResultView } from '../../../../platform/saengine/common/femSolver.js';
 import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { EditorFrame, IEditorFrameIconButton, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
+import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameIconButton, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { describeDesignSummary, describeSlenderness, describeSteel, describeSteelRatio, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, isSecondOrderRequired, isSlendernessCheck, otherFailureElements, requiredSteelOf, resultsFolder, runDesign, runDesignRequired, secondOrderRequiredMembers, shortElements, slendernessHeading, sortedChecks, tooSmallElements, writeDesignSummary } from './femDesign.js';
 import { describeScaleOnResult, describeSecondOrder, FemAxis, IFemSecondOrder, isFirstOrderReference, IFemSeismicDesign, runSecondOrder, runSeismicDesign, seismicSection, spectrumAxis, storeyAmplificationRows } from './femSeismicDesign.js';
 import { FemSsiPanel } from './femSsi.js';
@@ -319,23 +319,6 @@ export interface IFemResultsHost {
 	changed(): void;
 	/** Runs the analysis again (offered when the results are out of date). */
 	run(): void;
-}
-
-/** Adds a name/value row to a property sheet. */
-export function propertyRow(container: HTMLElement, name: string, value: string): void {
-	const row = append(container, $('.sa-props-row'));
-	append(row, $('span.name', undefined, name));
-	append(row, $('span.value', undefined, value));
-}
-
-/** Adds a heading to a property sheet. */
-export function propertyHeading(container: HTMLElement, text: string): void {
-	append(container, $('.sa-props-heading', undefined, text));
-}
-
-/** Adds a muted note to a property sheet. */
-export function propertyNote(container: HTMLElement, text: string): void {
-	append(container, $('.sa-props-note', undefined, text));
 }
 
 /**
@@ -1218,18 +1201,18 @@ export class FemResultsBar extends Disposable {
 		} else if (selection && view && view.kind !== 'modal') {
 			this.renderSelection(container, selection, view);
 		} else {
-			propertyNote(container, selection
+			appendPropertyNote(container, selection
 				? localize('femResults.modalSelection', "A mode shape has no values to report: its amplitude is arbitrary.")
 				: localize('femResults.selectHint', "Select a node or a member in the view for its values."));
 		}
-		propertyHeading(container, localize('femResults.resultHeading', "Result"));
-		propertyRow(container, localize('femResults.resultName', "Shown"), entry.label);
+		appendPropertyHeading(container, localize('femResults.resultHeading', "Result"));
+		appendPropertyRow(container, localize('femResults.resultName', "Shown"), entry.label);
 		if (entry.kind === 'modal') {
 			const mode = entry.modes?.[this.mode - 1];
 			if (mode) {
-				propertyRow(container, localize('femResults.modeNumber', "Mode"), String(mode.number));
+				appendPropertyRow(container, localize('femResults.modeNumber', "Mode"), String(mode.number));
 				if (mode.period !== null) {
-					propertyRow(container, localize('femResults.period', "Period"), localize('femResults.seconds', "{0} s", mode.period.toFixed(3)));
+					appendPropertyRow(container, localize('femResults.period', "Period"), localize('femResults.seconds', "{0} s", mode.period.toFixed(3)));
 				}
 			}
 		}
@@ -1240,7 +1223,7 @@ export class FemResultsBar extends Disposable {
 			this.renderSecondOrder(container);
 		}
 		if (entry.kind === 'pushover') {
-			propertyHeading(container, localize('femResults.curveHeading', "Capacity Curve"));
+			appendPropertyHeading(container, localize('femResults.curveHeading', "Capacity Curve"));
 			this.renderCurve(container, entry.frames ?? []);
 		}
 		if (!selection && !isDesignShow(this.show)) {
@@ -1252,47 +1235,47 @@ export class FemResultsBar extends Disposable {
 	private renderSelection(container: HTMLElement, selection: FemSelection, view: IFemResultView): void {
 		const format = this.format;
 		if (selection.kind === 'node') {
-			propertyHeading(container, localize('femResults.nodeHeading', "Node {0}", selection.id));
+			appendPropertyHeading(container, localize('femResults.nodeHeading', "Node {0}", selection.id));
 			const node = view.nodes.find(n => n[0] === selection.id);
 			if (node) {
-				propertyRow(container, localize('femResults.ux', "Displacement x"), format('length', node[1]));
-				propertyRow(container, localize('femResults.uy', "Displacement y"), format('length', node[2]));
-				propertyRow(container, localize('femResults.uz', "Displacement z"), format('length', node[3]));
-				propertyRow(container, localize('femResults.uTotal', "Total"), format('length', Math.hypot(node[1], node[2], node[3])));
+				appendPropertyRow(container, localize('femResults.ux', "Displacement x"), format('length', node[1]));
+				appendPropertyRow(container, localize('femResults.uy', "Displacement y"), format('length', node[2]));
+				appendPropertyRow(container, localize('femResults.uz', "Displacement z"), format('length', node[3]));
+				appendPropertyRow(container, localize('femResults.uTotal', "Total"), format('length', Math.hypot(node[1], node[2], node[3])));
 			}
 			const reaction = view.reactions.find(r => r[0] === selection.id);
 			if (reaction) {
-				propertyHeading(container, localize('femResults.reactionHeading', "Support Reaction"));
-				propertyRow(container, 'Fx', format('force', reaction[1]));
-				propertyRow(container, 'Fy', format('force', reaction[2]));
-				propertyRow(container, 'Fz', format('force', reaction[3]));
+				appendPropertyHeading(container, localize('femResults.reactionHeading', "Support Reaction"));
+				appendPropertyRow(container, 'Fx', format('force', reaction[1]));
+				appendPropertyRow(container, 'Fy', format('force', reaction[2]));
+				appendPropertyRow(container, 'Fz', format('force', reaction[3]));
 			}
 			return;
 		}
 		const element = view.elements.find(e => e.id === selection.id);
 		const shell = element ? undefined : view.shells?.find(s => s.id === selection.id);
-		propertyHeading(container, element?.name ?? shell?.name ?? localize('femResults.elementHeading', "Element {0}", selection.id));
+		appendPropertyHeading(container, element?.name ?? shell?.name ?? localize('femResults.elementHeading', "Element {0}", selection.id));
 		if (element?.forces?.length) {
 			// Every section force along the member: smallest, largest and at both ends.
 			for (const [index, name] of COMPONENTS.entries()) {
 				const values = element.forces.map(f => f[index]);
 				const quantity: Quantity = index < 3 ? 'force' : 'moment';
 				const value = localize('femResults.range', "{0} to {1}", format(quantity, Math.min(...values)), format(quantity, Math.max(...values)));
-				propertyRow(container, name, value);
+				appendPropertyRow(container, name, value);
 			}
 			const component = COMPONENTS.indexOf(this.show);
 			if (component >= 0) {
 				const quantity: Quantity = component < 3 ? 'force' : 'moment';
-				propertyNote(container, localize('femResults.ends', "{0} at end i {1}, at end j {2}.", this.show,
+				appendPropertyNote(container, localize('femResults.ends', "{0} at end i {1}, at end j {2}.", this.show,
 					format(quantity, element.forces[0][component]), format(quantity, element.forces[element.forces.length - 1][component])));
 			}
 		} else if (shell?.forces?.length) {
 			for (const [index, name] of SHELL_COMPONENTS.entries()) {
 				const quantity: Quantity = index >= 3 && index < 6 ? 'momentPerLength' : 'forcePerLength';
-				propertyRow(container, name, format(quantity, shell.forces[index]));
+				appendPropertyRow(container, name, format(quantity, shell.forces[index]));
 			}
 		} else {
-			propertyNote(container, localize('femResults.noForces', "No section forces are recorded for this element."));
+			appendPropertyNote(container, localize('femResults.noForces', "No section forces are recorded for this element."));
 		}
 	}
 
@@ -1303,56 +1286,56 @@ export class FemResultsBar extends Disposable {
 	private renderDesignProperties(container: HTMLElement, selection: FemSelection | undefined): void {
 		const report = this.design;
 		if (!report) {
-			propertyNote(container, this.designProblem ?? localize('femResults.designRunning', "Checking the members against the load combinations..."));
+			appendPropertyNote(container, this.designProblem ?? localize('femResults.designRunning', "Checking the members against the load combinations..."));
 			return;
 		}
 		if (selection?.kind !== 'element') {
-			propertyHeading(container, localize('femResults.designHeading', "Design Checks"));
-			propertyRow(container, localize('femResults.designCode', "Code"), report.code);
-			propertyRow(container, localize('femResults.designPassed', "Pass"), String(report.summary.passed));
-			propertyRow(container, localize('femResults.designFailed2', "Fail"), String(report.summary.failed));
+			appendPropertyHeading(container, localize('femResults.designHeading', "Design Checks"));
+			appendPropertyRow(container, localize('femResults.designCode', "Code"), report.code);
+			appendPropertyRow(container, localize('femResults.designPassed', "Pass"), String(report.summary.passed));
+			appendPropertyRow(container, localize('femResults.designFailed2', "Fail"), String(report.summary.failed));
 			if (report.summary.skipped) {
-				propertyRow(container, localize('femResults.designSkipped', "Not checked"), String(report.summary.skipped));
+				appendPropertyRow(container, localize('femResults.designSkipped', "Not checked"), String(report.summary.skipped));
 			}
 			if (report.summary.maxUtilisation !== null && report.summary.governing) {
-				propertyRow(container, localize('femResults.designLargest', "Largest"), localize('femResults.designLargestValue', "{0} in {1}", formatUtilisation(report.summary.maxUtilisation), report.summary.governing));
+				appendPropertyRow(container, localize('femResults.designLargest', "Largest"), localize('femResults.designLargestValue', "{0} in {1}", formatUtilisation(report.summary.maxUtilisation), report.summary.governing));
 			}
 			const steel = this.required?.summary;
 			if (steel) {
 				// Members, not the backend's rows (one per zone, strip and layer).
 				const short = shortElements(this.required);
-				propertyRow(container, localize('femResults.steelShortCount', "Steel short"), short.length
+				appendPropertyRow(container, localize('femResults.steelShortCount', "Steel short"), short.length
 					? localize('femResults.steelShortMembers', "{0} ({1})", short.length, short.length > 6 ? localize('femResults.steelShortMore', "{0}, ...", short.slice(0, 6).join(', ')) : short.join(', '))
 					: '0');
 				// The backend's summary.tooSmall also holds footings failing bearing or resultant,
 				// which bars cannot fix but a larger section is not the only answer to.
 				const tooSmall = tooSmallElements(this.required);
 				if (tooSmall.length) {
-					propertyRow(container, localize('femResults.steelTooSmallCount', "Too small"), tooSmall.join(', '));
+					appendPropertyRow(container, localize('femResults.steelTooSmallCount', "Too small"), tooSmall.join(', '));
 				}
 				const others = otherFailureElements(this.required);
 				if (others.length) {
-					propertyRow(container, localize('femResults.steelOtherFailures', "Other checks fail"), others.join(', '));
+					appendPropertyRow(container, localize('femResults.steelOtherFailures', "Other checks fail"), others.join(', '));
 				}
 				if (steel.assumed?.length) {
-					propertyRow(container, localize('femResults.steelNoBars', "No bars yet"), steel.assumed.join(', '));
+					appendPropertyRow(container, localize('femResults.steelNoBars', "No bars yet"), steel.assumed.join(', '));
 				}
 			}
 			const secondOrderRequired = secondOrderRequiredMembers(report);
 			if (secondOrderRequired.length) {
-				propertyRow(container, localize('femResults.secondOrderRequiredCount', "Second-order analysis required"), secondOrderRequired.join(', '));
+				appendPropertyRow(container, localize('femResults.secondOrderRequiredCount', "Second-order analysis required"), secondOrderRequired.join(', '));
 			}
 			const walls = describeWallsSummary(report);
 			if (walls) {
-				propertyRow(container, localize('femResults.designWalls', "Walls"), walls);
+				appendPropertyRow(container, localize('femResults.designWalls', "Walls"), walls);
 			}
 			const steelMembers = describeSteelSummary(report);
 			if (steelMembers) {
-				propertyRow(container, localize('femResults.designSteel', "Steel members"), steelMembers);
+				appendPropertyRow(container, localize('femResults.designSteel', "Steel members"), steelMembers);
 			}
 			this.renderStairs(container, report);
 			this.renderSeismic(container, undefined, true);
-			propertyNote(container, localize('femResults.designSelect', "Select a member, or a slab's shell, for its checks."));
+			appendPropertyNote(container, localize('femResults.designSelect', "Select a member, or a slab's shell, for its checks."));
 			return;
 		}
 		const element = designElementOf(report, selection.id);
@@ -1363,21 +1346,21 @@ export class FemResultsBar extends Disposable {
 			const steel = requiredSteelOf(this.required, id);
 			if (steel.length) {
 				// A member without bars yet: the steel it needs, not an error.
-				propertyHeading(container, localize('femResults.memberHeading', "{0} ({1} {2})", id, designKindLabel(steel[0].kind), steel[0].type));
-				propertyNote(container, localize('femResults.noBarsYet', "No bars entered yet: the steel it requires is shown. Design Reinforcement proposes bars."));
+				appendPropertyHeading(container, localize('femResults.memberHeading', "{0} ({1} {2})", id, designKindLabel(steel[0].kind), steel[0].type));
+				appendPropertyNote(container, localize('femResults.noBarsYet', "No bars entered yet: the steel it requires is shown. Design Reinforcement proposes bars."));
 				this.renderSteel(container, steel, false);
 				return;
 			}
-			propertyHeading(container, id ?? localize('femResults.elementHeading', "Element {0}", selection.id));
-			propertyNote(container, skipped
+			appendPropertyHeading(container, id ?? localize('femResults.elementHeading', "Element {0}", selection.id));
+			appendPropertyNote(container, skipped
 				? localize('femResults.notChecked', "Not checked ({0}): {1}.", skipped.type, skipped.reason)
 				: localize('femResults.noDesignSteel', "This element is not designed (only reinforced-concrete beams, columns, slabs and walls, and steel beams, columns and braces are)."));
 			if (skipped && this.requiredLoading) {
-				propertyNote(container, localize('femResults.steelLoading', "Working out the steel required..."));
+				appendPropertyNote(container, localize('femResults.steelLoading', "Working out the steel required..."));
 			}
 			return;
 		}
-		propertyHeading(container, localize('femResults.memberHeading', "{0} ({1} {2})", element.id, designKindLabel(element.kind), element.type));
+		appendPropertyHeading(container, localize('femResults.memberHeading', "{0} ({1} {2})", element.id, designKindLabel(element.kind), element.type));
 		const verdict = append(container, $(`.fem-design-verdict.${element.ok ? 'pass' : 'fail'}`));
 		append(verdict, $('span', undefined, element.ok ? localize('femResults.passes', "Passes") : localize('femResults.fails', "Fails")));
 		append(verdict, $('span.value', undefined, formatUtilisation(element.utilisation)));
@@ -1401,17 +1384,17 @@ export class FemResultsBar extends Disposable {
 		}
 		const governing = checks.find(c => !c.flag);
 		if (governing?.note) {
-			propertyNote(container, localize('femResults.governing', "Governing: {0}.", governing.note));
+			appendPropertyNote(container, localize('femResults.governing', "Governing: {0}.", governing.note));
 		}
 		// A column's slenderness about each axis: how its moments are magnified for it.
 		for (const check of checks.filter(isSlendernessCheck)) {
 			const rows = describeSlenderness(check);
 			if (rows.length) {
-				propertyHeading(container, slendernessHeading(check));
+				appendPropertyHeading(container, slendernessHeading(check));
 				// Names kept on one line ("k lu / r"): the values wrap instead.
 				const section = append(container, $('.fem-slenderness'));
 				for (const row of rows) {
-					propertyRow(section, row.name, row.value);
+					appendPropertyRow(section, row.name, row.value);
 				}
 			}
 		}
@@ -1421,7 +1404,7 @@ export class FemResultsBar extends Disposable {
 		if (isWall(element)) {
 			const diagram = pierDiagram(element, selection.id);
 			if (diagram) {
-				propertyHeading(container, localize('femResults.pierDiagramHeading', "Pier Forces"));
+				appendPropertyHeading(container, localize('femResults.pierDiagramHeading', "Pier Forces"));
 				this.renderPierDiagram(container, diagram);
 			}
 			this.renderDetailing(container, wallSection(element, selection.id));
@@ -1430,7 +1413,7 @@ export class FemResultsBar extends Disposable {
 		}
 		this.renderSteel(container, requiredSteelOf(this.required, element.id), true);
 		if (this.requiredLoading) {
-			propertyNote(container, localize('femResults.steelLoading', "Working out the steel required..."));
+			appendPropertyNote(container, localize('femResults.steelLoading', "Working out the steel required..."));
 		}
 	}
 
@@ -1438,9 +1421,9 @@ export class FemResultsBar extends Disposable {
 	private renderDetailing(container: HTMLElement, items: readonly FemDetailingItem[]): void {
 		for (const item of items) {
 			switch (item.kind) {
-				case 'heading': propertyHeading(container, item.text); break;
+				case 'heading': appendPropertyHeading(container, item.text); break;
 				case 'subheading': append(container, $('.fem-detailing-group', undefined, item.text)); break;
-				case 'note': propertyNote(container, item.text); break;
+				case 'note': appendPropertyNote(container, item.text); break;
 				case 'row': {
 					const row = append(container, $(`.sa-props-row.fem-detailing-row${item.ok === false ? '.fail' : ''}`));
 					append(row, $('span.name', undefined, item.name));
@@ -1489,7 +1472,7 @@ export class FemResultsBar extends Disposable {
 				fill.style.width = `${max > 0 ? Math.abs(value) / max * 100 : 0}%`;
 			}
 		}
-		propertyNote(container, localize('femResults.pierDiagramNote', "Each pier under its governing combination; bars scaled to the largest of each force, negative values in a second colour. Hover a bar for its value."));
+		appendPropertyNote(container, localize('femResults.pierDiagramNote', "Each pier under its governing combination; bars scaled to the largest of each force, negative values in a second colour. Hover a bar for its value."));
 	}
 
 	/**
@@ -1501,7 +1484,7 @@ export class FemResultsBar extends Disposable {
 		if (!stairs.length) {
 			return;
 		}
-		propertyHeading(container, localize('femResults.stairsHeading', "Stairs"));
+		appendPropertyHeading(container, localize('femResults.stairsHeading', "Stairs"));
 		for (const stair of stairs) {
 			const details = append(container, $(`details.fem-stair${stair.ok ? '' : '.fail'}`));
 			append(details, $('summary', undefined, describeStaircaseVerdict(stair)));
@@ -1519,7 +1502,7 @@ export class FemResultsBar extends Disposable {
 	private renderJointProperties(container: HTMLElement, selection: FemSelection | undefined): void {
 		const report = this.design;
 		if (!report) {
-			propertyNote(container, this.designProblem ?? localize('femResults.designRunning', "Checking the members against the load combinations..."));
+			appendPropertyNote(container, this.designProblem ?? localize('femResults.designRunning', "Checking the members against the load combinations..."));
 			return;
 		}
 		const joints = jointsOf(report);
@@ -1527,8 +1510,8 @@ export class FemResultsBar extends Disposable {
 		if (selection?.kind === 'node') {
 			const joint = jointAtNode(report, selection.id, this.model);
 			if (!joint) {
-				propertyHeading(container, localize('femResults.nodeHeading', "Node {0}", selection.id));
-				propertyNote(container, localize('femResults.noJointAtNode', "No beam-column joint is checked at this node."));
+				appendPropertyHeading(container, localize('femResults.nodeHeading', "Node {0}", selection.id));
+				appendPropertyNote(container, localize('femResults.noJointAtNode', "No beam-column joint is checked at this node."));
 				return;
 			}
 			shown = [joint];
@@ -1536,21 +1519,21 @@ export class FemResultsBar extends Disposable {
 			const member = designElementOf(report, selection.id);
 			shown = member ? jointsOfMember(report, member.id) : [];
 			if (!shown.length) {
-				propertyHeading(container, member?.id ?? localize('femResults.elementHeading', "Element {0}", selection.id));
-				propertyNote(container, localize('femResults.noJointsOfMember', "This member frames into no checked joint."));
+				appendPropertyHeading(container, member?.id ?? localize('femResults.elementHeading', "Element {0}", selection.id));
+				appendPropertyNote(container, localize('femResults.noJointsOfMember', "This member frames into no checked joint."));
 				return;
 			}
 		}
 		if (!shown.length) {
-			propertyHeading(container, localize('femResults.jointsHeading', "Joint Checks"));
-			propertyNote(container, describeJointsSummary(report));
+			appendPropertyHeading(container, localize('femResults.jointsHeading', "Joint Checks"));
+			appendPropertyNote(container, describeJointsSummary(report));
 			if (joints.length) {
-				propertyNote(container, localize('femResults.jointsSelect', "Select a joint's node, or a beam or column, for its checks."));
+				appendPropertyNote(container, localize('femResults.jointsSelect', "Select a joint's node, or a beam or column, for its checks."));
 			}
 			return;
 		}
 		for (const joint of shown) {
-			propertyHeading(container, jointHeading(joint));
+			appendPropertyHeading(container, jointHeading(joint));
 			const verdict = describeJointVerdict(joint);
 			const line = append(container, $(`.fem-design-verdict.${verdict.ok ? 'pass' : 'fail'}`));
 			append(line, $('span', undefined, verdict.governing
@@ -1573,7 +1556,7 @@ export class FemResultsBar extends Disposable {
 			return;
 		}
 		if (heading) {
-			propertyHeading(container, localize('femResults.steelHeading', "Required Steel"));
+			appendPropertyHeading(container, localize('femResults.steelHeading', "Required Steel"));
 		}
 		for (const steel of rows) {
 			if (isOtherFailure(steel)) {
@@ -1617,9 +1600,9 @@ export class FemResultsBar extends Disposable {
 	private renderSeismic(container: HTMLElement, axis: FemAxis | undefined, combinations: boolean): void {
 		for (const item of seismicSection(this.seismic, axis, combinations)) {
 			switch (item.kind) {
-				case 'heading': propertyHeading(container, item.text); break;
-				case 'note': propertyNote(container, item.text); break;
-				case 'row': propertyRow(container, item.name, item.value); break;
+				case 'heading': appendPropertyHeading(container, item.text); break;
+				case 'note': appendPropertyNote(container, item.text); break;
+				case 'row': appendPropertyRow(container, item.name, item.value); break;
 				case 'combination': {
 					const row = append(container, $('.fem-seismic-combination'));
 					append(row, $('.sa-props-row', undefined, item.name));
@@ -1639,13 +1622,13 @@ export class FemResultsBar extends Disposable {
 		if (!secondOrder || !note) {
 			return;
 		}
-		propertyHeading(container, localize('femResults.secondOrderHeading', "Second Order"));
-		propertyNote(container, note);
+		appendPropertyHeading(container, localize('femResults.secondOrderHeading', "Second Order"));
+		appendPropertyNote(container, note);
 		for (const row of storeyAmplificationRows(secondOrder)) {
-			propertyRow(container, row.name, row.value);
+			appendPropertyRow(container, row.name, row.value);
 		}
 		for (const text of secondOrder?.notes ?? []) {
-			propertyNote(container, text);
+			appendPropertyNote(container, text);
 		}
 	}
 
@@ -1676,7 +1659,7 @@ export class FemResultsBar extends Disposable {
 			root.appendChild(marker);
 		}
 		svg.appendChild(root);
-		propertyRow(container, localize('femResults.peakShearName', "Largest base shear"), this.format('force', vMax));
-		propertyRow(container, localize('femResults.peakRoofName', "At roof"), this.format('length', points.find(p => p[1] === vMax)?.[0] ?? 0));
+		appendPropertyRow(container, localize('femResults.peakShearName', "Largest base shear"), this.format('force', vMax));
+		appendPropertyRow(container, localize('femResults.peakRoofName', "At roof"), this.format('length', points.find(p => p[1] === vMax)?.[0] ?? 0));
 	}
 }

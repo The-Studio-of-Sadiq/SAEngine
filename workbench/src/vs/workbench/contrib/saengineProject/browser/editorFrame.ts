@@ -148,20 +148,38 @@ export function readFrameState(raw: string | undefined, defaults: IEditorFrameSt
 	}
 }
 
-/** Appends a heading of the property sheet (`.sa-props-heading`) to a properties panel. */
-export function appendPropertyHeading(container: HTMLElement, text: string): HTMLElement {
-	return append(container, $('.sa-props-heading', undefined, text));
+/**
+ * Appends a heading of the property sheet (`.sa-props-heading`) to a properties panel, with a
+ * muted `detail` after the text (a member's type).
+ */
+export function appendPropertyHeading(container: HTMLElement, text: string, detail?: string): HTMLElement {
+	if (!detail) {
+		return append(container, $('.sa-props-heading', undefined, text));
+	}
+	const heading = append(container, $('.sa-props-heading'));
+	append(heading, $('span', undefined, text));
+	append(heading, $('span.sa-props-detail', undefined, detail));
+	return heading;
 }
 
-/** Appends a name/value row of the property sheet (`.sa-props-row`); the value may be an element. */
-export function appendPropertyRow(container: HTMLElement, name: string, value: string | HTMLElement): HTMLElement {
+/**
+ * Appends a name/value row of the property sheet (`.sa-props-row`); the value may be an element.
+ * `problem` marks the value with a warning.
+ */
+export function appendPropertyRow(container: HTMLElement, name: string, value: string | HTMLElement, problem?: boolean): HTMLElement {
 	const row = append(container, $('.sa-props-row'));
 	append(row, $('span.name', undefined, name));
 	const cell = append(row, $('span.value'));
-	if (typeof value === 'string') {
-		cell.textContent = value;
-	} else {
+	if (problem) {
+		cell.classList.add('problem');
+		append(cell, $(`span${ThemeIcon.asCSSSelector(Codicon.warning)}`)).setAttribute('aria-hidden', 'true');
+	}
+	if (typeof value !== 'string') {
 		append(cell, value);
+	} else if (problem) {
+		append(cell, $('span', undefined, value));
+	} else {
+		cell.textContent = value;
 	}
 	return row;
 }

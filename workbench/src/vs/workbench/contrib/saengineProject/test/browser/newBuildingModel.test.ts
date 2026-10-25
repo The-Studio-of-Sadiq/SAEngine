@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { buildSpec, centralBay, DEFAULT_FORM, formatLengths, gridLabel, gridLines, parseSpacings, readGenerateResult, readPendingBuilding, storyHeights, summarize } from '../../browser/newBuildingModel.js';
+import { gridLabel } from '../../../../services/saengineProject/common/gridLabels.js';
+import { buildSpec, centralBay, DEFAULT_FORM, formatLengths, gridLines, parseSpacings, readGenerateResult, readPendingBuilding, storyHeights, summarize } from '../../browser/newBuildingModel.js';
 
 suite('SAEngine - New Building wizard model', () => {
 

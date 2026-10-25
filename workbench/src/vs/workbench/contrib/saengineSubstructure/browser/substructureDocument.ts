@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
+import { IGridLine } from '../../../services/saengineProject/common/gridLabels.js';
+import { centroid, polygonArea } from '../../../../platform/saengine/common/geometry.js';
 import { formatNumber } from '../../saengineSoil/browser/soilDocument.js';
 
 /*
@@ -257,11 +259,6 @@ export interface IColumnBase {
 	readonly type: string;
 }
 
-export interface IGridLine {
-	readonly label: string;
-	readonly position: number;
-}
-
 /** A wall standing on the base level, for strip footings. */
 export interface IWallBase {
 	readonly id: string;
@@ -382,14 +379,6 @@ export function readSiteContext(texts: ISiteTexts): ISiteContext {
 export function carriedColumns(foundation: IFoundation, context: ISiteContext): IColumnBase[] {
 	const ids = new Set(foundation.columns ?? []);
 	return context.columns.filter(c => ids.has(c.id));
-}
-
-/** The centroid of points; undefined for none. */
-export function centroid(points: readonly (readonly [number, number])[]): Point | undefined {
-	if (!points.length) {
-		return undefined;
-	}
-	return [points.reduce((s, p) => s + p[0], 0) / points.length, points.reduce((s, p) => s + p[1], 0) / points.length];
 }
 
 /** The plan centre of a foundation: its own, else its columns' centroid, else its outline's or path's. */
@@ -794,7 +783,7 @@ export function checkSubstructure(document: ISubstructure, context: ISiteContext
 		if (f.type === 'raft') {
 			if ((f.outline?.length ?? 0) < 3) {
 				error(at('outline'), localize('sub.p.outline', "{0}: the raft needs an outline of at least three points.", f.id));
-			} else if (Math.abs(polygonArea(f.outline!)) < 1) {
+			} else if (polygonArea(f.outline!) < 1) {
 				error(at('outline'), localize('sub.p.outlineArea', "{0}: the raft's outline encloses no area.", f.id));
 			}
 		} else if (f.type === 'strip') {
@@ -896,15 +885,6 @@ export function checkSubstructure(document: ISubstructure, context: ISiteContext
 		error('design.springsFrom', localize('sub.p.springs', "The subgrade modulus must be more than 0 kN/m³."));
 	}
 	return problems;
-}
-
-/** Signed area of a polygon [mm²]. */
-export function polygonArea(points: readonly (readonly [number, number])[]): number {
-	let area = 0;
-	for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
-		area += points[j][0] * points[i][1] - points[i][0] * points[j][1];
-	}
-	return area / 2;
 }
 
 /**

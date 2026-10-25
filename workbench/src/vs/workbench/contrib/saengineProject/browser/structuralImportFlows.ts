@@ -19,7 +19,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { ImportReportInput } from './importReportInput.js';
 import { ProjectOpener } from './projectOpener.js';
 import {
-	defaultImportName, detectFormat, IImportReport, IImportStructuralCommandArgs, ILastImport, importFilters, IStructuralImportArgs, LAST_IMPORT_STORAGE_KEY, readImportResult, readLastImport,
+	defaultImportName, IImportReport, IImportStructuralCommandArgs, ILastImport, importFilters, IStructuralImportArgs, LAST_IMPORT_STORAGE_KEY, readImportResult, readLastImport,
 	STRUCTURAL_IMPORT_COMMAND, uniqueImportName,
 } from './structuralImportModel.js';
 
@@ -126,10 +126,6 @@ export class StructuralImportFlows {
 			if (!file) {
 				return undefined;
 			}
-		}
-		if (!detectFormat(basename(file))) {
-			this.notificationService.error(localize('import.unknownFile', "{0} is not an ETABS (.e2k), STAAD.Pro (.std) or SAP2000 (.s2k) text file. Export the model as text from that program first.", basename(file)));
-			return undefined;
 		}
 		let destParent = args.destParent ? URI.file(args.destParent) : undefined;
 		if (!destParent) {

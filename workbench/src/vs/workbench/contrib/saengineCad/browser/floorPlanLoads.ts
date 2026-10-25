@@ -21,8 +21,10 @@ import { IContextViewService } from '../../../../platform/contextview/browser/co
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
-import { propertyHeading, propertyLink, propertyNote, propertyRow } from '../../saengineModel/browser/propertySheetView.js';
-import { gridsOf, MemberGroup, storiesOf } from './floorPlanDrawing.js';
+import { propertyLink } from '../../saengineModel/browser/propertySheetView.js';
+import { appendPropertyHeading, appendPropertyRow, appendPropertyNote } from '../../saengineProject/browser/editorFrame.js';
+import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
+import { gridsOf, MemberGroup } from './floorPlanDrawing.js';
 import { familyOf, masterOf } from './floorPlanTypical.js';
 
 /*
@@ -833,7 +835,7 @@ export class FloorPlanLoadsPanel extends Disposable {
 				onEnter();
 			}
 		}));
-		propertyRow(container, label, cell).classList.add('editable');
+		appendPropertyRow(container, label, cell).classList.add('editable');
 		return box;
 	}
 
@@ -842,7 +844,7 @@ export class FloorPlanLoadsPanel extends Disposable {
 		const box = store.add(new SelectBox(options.map(text => ({ text })), index, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: label }));
 		box.render(cell);
 		store.add(box.onDidSelect(({ index }) => onSelect(index)));
-		propertyRow(container, label, cell).classList.add('editable');
+		appendPropertyRow(container, label, cell).classList.add('editable');
 		return box;
 	}
 
@@ -856,12 +858,12 @@ export class FloorPlanLoadsPanel extends Disposable {
 		const cell = $('.floor-plan-loads-check');
 		cell.appendChild(checkbox.domNode);
 		append(cell, $('span', undefined, localize('loads.familyNote', "else on all {0} stories of the typical floor", family.length)));
-		propertyRow(container, label, cell).classList.add('editable');
+		appendPropertyRow(container, label, cell).classList.add('editable');
 		return () => checkbox.checked;
 	}
 
 	private renderLineForm(section: HTMLElement, store: DisposableStore, context: ILoadsPanelContext, loads: IMemberLoads, beams: readonly string[]): void {
-		propertyHeading(section, beams.length === 1 ? localize('loads.lineLoadOn', "Line Load on {0}", beams[0]) : localize('loads.lineLoadOnMany', "Line Load on {0} Beams", beams.length));
+		appendPropertyHeading(section, beams.length === 1 ? localize('loads.lineLoadOn', "Line Load on {0}", beams[0]) : localize('loads.lineLoadOnMany', "Line Load on {0} Beams", beams.length));
 		const types = loads.wallTypes;
 		const kinds = [localize('loads.fromWall', "Wall on the beam"), localize('loads.explicitKnm', "Load in kN/m")];
 		let fromWall = types.length > 0;
@@ -926,7 +928,7 @@ export class FloorPlanLoadsPanel extends Disposable {
 		c.valueRow = form.lastElementChild as HTMLElement;
 		this.select(form, store, localize('loads.case', "Load case"), LOAD_CASES.map(c => c.label), caseIndex, index => caseIndex = index);
 		const onlyHere = this.familyCheckbox(form, store, context, context.story);
-		c.result = propertyNote(form, '');
+		c.result = appendPropertyNote(form, '');
 		refresh();
 		const links = append(form, $('.sa-props-links'));
 		propertyLink(links, localize('loads.add', "Add"), apply, store);
@@ -938,7 +940,7 @@ export class FloorPlanLoadsPanel extends Disposable {
 
 	private renderPointForm(section: HTMLElement, store: DisposableStore, context: ILoadsPanelContext, loads: IMemberLoads, member: { readonly group: MemberGroup; readonly id: string }): void {
 		const onBeam = member.group === 'beams';
-		propertyHeading(section, onBeam ? localize('loads.pointLoadOnBeam', "Point Load on {0}", member.id) : localize('loads.pointLoadAtJoint', "Point Load at {0}'s Joint", member.id));
+		appendPropertyHeading(section, onBeam ? localize('loads.pointLoadOnBeam', "Point Load on {0}", member.id) : localize('loads.pointLoadAtJoint', "Point Load at {0}'s Joint", member.id));
 		const form = append(section, $('.floor-plan-loads-form'));
 		const ends = onBeam ? beamEnds(context.layout, member.id) : undefined;
 		const length = ends ? Math.round(Math.hypot(ends[1][0] - ends[0][0], ends[1][1] - ends[0][1])) : 0;
@@ -980,12 +982,12 @@ export class FloorPlanLoadsPanel extends Disposable {
 		const onStory = context.story ? new Set(loadsOnStory(loads, context.layout, context.story).map(s => s.load.id)) : new Set<string>();
 		const shown = this.showAll ? rows : rows.filter(r => onStory.has(r.id));
 		const total = shown.reduce((sum, r) => sum + (r.total ?? 0), 0);
-		propertyHeading(section, localize('loads.listHeading', "Loads"), this.showAll
+		appendPropertyHeading(section, localize('loads.listHeading', "Loads"), this.showAll
 			? localize('loads.listAll', "{0} in the project", rows.length)
 			: localize('loads.listStory', "{0} on this story, {1} in all", shown.length, rows.length));
 		if (problem) {
-			propertyRow(section, LOADS_FILE, problem, true);
-			propertyNote(section, localize('loads.readOnly', "Loads cannot be added or changed here until {0} is fixed, so that none of its loads are lost.", LOADS_FILE));
+			appendPropertyRow(section, LOADS_FILE, problem, true);
+			appendPropertyNote(section, localize('loads.readOnly', "Loads cannot be added or changed here until {0} is fixed, so that none of its loads are lost.", LOADS_FILE));
 		}
 		const toggle = append(section, $('.sa-props-links'));
 		propertyLink(toggle, this.showAll ? localize('loads.showStory', "Show This Story's") : localize('loads.showAll', "Show All Stories"), () => {
@@ -993,7 +995,7 @@ export class FloorPlanLoadsPanel extends Disposable {
 			context.rerender();
 		}, store);
 		if (!shown.length) {
-			propertyNote(section, localize('loads.none', "No line or point loads here. Select beams and choose Line Load..., or a beam or column and Point Load..."));
+			appendPropertyNote(section, localize('loads.none', "No line or point loads here. Select beams and choose Line Load..., or a beam or column and Point Load..."));
 			return;
 		}
 		const table = append(section, $('table.floor-plan-loads-table'));
@@ -1053,6 +1055,6 @@ export class FloorPlanLoadsPanel extends Disposable {
 			const source = wall ? localize('loads.wallSourceValue', "{0} = {1}", row.source, row.valueLabel) : row.source;
 			append(append(body, $('tr.detail')), $('td.source', { colSpan: 4 }, localize('loads.detail', "{0} · {1}, {2} · {3}", row.id, story, kind, source)));
 		}
-		propertyNote(section, localize('loads.totalNote', "Total {0} kN on the stories listed (each typical-floor load counted on every story it is on). Loads go to the analysis as their load case; walls are superimposed dead load by default.", round(total, 1)));
+		appendPropertyNote(section, localize('loads.totalNote', "Total {0} kN on the stories listed (each typical-floor load counted on every story it is on). Loads go to the analysis as their load case; walls are superimposed dead load by default.", round(total, 1)));
 	}
 }
