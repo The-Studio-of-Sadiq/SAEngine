@@ -263,6 +263,7 @@ import './contrib/saengineMep/browser/saengineMep.contribution.js';
 import './contrib/saengineReport/browser/saengineReport.contribution.js';
 import './contrib/saengineModel/browser/saengineModel.contribution.js';
 import './contrib/saengineFem/browser/saengineFem.contribution.js';
+import './contrib/saengineSaveStatus/browser/saveStatus.contribution.js';
 
 // Logs
 import './contrib/logs/common/logs.contribution.js';
