@@ -47,8 +47,9 @@ const MEP_LABELS = new Set(['name', 'service']);
  * The stamp an analysis model records for the MEP file `text` (key `mep`): of what the model
  * takes from it (its contents setting, equipment, openings and shafts, without the items' names
  * and service labels, and the plumbing's overhead tanks as `plumbingTanks`, the HVAC plant as
- * `hvacPlant` and the electrical equipment as `electricalEquipment` (with the supply's
- * `transformerType`) when there are any),
+ * `hvacPlant`, the electrical equipment as `electricalEquipment` (with the supply's
+ * `transformerType`), the fire pumps as `firePumps` (with the supply's `standby` as
+ * `fireStandby`) and the overhead fire tanks as `fireTanks` when there are any),
  * so editing an IFC model's entry or a label leaves the model current. The
  * Python side (`saengine.fem.derive.mep_stamp`) computes the same; a text that is not a JSON
  * object gets the stamp of its text.
@@ -96,6 +97,21 @@ export function mepModelStamp(text: string): string {
 		if (supply && Object.prototype.hasOwnProperty.call(supply, 'transformerType')) {
 			content.transformerType = supply.transformerType;
 		}
+	}
+	// The fire pumps and the overhead fire tanks load the model too.
+	const fire = section(source.fire);
+	const pumps = fire?.pumps;
+	if (Array.isArray(pumps) && pumps.length) {
+		content.firePumps = unlabelled(pumps);
+		const supply = section(fire?.supply);
+		if (supply && Object.prototype.hasOwnProperty.call(supply, 'standby')) {
+			content.fireStandby = supply.standby;
+		}
+	}
+	const fireTanks = fire?.tanks;
+	const fireOverhead = Array.isArray(fireTanks) ? fireTanks.filter(t => typeof t === 'object' && t !== null && !Array.isArray(t) && (t as { readonly kind?: unknown }).kind === 'overhead') : [];
+	if (fireOverhead.length) {
+		content.fireTanks = fireOverhead;
 	}
 	return sourceStamp(JSON.stringify(content));
 }

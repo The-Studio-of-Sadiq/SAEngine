@@ -35,6 +35,10 @@ export type MepSelection =
 	| { readonly kind: 'elecEquipment'; readonly index: number }
 	| { readonly kind: 'elecRiser'; readonly index: number }
 	| { readonly kind: 'tray'; readonly index: number }
+	/** The fire risers, pump sets and fire tanks (fireDocument.ts). */
+	| { readonly kind: 'fireRiser'; readonly index: number }
+	| { readonly kind: 'firePump'; readonly index: number }
+	| { readonly kind: 'fireTank'; readonly index: number }
 	| { readonly kind: 'element'; readonly id: string };
 
 /** A clash of the report drawn on the plan. */

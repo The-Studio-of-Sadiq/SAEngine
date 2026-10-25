@@ -68,10 +68,23 @@ def is_tall(plumbing: Any, building: Building) -> tuple[bool, str]:
     )
 
 
-def fire_reserve(plumbing: Any, building: Building) -> tuple[float, list[str]]:
-    """Fire-fighting reserve in each tank [m³] and how it was found."""
+def fire_reserve(plumbing: Any, building: Building, fire: Any = None) -> tuple[float, list[str]]:
+    """Fire-fighting reserve in each tank [m³] and how it was found. ``fire``: 07 MEP's fire
+    section; once it has dedicated fire tanks the plumbing tanks hold no reserve (the fire
+    report sizes that reservoir, so the water is not stored, nor weighed, twice)."""
     if plumbing.supply.fireReserve is not None:
         return float(plumbing.supply.fireReserve), ["fire reserve as entered in 07 MEP"]
+    dedicated = (
+        [t.id for t in fire.tanks if t.kind in ("overhead", "underground")]
+        if fire is not None and fire.supply.storage == "dedicated"
+        else []
+    )
+    if dedicated:
+        note = (
+            f"the fire water is in the dedicated fire tanks of 07 MEP ({', '.join(dedicated)}, "
+            "Fire): no fire reserve in the plumbing tanks"
+        )
+        return 0.0, [note]
     tall, note = is_tall(plumbing, building)
     if not tall:
         return 0.0, [note]
@@ -102,9 +115,10 @@ def fire_reserve(plumbing: Any, building: Building) -> tuple[float, list[str]]:
     return volume, notes
 
 
-def volumes(plumbing: Any, building: Building, daily: float) -> dict[str, Any]:
-    """Required volumes [m³] of the overhead tank and the underground reservoir."""
-    reserve, notes = fire_reserve(plumbing, building)
+def volumes(plumbing: Any, building: Building, daily: float, fire: Any = None) -> dict[str, Any]:
+    """Required volumes [m³] of the overhead tank and the underground reservoir (``fire``: as
+    :func:`fire_reserve`)."""
+    reserve, notes = fire_reserve(plumbing, building, fire)
     daily_m3 = daily / 1000.0
     overhead = T.ROOF_TANK_FRACTION * daily_m3 + reserve
     underground = T.RESERVOIR_FRACTION * daily_m3 + reserve

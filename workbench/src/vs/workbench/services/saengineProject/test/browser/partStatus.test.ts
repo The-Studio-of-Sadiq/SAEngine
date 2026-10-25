@@ -353,6 +353,36 @@ suite('SAEngine - PartStatus', () => {
 		});
 	});
 
+	test('MEP: the fire protection counts as content and its checks decide the status', () => {
+		const mep = JSON.stringify({
+			schema: 'saengine.mep/1', equipment: [], openings: [], shafts: [],
+			fire: { stories: [{ story: 'L1' }], pumps: [{ id: 'FP1', duty: 'main', story: 'BASE', x: 0, y: 0 }] },
+		});
+		const summaryOf = (services: { fire?: { failed: number } }) => JSON.stringify({
+			equipment: 0, openings: 0, openingsFailed: 0, clashes: 0, clashesOpen: 0, computed: '2026-10-25T00:00:00Z',
+			source: { settings: sourceStamp(SOURCES.settings), materials: sourceStamp(SOURCES.materials), objects: sourceStamp(SOURCES.objects), bim: sourceStamp(BIM), mep: sourceStamp(mep) },
+			...services,
+		});
+		const line = (summary?: string) => {
+			const s = computePartStatuses(PROJECT_PARTS, project({ mep }, summary ? { femResultsTime: 5, mepSummaryText: summary, mepSummaryTime: 20 } : {})).find(p => p.part === 'mep')!;
+			return `${s.state} ${s.text} (${s.hint ?? ''})`;
+		};
+		const fem = computePartStatuses(PROJECT_PARTS, project({ mep, fem: femModel({ bim: BIM, settings: SOURCES.settings, objects: SOURCES.objects, materials: SOURCES.materials }) })).find(p => p.part === 'fem')!;
+		assert.deepStrictEqual({
+			lines: [line(), line(summaryOf({})), line(summaryOf({ fire: { failed: 2 } })), line(summaryOf({ fire: { failed: 0 } }))],
+			// The fire pump loads the analysis model: a model derived before it was entered is stale.
+			femStale: fem.state,
+		}, {
+			lines: [
+				'inProgress not checked (check the openings and clashes)',
+				'inProgress fire not checked (open the fire results or Run All)',
+				'failed 2 fire checks fail (review the fire protection)',
+				'done services checked ()',
+			],
+			femStale: 'stale',
+		});
+	});
+
 	test('the analysis model and the bill are stale once MEP they do not record has content', () => {
 		const mep = JSON.stringify({ schema: 'saengine.mep/1', equipment: [{ id: 'EQ1' }], openings: [], shafts: [] });
 		const withMep = femModel({ bim: BIM, settings: SOURCES.settings, objects: SOURCES.objects, materials: SOURCES.materials, mep });

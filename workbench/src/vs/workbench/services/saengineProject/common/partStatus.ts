@@ -326,6 +326,17 @@ function electricalCount(document: JsonObject): number {
 	return sectionCount(document, 'electrical', ['stories', 'equipment', 'risers', 'trays']);
 }
 
+/** How many storeys, risers, mains, tanks and pumps the fire protection of an MEP file has. */
+function fireCount(document: JsonObject): number {
+	return sectionCount(document, 'fire', ['stories', 'risers', 'mains', 'tanks', 'pumps']);
+}
+
+/** Whether the fire protection of an MEP file has an overhead fire tank (it loads the model). */
+function hasOverheadFireTank(document: JsonObject): boolean {
+	const tanks = mepSection(document, 'fire')?.tanks;
+	return Array.isArray(tanks) && tanks.some(t => typeof t === 'object' && t !== null && (t as JsonObject).kind === 'overhead');
+}
+
 /** Whether a member loads file `text` (`05 Floor Plan/loads.json`) has a load; an unreadable file counts (deriving reports it). */
 export function loadsHaveContent(text: string | undefined): boolean {
 	if (!text || !text.trim()) {
@@ -339,11 +350,12 @@ export function loadsHaveContent(text: string | undefined): boolean {
 	}
 }
 
-/** Whether 7 MEP has anything for the analysis model or the bill: equipment, openings, shafts, an overhead plumbing tank, HVAC plant or electrical equipment. */
+/** Whether 7 MEP has anything for the analysis model or the bill: equipment, openings, shafts, an overhead plumbing tank, HVAC plant, electrical equipment, fire pumps or an overhead fire tank. */
 function mepHasContent(inputs: IPartStatusInputs): boolean {
 	const document = mepDocument(inputs);
 	return !!document && (['equipment', 'openings', 'shafts'].some(key => Array.isArray(document[key]) && (document[key] as unknown[]).length > 0) || hasOverheadTank(document)
-		|| sectionCount(document, 'hvac', ['plant']) > 0 || sectionCount(document, 'electrical', ['equipment']) > 0);
+		|| sectionCount(document, 'hvac', ['plant']) > 0 || sectionCount(document, 'electrical', ['equipment']) > 0
+		|| sectionCount(document, 'fire', ['pumps']) > 0 || hasOverheadFireTank(document));
 }
 
 /** How many storeys, risers, tanks and roof drains the plumbing of an MEP file has. */
@@ -385,6 +397,8 @@ interface IMepSummary {
 	readonly hvac?: IServiceSummary;
 	/** The electrical checks (supply, rooms, risers, trays, lightning), when the file has them and they ran. */
 	readonly electrical?: IServiceSummary;
+	/** The fire protection checks (BNBC Part 4 systems, water, pumps, sleeves), when the file has them and they ran. */
+	readonly fire?: IServiceSummary;
 }
 
 /** The HVAC or electrical checks' part of the MEP summary (the MEP editor and Run All write it). */
@@ -414,7 +428,8 @@ function mepStatus(inputs: IPartStatusInputs): IPartStatus {
 	const plumbingItems = plumbingCount(value);
 	const hvacItems = hvacCount(value);
 	const electricalItems = electricalCount(value);
-	if (!count('equipment') && !count('openings') && !count('shafts') && !count('ifcModels') && !plumbingItems && !hvacItems && !electricalItems) {
+	const fireItems = fireCount(value);
+	if (!count('equipment') && !count('openings') && !count('shafts') && !count('ifcModels') && !plumbingItems && !hvacItems && !electricalItems && !fireItems) {
 		return status('mep', 'notStarted', NOT_STARTED(), startHint('mep'));
 	}
 	const parsed = inputs.mepSummaryText !== undefined ? parse(inputs.mepSummaryText) : undefined;
@@ -430,18 +445,20 @@ function mepStatus(inputs: IPartStatusInputs): IPartStatus {
 	// The plumbing results also read the soil report (soak well, flotation, bearing, ground tanks):
 	// once it has changed they are stale.
 	const plumbing = recorded && (typeof recorded.source !== 'object' || recorded.source === null || sourcesUnchanged(inputs.texts, recorded.source)) ? recorded : undefined;
-	const service = (key: 'hvac' | 'electrical') => {
+	const service = (key: 'hvac' | 'electrical' | 'fire') => {
 		const recorded = summary[key];
 		return typeof recorded === 'object' && recorded !== null && typeof recorded.failed === 'number' ? recorded : undefined;
 	};
 	const hvac = service('hvac');
 	const electrical = service('electrical');
+	const fire = service('fire');
 	// Every discipline with failing checks, so one does not hide another.
 	const failing = [
 		{ failed: summary.openingsFailed, label: () => summary.openingsFailed === 1 ? localize('partStatus.mep.oneFail', "1 opening fails") : localize('partStatus.mep.fail', "{0} openings fail", summary.openingsFailed), hint: () => localize('partStatus.mep.review', "review the failing openings"), name: () => localize('partStatus.mep.openingsName', "openings {0}", summary.openingsFailed) },
 		{ failed: plumbing?.failed ?? 0, label: () => plumbing?.failed === 1 ? localize('partStatus.mep.plumbingOneFail', "1 plumbing check fails") : localize('partStatus.mep.plumbingFail', "{0} plumbing checks fail", plumbing?.failed), hint: () => localize('partStatus.mep.plumbingReview', "review the plumbing"), name: () => localize('partStatus.mep.plumbingName', "plumbing {0}", plumbing?.failed) },
 		{ failed: hvac?.failed ?? 0, label: () => hvac?.failed === 1 ? localize('partStatus.mep.hvacOneFail', "1 HVAC check fails") : localize('partStatus.mep.hvacFail', "{0} HVAC checks fail", hvac?.failed), hint: () => localize('partStatus.mep.hvacReview', "review the ducts' openings and the plant"), name: () => localize('partStatus.mep.hvacName', "HVAC {0}", hvac?.failed) },
 		{ failed: electrical?.failed ?? 0, label: () => electrical?.failed === 1 ? localize('partStatus.mep.electricalOneFail', "1 electrical check fails") : localize('partStatus.mep.electricalFail', "{0} electrical checks fail", electrical?.failed), hint: () => localize('partStatus.mep.electricalReview', "review the electrical services"), name: () => localize('partStatus.mep.electricalName', "electrical {0}", electrical?.failed) },
+		{ failed: fire?.failed ?? 0, label: () => fire?.failed === 1 ? localize('partStatus.mep.fireOneFail', "1 fire check fails") : localize('partStatus.mep.fireFail', "{0} fire checks fail", fire?.failed), hint: () => localize('partStatus.mep.fireReview', "review the fire protection"), name: () => localize('partStatus.mep.fireName', "fire {0}", fire?.failed) },
 	].filter(item => item.failed > 0);
 	if (failing.length === 1) {
 		return status('mep', 'failed', failing[0].label(), failing[0].hint());
@@ -462,6 +479,9 @@ function mepStatus(inputs: IPartStatusInputs): IPartStatus {
 	if (electricalItems && !electrical) {
 		return status('mep', 'inProgress', localize('partStatus.mep.electricalNotChecked', "electrical not checked"), localize('partStatus.mep.checkElectrical', "open the electrical results or Run All"));
 	}
+	if (fireItems && !fire) {
+		return status('mep', 'inProgress', localize('partStatus.mep.fireNotChecked', "fire not checked"), localize('partStatus.mep.checkFire', "open the fire results or Run All"));
+	}
 	if (summary.clashesOpen > 0) {
 		return status('mep', 'inProgress', summary.clashesOpen === 1 ? localize('partStatus.mep.oneClash', "1 clash") : localize('partStatus.mep.clashes', "{0} clashes", summary.clashesOpen), localize('partStatus.mep.coordinate', "coordinate the clashes"));
 	}
@@ -471,7 +491,7 @@ function mepStatus(inputs: IPartStatusInputs): IPartStatus {
 		return status('mep', 'inProgress', partial === 1 ? localize('partStatus.mep.onePartial', "1 opening not fully checked") : localize('partStatus.mep.partial', "{0} openings not fully checked", partial), localize('partStatus.mep.analyse', "run the analysis to check the openings' strength"));
 	}
 	const equipment = count('equipment');
-	if (!equipment && (hvac || electrical)) {
+	if (!equipment && (hvac || electrical || fire)) {
 		return status('mep', 'done', localize('partStatus.mep.servicesChecked', "services checked"));
 	}
 	if (!equipment && plumbing) {

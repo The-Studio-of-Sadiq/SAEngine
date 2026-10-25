@@ -1255,12 +1255,55 @@ def electrical_uses() -> dict[str, Any]:
     }  # fmt: skip
 
 
+def fire_report(project_root: str, mep_text: str | None = None) -> dict[str, Any]:
+    """The fire protection report of 7 MEP (``saengine.fire.report.fire_report``: the systems
+    BNBC 2020 Part 4 requires, sprinklers, hydraulics, water, pumps, the fire tanks' designs,
+    missing sleeves), JSON-safe; never raises."""
+    from saengine.fire.report import fire_report as report
+
+    try:
+        return report(project_root, mep_text)
+    except Exception as error:  # noqa: BLE001
+        return {"problems": [f"the fire report failed: {_first_line(error)}"]}
+
+
+def fire_propose(project_root: str, mep_text: str | None = None) -> dict[str, Any]:
+    """The fire tanks and pumps SAEngine proposes (07 MEP ``fire.tanks`` and ``fire.pumps``,
+    ``sized``): ``{tanks, pumps, notes}`` or ``{problems}``."""
+    from saengine.fire.report import fire_report as report
+
+    try:
+        result = report(project_root, mep_text, designs=False)
+    except Exception as error:  # noqa: BLE001
+        return {"problems": [f"the fire report failed: {_first_line(error)}"]}
+    if "proposals" not in result:
+        return {"problems": result.get("problems") or ["no fire report"]}
+    storage = result.get("storage") or {}
+    return {**result["proposals"], "notes": storage.get("notes", [])}
+
+
+def fire_openings(project_root: str, mep_text: str | None = None) -> dict[str, Any]:
+    """The sleeves the fire risers and mains still need (07 MEP openings no opening of 07 MEP
+    already gives): ``{openings, notes}`` or ``{problems}``."""
+    from saengine.fire.report import fire_report as report
+
+    try:
+        result = report(project_root, mep_text, designs=False)
+    except Exception as error:  # noqa: BLE001
+        return {"problems": [f"the fire report failed: {_first_line(error)}"]}
+    if "openings" not in result:
+        return {"problems": result.get("problems") or ["no fire report"]}
+    notes = [n for n in result.get("notes", []) if isinstance(n, str) and "sleeve" in n]
+    return {"openings": result["openings"], "notes": notes}
+
+
 def warm_services() -> None:
-    """Imports the HVAC and electrical modules ahead of the editor's first report."""
+    """Imports the HVAC, electrical and fire modules ahead of the editor's first report."""
     import contextlib
 
     with contextlib.suppress(Exception):
         import saengine.electrical.report
+        import saengine.fire.report
         import saengine.hvac.air
         import saengine.hvac.report  # noqa: F401
 

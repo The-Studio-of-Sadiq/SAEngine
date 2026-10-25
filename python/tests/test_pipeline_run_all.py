@@ -89,10 +89,14 @@ def test_the_summaries_are_the_apps_with_current_stamps(ran):
         assert stamp == ("" if text is None else source_stamp(text)), part
     mep = json.loads((root / "07 MEP/mep.results/summary.json").read_text(encoding="utf-8"))
     assert list(mep) == ["equipment", "openings", "openingsFailed", "openingsPartial", "clashes",
-                         "clashesOpen", "computed", "source", "plumbing", "hvac", "electrical"]  # fmt: skip
+                         "clashesOpen", "computed", "source", "plumbing", "hvac", "electrical",
+                         "fire"]  # fmt: skip
     assert list(mep["plumbing"]) == ["risers", "tanks", "failed", "floorsLow", "source"]
     assert list(mep["hvac"]) == ["plant", "ducts", "cooling", "engine", "failed"]
     assert list(mep["electrical"]) == ["equipment", "risers", "demand", "downConductors", "failed"]
+    # the sample's fire section: extinguishers only (Sec 5.7(i)), no water systems, nothing fails
+    assert mep["fire"] == {"risers": 0, "pumps": 0, "tanks": 0, "required": ["extinguishers"],
+                           "openingsToAdd": 0, "failed": 0}  # fmt: skip
     assert mep["hvac"]["engine"] == "estimate"
     assert mep["source"]["mep"] == source_stamp(project.text("mep"))
     model = json.loads(project.text("fem"))
