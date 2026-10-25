@@ -93,6 +93,10 @@ ACI_FACTORS = {
 DEFAULT_PDELTA_FACTORS = {"D": 1.2, "SD": 1.2, "F": 1.2, "L": 1.0}
 #: The lateral cases (their first-order references are ``<code>-1``).
 LATERAL_CASES = ("WX", "WY", "EX", "EY")
+#: Every static lateral case that takes the cracked "lateral" sections: the four above plus the
+#: accidental-eccentricity cases (saengine.fem.derive.ECCENTRIC_CASES) and the wind torsion cases
+#: (saengine.fem.loads.WIND_TORSION_CASES). Leaving these out solved them on gross sections.
+CRACKED_LATERAL_CASES = (*LATERAL_CASES, "EXP", "EXN", "EYP", "EYN", "WTX", "WTY")
 PRELOAD_CODE = "PDelta"
 THERMAL_CODE = "T"  # saengine.fem.thermal.CASE
 REFERENCE_SUFFIX = "-1"
@@ -359,7 +363,7 @@ def apply_second_order(
     def is_lateral(analysis: dict[str, Any]) -> bool:
         code = _code(analysis.get("name", ""))
         code = code.removesuffix(REFERENCE_SUFFIX)
-        return code in LATERAL_CASES or analysis.get("type") in (
+        return code in CRACKED_LATERAL_CASES or analysis.get("type") in (
             "Modal",
             "ResponseSpectrum",
             "Transient",

@@ -989,6 +989,9 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
     height_m = sum(st.height for st in stories) / 1000
     system_id, walls_needed, system_notes = _system(s.system, sdc, height_m)
     patch["seismic"] = {"system": system_id}
+    if s.system == "flatSlab":
+        # A flat slab has no beams to take its loads: it must be in the analysis as shells.
+        patch["analysis"] = {"slabs": "shells"}
     settings_json = _deep_merge(base_json, patch)
     final = ProjectSettings.model_validate(settings_json)
     special = sdc == "D" or system_id in ("rcSmf", "rcDualSpecial")
