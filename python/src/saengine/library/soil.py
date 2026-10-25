@@ -38,6 +38,12 @@ from saengine.library.labels import field_title
 
 SCHEMA_ID = "saengine.soilReport/1"
 
+
+def _m(mm: float) -> str:
+    """A depth [mm] in metres for a message ("12.5 m"): engineers read logs in metres."""
+    return f"{round(mm / 1000, 3):g} m"
+
+
 #: Two depths closer than this are the same depth [mm].
 TOLERANCE = 1.0
 
@@ -134,7 +140,7 @@ class Layer(_Model):
     @model_validator(mode="after")
     def _depths(self) -> Layer:
         if self.bottom <= self.top:
-            raise ValueError(f"bottom {self.bottom:g} mm must be below the top {self.top:g} mm")
+            raise ValueError(f"bottom {_m(self.bottom)} must be below the top {_m(self.top)}")
         return self
 
 
@@ -324,7 +330,7 @@ class SptRecord(_Model):
             found.append(self.mismatch)
         if self.depthTo is not None and self.depthTo < self.depth:
             found.append(
-                f"depth to {self.depthTo:g} mm is above the depth {self.depth:g} mm; it is ignored"
+                f"depth to {_m(self.depthTo)} is above the depth {_m(self.depth)}; it is ignored"
             )
         return found
 
@@ -580,7 +586,7 @@ class Sample(_Model):
         found = []
         if self.depthTo is not None and self.depthTo < self.depth:
             found.append(
-                f"depth to {self.depthTo:g} mm is above the depth {self.depth:g} mm; it is ignored"
+                f"depth to {_m(self.depthTo)} is above the depth {_m(self.depth)}; it is ignored"
             )
         if self.grainSize is not None and self.grainSize.problem is not None:
             found.append(self.grainSize.problem)
@@ -723,36 +729,36 @@ class Borehole(_Model):
         for i, (upper, lower) in enumerate(zip(self.layers, self.layers[1:], strict=False)):
             if lower.top < upper.bottom - TOLERANCE:
                 problems.append(
-                    f"layers {i + 1} and {i + 2} overlap ({lower.top:g} mm is above "
-                    f"{upper.bottom:g} mm); list the layers from the top down"
+                    f"layers {i + 1} and {i + 2} overlap ({_m(lower.top)} is above "
+                    f"{_m(upper.bottom)}); list the layers from the top down"
                 )
             elif lower.top > upper.bottom + TOLERANCE:
                 problems.append(
-                    f"gap between layers {i + 1} and {i + 2} ({upper.bottom:g} to "
-                    f"{lower.top:g} mm); the layers must be contiguous"
+                    f"gap between layers {i + 1} and {i + 2} ({_m(upper.bottom)} to "
+                    f"{_m(lower.top)}); the layers must be contiguous"
                 )
         if self.position == "wgs84" and (self.lat is None or self.lon is None):
             problems.append("a position in latitude/longitude needs both")
         if self.position == "btm" and (self.easting is None or self.northing is None):
             problems.append("a position in BTM needs the easting and the northing")
         if self.layers and self.layers[0].top > TOLERANCE:
-            problems.append(f"the first layer starts at {self.layers[0].top:g} mm, not at 0")
+            problems.append(f"the first layer starts at {_m(self.layers[0].top)}, not at 0 m")
         if (
             self.layers
             and self.depth is not None
             and self.layers[-1].bottom > self.depth + TOLERANCE
         ):
             problems.append(
-                f"the layers go down to {self.layers[-1].bottom:g} mm, below the "
-                f"termination depth {self.depth:g} mm"
+                f"the layers go down to {_m(self.layers[-1].bottom)}, below the "
+                f"termination depth {_m(self.depth)}"
             )
         bottom = self.bottom
         for kind, records in (("SPT", self.spt), ("sample", self.samples)):
             for record in records:
                 if record.depth > bottom + TOLERANCE:
                     problems.append(
-                        f"{kind} at {record.depth:g} mm is below the bottom of the borehole "
-                        f"({bottom:g} mm)"
+                        f"{kind} at {_m(record.depth)} is below the bottom of the borehole "
+                        f"({_m(bottom)})"
                     )
         depths = [r.depth for r in self.spt]
         if depths != sorted(depths):
@@ -976,7 +982,7 @@ def check(report: SoilReport) -> list[str]:
             )
         for record in borehole.spt:
             for issue in record.issues:
-                problems.append(f"{borehole.id}: SPT at {record.depth:g} mm: {issue}")
+                problems.append(f"{borehole.id}: SPT at {_m(record.depth)}: {issue}")
         for i, sample in enumerate(borehole.samples):
             name = sample.number or f"sample {i + 1}"
             for issue in sample.issues:

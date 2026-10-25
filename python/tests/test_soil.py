@@ -3,6 +3,7 @@ and, where they are installed, the independent implementations in geofound and l
 
 from __future__ import annotations
 
+import itertools
 import json
 import math
 
@@ -13,6 +14,7 @@ from saengine.library.export import json_schema
 from saengine.library.settings import default_project_settings
 from saengine.library.soil import SoilReport, is_placeholder
 from saengine.soil import allowable_bearing, bearing, liquefaction, piles, site_class, soil_report
+from saengine.soil import report as report_module
 from saengine.soil.profile import GAMMA_W, PA, Profile, rod_factor
 from saengine.soil.settlement import (
     influence_depth,
@@ -313,7 +315,7 @@ def test_bearing_water_table_and_net_value() -> None:
     assert r["qa"] == pytest.approx((hand - q_eff) / 3)
 
 
-def test_weakest_layer_within_b_governs() -> None:
+def test_weaker_layer_below_governs_by_load_spread() -> None:
     hole = {
         "id": "BH",
         "layers": [
@@ -321,9 +323,68 @@ def test_weakest_layer_within_b_governs() -> None:
             {"top": 2000, "bottom": 10000, "soilType": "clay", "cu": 30},
         ],
     }
+    p = profile(hole)
+    r = bearing.shear(p, 2.0, 2.0, 1.0, 3.0)
+    assert r["mode"] == "layered" and r["layer"] == 1 and r["method"] == "2:1 load spread"
+    # By hand: a 3 m × 3 m equivalent footing on the clay's top (H = 1 m), undrained, no depth
+    # factor: qb - q2 = cu 5.14 (1 + 0.2 B/L), spread over (3 × 3)/(2 × 2).
+    q1 = p.sigma_v_eff(1.0)
+    net = 30 * 5.14 * (1 + 1 / 5.14) * 9 / 4
+    assert r["qu"] == pytest.approx(q1 + net)
+    assert r["qa"] == pytest.approx(net / 3)
+
+
+def test_clay_over_softer_clay_by_brown_and_meyerhof() -> None:
+    hole = {
+        "id": "BH",
+        "layers": [
+            {"top": 0, "bottom": 2000, "soilType": "clay", "cu": 60},
+            {"top": 2000, "bottom": 10000, "soilType": "clay", "cu": 15},
+        ],
+    }
+    p = profile(hole)
+    r = bearing.shear(p, 2.0, 2.0, 1.0, 3.0)
+    assert r["mode"] == "layered" and r["method"] == "Brown & Meyerhof 1969"
+    # Square, H/B = 0.5: Nc = 3 × 0.5 + 6.05 × 0.25 = 3.0125 of 6.05 for one clay.
+    assert bearing.two_clay_nc(60, 15, 2, 2, 1) == pytest.approx(3.0125)
+    own = 60 * 5.14 * (1 + 1 / 5.14) * (1 + 0.4 * 0.5)
+    assert r["qa"] == pytest.approx(own * 3.0125 / 6.05 / 3)
+    # Deep enough (3 H/B + 6.05 c2/c1 ≥ 6.05): the stiff clay's own value.
+    assert bearing.shear(p, 0.6, 0.6, 1.0, 3.0)["layer"] == 0
+
+
+def test_soft_clay_below_a_crust_lowers_qa_smoothly() -> None:
+    # S3: a 2.5 m crust (cu 60) over very soft clay (cu 12). The soft clay was missed while it
+    # lay deeper than B and then counted as if the footing stood on it (90 -> 19 kPa).
+    hole = {
+        "id": "BH",
+        "waterTable": 1500,
+        "layers": [
+            {"top": 0, "bottom": 2500, "soilType": "clay", "cu": 60, "unitWeight": 18},
+            {"top": 2500, "bottom": 30000, "soilType": "clay", "cu": 12, "unitWeight": 16},
+        ],
+    }
+    p = profile(hole)
+    widths = [0.3 + 0.1 * i for i in range(58)]
+    values = [bearing.shear(p, b, b, 1.0, 3.0)["qa"] for b in widths]
+    steps = [a / b for a, b in itertools.pairwise(values)]
+    assert max(steps) < 1.15 and min(steps) > 0.97  # no jump either way
+    assert values[-1] < values[0] / 3
+    # Never below the soft clay's own value at its top.
+    clay = bearing.ultimate(12, 0, p.sigma_v_eff(2.5), 16, 6.0, 6.0, 0.0)["qu"]
+    assert values[-1] > (clay - p.sigma_v_eff(2.5)) / 3
+
+
+def test_strong_layer_below_does_not_raise_qa() -> None:
+    hole = {
+        "id": "BH",
+        "layers": [
+            {"top": 0, "bottom": 2000, "soilType": "clay", "cu": 30},
+            {"top": 2000, "bottom": 10000, "soilType": "sand", "phi": 38},
+        ],
+    }
     r = bearing.shear(profile(hole), 2.0, 2.0, 1.0, 3.0)
-    assert r["mode"] == "undrained" and r["layer"] == 1
-    assert r["qa"] == pytest.approx(30 * 5.14 * (1 + 1 / 5.14) * (1 + 0.4 * 0.5) / 3)
+    assert r["mode"] == "undrained" and r["layer"] == 0
 
 
 def test_unknown_layer_under_the_base_withholds_qa() -> None:
@@ -341,6 +402,16 @@ def test_unknown_layer_under_the_base_withholds_qa() -> None:
     assert any("layer 2 (fill): no strength" in n and "no qa" in n for n in r["notes"])
     # Founded below the unknown fill: the sand governs.
     assert bearing.allowable(profile(hole), 2.0, 2.0, 2.5)["qa"] is not None
+    # The unknown layer counts within 2B below the base (BNBC Sec 3.4.2.3(a)), not beyond.
+    deep = {
+        "id": "BH",
+        "layers": [
+            {"top": 0, "bottom": 3000, "soilType": "sand", "phi": 32},
+            {"top": 3000, "bottom": 20000, "soilType": "fill", "unitWeight": 16},
+        ],
+    }
+    assert bearing.shear(profile(deep), 0.9, 0.9, 1.0, 3.0)["qa"] is not None  # H 2.0 > 1.8
+    assert bearing.shear(profile(deep), 1.1, 1.1, 1.0, 3.0)["qa"] is None  # H 2.0 < 2.2
 
 
 def test_meyerhof_bowles() -> None:
@@ -567,6 +638,20 @@ def test_liquefaction_screening_and_lpi() -> None:
     hand = (1 - loose["fs"]) * (10 * 3 - 0.25 * (7.5**2 - 4.5**2))
     assert result["lpi"] == pytest.approx(hand, rel=0.01)
     assert result["layers"][0]["soilType"] == "sand"
+    # S10: the range is the failing test's share (4.5 to 7.5 m), not the whole 4-20 m layer.
+    assert (result["layers"][0]["top"], result["layers"][0]["bottom"]) == (4500, 7500)
+
+
+def test_liquefiable_range_stops_at_the_screening_depth() -> None:
+    hole = {
+        "id": "BH",
+        "waterTable": 1000,
+        "layers": [{"top": 0, "bottom": 30000, "soilType": "sand", "finesContent": 5}],
+        "spt": [{"depth": d, "N": 5} for d in range(1500, 30001, 1500)],
+    }
+    result = liquefaction.screen(profile(hole), 0.3, "amax = 0.3 g")
+    (only,) = result["layers"]
+    assert only["top"] == 1000 and only["bottom"] == 20000
 
 
 def test_mean_n_fines_correction_and_iteration() -> None:
@@ -677,6 +762,36 @@ def test_soil_report_shape() -> None:
     assert set(first["pile"][0]) >= {"top", "bottom", "fs", "qb"}
     assert result["siteClass"]["class"] == "SD" and result["siteClass"]["governing"] == "BH-3"
     json.dumps(result)  # JSON-ready
+
+
+def test_one_bad_borehole_leaves_the_others_computed(monkeypatch: pytest.MonkeyPatch) -> None:
+    # S4: an invalid borehole, a repeated id or a failing computation used to blank them all.
+    data = json.loads(_two_boreholes())
+    data["boreholes"][1]["layers"] = [sand(top=0, bottom=5000), sand(top=4000, bottom=15000)]
+    data["boreholes"].append({**data["boreholes"][0]})
+    result = soil_report(json.dumps(data), None)
+    assert [b["id"] for b in result["boreholes"]] == ["BH-1", "BH-3"]
+    assert result["skipped"] == ["BH-2", "BH-1"]
+    assert any(
+        p.startswith("Soil report: BH-2") and "(4 m is above 5 m)" in p for p in result["warnings"]
+    )
+    assert "Soil report: two boreholes are called BH-1" in result["warnings"]
+
+    real = report_module._borehole
+
+    def failing(profile: Profile, *args: object) -> dict:
+        if profile.id == "BH-3":
+            raise ZeroDivisionError("float division by zero")
+        return real(profile, *args)
+
+    monkeypatch.setattr(report_module, "_borehole", failing)
+    result = soil_report(_two_boreholes(), None)
+    assert [b["id"] for b in result["boreholes"]] == ["BH-1", "BH-2"]
+    assert result["skipped"] == ["BH-3"]
+    assert result["warnings"] == [
+        "BH-3: its results could not be computed (ZeroDivisionError: float division by zero)"
+    ]
+    assert result["details"][0].startswith("BH-3:\nTraceback")
 
 
 def test_allowable_bearing_uses_the_lowest_nearby_borehole() -> None:

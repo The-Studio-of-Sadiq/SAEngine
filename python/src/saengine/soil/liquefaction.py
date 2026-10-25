@@ -372,7 +372,8 @@ def screen(profile: Profile, amax: float | None, amax_note: str) -> dict[str, An
     points: list[dict[str, Any]] = []
     tests = profile.spt
     lpi = 0.0
-    liquefiable_layers: set[int] = set()
+    # The depth ranges of the liquefiable tests (layer index, top, bottom) [m].
+    ranges: list[tuple[int, float, float]] = []
     clay_seen = False
     for i, test in enumerate(tests):
         layer = test.layer
@@ -438,8 +439,8 @@ def screen(profile: Profile, amax: float | None, amax_note: str) -> dict[str, An
         bottom = min(bottom, layer.bottom, profile.bottom, DEPTH_LIMIT)
         if fs < 1.0 and bottom > top:
             lpi += (1 - fs) * _w_integral(top, bottom)
-        if liquefiable:
-            liquefiable_layers.add(layer.index)
+        if liquefiable and bottom > top:
+            ranges.append((layer.index, top, bottom))
 
         def r(key: str, digits: int = 3, values: dict[str, Any] = values) -> float | None:
             value = values.get(key)
@@ -478,19 +479,27 @@ def screen(profile: Profile, amax: float | None, amax_note: str) -> dict[str, An
         + "); fine-grained soil by Finn et al. 1994 where the laboratory data exist."
     )
     notes += flagged
+    # The liquefiable ranges: the failing tests' shares, within their layers, below the water
+    # table and above 20 m; touching shares of one layer make one range.
+    merged: list[list[Any]] = []
+    for index, top, bottom in ranges:
+        if merged and merged[-1][0] == index and top <= merged[-1][2] + 1e-6:
+            merged[-1][2] = max(merged[-1][2], bottom)
+        else:
+            merged.append([index, top, bottom])
     layers = [
         {
             "layer": index,
-            "top": round(profile.layers[index].top * 1e3),
-            "bottom": round(profile.layers[index].bottom * 1e3),
+            "top": round(top * 1e3),
+            "bottom": round(bottom * 1e3),
             "soilType": profile.layers[index].soil_type,
         }
-        for index in sorted(liquefiable_layers)
+        for index, top, bottom in merged
     ]
     category = lpi_category(lpi)
     limit = "FS < 1" if bnbc_method else "FS ≤ 1"
     summary = (
-        f"{len(layers)} liquefiable layer(s) ({limit}); LPI = {lpi:.1f} ({category} risk, "
+        f"{len(layers)} liquefiable range(s) ({limit}); LPI = {lpi:.1f} ({category} risk, "
         "Iwasaki 1982)"
         if layers
         else f"No liquefiable test; LPI = {lpi:.1f}"
