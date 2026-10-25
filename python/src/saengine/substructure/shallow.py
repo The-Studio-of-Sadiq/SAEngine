@@ -710,22 +710,6 @@ def design_footing(
                 utilisation=MIN_CONTACT / max(share, 1e-6),
             )
         )
-    if lifted is not None:
-        share, name = lifted
-        checks.append(
-            _check(
-                "Full contact under gravity (service)",
-                share * 100,
-                100.0,
-                "%",
-                name,
-                f"under gravity alone only {share:.0%} of the base presses on the soil (the "
-                "resultant lies outside the kern): the footing tilts under its sustained load. "
-                "Reported only; the sizing assistant keeps the whole base in contact under gravity",
-                flag=True,
-                utilisation=1.0 / max(share, 1e-6),
-            )
-        )
     if uplift is not None:
         force, name = uplift
         checks.append(
@@ -1045,6 +1029,23 @@ def design_footing(
                 "mm²/m",
                 None,
                 note,
+            )
+        )
+    # Reported only, after the checks that count.
+    if lifted is not None:
+        share, name = lifted
+        checks.append(
+            _check(
+                "Full contact under gravity (service)",
+                share * 100,
+                100.0,
+                "%",
+                name,
+                f"under gravity alone only {share:.0%} of the base presses on the soil (the "
+                "resultant lies outside the kern): the footing tilts under its sustained load. "
+                "Reported only; the sizing assistant keeps the whole base in contact under gravity",
+                flag=True,
+                utilisation=1.0 / max(share, 1e-6),
             )
         )
     return checks, notes
