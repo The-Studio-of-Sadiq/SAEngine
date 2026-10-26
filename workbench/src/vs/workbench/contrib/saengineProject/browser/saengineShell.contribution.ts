@@ -35,6 +35,7 @@ import { ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ActiveViewletContext } from '../../../common/contextkeys.js';
 import { Extensions as ViewExtensions, IViewContainersRegistry, IViewsRegistry } from '../../../common/views.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { PROJECT_PARTS, STRUCTURE_PART } from '../../../services/saengineProject/common/saengineProject.js';
 import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
@@ -343,12 +344,15 @@ async function openManual(accessor: ServicesAccessor, chapter?: string): Promise
 	const commandService = accessor.get(ICommandService);
 	const openerService = accessor.get(IOpenerService);
 	const notificationService = accessor.get(INotificationService);
+	const editorService = accessor.get(IEditorService);
 	const name = chapter && /^[\w/-]+$/.test(chapter) ? `${chapter}.md` : 'SAEngine-User-Manual.pdf';
 	for (const folder of manualFolders()) {
 		const file = joinPath(folder, name);
 		if (await fileService.exists(file)) {
 			if (name.endsWith('.md')) {
-				await commandService.executeCommand('markdown.showPreview', file);
+				// The Markdown preview comes from a built-in extension; without it the chapter opens as text.
+				await commandService.executeCommand('markdown.showPreview', file)
+					.catch(() => editorService.openEditor({ resource: file, options: { pinned: true } }));
 			} else {
 				await openerService.open(file, { openExternal: true });
 			}
