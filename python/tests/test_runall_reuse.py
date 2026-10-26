@@ -159,9 +159,11 @@ def test_a_changed_input_designs_again(tmp_path: Path, counted: dict[str, list[A
     second = design_mode.gathered(out, model)
     assert second is not first and design_mode.checks(out, model)["gathering"] == 2
     (out / "case-1.h5").write_bytes(b"a new analysis")
-    assert design_mode.checks(out, model) == {"elements": [], "alone": 1}
-    assert design_mode.checks(out, model)["alone"] == 1  # kept as well
-    assert len(counted["gather"]) == 2
+    # The checks made now are one gathering, which the proposal and the required steel reuse.
+    assert design_mode.checks(out, model)["gathering"] == 3
+    assert design_mode.checks(out, model)["gathering"] == 3  # kept as well
+    assert design_mode.gathered(out, model, substructure=False).report["gathering"] == 3
+    assert counted["gather"] == [True, True, False] and counted["report"] == []
 
 
 def test_a_gathering_without_the_substructure_is_not_enough(

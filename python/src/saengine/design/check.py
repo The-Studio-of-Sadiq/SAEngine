@@ -810,6 +810,20 @@ def design(
     if scope is not None and scope.get("detailingLevel"):
         method += seismic_detailing.METHOD
     failed_joints = [j for j in joints if not j["ok"]]
+    # The building's own seismic checks (the system permitted in the category, its height,
+    # the bar grades: seismic_rules), each one check of the totals.
+    seismic_checks = [c for c in (scope or {}).get("checks", []) if not c["flag"]]
+    failed_seismic = [c for c in seismic_checks if not c["ok"]]
+    not_permitted = [c for c in failed_seismic if c["name"].startswith("System permitted")]
+    if not_permitted:
+        # First in the notes: the design is not valid under a system the category forbids,
+        # whatever the members show (P1 of the usability walk).
+        notes.insert(
+            0,
+            f"{not_permitted[0]['note']}. Change the seismic system in 2 Project Settings "
+            "(a special moment frame in Category D): R, Ω0, Cd and the member detailing then "
+            "follow it.",
+        )
     return {
         "code": code,
         "method": method,
@@ -818,17 +832,32 @@ def design(
         "skipped": skipped,
         "seismic": scope,
         "joints": joints,
+        # The totals count the beam-column joints and the building's seismic checks too (X4 of
+        # the usability walk: "17 pass, 1 fail" while every joint failed); "elements" keeps the
+        # members' own counts.
         "summary": {
-            "checked": len(checked),
-            "passed": len(checked) - len(failed),
-            "failed": len(failed),
+            "checked": len(checked) + len(joints) + len(seismic_checks),
+            "passed": len(checked)
+            - len(failed)
+            + len(joints)
+            - len(failed_joints)
+            + len(seismic_checks)
+            - len(failed_seismic),
+            "failed": len(failed) + len(failed_joints) + len(failed_seismic),
+            "elements": {
+                "checked": len(checked),
+                "passed": len(checked) - len(failed),
+                "failed": len(failed),
+            },
             "skipped": len(skipped),
+            # The object types not checked for want of bars (an imported model's): Design
+            # Reinforcement proposes bars for them (X29 of the usability walk).
+            "noBars": sorted({s["type"] for s in skipped if s.get("reason") == "no reinforcement"}),
             "maxUtilisation": governing["utilisation"] if governing else None,
             "governing": governing["id"] if governing else None,
             "joints": {"checked": len(joints), "failed": len(failed_joints)},
-            "seismicChecksFailed": sum(
-                1 for c in (scope or {}).get("checks", []) if not c["ok"] and not c["flag"]
-            ),
+            "seismicChecks": len(seismic_checks),
+            "seismicChecksFailed": len(failed_seismic),
         },
         "notes": notes,
         "stability": slenderness_design.storey_rows(
