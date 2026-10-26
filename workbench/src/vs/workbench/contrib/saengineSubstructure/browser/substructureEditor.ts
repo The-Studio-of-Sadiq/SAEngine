@@ -540,6 +540,8 @@ export class SubstructureEditor extends EditorPane {
 	}
 
 	private onPlanClick(e: MouseEvent): void {
+		// A click in the drawing selects; the view takes the keys (Delete, Escape) from then on.
+		this.viewElement.focus({ preventScroll: true });
 		const target = e.target as Element | null;
 		const add = e.shiftKey || e.ctrlKey || e.metaKey;
 		const column = target?.closest('[data-column]')?.getAttribute('data-column');
@@ -1623,6 +1625,18 @@ export class SubstructureEditor extends EditorPane {
 			Object.assign(foundation, { length: 1500, width: 1500 });
 		}
 		foundation.thickness ??= 450;
+		// The bars of the old type may be too light for the new thickness (a footing turned into a
+		// 1 m pile cap): raise each bottom layer to the minimum mesh, and give a raft its top bars.
+		const least = minimumMesh(Number(foundation.thickness));
+		const area = (mesh: { dia: number; spacing: number } | undefined) => mesh ? Math.PI * mesh.dia * mesh.dia / 4 * 1000 / mesh.spacing : 0;
+		const bars = foundation.reinforcement;
+		if (bars) {
+			for (const layer of type === 'raft' ? MESH_KEYS : ['bottomX', 'bottomY'] as const) {
+				if (area(bars[layer]) < area(least) - 1e-6) {
+					bars[layer] = { ...least };
+				}
+			}
+		}
 		this.changed(true);
 	}
 
@@ -1960,12 +1974,14 @@ export class SubstructureEditor extends EditorPane {
 
 	private renderFoundationDetail(view: HTMLElement, foundation: IFoundation, result: IFoundationResult): void {
 		const section = this.resultSection(view, localize('sub.detailTitle', "{0}: all checks", foundation.id), `${foundationTypeLabel(foundation.type)} · ${foundationSize(foundation)}`);
-		const table = append(section, $('table.sub-table.sub-result-table'));
-		this.tableHead(table, [
-			{ label: localize('sub.check', "Check"), width: 220 }, { label: localize('sub.demand', "Demand / required"), numeric: true, width: 96 }, { label: localize('sub.capacity', "Capacity / provided"), numeric: true, width: 96 },
-			{ label: localize('sub.unit', "Unit"), width: 60 }, { label: localize('sub.f.utilisation', "Utilisation"), numeric: true, width: 120 }, { label: localize('sub.combination', "Combination"), width: 160 },
-			...(result.ok ? [] : [{ label: localize('sub.suggested', "Suggested"), width: 150 }]), { label: localize('sub.note', "Note"), width: 260 },
-		]);
+		// The note (and for a failing check, the suggested fix) on its own full-width line under each
+		// check, so that the table fits a 1366 px window instead of running off to the right.
+		const table = append(section, $('table.sub-table.sub-result-table.sub-check-table'));
+		const columns = [
+			{ label: localize('sub.check', "Check"), width: 200 }, { label: localize('sub.demand', "Demand / required"), numeric: true, width: 96 }, { label: localize('sub.capacity', "Capacity / provided"), numeric: true, width: 96 },
+			{ label: localize('sub.unit', "Unit"), width: 60 }, { label: localize('sub.f.utilisation', "Utilisation"), numeric: true, width: 120 }, { label: localize('sub.combination', "Combination"), width: 150 },
+		];
+		this.tableHead(table, columns);
 		const body = append(table, $('tbody'));
 		const value = (v: number | null) => v === null ? '—' : Math.abs(v) >= 100 ? formatNumber(v, 0) : Math.abs(v) >= 1 || v === 0 ? formatNumber(v, 2) : String(Number(v.toPrecision(3)));
 		// The checks that count first, by utilisation; the ones only reported after them.
@@ -1981,11 +1997,16 @@ export class SubstructureEditor extends EditorPane {
 			} else {
 				this.utilisationCell(row, check.utilisation);
 			}
-			append(row, $('td.sub-muted-cell', undefined, check.combination ?? ''));
-			if (!result.ok) {
-				append(row, $('td.sub-wrap', undefined, check.ok || check.flag ? '' : this.suggestion(foundation, check)));
+			append(row, $('td.sub-muted-cell.sub-combination-cell', undefined, check.combination ?? ''));
+			const suggestion = check.ok || check.flag ? '' : this.suggestion(foundation, check);
+			if (suggestion || check.note) {
+				row.classList.add('has-note');
+				const line = append(append(body, $(check.flag ? 'tr.sub-note-row.flag' : 'tr.sub-note-row')), $('td.sub-wrap.sub-note-cell', { colspan: String(columns.length) }));
+				if (suggestion) {
+					append(line, $('span.sub-suggestion', undefined, localize('sub.suggestedText', "Suggested: {0}. ", suggestion)));
+				}
+				append(line, $('span', undefined, check.note));
 			}
-			append(row, $('td.sub-wrap.sub-note-cell', undefined, check.note));
 		}
 		for (const note of result.notes ?? []) {
 			append(section, $('p.sub-note', undefined, note));

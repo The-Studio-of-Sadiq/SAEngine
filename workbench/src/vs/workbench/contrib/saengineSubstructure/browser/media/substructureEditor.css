@@ -835,3 +835,21 @@
 .saengine-substructure-editor .sub-proposal-table td {
 	white-space: normal;
 }
+
+/* All checks: the note on its own line under the check (fits 1366 px). */
+.saengine-substructure-editor .sub-check-table tr.has-note td {
+	border-bottom: none;
+}
+.saengine-substructure-editor .sub-check-table tr.sub-note-row td.sub-note-cell {
+	padding: 0 6px 6px 18px;
+	min-width: 0;
+	font-size: 11px;
+	line-height: 1.45;
+}
+.saengine-substructure-editor .sub-check-table td.sub-combination-cell {
+	white-space: normal;
+}
+.saengine-substructure-editor .sub-suggestion {
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
