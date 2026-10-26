@@ -116,8 +116,8 @@ def down_conductors_needed(base_area: float, perimeter_mm: float, rule: str, lev
         level_spacing = T.IEC_LEVELS[level][2] * 1000.0
         n_level = max(1, math.ceil(perimeter_mm / level_spacing - 1e-9))
         if n_level > n:
-            n, how = n_level, (f"IEC 62305 level {level}: every {level_spacing / 1000:g} m of "
-                               "perimeter (from memory, to be checked)")  # fmt: skip
+            n, how = n_level, (f"IEC 62305-3 class {level}: every {level_spacing / 1000:g} m "
+                               "of perimeter (IEC 62305-3 Table 4)")  # fmt: skip
         spacing = min(spacing, level_spacing)
     return n, spacing, how
 
@@ -426,8 +426,9 @@ def structural_notes(lightning: Any, conductors: list[dict[str, Any]], limit: fl
         notes += [
             (
                 "In each down-conductor column line make at least two vertical bars electrically "
-                "continuous from the foundation to the roof: weld or clamp the laps (IEC 62305-3, "
-                "from memory, to be checked); overall resistance from the roof to the ground at most "
+                "continuous from the foundation to the roof: weld or clamp the laps (IEC 62305-3 "
+                "4.3, 5.3.5: reinforcement as a natural down conductor); overall resistance from the "
+                "roof to the ground at most "
                 f"{T.REBAR_OHM:g} ohm, measured before the finishes."
             ),
             (
@@ -459,7 +460,7 @@ def structural_notes(lightning: Any, conductors: list[dict[str, Any]], limit: fl
             "Foundation earth electrode: bond the bottom bars of the footings or pile caps"
             + (f" ({foundations})" if foundations else "")
             + " and the tie beams into a continuous ring, with an earth terminal at each "
-            "down-conductor column (IEC 62305-3, from memory, to be checked); keep the bonding "
+            "down-conductor column (IEC 62305-3 5.4: foundation earth electrode); keep the bonding "
             "out of the cover zone."
         )
     else:

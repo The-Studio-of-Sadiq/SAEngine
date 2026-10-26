@@ -152,7 +152,10 @@ def test_report_checks_the_openings_with_the_analysis(analysed) -> None:
     assert tank["seismicWeight"] == 50.0
     assert (tank["load"], tank["loadCase"], tank["host"]) == (50.0, "SD + F", "S1")
     assert tank["pressure"] == pytest.approx(50 / 1.5, abs=1e-3)  # kPa over 1.5 x 1.0 m
-    assert report["stories"] == [{"story": "L1", "count": 1, "load": 50.0}]
+    assert report["stories"] == [
+        {"story": "L1", "count": 1, "load": 50.0, "onGrade": 0.0, "notApplied": 0.0}
+    ]
+    assert (tank["applied"], tank["onGrade"], tank["discipline"]) == (True, False, "coordination")
     openings = {o["id"]: o for o in report["openings"]}
     beam = {c["name"]: c for c in openings["OP1"]["checks"]}
     shear = beam["Shear at the opening (net section)"]
@@ -168,3 +171,37 @@ def test_report_checks_the_openings_with_the_analysis(analysed) -> None:
     assert report["summary"]["openings"] == 3
     assert report["summary"]["loads"] == {"SD": 5.0, "F": 45.0}
     assert report["clashes"] == []
+
+
+def test_equipment_on_grade_and_off_the_slabs_is_not_counted(tmp_path: Path) -> None:
+    # E3: on the base level (on grade) and off every slab, an item's load is listed apart and
+    # left out of the load on the frame; every discipline's item is listed with its owner.
+    root = tmp_path / "Sample Frame"
+    shutil.copytree(SAMPLE, root)
+    item = {"name": "", "kind": "tank", "length": 1000, "width": 1000, "operatingWeight": 10}
+    mep = {
+        "schema": "saengine.mep/1",
+        "equipment": [
+            {**item, "id": "ON", "story": "L1", "x": 3000, "y": 1500},
+            {**item, "id": "GRADE", "story": "BASE", "x": 3000, "y": 1500},
+            {**item, "id": "OFF", "story": "L1", "x": 90000, "y": 90000},
+        ],
+    }
+    (root / "07 MEP" / "mep.json").write_text(json.dumps(mep), encoding="utf-8")
+    report = mep_report(root)
+    by_id = {e["id"]: e for e in report["equipment"]}
+    assert (by_id["ON"]["applied"], by_id["ON"]["onGrade"]) == (True, False)
+    assert (by_id["GRADE"]["applied"], by_id["GRADE"]["onGrade"]) == (False, True)
+    assert "on grade" in by_id["GRADE"]["note"]
+    assert (by_id["OFF"]["applied"], by_id["OFF"]["onGrade"]) == (False, False)
+    assert {e["discipline"] for e in report["equipment"]} == {"coordination"}
+    assert by_id["ON"]["x"] == 3000 and by_id["ON"]["sourceId"] == "ON"
+    summary = report["summary"]
+    assert sum(summary["loads"].values()) == pytest.approx(by_id["ON"]["load"])
+    assert summary["onGrade"] == pytest.approx(by_id["GRADE"]["load"])
+    assert summary["notApplied"] == pytest.approx(by_id["OFF"]["load"])
+    assert (summary["equipment"], summary["equipmentEntered"], summary["equipmentApplied"]) == (
+        3,
+        3,
+        1,
+    )

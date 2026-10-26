@@ -38,7 +38,7 @@ def test_spt_increments_give_n() -> None:
             ]
         }
     )
-    assert any("SPT at 1500 mm: N is 25 but" in p for p in check(report))
+    assert any("SPT at 1.5 m: N is 25 but" in p for p in check(report))
     with pytest.raises(ValidationError, match="both increments"):
         SptRecord.model_validate({"depth": 1500, "N1": 12})
     with pytest.raises(ValidationError, match="needs N"):
@@ -81,7 +81,7 @@ def test_spt_half_entered_rows_keep_the_report_readable() -> None:
     assert r.blows == 25
     assert r.issues == ["only N1 of the increments is given; the entered N 25 is used"]
     r = SptRecord.model_validate({"depth": 3000, "depthTo": 2000, "N": 25})
-    assert r.blows == 25 and "is above the depth 3000 mm; it is ignored" in r.issues[0]
+    assert r.blows == 25 and "is above the depth 3 m; it is ignored" in r.issues[0]
     report = SoilReport.model_validate(
         {
             "boreholes": [
@@ -94,7 +94,7 @@ def test_spt_half_entered_rows_keep_the_report_readable() -> None:
         }
     )
     assert check(report) == [
-        "B: SPT at 3000 mm: only N2 of the increments is given; the entered N 25 is used"
+        "B: SPT at 3 m: only N2 of the increments is given; the entered N 25 is used"
     ]
 
 
@@ -264,7 +264,7 @@ def test_a_bad_sample_keeps_the_report_readable() -> None:
     assert repeated.grading is None and "two sieves of the same size" in repeated.issues[0]
     upside = Sample.model_validate({"depth": 2000, "depthTo": 1500, "moisture": 20})
     assert upside.mid == 2000  # the bottom is ignored
-    assert upside.issues == ["depth to 1500 mm is above the depth 2000 mm; it is ignored"]
+    assert upside.issues == ["depth to 1.5 m is above the depth 2 m; it is ignored"]
     # In a report: every borehole still loads, check() names the sample, lab skips the curve.
     bad = {"number": "D-6", "depth": 2000, "liquidLimit": 40, "plasticLimit": 20}
     bad["grainSize"] = {"sieves": [{"size": 0.425, "passing": 45}, {"size": 0.25, "passing": 47}]}

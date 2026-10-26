@@ -33,7 +33,8 @@ import { checkItems, describeStaircaseVerdict, describeWallsSummary, formatPierF
 export { resultsFolder } from './femDesign.js';
 
 /** Desktop commands reading a run's results with the Python backend (see `saengine.fem.resultList`). */
-const LIST_COMMAND = 'saengine.fem.resultList';
+export const FEM_RESULT_LIST_COMMAND = 'saengine.fem.resultList';
+const LIST_COMMAND = FEM_RESULT_LIST_COMMAND;
 const VIEW_COMMAND = 'saengine.fem.resultView';
 
 /**
@@ -71,11 +72,12 @@ const STATIC_OPTIONS: readonly IShowOption[] = [
 	{ show: 'deformed', label: localize('femResults.deformed', "Deflected Shape") },
 	{ show: 'reactions', label: localize('femResults.reactions', "Support Reactions") },
 	{ show: 'N', label: localize('femResults.axial', "Axial Force N") },
-	{ show: 'Vy', label: localize('femResults.shearY', "Shear Force Vy") },
-	{ show: 'Vz', label: localize('femResults.shearZ', "Shear Force Vz") },
+	// Named by the member's local axes, as the member details and the tables name them.
+	{ show: 'Vy', label: localize('femResults.shearY', "Shear Force V2") },
+	{ show: 'Vz', label: localize('femResults.shearZ', "Shear Force V3") },
 	{ show: 'T', label: localize('femResults.torsion', "Torsion T") },
-	{ show: 'My', label: localize('femResults.momentY', "Moment My") },
-	{ show: 'Mz', label: localize('femResults.momentZ', "Moment Mz") },
+	{ show: 'My', label: localize('femResults.momentY', "Moment M2") },
+	{ show: 'Mz', label: localize('femResults.momentZ', "Moment M3") },
 ];
 /** Shell section forces per unit length, offered when the model has shells. */
 const SHELL_OPTIONS: readonly IShowOption[] = [
@@ -127,6 +129,8 @@ const CURVE_HEIGHT = 110;
 /** Pause between frames while a time history plays [ms]. */
 const FRAME_INTERVAL = 60;
 const COMPONENTS: readonly Show[] = ['N', 'Vy', 'Vz', 'T', 'My', 'Mz'];
+/** The section forces as the member details name them (local axes 2 and 3). */
+const COMPONENT_NAMES: readonly string[] = ['N', 'V2', 'V3', 'T', 'M2', 'M3'];
 
 /** The scale slider: the multiplier is 2 to the slider's value, ×1/8 to ×32. */
 const SCALE_MIN_EXPONENT = -3;
@@ -136,6 +140,43 @@ const SCALE_STEP = 0.25;
 /** "×1.4": the scale multiplier as the slider shows it. */
 export function scaleText(scale: number): string {
 	return `×${scale >= 10 ? scale.toFixed(0) : scale >= 1 ? Number(scale.toFixed(1)).toString() : Number(scale.toPrecision(2)).toString()}`;
+}
+
+/** The share of the model's size the largest deflection is drawn at, at scale ×1 (the 3D view's). */
+const DEFORMED_SHARE = 0.06;
+
+/**
+ * How many times the 3D view magnifies the deflections: it draws the largest one (of the frame
+ * members' stations and the shells' and solids' nodes) at {@link DEFORMED_SHARE} of the model's
+ * diagonal, times the scale slider. Undefined without a deflection.
+ */
+export function deflectionMagnification(model: IFemDetailingModel | undefined, view: IFemResultView, scale: number): number | undefined {
+	if (!model?.nodes.length) {
+		return undefined;
+	}
+	const lo = [Infinity, Infinity, Infinity];
+	const hi = [-Infinity, -Infinity, -Infinity];
+	for (const node of model.nodes) {
+		for (let a = 0; a < 3; a++) {
+			lo[a] = Math.min(lo[a], node.coords[a] ?? 0);
+			hi[a] = Math.max(hi[a], node.coords[a] ?? 0);
+		}
+	}
+	const size = Math.max(Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]), 1);
+	let peak = 0;
+	for (const element of view.elements) {
+		for (const d of element.displacements) {
+			peak = Math.max(peak, Math.hypot(d[0], d[1], d[2]));
+		}
+	}
+	const moved = new Map(view.nodes.map(n => [n[0], n]));
+	for (const surface of [...(view.shells ?? []), ...(view.solids ?? [])]) {
+		for (const id of surface.nodes) {
+			const d = moved.get(id);
+			peak = Math.max(peak, d ? Math.hypot(d[1], d[2], d[3]) : 0);
+		}
+	}
+	return peak > 0 ? scale * DEFORMED_SHARE * size / peak : undefined;
 }
 
 /** A mode with its period and mass participation, as the mode picker and the caption say it. */
@@ -156,14 +197,19 @@ type Quantity = FemValueQuantity;
  */
 export function resultFormatter(units: string | undefined): (quantity: Quantity, value: number) => string {
 	if (units?.startsWith('SI')) {
+		// "-0.0" reads as a value: what rounds to zero is shown as 0.
+		const fixed = (v: number, digits: number) => {
+			const text = v.toFixed(digits);
+			return /^-0(\.0+)?$/.test(text) ? text.slice(1) : text;
+		};
 		return (quantity, value) => {
 			switch (quantity) {
-				case 'length': return localize('femResults.mm', "{0} mm", (value * 1000).toFixed(2));
-				case 'force': return localize('femResults.kN', "{0} kN", (value / 1000).toFixed(1));
-				case 'moment': return localize('femResults.kNm', "{0} kN·m", (value / 1000).toFixed(1));
-				case 'forcePerLength': return localize('femResults.kNperM', "{0} kN/m", (value / 1000).toFixed(1));
-				case 'momentPerLength': return localize('femResults.kNmPerM', "{0} kN·m/m", (value / 1000).toFixed(2));
-				case 'stress': return localize('femResults.MPa', "{0} MPa", (value / 1e6).toFixed(2));
+				case 'length': return localize('femResults.mm', "{0} mm", fixed(value * 1000, 2));
+				case 'force': return localize('femResults.kN', "{0} kN", fixed(value / 1000, 1));
+				case 'moment': return localize('femResults.kNm', "{0} kN·m", fixed(value / 1000, 1));
+				case 'forcePerLength': return localize('femResults.kNperM', "{0} kN/m", fixed(value / 1000, 1));
+				case 'momentPerLength': return localize('femResults.kNmPerM', "{0} kN·m/m", fixed(value / 1000, 2));
+				case 'stress': return localize('femResults.MPa', "{0} MPa", fixed(value / 1e6, 2));
 			}
 		};
 	}
@@ -375,6 +421,7 @@ export class FemResultsBar extends Disposable {
 	private animate = true;
 	private view: IFemResultView | undefined;
 	private selection: FemSelection | undefined;
+	private visible: ReadonlySet<number> | undefined;
 	private problem: string | undefined;
 	private readonly views = new Map<string, IFemResultView>();
 	private request = 0;
@@ -505,6 +552,11 @@ export class FemResultsBar extends Disposable {
 		return this.showOptions().includes(DESIGN_OPTION);
 	}
 
+	/** The design checks of the run, once Design Utilisation has run them. */
+	get designReport(): IFemDesignReport | undefined {
+		return this.design;
+	}
+
 	get showsDesign(): boolean {
 		return this.show === 'utilisation';
 	}
@@ -618,14 +670,28 @@ export class FemResultsBar extends Disposable {
 	/** The analysis model of the resource, as the editor read it: where the joints are. */
 	setModel(model: IFemDetailingModel | undefined): void {
 		this.model = model;
-		if (this.show === 'joints') {
-			this.render();
+		if (this.show === 'joints' || this.show === 'deformed') {
+			this.render(); // the joints' places, the deflections' magnification
 		}
 	}
 
 	setSelection(selection: FemSelection | undefined): void {
 		this.selection = selection;
 		this.host.changed();
+	}
+
+	/**
+	 * The elements the 3D view draws (a plan, an elevation, a storey; undefined: all): the
+	 * legend and the status give the extremes of these.
+	 */
+	setVisible(elements: ReadonlySet<number> | undefined): void {
+		this.visible = elements;
+		this.render();
+	}
+
+	private shownElements(view: IFemResultView): IFemResultView['elements'] {
+		const visible = this.visible;
+		return visible ? view.elements.filter(e => visible.has(e.id)) : view.elements;
 	}
 
 	private setShow(show: Show): void {
@@ -832,6 +898,7 @@ export class FemResultsBar extends Disposable {
 			if (!this.playing) {
 				// A busy backend can take a while: say so, or the last result looks like the new one.
 				this.pending = entry.label;
+				this.renderLegend(); // not the last result's values under the new one's name
 				this.host.changed();
 			}
 			try {
@@ -942,7 +1009,15 @@ export class FemResultsBar extends Disposable {
 			}
 			const options = this.showOptions();
 			this.showPicker.setOptions(options.map<ISelectOptionItem>(o => ({ text: o.label })), Math.max(0, options.findIndex(o => o.show === this.show)));
-			this.scaleLabel.textContent = scaleText(this.scale);
+			// The slider is relative to the automatic size: say how large the deflections really are drawn.
+			const magnification = this.show === 'deformed' && this.view && entry.kind !== 'modal' ? deflectionMagnification(this.model, this.view, this.scale) : undefined;
+			const times = magnification === undefined ? undefined : magnification >= 10 ? magnification.toFixed(0) : magnification.toFixed(1);
+			this.scaleLabel.textContent = times !== undefined
+				? localize('femResults.scaleMagnified', "{0} · drawn ×{1}", scaleText(this.scale), times)
+				: scaleText(this.scale);
+			this.scaleLabel.title = times !== undefined
+				? localize('femResults.scaleMagnifiedTitle', "The deflections are drawn {0} times their real size (the slider's {1} of the automatic size).", times, scaleText(this.scale))
+				: '';
 			this.scaleSlider.value = String(Math.log2(this.scale));
 			const diagram = COMPONENTS.includes(this.show);
 			this.labelsButton.element.classList.toggle('hidden', !diagram);
@@ -1061,8 +1136,26 @@ export class FemResultsBar extends Disposable {
 						largest = node;
 					}
 				}
-				return largest && localize('femResults.largestDisplacement', "Largest displacement {0} at node {1} (x {2}, y {3}, z {4}).",
-					format('length', Math.hypot(largest[1], largest[2], largest[3])), largest[0], format('length', largest[1]), format('length', largest[2]), format('length', largest[3]));
+				if (!largest) {
+					return undefined;
+				}
+				const atNode = Math.hypot(largest[1], largest[2], largest[3]);
+				const text = localize('femResults.largestDisplacement', "Largest displacement {0} at node {1} (x {2}, y {3}, z {4}).",
+					format('length', atNode), largest[0], format('length', largest[1]), format('length', largest[2]), format('length', largest[3]));
+				// The view labels the largest along the frame members: say it when it differs
+				// (a slab's middle moves more than any beam), so label and status agree.
+				let frame: { value: number; name: string } | undefined;
+				for (const element of this.shownElements(view)) {
+					for (const d of element.displacements) {
+						const value = Math.hypot(d[0], d[1], d[2]);
+						if (!frame || value > frame.value) {
+							frame = { value, name: element.name.split('#')[0] };
+						}
+					}
+				}
+				return frame && Math.abs(frame.value - atNode) > 0.01 * atNode
+					? `${text} ${localize('femResults.largestFrameDisplacement', "On the frame members (labelled in the view): {0} in {1}.", format('length', frame.value), frame.name)}`
+					: text;
 			}
 			case 'reactions': {
 				const total = [1, 2, 3].map(i => view.reactions.reduce((sum, r) => sum + r[i], 0));
@@ -1072,14 +1165,15 @@ export class FemResultsBar extends Disposable {
 				return localize('femResults.modelShown', "{0}: choose what to show of it.", view.label);
 			default: {
 				let largest: { value: number; name: string } | undefined;
-				for (const element of view.elements) {
+				for (const element of this.shownElements(view)) {
 					for (const forces of element.forces ?? []) {
 						if (!largest || Math.abs(forces[component]) > Math.abs(largest.value)) {
 							largest = { value: forces[component], name: element.name };
 						}
 					}
 				}
-				return largest && localize('femResults.largestForce', "Largest {0}: {1} in {2}. Select an element for its values.", this.show, format(quantity, largest.value), largest.name);
+				const name = this.showOptions().find(o => o.show === this.show)?.label ?? this.show;
+				return largest && localize('femResults.largestForce', "Largest {0}: {1} in {2}. Select an element for its values.", name, format(quantity, largest.value), largest.name);
 			}
 		}
 	}
@@ -1090,7 +1184,9 @@ export class FemResultsBar extends Disposable {
 	private renderLegend(): void {
 		clearNode(this.legend);
 		let shown = false;
-		if (this.entry && isDesignShow(this.show) && this.design && (this.show === 'utilisation' || jointsOf(this.design).length)) {
+		if (this.pending) {
+			// The result asked for is being read: its values are not known yet.
+		} else if (this.entry && isDesignShow(this.show) && this.design && (this.show === 'utilisation' || jointsOf(this.design).length)) {
 			// The colours of the 3D view's utilisation bands.
 			append(this.legend, $('.fem-legend-title', undefined, this.show === 'joints'
 				? localize('femResults.jointUtilisation', "Joint Utilisation")
@@ -1144,7 +1240,7 @@ export class FemResultsBar extends Disposable {
 		}
 		let max: { value: number; name: string } | undefined;
 		let min: { value: number; name: string } | undefined;
-		for (const element of view.elements) {
+		for (const element of this.shownElements(view)) {
 			for (const forces of element.forces ?? []) {
 				const value = forces[component];
 				if (!max || value > max.value) {
@@ -1257,7 +1353,7 @@ export class FemResultsBar extends Disposable {
 		appendPropertyHeading(container, element?.name ?? shell?.name ?? localize('femResults.elementHeading', "Element {0}", selection.id));
 		if (element?.forces?.length) {
 			// Every section force along the member: smallest, largest and at both ends.
-			for (const [index, name] of COMPONENTS.entries()) {
+			for (const [index, name] of COMPONENT_NAMES.entries()) {
 				const values = element.forces.map(f => f[index]);
 				const quantity: Quantity = index < 3 ? 'force' : 'moment';
 				const value = localize('femResults.range', "{0} to {1}", format(quantity, Math.min(...values)), format(quantity, Math.max(...values)));
@@ -1266,7 +1362,7 @@ export class FemResultsBar extends Disposable {
 			const component = COMPONENTS.indexOf(this.show);
 			if (component >= 0) {
 				const quantity: Quantity = component < 3 ? 'force' : 'moment';
-				appendPropertyNote(container, localize('femResults.ends', "{0} at end i {1}, at end j {2}.", this.show,
+				appendPropertyNote(container, localize('femResults.ends', "{0} at end i {1}, at end j {2}.", COMPONENT_NAMES[component],
 					format(quantity, element.forces[0][component]), format(quantity, element.forces[element.forces.length - 1][component])));
 			}
 		} else if (shell?.forces?.length) {

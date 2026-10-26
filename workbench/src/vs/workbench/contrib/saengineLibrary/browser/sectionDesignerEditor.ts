@@ -34,8 +34,8 @@ import { renderChart } from '../../saengineFem/browser/femChart.js';
 import { svg } from '../../saengineSoil/browser/soilLog.js';
 import { SectionDesignerInput } from './sectionDesignerInput.js';
 import {
-	barArea, barsAlongEdges, barsLine, barsRing, bounds, formatNumber, hitTest, IBar, IDesignedSection, interactionCurve, ISectionAnalysis, IUniaxial,
-	moveSelection, parseSection, Point, pointInRegion, propertyRows, rectangle, Ring, Selection, serializeSection, snapPoint, TEMPLATE_DEFAULTS, TemplateKind, templateLabel, templateRegions,
+	barArea, barsAlongEdges, barsLine, barsRing, bounds, cleanProperties, formatNumber, hitTest, IBar, IDesignedSection, interactionCurve, ISectionAnalysis, ITemplateParams, IUniaxial,
+	moveSelection, parseSection, Point, pointInRegion, propertyRows, rectangle, Ring, sameRegions, Selection, serializeSection, snapPoint, TEMPLATE_DEFAULTS, templateFields, TemplateKind, templateLabel, templateProblem, templateRegions,
 } from './sectionDesignerModel.js';
 
 /** Desktop command analysing a section with the Python models (`section/analyse`). */
@@ -73,6 +73,25 @@ interface IMaterialChoice {
 	readonly category: string;
 }
 
+/** The template a section was drawn from, while its regions are still that template's. */
+interface ITemplateState {
+	readonly kind: TemplateKind;
+	readonly params: ITemplateParams;
+}
+
+/** Templates by section file, kept across tab switches (the file itself has no room for them). */
+const templates = new Map<string, ITemplateState>();
+
+/**
+ * Analyses by section and materials text: switching back to a section's tab shows its results
+ * at once instead of computing them again (O15). Oldest first, at most {@link ANALYSIS_CACHE_SIZE}.
+ */
+const analyses = new Map<string, ISectionAnalysis>();
+const ANALYSIS_CACHE_SIZE = 24;
+
+/** Above this axial load [kN] the chart is drawn in MN, so the tick labels stay short. */
+const MN_FROM = 1000;
+
 /**
  * The Section Designer: draws and edits a designed section on a snapping grid (regions,
  * openings, bars, templates), and shows its properties and interaction diagrams as computed by
@@ -97,6 +116,8 @@ export class SectionDesignerEditor extends EditorPane {
 	private cursor: Point | undefined;
 	private drag: { start: Point; last: Point; moved: boolean; pan?: { x: number; y: number } } | undefined;
 	private chartAxis: 'x' | 'y' = 'x';
+	/** The large interaction diagram over the drawing, while it is shown. */
+	private chartOverlay: HTMLElement | undefined;
 	private materials: IMaterialChoice[] = [];
 	private readonly settings = { material: '', rebar: '', dia: 20, spacing: 150, count: 4, grid: 25 };
 	/** View: screen = (origin.x + x k, origin.y - y k). */
@@ -199,6 +220,8 @@ export class SectionDesignerEditor extends EditorPane {
 	}
 
 	override clearInput(): void {
+		this.chartOverlay?.remove();
+		this.chartOverlay = undefined;
 		this.flush();
 		this.inputDisposables.clear();
 		this.materialsReference.clear();
@@ -247,7 +270,8 @@ export class SectionDesignerEditor extends EditorPane {
 			this.fit();
 		}
 		this.render();
-		this.analyseScheduler.schedule();
+		// Opening a section (or coming back to its tab) shows a cached analysis at once.
+		this.analyseScheduler.schedule(this.analysis ? undefined : 0);
 	}
 
 	private defaultsFromSection(): void {
@@ -342,12 +366,28 @@ export class SectionDesignerEditor extends EditorPane {
 			return;
 		}
 		const version = ++this.analyseVersion;
+		const text = model.getValue();
+		const key = `${text}\u0000${this.materialsReference.value?.object.textEditorModel.getValue() ?? ''}`;
+		const cached = analyses.get(key);
+		if (cached) {
+			this.analysing = false;
+			this.analysis = cached;
+			this.render();
+			return;
+		}
 		this.analysing = true;
 		this.renderStatus();
 		let analysis: ISectionAnalysis | undefined;
 		let failure: string | undefined;
 		try {
-			analysis = await this.commandService.executeCommand<ISectionAnalysis>(SECTION_ANALYSE_COMMAND, model.getValue());
+			analysis = await this.commandService.executeCommand<ISectionAnalysis>(SECTION_ANALYSE_COMMAND, text);
+			if (analysis) {
+				analyses.delete(key);
+				analyses.set(key, analysis);
+				if (analyses.size > ANALYSIS_CACHE_SIZE) {
+					analyses.delete(analyses.keys().next().value!);
+				}
+			}
 		} catch (error) {
 			// A backend error carries its traceback: its first line says what went wrong.
 			failure = (error instanceof Error ? error.message : String(error)).split(/\r?\n/)[0].trim().slice(0, 300);
@@ -476,7 +516,9 @@ export class SectionDesignerEditor extends EditorPane {
 			svg(circle, 'title', {}, localize('section.barTitle', "Bar Ø{0} at ({1}, {2})", bar.dia, bar.x, bar.y));
 		});
 
-		const p = this.analysis?.properties;
+		this.renderDimensions(canvas, section);
+
+		const p = this.analysis?.properties && cleanProperties(this.analysis.properties);
 		if (p) {
 			const [cx, cy] = this.toScreen([p.cx, p.cy]);
 			const marker = svg(canvas, 'g', { class: 'section-centroid' });
@@ -490,6 +532,65 @@ export class SectionDesignerEditor extends EditorPane {
 		}
 
 		this.renderDraft(canvas);
+	}
+
+	/**
+	 * Dimensions on the drawing: the overall width (below) and depth (left), and the length of
+	 * every edge of the selected region next to it.
+	 */
+	private renderDimensions(canvas: SVGSVGElement, section: IDesignedSection): void {
+		const extent = bounds(section);
+		if (!extent) {
+			return;
+		}
+		const group = svg(canvas, 'g', { class: 'section-dimensions' });
+		const gap = 18;
+		const [left, bottom] = this.toScreen([extent.minX, extent.minY]);
+		const [right, top] = this.toScreen([extent.maxX, extent.maxY]);
+		const line = (x1: number, y1: number, x2: number, y2: number) => svg(group, 'line', { x1, y1, x2, y2 });
+		const label = (x: number, y: number, text: string, rotate = false) => {
+			const node = svg(group, 'text', { x, y, 'text-anchor': 'middle', 'dominant-baseline': 'central', transform: rotate ? `rotate(-90 ${x} ${y})` : '' });
+			node.textContent = text;
+		};
+		// Width below the section, depth to its left: extension lines, the dimension line, the value.
+		const y = bottom + gap;
+		line(left, bottom + 4, left, y + 4);
+		line(right, bottom + 4, right, y + 4);
+		line(left, y, right, y);
+		label((left + right) / 2, y + 10, formatNumber(extent.maxX - extent.minX));
+		const x = left - gap;
+		line(left - 4, top, x - 4, top);
+		line(left - 4, bottom, x - 4, bottom);
+		line(x, top, x, bottom);
+		label(x - 10, (top + bottom) / 2, formatNumber(extent.maxY - extent.minY), true);
+
+		if (this.selection?.kind === 'region') {
+			const region = section.regions[this.selection.index];
+			const centre: Point = [(extent.minX + extent.maxX) / 2, (extent.minY + extent.maxY) / 2];
+			for (const ring of [region.outline, ...region.holes]) {
+				ring.forEach((p, i) => {
+					const q = ring[(i + 1) % ring.length];
+					const length = Math.hypot(q[0] - p[0], q[1] - p[1]);
+					// An outer edge as long as the section is wide or deep: the overall dimension says it.
+					const full = (p[1] === q[1] && (p[1] === extent.minY || p[1] === extent.maxY) && Math.abs(length - (extent.maxX - extent.minX)) < 0.01)
+						|| (p[0] === q[0] && (p[0] === extent.minX || p[0] === extent.maxX) && Math.abs(length - (extent.maxY - extent.minY)) < 0.01);
+					if (full) {
+						return;
+					}
+					const mid: Point = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+					// Beside the edge, on the side away from the middle of the section.
+					let [nx, ny] = [(q[1] - p[1]) / (length || 1), -(q[0] - p[0]) / (length || 1)];
+					if (nx * (mid[0] - centre[0]) + ny * (mid[1] - centre[1]) < 0) {
+						[nx, ny] = [-nx, -ny];
+					}
+					const [sx, sy] = this.toScreen(mid);
+					if (length * this.view.k >= 28) { // only where the number fits along the edge
+						const node = svg(group, 'text', { x: sx + nx * 11, y: sy - ny * 11, 'text-anchor': 'middle', 'dominant-baseline': 'central', class: 'edge' });
+						node.textContent = formatNumber(length);
+					}
+				});
+			}
+		}
 	}
 
 	private renderDraft(canvas: SVGSVGElement): void {
@@ -573,6 +674,8 @@ export class SectionDesignerEditor extends EditorPane {
 			this.renderCanvas();
 		});
 
+		this.renderTemplateForm(panel);
+
 		const selected = this.selected();
 		if (selected) {
 			appendPropertyHeading(panel, localize('section.heading.selection', "Selection"));
@@ -582,6 +685,7 @@ export class SectionDesignerEditor extends EditorPane {
 				const region = section.regions[index];
 				this.selectField(sel, localize('section.material', "Material"), region.material, this.materialOptions(concrete, region.material), value => this.edit(s => { s.regions[index].material = value; }));
 				appendPropertyNote(sel, localize('section.regionInfo', "{0} corners, {1} openings", region.outline.length, region.holes.length));
+				this.renderVertexTable(panel, index);
 			} else if (this.selection?.kind === 'bar') {
 				const index = this.selection.index;
 				const bar = section.bars[index];
@@ -619,8 +723,81 @@ export class SectionDesignerEditor extends EditorPane {
 		}
 	}
 
+	/** The template this section still is (its regions unchanged since), if any. */
+	private currentTemplate(): ITemplateState | undefined {
+		const resource = this.resource?.toString();
+		const state = resource ? templates.get(resource) : undefined;
+		const section = this.section;
+		if (!state || !section) {
+			return undefined;
+		}
+		const material = section.regions[0]?.material ?? '';
+		return sameRegions(section.regions, templateRegions(state.kind, state.params, material)) ? state : undefined;
+	}
+
+	/**
+	 * A section drawn from a template keeps its dimensions as a form: changing one redraws the
+	 * template (and its bars along the edges). Editing the drawing by hand ends the form.
+	 */
+	private renderTemplateForm(panel: HTMLElement): void {
+		const state = this.currentTemplate();
+		if (!state) {
+			return;
+		}
+		appendPropertyHeading(panel, localize('section.heading.template', "Template"), templateLabel(state.kind));
+		const form = append(panel, $('.section-form'));
+		for (const { key, label } of templateFields(state.kind)) {
+			const value = state.params[key] ?? (key === 'tf' ? state.params.t : 0);
+			this.numberField(form, label, value, number => {
+				const params = { ...state.params, [key]: number, ...(state.kind === 'circle' && key === 'b' ? { h: number } : {}) };
+				const problem = templateProblem(state.kind, params);
+				if (problem) {
+					this.frame.setStatus({ severity: 'warning', text: problem });
+					this.renderPanel(); // back to the dimensions that draw
+					return;
+				}
+				this.insertTemplate(state.kind, params);
+			});
+		}
+		appendPropertyNote(panel, localize('section.templateNote', "Changing a dimension redraws the template and its bars. Moving a corner by hand makes it a free shape."));
+	}
+
+	/** The corners of the selected region as x, y fields, typed exactly. */
+	private renderVertexTable(panel: HTMLElement, index: number): void {
+		const region = this.section!.regions[index];
+		appendPropertyHeading(panel, localize('section.heading.corners', "Corners"), localize('section.cornersDetail', "mm"));
+		const table = append(panel, $('table.section-vertices', { 'aria-label': localize('section.verticesAria', "Corners of the selected region") }));
+		const head = append(table, $('tr'));
+		for (const text of ['#', 'x', 'y']) {
+			append(head, $('th', { scope: 'col' }, text));
+		}
+		region.outline.forEach(([x, y], corner) => {
+			const tr = append(table, $('tr'));
+			append(tr, $('td.index', undefined, String(corner + 1)));
+			for (const [axis, value] of [[0, x], [1, y]] as const) {
+				const input = append(append(tr, $('td')), $<HTMLInputElement>('input.section-input', {
+					type: 'number', value: String(value), step: 'any',
+					'aria-label': localize('section.cornerAria', "Corner {0} {1}", corner + 1, axis ? 'y' : 'x'),
+				}));
+				this.panelDisposables.add(addDisposableListener(input, EventType.CHANGE, () => {
+					const number = Number(input.value);
+					if (input.value.trim() !== '' && Number.isFinite(number)) {
+						this.edit(s => {
+							const point = [...s.regions[index].outline[corner]] as [number, number];
+							point[axis] = number;
+							s.regions[index].outline[corner] = point;
+						});
+					}
+				}));
+			}
+		});
+	}
+
 	private renderChart(panel: HTMLElement, analysis: ISectionAnalysis): void {
-		appendPropertyHeading(panel, localize('section.heading.capacity', "Interaction diagram"));
+		const heading = appendPropertyHeading(panel, localize('section.heading.capacity', "Interaction diagram"));
+		const expand = append(heading, $<HTMLButtonElement>('button.section-chart-expand', { type: 'button', title: localize('section.expandChart', "Show the diagram larger") }));
+		append(expand, $(ThemeIcon.asCSSSelector(Codicon.screenFull)));
+		this.panelDisposables.add(addDisposableListener(expand, EventType.CLICK, () => this.showLargeChart(analysis)));
 		const axes = append(panel, $('.sa-segmented.section-axes', { role: 'tablist', 'aria-label': localize('section.axisAria', "Bending axis") }));
 		for (const axis of ['x', 'y'] as const) {
 			const button = append(axes, $<HTMLButtonElement>('button.sa-segment', { type: 'button', role: 'tab', 'aria-selected': String(this.chartAxis === axis) }, axis === 'x' ? localize('section.aboutX', "About x (Mx)") : localize('section.aboutY', "About y (My)")));
@@ -631,22 +808,69 @@ export class SectionDesignerEditor extends EditorPane {
 			}));
 		}
 		const diagram: IUniaxial = analysis.uniaxial![this.chartAxis];
-		renderChart(append(panel, $('.section-chart')), {
-			title: localize('section.chartTitle', "P-M interaction about {0}", this.chartAxis),
-			xLabel: this.chartAxis === 'x' ? 'Mx [kN·m]' : 'My [kN·m]',
-			yLabel: 'P [kN]',
-			xFormat: formatNumber,
-			yFormat: formatNumber,
-			series: [
-				{ name: localize('section.nominal', "Nominal Pn, Mn"), color: 'foreground', style: 'dashed', points: interactionCurve(diagram, false) },
-				{ name: localize('section.design', "Design φPn, φMn"), color: 'blue', points: interactionCurve(diagram, true) },
-			],
-			caption: localize('section.chartAria', "P-M interaction diagram about {0}: φPn,max {1} kN", this.chartAxis, formatNumber(diagram.phiPnMax / 1e3)),
-			height: 260,
-		});
+		this.drawChart(append(panel, $('.section-chart')), diagram, 260);
 		if (analysis.phi) {
 			appendPropertyNote(panel, localize('section.phiNote', "φ from the code pack: {0} tension-controlled, {1} compression-controlled; φPn,max = {2} kN, P0 = {3} kN.", analysis.phi.tension, analysis.phi.compression, formatNumber(diagram.phiPnMax / 1e3), formatNumber(diagram.p0 / 1e3)));
 		}
+	}
+
+	/** The P-M diagram about the chosen axis, in MN when the loads are large (short tick labels). */
+	private drawChart(container: HTMLElement, diagram: IUniaxial, height: number): void {
+		const nominal = interactionCurve(diagram, false);
+		const design = interactionCurve(diagram, true);
+		const mega = Math.max(...nominal.map(([, p]) => Math.abs(p)), 0) >= MN_FROM;
+		const scale = (points: number[][]) => mega ? points.map(([m, p]) => [m, p / 1e3]) : points;
+		renderChart(container, {
+			title: localize('section.chartTitle', "P-M interaction about {0}", this.chartAxis),
+			xLabel: this.chartAxis === 'x' ? 'Mx [kN·m]' : 'My [kN·m]',
+			yLabel: mega ? 'P [MN]' : 'P [kN]',
+			xFormat: formatNumber,
+			yFormat: formatNumber,
+			series: [
+				{ name: localize('section.nominal', "Nominal Pn, Mn"), color: 'foreground', style: 'dashed', points: scale(nominal) },
+				{ name: localize('section.design', "Design φPn, φMn"), color: 'blue', points: scale(design) },
+			],
+			caption: localize('section.chartAria', "P-M interaction diagram about {0}: φPn,max {1} kN", this.chartAxis, formatNumber(diagram.phiPnMax / 1e3)),
+			height,
+		});
+	}
+
+	/** The diagram over the drawing, as large as the editor allows; Escape or Close returns. */
+	private showLargeChart(analysis: ISectionAnalysis): void {
+		const host = this.canvas.parentElement!; // the canvas host, positioned
+		this.chartOverlay?.remove();
+		const overlay = this.chartOverlay = append(host, $('.section-chart-overlay', { role: 'dialog', 'aria-label': localize('section.chartLarge', "Interaction diagram") }));
+		const bar = append(overlay, $('.section-chart-overlay-bar'));
+		const axes = append(bar, $('.sa-segmented', { role: 'tablist' }));
+		const close = append(bar, $<HTMLButtonElement>('button.section-chart-close', { type: 'button' }, localize('section.closeChart', "Close")));
+		const body = append(overlay, $('.section-chart'));
+		const draw = () => {
+			clearNode(axes);
+			for (const axis of ['x', 'y'] as const) {
+				const button = append(axes, $<HTMLButtonElement>('button.sa-segment', { type: 'button', role: 'tab', 'aria-selected': String(this.chartAxis === axis) }, axis === 'x' ? localize('section.aboutX', "About x (Mx)") : localize('section.aboutY', "About y (My)")));
+				button.classList.toggle('active', this.chartAxis === axis);
+				button.addEventListener('click', () => {
+					this.chartAxis = axis;
+					draw();
+					this.renderPanel();
+				});
+			}
+			clearNode(body);
+			this.drawChart(body, analysis.uniaxial![this.chartAxis], Math.max(240, host.clientHeight - 150));
+		};
+		const dismiss = () => {
+			overlay.remove();
+			this.canvas.focus();
+		};
+		close.addEventListener('click', dismiss);
+		overlay.addEventListener('keydown', e => {
+			if (e.key === 'Escape') {
+				e.preventDefault();
+				dismiss();
+			}
+		});
+		draw();
+		close.focus();
 	}
 
 	private materialOptions(materials: readonly IMaterialChoice[], current: string | undefined): [string, string][] {
@@ -943,10 +1167,13 @@ export class SectionDesignerEditor extends EditorPane {
 		});
 	}
 
-	private insertTemplate(kind: TemplateKind): void {
+	private insertTemplate(kind: TemplateKind, params: ITemplateParams = TEMPLATE_DEFAULTS[kind]): void {
 		const material = this.settings.material || this.section?.regions[0]?.material || 'C30';
 		const steel = this.materials.find(m => m.id === material)?.category === 'steel';
-		const params = TEMPLATE_DEFAULTS[kind];
+		const resource = this.resource?.toString();
+		if (resource) {
+			templates.set(resource, { kind, params });
+		}
 		this.selection = undefined;
 		this.edit(s => {
 			s.regions = templateRegions(kind, params, material);

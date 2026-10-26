@@ -286,36 +286,6 @@ export interface IHvacCity {
 	readonly range?: number;
 }
 
-/**
- * The stations of BNBC 2020 Part 8 Table 8.2.2 (Outside Design Conditions for Different Stations,
- * PDF part 2 p. 862, Gazette p. 4643): cooling DB/MWB at 2 % (columns 6 and 7), the columns
- * Sec 2.12.2.1 (p. 915) requires for cooling and the ones the backend's load calculation uses
- * (saengine.hvac.tables DESIGN_LEVEL), and the mean daily range (column 14). The keys are the
- * backend's; its list ({@link HVAC_TABLES_COMMAND}) replaces this.
- */
-export const STATIC_CITIES: readonly IHvacCity[] = [
-	{ key: 'barisal', label: 'Barisal', db: 34.0, wb: 28.0, range: 5.0 },
-	{ key: 'bogra', label: 'Bogra', db: 34.5, wb: 28.0, range: 5.5 },
-	{ key: 'chandpur', label: 'Chandpur', db: 34.0, wb: 28.0, range: 5.0 },
-	{ key: 'chittagong', label: 'Chittagong', db: 33.0, wb: 28.0, range: 4.5 },
-	{ key: 'comilla', label: 'Comilla', db: 34.0, wb: 27.5, range: 5.5 },
-	{ key: 'coxsbazar', label: 'Cox\'s Bazar', db: 33.0, wb: 27.5, range: 5.0 },
-	{ key: 'dhaka', label: 'Dhaka', db: 34.5, wb: 27.0, range: 5.0 },
-	{ key: 'dinajpur', label: 'Dinajpur', db: 34.5, wb: 28.0, range: 5.5 },
-	{ key: 'faridpur', label: 'Faridpur', db: 34.5, wb: 28.0, range: 5.0 },
-	{ key: 'ishurdi', label: 'Ishurdi', db: 35.5, wb: 28.0, range: 6.0 },
-	{ key: 'jessore', label: 'Jessore', db: 36.0, wb: 28.0, range: 6.5 },
-	{ key: 'khulna', label: 'Khulna', db: 35.5, wb: 28.0, range: 5.0 },
-	{ key: 'mongla', label: 'Mongla', db: 35.0, wb: 30.0, range: 5.0 },
-	{ key: 'mymensingh', label: 'Mymensingh', db: 33.5, wb: 27.5, range: 4.5 },
-	{ key: 'patuakhali', label: 'Patuakhali', db: 34.5, wb: 28.5, range: 5.0 },
-	{ key: 'rajshahi', label: 'Rajshahi', db: 34.0, wb: 29.0, range: 5.0 },
-	{ key: 'rangamati', label: 'Rangamati', db: 34.0, wb: 27.5, range: 6.0 },
-	{ key: 'rangpur', label: 'Rangpur', db: 34.0, wb: 28.0, range: 5.0 },
-	{ key: 'sylhet', label: 'Sylhet', db: 34.0, wb: 26.5, range: 5.5 },
-	{ key: 'tangail', label: 'Tangail', db: 34.5, wb: 27.5, range: 5.5 },
-];
-
 export interface IHvacUse {
 	readonly key: string;
 	readonly label: string;
@@ -325,33 +295,6 @@ export interface IHvacUse {
 	readonly density?: number;
 	readonly source?: string;
 }
-
-/**
- * Rows of BNBC 2020 Part 8 Table 8.2.3 (Minimum Ventilation Rates for Air Conditioned Spaces,
- * PDF part 2 pp. 863 to 868, Gazette pp. 4644 to 4649) the editor starts from. The keys are the
- * backend's (saengine.hvac.tables); its full list ({@link HVAC_TABLES_COMMAND}) replaces this.
- */
-export const STATIC_USES: readonly IHvacUse[] = [
-	{ key: 'officeSpace', label: localize('hvac.use.office', "Office spaces"), perPerson: 2.5, perArea: 0.3, density: 5, source: 'Table 8.2.3, p. 866' },
-	{ key: 'conferenceRoom', label: localize('hvac.use.conference', "Conference rooms"), perPerson: 2.5, perArea: 0.3, density: 50, source: 'Table 8.2.3, p. 866' },
-	{ key: 'reception', label: localize('hvac.use.reception', "Reception areas"), perPerson: 2.5, perArea: 0.3, density: 30, source: 'Table 8.2.3, p. 866' },
-	{ key: 'entryLobby', label: localize('hvac.use.lobby', "Main entry lobbies"), perPerson: 2.5, perArea: 0.3, density: 10, source: 'Table 8.2.3, p. 866' },
-	{ key: 'livingArea', label: localize('hvac.use.dwelling', "Private dwellings: living areas"), source: 'Table 8.2.3, p. 866 (0.35 ACH, at least 7.5 L/s per person)' },
-	{ key: 'hotelBedroom', label: localize('hvac.use.hotelBedroom', "Hotel bedroom or living room"), perPerson: 2.5, perArea: 0.3, density: 10, source: 'Table 8.2.3, p. 865' },
-	{ key: 'hotelLobby', label: localize('hvac.use.hotelLobby', "Hotel lobbies, pre-function"), perPerson: 3.75, perArea: 0.3, density: 30, source: 'Table 8.2.3, p. 865' },
-	{ key: 'patientRoom', label: localize('hvac.use.patient', "Hospital patient rooms"), perPerson: 12.5, density: 10, source: 'Table 8.2.3, p. 865' },
-	{ key: 'operatingRoom', label: localize('hvac.use.operating', "Operating rooms"), perPerson: 15, density: 20, source: 'Table 8.2.3, p. 865' },
-	{ key: 'diningRoom', label: localize('hvac.use.dining', "Dining rooms"), perPerson: 3.75, perArea: 0.9, density: 70, source: 'Table 8.2.3, p. 865' },
-	{ key: 'cafeteria', label: localize('hvac.use.cafeteria', "Cafeteria, fast food"), perPerson: 3.75, perArea: 0.9, density: 100, source: 'Table 8.2.3, p. 865' },
-	{ key: 'classroom9plus', label: localize('hvac.use.classroom', "Classrooms (age 9 plus)"), perPerson: 5, perArea: 0.6, density: 35, source: 'Table 8.2.3, p. 864' },
-	{ key: 'lectureClassroom', label: localize('hvac.use.lecture', "Lecture classroom"), perPerson: 3.75, perArea: 0.3, density: 65, source: 'Table 8.2.3, p. 864' },
-	{ key: 'sales', label: localize('hvac.use.retail', "Retail sales floors"), perPerson: 3.75, perArea: 0.6, density: 15, source: 'Table 8.2.3, p. 867' },
-	{ key: 'mall', label: localize('hvac.use.mall', "Mall common areas"), perPerson: 3.75, perArea: 0.3, density: 40, source: 'Table 8.2.3, p. 867' },
-	{ key: 'supermarket', label: localize('hvac.use.supermarket', "Supermarkets"), perPerson: 3.75, perArea: 0.3, density: 8, source: 'Table 8.2.3, p. 867' },
-	{ key: 'worship', label: localize('hvac.use.worship', "Places of religious worship"), perPerson: 2.5, perArea: 0.3, density: 120, source: 'Table 8.2.3, p. 867' },
-	{ key: 'library', label: localize('hvac.use.library', "Libraries"), perPerson: 2.5, perArea: 0.6, density: 10, source: 'Table 8.2.3, p. 867' },
-	{ key: 'corridor', label: localize('hvac.use.corridor', "Corridors"), perArea: 0.3, source: 'Table 8.2.3, p. 866' },
-];
 
 export interface IConstruction {
 	readonly key: string;
@@ -716,7 +659,8 @@ export function mergeProposedPlant(document: IMep, proposals: readonly IPlant[])
 // ───────────────────────────── checks ─────────────────────────────
 
 /** What is missing or inconsistent in the HVAC section (the contract's rules), as problems with dotted paths. */
-export function checkHvac(document: IMep, context: IMepContext, cities: readonly IHvacCity[] = STATIC_CITIES, uses: readonly IHvacUse[] = STATIC_USES): IMepProblem[] {
+/** `cities`, `uses`: the backend's Tables 8.2.2 and 8.2.3 ({@link HVAC_TABLES_COMMAND}); empty until they arrive, when the keys are not checked. */
+export function checkHvac(document: IMep, context: IMepContext, cities: readonly IHvacCity[] = [], uses: readonly IHvacUse[] = []): IMepProblem[] {
 	const hvac = hvacOf(document);
 	if (!hvac) {
 		return [];
@@ -743,7 +687,7 @@ export function checkHvac(document: IMep, context: IMepContext, cities: readonly
 		add('hvac.system', 'error', localize('hvac.p.system', "The system must be one of {0}.", HVAC_SYSTEMS.join(', ')));
 	}
 	const design = hvac.design;
-	if (design.city !== undefined && !cities.some(c => c.key === design.city)) {
+	if (design.city !== undefined && cities.length && !cities.some(c => c.key === design.city)) {
 		add('hvac.design.city', 'warning', localize('hvac.p.city', "'{0}' is not a station of BNBC Table 8.2.2; give the outdoor conditions yourself.", String(design.city)));
 	}
 	for (const key of ['outdoorDB', 'outdoorWB', 'indoorDB'] as const) {
@@ -781,7 +725,7 @@ export function checkHvac(document: IMep, context: IMepContext, cities: readonly
 		} else if (hvac.stories.findIndex(s => s.story === row.story) < i) {
 			add(path('story'), 'error', localize('hvac.p.rowTwice', "HVAC: story {0} is listed twice.", row.story));
 		}
-		if (row.use !== undefined && !uses.some(u => u.key === row.use)) {
+		if (row.use !== undefined && uses.length && !uses.some(u => u.key === row.use)) {
 			add(path('use'), 'warning', localize('hvac.p.use', "{0}: '{1}' is not a use of BNBC Table 8.2.3.", row.story, String(row.use)));
 		}
 		if (row.occupants !== undefined && !(Number.isInteger(row.occupants) && row.occupants >= 0)) {
@@ -971,6 +915,10 @@ export interface IHvacReport {
 	readonly computed?: string;
 	/** False when EnergyPlus is there but has not run for this input (the estimate is shown): run Calculate Loads. */
 	readonly calculated?: boolean;
+	/** Whether the backend found EnergyPlus (undefined: it did not say); without it Calculate Loads gives the estimate. */
+	readonly energyPlusFound?: boolean;
+	/** The Table 8.2.2 station the loads used (entered, else the nearest to the site of Project Settings). */
+	readonly station?: string;
 	/** Openings of 7 MEP (`HD-`, `HR-`) no duct crosses any more: the engineer removes them. */
 	readonly stale: readonly string[];
 }
@@ -1117,7 +1065,8 @@ export function readHvacReport(raw: unknown): IHvacReport | undefined {
 	}
 	const problems = [...strings(loads.problems), ...(air !== loads ? strings(air.problems) : [])];
 	return {
-		engine, estimate,
+		engine, estimate, energyPlusFound: typeof loads.energyPlusFound === 'boolean' ? loads.energyPlusFound : undefined,
+		station: optionalString(record(loads.design).station),
 		summary: strings(raw.summary),
 		stories,
 		total: {

@@ -15,7 +15,6 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
@@ -83,17 +82,16 @@ class SoilEditorResolverContribution extends Disposable implements IWorkbenchCon
 registerWorkbenchContribution2(SoilEditorResolverContribution.ID, SoilEditorResolverContribution, WorkbenchPhase.BlockStartup);
 
 /**
- * Ctrl+Z / Ctrl+Y in the soil report editor undo the file's text edits; inside a text field the
+ * Ctrl+Z / Ctrl+Y in the soil report editor undo the file's text edits, wherever the keyboard
+ * is in it (the list, a grid, a button), and say what was undone; inside a text field the
  * field's own undo still applies.
  */
 function undoRedo(accessor: ServicesAccessor, redo: boolean): boolean | Promise<void> {
 	const pane = accessor.get(IEditorService).activeEditorPane;
-	const resource = pane instanceof SoilEditor ? pane.resource : undefined;
-	if (!resource || isEditableElement(getActiveElement() as HTMLElement)) {
+	if (!(pane instanceof SoilEditor) || !pane.resource || isEditableElement(getActiveElement() as HTMLElement)) {
 		return false;
 	}
-	const undoRedoService = accessor.get(IUndoRedoService);
-	return Promise.resolve(redo ? undoRedoService.redo(resource) : undoRedoService.undo(resource));
+	return pane.undoRedo(redo);
 }
 
 UndoCommand.addImplementation(110, 'saengine-soil', accessor => undoRedo(accessor, false));

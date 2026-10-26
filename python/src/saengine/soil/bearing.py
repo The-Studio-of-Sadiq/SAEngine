@@ -23,14 +23,36 @@ loads (gross pressure minus the total overburden at the founding level, as
 
     Undrained clay (φ = 0, cu): ``qu - q = cu Nc sc dc`` with Nc = 5.14, sc = 1 + 0.2 B/L
     (Skempton-type short-term check, which governs footings on saturated clay). Cohesive layers
-    with drained c', φ' are also checked drained and the lower value used. Each layer within B
-    below the base is checked with its own parameters as if the footing stood on it, and the
-    weakest governs (a conservative stand-in for a two-layer analysis). A layer within B below
-    the base with no strength at all (no cu, φ' or SPT to estimate them) withholds qa: an
-    unknown layer under the footing cannot be passed over. Then ``qa_shear = (qu - σ'v) / FS``:
-    qu is computed with the effective overburden q = σ'v, so the gross total capacity is
-    ``qu + u`` (u the pore pressure at the base) and the capacity net of the total overburden
-    σv is ``qu + u - σv = qu - σ'v``, the same for the drained and the undrained case.
+    with drained c', φ' are also checked drained and the lower value used.
+
+    Every layer to 2B below the base and beyond is checked (BNBC 2020 Part 6 Sec 3.4.2.3(a)
+    explores two footing widths below an isolated footing; Sec 3.9.3 asks for established
+    bearing capacity equations; the public final draft, BNBC 2012 Vol. 2 pp. 6-158 and 6-171,
+    has the same text). The layer the footing stands on gives qt by the equation above. Each
+    deeper layer, at H below the base, is checked for failing through the layers above it
+    (strong over weak; both methods are in Bowles 1996, ch. 4, layered soils), capped at qt:
+
+    - undrained clay over a softer undrained clay (c2 < c1): Brown & Meyerhof (1969),
+      ``Nc = 1.5 H/B + 5.14 c2/c1 ≤ 5.14`` (strip) and ``3 H/B + 6.05 c2/c1 ≤ 6.05`` (square,
+      circle), a rectangle between them by B/L; their Nc over its value for one clay
+      (5.14 ... 6.05) scales the founding clay's ``cu Nc sc dc``, so the check meets qt where
+      the softer clay is deep enough not to matter;
+    - any other pair (sand over clay, sand over looser sand, ...): the 2:1 load spread, the
+      deeper layer carrying an equivalent footing (B + H) × (L + H) on its top (its own c, φ,
+      γ, q = σ'v there, the shape factors, no depth factors):
+      ``qu - q = (qb - q2) (B + H)(L + H) / (B L)``.
+
+    Both grow with H, so a deep layer fades out without a cut-off; Meyerhof & Hanna's (1978)
+    punching method is not used, as its ca and Ks come from charts only.
+
+    A weaker layer just below a thin crust so lowers qa smoothly as B grows, instead of
+    being missed below B and then counted as if the footing stood on it. A layer within 2B
+    with no strength at all (no cu, φ' or SPT to estimate them) withholds qa: an unknown layer
+    under the footing cannot be passed over. The lowest value governs, and
+    ``qa_shear = (qu - σ'v) / FS``: qu is computed with the effective overburden q = σ'v, so
+    the gross total capacity is ``qu + u`` (u the pore pressure at the base) and the capacity
+    net of the total overburden σv is ``qu + u - σv = qu - σ'v``, the same for the drained
+    and the undrained case.
 
 (b) Settlement, for granular soil: Meyerhof (1965) as modified by Bowles (1977), the SI form
     with N60 (Das, Principles of Foundation Engineering, eq. for the net allowable pressure for
@@ -73,7 +95,7 @@ loads (gross pressure minus the total overburden at the founding level, as
     reaches it (by bisection, up to 5000 kPa) is given for the table. A clay only stressed by a
     pressure higher than the adopted one is not checked.
 
-(c) ``qa = min(qa_shear, qa_settlement)``. There is no qa when a layer within B below the
+(c) ``qa = min(qa_shear, qa_settlement)``. There is no qa when a layer within 2B below the
     base has no strength (cu, or φ' or SPT), or when a cohesive layer in the stressed zone has
     neither a modulus nor Cc and e0 (its settlement would be unknown).
 
@@ -146,50 +168,120 @@ def gamma_for_width(profile: Profile, layer: SoilLayer, df: float, b: float) -> 
     return buoyant + (wt - df) / b * (moist - buoyant)
 
 
+#: Depth below the base, in footing widths, within which a layer must have a strength: BNBC
+#: 2020 Part 6 Sec 3.4.2.3(a) explores two footing widths below an isolated footing.
+ZONE_WIDTHS = 2.0
+
+
+def two_clay_nc(c1: float, c2: float, b: float, l_: float, h: float) -> float:
+    """Brown & Meyerhof (1969) Nc of a stiffer clay (c1) over a softer one (c2 ≤ c1) whose top is
+    ``h`` [m] below the base: strip ``1.5 H/B + 5.14 c2/c1 ≤ 5.14``, circle (square)
+    ``3 H/B + 6.05 c2/c1 ≤ 6.05``, a rectangle between them by B/L."""
+    b, l_ = min(b, l_), max(b, l_)
+    ratio = c2 / c1
+    strip = min(5.14, 1.5 * h / b + 5.14 * ratio)
+    square = min(6.05, 3.0 * h / b + 6.05 * ratio)
+    return strip + b / l_ * (square - strip)
+
+
+def _options(layer: SoilLayer) -> list[tuple[str, float, float]]:
+    """The layer's (mode, c, φ) to check: undrained with cu, drained with c' and φ'."""
+    options = []
+    if layer.behaviour == "cohesive" and layer.cu is not None:
+        options.append(("undrained", layer.cu, 0.0))
+    if layer.phi is not None and (layer.behaviour == "granular" or layer.phi > 0):
+        options.append(("drained", layer.c, layer.phi))
+    return options
+
+
 def shear(profile: Profile, b: float, l_: float, df: float, fs: float) -> dict[str, Any]:
-    """Net allowable pressure against shear failure [kPa], from the weakest layer within B."""
+    """Net allowable pressure against shear failure [kPa]: the founding layer, and failure into
+    each deeper layer; a layer within 2B below the base with no strength withholds it."""
     q_eff, q_total = profile.sigma_v_eff(df), profile.sigma_v(df)
     candidates: list[dict[str, Any]] = []
     skipped: list[str] = []
     unknown: list[str] = []
+    # The founding layer's own capacity qt for each of its modes: (mode, c1, φ1, qt).
+    tops: list[tuple[str, float, float, float]] = []
+    founding: str | None = None
     for layer in profile.layers:
         if layer.bottom <= df + 1e-9 and layer is not profile.layers[-1]:
             continue
-        if layer.top >= df + b:
-            break
         name = f"layer {layer.index + 1} ({layer.soil_type})"
+        h = layer.top - df
+        within = h < ZONE_WIDTHS * b - 1e-9
         if layer.behaviour == "rock":
-            skipped.append(f"{name}: rock, not checked")
+            if within:
+                skipped.append(f"{name}: rock, not checked")
             continue
-        gamma = gamma_for_width(profile, layer, df, b)
-        options = []
-        if layer.behaviour == "cohesive" and layer.cu is not None:
-            r = ultimate(layer.cu, 0.0, q_eff, gamma, b, l_, df)
-            options.append(("undrained", r, r["qu"] - q_eff))
-        if layer.phi is not None and (layer.behaviour == "granular" or layer.phi > 0):
-            r = ultimate(layer.c, layer.phi, q_eff, gamma, b, l_, df)
-            options.append(("drained", r, r["qu"] - q_eff))
+        options = _options(layer)
         if not options:
-            unknown.append(f"{name}: no strength (cu or φ', or SPT to estimate them)")
+            if within:
+                unknown.append(f"{name}: no strength (cu or φ', or SPT to estimate them)")
             continue
-        for mode, r, net in options:
-            candidates.append(
-                {
-                    "layer": layer.index,
-                    "mode": mode,
-                    "qa": max(0.0, net) / fs,
-                    "qu": r["qu"],
-                    "factors": {k: round(v, 3) for k, v in r.items() if k != "qu"},
-                    "c": layer.cu if mode == "undrained" else layer.c,
-                    "phi": 0.0 if mode == "undrained" else layer.phi,
-                    "label": name,
-                }
-            )
+        if not tops:
+            # The layer the footing stands on (or the first one with strength below a rock
+            # layer): the general equation with its own parameters, q at the base.
+            founding = name
+            gamma = gamma_for_width(profile, layer, df, b)
+            for mode, c, phi in options:
+                r = ultimate(c, phi, q_eff, gamma, b, l_, df)
+                tops.append((mode, c, phi, r["qu"]))
+                candidates.append(
+                    {
+                        "layer": layer.index,
+                        "mode": mode,
+                        "qa": max(0.0, r["qu"] - q_eff) / fs,
+                        "qu": r["qu"],
+                        "factors": {k: round(v, 3) for k, v in r.items() if k != "qu"},
+                        "c": c,
+                        "phi": phi,
+                        "label": name,
+                    }
+                )
+            continue
+        # A deeper layer at H below the base: is it weak enough to fail through the layers above?
+        z = layer.top
+        q2 = profile.sigma_v_eff(z)
+        for top_mode, c1, _phi1, qt in tops:
+            for mode, c2, phi2 in options:
+                if top_mode == "undrained" and mode == "undrained" and c2 < c1:
+                    # Clay over softer clay: Brown & Meyerhof (1969), as the share of the
+                    # founding clay's own capacity their Nc keeps (1 once H is deep enough).
+                    ratio = two_clay_nc(c1, c2, b, l_, h) / two_clay_nc(c1, c1, b, l_, h)
+                    qu = q_eff + (qt - q_eff) * ratio
+                    detail = {"Nc/Nc0": round(ratio, 3), "c2/c1": round(c2 / c1, 3)}
+                    method = "Brown & Meyerhof 1969"
+                else:
+                    # The 2:1 load spread: an equivalent footing (B + H) × (L + H) on the layer's
+                    # top carries the same load, at the layer's own allowable pressure.
+                    be, le = b + h, l_ + h
+                    rb = ultimate(c2, phi2, q2, gamma_for_width(profile, layer, z, be), be, le, 0.0)
+                    spread = be * le / (b * l_)
+                    qu = q_eff + (rb["qu"] - q2) * spread
+                    detail = {"qb": round(rb["qu"], 1), "spread": round(spread, 3)}
+                    method = "2:1 load spread"
+                if qu >= qt:
+                    continue  # the founding layer's own capacity governs
+                candidates.append(
+                    {
+                        "layer": layer.index,
+                        "mode": "layered",
+                        "method": method,
+                        "qa": max(0.0, qu - q_eff) / fs,
+                        "qu": qu,
+                        "factors": {**detail, "H": round(h, 3)},
+                        "c": c2,
+                        "phi": phi2,
+                        "H": h,
+                        "label": f"{founding} ({top_mode}) over {name} ({mode})",
+                    }
+                )
     if unknown:
         return {
             "qa": None,
             "notes": skipped
-            + [f"{text}: it lies within B below the base, so there is no qa" for text in unknown],
+            + [f"{text}: it lies within 2B below the base, so there is no qa" for text in unknown],
         }
     if not candidates:
         return {"qa": None, "notes": skipped or ["no layer below the founding level"]}
@@ -406,11 +498,15 @@ def allowable(profile: Profile, b: float, l_: float, df: float) -> dict[str, Any
         governs = "shear" if s["qa"] is not None and qa == s["qa"] else "settlement"
     shear_text = None
     if s["qa"] is not None:
-        shear_text = (
-            f"{s['label']}, {s['mode']}: qu = {s['qu']:.0f} kPa, qa = (qu - σ'v)/FS"
-            if s["mode"] == "drained"
-            else f"{s['label']}, undrained: cu = {s['c']:.0f} kPa, qa = cu Nc sc dc/FS"
-        )
+        if s["mode"] == "layered":
+            shear_text = (
+                f"{s['label']}: the weaker layer {s['H']:.2f} m below the base governs "
+                f"({s['method']}): qu = {s['qu']:.0f} kPa, qa = (qu - σ'v)/FS"
+            )
+        elif s["mode"] == "drained":
+            shear_text = f"{s['label']}, drained: qu = {s['qu']:.0f} kPa, qa = (qu - σ'v)/FS"
+        else:
+            shear_text = f"{s['label']}, undrained: cu = {s['c']:.0f} kPa, qa = cu Nc sc dc/FS"
     return {
         "B": round(b * 1e3),
         "L": round(l_ * 1e3),
@@ -451,8 +547,11 @@ def table(profile: Profile) -> list[dict[str, Any]]:
 _SHEAR = (
     "qa = min(shear, settlement). Shear: general bearing capacity equation, Vesic (1975) "
     "factors, De Beer shape and Hansen depth factors, water table correction; undrained clay "
-    "qu - q = cu Nc sc dc; the weakest layer within B below the base (a layer there with no "
-    "strength data withholds qa); FS on the net value qu - σ'v. "
+    "qu - q = cu Nc sc dc on the founding layer; every weaker layer below it by Brown & "
+    "Meyerhof (1969) for clay over softer clay, else the 2:1 load spread; a layer within 2B "
+    "below the base "
+    "(BNBC 2020 Part 6 Sec 3.4.2.3(a)) with no strength data withholds qa; FS on the net value "
+    "qu - σ'v (Sec 3.9.3). "
 )
 _SETTLEMENT = {
     "textbook": (
