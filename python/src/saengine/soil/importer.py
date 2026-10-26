@@ -658,7 +658,11 @@ def _sample(
 
 def import_soil(path: str, soil_text: str | None = None) -> dict[str, Any]:
     """The soil report with the boreholes of a CSV or Excel file: ``{"text", "notes"}`` (a
-    borehole with an id already in the report replaces it), or ``{"problems"}``."""
+    borehole with an id already in the report replaces it), or ``{"problems"}``. The rows of
+    the template's example borehole (:data:`EXAMPLE_ID`) are skipped.
+
+    The editor asks with an empty report and merges the boreholes itself, asking the engineer
+    what to do with an id the report already has (replace, keep both, skip)."""
     from saengine.soil.report import dumps, messages, parse
 
     try:
@@ -668,8 +672,21 @@ def import_soil(path: str, soil_text: str | None = None) -> dict[str, Any]:
     boreholes, problems, notes = parse_rows(rows)
     if problems:
         return {"problems": problems}
+    example = [hole for hole in boreholes if hole["id"] == EXAMPLE_ID]
+    boreholes = [hole for hole in boreholes if hole["id"] != EXAMPLE_ID]
     if not boreholes:
+        if example:
+            return {
+                "problems": [
+                    (
+                        f"{Path(path).name}: only the template's example borehole {EXAMPLE_ID}, "
+                        "which is not imported: add your boreholes' rows under it"
+                    )
+                ]
+            }
         return {"problems": [f"{Path(path).name}: no borehole rows below the header"]}
+    if example:
+        notes.append(f"{EXAMPLE_ID}: the template's example, not imported.")
     base = parse(soil_text) if soil_text else SoilReport()
     if isinstance(base, list):
         return {"problems": base}
@@ -695,10 +712,14 @@ def import_soil(path: str, soil_text: str | None = None) -> dict[str, Any]:
 
 # ─────────────────────────────── template ───────────────────────────────
 
+#: The id of the template's example borehole: the importer skips it, so a template filled in
+#: beside the example never brings the example in (nor replaces a real BH-1).
+EXAMPLE_ID = "EXAMPLE-1"
+
 #: Example rows of the template: a borehole with layers, SPT records and samples (lengths in m).
 EXAMPLE: list[dict[str, Any]] = [
     {
-        "borehole": "BH-1",
+        "borehole": EXAMPLE_ID,
         "record": "layer",
         "x": 0,
         "y": 0,
@@ -712,7 +733,7 @@ EXAMPLE: list[dict[str, Any]] = [
         "unitWeight": 17,
     },
     {
-        "borehole": "BH-1",
+        "borehole": EXAMPLE_ID,
         "record": "layer",
         "top": 1.5,
         "bottom": 6,
@@ -728,7 +749,7 @@ EXAMPLE: list[dict[str, Any]] = [
         "e0": 0.95,
     },
     {
-        "borehole": "BH-1",
+        "borehole": EXAMPLE_ID,
         "record": "layer",
         "top": 6,
         "bottom": 15,
@@ -738,18 +759,18 @@ EXAMPLE: list[dict[str, Any]] = [
         "saturatedUnitWeight": 19.5,
         "finesContent": 18,
     },
-    {"borehole": "BH-1", "record": "spt", "depth": 1.5, "N": 4},
-    {"borehole": "BH-1", "record": "spt", "depth": 3.0, "N": 3},
-    {"borehole": "BH-1", "record": "spt", "depth": 4.5, "N": 5},
-    {"borehole": "BH-1", "record": "spt", "depth": 6.0, "N": 9},
-    {"borehole": "BH-1", "record": "spt", "depth": 7.5, "N": 12},
-    {"borehole": "BH-1", "record": "spt", "depth": 9.0, "N": 15},
-    {"borehole": "BH-1", "record": "spt", "depth": 10.5, "N": 18},
-    {"borehole": "BH-1", "record": "spt", "depth": 12.0, "N": 22},
-    {"borehole": "BH-1", "record": "spt", "depth": 13.5, "N": 25},
-    {"borehole": "BH-1", "record": "spt", "depth": 15.0, "N": 28},
+    {"borehole": EXAMPLE_ID, "record": "spt", "depth": 1.5, "N": 4},
+    {"borehole": EXAMPLE_ID, "record": "spt", "depth": 3.0, "N": 3},
+    {"borehole": EXAMPLE_ID, "record": "spt", "depth": 4.5, "N": 5},
+    {"borehole": EXAMPLE_ID, "record": "spt", "depth": 6.0, "N": 9},
+    {"borehole": EXAMPLE_ID, "record": "spt", "depth": 7.5, "N": 12},
+    {"borehole": EXAMPLE_ID, "record": "spt", "depth": 9.0, "N": 15},
+    {"borehole": EXAMPLE_ID, "record": "spt", "depth": 10.5, "N": 18},
+    {"borehole": EXAMPLE_ID, "record": "spt", "depth": 12.0, "N": 22},
+    {"borehole": EXAMPLE_ID, "record": "spt", "depth": 13.5, "N": 25},
+    {"borehole": EXAMPLE_ID, "record": "spt", "depth": 15.0, "N": 28},
     {
-        "borehole": "BH-1",
+        "borehole": EXAMPLE_ID,
         "record": "sample",
         "depth": 3.0,
         "sampleType": "UD",
@@ -760,7 +781,7 @@ EXAMPLE: list[dict[str, Any]] = [
         "plasticLimit": 23,
     },
     {
-        "borehole": "BH-1",
+        "borehole": EXAMPLE_ID,
         "record": "sample",
         "depth": 9.0,
         "sampleType": "SPT",

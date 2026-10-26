@@ -202,6 +202,9 @@ def test_flat_slab_variant() -> None:
     slab_types = {o.id: o for o in objects.objects if o.kind == "slab"}
     assert list(slab_types) == ["S200-FP"]
     assert slab_types["S200-FP"].system == "flat"
+    # No beams take the slab loads, so the flat slab is meshed as shells (cross-check finding).
+    assert settings.analysis.slabs == "shells"
+    assert parts(generate_building(SPEC))[3].analysis.slabs == "loadsToBeams"
     # Table 6.6.3: exterior panel without edge beams ln/30 at fy 420; ln = 6000 - 300 (the
     # smallest columns) = 5700 -> 190 -> 200 mm.
     assert flat_divisor(420, 0) == 30

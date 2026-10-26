@@ -7,7 +7,8 @@ import { localize } from '../../../../nls.js';
 import { formatNumber } from '../../saengineSoil/browser/soilDocument.js';
 import { svg } from '../../saengineSoil/browser/soilLog.js';
 import { IMep, IMepContext, Point, storyElements } from './mepDocument.js';
-import type { IPlanView, MepSelection } from './mepPlan.js';
+import type { MepSelection } from './mepPlan.js';
+import { IPlanView, polygonPoints } from './planSvg.js';
 import { roofStory } from './mepRead.js';
 import {
 	earthingLabel, elecKindLabel, RING_OFFSET, elecLetters, elecOutline, elecRiserOnStory, electricalOf, IElectricalReport, ratingUnit, riserKindLabel, riserLetters, riserOutline, sourceOf,
@@ -30,10 +31,6 @@ export interface IElectricalPlanOptions {
 
 function selected(selection: MepSelection | undefined, kind: 'elecEquipment' | 'elecRiser' | 'tray', index: number): boolean {
 	return selection?.kind === kind && selection.index === index;
-}
-
-function polygonPoints(view: IPlanView, points: readonly Point[]): string {
-	return points.map(p => `${view.x(p[0]).toFixed(1)},${view.y(p[1]).toFixed(1)}`).join(' ');
 }
 
 /** The air terminals drawn: the file's, else the ones the backend proposes. */

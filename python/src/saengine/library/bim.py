@@ -302,6 +302,50 @@ class Additions(_Model):
         return [*self.slabOpenings, *self.wallOpenings, *self.stairs, *self.members]
 
 
+#: Tolerance of the model checks [mm].
+_TOLERANCE = 1.0
+
+
+def _inside(x: float, y: float, polygon: list[list[float]]) -> bool:
+    """Whether (x, y) is inside ``polygon`` (even-odd rule)."""
+    inside = False
+    for (x1, y1), (x2, y2) in zip(polygon, polygon[1:] + polygon[:1], strict=True):
+        if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
+            inside = not inside
+    return inside
+
+
+def _on_segment(point: list[float], a: list[float], b: list[float]) -> bool:
+    """Whether ``point`` lies on segment ``a``-``b`` (within the check tolerance)."""
+    length = math.dist(a, b)
+    if length == 0:
+        return math.dist(point, a) <= _TOLERANCE
+    t = ((point[0] - a[0]) * (b[0] - a[0]) + (point[1] - a[1]) * (b[1] - a[1])) / length**2
+    if t < -_TOLERANCE / length or t > 1 + _TOLERANCE / length:
+        return False
+    foot = (a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1]))
+    return math.dist(point, foot) <= _TOLERANCE
+
+
+def _placement_key(e: Any) -> tuple[Any, ...] | None:
+    """Where an element is, for finding one drawn twice (rounded to the millimetre)."""
+
+    def r(values: list[float]) -> tuple[float, ...]:
+        return tuple(round(v) for v in values)
+
+    if isinstance(e, ColumnElement):
+        return ("column", r(e.position), round(e.bottom), round(e.top))
+    if isinstance(e, BeamElement | WallElement):
+        ends = sorted([r(e.start), r(e.end)])
+        level = (round(e.elevation),) if isinstance(e, BeamElement) else (round(e.bottom),)
+        return (e.kind, *ends, *level)
+    if isinstance(e, SlabElement):
+        return ("slab", tuple(sorted(r(p) for p in e.boundary)), round(e.elevation))
+    if isinstance(e, FootingElement):
+        return ("footing", r(e.position), round(e.elevation))
+    return None
+
+
 class BuildingModel(_Model):
     schema_: Literal["saengine.bim/2"] = Field(default=SCHEMA_ID, alias="schema")
     source: SourceStamps | None = Field(
@@ -347,12 +391,82 @@ class BuildingModel(_Model):
         ]:
             if kinds.get(opening.host) != kind:
                 problems.append(f"{opening.id}: there is no {kind} '{opening.host}' to cut")
+        hosts = {e.id: e for e in self.elements}
+        for wall_opening in self.additions.wallOpenings:
+            wall = hosts.get(wall_opening.host)
+            if not isinstance(wall, WallElement):
+                continue
+            length = math.dist(wall.start, wall.end)
+            end = wall_opening.offset + wall_opening.width
+            if end > length + _TOLERANCE:
+                problems.append(
+                    f"{wall_opening.id}: it runs past the end of wall {wall.id} "
+                    f"(offset {wall_opening.offset:g} + width {wall_opening.width:g} = {end:g} mm, "
+                    f"the wall is {length:g} mm long)"
+                )
+            height = wall.top - wall.bottom
+            if wall_opening.sill + wall_opening.height > height + _TOLERANCE:
+                problems.append(
+                    f"{wall_opening.id}: it is taller than wall {wall.id} "
+                    f"(sill {wall_opening.sill:g} + height {wall_opening.height:g} mm, "
+                    f"the wall is {height:g} mm high)"
+                )
+        for slab_opening in self.additions.slabOpenings:
+            slab = hosts.get(slab_opening.host)
+            if not isinstance(slab, SlabElement):
+                continue
+            if not _inside(slab_opening.x, slab_opening.y, slab.boundary):
+                problems.append(
+                    f"{slab_opening.id}: its centre ({slab_opening.x:g}, {slab_opening.y:g}) "
+                    f"is outside slab {slab.id}"
+                )
         for stair in self.additions.stairs:
             missing = [s for s in (stair.base, stair.top) if s not in stories]
             if missing:
                 problems.append(f"{stair.id}: no story '{missing[0]}'")
             elif stories[stair.base] >= stories[stair.top]:
                 problems.append(f"{stair.id}: its top story must be above its base story")
+        return problems
+
+    def check_model(self) -> list[str]:
+        """Model checks: elements drawn twice, and beams that rest on nothing at either end.
+
+        A beam end is supported on a column, a wall or another beam at its level; a beam with
+        one supported end is a cantilever and is accepted.
+        """
+        problems = []
+        seen: dict[tuple[Any, ...], str] = {}
+        for e in self.elements:
+            key = _placement_key(e)
+            if key is None:
+                continue
+            if key in seen:
+                problems.append(f"{e.id}: it is drawn on top of {seen[key]} (same kind and place)")
+            else:
+                seen[key] = e.id
+        columns = [e for e in self.elements if isinstance(e, ColumnElement)]
+        walls = [e for e in self.elements if isinstance(e, WallElement)]
+        beams = [e for e in self.elements if isinstance(e, BeamElement)]
+
+        def supported(point: list[float], level: float, beam: BeamElement) -> bool:
+            for c in columns:
+                if c.bottom < level <= c.top + _TOLERANCE and math.dist(point, c.position) <= 1:
+                    return True
+            for w in walls:
+                if w.bottom < level <= w.top + _TOLERANCE and _on_segment(point, w.start, w.end):
+                    return True
+            return any(
+                other is not beam
+                and abs(other.elevation - level) <= _TOLERANCE
+                and _on_segment(point, other.start, other.end)
+                for other in beams
+            )
+
+        for b in beams:
+            if not supported(b.start, b.elevation, b) and not supported(b.end, b.elevation, b):
+                problems.append(
+                    f"{b.id}: neither end rests on a column, wall or beam (an unsupported beam)"
+                )
         return problems
 
     def check_objects(self, objects: ObjectLibrary) -> list[str]:

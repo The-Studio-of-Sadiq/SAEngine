@@ -8,10 +8,10 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFemResultEntry } from '../../../../../platform/saengine/common/femSolver.js';
 import { niceTicks, renderChart, renderSheet, tickText } from '../../browser/femChart.js';
-import { closedPmCurve, exportCell, formatCell, describeMode, elasticDriftLimit, extremes, filterRows, IFemColumnDiagram, IFemMemberForces, IFemStoryResponse, IFemStoryResult, isEarthquakeResult, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, sortRows, spectrumAt, storeyProfile, storeyTable, workbookSheets } from '../../browser/femChartData.js';
-import { defaultResult, modeText, scaleText } from '../../browser/femResultsBar.js';
+import { closedPmCurve, defaultChartResult, displayTable, exportCell, formatCell, isLateralResult, orderLike, supportReactions, describeMode, elasticDriftLimit, extremes, filterRows, IFemColumnDiagram, IFemMemberForces, IFemStoryResponse, IFemStoryResult, isEarthquakeResult, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, sortRows, spectrumAt, storeyProfile, storeyTable, workbookSheets } from '../../browser/femChartData.js';
+import { defaultResult, deflectionMagnification, modeText, scaleText } from '../../browser/femResultsBar.js';
 import { chartUnits, memberNames } from '../../browser/femResultsView.js';
-import { cameraOf, gridLines, IFilterModel, modelLevels, viewChoices, visibleElements } from '../../browser/femViewFilter.js';
+import { cameraOf, freeTopColumns, gridLines, IFilterModel, modelLevels, viewChoices, visibleElements } from '../../browser/femViewFilter.js';
 
 const row = (name: string, z: number, values: Partial<Record<string, number | null>>) => ({
 	name, z, height: null, dispX: null, dispY: null, avgDispX: null, avgDispY: null, driftX: null, driftY: null,
@@ -111,6 +111,59 @@ suite('SAEngine - FEM charts', () => {
 		assert.deepStrictEqual(sheets[1].columns, ['Result', 'Node', 'ux']);
 	});
 
+	test('result tables in kN, mm and kN·m, named axes, supports only with a total', () => {
+		const si = 'SI (m, N, kg, s, Pa)';
+		const node = displayTable({ name: 'Reactions', title: 'Final-step reactions', columns: ['Node', 'F1 [N]', 'F3 [N]', 'M2 [N·m]', 'R1 [rad]'], rows: [[1, 1500, -20000, 3000, 0.001]], notes: [] }, si);
+		assert.deepStrictEqual(node.columns, ['Node', 'Fx [kN]', 'Fz [kN]', 'My [kN·m]', 'Rx [rad]']);
+		assert.deepStrictEqual(node.rows, [[1, 1.5, -20, 3, 0.001]]);
+		const disp = displayTable({ name: 'Displacements', title: 'Displacements (m, rad)', columns: ['Node', 'Ux', 'Rz'], rows: [[2, 0.0021, 0.01]], notes: [] }, si);
+		assert.deepStrictEqual([disp.title, disp.columns, disp.rows[0][1]], ['Displacements (mm, rad)', ['Node', 'Ux [mm]', 'Rz [rad]'], 2.1]);
+		// Member forces in the member's axes: V2, M3, the unit per row converted.
+		const long = displayTable({ name: 'Element forces', title: 'Final-step element forces', columns: ['Element', 'Type', 'Component', 'Unit', 'Value'], rows: [[7, 'Frame', 'Vy i', 'N', 2500], [7, 'Frame', 'Mz i', 'N·m', 4000]], notes: [] }, si);
+		assert.deepStrictEqual(long.rows, [[7, 'Frame', 'V2 i', 'kN', 2.5], [7, 'Frame', 'M3 i', 'kN·m', 4]]);
+		const envelope = displayTable({ name: 'Envelope', title: 'Element end forces, min and max (N, N·m)', columns: ['Element', 'End', 'Force', 'Min', 'Max'], rows: [['B1', 'i', 'Mz', -5000, 6000]], notes: [] }, si);
+		assert.deepStrictEqual(envelope.rows, [['B1', 'i', 'M3', -5, 6]]);
+		assert.strictEqual(displayTable(node, 'US (in, kip)'), node);
+
+		const reactions = supportReactions({ name: 'Reactions', title: '', columns: ['Node', 'Fx [kN]', 'Fz [kN]'], rows: [[1, 1, 10], [2, -0.5, 20], [423, 7, 0], ['Total', 7.5, 30]], notes: [] }, new Set([1, 2]));
+		assert.deepStrictEqual(reactions.rows, [[1, 1, 10], [2, -0.5, 20], ['Total', 0.5, 30]]);
+
+		// Sheets of one name with different columns say what they hold.
+		const sheets = workbookSheets([
+			{ caseName: 'D', resultType: 'StaticResults', tables: [{ name: 'Element forces', title: '', columns: ['Element', 'Value'], rows: [[1, 0.1]], notes: [] }] },
+			{ caseName: '1.4D', resultType: 'Combination', tables: [{ name: 'Element forces', title: '', columns: ['Element', 'End', 'N'], rows: [[1, 'i', 0.30000000000000004]], notes: [] }] },
+		]);
+		assert.deepStrictEqual(sheets.map(s => s.name), ['Element forces (cases)', 'Element forces (combinations)']);
+		assert.deepStrictEqual(sheets[1].rows, [['1.4D', 1, 'i', 0.3]]);
+	});
+
+	test('the charts open at a lateral result, listed as the 3D view lists them', () => {
+		const gravity: IFemStoryResult = { key: 'combination:1', label: '1.4D', kind: 'combination', baseReaction: null, storeys: [row('Base', 0, {}), row('Level 1', 3, { shearX: 0, dispX: 0.0001 })] };
+		const rx: IFemStoryResult = { ...EX, key: 'case:9', label: 'RX: Response spectrum X', kind: 'spectrum' };
+		assert.strictEqual(defaultChartResult([gravity, EX])?.key, EX.key);
+		assert.strictEqual(defaultChartResult([gravity, EX, rx])?.key, rx.key);
+		assert.strictEqual(defaultChartResult([gravity])?.key, gravity.key);
+		assert.strictEqual(isLateralResult(gravity), false);
+		assert.deepStrictEqual(orderLike([gravity, EX, rx], ['case:7', 'case:9']).map(r => r.key), ['case:7', 'case:9', 'combination:1']);
+		// A storey's peak drift is marked at its top level, where it is reported.
+		assert.strictEqual(profilePeak(storeyProfile(EX, 'drift', 'X'))?.z, 6);
+	});
+
+	test('a member chart spans its length exactly', () => {
+		const parent = mainWindow.document.createElement('div');
+		const figure = renderChart(parent, { title: 'M3', xLabel: 'x', yLabel: 'M', series: [{ name: 'M', color: 'blue', points: [[0, 1], [3.2, -1]] }], xDomain: [0, 3.2] });
+		const ticks = [...figure.querySelectorAll('.fem-chart-tick')].map(t => t.textContent);
+		assert.ok(ticks.includes('3.2') && !ticks.includes('4') && !ticks.includes('3.5'), ticks.join(' '));
+	});
+
+	test('the 3D view draws deflections at 6 % of the model size: the true magnification', () => {
+		const model = { nodes: [{ id: 1, coords: [0, 0, 0] }, { id: 2, coords: [3, 0, 4] }], elements: [] };
+		const view = { label: 'D', kind: 'static' as const, nodes: [], reactions: [], elements: [{ id: 1, name: 'C1', y: [], z: [], displacements: [[0, 0, 0], [0.003, 0, -0.004]] }] };
+		assert.ok(Math.abs(deflectionMagnification(model, view, 1)! - 60) < 1e-9);
+		assert.ok(Math.abs(deflectionMagnification(model, view, 2)! - 120) < 1e-9);
+		assert.strictEqual(deflectionMagnification(undefined, view, 1), undefined);
+	});
+
 	test('a new run opens at the first combination, else the first static case', () => {
 		const entry = (key: string, kind: IFemResultEntry['kind']): IFemResultEntry => ({ key, label: key, kind });
 		assert.strictEqual(defaultResult([entry('case:10', 'modal'), entry('case:1', 'static'), entry('combination:1', 'combination')])?.key, 'combination:1');
@@ -155,11 +208,12 @@ suite('SAEngine - FEM charts', () => {
 		assert.ok([...figure.querySelectorAll('circle title')].every(t => (t.textContent ?? '').length > 0));
 	});
 
-	test('tables: four significant digits on screen, full precision in the exports', () => {
+	test('tables: four significant digits on screen, six in the exports, no exponents or -0', () => {
 		assert.deepStrictEqual(
 			[formatCell(0.000123456), formatCell(12345.678), formatCell(3), formatCell(1.5), formatCell('C3#2'), exportCell(0.000123456789), exportCell('C3')],
-			['0.0001235', '12350', '3', '1.5', 'C3#2', '0.000123456789', 'C3'],
+			['0.0001235', '12350', '3', '1.5', 'C3#2', '0.000123457', 'C3'],
 		);
+		assert.deepStrictEqual([formatCell(-3.2e-11), formatCell(1.2e-9), exportCell(0.30000000000000004), exportCell(-1e-12)], ['0', '0', '0.3', '0']);
 		const parent = mainWindow.document.createElement('div');
 		renderSheet(parent, { name: 'Modes', columns: ['Mode', 'T [s]'], rows: [[1, 0.876543], ['2', 0.5]], notes: ['Mass participation from the eigen solver.'] });
 		assert.deepStrictEqual({
@@ -200,6 +254,19 @@ suite('SAEngine - FEM view filters', () => {
 
 	test('levels from the diaphragms and the supports; grid lines shared by columns', () => {
 		assert.deepStrictEqual(modelLevels(model), [0, 3]);
+		// A roof of beams without a diaphragm is a level too; a column standing on it is free at the top.
+		const roof: IFilterModel = {
+			...model,
+			nodes: [...model.nodes, { id: 31, coords: [0, 0, 6] }, { id: 32, coords: [5, 0, 6] }, { id: 33, coords: [10, 0, 6] }, { id: 34, coords: [10, 0, 7.5] }],
+			elements: [...model.elements,
+			{ id: 21, name: 'C11', type: 'ElasticBeamColumn', nodes: [11, 31] }, { id: 22, name: 'C12', type: 'ElasticBeamColumn', nodes: [12, 32] },
+			{ id: 23, name: 'R1', type: 'ElasticBeamColumn', nodes: [31, 32] }, { id: 24, name: 'R1#2', type: 'ElasticBeamColumn', nodes: [32, 33] },
+			{ id: 25, name: 'C20', type: 'ElasticBeamColumn', nodes: [13, 34] },
+			],
+		};
+		assert.deepStrictEqual(modelLevels(roof), [0, 3, 6]);
+		assert.deepStrictEqual(freeTopColumns(roof), ['C20']);
+		assert.deepStrictEqual(freeTopColumns(model), []);
 		assert.deepStrictEqual(gridLines(model), { x: [0, 5, 10], y: [0, 4] });
 		const massOnly: IFilterModel = { ...model, mp_constraints: [], nodes: model.nodes.map(n => n.coords[2] === 3 ? { ...n, mass: [100, 100, 0] } : n) };
 		assert.deepStrictEqual(modelLevels(massOnly), [0, 3]);

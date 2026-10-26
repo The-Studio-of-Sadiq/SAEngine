@@ -3,21 +3,25 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, clearNode } from '../../../../base/browser/dom.js';
+import { $, append, clearNode, getActiveElement, isEditableElement } from '../../../../base/browser/dom.js';
 import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { RedoCommand, UndoCommand } from '../../../../editor/browser/editorExtensions.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { describeGridChanges } from '../../../services/saengineProject/common/gridChanges.js';
 import { gridLabel, IGridLine, nextGridLabel } from '../../../services/saengineProject/common/gridLabels.js';
 import { newFloorPlan } from '../../../services/saengineProject/common/partSources.js';
 import { FLOOR_PLAN_SCHEMA, TEMPLATES } from '../../../services/saengineProject/common/projectLibraries.generated.js';
@@ -87,6 +91,15 @@ export class GridsEditor extends JsonDocumentEditor {
 	private readonly form: SchemaForm;
 
 	private readonly openPlanAction = this._register(new Action('saengine.grids.openFloorPlan', localize('grids.openFloorPlan', "Open in Floor Plan"), undefined, true, async () => this.openFloorPlan()));
+	private readonly undoAction = this._register(new Action('saengine.grids.undo', localize('grids.undo', "Undo (Ctrl+Z)"), ThemeIcon.asClassName(Codicon.discard), false, () => this.undoRedo(false)));
+	private readonly redoAction = this._register(new Action('saengine.grids.redo', localize('grids.redo', "Redo (Ctrl+Y)"), ThemeIcon.asClassName(Codicon.redo), false, () => this.undoRedo(true)));
+
+	/** The grids and stories last shown, to say what an undo, redo or Floor Plan edit changed. */
+	private shownLayout: JsonObject | undefined;
+	/** Set while this editor undoes or redoes, so the change is reported as "Undid" or "Redid". */
+	private undoing: 'undo' | 'redo' | undefined;
+	/** What the last undo, redo or outside change did to the grids and stories, for the status line. */
+	private changeNote: string | undefined;
 
 	constructor(
 		group: IEditorGroup,
@@ -100,6 +113,8 @@ export class GridsEditor extends JsonDocumentEditor {
 		@ISaengineProjectService projectService: ISaengineProjectService,
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ITextFileService private readonly textFiles: ITextFileService,
+		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
 	) {
 		super(GridsEditor.ID, group, telemetryService, themeService, storageService, commandService, editors, textModelService, projectService);
 		this.trackDeveloperMode(configurationService);
@@ -110,6 +125,7 @@ export class GridsEditor extends JsonDocumentEditor {
 			references: path => path === 'stories.similarTo' ? this.stories.map(s => s.id) : undefined,
 			validate: (path, value) => this.validate(path, value),
 			changed: (_path, structural) => {
+				this.changeNote = undefined;
 				this.changed(structural);
 				if (!structural) {
 					this.renderSummary();
@@ -137,8 +153,89 @@ export class GridsEditor extends JsonDocumentEditor {
 
 	protected override documentFrameActions(): IDocumentFrameActions {
 		return this.document && this.documentFrame
-			? { primary: [this.documentFrame.togglePropertiesAction], secondary: [this.openPlanAction] }
+			? { primary: [this.undoAction, this.redoAction, this.documentFrame.togglePropertiesAction], secondary: [this.openPlanAction] }
 			: { primary: [] };
+	}
+
+	// ───────────────────────────── saving, undo and redo ─────────────────────────────
+
+	/**
+	 * Grid and story edits are saved at once when the floor plan had no other unsaved edits, so
+	 * Grids & Stories is not a second unsaved document with its own save prompt (F13). With unsaved
+	 * plan edits they wait, and are saved together with the Floor Plan.
+	 */
+	protected override commit(): void {
+		const resource = this.resource;
+		const wasDirty = !resource || this.textFiles.isDirty(resource);
+		super.commit();
+		this.shownLayout = this.layout(); // its own edit is not news for the next undo's message
+		if (resource && !wasDirty && this.textFiles.isDirty(resource)) {
+			void this.textFiles.save(resource).then(() => this.renderStatus());
+		}
+		this.updateUndoRedo();
+	}
+
+	/** A copy of the document's grids and stories. */
+	private layout(): JsonObject | undefined {
+		const layout: JsonObject | undefined = this.document && { grids: this.document.grids ?? null, stories: this.document.stories ?? null };
+		return layout && clone(layout);
+	}
+
+	/**
+	 * Undo and redo on the floor plan's file (one stack with the Floor Plan, which edits the same
+	 * file); the status line says what it did to the grids and stories (F3).
+	 */
+	async undoRedo(redo: boolean): Promise<void> {
+		const resource = this.resource;
+		if (!resource) {
+			return;
+		}
+		this.flush();
+		const wasDirty = this.textFiles.isDirty(resource);
+		this.undoing = redo ? 'redo' : 'undo';
+		try {
+			await (redo ? this.undoRedoService.redo(resource) : this.undoRedoService.undo(resource));
+		} finally {
+			this.undoing = undefined;
+		}
+		// Like an edit: saved at once when the floor plan had nothing else unsaved.
+		if (!wasDirty && this.textFiles.isDirty(resource)) {
+			await this.textFiles.save(resource);
+			this.renderStatus();
+		}
+		this.updateUndoRedo();
+	}
+
+	private updateUndoRedo(): void {
+		const resource = this.resource;
+		this.undoAction.enabled = !!resource && this.undoRedoService.canUndo(resource);
+		this.redoAction.enabled = !!resource && this.undoRedoService.canRedo(resource);
+	}
+
+	protected override onWillLoadInput(): void {
+		this.shownLayout = undefined;
+		this.changeNote = undefined;
+	}
+
+	/** After every reload (undo, redo, an edit in the Floor Plan), says what changed in the grids. */
+	protected override load(): void {
+		const before = this.shownLayout;
+		super.load();
+		const after = this.layout();
+		this.shownLayout = after;
+		if (before && after) {
+			const changes = describeGridChanges(before, after);
+			const list = changes.slice(0, 3).join('; ') + (changes.length > 3 ? localize('grids.moreChanges', " and {0} more", changes.length - 3) : '');
+			if (this.undoing) {
+				this.changeNote = changes.length
+					? (this.undoing === 'undo' ? localize('grids.undid', "Undid: {0}.", list) : localize('grids.redid', "Redid: {0}.", list))
+					: (this.undoing === 'undo' ? localize('grids.undidPlan', "Undid an edit of the Floor Plan's members; the grids and stories did not change.") : localize('grids.redidPlan', "Redid an edit of the Floor Plan's members; the grids and stories did not change."));
+			} else if (changes.length) {
+				this.changeNote = localize('grids.changedOutside', "Changed in the Floor Plan (an edit or its undo): {0}.", list);
+			}
+			this.renderStatus();
+		}
+		this.updateUndoRedo();
 	}
 
 	/** The plan view of the same file (its default editor). */
@@ -254,12 +351,17 @@ export class GridsEditor extends JsonDocumentEditor {
 	/** What the grids are for, or how many problems there are. */
 	private renderStatus(): void {
 		const count = this.problems.length;
+		const unsaved = !!this.resource && this.textFiles.isDirty(this.resource);
 		this.documentFrame?.setStatus(count
 			? { severity: 'warning', text: count === 1 ? localize('grids.oneProblem', "1 problem: {0}", this.problems[0].message) : localize('grids.problems', "{0} problems. {1}", count, this.problems[0].message) }
-			: {
-				text: localize('grids.status', "Columns, beams, walls, slabs and footings are placed on these grids and stories in the Floor Plan."),
-				link: { label: localize('grids.openFloorPlan', "Open in Floor Plan"), run: () => void this.openFloorPlan() },
-			});
+			: this.changeNote
+				? { severity: 'info', text: this.changeNote, link: { label: localize('grids.openFloorPlan', "Open in Floor Plan"), run: () => void this.openFloorPlan() } }
+				: {
+					text: unsaved
+						? localize('grids.statusUnsaved', "Not saved yet: saved together with the Floor Plan (Ctrl+S), which has unsaved edits too.")
+						: localize('grids.status', "Columns, beams, walls, slabs and footings are placed on these grids and stories in the Floor Plan."),
+					link: { label: localize('grids.openFloorPlan', "Open in Floor Plan"), run: () => void this.openFloorPlan() },
+				});
 	}
 
 	/** Spacings and story heights, derived from positions and elevations, in the properties panel. */
@@ -295,3 +397,15 @@ export class GridsEditor extends JsonDocumentEditor {
 		append(row, $('span.value', undefined, String(members)));
 	}
 }
+
+/** Ctrl+Z / Ctrl+Y in Grids & Stories undo and redo its edits (outside a field, which undoes its own typing). */
+function undoRedo(accessor: ServicesAccessor, redo: boolean): boolean | Promise<void> {
+	const pane = accessor.get(IEditorService).activeEditorPane;
+	if (!(pane instanceof GridsEditor) || isEditableElement(getActiveElement() as HTMLElement)) {
+		return false;
+	}
+	return pane.undoRedo(redo);
+}
+
+UndoCommand.addImplementation(110, 'saengine-grids', accessor => undoRedo(accessor, false));
+RedoCommand.addImplementation(110, 'saengine-grids', accessor => undoRedo(accessor, true));

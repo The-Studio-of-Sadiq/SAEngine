@@ -232,6 +232,7 @@ export function pathLength(path: readonly Point[]): number {
 }
 
 /** A label for the "backend lists it, else the static one" notes. */
+/** What a Data view says while a code table it needs is still coming from the backend (the tables live there only). */
 export function staticListNote(what: string): string {
-	return localize('mepRead.staticList', "{0}: the list SAEngine starts from; the backend's list replaces it when it is available.", what);
+	return localize('mepRead.loadingList', "Loading {0} from the backend...", what);
 }
