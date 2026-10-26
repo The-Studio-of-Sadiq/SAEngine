@@ -112,7 +112,7 @@ export class BoqEditor extends EditorPane {
 
 	private readonly updateAction = this._register(new Action('saengine.boq.editor.update', localize('boq.update', "Update from Building Model"), ThemeIcon.asClassName(Codicon.refresh), true, () => this.compute()));
 	private readonly updateAgainAction = this._register(new Action('saengine.boq.editor.updateAgain', localize('boq.update', "Update from Building Model"), undefined, true, () => this.compute()));
-	private readonly exportAction = this._register(new Action('saengine.boq.editor.export', localize('boq.exportCsv', "Export CSV..."), undefined, true, () => this.exportCsv()));
+	private readonly exportAction = this._register(new Action('saengine.boq.editor.export', localize('boq.exportCsv', "Export CSV..."), ThemeIcon.asClassName(Codicon.export), true, () => this.exportCsv()));
 	private readonly expandAllAction = this._register(new Action('saengine.boq.editor.expandAll', localize('boq.expandAll', "Expand All"), undefined, true, async () => this.setAllExpanded(true)));
 	private readonly collapseAllAction = this._register(new Action('saengine.boq.editor.collapseAll', localize('boq.collapseAll', "Collapse All"), undefined, true, async () => this.setAllExpanded(false)));
 	private readonly openJsonAction = this._register(new Action('saengine.boq.editor.openJson', localize('boq.openJson', "Open as JSON"), undefined, true, () => this.openAsJson()));
