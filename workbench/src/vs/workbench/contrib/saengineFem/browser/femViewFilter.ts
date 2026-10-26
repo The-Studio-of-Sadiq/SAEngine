@@ -10,13 +10,14 @@
  */
 
 import type { FemCameraView } from '@saengine/fem-viewer';
+import { safeIntl } from '../../../../base/common/date.js';
 import { localize } from '../../../../nls.js';
 
 /** The `.osmodel` fields this reads (the parsed file has them; the viewer's type does not). */
 export interface IFilterModel {
 	readonly nodes: readonly { readonly id: number; readonly coords: readonly number[]; readonly restraint?: readonly boolean[]; readonly mass?: readonly number[] }[];
 	readonly elements: readonly { readonly id: number; readonly name?: string; readonly type: string; readonly nodes: readonly number[] }[];
-	readonly mp_constraints?: readonly { readonly type?: string; readonly retained_node?: number }[];
+	readonly mp_constraints?: readonly { readonly type?: string; readonly retained_node?: number; readonly constrained_nodes?: readonly number[] }[];
 }
 
 /** A way of looking at the model: the whole model in 3D, a plan, an elevation, or a storey. */
@@ -32,8 +33,10 @@ const TOLERANCE = 0.005;
 const round = (v: number) => Math.round(v * 1000) / 1000;
 
 /**
- * The storey levels of the model, bottom up: the floors of its rigid diaphragms and the lowest
- * support; without diaphragms, the elevations where three or more nodes carry horizontal mass.
+ * The storey levels of the model, bottom up: the floors of its rigid diaphragms, the elevations
+ * with two or more level elements (a roof of beams, a slab without a diaphragm) and the lowest
+ * support; without diaphragms or level elements, the elevations where three or more nodes carry
+ * horizontal mass.
  */
 export function modelLevels(model: IFilterModel): number[] {
 	const z = new Map(model.nodes.map(n => [n.id, n.coords[2] ?? 0]));
@@ -42,6 +45,21 @@ export function modelLevels(model: IFilterModel): number[] {
 		const at = constraint.type === 'RigidDiaphragm' && constraint.retained_node !== undefined ? z.get(constraint.retained_node) : undefined;
 		if (at !== undefined) {
 			levels.add(round(at));
+		}
+	}
+	const flat = new Map<number, number>();
+	for (const element of model.elements) {
+		const zs = element.nodes.map(id => z.get(id));
+		if (zs.length >= 2 && zs.every(v => v !== undefined && Math.abs(v - zs[0]!) <= TOLERANCE)) {
+			const at = round(zs[0]!);
+			flat.set(at, (flat.get(at) ?? 0) + 1);
+		}
+	}
+	const lowest = Math.min(...model.nodes.map(n => n.coords[2] ?? 0));
+	for (const [at, count] of flat) {
+		// Not the grade beams or the ground slab on the supports' level (that is the base).
+		if (count >= 2 && at > lowest + TOLERANCE && ![...levels].some(l => Math.abs(l - at) <= TOLERANCE)) {
+			levels.add(at);
 		}
 	}
 	if (!levels.size) {
@@ -91,6 +109,37 @@ export function gridLines(model: IFilterModel): { readonly x: number[]; readonly
 	}
 	const shared = (lines: Map<number, Set<string>>) => [...lines].filter(([, columns]) => columns.size >= 2).map(([at]) => at).sort((p, q) => p - q);
 	return { x: shared(x), y: shared(y) };
+}
+
+/**
+ * The columns standing free at the top: the top node of a vertical member that nothing else
+ * frames into and no diaphragm ties (a cantilever column, a column of a floor not modelled).
+ * They sway as cantilevers (an effective length of about twice their height), which the
+ * engineer should know before reading their checks; members by name, naturally sorted.
+ */
+export function freeTopColumns(model: IFilterModel): string[] {
+	const coords = new Map(model.nodes.map(n => [n.id, n.coords]));
+	const uses = new Map<number, number>();
+	for (const element of model.elements) {
+		for (const id of new Set(element.nodes)) {
+			uses.set(id, (uses.get(id) ?? 0) + 1);
+		}
+	}
+	const restrained = new Set(model.nodes.filter(n => n.restraint?.some(Boolean)).map(n => n.id));
+	// Nodes a rigid diaphragm ties to its floor are braced by it.
+	const tied = new Set((model.mp_constraints ?? []).flatMap(c => c.constrained_nodes ?? []));
+	const names = new Set<string>();
+	for (const element of model.elements) {
+		const [a, b] = element.nodes.map(id => coords.get(id));
+		if (element.nodes.length !== 2 || !a || !b || !isVertical(a, b)) {
+			continue;
+		}
+		const top = (b[2] ?? 0) > (a[2] ?? 0) ? element.nodes[1] : element.nodes[0];
+		if (uses.get(top) === 1 && !restrained.has(top) && !tied.has(top)) {
+			names.add((element.name ?? String(element.id)).split('#')[0]);
+		}
+	}
+	return [...names].sort(safeIntl.Collator(undefined, { numeric: true }).value.compare);
 }
 
 /** The elements a view draws (undefined: all of them). */

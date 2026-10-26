@@ -41,7 +41,9 @@
 	min-height: 0;
 }
 
+/* The scrollable element scrolls the body itself: it must be as tall as the view, not its content. */
 .saengine-fem-results-view .fem-results-view-body {
+	height: 100%;
 	box-sizing: border-box;
 	padding: var(--sa-space-3, 12px) var(--sa-space-4, 16px) var(--sa-space-5, 24px);
 	outline: none;
