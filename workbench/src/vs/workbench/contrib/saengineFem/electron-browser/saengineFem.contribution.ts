@@ -423,9 +423,9 @@ CommandsRegistry.registerCommand('saengine.mep.importIfc', async (accessor, args
  * missing sleeves), the tanks and sleeves SAEngine proposes, and Table 8.5.1's occupancies.
  * Internal: the MEP editor's Plumbing view and Run All call them by id.
  */
-CommandsRegistry.registerCommand('saengine.plumbing.report', async (accessor, args: IMepCommandArgs) => {
+CommandsRegistry.registerCommand('saengine.plumbing.report', async (accessor, args: IMepCommandArgs & { designs?: boolean | 'cached' }) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
-	return problemsOrResult(await accessor.get(IFemSolverService).plumbingReport(python, args.projectRoot, args.mepText), ['demand', 'checks']);
+	return problemsOrResult(await accessor.get(IFemSolverService).plumbingReport(python, args.projectRoot, args.mepText, args.designs), ['demand', 'checks']);
 });
 
 CommandsRegistry.registerCommand('saengine.plumbing.sizeTanks', async (accessor, args: IMepCommandArgs) => {

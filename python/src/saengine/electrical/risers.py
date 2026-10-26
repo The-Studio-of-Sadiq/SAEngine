@@ -342,6 +342,6 @@ def tray_checks(electrical: Any) -> list[dict[str, Any]]:
             "unit": "mm²", "utilisation": tray.cableArea / capacity,
             "ok": tray.cableArea <= capacity + 1e-9,
             "note": f"cables at most {T.TRAY_FILL:.0%} of {tray.width:g} x {tray.height:g} mm "
-            "(from memory, to be checked against the tray maker's data)",
+            "(SAEngine default: check the tray maker's fill table)",
         })  # fmt: skip
     return checks

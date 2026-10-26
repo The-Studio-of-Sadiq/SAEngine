@@ -126,7 +126,10 @@ def zone_gains(zone: Any, hvac: Any, population: float | None = None) -> ZoneGai
         equipment = float(entry.equipment)
     else:
         equipment = T.EQUIPMENT.get(row.group, T.EQUIPMENT_DEFAULT)
-        sources.append(f"equipment {equipment:g} W/m² (SAEngine, from memory: to be checked)")
+        sources.append(
+            f"equipment {equipment:g} W/m² (SAEngine default, BNBC gives none: enter the "
+            "project's equipment load)"
+        )
     activity = T.ACTIVITY.get(row.group, T.ACTIVITY_DEFAULT)
     db, rh, inside = T.inside_conditions(use)
     design = hvac.design if hvac is not None else None

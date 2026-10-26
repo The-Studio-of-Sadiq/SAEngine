@@ -253,6 +253,53 @@ def propose_equipment(
     return out
 
 
+#: Below this share of its rating a transformer or generator is reported as oversized.
+OVERSIZE = 0.3
+
+
+def _substation_line(
+    sub: bool, supply: Any, tx: dict[str, Any], entered: list[Any], installed: float, dem: dict
+) -> str:
+    """The summary's supply line: what the engineer chose (an 11 kV supply, the transformers
+    entered) against what the demand needs, never "no substation" beside an entered one."""
+    kva = dem["kva"]
+    if entered:
+        rating = " + ".join(f"{float(e.rating or 0):g}" for e in entered)
+        line = f"Transformers entered: {rating} kVA for {kva:.0f} kVA of demand"
+        if installed and kva / installed < OVERSIZE:
+            line += f" (loaded {kva / installed:.0%}: oversized for this demand)"
+        if not sub:
+            line += (
+                f"; below {T.SUBSTATION_KW:g} kW a 0.4 kV supply would do ({T.PAGES['1.3.20.1']})"
+            )
+        return line
+    if sub:
+        return f"Substation: {tx['count']} x {tx['rating']:g} kVA transformer(s)"
+    if supply.voltage in ("11kV", "33kV"):
+        return (
+            f"{supply.voltage} supply chosen; the load is below {T.SUBSTATION_KW:g} kW, where a "
+            f"0.4 kV supply would do ({T.PAGES['1.3.20.1']}): the transformer is sized for "
+            f"{kva:.0f} kVA"
+        )
+    return f"No substation needed (below {T.SUBSTATION_KW:g} kW, {T.PAGES['1.3.20.1']})"
+
+
+def _generator_line(gen: dict[str, Any] | None, ess: dict[str, Any], entered: list[Any]) -> str:
+    """The summary's generator line: one rating (the entered sets', else the proposal), the
+    rating the essential load needs, and the oversize when there is one."""
+    if not gen or not gen.get("kva"):
+        return "No standby generator"
+    need = float(gen.get("required") or 0.0)
+    what = "entered" if entered else "proposed"
+    line = (
+        f"Generator {gen['kva']:g} kVA ({what}) for {need:.0f} kVA needed by {ess['kw']:.1f} kW "
+        f"essential, fuel {gen['fuel']:.0f} l ({gen['fuelHours']:g} h)"
+    )
+    if entered and gen["kva"] and need / gen["kva"] < OVERSIZE:
+        line += f"; loaded {need / gen['kva']:.0%}: oversized for the essential load"
+    return line
+
+
 def _installed_generator(
     proposed: dict[str, Any], entered: list[Any], hours: float | None = None
 ) -> dict[str, Any]:
@@ -354,11 +401,14 @@ def electrical_results(
     frame = Frame.of(bim, objects)
 
     # Demand.
-    dem = compute_demand(electrical, building, mep, hvac=hvac, extra=extra)
+    dem = compute_demand(
+        electrical, building, mep, hvac=hvac, extra=extra,
+        default_use=SETTINGS_USE.get(building_use or ""),
+    )  # fmt: skip
     notes.extend(dem["notes"])
     for s in dem["stories"]:
         notes.extend(f"{s['story']}: {n}" for n in s["notes"])
-    uses = [s.use for s in electrical.stories]
+    uses = [s["use"] for s in dem["stories"]]
     if not uses and building_use in SETTINGS_USE:
         uses = [SETTINGS_USE[building_use]]
     hospital = "hospital" in uses or building_use == "healthcare"
@@ -468,17 +518,8 @@ def electrical_results(
             f"Connected load {dem['connected']:.1f} kW, maximum demand {dem['maximumDemand']:.1f} kW "
             f"= {dem['kva']:.1f} kVA ({dem['current']:.0f} A at 400 V)"
         ),
-        (
-            f"Substation: {tx['count']} x {tx['rating']:g} kVA transformer(s)"
-            if sub
-            else "No substation needed (below 50 kW)"
-        ),
-        (
-            f"Generator {gen['kva']:g} kVA for {ess['kw']:.1f} kW essential, fuel "
-            f"{gen['fuel']:.0f} l ({gen['fuelHours']:g} h)"
-            if gen and gen.get("kva")
-            else "No standby generator"
-        ),
+        _substation_line(sub, supply, tx, entered_tx, installed, dem),
+        _generator_line(gen, ess, entered_gen),
         f"{len(risers)} risers, {len(electrical.trays)} trays, {len(openings)} openings proposed",
         (
             f"Lightning: {len(lightning['downConductors'])} down conductors, "

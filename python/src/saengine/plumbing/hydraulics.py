@@ -106,6 +106,19 @@ BRANCH_FITTINGS = {"teeBranch": 1, "gate": 1, "elbow": 4}  # floor control valve
 PUMP_FITTINGS = {"check": 1, "gate": 2, "elbow": 4}
 
 
+#: The standard rated outputs of motors [kW] (IEC 60072-1), from the smallest pump motor
+#: commonly sold (0.37 kW, 0.5 hp): the pump is chosen at the next one up from the shaft power.
+MOTOR_RATINGS = (0.37, 0.55, 0.75, 1.1, 1.5, 2.2, 3.0, 4.0, 5.5, 7.5, 11.0, 15.0, 18.5, 22.0,
+                 30.0, 37.0, 45.0, 55.0, 75.0)  # fmt: skip
+
+
+def motor_rating(shaft_kw: float) -> float:
+    """The pump's motor [kW]: the smallest standard rated output (IEC 60072-1) at or above the
+    shaft power, at least 0.37 kW (a pump of a few watts is not made); above the list, the
+    shaft power itself."""
+    return next((r for r in MOTOR_RATINGS if r >= shaft_kw - 1e-9), round(shaft_kw, 2))
+
+
 def probable_demand(units: float, flush_valves: bool = False, least: float = 0.0) -> float:
     """Probable simultaneous demand [L/min] of ``units`` supply fixture units, BNBC Table 8.5.5
     (:func:`saengine.plumbing.demand.hunter_flow`), and at least ``least`` (the largest single
@@ -1190,6 +1203,7 @@ def _pump(
         "hydraulicPower": round(hydraulic, 4),
         "shaftPower": round(shaft, 4),
         "horsepower": round(shaft / 0.7457, 4),
+        "motor": motor_rating(shaft),
         "note": (
             "BNBC Sec 5.10.5: H = hs + hd + hf + hv (eq. 8.5.3 velocity head) plus the inlet's "
             f"residual; P = ρgQH/η (eq. 8.5.2 in SI); flow: {basis}; the reservoir at its "
