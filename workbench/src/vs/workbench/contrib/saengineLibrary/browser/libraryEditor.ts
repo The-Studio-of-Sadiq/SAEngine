@@ -131,8 +131,8 @@ export class LibraryEditor extends JsonDocumentEditor {
 	private materialIds: { members: { id: string; category: string }[]; rebar: string[] } = { members: [], rebar: [] };
 	/** The designed sections of the project (`04 Objects/sections`), for designed profiles. */
 	private sections: string[] = [];
-	/** The file whose entry `selectedId` names. */
-	private selectionResource: string | undefined;
+	/** The selected entry of each file shown, kept while the editor shows another. */
+	private readonly selections = new Map<string, string>();
 	/** f'c of the concrete whose form is shown, before the edit being typed (E and fr follow it). */
 	private formFc: number | undefined;
 	/** The materials document, for which object types take the code's cracked factors (stiffness modifiers). */
@@ -200,12 +200,8 @@ export class LibraryEditor extends JsonDocumentEditor {
 		void this.refreshSections();
 		const kind = this.kind;
 		this.config = kind === 'materials' || kind === 'objects' ? libraryConfig(kind) : undefined;
-		// The same file shown again (back from the Section Designer) keeps its selected entry.
-		const resource = this.resource?.toString();
-		if (resource !== this.selectionResource) {
-			this.selectedId = undefined;
-			this.selectionResource = resource;
-		}
+		// A file shown again (back from the Section Designer) keeps its selected entry.
+		this.selectedId = this.selections.get(this.resource?.toString() ?? '');
 		this.documentFrame?.setTitle(kind === 'materials' ? localize('library.materialsTitle', "Materials") : localize('library.objectsTitle', "Object Types"));
 		this.documentFrame?.setHelp(kind === 'materials'
 			? localize('library.materialsHelp', "The materials of the project: concrete, rebar, steel, masonry and mortar, with their mechanical properties. Object types refer to them by ID. Add with + (by category), duplicate or delete the selected material in the toolbar or by right-clicking it.")
@@ -599,6 +595,9 @@ export class LibraryEditor extends JsonDocumentEditor {
 		if (!this.selected) {
 			this.selectedId = this.items[0]?.id as string | undefined;
 		}
+		if (this.resource && this.selectedId) {
+			this.selections.set(this.resource.toString(), this.selectedId);
+		}
 		this.renderList();
 		this.renderDetail();
 		this.renderStatus();
@@ -750,17 +749,11 @@ export class LibraryEditor extends JsonDocumentEditor {
 				n++;
 			}
 			const id = `${item.id}-SD${n}`;
-			const itemId = String(item.id);
-			this.flush();
+			// The type names its section first: opening the Section Designer hides this editor.
+			profile.section = id;
+			this.changed(true);
 			await this.commands.executeCommand('saengine.section.new', id);
 			await this.refreshSections();
-			// The document may have been read again meanwhile: find the entry by its id.
-			const target = this.items.find(i => i.id === itemId);
-			if (this.sections.includes(id) && target && isObject(target.profile) && target.profile.shape === 'designed') {
-				target.profile.section = id;
-				this.selectedId = itemId;
-				this.changed(true);
-			}
 		}));
 		if (!exists || !root) {
 			return;
