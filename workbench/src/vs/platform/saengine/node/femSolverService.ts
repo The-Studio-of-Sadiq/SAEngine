@@ -242,8 +242,8 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 		return this.request(python, 'mep/importIfc', { projectRoot, path });
 	}
 
-	plumbingReport(python: string, projectRoot: string, mepText?: string): Promise<object> {
-		return this.request(python, 'mep/plumbingReport', { projectRoot, mepText });
+	plumbingReport(python: string, projectRoot: string, mepText?: string, designs?: boolean | 'cached'): Promise<object> {
+		return this.request(python, 'mep/plumbingReport', { projectRoot, mepText, ...(designs !== undefined ? { designs } : {}) });
 	}
 
 	plumbingSizeTanks(python: string, projectRoot: string, mepText?: string): Promise<object> {

@@ -71,7 +71,7 @@ function cityOption(city: IHvacCity): { value: string; label: string } {
 }
 
 /** The HVAC's Data view. */
-export function renderHvacData(view: HTMLElement, host: IMepFormHost, tables: IHvacTables, actions: IHvacActions): void {
+export function renderHvacData(view: HTMLElement, host: IMepFormHost, tables: IHvacTables, actions: IHvacActions, usedStation?: string): void {
 	const document = host.document;
 	const hvac = hvacOf(document);
 	const h = () => ensureHvac(document);
@@ -83,8 +83,13 @@ export function renderHvacData(view: HTMLElement, host: IMepFormHost, tables: IH
 	const design = host.section(localize('hvacView.design', "System and design conditions"), undefined);
 	const setting = settingsGrid(design);
 	setting(localize('hvacView.f.system', "System"), host.selectInput(HVAC_SYSTEMS.map(s => ({ value: s, label: hvacSystemLabel(s) })), String(hvac?.system ?? ''), v => host.setOptional(h(), 'system', v), 'hvac.system', localize('hvacView.f.system', "System"), true));
-	const city = tables.cities.find(c => c.key === hvac?.design.city);
-	setting(localize('hvacView.f.city', "Station"), host.selectInput(tables.cities.map(cityOption), String(hvac?.design.city ?? ''), v => host.setOptional(h().design, 'city', v), 'hvac.design.city', localize('hvacView.f.city', "Station"), true),
+	// Left empty, the backend takes the station nearest the site (Project Settings): name it rather than show a dash.
+	const nearest = hvac?.design.city ? undefined : tables.cities.find(c => c.key === usedStation);
+	const city = tables.cities.find(c => c.key === hvac?.design.city) ?? nearest;
+	const emptyStation = nearest ? localize('hvacView.cityNearest', "{0} (nearest to the site)", nearest.label) : localize('hvacView.cityFromSite', "Nearest to the site (Project Settings)");
+	const station = host.selectInput(tables.cities.map(cityOption), String(hvac?.design.city ?? ''), v => host.setOptional(h().design, 'city', v), 'hvac.design.city', localize('hvacView.f.city', "Station"), emptyStation);
+	station.title = station.selectedOptions[0]?.textContent ?? '';
+	setting(localize('hvacView.f.city', "Station"), station,
 		undefined, localize('hvacView.f.cityTitle', "The nearest station of BNBC Table 8.2.2 (outside design conditions); its cooling dry bulb / mean coincident wet bulb at 2 % (Sec 2.12.2.1) in brackets"));
 	const store = (target: () => { [key: string]: unknown }, key: string) => (v: number | string | undefined) => host.setField(target(), key, v);
 	const placeholder = (n: number | undefined) => n === undefined ? localize('hvacView.default', "default") : formatNumber(n, 2);
@@ -94,7 +99,7 @@ export function renderHvacData(view: HTMLElement, host: IMepFormHost, tables: IH
 	setting(H.indoorDB.label, host.textInput(H.indoorDB, hvac?.design.indoorDB, store(() => h().design, 'indoorDB'), 'hvac.design.indoorDB', localize('hvacView.code', "code")), H.indoorDB.unit, H.indoorDB.title);
 	setting(H.indoorRH.label, host.textInput(H.indoorRH, hvac?.design.indoorRH, store(() => h().design, 'indoorRH'), 'hvac.design.indoorRH', localize('hvacView.code', "code")), H.indoorRH.unit, H.indoorRH.title);
 	if (!tables.tablesFromBackend) {
-		append(design, $('p.mep-note.plb-static-note', undefined, staticListNote(localize('hvacView.citiesWhat', "Stations of BNBC Table 8.2.2 (PDF part 2 p. 862) and uses of Table 8.2.3 (pp. 863 to 868)"))));
+		append(design, $('p.mep-note.plb-static-note', undefined, staticListNote(localize('hvacView.citiesWhat', "the stations of BNBC Table 8.2.2 and the uses of Table 8.2.3"))));
 	}
 
 	// Envelope.

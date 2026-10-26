@@ -55,6 +55,21 @@ export interface IFemStoryResult {
 	readonly storeys: readonly IFemStoreyRow[];
 	/** Sum over the supports: Fx, Fy, Fz, Mx, My, Mz; null for a response spectrum case. */
 	readonly baseReaction: readonly number[] | null;
+	/**
+	 * A response spectrum case: the factor its storey forces, shears and overturning are scaled
+	 * by (the spectrum design's 0.85·V/V_rs, BNBC 2020 Part 6 Sec 2.5.9.4); null when unscaled.
+	 */
+	readonly forceScale?: number | null;
+}
+
+/** A storey of the response spectrum design's drift check (Cd·δ/I with the accidental torsion). */
+export interface IFemDesignDrift {
+	readonly direction: FemAxis2;
+	readonly bottom: number;
+	readonly top: number;
+	readonly ratio: number;
+	readonly allowableRatio: number;
+	readonly ok: boolean;
 }
 
 export interface IFemModeRow {
@@ -74,6 +89,8 @@ export interface IFemStoryResponse {
 	readonly modal: { readonly case: string; readonly modes: readonly IFemModeRow[]; readonly required: number } | null;
 	readonly spectrum: { readonly name: string; readonly periods: readonly number[]; readonly accelerations: readonly number[]; readonly damping: number | null } | null;
 	readonly driftLimit: { readonly ratio: number; readonly cd: number | null; readonly importance: number | null; readonly clause: string } | null;
+	/** The response spectrum design of this run, when it has been worked out. */
+	readonly spectrumDesign?: { readonly scale: { readonly X: number; readonly Y: number }; readonly drift: readonly IFemDesignDrift[]; readonly clause: string } | null;
 	readonly pushover: readonly { readonly key: string; readonly label: string; readonly displacement: readonly number[]; readonly shear: readonly number[] }[];
 	readonly histories: readonly { readonly key: string; readonly label: string; readonly node: number; readonly time: readonly number[]; readonly displacement: readonly (readonly number[])[] }[];
 	readonly notes: readonly string[];
@@ -94,6 +111,8 @@ export interface IFemMemberForces {
 	readonly kind: 'column' | 'beam' | 'brace';
 	readonly length: number;
 	readonly elements: readonly string[];
+	/** The section's name (the object type's), when the model names it. */
+	readonly section?: string | null;
 	/** Distance of each station from the member's start [m]. */
 	readonly stations: readonly number[];
 	readonly results: readonly IFemMemberResult[];
@@ -132,14 +151,122 @@ export interface IFemSheet {
  */
 export function formatCell(value: FemTableCell): string {
 	if (typeof value === 'number') {
-		return Number.isInteger(value) ? String(value) : Number(value.toPrecision(4)).toString();
+		// No exponents and no "-0": what is below a millionth of the unit shown is zero.
+		return Number.isInteger(value) ? String(value) : Math.abs(value) < 1e-6 ? '0' : Number(value.toPrecision(4)).toString();
 	}
 	return value;
 }
 
-/** A table cell as the exports write it: numbers at full precision. */
+/** A number as the exports keep it: six significant digits (no float noise), no "-0". */
+export function exportNumber(value: number): number {
+	const rounded = Number.isInteger(value) ? value : Math.abs(value) < 1e-9 ? 0 : Number(value.toPrecision(6));
+	return rounded === 0 ? 0 : rounded;
+}
+
+/** A table cell as the CSV export writes it ({@link exportNumber}). */
 export function exportCell(value: FemTableCell): string {
-	return String(value);
+	return typeof value === 'number' ? String(exportNumber(value)) : value;
+}
+
+// ───────────────────────────── table units ─────────────────────────────
+
+/** The SI units of the result tables and the units the views and exports show them in. */
+const DISPLAY_UNITS: { readonly [unit: string]: { readonly unit: string; readonly scale: number } } = {
+	'm': { unit: 'mm', scale: 1e3 },
+	'N': { unit: 'kN', scale: 1e-3 },
+	'N·m': { unit: 'kN·m', scale: 1e-3 },
+	'N/m': { unit: 'kN/m', scale: 1e-3 },
+	'N·m/m': { unit: 'kN·m/m', scale: 1e-3 },
+	'Pa': { unit: 'MPa', scale: 1e-6 },
+};
+
+/** The global axes of the solver's numbered directions (U1 = Ux, M3 = Mz). */
+const AXIS_NAMES: { readonly [digit: string]: string } = { '1': 'x', '2': 'y', '3': 'z' };
+
+/** The SI unit of a quantity named in a column or cell of a table giving its units in the title. */
+function quantityUnit(name: string): string | undefined {
+	if (/^(F[xyz]|N|V[yz23]?)$/.test(name)) {
+		return 'N';
+	}
+	if (/^(M[xyz23]|T)$/.test(name)) {
+		return 'N·m';
+	}
+	return /^U[xyz]$/.test(name) ? 'm' : undefined;
+}
+
+export interface IFemTableLike {
+	readonly name: string;
+	readonly title: string;
+	readonly columns: readonly string[];
+	readonly rows: readonly (readonly FemTableCell[])[];
+	readonly notes: readonly string[];
+}
+
+/**
+ * A result table as the engineer reads it: lengths in mm, forces in kN, moments in kN·m,
+ * stresses in MPa (the solver writes N, m, Pa), and the solver's numbered axes named (U1 -> Ux,
+ * F3 -> Fz) so the cases' and the combinations' tables have the same columns. Tables of other
+ * unit systems are returned as they are.
+ */
+export function displayTable<T extends IFemTableLike>(table: T, units: string | undefined): T {
+	if (!units?.startsWith('SI')) {
+		return table;
+	}
+	const titleUnits = /\((N|m), /.test(table.title);
+	// Member forces are in the member's local axes: V2, V3, M2, M3 as the 3D view names them.
+	const local = /element|envelope/i.test(table.name);
+	const localName = (name: string) => local ? name.replace(/^([VM])([yz])\b/, (_, q: string, a: string) => q + (a === 'y' ? '2' : '3')) : name;
+	const scales: (number | undefined)[] = [];
+	const columns = table.columns.map((column, k) => {
+		const named = localName(column.replace(/^([UFMR])([123])\b/, (_, q: string, d: string) => q + AXIS_NAMES[d]));
+		const bracket = /^(.*)\[([^\]]+)\]$/.exec(named);
+		const unit = bracket ? DISPLAY_UNITS[bracket[2]] : titleUnits ? DISPLAY_UNITS[quantityUnit(named.replace(/ (min|max)$/, '')) ?? ''] : undefined;
+		scales[k] = unit?.scale;
+		if (!unit) {
+			return !bracket && titleUnits && /^R[xyz]( min| max)?$/.test(named) ? `${named} [rad]` : named;
+		}
+		return bracket ? `${bracket[1]}[${unit.unit}]` : `${named} [${unit.unit}]`;
+	});
+	// Long tables: a unit (or a force's name) per row, its value(s) in other columns.
+	const unitColumn = table.columns.indexOf('Unit');
+	const nameColumn = local ? table.columns.findIndex(c => c === 'Force' || c === 'Component') : -1;
+	const forceColumn = titleUnits ? table.columns.indexOf('Force') : -1;
+	const valueColumns = table.columns.map((c, k) => /^(Value|Min|Max)$/.test(c) ? k : -1).filter(k => k >= 0);
+	const rows = table.rows.map(row => {
+		const perRow = unitColumn >= 0 ? DISPLAY_UNITS[String(row[unitColumn])] : forceColumn >= 0 ? DISPLAY_UNITS[quantityUnit(String(row[forceColumn])) ?? ''] : undefined;
+		return row.map((cell, k) => {
+			if (k === unitColumn && perRow) {
+				return perRow.unit;
+			}
+			if (k === nameColumn && typeof cell === 'string') {
+				return localName(cell);
+			}
+			const scale = perRow && valueColumns.includes(k) ? perRow.scale : scales[k];
+			return typeof cell === 'number' && scale !== undefined ? cell * scale : cell;
+		});
+	});
+	const title = table.title.replace(/\(N, N·m\)/, '(kN, kN·m)').replace(/\(m, rad\)/, '(mm, rad)');
+	return { ...table, title, columns, rows };
+}
+
+/**
+ * A reactions table with the supports only (the rigid diaphragms' constraint forces at their
+ * master nodes are no reactions) and a Total row (the sum of each column).
+ */
+export function supportReactions<T extends IFemTableLike>(table: T, supports: ReadonlySet<number>): T {
+	if (!/reaction/i.test(table.name) || table.columns[0] !== 'Node') {
+		return table;
+	}
+	const own = table.rows.filter(r => typeof r[0] === 'number' && supports.has(r[0]));
+	const rows: (readonly FemTableCell[])[] = [...own];
+	if (own.length) {
+		const total: FemTableCell[] = [localize('femTable.total', "Total")];
+		for (let k = 1; k < table.columns.length; k++) {
+			total.push(own.reduce<number>((sum, r) => sum + (typeof r[k] === 'number' ? r[k] as number : 0), 0));
+		}
+		rows.push(total);
+	}
+	return { ...table, rows };
 }
 
 // ───────────────────────────── storey response ─────────────────────────────
@@ -198,11 +325,14 @@ export function storeyProfile(result: IFemStoryResult, quantity: StoreyQuantity,
 	return points;
 }
 
-/** The largest magnitude of a profile and where it is (undefined for an empty profile). */
+/**
+ * The largest magnitude of a profile and where it is (undefined for an empty profile). Of a
+ * storey value (drawn from the storey's bottom to its top) the top: the level it is reported at.
+ */
 export function profilePeak(points: readonly IProfilePoint[]): IProfilePoint | undefined {
 	let best: IProfilePoint | undefined;
 	for (const p of points) {
-		if (!best || Math.abs(p.value) > Math.abs(best.value)) {
+		if (!best || Math.abs(p.value) > Math.abs(best.value) || (Math.abs(p.value) === Math.abs(best.value) && p.level === best.level)) {
 			best = p;
 		}
 	}
@@ -219,6 +349,35 @@ export function elasticDriftLimit(limit: IFemStoryResponse['driftLimit']): numbe
 	}
 	const amplification = limit.cd && limit.importance ? limit.cd / limit.importance : 1;
 	return limit.ratio / amplification;
+}
+
+/** Whether a result has lateral storey forces or shears (an empty 1.4D plot has none). */
+export function isLateralResult(result: IFemStoryResult): boolean {
+	return result.storeys.some(s => [s.shearX, s.shearY, s.forceX, s.forceY].some(v => v !== null && Math.abs(v) > 1e-9));
+}
+
+/**
+ * The result the charts open at: a lateral one, since gravity has no storey response to plot.
+ * The response spectrum case first (what the design uses), then an earthquake or wind case,
+ * then any result with lateral forces, else the first.
+ */
+export function defaultChartResult(results: readonly IFemStoryResult[]): IFemStoryResult | undefined {
+	return results.find(r => r.kind === 'spectrum')
+		?? results.find(r => r.kind === 'static' && isLateralResult(r) && /^(EX|EY|E|WX|WY|W)\b/.test(r.label))
+		?? results.find(isLateralResult)
+		?? results[0];
+}
+
+/**
+ * `results` in the order of the 3D view's result list (`keys`), so both pickers list the
+ * results alike; results the list lacks keep their order after the others.
+ */
+export function orderLike<T extends { readonly key: string }>(results: readonly T[], keys: readonly string[]): T[] {
+	const rank = new Map(keys.map((k, i) => [k, i]));
+	return results
+		.map((r, i) => ({ r, i, k: rank.get(r.key) ?? keys.length + i }))
+		.sort((a, b) => a.k - b.k)
+		.map(e => e.r);
 }
 
 /** Whether a result is an earthquake load (a static E case, an RS case, or a combination with one). */
@@ -433,21 +592,31 @@ export function filterRows<T extends readonly FemTableCell[]>(rows: readonly T[]
  * (displacements, reactions, element forces, ...) with the result in a first column, so Excel's
  * filters find a member under every combination; then the summary tables.
  */
-export function workbookSheets(cases: readonly { readonly caseName: string; readonly tables: readonly { readonly name: string; readonly title: string; readonly columns: readonly string[]; readonly rows: readonly (readonly FemTableCell[])[]; readonly notes: readonly string[] }[] }[], summary: readonly IFemSheet[] = []): IFemSheet[] {
-	const sheets = new Map<string, { name: string; columns: string[]; rows: FemTableCell[][]; notes: Set<string> }>();
+export function workbookSheets(cases: readonly { readonly caseName: string; readonly resultType?: string; readonly tables: readonly IFemTableLike[] }[], summary: readonly IFemSheet[] = []): IFemSheet[] {
+	const sheets = new Map<string, { name: string; kinds: Set<string>; columns: string[]; rows: FemTableCell[][]; notes: Set<string> }>();
 	for (const c of cases) {
 		for (const table of c.tables) {
 			const key = `${table.name}|${table.columns.join('|')}`;
 			let sheet = sheets.get(key);
 			if (!sheet) {
-				sheet = { name: table.name || table.title, columns: [localize('femTable.result', "Result"), ...table.columns], rows: [], notes: new Set() };
+				sheet = { name: table.name || table.title, kinds: new Set(), columns: [localize('femTable.result', "Result"), ...table.columns], rows: [], notes: new Set() };
 				sheets.set(key, sheet);
 			}
+			sheet.kinds.add(c.resultType === 'Combination' ? localize('femTable.ofCombinations', "combinations")
+				: c.resultType === 'Envelope' ? localize('femTable.ofEnvelopes', "envelopes") : localize('femTable.ofCases', "cases"));
 			for (const row of table.rows) {
 				sheet.rows.push([c.caseName, ...row]);
 			}
 			table.notes.forEach(n => sheet!.notes.add(n));
 		}
 	}
-	return [...summary, ...[...sheets.values()].map(s => ({ name: s.name, columns: s.columns, rows: s.rows, notes: [...s.notes] }))];
+	// Tables of one name with different columns (the cases' and the combinations' element
+	// forces) are told apart by what they hold rather than numbered.
+	const all = [...sheets.values()];
+	const named = (s: typeof all[number]) => all.filter(o => o.name === s.name).length > 1 ? `${s.name} (${[...s.kinds].join(', ')})` : s.name;
+	const rounded = (rows: readonly (readonly FemTableCell[])[]) => rows.map(r => r.map(c => typeof c === 'number' ? exportNumber(c) : c));
+	return [
+		...summary.map(s => ({ ...s, rows: rounded(s.rows) })),
+		...all.map(s => ({ name: named(s), columns: s.columns, rows: rounded(s.rows), notes: [...s.notes] })),
+	];
 }

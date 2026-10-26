@@ -354,3 +354,13 @@ def test_bill_ifc_and_report_chapter(sample: Path, report: dict) -> None:
     )
     assert all(math.isfinite(float(row[1].replace(",", ""))) for row in chapter["checks"]
                if row[1] != "–")  # fmt: skip
+
+
+def test_cached_only_designs_are_pending_and_write_nothing(tmp_path) -> None:
+    # E5: the editor's quick first pass designs no tank; the uncached ones are pending.
+    from saengine.plumbing.project import DESIGNS_FILE, design_tanks
+
+    tanks = [{"id": "T1", "kind": "overhead"}]
+    out = design_tanks(tmp_path, tanks, cached_only=True)
+    assert out == [{"id": "T1", "kind": "overhead", "pending": True}]
+    assert not (tmp_path / DESIGNS_FILE).exists()

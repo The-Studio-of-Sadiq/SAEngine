@@ -103,11 +103,14 @@ def mep_report(
     in ``out_dir`` (default ``08 FEM/model.results``), ready for JSON. ``mep_text``: the
     editor's text of ``07 MEP/mep.json`` (unsaved edits), else the file is read.
 
-    ``{"method", "equipment": [per item {"id", "name", "kind", "story", "slabs", "host" (the
+    ``{"method", "equipment": [per item {"id", "name", "kind", "story", "discipline"
+    ("coordination", "plumbing", "hvac", "electrical", "fire": where it is edited), "sourceId"
+    (its id there), "x", "y", "length", "width", "rotation" (mm, °), "operatingWeight", "applied"
+    (its loads reach the frame), "onGrade" (on the base level), "slabs", "host" (the
     first of them), "loads" {case: kN}, "load" (their sum, kN), "loadCase" ("SD", "SD + L"),
     "impactPercent", "impactSource", "plinth", "area", "pressure" (operating weight over the
     footprint, kPa), "seismicWeight", "loadAs", "note"}], "stories": [per story {"story",
-    "count", "load"}], "openings": [per opening {"id", "host", "hostKind", "kind", "service",
+    "count", "load" (applied), "onGrade", "notApplied"}], "openings": [per opening {"id", "host", "hostKind", "kind", "service",
     "checks", "utilisation", "ok", "checked", "check" (the governing check), "note", "notes"}],
     "clashes": [see :func:`saengine.mep.clash.find_clashes`], "summary", "problems",
     "notes"}``. Raises ``ValueError`` when a part cannot be read or is invalid."""
@@ -116,32 +119,64 @@ def mep_report(
     out = Path(out_dir) if out_dir is not None else project.root / "08 FEM" / "model.results"
     notes: list[str] = []
 
-    # The plumbing's overhead tanks, the HVAC plant and the electrical equipment load the
-    # model as equipment (saengine.mep.loads.services_equipment, each once).
-    loaded, service_notes = loads.with_services_equipment(mep, project.materials)
+    # The plumbing's overhead tanks, the HVAC plant, the electrical and fire equipment load the
+    # model as equipment (saengine.mep.loads.services_by_discipline, each once). Each item says
+    # which discipline owns it (where it is edited) and whether its loads reach the frame.
+    groups, service_notes = loads.services_by_discipline(mep, project.materials)
     notes += service_notes
+    owned = [(item, "coordination", item.id) for item in mep.equipment]
+    for discipline, group in groups.items():
+        owned += [(item, discipline, own_id) for own_id, item in group.items()]
+    # A plumbing tank's load is named after the tank ("T1-tank"): point back to the tank.
+    tank_ids = [t.id for t in (mep.plumbing.tanks if mep.plumbing else [])]
+    owned = [
+        (
+            item,
+            d,
+            next((t for t in tank_ids if own.startswith(f"{t}-")), own) if d == "plumbing" else own,
+        )
+        for item, d, own in owned
+    ]
+    levels = {s.id: s.elevation for s in building.stories}
+    base = min(levels.values()) if levels else 0.0
     equipment = []
-    for item in loaded.equipment:
+    for item, discipline, own_id in owned:
         entry = loads.summary_of(item, mep.contentsAs, project.densities)
+        entry.update({
+            "discipline": discipline, "sourceId": own_id, "x": item.x, "y": item.y,
+            "length": item.length, "width": item.width, "rotation": item.rotation,
+            "operatingWeight": item.operatingWeight,
+        })  # fmt: skip
         entry["slabs"] = loads.slabs_under(item, building)
         entry["host"] = entry["slabs"][0] if entry["slabs"] else None
         entry["load"] = round(sum(entry["loads"].values()), 3)
         entry["loadCase"] = " + ".join(entry["loads"])
+        on_grade = item.story in levels and abs(levels[item.story] - base) < 1.0
+        entry["onGrade"] = on_grade
+        entry["applied"] = bool(entry["slabs"]) and not on_grade and item.story in levels
         entry["note"] = (
             f"impact {entry['impactPercent']:g} % ({entry['impactSource']})"
             if entry["impactPercent"]
             else ""
         )
-        if not entry["slabs"]:
+        if on_grade:
+            # As saengine.mep.loads.equipment_loads: the base level is on grade.
+            entry["note"] = (
+                "on grade: its weight goes to the ground slab and the foundations, not to the "
+                "frame (9 Substructure)"
+            )
+        elif not entry["applied"]:
             entry["note"] = "not on a slab of its story: its loads are not applied"
         equipment.append(entry)
     stories: dict[str, dict[str, Any]] = {}
     for entry in equipment:
         story = stories.setdefault(
-            entry["story"], {"story": entry["story"], "count": 0, "load": 0.0}
+            entry["story"],
+            {"story": entry["story"], "count": 0, "load": 0.0, "onGrade": 0.0, "notApplied": 0.0},
         )
         story["count"] += 1
-        story["load"] = round(story["load"] + entry["load"], 3)
+        key = "load" if entry["applied"] else "onGrade" if entry["onGrade"] else "notApplied"
+        story[key] = round(story[key] + entry["load"], 3)
 
     analysis, why = _analysis(project, out) if mep.openings else (None, "")
     if why:
@@ -167,6 +202,8 @@ def mep_report(
 
     totals: dict[str, float] = {}
     for entry in equipment:
+        if not entry["applied"]:
+            continue
         for case, value in entry["loads"].items():
             totals[case] = round(totals.get(case, 0.0) + value, 3)
     failed = [o for o in checked if o["checked"] and not o["ok"]]
@@ -179,7 +216,13 @@ def mep_report(
         "clashes": clashes,
         "summary": {
             "equipment": len(equipment),
+            "equipmentEntered": len(mep.equipment),
+            "equipmentApplied": sum(1 for e in equipment if e["applied"]),
             "loads": totals,
+            "onGrade": round(sum(e["load"] for e in equipment if e["onGrade"]), 3),
+            "notApplied": round(
+                sum(e["load"] for e in equipment if not e["applied"] and not e["onGrade"]), 3
+            ),
             "openings": len(checked),
             "openingsFailed": len(failed),
             "maxUtilisation": governing["utilisation"] if governing else None,

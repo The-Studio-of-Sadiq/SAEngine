@@ -192,7 +192,7 @@ export function elecKindLabel(kind: string): string {
 		case 'fuelTank': return localize('elec.kind.fuelTank', "Fuel tank");
 		case 'ups': return localize('elec.kind.ups', "UPS");
 		case 'battery': return localize('elec.kind.battery', "Battery bank");
-		case 'capacitorBank': return localize('elec.kind.capacitorBank', "Capacitor bank (PFI)");
+		case 'capacitorBank': return localize('elec.kind.capacitorBank', "Capacitor bank (power factor)");
 		case 'distributionBoard': return localize('elec.kind.distributionBoard', "Distribution board");
 		case 'solarPv': return localize('elec.kind.solarPv', "Solar PV array");
 		default: return kind;
@@ -278,27 +278,6 @@ export interface IElecUse {
 	readonly ac?: number;
 	readonly source?: string;
 }
-
-/**
- * The occupancies of BNBC 2020 Part 8 Table 8.1.17 (Minimum Load Densities, PDF part 2 pp. 766
- * and 767, Gazette pp. 4547 and 4548): the unit load without and with A/C. The keys are the
- * backend's (saengine.electrical.tables); its list ({@link ELECTRICAL_USES_COMMAND}) replaces this.
- */
-export const STATIC_ELEC_USES: readonly IElecUse[] = [
-	{ key: 'residenceSingle', label: localize('elec.use.single', "Residence: single family"), nonAc: 20, ac: 75, source: 'Table 8.1.17' },
-	{ key: 'residenceMulti', label: localize('elec.use.multi', "Residence: multi-family (not hotels)"), nonAc: 20, ac: 75, source: 'Table 8.1.17' },
-	{ key: 'hospital', label: localize('elec.use.hospital', "Hospitals"), nonAc: 32, ac: 80, source: 'Table 8.1.17' },
-	{ key: 'hotel', label: localize('elec.use.hotel', "Hotels, apartment houses (no electric cooking)"), nonAc: 24, ac: 75, source: 'Table 8.1.17' },
-	{ key: 'office', label: localize('elec.use.office', "Office and commercial multi-storeyed"), nonAc: 28, ac: 75, source: 'Table 8.1.17' },
-	{ key: 'industrial', label: localize('elec.use.industrial', "Industrial (without the machines)"), nonAc: 16, source: 'Table 8.1.17' },
-	{ key: 'departmentStore', label: localize('elec.use.departmentStore', "Departmental stores"), nonAc: 28, ac: 75, source: 'Table 8.1.17' },
-	{ key: 'bank', label: localize('elec.use.bank', "Banks"), nonAc: 20, ac: 75, source: 'Table 8.1.17' },
-	{ key: 'restaurant', label: localize('elec.use.restaurant', "Restaurants (no electric cooking)"), nonAc: 16, ac: 75, source: 'Table 8.1.17' },
-	{ key: 'barber', label: localize('elec.use.barber', "Barber shops and beauty parlours"), nonAc: 32, ac: 75, source: 'Table 8.1.17' },
-	{ key: 'school', label: localize('elec.use.school', "Schools and colleges"), nonAc: 12, ac: 70, source: 'Table 8.1.17' },
-	{ key: 'parking', label: localize('elec.use.parking', "Parking area in commercial buildings"), nonAc: 4, source: 'Table 8.1.17' },
-	{ key: 'warehouse', label: localize('elec.use.warehouse', "Warehouses, large storage areas"), nonAc: 2, source: 'Table 8.1.17' },
-];
 
 export function readElecUses(raw: unknown): IElecUse[] | undefined {
 	const list = Array.isArray(raw) ? raw : isRecord(raw) && Array.isArray(raw.uses) ? raw.uses : undefined;
@@ -462,7 +441,8 @@ export function connectedLoads(document: IMep, context: IMepContext): { story: s
 
 // ───────────────────────────── checks ─────────────────────────────
 
-export function checkElectrical(document: IMep, context: IMepContext, uses: readonly IElecUse[] = STATIC_ELEC_USES): IMepProblem[] {
+/** `uses`: the backend's Table 8.1.17 rows ({@link ELECTRICAL_USES_COMMAND}); empty until they arrive, when the use is not checked. */
+export function checkElectrical(document: IMep, context: IMepContext, uses: readonly IElecUse[] = []): IMepProblem[] {
 	const electrical = electricalOf(document);
 	if (!electrical) {
 		return [];
@@ -496,7 +476,7 @@ export function checkElectrical(document: IMep, context: IMepContext, uses: read
 		} else if (electrical.stories.findIndex(s => s.story === row.story) < i) {
 			add(path('story'), 'error', localize('elec.p.rowTwice', "Electrical: story {0} is listed twice.", row.story));
 		}
-		if (row.use !== undefined && !uses.some(u => u.key === row.use)) {
+		if (row.use !== undefined && uses.length && !uses.some(u => u.key === row.use)) {
 			add(path('use'), 'warning', localize('elec.p.use', "{0}: '{1}' is not an occupancy of BNBC Table 8.1.17.", row.story, String(row.use)));
 		}
 		for (const key of ['lighting', 'power', 'other'] as const) {
@@ -597,9 +577,30 @@ export function checkElectrical(document: IMep, context: IMepContext, uses: read
  * summary, notes, problems, method }`. Loads in kW, kVA; areas in m²; lengths in mm.
  */
 
+/** A part of a story's connected load: lighting, power (socket outlets), both together, the A/C share, the raise to the minimum or the other loads. */
+export interface ILoadPart {
+	readonly part: 'lighting' | 'power' | 'lightingAndPower' | 'airConditioning' | 'minimum' | 'other' | string;
+	/** [W/m²] */
+	readonly density?: number;
+	/** [kW] */
+	readonly kw?: number;
+	/** "entered", or where the value comes from (BNBC Table 8.1.17...). */
+	readonly source?: string;
+}
+
 export interface IDemandStory {
 	readonly story: string;
+	/** The Table 8.1.17 row used, its label, and "entered" or where it comes from (02 Project Settings). */
+	readonly use?: string;
+	readonly useLabel?: string;
+	readonly useSource?: string;
 	readonly area?: number;
+	/** [W/m²] the lighting and power used (entered, or the rest of the Table 8.1.17 density), the A/C share and the unit load in all. */
+	readonly lighting?: number;
+	readonly power?: number;
+	readonly acShare?: number;
+	readonly density?: number;
+	readonly breakdown: readonly ILoadPart[];
 	/** [kW] */
 	readonly connected?: number;
 	readonly demand?: number;
@@ -841,14 +842,40 @@ function readLightning(lightning: Record<string, unknown>): ILightningResult {
 	};
 }
 
+export function loadPartLabel(part: string): string {
+	switch (part) {
+		case 'lighting': return localize('elec.part.lighting', "Lighting");
+		case 'power': return localize('elec.part.power', "Power and socket outlets");
+		case 'lightingAndPower': return localize('elec.part.lightingAndPower', "Lighting and power");
+		case 'airConditioning': return localize('elec.part.ac', "Air conditioning");
+		case 'minimum': return localize('elec.part.minimum', "Raised to the minimum");
+		case 'other': return localize('elec.part.other', "Other loads");
+		default: return part;
+	}
+}
+
+/** A story's breakdown as lines, "Lighting 10 W/m² (entered)", for a tooltip or a note. */
+export function loadBreakdownText(row: IDemandStory): string {
+	return row.breakdown.map(p => {
+		const amount = p.density !== undefined ? localize('elec.part.density', "{0} W/m²", formatDensity(p.density)) : p.kw !== undefined ? localize('elec.part.kw', "{0} kW", formatDensity(p.kw)) : '';
+		return [loadPartLabel(p.part), amount, p.source ? `(${p.source})` : ''].filter(Boolean).join(' ');
+	}).join('\n');
+}
+
+function formatDensity(value: number): string {
+	return String(Math.round(value * 10) / 10);
+}
+
 export function readElectricalReport(raw: unknown): IElectricalReport | undefined {
 	if (!isRecord(raw)) {
 		return undefined;
 	}
 	const demand = record(raw.demand);
-	const stories = records<Record<string, unknown>>(demand.stories).map(r => ({
-		story: String(r.story ?? ''), area: optionalNumber(r.area), connected: optionalNumber(r.connected),
-		demand: optionalNumber(r.demand), kva: optionalNumber(r.kva), note: noteOf(r),
+	const stories: IDemandStory[] = records<Record<string, unknown>>(demand.stories).map(r => ({
+		story: String(r.story ?? ''), use: optionalString(r.use), useLabel: optionalString(r.useLabel), useSource: optionalString(r.useSource),
+		area: optionalNumber(r.area), lighting: optionalNumber(r.lighting), power: optionalNumber(r.power), acShare: optionalNumber(r.acShare), density: optionalNumber(r.density),
+		breakdown: records<Record<string, unknown>>(r.breakdown).map(p => ({ part: String(p.part ?? ''), density: optionalNumber(p.density), kw: optionalNumber(p.kw), source: optionalString(p.source) })),
+		connected: optionalNumber(r.connected), demand: optionalNumber(r.demand), kva: optionalNumber(r.kva), note: noteOf(r) ?? (strings(r.notes).join('; ') || undefined),
 	}));
 	const sum = (key: 'connected' | 'demand' | 'kva') => stories.some(s => s[key] !== undefined) ? stories.reduce((s, r) => s + num(r[key]), 0) : undefined;
 	const checks = readChecks(raw.checks);

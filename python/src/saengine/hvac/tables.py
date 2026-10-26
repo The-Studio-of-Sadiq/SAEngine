@@ -15,17 +15,17 @@ from dataclasses import dataclass
 
 #: Where each table or clause is (PDF page of the Gazette edition).
 PAGES: dict[str, str] = {
-    "8.2.1": "Part 8 Table 8.2.1 (Sec 2.7.2.1), part2 p859-860",
-    "8.2.2": "Part 8 Table 8.2.2 (Sec 2.7.2.2), part2 p862, notes p863",
-    "8.2.3": "Part 8 Table 8.2.3, part2 p863-869",
-    "2.12.2": "Part 8 Sec 2.12.2.1-2.12.2.3, part2 p915",
-    "8.2.9a": "Part 8 Table 8.2.9(a), part2 p916",
-    "3.4.2": "Part 3 Table 3.4.2 (Sec 4.4.1), part1 p186",
-    "3.4.3": "Part 3 Table 3.4.3 (Sec 4.4.1.3), part1 p187",
-    "4.4.3": "Part 3 Sec 4.4.3.1 and Figure 3.4.2, part1 p188-189",
-    "4.5.1": "Part 3 Sec 4.5.1.2, part1 p191",
-    "3.4.5": "Part 3 Table 3.4.5 (Sec 4.5.2), part1 p192",
-    "2.7.2.1b": "Part 8 Sec 2.7.2.1(b), part2 p860",
+    "8.2.1": "BNBC 2020 Part 8 Table 8.2.1 (Sec 2.7.2.1) (p859-860)",
+    "8.2.2": "BNBC 2020 Part 8 Table 8.2.2 (Sec 2.7.2.2) (p862), notes p863",
+    "8.2.3": "BNBC 2020 Part 8 Table 8.2.3 (p863-869)",
+    "2.12.2": "BNBC 2020 Part 8 Sec 2.12.2.1-2.12.2.3 (p915)",
+    "8.2.9a": "BNBC 2020 Part 8 Table 8.2.9(a) (p916)",
+    "3.4.2": "BNBC 2020 Part 3 Table 3.4.2 (Sec 4.4.1) (p186)",
+    "3.4.3": "BNBC 2020 Part 3 Table 3.4.3 (Sec 4.4.1.3) (p187)",
+    "4.4.3": "BNBC 2020 Part 3 Sec 4.4.3.1 and Figure 3.4.2 (p188-189)",
+    "4.5.1": "BNBC 2020 Part 3 Sec 4.5.1.2 (p191)",
+    "3.4.5": "BNBC 2020 Part 3 Table 3.4.5 (Sec 4.5.2) (p192)",
+    "2.7.2.1b": "BNBC 2020 Part 8 Sec 2.7.2.1(b) (p860)",
 }
 
 # ─────────────────────── Table 8.2.2: outside design conditions (summer) ───────────────────────
@@ -230,7 +230,7 @@ class Ventilation:
 
 
 _V = Ventilation
-#: Table 8.2.3 as printed (part2 p863-869). Rows that only refer elsewhere ("see food and
+#: Table 8.2.3 as printed (p863-869). Rows that only refer elsewhere ("see food and
 #: beverage service", "see public spaces", "see storage", "see education") are left out.
 VENTILATION: dict[str, Ventilation] = {
     r.key: r
@@ -369,7 +369,7 @@ VENTILATION_KEYS: tuple[str, ...] = tuple(VENTILATION)
 
 # ───────────────────── Table 3.4.5: maximum allowable lighting power density ─────────────────────
 
-#: Table 3.4.5 (part1 p192) [W/m²]: the maximum, taken as the design lighting when none is given.
+#: Table 3.4.5 (p192) [W/m²]: the maximum, taken as the design lighting when none is given.
 LPD = {
     "offices": 9.0,  # E1 and E2
     "retail": 13.0,  # F1 and F2
@@ -469,16 +469,16 @@ SITE_ELEVATION = 10.0
 TIME_ZONE = 6.0
 
 ASSUMPTIONS = [
-    "Station latitudes and longitudes (Table 8.2.2 gives none): from memory, to be checked.",
+    "Station latitudes and longitudes (Table 8.2.2 gives none): SAEngine values, check them.",
     (
-        "Equipment loads by use (BNBC gives none): ASHRAE Fundamentals Ch 18 office load factors, "
-        "from memory, to be checked."
+        "Equipment loads by use (BNBC gives none): SAEngine defaults in the range of ASHRAE "
+        "Fundamentals Ch 18's office load factors; enter the project's."
     ),
     (
-        "Metabolic heat per person by use: ASHRAE Fundamentals Ch 18 Table 1, from memory, to be "
-        "checked."
+        "Metabolic heat per person by use: after ASHRAE Fundamentals Ch 18 Table 1 (heat and "
+        "moisture given off by people)."
     ),
-    "Design-day wind speed 2 m/s and site elevation 10 m: from memory, to be checked.",
+    "Design-day wind speed 2 m/s and site elevation 10 m (BNBC gives none): SAEngine values.",
     (
         "Cooling supply air 13 °C at 0.008 kg/kg for the design airflow: SAEngine practice, to be "
         "checked."

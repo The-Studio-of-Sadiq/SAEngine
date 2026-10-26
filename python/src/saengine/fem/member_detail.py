@@ -67,9 +67,18 @@ def _chain(elements: list[Any]) -> list[tuple[Any, bool]]:
     return order
 
 
+def _section_name(project: dict[str, Any], element_id: int) -> str | None:
+    """The name of an element's section (SAEngine: the object type's, ``C400x600 column``)."""
+    element = next((e for e in project.get("elements", []) if e.get("id") == element_id), {})
+    section = next(
+        (s for s in project.get("sections", []) if s.get("id") == element.get("section_id")), {}
+    )
+    return section.get("name") or None
+
+
 def member_forces(out_dir: str | Path, project_path: str | Path, member: str) -> dict[str, Any]:
-    """``{"member", "kind" ("column", "beam", "brace"), "length", "elements", "axes": {"x", "y",
-    "z"}, "stations": [x], "results": [{"key", "label", "kind", "forces": [[N, Vy, Vz, T, My,
+    """``{"member", "kind" ("column", "beam", "brace"), "length", "elements", "section", "axes":
+    {"x", "y", "z"}, "stations": [x], "results": [{"key", "label", "kind", "forces": [[N, Vy, Vz, T, My,
     Mz]], "deflection": [[u1, u2, u3]], "displacement": [[ux, uy, uz]]}], "notes"}``: stations in
     m from the member's start (the end with the lower node, the bottom of a column); forces as
     at a cut, of the part beyond it on the part before (the first element's local axes; an
@@ -206,6 +215,7 @@ def member_forces(out_dir: str | Path, project_path: str | Path, member: str) ->
             "kind": kind,
             "length": length,
             "elements": [e.name for e, _ in chain],
+            "section": _section_name(project, chain[0][0].id),
             "axes": {"x": axes[0].tolist(), "y": axes[1].tolist(), "z": axes[2].tolist()},
             "stations": stations,
             "results": out,
