@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { gridLabel } from '../../../../services/saengineProject/common/gridLabels.js';
-import { buildSpec, centralBay, DEFAULT_FORM, formatLengths, gridLines, parseSpacings, readGenerateResult, readPendingBuilding, storyHeights, summarize } from '../../browser/newBuildingModel.js';
+import { buildSpec, centralBay, DEFAULT_FORM, folderError, formatLengths, gridLines, parseSpacings, readGenerateResult, readGenerateSummary, readPendingBuilding, storyHeights, summarize } from '../../browser/newBuildingModel.js';
 
 suite('SAEngine - New Building wizard model', () => {
 
@@ -89,7 +89,7 @@ suite('SAEngine - New Building wizard model', () => {
 				system: 'rcFrameCore',
 				materials: { concrete: 'C27.6', rebar: 'B500DWR' },
 				footing: 'isolated',
-				site: { location: 'sylhet' },
+				site: { location: 'sylhet', siteClass: 'SD', siteClassSource: 'assumed' },
 				occupancy: { use: 'office', category: 'III' },
 				designCode: 'bnbc',
 			},
@@ -118,5 +118,40 @@ suite('SAEngine - New Building wizard model', () => {
 			pending: { root: 'C:\\P', notes: ['a'], time: 5 },
 			pendingBad: undefined,
 		});
+	});
+
+	test('project folder: full paths only, never one the app folder would resolve', () => {
+		const ok = (path: string, windows: boolean) => folderError(path, windows) === undefined;
+		assert.deepStrictEqual({
+			drive: ok('C:\\Users\\me\\Documents', true),
+			forward: ok('D:/Projects', true),
+			unc: ok('\\\\server\\share\\jobs', true),
+			driveRelative: ok('C:Users', true),
+			rooted: ok('\\Users\\me', true),
+			relative: ok('Projects', true),
+			empty: ok('  ', true),
+			wild: ok('C:\\a*b', true),
+			posix: ok('/home/me', false),
+			posixRelative: ok('home/me', false),
+		}, {
+			drive: true, forward: true, unc: true,
+			driveRelative: false, rooted: false, relative: false, empty: false, wild: false,
+			posix: true, posixRelative: false,
+		});
+	});
+
+	test('generator summary: counts and sizes for the result page', () => {
+		assert.deepStrictEqual(readGenerateSummary({
+			sdc: 'D',
+			counts: { columns: 72, beams: 102, walls: 0, slabs: 36, foundations: 12 },
+			columnTypes: { 'L1-L3 interior': 'C500x500' },
+			beamTypes: ['B300x500'],
+			slabTypes: ['S150', 7],
+		}), {
+			sdc: 'D',
+			counts: [['Columns', 72], ['Beams', 102], ['Slabs', 36], ['Footings', 12]],
+			sizes: [{ what: 'Columns L1-L3 interior', size: 'C500x500' }, { what: 'Beams', size: 'B300x500' }, { what: 'Slabs', size: 'S150' }],
+		});
+		assert.strictEqual(readGenerateSummary('nope'), undefined);
 	});
 });

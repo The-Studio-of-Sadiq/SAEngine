@@ -10,10 +10,12 @@ hands it to the builder, which writes the project (see :mod:`saengine.importers.
   onto L, roof live onto Lr, wind onto WX or WY and earthquake onto EX or EY (the axis and sign
   from the case's loads, else its name in the file's horizontal axes);
 - pressures on floor areas become the floor and roof area loads (STAAD floor loads and SAP
-  'uniform to frame' loads too, where the level or area has a slab); joint loads, member loads,
-  floor loads on levels without slabs (their total over the plan area of the beams there),
-  loads on null areas and loads of lateral cases are not carried over and their totals go into
-  the report, case by case;
+  'uniform to frame' loads too, where the level or area has a slab); member loads and joint
+  loads go to the builder, which puts those of gravity cases on the floor-plan beams and columns
+  (``05 Floor Plan/loads.json``); floor loads on levels without slabs (their total over the plan
+  area of the beams there), loads on null areas and loads that find no beam or column are not
+  carried over and their totals go into the report, case by case; loads of wind and earthquake
+  cases are listed as replaced by SAEngine's own (BNBC 2020);
 - combinations become SAEngine combinations on those cases.
 """
 
@@ -139,6 +141,9 @@ class Load:
     length: float | None = None
     xrange: tuple[float, float] | None = None
     yrange: tuple[float, float] | None = None
+    #: Distance [mm] from the frame's end i: where a uniform load's loaded part starts, or where
+    #: a point load sits (None: from end i, a point load at the middle).
+    start: float | None = None
 
 
 @dataclass
@@ -911,11 +916,33 @@ def build(model: TextModel, name: str | None = None) -> ImportedProject:
                         f"{case.name}: {load.target}",
                     )
                 continue
-            if load.kind == "joint" or load.kind == "point":
-                total = load.value / 1e3
-            elif load.kind == "uniform":
-                total = load.value * (load.length or lengths.get(load.target, 0.0)) / 1e6
-            elif load.kind in ("pressure", "to-frame"):
+            example = f"{case.name}: {load.target}"
+            if load.kind in ("joint", "point", "uniform"):
+                # Member and joint loads: the builder puts them on the floor-plan beams and
+                # columns (or reports them); forces in kN, line loads in kN/m.
+                force = tuple(float(v) / 1e3 for v in load.value)
+                if load.kind == "joint":
+                    if load.target not in joints:
+                        report.skip("loads at undefined joints", example)
+                        continue
+                    at = tuple(float(v) for v in joints[load.target])
+                    builder.add_joint_load(at, target, force, example)  # type: ignore[arg-type]
+                    continue
+                length = None
+                if load.kind == "uniform":
+                    full = lengths.get(load.target, 0.0)
+                    length = load.length if load.length is not None else full - (load.start or 0)
+                builder.add_member_load(
+                    load.target,
+                    target,
+                    force,  # type: ignore[arg-type]
+                    point=load.kind == "point",
+                    start=load.start,
+                    length=length,
+                    example=example,
+                )
+                continue
+            if load.kind in ("pressure", "to-frame"):
                 total = load.value * plan_area(load.target) / 1e3
             elif load.kind == "floor":
                 area = sum(
@@ -925,22 +952,15 @@ def build(model: TextModel, name: str | None = None) -> ImportedProject:
                 total = load.value * area / 1e3
             else:
                 continue
-            amount = -float(total[2]) if gravity_case else float(np.linalg.norm(total))
-            what = {
-                "joint": "joint loads",
-                "point": "point loads on members",
-                "uniform": "distributed loads on members",
-                "pressure": "area loads",
-                "to-frame": "area loads 'uniform to frame'",
-                "floor": "floor loads",
-            }[load.kind]
+            # Area and floor loads of cases that are not gravity cases (gravity ones are above).
             if target in ("WX", "WY", "EX", "EY"):
-                what = f"{what} of wind and earthquake cases (SAEngine makes its own from BNBC)"
-            elif target is None:
-                what = f"{what} of cases with no SAEngine load case"
+                builder.lateral_load(
+                    "loads.lateral.area", target, float(np.linalg.norm(total)), example
+                )
             else:
-                what = f"{what} (no place for them in SAEngine yet)"
-            builder.not_carried(what, target, amount, f"{case.name}: {load.target}")
+                down = -float(total[2])
+                amount = down if abs(down) > 1e-12 else float(np.linalg.norm(total))
+                builder.not_carried_item("loads.noCase.area", target, amount, example)
     builder.self_weight = selfweight
     if model.states_modifiers:
         _stiffness(model, builder, report, added_frames, added_areas)

@@ -34,6 +34,12 @@ BNBC 2020 Part 6 clauses used (pages of the code PDF):
   frames: least dimension at least 300 mm, least / perpendicular dimension at least 0.4.
 - The seismic design category (Table 6.2.18) and the system rows of Table 6.2.19 come from
   :mod:`saengine.design.seismic_rules`, which cites them.
+- Stiffness (:func:`stiffness_estimate`, before the P-M sizing of the columns): Sec 6.3.10.4.1
+  (p. 912) cracked moments of inertia, used for the lateral deflections under factored loads
+  by Sec 6.1.10.2 (p. 893) and at 1.4 times under service loads by Sec 6.1.10.1 (p. 893);
+  the design drift Cd δe / I (Sec 2.5.7.7, p. 631) against Δa of Table 6.2.21 (p. 648) / ρ
+  (Sec 2.5.14.1, p. 647); the period against Cu Ta (Sec 2.5.7.2 (a), p. 627; eq. 6.2.38 and
+  Table 6.2.20, p. 628); wind deflection H/500 (Sec 1.5.6.1, page not in the code pack).
 """
 
 from __future__ import annotations
@@ -166,6 +172,12 @@ class BuildingSpec(_Spec):
     )
     location: LocationId | None = None  # type: ignore[valid-type]
     siteClass: Literal["SA", "SB", "SC", "SD", "SE"] | None = None
+    siteClassSource: Literal["entered", "assumed"] = Field(
+        default="entered",
+        description="How siteClass was found: entered (known, e.g. from a soil report read by "
+        "the engineer) or assumed (no soil report yet: the soil report replaces it once its "
+        "boreholes give a class).",
+    )
     allowableBearing: float | None = Field(
         default=None,
         gt=0,
@@ -188,9 +200,11 @@ class BuildingSpec(_Spec):
         description="Steel ratio the lateral column sizing allows before it enlarges a column.",
     )
     beamSpanDepth: float | None = Field(
-        default=15,
+        default=12,
         gt=0,
-        description="Rule of thumb span/depth of frame beams; none: the deflection minimum only.",
+        description="Rule of thumb span/depth of frame beams, for their stiffness under lateral "
+        "load (the stiffness check may deepen them to span/10); none: the deflection minimum "
+        "only.",
     )
     minSlab: float = Field(
         default=125, gt=0, description="Least slab thickness (SAEngine practice) [mm]."
@@ -371,6 +385,236 @@ def _prune(points: list[tuple[Any, ...]]) -> list[tuple[Any, ...]]:
 #: Integrator glue (performance): the column searches (and their interaction surfaces) of the
 #: lateral sizing by (side, f'c, fy, Es, ρ, concrete), shared by the generator's calls.
 _SEARCHES: dict[tuple[Any, ...], Any] = {}
+
+
+#: Cracked moments of inertia for the lateral deflections: BNBC 2020 Part 6 Sec 6.3.10.4.1
+#: (columns 0.70 Ig, beams 0.35 Ig, flat plates 0.25 Ig), which Sec 6.1.10.2 (p. 893) uses for
+#: the lateral deflections; the analysis model's default ("cracked") stiffness.
+CRACKED_COLUMN, CRACKED_BEAM, CRACKED_PLATE = 0.70, 0.35, 0.25
+
+
+def floor_beam_stiffness(
+    beams: dict[tuple[tuple[int, int], tuple[int, int]], tuple[float, float]],
+    xs: list[float],
+    ys: list[float],
+    slab_t: float,
+    along_x: bool,
+    rigid: float = 0.0,
+    column_side: dict[tuple[int, int], float] | None = None,
+) -> float:
+    """ΣKb [mm³] of a floor's beams along x (or y): 0.35 Ib / l each (Sec 6.3.10.4.1), the
+    rectangle without the slab flange; with no beams (a flat plate) each panel's slab strip
+    across the whole plan at 0.25 Ig. ``rigid``: the rigid zone factor of the analysis model's
+    end offsets (:mod:`saengine.fem.end_zones`), the offset half the ``column_side`` at each
+    end: a beam rigid over r a at both ends is (l / lc)³ times stiffer at its joints in
+    antisymmetric bending, lc = l - r (a1 + a2) its flexible length."""
+    total = 0.0
+    for (a, b), (bw, bh) in beams.items():
+        if (a[1] == b[1]) == along_x:
+            span = math.dist((xs[a[0]], ys[a[1]]), (xs[b[0]], ys[b[1]]))
+            factor = 1.0
+            if rigid > 0 and column_side:
+                flexible = span - rigid * (column_side[a] + column_side[b]) / 2
+                factor = (span / max(flexible, 0.5 * span)) ** 3
+            total += CRACKED_BEAM * bw * bh**3 / 12 / span * factor
+    if total <= 0:
+        spans, other = (xs, ys) if along_x else (ys, xs)
+        width = other[-1] - other[0]
+        total = sum(
+            CRACKED_PLATE * width * slab_t**3 / 12 / (spans[m + 1] - spans[m])
+            for m in range(len(spans) - 1)
+        )
+    return total
+
+
+def storey_column_stiffness(
+    side_of: dict[tuple[int, int, int], float],
+    nx: int,
+    ny: int,
+    k: int,
+    height: float,
+    rigid: float = 0.0,
+    top_depth: dict[tuple[int, int], float] | None = None,
+) -> float:
+    """ΣKc [mm³] of storey ``k``'s square columns: 0.70 Ic / h each (Sec 6.3.10.4.1); with the
+    analysis model's rigid zone factor ``rigid`` and the depth of the deepest beam at each
+    column's top (its end offset), (h / hc)³ times that, hc = h - r d the flexible height."""
+    total = 0.0
+    for i in range(nx):
+        for j in range(ny):
+            factor = 1.0
+            if rigid > 0 and top_depth:
+                flexible = height - rigid * top_depth.get((i, j), 0.0)
+                factor = (height / max(flexible, 0.5 * height)) ** 3
+            total += CRACKED_COLUMN * side_of[(i, j, k)] ** 4 / 12 / height * factor
+    return total
+
+
+def wilbur_flexibility(
+    heights: list[float], k: int, sum_kc: float, sum_kb: float, ec: float
+) -> tuple[float, float]:
+    """(Δ / V [mm/kN], the columns' share of it) of storey ``k`` (1..n; ``heights[0]`` unused)
+    by Wilbur's storey stiffness: Δ / V = h / (48 Ec) (4 h / ΣKc + (hb + h) / ΣKb,below +
+    (h + ha) / ΣKb,above), the first storey on a fixed base h1 / (48 Ec) (4 h1 / ΣKc +
+    (h1 + h2) / (ΣKb + ΣKc / 12)); the beams alike at every floor, the roof storey taking its
+    own height for the one above."""
+    n = len(heights) - 1
+    h = heights[k]
+    below = heights[k - 1] if k > 1 else h
+    above = heights[k + 1] if k < n else h
+    columns = 4 * h / sum_kc
+    if k == 1:
+        bracket = columns + (h + above) / (sum_kb + sum_kc / 12)
+    else:
+        bracket = columns + (below + h) / sum_kb + (h + above) / sum_kb
+    return h / (48 * ec) * bracket * 1e3, columns / bracket
+
+
+#: Lateral deflection under the service wind, as a share of the building height: BNBC 2020
+#: Part 6 Sec 1.5.6.1 limits the lateral deflection or drift due to wind to H/500 (the page is
+#: not in the code pack: check it). Taken at the roof.
+WIND_DRIFT = 1 / 500
+#: Stiffness of the members for the lateral deflections under the SERVICE (wind) loads, as a
+#: factor on the cracked stiffness above: BNBC 2020 Part 6 Sec 6.1.10.1 (p. 893; ACI 318-11
+#: 8.8.1): 1.4 times the flexural stiffness of Sec 6.1.10.2.
+SERVICE_STIFFNESS = 1.4
+#: The deepest frame beam the stiffness pass makes, as span / depth (practice), and the widest,
+#: as a share of its depth and at most STIFF_BEAM_WIDTH mm (practice).
+STIFF_BEAM_SPAN_DEPTH = 10.0
+STIFF_BEAM_WIDTH_SHARE = 0.6
+STIFF_BEAM_WIDTH = 400.0
+#: The estimated period the stiffness pass aims at, as a multiple of Cu Ta (Sec 2.5.7.2 (a),
+#: p. 627). Cu Ta caps the period the static forces may use; it is not a limit on the
+#: structure, and an analysis model on cracked sections (Sec 6.3.10.4.1) usually comes out
+#: longer than the empirical Ta, which is fitted to measured buildings with their infill
+#: (practice). A frame estimated at more than 1.5 Cu Ta is taken as too flexible.
+PERIOD_TARGET = 1.5
+
+
+class StiffnessEstimate(BaseModel):
+    """What :func:`stiffness_estimate` found per direction ("X", "Y")."""
+
+    period: dict[str, float]
+    periodLimit: float
+    ta: float
+    #: Per direction and storey 1..n: the design drift Cd δe / I over its limit Δa (Table
+    #: 6.2.21) and the columns' share of the storey's flexibility; per direction the roof's
+    #: service wind deflection over H / 500.
+    seismicRatio: dict[str, list[float]]
+    windRatio: dict[str, float]
+    columnShare: dict[str, list[float]]
+    driftLimit: float | None = None
+    cd: float | None = None
+
+
+# Under the project's pack, as lateral_column_sizes (integration glue).
+@code_context.in_project_pack()
+def stiffness_estimate(
+    settings: ProjectSettings,
+    sdc: str | None,
+    *,
+    xs: list[float],
+    ys: list[float],
+    heights: list[float],
+    side_of: dict[tuple[int, int, int], float],
+    beams: dict[tuple[tuple[int, int], tuple[int, int]], tuple[float, float]],
+    slab_t: float,
+    ec: float,
+    weights: list[float],
+) -> StiffnessEstimate:
+    """A PRELIMINARY estimate of the frames' period and storey drifts (both directions, the
+    frames taking all the storey shear), from Wilbur's storey stiffness
+    (:func:`wilbur_flexibility`, columns 0.70 Ig, beams 0.35 Ig, Sec 6.3.10.4.1) as a shear
+    building; ``weights`` the seismic weight of levels 1..n [kN].
+
+    - period by Rayleigh's quotient T = 2π √(Σ wi δi² / (g Σ Fi δi)) under the static
+      method's forces, against Cu Ta: Ta = Ct hn^m (Sec 2.5.7.2, eq. 6.2.38, p. 627; Ct, m of
+      Table 6.2.20, p. 628) and Cu = 1.4 (Sec 2.5.7.2 (a), p. 627);
+    - earthquake: δe of each storey under the equivalent static forces at Ta (Sec 2.5.7,
+      :mod:`saengine.fem.loads`), the design drift Cd δe / I (Sec 2.5.7.7, p. 631) against
+      Δa / ρ of Table 6.2.21 (p. 648, Sec 2.5.14.1, p. 647);
+    - wind: the storey drift under the service wind forces of the analysis model
+      (:func:`saengine.fem.loads.wind_level_forces`, factor 1.0), the members at 1.4 times
+      the cracked stiffness (Sec 6.1.10.1, :data:`SERVICE_STIFFNESS`): the roof's deflection
+      against H / 500 (:data:`WIND_DRIFT`).
+
+    The rigid end zones are those of the analysis model (``analysis.endOffsets``,
+    ``rigidZoneFactor``: beams offset half the column at each end, columns the deepest beam at
+    their top); the slab flanges, accidental torsion and P-delta are left out.
+    """
+    from saengine.fem import loads as fl
+    from saengine.fem import seismic_design as sd
+    from saengine.library.settings import derived
+
+    nx, ny, n = len(xs), len(ys), len(heights) - 1
+    values = derived(settings)
+    tops = list(itertools.accumulate(heights[1:]))
+    rel = [t / 1000 for t in tops]
+    ta = fl.approximate_period(rel[-1], settings.seismic.system)
+    upper = code_context.table("seismic").periodUpperFactor
+    shape = fl.vertical_distribution(list(zip(rel, weights, strict=True)), 1.0, ta)
+    lx_m, ly_m = (xs[-1] - xs[0]) / 1000, (ys[-1] - ys[0]) / 1000
+    wind: dict[str, list[float]] = {}
+    if values["windSpeed"]:
+        args = (values["windSpeed"], settings.wind.exposure, values["windImportance"])
+        wind["X"] = fl.wind_level_forces(rel, ly_m, lx_m, *args)
+        wind["Y"] = fl.wind_level_forces(rel, lx_m, ly_m, *args)
+    seismic_v = 0.0
+    limit = cd = None
+    if values["Z"]:
+        sa = fl.design_acceleration(
+            ta, settings.site.siteClass, values["Z"], values["seismicImportance"], values["R"]
+        )
+        seismic_v = sa * sum(weights)
+        options = sd.options_from_settings(settings)
+        limit = sd.allowable_drift_ratio(
+            settings.occupancy.category, sdc, settings.seismic.system, options.redundancy
+        )
+        cd = float(values["Cd"])
+    out = StiffnessEstimate(
+        period={}, periodLimit=upper * ta, ta=ta, seismicRatio={}, windRatio={}, columnShare={},
+        driftLimit=limit, cd=cd,
+    )  # fmt: skip
+
+    def shears(forces: list[float]) -> list[float]:
+        return list(itertools.accumulate(reversed(forces)))[::-1]
+
+    rigid = settings.analysis.rigidZoneFactor if settings.analysis.endOffsets else 0.0
+    top_depth: dict[tuple[int, int], float] = {}
+    for (a, b), (_bw, bh) in beams.items():
+        for end in (a, b):
+            top_depth[end] = max(top_depth.get(end, slab_t), bh)
+    for i in range(nx):
+        for j in range(ny):
+            top_depth.setdefault((i, j), slab_t)
+    for axis, along_x in (("X", True), ("Y", False)):
+        flex, share = [], []
+        for k in range(1, n + 1):
+            sides = {(i, j): side_of[(i, j, k)] for i in range(nx) for j in range(ny)}
+            kb = floor_beam_stiffness(beams, xs, ys, slab_t, along_x, rigid, sides)
+            kc = storey_column_stiffness(side_of, nx, ny, k, heights[k], rigid, top_depth)
+            f, c = wilbur_flexibility(heights, k, kc, kb, ec)
+            flex.append(f)
+            share.append(c)
+        # Rayleigh: displacements [m] under the force shape (any scale).
+        drift = [v * f / 1000 for v, f in zip(shears(shape), flex, strict=True)]
+        disp = list(itertools.accumulate(drift))
+        num = sum(w * d * d for w, d in zip(weights, disp, strict=True))
+        den = G * sum(p * d for p, d in zip(shape, disp, strict=True))
+        out.period[axis] = 2 * math.pi * math.sqrt(num / den) if den > 0 else 0.0
+        out.columnShare[axis] = share
+        out.seismicRatio[axis] = [
+            (cd * v * seismic_v * f / values["seismicImportance"]) / (limit * heights[k + 1])
+            if limit and cd
+            else 0.0
+            for k, (v, f) in enumerate(zip(shears(shape), flex, strict=True))
+        ]
+        roof = sum(
+            v * f / SERVICE_STIFFNESS
+            for v, f in zip(shears(wind.get(axis, [0.0] * n)), flex, strict=True)
+        )
+        out.windRatio[axis] = roof / (WIND_DRIFT * tops[-1])
+    return out
 
 
 class LateralSizing(BaseModel):
@@ -621,22 +865,7 @@ def lateral_column_sizes(
     # 0.7 Ic / h of the storey's columns, Kb = 0.35 Ib / l of a floor's beams (a flat plate: its
     # strips at 0.25 Ig); Q does not depend on V, and δs = 1 / (1 - Q) (the design's default
     # form).
-    def floor_beams(along_x: bool) -> float:
-        total = 0.0
-        for (a, b), (bw, bh) in beams.items():
-            if (a[1] == b[1]) == along_x:
-                span = math.dist((xs[a[0]], ys[a[1]]), (xs[b[0]], ys[b[1]]))
-                total += 0.35 * bw * bh**3 / 12 / span
-        if total <= 0:  # a flat plate: each panel's strip across its span at 0.25 Ig
-            spans, other = (xs, ys) if along_x else (ys, xs)
-            width = other[-1] - other[0]
-            total = sum(
-                0.25 * width * slab_t**3 / 12 / (spans[m + 1] - spans[m])
-                for m in range(len(spans) - 1)
-            )
-        return total
-
-    kb = {True: floor_beams(True), False: floor_beams(False)}
+    kb = {d: floor_beam_stiffness(beams, xs, ys, slab_t, d) for d in (True, False)}
     sway: dict[tuple[int, str, str], float] = {}
     # The design fails a storey with δs > DELTA_S_MAX (second-order analysis required, Sec
     # 6.3.10.7.3): the columns' stiffness ΣKc each storey needs for Q <= 1 - 1/DELTA_S_MAX, as a
@@ -645,20 +874,12 @@ def lateral_column_sizes(
     stiffen: dict[int, float] = {}
     beams_too_flexible: set[tuple[int, str]] = set()
     for k in range(1, n + 1):
-        kc = sum(
-            0.7 * side_of[(i, j, k)] ** 4 / 12 / heights[k] for i in range(nx) for j in range(ny)
-        )
+        kc = storey_column_stiffness(side_of, nx, ny, k, heights[k])
         h = heights[k]
-        below = heights[k - 1] if k > 1 else h
-        above = heights[k + 1] if k < n else h
 
-        def flexibility(sum_kc: float, sum_kb: float, k=k, h=h, below=below, above=above) -> float:
+        def flexibility(sum_kc: float, sum_kb: float, k=k) -> float:
             """Δo / V [mm/kN] of the storey (Wilbur)."""
-            if k == 1:
-                bracket = 4 * h / sum_kc + (h + above) / (sum_kb + sum_kc / 12)
-            else:
-                bracket = 4 * h / sum_kc + (below + h) / sum_kb + (h + above) / sum_kb
-            return h / (48 * ec) * bracket * 1e3
+            return wilbur_flexibility(heights, k, sum_kc, sum_kb, ec)[0]
 
         for name, d, live, lr, cases in combos:
             sum_pu = sum(gravity((i, j, k), d, live, lr) for i in range(nx) for j in range(ny))
@@ -962,7 +1183,20 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
     site: dict[str, Any] = {}
     if s.location is not None:
         site["location"] = s.location
-    if s.siteClass is not None:
+    if s.siteClass is not None and s.siteClassSource == "assumed":
+        # The settings have no "assumed" source (site.siteClassSource is "soilReport" or
+        # "entered"): "soilReport" keeps the assumed class only until 1 Soil Report gives one.
+        site.update(siteClass=s.siteClass, siteClassSource="soilReport")
+        notes.append(
+            f"Site class {s.siteClass} ASSUMED (no soil report yet): BNBC 2020 Part 6 Table "
+            "6.2.13 (p. 609) classes the site by the average properties of the top 30 m "
+            "(shear wave velocity, SPT N or undrained shear strength). It sets the "
+            "spectrum (Table 6.2.16, p. 616), the Seismic Design Category (Table 6.2.18, p. "
+            "617) and so the system and the sizes below. 02 Project Settings take the class "
+            "from 1 Soil Report once its boreholes give one; until then the settings and the "
+            "report show this assumed class as entered: confirm it with a soil investigation."
+        )
+    elif s.siteClass is not None:
         site.update(siteClass=s.siteClass, siteClassSource="entered")
     if site:
         patch["site"] = site
@@ -1001,7 +1235,9 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
     q_roof_sd = roof_load.finish + roof_load.partitions
     notes.append(
         f"Seismic Design Category {sdc or '-'} (zone {zone or '-'}, site class "
-        f"{final.site.siteClass}, occupancy category {final.occupancy.category}); system "
+        f"{final.site.siteClass}"
+        f"{' assumed' if s.siteClass is not None and s.siteClassSource == 'assumed' else ''}"
+        f", occupancy category {final.occupancy.category}); system "
         f"{bnbc.STRUCTURAL_SYSTEMS[system_id].name}."
     )
     notes += system_notes
@@ -1066,7 +1302,8 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
             "Beams: depth h = max(Table 6.6.1 minimum l/16, l/18.5, l/21 for 0, 1, 2 continuous "
             f"ends x (0.4 + fy/700) = x{fy_factor(fy):.3f}, "
             + (
-                f"span/{s.beamSpanDepth:g} (rule of thumb for frame beams under lateral load), "
+                f"span/{s.beamSpanDepth:g} (rule of thumb for the stiffness of frame beams under "
+                "lateral load), "
                 if s.beamSpanDepth
                 else ""
             )
@@ -1290,12 +1527,149 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
             break
         col_side = new_sides
 
-    # ── columns for wind and earthquake (P–M), where the category asks for it ──
     lateral: LateralSizing | None = None
     gravity_side = dict(group_side)
     governing: dict[tuple[int, str], str] = {}
     seismic_on = sdc in ("C", "D")
     lateral_on = s.lateralSizing == "auto" and (seismic_on or sdc == "B")
+    ec = concrete.mechanical.E or 4700 * math.sqrt(fc)
+
+    # ── stiffness: storey drifts and period (preliminary), before the P-M sizing ──
+    # The frames' estimated drifts and period (stiffness_estimate) against the code's limits;
+    # where one is exceeded the members that dominate the storey's flexibility are enlarged:
+    # the beams along that direction 25 mm deeper (to span/STIFF_BEAM_SPAN_DEPTH), else the
+    # columns of the storey groups concerned 50 mm larger; the slabs are then re-sized for the
+    # new beams and the loads recomputed.
+    first_estimate: StiffnessEstimate | None = None
+    estimate: StiffnessEstimate | None = None
+    stiff_beams: set[tuple[tuple[int, int], tuple[int, int]]] = set()
+    gravity_beams = dict(beam_size)
+    stiff_columns: set[tuple[int, str]] = set()
+    stiffness_unmet = ""
+    column_step: tuple[Any, ...] | None = None
+    column_step_keys: set[tuple[int, str]] = set()
+    if lateral_on and not walls_on:
+        weights_of = load_parts.get("seismicLevels", load_parts["levels"])
+        for _ in range(60):
+            estimate = stiffness_estimate(
+                final,
+                sdc,
+                xs=xs,
+                ys=ys,
+                heights=heights,
+                side_of=col_side,
+                beams=beam_size,
+                slab_t=min(v[0] for v in slab_of.values()),
+                ec=ec,
+                weights=weights_of[1:],
+            )
+            first_estimate = first_estimate or estimate
+            need: dict[tuple[str, int], float] = {}
+            period_need = {
+                axis: (t / (PERIOD_TARGET * estimate.periodLimit)) ** 2
+                for axis, t in estimate.period.items()
+            }
+            for axis in ("X", "Y"):
+                for k in range(1, n + 1):
+                    need[(axis, k)] = max(
+                        estimate.seismicRatio[axis][k - 1],
+                        estimate.windRatio[axis],
+                        period_need[axis],
+                    )
+            (axis, k_worst), worst = max(need.items(), key=lambda item: item[1])
+            if column_step is not None and worst >= column_step[-1] - 1e-6:
+                # Larger columns made the frame heavier more than stiffer (the beams govern
+                # and are at their limits): back to the sizes before them.
+                group_side, col_side, loads, load_parts, estimate, _ = column_step
+                stiff_columns = set(column_step_keys)
+                stiffness_unmet = (
+                    f"the beams are at their limits (span/{STIFF_BEAM_SPAN_DEPTH:g} deep, "
+                    f"width {STIFF_BEAM_WIDTH_SHARE:g} h up to {STIFF_BEAM_WIDTH:g} mm) and "
+                    "larger columns no longer help"
+                )
+                break
+            column_step = None
+            if worst <= 1.0 + 1e-9:
+                break
+            changed = False
+            failing: set[int] = set()
+            for axis in ("X", "Y"):
+                along_x = axis == "X"
+                storeys = {k for (a, k), r in need.items() if a == axis and r > 1.0 + 1e-9}
+                if not storeys:
+                    continue
+                failing |= storeys
+                k_worst = max(storeys, key=lambda k, axis=axis: need[(axis, k)])
+                if max(period_need[axis], estimate.windRatio[axis]) >= need[(axis, k_worst)] - 1e-9:
+                    share = sum(estimate.columnShare[axis]) / n
+                else:
+                    share = estimate.columnShare[axis][k_worst - 1]
+                if flat or share >= 0.5:
+                    continue
+                # The beams dominate: those along the direction 25 mm deeper (to span/10),
+                # then 25 mm wider (to 0.6 h, 400 mm).
+                along = [
+                    e for e in beam_size if (e[0][1] == e[1][1]) == along_x and e not in core_lines
+                ]
+                stepped = False
+                for edge in along:
+                    a, b = edge
+                    bw, bh = beam_size[edge]
+                    span = math.dist((xs[a[0]], ys[a[1]]), (xs[b[0]], ys[b[1]]))
+                    if bh + 25 <= span / STIFF_BEAM_SPAN_DEPTH + 1e-6:
+                        h = bh + 25
+                        beam_size[edge] = (max(bw, ceil_to(max(250.0, 0.3 * h), 25)), h)
+                        stiff_beams.add(edge)
+                        stepped = True
+                if not stepped:
+                    for edge in along:
+                        bw, bh = beam_size[edge]
+                        if bw + 25 <= min(STIFF_BEAM_WIDTH_SHARE * bh, STIFF_BEAM_WIDTH) + 1e-6:
+                            beam_size[edge] = (bw + 25, bh)
+                            stiff_beams.add(edge)
+                            stepped = True
+                changed = changed or stepped
+            if changed:
+                for i in range(nx - 1):
+                    for j in range(ny - 1):
+                        slab_of[(i, j)] = beam_slab(i, j)
+            if not changed:
+                column_step = (dict(group_side), dict(col_side), loads, load_parts, estimate, worst)
+                column_step_keys = set(stiff_columns)
+                for g in sorted({group_of[k] for k in failing}):
+                    for kind in POSITION_FACTOR:
+                        key = (g, kind)
+                        if key in group_side and group_side[key] < MAX_SIDE:
+                            group_side[key] += 50.0
+                            stiff_columns.add(key)
+                            changed = True
+                for kind in POSITION_FACTOR:
+                    for g in range(len(groups) - 2, -1, -1):
+                        if (g, kind) in group_side and (g + 1, kind) in group_side:
+                            group_side[(g, kind)] = max(
+                                group_side[(g, kind)], group_side[(g + 1, kind)]
+                            )
+                col_side = {
+                    (i, j, k): group_side[(group_of[k], position(i, j))]
+                    for i in range(nx)
+                    for j in range(ny)
+                    for k in range(1, n + 1)
+                }
+            if not changed:
+                stiffness_unmet = (
+                    f"no member could be enlarged further (beams to span/"
+                    f"{STIFF_BEAM_SPAN_DEPTH:g}, columns to {MAX_SIDE:g} mm)"
+                )
+                break
+            loads, load_parts = service_loads(col_side)
+            weights_of = load_parts.get("seismicLevels", load_parts["levels"])
+        else:
+            stiffness_unmet = "the iteration limit was reached"
+        for key in stiff_columns:
+            if group_side[key] > gravity_side.get(key, 0.0):
+                governing[key] = "stiffness: drift / period"
+
+    # ── columns for wind and earthquake (P–M), where the category asks for it ──
     frame_share = 1.0
     if walls_on:
         # Dual systems: the frames take at least a quarter of the storey shear; otherwise the
@@ -1315,7 +1689,6 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
             )
         frame_beams = {e: v for e, v in beam_size.items() if e not in core_lines}
         es = rebar.mechanical.E or 200_000.0
-        ec = concrete.mechanical.E or 4700 * math.sqrt(fc)
         for _ in range(4):
             lateral = lateral_column_sizes(
                 final,
@@ -1362,6 +1735,121 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
                 break
             col_side = new_sides
             loads, load_parts = service_loads(col_side)
+
+    # The estimate at the final sizes (the P-M sizing may have enlarged columns since).
+    stiffness_note = ""
+    if first_estimate is not None:
+        estimate = stiffness_estimate(
+            final,
+            sdc,
+            xs=xs,
+            ys=ys,
+            heights=heights,
+            side_of=col_side,
+            beams=beam_size,
+            slab_t=min(v[0] for v in slab_of.values()),
+            ec=ec,
+            weights=load_parts.get("seismicLevels", load_parts["levels"])[1:],
+        )
+
+        def state(e: StiffnessEstimate) -> str:
+            seismic = (
+                ", design drift / limit "
+                + ", ".join(f"{a} {max(e.seismicRatio[a]):.2f}" for a in ("X", "Y"))
+                if e.driftLimit
+                else ""
+            )
+            return (
+                "T " + ", ".join(f"{a} {e.period[a]:.2f} s" for a in ("X", "Y")) + seismic
+                + ", roof wind deflection / (H/500) "
+                + ", ".join(f"{a} {e.windRatio[a]:.2f}" for a in ("X", "Y"))
+            )  # fmt: skip
+
+        changes = []
+        deepened = sorted(
+            {
+                "B{:g}x{:g} -> B{:g}x{:g}".format(*gravity_beams[e], *beam_size[e])
+                for e in stiff_beams
+                if beam_size[e] != gravity_beams[e]
+            }
+        )
+        if deepened:
+            changes.append("beams " + ", ".join(deepened))
+        if stiff_columns:
+            changes.append(
+                "columns "
+                + ", ".join(
+                    f"{story_ids[groups[g][0]]}-{story_ids[groups[g][-1]]} {kind}"
+                    for g, kind in sorted(stiff_columns)
+                )
+                + " enlarged in 50 mm steps"
+            )
+        rigid = final.analysis.rigidZoneFactor if final.analysis.endOffsets else 0.0
+        limit = (
+            f"Δa/ρ = {first_estimate.driftLimit:.3f} hsx (Table 6.2.21, p. 648, occupancy "
+            f"category {final.occupancy.category}; Sec 2.5.14.1, p. 647), Cd = "
+            f"{first_estimate.cd:g}"
+            if first_estimate.driftLimit
+            else "not checked (no seismic zone coefficient)"
+        )
+        met = max(
+            max(max(estimate.seismicRatio[a]) for a in ("X", "Y")),
+            max(estimate.windRatio.values()),
+            max((t / (PERIOD_TARGET * estimate.periodLimit)) ** 2 for t in
+                estimate.period.values()),
+        ) <= 1.0 + 1e-6  # fmt: skip
+        stiffness_note = (
+            "Stiffness (PRELIMINARY drift and period check, before the P-M sizing of the "
+            "columns): the frames as a shear building of Wilbur's storey stiffnesses (columns "
+            f"{CRACKED_COLUMN:g} Ig, beams {CRACKED_BEAM:g} Ig without the slab flange"
+            + (f", flat plate {CRACKED_PLATE:g} Ig" if flat else "")
+            + ", BNBC 2020 Part 6 Sec 6.3.10.4.1, p. 912, for the factored lateral loads as "
+            "Sec 6.1.10.2, p. 893; "
+            + (
+                f"the analysis model's rigid end zones, factor {rigid:g}"
+                if rigid
+                else "no rigid end zones"
+            )
+            + "), every frame line of a direction alike, the seismic weight as the analysis "
+            "model counts it. Checked: (1) the earthquake design drift Cd δe / I of every "
+            f"storey (Sec 2.5.7.7, p. 631) against {limit}, δe under the equivalent static "
+            f"forces at Ta = {first_estimate.ta:.2f} s (the analysis' default period); (2) the "
+            "roof deflection under the service wind (1.0 W, the analysis model's wind forces; "
+            f"members at {SERVICE_STIFFNESS:g} x those stiffnesses, Sec 6.1.10.1, p. 893) "
+            "against H/500 (Sec 1.5.6.1; its page is not in the code pack: check it); (3) the "
+            "period by Rayleigh's quotient against "
+            f"{PERIOD_TARGET:g} Cu Ta = {PERIOD_TARGET * first_estimate.periodLimit:.2f} s "
+            f"(Cu Ta = {first_estimate.periodLimit:.2f} s, Sec 2.5.7.2 (a), p. 627; Ta = Ct "
+            "hn^m, eq. 6.2.38, Table 6.2.20, p. 628). Cu Ta caps the period the static forces "
+            "may use and is no limit on the structure; an estimate above "
+            f"{PERIOD_TARGET:g} Cu Ta is taken as a frame too flexible (SAEngine practice). "
+            f"Where one failed: the beams along that direction 25 mm deeper up to "
+            f"span/{STIFF_BEAM_SPAN_DEPTH:g}, then 25 mm wider up to "
+            f"{STIFF_BEAM_WIDTH_SHARE:g} h and {STIFF_BEAM_WIDTH:g} mm, while they govern the "
+            "storey's flexibility; else the columns of the storey groups concerned 50 mm "
+            "larger; the slabs re-sized for the new beams. Before: "
+            + state(first_estimate)
+            + ". Final sizes: "
+            + state(estimate)
+            + (". Changed: " + "; ".join(changes) if changes else ". No member changed")
+            + ". "
+            + (
+                "All three met."
+                if met
+                else "NOT all met ("
+                + (stiffness_unmet or "see the ratios above")
+                + "): consider deeper or wider beams, more frame lines, walls, or columns "
+                "turned with their long side along the flexible direction."
+            )
+            + " Assumed (not checked here): rigid floors, no accidental torsion, no P-delta, "
+            "no infill walls, the slabs' flanges and stiffness left out; the analysis "
+            "(modal periods, drifts of Sec 2.5.14.1) is the check."
+        )
+    elif lateral_on and walls_on:
+        stiffness_note = (
+            "Stiffness: the drift and period are not estimated here (the core walls take the "
+            "storey shear); the analysis checks them (Sec 2.5.14.1, p. 647)."
+        )
 
     if special:
         narrow = [
@@ -1801,12 +2289,26 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
 
     # ── notes ──
     notes += beam_rule
+    if stiffness_note:
+        notes.append(stiffness_note)
     if not flat:
+        governing_panels: dict[tuple[float, str], tuple[int, int]] = {}
+        for (i, j), (t, system, _how) in sorted(slab_of.items()):
+            governing_panels.setdefault((t, system), (i, j))
+        panels = "; ".join(
+            f"{slab_type(t, system)} e.g. panel {name(i, j)}: {slab_of[(i, j)][2]}"
+            for (t, system), (i, j) in sorted(governing_panels.items())
+        )
         notes.append(
-            "Slabs with beams: Sec 6.2.5.3.3 with alpha_f of the rectangular beam section (no "
-            "slab flange, on the low side) over the slab strip it carries; one-way panels "
-            "(beta > 2) by Table 6.6.1; at least "
-            f"{s.minSlab:g} mm (SAEngine practice), rounded up to 25 mm."
+            "Slabs with beams: Sec 6.2.5.3.3 (p. 903) with alpha_f of the rectangular beam "
+            "section (no slab flange, on the low side, as Design mode's slab check takes it) "
+            "over the slab strip it carries; one-way panels (beta > 2) by Table 6.6.1 (p. 900); "
+            f"at least {s.minSlab:g} mm (SAEngine practice), rounded up to 25 mm. The thickness "
+            "follows the beams' stiffness: with alpha_fm > 2 (beams of about span/12 and "
+            "deeper) eq. 6.6.6 gives ln (0.8 + fy/1400) / (36 + 9 beta), about ln/43 for a "
+            "6 x 5 m panel; shallower beams (alpha_fm <= 2) fall to eq. 6.6.5 and towards the "
+            "flat-plate ln/30 to ln/33 of Table 6.6.3 (p. 902), +10 % at an edge beam with "
+            f"alpha_f < 0.8. {panels}."
         )
     else:
         notes.append(
@@ -1938,6 +2440,30 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
                 },
             }
             if lateral is not None and lateral.sides
+            else None
+        ),
+        # The preliminary drift and period estimate (stiffness_estimate) before the stiffness
+        # pass and at the final sizes; None where it was not made.
+        "stiffness": (
+            {
+                "ta": round(estimate.ta, 3),
+                "periodLimit": round(estimate.periodLimit, 3),
+                "periodTarget": round(PERIOD_TARGET * estimate.periodLimit, 3),
+                "before": {
+                    "period": {a: round(t, 3) for a, t in first_estimate.period.items()},
+                    "seismicDriftRatio": {
+                        a: round(max(r), 3) for a, r in first_estimate.seismicRatio.items()
+                    },
+                    "windDriftRatio": {a: round(r, 3) for a, r in first_estimate.windRatio.items()},
+                },
+                "period": {a: round(t, 3) for a, t in estimate.period.items()},
+                "seismicDriftRatio": {
+                    a: round(max(r), 3) for a, r in estimate.seismicRatio.items()
+                },
+                "windDriftRatio": {a: round(r, 3) for a, r in estimate.windRatio.items()},
+                "met": not stiffness_unmet,
+            }
+            if first_estimate is not None and estimate is not None
             else None
         ),
         # Integrator glue: the service load the columns were sized for at the base [kN], by

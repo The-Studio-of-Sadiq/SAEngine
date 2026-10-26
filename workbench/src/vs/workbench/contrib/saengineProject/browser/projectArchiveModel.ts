@@ -5,6 +5,7 @@
 
 import { basename, dirname, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { language } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { readPart, partLabel } from './versionsModel.js';
 
@@ -292,7 +293,7 @@ export function archiveSummaryLines(manifest: IArchiveManifest, fileName: string
 		lines.push(localize('archive.summaryVersion', "Written by SAEngine {0}", manifest.appVersion));
 	}
 	if (manifest.created !== undefined) {
-		lines.push(localize('archive.summaryCreated', "Exported: {0}", new Date(manifest.created).toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })));
+		lines.push(localize('archive.summaryCreated', "Exported: {0}", new Date(manifest.created).toLocaleString(language, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })));
 	}
 	if (manifest.parts.length) {
 		lines.push(localize('archive.summaryParts', "Parts ({0}): {1}", manifest.parts.length, manifest.parts.map(p => partLabel(p)).join(', ')));

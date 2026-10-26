@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
-import { basename } from '../../../../base/common/resources.js';
+import { basename, dirname } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -129,7 +129,10 @@ export class StructuralImportFlows {
 		}
 		let destParent = args.destParent ? URI.file(args.destParent) : undefined;
 		if (!destParent) {
-			destParent = await this.opener.browseForLocation(await this.opener.defaultLocation(), localize('import.destinationTitle', "Choose Where to Put the Imported Project"));
+			// Where the last import went, else the default projects folder.
+			const last = this.lastImport();
+			const start = last ? dirname(URI.file(last.root)) : await this.opener.defaultLocation();
+			destParent = await this.opener.browseForLocation(start, localize('import.destinationTitle', "Choose Where to Put the Imported Project"));
 			if (!destParent) {
 				return undefined;
 			}
