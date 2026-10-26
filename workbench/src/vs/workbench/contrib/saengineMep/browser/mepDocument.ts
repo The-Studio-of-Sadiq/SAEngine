@@ -801,9 +801,25 @@ function round(value: number, step = 50): number {
  * overlaps no other equipment, no opening of the building model's slabs and no shaft; turned by
  * 90° when it fits nowhere as it is. Without such a place, the clear place with most of it on a slab.
  */
+/** A beam's plan strip (its width about its axis), or undefined for a zero-length one. */
+function beamStrip(beam: IBeam): Point[] | undefined {
+	const dx = beam.end[0] - beam.start[0];
+	const dy = beam.end[1] - beam.start[1];
+	const length = Math.hypot(dx, dy);
+	if (!length) {
+		return undefined;
+	}
+	const nx = -dy / length * beam.width / 2;
+	const ny = dx / length * beam.width / 2;
+	return [[beam.start[0] + nx, beam.start[1] + ny], [beam.end[0] + nx, beam.end[1] + ny], [beam.end[0] - nx, beam.end[1] - ny], [beam.start[0] - nx, beam.start[1] - ny]];
+}
+
 export function newEquipment(document: IMep, context: IMepContext, preset: IEquipmentPreset, story: string): IEquipment {
 	const extent = bounds(storyExtent(context, story)) ?? [0, 10000, 0, 10000];
-	const center: Point = [round((extent[0] + extent[1]) / 2), round((extent[2] + extent[3]) / 2)];
+	// The middle of the story's largest slab panel: the middle of the floor is often a beam line.
+	const panel = [...storyElements(context, story).slabs].sort((a, b) => polygonArea(b.boundary) - polygonArea(a.boundary))[0];
+	const middle = panel ? centroid(panel.boundary) : undefined;
+	const center: Point = middle ? [round(middle[0]), round(middle[1])] : [round((extent[0] + extent[1]) / 2), round((extent[2] + extent[3]) / 2)];
 	const equipment: IEquipment = {
 		id: nextId('EQ', usedIds(document)),
 		name: preset.name,
@@ -823,6 +839,8 @@ export function newEquipment(document: IMep, context: IMepContext, preset: IEqui
 		...document.shafts.filter(s => shaftOnStory(s, context, story) && s.outline.length >= 3).map(s => s.outline),
 	];
 	const slabs = elements.slabs;
+	// The beams of the floor as plan strips: a first choice keeps clear of them (on the slab panel, not astride a beam).
+	const beams = elements.beams.map(beamStrip).filter((b): b is Point[] => !!b);
 	// Candidate centres on a grid over the floor, nearest the middle first.
 	const step = Math.max(250, round(Math.max(extent[1] - extent[0], extent[3] - extent[2]) / 60, 250));
 	const candidates: Point[] = [];
@@ -844,12 +862,14 @@ export function newEquipment(document: IMep, context: IMepContext, preset: IEqui
 		return nodes.filter(p => slabs.some(s => insideOrOn(p, s.boundary))).length / nodes.length;
 	};
 	if (slabs.length) {
-		// First wholly on the slabs, clear of everything (its load then reaches the members as placed).
-		for (const rotation of orientations) {
-			for (const point of candidates) {
-				const candidate = at(point, rotation);
-				if (supported(candidate) === 1 && clear(candidate)) {
-					return candidate;
+		// First wholly on one slab panel, clear of everything and of the beams; then wholly on the slabs.
+		for (const avoidBeams of [true, false]) {
+			for (const rotation of orientations) {
+				for (const point of candidates) {
+					const candidate = at(point, rotation);
+					if (supported(candidate) === 1 && clear(candidate) && (!avoidBeams || !beams.some(b => convexOverlap(b, equipmentOutline(candidate))))) {
+						return candidate;
+					}
 				}
 			}
 		}
@@ -1138,9 +1158,29 @@ export interface IImportIfcRequest {
 	readonly path: string;
 }
 
+/** Where an equipment is entered and edited: the coordination's own list or one of the services. */
+export type EquipmentOwner = 'coordination' | 'plumbing' | 'hvac' | 'electrical' | 'fire';
+
 export interface IEquipmentLoad {
 	readonly id: string;
+	/** The discipline that owns it and its id there (the load id can be made unique). */
+	readonly discipline: EquipmentOwner | string;
+	readonly sourceId: string;
+	readonly name?: string;
+	readonly kind?: string;
 	readonly story?: string;
+	/** Centre and footprint [mm], rotation [°]. */
+	readonly x?: number;
+	readonly y?: number;
+	readonly length?: number;
+	readonly width?: number;
+	readonly rotation?: number;
+	/** [kN] */
+	readonly operatingWeight?: number;
+	/** Its loads reach the frame (on a slab above the base level). */
+	readonly applied: boolean;
+	/** On the base level: its weight goes to the ground slab and the foundations. */
+	readonly onGrade: boolean;
 	/** The load carried to the structure [kN]. */
 	readonly load?: number;
 	/** Over the footprint [kPa]. */
@@ -1154,7 +1194,10 @@ export interface IEquipmentLoad {
 export interface IStoryLoad {
 	readonly story: string;
 	readonly count?: number;
+	/** [kN] on the frame; on grade; not applied (off the slabs). */
 	readonly load: number;
+	readonly onGrade?: number;
+	readonly notApplied?: number;
 	readonly note?: string;
 }
 
@@ -1258,12 +1301,21 @@ export function readMepReport(raw: unknown): IMepReport | undefined {
 	if (!isRecord(raw)) {
 		return undefined;
 	}
-	const equipment = records(raw.equipment).filter(e => typeof e.id === 'string').map(e => ({
-		id: String(e.id), story: optionalString(e.story), load: optionalNumber(e.load ?? e.operatingWeight), pressure: optionalNumber(e.pressure),
-		host: optionalString(e.host), loadCase: optionalString(e.loadCase), note: optionalString(e.note),
-	}));
+	const equipment: IEquipmentLoad[] = records(raw.equipment).filter(e => typeof e.id === 'string').map(e => {
+		const note = optionalString(e.note);
+		const onGrade = e.onGrade === true;
+		return {
+			id: String(e.id), discipline: optionalString(e.discipline) ?? 'coordination', sourceId: optionalString(e.sourceId) ?? String(e.id),
+			name: optionalString(e.name), kind: optionalString(e.kind), story: optionalString(e.story),
+			x: optionalNumber(e.x), y: optionalNumber(e.y), length: optionalNumber(e.length), width: optionalNumber(e.width), rotation: optionalNumber(e.rotation),
+			operatingWeight: optionalNumber(e.operatingWeight), onGrade,
+			applied: typeof e.applied === 'boolean' ? e.applied : !onGrade && !/not applied/.test(note ?? ''),
+			load: optionalNumber(e.load ?? e.operatingWeight), pressure: optionalNumber(e.pressure),
+			host: optionalString(e.host), loadCase: optionalString(e.loadCase), note,
+		};
+	});
 	const stories = records(raw.stories).filter(s => typeof s.story === 'string').map(s => ({
-		story: String(s.story), count: optionalNumber(s.count), load: num(s.load), note: optionalString(s.note),
+		story: String(s.story), count: optionalNumber(s.count), load: num(s.load), onGrade: optionalNumber(s.onGrade), notApplied: optionalNumber(s.notApplied), note: optionalString(s.note),
 	}));
 	const openings = records(raw.openings).filter(o => typeof o.id === 'string').map(o => {
 		const checked = o.checked !== false;
@@ -1286,6 +1338,37 @@ export function readMepReport(raw: unknown): IMepReport | undefined {
 	});
 	const sources = isRecord(raw.sources) ? Object.fromEntries(Object.entries(raw.sources).filter((e): e is [string, string] => typeof e[1] === 'string')) : undefined;
 	return { equipment, stories, openings, clashes, notes: strings(raw.notes), method: strings(raw.method), sources };
+}
+
+export function equipmentOwnerLabel(owner: string): string {
+	switch (owner) {
+		case 'coordination': return localize('mep.owner.coordination', "Coordination");
+		case 'plumbing': return localize('mep.owner.plumbing', "Plumbing");
+		case 'hvac': return localize('mep.owner.hvac', "HVAC");
+		case 'electrical': return localize('mep.owner.electrical', "Electrical");
+		case 'fire': return localize('mep.owner.fire', "Fire");
+		default: return owner;
+	}
+}
+
+/**
+ * Every equipment that loads the structure, whichever discipline owns it: the coordination's
+ * own (from the file, so it is current while the report computes) and the services' (the
+ * plumbing's overhead tanks, the HVAC plant, the electrical and fire equipment, as the
+ * backend's report merges them). One list for the counters, the plan and other parts (the 3D
+ * view's equipment picking); an item is edited in the discipline that owns it.
+ */
+export function allEquipment(document: IMep, report: IMepReport | undefined): IEquipmentLoad[] {
+	const fromReport = new Map((report?.equipment ?? []).filter(e => e.discipline === 'coordination').map(e => [e.sourceId, e]));
+	const own: IEquipmentLoad[] = document.equipment.map(e => {
+		const computed = fromReport.get(e.id);
+		return {
+			...computed, id: e.id, discipline: 'coordination', sourceId: e.id, name: e.name, kind: e.kind, story: e.story, x: e.x, y: e.y,
+			length: e.length, width: e.width, rotation: e.rotation, operatingWeight: e.operatingWeight,
+			applied: computed?.applied ?? true, onGrade: computed?.onGrade ?? false,
+		};
+	});
+	return [...own, ...(report?.equipment ?? []).filter(e => e.discipline !== 'coordination')];
 }
 
 /**
@@ -1356,8 +1439,12 @@ export function formatUtilisation(value: number): string {
 /** The status line: "12 equipment · 2 openings fail · 3 clashes". */
 export function mepSummary(document: IMep, report: IMepReport | undefined): string {
 	const parts: string[] = [];
-	const count = document.equipment.length;
-	parts.push(localize('mep.sum.equipment', "{0} equipment", count));
+	const equipment = allEquipment(document, report);
+	parts.push(localize('mep.sum.equipment', "{0} equipment", equipment.length));
+	const off = equipment.filter(e => !e.applied && !e.onGrade).length;
+	if (off) {
+		parts.push(off === 1 ? localize('mep.sum.offSlab', "1 off the slabs") : localize('mep.sum.offSlabs', "{0} off the slabs", off));
+	}
 	if (report) {
 		const failed = report.openings.filter(o => !o.ok).length;
 		const partial = report.openings.filter(isPartlyChecked).length;

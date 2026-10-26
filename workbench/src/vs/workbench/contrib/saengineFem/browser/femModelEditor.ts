@@ -16,7 +16,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { dirname, joinPath } from '../../../../base/common/resources.js';
+import { basename, dirname, joinPath } from '../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -27,9 +27,10 @@ import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { csvText } from '../../../../platform/saengine/common/csv.js';
-import { IFemCaseResults, IFemResultTable, IFemResultView } from '../../../../platform/saengine/common/femSolver.js';
+import { FemTableCell, IFemCaseResults, IFemResultTable, IFemResultView } from '../../../../platform/saengine/common/femSolver.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -41,13 +42,13 @@ import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { FemDerivation, IFemDeriveOutcome } from './femDerivationBar.js';
-import { DESIGN_REINFORCEMENT_COMMAND } from './femDesign.js';
+import { DESIGN_REINFORCEMENT_COMMAND, designKindLabel, IFemDesignReport, sortedChecks } from './femDesign.js';
 import { FemModelEditorInput } from './femModelEditorInput.js';
 import { errorSummary, FEM_RESULT_TABLES_COMMAND, FEM_RUN_CASES_COMMAND, FEM_SHOW_CHARTS_COMMAND, FEM_SHOW_LOG_COMMAND, FEM_SHOW_MEMBER_COMMAND, FemResultsBar, IFemRun, IFemRunOptions, IFemRunOutcome, IFemRunTracker } from './femResultsBar.js';
-import { baseReactionTable, exportCell, FEM_EXPORT_XLSX_COMMAND, FEM_STORY_RESPONSE_COMMAND, filterRows, formatCell, IFemSheet, IFemStoryResponse, modalTable, sortRows, storeyTable, workbookSheets } from './femChartData.js';
+import { baseReactionTable, displayTable, exportCell, FEM_EXPORT_XLSX_COMMAND, FEM_STORY_RESPONSE_COMMAND, filterRows, formatCell, IFemSheet, IFemStoryResponse, modalTable, sortRows, storeyTable, supportReactions, workbookSheets } from './femChartData.js';
 import { renderSheetRows } from './femChart.js';
 import { chartUnits } from './femResultsView.js';
-import { cameraOf, FemViewChoice, IFilterModel, viewChoices, visibleElements } from './femViewFilter.js';
+import { cameraOf, FemViewChoice, freeTopColumns, IFilterModel, viewChoices, visibleElements } from './femViewFilter.js';
 import { loadViewerModule } from './viewerModule.js';
 
 /** The building member an analysis element belongs to (`C3#2` -> `C3`). */
@@ -57,6 +58,70 @@ export function memberOf(name: string): string {
 
 /** Rows of a result table drawn at once; the export has them all. */
 const MAX_TABLE_ROWS = 500;
+
+interface IFemModelNodes {
+	readonly nodes: readonly { readonly id: number; readonly restraint?: readonly (boolean | number)[] }[];
+	readonly mp_constraints?: readonly { readonly retained_node?: number }[];
+}
+
+/** The rigid diaphragms' master nodes: restrained out of plane by the solver, not supports. */
+function diaphragmMasters(model: IFemModelNodes): Set<number> {
+	return new Set((model.mp_constraints ?? []).map(c => c.retained_node).filter((n): n is number => typeof n === 'number'));
+}
+
+/** The supports of a model: restrained nodes other than the diaphragms' master nodes. */
+export function supportNodes(model: IFemModelNodes): Set<number> {
+	const masters = diaphragmMasters(model);
+	return new Set(model.nodes.filter(n => n.restraint?.some(Boolean) && !masters.has(n.id)).map(n => n.id));
+}
+
+/** The model as the 3D view draws it: the diaphragms' master nodes are not drawn as supports. */
+export function displayModel<T extends IFemModelNodes>(model: T): T {
+	const masters = diaphragmMasters(model);
+	return masters.size ? { ...model, nodes: model.nodes.map(n => masters.has(n.id) ? { ...n, restraint: n.restraint?.map(() => false) } : n) } : model;
+}
+
+/**
+ * The design checks of a run as a table: every checked member, the failing first, then by
+ * utilisation; the members not checked last, with the reason. A row picks its member in 3D.
+ */
+export function designChecksCase(report: IFemDesignReport): IFemCaseResults {
+	const elements = [...report.elements].sort((a, b) => Number(a.ok) - Number(b.ok) || b.utilisation - a.utilisation);
+	const rows: FemTableCell[][] = elements.map(e => {
+		const governing = sortedChecks(e)[0];
+		return [
+			e.id, designKindLabel(e.kind), e.type, Number(e.utilisation.toFixed(3)),
+			e.ok ? localize('femTables.pass', "pass") : localize('femTables.fail', "FAIL"),
+			governing?.name ?? '', governing?.combination ?? '',
+		];
+	});
+	for (const skipped of report.skipped) {
+		rows.push([skipped.id, designKindLabel(skipped.kind), skipped.type, '', localize('femTables.notChecked', "not checked"), skipped.reason, '']);
+	}
+	return {
+		caseId: -2,
+		caseName: localize('femTables.designChecks', "Design Checks: {0} fail of {1}", report.summary.failed, report.elements.length),
+		resultType: 'summary',
+		earlyStop: false,
+		warnings: [],
+		tables: [{
+			name: localize('femTables.designTable', "Design checks"),
+			title: localize('femTables.designTable', "Design checks"),
+			columns: [
+				localize('femTables.member', "Member"), localize('femTables.kind', "Kind"), localize('femTables.type', "Object type"),
+				localize('femTables.utilisation', "Utilisation"), localize('femTables.result', "Result"),
+				localize('femTables.governing', "Governing check"), localize('femTables.combination', "Combination"),
+			],
+			rows,
+			notes: [localize('femTables.designNote', "The checks of Design Utilisation ({0}). Click a row to select the member in the view and see its checks.", report.code)],
+		}],
+	};
+}
+
+/** A run's tables as the panel and the exports show them: in kN, mm, kN·m; reactions at the supports. */
+export function displayCases(cases: readonly IFemCaseResults[], units: string | undefined, supports: ReadonlySet<number>): IFemCaseResults[] {
+	return cases.map(c => ({ ...c, tables: c.tables.map(t => supports.size ? supportReactions(displayTable(t, units), supports) : displayTable(t, units)) }));
+}
 
 /** All result tables as CSV: per table a heading row (case, table), its columns and its rows. */
 export function resultTablesCsv(cases: readonly IFemCaseResults[]): string {
@@ -93,6 +158,9 @@ class FemTablesPanel extends Disposable {
 	private cases: readonly IFemCaseResults[] = [];
 	/** The summary tables (storey response, base reactions, modes), read after the cases. */
 	private summary: IFemCaseResults | undefined;
+	/** The design checks as a table, once Design Utilisation has run them. */
+	private design: IFemCaseResults | undefined;
+	private designReport: IFemDesignReport | undefined;
 	private caseIndex = 0;
 	private tableIndex = 0;
 	private request = 0;
@@ -108,6 +176,9 @@ class FemTablesPanel extends Disposable {
 		onClose: () => void,
 		/** A case or combination was picked here: the toolbar shows its result too. */
 		private readonly onPick: (label: string) => void,
+		onExport: () => void,
+		/** A design checks row was clicked: select that member (building model id) in the view. */
+		private readonly onPickMember: (member: string) => void,
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextViewService contextViewService: IContextViewService,
 	) {
@@ -122,7 +193,7 @@ class FemTablesPanel extends Disposable {
 			this.sort = undefined;
 			this.render();
 			const picked = this.allCases[index];
-			if (picked && picked !== this.summary) {
+			if (picked && picked !== this.summary && picked !== this.design) {
 				this.onPick(picked.caseName);
 			}
 		}));
@@ -146,6 +217,11 @@ class FemTablesPanel extends Disposable {
 		this.count = append(header, $('span.fem-tables-count'));
 		this.caption = append(header, $('span.fem-tables-count.fem-tables-caption'));
 		append(header, $('.fem-tables-spacer'));
+		// Every case's and combination's tables to Excel: where the engineer looks for it.
+		const exportButton = this._register(new Button(header, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: localize('femTables.exportTitle', "Export every table of every case and combination to an Excel workbook or a CSV file") }));
+		exportButton.label = `$(${Codicon.export.id}) ${localize('femTables.export', "Export to Excel...")}`;
+		exportButton.element.classList.add('fem-tables-export');
+		this._register(exportButton.onDidClick(() => onExport()));
 		const close = append(header, $<HTMLButtonElement>('button.sa-frame-icon-button', { type: 'button', title: localize('femTables.close', "Hide Tables"), 'aria-label': localize('femTables.close', "Hide Tables") }));
 		append(close, $(ThemeIcon.asCSSSelector(Codicon.close)));
 		this._register(addDisposableListener(close, EventType.CLICK, () => onClose()));
@@ -156,7 +232,23 @@ class FemTablesPanel extends Disposable {
 
 	/** The cases, then the summary when it has been read. */
 	private get allCases(): readonly IFemCaseResults[] {
-		return this.summary ? [...this.cases, this.summary] : this.cases;
+		return [...this.cases, ...(this.design ? [this.design] : []), ...(this.summary ? [this.summary] : [])];
+	}
+
+	/** The run's design checks (or none yet): listed after the cases while there are tables. */
+	setDesign(report: IFemDesignReport | undefined): void {
+		if (report === this.designReport) {
+			return;
+		}
+		const showing = this.allCases[this.caseIndex];
+		this.designReport = report;
+		this.design = report ? designChecksCase(report) : undefined;
+		if (this.cases.length) {
+			// Stay on the table shown (the design entry comes before the summary).
+			const index = showing ? this.allCases.findIndex(c => c.caseId === showing.caseId) : -1;
+			this.caseIndex = index >= 0 ? index : Math.min(this.caseIndex, this.allCases.length - 1);
+			this.render(false);
+		}
 	}
 
 	/** The panel's size or content changed: the scrollbars follow. */
@@ -211,7 +303,7 @@ class FemTablesPanel extends Disposable {
 	}
 
 	/** Reads the tables of `model`'s last run again, then its summary tables. */
-	async load(model: URI, units: string | undefined): Promise<void> {
+	async load(model: URI, units: string | undefined, supports: ReadonlySet<number>): Promise<void> {
 		const request = ++this.request;
 		clearNode(this.body);
 		this.count.textContent = '';
@@ -231,7 +323,7 @@ class FemTablesPanel extends Disposable {
 		if (request !== this.request) {
 			return;
 		}
-		this.cases = cases;
+		this.cases = displayCases(cases, units, supports);
 		this.summary = undefined;
 		this.caseIndex = Math.min(this.caseIndex, Math.max(0, cases.length - 1));
 		this.tableIndex = Math.min(this.tableIndex, Math.max(0, (cases[this.caseIndex]?.tables.length ?? 1) - 1));
@@ -306,7 +398,24 @@ class FemTablesPanel extends Disposable {
 				focus[index]?.focus(); // keyboard users keep their place
 			}));
 		});
-		renderSheetRows(append(element, $('tbody')), rows.slice(0, MAX_TABLE_ROWS));
+		const tbody = append(element, $('tbody'));
+		renderSheetRows(tbody, rows.slice(0, MAX_TABLE_ROWS));
+		if (results === this.design) {
+			// A design check row selects its member: the failing one can be found and picked.
+			element.classList.add('pickable');
+			[...tbody.children].forEach((tr, k) => {
+				const member = String(rows[k]?.[0] ?? '');
+				tr.setAttribute('tabindex', '0');
+				tr.setAttribute('title', localize('femTables.pickMember', "Select {0} in the view", member));
+				this.tableStore.add(addDisposableListener(tr, EventType.CLICK, () => this.onPickMember(member)));
+				this.tableStore.add(addDisposableListener(tr, EventType.KEY_DOWN, e => {
+					if (e.key === 'Enter' || e.key === ' ') {
+						e.preventDefault();
+						this.onPickMember(member);
+					}
+				}));
+			});
+		}
 		return buttons;
 	}
 }
@@ -364,6 +473,10 @@ export class FemModelEditor extends EditorPane {
 	private modelRead = false;
 	private elementCount = 0;
 	private units: string | undefined;
+	/** The model's supports (not the diaphragms' master nodes): the reactions tables show these. */
+	private supports: ReadonlySet<number> = new Set();
+	/** Columns standing free at the top (cantilevers): flagged in the properties panel. */
+	private freeTop: readonly string[] = [];
 	private lastDerivation: IFemDeriveOutcome | undefined;
 	private actionsKey = '';
 	/** What the "Out of date" pill says, to build it again only when that changes. */
@@ -419,6 +532,7 @@ export class FemModelEditor extends EditorPane {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IFemRunTracker private readonly runTracker: IFemRunTracker,
 		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IProgressService private readonly progressService: IProgressService,
 	) {
 		super(FemModelEditorInput.EDITOR_ID, group, telemetryService, themeService, storageService);
 	}
@@ -443,7 +557,7 @@ export class FemModelEditor extends EditorPane {
 		this.legend = append(view, $('.fem-legend'));
 		this.empty = append(view, $('.fem-empty'));
 		this.message = append(view, $('.message'));
-		this.tables = this._register(this.instantiationService.createInstance(FemTablesPanel, frame.main, () => this.setTablesVisible(false), label => this.results?.selectResult(label)));
+		this.tables = this._register(this.instantiationService.createInstance(FemTablesPanel, frame.main, () => this.setTablesVisible(false), label => this.results?.selectResult(label), () => void this.exportTables(), member => this.pickDesignMember(member)));
 		this.tables.element.classList.add('hidden');
 
 		this.derivation = this._register(this.instantiationService.createInstance(FemDerivation, () => this.updateChrome()));
@@ -588,14 +702,30 @@ export class FemModelEditor extends EditorPane {
 		if (!target) {
 			return;
 		}
+		const units = this.units;
+		const supports = this.supports;
 		try {
-			const cases = await this.commandService.executeCommand<readonly IFemCaseResults[]>(FEM_RESULT_TABLES_COMMAND, resource) ?? [];
-			if (/\.xlsx$/i.test(target.path)) {
-				const summary: IFemSheet[] = (this.tables?.summarySheets ?? []).map(s => ({ name: s.title, columns: s.columns, rows: s.rows, notes: s.notes }));
-				await this.commandService.executeCommand(FEM_EXPORT_XLSX_COMMAND, target, workbookSheets(cases, summary));
-			} else {
+			// Reading every case's tables takes a while on a large model: say so, then say where.
+			const sheets = await this.progressService.withProgress({
+				location: ProgressLocation.Notification,
+				title: localize('femEditor.exporting', "Exporting the result tables to {0}...", basename(target)),
+			}, async () => {
+				const cases = displayCases(await this.commandService.executeCommand<readonly IFemCaseResults[]>(FEM_RESULT_TABLES_COMMAND, resource) ?? [], units, supports);
+				if (/\.xlsx$/i.test(target.path)) {
+					const summary: IFemSheet[] = (this.tables?.summarySheets ?? []).map(s => ({ name: s.title, columns: s.columns, rows: s.rows, notes: s.notes }));
+					const book = workbookSheets(cases, summary);
+					await this.commandService.executeCommand(FEM_EXPORT_XLSX_COMMAND, target, book);
+					return book.length;
+				}
 				await this.fileService.writeFile(target, VSBuffer.fromString(resultTablesCsv(cases)));
-			}
+				return undefined;
+			});
+			this.notificationService.prompt(Severity.Info, sheets !== undefined
+				? localize('femEditor.exported', "Exported {0} sheets of results (kN, mm, kN·m) to {1}.", sheets, target.fsPath)
+				: localize('femEditor.exportedCsv', "Exported the result tables (kN, mm, kN·m) to {0}.", target.fsPath), [{
+					label: localize('femEditor.revealExport', "Show in Folder"),
+					run: () => this.commandService.executeCommand('revealFileInOS', target),
+				}]);
 		} catch (error) {
 			this.notificationService.error(localize('femEditor.exportFailed', "The result tables could not be exported: {0}", errorSummary(error)));
 		}
@@ -674,9 +804,10 @@ export class FemModelEditor extends EditorPane {
 		this.renderEmpty(stale);
 		this.renderProperties();
 
-		// The tables follow the results while shown.
+		// The tables follow the results while shown, with the design checks once run.
 		const resource = this.resource;
 		this.tables?.follow(results.resultLabel);
+		this.tables?.setDesign(results.designReport);
 		if (this.tablesVisible && running) {
 			// The run replaces the results: no old tables meanwhile.
 			if (this.tablesVersion !== -2) {
@@ -685,7 +816,7 @@ export class FemModelEditor extends EditorPane {
 			}
 		} else if (this.tablesVisible && resource && hasResults && results.version !== this.tablesVersion) {
 			this.tablesVersion = results.version;
-			void this.tables?.load(resource, this.units);
+			void this.tables?.load(resource, this.units, this.supports);
 		}
 	}
 
@@ -773,7 +904,11 @@ export class FemModelEditor extends EditorPane {
 		appendPropertyRow(panel, localize('femEditor.nodes', "Nodes"), String(this.nodeCount));
 		appendPropertyRow(panel, localize('femEditor.elements', "Elements"), String(this.elementCount));
 		if (this.units) {
-			appendPropertyRow(panel, localize('femEditor.units', "Units"), this.units);
+			// What the engineer reads: the results are shown in kN, mm, kN·m whatever the solver uses.
+			appendPropertyRow(panel, localize('femEditor.units', "Units"), this.units.startsWith('SI') ? localize('femEditor.unitsShown', "kN, mm, kN·m (solved in m, N)") : this.units);
+		}
+		if (this.freeTop.length) {
+			appendPropertyNote(panel, localize('femEditor.freeTop', "Free at the top (nothing frames into it): {0}. It sways as a cantilever, with an effective length of about twice its height; check it is meant to stand free.", this.freeTop.join(', ')));
 		}
 		const state = this.derivation?.state;
 		if (state) {
@@ -797,6 +932,24 @@ export class FemModelEditor extends EditorPane {
 	}
 
 	/**
+	 * Selects a checked member (building model id, `B5`) in the view from the design checks
+	 * table, with Design Utilisation shown so the properties give its checks.
+	 */
+	private pickDesignMember(member: string): void {
+		const element = this.results?.designReport?.elements.find(e => e.id === member);
+		const id = element?.members[0];
+		if (id === undefined) {
+			return; // not checked: not in the analysis model's checks
+		}
+		if (!this.results?.showsDesign) {
+			this.results?.toggleDesign();
+		}
+		const selection: FemSelection = { kind: 'element', id };
+		this.viewer?.setSelection(selection);
+		this._onDidChangeSelection.fire(selection);
+	}
+
+	/**
 	 * A frame member picked in the view, with results: a button to its details (forces and
 	 * deflection along it, a column's interaction diagram, a beam's steel).
 	 */
@@ -814,7 +967,7 @@ export class FemModelEditor extends EditorPane {
 		const store = new DisposableStore();
 		const button = store.add(new Button(append(panel, $('.fem-member-link')), { ...defaultButtonStyles, secondary: true, supportIcons: true, title: localize('femEditor.memberTitle', "Forces and deflection along {0}, its interaction diagram or steel", member) }));
 		button.label = `$(${Codicon.graph.id}) ${localize('femEditor.memberDetails', "Member Details: {0}", member)}`;
-		store.add(button.onDidClick(() => this.commandService.executeCommand(FEM_SHOW_MEMBER_COMMAND, resource, member)));
+		store.add(button.onDidClick(() => this.commandService.executeCommand(FEM_SHOW_MEMBER_COMMAND, resource, member, this.results?.resultLabel)));
 		this.propertiesStore.value = store;
 	}
 
@@ -880,11 +1033,13 @@ export class FemModelEditor extends EditorPane {
 		const wasEmpty = this.nodeCount === 0;
 		this.nodeCount = model.nodes.length;
 		this.femModel = model;
+		this.supports = supportNodes(model as unknown as IFemModelNodes);
+		this.freeTop = freeTopColumns(model as unknown as IFilterModel);
 		this.elementCount = model.elements.length;
 		this.derivation?.setDescription(meta?.description);
 		this.results?.setResource(input.resource, this.units);
 		this.results?.setModel(model);
-		this.viewer?.setModel(model);
+		this.viewer?.setModel(displayModel(model as unknown as IFemModelNodes) as unknown as FemModel);
 		this.updateViews(model as unknown as IFilterModel);
 		if (wasEmpty && this.nodeCount) {
 			// A model derived into an empty file: frame it (the first fit framed nothing).
@@ -914,7 +1069,9 @@ export class FemModelEditor extends EditorPane {
 		if (!this.viewer || !model) {
 			return;
 		}
-		this.viewer.setVisibleElements(visibleElements(model, choice));
+		const visible = visibleElements(model, choice);
+		this.viewer.setVisibleElements(visible);
+		this.results?.setVisible(visible);
 		if (frame || changed) {
 			void this.viewer.setCameraView(cameraOf(choice));
 		}

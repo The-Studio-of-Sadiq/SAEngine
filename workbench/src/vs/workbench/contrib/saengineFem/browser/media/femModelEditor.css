@@ -23,22 +23,34 @@
 
 /* ── toolbar: selectors and inline controls ──────────────────────────────── */
 
+/*
+ * On a laptop (1366 px with the properties shown) the pickers share what is left, each down
+ * to a width that still reads ("3D View: W" was the view picker squeezed to nothing).
+ */
 .saengine-fem-model-editor .fem-results-group {
 	display: flex;
 	align-items: center;
 	gap: var(--sa-space-1, 4px);
+	flex: 0 1 auto;
+	min-width: 0;
 }
 
 .saengine-fem-model-editor .fem-results-select.result {
 	width: 200px;
+	flex: 0 1 200px;
+	min-width: 120px;
 }
 
 .saengine-fem-model-editor .fem-results-select.show {
 	width: 160px;
+	flex: 0 1 160px;
+	min-width: 110px;
 }
 
 .saengine-fem-model-editor .fem-results-select.mode {
 	width: 240px;
+	flex: 0 1 240px;
+	min-width: 100px;
 }
 
 .saengine-fem-model-editor .sa-frame-toolbar .monaco-select-box {
@@ -70,6 +82,7 @@
 
 .saengine-fem-model-editor .fem-results-scale {
 	min-width: 30px;
+	white-space: nowrap;
 	text-align: center;
 	font-size: var(--sa-font-s, 12px);
 	font-variant-numeric: tabular-nums;
@@ -238,6 +251,24 @@
 
 .saengine-fem-model-editor .fem-tables-spacer {
 	flex: 1;
+}
+
+.saengine-fem-model-editor .fem-table.pickable tbody tr {
+	cursor: pointer;
+}
+
+.saengine-fem-model-editor .fem-table.pickable tbody tr:hover,
+.saengine-fem-model-editor .fem-table.pickable tbody tr:focus {
+	background: var(--vscode-list-hoverBackground);
+	outline: none;
+}
+
+.saengine-fem-model-editor .fem-tables-header .fem-tables-export {
+	flex: none;
+	width: auto;
+	height: 22px;
+	padding: 0 var(--sa-space-2, 8px);
+	white-space: nowrap;
 }
 
 /* While a run replaces the results the panel holds only a note: no empty pickers. */
@@ -587,6 +618,8 @@
 
 .saengine-fem-model-editor .fem-results-select.view {
 	width: 230px;
+	flex: 0 1 230px;
+	min-width: 130px;
 }
 
 /* ── tables: filter and sortable headings ─────────────────────────────────── */

@@ -252,6 +252,27 @@ def test_cracked_for_lateral_keeps_the_gross_model_for_gravity() -> None:
     assert tip(gravity, 2, 2) == pytest.approx(-1e5 * L / (E * A), rel=1e-6)
 
 
+def test_cracked_for_lateral_covers_the_eccentric_and_wind_torsion_cases() -> None:
+    from saengine.fem.derive import ECCENTRIC_CASES
+    from saengine.fem.loads import WIND_TORSION_CASES
+    from saengine.fem.second_order import CRACKED_LATERAL_CASES
+
+    # Every lateral case the model can contain takes the cracked sections (found by the
+    # PyNite/CalculiX cross-check: EXP..EYN were solved on gross sections).
+    assert set(ECCENTRIC_CASES) | set(WIND_TORSION_CASES.values()) <= set(CRACKED_LATERAL_CASES)
+    project = cantilever(1e5, 1)
+    codes = ("EXP", "WTX")
+    for k, code in enumerate(codes, start=3):
+        project["load_patterns"].append(_pattern(k, code, {2: [H, 0, 0, 0, 0, 0]}))
+        project["analyses"].append(_static(k, f"{code}: lateral", k))
+    out = apply_second_order(project, SecondOrderOptions(stiffness="aci", crackedFor="lateral"))
+    by_code = {a["name"].split(":")[0]: a for a in out.project["analyses"]}
+    assert "section_overrides" not in by_code["D"]
+    for code in codes:
+        (override,) = by_code[code]["section_overrides"]
+        assert override["Iz"] == pytest.approx(0.70 * I)
+
+
 @pytest.mark.parametrize("pdelta", [False, True])
 def test_cracked_for_all_keeps_the_temperature_case_gross(pdelta: bool) -> None:
     # The T case's equivalent loads come from the gross E I (fem/thermal.py): with every case

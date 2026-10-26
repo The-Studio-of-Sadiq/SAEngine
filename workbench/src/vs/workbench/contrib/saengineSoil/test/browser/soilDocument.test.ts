@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { bearingSummary, BOREHOLE_FIELDS, checkSoilReport, choiceLabel, choiceTitle, DESIGN_CHOICES, hasLiquefiable, IBorehole, ISoilReport, LAYER_FIELDS, newBorehole, newSoilReport, nextBoreholeId, parseField, parseSoilReport, PRACTICE_CHOICE, readSoilResults, resultsBasis, siltNeedsPlasticity, siteFlagsOf, SPT_FIELDS, soilSummary } from '../../browser/soilDocument.js';
+import { bearingSummary, BOREHOLE_FIELDS, checkSoilReport, distanceFromSite, duplicateIds, hasLabData, mergeBoreholes, splitError, terminationDepth, choiceLabel, choiceTitle, DESIGN_CHOICES, hasLiquefiable, IBorehole, ISoilReport, LAYER_FIELDS, newBorehole, newSoilReport, nextBoreholeId, parseField, parseSoilReport, PRACTICE_CHOICE, readSoilResults, resultsBasis, siltNeedsPlasticity, siteFlagsOf, SPT_FIELDS, soilSummary } from '../../browser/soilDocument.js';
 import { SOIL_BACKEND_OUTPUT } from './soilBackendOutput.js';
 import { appendSoilPatterns, niceStep, renderBoreholeLog, renderFence, renderLiquefactionChart } from '../../browser/soilLog.js';
 
@@ -259,6 +259,64 @@ suite('SAEngine - Soil report', () => {
 			steps: [niceStep(30, 10), niceStep(7, 10), niceStep(120, 5)],
 		}, {
 			patterns: 7, strata: 2, n: 3, n60: 2, water: 1, fenceColumns: 2, joins: 2, liquefiable: 1, steps: [5, 1, 50],
+		});
+	});
+
+	test('imports: duplicate ids replaced, kept both or skipped, never silently', () => {
+		const make = () => ({ ...newSoilReport(), boreholes: [borehole('BH-1'), borehole('BH-2')] });
+		const incoming = () => [borehole('BH-2', { depth: 12000 }), borehole('BH-3')];
+		const replace = make();
+		const keep = make();
+		const skip = make();
+		assert.deepStrictEqual({
+			duplicates: duplicateIds(make(), incoming()),
+			replace: [mergeBoreholes(replace, incoming(), 'replace'), replace.boreholes.map(b => `${b.id} ${b.depth}`)],
+			keep: [mergeBoreholes(keep, incoming(), 'keepBoth'), keep.boreholes.map(b => b.id)],
+			skip: [mergeBoreholes(skip, incoming(), 'skip'), skip.boreholes.map(b => `${b.id} ${b.depth}`)],
+		}, {
+			duplicates: ['BH-2'],
+			replace: [{ added: ['BH-3'], replaced: ['BH-2'], renamed: [], skipped: [] }, ['BH-1 9000', 'BH-2 12000', 'BH-3 9000']],
+			keep: [{ added: ['BH-3'], replaced: [], renamed: [{ from: 'BH-2', to: 'BH-2-2' }], skipped: [] }, ['BH-1', 'BH-2', 'BH-3', 'BH-2-2']],
+			skip: [{ added: ['BH-3'], replaced: [], renamed: [], skipped: ['BH-2'] }, ['BH-1 9000', 'BH-2 9000', 'BH-3 9000']],
+		});
+	});
+
+	test('a borehole far from the site, the termination depth and lab samples', () => {
+		const site = { lat: 23.8103, lon: 90.4125, x: 0, y: 0 };
+		const near = borehole('BH-1', { x: 30000, y: 40000 });
+		const far = borehole('BH-2', { lat: 23.8203, lon: 90.4125 });
+		const report: ISoilReport = { ...newSoilReport(), site, boreholes: [near, far] };
+		const problems = checkSoilReport(report).filter(p => p.message.includes('from the site'));
+		assert.deepStrictEqual({
+			near: Math.round(distanceFromSite(report, near)!),
+			far: Math.round(distanceFromSite(report, far)!),
+			problems: problems.map(p => `${p.index} ${p.path} ${p.severity}`),
+			noSite: distanceFromSite({ ...report, site: undefined }, far),
+			termination: [terminationDepth(borehole('A', { depth: 6000 })), terminationDepth(borehole('B', { depth: undefined }))],
+			lab: [hasLabData({ depth: 1500, type: 'SPT', number: 'S-1' }), hasLabData({ depth: 3000, type: 'UD', moisture: 32 })],
+		}, {
+			near: 50, far: 1112, problems: ['1 lat warning'], noSite: undefined, termination: [6000, 9000], lab: [false, true],
+		});
+	});
+
+	test('backend errors: one line, the traceback as details', () => {
+		const traceback = 'Traceback (most recent call last):\n  File "report.py", line 9, in soil_report\n    x = 1 / 0\nZeroDivisionError: division by zero\n';
+		assert.deepStrictEqual([splitError('Backend not reachable'), splitError(traceback)], [
+			{ summary: 'Backend not reachable' },
+			{ summary: 'ZeroDivisionError: division by zero', details: traceback.trim() },
+		]);
+	});
+
+	test('results: per-borehole warnings, skipped boreholes and the site class criteria', () => {
+		const results = readSoilResults({
+			boreholes: [{ id: 'BH-1', siteClass: { class: 'SD', N: 12, su: 30, byN: 'SD', bySu: 'SD' } }],
+			warnings: ['Soil report: BH-2: layers 1 and 2 overlap'], skipped: ['BH-2'], details: [],
+		});
+		assert.deepStrictEqual({
+			problems: results?.problems, skipped: results?.skipped,
+			byN: results?.boreholes?.[0].siteClass?.byN, bySu: results?.boreholes?.[0].siteClass?.bySu,
+		}, {
+			problems: ['Soil report: BH-2: layers 1 and 2 overlap'], skipped: ['BH-2'], byN: 'SD', bySu: 'SD',
 		});
 	});
 });

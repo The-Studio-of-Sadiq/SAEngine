@@ -6,7 +6,7 @@ run: GitHub only reads the repository root's `.github`.
 
 | Workflow | Runs on | Trigger | What it does |
 |---|---|---|---|
-| `ci.yml`, job `python` | `ubuntu-latest` | push to `main`, `feat/**`, `fix/**`; pull requests to `main` and `feat/**`; manual | ruff (lint and format) on `python/` and `scripts/`; the workflow check and the tests of the CI scripts; `pytest` on `python/`; the verification pack quick run, checked against the expected failures; uploads `verification.json` and the Verification Manual PDF |
+| `ci.yml`, job `python` | `ubuntu-latest` | pull requests to `main` and `feat/**` (not drafts, not docs-only changes); push to `main`; manual | ruff (lint and format) on `python/` and `scripts/`; the workflow check and the tests of the CI scripts; `pytest` on `python/`. On `main`, PRs into `main` and manual runs only ("full"): the slow tests too, and the verification pack quick run, checked against the expected failures, with `verification.json` and the Verification Manual PDF uploaded |
 | `ci.yml`, job `workbench` | `ubuntu-latest` | as above | `npm ci` (cached), the viewer packages built, `tsc` typecheck, ESLint on the SAEngine sources, `transpile-client`, the SAEngine unit tests in Electron under xvfb |
 | `release.yml` | `windows-2022` (or `vars.SAENGINE_RELEASE_RUNNER`) | tag `Pre-Alpha-v*`; manual (with a tag: a release; without: a test build) | the full installer with EnergyPlus, LibreCAD and LibreDWG from pinned downloads (cached), the smoke test, the Verification Manual, the setup, `.sha256` and sources zip as an artefact, and for a tag a **draft** GitHub pre-release (never published by the workflow); see [release.md](release.md) |
 
@@ -57,8 +57,8 @@ To change the list, edit both `scripts/ci/verification-expected-failures.json` a
 folders and takes the longest. The job reuses Code - OSS's own `node_modules` cache tooling
 (`build/azure-pipelines/common/computeNodeModulesCacheKey.ts` and
 `.github/workflows/node_modules_cache/cache.sh`): the cache key is the hash of every
-`package.json`/`package-lock.json`, and the archive is saved on pushes only (pull requests read
-it). The workbench depends on the local packages `@saengine/fem-viewer` and
+`package.json`/`package-lock.json`, and the archive is saved on pushes and manual runs (pull requests read
+it). After a lockfile change, run CI by hand on `feat/ui-ux-redesign` once to refresh it. The workbench depends on the local packages `@saengine/fem-viewer` and
 `@saengine/cad-editor` (`file:../packages/*`); `scripts/ci/link-saengine-packages.sh` keeps
 them out of the archive and restores the symlinks, and the job builds both packages before
 the typecheck, because the workbench imports their types from `dist/`. Then:
@@ -87,10 +87,12 @@ runners):
 | CI, `workbench` job, cache miss (a lockfile changed) | 35 to 50 min | 35 to 50 |
 | Release | 90 to 180 min on `windows-2022` | 180 to 360 |
 
-So one push costs about 40 to 90 minutes, and a release about 3 to 6 hours of the allowance.
-To spend less: push work-in-progress commits together (superseded runs are cancelled), and run
-the workflows manually when a branch is ready instead of on every push (remove `feat/**` from
-`on.push.branches`).
+So one run costs about 40 to 90 minutes, and a release about 3 to 6 hours of the allowance.
+The private repository has a monthly quota, so CI does not run on pushes to `feat/**`: changes
+reach the feature branch through pull requests (checked there) or after the same checks ran
+locally. PRs into `feat/**` skip the slow tests and the verification pack; those run on `main`,
+on PRs into `main` and by hand (Actions > CI > Run workflow). Draft PRs and docs-only changes run
+nothing. Superseded runs of the same PR are cancelled.
 
 **Runner image.** The release job runs on `windows-2022` (Visual Studio 2022, MSVC v143), the
 image Code - OSS's own Windows builds use. On `windows-latest` (Windows Server 2025 with Visual

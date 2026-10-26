@@ -153,7 +153,10 @@ def _check_layout(
         ]
     problems = []
     if isinstance(model, BuildingModel):
-        problems = [_problem(None, "additions", message) for message in model.check_additions()]
+        problems = [
+            *(_problem(None, "additions", message) for message in model.check_additions()),
+            *(_problem(None, "elements", message) for message in model.check_model()),
+        ]
     if objects_text is None:
         return problems
     try:

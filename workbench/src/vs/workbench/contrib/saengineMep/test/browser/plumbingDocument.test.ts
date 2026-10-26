@@ -10,7 +10,7 @@ import { IMep, newMep, parseMep, readMepContext, readSleeveSuggestions, serializ
 import { renderPlan } from '../../browser/mepPlan.js';
 import {
 	checkPlumbing, ensurePlumbing, fixtureTotals, hasPlumbing, IPlumbing, mergeSizedTanks, newRiser, newRoofDrain, newTank, plumbingOf, plumbingSummary, plumbingSummaryFile, readOccupancies,
-	readPlumbingReport, readSizedTanks, riserOnStory, STATIC_OCCUPANCIES, storyRow, tankCapacity, tankOutline, tankStory,
+	readPlumbingReport, readSizedTanks, riserOnStory, storyRow, tankCapacity, tankOutline, tankStory,
 } from '../../browser/plumbingDocument.js';
 import { plumbingExtent, renderPlumbing } from '../../browser/plumbingPlan.js';
 import { renderPlumbingReport } from '../../browser/plumbingResults.js';
@@ -203,7 +203,7 @@ suite('SAEngine MEP plumbing', () => {
 		// Without P3, the pump comes from P1's storage (6.75 L/min = 0.1125 L/s).
 		assert.deepStrictEqual(readPlumbingReport({ ...REPORT, hydraulics: undefined })?.pump, { flow: 0.1125, note: '3.24 m³ in 8 h' });
 		assert.deepStrictEqual(readOccupancies({ occupancies: [{ key: 'office', label: 'Office', lpcd: 45, group: 'E1' }, { label: 'no key' }] }), [{ key: 'office', label: 'Office', lpcd: 45, source: undefined, group: 'E1' }]);
-		assert.deepStrictEqual([readOccupancies([]), STATIC_OCCUPANCIES.find(o => o.key === 'office')?.lpcd], [undefined, 45]);
+		assert.deepStrictEqual(readOccupancies([]), undefined);
 	});
 
 	test('draws the plumbing on the plan and the report page', () => {

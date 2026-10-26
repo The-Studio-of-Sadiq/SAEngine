@@ -49,6 +49,7 @@ export interface IMapLibreMap {
 	isStyleLoaded(): boolean | void;
 	jumpTo(options: { center?: LngLatLike; zoom?: number }): this;
 	fitBounds(bounds: [LngLatLike, LngLatLike], options?: { padding?: number; maxZoom?: number; animate?: boolean }): this;
+	project(lngLat: LngLatLike): { readonly x: number; readonly y: number };
 	getCenter(): { readonly lng: number; readonly lat: number };
 	getZoom(): number;
 	resize(): this;

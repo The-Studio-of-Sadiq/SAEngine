@@ -10,7 +10,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { formatNumber, ILatLon, ISoilLocationResult, ISoilReport } from './soilDocument.js';
 import { ensureMapLibreStyles, IMapLibreMap, IMapLibreMarker, IMapLibreModule, loadMapLibre } from './mapLibreModule.js';
-import { bnbcSuggestion, boreholePoints, formatBtm, formatDms, formatLatLon, formatProjectPoint, gridExtent, IBnbcSuggestion, IMapPoint, inBangladesh, ITileSource, mapState, MapState, OSM_COPYRIGHT_URL, OSM_MAX_ZOOM, offlineNote, outlineProject, outlineRings, parseLatLon, sitePosition } from './soilMap.js';
+import { bnbcSuggestion, boreholePoints, boundsOf, spreadLabels, formatBtm, formatDms, formatLatLon, formatProjectPoint, gridExtent, IBnbcSuggestion, IMapPoint, inBangladesh, ITileSource, mapState, MapState, OSM_COPYRIGHT_URL, OSM_MAX_ZOOM, offlineNote, outlineProject, outlineRings, parseLatLon, sitePosition } from './soilMap.js';
 import { niceStep, svg } from './soilLog.js';
 
 /*
@@ -54,6 +54,8 @@ export interface IMapViewState {
 	/** The answer of "Use My Location" when it failed. */
 	geolocationNote?: string;
 	coordinateStyle: 'decimal' | 'dms';
+	/** The map was framed on the site and all the boreholes once (on its first opening). */
+	framed?: boolean;
 }
 
 const DEFAULT_ZOOM = 17;
@@ -76,6 +78,8 @@ export class SoilMapView extends Disposable {
 	private readonly map = this._register(new MutableDisposable<DisposableStore>());
 	private mapInstance: IMapLibreMap | undefined;
 	private markers: IMapLibreMarker[] = [];
+	/** The id label of each borehole marker, moved apart where they would overlap. */
+	private readonly markerLabels = new Map<IMapLibreMarker, HTMLElement>();
 	private siteMarker: IMapLibreMarker | undefined;
 	private module: IMapLibreModule | undefined;
 	private loading = false;
@@ -117,6 +121,7 @@ export class SoilMapView extends Disposable {
 			this.map.clear();
 			this.mapInstance = undefined;
 			this.markers = [];
+			this.markerLabels.clear();
 			this.siteMarker = undefined;
 			this.gridDisposables.clear();
 			clearNode(this.mapArea);
@@ -411,8 +416,39 @@ export class SoilMapView extends Disposable {
 			map.addLayer({ id: 'outline-fill', type: 'fill', source: 'outline', paint: { 'fill-color': blue, 'fill-opacity': 0.12 } });
 			map.addLayer({ id: 'outline-line', type: 'line', source: 'outline', paint: { 'line-color': blue, 'line-width': 2 } });
 			this.updateMap();
+			if (!this.state.framed) {
+				// The first time: the site and every borehole in view, however far apart.
+				this.state.framed = true;
+				const points = boreholePoints(this.host.report, this.host.location);
+				const bounds = boundsOf([site, ...points]);
+				if (bounds) {
+					map.fitBounds(bounds, { padding: 60, maxZoom: OSM_MAX_ZOOM - 1, animate: false });
+				}
+			}
+			this.spreadMapLabels();
 		});
+		map.on('zoomend', () => this.spreadMapLabels());
 		this.updateMap();
+	}
+
+	/** Moves the borehole ids apart where they would overlap at this zoom. */
+	private spreadMapLabels(): void {
+		const map = this.mapInstance;
+		if (!map) {
+			return;
+		}
+		const labels = this.markers.map(marker => {
+			const element = this.markerLabels.get(marker);
+			const at = marker.getLngLat();
+			const point = map.project([at.lng, at.lat]);
+			return { element, box: { x: point.x + 8, y: point.y, width: (element?.offsetWidth ?? 40) + 2 } };
+		});
+		const offsets = spreadLabels(labels.map(l => l.box), 16);
+		labels.forEach((label, i) => {
+			if (label.element) {
+				label.element.style.transform = offsets[i] ? `translateY(${offsets[i]}px)` : '';
+			}
+		});
 	}
 
 	private outlineData(): object {
@@ -451,15 +487,18 @@ export class SoilMapView extends Disposable {
 		for (const marker of this.markers) {
 			marker.remove();
 		}
+		this.markerLabels.clear();
 		this.markers = boreholePoints(this.host.report, this.host.location).map(point => this.boreholeMarker(module, map, point));
+		this.spreadMapLabels();
 	}
 
 	private boreholeMarker(module: IMapLibreModule, map: IMapLibreMap, point: IMapPoint): IMapLibreMarker {
 		const element = $('.soil-map-borehole', { role: 'button', tabIndex: 0, 'aria-label': localize('soil.map.boreholeMarker', "{0} (drag to move)", point.id), title: `${point.id}\n${formatLatLon(point)}` });
 		element.classList.toggle('selected', point.index === this.host.selected);
 		append(element, $('span.soil-map-borehole-dot'));
-		append(element, $('span.soil-map-borehole-id', undefined, point.id));
+		const label = append(element, $('span.soil-map-borehole-id', undefined, point.id));
 		const marker = new module.Marker({ element, draggable: true, anchor: 'center' }).setLngLat([point.lon, point.lat]).addTo(map);
+		this.markerLabels.set(marker, label);
 		let dragged = false;
 		marker.on('dragstart', () => dragged = true);
 		marker.on('dragend', () => {
@@ -514,13 +553,15 @@ export class SoilMapView extends Disposable {
 		const north = svg(root, 'g', { class: 'soil-site-north', transform: `translate(${width - 30} 34) rotate(${-(report.site?.rotation ?? 0)})` });
 		svg(north, 'path', { d: 'M0 -16 L6 6 L0 2 L-6 6 Z' });
 		svg(north, 'text', { x: 0, y: -20, 'text-anchor': 'middle', class: 'soil-heading' }, localize('soil.map.north', "N"));
+		// Ids that would overlap are stepped down a line.
+		const offsets = spreadLabels(report.boreholes.map(b => ({ x: px(b.x) + 9, y: py(b.y), width: b.id.length * 7 + 4 })));
 		const originMark = svg(root, 'g', { class: 'soil-site-origin' });
 		svg(originMark, 'path', { d: `M${px(origin.x) - 7} ${py(origin.y)}h14M${px(origin.x)} ${py(origin.y) - 7}v14` });
 		svg(originMark, 'title', {}, localize('soil.map.originTitle', "The point of the project coordinates at the site's position"));
 		report.boreholes.forEach((borehole, index) => {
 			const group = svg(root, 'g', { class: index === this.host.selected ? 'soil-site-borehole selected' : 'soil-site-borehole', tabindex: 0, role: 'button', 'aria-label': localize('soil.map.boreholeMarker', "{0} (drag to move)", borehole.id) });
 			const circle = svg(group, 'circle', { cx: px(borehole.x), cy: py(borehole.y), r: 6 });
-			const label = svg(group, 'text', { x: px(borehole.x) + 9, y: py(borehole.y) + 4, class: 'soil-site-label' }, borehole.id);
+			const label = svg(group, 'text', { x: px(borehole.x) + 9, y: py(borehole.y) + 4 + offsets[index], class: 'soil-site-label' }, borehole.id);
 			svg(group, 'title', {}, `${borehole.id}: ${formatProjectPoint(borehole.x, borehole.y)}`);
 			let drag: { startX: number; startY: number; moved: boolean } | undefined;
 			this.gridDisposables.add(addDisposableListener(group, EventType.POINTER_DOWN, (e: PointerEvent) => {
@@ -538,7 +579,7 @@ export class SoilMapView extends Disposable {
 				circle.setAttribute('cx', String(px(borehole.x) + dx));
 				circle.setAttribute('cy', String(py(borehole.y) + dy));
 				label.setAttribute('x', String(px(borehole.x) + dx + 9));
-				label.setAttribute('y', String(py(borehole.y) + dy + 4));
+				label.setAttribute('y', String(py(borehole.y) + dy + 4 + offsets[index]));
 			}));
 			this.gridDisposables.add(addDisposableListener(group, EventType.POINTER_UP, (e: PointerEvent) => {
 				const d = drag;

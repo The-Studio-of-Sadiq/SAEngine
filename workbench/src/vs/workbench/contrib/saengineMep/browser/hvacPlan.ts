@@ -7,7 +7,8 @@ import { localize } from '../../../../nls.js';
 import { formatNumber } from '../../saengineSoil/browser/soilDocument.js';
 import { svg } from '../../saengineSoil/browser/soilLog.js';
 import { findHost, hostDirection, IMep, IMepContext, Point } from './mepDocument.js';
-import type { IPlanView, MepSelection } from './mepPlan.js';
+import type { MepSelection } from './mepPlan.js';
+import { IPlanView, polygonPoints } from './planSvg.js';
 import {
 	capacityUnit, ductCrossings, ductDepth, ductLetters, ductOnStory, ductPlanWidth, ductSystemLabel, hvacOf, IDuct, IHvacReport, IPlant, plantKindLabel, plantLetters, plantOutline, riserInShaft,
 } from './hvacDocument.js';
@@ -28,10 +29,6 @@ export interface IHvacPlanOptions {
 
 function selected(selection: MepSelection | undefined, kind: 'plant' | 'duct', index: number): boolean {
 	return selection?.kind === kind && selection.index === index;
-}
-
-function polygonPoints(view: IPlanView, points: readonly Point[]): string {
-	return points.map(p => `${view.x(p[0]).toFixed(1)},${view.y(p[1]).toFixed(1)}`).join(' ');
 }
 
 function polylinePoints(view: IPlanView, points: readonly Point[]): string {

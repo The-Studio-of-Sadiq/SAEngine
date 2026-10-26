@@ -9,7 +9,7 @@ import pytest
 
 from saengine.library.soil import SoilReport
 from saengine.soil import import_soil, soil_template
-from saengine.soil.importer import EXAMPLE, soil_type_of
+from saengine.soil.importer import EXAMPLE, EXAMPLE_ID, parse_rows, read_rows, soil_type_of
 
 
 def write(path: Path, text: str) -> str:
@@ -22,16 +22,42 @@ def test_template_round_trip_csv_and_xlsx(tmp_path: Path) -> None:
     for suffix in ("csv", "xlsx"):
         target = tmp_path / f"template.{suffix}"
         assert soil_template(str(target)) == {"path": str(target)}
-        result = import_soil(str(target), None)
-        assert "problems" not in result, result
-        report = SoilReport.model_validate_json(result["text"])
+        boreholes, problems, _ = parse_rows(read_rows(target))
+        assert not problems, problems
+        report = SoilReport.model_validate({"boreholes": boreholes})
         (hole,) = report.boreholes
-        assert hole.id == "BH-1" and hole.waterTable == 1500 and hole.depth == 15000
+        assert hole.id == EXAMPLE_ID and hole.waterTable == 1500 and hole.depth == 15000
         assert [layer.soilType for layer in hole.layers] == ["fill", "clay", "sand"]
         assert hole.layers[1].cu == 25 and hole.layers[1].bottom == 6000
         assert len(hole.spt) == sum(1 for e in EXAMPLE if e["record"] == "spt")
         assert hole.samples[0].plasticLimit == 23 and hole.samples[0].type == "UD"
-        assert result["notes"] == ["BH-1: added (3 layers, 10 SPT records, 2 samples)."]
+
+
+def test_template_example_is_not_imported(tmp_path: Path) -> None:
+    # S1: the example used to be BH-1 and silently replaced the project's own BH-1.
+    target = tmp_path / "template.csv"
+    soil_template(str(target))
+    (problem,) = import_soil(str(target), None)["problems"]
+    assert EXAMPLE_ID in problem and "not imported" in problem
+    # The engineer's own BH-1 under the example.
+    header = [str(c) for c in read_rows(target)[0][1]]
+    line = dict.fromkeys(header, "")
+    line.update({header[0]: "BH-1", header[1]: "layer"})
+    top = next(h for h in header if h.startswith("Top"))
+    bottom = next(h for h in header if h.startswith("Bottom"))
+    kind = next(h for h in header if h.startswith("Soil type"))
+    line.update({top: "0", bottom: "8", kind: "clay"})
+    text = target.read_text(encoding="utf-8-sig").splitlines()
+    text.append(",".join(line[h] for h in header))
+    target.write_text("\n".join(text) + "\n", encoding="utf-8")
+    existing = json.dumps(
+        {"boreholes": [{"id": "BH-1", "layers": [{"top": 0, "bottom": 5000, "soilType": "sand"}]}]}
+    )
+    result = import_soil(str(target), existing)
+    report = SoilReport.model_validate_json(result["text"])
+    assert [b.id for b in report.boreholes] == ["BH-1"]
+    assert report.boreholes[0].layers[0].bottom == 8000
+    assert f"{EXAMPLE_ID}: the template's example, not imported." in result["notes"]
 
 
 def test_template_names_the_format(tmp_path: Path) -> None:

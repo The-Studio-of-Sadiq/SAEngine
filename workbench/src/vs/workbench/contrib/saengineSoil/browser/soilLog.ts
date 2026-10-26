@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { boreholeDepth, boreholeGround, formatNumber, IBorehole, IBoreholeResult, ISoilReport, SOIL_TYPES, SoilType, soilTypeLabel } from './soilDocument.js';
+import { boreholeDepth, boreholeGround, formatNumber, IBorehole, IBoreholeResult, ISoilReport, SOIL_TYPES, SoilType, soilTypeLabel, terminationDepth } from './soilDocument.js';
 import { sptBlows } from './soilSheet.js';
 
 /*
@@ -17,6 +17,9 @@ import { sptBlows } from './soilSheet.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const XHTML_NS = 'http://www.w3.org/1999/xhtml';
+
+/** The height of one line of a layer's description in the log [px] (12 px text, 1.35 line height). */
+const DESCRIPTION_LINE = 16;
 
 type Attributes = { readonly [name: string]: string | number | undefined };
 
@@ -184,13 +187,17 @@ export function renderBoreholeLog(container: HTMLElement, report: ISoilReport, b
 	}
 	svg(root, 'line', { x1: axisWidth + 2, x2: axisWidth + 2, y1: top, y2: y(maxM * 1000), class: 'soil-axis' });
 
-	// Strata with their descriptions.
+	// Strata with their descriptions. A layer too thin for its text gets one line, pushed down
+	// below the label above it with a leader line to its layer; hovering shows the full text.
 	const layers = [...borehole.layers].sort((a, b) => a.top - b.top);
+	let free = top;
 	for (const layer of layers) {
 		const y1 = y(Math.max(0, layer.top));
 		const y2 = y(Math.max(layer.top, layer.bottom));
+		const label = layer.uscs ? `${soilTypeLabel(layer.soilType)} (${layer.uscs})` : soilTypeLabel(layer.soilType);
+		const full = `${m(layer.top)}–${m(layer.bottom)} m  ${label}${layer.description ? `: ${layer.description}` : ''}`;
 		const stratum = svg(root, 'rect', { x: columnX, y: y1, width: columnWidth, height: Math.max(0, y2 - y1), fill: `url(#${patternId(options.patternPrefix, layer.soilType)})`, class: 'soil-stratum' });
-		svg(stratum, 'title', {}, `${soilTypeLabel(layer.soilType)} ${m(layer.top)}–${m(layer.bottom)} m${layer.description ? `: ${layer.description}` : ''}`);
+		svg(stratum, 'title', {}, full);
 		if (options.compact) {
 			if (layer.uscs) {
 				svg(root, 'text', { x: columnX + columnWidth + 4, y: Math.min(y2 - 3, y1 + 12), class: 'soil-n-label' }, layer.uscs);
@@ -198,15 +205,24 @@ export function renderBoreholeLog(container: HTMLElement, report: ISoilReport, b
 			continue;
 		}
 		svg(root, 'line', { x1: columnX + columnWidth, x2: descriptionX - 4, y1: y2, y2, class: 'soil-boundary' });
-		const box = svg(root, 'foreignObject', { x: descriptionX, y: y1, width: descriptionWidth, height: Math.max(0, y2 - y1) });
+		const thin = y2 - y1 < DESCRIPTION_LINE * (layer.description ? 2 : 1) + 4;
+		const labelTop = Math.max(y1, free);
+		const labelHeight = thin ? DESCRIPTION_LINE + 3 : Math.max(0, y2 - labelTop);
+		if (labelTop > y1 + 1) {
+			// Pushed down by the label above: a leader from the middle of its layer.
+			const mid = (y1 + y2) / 2;
+			svg(root, 'polyline', { points: `${columnX + columnWidth + 2},${mid} ${descriptionX - 10},${mid} ${descriptionX - 3},${labelTop + DESCRIPTION_LINE / 2 + 2}`, class: 'soil-leader' });
+		}
+		free = labelTop + labelHeight;
+		const box = svg(root, 'foreignObject', { x: descriptionX, y: labelTop, width: descriptionWidth, height: labelHeight });
 		const text = root.ownerDocument.createElementNS(XHTML_NS, 'div') as HTMLDivElement;
-		text.className = 'soil-description';
-		const label = layer.uscs ? `${soilTypeLabel(layer.soilType)} (${layer.uscs})` : soilTypeLabel(layer.soilType);
+		text.className = thin ? 'soil-description thin' : 'soil-description';
+		text.title = full;
 		const strong = root.ownerDocument.createElementNS(XHTML_NS, 'span') as HTMLSpanElement;
 		strong.className = 'soil-description-type';
-		strong.textContent = `${m(layer.top)}–${m(layer.bottom)} m  ${label}`;
+		strong.textContent = thin && layer.description ? `${m(layer.top)}–${m(layer.bottom)} m  ${label}: ${layer.description}` : `${m(layer.top)}–${m(layer.bottom)} m  ${label}`;
 		text.appendChild(strong);
-		if (layer.description) {
+		if (layer.description && !thin) {
 			const description = root.ownerDocument.createElementNS(XHTML_NS, 'span') as HTMLSpanElement;
 			description.className = 'soil-description-text';
 			description.textContent = layer.description;
@@ -217,9 +233,18 @@ export function renderBoreholeLog(container: HTMLElement, report: ISoilReport, b
 	if (!layers.length) {
 		svg(root, 'text', { x: options.compact ? axisWidth + 8 : descriptionX, y: top + 18, class: 'soil-muted' }, localize('soil.log.noLayers', "No layers yet: add them with Edit Borehole."));
 	}
-	const termination = boreholeDepth(borehole);
+	// The termination depth as logged; layers drawn below it are marked as a problem.
+	const termination = terminationDepth(borehole);
 	if (termination > 0) {
-		svg(root, 'line', { x1: columnX - 6, x2: columnX + columnWidth + 6, y1: y(termination), y2: y(termination), class: 'soil-termination' });
+		const deeper = layers.some(l => l.bottom > termination + 1);
+		const mark = svg(root, 'line', { x1: columnX - 6, x2: columnX + columnWidth + 6, y1: y(termination), y2: y(termination), class: deeper ? 'soil-termination problem' : 'soil-termination' });
+		svg(mark, 'title', {}, deeper
+			? localize('soil.log.terminationProblem', "Termination depth {0} m: the layers go below it. Correct the termination depth or the layers.", m(termination))
+			: localize('soil.log.termination', "Termination depth {0} m", m(termination)));
+		if (deeper && !options.compact) {
+			// Right of the strata column: the depth axis has its own ticks on the left.
+			svg(root, 'text', { x: columnX + columnWidth + 8, y: y(termination) - 4, class: 'soil-termination-label' }, localize('soil.log.terminationShort', "end {0} m", m(termination)));
+		}
 	}
 
 	// Water table: a line across the strata column with the ▽ mark.

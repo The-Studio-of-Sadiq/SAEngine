@@ -6,8 +6,9 @@
 import { localize } from '../../../../nls.js';
 import { formatNumber } from '../../saengineSoil/browser/soilDocument.js';
 import { svg } from '../../saengineSoil/browser/soilLog.js';
+import { drawPlanGrid, fitPlan, IPlanView, niceLength, polygonPoints } from './planSvg.js';
 import {
-	equipmentOutline, findHost, hostDirection, IMep, IMepContext, openingPlanSize, openingPoint, Point, shaftOnStory, storyElements, storyExtent, toGlobal,
+	equipmentOutline, equipmentOwnerLabel, findHost, hostDirection, IEquipmentLoad, IMep, IMepContext, openingPlanSize, openingPoint, Point, shaftOnStory, storyElements, storyExtent, toGlobal,
 } from './mepDocument.js';
 
 /*
@@ -69,40 +70,16 @@ export interface IPlanOptions {
 	 * hang below it.
 	 */
 	readonly ceiling?: string;
+	/**
+	 * The services' equipment (plumbing tanks, HVAC plant, electrical and fire equipment) on the
+	 * coordination plan: dashed and read-only, as they are edited in their own discipline.
+	 */
+	readonly servicesEquipment?: readonly IEquipmentLoad[];
 	/** Draws more over the plan (the plumbing), before the scale bar. */
 	readonly overlay?: (root: SVGElement, view: IPlanView) => void;
 }
 
-/** A plan transform: mm on the project's axes to px with y up. */
-export interface IPlanView {
-	readonly scale: number;
-	x(value: number): number;
-	y(value: number): number;
-}
-
-function fit(points: readonly Point[], width: number, height: number, padding: number): IPlanView {
-	const xs = points.map(p => p[0]);
-	const ys = points.map(p => p[1]);
-	const x0 = Math.min(...xs);
-	const x1 = Math.max(...xs);
-	const y0 = Math.min(...ys);
-	const y1 = Math.max(...ys);
-	const scale = Math.min((width - 2 * padding) / Math.max(x1 - x0, 1000), (height - 2 * padding) / Math.max(y1 - y0, 1000));
-	const offsetX = (width - (x1 - x0) * scale) / 2;
-	const offsetY = (height - (y1 - y0) * scale) / 2;
-	return { scale, x: value => offsetX + (value - x0) * scale, y: value => height - offsetY - (value - y0) * scale };
-}
-
-function polygonPoints(view: IPlanView, points: readonly Point[]): string {
-	return points.map(p => `${view.x(p[0]).toFixed(1)},${view.y(p[1]).toFixed(1)}`).join(' ');
-}
-
-/** A step of 1, 2 or 5 × 10^n that is about `target` long. */
-function niceLength(target: number): number {
-	const power = Math.pow(10, Math.floor(Math.log10(Math.max(target, 1))));
-	const unit = target / power;
-	return (unit >= 5 ? 5 : unit >= 2 ? 2 : 1) * power;
-}
+export type { IPlanView } from './planSvg.js';
 
 function isSelected(selection: MepSelection | undefined, kind: MepSelection['kind'], key: number | string): boolean {
 	if (!selection || selection.kind !== kind) {
@@ -140,7 +117,7 @@ export function renderPlan(container: HTMLElement, document: IMep, context: IMep
 	const root = svg(container, 'svg', { width, height, class: `mep-plan${options.plumbing ? ' plumbing' : ''}${options.layer ? ` quiet ${options.layer}` : ''}`, role: 'img', 'aria-label': localize('mep.planAria', "Plan of the services on {0}", story) });
 	const ceilingBeams = options.ceiling ? storyElements(context, options.ceiling).beams : [];
 	const points = extent(document, context, story, [...(options.extraExtent ?? []), ...ceilingBeams.flatMap(b => [b.start, b.end])]);
-	const view = fit(points, width, height, 56);
+	const view = fitPlan(points, width, height, 56);
 	const minX = Math.min(...points.map(p => p[0]));
 	const maxX = Math.max(...points.map(p => p[0]));
 	const minY = Math.min(...points.map(p => p[1]));
@@ -151,20 +128,7 @@ export function renderPlan(container: HTMLElement, document: IMep, context: IMep
 	svg(pattern, 'line', { x1: 0, y1: 0, x2: 0, y2: 8, class: 'mep-hatch-line' });
 
 	// Grid: lines past the extent, bubbles at the top and the left.
-	const grid = svg(root, 'g', { class: 'mep-grid' });
-	const reach = 24;
-	for (const line of context.grids.x) {
-		const x = view.x(line.position);
-		svg(grid, 'line', { x1: x, y1: view.y(maxY) - reach, x2: x, y2: view.y(minY) + reach, class: 'mep-grid-line' });
-		svg(grid, 'circle', { cx: x, cy: view.y(maxY) - reach - 10, r: 10, class: 'mep-grid-bubble' });
-		svg(grid, 'text', { x, y: view.y(maxY) - reach - 6, class: 'mep-grid-label', 'text-anchor': 'middle' }, line.label);
-	}
-	for (const line of context.grids.y) {
-		const y = view.y(line.position);
-		svg(grid, 'line', { x1: view.x(minX) - reach, y1: y, x2: view.x(maxX) + reach, y2: y, class: 'mep-grid-line' });
-		svg(grid, 'circle', { cx: view.x(minX) - reach - 10, cy: y, r: 10, class: 'mep-grid-bubble' });
-		svg(grid, 'text', { x: view.x(minX) - reach - 10, y: y + 4, class: 'mep-grid-label', 'text-anchor': 'middle' }, line.label);
-	}
+	drawPlanGrid(root, view, context.grids, [minX, maxX, minY, maxY], 'mep');
 
 	const elements = storyElements(context, story);
 
@@ -281,6 +245,26 @@ export function renderPlan(container: HTMLElement, document: IMep, context: IMep
 			svg(group, 'text', { x: left, y: top - 4, class: 'mep-equipment-name' }, equipment.name);
 		}
 	});
+
+	// The services' equipment: dashed footprints with the id and weight, the owner in the tooltip.
+	for (const item of options.servicesEquipment ?? []) {
+		if (item.story !== story || item.x === undefined || item.y === undefined) {
+			continue;
+		}
+		const outline = equipmentOutline({
+			id: item.id, kind: item.kind ?? 'other', story, operatingWeight: item.operatingWeight ?? 0,
+			x: item.x, y: item.y, length: item.length ?? 1000, width: item.width ?? 1000, rotation: item.rotation,
+		});
+		const group = svg(root, 'g', { class: `mep-service-equipment owner-${item.discipline}${item.applied || item.onGrade ? '' : ' not-applied'}` });
+		svg(group, 'title', {}, localize('mep.serviceEquipmentTitle', "{0} ({1}): edit it in {1}", item.sourceId, equipmentOwnerLabel(item.discipline)));
+		svg(group, 'polygon', { points: polygonPoints(view, outline), class: 'mep-equipment-shape' });
+		const cx = view.x(item.x);
+		const cy = view.y(item.y);
+		svg(group, 'text', { x: cx, y: cy - 2, class: 'mep-equipment-label', 'text-anchor': 'middle' }, item.sourceId);
+		if (item.load !== undefined && Math.min(item.length ?? 0, item.width ?? 0) * view.scale >= 34) {
+			svg(group, 'text', { x: cx, y: cy + 11, class: 'mep-equipment-weight', 'text-anchor': 'middle' }, localize('mep.knValue', "{0} kN", formatNumber(item.load, 1)));
+		}
+	}
 
 	// Sleeves and openings on their hosts.
 	document.openings.forEach((opening, index) => {
