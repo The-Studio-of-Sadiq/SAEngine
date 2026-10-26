@@ -7,7 +7,8 @@ import { localize } from '../../../../nls.js';
 import { formatNumber } from '../../saengineSoil/browser/soilDocument.js';
 import { svg } from '../../saengineSoil/browser/soilLog.js';
 import { IMep, IMepContext, Point } from './mepDocument.js';
-import type { IPlanView, MepSelection } from './mepPlan.js';
+import type { MepSelection } from './mepPlan.js';
+import { IPlanView, polygonPoints } from './planSvg.js';
 import { IPlumbingReport, isGroundTank, plumbingOf, riserOnStory, systemLabel, systemLetters, tankCapacity, tankKindLabel, tankOutline, tankStory } from './plumbingDocument.js';
 
 /*
@@ -26,10 +27,6 @@ export interface IPlumbingPlanOptions {
 
 function selected(selection: MepSelection | undefined, kind: 'riser' | 'tank' | 'drain', index: number): boolean {
 	return selection?.kind === kind && selection.index === index;
-}
-
-function polygonPoints(view: IPlanView, points: readonly Point[]): string {
-	return points.map(p => `${view.x(p[0]).toFixed(1)},${view.y(p[1]).toFixed(1)}`).join(' ');
 }
 
 /** The plan points the plumbing of `story` needs in view (tanks beside the building, risers, drains). */

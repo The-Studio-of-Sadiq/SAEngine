@@ -129,3 +129,61 @@ def test_transformer_pick_and_table_8_1_23() -> None:
     assert substation_area(1, 630) is None  # Table 8.1.23 has no 1 x 630 row
     assert substation_required(50.0) and not substation_required(49.9)
     assert T.SUBSTATION_KW == 50
+
+
+def test_stories_without_a_row_take_the_building_use() -> None:
+    # E1: only one story entered; the other seven below the roof drew nothing before.
+    stories = [{"story": "L1", "use": "office"}]
+    mep = _mep(stories=stories, motors=[])
+    building = Building.of(eight_storey_bim())
+    d = demand(mep.electrical, building, default_use="residenceMulti")
+    rows = {s["story"]: s for s in d["stories"]}
+    assert len(rows) == 8 and "ROOF" not in rows
+    assert rows["L1"]["use"] == "office" and rows["L1"]["useSource"] == "entered"
+    assert rows["GF"]["use"] == "residenceMulti"
+    assert rows["GF"]["useSource"] == "02 Project Settings building use"
+    assert d["storiesKw"] == pytest.approx((28 + 7 * 20) * 600 / 1000)
+    assert any("02 Project Settings" in n for n in d["notes"])
+    # Without a building use, the old rule: the missing stories draw nothing, with a note.
+    d = demand(mep.electrical, building)
+    assert len(d["stories"]) == 1
+    assert any("draw nothing" in n for n in d["notes"])
+
+
+def test_a_row_without_its_own_use_takes_the_building_use() -> None:
+    mep = _mep(stories=[{"story": "L1", "lighting": 8}], motors=[])
+    d = demand(mep.electrical, Building.of(eight_storey_bim()), default_use="residenceMulti")
+    l1 = next(s for s in d["stories"] if s["story"] == "L1")
+    assert l1["use"] == "residenceMulti"
+
+
+def test_blank_power_takes_the_rest_of_the_table_density() -> None:
+    # Lighting 10 entered, power blank: power and sockets = 28 - 10 = 18 W/m² (Table 8.1.17).
+    mep = _mep(stories=[{"story": "L1", "use": "office", "lighting": 10}], motors=[])
+    s = demand(mep.electrical, Building.of(eight_storey_bim()))["stories"][0]
+    assert s["lighting"] == 10 and s["power"] == 18 and s["density"] == 28
+    parts = {p["part"]: p for p in s["breakdown"]}
+    assert parts["power"]["kw"] == pytest.approx(18 * 600 / 1000)
+    assert "Table 8.1.17" in parts["power"]["source"]
+    assert not s["notes"]
+    # Lighting at or above the table total: power cannot be inferred, the engineer is told.
+    mep = _mep(stories=[{"story": "L1", "use": "office", "lighting": 30}], motors=[])
+    s = demand(mep.electrical, Building.of(eight_storey_bim()))["stories"][0]
+    assert s["power"] == 0 and s["density"] == 30
+    assert "power and socket-outlet" in s["notes"][0]
+
+
+def test_the_breakdown_adds_up_to_the_connected_load() -> None:
+    building = Building.of(eight_storey_bim())
+    cases = [
+        {"story": "L1", "use": "office", "airConditioned": True},
+        {"story": "L1", "use": "office", "airConditioned": True, "lighting": 12, "power": 30},
+        {"story": "L1", "use": "school", "lighting": 4, "power": 2, "other": 7},
+        {"story": "L1", "use": "hospital", "power": 50},
+    ]
+    for row in cases:
+        s = demand(_mep(stories=[row], motors=[]).electrical, building)["stories"][0]
+        assert sum(p["kw"] for p in s["breakdown"]) == pytest.approx(s["connected"]), row
+    s = demand(_mep(stories=[cases[0]], motors=[]).electrical, building)["stories"][0]
+    parts = {p["part"]: p["density"] for p in s["breakdown"]}
+    assert parts == {"lightingAndPower": 28, "airConditioning": 47}

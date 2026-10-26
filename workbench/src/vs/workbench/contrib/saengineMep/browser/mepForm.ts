@@ -28,7 +28,8 @@ export interface IMepFormHost {
 	selectableRow(body: HTMLElement, selection: MepSelection): HTMLElement;
 	removeButton(row: HTMLElement, run: () => void): void;
 	textInput(field: IFieldSpec, value: unknown, store: (value: number | string | undefined) => void, key: string, placeholder?: string): HTMLInputElement;
-	selectInput(options: readonly { value: string; label: string }[], current: string, store: (value: string) => void, key: string, label: string, allowNone?: boolean): HTMLSelectElement;
+	/** `allowNone`: an empty first option, labelled with the string when one is given (the default the backend applies). */
+	selectInput(options: readonly { value: string; label: string }[], current: string, store: (value: string) => void, key: string, label: string, allowNone?: boolean | string): HTMLSelectElement;
 	checkbox(checked: boolean, store: (value: boolean) => void, label: string): HTMLInputElement;
 	yesNo(current: boolean, store: (value: boolean) => void, key: string, label: string): HTMLSelectElement;
 	fieldRow(panel: HTMLElement, field: IFieldSpec, value: unknown, store: (value: number | string | undefined) => void, key: string, placeholder?: string): void;

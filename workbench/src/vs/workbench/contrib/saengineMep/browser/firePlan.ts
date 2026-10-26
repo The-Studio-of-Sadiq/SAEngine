@@ -6,8 +6,9 @@
 import { localize } from '../../../../nls.js';
 import { formatNumber } from '../../saengineSoil/browser/soilDocument.js';
 import { svg } from '../../saengineSoil/browser/soilLog.js';
-import { IMep, IMepContext, Point } from './mepDocument.js';
-import type { IPlanView, MepSelection } from './mepPlan.js';
+import { IMep, IMepContext } from './mepDocument.js';
+import type { MepSelection } from './mepPlan.js';
+import { IPlanView, polygonPoints } from './planSvg.js';
 import { num } from './mepRead.js';
 import { tankOutline } from './plumbingDocument.js';
 import { fireOf, fireRiserLabel, fireRiserLetters, fireRiserOnStory, firePumpLabel, firePumpLetters, fireTankStory, IFireReport, pumpOutline } from './fireDocument.js';
@@ -28,10 +29,6 @@ export interface IFirePlanOptions {
 
 function selected(selection: MepSelection | undefined, kind: 'fireRiser' | 'firePump' | 'fireTank', index: number): boolean {
 	return selection?.kind === kind && selection.index === index;
-}
-
-function polygonPoints(view: IPlanView, points: readonly Point[]): string {
-	return points.map(p => `${view.x(p[0]).toFixed(1)},${view.y(p[1]).toFixed(1)}`).join(' ');
 }
 
 /** Draws the fire protection of `options.story` into the plan's svg. */
