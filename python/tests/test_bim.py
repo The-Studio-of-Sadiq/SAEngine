@@ -207,3 +207,88 @@ def test_check_reports_element_types() -> None:
         "S1: unknown object type 'SL'",
         "F1: unknown object type 'FT'",
     ]
+
+
+def _model(elements: list, additions: dict | None = None) -> BuildingModel:
+    return BuildingModel.model_validate(
+        {
+            "stories": [
+                {"id": "BASE", "name": "Base", "elevation": 0},
+                {"id": "L1", "name": "Level 1", "elevation": 3000},
+            ],
+            "elements": elements,
+            "additions": additions or {},
+        }
+    )
+
+
+WALL = {
+    "id": "W1",
+    "kind": "wall",
+    "type": "W",
+    "start": [0, 0],
+    "end": [5000, 0],
+    "bottom": 0,
+    "top": 3000,
+}
+SLAB = {
+    "id": "S1",
+    "kind": "slab",
+    "type": "S",
+    "boundary": [[0, 0], [5000, 0], [5000, 4000], [0, 4000]],
+    "elevation": 3000,
+}
+
+
+def test_openings_must_fit_their_host() -> None:
+    model = _model(
+        [WALL, SLAB],
+        {
+            "wallOpenings": [
+                {
+                    "id": "D1",
+                    "host": "W1",
+                    "offset": 4800,
+                    "sill": 0,
+                    "width": 1000,
+                    "height": 2200,
+                },
+                {
+                    "id": "D2",
+                    "host": "W1",
+                    "offset": 500,
+                    "sill": 900,
+                    "width": 900,
+                    "height": 2400,
+                },
+                {"id": "D3", "host": "W1", "offset": 500, "sill": 0, "width": 900, "height": 2100},
+            ],
+            "slabOpenings": [
+                {"id": "O1", "host": "S1", "x": 6000, "y": 1000, "xDim": 500, "yDim": 500},
+                {"id": "O2", "host": "S1", "x": 2500, "y": 2000, "xDim": 500, "yDim": 500},
+            ],
+        },
+    )
+    problems = model.check_additions()
+    assert any(p.startswith("D1: it runs past the end of wall W1") for p in problems)
+    assert any(p.startswith("D2: it is taller than wall W1") for p in problems)
+    assert any(p.startswith("O1: its centre (6000, 1000) is outside slab S1") for p in problems)
+    assert not any(p.startswith(("D3", "O2")) for p in problems)
+
+
+def test_model_checks_duplicates_and_unsupported_beams() -> None:
+    column = {"kind": "column", "type": "C", "position": [0, 0], "bottom": 0, "top": 3000}
+    beam = {"kind": "beam", "type": "B", "elevation": 3000}
+    model = _model(
+        [
+            {**column, "id": "C1"},
+            {**column, "id": "C2"},  # on top of C1
+            {**beam, "id": "B1", "start": [0, 0], "end": [5000, 0]},  # a cantilever: accepted
+            {**beam, "id": "B2", "start": [2500, 0], "end": [2500, 4000]},  # rests on B1
+            {**beam, "id": "B3", "start": [9000, 9000], "end": [12000, 9000]},  # floating
+        ]
+    )
+    assert model.check_model() == [
+        "C2: it is drawn on top of C1 (same kind and place)",
+        "B3: neither end rests on a column, wall or beam (an unsupported beam)",
+    ]
