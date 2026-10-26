@@ -85,6 +85,6 @@ export function addObjectType(objects: unknown, materials: unknown, kind: NewTyp
 	const type: Json = kind === 'column' || kind === 'beam'
 		? { id, name: `${NAME[kind]} ${label}`, kind, material, profile: { shape: 'rectangle', xDim: size[0], yDim: size[1] } }
 		: { id, name: `${NAME[kind]} ${label}`, kind, material, thickness: size[0] };
-	const base = isObject(objects) ? objects : { schema: 'saengine.objects/1' };
+	const base = { schema: 'saengine.objects/1', ...(isObject(objects) ? objects : {}) };
 	return { ok: true, objects: { ...base, objects: [...types, type] }, id, existed: false };
 }

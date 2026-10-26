@@ -24,14 +24,14 @@ suite('SAEngine - Floor plan new types and labels', () => {
 		assert.deepStrictEqual({
 			beam: beam.objects.objects,
 			slab: slab.objects,
-			again: addObjectType(beam.objects, materials, 'beam', '250x450'),
+			again: (r => r.ok && [r.id, r.existed, r.objects === beam.objects])(addObjectType(beam.objects, materials, 'beam', '250x450')),
 			clash: addObjectType({ objects: [{ id: 'B250x450', kind: 'column' }] }, materials, 'beam', '250x450').ok,
 			noConcrete: addObjectType({}, {}, 'wall', '200').ok,
 			invalid: [validateSize('column', '400'), validateSize('slab', '125'), validateSize('beam', '20x450')].map(v => v === undefined),
 		}, {
 			beam: [objects.objects[0], { id: 'B250x450', name: 'Beam 250x450', kind: 'beam', material: 'C24.1', profile: { shape: 'rectangle', xDim: 250, yDim: 450 } }],
 			slab: { schema: 'saengine.objects/1', objects: [{ id: 'S125', name: 'Slab 125', kind: 'slab', material: 'C20.7', thickness: 125 }] },
-			again: { ok: true, objects: beam.objects, id: 'B250x450', existed: true },
+			again: ['B250x450', true, true],
 			clash: false,
 			noConcrete: false,
 			invalid: [false, true, false],

@@ -152,7 +152,8 @@ suite('SAEngine - Floor plan bulk edits', () => {
 			pasted: list(pasted.layout, 'beams').map(b => [b.story, b.start, b.end]),
 			sameStory: error(copyToStories(base, refs, 'L1', ['L1'])),
 		}, {
-			copied: [4, 0, ['C7', 'B2', 'C8', 'B3']],
+			// The copies keep the source's label, with their story.
+			copied: [4, 0, ['C1-L2', 'B1-L2', 'C1-L3', 'B1-L3']],
 			stories: ['L1->L2', 'L2->L3'],
 			typicalInSync: true,
 			twice: [0, 4],
