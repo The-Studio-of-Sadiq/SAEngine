@@ -25,6 +25,9 @@ from __future__ import annotations
 import json
 import math
 import re
+import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -45,6 +48,9 @@ SUBSTRUCTURE_FILE = "09 Substructure/substructure.json"
 MODEL_FILE = "08 FEM/model.osmodel"
 RESULTS_DIR = "08 FEM/model.results"
 BOQ_FILE = "10 BOQ/boq.json"
+#: The derivation's notes and code values of the analysis model (not stored in the model), kept
+#: by whoever derived it (:func:`keep_derivation`), so the report need not derive it again.
+DERIVATION_FILE = "08 FEM/model.derivation.json"
 DEFAULT_OUTPUT = "11 Exports/report.pdf"
 
 #: Upstream files of the analysis model, by the keys of the stamps it records.
@@ -215,9 +221,18 @@ def design_status(report: dict[str, Any]) -> dict[str, Any]:
         state, headline = "pass", "Design checks pass: " + " and ".join(what) + "."
     else:
         state = "unchecked"
-        headline = "The design was not checked: " + (
-            str(design.get("problem")) if design.get("problem") else "no member was designed."
-        )
+        skipped = design.get("skipped") or [] if design.get("available") else []
+        if design.get("problem"):
+            why = str(design["problem"])
+        elif skipped:
+            reasons: dict[str, int] = {}
+            for row in skipped:
+                reasons[str(row[-1])] = reasons.get(str(row[-1]), 0) + 1
+            reason = max(reasons, key=lambda r: reasons[r])
+            why = f"all {len(skipped)} members were skipped ({reason.rstrip('.')})."
+        else:
+            why = "no member was designed."
+        headline = "The design was not checked: " + why
     return {
         "state": state,
         "headline": headline,
@@ -243,11 +258,56 @@ def count_pages(pdf: bytes) -> int:
     return len(re.findall(rb"/Type\s*/Page(?![a-zA-Z])", pdf))
 
 
+@contextmanager
+def results_loaded_once() -> Iterator[None]:
+    """While the report is gathered, each analysis case's results file is read once: the
+    results chapter, the foundations' loads, the response spectrum design and the design checks
+    all load the same cases (most of a large report's time went to reading them again). Keyed
+    by the file's path, size and time, so a file written meanwhile is read again."""
+    from opensees_studio.services import result_store
+
+    original = result_store.load_results
+    if getattr(original, "_report_memo", False):  # already inside one (nested reports)
+        yield
+        return
+    memo: dict[tuple[Any, ...], Any] = {}
+    lock = threading.Lock()
+
+    def load_results(entry: dict[str, Any], out_dir: str | Path) -> Any:
+        try:
+            path = (Path(out_dir) / entry["files"][0]).resolve()
+            stat = path.stat()
+            key = (str(path), stat.st_size, stat.st_mtime_ns, json.dumps(entry, sort_keys=True))
+        except (OSError, KeyError, IndexError, TypeError, ValueError):
+            return original(entry, out_dir)
+        with lock:
+            if key in memo:
+                return memo[key]
+        result = original(entry, out_dir)
+        with lock:
+            memo[key] = result
+        return result
+
+    load_results._report_memo = True  # type: ignore[attr-defined]
+    result_store.load_results = load_results
+    try:
+        yield
+    finally:
+        result_store.load_results = original
+
+
 def report_data(
     project_root: str | Path, *, version: str | None = None, today: date | None = None
 ) -> dict[str, Any]:
     """Everything the report prints, as JSON-ready data with numbers formatted as text, or
     ``{"problems"}`` when the project has no analysis results to report."""
+    with results_loaded_once():
+        return _report_data(project_root, version=version, today=today)
+
+
+def _report_data(
+    project_root: str | Path, *, version: str | None = None, today: date | None = None
+) -> dict[str, Any]:
     root = Path(project_root)
     model_path = root / MODEL_FILE
     results_dir = root / RESULTS_DIR
@@ -814,10 +874,10 @@ def _model_summary(
     except OSError:
         pass
 
-    # The derivation's notes and code values are not stored in the model: derive it again from
-    # the same files when they are unchanged.
+    # The derivation's notes and code values are not stored in the model: kept beside it by the
+    # derivation, else derived again from the same files when they are unchanged.
     if current:
-        derivation = _derive_again(root, parts)
+        derivation = kept_derivation(root, model) or _derive_again(root, parts, model)
         if derivation is not None:
             summary["notes"] = list(derivation.notes)
             values = derivation.summary
@@ -979,7 +1039,48 @@ def _derivation_rows(values: dict[str, Any], root: Path) -> list[list[str]]:
     return rows
 
 
-def _derive_again(root: Path, parts: _Parts) -> Any:
+def _derivation_key(description: Any) -> str:
+    """What a kept derivation must match: the model's recorded sources and the version."""
+    return f"{saengine.__version__}|{description}"
+
+
+def keep_derivation(model_dir: str | Path, derivation: Any) -> None:
+    """Keeps the notes and code values of ``derivation`` (:class:`saengine.fem.derive.
+    Derivation`) beside the model in ``model_dir`` (``08 FEM``), for the report; a failure is
+    ignored (the report then derives the model again)."""
+    try:
+        description = derivation.project.get("meta", {}).get("description")
+        text = json.dumps(
+            {
+                "key": _derivation_key(description),
+                "notes": list(derivation.notes),
+                "summary": derivation.summary,
+            },
+            ensure_ascii=False,
+            allow_nan=False,
+            default=str,
+        )
+        (Path(model_dir) / Path(DERIVATION_FILE).name).write_text(text, encoding="utf-8")
+    except (OSError, ValueError, TypeError, AttributeError):
+        pass
+
+
+def kept_derivation(root: Path, model: dict[str, Any]) -> Any:
+    """The derivation kept for the analysis model ``model`` (:func:`keep_derivation`), or None
+    when there is none for it (another model, another version)."""
+    from types import SimpleNamespace
+
+    try:
+        data = json.loads((root / DERIVATION_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    description = model.get("meta", {}).get("description")
+    if not isinstance(data, dict) or data.get("key") != _derivation_key(description):
+        return None
+    return SimpleNamespace(notes=data.get("notes") or [], summary=data.get("summary") or {})
+
+
+def _derive_again(root: Path, parts: _Parts, model: dict[str, Any] | None = None) -> Any:
     from saengine.fem.derive import derive_fem
     from saengine.library import mep as mep_library
     from saengine.library import substructure as substructure_library
@@ -994,7 +1095,7 @@ def _derive_again(root: Path, parts: _Parts) -> Any:
         member_loads = line_loads.parse(parts.text(line_loads.LOADS_FILE))
         mep = mep_library.parse(parts.text(mep_library.MEP_FILE))
         springs = inputs[3].analysis.supports == "soilSprings"
-        return derive_fem(
+        derivation = derive_fem(
             *inputs,
             None,
             root / "08 FEM",
@@ -1010,6 +1111,13 @@ def _derive_again(root: Path, parts: _Parts) -> Any:
     except Exception as error:  # noqa: BLE001 - the report goes on without these notes
         parts.warnings.append(f"The derivation notes could not be recomputed: {error}")
         return None
+    if model is not None:
+        # Kept under the analysed model's sources: the files are unchanged (it is current).
+        derivation.project.setdefault("meta", {})["description"] = model.get("meta", {}).get(
+            "description"
+        )
+        keep_derivation(root / "08 FEM", derivation)
+    return derivation
 
 
 # ─────────────────────────────────────── results ───────────────────────────────────────
@@ -1408,10 +1516,13 @@ def _kind_title(kind: str) -> str:
 
 
 def _design(results_dir: Path, model_path: Path, warnings: list[str]) -> dict[str, Any]:
-    from saengine.pipeline.design_mode import checks
+    from saengine.pipeline.design_mode import REPORT_FILE, checks, kept, report_stamp
 
     try:
-        report = checks(results_dir, model_path)  # Run All's design step's, while current
+        # Run All's design step's checks, kept beside the results while they are current
+        # (design-report.json), else those made last in this process, else made now.
+        stamp = report_stamp(results_dir, model_path)
+        report = kept(results_dir, stamp, REPORT_FILE) or checks(results_dir, model_path, stamp)
     except Exception as error:  # noqa: BLE001 - the report goes on without the design
         message = str(error) or type(error).__name__
         warnings.append(f"The member design could not be checked: {message}")

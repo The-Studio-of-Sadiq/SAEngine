@@ -503,13 +503,11 @@ def _generate(
     step("files")
 
     def sheet_progress(n: int, count: int) -> None:
-        message = f"writing sheet {n} of {count}"
+        # In the polled progress (:func:`progress`) only: the callback has one call per step.
         with _GUARD:
             state = _RUNNING.get(_key(root))
             if state is not None:
-                state.update(message=message)
-        if report_progress is not None:
-            report_progress("files", len(STEPS), len(STEPS), message)
+                state.update(message=f"writing sheet {n} of {count}")
 
     written = write_drawings(
         chosen,
