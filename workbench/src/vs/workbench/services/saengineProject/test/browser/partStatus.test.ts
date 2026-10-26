@@ -441,7 +441,7 @@ suite('SAEngine - PartStatus', () => {
 		// The design code the new-project dialog chose (ACI 318-19 here) still counts as the defaults.
 		const settings = JSON.parse(texts.settings!);
 		const aci = JSON.stringify({ ...settings, codes: { ...settings.codes, concrete: 'ACI 318-19', steel: 'AISC 360-22' } }, undefined, '\t');
-		const changedSettings = JSON.stringify({ ...settings, occupancy: { use: 'office', category: 'II' } });
+		const changedSettings = JSON.stringify({ ...settings, occupancy: { use: 'office', category: 'III' } });
 		const changedMaterials = JSON.stringify({ ...DEFAULT_MATERIALS, materials: (DEFAULT_MATERIALS as { materials: object[] }).materials.slice(1) });
 		const objects = JSON.stringify({ schema: 'saengine.objects/1', objects: [{ id: 'C400' }, { id: 'B300x500' }] });
 		const floorPlan = JSON.stringify({ ...DEFAULT_FLOOR_PLAN, columns: [{ id: 'C1' }] });
@@ -459,6 +459,10 @@ suite('SAEngine - PartStatus', () => {
 			'floorPlan: draw the floor plan',
 			'bim: build the building model',
 		]);
+		// The site and the building use the New Project form picks still need the review.
+		const picked = JSON.parse(newProject('Other').settings!);
+		const formChoices = JSON.stringify({ ...picked, site: { ...picked.site, location: 'chattogram' }, occupancy: { ...picked.occupancy, use: 'office' } });
+		assert.deepStrictEqual(summary({ texts: new Map([['settings', formChoices]]) })[1], 'settings: defaults defaults');
 		// Key order, formatting and the project name do not count as a change; an invalid file is an error.
 		const reordered = JSON.stringify(Object.fromEntries(Object.entries(JSON.parse(newProject('Other').settings!)).reverse()));
 		assert.deepStrictEqual(summary({ texts: new Map([['settings', reordered], ['materials', JSON.stringify(DEFAULT_MATERIALS)]]) }).slice(1, 3), ['settings: defaults defaults', 'materials: defaults defaults']);
@@ -491,7 +495,7 @@ suite('SAEngine - PartStatus', () => {
 	test('a generated or imported project: its object types and floor plan are done, settings with its own values too', () => {
 		// New Building from Grid and the importers write the default settings with the project's
 		// occupancy, area loads and analysis values, and their own object types and members.
-		const settings = JSON.stringify({ ...DEFAULT_SETTINGS, project: { name: 'Grid Test' }, occupancy: { use: 'office', category: 'II' } });
+		const settings = JSON.stringify({ ...DEFAULT_SETTINGS, project: { name: 'Grid Test' }, occupancy: { use: 'office', category: 'III' } });
 		const objects = JSON.stringify({ schema: 'saengine.objects/1', objects: [{ id: 'C1' }, { id: 'B1' }, { id: 'S1' }] });
 		const floorPlan = JSON.stringify({ ...DEFAULT_FLOOR_PLAN, columns: [{ id: 'C1' }, { id: 'C2' }], beams: [{ id: 'B1' }], slabs: [{ id: 'S1' }] });
 		const bim = JSON.stringify({ schema: 'saengine.bim/2', source: { floorPlan: sourceStamp(floorPlan) }, elements: [] });
