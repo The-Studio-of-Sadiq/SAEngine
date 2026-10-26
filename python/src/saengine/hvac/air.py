@@ -79,12 +79,28 @@ SHAFT_CLEARANCE = 75.0  # mm all round a duct in a shaft (SAEngine practice)
 SYSTEMS = ("supply", "return", "exhaust", "freshAir", "kitchenExhaust", "smoke")
 #: (minimum, maximum) velocity [m/s] and where it comes from.
 VELOCITY = {
-    "supply": (None, 7.5, "SAEngine default after the ASHRAE Handbook (from memory)"),
-    "return": (None, 6.0, "SAEngine default after the ASHRAE Handbook (from memory)"),
-    "exhaust": (None, 6.0, "SAEngine default after the ASHRAE Handbook (from memory)"),
-    "freshAir": (None, 5.0, "SAEngine default after the ASHRAE Handbook (from memory)"),
+    "supply": (
+        None,
+        7.5,
+        "SAEngine default (typical low-velocity duct practice, ASHRAE Handbook Fundamentals Ch 21; set the project's limit)",
+    ),
+    "return": (
+        None,
+        6.0,
+        "SAEngine default (typical low-velocity duct practice, ASHRAE Handbook Fundamentals Ch 21; set the project's limit)",
+    ),
+    "exhaust": (
+        None,
+        6.0,
+        "SAEngine default (typical low-velocity duct practice, ASHRAE Handbook Fundamentals Ch 21; set the project's limit)",
+    ),
+    "freshAir": (
+        None,
+        5.0,
+        "SAEngine default (typical low-velocity duct practice, ASHRAE Handbook Fundamentals Ch 21; set the project's limit)",
+    ),
     "kitchenExhaust": (7.62, 12.7, "BNBC 2020 Part 8 Sec 2.11.5.1(d), p. 912"),
-    "smoke": (None, 10.0, "SAEngine default (from memory)"),
+    "smoke": (None, 10.0, "SAEngine default (set the smoke control design's limit)"),
 }
 TABLE_823 = "BNBC 2020 Part 8 Table 8.2.3"
 
@@ -867,6 +883,46 @@ def _check(name: str, demand: float, capacity: float, unit: str, ok: bool, note:
             "note": note}  # fmt: skip
 
 
+#: The plant that makes the cooling: the plant's capacity is shared between them.
+COOLING_SOURCES = ("chiller", "vrfOutdoor", "splitOutdoor")
+
+
+def plant_requirements(
+    plant: list[dict[str, Any]], capacity: dict[str, Any] | None, zones: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """The plant rows with what each must give (``required``, ``unit``, ``utilisation``,
+    ``ok``): a cooling source its share of the plant's capacity (:func:`saengine.hvac.plant.
+    plant_capacity`, equal shares), an AHU the cooling load and a fresh air unit the outdoor air
+    of the stories it serves. Rows with nothing to compare keep no utilisation."""
+    by_story = {str(z.get("story")): z for z in zones}
+    sources = [p for p in plant if p.get("kind") in COOLING_SOURCES]
+    total = (capacity or {}).get("capacity")
+    out = []
+    for item in plant:
+        row = dict(item)
+        provided = row.get("capacity")
+        serves = [by_story[s] for s in row.get("serves") or [] if s in by_story]
+        need, unit, why = None, None, ""
+        if row.get("kind") in COOLING_SOURCES and total:
+            need, unit = total / len(sources), "kW"
+            why = f"share of the plant's {total:.0f} kW ({len(sources)} units)"
+        elif row.get("kind") == "ahu" and serves:
+            need, unit = sum(z.get("total") or 0.0 for z in serves), "kW"
+            why = "cooling load of the stories it serves"
+        elif row.get("kind") == "freshAirUnit" and serves:
+            need, unit = sum(z.get("outdoorAir") or 0.0 for z in serves), "m³/s"
+            why = "outdoor air of the stories it serves (Table 8.2.3)"
+        if need is not None:
+            row["required"], row["unit"] = round(need, 3), unit
+            if provided:
+                row["utilisation"] = round(need / provided, 3)
+                row["ok"] = need <= provided * (1 + 1e-6)
+            note = row.get("note")
+            row["note"] = f"{note}; {why}" if note else why
+        out.append(row)
+    return out
+
+
 def hvac_air(
     project_root: str | Path,
     loads: dict[str, Any] | None = None,
@@ -919,7 +975,7 @@ def hvac_air(
         from saengine.hvac.plant import coincident_peak, propose_plant
 
         plant = propose_plant(project, zones, coincident=coincident_peak(loads))
-        result["plant"] = plant["plant"]
+        result["plant"] = plant_requirements(plant["plant"], plant["capacity"], zones)
         result["pipes"] = plant["pipes"]
         result["equipment"] = plant["equipment"]
         result["checks"] += plant["checks"]

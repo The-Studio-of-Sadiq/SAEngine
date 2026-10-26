@@ -633,7 +633,9 @@ def create_server() -> JsonRPCServer:
     @_in_worker
     def _plumbing_report(params: Any) -> dict[str, Any]:
         args = _plain(params)
-        return handlers.plumbing_report(args["projectRoot"], args.get("mepText"))
+        return handlers.plumbing_report(
+            args["projectRoot"], args.get("mepText"), args.get("designs", True)
+        )
 
     @server.feature("mep/plumbingSizeTanks")
     def _plumbing_size_tanks(params: Any) -> dict[str, Any]:

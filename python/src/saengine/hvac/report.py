@@ -75,6 +75,23 @@ METHOD = [
 ]
 
 
+#: The method's last line when the loads are the estimate (EnergyPlus not installed, failed, or
+#: not run for this input): what was actually used, not EnergyPlus.
+ESTIMATE_METHOD = (
+    "Loads: SAEngine's steady-state block estimate per zone at the design day's maximum dry bulb "
+    "(EnergyPlus was not run for this input): walls and roof U A (To - Ti + a I / ho) with the "
+    "sol-air excess, glazing U A (To - Ti) + A SHGC I, people, lights and equipment at their "
+    "design levels, outdoor air sensible and latent (ASHRAE Fundamentals Ch 1 psychrometrics); "
+    "design airflow from the sensible load at 13 °C supply. An estimate for coordinating the "
+    "plant's size and weight, not a design."
+)
+
+
+def _method(estimate: bool) -> list[str]:
+    """:data:`METHOD`, its EnergyPlus line replaced by :data:`ESTIMATE_METHOD` for the estimate."""
+    return [*METHOD[:-1], ESTIMATE_METHOD] if estimate else list(METHOD)
+
+
 def _stamp(data: Any) -> str:
     return hashlib.sha1(json.dumps(data, sort_keys=True, default=str).encode("utf-8")).hexdigest()
 
@@ -269,9 +286,12 @@ def hvac_results(
             "total: the sum of the zones' peaks (each sized for its own); building: the "
             "coincident peak of all zones (for central plant)"
         )
+    result["method"] = _method(run is None)
     result = _round(result)
     result["stamp"] = stamp
     result["cached"] = cached
+    # Whether Calculate Loads can run EnergyPlus at all: the editor checks it before starting.
+    result["energyPlusFound"] = exe is not None
     result["calculated"] = run is not None or exe is None or run_energyplus
     if run is not None and not cached:
         result["run"] = run

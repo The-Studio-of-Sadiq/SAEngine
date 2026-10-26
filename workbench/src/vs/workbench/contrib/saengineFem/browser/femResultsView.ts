@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/femResultsView.css';
-import { $, append, clearNode, Dimension } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, clearNode, Dimension, EventType } from '../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
@@ -14,6 +15,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { safeIntl } from '../../../../base/common/date.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -23,6 +25,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { IFemResultList } from '../../../../platform/saengine/common/femSolver.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -35,9 +38,9 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { ChartColor, IChartSeries, renderChart, renderSheet } from './femChart.js';
-import { baseReactionTable, closedPmCurve, describeMode, elasticDriftLimit, extremes, FEM_COLUMN_INTERACTION_COMMAND, FEM_MEMBER_FORCES_COMMAND, FEM_STORY_RESPONSE_COMMAND, FemAxis2, IFemColumnDiagram, IFemColumnInteraction, IFemMemberForces, IFemStoryResponse, IFemStoryResult, isEarthquakeResult, MemberComponent, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, spectrumAt, storeyProfile, StoreyQuantity, storeyQuantityLabel, STOREY_QUANTITIES } from './femChartData.js';
+import { baseReactionTable, closedPmCurve, defaultChartResult, describeMode, elasticDriftLimit, orderLike, extremes, FEM_COLUMN_INTERACTION_COMMAND, FEM_MEMBER_FORCES_COMMAND, FEM_STORY_RESPONSE_COMMAND, FemAxis2, IFemColumnDiagram, IFemColumnInteraction, IFemMemberForces, IFemStoryResponse, IFemStoryResult, isEarthquakeResult, MemberComponent, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, spectrumAt, storeyProfile, StoreyQuantity, storeyQuantityLabel, STOREY_QUANTITIES } from './femChartData.js';
 import { IFemDesignRequired, IFemSteelRequirement, resultsFolder, runDesignRequired } from './femDesign.js';
-import { errorSummary, IFemRunTracker } from './femResultsBar.js';
+import { errorSummary, FEM_RESULT_LIST_COMMAND, IFemRunTracker } from './femResultsBar.js';
 
 const chartsIcon = registerIcon('saengine-fem-results-label-icon', Codicon.graph, localize('femResultsLabelIcon', "Icon of the analysis charts and member pages."));
 
@@ -48,11 +51,19 @@ function pageKey(page: FemResultsPage): string {
 	return page.kind === 'charts' ? 'charts' : `member:${page.member}`;
 }
 
+/** Opening the results view at a result: its label as the 3D view's result picker shows it. */
+export interface IFemResultsEditorOptions extends IEditorOptions {
+	readonly result?: string;
+}
+
 /** The analysis charts (`page: charts`) or a member's detail (`page: member`) of an analysis model's last run. */
 export class FemResultsInput extends EditorInput {
 
 	static readonly ID = 'workbench.input.saengine.femResults';
 	static readonly EDITOR_ID = 'workbench.editor.saengine.femResults';
+
+	/** What the tab shows, kept while another tab of its group is shown. */
+	readonly state: { picked?: string; directions?: string; response?: IFemStoryResponse; member?: IFemMemberForces } = {};
 
 	constructor(readonly model: URI, readonly page: FemResultsPage) {
 		super();
@@ -197,7 +208,12 @@ export class FemResultsEditor extends EditorPane {
 	private requiredState: 'idle' | 'loading' | 'failed' = 'idle';
 	private problem: string | undefined;
 	private loading = false;
+	/** The 3D view's result list: its order, and whether the model changed after the run. */
+	private listKeys: readonly string[] = [];
+	private stale = false;
 	private picked: string | undefined;
+	/** A result asked for by its label (the 3D view's), picked once the results are read. */
+	private requested: string | undefined;
 	private directions: Directions = 'XY';
 	private request = 0;
 	private pickerKeys: string[] = [];
@@ -243,7 +259,7 @@ export class FemResultsEditor extends EditorPane {
 		this.resultPicker = this._register(new SelectBox([], 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('femResults.resultPickAria', "Load case or combination shown") }));
 		this.resultPicker.render(append(this.resultGroup, $('.fem-results-view-select.result')));
 		this._register(this.resultPicker.onDidSelect(({ index }) => {
-			this.picked = this.pickerKeys[index];
+			this.setPicked(this.pickerKeys[index]);
 			this.render();
 		}));
 
@@ -253,6 +269,9 @@ export class FemResultsEditor extends EditorPane {
 		this.directionPicker.render(append(this.directionGroup, $('.fem-results-view-select.direction')));
 		this._register(this.directionPicker.onDidSelect(({ index }) => {
 			this.directions = DIRECTIONS[index]?.value ?? 'XY';
+			if (this.typed) {
+				this.typed.state.directions = this.directions;
+			}
 			this.render();
 		}));
 
@@ -261,16 +280,51 @@ export class FemResultsEditor extends EditorPane {
 		this.scrollable = this._register(new DomScrollableElement(this.body, { horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Auto }));
 		append(this.frame.main, this.scrollable.getDomNode());
 		this._register(this.frame.onDidLayoutMain(() => this.scrollable.scanDomNode()));
+		this._register(addDisposableListener(this.body, EventType.KEY_DOWN, e => this.onKeyDown(new StandardKeyboardEvent(e))));
 	}
 
-	override async setInput(input: FemResultsInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	/** Page Up/Down, Home/End, the arrows and Space scroll the page, as in a document. */
+	private onKeyDown(event: StandardKeyboardEvent): void {
+		const target = event.target as HTMLElement;
+		if (target !== this.body && target.closest('button, input, select, textarea, a')) {
+			return;
+		}
+		const { height, scrollHeight } = this.scrollable.getScrollDimensions();
+		const top = this.scrollable.getScrollPosition().scrollTop;
+		const page = Math.max(40, height - 40);
+		let next: number | undefined;
+		switch (event.keyCode) {
+			case KeyCode.PageDown: next = top + page; break;
+			case KeyCode.PageUp: next = top - page; break;
+			case KeyCode.Space: next = event.shiftKey ? top - page : top + page; break;
+			case KeyCode.DownArrow: next = top + 40; break;
+			case KeyCode.UpArrow: next = top - 40; break;
+			case KeyCode.Home: next = 0; break;
+			case KeyCode.End: next = scrollHeight; break;
+		}
+		if (next !== undefined) {
+			event.preventDefault();
+			event.stopPropagation();
+			this.scrollable.setScrollPosition({ scrollTop: Math.max(0, Math.min(next, scrollHeight - height)) });
+		}
+	}
+
+	override async setInput(input: FemResultsInput, options: IFemResultsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		this.inputStore.clear();
-		this.response = this.member = this.interaction = undefined;
+		// Shown again: what was read is shown at once while it is read again (a busy backend
+		// can take a minute to answer).
+		this.response = input.state.response;
+		this.member = input.state.member;
+		this.interaction = undefined;
 		this.required = undefined;
 		this.interactionState = 'idle';
 		this.requiredState = 'idle';
-		this.picked = undefined;
+		// Shown again (another tab was in front): the result and directions it showed.
+		this.picked = input.state.picked;
+		this.requested = options?.result;
+		this.directions = DIRECTIONS.find(d => d.value === input.state.directions)?.value ?? 'XY';
+		this.directionPicker.select(DIRECTIONS.findIndex(d => d.value === this.directions));
 		this.frame.setTitle(input.getName());
 		// A new run deletes and writes the results folder again: its manifest is written last.
 		const folder = resultsFolder(input.model);
@@ -296,10 +350,26 @@ export class FemResultsEditor extends EditorPane {
 		await this.load();
 	}
 
+	/** Opened again at a result (a member picked in 3D under another combination). */
+	override setOptions(options: IFemResultsEditorOptions | undefined): void {
+		super.setOptions(options);
+		if (options?.result) {
+			this.requested = options.result;
+			this.render();
+		}
+	}
+
 	override clearInput(): void {
 		this.inputStore.clear();
 		this.request++;
 		super.clearInput();
+	}
+
+	private setPicked(key: string | undefined): void {
+		this.picked = key;
+		if (this.typed) {
+			this.typed.state.picked = key;
+		}
 	}
 
 	override layout(dimension: Dimension): void {
@@ -326,10 +396,22 @@ export class FemResultsEditor extends EditorPane {
 		try {
 			const meta = await this.readUnits(input.model);
 			this.units = chartUnits(meta);
+			// The 3D view's list: the same order in both pickers, and whether the results are stale.
+			const list = await this.commandService.executeCommand<IFemResultList>(FEM_RESULT_LIST_COMMAND, input.model).catch(() => undefined);
+			this.listKeys = list?.results.map(r => r.key) ?? [];
+			this.stale = !!list?.stale;
 			if (input.page.kind === 'charts') {
-				this.response = await this.commandService.executeCommand<IFemStoryResponse>(FEM_STORY_RESPONSE_COMMAND, input.model);
+				const response = await this.commandService.executeCommand<IFemStoryResponse>(FEM_STORY_RESPONSE_COMMAND, input.model);
+				if (request !== this.request) {
+					return;
+				}
+				this.response = input.state.response = response;
 			} else {
-				this.member = await this.commandService.executeCommand<IFemMemberForces>(FEM_MEMBER_FORCES_COMMAND, input.model, input.page.member);
+				const member = await this.commandService.executeCommand<IFemMemberForces>(FEM_MEMBER_FORCES_COMMAND, input.model, input.page.member);
+				if (request !== this.request) {
+					return;
+				}
+				this.member = input.state.member = member;
 				this.interaction = undefined;
 				this.interactionState = 'idle';
 				this.required = undefined;
@@ -463,13 +545,32 @@ export class FemResultsEditor extends EditorPane {
 			return { severity: 'error', text: this.problem };
 		}
 		const notes = this.response?.notes ?? this.member?.notes ?? [];
+		if (this.stale) {
+			return { severity: 'warning', text: [localize('femResults.staleStatus', "The model changed after this analysis ran: these results are out of date until it is run again."), ...notes].join(' ') };
+		}
 		return notes.length ? { text: notes.join(' ') } : undefined;
 	}
 
-	private updatePickers(options: readonly { readonly key: string; readonly label: string }[]): void {
+	/**
+	 * The result picker's options; the result shown stays picked, else the one asked for (by
+	 * its label), else `fallback`, else the first.
+	 */
+	private updatePickers(options: readonly { readonly key: string; readonly label: string }[], fallback?: string): void {
 		this.pickerKeys = options.map(o => o.key);
-		const index = Math.max(0, this.pickerKeys.indexOf(this.picked ?? ''));
-		this.picked = this.pickerKeys[index];
+		if (options.length && this.requested !== undefined) {
+			const asked = options.find(o => o.label === this.requested);
+			this.requested = undefined;
+			if (asked) {
+				this.setPicked(asked.key);
+			}
+		}
+		let index = this.pickerKeys.indexOf(this.picked ?? '');
+		if (index < 0) {
+			index = Math.max(0, this.pickerKeys.indexOf(fallback ?? ''));
+		}
+		if (options.length) {
+			this.setPicked(this.pickerKeys[index]);
+		}
 		this.resultPicker.setOptions(options.map<ISelectOptionItem>(o => ({ text: o.label })), index);
 		this.resultGroup.classList.toggle('hidden', !options.length);
 	}
@@ -496,9 +597,9 @@ export class FemResultsEditor extends EditorPane {
 			this.updatePickers([]);
 			return;
 		}
-		// The combinations first (what the members are designed for), then the cases.
-		const ordered = [...response.results.filter(r => r.kind === 'combination'), ...response.results.filter(r => r.kind !== 'combination')];
-		this.updatePickers(ordered.map(r => ({ key: r.key, label: r.label })));
+		// As the 3D view lists them; a lateral result first, since gravity has no storey response.
+		const ordered = orderLike(response.results, this.listKeys);
+		this.updatePickers(ordered.map(r => ({ key: r.key, label: r.label })), defaultChartResult(ordered)?.key);
 		const result = ordered.find(r => r.key === this.picked);
 		if (result) {
 			this.renderStoreys(response, result);
@@ -551,16 +652,25 @@ export class FemResultsEditor extends EditorPane {
 	}
 
 	private renderStoreys(response: IFemStoryResponse, result: IFemStoryResult): void {
+		const spectrum = result.kind === 'spectrum';
+		const scale = result.forceScale ?? undefined;
 		const section = this.section(
 			localize('femResults.storeyHeadingOf', "Storey Response: {0}", result.label),
-			result.kind === 'spectrum'
-				? localize('femResults.spectrumHelp', "Peak values of the response spectrum case (no signs). Storey forces and shears combine the modes' inertia forces storey by storey.")
-				: localize('femResults.storeyHelp', "Displacements are the largest at each level; drift is the largest inter-storey drift ratio over the plan positions; forces are the lateral loads at the levels."),
+			!spectrum
+				? localize('femResults.storeyHelp', "Displacements are the largest at each level; drift is the largest inter-storey drift ratio over the plan positions; forces are the lateral loads at the levels.")
+				: scale !== undefined
+					? localize('femResults.spectrumScaledHelp', "Peak values of the response spectrum case (no signs). Storey forces, shears and overturning are scaled by {0} to 0.85·V as the design uses them ({1}); displacements and drifts are unscaled, as BNBC requires for drift. Drifts combine the modal drifts, as the spectrum design does.", scale.toFixed(3), response.spectrumDesign?.clause ?? 'BNBC 2020 Part 6 Sec 2.5.9.4')
+					: localize('femResults.spectrumUnscaledHelp', "Peak values of the response spectrum case (no signs), unscaled: the response spectrum design (Design Utilisation) has not been worked out for this run, so the forces are not yet scaled to 0.85·V (BNBC 2020 Part 6 Sec 2.5.9.4). Drifts combine the modal drifts, as the spectrum design does."),
 		);
 		const grid = this.grid(section);
 		const limit = elasticDriftLimit(response.driftLimit);
 		for (const quantity of STOREY_QUANTITIES) {
 			const unit = this.storeyUnit(quantity);
+			// A spectrum case's values say whether they are at the design level.
+			const forceLike = quantity === 'force' || quantity === 'shear' || quantity === 'overturning';
+			const title = !spectrum ? storeyQuantityLabel(quantity)
+				: forceLike && scale !== undefined ? localize('femResults.scaledTitle', "{0} (scaled ×{1})", storeyQuantityLabel(quantity), scale.toFixed(2))
+					: localize('femResults.unscaledTitle', "{0} (unscaled)", storeyQuantityLabel(quantity));
 			const series: IChartSeries[] = [];
 			const captions: string[] = [];
 			const marks: { x: number; y: number; text: string; color: ChartColor }[] = [];
@@ -584,14 +694,25 @@ export class FemResultsEditor extends EditorPane {
 					marks.push({ x: peak.value * unit.scale, y: peak.z, text: show(peak.value), color: AXIS_COLORS[axis] });
 				}
 			}
-			const guides = quantity === 'drift' && limit !== undefined && (isEarthquakeResult(result.label) || result.kind === 'spectrum')
+			const guides = quantity === 'drift' && limit !== undefined && (isEarthquakeResult(result.label) || spectrum)
 				? [{ axis: 'x' as const, value: limit, label: localize('femResults.driftLimit', "BNBC limit {0}", limit.toFixed(5)), color: 'red' as const }]
 				: [];
 			if (quantity === 'drift' && response.driftLimit && guides.length) {
 				captions.push(localize('femResults.driftLimitCaption', "Limit: Δa/hsx = {0} (Table 6.2.21) on the design drift Cd·δ/I, so {1} on the analysis drift (Cd = {2}, I = {3}).", response.driftLimit.ratio, limit!.toFixed(5), response.driftLimit.cd ?? '–', response.driftLimit.importance ?? '–'));
 			}
+			if (quantity === 'drift' && spectrum) {
+				// The design check's own figure (with the accidental torsion), the one the
+				// Design Utilisation reports, so the two never seem to disagree.
+				for (const axis of this.axes()) {
+					const rows = (response.spectrumDesign?.drift ?? []).filter(d => d.direction === axis);
+					const worst = rows.reduce<typeof rows[number] | undefined>((w, d) => !w || d.ratio > w.ratio ? d : w, undefined);
+					if (worst) {
+						captions.push(localize('femResults.designDriftCaption', "{0}: design drift Cd·δ/I with the accidental torsion {1} % between {2} and {3} m (allowable {4} %, {5}).", axis, (100 * worst.ratio).toFixed(2), worst.bottom, worst.top, (100 * worst.allowableRatio).toFixed(2), worst.ok ? localize('femResults.ok', "OK") : localize('femResults.notOk', "exceeded")));
+					}
+				}
+			}
 			renderChart(grid, {
-				title: storeyQuantityLabel(quantity),
+				title,
 				xLabel: withUnit(storeyQuantityLabel(quantity), unit),
 				yLabel: localize('femResults.elevation', "Elevation [m]"),
 				series,
@@ -693,8 +814,7 @@ export class FemResultsEditor extends EditorPane {
 		const combos = detail.results.filter(r => r.kind === 'combination');
 		const options = [
 			...(combos.length ? [{ key: ENVELOPE, label: localize('femResults.envelope', "Envelope of the combinations") }] : []),
-			...combos.map(r => ({ key: r.key, label: r.label })),
-			...detail.results.filter(r => r.kind !== 'combination').map(r => ({ key: r.key, label: r.label })),
+			...orderLike(detail.results, this.listKeys).map(r => ({ key: r.key, label: r.label })),
 		];
 		this.updatePickers(options);
 		const envelope = this.picked === ENVELOPE;
@@ -704,6 +824,7 @@ export class FemResultsEditor extends EditorPane {
 		const facts = append(this.body, $('.fem-results-facts'));
 		for (const [name, value] of [
 			[localize('femResults.kind', "Member"), `${member} · ${kind}`],
+			...(detail.section ? [[localize('femResults.section', "Section"), detail.section]] : []),
 			[localize('femResults.length', "Length"), `${detail.length.toFixed(3)} m`],
 			[localize('femResults.elements', "Analysis elements"), detail.elements.join(', ')],
 			[localize('femResults.shown', "Shown"), envelope ? localize('femResults.envelope', "Envelope of the combinations") : result?.label ?? ''],
@@ -714,16 +835,16 @@ export class FemResultsEditor extends EditorPane {
 		}
 
 		const forces = this.section(localize('femResults.forcesHeading', "Forces Along the Member"), detail.kind === 'column'
-			? localize('femResults.columnAxes', "From the bottom of the column (0 m) up. Member axes: 1 along it; tension positive; moments drawn as computed (My about local 2, Mz about local 3).")
-			: localize('femResults.beamAxes', "From the member's start (0 m). Member axes: 1 along it; tension positive; sagging My negative (tension at the bottom)."));
+			? localize('femResults.columnAxes', "From the bottom of the column (0 m) up. Member axes: 1 along it; tension positive; V2 and M3 act in the local 1-2 plane, V3 and M2 in the 1-3 plane; values signed as computed.")
+			: localize('femResults.beamAxes', "From the member's start (0 m). Member axes: 1 along it; tension positive; sagging M2 negative (tension at the bottom), hogging positive."));
 		const grid = this.grid(forces);
 		const components: readonly { readonly c: MemberComponent | 'u2' | 'u3'; readonly title: string; readonly unit: IUnit }[] = [
 			{ c: 'N', title: localize('femResults.axial', "Axial Force N"), unit: this.units.force },
 			{ c: 'Vy', title: localize('femResults.shear2', "Shear V2"), unit: this.units.force },
 			{ c: 'Vz', title: localize('femResults.shear3', "Shear V3"), unit: this.units.force },
 			{ c: 'T', title: localize('femResults.torsion', "Torsion T"), unit: this.units.moment },
-			{ c: 'My', title: localize('femResults.moment2', "Moment M2 (My)"), unit: this.units.moment },
-			{ c: 'Mz', title: localize('femResults.moment3', "Moment M3 (Mz)"), unit: this.units.moment },
+			{ c: 'My', title: localize('femResults.moment2', "Moment M2"), unit: this.units.moment },
+			{ c: 'Mz', title: localize('femResults.moment3', "Moment M3"), unit: this.units.moment },
 			{ c: 'u2', title: localize('femResults.deflection2', "Deflection u2 (relative to the chord)"), unit: this.units.length },
 			{ c: 'u3', title: localize('femResults.deflection3', "Deflection u3 (relative to the chord)"), unit: this.units.length },
 		];
@@ -766,6 +887,7 @@ export class FemResultsEditor extends EditorPane {
 				series,
 				marks,
 				include: { x: [0, detail.length], y: [0] },
+				xDomain: [0, detail.length],
 				caption,
 				height: 220,
 			});
@@ -879,6 +1001,7 @@ export class FemResultsEditor extends EditorPane {
 				yLabel: localize('femResults.area', "Steel area [mm²]"),
 				series,
 				include: { x: [0, detail.length] },
+				xDomain: [0, detail.length],
 				caption: rows.some(r => r.ok === false) ? localize('femResults.steelShort', "Bars short of the requirement: {0}", rows.filter(r => r.ok === false).map(r => `${r.location} ${r.quantity}`).join(', ')) : undefined,
 			});
 		}

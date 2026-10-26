@@ -165,12 +165,15 @@ def demand(
     mep: Any = None,
     hvac: list[dict[str, Any]] | None = None,
     extra: list[dict[str, Any]] | None = None,
+    default_use: str | None = None,
 ) -> dict[str, Any]:
     """The connected load and maximum demand.
 
     ``hvac``: the air-conditioning plant's loads ``[{id, kind, story, kw, note}]`` (default:
     :func:`hvac_loads` of ``mep``); ``extra``: other loads the caller adds (``[{id, kw,
-    note}]``, e.g. the plumbing pumps when 07 MEP lists no pump motor)."""
+    note}]``, e.g. the plumbing pumps when 07 MEP lists no pump motor); ``default_use``: the Table
+    8.1.17 row of the building use (02 Project Settings) for a story without an electrical row,
+    or with a row that gives no use of its own."""
     supply = electrical.supply
     order = story_order(electrical, building)
     notes: list[str] = []
@@ -183,48 +186,28 @@ def demand(
     pf = supply.powerFactor or T.POWER_FACTOR
     stories = []
     by_id = {s.story: s for s in electrical.stories}
+    fallback = default_use if default_use in T.USES else None
+    # Every story below the roof draws a load: one without an electrical row takes the building
+    # use of 02 Project Settings (Sec 1.3.2: the load floor by floor).
+    below_roof = order[:-1] if building.known else []
     ordered = [s for s in order if s in by_id] + [s for s in by_id if s not in order]
+    if fallback:
+        ordered = [s for s in order if s in by_id or s in below_roof] + [
+            s for s in by_id if s not in order
+        ]
     for sid in ordered:
-        entry = by_id[sid]
-        use = T.USES[entry.use]
-        ac = entry.airConditioned
-        if ac is None:
-            ac = conditioned.get(sid, False)
-        if entry.area is not None:
-            area, area_source = float(entry.area), "entered"
-        else:
-            area, area_source = story_area(sid, building, order)
-        story_notes = []
-        if ac and (cooled is None or sid in cooled):
-            minimum, column = use.non_ac, "non-A/C (the hvac plant carries the cooling)"
-        elif ac and use.ac is None:
-            minimum, column = use.non_ac, "non-A/C (the table gives no A/C value)"
-            story_notes.append("Table 8.1.17 gives no A/C density for this use: add the cooling")
-        elif ac:
-            minimum, column = float(use.ac or 0.0), "A/C"
-        else:
-            minimum, column = use.non_ac, "non-A/C"
-        entered = None
-        if entry.lighting is not None or entry.power is not None:
-            entered = (entry.lighting or 0.0) + (entry.power or 0.0)
-        unit = minimum if entered is None else max(entered, minimum)
-        if entered is not None and entered < minimum:
-            story_notes.append(
-                f"lighting + power {entered:g} W/m² below the minimum {minimum:g} W/m² of "
-                "Table 8.1.17: the minimum is used"
+        stories.append(
+            _story_load(
+                sid, by_id.get(sid), fallback, building, order, conditioned, cooled, factor, pf
             )
-        other = float(entry.other or 0.0)
-        connected = unit * area / 1000.0 + other
-        stories.append({
-            "story": sid, "name": building.names.get(sid, sid), "use": entry.use,
-            "airConditioned": bool(ac), "area": area, "areaSource": area_source,
-            "minimumDensity": minimum, "column": column, "entered": entered,
-            "density": unit, "other": other, "connected": connected,
-            "demand": connected * factor, "kva": connected * factor / pf,
-            "notes": story_notes,
-        })  # fmt: skip
-    missing = [s for s in order[:-1] if s not in by_id]  # the top level is the roof
-    if missing and electrical.stories:
+        )
+    missing = [s for s in below_roof if s not in by_id]
+    if missing and fallback:
+        notes.append(
+            "stories without an electrical row take the building use of 02 Project Settings "
+            f"({T.USES[fallback].label}): {', '.join(missing)}"
+        )
+    elif missing and electrical.stories:
         notes.append(f"stories without an electrical entry draw nothing: {', '.join(missing)}")
     motors = []
     for m in electrical.motors:
@@ -273,6 +256,110 @@ def demand(
         "current": current,
         "notes": notes,
     }
+
+
+def _story_load(
+    sid: str,
+    entry: Any,
+    fallback: str | None,
+    building: Building,
+    order: list[str],
+    conditioned: dict[str, bool],
+    cooled: set[str] | None,
+    factor: float,
+    pf: float,
+) -> dict[str, Any]:
+    """One story's connected load and its breakdown: lighting, power and socket outlets, the
+    air-conditioning share of Table 8.1.17 and the other loads, each with where it comes from.
+
+    Table 8.1.17 gives one minimum density for the lighting and the power together (non-A/C)
+    and a higher one with air conditioning. A blank lighting or power takes the rest of the
+    non-A/C density after the other one; the total is raised to the minimum when below it."""
+    given = entry.model_fields_set if entry is not None else set()
+    if entry is not None and ("use" in given or not fallback):
+        key, use_source = entry.use, "entered"
+    else:
+        key, use_source = fallback or "office", "02 Project Settings building use"
+    use = T.USES[key]
+    ac = entry.airConditioned if entry is not None else None
+    if ac is None:
+        ac = conditioned.get(sid, False)
+    if entry is not None and entry.area is not None:
+        area, area_source = float(entry.area), "entered"
+    else:
+        area, area_source = story_area(sid, building, order)
+    notes: list[str] = []
+    table = T.PAGES["8.1.17"]
+    ac_share, ac_source = 0.0, ""
+    if ac and (cooled is None or sid in cooled):
+        minimum, column = use.non_ac, "non-A/C (the hvac plant carries the cooling)"
+        ac_source = "in the hvac plant's load"
+    elif ac and use.ac is None:
+        minimum, column = use.non_ac, "non-A/C (the table gives no A/C value)"
+        notes.append("Table 8.1.17 gives no A/C density for this use: add the cooling")
+    elif ac:
+        minimum, column = float(use.ac or 0.0), "A/C"
+        ac_share, ac_source = minimum - use.non_ac, f"A/C less non-A/C density, {table}"
+    else:
+        minimum, column = use.non_ac, "non-A/C"
+    lighting = entry.lighting if entry is not None else None
+    power = entry.power if entry is not None else None
+    entered = None if lighting is None and power is None else (lighting or 0.0) + (power or 0.0)
+    base = use.non_ac
+    rest = f"the rest of the {base:g} W/m² of {table}"
+    if lighting is None and power is None:
+        light_used = power_used = None
+    elif power is None:
+        light_used, light_source = float(lighting), "entered"
+        power_used, power_source = max(base - light_used, 0.0), rest
+        if light_used >= base:
+            notes.append(
+                f"lighting {light_used:g} W/m² is already the {base:g} W/m² of Table 8.1.17: "
+                "enter the power and socket-outlet load"
+            )
+    elif lighting is None:
+        power_used, power_source = float(power), "entered"
+        light_used, light_source = max(base - power_used, 0.0), rest
+    else:
+        light_used, light_source = float(lighting), "entered"
+        power_used, power_source = float(power), "entered"
+    general = base if light_used is None else max(light_used + power_used, base)
+    unit = max(general + ac_share, minimum)
+    if light_used is not None and light_used + power_used + ac_share < minimum - 1e-9:
+        notes.append(
+            f"lighting + power {entered:g} W/m² below the minimum {minimum:g} W/m² of "
+            "Table 8.1.17: the minimum is used"
+        )
+    other = float(entry.other or 0.0) if entry is not None else 0.0
+    connected = unit * area / 1000.0 + other
+
+    def part(name: str, density: float | None, kw: float, source: str) -> dict[str, Any]:
+        return {"part": name, "density": density, "kw": kw, "source": source}
+
+    if light_used is None:
+        breakdown = [part("lightingAndPower", base, base * area / 1000.0,
+                          f"lighting and power together, {table}")]  # fmt: skip
+    else:
+        breakdown = [
+            part("lighting", light_used, light_used * area / 1000.0, light_source),
+            part("power", power_used, power_used * area / 1000.0, power_source),
+        ]
+        if light_used + power_used < base - 1e-9:
+            raise_by = base - light_used - power_used
+            breakdown.append(part("minimum", raise_by, raise_by * area / 1000.0,
+                                  f"raised to the {base:g} W/m² minimum, {table}"))  # fmt: skip
+    if ac_share or ac_source:
+        breakdown.append(part("airConditioning", ac_share, ac_share * area / 1000.0, ac_source))
+    if other:
+        breakdown.append(part("other", None, other, "entered"))
+    return {
+        "story": sid, "name": building.names.get(sid, sid), "use": key, "useLabel": use.label,
+        "useSource": use_source, "airConditioned": bool(ac), "area": area,
+        "areaSource": area_source, "minimumDensity": minimum, "column": column,
+        "entered": entered, "lighting": light_used, "power": power_used, "acShare": ac_share,
+        "density": unit, "other": other, "connected": connected, "breakdown": breakdown,
+        "demand": connected * factor, "kva": connected * factor / pf, "notes": notes,
+    }  # fmt: skip
 
 
 def essential(motor: Any) -> bool:

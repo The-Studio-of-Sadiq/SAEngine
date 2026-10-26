@@ -488,7 +488,8 @@ export interface IFemSolverService {
 	 * sizing, the tanks' RC design (`tankDesigns`), the hydraulics, the sleeves still missing;
 	 * plain JSON, or `{problems}`.
 	 */
-	plumbingReport(python: string, projectRoot: string, mepText?: string): Promise<object>;
+	/** `designs: 'cached'`: the quick first pass, the tank designs not yet cached listed as pending. */
+	plumbingReport(python: string, projectRoot: string, mepText?: string, designs?: boolean | 'cached'): Promise<object>;
 
 	/** The tanks SAEngine proposes (`{tanks, notes}`, 7 MEP's `plumbing.tanks` format), or `{problems}`. */
 	plumbingSizeTanks(python: string, projectRoot: string, mepText?: string): Promise<object>;
