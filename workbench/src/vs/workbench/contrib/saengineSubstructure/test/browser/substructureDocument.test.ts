@@ -213,6 +213,9 @@ suite('SAEngine - Substructure', () => {
 				// A wall on an isolated footing, and on the strip already.
 				'warning foundations.9.columns',
 				'error foundations.9.columns',
+				// Pile types without bars: checked as plain concrete (BNBC 2020 Part 6 Table 6.3.11 gives the least).
+				'warning pileTypes.0.reinforcement',
+				'warning pileTypes.1.reinforcement',
 				'error pileTypes.1.material',
 				'error tieBeams.0.to',
 				'warning tieBeams.0.type',
