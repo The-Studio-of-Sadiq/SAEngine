@@ -147,6 +147,115 @@
 	font-size: 14px;
 }
 
+.saengine-building-editor .building-table.two {
+	grid-template-columns: repeat(2, auto);
+}
+
+.saengine-building-editor .building-problems-link,
+.saengine-building-editor .sa-props-link {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+
+.saengine-building-editor .building-problems-heading:focus {
+	outline: none;
+}
+
+/* over the 3D view: presets and story filter (top left), legend (bottom left), notes (centre) */
+.saengine-building-editor .building-3d-tools {
+	position: absolute;
+	top: var(--sa-space-2, 8px);
+	left: var(--sa-space-2, 8px);
+	z-index: 2;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+}
+
+.saengine-building-editor .building-story-filter {
+	height: 28px;
+	padding: 0 var(--sa-space-1, 4px);
+	border: 1px solid var(--sa-border, var(--vscode-panel-border));
+	border-radius: var(--sa-radius, 4px);
+	background: var(--vscode-dropdown-background);
+	color: var(--vscode-dropdown-foreground);
+	font-family: inherit;
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-building-editor .building-legend {
+	position: absolute;
+	left: var(--sa-space-2, 8px);
+	bottom: var(--sa-space-2, 8px);
+	z-index: 2;
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--sa-space-1, 4px);
+	max-width: calc(100% - 2 * var(--sa-space-2, 8px));
+}
+
+.saengine-building-editor .building-legend-item {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1, 4px);
+	height: 24px;
+	padding: 0 var(--sa-space-2, 8px);
+	border: 1px solid var(--sa-border, var(--vscode-panel-border));
+	border-radius: 12px;
+	background: var(--sa-surface, var(--vscode-editor-background));
+	color: var(--vscode-foreground);
+	font-family: inherit;
+	font-size: var(--sa-font-s, 12px);
+	cursor: pointer;
+}
+
+.saengine-building-editor .building-legend-item .swatch {
+	width: 10px;
+	height: 10px;
+	border-radius: 2px;
+}
+
+.saengine-building-editor .building-legend-item .count {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-building-editor .building-legend-item.off {
+	opacity: 0.55;
+}
+
+.saengine-building-editor .building-legend-item.off .label {
+	text-decoration: line-through;
+}
+
+.saengine-building-editor .building-legend-item:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+}
+
+.saengine-building-editor .building-3d-note {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	z-index: 2;
+	transform: translate(-50%, -50%);
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+	max-width: min(460px, 80%);
+	padding: var(--sa-space-3, 12px) var(--sa-space-4, 16px);
+	border: 1px solid var(--sa-border, var(--vscode-panel-border));
+	border-radius: var(--sa-radius, 4px);
+	background: var(--sa-surface, var(--vscode-editor-background));
+	color: var(--vscode-foreground);
+	line-height: 1.5;
+	text-align: center;
+}
+
+.saengine-building-editor .building-3d .building-viewport .hidden {
+	display: none;
+}
+
 /* ── the structural model form (structureEditor.ts) ───────────────────────────────────────── */
 
 .saengine-structure-form .library-body {

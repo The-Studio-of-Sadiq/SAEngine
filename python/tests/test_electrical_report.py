@@ -189,3 +189,20 @@ def test_mep_without_electrical_still_parses() -> None:
         MepModel.model_validate({"schema": "saengine.mep/1", "electrical": {
             "motors": [{"id": "A", "power": 1}], "trays": [
                 {"id": "A", "story": "L1", "path": [[0, 0], [1, 0]], "width": 100}]}})  # fmt: skip
+
+
+def test_summary_follows_the_supply_entered_and_flags_oversizing() -> None:
+    # E9: an 11 kV supply with a 100 kVA transformer and a 50 kVA generator for a tiny load.
+    from types import SimpleNamespace
+
+    from saengine.electrical.report import _generator_line, _substation_line
+
+    supply = SimpleNamespace(voltage="11kV")
+    tx = SimpleNamespace(rating=100)
+    line = _substation_line(False, supply, {}, [tx], 100.0, {"kva": 9.0})
+    assert "No substation" not in line
+    assert "oversized" in line and "0.4 kV supply would do" in line
+    gen = {"kva": 50.0, "required": 1.0, "fuel": 86.0, "fuelHours": 8.0}
+    line = _generator_line(gen, {"kw": 0.5}, [SimpleNamespace(rating=50)])
+    assert line.count("50 kVA") == 1 and "entered" in line and "oversized" in line
+    assert _substation_line(False, SimpleNamespace(voltage="0.4kV"), {}, [], 0.0, {"kva": 9.0})

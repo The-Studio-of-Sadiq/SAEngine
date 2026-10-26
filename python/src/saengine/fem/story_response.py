@@ -12,7 +12,9 @@ settings and response spectrum case:
   combination from its lateral nodal loads (SAEngine applies lateral loads at the storey levels
   only), each load given to the nearest level and scaled by the load factor the case reached; of
   a response spectrum case from the modal inertia forces ``m ω² u`` of every mode, combined over
-  the modes with the case's own rule (SRSS or CQC) storey by storey;
+  the modes with the case's own rule (SRSS or CQC) storey by storey, and scaled like the
+  spectrum design (0.85·V/V_rs, BNBC 2020 Part 6 Sec 2.5.9.4) when it has been worked out;
+  its drifts are the spectrum design's (the modal drifts combined, unscaled);
 - the base reactions (sum over the supports) of the static cases and combinations.
 
 Also the modal periods with the mass participation in X and Y (of the response spectrum cases,
@@ -203,6 +205,58 @@ def _drifts(
     return out[0], out[1]
 
 
+def _spectrum_drifts(
+    project: dict[str, Any], entry: dict[str, Any], results: Any, levels: list[float]
+) -> tuple[list[float | None], list[float | None]] | None:
+    """The drift ratios of a response spectrum case in X and Y as the spectrum design works
+    them out (:func:`saengine.fem.seismic_design.storey_drifts`): per storey the modal
+    combination of the modal drifts, unscaled (BNBC 2020 Part 6 Sec 2.5.9.4, p. 635), the
+    largest over the plan positions. None when the manifest has no modes (older runs)."""
+    from saengine.fem.seismic_design import storey_drifts
+
+    try:
+        data = {
+            "modes": [dict(m) for m in entry["modes"]],
+            "peaks": [m.modal_peak_disp for m in results.modes],
+            "damping": entry.get("damping_ratio"),
+            "rule": str(entry.get("combination", "CQC")),
+        }
+    except (KeyError, TypeError, AttributeError):
+        return None
+    # The case's modes along both axes: the same data under each direction's key.
+    rows = storey_drifts(project, {"X": data, "Y": data}, levels, 1.0, math.inf)
+    ratio = {(r["direction"], r["bottom"], r["top"]): r["ratio"] for r in rows}
+    out = [
+        [ratio.get((axis, round(a, 3), round(b, 3))) for a, b in pairwise(levels)]
+        for axis in ("X", "Y")
+    ]
+    return out[0], out[1]
+
+
+def _spectrum_scale(out_dir: str | Path, project_path: str | Path) -> dict[str, Any] | None:
+    """The spectrum design of these results (``seismic-design.json``), when it is of this run:
+    ``{"scale": {"X", "Y"}, "drift": [rows], "clause"}``; None without one."""
+    from saengine.fem import seismic_design as rs
+
+    summary = rs.load_summary(out_dir)
+    if not summary or not summary.get("available") or "run" not in summary:
+        return None
+    try:
+        current = {rs._stamp(Path(out_dir), Path(project_path), t) for t in (False, True)}
+    except OSError:
+        return None
+    if summary["run"].get("stamp") not in current:
+        return None
+    return {
+        "scale": {"X": float(summary["scale"]["x"]), "Y": float(summary["scale"]["y"])},
+        "drift": [
+            {k: d.get(k) for k in ("direction", "bottom", "top", "ratio", "allowableRatio", "ok")}
+            for d in summary.get("drift", [])
+        ],
+        "clause": summary["scale"].get("clause", rs.CLAUSES["scale"]),
+    }
+
+
 def _storeys(
     names: list[str],
     levels: list[float],
@@ -373,9 +427,10 @@ def _base_reactions(parts: list[tuple[float, Any]], restrained: set[int]) -> lis
 def story_response(out_dir: str | Path, project_path: str | Path) -> dict[str, Any]:
     """The storey response of every result of a run, and its modal and other curves:
     ``{"levels": [{"z", "name"}], "results": [{"key", "label", "kind", "storeys": [rows],
-    "baseReaction": [Fx, Fy, Fz, Mx, My, Mz] | None}], "modal", "spectrum", "driftLimit",
-    "pushover": [{"key", "label", "displacement", "shear"}], "histories": [{"key", "label",
-    "node", "time", "displacement": [[ux, uy]]}], "notes"}``. Result keys are those of
+    "baseReaction": [Fx, Fy, Fz, Mx, My, Mz] | None, "forceScale"?}], "modal", "spectrum",
+    "driftLimit", "spectrumDesign" (:func:`_spectrum_scale`), "pushover": [{"key", "label",
+    "displacement", "shear"}], "histories": [{"key", "label", "node", "time", "displacement":
+    [[ux, uy]]}], "notes"}``. Result keys are those of
     :func:`saengine.fem.display.result_list`."""
     from opensees_studio.services.results import (
         PushoverResults,
@@ -412,6 +467,8 @@ def story_response(out_dir: str | Path, project_path: str | Path) -> dict[str, A
             notes.append(f"{entry.get('case_name')}: the results could not be read ({error})")
 
     results: list[dict[str, Any]] = []
+    # The response spectrum design of this run (read once, when there is a spectrum case).
+    design: dict[str, Any] | None = None
     # Static cases: displacements, lateral loads (scaled by the load factor reached).
     static: dict[str, tuple[dict[str, Any], Any, list[tuple]]] = {}
     pushover, histories = [], []
@@ -453,7 +510,15 @@ def story_response(out_dir: str | Path, project_path: str | Path) -> dict[str, A
                 for n, v in r.combined_disp.items()
             }
             fx, fy, vx, vy = _spectrum_forces(r, project, levels)
-            dx, dy = _drifts(project, disp, levels)
+            dx, dy = _spectrum_drifts(project, entry, r, levels) or _drifts(project, disp, levels)
+            # The forces at the design level: times the spectrum design's scale of the case's
+            # direction (Sec 2.5.9.4); the displacements and drifts stay unscaled.
+            axis = {1: "X", 2: "Y"}.get(int(getattr(r, "direction", 0) or 0))
+            if design is None:
+                design = _spectrum_scale(out_dir, project_path) or {}
+            factor = (design.get("scale") or {}).get(axis) if axis else None
+            if factor is not None:
+                fx, fy, vx, vy = (factor * v for v in (fx, fy, vx, vy))
             results.append(
                 {
                     "key": key,
@@ -463,6 +528,7 @@ def story_response(out_dir: str | Path, project_path: str | Path) -> dict[str, A
                         names, levels, _displacements(disp, level_nodes), dx, dy, fx, fy, vx, vy
                     ),
                     "baseReaction": None,
+                    "forceScale": factor,
                 }
             )
         elif isinstance(r, PushoverResults):
@@ -479,9 +545,17 @@ def story_response(out_dir: str | Path, project_path: str | Path) -> dict[str, A
             if history is not None:
                 histories.append({"key": key, "label": entry["case_name"], **history})
     if any(r["kind"] == "spectrum" for r in results):
+        scaled = any(r.get("forceScale") is not None for r in results)
         notes.append(
-            "Response spectrum drifts are the differences of the peak level displacements, an "
-            "upper estimate; the design drifts of the spectrum design combine the modal drifts."
+            "Response spectrum drifts combine the modal drifts storey by storey, as the "
+            "spectrum design does; displacements and drifts are unscaled (BNBC 2020 Part 6 "
+            "Sec 2.5.9.4, p. 635). "
+            + (
+                "Storey forces, shears and overturning are scaled to 0.85·V like the design."
+                if scaled
+                else "Storey forces, shears and overturning are unscaled: the response "
+                "spectrum design has not been worked out for this run."
+            )
         )
 
     # The load combinations of the project settings, factored sums of the static cases.
@@ -528,6 +602,7 @@ def story_response(out_dir: str | Path, project_path: str | Path) -> dict[str, A
             "modal": _modal(project_path, loaded, notes),
             "spectrum": _spectrum_curve(project),
             "driftLimit": _drift_limit(project_path),
+            "spectrumDesign": design or None,
             "pushover": pushover,
             "histories": histories,
             "notes": notes,

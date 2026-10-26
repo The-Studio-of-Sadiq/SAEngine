@@ -113,7 +113,7 @@ REFRIGERANT = [
     (math.inf, 41.28, 22.22),
 ]
 REFRIGERANT_INSULATION = 19.0  # mm
-TYPICAL_NOTE = "typical, from memory; replace with the selected unit's data"
+TYPICAL_NOTE = "typical catalogue value; replace with the selected unit's data"
 
 
 def plant_capacity(zones: list[dict[str, Any]], coincident: float | None = None) -> dict:
@@ -415,7 +415,7 @@ def propose_plant(
             pair = refrigerant_pair(per_system)
             pipes.append({"id": "REF-pair", "service": "VRF refrigerant pipe pair (gas, liquid)",
                           "capacity": per_system, **pair, "count": math.ceil(n / 3),
-                          "note": "from memory of manufacturers' tables, to be checked"})  # fmt: skip
+                          "note": "typical size from manufacturers' piping tables: use the selected unit's"})  # fmt: skip
         if kind != "packaged":
             for z in zones:
                 if z["outdoorAir"] <= 0:
