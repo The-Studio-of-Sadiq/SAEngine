@@ -10,7 +10,7 @@ import { IMep, newMep, parseMep, readMepContext, serializeMep } from '../../brow
 import { renderPlan } from '../../browser/mepPlan.js';
 import {
 	checkElectrical, connectedLoads, electricalExtent, electricalFailures, electricalOf, electricalSummary, ensureElectrical, hasElectrical, mergeProposedEquipment, newElecEquipment, newElecRiser,
-	newTray, readElectricalReport, readElecUses, readProposedEquipment, STATIC_ELEC_USES,
+	newTray, readElectricalReport, readElecUses, readProposedEquipment,
 } from '../../browser/electricalDocument.js';
 import { renderElectrical } from '../../browser/electricalPlan.js';
 import { renderElectricalReport } from '../../browser/electricalResults.js';
@@ -98,7 +98,6 @@ suite('SAEngine MEP electrical', () => {
 		// L1: 30 m² x (10 + 75) W/m² = 2.55 kW, + 5 kW other = 7.55 kW.
 		assert.deepStrictEqual(connectedLoads(document, CONTEXT).map(l => [l.story, l.area, Number(l.lighting.toFixed(3)), Number(l.power.toFixed(3)), l.other, Number(l.total.toFixed(3))]),
 			[['L1', 30, 0.3, 2.25, 5, 7.55]]);
-		assert.deepStrictEqual(STATIC_ELEC_USES.find(u => u.key === 'office'), { key: 'office', label: 'Office and commercial multi-storeyed', nonAc: 28, ac: 75, source: 'Table 8.1.17' });
 	});
 
 	test('checks the contract rules', () => {

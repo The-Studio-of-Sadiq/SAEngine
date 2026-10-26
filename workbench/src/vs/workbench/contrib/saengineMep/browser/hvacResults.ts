@@ -33,7 +33,9 @@ export function renderHvacReport(view: HTMLElement, report: IHvacReport, host: I
 	const engine = append(view, $(`.hvac-engine${report.estimate ? '.estimate' : ''}`));
 	append(engine, $('span.hvac-engine-label', undefined, localize('hvacResults.engine', "Cooling loads")));
 	append(engine, $('span.hvac-engine-value', undefined, report.estimate
-		? localize('hvacResults.estimate', "estimate (Calculate Loads runs EnergyPlus for the design day)")
+		? report.energyPlusFound === false
+			? localize('hvacResults.estimateNoEnergyPlus', "SAEngine's estimate: EnergyPlus 26.2 is not installed (install it, or set SAENGINE_ENERGYPLUS, for the design-day loads)")
+			: localize('hvacResults.estimate', "estimate (Calculate Loads runs EnergyPlus for the design day)")
 		: report.computed ? localize('hvacResults.engineAt', "{0}, {1}", report.engine, report.computed) : report.engine));
 
 	const tile = tiles(view);

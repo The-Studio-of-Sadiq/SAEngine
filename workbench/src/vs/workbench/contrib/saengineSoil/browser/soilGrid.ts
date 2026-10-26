@@ -26,6 +26,8 @@ export interface IGridState {
 	/** Whole rows are selected (by their row headers): Delete then removes them. */
 	rowSelection?: boolean;
 	readonly collapsed: Set<string>;
+	/** The column a run of Tabs started in: Enter goes back to it on the next row (as in Excel). */
+	tabStart?: number;
 	scrollTop?: number;
 	scrollLeft?: number;
 }
@@ -388,6 +390,7 @@ export class SoilGrid extends Disposable {
 			return; // a click inside the cell being edited places the caret
 		}
 		this.commitEdit(false);
+		this.options.state.tabStart = undefined;
 		e.preventDefault();
 		this.scroller.focus({ preventScroll: true });
 		this.setActive({ row, column }, e.shiftKey);
@@ -404,8 +407,7 @@ export class SoilGrid extends Disposable {
 		const move = (to: SheetMove, extend = false) => {
 			e.preventDefault();
 			e.stopPropagation();
-			const state = this.options.state;
-			this.setActive(moveCell(state.active, to, this.visibleColumns(), this.sheet.rowCount(), this.options.newRow !== false), extend);
+			this.setActive(this.target(this.options.state.active, to), extend);
 		};
 		switch (e.key) {
 			case 'ArrowUp': return move(ctrl ? 'top' : 'up', e.shiftKey);
@@ -605,9 +607,27 @@ export class SoilGrid extends Disposable {
 		}
 	}
 
+	/**
+	 * Where a move from `from` lands. Tab and Shift+Tab remember where their run started; Enter
+	 * after them goes down to that column (as in Excel), so a row typed with Tab and finished
+	 * with Enter starts the next row in the same column. Any other move ends the run.
+	 */
+	private target(from: ICellPosition, move: SheetMove): ICellPosition {
+		const state = this.options.state;
+		const step = (position: ICellPosition, to: SheetMove) => moveCell(position, to, this.visibleColumns(), this.sheet.rowCount(), this.options.newRow !== false);
+		if (move === 'tab' || move === 'shiftTab') {
+			const next = step(from, move);
+			state.tabStart = next.row === from.row ? state.tabStart ?? from.column : undefined;
+			return next;
+		}
+		const start = state.tabStart;
+		state.tabStart = undefined;
+		return move === 'enter' && start !== undefined ? step({ row: from.row, column: start }, 'enter') : step(from, move);
+	}
+
 	private moveAfterEdit(move: SheetMove, from: ICellPosition, update = true): void {
 		const state = this.options.state;
-		const next = moveCell(from, move, this.visibleColumns(), this.sheet.rowCount(), this.options.newRow !== false);
+		const next = this.target(from, move);
 		state.active = next;
 		state.anchor = undefined;
 		if (update) {

@@ -191,3 +191,98 @@
 .saengine-section-designer .section-axes {
 	margin-bottom: var(--sa-space-2);
 }
+
+/* ── dimensions on the drawing ──────────────────────────────────────────── */
+
+.saengine-section-designer .section-dimensions line {
+	stroke: var(--sa-muted);
+	stroke-width: 1;
+}
+
+.saengine-section-designer .section-dimensions text {
+	fill: var(--sa-muted);
+	font-size: var(--sa-font-s);
+	font-variant-numeric: tabular-nums;
+	pointer-events: none;
+}
+
+.saengine-section-designer .section-dimensions text.edge {
+	fill: var(--vscode-foreground);
+	paint-order: stroke;
+	stroke: var(--sa-surface);
+	stroke-width: 3px;
+}
+
+/* ── corners of the selected region ─────────────────────────────────────── */
+
+.saengine-section-designer .section-vertices {
+	width: 100%;
+	border-collapse: collapse;
+	margin-bottom: var(--sa-space-2);
+	font-size: var(--sa-font-s);
+}
+
+.saengine-section-designer .section-vertices th {
+	color: var(--sa-muted);
+	font-weight: normal;
+	text-align: left;
+}
+
+.saengine-section-designer .section-vertices td.index {
+	width: 24px;
+	color: var(--sa-muted);
+}
+
+.saengine-section-designer .section-vertices .section-input {
+	width: 100%;
+	box-sizing: border-box;
+}
+
+/* ── interaction diagram: expand button and the large view ──────────────── */
+
+.saengine-section-designer .section-chart-expand {
+	margin-left: auto;
+	padding: 0 var(--sa-space-1);
+	border: none;
+	background: transparent;
+	color: var(--sa-muted);
+	cursor: pointer;
+}
+
+.saengine-section-designer .section-chart-expand:hover {
+	color: var(--vscode-foreground);
+}
+
+.saengine-section-designer .section-chart-overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 3;
+	display: flex;
+	flex-direction: column;
+	gap: var(--sa-space-2);
+	padding: var(--sa-space-3);
+	background: var(--sa-surface);
+	overflow: auto;
+}
+
+.saengine-section-designer .section-chart-overlay-bar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.saengine-section-designer .section-chart-close {
+	height: 24px;
+	padding: 0 var(--sa-space-3);
+	border: 1px solid var(--sa-border);
+	border-radius: var(--sa-radius);
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	font-family: inherit;
+	cursor: pointer;
+}
+
+.saengine-section-designer .sa-props-heading:has(.section-chart-expand) {
+	display: flex;
+	align-items: center;
+}

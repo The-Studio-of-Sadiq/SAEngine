@@ -7,8 +7,9 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { signedArea } from '../../../../../platform/saengine/common/geometry.js';
 import {
-	barsAlongEdges, barsLine, barsRing, formatNumber, hitTest, interactionCurve, IUniaxial, moveSelection, newSection,
-	offsetRing, parseSection, pointInRegion, propertyRows, rectangle, regionArea, serializeSection, snapPoint, TEMPLATE_DEFAULTS, templateRegions,
+	barsAlongEdges, barsLine, barsRing, cleanProperties, formatNumber, hitTest, interactionCurve, IUniaxial, moveSelection, newSection,
+	offsetRing, parseSection, pointInRegion, propertyRows, rectangle, regionArea, sameRegions, serializeSection, snapPoint, TEMPLATE_DEFAULTS, templateFields,
+	templateProblem, templateRegions,
 } from '../../browser/sectionDesignerModel.js';
 
 suite('SAEngine - Section Designer model', () => {
@@ -57,6 +58,44 @@ suite('SAEngine - Section Designer model', () => {
 		assert.ok(boxBars.every(b => pointInRegion([b.x, b.y], box)));
 		// Outer faces 1000 - 60 from the centre, inner faces 750 + 60.
 		assert.ok(boxBars.some(b => Math.abs(b.x) === 940) && boxBars.some(b => Math.abs(b.x) === 810), 'bars on both faces');
+	});
+
+	test('bars between corners line up with the corner bars of the parallel face (L template)', () => {
+		const region = templateRegions('L', TEMPLATE_DEFAULTS.L, 'C30')[0];
+		const bars = barsAlongEdges(region, 70, 20, 150);
+		// Bar centres on (-230, ±230), (230, -230), (230, -120), (-120, -120), (-120, 230). The
+		// outer leg face x = -230 divides into 115 mm steps; its bar near the inner corner's row
+		// (y = -115) moves onto that row (y = -120).
+		assert.ok(bars.some(b => b.x === -230 && b.y === -120));
+		assert.ok(!bars.some(b => b.y === -115));
+		assert.ok(bars.every(b => pointInRegion([b.x, b.y], region)));
+	});
+
+	test('template dimensions: fields, checks and recognising the template', () => {
+		assert.deepStrictEqual(templateFields('L').map(f => f.key), ['b', 'h', 't']);
+		assert.deepStrictEqual(templateFields('I').map(f => f.key), ['b', 'h', 't', 'tf']);
+		assert.deepStrictEqual(templateFields('circle').map(f => f.key), ['b']);
+		assert.strictEqual(templateProblem('L', { b: 600, h: 600, t: 250 }), undefined);
+		assert.ok(templateProblem('L', { b: 600, h: 600, t: 700 }));
+		assert.ok(templateProblem('box', { b: 400, h: 400, t: 250 }));
+		assert.ok(templateProblem('rectangle', { b: 0, h: 600, t: 0 }));
+		const a = templateRegions('T', TEMPLATE_DEFAULTS.T, 'C30');
+		assert.ok(sameRegions(a, templateRegions('T', TEMPLATE_DEFAULTS.T, 'C30')));
+		assert.ok(!sameRegions(a, templateRegions('T', { ...TEMPLATE_DEFAULTS.T, b: 1000 }, 'C30')));
+		assert.ok(!sameRegions(a, templateRegions('T', TEMPLATE_DEFAULTS.T, 'C40')));
+	});
+
+	test('round-off in the properties of a symmetric section is shown as 0', () => {
+		const properties = {
+			referenceMaterial: 'C30', E: 25700, area: 250000, cx: 24.15e-15, cy: -10.79e-15, ixx: 5.2e9, iyy: 5.2e9, ixy: 3e-4, i11: 5.2e9, i22: 5.2e9, principalAngle: 1e-12,
+			rx: 144, ry: 144, sxTop: 2e7, sxBottom: 2e7, syRight: 2e7, syLeft: 2e7, zx: null, zy: null, j: 8e9, cw: 1e12, asx: 2e5, asy: 2e5,
+			scx: 1e-13, scy: 0, massPerLength: 600, barArea: 0, barRatio: 0,
+		};
+		const clean = cleanProperties(properties);
+		assert.deepStrictEqual([clean.cx, clean.cy, clean.scx, clean.ixy, clean.principalAngle], [0, 0, 0, 0, 0]);
+		assert.strictEqual(propertyRows(properties).find(r => r.label === 'x̄')?.value, '0');
+		// A real offset (an L's centroid) is kept.
+		assert.strictEqual(cleanProperties({ ...properties, cx: 84.5 }).cx, 84.5);
 	});
 
 	test('lines and rings of bars', () => {

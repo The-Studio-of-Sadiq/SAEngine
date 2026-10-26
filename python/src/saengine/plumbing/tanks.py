@@ -18,16 +18,16 @@ upward with the base held along the walls' lines: :func:`saengine.plumbing.tanks
   with ``K0 = 1 - sin φ'`` (Jaky) of the soil report's layer at each depth, σ'v with the
   submerged unit weight below the design water table, u the full hydrostatic pressure below it
   (BNBC 2020 Part 6 Sec 2.6.5.1: "the submerged unit weight of soil, plus full hydrostatic
-  pressure", part1 p680), q the surcharge (``surcharge``, 10 kPa by default); and the uplift
+  pressure" (p680)), q the surcharge (``surcharge``, 10 kPa by default); and the uplift
   on the base, the full hydrostatic pressure from the underside of the base (Sec 2.6.5.2,
   p680). The design water table is ``designWaterTable`` (m below ground; ground level by
   default: the soil report's level is the one measured at drilling, the design one the
   highest expected; BNBC does not set it).
 - Lr: the roof live load, ``roofLive`` (1.00 kN/m², an ordinary flat roof, BNBC Part 6 Table
-  6.2.3, part1 p536; set it for a roof used otherwise, e.g. a driveway); a septic tank's roof
-  at least 7 kPa (BNBC Part 8 Sec 6.9.12.14, part2 p1107, :data:`SEPTIC_COVER_LIVE`).
+  6.2.3 (p536); set it for a roof used otherwise, e.g. a driveway); a septic tank's roof
+  at least 7 kPa (BNBC Part 8 Sec 6.9.12.14 (p1107), :data:`SEPTIC_COVER_LIVE`).
 
-Combinations (BNBC 2020 Part 6 Sec 2.7, part1 p684-685)
+Combinations (BNBC 2020 Part 6 Sec 2.7 (p684-685))
 - strength (Sec 2.7.3.1): (1) 1.4(D + F); (2) 1.2(D + F) + 1.6H + 0.5Lr, also with H = 0
   (the tank tested full before backfilling) and with F = 0 (empty, backfilled), as "effects of
   one or more loads not acting shall be investigated"; (3) 1.2D + 1.6Lr; (6) 0.9D + 1.6H
@@ -58,8 +58,7 @@ Design per metre width (strength: ACI 318-19, which BNBC Part 6 Chapter 6 adopts
   at the age the restraint cracks it (``crackingAge`` 3 days by default: EN 1992-1-1 3.1.2,
   ``fctm(t) = βcc(t) fctm``, ``βcc = exp(0.25 (1 - √(28/t)))`` for cement class N,
   ``fctm = 0.30 fck^(2/3)``, fck taken as f'c); and not less than BNBC Part 6 Sec 6.6.3.2 /
-  6.6.3.3 (walls: vertical 0.0012 / 0.0015, horizontal 0.0020 / 0.0025 of the gross section,
-  part1 p969) or ACI 318-19 7.6.1.1 (slabs, :func:`saengine.design.slab.min_steel_ratio`),
+  6.6.3.3 (walls: vertical 0.0012 / 0.0015, horizontal 0.0020 / 0.0025 of the gross section (p969)) or ACI 318-19 7.6.1.1 (slabs, :func:`saengine.design.slab.min_steel_ratio`),
   half at each face.
 - crack widths (service): EN 1992-1-1:2004 7.3.4, :func:`crack_width`: ``wk = sr,max (εsm -
   εcm)``, ``εsm - εcm = [σs - kt fct,eff / ρp,eff (1 + αe ρp,eff)] / Es ≥ 0.6 σs / Es``,
@@ -69,7 +68,7 @@ Design per metre width (strength: ACI 318-19, which BNBC Part 6 Chapter 6 adopts
   (h - x) / 3, h / 2)``; kt 0.4 (long-term), fct,eff = fctm. σs and x from the cracked
   section under the service moment and membrane force (:func:`cracked_section`, elastic, the
   concrete carrying no tension). Limit ``crackLimit`` (0.2 mm by default; see the notes).
-- cover (BNBC 2020 Part 6 Sec 8.1.7, part1 p1069-1071): the larger (8.1.7.4) of Table 6.8.3
+- cover (BNBC 2020 Part 6 Sec 8.1.7 (p1069-1071)): the larger (8.1.7.4) of Table 6.8.3
   ("severe": alternate wetting and drying, on the liquid faces; "severe" also for the faces
   of an overhead tank exposed to the weather, "moderate": in contact with non-aggressive soil,
   for the outer faces of a ground tank) and Sec 8.1.7.2: 75 mm cast against earth (the base's
@@ -90,7 +89,7 @@ Stability and soil (ground tanks)
   qa of the soil report at the founding depth (:func:`saengine.soil.bearing.allowable`) or
   ``allowableBearing``; settlement from the springs (less the rebound of the overburden) against
   BNBC Part 6 Table 6.3.8, water tank on a raft: 100 mm on sand and hard clay, 125 mm on plastic
-  clay (part1 p733, "a guide").
+  clay (p733, "a guide").
 - ks of the springs: ``ks`` (kN/m³) or the secant ks of the whole base under its net pressure
   (:func:`saengine.substructure.raft.raft_ks`, the soil report's settlement).
 
@@ -149,7 +148,7 @@ COVER_TABLE = {
 COVER_STRENGTHS = (20, 25, 30, 35, 40, 45, 50)
 #: BNBC Part 6 Sec 8.1.7.2 (a), cast against and permanently exposed to earth [mm].
 COVER_AGAINST_EARTH = 75.0
-#: BNBC Table 6.3.8, water tank on a raft: maximum settlement [mm] (part1 p733).
+#: BNBC Table 6.3.8, water tank on a raft: maximum settlement [mm] (p733).
 SETTLEMENT_LIMIT = {"sand": 100.0, "plasticClay": 125.0}
 #: Candidate bars for a proposal: diameters [mm] and spacings [mm].
 BAR_DIAS = (10.0, 12.0, 16.0, 20.0, 25.0)
@@ -1477,7 +1476,8 @@ def _check(
 ) -> dict[str, Any]:
     if utilisation is None:
         utilisation = demand / capacity if capacity > 0 else (0.0 if demand <= 0 else math.inf)
-    utilisation = round(float(utilisation), 3) if math.isfinite(utilisation) else 99.0
+    # No capacity at all: no number (the check cannot pass), not a sentinel utilisation.
+    utilisation = round(float(utilisation), 3) if math.isfinite(utilisation) else None
     return {
         "name": name,
         "demand": round(float(demand), 2),
@@ -1485,7 +1485,7 @@ def _check(
         "unit": unit,
         "utilisation": utilisation,
         "combination": combination,
-        "ok": bool(utilisation <= 1.0),
+        "ok": utilisation is not None and utilisation <= 1.0,
         "note": note,
     }
 
@@ -1532,7 +1532,7 @@ def shell_weight(spec: TankSpec, options: TankOptions) -> tuple[float, str]:
     """The tank's own weight empty [kN] and how it was found, by its construction: rc, the
     concrete of the walls, partitions, base and roof at the concrete's unit weight plus the roof
     finish; masonry, the walls and partitions as burnt clay brick work (BNBC 2020 Part 6 Table
-    6.2.2, 1.910 kN/m² per 100 mm, part1 p530) on a concrete base under a concrete roof; prefab
+    6.2.2, 1.910 kN/m² per 100 mm (p530)) on a concrete base under a concrete roof; prefab
     (a moulded or sectional tank), nil: its maker's weight is to be entered (``emptyWeight``)."""
     v = volumes(spec)
     lo, wo = spec.length + 2 * spec.wall, spec.width + 2 * spec.wall
@@ -1931,10 +1931,12 @@ def design_tank(tank: dict[str, Any], context: TankContext | dict[str, Any]) -> 
             _check(
                 "Flotation (empty, design water table)",
                 options.flotationFS,
-                up["FS"] if up["FS"] is not None else 99.0,
+                up["FS"] if up["FS"] is not None else options.flotationFS,
                 "FS",
                 "D vs U",
-                f"U = {up['uplift']} kN, W = {up['resisting']} kN",
+                f"U = {up['uplift']} kN, W = {up['resisting']} kN"
+                + ("; no uplift" if up["FS"] is None else ""),
+                utilisation=0.0 if up["FS"] is None else None,
             )
         )
         assert bear is not None

@@ -11,7 +11,7 @@ import { renderPlan } from '../../browser/mepPlan.js';
 import { roofStory, storyAbove, storyFloorArea } from '../../browser/mepRead.js';
 import {
 	checkHvac, ductCrossings, ductLevels, ductOnStory, ensureHvac, hasHvac, hvacExtent, hvacFailures, hvacOf, hvacSummary, mergeProposedPlant, newDuct, newPlant, newRiserDuct, readConstructions,
-	readHvacReport, readHvacTables, readProposedPlant, riserInShaft, STATIC_CITIES, STATIC_USES,
+	readHvacReport, readHvacTables, readProposedPlant, riserInShaft,
 } from '../../browser/hvacDocument.js';
 import { renderHvac } from '../../browser/hvacPlan.js';
 import { renderHvacReport } from '../../browser/hvacResults.js';
@@ -120,7 +120,9 @@ suite('SAEngine MEP HVAC', () => {
 		hvac.plant[1].id = 'ODU1';
 		hvac.ducts[0].path = [[0, 0]];
 		hvac.ducts[1].shaft = 'SH9';
-		assert.deepStrictEqual(checkHvac(document, CONTEXT).map(p => `${p.severity} ${p.path}`), [
+		// The station is checked against the backend's Table 8.2.2 (b14: the editor holds no copy of it).
+		const cities = [{ key: 'dhaka', label: 'Dhaka', db: 34.5, wb: 27.0, range: 5.0 }];
+		assert.deepStrictEqual(checkHvac(document, CONTEXT, cities).map(p => `${p.severity} ${p.path}`), [
 			'warning hvac.design.city',
 			'error hvac.design.outdoorWB',
 			'error hvac.design.indoorRH',
@@ -132,8 +134,8 @@ suite('SAEngine MEP HVAC', () => {
 			'error hvac.ducts.0.path',
 			'error hvac.ducts.1.shaft',
 		]);
-		assert.deepStrictEqual([STATIC_CITIES.find(c => c.key === 'dhaka'), STATIC_USES.find(u => u.key === 'officeSpace')?.perPerson],
-			[{ key: 'dhaka', label: 'Dhaka', db: 34.5, wb: 27.0, range: 5.0 }, 2.5]);
+		// Before the tables arrive the keys are not checked.
+		assert.ok(!checkHvac(document, CONTEXT).some(p => p.path === 'hvac.design.city'));
 	});
 
 	test('merges the proposed plant: changed sizes only, the position stays; new ones get unused IDs', () => {

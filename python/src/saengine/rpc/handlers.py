@@ -1031,14 +1031,19 @@ def mep_import_ifc(project_root: str, path: str, copy: bool = False) -> dict[str
 _PLUMBING_LOCK = threading.Lock()
 
 
-def plumbing_report(project_root: str, mep_text: str | None = None) -> dict[str, Any]:
+def plumbing_report(
+    project_root: str, mep_text: str | None = None, designs: bool | str = True
+) -> dict[str, Any]:
     """The plumbing report (BNBC 2020 Part 8 sizing, tank designs, hydraulics), JSON-safe
-    (``saengine.plumbing.project.full_report``); never raises."""
+    (``saengine.plumbing.project.full_report``); never raises. ``designs="cached"``: the quick
+    first pass, with the tank designs not yet cached listed as pending."""
     from saengine.plumbing.project import full_report
 
     try:
+        if designs == "cached":
+            return full_report(project_root, mep_text, designs="cached")
         with _PLUMBING_LOCK:
-            return full_report(project_root, mep_text)
+            return full_report(project_root, mep_text, designs=bool(designs))
     except Exception as error:  # noqa: BLE001 - a partly entered model must not fail the RPC
         return {"problems": [f"the plumbing report failed: {_first_line(error)}"]}
 
@@ -1300,14 +1305,17 @@ def fire_openings(project_root: str, mep_text: str | None = None) -> dict[str, A
 
 
 def warm_services() -> None:
-    """Imports the HVAC, electrical and fire modules ahead of the editor's first report."""
+    """Imports the plumbing, HVAC, electrical and fire modules ahead of the editor's first
+    report (the plumbing's tank design imports the design package: many seconds cold)."""
     import contextlib
 
     with contextlib.suppress(Exception):
         import saengine.electrical.report
         import saengine.fire.report
         import saengine.hvac.air
-        import saengine.hvac.report  # noqa: F401
+        import saengine.hvac.report
+        import saengine.plumbing.project
+        import saengine.plumbing.tanks  # noqa: F401
 
 
 # ─────────────────────────────────────── soil springs ───────────────────────────────────────

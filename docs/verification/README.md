@@ -167,6 +167,14 @@ largest deviation in each case:
   here) for both directions. It now takes each direction's own layer for flexure and one-way
   shear (X outer: 517 mm, Y inner: 501 mm, as in slabs) and their mean for punching.
 
+## Independent solver cross-check
+
+Beside the closed-form references, `scripts/crosscheck/` rebuilds the analysis model SAEngine
+derives in two independent open-source programs, PyNite and CalculiX, and compares reactions,
+displacements, drifts, periods, member forces and shell resultants on a corpus from a cantilever
+to ten-storey buildings. It runs locally (the programs are not installed in CI); see
+[cross-check.md](cross-check.md) for the setup, the method and the latest results.
+
 ## Adding a case
 
 Write a function `run(folder: Path) -> Outcome` in `cases/analysis.py`, `cases/design.py` or
