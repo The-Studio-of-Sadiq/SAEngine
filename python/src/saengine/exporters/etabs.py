@@ -1765,7 +1765,55 @@ def export_e2k(
     return export
 
 
+#: Where the app and the command line write the e2k file, inside ``11 Exports``.
+EXPORT_FOLDER = "ETABS"
+
+
+def export_e2k_file(
+    project: str | Path,
+    out_path: str | Path | None = None,
+    *,
+    units: tuple[str, str] = ("KN", "M"),
+    lateral: Lateral = "loads",
+) -> dict[str, Any]:
+    """Exports the project (:func:`export_e2k`) and writes the e2k file to ``out_path`` (a file,
+    or a folder for ``<project>.e2k``; default ``11 Exports/ETABS/<project>.e2k``) with its
+    export report beside it (``<name>.export-report.json``):
+    ``{"path", "reportPath", "report"}`` (the report's ``to_dict``)."""
+    import json
+
+    from saengine.pipeline.project import ProjectError, open_project
+
+    try:
+        p = open_project(project)
+    except ProjectError as error:
+        raise E2kExportError(str(error)) from error
+    target = Path(out_path) if out_path else p.folder("exports") / EXPORT_FOLDER / f"{p.name}.e2k"
+    if target.is_dir():
+        target = target / f"{p.name}.e2k"
+    result = export_e2k(p.root, units=units, lateral=lateral)
+    written = result.write(target)
+    report = result.report.to_dict()
+    report_path = written.with_name(f"{written.stem}.export-report.json")
+    report_path.write_text(json.dumps(report, indent="\t", ensure_ascii=False) + "\n", "utf-8")
+    return {"path": str(written), "reportPath": str(report_path), "report": report}
+
+
+def rpc_export_e2k(params: dict[str, Any]) -> dict[str, Any]:
+    """The app's ``export/e2k`` ``{projectRoot, outPath?, units?: "kN-m"|"N-mm", lateral?}``:
+    :func:`export_e2k_file`'s answer, or ``{"error"}`` when the project cannot be exported."""
+    units = ("N", "MM") if params.get("units") == "N-mm" else ("KN", "M")
+    lateral = "coefficient" if params.get("lateral") == "coefficient" else "loads"
+    try:
+        return export_e2k_file(
+            params["projectRoot"], params.get("outPath"), units=units, lateral=lateral
+        )
+    except (E2kExportError, OSError) as error:
+        return {"error": str(error)}
+
+
 __all__ = [
+    "EXPORT_FOLDER",
     "E2kExport",
     "E2kExportError",
     "Equipment",
@@ -1773,6 +1821,8 @@ __all__ = [
     "designation",
     "equipment_of",
     "export_e2k",
+    "export_e2k_file",
     "library_shape",
+    "rpc_export_e2k",
     "write_e2k",
 ]

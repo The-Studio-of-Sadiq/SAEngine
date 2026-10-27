@@ -14,7 +14,8 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { joinPath } from '../../../../base/common/resources.js';
+import { isWindows } from '../../../../base/common/platform.js';
+import { dirname, joinPath } from '../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -23,6 +24,7 @@ import { CommandsRegistry, ICommandService } from '../../../../platform/commands
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -39,13 +41,16 @@ import { gridLabel } from '../../../services/saengineProject/common/gridLabels.j
 import { BNBC, DEFAULT_MATERIALS, SETTINGS_SCHEMA } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { ISaengineProject, ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import {
-	buildSpec, centralBay, DEFAULT_FORM, FOOTING_CHOICES, FormField, formatSummary, GENERATE_BUILDING_COMMAND, IGenerateOutcome, INewBuildingForm, IPendingBuilding, OccupancyCategory,
-	parseSpacings, PENDING_BUILDING_STORAGE_KEY, readGenerateResult, readPendingBuilding, storyHeights, summarize, SYSTEM_CHOICES,
+	buildSpec, centralBay, DEFAULT_FORM, folderError, FOOTING_CHOICES, FormField, formatSummary, GENERATE_BUILDING_COMMAND, IGenerateOutcome, IGenerateSummary, INewBuildingForm, IPendingBuilding, OccupancyCategory,
+	parseSpacings, PENDING_BUILDING_STORAGE_KEY, readGenerateResult, readPendingBuilding, SiteClass, storyHeights, summarize, SYSTEM_CHOICES,
 } from './newBuildingModel.js';
 import { ProjectOpener } from './projectOpener.js';
 import { sameFolder } from './structuralImportModel.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
+
+/** Application storage: the folder the last building was created in, offered next time. */
+const LAST_FOLDER_STORAGE_KEY = 'saengine.newBuilding.lastFolder';
 
 const wizardIcon = registerIcon('saengine-new-building-icon', Codicon.symbolStructure, localize('newBuildingIcon', "Icon of the New Building wizard."));
 
@@ -144,6 +149,8 @@ export class NewBuildingWizard extends EditorPane {
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IFileService private readonly fileService: IFileService,
+		@ISaengineProjectService private readonly projectService: ISaengineProjectService,
 	) {
 		super(NewBuildingWizard.ID, group, telemetryService, themeService, wizardStorage);
 		this.opener = instantiationService.createInstance(ProjectOpener);
@@ -158,7 +165,7 @@ export class NewBuildingWizard extends EditorPane {
 	override async setInput(input: NewBuildingWizardInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		if (!this.folder) {
-			this.folder = (await this.opener.defaultLocation()).fsPath;
+			this.folder = await this.initialFolder();
 		}
 		this.renderForm();
 	}
@@ -177,6 +184,22 @@ export class NewBuildingWizard extends EditorPane {
 	override focus(): void {
 		super.focus();
 		this.focusTarget?.focus();
+	}
+
+	/**
+	 * Where the building goes unless the engineer picks another folder: beside the open project,
+	 * else where the last building went, else the default projects folder. Never a relative path.
+	 */
+	private async initialFolder(): Promise<string> {
+		const open = this.projectService.project?.root;
+		if (open?.scheme === 'file') {
+			return dirname(open).fsPath;
+		}
+		const last = this.wizardStorage.get(LAST_FOLDER_STORAGE_KEY, StorageScope.APPLICATION);
+		if (last && !folderError(last, isWindows)) {
+			return last;
+		}
+		return (await this.opener.defaultLocation()).fsPath;
 	}
 
 	/** Whether the backend can generate a building in this build. */
@@ -212,6 +235,13 @@ export class NewBuildingWizard extends EditorPane {
 		const summary = append(side, $('p.summary'));
 		const systemHint = append(side, $('p.hint'));
 
+		// Create stays off while the form or the folder is not valid.
+		const created: { button?: Button } = {};
+		const updateCreate = () => {
+			if (created.button) {
+				created.button.enabled = this.available && !this.busy && buildSpec(this.form, value => this.opener.validateName(value)).ok && !folderError(this.folder, isWindows);
+			}
+		};
 		const inputs = new Map<FormField, InputBox>();
 		const errors = new Map<FormField, HTMLElement>();
 		const updatePreview = () => {
@@ -235,6 +265,7 @@ export class NewBuildingWizard extends EditorPane {
 				}
 			}
 			this.scrollable.scanDomNode();
+			updateCreate();
 		};
 
 		// ── project ──
@@ -254,14 +285,21 @@ export class NewBuildingWizard extends EditorPane {
 				location.value = picked.fsPath;
 			}
 		}));
+		const folderMessage = append(form, $('p.error', { 'aria-live': 'polite' }));
 		const target = append(form, $('p.target'));
+		const project = this.projectService.project;
+		if (project) {
+			append(form, $('p.hint.indented', undefined, localize('newBuilding.separate', "The building is a new project: {0}, open now, is not changed.", project.name)));
+		}
 		const updateTarget = () => {
-			target.textContent = this.form.name.trim() && !this.opener.validateName(this.form.name)
-				? localize('newBuilding.target', "Created in {0}", joinPath(URI.file(this.folder), this.form.name.trim()).fsPath) : '';
+			const error = folderError(this.folder, isWindows);
+			folderMessage.textContent = error ?? '';
+			target.textContent = !error && this.form.name.trim() && !this.opener.validateName(this.form.name)
+				? localize('newBuilding.target', "Created in {0}", joinPath(URI.file(this.folder.trim()), this.form.name.trim()).fsPath) : '';
+			updateCreate();
 		};
 		this.pageDisposables.add(name.onDidChange(updateTarget));
 		this.pageDisposables.add(location.onDidChange(updateTarget));
-		updateTarget();
 
 		// ── grids ──
 		this.section(form, localize('newBuilding.grids', "Grids"), localize('newBuilding.gridsHint', "Spacings in mm, left to right and bottom to top: \"3×6000, 4500\" is three 6 m bays and one of 4.5 m. m and ft work too (6m, 20ft)."));
@@ -313,14 +351,15 @@ export class NewBuildingWizard extends EditorPane {
 		// ── site and use ──
 		this.section(form, localize('newBuilding.site', "Site and Use"), localize('newBuilding.siteHint', "BNBC 2020: the location sets the seismic zone and basic wind speed; the occupancy category the importance factors (Table 6.1.1)."));
 		this.select(form, localize('newBuilding.location', "Location"), locationChoices(), this.form.location, value => this.form.location = value);
+		this.select(form, localize('newBuilding.siteClass', "Site class"), settingsEnum('Site', 'siteClass'), this.form.siteClass, value => this.form.siteClass = value as SiteClass);
+		append(form, $('p.hint.indented', undefined, localize('newBuilding.siteClassHint', "Assumed until a soil report gives it (BNBC 2020 Part 6, Table 6.2.13): add boreholes in 01 Soil Report and their class replaces it.")));
 		this.select(form, localize('newBuilding.use', "Building use"), settingsEnum('Occupancy', 'use'), this.form.use, value => this.form.use = value);
 		this.select(form, localize('newBuilding.category', "Occupancy category"), settingsEnum('Occupancy', 'category'), this.form.category, value => this.form.category = value as OccupancyCategory);
 
 		// ── actions ──
 		const actions = append(form, $('.form-actions'));
-		const create = this.pageDisposables.add(new Button(actions, defaultButtonStyles));
+		const create = created.button = this.pageDisposables.add(new Button(actions, defaultButtonStyles));
 		create.label = localize('newBuilding.create', "Create Building");
-		create.enabled = this.available;
 		const cancel = this.pageDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true }));
 		cancel.label = localize('newBuilding.cancel', "Cancel");
 		this.pageDisposables.add(cancel.onDidClick(() => this.close()));
@@ -339,32 +378,39 @@ export class NewBuildingWizard extends EditorPane {
 				}
 				return;
 			}
-			if (!this.folder.trim()) {
+			if (folderError(this.folder, isWindows)) {
+				updateTarget();
 				location.focus();
 				return;
 			}
 			this.busy = true;
-			create.enabled = false;
+			updateCreate();
 			status.textContent = localize('newBuilding.creating', "Creating the building...");
 			let outcome: IGenerateOutcome;
+			const parent = this.folder.trim();
 			try {
-				outcome = readGenerateResult(await this.commandService.executeCommand(GENERATE_BUILDING_COMMAND, { spec: result.spec, destParent: this.folder.trim(), name: result.spec.name }));
+				const missing = await this.prepareFolder(parent);
+				outcome = missing
+					? { notes: [], error: missing }
+					: readGenerateResult(await this.commandService.executeCommand(GENERATE_BUILDING_COMMAND, { spec: result.spec, destParent: parent, name: result.spec.name }));
 			} catch (error) {
 				outcome = { notes: [], error: toErrorMessage(error) };
 			} finally {
 				this.busy = false;
 			}
 			if (outcome.error || !outcome.root) {
-				create.enabled = true;
+				updateCreate();
 				status.textContent = '';
 				this.notificationService.error(localize('newBuilding.failed', "The building could not be created: {0}", outcome.error ?? ''));
 				return;
 			}
-			this.renderResult(result.spec.name, outcome.root, outcome.notes);
+			this.wizardStorage.store(LAST_FOLDER_STORAGE_KEY, parent, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			this.renderResult(result.spec.name, outcome.root, outcome.notes, outcome.summary);
 		};
 		this.pageDisposables.add(create.onDidClick(() => void submit()));
 		this.pageDisposables.add(addDisposableListener(form, EventType.KEY_DOWN, e => {
-			if (e.key === 'Enter' && !isHTMLButtonElement(e.target)) {
+			// Enter in a field creates the building only when Create could (the form is valid).
+			if (e.key === 'Enter' && !isHTMLButtonElement(e.target) && create.enabled) {
 				void submit();
 			} else if (e.key === 'Escape') {
 				this.close();
@@ -372,8 +418,26 @@ export class NewBuildingWizard extends EditorPane {
 		}));
 
 		updatePreview();
+		updateTarget();
 		this.focusTarget = name;
 		name.focus();
+	}
+
+	/**
+	 * Why the project cannot go in `folder`, or undefined. A missing folder is created as long as
+	 * the folder above it exists (a mistyped drive or path is not created silently).
+	 */
+	private async prepareFolder(folder: string): Promise<string | undefined> {
+		const resource = URI.file(folder);
+		if (await this.fileService.exists(resource)) {
+			const stat = await this.fileService.stat(resource);
+			return stat.isDirectory ? undefined : localize('newBuilding.notFolder', "{0} is a file, not a folder.", folder);
+		}
+		if (!await this.fileService.exists(dirname(resource))) {
+			return localize('newBuilding.noFolder', "{0} does not exist. Choose an existing folder with Browse.", folder);
+		}
+		await this.fileService.createFolder(resource);
+		return undefined;
 	}
 
 	private section(parent: HTMLElement, title: string, hint?: string): void {
@@ -526,18 +590,33 @@ export class NewBuildingWizard extends EditorPane {
 
 	// ───────────────────────────── the result ─────────────────────────────
 
-	private renderResult(name: string, root: string, notes: readonly string[]): void {
+	/** What was made, the actions first, then the sizes; how they were chosen folds out below. */
+	private renderResult(name: string, root: string, notes: readonly string[], summary: IGenerateSummary | undefined): void {
 		const page = this.resetPage();
 		const header = append(page, $('header.header'));
 		append(header, $('h1', undefined, localize('newBuilding.created', "{0} Is Ready", name)));
-		append(header, $('p.subtitle', undefined, localize('newBuilding.createdIn', "Created in {0}. Check the preliminary sizes before analysis; the notes say how they were chosen.", root)));
+		append(header, $('p.subtitle', undefined, localize('newBuilding.createdIn', "Created in {0}. The member sizes are preliminary: check them before the analysis.", root)));
 		const result = append(page, $('.result'));
-		append(result, $('h2', undefined, localize('newBuilding.notes', "Generator Notes")));
-		const list = append(result, $('ul.notes'));
+		const actions = append(result, $('.form-actions'));
+		if (summary && (summary.counts.length || summary.sizes.length)) {
+			append(result, $('h2', undefined, localize('newBuilding.sizes', "Preliminary Sizes")));
+			if (summary.counts.length) {
+				const counts = summary.counts.map(([label, count]) => `${count} ${label.toLowerCase()}`).join(' · ');
+				append(result, $('p.counts', undefined, summary.sdc ? localize('newBuilding.countsSdc', "{0} · seismic design category {1}", counts, summary.sdc) : counts));
+			}
+			const table = append(result, $('table.sizes'));
+			for (const size of summary.sizes) {
+				const row = append(table, $('tr'));
+				append(row, $('th', { scope: 'row' }, size.what));
+				append(row, $('td', undefined, size.size));
+			}
+		}
+		const details = append(result, $('details.notes'));
+		append(details, $('summary', undefined, localize('newBuilding.notes', "How the sizes were chosen ({0} notes)", notes.length)));
+		const list = append(details, $('ul.notes'));
 		for (const note of notes.length ? notes : [localize('newBuilding.noNotes', "The generator left no notes.")]) {
 			append(list, $('li', undefined, note));
 		}
-		const actions = append(result, $('.form-actions'));
 		const open = this.pageDisposables.add(new Button(actions, defaultButtonStyles));
 		open.label = localize('newBuilding.open', "Open Building");
 		this.pageDisposables.add(open.onDidClick(() => this.openBuilding(root, notes)));

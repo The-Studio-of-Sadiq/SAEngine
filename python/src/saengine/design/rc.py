@@ -38,6 +38,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 from functools import cached_property
+from typing import Any
 
 import numpy as np
 
@@ -697,6 +698,88 @@ class InteractionSurface:
                 return 0.0
             least = min(least, float(t[ok].min()))
         return least
+
+    #: Demands worked out together by :meth:`max_utilisation` (bounds its memory).
+    _BLOCK = 256
+
+    def max_utilisation(self, points: Any, stop_above: float | None = None) -> float:
+        """The largest :meth:`check` utilisation of many demands (rows Pu, Mux, Muy [N, N·mm]),
+        worked out on arrays: the same contours and rays as :meth:`check`, for the design mode's
+        bar search, which asks it of thousands of stations and combinations per layout (X2 of
+        the usability walk: the proposal took minutes in the per-point loop).
+
+        ``stop_above``: return as soon as some demand exceeds it (a utilisation above it, not
+        necessarily the largest): the search only asks whether a layout carries them all. The
+        demands with the largest moments go first, so a layout that fails is found quickly."""
+        pts = np.asarray(points, dtype=float).reshape(-1, 3)
+        if not len(pts):
+            return 0.0
+        s = self.section
+        pu, mu = pts[:, 0], np.hypot(pts[:, 1], pts[:, 2])
+        worst = 0.0
+        over, tension = pu > s.phi_pn_max, pu < -s.phi_tension
+        if over.any():
+            worst = max(worst, float(pu[over].max() / s.phi_pn_max))
+        if tension.any():
+            worst = max(worst, float((-pu[tension]).max() / s.phi_tension))
+        inside = ~over & ~tension
+        axial = inside & (mu <= 0)
+        for p in pts[axial]:  # few: axial force alone (the scalar rules, notes and all)
+            worst = max(worst, self.check(*p).utilisation)
+        if stop_above is not None and worst > stop_above:
+            return worst
+        bending = pts[inside & (mu > 0)]
+        if stop_above is not None:
+            bending = bending[np.argsort(-np.hypot(bending[:, 1], bending[:, 2]))]
+        for start in range(0, len(bending), self._BLOCK):
+            block = bending[start : start + self._BLOCK]
+            caps = self._capacities(
+                block[:, 0], np.arctan2(np.abs(block[:, 2]), np.abs(block[:, 1]))
+            )
+            m = np.hypot(block[:, 1], block[:, 2])
+            if (caps <= 0).any():
+                return math.inf
+            worst = max(worst, float((m / caps).max()))
+            if stop_above is not None and worst > stop_above:
+                break
+        return worst
+
+    def _capacities(self, pu: np.ndarray, angle: np.ndarray) -> np.ndarray:
+        """:meth:`moment_capacity` of each (``pu``, ``angle``), on arrays."""
+        m = self._meridians  # (meridians, rows, 3)
+        lo = m[None, :, :-1, 0] - pu[:, None, None]
+        hi = m[None, :, 1:, 0] - pu[:, None, None]
+        hit = (lo == 0) | (lo * hi < 0)
+        reaches = hit.any(axis=2).all(axis=1)
+        t = np.where(hit, lo / np.where(hit & (lo != hi), lo - hi, 1.0), 0.0)
+        cuts = m[None, :, :-1, 1:] + t[..., None] * (m[None, :, 1:, 1:] - m[None, :, :-1, 1:])
+        reach = np.where(hit, np.hypot(cuts[..., 0], cuts[..., 1]), np.inf)
+        nearest = np.argmin(reach, axis=2)
+        p = np.take_along_axis(cuts, nearest[:, :, None, None], axis=2)[:, :, 0, :]
+        if self.symmetric:
+            p = np.concatenate(
+                [p, p[:, ::-1] * [-1, 1], p * [-1, -1], p[:, ::-1] * [1, -1]], axis=1
+            )
+        q = np.roll(p, -1, axis=1)
+        cross = p[..., 0] * q[..., 1] - p[..., 1] * q[..., 0]
+        encloses = np.abs(np.arctan2(cross, (p * q).sum(axis=2)).sum(axis=1)) > math.pi
+        d = q - p
+        c, s = np.cos(angle)[:, None], np.sin(angle)[:, None]
+        signs = ((1, 1),) if self.symmetric else ((1, 1), (-1, 1), (-1, -1), (1, -1))
+        least = np.full(len(pu), np.inf)
+        found = np.ones(len(pu), dtype=bool)
+        scale = 1e-12 * np.maximum(1.0, (d * d).sum(axis=2))
+        for sx, sy in signs:
+            ux, uy = sx * c, sy * s
+            det = d[..., 0] * uy - d[..., 1] * ux
+            ok = np.abs(det) > scale
+            safe = np.where(ok, det, 1.0)
+            t_ray = (p[..., 1] * d[..., 0] - p[..., 0] * d[..., 1]) / safe
+            r = (ux * p[..., 1] - uy * p[..., 0]) / safe
+            ok &= (t_ray >= 0) & (r >= -1e-12) & (r <= 1 + 1e-12)
+            found &= ok.any(axis=1)
+            least = np.minimum(least, np.where(ok, t_ray, np.inf).min(axis=1))
+        return np.where(reaches & encloses & found, least, 0.0)
 
     def check(self, pu: float, mux: float, muy: float) -> ColumnCheck:
         """Utilisation of a demand (Pu compression positive [N], Mux, Muy [N·mm])."""

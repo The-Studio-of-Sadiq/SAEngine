@@ -1254,6 +1254,12 @@ def proposal_entries(
         material = t.reinforcement.material
         cover = float(t.reinforcement.cover)
         layers = max(search_need(c).layers for c in group)
+        # Never fewer curtains than the type has (X12 of the usability walk: a special wall cut
+        # to one curtain): the engineer's second curtain may answer rules outside these checks
+        # (detailing, crack control, the other walls of the type); one is only added.
+        held = (current or {}).get("layers") if isinstance(current, dict) else None
+        if isinstance(held, int | float) and held > layers:
+            layers = int(held)
         needs = [search_need(c, layers) for c in group]
         notes = list(dict.fromkeys(n for need in needs for n in need.notes))
         thickness = group[0]["geometry"].thickness
@@ -1305,11 +1311,13 @@ def proposal_entries(
                     found, left = _recheck(group, trial)
                     if not left:
                         notes += [
-                            *problems,
+                            p.replace(": not checked with these bars: ", ": with end bars, ")
+                            for p in problems
+                        ] + [
                             (
-                                "the end bars do not fit in every pier: a heavier "
-                                "vertical web carries the axial force and bending instead"
-                            ),
+                                "the end bars do not fit in every pier: a heavier vertical web "
+                                "carries the axial force and bending instead, checked on every pier"
+                            )
                         ]
                         reinforcement, utilisation, problems = trial, found, []
                         break

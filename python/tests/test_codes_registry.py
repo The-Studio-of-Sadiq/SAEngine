@@ -328,6 +328,38 @@ def test_table_validation_through_registered_models(dirs, monkeypatch):
         good.table("nope")
 
 
+def test_a_broken_table_without_fallback_breaks_only_that_table(dirs, monkeypatch):
+    # X1 of the usability walk: a concrete table the schema refused blanked the analysis charts
+    # and the soil results, which never read it.
+    from saengine.codes import registry as reg_module
+
+    class Thing(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+        value: float
+
+    validators = {"zzThing": reg_module._Validator(reg_module.TypeAdapter(Thing), Thing, {})}
+    monkeypatch.setattr(reg_module, "_VALIDATORS", validators)
+    monkeypatch.setattr(reg_module, "_GENERATION", [reg_module._GENERATION[0] + 1])
+    write_pack(dirs.builtin, "solo", {**BASE_TABLES, "zzThing": {"value": 1, "torsion": {}}})
+    pack = dirs.reg.load("solo")  # no sound copy to fall back on: loads, partly
+    assert pack.data("combinations")["strength"][0]["name"] == "1.4D"
+    assert pack.has("zzThing") and "zzThing" in pack.tables()
+    assert list(pack.broken) == ["zzThing"]
+    with pytest.raises(CodePackError, match="the table 'zzThing' cannot be used"):
+        pack.table("zzThing")
+    with pytest.raises(CodePackError):
+        pack.data("zzThing")
+    assert any("Extra inputs" in w.message and w.severity == "warning" for w in pack.warnings)
+    assert not dirs.reg.info("solo").usable  # still listed as needing a fix
+    with pytest.raises(CodePackError):
+        dirs.reg.load_path(dirs.builtin / "solo")  # validating a folder stays strict
+    # A sound lower copy still wins over a higher copy with a broken table.
+    write_pack(dirs.builtin, "dup", {"zzThing": {"value": 1}})
+    write_pack(dirs.user, "dup", {"zzThing": {"value": "x"}})
+    dup = dirs.reg.load("dup")
+    assert dup.scope == "builtin" and dup.table("zzThing").value == 1
+
+
 # ---------------------------------------------------------------- hooks and trust
 
 HOOKS = """

@@ -30,7 +30,9 @@ reads the blocks a frame-and-shell building needs and hands them to
   LOADCASE / LOADCOMBO (ETABS 2013+);
 - ``$ SHELL OBJECT LOADS`` / ``$ AREA OBJECT LOADS`` (and uniform load sets): uniform gravity
   pressures on the floors → the floor and roof area loads, per slab; ``$ FRAME OBJECT LOADS``
-  and ``$ POINT OBJECT LOADS`` are reported with their totals, not carried over;
+  (uniform, trapezoidal as its mean, point) and ``$ POINT OBJECT LOADS`` (forces) → the member
+  loads of ``05 Floor Plan/loads.json`` on the beams and columns (see
+  :mod:`saengine.importers.common`; the rest reported with their totals);
 - ``$ MASS SOURCE`` and the auto seismic definitions: reported where SAEngine differs.
 
 Conventions of the format this follows (from its published structure; checked on the synthetic
@@ -1140,45 +1142,83 @@ class _Importer:
                         "self-weight multipliers other than 1 in a dead pattern", name
                     )
             if case is None:
-                self.report.skip(
-                    "load patterns of types SAEngine has no case for", f"{name} ({p.get('TYPE')})"
-                )
+                self.report.note("loads.patterns.noCase", f"{name} ({p.get('TYPE')})")
             elif case == "F":
                 self.report.approximate(
                     "patterns of type Other named as fluid loads taken as SAEngine's F", name
                 )
             elif case[0] in "WE":
-                self.report.approximate(
-                    "wind and seismic patterns: SAEngine applies its own BNBC loads in their place",
-                    name,
-                )
+                self.report.note("loads.lateral.cases", name)
         self.b.self_weight = self_weight or not patterns
 
     def _loads(self) -> None:
+        """The point and frame loads go to the builder (onto the floor-plan beams and columns);
+        the uniform area loads of gravity patterns onto the floors."""
         u = self.u
         for point, story, pairs in self.e.point_loads:
             case = self.pattern_cases.get(pairs.get("LC", ""))
-            total = -u.to_kn(_num(pairs, "FZ") or 0.0)
-            self.b.not_carried("point loads", case, total, f"{point}-{story} {pairs.get('LC', '')}")
+            example = f"{point}-{story} {pairs.get('LC', '')}"
+            if any(_num(pairs, k) for k in ("MX", "MY", "MZ")):
+                self.report.note("loads.joint.moments", example)
+            at = self._xyz(point, story, 0)
+            if at is None or pairs.get("TYPE", "FORCE").upper() != "FORCE":
+                self.report.skip("point loads at unknown points or not forces", example)
+                continue
+            force = tuple(u.to_kn(_num(pairs, k) or 0.0) for k in ("FX", "FY", "FZ"))
+            self.b.add_joint_load(at, case, force, example)  # type: ignore[arg-type]
         for line, story, pairs in self.e.line_loads:
             instance = self.instances.get((line, story), f"{line}-{story}")
             case = self.pattern_cases.get(pairs.get("LC", ""))
-            length = self.lengths.get(instance, 0.0)
-            direction = pairs.get("DIR", "GRAV").upper()
-            sign = 1.0 if direction == "GRAV" else -1.0 if direction == "Z" else 0.0
+            example = f"{instance} {pairs.get('LC', '')}"
+            length = self.lengths.get(instance, 0.0) * 1000  # mm
             kind = pairs.get("TYPE", "").upper()
+
+            def vector(value: float, direction: str = pairs.get("DIR", "GRAV")) -> Any:
+                """The load (x, y, z; Z up) of ``value`` in global direction ``direction``
+                (GRAV: down), or None for a local direction."""
+                d = re.sub(r"\s*PROJ(ECTED)?$", "", direction.strip().upper())
+                axes = {"GRAV": (0, 0, -1), "X": (1, 0, 0), "Y": (0, 1, 0), "Z": (0, 0, 1)}
+                return tuple(value * k for k in axes[d]) if d in axes else None
+
+            start: float | None = None  # mm from the member's start
+            loaded: float | None = None  # mm loaded (None: to the end)
+            point = kind == "POINTF"
             if kind == "UNIFF":
-                total = u.to_kn_per_m(_num(pairs, "FVAL") or 0.0) * length
+                value = u.to_kn_per_m(_num(pairs, "FVAL") or 0.0)
             elif kind == "TRAPF":
                 f0, f1 = _num(pairs, "FSTART") or 0.0, _num(pairs, "FEND") or 0.0
-                r0, r1 = _num(pairs, "RDSTART") or 0.0, _num(pairs, "RDEND") or 1.0
-                total = u.to_kn_per_m((f0 + f1) / 2) * (r1 - r0) * length
-            elif kind == "POINTF":
-                total = u.to_kn(_num(pairs, "FVAL") or 0.0)
+                r0, r1 = _num(pairs, "RDSTART") or 0.0, _num(pairs, "RDEND")
+                r1 = 1.0 if r1 is None else r1
+                if abs(f0 - f1) > 1e-12:
+                    self.report.note("loads.member.varying", example)
+                value = u.to_kn_per_m((f0 + f1) / 2)
+                start, loaded = min(r0, r1) * length, abs(r1 - r0) * length
+            elif point:
+                value = u.to_kn(_num(pairs, "FVAL") or 0.0)
+                rd = _num(pairs, "RDIST")
+                start = None if rd is None else rd * length
+            elif kind.endswith("M"):  # UNIFM, POINTM, TRAPM: moments
+                self.report.note("loads.member.moments", f"{example} ({kind})")
+                continue
             else:
-                total = 0.0
-            self.b.not_carried(
-                "frame loads", case, sign * total, f"{instance} {pairs.get('LC', '')}"
+                self.report.skip("frame loads of types not read", f"{example} ({kind or '?'})")
+                continue
+            force = vector(value)
+            if force is None:
+                if case in ("WX", "WY", "EX", "EY"):
+                    size = abs(value) * (1.0 if point else (loaded or length) / 1000)
+                    self.b.lateral_load("loads.lateral.member", case, size, example)
+                else:
+                    self.report.note("loads.member.direction", example)
+                continue
+            self.b.add_member_load(
+                instance,
+                case,
+                force,
+                point=point,
+                start=start,
+                length=loaded,
+                example=example,
             )
         pressures: list[tuple[str, str, float, str]] = []  # instance, pattern, pressure, dir
         for area, story, pairs in self.e.area_loads:
@@ -1201,9 +1241,19 @@ class _Importer:
             d = direction.upper()
             down = u.to_kpa(value) * (1.0 if d == "GRAV" else -1.0 if d == "Z" else 0.0)
             area_m2 = self.b.area_of(instance)
-            if case not in ("D", "L", "Lr", "F") or d not in ("GRAV", "Z"):
+            if case in ("WX", "WY", "EX", "EY"):
+                size = abs(u.to_kpa(value)) * area_m2
+                self.b.lateral_load("loads.lateral.area", case, size, f"{instance} {pattern}")
+                continue
+            if case not in ("D", "L", "Lr", "F"):
+                self.b.not_carried_item("loads.noCase.area", case, down * area_m2, instance)
+                continue
+            if d not in ("GRAV", "Z"):
                 self.b.not_carried(
-                    "area loads of lateral patterns or directions", case, down * area_m2, instance
+                    "area loads in horizontal directions",
+                    case,
+                    abs(u.to_kpa(value)) * area_m2,
+                    instance,
                 )
                 continue
             if case == "F":
@@ -1253,10 +1303,7 @@ class _Importer:
         for name, combo in self.e.combos.items():
             kind = re.sub(r"[^A-Z]", "", combo["pairs"].get("TYPE", "LINEARADD").upper())
             if kind not in ("LINEARADD", "ADD"):
-                self.report.skip(
-                    "envelope, SRSS and absolute combinations",
-                    f"{name} ({combo['pairs'].get('TYPE')})",
-                )
+                self.report.note("combinations.envelope", f"{name} ({combo['pairs'].get('TYPE')})")
                 continue
             # SAEngine's D is all dead load (self-weight and superimposed): one factor for the
             # dead patterns; the other cases likewise per case.
