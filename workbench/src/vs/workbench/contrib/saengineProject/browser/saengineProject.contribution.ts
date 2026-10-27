@@ -5,6 +5,7 @@
 
 import './media/projectFlow.css';
 import './saengineShell.contribution.js';
+import './truncatedText.contribution.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
