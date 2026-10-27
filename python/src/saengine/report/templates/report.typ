@@ -118,6 +118,53 @@
 
 #let empty(body) = text(size: 9pt, style: "italic", fill: muted, body)
 
+// The checks of one element or foundation (`e`: title, ok, rows of check, demand, capacity,
+// unit, util., combination, result, note; fails per row). The table breaks across pages with
+// its header repeated, the title stays with its first rows, and each note is printed on a row
+// of its own under its check, the full width of the table, so it never squeezes the columns.
+#let checks-table(e, combination: 30%) = {
+  block(above: 1.1em, below: 0.4em, sticky: true, text(
+    size: 9pt,
+    weight: "bold",
+    fill: if e.ok { ink } else { fail-ink },
+    e.title,
+  ))
+  set text(size: 7.5pt)
+  set par(justify: false)
+  let cells = ()
+  let fills = ()
+  for (i, row) in e.rows.enumerate() {
+    let failing = e.fails.at(i, default: false)
+    let fill = if failing { fail-fill } else { none }
+    let result = row.at(6)
+    if i > 0 { cells.push(table.hline(stroke: 0.3pt + rule)) }
+    cells += row.slice(0, 6) + (
+      if failing { text(weight: "bold", fill: fail-ink, result) } else { result },
+    )
+    fills.push(fill)
+    let remark = row.at(7, default: "")
+    if remark != "" {
+      cells.push(table.cell(colspan: 7, inset: (left: 12pt, right: 4pt, top: 0pt, bottom: 3.2pt),
+        text(fill: muted, remark)))
+      fills.push(fill)
+    }
+  }
+  table(
+    columns: (1fr, auto, auto, auto, auto, combination, auto),
+    align: (x, y) => (left, right, right, left, right, left, center).at(x) + horizon,
+    inset: (x: 4pt, y: 3.2pt),
+    stroke: (x, y) => (
+      top: if y == 0 { 0.8pt + ink } else { none },
+      bottom: if y == 0 { 0.6pt + ink } else { none },
+    ),
+    fill: (x, y) => if y == 0 { head-fill } else { fills.at(y - 1, default: none) },
+    table.header(..("Check", "Demand", "Capacity", "Unit", "Util.", "Combination", "Result")
+      .map(h => text(weight: "bold", h))),
+    ..cells,
+    table.hline(stroke: 0.6pt + ink),
+  )
+}
+
 // ───────────────────────────── cover ─────────────────────────────
 
 #page(header: none, footer: none, margin: (x: 25mm, top: 40mm, bottom: 25mm))[
@@ -139,7 +186,37 @@
       text(fill: muted, "Date"), meta.date,
     )
   }
+  #v(8mm)
+  // The design result first: a report whose members fail must say so on its cover.
+  #let status = data.at("status", default: (state: "unchecked", headline: ""))
+  #block(
+    width: 100%,
+    inset: (x: 10pt, y: 9pt),
+    radius: 2pt,
+    fill: if status.state == "fail" { fail-fill } else if status.state == "pass" { rgb("#dcefdc") } else { warn-fill },
+    stroke: 0.8pt + (if status.state == "fail" { fail-ink } else if status.state == "pass" { rgb("#2e6b30") } else { rgb("#9a6b00") }),
+    text(
+      size: 11pt,
+      weight: "bold",
+      fill: if status.state == "fail" { fail-ink } else if status.state == "pass" { rgb("#1f4d21") } else { ink },
+      status.headline,
+    ),
+  )
   #v(1fr)
+  #let sign = meta.at("titleBlock", default: ())
+  #if sign.len() > 0 {
+    set text(size: 9pt)
+    table(
+      columns: (1fr, 1fr, 1fr, 1fr),
+      stroke: 0.5pt + rule,
+      inset: (x: 5pt, y: 4pt),
+      ..sign.map(((label, value)) => (
+        table.cell(stack(spacing: 3pt, text(size: 7.5pt, fill: muted, label), if value == "" { v(9pt) } else { value })),
+      )).flatten(),
+      ..range(calc.rem(4 - calc.rem(sign.len(), 4), 4)).map(_ => []),
+    )
+    v(4mm)
+  }
   #if data.warnings.len() > 0 {
     note[
       *Read before use.* This report carries #data.warnings.len() warning(s), listed in the
@@ -411,24 +488,7 @@
   ]
 
   == Checks of each foundation
-  #for e in fdn.details {
-    block(breakable: false, above: 1em, below: 0pt, {
-      block(below: 0.4em, text(
-        size: 9pt,
-        weight: "bold",
-        fill: if e.ok { ink } else { fail-ink },
-        e.title,
-      ))
-      tbl(
-        ("Check", "Demand", "Capacity", "Unit", "Util.", "Combination", "Result", "Note"),
-        e.rows,
-        columns: (20%, auto, auto, auto, auto, auto, auto, 1fr),
-        align: (left, right, right, left, right, left, center, left),
-        bad: e.fails,
-        size: 7.5pt,
-      )
-    })
-  }
+  #for e in fdn.details { checks-table(e) }
 
   == Design method
   #bullets(fdn.method, size: 8.5pt)
@@ -494,10 +554,11 @@ Sum of the support reactions of each load case, in global axes.
 #if results.displacements.len() > 0 [
   == Displacements and story drifts
   #tbl(
-    ("Load case", "Max displacement [mm]", "Max story drift [%]", "Story", "Cd·δ/I [%]"),
+    ("Load case", "Max displacement [mm]", "Max story drift [%]", "Story", "Cd·δ/I [%]", "Allowable Δa/hsx [%]", "Result"),
     results.displacements,
-    columns: (1fr, auto, auto, auto, auto),
-    align: (left, right, right, left, right),
+    columns: (1fr, auto, auto, auto, auto, auto, auto),
+    align: (left, right, right, left, right, right, center),
+    bad: results.at("displacementFails", default: none),
   )
 ]
 
@@ -617,6 +678,11 @@ The analysis uses #so.stiffness.
 
   #for t in design.tables [
     == #t.title
+    #if t.failed > 0 {
+      text(size: 9pt, weight: "bold", fill: fail-ink)[#t.failed of #t.count fail.]
+    } else {
+      text(size: 9pt, fill: muted)[All #t.count pass.]
+    }
     #tbl(
       ("Element", "Type", "Governing check", "Demand", "Capacity", "Unit", "Util.", "Combination", "Result"),
       t.rows,
@@ -1510,29 +1576,13 @@ what the software did not check or assumed; the engineer must consider each one.
 // ───────────────────────────── appendix ─────────────────────────────
 
 #if design.available and design.details.len() > 0 [
+  // Landscape: the wide check tables (combination, notes) read on one line per check.
+  #set page(flipped: true)
   #set heading(numbering: "A.1")
   #counter(heading).update(0)
   = Appendix: design checks of every element
 
   Every check of every element, with the combination and position that govern it.
 
-  #for e in design.details {
-    // Each element's checks stay together with their title (a few rows each).
-    block(breakable: false, above: 1em, below: 0pt, {
-      block(below: 0.4em, text(
-        size: 9pt,
-        weight: "bold",
-        fill: if e.ok { ink } else { fail-ink },
-        e.title,
-      ))
-      tbl(
-        ("Check", "Demand", "Capacity", "Unit", "Util.", "Combination", "Result", "Note"),
-        e.rows,
-        columns: (20%, auto, auto, auto, auto, auto, auto, 1fr),
-        align: (left, right, right, left, right, left, center, left),
-        bad: e.fails,
-        size: 7.5pt,
-      )
-    })
-  }
+  #for e in design.details { checks-table(e, combination: 34%) }
 ]

@@ -63,39 +63,74 @@ def test_mortar_mix_by_hand() -> None:
     )
 
 
-def test_masonry_takes_its_mortar_and_a_concrete_without_a_mix_is_noted() -> None:
+def test_masonry_takes_its_mortar_and_a_concrete_without_a_mix_gets_an_assumed_one() -> None:
     m = _Measure.__new__(_Measure)
     m.materials = {
         "BRICK": SimpleNamespace(id="BRICK", masonry=SimpleNamespace(mortar="M14")),
         "M14": SimpleNamespace(id="M14", composition=NominalMix(ratio=[1, 4])),
-        "C30": SimpleNamespace(id="C30", composition=None),
+        "C30": SimpleNamespace(id="C30", composition=None, concrete=SimpleNamespace(fc=30.0)),
+        "BRICK2": SimpleNamespace(id="BRICK2", masonry=SimpleNamespace(mortar=None)),
     }
     from saengine.boq.quantities import _Bill
 
     m.bill = _Bill()
     m.notes = []
+    m.unreinforced = {}
     m.bill.add(
         "masonry", (1, "BRICK"), "Masonry BRICK in walls", "m3", "W1", 10.0, material="BRICK"
+    )
+    m.bill.add(
+        "masonry", (2, "BRICK2"), "Masonry BRICK2 in walls", "m3", "W2", 1.0, material="BRICK2"
     )
     m.bill.add("concrete", (1, "C30"), "Concrete C30 in slabs", "m3", "S1", 5.0, material="C30")
     m.measure_materials()
     items = {i.description: i.quantity for i in m.bill.items()}
-    cement = 10 * BRICKWORK_WET_MORTAR * DRY_VOLUME_MORTAR / 5 * CEMENT_DENSITY
+    mortar = 10 * BRICKWORK_WET_MORTAR * DRY_VOLUME_MORTAR
+    dry = 5 * DRY_VOLUME_CONCRETE  # f'c 30 MPa: 1:1.5:3 assumed (IS 456:2000 Table 9, M20)
+    cement = mortar / 5 * CEMENT_DENSITY + dry / 5.5 * CEMENT_DENSITY
     assert items == pytest.approx(
         {
             "Cement": cement,
             f"Cement in {CEMENT_BAG:g} kg bags": cement / CEMENT_BAG,
-            "Sand (fine aggregate)": 10 * BRICKWORK_WET_MORTAR * DRY_VOLUME_MORTAR * 4 / 5 * CFT,
+            "Sand (fine aggregate)": (mortar * 4 / 5 + dry * 1.5 / 5.5) * CFT,
+            "Stone chips (coarse aggregate)": dry * 3 / 5.5 * CFT,
             "Masonry BRICK in walls": 10.0,
+            "Masonry BRICK2 in walls": 1.0,
             "Concrete C30 in slabs": 5.0,
         },
         abs=1e-3,  # the bill rounds to 3 decimals
     )
     assert m.notes == [
         (
-            "Materials: concrete C30 has no mix, so no cement, sand or stone is taken off for it "
-            "(add the mix in 03 Materials)."
+            "Materials: concrete C30 has no mix: 1:1.5:3 assumed (f'c 30 MPa), a nominal mix of "
+            "IS 456:2000 Table 9 by strength, no water (enter the mix in 03 Materials to replace "
+            "it)."
+        ),
+        (
+            "Materials: masonry BRICK2: its mortar is not named, so no cement, sand or stone is "
+            "taken off for it (add the mix in 03 Materials)."
+        ),
+    ]
+    # The assumed mix is a note; the mortar with no mix leaves the bill incomplete.
+    assert m.problems() == [
+        (
+            "No cement or sand for masonry BRICK2: its mortar is not named (add the mix in 03 "
+            "Materials)."
         )
+    ]
+
+
+def test_assumed_mixes_by_strength() -> None:
+    from saengine.boq.quantities import assumed_mix
+
+    def ratio(fc: float) -> list[float]:
+        return assumed_mix(SimpleNamespace(concrete=SimpleNamespace(fc=fc))).ratio
+
+    assert [ratio(10), ratio(15), ratio(20.7), ratio(27.6)] == [
+        [1, 3, 6],
+        [1, 2, 4],
+        [1, 1.5, 3],
+        [1, 1.5, 3],
     ]
 
 
@@ -112,16 +147,21 @@ def test_the_sample_bill_takes_off_its_concrete() -> None:
         read("07 MEP/mep.json"),
     )
     items = bill["items"]
-    # The sample's frame concrete is C24.1, a 1:1.5:3 nominal mix (5.5 parts).
-    c241 = sum(
-        i["quantity"] for i in items if i["group"] == "concrete" and i.get("material") == "C24.1"
-    )
-    dry = c241 * DRY_VOLUME_CONCRETE
-    materials = {i["kind"]: (i["quantity"], i["unit"]) for i in items if i["group"] == "materials"}
+    # The sample's frame concrete is C24.1, a 1:1.5:3 nominal mix (5.5 parts); its tank concrete
+    # C27.6 has no mix, and 1:1.5:3 is assumed for it (IS 456:2000 Table 9 by strength).
+    volume = {
+        m: sum(i["quantity"] for i in items if i["group"] == "concrete" and i.get("material") == m)
+        for m in ("C24.1", "C27.6")
+    }
+    dry = (volume["C24.1"] + volume["C27.6"]) * DRY_VOLUME_CONCRETE
+    materials: dict[str, tuple[float, str]] = {}
+    for i in items:
+        if i["group"] == "materials":
+            total, _ = materials.get(i["kind"], (0.0, ""))
+            materials[i["kind"]] = (total + i["quantity"], i["unit"])
     assert materials["cement"] == (pytest.approx(dry / 5.5 * CEMENT_DENSITY, rel=1e-3), "kg")
     assert materials["bags"] == (pytest.approx(dry / 5.5 * CEMENT_DENSITY / 50, rel=1e-3), "bag")
     assert materials["sand"] == (pytest.approx(dry * 1.5 / 5.5 * CFT, rel=1e-3), "cft")
     assert materials["stone"] == (pytest.approx(dry * 3 / 5.5 * CFT, rel=1e-3), "cft")
     assert materials["water"][1] == "l"
-    # The sample's tank concrete C27.6 has no mix: noted, not guessed.
-    assert any("C27.6 has no mix" in n for n in bill["notes"])
+    assert any("C27.6 has no mix: 1:1.5:3 assumed" in n for n in bill["notes"])

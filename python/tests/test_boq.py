@@ -207,6 +207,14 @@ def test_openings_and_missing_types() -> None:
     assert not any(
         e.element == "C1" for i in boq.items if i.group == "reinforcement" for e in i.breakdown
     )
+    # The bill is incomplete: the columns' bars and X1 are not measured (Q1).
+    assert len(boq.problems) == 2
+    assert boq.problems[0].startswith("No reinforcement measured for 4 element(s) of 1 object")
+    assert "(COL)" in boq.problems[0]
+    assert boq.problems[1].startswith("X1: object type 'NOPE' is not in 04 Objects")
+    # The breakdown names the type each element was measured with (Q4).
+    entry = item(boq, "concrete", kind="slab").breakdown[0]
+    assert entry.detail == "type SL"
 
 
 def test_opening_over_the_slab_edge() -> None:

@@ -18,9 +18,10 @@
 	outline: none;
 }
 
+/* Full width: the description column takes what the fixed code, quantity and unit columns leave,
+ * so long descriptions are not cut on a wide screen. */
 .saengine-boq-editor .boq-table {
 	width: 100%;
-	max-width: 880px;
 	border-collapse: collapse;
 	table-layout: fixed;
 }
@@ -156,4 +157,37 @@
 .saengine-boq-editor .boq-breakdown-table .detail,
 .saengine-boq-editor .boq-breakdown-table .muted {
 	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+/* What the bill could not measure: warning rows above the bill (it is incomplete). */
+.saengine-boq-editor .boq-problems {
+	margin: var(--sa-space-2, 8px) 0 var(--sa-space-3, 12px);
+	padding: var(--sa-space-2, 8px) var(--sa-space-3, 12px);
+	border-left: 3px solid var(--vscode-editorWarning-foreground);
+	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 8%, transparent);
+	line-height: 18px;
+}
+
+.saengine-boq-editor .boq-problems-title {
+	font-weight: 600;
+	margin-bottom: var(--sa-space-1, 4px);
+}
+
+.saengine-boq-editor .boq-problems ul {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.saengine-boq-editor .boq-problems li {
+	display: flex;
+	gap: 6px;
+	align-items: flex-start;
+	padding: 2px 0;
+}
+
+.saengine-boq-editor .boq-problems li .codicon {
+	color: var(--vscode-editorWarning-foreground);
+	margin-top: 1px;
+	flex: none;
 }

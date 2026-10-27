@@ -33,7 +33,15 @@ from typing import Any
 
 from saengine.drawings.sheets import details, plans, schedules
 from saengine.drawings.sheets import steel as st
-from saengine.drawings.sheets.layout import Sheet, ViewSpec, drawing_area, fits, pack, paper_size
+from saengine.drawings.sheets.layout import (
+    Sheet,
+    ViewSpec,
+    centred,
+    drawing_area,
+    fits,
+    pack,
+    paper_size,
+)
 from saengine.drawings.sheets.model import DrawingSet
 
 PLAN_SCALES = (50, 75, 100, 125, 150, 200, 250, 300, 400, 500)
@@ -260,6 +268,8 @@ def build_sheets(data: DrawingSet, settings: DrawingSettings | None = None) -> l
     number = settings.first
     for cat in cats:
         pages = pack(cat.specs, area)
+        if cat.plan:
+            pages = [centred(page, area) for page in pages]
         for i, page in enumerate(pages):
             title = cat.title
             if cat.plan:
@@ -283,6 +293,7 @@ def build_sheets(data: DrawingSet, settings: DrawingSettings | None = None) -> l
                 north=data.building.north if cat.plan else None,
             )
             sheet.category = cat.title  # type: ignore[attr-defined]
+            sheet.members = members_of(page, data)  # type: ignore[attr-defined]
             for spec, x, y in page:
                 sheet.view(spec, x, y)
             if cat.notes:
@@ -293,6 +304,27 @@ def build_sheets(data: DrawingSet, settings: DrawingSettings | None = None) -> l
             sheets.append(sheet)
             number += 1
     return sheets
+
+
+def members_of(page: Sequence[tuple[ViewSpec, float, float]], data: DrawingSet) -> list[str]:
+    """The building model's elements a sheet details (beam elevations, column schedule,
+    footing, wall and stair details, by their views' keys), for flagging the sheets of members
+    that fail their design checks. Plans and schedules of the whole building name none."""
+    by_kind: dict[str, dict[str, list[str]]] = {
+        "beam": {b.mark: b.members for b in data.beams},
+        "footing": {f.mark: f.members for f in data.footings},
+        "wall": {w.mark: w.members for w in data.walls},
+        "stair": {st.mark: st.members for st in data.stairs},
+    }
+    found: set[str] = set()
+    for spec, _, _ in page:
+        kind, _, mark = str(spec.key or "").partition(":")
+        if kind == "columns":
+            for line in data.columns:
+                found.update(line.members)
+        elif kind in by_kind:
+            found.update(by_kind[kind].get(mark, []))
+    return sorted(found)
 
 
 def _steel_categories(
@@ -411,6 +443,7 @@ def write_drawings(
     pdf_name: str = "drawings.pdf",
     problems: Sequence[str] = (),
     clean: bool = True,
+    on_sheet: Callable[[int, int], None] | None = None,
 ) -> dict[str, Any]:
     """Writes one DXF per sheet into ``out_dir``, the PDF of all sheets and the PNG previews
     (``out_dir/previews/<number>.png``); returns what was written (see the module notes).
@@ -420,7 +453,8 @@ def write_drawings(
     touched: those listed in ``out_dir/MANIFEST`` (written each run), or, when there is no
     manifest, DXFs and previews named like sheets (``<prefix><number> <title>.dxf``,
     ``previews/<prefix><number>.png``). Pass ``clean=False`` when writing some sheets only
-    (their files are added to the manifest)."""
+    (their files are added to the manifest). ``on_sheet(n, count)`` is called as sheet ``n``
+    of ``count`` is written (the progress of a long set)."""
     from saengine.drawings.sheets.render import render
 
     out = Path(out_dir)
@@ -428,6 +462,8 @@ def write_drawings(
     earlier = _earlier_files(out, sheets)
     rows = []
     for i, sheet in enumerate(sheets):
+        if on_sheet is not None:
+            on_sheet(i + 1, len(sheets))
         target = out / f"{sheet_file_name(sheet)}.dxf"
         sheet.doc.saveas(target)
         rows.append(
@@ -440,6 +476,7 @@ def write_drawings(
                 "size": sheet.size,
                 "scale": sheet.scale_text,
                 "views": [v.spec.title for v in sheet.views],
+                "members": list(getattr(sheet, "members", []) or []),
             }
         )
     rendered = render(
