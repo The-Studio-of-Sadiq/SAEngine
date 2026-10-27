@@ -22,10 +22,10 @@ suite('SAEngine - project parts', () => {
 			splitProjectPath(URI.file('/home/eng'), home),
 			splitProjectPath(URI.file('/home/eng/Documents/SAEngine Projects/Sample Frame'), undefined),
 		], [
-			{ head: join('~', ''), tail: join('Documents', 'SAEngine Projects', 'Sample Frame') },
+			{ head: join('~', 'Documents', ''), tail: join('SAEngine Projects', 'Sample Frame') },
 			{ head: '', tail: join('~', 'Sample Frame') },
 			{ head: '', tail: '~' },
-			{ head: join(URI.file('/home').fsPath, 'eng', ''), tail: join('Documents', 'SAEngine Projects', 'Sample Frame') },
+			{ head: join(URI.file('/home').fsPath, 'eng', 'Documents', ''), tail: join('SAEngine Projects', 'Sample Frame') },
 		]);
 	});
 

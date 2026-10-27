@@ -154,6 +154,7 @@
 	color: var(--vscode-textLink-foreground);
 }
 
+.saengine-start .recent-project .parent,
 .saengine-start .recent-project .date {
 	flex: none;
 	color: var(--sa-muted, var(--vscode-descriptionForeground));
@@ -221,6 +222,21 @@
 .saengine-start .choice.selected {
 	background-color: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
+}
+
+.saengine-start .form .error {
+	margin: 0;
+	color: var(--vscode-errorForeground);
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-start .form .error:empty {
+	display: none;
+}
+
+.saengine-start .form .select .monaco-select-box {
+	width: 100%;
+	height: 26px;
 }
 
 .saengine-start .form .hint,

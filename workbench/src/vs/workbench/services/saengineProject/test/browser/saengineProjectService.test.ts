@@ -143,7 +143,7 @@ suite('SAEngine - ProjectService', () => {
 		await createService(URI.from({ scheme: Schemas.inMemory, path: '/elsewhere' })).createProject(root, 'Terminal', 'structure');
 		const service = createService();
 		const project = await detected(service);
-		const manifest = () => fileService.readFile(joinPath(root, 'Terminal.saengine')).then(f => JSON.parse(f.value.toString()));
+		const manifest = () => fileService.readFile(joinPath(root, 'Office.saengine')).then(f => JSON.parse(f.value.toString()));
 		const before = {
 			type: project?.type,
 			manifest: (await manifest()).type,
@@ -166,6 +166,13 @@ suite('SAEngine - ProjectService', () => {
 			before: { type: 'structure', manifest: 'structure', structure: true, floorPlan: false, parts: ['objects', 'structure', 'bim'] },
 			after: { type: 'building', manifest: 'building', floorPlan: true, structure: [false, true] },
 		});
+	});
+
+	test('a name a file cannot hold stays in the manifest, which takes the folder name', async () => {
+		const service = createService(URI.from({ scheme: Schemas.inMemory, path: '/elsewhere' }));
+		await service.createProject(root, 'Mirpur Residence (Plot 12/A)');
+		const found = await service.findProject(root);
+		assert.deepStrictEqual({ manifest: found?.manifest.path, name: found?.name }, { manifest: '/projects/Office/Office.saengine', name: 'Mirpur Residence (Plot 12/A)' });
 	});
 
 	test('is not a project without a manifest', async () => {

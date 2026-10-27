@@ -105,7 +105,9 @@ export class SaengineProjectService extends Disposable implements ISaengineProje
 
 	async createProject(folder: URI, name: string, type: ProjectType = 'building'): Promise<ISaengineProject> {
 		const existing = await this.findProject(folder);
-		const project = existing ?? { root: folder, manifest: joinPath(folder, `${name}${PROJECT_MANIFEST_EXTENSION}`), name, type };
+		// The manifest file takes the folder's name, which is a valid file name; the project's own
+		// name ("Plot 12/A") is kept inside the manifest.
+		const project = existing ?? { root: folder, manifest: joinPath(folder, `${basename(folder)}${PROJECT_MANIFEST_EXTENSION}`), name, type };
 		if (!existing) {
 			await this.fileService.createFolder(folder);
 			await this.fileService.writeFile(project.manifest, VSBuffer.fromString(JSON.stringify(createManifest(name, type), undefined, '\t') + '\n'));

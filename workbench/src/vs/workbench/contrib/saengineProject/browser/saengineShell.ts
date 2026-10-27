@@ -3,7 +3,7 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { isISubmenuItem, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationDefaults, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
@@ -118,6 +118,32 @@ export function gateSubmenus(menu: MenuId, submenus: ReadonlySet<MenuId>, condit
 			gated.when = ContextKeyExpr.and(item.when, condition);
 		}
 	}
+}
+
+/**
+ * Adds a condition to every item of a menu that `keep` does not accept (commands by id,
+ * submenus by menu id). Like {@link gateSubmenus} it changes the contributed items themselves,
+ * so it runs before the menu is built; items added later are gated as they come.
+ */
+export function gateMenuItems(menu: MenuId, keep: (id: string) => boolean, condition: ContextKeyExpression): IDisposable {
+	const gated = new WeakSet<object>();
+	const gate = () => {
+		for (const item of MenuRegistry.getMenuItems(menu)) {
+			const id = isISubmenuItem(item) ? item.submenu.id : item.command.id;
+			if (gated.has(item) || keep(id)) {
+				continue;
+			}
+			gated.add(item);
+			const gatedItem: { when?: ContextKeyExpression } = item;
+			gatedItem.when = ContextKeyExpr.and(item.when, condition);
+		}
+	};
+	gate();
+	return MenuRegistry.onDidChangeMenu(menus => {
+		if (menus.has(menu)) {
+			gate();
+		}
+	});
 }
 
 /** What the user had chosen for the developer items before simple mode hid them. */

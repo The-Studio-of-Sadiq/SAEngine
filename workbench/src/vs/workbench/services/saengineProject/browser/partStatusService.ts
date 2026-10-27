@@ -8,10 +8,11 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { computePartStatuses, DESIGN_SUMMARY_FILE, EXPORT_DXF_FOLDER, EXPORT_IFC_FOLDER, exportKind, FEM_RESULTS_FOLDER, FEM_RESULTS_MANIFEST, IPartStatus, IPartStatusInputs, ISaenginePartStatusService, MEP_SUMMARY_FILE, REPORT_FILE, SUBSTRUCTURE_SUMMARY_FILE } from '../common/partStatus.js';
+import { computePartStatuses, DESIGN_SUMMARY_FILE, IPartCheckCounts, PART_CHECKS_FILE, partChecksFile, EXPORT_DXF_FOLDER, EXPORT_IFC_FOLDER, exportKind, FEM_RESULTS_FOLDER, FEM_RESULTS_MANIFEST, IPartStatus, IPartStatusInputs, ISaenginePartStatusService, MEP_SUMMARY_FILE, REPORT_FILE, SUBSTRUCTURE_SUMMARY_FILE } from '../common/partStatus.js';
 import { ALL_PARTS, ISaengineProject, ISaengineProjectService, partById } from '../common/saengineProject.js';
 
 /** How long file changes settle before the statuses are computed again [ms]. */
@@ -43,6 +44,25 @@ export class SaenginePartStatusService extends Disposable implements ISaenginePa
 
 	statusOf(part: string): IPartStatus | undefined {
 		return this._statuses.find(s => s.part === part);
+	}
+
+	async reportChecks(part: string, counts: IPartCheckCounts, sources: readonly string[] = [part]): Promise<void> {
+		const project = this.projectService.project;
+		const folder = partById(part)?.folder;
+		if (!project || !folder) {
+			return;
+		}
+		const texts = new Map<string, string | undefined>();
+		for (const id of sources) {
+			const source = partById(id);
+			texts.set(id, source?.mainFile ? await this.readText(joinPath(project.root, source.folder, source.mainFile)) : undefined);
+		}
+		const resource = joinPath(project.root, folder, PART_CHECKS_FILE);
+		const text = `${JSON.stringify(partChecksFile(part, counts, texts), undefined, '	')}
+`;
+		if (await this.readText(resource) !== text) {
+			await this.fileService.writeFile(resource, VSBuffer.fromString(text));
+		}
 	}
 
 	private watch(project: ISaengineProject | undefined): void {
@@ -115,7 +135,9 @@ export class SaenginePartStatusService extends Disposable implements ISaenginePa
 			substructureFolder ? this.mtime(joinPath(substructureFolder, SUBSTRUCTURE_SUMMARY_FILE)) : undefined,
 			substructureFolder ? this.readText(joinPath(substructureFolder, SUBSTRUCTURE_SUMMARY_FILE)) : undefined,
 		]);
-		return { texts, femModelTime, femResultsTime, designSummaryTime, designSummaryText, reportTime, exportFiles, substructureTime, substructureSummaryTime, substructureSummaryText, mepSummaryTime, mepSummaryText };
+		const checksTexts = new Map<string, string | undefined>();
+		await Promise.all(this.projectService.parts.map(async part => checksTexts.set(part.id, await this.readText(joinPath(project.root, part.folder, PART_CHECKS_FILE)))));
+		return { checksTexts, texts, femModelTime, femResultsTime, designSummaryTime, designSummaryText, reportTime, exportFiles, substructureTime, substructureSummaryTime, substructureSummaryText, mepSummaryTime, mepSummaryText };
 	}
 
 	/** The exports in `folder` other than the report: IFC, DXF floor plans and CSV tables. */

@@ -11,7 +11,6 @@ import { localize } from '../../../../nls.js';
 import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { isRecentFolder, IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { ISaengineProject, ISaengineProjectService, partById, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
@@ -19,7 +18,23 @@ import { ISaengineProject, ISaengineProjectService, partById, ProjectType } from
 /** Characters Windows does not allow in a folder name (the strictest platform). */
 const INVALID_NAME = /[\\/:*?"<>|]/;
 
-/** When each project was last opened, by the URI of its folder (application storage). */
+/** The folder a project named `name` is created in: the name with "-" for what a folder name cannot hold (N8). */
+export function projectFolderName(name: string): string {
+	return name.trim().replace(new RegExp(INVALID_NAME.source, 'g'), '-').replace(/[. ]+$/, '');
+}
+
+/** What the new-project form fills into the settings besides the name: the code, the site's location and the building's use. */
+export interface INewProjectChoices {
+	readonly code?: DesignCode;
+	readonly location?: string;
+	readonly use?: string;
+}
+
+/**
+ * When each project was last opened, by the URI of its folder (application storage, so each
+ * user-data folder keeps its own). It is also the recent projects list: the workbench's own
+ * recently opened list is shared by every user-data folder (N9).
+ */
 const OPENED_STORAGE_KEY = 'saengine.project.lastOpened';
 
 /** The sample project shipped with the app: `<app root>/resources/saengine/samples/<name>`. */
@@ -36,10 +51,10 @@ export const DESIGN_CODES: readonly { readonly code: DesignCode; readonly label:
 export interface IRecentProject {
 	readonly project: ISaengineProject;
 	readonly label: string;
-	/** When the project was last opened in SAEngine [ms since the epoch], if known. */
-	readonly opened?: number;
-	/** When a part's main file last changed, for projects last opened before SAEngine recorded it. */
-	readonly changed?: number;
+	/** The project's parent folder name, when another recent project has the same name. */
+	readonly parent?: string;
+	/** When the project was last opened in SAEngine [ms since the epoch]. */
+	readonly opened: number;
 }
 
 /**
@@ -53,7 +68,6 @@ export class ProjectOpener {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IHostService private readonly hostService: IHostService,
-		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@IPathService private readonly pathService: IPathService,
 		@IStorageService private readonly storageService: IStorageService,
 	) { }
@@ -70,6 +84,20 @@ export class ProjectOpener {
 		}
 		if (INVALID_NAME.test(trimmed) || trimmed.endsWith('.') || trimmed.endsWith(' ')) {
 			return localize('projectName.invalid', "A project name cannot contain \\ / : * ? \" < > | or end with a dot or space.");
+		}
+		return undefined;
+	}
+
+	/**
+	 * Error message for a project's display name, or undefined. Any name with a letter or digit
+	 * works ("Plot 12/A"): its folder is {@link projectFolderName}.
+	 */
+	validateDisplayName(name: string): string | undefined {
+		if (!name.trim()) {
+			return localize('projectName.empty', "Enter a project name.");
+		}
+		if (!/[\p{L}\p{N}]/u.test(projectFolderName(name))) {
+			return localize('projectName.noLetters', "Use at least one letter or digit in the name.");
 		}
 		return undefined;
 	}
@@ -95,9 +123,12 @@ export class ProjectOpener {
 		return this.pathService.userHome();
 	}
 
-	/** Creates `<location>/<name>` as a new project following `code` and opens it in this window. */
-	async createAndOpen(location: URI, name: string, type: ProjectType = 'building', code?: DesignCode): Promise<void> {
-		const folder = joinPath(location, name.trim());
+	/**
+	 * Creates `<location>/<folder name of name>` as a new project named `name`, with `choices` in
+	 * its settings, and opens it in this window.
+	 */
+	async createAndOpen(location: URI, name: string, type: ProjectType = 'building', choices: INewProjectChoices = {}): Promise<void> {
+		const folder = joinPath(location, projectFolderName(name));
 		let existing: ISaengineProject | undefined;
 		if (await this.fileService.exists(folder)) {
 			existing = await this.projectService.findProject(folder);
@@ -113,22 +144,30 @@ export class ProjectOpener {
 			}
 		}
 		const project = await this.projectService.createProject(folder, name.trim(), type);
-		if (!existing && code) {
-			await this.setDesignCode(project, code);
+		if (!existing) {
+			await this.setInitialSettings(project, choices);
 		}
 		await this.open(folder);
 	}
 
-	/** Writes the codes of `code` into the project settings of a new project. */
-	private async setDesignCode(project: ISaengineProject, code: DesignCode): Promise<void> {
-		const codes = DESIGN_CODES.find(c => c.code === code)?.codes;
+	/** Writes the codes of the design code, the site's location and the building's use into the settings of a new project. */
+	private async setInitialSettings(project: ISaengineProject, choices: INewProjectChoices): Promise<void> {
+		const codes = choices.code && DESIGN_CODES.find(c => c.code === choices.code)?.codes;
 		const part = partById('settings');
-		if (!codes || !part?.mainFile) {
+		if ((!codes && !choices.location && !choices.use) || !part?.mainFile) {
 			return;
 		}
 		const file = joinPath(project.root, part.folder, part.mainFile);
 		const settings = JSON.parse((await this.fileService.readFile(file)).value.toString());
-		settings.codes = { ...settings.codes, ...codes };
+		if (codes) {
+			settings.codes = { ...settings.codes, ...codes };
+		}
+		if (choices.location) {
+			settings.site = { ...settings.site, location: choices.location };
+		}
+		if (choices.use) {
+			settings.occupancy = { ...settings.occupancy, use: choices.use };
+		}
 		await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(settings, undefined, '\t') + '\n'));
 	}
 
@@ -219,35 +258,33 @@ export class ProjectOpener {
 		}
 	}
 
-	/** The latest modification of the project's manifest and part main files. */
-	private async lastChanged(project: ISaengineProject): Promise<number | undefined> {
-		const files = [project.manifest, ...this.projectService.parts.filter(p => p.mainFile).map(p => joinPath(project.root, p.folder, p.mainFile!))];
-		const times = await Promise.all(files.map(async file => {
-			try {
-				return (await this.fileService.stat(file)).mtime;
-			} catch {
-				return undefined;
-			}
-		}));
-		const known = times.filter((time): time is number => typeof time === 'number');
-		return known.length ? Math.max(...known) : undefined;
-	}
-
-	/** Recently opened folders that are still SAEngine projects, most recent first. */
+	/**
+	 * The projects opened in SAEngine with this user-data folder that still exist, most recent
+	 * first; projects of the same name carry their parent folder's name.
+	 */
 	async recentProjects(limit = 8): Promise<IRecentProject[]> {
-		const recent = (await this.workspacesService.getRecentlyOpened()).workspaces.filter(isRecentFolder);
-		const opened = this.openedTimes();
+		const opened = Object.entries(this.openedTimes())
+			.filter((entry): entry is [string, number] => typeof entry[1] === 'number')
+			.sort((a, b) => b[1] - a[1]);
 		const projects: IRecentProject[] = [];
-		for (const entry of recent) {
+		for (const [folder, time] of opened) {
 			if (projects.length >= limit) {
 				break;
 			}
-			const project = await this.projectService.findProject(entry.folderUri);
+			let project: ISaengineProject | undefined;
+			try {
+				project = await this.projectService.findProject(URI.parse(folder));
+			} catch {
+				project = undefined; // moved or deleted: left out
+			}
 			if (project) {
-				const time = opened[entry.folderUri.toString()];
-				projects.push({ project, label: project.name, opened: time, changed: time === undefined ? await this.lastChanged(project) : undefined });
+				projects.push({ project, label: project.name, opened: time });
 			}
 		}
-		return projects;
+		const counts = new Map<string, number>();
+		for (const { label } of projects) {
+			counts.set(label, (counts.get(label) ?? 0) + 1);
+		}
+		return projects.map(p => (counts.get(p.label) ?? 0) > 1 ? { ...p, parent: basename(dirname(p.project.root)) } : p);
 	}
 }

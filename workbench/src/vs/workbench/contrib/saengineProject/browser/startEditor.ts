@@ -9,7 +9,8 @@ import './media/startEditor.css';
 import { $, addDisposableListener, append, clearNode, Dimension, EventType, isHTMLButtonElement } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { InputBox, MessageType } from '../../../../base/browser/ui/inputbox/inputBox.js';
+import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
+import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -25,7 +26,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
@@ -33,7 +34,8 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { PROJECT_TYPES, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
 import { NEW_BUILDING_COMMAND } from './newBuildingModel.js';
-import { DESIGN_CODES, DesignCode, ProjectOpener } from './projectOpener.js';
+import { BNBC, SETTINGS_SCHEMA } from '../../../services/saengineProject/common/projectLibraries.generated.js';
+import { DESIGN_CODES, DesignCode, ProjectOpener, projectFolderName } from './projectOpener.js';
 import { appendProjectPath } from './projectParts.js';
 import { StartEditorInput } from './startEditorInput.js';
 import { IMPORT_STRUCTURAL_UI_COMMAND } from './structuralImportModel.js';
@@ -65,6 +67,13 @@ function renderMark(parent: HTMLElement): void {
 			add('circle', { cx: String(cx), cy: String(cy), r: '18' }, nodes);
 		}
 	}
+}
+
+/** The building uses Project Settings offers (`occupancy.use`), from the settings schema. */
+function occupancyUses(): { readonly value: string; readonly label: string }[] {
+	const use = SETTINGS_SCHEMA.$defs?.Occupancy?.properties?.use;
+	const values = (use?.enum ?? []) as string[];
+	return values.map((value, i) => ({ value, label: use?.enumDescriptions?.[i] ?? value }));
 }
 
 function formatOpened(time: number): string {
@@ -195,18 +204,17 @@ export class StartEditor extends EditorPane {
 			return;
 		}
 		const userHome = this.pathService.resolvedUserHome;
-		for (const { project, label, opened, changed } of recent) {
+		for (const { project, label, parent, opened } of recent) {
 			const item = append(list, $('li'));
 			const link = append(item, $('button.recent-project', { type: 'button', title: project.root.fsPath }));
 			const top = append(link, $('span.top'));
 			append(top, $('span.name', undefined, label));
-			const time = opened ?? changed;
-			if (time) {
-				const date = formatOpened(time);
-				append(top, $('span.date', {
-					'aria-label': opened ? localize('start.lastOpened', "Last opened {0}", date) : localize('start.lastChanged', "Last changed {0}", date),
-				}, date));
+			// Projects of the same name are told apart by their folder.
+			if (parent) {
+				append(top, $('span.parent', undefined, localize('start.inFolder', "in {0}", parent)));
 			}
+			const date = formatOpened(opened);
+			append(top, $('span.date', { 'aria-label': localize('start.lastOpened', "Last opened {0}", date) }, date));
 			appendProjectPath(link, project.root, userHome).classList.add('path');
 			this.pageDisposables.add(addDisposableListener(link, EventType.CLICK, () => this.run(() => this.opener.open(project.root))));
 		}
@@ -243,19 +251,40 @@ export class StartEditor extends EditorPane {
 		append(form, $('label', undefined, localize('start.name', "Name")));
 		const name = this.pageDisposables.add(new InputBox(form, this.contextViewService, {
 			inputBoxStyles: defaultInputBoxStyles,
-			placeholder: localize('start.namePlaceholder', "e.g. Office Building"),
+			placeholder: localize('start.namePlaceholder', "e.g. Mirpur Residence (Plot 12/A)"),
 			ariaLabel: localize('start.name', "Name"),
-			validationOptions: {
-				validation: value => {
-					const error = this.opener.validateName(value);
-					return error ? { content: error, type: MessageType.ERROR } : null;
-				},
-			},
 		}));
+		// The message sits in the form's flow, under the field, not in a popup over the next label.
+		const nameError = append(form, $('p.error', { role: 'alert' }));
+		const validateName = () => {
+			const error = name.value ? this.opener.validateDisplayName(name.value) : undefined;
+			nameError.textContent = error ?? '';
+			name.inputElement.setAttribute('aria-invalid', String(!!error));
+			return error;
+		};
+		this.pageDisposables.add(name.onDidChange(validateName));
 
-		append(form, $('label', undefined, localize('start.location', "Location")));
+		// Where the building stands: its seismic zone and wind speed (BNBC 2020 Part 6 Chapter 2).
+		append(form, $('label', undefined, localize('start.site', "Site")));
+		const sites = Object.entries(BNBC.locations).sort((a, b) => a[1].name.localeCompare(b[1].name));
+		const siteIndex = Math.max(0, sites.findIndex(([id]) => id === 'dhaka'));
+		const site = this.pageDisposables.add(new SelectBox(sites.map(([, l]) => ({ text: localize('start.siteOption', "{0} (zone {1}, wind {2} m/s)", l.name, l.zone, l.windSpeed) })), siteIndex, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('start.site', "Site") }));
+		site.render(append(form, $('.select')));
+		let siteId = sites[siteIndex]?.[0];
+		this.pageDisposables.add(site.onDidSelect(e => siteId = sites[e.index]?.[0]));
+
+		// What the building is used for: the live loads and the occupancy category follow it in Project Settings.
+		append(form, $('label', undefined, localize('start.use', "Building use")));
+		const uses = occupancyUses();
+		const useIndex = Math.max(0, uses.findIndex(u => u.value === 'residential'));
+		const use = this.pageDisposables.add(new SelectBox(uses.map(u => ({ text: u.label })), useIndex, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('start.use', "Building use") }));
+		use.render(append(form, $('.select')));
+		let useValue = uses[useIndex]?.value;
+		this.pageDisposables.add(use.onDidSelect(e => useValue = uses[e.index]?.value));
+
+		append(form, $('label', undefined, localize('start.folder', "Folder")));
 		const locationRow = append(form, $('.location'));
-		const location = this.pageDisposables.add(new InputBox(locationRow, this.contextViewService, { inputBoxStyles: defaultInputBoxStyles, ariaLabel: localize('start.location', "Location") }));
+		const location = this.pageDisposables.add(new InputBox(locationRow, this.contextViewService, { inputBoxStyles: defaultInputBoxStyles, ariaLabel: localize('start.folder', "Folder") }));
 		location.value = (await this.opener.defaultLocation()).fsPath;
 		const browse = this.pageDisposables.add(new Button(locationRow, { ...defaultButtonStyles, secondary: true }));
 		browse.label = localize('start.browse', "Browse...");
@@ -282,12 +311,13 @@ export class StartEditor extends EditorPane {
 
 		const target = append(form, $('p.target'));
 		const updateTarget = () => {
-			target.textContent = name.value.trim() && !this.opener.validateName(name.value)
-				? localize('start.target', "Created in {0}", joinPath(URI.file(location.value), name.value.trim()).fsPath)
+			target.textContent = name.value.trim() && !this.opener.validateDisplayName(name.value)
+				? localize('start.target', "Created in {0}", joinPath(URI.file(location.value), projectFolderName(name.value)).fsPath)
 				: '';
 		};
 		this.pageDisposables.add(name.onDidChange(updateTarget));
 		this.pageDisposables.add(location.onDidChange(updateTarget));
+		updateTarget();
 
 		const buttons = append(page, $('.form-actions'));
 		const create = this.pageDisposables.add(new Button(buttons, defaultButtonStyles));
@@ -297,12 +327,12 @@ export class StartEditor extends EditorPane {
 		this.pageDisposables.add(back.onDidClick(() => this.renderRecent(true)));
 
 		const submit = () => {
-			name.validate(); // shows the message, if any
-			if (this.opener.validateName(name.value) || !location.value.trim()) {
+			nameError.textContent = this.opener.validateDisplayName(name.value) ?? '';
+			if (nameError.textContent || !location.value.trim()) {
 				name.focus();
 				return;
 			}
-			this.run(() => this.opener.createAndOpen(URI.file(location.value.trim()), name.value, type, code));
+			this.run(() => this.opener.createAndOpen(URI.file(location.value.trim()), name.value, type, { code, location: siteId, use: useValue }));
 		};
 		this.pageDisposables.add(create.onDidClick(submit));
 		this.pageDisposables.add(addDisposableListener(form, EventType.KEY_DOWN, e => {

@@ -21,10 +21,17 @@ from typing import Any
 
 from saengine.fem.derive import mep_stamp
 from saengine.library.bim import source_stamp
-from saengine.pipeline.project import ALL_PARTS, LOADS_PART, Part, Project, read_text
+from saengine.pipeline.project import (
+    ALL_PARTS,
+    LOADS_PART,
+    Part,
+    Project,
+    read_text,
+    write_text,
+)
 
 #: The states of a part (``PartState``).
-STATES = ("notStarted", "inProgress", "done", "stale", "failed", "error")
+STATES = ("notStarted", "defaults", "inProgress", "done", "stale", "failed", "error")
 
 FEM_RESULTS_FOLDER = "model.results"
 FEM_RESULTS_MANIFEST = "manifest.json"
@@ -34,6 +41,11 @@ SUBSTRUCTURE_SUMMARY_FILE = "substructure.results/summary.json"
 MEP_SUMMARY_FILE = "mep.results/summary.json"
 EXPORT_IFC_FOLDER = "IFC"
 EXPORT_DXF_FOLDER = "Floor Plan"
+#: A part's checks file (``PART_CHECKS_FILE``), in the part's folder.
+PART_CHECKS_FILE = "checks.json"
+PART_CHECKS_SCHEMA_ID = "saengine.partChecks/1"
+#: At most this many items are kept in a checks file (``PART_CHECK_ITEMS``).
+PART_CHECK_ITEMS = 20
 
 #: Parts that never block the next step (``OPTIONAL_PARTS``).
 OPTIONAL_PARTS = frozenset({"soil", "mep", "substructure"})
@@ -76,6 +88,8 @@ class StatusInputs:
     substructureTime: float | None = None
     mepSummaryText: str | None = None
     mepSummaryTime: float | None = None
+    #: Text of each part's checks file by part id (``checksTexts``).
+    checksTexts: dict[str, str | None] = field(default_factory=dict)
 
 
 # ─────────────────────────────── stamps (partSources.ts) ───────────────────────────────
@@ -459,11 +473,16 @@ def fem_status(inputs: StatusInputs) -> PartStatus:
     if not summary or (
         inputs.designSummaryTime is not None and inputs.designSummaryTime < inputs.femResultsTime
     ):
-        return _status("fem", "done", "analysed")
+        return _status("fem", "inProgress", "analysed", "run the design checks")
     if summary["failed"] > 0:
         return _status(
             "fem", "failed", f"{_js(summary['failed'])} fail", "review the failing members"
         )
+    if summary["checked"] == 0:
+        return _status(
+            "fem", "inProgress", "nothing checked",
+            "no member was design-checked: open the design results",
+        )  # fmt: skip
     return _status("fem", "done", f"{_js(summary['passed'])} pass")
 
 
@@ -586,6 +605,12 @@ def substructure_status(inputs: StatusInputs) -> PartStatus:
             f"{_js(summary['failed'])} fail",
             "review the failing foundations",
         )
+    unchecked = _positive(summary.get("skipped")) + _positive(summary.get("unsupported"))
+    if unchecked > 0:
+        return _status(
+            "substructure", "inProgress", f"{_js(unchecked)} not checked",
+            "check the foundations that were skipped",
+        )  # fmt: skip
     return _status("substructure", "done", foundations)
 
 
@@ -616,7 +641,223 @@ def document_status(part: str, inputs: StatusInputs) -> PartStatus:
         return _status(part, "error", INVALID, "fix the file")
     if is_placeholder(document, part):
         return _status(part, "notStarted", NOT_STARTED, _start_hint(part))
+    if part in ("settings", "materials"):
+        if holds_defaults(document, part):
+            return _status(part, "defaults", "defaults", "review the defaults")
+        return _status(part, "done")
+    if part == "objects":
+        types = _length(document.get("objects"))
+        if not types:
+            return _status(part, "notStarted", NOT_STARTED, _start_hint(part))
+        return _status(part, "done", _plural(types, "1 type", "{0} types"))
+    if part in ("floorPlan", "structure"):
+        members = model_member_count(document, part)
+        if not members:
+            return _status(part, "notStarted", NOT_STARTED, _start_hint(part))
+        return _status(part, "done", _plural(members, "1 member", "{0} members"))
     return _status(part, "done")
+
+
+def _canonical(value: Any) -> str:
+    """``canonical``: JSON with sorted keys, so key order does not matter, and whole floats as
+    integers, as JavaScript writes them (25.0 and 25 are the same number)."""
+
+    def numbers(item: Any) -> Any:
+        if isinstance(item, float) and item.is_integer():
+            return int(item)
+        if isinstance(item, dict):
+            return {k: numbers(v) for k, v in item.items()}
+        if isinstance(item, list):
+            return [numbers(v) for v in item]
+        return item
+
+    return json.dumps(numbers(value), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def _object(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _defined(value: dict[str, Any]) -> dict[str, Any]:
+    """Without the None values (JSON.stringify drops undefined ones)."""
+    return {k: v for k, v in value.items() if v is not None}
+
+
+def holds_defaults(document: dict[str, Any], part: str) -> bool:
+    """``holdsDefaults``: whether a settings or materials file still holds what a new project
+    starts with (the settings apart from the project name, the concrete and steel codes, the
+    site's location and the building's use)."""
+    from saengine.library.defaults import default_material_library
+    from saengine.library.export import library_json
+    from saengine.library.settings import default_project_settings
+
+    if part == "materials":
+        return _canonical(document) == _canonical(library_json(default_material_library()))
+    defaults = library_json(default_project_settings())
+    codes = _object(document.get("codes"))
+    expected = {
+        **defaults,
+        "project": _defined({"name": _object(document.get("project")).get("name")}),
+        "codes": _defined(
+            {
+                **_object(defaults.get("codes")),
+                "concrete": codes.get("concrete"),
+                "steel": codes.get("steel"),
+            }
+        ),
+        "site": _defined(
+            {
+                **_object(defaults.get("site")),
+                "location": _object(document.get("site")).get("location"),
+            }
+        ),
+        "occupancy": _defined(
+            {
+                **_object(defaults.get("occupancy")),
+                "use": _object(document.get("occupancy")).get("use"),
+            }
+        ),
+    }
+    return _canonical(document) == _canonical(expected)
+
+
+def model_member_count(document: dict[str, Any], part: str) -> int:
+    """``modelMemberCount``: the members a floor plan places or a structural model draws."""
+    keys = (
+        ("members", "areas")
+        if part == "structure"
+        else ("columns", "beams", "walls", "slabs", "footings")
+    )
+    return sum(_length(document.get(k)) for k in keys)
+
+
+# ─────────────────────────────── part checks (PART_CHECKS_FILE) ───────────────────────────────
+
+
+def _positive(value: Any) -> float:
+    return value if _is_number(value) and value > 0 else 0
+
+
+def part_checks_file(
+    part: str, counts: dict[str, Any], sources: dict[str, str | None]
+) -> dict[str, Any]:
+    """``partChecksFile``: the checks file of ``part`` with ``counts`` (``problems`` and,
+    optionally, ``checked``, ``total``, ``failed``, ``unsupported`` and ``items``) made from the
+    saved files ``sources`` (part id to text, None for a missing file)."""
+    result: dict[str, Any] = {
+        "schema": PART_CHECKS_SCHEMA_ID,
+        "part": part,
+        "problems": counts.get("problems", 0),
+    }
+    for key in ("checked", "total", "failed", "unsupported"):
+        if counts.get(key) is not None:
+            result[key] = counts[key]
+    items = list(counts.get("items") or [])[:PART_CHECK_ITEMS]
+    if items:
+        result["items"] = items
+    result["source"] = {k: "" if t is None else source_stamp(t) for k, t in sources.items()}
+    return result
+
+
+def write_part_checks(
+    project: Project, part: str, counts: dict[str, Any], sources: tuple[str, ...] | None = None
+) -> Path:
+    """``reportChecks``: write the checks file of ``part``, made from the saved files of
+    ``sources`` (default: the part's own main file); an unchanged file is not rewritten."""
+    by_id = {p.id: p for p in ALL_PARTS}
+    texts: dict[str, str | None] = {}
+    for id_ in sources or (part,):
+        source = by_id.get(id_)
+        texts[id_] = (
+            read_text(project.root / source.folder / source.main_file)
+            if source and source.main_file
+            else None
+        )
+    target = project.root / by_id[part].folder / PART_CHECKS_FILE
+    text = json.dumps(part_checks_file(part, counts, texts), indent="\t") + "\n"
+    if read_text(target) != text:
+        write_text(target, text)
+    return target
+
+
+def current_part_checks(
+    part: str, text: str | None, texts: dict[str, str | None]
+) -> dict[str, Any] | None:
+    """``currentPartChecks``: the checks in ``text`` when they are of ``part`` and current."""
+    value = _parse(text) if text is not None else None
+    if (
+        not value
+        or value.get("schema") != PART_CHECKS_SCHEMA_ID
+        or value.get("part") != part
+        or not _is_number(value.get("problems"))
+    ):
+        return None
+    source = value.get("source")
+    if not isinstance(source, dict) or not _sources_unchanged(texts, source):
+        return None
+    return value
+
+
+def _first_message(checks: dict[str, Any], default: str) -> str:
+    items = checks.get("items")
+    first = items[0] if isinstance(items, list) and items else None
+    message = first.get("message") if isinstance(first, dict) else None
+    return message if isinstance(message, str) else default
+
+
+def apply_part_checks(own: PartStatus, checks: dict[str, Any] | None) -> PartStatus:
+    """``applyPartChecks``: ``own`` with the part's current checks applied."""
+    if not checks or own.state in ("notStarted", "error", "stale"):
+        return own
+    problems = _positive(checks.get("problems"))
+    if problems > 0:
+        return _status(
+            own.part, "failed", _plural(problems, "1 problem", "{0} problems"),
+            _first_message(checks, "fix the problems"),
+        )  # fmt: skip
+    failed = _positive(checks.get("failed"))
+    if failed > 0:
+        if own.state == "failed":
+            return own
+        return _status(
+            own.part, "failed", f"{_js(failed)} fail",
+            _first_message(checks, "review the failing checks"),
+        )  # fmt: skip
+    if own.state == "failed":
+        return own
+    unsupported = _positive(checks.get("unsupported"))
+    if unsupported > 0:
+        return _status(
+            own.part, "inProgress", f"{_js(unsupported)} not supported",
+            _first_message(checks, "these items cannot be checked yet"),
+        )  # fmt: skip
+    checked, total = checks.get("checked"), checks.get("total")
+    if _is_number(checked) and _is_number(total) and checked < total:
+        return _status(
+            own.part, "inProgress", f"{_js(checked)} of {_js(total)} checked", "check the rest"
+        )
+    return own
+
+
+def _exports_with_design(exports: PartStatus, fem: PartStatus, inputs: StatusInputs) -> PartStatus:
+    """``exportsWithDesign``: the report is done only when the design checks pass (R4)."""
+    if exports.state != "done" or inputs.reportTime is None:
+        return exports
+    newest = max(inputs.designSummaryTime or 0, inputs.femResultsTime or 0)
+    if newest > inputs.reportTime:
+        return _status("exports", "stale", STALE, "build the design report again")
+    if fem.state == "failed":
+        return _status(
+            "exports", "failed", "report, design fails",
+            "fix the failing members, then build the report again",
+        )  # fmt: skip
+    value = _parse(inputs.designSummaryText) if inputs.designSummaryText is not None else None
+    if fem.state != "done" or not (value and value.get("checked")):
+        return _status(
+            "exports", "inProgress", exports.text,
+            "run the design checks, then build the report again",
+        )  # fmt: skip
+    return exports
 
 
 def compute_part_statuses(
@@ -643,13 +884,31 @@ def compute_part_statuses(
                 result.append(mep_status(inputs))
             case _:
                 result.append(document_status(part.id, inputs))
+    result = [
+        apply_part_checks(
+            s, current_part_checks(s.part, inputs.checksTexts.get(s.part), inputs.texts)
+        )
+        for s in result
+    ]
+    # The report says what the design checks found, so it is done only when they pass (R4).
+    fem = next((s for s in result if s.part == "fem"), None)
+    for index, status in enumerate(result):
+        if status.part == "exports" and fem:
+            result[index] = _exports_with_design(status, fem, inputs)
     return result
 
 
+#: States of an optional part that still need the engineer (``OPTIONAL_NEEDS_WORK``).
+OPTIONAL_NEEDS_WORK = frozenset({"failed", "error", "stale"})
+
+
 def next_step(statuses: list[PartStatus]) -> tuple[int, PartStatus] | None:
-    """``nextStep``: the first part, in order, that needs doing (optional parts skipped)."""
+    """``nextStep``: the first part, in order, that needs doing (optional parts only once they
+    fail, are stale or cannot be read)."""
     for index, status in enumerate(statuses):
-        if status.state != "done" and status.part not in OPTIONAL_PARTS:
+        if status.state != "done" and (
+            status.part not in OPTIONAL_PARTS or status.state in OPTIONAL_NEEDS_WORK
+        ):
             return index, status
     return None
 
@@ -716,6 +975,7 @@ def read_inputs(project: Project) -> StatusInputs:
         substructureTime=_mtime(substructure / "substructure.json"),
         mepSummaryText=read_text(mep / MEP_SUMMARY_FILE),
         mepSummaryTime=_mtime(mep / MEP_SUMMARY_FILE),
+        checksTexts={p.id: read_text(root / p.folder / PART_CHECKS_FILE) for p in project.parts},
     )
 
 

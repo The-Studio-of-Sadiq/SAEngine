@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, clampPanelWidth, readFrameState } from '../../browser/editorFrame.js';
+import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, clampPanelWidth, manualChapterOf, readFrameState } from '../../browser/editorFrame.js';
 
 suite('SAEngine - editor frame', () => {
 
@@ -70,5 +70,13 @@ suite('SAEngine - editor frame', () => {
 			element: true,
 			note: 'Read-only.',
 		});
+	});
+
+	test('the editors of each part link to their chapter of the user manual', () => {
+		assert.deepStrictEqual([
+			'workbench.editor.saengine.soil', 'workbench.editor.saengine.floorPlan', 'workbench.editor.saengine.substructure',
+			'workbench.editor.saengine.structureModeler', 'workbench.editor.saengine.femResults', 'workbench.editor.saengine.boq',
+			'workbench.editor.saengine.sectionDesigner',
+		].map(manualChapterOf), ['01-soil-report', '05-floor-plan', '09-substructure', '05-floor-plan', '08-fem', '10-boq', undefined]);
 	});
 });

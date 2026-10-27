@@ -14,6 +14,7 @@ import { ToolBar } from '../../../../base/browser/ui/toolbar/toolbar.js';
 import { Action, IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
@@ -130,6 +131,30 @@ const MIN_MAIN_WIDTH = 240;
  * The properties panel's width within `min`..`max`, leaving the main area at least
  * {@link MIN_MAIN_WIDTH} of `available` (never below `min`).
  */
+/** Opens the user manual, at a chapter (`docs/manual/<chapter>.md`) when one is given (saengineShell.contribution.ts). */
+export const OPEN_MANUAL_COMMAND = 'saengine.openManual';
+
+/** The manual chapter of each part's editors, by a word of their frame id (editor ids differ in prefix only). */
+const MANUAL_CHAPTERS: readonly (readonly [RegExp, string])[] = [
+	[/soil/i, '01-soil-report'],
+	[/settings/i, '02-project-settings'],
+	[/floorPlan|membersTable/i, '05-floor-plan'],
+	// Before "structure", which it contains.
+	[/substructure/i, '09-substructure'],
+	[/structure/i, '05-floor-plan'],
+	[/building|bim/i, '06-bim'],
+	[/mep/i, '07-mep'],
+	[/fem/i, '08-fem'],
+	[/boq/i, '10-boq'],
+	[/exports|drawing|versions/i, '11-exports'],
+	[/library/i, '03-materials'],
+];
+
+/** The user manual chapter for an editor frame with `id`, if it belongs to a part. */
+export function manualChapterOf(id: string): string | undefined {
+	return MANUAL_CHAPTERS.find(([pattern]) => pattern.test(id))?.[1];
+}
+
 export function clampPanelWidth(width: number, available: number, min = MIN_PANEL_WIDTH, max = MAX_PANEL_WIDTH): number {
 	const upper = Math.max(min, Math.min(max, available - MIN_MAIN_WIDTH));
 	return Math.round(Math.max(min, Math.min(upper, Number.isFinite(width) ? width : min)));
@@ -291,6 +316,7 @@ export class EditorFrame extends Disposable {
 
 		this.status = append(this.element, $('.sa-frame-status', { role: 'status', 'aria-live': 'polite' }));
 		this.applyPanel();
+		this.setHelp(undefined);
 	}
 
 	/**
@@ -391,13 +417,20 @@ export class EditorFrame extends Disposable {
 	setHelp(text: string | undefined): void {
 		this.helpStore.clear();
 		clearNode(this.helpSlot);
-		if (!text) {
+		// Every part's editor has the "?", with a link to its chapter of the user manual (G13).
+		const chapter = manualChapterOf(this.options.id);
+		if (!text && !chapter) {
 			return;
 		}
 		const label = localize('editorFrame.help', "About This Editor");
 		const button = append(this.helpSlot, $<HTMLButtonElement>('button.sa-frame-icon-button.sa-frame-help-button', { type: 'button', 'aria-label': label }));
 		append(button, $(ThemeIcon.asCSSSelector(Codicon.question)));
-		const hover = this.helpStore.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, text));
+		const content = new MarkdownString(undefined, { isTrusted: { enabledCommands: [OPEN_MANUAL_COMMAND] } });
+		content.appendText(text ?? localize('editorFrame.helpDefault', "How this part works, step by step, is in the user manual."));
+		if (chapter) {
+			content.appendMarkdown(`\n\n[${localize('editorFrame.learnMore', "Learn more in the user manual")}](command:${OPEN_MANUAL_COMMAND}?${encodeURIComponent(JSON.stringify([chapter]))})`);
+		}
+		const hover = this.helpStore.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, { markdown: content, markdownNotSupportedFallback: text }));
 		this.helpStore.add(addDisposableListener(button, EventType.CLICK, () => hover.show(true)));
 	}
 

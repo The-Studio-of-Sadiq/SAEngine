@@ -28,7 +28,7 @@ import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
-import { ISaenginePartStatusService, nextStep } from '../../../services/saengineProject/common/partStatus.js';
+import { ISaenginePartStatusService, nextStep, openOptionalParts } from '../../../services/saengineProject/common/partStatus.js';
 import { IProjectPart, ISaengineProjectService, PROJECT_TYPES } from '../../../services/saengineProject/common/saengineProject.js';
 import { appendProjectPath, openPart, partGroups, partName, stateClass, stateLabel, stateText } from './projectParts.js';
 import { ProjectOverviewInput } from './projectOverviewInput.js';
@@ -126,8 +126,18 @@ export class ProjectOverviewEditor extends EditorPane {
 			button.label = localize('overview.openNext', "Open {0}", partName(nextPart));
 			this.renderDisposables.add(button.onDidClick(() => this.open(nextPart)));
 		} else if (statuses.length) {
-			append(nextBox, $(`span.next-icon${ThemeIcon.asCSSSelector(Codicon.check)}`));
-			append(nextBox, $('span.next-text', undefined, localize('overview.allDone', "Every part is up to date.")));
+			// Optional parts that were started but are not done are still open work: say which.
+			const open = openOptionalParts(statuses);
+			const openParts = open.map(s => parts.find(p => p.id === s.part)).filter((p): p is IProjectPart => !!p);
+			append(nextBox, $(`span.next-icon${ThemeIcon.asCSSSelector(open.length ? Codicon.info : Codicon.check)}`));
+			append(nextBox, $('span.next-text', undefined, openParts.length
+				? localize('overview.optionalOpen', "The required parts are done. Still open: {0}", open.map((s, i) => `${partName(openParts[i])} (${stateText(s)})`).join(', '))
+				: localize('overview.allDone', "Every part is up to date.")));
+			if (openParts.length) {
+				const button = this.renderDisposables.add(new Button(nextBox, defaultButtonStyles));
+				button.label = localize('overview.openNext', "Open {0}", partName(openParts[0]));
+				this.renderDisposables.add(button.onDidClick(() => this.open(openParts[0])));
+			}
 		}
 
 		for (const group of partGroups(parts)) {
