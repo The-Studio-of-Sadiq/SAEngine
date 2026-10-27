@@ -356,21 +356,16 @@ def cmd_export_e2k(
 ) -> int:
     """``saengine export --format e2k <project> [<out.e2k>]``: an ETABS text model
     (saengine.exporters.etabs) and its export report beside it."""
-    from saengine.exporters.etabs import E2kExportError, export_e2k
+    from saengine.exporters.etabs import E2kExportError, export_e2k_file
 
-    target = out_path or project.root / "11 Exports" / "ETABS" / f"{project.name}.e2k"
-    if target.is_dir():
-        target = target / f"{project.name}.e2k"
     units = ("N", "MM") if args.units == "N-mm" else ("KN", "M")
     out.progress("Deriving the analysis model for the story forces ...")
     try:
-        result = export_e2k(project.root, units=units, lateral=args.lateral)
-        written = result.write(target)
+        result = export_e2k_file(project.root, out_path, units=units, lateral=args.lateral)
     except (E2kExportError, OSError) as error:
         raise CommandError(str(error)) from error
-    report = result.report.to_dict()
-    report_path = written.with_name(f"{written.stem}.export-report.json")
-    report_path.write_text(json.dumps(report, indent="\t", ensure_ascii=False) + "\n", "utf-8")
+    report = result["report"]
+    written, report_path = Path(result["path"]), Path(result["reportPath"])
     out.line(f"Wrote {written}")
     out.line(f"Wrote {report_path}")
     counts = ", ".join(f"{v} {k}" for k, v in report["exported"].items() if v)

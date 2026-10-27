@@ -263,6 +263,11 @@ export interface IDrawingSettings {
 	readonly detailScale: string;
 	/** The project settings have a `drawings` section. */
 	readonly present: boolean;
+	/**
+	 * Where the drawings' own values differ from Project's (the engineer, the project number), as
+	 * sentences: the sheets print the drawings' value, the report Project's.
+	 */
+	readonly conflicts: readonly string[];
 }
 
 export const DEFAULT_PLAN_SCALE = '1:100';
@@ -295,6 +300,14 @@ export function readDrawingSettings(settings: unknown): IDrawingSettings {
 	const revision = isBag(rawRevision)
 		? text(rawRevision.code, rawRevision.number, rawRevision.rev, rawRevision.revision)
 		: text(rawRevision);
+	const conflicts: string[] = [];
+	const differ = (own: string | undefined, projects: string | undefined, message: (own: string, projects: string) => string) => {
+		if (own && projects && own !== projects) {
+			conflicts.push(message(own, projects));
+		}
+	};
+	differ(text(drawings.engineer), text(project.engineer), (own, projects) => localize('drawings.engineerConflict', "The drawings name the engineer {0}, Project names {1}.", own, projects));
+	differ(text(drawings.projectNumber), text(project.number), (own, projects) => localize('drawings.numberConflict', "The drawings' project number is {0}, Project's is {1}.", own, projects));
 	return {
 		firm: text(drawings.firm, drawings.firmName),
 		engineer: text(drawings.engineer, project.engineer),
@@ -310,6 +323,7 @@ export function readDrawingSettings(settings: unknown): IDrawingSettings {
 		planScale: readScale(drawings.planScale ?? scales.plan) ?? DEFAULT_PLAN_SCALE,
 		detailScale: readScale(drawings.detailScale ?? scales.detail) ?? DEFAULT_DETAIL_SCALE,
 		present: isBag(root.drawings),
+		conflicts,
 	};
 }
 

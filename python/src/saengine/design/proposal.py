@@ -25,8 +25,8 @@ Detailing (see :mod:`saengine.design.bars` for the clauses):
 - Slabs: per layer the lightest mesh of Ø10/12/16 at 25 mm spacing steps (at least 100 mm,
   at most the largest spacing), for the largest Wood-Armer moment of all the type's strips, As,min
   and the ρ that one-way shear needs (the slab has no shear bars).
-- Foundations (9 Substructure, bars stored on each foundation): per direction and face, from
-  their flexure and strut-and-tie checks, As,min and spacing at most min(3h, 450 mm).
+- Foundations are not proposed here: 9 Substructure designs them (its Size Footings gives their
+  size and bars). One feature lives in one part only.
 
 When no practical bars make a section work (εt, the shear limit of ACI 22.5.1.2, ρ above 0.08,
 a slab too thin for one-way shear without shear bars), the type is reported ``tooSmall`` with
@@ -66,9 +66,6 @@ from saengine.design.required import (
     beam_demand,
     beam_need,
     column_requirements,
-    foundation_demands,
-    foundation_layer_need,
-    gather,
     slab_envelope,
     slab_layer_need,
     slab_layer_rules,
@@ -450,7 +447,7 @@ def _bigger_column(search: ColumnSearch, points: list[Point]) -> str:
             index = min(
                 range(len(trial.layouts)), key=lambda k: abs(trial.layouts[k].area - target)
             )
-            if trial.utilisation(index, points) <= 1.0:
+            if trial.carries(index, points):
                 size = f"Ø{trial.b:g}" if trial.shape == "circle" else f"{trial.b:g} x {trial.h:g}"
                 return (
                     f"try {size} mm (+{grow:g} mm) with about ρ = 0.025; the analysis must be "
@@ -752,7 +749,7 @@ def design_proposal(
     options: dict[str, Any] | None = None,
     gathered: Gathered | None = None,
 ) -> dict[str, Any]:
-    """The proposed bars of every designed object type and foundation (see the module notes).
+    """The proposed bars of every designed object type (see the module notes).
 
     ``options``: ``mode`` "byType" (default) or "splitTypes", ``diameters``,
     ``stirrupDiameters``, ``maxSizes`` (bar sizes per beam, 2), ``overDesign`` (0.25: members
@@ -764,17 +761,25 @@ def design_proposal(
     "tooSmall" ({"reason", "suggestion"} or None), "notes", "byType" (splitTypes only: the
     single-type proposal)}], "newTypes": [{"type", "from", "kind", "name", "proposed",
     "members", "governingMember", "utilisation"}], "reassign": [{"member", "from", "to",
-    "source"}], "foundations": [{"id", "type", "current", "proposed", "status", "notes",
-    "otherFailures", "tooSmall"}], "warnings"}``; ``current``/``proposed`` are the
-    reinforcement in the shape of 04 Objects (09 Substructure for foundations) with its
-    description under ``"text"`` (:func:`bars_of`), or None.
+    "source"}], "foundations": [] (kept for older callers: 9 Substructure designs the
+    foundations), "warnings", "notes"}``; ``current``/``proposed`` are the reinforcement in the
+    shape of 04 Objects with its description under ``"text"`` (:func:`bars_of`), or None.
+
+    ``gathered``: the checks to propose from; by default those
+    :func:`saengine.pipeline.design_mode.gathered` keeps for the run's inputs (made once and
+    shared with the design view, Run All and the required steel).
     """
     raw = options or {}
     mode = raw.get("mode", "byType")
     if mode not in ("byType", "splitTypes"):
         raise ValueError(f"unknown mode '{mode}' (byType or splitTypes)")
     opts = Options.of(raw)
-    gathered = gathered or gather(out_dir, project_path)
+    if gathered is None:
+        # The checks the design view, Run All and the required steel already made for these
+        # inputs, else made once for all of them (saengine.pipeline.design_mode).
+        from saengine.pipeline.design_mode import gathered as kept_gathering
+
+        gathered = kept_gathering(out_dir, project_path, substructure=False)
     combinations = gathered.collect.get("combinations", [])
     originals = {o["id"]: o for o in json.loads(gathered.objects_text).get("objects", [])}
     taken = set(originals)
@@ -1031,15 +1036,14 @@ def design_proposal(
     types += steel_types
     warnings += steel_notes
 
-    foundations = [_foundation_entry(d, opts) for d in foundation_demands(gathered)]
-    # Integrator glue: the footings' punching studs or stirrups (saengine.design.punching).
-    checks_of = {
-        r["id"]: r.get("checks", [])
-        for r in (gathered.substructure or {}).get("foundations", [])
-        if isinstance(r, dict) and "id" in r
-    }
-    for entry in foundations:
-        _with_punching(entry, checks_of.get(entry["id"], []))
+    notes: list[str] = []
+    if (gathered.root / "09 Substructure" / "substructure.json").exists():
+        # No duplication: footings, rafts and pile caps, their bars and punching layouts are
+        # designed in 9 Substructure (its Size Footings), never here.
+        notes.append(
+            "Foundations are designed in 9 Substructure: its Size Footings proposes their "
+            "size and bars."
+        )
     for t in types:
         if t["status"] == "tooSmall":
             warnings.append(f"{t['type']}: section too small — {t['tooSmall']['reason']}")
@@ -1048,8 +1052,9 @@ def design_proposal(
         "types": types,
         "newTypes": new_types,
         "reassign": reassign,
-        "foundations": foundations,
+        "foundations": [],
         "warnings": warnings,
+        "notes": notes,
     }
 
 
@@ -1058,8 +1063,8 @@ def design_proposal(
 
 def _zone_text(transverse: dict[str, Any]) -> str:
     zone = transverse.get("zone") or {}
-    if not zone:
-        return ""
+    if not zone or zone.get("spacing") == transverse.get("spacing"):
+        return ""  # one spacing along the member: said once (X27 of the usability walk)
     text = f"ends @ {zone['spacing']:g}"
     if zone.get("length"):
         text += f" over {zone['length']:g}"
@@ -1542,88 +1547,6 @@ def _apply_punching(
     )
 
 
-def _foundation_entry(demand: Any, opts: Options) -> dict[str, Any]:
-    current = demand.current.model_dump(mode="json", exclude_none=True) if demand.current else None
-    reinforcement: dict[str, Any] = {
-        "material": demand.material,
-        "cover": demand.cover,
-    }
-    s_max = (
-        min(3 * demand.thickness, 450.0)
-        if demand.type != "raft"
-        else min(2 * demand.thickness, 450.0)
-    )
-    notes: list[str] = [
-        f"spacing ≤ {s_max:.0f} mm (ACI {'7.7.2.3' if demand.type != 'raft' else '8.7.2.2'})"
-    ]
-    small: list[str] = []
-    for face in ("bottom", "top"):
-        outer = 0.0
-        for direction in ("X", "Y"):
-            name = f"{face}{direction}"
-            if face == "top" and demand.moments[name].value <= 0:
-                continue
-            required_of = {}
-            for dia in opts.footing_diameters:
-                d = (
-                    demand.thickness
-                    - demand.cover
-                    - (dia / 2 if direction == "X" else outer + dia / 2)
-                )
-                required, _, _, too_small = foundation_layer_need(demand, name, d)
-                if too_small:
-                    small.append(f"{name}: too thin for the moment")
-                    break
-                required_of[dia] = required
-            if small:
-                break
-            if face == "top" and max(required_of.values(), default=0.0) <= 0:
-                continue
-            mesh = B.mesh_for(
-                0.0, s_max, opts.footing_diameters, opts.min_slab_spacing, required_of
-            )
-            if mesh is None:
-                small.append(f"{name}: bars closer than {opts.min_slab_spacing:g} mm needed")
-                break
-            reinforcement[name] = {"dia": mesh.dia, "spacing": mesh.spacing}
-            if direction == "X":
-                outer = mesh.dia
-        if small:
-            break
-    proposed = None
-    if not small:
-        proposed = bars_of(reinforcement, _mesh_label(reinforcement))
-    status = "ok" if not small else "tooSmall"
-    if status == "ok" and current is not None and _mesh_equal(current, reinforcement):
-        status = "unchanged"
-    return {
-        "id": demand.id,
-        "type": demand.type,
-        "current": bars_of(current, _mesh_label(current)) if current else None,
-        "proposed": proposed,
-        "status": status,
-        "notes": notes,
-        "otherFailures": list(demand.failing),
-        "tooSmall": None
-        if not small
-        else {
-            "reason": "; ".join(small),
-            "suggestion": ("a thicker foundation (try +50 mm steps and run the design again)"),
-        },
-    }
-
-
-def _mesh_equal(a: dict[str, Any], b: dict[str, Any]) -> bool:
-    return all(
-        (a.get(n) or {}).get("dia") == (b.get(n) or {}).get("dia")
-        and (a.get(n) or {}).get("spacing") == (b.get(n) or {}).get("spacing")
-        for n in slab_design.LAYERS
-    )
-
-
-# ─────────────────────────────────────── applying ───────────────────────────────────────
-
-
 def _dump(data: Any, like: str) -> str:
     """JSON in the indentation of the text it replaces (tabs or spaces)."""
     indent: str | int = 2
@@ -1664,7 +1587,7 @@ def apply_proposal(
     substructure_text: str | None = None,
 ) -> dict[str, Any]:
     """The part files with ``proposal`` (:func:`design_proposal`) applied, as new texts:
-    ``{"objectsText", "bimText", "floorPlanText"?, "substructureText"?, "changes"}``. Pure: it
+    ``{"objectsText", "bimText", "floorPlanText"?, "changes"}``. Pure: it
     reads and writes nothing. Entries with ``"apply": false`` (set by the workbench when the
     engineer unticks one) and those without a proposal (too small) are left out; new types are
     added after the type they come from, their members reassigned in the BIM model (and in the
@@ -1672,14 +1595,15 @@ def apply_proposal(
     when it was current). When a split-off member stays in its type (its new type or its row
     unticked), the type takes its ``byType`` bars (designed for all its members), not the split's;
     a new type none of whose members moves is not added. ``changes``: ``[{"file", "id", "what", "from",
-    "to", "message"}]``. Raises ``ValueError`` when a text is not valid JSON or a type is not there."""
+    "to", "message"}]``. Raises ``ValueError`` when a text is not valid JSON or a type is not there.
+    ``substructure_text`` is accepted and ignored (older callers send it): foundations are
+    designed in 9 Substructure."""
     from saengine.library.bim import source_stamp
     from saengine.library.objects import ObjectLibrary
 
     objects = json.loads(objects_text)
     bim = json.loads(bim_text)
     plan = json.loads(floor_plan_text) if floor_plan_text is not None else None
-    sub = json.loads(substructure_text) if substructure_text is not None else None
     changes: list[dict[str, Any]] = []
     by_id = {o["id"]: o for o in objects.get("objects", [])}
 
@@ -1801,29 +1725,6 @@ def apply_proposal(
                 _change("05 Floor Plan/floor-plan.json", source, "type", move["from"], move["to"])
             )
 
-    if sub is not None:
-        found = {f["id"]: f for f in sub.get("foundations", [])}
-        for entry in proposal.get("foundations", []):
-            if entry.get("apply") is False or not entry.get("proposed"):
-                continue
-            target = found.get(entry["id"])
-            if target is None:
-                continue
-            _apply_punching(entry, target, "09 Substructure/substructure.json", changes)
-            after = reinforcement_of(entry["proposed"])
-            if target.get("reinforcement") == after:
-                continue
-            target["reinforcement"] = after
-            changes.append(
-                _change(
-                    "09 Substructure/substructure.json",
-                    entry["id"],
-                    "reinforcement",
-                    _text(entry.get("current")),
-                    _text(entry["proposed"]),
-                )
-            )
-
     ObjectLibrary.model_validate(objects)  # the result must still be a valid library
     result: dict[str, Any] = {
         "objectsText": _dump(objects, objects_text),
@@ -1841,8 +1742,6 @@ def apply_proposal(
         ):
             stamps["floorPlan"] = new_stamp
             result["bimText"] = _dump(bim, bim_text)
-    if sub is not None and substructure_text is not None:
-        result["substructureText"] = _dump(sub, substructure_text)
     return result
 
 

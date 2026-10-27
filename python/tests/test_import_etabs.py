@@ -127,12 +127,19 @@ def test_frame_imports_into_valid_parts(tmp_path: Path) -> None:
 
     report = load("import-report.json")
     assert report["imported"]["braces"] == 1 and report["imported"]["supports"] == 6
+    assert report["imported"]["stories"] == 2  # the base is a level, not a story
     skipped = {s["what"]: s for s in report["skipped"]}
-    assert skipped["frame loads"]["examples"] == ["B3-Story1 SDL"]
     assert "sections named from a steel database that could not be read" in skipped
     assert "envelope, SRSS and absolute combinations" in skipped
-    assert report["loads"]["notCarriedKN"] == {"D": 60.0, "L": 20.0}  # 10 kN/m x 6 m, 20 kN
-    assert report["loads"]["carriedKN"] == {"D": SDL, "L": LIVE, "Lr": ROOF_LIVE}
+    # The frame load (10 kN/m over 6 m) and the point load (20 kN) are member loads now.
+    assert report["loads"]["notCarriedKN"] == {}
+    assert report["loads"]["carriedKN"] == {"D": SDL + 60, "L": LIVE + 20, "Lr": ROOF_LIVE}
+    assert (report["imported"]["memberLineLoads"], report["imported"]["memberPointLoads"]) == (1, 1)
+    member_loads = load("05 Floor Plan/loads.json")["loads"]
+    assert [(m["member"], m["kind"], m["case"], m["value"]) for m in member_loads] == [
+        ("B3-Story1", "line", "SD", 10),
+        ("C5-Story2", "point", "L", 20),
+    ]
     approximated = {a["what"] for a in report["approximated"]}
     assert any(a.startswith("pinned steel beams and braces as simple") for a in approximated)
     assert "axial, shear and torsion releases not expressed" in approximated  # TI

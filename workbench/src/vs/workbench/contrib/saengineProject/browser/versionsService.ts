@@ -9,10 +9,11 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { ISaengineProject, ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
+import { ISaengineProject, ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import {
 	diffArgs, IVersionDiff, IVersionEntry, IVersionsStatus, markIssuedArgs, readDiff, readStatus, readVersion, readVersions, restoreArgs, saveArgs,
 	VERSIONS_DIFF_COMMAND, VERSIONS_LIMIT, VERSIONS_LIST_COMMAND, VERSIONS_MARK_ISSUED_COMMAND, VERSIONS_RESTORE_COMMAND, VERSIONS_SAVE_COMMAND, VERSIONS_STATUS_COMMAND,
@@ -63,6 +64,9 @@ function orThrow<T>(result: T, keys: readonly string[]): T {
 	return result;
 }
 
+/** The application setting with who saves versions ("Name <email>"), registered with the backend commands. */
+const VERSIONS_AUTHOR_SETTING = 'saengine.versions.author';
+
 export class ProjectVersionsService extends Disposable implements IProjectVersionsService {
 
 	declare readonly _serviceBrand: undefined;
@@ -78,8 +82,9 @@ export class ProjectVersionsService extends Disposable implements IProjectVersio
 	constructor(
 		@ISaengineProjectService private readonly projectService: ISaengineProjectService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IFileService fileService: IFileService,
+		@IFileService private readonly fileService: IFileService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this._register(this.workingCopyService.onDidChangeDirty(copy => {
@@ -167,9 +172,10 @@ export class ProjectVersionsService extends Disposable implements IProjectVersio
 	}
 
 	async save(message: string, options: { readonly author?: string; readonly issued?: boolean; readonly label?: string }): Promise<IVersionEntry | undefined> {
-		const { projectRoot } = this.root();
+		const { project, projectRoot } = this.root();
+		const author = options.author ?? await this.defaultAuthor(project);
 		try {
-			const result = orThrow(await this.commandService.executeCommand(VERSIONS_SAVE_COMMAND, saveArgs(projectRoot, message, options)), ['id', 'version', 'sha', 'commit']);
+			const result = orThrow(await this.commandService.executeCommand(VERSIONS_SAVE_COMMAND, saveArgs(projectRoot, message, { ...options, author })), ['id', 'version', 'sha', 'commit']);
 			const bag = typeof result === 'object' && result !== null ? result as { readonly version?: unknown } : {};
 			return readVersion(typeof bag.version === 'object' ? bag.version : result);
 		} finally {
@@ -192,6 +198,27 @@ export class ProjectVersionsService extends Disposable implements IProjectVersio
 			orThrow(await this.commandService.executeCommand(VERSIONS_MARK_ISSUED_COMMAND, markIssuedArgs(projectRoot, version, label)), ['id', 'version', 'issued', 'label']);
 		} finally {
 			this.refreshNow();
+		}
+	}
+
+	/**
+	 * Who saves a version when the Versions author setting is empty: the project's structural
+	 * engineer (Project Settings > Project), not a generic "SAEngine user".
+	 */
+	private async defaultAuthor(project: ISaengineProject): Promise<string | undefined> {
+		if (this.configurationService.getValue<string>(VERSIONS_AUTHOR_SETTING)?.trim()) {
+			return undefined;
+		}
+		const part = partById('settings');
+		if (!part?.mainFile) {
+			return undefined;
+		}
+		try {
+			const settings = JSON.parse((await this.fileService.readFile(joinPath(project.root, part.folder, part.mainFile))).value.toString());
+			const engineer = settings?.project?.engineer;
+			return typeof engineer === 'string' && engineer.trim() ? engineer.trim() : undefined;
+		} catch {
+			return undefined;
 		}
 	}
 

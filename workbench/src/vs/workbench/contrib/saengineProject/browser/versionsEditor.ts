@@ -15,7 +15,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { isMacintosh } from '../../../../base/common/platform.js';
+import { isMacintosh, language } from '../../../../base/common/platform.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
@@ -34,7 +34,7 @@ import { appendPropertyNote, EditorFrame } from './editorFrame.js';
 import { VersionsEditorInput } from './versionsEditorInput.js';
 import { VersionsFlows } from './versionsFlows.js';
 import {
-	changeGroups, compareRange, compareTitle, issuedBadge, IVersionDiff, IVersionEntry, nextSelection, partsSummary, pendingParts, unsavedSummary,
+	changeGroups, compareRange, compareTitle, issuedBadge, IVersionDiff, IVersionEntry, nextSelection, partLabel, partsSummary, pendingParts, unsavedSummary,
 	versionDetail, versionName,
 } from './versionsModel.js';
 import { IProjectVersionsService } from './versionsService.js';
@@ -456,7 +456,7 @@ export class VersionsEditor extends EditorPane {
 		}
 		append(text, $('.versions-detail', undefined, versionDetail(version, now)));
 		if (version.time !== undefined) {
-			row.title = new Date(version.time).toLocaleString();
+			row.title = new Date(version.time).toLocaleString(language);
 		}
 		const actions = append(row, $('.versions-actions'));
 		this.renderDisposables.add(this.frame.createIconButton(actions, Codicon.diff, localize('versions.compareWithCurrent', "Compare with Current"), () => this.compareWithCurrent(version)));
@@ -526,7 +526,23 @@ export class VersionsEditor extends EditorPane {
 			return;
 		}
 		const groups = this.diff ? changeGroups(this.diff) : [];
-		if (!groups.length) {
+		// Edits still in an editor: the backend compares the files on disk, so they are listed here.
+		const unsaved = range.to ? [] : this.versionsService.editedParts;
+		if (unsaved.length) {
+			const section = append(panel, $('section.versions-group'));
+			const heading = append(section, $('.versions-group-heading'));
+			append(heading, $('span.versions-group-title', undefined, localize('versions.unsavedEdits', "Unsaved edits")));
+			append(heading, $('span.versions-group-count', undefined, String(unsaved.length)));
+			const list = append(section, $('ul.versions-changes'));
+			for (const part of unsaved) {
+				const item = append(list, $('li.versions-change.changed'));
+				append(item, $(`span.versions-change-icon${ThemeIcon.asCSSSelector(Codicon.circleFilled)}`, { 'aria-label': 'unsaved' }));
+				const body = append(item, $('.versions-change-body'));
+				append(body, $('span.versions-change-text', undefined, partLabel(part)));
+				append(body, $('span.versions-change-values', undefined, localize('versions.unsavedDetail', "edited, not saved to disk yet: save (Ctrl+S) to see what changed")));
+			}
+		}
+		if (!groups.length && !unsaved.length) {
 			appendPropertyNote(panel, range.to
 				? localize('versions.noDifferenceTwo', "No differences between {0} and {1}.", versionName(range.from), versionName(range.to))
 				: localize('versions.noDifference', "The current files are the same as {0}.", versionName(range.from)));

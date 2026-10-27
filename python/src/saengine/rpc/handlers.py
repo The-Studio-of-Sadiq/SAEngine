@@ -647,10 +647,12 @@ def run_script(structure_text: str, script_path: str) -> dict[str, Any]:
 
 
 def design_report(out_dir: str, project_path: str) -> dict[str, Any]:
-    """The RC member design checks of a run (see ``saengine.design.check``)."""
-    from saengine.design import design_report as report
+    """The RC member design checks of a run (see ``saengine.design.check``): the ones kept for
+    the run's inputs (``saengine.pipeline.design_mode.report``: Run All, Apply, the design view
+    and the proposal share one run of the checks per change of the project)."""
+    from saengine.pipeline.design_mode import report
 
-    return report(out_dir, project_path)
+    return report(out_dir, project_path) or {}
 
 
 def _project_settings(project_path: str) -> Any:
