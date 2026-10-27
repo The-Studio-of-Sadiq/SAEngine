@@ -144,6 +144,7 @@ suite('SAEngine - drawings', () => {
 	});
 
 	test('the drawing settings', () => {
+		const CONFLICTS = ['The drawings name the engineer B. Designer, Project names A. Engineer.', `The drawings' project number is EC-7, Project's is P-0042.`];
 		const empty = readDrawingSettings({ project: { name: 'Frame', number: 'P-0042', engineer: 'A. Engineer' } });
 		const full = readDrawingSettings({
 			project: { name: 'Frame', number: 'P-0042', engineer: 'A. Engineer' },
@@ -162,17 +163,17 @@ suite('SAEngine - drawings', () => {
 		], [
 			{
 				firm: undefined, engineer: 'A. Engineer', checkedBy: undefined, approvedBy: undefined, projectNumber: 'P-0042', revision: undefined,
-				sheetSize: 'A1', planScale: '1:100', detailScale: '1:25', present: false,
+				sheetSize: 'A1', planScale: '1:100', detailScale: '1:25', present: false, conflicts: [],
 			},
 			{
 				firm: 'Example Consultants', engineer: 'B. Designer', checkedBy: 'C. Checker', approvedBy: 'D. Approver', projectNumber: 'EC-7',
 				revision: { code: 'A', date: '2026-10-23', description: 'For construction' },
-				sheetSize: 'A2', planScale: '1:100', detailScale: '1:50', present: true,
+				sheetSize: 'A2', planScale: '1:100', detailScale: '1:50', present: true, conflicts: CONFLICTS,
 			},
 			{
 				firm: undefined, engineer: undefined, checkedBy: undefined, approvedBy: undefined, projectNumber: undefined,
 				revision: { code: 'B', date: undefined, description: undefined },
-				sheetSize: 'A1', planScale: '1:200', detailScale: '1:25', present: true,
+				sheetSize: 'A1', planScale: '1:200', detailScale: '1:25', present: true, conflicts: [],
 			},
 			['1:50', '1:25', '1:100', undefined, undefined],
 			[

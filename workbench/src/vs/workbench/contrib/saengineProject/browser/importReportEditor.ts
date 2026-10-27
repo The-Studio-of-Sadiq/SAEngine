@@ -14,6 +14,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { language } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -28,7 +29,7 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
 import { ImportReportInput } from './importReportInput.js';
 import { ProjectOpener } from './projectOpener.js';
-import { countRows, describeCarried, describeImportSummary, describeItem, describeNotCarried, formatLabel, IImportReportItem, needsReview, notCarriedTotal, sameFolder } from './structuralImportModel.js';
+import { countRows, describeCarried, describeImportSummary, describeItem, describeNotCarried, describeReplaced, formatLabel, IImportReportItem, needsReview, notCarriedTotal, sameFolder } from './structuralImportModel.js';
 
 /**
  * The report of an import from ETABS, STAAD.Pro or SAP2000: the counts by kind, then what was
@@ -114,6 +115,11 @@ export class ImportReportEditor extends EditorPane {
 			this.renderDisposables.add(open.onDidClick(() => {
 				this.opener.open(URI.file(entry.root)).catch(error => this.notificationService.error(error));
 			}));
+			// Run All and the parts act on the open project, not on the one this report is about.
+			const current = this.projectService.project;
+			if (current) {
+				append(header, $('p.hint.not-open', undefined, localize('importReport.notOpen', "This is not the open project: Run All and the parts work on {0}. Open this project to work on it.", current.name)));
+			}
 		}
 
 		const counts = append(page, $('section.counts'));
@@ -121,13 +127,14 @@ export class ImportReportEditor extends EditorPane {
 		const grid = append(counts, $('.count-grid'));
 		for (const row of countRows(report)) {
 			const cell = append(grid, $(`.count${row.count ? '' : '.zero'}`));
-			append(cell, $('span.count-value', undefined, row.count.toLocaleString()));
+			append(cell, $('span.count-value', undefined, row.count.toLocaleString(language)));
 			append(cell, $('span.count-label', undefined, row.label));
 		}
 
 		const notCarried = describeNotCarried(report);
 		const carried = describeCarried(report);
-		if (notCarried || carried) {
+		const replaced = describeReplaced(report);
+		if (notCarried || carried || replaced) {
 			const loads = append(page, $(`section.loads${notCarried ? '.lost' : ''}`));
 			append(loads, $('h2', undefined, localize('importReport.loads', "Loads")));
 			if (notCarried) {
@@ -135,6 +142,9 @@ export class ImportReportEditor extends EditorPane {
 			}
 			if (carried) {
 				append(loads, $('p.hint', undefined, localize('importReport.carried', "Carried over: {0}.", carried)));
+			}
+			if (replaced) {
+				append(loads, $('p.hint', undefined, localize('importReport.replacedLoads', "Replaced by BNBC: {0}. SAEngine applies its own wind and earthquake loads from 02 Project Settings in their place; these are not lost.", replaced)));
 			}
 		}
 
@@ -146,6 +156,8 @@ export class ImportReportEditor extends EditorPane {
 			localize('importReport.approximatedHint', "Imported, but not exactly as in the file: check these before relying on the results."), report.approximated);
 		this.renderItems(page, 'skipped', localize('importReport.skipped', "Skipped"),
 			localize('importReport.skippedHint', "Not imported: add them in SAEngine if the design needs them."), report.skipped);
+		this.renderItems(page, 'replaced', localize('importReport.replaced', "Replaced by BNBC"),
+			localize('importReport.replacedHint', "SAEngine makes its own in their place from the BNBC 2020 settings: check the site and wind settings."), report.replaced);
 		this.renderItems(page, 'warnings', localize('importReport.warnings', "Warnings"), undefined, report.warnings);
 		if (!needsReview(report)) {
 			append(page, $('p.muted', undefined, localize('importReport.nothingElse', "Everything in the file was imported as it is.")));

@@ -352,6 +352,23 @@ def _trial(
     return _Trial(s, worst, governing, by_check)
 
 
+def slender_elements(s: SteelSection, material: SteelMaterial) -> list[str]:
+    """The compression elements of ``s`` that are slender in uniform compression (λ > λr, BNBC
+    2020 Part 6 Sec 10.2.4, Table 6.10.1, pp 3825-3829), described; empty when none, or when the
+    shape cannot be classified."""
+    from pydantic import TypeAdapter, ValidationError
+
+    from saengine.design.steel.classify import compression_elements
+    from saengine.design.steel.properties import shape_properties
+    from saengine.library import objects as o
+
+    try:
+        shape = shape_properties(TypeAdapter(o.Profile).validate_python(s.profile()))
+    except (ValidationError, ValueError, TypeError):
+        return []
+    return [e.describe() for e in compression_elements(shape, material.fy, material.E) if e.slender]
+
+
 def _label(s: SteelSection | None, profile: dict[str, Any] | None) -> dict[str, Any] | None:
     if s is None and profile is None:
         return None
@@ -417,9 +434,20 @@ def propose_type(
         entry["tooSmall"] = {"reason": "no analysed members of this type"}
         return entry
 
+    # Braces and columns are never proposed with slender plates (X12 of the usability walk: a
+    # brace at b/t about 40): the lightest section that passes only through the slender-element
+    # reduction Q is a poor pick for a member that buckles, and none for a seismic brace.
+    nonslender = kind in ("brace", "column")
+    skipped_slender: list[str] = []
+
     def first_passing(fam_name: str) -> _Trial | None:
         for s in tbl.family(fam_name):
             s = tbl.oriented(s, profile)
+            if nonslender:
+                slender = slender_elements(s, material)
+                if slender:
+                    skipped_slender.append(f"{s.name}: {slender[0]}")
+                    continue
             t = _trial(s, members, material, checker, limit)
             if t.utilisation <= limit:
                 return _trial(s, members, material, checker, limit, stop_early=False)
@@ -444,6 +472,11 @@ def propose_type(
         }
         entry["governingMember"] = t.governing
         return entry
+    if skipped_slender:  # the family runs light to heavy: all of them lighter than the pick
+        notes.append(
+            f"{len(skipped_slender)} lighter {fam} section(s) with slender plates in compression "
+            f"passed over (BNBC 2020 Part 6 Table 6.10.1), e.g. {skipped_slender[0]}"
+        )
     # the candidate is already in the profile's orientation (on its side if the type's is)
     entry["proposed"] = _label(pick.section, pick.section.profile())
     entry["governingMember"] = pick.governing

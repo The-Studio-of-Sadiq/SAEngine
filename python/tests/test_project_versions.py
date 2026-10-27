@@ -271,8 +271,8 @@ def test_restore_parts_is_a_new_change_and_keeps_unsaved_work(project: Path):
     result = versions.restore(project, first["id"], ["floorPlan"])
     assert result["restored"] == [FLOOR] and result["deleted"] == []
     assert result["parts"] == ["floorPlan"] and result["problems"] == []
-    assert result["before"]["message"] == f"Before restoring version 1 ({first['id']})"
-    assert result["after"]["message"] == (f"Restored Floor Plan from version 1 ({first['id']})")
+    assert result["before"]["message"] == "Before restoring version 1"
+    assert result["after"]["message"] == "Restored Floor Plan from version 1"
 
     assert read_json(project, FLOOR)["beams"][0]["type"] == "B300x500"
     # The other part keeps its (now saved) edit.

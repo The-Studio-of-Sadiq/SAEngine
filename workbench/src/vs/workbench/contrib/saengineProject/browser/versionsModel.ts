@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
+import { language } from '../../../../base/common/platform.js';
 import { ALL_PARTS, IProjectPart } from '../../../services/saengineProject/common/saengineProject.js';
 import { partName } from './projectParts.js';
 
@@ -435,7 +436,7 @@ export function relativeTime(time: number | undefined, now: number): string {
 		return localize('versions.daysAgo', "{0} days ago", days);
 	}
 	const date = new Date(time);
-	return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: date.getFullYear() === new Date(now).getFullYear() ? undefined : 'numeric' });
+	return date.toLocaleDateString(language, { day: 'numeric', month: 'short', year: date.getFullYear() === new Date(now).getFullYear() ? undefined : 'numeric' });
 }
 
 /** "Floor Plan, BIM" / "Floor Plan, BIM, FEM +2" / "No part changed". */

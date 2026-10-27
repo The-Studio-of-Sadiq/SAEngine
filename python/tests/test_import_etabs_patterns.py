@@ -340,7 +340,8 @@ def test_slab_loads_stay_per_slab(project) -> None:  # type: ignore[no-untyped-d
     assert loads["RF"].finish == 1.0
     bim = {e.id: e for e in project.bim.elements}
     assert bim["F2-L1"].areaLoad == slabs["F2-L1"].areaLoad
-    assert project.report.carried["D"] == pytest.approx(15 * 1.5 + 15 * 38.4 + 30 * 1.0)
+    # The slabs' loads and the 10 kN/m frame load over 6 m (a member load).
+    assert project.report.carried["D"] == pytest.approx(15 * 1.5 + 15 * 38.4 + 30 * 1.0 + 60)
 
 
 def test_slab_loads_reach_the_analysis(project) -> None:  # type: ignore[no-untyped-def]
@@ -366,13 +367,22 @@ def test_fluid_pattern_and_combinations(project) -> None:  # type: ignore[no-unt
 # ── 10: point and frame loads ──
 
 
-def test_point_and_frame_loads_are_reported_with_totals(project) -> None:  # type: ignore[no-untyped-def]
-    assert project.report.not_carried["D"] == pytest.approx(60)  # 10 kN/m over 6 m
-    assert project.report.not_carried["L"] == pytest.approx(20)
-    assert any(
-        w.startswith("Loads of the file not carried over (D 60 kN, L 20 kN")
-        for w in project.report.warnings
-    )
+def test_point_and_frame_loads_become_member_loads(project) -> None:  # type: ignore[no-untyped-def]
+    from saengine.fem.member_loads import member_loads
+
+    # The frame load on B1 (10 kN/m over 6 m) and the point load at point 3 of L1 (20 kN, at
+    # the top of the column below it) are SAEngine member loads on their story only.
+    loads = project.member_loads.loads
+    assert [(m.member, m.story, m.kind, m.case, m.value) for m in loads] == [
+        ("B1-L1", "L1", "line", "SD", 10),
+        ("C3-L1", "L1", "point", "L", 20),
+    ]
+    assert all(m.thisStoryOnly for m in loads)
+    assert not any(abs(v) > 1e-9 for v in project.report.not_carried.values())
+    assert not any(w.startswith("Loads of the file not carried") for w in project.report.warnings)
+    # The analysis finds the beam and the column: nothing left out.
+    found = member_loads(project.bim, project.member_loads)
+    assert found.totals() == pytest.approx({"SD": 60, "L": 20}) and found.notes == []
 
 
 # ── 11, 12: supports and springs ──

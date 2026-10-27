@@ -114,14 +114,16 @@ def test_builds_a_valid_project(tmp_path: Path) -> None:
     assert report["imported"]["beams"] == 8
     assert report["imported"]["braces"] == 1
     assert report["imported"]["slabs"] == 2
-    assert report["imported"]["stories"] == 3
+    assert report["imported"]["stories"] == 2  # two stories above the base
     # 17 START MY MZ: released at one end only, which SAEngine does not express (reported).
     assert entries(report, "approximated")[
         "bending releases at one end only not expressed (member continuous there)"
     ]["examples"] == ["17"]
-    # Dead: the member load (5 kN/m over 6 m) has no place in SAEngine; the slab pressures do.
-    assert report["loads"]["notCarriedKN"]["D"] == pytest.approx(30)
-    assert report["loads"]["carriedKN"]["D"] == pytest.approx(1.5 * 60)
+    # Dead: the member load (5 kN/m over 6 m) is a member load, the slab pressures area loads.
+    assert report["loads"]["notCarriedKN"] == {}
+    assert report["loads"]["carriedKN"]["D"] == pytest.approx(1.5 * 60 + 30)
+    # The wind case's joint loads are replaced by SAEngine's own wind, not lost.
+    assert report["loads"]["replacedByBnbcKN"] == pytest.approx({"WX": 10})
     loads = {a.id: a for a in project.settings.areaLoads}
     assert (loads["FL"].finish, loads["FL"].live) == (1.5, 2.0)
     assert (loads["RF"].finish, loads["RF"].live) == (1.5, 1.0)

@@ -74,6 +74,19 @@
 	color: var(--sa-muted, var(--vscode-descriptionForeground));
 }
 
+.saengine-exports-editor .exports-when .codicon {
+	margin-right: var(--sa-space-1, 4px);
+	vertical-align: text-bottom;
+	font-size: 14px;
+}
+
+/* A made export that no longer shows the model (the report before the current analysis). */
+.saengine-exports-editor .exports-kind.stale .exports-icon,
+.saengine-exports-editor .exports-kind.stale .exports-when,
+.saengine-exports-editor .exports-kind.stale .exports-description {
+	color: var(--sa-warn);
+}
+
 .saengine-exports-editor .exports-actions {
 	flex: none;
 	display: flex;

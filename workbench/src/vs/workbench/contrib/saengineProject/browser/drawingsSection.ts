@@ -16,6 +16,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable }
 import { joinPath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { language } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -41,7 +42,7 @@ const OPEN_SETTINGS_COMMAND = 'saengine.project.openSettings';
 function formatTime(time: number): string {
 	const date = new Date(time);
 	const now = new Date();
-	return date.toLocaleString(undefined, {
+	return date.toLocaleString(language, {
 		day: 'numeric', month: 'short', year: date.getFullYear() === now.getFullYear() ? undefined : 'numeric',
 		hour: '2-digit', minute: '2-digit',
 	});
@@ -91,8 +92,13 @@ export class DrawingsSection extends Disposable {
 	private readonly focusTargets = new Map<string, { readonly element: HTMLElement; focus(): void }>();
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
-	/** The section's height may have changed (the page's scrollbar follows). */
+	/** The section's height or its drawings may have changed (the page's scrollbar and footer follow). */
 	readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	/** The sheets generated and when, for the page's footer (undefined: none yet). */
+	get generated(): { readonly sheets: number; readonly time?: number } | undefined {
+		return this.set?.sheets.length ? { sheets: this.set.sheets.length, time: this.set.generatedAt } : undefined;
+	}
 
 	private readonly settingsDisposables = this._register(new DisposableStore());
 	private readonly setDisposables = this._register(new DisposableStore());
@@ -375,6 +381,10 @@ export class DrawingsSection extends Disposable {
 			append(grid, $('dt', undefined, name));
 			const cell = append(grid, $('dd', undefined, value ?? localize('drawings.notSet', "not set")));
 			cell.classList.toggle('muted', value === undefined);
+		}
+		if (this.settings.conflicts.length) {
+			// One home for these is Project; until the drawings' own fields are cleared, say they differ.
+			append(block, $('.drawings-settings-note.stale', undefined, localize('drawings.conflicts', "{0} Clear the drawings' field in Project Settings > Drawings to use Project's.", this.settings.conflicts.join(' '))));
 		}
 		if (!this.settings.present) {
 			append(block, $('.drawings-settings-note', undefined, localize('drawings.settingsDefaults', "The project settings have no drawing settings yet: the sheets use the project's name, number and engineer and these defaults.")));

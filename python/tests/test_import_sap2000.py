@@ -83,8 +83,19 @@ def test_builds_a_valid_project(tmp_path: Path) -> None:
     assert report["source"]["units"] == "KN, m, C"
     assert report["imported"]["columns"] == 8 and report["imported"]["braces"] == 1
     assert {b.fixity for b in project.bim.supports} == {"pinned"}  # pinned bases stay pinned
-    assert "envelope, absolute and SRSS combinations" in entries(report, "skipped")
-    assert report["loads"]["notCarriedKN"] == pytest.approx({"D": 30, "L": 10, "WY": 4})
+    assert entries(report, "skipped")["envelope, SRSS and absolute combinations"]["key"] == (
+        "combinations.envelope"
+    )
+    # The member load (5 kN/m over 6 m) and the joint load (10 kN) are member loads now; the
+    # wind joint load is replaced by SAEngine's own wind, not lost.
+    assert report["loads"]["notCarriedKN"] == {}
+    assert report["loads"]["replacedByBnbcKN"] == pytest.approx({"WY": 4})
+    assert report["loads"]["carriedKN"]["D"] == pytest.approx(1.5 * 60 + 30)
+    assert [(m.member, m.kind, m.case, m.value) for m in project.member_loads.loads] == [
+        ("9", "line", "SD", 5),
+        ("6", "point", "L", 10),
+    ]
+    assert report["imported"]["stories"] == 2
     combos = {c.name: c for c in project.settings.combinations}
     assert (combos["DSTL2"].D, combos["DSTL2"].L, combos["DSTL2"].Lr) == (1.2, 1.6, 0.5)
     # The wind case pushes in -Y: SAEngine's WY with the factor's sign turned.
@@ -157,9 +168,9 @@ TABLE:  "AREA LOADS - UNIFORM TO FRAME"
     skipped = entries(report, "skipped")
     key = next(k for k in skipped if k.startswith("area loads 'uniform to frame' on areas"))
     assert skipped[key]["examples"] == ["SDEAD: 2"]
-    # Not carried: the file's 30 kN dead member load, and over area 2 (30 m²) its 3 kN/m²
-    # uniform to frame and its 1.5 kN/m² uniform (on an area that is no longer a slab).
-    assert report["loads"]["notCarriedKN"]["D"] == pytest.approx(30 + 3 * 30 + 1.5 * 30)
+    # Not carried: over area 2 (30 m²) its 3 kN/m² uniform to frame and its 1.5 kN/m² uniform
+    # (on an area that is no longer a slab); the 30 kN dead member load is a member load.
+    assert report["loads"]["notCarriedKN"]["D"] == pytest.approx(3 * 30 + 1.5 * 30)
     assert any(
         e["what"].startswith("area loads 'uniform to frame' applied to the slab")
         for e in report["approximated"]
