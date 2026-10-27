@@ -72,10 +72,11 @@ suite('SAEngine - Floor plan drawing', () => {
 				'S-GRID-IDEN circle 7900,0 r400',
 				'S-GRID-IDEN text 7900,0 "1"',
 				'S-SLAB polyline 0,0 6000,0 6000,3000 closed',
-				'S-ANNO-IDEN text 4000,1000 "s-1 (150)"',
 				'S-BEAM polyline 0,150 6000,150 6000,-150 0,-150 closed',
 				// Above the beam, clear of its lines, with its size.
 				'S-ANNO-IDEN text 3000,375 "b-1 300×500"',
+				// Slab labels come after the beams', so they can keep clear of them.
+				'S-ANNO-IDEN text 4000,1000 "s-1 (150)"',
 				// Rotated 90°: the 400 x 600 column is 600 wide in x; its label goes right of it, below
 				// rather than above, where the beam's label already is.
 				'S-COLS polyline 300,-200 300,200 -300,200 -300,-200 closed',
@@ -100,6 +101,22 @@ suite('SAEngine - Floor plan drawing', () => {
 			's-1: no beam, wall or column supports it; place beams along its edges or columns under it.',
 			's-1: a beam or wall runs across it, but the slab is not split there; replace it with a Polygon Slab on each side.',
 			's-2: no beam, wall or column supports it; place beams along its edges or columns under it.',
+		]);
+	});
+
+	test('a slab label keeps clear of the label of a beam beside it', () => {
+		const tight = {
+			...layout,
+			grids: { x: [{ label: 'A', position: 0 }, { label: 'B', position: 3000 }], y: [{ label: '1', position: 0 }, { label: '2', position: 3000 }] },
+			columns: [],
+			beams: [{ id: 'b-long-name', type: 'B1', story: 'L1', start: { x: 'B', y: '1' }, end: { x: 'B', y: '2' } }],
+			slabs: [{ id: 's-1', type: 'S1', story: 'L1', boundary: [{ x: 'A', y: '1' }, { x: 'B', y: '1' }, { x: 'B', y: '2' }, { x: 'A', y: '2' }] }],
+		};
+		const labels = floorPlanDrawing(tight, objects, 'L1').drawing.entities.filter(e => e.kind === 'text' && e.layer === 'S-ANNO-IDEN').map(describe);
+		// The beam's label, left of it, reaches the slab's centre: the slab's label moves up.
+		assert.deepStrictEqual(labels, [
+			'S-ANNO-IDEN text 1105,1500 "b-long-name 300×500"',
+			'S-ANNO-IDEN text 1500,1875 "s-1 (150)"',
 		]);
 	});
 

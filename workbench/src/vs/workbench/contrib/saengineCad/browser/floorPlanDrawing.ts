@@ -409,6 +409,8 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 	const columnPoints = list(model.columns).filter(spans).map(c => resolve(c.at)).filter((p): p is CadPoint => !!p);
 	const clear = (p: CadPoint) => supports.every(([a, b]) => distanceToSegment(p, a, b) > LABEL_TEXT * 1.2);
 
+	/** Slab labels go last: they move about the slab's centre, off the beams and their labels. */
+	const slabLabels: { readonly center: CadPoint; readonly name: string }[] = [];
 	for (const slab of list(model.slabs).filter(s => s.story === storyId)) {
 		const type = typeOf(slab);
 		const corners = list(slab.boundary).map(c => point(slab, c));
@@ -419,10 +421,7 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 		entities.push({ kind: 'polyline', layer: FLOOR_PLAN_LAYERS.slabs, points, closed: true });
 		shape('slabs', slab, { kind: 'polygon', points });
 		const thickness = num(type.thickness);
-		// At the centre, moved up or down off a beam that crosses it.
-		const center = centroid(points)!;
-		const at = [0, 1.5, -1.5, 3, -3].map(k => [center[0], center[1] + k * LABEL_TEXT] as CadPoint).find(clear) ?? center;
-		text(at, thickness ? `${labelOf(slab)} (${thickness})` : labelOf(slab));
+		slabLabels.push({ center: centroid(points)!, name: thickness ? `${labelOf(slab)} (${thickness})` : labelOf(slab) });
 		warnings.push(...slabWarnings(labelOf(slab), points, supports, columnPoints));
 	}
 	for (const beam of beams) {
@@ -447,6 +446,11 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 		const offset = width / 2 + LABEL_TEXT * 0.9 + Math.abs(nx) * name.length * LABEL_TEXT * 0.32;
 		const mid = centroid([start, end])!;
 		text([mid[0] + nx * offset, mid[1] + ny * offset], name);
+	}
+	// At the centre, moved up or down off a beam that crosses it and off the beams' labels.
+	for (const { center, name } of slabLabels) {
+		const candidates = [0, 1.5, -1.5, 3, -3, 4.5, -4.5].map(k => [center[0], center[1] + k * LABEL_TEXT] as CadPoint).filter(clear);
+		text(candidates.find(c => free(c, name)) ?? candidates[0] ?? center, name);
 	}
 	for (const wall of walls) {
 		const type = typeOf(wall);
