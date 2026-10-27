@@ -151,13 +151,13 @@ def check_failures(result) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
             warnings.append({"part": part, "check": check, "count": count, "message": message})
 
     design = result.step("design")
-    if design and design.status == "ok":
+    if design and design.status in ("ok", "warning"):
         c = design.counts
         fail("fem", "design", c.get("failed"),
              f"{c.get('failed')} of {c.get('checked')} members fail the design checks "
              f"(max utilisation {c.get('maxUtilisation')}, {c.get('governing')})")  # fmt: skip
     foundations = result.step("substructure")
-    if foundations and foundations.status == "ok":
+    if foundations and foundations.status in ("ok", "warning"):
         c = foundations.counts
         fail("substructure", "foundations", c.get("failed"),
              f"{c.get('failed')} of {c.get('checked')} foundations fail "
@@ -165,7 +165,7 @@ def check_failures(result) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         warn("substructure", "notDesigned", c.get("checked") == 0 and c.get("foundations"),
              "the foundations were not designed: run the analysis")  # fmt: skip
     mep = result.step("mep")
-    if mep and mep.status == "ok":
+    if mep and mep.status in ("ok", "warning"):
         c = mep.counts
         fail("mep", "openings", c.get("openingsFailed"), f"{c.get('openingsFailed')} openings fail")
         fail("mep", "plumbing", c.get("plumbingFailed"),

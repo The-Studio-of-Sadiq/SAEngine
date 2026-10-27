@@ -345,6 +345,46 @@ def mep_stamp(text: str) -> str:
     return stamp(js_json(content))
 
 
+#: Keys of ``02 Project Settings/project-settings.json`` the analysis model does not take: the
+#: project's details and the drawings' title block (the model's name is only a label).
+SETTINGS_INFO_KEYS = ("project", "drawings")
+
+
+def settings_stamp(text: str) -> str:
+    """The stamp an analysis model records for the project settings (key ``settings``): of the
+    settings without :data:`SETTINGS_INFO_KEYS`, so typing the engineer's name or a revision
+    leaves the model current. The workbench computes the same (``femSettingsStamp`` in
+    partSources.ts); a text that is not a JSON object is stamped whole."""
+    import json
+
+    try:
+        document = json.loads(text)
+    except ValueError:
+        return stamp(text)
+    if not isinstance(document, dict):
+        return stamp(text)
+    return stamp(js_json({k: v for k, v in document.items() if k not in SETTINGS_INFO_KEYS}))
+
+
+def model_stamp(data: bytes | str) -> str:
+    """The stamp of an analysis model's text without its ``meta`` (its name and the stamps of
+    the sources it was derived from): what the solver computes from, so a model derived again
+    to the same analysis keeps its results and the runs made from them (Run All's kept
+    analysis, the design checks' cache, the response spectrum design). The workbench computes
+    the same (``femModelStamp`` in runAll.ts); a text that is not a JSON object is stamped
+    whole."""
+    import json
+
+    text = data.decode("utf-8", errors="replace") if isinstance(data, bytes) else data
+    try:
+        document = json.loads(text)
+    except ValueError:
+        return stamp(text)
+    if not isinstance(document, dict):
+        return stamp(text)
+    return stamp(js_json({k: v for k, v in document.items() if k != "meta"}))
+
+
 def _unlabelled(items: list[Any]) -> list[Any]:
     return [
         {k: v for k, v in item.items() if k not in _MEP_LABELS} if isinstance(item, dict) else item

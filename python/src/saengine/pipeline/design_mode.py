@@ -32,11 +32,16 @@ from pathlib import Path
 from typing import Any
 
 import saengine
+from saengine.fem.derive import model_stamp
 
 #: The kept answer, in the results folder of the run.
 REQUIRED_FILE = "design-required.json"
 #: The kept design checks of the run (:func:`report`).
 REPORT_FILE = "design-report.json"
+
+#: What Run All keeps beside the results: the stamp of the model they were computed from
+#: (``saengine.pipeline.run_all.ANALYSIS_INPUTS_FILE``).
+ANALYSIS_INPUTS_FILE = "analysis-inputs.json"
 
 #: Files of the results folder that are written from the results, not by the analysis: they do
 #: not enter the stamp (writing them must not make the kept answer stale). The face forces
@@ -51,6 +56,7 @@ _DERIVED = frozenset(
         "design-summary.json",
         "column-interaction.json",
         "face-forces.json",
+        ANALYSIS_INPUTS_FILE,
     }
 )
 #: The same by path in the results folder: the response spectrum design's summary is written
@@ -58,6 +64,11 @@ _DERIVED = frozenset(
 #: the model and the results do not change but rewrites the summary of it), so its time would
 #: make every kept answer stale at once. The run it is made from is stamped.
 _DERIVED_PATHS = frozenset({"rs-design/seismic-design.json"})
+
+#: The results' manifest, written by the solver at the end of a run.
+RESULTS_MANIFEST = "manifest.json"
+SETTINGS_FILE = "02 Project Settings/project-settings.json"
+
 
 #: The part files the design checks and the foundation design read, relative to the project.
 INPUT_FILES = (
@@ -84,11 +95,24 @@ def inputs_stamp(
     add(saengine.__version__, json.dumps(options or {}, sort_keys=True, default=str))
     project_path = Path(project_path)
     root = project_path.resolve().parent.parent
-    for relative in (*INPUT_FILES, project_path.resolve().relative_to(root).as_posix()):
+    model = project_path.resolve().relative_to(root).as_posix()
+    for relative in (*INPUT_FILES, model):
         try:
-            add(relative, (root / relative).read_bytes())
+            data = (root / relative).read_bytes()
         except OSError:
             add(relative, "missing")
+            continue
+        # The settings without the project's details and title block, the model without its
+        # meta (name and source stamps): typing the engineer's name, or deriving the same model
+        # again, leaves the kept checks current (X28).
+        if relative == SETTINGS_FILE:
+            from saengine.fem.derive import settings_stamp
+
+            add(relative, settings_stamp(data.decode("utf-8", errors="replace")))
+        elif relative == model:
+            add(relative, model_stamp(data))
+        else:
+            add(relative, data)
     out = Path(out_dir)
     if out.is_dir():
         for file in sorted(out.rglob("*")):
@@ -99,6 +123,11 @@ def inputs_stamp(
                 or (file.name.startswith(".") and file.name.endswith(".tmp"))
                 or not file.is_file()
             ):
+                continue
+            if relative == RESULTS_MANIFEST:
+                # By content: Run All writes it again, unchanged, when it keeps the results of
+                # a model derived again to the same analysis (``saengine.pipeline.run_all``).
+                add(relative, file.read_bytes())
                 continue
             stat = file.stat()
             add(relative, stat.st_size, stat.st_mtime_ns)
@@ -262,6 +291,13 @@ def gathered(
             memo = _GATHERED
         if memo and memo[:2] == (folder, stamp) and (memo[2] or not substructure):
             return memo[3]
+        if memo and memo[:2] == (folder, stamp):
+            # Gathered for the design report, without the foundations: add them rather than
+            # design every member again (Run All's required steel, after its design checks).
+            _add_substructure(memo[3], out_dir)
+            with _memo_lock:
+                _GATHERED = (folder, stamp, True, memo[3], memo[4])
+            return memo[3]
         result = gather(out_dir, project_path, substructure)
         # The design report as design_report makes it: the same checks of the same object types,
         # unless some were checked with assumed bars.
@@ -269,6 +305,22 @@ def gathered(
         with _memo_lock:
             _GATHERED = (folder, stamp, substructure, result, report_copy)
         return result
+
+
+def _add_substructure(gathering: Any, out_dir: str | Path) -> None:
+    """Adds the foundations' design to checks gathered without them, as
+    :func:`saengine.design.required.gather` does with ``substructure``."""
+    root = Path(gathering.root)
+    if not (root / "09 Substructure" / "substructure.json").exists():
+        return
+    from saengine.substructure.context import load_context
+    from saengine.substructure.report import report as substructure_report
+
+    try:
+        gathering.context = load_context(root, out_dir)
+        gathering.substructure = substructure_report(gathering.context)
+    except ValueError as error:
+        gathering.notes.append(f"9 Substructure not designed: {error}")
 
 
 def checks(

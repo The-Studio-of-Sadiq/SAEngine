@@ -426,7 +426,7 @@ def derive_fem(
     from pydantic import ValidationError
 
     from saengine.fem.derive import derive_fem as derive
-    from saengine.fem.derive import mep_stamp, stamp
+    from saengine.fem.derive import mep_stamp, settings_stamp, stamp
     from saengine.library.bim import BuildingModel
     from saengine.library.materials import MaterialLibrary
     from saengine.library.objects import ObjectLibrary
@@ -449,6 +449,9 @@ def derive_fem(
                 ]
             }
     stamps = {key: stamp(text) for key, (_, text, _) in inputs.items()}
+    # The settings without the project's details and title block (X28): typing a name there
+    # leaves the model current.
+    stamps["settings"] = settings_stamp(settings_text)
     if soil_text is None and model_folder:
         soil_text = read_soil_text(Path(model_folder).parent)
     settings, site = resolve_site_class(parsed["settings"], soil_text)
@@ -934,6 +937,23 @@ def substructure_report(project_root: str) -> dict[str, Any]:
     except ValueError as error:
         return _problem(error)
     return {**result, "sources": sources}
+
+
+def substructure_design(project_root: str) -> dict[str, Any]:
+    """Run All's foundation step (``saengine.substructure.run.design_foundations``): moves the
+    building model's footings in while the substructure is the placeholder, gives foundations
+    without bars the minimum mesh (``summary["barsAdded"]``) and checks them. The same answer as
+    :func:`substructure_report`, with ``sources`` taken after the bars were written (they are
+    part of what was checked), or ``{"problems"}``."""
+    from saengine.substructure.run import design_foundations
+
+    try:
+        result = design_foundations(project_root)
+    except ValueError as error:
+        return _problem(error)
+    if result.get("problems") and result.get("foundations") is None:
+        return result
+    return {**result, "sources": substructure_sources(project_root)}
 
 
 #: The part files the foundation design reads, by the part ids the workbench knows them under

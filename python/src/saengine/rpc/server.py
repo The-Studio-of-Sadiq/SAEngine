@@ -62,6 +62,9 @@ Methods:
 - ``fem/derive`` also takes ``soilText?`` (else the project's soil report beside ``modelFolder``)
 - ``bim/ifc`` and ``boq/compute`` also take ``substructureText?`` and ``settingsText?``: the
   foundations of 9 Substructure (once it is no longer the placeholder) and the ground level
+- ``substructure/design`` ``{projectRoot}`` -> Run All's foundation step: footings moved in,
+  minimum bars given, the checks (``saengine.substructure.run.design_foundations``; in a worker
+  thread, as ``substructure/report`` and ``report/build``)
 - ``substructure/report`` ``{projectRoot}`` -> the design checks of the saved substructure
 - ``substructure/size`` ``{projectRoot, columns?}`` -> footings proposed by the sizing assistant
 - ``substructure/migrate`` ``{projectRoot}`` -> the substructure with the building model's footings
@@ -245,6 +248,16 @@ def _versions_worker(handler: Callable[[dict[str, Any]], Any]) -> Callable[[Any]
         return await asyncio.get_running_loop().run_in_executor(_VERSIONS_WORKERS, locked, params)
 
     return run
+
+
+def _import_substructure() -> None:
+    """The first imports of the foundation design's modules (shapely's C extension among them)
+    are not safe from two threads at once ("partially initialized module 'shapely'"): done on
+    the server's thread before the work goes to a worker, as for section/analyse."""
+    import shapely  # noqa: F401
+
+    import saengine.substructure.report
+    import saengine.substructure.run  # noqa: F401
 
 
 def create_server() -> JsonRPCServer:
@@ -451,10 +464,19 @@ def create_server() -> JsonRPCServer:
             args.get("projectRoot"),
         )
 
-    @server.feature("report/build")
-    def _build_report(params: Any) -> dict[str, Any]:
+    @_in_worker
+    def _build_report_worker(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.build_report(args["projectRoot"], args.get("outPdf"))
+
+    @server.feature("report/build")
+    async def _build_report(params: Any) -> dict[str, Any]:
+        # Its modules (and the substructure's, which it reads) first imported on the server's
+        # thread: see _import_substructure.
+        _import_substructure()
+        import saengine.report  # noqa: F401
+
+        return await _build_report_worker(params)
 
     # Detailing, the schedule and the sheets take seconds to tens of seconds: in a worker thread,
     # with ``drawings/progress`` answering meanwhile; ``drawings/list`` only reads files.
@@ -548,9 +570,23 @@ def create_server() -> JsonRPCServer:
         args = _plain(params)
         return handlers.qgis_command(args["program"], args["filePath"])
 
-    @server.feature("substructure/report")
-    def _substructure_report(params: Any) -> dict[str, Any]:
+    @_in_worker
+    def _substructure_report_worker(params: Any) -> dict[str, Any]:
         return handlers.substructure_report(_plain(params)["projectRoot"])
+
+    @server.feature("substructure/report")
+    async def _substructure_report(params: Any) -> dict[str, Any]:
+        _import_substructure()
+        return await _substructure_report_worker(params)
+
+    @_in_worker
+    def _substructure_design_worker(params: Any) -> dict[str, Any]:
+        return handlers.substructure_design(_plain(params)["projectRoot"])
+
+    @server.feature("substructure/design")
+    async def _substructure_design(params: Any) -> dict[str, Any]:
+        _import_substructure()
+        return await _substructure_design_worker(params)
 
     @server.feature("substructure/size")
     def _substructure_size(params: Any) -> dict[str, Any]:
@@ -883,6 +919,7 @@ def main() -> int:
     # importing it at once fail with "partially initialized module" (seen on the first soil
     # report while the warm-ups ran). So import it here, then warm up in one thread, in turn.
     import numpy  # noqa: F401
+    import shapely  # noqa: F401 - the same for shapely, which the warm-ups import too
 
     def warm() -> None:
         # WNTR's first import takes a second or two: done ahead of the editor's first request.
