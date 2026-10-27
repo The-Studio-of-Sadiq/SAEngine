@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { language } from '../../../../base/common/platform.js';
+import { formatNumber } from '../../../services/saengineProject/common/formatting.js';
 
 /*
  * Importing a model of another structural program (ETABS .e2k, STAAD.Pro .std, SAP2000 .s2k)
@@ -354,7 +354,7 @@ export function notCarriedTotal(report: IImportReport): number {
 }
 
 function formatKN(kN: number): string {
-	return (Math.round(kN * 10) / 10).toLocaleString(language);
+	return formatNumber(kN, { maxDecimals: 1 });
 }
 
 function describeLoadTotals(totals: IImportLoadTotals): string | undefined {

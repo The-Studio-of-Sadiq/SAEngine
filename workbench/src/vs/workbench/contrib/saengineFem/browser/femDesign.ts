@@ -9,6 +9,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { basename, dirname, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { formatNumber } from '../../../services/saengineProject/common/formatting.js';
 
 /**
  * Desktop command running the reinforced-concrete design checks of an analysed model with the
@@ -303,7 +304,7 @@ export function describeSteelRatio(row: IFemSteelRequirement): string | undefine
 
 /** A steel quantity in its unit: "1,257 mm²", "524 mm²/m", "150 mm". */
 export function formatSteel(value: number, unit: string): string {
-	const text = value.toLocaleString('en-US', { maximumFractionDigits: 0 });
+	const text = formatNumber(value);
 	return unit ? localize('femDesign.steelValue', "{0} {1}", text, unit) : text;
 }
 
@@ -562,7 +563,7 @@ const KLU_R_MAX = 100;
 const DELTA_S_MAX = 1.5;
 
 function formatMillimetres(value: number): string {
-	return localize('femDesign.mm', "{0} mm", value.toLocaleString('en-US', { maximumFractionDigits: 0 }));
+	return localize('femDesign.mm', "{0} mm", formatNumber(value));
 }
 
 function formatKilonewtonMetres(value: number): string {
@@ -621,7 +622,7 @@ export function describeSlenderness(check: IFemDesignCheck): IFemSlendernessRow[
 	if (typeof s.Cm === 'number') {
 		rows.push({
 			name: localize('femDesign.cm', "Cm, Pc"),
-			value: typeof s.Pc === 'number' ? localize('femDesign.cmPc', "{0}, {1} kN", s.Cm.toFixed(2), s.Pc.toLocaleString('en-US', { maximumFractionDigits: 0 })) : s.Cm.toFixed(2),
+			value: typeof s.Pc === 'number' ? localize('femDesign.cmPc', "{0}, {1} kN", s.Cm.toFixed(2), formatNumber(s.Pc)) : s.Cm.toFixed(2),
 		});
 	}
 	if (typeof s.M2 === 'number') {

@@ -7,6 +7,7 @@ import { localize } from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { URI } from '../../../../base/common/uri.js';
 import { designArguments } from './femDesign.js';
+import { formatNumber } from '../../../services/saengineProject/common/formatting.js';
 
 /*
  * The seismic design from the response spectrum and the second-order analysis of a run: desktop
@@ -153,7 +154,7 @@ function perDirection(value: FemPerDirection | null, axis: FemAxis): number | un
 }
 
 function formatShear(value: number): string {
-	return localize('femSeismic.kN', "{0} kN", value.toLocaleString('en-US', { maximumFractionDigits: 0 }));
+	return localize('femSeismic.kN', "{0} kN", formatNumber(value));
 }
 
 /** A share as a percentage, trimmed ("85 %"): for a code's fraction, not a measured value. */
