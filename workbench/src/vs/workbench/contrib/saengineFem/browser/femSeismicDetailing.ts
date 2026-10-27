@@ -5,6 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import { formatUtilisation, IFemDesignCheck, IFemDesignElement, IFemDesignReport } from './femDesign.js';
+import { formatNumber } from '../../../services/saengineProject/common/formatting.js';
 
 /*
  * Seismic detailing of reinforced-concrete moment frames (BNBC 2020 Part 6 Sec 8.3): what the
@@ -162,16 +163,16 @@ function groupLabel(group: FemDetailingGroup): string {
 
 /** A value in a detailing unit: whole mm, mm², legs and bars, one decimal in other units, three digits for ratios (ρ 0.0105). */
 function formatValue(value: number, unit: string): string {
-	const text = /^(mm|mm²|legs|bars)$/.test(unit) ? value.toLocaleString('en-US', { maximumFractionDigits: 0 }) : unit ? value.toFixed(1) : String(Number(value.toPrecision(3)));
+	const text = /^(mm|mm²|legs|bars)$/.test(unit) ? formatNumber(value) : unit ? value.toFixed(1) : String(Number(value.toPrecision(3)));
 	return unit ? localize('femDetailing.valueUnit', "{0} {1}", text, unit) : text;
 }
 
 function formatKilonewtons(value: number): string {
-	return localize('femDetailing.kN', "{0} kN", value.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
+	return localize('femDetailing.kN', "{0} kN", formatNumber(value, { decimals: 1 }));
 }
 
 function formatMillimetres(value: number): string {
-	return localize('femDetailing.mm', "{0} mm", value.toLocaleString('en-US', { maximumFractionDigits: 0 }));
+	return localize('femDetailing.mm', "{0} mm", formatNumber(value));
 }
 
 function isNumber(value: unknown): value is number {

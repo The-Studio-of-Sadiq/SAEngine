@@ -15,7 +15,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { isMacintosh, language } from '../../../../base/common/platform.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
@@ -38,6 +38,7 @@ import {
 	versionDetail, versionName,
 } from './versionsModel.js';
 import { IProjectVersionsService } from './versionsService.js';
+import { DATE_TIME, formatDate } from '../../../services/saengineProject/common/formatting.js';
 
 const CHANGE_ICONS = { added: Codicon.diffAdded, removed: Codicon.diffRemoved, changed: Codicon.diffModified } as const;
 
@@ -456,7 +457,7 @@ export class VersionsEditor extends EditorPane {
 		}
 		append(text, $('.versions-detail', undefined, versionDetail(version, now)));
 		if (version.time !== undefined) {
-			row.title = new Date(version.time).toLocaleString(language);
+			row.title = formatDate(version.time, DATE_TIME);
 		}
 		const actions = append(row, $('.versions-actions'));
 		this.renderDisposables.add(this.frame.createIconButton(actions, Codicon.diff, localize('versions.compareWithCurrent', "Compare with Current"), () => this.compareWithCurrent(version)));

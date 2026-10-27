@@ -39,6 +39,7 @@ import { DESIGN_CODES, DesignCode, ProjectOpener, projectFolderName } from './pr
 import { appendProjectPath } from './projectParts.js';
 import { StartEditorInput } from './startEditorInput.js';
 import { IMPORT_STRUCTURAL_UI_COMMAND } from './structuralImportModel.js';
+import { formatDate } from '../../../services/saengineProject/common/formatting.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
 
@@ -82,7 +83,7 @@ function formatOpened(time: number): string {
 	if (date.toDateString() === today.toDateString()) {
 		return localize('start.openedToday', "Today");
 	}
-	return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: date.getFullYear() === today.getFullYear() ? undefined : 'numeric' });
+	return formatDate(date, { day: 'numeric', month: 'short', year: date.getFullYear() === today.getFullYear() ? undefined : 'numeric' });
 }
 
 /**

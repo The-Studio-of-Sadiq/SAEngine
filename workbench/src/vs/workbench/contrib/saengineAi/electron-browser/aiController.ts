@@ -26,6 +26,7 @@ import { IOutputService } from '../../../services/output/common/output.js';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { ALLOW_CONTROL_SETTING, PORT_SETTING, toMcpTool, visibleTools } from '../common/aiTools.js';
 import { AiToolRunner } from './aiToolRunner.js';
+import { TIME, formatDate } from '../../../services/saengineProject/common/formatting.js';
 
 export const AI_ACTIVITY_CHANNEL_ID = 'saengine.aiActivity';
 export const MANAGE_AI_COMMAND = 'saengine.ai.manage';
@@ -301,7 +302,7 @@ export class SaengineAiService extends Disposable implements ISaengineAiService 
 	}
 
 	private log(line: string): void {
-		const time = new Date().toLocaleTimeString();
+		const time = formatDate(Date.now(), TIME);
 		this.outputService.getChannel(AI_ACTIVITY_CHANNEL_ID)?.append(`[${time}] ${line}\n`);
 	}
 
