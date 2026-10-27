@@ -14,7 +14,6 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { language } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -30,6 +29,7 @@ import { ISaengineProjectService } from '../../../services/saengineProject/commo
 import { ImportReportInput } from './importReportInput.js';
 import { ProjectOpener } from './projectOpener.js';
 import { countRows, describeCarried, describeImportSummary, describeItem, describeNotCarried, describeReplaced, formatLabel, IImportReportItem, needsReview, notCarriedTotal, sameFolder } from './structuralImportModel.js';
+import { formatNumber } from '../../../services/saengineProject/common/formatting.js';
 
 /**
  * The report of an import from ETABS, STAAD.Pro or SAP2000: the counts by kind, then what was
@@ -127,7 +127,7 @@ export class ImportReportEditor extends EditorPane {
 		const grid = append(counts, $('.count-grid'));
 		for (const row of countRows(report)) {
 			const cell = append(grid, $(`.count${row.count ? '' : '.zero'}`));
-			append(cell, $('span.count-value', undefined, row.count.toLocaleString(language)));
+			append(cell, $('span.count-value', undefined, formatNumber(row.count)));
 			append(cell, $('span.count-label', undefined, row.label));
 		}
 

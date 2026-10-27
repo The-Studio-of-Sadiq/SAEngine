@@ -16,7 +16,6 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable }
 import { joinPath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { language } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -34,6 +33,7 @@ import {
 import { EditorFrame } from './editorFrame.js';
 import { CAD_OPEN_COMMAND, OPEN_DXF_IN_CAD_UI_COMMAND } from './projectArchiveModel.js';
 import { saveProjectEdits } from './projectEdits.js';
+import { formatDate } from '../../../services/saengineProject/common/formatting.js';
 
 const REVEAL_IN_OS_COMMAND = 'revealFileInOS';
 /** Project Settings (part 2), where the title block is filled in (`drawings.*`). */
@@ -42,7 +42,7 @@ const OPEN_SETTINGS_COMMAND = 'saengine.project.openSettings';
 function formatTime(time: number): string {
 	const date = new Date(time);
 	const now = new Date();
-	return date.toLocaleString(language, {
+	return formatDate(date, {
 		day: 'numeric', month: 'short', year: date.getFullYear() === now.getFullYear() ? undefined : 'numeric',
 		hour: '2-digit', minute: '2-digit',
 	});
