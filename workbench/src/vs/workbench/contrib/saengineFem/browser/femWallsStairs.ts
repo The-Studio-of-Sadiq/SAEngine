@@ -6,6 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { formatUtilisation, IFemDesignCheck, IFemDesignElement, IFemDesignReport } from './femDesign.js';
 import { FemDetailingItem } from './femSeismicDetailing.js';
+import { formatNumber } from '../../../services/saengineProject/common/formatting.js';
 
 /*
  * Structural walls and stairs in the design checks (`saengine.design.design_report`): a wall is
@@ -148,11 +149,11 @@ function arrayOf<T>(value: readonly T[] | null | undefined): readonly T[] {
 }
 
 function formatMillimetres(value: number): string {
-	return localize('femWalls.mm', "{0} mm", value.toLocaleString('en-US', { maximumFractionDigits: 0 }));
+	return localize('femWalls.mm', "{0} mm", formatNumber(value));
 }
 
-function formatNumber(value: number): string {
-	return value.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+function formatTenths(value: number): string {
+	return formatNumber(value, { decimals: 1 });
 }
 
 /** Whether a design element is a structural wall. */
@@ -205,7 +206,7 @@ export function governingPier(element: FemWallElement): IFemWallPier | undefined
 
 /** One pier force in its unit, as the design report gives it: "1,250.0 kN", "2,400.0 kN·m". */
 export function formatPierForce(key: 'P' | 'V2' | 'M3', value: number): string {
-	return key === 'M3' ? localize('femWalls.kNm', "{0} kN·m", formatNumber(value)) : localize('femWalls.kN', "{0} kN", formatNumber(value));
+	return key === 'M3' ? localize('femWalls.kNm', "{0} kN·m", formatTenths(value)) : localize('femWalls.kN', "{0} kN", formatTenths(value));
 }
 
 /** "P 1,250.0 kN · V2 310.0 kN · M3 2,400.0 kN·m" (the forces the backend gives). */
@@ -214,9 +215,9 @@ export function describePierForces(forces: IFemPierForces | null | undefined): s
 		return undefined;
 	}
 	const parts = [
-		...(isNumber(forces.P) ? [localize('femWalls.P', "P {0} kN", formatNumber(forces.P))] : []),
-		...(isNumber(forces.V2) ? [localize('femWalls.V2', "V2 {0} kN", formatNumber(forces.V2))] : []),
-		...(isNumber(forces.M3) ? [localize('femWalls.M3', "M3 {0} kN·m", formatNumber(forces.M3))] : []),
+		...(isNumber(forces.P) ? [localize('femWalls.P', "P {0} kN", formatTenths(forces.P))] : []),
+		...(isNumber(forces.V2) ? [localize('femWalls.V2', "V2 {0} kN", formatTenths(forces.V2))] : []),
+		...(isNumber(forces.M3) ? [localize('femWalls.M3', "M3 {0} kN·m", formatTenths(forces.M3))] : []),
 	];
 	return parts.length ? parts.join(' · ') : undefined;
 }
@@ -235,7 +236,7 @@ export function pierHeading(pier: IFemWallPier, showId: boolean): string {
 function checkValues(check: IFemDesignCheck): string {
 	// Lengths and areas to the millimetre; forces to one decimal; ratios below 1 (c/d 0.08) to two.
 	const value = (v: number) => check.unit
-		? localize('femWalls.valueUnit', "{0} {1}", /^(mm|mm²|mm²\/m)$/.test(check.unit) ? v.toLocaleString('en-US', { maximumFractionDigits: 0 }) : v.toFixed(Math.abs(v) < 1 ? 2 : 1), check.unit)
+		? localize('femWalls.valueUnit', "{0} {1}", /^(mm|mm²|mm²\/m)$/.test(check.unit) ? formatNumber(v) : v.toFixed(Math.abs(v) < 1 ? 2 : 1), check.unit)
 		: String(Number(v.toPrecision(3)));
 	return localize('femWalls.against', "{0} against {1}", value(check.demand), value(check.capacity));
 }
@@ -503,7 +504,7 @@ function partPrefix(part: IFemStairPart): string {
 }
 
 function formatDecimal(value: number, digits: number): string {
-	return value.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+	return formatNumber(value, { decimals: digits });
 }
 
 /** "Flight F1 (span 3,000 mm, h 150 mm)", "Landing L1 (...)". */
@@ -556,9 +557,9 @@ function stairLoadItems(loads: IFemStairLoads | null | undefined): FemDetailingI
 		return [];
 	}
 	const items: FemDetailingItem[] = [
-		...(isNumber(loads.finish) ? [{ kind: 'row' as const, name: localize('femStairs.finish', "Finish"), value: localize('femStairs.area', "{0} kN/m²", formatNumber(loads.finish)) }] : []),
-		...(isNumber(loads.live) ? [{ kind: 'row' as const, name: localize('femStairs.live', "Live"), value: localize('femStairs.area', "{0} kN/m²", formatNumber(loads.live)) }] : []),
-		...(isNumber(loads.unitWeight) ? [{ kind: 'row' as const, name: localize('femStairs.unitWeight', "Concrete"), value: localize('femStairs.unitWeightValue', "{0} kN/m³", formatNumber(loads.unitWeight)) }] : []),
+		...(isNumber(loads.finish) ? [{ kind: 'row' as const, name: localize('femStairs.finish', "Finish"), value: localize('femStairs.area', "{0} kN/m²", formatTenths(loads.finish)) }] : []),
+		...(isNumber(loads.live) ? [{ kind: 'row' as const, name: localize('femStairs.live', "Live"), value: localize('femStairs.area', "{0} kN/m²", formatTenths(loads.live)) }] : []),
+		...(isNumber(loads.unitWeight) ? [{ kind: 'row' as const, name: localize('femStairs.unitWeight', "Concrete"), value: localize('femStairs.unitWeightValue', "{0} kN/m³", formatTenths(loads.unitWeight)) }] : []),
 	];
 	if (items.length && loads.source) {
 		items.push({ kind: 'note', text: loads.source });

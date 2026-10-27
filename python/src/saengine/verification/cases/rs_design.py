@@ -54,7 +54,7 @@ def scaled_column(folder: Path) -> Outcome:
     project["analyses"] = [a for a in project["analyses"] if a["name"] != "RY: Response spectrum Y"]
     ids = {a["name"]: a["id"] for a in project["analyses"]}
     model, out, _ = run_model(project, model_dir, [ids["Modal"], ids["RX: Response spectrum X"]])
-    s = settings()
+    s = settings(system="rcImf")  # R = 5, Cd = 4.5, as the reference
     summary = sd.seismic_design(out, model, s)
     forces = sd.load_seismic_forces(out)
     assert forces is not None

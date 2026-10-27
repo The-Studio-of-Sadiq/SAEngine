@@ -41,6 +41,7 @@ import { ChartColor, IChartSeries, renderChart, renderSheet } from './femChart.j
 import { baseReactionTable, closedPmCurve, defaultChartResult, describeMode, elasticDriftLimit, orderLike, extremes, FEM_COLUMN_INTERACTION_COMMAND, FEM_MEMBER_FORCES_COMMAND, FEM_STORY_RESPONSE_COMMAND, FemAxis2, IFemColumnDiagram, IFemColumnInteraction, IFemMemberForces, IFemStoryResponse, IFemStoryResult, isEarthquakeResult, MemberComponent, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, spectrumAt, storeyProfile, StoreyQuantity, storeyQuantityLabel, STOREY_QUANTITIES } from './femChartData.js';
 import { IFemDesignRequired, IFemSteelRequirement, resultsFolder, runDesignRequired } from './femDesign.js';
 import { errorSummary, FEM_RESULT_LIST_COMMAND, IFemRunTracker } from './femResultsBar.js';
+import { formatNumber } from '../../../services/saengineProject/common/formatting.js';
 
 const chartsIcon = registerIcon('saengine-fem-results-label-icon', Codicon.graph, localize('femResultsLabelIcon', "Icon of the analysis charts and member pages."));
 
@@ -151,7 +152,7 @@ function withUnit(label: string, unit: IUnit): string {
 }
 
 function fixed(value: number, digits: number): string {
-	return Number(value.toFixed(digits)).toLocaleString(undefined, { maximumFractionDigits: digits });
+	return formatNumber(value, { maxDecimals: digits });
 }
 
 const AXIS_COLORS: { readonly [axis in FemAxis2]: ChartColor } = { X: 'blue', Y: 'orange' };

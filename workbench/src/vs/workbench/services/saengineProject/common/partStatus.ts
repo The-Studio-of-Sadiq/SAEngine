@@ -9,6 +9,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { boqSourceStamp, femSourceCurrent, mepModelStamp, recordedStamp, sourceStamp, upstreamPart } from './partSources.js';
 import { DEFAULT_MATERIALS, DEFAULT_OBJECTS, DEFAULT_SETTINGS } from './projectLibraries.generated.js';
 import { IProjectPart } from './saengineProject.js';
+import { formatDate as formatUiDate } from './formatting.js';
 
 /*
  * How far each part of a project has got, from its files on disk (never from unsaved editor
@@ -813,7 +814,7 @@ function documentStatus(part: string, inputs: IPartStatusInputs): IPartStatus {
 }
 
 function defaultFormatDate(time: number): string {
-	return new Date(time).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+	return formatUiDate(time, { day: 'numeric', month: 'short' });
 }
 
 /** The status of each of `parts` (a project's parts, in workflow order). */

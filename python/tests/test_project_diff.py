@@ -118,9 +118,10 @@ def test_settings_location_zone_combinations_and_loads():
     after["combinations"].append(dict(before["combinations"][0], name="1.2D+1.6L"))
     after["areaLoads"][0]["live"] = 3
     texts = whats(diff_values("settings", before, after))
+    # The sample's floors are residential, 2.0 kN/m² (PR #33, P8).
     assert texts == [
         "Site location dhaka → chattogram (seismic zone 2 → 3)",
-        "Area load FL: live 2.4 → 3 kN/m²",
+        "Area load FL: live 2 → 3 kN/m²",
         "Load combination 1.2D+1.6L added",
     ]
 
@@ -152,12 +153,13 @@ def test_substructure_foundation():
     before = load("09 Substructure/substructure.json")
     after = copy.deepcopy(before)
     after["foundations"][0]["thickness"] = 600
-    after["foundations"][0]["reinforcement"]["bottomX"]["spacing"] = 125
+    # The sample's F1 has 12@125 bars, its minimum (PR #35, U4).
+    after["foundations"][0]["reinforcement"]["bottomX"]["spacing"] = 100
     after["tieBeams"].append({"id": "TB1", "from": "F1", "to": "F2", "width": 250, "depth": 400})
     texts = whats(diff_values("substructure", before, after))
     assert texts[:2] == [
         "Foundation F1: thickness 500 → 600 mm",
-        "Foundation F1: reinforcement bottom layer, X spacing 150 → 125 mm",
+        "Foundation F1: reinforcement bottom layer, X spacing 125 → 100 mm",
     ]
     assert texts[2] == "Tie beam TB1 added"
 
@@ -217,7 +219,8 @@ def test_boq_quantity_unit():
     after = copy.deepcopy(before)
     after["items"][0]["quantity"] = 4.2
     texts = whats(diff_values("boq", before, after))
-    assert texts[0] == "BOQ item E.01: quantity 3.14 → 4.2 m3"
+    # The sample's F1 is founded at -1.5 m (PR #35, U21): 8.6 m3 of excavation.
+    assert texts[0] == "BOQ item E.01: quantity 8.6 → 4.2 m3"
 
 
 def test_invalid_json_falls_back_to_text_summary():

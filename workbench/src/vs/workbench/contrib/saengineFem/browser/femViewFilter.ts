@@ -126,8 +126,19 @@ export function freeTopColumns(model: IFilterModel): string[] {
 		}
 	}
 	const restrained = new Set(model.nodes.filter(n => n.restraint?.some(Boolean)).map(n => n.id));
-	// Nodes a rigid diaphragm ties to its floor are braced by it.
-	const tied = new Set((model.mp_constraints ?? []).flatMap(c => c.constrained_nodes ?? []));
+	// Nodes a rigid diaphragm ties to its floor are braced by it; a diaphragm that does not list
+	// its nodes ties every node at the level of its retained node.
+	const tied = new Set<number>();
+	for (const c of model.mp_constraints ?? []) {
+		if (c.constrained_nodes) {
+			c.constrained_nodes.forEach(id => tied.add(id));
+			continue;
+		}
+		const at = c.retained_node !== undefined ? coords.get(c.retained_node)?.[2] : undefined;
+		if (at !== undefined) {
+			model.nodes.filter(n => Math.abs((n.coords[2] ?? 0) - at) <= TOLERANCE).forEach(n => tied.add(n.id));
+		}
+	}
 	const names = new Set<string>();
 	for (const element of model.elements) {
 		const [a, b] = element.nodes.map(id => coords.get(id));

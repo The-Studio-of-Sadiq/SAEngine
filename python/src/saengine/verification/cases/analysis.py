@@ -321,7 +321,8 @@ def _oscillator(folder: Path, history: bool):
         building(model),
         objects(COLUMN),
         MATERIALS,
-        settings(timeHistories=histories),
+        # RC IMF (R = 5, Cd = 4.5), as the A5 and DQ1 references, whatever the default system.
+        settings(timeHistories=histories, system="rcImf"),
         None,
         model_dir,
     )

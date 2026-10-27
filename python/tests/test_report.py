@@ -426,7 +426,9 @@ def test_a_freshly_computed_bill_of_quantities_is_current(tmp_path: Path) -> Non
     assert warnings == []
 
     settings = json.loads(text(settings_file))
-    settings["foundation"]["allowableBearing"] += 50
+    # A qa override (the sample has none since PR #33, P24: qa from the soil report) does not
+    # change the bill; the ground level does.
+    settings["foundation"]["allowableBearing"] = 200
     _write(root, {settings_file: json.dumps(settings, indent=2)})
     assert _boq(_Parts(root, []))["status"] == "ok"
 

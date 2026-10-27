@@ -24,6 +24,7 @@ import { ITextFileService, TextFileEditorModelState } from '../../../services/te
 import { IWorkingCopy } from '../../../services/workingCopy/common/workingCopy.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
 import { ISaveStatus, SaveStatusKind, SaveStatusModel } from '../common/saveStatusModel.js';
+import { TIME, formatDate } from '../../../services/saengineProject/common/formatting.js';
 
 const SAVE_ALL_COMMAND_ID = 'saveAll';
 const SHOW_FAILURES_COMMAND_ID = 'saengine.saveStatus.showFailures';
@@ -191,7 +192,7 @@ class SaveStatusContribution extends Disposable implements IWorkbenchContributio
 				return {
 					name, content, text: `$(check) ${text}`, ariaLabel: text,
 					tooltip: state.lastSaved !== undefined
-						? localize('saveStatus.savedTooltip', "All changes saved. Last saved at {0}.", new Date(state.lastSaved).toLocaleTimeString())
+						? localize('saveStatus.savedTooltip', "All changes saved. Last saved at {0}.", formatDate(state.lastSaved, TIME))
 						: localize('saveStatus.savedTooltipNever', "All changes saved."),
 				};
 			}

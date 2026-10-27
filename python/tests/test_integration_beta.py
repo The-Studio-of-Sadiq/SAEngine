@@ -101,7 +101,9 @@ def test_create_building_writes_a_project_and_refuses_a_full_folder(tmp_path: Pa
     assert "is not a concrete" in bad["error"]
 
 
-def test_cli_new_building(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_cli_new_building(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     spec = tmp_path / "spec.json"
     spec.write_text(
         json.dumps(
@@ -114,6 +116,11 @@ def test_cli_new_building(tmp_path: Path, capsys: pytest.CaptureFixture[str]) ->
     assert code == 0 and document["newBuilding"]["name"] == "CLI Frame"
     assert (tmp_path / "out" / "CLI Frame" / "CLI Frame.saengine").is_file()
     assert document["newBuilding"]["summary"]["counts"]["columns"] == 6 * 3
+    # A relative DEST is taken from the current folder (the app's wizard refuses one, N2).
+    monkeypatch.chdir(tmp_path)
+    code = cli_main(["new-building", str(spec), "rel", "--name", "Rel", "--json", "-q"])
+    capsys.readouterr()
+    assert code == 0 and (tmp_path / "rel" / "Rel" / "Rel.saengine").is_file()
 
 
 # ─────────────────────────────────────── punching ───────────────────────────────────────

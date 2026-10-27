@@ -141,14 +141,16 @@ def test_the_sample_soil_agrees_with_the_sample_design() -> None:
     # The sample's synthetic soil must not contradict the rest of the sample: no liquefiable
     # layer (no S2 flag) under the project's own amax, the site class the analysis was run
     # with (SD, entered in the settings), and a qa at the reference footing of each borehole
-    # no lower than the 150 kPa override its footing F1 is checked against.
+    # no lower than the 150 kPa its footing F1 was sized for. Since PR #33 (P24) the sample has
+    # no qa override: F1 is checked against the soil report's qa itself.
     soil = (SAMPLE / "01 Soil Report" / "soil-report.json").read_text("utf-8")
     settings_text = (SAMPLE / "02 Project Settings" / "project-settings.json").read_text("utf-8")
     settings = json.loads(settings_text)
     computed = handlers.soil_report(soil, settings_text)
     assert computed["siteClass"]["class"] == settings["site"]["siteClass"] == "SD"
     assert computed["siteClass"]["flags"] == []
-    override = settings["foundation"]["allowableBearing"]
+    assert settings["foundation"].get("allowableBearing") is None
+    sized_for = 150  # kPa
     for borehole in computed["boreholes"]:
         liquefaction = borehole["liquefaction"]
         assert not [p for p in liquefaction["points"] if p["liquefiable"]], borehole["id"]
@@ -156,7 +158,7 @@ def test_the_sample_soil_agrees_with_the_sample_design() -> None:
         reference = next(
             t for t in borehole["bearing"]["table"] if (t["B"], t["Df"]) == (2000, 1500)
         )
-        assert reference["qa"] >= override, borehole["id"]
+        assert reference["qa"] >= sized_for, borehole["id"]
     assert not any("liquefiable" in note for note in computed["notes"])
 
 

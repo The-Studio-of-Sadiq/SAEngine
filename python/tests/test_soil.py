@@ -89,8 +89,12 @@ def test_problems_name_the_borehole() -> None:
     text = json.dumps(
         {"schema": "saengine.soilReport/1", "boreholes": [{"id": "BH-7", "layers": [{"top": 0}]}]}
     )
-    problems = soil_report(text)["problems"]
-    assert problems and all(p.startswith("Soil report: BH-7.layers.1") for p in problems)
+    # One borehole's mistakes are warnings, the borehole left out (PR #26, S4); "problems" is
+    # kept for a report that cannot be read at all.
+    result = soil_report(text)
+    warnings = result["warnings"]
+    assert "problems" not in result and result["skipped"] == ["BH-7"]
+    assert warnings and all(p.startswith("Soil report: BH-7.layers.1") for p in warnings)
     assert soil_report("{not json")["problems"][0].startswith("Soil report: not valid JSON")
 
 

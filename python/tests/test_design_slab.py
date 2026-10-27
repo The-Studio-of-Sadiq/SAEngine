@@ -616,7 +616,9 @@ def test_one_way_slab_sags_along_its_span(one_way: dict) -> None:
         assert checks[name]["ok"], checks[name]
     thickness = checks["Min. thickness (Table 7.3.1.1)"]
     assert thickness["flag"] and thickness["demand"] == pytest.approx(2500 / 20)
-    assert one_way["summary"]["checked"] == 9  # 4 beams, 4 columns and the slab
+    # 4 beams, 4 columns and the slab; the summary's own totals also count the joints and the
+    # building's seismic checks (PR #30, X4).
+    assert one_way["summary"]["elements"]["checked"] == 9
 
 
 def test_slab_axes_follow_a_drawn_area_first_edge(

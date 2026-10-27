@@ -18,7 +18,6 @@ import { basename, joinPath } from '../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { language } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -45,6 +44,7 @@ import { ExportsEditorInput } from './exportsEditorInput.js';
 import { LAST_ARCHIVE_STORAGE_KEY, readLastArchive } from './projectArchiveFlows.js';
 import { ARCHIVE_EXPORT_COMMAND, ARCHIVE_IMPORT_COMMAND, CAD_OPEN_COMMAND, EXPORT_ARCHIVE_UI_COMMAND, lastArchiveDescription, OPEN_ARCHIVE_UI_COMMAND, OPEN_DXF_IN_CAD_UI_COMMAND } from './projectArchiveModel.js';
 import { partName } from './projectParts.js';
+import { formatDate } from '../../../services/saengineProject/common/formatting.js';
 
 /*
  * The commands that make the exports. Each belongs to the part that owns the data; this page only
@@ -138,7 +138,7 @@ export function readE2kExport(value: unknown): IE2kExportOutcome {
 function formatTime(time: number): string {
 	const date = new Date(time);
 	const now = new Date();
-	return date.toLocaleString(language, {
+	return formatDate(date, {
 		day: 'numeric', month: 'short', year: date.getFullYear() === now.getFullYear() ? undefined : 'numeric',
 		hour: '2-digit', minute: '2-digit',
 	});

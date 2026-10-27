@@ -6,6 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { formatCheckValues, formatUtilisation, IFemDesignCheck, IFemDesignElement, IFemDesignReport } from './femDesign.js';
 import { FemDetailingItem, isDetailingCheck } from './femSeismicDetailing.js';
+import { formatNumber } from '../../../services/saengineProject/common/formatting.js';
 
 /*
  * Steel members in the design checks (BNBC 2020 Part 6 Chapter 10): the backend adds a `steel`
@@ -289,7 +290,7 @@ function isNumber(value: unknown): value is number {
 }
 
 function mm(value: number): string {
-	return localize('femSteel.mm', "{0} mm", value.toLocaleString('en-US', { maximumFractionDigits: 0 }));
+	return localize('femSteel.mm', "{0} mm", formatNumber(value));
 }
 
 function classLabel(value: SteelElementClass): string {
