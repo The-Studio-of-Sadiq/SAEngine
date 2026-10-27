@@ -63,7 +63,8 @@ suite('SAEngine - Floor plan typical floors', () => {
 			inSync: inSync(layout, ['L2', 'L3', 'L4']),
 		}, {
 			similarTo: [null, null, null, 'L2', 'L2', null],
-			L4: ['C9:C500', 'C10:C500', 'C11:C500', 'C12:C500', 'B3:B300', 'S3:S150'],
+			// Copies keep the master's labels, with their story: C1 on L4 is C1-L4.
+			L4: ['C1-L4:C500', 'C2-L4:C500', 'C3-L4:C500', 'C4-L4:C500', 'B1-L4:B300', 'S1-L4:S150'],
 			base: ['L3', 'L3', 'L3', 'L3'],
 			total: 12,
 			inSync: true,
@@ -84,7 +85,7 @@ suite('SAEngine - Floor plan typical floors', () => {
 			rotation: L3columns.find(c => c.id === 'C40')?.rotation,
 			L2: onStory(layout, 'L2'),
 		}, {
-			L3: ['C40:C500', 'C5:C500', 'C6:C500', 'C7:C500', 'B2:B300', 'S2:S150'],
+			L3: ['C40:C500', 'C2-L3:C500', 'C3-L3:C500', 'C4-L3:C500', 'B1-L3:B300', 'S1-L3:S150'],
 			rotation: 0,
 			L2: ['C1:C500', 'C2:C500', 'C3:C500', 'C4:C500', 'B1:B300', 'S1:S150'],
 		});

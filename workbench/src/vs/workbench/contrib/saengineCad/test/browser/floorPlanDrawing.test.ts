@@ -54,7 +54,7 @@ suite('SAEngine - Floor plan drawing', () => {
 
 	test('a story shows grids, the columns rising to it and the members at its level', () => {
 		const plan = floorPlanDrawing(layout, objects, 'L1');
-		assert.deepStrictEqual({ entities: plan.drawing.entities.map(describe), problems: plan.problems }, {
+		assert.deepStrictEqual({ entities: plan.drawing.entities.map(describe), problems: plan.problems, warnings: plan.warnings }, {
 			entities: [
 				'S-GRID line 0,-1500 0,1500',
 				'S-GRID-IDEN circle 0,-1900 r400',
@@ -74,12 +74,32 @@ suite('SAEngine - Floor plan drawing', () => {
 				'S-SLAB polyline 0,0 6000,0 6000,3000 closed',
 				'S-ANNO-IDEN text 4000,1000 "s-1 (150)"',
 				'S-BEAM polyline 0,150 6000,150 6000,-150 0,-150 closed',
-				'S-ANNO-IDEN text 3000,0 "b-1"',
-				// Rotated 90°: the 400 x 600 column is 600 wide in x.
+				// Above the beam, clear of its lines, with its size.
+				'S-ANNO-IDEN text 3000,375 "b-1 300×500"',
+				// Rotated 90°: the 400 x 600 column is 600 wide in x; its label sits above and right of it.
 				'S-COLS polyline 300,-200 300,200 -300,200 -300,-200 closed',
+				'S-ANNO-IDEN text 1360,425 "c-a1 400×600"',
 			],
 			problems: [],
+			warnings: [],
 		});
+	});
+
+	test('slabs on nothing and slabs with a beam across them are warned about', () => {
+		const crossed = {
+			...layout,
+			columns: [],
+			beams: [{ id: 'b-2', type: 'B1', story: 'L1', start: { x: 'A', y: '1' }, end: { x: 'B', y: '1', dy: 3000 } }],
+			slabs: [
+				{ id: 's-1', type: 'S1', story: 'L1', boundary: [{ x: 'A', y: '1', dy: -3000 }, { x: 'B', y: '1', dy: -3000 }, { x: 'B', y: '1', dy: 3000 }, { x: 'A', y: '1', dy: 3000 }] },
+				{ id: 's-2', type: 'S1', story: 'L1', boundary: [{ x: 'A', y: '1', dx: 8000 }, { x: 'B', y: '1', dx: 4000 }, { x: 'B', y: '1', dx: 4000, dy: 2000 }] },
+			],
+		};
+		assert.deepStrictEqual(floorPlanDrawing(crossed, objects, 'L1').warnings, [
+			's-1: no beam, wall or column supports it; place beams along its edges or columns under it.',
+			's-1: a beam or wall runs across it, but the slab is not split there; replace it with a Polygon Slab on each side.',
+			's-2: no beam, wall or column supports it; place beams along its edges or columns under it.',
+		]);
 	});
 
 	test('the base shows footings and reports members it cannot draw', () => {

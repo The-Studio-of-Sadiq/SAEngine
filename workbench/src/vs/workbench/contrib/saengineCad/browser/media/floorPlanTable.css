@@ -156,3 +156,16 @@
 	margin: var(--sa-space-4, 16px) var(--sa-space-2, 8px);
 	color: var(--sa-muted, var(--vscode-descriptionForeground));
 }
+
+.saengine-members-table col.section { width: 96px; }
+.saengine-members-table col.length { width: 90px; }
+
+.saengine-members-table td.length {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+/* The members selected on the plan stand out even while the table is not focused. */
+.saengine-members-table tr.member.selected td:first-child {
+	box-shadow: inset 3px 0 var(--vscode-focusBorder);
+}

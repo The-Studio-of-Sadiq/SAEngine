@@ -6,7 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { rises, storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { MemberGroup } from './floorPlanDrawing.js';
-import { nextId } from './floorPlanEdits.js';
+import { copyId } from './floorPlanEdits.js';
 
 /*
  * Typical floors of the floor plan (`05 Floor Plan/floor-plan.json`), as ETABS's similar
@@ -186,7 +186,7 @@ export function copyStory(layout: unknown, source: string, targets: readonly str
 				continue; // nothing rises to the lowest story
 			}
 			for (const member of sourceMembers) {
-				const id = reusable.get(placeKey(group, member))?.shift() ?? nextId(next, group);
+				const id = reusable.get(placeKey(group, member))?.shift() ?? copyId(next, group, member.id as string, target);
 				const copy: Json = { ...JSON.parse(JSON.stringify(member)), id };
 				if (rising) {
 					copy.base = below;

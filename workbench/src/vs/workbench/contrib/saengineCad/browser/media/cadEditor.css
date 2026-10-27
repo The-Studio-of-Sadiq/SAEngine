@@ -101,3 +101,76 @@
 	--ml-ui-danger: var(--vscode-errorForeground) !important;
 	color-scheme: inherit !important;
 }
+
+/* The tool's pickers keep their width when the toolbar is short of room (1366 px screens). */
+.saengine-floor-plan .floor-plan-select {
+	flex-shrink: 0;
+	min-width: 150px;
+}
+
+/* Editable rows: the label on one line, the field under it when the panel is narrow. */
+.saengine-floor-plan .sa-props-row.editable {
+	flex-wrap: wrap;
+	row-gap: 2px;
+}
+
+.saengine-floor-plan .sa-props-row.editable > .name {
+	flex: 1 0 auto;
+	max-width: 100%;
+}
+
+.saengine-floor-plan .sa-props-row.editable .floor-plan-prop-control {
+	flex: 1 1 150px;
+	width: auto;
+	max-width: 240px;
+	margin-left: auto;
+}
+
+/* mlightcad's own notification bell and font warnings: the floor plan reports its own problems. */
+.saengine-cad-editor .ml-ui-notification-center {
+	display: none !important;
+}
+
+/* The empty plan: how to start, over the grid. */
+.saengine-floor-plan .floor-plan-empty {
+	position: absolute;
+	top: 16px;
+	left: 16px;
+	max-width: min(440px, calc(100% - 32px));
+	max-height: calc(100% - 32px);
+	overflow: auto;
+	padding: 8px 14px 10px;
+	color: var(--vscode-foreground);
+	background: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border));
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow, transparent);
+	z-index: 2;
+}
+
+.saengine-floor-plan .floor-plan-empty.hidden {
+	display: none;
+}
+
+.saengine-floor-plan .floor-plan-empty-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.saengine-floor-plan .floor-plan-empty h3 {
+	margin: 4px 0;
+	font-size: 14px;
+}
+
+.saengine-floor-plan .floor-plan-empty ol {
+	margin: 0;
+	padding-left: 20px;
+}
+
+.saengine-floor-plan .floor-plan-empty li {
+	margin: 6px 0;
+}
+
+.saengine-floor-plan .floor-plan-empty li.done > span {
+	color: var(--vscode-descriptionForeground);
+}

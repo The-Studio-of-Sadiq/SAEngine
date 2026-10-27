@@ -7,7 +7,7 @@ import type { CadPoint } from '@saengine/cad-editor';
 import { localize } from '../../../../nls.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { gridsOf, MemberGroup } from './floorPlanDrawing.js';
-import { anchor, distanceToSegment, insidePolygon, members, nextId, notRotatableMessage, resolvePoint } from './floorPlanEdits.js';
+import { anchor, copyId, distanceToSegment, insidePolygon, members, nextId, notRotatableMessage, resolvePoint } from './floorPlanEdits.js';
 import { IMemberRef, insideRect, IRect } from './floorPlanSelection.js';
 import { familyOf, storyBelow } from './floorPlanTypical.js';
 
@@ -137,7 +137,9 @@ function addCopies(layout: Json, items: readonly { readonly group: MemberGroup; 
 			skipped++;
 			continue;
 		}
-		const id = nextId(layout, group);
+		// A copy on another story keeps the source's plan label (B5 on L3 is "B5-L3").
+		const from = rising(group) ? member.top : member.story;
+		const id = story && story !== from && typeof member.id === 'string' ? copyId(layout, group, member.id, story) : nextId(layout, group);
 		layout[group] = [...members(layout, group), { ...copy, id }];
 		placed.push({ group, id });
 	}
@@ -513,10 +515,27 @@ export type FloorPlanCommand =
 	| { readonly kind: 'rotate'; readonly degrees: number; readonly absolute: boolean }
 	| { readonly kind: 'tostories'; readonly stories?: readonly string[] }
 	| { readonly kind: 'delete' }
+	| { readonly kind: 'help' }
+	| { readonly kind: 'undo'; readonly redo: boolean }
 	| { readonly kind: 'error'; readonly message: string };
 
 /** The command words the floor plan answers on the command line; the rest go to the CAD editor. */
-export const FLOOR_PLAN_COMMANDS = ['select', 'fill', 'copy', 'move', 'mirror', 'array', 'tostories', 'rotate', 'delete'] as const;
+export const FLOOR_PLAN_COMMANDS = ['select', 'fill', 'copy', 'move', 'mirror', 'array', 'tostories', 'rotate', 'delete', 'help', '?', 'undo', 'u', 'redo'] as const;
+
+/** The floor plan's commands with how to type them, for `help` and the command line's suggestions. */
+export const COMMAND_HELP: readonly { readonly usage: string; readonly description: string }[] = [
+	{ usage: 'select all | none | type <type> | <id> ...', description: localize('help.select', "Select members on this story") },
+	{ usage: 'fill columns | beams | slabs | walls [x | y] [A-1 C-3]', description: localize('help.fill', "Place members on the grid (all of it, or a window)") },
+	{ usage: 'copy dx, dy [times]', description: localize('help.copy', "Copy the selection by dx, dy mm (times copies)") },
+	{ usage: 'array dx, dy times', description: localize('help.array', "Copy the selection in a row of copies") },
+	{ usage: 'move dx, dy', description: localize('help.move', "Move the selection by dx, dy mm") },
+	{ usage: 'mirror [x | y] <grid line> [move]', description: localize('help.mirror', "Mirror the selection about a grid line") },
+	{ usage: 'rotate <degrees> | rotate to <degrees>', description: localize('help.rotate', "Rotate the selected columns") },
+	{ usage: 'tostories [all | <story> ...]', description: localize('help.tostories', "Copy the selection to other stories") },
+	{ usage: 'delete', description: localize('help.delete', "Delete the selection") },
+	{ usage: 'undo | redo', description: localize('help.undo', "Undo or redo the last change of the plan") },
+	{ usage: 'help', description: localize('help.help', "This list") },
+];
 
 const NUMBER = String.raw`[-+]?(?:\d+\.?\d*|\.\d+)`;
 const DISPLACEMENT = new RegExp(String.raw`^@?\s*(?<dx>${NUMBER})\s*[,;\s]\s*(?<dy>${NUMBER})(?:\s+(?:x\s*)?(?<times>\d+))?$`, 'i');
@@ -645,6 +664,13 @@ export function parseCommand(text: string, layout: unknown): FloorPlanCommand | 
 		}
 		case 'delete':
 			return { kind: 'delete' };
+		case 'help':
+		case '?':
+			return { kind: 'help' };
+		case 'undo':
+		case 'u':
+		case 'redo':
+			return { kind: 'undo', redo: word === 'redo' };
 	}
 	return undefined;
 }

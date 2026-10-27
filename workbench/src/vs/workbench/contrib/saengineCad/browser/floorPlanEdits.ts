@@ -6,8 +6,8 @@
 import type { CadPoint } from '@saengine/cad-editor';
 import { localize } from '../../../../nls.js';
 import { polygonArea } from '../../../../platform/saengine/common/geometry.js';
-import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
-import { gridsOf, IMemberShape, MemberGroup } from './floorPlanDrawing.js';
+import { formatPoint, storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
+import { distanceToSegment, gridsOf, ID_CHARS, IMemberShape, insidePolygon, MemberGroup, planLabel } from './floorPlanDrawing.js';
 
 /*
  * Edits to the floor plan (`05 Floor Plan/floor-plan.json`): placing members on grid
@@ -117,23 +117,7 @@ export function bayAt(layout: unknown, point: CadPoint): IBay | undefined {
 	return { x: [x0, x1], y: [y0, y1], corners: [[px0, py0], [px1, py0], [px1, py1], [px0, py1]] };
 }
 
-export function insidePolygon([x, y]: CadPoint, points: readonly CadPoint[]): boolean {
-	let inside = false;
-	for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
-		const [xi, yi] = points[i];
-		const [xj, yj] = points[j];
-		if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) {
-			inside = !inside;
-		}
-	}
-	return inside;
-}
-
-export function distanceToSegment([px, py]: CadPoint, [ax, ay]: CadPoint, [bx, by]: CadPoint): number {
-	const [dx, dy] = [bx - ax, by - ay];
-	const t = dx || dy ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy))) : 0;
-	return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
-}
+export { distanceToSegment, insidePolygon } from './floorPlanDrawing.js';
 
 const PICK_ORDER: readonly MemberGroup[] = ['columns', 'footings', 'walls', 'beams', 'slabs'];
 
@@ -163,6 +147,16 @@ export function nextId(layout: Json, group: MemberGroup): string {
 	return `${ID_PREFIX[group]}${n}`;
 }
 
+/**
+ * The id of a copy of member `sourceId` on `story`: its plan label and the story ("B5-L3"),
+ * else (taken) the next free id. Ids stay unique in the floor plan; the plan shows the label.
+ */
+export function copyId(layout: Json, group: MemberGroup, sourceId: string, story: string): string {
+	const id = `${planLabel(layout, sourceId)}-${story.replace(ID_CHARS, '')}`;
+	const used = PICK_ORDER.some(g => members(layout, g).some(m => m.id === id));
+	return used || id.length > 64 ? nextId(layout, group) : id;
+}
+
 function append(layout: unknown, group: MemberGroup, member: Json): EditResult {
 	const next = JSON.parse(JSON.stringify(layout)) as Json;
 	const id = nextId(next, group);
@@ -190,18 +184,37 @@ export function placeColumn(layout: unknown, type: string, story: string, node: 
 	return append(layout, 'columns', { type, at: gridPoint(node), base, top: story, rotation: 0 });
 }
 
-/** A beam on `story`, or a wall from the story below up to it, between two intersections. */
-export function placeLinear(layout: unknown, tool: 'beam' | 'wall', type: string, story: string, start: IGridNode, end: IGridNode): EditResult {
-	if (start.x === end.x && start.y === end.y) {
+/** An end of a beam or wall to place: a point, stored exactly (to 0.001 mm) when it lies on a member. */
+export interface ILinearEnd {
+	readonly point: CadPoint;
+	readonly exact?: boolean;
+}
+
+/**
+ * A beam on `story`, or a wall from the story below up to it, between two points: grid
+ * intersections, points on other members (a secondary beam) or free points (a cantilever).
+ * Each end is stored against its nearest intersection (see {@link anchor}).
+ */
+export function placeLinear(layout: unknown, tool: 'beam' | 'wall', type: string, story: string, start: ILinearEnd, end: ILinearEnd): EditResult {
+	if (Math.hypot(start.point[0] - end.point[0], start.point[1] - end.point[1]) < 1) {
 		return { ok: false, error: localize('place.samePoint', "Choose a different end point.") };
 	}
+	const [from, to] = [anchor(layout, start.point, start.exact), anchor(layout, end.point, end.exact)];
+	if (!from || !to) {
+		return { ok: false, error: localize('edit.noGrid', "The floor plan needs grid lines on both axes first.") };
+	}
 	const group = TOOL_GROUP[tool];
-	const ends = (m: Json) => (sameNode(m.start, start) && sameNode(m.end, end)) || (sameNode(m.start, end) && sameNode(m.end, start));
+	const near = (value: unknown, point: CadPoint) => {
+		const p = resolvePoint(layout, value);
+		return !!p && Math.hypot(p[0] - point[0], p[1] - point[1]) < 1;
+	};
+	const ends = (m: Json) => (near(m.start, start.point) && near(m.end, end.point)) || (near(m.start, end.point) && near(m.end, start.point));
+	const [a, b] = [formatPoint(from), formatPoint(to)];
 	if (tool === 'beam') {
-		if (members(layout as Json, group).some(b => b.story === story && ends(b))) {
-			return { ok: false, error: localize('place.beamExists', "There is already a beam from {0} to {1} on this story.", label(start), label(end)) };
+		if (members(layout as Json, group).some(m => m.story === story && ends(m))) {
+			return { ok: false, error: localize('place.beamExists', "There is already a beam from {0} to {1} on this story.", a, b) };
 		}
-		return append(layout, group, { type, story, start: gridPoint(start), end: gridPoint(end) });
+		return append(layout, group, { type, story, start: from, end: to });
 	}
 	const stories = storiesOf(layout);
 	const index = stories.findIndex(s => s.id === story);
@@ -213,9 +226,9 @@ export function placeLinear(layout: unknown, tool: 'beam' | 'wall', type: string
 	const clash = members(layout as Json, group).some(w => ends(w)
 		&& (elevation.get(w.base as string) ?? Infinity) < level && level <= (elevation.get(w.top as string) ?? -Infinity));
 	if (clash) {
-		return { ok: false, error: localize('place.wallExists', "There is already a wall from {0} to {1} on this story.", label(start), label(end)) };
+		return { ok: false, error: localize('place.wallExists', "There is already a wall from {0} to {1} on this story.", a, b) };
 	}
-	return append(layout, group, { type, base: stories[index - 1].id, top: story, start: gridPoint(start), end: gridPoint(end) });
+	return append(layout, group, { type, base: stories[index - 1].id, top: story, start: from, end: to });
 }
 
 /** A slab filling `bay` on `story`. */
@@ -271,14 +284,17 @@ export function snapPoint(layout: unknown, point: CadPoint, tolerance: number): 
 /**
  * A point as the floor plan stores it: its nearest grid intersection plus an offset in whole
  * millimetres (no offset on the intersection itself), so it follows the grid when lines move.
+ * An `exact` point (on another member) keeps 0.001 mm so that it stays on that member: the
+ * analysis model joins two members only where they meet.
  */
-export function anchor(layout: unknown, point: CadPoint): Json | undefined {
+export function anchor(layout: unknown, point: CadPoint, exact = false): Json | undefined {
 	const node = snapToGrid(layout, point, Infinity);
 	if (!node) {
 		return undefined;
 	}
-	const dx = Math.round(point[0] - node.point[0]);
-	const dy = Math.round(point[1] - node.point[1]);
+	const round = (v: number) => (exact ? Math.round(v * 1000) / 1000 : Math.round(v)) || 0;
+	const dx = round(point[0] - node.point[0]);
+	const dy = round(point[1] - node.point[1]);
 	return { x: node.x, y: node.y, ...(dx ? { dx } : {}), ...(dy ? { dy } : {}) };
 }
 
