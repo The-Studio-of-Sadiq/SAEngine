@@ -853,3 +853,11 @@
 	font-weight: 600;
 	color: var(--vscode-foreground);
 }
+.saengine-substructure-editor .sub-result-table.sub-check-table {
+	table-layout: fixed;
+	width: 100%;
+	min-width: 0;
+}
+.saengine-substructure-editor .sub-check-table td:first-child {
+	white-space: normal;
+}
