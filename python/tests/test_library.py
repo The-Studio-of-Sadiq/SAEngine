@@ -15,6 +15,7 @@ from saengine.library import (
     ObjectLibrary,
     ProjectSettings,
     default_material_library,
+    default_object_library,
 )
 from saengine.library import objects as o
 from saengine.library.export import generate_typescript
@@ -276,7 +277,7 @@ def test_editor_templates_are_valid() -> None:
         module = next(x for x in (m, o, st, f, b, sm, sh) if hasattr(x, name))
         model = getattr(module, name)
         model.model_validate(value)
-        if ":" in key:
+        if key.startswith("Material:"):
             assert value["category"] == key.split(":")[1]
     # Every alternative of every union has a template, so the editor can switch to it.
     for name, schema in schemas.items():
@@ -315,3 +316,34 @@ def test_check_reports_problems_per_entry() -> None:
         {"index": 1, "path": "material", "message": "unknown material 'C99'"},
     ]
     assert check_library("objects", "{ nope", good)[0]["message"].startswith("Invalid JSON")
+
+
+def test_new_projects_have_object_types_to_place() -> None:
+    objects = default_object_library()
+    assert [(o.id, o.kind) for o in objects.objects] == [
+        ("C400x400", "column"),
+        ("B250x450", "beam"),
+        ("S125", "slab"),
+        ("W200", "wall"),
+        ("W125B", "wall"),
+    ]
+    assert objects.check_materials(default_material_library()) == []
+
+
+def test_concrete_e_and_fr_follow_fc_and_far_values_are_flagged() -> None:
+    from saengine.library.materials import (
+        Material,
+        concrete_modulus,
+        modulus_of_rupture,
+        plausibility,
+    )
+
+    assert (concrete_modulus(20.7), modulus_of_rupture(20.7)) == (21380.0, 2.82)
+    for material in default_material_library().materials:
+        assert plausibility(material) == [], material.id
+    concrete = default_material_library().materials[0].model_dump(by_alias=True)
+    concrete["concrete"]["fc"] = 20.7
+    concrete["concrete"]["ft"] = 34.5  # fr typed in psi-like scale
+    concrete["mechanical"]["density"] = 24000
+    paths = [path for path, _ in plausibility(Material.model_validate(concrete))]
+    assert paths == ["mechanical.density", "concrete.ft"]

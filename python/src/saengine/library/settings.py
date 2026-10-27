@@ -126,21 +126,24 @@ class Site(_Model):
         gt=0,
         lt=1,
         title="Seismic zone coefficient Z",
-        description="Overrides the location's value.",
+        description="Overrides the location's value (BNBC 2020 Table 6.2.14: 0.12, 0.20, "
+        "0.28 or 0.36 by zone).",
     )
     windSpeed: float | None = Field(
         default=None,
         gt=0,
         title="Basic wind speed",
-        description="Overrides the location's value [m/s].",
+        description="Overrides the location's value [m/s] (BNBC 2020 Table 6.2.8).",
     )
 
 
 class Seismic(_Model):
     system: SystemId = Field(  # type: ignore[valid-type]
-        default="rcImf",
+        default="rcSmf",
         title="Structural system",
-        description="Seismic force-resisting system (Table 6.2.19).",
+        description="Seismic force-resisting system (Table 6.2.19). It gives R, Ω0 and Cd and "
+        "the seismic detailing of the members; it must be permitted in the Seismic Design "
+        "Category of the site (Table 6.2.18).",
         json_schema_extra=_labels([v.name for v in bnbc.STRUCTURAL_SYSTEMS.values()]),
     )
     r: float | None = Field(
@@ -168,6 +171,27 @@ class Wind(_Model):
         default="A",
         description="Exposure category (6.2.9.3).",
         json_schema_extra=_labels([f"{k}: {v}" for k, v in bnbc.EXPOSURES.items()]),
+    )
+    directionality: float | None = Field(
+        default=None,
+        gt=0,
+        le=1,
+        title="Directionality factor Kd",
+        description="Overrides the code's value for buildings (BNBC 2020 Table 6.2.12).",
+    )
+    topographic: float | None = Field(
+        default=None,
+        ge=1,
+        title="Topographic factor Kzt",
+        description="Overrides the code's value for flat terrain; above 1 on hills, ridges and "
+        "escarpments (BNBC 2020 Sec 2.4.7).",
+    )
+    gust: float | None = Field(
+        default=None,
+        gt=0,
+        title="Gust effect factor G",
+        description="Overrides the code's value for a rigid building (BNBC 2020 Sec 2.4.8.1). "
+        "A flexible building (natural frequency below 1 Hz) needs Gf of Sec 2.4.8.2 here.",
     )
 
 
@@ -383,8 +407,8 @@ class Analysis(_Model):
         ge=100,
         title="Mesh size",
         description="Largest side of a shell element [mm], and with slabs as loads to beams the "
-        "largest beam element (the slabs' triangles and trapezoids are applied over it). 500 mm "
-        "(before version 0.0.44: 1000 mm): beams on shell slabs get their gravity moments "
+        "largest beam element (the slabs' triangles and trapezoids are applied over it). 500 mm: "
+        "beams on shell slabs get their gravity moments "
         "within about 5 % of a converged mesh.",
     )
     meshBySpan: bool = Field(
@@ -404,7 +428,7 @@ class Analysis(_Model):
         title="Seismic mass",
         description="Story levels: every node's weight goes to the nearest story level (to its "
         "diaphragm), the lower half of the first story to the base, where it does not take part "
-        "(as the usual analysis programs lump it). Level above (before version 0.0.44): every "
+        "(as the usual analysis programs lump it). Level above: every "
         "weight counts for the first level above the base and its mass stays where it is.",
         json_schema_extra=_labels(
             ["Lumped at the story levels", "Each node's own (lower first story to level 1)"]
@@ -429,7 +453,7 @@ class Analysis(_Model):
         description="Add the torsional wind cases WTX, WTY and design every one-direction wind "
         "combination for the four design wind load cases of BNBC 2020 Part 6 Figure 6.2.9 "
         "(Sec 2.4.11.3): full, 75 % with torsion e = ±0.15 B, 75 % in both directions, 56.3 % "
-        "in both with both torsions. Off: Cases 1 and 3 only (before version 0.0.45: Case 1).",
+        "in both with both torsions. Off: Cases 1 and 3 only.",
     )
     patternLive: Literal["bnbc", "bnbcAlternateFloors", "alternate", "off"] = Field(
         default="bnbc",
@@ -439,7 +463,7 @@ class Analysis(_Model):
         "full live load. BNBC: adjacent spans on each floor alone (one case per pair and floor) "
         "and alternate spans as a checkerboard over the floors. Adjacent on alternate floors: "
         "fewer cases, support moments up to about 2 % lower. Alternate spans only. Off: the "
-        "full live load on every span (before version 0.0.45).",
+        "full live load on every span.",
         json_schema_extra=_labels(
             [
                 "BNBC 6.1.12.2 (adjacent each floor, alternate checkerboard)",
@@ -456,7 +480,7 @@ class Analysis(_Model):
         "are at least as deep as Table 6.6.1 asks: immediate live-load deflection l/360 "
         "(l/180 roofs) and, after the nonstructural elements are attached, l/480 where they are "
         "likely to be damaged (masonry partitions, the usual case) or l/240 where not "
-        "(Table 6.6.2). Off: not checked (before version 0.0.45).",
+        "(Table 6.6.2). Off: not checked.",
         json_schema_extra=_labels(
             [
                 "Partitions likely to be damaged (l/480)",
@@ -500,8 +524,7 @@ class Analysis(_Model):
         default=True,
         title="Columns at any angle",
         description="A column turned by an angle that is not a multiple of 90° is analysed and "
-        "designed on its own axes (before version 0.0.44 it was rounded to the nearest quarter "
-        "turn).",
+        "designed on its own axes.",
     )
     responseSpectrum: bool = Field(
         default=True,
@@ -517,8 +540,7 @@ class Analysis(_Model):
         "when cracked, beams 0.35 Ig, flat plates and slabs 0.25 Ig; area 1.0 Ag). BNBC 2020 "
         "Part 6 Sec 2.5.9.1 (a) requires the response spectrum model to consider the effects "
         "of cracked sections, and Sec 6.1.10.2 uses these properties for the lateral "
-        "deflections. Gross: the uncracked sections, as before version 0.0.37 (the model is "
-        "then too stiff: periods come out shorter and drifts smaller than BNBC intends).",
+        "deflections. Gross: the uncracked sections (the model is then too stiff: periods come out shorter and drifts smaller than BNBC intends).",
         json_schema_extra=_labels(["Gross sections", "Cracked (ACI / BNBC 6.3.10.4.1)"]),
     )
     crackedFor: Literal["all", "lateral"] = Field(
@@ -526,7 +548,7 @@ class Analysis(_Model):
         title="Cracked stiffness for",
         description="Lateral cases: wind, earthquake, modal, response spectrum and time "
         "histories on the cracked sections, the gravity cases on the gross ones. All cases: "
-        "the model's sections are the cracked ones (as ETABS property modifiers).",
+        "the model's sections are the cracked ones (as property modifiers on the sections).",
         json_schema_extra=_labels(["All cases", "Lateral cases only"]),
     )
     wallsCracked: bool = Field(
@@ -726,13 +748,17 @@ class LoadCombination(_Model):
     """Factors on the load cases. D applies to the dead and superimposed dead loads."""
 
     name: str = Field(min_length=1)
-    D: float = 0
-    L: float = 0
-    Lr: float = 0
-    WX: float = 0
-    WY: float = 0
-    EX: float = 0
-    EY: float = 0
+    D: float = Field(
+        default=0,
+        description="Factor on the dead load D, which includes the superimposed dead load SD "
+        "(floor finish, partitions; BNBC 2020 Part 6 Sec 2.7.3).",
+    )
+    L: float = Field(default=0, description="Factor on the live load L.")
+    Lr: float = Field(default=0, description="Factor on the roof live load Lr.")
+    WX: float = Field(default=0, title="Wx", description="Factor on the wind load along X.")
+    WY: float = Field(default=0, title="Wy", description="Factor on the wind load along Y.")
+    EX: float = Field(default=0, title="Ex", description="Factor on the earthquake load along X.")
+    EY: float = Field(default=0, title="Ey", description="Factor on the earthquake load along Y.")
     T: float = Field(
         default=0,
         title="T",
@@ -975,53 +1001,197 @@ def derived(settings: ProjectSettings) -> dict[str, Any]:
 
 
 def check(settings: ProjectSettings) -> list[str]:
-    """Problems the schema cannot express: references, code minimums, missing site values."""
-    problems = []
+    """Problems the schema cannot express, as "path: message" (see :func:`problems`)."""
+    return [f"{path}: {message}" for path, message in problems(settings)]
+
+
+def design_category(settings: ProjectSettings, site_class: str | None = None) -> dict[str, Any]:
+    """The Seismic Design Category of the site (BNBC 2020 Part 6 Sec 2.5.5.2, Table 6.2.18,
+    p. 617) and what it allows of the structural system (Table 6.2.19, pp. 619-624; Sec 8.3.2,
+    pp. 1088-1089): ``{"sdc", "zone", "siteClass", "permitted", "heightLimit", "detailing",
+    "required", "row"}``. ``sdc`` is None without a zone (a custom location without Z);
+    ``permitted`` False when the system is NP in the category; ``detailing`` the seismic
+    detailing the system gives, ``required`` the least the category needs. ``site_class`` is
+    the class the analysis uses (from the soil report), else the entered one."""
+    pack = code_pack(settings)
+    seismic = pack.table("seismic")
+    values = derived(settings)
+    zone = values["zone"] if settings.site.zoneCoefficient is None else None
+    if zone is None and values["Z"]:
+        zones = pack.table("zoneCoefficients").zones
+        zone = min(zones, key=lambda k: abs(zones[k] - values["Z"]))
+    site = site_class or settings.site.siteClass
+    result: dict[str, Any] = {"sdc": None, "zone": zone, "siteClass": site}
+    if zone is None:
+        return result
+    system = seismic.systems.get(settings.seismic.system)
+    table = seismic.designCategories
+    rows = table.bySiteClass
+    row = rows.get(table.aliases.get(site, site)) or list(rows.values())[-1]
+    group = table.occupancyGroups.get(settings.occupancy.category) or next(iter(row))
+    sdc = row[group][int(zone) - 1]
+    limit = system.heightLimits.get(sdc) if system else None
+    return {
+        **result,
+        "sdc": sdc,
+        "permitted": not (limit is not None and limit <= 0),
+        "heightLimit": limit if limit else None,
+        "detailing": system.frame if system else None,
+        "required": seismic.requiredDetailing.get(sdc),
+        "row": system.row if system else "",
+    }
+
+
+#: The levels of seismic detailing, lowest first (BNBC 2020 Part 6 Sec 8.3.2).
+_DETAILING = ("ordinary", "intermediate", "special")
+
+
+def problems(settings: ProjectSettings) -> list[tuple[str, str]]:
+    """Problems the schema cannot express (references, code minimums, site values out of the
+    code's range, the structural system in the Seismic Design Category), each as (dotted path
+    of the field or section, message)."""
+    out: list[tuple[str, str]] = []
     ids = [a.id for a in settings.areaLoads]
     for duplicate in sorted({i for i in ids if ids.count(i) > 1}):
-        problems.append(f"{duplicate}: two area loads use this id")
+        out.append(("areaLoads", f"two area loads use the id {duplicate}"))
     for field, value in (("floorLoad", settings.floorLoad), ("roofLoad", settings.roofLoad)):
         if value not in ids:
-            problems.append(f"{field}: there is no area load '{value}'")
+            out.append((field, f"there is no area load '{value}'"))
     try:
         pack: CodePack | None = code_pack(settings)
     except CodePackError as e:
         pack = None
-        problems.append(f"codePack: {e}")
+        out.append(("codePack", str(e)))
     if pack is not None:
-        uses = pack.table("areaLoads").uses
-        edition = pack.edition or pack.name
-        for load in settings.areaLoads:
-            use = uses.get(load.use)
-            if use and load.live < use.live:
-                problems.append(
-                    f"{load.id}: live load {load.live} kN/m² is below the {edition} minimum of {use.live} kN/m² for {use.name.lower()}"
-                )
-        if (
-            settings.site.location != "custom"
-            and settings.site.location not in pack.table("locations").locations
-        ):
-            problems.append(
-                f"site: the code pack '{pack.id}' has no location '{settings.site.location}'"
-            )
-        for where, key, values in (
-            (
-                "occupancy",
-                settings.occupancy.category,
-                pack.table("occupancyCategories").categories,
-            ),
-            ("seismic", settings.seismic.system, pack.table("seismic").systems),
-        ):
-            if key not in values:
-                problems.append(f"{where}: the code pack '{pack.id}' has no '{key}'")
+        out.extend(_pack_problems(settings, pack))
     if settings.site.location == "custom":
         if settings.site.zoneCoefficient is None:
-            problems.append("site: a custom location needs the seismic zone coefficient Z")
+            out.append(
+                (
+                    "site.zoneCoefficient",
+                    "a custom location needs the seismic zone coefficient Z (Table 6.2.14)",
+                )
+            )
         if settings.site.windSpeed is None:
-            problems.append("site: a custom location needs the basic wind speed")
+            out.append(
+                ("site.windSpeed", "a custom location needs the basic wind speed V (Table 6.2.8)")
+            )
     if not settings.combinations:
-        problems.append("combinations: there are no load combinations")
-    return problems
+        out.append(("combinations", "there are no load combinations"))
+    return out
+
+
+def _pack_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[str, str]]:
+    """The settings against the tables of the code pack."""
+    out: list[tuple[str, str]] = []
+    uses = pack.table("areaLoads").uses
+    edition = pack.edition or pack.name
+    for index, load in enumerate(settings.areaLoads):
+        use = uses.get(load.use)
+        if use and load.live < use.live:
+            out.append(
+                (
+                    f"areaLoads.{index}.live",
+                    (
+                        f"{load.id}: live load {load.live:g} kN/m² is below the {edition} minimum "
+                        f"of {use.live:g} kN/m² for {use.name.lower()} (Table 6.2.3)"
+                    ),
+                )
+            )
+    locations = pack.table("locations").locations
+    if settings.site.location != "custom" and settings.site.location not in locations:
+        out.append(
+            (
+                "site.location",
+                f"the code pack '{pack.id}' has no location '{settings.site.location}'",
+            )
+        )
+    for where, key, values in (
+        (
+            "occupancy.category",
+            settings.occupancy.category,
+            pack.table("occupancyCategories").categories,
+        ),
+        ("seismic.system", settings.seismic.system, pack.table("seismic").systems),
+    ):
+        if key not in values:
+            out.append((where, f"the code pack '{pack.id}' has no '{key}'"))
+    zones = pack.table("zoneCoefficients").zones
+    z = settings.site.zoneCoefficient
+    if z is not None and zones and not min(zones.values()) <= z <= max(zones.values()):
+        out.append(
+            (
+                "site.zoneCoefficient",
+                (
+                    f"Z = {z:g} is outside the {edition} zone coefficients "
+                    f"({min(zones.values()):g} to {max(zones.values()):g}, Table 6.2.14, p. 615)"
+                ),
+            )
+        )
+    speeds = [location.windSpeed for location in locations.values()]
+    v = settings.site.windSpeed
+    if v is not None and speeds and not min(speeds) * 0.9 <= v <= max(speeds) * 1.1:
+        out.append(
+            (
+                "site.windSpeed",
+                (
+                    f"V = {v:g} m/s is far from the {edition} basic wind speeds "
+                    f"({min(speeds):g} to {max(speeds):g} m/s, Table 6.2.8, p. 600): check the "
+                    "units (m/s, 3-second gust at 10 m)"
+                ),
+            )
+        )
+    if settings.seismic.system in pack.table("seismic").systems:
+        out.extend(_system_problems(settings, pack))
+    return out
+
+
+def _system_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[str, str]]:
+    """The structural system in the Seismic Design Category of the site (with the site class
+    of the soil report when the project is known)."""
+    site_class = None
+    if settings.site.siteClassSource != "entered":
+        root = code_context.project_root()
+        if root is not None:
+            try:
+                site_class = soil_site_class(read_soil_text(root), settings).get("class")
+            except Exception:  # noqa: BLE001 - a broken soil report is reported by Part 1
+                site_class = None
+    info = design_category(settings, site_class)
+    sdc = info["sdc"]
+    if sdc is None:
+        return []
+    edition = pack.edition or pack.name
+    system = pack.table("seismic").systems[settings.seismic.system]
+    where = f"Table 6.2.19 row {info['row']}" if info["row"] else "Table 6.2.19"
+    basis = (
+        f"zone {info['zone']}, site class {info['siteClass']}, occupancy category "
+        f"{settings.occupancy.category}: Table 6.2.18, p. 617"
+    )
+    if not info["permitted"]:
+        return [
+            (
+                "seismic.system",
+                (
+                    f"{system.name} is not permitted in Seismic Design Category {sdc} ({basis}; "
+                    f"{edition} Part 6 {where}). Category {sdc} needs {info['required']} seismic "
+                    "detailing (Sec 8.3.2): choose a special moment frame or another permitted "
+                    "system"
+                ),
+            )
+        ]
+    detailing, required = info["detailing"], info["required"]
+    if detailing and required and _DETAILING.index(detailing) < _DETAILING.index(required):
+        return [
+            (
+                "seismic.system",
+                (
+                    f"{system.name} has {detailing} detailing; Seismic Design Category {sdc} ({basis}) "
+                    f"needs {required} detailing ({edition} Part 6 Sec 8.3.2, pp. 1088-1089)"
+                ),
+            )
+        ]
+    return []
 
 
 # ─────────────────────────────── values from the soil report ───────────────────────────────
@@ -1067,7 +1237,14 @@ def soil_site_class(
         sites = {b.id: site_class.site_class(Profile(report, b)) for b in report.boreholes}
         project = site_class.governing(sites)
     cls = project.get("class")
-    result: dict[str, Any] = {**none, "boreholes": len(report.boreholes), "note": project["note"]}
+    result: dict[str, Any] = {
+        **none,
+        "boreholes": len(report.boreholes),
+        "note": project["note"],
+        # S1, S2 (and SE) of Table 6.2.13 that the boreholes flag: S1 and S2 need a
+        # site-specific study (Sec 2.5.3.1).
+        "flags": sorted({f["class"] for f in project.get("flags", []) if f.get("class")}),
+    }
     if not cls:
         return result
     which = project["governing"]

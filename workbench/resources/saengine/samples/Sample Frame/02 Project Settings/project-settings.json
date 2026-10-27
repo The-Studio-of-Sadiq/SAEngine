@@ -27,8 +27,8 @@
 		{
 			"id": "FL",
 			"name": "Floors",
-			"use": "office",
-			"live": 2.4,
+			"use": "residential",
+			"live": 2.0,
 			"finish": 1.2,
 			"partitions": 1
 		},
@@ -284,11 +284,10 @@
 		}
 	],
 	"analysis": {
-		"slabs": "shells"
+		"slabs": "shells",
+		"meshSize": 250
 	},
-	"foundation": {
-		"allowableBearing": 150
-	},
+	"foundation": {},
 	"drawings": {
 		"firm": "Sample Structural Consultants",
 		"drawnBy": "SAE",

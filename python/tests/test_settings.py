@@ -30,9 +30,9 @@ def test_defaults_follow_bnbc_2020() -> None:
         "windSpeed": 65.7,
         "seismicImportance": 1.0,
         "windImportance": 1.0,
-        "R": 5.0,
+        "R": 8.0,
         "omega": 3.0,
-        "Cd": 4.5,
+        "Cd": 5.5,
     }
     assert [(a.id, a.live) for a in default.areaLoads] == [("FL", 2.0), ("ST", 4.8), ("RF", 1.0)]
 
@@ -106,10 +106,48 @@ def test_check_reports_code_minimums_and_references() -> None:
         site={"location": "custom"},
     )
     assert [p["message"] for p in check_library("settings", json.dumps(data))] == [
-        "roofLoad: there is no area load 'RF'",
-        "FL: live load 2.0 kN/m² is below the BNBC 2020 minimum of 2.4 kN/m² for office",
-        "site: a custom location needs the seismic zone coefficient Z",
-        "site: a custom location needs the basic wind speed",
+        "there is no area load 'RF'",
+        (
+            "FL: live load 2 kN/m² is below the BNBC 2020 minimum of 2.4 kN/m² for office "
+            "(Table 6.2.3)"
+        ),
+        "a custom location needs the seismic zone coefficient Z (Table 6.2.14)",
+        "a custom location needs the basic wind speed V (Table 6.2.8)",
+    ]
+    assert [p["path"] for p in check_library("settings", json.dumps(data))] == [
+        "roofLoad",
+        "areaLoads.0.live",
+        "site.zoneCoefficient",
+        "site.windSpeed",
     ]
     with pytest.raises(ValidationError):
         ProjectSettings.model_validate(settings(site={"location": "atlantis"}))
+
+
+def test_system_is_checked_against_the_seismic_design_category() -> None:
+    """BNBC 2020 Part 6 Table 6.2.18 (p. 617): Dhaka (zone 2) on SD, occupancy II is Category
+    D, where an RC intermediate or ordinary moment frame is NP (Table 6.2.19 rows C.5, p. 623)."""
+    from saengine.library.settings import design_category
+
+    for system in ("rcImf", "rcOmf"):
+        data = settings(seismic={"system": system})
+        problems = check_library("settings", json.dumps(data))
+        assert [p["path"] for p in problems] == ["seismic.system"]
+        assert "not permitted in Seismic Design Category D" in problems[0]["message"]
+    assert check_library("settings", json.dumps(settings())) == []
+    info = design_category(ProjectSettings.model_validate(settings()))
+    assert (info["sdc"], info["detailing"], info["required"]) == ("D", "special", "special")
+    # Rajshahi (zone 1) on SC, occupancy II: Category B, where an IMF is permitted.
+    rajshahi = settings(
+        site={"location": "rajshahi", "siteClass": "SC", "siteClassSource": "entered"},
+        seismic={"system": "rcImf"},
+    )
+    assert check_library("settings", json.dumps(rajshahi)) == []
+
+
+def test_override_values_out_of_the_code_range_are_reported() -> None:
+    data = settings(site={"location": "dhaka", "zoneCoefficient": 0.6, "windSpeed": 250})
+    assert [p["path"] for p in check_library("settings", json.dumps(data))] == [
+        "site.zoneCoefficient",
+        "site.windSpeed",
+    ]

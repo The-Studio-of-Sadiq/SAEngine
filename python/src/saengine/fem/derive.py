@@ -1641,25 +1641,28 @@ def _derive_fem(
         if eccentric:
             summary["accidentalTorsion"] = info["levels"]
     if heights and values["windSpeed"]:
-        wind_notes = _wind_loads(
-            b,
-            heights,
-            base_m,
-            level_nodes,
-            retained_of,
-            level_shares,
-            patterns,
-            summary,
-            values["windSpeed"],
-            settings.wind.exposure,
-            values["windImportance"],
-            # BNBC's exception is for buildings "designed with flexible diaphragms"; the
-            # analysis option diaphragm = "flexible" only models the floors' in-plane stiffness
-            # from their beams and shells (semi-rigid RC slabs), so it does not qualify.
-            rigid=True,
-            torsion=bool(option(options, "windTorsionCases", True)),
-            story_names=story_names,
-        )
+        from saengine.fem.loads import wind_overrides
+
+        with wind_overrides(settings.wind):
+            wind_notes = _wind_loads(
+                b,
+                heights,
+                base_m,
+                level_nodes,
+                retained_of,
+                level_shares,
+                patterns,
+                summary,
+                values["windSpeed"],
+                settings.wind.exposure,
+                values["windImportance"],
+                # BNBC's exception is for buildings "designed with flexible diaphragms"; the
+                # analysis option diaphragm = "flexible" only models the floors' in-plane stiffness
+                # from their beams and shells (semi-rigid RC slabs), so it does not qualify.
+                rigid=True,
+                torsion=bool(option(options, "windTorsionCases", True)),
+                story_names=story_names,
+            )
         b.notes.extend(wind_notes)
     if special:
         b.notes.append(

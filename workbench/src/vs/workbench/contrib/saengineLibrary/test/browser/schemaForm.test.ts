@@ -65,7 +65,7 @@ suite('SAEngine - SchemaForm', () => {
 		const item = concrete();
 		const { type } = setup(item);
 
-		type('Tensile strength fr', '');
+		type('Modulus of rupture fr', '');
 		type('Compressive strength f\'c', '');
 
 		assert.deepStrictEqual({ ft: (item.concrete as JsonObject).ft, fc: (item.concrete as JsonObject).fc }, { ft: undefined, fc: 24.1 });

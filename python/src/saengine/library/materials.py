@@ -12,6 +12,7 @@ physical properties when the FEM model is built; they are not stored here.
 
 from __future__ import annotations
 
+import math
 from enum import Enum
 from typing import Annotated, Literal
 
@@ -42,7 +43,12 @@ class Category(str, Enum):
 class Mechanical(_Model):
     """Pset_MaterialCommon / Pset_MaterialMechanical."""
 
-    E: float | None = Field(default=None, gt=0, description="Young's modulus [MPa].")
+    E: float | None = Field(
+        default=None,
+        gt=0,
+        description="Young's modulus [MPa]. Concrete: follows f'c (Ec = 4700 √f'c, BNBC 2020 "
+        "Part 6 Sec 6.1.7.1) until another value is entered.",
+    )
     nu: float | None = Field(default=None, ge=0, lt=0.5, description="Poisson's ratio [-].")
     density: float | None = Field(default=None, gt=0, description="Mass density [kg/m³].")
     alpha: float | None = Field(
@@ -55,7 +61,11 @@ class ConcreteProperties(_Model):
 
     fc: float = Field(gt=0, description="Specified compressive strength f'c [MPa].")
     ft: float | None = Field(
-        default=None, gt=0, description="Tensile strength / modulus of rupture [MPa]."
+        default=None,
+        gt=0,
+        title="Modulus of rupture fr",
+        description="Tensile strength / modulus of rupture [MPa]. Follows f'c (fr = 0.62 √f'c, "
+        "BNBC 2020 Part 6 Eq. 6.6.3) until another value is entered.",
     )
     maxAggregate: float | None = Field(
         default=None, gt=0, description="Maximum aggregate size [mm]."
@@ -212,3 +222,91 @@ class MaterialLibrary(_Model):
 
     def get(self, material_id: str) -> Material | None:
         return next((m for m in self.materials if m.id == material_id), None)
+
+
+# ───────────────────────── values derived from f'c, and plausibility ─────────────────────────
+
+#: Ec = 4700 √f'c [MPa] for normal-weight concrete (BNBC 2020 Part 6 Sec 6.1.7.1).
+EC_COEFFICIENT = 4700.0
+#: Modulus of rupture fr = 0.62 λ √f'c [MPa] (BNBC 2020 Part 6 Sec 6.2.5.2.3, Eq. 6.6.3).
+FR_COEFFICIENT = 0.62
+#: How far an entered E or fr may differ from the code relation before it is flagged.
+DEVIATION_LIMIT = 0.10
+
+
+def concrete_modulus(fc: float) -> float:
+    """Ec of normal-weight concrete [MPa], rounded to 10 MPa as the defaults are."""
+    return round(EC_COEFFICIENT * math.sqrt(fc), -1)
+
+
+def modulus_of_rupture(fc: float) -> float:
+    """fr of normal-weight concrete (λ = 1) [MPa], rounded to 0.01 MPa."""
+    return round(FR_COEFFICIENT * math.sqrt(fc), 2)
+
+
+#: Plausible ranges of entered values by category: (path, low, high, what).
+_RANGES: dict[Category, tuple[tuple[str, float, float, str], ...]] = {
+    Category.CONCRETE: (
+        ("concrete.fc", 10.0, 100.0, "f'c"),
+        ("mechanical.density", 1400.0, 2600.0, "density of concrete"),
+        ("mechanical.nu", 0.1, 0.25, "Poisson's ratio of concrete"),
+    ),
+    Category.REBAR: (
+        ("steel.fy", 200.0, 700.0, "fy of reinforcement"),
+        ("mechanical.density", 7700.0, 8000.0, "density of steel"),
+    ),
+    Category.STEEL: (
+        ("steel.fy", 200.0, 700.0, "fy of structural steel"),
+        ("mechanical.density", 7700.0, 8000.0, "density of steel"),
+    ),
+    Category.MASONRY: (("mechanical.density", 1000.0, 2400.0, "density of masonry"),),
+}
+
+
+def _value(material: Material, path: str) -> float | None:
+    group, _, key = path.partition(".")
+    owner = getattr(material, group, None)
+    value = getattr(owner, key, None) if owner is not None else None
+    return float(value) if isinstance(value, int | float) else None
+
+
+def plausibility(material: Material) -> list[tuple[str, str]]:
+    """Values that pass the schema but are unlikely for the category (a typing slip, a value in
+    the wrong unit), as (path, message): E and fr of concrete more than 10 % from the code
+    relations of f'c (BNBC 2020 Part 6 Sec 6.1.7.1 and Eq. 6.6.3), and values outside the usual
+    range of the category. Test results may justify a value; the message says what to check."""
+    out: list[tuple[str, str]] = []
+    for path, low, high, what in _RANGES.get(material.category, ()):
+        value = _value(material, path)
+        if value is not None and not low <= value <= high:
+            out.append((path, f"{what} {value:g} is outside the usual {low:g} to {high:g}"))
+    if material.category == Category.CONCRETE and material.concrete is not None:
+        fc = material.concrete.fc
+        for path, own, code, name, clause in (
+            (
+                "mechanical.E",
+                material.mechanical.E,
+                concrete_modulus(fc),
+                "E",
+                "Sec 6.1.7.1: Ec = 4700 √f'c",
+            ),
+            (
+                "concrete.ft",
+                material.concrete.ft,
+                modulus_of_rupture(fc),
+                "fr",
+                "Eq. 6.6.3: fr = 0.62 √f'c",
+            ),
+        ):
+            if own is not None and code > 0 and abs(own - code) / code > DEVIATION_LIMIT:
+                out.append(
+                    (
+                        path,
+                        (
+                            f"{name} = {own:g} MPa differs by {abs(own - code) / code:.0%} from "
+                            f"{code:g} MPa for f'c {fc:g} MPa (BNBC 2020 Part 6 {clause}); clear it "
+                            "to use the code value, or keep it if it comes from tests"
+                        ),
+                    )
+                )
+    return out
