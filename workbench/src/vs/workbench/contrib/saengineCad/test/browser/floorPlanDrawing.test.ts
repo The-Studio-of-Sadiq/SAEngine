@@ -76,9 +76,10 @@ suite('SAEngine - Floor plan drawing', () => {
 				'S-BEAM polyline 0,150 6000,150 6000,-150 0,-150 closed',
 				// Above the beam, clear of its lines, with its size.
 				'S-ANNO-IDEN text 3000,375 "b-1 300×500"',
-				// Rotated 90°: the 400 x 600 column is 600 wide in x; its label sits above and right of it.
+				// Rotated 90°: the 400 x 600 column is 600 wide in x; its label goes right of it, below
+				// rather than above, where the beam's label already is.
 				'S-COLS polyline 300,-200 300,200 -300,200 -300,-200 closed',
-				'S-ANNO-IDEN text 1360,425 "c-a1 400×600"',
+				'S-ANNO-IDEN text 1360,-425 "c-a1 400×600"',
 			],
 			problems: [],
 			warnings: [],

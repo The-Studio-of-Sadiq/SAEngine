@@ -250,6 +250,18 @@ export function sectionLabel(type: Json | undefined): string | undefined {
 	return num(type.length) && num(type.width) ? `${num(type.length)}×${num(type.width)}` : undefined;
 }
 
+/** A label's extent on the plan: centred on its position, about 0.84 text heights per character. */
+interface LabelBox { readonly x0: number; readonly x1: number; readonly y0: number; readonly y1: number }
+
+function labelBox(position: CadPoint, value: string): LabelBox {
+	const [halfWidth, halfHeight] = [value.length * LABEL_TEXT * 0.42, LABEL_TEXT * 0.6];
+	return { x0: position[0] - halfWidth, x1: position[0] + halfWidth, y0: position[1] - halfHeight, y1: position[1] + halfHeight };
+}
+
+function boxesOverlap(a: LabelBox, b: LabelBox): boolean {
+	return a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+}
+
 /** "B5 300×500", "C1 Ø500": a label with its section's size in mm, when the type has one. */
 function withSize(label: string, type: Json | undefined): string {
 	const size = type && isObject(type.profile) ? sectionLabel(type) : undefined;
@@ -309,7 +321,10 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 	const ys = [...yLines.values()];
 	const [minX, maxX] = xs.length ? [Math.min(...xs), Math.max(...xs)] : [0, 0];
 	const [minY, maxY] = ys.length ? [Math.min(...ys), Math.max(...ys)] : [0, 0];
+	/** The grid bubbles, which member labels keep clear of too. */
+	const bubbles: LabelBox[] = [];
 	const bubble = (label: string, center: CadPoint) => {
+		bubbles.push({ x0: center[0] - BUBBLE_RADIUS, x1: center[0] + BUBBLE_RADIUS, y0: center[1] - BUBBLE_RADIUS, y1: center[1] + BUBBLE_RADIUS });
 		entities.push({ kind: 'circle', layer: FLOOR_PLAN_LAYERS.gridLabels, center, radius: BUBBLE_RADIUS });
 		entities.push({ kind: 'text', layer: FLOOR_PLAN_LAYERS.gridLabels, position: center, height: BUBBLE_TEXT, text: label });
 	};
@@ -353,7 +368,16 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 	};
 	/** A member's label on the plan: one per place up the building (see {@link planLabel}). */
 	const labelOf = (member: Json) => typeof member.id === 'string' ? planLabel(model, member.id) : '?';
-	const text = (position: CadPoint, value: string) => entities.push({ kind: 'text', layer: FLOOR_PLAN_LAYERS.labels, position, height: LABEL_TEXT, text: value });
+	/** The boxes of the labels drawn so far, which later labels keep clear of. */
+	const placed: LabelBox[] = [...bubbles];
+	const text = (position: CadPoint, value: string) => {
+		entities.push({ kind: 'text', layer: FLOOR_PLAN_LAYERS.labels, position, height: LABEL_TEXT, text: value });
+		placed.push(labelBox(position, value));
+	};
+	const free = (position: CadPoint, value: string) => {
+		const box = labelBox(position, value);
+		return placed.every(other => !boxesOverlap(box, other));
+	};
 	/** Columns and walls cross a plan when they start below the level and reach it. */
 	const spans = (member: Json) => {
 		const base = elevation.get(member.base as string);
@@ -454,9 +478,14 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 			shape('columns', column, { kind: 'polygon', points });
 			corner = [Math.max(...points.map(p => p[0])), Math.max(...points.map(p => p[1]))];
 		}
-		// Above and right of the column, clear of the grid lines through it.
+		// Above and right of the column, clear of the grid lines through it; another corner when a
+		// beam's label is already there.
 		const name = withSize(labelOf(column), type);
-		text([corner[0] + LABEL_TEXT * 0.4 + name.length * LABEL_TEXT * 0.32, corner[1] + LABEL_TEXT * 0.9], name);
+		const [halfWidth, low] = [corner[0] - at[0], corner[1] - at[1]];
+		const dx = halfWidth + LABEL_TEXT * 0.4 + name.length * LABEL_TEXT * 0.32;
+		const dy = low + LABEL_TEXT * 0.9;
+		const candidates: CadPoint[] = [[at[0] + dx, at[1] + dy], [at[0] + dx, at[1] - dy], [at[0] - dx, at[1] + dy], [at[0] - dx, at[1] - dy]];
+		text(candidates.find(c => free(c, name)) ?? candidates[0], name);
 	}
 	for (const footing of list(model.footings).filter(f => f.story === storyId)) {
 		const type = typeOf(footing);

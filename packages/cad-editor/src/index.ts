@@ -9,6 +9,9 @@ import { applyGenerated, CadGeneratedDrawing, CadPoint } from './generated.js';
 export type { CadEntitySpec, CadGeneratedDrawing, CadLayerSpec, CadPoint } from './generated.js';
 export { setTrustedTypesHost, type TrustedTypesHost } from './trustedTypes.js';
 
+/** An architect's underlay is drawn in this light grey, well behind the model's own linework. */
+const UNDERLAY_GREY = 0xbfc4cc;
+
 export interface CadEditorOptions {
 	readonly container: HTMLElement;
 	/** Folder URL (with trailing slash) holding the bundled worker script. */
@@ -230,7 +233,7 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			}
 			underlaySession = session.id;
 			// Reference drawings read best greyed out, behind the host's own linework.
-			manager.setOverlayCompareDisplay(session.overlayId, { enabled: true, baseColor: 0x6b7280 });
+			manager.setOverlayCompareDisplay(session.overlayId, { enabled: true, baseColor: UNDERLAY_GREY });
 		},
 		setPreview: drawing => {
 			preview = applyGenerated(manager.curDocument.database, preview, drawing);
