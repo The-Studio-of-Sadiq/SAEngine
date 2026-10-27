@@ -218,6 +218,26 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 		return this.request(python, 'substructure/migrate', { projectRoot });
 	}
 
+	substructureDesign(python: string, projectRoot: string): Promise<object> {
+		return this.request(python, 'substructure/design', { projectRoot });
+	}
+
+	async restartBackend(python: string): Promise<void> {
+		const backend = this.backends.get(python);
+		if (!backend) {
+			return;
+		}
+		this.backends.delete(python);
+		this.logService.info(`[saengine] restarting backend: ${python}`);
+		try {
+			const b = await backend;
+			b.connection.dispose();
+			this.kill(b.child);
+		} catch {
+			// It never started: nothing to stop.
+		}
+	}
+
 	substructureEnsure(python: string, projectRoot: string): Promise<ISubstructureMigration> {
 		return this.request(python, 'substructure/ensure', { projectRoot });
 	}
@@ -392,7 +412,12 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 			child.on('close', code => {
 				this.logService.info(`[saengine] backend exited with code ${code}`);
 				connection.dispose();
-				this.backends.delete(python);
+				// Forget it, unless a restart has already put a new backend in its place.
+				this.backends.get(python)?.then(b => {
+					if (b.child === child) {
+						this.backends.delete(python);
+					}
+				}, () => { });
 				if (code !== 0 && stderr.length) {
 					this.logService.error(`[saengine] backend stderr:\n${stderr.join('\n')}`);
 				}

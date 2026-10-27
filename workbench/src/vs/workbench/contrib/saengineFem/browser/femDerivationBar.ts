@@ -12,7 +12,7 @@ import { ITextModelService } from '../../../../editor/common/services/resolverSe
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { mepModelStamp, sourceStamp } from '../../../services/saengineProject/common/partSources.js';
+import { femSourceCurrent, mepModelStamp, sourceStamp } from '../../../services/saengineProject/common/partSources.js';
 import { loadsHaveContent } from '../../../services/saengineProject/common/partStatus.js';
 import { ISaengineProjectService, PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
 
@@ -121,7 +121,7 @@ export function derivationState(description: unknown, texts: ReadonlyMap<string,
 	const recorded = recordedSources(description);
 	const changed = DERIVATION_SOURCES.filter(({ part, key }) => {
 		const text = texts.get(part);
-		return text === undefined || recorded.get(key) !== sourceStamp(text);
+		return text === undefined || !femSourceCurrent(part, text, recorded.get(key));
 	}).map(c => c.label);
 	// The soil report and the substructure count only when the model recorded them (its site
 	// class could come from the soil report; soil springs stand on the substructure's foundations).

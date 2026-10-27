@@ -51,6 +51,9 @@ export const DEVELOPER_MODE_SETTING = 'saengine.developerMode';
 export const DeveloperModeContext = new RawContextKey<boolean>('saengineDeveloperMode', false, localize('saengineDeveloperMode', "Whether SAEngine shows its code-editor features (developer mode)"));
 
 const RUN_ALL_COMMAND = 'saengine.runAll';
+/** Run All's Stop, and the key set while Run All runs (`saengineFem/electron-browser/runAll.ts`). */
+const STOP_RUN_ALL_COMMAND = 'saengine.runAll.cancel';
+const RunAllRunning = ContextKeyExpr.has('saengineRunAllRunning');
 const ProjectOpenContext = ContextKeyExpr.has('saengineProjectOpen');
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
@@ -418,7 +421,8 @@ MenuRegistry.appendMenuItem(MenuId.TitleBar, {
 		tooltip: localize('saengine.runAll.tooltip', "Run the analysis and the design of the project"),
 		icon: Codicon.play,
 	},
-	when: ProjectOpenContext,
+	// While it runs, Stop takes its place (registered with Run All).
+	when: ContextKeyExpr.and(ProjectOpenContext, RunAllRunning.negate()),
 	group: 'navigation',
 	order: -1,
 });
@@ -428,7 +432,7 @@ class RunAllTitleBarItem extends BaseActionViewItem {
 
 	private label: HTMLElement | undefined;
 
-	constructor(action: IAction, options: IBaseActionViewItemOptions) {
+	constructor(action: IAction, options: IBaseActionViewItemOptions, private readonly icon: ThemeIcon = Codicon.play) {
 		super(undefined, action, options);
 	}
 
@@ -437,7 +441,7 @@ class RunAllTitleBarItem extends BaseActionViewItem {
 		container.classList.add('saengine-run-all');
 		container.setAttribute('role', 'button');
 		const content = append(container, $('.saengine-run-all-content'));
-		append(content, $(ThemeIcon.asCSSSelector(Codicon.play)));
+		append(content, $(ThemeIcon.asCSSSelector(this.icon)));
 		this.label = append(content, $('span.saengine-run-all-label'));
 		this.updateLabel();
 		this.updateEnabled();
@@ -464,7 +468,8 @@ class RunAllTitleBarContribution extends Disposable implements IWorkbenchContrib
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		this._register(actionViewItemService.register(MenuId.TitleBar, RUN_ALL_COMMAND, (action, options) => instantiationService.createInstance(RunAllTitleBarItem, action, options)));
+		this._register(actionViewItemService.register(MenuId.TitleBar, RUN_ALL_COMMAND, (action, options) => instantiationService.createInstance(RunAllTitleBarItem, action, options, Codicon.play)));
+		this._register(actionViewItemService.register(MenuId.TitleBar, STOP_RUN_ALL_COMMAND, (action, options) => instantiationService.createInstance(RunAllTitleBarItem, action, options, Codicon.debugStop)));
 	}
 }
 

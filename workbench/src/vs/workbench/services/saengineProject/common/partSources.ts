@@ -38,6 +38,39 @@ export function sourceStamp(text: string): string {
 	return sha.digest();
 }
 
+/** Keys of the project settings the analysis model does not take: the project's details and the drawings' title block. */
+const SETTINGS_INFO_KEYS = new Set(['project', 'drawings']);
+
+/**
+ * The stamp an analysis model records for the project settings `text` (key `settings`): of the
+ * settings without the project's details and the drawings' title block, so typing the engineer's
+ * name or a revision leaves the model current. The Python side
+ * (`saengine.fem.derive.settings_stamp`) computes the same; a text that is not a JSON object gets
+ * the stamp of its text.
+ */
+export function femSettingsStamp(text: string): string {
+	let document: unknown;
+	try {
+		document = JSON.parse(text);
+	} catch {
+		return sourceStamp(text);
+	}
+	if (typeof document !== 'object' || document === null || Array.isArray(document)) {
+		return sourceStamp(text);
+	}
+	return sourceStamp(JSON.stringify(Object.fromEntries(Object.entries(document).filter(([key]) => !SETTINGS_INFO_KEYS.has(key)))));
+}
+
+/**
+ * Whether the analysis model's source `part` with `text` is still the one it recorded as
+ * `recorded`. The settings count without the project's details ({@link femSettingsStamp}); a
+ * model derived before that recorded the whole file's stamp, which stays current while the file
+ * is unchanged.
+ */
+export function femSourceCurrent(part: string, text: string, recorded: string | undefined): boolean {
+	return recorded === sourceStamp(text) || (part === 'settings' && recorded === femSettingsStamp(text));
+}
+
 /** What the analysis model takes from the MEP file (see {@link mepModelStamp}). */
 const MEP_MODEL_KEYS = ['contentsAs', 'equipment', 'openings', 'shafts'];
 /** Labels of the MEP file's items, which the analysis model does not take. */

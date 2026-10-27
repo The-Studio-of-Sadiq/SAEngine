@@ -6,7 +6,7 @@
 import { Event } from '../../../../base/common/event.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { boqSourceStamp, mepModelStamp, recordedStamp, sourceStamp, upstreamPart } from './partSources.js';
+import { boqSourceStamp, femSourceCurrent, mepModelStamp, recordedStamp, sourceStamp, upstreamPart } from './partSources.js';
 import { DEFAULT_MATERIALS, DEFAULT_OBJECTS, DEFAULT_SETTINGS } from './projectLibraries.generated.js';
 import { IProjectPart } from './saengineProject.js';
 
@@ -323,7 +323,11 @@ function femStatus(inputs: IPartStatusInputs): IPartStatus {
 	const mepAdded = !recorded.has('mep') && mepHasContent(inputs);
 	// The member loads (`05 Floor Plan/loads.json`) likewise, once they have a load.
 	const loadsAdded = !recorded.has('loads') && loadsHaveContent(inputs.texts.get('loads'));
-	if (soilChanged || recordedChanged || mepAdded || loadsAdded || FEM_SOURCES.some(part => changed(inputs.texts, part, recorded.get(part)))) {
+	const sourceChanged = (part: string) => {
+		const sourceText = inputs.texts.get(part);
+		return sourceText === undefined || !femSourceCurrent(part, sourceText, recorded.get(part));
+	};
+	if (soilChanged || recordedChanged || mepAdded || loadsAdded || FEM_SOURCES.some(sourceChanged)) {
 		return status('fem', 'stale', STALE(), localize('partStatus.fem.deriveAgain', "derive the analysis model again"));
 	}
 	if (inputs.femResultsTime === undefined) {

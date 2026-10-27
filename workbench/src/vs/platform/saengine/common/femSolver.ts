@@ -461,6 +461,19 @@ export interface IFemSolverService {
 	substructureEnsure(python: string, projectRoot: string): Promise<ISubstructureMigration>;
 
 	/**
+	 * Run All's foundation step (`saengine.substructure.run.design_foundations`): the footings
+	 * moved in from the building model, minimum bars given to foundations without any
+	 * (`summary.barsAdded`), and the design checks, as {@link substructureReport}; or `{problems}`.
+	 */
+	substructureDesign(python: string, projectRoot: string): Promise<object>;
+
+	/**
+	 * Stops the backend of `python` (the requests it is working on fail); the next request starts
+	 * a new one. Run All's Stop and Restart Engine use it to end a design check that takes too long.
+	 */
+	restartBackend(python: string): Promise<void>;
+
+	/**
 	 * Fixed base against soil springs (`saengine.fem.ssi_compare.compare`): derives and runs the
 	 * fixed-base model beside the soil-spring one and compares periods, base shears and drifts;
 	 * plain JSON (also written to `08 FEM/ssi-compare.json`), or `{problems}`.
