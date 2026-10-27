@@ -501,6 +501,14 @@ def _generate(
     if partial and not chosen:
         raise DrawingsError(f"No sheet {', '.join(sorted(wanted))} in the drawing set.")
     step("files")
+
+    def sheet_progress(n: int, count: int) -> None:
+        # In the polled progress (:func:`progress`) only: the callback has one call per step.
+        with _GUARD:
+            state = _RUNNING.get(_key(root))
+            if state is not None:
+                state.update(message=f"writing sheet {n} of {count}")
+
     written = write_drawings(
         chosen,
         folder,
@@ -509,6 +517,7 @@ def _generate(
         ppi=60,
         pdf_name=PDF,
         problems=data.problems,
+        on_sheet=sheet_progress,
     )
     conflicts = []
     for sheet in chosen:
@@ -516,6 +525,12 @@ def _generate(
         if found:
             conflicts.append(f"{sheet.number}: {len(found)} label(s) could not be placed clear")
     generated = datetime.now(UTC).isoformat(timespec="seconds")
+    # The members that fail their design checks, flagged on the sheets that detail them.
+    failing_ids = {
+        str(e.get("id"))
+        for e in (design_report or {}).get("elements", []) or []
+        if isinstance(e, dict) and e.get("ok") is False
+    }
     rows = {}
     for row in written["sheets"]:
         rows[row["number"]] = {
@@ -528,6 +543,7 @@ def _generate(
             "scale": row["scale"],
             "source": stamps,
             "generatedAt": generated,
+            "failing": sorted(failing_ids.intersection(row.get("members") or [])),
         }
     if partial:
         kept_rows = {s["number"]: s for s in earlier.get("sheets", []) if isinstance(s, dict)}
@@ -635,6 +651,8 @@ def _answer(root: Path, record: dict[str, Any]) -> dict[str, Any]:
                 "scale": row.get("scale"),
                 "stale": bool(differ) or dxf is None,
                 "generatedAt": _time_ms(row.get("generatedAt")),
+                # Members on the sheet that failed their design checks when it was drawn.
+                "failing": list(row.get("failing") or []),
             }
         )
     pdf_changed = changed_sources(record.get("pdfSource"), current)
@@ -662,6 +680,7 @@ def _answer(root: Path, record: dict[str, Any]) -> dict[str, Any]:
     problems += [_warning(str(w)) for w in record.get("warnings") or []]
     return {
         "sheets": sheets,
+        "failingSheets": sum(1 for s in sheets if s["failing"]),
         "pdf": absolute(record.get("pdf")),
         "pdfStale": bool(pdf_changed) or pdf_older,
         "bbsCsv": absolute(record.get("bbsCsv")),

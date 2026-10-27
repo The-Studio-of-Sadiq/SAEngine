@@ -499,7 +499,11 @@ def test_isolated_footings_under_every_column(frame: tuple[dict, Path]) -> None:
         names = [c["name"] for c in element["checks"]]
         # The light corner columns carry large base moments: the weight of the footing and
         # the soil hogs the light side, which plain concrete carries (no top bars).
-        assert [n for n in names if not n.endswith("(top)")] == [
+        # (Under gravity they may lift a part of the base: reported only, "Full contact under
+        # gravity", which the sizing assistant avoids.)
+        assert [
+            n for n in names if not n.endswith("(top)") and not n.startswith("Full contact")
+        ] == [
             "Bearing (service)",
             f"Punching at C{i + 1}",
             "One-way shear X",
@@ -524,8 +528,9 @@ def test_isolated_footings_under_every_column(frame: tuple[dict, Path]) -> None:
         governing = checks[f"Punching at C{i + 1}"]["combination"]
         assert governing.split(" [Case ")[0] in [c.name for c in SETTINGS.combinations]
         assert all(c["demand"] >= 0 for c in element["checks"])
-        assert element["utilisation"] == max(c["utilisation"] for c in element["checks"])
-        assert element["ok"] == all(c["ok"] for c in element["checks"])
+        counted = [c for c in element["checks"] if not c["flag"]]  # flags are reported only
+        assert element["utilisation"] == max(c["utilisation"] for c in counted)
+        assert element["ok"] == all(c["ok"] for c in counted)
     assert not any("no footing under it" in n for n in notes)
 
 

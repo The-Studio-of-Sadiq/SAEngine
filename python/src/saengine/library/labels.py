@@ -23,7 +23,7 @@ LABELS: dict[str, str] = {
     "fineAggregate": "Fine aggregate (sand)",
     "xDim": "Width",
     "yDim": "Depth",
-    "dia": "Bar diameter",
+    "dia": "Diameter",
     "count": "Number of bars",
     "legs": "Legs",
     "bottomX": "Bottom layer, X",
@@ -40,5 +40,7 @@ LABELS: dict[str, str] = {
 def field_title(name: str, *_: object) -> str:
     if name in LABELS:
         return LABELS[name]
+    if name.isupper():
+        return name  # load case and code symbols ("SD", "WX") stay as they are
     words = re.sub(r"(?<!^)(?=[A-Z])", " ", name).split()
     return " ".join([words[0].capitalize(), *(w.lower() for w in words[1:])])

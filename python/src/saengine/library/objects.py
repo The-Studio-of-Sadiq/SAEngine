@@ -193,7 +193,7 @@ class Transverse(_Model):
         description="Closer hoops or ties at the member ends (seismic detailing); none: one "
         "spacing all along.",
     )
-    splice: SpliceZone | None = Field(default=None, title="Over lap splices")
+    splice: SpliceZone | None = Field(default=None, title="Lap splices")
 
 
 SeismicRole = Literal["auto", "lateral", "gravity"]

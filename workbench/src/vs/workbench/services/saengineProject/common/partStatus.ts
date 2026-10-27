@@ -7,7 +7,7 @@ import { Event } from '../../../../base/common/event.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { boqSourceStamp, mepModelStamp, recordedStamp, sourceStamp, upstreamPart } from './partSources.js';
-import { DEFAULT_MATERIALS, DEFAULT_SETTINGS } from './projectLibraries.generated.js';
+import { DEFAULT_MATERIALS, DEFAULT_OBJECTS, DEFAULT_SETTINGS } from './projectLibraries.generated.js';
 import { IProjectPart } from './saengineProject.js';
 
 /*
@@ -738,14 +738,14 @@ function object(value: unknown): JsonObject {
 }
 
 /**
- * Whether a settings or materials file still holds what a new project starts with. The settings
- * are compared apart from what the new-project dialog fills in: the project name, the concrete
- * and steel codes, the site's location and the building's use. Projects whose settings were written with other values (New
+ * Whether a settings, materials or object types file still holds what a new project starts with. The
+ * settings are compared apart from what the new-project dialog fills in: the project name, the
+ * concrete and steel codes, the site's location and the building's use. Projects whose settings were written with other values (New
  * Building from Grid, the importers) or with older defaults count as changed.
  */
 export function holdsDefaults(document: JsonObject, part: string): boolean {
-	if (part === 'materials') {
-		return canonical(document) === canonical(DEFAULT_MATERIALS);
+	if (part === 'materials' || part === 'objects') {
+		return canonical(document) === canonical(part === 'materials' ? DEFAULT_MATERIALS : DEFAULT_OBJECTS);
 	}
 	const defaults = DEFAULT_SETTINGS as JsonObject;
 	const codes = object(document.codes);
@@ -788,6 +788,10 @@ function documentStatus(part: string, inputs: IPartStatusInputs): IPartStatus {
 			const types = Array.isArray(document.objects) ? document.objects.length : 0;
 			if (!types) {
 				return status(part, 'notStarted', NOT_STARTED(), startHint(part));
+			}
+			if (holdsDefaults(document, part)) {
+				// The types a new project starts with (O2): ready to place, but to be sized.
+				return status(part, 'defaults', localize('partStatus.defaults', "defaults"), localize('partStatus.reviewDefaults', "review the defaults"));
 			}
 			return status(part, 'done', types === 1 ? localize('partStatus.objects.one', "1 type") : localize('partStatus.objects.count', "{0} types", types));
 		}

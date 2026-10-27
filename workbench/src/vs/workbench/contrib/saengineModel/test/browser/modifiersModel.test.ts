@@ -7,8 +7,10 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { checkField, commitField, ICodeStiffness, IFieldRow, IModifiersView, memberTargets, modifiersView, objectTypeTarget, pruneForKind, readCodeStiffness, resetMembersGroup, setMembersField, setObjectTypeField } from '../../browser/modifiersModel.js';
-import { renderModifiers } from '../../browser/modifiersPanel.js';
+import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { modifierProblems, unappliedFields } from '../../browser/modifierProblems.js';
+import { checkField, commitField, FieldGroup, Framing, ICodeStiffness, IFieldRow, IModifiersView, memberTargets, modifiersView, objectTypeTarget, pruneForKind, readCodeStiffness, resetMembersGroup, setMembersField, setObjectTypeField, setProjectCode, storedFieldProblems } from '../../browser/modifiersModel.js';
+import { flushModifierFields, renderModifiers } from '../../browser/modifiersPanel.js';
 
 /** Synthetic stand-in documents (not a project): two concrete types, one steel, one slab. */
 const MATERIALS = { materials: [{ id: 'C25', category: 'concrete' }, { id: 'S275', category: 'steel' }, { id: 'BRICK', category: 'masonry' }] };
@@ -199,6 +201,163 @@ suite('SAEngine - Stiffness modifiers and design overwrites', () => {
 			headings: ['Stiffness Modifiers', 'Design Overwrites'],
 			rows: ['Inertia minor (I22)=0.7 (inherited)', 'Inertia major (I33)=0.6'],
 			framing: 'Framing=Auto (inherited)',
+		});
+	});
+	test('the open project\'s settings and pack fill in what an editor does not pass', () => {
+		setProjectCode({ settings: { analysis: { crackedFor: 'all' } }, crackedTable: PACK.crackedStiffness, packName: 'BNBC 2020' });
+		try {
+			const column = modifiersView('type', [objectTypeTarget({ id: 'X', kind: 'column', material: 'C25' }, MATERIALS)], readCodeStiffness(undefined, undefined));
+			const given = modifiersView('type', [objectTypeTarget({ id: 'X', kind: 'column', material: 'C25' }, MATERIALS)], readCodeStiffness({ analysis: { stiffness: 'gross' } }, undefined));
+			assert.deepStrictEqual({
+				project: line(column.modifiers.find(r => r.key === 'I33')!),
+				given: line(given.modifiers.find(r => r.key === 'I33')!),
+				note: column.note,
+			}, {
+				project: 'I33 |0.7|BNBC 2020 cracked',
+				given: 'I33 |1|gross (settings)',
+				note: 'Empty: the BNBC 2020 cracked factors in every case. A value replaces the factor in every case, gravity and lateral.',
+			});
+		} finally {
+			setProjectCode({});
+		}
+	});
+
+	test('stored values the checks refuse are problems of the part', () => {
+		const objects = { objects: [{ id: 'T1', kind: 'column', modifiers: { I33: -0.5, J: 0.1 }, designOverwrites: { k3: 0, framing: 'wobbly' } }, { id: 'T2', kind: 'beam', modifiers: { A: 'x' } }] };
+		const plan = { columns: [{ id: 'C1', modifiers: { I22: 12 } }], beams: [{ id: 'B1', designOverwrites: { Lu3: 3000 } }] };
+		assert.deepStrictEqual({
+			objects: storedFieldProblems(objects, 'objects').map(p => p.message),
+			plan: modifierProblems('floorPlan', plan),
+		}, {
+			objects: [
+				'T1: Inertia major (I33): A stiffness modifier must be more than 0.',
+				'T1: k, major axis: Must be more than 0.',
+				'T1: Framing: Framing must be Auto, Braced or Sway.',
+				'T2: Axial area (A): Not a number.',
+			],
+			plan: ['C1: Inertia minor (I22): A modifier can be at most 10.'],
+		});
+	});
+
+	suite('typing in a field', () => {
+
+		const contextViewService = { showContextView: () => ({ close: () => { } }), hideContextView: () => { }, layout: () => { } } as unknown as IContextViewService;
+		let container: HTMLElement;
+		let applied: string[];
+		let panel: DisposableStore | undefined;
+		let closed: boolean;
+
+		/** Renders one column's panel as the floor plan does: each store is an edit and a new panel. */
+		function render(own: { [key: string]: unknown } = {}): void {
+			const layout = { columns: [{ id: 'C2', type: 'COL', ...own }] };
+			panel?.dispose();
+			panel = new DisposableStore();
+			container.textContent = '';
+			renderModifiers(container, modifiersView('member', memberTargets(layout, OBJECTS, MATERIALS, [{ group: 'columns', id: 'C2' }]), CODE), panel, {
+				contextViewService,
+				apply: (group: FieldGroup, key: string, value: number | Framing | undefined) => {
+					applied.push(`${key}=${value}`);
+					if (!closed) {
+						render({ [group]: { [key]: value } });
+					}
+				},
+				reset: () => { },
+			});
+		}
+
+		function field(key: string): HTMLInputElement {
+			return container.querySelector<HTMLInputElement>(`.sa-modifiers-row[data-key="${key}"] input`)!;
+		}
+
+		function type(key: string, text: string): void {
+			field(key).focus();
+			field(key).value = text;
+			field(key).dispatchEvent(new Event('input'));
+		}
+
+		/** Leaves field `from` for `to` (Tab or a click); the hidden test window fires no focus events itself. */
+		function leave(from: string, to: string): void {
+			field(from).dispatchEvent(new FocusEvent('blur', { relatedTarget: field(to) }));
+			field(to).focus();
+		}
+
+		function rowState(key: string): string {
+			const row = container.querySelector(`.sa-modifiers-row[data-key="${key}"]`)!;
+			return ['dirty', 'invalid', 'applied'].filter(c => row.classList.contains(c)).join(' ') || 'clean';
+		}
+
+		function status(): string {
+			return container.querySelector('.sa-modifiers-status')!.textContent ?? '';
+		}
+
+		setup(() => {
+			container = mainWindow.document.createElement('div');
+			mainWindow.document.body.appendChild(container);
+			applied = [];
+			closed = false;
+		});
+
+		teardown(() => {
+			closed = true;
+			panel?.dispose();
+			panel = undefined;
+			container.remove();
+		});
+
+		test('leaving the field stores the value and marks it applied; Tab lands on the next field', () => {
+			render();
+			type('I33', '0.7');
+			const typed = [rowState('I33'), status()];
+			leave('I33', 'mass'); // Tab
+			assert.deepStrictEqual({ typed, applied, after: [rowState('I33'), status(), field('I33').value], focused: mainWindow.document.activeElement === field('mass') }, {
+				typed: ['dirty', 'Not applied yet: Enter or leave the field'],
+				applied: ['I33=0.7'],
+				after: ['applied', 'Applied', '0.7'],
+				focused: true,
+			});
+		});
+
+		test('Enter stores and keeps the focus; Escape goes back to the stored value', () => {
+			render();
+			type('I22', '0,5');
+			field('I22').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+			const enter = mainWindow.document.activeElement === field('I22');
+			type('I22', '0.4');
+			field('I22').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+			assert.deepStrictEqual({ applied, enter, value: field('I22').value, state: rowState('I22') }, { applied: ['I22=0.5'], enter: true, value: '0.5', state: 'clean' });
+		});
+
+		test('a value that cannot be stored stays, marked, and counts as a problem until corrected', () => {
+			render();
+			type('I33', '-0.5');
+			leave('I33', 'mass');
+			const wrong = { applied: [...applied], state: rowState('I33'), status: status(), problems: unappliedFields('floorPlan') };
+			type('I33', '0.6');
+			leave('I33', 'mass');
+			assert.deepStrictEqual({ wrong, applied, problems: unappliedFields('floorPlan') }, {
+				wrong: { applied: [], state: 'invalid', status: '1 value cannot be used', problems: ['Inertia major (I33): -0.5: A stiffness modifier must be more than 0.'] },
+				applied: ['I33=0.6'],
+				problems: [],
+			});
+		});
+
+		test('a save stores what is typed; closing the panel stores it too', async () => {
+			render();
+			type('J', '0.2');
+			flushModifierFields();
+			type('I33', '0.7');
+			closed = true;
+			panel!.dispose(); // the panel closes (another selection, the editor closed) with the value typed
+			container.textContent = '';
+			await Promise.resolve();
+			assert.deepStrictEqual(applied, ['J=0.2', 'I33=0.7']);
+		});
+
+		test('a panel rendered again while typing keeps the text and the caret', () => {
+			render();
+			type('I33', '0.6');
+			render(); // the owner redraws (an edit elsewhere)
+			assert.deepStrictEqual({ value: field('I33').value, state: rowState('I33'), focused: mainWindow.document.activeElement === field('I33'), applied }, { value: '0.6', state: 'dirty', focused: true, applied: [] });
 		});
 	});
 });

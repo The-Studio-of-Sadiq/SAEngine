@@ -280,8 +280,10 @@ export function coverageLabel(area: string): string {
 		case 'locations': return localize('codePacks.coverLocations', "Locations");
 		case 'loads': case 'areaLoads': return localize('codePacks.coverLoads', "Area loads");
 		case 'windSeismic': return localize('codePacks.coverWindSeismic', "Wind and seismic");
-		case 'wind': case 'windSpeeds': return localize('codePacks.coverWind', "Wind");
-		case 'seismic': case 'zoneCoefficients': return localize('codePacks.coverSeismic', "Seismic");
+		case 'wind': return localize('codePacks.coverWind', "Wind");
+		case 'windSpeeds': return localize('codePacks.coverWindSpeeds', "Wind speeds");
+		case 'seismic': return localize('codePacks.coverSeismic', "Seismic");
+		case 'zoneCoefficients': return localize('codePacks.coverZones', "Zone coefficients");
 		case 'combinations': return localize('codePacks.coverCombinations', "Combinations");
 		case 'materials': return localize('codePacks.coverMaterials', "Materials");
 		case 'factors': return localize('codePacks.coverFactors', "Resistance factors");

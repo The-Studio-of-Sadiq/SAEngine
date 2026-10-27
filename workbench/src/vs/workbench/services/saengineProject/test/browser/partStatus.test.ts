@@ -423,13 +423,13 @@ suite('SAEngine - PartStatus', () => {
 		return `${next?.status.part}: ${next?.status.hint}`;
 	};
 
-	test('a new project: settings and materials hold the defaults, no object types, no members', () => {
+	test('a new project: settings, materials and object types hold the defaults, no members', () => {
 		const texts = newProject();
 		assert.deepStrictEqual(summary({ texts: new Map(Object.entries(texts)) }), [
 			'soil: notStarted not started',
 			'settings: defaults defaults',
 			'materials: defaults defaults',
-			'objects: notStarted not started',
+			'objects: defaults defaults',
 			'floorPlan: notStarted not started',
 			'bim: notStarted not built',
 			'mep: notStarted not started',
@@ -455,7 +455,7 @@ suite('SAEngine - PartStatus', () => {
 		], [
 			'settings: review the defaults',
 			'materials: review the defaults',
-			'objects: define the object types',
+			'objects: review the defaults',
 			'floorPlan: draw the floor plan',
 			'bim: build the building model',
 		]);

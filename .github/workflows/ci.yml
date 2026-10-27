@@ -16,6 +16,11 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths-ignore: ['docs/**', '**/*.md']
   workflow_dispatch:
+    inputs:
+      full:
+        description: 'Full checks (slow pytest end-to-end runs and the verification pack)'
+        type: boolean
+        default: false
 
 # A newer push to the same branch or pull request cancels the run it supersedes.
 concurrency:
@@ -28,15 +33,17 @@ permissions:
 env:
   PYTHON_VERSION: '3.12'
   FORCE_COLOR: '1'
-  # The full checks (slow pytest end-to-end runs, the verification pack): on main and by hand.
-  # A PR into feat/** runs everything else.
-  FULL: ${{ github.event_name != 'pull_request' || github.base_ref == 'main' }}
+  # The full checks (slow pytest end-to-end runs, the verification pack): pushes to main, PRs
+  # into main, and manual runs with "full" ticked. PRs into feat/** and quick manual runs skip them.
+  FULL: ${{ (github.event_name == 'workflow_dispatch' && inputs.full) || github.event_name == 'push' || github.base_ref == 'main' }}
 
 jobs:
   python:
     name: Python (ruff, pytest, verification pack)
     if: github.event.pull_request.draft != true
-    runs-on: ubuntu-latest
+    # The repository variable CI_RUNS_ON switches CI to the self-hosted desktop runner
+    # (docs/ci-desktop-runner.md), e.g. ["self-hosted", "saengine-desktop"]; unset: GitHub's runner.
+    runs-on: ${{ fromJSON(vars.CI_RUNS_ON || '"ubuntu-latest"') }}
     timeout-minutes: 90
     steps:
       - name: Checkout
@@ -115,7 +122,9 @@ jobs:
   workbench:
     name: Workbench (typecheck, eslint, SAEngine unit tests)
     if: github.event.pull_request.draft != true
-    runs-on: ubuntu-latest
+    # The repository variable CI_RUNS_ON switches CI to the self-hosted desktop runner
+    # (docs/ci-desktop-runner.md), e.g. ["self-hosted", "saengine-desktop"]; unset: GitHub's runner.
+    runs-on: ${{ fromJSON(vars.CI_RUNS_ON || '"ubuntu-latest"') }}
     timeout-minutes: 90
     defaults:
       run:
@@ -141,7 +150,8 @@ jobs:
       - name: Install the system packages (as Code - OSS's own Linux CI)
         run: |
           # Chromium's namespace sandbox needs unprivileged user namespaces (Ubuntu 24.04).
-          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          # (absent under WSL2 on the desktop runner)
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
           sudo apt-get update -q
           sudo apt-get install -y -q pkg-config xvfb libgtk-3-0 libxkbfile-dev libkrb5-dev libgbm1 zstd
 

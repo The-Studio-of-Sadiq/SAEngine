@@ -22,6 +22,29 @@
 	letter-spacing: 0.04em;
 }
 
+.sa-modifiers-title {
+	flex: 1;
+}
+
+/* The group's state: typed and not applied, values that cannot be used, just applied. */
+.sa-modifiers-status {
+	text-transform: none;
+	letter-spacing: normal;
+	font-size: var(--sa-font-xs, 11px);
+}
+
+.sa-modifiers-status.dirty {
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.sa-modifiers-status.error {
+	color: var(--sa-error, var(--vscode-errorForeground));
+}
+
+.sa-modifiers-status.applied {
+	color: var(--sa-ok, var(--vscode-testing-iconPassed));
+}
+
 .sa-modifiers-reset {
 	text-transform: none;
 	letter-spacing: normal;
@@ -71,6 +94,21 @@
 	white-space: nowrap;
 }
 
+/* Typed and not applied yet (or not usable, or just applied): a bar left of the row, as a changed line in an editor. */
+.sa-modifiers-row.dirty,
+.sa-modifiers-row.invalid,
+.sa-modifiers-row.applied {
+	box-shadow: -6px 0 0 -4px var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.sa-modifiers-row.invalid {
+	box-shadow: -6px 0 0 -4px var(--sa-error, var(--vscode-errorForeground));
+}
+
+.sa-modifiers-row.applied {
+	box-shadow: -6px 0 0 -4px var(--sa-ok, var(--vscode-testing-iconPassed));
+}
+
 .sa-modifiers-row.warning .sa-modifiers-source {
 	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
 }
@@ -110,4 +148,38 @@
 	margin-top: var(--sa-space-1, 4px);
 	font-size: var(--sa-font-s, 12px);
 	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+/* In the object type editor's form: the form's own label/field columns and group heading, so the
+ * fields sit under the other fields instead of at the far right. */
+.saengine-library-editor .sa-modifiers-group {
+	margin: var(--sa-space-4, 16px) 0 var(--sa-space-1, 4px);
+}
+
+.saengine-library-editor .sa-modifiers-heading {
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+	min-height: 26px;
+	padding-bottom: var(--sa-space-1, 4px);
+	border-bottom: 1px solid var(--sa-border, var(--vscode-panel-border));
+	font-size: inherit;
+	font-weight: 600;
+	color: inherit;
+	text-transform: none;
+	letter-spacing: normal;
+}
+
+.saengine-library-editor .sa-modifiers-status,
+.saengine-library-editor .sa-modifiers-reset {
+	font-weight: normal;
+}
+
+.saengine-library-editor .sa-modifiers-row {
+	grid-template-columns: minmax(120px, 200px) minmax(160px, 300px);
+	column-gap: var(--sa-space-3, 12px);
+	min-height: 30px;
+}
+
+.saengine-library-editor .sa-modifiers-note {
+	max-width: 512px;
 }

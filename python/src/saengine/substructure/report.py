@@ -14,7 +14,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from saengine.library.bim import ColumnElement
+from saengine.library.bim import ColumnElement, WallElement
 from saengine.library.substructure import FOUNDATION_TYPES, check
 from saengine.substructure.context import Context, Skip, load_context
 from saengine.substructure.shallow import SHALLOW_METHOD, design_shallow, design_tie_beam
@@ -123,17 +123,11 @@ def report(ctx: Context) -> dict[str, Any]:
         notes += found
         used.add("shallow")
 
-    # Columns standing on no foundation.
-    if ctx.loads is not None and substructure.foundations:
-        carried = {c for f in substructure.foundations for c in f.columns}
-        rafts = [f.outline for f in substructure.foundations if f.type == "raft" and f.outline]
-        for base_id, base in ctx.loads.bases.items():
-            if base_id in carried or not isinstance(base.element, ColumnElement):
-                continue
-            if any(_inside(base.element.position, outline) for outline in rafts):
-                continue
-            notes.append(f"{base_id}: no foundation under it")
-    elif ctx.loads is None and substructure.foundations:
+    # Columns and walls standing on no foundation.
+    unsupported = unsupported_bases(ctx) if substructure.foundations else []
+    for base_id, kind in unsupported:
+        notes.append(f"{kind} {base_id}: no foundation under it")
+    if ctx.loads is None and substructure.foundations:
         notes.append(f"Not designed: {ctx.no_loads}.")
     if ctx.soil.used or ctx.soil.problems:
         notes += ctx.soil.notes()
@@ -141,26 +135,86 @@ def report(ctx: Context) -> dict[str, Any]:
         method = list(SHALLOW_METHOD) + method
 
     designed = foundations + ties
-    failed = [e for e in designed if not e["ok"]]
-    governing = max(designed, key=lambda e: e["utilisation"], default=None)
-    loads = ctx.loads
     return {
         "foundations": foundations,
         "tieBeams": ties,
         "skipped": skipped,
-        "summary": {
-            "checked": len(designed),
-            "passed": len(designed) - len(failed),
-            "failed": len(failed),
-            "skipped": len(skipped),
-            "maxUtilisation": governing["utilisation"] if governing else None,
-            "governing": governing["id"] if governing else None,
-            "analysed": loads is not None,
-        },
+        "summary": check_summary(designed, skipped, [b for b, _ in unsupported], ctx.loads),
         "notes": notes,
         "method": method,
         "combinations": {
-            "service": [name for name, _ in loads.service] if loads else [],
-            "strength": [name for name, _ in loads.strength] if loads else [],
+            "service": [name for name, _ in ctx.loads.service] if ctx.loads else [],
+            "strength": [name for name, _ in ctx.loads.strength] if ctx.loads else [],
         },
+    }
+
+
+def unsupported_bases(ctx: Context) -> list[tuple[str, str]]:
+    """The columns and walls on the base level of the building that no foundation carries (a
+    raft without its own list carries those inside its outline), as ``(id, "Column" | "Wall")``.
+    The base level is that of the analysis model's supports when there are results, else the
+    lowest column base of 6 BIM."""
+    substructure = ctx.substructure
+    carried = {c for f in substructure.foundations for c in f.columns}
+    rafts = [
+        f.outline
+        for f in substructure.foundations
+        if f.type == "raft" and f.outline and not f.columns
+    ]
+    if ctx.loads is not None:
+        elements = [base.element for base in ctx.loads.bases.values()]
+    else:
+        columns = [e for e in ctx.building.elements if isinstance(e, ColumnElement)]
+        lowest = min((c.bottom for c in columns), default=None)
+        elements = [
+            e
+            for e in ctx.building.elements
+            if isinstance(e, ColumnElement | WallElement)
+            and lowest is not None
+            and e.bottom <= lowest + 1
+        ]
+    found: list[tuple[str, str]] = []
+    for element in elements:
+        if element.id in carried:
+            continue
+        if isinstance(element, ColumnElement):
+            point = element.position
+            kind = "Column"
+        else:
+            point = [(a + b) / 2 for a, b in zip(element.start, element.end, strict=False)]
+            kind = "Wall"
+        if any(_inside(point, outline) for outline in rafts):
+            continue
+        found.append((element.id, kind))
+    return found
+
+
+def check_summary(
+    designed: list[dict[str, Any]],
+    skipped: list[dict[str, Any]],
+    unsupported: list[str],
+    loads: Any,
+) -> dict[str, Any]:
+    """The report's ``summary``: how many of the foundations and tie beams were checked
+    (``checked`` of ``total``), passed and failed, and ``status``: ``"pass"`` only when every
+    one was checked, all pass and every column and wall stands on a foundation; ``"fail"`` when
+    a check fails; ``"incomplete"`` otherwise (some not checked, or columns or walls without a
+    foundation); ``"none"`` when nothing was checked. The part list reads ``status``."""
+    failed = [e for e in designed if not e["ok"]]
+    governing = max(designed, key=lambda e: e["utilisation"], default=None)
+    total = len(designed) + len(skipped)
+    complete = bool(designed) and not skipped and not unsupported
+    status = "fail" if failed else "pass" if complete else "incomplete" if designed else "none"
+    return {
+        "checked": len(designed),
+        "total": total,
+        "passed": len(designed) - len(failed),
+        "failed": len(failed),
+        "skipped": len(skipped),
+        "unsupported": unsupported,
+        "complete": complete,
+        "status": status,
+        "maxUtilisation": governing["utilisation"] if governing else None,
+        "governing": governing["id"] if governing else None,
+        "analysed": loads is not None,
     }

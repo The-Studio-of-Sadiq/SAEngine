@@ -6,7 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { formatNumber } from '../../saengineSoil/browser/soilDocument.js';
 import { svg } from '../../saengineSoil/browser/soilLog.js';
-import { foundationCenter, foundationOutlines, IFoundation, IRaftResult, ISiteContext, ISubstructure, pilePositions, Point, toGlobal } from './substructureDocument.js';
+import { carriedColumns, foundationCenter, foundationOutlines, formatUtilisation, IFoundation, IRaftResult, ISiteContext, ISubstructure, pilePositions, Point, toGlobal } from './substructureDocument.js';
 
 /*
  * The drawings of the substructure editor, as plain SVG: the plan of the base level (grid,
@@ -28,6 +28,34 @@ export interface IPlanOptions {
 	readonly proposals?: readonly IFoundation[];
 	/** The colour band of each foundation by id, once the design report is in. */
 	readonly bands?: ReadonlyMap<string, 'ok' | 'warn' | 'fail' | 'none'>;
+	/** The utilisation of each foundation by id, written under its id. */
+	readonly utilisations?: ReadonlyMap<string, number>;
+}
+
+/**
+ * Where a tie beam runs: between the closest pair of the columns its two foundations carry (a
+ * tie beam joins the column bases, not the foundations' centres), else between the centres.
+ */
+export function tieBeamEnds(from: IFoundation, to: IFoundation, context: ISiteContext): [Point, Point] | undefined {
+	const a = carriedColumns(from, context);
+	const b = carriedColumns(to, context);
+	let best: [Point, Point] | undefined;
+	let distance = Infinity;
+	for (const p of a) {
+		for (const q of b) {
+			const d = Math.hypot(p.x - q.x, p.y - q.y);
+			if (d < distance) {
+				distance = d;
+				best = [[p.x, p.y], [q.x, q.y]];
+			}
+		}
+	}
+	if (best) {
+		return best;
+	}
+	const ca = foundationCenter(from, context);
+	const cb = foundationCenter(to, context);
+	return ca && cb ? [ca, cb] : undefined;
 }
 
 /** A plan transform: mm on the project's axes to px with y up. */
@@ -153,8 +181,13 @@ export function renderPlan(container: HTMLElement, document: ISubstructure, cont
 			const outlines = foundationOutlines(f, context).flat();
 			const top = outlines.length ? Math.min(...outlines.map(p => view.y(p[1]))) : view.y(center[1]);
 			const left = outlines.length ? Math.min(...outlines.map(p => view.x(p[0]))) : view.x(center[0]);
-			// The id just above the outline's top-left corner, clear of the column and the piles.
-			svg(group, 'text', { x: left, y: top - 4, class: 'sub-foundation-label' }, f.id);
+			// The id just above the outline's top-left corner, clear of the column and the piles;
+			// its utilisation beside it once checked.
+			const label = svg(group, 'text', { x: left, y: top - 4, class: 'sub-foundation-label' }, f.id);
+			const utilisation = options.utilisations?.get(f.id);
+			if (typeof utilisation === 'number') {
+				svg(label, 'tspan', { class: `sub-foundation-util band-${band}`, dx: 6 }, formatUtilisation(utilisation));
+			}
 		}
 	}
 
@@ -165,22 +198,31 @@ export function renderPlan(container: HTMLElement, document: ISubstructure, cont
 		}
 	}
 
-	// Tie beams between the foundations' centres.
+	// Tie beams between the column bases of the two foundations.
 	const byId = new Map(document.foundations.map(f => [f.id, f]));
 	document.tieBeams.forEach((tie, i) => {
 		const from = byId.get(tie.from);
 		const to = byId.get(tie.to);
-		const a = from && foundationCenter(from, context);
-		const b = to && foundationCenter(to, context);
-		if (!a || !b) {
+		const ends = from && to && tieBeamEnds(from, to, context);
+		if (!ends) {
 			return;
 		}
+		const [a, b] = ends;
 		const group = svg(root, 'g', { class: `sub-tie${options.selectedTieBeam === i ? ' selected' : ''}`, 'data-tie': i });
 		svg(group, 'title', {}, tie.id);
 		const coordinates = { x1: view.x(a[0]), y1: view.y(a[1]), x2: view.x(b[0]), y2: view.y(b[1]) };
+		const thickness = Math.max(3, 300 * view.scale);
 		svg(group, 'line', { ...coordinates, class: 'sub-tie-hit' });
-		svg(group, 'line', { ...coordinates, class: 'sub-tie-line', 'stroke-width': Math.max(3, 300 * view.scale) });
-		svg(group, 'text', { x: (coordinates.x1 + coordinates.x2) / 2, y: (coordinates.y1 + coordinates.y2) / 2 - 6, class: 'sub-tie-label', 'text-anchor': 'middle' }, tie.id);
+		svg(group, 'line', { ...coordinates, class: 'sub-tie-line', 'stroke-width': thickness });
+		// The label beside the beam (off its line, on the side away from the plan's top-left), halfway along.
+		const dx = coordinates.x2 - coordinates.x1;
+		const dy = coordinates.y2 - coordinates.y1;
+		const length = Math.hypot(dx, dy) || 1;
+		const offset = thickness / 2 + 10;
+		const nx = dy / length * offset;
+		const ny = -dx / length * offset;
+		const flip = nx + ny < 0 ? -1 : 1;
+		svg(group, 'text', { x: (coordinates.x1 + coordinates.x2) / 2 + flip * nx, y: (coordinates.y1 + coordinates.y2) / 2 + flip * ny + 4, class: 'sub-tie-label', 'text-anchor': 'middle' }, tie.id);
 	});
 
 	// Column bases.
@@ -267,6 +309,13 @@ export function renderRaftHeatMap(container: HTMLElement, raft: IFoundation, res
 	}
 	for (const column of context.columns) {
 		svg(root, 'rect', { x: view.x(column.x) - column.xDim / 2 * view.scale, y: view.y(column.y) - column.yDim / 2 * view.scale, width: column.xDim * view.scale, height: column.yDim * view.scale, class: 'sub-heat-column' });
+	}
+	// The value at each column the raft carries, beside it.
+	for (const column of result.columns ?? []) {
+		const value = column[quantity];
+		if (typeof value === 'number') {
+			svg(root, 'text', { x: view.x(column.x) + 6, y: view.y(column.y) - 6, class: 'sub-heat-value' }, `${column.id} ${formatNumber(value, quantity === 'pressure' ? 0 : 1)}`);
+		}
 	}
 	return { min, max };
 }

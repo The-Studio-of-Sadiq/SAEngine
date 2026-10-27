@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { groundLevelStamp, sourceStamp } from '../../../../services/saengineProject/common/partSources.js';
-import { boqComputeArgs, changedSources, formatQuantity, IBoqDocument, IBoqItem, parseBoq, toCsv, totalledItems, totals, unitLabel } from '../../browser/boqDocument.js';
+import { boqComputeArgs, boqProblems, changedSources, displayQuantity, formatQuantity, IBoqDocument, IBoqItem, parseBoq, quantityText, toCsv, totalledItems, totalRows, totals, unitLabel } from '../../browser/boqDocument.js';
 
 suite('SAEngine - Bill of quantities', () => {
 
@@ -112,6 +112,48 @@ suite('SAEngine - Bill of quantities', () => {
 		}, {
 			totals: [{ unit: 'kg', total: 9724.062 }],
 			units: ['kg', 'bags', 'cft', 'l'],
+		});
+	});
+
+	test('groups total only like with like', () => {
+		const item = (group: IBoqItem['group'], kind: string, description: string, quantity: number, unit: IBoqItem['unit']): IBoqItem => ({ code: 'X.01', group, description, quantity, unit, kind, byStory: {}, breakdown: [] });
+		const materials = [
+			item('materials', 'cement', 'Cement (OPC)', 100, 'kg'), item('materials', 'cement', 'Cement (PCC)', 50, 'kg'),
+			item('materials', 'bags', 'Cement (OPC) in 50 kg bags', 2, 'bag'), item('materials', 'sand', 'Sand (fine aggregate)', 10, 'cft'),
+			item('materials', 'stone', 'Stone chips (coarse aggregate)', 20, 'cft'),
+		];
+		const mep = [item('mep', 'sleeve', 'Sleeves through beams', 4, 'nr'), item('mep', 'riser', 'Risers', 12, 'm')];
+		const concrete = [item('concrete', 'column', 'Concrete in columns', 1.5, 'm3'), item('concrete', 'beam', 'Concrete in beams', 2.5, 'm3')];
+		assert.deepStrictEqual({
+			materials: totalRows('materials', materials),
+			mep: totalRows('mep', mep),
+			concrete: totalRows('concrete', concrete),
+			earthwork: totalRows('earthwork', concrete),
+		}, {
+			materials: [{ label: 'Cement', unit: 'kg', total: 150 }],
+			mep: [],
+			concrete: [{ unit: 'm3', total: 4 }],
+			earthwork: [],
+		});
+	});
+
+	test('quantities in feet on request; an incomplete bill has problems', () => {
+		assert.deepStrictEqual({
+			metric: displayQuantity(1, 'm3', false),
+			cft: quantityText(1, 'm3', true),
+			sft: quantityText(1, 'm2', true),
+			rft: quantityText(1, 'm', true),
+			kg: quantityText(1, 'kg', true),
+			problems: boqProblems({ ...document, problems: ['No reinforcement measured'] }),
+			none: boqProblems(document),
+		}, {
+			metric: { quantity: 1, unit: 'm3' },
+			cft: '35.31 cft',
+			sft: '10.76 sft',
+			rft: '3.28 rft',
+			kg: '1.00 kg',
+			problems: ['No reinforcement measured'],
+			none: [],
 		});
 	});
 });

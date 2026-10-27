@@ -503,6 +503,11 @@ def derive_fem(
         soil_text=soil_text,
         member_loads=member_loads if member_loads.loads else None,
     )
+    if model_folder:
+        from saengine.report.build import keep_derivation
+
+        # The derivation's notes and code values for the report (it need not derive again).
+        keep_derivation(model_folder, derivation)
     result = {
         "text": json.dumps(derivation.project, indent="\t", ensure_ascii=False) + "\n",
         "notes": site_notes + list(derivation.notes),

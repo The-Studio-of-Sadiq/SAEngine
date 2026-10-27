@@ -24,7 +24,8 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -38,9 +39,9 @@ import { partById } from '../../../services/saengineProject/common/saengineProje
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { formatField, formatNumber, IFieldSpec, parseField } from '../../saengineSoil/browser/soilDocument.js';
 import {
-	applyPileLayout, applyProposal, carriedAlready, checkSubstructure, defaultFoundingLevel, EMPTY_CONTEXT, formatMesh, formatUtilisation, foundationCenter, foundationOutlines, foundationSize, foundationTypeLabel, FOUNDATION_TYPES, FoundationType, governingCheck, IColumnBase, IFoundation, IFoundationResult, IPileType, ISiteContext, ISiteTexts,
+	applyPileLayout, applyProposal, formatPileBars, formatPileTies, minimumMesh, parsePileBars, parsePileTies, carriedAlready, checkStateText, checkSubstructure, documentSignatures, defaultFoundingLevel, EMPTY_CONTEXT, formatMesh, formatUtilisation, foundationCenter, foundationOutlines, foundationSize, foundationTypeLabel, FOUNDATION_TYPES, FoundationType, governingCheck, IColumnBase, IFoundation, IFoundationResult, IPileType, ISiteContext, ISiteTexts,
 	ISizingProposal, ISubstructure, ISubstructureMigration, ISubstructureProblem, ISubstructureReport, ISubstructureRequest, ITieBeam, importFoundations, maxPressure, MESH_KEYS, MeshKey, newFooting, newPileCap, newPileType, newRaft, newTieBeam, parseIdList, parseMesh, parseSubstructure, PILE_FACTOR_OF_SAFETY, pileFactorsUsed, PILE_KINDS, PILE_LAYOUTS,
-	pileKindLabel, Point, proposalFor, RAFT_MESH_SIZE, readSiteContext, readSizingProposal, readSubstructureReport, serializeSubstructure, SUBSTRUCTURE_ENSURE_COMMAND, SUBSTRUCTURE_MIGRATE_COMMAND, SUBSTRUCTURE_REPORT_COMMAND, SUBSTRUCTURE_SIZE_COMMAND, SUBSTRUCTURE_SUMMARY_FILE, substructureSummary, substructureSummaryFile, uncoveredColumns, utilisationBand,
+	pileKindLabel, Point, proposalFor, RAFT_MESH_SIZE, readSiteContext, readSizingProposal, readSubstructureReport, serializeSubstructure, SUBSTRUCTURE_ENSURE_COMMAND, SUBSTRUCTURE_MIGRATE_COMMAND, SUBSTRUCTURE_REPORT_COMMAND, SUBSTRUCTURE_SIZE_COMMAND, SUBSTRUCTURE_SUMMARY_FILE, substructureCheckState, substructureSummary, substructureSummaryFile, foundationSignature, ISubstructureCheckState, tieBeamSignature, uncoveredBases, uncoveredColumns, utilisationBand,
 } from './substructureDocument.js';
 import { SubstructureEditorInput } from './substructureEditorInput.js';
 import { HEAT_STEPS, renderPlan, renderRaftHeatMap } from './substructurePlan.js';
@@ -119,6 +120,15 @@ export class SubstructureEditor extends EditorPane {
 	private reportState: ReportState = 'idle';
 	private reportError: string | undefined;
 	private reportVersion = 0;
+	/**
+	 * The signatures of the foundations and tie beams of the saved file the report was checked
+	 * for (see documentSignatures): a result whose foundation has changed since is stale, never
+	 * shown as the new one's checks.
+	 */
+	private checkedFor: Map<string, string> | undefined;
+	/** Counts the changes of the other parts and the analysis results; the report records the one it read. */
+	private siteVersion = 0;
+	private checkedSiteVersion = 0;
 	private proposal: ISizingProposal | undefined;
 	private raftQuantity: 'pressure' | 'settlement' = 'pressure';
 	private readonly busy = new Set<string>();
@@ -153,6 +163,7 @@ export class SubstructureEditor extends EditorPane {
 	private readonly addPileTypeAction = this._register(new Action('saengine.substructure.editor.addPileType', localize('sub.addPileType', "Add Pile Type"), undefined, true, async () => this.addPileType()));
 	private readonly selectAllAction = this._register(new Action('saengine.substructure.editor.selectColumns', localize('sub.selectColumns', "Select Columns without a Foundation"), undefined, true, async () => this.selectUncovered()));
 	private readonly recomputeAction = this._register(new Action('saengine.substructure.editor.recompute', localize('sub.recompute', "Check the Foundations Again"), undefined, true, () => this.computeReport()));
+	private readonly saveAndCheckAction = this._register(new Action('saengine.substructure.editor.saveAndCheck', localize('sub.saveAndCheck', "Save and Check"), ThemeIcon.asClassName(Codicon.checkAll), true, () => this.saveAndCheck()));
 	private readonly openTextAction = this._register(new Action('saengine.substructure.editor.openText', localize('sub.openText', "Open as Text"), undefined, true, () => this.openAsText()));
 
 	constructor(
@@ -167,6 +178,7 @@ export class SubstructureEditor extends EditorPane {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IFileService private readonly fileService: IFileService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super(SubstructureEditor.ID, group, telemetryService, themeService, storageService);
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -213,6 +225,7 @@ export class SubstructureEditor extends EditorPane {
 		this.siteModels.clear();
 		this.model = undefined;
 		this.report = undefined;
+		this.checkedFor = undefined;
 		this.reportState = 'idle';
 		this.proposal = undefined;
 		this.clearSelection();
@@ -234,6 +247,8 @@ export class SubstructureEditor extends EditorPane {
 		const results = joinPath(dirname(dirname(input.resource)), '08 FEM', 'model.results');
 		this.inputDisposables.add(this.fileService.onDidFilesChange(e => {
 			if (e.affects(results) && this.document?.foundations.length) {
+				this.siteVersion++;
+				this.renderReportDependent();
 				this.reportScheduler.schedule();
 			}
 		}));
@@ -363,6 +378,9 @@ export class SubstructureEditor extends EditorPane {
 			}
 		}
 		this.context = readSiteContext(texts);
+		if (render) {
+			this.siteVersion++;
+		}
 		if (render && this.document) {
 			this.problems = checkSubstructure(this.document, this.context);
 			this.render();
@@ -522,6 +540,8 @@ export class SubstructureEditor extends EditorPane {
 	}
 
 	private onPlanClick(e: MouseEvent): void {
+		// A click in the drawing selects; the view takes the keys (Delete, Escape) from then on.
+		this.viewElement.focus({ preventScroll: true });
 		const target = e.target as Element | null;
 		const add = e.shiftKey || e.ctrlKey || e.metaKey;
 		const column = target?.closest('[data-column]')?.getAttribute('data-column');
@@ -547,7 +567,7 @@ export class SubstructureEditor extends EditorPane {
 		}
 		if (e.key === 'Delete' && this.deleteAction.enabled) {
 			e.preventDefault();
-			this.deleteSelection();
+			void this.deleteSelection();
 		} else if (e.key === 'Escape') {
 			if (this.proposal) {
 				this.discardProposal();
@@ -735,7 +755,7 @@ export class SubstructureEditor extends EditorPane {
 		this.changed(true);
 	}
 
-	private deleteSelection(): void {
+	private async deleteSelection(): Promise<void> {
 		const document = this.document;
 		if (!document) {
 			return;
@@ -744,6 +764,21 @@ export class SubstructureEditor extends EditorPane {
 			document.tieBeams.splice(this.selectedTieBeam, 1);
 		} else if (this.selectedFoundations.length) {
 			const removed = new Set(this.selectedFoundations.map(i => document.foundations[i]?.id));
+			const ties = document.tieBeams.filter(t => removed.has(t.from) || removed.has(t.to));
+			if (ties.length) {
+				// A tie beam needs both its foundations: it goes with them. Say so first.
+				const { confirmed } = await this.dialogService.confirm({
+					type: 'warning',
+					message: removed.size === 1
+						? localize('sub.deleteTiesOne', "Delete {0} and its tie beams?", [...removed][0])
+						: localize('sub.deleteTiesMany', "Delete {0} and their tie beams?", [...removed].join(', ')),
+					detail: localize('sub.deleteTiesDetail', "These tie beams join a deleted foundation and are deleted with it: {0}. Undo (Ctrl+Z) brings all back.", ties.map(t => `${t.id} (${t.from} – ${t.to})`).join(', ')),
+					primaryButton: localize({ key: 'sub.deleteTiesButton', comment: ['&& denotes a mnemonic'] }, "&&Delete"),
+				});
+				if (!confirmed || this.document !== document) {
+					return;
+				}
+			}
 			document.foundations = document.foundations.filter((_, i) => !this.selectedFoundations.includes(i));
 			document.tieBeams = document.tieBeams.filter(t => !removed.has(t.from) && !removed.has(t.to));
 		} else {
@@ -805,7 +840,20 @@ export class SubstructureEditor extends EditorPane {
 			this.notificationService.info(localize('sub.sizeNoBackend', "Sizing the foundations needs the SAEngine backend, which is not available in this window."));
 			return;
 		}
+		if (this.busy.has('size')) {
+			this.notificationService.info(localize('sub.sizeRunning', "The footings are being sized already; the proposal appears in the plan when it is ready."));
+			return;
+		}
 		this.setBusy('size', true);
+		this.sizeAction.enabled = false;
+		// Sizing runs every trial through the checks: it takes a while, so say what is going on.
+		const progress = this.notificationService.notify({
+			severity: Severity.Info,
+			message: columns.length === 1
+				? localize('sub.sizingOne', "Sizing the footing under {0} from the reactions and the soil report…", columns[0])
+				: localize('sub.sizingMany', "Sizing footings under {0} columns from the reactions and the soil report… This can take a minute or two.", columns.length),
+			progress: { infinite: true },
+		});
 		let proposal: ISizingProposal | undefined;
 		try {
 			const answer = readSizingProposal(await this.commandService.executeCommand<unknown>(SUBSTRUCTURE_SIZE_COMMAND, request));
@@ -814,6 +862,8 @@ export class SubstructureEditor extends EditorPane {
 			this.notificationService.error(localize('sub.sizeFailed', "The foundations could not be sized: {0}", error instanceof Error ? error.message : String(error)));
 			return;
 		} finally {
+			progress.close();
+			this.sizeAction.enabled = true;
 			this.setBusy('size', false);
 		}
 		if (this.document !== document) {
@@ -920,6 +970,18 @@ export class SubstructureEditor extends EditorPane {
 		this.render();
 	}
 
+	/** Saves the edits (the backend checks the saved file) and checks the foundations at once. */
+	async saveAndCheck(): Promise<void> {
+		this.flush();
+		const input = this.input;
+		if (input?.isDirty()) {
+			await input.save(this.group.id);
+			// Saving schedules the check (onDidChangeDirty); run it now instead of after the pause.
+		}
+		this.reportScheduler.cancel();
+		await this.computeReport();
+	}
+
 	/** Asks the backend for the design report (debounced after every edit). */
 	async computeReport(): Promise<void> {
 		const document = this.document;
@@ -942,6 +1004,11 @@ export class SubstructureEditor extends EditorPane {
 		this.flush();
 		this.reportState = this.report ? 'ok' : 'computing';
 		this.setBusy('report', true);
+		this.renderReportDependent();
+		const siteVersion = this.siteVersion;
+		// The backend checks the saved file: what it checks is what is on disk now (read again
+		// after, in case a save came in between).
+		const before = await this.savedText();
 		let report: ISubstructureReport | undefined;
 		let error: string | undefined;
 		try {
@@ -952,14 +1019,23 @@ export class SubstructureEditor extends EditorPane {
 		} catch (e) {
 			error = e instanceof Error ? e.message : String(e);
 		}
+		const after = await this.savedText();
 		if (version !== this.reportVersion) {
 			return;
 		}
 		this.setBusy('report', false);
+		const saved = before !== undefined && before === after ? parseSubstructure(before) : undefined;
 		this.report = report;
+		// A save while the backend ran: it may have read either file, so no result is trusted.
+		this.checkedFor = saved && saved.kind !== 'error' ? documentSignatures(saved.document) : new Map();
+		this.checkedSiteVersion = siteVersion;
 		this.reportState = report ? 'ok' : 'error';
 		this.reportError = error;
 		this.renderReportDependent();
+		if (before !== after || siteVersion !== this.siteVersion) {
+			this.reportScheduler.schedule(0);
+			return;
+		}
 		// The backend checks the saved file: the part list's summary is written only when the
 		// editor holds no unsaved edits, so it describes the file it sits next to.
 		if (report && this.resource && !this.input?.isDirty()) {
@@ -968,8 +1044,58 @@ export class SubstructureEditor extends EditorPane {
 		}
 	}
 
+	/** The text of the saved file, undefined when it cannot be read. */
+	private async savedText(): Promise<string | undefined> {
+		const resource = this.resource;
+		if (!resource) {
+			return undefined;
+		}
+		try {
+			return (await this.fileService.readFile(resource)).value.toString();
+		} catch {
+			return undefined;
+		}
+	}
+
+	/** Whether the report's results describe the parts as they are now (no edit of BIM, soil, analysis since). */
+	private get siteCurrent(): boolean {
+		return this.checkedSiteVersion === this.siteVersion;
+	}
+
+	/** The checks of `foundation` as it is now; undefined when it has none or changed since they were computed. */
 	private resultOf(foundation: IFoundation): IFoundationResult | undefined {
-		return this.report?.foundations.find(f => f.id === foundation.id);
+		const result = this.report?.foundations.find(f => f.id === foundation.id);
+		return result && this.document && this.siteCurrent && this.checkedFor?.get(`f:${foundation.id}`) === foundationSignature(this.document, foundation) ? result : undefined;
+	}
+
+	/** The checks of a tie beam as it is now (see {@link resultOf}). */
+	private tieResultOf(tie: ITieBeam): IFoundationResult | undefined {
+		const result = this.report?.tieBeams.find(t => t.id === tie.id);
+		return result && this.document && this.siteCurrent && this.checkedFor?.get(`t:${tie.id}`) === tieBeamSignature(this.document, tie) ? result : undefined;
+	}
+
+	/** Whether `foundation` (or tie beam) has checks, but of what it was before an edit. */
+	private isStale(item: IFoundation | ITieBeam, tie = false): boolean {
+		if (tie) {
+			return !!this.report?.tieBeams.some(r => r.id === item.id) && !this.tieResultOf(item as ITieBeam);
+		}
+		return !!this.report?.foundations.some(r => r.id === item.id) && !this.resultOf(item as IFoundation);
+	}
+
+	/** How far the checks cover the document as it is now (the one "all pass" verdict). */
+	private get checkState(): ISubstructureCheckState | undefined {
+		const document = this.document;
+		if (!document || this.reportState !== 'ok' || !this.report) {
+			return undefined;
+		}
+		const checkedFor = this.siteCurrent ? this.checkedFor : new Map<string, string>();
+		return substructureCheckState(document, this.report, checkedFor, uncoveredBases(document, this.context));
+	}
+
+	/** "checking again…" while the backend runs, else what brings the checks up to date. */
+	private get staleText(): string {
+		return this.busy.has('report') ? localize('sub.recheckingRow', "changed: checking again…")
+			: this.input?.isDirty() ? localize('sub.staleUnsaved', "changed: save to check") : localize('sub.staleRow', "changed: not checked yet");
 	}
 
 	// ───────────────────────────── rendering ─────────────────────────────
@@ -1028,9 +1154,13 @@ export class SubstructureEditor extends EditorPane {
 			: this.selectedFoundations.length === 1 ? localize('sub.deleteNamed', "Delete {0}", this.document?.foundations[this.selectedFoundations[0]]?.id ?? '')
 				: localize('sub.delete', "Delete");
 		this.recomputeAction.enabled = !!this.document?.foundations.length;
+		this.saveAndCheckAction.enabled = !!this.document?.foundations.length;
+		this.saveAndCheckAction.tooltip = this.input?.isDirty()
+			? localize('sub.saveAndCheckDirty', "Save the edits and check the foundations (the checks read the saved file)")
+			: localize('sub.saveAndCheckClean', "Check the foundations again");
 		const primary: IAction[] = usable ? [
 			this.addFootingAction, this.addPileCapAction, this.addRaftAction, this.addTieAction,
-			this.sizeAction, this.migrateAction, this.deleteAction, frame.togglePropertiesAction,
+			this.sizeAction, this.migrateAction, this.saveAndCheckAction, this.deleteAction, frame.togglePropertiesAction,
 		] : [frame.togglePropertiesAction];
 		const secondary: IAction[] = usable ? [this.addStripAction, this.addPileTypeAction, this.selectAllAction, new Separator(), this.recomputeAction] : [];
 		if (this.developerMode || this.parseError) {
@@ -1106,6 +1236,12 @@ export class SubstructureEditor extends EditorPane {
 		append(header, $('span.sub-view-subtitle', undefined, localize('sub.planSubtitle', "ground {0} m · founding level {1} m unless set · click a column or foundation, Shift+click to add to the selection",
 			formatNumber(this.context.groundLevel / 1000, 2), formatNumber(defaultFoundingLevel(this.context) / 1000, 2))));
 
+		const drawn = this.context.bimFootings ?? [];
+		if (drawn.length && document.foundations.length) {
+			// One source of truth: the substructure's foundations; the building model's are left over.
+			append(view, $('p.sub-note.warning', undefined, localize('sub.bimFootings', "6 BIM still has footings drawn ({0}). They are not designed or measured: the foundations here are. Delete them from the floor plan so that the 3D view shows these.", drawn.join(', '))));
+		}
+
 		if (this.proposal) {
 			const banner = append(view, $('.sub-banner', { role: 'status' }));
 			append(banner, $(`span.sub-banner-icon${ThemeIcon.asCSSSelector(Codicon.wand)}`));
@@ -1117,6 +1253,7 @@ export class SubstructureEditor extends EditorPane {
 			if (this.proposal.notes.length) {
 				append(text, $('span.sub-banner-detail', undefined, this.proposal.notes.join(' ')));
 			}
+			this.renderProposalTable(text, document, this.proposal);
 			const accept = this.viewDisposables.add(new Button(banner, { ...defaultButtonStyles }));
 			accept.label = localize('sub.accept', "Accept");
 			this.viewDisposables.add(accept.onDidClick(() => this.acceptProposal()));
@@ -1147,8 +1284,10 @@ export class SubstructureEditor extends EditorPane {
 
 		const canvas = append(view, $('.sub-canvas'));
 		const width = Math.max(240, view.clientWidth - 32);
-		const height = Math.max(240, view.clientHeight - (this.proposal ? 150 : 96));
-		const bands = this.report ? new Map(this.report.foundations.map(f => [f.id, utilisationBand(f.utilisation)])) : undefined;
+		// What is left below the header, legend and banner (the banner's table grows with the proposal).
+		const used = canvas.getBoundingClientRect().top - view.getBoundingClientRect().top + view.scrollTop;
+		const height = Math.max(240, view.clientHeight - used - 16);
+		const bands = this.report ? new Map(document.foundations.map(f => [f.id, utilisationBand(this.resultOf(f)?.utilisation)])) : undefined;
 		renderPlan(canvas, document, this.context, {
 			width, height,
 			selectedFoundations: new Set(this.selectedFoundations),
@@ -1156,8 +1295,33 @@ export class SubstructureEditor extends EditorPane {
 			selectedTieBeam: this.selectedTieBeam,
 			proposals: this.proposal?.foundations,
 			bands,
+			utilisations: new Map(document.foundations.flatMap(f => {
+				const u = this.resultOf(f)?.utilisation;
+				return typeof u === 'number' ? [[f.id, u] as const] : [];
+			})),
 		});
 		this.viewDisposables.add(addDisposableListener(canvas, EventType.CLICK, e => this.onPlanClick(e)));
+	}
+
+	/** What Accept changes: each proposed foundation against the one it replaces (or "new"). */
+	private renderProposalTable(parent: HTMLElement, document: ISubstructure, proposal: ISizingProposal): void {
+		const table = append(parent, $('table.sub-table.sub-proposal-table'));
+		this.tableHead(table, [
+			{ label: localize('sub.f.columns', "Columns"), width: 110 }, { label: localize('sub.proposalNow', "Now"), width: 190 },
+			{ label: localize('sub.proposalAfter', "After Accept"), width: 190 }, { label: localize('sub.proposalBars', "Bottom bars"), width: 110 },
+		]);
+		const body = append(table, $('tbody'));
+		for (const proposed of proposal.foundations) {
+			const columns = new Set(proposed.columns ?? []);
+			const replaced = document.foundations.filter(f => (f.columns ?? []).some(c => columns.has(c)));
+			const row = append(body, $('tr'));
+			append(row, $('td', undefined, (proposed.columns ?? []).join(', ')));
+			append(row, $('td', undefined, replaced.length ? replaced.map(f => `${f.id} ${foundationSize(f)}`).join('; ') : localize('sub.proposalNew', "none (new)")));
+			append(row, $('td', undefined, `${foundationTypeLabel(proposed.type)} ${foundationSize(proposed)}`));
+			const before = replaced[0]?.reinforcement?.bottomX;
+			const after = proposed.reinforcement?.bottomX;
+			append(row, $('td', undefined, after ? before && formatMesh(before) !== formatMesh(after) ? `${formatMesh(before)} → ${formatMesh(after)}` : formatMesh(after) : '—'));
+		}
 	}
 
 	// ───────────────────────────── data view ─────────────────────────────
@@ -1213,7 +1377,7 @@ export class SubstructureEditor extends EditorPane {
 		const scroller = append(section, $('.sub-table-scroll'));
 		const table = append(scroller, $('table.sub-table.sub-foundations'));
 		const columns = [
-			{ label: F.id.label, width: 64 }, { label: localize('sub.f.type', "Type"), width: 140 }, { label: localize('sub.f.columns', "Columns"), width: 110 },
+			{ label: F.id.label, width: 64 }, { label: localize('sub.f.type', "Type"), width: 156 }, { label: localize('sub.f.columns', "Columns"), width: 110 },
 			{ label: F.length.label, unit: MM, numeric: true }, { label: F.width.label, unit: MM, numeric: true }, { label: F.thickness.label, unit: MM, numeric: true },
 			{ label: F.foundingLevel.label, unit: M, numeric: true, width: 84 }, { label: localize('sub.f.pileType', "Pile type"), width: 84 }, { label: localize('sub.f.piles', "Piles"), numeric: true, width: 48 },
 			{ label: localize('sub.f.utilisation', "Utilisation"), numeric: true, width: 84 }, { label: '', width: 28 },
@@ -1249,7 +1413,7 @@ export class SubstructureEditor extends EditorPane {
 			this.utilisationCell(row, this.resultOf(f)?.utilisation);
 			this.removeButton(row, () => {
 				this.selectedFoundations = [index];
-				this.deleteSelection();
+				void this.deleteSelection();
 			});
 			this.viewDisposables.add(addDisposableListener(row, EventType.CLICK, e => {
 				if (!(e.target as HTMLElement).closest('input, select, button')) {
@@ -1274,7 +1438,9 @@ export class SubstructureEditor extends EditorPane {
 		const table = append(append(section, $('.sub-table-scroll')), $('table.sub-table'));
 		const columns = [
 			{ label: F.id.label, width: 64 }, { label: localize('sub.f.kind', "Kind"), width: 170 }, { label: F.diameter.label, unit: MM, numeric: true, width: 80 },
-			{ label: F.pileLength.label, unit: M, numeric: true }, { label: localize('sub.f.material', "Concrete"), width: 96 }, { label: localize('sub.f.usedBy', "Caps"), numeric: true, width: 48 }, { label: '', width: 28 },
+			{ label: F.pileLength.label, unit: M, numeric: true }, { label: localize('sub.f.material', "Concrete"), width: 96 },
+			{ label: localize('sub.f.pileBars', "Bars"), width: 84 }, { label: localize('sub.f.pileTies', "Ties"), width: 110 },
+			{ label: localize('sub.f.usedBy', "Caps"), numeric: true, width: 48 }, { label: '', width: 28 },
 		];
 		this.tableHead(table, columns);
 		const body = append(table, $('tbody'));
@@ -1300,6 +1466,8 @@ export class SubstructureEditor extends EditorPane {
 					this.changed(true);
 				}
 			}, path('material'), true));
+			append(append(row, $('td')), this.pileBarsInput(pile, path('reinforcement.longitudinal')));
+			append(append(row, $('td')), this.pileTiesInput(pile, path('reinforcement.transverse')));
 			append(row, $('td.number', undefined, String(document.foundations.filter(f => f.type === 'pileCap' && f.pileType === pile.id).length)));
 			this.removeButton(row, () => {
 				document.pileTypes.splice(index, 1);
@@ -1342,7 +1510,7 @@ export class SubstructureEditor extends EditorPane {
 				}, path(end), end === 'from' ? localize('sub.f.from', "From") : localize('sub.f.to', "To")));
 			}
 			append(append(row, $('td')), this.beamTypeInput(tie, path('type')));
-			append(append(row, $('td')), this.textInput(F.level, tie.level, value => this.setTieLevel(tie, value), path('level')));
+			append(append(row, $('td')), this.textInput(F.level, tie.level, value => this.setTieLevel(tie, value), path('level'), this.tieLevelPlaceholder(tie)));
 			append(row, $('td.number', undefined, this.tieSpan(tie)));
 			this.removeButton(row, () => {
 				document.tieBeams.splice(index, 1);
@@ -1360,6 +1528,13 @@ export class SubstructureEditor extends EditorPane {
 		const a = from && foundationCenter(from, this.context);
 		const b = to && foundationCenter(to, this.context);
 		return a && b ? formatNumber(Math.hypot(b[0] - a[0], b[1] - a[1]) / 1000, 2) : '';
+	}
+
+	/** The level a tie beam without one is designed at: the higher top of its two foundations [m]. */
+	private tieLevelPlaceholder(tie: ITieBeam): string | undefined {
+		const tops = [tie.from, tie.to].map(id => this.document?.foundations.find(f => f.id === id)).filter((f): f is IFoundation => !!f)
+			.map(f => (typeof f.foundingLevel === 'number' ? f.foundingLevel : defaultFoundingLevel(this.context)) + (typeof f.thickness === 'number' ? f.thickness : 0));
+		return tops.length ? formatNumber(Math.max(...tops) / 1000, 3) : undefined;
 	}
 
 	private setTieLevel(tie: ITieBeam, value: number | string | undefined): void {
@@ -1450,6 +1625,18 @@ export class SubstructureEditor extends EditorPane {
 			Object.assign(foundation, { length: 1500, width: 1500 });
 		}
 		foundation.thickness ??= 450;
+		// The bars of the old type may be too light for the new thickness (a footing turned into a
+		// 1 m pile cap): raise each bottom layer to the minimum mesh, and give a raft its top bars.
+		const least = minimumMesh(Number(foundation.thickness));
+		const area = (mesh: { dia: number; spacing: number } | undefined) => mesh ? Math.PI * mesh.dia * mesh.dia / 4 * 1000 / mesh.spacing : 0;
+		const bars = foundation.reinforcement;
+		if (bars) {
+			for (const layer of type === 'raft' ? MESH_KEYS : ['bottomX', 'bottomY'] as const) {
+				if (area(bars[layer]) < area(least) - 1e-6) {
+					bars[layer] = { ...least };
+				}
+			}
+		}
 		this.changed(true);
 	}
 
@@ -1532,6 +1719,57 @@ export class SubstructureEditor extends EditorPane {
 		}, key, localize('sub.f.beamType', "Beam type"), !tie.type);
 	}
 
+	/** A pile's longitudinal bars, typed as "8Ø16"; a pile without bars gets the bar material and cover first. */
+	private pileBarsInput(pile: IPileType, key: string): HTMLInputElement {
+		const input = $<HTMLInputElement>('input.sub-input', { type: 'text', spellcheck: 'false', 'aria-label': localize('sub.f.pileBars', "Bars"), placeholder: localize('sub.plain', "plain") });
+		input.value = formatPileBars(pile.reinforcement);
+		input.title = localize('sub.pileBarsTitle', "Bars round the perimeter, count Ø diameter (e.g. 8Ø16); BNBC 2020 Part 6 Table 6.3.11 gives the least for a bored pile. Empty: plain concrete.");
+		this.inputStore.add(addDisposableListener(input, EventType.INPUT, () => {
+			const parsed = parsePileBars(input.value);
+			this.markInvalid(input, parsed.error);
+			if (parsed.error) {
+				return;
+			}
+			if (parsed.value) {
+				const bars = pile.reinforcement ??= { ...(this.context.barMaterial ? { material: this.context.barMaterial } : {}), cover: 75 };
+				bars.longitudinal = [{ position: 'perimeter', ...parsed.value }];
+			} else if (pile.reinforcement) {
+				delete pile.reinforcement.longitudinal;
+				if (!pile.reinforcement.transverse) {
+					delete pile.reinforcement;
+				}
+			}
+			this.changed(false);
+		}));
+		this.inputStore.add(addDisposableListener(input, EventType.BLUR, () => this.flush()));
+		this.inputMap.set(key, input);
+		return input;
+	}
+
+	/** A pile's ties or spiral, typed as "Ø8@250" or "spiral Ø8@75". */
+	private pileTiesInput(pile: IPileType, key: string): HTMLInputElement {
+		const input = $<HTMLInputElement>('input.sub-input', { type: 'text', spellcheck: 'false', 'aria-label': localize('sub.f.pileTies', "Ties"), placeholder: localize('sub.none', "none") });
+		input.value = formatPileTies(pile.reinforcement);
+		input.title = localize('sub.pileTiesTitle', "Ties (Ø diameter @ spacing, e.g. Ø8@250) or a spiral (spiral Ø8@75), in mm");
+		this.inputStore.add(addDisposableListener(input, EventType.INPUT, () => {
+			const parsed = parsePileTies(input.value);
+			this.markInvalid(input, parsed.error);
+			if (parsed.error) {
+				return;
+			}
+			if (parsed.value) {
+				const bars = pile.reinforcement ??= { ...(this.context.barMaterial ? { material: this.context.barMaterial } : {}), cover: 75 };
+				bars.transverse = { ...bars.transverse, ...parsed.value };
+			} else if (pile.reinforcement) {
+				delete pile.reinforcement.transverse;
+			}
+			this.changed(false);
+		}));
+		this.inputStore.add(addDisposableListener(input, EventType.BLUR, () => this.flush()));
+		this.inputMap.set(key, input);
+		return input;
+	}
+
 	/** The columns a foundation carries, typed as a list: "C1, C2". */
 	private columnsInput(foundation: IFoundation, key: string): HTMLInputElement {
 		const input = $<HTMLInputElement>('input.sub-input', { type: 'text', spellcheck: 'false', 'aria-label': localize('sub.f.columns', "Columns") });
@@ -1590,16 +1828,27 @@ export class SubstructureEditor extends EditorPane {
 		const header = append(view, $('.sub-view-header'));
 		append(header, $('span.sub-view-title', undefined, localize('sub.resultsTitle', "Design checks")));
 		append(header, $('span.sub-view-subtitle', undefined, localize('sub.resultsSubtitle', "Computed from the analysis reactions and the soil report; not stored in the file.")));
-		if (this.input?.isDirty()) {
-			append(view, $('p.sub-note.warning.sub-unsaved-note', undefined, localize('sub.resultsUnsaved', "These are the checks of the saved file. Save to check the latest edits.")));
+		const state = this.checkState!;
+		const verdict = append(view, $(`p.sub-note.sub-verdict.${state.status === 'pass' ? 'ok' : state.status === 'fail' ? 'error' : 'warning'}`, { role: 'status' }));
+		verdict.textContent = checkStateText(state);
+		if (state.stale) {
+			append(verdict, $('span', undefined, ` · ${this.input?.isDirty()
+				? localize('sub.resultsUnsavedShort', "save to check the edits")
+				: this.busy.has('report') ? localize('sub.recheckingShort', "checking again…") : ''}`));
+		}
+		if (state.unsupported.length) {
+			append(view, $('p.sub-note.warning', undefined, localize('sub.unsupportedList', "Without a foundation, so not designed: {0}. Add a footing (a strip footing for a wall) under each.", state.unsupported.join(', '))));
 		}
 
-		this.renderTiles(view, report);
+		this.renderTiles(view, document, state);
 		this.renderResultTable(view, document, report);
 		const selected = this.foundation ?? document.foundations.find(f => f.id === report.summary.governing);
 		const result = selected && this.resultOf(selected);
 		if (selected && result) {
 			this.renderFoundationDetail(view, selected, result);
+		} else if (selected && this.isStale(selected)) {
+			const section = this.resultSection(view, localize('sub.detailTitle', "{0}: all checks", selected.id), `${foundationTypeLabel(selected.type)} · ${foundationSize(selected)}`);
+			append(section, $('p.sub-note.warning', undefined, localize('sub.detailStale', "{0} changed since its checks were computed, so they are not shown ({1})", selected.id, this.staleText)));
 		}
 		this.renderPileCapacities(view, report);
 		if (report.notes.length || report.skipped.length) {
@@ -1629,20 +1878,23 @@ export class SubstructureEditor extends EditorPane {
 		return section;
 	}
 
-	private renderTiles(view: HTMLElement, report: ISubstructureReport): void {
+	private renderTiles(view: HTMLElement, document: ISubstructure, state: ISubstructureCheckState): void {
 		const tiles = append(view, $('.sub-tiles'));
 		const tile = (value: string, label: string, band?: string) => {
 			const element = append(tiles, $('.sub-tile'));
 			append(element, $(`span.sub-tile-value${band ? `.band-${band}` : ''}`, undefined, value));
 			append(element, $('span.sub-tile-label', undefined, label));
 		};
-		tile(String(report.summary.checked), report.tieBeams.length ? localize('sub.tileCheckedTies', "foundations and tie beams checked") : localize('sub.tileChecked', "foundations checked"));
-		tile(String(report.summary.failed), localize('sub.tileFailed', "fail"), report.summary.failed ? 'fail' : 'ok');
-		const max = report.summary.maxUtilisation;
-		if (typeof max === 'number') {
-			tile(formatUtilisation(max), report.summary.governing ? localize('sub.tileMaxIn', "largest utilisation, {0}", report.summary.governing) : localize('sub.tileMax', "largest utilisation"), utilisationBand(max));
+		tile(localize('sub.tileOf', "{0} of {1}", state.checked, state.total), document.tieBeams.length ? localize('sub.tileCheckedTies', "foundations and tie beams checked") : localize('sub.tileChecked', "foundations checked"), state.checked < state.total ? 'warn' : undefined);
+		tile(String(state.failed), localize('sub.tileFailed', "fail"), state.failed ? 'fail' : state.status === 'pass' ? 'ok' : undefined);
+		// The largest utilisation and pressure of the results that describe the foundations as they are now.
+		const current = document.foundations.map(f => this.resultOf(f)).filter((r): r is IFoundationResult => !!r);
+		const designed = [...current, ...document.tieBeams.map(t => this.tieResultOf(t)).filter((r): r is IFoundationResult => !!r)];
+		const worst = designed.reduce<IFoundationResult | undefined>((w, f) => f.utilisation !== null && (w?.utilisation ?? -1) < f.utilisation ? f : w, undefined);
+		if (typeof worst?.utilisation === 'number') {
+			tile(formatUtilisation(worst.utilisation), localize('sub.tileMaxIn', "largest utilisation, {0}", worst.id), utilisationBand(worst.utilisation));
 		}
-		const pressure = maxPressure(report);
+		const pressure = maxPressure({ foundations: current });
 		if (pressure) {
 			tile(localize('sub.kpaValue', "{0} kPa", formatNumber(pressure.pressure, 0)), typeof pressure.allowable === 'number'
 				? localize('sub.tilePressureQa', "max bearing pressure, {0} (qa {1} kPa)", pressure.id, formatNumber(pressure.allowable, 0))
@@ -1673,13 +1925,15 @@ export class SubstructureEditor extends EditorPane {
 		const body = append(table, $('tbody'));
 		document.foundations.forEach((f, index) => {
 			const result = this.resultOf(f);
+			const stale = !result && this.isStale(f);
 			const row = append(body, $('tr.sub-row', { 'data-index': String(index), tabIndex: 0 }));
 			this.foundationRows.set(row, index);
+			row.classList.toggle('stale', stale);
 			const governing = governingCheck(result);
 			append(row, $('td', undefined, f.id));
 			append(row, $('td', undefined, foundationTypeLabel(f.type)));
 			append(row, $('td', undefined, foundationSize(f)));
-			append(row, $('td', undefined, result ? governing?.name ?? '' : localize('sub.notChecked', "not checked")));
+			append(row, $('td', undefined, result ? governing?.name ?? '' : stale ? this.staleText : this.notCheckedText(f.id)));
 			append(row, $('td.sub-muted-cell', undefined, governing?.combination ?? ''));
 			this.utilisationCell(row, result?.utilisation);
 			if (result && !result.ok) {
@@ -1693,13 +1947,15 @@ export class SubstructureEditor extends EditorPane {
 			}));
 		});
 		document.tieBeams.forEach((tie, index) => {
-			const result = report.tieBeams.find(t => t.id === tie.id);
+			const result = this.tieResultOf(tie);
+			const stale = !result && this.isStale(tie, true);
 			const row = append(body, $('tr.sub-row.tie', { tabIndex: 0 }));
+			row.classList.toggle('stale', stale);
 			const governing = governingCheck(result);
 			append(row, $('td', undefined, tie.id));
 			append(row, $('td', undefined, localize('sub.tieBeam', "Tie beam")));
 			append(row, $('td', undefined, localize('sub.tieBetween', "{0} – {1}", tie.from, tie.to)));
-			append(row, $('td', undefined, result ? governing?.name ?? '' : localize('sub.notChecked', "not checked")));
+			append(row, $('td', undefined, result ? governing?.name ?? '' : stale ? this.staleText : this.notCheckedText(tie.id)));
 			append(row, $('td.sub-muted-cell', undefined, governing?.combination ?? ''));
 			this.utilisationCell(row, result?.utilisation);
 			if (result && !result.ok) {
@@ -1710,13 +1966,22 @@ export class SubstructureEditor extends EditorPane {
 		this.markSelectedRows();
 	}
 
+	/** "not checked: <the backend's reason>" for a foundation or tie beam the design skipped. */
+	private notCheckedText(id: string): string {
+		const reason = this.report?.skipped.find(s => s.id === id)?.reason;
+		return reason ? localize('sub.notCheckedWhy', "not checked: {0}", reason) : localize('sub.notChecked', "not checked");
+	}
+
 	private renderFoundationDetail(view: HTMLElement, foundation: IFoundation, result: IFoundationResult): void {
 		const section = this.resultSection(view, localize('sub.detailTitle', "{0}: all checks", foundation.id), `${foundationTypeLabel(foundation.type)} · ${foundationSize(foundation)}`);
-		const table = append(section, $('table.sub-table.sub-result-table'));
-		this.tableHead(table, [
-			{ label: localize('sub.check', "Check"), width: 220 }, { label: localize('sub.demand', "Demand"), numeric: true }, { label: localize('sub.capacity', "Capacity"), numeric: true },
-			{ label: localize('sub.unit', "Unit"), width: 60 }, { label: localize('sub.f.utilisation', "Utilisation"), numeric: true, width: 120 }, { label: localize('sub.combination', "Combination"), width: 180 }, { label: localize('sub.note', "Note"), width: 260 },
-		]);
+		// The note (and for a failing check, the suggested fix) on its own full-width line under each
+		// check, so that the table fits a 1366 px window instead of running off to the right.
+		const table = append(section, $('table.sub-table.sub-result-table.sub-check-table'));
+		const columns = [
+			{ label: localize('sub.check', "Check"), width: 200 }, { label: localize('sub.demand', "Demand / required"), numeric: true, width: 96 }, { label: localize('sub.capacity', "Capacity / provided"), numeric: true, width: 96 },
+			{ label: localize('sub.unit', "Unit"), width: 60 }, { label: localize('sub.f.utilisation', "Utilisation"), numeric: true, width: 120 }, { label: localize('sub.combination', "Combination"), width: 150 },
+		];
+		this.tableHead(table, columns);
 		const body = append(table, $('tbody'));
 		const value = (v: number | null) => v === null ? '—' : Math.abs(v) >= 100 ? formatNumber(v, 0) : Math.abs(v) >= 1 || v === 0 ? formatNumber(v, 2) : String(Number(v.toPrecision(3)));
 		// The checks that count first, by utilisation; the ones only reported after them.
@@ -1726,9 +1991,22 @@ export class SubstructureEditor extends EditorPane {
 			append(row, $('td.number', undefined, value(check.demand)));
 			append(row, $('td.number', undefined, value(check.capacity)));
 			append(row, $('td.sub-muted-cell', undefined, check.unit));
-			this.utilisationCell(row, check.utilisation);
-			append(row, $('td.sub-muted-cell', undefined, check.combination ?? ''));
-			append(row, $('td.sub-wrap', undefined, check.note));
+			if (check.capacity === 0 && (check.utilisation ?? 0) >= 99) {
+				// Nothing provided (no bars in that layer): a ratio means nothing.
+				append(append(row, $('td.number.sub-util-cell')), $('span.sub-util-value.band-fail', undefined, localize('sub.needsBars', "none provided")));
+			} else {
+				this.utilisationCell(row, check.utilisation);
+			}
+			append(row, $('td.sub-muted-cell.sub-combination-cell', undefined, check.combination ?? ''));
+			const suggestion = check.ok || check.flag ? '' : this.suggestion(foundation, check);
+			if (suggestion || check.note) {
+				row.classList.add('has-note');
+				const line = append(append(body, $(check.flag ? 'tr.sub-note-row.flag' : 'tr.sub-note-row')), $('td.sub-wrap.sub-note-cell', { colspan: String(columns.length) }));
+				if (suggestion) {
+					append(line, $('span.sub-suggestion', undefined, localize('sub.suggestedText', "Suggested: {0}. ", suggestion)));
+				}
+				append(line, $('span', undefined, check.note));
+			}
 		}
 		for (const note of result.notes ?? []) {
 			append(section, $('p.sub-note', undefined, note));
@@ -1739,6 +2017,25 @@ export class SubstructureEditor extends EditorPane {
 		if (result.raft) {
 			this.renderRaft(section, foundation, result);
 		}
+	}
+
+	/** A first step to make a failing check pass. */
+	private suggestion(foundation: IFoundation, check: { readonly name: string }): string {
+		const name = check.name.toLowerCase();
+		const thickness = typeof foundation.thickness === 'number' ? foundation.thickness : undefined;
+		if ((name.startsWith('min') || name.includes('flexure') || name.includes('steel') || name.includes('tie (')) && thickness) {
+			return localize('sub.suggestBars', "at least {0} each way (As,min of {1} mm); more for the flexure", formatMesh(minimumMesh(thickness)), formatNumber(thickness, 0));
+		}
+		if (name.includes('bearing') || name.includes('resultant') || name.includes('contact') || name.includes('uplift')) {
+			return localize('sub.suggestSize', "larger plan: Size Footings with it selected");
+		}
+		if (name.includes('punching') || name.includes('shear')) {
+			return localize('sub.suggestThicker', "thicker: Size Footings with it selected");
+		}
+		if (name.includes('pile')) {
+			return localize('sub.suggestPiles', "more or larger piles (Layout, Pile type)");
+		}
+		return '';
 	}
 
 	private renderPileLoads(section: HTMLElement, result: IFoundationResult): void {
@@ -1966,7 +2263,7 @@ export class SubstructureEditor extends EditorPane {
 		this.fieldRow(panel, F.thickness, foundation.thickness, value => this.setField(foundation, 'thickness', value), path('thickness'));
 		this.fieldRow(panel, F.foundingLevel, foundation.foundingLevel, value => this.setField(foundation, 'foundingLevel', value), path('foundingLevel'), formatNumber(defaultFoundingLevel(this.context) / 1000, 3));
 		if (foundation.type === 'raft') {
-			appendPropertyRow(panel, localize('sub.outline', "Outline"), localize('sub.outlinePoints', "{0} points", foundation.outline?.length ?? 0));
+			this.renderRaftOutline(panel, foundation, path);
 		}
 		if (foundation.type === 'strip') {
 			appendPropertyRow(panel, localize('sub.path', "Path"), localize('sub.outlinePoints', "{0} points", foundation.path?.length ?? 0));
@@ -2055,6 +2352,57 @@ export class SubstructureEditor extends EditorPane {
 		}
 	}
 
+	/**
+	 * A rectangular raft's outline as its plan size and centre (edits rewrite the four corners);
+	 * another outline as its points, edited in the text.
+	 */
+	private renderRaftOutline(panel: HTMLElement, foundation: IFoundation, path: (field: string) => string): void {
+		const outline = foundation.outline ?? [];
+		const xs = [...new Set(outline.map(p => p[0]))];
+		const ys = [...new Set(outline.map(p => p[1]))];
+		if (outline.length !== 4 || xs.length !== 2 || ys.length !== 2) {
+			appendPropertyRow(panel, localize('sub.outline', "Outline"), localize('sub.outlinePoints', "{0} points", outline.length));
+			appendPropertyNote(panel, localize('sub.outlineText', "Not a rectangle along the axes: edit its points with Open as Text (… menu)."));
+			return;
+		}
+		const box = { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+		const write = () => {
+			foundation.outline = [[box.x0, box.y0], [box.x1, box.y0], [box.x1, box.y1], [box.x0, box.y1]];
+			this.changed(false);
+		};
+		const lengthX: IFieldSpec = { key: 'outlineX', label: localize('sub.f.raftX', "Length along X"), unit: MM, kind: 'number', min: 1000 };
+		const lengthY: IFieldSpec = { key: 'outlineY', label: localize('sub.f.raftY', "Length along Y"), unit: MM, kind: 'number', min: 1000 };
+		this.fieldRow(panel, lengthX, box.x1 - box.x0, value => {
+			if (typeof value === 'number') {
+				const middle = (box.x0 + box.x1) / 2;
+				[box.x0, box.x1] = [middle - value / 2, middle + value / 2];
+				write();
+			}
+		}, path('outline.x'));
+		this.fieldRow(panel, lengthY, box.y1 - box.y0, value => {
+			if (typeof value === 'number') {
+				const middle = (box.y0 + box.y1) / 2;
+				[box.y0, box.y1] = [middle - value / 2, middle + value / 2];
+				write();
+			}
+		}, path('outline.y'));
+		for (const [field, axis] of [[F.x, 0], [F.y, 1]] as const) {
+			this.fieldRow(panel, field, axis === 0 ? (box.x0 + box.x1) / 2 : (box.y0 + box.y1) / 2, value => {
+				if (typeof value !== 'number') {
+					return;
+				}
+				if (axis === 0) {
+					const half = (box.x1 - box.x0) / 2;
+					[box.x0, box.x1] = [value - half, value + half];
+				} else {
+					const half = (box.y1 - box.y0) / 2;
+					[box.y0, box.y1] = [value - half, value + half];
+				}
+				write();
+			}, path(`outline.center.${axis}`));
+		}
+	}
+
 	private renderTieProperties(panel: HTMLElement, document: ISubstructure, tie: ITieBeam): void {
 		const index = this.selectedTieBeam!;
 		const path = (field: string) => `tieBeams.${index}.${field}`;
@@ -2072,7 +2420,7 @@ export class SubstructureEditor extends EditorPane {
 			}, path(end), label));
 		}
 		this.propertyRow(panel, localize('sub.f.beamType', "Beam type"), this.beamTypeInput(tie, path('type')));
-		this.fieldRow(panel, F.level, tie.level, value => this.setTieLevel(tie, value), path('level'));
+		this.fieldRow(panel, F.level, tie.level, value => this.setTieLevel(tie, value), path('level'), this.tieLevelPlaceholder(tie));
 		const span = this.tieSpan(tie);
 		if (span) {
 			appendPropertyRow(panel, localize('sub.f.span', "Span"), localize('sub.mValue', "{0} m", span));
@@ -2101,8 +2449,8 @@ export class SubstructureEditor extends EditorPane {
 		appendPropertyRow(panel, localize('sub.foundationsHeading', "Foundations"), String(document.foundations.length));
 		appendPropertyRow(panel, localize('sub.pileTypes', "Pile types"), String(document.pileTypes.length));
 		appendPropertyRow(panel, localize('sub.tieBeams', "Tie beams"), String(document.tieBeams.length));
-		const uncovered = uncoveredColumns(document, this.context);
-		appendPropertyRow(panel, localize('sub.uncovered', "Columns without one"), uncovered.length ? uncovered.map(c => c.id).join(', ') : localize('sub.noneShort', "none"));
+		const uncovered = uncoveredBases(document, this.context);
+		appendPropertyRow(panel, localize('sub.uncovered', "Columns and walls without one"), uncovered.length ? uncovered.join(', ') : localize('sub.noneShort', "none"));
 
 		appendPropertyHeading(panel, localize('sub.designHeading', "Design"));
 		const design = document.design;
@@ -2117,7 +2465,9 @@ export class SubstructureEditor extends EditorPane {
 		const fs = () => design.factorOfSafety ??= {};
 		// The factors the design actually uses, updated as the fields are typed.
 		let refreshUsed = () => { };
-		for (const field of [F.pileCompression, F.pileUplift, F.bearing]) {
+		// The pile settings only where there are piles; the bearing factor always.
+		const piled = document.pileTypes.length > 0 || document.foundations.some(f => f.type === 'pileCap');
+		for (const field of piled ? [F.pileCompression, F.pileUplift, F.bearing] : [F.bearing]) {
 			this.fieldRow(panel, field, design.factorOfSafety?.[field.key], value => {
 				if (typeof value === 'number') {
 					fs()[field.key] = value;
@@ -2127,6 +2477,12 @@ export class SubstructureEditor extends EditorPane {
 				this.changed(false);
 				refreshUsed();
 			}, `design.factorOfSafety.${field.key}`, field === F.bearing ? localize('sub.fromSoil', "soil report") : formatNumber(PILE_FACTOR_OF_SAFETY, 1));
+		}
+		if (!piled) {
+			this.fieldRow(panel, F.raftMeshSize, design.raftMeshSize, value => this.setDesign('raftMeshSize', value), 'design.raftMeshSize', String(RAFT_MESH_SIZE));
+			this.fieldRow(panel, F.springs, typeof design.springsFrom === 'number' ? design.springsFrom : undefined, value => this.setDesign('springsFrom', value), 'design.springsFrom', localize('sub.fromSoil', "soil report"));
+			appendPropertyNote(panel, localize('sub.designNoteNoPiles', "Empty values use the soil report's bearing factor and subgrade modulus and a 500 mm raft mesh. The pile settings appear once there is a pile cap."));
+			return;
 		}
 		const loadTestLabel = localize('sub.f.loadTest', "Pile load test at the site");
 		this.propertyRow(panel, loadTestLabel, this.selectInput([
@@ -2187,25 +2543,29 @@ export class SubstructureEditor extends EditorPane {
 			frame.setStatus({ text: this.context.columns.length ? localize('sub.statusEmpty', "No foundations yet · {0} columns on the base level", this.context.columns.length) : localize('sub.statusNoColumns', "No foundations yet.") });
 			return;
 		}
-		const parts = [substructureSummary(document, this.reportState === 'ok' ? this.report : undefined)];
-		if (this.reportState === 'ok' && this.input?.isDirty()) {
-			parts.push(localize('sub.statusUnsaved', "checks of the saved file"));
+		const state = this.checkState;
+		const parts = [substructureSummary(document, state ? this.report : undefined, state)];
+		if (state?.stale && this.input?.isDirty()) {
+			parts.push(localize('sub.statusUnsaved', "save to check the edits"));
+		} else if (state?.stale && this.busy.has('report')) {
+			parts.push(localize('sub.statusRechecking', "checking again…"));
 		}
 		if (this.reportState === 'missing') {
 			parts.push(localize('sub.statusNoBackend', "checks need the backend"));
 		} else if (this.reportState === 'error') {
 			parts.push(localize('sub.statusFailed', "checks could not be computed"));
 		}
-		const uncovered = uncoveredColumns(document, this.context).length;
+		const uncovered = uncoveredBases(document, this.context).length;
 		if (uncovered) {
-			parts.push(uncovered === 1 ? localize('sub.statusUncoveredOne', "1 column without a foundation") : localize('sub.statusUncovered', "{0} columns without a foundation", uncovered));
+			parts.push(uncovered === 1 ? localize('sub.statusUncoveredOne', "1 column or wall without a foundation") : localize('sub.statusUncovered', "{0} columns or walls without a foundation", uncovered));
 		}
 		const errors = this.problems.filter(p => p.severity === 'error').length;
-		const failed = this.reportState === 'ok' && (this.report?.summary.failed ?? 0) > 0;
+		const failed = (state?.failed ?? 0) > 0;
+		const incomplete = !!state && state.status !== 'pass';
 		const status: IEditorFrameStatus = {
 			text: parts.join(' · '),
-			severity: errors || failed ? 'error' : this.problems.length || uncovered || this.reportState === 'error' ? 'warning' : undefined,
-			busy: this.reportState === 'computing',
+			severity: errors || failed ? 'error' : this.problems.length || uncovered || incomplete || this.reportState === 'error' ? 'warning' : undefined,
+			busy: this.reportState === 'computing' || this.busy.has('report'),
 			link: this.problems.length ? {
 				label: localize('sub.statusProblems', "{0} problem(s)", this.problems.length),
 				run: () => this.revealFirstProblem(),

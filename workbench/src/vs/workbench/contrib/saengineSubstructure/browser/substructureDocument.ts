@@ -100,13 +100,22 @@ export interface IFoundation {
 	[key: string]: unknown;
 }
 
+/** A pile's bars (the backend's LinearReinforcement): bars round the perimeter and ties or a spiral. */
+export interface IPileReinforcement {
+	material?: string;
+	cover?: number;
+	longitudinal?: { position: string; count: number; dia: number }[];
+	transverse?: { type: 'tie' | 'spiral' | 'stirrup'; dia: number; spacing: number;[key: string]: unknown };
+	[key: string]: unknown;
+}
+
 export interface IPileType {
 	id: string;
 	kind: PileKind;
 	diameter: number;
 	length: number;
 	material?: string;
-	reinforcement?: unknown;
+	reinforcement?: IPileReinforcement;
 	[key: string]: unknown;
 }
 
@@ -286,6 +295,8 @@ export interface ISiteContext {
 	readonly barMaterial?: string;
 	/** Rebar material ids. */
 	readonly barMaterials?: readonly string[];
+	/** Ids of the footings still drawn in the building model (Part 6), which the substructure replaces. */
+	readonly bimFootings?: readonly string[];
 }
 
 export const EMPTY_CONTEXT: ISiteContext = { columns: [], walls: [], grids: { x: [], y: [] }, boreholes: [], groundLevel: 0, baseLevel: 0, beamTypes: [], materials: [] };
@@ -370,6 +381,7 @@ export function readSiteContext(texts: ISiteTexts): ISiteContext {
 		defaultMaterial,
 		barMaterial: typeof barSource?.material === 'string' ? barSource.material : rebar[0],
 		barMaterials: rebar,
+		bimFootings: elements.filter(e => e.kind === 'footing').map(e => String(e.id)),
 	};
 }
 
@@ -528,9 +540,35 @@ export function nextId(prefix: string, used: Iterable<string>): string {
 	}
 }
 
-/** The reinforcement a new foundation starts with: 12 mm bars at 150 both ways at the bottom, 75 mm cover. */
-export function defaultReinforcement(context: ISiteContext): IPlanarReinforcement {
-	const reinforcement: IPlanarReinforcement = { cover: 75, bottomX: { dia: 12, spacing: 150 }, bottomY: { dia: 12, spacing: 150 } };
+/** The bar diameters a minimum mesh is chosen from [mm]. */
+const MESH_DIAS = [12, 16, 20, 25];
+
+/**
+ * The lightest mesh with at least As,min = 0.0018 h per metre (ACI 318-19 Table 7.6.1.1 at
+ * fy 420; less for stronger bars, so the mesh suits them too), at a spacing of at most
+ * min(3h, 450 mm) (ACI 318-19 7.7.2.3) and at least 125 mm, in steps of 25 mm: what the
+ * backend's `minimum_mesh` gives a foundation without bars.
+ */
+export function minimumMesh(thickness: number): IBarMesh {
+	const need = 0.0018 * thickness * 1000;
+	const limit = Math.floor(Math.min(3 * thickness, 450) / 25) * 25;
+	for (const dia of MESH_DIAS) {
+		const spacing = Math.min(Math.floor(Math.PI * dia * dia / 4 * 1000 / need / 25) * 25, limit);
+		if (spacing >= 125) {
+			return { dia, spacing };
+		}
+	}
+	return { dia: 25, spacing: Math.max(Math.floor(Math.PI * 25 * 25 / 4 * 1000 / need / 25) * 25, 75) };
+}
+
+/**
+ * The reinforcement a new foundation of `thickness` starts with: the minimum mesh both ways at
+ * the bottom ({@link minimumMesh}), and at the top too for a raft (it hogs between the
+ * columns), 75 mm cover.
+ */
+export function defaultReinforcement(context: ISiteContext, thickness = 450, top = false): IPlanarReinforcement {
+	const mesh = minimumMesh(thickness);
+	const reinforcement: IPlanarReinforcement = { cover: 75, bottomX: { ...mesh }, bottomY: { ...mesh }, ...(top ? { topX: { ...mesh }, topY: { ...mesh } } : {}) };
 	return context.barMaterial ? { material: context.barMaterial, ...reinforcement } : reinforcement;
 }
 
@@ -539,7 +577,7 @@ function base(document: ISubstructure, context: ISiteContext, type: FoundationTy
 	if (context.defaultMaterial) {
 		foundation.material = context.defaultMaterial;
 	}
-	foundation.reinforcement = defaultReinforcement(context);
+	foundation.reinforcement = defaultReinforcement(context, num(foundation.thickness, 450), type === 'raft');
 	return foundation;
 }
 
@@ -575,12 +613,71 @@ export function newPileCap(document: ISubstructure, context: ISiteContext, colum
 	return base(document, context, 'pileCap', columns, { ...capSize(piles, pileType.diameter), pileType: pileType.id, piles });
 }
 
-/** A pile type to start with: bored, 500 mm, 18 m. */
+/**
+ * BNBC 2020 Part 6 Table 6.3.11 (guidance for bored piles, compression only, fy 420): the least
+ * bars and hoops by diameter, as [largest diameter, bars, bar Ø, hoop Ø, hoop spacing] in mm (the
+ * rows of the backend's `min_reinforcement_note`).
+ */
+const PILE_BARS: readonly (readonly [number, number, number, number, number])[] = [
+	[450, 6, 16, 8, 200], [600, 8, 16, 8, 250], [900, 10, 16, 10, 300], [1200, 12, 16, 10, 300],
+	[1800, 12, 20, 10, 400], [2100, 16, 20, 10, 400], [2400, 16, 25, 12, 500],
+];
+
+/** The bars a pile of `diameter` starts with: BNBC 2020 Part 6 Table 6.3.11's, 75 mm cover. */
+export function defaultPileReinforcement(diameter: number, context: ISiteContext): IPileReinforcement {
+	const [, count, dia, hoop, spacing] = PILE_BARS.find(row => diameter <= row[0] + 1e-6) ?? PILE_BARS[PILE_BARS.length - 1];
+	const reinforcement: IPileReinforcement = { cover: 75, longitudinal: [{ position: 'perimeter', count, dia }], transverse: { type: 'tie', dia: hoop, spacing } };
+	return context.barMaterial ? { material: context.barMaterial, ...reinforcement } : reinforcement;
+}
+
+/** "8Ø16" for a pile's longitudinal bars; empty without any. */
+export function formatPileBars(reinforcement: IPileReinforcement | undefined): string {
+	return (reinforcement?.longitudinal ?? []).map(g => `${g.count}Ø${formatNumber(g.dia, 0)}`).join(' + ');
+}
+
+/** Reads "8Ø16" (also "8T16", "8#16", "8-16", "8 x 16"); empty clears it. */
+export function parsePileBars(text: string): { value?: { count: number; dia: number }; error?: string } {
+	const trimmed = text.trim();
+	if (!trimmed) {
+		return {};
+	}
+	const match = /^(?<count>\d+)\s*(?:[ØøT#x×-]|\s)\s*(?<dia>\d+(?:\.\d+)?)\s*(?:mm)?$/i.exec(trimmed);
+	const count = Number(match?.groups?.count);
+	const dia = Number(match?.groups?.dia);
+	if (!match || !(count >= 4) || !(dia > 0)) {
+		return { error: localize('sub.v.pileBars', "Write the bars as count Ø diameter, at least 4 bars, e.g. 8Ø16.") };
+	}
+	return { value: { count, dia } };
+}
+
+/** "Ø8@250" for a pile's ties (a spiral: "spiral Ø8@75"); empty without. */
+export function formatPileTies(reinforcement: IPileReinforcement | undefined): string {
+	const t = reinforcement?.transverse;
+	return t ? `${t.type === 'spiral' ? 'spiral ' : ''}Ø${formatNumber(t.dia, 0)}@${formatNumber(t.spacing, 0)}` : '';
+}
+
+/** Reads "Ø8@250" or "spiral Ø8@75"; empty clears it. */
+export function parsePileTies(text: string): { value?: { type: 'tie' | 'spiral'; dia: number; spacing: number }; error?: string } {
+	const trimmed = text.trim();
+	if (!trimmed) {
+		return {};
+	}
+	const match = /^(?<spiral>spiral\s*)?[ØøT#]?\s*(?<dia>\d+(?:\.\d+)?)\s*(?:@|\/)\s*(?<spacing>\d+(?:\.\d+)?)\s*(?:mm)?$/i.exec(trimmed);
+	const dia = Number(match?.groups?.dia);
+	const spacing = Number(match?.groups?.spacing);
+	if (!match || !(dia > 0) || !(spacing > 0)) {
+		return { error: localize('sub.v.pileTies', "Write the ties as Ø diameter @ spacing in mm, e.g. Ø8@250, or spiral Ø8@75.") };
+	}
+	return { value: { type: match.groups?.spiral ? 'spiral' : 'tie', dia, spacing } };
+}
+
+/** A pile type to start with: bored, 500 mm, 18 m, with the bars of BNBC 2020 Part 6 Table 6.3.11. */
 export function newPileType(document: ISubstructure, context: ISiteContext): IPileType {
 	const pile: IPileType = { id: nextId('P', document.pileTypes.map(p => p.id)), kind: 'bored', diameter: 500, length: 18000 };
 	if (context.defaultMaterial) {
 		pile.material = context.defaultMaterial;
 	}
+	pile.reinforcement = defaultPileReinforcement(pile.diameter, context);
 	return pile;
 }
 
@@ -614,6 +711,18 @@ export function applyPileLayout(foundation: IFoundation, pileType: IPileType, co
 /** The column bases no foundation carries (a raft carries those inside its outline). */
 export function uncoveredColumns(document: ISubstructure, context: ISiteContext): IColumnBase[] {
 	return context.columns.filter(c => !document.foundations.some(f => f.columns?.includes(c.id) || f.type === 'raft' && !(f.columns?.length) && f.outline && insidePolygon([c.x, c.y], f.outline)));
+}
+
+/**
+ * The ids of the columns and walls on the base level that no foundation carries: the columns of
+ * {@link uncoveredColumns} and the walls no strip footing lists (nor a raft holds the middle of).
+ */
+export function uncoveredBases(document: ISubstructure, context: ISiteContext): string[] {
+	const walls = context.walls.filter(w => {
+		const middle: Point = [(w.start[0] + w.end[0]) / 2, (w.start[1] + w.end[1]) / 2];
+		return !document.foundations.some(f => f.columns?.includes(w.id) || f.type === 'raft' && !(f.columns?.length) && f.outline && insidePolygon(middle, f.outline));
+	});
+	return [...uncoveredColumns(document, context).map(c => c.id), ...walls.map(w => w.id)];
 }
 
 /** Whether `point` is inside the polygon (even-odd). */
@@ -843,6 +952,11 @@ export function checkSubstructure(document: ISubstructure, context: ISiteContext
 		if (!PILE_KINDS.includes(p.kind)) {
 			error(at('kind'), localize('sub.p.kind', "{0}: the pile is bored or driven.", p.id));
 		}
+		if (p.reinforcement && !p.reinforcement.material) {
+			error(at('reinforcement.material'), localize('sub.p.pileBarMaterial', "{0}: the pile's bars need a rebar material (03 Materials).", p.id));
+		} else if (!p.reinforcement?.longitudinal?.length) {
+			warning(at('reinforcement'), localize('sub.p.pilePlain', "{0}: no bars: the pile is checked as plain concrete and cannot carry tension. BNBC 2020 Part 6 Table 6.3.11 gives the least bars of a bored pile.", p.id));
+		}
 		if (!p.material) {
 			error(at('material'), localize('sub.p.pileMaterial', "{0}: choose the pile's concrete.", p.id));
 		} else if (concrete.size && !concrete.has(p.material)) {
@@ -997,6 +1111,8 @@ export interface IRaftResult {
 	readonly differentialSettlement?: number;
 	readonly angularDistortion?: number;
 	readonly combination?: string;
+	/** Contact pressure [kPa] and settlement [mm] at each column the raft carries. */
+	readonly columns?: readonly { readonly id: string; readonly x: number; readonly y: number; readonly pressure?: number; readonly settlement?: number }[];
 }
 
 /** One pile type's capacity at one borehole [kN]. */
@@ -1036,7 +1152,19 @@ export interface ISubstructureReport {
 	/** Foundations and tie beams not designed, and why. */
 	readonly skipped: readonly { readonly id: string; readonly type: string; readonly reason: string }[];
 	readonly pileCapacities: readonly IPileCapacity[];
-	readonly summary: { readonly checked: number; readonly passed: number; readonly failed: number; readonly maxUtilisation: number | null; readonly governing: string | null };
+	readonly summary: {
+		readonly checked: number;
+		/** Foundations and tie beams in the file the backend checked: the checked ones and the skipped ones. */
+		readonly total: number;
+		readonly passed: number;
+		readonly failed: number;
+		readonly maxUtilisation: number | null;
+		readonly governing: string | null;
+		/** Columns and walls on the base level that no foundation carries. */
+		readonly unsupported: readonly string[];
+		/** The backend's verdict: pass only when all were checked, all pass and nothing is unsupported. */
+		readonly status: SubstructureCheckStatus;
+	};
 	readonly notes: readonly string[];
 	readonly method: readonly string[];
 	/**
@@ -1106,6 +1234,9 @@ function readRaft(raw: unknown): IRaftResult | undefined {
 		differentialSettlement: optionalNumber(raw.differentialSettlement ?? summary.maxDifferential),
 		angularDistortion: optionalNumber(raw.angularDistortion ?? summary.maxAngularDistortion),
 		combination: optionalString(raw.combination) ?? optionalString(summary.maxPressureCombination),
+		columns: records(raw.columns).filter(c => typeof c.x === 'number' && typeof c.y === 'number').map(c => ({
+			id: String(c.id ?? ''), x: num(c.x), y: num(c.y), pressure: optionalNumber(c.pressure), settlement: optionalNumber(c.settlement),
+		})),
 	};
 }
 
@@ -1117,11 +1248,13 @@ function readCapacity(row: Record<string, unknown>, pileType: string, borehole: 
 	return {
 		pileType,
 		borehole,
-		skin: optionalNumber(row.skin ?? row.Qs),
-		base: optionalNumber(row.base ?? row.Qb),
-		ultimate: optionalNumber(row.ultimate ?? row.Qult),
-		compression: optionalNumber(row.compression ?? row.allowable ?? row.Qa),
-		uplift: optionalNumber(row.uplift ?? row.Ta),
+		// The backend's pile has `base` as the tip layer's details (an object): each number is
+		// taken from the first of the names that holds one.
+		skin: optionalNumber(row.skin) ?? optionalNumber(row.Qs),
+		base: optionalNumber(row.base) ?? optionalNumber(row.Qb),
+		ultimate: optionalNumber(row.ultimate) ?? optionalNumber(row.Qult),
+		compression: optionalNumber(row.compression) ?? optionalNumber(row.allowable) ?? optionalNumber(row.Qa),
+		uplift: optionalNumber(row.uplift) ?? optionalNumber(row.Ta),
 		method: optionalString(row.method) ?? optionalString(row.methodText),
 		note: optionalString(row.note),
 	};
@@ -1212,16 +1345,30 @@ export function readSubstructureReport(raw: unknown): ISubstructureReport | unde
 		tieBeams,
 		skipped,
 		pileCapacities,
-		summary: {
-			checked: optionalNumber(summary.checked) ?? designed.length,
-			passed: optionalNumber(summary.passed) ?? designed.length - failed,
-			failed: optionalNumber(summary.failed) ?? failed,
-			maxUtilisation: nullableNumber(summary.maxUtilisation) ?? worst?.utilisation ?? null,
-			governing: typeof summary.governing === 'string' ? summary.governing : worst?.id ?? null,
-		},
+		summary: readSummary(summary, designed.length, failed, skipped.length, worst),
 		notes: strings(raw.notes),
 		method: strings(raw.method),
 		sources: isRecord(raw.sources) ? Object.fromEntries(Object.entries(raw.sources).filter((e): e is [string, string] => typeof e[1] === 'string')) : undefined,
+	};
+}
+
+function readSummary(summary: Record<string, unknown>, designed: number, failedCount: number, skippedCount: number, worst: IFoundationResult | undefined): ISubstructureReport['summary'] {
+	const checked = optionalNumber(summary.checked) ?? designed;
+	const failed = optionalNumber(summary.failed) ?? failedCount;
+	const total = optionalNumber(summary.total) ?? checked + (optionalNumber(summary.skipped) ?? skippedCount);
+	const unsupported = strings(summary.unsupported);
+	const given = summary.status;
+	const status: SubstructureCheckStatus = given === 'pass' || given === 'fail' || given === 'incomplete' || given === 'none' ? given
+		: failed ? 'fail' : !checked ? 'none' : checked < total || unsupported.length ? 'incomplete' : 'pass';
+	return {
+		checked,
+		total,
+		passed: optionalNumber(summary.passed) ?? checked - failed,
+		failed,
+		maxUtilisation: nullableNumber(summary.maxUtilisation) ?? worst?.utilisation ?? null,
+		governing: typeof summary.governing === 'string' ? summary.governing : worst?.id ?? null,
+		unsupported,
+		status,
 	};
 }
 
@@ -1393,7 +1540,7 @@ export function formatUtilisation(value: number): string {
 }
 
 /** The largest service pressure of all footings with the allowable at that footing. */
-export function maxPressure(report: ISubstructureReport): { pressure: number; allowable?: number; id: string } | undefined {
+export function maxPressure(report: Pick<ISubstructureReport, 'foundations'>): { pressure: number; allowable?: number; id: string } | undefined {
 	let best: { pressure: number; allowable?: number; id: string } | undefined;
 	for (const f of report.foundations) {
 		// The net pressure against qa of every foundation (a raft's too, not its gross maximum).
@@ -1405,13 +1552,128 @@ export function maxPressure(report: ISubstructureReport): { pressure: number; al
 	return best;
 }
 
-/** "6 foundations · 2 fail · max pressure 142 kPa (qa 150)" for the status line. */
-export function substructureSummary(document: ISubstructure, report: ISubstructureReport | undefined): string {
+/**
+ * Pass only when every foundation and tie beam was checked, all pass and every column and wall
+ * stands on a foundation; fail when a check fails; incomplete when some were not checked (or
+ * changed since), or columns or walls have no foundation; none when nothing was checked.
+ */
+export type SubstructureCheckStatus = 'pass' | 'fail' | 'incomplete' | 'none';
+
+/**
+ * How far the checks cover the document: of the `total` foundations and tie beams, `checked`
+ * have a result for exactly what is in the document now (`failed` of them fail), `stale` have a
+ * result for what they were before an edit, and `notChecked` have none (skipped by the design,
+ * with the reason in the report). `unsupported`: columns and walls without a foundation. The one
+ * place that decides "all pass": the status line, the Results view and the part list's summary
+ * file all read it.
+ */
+export interface ISubstructureCheckState {
+	readonly total: number;
+	readonly checked: number;
+	readonly failed: number;
+	readonly stale: number;
+	readonly notChecked: number;
+	readonly unsupported: readonly string[];
+	readonly status: SubstructureCheckStatus;
+}
+
+/** `value` as JSON with every object's keys sorted, so equal values give equal text. */
+function canonical(value: unknown): string {
+	return JSON.stringify(value, (_key, v) => isRecord(v) ? Object.fromEntries(Object.keys(v).sort().map(k => [k, v[k]])) : v);
+}
+
+/**
+ * What a foundation's checks depend on in the document: the foundation itself (not its note), its
+ * pile type and the design options. A result checked for one signature does not describe a
+ * foundation with another.
+ */
+export function foundationSignature(document: ISubstructure, foundation: IFoundation): string {
+	const { note: _note, ...rest } = foundation;
+	const pile = foundation.type === 'pileCap' ? document.pileTypes.find(p => p.id === foundation.pileType) : undefined;
+	return canonical({ foundation: rest, pile, design: document.design });
+}
+
+/** What a tie beam's checks depend on: itself and the foundations at its ends. */
+export function tieBeamSignature(document: ISubstructure, tie: ITieBeam): string {
+	const end = (id: string) => {
+		const f = document.foundations.find(x => x.id === id);
+		return f ? foundationSignature(document, f) : '';
+	};
+	return canonical({ tie, from: end(tie.from), to: end(tie.to) });
+}
+
+/** The signatures of every foundation and tie beam of `document`, by `f:<id>` and `t:<id>`. */
+export function documentSignatures(document: ISubstructure): Map<string, string> {
+	const signatures = new Map<string, string>();
+	for (const f of document.foundations) {
+		signatures.set(`f:${f.id}`, foundationSignature(document, f));
+	}
+	for (const t of document.tieBeams) {
+		signatures.set(`t:${t.id}`, tieBeamSignature(document, t));
+	}
+	return signatures;
+}
+
+/**
+ * The coverage of `report` over `document`. `checkedFor` holds the signatures (see
+ * {@link documentSignatures}) of the document the report was computed for: a result whose
+ * foundation or tie beam has another signature now is stale. Without it every result counts.
+ * `unsupported` replaces the report's columns and walls without a foundation (the editor knows
+ * them for the document as edited).
+ */
+export function substructureCheckState(document: ISubstructure, report: ISubstructureReport | undefined, checkedFor?: ReadonlyMap<string, string>, unsupported?: readonly string[]): ISubstructureCheckState {
+	const now = documentSignatures(document);
+	let checked = 0;
+	let failed = 0;
+	let stale = 0;
+	const count = (key: string, result: IFoundationResult | undefined) => {
+		if (!result) {
+			return;
+		}
+		if (checkedFor && checkedFor.get(key) !== now.get(key)) {
+			stale++;
+			return;
+		}
+		checked++;
+		if (!result.ok) {
+			failed++;
+		}
+	};
+	for (const f of document.foundations) {
+		count(`f:${f.id}`, report?.foundations.find(r => r.id === f.id));
+	}
+	for (const t of document.tieBeams) {
+		count(`t:${t.id}`, report?.tieBeams.find(r => r.id === t.id));
+	}
+	const total = document.foundations.length + document.tieBeams.length;
+	const missing = unsupported ?? report?.summary.unsupported ?? [];
+	const status: SubstructureCheckStatus = failed ? 'fail' : !checked ? 'none' : checked < total || missing.length ? 'incomplete' : 'pass';
+	return { total, checked, failed, stale, notChecked: total - checked - stale, unsupported: missing, status };
+}
+
+/** "6 of 7 checked · 1 fail · 1 not checked" for the status line and the Results view. */
+export function checkStateText(state: ISubstructureCheckState): string {
+	const parts = [localize('sub.checkedOf', "{0} of {1} checked", state.checked, state.total)];
+	if (state.failed) {
+		parts.push(localize('sub.fail', "{0} fail", state.failed));
+	} else if (state.status === 'pass') {
+		parts.push(localize('sub.allPass', "all pass"));
+	}
+	if (state.stale) {
+		parts.push(state.stale === 1 ? localize('sub.staleOne', "1 changed since checked") : localize('sub.stale', "{0} changed since checked", state.stale));
+	}
+	if (state.notChecked) {
+		parts.push(localize('sub.notCheckedCount', "{0} not checked", state.notChecked));
+	}
+	return parts.join(' · ');
+}
+
+/** "6 foundations · 7 of 7 checked · 1 fail · max pressure 142 kPa (qa 150)" for the status line. */
+export function substructureSummary(document: ISubstructure, report: ISubstructureReport | undefined, state?: ISubstructureCheckState): string {
 	const count = document.foundations.length;
 	const parts = [count === 1 ? localize('sub.oneFoundation', "1 foundation") : localize('sub.foundations', "{0} foundations", count)];
 	if (report) {
-		const failed = report.summary.failed;
-		parts.push(failed ? localize('sub.fail', "{0} fail", failed) : localize('sub.allPass', "all pass"));
+		parts.push(checkStateText(state ?? substructureCheckState(document, report)));
 		const pressure = maxPressure(report);
 		if (pressure) {
 			parts.push(typeof pressure.allowable === 'number'
@@ -1422,12 +1684,21 @@ export function substructureSummary(document: ISubstructure, report: ISubstructu
 	return parts.join(' · ');
 }
 
-/** Content of {@link SUBSTRUCTURE_SUMMARY_FILE}, read by the project's part list. */
+/**
+ * Content of {@link SUBSTRUCTURE_SUMMARY_FILE}, read by the project's part list. The part's
+ * status comes from `status` (with `checked` of `total`): "pass" only when every foundation and
+ * tie beam was checked, all pass and every column and wall stands on a foundation.
+ */
 export interface ISubstructureSummaryFile {
 	readonly foundations: number;
 	readonly checked: number;
+	/** Foundations and tie beams in the file: `checked` of `total` were checked. */
+	readonly total: number;
 	readonly passed: number;
 	readonly failed: number;
+	/** Columns and walls without a foundation. */
+	readonly unsupported: readonly string[];
+	readonly status: SubstructureCheckStatus;
 	readonly maxUtilisation: number | null;
 	readonly governing: string | null;
 	/** ISO time the checks were computed. */
@@ -1436,7 +1707,13 @@ export interface ISubstructureSummaryFile {
 	readonly source?: { readonly [part: string]: string };
 }
 
+/** The summary file of `report`, the checks of the saved `document`. */
 export function substructureSummaryFile(document: ISubstructure, report: ISubstructureReport, computed: Date): ISubstructureSummaryFile {
-	const { checked, passed, failed, maxUtilisation, governing } = report.summary;
-	return { foundations: document.foundations.length, checked, passed, failed, maxUtilisation, governing, computed: computed.toISOString(), source: report.sources };
+	const { maxUtilisation, governing } = report.summary;
+	const state = substructureCheckState(document, report);
+	return {
+		foundations: document.foundations.length, checked: state.checked, total: state.total, passed: state.checked - state.failed, failed: state.failed,
+		unsupported: state.unsupported, status: state.status,
+		maxUtilisation, governing, computed: computed.toISOString(), source: report.sources,
+	};
 }

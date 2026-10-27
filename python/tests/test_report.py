@@ -20,7 +20,16 @@ from saengine.library.bim import generate
 from saengine.library.settings import LoadCombination
 from saengine.pipeline import design_mode
 from saengine.report import build_report, report_data
-from saengine.report.build import _boq, _Parts, count_pages, fmt, project_name
+from saengine.report.build import (
+    DERIVATION_FILE,
+    _boq,
+    _Parts,
+    count_pages,
+    design_status,
+    fmt,
+    project_name,
+    summary_file,
+)
 
 #: Typst markup characters in the project's name: they must be printed, not interpreted.
 NAME = 'Bay #1 $x$ *bold* _it_ @ref <lbl> [b] \\ "q" // c'
@@ -284,6 +293,11 @@ def test_build_report_writes_the_pdf(project: Path) -> None:
         assert "Bay #1 $x$ *bold* _it_ @ref <lbl> [b]" in text
         assert "FAIL" in text and "Total" in text
 
+    # The design result for the Exports row, beside the PDF.
+    summary = json.loads(summary_file(pdf).read_text(encoding="utf-8"))
+    assert summary["state"] == "fail" and summary["failed"] > 0
+    assert summary == {**result["status"], "warnings": len(result["warnings"])}
+
     other = build_report(project, project / "elsewhere" / "r.pdf")
     assert Path(other["path"]).read_bytes().startswith(b"%PDF")
 
@@ -328,7 +342,10 @@ def test_soil_and_foundations_chapter(project: Path, tmp_path: Path) -> None:
     _write(copy, {"01 Soil Report/soil-report.json": '{"schema": 1, "part": "soil"}'})
     data = report_data(copy)
     assert data["soil"] == {"available": False, "notes": []}
-    assert dict(data["basis"]["site"])["Site class (Table 6.2.13)"] == "SD (entered)"
+    # The settings take the class from the soil report, which gives none: assumed, not entered.
+    assert dict(data["basis"]["site"])["Site class (Table 6.2.13)"] == (
+        "SD, assumed (Project Settings; the soil report has no boreholes)"
+    )
 
     # N = 8 throughout: SD, the class the model was derived with (entered): still current.
     _write(copy, {"01 Soil Report/soil-report.json": soil_text(8)})
@@ -436,3 +453,54 @@ def test_section_stiffness_is_read_from_the_analysed_model(
     settings = SETTINGS.model_copy(update={"analysis": analysis})
     d = derive_fem(generate(PLAN, "s"), reinforced(), default_material_library(), settings, None)
     assert _analysed_stiffness(d.project, _Parts(project, [])) == expected
+
+
+def test_the_report_reuses_the_kept_checks_and_derivation(
+    project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """R3: the report takes Run All's design checks (design-report.json) and the derivation's
+    notes kept beside the model instead of designing and deriving again."""
+    import saengine.design as design_module
+    import saengine.fem.derive as derive_module
+
+    copy = tmp_path / "copy"
+    shutil.copytree(project, copy)
+    results, model = copy / "08 FEM/model.results", copy / "08 FEM/model.osmodel"
+    design_mode.forget()
+    kept = design_mode.checks(results, model)
+    kept["elements"][0]["id"] = "KEPT1"  # to tell the kept checks from new ones
+    design_mode.keep_report(results, model, kept, design_mode.report_stamp(results, model))
+    design_mode.forget()
+    first = report_data(copy)
+    assert (copy / DERIVATION_FILE).is_file()  # derived once, kept for the next report
+
+    def refuse(*args: object, **kwargs: object) -> None:
+        raise AssertionError("designed or derived again")
+
+    monkeypatch.setattr(design_module, "design_report", refuse)
+    monkeypatch.setattr(derive_module, "derive_fem", refuse)
+    again = report_data(copy)
+    ids = [row[0] for t in again["design"]["tables"] for row in t["rows"]]
+    assert "KEPT1" in ids
+    assert again["model"]["derived"] == first["model"]["derived"] != []
+    assert not [w for w in again["warnings"] if "could not" in w]
+
+
+def test_design_status_on_the_cover() -> None:
+    def status(design: dict, foundations: dict | None = None) -> dict:
+        return design_status({"design": design, "foundations": foundations or {}})
+
+    fails = status(
+        {"available": True, "checked": 18, "failed": 15},
+        {"available": True, "checked": 4, "failed": 1},
+    )
+    assert fails["state"] == "fail"
+    assert fails["headline"] == (
+        "DESIGN FAILS: 15 of 18 members fail their design checks; 1 of 4 foundations or tie "
+        "beams fail."
+    )
+    assert status({"available": True, "checked": 3, "failed": 0})["headline"] == (
+        "Design checks pass: all 3 members."
+    )
+    unchecked = status({"available": False, "problem": "no code pack"})
+    assert unchecked["state"] == "unchecked" and "no code pack" in unchecked["headline"]

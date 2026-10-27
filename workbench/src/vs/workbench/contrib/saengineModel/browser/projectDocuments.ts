@@ -18,7 +18,7 @@ import { ISaengineProjectService, partById } from '../../../services/saenginePro
 import { IProjectDocuments } from './modelData.js';
 
 /** The part files the views read; a project has the floor plan or the structural model. */
-const PARTS = ['floorPlan', 'structure', 'objects', 'materials', 'bim'] as const;
+const PARTS = ['floorPlan', 'structure', 'objects', 'materials', 'bim', 'mep'] as const;
 
 /** The grids and stories form for the floor plan (registered by the library editors). */
 const GRIDS_EDITOR_ID = 'workbench.editor.saengine.grids';
@@ -65,6 +65,7 @@ export class ProjectDocuments extends Disposable {
 			objects: parse(this.models.get('objects')),
 			materials: parse(this.models.get('materials')),
 			bim: parse(this.models.get('bim')),
+			mep: parse(this.models.get('mep')),
 		};
 	}
 
@@ -110,7 +111,8 @@ export interface IRevealEntryOptions {
 
 /**
  * Opens the editor that owns what `selection` describes: the Floor Plan for members and
- * stories, the Grids & Stories form for grid lines, and the Object Types editor for types.
+ * stories, the Grids & Stories form for grid lines, the Object Types editor for types, and the
+ * BIM and MEP editors for theirs.
  */
 export async function openOwner(selection: ModelSelection | undefined, part: string | undefined, root: URI | undefined, editorService: IEditorService): Promise<void> {
 	if (!root) {
@@ -122,8 +124,8 @@ export async function openOwner(selection: ModelSelection | undefined, part: str
 		await editorService.openEditor({ resource: partFile(root, 'objects'), options });
 	} else if (kind === 'gridLine' || (!kind && part === 'grids')) {
 		await editorService.openEditor({ resource: partFile(root, 'floorPlan'), options: { override: GRIDS_EDITOR_ID } }, SIDE_GROUP);
-	} else if (part === 'bim') {
-		await editorService.openEditor({ resource: partFile(root, 'bim') });
+	} else if (part === 'bim' || part === 'mep') {
+		await editorService.openEditor({ resource: partFile(root, part) });
 	} else if (part === 'structure') {
 		await editorService.openEditor({ resource: partFile(root, 'structure') });
 	} else {

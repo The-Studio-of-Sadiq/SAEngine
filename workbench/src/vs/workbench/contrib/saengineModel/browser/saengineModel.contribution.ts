@@ -15,6 +15,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { Extensions as ViewExtensions, IViewContainersRegistry, IViewsRegistry, ViewContainerLocation } from '../../../common/views.js';
 import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
 import { ModelExplorerView } from './modelExplorerView.js';
+import { ProjectCodeStiffnessContribution } from './projectCodeStiffness.js';
 
 /** True while a SAEngine project is open. */
 const ProjectOpenContext = new RawContextKey<boolean>('saengineProjectOpen', false, localize('saengineProjectOpen', "Whether a SAEngine project is open"));
@@ -57,7 +58,8 @@ function registerExplorer(): void {
 		canMoveView: true,
 		canToggleVisibility: true,
 		collapsed: true,
-		weight: 40,
+		// Opened, it takes a third of the sidebar: the Parts list above keeps most of it at 1366×768.
+		weight: 10,
 		order: 10,
 	}], projectContainer ?? modelContainer);
 }
@@ -91,3 +93,5 @@ class ProjectOpenContextContribution extends Disposable implements IWorkbenchCon
 }
 
 registerWorkbenchContribution2(ProjectOpenContextContribution.ID, ProjectOpenContextContribution, WorkbenchPhase.BlockRestore);
+
+registerWorkbenchContribution2(ProjectCodeStiffnessContribution.ID, ProjectCodeStiffnessContribution, WorkbenchPhase.AfterRestored);

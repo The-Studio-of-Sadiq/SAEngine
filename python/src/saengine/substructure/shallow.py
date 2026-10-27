@@ -53,6 +53,12 @@ from saengine.library.settings import Foundation
 from saengine.substructure.loads import column_action, combine
 
 G = 9.80665
+#: The least share of a footing's base in contact under a service combination before it is
+#: reported as a stability failure (close to overturning) rather than as a high bearing
+#: pressure: a limit of practice, not a clause of BNBC 2020 or ACI 318.
+MIN_CONTACT = 0.25
+#: A service combination with wind or earthquake (its name names the case: WX, WTY, EX...).
+LATERAL = re.compile(r"\b[\d.]*(W|E)T?[XY]\b")
 
 SHALLOW_METHOD = [
     (
@@ -640,6 +646,8 @@ def design_footing(
     # with the eccentricity against the half side (the bearing check takes the other cases).
     outside: tuple[float, float, float, str, str] | None = None  # (ratio, e, half, name, note)
     uplift: tuple[float, str] | None = None  # (upward force N, name)
+    least: tuple[float, str, str] | None = None  # (share of the base in contact, name, note)
+    lifted: tuple[float, str] | None = None  # gravity only: (share in contact, name)
     for name, loads in service.items():
         pressure = _contact(spec, loads, own_weight)
         note = f"eu = {pressure.eu:.0f} mm, ev = {pressure.ev:.0f} mm"
@@ -662,8 +670,12 @@ def design_footing(
             net = pressure.qmax - overburden
             utilisation = net / qa if qa else 0.0
             note = f"gross qmax = {pressure.qmax * 1e3:.0f} kPa, " + note
-            if pressure.state == "partial":
-                note += f"; partial contact over {pressure.contact:.0%} of the base"
+            if pressure.state == "partial" and pressure.contact < 0.995:
+                note += f"; partial contact: only {pressure.contact:.0%} of the base"
+                if not LATERAL.search(name) and (lifted is None or pressure.contact < lifted[0]):
+                    lifted = (pressure.contact, name)
+                if least is None or pressure.contact < least[0]:
+                    least = (pressure.contact, name, note)
         if (
             worst is None
             or utilisation > worst[0]
@@ -681,6 +693,21 @@ def design_footing(
                 name,
                 note + "; the resultant lies outside the base: enlarge the footing or tie it",
                 utilisation=ratio,
+            )
+        )
+    if least is not None and least[0] < MIN_CONTACT:
+        share, name, note = least
+        checks.append(
+            _check(
+                "Base in contact (service, stability)",
+                share * 100,
+                MIN_CONTACT * 100,
+                "%",
+                name,
+                f"{note}: the footing is close to overturning and the bearing pressure on the "
+                f"small part in contact is not meaningful; at least {MIN_CONTACT:.0%} of the base "
+                "should stay in contact: enlarge the footing, deepen it or tie it",
+                utilisation=MIN_CONTACT / max(share, 1e-6),
             )
         )
     if uplift is not None:
@@ -1002,6 +1029,23 @@ def design_footing(
                 "mm²/m",
                 None,
                 note,
+            )
+        )
+    # Reported only, after the checks that count.
+    if lifted is not None:
+        share, name = lifted
+        checks.append(
+            _check(
+                "Full contact under gravity (service)",
+                share * 100,
+                100.0,
+                "%",
+                name,
+                f"under gravity alone only {share:.0%} of the base presses on the soil (the "
+                "resultant lies outside the kern): the footing tilts under its sustained load. "
+                "Reported only; the sizing assistant keeps the whole base in contact under gravity",
+                flag=True,
+                utilisation=1.0 / max(share, 1e-6),
             )
         )
     return checks, notes

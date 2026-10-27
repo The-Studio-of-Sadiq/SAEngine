@@ -59,7 +59,14 @@ BAR_DIAS = (12.0, 16.0, 20.0, 25.0)
 OVERHANG = 300.0
 
 SHEAR_CHECKS = ("Punching at", "One-way shear")
-BEARING_CHECKS = ("Bearing (service)", "Resultant within the base (service)")
+BEARING_CHECKS = (
+    "Bearing (service)",
+    "Resultant within the base (service)",
+    "Base in contact (service, stability)",
+    # Reported only in the design, but a proposed footing keeps its whole base in contact under
+    # the gravity combinations (no tilting under the sustained load).
+    "Full contact under gravity (service)",
+)
 
 
 def _round_up(value: float, step: float = STEP) -> float:

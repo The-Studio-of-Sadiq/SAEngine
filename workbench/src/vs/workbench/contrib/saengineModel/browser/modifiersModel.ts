@@ -196,18 +196,38 @@ export function readCrackedFactors(table: unknown): ICrackedFactors | undefined 
 	return { column, beam, plate, wall, ...(wallUncracked !== undefined ? { wallUncracked } : {}) };
 }
 
+/** The open project's settings and code pack table, as projectCodeStiffness.ts last read them. */
+export interface IProjectCode {
+	readonly settings?: unknown;
+	readonly crackedTable?: unknown;
+	readonly packName?: string;
+}
+
+let projectCode: IProjectCode = {};
+
+/**
+ * Remembers the open project's settings and its code pack's cracked table (set by
+ * projectCodeStiffness.ts as the project opens and its settings are saved), for the editors that
+ * do not read them themselves; `{}` forgets them (no project).
+ */
+export function setProjectCode(code: IProjectCode): void {
+	projectCode = code;
+}
+
 /**
  * The code stiffness from the project settings (`analysis.stiffness`, `crackedFor`,
  * `wallsCracked`, with the defaults of saengine.library.settings) and the pack's cracked table.
+ * What is not given is taken from the open project (see {@link setProjectCode}).
  */
 export function readCodeStiffness(settings: unknown, crackedTable: unknown, packName?: string): ICodeStiffness {
+	settings ??= projectCode.settings;
 	const analysis = isObject(settings) && isObject(settings.analysis) ? settings.analysis : {};
 	return {
 		stiffness: analysis.stiffness === 'gross' ? 'gross' : 'aci',
 		crackedFor: analysis.crackedFor === 'all' ? 'all' : 'lateral',
 		wallsCracked: analysis.wallsCracked === true,
-		factors: readCrackedFactors(crackedTable),
-		packName,
+		factors: readCrackedFactors(crackedTable ?? projectCode.crackedTable),
+		packName: packName ?? projectCode.packName,
 	};
 }
 
@@ -428,6 +448,10 @@ export function commitField(row: IFieldRow, text: string): IFieldCommit {
 }
 
 export interface IModifiersView {
+	/** An object type, or placed members. */
+	readonly level: 'type' | 'member';
+	/** Which targets these are (their ids), so a field typed but not stored is kept only for them. */
+	readonly scope: string;
 	readonly modifiers: readonly IFieldRow[];
 	readonly overwrites: readonly IFieldRow[];
 	/** Whether any target has an own value in the group (for the "Reset" links). */
@@ -525,11 +549,13 @@ export function modifiersView(level: 'type' | 'member', targets: readonly IModif
 	const has = (group: FieldGroup) => targets.some(t => Object.keys(groupOf(t.own, group) ?? {}).length > 0);
 	const pack = code.packName ?? localize('modifiers.codePack', "code pack");
 	const note = code.stiffness === 'gross'
-		? localize('modifiers.noteGross', "Empty: the gross section (Project Settings → Analysis → Section stiffness is Gross). A value replaces it in every case.")
+		? localize('modifiers.noteGross', "Empty: the gross section (Project Settings → Analysis → Section stiffness is Gross). A value applies in every case, gravity and lateral.")
 		: code.crackedFor === 'lateral'
-			? localize('modifiers.noteLateral', "Empty: the {0} cracked factors for the lateral cases, the gross section for gravity. A value replaces the factor where it applies.", pack)
-			: localize('modifiers.noteAll', "Empty: the {0} cracked factors in every case. A value replaces the factor.", pack);
+			? localize('modifiers.noteLateral2', "Empty: the {0} cracked factors for the lateral cases, the gross section for gravity. A value replaces both: it applies in every case, gravity and lateral.", pack)
+			: localize('modifiers.noteAll2', "Empty: the {0} cracked factors in every case. A value replaces the factor in every case, gravity and lateral.", pack);
 	return {
+		level,
+		scope: `${level}:${targets.map(t => String(t.own.id ?? '')).join(',')}`,
 		modifiers,
 		overwrites,
 		hasModifiers: has('modifiers'),
@@ -537,6 +563,46 @@ export function modifiersView(level: 'type' | 'member', targets: readonly IModif
 		note: member ? `${note} ${localize('modifiers.noteMember', "A member's value wins over its object type's.")}` : note,
 		count: targets.length,
 	};
+}
+
+// ───────────────────────────── stored values ─────────────────────────────
+
+/** A stored value that cannot be used (typed into the JSON, or from an older file). */
+export interface IStoredFieldProblem {
+	/** The object type's or member's id. */
+	readonly id: string;
+	readonly group: FieldGroup;
+	readonly key: string;
+	readonly message: string;
+}
+
+/** The lists of a part's document that carry fields: the object types, or the floor plan's member groups. */
+export function fieldListsOf(part: 'objects' | 'floorPlan'): readonly string[] {
+	return part === 'objects' ? ['objects'] : GROUPS_WITH_FIELDS;
+}
+
+/**
+ * The stored modifiers and overwrites of `04 Objects/objects.json` (part 'objects') or
+ * `05 Floor Plan/floor-plan.json` ('floorPlan') that the panel's checks would refuse. The panel
+ * never stores such a value, so they come from a hand edit or an older file.
+ */
+export function storedFieldProblems(doc: unknown, part: 'objects' | 'floorPlan'): IStoredFieldProblem[] {
+	const problems: IStoredFieldProblem[] = [];
+	for (const record of fieldListsOf(part).flatMap(key => listOf(doc, key))) {
+		for (const group of ['modifiers', 'designOverwrites'] as const) {
+			for (const [key, value] of Object.entries(groupOf(record, group) ?? {})) {
+				const error = key === 'framing'
+					? (value === 'braced' || value === 'sway' || value === 'auto' ? undefined : localize('field.badFraming', "Framing must be Auto, Braced or Sway."))
+					: typeof value === 'number' ? checkField(group, key, String(value)).error
+						: localize('field.storedNotNumber', "Not a number.");
+				if (error) {
+					const id = String(record.id ?? '?');
+					problems.push({ id, group, key, message: localize('field.storedProblem', "{0}: {1}: {2}", id, fieldLabel(group, key), error) });
+				}
+			}
+		}
+	}
+	return problems;
 }
 
 // ───────────────────────────── targets from the documents ─────────────────────────────

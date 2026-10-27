@@ -81,8 +81,8 @@ def test_the_summaries_are_the_apps_with_current_stamps(ran):
     foundations = json.loads(
         (root / "09 Substructure/substructure.results/summary.json").read_text(encoding="utf-8")
     )
-    assert list(foundations) == ["foundations", "checked", "passed", "failed", "maxUtilisation",
-                                 "governing", "computed", "source"]  # fmt: skip
+    assert list(foundations) == ["foundations", "checked", "total", "passed", "failed", "unsupported",
+                                 "status", "maxUtilisation", "governing", "computed", "source"]  # fmt: skip
     project = open_project(root)
     for part, stamp in foundations["source"].items():
         text = project.text(part)
