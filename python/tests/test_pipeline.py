@@ -268,9 +268,12 @@ def test_summary_writers_have_the_app_keys_in_the_app_order():
         {"foundations": [{"id": "F1"}]},
         {"foundations": [{"id": "F1", "ok": False, "utilisation": 1.784}], "sources": {"soil": ""}},
     )
-    assert list(substructure) == ["foundations", "checked", "passed", "failed", "maxUtilisation",
-                                  "governing", "computed", "source"]  # fmt: skip
+    assert list(substructure) == ["foundations", "checked", "total", "passed", "failed", "unsupported",
+                                  "status", "maxUtilisation", "governing", "computed", "source"]  # fmt: skip
     assert (substructure["failed"], substructure["governing"]) == (1, "F1")
+    # Checked of total and the verdict the part list reads (U2).
+    verdict = (substructure["checked"], substructure["total"], substructure["status"])
+    assert verdict == (1, 1, "fail")
 
 
 # ─────────────────────────────── Run All ───────────────────────────────

@@ -15,18 +15,18 @@
 			"length": 2000,
 			"width": 1500,
 			"thickness": 500,
-			"foundingLevel": -500,
+			"foundingLevel": -1500,
 			"material": "C24.1",
 			"reinforcement": {
 				"material": "B420DWR",
 				"cover": 75,
 				"bottomX": {
 					"dia": 12,
-					"spacing": 150
+					"spacing": 125
 				},
 				"bottomY": {
 					"dia": 12,
-					"spacing": 150
+					"spacing": 125
 				}
 			},
 			"note": "From the footing F1 (Footing 2000x1500) of 6 BIM."

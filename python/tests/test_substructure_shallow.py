@@ -975,7 +975,13 @@ def test_strip_footing_under_the_wall_and_its_columns(wall_frame: Path) -> None:
     placed = place_footing(ctx, ctx.substructure.foundation("S1"))
     service, _ = footing_loads(ctx.loads, placed)
     assert sum(f[0] for f in service["D"]) == pytest.approx(total)
-    assert "C2: no foundation under it" in data["notes"]
+    assert "Column C2: no foundation under it" in data["notes"]
+    # U2: C2 stands on nothing, so the checks are not complete even when all pass.
+    summary = data["summary"]
+    assert summary["total"] == summary["checked"] + summary["skipped"]
+    assert summary["unsupported"] == ["C2"]
+    assert summary["complete"] is False
+    assert summary["status"] in ("fail", "incomplete")
 
 
 def test_migration_of_the_footings_drawn_in_the_building_model() -> None:
@@ -1107,3 +1113,41 @@ def test_sizing_assistant_combines_footings_that_would_overlap() -> None:
     h = combined["thickness"] / 1e3
     gross = 2500 / area + 2400 * G / 1e3 * h + 18 * (1.5 - h)
     assert bearing["demand"] == pytest.approx(gross - 27, rel=1e-3)
+
+
+def test_minimum_mesh_meets_the_minimum_steel() -> None:
+    from saengine.substructure.run import minimum_mesh
+
+    # The same meshes as the editor's minimumMesh (substructureDocument.test.ts).
+    meshes = {h: minimum_mesh(h) for h in (300, 450, 500, 600, 1000)}
+    assert meshes == {
+        300: {"dia": 12, "spacing": 200},
+        450: {"dia": 12, "spacing": 125},
+        500: {"dia": 12, "spacing": 125},
+        600: {"dia": 16, "spacing": 175},
+        1000: {"dia": 20, "spacing": 150},
+    }
+    for h, mesh in meshes.items():
+        assert math.pi * mesh["dia"] ** 2 / 4 * 1000 / mesh["spacing"] >= 0.0018 * h * 1000
+    # B500 bars: As,min = 0.0018 · 420 / 500 h = 0.001512 h.
+    assert minimum_mesh(600, 500) == {"dia": 16, "spacing": 200}
+
+
+def test_run_all_step_gives_footings_without_bars_the_minimum_mesh(frame: Path) -> None:
+    from saengine.substructure.run import design_foundations
+
+    bare = {k: v for k, v in footing("F1", ["C1"]).items() if k != "reinforcement"}
+    write_substructure(frame, {"schema": "saengine.substructure/1", "foundations": [bare]})
+    data = design_foundations(frame)
+    saved = json.loads((frame / SUBSTRUCTURE_FILE).read_text(encoding="utf-8"))
+    bars = saved["foundations"][0]["reinforcement"]
+    assert bars["bottomX"] == bars["bottomY"] == {"dia": 12, "spacing": 125}  # h = 500
+    summary = data["summary"]
+    assert summary["barsAdded"] == ["F1 12@125"]
+    assert summary["checked"] == summary["total"] == 1
+    # The other columns stand on nothing: designed, but not complete.
+    assert summary["status"] in ("incomplete", "fail") and summary["unsupported"]
+    assert data["notes"][0].startswith("Minimum bars added")
+    # Nothing to design: status none, not "pass".
+    write_substructure(frame, {"schema": "saengine.substructure/1", "foundations": []})
+    assert design_foundations(frame)["summary"]["status"] == "none"

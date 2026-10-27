@@ -733,6 +733,7 @@ def raft_design(
             context,
         )
         notes += [f"raft: {n}" for n in context.notes]
+        _needed_bars(spec, checks)
         checks += _punching(spec, results, strength, strength_dead_factor)
     elif spec.reinforcement is None:
         notes.append(f"{spec.id} has no reinforcement: flexure and punching are not checked")
@@ -775,6 +776,41 @@ def raft_design(
         "soil": soil,
     }
     return {"checks": checks, "raft": raft, "notes": notes}
+
+
+def _needed_bars(spec: RaftSpec, checks: list[dict[str, Any]]) -> None:
+    """A flexure check of a layer the raft has no bars in (capacity 0, utilisation 99) says
+    instead how much steel it needs: As from Mu = 0.9 As fy 0.9 d (d with 16 mm bars), at least
+    As,min, and the lightest mesh that gives it (as a new foundation's,
+    :func:`saengine.substructure.run.minimum_mesh`)."""
+    from saengine.substructure.run import BAR_DIAS
+    from saengine.substructure.shallow import min_steel_ratio
+
+    cover = spec.reinforcement.cover if spec.reinforcement is not None else 75.0
+    d = spec.thickness - cover - 1.5 * 16.0
+    for check in checks:
+        if not check["name"].startswith("Flexure") or check["capacity"] not in (0, 0.0):
+            continue
+        moment = float(check["demand"]) * 1e6  # N·mm per metre
+        need = moment / (0.9 * spec.fy * 0.9 * d) if d > 0 else math.inf
+        need = max(need, min_steel_ratio(spec.fy) * spec.thickness * 1000.0)
+        limit = min(3.0 * spec.thickness, 450.0)
+        mesh = next(
+            (
+                f"{dia:g}@{spacing:g}"
+                for dia in BAR_DIAS
+                for spacing in [min(math.floor(math.pi * dia**2 / 4 * 1e3 / need / 25) * 25, limit)]
+                if spacing >= 125
+            ),
+            None,
+        )
+        face = "top" if "top" in check["name"] else "bottom"
+        check["note"] = (
+            f"Needs {face} bars: As ≈ {need:.0f} mm²/m"
+            + (f" (e.g. {mesh})" if mesh else "")
+            + f" for {check['demand']:.1f} kN·m/m. "
+            + check["note"]
+        )
 
 
 def _round(value: float | None, digits: int) -> float | None:

@@ -4,7 +4,7 @@
 		"bim": "ec2a330ee86f3998504ea38c68157368e5976647",
 		"objects": "f91d0e24f431a1860d388e85f0c0988edb0f8fb2",
 		"materials": "3fe12b278b2e3c43c8e62699aff518395c1a6b7f",
-		"substructure": "24add05dca2f64378c5594856b57f9df1e104bac",
+		"substructure": "7ef7b3bcff7c43d6c98116a6f6b2e0200e170cbe",
 		"mep": "e5e43a374bbf6169cf6323154ba578fb2bf32096",
 		"settings": "fe329f8351df78af4c4980a95d5ca6d0310b7ccd"
 	},
@@ -13,17 +13,17 @@
 			"code": "E.01",
 			"group": "earthwork",
 			"description": "Excavation for foundations",
-			"quantity": 3.14,
+			"quantity": 8.6,
 			"unit": "m3",
 			"kind": "excavation",
 			"byStory": {
-				"BASE": 3.14
+				"BASE": 8.6
 			},
 			"breakdown": [
 				{
 					"element": "F1",
 					"story": "BASE",
-					"quantity": 3.14
+					"quantity": 8.6
 				}
 			]
 		},
@@ -52,17 +52,17 @@
 			"code": "E.03",
 			"group": "earthwork",
 			"description": "Backfill around foundations",
-			"quantity": 1.373,
+			"quantity": 6.833,
 			"unit": "m3",
 			"kind": "backfill",
 			"byStory": {
-				"BASE": 1.373
+				"BASE": 6.833
 			},
 			"breakdown": [
 				{
 					"element": "F1",
 					"story": "BASE",
-					"quantity": 1.373
+					"quantity": 6.833
 				}
 			]
 		},
@@ -466,12 +466,12 @@
 			"code": "R.02",
 			"group": "reinforcement",
 			"description": "Reinforcement B420DWR, 12 mm bars",
-			"quantity": 141.351,
+			"quantity": 148.463,
 			"unit": "kg",
 			"material": "B420DWR",
 			"diameter": 12.0,
 			"byStory": {
-				"BASE": 141.351
+				"BASE": 148.463
 			},
 			"breakdown": [
 				{
@@ -496,13 +496,13 @@
 					"element": "F1",
 					"story": "BASE",
 					"detail": "bottom X",
-					"quantity": 17.778
+					"quantity": 21.333
 				},
 				{
 					"element": "F1",
 					"story": "BASE",
 					"detail": "bottom Y",
-					"quantity": 17.778
+					"quantity": 21.333
 				}
 			]
 		},
@@ -1815,6 +1815,6 @@
 		"UGR1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
 		"SEP1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
 		"Materials: concrete C27.6 has no mix, so no cement, sand or stone is taken off for it (add the mix in 03 Materials).",
-		"Reinforcement against the bar bending schedule of the drawings (BBS against this bill, per bar size): Ø10 1380.7 kg against 1359.6 kg (+21.1 kg, +1.6 %); Ø12 177.7 kg against 141.4 kg (+36.3 kg, +25.7 %); Ø16 368.2 kg against 342.9 kg (+25.3 kg, +7.4 %); Ø20 642.0 kg against 721.0 kg (-79.0 kg, -11.0 %); in total 2568.5 kg against 2564.8 kg. The schedule cuts the detailed bars (BNBC 2020 laps and hooks, cut-off bars, BS 8666 cutting lengths); this bill measures by the rules above. Set Project Settings, Drawings, BOQ reinforcement to take the schedule's bars instead. Not detailed in the drawings: M1."
+		"Reinforcement against the bar bending schedule of the drawings (BBS against this bill, per bar size): Ø10 1380.7 kg against 1359.6 kg (+21.1 kg, +1.6 %); Ø12 182.3 kg against 148.5 kg (+33.8 kg, +22.8 %); Ø16 368.2 kg against 342.9 kg (+25.3 kg, +7.4 %); Ø20 666.7 kg against 721.0 kg (-54.3 kg, -7.5 %); in total 2597.9 kg against 2571.9 kg. The schedule cuts the detailed bars (BNBC 2020 laps and hooks, cut-off bars, BS 8666 cutting lengths); this bill measures by the rules above. Set Project Settings, Drawings, BOQ reinforcement to take the schedule's bars instead. Not detailed in the drawings: M1."
 	]
 }

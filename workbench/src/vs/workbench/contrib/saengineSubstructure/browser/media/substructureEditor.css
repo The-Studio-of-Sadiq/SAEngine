@@ -766,3 +766,98 @@
 .saengine-substructure-editor .sub-borehole.off-plan {
 	opacity: 0.7;
 }
+
+/* ── usability round: verdict, stale results, plan labels, proposal table ──── */
+
+/* Saturated fills, so a failing footing and one near the limit do not look alike. */
+.saengine-substructure-editor .sub-foundation.band-ok .sub-foundation-shape { fill: color-mix(in srgb, var(--sa-ok) 30%, var(--sa-surface)); stroke-width: 1.5; }
+.saengine-substructure-editor .sub-foundation.band-warn .sub-foundation-shape { fill: color-mix(in srgb, var(--sa-warn) 40%, var(--sa-surface)); stroke-width: 1.5; }
+.saengine-substructure-editor .sub-foundation.band-fail .sub-foundation-shape { fill: color-mix(in srgb, var(--sa-fail) 45%, var(--sa-surface)); stroke-width: 2; }
+
+.saengine-substructure-editor .sub-foundation-util { font-weight: 600; font-variant-numeric: tabular-nums; }
+.saengine-substructure-editor .sub-foundation-util.band-ok { fill: var(--sa-ok); }
+.saengine-substructure-editor .sub-foundation-util.band-warn { fill: var(--sa-warn); }
+.saengine-substructure-editor .sub-foundation-util.band-fail { fill: var(--sa-fail); }
+
+/* The tie beam's label beside the beam, readable over the grid and the fills. */
+.saengine-substructure-editor .sub-tie-label {
+	font-size: 11px;
+	font-weight: 600;
+	fill: var(--vscode-foreground);
+	paint-order: stroke;
+	stroke: var(--sa-surface);
+	stroke-width: 3px;
+}
+
+.saengine-substructure-editor .sub-heat-value {
+	font-size: 10px;
+	font-variant-numeric: tabular-nums;
+	fill: var(--vscode-foreground);
+	paint-order: stroke;
+	stroke: var(--sa-surface);
+	stroke-width: 3px;
+	pointer-events: none;
+}
+
+.saengine-substructure-editor .sub-note.sub-verdict {
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+.saengine-substructure-editor .sub-note.sub-verdict.ok { color: var(--sa-ok); }
+.saengine-substructure-editor .sub-note.sub-verdict.error { color: var(--sa-fail); }
+.saengine-substructure-editor .sub-note.sub-verdict.warning { color: var(--sa-warn); }
+
+/* A foundation changed since its checks were computed: its old checks are not shown. */
+.saengine-substructure-editor tr.stale td {
+	color: var(--sa-muted);
+	font-style: italic;
+}
+.saengine-substructure-editor tr.stale td:first-child {
+	box-shadow: inset 2px 0 0 var(--sa-warn);
+}
+
+/* The detail table fits the view: the note wraps instead of running off at 1366 px. */
+.saengine-substructure-editor .sub-section.result {
+	overflow-x: auto;
+}
+.saengine-substructure-editor .sub-result-table {
+	width: 100%;
+}
+.saengine-substructure-editor .sub-table td.sub-wrap.sub-note-cell {
+	min-width: 160px;
+	overflow-wrap: anywhere;
+}
+
+.saengine-substructure-editor .sub-proposal-table {
+	margin-top: var(--sa-space-2);
+	table-layout: auto;
+}
+.saengine-substructure-editor .sub-proposal-table td {
+	white-space: normal;
+}
+
+/* All checks: the note on its own line under the check (fits 1366 px). */
+.saengine-substructure-editor .sub-check-table tr.has-note td {
+	border-bottom: none;
+}
+.saengine-substructure-editor .sub-check-table tr.sub-note-row td.sub-note-cell {
+	padding: 0 6px 6px 18px;
+	min-width: 0;
+	font-size: 11px;
+	line-height: 1.45;
+}
+.saengine-substructure-editor .sub-check-table td.sub-combination-cell {
+	white-space: normal;
+}
+.saengine-substructure-editor .sub-suggestion {
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+.saengine-substructure-editor .sub-result-table.sub-check-table {
+	table-layout: fixed;
+	width: 100%;
+	min-width: 0;
+}
+.saengine-substructure-editor .sub-check-table td:first-child {
+	white-space: normal;
+}
