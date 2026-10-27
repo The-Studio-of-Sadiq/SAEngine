@@ -4,16 +4,25 @@ The same steps, in the same order, reading and writing the same files as the wor
 ``RunAllService`` (``contrib/saengineFem/electron-browser/runAll.ts``), so that after
 ``saengine run-all`` the app's part list shows the results as current:
 
+0. ``bim``: builds ``06 BIM/bim.json`` from the floor plan (or the structural model) when it was
+   never built or its source changed; a model without members stops here ("nothing to
+   analyse");
 1. ``derive``: derives ``08 FEM/model.osmodel`` (with ``pushover.osmodel``, ``thermal.json`` and
    ``ssi.json``) when it is not derived yet or a source changed (``deriveAnalysisModel``);
 2. ``analysis``: runs every analysis case with OpenSees Studio's runner
    (``python -m opensees_studio.run``, as ``FemSolverService.startRun``) into
-   ``08 FEM/model.results``;
+   ``08 FEM/model.results``, unless the results were computed from the same model (the stamp
+   kept in ``analysis-inputs.json``: a model derived again from a change the analysis does not
+   take, such as bars or the engineer's name, keeps them);
 3. ``ssi``: on soil springs (``08 FEM/ssi.json``), the fixed-base run and the comparison;
-4. ``design``: the RC design checks, writing ``08 FEM/model.results/design-summary.json``;
-5. ``substructure``: moves the building model's footings into a placeholder
-   ``substructure.json``, designs the foundations, writes
-   ``09 Substructure/substructure.results/summary.json``;
+4. ``substructure``: moves the building model's footings into a placeholder
+   ``substructure.json``, gives foundations without bars the minimum mesh, designs the
+   foundations (``saengine.substructure.run.design_foundations``), writes
+   ``09 Substructure/substructure.results/summary.json``. Before the design checks, which read
+   the substructure file too: the bars it adds would otherwise make the kept checks stale and
+   the report check every member again;
+5. ``design``: the RC design checks, writing ``08 FEM/model.results/design-summary.json``. A
+   run that checks nothing fails the step (it is not "0 pass, 0 fail");
 6. ``mep``: the coordination of 7 MEP, its plumbing, HVAC (never starting EnergyPlus: its cached
    loads when they match, else the estimate), electrical and fire checks, writing
    ``07 MEP/mep.results/summary.json``;
@@ -26,8 +35,10 @@ The same steps, in the same order, reading and writing the same files as the wor
    skips it (generating them takes from seconds to minutes: the engineer starts the first set
    from the Exports page or with ``--steps drawings``, which always draws them).
 
-As in the app, a step that cannot be done stops the run (the later steps are reported as not
-run). The backend calls are the RPC handlers themselves (:mod:`saengine.rpc.handlers`), called in
+As in the app, a step that cannot be done fails, and the steps that need it are not run
+(``notRun``, saying which step they wait for); the others still run. A failed step also removes
+the summary it would have written, so the part list never shows the previous run's verdict as
+current. The backend calls are the RPC handlers themselves (:mod:`saengine.rpc.handlers`), called in
 this process; the summaries are written by :mod:`saengine.pipeline.summaries`, the Python twin of
 the TypeScript writers.
 
@@ -38,6 +49,7 @@ keeps the file's line endings: :func:`_write_like_text_model` does the same.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import shutil
@@ -51,11 +63,14 @@ from typing import Any
 
 from saengine.codes import context as code_context
 from saengine.fire.summary import fire_failures, fire_summary_file, has_fire
+from saengine.library.bim import source_stamp
 from saengine.pipeline import summaries as S
+from saengine.pipeline.design_mode import ANALYSIS_INPUTS_FILE, model_stamp
 from saengine.pipeline.project import Project, open_project, read_text, write_text
 from saengine.pipeline.status import (
     PartStatus,
     boq_source_stamp,
+    fem_source_changed,
     part_statuses,
     recorded_sources,
     recorded_stamp,
@@ -63,11 +78,12 @@ from saengine.pipeline.status import (
 
 #: The steps, in order, with the names the app's status bar gives them.
 STEPS: tuple[tuple[str, str], ...] = (
+    ("bim", "building model"),
     ("derive", "analysis model"),
     ("analysis", "analysis"),
     ("ssi", "fixed-base run for the soil springs"),
-    ("design", "design checks"),
     ("substructure", "foundation design"),
+    ("design", "design checks"),
     ("mep", "MEP coordination, plumbing, HVAC, electrical and fire checks"),
     ("boq", "bill of quantities"),
     ("report", "report"),
@@ -76,9 +92,24 @@ STEPS: tuple[tuple[str, str], ...] = (
 STEP_IDS: tuple[str, ...] = tuple(s for s, _ in STEPS)
 STEP_LABELS = dict(STEPS)
 
-#: Step statuses: done; nothing to do (up to date, nothing to check) or not reached; could not be
-#: done (Run All stops, as the app's "Run All stopped at step ..."); an unexpected error (stops).
-STEP_STATUSES = ("ok", "skipped", "failed", "error")
+#: Step statuses: done; done with something to look at (bars added, members not checked, a mesh
+#: warning); nothing to do (up to date, nothing to check); could not be done; an unexpected
+#: error; not run because a step it needs did not succeed.
+STEP_STATUSES = ("ok", "warning", "skipped", "failed", "error", "notRun")
+#: The steps each step needs (``STEP_NEEDS`` in runAll.ts): when one of them fails or is not run,
+#: the step is not run either.
+STEP_NEEDS: dict[str, tuple[str, ...]] = {
+    "bim": (),
+    "derive": ("bim",),
+    "analysis": ("derive",),
+    "ssi": ("analysis",),
+    "substructure": ("analysis",),
+    "design": ("analysis",),
+    "mep": ("bim",),
+    "boq": ("bim",),
+    "report": ("design",),
+    "drawings": ("design",),
+}
 
 #: ``DERIVATION_SOURCES``: the parts the model is derived from, their keys and labels.
 DERIVATION_SOURCES = (
@@ -159,6 +190,11 @@ class RunAllResult:
     def ok(self) -> bool:
         return self.stopped_at is None
 
+    @property
+    def failed(self) -> list[StepResult]:
+        """The steps that failed (``failed`` or ``error``)."""
+        return [s for s in self.steps if s.status in ("failed", "error")]
+
     def step(self, step_id: str) -> StepResult | None:
         return next((s for s in self.steps if s.id == step_id), None)
 
@@ -201,6 +237,62 @@ def _problems_only(raw: Any, keys: tuple[str, ...]) -> None:
         raise StepFailure(" ".join(problems))
 
 
+# ─────────────────────────────── 0: building model ───────────────────────────────
+
+
+def bim_members(text: str | None) -> int:
+    """``bimMembers``: the elements of a building model (0 for a placeholder or an unreadable
+    file)."""
+    try:
+        value = json.loads(text) if text else None
+    except ValueError:
+        return 0
+    elements = value.get("elements") if isinstance(value, dict) else None
+    return len(elements) if isinstance(elements, list) else 0
+
+
+def _bim(project: Project, step: StepResult) -> None:
+    upstream = "structure" if project.type == "structure" else "floorPlan"
+    source = project.text(upstream)
+    current = project.text("bim")
+    try:
+        document = json.loads(current) if current else None
+    except ValueError:
+        document = None
+    recorded = recorded_stamp(document, upstream)
+    if source is None:
+        raise StepFailure(
+            f"{'The structural model' if upstream == 'structure' else 'The floor plan'} could not be read."
+        )
+    if recorded is not None and recorded == source_stamp(source):
+        step.status = "skipped"
+        step.message = "The building model is up to date."
+    else:
+        handlers = _handlers()
+        result = (
+            handlers.generate_building_from_structure(source, current)
+            if upstream == "structure"
+            else handlers.generate_building(source, current)
+        )
+        if not result.get("text"):
+            raise StepFailure(
+                "; ".join(result.get("problems") or ["The building model could not be built."])
+            )
+        write_text(project.file("bim"), result["text"])
+        step.outputs.append(_relative(project, project.file("bim")))
+        current = result["text"]
+        step.status = "ok"
+        step.message = "Building model built."
+    members = bim_members(current)
+    step.counts = {"elements": members}
+    if not members:
+        # G3: nothing to analyse, so nothing after it means anything ("0 pass, 0 fail").
+        raise StepFailure(
+            "Nothing to analyse: the building model has no members. Draw the grids, columns "
+            "and beams in 5 Floor Plan first."
+        )
+
+
 # ─────────────────────────────── 1: derive ───────────────────────────────
 
 
@@ -233,13 +325,12 @@ def derivation_state(description: Any, texts: dict[str, str | None]) -> tuple[bo
     """``derivationState``: whether the model was derived, and the labels of the sources
     changed since."""
     from saengine.fem.derive import mep_stamp
-    from saengine.library.bim import source_stamp
 
     recorded = recorded_sources(description)
     changed = [
         label
         for part, key, label in DERIVATION_SOURCES
-        if texts.get(part) is None or recorded.get(key) != source_stamp(texts[part])  # type: ignore[arg-type]
+        if fem_source_changed(texts, part, recorded.get(key))
     ]
     for part, label in (("soil", "Soil Report"), ("substructure", "Substructure")):
         if part in recorded:
@@ -426,11 +517,68 @@ def _case_type(value: Any) -> str:
     return text.removesuffix("Case")
 
 
+def analysis_inputs_stamp(model: Path) -> str | None:
+    """The stamp of what the solver computes from: the model without its meta
+    (:func:`saengine.pipeline.design_mode.model_stamp`) and its side files (the temperature
+    case, the soil springs, the support faces). None when the model cannot be read."""
+    try:
+        parts = [model_stamp(model.read_bytes())]
+    except OSError:
+        return None
+    for name in (THERMAL_FILE, SSI_FILE, FACES_FILE):
+        try:
+            parts.append(
+                f"{name}={source_stamp((model.parent / name).read_text(encoding='utf-8'))}"
+            )
+        except OSError:
+            parts.append(f"{name}=")
+    return source_stamp("\n".join(parts))
+
+
+def results_current(model: Path) -> bool:
+    """Whether the results beside ``model`` were computed from the same analysis: their
+    manifest is there and the kept stamp (:data:`ANALYSIS_INPUTS_FILE`, written by Run All after
+    the run) matches the model and its side files now."""
+    out = results_folder(model)
+    try:
+        kept = json.loads((out / ANALYSIS_INPUTS_FILE).read_text(encoding="utf-8"))
+        manifest = (out / "manifest.json").read_bytes()
+    except (OSError, ValueError):
+        return False
+    return (
+        isinstance(kept, dict)
+        and kept.get("manifest") == source_stamp(manifest.decode("utf-8", errors="replace"))
+        and kept.get("stamp") == analysis_inputs_stamp(model)
+    )
+
+
+def keep_analysis_inputs(model: Path) -> None:
+    """Writes :data:`ANALYSIS_INPUTS_FILE` for the results just computed, or kept."""
+    out = results_folder(model)
+    manifest = (out / "manifest.json").read_bytes().decode("utf-8", errors="replace")
+    write_text(
+        out / ANALYSIS_INPUTS_FILE,
+        json.dumps({"stamp": analysis_inputs_stamp(model), "manifest": source_stamp(manifest)})
+        + "\n",
+    )
+
+
 def _analysis(project: Project, step: StepResult, report: Callable[[str], None]) -> None:
     model = project.file("fem")
+    if results_current(model):
+        # X28/X19: the model was derived again from a change the analysis does not take (bars,
+        # names): the results stand. The manifest is written again, unchanged, so the part list
+        # sees results as new as the model (design_mode stamps it by content).
+        manifest = results_folder(model) / "manifest.json"
+        manifest.write_bytes(manifest.read_bytes())
+        step.status = "skipped"
+        step.message = "The analysis results are current: the analysis model did not change."
+        step.outputs.append(_relative(project, results_folder(model)))
+        return
     outcome = run_analysis(model, report)
     if outcome["status"] != "done":
         raise StepFailure(outcome.get("message") or outcome["status"])
+    keep_analysis_inputs(model)
     step.status = "ok"
     step.counts = {"cases": outcome["cases"]}
     step.message = f"Analysis complete: {outcome['cases']} case(s)."
@@ -449,6 +597,7 @@ def _analysis(project: Project, step: StepResult, report: Callable[[str], None])
         }
         if check.get("warning"):
             step.message += f" Warning: {check.get('note')}."
+            step.status = "warning"
 
 
 # ─────────────────────────────── 3: soil springs ───────────────────────────────
@@ -490,6 +639,20 @@ def _design(project: Project, step: StepResult) -> dict[str, Any]:
         report = design_mode.checks(results_folder(model), model, stamp)
     if not report:
         raise StepFailure("The design checks are not available.")
+    summary = S.record(report.get("summary"))
+    no_bars = [str(t) for t in summary.get("noBars") or []]
+    # The members alone: the totals also count the joints and the building's seismic checks.
+    elements = S.record(summary.get("elements"))
+    if not (elements.get("checked") if "checked" in elements else summary.get("checked")):
+        # G1: a run that checked nothing is not "0 pass, 0 fail".
+        reason = (
+            f"the object types {', '.join(no_bars)} have no bars (8 FEM, Design Reinforcement "
+            "proposes them)"
+            if no_bars
+            else "; ".join(map(str, (report.get("notes") or [])[:2]))
+            or "no member could be checked"
+        )
+        raise StepFailure(f"The design checks checked nothing: {reason}.")
     if stamp is not None:
         design_mode.keep_report(results_folder(model), model, report, stamp)
     target = results_folder(model) / S.DESIGN_SUMMARY_FILE
@@ -498,12 +661,16 @@ def _design(project: Project, step: StepResult) -> dict[str, Any]:
     step.outputs.append(_relative(project, target))
     if stamp is not None and (results_folder(model) / design_mode.REPORT_FILE).exists():
         step.outputs.append(_relative(project, results_folder(model) / design_mode.REPORT_FILE))
-    summary = S.record(report.get("summary"))
     step.status = "ok"
     step.counts = {
         k: file[k] for k in ("checked", "passed", "failed", "maxUtilisation", "governing")
     }
     step.message = f"{summary.get('passed')} pass, {summary.get('failed')} fail"
+    if no_bars:
+        # X29: members of types without bars are not checked; said, not hidden.
+        step.status = "warning"
+        step.counts["noBars"] = no_bars
+        step.message += f"; not checked for want of bars: {', '.join(no_bars)}"
     # Design mode: the steel each element requires next to what is entered, kept beside the
     # results (design-required.json) for the Properties panel and the report. A failure here
     # is a note, not a stop: the checks above are the verdict.
@@ -530,7 +697,7 @@ def _design(project: Project, step: StepResult) -> dict[str, Any]:
 # ─────────────────────────────── 5: substructure ───────────────────────────────
 
 
-def _substructure(project: Project, step: StepResult) -> dict[str, Any] | None:
+def _substructure(project: Project, step: StepResult, add_bars: bool) -> dict[str, Any] | None:
     root = str(project.root)
     migration = _handlers().substructure_ensure(root)
     problems = migration.get("problems") if isinstance(migration, dict) else None
@@ -547,7 +714,15 @@ def _substructure(project: Project, step: StepResult) -> dict[str, Any] | None:
     if kind == "placeholder" or not document["foundations"]:
         step.message = "There are no foundations to design."
         return None
-    raw = _handlers().substructure_report(root)
+    # U3: the whole Run All gives foundations without bars the minimum mesh before checking them
+    # (``design_foundations``); a check or a chosen step only checks what is saved.
+    handlers = _handlers()
+    raw = handlers.substructure_design(root) if add_bars else handlers.substructure_report(root)
+    if add_bars:
+        text = read_text(resource) or text
+        kind, document = S.parse_substructure(text)
+        if kind != "document":
+            raise StepFailure(document if kind == "error" else "The substructure was emptied.")
     if (
         isinstance(raw, dict)
         and isinstance(raw.get("problems"), list)
@@ -567,6 +742,17 @@ def _substructure(project: Project, step: StepResult) -> dict[str, Any] | None:
     step.counts = {k: file[k] for k in ("foundations", "checked", "passed", "failed",
                                         "maxUtilisation", "governing")}  # fmt: skip
     step.message = f"foundations {report['passed']} pass, {report['failed']} fail"
+    summary = S.record(raw.get("summary"))
+    added = [str(f) for f in summary.get("barsAdded") or []]
+    if added:
+        step.status = "warning"
+        step.counts["barsAdded"] = added
+        step.message += f"; minimum bars given to {', '.join(added)}: review them"
+    if file.get("status") == "incomplete":
+        step.status = "warning"
+        step.message += f"; {file['checked']} of {file['total']} checked"
+        if file.get("unsupported"):
+            step.message += f", no foundation under {', '.join(map(str, file['unsupported']))}"
     return report
 
 
@@ -838,25 +1024,39 @@ def _drawings(
 
 
 def _summary(result: list[StepResult]) -> str:
-    """The app's "Done: 13 pass, 3 fail · foundations … · BOQ updated · report written"."""
+    """The app's one line: "Done: 13 pass, 3 fail · foundations … · BOQ updated · report
+    written", or, when a step failed, which one, why, and how many steps were not run."""
     by_id = {s.id: s for s in result}
     parts = []
     for step_id in ("design", "substructure", "mep"):
         step = by_id.get(step_id)
-        if step and step.status == "ok":
+        if step and step.status in ("ok", "warning"):
             parts.append(step.message)
     derive = by_id.get("derive")
-    if derive and derive.status == "ok":
+    if derive and derive.status in ("ok", "warning"):
         parts.append("model derived")
     boq = by_id.get("boq")
     if boq and boq.status in ("ok", "skipped") and boq.message:
         parts.append(boq.message)
     report = by_id.get("report")
-    if report and report.status == "ok":
+    if report and report.status in ("ok", "warning"):
         parts.append("report written")
     drawings = by_id.get("drawings")
-    if drawings and drawings.status == "ok":
+    if drawings and drawings.status in ("ok", "warning"):
         parts.append(drawings.message)
+    failed = [s for s in result if s.status in ("failed", "error")]
+    if failed:
+        not_run = sum(1 for s in result if s.status == "notRun")
+        first = failed[0]
+        line = (
+            f"Run All failed at step {STEP_IDS.index(first.id) + 1} of {len(STEP_IDS)} "
+            f"({first.label}): {first.message}"
+        )
+        if len(failed) > 1:
+            line += f" (and {len(failed) - 1} more step(s) failed)"
+        if not_run:
+            line += f"; {not_run} step(s) not run"
+        return line + (". Done: " + " · ".join(parts) if parts else ".")
     return "Done: " + " · ".join(parts) if parts else "Done."
 
 
@@ -873,6 +1073,23 @@ def normalise_steps(steps: Iterable[str] | None) -> list[str]:
     return [s for s in STEP_IDS if s in wanted]
 
 
+#: The summary each step writes, removed when the step fails: the part list must not show the
+#: previous run's verdict as the current one (G1).
+STEP_SUMMARIES = {
+    "design": ("fem", f"model.results/{S.DESIGN_SUMMARY_FILE}"),
+    "substructure": ("substructure", S.SUBSTRUCTURE_SUMMARY_FILE),
+    "mep": ("mep", S.MEP_SUMMARY_FILE),
+}
+
+
+def _remove_summary(project: Project, step_id: str) -> None:
+    if step_id not in STEP_SUMMARIES:
+        return
+    part, relative = STEP_SUMMARIES[step_id]
+    with contextlib.suppress(OSError):
+        (project.file(part).parent / relative).unlink(missing_ok=True)
+
+
 def run_all(
     root: str | Path | Project,
     steps: Iterable[str] | None = None,
@@ -880,8 +1097,8 @@ def run_all(
 ) -> RunAllResult:
     """Run All on the project at ``root`` (its folder or ``.saengine`` file): ``steps`` (ids of
     :data:`STEP_IDS`; default all) in Run All's order. ``progress`` is called at the start of
-    each step and with the solver's progress. A step that cannot be done stops the run, as in
-    the app; the steps after it are ``skipped`` ("Not run")."""
+    each step and with the solver's progress. A step that cannot be done fails; the steps that
+    need it (:data:`STEP_NEEDS`) are ``notRun``, the others still run, as in the app."""
     project = root if isinstance(root, Project) else open_project(root)
     # The project's own code packs (02 Project Settings/code-packs) are found while it runs.
     with code_context.project(project.root):
@@ -894,13 +1111,18 @@ def _run_all(
     wanted = normalise_steps(steps)
     # The drawings are drawn when asked for by name, else only to keep a generated set current.
     drawings_asked = steps is not None and "drawings" in wanted
+    # The minimum foundation bars are written only by the whole Run All (not by ``check``).
+    add_bars = steps is None
     results = [StepResult(step_id) for step_id in wanted]
-    stopped: str | None = None
+    blocked: dict[str, str] = {}  # step id -> the failed step it waits for
     tanks_designed = False
     design_report: dict[str, Any] | None = None
     for index, step in enumerate(results):
-        if stopped is not None:
-            step.message = f"Not run: Run All stopped at {STEP_LABELS[stopped]}."
+        waits = next((blocked[n] for n in STEP_NEEDS[step.id] if n in blocked), None)
+        if waits is not None:
+            step.status = "notRun"
+            step.message = f"Not run: it needs the {STEP_LABELS[waits]} step, which failed."
+            blocked[step.id] = waits
             continue
 
         def report(message: str | None, step=step, index=index) -> None:
@@ -911,6 +1133,8 @@ def _run_all(
         started = time.monotonic()
         try:
             match step.id:
+                case "bim":
+                    _bim(project, step)
                 case "derive":
                     _derive(project, step)
                 case "analysis":
@@ -920,7 +1144,7 @@ def _run_all(
                 case "design":
                     design_report = _design(project, step)
                 case "substructure":
-                    _substructure(project, step)
+                    _substructure(project, step, add_bars)
                 case "mep":
                     checked = _mep(project, step)
                     tanks_designed = bool(checked and "plumbing" in checked)
@@ -933,16 +1157,12 @@ def _run_all(
         except StepFailure as failure:
             step.status = "failed"
             step.message = str(failure) or "failed"
-            stopped = step.id
         except Exception as error:  # noqa: BLE001 - reported as the step's error
             step.status = "error"
             step.message = f"{type(error).__name__}: {error}"
-            stopped = step.id
+        if step.status in ("failed", "error"):
+            blocked[step.id] = step.id
+            _remove_summary(project, step.id)
         step.seconds = time.monotonic() - started
-    summary = (
-        _summary(results)
-        if stopped is None
-        else f"Run All stopped at step {STEP_IDS.index(stopped) + 1} of {len(STEP_IDS)} "
-        f"({STEP_LABELS[stopped]}): {next(s for s in results if s.id == stopped).message}"
-    )
-    return RunAllResult(project, results, part_statuses(project), stopped, summary)
+    failed = next((s.id for s in results if s.status in ("failed", "error")), None)
+    return RunAllResult(project, results, part_statuses(project), failed, _summary(results))

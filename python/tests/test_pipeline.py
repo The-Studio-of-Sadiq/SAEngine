@@ -8,6 +8,7 @@ import importlib
 import json
 import shutil
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -318,24 +319,111 @@ def test_the_bill_keeps_its_line_endings(tmp_path: Path):
     assert lf.read_bytes() == b'{\n"b": 2\n}\n'
 
 
-def test_run_all_stops_at_a_failed_step(sample: Path, monkeypatch: pytest.MonkeyPatch):
+def test_a_failed_step_blocks_only_the_steps_that_need_it(
+    sample: Path, monkeypatch: pytest.MonkeyPatch
+):
     from saengine.rpc import handlers
 
     monkeypatch.setattr(
         handlers, "derive_fem", lambda *a, **k: {"problems": ["Building model: bad"]}
     )
+    monkeypatch.setattr(handlers, "compute_boq", lambda *a, **k: {"problems": ["not measured"]})
     seen: list[str] = []
-    result = R.run_all(sample, progress=lambda step, i, n, m: seen.append(step))
-    assert [(s.id, s.status) for s in result.steps] == [("derive", "failed")] + [
-        (s, "skipped") for s in R.STEP_IDS[1:]
+    result = R.run_all(
+        sample,
+        steps=["bim", "derive", "analysis", "design", "boq", "report"],
+        progress=lambda step, i, n, m: seen.append(step),
+    )
+    assert [(s.id, s.status) for s in result.steps] == [
+        ("bim", "skipped"),  # the sample's building model is up to date
+        ("derive", "failed"),
+        ("analysis", "notRun"),
+        ("design", "notRun"),
+        ("boq", result.step("boq").status),  # needs only the building model: it still runs
+        ("report", "notRun"),
     ]
-    assert result.steps[0].message == "Building model: bad"
-    assert result.stopped_at == "derive" and not result.ok and seen == ["derive"]
-    assert result.summary.startswith("Run All stopped at step 1 of 9 (analysis model)")
-    assert result.steps[1].message == "Not run: Run All stopped at analysis model."
+    assert "boq" in seen and "analysis" not in seen
+    assert result.step("derive").message == "Building model: bad"
+    assert (
+        result.step("design").message == "Not run: it needs the analysis model step, which failed."
+    )
+    assert result.stopped_at == "derive" and not result.ok
+    assert result.summary.startswith("Run All failed at step 2 of 10 (analysis model): Building")
+    assert "step(s) not run" in result.summary
     with pytest.raises(ValueError, match="unknown step"):
         R.run_all(sample, steps=["derive", "nope"])
     assert R.normalise_steps(["report,derive"]) == ["derive", "report"]
+    assert R.normalise_steps(["design,substructure"]) == ["substructure", "design"]
+
+
+def test_a_building_model_without_members_is_nothing_to_analyse(tmp_path: Path):
+    """G3: Run All on an empty project stops at once, not after a minute of "0 pass, 0 fail"."""
+    project = tmp_path / "Empty"
+    shutil.copytree(SAMPLE, project)
+    bim = project / "06 BIM" / "bim.json"
+    document = json.loads(bim.read_text(encoding="utf-8"))
+    document["elements"] = []
+    bim.write_text(json.dumps(document), encoding="utf-8")
+    plan = project / "05 Floor Plan" / "floor-plan.json"
+    document["source"] = {"floorPlan": source_stamp(plan.read_text(encoding="utf-8"))}
+    bim.write_text(json.dumps(document), encoding="utf-8")
+    result = R.run_all(project, steps=["bim", "derive", "analysis", "design"])
+    assert [s.status for s in result.steps] == ["failed", "notRun", "notRun", "notRun"]
+    assert result.steps[0].message.startswith("Nothing to analyse")
+
+
+def test_a_design_that_checks_nothing_fails_and_removes_the_old_summary(
+    sample: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """G1: "0 pass, 0 fail" is a failure, and the previous summary does not stay current."""
+    from saengine.pipeline import design_mode
+
+    results = sample / "08 FEM" / "model.results"
+    results.mkdir(parents=True, exist_ok=True)
+    (results / "design-summary.json").write_text('{"checked": 3, "passed": 3, "failed": 0}')
+    empty = {"summary": {"checked": 0, "passed": 0, "failed": 0, "noBars": ["B1"]}, "notes": []}
+    monkeypatch.setattr(design_mode, "report_stamp", lambda *a: None)
+    monkeypatch.setattr(R, "_handlers", lambda: SimpleNamespace(design_report=lambda *a: empty))
+    result = R.run_all(sample, steps=["design"])
+    step = result.steps[0]
+    assert step.status == "failed"
+    assert step.message.startswith("The design checks checked nothing: the object types B1")
+    assert not (results / "design-summary.json").exists()
+
+
+def test_the_settings_stamp_leaves_out_the_title_block():
+    """X28: the engineer's name and the drawings' title block do not make the model stale."""
+    from saengine.fem.derive import settings_stamp
+
+    base = {"schema": "s", "project": {"name": "A"}, "seismic": {"system": "SMF"}}
+    named = {**base, "project": {"name": "A", "engineer": "E"}, "drawings": {"drawnBy": "X"}}
+    assert settings_stamp(json.dumps(base)) == settings_stamp(json.dumps(named, indent=2))
+    assert settings_stamp(json.dumps(base)) != settings_stamp(
+        json.dumps({**base, "seismic": {"system": "IMF"}})
+    )
+    texts = {"settings": json.dumps(named)}
+    from saengine.pipeline.status import fem_source_changed
+
+    assert not fem_source_changed(texts, "settings", settings_stamp(json.dumps(base)))
+    # A model derived before records the whole file's stamp: current while the file is unchanged.
+    assert not fem_source_changed(texts, "settings", source_stamp(texts["settings"]))
+    assert fem_source_changed(texts, "settings", "0" * 40)
+
+
+def test_the_analysis_is_kept_while_the_model_computes_the_same(tmp_path: Path):
+    """X28/X19: a model derived again to the same analysis keeps its results."""
+    folder = tmp_path / "08 FEM"
+    (folder / "model.results").mkdir(parents=True)
+    model = folder / "model.osmodel"
+    model.write_text(json.dumps({"meta": {"description": "Sources: settings=1"}, "nodes": [1]}))
+    (folder / "model.results" / "manifest.json").write_text('{"cases": []}')
+    assert not R.results_current(model)
+    R.keep_analysis_inputs(model)
+    assert R.results_current(model)
+    model.write_text(json.dumps({"meta": {"description": "Sources: settings=2"}, "nodes": [1]}))
+    assert R.results_current(model)  # only the meta changed
+    model.write_text(json.dumps({"meta": {}, "nodes": [1, 2]}))
+    assert not R.results_current(model)
 
 
 def test_an_unexpected_error_is_the_steps_error(sample: Path, monkeypatch: pytest.MonkeyPatch):

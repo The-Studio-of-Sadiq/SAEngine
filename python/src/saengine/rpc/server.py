@@ -62,6 +62,9 @@ Methods:
 - ``fem/derive`` also takes ``soilText?`` (else the project's soil report beside ``modelFolder``)
 - ``bim/ifc`` and ``boq/compute`` also take ``substructureText?`` and ``settingsText?``: the
   foundations of 9 Substructure (once it is no longer the placeholder) and the ground level
+- ``substructure/design`` ``{projectRoot}`` -> Run All's foundation step: footings moved in,
+  minimum bars given, the checks (``saengine.substructure.run.design_foundations``; in a worker
+  thread, as ``substructure/report`` and ``report/build``)
 - ``substructure/report`` ``{projectRoot}`` -> the design checks of the saved substructure
 - ``substructure/size`` ``{projectRoot, columns?}`` -> footings proposed by the sizing assistant
 - ``substructure/migrate`` ``{projectRoot}`` -> the substructure with the building model's footings
@@ -452,6 +455,7 @@ def create_server() -> JsonRPCServer:
         )
 
     @server.feature("report/build")
+    @_in_worker
     def _build_report(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.build_report(args["projectRoot"], args.get("outPdf"))
@@ -549,8 +553,14 @@ def create_server() -> JsonRPCServer:
         return handlers.qgis_command(args["program"], args["filePath"])
 
     @server.feature("substructure/report")
+    @_in_worker
     def _substructure_report(params: Any) -> dict[str, Any]:
         return handlers.substructure_report(_plain(params)["projectRoot"])
+
+    @server.feature("substructure/design")
+    @_in_worker
+    def _substructure_design(params: Any) -> dict[str, Any]:
+        return handlers.substructure_design(_plain(params)["projectRoot"])
 
     @server.feature("substructure/size")
     def _substructure_size(params: Any) -> dict[str, Any]:

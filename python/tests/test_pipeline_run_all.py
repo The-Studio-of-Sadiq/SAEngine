@@ -26,7 +26,9 @@ pytestmark = pytest.mark.slow
 SAMPLE = (
     Path(__file__).parents[2] / "workbench" / "resources" / "saengine" / "samples" / "Sample Frame"
 )
-STEPS = ["derive", "analysis", "ssi", "design", "substructure", "mep", "boq", "report", "drawings"]
+STEPS = [
+    "bim", "derive", "analysis", "ssi", "substructure", "design", "mep", "boq", "report", "drawings"
+]  # fmt: skip
 
 
 def _run(capsys: pytest.CaptureFixture[str], *argv: str) -> tuple[int, dict, str]:
@@ -50,16 +52,20 @@ def ran(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, int, dict, str]
 
 def test_every_step_ran_and_wrote_the_apps_files(ran):
     root, code, document, progress = ran
-    assert [(s["id"], s["status"]) for s in document["steps"]] == [
-        (s, "skipped" if s in ("ssi", "drawings") else "ok") for s in STEPS
-    ]
+    # Done ("ok"), or done with something to look at ("warning": a mesh, bars or coverage note).
+    assert [(s["id"], "ok" if s["status"] == "warning" else s["status"])
+            for s in document["steps"]] == [
+        (s, "skipped" if s in ("bim", "ssi", "drawings") else "ok") for s in STEPS
+    ]  # fmt: skip
     # The sample's drawings were never generated: Run All leaves them to the engineer.
     assert document["steps"][-1]["message"].startswith("drawings not generated yet")
     assert document["ok"] and document["stoppedAt"] is None
     # The sample has failing members, a failing footing and failing plumbing and HVAC checks.
     assert code == EXIT_CHECKS
     assert {f["part"] for f in document["failures"]} == {"fem", "substructure", "mep"}
-    assert "[1/9] analysis model" in progress and "[8/9] report" in progress
+    assert "[2/10] analysis model" in progress and "[9/10] report" in progress
+    # The results are kept with the stamp of the model they were computed from (X28).
+    assert (root / "08 FEM/model.results/analysis-inputs.json").is_file()
     for relative in (
         "08 FEM/model.osmodel",
         "08 FEM/model.results/manifest.json",
@@ -126,8 +132,10 @@ def test_check_exits_1_and_writes_no_deliverables(ran, capsys: pytest.CaptureFix
     bill = (root / "10 BOQ" / "boq.json").read_bytes()
     code, document, _ = _run(capsys, "check", str(root))
     assert code == EXIT_CHECKS
-    assert [s["id"] for s in document["steps"]] == STEPS[:6]
+    assert [s["id"] for s in document["steps"]] == STEPS[1:7]
     assert document["steps"][0]["status"] == "skipped"  # the model is up to date
+    # ... and so are the results: the analysis is not run again (X28)
+    assert document["steps"][1]["status"] == "skipped"
     failures = {(f["part"], f["check"]) for f in document["failures"]}
     assert {("fem", "design"), ("substructure", "foundations")} <= failures
     assert all(f["count"] > 0 and f["message"] for f in document["failures"])
@@ -149,6 +157,8 @@ def test_a_planted_solver_in_the_project_does_not_run(ran, capsys: pytest.Captur
         f"import pathlib, sys\npathlib.Path({str(marker)!r}).write_text('ran')\nsys.exit(0)\n",
         encoding="utf-8",
     )
+    # The results are current (Run All keeps them): forget their stamp so the solver runs.
+    (root / "08 FEM" / "model.results" / "analysis-inputs.json").unlink()
     code, document, _ = _run(capsys, "run-all", "--steps", "analysis", str(root))
     assert [(s["id"], s["status"]) for s in document["steps"]] == [("analysis", "ok")]
     assert not marker.exists()

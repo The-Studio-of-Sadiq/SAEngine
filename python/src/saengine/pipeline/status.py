@@ -19,7 +19,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from saengine.fem.derive import mep_stamp
+from saengine.fem.derive import mep_stamp, settings_stamp
 from saengine.library.bim import source_stamp
 from saengine.pipeline.project import (
     ALL_PARTS,
@@ -165,6 +165,21 @@ def _parse(text: str) -> dict[str, Any] | None:
 
 def is_placeholder(document: dict[str, Any], part: str) -> bool:
     return document.get("part") == part and all(k in ("schema", "part") for k in document)
+
+
+def fem_source_changed(texts: dict[str, str | None], part: str, recorded: str | None) -> bool:
+    """``femSourceChanged``: whether source ``part`` of the analysis model changed since the
+    model recorded ``recorded``. The settings count without the project's details and title
+    block (``settings_stamp``); a model derived before that recorded the whole file's stamp,
+    which is still current while the file is unchanged."""
+    text = texts.get(part)
+    if text is None:
+        return True
+    if recorded == source_stamp(text):
+        return False
+    if part == "settings":
+        return recorded != settings_stamp(text)
+    return True
 
 
 def _changed(texts: dict[str, str | None], part: str, recorded: str | None, stamp=None) -> bool:
@@ -457,7 +472,7 @@ def fem_status(inputs: StatusInputs) -> PartStatus:
         or recorded_changed
         or mep_added
         or loads_added
-        or any(_changed(inputs.texts, p, recorded.get(p)) for p in FEM_SOURCES)
+        or any(fem_source_changed(inputs.texts, p, recorded.get(p)) for p in FEM_SOURCES)
     ):
         return _status("fem", "stale", STALE, "derive the analysis model again")
     if inputs.femResultsTime is None:
