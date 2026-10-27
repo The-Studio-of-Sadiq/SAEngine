@@ -276,7 +276,7 @@ suite('SAEngine - Soil report', () => {
 		}, {
 			duplicates: ['BH-2'],
 			replace: [{ added: ['BH-3'], replaced: ['BH-2'], renamed: [], skipped: [] }, ['BH-1 9000', 'BH-2 12000', 'BH-3 9000']],
-			keep: [{ added: ['BH-3'], replaced: [], renamed: [{ from: 'BH-2', to: 'BH-2-2' }], skipped: [] }, ['BH-1', 'BH-2', 'BH-3', 'BH-2-2']],
+			keep: [{ added: ['BH-3'], replaced: [], renamed: [{ from: 'BH-2', to: 'BH-2-2' }], skipped: [] }, ['BH-1', 'BH-2', 'BH-2-2', 'BH-3']],
 			skip: [{ added: ['BH-3'], replaced: [], renamed: [], skipped: ['BH-2'] }, ['BH-1 9000', 'BH-2 9000', 'BH-3 9000']],
 		});
 	});
