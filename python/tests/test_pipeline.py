@@ -588,7 +588,8 @@ def test_the_required_steel_reuses_the_checks_of_the_design_report(
 
     def gather(out_dir, project_path, substructure=True):
         calls.append(substructure)
-        return SimpleNamespace(assumed=False, report={"summary": {}}, root=tmp_path)
+        report = {"summary": {}}
+        return SimpleNamespace(assumed=set(), report=report, plain=report, root=tmp_path)
 
     monkeypatch.setattr(required, "gather", gather)
     monkeypatch.setattr(design_mode, "_add_substructure", lambda g, out: added.append(g))
