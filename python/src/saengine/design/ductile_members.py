@@ -59,7 +59,8 @@ Intermediate moment frames (8.3.10, p. 1114-1117)
   checks).
 - 8.3.10.5 columns: (a) so <= min(8 db,min, 24 dt, least dimension / 2, 300 mm) over lo >=
   max(ln/6, largest dimension, 450 mm); (b) first tie <= so/2; (d) <= 2 so throughout; (c)
-  joints per Sec 6.4.9 (not here).
+  joints per Sec 6.4.9 (not here). Columns with Pu <= 0.1 Ag f'c take the details of 8.3.10.4
+  (8.3.10.2) over the stricter length max(2h, ln/6, largest dimension, 450 mm).
 
 Ordinary moment frames (8.3.9, p. 1113)
 - 8.3.9.2 members with Pu > 0.1 Ag f'c (unless they satisfy 8.3.5.4): so <= min(8 db,min,
@@ -883,15 +884,29 @@ def column_need(
         )
     if frame == "intermediate" and lateral and not above:
         # 8.3.10.2 (p1114): Pu <= 0.1 Ag f'c follows 8.3.10.4 (the beam rules), not 8.3.10.5.
+        # The length: the stricter of the beam rule's 2h (8.3.10.4(b)) and the column rule's
+        # lo = max(ln/6, largest dimension, 450 mm) (8.3.10.5(a)): it is still a column (X13 of
+        # the usability walk: lo from the beam rule alone). The spacing keeps 8.3.10.4.
         d = _column_depth(section)
         limits = {"d/4": d / 4, "8 db": 8 * db, "24 dt": 24 * dt, "300 mm": 300.0}
         governing = min(limits, key=lambda k: limits[k])
+        if clear_height is None:
+            notes.append("clear height not given: lo from the section and 450 mm only")
+        lo_parts = {
+            "2h": 2 * largest,
+            "ln/6": (clear_height or 0) / 6,
+            "h": largest,
+            "450 mm": 450.0,
+        }
+        lo_by = max(lo_parts, key=lambda k: lo_parts[k])
         return ColumnNeed(
             frame=frame,
             lateral=lateral,
             applies=True,
-            zone_length=2 * largest,
-            zone_length_rule="2h from the joint face, h the largest dimension",
+            zone_length=lo_parts[lo_by],
+            zone_length_rule=(
+                f"max(2h, ln/6, h, 450 mm), {lo_by} governs; h the largest dimension"
+            ),
             zone_spacing=limits[governing],
             zone_rule=f"min(d/4, 8 db, 24 dt, 300 mm), {governing} governs; d = {d:.0f} mm",
             so=limits[governing],
@@ -909,7 +924,7 @@ def column_need(
             ),
             first_rule="50 mm",
             clauses=(
-                ("length", "8.3.10.4(b)"),
+                ("length", "8.3.10.4(b), 8.3.10.5(a)"),
                 ("spacing", "8.3.10.4(b)"),
                 ("first", "8.3.10.4(b)"),
                 ("outside", "8.3.10.4(c)"),

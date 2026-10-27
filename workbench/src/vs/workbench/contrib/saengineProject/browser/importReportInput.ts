@@ -39,8 +39,14 @@ export class ImportReportInput extends EditorInput {
 		return EditorInputCapabilities.Readonly;
 	}
 
+	/** "Import Report: Office": several imports' reports can be open, each names its project. */
 	override getName(): string {
-		return localize('saengineImportReport', "Import Report");
+		const project = this.entry.root.replace(/[\\/]+$/, '').replace(/^.*[\\/]/, '');
+		return project ? localize('saengineImportReportOf', "Import Report: {0}", project) : localize('saengineImportReport', "Import Report");
+	}
+
+	override getDescription(): string {
+		return this.entry.root;
 	}
 
 	override getIcon(): ThemeIcon {

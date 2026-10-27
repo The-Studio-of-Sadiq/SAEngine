@@ -424,7 +424,8 @@ def check_round_trip(
     assert counts["beams"] == original.get("beam", 0)
     assert counts["slabs"] == original.get("slab", 0)
     assert counts.get("walls", 0) == original.get("wall", 0)
-    assert counts["stories"] == len(building.stories)
+    # The import counts the storeys above the base (N12).
+    assert counts["stories"] == len(building.stories) - 1
     assert counts.get("braces", 0) + counts.get("inclinedMembers", 0) == len(
         building.additions.members
     )
@@ -475,9 +476,11 @@ def test_tiny_model_round_trip(tmp_path: Path) -> None:
     assert column.reinforcement.longitudinal[0].count == 8
     assert column.reinforcement.longitudinal[0].dia == pytest.approx(16, abs=0.05)
     assert column.reinforcement.transverse.spacing == pytest.approx(150)
-    # The brick wall's weight on the beam comes back as a load not carried (frame loads).
+    # The brick wall's weight on the beam comes back as a member load (N10), not as a lost load.
     wall = 1900 * 9.80665 * 0.125 * 3.0 / 1000 * 5.0  # kN
-    assert imported.report.not_carried["D"] == pytest.approx(wall, rel=1e-6)
+    assert imported.report.not_carried.get("D", 0.0) == pytest.approx(0.0, abs=1e-9)
+    assert imported.report.imported["memberLineLoads"] == 1
+    assert imported.report.carried["D"] >= wall * (1 - 1e-6)
     assert imported.report.imported["slabOpenings"] == 1
 
 
@@ -558,3 +561,21 @@ def test_cli_writes_the_e2k_and_its_report(tmp_path: Path, monkeypatch: Any, cap
     # at 2.0 kN/m²), and the overhead tank's water as F.
     assert math.isclose(report["loads"]["exportedKN"]["L"], 107.012, rel_tol=1e-4)
     assert math.isclose(report["loads"]["exportedKN"]["F"], 47.9, rel_tol=1e-4)
+
+
+def test_app_export_writes_into_the_exports_folder(tmp_path: Path, monkeypatch: Any) -> None:
+    """The Exports page's ``export/e2k``: ``11 Exports/ETABS/<project>.e2k`` and its report, or
+    the reason it cannot export."""
+    from saengine.exporters import etabs
+
+    project = tmp_path / "Sample Frame"
+    shutil.copytree(SAMPLE, project)
+    real = etabs.export_e2k
+    monkeypatch.setattr(etabs, "export_e2k", lambda *a, **k: real(*a, **k, derive=False))
+    answer = etabs.rpc_export_e2k({"projectRoot": str(project)})
+    target = project / "11 Exports" / "ETABS" / "Sample Frame.e2k"
+    assert Path(answer["path"]) == target and target.exists()
+    assert Path(answer["reportPath"]) == target.with_name("Sample Frame.export-report.json")
+    assert answer["report"]["exported"]["columns"] == 7
+    missing = etabs.rpc_export_e2k({"projectRoot": str(tmp_path / "nowhere")})
+    assert set(missing) == {"error"} and missing["error"]

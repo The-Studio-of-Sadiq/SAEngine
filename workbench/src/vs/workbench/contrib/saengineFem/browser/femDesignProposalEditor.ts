@@ -40,7 +40,7 @@ import { IWorkingCopyService } from '../../../services/workingCopy/common/workin
 import { EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { saveProjectEdits } from '../../saengineProject/browser/projectEdits.js';
 import { DESIGN_APPLY_COMMAND, DESIGN_PROPOSAL_COMMAND, designArguments, IFemDesignReport, runDesign } from './femDesign.js';
-import { describeBeforeAfter, describeChange, describeCheckCounts, describeSteelProposal, DesignProposalMode, DesignProposalModel, IDesignProposalRow, IDesignProposalTexts, IFemDesignApplyResult, IFemDesignProposal, proposalEdits } from './femDesignProposal.js';
+import { describeBeforeAfter, describeChange, describeCheckCounts, describeFailing, describeSteelProposal, DesignProposalMode, DesignProposalModel, IDesignProposalRow, IDesignProposalTexts, IFemDesignApplyResult, IFemDesignProposal, failingItems, notFixedBy, proposalEdits } from './femDesignProposal.js';
 import { FemDesignProposalInput } from './femDesignProposalInput.js';
 import { errorSummary } from './femResultsBar.js';
 
@@ -131,7 +131,7 @@ export class FemDesignProposalEditor extends EditorPane {
 		}));
 		this.frame.element.classList.add('saengine-fem-proposal-editor');
 		this.frame.setTitle(localize('femProposal.title', "Design Reinforcement"));
-		this.frame.setHelp(localize('femProposal.help', "Bars proposed for each object type from the steel its members require under the load combinations of the last analysis run. Keep Shared Types designs each type for its most demanding member; Split into New Types moves members that need much less to new types with lighter bars. Apply changes 04 Objects (06 BIM and 05 Floor Plan for a split, 09 Substructure for foundations) in one edit that Undo reverts."));
+		this.frame.setHelp(localize('femProposal.help', "Bars proposed for each object type from the steel its members require under the load combinations of the last analysis run. Keep Shared Types designs each type for its most demanding member; Split into New Types moves members that need much less to new types with lighter bars. Apply changes 04 Objects (06 BIM and 05 Floor Plan for a split) in one edit that Undo reverts. Foundations are designed in 9 Substructure."));
 		const mode = append(this.frame.controlsSlot, $('.fem-proposal-mode'));
 		append(mode, $('span.sa-frame-label', undefined, localize('femProposal.mode', "Types")));
 		this.modePicker = this._register(new SelectBox(MODES.map<ISelectOptionItem>(m => ({ text: m.label })), 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('femProposal.modeAria', "How members share object types") }));
@@ -180,7 +180,7 @@ export class FemDesignProposalEditor extends EditorPane {
 	}
 
 	/** The project's file of `part` (the model is `<root>/08 FEM/model.osmodel`). */
-	private partFile(model: URI, part: 'objects' | 'bim' | 'floorPlan' | 'substructure'): URI {
+	private partFile(model: URI, part: 'objects' | 'bim' | 'floorPlan'): URI {
 		const info = partById(part);
 		return joinPath(dirname(dirname(model)), info?.folder ?? '', info?.mainFile ?? '');
 	}
@@ -222,6 +222,7 @@ export class FemDesignProposalEditor extends EditorPane {
 			return;
 		}
 		this.before = before;
+		this.model.setChecks(before);
 		this.loading = false;
 		this.render();
 	}
@@ -321,8 +322,8 @@ export class FemDesignProposalEditor extends EditorPane {
 		this.render();
 		try {
 			// The files the backend edits: the object types always; the building model and the
-			// floor plan its members come from (members moved to new types); the foundations.
-			const parts = ['objects', 'bim', 'floorPlan', 'substructure'] as const;
+			// floor plan its members come from (members moved to new types).
+			const parts = ['objects', 'bim', 'floorPlan'] as const;
 			const models = new Map<typeof parts[number], { resource: URI; model: ITextModel }>();
 			for (const part of parts) {
 				const resource = this.partFile(model, part);
@@ -334,13 +335,11 @@ export class FemDesignProposalEditor extends EditorPane {
 				objectsText: models.get('objects')!.model.getValue(),
 				bimText: models.get('bim')?.model.getValue(),
 				floorPlanText: models.get('floorPlan')?.model.getValue(),
-				substructureText: models.get('substructure')?.model.getValue(),
 			};
 			const result = await this.commandService.executeCommand<IFemDesignApplyResult>(DESIGN_APPLY_COMMAND, {
 				objectsText: current.objectsText,
 				bimText: current.bimText ?? null,
 				...(current.floorPlanText !== undefined ? { floorPlanText: current.floorPlanText } : {}),
-				...(current.substructureText !== undefined ? { substructureText: current.substructureText } : {}),
 				proposal,
 			});
 			if (!result) {
@@ -379,6 +378,7 @@ export class FemDesignProposalEditor extends EditorPane {
 			}
 			this.applied = { before, after, changes, edited, undone: false };
 			this.before = after;
+			this.model.setChecks(after);
 			// The bars changed: propose again from them (the rows now show what was applied).
 			this.model.clear();
 			await this.fetch(this.model.mode, request);
@@ -428,6 +428,7 @@ export class FemDesignProposalEditor extends EditorPane {
 			}
 			applied.after = after;
 			this.before = after;
+			this.model.setChecks(after);
 			this.model.clear();
 			await this.fetch(this.model.mode, request);
 		} catch (error) {
@@ -487,6 +488,9 @@ export class FemDesignProposalEditor extends EditorPane {
 		for (const warning of this.model.generalWarnings()) {
 			append(this.list, $('.fem-proposal-warning', undefined, warning));
 		}
+		for (const note of this.model.generalNotes()) {
+			append(this.list, $('.fem-proposal-note', undefined, note));
+		}
 		if (proposal) {
 			this.renderHeader(rows, included);
 			if (!rows.length) {
@@ -525,13 +529,24 @@ export class FemDesignProposalEditor extends EditorPane {
 			: localize('femProposal.headerByType', "Bars per type, for its most demanding member")));
 		if (this.before) {
 			append(text, $('.fem-proposal-header-detail', undefined, localize('femProposal.now', "Design checks now: {0}.", describeCheckCounts(this.before))));
+			const noBars = this.before.summary.noBars ?? [];
+			if (noBars.length) {
+				append(text, $('.fem-proposal-header-detail', undefined, localize('femProposal.noBarsYet', "Not checked for want of bars: {0}. Bars are proposed for them below.", noBars.join(', '))));
+			}
 		}
 		const button = this.renderStore.add(new Button(header, { ...defaultButtonStyles, supportIcons: true }));
 		button.label = `$(${Codicon.check.id}) ${applyLabel(included)}`;
 		button.enabled = this.applyAction.enabled;
 		this.renderStore.add(button.onDidClick(() => void this.apply()));
+		// What the bars proposed leave failing (X4 of the usability walk: "nothing to change"
+		// while every joint and a beam failed).
+		const left = notFixedBy(rows, this.before);
 		if (!rows.some(r => r.changed)) {
-			append(this.list, $('.fem-proposal-note', undefined, localize('femProposal.allFine', "The bars of every type already provide the steel required: nothing to change.")));
+			append(this.list, left.length
+				? $('.fem-proposal-warning', undefined, localize('femProposal.noBarFix', "No change of bars is proposed, but these still fail: {0}. Bars do not fix them: change the section, the material or the layout.", describeFailing(left)))
+				: $('.fem-proposal-note', undefined, localize('femProposal.allFine', "The bars of every type already provide the steel required: nothing to change.")));
+		} else if (left.length) {
+			append(this.list, $('.fem-proposal-warning', undefined, localize('femProposal.notFixed', "Not fixed by the rows included: {0}.", describeFailing(left))));
 		}
 	}
 
@@ -555,6 +570,10 @@ export class FemDesignProposalEditor extends EditorPane {
 		if (!applied.undone) {
 			for (const change of applied.changes) {
 				append(banner, $('.fem-proposal-applied-change', undefined, change));
+			}
+			const failing = failingItems(applied.after);
+			if (failing.length) {
+				append(banner, $('.fem-proposal-warning', undefined, localize('femProposal.stillFailing', "Still failing: {0}.", describeFailing(failing))));
 			}
 			if (this.canUndo(applied)) {
 				const undo = this.renderStore.add(new Button(banner, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
@@ -599,9 +618,6 @@ export class FemDesignProposalEditor extends EditorPane {
 		append(head, $('span.fem-proposal-type-id', undefined, row.type));
 		if (row.name && row.name !== row.type) {
 			append(head, $('span.fem-proposal-type-name', undefined, row.name));
-		}
-		if (row.key.startsWith('foundation:')) {
-			append(head, $('span.fem-proposal-badge.muted', undefined, localize('femProposal.foundation', "foundation, {0}", row.kind ?? '')));
 		}
 		if (row.steel) {
 			append(head, $('span.fem-proposal-badge.muted', undefined, localize('femProposal.steelBadge', "steel, {0}", row.steel.family)));

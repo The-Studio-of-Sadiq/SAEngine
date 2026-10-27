@@ -547,7 +547,9 @@ export interface IFemSolverService {
  * `drawings/generate` `{projectRoot, sheets?, size?, designReportText?}` (in a worker thread),
  * `drawings/list` `{projectRoot}` and `drawings/progress` `{projectRoot}`; a new project from an
  * ETABS, STAAD.Pro or SAP2000 text file `import/structural` `{path, destParent, name?, overwrite?}`
- * (`{root, name, format, report, problems, files}` or `{error, problems}`; in a worker thread) and
+ * (`{root, name, format, report, problems, files}` or `{error, problems}`; in a worker thread), the
+ * project as an ETABS text model `export/e2k` `{projectRoot, outPath?, units?, lateral?}` (`{path,
+ * reportPath, report}` or `{error}`; in a worker thread) and
  * the standard steel section table `library/steelSections` `{}`; a new building generated from its
  * grids and storeys `library/generateBuilding` `{spec, destParent, name?, overwrite?}` (`{root, name,
  * notes, summary, settingsPatch, files}` or `{error}`; in a worker thread).
@@ -558,7 +560,7 @@ export type EngineMethod =
 	| 'fem/storyResponse' | 'fem/memberForces' | 'fem/columnInteraction' | 'fem/exportXlsx'
 	| 'soil/location' | 'soil/gisExport' | 'soil/gisImport' | 'soil/qgisProgram'
 	| 'drawings/generate' | 'drawings/list' | 'drawings/progress'
-	| 'import/structural' | 'library/steelSections' | 'library/generateBuilding'
+	| 'import/structural' | 'export/e2k' | 'library/steelSections' | 'library/generateBuilding'
 	| 'section/analyse';
 
 export interface IQgisOpenRequest {

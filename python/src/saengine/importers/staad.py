@@ -31,8 +31,10 @@ may change the length and force units anywhere, and command words abbreviated as
   ``FLOOR LOAD``, ``REPEAT LOAD`` and ``REFERENCE LOAD`` (``DEFINE REFERENCE LOADS``);
   ``LOAD COMBINATION n``.
 
-Everything else (generated wind and seismic loads, design parameters, analysis commands) is
-skipped and listed in the import report.
+Member and joint loads go onto the floor-plan beams and columns (``05 Floor Plan/loads.json``,
+see :mod:`saengine.importers.common`). Generated wind and seismic loads are listed as replaced
+by SAEngine's own (BNBC 2020); everything else (other generated loads, design parameters,
+analysis commands) is skipped and listed in the import report.
 """
 
 from __future__ import annotations
@@ -194,6 +196,25 @@ _GENERATED = re.compile(
     r"DIRECT|MOVING|SNOW|CALIFORNIA|NORTH|WAVE|1893|PRESSURE|TEMP|TEMPERATURE|STRAIN|"
     r"STRAINRATE|PRESTRESS|POSTSTRESS|FIXED|ONEWAY|AREA|BLAST|ASCE)$"
 )
+#: Generators of :data:`_GENERATED` that are not wind or earthquake loads (SAEngine does not
+#: replace these with loads of its own: they are skipped).
+_NOT_LATERAL = {
+    "DIRECT",
+    "MOVING",
+    "SNOW",
+    "WAVE",
+    "PRESSURE",
+    "TEMP",
+    "TEMPERATURE",
+    "STRAIN",
+    "STRAINRATE",
+    "PRESTRESS",
+    "POSTSTRESS",
+    "FIXED",
+    "ONEWAY",
+    "AREA",
+    "BLAST",
+}
 
 
 def _num(token: str) -> float | None:
@@ -494,11 +515,14 @@ class _Reader:
     def generated_or_unknown(self, tokens: list[str]) -> None:
         """A line in a load case that is not a load the reader knows: the case stays open."""
         assert self.case is not None
-        if _GENERATED.match(tokens[0]) or (len(tokens) > 1 and tokens[1] == "LOAD"):
+        example = f"{self.case.name}: {' '.join(tokens[:3])}"
+        if _GENERATED.match(tokens[0]) and tokens[0] not in _NOT_LATERAL:
+            self.report.note("loads.lateral.generated", example)
+        elif _GENERATED.match(tokens[0]) or (len(tokens) > 1 and tokens[1] == "LOAD"):
             self.report.skip(
-                "generated wind, seismic and other loads not read (SAEngine makes its own wind "
-                "and earthquake loads from BNBC)",
-                f"{self.case.name}: {' '.join(tokens[:3])}",
+                "generated loads not read (snow, temperature, prestress, moving, area and "
+                "one-way loads)",
+                example,
             )
         else:
             self.report.skip("load commands not read", f"{self.case.name}: {' '.join(tokens[:3])}")
@@ -621,7 +645,7 @@ class _Reader:
                 rest = tokens[2:]
                 number = rest[0] if rest else str(len(self.model.combinations) + 1)
                 if number in ("SRSS", "ABS"):
-                    self.report.skip("SRSS and ABS combinations", " ".join(tokens))
+                    self.report.note("combinations.envelope", " ".join(tokens))
                     self.block = "skip"
                     return
                 title = " ".join(rest[1:]) or f"Combination {number}"
@@ -1492,7 +1516,7 @@ class _Reader:
             elif a in ("MX", "MY", "MZ") and abs(v) > 0:
                 moments = True
         if moments:
-            self.report.skip("joint moments", self.case.name)
+            self.report.note("loads.joint.moments", self.case.name)
         for j in ids:
             self.case.loads.append(Load("joint", str(j), force.copy()))
 
@@ -1517,12 +1541,10 @@ class _Reader:
         numbers = [v for v in (_num(t) for t in spec[2:]) if v is not None]
         local = dir_token in ("X", "Y", "Z")
         if self.direction(dir_token) is None and not local:
-            self.report.skip(
-                "member loads in directions not read", f"{self.case.name}: {dir_token}"
-            )
+            self.report.note("loads.member.direction", f"{self.case.name}: {dir_token}")
             return
         if kind.startswith(("UMOM", "UMO", "CMOM", "CMO")):
-            self.report.skip("member moments (not read)", f"{self.case.name}: {kind}")
+            self.report.note("loads.member.moments", f"{self.case.name}: {kind}")
             return
         name = self.case.name
         # Per (physical) member: the list of (member, its start station, length) [mm].
@@ -1555,9 +1577,8 @@ class _Reader:
                     if start - 1e-6 <= at <= start + length + 1e-6:
                         unit = self.load_vector(m, dir_token, name)
                         if unit is not None:
-                            self.case.loads.append(
-                                Load("point", str(m), unit * (numbers[0] * self.force))
-                            )
+                            force = unit * (numbers[0] * self.force)
+                            self.case.loads.append(Load("point", str(m), force, start=at - start))
                         break
                 continue
             # Distributed: intensity w(s) linear from (s1, w1) to (s2, w2), s along the member.
@@ -1582,9 +1603,7 @@ class _Reader:
                     continue
                 if len(numbers) >= 3 and abs(numbers[0]) + abs(numbers[1]) == 0:
                     w1 = w2 = numbers[2] / 2  # triangular, peak at mid-length: half on average
-                    self.report.approximate(
-                        "triangular member loads taken as their mean", f"{name}: {chain[0][0]}"
-                    )
+                    self.report.note("loads.member.varying", f"{name}: {chain[0][0]}")
                 else:
                     w1, w2 = numbers[0], numbers[1]
                 s1, s2 = 0.0, total_length
@@ -1597,19 +1616,13 @@ class _Reader:
             if s2 - s1 <= 1e-9:
                 continue
             if abs(w1 - w2) > 1e-12:
-                self.report.approximate(
-                    "trapezoidal and linear member loads taken as their mean over the loaded "
-                    "length",
-                    f"{name}: {chain[0][0]}",
-                )
+                self.report.note("loads.member.varying", f"{name}: {chain[0][0]}")
 
             def w_at(
                 s: float, w1: float = w1, w2: float = w2, s1: float = s1, s2: float = s2
             ) -> float:
                 return w1 + (w2 - w1) * (s - s1) / (s2 - s1)
 
-            if (s1 > 1e-6 or s2 < total_length - 1e-6) and len(chain) == 1:
-                self.report.approximate("partial member loads kept by their total", name)
             for m, start, length in chain:
                 a, b = max(s1, start), min(s2, start + length)
                 if b - a <= 1e-9:
@@ -1618,8 +1631,9 @@ class _Reader:
                 unit = self.load_vector(m, dir_token, name)
                 if unit is None:
                     continue
+                value = unit * (mean * self.force / (mm / 1000))
                 self.case.loads.append(
-                    Load("uniform", str(m), unit * (mean * self.force / (mm / 1000)), length=b - a)
+                    Load("uniform", str(m), value, length=b - a, start=a - start)
                 )
 
     def load_vector(self, m: int, token: str, case_name: str) -> np.ndarray | None:

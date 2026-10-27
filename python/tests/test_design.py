@@ -473,7 +473,15 @@ def test_frame_beams_sag_at_midspan_and_hog_at_the_supports(frame: Path) -> None
         assert s["sway"] is None and s["k"] == 1.0
         assert s["lu"] < 3200 and check["demand"] == pytest.approx(s["lu"] / s["r"], rel=1e-3)
     summary = report["summary"]
-    assert summary["checked"] == 8 and summary["passed"] + summary["failed"] == 8
+    members = summary["elements"]
+    assert members["checked"] == 8 and members["passed"] + members["failed"] == 8
+    # The totals count the joints and the building's seismic checks too (X4).
+    building = [c for c in (report["seismic"] or {}).get("checks", []) if not c["flag"]]
+    assert summary["checked"] == 8 + summary["joints"]["checked"] + len(building)
+    assert summary["passed"] + summary["failed"] == summary["checked"]
+    assert summary["failed"] == (
+        members["failed"] + summary["joints"]["failed"] + sum(1 for c in building if not c["ok"])
+    )
     assert summary["maxUtilisation"] == max(e["utilisation"] for e in report["elements"])
 
 
@@ -529,3 +537,39 @@ def test_circular_and_unsymmetric_columns() -> None:
         assert section.symmetric == (count != 5)
         capacities.append(InteractionSurface(section).moment_capacity(5e5, 0.0))
     assert capacities[0] <= capacities[1] <= capacities[2]
+
+
+@pytest.mark.parametrize("unsymmetric", [False, True])
+def test_max_utilisation_matches_the_check_point_by_point(unsymmetric: bool) -> None:
+    # The design mode's bar search works its demands out on arrays (X2 of the usability walk):
+    # the same answer as the largest check(), over compression, tension and both bending signs.
+    reinforcement = COLUMN_REINFORCEMENT
+    if unsymmetric:
+        reinforcement = LinearReinforcement.model_validate(
+            {
+                "material": "B420DWR",
+                "cover": 40,
+                "longitudinal": [
+                    {"position": "perimeter", "count": 4, "dia": 20},
+                    {"position": "top", "count": 2, "dia": 16},
+                ],
+                "transverse": {"type": "tie", "dia": 10, "spacing": 150},
+            }
+        )
+    section = section_of(RectangleProfile(xDim=400, yDim=400), reinforcement, 28, 420)
+    surface = InteractionSurface(section, coarse=True)
+    rng = np.random.default_rng(7)
+    n = 300
+    points = np.column_stack(
+        [
+            rng.uniform(-0.9 * section.phi_tension, 0.95 * section.phi_pn_max, n),
+            rng.uniform(-2.5e8, 2.5e8, n),
+            rng.uniform(-2.5e8, 2.5e8, n),
+        ]
+    )
+    for block in (points[:1], points[:40], points):
+        expected = max(surface.check(*p).utilisation for p in block)
+        assert surface.max_utilisation(block) == pytest.approx(expected, rel=1e-9)
+        # Stopping at the first demand above 1 gives the same verdict.
+        assert (surface.max_utilisation(block, stop_above=1.0) > 1.0) == (expected > 1.0)
+    assert surface.max_utilisation(np.empty((0, 3))) == 0.0

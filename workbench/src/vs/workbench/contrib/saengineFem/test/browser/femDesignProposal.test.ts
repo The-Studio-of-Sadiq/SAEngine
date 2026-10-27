@@ -6,15 +6,15 @@
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { describeSteel, describeSteelRatio, designArguments, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, otherFailureElements, requiredSteelOf, shortElements, tooSmallElements } from '../../browser/femDesign.js';
-import { describeBars, describeBeforeAfter, describeChange, DesignProposalModel, IFemDesignProposal, proposalEdits } from '../../browser/femDesignProposal.js';
+import { describeDesignCounts, describeSteel, describeSteelRatio, designArguments, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, otherFailureElements, requiredSteelOf, shortElements, tooSmallElements } from '../../browser/femDesign.js';
+import { describeBars, describeBeforeAfter, describeChange, describeFailing, describeTransverseSpacing, DesignProposalModel, failingItems, IFemDesignProposal, notFixedBy, proposalEdits } from '../../browser/femDesignProposal.js';
 
 const B1_CURRENT = { material: 'B500', cover: 40, longitudinal: [{ position: 'top' as const, count: 3, dia: 16 }, { position: 'bottom' as const, count: 3, dia: 16 }], transverse: { type: 'stirrup' as const, dia: 10, spacing: 200, legs: 2 } };
 const B1_PROPOSED = { material: 'B500', cover: 40, longitudinal: [{ position: 'top' as const, count: 4, dia: 20 }, { position: 'bottom' as const, count: 3, dia: 16 }], transverse: { type: 'stirrup' as const, dia: 10, spacing: 150, legs: 2 }, text: '4 Ø20 top, 3 Ø16 bottom, Ø10 @ 150' };
 
 /**
  * As `saengine.design.proposal` reports it: B1 needs heavier bars (B3 governs, B4 needs much
- * less), B2 keeps its bars, C1 is too small, footing F1 gets bars.
+ * less), B2 keeps its bars, C1 is too small. Foundations are 9 Substructure's (none here).
  */
 const BY_TYPE: IFemDesignProposal = {
 	mode: 'byType',
@@ -25,8 +25,8 @@ const BY_TYPE: IFemDesignProposal = {
 	],
 	newTypes: [],
 	reassign: [],
-	foundations: [{ id: 'F1', type: 'footing', current: null, proposed: { bottomX: { dia: 12, spacing: 150 }, bottomY: { dia: 12, spacing: 150 }, text: 'bottom Ø12 @ 150 X, Ø12 @ 150 Y' }, status: 'ok', notes: ['spacing ≤ 450 mm'], otherFailures: ['Punching shear at C2'], tooSmall: null }],
 	warnings: ['No bars entered on C1: checked with assumed bars.', 'C1: section too small — no layout with ρ up to 0.08 carries the demand'],
+	notes: ['Foundations are designed in 9 Substructure: its Size Footings proposes their size and bars.'],
 };
 
 /**
@@ -40,7 +40,6 @@ const SPLIT: IFemDesignProposal = {
 	types: [{ ...BY_TYPE.types[0], proposed: { text: '4 Ø20 top, 3 Ø16 bottom, Ø10 @ 200' }, byType: B1_PROPOSED, notes: ['split bars'] }, BY_TYPE.types[1]],
 	newTypes: [{ type: 'B1-2', from: 'B1', kind: 'beam', name: 'Beam 250×500 (2)', proposed: { text: '3 Ø16 top, 2 Ø16 bottom, Ø10 @ 200' }, governingMember: 'B4', members: ['B4'] }],
 	reassign: [{ member: 'B4', from: 'B1', to: 'B1-2', source: 'FB4' }],
-	foundations: [],
 	warnings: [],
 };
 
@@ -77,29 +76,82 @@ suite('SAEngine - FEM design proposal', () => {
 				['type:B1', '3 Ø16 top, 3 Ø16 bottom, Ø10 @ 200', '4 Ø20 top, 3 Ø16 bottom, Ø10 @ 150', true, false, true, 'B3', 3, ['B4'], []],
 				['type:B2', '3 Ø16 top, 3 Ø16 bottom', '3 Ø16 top, 3 Ø16 bottom', false, false, false, 'B7', 1, [], []],
 				['type:C1', 'no bars', 'no bars proposed', false, true, false, 'C2', 1, [], ['Section too small: no layout with ρ up to 0.08 carries the demand; try 300 x 300 mm (+50 mm)']],
-				['foundation:F1', 'no bars', 'bottom Ø12 @ 150 X, Ø12 @ 150 Y', true, false, true, undefined, 0, [], ['Punching shear at C2']],
 			],
 			general: ['No bars entered on C1: checked with assumed bars.'],
 		});
+		assert.deepStrictEqual(model.generalNotes(), ['Foundations are designed in 9 Substructure: its Size Footings proposes their size and bars.']);
+	});
+
+	test('a type none of whose members the checks checked starts left out (X12)', () => {
+		const model = new DesignProposalModel();
+		model.setProposal('byType', BY_TYPE);
+		model.setChecks(report([{ id: 'B7', type: 'B2', ok: true }, { id: 'C2', type: 'C1', ok: false }]));
+		const left = model.rows()[0];
+		model.setIncluded('type:B1', true);
+		assert.deepStrictEqual({ left: [left.included, left.warnings], ticked: model.rows()[0].included }, {
+			left: [false, ['The design checks checked none of its members: left out unless you include it.']],
+			ticked: true,
+		});
+	});
+
+	test('what still fails: members by their worst check, joints, and what the rows included leave (X4)', () => {
+		const checks = report([{ id: 'B5', type: 'B1', ok: false, check: 'Deflection' }, { id: 'C2', type: 'C1', ok: false, check: 'P-M interaction' }], [
+			{ id: 'J1', ok: false, shear: { Vj: 900, phiVn: 600, utilisation: 1.5 } },
+			{ id: 'J2', ok: false, shear: { Vj: 800, phiVn: 600, utilisation: 1.33 } },
+			{ id: 'J3', ok: true, shear: { Vj: 100, phiVn: 600, utilisation: 0.17 } },
+		], [
+			{ name: 'System permitted in Seismic Design Category D (Table 6.2.19 row 3)', ok: false, flag: false },
+			{ name: 'Height limit of the system in Category D (Table 6.2.19)', ok: false, flag: true },
+		]);
+		const model = new DesignProposalModel();
+		model.setProposal('byType', BY_TYPE);
+		assert.deepStrictEqual([
+			describeFailing(failingItems(checks)),
+			describeFailing(notFixedBy(model.rows(), checks)),
+			failingItems(undefined),
+		], [
+			'System permitted in Seismic Design Category D (Table 6.2.19 row 3); B5 (Deflection); C2 (P-M interaction); joints J1, J2 (joint shear)',
+			'System permitted in Seismic Design Category D (Table 6.2.19 row 3); C2 (P-M interaction); joints J1, J2 (joint shear)',
+			[],
+		]);
+	});
+
+	test('the design counts: members, then joints and building checks (X4)', () => {
+		const base = { checked: 27, passed: 26, failed: 1, skipped: 0, maxUtilisation: 1.1, governing: 'C1' };
+		assert.deepStrictEqual([
+			describeDesignCounts({ ...base, elements: { checked: 18, passed: 18, failed: 0 }, joints: { checked: 6, failed: 0 }, seismicChecks: 3, seismicChecksFailed: 1 }),
+			describeDesignCounts({ ...base, elements: { checked: 18, passed: 17, failed: 1 }, joints: { checked: 0, failed: 0 }, seismicChecksFailed: 0 }),
+			describeDesignCounts(base),
+		], [
+			'18 members pass, 0 fail; 6 joints, 0 fail; 1 building check fails',
+			'17 members pass, 1 fail',
+			'26 members pass, 1 fail',
+		]);
+	});
+
+	test('ties of one spacing along the member are said once (X27)', () => {
+		assert.deepStrictEqual([
+			describeTransverseSpacing({ dia: 10, spacing: 75, zone: { spacing: 75, length: 1200 } }),
+			describeTransverseSpacing({ dia: 10, spacing: 125, zone: { spacing: 75, length: 1000 } }),
+		], ['75', '75 over 1000 at each end, 125 elsewhere']);
 	});
 
 	test('toggles: a row left out is marked apply false; an unchanged row cannot be included', () => {
 		const model = new DesignProposalModel();
 		model.setProposal('byType', BY_TYPE);
 		model.setIncluded('type:B2', true);
-		model.setIncluded('foundation:F1', false);
 		const flags = () => {
 			const request = model.applyRequest();
-			return request && [...request.types.map(t => `${t.type}:${t.apply}`), ...(request.foundations ?? []).map(f => `${f.id}:${f.apply}`)];
+			return request && request.types.map(t => `${t.type}:${t.apply}`);
 		};
 		const onlyB1 = flags();
 		model.setIncluded('type:B1', false);
 		const none = flags();
 		model.setAllIncluded(true);
 		assert.deepStrictEqual({ onlyB1, none, all: flags() }, {
-			onlyB1: ['B1:true', 'B2:false', 'C1:false', 'F1:false'],
+			onlyB1: ['B1:true', 'B2:false', 'C1:false'],
 			none: undefined,
-			all: ['B1:true', 'B2:false', 'C1:false', 'F1:true'],
+			all: ['B1:true', 'B2:false', 'C1:false'],
 		});
 	});
 
@@ -107,7 +159,6 @@ suite('SAEngine - FEM design proposal', () => {
 		const model = new DesignProposalModel();
 		model.setProposal('byType', BY_TYPE);
 		model.setIncluded('type:B1', false);
-		model.setIncluded('foundation:F1', false);
 		model.mode = 'splitTypes';
 		const fetched = model.has('splitTypes');
 		model.setProposal('splitTypes', SPLIT);
@@ -168,7 +219,7 @@ suite('SAEngine - FEM design proposal', () => {
 			proposalEdits(current, { objectsText: '{"objects":[2]}\n', bimText: current.bimText }),
 			proposalEdits(current, { objectsText: '{"objects":[2]}\n', bimText: '{"elements":[1]}\n', floorPlanText: '{"beams":[1]}\n' }),
 			proposalEdits(current, { objectsText: current.objectsText, bimText: null }),
-			proposalEdits({ objectsText: current.objectsText, bimText: undefined }, { objectsText: current.objectsText, bimText: '{}', substructureText: '{}' }),
+			proposalEdits({ objectsText: current.objectsText, bimText: undefined }, { objectsText: current.objectsText, bimText: '{}' }),
 		], [
 			{ objects: '{"objects":[2]}\n' },
 			{ objects: '{"objects":[2]}\n', bim: '{"elements":[1]}\n', floorPlan: '{"beams":[1]}\n' },
@@ -263,3 +314,19 @@ suite('SAEngine - FEM design proposal', () => {
 		]);
 	});
 });
+
+/** A design report with these members (one failing check each when they fail) and joints. */
+function report(elements: readonly { id: string; type: string; ok: boolean; check?: string }[], joints: readonly object[] = [], building: readonly object[] = []): IFemDesignReport {
+	return {
+		code: 'BNBC 2020', method: [], combinations: [], skipped: [], notes: [],
+		elements: elements.map(e => ({
+			id: e.id, kind: 'beam', type: e.type, members: [], utilisation: e.ok ? 0.5 : 1.2, ok: e.ok,
+			checks: [
+				{ name: 'Shear', demand: 1, capacity: 2, unit: 'kN', utilisation: 0.5, combination: null, ok: true, note: '', flag: false },
+				...(e.ok ? [] : [{ name: e.check ?? 'Flexure', demand: 12, capacity: 10, unit: 'kN·m', utilisation: 1.2, combination: null, ok: false, note: '', flag: false }]),
+			],
+		})),
+		summary: { checked: elements.length, passed: elements.filter(e => e.ok).length, failed: elements.filter(e => !e.ok).length, skipped: 0, maxUtilisation: null, governing: null },
+		...{ joints, seismic: { checks: building } },
+	};
+}

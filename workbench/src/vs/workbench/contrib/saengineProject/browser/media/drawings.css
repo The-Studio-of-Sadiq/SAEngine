@@ -285,3 +285,8 @@
 .saengine-exports-editor .drawings-settings.closed .drawings-settings-note {
 	display: none;
 }
+
+/* The drawings' own engineer or project number differs from Project's. */
+.saengine-exports-editor .drawings-settings-note.stale {
+	color: var(--sa-warn);
+}
