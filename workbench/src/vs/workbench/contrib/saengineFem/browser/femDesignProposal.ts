@@ -5,11 +5,13 @@
 
 import { localize } from '../../../../nls.js';
 import { IFemDesignReport } from './femDesign.js';
+import { jointGoverning, jointOk, jointsOf } from './femSeismicDetailing.js';
 
 /*
  * Design Reinforcement: the bars the backend proposes for the object types (from the steel the
- * members of each type require) and the foundations, the rows the engineer includes, and the
- * edits of the part files that apply them. Pure: the proposal page draws this model.
+ * members of each type require), the rows the engineer includes, and the edits of the part files
+ * that apply them. Pure: the proposal page draws this model. Foundations are designed in
+ * 9 Substructure (its Size Footings), never here: one feature lives in one part only.
  */
 
 /**
@@ -162,29 +164,15 @@ export interface IDesignProposalReassign {
 	readonly apply?: boolean;
 }
 
-/** The bars proposed for a foundation of 9 Substructure (stored on the foundation). */
-export interface IDesignProposalFoundation {
-	readonly id: string;
-	/** "footing", "pileCap", "raft". */
-	readonly type: string;
-	readonly current: DesignBars;
-	readonly proposed: DesignBars;
-	readonly status?: DesignProposalStatus;
-	readonly notes?: readonly string[];
-	/** Its failing checks that bars do not fix (punching, bearing). */
-	readonly otherFailures?: readonly string[];
-	readonly tooSmall?: IDesignTooSmall | null;
-	readonly apply?: boolean;
-}
-
 /** Content of the `saengine.design.proposal` result (and the `proposal` argument of apply). */
 export interface IFemDesignProposal {
 	readonly mode?: DesignProposalMode;
 	readonly types: readonly IDesignProposalType[];
 	readonly newTypes?: readonly IDesignProposalNewType[];
 	readonly reassign?: readonly IDesignProposalReassign[];
-	readonly foundations?: readonly IDesignProposalFoundation[];
 	readonly warnings?: readonly DesignProposalWarning[];
+	/** Information about the proposal as a whole (where the foundations are designed). */
+	readonly notes?: readonly string[];
 }
 
 /** A change the apply made, as the backend says it. */
@@ -195,13 +183,12 @@ export interface IFemDesignApplyResult {
 	readonly objectsText: string;
 	readonly bimText?: string | null;
 	readonly floorPlanText?: string | null;
-	readonly substructureText?: string | null;
 	readonly changes?: readonly DesignApplyChange[];
 }
 
-/** One row of the proposal page: an object type (existing or new) or a foundation. */
+/** One row of the proposal page: an object type, existing or new. */
 export interface IDesignProposalRow {
-	/** `type:<id>` for an existing type, `new:<id>` for one the split adds, `foundation:<id>`. */
+	/** `type:<id>` for an existing type, `new:<id>` for one the split adds. */
 	readonly key: string;
 	readonly type: string;
 	readonly name: string | undefined;
@@ -350,7 +337,7 @@ function meshText(mesh: IDesignBarMesh): string {
 export function describeTransverseSpacing(transverse: IDesignTransverse): string {
 	const zone = transverse.zone?.spacing;
 	const length = transverse.zone?.length;
-	if (typeof zone !== 'number' || !(zone > 0) || (zone === transverse.spacing && typeof length !== 'number')) {
+	if (typeof zone !== 'number' || !(zone > 0) || zone === transverse.spacing) {
 		return String(transverse.spacing);
 	}
 	return typeof length === 'number' && length > 0
@@ -418,6 +405,95 @@ export function describeChange(change: DesignApplyChange): string {
 	return typeof change === 'string' ? change : change.message ?? change.text ?? '';
 }
 
+/**
+ * A member, beam-column joint or check of the building as a whole (the seismic system permitted
+ * in the category, the bar grades) that fails, and what fails.
+ */
+export interface IFailingItem {
+	/** The member's or joint's id; the check's name for the building. */
+	readonly id: string;
+	/** The member's object type; undefined otherwise. */
+	readonly type: string | undefined;
+	readonly kind: 'member' | 'joint' | 'building';
+	/** The governing failing check ("Deflection", "joint shear"); empty for the building. */
+	readonly what: string;
+}
+
+/** The checks of the building as a whole in a design report (`seismic.checks`). */
+function buildingChecks(report: IFemDesignReport): readonly { readonly name: string; readonly ok: boolean; readonly flag?: boolean }[] {
+	const checks = (report as { readonly seismic?: { readonly checks?: unknown } | null }).seismic?.checks;
+	return Array.isArray(checks) ? checks : [];
+}
+
+/** The building's checks, members and joints of `report` that fail, in that order. */
+export function failingItems(report: IFemDesignReport | undefined): IFailingItem[] {
+	if (!report) {
+		return [];
+	}
+	const items: IFailingItem[] = [];
+	for (const check of buildingChecks(report)) {
+		if (!check.ok && !check.flag) {
+			items.push({ id: check.name, type: undefined, kind: 'building', what: '' });
+		}
+	}
+	for (const element of report.elements) {
+		if (element.ok) {
+			continue;
+		}
+		let worst: { readonly name: string; readonly utilisation: number } | undefined;
+		for (const check of element.checks) {
+			if (!check.ok && !check.flag && (!worst || check.utilisation > worst.utilisation)) {
+				worst = check;
+			}
+		}
+		items.push({ id: element.id, type: element.type, kind: 'member', what: worst?.name ?? localize('femProposal.failChecks', "checks") });
+	}
+	for (const joint of jointsOf(report)) {
+		if (jointOk(joint)) {
+			continue;
+		}
+		const check = jointGoverning(joint)?.check;
+		items.push({
+			id: joint.id, type: undefined, kind: 'joint',
+			what: check === 'shear'
+				? localize('femProposal.failJointShear', "joint shear")
+				: check
+					? localize('femProposal.failScwb', "strong column / weak beam")
+					: localize('femProposal.failJoint', "joint checks"),
+		});
+	}
+	return items;
+}
+
+/** "B5 (Deflection); joints J1, J2, J3 (joint shear)": the items grouped by what fails. */
+export function describeFailing(items: readonly IFailingItem[]): string {
+	const groups = new Map<string, { kind: IFailingItem['kind']; what: string; ids: string[] }>();
+	for (const item of items) {
+		const key = `${item.kind}|${item.what}`;
+		const group = groups.get(key) ?? { kind: item.kind, what: item.what, ids: [] };
+		group.ids.push(item.id);
+		groups.set(key, group);
+	}
+	return [...groups.values()].map(g => {
+		switch (g.kind) {
+			case 'building': return g.ids.join('; ');
+			case 'joint': return g.ids.length === 1
+				? localize('femProposal.failingJoint', "joint {0} ({1})", g.ids[0], g.what)
+				: localize('femProposal.failingJoints', "joints {0} ({1})", g.ids.join(', '), g.what);
+			default: return localize('femProposal.failingMembers', "{0} ({1})", g.ids.join(', '), g.what);
+		}
+	}).join('; ');
+}
+
+/**
+ * What the included rows leave failing: the building's checks and the joints (bars proposed per
+ * type design neither) and the members whose type no included row changes.
+ */
+export function notFixedBy(rows: readonly IDesignProposalRow[], report: IFemDesignReport | undefined): IFailingItem[] {
+	const changing = new Set(rows.filter(r => r.included).map(r => r.from ?? r.type));
+	return failingItems(report).filter(item => item.kind !== 'member' || !item.type || !changing.has(item.type));
+}
+
 /** What a row of the proposal shows of its bars, and whether it can be applied. */
 interface IRowEntry {
 	readonly key: string;
@@ -437,6 +513,8 @@ export class DesignProposalModel {
 	private readonly proposals = new Map<DesignProposalMode, IFemDesignProposal>();
 	/** Rows the engineer toggled, per mode: key -> included. */
 	private readonly toggled = new Map<DesignProposalMode, Map<string, boolean>>();
+	/** The object types the design checks checked (undefined: not known yet). */
+	private checkedTypes: ReadonlySet<string> | undefined;
 
 	constructor(private _mode: DesignProposalMode = 'byType') { }
 
@@ -463,18 +541,32 @@ export class DesignProposalModel {
 		this.toggled.delete(mode);
 	}
 
+	/**
+	 * The design checks the rows are proposed against: a type none of whose members they checked
+	 * starts left out (X12 of the usability walk: unchecked members were applied by default).
+	 */
+	setChecks(report: IFemDesignReport | undefined): void {
+		// Types without bars are not checked, but proposing their first bars is the point (X29).
+		this.checkedTypes = report ? new Set([...report.elements.map(e => e.type), ...(report.summary.noBars ?? [])]) : undefined;
+	}
+
+	/** Whether the design checks checked no member of type `type` (false while not known). */
+	private unchecked(type: string): boolean {
+		return !!this.checkedTypes && !this.checkedTypes.has(type);
+	}
+
 	/** Forgets every proposal (the inputs changed). */
 	clear(): void {
 		this.proposals.clear();
 		this.toggled.clear();
 	}
 
-	private entry(key: string, status: DesignProposalStatus | undefined, current: DesignBars, proposed: DesignBars): IRowEntry {
+	private entry(key: string, status: DesignProposalStatus | undefined, current: DesignBars, proposed: DesignBars, byDefault = true): IRowEntry {
 		const tooSmall = status === 'tooSmall' || (status === undefined && (proposed === null || proposed === undefined));
 		const currentText = describeBars(current);
 		const proposedText = tooSmall ? localize('femProposal.noProposal', "no bars proposed") : describeBars(proposed);
 		const changed = !tooSmall && (status ? status === 'ok' : currentText !== proposedText);
-		return { key, tooSmall, current: currentText, proposed: proposedText, changed, included: changed && (this.toggled.get(this._mode)?.get(key) ?? true) };
+		return { key, tooSmall, current: currentText, proposed: proposedText, changed, included: changed && (this.toggled.get(this._mode)?.get(key) ?? byDefault) };
 	}
 
 	/** A row's warnings: why nothing is proposed, its own, and the general ones about it. */
@@ -488,7 +580,7 @@ export class DesignProposalModel {
 		];
 	}
 
-	/** The rows of the mode shown: the existing types, the new ones, then the foundations. */
+	/** The rows of the mode shown: the existing types, then the new ones. */
 	rows(): IDesignProposalRow[] {
 		const proposal = this.proposal;
 		if (!proposal) {
@@ -498,7 +590,7 @@ export class DesignProposalModel {
 		for (const t of proposal.newTypes ?? []) {
 			const source = proposal.types.find(s => s.type === t.from);
 			newRows.push({
-				...this.entry(`new:${t.type}`, 'ok', source?.current ?? null, t.proposed),
+				...this.entry(`new:${t.type}`, 'ok', source?.current ?? null, t.proposed, !this.unchecked(t.from)),
 				type: t.type, name: t.name, kind: t.kind ?? source?.kind, from: t.from,
 				governingMember: t.governingMember ?? undefined,
 				members: t.members,
@@ -517,10 +609,11 @@ export class DesignProposalModel {
 			const whole = keptBack.length > 0 && !!t.byType;
 			const blocked = keptBack.length > 0 && !t.byType;
 			const steel = steelProposalOf(t);
-			const steelEntry = steel && this.entry(`type:${t.type}`, steel.proposed ? t.status : 'tooSmall', steel.current, steel.proposed);
+			const unchecked = this.unchecked(t.type);
+			const steelEntry = steel && this.entry(`type:${t.type}`, steel.proposed ? t.status : 'tooSmall', steel.current, steel.proposed, !unchecked);
 			const entry = steelEntry
 				? { ...steelEntry, proposed: steelEntry.tooSmall ? localize('femProposal.noSteelSection', "no {0} section passes", steel.family) : steelEntry.proposed }
-				: this.entry(`type:${t.type}`, whole ? undefined : t.status, t.current, whole && t.byType ? t.byType : t.proposed);
+				: this.entry(`type:${t.type}`, whole ? undefined : t.status, t.current, whole && t.byType ? t.byType : t.proposed, !unchecked);
 			const keptNote = whole
 				? [localize('femProposal.keptBack', "Bars for all its members (the new type for {0} is left out).", keptBack.join(', '))]
 				: [];
@@ -534,6 +627,7 @@ export class DesignProposalModel {
 				warnings: [
 					...this.warningsOf(proposal, t.type, t.warnings, t.tooSmall),
 					...(blocked ? [localize('femProposal.keptBackBlocked', "Its bars were designed without {0}: include their new type too, or propose with Keep Shared Types.", keptBack.join(', '))] : []),
+					...(unchecked && entry.changed ? [localize('femProposal.unchecked', "The design checks checked none of its members: left out unless you include it.")] : []),
 				],
 				// The backend's notes are about the split's bars.
 				notes: whole ? keptNote : t.notes ?? [],
@@ -542,18 +636,6 @@ export class DesignProposalModel {
 			});
 		}
 		rows.push(...newRows);
-		for (const f of proposal.foundations ?? []) {
-			rows.push({
-				...this.entry(`foundation:${f.id}`, f.status, f.current, f.proposed),
-				type: f.id, name: undefined, kind: f.type, from: undefined,
-				governingMember: undefined,
-				members: [],
-				overDesigned: [],
-				warnings: [...this.warningsOf(proposal, f.id, undefined, f.tooSmall), ...(f.otherFailures ?? [])],
-				notes: f.notes ?? [],
-				blocked: false,
-			});
-		}
 		return rows;
 	}
 
@@ -596,11 +678,16 @@ export class DesignProposalModel {
 		if (!proposal) {
 			return [];
 		}
-		const subjects = new Set([...proposal.types.map(t => t.type), ...(proposal.newTypes ?? []).map(t => t.type), ...(proposal.foundations ?? []).map(f => f.id)]);
+		const subjects = new Set([...proposal.types.map(t => t.type), ...(proposal.newTypes ?? []).map(t => t.type)]);
 		return (proposal.warnings ?? []).filter(w => {
 			const subject = warningSubject(w);
 			return subject === undefined || !subjects.has(subject);
 		}).map(warningText);
+	}
+
+	/** The proposal's notes about it as a whole (where the foundations are designed). */
+	generalNotes(): readonly string[] {
+		return this.proposal?.notes ?? [];
 	}
 
 	/** Includes or leaves out a row of the mode shown (a row whose bars do not change stays out). */
@@ -646,7 +733,6 @@ export class DesignProposalModel {
 			types: proposal.types.map(t => ({ ...t, apply: included.has(`type:${t.type}`) })),
 			...(proposal.newTypes ? { newTypes: proposal.newTypes.map(t => ({ ...t, apply: included.has(`new:${t.type}`) })) } : {}),
 			...(proposal.reassign ? { reassign: proposal.reassign.map(r => ({ ...r, apply: included.has(`new:${r.to}`) })) } : {}),
-			...(proposal.foundations ? { foundations: proposal.foundations.map(f => ({ ...f, apply: included.has(`foundation:${f.id}`) })) } : {}),
 		};
 	}
 }
@@ -656,11 +742,10 @@ export interface IDesignProposalTexts {
 	readonly objectsText: string;
 	readonly bimText: string | undefined;
 	readonly floorPlanText?: string;
-	readonly substructureText?: string;
 }
 
 /** The part files an apply changes, by part id, with their new text. */
-export type DesignProposalEdits = Partial<Record<'objects' | 'bim' | 'floorPlan' | 'substructure', string>>;
+export type DesignProposalEdits = Partial<Record<'objects' | 'bim' | 'floorPlan', string>>;
 
 /** The text edits an apply result makes: only of files it was given and whose text differs. */
 export function proposalEdits(current: IDesignProposalTexts, result: IFemDesignApplyResult): DesignProposalEdits {
@@ -669,7 +754,6 @@ export function proposalEdits(current: IDesignProposalTexts, result: IFemDesignA
 		['objects', current.objectsText, result.objectsText],
 		['bim', current.bimText, result.bimText],
 		['floorPlan', current.floorPlanText, result.floorPlanText],
-		['substructure', current.substructureText, result.substructureText],
 	] as const;
 	for (const [part, now, next] of pairs) {
 		if (now !== undefined && typeof next === 'string' && next !== now) {

@@ -14,18 +14,20 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { joinPath } from '../../../../base/common/resources.js';
+import { basename, joinPath } from '../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { language } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -41,7 +43,7 @@ import { DrawingsSection } from './drawingsSection.js';
 import { EditorFrame, IEditorFrameStatus } from './editorFrame.js';
 import { ExportsEditorInput } from './exportsEditorInput.js';
 import { LAST_ARCHIVE_STORAGE_KEY, readLastArchive } from './projectArchiveFlows.js';
-import { ARCHIVE_EXPORT_COMMAND, CAD_OPEN_COMMAND, EXPORT_ARCHIVE_UI_COMMAND, lastArchiveDescription, OPEN_DXF_IN_CAD_UI_COMMAND } from './projectArchiveModel.js';
+import { ARCHIVE_EXPORT_COMMAND, ARCHIVE_IMPORT_COMMAND, CAD_OPEN_COMMAND, EXPORT_ARCHIVE_UI_COMMAND, lastArchiveDescription, OPEN_ARCHIVE_UI_COMMAND, OPEN_DXF_IN_CAD_UI_COMMAND } from './projectArchiveModel.js';
 import { partName } from './projectParts.js';
 
 /*
@@ -58,10 +60,18 @@ export const EXPORT_IFC_COMMAND = 'saengine.bim.exportIfc';
 export const EXPORT_DXF_COMMAND = 'saengine.floorPlan.exportDxf';
 /** Exports the bill of quantities as CSV (saengineBoq). */
 export const EXPORT_BOQ_CSV_COMMAND = 'saengine.boq.exportCsv';
+/**
+ * Writes the building as an ETABS text model to `11 Exports/ETABS/<project>.e2k` with its export
+ * report beside it (`saengine.exporters.etabs`): `{projectRoot}` -> `{path, reportPath, report}`
+ * or `{error}`.
+ */
+export const EXPORT_E2K_COMMAND = 'saengine.export.e2k';
+/** The folder of `11 Exports` the ETABS export writes to. */
+export const EXPORT_E2K_FOLDER = 'ETABS';
 /** The file explorer's "Reveal in File Explorer" (desktop only). */
 const REVEAL_IN_OS_COMMAND = 'revealFileInOS';
 
-type ExportKind = 'report' | 'ifc' | 'dxf' | 'csv';
+type ExportKind = 'report' | 'ifc' | 'dxf' | 'e2k' | 'csv';
 
 interface IExportFile {
 	readonly resource: URI;
@@ -86,12 +96,49 @@ interface IExportKind {
 	readonly fallbackLabel?: string;
 	/** Why the action cannot run yet, if it cannot. */
 	readonly blocked?: string;
+	/** Why the file made is out of date, if it is. */
+	readonly stale?: string;
+	/** What the row says while the export runs. */
+	readonly runningLabel: string;
+}
+
+/** The ETABS export's answer, read defensively. */
+export interface IE2kExportOutcome {
+	readonly path?: string;
+	readonly reportPath?: string;
+	/** "120 frames, 36 areas exported", from the report's counts. */
+	readonly exported: string;
+	/** How many kinds of item were approximated, and left out. */
+	readonly approximated: number;
+	readonly skipped: number;
+	readonly warnings: number;
+	readonly error?: string;
+}
+
+export function readE2kExport(value: unknown): IE2kExportOutcome {
+	const record = typeof value === 'object' && value !== null ? value as { readonly [key: string]: unknown } : {};
+	const report = typeof record.report === 'object' && record.report !== null ? record.report as { readonly [key: string]: unknown } : {};
+	const exported = typeof report.exported === 'object' && report.exported !== null ? report.exported as { readonly [key: string]: unknown } : {};
+	const length = (key: string) => Array.isArray(report[key]) ? (report[key] as unknown[]).length : 0;
+	const outcome = {
+		exported: Object.entries(exported).filter(([, n]) => typeof n === 'number' && n > 0).map(([what, n]) => `${n} ${what}`).join(', '),
+		approximated: length('approximated'),
+		skipped: length('skipped'),
+		warnings: length('warnings'),
+	};
+	if (typeof record.error === 'string' && record.error) {
+		return { ...outcome, error: record.error };
+	}
+	if (typeof record.path !== 'string') {
+		return { ...outcome, error: localize('exports.e2kNoAnswer', "The backend did not say where it wrote the file.") };
+	}
+	return { ...outcome, path: record.path, ...(typeof record.reportPath === 'string' ? { reportPath: record.reportPath } : {}) };
 }
 
 function formatTime(time: number): string {
 	const date = new Date(time);
 	const now = new Date();
-	return date.toLocaleString(undefined, {
+	return date.toLocaleString(language, {
 		day: 'numeric', month: 'short', year: date.getFullYear() === now.getFullYear() ? undefined : 'numeric',
 		hour: '2-digit', minute: '2-digit',
 	});
@@ -118,6 +165,10 @@ export class ExportsEditor extends EditorPane {
 	private actionsKey: string | undefined;
 	/** The first control of the list, which takes the focus. */
 	private firstControl: HTMLElement | undefined;
+	/** The exports being made now: their rows say so and their buttons wait. */
+	private readonly running = new Set<ExportKind>();
+	/** How many elements the building model has (undefined: not read, or no building model). */
+	private bimElements: number | undefined;
 
 	private readonly renderDisposables = this._register(new DisposableStore());
 	private readonly projectDisposables = this._register(new DisposableStore());
@@ -128,7 +179,9 @@ export class ExportsEditor extends EditorPane {
 	private readonly ifcAction = this._register(new Action('saengine.exports.ifc', localize('exports.exportIfc', "Export IFC"), undefined, true, () => this.make('ifc')));
 	private readonly dxfAction = this._register(new Action('saengine.exports.dxf', localize('exports.exportDxf', "Export DXF Floor Plans"), undefined, true, () => this.make('dxf')));
 	private readonly csvAction = this._register(new Action('saengine.exports.csv', localize('exports.exportCsv', "Export Bill of Quantities as CSV..."), undefined, true, () => this.make('csv')));
+	private readonly e2kAction = this._register(new Action('saengine.exports.e2k', localize('exports.exportE2k', "Export to ETABS (.e2k)"), undefined, true, () => this.make('e2k')));
 	private readonly archiveAction = this._register(new Action('saengine.exports.archive', localize('exports.exportArchive', "Export Project (.civil)..."), undefined, true, () => this.exportArchive()));
+	private readonly openArchiveAction = this._register(new Action('saengine.exports.openArchive', localize('exports.openArchive', "Open Project Archive..."), undefined, true, () => this.openArchive()));
 	private readonly drawingsAction = this._register(new Action('saengine.exports.drawings', localize('exports.generateDrawings', "Generate Drawings"), undefined, true, () => this.drawings.generate()));
 	private readonly refreshAction = this._register(new Action('saengine.exports.refresh', localize('exports.refresh', "Refresh"), undefined, true, () => this.scan()));
 
@@ -146,11 +199,12 @@ export class ExportsEditor extends EditorPane {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IProgressService private readonly progressService: IProgressService,
 	) {
 		super(ExportsEditor.ID, group, telemetryService, themeService, storage);
 		this._register(this.storage.onDidChangeValue(StorageScope.WORKSPACE, LAST_ARCHIVE_STORAGE_KEY, this._store)(() => this.scanScheduler.schedule(0)));
 		this._register(CommandsRegistry.onDidRegisterCommand(id => {
-			if (id === ARCHIVE_EXPORT_COMMAND || id === CAD_OPEN_COMMAND || id === DRAWINGS_GENERATE_COMMAND) {
+			if (id === ARCHIVE_EXPORT_COMMAND || id === ARCHIVE_IMPORT_COMMAND || id === CAD_OPEN_COMMAND || id === DRAWINGS_GENERATE_COMMAND || id === EXPORT_E2K_COMMAND) {
 				this.render();
 			}
 		}));
@@ -165,13 +219,19 @@ export class ExportsEditor extends EditorPane {
 		}));
 		this.frame.element.classList.add('saengine-exports-editor');
 		this.frame.setTitle(localize('exports.title', "Exports"));
-		this.frame.setHelp(localize('exports.help', "What the project hands over: the design report, the building model as IFC, the floor plans as DXF, the structural drawings (DXF sheets for LibreCAD, one PDF set and the bar bending schedule) and the bill of quantities as CSV. Each is made from its part and written to the 11 Exports folder. The project archive (.civil) holds the whole project in one file."));
+		this.frame.setHelp(localize('exports.help', "What the project hands over: the design report, the building model as IFC, the floor plans as DXF, the analysis model for ETABS (.e2k), the structural drawings (DXF sheets for LibreCAD, one PDF set and the bar bending schedule) and the bill of quantities as CSV. Each is made from its part and written to the 11 Exports folder. The project archive (.civil) holds the whole project in one file."));
 		this.list = $('.exports-list');
 		this.scrollable = this._register(new DomScrollableElement(this.list, { horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Auto }));
 		append(this.frame.main, this.scrollable.getDomNode()).classList.add('exports-scroll');
 		this._register(this.frame.onDidLayoutMain(() => this.scrollable.scanDomNode()));
 		this.drawings = this._register(this.instantiationService.createInstance(DrawingsSection, this.frame));
-		this._register(this.drawings.onDidChange(() => this.scrollable.scanDomNode()));
+		this._register(this.drawings.onDidChange(() => {
+			this.scrollable.scanDomNode();
+			// The footer counts the drawing sheets too.
+			if (this.input && this.projectService.project) {
+				this.frame.setStatus(this.status());
+			}
+		}));
 	}
 
 	override async setInput(input: ExportsEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -206,12 +266,13 @@ export class ExportsEditor extends EditorPane {
 		this.projectDisposables.clear();
 		this.files.clear();
 		this.archive = undefined;
+		this.bimElements = undefined;
 		this.scanned = false;
 		this.drawings.setProject(this.input ? this.projectService.project?.root : undefined);
 		const folder = this.exportsFolder;
 		if (folder && this.input) {
 			this.projectDisposables.add(this.fileService.onDidFilesChange(e => {
-				if (e.affects(folder)) {
+				if (e.affects(folder) || (this.bimFile && e.contains(this.bimFile))) {
 					this.scanScheduler.schedule();
 				}
 			}));
@@ -231,7 +292,9 @@ export class ExportsEditor extends EditorPane {
 			try {
 				const stat = await this.fileService.resolve(path ? joinPath(folder, path) : folder, { resolveMetadata: true });
 				for (const child of stat.children ?? []) {
-					const kind = child.isFile ? exportKind(path ? `${path}/${child.name}` : child.name) : undefined;
+					const kind = !child.isFile ? undefined
+						: path === EXPORT_E2K_FOLDER ? (child.name.toLowerCase().endsWith('.e2k') ? 'e2k' : undefined)
+							: exportKind(path ? `${path}/${child.name}` : child.name);
 					if (kind) {
 						const list = files.get(kind) ?? [];
 						list.push({ resource: child.resource, name: child.name, mtime: child.mtime });
@@ -242,17 +305,38 @@ export class ExportsEditor extends EditorPane {
 				// Not made yet: the folder is created by the first export.
 			}
 		};
-		const [archive] = await Promise.all([this.findLastArchive(), ...['', EXPORT_IFC_FOLDER, EXPORT_DXF_FOLDER].map(read)]);
+		const [archive, bimElements] = await Promise.all([this.findLastArchive(), this.countBimElements(), ...['', EXPORT_IFC_FOLDER, EXPORT_DXF_FOLDER, EXPORT_E2K_FOLDER].map(read)]);
 		if (version !== this.scanVersion) {
 			return;
 		}
 		this.archive = archive;
+		this.bimElements = bimElements;
 		for (const list of files.values()) {
 			list.sort((a, b) => a.name.localeCompare(b.name));
 		}
 		this.files = files;
 		this.scanned = true;
 		this.render();
+	}
+
+	private get bimFile(): URI | undefined {
+		const project = this.projectService.project;
+		const part = partById('bim');
+		return project && part?.mainFile ? joinPath(project.root, part.folder, part.mainFile) : undefined;
+	}
+
+	/** The elements of the building model on disk; undefined when there is none or it cannot be read. */
+	private async countBimElements(): Promise<number | undefined> {
+		const file = this.bimFile;
+		if (!file) {
+			return undefined;
+		}
+		try {
+			const model = JSON.parse((await this.fileService.readFile(file)).value.toString());
+			return Array.isArray(model?.elements) ? model.elements.length : undefined;
+		} catch {
+			return undefined;
+		}
 	}
 
 	/**
@@ -280,6 +364,13 @@ export class ExportsEditor extends EditorPane {
 		const bim = partById('bim');
 		const floorPlan = partById('floorPlan');
 		const boq = partById('boq');
+		const fem = partById('fem');
+		// An empty building model has nothing to export, whatever its status says.
+		const emptyModel = this.bimElements === 0 && bim ? localize('exports.emptyModel', "The building model ({0}) has no elements yet: draw the floor plan and build the model first.", partName(bim)) : undefined;
+		const femState = this.statusService.statusOf('fem')?.state;
+		const reportStale = fem && this.files.get('report')?.length && (femState === 'notStarted' || femState === 'stale' || femState === 'failed' || femState === 'error')
+			? localize('exports.reportStale', "Out of date: the analysis ({0}) is not current, so the report does not show this model. Run the analysis and update the report.", partName(fem))
+			: undefined;
 		const kinds: IExportKind[] = [
 			{
 				kind: 'report', icon: Codicon.filePdf,
@@ -289,6 +380,9 @@ export class ExportsEditor extends EditorPane {
 				makeLabel: localize('exports.printReport', "Print Design Report"),
 				againLabel: localize('exports.updateReport', "Update Report"),
 				command: PRINT_REPORT_COMMAND,
+				blocked: emptyModel,
+				stale: reportStale,
+				runningLabel: localize('exports.reportRunning', "Printing the report..."),
 			},
 			{
 				kind: 'ifc', icon: Codicon.layers,
@@ -299,7 +393,8 @@ export class ExportsEditor extends EditorPane {
 				againLabel: localize('exports.exportIfcAgain', "Export IFC Again"),
 				command: EXPORT_IFC_COMMAND,
 				fallbackPart: 'bim',
-				blocked: bim ? blockedBy('bim', localize('exports.ifcBlocked', "Build the building model ({0}) first.", partName(bim))) : undefined,
+				blocked: emptyModel ?? (bim ? blockedBy('bim', localize('exports.ifcBlocked', "Build the building model ({0}) first.", partName(bim))) : undefined),
+				runningLabel: localize('exports.ifcRunning', "Exporting the IFC..."),
 			},
 		];
 		// Floor plans are drawn for buildings; a special structure has none (unless some were exported before).
@@ -314,9 +409,21 @@ export class ExportsEditor extends EditorPane {
 				command: EXPORT_DXF_COMMAND,
 				fallbackPart: 'floorPlan',
 				fallbackLabel: localize('exports.exportDxfInEditor', "Export DXF"),
-				blocked: floorPlan && project.type === 'building' ? blockedBy('floorPlan', localize('exports.dxfBlocked', "Draw the floor plan ({0}) first.", partName(floorPlan))) : undefined,
+				blocked: emptyModel ?? (floorPlan && project.type === 'building' ? blockedBy('floorPlan', localize('exports.dxfBlocked', "Draw the floor plan ({0}) first.", partName(floorPlan))) : undefined),
+				runningLabel: localize('exports.dxfRunning', "Exporting the floor plans..."),
 			});
 		}
+		kinds.push({
+			kind: 'e2k', icon: Codicon.symbolStructure,
+			title: localize('exports.e2k', "ETABS model (.e2k)"),
+			description: localize('exports.e2kDescription', "The analysis model as an ETABS text file, with SAEngine's BNBC wind and earthquake story forces, and a report of what could not be carried over."),
+			location: `${exportsFolder}/${EXPORT_E2K_FOLDER}`,
+			makeLabel: localize('exports.exportE2k', "Export to ETABS (.e2k)"),
+			againLabel: localize('exports.exportE2kAgain', "Export to ETABS Again"),
+			command: EXPORT_E2K_COMMAND,
+			blocked: emptyModel ?? (bim ? blockedBy('bim', localize('exports.e2kBlocked', "Build the building model ({0}) first.", partName(bim))) : undefined),
+			runningLabel: localize('exports.e2kRunning', "Exporting to ETABS..."),
+		});
 		kinds.push({
 			kind: 'csv', icon: Codicon.table,
 			title: localize('exports.csv', "Bill of quantities (CSV)"),
@@ -327,6 +434,7 @@ export class ExportsEditor extends EditorPane {
 			command: EXPORT_BOQ_CSV_COMMAND,
 			fallbackPart: 'boq',
 			blocked: boq ? blockedBy('boq', localize('exports.csvBlocked', "Measure the bill of quantities ({0}) first.", partName(boq))) : undefined,
+			runningLabel: localize('exports.csvRunning', "Exporting the CSV..."),
 		});
 		return kinds;
 	}
@@ -365,15 +473,18 @@ export class ExportsEditor extends EditorPane {
 
 	private updateActions(kinds: readonly IExportKind[] | undefined): void {
 		const has = (kind: ExportKind) => !!kinds?.some(k => k.kind === kind);
+		const can = (kind: ExportKind) => has(kind) && !this.running.has(kind) && !kinds?.find(k => k.kind === kind)?.blocked;
 		this.printAction.label = this.files.get('report')?.length ? localize('exports.updateReport', "Update Report") : localize('exports.printReport', "Print Design Report");
-		this.printAction.enabled = has('report');
-		this.ifcAction.enabled = has('ifc');
-		this.dxfAction.enabled = has('dxf');
-		this.csvAction.enabled = has('csv') && !kinds?.find(k => k.kind === 'csv')?.blocked;
+		this.printAction.enabled = can('report');
+		this.ifcAction.enabled = can('ifc');
+		this.dxfAction.enabled = can('dxf');
+		this.e2kAction.enabled = can('e2k') && !!CommandsRegistry.getCommand(EXPORT_E2K_COMMAND);
+		this.csvAction.enabled = can('csv');
 		this.drawingsAction.enabled = !!kinds && !!CommandsRegistry.getCommand(DRAWINGS_GENERATE_COMMAND);
 		this.revealFolderAction.enabled = !!kinds;
 		this.archiveAction.enabled = !!kinds && !!CommandsRegistry.getCommand(ARCHIVE_EXPORT_COMMAND);
-		const secondary: IAction[] = [this.printAction, this.ifcAction, ...(has('dxf') ? [this.dxfAction] : []), this.drawingsAction, this.csvAction, new Separator(), this.archiveAction, new Separator(), this.refreshAction];
+		this.openArchiveAction.enabled = !!CommandsRegistry.getCommand(ARCHIVE_IMPORT_COMMAND);
+		const secondary: IAction[] = [this.printAction, this.ifcAction, ...(has('dxf') ? [this.dxfAction] : []), this.e2kAction, this.drawingsAction, this.csvAction, new Separator(), this.archiveAction, this.openArchiveAction, new Separator(), this.refreshAction];
 		const key = secondary.map(a => a.id).join();
 		if (key !== this.actionsKey) {
 			this.actionsKey = key;
@@ -386,56 +497,79 @@ export class ExportsEditor extends EditorPane {
 			return { busy: true, text: localize('exports.scanning', "Looking for the exports...") };
 		}
 		const all = [...this.files.values()].flat();
-		if (!all.length) {
-			return { text: localize('exports.none', "Nothing has been exported yet. Exports are written to {0}.", partById('exports')?.folder ?? '') };
+		const drawings = this.drawings.generated;
+		const folder = partById('exports')?.folder ?? '';
+		if (!all.length && !drawings) {
+			return { text: localize('exports.none', "Nothing has been exported yet. Exports are written to {0}.", folder) };
 		}
-		const latest = Math.max(...all.map(f => f.mtime));
-		return {
-			text: all.length === 1
-				? localize('exports.countOne', "1 file in {0}, made {1}.", partById('exports')?.folder ?? '', formatTime(latest))
-				: localize('exports.count', "{0} files in {1}, the latest made {2}.", all.length, partById('exports')?.folder ?? '', formatTime(latest)),
-		};
+		const latest = formatTime(Math.max(...all.map(f => f.mtime), drawings?.time ?? 0));
+		const files = all.length === 1 ? localize('exports.oneFile', "1 file") : localize('exports.files', "{0} files", all.length);
+		const sheets = drawings?.sheets === 1 ? localize('exports.oneSheet', "1 drawing sheet") : localize('exports.sheets', "{0} drawing sheets", drawings?.sheets ?? 0);
+		const what = !drawings ? files : !all.length ? sheets : localize('exports.filesAndSheets', "{0} and {1}", files, sheets);
+		return { text: localize('exports.count', "{0} in {1}, the latest made {2}.", what, folder, latest) };
 	}
 
 	private renderKind(kind: IExportKind): void {
 		const files = this.files.get(kind.kind) ?? [];
 		const made = files.length > 0;
+		const running = this.running.has(kind.kind);
 		const section = append(this.list, $('section.exports-kind', { 'aria-label': kind.title }));
-		section.classList.toggle('made', made);
+		section.classList.toggle('made', made && !kind.stale);
+		section.classList.toggle('stale', made && !!kind.stale);
 		const row = append(section, $('.exports-row'));
 		append(row, $(`span.exports-icon${ThemeIcon.asCSSSelector(kind.icon)}`));
 		const text = append(row, $('.exports-text'));
 		append(text, $('.exports-title', undefined, kind.title));
-		append(text, $('.exports-description', undefined, made || !kind.blocked ? kind.description : kind.blocked));
+		const description = made ? kind.stale ?? kind.description : kind.blocked ?? kind.description;
+		append(text, $('.exports-description', { title: description }, description));
 		const when = append(row, $('.exports-when'));
 		const actions = append(row, $('.exports-actions'));
 		this.renderDisposables.add(addDisposableListener(row, EventType.CONTEXT_MENU, (e: MouseEvent) => {
 			e.preventDefault();
 			this.showContextMenu(kind, files.length === 1 ? files[0] : undefined, e);
 		}));
+		const showRunning = () => {
+			clearNode(when);
+			append(when, $(`span${ThemeIcon.asCSSSelector(ThemeIcon.modify(Codicon.loading, 'spin'))}`));
+			append(when, $('span', undefined, kind.runningLabel));
+			when.classList.remove('muted');
+		};
 
 		if (!made) {
 			when.textContent = this.scanned ? localize('exports.notMade', "Not made yet") : '';
 			when.classList.add('muted');
 			const button = this.renderDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
 			button.label = kind.makeLabel;
-			button.enabled = !kind.blocked || kind.kind !== 'csv';
+			button.enabled = !kind.blocked && !running;
+			if (kind.blocked) {
+				button.setTitle(kind.blocked);
+			}
 			this.renderDisposables.add(button.onDidClick(() => this.make(kind.kind)));
 			this.firstControl ??= button.element;
+			if (running) {
+				showRunning();
+			}
 			return;
 		}
 
 		const again = this.renderDisposables.add(this.frame.createIconButton(actions, Codicon.refresh, kind.againLabel, () => void this.make(kind.kind)));
+		again.element.disabled = running || !!kind.blocked;
 		this.firstControl ??= again.element;
 		if (files.length === 1) {
 			// One file: the row is the file.
 			const file = files[0];
-			when.textContent = formatTime(file.mtime);
+			when.textContent = kind.stale ? localize('exports.staleWhen', "{0}, out of date", formatTime(file.mtime)) : formatTime(file.mtime);
+			if (running) {
+				showRunning();
+			}
 			this.renderFileButtons(actions, file, kind);
 			return;
 		}
 		when.textContent = localize('exports.fileCount', "{0} files", files.length);
 		when.classList.add('muted');
+		if (running) {
+			showRunning();
+		}
 		const list = append(section, $('ul.exports-files'));
 		for (const file of files) {
 			const item = append(list, $('li.exports-file'));
@@ -462,6 +596,7 @@ export class ExportsEditor extends EditorPane {
 
 	private showContextMenu(kind: IExportKind, file: IExportFile | undefined, e: MouseEvent): void {
 		const actions: IAction[] = [];
+		const enabled = !this.running.has(kind.kind) && !kind.blocked;
 		if (file) {
 			actions.push(new Action('saengine.exports.open', localize('exports.open', "Open"), undefined, true, () => this.openFile(file, kind)));
 			if (kind.kind === 'dxf') {
@@ -472,7 +607,7 @@ export class ExportsEditor extends EditorPane {
 			}
 			actions.push(new Separator());
 		}
-		actions.push(new Action('saengine.exports.make', this.files.get(kind.kind)?.length ? kind.againLabel : kind.makeLabel, undefined, true, () => this.make(kind.kind)));
+		actions.push(new Action('saengine.exports.make', this.files.get(kind.kind)?.length ? kind.againLabel : kind.makeLabel, undefined, enabled, () => this.make(kind.kind)));
 		const event = new StandardMouseEvent(getWindow(this.list), e);
 		this.contextMenuService.showContextMenu({ getAnchor: () => event, getActions: () => actions });
 	}
@@ -483,12 +618,25 @@ export class ExportsEditor extends EditorPane {
 	private async make(kindId: ExportKind): Promise<void> {
 		const project = this.projectService.project;
 		const kind = project && this.kinds(project).find(k => k.kind === kindId);
-		if (!project || !kind) {
+		if (!project || !kind || this.running.has(kindId) || kind.blocked) {
 			return;
 		}
 		try {
 			if (CommandsRegistry.getCommand(kind.command)) {
-				await this.commandService.executeCommand(kind.command);
+				// The row says the export is running and its buttons wait until it is done.
+				this.running.add(kindId);
+				this.render();
+				try {
+					if (kindId === 'e2k') {
+						await this.exportE2k(project);
+					} else {
+						await this.commandService.executeCommand(kind.command);
+					}
+				} finally {
+					this.running.delete(kindId);
+					this.render();
+					this.scanScheduler.schedule(0);
+				}
 				return;
 			}
 			const part = kind.fallbackPart ? partById(kind.fallbackPart) : undefined;
@@ -501,9 +649,36 @@ export class ExportsEditor extends EditorPane {
 		}
 	}
 
+	/** The ETABS export, with its progress, and a notice of what it wrote and left out. */
+	private async exportE2k(project: ISaengineProject): Promise<void> {
+		const answer = await this.progressService.withProgress({
+			location: ProgressLocation.Notification,
+			title: localize('exports.e2kProgress', "Exporting {0} to ETABS", project.name),
+		}, progress => {
+			progress.report({ message: localize('exports.e2kDeriving', "deriving the analysis model for the wind and earthquake story forces...") });
+			return this.commandService.executeCommand(EXPORT_E2K_COMMAND, { projectRoot: project.root.fsPath });
+		});
+		const outcome = readE2kExport(answer);
+		if (outcome.error || !outcome.path) {
+			this.notificationService.error(localize('exports.e2kFailed', "The ETABS export failed: {0}", outcome.error ?? ''));
+			return;
+		}
+		const file = URI.file(outcome.path);
+		const report = outcome.reportPath ? URI.file(outcome.reportPath) : undefined;
+		const leftOut = outcome.skipped || outcome.approximated
+			? localize('exports.e2kLeftOut', "{0} kinds of item left out and {1} approximated: read the export report before using the model.", outcome.skipped, outcome.approximated)
+			: localize('exports.e2kAllOut', "Nothing was left out.");
+		const message = localize('exports.e2kDone', "Exported {0} to {1}/{2}{3}. {4}",
+			basename(file), partById('exports')?.folder ?? '', EXPORT_E2K_FOLDER, outcome.exported ? ` (${outcome.exported})` : '', leftOut);
+		this.notificationService.prompt(outcome.warnings || outcome.skipped ? Severity.Warning : Severity.Info, message, [
+			...(report ? [{ label: localize('exports.e2kShowReport', "Show Export Report"), run: () => void this.editorService.openEditor({ resource: report, options: { pinned: true } }) }] : []),
+			...(CommandsRegistry.getCommand(REVEAL_IN_OS_COMMAND) ? [{ label: localize('exports.reveal', "Reveal in File Explorer"), run: () => void this.reveal(file) }] : []),
+		]);
+	}
+
 	/** Drawings open in SAEngine's CAD editor; the report, IFC and CSV in the system's own application. */
 	private async openFile(file: IExportFile, kind: IExportKind): Promise<void> {
-		if (kind.kind === 'dxf') {
+		if (kind.kind === 'dxf' || kind.kind === 'e2k') {
 			await this.editorService.openEditor({ resource: file.resource, options: { pinned: true } });
 		} else {
 			await this.openerService.open(file.resource, { openExternal: true });
@@ -560,9 +735,13 @@ export class ExportsEditor extends EditorPane {
 			if (last && CommandsRegistry.getCommand(REVEAL_IN_OS_COMMAND)) {
 				menu.push(new Action('saengine.exports.archiveReveal', localize('exports.reveal', "Reveal in File Explorer"), undefined, true, () => this.reveal(last.resource)));
 			}
+			menu.push(new Separator(), new Action('saengine.exports.archiveOpen', localize('exports.openArchive', "Open Project Archive..."), undefined, !!CommandsRegistry.getCommand(ARCHIVE_IMPORT_COMMAND), () => this.openArchive()));
 			const event = new StandardMouseEvent(getWindow(this.list), e);
 			this.contextMenuService.showContextMenu({ getAnchor: () => event, getActions: () => menu });
 		}));
+		if (CommandsRegistry.getCommand(ARCHIVE_IMPORT_COMMAND)) {
+			this.renderDisposables.add(this.frame.createIconButton(actions, Codicon.folderLibrary, localize('exports.openArchiveReceived', "Open Project Archive... (one you received: unpacks and opens it)"), () => void this.openArchive()));
+		}
 		if (last && available) {
 			when.textContent = formatTime(last.time);
 			const again = this.renderDisposables.add(this.frame.createIconButton(actions, Codicon.refresh, localize('exports.archiveAgain', "Export Project Again..."), () => void this.exportArchive()));
@@ -579,6 +758,14 @@ export class ExportsEditor extends EditorPane {
 		button.enabled = available;
 		this.renderDisposables.add(button.onDidClick(() => void this.exportArchive()));
 		this.firstControl ??= button.element;
+	}
+
+	private async openArchive(): Promise<void> {
+		try {
+			await this.commandService.executeCommand(OPEN_ARCHIVE_UI_COMMAND);
+		} catch (error) {
+			this.notificationService.error(toErrorMessage(error));
+		}
 	}
 
 	private async reveal(resource: URI): Promise<void> {

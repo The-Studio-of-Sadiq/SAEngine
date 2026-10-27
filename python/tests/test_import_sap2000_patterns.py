@@ -240,11 +240,9 @@ def test_offsets_insertion_points_and_other_objects(report) -> None:  # type: ig
     skipped = entries(report, "skipped")
     assert skipped["link elements not imported"]["examples"] == ["L1"]
     assert skipped["solid elements not imported"]["examples"] == ["S1"]
-    auto = skipped[
-        "auto lateral loads of load patterns not read (SAEngine makes its own wind and "
-        "earthquake loads from BNBC)"
-    ]
-    assert auto["examples"] == ["WINDX (ASCE7-16)"]
+    # Auto lateral loads are SAEngine's own (BNBC 2020): listed as replaced, not skipped.
+    replaced = {e["key"]: e for e in report["replaced"]}
+    assert replaced["loads.lateral.generated"]["examples"] == ["WINDX (ASCE7-16)"]
     assert not any(k == "tables not read" for k in skipped)
 
 

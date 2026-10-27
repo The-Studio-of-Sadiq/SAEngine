@@ -674,15 +674,9 @@ class _Reader:
             case.selfweight = _float(r, "SelfWtMult", 0.0) or 0.0
             auto = (r.get("AutoLoad") or "").strip()
             if auto and auto.upper() != "NONE":
-                self.report.skip(
-                    "auto lateral loads of load patterns not read (SAEngine makes its own wind "
-                    "and earthquake loads from BNBC)",
-                    f"{name} ({auto})",
-                )
+                self.report.note("loads.lateral.generated", f"{name} ({auto})")
             if case.kind == "other" and design:
-                self.report.skip(
-                    "load patterns of types SAEngine has no case for", f"{name} ({design})"
-                )
+                self.report.note("loads.patterns.noCase", f"{name} ({design})")
             m.cases[name] = case
         lengths = {
             f.id: float(np.linalg.norm(m.joints[f.j] - m.joints[f.i]))
@@ -752,43 +746,54 @@ class _Reader:
             if case is None:
                 continue
             if (r.get("Type") or "Force").lower() != "force":
-                self.report.skip("distributed moments on frames", f"{case.name}: {fid}")
+                self.report.note("loads.member.moments", f"{case.name}: {fid}")
                 continue
             v = vector(r.get("Dir", ""), frame=fid)
             if v is None:
-                self.report.skip("frame loads in local directions not read", f"{case.name}: {fid}")
+                self.report.note("loads.member.direction", f"{case.name}: {fid}")
                 continue
             if "PROJ" in (r.get("Dir") or "").upper():
                 v = projected(v, fid)
             fa, fb = _float(r, "FOverLA", 0.0) or 0.0, _float(r, "FOverLB", 0.0) or 0.0
             length = lengths.get(fid, 0.0)
             if r.get("AbsDistA") is not None and r.get("AbsDistB") is not None:
-                loaded = (
-                    (_float(r, "AbsDistB", 0.0) or 0.0) - (_float(r, "AbsDistA", 0.0) or 0.0)
-                ) * u.length
+                a = (_float(r, "AbsDistA", 0.0) or 0.0) * u.length
+                b = (_float(r, "AbsDistB", 0.0) or 0.0) * u.length
             else:
-                loaded = (
-                    (_float(r, "RelDistB", 1.0) or 0.0) - (_float(r, "RelDistA", 0.0) or 0.0)
-                ) * length
+                a = (_float(r, "RelDistA", 0.0) or 0.0) * length
+                b = (_float(r, "RelDistB", 1.0) or 0.0) * length
             if abs(fa - fb) > 1e-9:
-                self.report.approximate(
-                    "trapezoidal frame loads taken as their mean over the loaded length",
-                    f"{case.name}: {fid}",
-                )
+                self.report.note("loads.member.varying", f"{case.name}: {fid}")
             case.loads.append(
-                Load("uniform", fid, v * u.n_per_m((fa + fb) / 2), length=abs(loaded) or None)
+                Load(
+                    "uniform",
+                    fid,
+                    v * u.n_per_m((fa + fb) / 2),
+                    length=abs(b - a) or None,
+                    start=min(a, b),
+                )
             )
         for r in self.rows("FRAME LOADS - POINT"):
             case, fid = case_of(r), r.get("Frame", "")
             if case is None:
                 continue
-            v = vector(r.get("Dir", ""), frame=fid)
-            if v is None or (r.get("Type") or "Force").lower() != "force":
-                self.report.skip(
-                    "frame point loads not read (moments, local)", f"{case.name}: {fid}"
-                )
+            if (r.get("Type") or "Force").lower() != "force":
+                self.report.note("loads.member.moments", f"{case.name}: {fid}")
                 continue
-            case.loads.append(Load("point", fid, v * (_float(r, "Force", 0.0) or 0.0) * u.force))
+            v = vector(r.get("Dir", ""), frame=fid)
+            if v is None:
+                self.report.note("loads.member.direction", f"{case.name}: {fid}")
+                continue
+            if r.get("AbsDist") is not None and (r.get("DistType") or "").upper().startswith("ABS"):
+                at = (_float(r, "AbsDist", 0.0) or 0.0) * u.length
+            elif r.get("RelDist") is not None:
+                at = (_float(r, "RelDist", 0.5) or 0.0) * lengths.get(fid, 0.0)
+            elif r.get("AbsDist") is not None:
+                at = (_float(r, "AbsDist", 0.0) or 0.0) * u.length
+            else:
+                at = None
+            force = v * (_float(r, "Force", 0.0) or 0.0) * u.force
+            case.loads.append(Load("point", fid, force, start=at))
         for r in self.rows("JOINT LOADS - FORCE"):
             case, jid = case_of(r), r.get("Joint", "")
             if case is None:
@@ -799,7 +804,7 @@ class _Reader:
                 )
             force = np.array([_float(r, k, 0.0) or 0.0 for k in ("F1", "F2", "F3")]) * u.force
             if any(_float(r, k, 0.0) for k in ("M1", "M2", "M3")):
-                self.report.skip("joint moments", f"{case.name}: {jid}")
+                self.report.note("loads.joint.moments", f"{case.name}: {jid}")
             case.loads.append(Load("joint", jid, force))
         for r in self.rows("AREA LOADS - UNIFORM"):
             case, aid = case_of(r), r.get("Area", "")
@@ -903,7 +908,7 @@ class _Reader:
         for name, (kind, _) in combos.items():
             factors = expand(name)
             if factors is None:
-                self.report.skip("envelope, absolute and SRSS combinations", f"{name} ({kind})")
+                self.report.note("combinations.envelope", f"{name} ({kind})")
                 continue
             m.combinations.append((name, factors))
 

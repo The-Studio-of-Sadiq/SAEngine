@@ -30,6 +30,9 @@ Methods:
   ETABS (.e2k), STAAD.Pro (.std) or SAP2000 (.s2k) file (``{root, name, format, report,
   problems, files}`` or ``{error, problems}``; ``saengine.importers.project``; in a worker
   thread); ``library/steelSections`` ``{}`` -> the standard steel section table
+- ``export/e2k`` ``{projectRoot, outPath?, units?, lateral?}`` -> the project as an ETABS text
+  model in ``11 Exports/ETABS`` with its export report (``{path, reportPath, report}`` or
+  ``{error}``; ``saengine.exporters.etabs``; in a worker thread)
 - ``library/generateBuilding`` ``{spec, destParent, name?, overwrite?}`` -> a new building
   project generated from its grids and storeys (``{root, name, notes, summary, settingsPatch,
   files}`` or ``{error}``; ``saengine.project.new_building``; in a worker thread)
@@ -415,6 +418,13 @@ def create_server() -> JsonRPCServer:
         return handlers.import_structural(
             args["path"], args["destParent"], args.get("name"), bool(args.get("overwrite"))
         )
+
+    @server.feature("export/e2k")
+    @_in_worker  # derives the analysis model for the story forces (seconds to minutes)
+    def _export_e2k(params: Any) -> dict[str, Any]:
+        from saengine.exporters.etabs import rpc_export_e2k
+
+        return rpc_export_e2k(_plain(params))
 
     @server.feature("library/generateBuilding")
     @_in_worker
