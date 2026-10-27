@@ -749,8 +749,14 @@ export class LibraryEditor extends JsonDocumentEditor {
 				n++;
 			}
 			const id = `${item.id}-SD${n}`;
-			// The type names its section first: opening the Section Designer hides this editor.
-			profile.section = id;
+			// The type names its section first (opening the Section Designer hides this editor), on
+			// the entry as the document holds it now: the form may have been rebuilt since.
+			const target = this.items.find(i => i.id === item.id);
+			if (!target || !isObject(target.profile)) {
+				return;
+			}
+			target.profile.section = id;
+			this.flush();
 			this.changed(true);
 			await this.commands.executeCommand('saengine.section.new', id);
 			await this.refreshSections();
