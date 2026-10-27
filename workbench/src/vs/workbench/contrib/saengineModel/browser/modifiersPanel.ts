@@ -192,6 +192,7 @@ function renderRow(container: HTMLElement, view: IModifiersView, part: ModifierP
 	const mark = (): 'clean' | 'dirty' | 'error' => {
 		const commit = commitField(row, box.value);
 		const state = commit.error ? 'error' : commit.unchanged ? 'clean' : 'dirty';
+		line.classList.remove('applied');
 		line.classList.toggle('dirty', state === 'dirty');
 		line.classList.toggle('invalid', state === 'error');
 		status.set(row.key, state);

@@ -245,6 +245,7 @@ suite('SAEngine - Stiffness modifiers and design overwrites', () => {
 		let container: HTMLElement;
 		let applied: string[];
 		let panel: DisposableStore | undefined;
+		let closed: boolean;
 
 		/** Renders one column's panel as the floor plan does: each store is an edit and a new panel. */
 		function render(own: { [key: string]: unknown } = {}): void {
@@ -256,7 +257,9 @@ suite('SAEngine - Stiffness modifiers and design overwrites', () => {
 				contextViewService,
 				apply: (group: FieldGroup, key: string, value: number | Framing | undefined) => {
 					applied.push(`${key}=${value}`);
-					render({ [group]: { [key]: value } });
+					if (!closed) {
+						render({ [group]: { [key]: value } });
+					}
 				},
 				reset: () => { },
 			});
@@ -272,6 +275,12 @@ suite('SAEngine - Stiffness modifiers and design overwrites', () => {
 			field(key).dispatchEvent(new Event('input'));
 		}
 
+		/** Leaves field `from` for `to` (Tab or a click); the hidden test window fires no focus events itself. */
+		function leave(from: string, to: string): void {
+			field(from).dispatchEvent(new FocusEvent('blur', { relatedTarget: field(to) }));
+			field(to).focus();
+		}
+
 		function rowState(key: string): string {
 			const row = container.querySelector(`.sa-modifiers-row[data-key="${key}"]`)!;
 			return ['dirty', 'invalid', 'applied'].filter(c => row.classList.contains(c)).join(' ') || 'clean';
@@ -285,9 +294,11 @@ suite('SAEngine - Stiffness modifiers and design overwrites', () => {
 			container = mainWindow.document.createElement('div');
 			mainWindow.document.body.appendChild(container);
 			applied = [];
+			closed = false;
 		});
 
 		teardown(() => {
+			closed = true;
 			panel?.dispose();
 			panel = undefined;
 			container.remove();
@@ -297,7 +308,7 @@ suite('SAEngine - Stiffness modifiers and design overwrites', () => {
 			render();
 			type('I33', '0.7');
 			const typed = [rowState('I33'), status()];
-			field('mass').focus(); // Tab: blur with the next field as the related target
+			leave('I33', 'mass'); // Tab
 			assert.deepStrictEqual({ typed, applied, after: [rowState('I33'), status(), field('I33').value], focused: mainWindow.document.activeElement === field('mass') }, {
 				typed: ['dirty', 'Not applied yet: Enter or leave the field'],
 				applied: ['I33=0.7'],
@@ -319,10 +330,10 @@ suite('SAEngine - Stiffness modifiers and design overwrites', () => {
 		test('a value that cannot be stored stays, marked, and counts as a problem until corrected', () => {
 			render();
 			type('I33', '-0.5');
-			field('mass').focus();
+			leave('I33', 'mass');
 			const wrong = { applied: [...applied], state: rowState('I33'), status: status(), problems: unappliedFields('floorPlan') };
 			type('I33', '0.6');
-			field('mass').focus();
+			leave('I33', 'mass');
 			assert.deepStrictEqual({ wrong, applied, problems: unappliedFields('floorPlan') }, {
 				wrong: { applied: [], state: 'invalid', status: '1 value cannot be used', problems: ['Inertia major (I33): -0.5: A stiffness modifier must be more than 0.'] },
 				applied: ['I33=0.6'],
@@ -335,6 +346,7 @@ suite('SAEngine - Stiffness modifiers and design overwrites', () => {
 			type('J', '0.2');
 			flushModifierFields();
 			type('I33', '0.7');
+			closed = true;
 			panel!.dispose(); // the panel closes (another selection, the editor closed) with the value typed
 			container.textContent = '';
 			await Promise.resolve();
