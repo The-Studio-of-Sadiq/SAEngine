@@ -679,6 +679,30 @@ def test_slab_without_top_bars_fails_in_hogging(tmp_path_factory: pytest.TempPat
     assert report["summary"]["failed"] >= 1
 
 
+@pytest.mark.parametrize("slabs", ["shells", "loadsToBeams"])
+def test_the_gathered_checks_tell_the_report_of_slabs_without_bars(
+    slabs: str, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    # Run All designs the members once: the checks gathered with assumed slab bars give the
+    # report design_report makes alone, the slab without bars left out of it.
+    from saengine.design.required import gather
+
+    settings = shell_settings("No bars")
+    settings = settings.model_copy(
+        update={"analysis": settings.analysis.model_copy(update={"slabs": slabs})}
+    )
+    root = tmp_path_factory.mktemp(f"nobars-{slabs}")
+    report = analyse(root, generate(PLAN, "s"), objects({"reinforcement": None}), settings)
+    gathered = gather(root / "08 FEM" / "model.results", root / "08 FEM" / "model.osmodel")
+    assert gathered.assumed == {"SL"} and gathered.plain == report
+    assert any(e["id"] == "S1" for e in gathered.report["elements"])
+    assert not any(e["id"] == "S1" for e in report["elements"])
+    if slabs == "shells":
+        assert report["summary"]["noBars"] == ["SL"]
+    else:
+        assert "S1: slab not designed (no reinforcement, not analysed as shells)" in report["notes"]
+
+
 def flat_plan(bays: int = 2) -> FloorPlan:
     """``bays`` by ``bays`` bays of 5 m (two by default: nine columns), 400 x 400 columns, a
     flat slab and no beams."""

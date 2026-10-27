@@ -24,7 +24,7 @@ import dataclasses
 import itertools
 import json
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -229,6 +229,7 @@ def design(
     soil_text: str | None = None,
     collect: dict[str, Any] | None = None,
     slenderness: slenderness_design.SlenderOptions | dict[str, Any] | None = None,
+    assumed: set[str] | None = None,
 ) -> dict[str, Any]:
     """:func:`design_report` with the project's parts already read. ``soil_text`` is no longer
     used: the footings it gave the allowable bearing pressures of are designed in Part 9
@@ -241,6 +242,13 @@ def design(
     slab under ``"members"`` and ``"slabs"`` its section or slab context, its analysis pieces
     with their combined forces, its materials and its checks; a column also its demand
     ``"points"`` with the moments magnified for slenderness.
+
+    ``assumed``: with ``collect``, the object types ``objects`` gives assumed bars
+    (:func:`saengine.design.required.with_assumed_bars`). When they are all slab types,
+    ``collect["plain"]`` gets the report :func:`design_report` makes without those bars (the
+    slabs of those types skipped or noted as without reinforcement, everything else the same),
+    so the design mode designs the members once for both; it is left out otherwise (beams,
+    columns and walls without bars change the joints and the seismic detailing).
 
     ``slenderness``: how column slenderness is designed for
     (:class:`saengine.design.slender.SlenderOptions`, or the settings' dict of it); the
@@ -514,7 +522,7 @@ def design(
             skip("not a concrete member (structural steel is not designed here)")
             continue
         if object_type.reinforcement is None:
-            skip("no reinforcement")
+            skip(NO_REINFORCEMENT)
             continue
         if not own:
             skip("not in the analysis results")
@@ -718,6 +726,20 @@ def design(
 
     for type_id, (section, _) in {**beam_sections, **column_sections}.items():
         notes += [f"{type_id}: {note}" for note in section.notes]
+    # The report without the assumed bars (see ``assumed``): the same up to the slabs.
+    default_rebar = _default_rebar_id(objects, mats)
+    plain = (
+        _Plain(assumed, list(checked), list(skipped), list(notes))
+        if collect is not None
+        and assumed
+        and all(isinstance(types.get(t), Slab) for t in assumed)
+        and default_rebar == _default_rebar_id(objects, mats, without=assumed)
+        else None
+    )
+    # Where the elements found after the slabs go: the report's lists, and the plain ones.
+    sinks = [(checked, skipped, notes)]
+    if plain is not None:
+        sinks.append((plain.checked, plain.skipped, plain.notes))
     slabs_seen = _design_slabs(
         project,
         building,
@@ -731,6 +753,7 @@ def design(
         notes,
         collect["slabs"] if collect is not None else None,
         settings,
+        plain,
     )
     # Integrator glue: stairs (saengine.design.stairs: hand methods, not in the analysis model)
     # and structural walls (saengine.design.wall_design: wall_forces' piers, walls' checks).
@@ -738,11 +761,12 @@ def design(
     from saengine.design import wall_design
 
     stairs_found = stair_design.stair_report(
-        building, types, mats, settings, collect, default_rebar=_default_rebar_id(objects, mats)
+        building, types, mats, settings, collect, default_rebar=default_rebar
     )
-    checked += stairs_found["elements"]
-    skipped += stairs_found["skipped"]
-    notes += stairs_found["notes"]
+    for into in sinks:
+        into[0].extend(stairs_found["elements"])
+        into[1].extend(stairs_found["skipped"])
+        into[2].extend(stairs_found["notes"])
     walls_found = wall_design.design_walls(
         project,
         out_dir,
@@ -757,9 +781,10 @@ def design(
         combinations,
         collect,
     )
-    checked += walls_found["elements"]
-    skipped += walls_found["skipped"]
-    notes += walls_found["notes"]
+    for into in sinks:
+        into[0].extend(walls_found["elements"])
+        into[1].extend(walls_found["skipped"])
+        into[2].extend(walls_found["notes"])
     # Integrator glue: lintels over the openings of masonry and partition walls
     # (saengine.design.lintels; hand design, not in the analysis model).
     from saengine.design import lintels as lintel_design
@@ -772,20 +797,77 @@ def design(
     lintels_found = lintel_design.lintels_of(
         building, types, mats, settings, high_wind=wind * 3.6 > 200.0
     )
-    checked += lintels_found["elements"]
-    skipped += lintels_found["skipped"]
-    notes += lintels_found["notes"]
+    for into in sinks:
+        into[0].extend(lintels_found["elements"])
+        into[1].extend(lintels_found["skipped"])
+        into[2].extend(lintels_found["notes"])
+
+    def assemble(
+        checked: list[dict[str, Any]],
+        skipped: list[dict[str, Any]],
+        notes: list[str],
+        slabs_seen: set[str],
+    ) -> dict[str, Any]:
+        return _assemble(
+            settings,
+            checked,
+            skipped,
+            notes,
+            slabs_seen,
+            combinations,
+            scope,
+            joints,
+            bool(beam_sections or column_sections),
+            bool(column_sections),
+            faced_any,
+            steel_seen,
+            walls_found,
+            lintels_found,
+            stairs_found,
+            context,
+            slender_options,
+        )
+
+    if plain is not None and collect is not None:
+        collect["plain"] = assemble(plain.checked, plain.skipped, plain.notes, plain.seen)
+    return assemble(checked, skipped, notes, slabs_seen)
+
+
+def _assemble(
+    settings: ProjectSettings,
+    checked: list[dict[str, Any]],
+    skipped: list[dict[str, Any]],
+    notes: list[str],
+    slabs_seen: set[str],
+    combinations: list[str],
+    scope: dict[str, Any] | None,
+    joints: list[dict[str, Any]],
+    frames_seen: bool,
+    columns_seen: bool,
+    faced_any: bool,
+    steel_seen: bool,
+    walls_found: dict[str, Any],
+    lintels_found: dict[str, Any],
+    stairs_found: dict[str, Any],
+    context: slenderness_design.SlenderContext,
+    slender_options: slenderness_design.SlenderOptions,
+) -> dict[str, Any]:
+    """The report of :func:`design` from its elements, notes and what it designed."""
+    from saengine.design import face_forces, seismic_detailing, wall_design
+    from saengine.design import lintels as lintel_design
+    from saengine.design import stairs as stair_design
+
     # Footings moved to Part 9 (saengine.substructure): this report designs the superstructure.
     notes.append(DESIGNED_IN_PART_9)
     failed = [e for e in checked if not e["ok"]]
     governing = max(checked, key=lambda e: e["utilisation"], default=None)
     code = settings.codes.concrete
     method = [line.format(code=code) for line in METHOD]
-    if column_sections:
+    if columns_seen:
         method += slenderness_design.method(slender_options, context.model.lateral_cracked)
     if faced_any:
         method += face_forces.METHOD
-    elif beam_sections or column_sections:
+    elif frames_seen:
         notes.append(face_forces.JOINT_NOTE)
     if steel_seen:
         method += steel_design.METHOD
@@ -852,7 +934,7 @@ def design(
             "skipped": len(skipped),
             # The object types not checked for want of bars (an imported model's): Design
             # Reinforcement proposes bars for them (X29 of the usability walk).
-            "noBars": sorted({s["type"] for s in skipped if s.get("reason") == "no reinforcement"}),
+            "noBars": sorted({s["type"] for s in skipped if s.get("reason") == NO_REINFORCEMENT}),
             "maxUtilisation": governing["utilisation"] if governing else None,
             "governing": governing["id"] if governing else None,
             "joints": {"checked": len(joints), "failed": len(failed_joints)},
@@ -913,10 +995,15 @@ def _with_mep_openings(building: BuildingModel, root: Path) -> BuildingModel:
         return building
 
 
-def _default_rebar_id(objects: ObjectLibrary, mats: dict[str, Any]) -> str | None:
-    """The reinforcement material the object types use most (for stairs without bars)."""
+def _default_rebar_id(
+    objects: ObjectLibrary, mats: dict[str, Any], without: set[str] | None = None
+) -> str | None:
+    """The reinforcement material the object types use most (for stairs without bars), the
+    types ``without`` left out."""
     counts: dict[str, int] = {}
     for o in objects.objects:
+        if without and o.id in without:
+            continue
         reinforcement = getattr(o, "reinforcement", None)
         if reinforcement is not None:
             counts[reinforcement.material] = counts.get(reinforcement.material, 0) + 1
@@ -926,6 +1013,44 @@ def _default_rebar_id(objects: ObjectLibrary, mats: dict[str, Any]) -> str | Non
 
 
 # ─────────────────────────────────────── slabs ───────────────────────────────────────
+
+#: Why a slab of a type without bars is not checked (also the members': ``summary.noBars``).
+NO_REINFORCEMENT = "no reinforcement"
+#: The note of a slab without bars that is not analysed as shells.
+SLAB_NOT_DESIGNED = "{}: slab not designed (no reinforcement, not analysed as shells)"
+
+
+@dataclass
+class _Plain:
+    """The elements and notes of :func:`design`'s report without the assumed bars of the slab
+    types ``assumed``, kept beside the design's own (:func:`_design_slabs`)."""
+
+    assumed: set[str]
+    checked: list[dict[str, Any]]
+    skipped: list[dict[str, Any]]
+    notes: list[str]
+    #: :func:`_design_slabs`' answer for these slabs.
+    seen: set[str] = field(default_factory=set)
+
+    def take(
+        self, start: tuple[int, int, int], checked: list[Any], skipped: list[Any], notes: list[Any]
+    ) -> None:
+        """What the design added since ``start`` (its lengths), the same here."""
+        self.checked += checked[start[0] :]
+        self.skipped += skipped[start[1] :]
+        self.notes += notes[start[2] :]
+
+    def without_bars(self, slab_id: str, type_id: str, analysed: bool, concrete: Any) -> None:
+        """What :func:`_design_slabs` adds for a slab of an assumed type without its bars."""
+        if not analysed:
+            self.notes.append(SLAB_NOT_DESIGNED.format(slab_id))
+            return
+        reason = (
+            "not a concrete slab"
+            if concrete is None or concrete.category != Category.CONCRETE or not concrete.concrete
+            else NO_REINFORCEMENT
+        )
+        self.skipped.append({"id": slab_id, "kind": "slab", "type": type_id, "reason": reason})
 
 
 def _design_slabs(
@@ -941,13 +1066,15 @@ def _design_slabs(
     notes: list[str],
     collect: list[dict[str, Any]] | None = None,
     settings: ProjectSettings | None = None,
+    plain: _Plain | None = None,
 ) -> set[str]:
     """Checks the slabs of the building model (see :mod:`saengine.design.slab`), adding them to
     ``checked`` or ``skipped`` (and what they were checked from to ``collect``, see
     :func:`design`). True when the building has slabs. Slabs not analysed as shells (slabs as
     loads to beams) are designed by BNBC's coefficient methods from their own loads (with
     ``settings``: its area loads and combinations; :func:`saengine.design.slab.
-    coefficient_design`)."""
+    coefficient_design`). ``plain``: given, filled the same, the slabs of its assumed types
+    as without their bars."""
     from saengine.library.sections import section_properties
 
     coords = {n["id"]: np.asarray(n["coords"], dtype=float) for n in project.get("nodes", [])}
@@ -1001,6 +1128,8 @@ def _design_slabs(
     stories = [float(s.elevation) for s in building.stories]
     top_level = max(stories) if stories else math.inf
     coefficient_seen = shells_seen = False
+    # Where the slab before began adding to the lists, for ``plain``.
+    start: tuple[int, int, int] | None = None
 
     for slab_id, type_id, outline, axes, level in candidates:
         object_type = types.get(type_id)
@@ -1009,11 +1138,19 @@ def _design_slabs(
             skipped.append({"id": slab_id, "kind": "slab", "type": type_id, "reason": reason})
 
         own = shells_of.get(slab_id, [])
+        if plain is not None:
+            if start is not None:
+                plain.take(start, checked, skipped, notes)
+            start = None
+            if type_id in plain.assumed:
+                plain.without_bars(slab_id, type_id, bool(own), mats.get(object_type.material))
+            else:
+                start = (len(checked), len(skipped), len(notes))
         if not isinstance(object_type, Slab):
             skip(f"unknown slab type '{type_id}'")
             continue
         if not own and object_type.reinforcement is None:
-            notes.append(f"{slab_id}: slab not designed (no reinforcement, not analysed as shells)")
+            notes.append(SLAB_NOT_DESIGNED.format(slab_id))
             continue
         if not own and settings is None:
             skip("not analysed as shells: set the analysis's slabs to shells to design it")
@@ -1024,7 +1161,7 @@ def _design_slabs(
             continue
         reinforcement = object_type.reinforcement
         if reinforcement is None:
-            skip("no reinforcement")
+            skip(NO_REINFORCEMENT)
             continue
         if axes is None:
             skip("not a horizontal slab (inclined areas are not designed yet)")
@@ -1073,9 +1210,13 @@ def _design_slabs(
             if collect is not None:
                 collect.append(collected)
             coefficient_seen = True
+            if plain is not None and type_id not in plain.assumed:
+                plain.seen.add("coefficients")
             continue
 
         shells_seen = True
+        if plain is not None and type_id not in plain.assumed:
+            plain.seen.add("shells")
         shells: list[slab.ShellPoint] = []
         for e in own:
             points = [coords[n] for n in e["nodes"]]
@@ -1168,6 +1309,8 @@ def _design_slabs(
             }
         )
         notes += [f"{slab_id}: {note}" for note in context.notes]
+    if plain is not None and start is not None:
+        plain.take(start, checked, skipped, notes)
     return ({"shells"} if shells_seen else set()) | (
         {"coefficients"} if coefficient_seen else set()
     )

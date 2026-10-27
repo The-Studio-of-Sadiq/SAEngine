@@ -253,8 +253,10 @@ def _folder(out_dir: str | Path) -> str:
 
 
 def _has_assumed_bars(project_path: str | Path) -> bool:
-    """Whether some concrete object types have no bars (the gathered checks then use assumed
-    ones and differ from the design report); True when the files cannot be read."""
+    """Whether some concrete object types other than slabs have no bars (the gathered checks
+    then use assumed ones and differ from the design report; slabs without bars they tell
+    apart, :attr:`saengine.design.required.Gathered.plain`); True when the files cannot be
+    read."""
     from saengine.design.required import with_assumed_bars
     from saengine.library.materials import MaterialLibrary
 
@@ -264,7 +266,9 @@ def _has_assumed_bars(project_path: str | Path) -> bool:
             (root / "03 Materials/materials.json").read_text(encoding="utf-8")
         )
         objects_text = (root / "04 Objects/objects.json").read_text(encoding="utf-8")
-        return bool(with_assumed_bars(objects_text, materials)[1])
+        objects, assumed = with_assumed_bars(objects_text, materials)
+        kinds = {o.id: o.kind for o in objects.objects}
+        return any(kinds.get(t) != "slab" for t in assumed)
     except (OSError, ValueError):
         return True
 
@@ -299,9 +303,8 @@ def gathered(
                 _GATHERED = (folder, stamp, True, memo[3], memo[4])
             return memo[3]
         result = gather(out_dir, project_path, substructure)
-        # The design report as design_report makes it: the same checks of the same object types,
-        # unless some were checked with assumed bars.
-        report_copy = None if result.assumed else copy.deepcopy(result.report)
+        # The design report as design_report makes it, when these checks tell it.
+        report_copy = None if result.plain is None else copy.deepcopy(result.plain)
         with _memo_lock:
             _GATHERED = (folder, stamp, substructure, result, report_copy)
         return result
@@ -331,7 +334,8 @@ def checks(
     from an earlier call), else made now. Each call returns its own copy.
 
     Made now, it comes from :func:`gathered` (one run of the checks then serves the design
-    proposal and the required steel too), unless some object types have no bars."""
+    proposal and the required steel too), unless some object types other than slabs have no
+    bars."""
     from saengine.design import design_report
 
     global _REPORT

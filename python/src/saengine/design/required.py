@@ -154,6 +154,10 @@ class Gathered:
     substructure: dict[str, Any] | None = None
     context: Any = None  # the substructure's Context
     notes: list[str] = field(default_factory=list)
+    #: The design report as :func:`saengine.design.design_report` makes it (without the assumed
+    #: bars): ``report`` itself when none were assumed, None when it cannot be told from these
+    #: checks (types other than slabs without bars).
+    plain: dict[str, Any] | None = None
 
 
 def _default_rebar(objects: dict[str, Any], materials: MaterialLibrary) -> str | None:
@@ -217,10 +221,14 @@ def gather(out_dir: str | Path, project_path: str | Path, substructure: bool = T
     from saengine.design.check import ensure_seismic_design
 
     ensure_seismic_design(out_dir, project_path, settings)
-    report = design(project, out_dir, building, objects, materials, settings, collect=collect)
+    report = design(
+        project, out_dir, building, objects, materials, settings, collect=collect, assumed=assumed
+    )
+    plain = collect.pop("plain", None) if assumed else report
     gathered = Gathered(
         root, report, collect, objects_text, objects, assumed, materials, building, settings
     )
+    gathered.plain = plain
     if substructure and (root / "09 Substructure" / "substructure.json").exists():
         from saengine.substructure.context import load_context
         from saengine.substructure.report import report as substructure_report
