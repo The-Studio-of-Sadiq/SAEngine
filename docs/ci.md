@@ -10,6 +10,10 @@ run: GitHub only reads the repository root's `.github`.
 | `ci.yml`, job `workbench` | `ubuntu-latest` | as above | `npm ci` (cached), the viewer packages built, `tsc` typecheck, ESLint on the SAEngine sources, `transpile-client`, the SAEngine unit tests in Electron under xvfb |
 | `release.yml` | `windows-2022` (or `vars.SAENGINE_RELEASE_RUNNER`) | tag `Pre-Alpha-v*`; manual (with a tag: a release; without: a test build) | the full installer with EnergyPlus, LibreCAD and LibreDWG from pinned downloads (cached), the smoke test, the Verification Manual, the setup, `.sha256` and sources zip as an artefact, and for a tag a **draft** GitHub pre-release (never published by the workflow); see [release.md](release.md) |
 
+CI can also run on an office desktop instead (self-hosted, no Actions minutes): see
+[ci-desktop-runner.md](ci-desktop-runner.md); the repository variable `CI_RUNS_ON` chooses the
+runner.
+
 Both CI jobs run in parallel. A newer push to the same branch or pull request cancels the run
 it supersedes (`concurrency` with `cancel-in-progress`). A release run is never cancelled by
 another one for the same tag; the second one waits.
