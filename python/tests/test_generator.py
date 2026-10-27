@@ -19,6 +19,8 @@ from saengine.library.generator import (
     building_texts,
     flat_divisor,
     generate_building,
+    stiffness_estimate,
+    wilbur_flexibility,
     write_building,
 )
 from saengine.library.settings import LoadCombination, ProjectSettings
@@ -33,8 +35,11 @@ SPEC = {
     "groundHeight": 3500,
     "typicalHeight": 3000,
     # The hand checks below are of the gravity sizing; the lateral (P-M) sizing of Category C
-    # and D has its own tests at the end.
+    # and D and the stiffness check have their own tests at the end.
     "lateralSizing": "gravity",
+    # The hand checks keep the former span/15 rule of thumb (the default is span/12 now: see
+    # test_default_beams_are_span_over_12_and_set_the_slabs).
+    "beamSpanDepth": 15,
 }
 
 
@@ -593,3 +598,134 @@ def test_lateral_sizing_off_and_in_low_categories() -> None:
     off = generate_building({**small, "lateralSizing": "gravity"})
     assert off["summary"]["lateralSizing"] is None
     assert not any("P-M sizing" in n for n in off["notes"])
+
+
+# ─────────────────────────── stiffness: beams span/12, drift and period ───────────────────────────
+
+
+def test_default_beams_are_span_over_12_and_set_the_slabs() -> None:
+    """Gravity sizing (no stiffness pass): frame beams span/12 by default; with them the
+    panels' alpha_fm exceeds 2 and eq. 6.6.6 gives 150 mm, not the 175-200 mm of span/15."""
+    result = generate_building({**SPEC, "beamSpanDepth": 12, "storyCount": 3})
+    assert BuildingSpec.model_fields["beamSpanDepth"].default == 12
+    beam = {b["id"]: b["type"] for b in result["floorPlan"]["beams"]}
+    # 6000/12 = 500; 5000/12 = 417 -> 425; b = max(250, 0.3 h) = 250.
+    assert beam["B-A1-B1-L1"] == beam["B-B1-C1-L1"] == "B250x500"
+    assert beam["B-A1-A2-L1"] == "B250x425"
+    # Corner panel A1 at h = 150: alpha_f = Ib / Is over the strip each beam carries:
+    # 250x500 on the edge (strip 2500) 3.70, inside (5000) 1.85; 250x425 on the edge (3000)
+    # 1.90, inside (6000) 0.95: alpha_fm = 2.10 > 2, so eq. 6.6.6: h = 5750 (0.8 + 420/1400) /
+    # (36 + 9 x 1.21) = 135 -> 150 mm.
+    ib_x, ib_y = 250 * 500**3 / 12, 250 * 425**3 / 12
+    afm = (
+        ib_x / (2500 * 150**3 / 12)
+        + ib_x / (5000 * 150**3 / 12)
+        + ib_y / (3000 * 150**3 / 12)
+        + ib_y / (6000 * 150**3 / 12)
+    ) / 4
+    assert afm == pytest.approx(2.10, abs=0.01)
+    h = 5750 * (0.8 + 420 / 1400) / (36 + 9 * 5750 / 4750)
+    assert h == pytest.approx(135, abs=1)
+    assert result["summary"]["slabTypes"] == ["S150"]
+    slabs = next(n for n in result["notes"] if n.startswith("Slabs with beams"))
+    assert "eq. 6.6.6" in slabs and "Sec 6.2.5.3.3 (p. 903)" in slabs
+    # Gravity sizing makes no stiffness estimate.
+    assert result["summary"]["stiffness"] is None
+    assert not any(n.startswith("Stiffness") for n in result["notes"])
+
+
+def test_stiffness_estimate_by_hand() -> None:
+    """One bay each way, one storey, no rigid zones: Wilbur's first storey on a fixed base,
+    a one-mass period and the design drift Cd δe / I against Table 6.2.21."""
+    from saengine.fem import loads as fl
+    from saengine.library.settings import default_project_settings
+
+    settings = default_project_settings("Hand")
+    settings = settings.model_copy(
+        update={"analysis": settings.analysis.model_copy(update={"endOffsets": False})}
+    )
+    side = {(i, j, 1): 400.0 for i in range(2) for j in range(2)}
+    beams = {((0, 0), (1, 0)): (250.0, 500.0), ((0, 1), (1, 1)): (250.0, 500.0),
+             ((0, 0), (0, 1)): (250.0, 500.0), ((1, 0), (1, 1)): (250.0, 500.0)}  # fmt: skip
+    ec, w = 25000.0, 1000.0
+    est = stiffness_estimate(
+        settings, "D", xs=[0.0, 6000.0], ys=[0.0, 5000.0], heights=[0.0, 3000.0],
+        side_of=side, beams=beams, slab_t=150.0, ec=ec, weights=[w],
+    )  # fmt: skip
+    # ΣKc = 4 x 0.7 x 400^4/12 / 3000; ΣKb (X) = 2 x 0.35 x 250 x 500^3/12 / 6000.
+    kc = 4 * 0.7 * 400**4 / 12 / 3000
+    kb = 2 * 0.35 * 250 * 500**3 / 12 / 6000
+    bracket = 4 * 3000 / kc + (3000 + 3000) / (kb + kc / 12)
+    flex = 3000 / (48 * ec) * bracket * 1e3  # mm/kN
+    assert wilbur_flexibility([0.0, 3000.0], 1, kc, kb, ec) == pytest.approx(
+        (flex, 4 * 3000 / kc / bracket)
+    )
+    # One mass: T = 2π √(W δ / (g F)) with δ / F = flex.
+    assert est.period["X"] == pytest.approx(2 * math.pi * math.sqrt(w * flex / 1000 / 9.80665))
+    ta = fl.approximate_period(3.0, settings.seismic.system)
+    assert est.ta == pytest.approx(ta) and est.periodLimit == pytest.approx(1.4 * ta)
+    # Dhaka, SD, category II, the default system's Cd and R; I = 1.0: V = Sa W at Ta.
+    from saengine.library.settings import derived
+
+    values = derived(settings)
+    sa = fl.design_acceleration(ta, "SD", values["Z"], 1.0, values["R"])
+    assert est.driftLimit == 0.02 and est.cd == values["Cd"]
+    assert est.seismicRatio["X"][0] == pytest.approx(values["Cd"] * sa * w * flex / (0.02 * 3000))
+    # Y: the 5 m beams are stiffer, so the storey is too.
+    assert est.period["Y"] < est.period["X"]
+
+
+@pytest.fixture(scope="module")
+def walkthrough() -> dict:
+    """The walkthrough's building: 3 x 6 m by 2 x 5 m, 3600 mm ground and 5 x 3200 mm
+    storeys, Dhaka (Category D, special moment frame), the default (lateral) sizing."""
+    stories = [{"name": "L1", "height": 3600}] + [
+        {"name": f"L{k}", "height": 3200} for k in range(2, 7)
+    ]
+    return generate_building(
+        {"gridsX": [6000] * 3, "gridsY": [5000] * 2, "stories": stories, "location": "dhaka"}
+    )
+
+
+def test_walkthrough_frame_is_stiff_enough(walkthrough: dict) -> None:
+    from saengine.fem import loads as fl
+    from saengine.library.generator import PERIOD_TARGET, STIFF_BEAM_SPAN_DEPTH
+
+    result = walkthrough
+    kinds = types(result)
+    # Beams about span/12: at least span/12 (rounded up to 25 mm), at most the span/10 the
+    # stiffness pass may deepen them to.
+    for beam in result["floorPlan"]["beams"]:
+        span = 6000 if beam["start"]["y"] == beam["end"]["y"] else 5000
+        depth = kinds[beam["type"]]["profile"]["yDim"]
+        assert math.ceil(span / 12 / 25) * 25 <= depth <= span / STIFF_BEAM_SPAN_DEPTH
+    # The estimated period: Ta = 0.0466 x 19.6^0.9 = 0.68 s (Table 6.2.20, RC moment frame),
+    # Cu Ta = 0.95 s; the frame comes out within 1.5 Cu Ta (with the span/12 beams and the
+    # gravity columns it was over 2 Cu Ta; the walkthrough's span/15 frame had T1 = 2.1 s).
+    info = result["summary"]["stiffness"]
+    ta = fl.approximate_period(19.6, "rcSmf")
+    assert info["ta"] == pytest.approx(ta, abs=1e-3)
+    assert info["periodLimit"] == pytest.approx(1.4 * ta, abs=1e-3)
+    assert info["met"]
+    for axis in ("X", "Y"):
+        assert info["period"][axis] <= PERIOD_TARGET * info["periodLimit"] + 1e-3
+        assert info["seismicDriftRatio"][axis] <= 1.0 + 1e-3
+        assert info["windDriftRatio"][axis] <= 1.0 + 1e-3
+        assert info["period"][axis] <= info["before"]["period"][axis]
+    # The span/12 beams and gravity columns alone were too flexible (two 5 m bays a line in Y).
+    assert info["before"]["period"]["Y"] > PERIOD_TARGET * info["periodLimit"]
+    assert info["before"]["seismicDriftRatio"]["Y"] > 1.0
+    # Slabs: eq. 6.6.6 with the stiffer beams, 150 mm (they were 175-200).
+    assert result["summary"]["slabTypes"] == ["S150"]
+    note = next(n for n in result["notes"] if n.startswith("Stiffness (PRELIMINARY"))
+    for words in (
+        "Table 6.2.21, p. 648",
+        "Sec 2.5.7.2 (a), p. 627",
+        "Sec 2.5.7.7, p. 631",
+        "Sec 6.3.10.4.1, p. 912",
+        "H/500",
+        "Before: T X",
+        "All three met.",
+        "Assumed (not checked here)",
+    ):
+        assert words in note, words

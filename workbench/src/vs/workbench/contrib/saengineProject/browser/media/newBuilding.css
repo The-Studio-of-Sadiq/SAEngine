@@ -134,7 +134,8 @@
 	font-size: var(--sa-font-s, 12px);
 }
 
-.saengine-new-building .target {
+.saengine-new-building .target,
+.saengine-new-building .hint.indented {
 	padding-left: 152px;
 	min-height: 16px;
 	word-break: break-all;
@@ -291,8 +292,43 @@
 	margin-top: var(--sa-space-4, 16px);
 }
 
-.saengine-new-building .notes {
-	margin: 0;
+.saengine-new-building .result .form-actions {
+	margin-top: 0;
+}
+
+.saengine-new-building .result .counts {
+	margin: 0 0 var(--sa-space-2, 8px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-new-building table.sizes {
+	border-collapse: collapse;
+}
+
+.saengine-new-building table.sizes th,
+.saengine-new-building table.sizes td {
+	padding: 3px var(--sa-space-4, 16px) 3px 0;
+	border-bottom: 1px solid var(--sa-border);
+	text-align: left;
+	vertical-align: top;
+}
+
+.saengine-new-building table.sizes th {
+	font-weight: normal;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-new-building details.notes {
+	margin-top: var(--sa-space-6, 24px);
+}
+
+.saengine-new-building details.notes > summary {
+	cursor: pointer;
+	font-weight: 600;
+}
+
+.saengine-new-building ul.notes {
+	margin: var(--sa-space-2, 8px) 0 0;
 	padding-left: 18px;
 	line-height: 1.6;
 }

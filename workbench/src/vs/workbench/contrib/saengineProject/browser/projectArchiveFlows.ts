@@ -24,6 +24,7 @@ import {
 import { ProjectOpener } from './projectOpener.js';
 import { saveProjectEdits } from './projectEdits.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
+import { IHostService } from '../../../services/host/browser/host.js';
 
 /** The last archive written from this project (workspace storage), for the Exports page. */
 export const LAST_ARCHIVE_STORAGE_KEY = 'saengine.project.lastArchive';
@@ -69,6 +70,7 @@ export class ProjectArchiveFlows {
 		@IStorageService private readonly storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
+		@IHostService private readonly hostService: IHostService,
 	) { }
 
 	private notAvailable(): void {
@@ -198,8 +200,11 @@ export class ProjectArchiveFlows {
 		const opener = this.instantiationService.createInstance(ProjectOpener);
 		let file = args.path ? URI.file(args.path) : undefined;
 		if (!file) {
+			// Where the last archive of this project was written, if any (archives arrive there too).
+			const last = readLastArchive(this.storageService.get(LAST_ARCHIVE_STORAGE_KEY, StorageScope.WORKSPACE));
 			const picked = await this.fileDialogService.showOpenDialog({
 				title: localize('archive.openTitle', "Open Project Archive"),
+				defaultUri: last ? dirname(URI.file(last.path)) : undefined,
 				canSelectFiles: true,
 				canSelectFolders: false,
 				canSelectMany: false,
@@ -235,7 +240,8 @@ export class ProjectArchiveFlows {
 			if (!confirmed) {
 				return undefined;
 			}
-			destParent = await opener.browseForLocation(await opener.defaultLocation(), localize('archive.destinationTitle', "Choose Where to Put the Project"));
+			// Next to the archive: where the engineer saved or received it.
+			destParent = await opener.browseForLocation(dirname(file), localize('archive.destinationTitle', "Choose Where to Put the Project"));
 			if (!destParent) {
 				return undefined;
 			}
@@ -266,12 +272,40 @@ export class ProjectArchiveFlows {
 			}
 			const root = URI.file(bag.root);
 			if (args.open !== false) {
-				await opener.open(root);
+				await this.openUnpacked(root, opener);
 			}
 			return root;
 		} catch (error) {
 			this.notificationService.error(localize('archive.importFailed', "The project could not be unpacked: {0}", toErrorMessage(error)));
 			return undefined;
+		}
+	}
+
+	/**
+	 * Opens the project unpacked from an archive. With a project open in this window, asks whether
+	 * to replace it or open a new window, rather than closing it unasked.
+	 */
+	private async openUnpacked(root: URI, opener: ProjectOpener): Promise<void> {
+		const open = this.projectService.project;
+		if (!open) {
+			await opener.open(root);
+			return;
+		}
+		const { result } = await this.dialogService.prompt<'this' | 'new' | undefined>({
+			message: localize('archive.whereOpen', "Open {0}?", basename(root)),
+			detail: localize('archive.whereOpenDetail', "It was unpacked to {0}. {1} is open in this window.", root.fsPath, open.name),
+			buttons: [
+				{ label: localize('archive.openNewWindow', "Open in &&New Window"), run: () => 'new' },
+				{ label: localize('archive.openThisWindow', "Open in &&This Window"), run: () => 'this' },
+			],
+			cancelButton: { label: localize('archive.openLater', "Not Now"), run: () => undefined },
+		});
+		if (result === 'new') {
+			await this.hostService.openWindow([{ folderUri: root }], { forceNewWindow: true });
+		} else if (result === 'this') {
+			await opener.open(root);
+		} else {
+			this.notificationService.info(localize('archive.unpackedOnly', "Unpacked to {0}. Open it with Open Project when you need it.", root.fsPath));
 		}
 	}
 

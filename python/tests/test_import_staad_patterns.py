@@ -309,8 +309,8 @@ JOINT LOAD
     model = read_staad_text(text)
     case = model.cases["1"]
     assert case.selfweight == 1.0 and total(case, model)[2] == pytest.approx(-10)
-    skipped = entries(model.report.to_dict(), "skipped")
-    assert any(k.startswith("generated wind, seismic") for k in skipped)
+    replaced = {e["key"]: e for e in model.report.to_dict()["replaced"]}
+    assert replaced["loads.lateral.generated"]["examples"] == ["1: IBC LOAD X"]
 
 
 def test_spring_supports_are_reported() -> None:

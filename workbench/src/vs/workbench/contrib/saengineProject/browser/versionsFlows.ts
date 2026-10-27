@@ -6,11 +6,10 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { IQuickInputButtonWithToggle, IQuickInputService, IQuickPickItem, QuickInputButtonLocation } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IProjectVersionsService } from './versionsService.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -75,43 +74,44 @@ export class VersionsFlows {
 		}
 	}
 
+	/**
+	 * The message, and whether the version is an issue: two labelled choices under the message
+	 * ("Save Version", "Save as Issued..."), the one asked for first.
+	 */
 	private askMessage(issued: boolean): Promise<{ message: string; issued: boolean } | undefined> {
 		const store = new DisposableStore();
-		const input = store.add(this.quickInputService.createInputBox());
-		const toggle: IQuickInputButtonWithToggle = {
-			iconClass: ThemeIcon.asClassName(Codicon.verified),
-			tooltip: localize('versions.issuedToggle', "Issued (a submission or a drawing issue)"),
-			location: QuickInputButtonLocation.Input,
-			toggle: { checked: issued },
-		};
-		input.title = localize('versions.saveTitle', "Save Version");
-		input.placeholder = localize('versions.messagePlaceholder', "What changed, e.g. Column sizes after the wind check");
-		input.prompt = localize('versions.messagePrompt', "Press Enter to save the current files as a version. Turn on Issued for a submission.");
-		input.buttons = [toggle];
-		input.ignoreFocusOut = true;
+		const pick = store.add(this.quickInputService.createQuickPick<IQuickPickItem & { readonly issued: boolean }>());
+		const plain = { label: `$(${Codicon.save.id}) ${localize('versions.saveChoice', "Save Version")}`, description: localize('versions.saveChoiceDetail', "a working version"), issued: false };
+		const issue = { label: `$(${Codicon.verified.id}) ${localize('versions.issuedChoice', "Save as Issued...")}`, description: localize('versions.issuedChoiceDetail', "a submission or a drawing issue; asks its label next"), issued: true };
+		pick.title = localize('versions.saveTitle', "Save Version");
+		pick.placeholder = localize('versions.messagePlaceholder', "What changed, e.g. Column sizes after the wind check");
+		// The typed text is the message, not a filter: both choices stay.
+		pick.filterValue = () => '';
+		pick.items = issued ? [issue, plain] : [plain, issue];
+		pick.ignoreFocusOut = true;
 		return new Promise(resolve => {
 			let done = false;
 			const finish = (value: { message: string; issued: boolean } | undefined) => {
 				if (!done) {
 					done = true;
 					resolve(value);
-					input.hide();
+					pick.hide();
 				}
 			};
-			store.add(input.onDidChangeValue(() => input.validationMessage = undefined));
-			store.add(input.onDidAccept(() => {
-				const message = input.value.trim();
+			store.add(pick.onDidChangeValue(() => pick.validationMessage = undefined));
+			store.add(pick.onDidAccept(() => {
+				const message = pick.value.trim();
 				if (!message) {
-					input.validationMessage = localize('versions.messageEmpty', "Say what changed in this version.");
+					pick.validationMessage = localize('versions.messageEmpty', "Say what changed in this version.");
 					return;
 				}
-				finish({ message, issued: toggle.toggle.checked });
+				finish({ message, issued: pick.activeItems[0]?.issued ?? false });
 			}));
-			store.add(input.onDidHide(() => {
+			store.add(pick.onDidHide(() => {
 				finish(undefined);
 				store.dispose();
 			}));
-			input.show();
+			pick.show();
 		});
 	}
 

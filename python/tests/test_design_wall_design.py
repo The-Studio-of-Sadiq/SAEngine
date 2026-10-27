@@ -496,7 +496,8 @@ def test_proposal_not_offered_when_a_pier_cannot_take_the_end_bars(monkeypatch) 
     # the 150 mm P3, so the type gets no proposal (too small), with P3 named.
     collect: dict = {}
     _run(monkeypatch, None, collect, found=_with_pier(_heavy(3000.0), _sliver(150.0)))
-    (entry,) = wall_design.proposal_entries(collect["walls"], set(), {"W250": WALL_TYPE})
+    # As a type without bars of its own (the curtains searched, not kept from the type's).
+    (entry,) = wall_design.proposal_entries(collect["walls"], {"W250"}, {"W250": WALL_TYPE})
     assert entry["status"] == "tooSmall" and entry["proposed"] is None
     assert "W1/L1/P3" in entry["tooSmall"]["reason"] and "overlap" in entry["tooSmall"]["reason"]
     assert entry["utilisation"] == {"piers": 0.0}
@@ -516,6 +517,9 @@ def test_proposal_falls_back_to_a_heavier_web_without_end_bars(monkeypatch) -> N
     for c in collect["walls"]:
         d = W.wall_checks(c["geometry"], bars, c["forces"], c["fc"], c["fy"], c["es"])
         assert all(x["ok"] for x in d.checks if not x["flag"]), c["id"]
+    # The type's two curtains are kept (X12 of the usability walk: cut to one).
+    assert proposed["layers"] == 2
+    assert not any("not checked with these bars" in n for n in entry["notes"])
 
 
 def test_drift_ignores_the_omega_combinations(monkeypatch) -> None:

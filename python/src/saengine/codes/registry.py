@@ -12,7 +12,10 @@ A pack that ``extends`` its own id builds on the same id in a lower scope (a pro
 copy of ``bnbc2020`` over the built-in one).
 
 Nothing here raises for a bad pack on disk: it is listed with its problems
-(:func:`list_packs`) and :func:`load` refuses it with :class:`CodePackError`.
+(:func:`list_packs`) and :func:`load` refuses it with :class:`CodePackError`. A pack whose only
+errors are in some of its tables, with no sound copy to fall back on, still loads: the broken
+tables raise :class:`CodePackError` when they are used (:meth:`CodePack.table`), so one bad table
+(concrete, say) does not stop the parts that never read it (analysis charts, soil).
 
 Tables are validated through a validator registry (:func:`register`), filled by
 :mod:`saengine.codes.tables`; a table without a registered model is only checked to be JSON.
@@ -267,6 +270,7 @@ class CodePack:
         sources: dict[str, list[Any]],
         provided_by: dict[str, str],
         registry: Registry,
+        broken: dict[str, list[Problem]] | None = None,
     ) -> None:
         assert found.manifest is not None
         self._found = found
@@ -276,6 +280,7 @@ class CodePack:
         self._sources = sources
         self._provided_by = provided_by
         self._registry = registry
+        self._broken = broken or {}
         self._warnings: list[Problem] = []
         self._replaces_builtin = False
 
@@ -323,23 +328,40 @@ class CodePack:
         return self._replaces_builtin
 
     def tables(self) -> list[str]:
-        return sorted(self._tables)
+        return sorted(set(self._tables) | set(self._broken))
 
     def has(self, name: str) -> bool:
-        return name in self._tables
+        """Whether a pack in the chain provides the table (a broken one included: reading it
+        raises rather than falling back to some other value)."""
+        return name in self._tables or name in self._broken
+
+    @property
+    def broken(self) -> dict[str, list[Problem]]:
+        """Tables that failed to merge or validate, with their problems; empty for a sound pack."""
+        return {name: list(problems) for name, problems in self._broken.items()}
+
+    def _check_usable(self, name: str) -> None:
+        problems = self._broken.get(name)
+        if problems:
+            raise CodePackError(
+                f"code pack '{self.id}': the table '{name}' cannot be used "
+                f"({problems[0].message}); the rest of the pack still works",
+                problems,
+            )
+        if name not in self._tables:
+            raise KeyError(f"code pack '{self.id}' has no table '{name}'")
 
     def table(self, name: str) -> Any:
         """The resolved table, validated by its registered model (a model instance; the value
         itself for a ``RootModel``); the plain JSON data when no model is registered.
-        Raises ``KeyError`` when no pack in the chain provides it."""
-        if name not in self._tables:
-            raise KeyError(f"code pack '{self.id}' has no table '{name}'")
+        Raises ``KeyError`` when no pack in the chain provides it, :class:`CodePackError` when
+        it is broken (:attr:`broken`)."""
+        self._check_usable(name)
         return self._validated.get(name, self._tables[name])
 
     def data(self, name: str) -> Any:
         """The resolved table as plain JSON (a copy)."""
-        if name not in self._tables:
-            raise KeyError(f"code pack '{self.id}' has no table '{name}'")
+        self._check_usable(name)
         return copy.deepcopy(self._tables[name])
 
     def source(self, name: str) -> list[Any]:
@@ -379,6 +401,11 @@ class _Resolved:
     chain: list[_Found]
     problems: list[Problem]
     pack: CodePack | None
+
+    @property
+    def complete(self) -> bool:
+        """Whether the pack resolved with every table sound (only then does it win precedence)."""
+        return self.pack is not None and not self.pack._broken
 
 
 # ---------------------------------------------------------------- the registry
@@ -486,7 +513,7 @@ class Registry:
             return False
         if found.path.resolve() in self._in_progress:
             return False
-        return self._resolved(found, candidates).pack is not None
+        return self._resolved(found, candidates).complete
 
     def _parent(self, child: _Found, parent_id: str, candidates: list[_Found]) -> _Found | None:
         """The pack ``child`` extends: the highest-precedence pack with that id that works,
@@ -546,19 +573,21 @@ class Registry:
         validated: dict[str, Any] = {}
         sources: dict[str, list[Any]] = {}
         provided_by: dict[str, str] = {}
+        broken: dict[str, list[Problem]] = {}
         for name in names:
             files = [f.tables[name] for f in reversed(chain) if name in f.tables]
             v = validators.get(name)
             try:
                 data = resolve_table(files, v.merge_keys if v else DEFAULT_MERGE_KEYS.get(name))
             except Exception as e:  # noqa: BLE001 - a bad user table must not break the list
-                problems.append(
+                broken[name] = [
                     Problem(
                         message=f"{name}: cannot be merged with its parent: {e}",
                         file=f"{DATA_DIR}/{name}.json" if name in found.tables else None,
                         table=name,
                     )
-                )
+                ]
+                problems.extend(broken[name])
                 continue
             tables[name] = data
             provided_by[name] = next(f.id for f in chain if name in f.tables)
@@ -579,20 +608,23 @@ class Registry:
             except ValidationError as e:
                 for err in e.errors()[:20]:
                     loc = ".".join(str(x) for x in err["loc"]) or name
-                    problems.append(
+                    broken.setdefault(name, []).append(
                         Problem(
                             message=f"{name}: {loc}: {err['msg']}",
                             file=f"{DATA_DIR}/{name}.json" if name in found.tables else None,
                             table=name,
                         )
                     )
+                problems.extend(broken[name])
+                del tables[name]
                 continue
             if isinstance(value, RootModel):
                 value = value.root
             validated[name] = value
-        if any(p.severity == "error" for p in problems):
+        table_errors = {id(p) for ps in broken.values() for p in ps}
+        if any(p.severity == "error" and id(p) not in table_errors for p in problems):
             return _Resolved(found, chain, problems, None)
-        pack = CodePack(found, chain, tables, validated, sources, provided_by, self)
+        pack = CodePack(found, chain, tables, validated, sources, provided_by, self, broken)
         return _Resolved(found, chain, problems, pack)
 
     def _resolved(self, found: _Found, candidates: list[_Found]) -> _Resolved:
@@ -701,7 +733,7 @@ class Registry:
             trusted=(not untrusted) if hook_packs and not found.has_errors else None,
             hooksFrom=[f.id for f in hook_packs],
             untrustedHooks=untrusted,
-            usable=resolved.pack is not None,
+            usable=resolved.complete,
             problems=resolved.problems + self._notes(found, winner, candidates),
         )
 
@@ -736,14 +768,17 @@ class Registry:
                 raise CodePackError(f"no code pack '{pack_id}' is installed")
             resolved = self._resolved(found, candidates)
             if resolved.pack is not None:
+                # A partial pack (no sound copy to fall back on) carries its table errors as
+                # warnings; whoever reads a broken table gets the error itself.
                 resolved.pack._warnings = [
-                    p for p in resolved.problems if p.severity == "warning"
+                    p if p.severity == "warning" else p.model_copy(update={"severity": "warning"})
+                    for p in resolved.problems
                 ] + self._notes(found, found, candidates)
                 resolved.pack._replaces_builtin = found.scope != "builtin" and any(
                     c.id == found.id and c.scope == "builtin" and not c.duplicate
                     for c in candidates
                 )
-        return _checked(resolved)
+        return _checked(resolved, partial=True)
 
     def validate(self, path: Path, project_root: Path | None = None) -> PackInfo:
         """The pack in ``path`` (any folder with a pack.json), resolved against the installed
@@ -928,8 +963,10 @@ def _same(a: _Found | None, b: _Found | None) -> bool:
     return a is b or (a.scope == b.scope and a.path.resolve() == b.path.resolve())
 
 
-def _checked(resolved: _Resolved) -> CodePack:
-    if resolved.pack is None:
+def _checked(resolved: _Resolved, partial: bool = False) -> CodePack:
+    """The resolved pack; :class:`CodePackError` when it cannot be used (with ``partial``, a
+    pack whose only errors are in some tables is returned: those tables raise when read)."""
+    if resolved.pack is None or (not partial and not resolved.complete):
         errors = [p for p in resolved.problems if p.severity == "error"]
         first = errors[0].message if errors else "it cannot be read"
         raise CodePackError(

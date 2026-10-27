@@ -1066,7 +1066,8 @@ def restore(
         sha = _resolve(repo, version, history)
         short = sha.decode()[:SHORT_ID]
         number = len(history) - history.index(sha) if sha in history else None
-        name = f"version {number} ({short})" if number else short
+        # Engineers read the history: the version number, no hash (only without one).
+        name = f"version {number}" if number else short
         tags = _issued_tags(repo)
         before_version = None
         version_files = _tree_files(repo, _commit_tree(repo, sha), regular=False)
