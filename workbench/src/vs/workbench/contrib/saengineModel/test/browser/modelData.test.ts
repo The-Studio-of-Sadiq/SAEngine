@@ -70,7 +70,7 @@ suite('SAEngine - Model explorer and properties', () => {
 			'    C400 — Column 400',
 			'  Slab Types — 1',
 			'    S150 — Slab 150',
-			'Building Model — up to date',
+			'BIM (Building Model) — up to date',
 			'  Columns — 1',
 		]);
 	});
@@ -163,6 +163,34 @@ suite('SAEngine - Model explorer and properties', () => {
 				'actions: editObjectType',
 			],
 			gone: ['none'],
+		});
+	});
+	test('the MEP services are listed by kind, each opening the MEP editor', () => {
+		const mep = {
+			schema: 'saengine.mep/1', equipment: [], openings: [{ id: 'OP1', host: 'B1', kind: 'sleeve' }],
+			plumbing: { tanks: [{ id: 'T1', kind: 'overhead', story: 'L1' }] },
+			electrical: { equipment: [{ id: 'TX1', kind: 'transformer', story: 'BASE' }] },
+		};
+		const tree = modelTree({ ...docs, mep });
+		const node = tree.at(-1)!;
+		assert.deepStrictEqual({
+			outline: outline([node]),
+			parts: [...new Set([node, ...node.children!, ...node.children!.flatMap(c => c.children!)].map(n => n.part))],
+			empty: outline(modelTree({ ...docs, mep: { schema: 'saengine.mep/1' } }).slice(-1)),
+			none: tree.length - modelTree(docs).length,
+		}, {
+			outline: [
+				'MEP — 3 items',
+				'  Openings — 1',
+				'    OP1 — sleeve · B1',
+				'  Water Tanks — 1',
+				'    T1 — overhead · L1',
+				'  Electrical Equipment — 1',
+				'    TX1 — transformer · BASE',
+			],
+			parts: ['mep'],
+			empty: ['MEP — nothing placed yet'],
+			none: 1,
 		});
 	});
 });
