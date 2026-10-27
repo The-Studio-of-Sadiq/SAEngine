@@ -1848,7 +1848,7 @@ export class SubstructureEditor extends EditorPane {
 			this.renderFoundationDetail(view, selected, result);
 		} else if (selected && this.isStale(selected)) {
 			const section = this.resultSection(view, localize('sub.detailTitle', "{0}: all checks", selected.id), `${foundationTypeLabel(selected.type)} · ${foundationSize(selected)}`);
-			append(section, $('p.sub-note.warning', undefined, localize('sub.detailStale', "{0} changed since its checks were computed, so they are not shown: {1}.", selected.id, this.staleText)));
+			append(section, $('p.sub-note.warning', undefined, localize('sub.detailStale', "{0} changed since its checks were computed, so they are not shown ({1})", selected.id, this.staleText)));
 		}
 		this.renderPileCapacities(view, report);
 		if (report.notes.length || report.skipped.length) {
