@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Any
 
 import saengine
+from saengine.fem.derive import model_stamp
 
 #: The kept answer, in the results folder of the run.
 REQUIRED_FILE = "design-required.json"
@@ -67,23 +68,6 @@ _DERIVED_PATHS = frozenset({"rs-design/seismic-design.json"})
 #: The results' manifest, written by the solver at the end of a run.
 RESULTS_MANIFEST = "manifest.json"
 SETTINGS_FILE = "02 Project Settings/project-settings.json"
-
-
-def model_stamp(data: bytes | str) -> str:
-    """The stamp of an analysis model's text without its ``meta`` (its name and the stamps of
-    the sources it was derived from): what the solver computes from. The workbench computes
-    the same (``femModelStamp`` in runAll.ts); a text that is not a JSON object is stamped
-    whole."""
-    from saengine.fem.derive import js_json, stamp
-
-    text = data.decode("utf-8", errors="replace") if isinstance(data, bytes) else data
-    try:
-        document = json.loads(text)
-    except ValueError:
-        return stamp(text)
-    if not isinstance(document, dict):
-        return stamp(text)
-    return stamp(js_json({k: v for k, v in document.items() if k != "meta"}))
 
 
 #: The part files the design checks and the foundation design read, relative to the project.

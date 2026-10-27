@@ -670,7 +670,11 @@ def _manifest_axes(out_dir: Path) -> set[str]:
 
 
 def _stamp(out_dir: Path, project_path: Path, torsion: bool) -> str:
-    text = Path(project_path).read_bytes() + (out_dir / "manifest.json").read_bytes()
+    from saengine.fem.derive import model_stamp
+
+    # The model without its meta: deriving it again to the same analysis keeps this run.
+    model = model_stamp(Path(project_path).read_bytes()).encode()
+    text = model + (out_dir / "manifest.json").read_bytes()
     # "2": the modal-force cases carry the RS case's stiffness (overrides, preload).
     return hashlib.sha1(text + (b"T" if torsion else b"-") + b"2").hexdigest()
 

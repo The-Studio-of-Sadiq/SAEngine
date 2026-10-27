@@ -366,6 +366,25 @@ def settings_stamp(text: str) -> str:
     return stamp(js_json({k: v for k, v in document.items() if k not in SETTINGS_INFO_KEYS}))
 
 
+def model_stamp(data: bytes | str) -> str:
+    """The stamp of an analysis model's text without its ``meta`` (its name and the stamps of
+    the sources it was derived from): what the solver computes from, so a model derived again
+    to the same analysis keeps its results and the runs made from them (Run All's kept
+    analysis, the design checks' cache, the response spectrum design). The workbench computes
+    the same (``femModelStamp`` in runAll.ts); a text that is not a JSON object is stamped
+    whole."""
+    import json
+
+    text = data.decode("utf-8", errors="replace") if isinstance(data, bytes) else data
+    try:
+        document = json.loads(text)
+    except ValueError:
+        return stamp(text)
+    if not isinstance(document, dict):
+        return stamp(text)
+    return stamp(js_json({k: v for k, v in document.items() if k != "meta"}))
+
+
 def _unlabelled(items: list[Any]) -> list[Any]:
     return [
         {k: v for k, v in item.items() if k not in _MEP_LABELS} if isinstance(item, dict) else item

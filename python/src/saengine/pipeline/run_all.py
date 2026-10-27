@@ -62,10 +62,11 @@ from pathlib import Path
 from typing import Any
 
 from saengine.codes import context as code_context
+from saengine.fem.derive import model_stamp
 from saengine.fire.summary import fire_failures, fire_summary_file, has_fire
 from saengine.library.bim import source_stamp
 from saengine.pipeline import summaries as S
-from saengine.pipeline.design_mode import ANALYSIS_INPUTS_FILE, model_stamp
+from saengine.pipeline.design_mode import ANALYSIS_INPUTS_FILE
 from saengine.pipeline.project import Project, open_project, read_text, write_text
 from saengine.pipeline.status import (
     PartStatus,
@@ -519,7 +520,7 @@ def _case_type(value: Any) -> str:
 
 def analysis_inputs_stamp(model: Path) -> str | None:
     """The stamp of what the solver computes from: the model without its meta
-    (:func:`saengine.pipeline.design_mode.model_stamp`) and its side files (the temperature
+    (:func:`saengine.fem.derive.model_stamp`) and its side files (the temperature
     case, the soil springs, the support faces). None when the model cannot be read."""
     try:
         parts = [model_stamp(model.read_bytes())]

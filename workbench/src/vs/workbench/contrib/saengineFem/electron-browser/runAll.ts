@@ -180,7 +180,7 @@ export function bimMembers(text: string | undefined): number {
 /**
  * The stamp of an analysis model's text without its `meta` (its name and the stamps of the
  * sources it was derived from): what the solver computes from. The Python side
- * (`saengine.pipeline.design_mode.model_stamp`) computes the same.
+ * (`saengine.fem.derive.model_stamp`) computes the same.
  */
 export function femModelStamp(text: string): string {
 	let document: unknown;
