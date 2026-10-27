@@ -443,8 +443,16 @@ def cmd_new_building(args: argparse.Namespace, out: Output) -> int:
         raise UsageError(f"{args.spec} is not a JSON file: {error}") from error
     if not isinstance(spec, dict):
         raise UsageError(f"{args.spec}: the spec must be a JSON object")
+    # create_building takes only an existing absolute folder (N2: the app never creates a
+    # project relative to its own folder). On the command line a relative DEST is the user's
+    # own, against the current folder, and a missing one is created, as before.
+    dest = Path(args.dest).expanduser().resolve()
     try:
-        result = create_building(spec, args.dest, args.name, args.overwrite)
+        dest.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        raise CommandError(f"the folder {args.dest} could not be created: {error}") from error
+    try:
+        result = create_building(spec, dest, args.name, args.overwrite)
     except NewBuildingError as error:
         if out.json:
             out.document("new-building", EXIT_ERROR, {"error": str(error)})

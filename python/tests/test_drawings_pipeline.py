@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import shutil
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -286,14 +287,20 @@ def test_the_design_checks_are_kept_for_the_drawings(tmp_path: Path, monkeypatch
     assert design_mode.inputs_stamp(out, model) == stamp
     calls: list[str] = []
 
-    def design_report(out_dir, project_path):
+    def gather(out_dir, project_path, substructure=True):
+        # The sample's object types all have bars: the checks come from the one gathering
+        # shared with the design proposal and the required steel (PR #30).
         calls.append(str(out_dir))
-        return {"elements": [{"id": "B1", "ok": False, "checks": []},
-                             {"id": "B2", "ok": True, "checks": []}],
-                "summary": {"joints": {"failed": 1}}}  # fmt: skip
+        report = {"elements": [{"id": "B1", "ok": False, "checks": []},
+                               {"id": "B2", "ok": True, "checks": []}],
+                  "summary": {"joints": {"failed": 1}}}  # fmt: skip
+        return SimpleNamespace(report=report, assumed=set())
 
     monkeypatch.setattr(design_mode, "_ensure_seismic_design", lambda *_: None)
-    monkeypatch.setattr("saengine.design.design_report", design_report)
+    monkeypatch.setattr("saengine.design.required.gather", gather)
+    # The stub's gathering is not left in the process's memo for the next tests.
+    monkeypatch.setattr(design_mode, "_GATHERED", None)
+    monkeypatch.setattr(design_mode, "_REPORT", None)
     report, required, notes = d._design_inputs(root)
     again, _, _ = d._design_inputs(root)
     assert len(calls) == 1 and again == report and (out / design_mode.REPORT_FILE).is_file()

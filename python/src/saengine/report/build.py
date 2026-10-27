@@ -2133,6 +2133,11 @@ def _soil(parts: _Parts) -> dict[str, Any]:
             "The soil report could not be computed: " + "; ".join(data["problems"])
         )
         return {"available": False, "notes": []}
+    if data.get("warnings"):
+        # Boreholes left out of the computation (one borehole's mistake leaves the others).
+        parts.warnings.extend(
+            w if w.startswith("Soil report") else f"Soil report: {w}" for w in data["warnings"]
+        )
     boreholes = data["boreholes"]
     design = report.design
 

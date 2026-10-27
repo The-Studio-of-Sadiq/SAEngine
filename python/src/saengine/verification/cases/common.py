@@ -117,12 +117,17 @@ def objects(*items: dict[str, Any]) -> ObjectLibrary:
     return ObjectLibrary.model_validate({"objects": list(items)})
 
 
-def settings(**analysis: Any) -> ProjectSettings:
+def settings(*, system: str | None = None, **analysis: Any) -> ProjectSettings:
     """Default settings on gross sections (the references are closed-form elastic solutions
-    with the members' full E·I); ``analysis`` overrides, ``stiffness="aci"`` among them."""
+    with the members' full E·I); ``analysis`` overrides, ``stiffness="aci"`` among them.
+    ``system`` sets the seismic force-resisting system (Table 6.2.19) for a case whose
+    reference takes its R and Cd, so the case does not follow the default system."""
     s = default_project_settings("Verification")
     analysis = {"stiffness": "gross", **analysis}
-    return s.model_copy(update={"analysis": s.analysis.model_copy(update=analysis)})
+    update: dict[str, Any] = {"analysis": s.analysis.model_copy(update=analysis)}
+    if system is not None:
+        update["seismic"] = s.seismic.model_copy(update={"system": system})
+    return s.model_copy(update=update)
 
 
 def nodes_at(project: dict[str, Any], test: Callable[[list[float]], bool]) -> list[int]:

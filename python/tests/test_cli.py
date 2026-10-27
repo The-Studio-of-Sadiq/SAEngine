@@ -80,7 +80,10 @@ def test_status_of_the_sample(capsys: pytest.CaptureFixture[str], sample: Path):
     code, document = run(capsys, "status", str(sample / "Sample Frame.saengine"))
     assert code == EXIT_OK and document["project"]["name"] == "Sample Frame"
     states = {p["part"]: (p["state"], p["text"]) for p in document["parts"]}
-    assert states["fem"] == ("notStarted", "not derived") and document["next"] == "fem"
+    assert states["fem"] == ("notStarted", "not derived")
+    # The sample keeps the default materials, which the status (as the workbench's since K2)
+    # reads as defaults to review: that is the first open step, ahead of the analysis model.
+    assert states["materials"] == ("defaults", "defaults") and document["next"] == "materials"
     assert states["boq"] == ("done", "measured")
 
 

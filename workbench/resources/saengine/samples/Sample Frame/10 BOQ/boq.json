@@ -119,36 +119,43 @@
 				{
 					"element": "C1",
 					"story": "L1",
+					"detail": "type C400x600",
 					"quantity": 0.768
 				},
 				{
 					"element": "C2",
 					"story": "L1",
+					"detail": "type C400x600",
 					"quantity": 0.75
 				},
 				{
 					"element": "C3",
 					"story": "L1",
+					"detail": "type C400x600",
 					"quantity": 0.759
 				},
 				{
 					"element": "C4",
 					"story": "L1",
+					"detail": "type C400x600",
 					"quantity": 0.759
 				},
 				{
 					"element": "C5",
 					"story": "L1",
+					"detail": "type C400x600",
 					"quantity": 0.75
 				},
 				{
 					"element": "C6",
 					"story": "L1",
+					"detail": "type C400x600",
 					"quantity": 0.759
 				},
 				{
 					"element": "C7",
 					"story": "L2",
+					"detail": "type C400x600",
 					"quantity": 0.768
 				},
 				{
@@ -172,6 +179,7 @@
 				{
 					"element": "W1",
 					"story": "L1",
+					"detail": "type W200",
 					"quantity": 2.307
 				}
 			]
@@ -191,26 +199,31 @@
 				{
 					"element": "B1",
 					"story": "L1",
+					"detail": "type B300x500",
 					"quantity": 0.686
 				},
 				{
 					"element": "B2",
 					"story": "L1",
+					"detail": "type B300x500",
 					"quantity": 0.832
 				},
 				{
 					"element": "B3",
 					"story": "L1",
+					"detail": "type B300x500",
 					"quantity": 0.714
 				},
 				{
 					"element": "B4",
 					"story": "L1",
+					"detail": "type B300x500",
 					"quantity": 0.842
 				},
 				{
 					"element": "B5",
 					"story": "L1",
+					"detail": "type B300x500",
 					"quantity": 0.463
 				}
 			]
@@ -230,11 +243,13 @@
 				{
 					"element": "S1",
 					"story": "L1",
+					"detail": "type S150",
 					"quantity": 2.848
 				},
 				{
 					"element": "S2",
 					"story": "L1",
+					"detail": "type S150",
 					"quantity": 5.25
 				}
 			]
@@ -1117,10 +1132,12 @@
 			"breakdown": [
 				{
 					"element": "C4",
+					"detail": "type C400x600",
 					"quantity": 2.0
 				},
 				{
 					"element": "C3",
+					"detail": "type C400x600",
 					"quantity": 2.0
 				}
 			]
@@ -1136,10 +1153,12 @@
 			"breakdown": [
 				{
 					"element": "C4",
+					"detail": "type C400x600",
 					"quantity": 1.0
 				},
 				{
 					"element": "C3",
+					"detail": "type C400x600",
 					"quantity": 1.0
 				}
 			]
@@ -1161,6 +1180,27 @@
 		},
 		{
 			"code": "MT.01",
+			"group": "materials",
+			"description": "Cement",
+			"quantity": 6177.024,
+			"unit": "kg",
+			"kind": "cement",
+			"byStory": {},
+			"breakdown": [
+				{
+					"element": "UGR1",
+					"detail": "Concrete C27.6 in water and septic tanks",
+					"quantity": 3870.72
+				},
+				{
+					"element": "SEP1",
+					"detail": "Concrete C27.6 in water and septic tanks",
+					"quantity": 2306.304
+				}
+			]
+		},
+		{
+			"code": "MT.02",
 			"group": "materials",
 			"description": "Cement (OPC)",
 			"quantity": 11523.739,
@@ -1288,7 +1328,28 @@
 			]
 		},
 		{
-			"code": "MT.02",
+			"code": "MT.03",
+			"group": "materials",
+			"description": "Cement in 50 kg bags",
+			"quantity": 123.54,
+			"unit": "bag",
+			"kind": "bags",
+			"byStory": {},
+			"breakdown": [
+				{
+					"element": "UGR1",
+					"detail": "Concrete C27.6 in water and septic tanks",
+					"quantity": 77.414
+				},
+				{
+					"element": "SEP1",
+					"detail": "Concrete C27.6 in water and septic tanks",
+					"quantity": 46.126
+				}
+			]
+		},
+		{
+			"code": "MT.04",
 			"group": "materials",
 			"description": "Cement (OPC) in 50 kg bags",
 			"quantity": 230.475,
@@ -1416,10 +1477,10 @@
 			]
 		},
 		{
-			"code": "MT.03",
+			"code": "MT.05",
 			"group": "materials",
 			"description": "Sand (fine aggregate)",
-			"quantity": 423.914,
+			"quantity": 651.143,
 			"unit": "cft",
 			"kind": "sand",
 			"byStory": {
@@ -1540,14 +1601,24 @@
 					"story": "L1",
 					"detail": "Concrete C24.1 in water and septic tanks",
 					"quantity": 57.471
+				},
+				{
+					"element": "UGR1",
+					"detail": "Concrete C27.6 in water and septic tanks",
+					"quantity": 142.389
+				},
+				{
+					"element": "SEP1",
+					"detail": "Concrete C27.6 in water and septic tanks",
+					"quantity": 84.84
 				}
 			]
 		},
 		{
-			"code": "MT.04",
+			"code": "MT.06",
 			"group": "materials",
 			"description": "Stone chips (coarse aggregate)",
-			"quantity": 847.828,
+			"quantity": 1302.286,
 			"unit": "cft",
 			"kind": "stone",
 			"byStory": {
@@ -1668,11 +1739,21 @@
 					"story": "L1",
 					"detail": "Concrete C24.1 in water and septic tanks",
 					"quantity": 114.942
+				},
+				{
+					"element": "UGR1",
+					"detail": "Concrete C27.6 in water and septic tanks",
+					"quantity": 284.778
+				},
+				{
+					"element": "SEP1",
+					"detail": "Concrete C27.6 in water and septic tanks",
+					"quantity": 169.68
 				}
 			]
 		},
 		{
-			"code": "MT.05",
+			"code": "MT.07",
 			"group": "materials",
 			"description": "Water",
 			"quantity": 5185.682,
@@ -1814,7 +1895,12 @@
 		"T1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
 		"UGR1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
 		"SEP1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
-		"Materials: concrete C27.6 has no mix, so no cement, sand or stone is taken off for it (add the mix in 03 Materials).",
+		"Materials: concrete C27.6 has no mix: 1:1.5:3 assumed (f'c 27.6 MPa), a nominal mix of IS 456:2000 Table 9 by strength, no water (enter the mix in 03 Materials to replace it).",
 		"Reinforcement against the bar bending schedule of the drawings (BBS against this bill, per bar size): Ø10 1380.7 kg against 1359.6 kg (+21.1 kg, +1.6 %); Ø12 182.3 kg against 148.5 kg (+33.8 kg, +22.8 %); Ø16 368.2 kg against 342.9 kg (+25.3 kg, +7.4 %); Ø20 666.7 kg against 721.0 kg (-54.3 kg, -7.5 %); in total 2597.9 kg against 2571.9 kg. The schedule cuts the detailed bars (BNBC 2020 laps and hooks, cut-off bars, BS 8666 cutting lengths); this bill measures by the rules above. Set Project Settings, Drawings, BOQ reinforcement to take the schedule's bars instead. Not detailed in the drawings: M1."
+	],
+	"problems": [
+		"T1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
+		"UGR1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
+		"SEP1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)"
 	]
 }
