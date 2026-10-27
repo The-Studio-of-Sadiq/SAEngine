@@ -168,7 +168,7 @@ export class GridsEditor extends JsonDocumentEditor {
 		const resource = this.resource;
 		const wasDirty = !resource || this.textFiles.isDirty(resource);
 		super.commit();
-		this.shownLayout = this.gridsLayout(); // its own edit is not news for the next undo's message
+		this.shownLayout = this.gridLayout(); // its own edit is not news for the next undo's message
 		if (resource && !wasDirty && this.textFiles.isDirty(resource)) {
 			void this.textFiles.save(resource).then(() => this.renderStatus());
 		}
@@ -176,7 +176,7 @@ export class GridsEditor extends JsonDocumentEditor {
 	}
 
 	/** A copy of the document's grids and stories. */
-	private gridsLayout(): JsonObject | undefined {
+	private gridLayout(): JsonObject | undefined {
 		const layout: JsonObject | undefined = this.document && { grids: this.document.grids ?? null, stories: this.document.stories ?? null };
 		return layout && clone(layout);
 	}
@@ -221,7 +221,7 @@ export class GridsEditor extends JsonDocumentEditor {
 	protected override load(): void {
 		const before = this.shownLayout;
 		super.load();
-		const after = this.gridsLayout();
+		const after = this.gridLayout();
 		this.shownLayout = after;
 		if (before && after) {
 			const changes = describeGridChanges(before, after);
