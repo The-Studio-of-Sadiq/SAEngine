@@ -572,3 +572,30 @@ def test_report_and_foundations_follow_the_checks():
     statuses = lines(inputs({"substructure": foundations}, substructureSummaryText=skipped,
                             substructureSummaryTime=3))  # fmt: skip
     assert statuses[8] == "substructure: inProgress 1 not checked"
+
+
+def test_the_required_steel_reuses_the_checks_of_the_design_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Run All's design step: the report gathers the checks without the foundations; the
+    required steel then adds the foundations, never designing every member a second time."""
+    from saengine.design import required
+    from saengine.pipeline import design_mode
+
+    design_mode.forget()
+    calls: list[bool] = []
+    added: list[object] = []
+
+    def gather(out_dir, project_path, substructure=True):
+        calls.append(substructure)
+        return SimpleNamespace(assumed=False, report={"summary": {}}, root=tmp_path)
+
+    monkeypatch.setattr(required, "gather", gather)
+    monkeypatch.setattr(design_mode, "_add_substructure", lambda g, out: added.append(g))
+    first = design_mode.gathered(tmp_path, tmp_path / "m.osmodel", "s1", substructure=False)
+    second = design_mode.gathered(tmp_path, tmp_path / "m.osmodel", "s1")
+    third = design_mode.gathered(tmp_path, tmp_path / "m.osmodel", "s1")
+    assert calls == [False] and added == [first] and first is second is third
+    design_mode.gathered(tmp_path, tmp_path / "m.osmodel", "s2")  # inputs changed: gathered again
+    assert calls == [False, True]
+    design_mode.forget()

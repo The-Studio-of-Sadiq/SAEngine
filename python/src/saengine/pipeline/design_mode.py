@@ -291,6 +291,13 @@ def gathered(
             memo = _GATHERED
         if memo and memo[:2] == (folder, stamp) and (memo[2] or not substructure):
             return memo[3]
+        if memo and memo[:2] == (folder, stamp):
+            # Gathered for the design report, without the foundations: add them rather than
+            # design every member again (Run All's required steel, after its design checks).
+            _add_substructure(memo[3], out_dir)
+            with _memo_lock:
+                _GATHERED = (folder, stamp, True, memo[3], memo[4])
+            return memo[3]
         result = gather(out_dir, project_path, substructure)
         # The design report as design_report makes it: the same checks of the same object types,
         # unless some were checked with assumed bars.
@@ -298,6 +305,22 @@ def gathered(
         with _memo_lock:
             _GATHERED = (folder, stamp, substructure, result, report_copy)
         return result
+
+
+def _add_substructure(gathering: Any, out_dir: str | Path) -> None:
+    """Adds the foundations' design to checks gathered without them, as
+    :func:`saengine.design.required.gather` does with ``substructure``."""
+    root = Path(gathering.root)
+    if not (root / "09 Substructure" / "substructure.json").exists():
+        return
+    from saengine.substructure.context import load_context
+    from saengine.substructure.report import report as substructure_report
+
+    try:
+        gathering.context = load_context(root, out_dir)
+        gathering.substructure = substructure_report(gathering.context)
+    except ValueError as error:
+        gathering.notes.append(f"9 Substructure not designed: {error}")
 
 
 def checks(
