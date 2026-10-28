@@ -663,6 +663,103 @@ def test_special_beam_laps_are_clear_of_2h_from_the_joints() -> None:
             assert any("no lap location" in n for n in line["notes"])
 
 
+def _gate_beam(bottom_dia: float = 20) -> dict:
+    """The beams of the alpha 6 gate: 300 x 600, 4 Ø20 top, 3 Ø20 bottom, stirrups Ø10 at 125
+    with end zones at 100 and no splice spacing of their own."""
+    return {
+        "id": "B300", "name": "Beam 300x600", "kind": "beam", "material": CONCRETE,
+        "profile": {"shape": "rectangle", "xDim": 300, "yDim": 600},
+        "reinforcement": {
+            "material": REBAR, "cover": 40,
+            "longitudinal": [{"position": "top", "count": 4, "dia": 20},
+                             {"position": "bottom", "count": 3, "dia": bottom_dia}],
+            "transverse": {"type": "stirrup", "dia": 10, "spacing": 125, "legs": 2,
+                           "zone": {"length": 1200, "spacing": 100}},
+        },
+    }  # fmt: skip
+
+
+SPECIAL_LINE = {
+    "elements": [
+        {"id": f"B{k}", "detailing": {"frameType": "special", "role": "lateral"}} for k in (1, 2, 3)
+    ]
+}
+
+
+def test_an_18_m_special_beam_is_spliced_into_stock_bars() -> None:
+    """Three spans of 6 m (the gate's grid along X) on 300 x 300 columns: 18.2 m of continuous
+    bar is cut into two bars of at most 12 m, lapped class B outside the 2 h zones."""
+    from saengine.drawings.bbs import bar_schedule
+
+    model = _model(
+        bim=json.dumps(_beam_line((0, 6000, 12000, 18000), "B300")),
+        objects=_objects([_gate_beam()]),
+        design_report=SPECIAL_LINE,
+    )
+    line = _element(model, "B1+B2+B3")
+    # Faces 150 | 5850, 6150 | 11850, 12150 | 17850 (clear 5700, a third 1900); the bars end 50
+    # inside the end columns (s = -100 and 18100), with 90° hooks of leg 12 db + 3 db + db = 320.
+    # ld Ø20 (8.2.3.2, 20 mm and larger): 420 / (1.7 √24.1) × 20 = 1006.5; class B laps:
+    # bottom 1.3 × 1006.5 = 1308.5 -> 1325, top (ψt 1.3, 530 mm of concrete below) 1701 -> 1725.
+    # No laps within 2 h = 1200 of a face (8.3.4.2(b)).
+    hook = standard_hook(20, 90).leg
+    assert hook == 320
+    lap_b = up(lap_tension(20, 420, 24.1).value)
+    lap_t = up(lap_tension(20, 420, 24.1, top=True).value)
+    assert (lap_b, lap_t) == (1325, 1725)
+    tops = [x for x in line["laps"] if x["face"] == "top"]
+    bottoms = [x for x in line["laps"] if x["face"] == "bottom"]
+    # Top (2 continuous Ø20): middle thirds 2050-3950, 8050-9950, 14050-15950; the first bar
+    # reaches -100 + 12000 - 320 = 11580, so the lap ends at 9950 in span 2: 8225-9950. The
+    # second bar, 8225 to 18100 + its hook, is 10195 mm.
+    assert [(x["from"], x["to"], x["length"], x["class"]) for x in tops] == [
+        (8225, 9950, 1725, "B")
+    ]
+    # Bottom (3 Ø20): near the supports, from 2 h off the face to max(ln/3, 2 h + lap) = 2525
+    # from it: in span 2 7350-8675 and 9325-10650; the last one in reach: 9325-10650, 1200
+    # from the face of the third column (8.1.12.2(b), 8.3.4.2(b)).
+    assert [(x["from"], x["to"], x["length"], x["class"]) for x in bottoms] == [
+        (9325, 10650, 1325, "B")
+    ]
+    assert tops[0]["marks"] and bottoms[0]["marks"]
+    for lap in line["laps"]:
+        assert lap["from"] - 6150 >= 1200 and 11850 - lap["to"] >= 1200
+    pieces = [b for b in line["bars"] if b["role"] in ("top", "bottom") and not b.get("curtailed")]
+    assert sorted((b["role"], b["at"]["from"], b["at"]["to"]) for b in pieces) == [
+        ("bottom", -100, 10650), ("bottom", 9325, 18100), ("top", -100, 9950),
+        ("top", 8225, 18100),
+    ]  # fmt: skip
+    for bar in pieces:
+        assert sum(bar["dims"].values()) <= 12000
+        assert bar["lap"] == (lap_t if bar["role"] == "top" else lap_b)
+    assert not any("no lap location" in n or "longer than" in n for n in line["notes"])
+    # Hoops over the laps (the type has no splice spacing): min(d/4, 100) with d = 600 - 50 -
+    # 10 = 540: 100 mm, closer than the 125 elsewhere; one row over both laps.
+    splice = [r for r in line["transverse"] if r["zone"] == "splice"]
+    assert [(r["from"], r["to"], r["spacing"]) for r in splice] == [(8225, 10650, 100)]
+    assert splice[0]["count"] == math.ceil((10650 - 8225) / 100)
+    # The schedule shows the laps and no bar longer than stock.
+    schedule = bar_schedule(model)
+    rows = [r for r in schedule.rows if r.element == "B1+B2+B3" and r.lap]
+    assert {r.lap for r in rows} == {1325, 1725} and all("lap" in r.remarks for r in rows)
+    assert all(r.cutting_length <= 12000 for r in schedule.rows)
+    assert not any("stock bar" in n for n in schedule.notes)
+
+
+def test_36_mm_beam_bars_are_not_lapped() -> None:
+    model = _model(
+        bim=json.dumps(_beam_line((0, 6000, 12000, 18000), "B300")),
+        objects=_objects([_gate_beam(bottom_dia=36)]),
+        design_report=SPECIAL_LINE,
+    )
+    line = _element(model, "B1+B2+B3")
+    assert not [x for x in line["laps"] if x["face"] == "bottom"]
+    assert [x["face"] for x in line["laps"]] == ["top"]
+    bottom = [b for b in line["bars"] if b["role"] == "bottom"]
+    assert len(bottom) == 1 and "lap" not in bottom[0]
+    assert any("mechanical couplers" in n and "8.2.12.2(a)" in n for n in line["notes"])
+
+
 def _isolated(fid: str, column: str, x: float, length: float = 1500) -> dict:
     return {
         "id": fid, "type": "isolated", "columns": [column], "center": [x, 0], "rotation": 0,

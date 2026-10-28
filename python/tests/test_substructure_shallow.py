@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import math
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -85,11 +86,11 @@ def test_substructure_file_round_trips_and_validates() -> None:
                 "id": "P1",
                 "type": "pileCap",
                 "columns": ["C2"],
+                "center": [6000, 0],
                 "length": 2400,
                 "width": 2400,
                 "thickness": 900,
-                "pileType": "BP500",
-                "piles": [[-750, -750], [750, -750], [750, 750], [-750, 750]],
+                "piles": ["PL1", "PL2", "PL3", "PL4"],
             },
             {
                 "id": "S1",
@@ -102,6 +103,16 @@ def test_substructure_file_round_trips_and_validates() -> None:
             {"id": "R1", "type": "raft", "outline": [[0, 0], [9, 0], [9, 9]], "thickness": 600},
         ],
         "pileTypes": [{"id": "BP500", "diameter": 500, "length": 18000, "material": "C24.1"}],
+        "pileGrid": {
+            "origin": [5250, -750],
+            "rotation": 0,
+            "x": [{"label": "a", "position": 0}, {"label": "b", "position": 1500}],
+            "y": [{"label": "1", "position": 0}, {"label": "2", "position": 1500}],
+        },
+        "piles": [
+            {"id": f"PL{k + 1}", "type": "BP500", "position": [6000 + dx, dy]}
+            for k, (dx, dy) in enumerate([(-750, -750), (750, -750), (750, 750), (-750, 750)])
+        ],
         "tieBeams": [{"id": "TB1", "from": "F1", "to": "P1", "type": "TB"}],
         "design": {"springsFrom": 12000, "factorOfSafety": {"pileCompression": 3}},
     }
@@ -109,6 +120,13 @@ def test_substructure_file_round_trips_and_validates() -> None:
     dumped = json.loads(model.model_dump_json(by_alias=True, exclude_none=True))
     assert dumped["tieBeams"][0]["from"] == "F1" and dumped["schema"] == data["schema"]
     assert Substructure.model_validate(dumped) == model
+    # The piles in plan, as offsets in the cap's axes; the pile grid's crossings.
+    cap = model.foundations[1]
+    assert model.cap_pile_type(cap).id == "BP500"
+    assert model.pile_offsets(cap) == [[-750, -750], [750, -750], [750, 750], [-750, 750]]
+    assert [p[2] for p in model.pileGrid.intersections()] == [
+        [5250, -750], [5250, 750], [6750, -750], [6750, 750]
+    ]  # fmt: skip
     # Defaults from BNBC 2020 Table 6.3.10a (permanent, normal control) and Sec 3.10.1.18.
     fs = Substructure().design.factorOfSafety
     assert (fs.pileCompression, fs.pileUplift, fs.pileSkin, fs.pileEndBearing) == (2.5, 2.5, 1.5, 3)
@@ -134,17 +152,24 @@ def test_substructure_file_round_trips_and_validates() -> None:
         (lambda d: d["foundations"][0].update(length=-5), "greater than 0"),
         (lambda d: d["tieBeams"][0].update(to="F7"), "TB1: unknown foundation 'F7'"),
         (lambda d: d["tieBeams"][0].update(to="F1"), "TB1: ties F1 to itself"),
-        (lambda d: d["foundations"][1].update(pileType="X"), "P1: unknown pile type 'X'"),
-        (
-            lambda d: d["foundations"][1].update(piles=[[0, 0], [1000, 0]]),
-            "P1: the pile at [1000, 0] does not lie within the cap",
-        ),
-        (lambda d: d["foundations"][1].update(piles=[[0, 0], [0, 0]]), "two piles at the same"),
-        (
-            lambda d: d["foundations"][1].update(piles=[[0, 0], [499, 0]]),
-            "P1: the piles at [0, 0] and [499, 0] overlap",
-        ),
+        (lambda d: d["piles"][0].update(type="X"), "PL1: unknown pile type 'X'"),
+        (lambda d: d["foundations"][1].update(piles=["PL1", "PL9"]), "P1: unknown pile 'PL9'"),
+        (lambda d: d["foundations"][1].update(piles=["PL1", "PL1"]), "P1: PL1 listed twice"),
         (lambda d: d["foundations"][1].pop("piles"), "P1: a pile cap needs piles"),
+        (lambda d: d["foundations"][1].pop("center"), "P1: a pile cap needs center"),
+        (lambda d: d["foundations"][0].update(piles=["PL1"]), "F1: only a pile cap stands on"),
+        (
+            lambda d: d["foundations"].append({**d["foundations"][1], "id": "P2", "columns": []}),
+            "pile PL1 is under both P1 and P2",
+        ),
+        (
+            lambda d: (
+                d["pileTypes"].append({**d["pileTypes"][0], "id": "BP600"}),
+                d["piles"][1].update(type="BP600"),
+            ),
+            "P1: its piles are of more than one type (BP500, BP600)",
+        ),
+        (lambda d: d["pileGrid"]["y"].append({"label": "a", "position": 9}), "a used twice"),
     ],
 )
 def test_substructure_validation(change, message: str) -> None:
@@ -155,14 +180,19 @@ def test_substructure_validation(change, message: str) -> None:
                 "id": "P1",
                 "type": "pileCap",
                 "columns": ["C2"],
+                "center": [6000, 0],
                 "length": 1800,
                 "width": 1800,
                 "thickness": 900,
-                "pileType": "BP500",
-                "piles": [[-600, 0], [600, 0]],
+                "piles": ["PL1", "PL2"],
             },
         ],
         "pileTypes": [{"id": "BP500", "diameter": 500, "length": 18000, "material": "C24.1"}],
+        "pileGrid": {"x": [{"label": "a", "position": 0}], "y": []},
+        "piles": [
+            {"id": "PL1", "type": "BP500", "position": [5400, 0]},
+            {"id": "PL2", "type": "BP500", "position": [6600, 0]},
+        ],
         "tieBeams": [{"id": "TB1", "from": "F1", "to": "P1", "type": "TB"}],
     }
     Substructure.model_validate(data)
@@ -1023,8 +1053,13 @@ def test_migration_of_the_footings_drawn_in_the_building_model() -> None:
     assert by_id["S1"].columns == ["C3", "C4"] and by_id["S1"].foundingLevel == -1600
     cap = by_id["PC1"]
     assert cap.columns == [] and "C3: stands on more than one footing; kept on the first" in notes
-    assert cap.type == "pileCap" and cap.pileType == "BP" and len(cap.piles) == 4
-    assert {tuple(p) for p in cap.piles} == {(-800, -800), (800, -800), (-800, 800), (800, 800)}
+    assert cap.type == "pileCap" and model.cap_pile_type(cap).id == "BP" and len(cap.piles) == 4
+    assert {tuple(p) for p in model.pile_offsets(cap)} == {
+        (-800, -800), (800, -800), (-800, 800), (800, 800)
+    }  # fmt: skip
+    assert {tuple(p.position) for p in model.cap_piles(cap)} == {
+        (5200, 4200), (6800, 4200), (5200, 5800), (6800, 5800)
+    }  # fmt: skip
     assert model.pileTypes[0].diameter == 500 and model.pileTypes[0].kind == "bored"
     # Running it again adds nothing.
     again, notes = migrate(building, objects, model)
@@ -1090,6 +1125,39 @@ def test_sizing_assistant_proposes_footings_that_pass(frame: Path) -> None:
     assert not by_name(result["checks"])["Bearing (service)"]["ok"]
 
 
+def test_sizing_assistant_leaves_a_column_on_a_pile_cap_alone(frame: Path) -> None:
+    # Selected or not, a column on a pile cap keeps it: no footing is proposed in its place.
+    c1 = next(e for e in generate(PLAN, "s").elements if e.id == "C1")
+    x, y = c1.position
+    piles = [(x - 750, y - 750), (x + 750, y - 750), (x + 750, y + 750), (x - 750, y + 750)]
+    write_substructure(
+        frame,
+        {
+            "foundations": [
+                {"id": "PC1", "type": "pileCap", "columns": ["C1"], "center": [x, y],
+                 "length": 2300, "width": 2300, "thickness": 900,
+                 "piles": ["PL1", "PL2", "PL3", "PL4"]},
+            ],
+            "pileTypes": [{"id": "BP500", "kind": "bored", "diameter": 500, "length": 18000,
+                           "material": "C24.1"}],
+            "piles": [
+                {"id": f"PL{k + 1}", "type": "BP500", "position": list(p)}
+                for k, p in enumerate(piles)
+            ],
+        },
+    )  # fmt: skip
+    settings = SETTINGS.model_copy(update={"foundation": FoundationSettings(allowableBearing=60)})
+    ctx = load_context(frame)
+    ctx.settings = settings
+    ctx.__post_init__()
+    proposal = propose(ctx, ["C1", "C2"])
+    assert [f["columns"] for f in proposal["foundations"]] == [["C2"]]
+    assert (
+        "C1: stands on pile cap PC1; Size Footings sizes footings only (lay its piles out again "
+        "with the pile tools)" in proposal["notes"]
+    )
+
+
 def test_sizing_assistant_combines_footings_that_would_overlap() -> None:
     # 1500 and 1000 kN 2.5 m apart on qa = 150 kPa: square footings over 3 m wide would
     # overlap. One combined footing, centred on the resultant 1000 mm from C1.
@@ -1151,3 +1219,61 @@ def test_run_all_step_gives_footings_without_bars_the_minimum_mesh(frame: Path) 
     # Nothing to design: status none, not "pass".
     write_substructure(frame, {"schema": "saengine.substructure/1", "foundations": []})
     assert design_foundations(frame)["summary"]["status"] == "none"
+
+
+def test_pile_cap_on_its_own_pile_grid_in_the_report(frame: Path, tmp_path: Path) -> None:
+    """A cap over four piles set out on the pile grid, not centred on its column C2 at (6000, 0):
+    the report carries the eccentricity into the pile loads (the piles on the column's side take
+    more than with the cap centred), names the piles by their marks and positions, and warns of a pile under no cap."""
+    from test_substructure_piles import CLAY_ON_SAND
+
+    from saengine.library.settings import SOIL_FILE
+
+    root = tmp_path / "piled"
+    shutil.copytree(frame, root)
+    (root / SOIL_FILE).parent.mkdir(parents=True, exist_ok=True)
+    (root / SOIL_FILE).write_text(
+        json.dumps({"boreholes": [{**CLAY_ON_SAND, "x": 3000, "y": 2500}]}), encoding="utf-8"
+    )
+
+    def layout(x0: float, y0: float) -> dict:
+        points = [(x0, y0), (x0 + 1500, y0), (x0 + 1500, y0 + 1500), (x0, y0 + 1500)]
+        return {
+            "foundations": [
+                {"id": "PC1", "type": "pileCap", "columns": ["C2"],
+                 "center": [x0 + 750, y0 + 750], "length": 2300, "width": 2300,
+                 "thickness": 900, "material": "C24.1", "reinforcement": REINFORCEMENT,
+                 "piles": ["PL1", "PL2", "PL3", "PL4"]},
+            ],
+            "pileTypes": [{"id": "BP500", "diameter": 500, "length": 18000,
+                           "material": "C24.1"}],
+            "pileGrid": {"origin": [x0, y0],
+                         "x": [{"label": "a", "position": 0}, {"label": "b", "position": 1500}],
+                         "y": [{"label": "1", "position": 0}, {"label": "2", "position": 1500}]},
+            "piles": [{"id": f"PL{k + 1}", "type": "BP500", "position": list(p)}
+                      for k, p in enumerate([*points, (9000, 3000)])],
+        }  # fmt: skip
+
+    write_substructure(root, layout(5250, -750))  # centred on C2
+    centred = {p["mark"]: p for p in substructure_report(root)["foundations"][0]["piles"]}
+    write_substructure(root, layout(5100, -900))  # 150 mm off C2 both ways
+    report = substructure_report(root)
+    assert not report["skipped"], report["skipped"]
+    cap = report["foundations"][0]
+    assert cap["group"]["eccentricity"] == [150, 150]
+    assert any("150 mm (u) and 150 mm (v) off the piles' centroid" in n for n in report["notes"])
+    rows = {p["mark"]: p for p in cap["piles"]}
+    assert (rows["PL1"]["x"], rows["PL1"]["y"]) == (5100, -900)
+    assert (rows["PL3"]["u"], rows["PL3"]["v"]) == (750, 750)
+    # The pile nearest the column (PL3, +u +v) takes more than with the cap centred, the far
+    # one (PL1) less: P e each way, shared by Σu² (rigid cap).
+    assert rows["PL3"]["serviceMax"] > centred["PL3"]["serviceMax"] + 1
+    assert rows["PL1"]["serviceMax"] < centred["PL1"]["serviceMax"] - 1
+    assert sum(r["serviceMax"] for r in rows.values()) == pytest.approx(
+        sum(r["serviceMax"] for r in centred.values()), rel=0.1
+    )
+    assert cap["sizes"]["piles"] == ["PL1", "PL2", "PL3", "PL4"]
+    assert report["pileLayout"] == {
+        "piles": 5, "capped": 4, "warnings": ["PL5: under no pile cap"]
+    }  # fmt: skip
+    assert "Pile layout: PL5: under no pile cap" in report["notes"]

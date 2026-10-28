@@ -539,10 +539,12 @@ suite('SAEngine - PartStatus', () => {
 		assert.deepStrictEqual([
 			applyPartChecks(bim, check({ problems: 0, unsupported: 1 })).state,
 			applyPartChecks(bim, check({ problems: 0, failed: 2 })).text,
+			// The part says what fails when it can (the floor plan: "12 in setbacks").
+			applyPartChecks(bim, check({ problems: 0, failed: 12, failedText: '12 in setbacks' })).text,
 			applyPartChecks(bim, check({ problems: 0, checked: 4, total: 4 })),
 			applyPartChecks({ ...bim, state: 'notStarted' }, check({ problems: 4 })).state,
 			applyPartChecks({ ...bim, state: 'stale' }, check({ problems: 4 })).state,
-		], ['inProgress', '2 fail', bim, 'notStarted', 'stale']);
+		], ['inProgress', '2 fail', '12 in setbacks', bim, 'notStarted', 'stale']);
 		// The hint names the first problem.
 		assert.strictEqual(applyPartChecks(bim, check({ problems: 1, items: [{ severity: 'error', message: 'Opening past the wall end' }] })).hint, 'Opening past the wall end');
 	});

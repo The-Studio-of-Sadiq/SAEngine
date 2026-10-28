@@ -8,9 +8,11 @@ import math
 import pytest
 
 from saengine.boq import BillOfQuantities, compute_boq, compute_boq_text
-from saengine.boq.quantities import bar_length, bar_mass
+from saengine.boq.quantities import BoqSource, bar_length, bar_mass, bill_of_quantities
 from saengine.library import FloorPlan, default_floor_plan, default_material_library
-from saengine.library.bim import generate, generate_from_structure, source_stamp
+from saengine.library.bim import BuildingModel, generate, generate_from_structure, source_stamp
+from saengine.library.materials import MaterialLibrary
+from saengine.library.objects import ObjectLibrary
 from saengine.library.structure import StructuralModel, default_structural_model
 
 LINEAR = {"material": "B420DWR", "cover": 40}
@@ -104,6 +106,21 @@ def bill(bim: str, objects: dict = OBJECTS) -> BillOfQuantities:
     return BillOfQuantities.model_validate(compute_boq(bim, json.dumps(objects), MATERIALS))
 
 
+def estimated(bim: str, objects: dict = OBJECTS) -> BillOfQuantities:
+    """The bill by the estimating rules alone, as for the elements the drawings do not detail
+    (compute_boq takes the detailed bars of the others: see test_the_bill_takes_the_detailed_
+    bars)."""
+    text = json.dumps(objects)
+    return bill_of_quantities(
+        BuildingModel.model_validate_json(bim),
+        ObjectLibrary.model_validate_json(text),
+        MaterialLibrary.model_validate_json(MATERIALS),
+        BoqSource(
+            bim=source_stamp(bim), objects=source_stamp(text), materials=source_stamp(MATERIALS)
+        ),
+    )
+
+
 def item(boq: BillOfQuantities, group: str, **match):
     return next(
         i
@@ -132,7 +149,7 @@ def test_bar_rules() -> None:
 
 def test_frame_quantities() -> None:
     bim = dump(generate(PLAN, "s"))
-    boq = bill(bim)
+    boq = estimated(bim)
     assert boq.source.bim == source_stamp(bim)
     assert boq.source.materials == source_stamp(MATERIALS)
 
@@ -184,6 +201,34 @@ def test_frame_quantities() -> None:
     assert not [i for i in boq.items if i.group == "steel"]
     assert [i.code for i in boq.items if i.group == "concrete"] == ["C.01", "C.02", "C.03"]
     assert any("between the faces of the columns" in n for n in boq.notes)
+
+
+def test_the_bill_takes_the_detailed_bars() -> None:
+    """A quantity lives in one place: the bill's bars of the detailed elements are the bars of
+    the bar bending schedule (count x cutting length per mark, with the laps, hooks and stirrup
+    zones), so the two agree per bar size to the bill's rounding (0.001 kg per entry)."""
+    from saengine.drawings.bbs import bar_schedule
+    from saengine.drawings.detailing import detailing_model
+
+    bim = dump(generate(PLAN, "s"))
+    boq = bill(bim)
+    schedule = bar_schedule(
+        detailing_model(texts={"bim": bim, "objects": json.dumps(OBJECTS), "materials": MATERIALS})
+    )
+    steel = {i.diameter: i.quantity for i in boq.items if i.group == "reinforcement"}
+    assert steel.keys() == schedule.by_diameter.keys()
+    for dia, mass in schedule.by_diameter.items():
+        assert steel[dia] == pytest.approx(mass, abs=0.01)
+    # every entry is a bar mark of the schedule; the estimate differs (e.g. the stirrups: zones,
+    # seismic hooks and bends against one spacing and two 10 d hooks)
+    entries = [e for i in boq.items if i.group == "reinforcement" for e in i.breakdown]
+    assert all("(bar bending schedule)" in (e.detail or "") for e in entries)
+    assert {e.element for e in entries} == {"C1", "C2", "C3", "C4", "B1", "B2", "B3", "B4", "S1"}
+    assert estimated(bim).total("reinforcement") != pytest.approx(boq.total("reinforcement"))
+    note = next(n for n in boq.notes if n.startswith("Measured from the detailed bars"))
+    assert "4 columns" in note and "1 slab" in note
+    assert not any(n.startswith("Measured by the estimating rules") for n in boq.notes)
+    assert any(n.startswith("Reinforcement is measured from the detailed bars") for n in boq.notes)
 
 
 def test_openings_and_missing_types() -> None:
@@ -275,7 +320,7 @@ def test_beams_between_all_column_faces() -> None:
             },
         ],
     }
-    boq = bill(json.dumps(bim))
+    boq = estimated(json.dumps(bim))
     beams = item(boq, "concrete", kind="beam")
     assert share(beams, "GB") == pytest.approx(5.6 * 0.15)
     assert share(beams, "LB") == pytest.approx(11.2 * 0.15)
@@ -491,7 +536,7 @@ def test_walls_footings_piles_and_stairs() -> None:
             },
         ]
     }
-    boq = bill(json.dumps(bim), objects)
+    boq = estimated(json.dumps(bim), objects)
     # Wall: 5 x 3 less a 1 x 2 door and the 0.5 x 1 part of D2 in it, 0.2 thick; both faces;
     # two layers of bars.
     assert item(boq, "concrete", kind="wall").quantity == pytest.approx(12.5 * 0.2)

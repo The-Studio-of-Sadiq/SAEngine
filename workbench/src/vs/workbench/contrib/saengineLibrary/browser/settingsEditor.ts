@@ -9,6 +9,7 @@ import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hover
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { Action } from '../../../../base/common/actions.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { DisposableStore, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -28,11 +29,13 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ISoilSources } from '../../../../platform/saengine/common/femSolver.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { BNBC, DEFAULT_SETTINGS, SETTINGS_SCHEMA, TEMPLATES, THERMAL_COMBINATIONS } from '../../../services/saengineProject/common/projectLibraries.generated.js';
+import { IPartSectionPane, sectionOption } from '../../../services/saengineProject/common/partSections.js';
 import { ISaengineProjectService, partById, PROJECT_TYPES, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
 import { appendPropertyRow, EditorFrame } from '../../saengineProject/browser/editorFrame.js';
 import './media/codePacks.css';
@@ -269,7 +272,7 @@ const SECTIONS = settingsSections(SETTINGS_SCHEMA);
  * the selected section's form in the middle, and the code values the settings imply (BNBC
  * tables, refreshed as fields are typed) in the properties panel.
  */
-export class SettingsEditor extends JsonDocumentEditor {
+export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPane {
 
 	static readonly ID = LibraryEditorInput.SETTINGS_EDITOR_ID;
 
@@ -287,6 +290,8 @@ export class SettingsEditor extends JsonDocumentEditor {
 	private packChoices: ICodePackOption[] = [];
 	private packsVersion = 0;
 	private sectionId = SECTIONS[0]?.id;
+	private readonly _onDidChangePartSection = this._register(new Emitter<void>());
+	readonly onDidChangePartSection = this._onDidChangePartSection.event;
 	private problemBox: HTMLElement | undefined;
 	private readonly form: SchemaForm;
 	/** The Code Values panel was closed for a narrow editor (and opens again when it is wide). */
@@ -365,6 +370,19 @@ export class SettingsEditor extends JsonDocumentEditor {
 		super.setEditorVisible(visible);
 		if (visible && this.input) {
 			void this.refreshPacks();
+		}
+	}
+
+	/** The section shown, for the sidebar's entries under Project Settings. */
+	get partSection(): string | undefined {
+		return this.sectionId;
+	}
+
+	/** `section` (from the sidebar) shows that section. */
+	protected override applyOptions(options: IEditorOptions | undefined): void {
+		const section = sectionOption(options);
+		if (section && SECTIONS.some(s => s.id === section)) {
+			this.selectSection(section);
 		}
 	}
 
@@ -877,6 +895,7 @@ export class SettingsEditor extends JsonDocumentEditor {
 		if (confirmed && document) {
 			document.combinations = codeCombinations(document);
 			this.sectionId = 'combinations';
+			this._onDidChangePartSection.fire();
 			this.changed(true);
 		}
 	}
@@ -986,6 +1005,7 @@ export class SettingsEditor extends JsonDocumentEditor {
 		}
 		this.flush();
 		this.sectionId = id;
+		this._onDidChangePartSection.fire();
 		this.renderNav();
 		this.renderPage();
 		this.page.scrollTop = 0;

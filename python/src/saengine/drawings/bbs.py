@@ -4,7 +4,8 @@ A schedule lists every bar mark of the detailed members the way a fabricator cut
 member, mark, bar type and size, BS 8666 shape code, the dimensions A to E, the number of
 members by the bars in each, the cutting length, the total length and the mass, with remarks
 (zone, lap). Totals are given per bar size and per element type, and the schedule can be set
-against the bill of quantities (10 BOQ), which measures bars with its own conventions.
+against the bill of quantities (10 BOQ), which takes these bars for every element the drawings
+detail.
 
 Conventions (units: mm for lengths and dimensions, m for total lengths, kg for masses):
 
@@ -915,10 +916,11 @@ def reconcile(schedule: BarSchedule, boq: Any, tolerance: float = 0.5) -> Reconc
         )
     notes = [
         (
-            "The BOQ measures bars by its own conventions (10 BOQ notes): longitudinal bars over "
-            "the member's full length with a 40 d lap per 12 m stock bar, links at their centre line "
-            "with two 10 d hooks, meshes as area / spacing; the schedule cuts the detailed bars "
-            "(BS 8666 cutting lengths rounded up to 25 mm, BNBC laps and hooks, cut-off bars)."
+            "The BOQ takes the bars of this schedule for every element the drawings detail (10 BOQ "
+            "notes); a difference is the elements it measures by its estimating rules "
+            "(longitudinal bars over the member's full length with a 40 d lap per 12 m stock bar, "
+            "links at their centre line with two 10 d hooks, meshes as area / spacing), or a bill "
+            "measured from other files than these drawings."
         ),
     ]
     return Reconciliation(rows, notes)

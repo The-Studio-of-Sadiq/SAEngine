@@ -261,7 +261,7 @@ def test_foundation_demands_from_the_substructure_checks() -> None:
     cap = Foundation.model_validate(
         {
             "id": "PC1", "type": "pileCap", "columns": ["C1"], "length": 1500, "width": 1500,
-            "thickness": 800, "material": "C28", "pileType": "P1", "piles": [[-450, 0], [450, 0]],
+            "thickness": 800, "material": "C28", "center": [0, 0], "piles": ["PL1", "PL2"],
             "reinforcement": {"material": "B420", "cover": 75,
                               "bottomX": {"dia": 16, "spacing": 150}},
         }

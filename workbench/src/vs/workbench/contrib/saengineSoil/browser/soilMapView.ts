@@ -58,6 +58,8 @@ export interface IMapViewState {
 	coordinateStyle: 'decimal' | 'dms';
 	/** The map was framed on the site and all the boreholes once (on its first opening). */
 	framed?: boolean;
+	/** Frame the plot when the map shows it next (a plot typed in, not drawn on the map). */
+	framePlot?: boolean;
 	/** The plot being drawn: its corners so far, [lon, lat] on the map or project [x, y] mm on the grid. */
 	plotDraft?: { readonly on: 'map' | 'grid'; readonly corners: number[][] };
 	/** The plot corner picked (Delete removes it). */
@@ -67,6 +69,8 @@ export interface IMapViewState {
 }
 
 const DEFAULT_ZOOM = 17;
+/** Past the tiles' own zoom the map enlarges the last tiles: a plot of a few katha fills the view. */
+const MAP_MAX_ZOOM = 22;
 
 /** Tile errors without a single tile loaded that count as no tiles. */
 const TILE_FAILURES = 3;
@@ -418,8 +422,10 @@ export class SoilMapView extends Disposable {
 			}
 			this.state.plotDraft = undefined;
 			this.state.plotCorner = undefined;
+			this.state.framePlot = true;
 			const placed = rectanglePlot(f, d, form.road, { x: report.site?.x ?? 0, y: report.site?.y ?? 0 });
 			this.host.editPlot({ points: placed.points, road: placed.road });
+			this.updateMap(); // frames the plot, also when it is the one already there
 		}, localize('soil.plot.setRectangleTitle', "A rectangle with its lower-left corner at the project point, along the project grid"));
 		for (const problem of plot?.problems ?? []) {
 			append(this.panel, $('p.soil-note.warning', undefined, problem));
@@ -626,7 +632,7 @@ export class SoilMapView extends Disposable {
 				},
 				center: [center.lon, center.lat],
 				zoom: this.state.zoom ?? DEFAULT_ZOOM,
-				maxZoom: OSM_MAX_ZOOM,
+				maxZoom: MAP_MAX_ZOOM,
 				attributionControl: false,
 				refreshExpiredTiles: false,
 				dragRotate: false,
@@ -790,6 +796,11 @@ export class SoilMapView extends Disposable {
 		(map.getSource('outline'))?.setData(this.outlineData());
 		(map.getSource('plot'))?.setData(this.plotData());
 		this.updatePlotMarkers(module, map);
+		const plot = this.state.framePlot ? boundsOf(plotLonLat(this.host.report, this.host.location).map(([lon, lat]) => ({ lat, lon }))) : undefined;
+		if (plot) {
+			this.state.framePlot = false;
+			map.fitBounds(plot, { padding: 80, maxZoom: MAP_MAX_ZOOM - 1, animate: false });
+		}
 		this.mapArea.classList.toggle('drawing', this.state.plotDraft?.on === 'map');
 		const site = sitePosition(this.host.report, this.host.location);
 		if (site) {

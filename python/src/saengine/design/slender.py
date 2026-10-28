@@ -21,7 +21,13 @@ BNBC 2020 Part 6 Sec 6.3.10 (part 1 of the code, pp. 910-915; ACI 318's provisio
   conservative); the chart is an option. In sway storeys k is the chart's, never below 1.0
   (6.3.10.7.2). A segment ending at an intermediate brace or a wall in its plane is braced
   (k = 1, nonsway); one ending at an intermediate beam (a tie, plinth or landing beam) has
-  its lu shortened but still sways with its storey (ψ at that joint).
+  its lu shortened but still sways with its storey (ψ at that joint). A segment with a free
+  end (nothing meets the column there: no beam, slab, column, brace or support; the analysis
+  ties every node of a floor level into its diaphragm, a column top that nothing frames into
+  too) is a cantilever whatever its storey (SAEngine's rule, conservative): k of the sway
+  chart with ψ = ∞ at the free end, at least 2 (2 when the held end has no beams in the plane
+  either), Pc along the length with that k, Cm = 1.0, the sway limit 22; the check calls it a
+  cantilever and its note asks for the model to be checked (a missing beam is likely).
 - Sway or nonsway storey (6.3.10.5.2): Q = ΣPu Δo / (Vus lc) <= 0.05 is nonsway, per storey,
   direction (X, Y) and combination, from the analysis: ΣPu the vertical force and Vus the
   shear of the lateral load cases of the combination (W*, E*, R* cases) in the frame members
@@ -98,6 +104,10 @@ SWAY_LIMIT = 22.0
 #: free end can have (SAEngine's rule, conservative; give k as an overwrite to replace it).
 UNFRAMED_SWAY_K = 2.0
 UNFRAMED_SWAY_NOTE = " (sway, an end not framed: the cantilever's k; give k to replace it)"
+FREE_END_NOTE = (
+    " (a free end: nothing frames into it in this direction, a cantilever; check the model, "
+    "a missing beam is likely; give k or framing to replace it)"
+)
 """k lu / r up to which slenderness is neglected in sway storeys (BNBC Eq. 6.6.13)."""
 NONSWAY_CAP = 40.0
 """Cap of 34 - 12 M1/M2 for nonsway storeys (BNBC Eq. 6.6.14)."""
@@ -817,6 +827,13 @@ class Model:
         kinds = {kind for _, kind in self._supports(node, member, unit, axis)}
         return kinds == {"beam"}
 
+    def meets_others(self, node: int, member: str) -> bool:
+        """Whether another member (a beam, a column, a brace) or a slab or wall meets ``member``
+        at ``node``."""
+        return bool(self.shells_at.get(node)) or any(
+            f.source != member for f in self.frames_at.get(node, [])
+        )
+
     def clear_depth(self, node: int, unit: np.ndarray) -> float:
         """Depth [mm] taken off a column's length below a floor joint (6.3.10.1.1): the deepest
         beam along ``unit``, else the slab, else any beam framing in."""
@@ -1030,6 +1047,10 @@ class Segment:
     psi_notes: tuple[str, str] = ("", "")
     braced_by: list[str] = field(default_factory=list)
     storey: Storey | None = None
+    #: An end that nothing holds in this direction (no floor, support, beam or brace: a
+    #: column with a free top): the segment sways on its own, a cantilever (k of the sway chart
+    #: with ψ = ∞ at the free end, at least 2), whatever its storey.
+    free: bool = False
 
 
 def _key(xyz: Any) -> tuple[int, int, int]:
@@ -1168,10 +1189,15 @@ class SlenderContext:
 
         def framed_end(node: int | None, z: float, axis: np.ndarray) -> bool:
             # A floor level, a support, or a joint with beams alone (it sways with the storey).
+            # At a floor level something must meet the column there (a beam, a slab, another
+            # column): the analysis ties every node of a level into its diaphragm, also the top
+            # of a column that nothing frames into.
             if node is None:
                 return self._at_level(z)
-            if self._at_level(z) or any(model.restraint.get(node, [False] * 6)[:3]):
+            if any(model.restraint.get(node, [False] * 6)[:3]):
                 return True
+            if self._at_level(z):
+                return model.meets_others(node, member)
             return model.framed_joint(node, member, unit, axis)
 
         found: list[Segment] = []
@@ -1207,8 +1233,33 @@ class SlenderContext:
                 k_s = k_sway(pb, pt)
                 if self.options.effective_length == "chart":
                     k_ns = k_nonsway(pb, pt)
+            # A free end (nothing holds it, no brace either): a cantilever, k of the sway chart
+            # with ψ = ∞ there (k = 2 on a fixed base, more on a flexible one).
+            free = vertical and not framed and not by
+            if free:
+                held = [
+                    (n, z, g)
+                    for n, z, g in ((bottom_node, bottom, group[0]), (top_node, top, group[-1]))
+                    if framed_end(n, z, g.axes[0])
+                ]
+                if len(held) == 1 and held[0][0] is not None:
+                    ph, nh = self.model.psi(held[0][0], unit, self.options.fixed_psi)
+                    at_bottom = held[0][0] == bottom_node
+                    psi = (ph, PSI_INFINITE) if at_bottom else (PSI_INFINITE, ph)
+                    notes = (nh, "free") if at_bottom else ("free", nh)
+                    # The held end with no beams either (ψ = ∞ at both ends): no chart value,
+                    # a mechanism on paper; the cantilever's k, assumed (give k to replace it).
+                    k_s = (
+                        max(k_sway(ph, PSI_INFINITE), UNFRAMED_SWAY_K)
+                        if ph < PSI_INFINITE
+                        else UNFRAMED_SWAY_K
+                    )
+                else:
+                    k_s = UNFRAMED_SWAY_K
             storey = self.storey_at((bottom + top) / 2, direction) if vertical else None
-            found.append(Segment(group, lc, lu, framed, k_ns, k_s, psi, notes, by, storey))
+            found.append(
+                Segment(group, lc, lu, framed, k_ns, k_s, psi, notes, by, storey, free=free)
+            )
         self._segments[key] = found
         return found
 
@@ -1428,7 +1479,11 @@ class SlenderContext:
             else:
                 sway_storey = seg.storey is not None and bool(seg.storey.sway) and seg.framed
             k_auto, k_note = seg.k_ns, ""
-            if sway_storey and seg.k_s is not None:
+            if seg.free and framing is None and seg.k_s is not None:
+                # A free end: a cantilever whatever its storey. Its own sway is the length
+                # effect: Pc with the cantilever's k, Cm = 1.0, the sway limit of 22.
+                k_auto, k_note = seg.k_s, FREE_END_NOTE
+            elif sway_storey and seg.k_s is not None:
                 k_auto = seg.k_s
             elif sway_storey:
                 # Overwritten as sway, an end not framed by beams in this direction: no
@@ -1439,6 +1494,9 @@ class SlenderContext:
             # k of Pc along the length (6.3.10.6): the nonsway one, or the one given for a
             # column designed as braced.
             k_pc = k_given if k_given is not None and not sway_storey else seg.k_ns
+            free = seg.free and framing is None
+            if free:
+                k_pc = k_used
             lu = lu_given if lu_given is not None else seg.lu
             slender = k_used * lu / r
             reversed_ = [p.start[2] > p.end[2] for p in seg.pieces]
@@ -1512,8 +1570,10 @@ class SlenderContext:
                 # A response spectrum combination: no sign, single curvature and Cm = 1.0.
                 same_sign = spectral or m2 == 0 or end_b * end_t > 0
                 ratio = (m1 / m2 if m2 > 0 else 1.0) * (1 if same_sign else -1)
-                transverse = spectral or not consistent or _curved(m_all + (ds - 1) * ms_all)
-                if sway_storey:
+                transverse = (
+                    free or spectral or not consistent or _curved(m_all + (ds - 1) * ms_all)
+                )
+                if sway_storey or free:
                     limit = SWAY_LIMIT
                     neglected = slender <= SWAY_LIMIT
                 else:
@@ -1628,7 +1688,9 @@ class SlenderContext:
                     f"({combos[ratio_c]}), above {MOMENT_RATIO_MAX:g} (BNBC 6.3.10.2.1)"
                 )
         utilisation = max(utils)
-        kind = "sway" if sway else "nonsway"
+        kind = (
+            "cantilever" if seg.free and not best.get("framing") else "sway" if sway else "nonsway"
+        )
         if not designed:
             label = f"{kind}, neglected"
         elif sway and opts.second_order == "pDelta":

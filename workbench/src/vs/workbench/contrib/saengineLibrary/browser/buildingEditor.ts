@@ -21,6 +21,7 @@ import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { BIM_SCHEMA, TEMPLATES } from '../../../services/saengineProject/common/projectLibraries.generated.js';
@@ -36,11 +37,12 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ISaengineModelSelectionService, MemberGroup, ModelSelection } from '../../../services/saengineProject/common/modelSelection.js';
 import { recordedStamp, sourceStamp, upstreamPart } from '../../../services/saengineProject/common/partSources.js';
+import { IPartSectionPane, sectionOption } from '../../../services/saengineProject/common/partSections.js';
 import { ISaengineProjectService, partById, PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
 import { loadViewerModule, viewerAssetBaseUrl } from '../../saengineFem/browser/viewerModule.js';
 import { propertySheet } from '../../saengineModel/browser/modelData.js';
 import { openOwner } from '../../saengineModel/browser/projectDocuments.js';
-import { formatPropertyValue, renderPropertySheet, schemaUnit } from '../../saengineModel/browser/propertySheetView.js';
+import { formatPropertyValue, propertyLink, renderPropertySheet, schemaUnit } from '../../saengineModel/browser/propertySheetView.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { clone, IDocumentFrameActions, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditorInput } from './libraryEditorInput.js';
@@ -73,6 +75,8 @@ interface IBuildingIfc {
 	readonly ids?: { readonly [elementId: string]: string };
 	readonly skipped?: readonly string[];
 	readonly problems?: readonly string[];
+	/** The story each architecture element (`arch:<id>`) stands on. */
+	readonly architectureStories?: { readonly [elementId: string]: string };
 }
 
 const ELEMENT_KINDS: readonly { readonly kind: string; readonly group?: MemberGroup; readonly label: string }[] = [
@@ -112,7 +116,12 @@ const LAYER_LABELS: { readonly [layer in BuildingLayer]: string } = {
 	stair: localize('layer.stairs', "Stairs"),
 	member: localize('layer.members', "Inclined members"),
 	mep: localize('layer.mep', "MEP"),
+	architecture: localize('layer.architecture', "Architecture"),
+	room: localize('layer.rooms', "Rooms"),
 };
+
+/** Ids of the architecture's elements in the IFC's id map (see `saengine.library.architecture_ifc`). */
+const ARCHITECTURE_ID = 'arch:';
 
 /**
  * Lists of 7 MEP (`mep.json`) whose items the coordination model draws in 3D (see
@@ -157,7 +166,7 @@ const GENERATED = ['source', 'stories', 'elements'];
  * exports IFC. Elements that belong to the building model itself (no floor-plan source) are
  * kept when it is rebuilt.
  */
-export class BuildingEditor extends JsonDocumentEditor {
+export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPane {
 
 	static readonly ID = LibraryEditorInput.BUILDING_EDITOR_ID;
 
@@ -168,6 +177,8 @@ export class BuildingEditor extends JsonDocumentEditor {
 	private readonly viewButtons = new Map<View, HTMLButtonElement>();
 	private readonly form: SchemaForm;
 	private view: View = '3d';
+	private readonly _onDidChangePartSection = this._register(new Emitter<void>());
+	readonly onDidChangePartSection = this._onDidChangePartSection.event;
 
 	private viewer: BuildingViewer | undefined;
 	private viewerLoading: Promise<BuildingViewer | undefined> | undefined;
@@ -179,6 +190,8 @@ export class BuildingEditor extends JsonDocumentEditor {
 	private ifcSkipped = 0;
 	/** The element picked in 3D, also one the floor plan does not own (an addition). */
 	private selectedElement: string | undefined;
+	/** The story each architecture element (`arch:<id>`) stands on, from the last IFC. */
+	private architectureStories: { readonly [id: string]: string } = {};
 
 	private objectsText: string | undefined;
 	private materials: ITextModel | undefined;
@@ -532,6 +545,7 @@ export class BuildingEditor extends JsonDocumentEditor {
 		const viewer = await this.ensureViewer();
 		if (viewer && version === this.ifcVersion) {
 			try {
+				this.architectureStories = result.architectureStories ?? {};
 				await viewer.load(VSBuffer.fromString(result.text).buffer, result.ids ?? {});
 				const selection = this.selectionService.selection;
 				this.selectedElement ??= selection?.kind === 'member' ? this.elementOfMember(selection.id) : undefined;
@@ -668,6 +682,13 @@ export class BuildingEditor extends JsonDocumentEditor {
 				ids.push(String(item.id), `${item.id}/plinth`, `${item.id}-base`);
 			}
 		}
+		// The architecture standing on the story below, as the columns rising to this one.
+		const below = index > 0 ? String(stories[index - 1].id) : undefined;
+		for (const [element, story] of Object.entries(this.architectureStories)) {
+			if (story === below) {
+				ids.push(element);
+			}
+		}
 		return ids;
 	}
 
@@ -762,8 +783,26 @@ export class BuildingEditor extends JsonDocumentEditor {
 
 	// ───────────────────────────── rendering ─────────────────────────────
 
+	/** The view shown, for the sidebar's entries under BIM. */
+	get partSection(): string | undefined {
+		return this.view;
+	}
+
+	/** `section` (from the sidebar) shows that view. */
+	protected override applyOptions(options: IEditorOptions | undefined): void {
+		const section = sectionOption(options);
+		const view = VIEWS.find(v => v.view === section)?.view;
+		if (view) {
+			this.showView(view);
+			this.render();
+		}
+	}
+
 	private showView(view: View): void {
-		this.view = view;
+		if (this.view !== view) {
+			this.view = view;
+			this._onDidChangePartSection.fire();
+		}
 		this.viewport.classList.toggle('hidden', view !== '3d' || !this.document);
 		this.summary.classList.toggle('hidden', view !== 'summary');
 		this.additions.classList.toggle('hidden', view !== 'additions');
@@ -1028,6 +1067,13 @@ export class BuildingEditor extends JsonDocumentEditor {
 		const document = this.document;
 		if (!document) {
 			appendPropertyNote(panel, localize('building.propertiesEmpty', "Build the building model to see its elements here."));
+			return;
+		}
+		if (this.selectedElement?.startsWith(ARCHITECTURE_ID)) {
+			// An item of the architecture (05 Floor Plan/architecture.json): edited in its own editor.
+			appendPropertyHeading(panel, this.selectedElement.slice(ARCHITECTURE_ID.length), localize('building.architectureItem', "Architecture"));
+			appendPropertyNote(panel, localize('building.architectureNote', "Architecture is physical only: it adds no stiffness to the analysis. Its loads come in a later round."));
+			propertyLink(panel, localize('building.openArchitecture', "Open in Architecture"), () => void this.commands.executeCommand('saengine.architecture.open'), this.propertiesDisposables);
 			return;
 		}
 		const found = this.selectedElement ? this.findElement(this.selectedElement) : undefined;

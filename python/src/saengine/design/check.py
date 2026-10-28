@@ -2257,6 +2257,35 @@ def _segment_cross(a: np.ndarray, c: np.ndarray, p: np.ndarray, q: np.ndarray) -
 _TORSION_CANDIDATES = 24
 
 
+def torsion_stations(
+    points: list[tuple[float, float, float, float, str, str]],
+    ts: Any,
+    fc: float,
+    kind: str,
+    threshold: float,
+    limit: int = _TORSION_CANDIDATES,
+) -> list[tuple[float, float, float, float, str, str]]:
+    """The stations (Tu, Vu, Mu, Nu, combination, where) worth designing for torsion: those
+    of highest Tu, and those of highest combined stress of Eq. 6.6.59 with Tu as designed. A
+    compatibility torsion is capped at φTcr, so at the stations above the cap Vu decides, and
+    with many combinations (the response spectrum's sign patterns) the highest Tu alone can
+    leave out the governing station. Stations below half the threshold are left out; with none
+    above it, the one of highest Tu."""
+    by_tu = sorted(points, key=lambda p: -p[0])
+    bw_d = ts.b * ts.d
+    torsion_share = ts.ph / (1.7 * ts.aoh**2)
+
+    def screen(point: tuple[float, float, float, float, str, str]) -> float:
+        tu = point[0]
+        if kind == "compatibility":
+            tu = min(tu, torsion_design.cracking_torsion(ts, fc, point[3]))
+        return math.hypot(point[1] / bw_d, tu * torsion_share)
+
+    above = [p for p in by_tu if p[0] > 0.5 * threshold]
+    by_stress = sorted(above, key=lambda p: -screen(p))[:limit]
+    return list(dict.fromkeys([*above[:limit], *by_stress])) or by_tu[:1]
+
+
 def _beam_torsion_checks(
     element: BeamElement,
     beam: Beam,
@@ -2324,23 +2353,7 @@ def _beam_torsion_checks(
                 )
     if not points:
         return [], None
-    points.sort(key=lambda p: -p[0])
-    # The stations of highest Tu, and those of highest combined stress of Eq. 6.6.59 with Tu as
-    # designed: a compatibility torsion is capped at φTcr, so at the stations above the cap Vu
-    # decides, and with many combinations (the response spectrum's sign patterns) the highest
-    # Tu alone can leave out the governing station.
-    bw_d = ts.b * ts.d
-    torsion_share = ts.ph / (1.7 * ts.aoh**2)
-
-    def screen(point: tuple[float, float, float, float, str, str]) -> float:
-        tu = point[0]
-        if kind == "compatibility":
-            tu = min(tu, torsion_design.cracking_torsion(ts, fc, point[3]))
-        return math.hypot(point[1] / bw_d, tu * torsion_share)
-
-    above = [p for p in points if p[0] > 0.5 * threshold]
-    by_stress = sorted(above, key=lambda p: -screen(p))[:_TORSION_CANDIDATES]
-    candidates = list(dict.fromkeys([*above[:_TORSION_CANDIDATES], *by_stress])) or points[:1]
+    candidates = torsion_stations(points, ts, fc, kind, threshold)
     best: tuple[float, Any, tuple[float, float, float, float, str, str]] | None = None
     # The station of the highest stress of Eq. 6.6.59: the section size is checked there (the
     # governing station, of the stirrups, can be another one).

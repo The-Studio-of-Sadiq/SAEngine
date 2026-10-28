@@ -37,9 +37,11 @@ from saengine.drawings.sheets.model import (
     LinkZone,
     LintelDetail,
     Mesh,
+    PileGridPlan,
     PlanBeam,
     PlanColumn,
     PlanFooting,
+    PlanPile,
     PlanSlab,
     PlanStair,
     PlanWall,
@@ -164,14 +166,25 @@ def building_of(bim: Any, objects: Any, plan: Any = None, substructure: Any = No
                 outline = _rect(f.center[0], f.center[1], f.length, f.width, f.rotation)
             else:
                 continue
-            piles = []
-            if f.piles and f.center:
-                dia = next((p.diameter for p in substructure.pileTypes if p.id == f.pileType), 0)
-                c, s = math.cos(math.radians(f.rotation)), math.sin(math.radians(f.rotation))
-                for u, v in f.piles:
-                    piles.append(((f.center[0] + u * c - v * s, f.center[1] + u * s + v * c), dia))
+            pile_type = substructure.cap_pile_type(f) if f.piles else None
+            dia = pile_type.diameter if pile_type else 0
+            piles = [(tuple(p.position), dia) for p in substructure.cap_piles(f)]
             top = (f.foundingLevel or 0) + (f.thickness or 0)
             b.footings.append(PlanFooting(f.id, f.id, outline, top, piles))
+        capped = substructure.capped()
+        diameters = {p.id: p.diameter for p in substructure.pileTypes}
+        b.piles = [
+            PlanPile(p.id, tuple(p.position), diameters.get(p.type, 0.0), capped.get(p.id, ""))
+            for p in substructure.piles
+        ]
+        g = substructure.pileGrid
+        if g is not None and (g.x or g.y):
+            b.pile_grid = PileGridPlan(
+                tuple(g.origin),
+                g.rotation,
+                [Grid(line.label, line.position) for line in g.x],
+                [Grid(line.label, line.position) for line in g.y],
+            )
     else:
         for e in bim.elements:
             t = types.get(e.type)
@@ -179,6 +192,50 @@ def building_of(bim: Any, objects: Any, plan: Any = None, substructure: Any = No
                 outline = _rect(*e.position, t.length, t.width, e.rotation)
                 b.footings.append(PlanFooting(e.id, e.id, outline, e.elevation))
     return b
+
+
+def pile_cap_schedule(substructure: Any) -> Table | None:
+    """The pile cap schedule: per cap its size, piles (count and marks), pile type, the columns
+    it carries and its bottom bars; None without pile caps."""
+    caps = [f for f in substructure.foundations if f.type == "pileCap"]
+    if not caps:
+        return None
+
+    def mm(value: Any) -> str:
+        return f"{float(value):.0f}" if value else "-"
+
+    def mesh(m: Any) -> str:
+        return f"Ø{m.dia:g}@{m.spacing:g}" if m is not None else "-"
+
+    columns = [
+        {"key": "mark", "title": "Cap", "width": 6},
+        {"key": "size", "title": "L x B x H\n(mm)", "width": 16},
+        {"key": "count", "title": "Piles", "width": 5, "align": "right"},
+        {"key": "piles", "title": "Pile marks", "width": 18},
+        {"key": "type", "title": "Pile type\nØ x L (mm)", "width": 16},
+        {"key": "columns", "title": "Columns", "width": 12},
+        {"key": "bx", "title": "Bottom\nbars X", "width": 9},
+        {"key": "by", "title": "Bottom\nbars Y", "width": 9},
+    ]
+    rows = []
+    for f in caps:
+        pile = substructure.cap_pile_type(f)
+        bars = f.reinforcement
+        rows.append(
+            [
+                f.id,
+                f"{mm(f.length)} x {mm(f.width)} x {mm(f.thickness)}",
+                str(len(f.piles or [])),
+                ", ".join(f.piles or []),
+                f"{pile.id}: {pile.diameter:.0f} x {pile.length:.0f}" if pile else "-",
+                ", ".join(f.columns) or "-",
+                mesh(bars.bottomX if bars else None),
+                mesh(bars.bottomY if bars else None),
+            ]
+        )
+    free = [p.id for p in substructure.piles if p.id not in substructure.capped()]
+    notes = [f"Piles under no cap: {', '.join(free)}."] if free else []
+    return Table("Pile cap schedule", columns, rows, notes=notes)
 
 
 def _flights(n: int, arrangement: str) -> list[int]:
@@ -655,8 +712,9 @@ def footing_detail(
     piles = []
     pile_dia = 0.0
     if found is not None and found.piles:
-        piles = [tuple(p) for p in found.piles]
-        pile_dia = next((p.diameter for p in substructure.pileTypes if p.id == found.pileType), 0)
+        piles = [tuple(p) for p in substructure.pile_offsets(found)]
+        pile_type = substructure.cap_pile_type(found)
+        pile_dia = pile_type.diameter if pile_type else 0
     bottom = [b for b in bars if b.get("at", {}).get("face") == "bottom"]
     top = [b for b in bars if b.get("at", {}).get("face") == "top"]
     return FootingDetail(
@@ -895,7 +953,7 @@ def drawing_set(
     if texts["substructure"]:
         from saengine.substructure.handover import authoritative_substructure
 
-        substructure = authoritative_substructure(texts["substructure"])
+        substructure = authoritative_substructure(texts["substructure"], bim)
     info: dict[str, Any] = {}
     if texts["settings"]:
         project = json.loads(texts["settings"]).get("project") or {}
@@ -909,6 +967,8 @@ def drawing_set(
     info.update({k: v for k, v in (title or {}).items() if v is not None})
     data.title = TitleInfo.from_dict(info)
     data.building = building_of(bim, objects, plan, substructure)
+    if substructure is not None:
+        data.pile_caps = pile_cap_schedule(substructure)
     if plan is None:
         data.problems.append("No floor plan: the plans are drawn without grids.")
     if detailing is None:
@@ -1092,7 +1152,8 @@ def general_notes(objects: Any, materials: Any, detailing: dict[str, Any]) -> li
         "Clear covers are to the outermost bars (links, ties) as the cover table gives.",
         (
             "Laps and anchorages are as the development and lap length table unless the "
-            "drawing shows a length; stagger laps; no laps in beam-column joints."
+            "drawing shows a length; laps where the elevations show them (class B), none in "
+            "beam-column joints; no laps of 36 mm bars and larger: mechanical couplers."
         ),
         "Bar marks (e.g. B1-T2) refer to the bar bending schedule; shape codes to BS 8666.",
     ]

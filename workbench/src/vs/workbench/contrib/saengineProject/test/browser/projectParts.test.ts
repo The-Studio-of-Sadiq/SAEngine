@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { splitProjectPath, stateText } from '../../browser/projectParts.js';
+import { isPartEditor, isSectionActive, partSections, splitProjectPath, stateText } from '../../browser/projectParts.js';
 
 suite('SAEngine - project parts', () => {
 
@@ -35,5 +35,37 @@ suite('SAEngine - project parts', () => {
 			stateText({ part: 'fem', state: 'failed', text: '3 fail' }),
 			stateText(undefined),
 		], ['done', '3 fail', 'not started']);
+	});
+
+	test('the entries under a part: which one the active editor shows', () => {
+		const entry = (part: string, id: string) => partSections(part).find(e => e.id === id)!;
+		const editor = (typeId: string, editorId?: string) => ({ typeId, editorId });
+		const floorPlan = editor('workbench.input.saengine.floorPlan', 'workbench.editor.saengine.floorPlan');
+		const grids = editor('workbench.input.saengine.library', 'workbench.editor.saengine.grids');
+		const charts = editor('workbench.input.saengine.femResults', 'workbench.editor.saengine.femResults');
+		const architecture = editor('workbench.input.saengine.architecture', 'workbench.editor.saengine.architecture');
+		assert.deepStrictEqual({
+			parts: ['settings', 'floorPlan', 'bim', 'mep', 'fem', 'soil'].map(part => partSections(part).map(e => e.id).join(' ')),
+			// A section of the part's editor: Combinations and Analysis also stands for the analysis settings.
+			seismic: isSectionActive(entry('settings', 'seismic'), editor('workbench.input.saengine.library'), 'seismic'),
+			analysis: isSectionActive(entry('settings', 'combinations'), editor('workbench.input.saengine.library'), 'analysis'),
+			wind: isSectionActive(entry('settings', 'wind'), editor('workbench.input.saengine.library'), 'seismic'),
+			// The plan and the grids show the same file in different editors.
+			plan: [isSectionActive(entry('floorPlan', 'plan'), floorPlan, undefined), isSectionActive(entry('floorPlan', 'plan'), grids, undefined)],
+			grids: [isSectionActive(entry('floorPlan', 'grids'), grids, undefined), isSectionActive(entry('floorPlan', 'grids'), floorPlan, undefined)],
+			// The charts have no file: they still belong to 8 FEM.
+			charts: [isSectionActive(entry('fem', 'results'), charts, undefined), isPartEditor('fem', charts), isPartEditor('floorPlan', charts)],
+			// The architecture is 05 Floor Plan's file in its own editor, listed under 6 BIM.
+			architecture: [entry('bim', 'architecture').command, isSectionActive(entry('bim', 'architecture'), architecture, undefined), isPartEditor('bim', architecture), isPartEditor('floorPlan', architecture)],
+		}, {
+			parts: ['code loads seismic wind combinations foundation drawings', 'plan grids members', '3d additions summary architecture', 'coordination plumbing hvac electrical fire', 'model results proposal', ''],
+			seismic: true,
+			analysis: true,
+			wind: false,
+			plan: [true, false],
+			grids: [true, false],
+			charts: [true, true, false],
+			architecture: ['saengine.architecture.open', true, true, false],
+		});
 	});
 });

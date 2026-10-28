@@ -174,3 +174,36 @@
 .saengine-floor-plan .floor-plan-empty li.done > span {
 	color: var(--vscode-descriptionForeground);
 }
+
+/*
+ * The Architecture editor's properties: one line per row, the label left and every input and
+ * select at the same width right of it; a long choice ("Residential: rooms and private
+ * corridors") ends in an ellipsis.
+ */
+.saengine-architecture .sa-props-row.editable {
+	flex-wrap: nowrap;
+}
+
+.saengine-architecture .sa-props-row.editable > .name {
+	flex: 0 1 auto;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.saengine-architecture .sa-props-row.editable > .value {
+	flex: 0 0 58%;
+	min-width: 0;
+}
+
+.saengine-architecture .sa-props-row.editable .floor-plan-prop-control {
+	width: 100%;
+	max-width: none;
+	margin-left: 0;
+}
+
+.saengine-architecture .floor-plan-prop-control .monaco-select-box {
+	width: 100%;
+	text-overflow: ellipsis;
+	padding-right: 22px; /* the ellipsis stops before the arrow */
+}

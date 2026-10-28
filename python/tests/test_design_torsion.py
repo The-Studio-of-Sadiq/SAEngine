@@ -247,3 +247,26 @@ def test_torsion_corner_bar_missing() -> None:
     )
     corner = next(r for r in rows if "each corner" in r["name"])
     assert corner["capacity"] == 2 and not corner["ok"]
+
+
+def test_stations_include_the_highest_combined_stress() -> None:
+    """A compatibility torsion is capped at φTcr: of two stations above the cap, the one of
+    larger Vu has the larger stress of Eq. 6.6.59, though its Tu is the smaller. With room for
+    one station by Tu, both are designed; a station below half the threshold is left out."""
+    from saengine.design.check import torsion_stations
+
+    tcr = cracking_torsion(SPANDREL, FC, 0.0)
+    threshold = threshold_torsion(SPANDREL, FC)
+    high_tu = (3 * tcr, 20e3, 0.0, 0.0, "1.4D", "end i")
+    high_vu = (2 * tcr, 250e3, 0.0, 0.0, "1.2D + 1.6L", "end j")
+    small = (0.4 * threshold, 300e3, 0.0, 0.0, "1.2D + 1.6L", "mid")
+    stations = torsion_stations(
+        [small, high_vu, high_tu], SPANDREL, FC, "compatibility", threshold, limit=1
+    )
+    assert stations == [high_tu, high_vu]
+    # Equilibrium torsion is not capped: the larger Tu has the larger stress too.
+    assert torsion_stations(
+        [high_vu, high_tu], SPANDREL, FC, "equilibrium", threshold, limit=1
+    ) == [high_tu]
+    # Nothing above half the threshold: the station of highest Tu alone.
+    assert torsion_stations([small], SPANDREL, FC, "compatibility", threshold) == [small]

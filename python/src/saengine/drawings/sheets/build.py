@@ -11,9 +11,10 @@ How it is called::
 ``write_drawings`` returns ``{"sheets": [{"number", "title", "dxf", "pdfPage", "png", "size",
 "scale", "views"}], "pdf", "problems"}`` with absolute paths (the shape the Exports page reads).
 
-Sheet order and numbers (``S-101`` on): general notes and tables; the foundation plan; the
-framing plans per level; the slab reinforcement plans; the column schedule; the beam elevations;
-the footing, wall and stair details; the bar bending schedule; then, with structural steel
+Sheet order and numbers (``S-101`` on): general notes and tables; the foundation plan (with
+piles, the pile layout plan and the pile cap schedule); the framing plans per level; the slab
+reinforcement plans; the column schedule; the beam elevations; the footing, wall and stair
+details; the bar bending schedule; then, with structural steel
 (:mod:`.steel`), the steel notes, framing plans, braced elevations, member schedule and
 connection details. A category takes as many sheets as its views need; small views share a
 sheet.
@@ -157,6 +158,15 @@ def categories(data: DrawingSet, settings: DrawingSettings) -> tuple[list[_Categ
     problems += p
     if spec is not None:
         out.append(_Category("Foundation plan", spec.scale, [spec], plan=True))
+    spec, p = _fit_plan(lambda s: plans.pile_layout_plan(b, s), settings.plan_scale, area)
+    problems += p
+    if spec is not None:
+        out.append(_Category("Pile layout plan", spec.scale, [spec], plan=True))
+    if data.pile_caps is not None:
+        specs = schedules.table_specs(
+            data.pile_caps, height, key="pile-caps", max_width=area[2] - area[0]
+        )
+        out.append(_Category("Pile cap schedule", 1, specs, scale_text="NTS"))
     levels = sorted(b.levels, key=lambda lv: lv.elevation)
     for lv in levels:
         if plans.level_has_plan(b, lv):

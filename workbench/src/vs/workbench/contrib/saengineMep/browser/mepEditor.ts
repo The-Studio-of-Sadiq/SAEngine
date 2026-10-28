@@ -13,6 +13,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { basename, dirname, isEqualOrParent, joinPath, relativePath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -37,6 +38,7 @@ import { DEFAULT_EDITOR_ASSOCIATION, IEditorOpenContext } from '../../../common/
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { DEVELOPER_MODE_SETTING } from '../../../services/saengineProject/common/developerMode.js';
+import { IPartSectionPane, sectionOption } from '../../../services/saengineProject/common/partSections.js';
 import { partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { formatField, formatNumber, IFieldSpec, parseField } from '../../saengineSoil/browser/soilDocument.js';
@@ -219,7 +221,7 @@ function fixtureField(key: string, label: string): IFieldSpec {
  * text model stays the document: every edit is one undoable text edit, so save, dirty state
  * and undo come from the text file.
  */
-export class MepEditor extends EditorPane {
+export class MepEditor extends EditorPane implements IPartSectionPane {
 
 	static readonly ID = MepEditorInput.EDITOR_ID;
 
@@ -240,6 +242,8 @@ export class MepEditor extends EditorPane {
 	private selection: MepSelection | undefined;
 	private selectedClash: string | undefined;
 	private discipline: Discipline = 'coordination';
+	private readonly _onDidChangePartSection = this._register(new Emitter<void>());
+	readonly onDidChangePartSection = this._onDidChangePartSection.event;
 	private readonly disciplineButtons = new Map<Discipline, HTMLButtonElement>();
 
 	private plumbingReport: IPlumbingReport | undefined;
@@ -475,6 +479,26 @@ export class MepEditor extends EditorPane {
 			return;
 		}
 		this.load();
+		this.applySection(options);
+	}
+
+	override setOptions(options: IEditorOptions | undefined): void {
+		super.setOptions(options);
+		this.applySection(options);
+	}
+
+	/** The discipline shown, for the sidebar's entries under MEP. */
+	get partSection(): string | undefined {
+		return this.discipline;
+	}
+
+	/** `section` (from the sidebar) shows that discipline. */
+	private applySection(options: IEditorOptions | undefined): void {
+		const section = sectionOption(options);
+		const discipline = DISCIPLINE_VIEWS.find(d => d.discipline === section)?.discipline;
+		if (discipline && this.document) {
+			this.showDiscipline(discipline);
+		}
 	}
 
 	override clearInput(): void {
@@ -3158,6 +3182,7 @@ export class MepEditor extends EditorPane {
 		this.discipline = discipline;
 		this.selection = undefined;
 		this.selectedClash = undefined;
+		this._onDidChangePartSection.fire();
 		this.render();
 	}
 

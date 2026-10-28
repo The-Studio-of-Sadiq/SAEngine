@@ -42,9 +42,9 @@
 	text-overflow: ellipsis;
 }
 
-/* Without the raw files (developer mode) the rows need no twistie. */
-.pane:not(.developer-mode) > .pane-body.saengine-project-navigator .monaco-tl-twistie:not(.collapsible),
-.pane.developer-mode .saengine-project-navigator .monaco-list-row:has(.sa-nav-group) .monaco-tl-twistie {
+/* Headings and the entries under a part need no twistie; every part keeps one, so the parts
+   with entries line up with those without. */
+.saengine-project-navigator .monaco-list-row:has(.sa-nav-group, .sa-nav-section) .monaco-tl-twistie {
 	width: 0;
 	padding-right: 0;
 }
@@ -169,4 +169,23 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+/* The entries under a part (Settings: Seismic, Wind, ...; MEP: Plumbing, ...): lighter than the
+   parts, aligned with the part's name. */
+.saengine-project-navigator .sa-nav-section {
+	display: flex;
+	align-items: center;
+	height: 100%;
+	padding: 0 var(--sa-space-3, 12px) 0 38px; /* under the part's name: its twistie, number and gap less the indent */
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-project-navigator .sa-nav-section.active {
+	color: var(--vscode-foreground);
+	font-weight: 600;
 }

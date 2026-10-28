@@ -71,6 +71,7 @@ def export_ifc(project: Project, out: Path | None = None) -> list[Path]:
         substructure_text=project.text("substructure"),
         settings_text=project.text("settings"),
         mep_text=project.text("mep"),
+        architecture_text=project.text("architecture"),
     )
     if not result.get("text"):
         raise ExportError(

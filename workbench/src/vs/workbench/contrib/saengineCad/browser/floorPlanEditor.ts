@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/cadEditor.css';
-import type { CadEditor as CadEditorApi, CadEntitySpec, CadGeneratedDrawing, CadLayerSpec, CadPoint } from '@saengine/cad-editor';
+import type { CadEditor as CadEditorApi, CadEntitySpec, CadLayerSpec, CadPoint } from '@saengine/cad-editor';
 import { $, addDisposableListener, append, clearNode, Dimension, EventType, getWindow, isEditableElement, isHTMLElement, isHTMLInputElement } from '../../../../base/browser/dom.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
@@ -50,12 +50,12 @@ import { editNotice, IMemberRef as IModifierMemberRef, memberTargets, modifiersV
 import { renderModifiers } from '../../saengineModel/browser/modifiersPanel.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameIconButton } from '../../saengineProject/browser/editorFrame.js';
 import { DWG_TO_DXF_COMMAND, OPEN_DXF_IN_CAD_UI_COMMAND } from '../../saengineProject/browser/projectArchiveModel.js';
-import { acquireCadEditor, cadBackground, isLightCanvas, releaseCadEditor } from './cadHost.js';
+import { acquireCadEditor, cadBackground, forCanvas, isLightCanvas, releaseCadEditor } from './cadHost.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { floorPlanDrawing, gridsOf, IFloorPlan, IMemberShape, storyOfSelection } from './floorPlanDrawing.js';
 import { basePoint, bayAt, changeMemberType, EditResult, footingsOwnedMessage, notRotatableMessage, IGridNode, moveMember, pickMember, placeColumn, placeLinear, placePolygonSlab, placeSlab, PlacementTool, removeMember, rotateMember, setMembersType, snapPoint, snapToGrid, TOOL_GROUP, TOOL_KINDS } from './floorPlanEdits.js';
 import { FloorPlanEditorInput, siblingPartFile } from './floorPlanEditorInput.js';
-import { ISnap, nearMisses, SNAP_NAMES, snapLinear, typedEnd } from './floorPlanSnap.js';
+import { ISnap, nearMisses, SNAP_NAMES, snapLinear, snapMarker, squareMarker, typedEnd } from './floorPlanSnap.js';
 import { addObjectType, NEW_TYPE_PROMPTS, NewTypeKind, validateSize } from './floorPlanTypes.js';
 import { FloorPlanLoadsFile, FloorPlanLoadsPanel, LOAD_LAYER_SPECS, loadsDrawing } from './floorPlanLoads.js';
 import { copyStory, familyDiffersMessage, familyNote, familyOf, inSync, masterOf, repeatFamily, setSimilar } from './floorPlanTypical.js';
@@ -126,24 +126,6 @@ const GROUP_LABEL: { readonly [group in IMemberRef['group']]: string } = {
 };
 
 const FILL_TOOL: { readonly [kind in FillKind]: PlacementTool } = { columns: 'column', beams: 'beam', walls: 'wall', slabs: 'slab' };
-
-/**
- * Layer colours (AutoCAD Color Index) as drawn on a light canvas: the bright yellow, green, cyan
- * and magenta of a dark CAD screen are unreadable on white, so the screen shows deeper shades of
- * the same hues. Exported DXF keeps the standard colours.
- */
-const LIGHT_CANVAS_COLORS: { readonly [aci: number]: number } = {
-	2: 30,   // yellow -> orange (previews)
-	8: 251,  // grey -> dark grey (grid lines)
-	3: 94,   // green -> dark green (beams)
-	4: 144,  // cyan -> deep azure (columns, selection)
-	6: 212,  // magenta -> deep magenta (slabs)
-	30: 34,  // orange -> brown (footings)
-};
-
-function forCanvas(drawing: CadGeneratedDrawing, light: boolean): CadGeneratedDrawing {
-	return light ? { ...drawing, layers: drawing.layers.map(layer => ({ ...layer, color: LIGHT_CANVAS_COLORS[layer.color] ?? layer.color })) } : drawing;
-}
 
 /** "150, -200", "150 -200" or "@150,-200" (AutoCAD's relative form) as a displacement in mm. */
 function parseDisplacement(text: string): CadPoint | undefined {
@@ -552,9 +534,14 @@ export class FloorPlanEditor extends EditorPane {
 		const resources = [plan.uri, soil.uri, ...(this.objects ? [this.objects.uri] : [])];
 		if (result?.plot && !resources.some(r => this.textFileService.isDirty(r))) {
 			const warnings = result.warnings ?? [];
+			// Members, not warnings: a column outside on two sides is one member outside.
+			const members = (kind: 'outside' | 'setback') => new Set(warnings.filter(w => w.kind === kind).map(w => `${w.group}:${w.id}`)).size;
+			const outside = members('outside');
+			const failed = new Set(warnings.map(w => `${w.group}:${w.id}`)).size;
 			void this.partStatusService.reportChecks('floorPlan', {
 				problems: 0,
-				failed: warnings.length,
+				failed,
+				failedText: outside ? localize('floorPlan.outsidePlot', "{0} outside the plot", outside) : localize('floorPlan.inSetbacks', "{0} in setbacks", members('setback')),
 				items: warnings.map(w => ({ severity: 'warning' as const, message: w.message, where: w.id })),
 			}, ['floorPlan', 'soil', 'objects']);
 		}
@@ -1959,10 +1946,7 @@ export class FloorPlanEditor extends EditorPane {
 		const entities: CadEntitySpec[] = [];
 		const [layer, deleteLayer] = PREVIEW_LAYERS.map(l => l.name);
 		const units = editor.unitsPerPixel();
-		const marker = ([x, y]: CadPoint) => {
-			const r = MARKER_PIXELS * units;
-			entities.push({ kind: 'polyline', layer, closed: true, points: [[x - r, y - r], [x + r, y - r], [x + r, y + r], [x - r, y + r]] });
-		};
+		const marker = (p: CadPoint) => entities.push(squareMarker(p, MARKER_PIXELS * units, layer));
 		const point = this.hover;
 		this.hoverSnap = undefined;
 		if (this.chainStart) {
@@ -2005,18 +1989,7 @@ export class FloorPlanEditor extends EditorPane {
 			} else if (this.tool === 'beam' || this.tool === 'wall') {
 				// AutoCAD's object snap markers: where the end lands, before the click.
 				const snap = this.hoverSnap = this.snapEnd(point);
-				const [x, y] = snap.point;
-				const r = MARKER_PIXELS * units;
-				const line = (a: CadPoint, b: CadPoint) => entities.push({ kind: 'line', layer, start: a, end: b });
-				switch (snap.kind) {
-					case 'node': case 'endpoint': marker(snap.point); break;
-					case 'midpoint': entities.push({ kind: 'polyline', layer, closed: true, points: [[x - r, y - r], [x + r, y - r], [x, y + r]] }); break;
-					case 'intersection': line([x - r, y - r], [x + r, y + r]); line([x - r, y + r], [x + r, y - r]); break;
-					case 'perpendicular': line([x - r, y - r], [x + r, y - r]); line([x - r, y - r], [x - r, y + r]); line([x - r, y], [x, y]); line([x, y], [x, y - r]); break;
-					case 'nearest': entities.push({ kind: 'polyline', layer, closed: true, points: [[x - r, y + r], [x + r, y + r], [x - r, y - r], [x + r, y - r]] }); break;
-					case 'gridLine': entities.push({ kind: 'polyline', layer, closed: true, points: [[x - r, y], [x, y - r], [x + r, y], [x, y + r]] }); break;
-					case 'free': line([x - r, y], [x + r, y]); line([x, y - r], [x, y + r]); break;
-				}
+				entities.push(...snapMarker(snap, MARKER_PIXELS * units, layer));
 				if (this.chainStart) {
 					entities.push({ kind: 'line', layer, start: this.chainStart.point, end: snap.point });
 				}

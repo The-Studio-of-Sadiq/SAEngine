@@ -780,9 +780,9 @@ def _pile_cap(
     ratio: float,
     options: SsiOptions,
 ) -> tuple[list[float], list[str]]:
-    pile = substructure.pile_type(foundation.pileType)
+    pile = substructure.cap_pile_type(foundation)
     if pile is None:
-        raise _Fixed(f"unknown pile type '{foundation.pileType}'")
+        raise _Fixed("its piles have no pile type")
     d = float(pile.diameter) / 1e3
     length = float(pile.length) / 1e3
     if pile.kind == "driven":  # square
@@ -803,7 +803,8 @@ def _pile_cap(
     theta = math.radians(foundation.rotation)
     c, s = math.cos(theta), math.sin(theta)
     piles = [
-        ((c * dx - s * dy) / 1e3, (s * dx + c * dy) / 1e3) for dx, dy in (foundation.piles or [])
+        ((c * dx - s * dy) / 1e3, (s * dx + c * dy) / 1e3)
+        for dx, dy in substructure.pile_offsets(foundation)
     ]
     k = pile_group_springs(piles, kv, lateral["Khh"], lateral["Ktt"], options.pile_group_factor)
     basis = [

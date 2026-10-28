@@ -3,7 +3,7 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CadPoint } from '@saengine/cad-editor';
+import type { CadEntitySpec, CadPoint } from '@saengine/cad-editor';
 import { localize } from '../../../../nls.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { gridsOf } from './floorPlanDrawing.js';
@@ -126,10 +126,11 @@ function columnPoints(layout: unknown, story: string): { readonly id: string; re
  * nearest of: a grid intersection, a column, a member's end or midpoint, an intersection of two
  * members or of a member and a grid line, and (with `from`, the other end) the perpendicular from
  * `from` onto a member. Else the nearest point on a member within `tolerance`, else a grid line
- * within half of it (on each axis), else the point itself to the mm.
+ * within half of it (on each axis), else the point itself to the mm. `extra` segments (the
+ * architecture's walls) snap as members do.
  */
-export function snapLinear(layout: unknown, story: string, point: CadPoint, tolerance: number, from?: CadPoint): ISnap {
-	const segments = snapSegments(layout, story);
+export function snapLinear(layout: unknown, story: string, point: CadPoint, tolerance: number, from?: CadPoint, extra: readonly ISnapSegment[] = []): ISnap {
+	const segments = [...snapSegments(layout, story), ...extra];
 	const grids = gridsOf(layout);
 	const candidates: ISnap[] = [];
 	for (const [, x] of grids.x) {
@@ -198,6 +199,26 @@ export function snapLinear(layout: unknown, story: string, point: CadPoint, tole
 		return { kind: 'gridLine', point: [gx ?? Math.round(point[0]), gy ?? Math.round(point[1])], exact: false };
 	}
 	return { kind: 'free', point: [Math.round(point[0]), Math.round(point[1])], exact: false };
+}
+
+/** A square of half-size `r` around `point`: AutoCAD's endpoint marker, and the plans' click marker. */
+export function squareMarker([x, y]: CadPoint, r: number, layer: string): CadEntitySpec {
+	return { kind: 'polyline', layer, closed: true, points: [[x - r, y - r], [x + r, y - r], [x + r, y + r], [x - r, y + r]] };
+}
+
+/** AutoCAD's object snap marker of `snap` (half-size `r`): where a click lands, before the click. */
+export function snapMarker(snap: ISnap, r: number, layer: string): CadEntitySpec[] {
+	const [x, y] = snap.point;
+	const line = (a: CadPoint, b: CadPoint): CadEntitySpec => ({ kind: 'line', layer, start: a, end: b });
+	switch (snap.kind) {
+		case 'node': case 'endpoint': return [squareMarker(snap.point, r, layer)];
+		case 'midpoint': return [{ kind: 'polyline', layer, closed: true, points: [[x - r, y - r], [x + r, y - r], [x, y + r]] }];
+		case 'intersection': return [line([x - r, y - r], [x + r, y + r]), line([x - r, y + r], [x + r, y - r])];
+		case 'perpendicular': return [line([x - r, y - r], [x + r, y - r]), line([x - r, y - r], [x - r, y + r]), line([x - r, y], [x, y]), line([x, y], [x, y - r])];
+		case 'nearest': return [{ kind: 'polyline', layer, closed: true, points: [[x - r, y + r], [x + r, y + r], [x - r, y - r], [x + r, y - r]] }];
+		case 'gridLine': return [{ kind: 'polyline', layer, closed: true, points: [[x - r, y], [x, y - r], [x + r, y], [x, y + r]] }];
+		case 'free': return [line([x - r, y], [x + r, y]), line([x, y - r], [x, y + r])];
+	}
 }
 
 /**

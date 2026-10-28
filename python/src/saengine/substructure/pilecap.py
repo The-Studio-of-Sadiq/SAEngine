@@ -970,9 +970,9 @@ def design_pile_cap(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str
     )
     from saengine.substructure.shallow import footing_loads, place_footing, summary
 
-    pile_type = ctx.substructure.pile_type(foundation.pileType)
+    pile_type = ctx.substructure.cap_pile_type(foundation)
     if pile_type is None:
-        raise Skip(f"unknown pile type '{foundation.pileType}'")
+        raise Skip("its piles have no pile type")
     placed = place_footing(ctx, foundation)
     footing = placed.spec
     pile_concrete = ctx.concrete(pile_type.material, pile_type.id)
@@ -1026,7 +1026,7 @@ def design_pile_cap(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str
         fc=footing.fc,
         fy=footing.fy,
         columns=footing.columns,
-        piles=[(float(u), float(v)) for u, v in foundation.piles or []],
+        piles=[(float(u), float(v)) for u, v in ctx.substructure.pile_offsets(foundation)],
         pile_diameter=pile_type.diameter,
         bottom_x=footing.bottom_x,
         bottom_y=footing.bottom_y,
@@ -1036,9 +1036,10 @@ def design_pile_cap(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str
         unit_weight=footing.unit_weight,
         soil_above=foundation_settings.soilUnitWeight * 1e-6 * cover,
     )
-    for u, v in spec.piles:
+    marks = [p.id for p in ctx.substructure.cap_piles(foundation)]
+    for mark, (u, v) in zip(marks, spec.piles, strict=True):
         if abs(u) > spec.length / 2 or abs(v) > spec.width / 2:
-            raise Skip(f"a pile at ({u:.0f}, {v:.0f}) lies outside the cap")
+            raise Skip(f"pile {mark} at ({u:.0f}, {v:.0f}) from the centre lies outside the cap")
     loads = ctx.loads
     service, strength = footing_loads(loads, placed)
     service_dead = {
@@ -1063,6 +1064,26 @@ def design_pile_cap(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str
     diameters, lengths = table_sizes(pile_type.diameter, pile_type.length, available)
     table = capacity_table(profile, kind, diameters, lengths, head, design.pileCapacity, factors)
     members = list(dict.fromkeys(c.id for c in spec.columns))
+    # The piles need not be centred on the columns (the cap is formed over piles on their own
+    # grid): the offset of the columns' centroid from the piles' is in the pile loads above
+    # (pile_reactions takes the moments about the piles' centroid).
+    eccentricity = None
+    if spec.columns:
+        centroid = np.asarray(spec.piles, dtype=float).reshape(-1, 2).mean(axis=0)
+        eu = float(np.mean([c.u for c in spec.columns]) - centroid[0])
+        ev = float(np.mean([c.v for c in spec.columns]) - centroid[1])
+        eccentricity = [round(eu), round(ev)]
+        if math.hypot(eu, ev) >= 1:
+            notes.append(
+                f"{foundation.id}: the columns stand {eu:.0f} mm (u) and {ev:.0f} mm (v) off the "
+                "piles' centroid; that eccentricity's moment, P e, is in the pile loads (rigid "
+                "cap) and the cap's design"
+            )
+    out["group"]["eccentricity"] = eccentricity
+    for row, mark in zip(out["piles"], ctx.substructure.cap_piles(foundation), strict=True):
+        row["mark"] = mark.id
+        row["x"] = round(float(mark.position[0]))
+        row["y"] = round(float(mark.position[1]))
     sizes = {
         "length": spec.length,
         "width": spec.width,
@@ -1071,6 +1092,7 @@ def design_pile_cap(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str
         "center": [round(float(centre[0]), 1), round(float(centre[1]), 1)],
         "rotation": round(math.degrees(math.atan2(placed.axis_u[1], placed.axis_u[0])), 3),
         "pileType": pile_type.id,
+        "piles": [p.id for p in ctx.substructure.cap_piles(foundation)],
         "pileDiameter": pile_type.diameter,
         "pileLength": pile_type.length,
     }

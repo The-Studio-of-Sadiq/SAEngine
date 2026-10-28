@@ -48,7 +48,10 @@ ALL_PARTS: tuple[Part, ...] = (*PROJECT_PARTS, STRUCTURE_PART)
 #: The line and point loads on members (:mod:`saengine.library.line_loads`): a file of part 5
 #: beside the floor plan, a source of the analysis model, not a part of its own.
 LOADS_PART = Part("loads", "05 Floor Plan", "loads.json", "Line Loads")
-_BY_ID = {p.id: p for p in (*ALL_PARTS, LOADS_PART)}
+#: The architecture (:mod:`saengine.library.architecture`): walls, doors, windows and rooms, a
+#: file of part 5 beside the floor plan, edited from 6 BIM's Architecture entry.
+ARCHITECTURE_PART = Part("architecture", "05 Floor Plan", "architecture.json", "Architecture")
+_BY_ID = {p.id: p for p in (*ALL_PARTS, LOADS_PART, ARCHITECTURE_PART)}
 
 
 def part_by_id(part_id: str) -> Part:

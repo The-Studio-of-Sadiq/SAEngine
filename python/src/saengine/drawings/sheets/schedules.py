@@ -612,11 +612,21 @@ def _elevation(
             if bottom_lanes[i] == lane and curtailed(b):
                 el.dim((b.start, -d), (b.end, -d), -(bottom_offset + 7 * row), along=text_at(b))
     base = bottom_offset + 7 * (len(bottom_dims))
+    # link zones: a text that would run into the one before it (short zones side by side, the
+    # closer hoops over laps) drops to the row below
+    rows_end = [-math.inf, -math.inf]
+    zone_rows = 1
     for z in beam.links:
-        el.dim((z.start, -d), (z.end, -d), -base, text=f"<> {z.text}")
+        text = f"{z.end - z.start:.0f} {z.text}"
+        half = el.real(text_width(text, TEXT) / 2 + 1.0)
+        mid = (z.start + z.end) / 2
+        row = 0 if mid - half >= rows_end[0] else 1
+        rows_end[row] = mid + half
+        zone_rows = max(zone_rows, row + 1)
+        el.dim((z.start, -d), (z.end, -d), -(base + 7 * row), text=f"<> {z.text}")
     if supports:
         points = sorted({v for s in supports for v in (s.start, s.end)})
-        el.chain([(x, -d) for x in points], -(base + 7))
+        el.chain([(x, -d) for x in points], -(base + 7 * zone_rows))
     # the labels last, clear of the beam, the column stubs and the dimension texts
     el.reserve([(x_first, -d), (x_last, 0)])
     for s in supports:

@@ -56,7 +56,11 @@ def test_drawing_settings_and_the_title_block():
 
     defaults = Drawings()
     assert (defaults.sheetSize, defaults.planScale, defaults.detailScale) == ("A1", 100, 25)
-    assert defaults.boqReinforcement == "measured" and defaults.developmentLength == "simplified"
+    assert defaults.developmentLength == "simplified"
+    # The BOQ's old reinforcement choice is read and dropped (the bill takes the detailed bars).
+    assert (
+        "boqReinforcement" not in Drawings.model_validate({"boqReinforcement": "bbs"}).model_dump()
+    )
     text = (SAMPLE / SETTINGS).read_text(encoding="utf-8")
     data = json.loads(text)
     data["project"].update(number="P-17", engineer="A. Engineer")
@@ -183,8 +187,13 @@ def test_run_all_keeps_a_generated_set_current(generated: tuple[Path, dict], tmp
     assert step.status == "skipped" and step.message == "drawings up to date"
 
 
-def test_the_bill_reconciles_or_takes_the_bar_bending_schedule(tmp_path: Path):
-    from saengine.boq.quantities import compute_boq
+def test_the_bill_takes_the_bar_bending_schedule(tmp_path: Path):
+    """A quantity lives in one place: the bill's bars of every detailed element are those of the
+    bar bending schedule; M1 (an inclined member, not detailed) keeps the estimating rules."""
+    from saengine.boq.quantities import bill_of_quantities, compute_boq
+    from saengine.library.bim import BuildingModel
+    from saengine.library.materials import MaterialLibrary
+    from saengine.library.objects import ObjectLibrary
 
     def texts(root: Path) -> list[str | None]:
         def read(relative: str) -> str | None:
@@ -201,30 +210,34 @@ def test_the_bill_reconciles_or_takes_the_bar_bending_schedule(tmp_path: Path):
 
     root = tmp_path / "Sample Frame"
     shutil.copytree(SAMPLE, root)
-    measured = compute_boq(*texts(root))
-    note = next(n for n in measured["notes"] if n.startswith("Reinforcement against the bar"))
-    assert "Ø16" in note and "Not detailed in the drawings: M1." in note
-    _settings(root, boqReinforcement="bbs")
     taken = compute_boq(*texts(root))
     from saengine.drawings import bbs
     from saengine.drawings.detailing import detailing_model
 
     schedule = bbs.bar_schedule(detailing_model(root))
-    # Every detailed element takes the schedule's bars; M1 (an inclined member) keeps the bill's.
+    bim, objects, materials = texts(root)[:3]
+    estimate = bill_of_quantities(
+        BuildingModel.model_validate_json(bim),
+        ObjectLibrary.model_validate_json(objects),
+        MaterialLibrary.model_validate_json(materials),
+    )
     m1 = {
-        i["diameter"]: sum(e["quantity"] for e in i["breakdown"] if e["element"] == "M1")
-        for i in measured["items"]
-        if i["group"] == "reinforcement"
+        i.diameter: sum(e.quantity for e in i.breakdown if e.element == "M1")
+        for i in estimate.items
+        if i.group == "reinforcement"
     }
     for dia, mass in schedule.by_diameter.items():
         assert steel(taken)[dia] == pytest.approx(mass + m1.get(dia, 0.0), abs=0.01)
-    assert any(n.endswith("not detailed in the drawings: M1.") for n in taken["notes"])
+    assert any(n.endswith("(not detailed in the drawings): M1.") for n in taken["notes"])
     assert not any(n.startswith("Reinforcement against the bar") for n in taken["notes"])
     beams = next(i for i in taken["items"] if i["group"] == "reinforcement" and i["diameter"] == 16)
     elements = {e["element"] for e in beams["breakdown"]}
     assert {"B1", "B2"} <= elements and "B1+B2" not in elements
     codes = [i["code"] for i in taken["items"] if i["group"] == "reinforcement"]
     assert codes == [f"R.{n:02d}" for n in range(1, len(codes) + 1)]
+    # the old setting (now dropped on reading) changes nothing
+    _settings(root, boqReinforcement="bbs")
+    assert steel(compute_boq(*texts(root))) == steel(taken)
 
 
 def test_edge_top_bars_of_two_panels_of_one_type_are_both_drawn():
@@ -320,14 +333,13 @@ def test_the_design_checks_are_kept_for_the_drawings(tmp_path: Path, monkeypatch
 
 
 def test_the_bill_takes_the_marks_of_the_drawings(generated: tuple[Path, dict], tmp_path: Path):
-    """With "reinforcement from the BBS", the bill details the bars with the drawings' kept
-    marks: after a model edit its marks are those of the sheets and bbs.csv."""
+    """The bill details the bars with the drawings' kept marks: after a model edit its marks are
+    those of the sheets and bbs.csv."""
     import csv
 
     from saengine.boq.quantities import compute_boq
 
     root = _copy(generated, tmp_path)
-    _settings(root, boqReinforcement="bbs")
     bim = root / "06 BIM/bim.json"
     data = json.loads(bim.read_text(encoding="utf-8"))
     data["elements"] = [e for e in data["elements"] if e.get("id") != "S1"]

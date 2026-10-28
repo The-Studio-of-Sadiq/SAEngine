@@ -348,7 +348,9 @@ export class FemResultsEditor extends EditorPane {
 				this.reload.schedule(); // the run ended
 			}
 		}));
-		await this.load();
+		// Not awaited: the editor opens at once and says what it is working out (the storey
+		// response of a large model takes a while); a later load supersedes this one.
+		void this.load();
 	}
 
 	/** Opened again at a result (a member picked in 3D under another combination). */

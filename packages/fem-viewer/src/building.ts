@@ -26,10 +26,20 @@ export interface BuildingViewerTheme {
 	readonly member: string;
 	/** Equipment, tanks, pipes, ducts and cable runs of 7 MEP. */
 	readonly mep: string;
+	/** The architecture's walls, doors, windows and finishes (ids `arch:...`): not structure. */
+	readonly architecture: string;
+	/** Rooms (IfcSpace), drawn see-through. */
+	readonly room: string;
+	/** Doors and windows of the architecture's layer: wood, and see-through glass. */
+	readonly door: string;
+	readonly window: string;
 }
 
 /** The groups of elements the view can show or hide, each with its own colour. */
-export type BuildingLayer = 'column' | 'beam' | 'wall' | 'slab' | 'footing' | 'stair' | 'member' | 'mep';
+export type BuildingLayer = 'column' | 'beam' | 'wall' | 'slab' | 'footing' | 'stair' | 'member' | 'mep' | 'architecture' | 'room';
+
+/** Ids (in `load`'s map) of the architecture's elements: their own layer, whatever their IFC class. */
+export const ARCHITECTURE_PREFIX = 'arch:';
 
 /** Camera directions of the view presets. */
 export type BuildingViewPreset = 'iso' | 'top' | 'front' | 'side';
@@ -45,7 +55,8 @@ export interface BuildingViewerOptions {
 export interface BuildingViewer {
 	/**
 	 * Shows the IFC `ifc`, replacing the building shown before. `ids` maps SAEngine element ids
-	 * to IFC GlobalIds. The camera keeps its place after the first load.
+	 * to IFC GlobalIds; ids starting with {@link ARCHITECTURE_PREFIX} are the architecture's. The
+	 * camera keeps its place after the first load.
 	 */
 	load(ifc: Uint8Array, ids: Readonly<Record<string, string>>): Promise<void>;
 	setSelection(elementId: string | undefined): Promise<void>;
@@ -79,18 +90,31 @@ const defaultTheme: BuildingViewerTheme = {
 	stair: '#d4d4d4',
 	member: '#f14c4c',
 	mep: '#2bb3a3',
+	architecture: '#d8c3a0',
+	room: '#e2b84d',
+	door: '#9a6a3a',
+	window: '#7cc4e4',
 };
+
+/** Rooms are drawn see-through, so the walls and structure show inside them. */
+const ROOM_OPACITY = 0.18;
+/** Windows are glass: the room behind shows through. */
+const WINDOW_OPACITY = 0.45;
 
 const CATEGORIES: readonly [BuildingLayer, RegExp][] = [
 	['column', /^IFCCOLUMN$/],
 	['beam', /^IFCBEAM$/],
-	['wall', /^IFCWALL/],
+	// Walls, not their types (IfcWallType: the architecture's walls have types).
+	['wall', /^IFCWALL(STANDARDCASE|ELEMENTEDCASE)?$/],
 	['slab', /^IFCSLAB$/],
 	['footing', /^IFC(FOOTING|PILE)$/],
 	['stair', /^IFCSTAIR/],
 	['member', /^IFCMEMBER$/],
 	// The IFC4 classes 7 MEP writes (see saengine.library.ifc): plant, tanks, segments, lifts.
 	['mep', /^IFC(TANK|PUMP|CHILLER|COOLINGTOWER|UNITARYEQUIPMENT|FAN|TRANSFORMER|ELECTRIC\w*|SOLARDEVICE|PIPESEGMENT|DUCTSEGMENT|CABLESEGMENT|CABLECARRIERSEGMENT|TRANSPORTELEMENT)$/],
+	['room', /^IFCSPACE$/],
+	// The architecture's walls, doors, windows and coverings, by their ids (see ARCHITECTURE_PREFIX).
+	['architecture', /^IFC(DOOR|WINDOW|COVERING)$/],
 ];
 
 /** Directions from the target to the camera of the view presets (y is up). */
@@ -125,6 +149,8 @@ class BuildingViewerImpl implements BuildingViewer {
 	private highlighted: number | undefined;
 	/** Class colour of every coloured item. */
 	private readonly itemColors = new Map<number, string>();
+	/** Opacity of the see-through items (rooms, windows); the others are opaque. */
+	private readonly itemOpacity = new Map<number, number>();
 	private fitted = false;
 	/** Local ids of each layer's items in the loaded model. */
 	private layerItems = new Map<BuildingLayer, number[]>();
@@ -279,8 +305,8 @@ class BuildingViewerImpl implements BuildingViewer {
 		this.grid.config.color = new THREE.Color(this.theme.grid);
 	}
 
-	private material(color: string): FRAGS.MaterialDefinition {
-		return { color: new THREE.Color(color), renderedFaces: FRAGS.RenderedFaces.TWO, opacity: 1, transparent: false };
+	private material(color: string, opacity = 1): FRAGS.MaterialDefinition {
+		return { color: new THREE.Color(color), renderedFaces: FRAGS.RenderedFaces.TWO, opacity, transparent: opacity < 1 };
 	}
 
 	/**
@@ -290,18 +316,43 @@ class BuildingViewerImpl implements BuildingViewer {
 	private async applyColors(): Promise<void> {
 		const model = this.model;
 		this.itemColors.clear();
+		this.itemOpacity.clear();
 		this.highlighted = undefined;
 		this.layerItems = new Map();
 		if (!model) {
 			return;
 		}
 		const items = await model.getItemsOfCategories(CATEGORIES.map(([, pattern]) => pattern));
+		// The architecture's walls are IfcWalls too: by their ids they leave the structure's layer.
+		const architecture = new Set([...this.localIds].filter(([id]) => id.startsWith(ARCHITECTURE_PREFIX)).map(([, local]) => local));
+		const layers = new Map<BuildingLayer, number[]>();
 		for (const [key, pattern] of CATEGORIES) {
 			const ids = Object.entries(items).filter(([category]) => pattern.test(category.toUpperCase())).flatMap(([, list]) => list);
+			layers.set(key, key === 'room' || key === 'architecture' ? ids : ids.filter(id => !architecture.has(id)));
+		}
+		const rooms = new Set(layers.get('room'));
+		layers.set('architecture', [...new Set([...layers.get('architecture')!, ...[...architecture].filter(id => !rooms.has(id))])]);
+		for (const [key] of CATEGORIES) {
+			const ids = layers.get(key)!;
 			this.layerItems.set(key, ids);
 			if (ids.length) {
 				ids.forEach(id => this.itemColors.set(id, this.theme[key]));
-				await model.highlight(ids, this.material(this.theme[key]));
+				if (key === 'room') {
+					ids.forEach(id => this.itemOpacity.set(id, ROOM_OPACITY));
+				}
+				await model.highlight(ids, this.material(this.theme[key], key === 'room' ? ROOM_OPACITY : 1));
+			}
+		}
+		// In the architecture's layer, doors in wood and windows in glass, so their openings read.
+		const inArchitecture = new Set(layers.get('architecture'));
+		for (const [pattern, color, opacity] of [[/^IFCDOOR$/, this.theme.door, 1], [/^IFCWINDOW$/, this.theme.window, WINDOW_OPACITY]] as const) {
+			const ids = Object.entries(items).filter(([category]) => pattern.test(category.toUpperCase())).flatMap(([, list]) => list).filter(id => inArchitecture.has(id));
+			if (ids.length) {
+				ids.forEach(id => {
+					this.itemColors.set(id, color);
+					this.itemOpacity.set(id, opacity);
+				});
+				await model.highlight(ids, this.material(color, opacity));
 			}
 		}
 	}
@@ -338,7 +389,7 @@ class BuildingViewerImpl implements BuildingViewer {
 		if (this.highlighted !== undefined && this.highlighted !== local) {
 			const color = this.itemColors.get(this.highlighted);
 			if (color) {
-				await model.highlight([this.highlighted], this.material(color));
+				await model.highlight([this.highlighted], this.material(color, this.itemOpacity.get(this.highlighted) ?? 1));
 			} else {
 				await model.resetHighlight([this.highlighted]);
 			}
