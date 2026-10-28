@@ -433,6 +433,11 @@ def propose(ctx: Context, columns: list[str] | None = None) -> dict[str, Any]:
     sizer = Sizer(ctx)
     loads = sizer.loads
     carried = {c for f in ctx.substructure.foundations for c in f.columns}
+    # A column on a pile cap keeps it: its piles are laid out with the pile tools and checked
+    # from the soil's pile capacity, not replaced by a footing.
+    on_caps = {
+        c: f.id for f in ctx.substructure.foundations if f.type == "pileCap" for c in f.columns
+    }
     wanted = columns or [
         b for b, base in loads.bases.items() if isinstance(base.element, ColumnElement)
     ]
@@ -443,6 +448,11 @@ def propose(ctx: Context, columns: list[str] | None = None) -> dict[str, Any]:
             sizer.notes.append(f"{column_id}: not a column base of the analysis model; left out")
         elif column_id in carried and columns is None:
             continue
+        elif column_id in on_caps:
+            sizer.notes.append(
+                f"{column_id}: stands on pile cap {on_caps[column_id]}; Size Footings sizes "
+                "footings only (lay its piles out again with the pile tools)"
+            )
         else:
             chosen.append(base.element)
 

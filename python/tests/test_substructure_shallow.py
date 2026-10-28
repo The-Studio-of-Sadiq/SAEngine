@@ -1125,6 +1125,39 @@ def test_sizing_assistant_proposes_footings_that_pass(frame: Path) -> None:
     assert not by_name(result["checks"])["Bearing (service)"]["ok"]
 
 
+def test_sizing_assistant_leaves_a_column_on_a_pile_cap_alone(frame: Path) -> None:
+    # Selected or not, a column on a pile cap keeps it: no footing is proposed in its place.
+    c1 = next(e for e in generate(PLAN, "s").elements if e.id == "C1")
+    x, y = c1.position
+    piles = [(x - 750, y - 750), (x + 750, y - 750), (x + 750, y + 750), (x - 750, y + 750)]
+    write_substructure(
+        frame,
+        {
+            "foundations": [
+                {"id": "PC1", "type": "pileCap", "columns": ["C1"], "center": [x, y],
+                 "length": 2300, "width": 2300, "thickness": 900,
+                 "piles": ["PL1", "PL2", "PL3", "PL4"]},
+            ],
+            "pileTypes": [{"id": "BP500", "kind": "bored", "diameter": 500, "length": 18000,
+                           "material": "C24.1"}],
+            "piles": [
+                {"id": f"PL{k + 1}", "type": "BP500", "position": list(p)}
+                for k, p in enumerate(piles)
+            ],
+        },
+    )  # fmt: skip
+    settings = SETTINGS.model_copy(update={"foundation": FoundationSettings(allowableBearing=60)})
+    ctx = load_context(frame)
+    ctx.settings = settings
+    ctx.__post_init__()
+    proposal = propose(ctx, ["C1", "C2"])
+    assert [f["columns"] for f in proposal["foundations"]] == [["C2"]]
+    assert (
+        "C1: stands on pile cap PC1; Size Footings sizes footings only (lay its piles out again "
+        "with the pile tools)" in proposal["notes"]
+    )
+
+
 def test_sizing_assistant_combines_footings_that_would_overlap() -> None:
     # 1500 and 1000 kN 2.5 m apart on qa = 150 kPa: square footings over 3 m wide would
     # overlap. One combined footing, centred on the resultant 1000 mm from C1.
