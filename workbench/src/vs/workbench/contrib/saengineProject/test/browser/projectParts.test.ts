@@ -43,6 +43,7 @@ suite('SAEngine - project parts', () => {
 		const floorPlan = editor('workbench.input.saengine.floorPlan', 'workbench.editor.saengine.floorPlan');
 		const grids = editor('workbench.input.saengine.library', 'workbench.editor.saengine.grids');
 		const charts = editor('workbench.input.saengine.femResults', 'workbench.editor.saengine.femResults');
+		const architecture = editor('workbench.input.saengine.architecture', 'workbench.editor.saengine.architecture');
 		assert.deepStrictEqual({
 			parts: ['settings', 'floorPlan', 'bim', 'mep', 'fem', 'soil'].map(part => partSections(part).map(e => e.id).join(' ')),
 			// A section of the part's editor: Combinations and Analysis also stands for the analysis settings.
@@ -54,14 +55,17 @@ suite('SAEngine - project parts', () => {
 			grids: [isSectionActive(entry('floorPlan', 'grids'), grids, undefined), isSectionActive(entry('floorPlan', 'grids'), floorPlan, undefined)],
 			// The charts have no file: they still belong to 8 FEM.
 			charts: [isSectionActive(entry('fem', 'results'), charts, undefined), isPartEditor('fem', charts), isPartEditor('floorPlan', charts)],
+			// The architecture is 05 Floor Plan's file in its own editor, listed under 6 BIM.
+			architecture: [entry('bim', 'architecture').command, isSectionActive(entry('bim', 'architecture'), architecture, undefined), isPartEditor('bim', architecture), isPartEditor('floorPlan', architecture)],
 		}, {
-			parts: ['code loads seismic wind combinations foundation drawings', 'plan grids members', '3d additions summary', 'coordination plumbing hvac electrical fire', 'model results proposal', ''],
+			parts: ['code loads seismic wind combinations foundation drawings', 'plan grids members', '3d additions summary architecture', 'coordination plumbing hvac electrical fire', 'model results proposal', ''],
 			seismic: true,
 			analysis: true,
 			wind: false,
 			plan: [true, false],
 			grids: [true, false],
 			charts: [true, true, false],
+			architecture: ['saengine.architecture.open', true, true, false],
 		});
 	});
 });

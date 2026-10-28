@@ -42,7 +42,7 @@ import { ISaengineProjectService, partById, PROJECT_PARTS } from '../../../servi
 import { loadViewerModule, viewerAssetBaseUrl } from '../../saengineFem/browser/viewerModule.js';
 import { propertySheet } from '../../saengineModel/browser/modelData.js';
 import { openOwner } from '../../saengineModel/browser/projectDocuments.js';
-import { formatPropertyValue, renderPropertySheet, schemaUnit } from '../../saengineModel/browser/propertySheetView.js';
+import { formatPropertyValue, propertyLink, renderPropertySheet, schemaUnit } from '../../saengineModel/browser/propertySheetView.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { clone, IDocumentFrameActions, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditorInput } from './libraryEditorInput.js';
@@ -75,6 +75,8 @@ interface IBuildingIfc {
 	readonly ids?: { readonly [elementId: string]: string };
 	readonly skipped?: readonly string[];
 	readonly problems?: readonly string[];
+	/** The story each architecture element (`arch:<id>`) stands on. */
+	readonly architectureStories?: { readonly [elementId: string]: string };
 }
 
 const ELEMENT_KINDS: readonly { readonly kind: string; readonly group?: MemberGroup; readonly label: string }[] = [
@@ -114,7 +116,12 @@ const LAYER_LABELS: { readonly [layer in BuildingLayer]: string } = {
 	stair: localize('layer.stairs', "Stairs"),
 	member: localize('layer.members', "Inclined members"),
 	mep: localize('layer.mep', "MEP"),
+	architecture: localize('layer.architecture', "Architecture"),
+	room: localize('layer.rooms', "Rooms"),
 };
+
+/** Ids of the architecture's elements in the IFC's id map (see `saengine.library.architecture_ifc`). */
+const ARCHITECTURE_ID = 'arch:';
 
 /**
  * Lists of 7 MEP (`mep.json`) whose items the coordination model draws in 3D (see
@@ -183,6 +190,8 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 	private ifcSkipped = 0;
 	/** The element picked in 3D, also one the floor plan does not own (an addition). */
 	private selectedElement: string | undefined;
+	/** The story each architecture element (`arch:<id>`) stands on, from the last IFC. */
+	private architectureStories: { readonly [id: string]: string } = {};
 
 	private objectsText: string | undefined;
 	private materials: ITextModel | undefined;
@@ -536,6 +545,7 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 		const viewer = await this.ensureViewer();
 		if (viewer && version === this.ifcVersion) {
 			try {
+				this.architectureStories = result.architectureStories ?? {};
 				await viewer.load(VSBuffer.fromString(result.text).buffer, result.ids ?? {});
 				const selection = this.selectionService.selection;
 				this.selectedElement ??= selection?.kind === 'member' ? this.elementOfMember(selection.id) : undefined;
@@ -670,6 +680,13 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 		for (const { item } of this.mepItems()) {
 			if (item.story === id || item.toStory === id) {
 				ids.push(String(item.id), `${item.id}/plinth`, `${item.id}-base`);
+			}
+		}
+		// The architecture standing on the story below, as the columns rising to this one.
+		const below = index > 0 ? String(stories[index - 1].id) : undefined;
+		for (const [element, story] of Object.entries(this.architectureStories)) {
+			if (story === below) {
+				ids.push(element);
 			}
 		}
 		return ids;
@@ -1050,6 +1067,13 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 		const document = this.document;
 		if (!document) {
 			appendPropertyNote(panel, localize('building.propertiesEmpty', "Build the building model to see its elements here."));
+			return;
+		}
+		if (this.selectedElement?.startsWith(ARCHITECTURE_ID)) {
+			// An item of the architecture (05 Floor Plan/architecture.json): edited in its own editor.
+			appendPropertyHeading(panel, this.selectedElement.slice(ARCHITECTURE_ID.length), localize('building.architectureItem', "Architecture"));
+			appendPropertyNote(panel, localize('building.architectureNote', "Architecture is physical only: it adds no stiffness to the analysis. Its loads come in a later round."));
+			propertyLink(panel, localize('building.openArchitecture', "Open in Architecture"), () => void this.commands.executeCommand('saengine.architecture.open'), this.propertiesDisposables);
 			return;
 		}
 		const found = this.selectedElement ? this.findElement(this.selectedElement) : undefined;
