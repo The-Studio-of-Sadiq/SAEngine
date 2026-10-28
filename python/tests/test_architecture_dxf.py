@@ -385,3 +385,48 @@ def test_handlers(tmp_path) -> None:
     assert bad["problems"]
     missing = architecture_inspect_drawing(str(tmp_path / "none.dxf"))
     assert missing["problems"]
+
+
+def test_architect_style_flat_on_a_three_by_two_grid(tmp_path) -> None:
+    """The two-bedroom flat an architect sends: walls stopping at columns, door blocks with
+    frames, window blocks, names with sizes, hatch, dimensions, furniture, grid and title."""
+    import architect_flat
+
+    path = tmp_path / "flat.dxf"
+    architect_flat.make(str(path))
+    layers = {
+        "A-WALL": "walls",
+        "A-DOOR": "doors",
+        "A-GLAZ": "windows",
+        "A-ROOM-NAME": "rooms",
+        "A-ROOM-SIZE": "rooms",
+    }
+    arch, summary = import_drawing(
+        path,
+        default_architecture(),
+        ELEVATIONS,
+        {"layers": layers, "story": "L1", "unit": "mm", "base": list(architect_flat.ORIGIN)},
+    )
+    centre_lines = {
+        tuple(sorted(tuple(round(c) for c in p) for p in w.path)): w.type for w in arch.walls
+    }
+    expected = {
+        tuple(sorted((tuple(a), tuple(b)))): "BW250" if t == 250 else "BW125"
+        for (a, b), t in architect_flat.WALLS
+        if a[0] != 5000  # the living / dining stubs end at the opening, not at grid points
+    }
+    for line, wall_type in expected.items():
+        assert centre_lines.get(line) == wall_type, (line, sorted(centre_lines))
+    assert summary["adopted"] == {"walls": 13, "doors": 8, "windows": 10, "rooms": 8, "types": 0}
+    assert sorted(d.type for d in arch.doors) == ["D1", "D2", "D2", "D2", "D2", "D3", "D3", "D3"]
+    assert sorted(w.type for w in arch.windows).count("V1") == 2
+    # Every door swings to the side the drawing shows.
+    for (block, hinge, jamb, side), door in zip(architect_flat.DOORS, arch.doors, strict=True):
+        wall = next(w for w in arch.walls if w.id == door.wall)
+        (x0, y0), (x1, y1) = wall.path
+        along = ((x1 - x0) * (jamb[0] - hinge[0]) + (y1 - y0) * (jamb[1] - hinge[1])) > 0
+        assert door.flip == ((side < 0) == along), block
+    assert {r.name for r in arch.rooms} == {n for n, _, _ in architect_flat.ROOMS} - {"DINING"}
+    assert any("DINING" in s for s in summary["skipped"])
+    for room in arch.rooms:
+        assert room_boundary(arch, room, ELEVATIONS) is not None, room.name

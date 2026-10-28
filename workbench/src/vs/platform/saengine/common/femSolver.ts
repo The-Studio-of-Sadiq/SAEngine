@@ -579,7 +579,7 @@ export type EngineMethod =
 	| 'soil/location' | 'soil/plotCheck' | 'soil/gisExport' | 'soil/gisImport' | 'soil/qgisProgram'
 	| 'drawings/generate' | 'drawings/list' | 'drawings/progress'
 	| 'import/structural' | 'export/e2k' | 'library/steelSections' | 'library/generateBuilding'
-	| 'section/analyse' | 'architecture/importIfc' | 'architecture/check';
+	| 'section/analyse' | 'architecture/importIfc' | 'architecture/inspectDrawing' | 'architecture/importDrawing' | 'architecture/check';
 
 export interface IQgisOpenRequest {
 	/** Absolute path of the `.gpkg`, `.geojson` or `.json` file. */

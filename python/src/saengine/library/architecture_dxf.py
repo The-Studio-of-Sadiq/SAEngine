@@ -8,9 +8,11 @@ story:
 - Walls from pairs of parallel lines (and polyline edges) 50 to 600 mm apart: the thickness is
   their distance, matched to the nearest wall type (its total or its core layer within 10 mm) or
   a new type; the centre line runs between them. Pieces of one wall are joined where its face
-  lines break at a T-junction or at a door or window, and wall ends are run to the centre line
-  of the wall they meet (corners and T-junctions). A single line on a wall layer (1 m or longer,
-  not alongside a wall found) is a centre line of the default wall type.
+  lines break at a T-junction, at a door or window, or at a column (a gap of 600 mm or less), and
+  wall ends are run to the centre line of the wall they meet (corners and T-junctions, also
+  across a column of up to 600 mm they stop at). A single line on a wall layer (1 m or longer,
+  not alongside a wall found) is a centre line of the default wall type. Columns are the floor
+  plan's: leave their layers out (Ignore).
 - Doors from the blocks (or loose arcs and lines) on door layers: a swing arc gives the hinge,
   the jamb it closes on (the width) and the side it swings to; two arcs meeting in the middle
   are a double door; a door without an arc is sliding. Windows from the blocks (or loose lines)
@@ -65,6 +67,9 @@ MIN_OVERLAP = 100.0
 TOLERANCE = 25.0
 #: A gap in a wall this wide or less [mm] is bridged when a door or window sits in it.
 MAX_OPENING = 4000.0
+#: Wall lines stop at the columns drawn in them: a gap this long or less [mm] is bridged, and a
+#: wall end this far or less from another wall is run to it.
+MAX_PIER = 600.0
 #: A single line on a wall layer this long or more [mm] is a wall centre line.
 MIN_CENTRE_LINE = 1000.0
 #: Height of walls on the top story [mm] (no story above to rise to).
@@ -412,6 +417,12 @@ class _Piece:
         return -reach <= s <= self.length + reach and abs(v) <= self.thickness / 2 + reach
 
 
+def _gap(p: _Piece, q: _Piece) -> float:
+    """How far apart two collinear pieces are along their line (0 when they overlap)."""
+    qs = sorted((p.local(q.a)[0], p.local(q.b)[0]))
+    return max(0.0, qs[0] - p.length, -qs[1])
+
+
 def _parallel(u: Vec, w: Vec, degrees: float = PARALLEL_DEGREES) -> bool:
     return abs(_cross(u, w)) <= math.sin(math.radians(degrees))
 
@@ -571,16 +582,14 @@ def _join_ends(pieces: list[_Piece]) -> None:
                     continue
                 # e + out * s on q's line.
                 s = _cross(_sub(q.a, e), q.u) / denom
-                reach = q.thickness / 2 + TOLERANCE
-                if not -reach <= s <= reach:
+                # To the other wall's centre line, or across a column it stops at.
+                reach = max(q.thickness / 2, MAX_PIER) + TOLERANCE
+                if not -(q.thickness / 2 + TOLERANCE) <= s <= reach:
                     continue
                 x = _at(e, out, s)
                 along = q.local(x)[0]
-                if (
-                    not -(p.thickness / 2 + TOLERANCE)
-                    <= along
-                    <= q.length + p.thickness / 2 + TOLERANCE
-                ):
+                beyond = max(p.thickness / 2, MAX_PIER) + TOLERANCE
+                if not -beyond <= along <= q.length + beyond:
                     continue
                 if best is None or abs(s) < abs(best[0]):
                     best = (s, x)
@@ -901,6 +910,16 @@ class _Importer:
 
     def walls(self, segments: list[tuple[Vec, Vec]], openings: list[_Opening]) -> list[_Piece]:
         pieces, single = _pair_faces(segments)
+        # The short line closing a wall's end at a door or column pairs with the face of another
+        # wall beyond: a "wall" shorter than it is thick. Such a piece is kept only as a nib of a
+        # longer wall in line with it (between a corner and a door, say).
+        solid = [p for p in pieces if p.length >= p.thickness]
+        pieces = [
+            p
+            for p in pieces
+            if p.length >= p.thickness
+            or any(_collinear(p, q) and _gap(p, q) <= MAX_OPENING for q in solid if q is not p)
+        ]
         pieces = _join_collinear(pieces, lambda p, s0, s1: False)
 
         def bridged(p: _Piece, s0: float, s1: float) -> bool:
@@ -910,6 +929,8 @@ class _Importer:
                     s0 - TOLERANCE <= s <= s1 + TOLERANCE and abs(v) <= p.thickness / 2 + TOLERANCE
                 )
 
+            if s1 - s0 <= MAX_PIER:
+                return True  # a column or pier the wall's lines stop at
             if any(sum(inside(x) for x in o.points) >= 2 for o in openings):
                 return True
             # A T-junction: another wall ends in the gap.
@@ -939,11 +960,9 @@ class _Importer:
         pieces = _join_collinear(pieces, lambda p, s0, s1: False)
         _join_ends(pieces)
         kept = []
-        short = 0
         for piece in pieces:
             if piece.length < MIN_WALL:
-                short += 1
-                continue
+                continue  # slivers between openings and columns
             kept.append(piece)
             type_id = default if piece.centre_line else self.wall_type(piece.thickness)
             wall_type = next(t for t in self.data["wallTypes"] if t["id"] == type_id)
@@ -963,8 +982,6 @@ class _Importer:
                 record["height"] = self.height
             self.data["walls"].append(record)
             self.adopted["walls"] += 1
-        if short:
-            self.skipped.append(f"{short} wall pieces shorter than {MIN_WALL:.0f} mm")
         return kept
 
     def centre_line_type(self) -> str | None:
