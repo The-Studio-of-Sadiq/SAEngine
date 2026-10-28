@@ -162,7 +162,26 @@ CommandsRegistry.registerCommand('saengine.bim.ifc', async (accessor, request: I
 	const settingsText = request.settingsText ?? await texts('settings');
 	// The coordination model of 7 MEP (equipment, plinths, sleeves, shafts) is in the 3D view too.
 	const mepText = request.mepText ?? await texts('mep');
-	return solver.buildingIfc(python, { ...request, substructureText, settingsText, mepText });
+	// The architecture (walls, doors, windows, rooms) of 05 Floor Plan is in the 3D view too.
+	const architectureText = request.architectureText ?? await texts('architecture');
+	return solver.buildingIfc(python, { ...request, substructureText, settingsText, mepText, architectureText });
+});
+
+/** What the Architecture editor asks the backend to adopt from an architect's IFC. */
+interface IArchitectureImportRequest {
+	/** Absolute path of the IFC file. */
+	readonly path: string;
+	readonly architectureText?: string;
+	readonly floorPlanText: string;
+}
+
+/**
+ * An architect's IFC (Revit, ArchiCAD) adopted into the architecture: `{architecture, summary}`
+ * or `{problems}`. Internal: the Architecture editor calls it by id.
+ */
+CommandsRegistry.registerCommand('saengine.architecture.importIfc', async (accessor, request: IArchitectureImportRequest) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'architecture/importIfc', request);
 });
 
 /**
@@ -174,7 +193,8 @@ function projectTexts(accessor: ServicesAccessor): (part: string) => Promise<str
 	const fileService = accessor.get(IFileService);
 	const modelService = accessor.get(IModelService);
 	return async id => {
-		const part = partById(id);
+		// The architecture is a file of Part 5 beside the floor plan, not a part of its own.
+		const part = id === 'architecture' ? { folder: partById('floorPlan')!.folder, mainFile: 'architecture.json' } : partById(id);
 		if (!root || !part?.mainFile) {
 			return undefined;
 		}

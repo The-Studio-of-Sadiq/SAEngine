@@ -169,6 +169,8 @@ export interface IBuildingIfcRequest {
 	readonly settingsText?: string;
 	/** `07 MEP/mep.json`: its equipment, plinths, sleeves, openings and shafts are in the model too. */
 	readonly mepText?: string;
+	/** `05 Floor Plan/architecture.json`: its walls, doors, windows, rooms and finishes are in the model too (ids `arch:<id>`). */
+	readonly architectureText?: string;
 }
 
 export interface IBuildingIfc {
@@ -178,6 +180,8 @@ export interface IBuildingIfc {
 	readonly ids?: { readonly [elementId: string]: string };
 	/** Elements left out, with why. */
 	readonly skipped?: readonly string[];
+	/** The story each architecture element (`arch:<id>` in {@link ids}) stands on. */
+	readonly architectureStories?: { readonly [elementId: string]: string };
 	/** Why no IFC could be written (the building model or object types have errors). */
 	readonly problems?: readonly string[];
 }
@@ -575,7 +579,7 @@ export type EngineMethod =
 	| 'soil/location' | 'soil/plotCheck' | 'soil/gisExport' | 'soil/gisImport' | 'soil/qgisProgram'
 	| 'drawings/generate' | 'drawings/list' | 'drawings/progress'
 	| 'import/structural' | 'export/e2k' | 'library/steelSections' | 'library/generateBuilding'
-	| 'section/analyse';
+	| 'section/analyse' | 'architecture/importIfc' | 'architecture/check';
 
 export interface IQgisOpenRequest {
 	/** Absolute path of the `.gpkg`, `.geojson` or `.json` file. */

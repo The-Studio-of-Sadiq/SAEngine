@@ -17212,3 +17212,764 @@ export const MEP_SCHEMA: IJSONSchema = {
 	title: 'SAEngine MEP coordination',
 	type: 'object',
 };
+
+export const ARCHITECTURE_SCHEMA: IJSONSchema = {
+	$defs: {
+		ArchWall: {
+			additionalProperties: false,
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Wall type',
+					type: 'string',
+				},
+				base: {
+					description: 'Story the wall stands on.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Base',
+					type: 'string',
+				},
+				top: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Story the wall rises to (empty: the next story up, or its height).',
+					title: 'Top',
+				},
+				height: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Height above its base [mm], instead of a top story.',
+					title: 'Height',
+				},
+				baseOffset: {
+					default: 0,
+					description: 'Above the base story [mm].',
+					title: 'Base offset',
+					type: 'number',
+				},
+				path: {
+					description: 'The location line, point by point.',
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					minItems: 2,
+					title: 'Path',
+					type: 'array',
+				},
+				structuralRef: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The floor-plan beam or wall it stands on (informative: no stiffness).',
+					title: 'Sits on',
+				},
+			},
+			required: ['id', 'type', 'base', 'path'],
+			title: 'ArchWall',
+			type: 'object',
+		},
+		Door: {
+			additionalProperties: false,
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Door type',
+					type: 'string',
+				},
+				wall: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Host wall',
+					type: 'string',
+				},
+				offset: {
+					description: 'Along the wall from its start to the centre [mm].',
+					minimum: 0,
+					title: 'Offset',
+					type: 'number',
+				},
+				flip: {
+					default: false,
+					description: 'Swings to the other side.',
+					title: 'Flip',
+					type: 'boolean',
+				},
+			},
+			required: ['id', 'type', 'wall', 'offset'],
+			title: 'Door',
+			type: 'object',
+		},
+		DoorType: {
+			additionalProperties: false,
+			description: 'A door of a fixed parametric style (no family editor).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				style: {
+					default: 'single',
+					enum: ['single', 'double', 'sliding'],
+					enumDescriptions: ['Single swing', 'Double swing', 'Sliding'],
+					title: 'Style',
+					type: 'string',
+				},
+				width: {
+					description: 'Clear opening width [mm].',
+					exclusiveMinimum: 0,
+					title: 'Width',
+					type: 'number',
+				},
+				height: {
+					description: 'Clear opening height [mm].',
+					exclusiveMinimum: 0,
+					title: 'Height',
+					type: 'number',
+				},
+				frame: {
+					default: 50,
+					description: 'Frame width [mm].',
+					exclusiveMinimum: 0,
+					title: 'Frame',
+					type: 'number',
+				},
+			},
+			required: ['id', 'name', 'width', 'height'],
+			title: 'DoorType',
+			type: 'object',
+		},
+		FinishType: {
+			additionalProperties: false,
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				kind: {
+					enum: ['floor', 'wall', 'ceiling'],
+					enumDescriptions: ['Floor finish', 'Wall finish', 'Ceiling finish'],
+					title: 'Kind',
+					type: 'string',
+				},
+				thickness: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Thickness',
+					type: 'number',
+				},
+				unitWeight: {
+					description: '[kN/m³]',
+					minimum: 0,
+					title: 'Unit weight',
+					type: 'number',
+				},
+			},
+			required: ['id', 'name', 'kind', 'thickness', 'unitWeight'],
+			title: 'FinishType',
+			type: 'object',
+		},
+		Room: {
+			additionalProperties: false,
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				story: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				point: {
+					description: 'A point inside the room; its walls are found around it.',
+					items: {
+						type: 'number',
+					},
+					maxItems: 2,
+					minItems: 2,
+					title: 'Point',
+					type: 'array',
+				},
+				name: {
+					default: 'Room',
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				number: {
+					default: '',
+					title: 'Number',
+					type: 'string',
+				},
+				occupancy: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Area use from the code pack (e.g. BNBC\'s), for its loads.',
+					title: 'Occupancy',
+				},
+				floorFinish: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Floor finish',
+				},
+				wallFinish: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Wall finish',
+				},
+				ceilingFinish: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Ceiling finish',
+				},
+				wet: {
+					default: false,
+					description: 'Toilet, kitchen or other wet area.',
+					title: 'Wet',
+					type: 'boolean',
+				},
+			},
+			required: ['id', 'story', 'point'],
+			title: 'Room',
+			type: 'object',
+		},
+		RoomSeparator: {
+			additionalProperties: false,
+			description: 'A line that bounds rooms where there is no wall (an open plan\'s kitchen and dining).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				story: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				start: {
+					description: '[x, y] in mm.',
+					items: {
+						type: 'number',
+					},
+					maxItems: 2,
+					minItems: 2,
+					title: 'Start',
+					type: 'array',
+				},
+				end: {
+					description: '[x, y] in mm.',
+					items: {
+						type: 'number',
+					},
+					maxItems: 2,
+					minItems: 2,
+					title: 'End',
+					type: 'array',
+				},
+			},
+			required: ['id', 'story', 'start', 'end'],
+			title: 'RoomSeparator',
+			type: 'object',
+		},
+		WallLayer: {
+			additionalProperties: false,
+			description: 'One layer of a wall type, from the wall\'s left face to its right (seen along its path).',
+			properties: {
+				material: {
+					description: 'e.g. Brick, Cement plaster.',
+					minLength: 1,
+					title: 'Material',
+					type: 'string',
+				},
+				thickness: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Thickness',
+					type: 'number',
+				},
+				unitWeight: {
+					description: '[kN/m³]',
+					minimum: 0,
+					title: 'Unit weight',
+					type: 'number',
+				},
+			},
+			required: ['material', 'thickness', 'unitWeight'],
+			title: 'WallLayer',
+			type: 'object',
+		},
+		WallType: {
+			additionalProperties: false,
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				layers: {
+					items: {
+						$ref: '#/$defs/WallLayer',
+					},
+					minItems: 1,
+					title: 'Layers',
+					type: 'array',
+				},
+				locationLine: {
+					default: 'center',
+					description: 'What a wall\'s path runs along: its centre, or its left or right face (seen walking from the path\'s start to its end).',
+					enum: ['center', 'left', 'right'],
+					enumDescriptions: ['Wall centre', 'Left face', 'Right face'],
+					title: 'Location line',
+					type: 'string',
+				},
+			},
+			required: ['id', 'name', 'layers'],
+			title: 'WallType',
+			type: 'object',
+		},
+		Window: {
+			additionalProperties: false,
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Window type',
+					type: 'string',
+				},
+				wall: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Host wall',
+					type: 'string',
+				},
+				offset: {
+					description: 'Along the wall from its start to the centre [mm].',
+					minimum: 0,
+					title: 'Offset',
+					type: 'number',
+				},
+				sill: {
+					anyOf: [
+						{
+							description: '[mm]',
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Sill height [mm] (empty: the window type\'s).',
+					title: 'Sill',
+				},
+			},
+			required: ['id', 'type', 'wall', 'offset'],
+			title: 'Window',
+			type: 'object',
+		},
+		WindowType: {
+			additionalProperties: false,
+			description: 'A window of a fixed parametric style (no family editor).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				style: {
+					default: 'sliding',
+					enum: ['fixed', 'casement', 'sliding'],
+					enumDescriptions: ['Fixed', 'Casement', 'Sliding'],
+					title: 'Style',
+					type: 'string',
+				},
+				width: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Width',
+					type: 'number',
+				},
+				height: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Height',
+					type: 'number',
+				},
+				sill: {
+					default: 900,
+					description: 'Sill height above the floor [mm].',
+					minimum: 0,
+					title: 'Sill',
+					type: 'number',
+				},
+				frame: {
+					default: 50,
+					description: 'Frame width [mm].',
+					exclusiveMinimum: 0,
+					title: 'Frame',
+					type: 'number',
+				},
+			},
+			required: ['id', 'name', 'width', 'height'],
+			title: 'WindowType',
+			type: 'object',
+		},
+	},
+	additionalProperties: false,
+	properties: {
+		schema: {
+			const: 'saengine.architecture/1',
+			default: 'saengine.architecture/1',
+			title: 'Schema_',
+			type: 'string',
+		},
+		wallTypes: {
+			items: {
+				$ref: '#/$defs/WallType',
+			},
+			title: 'Wall types',
+			type: 'array',
+		},
+		doorTypes: {
+			items: {
+				$ref: '#/$defs/DoorType',
+			},
+			title: 'Door types',
+			type: 'array',
+		},
+		windowTypes: {
+			items: {
+				$ref: '#/$defs/WindowType',
+			},
+			title: 'Window types',
+			type: 'array',
+		},
+		finishTypes: {
+			items: {
+				$ref: '#/$defs/FinishType',
+			},
+			title: 'Finish types',
+			type: 'array',
+		},
+		walls: {
+			items: {
+				$ref: '#/$defs/ArchWall',
+			},
+			title: 'Walls',
+			type: 'array',
+		},
+		doors: {
+			items: {
+				$ref: '#/$defs/Door',
+			},
+			title: 'Doors',
+			type: 'array',
+		},
+		windows: {
+			items: {
+				$ref: '#/$defs/Window',
+			},
+			title: 'Windows',
+			type: 'array',
+		},
+		rooms: {
+			items: {
+				$ref: '#/$defs/Room',
+			},
+			title: 'Rooms',
+			type: 'array',
+		},
+		separators: {
+			items: {
+				$ref: '#/$defs/RoomSeparator',
+			},
+			title: 'Room separators',
+			type: 'array',
+		},
+	},
+	title: 'SAEngine architecture',
+	type: 'object',
+};
+
+export const DEFAULT_ARCHITECTURE: object = {
+	schema: 'saengine.architecture/1',
+	wallTypes: [
+		{
+			id: 'BW250',
+			name: 'Brick wall 250 mm, plastered',
+			layers: [
+				{
+					material: 'Cement plaster',
+					thickness: 12.0,
+					unitWeight: 20.4,
+				},
+				{
+					material: 'Brick',
+					thickness: 250.0,
+					unitWeight: 18.85,
+				},
+				{
+					material: 'Cement plaster',
+					thickness: 12.0,
+					unitWeight: 20.4,
+				},
+			],
+			locationLine: 'center',
+		},
+		{
+			id: 'BW125',
+			name: 'Brick partition 125 mm, plastered',
+			layers: [
+				{
+					material: 'Cement plaster',
+					thickness: 12.0,
+					unitWeight: 20.4,
+				},
+				{
+					material: 'Brick',
+					thickness: 125.0,
+					unitWeight: 18.85,
+				},
+				{
+					material: 'Cement plaster',
+					thickness: 12.0,
+					unitWeight: 20.4,
+				},
+			],
+			locationLine: 'center',
+		},
+	],
+	doorTypes: [
+		{
+			id: 'D1',
+			name: 'Main door',
+			style: 'single',
+			width: 1000.0,
+			height: 2100.0,
+			frame: 50.0,
+		},
+		{
+			id: 'D2',
+			name: 'Room door',
+			style: 'single',
+			width: 900.0,
+			height: 2100.0,
+			frame: 50.0,
+		},
+		{
+			id: 'D3',
+			name: 'Toilet door',
+			style: 'single',
+			width: 750.0,
+			height: 2100.0,
+			frame: 50.0,
+		},
+		{
+			id: 'DD',
+			name: 'Double door',
+			style: 'double',
+			width: 1500.0,
+			height: 2100.0,
+			frame: 50.0,
+		},
+	],
+	windowTypes: [
+		{
+			id: 'W1',
+			name: 'Window',
+			style: 'sliding',
+			width: 1500.0,
+			height: 1500.0,
+			sill: 900.0,
+			frame: 50.0,
+		},
+		{
+			id: 'W2',
+			name: 'Small window',
+			style: 'sliding',
+			width: 1200.0,
+			height: 1200.0,
+			sill: 900.0,
+			frame: 50.0,
+		},
+		{
+			id: 'V1',
+			name: 'Ventilator',
+			style: 'fixed',
+			width: 600.0,
+			height: 450.0,
+			sill: 1650.0,
+			frame: 50.0,
+		},
+	],
+	finishTypes: [
+		{
+			id: 'TILE',
+			name: 'Floor tiles on mortar',
+			kind: 'floor',
+			thickness: 40.0,
+			unitWeight: 21.0,
+		},
+		{
+			id: 'PLASTER',
+			name: 'Plaster and paint',
+			kind: 'wall',
+			thickness: 12.0,
+			unitWeight: 20.4,
+		},
+		{
+			id: 'CEIL',
+			name: 'Ceiling plaster',
+			kind: 'ceiling',
+			thickness: 6.0,
+			unitWeight: 20.4,
+		},
+	],
+	walls: [],
+	doors: [],
+	windows: [],
+	rooms: [],
+	separators: [],
+};

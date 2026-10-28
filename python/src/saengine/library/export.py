@@ -21,6 +21,7 @@ from pydantic import BaseModel
 
 from saengine.codes.tables import builtin_table
 from saengine.library import bnbc
+from saengine.library.architecture import Architecture, default_architecture
 from saengine.library.bim import BuildingModel
 from saengine.library.defaults import (
     default_building_model,
@@ -226,6 +227,12 @@ def generate_typescript() -> str:
         ),
         ("DEFAULT_SUBSTRUCTURE", "object", library_json(default_substructure())),
         ("MEP_SCHEMA", "IJSONSchema", json_schema(MepModel, "SAEngine MEP coordination")),
+        (
+            "ARCHITECTURE_SCHEMA",
+            "IJSONSchema",
+            json_schema(Architecture, "SAEngine architecture"),
+        ),
+        ("DEFAULT_ARCHITECTURE", "object", library_json(default_architecture())),
     ]
     body = "\n".join(
         f"export const {name}: {type_} = {_ts(value)};\n" for name, type_, value in exports

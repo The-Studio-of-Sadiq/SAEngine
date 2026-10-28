@@ -615,6 +615,6 @@ export function createFemViewer(container: HTMLElement, options: FemViewerOption
 	return new FemViewerImpl(container, options);
 }
 
-export { createBuildingViewer, type BuildingLayer, type BuildingViewer, type BuildingViewerOptions, type BuildingViewerTheme, type BuildingViewPreset } from './building.js';
+export { ARCHITECTURE_PREFIX, createBuildingViewer, type BuildingLayer, type BuildingViewer, type BuildingViewerOptions, type BuildingViewerTheme, type BuildingViewPreset } from './building.js';
 export { setTrustedTypesHost, type TrustedTypesHost } from './trustedTypes.js';
 export { createStructureModeler, type ModelerEntity, type ModelerGhost, type ModelerHit, type ModelerScene, type ModelerTheme, type ModelerView, type ModelPoint, type StructureModeler, type StructureModelerOptions } from './modeler.js';

@@ -88,6 +88,7 @@ const MEMBERS_TABLE_INPUT = 'workbench.input.saengine.membersTable';
 const FEM_MODEL_INPUT = 'workbench.input.saengine.femModel';
 const FEM_RESULTS_INPUT = 'workbench.input.saengine.femResults';
 const FEM_PROPOSAL_INPUT = 'workbench.input.saengine.femDesignProposal';
+const ARCHITECTURE_INPUT = 'workbench.input.saengine.architecture';
 
 /** The entries under the parts that hold several views (agreed for alpha 7); none for the others. */
 export function partSections(partId: string): readonly IPartSection[] {
@@ -110,6 +111,8 @@ export function partSections(partId: string): readonly IPartSection[] {
 			{ id: '3d', label: localize('partSection.bim3d', "3D View"), sections: ['3d'] },
 			{ id: 'additions', label: localize('partSection.bimAdditions', "Additions"), sections: ['additions'] },
 			{ id: 'summary', label: localize('partSection.bimSummary', "Summary"), sections: ['summary'] },
+			// Walls, doors, windows and rooms: 05 Floor Plan/architecture.json in its own editor (saengineCad).
+			{ id: 'architecture', label: localize('partSection.bimArchitecture', "Architecture"), command: 'saengine.architecture.open', typeId: ARCHITECTURE_INPUT },
 		];
 		case 'mep': return [
 			{ id: 'coordination', label: localize('partSection.mepCoordination', "Coordination"), sections: ['coordination'] },

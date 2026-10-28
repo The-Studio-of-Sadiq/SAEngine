@@ -261,6 +261,7 @@ def export_ifc(
     substructure: Any = None,
     ground_level: float = 0.0,
     mep: Any = None,
+    architecture: Any = None,
 ) -> tuple[ifcopenshell.file, dict[str, str], list[str]]:
     """The IFC file of ``building``, its element id -> GlobalId map, and elements left out (why).
 
@@ -270,19 +271,24 @@ def export_ifc(
     founding level found 1.5 m below ``ground_level``), and the footings of the building model
     are left out; without it the building model's footings are exported. With ``mep`` (the
     :class:`saengine.library.mep.MepModel` of ``07 MEP/mep.json``) its equipment, plinths,
-    sleeves, openings and shafts are added (:func:`_export_mep`)."""
+    sleeves, openings and shafts are added (:func:`_export_mep`). With ``architecture`` (the
+    :class:`saengine.library.architecture.Architecture` of ``05 Floor Plan/architecture.json``)
+    its walls, doors, windows, rooms and finishes are added, keyed ``arch:<id>`` in the map (see
+    :mod:`saengine.library.architecture_ifc`)."""
     if mep is not None:
         from saengine.mep.loads import with_mep_openings
 
         building, _ = with_mep_openings(building, mep)  # shafts and slab and wall openings
     w = _Writer(name, objects, materials)
     storeys: list[tuple[float, Any]] = []
+    storey_ids: dict[str, Any] = {}
     for story in sorted(building.stories, key=lambda s: s.elevation):
         storey = w.entity("IfcBuildingStorey", story.name, f"storey:{story.id}")
         storey.Elevation = float(story.elevation)
         w.run("aggregate.assign_object", w.file, products=[storey], relating_object=w.building)
         w.place(storey, _placement((0, 0, story.elevation), (1, 0, 0), (0, 0, 1)))
         storeys.append((story.elevation, storey))
+        storey_ids[story.id] = storey
 
     def storey_at(elevation: float) -> Any:
         """The storey an element at ``elevation`` belongs to: the highest one not above it."""
@@ -425,6 +431,13 @@ def export_ifc(
             _export_plumbing(w, building, mep, ground_level, storey_at, ids, skipped)
         if getattr(mep, "hvac", None) is not None or getattr(mep, "electrical", None) is not None:
             _export_services(w, building, mep, storey_at, ids, skipped)
+    if architecture is not None:
+        from saengine.library.architecture_ifc import export_architecture
+
+        arch_ids: dict[str, str] = {}
+        elevations = {s.id: s.elevation for s in building.stories}
+        export_architecture(w, architecture, elevations, storey_ids, storey_at, arch_ids, skipped)
+        ids.update({f"arch:{key}": guid for key, guid in arch_ids.items()})
     return w.file, ids, skipped
 
 

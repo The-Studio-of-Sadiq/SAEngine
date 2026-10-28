@@ -3,7 +3,7 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CadChrome, CadEditor } from '@saengine/cad-editor';
+import type { CadChrome, CadEditor, CadGeneratedDrawing } from '@saengine/cad-editor';
 import { $, append } from '../../../../base/browser/dom.js';
 import { Color } from '../../../../base/common/color.js';
 import { editorBackground } from '../../../../platform/theme/common/colors/editorColors.js';
@@ -97,4 +97,22 @@ export function cadBackground(theme: IColorTheme): number {
 /** Whether `theme` shows the CAD canvas light (for layer colours that read on it). */
 export function isLightCanvas(theme: IColorTheme): boolean {
 	return (theme.getColor(editorBackground) ?? Color.black).isLighter();
+}
+
+/**
+ * Layer colours (AutoCAD Color Index) as drawn on a light canvas: the bright yellow, green, cyan
+ * and magenta of a dark CAD screen are unreadable on white, so the screen shows deeper shades of
+ * the same hues. Exported DXF keeps the standard colours.
+ */
+const LIGHT_CANVAS_COLORS: { readonly [aci: number]: number } = {
+	2: 30,   // yellow -> orange (previews)
+	8: 251,  // grey -> dark grey (grid lines)
+	3: 94,   // green -> dark green (beams)
+	4: 144,  // cyan -> deep azure (columns, selection)
+	6: 212,  // magenta -> deep magenta (slabs)
+	30: 34,  // orange -> brown (footings)
+};
+
+export function forCanvas(drawing: CadGeneratedDrawing, light: boolean): CadGeneratedDrawing {
+	return light ? { ...drawing, layers: drawing.layers.map(layer => ({ ...layer, color: LIGHT_CANVAS_COLORS[layer.color] ?? layer.color })) } : drawing;
 }
