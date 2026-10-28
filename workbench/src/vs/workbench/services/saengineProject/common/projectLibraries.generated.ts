@@ -4420,14 +4420,6 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					title: 'Cut off beam top bars',
 					type: 'boolean',
 				},
-				boqReinforcement: {
-					default: 'measured',
-					description: 'How 10 BOQ takes the reinforcement: measured by its own rules (the default; the bar bending schedule is reconciled in its notes), or the masses of the bar bending schedule for every element the drawings detail.',
-					enum: ['measured', 'bbs'],
-					enumDescriptions: ['Measured by the BOQ\'s rules', 'From the bar bending schedule'],
-					title: 'BOQ reinforcement',
-					type: 'string',
-				},
 			},
 			title: 'Drawings',
 			type: 'object',
@@ -5632,7 +5624,6 @@ export const DEFAULT_SETTINGS: object = {
 		detailScale: 25,
 		developmentLength: 'simplified',
 		curtail: true,
-		boqReinforcement: 'measured',
 	},
 };
 

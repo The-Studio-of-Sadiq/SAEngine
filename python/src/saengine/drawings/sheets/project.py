@@ -1152,7 +1152,8 @@ def general_notes(objects: Any, materials: Any, detailing: dict[str, Any]) -> li
         "Clear covers are to the outermost bars (links, ties) as the cover table gives.",
         (
             "Laps and anchorages are as the development and lap length table unless the "
-            "drawing shows a length; stagger laps; no laps in beam-column joints."
+            "drawing shows a length; laps where the elevations show them (class B), none in "
+            "beam-column joints; no laps of 36 mm bars and larger: mechanical couplers."
         ),
         "Bar marks (e.g. B1-T2) refer to the bar bending schedule; shape codes to BS 8666.",
     ]

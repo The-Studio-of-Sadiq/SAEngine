@@ -866,14 +866,15 @@ class Drawings(_Model):
         description="Stop the extra top bars of beams past the supports; off: every bar runs "
         "the full length.",
     )
-    boqReinforcement: Literal["measured", "bbs"] = Field(
-        default="measured",
-        title="BOQ reinforcement",
-        description="How 10 BOQ takes the reinforcement: measured by its own rules (the "
-        "default; the bar bending schedule is reconciled in its notes), or the masses of the "
-        "bar bending schedule for every element the drawings detail.",
-        json_schema_extra=_labels(["Measured by the BOQ's rules", "From the bar bending schedule"]),
-    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_boq_reinforcement(cls, data: Any) -> Any:
+        """Earlier projects chose how 10 BOQ took the reinforcement (measured or from the bar
+        bending schedule); the bill now always takes the detailed bars: the choice is dropped."""
+        if isinstance(data, dict) and "boqReinforcement" in data:
+            data = {k: v for k, v in data.items() if k != "boqReinforcement"}
+        return data
 
 
 class ProjectSettings(_Model):

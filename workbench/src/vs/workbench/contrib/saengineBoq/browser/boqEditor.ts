@@ -12,12 +12,10 @@ import { Action, IAction, Separator } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { setProperty } from '../../../../base/common/jsonEdit.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { Range } from '../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
@@ -61,17 +59,6 @@ function shortGroupName(group: BoqGroup): string {
 
 /** Where the viewer's choice of units (metric or feet) is kept. */
 const IMPERIAL_STORAGE_KEY = 'saengine.boq.imperial';
-
-/** How the bill takes the reinforcement (Project Settings → Drawings, `drawings.boqReinforcement`). */
-type ReinforcementSource = 'measured' | 'bbs';
-
-function reinforcementSource(settingsText: string | undefined): ReinforcementSource {
-	try {
-		return JSON.parse(settingsText ?? '')?.drawings?.boqReinforcement === 'bbs' ? 'bbs' : 'measured';
-	} catch {
-		return 'measured';
-	}
-}
 
 function groupTitle(group: BoqGroup): string {
 	return BOQ_GROUPS.find(g => g.group === group)?.title ?? group;
@@ -117,8 +104,6 @@ export class BoqEditor extends EditorPane {
 	private readonly collapseAllAction = this._register(new Action('saengine.boq.editor.collapseAll', localize('boq.collapseAll', "Collapse All"), undefined, true, async () => this.setAllExpanded(false)));
 	private readonly openJsonAction = this._register(new Action('saengine.boq.editor.openJson', localize('boq.openJson', "Open as JSON"), undefined, true, () => this.openAsJson()));
 	private readonly imperialAction = this._register(new Action('saengine.boq.editor.imperial', localize('boq.imperial', "Show in Feet (cft, sft, rft)"), undefined, true, async () => this.setImperial(!this.imperial)));
-	private readonly measuredBarsAction = this._register(new Action('saengine.boq.editor.barsMeasured', localize('boq.barsMeasured', "Reinforcement: Measured by the BOQ's Rules"), undefined, true, () => this.setReinforcementSource('measured')));
-	private readonly scheduleBarsAction = this._register(new Action('saengine.boq.editor.barsSchedule', localize('boq.barsSchedule', "Reinforcement: From the Bar Bending Schedule"), undefined, true, () => this.setReinforcementSource('bbs')));
 
 	constructor(
 		group: IEditorGroup,
@@ -283,17 +268,10 @@ export class BoqEditor extends EditorPane {
 		const hasItems = !!document?.items.length;
 		this.expandAllAction.enabled = this.collapseAllAction.enabled = hasItems;
 
-		const bars = reinforcementSource(this.sources.get('settings')?.getValue());
-		this.measuredBarsAction.checked = bars === 'measured';
-		this.scheduleBarsAction.checked = bars === 'bbs';
-		this.measuredBarsAction.enabled = this.scheduleBarsAction.enabled = !this.computing && this.sources.has('settings');
 		this.imperialAction.checked = this.imperial;
 		const primary: IAction[] = [...(stale ? [this.updateAction] : []), this.exportAction, frame.togglePropertiesAction];
 		const secondary: IAction[] = [
 			...(stale ? [] : [this.updateAgainAction]),
-			new Separator(),
-			this.measuredBarsAction,
-			this.scheduleBarsAction,
 			new Separator(),
 			this.imperialAction,
 			new Separator(),
@@ -515,29 +493,6 @@ export class BoqEditor extends EditorPane {
 		if (resource) {
 			await this.editorService.openEditor({ resource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id, pinned: true } }, this.group);
 		}
-	}
-
-	/**
-	 * Sets how the bill takes the reinforcement (Project Settings' `drawings.boqReinforcement`),
-	 * saves the settings and measures the bill again: the setting is not one of the bill's
-	 * stamped sources, so the bill would not go out of date by itself.
-	 */
-	private async setReinforcementSource(value: ReinforcementSource): Promise<void> {
-		const model = this.sources.get('settings');
-		if (!model || model.isDisposed() || reinforcementSource(model.getValue()) === value) {
-			return;
-		}
-		const options = model.getOptions();
-		const edits = setProperty(model.getValue(), ['drawings', 'boqReinforcement'], value, { tabSize: options.tabSize, insertSpaces: options.insertSpaces, eol: model.getEOL() });
-		model.pushStackElement();
-		model.pushEditOperations([], edits.map(edit => {
-			const start = model.getPositionAt(edit.offset);
-			const end = model.getPositionAt(edit.offset + edit.length);
-			return { range: new Range(start.lineNumber, start.column, end.lineNumber, end.column), text: edit.content };
-		}), () => null);
-		model.pushStackElement();
-		await this.textFileService.save(model.uri);
-		await this.compute();
 	}
 
 	private setAllExpanded(expanded: boolean): void {

@@ -18,13 +18,18 @@ Measurement rules (stated in the document's notes too):
   slab's. Columns run their full height less that slab depth; walls their whole length less wall
   openings (clipped to the wall). Nothing else is deducted where members meet (beam/beam,
   wall/column joints); special-structure members run node to node;
-- longitudinal bars run the member's full length (beams centreline to centreline, into the
-  columns) with a lap of 40 bar diameters at every joint between 12 m stock bars (a bar of
-  12 m or less has none, 12 to 24 m one, ...). Stirrups and ties are measured at their centre
-  line plus two 135° hooks of 10 diameters each, ``length / spacing + 1`` of them over the
-  beam's clear span or the column's height; legs beyond two are cross-ties across the section
-  depth. Meshes of slabs, walls, footings and stairs are ``area / spacing`` of bar per
-  layer and direction, with the same laps. Bar mass is ``d² / 162`` kg/m (7850 kg/m³);
+- reinforcement: the bars of every element the drawings detail are its detailed bars, those of
+  the bar bending schedule (:mod:`saengine.boq.schedule`: number × cutting length per bar mark,
+  with the BNBC 2020 laps, hooks, cut-off bars and stirrup zones), so the bill and the schedule
+  agree per bar size. The estimating rules below measure only the elements the drawings do not
+  detail (and all of them when the bars cannot be detailed): longitudinal bars run the member's
+  full length (beams centreline to centreline, into the columns) with a lap of 40 bar diameters
+  at every joint between 12 m stock bars (a bar of 12 m or less has none, 12 to 24 m one, ...).
+  Stirrups and ties are measured at their centre line plus two 135° hooks of 10 diameters each,
+  ``length / spacing + 1`` of them over the beam's clear span or the column's height; legs
+  beyond two are cross-ties across the section depth. Meshes of slabs, walls, footings and
+  stairs are ``area / spacing`` of bar per layer and direction, with the same laps. Bar mass is
+  ``d² / 162`` kg/m (7850 kg/m³);
 - formwork is the cast faces: beam sides and soffit, column perimeter by height, slab soffit and
   edges, wall faces, footing and block sides, stair soffit and risers. A face cast against another
   member is not formed: the slab soffit over beams, columns and walls, beam/column/wall faces
@@ -221,11 +226,16 @@ CONVENTIONS = [
         "outline, with no deduction where they meet."
     ),
     (
-        "Longitudinal bars run the member's full length (beams centreline to centreline) with a lap "
-        "of 40 bar diameters at every joint between 12 m stock lengths. Stirrups and ties are "
-        "measured at their centre line plus two 135° hooks of 10 diameters, length / spacing + 1 of "
-        "them. Meshes are area / spacing of bar per layer and direction. Bends, anchorages, chairs "
-        "and wastage are not included; bar mass is d²/162 kg/m."
+        "Reinforcement is measured from the detailed bars of the drawings for every element they "
+        "detail: the bar bending schedule's number × cutting length per bar mark, with the BNBC "
+        "2020 laps, hooks and bends, cut-off bars and the stirrups of each zone at its spacing, so "
+        "the bill and the schedule agree per bar size. Elements the drawings do not detail (see "
+        "below) are measured by estimating rules: longitudinal bars over the member's full length "
+        "(beams centreline to centreline) with a lap of 40 bar diameters at every joint between "
+        "12 m stock lengths, stirrups and ties at their centre line plus two 135° hooks of 10 "
+        "diameters, length / spacing + 1 of them, meshes as area / spacing of bar per layer and "
+        "direction, without bends or anchorages. Chairs and wastage are not included; bar mass is "
+        "d²/162 kg/m."
     ),
     (
         "Formwork is measured to the cast faces: beam sides and soffit, column perimeter by height, "
@@ -2153,27 +2163,18 @@ def compute_boq(
 def _with_bar_schedule(
     document: BillOfQuantities, texts: dict[str, str | None], project_root: str | None = None
 ) -> None:
-    """The bar bending schedule of the drawings in the bill (:mod:`saengine.boq.schedule`): its
-    reconciliation in the notes, or, with Project Settings' ``drawings.boqReinforcement``
-    "bbs", its bars in place of the measured ones (``project_root``: with the marks and the kept
-    design of the drawings, :func:`saengine.boq.schedule.schedule_of`)."""
+    """The reinforcement of every element the drawings detail, taken from its detailed bars (the
+    bar bending schedule, :mod:`saengine.boq.schedule`) in place of the estimate, so that the
+    bill and the schedule agree per bar size; the notes say which elements kept the estimate
+    (``project_root``: detailed with the marks and the kept design of the drawings,
+    :func:`saengine.boq.schedule.schedule_of`)."""
     from saengine.boq.schedule import reconcile_notes, schedule_of, take_from_schedule
-    from saengine.library.settings import ProjectSettings
 
-    take = False
-    if texts.get("settings"):
-        try:
-            settings = ProjectSettings.model_validate_json(texts["settings"] or "")
-            take = settings.drawings.boqReinforcement == "bbs"
-        except ValueError:
-            take = False
-    if not take and not any(i.group == "reinforcement" for i in document.items):
-        return
     schedule, notes = schedule_of(texts, project_root)
     if schedule is None or not schedule.rows:
         document.notes += notes
         return
-    kept = take_from_schedule(document, schedule) if take else None
+    kept = take_from_schedule(document, schedule)
     document.notes += reconcile_notes(document, schedule, kept)
 
 

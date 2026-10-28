@@ -81,6 +81,16 @@ meet in a short span are one bar across it; column bars without a partner in a s
 above stop 40 mm below the floor's top with a 90° hook, and the extra bars of a larger column
 above start on dowels anchored ld below the floor.
 
+Splices of beam bars (8.2.12.2(a), 8.2.13, 8.1.12.2, 8.3.4.2(b)): a continuous bar longer than a
+stock length (12 m) is cut into bars of at most a stock length (hooks included), lapped class B
+(all the bars of a layer lap at one place, so more than half are spliced there, 8.2.13.2), each
+lap as far along as the stock length reaches: top bars in the middle third of a span, bottom bars
+near the supports (from the face, or 2 h from it in special frames, to a third of the clear span),
+a window shorter than the lap widened to hold it but never into the joints or the 2 h zones of
+special frames; over the laps of special-frame beams hoops at the type's splice spacing, else at
+min(d/4, 100 mm) rounded down to 25 mm. Bars of 36 mm and larger are not lapped: a run longer
+than a stock length is noted for mechanical couplers (columns: coupled where the lap would be).
+
 Anchorage read from BNBC: top bars of slabs at discontinuous edges bend down into the edge
 support with a standard 90° hook (8.1.2.1(b), p 1065) when it is deep enough, ldh checked on
 the support's width (8.2.9.1, p 1081: negative steel anchored in or through the support);
@@ -122,7 +132,8 @@ schedules them), "segments" (the same in order), "bendDia" (BNBC least inside be
 (where it lies: line coordinates or levels, face, layer and world end points),
 "zone"?, "lap"? (lap length at its ends), "curtailed"? (a cut-off bar), "remarks"?}``;
 transverse rows ``{"mark", "from", "to", "spacing", "count", "zone"}`` (lo end zones,
-middle, splice, joint); laps ``{"marks", "from", "to", "length", "class", "clause", "at"}``;
+middle, splice, joint); laps ``{"marks", "from", "to", "length", "class" (A, B,
+compression, coupler), "clause", "face"?, "dia"?, "count"? (beams), "with"? (columns)}``;
 checks ``{"name", "required", "provided", "unit", "ok", "clause"}``. ``marks``: per mark
 ``{"mark", "type", "kind", "role", "dia", "shape", "dims", "length", "count" (in the project),
 "elements", "signature"}``. Units: mm, MPa.
@@ -134,6 +145,7 @@ import itertools
 import json
 import math
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -157,6 +169,8 @@ INTO_SUPPORT = 150.0
 SLAB_TOP_EXTENT = 0.30
 #: Extra top bars of beams over supports, from the face, as a share of ln (practice, see notes).
 BEAM_TOP_EXTENT = 0.30
+#: Hoop spacings over laps worked out here are rounded down to this [mm] (as the design's).
+SPLICE_STEP = 25.0
 #: First stirrup from the face [mm] (8.3.4.3(b), 8.3.10.4(b)).
 FIRST_STIRRUP = 50.0
 TOL = 50.0  # mm: geometric tolerance when matching members
@@ -1233,29 +1247,43 @@ def _detail_beam_line(ctx: _Ctx, line: dict[str, Any]) -> dict[str, Any]:
         spacing = (b - 2 * inset - db) / (n - 1) if n > 1 else None
         return _cb(inset, db, spacing)
 
-    # splice windows: top bars in the middle third, bottom bars in the end thirds; in special
-    # frames none within 2 h of a joint face (8.3.4.2(b), p 1091)
+    # splice windows: top bars in the middle third, bottom bars near the supports (8.1.12.2(b),
+    # p 1075); in special frames none within the joints or 2 h of their faces (8.3.4.2(b),
+    # p 1091). A window shorter than the lap is widened to hold it (the middle third about the
+    # mid-span, the end zones away from the support), never into the 2 h zones.
     offset = seismic_splice_exclusion(h).value if special else 0.0
-    top_windows = []
-    for f1, f2 in spans:
-        third = (f2 - f1) / 3
-        w0 = max(f1 + third, f1 + offset if f1 > 0 or not start_free else f1 + third)
-        w1 = min(f2 - third, f2 - offset if f2 < length or not end_free else f2 - third)
-        if w1 - w0 > 1:
-            top_windows.append((w0, w1))
-    bottom_windows: list[tuple[float, float]] = []
-    for f1, f2 in spans:
-        third = (f2 - f1) / 3
-        candidates = []
-        if f1 > 0:
-            candidates.append((f1 + offset, f1 + max(third, offset)))
-        if f2 < length:
-            candidates.append((f2 - max(third, offset), f2 - offset))
-        for a, c in candidates:
-            # clipped to the span less 2 h at both faces (a short span has none)
-            a, c = max(a, f1 + offset), min(c, f2 - offset)
-            if c - a > 1:
-                bottom_windows.append((a, c))
+
+    def top_windows(lap: float) -> list[tuple[float, float]]:
+        out = []
+        for f1, f2 in spans:
+            lo = f1 + offset if f1 > 0 or not start_free else f1
+            hi = f2 - offset if f2 < length or not end_free else f2
+            third = (f2 - f1) / 3
+            w0, w1 = f1 + third, f2 - third
+            if w1 - w0 < lap:
+                mid = (f1 + f2) / 2
+                w0, w1 = mid - lap / 2, mid + lap / 2
+            w0, w1 = max(w0, lo), min(w1, hi)
+            if w1 - w0 > 1:
+                out.append((w0, w1))
+        return out
+
+    def bottom_windows(lap: float) -> list[tuple[float, float]]:
+        out: list[tuple[float, float]] = []
+        for f1, f2 in spans:
+            reach = max((f2 - f1) / 3, offset + lap)
+            candidates = []
+            if f1 > 0:
+                candidates.append((f1 + offset, f1 + reach))
+            if f2 < length:
+                candidates.append((f2 - reach, f2 - offset))
+            for a, c in candidates:
+                # clipped to the span less 2 h at both faces (a short span has none)
+                a, c = max(a, f1 + offset), min(c, f2 - offset)
+                if c - a > 1:
+                    out.append((a, c))
+        return out or top_windows(lap)
+
     if special:
         element["notes"].append(
             "laps placed outside the joints and 2 h from their faces "
@@ -1301,15 +1329,32 @@ def _detail_beam_line(ctx: _Ctx, line: dict[str, Any]) -> dict[str, Any]:
         db: float,
         a: float,
         c: float,
-        windows: list[tuple[float, float]],
+        windows: Callable[[float], list[tuple[float, float]]],
         hooks: tuple[float, float],
         top: bool,
         **extra: Any,
     ) -> list[dict[str, Any]]:
+        """The bars of one run from ``a`` to ``c``: one bar when it fits a stock length, else
+        pieces of at most a stock length lapped (class B, 8.2.13.1, 8.2.13.2, p 1083) in
+        ``windows(lap)``. All bars of the run lap at the same place, so more than half are
+        spliced within the lap length: class B (8.2.13.2). Bars of 36 mm and larger are not
+        lapped (8.2.12.2(a), p 1083): a run longer than stock is noted for couplers."""
         bend = bend_diameter(db).value
-        lap = ctx.lap(db, fy, fc, top=top, cb=cb_of(face, db))
-        pieces, laps, ok = split_run(a, c, lap, windows, ctx.stock, hooks)
-        if not ok:
+        if db >= 36:
+            lap = 0.0
+            pieces, laps = [(a, c)], []
+            ok = c - a + hooks[0] + hooks[1] <= ctx.stock + 1e-6
+            if not ok:
+                element["notes"].append(
+                    f"{role} bars Ø{db:g}: {c - a + hooks[0] + hooks[1]:.0f} mm, longer than a "
+                    f"stock length ({ctx.stock:g} mm), and bars of 36 mm and larger are not "
+                    f"lapped ({_page('8.2.12.2(a)', 1083)}): splice them with mechanical "
+                    "couplers or order longer bars"
+                )
+        else:
+            lap = ctx.lap(db, fy, fc, top=top, cb=cb_of(face, db))
+            pieces, laps, ok = split_run(a, c, lap, windows(lap), ctx.stock, hooks)
+        if not ok and db < 36:
             element["notes"].append(
                 f"{role} bars Ø{db:g}: no lap location within a stock length "
                 f"({ctx.stock:g} mm) in the permitted zones: one bar longer than stock (use a "
@@ -1358,15 +1403,17 @@ def _detail_beam_line(ctx: _Ctx, line: dict[str, Any]) -> dict[str, Any]:
                 **extra,
             )
             out.append(bar)
-        for l0, l1 in laps:
+        for k, (l0, l1) in enumerate(laps):
             element["laps"].append(
                 {
-                    "bars": [out[i] for i in range(len(out))],
+                    "bars": [out[k], out[k + 1]],  # the bar ending and the bar starting here
                     "from": round(l0, 1),
                     "to": round(l1, 1),
                     "length": lap,
                     "class": "B",
                     "face": face,
+                    "dia": float(db),
+                    "count": int(count),
                     "clause": _page("8.2.13.1, 8.2.13.2", 1083),
                 }
             )
@@ -1501,7 +1548,7 @@ def _detail_beam_line(ctx: _Ctx, line: dict[str, Any]) -> dict[str, Any]:
         hs = anchorage("bottom", db, True)[0] if not start_free else 0.0
         he = anchorage("bottom", db, False)[0] if not end_free else 0.0
         element["bars"] += run_bar(
-            "bottom", "B", "bottom", count, db, s_start, s_end, bottom_windows or top_windows,
+            "bottom", "B", "bottom", count, db, s_start, s_end, bottom_windows,
             (hs, he), False,
         )  # fmt: skip
     if supports and bottoms:
@@ -1573,6 +1620,12 @@ def _detail_beam_line(ctx: _Ctx, line: dict[str, Any]) -> dict[str, Any]:
                 grade=grade,
                 remarks="cross tie: 135° hook one end, 90° the other, alternated (8.1.1.1)",
             )
+        # hoops over the laps of special-frame beams at <= min(d/4, 100 mm) (8.3.4.2(b),
+        # p 1091): the type's splice spacing, else that rule's
+        splice_s = zones.splice_spacing
+        if special and not splice_s:
+            rule = max(math.floor(min(d_eff / 4, 100.0) / SPLICE_STEP) * SPLICE_STEP, SPLICE_STEP)
+            splice_s = rule if rule < tr.spacing else None  # else as close already
         total = 0
         for (f1, f2), ln in zip(spans, clear, strict=False):
             if ln <= 0:
@@ -1583,10 +1636,17 @@ def _detail_beam_line(ctx: _Ctx, line: dict[str, Any]) -> dict[str, Any]:
                     rules.append((f1, f1 + zone_len, zone_s, "lo"))
                 if f2 < length or not end_free:
                     rules.append((f2 - zone_len, f2, zone_s, "lo"))
-            if zones.splice_spacing:
-                for lap in element["laps"]:
+            if splice_s:
+                # laps closer than three hoop spacings apart (top and bottom laps side by side)
+                # share one zone: no short zone of the normal spacing between them
+                over: list[list[float]] = []
+                for lap in sorted(element["laps"], key=lambda lap: lap["from"]):
                     if lap["from"] < f2 and lap["to"] > f1:
-                        rules.append((lap["from"], lap["to"], zones.splice_spacing, "splice"))
+                        if over and lap["from"] - over[-1][1] < 3 * tr.spacing:
+                            over[-1][1] = max(over[-1][1], lap["to"])
+                        else:
+                            over.append([lap["from"], lap["to"]])
+                rules += [(a, b, splice_s, "splice") for a, b in over]
             rows = space(f1, f2, float(tr.spacing), rules, first)
             for row in rows:
                 row["_bar"] = stirrup
@@ -1597,16 +1657,20 @@ def _detail_beam_line(ctx: _Ctx, line: dict[str, Any]) -> dict[str, Any]:
         if tie is not None:
             tie["count"] = total * extra_legs
             element["bars"].append(tie)
-        if special and element["laps"] and not zones.splice_spacing:
+        if special and element["laps"] and not zones.splice_spacing and splice_s:
             element["notes"].append(
-                f"hoops over the laps at <= min(d/4, 100 mm) = {min(d_eff / 4, 100):.0f} mm "
-                f"({_page('8.3.4.2(b)', 1091)}): the type gives no splice spacing"
+                f"hoops over the laps at {splice_s:g} mm: min(d/4, 100 mm) = "
+                f"{min(d_eff / 4, 100):.0f} mm rounded down to {SPLICE_STEP:g} mm "
+                f"({_page('8.3.4.2(b)', 1091)}; the type gives no splice spacing)"
             )
     sizes = sorted({d for _, d in tops + bottoms})
     lds = ", ".join(
         f"Ø{d:g} {up(ctx.ld(d, fy, fc, cb=cb_of('bottom', d)), step):g} mm" for d in sizes
     )
-    laps = ", ".join(f"Ø{d:g} {ctx.lap(d, fy, fc, cb=cb_of('bottom', d)):g} mm" for d in sizes)
+    laps = ", ".join(
+        f"Ø{d:g} {ctx.lap(d, fy, fc, cb=cb_of('bottom', d)):g} mm" if d < 36 else f"Ø{d:g} none"
+        for d in sizes
+    )
     element["notes"].append(
         f"ld ({ctx.method_text}) of the bottom bars: {lds}; class B laps: {laps}"
     )
@@ -1708,9 +1772,17 @@ def _beam_depth_at(ctx: _Ctx, column: Any, level: float) -> float:
 
 
 def _column_lap_rule(ctx: _Ctx, db: float, fy: float, fc: float, special: bool) -> Rule:
+    if db >= 36:  # no laps of 36 mm bars and larger: a mechanical splice where they meet
+        return Rule(0.0, "no lap: mechanical coupler", _page("8.2.12.2(a)", 1083))
     if ctx.options["columnLaps"] == "compression" and not special:
         return column_lap(db, fy, fc, stress="compression")
     return column_lap(db, fy, fc, stress="tension")
+
+
+def _column_lap_class(ctx: _Ctx, special: bool, length: float) -> str:
+    if length <= 0:
+        return "coupler"
+    return "B" if ctx.options["columnLaps"] == "tension" or special else "compression"
 
 
 def _lap_start(hc: float, lap: float, special: bool) -> tuple[float, bool]:
@@ -1776,6 +1848,11 @@ def _detail_column(ctx: _Ctx, stack: list[Any], k: int) -> dict[str, Any]:
     n_bars = sum(n for n, _ in groups)
     db_max = max(d for _, d in groups)
     lap_here = up(_column_lap_rule(ctx, db_max, fy, fc, special).value, step)
+    if db_max >= 36:
+        element["notes"].append(
+            f"bars Ø{db_max:g}: not lapped ({_page('8.2.12.2(a)', 1083)}); spliced with "
+            "mechanical couplers where the lap would be"
+        )
     start_here, fits = _lap_start(hc, lap_here, special)
     if special and k > 0 and not fits:
         element["notes"].append(
@@ -1828,9 +1905,7 @@ def _detail_column(ctx: _Ctx, stack: list[Any], k: int) -> dict[str, Any]:
                 "from": round(above.bottom + s_up, 1),
                 "to": round(z_end, 1),
                 "length": lap_up,
-                "class": "B"
-                if ctx.options["columnLaps"] == "tension" or special
-                else "compression",
+                "class": _column_lap_class(ctx, special, lap_up),
                 "clause": _column_lap_rule(ctx, db_max, fy, fc, special).clause,
                 "with": above.id,
             }
@@ -2001,9 +2076,7 @@ def _detail_column(ctx: _Ctx, stack: list[Any], k: int) -> dict[str, Any]:
                     "from": round(z_lap, 1),
                     "to": round(z_lap + lap_here, 1),
                     "length": lap_here,
-                    "class": "B"
-                    if ctx.options["columnLaps"] == "tension" or special
-                    else "compression",
+                    "class": _column_lap_class(ctx, special, lap_here),
                     "clause": _column_lap_rule(ctx, db_max, fy, fc, special).clause,
                     "with": found["id"],
                 }
@@ -3423,11 +3496,19 @@ def detailing_model(
         ctx.notes.append(f"the beam-column joints could not be found: {error}")
     elements: list[dict[str, Any]] = []
     stacks = _stacks(ctx)
+    # a member that cannot be detailed is left out with a note (10 BOQ measures it by its own
+    # rules), not the whole model
     for stack in stacks:
         for k in range(len(stack)):
-            elements.append(_detail_column(ctx, stack, k))
+            try:
+                elements.append(_detail_column(ctx, stack, k))
+            except (ValueError, ArithmeticError) as error:
+                ctx.notes.append(f"column {stack[k].id} could not be detailed: {error}")
     for line in _beam_lines(ctx):
-        elements.append(_detail_beam_line(ctx, line))
+        try:
+            elements.append(_detail_beam_line(ctx, line))
+        except (ValueError, ArithmeticError) as error:
+            ctx.notes.append(f"beam {'+'.join(line['members'])} could not be detailed: {error}")
     elements += _detail_slabs(ctx)
     elements += _detail_walls(ctx)
     elements += _detail_stairs(ctx)

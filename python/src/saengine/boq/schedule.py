@@ -1,36 +1,59 @@
-"""The bill's reinforcement against the bar bending schedule of the drawings.
+"""The bill's reinforcement from the bars the drawings detail.
 
-10 BOQ measures its bars by its own rules (:mod:`saengine.boq.quantities`: full member lengths,
-40 d per 12 m stock bar, links at their centre line with two 10 d hooks, meshes as area /
-spacing). The drawings detail and schedule the bars (:func:`saengine.drawings.detailing.
-detailing_model`, :func:`saengine.drawings.bbs.bar_schedule`: BNBC laps and hooks, cut-off
-bars, BS 8666 cutting lengths). This module brings the two together in the bill:
-
-- by default the bill keeps its own measure, and its notes reconcile it with the schedule per
-  bar size (:func:`reconcile_notes`);
-- with Project Settings' ``drawings.boqReinforcement`` set to ``"bbs"``, the reinforcement of
-  every element the drawings detail is the schedule's (:func:`take_from_schedule`); elements the
-  drawings do not detail (inclined members, tanks, ...) keep the bill's measure.
+A quantity lives in one place: the bars of a member are those the drawings detail
+(:func:`saengine.drawings.detailing.detailing_model`, BNBC 2020 Part 6 Chapter 8: laps at their
+permitted places, hooks and bends, cut-off bars, the stirrups of each zone at its spacing) and
+schedule (:func:`saengine.drawings.bbs.bar_schedule`: number × BS 8666 cutting length per bar
+mark). The bill takes them for every element the drawings detail, so that the bill and the bar
+bending schedule agree per bar size (:func:`take_from_schedule`). The estimating rules of
+:mod:`saengine.boq.quantities` (full member lengths, 40 d per 12 m stock bar, links at their
+centre line with two 10 d hooks, ``length / spacing + 1`` at one spacing, meshes as area /
+spacing) remain only for the elements the drawings do not detail (inclined members, tanks,
+members whose detailing failed, ...), and for the whole bill when the bars cannot be detailed
+at all; the notes say which elements were measured which way (:func:`reconcile_notes`).
 
 How it is called (``compute_boq``)::
 
     schedule, notes = schedule_of(texts, root)  # None and the reason when it cannot be made
-    take_from_schedule(document, schedule)      # only with the "bbs" setting
-    document.notes += reconcile_notes(document, schedule, taken)
+    kept = take_from_schedule(document, schedule)
+    document.notes += reconcile_notes(document, schedule, kept)
+
+The schedules of the last few inputs are kept (:data:`CACHE_SIZE`): the bill is measured again
+after every edit, and detailing the bars is the slow part of it.
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
+from collections import OrderedDict
 from typing import Any
 
 #: Details of the bill that the schedule never replaces: designs of their own.
 KEPT_DETAILS = ("tank design",)
 
+#: Schedules kept for the last inputs (texts, detailing options, kept design and bar marks).
+CACHE_SIZE = 4
+_CACHE: OrderedDict[str, Any] = OrderedDict()
+
 TAKEN_NOTE = (
-    "Reinforcement: taken from the bar bending schedule of the drawings (detailed bars, BNBC 2020 "
-    "laps and hooks, BS 8666 cutting lengths rounded up to 25 mm; Project Settings, Drawings, BOQ "
-    "reinforcement) for every element the drawings detail."
+    "Reinforcement of the elements the drawings detail: measured from their detailed bars, the "
+    "bars of the bar bending schedule (11 Exports, Drawings): number × cutting length per bar "
+    "mark, with the BNBC 2020 laps at their places, the hooks and bends, cut-off bars and the "
+    "stirrups and ties of each zone at its spacing (BS 8666 cutting lengths rounded up to 25 mm), "
+    "so that this bill and the schedule agree per bar size."
 )
+
+#: Element kinds of the detailing model as the notes name them (one, more).
+KINDS = {"beam": ("beam line", "beam lines"), "column": ("column", "columns"),
+         "slab": ("slab", "slabs"), "wall": ("wall", "walls"), "staircase": ("stair", "stairs"),
+         "footing": ("footing", "footings"), "pileCap": ("pile cap", "pile caps"),
+         "pile": ("pile", "piles")}  # fmt: skip
+
+
+def _key(texts: dict[str, str | None], options: dict[str, Any], inputs: dict[str, Any]) -> str:
+    text = json.dumps([texts, options, inputs], sort_keys=True, default=str)
+    return hashlib.sha1(text.encode("utf-8"), usedforsecurity=False).hexdigest()
 
 
 def schedule_of(
@@ -38,7 +61,8 @@ def schedule_of(
 ) -> tuple[Any, list[str]]:
     """The bar bending schedule of the project files' texts ("bim", "objects", "materials",
     "settings", "substructure"), with the drawing settings' detailing options: ``(schedule,
-    [])``, or ``(None, [why])`` when the bars cannot be detailed.
+    [])``, or ``(None, [why])`` when the bars cannot be detailed. The schedule may be the one
+    kept for the same inputs: it is not to be changed.
 
     ``project_root``: the bars are detailed as the drawings detail them
     (:func:`saengine.pipeline.drawings.kept_detailing_inputs`): with the bar marks of the last
@@ -64,16 +88,24 @@ def schedule_of(
             inputs = kept_detailing_inputs(project_root)
         except Exception:  # noqa: BLE001 - detailed from the files alone
             inputs = {}
+    key = _key(dict(texts), options, inputs)
+    if key in _CACHE:
+        _CACHE.move_to_end(key)
+        return _CACHE[key], []
     try:
         model = detailing_model(texts=dict(texts), options=options, **inputs)
-        return bbs.bar_schedule(model), []
-    except Exception as error:  # noqa: BLE001 - the bill stands without the schedule
+        schedule = bbs.bar_schedule(model)
+    except Exception as error:  # noqa: BLE001 - the bill stands on its estimating rules
         why = str(error).strip().splitlines()[0] if str(error).strip() else type(error).__name__
         note = (
-            f"Reinforcement: the bar bending schedule could not be made ({why}), so it is not "
-            "reconciled with it."
+            f"Reinforcement: the bars could not be detailed ({why}), so all of it is measured "
+            "by the estimating rules above."
         )
         return None, [note]
+    _CACHE[key] = schedule
+    while len(_CACHE) > CACHE_SIZE:
+        _CACHE.popitem(last=False)
+    return schedule, []
 
 
 def _shares(row: Any, measured: dict[str, float]) -> list[tuple[str, float]]:
@@ -161,35 +193,54 @@ def take_from_schedule(document: Any, schedule: Any) -> list[str]:
     return sorted(kept - covered)
 
 
+def _detailed(schedule: Any) -> list[tuple[str, str]]:
+    """(kind, element) of every element the schedule details, in its order."""
+    seen: dict[str, str] = {}
+    for row in schedule.rows:
+        seen.setdefault(row.element, row.kind)
+    return [(kind, element) for element, kind in seen.items()]
+
+
 def reconcile_notes(document: Any, schedule: Any, kept: list[str] | None = None) -> list[str]:
-    """The notes of the bill on the schedule: per bar size, the schedule's mass against the
-    bill's (``kept``: the bill took the schedule's bars; the elements it still measured)."""
+    """The notes of the bill on the schedule. ``kept``: the bill took the schedule's bars
+    (:func:`take_from_schedule`) and these elements kept the estimating rules: the notes say
+    which elements were measured which way. None: the bill kept its own measure; the notes set
+    it against the schedule per bar size."""
     from saengine.drawings.bbs import reconcile
 
     if kept is not None:
-        lines = [TAKEN_NOTE]
+        detailed = _detailed(schedule)
+        counts: dict[str, int] = {}
+        for kind, _ in detailed:
+            counts[kind] = counts.get(kind, 0) + 1
+        parts = ", ".join(
+            f"{n} {KINDS.get(k, (k, k))[0 if n == 1 else 1]}" for k, n in counts.items()
+        )
+        lines = [
+            TAKEN_NOTE,
+            f"Measured from the detailed bars: {parts} ({', '.join(e for _, e in detailed)}).",
+        ]
         if kept:
             lines.append(
-                "Reinforcement measured by the rules above, not detailed in the drawings: "
+                "Measured by the estimating rules above (not detailed in the drawings): "
                 f"{', '.join(kept)}."
             )
         return lines
     rec = reconcile(schedule, document)
     if not rec.rows:
         return []
-    parts = []
+    parts_dia = []
     for r in rec.rows:
         pct = "" if r.percent is None else f", {r.percent:+.1f} %"
-        parts.append(
+        parts_dia.append(
             f"Ø{r.dia:g} {r.bbs:.1f} kg against {r.boq:.1f} kg ({r.difference:+.1f} kg{pct})"
         )
     only = sorted({e or "?" for r in rec.rows for e in r.only_boq})
     text = (
         "Reinforcement against the bar bending schedule of the drawings (BBS against this bill, "
-        f"per bar size): {'; '.join(parts)}; in total {rec.bbs:.1f} kg against {rec.boq:.1f} kg. "
-        "The schedule cuts the detailed bars (BNBC 2020 laps and hooks, cut-off bars, BS 8666 "
-        "cutting lengths); this bill measures by the rules above. Set Project Settings, Drawings, "
-        "BOQ reinforcement to take the schedule's bars instead."
+        f"per bar size): {'; '.join(parts_dia)}; in total {rec.bbs:.1f} kg against "
+        f"{rec.boq:.1f} kg. The schedule cuts the detailed bars (BNBC 2020 laps and hooks, "
+        "cut-off bars, BS 8666 cutting lengths); this bill measures by the estimating rules above."
     )
     if only:
         text += f" Not detailed in the drawings: {', '.join(only)}."

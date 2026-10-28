@@ -316,164 +316,163 @@
 			"code": "R.01",
 			"group": "reinforcement",
 			"description": "Reinforcement B420DWR, 10 mm bars",
-			"quantity": 1359.555,
+			"quantity": 1448.127,
 			"unit": "kg",
 			"material": "B420DWR",
 			"diameter": 10.0,
 			"byStory": {
-				"L1": 1246.095,
-				"L2": 24.988,
-				"BASE": 36.226
+				"L1": 1370.756,
+				"L2": 25.123
 			},
 			"breakdown": [
-				{
-					"element": "C1",
-					"story": "L1",
-					"detail": "ties",
-					"quantity": 24.988
-				},
-				{
-					"element": "C2",
-					"story": "L1",
-					"detail": "ties",
-					"quantity": 24.988
-				},
-				{
-					"element": "C3",
-					"story": "L1",
-					"detail": "ties",
-					"quantity": 24.988
-				},
-				{
-					"element": "C4",
-					"story": "L1",
-					"detail": "ties",
-					"quantity": 24.988
-				},
-				{
-					"element": "C5",
-					"story": "L1",
-					"detail": "ties",
-					"quantity": 24.988
-				},
-				{
-					"element": "C6",
-					"story": "L1",
-					"detail": "ties",
-					"quantity": 24.988
-				},
-				{
-					"element": "C7",
-					"story": "L2",
-					"detail": "ties",
-					"quantity": 24.988
-				},
-				{
-					"element": "B1",
-					"story": "L1",
-					"detail": "ties",
-					"quantity": 32.0
-				},
-				{
-					"element": "B2",
-					"story": "L1",
-					"detail": "ties",
-					"quantity": 39.111
-				},
-				{
-					"element": "B3",
-					"story": "L1",
-					"detail": "ties",
-					"quantity": 33.778
-				},
-				{
-					"element": "B4",
-					"story": "L1",
-					"detail": "ties",
-					"quantity": 40.0
-				},
-				{
-					"element": "B5",
-					"story": "L1",
-					"detail": "ties",
-					"quantity": 26.667
-				},
-				{
-					"element": "W1",
-					"story": "L1",
-					"detail": "vertical",
-					"quantity": 73.519
-				},
-				{
-					"element": "W1",
-					"story": "L1",
-					"detail": "horizontal",
-					"quantity": 73.519
-				},
-				{
-					"element": "S1",
-					"story": "L1",
-					"detail": "bottom X",
-					"quantity": 78.132
-				},
-				{
-					"element": "S1",
-					"story": "L1",
-					"detail": "bottom Y",
-					"quantity": 78.132
-				},
-				{
-					"element": "S1",
-					"story": "L1",
-					"detail": "top X",
-					"quantity": 58.599
-				},
-				{
-					"element": "S1",
-					"story": "L1",
-					"detail": "top Y",
-					"quantity": 58.599
-				},
-				{
-					"element": "S2",
-					"story": "L1",
-					"detail": "bottom X",
-					"quantity": 144.033
-				},
-				{
-					"element": "S2",
-					"story": "L1",
-					"detail": "bottom Y",
-					"quantity": 144.033
-				},
-				{
-					"element": "S2",
-					"story": "L1",
-					"detail": "top X",
-					"quantity": 108.025
-				},
-				{
-					"element": "S2",
-					"story": "L1",
-					"detail": "top Y",
-					"quantity": 108.025
-				},
 				{
 					"element": "M1",
 					"detail": "ties",
 					"quantity": 52.247
 				},
 				{
-					"element": "ST1",
-					"story": "BASE",
-					"detail": "distribution",
-					"quantity": 26.966
+					"element": "C1",
+					"story": "L1",
+					"detail": "bar mark C1-H1 (bar bending schedule)",
+					"quantity": 25.123
+				},
+				{
+					"element": "C2",
+					"story": "L1",
+					"detail": "bar mark C1-H1 (bar bending schedule)",
+					"quantity": 25.123
+				},
+				{
+					"element": "C3",
+					"story": "L1",
+					"detail": "bar mark C1-H1 (bar bending schedule)",
+					"quantity": 25.123
+				},
+				{
+					"element": "C4",
+					"story": "L1",
+					"detail": "bar mark C1-H1 (bar bending schedule)",
+					"quantity": 25.123
+				},
+				{
+					"element": "C5",
+					"story": "L1",
+					"detail": "bar mark C1-H1 (bar bending schedule)",
+					"quantity": 25.123
+				},
+				{
+					"element": "C6",
+					"story": "L1",
+					"detail": "bar mark C1-H1 (bar bending schedule)",
+					"quantity": 25.123
+				},
+				{
+					"element": "C7",
+					"story": "L2",
+					"detail": "bar mark C1-H1 (bar bending schedule)",
+					"quantity": 25.123
+				},
+				{
+					"element": "W1",
+					"story": "L1",
+					"detail": "bar mark W1-V1 (bar bending schedule)",
+					"quantity": 101.852
+				},
+				{
+					"element": "W1",
+					"story": "L1",
+					"detail": "bar mark W1-H1 (bar bending schedule)",
+					"quantity": 102.716
+				},
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "bar mark B1-S1 (bar bending schedule)",
+					"quantity": 35.847
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "bar mark B1-S1 (bar bending schedule)",
+					"quantity": 43.813
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "bar mark B1-S1 (bar bending schedule)",
+					"quantity": 37.291
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "bar mark B1-S1 (bar bending schedule)",
+					"quantity": 44.16
+				},
+				{
+					"element": "B5",
+					"story": "L1",
+					"detail": "bar mark B1-S1 (bar bending schedule)",
+					"quantity": 27.747
+				},
+				{
+					"element": "S1",
+					"story": "L1",
+					"detail": "bar mark S1-BX2 (bar bending schedule)",
+					"quantity": 118.519
+				},
+				{
+					"element": "S1",
+					"story": "L1",
+					"detail": "bar mark S1-TX1 (bar bending schedule)",
+					"quantity": 69.815
+				},
+				{
+					"element": "S1",
+					"story": "L1",
+					"detail": "bar mark S1-BY1 (bar bending schedule)",
+					"quantity": 130.247
+				},
+				{
+					"element": "S1",
+					"story": "L1",
+					"detail": "bar mark S1-TY1 (bar bending schedule)",
+					"quantity": 68.519
+				},
+				{
+					"element": "S2",
+					"story": "L1",
+					"detail": "bar mark S1-BX1 (bar bending schedule)",
+					"quantity": 140.247
+				},
+				{
+					"element": "S2",
+					"story": "L1",
+					"detail": "bar mark S1-TX2 (bar bending schedule)",
+					"quantity": 34.815
+				},
+				{
+					"element": "S2",
+					"story": "L1",
+					"detail": "bar mark S1-BY1 (bar bending schedule)",
+					"quantity": 149.784
+				},
+				{
+					"element": "S2",
+					"story": "L1",
+					"detail": "bar mark S1-TY1 (bar bending schedule)",
+					"quantity": 77.654
 				},
 				{
 					"element": "ST1",
-					"story": "BASE",
-					"detail": "landing distribution",
-					"quantity": 9.259
+					"story": "L1",
+					"detail": "bar mark ST1-N1 (bar bending schedule)",
+					"quantity": 27.562
+				},
+				{
+					"element": "ST1",
+					"story": "L1",
+					"detail": "bar mark ST1-LN1 (bar bending schedule)",
+					"quantity": 9.429
 				}
 			]
 		},
@@ -481,43 +480,41 @@
 			"code": "R.02",
 			"group": "reinforcement",
 			"description": "Reinforcement B420DWR, 12 mm bars",
-			"quantity": 148.463,
+			"quantity": 182.289,
 			"unit": "kg",
 			"material": "B420DWR",
 			"diameter": 12.0,
 			"byStory": {
-				"BASE": 148.463
+				"L1": 141.867
 			},
 			"breakdown": [
 				{
-					"element": "ST1",
-					"story": "BASE",
-					"detail": "main",
-					"quantity": 62.13
-				},
-				{
-					"element": "ST1",
-					"story": "BASE",
-					"detail": "top",
-					"quantity": 25.888
-				},
-				{
-					"element": "ST1",
-					"story": "BASE",
-					"detail": "landing",
-					"quantity": 17.778
+					"element": "F1",
+					"detail": "bar mark F1-BX1 (bar bending schedule)",
+					"quantity": 18.089
 				},
 				{
 					"element": "F1",
-					"story": "BASE",
-					"detail": "bottom X",
-					"quantity": 21.333
+					"detail": "bar mark F1-BY1 (bar bending schedule)",
+					"quantity": 22.333
 				},
 				{
-					"element": "F1",
-					"story": "BASE",
-					"detail": "bottom Y",
-					"quantity": 21.333
+					"element": "ST1",
+					"story": "L1",
+					"detail": "bar mark ST1-M1 (bar bending schedule)",
+					"quantity": 82.667
+				},
+				{
+					"element": "ST1",
+					"story": "L1",
+					"detail": "bar mark ST1-T1 (bar bending schedule)",
+					"quantity": 39.822
+				},
+				{
+					"element": "ST1",
+					"story": "L1",
+					"detail": "bar mark ST1-L1 (bar bending schedule)",
+					"quantity": 19.378
 				}
 			]
 		},
@@ -525,43 +522,205 @@
 			"code": "R.03",
 			"group": "reinforcement",
 			"description": "Reinforcement B420DWR, 16 mm bars",
-			"quantity": 342.914,
+			"quantity": 368.237,
 			"unit": "kg",
 			"material": "B420DWR",
 			"diameter": 16.0,
 			"byStory": {
-				"L1": 342.914
+				"L1": 368.237
 			},
 			"breakdown": [
 				{
 					"element": "B1",
 					"story": "L1",
-					"detail": "longitudinal",
-					"quantity": 66.37
+					"detail": "bar mark B1-T2 (bar bending schedule)",
+					"quantity": 15.827
 				},
 				{
 					"element": "B2",
 					"story": "L1",
-					"detail": "longitudinal",
-					"quantity": 77.432
+					"detail": "bar mark B1-T2 (bar bending schedule)",
+					"quantity": 18.465
+				},
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "bar mark B1-T7 (bar bending schedule)",
+					"quantity": 5.652
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "bar mark B1-T7 (bar bending schedule)",
+					"quantity": 6.595
+				},
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "bar mark B1-T11 (bar bending schedule)",
+					"quantity": 1.605
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "bar mark B1-T11 (bar bending schedule)",
+					"quantity": 1.872
+				},
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "bar mark B1-T4 (bar bending schedule)",
+					"quantity": 3.282
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "bar mark B1-T4 (bar bending schedule)",
+					"quantity": 3.829
+				},
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "bar mark B1-T9 (bar bending schedule)",
+					"quantity": 1.842
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "bar mark B1-T9 (bar bending schedule)",
+					"quantity": 2.149
+				},
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "bar mark B1-B1 (bar bending schedule)",
+					"quantity": 34.936
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "bar mark B1-B1 (bar bending schedule)",
+					"quantity": 40.758
+				},
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "bar mark B1-B4 (bar bending schedule)",
+					"quantity": 7.22
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "bar mark B1-B4 (bar bending schedule)",
+					"quantity": 8.424
 				},
 				{
 					"element": "B3",
 					"story": "L1",
-					"detail": "longitudinal",
-					"quantity": 66.37
+					"detail": "bar mark B1-T1 (bar bending schedule)",
+					"quantity": 16.009
 				},
 				{
 					"element": "B4",
 					"story": "L1",
-					"detail": "longitudinal",
-					"quantity": 77.432
+					"detail": "bar mark B1-T1 (bar bending schedule)",
+					"quantity": 18.677
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "bar mark B1-T6 (bar bending schedule)",
+					"quantity": 5.689
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "bar mark B1-T6 (bar bending schedule)",
+					"quantity": 6.637
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "bar mark B1-T10 (bar bending schedule)",
+					"quantity": 1.659
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "bar mark B1-T10 (bar bending schedule)",
+					"quantity": 1.936
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "bar mark B1-T5 (bar bending schedule)",
+					"quantity": 3.209
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "bar mark B1-T5 (bar bending schedule)",
+					"quantity": 3.744
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "bar mark B1-T8 (bar bending schedule)",
+					"quantity": 1.878
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "bar mark B1-T8 (bar bending schedule)",
+					"quantity": 2.191
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "bar mark B1-B1 (bar bending schedule)",
+					"quantity": 34.936
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "bar mark B1-B1 (bar bending schedule)",
+					"quantity": 40.758
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "bar mark B1-B3 (bar bending schedule)",
+					"quantity": 7.658
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "bar mark B1-B3 (bar bending schedule)",
+					"quantity": 8.934
 				},
 				{
 					"element": "B5",
 					"story": "L1",
-					"detail": "longitudinal",
-					"quantity": 55.309
+					"detail": "bar mark B1-T3 (bar bending schedule)",
+					"quantity": 18.489
+				},
+				{
+					"element": "B5",
+					"story": "L1",
+					"detail": "bar mark B1-T13 (bar bending schedule)",
+					"quantity": 3.042
+				},
+				{
+					"element": "B5",
+					"story": "L1",
+					"detail": "bar mark B1-T12 (bar bending schedule)",
+					"quantity": 3.358
+				},
+				{
+					"element": "B5",
+					"story": "L1",
+					"detail": "bar mark B1-B2 (bar bending schedule)",
+					"quantity": 36.978
 				}
 			]
 		},
@@ -569,61 +728,67 @@
 			"code": "R.04",
 			"group": "reinforcement",
 			"description": "Reinforcement B420DWR, 20 mm bars",
-			"quantity": 720.988,
+			"quantity": 834.568,
 			"unit": "kg",
 			"material": "B420DWR",
 			"diameter": 20.0,
 			"byStory": {
-				"L1": 474.074,
-				"L2": 79.012
+				"L1": 582.099,
+				"L2": 84.568
 			},
 			"breakdown": [
-				{
-					"element": "C1",
-					"story": "L1",
-					"detail": "longitudinal",
-					"quantity": 79.012
-				},
-				{
-					"element": "C2",
-					"story": "L1",
-					"detail": "longitudinal",
-					"quantity": 79.012
-				},
-				{
-					"element": "C3",
-					"story": "L1",
-					"detail": "longitudinal",
-					"quantity": 79.012
-				},
-				{
-					"element": "C4",
-					"story": "L1",
-					"detail": "longitudinal",
-					"quantity": 79.012
-				},
-				{
-					"element": "C5",
-					"story": "L1",
-					"detail": "longitudinal",
-					"quantity": 79.012
-				},
-				{
-					"element": "C6",
-					"story": "L1",
-					"detail": "longitudinal",
-					"quantity": 79.012
-				},
-				{
-					"element": "C7",
-					"story": "L2",
-					"detail": "longitudinal",
-					"quantity": 79.012
-				},
 				{
 					"element": "M1",
 					"detail": "longitudinal",
 					"quantity": 167.901
+				},
+				{
+					"element": "C1",
+					"story": "L1",
+					"detail": "bar mark C1-V2 (bar bending schedule)",
+					"quantity": 67.901
+				},
+				{
+					"element": "C1",
+					"story": "L1",
+					"detail": "bar mark C1-D1 (bar bending schedule)",
+					"quantity": 91.358
+				},
+				{
+					"element": "C2",
+					"story": "L1",
+					"detail": "bar mark C1-V1 (bar bending schedule)",
+					"quantity": 84.568
+				},
+				{
+					"element": "C3",
+					"story": "L1",
+					"detail": "bar mark C1-V1 (bar bending schedule)",
+					"quantity": 84.568
+				},
+				{
+					"element": "C4",
+					"story": "L1",
+					"detail": "bar mark C1-V1 (bar bending schedule)",
+					"quantity": 84.568
+				},
+				{
+					"element": "C5",
+					"story": "L1",
+					"detail": "bar mark C1-V1 (bar bending schedule)",
+					"quantity": 84.568
+				},
+				{
+					"element": "C6",
+					"story": "L1",
+					"detail": "bar mark C1-V1 (bar bending schedule)",
+					"quantity": 84.568
+				},
+				{
+					"element": "C7",
+					"story": "L2",
+					"detail": "bar mark C1-V1 (bar bending schedule)",
+					"quantity": 84.568
 				}
 			]
 		},
@@ -1861,7 +2026,7 @@
 	],
 	"notes": [
 		"Concrete: slabs are measured over their whole outline and full thickness, less openings. Beams are measured between the faces of the columns they meet and below the slab: the part of a beam, column or wall within a slab's depth is measured with the slab. Columns run their full height and walls their whole length (less wall openings), each less that slab depth. Nothing else is deducted where members meet (beam/beam and wall/column joints); special-structure members are measured node to node and their areas over their whole outline, with no deduction where they meet.",
-		"Longitudinal bars run the member's full length (beams centreline to centreline) with a lap of 40 bar diameters at every joint between 12 m stock lengths. Stirrups and ties are measured at their centre line plus two 135° hooks of 10 diameters, length / spacing + 1 of them. Meshes are area / spacing of bar per layer and direction. Bends, anchorages, chairs and wastage are not included; bar mass is d²/162 kg/m.",
+		"Reinforcement is measured from the detailed bars of the drawings for every element they detail: the bar bending schedule's number × cutting length per bar mark, with the BNBC 2020 laps, hooks and bends, cut-off bars and the stirrups of each zone at its spacing, so the bill and the schedule agree per bar size. Elements the drawings do not detail (see below) are measured by estimating rules: longitudinal bars over the member's full length (beams centreline to centreline) with a lap of 40 bar diameters at every joint between 12 m stock lengths, stirrups and ties at their centre line plus two 135° hooks of 10 diameters, length / spacing + 1 of them, meshes as area / spacing of bar per layer and direction, without bends or anchorages. Chairs and wastage are not included; bar mass is d²/162 kg/m.",
 		"Formwork is measured to the cast faces: beam sides and soffit, column perimeter by height, slab soffit and edges, wall faces, footing sides. Faces cast against another member are not formed (slab soffit over beams, columns and walls; their faces within the slab's depth; slab edges over them); nothing else is deducted where members meet.",
 		"Foundations are measured from 9 Substructure (the footings of the building model are not): footings, pile caps and rafts over their plan by their thickness, formwork to their sides (and a raft's edges), bars as meshes over the plan. Piles: concrete of the full length below the cap (bored piles round, driven piles square of the given size), bars as for columns, moulds of driven precast piles on three faces (cast flat). Tie beams: concrete and stirrups between the faces of the foundations they tie, longitudinal bars centre to centre of the foundations, formwork to their two sides.",
 		"Earthwork: each foundation and tie beam is dug with vertical sides 300 mm beyond its edges (working space), from the finished ground of Project Settings → Foundation down to the underside of the blinding; where pits overlap the overlap is measured once (each element's share scaled to suit). Blinding (lean concrete) 75 mm thick, 75 mm beyond the edges of foundations and tie beams. Backfill is the excavation less the foundations, tie beams and blinding below the ground; column stubs and pedestals below the ground are not deducted. No battered sides, dewatering, shoring, disposal of surplus spoil or bored pile spoil are measured.",
@@ -1874,7 +2039,9 @@
 		"UGR1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
 		"SEP1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
 		"Materials: concrete C27.6 has no mix: 1:1.5:3 assumed (f'c 27.6 MPa), a nominal mix of IS 456:2000 Table 9 by strength, no water (enter the mix in 03 Materials to replace it).",
-		"Reinforcement against the bar bending schedule of the drawings (BBS against this bill, per bar size): Ø10 1380.7 kg against 1359.6 kg (+21.1 kg, +1.6 %); Ø12 182.3 kg against 148.5 kg (+33.8 kg, +22.8 %); Ø16 368.2 kg against 342.9 kg (+25.3 kg, +7.4 %); Ø20 666.7 kg against 721.0 kg (-54.3 kg, -7.5 %); in total 2597.9 kg against 2571.9 kg. The schedule cuts the detailed bars (BNBC 2020 laps and hooks, cut-off bars, BS 8666 cutting lengths); this bill measures by the rules above. Set Project Settings, Drawings, BOQ reinforcement to take the schedule's bars instead. Not detailed in the drawings: M1."
+		"Reinforcement of the elements the drawings detail: measured from their detailed bars, the bars of the bar bending schedule (11 Exports, Drawings): number × cutting length per bar mark, with the BNBC 2020 laps at their places, the hooks and bends, cut-off bars and the stirrups and ties of each zone at its spacing (BS 8666 cutting lengths rounded up to 25 mm), so that this bill and the schedule agree per bar size.",
+		"Measured from the detailed bars: 1 footing, 7 columns, 1 wall, 3 beam lines, 2 slabs, 1 stair (F1, C1, C2, C3, C4, C5, C6, C7, W1, B1+B2, B3+B4, B5, S1, S2, ST1).",
+		"Measured by the estimating rules above (not detailed in the drawings): M1."
 	],
 	"problems": [
 		"T1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",

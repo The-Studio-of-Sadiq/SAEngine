@@ -223,9 +223,27 @@ def test_bill_measures_the_substructure_with_its_earthwork() -> None:
     footings = _item(bill, "footing", "concrete")
     assert footings["quantity"] == pytest.approx(2 * 2.0 * 1.5 * 0.5)
     assert _item(bill, "footing", "formwork")["quantity"] == pytest.approx(2 * 7.0 * 0.5)
-    # T12 at 200 both ways: 3 m² / 0.2 m of bar per layer, 0.889 kg/m (144/162).
+    # The footings' bars are their detailed bars, those of the bar bending schedule (the
+    # estimate, T12 at 200 both ways as 3 m² / 0.2 m per layer, is only for what is not
+    # detailed: the tie beam here).
+    from saengine.drawings.bbs import bar_schedule
+    from saengine.drawings.detailing import detailing_model
+
+    schedule = bar_schedule(
+        detailing_model(
+            texts={
+                "bim": _drawn().model_dump_json(by_alias=True),
+                "objects": OBJECTS.model_dump_json(by_alias=True),
+                "materials": default_material_library().model_dump_json(by_alias=True),
+                "substructure": json.dumps(_substructure()),
+                "settings": SETTINGS_150.model_dump_json(by_alias=True),
+            }
+        )
+    )
     t12 = next(i for i in bill["items"] if i["group"] == "reinforcement" and i["diameter"] == 12)
-    assert _share(t12, "F1", "bottom X") == pytest.approx(3.0 / 0.2 * 144 / 162, abs=1e-3)
+    f1 = sum(r.mass for r in schedule.rows if r.element == "F1" and r.dia == 12)
+    assert f1 > 0 and _share(t12, "F1") == pytest.approx(f1, abs=2e-3)
+    assert any(n.endswith("(not detailed in the drawings): TB1.") for n in bill["notes"])
 
     # Tie beam: centres 6 m apart, clear between the footings' faces 6 - 2 x 1.0 = 4 m.
     tie = _item(bill, "tieBeam", "concrete")
