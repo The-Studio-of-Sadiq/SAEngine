@@ -13,6 +13,11 @@ Methods:
 - ``architecture/importIfc`` ``{path, architectureText?, floorPlanText}`` -> an architect's IFC
   walls, doors, windows and spaces adopted into the architecture, with what was skipped (in a
   worker thread)
+- ``architecture/inspectDrawing`` ``{path}`` -> an architect's DWG/DXF: its layers, unit and a
+  preview, for the layer-mapping step (in a worker thread)
+- ``architecture/importDrawing`` ``{path, architectureText?, floorPlanText, options}`` -> an
+  architect's DWG/DXF plan's walls, doors, windows and room names adopted onto one story, with
+  what was skipped (in a worker thread)
 - ``architecture/check`` ``{architectureText, floorPlanText?}`` -> the architecture's problems and
   its rooms' net outlines and areas
 - ``structure/shapeGeometry`` ``{shape}`` -> a parametric shape's members, areas and supports
@@ -381,6 +386,19 @@ def create_server() -> JsonRPCServer:
         args = _plain(params)
         return handlers.architecture_import_ifc(
             args["path"], args.get("architectureText"), args["floorPlanText"]
+        )
+
+    @server.feature("architecture/inspectDrawing")
+    @_in_worker  # a DWG is converted first; a large plan takes seconds
+    def _architecture_inspect_drawing(params: Any) -> dict[str, Any]:
+        return handlers.architecture_inspect_drawing(_plain(params)["path"])
+
+    @server.feature("architecture/importDrawing")
+    @_in_worker
+    def _architecture_import_drawing(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.architecture_import_drawing(
+            args["path"], args.get("architectureText"), args["floorPlanText"], args.get("options")
         )
 
     @server.feature("architecture/check")
