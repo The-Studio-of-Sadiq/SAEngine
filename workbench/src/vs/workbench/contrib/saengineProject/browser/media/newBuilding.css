@@ -332,3 +332,26 @@
 	padding-left: 18px;
 	line-height: 1.6;
 }
+
+/* The plot of the open project and its buildable envelope, under the grid. */
+.saengine-new-building svg .plot {
+	fill: color-mix(in srgb, var(--vscode-charts-orange, #d18616) 8%, transparent);
+	stroke: var(--vscode-charts-orange, #d18616);
+	stroke-width: 1.5;
+}
+
+.saengine-new-building svg .envelope {
+	fill: none;
+	stroke: var(--vscode-charts-green, #388a34);
+	stroke-width: 1;
+	stroke-dasharray: 5 3;
+}
+
+.saengine-new-building .form-actions.indented {
+	margin-top: var(--sa-space-1, 4px);
+	padding-left: 152px;
+}
+
+.saengine-new-building .hint.indented.plot-hint {
+	word-break: normal;
+}

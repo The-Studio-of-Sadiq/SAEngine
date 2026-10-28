@@ -41,9 +41,10 @@ import { gridLabel } from '../../../services/saengineProject/common/gridLabels.j
 import { BNBC, DEFAULT_MATERIALS, SETTINGS_SCHEMA } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { ISaengineProject, ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import {
-	buildSpec, centralBay, DEFAULT_FORM, folderError, FOOTING_CHOICES, FormField, formatSummary, GENERATE_BUILDING_COMMAND, IGenerateOutcome, IGenerateSummary, INewBuildingForm, IPendingBuilding, OccupancyCategory,
-	parseSpacings, PENDING_BUILDING_STORAGE_KEY, readGenerateResult, readPendingBuilding, SiteClass, storyHeights, summarize, SYSTEM_CHOICES,
+	buildSpec, centralBay, DEFAULT_FORM, fitSpacings, folderError, FOOTING_CHOICES, FormField, formatLengths, formatSummary, GENERATE_BUILDING_COMMAND, IGenerateOutcome, IGenerateSummary, INewBuildingForm, IPendingBuilding, IWizardPlot, OccupancyCategory,
+	parseSpacings, PENDING_BUILDING_STORAGE_KEY, plotFitWarning, readGenerateResult, readPendingBuilding, SiteClass, storyHeights, summarize, SYSTEM_CHOICES,
 } from './newBuildingModel.js';
+import { ISoilLocationRequest, ISoilLocationResult, SOIL_LOCATION_COMMAND } from '../../saengineSoil/browser/soilDocument.js';
 import { ProjectOpener } from './projectOpener.js';
 import { sameFolder } from './structuralImportModel.js';
 
@@ -138,6 +139,8 @@ export class NewBuildingWizard extends EditorPane {
 	private folder = '';
 	private focusTarget: { focus(): void } | undefined;
 	private busy = false;
+	/** The plot of the open project's soil report, in the grid's frame; undefined without one. */
+	private plot: IWizardPlot | undefined;
 
 	constructor(
 		group: IEditorGroup,
@@ -168,6 +171,12 @@ export class NewBuildingWizard extends EditorPane {
 			this.folder = await this.initialFolder();
 		}
 		this.renderForm();
+		// The plot needs the backend (a second or two): the form shows at once, then again with it.
+		const plot = await this.loadPlot();
+		if (plot && this.input === input && !token.isCancellationRequested) {
+			this.plot = plot;
+			this.renderForm();
+		}
 	}
 
 	override clearInput(): void {
@@ -200,6 +209,33 @@ export class NewBuildingWizard extends EditorPane {
 			return last;
 		}
 		return (await this.opener.defaultLocation()).fsPath;
+	}
+
+	/**
+	 * The plot of the open project (01 Soil Report's site) in the frame the new building's grid
+	 * takes: turned along the road side, its origin inside the buildable envelope
+	 * (saengine.gis.plot). Undefined without a project, a plot or the backend.
+	 */
+	private async loadPlot(): Promise<IWizardPlot | undefined> {
+		const project = this.projectService.project;
+		const part = partById('soil');
+		if (!project || !part?.mainFile || !CommandsRegistry.getCommand(SOIL_LOCATION_COMMAND)) {
+			return undefined;
+		}
+		try {
+			const soilText = (await this.fileService.readFile(joinPath(project.root, part.folder, part.mainFile))).value.toString();
+			const site = (JSON.parse(soilText) as { readonly site?: object }).site;
+			if (!site) {
+				return undefined;
+			}
+			const location = await this.commandService.executeCommand<ISoilLocationResult>(SOIL_LOCATION_COMMAND, { soilText } satisfies ISoilLocationRequest);
+			const fit = location?.plot?.fit;
+			return fit && fit.width > 0 && fit.depth > 0
+				? { project: project.name, width: fit.width, depth: fit.depth, plot: fit.plot, envelope: fit.envelope, site }
+				: undefined;
+		} catch {
+			return undefined; // no soil report, or not one that reads: no plot
+		}
 	}
 
 	/** Whether the backend can generate a building in this build. */
@@ -244,6 +280,7 @@ export class NewBuildingWizard extends EditorPane {
 		};
 		const inputs = new Map<FormField, InputBox>();
 		const errors = new Map<FormField, HTMLElement>();
+		const plotWarning: { element?: HTMLElement } = {};
 		const updatePreview = () => {
 			const x = parseSpacings(this.form.gridX);
 			const y = parseSpacings(this.form.gridY);
@@ -258,6 +295,9 @@ export class NewBuildingWizard extends EditorPane {
 			}
 			summary.textContent = x.ok && y.ok && heights.ok ? formatSummary(summarize(x.values, y.values, heights.values)) : localize('newBuilding.previewWaiting', "The preview shows once the grids and storeys read correctly.");
 			systemHint.textContent = SYSTEM_CHOICES.find(s => s.value === this.form.system)?.description ?? '';
+			if (plotWarning.element) {
+				plotWarning.element.textContent = this.plot && x.ok && y.ok ? plotFitWarning(x.values, y.values, this.plot) ?? '' : '';
+			}
 			for (const [field, message] of [['gridX', x], ['gridY', y], ['stories', heights]] as const) {
 				const element = errors.get(field);
 				if (element) {
@@ -310,6 +350,34 @@ export class NewBuildingWizard extends EditorPane {
 			});
 			inputs.set(field, box);
 			errors.set(field, append(form, $('p.error', { 'aria-live': 'polite' })));
+		}
+		const plot = this.plot;
+		if (plot) {
+			append(form, $('p.hint.indented.plot-hint', undefined, localize('newBuilding.plot', "The plot of {0} (01 Soil Report) is in the preview: the grid can take {1} × {2} m inside its setbacks, with the columns' faces inside. The new project takes the site, with the grid turned along the road side.", plot.project, (plot.width / 1000).toFixed(2), (plot.depth / 1000).toFixed(2))));
+			const fitRow = append(form, $('.form-actions.indented'));
+			const fit = this.pageDisposables.add(new Button(fitRow, { ...defaultButtonStyles, secondary: true }));
+			fit.label = localize('newBuilding.fit', "Fit to the Buildable Area");
+			fit.setTitle(localize('newBuilding.fitTitle', "Bay spacings that fill the buildable area (to 50 mm), keeping the number of bays and their proportions"));
+			const fitStatus = append(fitRow, $('span.status', { 'aria-live': 'polite' }));
+			this.pageDisposables.add(fit.onDidClick(() => {
+				const x = parseSpacings(this.form.gridX);
+				const y = parseSpacings(this.form.gridY);
+				const fx = x.ok ? fitSpacings(x.values, plot.width) : undefined;
+				const fy = y.ok ? fitSpacings(y.values, plot.depth) : undefined;
+				if (!fx || !fy) {
+					fitStatus.textContent = localize('newBuilding.fitFailed', "The buildable area is too small for this many bays (at least 1 m each): use fewer bays.");
+					return;
+				}
+				fitStatus.textContent = '';
+				for (const [field, values] of [['gridX', fx], ['gridY', fy]] as const) {
+					this.form[field] = formatLengths(values);
+					inputs.get(field)!.value = this.form[field];
+				}
+				updatePreview();
+			}));
+			plotWarning.element = append(form, $('p.error', { 'aria-live': 'polite' }));
+		} else if (this.projectService.project) {
+			append(form, $('p.hint.indented.plot-hint', undefined, localize('newBuilding.noPlot', "To fit the grid to the plot, draw the plot in the map of 01 Soil Report first.")));
 		}
 
 		// ── storeys ──
@@ -392,7 +460,7 @@ export class NewBuildingWizard extends EditorPane {
 				const missing = await this.prepareFolder(parent);
 				outcome = missing
 					? { notes: [], error: missing }
-					: readGenerateResult(await this.commandService.executeCommand(GENERATE_BUILDING_COMMAND, { spec: result.spec, destParent: parent, name: result.spec.name }));
+					: readGenerateResult(await this.commandService.executeCommand(GENERATE_BUILDING_COMMAND, { spec: result.spec, destParent: parent, name: result.spec.name, ...(this.plot ? { site: this.plot.site } : {}) }));
 			} catch (error) {
 				outcome = { notes: [], error: toErrorMessage(error) };
 			} finally {
@@ -522,18 +590,26 @@ export class NewBuildingWizard extends EditorPane {
 		return element;
 	}
 
-	/** The plan: grid lines with bubbles, columns at the intersections, beams, core walls. */
+	/** The plan: the plot and its buildable envelope (when there is one), grid lines with bubbles, columns at the intersections, beams, core walls. */
 	private renderPlan(parent: HTMLElement, x: readonly number[], y: readonly number[]): void {
 		const [width, height, margin] = [360, 280, 26];
 		const xs = [0, ...x.map((_, i) => x.slice(0, i + 1).reduce((a, b) => a + b, 0))];
 		const ys = [0, ...y.map((_, i) => y.slice(0, i + 1).reduce((a, b) => a + b, 0))];
 		const [lx, ly] = [xs[xs.length - 1], ys[ys.length - 1]];
-		const scale = Math.min((width - 2 * margin) / lx, (height - 2 * margin) / ly);
-		const ox = (width - lx * scale) / 2;
-		const oy = (height + ly * scale) / 2;
+		const plot = this.plot?.plot ?? [];
+		const [minX, maxX] = [Math.min(0, ...plot.map(p => p[0])), Math.max(lx, ...plot.map(p => p[0]))];
+		const [minY, maxY] = [Math.min(0, ...plot.map(p => p[1])), Math.max(ly, ...plot.map(p => p[1]))];
+		const scale = Math.min((width - 2 * margin) / (maxX - minX), (height - 2 * margin) / (maxY - minY));
+		const ox = (width - (maxX - minX) * scale) / 2 - minX * scale;
+		const oy = (height + (maxY - minY) * scale) / 2 + minY * scale;
 		const px = (v: number) => ox + v * scale;
 		const py = (v: number) => oy - v * scale;
-		const svg = this.svg(parent, width, height, localize('newBuilding.planAria', "Plan of the grids"));
+		const svg = this.svg(parent, width, height, this.plot ? localize('newBuilding.planPlotAria', "Plan of the grids on the plot") : localize('newBuilding.planAria', "Plan of the grids"));
+		if (this.plot) {
+			const points = (ring: readonly (readonly number[])[]) => ring.map(p => `${px(p[0]).toFixed(1)},${py(p[1]).toFixed(1)}`).join(' ');
+			this.add(svg, 'polygon', { class: 'plot', points: points(this.plot.plot) });
+			this.add(svg, 'polygon', { class: 'envelope', points: points(this.plot.envelope) });
+		}
 		const system = this.form.system;
 		if (system === 'flatSlab') {
 			this.add(svg, 'rect', { class: 'slab', x: px(0), y: py(ly), width: lx * scale, height: ly * scale });
