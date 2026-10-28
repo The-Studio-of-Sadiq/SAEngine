@@ -540,6 +540,7 @@ def derive_fem(
     mep_text: str | None = None,
     substructure_text: str | None = None,
     loads_text: str | None = None,
+    architecture_text: str | None = None,
 ) -> dict[str, Any]:
     """The analysis model (``model.osmodel`` text) of the building model with the settings' loads.
 
@@ -560,6 +561,10 @@ def derive_fem(
     recorded (key ``loads``) once it has a load. With end offsets the result also has
     ``"facesText"``, the support face offsets for ``08 FEM/faces.json``
     (:mod:`saengine.fem.end_zones`).
+
+    ``architecture_text`` (``05 Floor Plan/architecture.json``, read beside ``model_folder``
+    when not given): its walls and rooms load the model (:mod:`saengine.fem.architecture_loads`);
+    its stamp is recorded (key ``architecture``) once it has a wall or a room.
 
     The site class is resolved here (``saengine.library.settings.resolve_site_class``): with
     the source "From the soil report", the soil report's governing class replaces the entered
@@ -630,6 +635,17 @@ def derive_fem(
         return {"problems": [f"Line loads: {_first_line(exc)}"]}
     if member_loads.loads:
         stamps["loads"] = stamp(loads_text or "")
+    from saengine.fem.architecture_loads import has_loads
+    from saengine.library import architecture as arch_lib
+
+    if architecture_text is None and root is not None:
+        architecture_text = _read(root / arch_lib.ARCHITECTURE_FILE)
+    try:
+        architecture = arch_lib.parse(architecture_text)
+    except ValueError as exc:
+        return {"problems": [f"Architecture: {_first_line(exc)}"]}
+    if has_loads(architecture):
+        stamps["architecture"] = stamp(architecture_text or "")
     substructure = None
     if settings.analysis.supports == "soilSprings":
         if substructure_text is None and root is not None:
@@ -652,6 +668,7 @@ def derive_fem(
         substructure=substructure,
         soil_text=soil_text,
         member_loads=member_loads if member_loads.loads else None,
+        architecture=architecture if has_loads(architecture) else False,
     )
     if model_folder:
         from saengine.report.build import keep_derivation
@@ -902,11 +919,14 @@ def compute_boq(
     settings_text: str | None = None,
     mep_text: str | None = None,
     project_root: str | None = None,
+    architecture_text: str | None = None,
 ) -> dict[str, Any]:
     """The bill of quantities (``10 BOQ/boq.json`` text) of the building model, the
-    substructure, the MEP plinths and sleeves and the plumbing (tanks, pipes, fixtures):
-    ``{"text", "notes"}``, or ``{"problems"}`` when an input has errors. ``project_root``: where
-    the plumbing tanks' last designs are read from (their bars)."""
+    substructure, the MEP plinths and sleeves, the plumbing (tanks, pipes, fixtures) and the
+    architecture (brickwork, plaster, finishes, doors and windows): ``{"text", "notes"}``, or
+    ``{"problems"}`` when an input has errors. ``project_root``: where the plumbing tanks' last
+    designs are read from (their bars), and the architecture when ``architecture_text`` is not
+    given."""
     from saengine.boq import compute_boq_text
 
     return compute_boq_text(
@@ -917,6 +937,7 @@ def compute_boq(
         settings_text,
         mep_text,
         project_root,
+        architecture_text,
     )
 
 

@@ -1057,6 +1057,7 @@ def _derivation_rows(values: dict[str, Any], root: Path) -> list[list[str]]:
                 ),
             ]
         )
+    rows += _architecture_rows(values.get("architectureLoads") or {})
     from saengine.fem.mesh_check import MESH_CHECK_FILE
 
     try:
@@ -1065,6 +1066,77 @@ def _derivation_rows(values: dict[str, Any], root: Path) -> list[list[str]]:
         check = None
     if isinstance(check, dict) and check.get("note"):
         rows.append(["Mesh check", str(check["note"])])
+    return rows
+
+
+#: How a wall piece is carried, for the report.
+_WALL_ON = {
+    "beam": "on beam {member}",
+    "slab": "on slab {member}",
+    "ground": "on the ground (Part 9), not applied",
+    "none": "nothing under it, not applied",
+}
+
+
+def _architecture_rows(loads: dict[str, Any]) -> list[list[str]]:
+    """The loads of the architecture (saengine.fem.architecture_loads): its walls as SD line
+    loads where they stand (BNBC 2020 Part 6 Sec 2.2.5), its rooms' finishes and live loads."""
+    rows: list[list[str]] = []
+    walls = [w for w in loads.get("walls") or [] if w.get("on") != "structural"]
+    if walls or loads.get("walledStories"):
+        stories = ", ".join(loads.get("walledStories") or []) or "none"
+        rows.append(
+            [
+                "Partition walls",
+                (
+                    "from the architecture, as superimposed dead line loads in their positions "
+                    "(BNBC 2020 Part 6 Sec 2.2.5, p. 532), w × (h × L − openings) / L per piece; "
+                    f"the area load's partition allowance is dropped on {stories}"
+                ),
+            ]
+        )
+    elif loads.get("mode") == "allowance":
+        rows.append(["Partition walls", "the area load's flat allowance (Analysis setting)"])
+    for wall in walls:
+        on = _WALL_ON.get(wall.get("on"), str(wall.get("on"))).format(member=wall.get("member"))
+        rows.append(
+            [
+                f"Wall {wall['wall']} ({wall['story']})",
+                (
+                    f"{wall['type']} crossing it: {fmt(wall.get('length_m', 0), 2)} m × h "
+                    f"{fmt(wall.get('height_m', 0), 2)} m = point load "
+                    f"{fmt(wall.get('total_kN', 0), 1)} kN {on}"
+                    if wall.get("point")
+                    else f"{wall['type']}, {fmt(wall.get('length_m', 0), 2)} m × h "
+                    f"{fmt(wall.get('height_m', 0), 2)} m"
+                    + (
+                        f" less {fmt(wall['openings_m2'], 2)} m² openings"
+                        if wall.get("openings_m2")
+                        else ""
+                    )
+                    + f" = {fmt(wall.get('load_kNm', 0), 2)} kN/m, "
+                    f"{fmt(wall.get('total_kN', 0), 1)} kN {on}"
+                ),
+            ]
+        )
+    for room in loads.get("rooms") or []:
+        parts = []
+        if room.get("finish_kNm2") is not None:
+            sunk = " with sunk filling" if room.get("sunk") else ""
+            parts.append(f"finish {room['finish']}{sunk} {fmt(room['finish_kNm2'], 2)} kN/m² (SD)")
+        if room.get("live_kNm2") is not None:
+            parts.append(
+                f"live {fmt(room['live_kNm2'], 2)} kN/m² ({room['use']}, BNBC 2020 Part 6 Table "
+                "6.2.3, pp. 533-539)"
+            )
+        rows.append(
+            [
+                f"Room {room['room']} {room.get('name', '')} ({room['story']})".replace("  ", " "),
+                f"{fmt(room.get('area_m2', 0), 2)} m²: "
+                + "; ".join(parts)
+                + ", instead of the floor's there",
+            ]
+        )
     return rows
 
 

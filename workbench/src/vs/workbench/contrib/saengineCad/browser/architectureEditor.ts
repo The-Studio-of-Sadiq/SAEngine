@@ -274,6 +274,7 @@ export class ArchitectureEditor extends EditorPane {
 		}
 		references.forEach(r => this.inputDisposables.add(r));
 		[this.archModel, this.planModel, this.objects] = references.map(r => r.object.textEditorModel);
+		this.inputDisposables.add(input.onDidRequestReveal(() => this.render()));
 		for (const model of [this.archModel, this.planModel, this.objects]) {
 			this.inputDisposables.add(model.onDidChangeContent(() => {
 				if (!this.writing) {
@@ -672,6 +673,12 @@ export class ArchitectureEditor extends EditorPane {
 		const story = input.story ?? '';
 		const elevations = elevationsOf(layout);
 		this.drawing = this.arch ? architectureDrawing(this.arch, story, elevations) : undefined;
+		if (input.reveal) {
+			// A wall linked from the Floor Plan's Loads list: selected, its properties shown.
+			const shape = this.drawing?.shapes.find(s => s.id === input.reveal);
+			this.selected = shape && { kind: shape.kind, id: shape.id };
+			input.reveal = undefined;
+		}
 		if (this.selected && !this.drawing?.shapes.some(s => s.kind === this.selected!.kind && s.id === this.selected!.id)) {
 			this.selected = undefined;
 		}
@@ -1014,6 +1021,14 @@ export class ArchitectureEditor extends EditorPane {
 		appendPropertyHeading(panel, localize('arch.openingTypes', "Door and window types"));
 		for (const type of [...arch.doorTypes, ...arch.windowTypes]) {
 			appendPropertyRow(panel, type.id, localize('arch.openingTypeRow', "{0}: {1} x {2} mm", type.name, type.width, type.height));
+		}
+		appendPropertyHeading(panel, localize('arch.finishTypes', "Finish types"));
+		for (const type of arch.finishTypes) {
+			// The floor finish's weight replaces the floor's flat finish in its rooms (saengine.fem.architecture_loads).
+			const weight = type.thickness / 1000 * type.unitWeight;
+			appendPropertyRow(panel, type.id, type.sunkFilling
+				? localize('arch.finishSunkRow', "{0}: {1} mm, {2} kN/m² (+{3} kN/m² sunk filling in wet rooms)", type.name, type.thickness, weight.toFixed(2), (type.sunkFilling / 1000 * (type.sunkUnitWeight ?? 16)).toFixed(2))
+				: localize('arch.finishRow', "{0}: {1} mm, {2} kN/m²", type.name, type.thickness, weight.toFixed(2)));
 		}
 		propertyLink(panel, localize('arch.editTypes', "Edit the types as text"), () => void this.openText(), this.propertiesDisposables);
 		const last = this.lastImport;

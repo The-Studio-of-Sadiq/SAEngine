@@ -423,6 +423,18 @@ class Analysis(_Model):
         description="Run All also solves the gravity cases on a mesh twice as coarse and warns "
         "when a beam end moment changes by more than 5 % (the mesh is then too coarse).",
     )
+    partitionLoads: Literal["architecture", "allowance"] = Field(
+        default="architecture",
+        title="Partition walls",
+        description="From the architecture: the walls drawn in Architecture load the beams and "
+        "slabs under them as line loads in their positions (BNBC 2020 Part 6 Sec 2.2.5), and the "
+        "area load's partition allowance is dropped on the stories where they stand; stories "
+        "without walls keep the allowance. Allowance: the walls are not applied and the area "
+        "load's flat partition allowance holds everywhere (Sec 2.3.6).",
+        json_schema_extra=_labels(
+            ["From the architecture (where walls are drawn)", "Flat allowance (area load)"]
+        ),
+    )
     massLumping: Literal["storyLevels", "levelAbove"] = Field(
         default="storyLevels",
         title="Seismic mass",

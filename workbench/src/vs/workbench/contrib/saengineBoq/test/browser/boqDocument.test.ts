@@ -50,7 +50,7 @@ suite('SAEngine - Bill of quantities', () => {
 			invalid: ['settings'],
 			missing: ['substructure', 'settings'],
 			python: ['eb7f0d0d5faa4ccf9f9d13fbdda0529448065fda', 'fe329f8351df78af4c4980a95d5ca6d0310b7ccd'],
-			args: { args: { bimText: '{"a": 1}\n', objectsText: 'o', materialsText: 'm', substructureText: 's', settingsText: undefined, mepText: undefined }, missing: [] },
+			args: { args: { bimText: '{"a": 1}\n', objectsText: 'o', materialsText: 'm', substructureText: 's', settingsText: undefined, mepText: undefined, architectureText: undefined }, missing: [] },
 			noBim: { missing: ['Building Model', 'Materials'] },
 		});
 	});
@@ -155,5 +155,18 @@ suite('SAEngine - Bill of quantities', () => {
 			problems: ['No reinforcement measured'],
 			none: [],
 		});
+	});
+	test('the architecture is a source of the bill once it has a wall or a room', () => {
+		const walls = JSON.stringify({ schema: 'saengine.architecture/1', walls: [{ id: 'W1' }] });
+		const base = { bim: sourceStamp('b'), objects: sourceStamp('o'), materials: sourceStamp('m') };
+		const texts = new Map<string, string | undefined>([['bim', 'b'], ['objects', 'o'], ['materials', 'm'], ['architecture', walls]]);
+		const bill = (source: { readonly [part: string]: string }): IBoqDocument => ({ schema: 'saengine.boq/1', source, items: [] } as unknown as IBoqDocument);
+		assert.deepStrictEqual({
+			added: changedSources(bill(base), texts),
+			none: changedSources(bill(base), new Map([...texts, ['architecture', undefined]])),
+			current: changedSources(bill({ ...base, architecture: sourceStamp(walls) }), texts),
+			edited: changedSources(bill({ ...base, architecture: sourceStamp('{}') }), texts),
+			args: boqComputeArgs(texts).args?.architectureText === walls,
+		}, { added: ['architecture'], none: [], current: [], edited: ['architecture'], args: true });
 	});
 });

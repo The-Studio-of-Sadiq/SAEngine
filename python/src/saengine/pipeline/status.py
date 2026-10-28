@@ -23,6 +23,7 @@ from saengine.fem.derive import mep_stamp, settings_stamp
 from saengine.library.bim import source_stamp
 from saengine.pipeline.project import (
     ALL_PARTS,
+    ARCHITECTURE_PART,
     LOADS_PART,
     Part,
     Project,
@@ -51,8 +52,8 @@ PART_CHECK_ITEMS = 20
 OPTIONAL_PARTS = frozenset({"soil", "mep", "substructure"})
 FEM_SOURCES = ("bim", "settings", "objects", "materials")
 BOQ_SOURCES = ("bim", "objects", "materials")
-BOQ_RECORDED_SOURCES = ("substructure", "settings", "mep")
-FEM_RECORDED_SOURCES = ("substructure", "mep", "loads")
+BOQ_RECORDED_SOURCES = ("substructure", "settings", "mep", "architecture")
+FEM_RECORDED_SOURCES = ("substructure", "mep", "loads", "architecture")
 MEP_SCHEMA_ID = "saengine.mep/1"
 SUBSTRUCTURE_SCHEMA_ID = "saengine.substructure/1"
 BOQ_SCHEMA_ID = "saengine.boq/1"
@@ -265,6 +266,18 @@ def loads_have_content(text: str | None) -> bool:
     return isinstance(loads, list) and len(loads) > 0
 
 
+def architecture_has_content(text: str | None) -> bool:
+    """``architectureHasContent``: whether a ``05 Floor Plan/architecture.json`` text has a wall
+    or a room (the analysis model takes their loads, the bill measures them); an unreadable file
+    counts (deriving and measuring report it)."""
+    if not text or not text.strip():
+        return False
+    value = _parse(text)
+    if value is None:
+        return True
+    return any(_length(value.get(key)) > 0 for key in ("walls", "rooms"))
+
+
 def _mep_has_content(inputs: StatusInputs) -> bool:
     document = _mep_document(inputs)
     if not document:
@@ -467,11 +480,15 @@ def fem_status(inputs: StatusInputs) -> PartStatus:
     )
     mep_added = "mep" not in recorded and _mep_has_content(inputs)
     loads_added = "loads" not in recorded and loads_have_content(inputs.texts.get("loads"))
+    architecture_added = "architecture" not in recorded and architecture_has_content(
+        inputs.texts.get("architecture")
+    )
     if (
         soil_changed
         or recorded_changed
         or mep_added
         or loads_added
+        or architecture_added
         or any(fem_source_changed(inputs.texts, p, recorded.get(p)) for p in FEM_SOURCES)
     ):
         return _status("fem", "stale", STALE, "derive the analysis model again")
@@ -530,6 +547,10 @@ def boq_status(inputs: StatusInputs) -> PartStatus:
         )
         or (not recorded("substructure") and _substructure_has_foundations(inputs))
         or (not recorded("mep") and _mep_has_content(inputs))
+        or (
+            not recorded("architecture")
+            and architecture_has_content(inputs.texts.get("architecture"))
+        )
     ):
         return _status("boq", "stale", STALE, "measure the quantities again")
     return _status("boq", "done", "measured")
@@ -972,6 +993,7 @@ def read_inputs(project: Project) -> StatusInputs:
     root = project.root
     texts = {p.id: read_text(root / p.folder / p.main_file) for p in ALL_PARTS if p.main_file}
     texts["loads"] = read_text(root / LOADS_PART.folder / LOADS_PART.main_file)
+    texts["architecture"] = read_text(root / ARCHITECTURE_PART.folder / ARCHITECTURE_PART.main_file)
     fem = root / "08 FEM"
     results = fem / FEM_RESULTS_FOLDER
     substructure = root / "09 Substructure"

@@ -244,7 +244,8 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	/** `at`: a story and an item (a wall) to show selected, from the Floor Plan's Loads list. */
+	async run(accessor: ServicesAccessor, at?: { readonly story?: string; readonly id?: string }): Promise<void> {
 		const project = accessor.get(ISaengineProjectService).project;
 		const fileService = accessor.get(IFileService);
 		const editorService = accessor.get(IEditorService);
@@ -256,6 +257,11 @@ registerAction2(class extends Action2 {
 		if (!await fileService.exists(resource)) {
 			await fileService.writeFile(resource, VSBuffer.fromString(JSON.stringify(newArchitecture(), undefined, '\t') + '\n'));
 		}
-		await editorService.openEditor(instantiationService.createInstance(ArchitectureEditorInput, resource), { pinned: true });
+		const open = editorService.findEditors(resource).map(e => e.editor).find((e): e is ArchitectureEditorInput => e instanceof ArchitectureEditorInput);
+		const input = open ?? instantiationService.createInstance(ArchitectureEditorInput, resource);
+		await editorService.openEditor(input, { pinned: true });
+		if (at) {
+			input.requestReveal(at.story, at.id);
+		}
 	}
 });

@@ -44,6 +44,7 @@ import itertools
 import json
 import math
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
@@ -89,7 +90,15 @@ MM2 = 1e-6  # m² per mm²
 MM3 = 1e-9  # m³ per mm³
 
 Group = Literal[
-    "earthwork", "concrete", "masonry", "reinforcement", "formwork", "steel", "mep", "materials"
+    "earthwork",
+    "concrete",
+    "masonry",
+    "finishes",
+    "reinforcement",
+    "formwork",
+    "steel",
+    "mep",
+    "materials",
 ]
 Unit = Literal["m3", "m2", "kg", "nr", "m", "cft", "bag", "l"]
 
@@ -126,6 +135,7 @@ GROUPS: dict[str, str] = {
     "earthwork": "E",
     "concrete": "C",
     "masonry": "M",
+    "finishes": "A",
     "reinforcement": "R",
     "formwork": "F",
     "steel": "S",
@@ -331,6 +341,9 @@ class BoqSource(_Model):
         default=None, title="Substructure", description="Stamp of substructure.json."
     )
     mep: str | None = Field(default=None, title="MEP", description="Stamp of mep.json.")
+    architecture: str | None = Field(
+        default=None, title="Architecture", description="Stamp of architecture.json."
+    )
     settings: str | None = Field(
         default=None,
         title="Project settings",
@@ -616,6 +629,9 @@ class _Measure:
         self.steel_sections: dict[str, tuple[str | None, float]] = {}
         self.footprints: list[tuple[float, float, BaseGeometry]] = []
         self.plates: dict[str, _Plate] = {}
+        #: Mortar of plaster (saengine.boq.architecture): (element, story, wet volume m³,
+        #: mortar material id, item), taken off with the materials.
+        self.mortar_volumes: list[tuple[str, str | None, float, str, str]] = []
 
     # ── lookups ──
 
@@ -1957,6 +1973,35 @@ class _Measure:
                         detail=line.description,
                         kind=key,
                     )
+        for element, story, volume, mortar_id, description in getattr(self, "mortar_volumes", []):
+            mortar = self.materials.get(mortar_id)
+            if mortar is None or mortar.composition is None:
+                missing[mortar_id] = f"plaster: its mortar {mortar_id} has no mix"
+                continue
+            cement_type = mortar.composition.cementType
+            cement = f"Cement{f' ({cement_type})' if cement_type else ''}"
+            amounts = self.mix_quantities(mortar.composition, volume, DRY_VOLUME_MORTAR)
+            amounts["bags"] = amounts["cement"]
+            rows = {
+                "cement": ((1, cement_type or ""), cement, "kg", 1.0),
+                "bags": ((2, cement_type or ""), f"{cement} in {CEMENT_BAG:g} kg bags", "bag", 1 / CEMENT_BAG),
+                "sand": ((3,), "Sand (fine aggregate)", "cft", CFT),
+                "stone": ((4,), "Stone chips (coarse aggregate)", "cft", CFT),
+                "water": ((5,), "Water", "l", 1.0),
+            }  # fmt: skip
+            for key, amount in amounts.items():
+                order, label, unit, scale = rows[key]
+                self.bill.add(
+                    "materials",
+                    order,
+                    label,
+                    unit,
+                    element,
+                    amount * scale,
+                    story=story,
+                    detail=description,
+                    kind=key,
+                )
         if assumed:
             self.notes.append(
                 "Materials: "
@@ -1993,6 +2038,10 @@ class _Measure:
             from saengine.fire.boq import FIRE_CONVENTIONS
 
             notes += FIRE_CONVENTIONS
+        if getattr(self, "architecture_measured", False):
+            from saengine.boq.architecture import ARCHITECTURE_CONVENTIONS
+
+            notes += ARCHITECTURE_CONVENTIONS
         if getattr(self, "materials_measured", False):
             notes += MATERIALS_CONVENTIONS
         notes += [*self.building.check_additions(), *self.notes]
@@ -2052,6 +2101,7 @@ def bill_of_quantities(
     ground_level: float = 0.0,
     mep: Any = None,
     tank_designs: dict[str, Any] | None = None,
+    architecture: Any = None,
 ) -> BillOfQuantities:
     """The bill of quantities of ``building``. With ``substructure`` (the project's
     ``substructure.json`` once it is no longer the placeholder, see
@@ -2059,9 +2109,15 @@ def bill_of_quantities(
     measured from it, with their earthwork dug from ``ground_level`` [mm], and the footings of
     the building model are not; without it the building model's footings are measured.
     ``tank_designs``: the plumbing tanks' last designs (their bars,
-    :func:`saengine.plumbing.project.read_designs`)."""
+    :func:`saengine.plumbing.project.read_designs`). ``architecture``: the project's
+    architecture, whose brickwork, plaster, finishes, doors and windows are measured
+    (:mod:`saengine.boq.architecture`)."""
     measure = _Measure(building, objects, materials, substructure, ground_level, mep)
     measure.run()
+    if architecture is not None:
+        from saengine.boq.architecture import measure_architecture
+
+        measure.architecture_measured = measure_architecture(measure, architecture, objects)
     measure.measure_mep()
     measure.measure_plumbing(tank_designs)
     measure.measure_services()
@@ -2106,6 +2162,7 @@ def compute_boq(
     settings_text: str | None = None,
     mep_text: str | None = None,
     project_root: str | None = None,
+    architecture_text: str | None = None,
 ) -> dict[str, Any]:
     """The ``10 BOQ/boq.json`` document (JSON-ready) measured from the files' texts:
     ``substructure_text`` (``09 Substructure/substructure.json``), ``settings_text`` (the
@@ -2114,11 +2171,25 @@ def compute_boq(
     when given (for the settings, the stamp of their ground level only, and only when the
     substructure's foundations are measured: nothing else in the bill depends on them).
     ``project_root``: the project folder, where the plumbing tanks' last designs (their bars)
-    are read from.
+    are read from, and ``05 Floor Plan/architecture.json`` when ``architecture_text`` is not
+    given; the architecture's stamp is recorded once it has walls, rooms, doors or windows.
 
     Raises ``pydantic.ValidationError`` (a ``ValueError``) when a file is not valid.
     """
+    from saengine.boq.architecture import has_content
+    from saengine.library import architecture as arch_lib
     from saengine.library.mep import parse as parse_mep
+
+    if architecture_text is None and project_root:
+        try:
+            architecture_text = (Path(project_root) / arch_lib.ARCHITECTURE_FILE).read_text(
+                encoding="utf-8"
+            )
+        except OSError:
+            architecture_text = None
+    architecture = arch_lib.parse(architecture_text)
+    if not has_content(architecture):
+        architecture = None
 
     substructure, ground = _inputs(substructure_text, settings_text, bim_text)
     mep = parse_mep(mep_text) if mep_text is not None else None
@@ -2140,11 +2211,13 @@ def compute_boq(
             substructure=source_stamp(substructure_text) if substructure_text is not None else None,
             mep=source_stamp(mep_text) if mep_text is not None else None,
             settings=ground_level_stamp(ground) if settings_text and earthwork else None,
+            architecture=source_stamp(architecture_text or "") if architecture else None,
         ),
         substructure,
         ground,
         mep,
         designs,
+        architecture,
     )
     _with_bar_schedule(
         document,
@@ -2186,6 +2259,7 @@ def compute_boq_text(
     settings_text: str | None = None,
     mep_text: str | None = None,
     project_root: str | None = None,
+    architecture_text: str | None = None,
 ) -> dict[str, Any]:
     """For the RPC handler: ``{"text", "notes"}`` (the file's text), or ``{"problems"}`` when an
     input has errors."""
@@ -2195,6 +2269,12 @@ def compute_boq_text(
         parse_mep(mep_text)
     except ValueError as exc:
         return {"problems": [f"MEP: {str(exc).strip().splitlines()[0]}"]}
+    from saengine.library import architecture as arch_lib
+
+    try:
+        arch_lib.parse(architecture_text)
+    except ValueError as exc:
+        return {"problems": [f"Architecture: {str(exc).strip().splitlines()[0]}"]}
     from saengine.library.settings import ProjectSettings
     from saengine.library.substructure import Substructure as SubstructureModel
 
@@ -2230,6 +2310,7 @@ def compute_boq_text(
         settings_text,
         mep_text,
         project_root,
+        architecture_text,
     )
     return {
         "text": json.dumps(document, indent="\t", ensure_ascii=False) + "\n",

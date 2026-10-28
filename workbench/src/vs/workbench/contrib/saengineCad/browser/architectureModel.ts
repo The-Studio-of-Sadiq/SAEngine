@@ -29,7 +29,11 @@ export type DoorStyle = 'single' | 'double' | 'sliding';
 export type WindowStyle = 'fixed' | 'casement' | 'sliding';
 export interface IDoorType { readonly id: string; readonly name: string; readonly style?: DoorStyle; readonly width: number; readonly height: number; readonly frame?: number }
 export interface IWindowType { readonly id: string; readonly name: string; readonly style?: WindowStyle; readonly width: number; readonly height: number; readonly sill?: number; readonly frame?: number }
-export interface IFinishType { readonly id: string; readonly name: string; readonly kind: 'floor' | 'wall' | 'ceiling'; readonly thickness: number; readonly unitWeight: number }
+export interface IFinishType {
+	readonly id: string; readonly name: string; readonly kind: 'floor' | 'wall' | 'ceiling'; readonly thickness: number; readonly unitWeight: number;
+	/** A sunk slab's filling under the finish in wet rooms [mm], and its unit weight [kN/m³] (16 when not given). */
+	readonly sunkFilling?: number; readonly sunkUnitWeight?: number;
+}
 
 export interface IArchWall {
 	readonly id: string;

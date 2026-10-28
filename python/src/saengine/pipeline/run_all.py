@@ -128,6 +128,7 @@ DERIVATION_INPUTS = (
     "mep",
     "substructure",
     "loads",
+    "architecture",
 )
 #: ``BOQ_SOURCES``: (part, label, required, optional).
 BOQ_SOURCES = (
@@ -137,6 +138,7 @@ BOQ_SOURCES = (
     ("substructure", "Substructure", False, False),
     ("mep", "MEP", False, False),
     ("settings", "Ground Level (Project Settings)", False, True),
+    ("architecture", "Architecture", False, True),
 )
 TANK_BARS_PENDING = "its bars are not measured: it has no current design"
 
@@ -382,6 +384,14 @@ def derivation_state(description: Any, texts: dict[str, str | None]) -> tuple[bo
             changed.append("Line Loads")
     elif recorded and loads_have_content(loads_text):
         changed.append("Line Loads")
+    from saengine.pipeline.status import architecture_has_content
+
+    architecture_text = texts.get("architecture")
+    if "architecture" in recorded:
+        if architecture_text is None or recorded["architecture"] != source_stamp(architecture_text):
+            changed.append("Architecture")
+    elif recorded and architecture_has_content(architecture_text):
+        changed.append("Architecture")
     return bool(recorded), changed
 
 
@@ -412,6 +422,7 @@ def _derive(project: Project, step: StepResult) -> bool:
         texts.get("mep"),
         texts.get("substructure"),
         texts.get("loads") or "",
+        texts.get("architecture") or "",
     )
     if not result.get("text"):
         raise StepFailure("; ".join(result.get("problems") or []))
@@ -927,6 +938,12 @@ def changed_boq_sources(document: dict[str, Any] | None, texts: dict[str, str | 
                 changed.append(part)
         elif recorded != boq_source_stamp(part, text):
             changed.append(part)
+    from saengine.pipeline.status import architecture_has_content
+
+    if recorded_stamp(document, "architecture") is None and architecture_has_content(
+        texts.get("architecture")
+    ):
+        changed.append("architecture")
     return changed
 
 
@@ -976,6 +993,7 @@ def _boq(project: Project, step: StepResult, tanks_designed: bool) -> bool:
         texts.get("settings"),
         texts.get("mep"),
         str(project.root),
+        texts.get("architecture"),
     )
     if not isinstance(result, dict) or not result.get("text"):
         problems = (result or {}).get("problems") or []

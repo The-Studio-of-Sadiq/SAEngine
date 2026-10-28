@@ -3,8 +3,10 @@
 The architect's layer of the building, drawn on the floor plan's grids and stories: masonry and
 partition walls of layered wall types, doors and windows hosted in them, and rooms found from
 the walls around a picked point (with room separators where there is no wall). It is physical
-only: it never adds stiffness to the analysis. Its loads (partitions, finishes, occupancy) come
-in a later round; the building model's 3D view and IFC export show it now.
+only: it never adds stiffness to the analysis. Its loads (the walls' weight, the rooms'
+finishes and occupancy live loads) are derived from it when the analysis model is derived
+(:mod:`saengine.fem.architecture_loads`), and the bill of quantities measures its brickwork,
+plaster, finishes, doors and windows (:mod:`saengine.boq.architecture`).
 
 Kept simple on purpose (no Revit clone): door and window types are fixed parametric styles (no
 family editor), a wall is one type over its height (no stacked walls), and there are no phases,
@@ -117,6 +119,19 @@ class FinishType(_Model):
     )
     thickness: Length
     unitWeight: UnitWeight = Field(title="Unit weight")
+    sunkFilling: Mm | None = Field(
+        default=None,
+        ge=0,
+        title="Sunk filling",
+        description="Filling of a sunk slab under the finish in wet rooms (toilets, kitchens) "
+        "[mm]; its weight is added to the finish there.",
+    )
+    sunkUnitWeight: UnitWeight = Field(
+        default=16.0,
+        title="Filling unit weight",
+        description="Of the sunk slab's filling [kN/m³] (16: brick-bat filling, an SAEngine "
+        "choice; enter yours).",
+    )
 
 
 # ───────────────────────────── instances ─────────────────────────────
