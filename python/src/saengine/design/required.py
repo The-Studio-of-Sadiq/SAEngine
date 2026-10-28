@@ -300,18 +300,11 @@ def beam_demand(member: dict[str, Any], combinations: list[str]) -> BeamDemand:
             values = _profile_forces(piece, member["turned"], forces)
             count = len(forces)
             if count not in at_station:
-                at_station[count] = [
-                    zones[
-                        next(
-                            n
-                            for n, lo, hi in ZONES
-                            if (start + piece.length * k / max(count - 1, 1)) / total
-                            <= hi + 1e-9
-                            or hi == 1.0
-                        )
-                    ]
-                    for k in range(count)
-                ]
+                at_station[count] = []
+                for k in range(count):
+                    at = (start + piece.length * k / max(count - 1, 1)) / total
+                    zone = next(n for n, lo, hi in ZONES if at <= hi + 1e-9 or hi == 1.0)
+                    at_station[count].append(zones[zone])
             for k, z in enumerate(at_station[count]):
                 moment, v = float(values["Mx"][k]), abs(float(values["Vy"][k]))
                 # Where the station is said only when it governs (the slow part otherwise).
