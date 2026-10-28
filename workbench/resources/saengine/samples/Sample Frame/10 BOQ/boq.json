@@ -1181,29 +1181,8 @@
 		{
 			"code": "MT.01",
 			"group": "materials",
-			"description": "Cement",
-			"quantity": 6177.024,
-			"unit": "kg",
-			"kind": "cement",
-			"byStory": {},
-			"breakdown": [
-				{
-					"element": "UGR1",
-					"detail": "Concrete C27.6 in water and septic tanks",
-					"quantity": 3870.72
-				},
-				{
-					"element": "SEP1",
-					"detail": "Concrete C27.6 in water and septic tanks",
-					"quantity": 2306.304
-				}
-			]
-		},
-		{
-			"code": "MT.02",
-			"group": "materials",
 			"description": "Cement (OPC)",
-			"quantity": 11523.739,
+			"quantity": 17700.763,
 			"unit": "kg",
 			"kind": "cement",
 			"byStory": {
@@ -1324,35 +1303,24 @@
 					"story": "L1",
 					"detail": "Concrete C24.1 in water and septic tanks",
 					"quantity": 1562.299
-				}
-			]
-		},
-		{
-			"code": "MT.03",
-			"group": "materials",
-			"description": "Cement in 50 kg bags",
-			"quantity": 123.54,
-			"unit": "bag",
-			"kind": "bags",
-			"byStory": {},
-			"breakdown": [
+				},
 				{
 					"element": "UGR1",
 					"detail": "Concrete C27.6 in water and septic tanks",
-					"quantity": 77.414
+					"quantity": 3870.72
 				},
 				{
 					"element": "SEP1",
 					"detail": "Concrete C27.6 in water and septic tanks",
-					"quantity": 46.126
+					"quantity": 2306.304
 				}
 			]
 		},
 		{
-			"code": "MT.04",
+			"code": "MT.02",
 			"group": "materials",
 			"description": "Cement (OPC) in 50 kg bags",
-			"quantity": 230.475,
+			"quantity": 354.015,
 			"unit": "bag",
 			"kind": "bags",
 			"byStory": {
@@ -1473,11 +1441,21 @@
 					"story": "L1",
 					"detail": "Concrete C24.1 in water and septic tanks",
 					"quantity": 31.246
+				},
+				{
+					"element": "UGR1",
+					"detail": "Concrete C27.6 in water and septic tanks",
+					"quantity": 77.414
+				},
+				{
+					"element": "SEP1",
+					"detail": "Concrete C27.6 in water and septic tanks",
+					"quantity": 46.126
 				}
 			]
 		},
 		{
-			"code": "MT.05",
+			"code": "MT.03",
 			"group": "materials",
 			"description": "Sand (fine aggregate)",
 			"quantity": 651.143,
@@ -1615,7 +1593,7 @@
 			]
 		},
 		{
-			"code": "MT.06",
+			"code": "MT.04",
 			"group": "materials",
 			"description": "Stone chips (coarse aggregate)",
 			"quantity": 1302.286,
@@ -1753,7 +1731,7 @@
 			]
 		},
 		{
-			"code": "MT.07",
+			"code": "MT.05",
 			"group": "materials",
 			"description": "Water",
 			"quantity": 5185.682,
