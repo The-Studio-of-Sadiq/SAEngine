@@ -19,12 +19,15 @@ the bars entered (None when there are none or they were assumed).
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import math
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+import numpy as np
 
 from saengine.design import bars as B
 from saengine.design import slab as slab_design
@@ -158,6 +161,9 @@ class Gathered:
     #: bars): ``report`` itself when none were assumed, None when it cannot be told from these
     #: checks (types other than slabs without bars).
     plain: dict[str, Any] | None = None
+    #: :func:`column_requirements` per set of options, with the surfaces their searches built:
+    #: Run All's required steel and the proposal made from these checks share them.
+    searches: dict[tuple[Any, ...], Any] = field(default_factory=dict)
 
 
 def _default_rebar(objects: dict[str, Any], materials: MaterialLibrary) -> str | None:
@@ -289,18 +295,24 @@ def beam_demand(member: dict[str, Any], combinations: list[str]) -> BeamDemand:
     total = sum(p.length for p in pieces) or 1.0
     start = 0.0
     for piece in pieces:
+        at_station: dict[int, list[dict[str, Peak]]] = {}  # stations -> zone of each
         for c, forces in enumerate(piece.forces):
             values = _profile_forces(piece, member["turned"], forces)
             count = len(forces)
-            for k in range(count):
-                at = (start + piece.length * k / max(count - 1, 1)) / total
-                zone = next(n for n, lo, hi in ZONES if at <= hi + 1e-9 or hi == 1.0)
+            if count not in at_station:
+                at_station[count] = []
+                for k in range(count):
+                    at = (start + piece.length * k / max(count - 1, 1)) / total
+                    zone = next(n for n, lo, hi in ZONES if at <= hi + 1e-9 or hi == 1.0)
+                    at_station[count].append(zones[zone])
+            for k, z in enumerate(at_station[count]):
                 moment, v = float(values["Mx"][k]), abs(float(values["Vy"][k]))
-                where = _where(piece, k, count)
-                z = zones[zone]
-                z["sag"].take(-moment, combinations[c], where)
-                z["hog"].take(moment, combinations[c], where)
-                z["shear"].take(v, combinations[c], where)
+                # Where the station is said only when it governs (the slow part otherwise).
+                if -moment > z["sag"].value or moment > z["hog"].value or v > z["shear"].value:
+                    where = _where(piece, k, count)
+                    z["sag"].take(-moment, combinations[c], where)
+                    z["hog"].take(moment, combinations[c], where)
+                    z["shear"].take(v, combinations[c], where)
         start += piece.length
     return BeamDemand(zones)
 
@@ -643,6 +655,10 @@ class ColumnSearch:
             options.rho_max,
         )
         self._surfaces: dict[tuple[int, bool], InteractionSurface] = {}
+        #: Results per (layout, coarse, points list), the list kept so a reused id never
+        #: returns another list's result.
+        self._worst: dict[tuple[int, bool, int], tuple[list[Point], float]] = {}
+        self._rows: dict[int, tuple[list[Point], np.ndarray]] = {}
 
     def reinforcement(self, layout: B.ColumnLayout, ties: B.Ties | None = None) -> dict[str, Any]:
         current = self.obj.reinforcement
@@ -677,13 +693,38 @@ class ColumnSearch:
             self._surfaces[key] = InteractionSurface(self.section(index), coarse)
         return self._surfaces[key]
 
+    def _demands(self, points: list[Point]) -> np.ndarray:
+        """The (Pu, Mux, Muy) rows of ``points``, made once per list."""
+        key = id(points)
+        found = self._rows.get(key)
+        if found is None or found[0] is not points:
+            if len(self._rows) > 64:
+                self._rows.clear()
+            found = (points, np.array([p[:3] for p in points], dtype=float).reshape(-1, 3))
+            self._rows[key] = found
+        return found[1]
+
     def utilisation(self, index: int, points: list[Point], coarse: bool = True) -> float:
-        return self.surface(index, coarse).max_utilisation([p[:3] for p in points])
+        key = (index, coarse, id(points))
+        found = self._worst.get(key)
+        if found is not None and found[0] is points:
+            return found[1]
+        worst = self.surface(index, coarse).max_utilisation(self._demands(points))
+        self._worst[key] = (points, worst)
+        return worst
 
     def carries(self, index: int, points: list[Point], coarse: bool = True) -> bool:
         """Whether layout ``index`` carries every point (stops at the first that it does not)."""
+        key = (index, coarse, id(points))
+        found = self._worst.get(key)
+        if found is not None and found[0] is points:
+            return found[1] <= 1.0
         surface = self.surface(index, coarse)
-        return surface.max_utilisation([p[:3] for p in points], stop_above=1.0) <= 1.0
+        worst = surface.max_utilisation(self._demands(points), stop_above=1.0)
+        if worst <= 1.0:
+            # Every demand was worked out: the largest utilisation, kept for utilisation().
+            self._worst[key] = (points, worst)
+        return worst <= 1.0
 
     def smallest(self, points: list[Point]) -> int | None:
         """The index of the smallest layout whose coarse surface carries ``points`` (bisection
@@ -1381,7 +1422,12 @@ def foundation_rows(demand: FoundationDemand) -> list[dict[str, Any]]:
 def column_requirements(
     gathered: Gathered, options: Options
 ) -> dict[str, tuple[ColumnSearch, dict[str, tuple[int | None, list[Point]]]]]:
-    """Per column type: its search and per member the smallest layout carrying its demand."""
+    """Per column type: its search and per member the smallest layout carrying its demand
+    (worked out once per gathering and options, see :attr:`Gathered.searches`)."""
+    kept = getattr(gathered, "searches", None)
+    key = dataclasses.astuple(options)
+    if kept is not None and key in kept:
+        return kept[key]
     combinations = gathered.collect.get("combinations", [])
     by_type: dict[str, tuple[ColumnSearch, dict[str, tuple[int | None, list[Point]]]]] = {}
     for member in gathered.collect.get("members", []):
@@ -1401,6 +1447,8 @@ def column_requirements(
         search, members = by_type[type_id]
         points = column_points(member, combinations)
         members[member["id"]] = (search.smallest(points), points)
+    if kept is not None:
+        kept[key] = by_type
     return by_type
 
 

@@ -195,7 +195,13 @@ cannot be included, and the row says why and what to try, for example:
   500 x 700 mm (+100 mm) with about ρ = 0.025; the analysis must be run again*;
 - beam: *... try 300 x 600 mm (depth +100 mm); the analysis must be run again, the stiffness
   changes*;
-- slab: *try 175 mm (+25 mm)*; foundation: *a thicker foundation*.
+- slab: *try 175 mm (+25 mm)*; foundation: *a thicker foundation*;
+- column at the joints of a special moment frame: *Section too small: joint shear at
+  C7@18000; try 450 x 450 mm (+50 mm) for the joint shear; the analysis must be run again*.
+  The joint shear comes from 1.25 fy of the proposed beam bars and only a larger joint (or a
+  higher f'c) carries it (BNBC 2020 Part 6 Sec 8.3.7). Before reporting it, the proposal gives
+  the beams framing in the lightest bars that still pass their own checks when that is enough;
+  the bars the column needs for its axial force and moments are kept in the row's notes.
 
 To fix it:
 

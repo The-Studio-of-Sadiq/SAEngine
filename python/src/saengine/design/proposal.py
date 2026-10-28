@@ -33,6 +33,14 @@ a slab too thin for one-way shear without shear bars), the type is reported ``to
 the next practical section as information (depth in 50 mm steps for beams, both sides in
 50 mm steps for columns, thickness in 25 mm steps for slabs); nothing is changed for it.
 
+Joints of special moment frames (BNBC 2020 Part 6 Sec 8.3.7): the joint shear Vj comes from
+1.25 fy of the beam bars framing in, less the column shear, against φ γ √f'c Aj, which bars
+cannot raise. Every joint the checks check is checked with the proposed beam bars (the checks'
+own :func:`saengine.design.ductile_joints.joint_checks`); where one fails, the beam types
+framing in get the lightest bars that still pass their own checks when fewer joints fail with
+them, and the column types below the joints still failing are reported ``tooSmall`` ("joint
+shear at ...") with the next practical size (both sides in 50 mm steps).
+
 :func:`apply_proposal` is pure: it takes the texts of the part files and returns new texts, so
 the workbench applies the proposal as one undoable edit.
 """
@@ -180,6 +188,10 @@ class BeamDesigner:
             )
         return self._cache[key]
 
+    def section(self, reinforcement: dict[str, Any]) -> Any:
+        """The section of ``reinforcement`` (the same object for the same bars)."""
+        return self._analyse(reinforcement)[0]
+
     def verify(self, reinforcement: dict[str, Any], loads: BeamLoads) -> dict[str, float] | None:
         """The utilisations of the checks (as :func:`check._beam_checks` makes them) when every
         one passes, else None."""
@@ -217,7 +229,9 @@ class BeamDesigner:
                 )
         return f"no depth up to +{GROWTH['beam']:g} mm works: widen the beam or add a support"
 
-    def propose(self, loads: BeamLoads) -> Pick:
+    def propose(self, loads: BeamLoads, lightest: bool = False) -> Pick:
+        """The bars for ``loads``; ``lightest``: the least top and bottom steel rather than the
+        best ranked (fewer bars and rows), for the joint shear (see :func:`_joint_shear`)."""
         opts = self.options
         stirrup = 10.0
         stirrups: B.Stirrups | None = None
@@ -265,9 +279,17 @@ class BeamDesigner:
                 for top, bottom in itertools.product(tops, bottoms)
                 if len({top.dia, bottom.dia}) <= opts.max_sizes
             ]
-            combos.sort(
-                key=lambda tb: (round(tb[0].score + tb[1].score, 1), len({tb[0].dia, tb[1].dia}))
-            )
+            if lightest:
+                combos.sort(
+                    key=lambda tb: (round(tb[0].area + tb[1].area, 1), tb[0].score + tb[1].score)
+                )
+            else:
+                combos.sort(
+                    key=lambda tb: (
+                        round(tb[0].score + tb[1].score, 1),
+                        len({tb[0].dia, tb[1].dia}),
+                    )
+                )
             for top, bottom in combos:
                 for option in self._stirrup_options(stirrups, loads, top, bottom):
                     reinforcement = self.reinforcement(top, bottom, option, loads)
@@ -455,6 +477,126 @@ def _bigger_column(search: ColumnSearch, points: list[Point]) -> str:
                 )
         grow += step
     return f"no size up to +{GROWTH['column']:g} mm works: a higher concrete grade or more columns"
+
+
+# ─────────────────────────────────── beam-column joints ───────────────────────────────────
+
+
+@dataclass
+class _JointCase:
+    """A joint the checks found joint shear at (special moment frames, BNBC Sec 8.3.7), as
+    :func:`saengine.design.ductile_joints.joint_checks` takes it: its beams' ``type`` is the
+    beam member's id, so every beam can carry bars of its own."""
+
+    joint: Any  # ductile_joints.FrameJoint
+    below: Any  # ductile_joints.JointColumn
+    above: Any
+    profile: Any  # the column below's
+    column_type: str
+
+
+def _joint_cases(gathered: Gathered) -> list[_JointCase]:
+    """The joints of the checks with a joint shear row, with their columns as the checks take
+    them (:mod:`saengine.design.seismic_detailing`; the axial forces do not enter joint shear)."""
+    from saengine.design import ductile_joints as dj
+
+    # The joint rows are named as the members' detailing rows ("Detailing: Joint shear, ...").
+    checked = {
+        j["id"]
+        for j in gathered.collect.get("joints", [])
+        if any("Joint shear, " in r["name"] for r in j.get("checks", []))
+    }
+    if not checked:
+        return []
+    columns = {m["id"]: m for m in gathered.collect.get("members", []) if m["kind"] == "column"}
+
+    def column(member: dict[str, Any]) -> Any:
+        reinforcement = member["object"].reinforcement
+        tie = reinforcement.transverse if reinforcement else None
+        return dj.JointColumn(
+            member["section"],
+            float(getattr(member.get("element"), "rotation", 0.0) or 0.0),
+            0.0,
+            0.0,
+            reinforcement.cover if reinforcement else 40.0,
+            tie.dia if tie else 10.0,
+        )
+
+    types = {o.id: o for o in gathered.objects.objects}
+    cases = []
+    try:
+        joints = dj.frame_joints(gathered.building, types)
+    except (DesignError, ValueError, AttributeError):
+        return []  # the checks found none either (seismic_detailing.apply)
+    for joint in joints:
+        below = columns.get(joint.below)
+        if joint.id not in checked or below is None:
+            continue
+        above = columns.get(joint.above) if joint.above else None
+        cases.append(
+            _JointCase(
+                dataclasses.replace(
+                    joint, beams=[dataclasses.replace(b, type=b.id) for b in joint.beams]
+                ),
+                column(below),
+                column(above) if above is not None else None,
+                below["object"].profile,
+                below["type"],
+            )
+        )
+    return cases
+
+
+def _joint_fails(case: _JointCase, sections: dict[str, Any], profile: Any = None) -> bool:
+    """Whether the joint shear of the checks (:func:`ductile_joints.joint_checks`) fails with
+    the beam sections ``sections`` (by beam member id) and the column ``profile`` (default the
+    column's own)."""
+    from saengine.design import ductile_joints as dj
+
+    beams = {b.id: sections[b.id] for b in case.joint.beams if b.id in sections}
+    if not beams:
+        return False
+    try:
+        rows, _ = dj.joint_checks(
+            case.joint, beams, case.below, case.above, profile or case.profile
+        )
+    except DesignError:
+        return False
+    return any(r["name"].startswith("Joint shear") and not r["ok"] for r in rows)
+
+
+def _joint_shear(cases: list[_JointCase], sections: dict[str, Any]) -> dict[str, list[str]]:
+    """The joints whose shear fails with ``sections`` (by beam member id), by the column type
+    below them."""
+    failing: dict[str, list[str]] = {}
+    for case in cases:
+        if _joint_fails(case, sections):
+            failing.setdefault(case.column_type, []).append(case.joint.id)
+    return failing
+
+
+def _joint_column_size(cases: list[_JointCase], sections: dict[str, Any]) -> str:
+    """The next practical column size (both sides +50 mm) at which every joint of ``cases``
+    (those of one column type) passes joint shear: Vj does not change, φ γ √f'c Aj grows with
+    the joint (γ may fall when the beams no longer cover three quarters of a face)."""
+    first = cases[0].profile
+    grow = 50.0
+    while grow <= GROWTH["column"]:
+        if isinstance(first, CircleProfile):
+            profile: Any = CircleProfile(radius=first.radius + grow / 2)
+            size = f"Ø{2 * profile.radius:g}"
+        else:
+            profile = RectangleProfile(xDim=first.xDim + grow, yDim=first.yDim + grow)
+            size = f"{profile.xDim:g} x {profile.yDim:g}"
+        if not any(_joint_fails(case, sections, profile) for case in cases):
+            return (
+                f"try {size} mm (+{grow:g} mm) for the joint shear; the analysis must be run again"
+            )
+        grow += 50.0
+    return (
+        f"no size up to +{GROWTH['column']:g} mm passes the joint shear: a higher concrete "
+        "grade, or lighter beam bars from deeper beams"
+    )
 
 
 # ─────────────────────────────────────── slabs ───────────────────────────────────────
@@ -660,6 +802,55 @@ def _split(
     return accepted, propose_for(envelope)
 
 
+@dataclass
+class _TypeResult:
+    """What the proposal of one type adds: its entry, the types split off it and their
+    members' reassignment, warnings."""
+
+    entry: dict[str, Any] | None = None
+    new_types: list[dict[str, Any]] = field(default_factory=list)
+    reassign: list[dict[str, Any]] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+
+
+def _same_result(a: _TypeResult, b: _TypeResult) -> bool:
+    """Whether two proposals of a type give every member the same bars."""
+    if a.entry is None or b.entry is None:
+        return a.entry is b.entry
+    if not _same(a.entry["proposed"] or {}, b.entry["proposed"]):
+        return False
+    if len(a.new_types) != len(b.new_types) or a.reassign != b.reassign:
+        return False
+    return all(_same(x["proposed"] or {}, y["proposed"]) for x, y in zip(a.new_types, b.new_types))
+
+
+def _joint_too_small(found: _TypeResult, joint_ids: list[str], suggestion: str) -> None:
+    """Reports a column type too small for the joint shear at ``joint_ids`` (as a section too
+    small for bars: nothing is changed for it, its split types are not made); the bars its
+    axial forces and moments need stay in a note."""
+    entry = found.entry
+    assert entry is not None
+    bars = entry["proposed"]
+    entry["status"] = "tooSmall"
+    entry["proposed"] = None
+    entry["tooSmall"] = {
+        "reason": f"joint shear at {', '.join(joint_ids)}",
+        "suggestion": suggestion,
+    }
+    if bars:
+        entry["notes"] = [
+            *entry["notes"],
+            (
+                f"bars for its axial forces and moments: {bars['text']}; not proposed, the joints "
+                "need a larger column (joint shear φ γ √f'c Aj, Sec 8.3.7.3, does not depend on bars)"
+            ),
+        ]
+    if "byType" in entry:
+        entry["byType"] = None
+    found.new_types.clear()
+    found.reassign.clear()
+
+
 def _new_id(base: str, taken: set[str]) -> tuple[str, int]:
     k = 2
     while f"{base}-{k}" in taken:
@@ -805,8 +996,11 @@ def design_proposal(
         pick: Pick,
         members: list[MemberPick],
         propose_for,
+        found: _TypeResult,
+        lightest: bool = False,
     ) -> Pick:
-        """Splits off the over-designed members; returns the remaining members' pick."""
+        """Splits off the over-designed members (into ``found``); returns the remaining
+        members' pick."""
         accepted, remaining = _split(pick, members, opts, propose_for)
         for group, group_pick in accepted:
             # The new type's own members' seismic detailing (hoop zones, Mn+ >= Mn-/2).
@@ -817,12 +1011,12 @@ def design_proposal(
                     for m in group[1:]:
                         loads = loads.envelope(m.loads)
                     group_pick = _beam_positive_moment(
-                        beam_designers[type_id], group_pick, loads, own
+                        beam_designers[type_id], group_pick, loads, own, lightest
                     )
                 _with_seismic(group_pick, kind, own[0]["object"], own, label_of, opts)
             new_id, k = _new_id(type_id, taken)
             governing = max(group, key=lambda m: m.pick.area).id
-            new_types.append(
+            found.new_types.append(
                 {
                     "type": new_id,
                     "from": type_id,
@@ -837,7 +1031,7 @@ def design_proposal(
                 }
             )
             for m in group:
-                reassign.append(
+                found.reassign.append(
                     {"member": m.id, "from": type_id, "to": new_id, "source": sources.get(m.id)}
                 )
         return remaining
@@ -847,20 +1041,22 @@ def design_proposal(
     for member in gathered.collect.get("members", []):
         if member["kind"] == "beam":
             beams.setdefault(member["type"], []).append(member)
-    for type_id, members in beams.items():
+
+    beam_loads: dict[str, BeamLoads] = {}  # by member id, for the joints' second pass too
+
+    def beam_type(type_id: str, lightest: bool = False) -> _TypeResult:
+        """The proposal of a beam type; ``lightest``: the least steel that passes (for the
+        joint shear) rather than the best ranked bars."""
+        members = beams[type_id]
         first = members[0]
-        try:
-            designer = BeamDesigner(
-                first["object"], first["fc"], first["fy"], first["es"], first["aggregate"], opts
-            )
-        except DesignError as error:
-            warnings.append(f"{type_id}: {error}")
-            continue
-        beam_designers[type_id] = designer
+        designer = beam_designers[type_id]
+        found = _TypeResult()
         picks = []
         cache: dict[BeamLoads, Pick] = {}
         for member in members:
-            loads = _beam_loads(member, combinations)
+            if member["id"] not in beam_loads:
+                beam_loads[member["id"]] = _beam_loads(member, combinations)
+            loads = beam_loads[member["id"]]
             key = BeamLoads(
                 *(round(v, -3) for v in (loads.sag, loads.hog, loads.shear)),
                 round(loads.at_s, 4),
@@ -868,19 +1064,27 @@ def design_proposal(
                 loads.torsion_s_max,
             )
             if key not in cache:
-                cache[key] = designer.propose(loads)
+                cache[key] = designer.propose(loads, lightest)
             picks.append(MemberPick(member["id"], loads, cache[key]))
         envelope = picks[0].loads
         for m in picks[1:]:
             envelope = envelope.envelope(m.loads)
-        pick = designer.propose(envelope)
-        pick = _beam_positive_moment(designer, pick, envelope, members)
+        pick = designer.propose(envelope, lightest)
+        pick = _beam_positive_moment(designer, pick, envelope, members, lightest)
         governing = max(picks, key=lambda m: m.pick.area if m.pick.reinforcement else math.inf).id
         over = _over_designed(pick, picks, opts.over_design) if pick.reinforcement else []
         by_type_pick = pick
         if mode == "splitTypes" and pick.reinforcement is not None:
             pick = split(
-                type_id, "beam", first["object"].name, _beam_label, pick, picks, designer.propose
+                type_id,
+                "beam",
+                first["object"].name,
+                _beam_label,
+                pick,
+                picks,
+                lambda loads: designer.propose(loads, lightest),
+                found,
+                lightest,
             )
         seismic = _with_seismic(pick, "beam", first["object"], members, _beam_label, opts)
         entry = _entry(
@@ -902,12 +1106,30 @@ def design_proposal(
         )
         if mode == "splitTypes":
             entry["byType"] = bars_of(by_type_pick.reinforcement, by_type_pick.label)
-        _seismic_entry(entry, seismic, warnings)
-        types.append(entry)
+        _seismic_entry(entry, seismic, found.warnings)
+        found.entry = entry
+        return found
+
+    results: list[_TypeResult] = []
+    beam_results: dict[str, _TypeResult] = {}
+    for type_id, members in beams.items():
+        first = members[0]
+        try:
+            designer = BeamDesigner(
+                first["object"], first["fc"], first["fy"], first["es"], first["aggregate"], opts
+            )
+        except DesignError as error:
+            results.append(_TypeResult(warnings=[f"{type_id}: {error}"]))
+            continue
+        beam_designers[type_id] = designer
+        beam_results[type_id] = beam_type(type_id)
+        results.append(beam_results[type_id])
 
     # Columns.
+    column_results: dict[str, _TypeResult] = {}
     for type_id, (search, members) in column_requirements(gathered, opts).items():
         obj = search.obj
+        found = _TypeResult()
         picks = []
         for member_id, (index, points) in members.items():
             picks.append(
@@ -934,6 +1156,7 @@ def design_proposal(
                 pick,
                 picks,
                 lambda loads, s=search: _column_pick(s, loads.index, loads.points),
+                found,
             )
         collected = [m for m in gathered.collect.get("members", []) if m["type"] == type_id]
         seismic = _with_seismic(pick, "column", obj, collected, _column_label, opts)
@@ -957,8 +1180,86 @@ def design_proposal(
         )
         if mode == "splitTypes":
             entry["byType"] = bars_of(by_type_pick.reinforcement, by_type_pick.label)
-        _seismic_entry(entry, seismic, warnings)
-        types.append(entry)
+        _seismic_entry(entry, seismic, found.warnings)
+        found.entry = entry
+        column_results[type_id] = found
+        results.append(found)
+
+    # Beam-column joints of special moment frames (Sec 8.3.7): bars cannot raise a joint's
+    # capacity (the column section and f'c give it); lighter beam bars lower its shear.
+    cases = _joint_cases(gathered)
+    if cases:
+
+        def sections(chosen: dict[str, _TypeResult]) -> dict[str, Any]:
+            """The beam sections at the joints by member id: the bars proposed for the member's
+            type (or the new type it moves to), else the bars it was checked with."""
+            out: dict[str, Any] = {}
+            for type_id, members in beams.items():
+                found = chosen.get(type_id)
+                bars: dict[str, Any] = {}
+                if found is not None and found.entry is not None:
+                    bars = {m["id"]: found.entry["proposed"] for m in members}
+                    new = {t["type"]: t["proposed"] for t in found.new_types}
+                    for move in found.reassign:
+                        bars[move["member"]] = new.get(move["to"])
+                for member in members:
+                    proposed = bars.get(member["id"])
+                    out[member["id"]] = (
+                        member["section"]
+                        if proposed is None
+                        else beam_designers[type_id].section(reinforcement_of(proposed))
+                    )
+            return out
+
+        failing = _joint_shear(cases, sections(beam_results))
+        for type_id, members in beams.items():
+            found = beam_results.get(type_id)
+            if not failing or found is None or found.entry is None or not found.entry["proposed"]:
+                continue
+            failing_ids = {j for ids in failing.values() for j in ids}
+            own = {m["id"] for m in members}
+            if not any(
+                b.id in own for c in cases if c.joint.id in failing_ids for b in c.joint.beams
+            ):
+                continue
+            # (a) The lightest bars that pass the beam's own checks, kept when fewer joints
+            # fail with them.
+            released = {t["type"] for t in found.new_types}
+            taken.difference_update(released)
+            trial = beam_type(type_id, lightest=True)
+            again = None
+            if not _same_result(trial, found):
+                again = _joint_shear(cases, sections({**beam_results, type_id: trial}))
+            if again is not None and sum(map(len, again.values())) < len(failing_ids):
+                fixed = sorted(failing_ids - {j for ids in again.values() for j in ids})
+                trial.entry["notes"] = [
+                    *trial.entry["notes"],
+                    (
+                        "the lightest bars that pass, for the joint shear at "
+                        f"{', '.join(fixed)} (Vj from 1.25 fy of the beam bars, Sec 8.3.7.1(a))"
+                    ),
+                ]
+                beam_results[type_id] = trial
+                results[results.index(found)] = trial
+                failing = again
+            else:
+                taken.difference_update(t["type"] for t in trial.new_types)
+                taken.update(released)
+        # (b) Else the column is too small: the next practical size.
+        final = sections(beam_results)
+        for type_id, joint_ids in failing.items():
+            found = column_results.get(type_id)
+            if found is None or found.entry is None:
+                continue
+            own_cases = [c for c in cases if c.column_type == type_id]
+            _joint_too_small(found, joint_ids, _joint_column_size(own_cases, final))
+
+    for found in results:
+        if found.entry is not None:
+            types.append(found.entry)
+        new_types += found.new_types
+        reassign += found.reassign
+        warnings += found.warnings
 
     # Slabs.
     slabs: dict[str, list[dict[str, Any]]] = {}
@@ -980,9 +1281,19 @@ def design_proposal(
         over = _over_designed(pick, picks, opts.over_design) if pick.reinforcement else []
         by_type_pick = pick
         if mode == "splitTypes" and pick.reinforcement is not None:
+            found = _TypeResult()
             pick = split(
-                type_id, "slab", first["object"].name, _mesh_label, pick, picks, designer.propose
+                type_id,
+                "slab",
+                first["object"].name,
+                _mesh_label,
+                pick,
+                picks,
+                designer.propose,
+                found,
             )
+            new_types += found.new_types
+            reassign += found.reassign
         flat = [
             c["name"]
             for c in itertools.chain.from_iterable(x["checks"] for x in collected)
@@ -1314,7 +1625,11 @@ def _seismic_entry(
 
 
 def _beam_positive_moment(
-    designer: BeamDesigner, pick: Pick, loads: BeamLoads, members: list[dict[str, Any]]
+    designer: BeamDesigner,
+    pick: Pick,
+    loads: BeamLoads,
+    members: list[dict[str, Any]],
+    lightest: bool = False,
 ) -> Pick:
     """Sec 8.3.4.2(a) (special frames, and members outside the system in Category D): at
     least ρmin = max(0.25 √f'c, 1.4)/fy top and bottom (no 4/3 As relief) and Mn+ at the face
@@ -1351,7 +1666,7 @@ def _beam_positive_moment(
         if not why:
             return pick
         loads = dataclasses.replace(loads, sag=new_sag, hog=new_hog)
-        again = designer.propose(loads)
+        again = designer.propose(loads, lightest)
         if again.reinforcement is None:
             return pick
         again.notes = [*again.notes, *why]

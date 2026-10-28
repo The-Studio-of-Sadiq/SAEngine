@@ -407,6 +407,138 @@ def test_unticked_split_keeps_the_type_on_bars_for_all_its_members() -> None:
         apply_proposal(objects_text, bim_text, proposal(new_apply=False, by_type=False))
 
 
+# ─────────────────────────────── joint shear ───────────────────────────────
+
+
+def _joint_frame(tmp_path: Path, monkeypatch, sag: float, hog: float):
+    """An interior joint of a special moment frame, f'c 25, fy 420: the 400 x 400 column C1
+    (storey 0-3 m) with C2 above it, 300 x 500 beams B1 and B2 of one type framing into two
+    opposite faces (x) at 3 m. The checks' own joint shear: γ = 1.2 (two opposite faces
+    confined, 300 ≥ 0.75 × 400), Aj = 400 × min(400, 300 + 400) = 160 000 mm², φ Vn = 0.85 ×
+    1.2 × √25 × 160 000 = 816 kN. The beam demands (sagging, hogging [kN·m], shear 150 kN) are
+    given directly; the joint is found in the building model as the checks found it (their row
+    named "Detailing: Joint shear, ..."), and the proposal is made for them."""
+    from types import SimpleNamespace
+
+    from saengine.design import proposal as P
+    from saengine.library.bim import BuildingModel
+    from saengine.library.objects import Column, RectangleProfile
+
+    fc = 25.0
+    beam = Beam.model_validate(
+        {
+            "id": "B300x500",
+            "name": "Beam",
+            "material": "C25",
+            "profile": {"shape": "rectangle", "xDim": 300, "yDim": 500},
+            "reinforcement": {
+                "material": "B420",
+                "cover": 40,
+                "longitudinal": [],
+                "transverse": {"type": "stirrup", "dia": 10, "spacing": 150},
+            },
+        }
+    )
+    column = Column.model_validate(
+        {
+            "id": "C400",
+            "name": "Column",
+            "material": "C25",
+            "profile": {"shape": "rectangle", "xDim": 400, "yDim": 400},
+        }
+    )
+    building = BuildingModel.model_validate(
+        {
+            "elements": [
+                {"kind": "column", "id": "C1", "type": "C400", "position": [0, 0], "bottom": 0,
+                 "top": 3000},
+                {"kind": "column", "id": "C2", "type": "C400", "position": [0, 0],
+                 "bottom": 3000, "top": 6000},
+                {"kind": "beam", "id": "B1", "type": "B300x500", "start": [-6000, 0],
+                 "end": [0, 0], "elevation": 3000},
+                {"kind": "beam", "id": "B2", "type": "B300x500", "start": [0, 0],
+                 "end": [6000, 0], "elevation": 3000},
+            ]
+        }
+    )  # fmt: skip
+    column_section = section_of(
+        RectangleProfile(xDim=400, yDim=400),
+        LinearReinforcement.model_validate(
+            {
+                "material": "B420",
+                "cover": 40,
+                "longitudinal": [{"position": "perimeter", "count": 8, "dia": 20}],
+                "transverse": {"type": "tie", "dia": 10, "spacing": 100},
+            }
+        ),
+        fc,
+        FY,
+    )
+    common = {"fc": fc, "fy": FY, "es": 200_000.0, "aggregate": None}
+    loads = BeamLoads(sag * 1e6, hog * 1e6, 150e3)
+    beams = [
+        {"id": b, "kind": "beam", "type": "B300x500", "object": beam, "loads": loads, **common}
+        for b in ("B1", "B2")
+    ]
+    columns = [
+        {
+            "id": c,
+            "kind": "column",
+            "type": "C400",
+            "object": column,
+            "section": column_section,
+            "points": [(1500e3, 60e6, 20e6, "U1", "bottom")],
+            **common,
+        }
+        for c in ("C1", "C2")
+    ]
+    joints = [{"id": "C1@3000", "checks": [{"name": "Detailing: Joint shear, C1@3000 x"}]}]
+    gathered = SimpleNamespace(
+        root=tmp_path,
+        collect={"combinations": ["U1"], "members": beams + columns, "joints": joints},
+        objects_text=json.dumps({"objects": []}),
+        objects=SimpleNamespace(objects=[beam, column]),
+        assumed=set(),
+        building=building,
+        notes=[],
+    )
+    monkeypatch.setattr(P, "_beam_loads", lambda member, combinations: member["loads"])
+    return P.design_proposal(tmp_path, tmp_path / "model.osmodel", gathered=gathered)
+
+
+def test_lighter_beam_bars_make_the_joint_pass(tmp_path: Path, monkeypatch) -> None:
+    # Mu- 160, Mu+ 80 kN·m. The best ranked bars, top 4Ø20 (1256.6 mm²), bottom 3Ø16 (603.2):
+    # T = 1.25 × 420 × (1256.6 + 603.2) = 976.4 kN, Vcol = ΣMpr / 3000 mm = 131.7 kN, Vj = 844.7
+    # kN > 816 kN. The lightest that pass, top 10Ø12 (1131.0, two rows), bottom 5Ø12 (565.5):
+    # T = 525 × 1696.5 = 890.7 kN, Vcol 120.6 kN, Vj = 770.1 kN ≤ 816 kN.
+    proposal = _joint_frame(tmp_path, monkeypatch, sag=80, hog=160)
+    by_type = {t["type"]: t for t in proposal["types"]}
+    beam, column = by_type["B300x500"], by_type["C400"]
+    groups = {g["position"]: (g["count"], g["dia"]) for g in beam["proposed"]["longitudinal"]}
+    assert groups == {"top": (10, 12.0), "bottom": (5, 12.0)}
+    assert any("joint shear at C1@3000" in n for n in beam["notes"])
+    assert column["status"] == "ok" and column["tooSmall"] is None
+
+
+def test_joint_shear_reports_the_column_too_small(tmp_path: Path, monkeypatch) -> None:
+    # Mu- 280, Mu+ 196 kN·m: top 4Ø25 (1963.5 mm²), bottom 3Ø25 (1472.6): T = 525 × 3436.1 =
+    # 1803.9 kN, Vcol = 233.8 kN, Vj = 1570.1 kN, far above 816 kN; the lightest bars that pass
+    # (top 4Ø25, bottom 12Ø12: Vj 1521.5 kN) do not help, so the beam keeps its bars and the
+    # column is too small. Larger columns, both sides +50 mm: from 450 the 300 mm beams cover
+    # less than 0.75 of a face, γ = 1.0, Aj = h², φ Vn = 0.85 × 1.0 × 5 × h²: 600 gives 1530 kN
+    # (fails), 650 gives 1795.6 kN ≥ 1570.1 kN.
+    proposal = _joint_frame(tmp_path, monkeypatch, sag=196, hog=280)
+    by_type = {t["type"]: t for t in proposal["types"]}
+    beam, column = by_type["B300x500"], by_type["C400"]
+    groups = {g["position"]: (g["count"], g["dia"]) for g in beam["proposed"]["longitudinal"]}
+    assert groups == {"top": (4, 25.0), "bottom": (3, 25.0)}
+    assert column["status"] == "tooSmall" and column["proposed"] is None
+    assert column["tooSmall"]["reason"] == "joint shear at C1@3000"
+    assert column["tooSmall"]["suggestion"].startswith("try 650 x 650 mm (+250 mm)")
+    assert any(n.startswith("bars for its axial forces and moments:") for n in column["notes"])
+    assert "C400: section too small — joint shear at C1@3000" in proposal["warnings"]
+
+
 # ─────────────────────────────── the shipped sample ───────────────────────────────
 
 
