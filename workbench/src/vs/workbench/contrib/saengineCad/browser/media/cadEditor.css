@@ -205,4 +205,5 @@
 .saengine-architecture .floor-plan-prop-control .monaco-select-box {
 	width: 100%;
 	text-overflow: ellipsis;
+	padding-right: 22px; /* the ellipsis stops before the arrow */
 }
