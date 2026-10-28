@@ -144,6 +144,33 @@ class PlanFooting:
 
 
 @dataclass
+class PlanPile:
+    """A pile placed in plan, with its mark and the cap it is under ("" for none)."""
+
+    mark: str
+    centre: Point
+    diameter: float
+    cap: str = ""
+
+
+@dataclass
+class PileGridPlan:
+    """The pile grid: its origin and rotation [°] and its lines along its own axes."""
+
+    origin: Point
+    rotation: float
+    x: list[Grid] = field(default_factory=list)
+    y: list[Grid] = field(default_factory=list)
+
+    def point(self, x: float, y: float) -> Point:
+        a = math.radians(self.rotation)
+        return (
+            self.origin[0] + x * math.cos(a) - y * math.sin(a),
+            self.origin[1] + x * math.sin(a) + y * math.cos(a),
+        )
+
+
+@dataclass
 class Building:
     grids_x: list[Grid] = field(default_factory=list)  # lines at x = position (labels A, B..)
     grids_y: list[Grid] = field(default_factory=list)  # lines at y = position (labels 1, 2..)
@@ -154,6 +181,8 @@ class Building:
     slabs: list[PlanSlab] = field(default_factory=list)
     stairs: list[PlanStair] = field(default_factory=list)
     footings: list[PlanFooting] = field(default_factory=list)
+    piles: list[PlanPile] = field(default_factory=list)
+    pile_grid: PileGridPlan | None = None
     north: float = 0.0  # north from the plan's +y, degrees counter-clockwise
 
     def level(self, level_id: str) -> Level | None:
@@ -552,6 +581,7 @@ class DrawingSet:
     walls: list[WallDetail] = field(default_factory=list)
     stairs: list[StairDetail] = field(default_factory=list)
     bbs: list[Table] = field(default_factory=list)  # the bar schedule, then its totals
+    pile_caps: Table | None = None  # the pile cap schedule
     notes: list[str] = field(default_factory=list)  # general notes
     tables: list[Table] = field(default_factory=list)  # notes tables (lap and development, ...)
     steel: SteelSet = field(default_factory=SteelSet)

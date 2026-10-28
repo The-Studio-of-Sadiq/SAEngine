@@ -3401,7 +3401,7 @@ def detailing_model(
     if data.get("substructure"):
         from saengine.substructure.handover import authoritative_substructure
 
-        substructure = authoritative_substructure(data["substructure"])
+        substructure = authoritative_substructure(data["substructure"], building)
     opts = {**DEFAULT_OPTIONS, **(options or {})}
     if opts["method"] not in ("simplified", "general"):
         raise ValueError(f"method {opts['method']!r}: 'simplified' or 'general'")

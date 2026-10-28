@@ -332,7 +332,9 @@ def building_ifc(
         materials = MaterialLibrary.model_validate_json(materials_text) if materials_text else None
     except ValidationError:
         materials = None  # material names fall back to their ids
-    substructure, ground, problems = _substructure_inputs(substructure_text, settings_text)
+    substructure, ground, problems = _substructure_inputs(
+        substructure_text, settings_text, building
+    )
     if problems:
         return {"problems": problems}
     from saengine.library.mep import parse as parse_mep
@@ -359,7 +361,7 @@ def building_ifc(
 
 
 def _substructure_inputs(
-    substructure_text: str | None, settings_text: str | None
+    substructure_text: str | None, settings_text: str | None, building: Any = None
 ) -> tuple[Any, float, list[str]]:
     """The substructure that is the source of the foundations (None while it is the placeholder:
     the building model's footings are), the ground level, and problems with either file."""
@@ -369,7 +371,7 @@ def _substructure_inputs(
     from saengine.substructure.handover import authoritative_substructure
 
     try:
-        substructure = authoritative_substructure(substructure_text)
+        substructure = authoritative_substructure(substructure_text, building)
     except ValidationError as exc:
         return None, 0.0, _messages(exc, "Substructure")
     except ValueError as exc:

@@ -190,7 +190,7 @@ def validate_part(project: Project, part: str) -> PartValidation:
         from saengine.library import substructure
 
         try:
-            model = substructure.parse(text)
+            model = substructure.parse(text, _building(project))
         except ValidationError as exc:
             problems = _pydantic(exc)
         except ValueError as exc:

@@ -94,6 +94,8 @@ LAYERS: tuple[tuple[str, int, str, int, str, bool], ...] = (
     ("S-WALL", 7, "Continuous", 50, "Walls", True),
     ("S-STAIR", 6, "Continuous", 25, "Stairs", True),
     ("S-FNDN", 4, "HIDDEN", 35, "Foundations", True),
+    ("S-PILE", 4, "Continuous", 35, "Piles in plan", True),
+    ("S-PILE-GRID", 6, "CENTER", 18, "Pile grid (centre lines, its own setting-out)", True),
     ("S-CONC", 7, "Continuous", 35, "Concrete outlines of details", True),
     ("S-HATCH", 8, "Continuous", 9, "Hatching of cut concrete", True),
     ("S-REBAR-MAIN", 1, "Continuous", 50, "Main bars", True),

@@ -459,7 +459,7 @@ def structural_ifc(project_root: str | Path) -> tuple[ifcopenshell.file, Buildin
         substructure_text = (root / "09 Substructure" / "substructure.json").read_text("utf-8")
     except OSError:
         substructure_text = None
-    substructure = authoritative_substructure(substructure_text)
+    substructure = authoritative_substructure(substructure_text, building)
     ifc, _, _ = export_ifc(building, objects, materials, root.name, substructure, ground)
     return ifc, building, objects, materials
 

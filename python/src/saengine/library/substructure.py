@@ -3,7 +3,9 @@
 Part 9 places the foundations under the columns and walls of the building model (Part 6) and
 designs them under the support reactions of the analysis (Part 8) on the soil of the soil report
 (Part 1): isolated, combined and strip footings, pile caps on piles, and rafts, with the tie
-beams between them. The file stores only what the engineer decides (types, sizes, positions,
+beams between them. The piles are placed on their own (on the pile grid, independent of the
+building's grid) and a pile cap is formed over a group of them: its centre need not lie on its
+columns, and the design carries that eccentricity into the pile loads. The file stores only what the engineer decides (types, sizes, positions,
 reinforcement, design choices); every computed value (soil pressure, pile loads, checks) is
 worked out on demand (:func:`saengine.substructure.substructure_report`).
 
@@ -17,7 +19,7 @@ import itertools
 import math
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, model_validator
 
 from saengine.library.labels import field_title
 from saengine.library.materials import Category, Id, MaterialLibrary
@@ -78,8 +80,9 @@ class Foundation(_Model):
     )
     center: Point2 | None = Field(
         default=None,
-        description="Plan position of the centre [x, y] mm (isolated and combined footings, "
-        "pile caps); empty: the centroid of its columns.",
+        description="Plan position of the centre [x, y] mm (isolated and combined footings; "
+        "empty: the centroid of its columns). A pile cap always has one: it is placed over its "
+        "piles, not over its columns.",
     )
     rotation: float = Field(default=0, description="Of its local x axis from the global X [°].")
     length: Length | None = Field(default=None, description="Along its local x [mm].")
@@ -117,10 +120,10 @@ class Foundation(_Model):
         description="Studs or stirrups round its columns, checked where the concrete alone is "
         "not enough (isolated, combined footings and rafts; empty: none).",
     )
-    pileType: Id | None = Field(default=None, title="Pile type", description="Pile caps.")
-    piles: list[Point2] | None = Field(
+    piles: list[Id] | None = Field(
         default=None,
-        description="Pile positions [[dx, dy], ...] mm from the cap's centre, in its local axes.",
+        description="Pile caps: the ids of the piles it stands on (the substructure's piles, "
+        "placed in plan; all of one pile type).",
     )
     note: str | None = None
 
@@ -130,22 +133,24 @@ class Foundation(_Model):
         missing: list[str] = []
         if self.type in ("isolated", "combined", "pileCap"):
             missing = [n for n in ("length", "width", "thickness") if getattr(self, n) is None]
-            if self.center is None and not self.columns:
+            if self.type == "pileCap" and self.center is None:
+                missing.append("center")
+            elif self.center is None and not self.columns:
                 missing.append("center (or columns)")
         elif self.type == "strip":
             missing = [n for n in ("path", "width", "thickness") if getattr(self, n) is None]
         elif self.type == "raft":
             missing = [n for n in ("outline", "thickness") if getattr(self, n) is None]
-        if self.type == "pileCap":
-            if self.pileType is None:
-                missing.append("pileType")
-            if not self.piles:
-                missing.append("piles")
+        if self.type == "pileCap" and not self.piles:
+            missing.append("piles")
         if missing:
             raise ValueError(f"{self.id}: a {kind} needs {', '.join(missing)}")
-        duplicates = sorted({c for c in self.columns if self.columns.count(c) > 1})
+        listed = self.columns + (self.piles or [])
+        duplicates = sorted({c for c in listed if listed.count(c) > 1})
         if duplicates:
             raise ValueError(f"{self.id}: {', '.join(duplicates)} listed twice")
+        if self.piles and self.type != "pileCap":
+            raise ValueError(f"{self.id}: only a pile cap stands on piles")
         if self.path is not None and any(
             math.dist(a, b) < 1 for a, b in itertools.pairwise(self.path)
         ):
@@ -175,6 +180,61 @@ class PileType(_Model):
     length: Length = Field(description="Below the underside of the cap [mm].")
     material: Id = Field(description="Concrete material id (03 Materials).")
     reinforcement: LinearReinforcement | None = None
+
+
+class Pile(_Model):
+    """One pile, placed in plan: its mark, pile type and position."""
+
+    id: Id = Field(description="Its mark on the pile layout plan (PL1, PL2, ...).")
+    type: Id = Field(title="Pile type", description="Pile type id.")
+    position: Point2 = Field(description="Plan position of its centre [x, y] mm.")
+
+
+class PileGridLine(_Model):
+    """A line of the pile grid."""
+
+    label: Annotated[str, Field(pattern=r"^[A-Za-z0-9.'-]+$", min_length=1, max_length=8)]
+    position: float = Field(
+        description="Distance from the grid's origin along the grid's own axis [mm]."
+    )
+
+
+class PileGrid(_Model):
+    """The grid the piles are set out on, independent of the building's grid: its own origin and
+    rotation, named lines across its x axis (``x``, at x = position) and its y axis (``y``)."""
+
+    origin: Point2 = Field(
+        default_factory=lambda: [0.0, 0.0], description="Plan position of its origin [mm]."
+    )
+    rotation: float = Field(default=0, description="Of its x axis from the global X [°].")
+    x: list[PileGridLine] = Field(
+        default_factory=list, title="X lines", description="Lines at x = position (local)."
+    )
+    y: list[PileGridLine] = Field(
+        default_factory=list, title="Y lines", description="Lines at y = position (local)."
+    )
+
+    @model_validator(mode="after")
+    def _distinct(self) -> PileGrid:
+        labels = [g.label for g in self.x + self.y]
+        duplicates = sorted({label for label in labels if labels.count(label) > 1})
+        if duplicates:
+            raise ValueError(f"pile grid: {', '.join(duplicates)} used twice")
+        return self
+
+    def point(self, x: float, y: float) -> list[float]:
+        """The plan position [mm] of the local point (x, y)."""
+        a = math.radians(self.rotation)
+        c, s = math.cos(a), math.sin(a)
+        return [self.origin[0] + x * c - y * s, self.origin[1] + x * s + y * c]
+
+    def intersections(self) -> list[tuple[str, str, list[float]]]:
+        """Every crossing of an x and a y line: (x label, y label, plan position)."""
+        return [
+            (gx.label, gy.label, self.point(gx.position, gy.position))
+            for gx in self.x
+            for gy in self.y
+        ]
 
 
 class TieBeam(_Model):
@@ -301,35 +361,61 @@ class Substructure(_Model):
     schema_: Literal["saengine.substructure/1"] = Field(default=SCHEMA_ID, alias="schema")
     foundations: list[Foundation] = Field(default_factory=list)
     pileTypes: list[PileType] = Field(default_factory=list, title="Pile types")
+    pileGrid: PileGrid | None = Field(
+        default=None,
+        title="Pile grid",
+        description="The grid the piles are set out on, independent of the building's grid.",
+    )
+    piles: list[Pile] = Field(
+        default_factory=list,
+        description="Every pile, placed in plan; a pile cap lists the ones it stands on.",
+    )
     tieBeams: list[TieBeam] = Field(default_factory=list, title="Tie beams")
     design: Design = Field(default_factory=Design)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _upgrade(cls, data: Any, info: ValidationInfo) -> Any:
+        """Pile caps of the earlier format (a pile type and pile offsets from the cap's centre)
+        are read as piles placed in plan (:func:`upgrade_pile_caps`)."""
+        positions = (info.context or {}).get("positions") if info is not None else None
+        return upgrade_pile_caps(data, positions) if isinstance(data, dict) else data
 
     @model_validator(mode="after")
     def _references(self) -> Substructure:
         for name, items in (
             ("foundations", self.foundations),
             ("pile types", self.pileTypes),
+            ("piles", self.piles),
             ("tie beams", self.tieBeams),
         ):
             ids = [i.id for i in items]
             duplicates = sorted({i for i in ids if ids.count(i) > 1})
             if duplicates:
                 raise ValueError(f"duplicate {name} ids: {', '.join(duplicates)}")
-        piles = {p.id: p for p in self.pileTypes}
+        types = {p.id for p in self.pileTypes}
+        for pile in self.piles:
+            if pile.type not in types:
+                raise ValueError(f"{pile.id}: unknown pile type '{pile.type}'")
+        piles = {p.id: p for p in self.piles}
         carried: dict[str, str] = {}
+        capped: dict[str, str] = {}
         for f in self.foundations:
             for column in f.columns:
                 if column in carried:
                     raise ValueError(f"{column} is carried by both {carried[column]} and {f.id}")
                 carried[column] = f.id
-            if f.type != "pileCap":
-                continue
-            pile = piles.get(f.pileType or "")
-            if pile is None:
-                raise ValueError(f"{f.id}: unknown pile type '{f.pileType}'")
-            problem = pile_layout_problem(f.piles or [], pile.diameter, f.length or 0, f.width or 0)
-            if problem:
-                raise ValueError(f"{f.id}: {problem}")
+            for pile_id in f.piles or []:
+                if pile_id not in piles:
+                    raise ValueError(f"{f.id}: unknown pile '{pile_id}'")
+                if pile_id in capped:
+                    raise ValueError(f"pile {pile_id} is under both {capped[pile_id]} and {f.id}")
+                capped[pile_id] = f.id
+            kinds = sorted({piles[p].type for p in f.piles or []})
+            if len(kinds) > 1:
+                raise ValueError(
+                    f"{f.id}: its piles are of more than one type ({', '.join(kinds)})"
+                )
         foundations = {f.id for f in self.foundations}
         for tie in self.tieBeams:
             for end in (tie.from_, tie.to):
@@ -344,6 +430,213 @@ class Substructure(_Model):
 
     def pile_type(self, pile_id: str | None) -> PileType | None:
         return next((p for p in self.pileTypes if p.id == pile_id), None)
+
+    def pile(self, pile_id: str) -> Pile | None:
+        return next((p for p in self.piles if p.id == pile_id), None)
+
+    def cap_piles(self, foundation: Foundation) -> list[Pile]:
+        """The piles a pile cap stands on, in its order."""
+        by_id = {p.id: p for p in self.piles}
+        return [by_id[p] for p in foundation.piles or [] if p in by_id]
+
+    def cap_pile_type(self, foundation: Foundation) -> PileType | None:
+        """The pile type of a pile cap's piles (one per cap)."""
+        piles = self.cap_piles(foundation)
+        return self.pile_type(piles[0].type) if piles else None
+
+    def pile_offsets(self, foundation: Foundation) -> list[list[float]]:
+        """A pile cap's piles as offsets [[u, v], ...] mm from its centre in its local axes."""
+        if foundation.center is None:
+            return []
+        a = math.radians(foundation.rotation)
+        c, s = math.cos(a), math.sin(a)
+        x0, y0 = foundation.center
+        return [
+            [(x - x0) * c + (y - y0) * s, -(x - x0) * s + (y - y0) * c]
+            for x, y in (p.position for p in self.cap_piles(foundation))
+        ]
+
+    def capped(self) -> dict[str, str]:
+        """The cap of each pile under one: {pile id: foundation id}."""
+        return {p: f.id for f in self.foundations for p in f.piles or []}
+
+
+#: BNBC 2020 Part 6 Sec 3.10.1.19 and 3.10.1.30: piles at least 2.5 diameters and 750 mm apart.
+MIN_SPACING_DIAMETERS = 2.5
+MIN_SPACING = 750.0
+
+
+def cap_outline(foundation: Foundation) -> list[list[float]]:
+    """The plan corners [mm] of a pile cap (or a footing) with a centre and a size."""
+    if foundation.center is None or not foundation.length or not foundation.width:
+        return []
+    a = math.radians(foundation.rotation)
+    c, s = math.cos(a), math.sin(a)
+    x0, y0 = foundation.center
+    half_l, half_w = foundation.length / 2, foundation.width / 2
+    return [
+        [x0 + u * c - v * s, y0 + u * s + v * c]
+        for u, v in ((-half_l, -half_w), (half_l, -half_w), (half_l, half_w), (-half_l, half_w))
+    ]
+
+
+def pile_layout_warnings(substructure: Substructure) -> list[str]:
+    """What is wrong with the piles placed in plan, before any design: a pile under no cap (or
+    inside a cap that does not list it), a cap's pile not wholly within it, and two piles
+    overlapping or closer than 2.5 diameters and 750 mm (BNBC 2020 Part 6 Secs 3.10.1.19,
+    3.10.1.30; friction piles' 3 diameters are checked per cap by its design)."""
+    warnings: list[str] = []
+    capped = substructure.capped()
+    types = {p.id: p for p in substructure.pileTypes}
+    caps = {f.id: f for f in substructure.foundations if f.type == "pileCap"}
+    for pile in substructure.piles:
+        diameter = types[pile.type].diameter if pile.type in types else 0.0
+        cap = caps.get(capped.get(pile.id, ""))
+        if cap is None:
+            inside = next(
+                (f.id for f in caps.values() if _inside_rectangle(pile.position, f, -diameter / 2)),
+                None,
+            )
+            warnings.append(
+                f"{pile.id}: inside the outline of {inside} but not one of its piles"
+                if inside
+                else f"{pile.id}: under no pile cap"
+            )
+        elif not _inside_rectangle(pile.position, cap, diameter / 2):
+            warnings.append(f"{pile.id}: not wholly within its pile cap {cap.id}")
+    piles = substructure.piles
+    for k, a in enumerate(piles):
+        for b in piles[k + 1 :]:
+            d = max(
+                types[a.type].diameter if a.type in types else 0.0,
+                types[b.type].diameter if b.type in types else 0.0,
+            )
+            distance = math.dist(a.position, b.position)
+            need = max(MIN_SPACING_DIAMETERS * d, MIN_SPACING)
+            if distance < d - 1e-6:
+                warnings.append(
+                    f"{a.id} and {b.id} overlap: their centres are {distance:.0f} mm apart, less "
+                    f"than the diameter {d:.0f} mm"
+                )
+            elif distance < need - 0.5:
+                warnings.append(
+                    f"{a.id} and {b.id} are {distance:.0f} mm apart, less than {need:.0f} mm "
+                    "(2.5 D and 750 mm, BNBC 2020 Part 6 Secs 3.10.1.19 and 3.10.1.30)"
+                )
+    return warnings
+
+
+def _inside_rectangle(point: list[float], foundation: Foundation, margin: float) -> bool:
+    """Whether ``point`` lies at least ``margin`` [mm] inside a cap's rectangle (a negative
+    margin: within that distance outside it)."""
+    if foundation.center is None or not foundation.length or not foundation.width:
+        return False
+    a = math.radians(foundation.rotation)
+    dx, dy = point[0] - foundation.center[0], point[1] - foundation.center[1]
+    u = dx * math.cos(a) + dy * math.sin(a)
+    v = -dx * math.sin(a) + dy * math.cos(a)
+    return (
+        abs(u) <= foundation.length / 2 - margin + 1e-6
+        and abs(v) <= foundation.width / 2 - margin + 1e-6
+    )
+
+
+#: The marks the upgrade of an earlier file gives the piles: PL1, PL2, ...
+PILE_PREFIX = "PL"
+
+
+def _is_point(value: Any) -> bool:
+    return (
+        isinstance(value, list | tuple)
+        and len(value) == 2
+        and all(isinstance(v, int | float) for v in value)
+    )
+
+
+def _old_cap(f: Any) -> bool:
+    return (
+        isinstance(f, dict)
+        and f.get("type") == "pileCap"
+        and ("pileType" in f or any(_is_point(p) for p in f.get("piles") or []))
+    )
+
+
+def needs_upgrade(data: Any) -> bool:
+    """Whether a substructure's JSON has pile caps of the earlier format: a ``pileType`` and
+    ``piles`` as offsets [dx, dy] from the cap's centre."""
+    foundations = data.get("foundations") if isinstance(data, dict) else None
+    return isinstance(foundations, list) and any(_old_cap(f) for f in foundations)
+
+
+def upgrade_pile_caps(
+    data: dict[str, Any], positions: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """The substructure's JSON ``data`` with the pile caps of the earlier format (a pile type
+    and offsets from the cap's centre in its local axes) as piles placed in plan, each cap
+    listing its piles by id (PL1, PL2, ...) and getting its centre. A cap without a centre had
+    the centroid of its columns: ``positions`` gives the plan position of each column and wall
+    {id: [x, y]} for that (a ``ValueError`` without it). ``data`` itself is not changed; it is
+    returned as it is when there is nothing to upgrade."""
+    if not needs_upgrade(data):
+        return data
+    data = dict(data)
+    foundations = [dict(f) if isinstance(f, dict) else f for f in data.get("foundations") or []]
+    piles = [dict(p) for p in data.get("piles") or [] if isinstance(p, dict)]
+    taken = {str(p.get("id")) for p in piles}
+    counter = itertools.count(1)
+    for f in foundations:
+        if not _old_cap(f):
+            continue
+        offsets = [p for p in f.get("piles") or [] if _is_point(p)]
+        pile_type = f.pop("pileType", None)
+        center = f.get("center")
+        if not _is_point(center):
+            known = [
+                (float(p[0]), float(p[1]))
+                for c in f.get("columns") or []
+                if (p := (positions or {}).get(c)) is not None
+            ]
+            if not known:
+                raise ValueError(
+                    f"{f.get('id')}: a pile cap of an earlier version without a centre: its piles "
+                    "are placed from its columns; open the project in 9 Substructure to bring it "
+                    "up to date"
+                )
+            center = [sum(p[0] for p in known) / len(known), sum(p[1] for p in known) / len(known)]
+            f["center"] = [round(center[0], 1), round(center[1], 1)]
+        a = math.radians(float(f.get("rotation") or 0))
+        c, s = math.cos(a), math.sin(a)
+        ids: list[str] = []
+        for dx, dy in offsets:
+            pile_id = next(f"{PILE_PREFIX}{n}" for n in counter if f"{PILE_PREFIX}{n}" not in taken)
+            taken.add(pile_id)
+            piles.append(
+                {
+                    "id": pile_id,
+                    "type": pile_type,
+                    "position": [
+                        round(center[0] + dx * c - dy * s, 1),
+                        round(center[1] + dx * s + dy * c, 1),
+                    ],
+                }
+            )
+            ids.append(pile_id)
+        f["piles"] = ids
+    data["foundations"] = foundations
+    data["piles"] = piles
+    return data
+
+
+def column_positions(building: Any) -> dict[str, list[float]]:
+    """{id: [x, y]} of the columns and the middles of the walls of a building model (a
+    :class:`~saengine.library.bim.BuildingModel`), for :func:`upgrade_pile_caps`."""
+    positions: dict[str, list[float]] = {}
+    for e in getattr(building, "elements", []):
+        if getattr(e, "kind", None) == "column":
+            positions.setdefault(e.id, [float(e.position[0]), float(e.position[1])])
+        elif getattr(e, "kind", None) == "wall":
+            positions.setdefault(e.id, [(e.start[0] + e.end[0]) / 2, (e.start[1] + e.end[1]) / 2])
+    return positions
 
 
 def polygon_area(points: list[list[float]]) -> float:
@@ -362,9 +655,11 @@ def is_placeholder(data: Any) -> bool:
     return isinstance(data, dict) and data.get("schema") == 1 and data.get("part") == "substructure"
 
 
-def parse(text: str | None) -> Substructure:
+def parse(text: str | None, building: Any = None) -> Substructure:
     """The substructure of a file's text; an empty one for a missing file or the placeholder.
-    Raises ``ValueError`` (pydantic's ``ValidationError``) for an invalid file."""
+    Pile caps of an earlier version are read as piles placed in plan (``building``, the
+    building model, places those without a centre: :func:`upgrade_pile_caps`). Raises
+    ``ValueError`` (pydantic's ``ValidationError``) for an invalid file."""
     import json
 
     if not text or not text.strip():
@@ -372,7 +667,8 @@ def parse(text: str | None) -> Substructure:
     data = json.loads(text)
     if is_placeholder(data):
         return default_substructure()
-    return Substructure.model_validate(data)
+    context = {"positions": column_positions(building)} if building is not None else None
+    return Substructure.model_validate(data, context=context)
 
 
 def check(
