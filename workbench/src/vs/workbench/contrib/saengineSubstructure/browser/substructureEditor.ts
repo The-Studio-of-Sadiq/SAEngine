@@ -1584,20 +1584,21 @@ export class SubstructureEditor extends EditorPane {
 				text: this.parseError,
 				actions: [{ label: localize('sub.openText', "Open as Text"), primary: true, run: () => void this.openAsText() }],
 			});
-		} else if (this.document && !this.document.foundations.length && !this.proposal && !this.context.columns.length) {
+		} else if (this.document && !this.document.foundations.length && !this.document.piles.length && !this.document.pileGrid && !this.proposal && !this.context.columns.length) {
 			this.frame.setEmpty({
 				icon: Codicon.symbolStructure,
 				title: localize('sub.emptyNoColumns', "No columns to found yet"),
 				text: localize('sub.emptyNoColumnsText', "The foundations stand under the columns of the building model. Build the building model (6 BIM) first; its columns on the base level then appear here."),
 			});
-		} else if (this.document && !this.document.foundations.length && !this.proposal) {
+		} else if (this.document && !this.document.foundations.length && !this.document.piles.length && !this.document.pileGrid && !this.proposal) {
 			this.frame.setEmpty({
 				icon: Codicon.symbolStructure,
 				title: localize('sub.emptyTitle', "No foundations yet"),
-				text: localize('sub.emptyText', "{0} columns stand on the base level. Let SAEngine size a footing under each from the analysis reactions and the soil report, bring in the footings drawn in the floor plan, or start with a footing under every column and size them yourself.", this.context.columns.length),
+				text: localize('sub.emptyText', "{0} columns stand on the base level. Let SAEngine size a footing under each from the analysis reactions and the soil report, bring in the footings drawn in the floor plan, or start with a footing under every column and size them yourself. For bored piles, lay them out on a pile grid of their own and form the caps over them.", this.context.columns.length),
 				actions: [
 					{ label: localize('sub.size', "Size Footings"), icon: Codicon.wand, primary: true, run: () => void this.sizeAll() },
 					{ label: localize('sub.emptyFootings', "Add Footings under All Columns"), icon: Codicon.add, run: () => this.addFootings() },
+					{ label: localize('sub.emptyPiles', "Lay Out Piles on a Pile Grid"), icon: Codicon.symbolNumeric, run: () => this.editPileGrid() },
 				],
 				link: { label: localize('sub.migrate', "Import Footings from the Building Model"), run: () => void this.migrate() },
 			});
@@ -1633,15 +1634,16 @@ export class SubstructureEditor extends EditorPane {
 		const view = this.viewElement;
 		const header = append(view, $('.sub-view-header'));
 		append(header, $('span.sub-view-title', undefined, localize('sub.planTitle', "Base level")));
-		append(header, $('span.sub-view-subtitle', undefined, localize('sub.planSubtitle', "ground {0} m · founding level {1} m unless set · click a column or foundation, Shift+click to add to the selection",
-			formatNumber(this.context.groundLevel / 1000, 2), formatNumber(defaultFoundingLevel(this.context) / 1000, 2))));
-		if (this.tool !== 'select') {
-			append(view, $('p.sub-tool-hint', { role: 'status' }, this.tool === 'pile'
-				? localize('sub.pileToolHint', "Placing {0} piles: click a pile grid crossing, a column or a point (snaps to 50 mm); drag a box to place one at every crossing inside. Escape ends.", this.placeType ?? '')
-				: this.beamStart
+		// A tool's hint takes the subtitle's place, so the plan does not move when a tool is picked.
+		const subtitle = append(header, $(`span.sub-view-subtitle${this.tool === 'select' ? '' : '.sub-tool-hint'}`, { role: this.tool === 'select' ? undefined : 'status' }, this.tool === 'pile'
+			? localize('sub.pileToolHint', "Placing {0} piles: click a pile grid crossing, a column or a point (snaps to 50 mm); drag a box to place one at every crossing inside. Escape ends.", this.placeType ?? '')
+			: this.tool === 'beam'
+				? this.beamStart
 					? localize('sub.beamToolNext', "Grade beam from {0}: click the cap or column it runs to. Escape ends.", this.beamStart)
-					: localize('sub.beamToolHint', "Grade beams: click a pile cap (or a column on a foundation), then the one it runs to. Escape ends.")));
-		}
+					: localize('sub.beamToolHint', "Grade beams: click a pile cap (or a column on a foundation), then the one it runs to. Escape ends.")
+				: localize('sub.planSubtitle', "ground {0} m · founding level {1} m unless set · click a column or foundation, Shift+click to add to the selection",
+					formatNumber(this.context.groundLevel / 1000, 2), formatNumber(defaultFoundingLevel(this.context) / 1000, 2))));
+		subtitle.title = subtitle.textContent ?? '';
 
 		const drawn = this.context.bimFootings ?? [];
 		if (drawn.length && document.foundations.length) {

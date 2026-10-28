@@ -946,10 +946,15 @@
 	cursor: crosshair;
 }
 
-.saengine-substructure-editor .sub-tool-hint {
-	margin: 0 0 6px;
-	font-size: 12px;
-	color: var(--sa-muted);
+.saengine-substructure-editor .sub-view-subtitle.sub-tool-hint {
+	/* One line, like the subtitle it stands in for: the plan below must not move. */
+	flex: 1 1 0;
+	color: var(--sub-select);
+	font-weight: 600;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	min-width: 0;
 }
 
 .saengine-substructure-editor .sub-swatch.pile-grid {

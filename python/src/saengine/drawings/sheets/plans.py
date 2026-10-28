@@ -362,13 +362,18 @@ def foundation_plan(building: Building, scale: float = 100) -> ViewSpec | None:
 
 
 def pile_grid(view: View, building: Building, bbox: tuple[float, float, float, float]) -> None:
-    """The pile grid: centre lines across the plan with their labels in bubbles at both ends
-    (on its own layer, apart from the building's grid), and the chain of its spacings."""
+    """The pile grid: centre lines across the plan with their labels in bubbles beyond the
+    building grid's (x lines at the bottom, y lines at the right; on its own layer), and the chain
+    of its spacings."""
     g = building.pile_grid
     if g is None:
         return
     x0, y0, x1, y1 = bbox
+    # The bubbles go past the building grid's bubbles and chain dimensions (x lines, at the
+    # bottom) and past the pile grid's own chain (y lines, at the right).
     e = view.real(EXTEND)
+    e_x = view.real(DIM_2 + 8)
+    e_y = view.real(DIM_1 + 8)
     r = view.real(BUBBLE * 0.8)
     a = math.radians(g.rotation)
     ux, uy = math.cos(a), math.sin(a)
@@ -379,12 +384,12 @@ def pile_grid(view: View, building: Building, bbox: tuple[float, float, float, f
          -(px - g.origin[0]) * uy + (py - g.origin[1]) * ux)
         for px, py in corners
     ]  # fmt: skip
-    lo_u, hi_u = min(p[0] for p in local) - e, max(p[0] for p in local) + e
-    lo_v, hi_v = min(p[1] for p in local) - e, max(p[1] for p in local) + e
+    lo_u, hi_u = min(p[0] for p in local) - e, max(p[0] for p in local) + e_y
+    lo_v, hi_v = min(p[1] for p in local) - e_x, max(p[1] for p in local) + e
     for line in g.x:
         ends = [g.point(line.position, lo_v), g.point(line.position, hi_v)]
         view.line(ends[0], ends[1], "S-PILE-GRID")
-        for end, sign in ((ends[0], -1), (ends[1], 1)):
+        for end, sign in ((ends[0], -1),):
             c = (end[0] - sign * uy * r, end[1] + sign * ux * r)
             view.circle(c, r, "S-PILE-GRID")
             view.reserve([(c[0] - r, c[1] - r), (c[0] + r, c[1] + r)])
@@ -392,7 +397,7 @@ def pile_grid(view: View, building: Building, bbox: tuple[float, float, float, f
     for line in g.y:
         ends = [g.point(lo_u, line.position), g.point(hi_u, line.position)]
         view.line(ends[0], ends[1], "S-PILE-GRID")
-        for end, sign in ((ends[0], -1), (ends[1], 1)):
+        for end, sign in ((ends[1], 1),):
             c = (end[0] + sign * ux * r, end[1] + sign * uy * r)
             view.circle(c, r, "S-PILE-GRID")
             view.reserve([(c[0] - r, c[1] - r), (c[0] + r, c[1] + r)])
@@ -458,7 +463,7 @@ def pile_layout_plan(building: Building, scale: float = 100) -> ViewSpec | None:
         scale=scale,
         bbox=bbox,
         draw=draw,
-        pad=_pad(),
+        pad=tuple(v + 2 * BUBBLE + 14 for v in _pad()),
         key="plan:piles",
     )
 
