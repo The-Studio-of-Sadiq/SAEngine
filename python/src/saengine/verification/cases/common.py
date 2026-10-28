@@ -157,8 +157,8 @@ def only_pattern(
     pattern["element_loads"] += element or []
 
 
-#: Gmsh (the mesher behind derive_fem) keeps global state: one derivation at a time when the
-#: cases run in threads.
+#: One derivation at a time when the cases run in threads (gmsh itself takes turns in
+#: :func:`saengine.fem.mesh.mesh`, which the rafts of the substructure cases use too).
 _DERIVE = threading.Lock()
 
 

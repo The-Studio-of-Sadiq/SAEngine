@@ -15,6 +15,7 @@ Coordinates are in millimetres, as in the building model.
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
@@ -65,6 +66,12 @@ class Mesh:
     volumes: dict[str, list[tuple[int, int, int, int]]] = field(default_factory=dict)
 
 
+#: Gmsh is one global session per process: meshes made in threads (the verification cases, a
+#: raft meshed beside a derivation) take turns, or one finds the other's curves gone ("Curve 56
+#: does not exist").
+_GMSH = threading.Lock()
+
+
 def mesh(
     lines: Sequence[tuple[str, Point, Point]],
     surfaces: Sequence[Surface],
@@ -73,6 +80,16 @@ def mesh(
 ) -> Mesh:
     """The conforming mesh of ``lines``, ``surfaces`` and ``volumes``, elements no larger than
     ``size`` (mm), and in a block no larger than a quarter of its thickness."""
+    with _GMSH:
+        return _mesh(lines, surfaces, size, volumes)
+
+
+def _mesh(
+    lines: Sequence[tuple[str, Point, Point]],
+    surfaces: Sequence[Surface],
+    size: float,
+    volumes: Sequence[Volume],
+) -> Mesh:
     import gmsh
 
     gmsh.initialize(interruptible=False)
