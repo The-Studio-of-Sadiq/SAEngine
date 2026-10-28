@@ -61,8 +61,14 @@ MODEL_SOURCES = {
     "settings": SETTINGS_FILE,
 }
 
-#: Upstream files recorded only when the derivation used them (the soil report's site class).
-MODEL_OPTIONAL_SOURCES = {"soil": SOIL_FILE, "loads": "05 Floor Plan/loads.json"}
+#: Upstream files recorded only when the derivation used them (the soil report's site class, the
+#: line loads, the MEP equipment and the substructure's soil springs).
+MODEL_OPTIONAL_SOURCES = {
+    "soil": SOIL_FILE,
+    "loads": "05 Floor Plan/loads.json",
+    "mep": "07 MEP/mep.json",
+    "substructure": "09 Substructure/substructure.json",
+}
 
 #: Upstream files of the bill of quantities, by the keys of its ``source`` stamps.
 BOQ_SOURCES = {
@@ -443,6 +449,20 @@ class _Parts:
 
         text = self.text(relative)
         return source_stamp(text) if text is not None else None
+
+    def fem_source_changed(self, key: str, relative: str, recorded: str) -> bool:
+        """Whether source ``key`` of the analysis model changed since the model recorded the
+        stamp ``recorded``, on the derivation's own definition of the stamp: the settings
+        without the project's details and title block (``settings_stamp``, or the whole file's
+        stamp of an older model), of what the model takes from the MEP file (``mep_stamp``),
+        of the file's text otherwise, as the workbench's ``femSourceCurrent`` does."""
+        from saengine.fem.derive import mep_stamp
+        from saengine.pipeline.status import fem_source_changed
+
+        text = self.text(relative)
+        if key == "mep":
+            return text is None or recorded != mep_stamp(text)
+        return fem_source_changed({key: text}, key, recorded)
 
     def boq_stamp(self, key: str, relative: str) -> str | None:
         """The stamp of a source of the bill of quantities as the bill records it: for the
@@ -847,7 +867,7 @@ def _model_summary(
     changed = [
         relative
         for key, relative in {**MODEL_SOURCES, **MODEL_OPTIONAL_SOURCES}.items()
-        if key in recorded and parts.stamp(relative) != recorded[key]
+        if key in recorded and parts.fem_source_changed(key, relative, recorded[key])
     ]
     site = parts.site()
     if (
@@ -1644,8 +1664,9 @@ def _design(results_dir: Path, model_path: Path, warnings: list[str]) -> dict[st
     punching = _punching(report)
     steel = _steel(report)
     failed = int(summary.get("failed", 0) or 0)
+    failed_text = _failed_text(summary)
     if failed:
-        warnings.append(f"{failed} element(s) fail their design checks.")
+        warnings.append(f"{failed_text} fail their design checks.")
     seismic = _seismic_detailing(report)
     if seismic["available"] and seismic["failedChecks"]:
         warnings.append(
@@ -1676,6 +1697,7 @@ def _design(results_dir: Path, model_path: Path, warnings: list[str]) -> dict[st
             ["Governing element", str(governing) if governing else "–"],
         ],
         "failed": failed,
+        "failedText": failed_text,
         "checked": int(summary.get("checked", 0) or 0),
         "combinations": [str(c) for c in report.get("combinations", [])],
         "tables": tables,
@@ -1949,7 +1971,7 @@ def _seismic_detailing(report: dict[str, Any]) -> dict[str, Any]:
         ]
         for k, v in scope.get("applies", {}).items()
     ]
-    # Per object type: every detailing check that fails on any member, else the governing one.
+    # Per object type: the detailing checks that fail on any member, and the governing one.
     by_type: dict[tuple[str, str], dict[str, tuple[dict[str, Any], list[str]]]] = {}
     shears = []
     for element in report.get("elements", []):
@@ -1980,29 +2002,45 @@ def _seismic_detailing(report: dict[str, Any]) -> dict[str, Any]:
                     "OK" if phi and detailing["Ve"] <= phi * 1.0005 else "FAIL",
                 ]
             )
-    member_rows, member_bad = [], []
+    # What fails: per object type, every detailing check that fails on any of its members, and
+    # every failing check of a beam-column joint (the joints are no members: their checks are not
+    # among the members'). Only when nothing fails, per type the governing check (it passes).
+    failing_rows = []
+    governing_rows = []
     for (type_id, kind), found in sorted(by_type.items()):
         if not found:
             continue
         failing = [(n, w, f) for n, (w, f) in found.items() if f]
-        chosen = failing or [
-            max(((n, w, f) for n, (w, f) in found.items()), key=lambda x: x[1]["utilisation"])
+        failing_rows += [
+            (type_id, kind, name, worst, members)
+            for name, worst, members in sorted(failing, key=lambda x: -x[1]["utilisation"])
         ]
-        for name, worst, members in sorted(chosen, key=lambda x: -x[1]["utilisation"]):
-            member_rows.append(
-                [
-                    type_id,
-                    kind,
-                    name,
-                    fmt(worst.get("demand"), 1),
-                    fmt(worst.get("capacity"), 1),
-                    str(worst.get("unit", "")),
-                    fmt(worst.get("utilisation"), 3),
-                    ", ".join(members) if members else "–",
-                ]
-            )
-            member_bad.append(bool(members))
+        name, (worst, _) = max(found.items(), key=lambda x: x[1][0]["utilisation"])
+        governing_rows.append((type_id, kind, name, worst, []))
     joints = report.get("joints", []) or []
+    for joint in joints:
+        for c in joint.get("checks") or []:
+            if c.get("ok", True) or c.get("flag"):
+                continue
+            name = str(c.get("name", "")).removeprefix(DETAILING)
+            failing_rows.append(
+                (str(joint.get("type", "")), "joint", name, c, [str(joint.get("id"))])
+            )
+    member_rows, member_bad = [], []
+    for type_id, kind, name, worst, members in failing_rows or governing_rows:
+        member_rows.append(
+            [
+                type_id,
+                kind,
+                name,
+                fmt(worst.get("demand"), 1),
+                fmt(worst.get("capacity"), 1),
+                str(worst.get("unit", "")),
+                fmt(worst.get("utilisation"), 3),
+                ", ".join(members) if members else "–",
+            ]
+        )
+        member_bad.append(bool(members))
     joint_rows = [
         [
             str(j.get("id")),
@@ -2026,6 +2064,7 @@ def _seismic_detailing(report: dict[str, Any]) -> dict[str, Any]:
         "applies": applies,
         "members": member_rows,
         "membersBad": member_bad,
+        "membersFail": bool(failing_rows),
         "shears": shears,
         "shearsBad": [r[-1] == "FAIL" for r in shears],
         "joints": joint_rows,
@@ -2043,6 +2082,24 @@ def _seismic_detailing(report: dict[str, Any]) -> dict[str, Any]:
             else []
         ),
     }
+
+
+def _failed_text(summary: dict[str, Any]) -> str:
+    """What fails of the design ``summary``: its members (elements), beam-column joints and
+    project-level seismic requirements, as the summary counts them apart; "N element(s)" for a
+    summary without that breakdown."""
+    failed = int(summary.get("failed", 0) or 0)
+    elements = summary.get("elements")
+    if not isinstance(elements, dict):
+        return f"{failed} element(s)"
+    joints = summary.get("joints") if isinstance(summary.get("joints"), dict) else {}
+    counts = (
+        (int(elements.get("failed", 0) or 0), "element(s)"),
+        (int(joints.get("failed", 0) or 0), "beam-column joint(s)"),
+        (int(summary.get("seismicChecksFailed", 0) or 0), "project-level seismic requirement(s)"),
+    )
+    parts = [f"{n} {what}" for n, what in counts if n]
+    return " and ".join(parts) if parts else f"{failed} element(s)"
 
 
 def _required(results_dir: Path, model_path: Path, warnings: list[str]) -> dict[str, Any]:

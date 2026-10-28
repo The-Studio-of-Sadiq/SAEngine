@@ -35,7 +35,7 @@ import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { EXPORT_DXF_FOLDER, EXPORT_IFC_FOLDER, exportKind, ISaenginePartStatusService, REPORT_FILE } from '../../../services/saengineProject/common/partStatus.js';
+import { EXPORT_DXF_FOLDER, EXPORT_IFC_FOLDER, exportKind, ISaenginePartStatusService, REPORT_FILE, reportAnalysisStale } from '../../../services/saengineProject/common/partStatus.js';
 import { ISaengineProject, ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { DRAWINGS_GENERATE_COMMAND } from './drawingsModel.js';
 import { DrawingsSection } from './drawingsSection.js';
@@ -367,8 +367,8 @@ export class ExportsEditor extends EditorPane {
 		const fem = partById('fem');
 		// An empty building model has nothing to export, whatever its status says.
 		const emptyModel = this.bimElements === 0 && bim ? localize('exports.emptyModel', "The building model ({0}) has no elements yet: draw the floor plan and build the model first.", partName(bim)) : undefined;
-		const femState = this.statusService.statusOf('fem')?.state;
-		const reportStale = fem && this.files.get('report')?.length && (femState === 'notStarted' || femState === 'stale' || femState === 'failed' || femState === 'error')
+		// A failing design is not an out-of-date analysis: its report shows the failures.
+		const reportStale = fem && this.files.get('report')?.length && reportAnalysisStale(this.statusService.statusOf('fem')?.state)
 			? localize('exports.reportStale', "Out of date: the analysis ({0}) is not current, so the report does not show this model. Run the analysis and update the report.", partName(fem))
 			: undefined;
 		const kinds: IExportKind[] = [

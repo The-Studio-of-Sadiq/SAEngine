@@ -204,6 +204,15 @@ export const MEP_SUMMARY_FILE = 'mep.results/summary.json';
 export const EXPORT_IFC_FOLDER = 'IFC';
 export const EXPORT_DXF_FOLDER = 'Floor Plan';
 
+/**
+ * Whether the analysis (status `femState`) is not current, so a report printed from it does not
+ * show this model: not derived, out of date or invalid. A design whose checks fail (`failed`)
+ * ran on a current analysis: the report shows those failures, it is not out of date.
+ */
+export function reportAnalysisStale(femState: PartState | undefined): boolean {
+	return femState === 'notStarted' || femState === 'stale' || femState === 'error';
+}
+
 /** The export kind of a file of `11 Exports` from its path inside that folder, if it is one. */
 export function exportKind(relativePath: string): 'report' | 'ifc' | 'dxf' | 'csv' | undefined {
 	const path = relativePath.replace(/\\/g, '/');

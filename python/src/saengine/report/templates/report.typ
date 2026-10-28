@@ -672,8 +672,8 @@ The analysis uses #so.stiffness.
   == Summary
   #pairs(design.summary, width: 40%)
   #if design.failed > 0 {
-    note[*#design.failed element(s) fail their design checks.* They are highlighted in the
-      tables below.]
+    note[*#design.at("failedText", default: str(design.failed) + " element(s)") fail their design
+      checks.* They are highlighted in the tables below#if design.seismic.at("membersFail", default: false) [ and under Detailing checks that fail (Seismic detailing)].]
   }
 
   #for t in design.tables [
@@ -905,11 +905,16 @@ The analysis uses #so.stiffness.
   )
 
   #if sd.members.len() > 0 [
-    == Members: governing detailing checks
-    Per object type, every detailing check that fails on any of its members (else the governing
-    one), at its largest utilisation.
+    #if sd.at("membersFail", default: false) [
+      == Detailing checks that fail
+      Every detailing check that fails: per object type, at its largest utilisation, with the
+      members it fails on; per beam-column joint (see Beam-column joints below).
+    ] else [
+      == Members: governing detailing checks
+      No detailing check fails. Per object type, the governing check, at its largest utilisation.
+    ]
     #tbl(
-      ("Type", "Kind", "Check", "Demand", "Limit", "Unit", "Util.", "Failing members"),
+      ("Type", "Kind", "Check", "Demand", "Limit", "Unit", "Util.", "Fails on"),
       sd.members,
       columns: (auto, auto, 2fr, auto, auto, auto, auto, 1fr),
       align: (left, left, left, right, right, left, right, left),

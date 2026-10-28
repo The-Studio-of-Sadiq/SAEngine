@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { groundLevelStamp, mepModelStamp, sourceStamp } from '../../common/partSources.js';
-import { applyPartChecks, computePartStatuses, exportKind, IPartStatusInputs, nextStep, partChecksFile } from '../../common/partStatus.js';
+import { applyPartChecks, computePartStatuses, exportKind, IPartStatusInputs, nextStep, partChecksFile, reportAnalysisStale } from '../../common/partStatus.js';
 import { DEFAULT_FLOOR_PLAN, DEFAULT_MATERIALS, DEFAULT_SETTINGS } from '../../common/projectLibraries.generated.js';
 import { PROJECT_PARTS, projectParts } from '../../common/saengineProject.js';
 
@@ -158,6 +158,15 @@ suite('SAEngine - PartStatus', () => {
 			lines: ['exports: notStarted no report', 'exports: inProgress 1 file, no report', 'exports: inProgress 3 files, no report', 'exports: inProgress report day 7'],
 			kinds: ['report', 'ifc', 'dxf', 'csv', undefined, undefined, undefined],
 		});
+	});
+
+	test('a report on a failing design is not out of date: only a model that is not current is', () => {
+		const states = ['notStarted', 'defaults', 'inProgress', 'done', 'stale', 'failed', 'error', undefined] as const;
+		assert.deepStrictEqual(states.filter(reportAnalysisStale), ['notStarted', 'stale', 'error']);
+		// A current analysis whose design fails: fem is failed (not stale), so the report is current.
+		const summaryText = JSON.stringify({ checked: 249, passed: 241, failed: 8 });
+		const fem = computePartStatuses(PROJECT_PARTS, project({}, { femResultsTime: 2, femModelTime: 1, designSummaryText: summaryText, designSummaryTime: 3 })).find(s => s.part === 'fem');
+		assert.deepStrictEqual([fem?.state, reportAnalysisStale(fem?.state)], ['failed', false]);
 	});
 
 	test('a special structure builds its model from the structural model', () => {
