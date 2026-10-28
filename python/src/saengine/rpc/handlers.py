@@ -425,6 +425,55 @@ def architecture_import_ifc(
     return {"architecture": data, "summary": summary}
 
 
+def architecture_inspect_drawing(path: str) -> dict[str, Any]:
+    """An architect's DWG/DXF for the layer-mapping step: its layers (entity counts, block names,
+    sample texts), unit and a preview (``saengine.library.architecture_dxf.inspect_drawing``), or
+    ``{"problems"}``."""
+    from saengine.library.architecture_dxf import inspect_drawing
+    from saengine.library.dwg import DwgError
+
+    try:
+        return inspect_drawing(path)
+    except (DwgError, OSError, ValueError) as exc:
+        return {"problems": [f"The drawing could not be read: {_first_line(exc)}"]}
+    except Exception as exc:  # noqa: BLE001 - ezdxf raises its own errors for broken files
+        return {"problems": [f"The drawing could not be read: {_first_line(exc)}"]}
+
+
+def architecture_import_drawing(
+    path: str, architecture_text: str | None, floor_plan_text: str, options: dict[str, Any]
+) -> dict[str, Any]:
+    """Adopts an architect's DWG/DXF plan (walls, doors, windows, room names) onto one story:
+    ``{"architecture": <json>, "summary": {"adopted", "skipped", "notes", "replaced"}}`` or
+    ``{"problems"}``. ``options``: see ``saengine.library.architecture_dxf.import_drawing``."""
+    from pydantic import ValidationError
+
+    from saengine.library.architecture import parse as parse_architecture
+    from saengine.library.architecture_dxf import import_drawing
+    from saengine.library.dwg import DwgError
+    from saengine.library.export import library_json
+    from saengine.library.floorplan import FloorPlan
+
+    try:
+        architecture = parse_architecture(architecture_text)
+        floor_plan = FloorPlan.model_validate_json(floor_plan_text)
+    except (ValidationError, ValueError) as exc:
+        return {"problems": [_first_line(exc)]}
+    elevations = {s.id: s.elevation for s in floor_plan.stories}
+    try:
+        result, summary = import_drawing(path, architecture, elevations, options or {})
+    except (DwgError, OSError, ValidationError, ValueError) as exc:
+        return {"problems": [f"The drawing could not be imported: {_first_line(exc)}"]}
+    data = library_json(result)
+    # The adopted items as the editor writes them: without their default values.
+    for key in ("walls", "doors", "windows", "rooms", "separators"):
+        data[key] = [
+            item.model_dump(mode="json", by_alias=True, exclude_none=True, exclude_defaults=True)
+            for item in getattr(result, key)
+        ]
+    return {"architecture": data, "summary": summary}
+
+
 def architecture_check(architecture_text: str, floor_plan_text: str | None) -> dict[str, Any]:
     """Problems of the architecture, with its rooms' net floor outlines and areas:
     ``{"problems", "rooms": {id: {"outline", "area"}}}`` (areas in m²)."""

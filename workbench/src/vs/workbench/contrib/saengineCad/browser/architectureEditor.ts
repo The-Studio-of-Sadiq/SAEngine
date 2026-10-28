@@ -13,8 +13,9 @@ import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
-import { dirname, joinPath } from '../../../../base/common/resources.js';
+import { basename, dirname, joinPath, relativePath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
@@ -40,6 +41,8 @@ import { PROJECT_PARTS } from '../../../services/saengineProject/common/saengine
 import { propertyLink } from '../../saengineModel/browser/propertySheetView.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame } from '../../saengineProject/browser/editorFrame.js';
 import { addOpening, addRoom, addSeparator, addWall, ARCH_LAYER_SPECS, ArchKind, architectureDrawing, centreLine, elevationsOf, findRoom, IArchDrawing, IArchitecture, IArchRef, IArchWall, IDoor, IRoom, itemOf, IWindow, openingSize, parseArchitecture, pathLength, pickItem, pointAlong, projectOnto, removeItem, storyCounts, structureUnder, updateItem, wallLevels, wallsOnStory, wallSnapSegments, wallThickness, wallWeight } from './architectureModel.js';
+import { IDrawingImportOptions, IDrawingInfo } from './architectureDrawingImport.js';
+import { DrawingImportPanel } from './architectureDrawingImportPanel.js';
 import { ArchitectureEditorInput } from './architectureEditorInput.js';
 import { acquireCadEditor, cadBackground, forCanvas, isLightCanvas, releaseCadEditor } from './cadHost.js';
 import { FLOOR_PLAN_LAYERS, floorPlanDrawing } from './floorPlanDrawing.js';
@@ -97,11 +100,19 @@ function parse(model: ITextModel | undefined): unknown {
 	}
 }
 
-/** The result of `saengine.architecture.importIfc`. */
+/** The result of `saengine.architecture.importIfc` and `saengine.architecture.importDrawing`. */
 interface IImportResult {
 	readonly architecture?: object;
-	readonly summary?: { readonly adopted: { readonly [kind: string]: number }; readonly skipped: readonly string[]; readonly notes: readonly string[] };
+	readonly summary?: IImportSummary;
 	readonly problems?: readonly string[];
+}
+
+interface IImportSummary {
+	readonly adopted: { readonly [kind: string]: number };
+	readonly skipped: readonly string[];
+	readonly notes: readonly string[];
+	/** Items of an earlier import of the same drawing onto the same story that this one replaced. */
+	readonly replaced?: number;
 }
 
 /**
@@ -147,7 +158,10 @@ export class ArchitectureEditor extends EditorPane {
 	private hoverSnap: ISnap | undefined;
 	private selected: IArchRef | undefined;
 	private notice: string | undefined;
-	private lastImport: IImportResult['summary'];
+	private lastImport: { readonly file: string; readonly summary: IImportSummary } | undefined;
+	/** The layer-mapping step of a DWG/DXF import, while it is open. */
+	private drawingImport: DrawingImportPanel | undefined;
+	private propertiesBeforeImport = false;
 	private writing = false;
 	private actionsKey = '';
 
@@ -163,6 +177,7 @@ export class ArchitectureEditor extends EditorPane {
 		this.render();
 	}));
 	private readonly importAction = this._register(new Action('saengine.architecture.importIfc', localize('arch.importIfc', "Import Architect's IFC..."), ThemeIcon.asClassName(Codicon.cloudDownload), true, () => this.importIfc()));
+	private readonly importDrawingAction = this._register(new Action('saengine.architecture.importDrawing', localize('arch.importDrawing', "Import Architect's DWG/DXF..."), ThemeIcon.asClassName(Codicon.fileMedia), true, () => this.importDrawing()));
 	private readonly view3dAction = this._register(new Action('saengine.architecture.open3d', localize('arch.open3d', "Show in 3D View"), ThemeIcon.asClassName(Codicon.globe), true, () => this.open3d()));
 	private readonly textAction = this._register(new Action('saengine.architecture.openText', localize('arch.openText', "Edit Types as Text"), undefined, true, () => this.openText()));
 	private readonly floorPlanAction = this._register(new Action('saengine.architecture.openFloorPlan', localize('arch.openFloorPlan', "Open Floor Plan"), undefined, true, () => this.openFloorPlan()));
@@ -336,6 +351,7 @@ export class ArchitectureEditor extends EditorPane {
 		this.chain = [];
 		this.selected = undefined;
 		this.lastImport = undefined;
+		this.closeDrawingImport();
 		if (this.editor) {
 			releaseCadEditor(this.editor);
 			this.editor = undefined;
@@ -385,6 +401,9 @@ export class ArchitectureEditor extends EditorPane {
 	}
 
 	private onKey(e: KeyboardEvent): void {
+		if (this.drawingImport?.element.contains(e.target as Node)) {
+			return;
+		}
 		const ctrl = e.ctrlKey || e.metaKey;
 		if (e.key === 'Escape' && (this.chain.length || this.tool !== 'select' || this.selected)) {
 			e.preventDefault();
@@ -757,6 +776,7 @@ export class ArchitectureEditor extends EditorPane {
 		this.structureAction.label = this.showStructure ? localize('arch.hideStructure', "Hide Structure") : localize('arch.showStructure', "Show Structure");
 		this.structureAction.class = ThemeIcon.asClassName(this.showStructure ? Codicon.eye : Codicon.eyeClosed);
 		this.importAction.enabled = editable;
+		this.importDrawingAction.enabled = editable && !this.drawingImport;
 
 		const tools = (names: readonly Tool[]) => names.map(name => this.toolActions.get(name)!);
 		const primary: IAction[] = [
@@ -770,6 +790,7 @@ export class ArchitectureEditor extends EditorPane {
 			this.zoomAction, ...(this.compact ? [] : [this.structureAction]), this.view3dAction, frame.togglePropertiesAction,
 		];
 		const secondary: IAction[] = [
+			this.importDrawingAction,
 			this.importAction,
 			new Separator(),
 			this.textAction,
@@ -995,15 +1016,19 @@ export class ArchitectureEditor extends EditorPane {
 			appendPropertyRow(panel, type.id, localize('arch.openingTypeRow', "{0}: {1} x {2} mm", type.name, type.width, type.height));
 		}
 		propertyLink(panel, localize('arch.editTypes', "Edit the types as text"), () => void this.openText(), this.propertiesDisposables);
-		const summary = this.lastImport;
-		if (summary) {
-			appendPropertyHeading(panel, localize('arch.lastImport', "Last IFC import"));
+		const last = this.lastImport;
+		if (last) {
+			const summary = last.summary;
+			appendPropertyHeading(panel, localize('arch.lastImport', "Last import"), last.file);
 			const labels: { readonly [kind: string]: string } = {
 				walls: localize('arch.walls', "Walls"), doors: localize('arch.doors', "Doors"), windows: localize('arch.windows', "Windows"),
 				rooms: localize('arch.rooms', "Rooms"), types: localize('arch.newTypes', "New types"),
 			};
 			for (const [kind, count] of Object.entries(summary.adopted)) {
 				appendPropertyRow(panel, labels[kind] ?? kind, String(count));
+			}
+			if (summary.replaced) {
+				appendPropertyRow(panel, localize('arch.replaced', "Replaced"), localize('arch.replacedItems', "{0} items of the earlier import", summary.replaced));
 			}
 			for (const skipped of summary.skipped) {
 				appendPropertyRow(panel, localize('arch.skipped', "Skipped"), skipped, true);
@@ -1092,7 +1117,7 @@ export class ArchitectureEditor extends EditorPane {
 			return;
 		}
 		this.write(parsed.value);
-		this.lastImport = result.summary;
+		this.lastImport = { file: basename(source), summary: result.summary };
 		const { adopted, skipped } = result.summary;
 		const text = localize('arch.imported', "Adopted {0} walls, {1} doors, {2} windows and {3} rooms; {4} skipped.", adopted.walls ?? 0, adopted.doors ?? 0, adopted.windows ?? 0, adopted.rooms ?? 0, skipped.length);
 		this.setNotice(text);
@@ -1100,6 +1125,126 @@ export class ArchitectureEditor extends EditorPane {
 		this.renderProperties();
 		this.frame.setPropertiesVisible(true);
 		this.notificationService.notify({ severity: skipped.length ? Severity.Warning : Severity.Info, message: text });
+	}
+
+	/**
+	 * Adopts an architect's DWG/DXF plan: reads its layers, opens the layer-mapping step over the
+	 * drawing, then imports with the mapping chosen as one undoable edit, with a summary.
+	 */
+	private async importDrawing(): Promise<void> {
+		const input = this.input as ArchitectureEditorInput | undefined;
+		if (!input || !this.archModel || !this.planModel || !this.arch || this.drawingImport) {
+			return;
+		}
+		const picked = await this.fileDialogService.showOpenDialog({
+			title: localize('arch.pickDrawing', "Import an Architect's DWG/DXF"),
+			canSelectFiles: true,
+			canSelectMany: false,
+			filters: [{ name: localize('arch.drawingFiles', "Drawings (DWG, DXF)"), extensions: ['dwg', 'dxf'] }],
+			defaultUri: dirname(input.resource),
+		});
+		const source = picked?.[0];
+		if (!source || this.input !== input) {
+			return;
+		}
+		this.frame.showProgress();
+		this.setNotice(localize('arch.readingDrawing', "Reading the layers of {0}...", basename(source)));
+		let info: IDrawingInfo | undefined;
+		try {
+			info = await this.commandService.executeCommand<IDrawingInfo>('saengine.architecture.inspectDrawing', { path: source.fsPath });
+		} catch (error) {
+			this.setNotice(localize('arch.drawingFailed', "The drawing could not be read: {0}", String(error)));
+			return;
+		} finally {
+			this.frame.hideProgress();
+		}
+		if (this.input !== input || !this.arch || this.drawingImport) {
+			return;
+		}
+		if (!info || info.problems?.length || !Array.isArray(info.layers)) {
+			this.setNotice(localize('arch.drawingFailed', "The drawing could not be read: {0}", info?.problems?.join(' ') ?? localize('arch.importNoAnswer', "the backend gave no answer")));
+			return;
+		}
+		// Recorded relative to the project folder when the drawing is in it, else by its full path.
+		const inProject = relativePath(dirname(dirname(input.resource)), source);
+		const panel = this.drawingImport = new DrawingImportPanel(this.frame.main, {
+			info,
+			name: basename(source),
+			source: inProject && !inProject.startsWith('..') ? inProject : source.fsPath,
+			arch: this.arch,
+			floorPlan: parse(this.planModel),
+			stories: storiesOf(parse(this.planModel)).map(s => ({ id: s.id, name: s.name })),
+			story: input.story ?? '',
+		}, this.contextViewService);
+		panel.onDidCancel(() => {
+			this.closeDrawingImport();
+			this.setNotice(localize('arch.drawingCancelled', "Import cancelled."));
+		});
+		panel.onDidAccept(options => void this.runDrawingImport(input, source, options));
+		this.setNotice(localize('arch.mapLayers', "Say what each layer of {0} holds, place it and press Import.", basename(source)));
+		// The mapping step takes the whole editor; the properties come back when it closes.
+		this.propertiesBeforeImport = this.frame.isPropertiesVisible;
+		this.frame.setPropertiesVisible(false);
+		this.updateToolbar();
+		panel.focus();
+	}
+
+	private async runDrawingImport(input: ArchitectureEditorInput, source: URI, options: IDrawingImportOptions): Promise<void> {
+		const panel = this.drawingImport;
+		const model = this.archModel;
+		const plan = this.planModel;
+		if (!panel || !model || !plan) {
+			return;
+		}
+		panel.setBusy(true);
+		this.frame.showProgress();
+		let result: IImportResult | undefined;
+		try {
+			result = await this.commandService.executeCommand<IImportResult>('saengine.architecture.importDrawing', { path: source.fsPath, architectureText: model.getValue(), floorPlanText: plan.getValue(), options });
+		} catch (error) {
+			result = { problems: [String(error)] };
+		} finally {
+			this.frame.hideProgress();
+			panel.setBusy(false);
+		}
+		if (this.input !== input || this.drawingImport !== panel) {
+			return;
+		}
+		const parsed = result?.architecture && result.summary ? parseArchitecture(JSON.stringify(result.architecture)) : undefined;
+		if (!result?.summary || !parsed || parsed.kind !== 'ok') {
+			const problem = parsed?.kind === 'error' ? parsed.message : result?.problems?.join(' ') ?? localize('arch.importNoAnswer', "the backend gave no answer");
+			panel.setProblem(localize('arch.drawingImportFailed', "The drawing could not be imported: {0}", problem));
+			return;
+		}
+		this.closeDrawingImport();
+		input.story = options.story;
+		this.selected = undefined;
+		this.fitPending = true;
+		this.userView = false;
+		this.write(parsed.value);
+		this.lastImport = { file: basename(source), summary: result.summary };
+		const { adopted, skipped, replaced } = result.summary;
+		const name = basename(source);
+		const text = replaced
+			? localize('arch.drawingReimported', "Adopted {0} walls, {1} doors, {2} windows and {3} rooms from {4}, replacing its earlier import; {5} skipped.", adopted.walls ?? 0, adopted.doors ?? 0, adopted.windows ?? 0, adopted.rooms ?? 0, name, skipped.length)
+			: localize('arch.drawingImported', "Adopted {0} walls, {1} doors, {2} windows and {3} rooms from {4}; {5} skipped.", adopted.walls ?? 0, adopted.doors ?? 0, adopted.windows ?? 0, adopted.rooms ?? 0, name, skipped.length);
+		this.setNotice(text);
+		this.renderProperties();
+		this.frame.setPropertiesVisible(true);
+		this.notificationService.notify({ severity: skipped.length ? Severity.Warning : Severity.Info, message: text });
+	}
+
+	private closeDrawingImport(): void {
+		const panel = this.drawingImport;
+		if (panel) {
+			this.drawingImport = undefined;
+			panel.dispose();
+			if (this.propertiesBeforeImport) {
+				this.frame.setPropertiesVisible(true);
+			}
+			this.updateToolbar();
+			this.frame.element.focus();
+		}
 	}
 
 	private async open3d(): Promise<void> {

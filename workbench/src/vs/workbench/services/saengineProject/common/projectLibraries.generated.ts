@@ -17401,6 +17401,81 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 			title: 'DoorType',
 			type: 'object',
 		},
+		DrawingImport: {
+			additionalProperties: false,
+			description: 'An import of an architect\'s DWG/DXF onto one story: the layer mapping and placement used\n(offered again next time) and the items it made (replaced when the same file is imported onto\nthe same story again).',
+			properties: {
+				file: {
+					description: 'The drawing (relative to the project folder).',
+					minLength: 1,
+					title: 'File',
+					type: 'string',
+				},
+				story: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				layers: {
+					additionalProperties: {
+						enum: ['walls', 'doors', 'windows', 'rooms', 'ignore'],
+						type: 'string',
+					},
+					description: 'What each layer of the drawing holds.',
+					title: 'Layers',
+					type: 'object',
+				},
+				unit: {
+					default: 'mm',
+					description: 'The drawing\'s unit.',
+					enum: ['mm', 'cm', 'm', 'ft', 'in'],
+					title: 'Unit',
+					type: 'string',
+				},
+				base: {
+					description: 'The drawing\'s point placed at `at` [drawing units].',
+					items: {
+						type: 'number',
+					},
+					maxItems: 2,
+					minItems: 2,
+					title: 'Base',
+					type: 'array',
+				},
+				at: {
+					description: '[x, y] in mm.',
+					items: {
+						type: 'number',
+					},
+					maxItems: 2,
+					minItems: 2,
+					title: 'At',
+					type: 'array',
+				},
+				rotation: {
+					default: 0,
+					description: '[°], counter-clockwise about `at`.',
+					title: 'Rotation',
+					type: 'number',
+				},
+				items: {
+					description: 'The walls, doors, ... it made.',
+					items: {
+						maxLength: 64,
+						minLength: 1,
+						pattern: '^[A-Za-z0-9._-]+$',
+						type: 'string',
+					},
+					title: 'Items',
+					type: 'array',
+				},
+			},
+			required: ['file', 'story'],
+			title: 'DrawingImport',
+			type: 'object',
+		},
 		FinishType: {
 			additionalProperties: false,
 			properties: {
@@ -17828,6 +17903,14 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 			title: 'Room separators',
 			type: 'array',
 		},
+		imports: {
+			description: 'Architects\' DWG/DXF drawings imported, to import them again.',
+			items: {
+				$ref: '#/$defs/DrawingImport',
+			},
+			title: 'Drawing imports',
+			type: 'array',
+		},
 	},
 	title: 'SAEngine architecture',
 	type: 'object',
@@ -17972,4 +18055,5 @@ export const DEFAULT_ARCHITECTURE: object = {
 	windows: [],
 	rooms: [],
 	separators: [],
+	imports: [],
 };
