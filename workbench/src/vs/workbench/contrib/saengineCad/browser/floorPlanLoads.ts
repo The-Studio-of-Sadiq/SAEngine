@@ -17,6 +17,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -37,6 +38,11 @@ import { familyOf, masterOf } from './floorPlanTypical.js';
  * Typical floors: a load entered on a story of a family applies to the member at the same place on
  * every story of the family (as members follow the typical floor), unless it is for "this story
  * only". Family-wide loads are stored on the master story's member, so a family has each once.
+ *
+ * The architecture's walls and rooms load the model too (`saengine.fem.architecture_loads`), derived
+ * from `architecture.json` when the analysis model is derived, never copied here: the list shows
+ * them read-only "from the architecture", as the last derivation kept them
+ * (`08 FEM/model.derivation.json`), with a link to the wall.
  *
  * Units: mm, kN/m, kN, kN/m³ (as the Python model).
  */
@@ -652,6 +658,80 @@ export function loadsDrawing(loads: IMemberLoads, layout: unknown, story: string
 // ───────────────────────────── the file ─────────────────────────────
 
 /** `05 Floor Plan/loads.json` beside the floor plan `planFile`. */
+/** A wall piece the last derivation applied (`saengine.fem.architecture_loads`, its `wall_rows`). */
+export interface IArchitectureWallRow {
+	readonly wall: string;
+	readonly story: string;
+	readonly type: string;
+	/** What carries it: a beam, a slab, the ground (not applied), nothing (not applied), or a floor-plan wall (its own). */
+	readonly on: 'beam' | 'slab' | 'ground' | 'none' | 'structural';
+	readonly member?: string;
+	readonly length_m: number;
+	readonly height_m?: number;
+	readonly openings_m2?: number;
+	readonly load_kNm?: number;
+	readonly total_kN?: number;
+	/** A wall crossing the beam: its piece over the beam's width is a point load. */
+	readonly point?: boolean;
+}
+
+/** A room's loads as the last derivation applied them. */
+export interface IArchitectureRoomRow {
+	readonly room: string;
+	readonly name?: string;
+	readonly number?: string;
+	readonly story: string;
+	readonly area_m2: number;
+	readonly finish?: string | null;
+	readonly finish_kNm2?: number | null;
+	readonly sunk?: boolean;
+	readonly use?: string | null;
+	readonly live_kNm2?: number | null;
+}
+
+/** The architecture's loads kept with the last derivation (`summary.architectureLoads`). */
+export interface IArchitectureLoads {
+	readonly mode: string;
+	readonly walledStories: readonly string[];
+	readonly walls: readonly IArchitectureWallRow[];
+	readonly rooms: readonly IArchitectureRoomRow[];
+	/** The architecture changed since (its file is newer than the derivation). */
+	readonly stale: boolean;
+}
+
+/** The derivation file beside the analysis model (`saengine.report.build.DERIVATION_FILE`). */
+export const DERIVATION_FILE = 'model.derivation.json';
+
+/** The architecture's loads in a kept derivation's text, or undefined when it has none. */
+export function parseArchitectureLoads(text: string | undefined, stale = false): IArchitectureLoads | undefined {
+	try {
+		const value = text ? JSON.parse(text)?.summary?.architectureLoads : undefined;
+		if (!isObject(value)) {
+			return undefined;
+		}
+		return {
+			mode: String(value.mode ?? 'architecture'),
+			walledStories: Array.isArray(value.walledStories) ? value.walledStories.map(String) : [],
+			walls: list(value.walls) as unknown as IArchitectureWallRow[],
+			rooms: list(value.rooms) as unknown as IArchitectureRoomRow[],
+			stale,
+		};
+	} catch {
+		return undefined;
+	}
+}
+
+/** What carries a wall piece, for the list. */
+function wallCarrier(wall: IArchitectureWallRow): string {
+	switch (wall.on) {
+		case 'beam': return localize('loads.onBeam', "beam {0}", wall.member ?? '');
+		case 'slab': return localize('loads.onSlab', "slab {0}", wall.member ?? '');
+		case 'ground': return localize('loads.onGround', "ground (not applied)");
+		case 'structural': return localize('loads.onWall', "floor-plan wall");
+		default: return localize('loads.onNothing', "nothing (not applied)");
+	}
+}
+
 export function loadsFileOf(planFile: URI): URI {
 	return joinPath(dirname(planFile), LOADS_FILE);
 }
@@ -666,8 +746,11 @@ export class FloorPlanLoadsFile extends Disposable {
 	private readonly listener = this._register(new MutableDisposable());
 	private resource: URI | undefined;
 	private readonly _onDidChange = this._register(new Emitter<void>());
-	/** The file changed (an edit here, undo, another editor). */
+	/** The file changed (an edit here, undo, another editor), or the architecture's derived loads did. */
 	readonly onDidChange: Event<void> = this._onDidChange.event;
+	private derivation: URI | undefined;
+	private architecture: URI | undefined;
+	private derived: IArchitectureLoads | undefined;
 
 	constructor(
 		@ITextModelService private readonly textModelService: ITextModelService,
@@ -675,17 +758,49 @@ export class FloorPlanLoadsFile extends Disposable {
 		@ITextFileService private readonly textFileService: ITextFileService,
 	) {
 		super();
+		this._register(this.fileService.onDidFilesChange(e => {
+			if ((this.derivation && e.contains(this.derivation)) || (this.architecture && e.contains(this.architecture))) {
+				void this.readDerived().then(() => this._onDidChange.fire());
+			}
+		}));
 	}
 
 	/** Follows the loads file of the floor plan `planFile`; no file is created yet. */
 	async open(planFile: URI): Promise<void> {
 		this.resource = loadsFileOf(planFile);
+		this.derivation = joinPath(dirname(dirname(planFile)), '08 FEM', DERIVATION_FILE);
+		this.architecture = joinPath(dirname(planFile), 'architecture.json');
 		this.reference.clear();
 		this.listener.clear();
 		if (await this.fileService.exists(this.resource)) {
 			await this.resolve(this.resource);
 		}
+		await this.readDerived();
 		this._onDidChange.fire();
+	}
+
+	/** The architecture's loads as the last derivation applied them, undefined when it applied none. */
+	architectureLoads(): IArchitectureLoads | undefined {
+		return this.derived;
+	}
+
+	private async readDerived(): Promise<void> {
+		const derivation = this.derivation;
+		const architecture = this.architecture;
+		if (!derivation || !architecture) {
+			this.derived = undefined;
+			return;
+		}
+		try {
+			const [content, kept, drawn] = await Promise.all([
+				this.fileService.readFile(derivation),
+				this.fileService.stat(derivation),
+				this.fileService.stat(architecture).catch(() => undefined),
+			]);
+			this.derived = parseArchitectureLoads(content.value.toString(), drawn !== undefined && drawn.mtime > kept.mtime);
+		} catch {
+			this.derived = undefined;
+		}
 	}
 
 	private async resolve(resource: URI): Promise<ITextModel | undefined> {
@@ -771,6 +886,7 @@ export class FloorPlanLoadsPanel extends Disposable {
 	constructor(
 		readonly file: FloorPlanLoadsFile,
 		@IContextViewService private readonly contextViewService: IContextViewService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 	}
@@ -842,6 +958,70 @@ export class FloorPlanLoadsPanel extends Disposable {
 			}
 		}
 		this.renderList(section, store, context, loads, problem);
+		this.renderArchitecture(section, store, context);
+	}
+
+	/** The architecture's loads, read-only: as the last derivation applied them, with a link to each wall. */
+	private renderArchitecture(section: HTMLElement, store: DisposableStore, context: ILoadsPanelContext): void {
+		const derived = this.file.architectureLoads();
+		if (!derived || (!derived.walls.length && !derived.rooms.length)) {
+			return;
+		}
+		const onStory = (story: string) => this.showAll || story === context.story;
+		const walls = derived.walls.filter(w => onStory(w.story));
+		const rooms = derived.rooms.filter(r => onStory(r.story));
+		appendPropertyHeading(section, localize('loads.archHeading', "From the Architecture"), localize('loads.archCount', "{0} wall pieces, {1} rooms", walls.length, rooms.length));
+		if (derived.stale) {
+			appendPropertyNote(section, localize('loads.archStale', "The architecture changed since the analysis model was derived: Run All (or Derive) applies its walls and rooms again."));
+		}
+		const open = (story: string, id: string) => void this.commandService.executeCommand('saengine.architecture.open', { story, id });
+		if (walls.length) {
+			const table = append(section, $('table.floor-plan-loads-table.from-architecture'));
+			const head = append(append(table, $('thead')), $('tr'));
+			for (const title of [localize('loads.colWall', "Wall"), localize('loads.colOn', "On"), localize('loads.colLoad', "Load")]) {
+				append(head, $('th', undefined, title));
+			}
+			const body = append(table, $('tbody'));
+			for (const wall of walls) {
+				const tr = append(body, $('tr.load'));
+				const link = append(append(tr, $('td', { title: localize('loads.archOpen', "Open {0} in the Architecture", wall.wall) })), $<HTMLAnchorElement>('a.sa-props-link', { role: 'button', tabIndex: 0 }, wall.wall));
+				store.add(addDisposableListener(link, EventType.CLICK, () => open(wall.story, wall.wall)));
+				store.add(addDisposableListener(link, EventType.KEY_DOWN, e => {
+					if (e.key === 'Enter') {
+						open(wall.story, wall.wall);
+					}
+				}));
+				append(tr, $('td', undefined, wallCarrier(wall)));
+				const applied = wall.on === 'beam' || wall.on === 'slab';
+				const load = wall.on === 'structural' || wall.load_kNm === undefined ? '–'
+					: wall.point ? localize('loads.kN', "{0} kN", round(wall.total_kN ?? 0, 1)) : localize('loads.kNm', "{0} kN/m", round(wall.load_kNm));
+				append(tr, $('td.value.nowrap', undefined, load));
+				const openings = wall.openings_m2 ? localize('loads.archOpenings', " less {0} m² openings", round(wall.openings_m2)) : '';
+				const total = applied ? localize('loads.archTotal', ", {0} kN", round(wall.total_kN ?? 0, 1)) : localize('loads.archNotApplied', ", not applied");
+				const detail = wall.on === 'structural'
+					? localize('loads.archStructural', "{0} · {1} m over a floor-plan wall: weighed with it, not again", wall.type, round(wall.length_m))
+					: wall.point
+						? localize('loads.archCrossing', "{0} crossing the beam: its {1} m over it is a point load", wall.type, round(wall.length_m))
+						: localize('loads.archWallDetail', "{0} · {1} m × h {2} m{3}{4}", wall.type, round(wall.length_m), round(wall.height_m ?? 0), openings, total);
+				append(append(body, $('tr.detail')), $('td.source', { colSpan: 3 }, detail));
+			}
+		}
+		for (const room of rooms) {
+			const parts: string[] = [];
+			if (room.finish_kNm2 !== undefined && room.finish_kNm2 !== null) {
+				parts.push(localize('loads.archFinish', "finish {0} {1} kN/m² (SD)", room.finish ?? '', round(room.finish_kNm2)));
+			}
+			if (room.live_kNm2 !== undefined && room.live_kNm2 !== null) {
+				parts.push(localize('loads.archLive', "live {0} kN/m² ({1})", round(room.live_kNm2), room.use ?? ''));
+			}
+			const row = append(section, $('.sa-props-row'));
+			const link = append(append(row, $('span.name')), $<HTMLAnchorElement>('a.sa-props-link', { role: 'button', tabIndex: 0 }, [room.name, room.number].filter(Boolean).join(' ') || room.room));
+			store.add(addDisposableListener(link, EventType.CLICK, () => open(room.story, room.room)));
+			append(row, $('span.value', undefined, localize('loads.archRoom', "{0} m²: {1}", round(room.area_m2, 1), parts.join('; '))));
+		}
+		appendPropertyNote(section, derived.walledStories.length
+			? localize('loads.archNote', "Superimposed dead load (SD), derived from the architecture each time the model is derived (edit the walls and rooms there, not here). The area load's partition allowance is dropped on {0}; rooms replace the floor's finish and live load over their area.", derived.walledStories.join(', '))
+			: localize('loads.archNoteRooms', "Derived from the architecture each time the model is derived (edit the rooms there). Rooms replace the floor's finish and live load over their area."));
 	}
 
 	private async write(loads: IMemberLoads, notice: string, context: ILoadsPanelContext): Promise<void> {

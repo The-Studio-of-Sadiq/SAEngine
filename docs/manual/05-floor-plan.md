@@ -176,6 +176,21 @@ draws them. A load on a typical floor applies to every story like it unless *Thi
 The analysis model applies them as member loads (they count in the seismic weight as their case
 does) and the report lists their totals per story.
 
+**Loads from the architecture.** The walls and rooms drawn in **Architecture** (6 BIM) load the
+model too, worked out each time the model is derived (never copied into `loads.json`, so a wall
+has one source). Each wall is a superimposed dead load (SD) where it stands (BNBC 2020 Part 6
+Sec 2.2.5): along a beam, a line load of the wall type's weight × its clear height (to the beam or
+slab above) less its doors and windows, averaged over the part on that beam; across a beam, a
+point load; on a slab, a line load on the shell elements, or with slabs as loads to beams a
+uniform load over the panel, the larger of the wall's weight over the panel and 33 % of its weight
+per metre run (Sec 2.3.6). A wall over a floor-plan wall is that wall's and is not counted again.
+On a story with walls drawn, the area load's partition allowance is dropped (never both). A room
+with a floor finish carries the finish's weight (and a sunk slab's filling in a wet room, when the
+finish type gives one) instead of the flat finish, and a room with an occupancy carries its use's
+live load (Table 6.2.3) instead of the floor's. The **From the Architecture** list under Loads
+shows what the last derivation applied, read-only, with a link to each wall; Analysis →
+*Partition walls* → *Flat allowance* turns the walls off and keeps the allowance.
+
 **Stiffness modifiers and design overwrites** of the selected members (Properties panel, below
 the member's fields): factors on A, J, I22, I33, mass and weight (shells: membrane, bending), and
 k, unbraced lengths and framing for the design. An empty field inherits the object type's value,

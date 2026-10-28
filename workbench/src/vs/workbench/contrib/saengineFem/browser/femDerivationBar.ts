@@ -13,7 +13,7 @@ import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { femSourceCurrent, mepModelStamp, sourceStamp } from '../../../services/saengineProject/common/partSources.js';
-import { loadsHaveContent } from '../../../services/saengineProject/common/partStatus.js';
+import { architectureHasContent, loadsHaveContent } from '../../../services/saengineProject/common/partStatus.js';
 import { ISaengineProjectService, PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
 
 /** Desktop command deriving the analysis model with the Python models (see `saengine.fem.derive`). */
@@ -48,9 +48,17 @@ export const SUBSTRUCTURE_DERIVATION_SOURCE = { part: 'substructure', key: 'subs
 export const LOADS_DERIVATION_SOURCE = { part: 'loads', key: 'loads', label: localize('fem.source.loads', "Line Loads") } as const;
 /** The loads file's name, beside the floor plan (`saengine.library.line_loads.LOADS_FILE`). */
 export const MEMBER_LOADS_FILE = 'loads.json';
+/**
+ * The architecture (`05 Floor Plan/architecture.json`, `saengine.library.architecture`): its walls
+ * and rooms load the model (`saengine.fem.architecture_loads`); a source once it has a wall or a
+ * room (key `architecture`). A file beside the floor plan, like the member loads.
+ */
+export const ARCHITECTURE_DERIVATION_SOURCE = { part: 'architecture', key: 'architecture', label: localize('fem.source.architecture', "Architecture") } as const;
+/** The architecture's file name, beside the floor plan (`saengine.library.architecture.ARCHITECTURE_FILE`). */
+export const ARCHITECTURE_FILE = 'architecture.json';
 
 /** Every part the derivation may read: the sources above, the soil report, MEP, the substructure and the member loads. */
-export const DERIVATION_INPUTS: readonly string[] = [...DERIVATION_SOURCES.map(s => s.part), SOIL_DERIVATION_SOURCE.part, MEP_DERIVATION_SOURCE.part, SUBSTRUCTURE_DERIVATION_SOURCE.part, LOADS_DERIVATION_SOURCE.part];
+export const DERIVATION_INPUTS: readonly string[] = [...DERIVATION_SOURCES.map(s => s.part), SOIL_DERIVATION_SOURCE.part, MEP_DERIVATION_SOURCE.part, SUBSTRUCTURE_DERIVATION_SOURCE.part, LOADS_DERIVATION_SOURCE.part, ARCHITECTURE_DERIVATION_SOURCE.part];
 
 interface IFemDerivation {
 	readonly text?: string;
@@ -90,6 +98,9 @@ export function mepHasContent(text: string | undefined): boolean {
 export function partFile(root: URI, id: string): URI {
 	if (id === LOADS_DERIVATION_SOURCE.part) {
 		return joinPath(dirname(partFile(root, 'floorPlan')), MEMBER_LOADS_FILE);
+	}
+	if (id === ARCHITECTURE_DERIVATION_SOURCE.part) {
+		return joinPath(dirname(partFile(root, 'floorPlan')), ARCHITECTURE_FILE);
 	}
 	const part = PROJECT_PARTS.find(p => p.id === id)!;
 	return joinPath(root, part.folder, part.mainFile!);
@@ -145,6 +156,12 @@ export function derivationState(description: unknown, texts: ReadonlyMap<string,
 	if (recorded.has(loads.key) ? loadsText === undefined || recorded.get(loads.key) !== sourceStamp(loadsText) : recorded.size > 0 && loadsHaveContent(loadsText)) {
 		changed.push(loads.label);
 	}
+	// The architecture likewise: once recorded, and once it has a wall or a room.
+	const architecture = ARCHITECTURE_DERIVATION_SOURCE;
+	const architectureText = texts.get(architecture.part);
+	if (recorded.has(architecture.key) ? architectureText === undefined || recorded.get(architecture.key) !== sourceStamp(architectureText) : recorded.size > 0 && architectureHasContent(architectureText)) {
+		changed.push(architecture.label);
+	}
 	return { derived: recorded.size > 0, changed };
 }
 
@@ -174,12 +191,14 @@ export async function deriveAnalysisModel(commandService: ICommandService, fileS
 	const substructureText = texts.get(SUBSTRUCTURE_DERIVATION_SOURCE.part);
 	// A missing loads file is sent as empty, so the backend does not read a stale one from disk.
 	const loadsText = texts.get(LOADS_DERIVATION_SOURCE.part) ?? '';
+	const architectureText = texts.get(ARCHITECTURE_DERIVATION_SOURCE.part) ?? '';
 	const result = await commandService.executeCommand<IFemDerivation>(DERIVE_COMMAND, {
 		bimText, objectsText, materialsText, settingsText, modelFolder: dirname(resource).fsPath,
 		...(soilText !== undefined ? { soilText } : {}),
 		...(mepText !== undefined ? { mepText } : {}),
 		...(substructureText !== undefined ? { substructureText } : {}),
 		loadsText,
+		architectureText,
 	});
 	if (!result?.text) {
 		return { ok: false, message: (result?.problems ?? []).join('; '), notes: [] };

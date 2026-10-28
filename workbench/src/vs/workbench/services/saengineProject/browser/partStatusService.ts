@@ -111,6 +111,7 @@ export class SaenginePartStatusService extends Disposable implements ISaenginePa
 		const floorPlan = partById('floorPlan');
 		if (floorPlan) {
 			texts.set('loads', await this.readText(joinPath(project.root, floorPlan.folder, 'loads.json')));
+			texts.set('architecture', await this.readText(joinPath(project.root, floorPlan.folder, 'architecture.json')));
 		}
 		const fem = partById('fem')!;
 		const femFolder = joinPath(project.root, fem.folder);

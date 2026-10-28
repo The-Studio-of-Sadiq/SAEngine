@@ -6,6 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { csvText } from '../../../../platform/saengine/common/csv.js';
 import { boqSourceStamp, recordedStamp } from '../../../services/saengineProject/common/partSources.js';
+import { architectureHasContent } from '../../../services/saengineProject/common/partStatus.js';
 
 /*
  * The bill of quantities (`10 BOQ/boq.json`, schema `saengine.boq/1`), measured by the Python
@@ -19,7 +20,7 @@ export const BOQ_SCHEMA_ID = 'saengine.boq/1';
 /** Desktop command measuring the bill (registered where the Python backend is). */
 export const BOQ_COMPUTE_COMMAND = 'saengine.boq.compute';
 
-export type BoqGroup = 'earthwork' | 'concrete' | 'masonry' | 'reinforcement' | 'formwork' | 'steel' | 'mep' | 'materials';
+export type BoqGroup = 'earthwork' | 'concrete' | 'masonry' | 'finishes' | 'reinforcement' | 'formwork' | 'steel' | 'mep' | 'materials';
 export type BoqUnit = 'm3' | 'm2' | 'kg' | 'nr' | 'm' | 'cft' | 'bag' | 'l';
 
 export interface IBoqBreakdownEntry {
@@ -72,6 +73,8 @@ export interface IBoqComputeArgs {
 	readonly mepText?: string;
 	/** The project folder, where the plumbing tanks' last designs give their bars. */
 	readonly projectRoot?: string;
+	/** `05 Floor Plan/architecture.json`: its brickwork, plaster, finishes, doors and windows. */
+	readonly architectureText?: string;
 }
 
 /** Result of {@link BOQ_COMPUTE_COMMAND}: the new text of `boq.json`, or why it could not be measured. */
@@ -95,7 +98,12 @@ export const BOQ_SOURCES: readonly { readonly part: string; readonly label: stri
 	{ part: 'substructure', label: localize('boq.source.substructure', "Substructure") },
 	{ part: 'mep', label: localize('boq.source.mep', "MEP") },
 	{ part: 'settings', label: localize('boq.source.groundLevel', "Ground Level (Project Settings)"), optional: true },
+	// Its walls, rooms, doors and windows (`saengine.boq.architecture`): recorded once it has a wall or a room.
+	{ part: 'architecture', label: localize('boq.source.architecture', "Architecture"), optional: true },
 ];
+
+/** The architecture's file beside the floor plan (`05 Floor Plan/architecture.json`), a source of the bill that is not a part of its own. */
+export const BOQ_ARCHITECTURE_FILE = 'architecture.json';
 
 /**
  * The arguments of {@link BOQ_COMPUTE_COMMAND} from the sources' texts by part id (and the
@@ -109,7 +117,7 @@ export function boqComputeArgs(texts: ReadonlyMap<string, string | undefined>, p
 	if (bimText === undefined || objectsText === undefined || materialsText === undefined) {
 		return { missing: BOQ_SOURCES.filter(s => s.required && texts.get(s.part) === undefined).map(s => s.label) };
 	}
-	return { args: { bimText, objectsText, materialsText, substructureText: texts.get('substructure'), settingsText: texts.get('settings'), mepText: texts.get('mep'), ...(projectRoot ? { projectRoot } : {}) }, missing: [] };
+	return { args: { bimText, objectsText, materialsText, substructureText: texts.get('substructure'), settingsText: texts.get('settings'), mepText: texts.get('mep'), architectureText: texts.get('architecture'), ...(projectRoot ? { projectRoot } : {}) }, missing: [] };
 }
 
 /** The groups of the bill in their order, with their titles. */
@@ -117,6 +125,7 @@ export const BOQ_GROUPS: readonly { readonly group: BoqGroup; readonly title: st
 	{ group: 'earthwork', title: localize('boq.group.earthwork', "Earthwork") },
 	{ group: 'concrete', title: localize('boq.group.concrete', "Concrete") },
 	{ group: 'masonry', title: localize('boq.group.masonry', "Masonry") },
+	{ group: 'finishes', title: localize('boq.group.finishes', "Plaster, Finishes, Doors and Windows") },
 	{ group: 'reinforcement', title: localize('boq.group.reinforcement', "Reinforcement by Bar Diameter") },
 	{ group: 'formwork', title: localize('boq.group.formwork', "Formwork") },
 	{ group: 'steel', title: localize('boq.group.steel', "Structural Steel") },
@@ -133,6 +142,8 @@ export function totalledItems(group: BoqGroup, items: readonly IBoqItem[]): read
 	switch (group) {
 		case 'earthwork': return items.filter(i => i.kind === 'excavation');
 		case 'materials': return items.filter(i => i.kind === 'cement');
+		// The plaster to walls (m²) stands for the group; tiles, doors and windows are other things.
+		case 'finishes': return items.filter(i => i.kind === 'plaster');
 		default: return items;
 	}
 }
@@ -166,7 +177,10 @@ export function changedSources(document: IBoqDocument | undefined, texts: Readon
 			return required || recorded !== undefined;
 		}
 		return recorded !== boqSourceStamp(part, text);
-	}).map(s => s.part);
+	}).map(s => s.part).concat(
+		// The architecture also once it has a wall or a room a bill measured without it lacks.
+		recordedStamp(document, 'architecture') === undefined && architectureHasContent(texts.get('architecture')) ? ['architecture'] : [],
+	);
 }
 
 /**
@@ -183,14 +197,16 @@ const TANK_BARS_PENDING = 'its bars are not measured: it has no current design';
 
 /**
  * The total rows of a group in the table: only like with like. The earthwork (excavation and
- * backfill are the same earth twice) and the MEP coordination (counts and lengths of different
- * things) have none; the materials total each material (cement in kg, bags, sand, ...) that is on
+ * backfill are the same earth twice), the MEP coordination (counts and lengths of different
+ * things) and the finishes (plaster, tiles, doors) have none; the materials total each material (cement in kg, bags, sand, ...) that is on
  * more than one line (cement of two types), never sand with stone.
  */
 export function totalRows(group: BoqGroup, items: readonly IBoqItem[]): { readonly label?: string; readonly unit: BoqUnit; readonly total: number }[] {
 	switch (group) {
 		case 'earthwork':
 		case 'mep':
+		// Plaster, tiles and doors are different things: no total.
+		case 'finishes':
 			return [];
 		case 'materials': {
 			const byKind = new Map<string, IBoqItem[]>();

@@ -497,11 +497,16 @@ def derive_fem(
     soil_text: str | None = None,
     column_supports: str | None = None,
     member_loads: Any = None,
+    architecture: Any = None,
 ) -> Derivation:
     """The OpenSees Studio project of ``building`` with the loads of ``settings``, under the
     project's code pack (``settings.codePack``; its project-local packs looked for in the
     project of :func:`saengine.codes.context.project`, else the one holding ``model_dir``).
-    See :func:`_derive_fem`."""
+    ``architecture``: the project's architecture (``05 Floor Plan/architecture.json``), read
+    beside ``model_dir`` (``08 FEM``) when not given; ``False`` for none. See
+    :func:`_derive_fem`."""
+    if architecture is None and model_dir is not None:
+        architecture = read_architecture(Path(model_dir).parent)
     root = code_context.project_root() or code_context.find_project_root(model_dir)
     with code_context.using(code_context.pack_for(settings, root)):
         return _derive_fem(
@@ -516,7 +521,23 @@ def derive_fem(
             soil_text,
             column_supports,
             member_loads,
+            architecture or None,
         )
+
+
+def read_architecture(project_root: str | Path) -> Any:
+    """The architecture of the project at ``project_root`` when it has walls or rooms (whose
+    loads the model takes), else None; an unreadable file is None too (Architecture reports
+    it)."""
+    from saengine.fem.architecture_loads import has_loads
+    from saengine.library import architecture as arch_lib
+
+    try:
+        text = (Path(project_root) / arch_lib.ARCHITECTURE_FILE).read_text(encoding="utf-8")
+        arch = arch_lib.parse(text)
+    except (OSError, ValueError):
+        return None
+    return arch if has_loads(arch) else None
 
 
 def _derive_fem(
@@ -531,6 +552,7 @@ def _derive_fem(
     soil_text: str | None = None,
     column_supports: str | None = None,
     member_loads: Any = None,
+    architecture: Any = None,
 ) -> Derivation:
     """The OpenSees Studio project of ``building`` with the loads of ``settings``.
 
@@ -545,6 +567,10 @@ def _derive_fem(
     soil report): the foundations and soil of the column bases' springs when the settings'
     ``analysis.supports`` (or ``column_supports``, which overrides it) is "soilSprings"
     (:mod:`saengine.fem.ssi`).
+
+    ``architecture`` (:class:`saengine.library.architecture.Architecture`): its walls load the
+    beams and slabs under them and its rooms set their finish and live loads
+    (:mod:`saengine.fem.architecture_loads`; ``analysis.partitionLoads``).
     """
     mep_notes: list[str] = []
     if mep is not None:
@@ -747,6 +773,20 @@ def _derive_fem(
         else None
     )
     cuts = ml.split_points(member_set) if member_set is not None else {}
+    # The architecture's walls and rooms (saengine.fem.architecture_loads): beams are split
+    # where a wall's piece on them starts or stops.
+    from saengine.fem import architecture_loads as al
+
+    partition_mode = str(option(options, "partitionLoads", "architecture"))
+    arch_set = (
+        al.architecture_loads(architecture, building, objects, partition_mode)
+        if al.has_loads(architecture)
+        else None
+    )
+    if arch_set is not None:
+        for member, points in arch_set.cuts.items():
+            found = cuts.setdefault(member, [])
+            found += [p for p in points if p not in found]
     # Beams that carry slabs' load shapes (slabs not in the model as plates): cut into members
     # of the mesh size, so the triangles and trapezoids reach their moments
     # (saengine.fem.slab_load_shapes.division_points). The end members keep the joint zone
@@ -1279,6 +1319,48 @@ def _derive_fem(
             )
         return complete
 
+    def shell_line_load(
+        source: str,
+        shells: list[_Shell],
+        p0: tuple[float, ...],
+        p1: tuple[float, ...],
+        load: float,
+        case: str = "SD",
+    ) -> None:
+        """A line load (N/m, down) along ``p0``-``p1`` (m) across ``shells``: sampled along
+        its length, each sample's share given to the corners of the shell it falls in by its
+        position in the shell's triangle (so the total and its centre are exact)."""
+        a, c = np.asarray(p0, dtype=float), np.asarray(p1, dtype=float)
+        length = float(np.linalg.norm(c - a))
+        step = max(float(options.meshSize) * MM / 4, 0.05)
+        count = max(1, math.ceil(length / step))
+        stage = stage_of(float(a[2]))
+        share = seismic_share(case)
+        triangles = []
+        for shell in shells:
+            corners = list(shell.nodes)
+            for k in range(1, len(corners) - 1):
+                triangles.append((corners[0], corners[k], corners[k + 1]))
+        lost = 0.0
+        for i in range(count):
+            point = a + (c - a) * (i + 0.5) / count
+            force = load * length / count
+            for nodes in triangles:
+                weights = _barycentric(point, [b.coords[n] for n in nodes])
+                if weights is None:
+                    continue
+                for node_id, weight in zip(nodes, weights, strict=True):
+                    if weight:
+                        add_nodal(case, node_id, down * force * weight, stage)
+                        add_weight(node_id, force * weight * share, part_of(case))
+                break
+            else:
+                lost += force
+        if lost > 1.0:
+            b.notes.append(
+                f"{source}: {lost / 1e3:.1f} kN of its load is off the slab's shells; not applied"
+            )
+
     walls = {e.id for e in building.elements if isinstance(e, WallElement | AreaElement)}
     for shell in b.shells:
         if shell.source in walls:
@@ -1305,6 +1387,10 @@ def _derive_fem(
             shell_pressure(shell, "SD", (area_load.finish + area_load.partitions) * 1e3)
             shell_pressure(shell, "L", area_load.live * 1e3)
     top = levels[-1] if levels else 0.0
+    story_of_level = {round(st.elevation): st.id for st in building.stories}
+    walled = arch_set.walled if arch_set is not None and partition_mode != "allowance" else set()
+    if arch_set is not None:
+        b.notes += [f"Architecture: {note}" for note in arch_set.notes]
     shells_of: dict[str, list[_Shell]] = {}
     for shell in b.shells:
         shells_of.setdefault(shell.source, []).append(shell)
@@ -1332,16 +1418,77 @@ def _derive_fem(
             if material
             else 0.0
         )
+        # The partition allowance is dropped where the architecture's walls are applied (never
+        # both); a room's floor finish replaces the flat finish over it and its occupancy the
+        # live load (saengine.fem.architecture_loads).
+        partitions = (
+            0.0
+            if area_load is None or story_of_level.get(round(element.elevation)) in walled
+            else area_load.partitions
+        )
+        live_case = "Lr" if roof else "L"
+        finish = area_load.finish if area_load else 0.0
+        live = area_load.live if area_load else 0.0
         pressures = {
             "D": self_weight,
-            "SD": (area_load.finish + area_load.partitions) * 1e3 if area_load else 0.0,
-            "Lr" if roof else "L": area_load.live * 1e3 if area_load else 0.0,
+            "SD": (finish + partitions) * 1e3,
+            live_case: live * 1e3,
         }
+
+        def room_pressures(
+            room: Any,
+            finish: float = finish,
+            live: float = live,
+            partitions: float = partitions,
+            live_case: str = live_case,
+        ) -> dict[str, float]:
+            """SD and live [N/m²] of a room (the floor's where it gives none)."""
+            room_finish = finish if room is None or room.finish is None else room.finish
+            room_live = live if room is None or room.live is None else room.live
+            return {"SD": (room_finish + partitions) * 1e3, live_case: room_live * 1e3}
+
+        rooms_here = al.room_shares(arch_set, element) if arch_set is not None else []
         if element.id in shells_of:
             for case, pressure in pressures.items():
+                if case != "D" and rooms_here:
+                    continue
                 for shell in shells_of[element.id] if pressure else []:
                     shell_pressure(shell, case, pressure)
+            if rooms_here:
+                # Each shell element takes the area-weighted mean of the rooms over it.
+                for shell in shells_of[element.id]:
+                    outline = [tuple(b.coords[n][:2] / MM) for n in shell.nodes]
+                    mix = al.room_mix(arch_set, outline, element.elevation)
+                    rest = max(0.0, 1 - sum(share for _, share in mix))
+                    for case, pressure in room_pressures(None).items():
+                        total = pressure * rest + sum(
+                            room_pressures(room)[case] * share for room, share in mix
+                        )
+                        if total:
+                            shell_pressure(shell, case, total)
+            for wall in arch_set.slabs if arch_set is not None else []:
+                if wall.slab == element.id:
+                    shell_line_load(
+                        wall.source, shells_of[element.id], wall.start, wall.end, wall.load
+                    )
             continue
+        if rooms_here:
+            # Slabs as loads to beams: the panel takes the area-weighted mean of its rooms' loads
+            # and the floor's over the rest (its total exact).
+            covered = min(1.0, sum(share for _, share in rooms_here))
+            for case in ("SD", live_case):
+                pressures[case] = pressures[case] * (1 - covered) + sum(
+                    room_pressures(room)[case] * share for room, share in rooms_here
+                )
+        if arch_set is not None:
+            extra, walls_on = al.panel_pressures(arch_set, element)
+            if extra:
+                pressures["SD"] += extra
+                b.notes.append(
+                    f"{element.id}: walls {', '.join(walls_on)} on the slab as a uniform "
+                    f"{extra / 1e3:.2f} kN/m² over the panel (slabs as loads to beams; BNBC "
+                    "2020 Part 6 Sec 2.3.6, p. 540)"
+                )
         if shell_slabs:
             b.notes.append(
                 f"{element.id}: no plate section (material or E missing); loads applied to its edges"
@@ -1418,6 +1565,18 @@ def _derive_fem(
             add_weight(node_id, force * seismic_share(case), part_of(case))
 
         b.notes += ml.apply(member_set, b.coords, line_load, point_load)
+
+    # ── the architecture's walls on beams (saengine.fem.architecture_loads) ──
+    if arch_set is not None:
+        for line in arch_set.lines:
+            line_load(line.source, line.case, np.array(line.start), np.array(line.end), line.load)
+        for point in arch_set.points:
+            shares, _ = ml.point_shares(point, b.coords)
+            if not shares:
+                b.notes.append(f"{point.source}: no node on {point.member} to take it; not applied")
+            for node_id, part in shares:
+                add_nodal(point.case, node_id, down * point.force * part, stage_of(point.at[2]))
+                add_weight(node_id, point.force * part * seismic_share(point.case), "SD")
 
     # ── the arrangements of the live load (BNBC 2020 Part 6 Sec 6.1.12.2) ──
     live_cases = _live_arrangements(
@@ -1597,6 +1756,8 @@ def _derive_fem(
     summary: dict[str, Any] = {"levels": len(heights), "weight_kN": sum(weights) / 1e3}
     if member_set is not None:
         summary["memberLoads"] = member_set.summary()
+    if arch_set is not None:
+        summary["architectureLoads"] = arch_set.summary(partition_mode)
     if summary_live["cases"]:
         summary["patternLive"] = summary_live
     eccentricity = float(getattr(seismic_table, "accidentalEccentricity", None) or 0.05)
@@ -2888,6 +3049,24 @@ def _embed(b: _Builder) -> None:
     b.notes.append(
         f"{len(embedded)} frame or shell nodes on solids are tied into them with embedding struts"
     )
+
+
+def _barycentric(
+    point: np.ndarray, triangle: list[np.ndarray]
+) -> tuple[float, float, float] | None:
+    """The barycentric weights of ``point`` in ``triangle`` in plan (their x and y), or None
+    when it is outside."""
+    (x1, y1), (x2, y2), (x3, y3) = (np.asarray(p, dtype=float)[:2] for p in triangle)
+    det = (y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3)
+    if abs(det) < 1e-12:
+        return None
+    x, y = float(point[0]), float(point[1])
+    l1 = ((y2 - y3) * (x - x3) + (x3 - x2) * (y - y3)) / det
+    l2 = ((y3 - y1) * (x - x3) + (x1 - x3) * (y - y3)) / det
+    l3 = 1 - l1 - l2
+    if min(l1, l2, l3) < -1e-9:
+        return None
+    return (max(l1, 0.0), max(l2, 0.0), max(l3, 0.0))
 
 
 def _in_polygon(point: np.ndarray, polygon: list[np.ndarray], normal: np.ndarray) -> bool:

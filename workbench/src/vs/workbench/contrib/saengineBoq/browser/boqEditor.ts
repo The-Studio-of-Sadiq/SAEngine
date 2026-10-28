@@ -39,7 +39,7 @@ import { DEVELOPER_MODE_SETTING } from '../../../services/saengineProject/common
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
-import { BOQ_COMPUTE_COMMAND, BOQ_GROUPS, BOQ_SOURCES, BoqGroup, boqComputeArgs, boqProblems, changedSources, displayQuantity, formatQuantity, totalledItems, IBoqComputeResult, IBoqDocument, IBoqItem, parseBoq, quantityText, totalRows, totals, unitLabel } from './boqDocument.js';
+import { BOQ_ARCHITECTURE_FILE, BOQ_COMPUTE_COMMAND, BOQ_GROUPS, BOQ_SOURCES, BoqGroup, boqComputeArgs, boqProblems, changedSources, displayQuantity, formatQuantity, totalledItems, IBoqComputeResult, IBoqDocument, IBoqItem, parseBoq, quantityText, totalRows, totals, unitLabel } from './boqDocument.js';
 import { BoqEditorInput } from './boqEditorInput.js';
 import { exportBoqCsv } from './boqExport.js';
 
@@ -49,6 +49,7 @@ function shortGroupName(group: BoqGroup): string {
 		case 'earthwork': return localize('boq.short.earthwork', "Earthwork");
 		case 'concrete': return localize('boq.short.concrete', "Concrete");
 		case 'masonry': return localize('boq.short.masonry', "Masonry");
+		case 'finishes': return localize('boq.short.finishes', "Finishes");
 		case 'reinforcement': return localize('boq.short.reinforcement', "Reinforcement");
 		case 'formwork': return localize('boq.short.formwork', "Formwork");
 		case 'steel': return localize('boq.short.steel', "Steel");
@@ -219,11 +220,14 @@ export class BoqEditor extends EditorPane {
 		}
 		for (const { part } of BOQ_SOURCES) {
 			const file = partById(part);
-			if (!file?.mainFile) {
+			const floorPlan = partById('floorPlan');
+			const resource = file?.mainFile ? joinPath(root, file.folder, file.mainFile)
+				: part === 'architecture' && floorPlan ? joinPath(root, floorPlan.folder, BOQ_ARCHITECTURE_FILE) : undefined;
+			if (!resource) {
 				continue;
 			}
 			try {
-				const reference = await this.textModelService.createModelReference(joinPath(root, file.folder, file.mainFile));
+				const reference = await this.textModelService.createModelReference(resource);
 				if (version !== this.sourcesVersion) {
 					reference.dispose();
 					return;

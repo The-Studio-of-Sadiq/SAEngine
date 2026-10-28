@@ -85,6 +85,26 @@ suite('SAEngine - FEM derivation', () => {
 		});
 	});
 
+	test('counts the architecture once recorded, or once it has a wall or a room for a model derived without it', () => {
+		const walls = JSON.stringify({ schema: 'saengine.architecture/1', walls: [{ id: 'W1', type: 'BW250', base: 'L1', path: [[0, 0], [6000, 0]] }] });
+		const types = JSON.stringify({ schema: 'saengine.architecture/1', wallTypes: [], walls: [], rooms: [] });
+		const texts = new Map<string, string | undefined>([['bim', 'b'], ['settings', 's'], ['objects', 'o'], ['materials', 'm'], ['architecture', walls]]);
+		const sources = `bim=${sourceStamp('b')}; settings=${sourceStamp('s')}; objects=${sourceStamp('o')}; materials=${sourceStamp('m')}`;
+		assert.deepStrictEqual({
+			added: derivationState(`Sources: ${sources}`, texts).changed,
+			typesOnly: derivationState(`Sources: ${sources}`, new Map([...texts, ['architecture', types]])).changed,
+			missing: derivationState(`Sources: ${sources}`, new Map([...texts, ['architecture', undefined]])).changed,
+			current: derivationState(`Sources: ${sources}; architecture=${sourceStamp(walls)}`, texts).changed,
+			edited: derivationState(`Sources: ${sources}; architecture=${sourceStamp(types)}`, texts).changed,
+		}, {
+			added: ['Architecture'],
+			typesOnly: [],
+			missing: [],
+			current: [],
+			edited: ['Architecture'],
+		});
+	});
+
 	test('stamps only what the analysis model takes from MEP, as the Python side does', () => {
 		// The same text and stamp as python/tests/test_integration_e56.py::test_mep_stamp_matches_the_workbench.
 		const text = '{"schema": "saengine.mep/1", "contentsAs": "fluid", "equipment": [{"id": "EQ1", "name": "Tank Ø2", "x": 1.0, "y": 2500.5, "operatingWeight": 1e-7, "impact": 0.000001, "rotation": 2.5e22, "big": 1e21, "neg": -0.0}], "openings": [{"id": "OP1", "service": "DN100 drain", "diameter": 100}], "shafts": [], "ifcModels": [{"path": "07 MEP/a.ifc", "visible": true}]}';

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import {
-	addLineLoads, addPointLoad, defaultWallHeight, emptyLoads, IMemberLoads, LOAD_LAYERS, loadRows, loadsDrawing, loadsOnStory, loadsText, loadValue, parseLoads,
+	addLineLoads, addPointLoad, defaultWallHeight, emptyLoads, IMemberLoads, LOAD_LAYERS, loadRows, loadsDrawing, loadsOnStory, loadsText, loadValue, parseArchitectureLoads, parseLoads,
 	removeLoads, updateLoad, wallLineLoad, wallWeight,
 } from '../../browser/floorPlanLoads.js';
 
@@ -163,5 +163,26 @@ suite('SAEngine - Floor plan loads', () => {
 			notList: !!parseLoads('{"loads": {}}').problem,
 			trailingComma: !!parseLoads('{"loads": [],}').problem,
 		}, { ok: undefined, missingId: true, badValue: true, badCase: true, wallAndValue: true, notList: true, trailingComma: true });
+	});
+
+	test('reads the architecture\'s loads kept with the last derivation', () => {
+		const kept = JSON.stringify({
+			key: 'v|d', notes: [], summary: {
+				weight_kN: 1, architectureLoads: {
+					mode: 'architecture', walledStories: ['L1'],
+					walls: [{ wall: 'W1', story: 'L1', type: 'B250', on: 'beam', member: 'B11', length_m: 6, height_m: 3, openings_m2: 2.1, load_kNm: 14.178, total_kN: 85.065 }],
+					rooms: [{ room: 'R1', name: 'Office', story: 'L1', area_m2: 20, use: 'office', live_kNm2: 2.4 }],
+				},
+			},
+		});
+		const loads = parseArchitectureLoads(kept, true);
+		assert.deepStrictEqual({
+			walls: loads?.walls.map(w => `${w.wall} ${w.on} ${w.member} ${w.load_kNm}`),
+			rooms: loads?.rooms.map(r => `${r.room} ${r.live_kNm2}`),
+			stories: loads?.walledStories,
+			stale: loads?.stale,
+			none: parseArchitectureLoads(JSON.stringify({ summary: {} })),
+			bad: parseArchitectureLoads('{'),
+		}, { walls: ['W1 beam B11 14.178'], rooms: ['R1 2.4'], stories: ['L1'], stale: true, none: undefined, bad: undefined });
 	});
 });

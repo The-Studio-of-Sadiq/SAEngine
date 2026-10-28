@@ -199,6 +199,10 @@ export interface IFemDeriveRequest {
 	readonly mepText?: string;
 	/** `09 Substructure/substructure.json` (the foundations of soil springs); when not given, the project's file is read. */
 	readonly substructureText?: string;
+	/** `05 Floor Plan/loads.json` (line and point loads on members); when not given, the project's file is read. */
+	readonly loadsText?: string;
+	/** `05 Floor Plan/architecture.json` (its walls' and rooms' loads); when not given, the project's file is read. */
+	readonly architectureText?: string;
 }
 
 export interface IFemDerivation {
@@ -272,6 +276,8 @@ export interface IBoqComputeRequest {
 	readonly mepText?: string;
 	/** The project folder: the plumbing tanks' last designs (`07 MEP/mep.results/tank-designs.json`) give their bars. */
 	readonly projectRoot?: string;
+	/** `05 Floor Plan/architecture.json`: brickwork, plaster, finishes, doors and windows; when not given, the project's file is read. */
+	readonly architectureText?: string;
 }
 
 /** The building model's footings moved into a placeholder `substructure.json` (`saengine.substructure.handover`). */

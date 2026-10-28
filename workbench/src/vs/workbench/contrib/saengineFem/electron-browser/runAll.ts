@@ -35,7 +35,7 @@ import { hasHvac, HVAC_REPORT_COMMAND, hvacFailures, hvacSummaryFile, readHvacRe
 import { ELECTRICAL_REPORT_COMMAND, electricalFailures, electricalSummaryFile, hasElectrical, readElectricalReport } from '../../saengineMep/browser/electricalDocument.js';
 import { FIRE_REPORT_COMMAND, fireFailures, fireSummaryFile, hasFire, readFireReport } from '../../saengineMep/browser/fireDocument.js';
 import { DRAWINGS_GENERATE_COMMAND, DRAWINGS_LIST_COMMAND, readDrawingSet } from '../../saengineProject/browser/drawingsModel.js';
-import { DERIVATION_INPUTS, deriveAnalysisModel, derivationState, FACES_FILE, LOADS_DERIVATION_SOURCE, partFile, SSI_FILE, THERMAL_FILE } from '../browser/femDerivationBar.js';
+import { ARCHITECTURE_DERIVATION_SOURCE, DERIVATION_INPUTS, deriveAnalysisModel, derivationState, FACES_FILE, LOADS_DERIVATION_SOURCE, partFile, SSI_FILE, THERMAL_FILE } from '../browser/femDerivationBar.js';
 import { SSI_COMPARE_COMMAND } from '../browser/femSsi.js';
 import { DESIGN_REINFORCEMENT_COMMAND, DESIGN_SUMMARY_FILE, IFemDesignReport, IFemDesignRequired, resultsFolder, runDesign, runDesignRequired, shortElements, tooSmallElements, writeDesignSummary } from '../browser/femDesign.js';
 import { errorSummary, IFemRunOutcome, IFemRunTracker } from '../browser/femResultsBar.js';
@@ -509,7 +509,7 @@ export class RunAllService implements IRunAllService {
 		const texts = new Map<string, string | undefined>();
 		for (const id of ids) {
 			const part = partById(id);
-			if (!part?.mainFile && id !== LOADS_DERIVATION_SOURCE.part) {
+			if (!part?.mainFile && id !== LOADS_DERIVATION_SOURCE.part && id !== ARCHITECTURE_DERIVATION_SOURCE.part) {
 				texts.set(id, undefined);
 				continue;
 			}

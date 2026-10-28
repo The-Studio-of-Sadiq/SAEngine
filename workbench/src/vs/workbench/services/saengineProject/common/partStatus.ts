@@ -248,7 +248,7 @@ const FEM_SOURCES = ['bim', 'settings', 'objects', 'materials'];
 
 /** The parts the bill of quantities is measured from (the substructure and MEP: once the bill records them). */
 const BOQ_SOURCES = ['bim', 'objects', 'materials'];
-const BOQ_RECORDED_SOURCES = ['substructure', 'settings', 'mep'];
+const BOQ_RECORDED_SOURCES = ['substructure', 'settings', 'mep', 'architecture'];
 
 const MEP_SCHEMA_ID = 'saengine.mep/1';
 
@@ -261,7 +261,7 @@ const SOIL_SCHEMA_ID = 'saengine.soilReport/1';
 /** The key a derived analysis model records the soil report's stamp under, when its settings take the site class from it. */
 const FEM_SOIL_SOURCE = 'soil';
 /** Sources an analysis model records only when they give it something: soil springs' foundations, MEP's loads and holes. */
-const FEM_RECORDED_SOURCES = ['substructure', 'mep', 'loads'];
+const FEM_RECORDED_SOURCES = ['substructure', 'mep', 'loads', 'architecture'];
 
 /** The stamp an analysis model records for source part `part`: of what it takes for MEP, the whole file's otherwise. */
 function femSourceStamp(part: string, text: string): string {
@@ -338,11 +338,13 @@ function femStatus(inputs: IPartStatusInputs): IPartStatus {
 	const mepAdded = !recorded.has('mep') && mepHasContent(inputs);
 	// The member loads (`05 Floor Plan/loads.json`) likewise, once they have a load.
 	const loadsAdded = !recorded.has('loads') && loadsHaveContent(inputs.texts.get('loads'));
+	// The architecture (`05 Floor Plan/architecture.json`) likewise, once it has a wall or a room.
+	const architectureAdded = !recorded.has('architecture') && architectureHasContent(inputs.texts.get('architecture'));
 	const sourceChanged = (part: string) => {
 		const sourceText = inputs.texts.get(part);
 		return sourceText === undefined || !femSourceCurrent(part, sourceText, recorded.get(part));
 	};
-	if (soilChanged || recordedChanged || mepAdded || loadsAdded || FEM_SOURCES.some(sourceChanged)) {
+	if (soilChanged || recordedChanged || mepAdded || loadsAdded || architectureAdded || FEM_SOURCES.some(sourceChanged)) {
 		return status('fem', 'stale', STALE(), localize('partStatus.fem.deriveAgain', "derive the analysis model again"));
 	}
 	if (inputs.femResultsTime === undefined) {
@@ -381,7 +383,8 @@ function boqStatus(inputs: IPartStatusInputs): IPartStatus {
 	if (BOQ_SOURCES.some(part => changed(inputs.texts, part, recordedStamp(document, part)))
 		|| BOQ_RECORDED_SOURCES.some(part => recorded(part) && changed(inputs.texts, part, recordedStamp(document, part), boqSourceStamp))
 		|| (!recorded('substructure') && substructureHasFoundations(inputs))
-		|| (!recorded('mep') && mepHasContent(inputs))) {
+		|| (!recorded('mep') && mepHasContent(inputs))
+		|| (!recorded('architecture') && architectureHasContent(inputs.texts.get('architecture')))) {
 		return status('boq', 'stale', STALE(), localize('partStatus.boq.measureAgain', "measure the quantities again"));
 	}
 	return status('boq', 'done', localize('partStatus.boq.measured', "measured"));
@@ -479,6 +482,19 @@ function fireCount(document: JsonObject): number {
 function hasOverheadFireTank(document: JsonObject): boolean {
 	const tanks = mepSection(document, 'fire')?.tanks;
 	return Array.isArray(tanks) && tanks.some(t => typeof t === 'object' && t !== null && (t as JsonObject).kind === 'overhead');
+}
+
+/** Whether an architecture file `text` (`05 Floor Plan/architecture.json`) has a wall or a room (the analysis model takes their loads, the bill measures them); an unreadable file counts. */
+export function architectureHasContent(text: string | undefined): boolean {
+	if (!text || !text.trim()) {
+		return false;
+	}
+	try {
+		const value = JSON.parse(text);
+		return ['walls', 'rooms'].some(key => Array.isArray(value?.[key]) && value[key].length > 0);
+	} catch {
+		return true;
+	}
 }
 
 /** Whether a member loads file `text` (`05 Floor Plan/loads.json`) has a load; an unreadable file counts (deriving reports it). */

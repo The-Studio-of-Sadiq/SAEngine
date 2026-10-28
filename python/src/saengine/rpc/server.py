@@ -364,6 +364,7 @@ def create_server() -> JsonRPCServer:
             args.get("mepText"),
             args.get("substructureText"),
             args.get("loadsText"),
+            args.get("architectureText"),
         )
 
     @server.feature("bim/ifc")
@@ -505,6 +506,7 @@ def create_server() -> JsonRPCServer:
             args.get("settingsText"),
             args.get("mepText"),
             args.get("projectRoot"),
+            args.get("architectureText"),
         )
 
     @_in_worker

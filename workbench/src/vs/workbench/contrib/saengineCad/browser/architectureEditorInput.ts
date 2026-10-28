@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -28,6 +29,20 @@ export class ArchitectureEditorInput extends EditorInput {
 
 	/** Story shown, kept while the input lives so switching tabs returns to it. */
 	story: string | undefined;
+	/** An item to select once the editor shows the input (a wall linked from the Floor Plan's Loads list). */
+	reveal: string | undefined;
+	private readonly _onDidRequestReveal = this._register(new Emitter<void>());
+	/** `reveal` was set while the input is open: the editor shows it. */
+	readonly onDidRequestReveal = this._onDidRequestReveal.event;
+
+	/** Shows story `story` with item `id` selected (in the editor showing this input, or once one opens it). */
+	requestReveal(story: string | undefined, id: string | undefined): void {
+		if (story) {
+			this.story = story;
+		}
+		this.reveal = id;
+		this._onDidRequestReveal.fire();
+	}
 
 	constructor(
 		readonly resource: URI,

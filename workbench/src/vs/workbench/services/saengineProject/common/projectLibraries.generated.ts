@@ -3880,6 +3880,14 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					title: 'Mesh convergence check',
 					type: 'boolean',
 				},
+				partitionLoads: {
+					default: 'architecture',
+					description: 'From the architecture: the walls drawn in Architecture load the beams and slabs under them as line loads in their positions (BNBC 2020 Part 6 Sec 2.2.5), and the area load\'s partition allowance is dropped on the stories where they stand; stories without walls keep the allowance. Allowance: the walls are not applied and the area load\'s flat partition allowance holds everywhere (Sec 2.3.6).',
+					enum: ['architecture', 'allowance'],
+					enumDescriptions: ['From the architecture (where walls are drawn)', 'Flat allowance (area load)'],
+					title: 'Partition walls',
+					type: 'string',
+				},
 				massLumping: {
 					default: 'storyLevels',
 					description: 'Story levels: every node\'s weight goes to the nearest story level (to its diaphragm), the lower half of the first story to the base, where it does not take part (as the usual analysis programs lump it). Level above: every weight counts for the first level above the base and its mass stays where it is.',
@@ -5559,6 +5567,7 @@ export const DEFAULT_SETTINGS: object = {
 		meshSize: 500.0,
 		meshBySpan: true,
 		meshCheck: true,
+		partitionLoads: 'architecture',
 		massLumping: 'storyLevels',
 		massSource: {
 			dead: 1.0,
@@ -9437,6 +9446,7 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		meshSize: 500.0,
 		meshBySpan: true,
 		meshCheck: true,
+		partitionLoads: 'architecture',
 		massLumping: 'storyLevels',
 		massSource: {
 			dead: 1.0,
@@ -17509,6 +17519,28 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 					title: 'Unit weight',
 					type: 'number',
 				},
+				sunkFilling: {
+					anyOf: [
+						{
+							description: '[mm]',
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Filling of a sunk slab under the finish in wet rooms (toilets, kitchens) [mm]; its weight is added to the finish there.',
+					title: 'Sunk filling',
+				},
+				sunkUnitWeight: {
+					default: 16.0,
+					description: 'Of the sunk slab\'s filling [kN/m³] (16: brick-bat filling, an SAEngine choice; enter yours).',
+					minimum: 0,
+					title: 'Filling unit weight',
+					type: 'number',
+				},
 			},
 			required: ['id', 'name', 'kind', 'thickness', 'unitWeight'],
 			title: 'FinishType',
@@ -18034,6 +18066,7 @@ export const DEFAULT_ARCHITECTURE: object = {
 			kind: 'floor',
 			thickness: 40.0,
 			unitWeight: 21.0,
+			sunkUnitWeight: 16.0,
 		},
 		{
 			id: 'PLASTER',
@@ -18041,6 +18074,7 @@ export const DEFAULT_ARCHITECTURE: object = {
 			kind: 'wall',
 			thickness: 12.0,
 			unitWeight: 20.4,
+			sunkUnitWeight: 16.0,
 		},
 		{
 			id: 'CEIL',
@@ -18048,6 +18082,7 @@ export const DEFAULT_ARCHITECTURE: object = {
 			kind: 'ceiling',
 			thickness: 6.0,
 			unitWeight: 20.4,
+			sunkUnitWeight: 16.0,
 		},
 	],
 	walls: [],

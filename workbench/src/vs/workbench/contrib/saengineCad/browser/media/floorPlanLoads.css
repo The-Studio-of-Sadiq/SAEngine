@@ -69,3 +69,8 @@
 .floor-plan-loads .floor-plan-loads-table td.source {
 	color: var(--vscode-descriptionForeground);
 }
+
+/* The architecture's loads (read-only): keep a value on one line. */
+.floor-plan-loads .floor-plan-loads-table td.nowrap {
+	white-space: nowrap;
+}

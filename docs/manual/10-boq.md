@@ -48,6 +48,13 @@ The bill's notes state the rules it uses:
   bags, 35.3147 cft per m³. These are estimating-practice values, not BNBC values; **no wastage is
   added and bags are not rounded up**;
 - a material without a mix gets no cement/sand/stone take-off (add the mix in 03 Materials).
+- the **architecture** (walls, rooms, doors and windows of Architecture): brickwork in m³ per
+  wall type to the clear height, less openings over 0.1 m²; plaster in m² on each plastered face,
+  openings up to 0.5 m² not deducted, up to 3 m² from one face, larger from both (IS 1200 Parts 3
+  and 12, as the PWD schedules measure); room floor finishes and ceilings over the net floor, wall
+  finishes over the room's walls less its doors and windows; doors and windows counted per type.
+  The mortar of the brickwork and the plaster is taken off by its mix. A wall over a floor-plan
+  wall is measured with the building model's walls, never both.
 
 Project Settings → Drawings → **BOQ reinforcement** chooses between *Measured by the BOQ's rules*
 (default) and *From the bar bending schedule* of the drawings; by default the notes reconcile the
