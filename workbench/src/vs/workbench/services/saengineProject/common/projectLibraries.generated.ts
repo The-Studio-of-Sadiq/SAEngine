@@ -12630,7 +12630,7 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Plan position of the centre [x, y] mm (isolated and combined footings, pile caps); empty: the centroid of its columns.',
+					description: 'Plan position of the centre [x, y] mm (isolated and combined footings; empty: the centroid of its columns). A pile cap always has one: it is placed over its piles, not over its columns.',
 					title: 'Center',
 				},
 				rotation: {
@@ -12798,33 +12798,14 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 					description: 'Studs or stirrups round its columns, checked where the concrete alone is not enough (isolated, combined footings and rafts; empty: none).',
 					title: 'Punching reinforcement',
 				},
-				pileType: {
-					anyOf: [
-						{
-							maxLength: 64,
-							minLength: 1,
-							pattern: '^[A-Za-z0-9._-]+$',
-							type: 'string',
-						},
-						{
-							type: 'null',
-						},
-					],
-					default: null,
-					description: 'Pile caps.',
-					title: 'Pile type',
-				},
 				piles: {
 					anyOf: [
 						{
 							items: {
-								description: '[x, y] in mm.',
-								items: {
-									type: 'number',
-								},
-								maxItems: 2,
-								minItems: 2,
-								type: 'array',
+								maxLength: 64,
+								minLength: 1,
+								pattern: '^[A-Za-z0-9._-]+$',
+								type: 'string',
 							},
 							type: 'array',
 						},
@@ -12833,7 +12814,7 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Pile positions [[dx, dy], ...] mm from the cap\'s centre, in its local axes.',
+					description: 'Pile caps: the ids of the piles it stands on (the substructure\'s piles, placed in plan; all of one pile type).',
 					title: 'Piles',
 				},
 				note: {
@@ -12891,6 +12872,102 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 			},
 			required: ['material', 'cover'],
 			title: 'LinearReinforcement',
+			type: 'object',
+		},
+		Pile: {
+			additionalProperties: false,
+			description: 'One pile, placed in plan: its mark, pile type and position.',
+			properties: {
+				id: {
+					description: 'Its mark on the pile layout plan (PL1, PL2, ...).',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					description: 'Pile type id.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Pile type',
+					type: 'string',
+				},
+				position: {
+					description: 'Plan position of its centre [x, y] mm.',
+					items: {
+						type: 'number',
+					},
+					maxItems: 2,
+					minItems: 2,
+					title: 'Position',
+					type: 'array',
+				},
+			},
+			required: ['id', 'type', 'position'],
+			title: 'Pile',
+			type: 'object',
+		},
+		PileGrid: {
+			additionalProperties: false,
+			description: 'The grid the piles are set out on, independent of the building\'s grid: its own origin and\nrotation, named lines across its x axis (``x``, at x = position) and its y axis (``y``).',
+			properties: {
+				origin: {
+					description: 'Plan position of its origin [mm].',
+					items: {
+						type: 'number',
+					},
+					maxItems: 2,
+					minItems: 2,
+					title: 'Origin',
+					type: 'array',
+				},
+				rotation: {
+					default: 0,
+					description: 'Of its x axis from the global X [°].',
+					title: 'Rotation',
+					type: 'number',
+				},
+				x: {
+					description: 'Lines at x = position (local).',
+					items: {
+						$ref: '#/$defs/PileGridLine',
+					},
+					title: 'X lines',
+					type: 'array',
+				},
+				y: {
+					description: 'Lines at y = position (local).',
+					items: {
+						$ref: '#/$defs/PileGridLine',
+					},
+					title: 'Y lines',
+					type: 'array',
+				},
+			},
+			title: 'PileGrid',
+			type: 'object',
+		},
+		PileGridLine: {
+			additionalProperties: false,
+			description: 'A line of the pile grid.',
+			properties: {
+				label: {
+					maxLength: 8,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9.\'-]+$',
+					title: 'Label',
+					type: 'string',
+				},
+				position: {
+					description: 'Distance from the grid\'s origin along the grid\'s own axis [mm].',
+					title: 'Position',
+					type: 'number',
+				},
+			},
+			required: ['label', 'position'],
+			title: 'PileGridLine',
 			type: 'object',
 		},
 		PileType: {
@@ -13302,6 +13379,27 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 			title: 'Pile types',
 			type: 'array',
 		},
+		pileGrid: {
+			anyOf: [
+				{
+					$ref: '#/$defs/PileGrid',
+				},
+				{
+					type: 'null',
+				},
+			],
+			default: null,
+			description: 'The grid the piles are set out on, independent of the building\'s grid.',
+			title: 'Pile grid',
+		},
+		piles: {
+			description: 'Every pile, placed in plan; a pile cap lists the ones it stands on.',
+			items: {
+				$ref: '#/$defs/Pile',
+			},
+			title: 'Piles',
+			type: 'array',
+		},
 		tieBeams: {
 			items: {
 				$ref: '#/$defs/TieBeam',
@@ -13321,6 +13419,7 @@ export const DEFAULT_SUBSTRUCTURE: object = {
 	schema: 'saengine.substructure/1',
 	foundations: [],
 	pileTypes: [],
+	piles: [],
 	tieBeams: [],
 	design: {
 		pileCapacity: 'soilReport',

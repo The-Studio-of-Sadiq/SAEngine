@@ -361,6 +361,113 @@ def foundation_plan(building: Building, scale: float = 100) -> ViewSpec | None:
     )
 
 
+def pile_grid(view: View, building: Building, bbox: tuple[float, float, float, float]) -> None:
+    """The pile grid: centre lines across the plan with their labels in bubbles beyond the
+    building grid's (x lines at the bottom, y lines at the right; on its own layer), and the chain
+    of its spacings."""
+    g = building.pile_grid
+    if g is None:
+        return
+    x0, y0, x1, y1 = bbox
+    # The bubbles go past the building grid's bubbles and chain dimensions (x lines, at the
+    # bottom) and past the pile grid's own chain (y lines, at the right).
+    e = view.real(EXTEND)
+    e_x = view.real(DIM_2 + 8)
+    e_y = view.real(DIM_1 + 8)
+    r = view.real(BUBBLE * 0.8)
+    a = math.radians(g.rotation)
+    ux, uy = math.cos(a), math.sin(a)
+    corners = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+    # The local extent of the plan, so that the lines cross all of it.
+    local = [
+        ((px - g.origin[0]) * ux + (py - g.origin[1]) * uy,
+         -(px - g.origin[0]) * uy + (py - g.origin[1]) * ux)
+        for px, py in corners
+    ]  # fmt: skip
+    lo_u, hi_u = min(p[0] for p in local) - e, max(p[0] for p in local) + e_y
+    lo_v, hi_v = min(p[1] for p in local) - e_x, max(p[1] for p in local) + e
+    for line in g.x:
+        ends = [g.point(line.position, lo_v), g.point(line.position, hi_v)]
+        view.line(ends[0], ends[1], "S-PILE-GRID")
+        for end, sign in ((ends[0], -1),):
+            c = (end[0] - sign * uy * r, end[1] + sign * ux * r)
+            view.circle(c, r, "S-PILE-GRID")
+            view.reserve([(c[0] - r, c[1] - r), (c[0] + r, c[1] + r)])
+            view.text(line.label, c, TEXT, "MC", "S-PILE-GRID")
+    for line in g.y:
+        ends = [g.point(lo_u, line.position), g.point(hi_u, line.position)]
+        view.line(ends[0], ends[1], "S-PILE-GRID")
+        for end, sign in ((ends[1], 1),):
+            c = (end[0] + sign * ux * r, end[1] + sign * uy * r)
+            view.circle(c, r, "S-PILE-GRID")
+            view.reserve([(c[0] - r, c[1] - r), (c[0] + r, c[1] + r)])
+            view.text(line.label, c, TEXT, "MC", "S-PILE-GRID")
+    if abs(g.rotation) < 1e-6:
+        xs = sorted({g.origin[0] + line.position for line in g.x})
+        ys = sorted({g.origin[1] + line.position for line in g.y})
+        if len(xs) > 1:
+            view.chain([(x, y1) for x in xs], DIM_1)
+        if len(ys) > 1:
+            view.chain([(x1, y) for y in ys], -DIM_1, angle=90)
+
+
+def pile_layout_plan(building: Building, scale: float = 100) -> ViewSpec | None:
+    """The pile layout plan: the pile grid (its own setting-out, independent of the building's
+    grid), every pile with its mark and diameter, the pile caps' outlines and the columns."""
+    if not building.piles:
+        return None
+    pts: list[Point] = []
+    for p in building.piles:
+        r = p.diameter / 2
+        pts += [(p.centre[0] - r, p.centre[1] - r), (p.centre[0] + r, p.centre[1] + r)]
+    for f in building.footings:
+        if f.piles:
+            pts += f.outline
+    base = (
+        min(building.levels, key=lambda lv: lv.elevation) if building.levels else Level("", "", 0)
+    )
+    pts += _level_points(building, base)
+    bbox = _bounds(pts)
+
+    def draw(view: View) -> None:
+        grids(view, building, bbox)
+        pile_grid(view, building, bbox)
+        for f in building.footings:
+            if f.piles:
+                view.polyline(f.outline, "S-FNDN", close=True)
+        z = base.elevation + EPS * 2
+        for c in building.columns:
+            if c.bottom < z and c.top > z:
+                view.polyline(c.outline(), "S-COLS", close=True)
+        for p in building.piles:
+            view.circle(p.centre, p.diameter / 2, "S-PILE")
+            arm = p.diameter / 2 + view.real(1.0)
+            view.line((p.centre[0] - arm, p.centre[1]), (p.centre[0] + arm, p.centre[1]), "S-PILE")
+            view.line((p.centre[0], p.centre[1] - arm), (p.centre[0], p.centre[1] + arm), "S-PILE")
+            view.reserve(
+                [
+                    (p.centre[0] - p.diameter / 2, p.centre[1] - p.diameter / 2),
+                    (p.centre[0] + p.diameter / 2, p.centre[1] + p.diameter / 2),
+                ]
+            )
+        for p in building.piles:
+            view.label(p.mark, p.centre, [(2.5, 2.5, "BL"), (-2.5, 2.5, "BR"), (2.5, -2.5, "TL")])
+        for f in building.footings:
+            if f.piles:
+                xs = [q[0] for q in f.outline]
+                ys = [q[1] for q in f.outline]
+                view.label(f.mark, (min(xs), max(ys)), [(-1.5, 1.5, "BR"), (1.5, 1.5, "BL")])
+
+    return ViewSpec(
+        title="Pile layout plan",
+        scale=scale,
+        bbox=bbox,
+        draw=draw,
+        pad=tuple(v + 2 * BUBBLE + 14 for v in _pad()),
+        key="plan:piles",
+    )
+
+
 def clear_pieces(
     a: Point, b: Point, holes: list[tuple[float, float, float, float]]
 ) -> list[tuple[Point, Point]]:
@@ -537,5 +644,6 @@ __all__ = [
     "framing_plan",
     "grids",
     "level_has_plan",
+    "pile_layout_plan",
     "slab_plan",
 ]

@@ -39,14 +39,23 @@ import { partById } from '../../../services/saengineProject/common/saengineProje
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { formatField, formatNumber, IFieldSpec, parseField } from '../../saengineSoil/browser/soilDocument.js';
 import {
-	applyPileLayout, applyProposal, formatPileBars, formatPileTies, minimumMesh, parsePileBars, parsePileTies, carriedAlready, checkStateText, checkSubstructure, documentSignatures, defaultFoundingLevel, EMPTY_CONTEXT, formatMesh, formatUtilisation, foundationCenter, foundationOutlines, foundationSize, foundationTypeLabel, FOUNDATION_TYPES, FoundationType, governingCheck, IColumnBase, IFoundation, IFoundationResult, IPileType, ISiteContext, ISiteTexts,
+	addPiles, applyPileLayout, applyProposal, capPileType, connectGradeBeams, DEFAULT_SPACING_FACTOR, deletePiles, formatSpacings, foundationOf, gridLines, IPile, intersectionsInBox, makePileCap, MIN_SPACING_FACTOR, movePiles, newPileGrid, parseSpacings, PILE_GROUPS, pileAt, pileCaps, pilesInBox, placePileGroup, refitCap, setCapPileType, snapPoint, tied, formatPileBars, formatPileTies, minimumMesh, parsePileBars, parsePileTies, carriedAlready, checkStateText, checkSubstructure, documentSignatures, defaultFoundingLevel, EMPTY_CONTEXT, formatMesh, formatUtilisation, foundationCenter, foundationOutlines, foundationSize, foundationTypeLabel, FOUNDATION_TYPES, FoundationType, governingCheck, IColumnBase, IFoundation, IFoundationResult, IPileType, ISiteContext, ISiteTexts,
 	ISizingProposal, ISubstructure, ISubstructureMigration, ISubstructureProblem, ISubstructureReport, ISubstructureRequest, ITieBeam, importFoundations, maxPressure, MESH_KEYS, MeshKey, newFooting, newPileCap, newPileType, newRaft, newTieBeam, parseIdList, parseMesh, parseSubstructure, PILE_FACTOR_OF_SAFETY, pileFactorsUsed, PILE_KINDS, PILE_LAYOUTS,
 	pileKindLabel, Point, proposalFor, RAFT_MESH_SIZE, readSiteContext, readSizingProposal, readSubstructureReport, serializeSubstructure, SUBSTRUCTURE_ENSURE_COMMAND, SUBSTRUCTURE_MIGRATE_COMMAND, SUBSTRUCTURE_REPORT_COMMAND, SUBSTRUCTURE_SIZE_COMMAND, SUBSTRUCTURE_SUMMARY_FILE, substructureCheckState, substructureSummary, substructureSummaryFile, foundationSignature, ISubstructureCheckState, tieBeamSignature, uncoveredBases, uncoveredColumns, utilisationBand,
 } from './substructureDocument.js';
 import { SubstructureEditorInput } from './substructureEditorInput.js';
-import { HEAT_STEPS, renderPlan, renderRaftHeatMap } from './substructurePlan.js';
+import { svg } from '../../saengineSoil/browser/soilLog.js';
+import { HEAT_STEPS, IPlanDrawing, renderPlan, renderRaftHeatMap } from './substructurePlan.js';
 
 type View = 'plan' | 'data' | 'results';
+
+/** What a click on the plan does: select (and drag piles), place piles, or draw grade beams. */
+type Tool = 'select' | 'pile' | 'beam';
+
+/** The snap reach on the plan [px]. */
+const SNAP_PX = 14;
+/** How far the pointer moves before a press is a drag [px]. */
+const DRAG_PX = 4;
 
 const VIEWS: readonly { readonly view: View; readonly label: string; readonly icon: ThemeIcon }[] = [
 	{ view: 'plan', label: localize('sub.viewPlan', "Plan"), icon: Codicon.symbolStructure },
@@ -84,6 +93,11 @@ const F = {
 	bearing: { key: 'bearing', label: localize('sub.f.fsBearing', "FS bearing"), kind: 'number', min: 1, max: 10, title: localize('sub.f.fsBearingTitle', "Factor of safety on the bearing capacity of footings and rafts; the soil report's when empty") },
 	raftMeshSize: { key: 'raftMeshSize', label: localize('sub.f.raftMesh', "Raft mesh size"), unit: MM, kind: 'number', min: 100, max: 5000 },
 	springs: { key: 'springs', label: localize('sub.f.springs', "Subgrade modulus ks"), unit: localize('sub.unit.knm3', "kN/m³"), kind: 'number', min: 0.001, title: localize('sub.f.springsTitle', "The raft's springs; the soil report's ks when empty") },
+	pileX: { key: 'x', label: 'X', unit: M, kind: 'length', required: true, title: localize('sub.f.pileXTitle', "Plan position of the pile's centre") },
+	pileY: { key: 'y', label: 'Y', unit: M, kind: 'length', required: true, title: localize('sub.f.pileYTitle', "Plan position of the pile's centre") },
+	originX: { key: 'originX', label: localize('sub.f.originX', "Origin X"), unit: M, kind: 'length', title: localize('sub.f.originTitle', "Plan position of the pile grid's origin (its first lines' crossing)") },
+	originY: { key: 'originY', label: localize('sub.f.originY', "Origin Y"), unit: M, kind: 'length', title: localize('sub.f.originTitle', "Plan position of the pile grid's origin (its first lines' crossing)") },
+	spacingFactor: { key: 'spacingFactor', label: localize('sub.f.spacingFactor', "Spacing k"), unit: '× D', kind: 'number', min: MIN_SPACING_FACTOR, max: 10, title: localize('sub.f.spacingFactorTitle', "Pile group spacing s = k · D centre to centre; BNBC 2020 Part 6 Secs 3.10.1.19 and 3.10.1.30: at least 2.5 D and 750 mm, 3 D for friction piles") },
 } satisfies { [key: string]: IFieldSpec };
 
 /**
@@ -115,6 +129,20 @@ export class SubstructureEditor extends EditorPane {
 	private selectedFoundations: number[] = [];
 	private selectedColumns = new Set<string>();
 	private selectedTieBeam: number | undefined;
+	private selectedPiles = new Set<string>();
+	/** The pile grid is shown in the properties. */
+	private gridSelected = false;
+
+	private tool: Tool = 'select';
+	/** The pile type the pile tools place (the first one when not chosen). */
+	private placeType: string | undefined;
+	private groupCount = 4;
+	private spacingFactor = DEFAULT_SPACING_FACTOR;
+	/** The first end of a grade beam being drawn: a foundation id. */
+	private beamStart: string | undefined;
+	private drawing: IPlanDrawing | undefined;
+	private overlay: SVGGElement | undefined;
+	private press: { readonly x: number; readonly y: number; readonly mode: 'move' | 'box' | 'place' | 'click'; readonly pile?: string; moved: boolean; readonly add: boolean; readonly target: Element | null } | undefined;
 
 	private report: ISubstructureReport | undefined;
 	private reportState: ReportState = 'idle';
@@ -165,6 +193,12 @@ export class SubstructureEditor extends EditorPane {
 	private readonly recomputeAction = this._register(new Action('saengine.substructure.editor.recompute', localize('sub.recompute', "Check the Foundations Again"), undefined, true, () => this.computeReport()));
 	private readonly saveAndCheckAction = this._register(new Action('saengine.substructure.editor.saveAndCheck', localize('sub.saveAndCheck', "Save and Check"), ThemeIcon.asClassName(Codicon.checkAll), true, () => this.saveAndCheck()));
 	private readonly openTextAction = this._register(new Action('saengine.substructure.editor.openText', localize('sub.openText', "Open as Text"), undefined, true, () => this.openAsText()));
+	private readonly pileGridAction = this._register(new Action('saengine.substructure.editor.pileGrid', localize('sub.pileGrid', "Pile Grid"), ThemeIcon.asClassName(Codicon.symbolNumeric), true, async () => this.editPileGrid()));
+	private readonly placePilesAction = this._register(new Action('saengine.substructure.editor.placePiles', localize('sub.placePiles', "Place Piles (click a grid crossing or a point, drag a box over crossings)"), ThemeIcon.asClassName(Codicon.circleFilled), true, async () => this.setTool(this.tool === 'pile' ? 'select' : 'pile')));
+	private readonly pileGroupAction = this._register(new Action('saengine.substructure.editor.pileGroup', localize('sub.pileGroup', "Place a Pile Group under the Selected Columns"), ThemeIcon.asClassName(Codicon.location), true, async () => this.placeGroups()));
+	private readonly makeCapAction = this._register(new Action('saengine.substructure.editor.makeCap', localize('sub.makeCap', "Make Pile Cap from the Selected Piles"), ThemeIcon.asClassName(Codicon.package), false, async () => this.makeCap()));
+	private readonly gradeBeamAction = this._register(new Action('saengine.substructure.editor.gradeBeam', localize('sub.gradeBeamTool', "Draw Grade Beams (click two caps or columns)"), ThemeIcon.asClassName(Codicon.arrowBoth), true, async () => this.setTool(this.tool === 'beam' ? 'select' : 'beam')));
+	private readonly connectAction = this._register(new Action('saengine.substructure.editor.connectBeams', localize('sub.connectBeams', "Connect Grade Beams along the Grid Lines"), undefined, true, async () => this.connectBeams()));
 
 	constructor(
 		group: IEditorGroup,
@@ -394,7 +428,7 @@ export class SubstructureEditor extends EditorPane {
 		if (!this.model) {
 			return;
 		}
-		const parsed = parseSubstructure(this.model.getValue());
+		const parsed = parseSubstructure(this.model.getValue(), this.context.columns);
 		if (parsed.kind === 'error') {
 			this.document = undefined;
 			this.parseError = parsed.message;
@@ -403,6 +437,8 @@ export class SubstructureEditor extends EditorPane {
 			this.parseError = undefined;
 			const count = this.document.foundations.length;
 			this.selectedFoundations = this.selectedFoundations.filter(i => i < count);
+			const piles = new Set(this.document.piles.map(p => p.id));
+			this.selectedPiles = new Set([...this.selectedPiles].filter(id => piles.has(id)));
 			if (this.selectedTieBeam !== undefined && this.selectedTieBeam >= this.document.tieBeams.length) {
 				this.selectedTieBeam = undefined;
 			}
@@ -466,10 +502,12 @@ export class SubstructureEditor extends EditorPane {
 		this.selectedFoundations = [];
 		this.selectedColumns = new Set();
 		this.selectedTieBeam = undefined;
+		this.selectedPiles = new Set();
+		this.gridSelected = false;
 	}
 
 	private get selectionKey(): string {
-		return `${this.selectedFoundations.join()}|${[...this.selectedColumns].join()}|${this.selectedTieBeam ?? ''}`;
+		return `${this.selectedFoundations.join()}|${[...this.selectedColumns].join()}|${this.selectedTieBeam ?? ''}|${[...this.selectedPiles].join()}|${this.gridSelected}|${this.tool}`;
 	}
 
 	private get foundation(): IFoundation | undefined {
@@ -495,6 +533,8 @@ export class SubstructureEditor extends EditorPane {
 		}
 		this.selectedColumns = new Set();
 		this.selectedTieBeam = undefined;
+		this.selectedPiles = new Set();
+		this.gridSelected = false;
 		this.renderSelection();
 	}
 
@@ -506,9 +546,28 @@ export class SubstructureEditor extends EditorPane {
 			}
 		} else {
 			this.selectedColumns = new Set([id]);
+			this.selectedPiles = new Set();
 		}
 		this.selectedFoundations = [];
 		this.selectedTieBeam = undefined;
+		this.gridSelected = false;
+		this.renderSelection();
+	}
+
+	/** Selects a pile; `add` toggles it in the selection (the columns picked stay, for Make Pile Cap). */
+	private selectPile(id: string, add: boolean): void {
+		this.flush();
+		if (add) {
+			if (!this.selectedPiles.delete(id)) {
+				this.selectedPiles.add(id);
+			}
+		} else {
+			this.selectedPiles = new Set([id]);
+			this.selectedColumns = new Set();
+		}
+		this.selectedFoundations = [];
+		this.selectedTieBeam = undefined;
+		this.gridSelected = false;
 		this.renderSelection();
 	}
 
@@ -539,14 +598,152 @@ export class SubstructureEditor extends EditorPane {
 		this.renderProperties();
 	}
 
-	private onPlanClick(e: MouseEvent): void {
-		// A click in the drawing selects; the view takes the keys (Delete, Escape) from then on.
+	/** The plan point [mm] under a pointer event. */
+	private planPoint(e: MouseEvent): Point | undefined {
+		const drawing = this.drawing;
+		if (!drawing) {
+			return undefined;
+		}
+		const box = drawing.svg.getBoundingClientRect();
+		return drawing.toPlan(e.clientX - box.left, e.clientY - box.top);
+	}
+
+	private onPlanDown(e: PointerEvent): void {
+		if (e.button !== 0 || !this.drawing) {
+			return;
+		}
+		// A press in the drawing selects; the view takes the keys (Delete, Escape, arrows) from then on.
 		this.viewElement.focus({ preventScroll: true });
 		const target = e.target as Element | null;
 		const add = e.shiftKey || e.ctrlKey || e.metaKey;
+		const pile = target?.closest('[data-pile]')?.getAttribute('data-pile') ?? undefined;
+		const empty = !target?.closest('[data-pile], [data-column], [data-foundation], [data-tie]');
+		let mode: 'move' | 'box' | 'place' | 'click' = 'click';
+		if (this.tool === 'pile') {
+			mode = 'place';
+		} else if (this.tool === 'select' && pile) {
+			mode = 'move';
+			if (!this.selectedPiles.has(pile) || add) {
+				this.selectPile(pile, add);
+			}
+		} else if (this.tool === 'select' && empty) {
+			mode = 'box';
+		}
+		// The element pressed: with the pointer captured, the release's target is the canvas.
+		this.press = { x: e.clientX, y: e.clientY, mode, pile, moved: false, add, target };
+		(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+		e.preventDefault();
+	}
+
+	private onPlanMove(e: PointerEvent): void {
+		const press = this.press;
+		const drawing = this.drawing;
+		const point = this.planPoint(e);
+		if (!drawing || !point || !this.document) {
+			return;
+		}
+		const overlay = this.planOverlay();
+		overlay.replaceChildren();
+		if (press && !press.moved && Math.hypot(e.clientX - press.x, e.clientY - press.y) > DRAG_PX) {
+			press.moved = true;
+		}
+		const box = drawing.svg.getBoundingClientRect();
+		if (press?.moved && (press.mode === 'box' || press.mode === 'place')) {
+			const [x0, y0] = [press.x - box.left, press.y - box.top];
+			const [x1, y1] = [e.clientX - box.left, e.clientY - box.top];
+			svg(overlay, 'rect', { x: Math.min(x0, x1), y: Math.min(y0, y1), width: Math.abs(x1 - x0), height: Math.abs(y1 - y0), class: 'sub-box' });
+			if (press.mode === 'place') {
+				const start = drawing.toPlan(x0, y0);
+				for (const p of intersectionsInBox(this.document.pileGrid, start, point)) {
+					const [sx, sy] = drawing.toScreen(p);
+					svg(overlay, 'circle', { cx: sx, cy: sy, r: 5, class: 'sub-snap' });
+				}
+			}
+			return;
+		}
+		if (press?.moved && press.mode === 'move' && press.pile) {
+			const delta = this.moveDelta(press, e);
+			if (delta) {
+				// Where the selected piles go: outlines in the overlay, at the snapped move.
+				for (const pile of this.document.piles.filter(p => this.selectedPiles.has(p.id))) {
+					const [sx, sy] = drawing.toScreen([pile.position[0] + delta[0], pile.position[1] + delta[1]]);
+					const diameter = this.document.pileTypes.find(t => t.id === pile.type)?.diameter ?? 500;
+					svg(overlay, 'circle', { cx: sx, cy: sy, r: Math.max(3, diameter / 2 / drawing.mmPerPx), class: 'sub-snap' });
+				}
+			}
+			return;
+		}
+		if (this.tool === 'pile' && !press) {
+			const snap = snapPoint(point, this.document, this.context, SNAP_PX * drawing.mmPerPx, false);
+			const [sx, sy] = drawing.toScreen(snap.point);
+			svg(overlay, 'circle', { cx: sx, cy: sy, r: 7, class: 'sub-snap' });
+			svg(overlay, 'text', { x: sx + 10, y: sy - 8, class: 'sub-snap-label' }, snap.label ?? `${formatNumber(snap.point[0] / 1000, 2)}, ${formatNumber(snap.point[1] / 1000, 2)}`);
+		}
+	}
+
+	/** The move [mm] of the pile dragged: its new position snapped (a grid crossing, a column, 50 mm), less its old. */
+	private moveDelta(press: { readonly x: number; readonly y: number; readonly pile?: string }, e: MouseEvent): Point | undefined {
+		const drawing = this.drawing;
+		const pile = this.document?.piles.find(p => p.id === press.pile);
+		if (!drawing || !pile || !this.document) {
+			return undefined;
+		}
+		const raw: Point = [pile.position[0] + (e.clientX - press.x) * drawing.mmPerPx, pile.position[1] - (e.clientY - press.y) * drawing.mmPerPx];
+		const snap = snapPoint(raw, this.document, this.context, SNAP_PX * drawing.mmPerPx, false);
+		return [snap.point[0] - pile.position[0], snap.point[1] - pile.position[1]];
+	}
+
+	private onPlanUp(e: PointerEvent): void {
+		const press = this.press;
+		this.press = undefined;
+		const document = this.document;
+		const drawing = this.drawing;
+		const point = this.planPoint(e);
+		if (!press || !document || !drawing || !point) {
+			return;
+		}
+		if (press.mode === 'move') {
+			const delta = press.moved ? this.moveDelta(press, e) : undefined;
+			if (delta && (delta[0] || delta[1])) {
+				this.moveSelectedPiles(delta[0], delta[1]);
+			} else if (press.moved) {
+				this.renderView();
+			} else if (!press.add && press.pile && this.selectedPiles.size > 1) {
+				// A click (no drag) on one of several selected piles selects it alone.
+				this.selectPile(press.pile, false);
+			}
+			return;
+		}
+		const box = drawing.svg.getBoundingClientRect();
+		const start = drawing.toPlan(press.x - box.left, press.y - box.top);
+		if (press.mode === 'box' && press.moved) {
+			// Piles and columns inside the box; Shift adds to the selection.
+			this.flush();
+			const piles = pilesInBox(document, start, point).map(p => p.id);
+			const columns = this.context.columns.filter(c => c.x >= Math.min(start[0], point[0]) && c.x <= Math.max(start[0], point[0]) && c.y >= Math.min(start[1], point[1]) && c.y <= Math.max(start[1], point[1])).map(c => c.id);
+			this.selectedFoundations = [];
+			this.selectedTieBeam = undefined;
+			this.gridSelected = false;
+			this.selectedPiles = new Set([...(press.add ? this.selectedPiles : []), ...piles]);
+			this.selectedColumns = new Set([...(press.add ? this.selectedColumns : []), ...columns]);
+			this.renderSelection();
+			return;
+		}
+		if (press.mode === 'place') {
+			this.placePilesAt(press.moved ? intersectionsInBox(document.pileGrid, start, point) : [snapPoint(point, document, this.context, SNAP_PX * drawing.mmPerPx, false).point]);
+			return;
+		}
+		this.onPlanClick(press.target, press.add);
+	}
+
+	private onPlanClick(target: Element | null, add: boolean): void {
 		const column = target?.closest('[data-column]')?.getAttribute('data-column');
 		const foundation = target?.closest('[data-foundation]')?.getAttribute('data-foundation');
 		const tie = target?.closest('[data-tie]')?.getAttribute('data-tie');
+		if (this.tool === 'beam') {
+			this.pickBeamEnd(column ? foundationOf(this.document!, column)?.id : foundation ? this.document?.foundations[Number(foundation)]?.id : undefined, column ?? undefined);
+			return;
+		}
 		if (column) {
 			this.selectColumn(column, add);
 		} else if (tie) {
@@ -565,11 +762,19 @@ export class SubstructureEditor extends EditorPane {
 		if (isHTMLInputElement(target) || target.tagName === 'SELECT') {
 			return;
 		}
+		const arrows: Record<string, Point> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] };
 		if (e.key === 'Delete' && this.deleteAction.enabled) {
 			e.preventDefault();
 			void this.deleteSelection();
+		} else if (arrows[e.key] && this.selectedPiles.size && this.view === 'plan') {
+			// Nudge the selected piles 50 mm (Shift: 500 mm).
+			e.preventDefault();
+			const step = e.shiftKey ? 500 : 50;
+			this.moveSelectedPiles(arrows[e.key][0] * step, arrows[e.key][1] * step);
 		} else if (e.key === 'Escape') {
-			if (this.proposal) {
+			if (this.tool !== 'select') {
+				this.setTool('select');
+			} else if (this.proposal) {
 				this.discardProposal();
 			} else {
 				this.clearSelection();
@@ -649,7 +854,7 @@ export class SubstructureEditor extends EditorPane {
 		}
 		const added: IFoundation[] = [];
 		for (const group of columns) {
-			const cap = newPileCap(document, this.context, group, pile, group.length > 1 ? 6 : 4);
+			const cap = newPileCap(document, this.context, group, pile, group.length > 1 ? 6 : this.groupCount, this.spacingFactor);
 			document.foundations.push(cap);
 			added.push(cap);
 		}
@@ -762,6 +967,14 @@ export class SubstructureEditor extends EditorPane {
 		}
 		if (this.selectedTieBeam !== undefined) {
 			document.tieBeams.splice(this.selectedTieBeam, 1);
+		} else if (this.selectedPiles.size) {
+			const emptied = deletePiles(document, this.selectedPiles);
+			for (const id of emptied) {
+				this.notificationService.info(localize('sub.capEmptied', "{0} stands on no piles now: place piles under it, or delete it.", id));
+			}
+			for (const cap of document.foundations.filter(f => f.type === 'pileCap' && f.piles?.length)) {
+				refitCap(document, cap);
+			}
 		} else if (this.selectedFoundations.length) {
 			const removed = new Set(this.selectedFoundations.map(i => document.foundations[i]?.id));
 			const ties = document.tieBeams.filter(t => removed.has(t.from) || removed.has(t.to));
@@ -786,6 +999,185 @@ export class SubstructureEditor extends EditorPane {
 		}
 		this.clearSelection();
 		this.changed(true);
+	}
+
+	// ───────────────────────────── piles, caps and grade beams ─────────────────────────────
+
+	private setTool(tool: Tool): void {
+		this.tool = tool;
+		this.beamStart = undefined;
+		this.press = undefined;
+		if (tool !== 'select') {
+			this.view = 'plan';
+		}
+		if (tool === 'pile') {
+			this.pileType();
+		}
+		this.render();
+	}
+
+	/** The pile type the pile tools place; a 500 mm bored pile type is added when there is none. */
+	private pileType(): IPileType | undefined {
+		const document = this.document;
+		if (!document) {
+			return undefined;
+		}
+		let pile = document.pileTypes.find(p => p.id === this.placeType) ?? document.pileTypes[0];
+		if (!pile) {
+			pile = newPileType(document, this.context);
+			document.pileTypes.push(pile);
+			this.changed(true);
+		}
+		this.placeType = pile.id;
+		return pile;
+	}
+
+	/** Places piles of the tools' pile type at `points` (none where a pile stands already). */
+	private placePilesAt(points: readonly Point[]): void {
+		const document = this.document;
+		const pile = this.pileType();
+		if (!document || !pile) {
+			return;
+		}
+		const free = points.filter(p => !pileAt(document, p));
+		if (!free.length) {
+			this.notificationService.info(points.length ? localize('sub.pileThere', "A pile stands there already.") : localize('sub.noCrossings', "No pile grid crossing inside the box. Add a pile grid (Pile Grid), or click single points."));
+			return;
+		}
+		const added = addPiles(document, pile.id, free);
+		this.selectedPiles = new Set(added.map(p => p.id));
+		this.selectedFoundations = [];
+		this.selectedTieBeam = undefined;
+		this.changed(true);
+	}
+
+	/** A standard pile group under each selected column (the tools' pile type, count and spacing). */
+	private placeGroups(): void {
+		const document = this.document;
+		const columns = this.pickedColumns;
+		if (!document) {
+			return;
+		}
+		if (!columns.length) {
+			this.notificationService.info(localize('sub.groupNeeds', "Select the columns in the plan to place a pile group under each."));
+			return;
+		}
+		const pile = this.pileType();
+		if (!pile) {
+			return;
+		}
+		const added: IPile[] = [];
+		for (const column of columns) {
+			added.push(...placePileGroup(document, [column], pile, this.groupCount, this.spacingFactor));
+		}
+		this.selectedPiles = new Set(added.map(p => p.id));
+		this.changed(true);
+		this.renderSelection();
+	}
+
+	/** Make Pile Cap: one cap over the selected piles, carrying the selected columns (or the free ones inside it). */
+	private makeCap(): void {
+		const document = this.document;
+		if (!document) {
+			return;
+		}
+		const columns = this.pickedColumns;
+		if (columns.length && !this.free(document, columns.map(c => c.id))) {
+			return;
+		}
+		const { cap, error } = makePileCap(document, this.context, [...this.selectedPiles], columns.length ? columns : undefined);
+		if (!cap) {
+			this.notificationService.info(error ?? '');
+			return;
+		}
+		document.foundations.push(cap);
+		if (!cap.columns?.length) {
+			this.notificationService.info(localize('sub.capNoColumns', "{0} carries no column: no free column base stands inside it. Give its columns in Properties.", cap.id));
+		}
+		this.added([cap]);
+	}
+
+	/** The grade beam tool: the first click picks an end, the second ties the two foundations. */
+	private pickBeamEnd(foundation: string | undefined, column: string | undefined): void {
+		const document = this.document;
+		if (!document) {
+			return;
+		}
+		if (!foundation) {
+			if (column) {
+				this.notificationService.info(localize('sub.beamNoFoundation', "{0} stands on no foundation yet: a grade beam joins two foundations.", column));
+			}
+			this.beamStart = undefined;
+			this.renderView();
+			return;
+		}
+		if (!this.beamStart || this.beamStart === foundation) {
+			this.beamStart = foundation;
+			this.renderView();
+			return;
+		}
+		const from = this.beamStart;
+		this.beamStart = foundation;
+		if (tied(document, from, foundation)) {
+			this.notificationService.info(localize('sub.beamThere', "{0} and {1} are tied already.", from, foundation));
+			this.renderView();
+			return;
+		}
+		document.tieBeams.push(newTieBeam(document, this.context, from, foundation));
+		this.changed(true);
+	}
+
+	private connectBeams(): void {
+		const document = this.document;
+		if (!document) {
+			return;
+		}
+		const added = connectGradeBeams(document, this.context);
+		if (!added.length) {
+			this.notificationService.info(localize('sub.connectNone', "No grade beam to add: the foundations along each grid line are tied already, or their columns stand on one foundation."));
+			return;
+		}
+		this.notificationService.info(localize('sub.connected', "{0} grade beams added along the grid lines ({1}).", added.length, added.map(t => t.id).join(', ')));
+		this.changed(true);
+	}
+
+	/** Moves the selected piles, fitting their caps round them again. */
+	private moveSelectedPiles(dx: number, dy: number): void {
+		const document = this.document;
+		if (!document || !this.selectedPiles.size) {
+			return;
+		}
+		movePiles(document, this.selectedPiles, dx, dy);
+		const caps = pileCaps(document);
+		const moved = new Set([...this.selectedPiles].map(id => caps.get(id)).filter((id): id is string => !!id));
+		for (const cap of document.foundations.filter(f => moved.has(f.id))) {
+			refitCap(document, cap);
+		}
+		this.changed(true);
+	}
+
+	/** Shows the pile grid in the properties, adding one over the columns when there is none. */
+	private editPileGrid(): void {
+		const document = this.document;
+		if (!document) {
+			return;
+		}
+		if (!document.pileGrid) {
+			document.pileGrid = newPileGrid(document, this.context);
+			this.changed(true);
+		}
+		this.clearSelection();
+		this.gridSelected = true;
+		this.view = 'plan';
+		this.frame.setPropertiesVisible(true);
+		this.render();
+	}
+
+	private planOverlay(): SVGGElement {
+		if (!this.overlay?.isConnected && this.drawing) {
+			this.overlay = svg(this.drawing.svg, 'g', { class: 'sub-overlay' }) as SVGGElement;
+		}
+		return this.overlay!;
 	}
 
 	private request(): ISubstructureRequest | undefined {
@@ -1148,8 +1540,13 @@ export class SubstructureEditor extends EditorPane {
 			: picked === 1 ? localize('sub.addFooting', "Add Footing under the Selected Columns")
 				: localize('sub.addFootingsAll', "Add Footings under the Columns without a Foundation");
 		this.addTieAction.enabled = this.selectedFoundations.length === 2;
-		this.deleteAction.enabled = this.selectedFoundations.length > 0 || this.selectedTieBeam !== undefined;
-		this.deleteAction.label = this.selectedTieBeam !== undefined
+		this.makeCapAction.enabled = this.selectedPiles.size > 0;
+		this.makeCapAction.label = this.selectedPiles.size ? localize('sub.makeCapCount', "Make Pile Cap from the {0} Selected Piles", this.selectedPiles.size) : localize('sub.makeCap', "Make Pile Cap from the Selected Piles");
+		this.pileGroupAction.enabled = this.selectedColumns.size > 0;
+		this.placePilesAction.checked = this.tool === 'pile';
+		this.gradeBeamAction.checked = this.tool === 'beam';
+		this.deleteAction.enabled = this.selectedFoundations.length > 0 || this.selectedTieBeam !== undefined || this.selectedPiles.size > 0;
+		this.deleteAction.label = this.selectedPiles.size ? localize('sub.deletePiles', "Delete {0} Piles", this.selectedPiles.size) : this.selectedTieBeam !== undefined
 			? localize('sub.deleteNamed', "Delete {0}", this.document?.tieBeams[this.selectedTieBeam]?.id ?? '')
 			: this.selectedFoundations.length === 1 ? localize('sub.deleteNamed', "Delete {0}", this.document?.foundations[this.selectedFoundations[0]]?.id ?? '')
 				: localize('sub.delete', "Delete");
@@ -1159,10 +1556,13 @@ export class SubstructureEditor extends EditorPane {
 			? localize('sub.saveAndCheckDirty', "Save the edits and check the foundations (the checks read the saved file)")
 			: localize('sub.saveAndCheckClean', "Check the foundations again");
 		const primary: IAction[] = usable ? [
-			this.addFootingAction, this.addPileCapAction, this.addRaftAction, this.addTieAction,
-			this.sizeAction, this.migrateAction, this.saveAndCheckAction, this.deleteAction, frame.togglePropertiesAction,
+			this.addFootingAction, this.addPileCapAction, this.addRaftAction,
+			this.pileGridAction, this.placePilesAction, this.pileGroupAction, this.makeCapAction, this.gradeBeamAction,
+			this.sizeAction, this.saveAndCheckAction, this.deleteAction, frame.togglePropertiesAction,
 		] : [frame.togglePropertiesAction];
-		const secondary: IAction[] = usable ? [this.addStripAction, this.addPileTypeAction, this.selectAllAction, new Separator(), this.recomputeAction] : [];
+		const secondary: IAction[] = usable ? [
+			this.addTieAction, this.connectAction, this.addStripAction, this.addPileTypeAction, this.selectAllAction, this.migrateAction, new Separator(), this.recomputeAction,
+		] : [];
 		if (this.developerMode || this.parseError) {
 			if (secondary.length) {
 				secondary.push(new Separator());
@@ -1184,20 +1584,21 @@ export class SubstructureEditor extends EditorPane {
 				text: this.parseError,
 				actions: [{ label: localize('sub.openText', "Open as Text"), primary: true, run: () => void this.openAsText() }],
 			});
-		} else if (this.document && !this.document.foundations.length && !this.proposal && !this.context.columns.length) {
+		} else if (this.document && !this.document.foundations.length && !this.document.piles.length && !this.document.pileGrid && !this.proposal && !this.context.columns.length) {
 			this.frame.setEmpty({
 				icon: Codicon.symbolStructure,
 				title: localize('sub.emptyNoColumns', "No columns to found yet"),
 				text: localize('sub.emptyNoColumnsText', "The foundations stand under the columns of the building model. Build the building model (6 BIM) first; its columns on the base level then appear here."),
 			});
-		} else if (this.document && !this.document.foundations.length && !this.proposal) {
+		} else if (this.document && !this.document.foundations.length && !this.document.piles.length && !this.document.pileGrid && !this.proposal) {
 			this.frame.setEmpty({
 				icon: Codicon.symbolStructure,
 				title: localize('sub.emptyTitle', "No foundations yet"),
-				text: localize('sub.emptyText', "{0} columns stand on the base level. Let SAEngine size a footing under each from the analysis reactions and the soil report, bring in the footings drawn in the floor plan, or start with a footing under every column and size them yourself.", this.context.columns.length),
+				text: localize('sub.emptyText', "{0} columns stand on the base level. Let SAEngine size a footing under each from the analysis reactions and the soil report, bring in the footings drawn in the floor plan, or start with a footing under every column and size them yourself. For bored piles, lay them out on a pile grid of their own and form the caps over them.", this.context.columns.length),
 				actions: [
 					{ label: localize('sub.size', "Size Footings"), icon: Codicon.wand, primary: true, run: () => void this.sizeAll() },
 					{ label: localize('sub.emptyFootings', "Add Footings under All Columns"), icon: Codicon.add, run: () => this.addFootings() },
+					{ label: localize('sub.emptyPiles', "Lay Out Piles on a Pile Grid"), icon: Codicon.symbolNumeric, run: () => this.editPileGrid() },
 				],
 				link: { label: localize('sub.migrate', "Import Footings from the Building Model"), run: () => void this.migrate() },
 			});
@@ -1233,8 +1634,16 @@ export class SubstructureEditor extends EditorPane {
 		const view = this.viewElement;
 		const header = append(view, $('.sub-view-header'));
 		append(header, $('span.sub-view-title', undefined, localize('sub.planTitle', "Base level")));
-		append(header, $('span.sub-view-subtitle', undefined, localize('sub.planSubtitle', "ground {0} m · founding level {1} m unless set · click a column or foundation, Shift+click to add to the selection",
-			formatNumber(this.context.groundLevel / 1000, 2), formatNumber(defaultFoundingLevel(this.context) / 1000, 2))));
+		// A tool's hint takes the subtitle's place, so the plan does not move when a tool is picked.
+		const subtitle = append(header, $(`span.sub-view-subtitle${this.tool === 'select' ? '' : '.sub-tool-hint'}`, { role: this.tool === 'select' ? undefined : 'status' }, this.tool === 'pile'
+			? localize('sub.pileToolHint', "Placing {0} piles: click a pile grid crossing, a column or a point (snaps to 50 mm); drag a box to place one at every crossing inside. Escape ends.", this.placeType ?? '')
+			: this.tool === 'beam'
+				? this.beamStart
+					? localize('sub.beamToolNext', "Grade beam from {0}: click the cap or column it runs to. Escape ends.", this.beamStart)
+					: localize('sub.beamToolHint', "Grade beams: click a pile cap (or a column on a foundation), then the one it runs to. Escape ends.")
+				: localize('sub.planSubtitle', "ground {0} m · founding level {1} m unless set · click a column or foundation, Shift+click to add to the selection",
+					formatNumber(this.context.groundLevel / 1000, 2), formatNumber(defaultFoundingLevel(this.context) / 1000, 2))));
+		subtitle.title = subtitle.textContent ?? '';
 
 		const drawn = this.context.bimFootings ?? [];
 		if (drawn.length && document.foundations.length) {
@@ -1272,6 +1681,9 @@ export class SubstructureEditor extends EditorPane {
 		item('cap', localize('sub.legendCap', "Pile cap and piles"));
 		item('raft', localize('sub.legendRaft', "Raft"));
 		item('tie', localize('sub.legendTie', "Tie beam"));
+		if (document.pileGrid) {
+			item('pile-grid', localize('sub.legendPileGrid', "Pile grid"));
+		}
 		item('column', localize('sub.legendColumn', "Column"));
 		if (this.context.boreholes.length) {
 			item('borehole', localize('sub.legendBorehole', "Borehole"));
@@ -1282,17 +1694,19 @@ export class SubstructureEditor extends EditorPane {
 			item('band-fail', localize('sub.legendFail', "above 1.0"));
 		}
 
-		const canvas = append(view, $('.sub-canvas'));
+		const canvas = append(view, $(`.sub-canvas.tool-${this.tool}`));
 		const width = Math.max(240, view.clientWidth - 32);
 		// What is left below the header, legend and banner (the banner's table grows with the proposal).
 		const used = canvas.getBoundingClientRect().top - view.getBoundingClientRect().top + view.scrollTop;
 		const height = Math.max(240, view.clientHeight - used - 16);
 		const bands = this.report ? new Map(document.foundations.map(f => [f.id, utilisationBand(this.resultOf(f)?.utilisation)])) : undefined;
-		renderPlan(canvas, document, this.context, {
+		this.drawing = renderPlan(canvas, document, this.context, {
 			width, height,
 			selectedFoundations: new Set(this.selectedFoundations),
 			selectedColumns: this.selectedColumns,
 			selectedTieBeam: this.selectedTieBeam,
+			selectedPiles: this.selectedPiles,
+			beamStart: this.beamStart,
 			proposals: this.proposal?.foundations,
 			bands,
 			utilisations: new Map(document.foundations.flatMap(f => {
@@ -1300,7 +1714,15 @@ export class SubstructureEditor extends EditorPane {
 				return typeof u === 'number' ? [[f.id, u] as const] : [];
 			})),
 		});
-		this.viewDisposables.add(addDisposableListener(canvas, EventType.CLICK, e => this.onPlanClick(e)));
+		this.overlay = undefined;
+		this.viewDisposables.add(addDisposableListener(canvas, EventType.POINTER_DOWN, e => this.onPlanDown(e)));
+		this.viewDisposables.add(addDisposableListener(canvas, EventType.POINTER_MOVE, e => this.onPlanMove(e)));
+		this.viewDisposables.add(addDisposableListener(canvas, EventType.POINTER_UP, e => this.onPlanUp(e)));
+		this.viewDisposables.add(addDisposableListener(canvas, EventType.POINTER_LEAVE, () => {
+			if (!this.press && this.overlay) {
+				this.overlay.replaceChildren();
+			}
+		}));
 	}
 
 	/** What Accept changes: each proposed foundation against the one it replaces (or "new"). */
@@ -1332,6 +1754,7 @@ export class SubstructureEditor extends EditorPane {
 		append(header, $('span.sub-view-subtitle', undefined, localize('sub.dataSubtitle', "Sizes in mm, levels and positions in m; click a row to edit the rest in Properties.")));
 		this.renderFoundationTable(document);
 		this.renderPileTypeTable(document);
+		this.renderPileTable(document);
 		this.renderTieBeamTable(document);
 	}
 
@@ -1404,7 +1827,7 @@ export class SubstructureEditor extends EditorPane {
 			append(append(row, $('td')), this.textInput(F.foundingLevel, f.foundingLevel, value => this.setField(f, 'foundingLevel', value), path('foundingLevel'), formatNumber(defaultFoundingLevel(this.context) / 1000, 3)));
 			const pileCell = append(row, $('td'));
 			if (f.type === 'pileCap') {
-				append(pileCell, this.selectInput(document.pileTypes.map(p => ({ value: p.id, label: p.id })), f.pileType ?? '', value => this.setPileType(f, value), path('pileType'), localize('sub.f.pileType', "Pile type"), true));
+				append(pileCell, this.selectInput(document.pileTypes.map(p => ({ value: p.id, label: p.id })), capPileType(f, document)?.id ?? '', value => this.setPileType(f, value), path('pileType'), localize('sub.f.pileType', "Pile type"), true));
 			} else {
 				pileCell.classList.add('sub-muted');
 				pileCell.textContent = '—';
@@ -1440,7 +1863,7 @@ export class SubstructureEditor extends EditorPane {
 			{ label: F.id.label, width: 64 }, { label: localize('sub.f.kind', "Kind"), width: 170 }, { label: F.diameter.label, unit: MM, numeric: true, width: 80 },
 			{ label: F.pileLength.label, unit: M, numeric: true }, { label: localize('sub.f.material', "Concrete"), width: 96 },
 			{ label: localize('sub.f.pileBars', "Bars"), width: 84 }, { label: localize('sub.f.pileTies', "Ties"), width: 110 },
-			{ label: localize('sub.f.usedBy', "Caps"), numeric: true, width: 48 }, { label: '', width: 28 },
+			{ label: localize('sub.f.pileCount', "Piles"), numeric: true, width: 48 }, { label: '', width: 28 },
 		];
 		this.tableHead(table, columns);
 		const body = append(table, $('tbody'));
@@ -1468,7 +1891,7 @@ export class SubstructureEditor extends EditorPane {
 			}, path('material'), true));
 			append(append(row, $('td')), this.pileBarsInput(pile, path('reinforcement.longitudinal')));
 			append(append(row, $('td')), this.pileTiesInput(pile, path('reinforcement.transverse')));
-			append(row, $('td.number', undefined, String(document.foundations.filter(f => f.type === 'pileCap' && f.pileType === pile.id).length)));
+			append(row, $('td.number', undefined, String(document.piles.filter(p => p.type === pile.id).length)));
 			this.removeButton(row, () => {
 				document.pileTypes.splice(index, 1);
 				this.changed(true);
@@ -1477,6 +1900,74 @@ export class SubstructureEditor extends EditorPane {
 		if (!document.pileTypes.length) {
 			append(append(body, $('tr')), $('td.sub-muted', { colspan: String(columns.length) }, localize('sub.noPileTypes', "None yet. A pile cap adds a 500 mm bored pile type to start with.")));
 		}
+	}
+
+	/** The piles placed in plan: mark, pile type, position and the cap each is under. */
+	private renderPileTable(document: ISubstructure): void {
+		const section = this.section(localize('sub.pilesHeading', "Piles"), document.piles.length, { label: localize('sub.placePilesShort', "Place Piles"), run: () => this.setTool('pile') });
+		const table = append(append(section, $('.sub-table-scroll')), $('table.sub-table'));
+		const columns = [
+			{ label: localize('sub.f.mark', "Mark"), width: 64 }, { label: localize('sub.f.pileType', "Pile type"), width: 96 },
+			{ label: F.pileX.label, unit: M, numeric: true, width: 84 }, { label: F.pileY.label, unit: M, numeric: true, width: 84 },
+			{ label: localize('sub.f.cap', "Cap"), width: 64 }, { label: '', width: 28 },
+		];
+		this.tableHead(table, columns);
+		const body = append(table, $('tbody'));
+		const caps = pileCaps(document);
+		document.piles.forEach((pile, index) => {
+			const row = append(body, $('tr.sub-row'));
+			row.classList.toggle('selected', this.selectedPiles.has(pile.id));
+			const path = (field: string) => `piles.${index}.${field}`;
+			append(append(row, $('td')), this.textInput(F.id, pile.id, value => this.renamePile(pile, String(value ?? '')), path('id')));
+			append(append(row, $('td')), this.selectInput(document.pileTypes.map(p => ({ value: p.id, label: p.id })), pile.type, value => {
+				pile.type = value;
+				this.changed(true);
+			}, path('type'), localize('sub.f.pileType', "Pile type")));
+			for (const [field, axis] of [[F.pileX, 0], [F.pileY, 1]] as const) {
+				append(append(row, $('td')), this.textInput(field, pile.position[axis], value => this.setPilePosition(pile, axis, value), path(`position.${axis}`)));
+			}
+			append(row, $(caps.has(pile.id) ? 'td' : 'td.sub-muted', undefined, caps.get(pile.id) ?? localize('sub.noCap', "none")));
+			this.removeButton(row, () => {
+				this.selectedPiles = new Set([pile.id]);
+				void this.deleteSelection();
+			});
+			this.viewDisposables.add(addDisposableListener(row, EventType.CLICK, e => {
+				if (!(e.target as HTMLElement).closest('input, select, button')) {
+					this.selectPile(pile.id, e.shiftKey || e.ctrlKey || e.metaKey);
+				}
+			}));
+		});
+		if (!document.piles.length) {
+			append(append(body, $('tr')), $('td.sub-muted', { colspan: String(columns.length) }, localize('sub.noPiles', "None yet. Place piles on the pile grid in the plan, or a pile group under a column.")));
+		}
+	}
+
+	private renamePile(pile: IPile, id: string): void {
+		const old = pile.id;
+		pile.id = id;
+		for (const f of this.document?.foundations ?? []) {
+			if (f.piles?.includes(old)) {
+				f.piles = f.piles.map(p => p === old ? id : p);
+			}
+		}
+		if (this.selectedPiles.delete(old)) {
+			this.selectedPiles.add(id);
+		}
+		this.changed(false);
+	}
+
+	private setPilePosition(pile: IPile, axis: 0 | 1, value: number | string | undefined): void {
+		if (typeof value !== 'number' || !this.document) {
+			return;
+		}
+		const position: Point = [...pile.position] as Point;
+		position[axis] = value;
+		pile.position = position;
+		const cap = this.document.foundations.find(f => f.type === 'pileCap' && f.piles?.includes(pile.id));
+		if (cap) {
+			refitCap(this.document, cap);
+		}
+		this.changed(false);
 	}
 
 	private renderTieBeamTable(document: ISubstructure): void {
@@ -1574,10 +2065,13 @@ export class SubstructureEditor extends EditorPane {
 	private renamePileType(pile: IPileType, id: string): void {
 		const old = pile.id;
 		pile.id = id;
-		for (const f of this.document?.foundations ?? []) {
-			if (f.pileType === old) {
-				f.pileType = id;
+		for (const p of this.document?.piles ?? []) {
+			if (p.type === old) {
+				p.type = id;
 			}
+		}
+		if (this.placeType === old) {
+			this.placeType = id;
 		}
 		this.changed(false);
 	}
@@ -1597,10 +2091,9 @@ export class SubstructureEditor extends EditorPane {
 				pile = newPileType(document, this.context);
 				document.pileTypes.push(pile);
 			}
-			foundation.pileType = pile.id;
-			applyPileLayout(foundation, pile, columns.length > 1 ? 6 : 4);
+			applyPileLayout(document, this.context, foundation, pile, columns.length > 1 ? 6 : 4, this.spacingFactor);
 		} else {
-			delete foundation.pileType;
+			deletePiles(document, new Set(foundation.piles ?? []));
 			delete foundation.piles;
 		}
 		if (type === 'raft') {
@@ -1640,12 +2133,14 @@ export class SubstructureEditor extends EditorPane {
 		this.changed(true);
 	}
 
+	/** Sets the pile type of a cap's piles and fits the cap round them (their spacing stays). */
 	private setPileType(foundation: IFoundation, id: string): void {
-		const pile = this.document?.pileTypes.find(p => p.id === id);
-		foundation.pileType = id || undefined;
-		if (pile) {
-			applyPileLayout(foundation, pile, foundation.piles?.length && (PILE_LAYOUTS as readonly number[]).includes(foundation.piles.length) ? foundation.piles.length : 4);
+		const document = this.document;
+		if (!document || !id) {
+			return;
 		}
+		setCapPileType(document, foundation, id);
+		refitCap(document, foundation);
 		this.changed(true);
 	}
 
@@ -2054,7 +2549,7 @@ export class SubstructureEditor extends EditorPane {
 		for (const pile of result.piles ?? []) {
 			const row = append(body, $('tr'));
 			const allowable = pile.capacity ?? capacity;
-			append(row, $('td', undefined, String(pile.number)));
+			append(row, $('td', undefined, pile.mark ?? String(pile.number)));
 			append(row, $('td.number', undefined, dash(pile.u, 1000, 2)));
 			append(row, $('td.number', undefined, dash(pile.v, 1000, 2)));
 			append(row, $('td.number', undefined, dash(pile.compression, 1, 1)));
@@ -2178,7 +2673,13 @@ export class SubstructureEditor extends EditorPane {
 		let paths: string[] = [];
 		try {
 			const foundation = this.foundation;
-			if (foundation) {
+			if (this.selectedPiles.size) {
+				this.renderPileProperties(panel, document);
+				paths = document.piles.flatMap((p, i) => this.selectedPiles.has(p.id) ? [`piles.${i}.`] : []);
+			} else if (this.gridSelected) {
+				this.renderPileGridProperties(panel, document);
+				paths = ['pileGrid.'];
+			} else if (foundation) {
 				this.renderFoundationProperties(panel, document, foundation);
 				paths = [`foundations.${this.selectedFoundations[0]}.`];
 			} else if (this.selectedTieBeam !== undefined && document.tieBeams[this.selectedTieBeam]) {
@@ -2193,8 +2694,11 @@ export class SubstructureEditor extends EditorPane {
 			} else if (this.selectedColumns.size) {
 				this.renderColumnProperties(panel, document);
 			} else {
+				if (this.tool === 'pile') {
+					this.renderPileToolProperties(panel, document);
+				}
 				this.renderDesignProperties(panel, document);
-				paths = ['pileTypes.', 'tieBeams.', 'foundations.'];
+				paths = ['pileTypes.', 'tieBeams.', 'foundations.', 'piles.', 'pileGrid.'];
 			}
 		} finally {
 			this.renderingProperties = false;
@@ -2271,19 +2775,28 @@ export class SubstructureEditor extends EditorPane {
 
 		if (foundation.type === 'pileCap') {
 			appendPropertyHeading(panel, localize('sub.pilesHeading', "Piles"));
-			this.propertyRow(panel, localize('sub.f.pileType', "Pile type"), this.selectInput(document.pileTypes.map(p => ({ value: p.id, label: `${p.id} · ${pileKindLabel(p.kind)} ${formatNumber(p.diameter, 0)} mm` })), foundation.pileType ?? '', value => this.setPileType(foundation, value), path('pileType'), localize('sub.f.pileType', "Pile type"), true));
+			const capType = capPileType(foundation, document);
+			this.propertyRow(panel, localize('sub.f.pileType', "Pile type"), this.selectInput(document.pileTypes.map(p => ({ value: p.id, label: `${p.id} · ${pileKindLabel(p.kind)} ${formatNumber(p.diameter, 0)} mm` })), capType?.id ?? '', value => this.setPileType(foundation, value), path('pileType'), localize('sub.f.pileType', "Pile type"), true));
 			const count = foundation.piles?.length ?? 0;
-			const layouts = PILE_LAYOUTS.map(n => ({ value: String(n), label: localize('sub.layoutOption', "{0} piles at 3 diameters", n) }));
-			const layoutSelect = this.selectInput(layouts, (PILE_LAYOUTS as readonly number[]).includes(count) ? String(count) : '', value => {
-				const pile = document.pileTypes.find(p => p.id === foundation.pileType);
+			const layouts = PILE_LAYOUTS.map(n => ({ value: String(n), label: localize('sub.layoutOptionK', "{0} piles at {1} D under its columns", n, formatNumber(this.spacingFactor, 2)) }));
+			const layoutSelect = this.selectInput(layouts, '', value => {
+				const pile = capType ?? this.pileType();
 				if (!pile || !value) {
 					return;
 				}
-				applyPileLayout(foundation, pile, Number(value));
+				applyPileLayout(document, this.context, foundation, pile, Number(value), this.spacingFactor);
 				this.changed(true);
-			}, path('piles'), localize('sub.f.layout', "Layout"), !(PILE_LAYOUTS as readonly number[]).includes(count));
-			this.propertyRow(panel, localize('sub.f.layout', "Layout"), layoutSelect, undefined, localize('sub.layoutTitle', "Puts the piles at three diameters centre to centre (the spacing BNBC 2020 Part 6 Sec 3.10.1.30 generally asks for driven friction piles) and sizes the cap with 150 mm beyond the piles"));
-			appendPropertyRow(panel, localize('sub.f.piles', "Piles"), String(count));
+			}, path('piles'), localize('sub.f.layout', "Layout"), true);
+			this.propertyRow(panel, localize('sub.f.relayout', "Lay out again"), layoutSelect, undefined, localize('sub.layoutTitleK', "Replaces its piles by a standard group at k diameters centre to centre (k of the pile tools, at least 2.5: BNBC 2020 Part 6 Secs 3.10.1.19, 3.10.1.30), centred on its columns, and fits the cap 150 mm beyond the piles"));
+			appendPropertyRow(panel, localize('sub.f.piles', "Piles"), count ? `${count} · ${(foundation.piles ?? []).join(', ')}` : '0');
+			const center = foundation.center;
+			const columns = this.context.columns.filter(c => foundation.columns?.includes(c.id));
+			if (center && columns.length) {
+				const cx = columns.reduce((s, c) => s + c.x, 0) / columns.length;
+				const cy = columns.reduce((s, c) => s + c.y, 0) / columns.length;
+				appendPropertyRow(panel, localize('sub.f.eccentricity', "Columns off its centre"), localize('sub.eccValue', "{0}, {1} mm", formatNumber(cx - center[0], 0), formatNumber(cy - center[1], 0)));
+				appendPropertyNote(panel, localize('sub.eccNote', "The cap is placed over its piles; the design carries the columns' eccentricity (P · e) into the pile loads, rigid cap: P/n ± M x/Σx² both ways."));
+			}
 		}
 
 		appendPropertyHeading(panel, localize('sub.material', "Material and reinforcement"));
@@ -2442,12 +2955,146 @@ export class SubstructureEditor extends EditorPane {
 		appendPropertyNote(panel, columns.length > 1
 			? localize('sub.columnsHint', "Add a combined footing, one pile cap or a raft under them with the toolbar buttons.")
 			: localize('sub.columnHint', "Add a footing or a pile cap under it with the toolbar buttons; Shift+click more columns for a combined footing."));
+		appendPropertyHeading(panel, localize('sub.pileGroupHeading', "Pile group"));
+		this.renderPileToolFields(panel, document);
+		const place = this.propertiesDisposables.add(new Button(panel, { ...defaultButtonStyles, secondary: true }));
+		place.label = columns.length > 1 ? localize('sub.placeGroups', "Place a Group under Each") : localize('sub.placeGroup', "Place Pile Group");
+		place.element.classList.add('sub-prop-button');
+		this.propertiesDisposables.add(place.onDidClick(() => this.placeGroups()));
+		appendPropertyNote(panel, localize('sub.groupNote', "Standard groups of 2 to 6 piles at k · D centre to centre (BNBC 2020 Part 6: at least 2.5 D and 750 mm), centred under the column and turned with the pile grid. Then select the piles and the column and Make Pile Cap; the cap need not be centred on the column."));
+	}
+
+	/** The pile tools' settings: the pile type placed, the group's pile count and the spacing factor k. */
+	private renderPileToolFields(panel: HTMLElement, document: ISubstructure): void {
+		const types = document.pileTypes.map(p => ({ value: p.id, label: `${p.id} · ${pileKindLabel(p.kind)} ${formatNumber(p.diameter, 0)} mm` }));
+		this.propertyRow(panel, localize('sub.f.pileType', "Pile type"), this.selectInput(types, this.placeType ?? document.pileTypes[0]?.id ?? '', value => {
+			this.placeType = value || undefined;
+		}, 'tool.pileType', localize('sub.f.pileType', "Pile type"), !types.length), undefined, localize('sub.toolTypeTitle', "The pile type placed; a 500 mm bored pile type is added when there is none"));
+		this.propertyRow(panel, localize('sub.f.groupCount', "Piles in a group"), this.selectInput(PILE_GROUPS.map(n => ({ value: String(n), label: String(n) })), String(this.groupCount), value => {
+			this.groupCount = Number(value) || 4;
+		}, 'tool.groupCount', localize('sub.f.groupCount', "Piles in a group")));
+		this.fieldRow(panel, F.spacingFactor, this.spacingFactor, value => {
+			if (typeof value === 'number' && value >= MIN_SPACING_FACTOR) {
+				this.spacingFactor = value;
+			}
+		}, 'tool.spacingFactor', formatNumber(DEFAULT_SPACING_FACTOR, 1));
+	}
+
+	private renderPileToolProperties(panel: HTMLElement, document: ISubstructure): void {
+		appendPropertyHeading(panel, localize('sub.pileToolHeading', "Placing piles"));
+		this.renderPileToolFields(panel, document);
+		appendPropertyNote(panel, localize('sub.pileToolNote', "Click a pile grid crossing (or a column, or any point: it snaps to 50 mm) to place a pile; drag a box to place one at every crossing inside it. Select piles (click, Shift+click or drag a box with the select tool), drag them to move, arrow keys nudge 50 mm."));
+	}
+
+	/** One pile, or several: mark, type, position, the cap it is under. */
+	private renderPileProperties(panel: HTMLElement, document: ISubstructure): void {
+		const piles = document.piles.filter(p => this.selectedPiles.has(p.id));
+		const caps = pileCaps(document);
+		const types = document.pileTypes.map(p => ({ value: p.id, label: `${p.id} · ${pileKindLabel(p.kind)} ${formatNumber(p.diameter, 0)} mm` }));
+		if (piles.length === 1) {
+			const pile = piles[0];
+			const index = document.piles.indexOf(pile);
+			const path = (field: string) => `piles.${index}.${field}`;
+			appendPropertyHeading(panel, localize('sub.pileHeading', "Pile {0}", pile.id));
+			this.fieldRow(panel, { ...F.id, label: localize('sub.f.mark', "Mark") }, pile.id, value => this.renamePile(pile, String(value ?? '')), path('id'));
+			this.propertyRow(panel, localize('sub.f.pileType', "Pile type"), this.selectInput(types, pile.type, value => {
+				pile.type = value;
+				this.changed(true);
+			}, path('type'), localize('sub.f.pileType', "Pile type")));
+			this.fieldRow(panel, F.pileX, pile.position[0], value => this.setPilePosition(pile, 0, value), path('position.0'));
+			this.fieldRow(panel, F.pileY, pile.position[1], value => this.setPilePosition(pile, 1, value), path('position.1'));
+			appendPropertyRow(panel, localize('sub.f.cap', "Cap"), caps.get(pile.id) ?? localize('sub.noCap', "none"));
+		} else {
+			appendPropertyHeading(panel, localize('sub.pilesSelected', "{0} piles", piles.length));
+			appendPropertyRow(panel, localize('sub.selected', "Selected"), piles.map(p => p.id).join(', '));
+			const kinds = [...new Set(piles.map(p => p.type))];
+			this.propertyRow(panel, localize('sub.f.pileType', "Pile type"), this.selectInput(types, kinds.length === 1 ? kinds[0] : '', value => {
+				for (const pile of piles) {
+					pile.type = value;
+				}
+				this.changed(true);
+			}, 'piles.type', localize('sub.f.pileType', "Pile type"), kinds.length !== 1));
+			const capped = [...new Set(piles.map(p => caps.get(p.id)).filter((c): c is string => !!c))];
+			appendPropertyRow(panel, localize('sub.f.caps', "Caps"), capped.length ? capped.join(', ') : localize('sub.noCap', "none"));
+		}
+		if (this.selectedColumns.size) {
+			appendPropertyRow(panel, localize('sub.f.columns', "Columns"), [...this.selectedColumns].join(', '));
+		}
+		appendPropertyNote(panel, piles.some(p => caps.has(p.id))
+			? localize('sub.pilesCappedHint', "Drag the piles (or nudge them with the arrow keys) to move them: their cap fits round them again. Delete takes them out of their cap.")
+			: localize('sub.pilesFreeHint', "Make Pile Cap forms a cap over them (Shift+click the column it carries, or it takes the free columns inside it). Its centre is the group's: it may be off the column, and the design carries that eccentricity."));
+	}
+
+	/** The pile grid: its origin, rotation and the spacings and labels of its lines. */
+	private renderPileGridProperties(panel: HTMLElement, document: ISubstructure): void {
+		appendPropertyHeading(panel, localize('sub.pileGridHeading', "Pile grid"));
+		const grid = document.pileGrid;
+		if (!grid) {
+			appendPropertyNote(panel, localize('sub.noPileGrid', "No pile grid. Pile Grid in the toolbar adds one over the columns."));
+			return;
+		}
+		const origin = () => grid.origin ??= [0, 0];
+		this.fieldRow(panel, F.originX, grid.origin?.[0] ?? 0, value => {
+			if (typeof value === 'number') {
+				origin()[0] = value;
+				this.changed(false);
+			}
+		}, 'pileGrid.origin.0');
+		this.fieldRow(panel, F.originY, grid.origin?.[1] ?? 0, value => {
+			if (typeof value === 'number') {
+				origin()[1] = value;
+				this.changed(false);
+			}
+		}, 'pileGrid.origin.1');
+		this.fieldRow(panel, F.rotation, grid.rotation, value => {
+			grid.rotation = typeof value === 'number' ? value : 0;
+			this.changed(false);
+		}, 'pileGrid.rotation', '0');
+		for (const axis of ['x', 'y'] as const) {
+			const label = axis === 'x' ? localize('sub.f.xSpacings', "X spacings") : localize('sub.f.ySpacings', "Y spacings");
+			const input = $<HTMLInputElement>('input.sub-input', { type: 'text', spellcheck: 'false', 'aria-label': label });
+			input.value = formatSpacings(grid[axis]);
+			this.propertiesDisposables.add(addDisposableListener(input, EventType.INPUT, () => {
+				const parsed = parseSpacings(input.value);
+				this.markInvalid(input, parsed.error);
+				if (parsed.value) {
+					const start = Math.min(0, ...grid[axis].map(l => l.position));
+					const labels = grid[axis].map(l => l.label);
+					grid[axis] = gridLines(axis, parsed.value, start).map((line, i) => ({ ...line, label: labels[i] ?? line.label }));
+					this.changed(false);
+				}
+			}));
+			this.propertiesDisposables.add(addDisposableListener(input, EventType.BLUR, () => this.flush()));
+			this.propertyInputs.set(`pileGrid.${axis}`, input);
+			this.propertyRow(panel, label, input, MM, localize('sub.spacingsTitle', "The distances between the lines, e.g. 4@1500, 2000 (from the origin along the grid's own axis)"));
+			const labels = $<HTMLInputElement>('input.sub-input', { type: 'text', spellcheck: 'false', 'aria-label': localize('sub.f.labels', "Labels") });
+			labels.value = grid[axis].map(l => l.label).join(' ');
+			this.propertiesDisposables.add(addDisposableListener(labels, EventType.INPUT, () => {
+				const names = parseIdList(labels.value);
+				grid[axis] = grid[axis].map((line, i) => ({ ...line, label: names[i] ?? line.label }));
+				this.changed(false);
+			}));
+			this.propertiesDisposables.add(addDisposableListener(labels, EventType.BLUR, () => this.flush()));
+			this.propertyInputs.set(`pileGrid.${axis}.labels`, labels);
+			this.propertyRow(panel, axis === 'x' ? localize('sub.f.xLabels', "X labels") : localize('sub.f.yLabels', "Y labels"), labels);
+		}
+		appendPropertyRow(panel, localize('sub.f.crossings', "Crossings"), String(grid.x.length * grid.y.length));
+		const remove = this.propertiesDisposables.add(new Button(panel, { ...defaultButtonStyles, secondary: true }));
+		remove.label = localize('sub.removePileGrid', "Remove Pile Grid");
+		remove.element.classList.add('sub-prop-button');
+		this.propertiesDisposables.add(remove.onDidClick(() => {
+			delete document.pileGrid;
+			this.gridSelected = false;
+			this.changed(true);
+		}));
+		appendPropertyNote(panel, localize('sub.pileGridNote', "The piles are set out on their own grid, independent of the building's: Place Piles snaps to its crossings. Removing the grid keeps the piles where they are."));
 	}
 
 	private renderDesignProperties(panel: HTMLElement, document: ISubstructure): void {
 		appendPropertyHeading(panel, localize('sub.summaryHeading', "Substructure"));
 		appendPropertyRow(panel, localize('sub.foundationsHeading', "Foundations"), String(document.foundations.length));
 		appendPropertyRow(panel, localize('sub.pileTypes', "Pile types"), String(document.pileTypes.length));
+		appendPropertyRow(panel, localize('sub.pilesHeading', "Piles"), String(document.piles.length));
 		appendPropertyRow(panel, localize('sub.tieBeams', "Tie beams"), String(document.tieBeams.length));
 		const uncovered = uncoveredBases(document, this.context);
 		appendPropertyRow(panel, localize('sub.uncovered', "Columns and walls without one"), uncovered.length ? uncovered.join(', ') : localize('sub.noneShort', "none"));
@@ -2466,7 +3113,7 @@ export class SubstructureEditor extends EditorPane {
 		// The factors the design actually uses, updated as the fields are typed.
 		let refreshUsed = () => { };
 		// The pile settings only where there are piles; the bearing factor always.
-		const piled = document.pileTypes.length > 0 || document.foundations.some(f => f.type === 'pileCap');
+		const piled = document.pileTypes.length > 0 || document.piles.length > 0 || document.foundations.some(f => f.type === 'pileCap');
 		for (const field of piled ? [F.pileCompression, F.pileUplift, F.bearing] : [F.bearing]) {
 			this.fieldRow(panel, field, design.factorOfSafety?.[field.key], value => {
 				if (typeof value === 'number') {
@@ -2582,9 +3229,18 @@ export class SubstructureEditor extends EditorPane {
 		if (!problem) {
 			return;
 		}
-		const match = /^(?<list>foundations|tieBeams|pileTypes)\.(?<index>\d+)\./.exec(problem.path);
+		const match = /^(?<list>foundations|tieBeams|pileTypes|piles|pileGrid)\.(?<index>\d+)?/.exec(problem.path);
 		this.clearSelection();
-		if (match?.groups?.list === 'foundations') {
+		if (match?.groups?.list === 'piles') {
+			const pile = this.document?.piles[Number(match.groups.index)];
+			if (pile) {
+				this.selectedPiles = new Set([pile.id]);
+			}
+			this.view = 'plan';
+		} else if (match?.groups?.list === 'pileGrid') {
+			this.gridSelected = true;
+			this.view = 'plan';
+		} else if (match?.groups?.list === 'foundations') {
 			this.selectedFoundations = [Number(match.groups.index)];
 		} else if (match?.groups?.list === 'tieBeams') {
 			this.selectedTieBeam = Number(match.groups.index);

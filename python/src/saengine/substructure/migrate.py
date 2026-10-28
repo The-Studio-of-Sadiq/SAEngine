@@ -6,6 +6,9 @@ becomes a foundation of ``09 Substructure/substructure.json`` with the sizes and
 of its object type, its founding level at the underside of the drawn footing and the columns
 whose base lies inside its plan outline (each column on the first footing that holds it, as
 Part 8 took them). The building model and the object types are left as they are.
+
+:func:`upgrade_project` brings a ``substructure.json`` of an earlier version up to date: its pile
+caps' pile offsets become piles placed in plan.
 """
 
 from __future__ import annotations
@@ -192,6 +195,40 @@ def migrate(
             f"{footing.id}: {foundation['type']} under {', '.join(columns) or 'no column'}"
         )
     return Substructure.model_validate(data), notes
+
+
+def upgrade_project(project_root: str | Path) -> dict[str, Any]:
+    """Rewrites the project's ``substructure.json`` when its pile caps are of the earlier format
+    (a pile type and pile offsets from the cap's centre): each pile becomes a pile placed in plan
+    (PL1, PL2, ...) and its cap lists them by id
+    (:func:`saengine.library.substructure.upgrade_pile_caps`; a cap without a centre is placed at
+    its columns' centroid, read from 6 BIM). Returns ``{"upgraded": bool, "piles": count}``;
+    ``"problems"`` when it cannot be done. An invalid file is left as it is."""
+    from saengine.library.substructure import column_positions, needs_upgrade, upgrade_pile_caps
+    from saengine.substructure.handover import substructure_text
+
+    root = Path(project_root)
+    path = root / SUBSTRUCTURE_FILE
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"upgraded": False, "piles": 0}
+    if not needs_upgrade(data):
+        return {"upgraded": False, "piles": 0}
+    try:
+        building = BuildingModel.model_validate_json(
+            (root / "06 BIM" / "bim.json").read_text(encoding="utf-8")
+        )
+        positions = column_positions(building)
+    except (OSError, ValueError):
+        positions = {}
+    try:
+        upgraded = upgrade_pile_caps(data, positions)
+        Substructure.model_validate(upgraded)
+    except ValueError as error:
+        return {"upgraded": False, "piles": 0, "problems": [str(error)]}
+    path.write_text(substructure_text(upgraded), encoding="utf-8", newline="\n")
+    return {"upgraded": True, "piles": len(upgraded["piles"]) - len(data.get("piles") or [])}
 
 
 def migrate_project(project_root: str | Path) -> dict[str, Any]:

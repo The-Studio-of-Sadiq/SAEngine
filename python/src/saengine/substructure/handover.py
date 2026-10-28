@@ -31,16 +31,17 @@ from saengine.library.substructure import SUBSTRUCTURE_FILE, Substructure, is_pl
 BIM_FILE = "06 BIM/bim.json"
 
 
-def authoritative_substructure(text: str | None) -> Substructure | None:
+def authoritative_substructure(text: str | None, building: Any = None) -> Substructure | None:
     """The substructure of ``text`` when it is the source of the project's foundations; None
     for a missing, empty or placeholder file (the building model's footings then still count).
-    Raises ``ValueError`` for an invalid file."""
+    ``building`` places the pile caps of an earlier version that have no centre
+    (:func:`saengine.library.substructure.parse`). Raises ``ValueError`` for an invalid file."""
     if text is None or not text.strip():
         return None
     data = json.loads(text)
     if is_placeholder(data):
         return None
-    return parse(text)
+    return parse(text, building)
 
 
 def needs_migration(project_root: str | Path) -> bool:
@@ -66,13 +67,22 @@ def needs_migration(project_root: str | Path) -> bool:
 
 def ensure_migrated(project_root: str | Path) -> dict[str, Any]:
     """Moves the building model's footings into ``substructure.json`` when it is still the
-    placeholder (see the module's docstring). Returns ``{"migrated": bool, "count", "notes"}``;
+    placeholder (see the module's docstring); a file of an earlier version gets its pile caps'
+    piles placed in plan (:func:`saengine.substructure.migrate.upgrade_project`). Returns ``{"migrated": bool, "count", "notes"}``;
     ``"problems"`` when the building model or the object types cannot be read."""
-    from saengine.substructure.migrate import migrate_project
+    from saengine.substructure.migrate import migrate_project, upgrade_project
 
     root = Path(project_root)
     if not needs_migration(root):
-        return {"migrated": False, "count": 0, "notes": []}
+        upgrade = upgrade_project(root)
+        if upgrade.get("problems"):
+            return {"migrated": False, "count": 0, "notes": [], "problems": upgrade["problems"]}
+        notes = (
+            [f"{upgrade['piles']} piles of the pile caps now placed in plan (PL1, PL2, ...)"]
+            if upgrade["upgraded"]
+            else []
+        )
+        return {"migrated": False, "count": 0, "notes": notes}
     try:
         result = migrate_project(root)
     except (OSError, ValueError) as error:

@@ -188,7 +188,7 @@ def load_context(project_root: str | Path, out_dir: str | Path | None = None) ->
         substructure_text = (root / SUBSTRUCTURE_FILE).read_text(encoding="utf-8")
     except OSError:
         substructure_text = None
-    substructure = parse(substructure_text)
+    substructure = parse(substructure_text, building)
     out = Path(out_dir) if out_dir is not None else root / "08 FEM" / "model.results"
     model: Path | None = root / "08 FEM" / "model.osmodel"
     project: dict[str, Any] | None = None

@@ -861,3 +861,103 @@
 .saengine-substructure-editor .sub-check-table td:first-child {
 	white-space: normal;
 }
+
+/* Piles placed in plan and the pile grid (its own setting-out, apart from the building's grid). */
+.saengine-substructure-editor .sub-pile-grid-line {
+	stroke: color-mix(in srgb, var(--sub-pile) 55%, transparent);
+	stroke-width: 1;
+	stroke-dasharray: 6 4;
+	pointer-events: none;
+}
+
+.saengine-substructure-editor .sub-pile-grid-bubble {
+	fill: var(--sa-surface);
+	stroke: color-mix(in srgb, var(--sub-pile) 70%, transparent);
+	stroke-dasharray: 3 2;
+	pointer-events: none;
+}
+
+.saengine-substructure-editor .sub-pile-grid-label {
+	font-size: 9.5px;
+	font-weight: 600;
+	fill: var(--sub-pile);
+	pointer-events: none;
+}
+
+.saengine-substructure-editor .sub-pile-item {
+	cursor: pointer;
+}
+
+.saengine-substructure-editor .sub-pile-hit {
+	fill: transparent;
+	stroke: none;
+}
+
+.saengine-substructure-editor .sub-pile-cross {
+	stroke: var(--sub-pile);
+	stroke-width: 0.75;
+	pointer-events: none;
+}
+
+.saengine-substructure-editor .sub-pile-item.free .sub-pile {
+	stroke-dasharray: 3 2;
+	fill: color-mix(in srgb, var(--sub-pile) 8%, var(--sa-surface));
+}
+
+.saengine-substructure-editor .sub-pile-item:hover .sub-pile,
+.saengine-substructure-editor .sub-pile-item.selected .sub-pile {
+	stroke: var(--sub-select);
+	stroke-width: 2.25;
+}
+
+.saengine-substructure-editor .sub-pile-label {
+	font-size: 9.5px;
+	fill: var(--sub-pile);
+	pointer-events: none;
+}
+
+.saengine-substructure-editor .sub-pile-item.selected .sub-pile-label {
+	fill: var(--sub-select);
+	font-weight: 600;
+}
+
+.saengine-substructure-editor .sub-snap {
+	fill: none;
+	stroke: var(--sub-select);
+	stroke-width: 1.5;
+	pointer-events: none;
+}
+
+.saengine-substructure-editor .sub-snap-label {
+	font-size: 10px;
+	fill: var(--sub-select);
+	pointer-events: none;
+}
+
+.saengine-substructure-editor .sub-box {
+	fill: color-mix(in srgb, var(--sub-select) 8%, transparent);
+	stroke: var(--sub-select);
+	stroke-dasharray: 4 3;
+	pointer-events: none;
+}
+
+.saengine-substructure-editor .sub-canvas.tool-pile svg,
+.saengine-substructure-editor .sub-canvas.tool-beam svg {
+	cursor: crosshair;
+}
+
+.saengine-substructure-editor .sub-view-subtitle.sub-tool-hint {
+	/* One line, like the subtitle it stands in for: the plan below must not move. */
+	flex: 1 1 0;
+	color: var(--sub-select);
+	font-weight: 600;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	min-width: 0;
+}
+
+.saengine-substructure-editor .sub-swatch.pile-grid {
+	border: 1px dashed var(--sub-pile);
+	background: transparent;
+}

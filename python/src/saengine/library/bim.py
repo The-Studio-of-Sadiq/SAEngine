@@ -744,6 +744,8 @@ def foundation_solids(
         elif isinstance(e, WallElement):
             positions[e.id] = ((e.start[0] + e.end[0]) / 2, (e.start[1] + e.end[1]) / 2)
     pile_types = {p.id: p for p in substructure.pileTypes}
+    #: The cap of each capped pile and the level of its head (the cap's underside).
+    heads: dict[str, tuple[str, float]] = {}
     plans: dict[str, Any] = {}
     centers: dict[str, tuple[float, float]] = {}
     for f in substructure.foundations:
@@ -785,24 +787,8 @@ def foundation_solids(
             )
             centers[f.id] = (cx, cy)
             plans[f.id] = Polygon(outline)
-            pile = pile_types.get(f.pileType or "") if f.type == "pileCap" else None
-            for k, (dx, dy) in enumerate(f.piles or [] if pile else [], start=1):
-                x, y = at(dx, dy)
-                solids.piles.append(
-                    PileSolid(
-                        id=f"{f.id}/{k}",
-                        cap=f.id,
-                        pile_type=pile.id,
-                        kind=pile.kind,
-                        x=x,
-                        y=y,
-                        head=bottom,
-                        length=pile.length,
-                        diameter=pile.diameter,
-                        material=pile.material,
-                        reinforcement=pile.reinforcement,
-                    )
-                )
+            for placed in substructure.cap_piles(f) if f.type == "pileCap" else []:
+                heads[placed.id] = (f.id, bottom)
             continue
         if f.type == "strip":
             path = LineString([(float(p[0]), float(p[1])) for p in f.path or []])
@@ -829,6 +815,31 @@ def foundation_solids(
         polygon = Polygon(outline)
         centers[f.id] = (polygon.centroid.x, polygon.centroid.y)
         plans[f.id] = polygon
+    # Every pile placed in plan: under its cap (head at the cap's underside), or, not yet under
+    # one, with its head at the default founding level (it is still built and measured).
+    default_head = ground_level - 1500.0
+    for placed in substructure.piles:
+        pile = pile_types.get(placed.type)
+        if pile is None:
+            continue
+        cap, head = heads.get(placed.id, (placed.id, default_head))
+        if placed.id not in heads:
+            solids.notes.append(f"{placed.id}: the pile is under no pile cap")
+        solids.piles.append(
+            PileSolid(
+                id=placed.id,
+                cap=cap,
+                pile_type=pile.id,
+                kind=pile.kind,
+                x=float(placed.position[0]),
+                y=float(placed.position[1]),
+                head=head,
+                length=pile.length,
+                diameter=pile.diameter,
+                material=pile.material,
+                reinforcement=pile.reinforcement,
+            )
+        )
     tops = {s.id: s.top for s in solids.foundations}
     for tie in substructure.tieBeams:
         ends = (tie.from_, tie.to)

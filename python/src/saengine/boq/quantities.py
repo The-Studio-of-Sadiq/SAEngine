@@ -2069,14 +2069,19 @@ def bill_of_quantities(
 
 
 def _inputs(
-    substructure_text: str | None, settings_text: str | None
+    substructure_text: str | None, settings_text: str | None, bim_text: str | None = None
 ) -> tuple[Substructure | None, float]:
     """The substructure that is the source of the foundations (None: the building model's
     footings are) and the finished ground level."""
     from saengine.library.settings import ProjectSettings
+    from saengine.library.substructure import needs_upgrade
     from saengine.substructure.handover import authoritative_substructure
 
-    substructure = authoritative_substructure(substructure_text)
+    building = None
+    if bim_text and substructure_text and needs_upgrade(json.loads(substructure_text)):
+        # Pile caps of an earlier version without a centre are placed from their columns.
+        building = BuildingModel.model_validate_json(bim_text)
+    substructure = authoritative_substructure(substructure_text, building)
     ground = 0.0
     if settings_text:
         ground = ProjectSettings.model_validate_json(settings_text).foundation.groundLevel
@@ -2105,7 +2110,7 @@ def compute_boq(
     """
     from saengine.library.mep import parse as parse_mep
 
-    substructure, ground = _inputs(substructure_text, settings_text)
+    substructure, ground = _inputs(substructure_text, settings_text, bim_text)
     mep = parse_mep(mep_text) if mep_text is not None else None
     designs = None
     if project_root and mep is not None and (mep.plumbing is not None or mep.fire is not None):

@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from saengine.library.bim import ColumnElement, WallElement
-from saengine.library.substructure import FOUNDATION_TYPES, check
+from saengine.library.substructure import FOUNDATION_TYPES, check, pile_layout_warnings
 from saengine.substructure.context import Context, Skip, load_context
 from saengine.substructure.shallow import SHALLOW_METHOD, design_shallow, design_tie_beam
 
@@ -123,6 +123,10 @@ def report(ctx: Context) -> dict[str, Any]:
         notes += found
         used.add("shallow")
 
+    # The piles placed in plan: under no cap, outside their cap, too close together.
+    layout = pile_layout_warnings(substructure)
+    notes += [f"Pile layout: {w}" for w in layout]
+
     # Columns and walls standing on no foundation.
     unsupported = unsupported_bases(ctx) if substructure.foundations else []
     for base_id, kind in unsupported:
@@ -142,6 +146,11 @@ def report(ctx: Context) -> dict[str, Any]:
         "summary": check_summary(designed, skipped, [b for b, _ in unsupported], ctx.loads),
         "notes": notes,
         "method": method,
+        "pileLayout": {
+            "piles": len(substructure.piles),
+            "capped": len(substructure.capped()),
+            "warnings": layout,
+        },
         "combinations": {
             "service": [name for name, _ in ctx.loads.service] if ctx.loads else [],
             "strength": [name for name, _ in ctx.loads.strength] if ctx.loads else [],

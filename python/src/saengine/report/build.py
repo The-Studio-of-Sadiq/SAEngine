@@ -2580,7 +2580,7 @@ def _foundations(parts: _Parts) -> dict[str, Any]:
         for p in result.get("piles", []):
             pile_loads.append(
                 [
-                    f"{result.get('id')}/{p.get('index')}",
+                    f"{result.get('id')}/{p.get('mark') or p.get('index')}",
                     fmt(p.get("u"), 0),
                     fmt(p.get("v"), 0),
                     fmt(p.get("serviceMax"), 1),

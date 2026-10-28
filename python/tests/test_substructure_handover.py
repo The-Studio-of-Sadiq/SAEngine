@@ -29,7 +29,7 @@ from saengine.library.bim import (
 from saengine.library.ifc import export_ifc
 from saengine.library.objects import ObjectLibrary
 from saengine.library.settings import Foundation
-from saengine.library.substructure import SUBSTRUCTURE_FILE, Substructure
+from saengine.library.substructure import SUBSTRUCTURE_FILE, Substructure, column_positions
 from saengine.rpc import handlers
 from saengine.substructure import substructure_report
 from saengine.substructure.handover import (
@@ -309,7 +309,8 @@ def test_piles_and_rafts_and_a_deeper_ground() -> None:
     # 4 T20 per pile, 12 m: one stock length each, no lap.
     t20 = next(i for i in bill["items"] if i["group"] == "reinforcement" and i["diameter"] == 20)
     assert _share(t20, "PC2") == pytest.approx(2 * 4 * 12 * 400 / 162, abs=1e-3)
-    assert any(n.startswith("PC1/1: pile type 'P1' has no reinforcement") for n in bill["notes"])
+    # PC1 is of an earlier version without a centre: its piles are placed from C1 (PL1, PL2).
+    assert any(n.startswith("PL1: pile type 'P1' has no reinforcement") for n in bill["notes"])
     assert _item(bill, "raft", "concrete")["quantity"] == pytest.approx(8 * 2 * 0.6)
     # Ground at +0.5 m: the caps (no founding level: 1.5 m below it, at -1.0 m) and the raft
     # (at -1.0 m) are dug 1.575 m deep: 3.1 x 1.6 per cap, 8.6 x 2.6 for the raft.
@@ -359,7 +360,8 @@ def test_ifc_has_the_substructure_foundations_in_place_of_the_drawn_ones() -> No
             ],
             "pileTypes": [{"id": "P1", "kind": "bored", "diameter": 500, "length": 10000,
                            "material": "C24.1"}],
-        }
+        },
+        context={"positions": column_positions(_drawn())},
     )  # fmt: skip
     ifc, ids, skipped = export_ifc(_drawn(), OBJECTS, default_material_library(), "T", substructure)
     assert skipped == []  # the drawn footings are superseded, not missing
@@ -373,7 +375,7 @@ def test_ifc_has_the_substructure_foundations_in_place_of_the_drawn_ones() -> No
     assert entity("PC1").PredefinedType == "PILE_CAP"
     assert entity("R1").is_a("IfcSlab") and entity("R1").PredefinedType == "BASESLAB"
     assert entity("TB1").PredefinedType == "FOOTING_BEAM"
-    piles = [entity(k) for k in ("PC1/1", "PC1/2")]
+    piles = [entity(k) for k in ("PL1", "PL2")]
     assert all(p.is_a("IfcPile") and p.PredefinedType == "BORED" for p in piles)
     # Placements: the footing's underside at its founding level, the piles below the cap
     # (C3's cap founds 1.5 m below the ground: its piles' feet at -11.5 m).
@@ -390,7 +392,7 @@ def test_ifc_has_the_substructure_foundations_in_place_of_the_drawn_ones() -> No
         substructure.model_dump_json(by_alias=True),
         SETTINGS_150.model_dump_json(by_alias=True),
     )
-    assert "PC1/2" in result["ids"] and "F4" not in result["ids"]
+    assert "PL2" in result["ids"] and "F4" not in result["ids"]
     placeholder = handlers.building_ifc(
         _drawn().model_dump_json(by_alias=True), OBJECTS.model_dump_json(by_alias=True), None,
         "T", PLACEHOLDER,
