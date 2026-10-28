@@ -294,7 +294,8 @@ def test_the_design_checks_are_kept_for_the_drawings(tmp_path: Path, monkeypatch
         report = {"elements": [{"id": "B1", "ok": False, "checks": []},
                                {"id": "B2", "ok": True, "checks": []}],
                   "summary": {"joints": {"failed": 1}}}  # fmt: skip
-        return SimpleNamespace(report=report, assumed=set())
+        # ``plain``: the design report as design_report makes it (no assumed bars: the same).
+        return SimpleNamespace(report=report, assumed=set(), plain=report)
 
     monkeypatch.setattr(design_mode, "_ensure_seismic_design", lambda *_: None)
     monkeypatch.setattr("saengine.design.required.gather", gather)

@@ -234,6 +234,10 @@ def test_any_element_kind_gets_a_table(project: Path, monkeypatch: pytest.Monkey
         }
 
     monkeypatch.setattr(design_module, "design_report", fake)
+    # The frame's types all have bars but its slabs': the checks would come from the gathering
+    # shared with the required steel (PR #40), which designs the members itself; this report's
+    # checks are the stub's.
+    monkeypatch.setattr(design_mode, "_has_assumed_bars", lambda _: True)
     design_mode.forget()  # the checks the module's report kept in this process
     design = report_data(project)["design"]
     assert [t["title"] for t in design["tables"]] == ["Footings", "Slabs", "Retaining walls"]

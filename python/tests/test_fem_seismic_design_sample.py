@@ -50,8 +50,10 @@ def test_sample_runs_the_response_spectrum_and_its_forces_are_scaled_up(sample) 
     # adds 1.5 kN to the 780 kN: 43.95 kN. Since version 0.0.44 the mass is lumped at the story
     # levels (the lower half of the first storey, 99.8 kN with the supports' own share, goes
     # to the base, BNBC 2020 Part 6 Sec 2.5.7.3 counts what participates) and live loads above
-    # 3 kN/m² count with 50 %: W = 718.2 kN, V = 0.05625 x 718.2 = 40.40 kN.
-    assert scale["vStatic"]["x"] == pytest.approx(40.40, rel=1e-3)
+    # 3 kN/m² count with 50 %: W = 718.2 kN, V = 0.05625 x 718.2 = 40.40 kN. Since 0.0.45 the
+    # sample's floors are residential (live 2.0 kN/m² instead of the office's 2.4; x 0.25 in W:
+    # 26.7 kN instead of 32.0): W = 713.2 kN, V = 0.05625 x 713.2 = 40.12 kN.
+    assert scale["vStatic"]["x"] == pytest.approx(40.12, rel=1e-3)
     for axis in ("x", "y"):
         assert scale[axis] == pytest.approx(0.85 * scale["vStatic"][axis] / scale["vDynamic"][axis])
         assert 1.6 < scale[axis] < 2.4
@@ -72,7 +74,10 @@ def test_sample_runs_the_response_spectrum_and_its_forces_are_scaled_up(sample) 
     ax = summary["torsionAmplification"]
     assert 1.0 < ax["X"] < ax["Y"] <= 3.0
     assert summary["combinations"][1]["envelope"]["AY"] == pytest.approx(round(ax["Y"], 4))
-    assert summary["combinations"][2]["envelope"]["AY"] == pytest.approx(round(0.3 * ax["Y"], 4))
+    # 0.3 times Ax as the combinations take it (to 4 decimals), rounded again: with Ax = 2.6935
+    # here, 0.3 x 2.6935 = 0.80805 rounds to 0.808, not 0.3 x Ax unrounded (0.8081).
+    share_y = round(0.3 * round(ax["Y"], 4), 4)
+    assert summary["combinations"][2]["envelope"]["AY"] == pytest.approx(share_y)
     assert any("extreme torsional irregularity" in n for n in summary["notes"])
     # Two storeys in each direction, within 2 % of the storey height.
     assert len(summary["drift"]) == 4 and all(d["ok"] for d in summary["drift"])

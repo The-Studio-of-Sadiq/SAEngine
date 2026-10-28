@@ -2325,8 +2325,26 @@ def _beam_torsion_checks(
     if not points:
         return [], None
     points.sort(key=lambda p: -p[0])
-    candidates = [p for p in points[:_TORSION_CANDIDATES] if p[0] > 0.5 * threshold] or points[:1]
+    # The stations of highest Tu, and those of highest combined stress of Eq. 6.6.59 with Tu as
+    # designed: a compatibility torsion is capped at φTcr, so at the stations above the cap Vu
+    # decides, and with many combinations (the response spectrum's sign patterns) the highest
+    # Tu alone can leave out the governing station.
+    bw_d = ts.b * ts.d
+    torsion_share = ts.ph / (1.7 * ts.aoh**2)
+
+    def screen(point: tuple[float, float, float, float, str, str]) -> float:
+        tu = point[0]
+        if kind == "compatibility":
+            tu = min(tu, torsion_design.cracking_torsion(ts, fc, point[3]))
+        return math.hypot(point[1] / bw_d, tu * torsion_share)
+
+    above = [p for p in points if p[0] > 0.5 * threshold]
+    by_stress = sorted(above, key=lambda p: -screen(p))[:_TORSION_CANDIDATES]
+    candidates = list(dict.fromkeys([*above[:_TORSION_CANDIDATES], *by_stress])) or points[:1]
     best: tuple[float, Any, tuple[float, float, float, float, str, str]] | None = None
+    # The station of the highest stress of Eq. 6.6.59: the section size is checked there (the
+    # governing station, of the stirrups, can be another one).
+    sized: tuple[float, Any, tuple[float, float, float, float, str, str]] | None = None
     for point in candidates:
         tu, vu, mu, nu, _, _ = point
         design = torsion_design.design_torsion(
@@ -2356,6 +2374,8 @@ def _beam_torsion_checks(
                 )
         if best is None or ratio > best[0]:
             best = (ratio, design, point)
+        if design.required and (sized is None or design.stress > sized[0]):
+            sized = (design.stress, design, point)
     assert best is not None
     _, design, (tu, vu, mu, _, combination, where) = best
     # The shear's Av/s at the governing station, for Required steel's per-leg At/s + Av/(n s).
@@ -2383,6 +2403,20 @@ def _beam_torsion_checks(
         bars=section.bars,
         rules=rules,
     )
+    if design.required and sized is not None and sized[0] > design.stress:
+        _, other, (_, other_vu, _, _, other_combination, other_where) = sized
+        rows[0] = torsion_design.torsion_checks(
+            other,
+            ts,
+            other_vu,
+            stirrups,
+            section.steel_area,
+            as_flexure,
+            other_combination,
+            other_where,
+            bars=section.bars,
+            rules=rules,
+        )[0]
     if rows:
         rows[0]["note"] = f"{why}; " + rows[0]["note"]
     return rows, (design if design.required else None)

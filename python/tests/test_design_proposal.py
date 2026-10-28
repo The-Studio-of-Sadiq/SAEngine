@@ -481,7 +481,13 @@ def test_sample_byType_proposal_makes_the_design_pass(tmp_path: Path) -> None:
     # Everything passes with the bars proposed: the wall W1 and the dog-legged stair ST1 (riser
     # 160, tread 327: 2R + T = 647 mm, BNBC Part 3 Sec 1.14.5.2, and Part 4 Table 4.3.5's 327 mm).
     assert failures == []
-    assert after["summary"]["failed"] == 0 and after["summary"]["checked"] == 18
+    # The totals count the 18 members (5 beams, 8 columns with the steel M1, the brace M2, 2
+    # slabs, the stair and the wall), the 6 beam-column joints and the building's 3 seismic
+    # checks (f'c, bar grade, fyt of the ties): 27 (X4 of the usability walk).
+    summary = after["summary"]
+    assert summary["failed"] == 0 and summary["checked"] == 27
+    assert summary["elements"]["checked"] == 18
+    assert summary["joints"]["checked"] == 6 and summary["seismicChecks"] == 3
 
     # Splitting: the lighter beams get their own types, and the design still passes.
     split = design_proposal(out, model, {"mode": "splitTypes"}, gathered=gathered)

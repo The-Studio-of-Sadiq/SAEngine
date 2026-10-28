@@ -119,6 +119,8 @@ def test_column_interaction_is_worked_out_once_per_run(
             def __init__(self) -> None:
                 self.collect = {"members": [member, {"id": "B1", "kind": "beam", "points": None}]}
                 self.assumed = {"C400"}
+                # A column type with assumed bars: the design report cannot be told from these.
+                self.plain = None
 
         return Gathered()
 
