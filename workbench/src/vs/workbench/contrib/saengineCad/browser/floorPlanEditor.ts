@@ -20,7 +20,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
@@ -40,6 +40,9 @@ import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/edit
 import { ISaengineModelSelectionService, ModelSelection } from '../../../services/saengineProject/common/modelSelection.js';
 import { newFloorPlan } from '../../../services/saengineProject/common/partSources.js';
 import { PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
+import { ISaenginePartStatusService } from '../../../services/saengineProject/common/partStatus.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { IPlotCheckRequest, IPlotCheckResult, IPlotWarning, SOIL_PLOT_CHECK_COMMAND } from '../../saengineSoil/browser/soilDocument.js';
 import { IProjectDocuments, PropertyAction, propertySheet } from '../../saengineModel/browser/modelData.js';
 import { openOwner } from '../../saengineModel/browser/projectDocuments.js';
 import { propertyLink, renderPropertySheet } from '../../saengineModel/browser/propertySheetView.js';
@@ -222,6 +225,12 @@ export class FloorPlanEditor extends EditorPane {
 	private bim: ITextModel | undefined;
 	/** Optional: the project settings, for the code's stiffness factors the modifiers inherit. */
 	private settings: ITextModel | undefined;
+	/** Optional: the soil report, whose site's plot is drawn under every story. */
+	private soil: ITextModel | undefined;
+	/** The backend's check of the floor plan against the plot, and the model versions it was made for. */
+	private plotCheck: IPlotCheckResult | undefined;
+	private plotCheckKey: string | undefined;
+	private readonly plotScheduler = this._register(new RunOnceScheduler(() => void this.checkPlot(), 400));
 	private plan: IFloorPlan | undefined;
 	private storyIds: string[] = [];
 	private fitPending = false;
@@ -323,6 +332,8 @@ export class FloorPlanEditor extends EditorPane {
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@ISaenginePartStatusService private readonly partStatusService: ISaenginePartStatusService,
+		@ITextFileService private readonly textFileService: ITextFileService,
 	) {
 		super(FloorPlanEditor.ID, group, telemetryService, themeService, storageService);
 		this.loadsFile = this._register(this.instantiationService.createInstance(FloorPlanLoadsFile));
@@ -434,6 +445,7 @@ export class FloorPlanEditor extends EditorPane {
 			}));
 		}
 		void this.trackOptional(input);
+		void this.trackSoil(input);
 		void this.loadsFile.open(input.resource);
 
 		let editor: CadEditorApi;
@@ -481,6 +493,86 @@ export class FloorPlanEditor extends EditorPane {
 			}
 		}
 		this.renderProperties();
+	}
+
+	/** The soil report, for the site's plot; not there (or a placeholder): no plot. */
+	private async trackSoil(input: FloorPlanEditorInput): Promise<void> {
+		try {
+			const reference = await this.textModelService.createModelReference(siblingPartFile(input.resource, 'soil'));
+			if (this.input !== input) {
+				reference.dispose();
+				return;
+			}
+			this.inputDisposables.add(reference);
+			this.soil = reference.object.textEditorModel;
+			this.inputDisposables.add(this.soil.onDidChangeContent(() => this.plotScheduler.schedule()));
+			this.plotScheduler.schedule();
+		} catch {
+			// No soil report: no plot.
+		}
+	}
+
+	/** The versions of the files the plot check reads: a new check only when one changed. */
+	private plotKey(): string | undefined {
+		const version = (model: ITextModel | undefined) => model && !model.isDisposed() ? model.getAlternativeVersionId() : -1;
+		return this.soil && this.planModel ? `${version(this.soil)}:${version(this.planModel)}:${version(this.objects)}` : undefined;
+	}
+
+	/**
+	 * Asks the backend (saengine.gis.plot) for the plot, its buildable envelope and the members
+	 * outside them; the plan draws them and lists the warnings. Saved files also report the
+	 * warnings as the floor plan's checks (its part status).
+	 */
+	private async checkPlot(): Promise<void> {
+		const key = this.plotKey();
+		const soil = this.soil;
+		const plan = this.planModel;
+		if (!key || !soil || !plan || key === this.plotCheckKey || !CommandsRegistry.getCommand(SOIL_PLOT_CHECK_COMMAND)) {
+			return;
+		}
+		this.plotCheckKey = key;
+		const soilText = soil.getValue();
+		let result: IPlotCheckResult | undefined;
+		if (/"saengine\.soilReport\//.test(soilText)) {
+			try {
+				result = await this.commandService.executeCommand<IPlotCheckResult>(SOIL_PLOT_CHECK_COMMAND, {
+					soilText,
+					floorPlanText: plan.getValue(),
+					objectsText: this.objects?.getValue(),
+				} satisfies IPlotCheckRequest) ?? undefined;
+			} catch {
+				result = undefined;
+			}
+		}
+		if (this.plotKey() !== key) {
+			return; // changed meanwhile: the next check follows
+		}
+		this.plotCheck = result;
+		this.renderScheduler.schedule();
+		const resources = [plan.uri, soil.uri, ...(this.objects ? [this.objects.uri] : [])];
+		if (result?.plot && !resources.some(r => this.textFileService.isDirty(r))) {
+			const warnings = result.warnings ?? [];
+			void this.partStatusService.reportChecks('floorPlan', {
+				problems: 0,
+				failed: warnings.length,
+				items: warnings.map(w => ({ severity: 'warning' as const, message: w.message, where: w.id })),
+			}, ['floorPlan', 'soil', 'objects']);
+		}
+	}
+
+	/** The plot warnings for the plan of `story`: its members, and the columns and walls rising through it. */
+	private plotWarnings(layout: unknown, story: string): IPlotWarning[] {
+		const levels = new Map(storiesOf(layout).map(s => [s.id, s.elevation]));
+		const level = levels.get(story);
+		const model = isObject(layout) ? layout : {};
+		const spans = (group: string, id: string) => {
+			const list = Array.isArray(model[`${group}s`]) ? model[`${group}s`] as unknown[] : [];
+			const member = list.find(m => isObject(m) && m.id === id);
+			const base = isObject(member) ? levels.get(member.base as string) : undefined;
+			const top = isObject(member) ? levels.get(member.top as string) : undefined;
+			return level !== undefined && base !== undefined && top !== undefined && base < level && level <= top;
+		};
+		return (this.plotCheck?.warnings ?? []).filter(w => w.story === story || (w.group === 'column' || w.group === 'wall') && spans(w.group, w.id));
 	}
 
 	/** Shows the story of the item selected elsewhere (Model Explorer, BIM). */
@@ -539,7 +631,10 @@ export class FloorPlanEditor extends EditorPane {
 		this.previewFrame.clear();
 		this.chromeDisposable.clear();
 		this.inputDisposables.clear();
-		this.planModel = this.objects = this.materials = this.bim = this.settings = undefined;
+		this.planModel = this.objects = this.materials = this.bim = this.settings = this.soil = undefined;
+		this.plotScheduler.cancel();
+		this.plotCheck = undefined;
+		this.plotCheckKey = undefined;
 		this.pendingWrite = undefined;
 		this.undoLabels.clear();
 		this.redoLabels.clear();
@@ -1744,8 +1839,12 @@ export class FloorPlanEditor extends EditorPane {
 			Math.max(0, this.storyIds.indexOf(input.story ?? '')),
 		);
 
-		const plan = floorPlanDrawing(layout, parse(this.objects), input.story ?? '');
-		this.plan = { ...plan, warnings: [...plan.warnings, ...nearMisses(layout, input.story ?? '')] };
+		if (this.plotKey() !== this.plotCheckKey) {
+			this.plotScheduler.schedule();
+		}
+		const plan = floorPlanDrawing(layout, parse(this.objects), input.story ?? '', this.plotCheck);
+		const outside = this.plotWarnings(layout, input.story ?? '').map(w => w.message);
+		this.plan = { ...plan, warnings: [...outside, ...plan.warnings, ...nearMisses(layout, input.story ?? '')] };
 		this.selected = prune(this.selected, this.plan.members);
 		const loads = loadsDrawing(this.loadsFile.read().loads, layout, input.story ?? '');
 		this.editor.setGenerated(forCanvas({ layers: [...this.plan.drawing.layers, ...LOAD_LAYER_SPECS], entities: [...this.plan.drawing.entities, ...loads] }, this.lightCanvas));
@@ -2116,6 +2215,13 @@ export class FloorPlanEditor extends EditorPane {
 			for (const warning of this.plan.warnings) {
 				appendPropertyNote(panel, warning);
 			}
+		}
+		if (this.plotCheck?.plot) {
+			appendPropertyHeading(panel, localize('floorPlan.plotHeading', "Plot"));
+			appendPropertyNote(panel, this.plotCheck.envelope
+				? localize('floorPlan.plotNote', "The plot (grey) and the buildable envelope inside its setbacks (dashed) come from the site in 01 Soil Report.")
+				: localize('floorPlan.plotNoEnvelope', "The plot (grey) comes from the site in 01 Soil Report; its setbacks leave no buildable area."));
+			propertyLink(append(panel, $('.sa-props-links')), localize('floorPlan.editPlot', "Edit the Plot in 01 Soil Report"), () => this.openPart('soil'), this.propertiesDisposables);
 		}
 	}
 
