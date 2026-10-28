@@ -244,7 +244,9 @@ def one_bay():
 
 
 def gravity(project: dict, name: str) -> float:
-    """Vertical applied load of a pattern (nodal loads plus uniform beam loads)."""
+    """Vertical applied load of a pattern (nodal loads plus uniform beam loads). A uniform load
+    acts on an element's flexible length, between its rigid end zones (``joint_offsets``); the
+    derivation puts the share over the end zones on the joints as nodal loads."""
     import numpy as np
 
     coords = {n["id"]: np.array(n["coords"]) for n in project["nodes"]}
@@ -252,7 +254,10 @@ def gravity(project: dict, name: str) -> float:
     pattern = next(p for p in project["load_patterns"] if p["name"] == name)
     total = sum(n["forces"][2] for n in pattern["nodal_loads"])
     for load in pattern["element_loads"]:
-        a, b = (coords[n] for n in elements[load["element_id"]]["nodes"])
+        element = elements[load["element_id"]]
+        offsets = np.array(element.get("joint_offsets") or [0.0] * 6, dtype=float)
+        a, b = (coords[n] for n in element["nodes"])
+        a, b = a + offsets[:3], b + offsets[3:]
         x = (b - a) / np.linalg.norm(b - a)
         vecxz = np.array([1.0, 0, 0]) if abs(x[2]) > abs(x[0]) else np.array([0, 0, 1.0])
         y = np.cross(vecxz, x)
