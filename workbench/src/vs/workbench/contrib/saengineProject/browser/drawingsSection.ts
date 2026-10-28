@@ -329,7 +329,9 @@ export class DrawingsSection extends Disposable {
 			this.when.textContent = formatTime(set.generatedAt);
 			this.when.classList.remove('muted');
 		} else {
-			this.when.textContent = this.listed && available ? localize('drawings.notMade', "Not made yet") : '';
+			// Until the backend has listed the last generation, the set may well exist: say so
+			// rather than "Not made yet".
+			this.when.textContent = !available ? '' : this.listed ? localize('drawings.notMade', "Not made yet") : localize('drawings.listing', "Looking for drawings...");
 			this.when.classList.add('muted');
 		}
 	}
@@ -339,7 +341,7 @@ export class DrawingsSection extends Disposable {
 		const set = this.set;
 		const selected = selectedSheets(set, this.selection).length;
 		this.generateButton.label = generateLabel(set, selected);
-		this.generateButton.enabled = this.available && !this.busy;
+		this.generateButton.enabled = this.available && !this.busy && this.listed;
 		this.generateButton.secondary = !!set?.sheets.length && !set.stale && !selected;
 		if (this.allCheck) {
 			this.allCheck.checked = !!set?.sheets.length && set.sheets.every(s => this.selection.has(s.number));

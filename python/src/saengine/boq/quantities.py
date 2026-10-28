@@ -597,6 +597,7 @@ class _Measure:
         self.drawn_footings: list[str] = []
         self.types = {t.id: t for t in objects.objects}
         self.materials = {m.id: m for m in materials.materials}
+        self.library = materials
         self.bill = _Bill()
         self.notes: list[str] = []
         self.unreinforced: dict[str, list[str]] = {}
@@ -1263,7 +1264,14 @@ class _Measure:
         from saengine.design import lintels as lintel_design
 
         try:
-            found = lintel_design.lintels_of(self.building, self.types, self.materials, None)
+            found = lintel_design.lintels_of(
+                self.building,
+                self.types,
+                self.materials,
+                None,
+                concrete=self.library.default_concrete(),
+                steel=self.library.default_rebar(),
+            )
         except (ValueError, KeyError, AttributeError, TypeError, ArithmeticError) as error:
             self.notes.append(f"Lintels not measured: {error}.")
             return
@@ -1608,7 +1616,7 @@ class _Measure:
             for entry in (designs or {}).values()
             if isinstance(entry, dict)
         }
-        context = TankContext(materials=self.materials)
+        context = TankContext(materials=self.materials, rebar=self.library.default_rebar())
         for tank in plumbing.tanks:
             if tank.kind == "soakWell" or tank.construction != "rc":
                 self.notes.append(
@@ -1995,9 +2003,9 @@ class _Measure:
             count = sum(len(v) for v in self.unreinforced.values())
             out.append(
                 f"No reinforcement measured for {count} element(s) of {len(types)} object type(s) "
-                f"with no bars ({', '.join(types[:6])}{', ...' if len(types) > 6 else ''}): run "
-                "the design (Run All, or Design mode in 8 FEM) to propose bars, or enter them in "
-                "04 Objects."
+                f"with no bars ({', '.join(types[:6])}{', ...' if len(types) > 6 else ''}): "
+                "Design Reinforcement in 8 FEM proposes them (tick a slab type to include it), "
+                "or enter them in 04 Objects."
             )
         for text in getattr(self, "missing_mixes", []):
             out.append(f"No cement or sand for {text} (add the mix in 03 Materials).")
