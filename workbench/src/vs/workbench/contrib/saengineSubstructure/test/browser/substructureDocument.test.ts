@@ -7,7 +7,7 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import {
-	applyPileLayout, applyProposal, capSize, carriedAlready, checkSubstructure, foundationOutlines, governingCheck, IFoundation, importFoundations, ISiteContext, ISubstructure, maxPressure, minPileSpacing, newFooting, newPileCap, newRaft, newSubstructure, newTieBeam, parseIdList, parseMesh, parseSubstructure, pileFactorsUsed, pileLayout, pilePositions,
+	addPiles, applyPileLayout, applyProposal, capAround, capPileType, capSize, carriedAlready, checkSubstructure, connectGradeBeams, deletePiles, formatSpacings, foundationOutlines, governingCheck, gridIntersections, gridLines, IFoundation, importFoundations, intersectionsInBox, ISiteContext, ISubstructure, makePileCap, maxPressure, minPileSpacing, movePiles, newFooting, newPileCap, newPileGrid, newRaft, newSubstructure, newTieBeam, parseIdList, parseMesh, parseSpacings, parseSubstructure, pileFactorsUsed, pileLayout, pileOffsets, pilePositions, pilesInBox, placePileGroup, refitCap, snapPoint, upgradePileCaps,
 	checkStateText, documentSignatures, minimumMesh, proposalFor, readSiteContext, substructureCheckState, uncoveredBases, readSizingProposal, readSubstructureReport, SUBSTRUCTURE_SCHEMA_ID, substructureSummary, substructureSummaryFile, uncoveredColumns, utilisationBand,
 } from '../../browser/substructureDocument.js';
 import { renderPlan, renderRaftHeatMap, tieBeamEnds } from '../../browser/substructurePlan.js';
@@ -70,7 +70,8 @@ suite('SAEngine - Substructure', () => {
 		}, {
 			placeholder: 'placeholder',
 			empty: 'placeholder',
-			document: { f: [{ id: 'F1', type: 'isolated', piles: [[0, 0]] }], lists: [[], []], design: {}, kept: 1 },
+			// Pile ids (strings) and the offsets of an earlier version are kept; the rest is dropped.
+			document: { f: [{ id: 'F1', type: 'isolated', piles: [[0, 0], 'bad'] }], lists: [[], []], design: {}, kept: 1 },
 			invalid: 'error',
 			other: 'error',
 			badList: 'error',
@@ -138,14 +139,14 @@ suite('SAEngine - Substructure', () => {
 			isolated: [isolated.id, isolated.type, isolated.columns, isolated.length, isolated.width, isolated.thickness, isolated.material, isolated.reinforcement],
 			// Two columns 6 m apart: 6000 + 2 × 750 = 7500 long, 1500 wide, centred between them.
 			combined: [combined.id, combined.type, combined.center, combined.rotation, combined.length, combined.width, combined.thickness],
-			cap: [cap.id, cap.pileType, cap.piles?.length, cap.length, cap.width, cap.thickness],
-			capPiles: pilePositions(cap, CONTEXT),
+			cap: [cap.id, capPileType(cap, doc)?.id, cap.piles, cap.center, cap.length, cap.width, cap.thickness],
+			capPiles: pilePositions(cap, doc),
 			raft: [raft.id, raft.outline, raft.thickness],
 			tie,
 		}, {
 			isolated: ['F1', 'isolated', ['C1'], 1500, 1500, 450, 'M25', { material: 'G60', cover: 75, bottomX: { dia: 12, spacing: 125 }, bottomY: { dia: 12, spacing: 125 } }],
 			combined: ['F2', 'combined', [3000, 0], undefined, 7500, 1500, 600],
-			cap: ['F3', 'P1', 4, 2300, 2300, 1000],
+			cap: ['F3', 'P1', ['PL1', 'PL2', 'PL3', 'PL4'], [0, 5000], 2300, 2300, 1000],
 			capPiles: [[-750, 4250], [750, 4250], [750, 5750], [-750, 5750]],
 			raft: ['F4', [[-1000, -1000], [7000, -1000], [7000, 6000], [-1000, 6000]], 600],
 			tie: { id: 'TB1', from: 'F1', to: 'F3', type: 'B300x500' },
@@ -171,18 +172,22 @@ suite('SAEngine - Substructure', () => {
 		const doc = document([
 			{ id: 'F1', type: 'isolated', columns: ['C1'], length: 1500, width: 1500, thickness: 450 },
 			{ id: 'F1', type: 'isolated', columns: ['C1', 'C7'], length: 0, width: 1500, thickness: 450 },
-			{ id: 'F3', type: 'pileCap', columns: ['C3'], length: 1600, width: 1600, thickness: 900, pileType: 'P1', piles: [[-500, 0], [500, 0]] },
-			{ id: 'F4', type: 'pileCap', columns: ['C4'], length: 2300, width: 2300, thickness: 1000, pileType: 'P9', piles: [] },
+			{ id: 'F3', type: 'pileCap', columns: ['C3'], center: [0, 5000], length: 1600, width: 1600, thickness: 900, piles: ['PL1', 'PL2'] },
+			{ id: 'F4', type: 'pileCap', columns: ['C4'], length: 2300, width: 2300, thickness: 1000, piles: [] },
 			{ id: 'R1', type: 'raft', thickness: 600, outline: [[0, 0], [1, 1]] },
 			// A pile 700 mm off a 1600 mm cap's centre: its side 950 mm out, past the 800 mm edge.
-			{ id: 'F5', type: 'pileCap', center: [0, 0], length: 1600, width: 1600, thickness: 900, pileType: 'P1', piles: [[700, 0]] },
+			{ id: 'F5', type: 'pileCap', center: [0, 0], length: 1600, width: 1600, thickness: 900, piles: ['PL3'] },
 			// Driven 400 mm piles 900 apart: end bearing asks more than max(750, 2.5 × 400) = 1000.
-			{ id: 'F6', type: 'pileCap', center: [3000, 3000], length: 2000, width: 1200, thickness: 900, pileType: 'P2', piles: [[-450, 0], [450, 0]] },
+			{ id: 'F6', type: 'pileCap', center: [3000, 3000], length: 2000, width: 1200, thickness: 900, piles: ['PL4', 'PL5'] },
 			{ id: 'F7', type: 'isolated', center: [3000, 0], length: 1500, width: 1500, thickness: 450, reinforcement: { cover: 0 } },
 			{ id: 'S1', type: 'strip', columns: ['W1'], path: [[6000, 0], [6000, 5000]], width: 900, thickness: 450 },
 			{ id: 'F8', type: 'isolated', columns: ['W1'], length: 1500, width: 1500, thickness: 450 },
 		]);
 		doc.pileTypes.push({ id: 'P2', kind: 'driven', diameter: 400, length: 12000 });
+		doc.piles.push(
+			{ id: 'PL1', type: 'P1', position: [-500, 5000] }, { id: 'PL2', type: 'P1', position: [500, 5000] }, { id: 'PL3', type: 'P1', position: [700, 0] },
+			{ id: 'PL4', type: 'P2', position: [2550, 3000] }, { id: 'PL5', type: 'P2', position: [3450, 3000] },
+		);
 		doc.tieBeams.push({ id: 'TB1', from: 'F1', to: 'F9', type: 'B999' }, { id: 'TB2', from: 'F3', to: 'F4' });
 		doc.design = { factorOfSafety: { pileCompression: 12 }, raftMeshSize: 9000 };
 		const problems = checkSubstructure(doc, CONTEXT);
@@ -203,10 +208,12 @@ suite('SAEngine - Substructure', () => {
 				'warning foundations.2.piles',
 				// A pile's side 50 mm from the cap's edge (800 - 500 - 250): less than 100.
 				'warning foundations.2.length',
-				'error foundations.3.pileType',
+				// No centre (a cap is placed over its piles) and no piles.
+				'error foundations.3.center',
 				'error foundations.3.piles',
 				'error foundations.4.outline',
-				'error foundations.5.piles',
+				// A pile 700 mm off a 1600 mm cap's centre: not wholly within it (the design skips the cap).
+				'warning foundations.5.piles',
 				'warning foundations.6.piles',
 				'error foundations.7.reinforcement.material',
 				'error foundations.7.reinforcement.cover',
@@ -217,6 +224,9 @@ suite('SAEngine - Substructure', () => {
 				'warning pileTypes.0.reinforcement',
 				'warning pileTypes.1.reinforcement',
 				'error pileTypes.1.material',
+				// Piles in plan: PL1 and PL2 1000 mm apart (less than 2.5 × 500 = 1250), PL4 and PL5 900 apart (less than 1000).
+				'warning piles.1.position',
+				'warning piles.4.position',
 				'error tieBeams.0.to',
 				'warning tieBeams.0.type',
 				'error tieBeams.1.type',
@@ -244,12 +254,12 @@ suite('SAEngine - Substructure', () => {
 		const reinforcement = { material: 'G60', cover: 75, bottomX: { dia: 16, spacing: 150 } };
 		// F1 is an unsaved pile cap; the backend, which reads the saved file, proposes "F1" for C4.
 		const doc = document([
-			{ id: 'F1', type: 'pileCap', columns: ['C1'], pileType: 'P1', piles: [], thickness: 800 },
+			{ id: 'F1', type: 'pileCap', columns: ['C1'], piles: [], thickness: 800 },
 			{ id: 'F2', type: 'isolated', columns: ['C2'], length: 1500, width: 1500, thickness: 450, material: 'M25', reinforcement },
 			{ id: 'F3', type: 'isolated', columns: ['C3'], length: 1500, width: 1500, thickness: 450 },
 		]);
 		doc.tieBeams.push({ id: 'TB1', from: 'F2', to: 'F3', type: 'B300x500' }, { id: 'TB2', from: 'F1', to: 'F3', type: 'B300x500' });
-		applyPileLayout(doc.foundations[0], doc.pileTypes[0], 2);
+		applyPileLayout(doc, CONTEXT, doc.foundations[0], doc.pileTypes[0], 2);
 		const proposal = readSizingProposal({
 			foundations: [
 				{ id: 'F1', type: 'isolated', columns: ['C4'], length: 1800, width: 1800, thickness: 450 },
@@ -273,7 +283,7 @@ suite('SAEngine - Substructure', () => {
 			only: proposalFor(proposal, ['C4']).foundations.map(f => f.columns),
 			notAProposal: readSizingProposal({ text: 'no' }),
 		}, {
-			cap: { id: 'F1', type: 'pileCap', columns: ['C1'], pileType: 'P1', piles: [[-750, 0], [750, 0]], length: 2300, width: 800, thickness: 1000 },
+			cap: { id: 'F1', type: 'pileCap', columns: ['C1'], piles: ['PL1', 'PL2'], center: [0, 0], length: 2300, width: 800, thickness: 800 },
 			changed: ['F4', 'F2'],
 			ids: ['F1', 'F2', 'F4'],
 			f2: { id: 'F2', type: 'combined', columns: ['C2', 'C3'], center: [3000, 2500], length: 7500, width: 2000, thickness: 600, material: 'M25', reinforcement },
@@ -311,13 +321,16 @@ suite('SAEngine - Substructure', () => {
 		assert.deepStrictEqual({
 			result,
 			ids: doc.foundations.map(f => `${f.id} ${f.columns?.join() ?? ''} ${f.length}`),
-			f8PileType: doc.foundations.find(f => f.id === 'F8')?.pileType,
+			f8PileType: capPileType(doc.foundations.find(f => f.id === 'F8')!, doc)?.id,
+			f8Piles: pilePositions(doc.foundations.find(f => f.id === 'F8')!, doc),
 			pileTypes: doc.pileTypes.map(p => p.id),
 		}, {
 			// F6 stands under C3, which F6 here carries; F7's id is taken here: it becomes F2.
 			result: { added: ['F2', 'F8'], skipped: ['F6'] },
 			ids: ['F1 C1 2500', 'F6 C3 1500', 'F7 C4 1500', 'F2 C2 1700', 'F8  1000'],
 			f8PileType: 'P2',
+			// The offset of the earlier version, placed in plan from the cap's centre.
+			f8Piles: [[3000, 3000]],
 			pileTypes: ['P1', 'P2'],
 		});
 	});
@@ -366,7 +379,7 @@ suite('SAEngine - Substructure', () => {
 			file: substructureSummaryFile(doc, report, new Date(0)),
 		}, {
 			f1: [1.12, false, { max: 142, allowable: 150, combination: 'D + L', source: 'BH-1' }],
-			f3: [null, true, [{ number: 1, u: -750, v: 0, compression: 400.5, least: -12, factored: 560, capacity: undefined, utilisation: undefined, combination: undefined }]],
+			f3: [null, true, [{ number: 1, mark: undefined, u: -750, v: 0, compression: 400.5, least: -12, factored: 560, capacity: undefined, utilisation: undefined, combination: undefined }]],
 			capacities: [{ pileType: 'P1', borehole: 'BH-1', skin: 600, base: 400, ultimate: 1000, compression: 400, uplift: 240, method: undefined, note: undefined }],
 			ties: ['TB1'],
 			skipped: [{ id: 'R1', type: 'raft', reason: 'rafts are not designed yet' }],
@@ -480,11 +493,19 @@ suite('SAEngine - Substructure', () => {
 		const container = mainWindow.document.createElement('div');
 		const doc = document([
 			{ id: 'F1', type: 'isolated', columns: ['C1'], length: 1500, width: 1500, thickness: 450 },
-			{ id: 'F2', type: 'pileCap', columns: ['C3'], length: 2300, width: 2300, thickness: 1000, pileType: 'P1', piles: pileLayout(4, 500) },
+			{ id: 'F2', type: 'pileCap', columns: ['C3'], length: 2300, width: 2300, thickness: 1000, pileType: 'P1', piles: pileLayout(4, 500) as unknown as string[] }, // offsets of an earlier version
 			{ id: 'S1', type: 'strip', path: [[6000, 0], [6000, 5000]], width: 1000, thickness: 450 },
 		]);
+		// A cap of an earlier version without a centre: placed at its column's.
+		upgradePileCaps(doc, CONTEXT.columns);
+		doc.pileGrid = { origin: [-750, 4250], x: gridLines('x', [1500]), y: gridLines('y', [1500]) };
+		addPiles(doc, 'P1', [[3000, 2500]]);
 		doc.tieBeams.push({ id: 'TB1', from: 'F1', to: 'F2', type: 'B300x500' });
-		const plan = renderPlan(container, doc, CONTEXT, { width: 800, height: 600, selectedFoundations: new Set([1]), selectedColumns: new Set(['C4']), proposals: [{ id: 'F1', type: 'isolated', columns: ['C1'], length: 2000, width: 2000, thickness: 500 }], bands: new Map([['F1', 'fail' as const]]), utilisations: new Map([['F1', 1.12]]) });
+		const drawing = renderPlan(container, doc, CONTEXT, { width: 800, height: 600, selectedFoundations: new Set([1]), selectedColumns: new Set(['C4']), selectedPiles: new Set(['PL5']), proposals: [{ id: 'F1', type: 'isolated', columns: ['C1'], length: 2000, width: 2000, thickness: 500 }], bands: new Map([['F1', 'fail' as const]]), utilisations: new Map([['F1', 1.12]]) });
+		const plan = drawing.svg;
+		// The transform goes both ways: a pile's centre on the screen is its plan position.
+		const [sx, sy] = drawing.toScreen([3000, 2500]);
+		const back = drawing.toPlan(sx, sy).map(v => Math.round(v));
 		const raftContainer = mainWindow.document.createElement('div');
 		const range = renderRaftHeatMap(raftContainer, { id: 'R1', type: 'raft', outline: [[0, 0], [1000, 0], [1000, 1000], [0, 1000]], thickness: 600 }, {
 			points: [{ x: 250, y: 250, pressure: 80 }, { x: 750, y: 250, pressure: 100 }, { x: 250, y: 750, pressure: 120 }, { x: 750, y: 750, pressure: 140 }],
@@ -493,7 +514,11 @@ suite('SAEngine - Substructure', () => {
 			foundations: plan.querySelectorAll('[data-foundation]').length,
 			selected: plan.querySelectorAll('.sub-foundation.selected').length,
 			failing: plan.querySelectorAll('.sub-foundation.band-fail').length,
-			piles: plan.querySelectorAll('.sub-pile').length,
+			piles: plan.querySelectorAll('[data-pile]').length,
+			freePiles: plan.querySelectorAll('.sub-pile-item.free').length,
+			selectedPiles: [...plan.querySelectorAll('.sub-pile-item.selected')].map(e => e.getAttribute('data-pile')),
+			pileGrid: plan.querySelectorAll('.sub-pile-grid-line').length,
+			back,
 			columns: plan.querySelectorAll('[data-column]').length,
 			selectedColumns: plan.querySelectorAll('.sub-column.selected').length,
 			ties: plan.querySelectorAll('[data-tie]').length,
@@ -507,10 +532,148 @@ suite('SAEngine - Substructure', () => {
 			// The tie beam runs between the columns its foundations carry (C1 to C3), not their centres.
 			tieEnds: tieBeamEnds(doc.foundations[0], doc.foundations[1], CONTEXT),
 		}, {
-			foundations: 3, selected: 1, failing: 1, piles: 4, columns: 4, selectedColumns: 1, ties: 1, boreholes: 2, grid: 4, proposals: 1,
+			foundations: 3, selected: 1, failing: 1, piles: 5, freePiles: 1, selectedPiles: ['PL5'], pileGrid: 4, back: [3000, 2500], columns: 4, selectedColumns: 1, ties: 1, boreholes: 2, grid: 4, proposals: 1,
 			heatCells: 4, hottest: 1, range: { min: 80, max: 140 },
 			utilisation: '1.12',
 			tieEnds: [[CONTEXT.columns[0].x, CONTEXT.columns[0].y], [CONTEXT.columns[2].x, CONTEXT.columns[2].y]],
+		});
+	});
+
+	test('the pile grid: spacings, labels, crossings, a grid over the columns', () => {
+		const grid = { origin: [1000, 2000] as [number, number], rotation: 90, x: gridLines('x', [1500, 1500]), y: gridLines('y', [2000]) };
+		const turned = gridIntersections(grid).map(c => [c.x, c.y, ...c.point.map(v => Math.round(v) + 0)]);
+		assert.deepStrictEqual({
+			spacings: [parseSpacings('4@1500, 2000'), parseSpacings('  '), parseSpacings('3x').error !== undefined, parseSpacings('0').error !== undefined],
+			labels: [gridLines('x', [1, 1, 1]).map(l => l.label), gridLines('y', [1]).map(l => l.label)],
+			format: formatSpacings(gridLines('x', [1500, 1500, 1500, 2000])),
+			// Turned 90°: the grid's x runs along the global y.
+			turned,
+			// Over the columns (0..6000 by 0..5000) a 3 D = 1500 spacing beyond them each way.
+			fresh: (({ origin, x, y }) => ({ origin, x: x.length, y: y.length, last: [x[x.length - 1].position, y[y.length - 1].position] }))(newPileGrid(document(), CONTEXT)),
+		}, {
+			spacings: [{ value: [1500, 1500, 1500, 1500, 2000] }, { value: [] }, true, true],
+			labels: [['a', 'b', 'c', 'd'], ['p1', 'p2']],
+			format: '3@1500 2000',
+			turned: [['a', 'p1', 1000, 2000], ['a', 'p2', -1000, 2000], ['b', 'p1', 1000, 3500], ['b', 'p2', -1000, 3500], ['c', 'p1', 1000, 5000], ['c', 'p2', -1000, 5000]],
+			fresh: { origin: [-1500, -1500], x: 7, y: 7, last: [9000, 9000] },
+		});
+	});
+
+	test('places piles: snap to grid crossings and columns, a box of crossings, a group under a column', () => {
+		const doc = document();
+		doc.pileGrid = { origin: [-1500, -1500], x: gridLines('x', [1500, 1500]), y: gridLines('y', [1500, 1500]) };
+		const crossing = snapPoint([-1430, 60], doc, CONTEXT, 100);
+		const column = snapPoint([5950, 30], doc, CONTEXT, 100);
+		const free = snapPoint([2420, 2480], doc, CONTEXT, 100);
+		const box = intersectionsInBox(doc.pileGrid, [-2000, -2000], [100, 100]);
+		const placed = addPiles(doc, 'P1', box);
+		// A group of 3 under C4 at k = 2 asks for less than the code: 2.5 D = 1250 is used.
+		const group = placePileGroup(doc, [CONTEXT.columns[3]], doc.pileTypes[0], 3, 2);
+		assert.deepStrictEqual({
+			crossing, column, free,
+			box,
+			marks: placed.map(p => p.id),
+			group: group.map(p => p.position),
+			spacing: Math.round(minPileSpacing(group.map(p => p.position))!),
+			inBox: pilesInBox(doc, [-1600, -1600], [-1400, 100]).map(p => p.id),
+		}, {
+			crossing: { point: [-1500, 0], kind: 'grid', label: 'a-p2' },
+			column: { point: [6000, 0], kind: 'column', label: 'C2' },
+			free: { point: [2400, 2500], kind: 'free' },
+			box: [[-1500, -1500], [-1500, 0], [0, -1500], [0, 0]],
+			marks: ['PL1', 'PL2', 'PL3', 'PL4'],
+			// A triangle of side 1250 round C4 (6000, 5000): its vertices 1250 / √3 = 722 from the centre.
+			group: [[6000, 5722], [5375, 4639], [6625, 4639]],
+			spacing: 1250,
+			inBox: ['PL1', 'PL2'],
+		});
+	});
+
+	test('makes a pile cap over a pile group, eccentric to its column', () => {
+		const doc = document();
+		// Four piles on their own grid, 300 mm off C3 (0, 5000) in x and 150 mm in y.
+		const piles = addPiles(doc, 'P1', [[-450, 4400], [1050, 4400], [1050, 5900], [-450, 5900]]);
+		const { cap } = makePileCap(doc, CONTEXT, piles.map(p => p.id));
+		doc.foundations.push(cap!);
+		const taken = makePileCap(doc, CONTEXT, [piles[0].id]);
+		doc.pileTypes.push({ id: 'P2', kind: 'driven', diameter: 400, length: 12000 });
+		const other = addPiles(doc, 'P2', [[9000, 0]]);
+		const mixed = makePileCap(doc, CONTEXT, [other[0].id, ...addPiles(doc, 'P1', [[10500, 0]]).map(p => p.id)]);
+		assert.deepStrictEqual({
+			// The cap is centred on the piles, not on C3, and takes C3 (the free column inside it).
+			cap: [cap!.id, cap!.columns, cap!.piles, cap!.center, cap!.length, cap!.width, cap!.thickness],
+			offsets: pileOffsets(cap!, doc),
+			taken: taken.error,
+			mixed: mixed.error,
+			around: capAround([[0, 0], [1500, 0]], 500, 90),
+		}, {
+			cap: ['F1', ['C3'], ['PL1', 'PL2', 'PL3', 'PL4'], [300, 5150], 2300, 2300, 1000],
+			offsets: [[-750, -750], [750, -750], [750, 750], [-750, 750]],
+			taken: 'PL1 already under a pile cap (F1).',
+			mixed: 'The piles of one cap are of one pile type; these are P2, P1.',
+			// Two piles along the global x under a cap turned 90°: its length runs along the global y.
+			around: { center: [750, 0], length: 800, width: 2300, thickness: 1000, rotation: 90 },
+		});
+	});
+
+	test('moves and deletes piles; the cap fits round them again', () => {
+		const doc = document();
+		const cap = newPileCap(doc, CONTEXT, [CONTEXT.columns[0]], doc.pileTypes[0], 2);
+		doc.foundations.push(cap);
+		movePiles(doc, new Set(['PL2']), 500, 0);
+		refitCap(doc, cap);
+		const moved = [cap.center, cap.length, cap.width];
+		const emptied = deletePiles(doc, new Set(['PL1', 'PL2']));
+		assert.deepStrictEqual({ moved, emptied, piles: doc.piles, capPiles: cap.piles, problem: checkSubstructure(doc, CONTEXT).find(p => p.path === 'foundations.0.piles')?.severity }, {
+			// PL1 at -750, PL2 now at 1250: 2000 apart, the cap 2000 + 500 + 300 = 2800 long, centred at 250.
+			moved: [[250, 0], 2800, 800],
+			emptied: ['F1'],
+			piles: [],
+			capPiles: [],
+			problem: 'error',
+		});
+	});
+
+	test('connects grade beams between the foundations along each grid line', () => {
+		const doc = document();
+		for (const column of CONTEXT.columns) {
+			doc.foundations.push(newPileCap(doc, CONTEXT, [column], doc.pileTypes[0], 2));
+		}
+		doc.tieBeams.push({ id: 'TB1', from: 'F1', to: 'F2', type: 'B300x500' });
+		const added = connectGradeBeams(doc, CONTEXT);
+		const again = connectGradeBeams(doc, CONTEXT);
+		assert.deepStrictEqual({ added: added.map(t => `${t.id} ${t.from}-${t.to}`), again }, {
+			// C1-C3 on x = 0, C2-C4 on x = 6000, C3-C4 on y = 5000; C1-C2 (y = 0) is tied already.
+			added: ['TB2 F1-F3', 'TB3 F2-F4', 'TB4 F3-F4'],
+			again: [],
+		});
+	});
+
+	test('reads a file of an earlier version: per-cap offsets become piles in plan', () => {
+		const text = JSON.stringify({
+			schema: SUBSTRUCTURE_SCHEMA_ID,
+			foundations: [
+				{ id: 'PC1', type: 'pileCap', columns: ['C1'], center: [1000, 2000], rotation: 90, length: 2300, width: 800, thickness: 900, pileType: 'P1', piles: [[-750, 0], [750, 0]] },
+				{ id: 'PC2', type: 'pileCap', columns: ['C2'], length: 2300, width: 800, thickness: 900, pileType: 'P1', piles: [[-750, 0], [750, 0]] },
+			],
+			pileTypes: [{ id: 'P1', kind: 'bored', diameter: 500, length: 18000 }],
+		});
+		const withColumns = parseSubstructure(text, CONTEXT.columns);
+		const without = parseSubstructure(text);
+		const doc = withColumns.kind === 'document' ? withColumns.document : newSubstructure();
+		const old = without.kind === 'document' ? without.document : newSubstructure();
+		assert.deepStrictEqual({
+			caps: doc.foundations.map(f => [f.id, f.center, f.piles, f.pileType]),
+			piles: doc.piles,
+			// Without the building model the cap with no centre stays as it was, and the checks say so.
+			old: [old.foundations[1].piles, checkSubstructure(old, CONTEXT).find(p => p.path === 'foundations.1.piles')?.severity],
+		}, {
+			caps: [['PC1', [1000, 2000], ['PL1', 'PL2'], undefined], ['PC2', [6000, 0], ['PL3', 'PL4'], undefined]],
+			piles: [
+				{ id: 'PL1', type: 'P1', position: [1000, 1250] }, { id: 'PL2', type: 'P1', position: [1000, 2750] },
+				{ id: 'PL3', type: 'P1', position: [5250, 0] }, { id: 'PL4', type: 'P1', position: [6750, 0] },
+			],
+			old: [[[-750, 0], [750, 0]], 'error'],
 		});
 	});
 });

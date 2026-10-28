@@ -11,8 +11,9 @@ import { formatNumber } from '../../saengineSoil/browser/soilDocument.js';
 /*
  * The substructure document (`09 Substructure/substructure.json`, schema
  * `saengine.substructure/1`): the foundations under the building's columns (isolated, combined
- * and strip footings, pile caps on piles, rafts), the pile types and the tie beams, with the
- * design options. Everything here is plain data and pure functions (no services) so that it can
+ * and strip footings, pile caps on piles, rafts), the pile types, the pile grid and the piles
+ * placed in plan on it (independent of the building's grid), and the tie beams, with the design
+ * options. A pile cap lists the piles it stands on; its centre need not lie on its columns. Everything here is plain data and pure functions (no services) so that it can
  * be tested without a workbench: reading and writing the file, the column bases and grid read
  * from the building model, the footprints drawn in the plan, the pile layouts, the checks of the
  * document and the reading of the backend's design report.
@@ -92,10 +93,11 @@ export interface IFoundation {
 	foundingLevel?: number;
 	material?: string;
 	reinforcement?: IPlanarReinforcement;
-	/** Pile type id (pile cap). */
-	pileType?: string;
-	/** Pile offsets from the cap centre in its local axes [mm] (pile cap). */
-	piles?: Point[];
+	/**
+	 * Pile cap: the ids of the piles it stands on ({@link ISubstructure.piles}). A file of an
+	 * earlier version had a `pileType` and offsets from the centre: {@link upgradePileCaps}.
+	 */
+	piles?: string[];
 	note?: string;
 	[key: string]: unknown;
 }
@@ -116,6 +118,32 @@ export interface IPileType {
 	length: number;
 	material?: string;
 	reinforcement?: IPileReinforcement;
+	[key: string]: unknown;
+}
+
+/** A pile placed in plan: its mark (PL1, ...), pile type and the position of its centre [mm]. */
+export interface IPile {
+	id: string;
+	type: string;
+	position: Point;
+	[key: string]: unknown;
+}
+
+/** A line of the pile grid at `position` [mm] from the grid's origin along the grid's own axis. */
+export interface IPileGridLine {
+	label: string;
+	position: number;
+}
+
+/**
+ * The grid the piles are set out on, independent of the building's grid: its origin and rotation
+ * and named lines across its x axis (`x`, at x = position) and its y axis (`y`).
+ */
+export interface IPileGrid {
+	origin?: Point;
+	rotation?: number;
+	x: IPileGridLine[];
+	y: IPileGridLine[];
 	[key: string]: unknown;
 }
 
@@ -145,6 +173,9 @@ export interface ISubstructure {
 	schema: string;
 	foundations: IFoundation[];
 	pileTypes: IPileType[];
+	pileGrid?: IPileGrid;
+	/** Every pile, placed in plan; a pile cap lists the ones it stands on. */
+	piles: IPile[];
 	tieBeams: ITieBeam[];
 	design: ISubstructureDesign;
 	[key: string]: unknown;
@@ -185,7 +216,7 @@ export const DEFAULT_DEPTH = 1500;
 // ───────────────────────────── reading and writing ─────────────────────────────
 
 export function newSubstructure(): ISubstructure {
-	return { schema: SUBSTRUCTURE_SCHEMA_ID, foundations: [], pileTypes: [], tieBeams: [], design: {} };
+	return { schema: SUBSTRUCTURE_SCHEMA_ID, foundations: [], pileTypes: [], piles: [], tieBeams: [], design: {} };
 }
 
 export type ParsedSubstructure =
@@ -202,8 +233,12 @@ function isPoint(value: unknown): value is Point {
 	return Array.isArray(value) && value.length >= 2 && typeof value[0] === 'number' && typeof value[1] === 'number';
 }
 
-/** Reads the file's text; lists and objects it lacks are filled in, unknown fields are kept. */
-export function parseSubstructure(text: string): ParsedSubstructure {
+/**
+ * Reads the file's text; lists and objects it lacks are filled in, unknown fields are kept. Pile
+ * caps of an earlier version are read as piles placed in plan ({@link upgradePileCaps}; `columns`
+ * places a cap without a centre at its columns).
+ */
+export function parseSubstructure(text: string, columns: readonly IColumnBase[] = []): ParsedSubstructure {
 	if (!text.trim()) {
 		return { kind: 'placeholder', document: newSubstructure() };
 	}
@@ -222,7 +257,7 @@ export function parseSubstructure(text: string): ParsedSubstructure {
 	if (value.schema !== SUBSTRUCTURE_SCHEMA_ID) {
 		return { kind: 'error', message: localize('sub.unexpected', "This file is not a SAEngine substructure ({0}).", SUBSTRUCTURE_SCHEMA_ID) };
 	}
-	for (const list of ['foundations', 'pileTypes', 'tieBeams']) {
+	for (const list of ['foundations', 'pileTypes', 'piles', 'tieBeams']) {
 		if (value[list] !== undefined && !Array.isArray(value[list])) {
 			return { kind: 'error', message: localize('sub.badList', "The substructure's {0} are not a list.", list) };
 		}
@@ -231,21 +266,87 @@ export function parseSubstructure(text: string): ParsedSubstructure {
 	document.foundations = (document.foundations ?? []).filter(isRecord) as IFoundation[];
 	document.pileTypes = (document.pileTypes ?? []).filter(isRecord) as IPileType[];
 	document.tieBeams = (document.tieBeams ?? []).filter(isRecord) as ITieBeam[];
+	document.piles = (document.piles ?? []).filter(p => isRecord(p) && typeof p.id === 'string' && isPoint(p.position)) as IPile[];
 	document.design = isRecord(document.design) ? document.design : {};
+	if (document.pileGrid !== undefined) {
+		const grid = document.pileGrid as unknown;
+		if (isRecord(grid)) {
+			const lines = (value: unknown) => records(value).filter(g => typeof g.position === 'number').map(g => ({ label: String(g.label ?? ''), position: g.position as number }));
+			document.pileGrid = { ...grid, x: lines(grid.x), y: lines(grid.y) };
+			if (grid.origin !== undefined && !isPoint(grid.origin)) {
+				delete document.pileGrid.origin;
+			}
+		} else {
+			delete document.pileGrid;
+		}
+	}
 	for (const foundation of document.foundations) {
 		if (foundation.columns !== undefined) {
 			foundation.columns = Array.isArray(foundation.columns) ? foundation.columns.filter(c => typeof c === 'string') : [];
 		}
-		for (const key of ['path', 'outline', 'piles'] as const) {
+		for (const key of ['path', 'outline'] as const) {
 			if (foundation[key] !== undefined) {
 				foundation[key] = Array.isArray(foundation[key]) ? foundation[key]!.filter(isPoint) : [];
 			}
+		}
+		if (foundation.piles !== undefined) {
+			// Pile ids; the offsets of an earlier version are kept for upgradePileCaps.
+			foundation.piles = Array.isArray(foundation.piles) ? (foundation.piles as unknown[]).filter(p => typeof p === 'string' || isPoint(p)) as string[] : [];
 		}
 		if (foundation.center !== undefined && !isPoint(foundation.center)) {
 			delete foundation.center;
 		}
 	}
+	upgradePileCaps(document, columns);
 	return { kind: 'document', document };
+}
+
+/** The marks of piles: PL1, PL2, ... */
+export const PILE_PREFIX = 'PL';
+
+function round1(value: number): number {
+	return Math.round(value * 10) / 10 + 0;
+}
+
+/**
+ * Brings the pile caps of an earlier version (a `pileType` and pile offsets from the cap's centre
+ * in its local axes) to piles placed in plan, as the backend's `upgrade_pile_caps`: each offset
+ * becomes a pile PLn of the cap's pile type, the cap lists them and keeps its centre (the
+ * centroid of its `columns` when it had none). A cap without a centre whose columns are not
+ * known is left as it is (the checks report it). Returns whether anything changed.
+ */
+export function upgradePileCaps(document: ISubstructure, columns: readonly IColumnBase[] = []): boolean {
+	let changed = false;
+	for (const f of document.foundations) {
+		const raw = (f.piles ?? []) as unknown[];
+		const offsets = raw.filter(isPoint) as Point[];
+		if (f.type !== 'pileCap' || (!offsets.length && f.pileType === undefined)) {
+			continue;
+		}
+		const carried = columns.filter(c => f.columns?.includes(c.id));
+		const center = f.center ?? centroid(carried.map(c => [c.x, c.y] as const));
+		if (!center) {
+			continue;
+		}
+		f.center = [round1(center[0]), round1(center[1])];
+		const type = typeof f.pileType === 'string' ? f.pileType : '';
+		const ids = raw.filter((p): p is string => typeof p === 'string');
+		for (const [dx, dy] of offsets) {
+			const id = nextId(PILE_PREFIX, document.piles.map(p => p.id));
+			const [x, y] = toGlobal(f.center, dx, dy, num(f.rotation));
+			document.piles.push({ id, type, position: [round1(x), round1(y)] });
+			ids.push(id);
+		}
+		f.piles = ids;
+		delete f.pileType;
+		changed = true;
+	}
+	return changed;
+}
+
+/** Whether a pile cap still has offsets of an earlier version (no centre to place them from). */
+export function hasOldPiles(foundation: IFoundation): boolean {
+	return ((foundation.piles ?? []) as unknown[]).some(isPoint) || foundation.pileType !== undefined;
 }
 
 export function serializeSubstructure(document: ISubstructure): string {
@@ -448,17 +549,73 @@ export function foundationOutlines(foundation: IFoundation, context: ISiteContex
 	]];
 }
 
-/** The plan positions of a pile cap's piles [mm]. */
-export function pilePositions(foundation: IFoundation, context: ISiteContext): Point[] {
-	const center = foundationCenter(foundation, context);
-	if (foundation.type !== 'pileCap' || !center) {
+/** The piles a pile cap stands on, in its order (unknown ids left out). */
+export function capPiles(foundation: IFoundation, document: ISubstructure): IPile[] {
+	if (foundation.type !== 'pileCap') {
 		return [];
 	}
-	return (foundation.piles ?? []).map(([dx, dy]) => toGlobal(center, dx, dy, num(foundation.rotation)));
+	const byId = new Map(document.piles.map(p => [p.id, p]));
+	return (foundation.piles ?? []).flatMap(id => {
+		const pile = typeof id === 'string' ? byId.get(id) : undefined;
+		return pile ? [pile] : [];
+	});
+}
+
+/** The plan positions of a pile cap's piles [mm]. */
+export function pilePositions(foundation: IFoundation, document: ISubstructure): Point[] {
+	return capPiles(foundation, document).map(p => p.position);
+}
+
+/** The pile type of a pile cap's piles (one per cap). */
+export function capPileType(foundation: IFoundation, document: ISubstructure): IPileType | undefined {
+	const first = capPiles(foundation, document)[0];
+	return first ? document.pileTypes.find(t => t.id === first.type) : undefined;
+}
+
+/** A pile cap's piles as offsets [mm] from its centre in its local axes. */
+export function pileOffsets(foundation: IFoundation, document: ISubstructure): Point[] {
+	const center = foundation.center;
+	if (!center) {
+		return [];
+	}
+	return capPiles(foundation, document).map(p => toLocal(center, p.position, num(foundation.rotation)));
+}
+
+/** The point `p` in the axes turned by `degrees` about `center` (the inverse of {@link toGlobal}). */
+export function toLocal(center: readonly [number, number], p: readonly [number, number], degrees = 0): Point {
+	const a = degrees * Math.PI / 180;
+	const dx = p[0] - center[0];
+	const dy = p[1] - center[1];
+	return [dx * Math.cos(a) + dy * Math.sin(a), -dx * Math.sin(a) + dy * Math.cos(a)];
+}
+
+/** The cap each pile is under: pile id → foundation id. */
+export function pileCaps(document: ISubstructure): Map<string, string> {
+	const caps = new Map<string, string>();
+	for (const f of document.foundations) {
+		if (f.type === 'pileCap') {
+			for (const id of f.piles ?? []) {
+				if (typeof id === 'string' && !caps.has(id)) {
+					caps.set(id, f.id);
+				}
+			}
+		}
+	}
+	return caps;
 }
 
 /** The pile counts of the layout presets. */
 export const PILE_LAYOUTS = [2, 3, 4, 5, 6, 9] as const;
+/** The standard pile groups placed under a column. */
+export const PILE_GROUPS = [2, 3, 4, 5, 6] as const;
+/**
+ * BNBC 2020 Part 6 Sec 3.10.1.19 and 3.10.1.30: piles at least 2.5 diameters and 750 mm apart
+ * centre to centre; friction piles generally 3 diameters.
+ */
+export const MIN_SPACING_FACTOR = 2.5;
+export const MIN_PILE_SPACING = 750;
+/** The spacing factor k of the pile groups (s = k · D) unless the engineer gives another. */
+export const DEFAULT_SPACING_FACTOR = 3;
 
 /** Rounds to a whole mm (layout offsets). */
 function mm(value: number): number {
@@ -471,8 +628,9 @@ function mm(value: number): number {
  * precast piles, generally asks for friction piles; used as the start for bored piles too): a row of 2, a triangle of 3, squares of 4, 5 (with a centre pile)
  * and 9, and two rows of 3.
  */
-export function pileLayout(count: number, diameter: number): Point[] {
-	const s = 3 * diameter;
+export function pileLayout(count: number, diameter: number, factor = DEFAULT_SPACING_FACTOR): Point[] {
+	// Never closer than the code minimum, whatever k is asked for.
+	const s = Math.max(Math.max(factor, MIN_SPACING_FACTOR) * diameter, MIN_PILE_SPACING);
 	switch (count) {
 		case 2: return [[-s / 2, 0], [s / 2, 0]].map(([x, y]) => [mm(x), mm(y)]);
 		case 3: {
@@ -598,7 +756,7 @@ export function newFooting(document: ISubstructure, context: ISiteContext, colum
 	const spanX = Math.max(...local.map(p => Math.abs(p[0])));
 	const spanY = Math.max(...local.map(p => Math.abs(p[1])));
 	const footing = base(document, context, 'combined', columns, {
-		center: [Math.round(center[0]), Math.round(center[1])],
+		center: [Math.round(center[0]) + 0, Math.round(center[1]) + 0],
 		length: roundUp(2 * spanX + 1500, 50), width: roundUp(Math.max(1500, 2 * spanY + 1500), 50), thickness: 600,
 	});
 	if (rotation) {
@@ -607,10 +765,344 @@ export function newFooting(document: ISubstructure, context: ISiteContext, colum
 	return footing;
 }
 
-/** A pile cap of `pileType` with the layout of `count` piles under `columns`. */
-export function newPileCap(document: ISubstructure, context: ISiteContext, columns: readonly IColumnBase[], pileType: IPileType, count = 4): IFoundation {
-	const piles = pileLayout(count, pileType.diameter);
-	return base(document, context, 'pileCap', columns, { ...capSize(piles, pileType.diameter), pileType: pileType.id, piles });
+/**
+ * A pile cap of `pileType` over a standard group of `count` piles at `factor` diameters under
+ * `columns` (centred on them, turned with the pile grid): the piles are added to the document,
+ * the cap is returned (not added).
+ */
+export function newPileCap(document: ISubstructure, context: ISiteContext, columns: readonly IColumnBase[], pileType: IPileType, count = 4, factor = DEFAULT_SPACING_FACTOR): IFoundation {
+	const piles = placePileGroup(document, columns, pileType, count, factor);
+	return formCap(document, context, piles, pileType, columns);
+}
+
+/** Adds piles of `type` at `points` (marks PL1, PL2, ...); returns them. */
+export function addPiles(document: ISubstructure, type: string, points: readonly Point[]): IPile[] {
+	const added: IPile[] = [];
+	for (const [x, y] of points) {
+		const pile: IPile = { id: nextId(PILE_PREFIX, document.piles.map(p => p.id)), type, position: [Math.round(x) + 0, Math.round(y) + 0] };
+		document.piles.push(pile);
+		added.push(pile);
+	}
+	return added;
+}
+
+/**
+ * Places a standard group of `count` piles of `pileType` at `factor` diameters centre to centre
+ * ({@link pileLayout}) under `columns`: centred on their centroid (or on `at`), turned with the
+ * pile grid. Returns the piles added.
+ */
+export function placePileGroup(document: ISubstructure, columns: readonly IColumnBase[], pileType: IPileType, count: number, factor = DEFAULT_SPACING_FACTOR, at?: Point): IPile[] {
+	const center = at ?? centroid(columns.map(c => [c.x, c.y] as const));
+	if (!center) {
+		return [];
+	}
+	const rotation = num(document.pileGrid?.rotation);
+	const offsets = count === 1 ? [[0, 0] as Point] : pileLayout(count, pileType.diameter, factor);
+	return addPiles(document, pileType.id, offsets.map(([dx, dy]) => toGlobal(center, dx, dy, rotation)));
+}
+
+/**
+ * The cap around piles of `diameter` at plan `points`, its sides along `rotation` [°]: the
+ * piles' extent plus their radius and {@link CAP_EDGE} each side in 50 mm steps, centred on that
+ * extent (not on any column), 600 mm or two diameters thick.
+ */
+export function capAround(points: readonly Point[], diameter: number, rotation = 0): { center: Point; length: number; width: number; thickness: number; rotation?: number } {
+	const origin: Point = points[0] ?? [0, 0];
+	const local = points.map(p => toLocal(origin, p, rotation));
+	const [x0, x1] = [Math.min(...local.map(p => p[0])), Math.max(...local.map(p => p[0]))];
+	const [y0, y1] = [Math.min(...local.map(p => p[1])), Math.max(...local.map(p => p[1]))];
+	const edge = diameter / 2 + CAP_EDGE;
+	const center = toGlobal(origin, (x0 + x1) / 2, (y0 + y1) / 2, rotation);
+	return {
+		center: [Math.round(center[0]) + 0, Math.round(center[1]) + 0],
+		length: roundUp(x1 - x0 + 2 * edge, 50),
+		width: roundUp(y1 - y0 + 2 * edge, 50),
+		thickness: Math.max(600, roundUp(2 * diameter, 50)),
+		...(rotation ? { rotation } : {}),
+	};
+}
+
+/** A pile cap over `piles` (all of `pileType`) carrying `columns`. */
+function formCap(document: ISubstructure, context: ISiteContext, piles: readonly IPile[], pileType: IPileType, columns: readonly IColumnBase[]): IFoundation {
+	const cap = base(document, context, 'pileCap', columns, { ...capAround(piles.map(p => p.position), pileType.diameter, num(document.pileGrid?.rotation)), piles: piles.map(p => p.id) });
+	cap.reinforcement = defaultReinforcement(context, num(cap.thickness, 600));
+	return cap;
+}
+
+/**
+ * Make Pile Cap: a cap over the piles `pileIds`, carrying `columns`, or when none are given the
+ * column bases inside its outline that stand on no foundation yet. The cap's centre is the
+ * centre of the pile group, so it may be eccentric to its columns (the design takes that
+ * moment). Returns the cap (not added to the document), or why it cannot be made.
+ */
+export function makePileCap(document: ISubstructure, context: ISiteContext, pileIds: readonly string[], columns?: readonly IColumnBase[]): { cap?: IFoundation; error?: string } {
+	const byId = new Map(document.piles.map(p => [p.id, p]));
+	const piles = pileIds.map(id => byId.get(id)).filter((p): p is IPile => !!p);
+	if (!piles.length) {
+		return { error: localize('sub.makeCapNone', "Select the piles the cap is to stand on.") };
+	}
+	const caps = pileCaps(document);
+	const capped = piles.filter(p => caps.has(p.id));
+	if (capped.length) {
+		return { error: localize('sub.makeCapTaken', "{0} already under a pile cap ({1}).", capped.map(p => p.id).join(', '), [...new Set(capped.map(p => caps.get(p.id)))].join(', ')) };
+	}
+	const types = [...new Set(piles.map(p => p.type))];
+	if (types.length > 1) {
+		return { error: localize('sub.makeCapTypes', "The piles of one cap are of one pile type; these are {0}.", types.join(', ')) };
+	}
+	const pileType = document.pileTypes.find(t => t.id === types[0]);
+	if (!pileType) {
+		return { error: localize('sub.makeCapNoType', "Pile type {0} does not exist.", types[0]) };
+	}
+	let carried = columns ?? [];
+	if (!columns) {
+		const outline = foundationOutlines({ id: '', type: 'pileCap', ...capAround(piles.map(p => p.position), pileType.diameter, num(document.pileGrid?.rotation)) }, context)[0] ?? [];
+		const taken = new Set(document.foundations.flatMap(f => f.columns ?? []));
+		carried = context.columns.filter(c => !taken.has(c.id) && insidePolygon([c.x, c.y], outline));
+	}
+	return { cap: formCap(document, context, piles, pileType, carried) };
+}
+
+/**
+ * Deletes the piles `ids` and takes them out of their caps. Returns the caps left with no piles
+ * (they are kept: the checks ask for piles).
+ */
+export function deletePiles(document: ISubstructure, ids: ReadonlySet<string>): string[] {
+	document.piles = document.piles.filter(p => !ids.has(p.id));
+	const emptied: string[] = [];
+	for (const f of document.foundations) {
+		if (f.type === 'pileCap' && f.piles?.some(p => ids.has(p))) {
+			f.piles = f.piles.filter(p => !ids.has(p));
+			if (!f.piles.length) {
+				emptied.push(f.id);
+			}
+		}
+	}
+	return emptied;
+}
+
+/** Moves the piles `ids` by (dx, dy) [mm]. */
+export function movePiles(document: ISubstructure, ids: ReadonlySet<string>, dx: number, dy: number): void {
+	for (const pile of document.piles) {
+		if (ids.has(pile.id)) {
+			pile.position = [Math.round(pile.position[0] + dx) + 0, Math.round(pile.position[1] + dy) + 0];
+		}
+	}
+}
+
+/** Fits a pile cap's outline round its piles again (after they moved), keeping its thickness. */
+export function refitCap(document: ISubstructure, cap: IFoundation): void {
+	const pileType = capPileType(cap, document);
+	const points = pilePositions(cap, document);
+	if (!pileType || !points.length) {
+		return;
+	}
+	const fitted = capAround(points, pileType.diameter, num(cap.rotation));
+	cap.center = fitted.center;
+	cap.length = fitted.length;
+	cap.width = fitted.width;
+}
+
+/** The foundation that carries the column or wall `id`. */
+export function foundationOf(document: ISubstructure, id: string): IFoundation | undefined {
+	return document.foundations.find(f => f.columns?.includes(id));
+}
+
+/** Whether a tie beam joins the foundations `a` and `b` already (either way). */
+export function tied(document: ISubstructure, a: string, b: string): boolean {
+	return document.tieBeams.some(t => (t.from === a && t.to === b) || (t.from === b && t.to === a));
+}
+
+/**
+ * Grade (tie) beams along the grid lines: the column bases on one line (the same x, or the same
+ * y, within 1 mm), in order along it, each tied to the next one's foundation where the two stand
+ * on different foundations not tied yet. Returns the tie beams added to the document.
+ */
+export function connectGradeBeams(document: ISubstructure, context: ISiteContext): ITieBeam[] {
+	const added: ITieBeam[] = [];
+	const lines = (key: (c: IColumnBase) => number, along: (c: IColumnBase) => number) => {
+		const groups = new Map<number, IColumnBase[]>();
+		for (const column of context.columns) {
+			const k = Math.round(key(column));
+			const line = [...groups.keys()].find(g => Math.abs(g - k) <= 1) ?? k;
+			groups.set(line, [...(groups.get(line) ?? []), column]);
+		}
+		for (const columns of groups.values()) {
+			const ids = [...columns].sort((a, b) => along(a) - along(b)).map(c => foundationOf(document, c.id)?.id);
+			for (let i = 1; i < ids.length; i++) {
+				const [a, b] = [ids[i - 1], ids[i]];
+				if (a && b && a !== b && !tied(document, a, b)) {
+					const tie = newTieBeam(document, context, a, b);
+					document.tieBeams.push(tie);
+					added.push(tie);
+				}
+			}
+		}
+	};
+	lines(c => c.x, c => c.y);
+	lines(c => c.y, c => c.x);
+	return added;
+}
+
+// ───────────────────────────── the pile grid ─────────────────────────────
+
+/** The plan position [mm] of the pile grid's local point (x, y). */
+export function gridPoint(grid: IPileGrid, x: number, y: number): Point {
+	return toGlobal(grid.origin ?? [0, 0], x, y, num(grid.rotation));
+}
+
+/** Every crossing of the pile grid's lines: its x and y line labels and plan position. */
+export function gridIntersections(grid: IPileGrid | undefined): { x: string; y: string; point: Point }[] {
+	return grid ? grid.x.flatMap(gx => grid.y.map(gy => ({ x: gx.label, y: gy.label, point: gridPoint(grid, gx.position, gy.position) }))) : [];
+}
+
+/** The labels a, b, ..., z, aa, ab, ... (the pile grid's x lines). */
+function letters(index: number): string {
+	let label = '';
+	for (let n = index + 1; n > 0; n = Math.floor((n - 1) / 26)) {
+		label = String.fromCharCode(97 + (n - 1) % 26) + label;
+	}
+	return label;
+}
+
+/** The pile grid's line labels: x lines a, b, c, ...; y lines p1, p2, ... (apart from the building's A, B / 1, 2). */
+export function gridLabels(axis: 'x' | 'y', count: number): string[] {
+	return Array.from({ length: count }, (_, i) => axis === 'x' ? letters(i) : `p${i + 1}`);
+}
+
+/**
+ * Reads spacings "4@1500, 2000" (n @ spacing, or single spacings, separated by commas or spaces)
+ * [mm]: the distances between consecutive lines. Empty: no spacing (one line).
+ */
+export function parseSpacings(text: string): { value?: number[]; error?: string } {
+	const spacings: number[] = [];
+	for (const part of text.split(/[\s,;]+/).filter(Boolean)) {
+		const match = /^(?:(?<count>\d+)\s*[@x×*])?(?<spacing>\d+(?:\.\d+)?)$/i.exec(part);
+		const count = match?.groups?.count ? Number(match.groups.count) : 1;
+		const spacing = Number(match?.groups?.spacing);
+		if (!match || !(count >= 1 && count <= 200) || !(spacing > 0)) {
+			return { error: localize('sub.v.spacings', "Write the spacings in mm as count@spacing or single spacings, e.g. 4@1500, 2000.") };
+		}
+		spacings.push(...Array.from({ length: count }, () => spacing));
+	}
+	return { value: spacings };
+}
+
+/** The spacings between consecutive lines, as {@link parseSpacings} reads them ("4@1500 2000"). */
+export function formatSpacings(lines: readonly IPileGridLine[]): string {
+	const positions = [...lines].map(l => l.position).sort((a, b) => a - b);
+	const parts: string[] = [];
+	for (let i = 1; i < positions.length;) {
+		const spacing = positions[i] - positions[i - 1];
+		let count = 1;
+		while (i + count < positions.length && Math.abs(positions[i + count] - positions[i + count - 1] - spacing) < 0.5) {
+			count++;
+		}
+		parts.push(count > 1 ? `${count}@${formatNumber(spacing, 0)}` : formatNumber(spacing, 0));
+		i += count;
+	}
+	return parts.join(' ');
+}
+
+/** The lines at the first line's position (0) and then `spacings` apart, with the labels of `axis`. */
+export function gridLines(axis: 'x' | 'y', spacings: readonly number[], start = 0): IPileGridLine[] {
+	const labels = gridLabels(axis, spacings.length + 1);
+	let at = start;
+	return labels.map((label, i) => {
+		const line = { label, position: at };
+		at += spacings[i] ?? 0;
+		return line;
+	});
+}
+
+/**
+ * A pile grid to start with: over the column bases (or the origin) and a pile group's reach
+ * beyond them, lines 3 diameters of the first pile type apart (1500 mm without one) both ways,
+ * its origin at the lower left, along the global axes.
+ */
+export function newPileGrid(document: ISubstructure, context: ISiteContext): IPileGrid {
+	const diameter = document.pileTypes[0]?.diameter ?? 500;
+	const spacing = roundUp(Math.max(DEFAULT_SPACING_FACTOR * diameter, MIN_PILE_SPACING), 50);
+	const xs = context.columns.map(c => c.x);
+	const ys = context.columns.map(c => c.y);
+	const reach = spacing;
+	const [x0, x1] = xs.length ? [Math.min(...xs) - reach, Math.max(...xs) + reach] : [0, 4 * spacing];
+	const [y0, y1] = ys.length ? [Math.min(...ys) - reach, Math.max(...ys) + reach] : [0, 4 * spacing];
+	const count = (span: number) => Math.max(1, Math.ceil(span / spacing - 1e-9));
+	return {
+		origin: [Math.floor(x0 / 50) * 50, Math.floor(y0 / 50) * 50],
+		rotation: 0,
+		x: gridLines('x', Array.from({ length: count(x1 - x0) }, () => spacing)),
+		y: gridLines('y', Array.from({ length: count(y1 - y0) }, () => spacing)),
+	};
+}
+
+/** What a point snaps to on the plan: a pile grid crossing, a column's centre, a pile, or the 50 mm raster. */
+export interface ISnap {
+	readonly point: Point;
+	readonly kind: 'grid' | 'column' | 'pile' | 'free';
+	readonly label?: string;
+}
+
+/**
+ * The point `p` [mm] snapped, within `tolerance` [mm], to the nearest pile grid crossing, else a
+ * column base's centre, else a pile's centre (`piles`: false leaves them out, for placing a new
+ * pile), else rounded to 50 mm.
+ */
+export function snapPoint(p: Point, document: ISubstructure, context: ISiteContext, tolerance: number, piles = true): ISnap {
+	const nearest = <T>(items: readonly T[], at: (item: T) => Point): T | undefined => {
+		let best: T | undefined;
+		let distance = tolerance;
+		for (const item of items) {
+			const q = at(item);
+			const d = Math.hypot(q[0] - p[0], q[1] - p[1]);
+			if (d <= distance) {
+				best = item;
+				distance = d;
+			}
+		}
+		return best;
+	};
+	const crossing = nearest(gridIntersections(document.pileGrid), c => c.point);
+	if (crossing) {
+		return { point: [round1(crossing.point[0]), round1(crossing.point[1])], kind: 'grid', label: `${crossing.x}-${crossing.y}` };
+	}
+	const column = nearest(context.columns, c => [c.x, c.y]);
+	if (column) {
+		return { point: [column.x, column.y], kind: 'column', label: column.id };
+	}
+	const pile = piles ? nearest(document.piles, q => q.position) : undefined;
+	if (pile) {
+		return { point: pile.position, kind: 'pile', label: pile.id };
+	}
+	return { point: [Math.round(p[0] / 50) * 50, Math.round(p[1] / 50) * 50], kind: 'free' };
+}
+
+/** The pile grid crossings inside the plan box between corners `a` and `b`. */
+export function intersectionsInBox(grid: IPileGrid | undefined, a: Point, b: Point): Point[] {
+	const [x0, x1] = [Math.min(a[0], b[0]), Math.max(a[0], b[0])];
+	const [y0, y1] = [Math.min(a[1], b[1]), Math.max(a[1], b[1])];
+	return gridIntersections(grid).map(c => c.point).filter(([x, y]) => x >= x0 - 0.5 && x <= x1 + 0.5 && y >= y0 - 0.5 && y <= y1 + 0.5);
+}
+
+/** The piles whose centres lie inside the plan box between corners `a` and `b`. */
+export function pilesInBox(document: ISubstructure, a: Point, b: Point): IPile[] {
+	const [x0, x1] = [Math.min(a[0], b[0]), Math.max(a[0], b[0])];
+	const [y0, y1] = [Math.min(a[1], b[1]), Math.max(a[1], b[1])];
+	return document.piles.filter(({ position: [x, y] }) => x >= x0 && x <= x1 && y >= y0 && y <= y1);
+}
+
+/** Whether a pile stands at `point` already (within 1 mm). */
+export function pileAt(document: ISubstructure, point: Point): IPile | undefined {
+	return document.piles.find(p => Math.hypot(p.position[0] - point[0], p.position[1] - point[1]) < 1);
+}
+
+/**
+ * The pile caps of the document as offsets in their axes, for the checks: piles of an earlier
+ * version are their own offsets, piles in plan go through the cap's centre and rotation.
+ */
+function capOffsets(f: IFoundation, document: ISubstructure): Point[] {
+	return hasOldPiles(f) ? ((f.piles ?? []) as unknown[]).filter(isPoint) as Point[] : pileOffsets(f, document);
 }
 
 /**
@@ -702,10 +1194,27 @@ export function newTieBeam(document: ISubstructure, context: ISiteContext, from:
 	return beam;
 }
 
-/** Sets a pile cap's layout to `count` piles of its pile type, sizing the cap around them. */
-export function applyPileLayout(foundation: IFoundation, pileType: IPileType, count: number): void {
-	foundation.piles = pileLayout(count, pileType.diameter);
-	Object.assign(foundation, capSize(foundation.piles, pileType.diameter));
+/**
+ * Sets a pile cap's piles to a standard group of `count` piles of `pileType` at `factor`
+ * diameters (in place of the ones it had, which are deleted), centred on its columns (else on
+ * the cap), and fits the cap round them.
+ */
+export function applyPileLayout(document: ISubstructure, context: ISiteContext, foundation: IFoundation, pileType: IPileType, count: number, factor = DEFAULT_SPACING_FACTOR): void {
+	const at = centroid(carriedColumns(foundation, context).map(c => [c.x, c.y] as const)) ?? foundationCenter(foundation, context);
+	deletePiles(document, new Set(foundation.piles ?? []));
+	const piles = placePileGroup(document, [], pileType, count, factor, at);
+	foundation.piles = piles.map(p => p.id);
+	refitCap(document, foundation);
+}
+
+/** Sets the pile type of a pile cap's piles. */
+export function setCapPileType(document: ISubstructure, foundation: IFoundation, pileType: string): void {
+	const ids = new Set(foundation.piles ?? []);
+	for (const pile of document.piles) {
+		if (ids.has(pile.id)) {
+			pile.type = pileType;
+		}
+	}
 }
 
 /** The column bases no foundation carries (a raft carries those inside its outline). */
@@ -834,6 +1343,7 @@ export function checkSubstructure(document: ISubstructure, context: ISiteContext
 	};
 	duplicates(document.foundations, 'foundations');
 	duplicates(document.pileTypes, 'pileTypes');
+	duplicates(document.piles, 'piles');
 	duplicates(document.tieBeams, 'tieBeams');
 
 	// The rules of the backend's schema (library/substructure.py) are errors: a document that
@@ -841,6 +1351,7 @@ export function checkSubstructure(document: ISubstructure, context: ISiteContext
 	const columnIds = new Set(context.columns.map(c => c.id));
 	const wallIds = new Set(context.walls.map(w => w.id));
 	const carriedBy = new Map<string, string>();
+	const cappedBy = new Map<string, string>();
 	const pileTypes = new Map(document.pileTypes.map(p => [p.id, p]));
 	const concrete = new Set(context.materials);
 	const rebar = new Set(context.barMaterials ?? []);
@@ -913,7 +1424,9 @@ export function checkSubstructure(document: ISubstructure, context: ISiteContext
 					error(at(field), localize('sub.p.size', "{0}: give the {1}.", f.id, field === 'length' ? localize('sub.f.length', "Length") : localize('sub.f.width', "Width")));
 				}
 			}
-			if (!f.center && !(f.columns?.length)) {
+			if (f.type === 'pileCap' && !f.center) {
+				error(at('center'), localize('sub.p.capWhere', "{0}: give the pile cap's centre (it is placed over its piles).", f.id));
+			} else if (!f.center && !(f.columns?.length)) {
 				error(at('center'), localize('sub.p.where', "{0}: give its centre or the columns it carries.", f.id));
 			}
 		}
@@ -928,16 +1441,32 @@ export function checkSubstructure(document: ISubstructure, context: ISiteContext
 		}
 		reinforcementProblems(f.id, at, f.reinforcement);
 		if (f.type === 'pileCap') {
-			const pile = f.pileType ? pileTypes.get(f.pileType) : undefined;
-			if (!f.pileType) {
-				error(at('pileType'), localize('sub.p.noPileType', "{0}: choose the pile type.", f.id));
-			} else if (!pile) {
-				error(at('pileType'), localize('sub.p.pileType', "{0}: pile type {1} does not exist.", f.id, f.pileType));
-			}
-			if (!(f.piles?.length)) {
+			if (hasOldPiles(f)) {
+				error(at('piles'), localize('sub.p.oldPiles', "{0}: its piles are offsets of an earlier version and it has no centre; give its centre, or reopen the project for SAEngine to place them.", f.id));
+			} else if (!(f.piles?.length)) {
 				error(at('piles'), localize('sub.p.piles', "{0}: lay out the piles.", f.id));
-			} else if (pile && pile.diameter > 0) {
-				pileProblems(f, pile, at, error, warning);
+			} else {
+				const known = new Set(document.piles.map(p => p.id));
+				const unknown = (f.piles ?? []).filter(p => !known.has(p));
+				if (unknown.length) {
+					error(at('piles'), localize('sub.p.unknownPiles', "{0}: pile {1} does not exist.", f.id, unknown.join(', ')));
+				}
+				for (const id of f.piles ?? []) {
+					const other = cappedBy.get(id);
+					if (other && other !== f.id) {
+						error(at('piles'), localize('sub.p.pileTwice', "Pile {0} is under {1} and under {2}: a pile stands under one cap only.", id, other, f.id));
+					} else {
+						cappedBy.set(id, f.id);
+					}
+				}
+				const types = [...new Set(capPiles(f, document).map(p => p.type))];
+				if (types.length > 1) {
+					error(at('piles'), localize('sub.p.pileTypes', "{0}: its piles are of more than one pile type ({1}).", f.id, types.join(', ')));
+				}
+			}
+			const pile = capPileType(f, document);
+			if (pile && pile.diameter > 0) {
+				pileProblems(f, pile, capOffsets(f, document), at, error, warning);
 			}
 		}
 	});
@@ -963,6 +1492,7 @@ export function checkSubstructure(document: ISubstructure, context: ISiteContext
 			warning(at('material'), localize('sub.p.material', "{0}: concrete {1} is not in 03 Materials.", p.id, p.material));
 		}
 	});
+	pileLayoutProblems(document, pileTypes, error, warning);
 	const foundationIds = new Set(document.foundations.map(f => f.id));
 	const beamTypes = new Set(context.beamTypes.map(b => b.id));
 	document.tieBeams.forEach((t, i) => {
@@ -1002,27 +1532,69 @@ export function checkSubstructure(document: ISubstructure, context: ISiteContext
 }
 
 /**
- * The piles of a cap against the cap and each other. Errors (the backend refuses them): a pile
- * not wholly within the cap, piles overlapping. Warnings, BNBC 2020 Part 6 Sec 3.10.1.30 (written
- * for driven precast piles): end-bearing driven piles more than the greater of 750 mm and 2.5
- * diameters apart; friction piles generally at least 3.0 diameters; a pile's side at least
- * 100 mm from the cap's edge. For bored piles the same spacing is applied as a guide.
+ * The piles placed in plan, as the backend's `pile_layout_warnings`: a pile of an unknown pile
+ * type (an error: the backend refuses it), a pile under no cap, and two piles overlapping or
+ * closer than 2.5 diameters and 750 mm (BNBC 2020 Part 6 Secs 3.10.1.19, 3.10.1.30) whatever cap
+ * they are under. The pile grid's labels are distinct.
  */
-function pileProblems(f: IFoundation, pile: IPileType, at: (field: string) => string, error: (path: string, message: string) => void, warning: (path: string, message: string) => void): void {
-	const piles = f.piles ?? [];
+function pileLayoutProblems(document: ISubstructure, pileTypes: ReadonlyMap<string, IPileType>, error: (path: string, message: string) => void, warning: (path: string, message: string) => void): void {
+	const caps = pileCaps(document);
+	document.piles.forEach((p, i) => {
+		if (!pileTypes.has(p.type)) {
+			error(`piles.${i}.type`, p.type
+				? localize('sub.p.pileUnknownType', "{0}: pile type {1} does not exist.", p.id, p.type)
+				: localize('sub.p.pileNoType', "{0}: choose its pile type.", p.id));
+		}
+		if (!caps.has(p.id)) {
+			warning(`piles.${i}.position`, localize('sub.p.pileFree', "{0}: under no pile cap. Select it with the others of its group and Make Pile Cap, or delete it.", p.id));
+		}
+	});
+	const diameter = (p: IPile) => num(pileTypes.get(p.type)?.diameter);
+	for (let i = 0; i < document.piles.length; i++) {
+		for (let j = i + 1; j < document.piles.length; j++) {
+			const [a, b] = [document.piles[i], document.piles[j]];
+			const distance = Math.hypot(a.position[0] - b.position[0], a.position[1] - b.position[1]);
+			const d = Math.max(diameter(a), diameter(b));
+			const need = Math.max(MIN_SPACING_FACTOR * d, MIN_PILE_SPACING);
+			if (distance < d - 1e-6) {
+				warning(`piles.${j}.position`, localize('sub.p.pilesOverlap', "{0} and {1} overlap: their centres are {2} mm apart, less than the diameter.", a.id, b.id, formatNumber(distance, 0)));
+			} else if (distance < need - 0.5) {
+				warning(`piles.${j}.position`, localize('sub.p.pilesClose', "{0} and {1} are {2} mm apart, less than {3} mm (2.5 diameters and 750 mm, BNBC 2020 Part 6 Secs 3.10.1.19 and 3.10.1.30).", a.id, b.id, formatNumber(distance, 0), formatNumber(need, 0)));
+			}
+		}
+	}
+	const labels = [...(document.pileGrid?.x ?? []), ...(document.pileGrid?.y ?? [])].map(l => l.label);
+	const twice = [...new Set(labels.filter((l, k) => labels.indexOf(l) !== k))];
+	if (twice.length) {
+		error('pileGrid.x', localize('sub.p.gridTwice', "Pile grid: {0} used twice.", twice.join(', ')));
+	}
+	if (labels.some(l => !/^[A-Za-z0-9.'-]{1,8}$/.test(l))) {
+		error('pileGrid.x', localize('sub.p.gridLabel', "Pile grid: a line label is 1 to 8 letters, digits, dots, dashes or primes."));
+	}
+}
+
+/**
+ * The piles of a cap (`piles`: offsets in its axes) against the cap and each other. Warnings
+ * (the design skips a cap with a pile outside it): a pile not wholly within the cap, piles
+ * overlapping; BNBC 2020 Part 6 Sec 3.10.1.30 (written for driven precast piles): end-bearing
+ * driven piles more than the greater of 750 mm and 2.5 diameters apart; friction piles generally
+ * at least 3.0 diameters; a pile's side at least 100 mm from the cap's edge. For bored piles the
+ * same spacing is applied as a guide.
+ */
+function pileProblems(f: IFoundation, pile: IPileType, piles: readonly Point[], at: (field: string) => string, _error: (path: string, message: string) => void, warning: (path: string, message: string) => void): void {
 	const d = pile.diameter;
 	const length = num(f.length);
 	const width = num(f.width);
 	if (length > 0 && width > 0) {
 		const outside = piles.find(([x, y]) => Math.abs(x) > length / 2 - d / 2 + 1e-6 || Math.abs(y) > width / 2 - d / 2 + 1e-6);
 		if (outside) {
-			error(at('piles'), localize('sub.p.pileOutside', "{0}: the pile at {1}, {2} mm does not lie within the cap.", f.id, formatNumber(outside[0], 0), formatNumber(outside[1], 0)));
+			warning(at('piles'), localize('sub.p.pileOutside', "{0}: the pile at {1}, {2} mm does not lie within the cap.", f.id, formatNumber(outside[0], 0), formatNumber(outside[1], 0)));
 			return;
 		}
 	}
 	const spacing = minPileSpacing(piles);
 	if (spacing !== undefined && spacing < d - 1e-6) {
-		error(at('piles'), localize('sub.p.pileOverlap', "{0}: two piles overlap: their centres are {1} mm apart, less than the diameter.", f.id, formatNumber(spacing, 0)));
+		warning(at('piles'), localize('sub.p.pileOverlap', "{0}: two piles overlap: their centres are {1} mm apart, less than the diameter.", f.id, formatNumber(spacing, 0)));
 		return;
 	}
 	if (spacing !== undefined) {
@@ -1077,6 +1649,8 @@ export interface ISubstructureCheck {
 export interface IPileLoad {
 	/** Its number in the cap, from 1. */
 	readonly number: number;
+	/** Its mark (PL1, ...), when the backend gives it. */
+	readonly mark?: string;
 	/** Offset from the cap's centre in its local axes [mm]. */
 	readonly u?: number;
 	readonly v?: number;
@@ -1289,6 +1863,7 @@ function readResult(f: Record<string, unknown>): IFoundationResult {
 			const uplift = optionalNumber(p.uplift);
 			return {
 				number: optionalNumber(p.index) ?? index + 1,
+				mark: optionalString(p.mark),
 				u: optionalNumber(p.u ?? p.dx ?? p.x), v: optionalNumber(p.v ?? p.dy ?? p.y),
 				compression: optionalNumber(p.serviceMax ?? p.compression ?? p.load),
 				least: least ?? (uplift !== undefined ? -uplift : undefined),
@@ -1376,6 +1951,8 @@ function readSummary(summary: Record<string, unknown>, designed: number, failedC
 export interface ISizingProposal {
 	readonly foundations: readonly IFoundation[];
 	readonly pileTypes: readonly IPileType[];
+	/** The piles its pile caps stand on. */
+	readonly piles?: readonly IPile[];
 	readonly notes: readonly string[];
 }
 
@@ -1392,7 +1969,7 @@ export function readSizingProposal(raw: unknown): ISizingProposal | undefined {
 	if (parsed.kind !== 'document') {
 		return undefined;
 	}
-	return { foundations: parsed.document.foundations, pileTypes: parsed.document.pileTypes, notes: strings(isRecord(raw) ? raw.notes : undefined) };
+	return { foundations: parsed.document.foundations, pileTypes: parsed.document.pileTypes, piles: parsed.document.piles, notes: strings(isRecord(raw) ? raw.notes : undefined) };
 }
 
 /**
@@ -1414,9 +1991,23 @@ function addPileTypes(document: ISubstructure, pileTypes: readonly IPileType[]):
 	return ids;
 }
 
-/** Sets a proposed or imported foundation's pile type to the id it has in the document. */
-function withPileType(foundation: IFoundation, ids: Map<string, string>): IFoundation {
-	return foundation.pileType && ids.has(foundation.pileType) ? { ...foundation, pileType: ids.get(foundation.pileType) } : foundation;
+/**
+ * Adds a proposed or imported pile cap's piles (of `proposal`) to `document` with free marks and
+ * the pile types' ids in the document; returns the foundation listing them by those marks.
+ */
+function withPiles(document: ISubstructure, foundation: IFoundation, proposal: ISizingProposal, ids: Map<string, string>): IFoundation {
+	if (foundation.type !== 'pileCap' || !foundation.piles?.length) {
+		return foundation;
+	}
+	const source = new Map((proposal.piles ?? []).map(p => [p.id, p]));
+	const marks: string[] = [];
+	for (const id of foundation.piles) {
+		const pile = source.get(id);
+		if (pile) {
+			marks.push(addPiles(document, ids.get(pile.type) ?? pile.type, [pile.position])[0].id);
+		}
+	}
+	return { ...foundation, piles: marks };
 }
 
 /**
@@ -1445,7 +2036,7 @@ export function applyProposal(document: ISubstructure, proposal: ISizingProposal
 	const pileIds = addPileTypes(document, proposal.pileTypes);
 	const placed: string[] = [];
 	for (const raw of proposal.foundations) {
-		const proposed = withPileType(raw, pileIds);
+		const proposed = withPiles(document, raw, proposal, pileIds);
 		const columns = new Set(proposed.columns ?? []);
 		const replaced = document.foundations.filter(f => !placed.includes(f.id) && (f.columns ?? []).some(c => columns.has(c)));
 		if (replaced.length) {
@@ -1488,7 +2079,8 @@ export function importFoundations(document: ISubstructure, imported: ISizingProp
 	const skipped: string[] = [];
 	const fresh = imported.foundations.filter(f => !savedIds.has(f.id));
 	const carried = new Set(document.foundations.flatMap(f => f.columns ?? []));
-	const usedPiles = new Set(fresh.filter(f => !(f.columns ?? []).some(c => carried.has(c))).map(f => f.pileType).filter(Boolean));
+	const types = new Map((imported.piles ?? []).map(p => [p.id, p.type]));
+	const usedPiles = new Set(fresh.filter(f => !(f.columns ?? []).some(c => carried.has(c))).flatMap(f => (f.piles ?? []).map(p => types.get(p))).filter(Boolean));
 	const pileIds = addPileTypes(document, imported.pileTypes.filter(p => usedPiles.has(p.id)));
 	for (const raw of fresh) {
 		if ((raw.columns ?? []).some(c => carried.has(c))) {
@@ -1497,7 +2089,7 @@ export function importFoundations(document: ISubstructure, imported: ISizingProp
 		}
 		const taken = document.foundations.map(f => f.id);
 		const id = taken.includes(raw.id) ? nextId('F', taken) : raw.id;
-		document.foundations.push({ ...withPileType(raw, pileIds), id });
+		document.foundations.push({ ...withPiles(document, raw, imported, pileIds), id });
 		for (const c of raw.columns ?? []) {
 			carried.add(c);
 		}
@@ -1589,8 +2181,9 @@ function canonical(value: unknown): string {
  */
 export function foundationSignature(document: ISubstructure, foundation: IFoundation): string {
 	const { note: _note, ...rest } = foundation;
-	const pile = foundation.type === 'pileCap' ? document.pileTypes.find(p => p.id === foundation.pileType) : undefined;
-	return canonical({ foundation: rest, pile, design: document.design });
+	const piles = capPiles(foundation, document);
+	const pile = capPileType(foundation, document);
+	return canonical({ foundation: rest, piles: piles.length ? piles : undefined, pile, design: document.design });
 }
 
 /** What a tie beam's checks depend on: itself and the foundations at its ends. */

@@ -6,15 +6,16 @@
 import { localize } from '../../../../nls.js';
 import { formatNumber } from '../../saengineSoil/browser/soilDocument.js';
 import { svg } from '../../saengineSoil/browser/soilLog.js';
-import { carriedColumns, foundationCenter, foundationOutlines, formatUtilisation, IFoundation, IRaftResult, ISiteContext, ISubstructure, pilePositions, Point, toGlobal } from './substructureDocument.js';
+import { carriedColumns, foundationCenter, foundationOutlines, formatUtilisation, gridIntersections, gridPoint, IFoundation, IRaftResult, ISiteContext, ISubstructure, pileCaps, Point, toGlobal, toLocal } from './substructureDocument.js';
 
 /*
  * The drawings of the substructure editor, as plain SVG: the plan of the base level (grid,
  * column bases, foundations to scale with their piles, tie beams, boreholes and the sizing
  * assistant's proposals) and the raft's contact pressure or settlement as a heat map. Colours
  * are CSS classes (substructureEditor.css) over the theme's tokens. Interactive parts carry
- * `data-foundation`, `data-column` or `data-tie` attributes: the editor listens on the
- * container and finds them with `closest`.
+ * `data-foundation`, `data-column`, `data-pile` or `data-tie` attributes: the editor listens on
+ * the container and finds them with `closest`. The pile grid is drawn apart from the building's
+ * grid (its own dashed lines, bubbles at the bottom and the right).
  */
 
 /** What the plan highlights and adds. */
@@ -30,6 +31,19 @@ export interface IPlanOptions {
 	readonly bands?: ReadonlyMap<string, 'ok' | 'warn' | 'fail' | 'none'>;
 	/** The utilisation of each foundation by id, written under its id. */
 	readonly utilisations?: ReadonlyMap<string, number>;
+	/** The piles selected, by id. */
+	readonly selectedPiles?: ReadonlySet<string>;
+	/** The foundation picked as the first end of a grade beam being drawn. */
+	readonly beamStart?: string;
+}
+
+/** The plan drawn, with its transform: px in the SVG to mm on the project's axes and back. */
+export interface IPlanDrawing {
+	readonly svg: SVGSVGElement;
+	/** Plan mm per px. */
+	readonly mmPerPx: number;
+	toPlan(x: number, y: number): Point;
+	toScreen(p: readonly [number, number]): [number, number];
 }
 
 /**
@@ -63,6 +77,8 @@ interface IView {
 	readonly scale: number;
 	x(value: number): number;
 	y(value: number): number;
+	invX(px: number): number;
+	invY(px: number): number;
 }
 
 function fit(points: readonly (readonly [number, number])[], width: number, height: number, padding: number): IView {
@@ -75,7 +91,13 @@ function fit(points: readonly (readonly [number, number])[], width: number, heig
 	const scale = Math.min((width - 2 * padding) / Math.max(x1 - x0, 1000), (height - 2 * padding) / Math.max(y1 - y0, 1000));
 	const offsetX = (width - (x1 - x0) * scale) / 2;
 	const offsetY = (height - (y1 - y0) * scale) / 2;
-	return { scale, x: value => offsetX + (value - x0) * scale, y: value => height - offsetY - (value - y0) * scale };
+	return {
+		scale,
+		x: value => offsetX + (value - x0) * scale,
+		y: value => height - offsetY - (value - y0) * scale,
+		invX: px => x0 + (px - offsetX) / scale,
+		invY: px => y0 + (height - offsetY - px) / scale,
+	};
 }
 
 function polygonPoints(view: IView, points: readonly Point[]): string {
@@ -104,6 +126,10 @@ function extent(document: ISubstructure, context: ISiteContext, proposals: reado
 	for (const g of context.grids.y) {
 		points.push([points[0]?.[0] ?? 0, g.position]);
 	}
+	for (const pile of document.piles) {
+		points.push(pile.position);
+	}
+	points.push(...gridIntersections(document.pileGrid).map(c => c.point));
 	if (!points.length) {
 		return context.boreholes.length ? context.boreholes.map(b => [b.x, b.y] as Point) : [[0, 0], [10000, 10000]];
 	}
@@ -129,7 +155,7 @@ function niceLength(target: number): number {
 }
 
 /** Draws the plan of the base level into `container` (replacing nothing: the caller clears it). */
-export function renderPlan(container: HTMLElement, document: ISubstructure, context: ISiteContext, options: IPlanOptions): SVGSVGElement {
+export function renderPlan(container: HTMLElement, document: ISubstructure, context: ISiteContext, options: IPlanOptions): IPlanDrawing {
 	const { width, height } = options;
 	const root = svg(container, 'svg', { width, height, class: 'sub-plan', role: 'img', 'aria-label': localize('sub.planAria', "Plan of the foundations") });
 	const proposals = options.proposals ?? [];
@@ -153,6 +179,34 @@ export function renderPlan(container: HTMLElement, document: ISubstructure, cont
 		svg(grid, 'text', { x: view.x(minX) - reach - 10, y: y + 4, class: 'sub-grid-label', 'text-anchor': 'middle' }, line.label);
 	}
 
+	// The pile grid: its own setting-out, dashed, bubbles at the bottom and the right.
+	const pileGrid = document.pileGrid;
+	if (pileGrid && (pileGrid.x.length || pileGrid.y.length)) {
+		const group = svg(root, 'g', { class: 'sub-pile-grid' });
+		const origin = pileGrid.origin ?? [0, 0];
+		const rotation = pileGrid.rotation ?? 0;
+		const corners: Point[] = [[minX, minY], [maxX, minY], [maxX, maxY], [minX, maxY]];
+		const local = corners.map(c => toLocal(origin, c, rotation));
+		const margin = 12 / view.scale;
+		const [u0, u1] = [Math.min(...local.map(p => p[0])) - margin, Math.max(...local.map(p => p[0])) + margin];
+		const [v0, v1] = [Math.min(...local.map(p => p[1])) - margin, Math.max(...local.map(p => p[1])) + margin];
+		const bubble = (p: Point, label: string) => {
+			svg(group, 'circle', { cx: view.x(p[0]), cy: view.y(p[1]), r: 8, class: 'sub-pile-grid-bubble' });
+			svg(group, 'text', { x: view.x(p[0]), y: view.y(p[1]) + 3.5, class: 'sub-pile-grid-label', 'text-anchor': 'middle' }, label);
+		};
+		const reach = 8 / view.scale;
+		for (const line of pileGrid.x) {
+			const [a, b] = [gridPoint(pileGrid, line.position, v0), gridPoint(pileGrid, line.position, v1)];
+			svg(group, 'line', { x1: view.x(a[0]), y1: view.y(a[1]), x2: view.x(b[0]), y2: view.y(b[1]), class: 'sub-pile-grid-line' });
+			bubble(gridPoint(pileGrid, line.position, v0 - reach), line.label);
+		}
+		for (const line of pileGrid.y) {
+			const [a, b] = [gridPoint(pileGrid, u0, line.position), gridPoint(pileGrid, u1, line.position)];
+			svg(group, 'line', { x1: view.x(a[0]), y1: view.y(a[1]), x2: view.x(b[0]), y2: view.y(b[1]), class: 'sub-pile-grid-line' });
+			bubble(gridPoint(pileGrid, u1 + reach, line.position), line.label);
+		}
+	}
+
 	// Walls on the base level, faint.
 	for (const wall of context.walls) {
 		svg(root, 'line', { x1: view.x(wall.start[0]), y1: view.y(wall.start[1]), x2: view.x(wall.end[0]), y2: view.y(wall.end[1]), class: 'sub-wall', 'stroke-width': Math.max(2, wall.thickness * view.scale) });
@@ -162,7 +216,7 @@ export function renderPlan(container: HTMLElement, document: ISubstructure, cont
 	const order = document.foundations.map((f, i) => ({ f, i })).sort((a, b) => Number(b.f.type === 'raft') - Number(a.f.type === 'raft'));
 	const pileTypes = new Map(document.pileTypes.map(p => [p.id, p]));
 	for (const { f, i } of order) {
-		const selected = options.selectedFoundations.has(i);
+		const selected = options.selectedFoundations.has(i) || options.beamStart === f.id;
 		const band = options.bands?.get(f.id) ?? 'none';
 		const group = svg(root, 'g', { class: `sub-foundation type-${f.type} band-${band}${selected ? ' selected' : ''}`, 'data-foundation': i, tabindex: -1 });
 		svg(group, 'title', {}, f.id);
@@ -171,10 +225,6 @@ export function renderPlan(container: HTMLElement, document: ISubstructure, cont
 		}
 		if (f.type === 'strip' && f.path && f.path.length >= 2) {
 			svg(group, 'polyline', { points: polygonPoints(view, f.path), class: 'sub-strip-axis' });
-		}
-		const pile = f.pileType ? pileTypes.get(f.pileType) : undefined;
-		for (const position of pilePositions(f, context)) {
-			svg(group, 'circle', { cx: view.x(position[0]), cy: view.y(position[1]), r: Math.max(3, (pile?.diameter ?? 500) / 2 * view.scale), class: 'sub-pile' });
 		}
 		const center = foundationCenter(f, context);
 		if (center) {
@@ -225,6 +275,23 @@ export function renderPlan(container: HTMLElement, document: ISubstructure, cont
 		svg(group, 'text', { x: (coordinates.x1 + coordinates.x2) / 2 + flip * nx, y: (coordinates.y1 + coordinates.y2) / 2 + flip * ny + 4, class: 'sub-tie-label', 'text-anchor': 'middle' }, tie.id);
 	});
 
+	// Piles, placed in plan: under a cap or not yet (dashed), with their marks when there is room.
+	const caps = pileCaps(document);
+	const piles = svg(root, 'g', { class: 'sub-piles' });
+	for (const pile of document.piles) {
+		const radius = Math.max(3, (pileTypes.get(pile.type)?.diameter ?? 500) / 2 * view.scale);
+		const selected = options.selectedPiles?.has(pile.id) ?? false;
+		const group = svg(piles, 'g', { class: `sub-pile-item${caps.has(pile.id) ? '' : ' free'}${selected ? ' selected' : ''}`, 'data-pile': pile.id });
+		svg(group, 'title', {}, caps.has(pile.id) ? localize('sub.pileTitle', "Pile {0} ({1}) under {2}", pile.id, pile.type, caps.get(pile.id)!) : localize('sub.pileFreeTitle', "Pile {0} ({1}), under no cap", pile.id, pile.type));
+		const [cx, cy] = [view.x(pile.position[0]), view.y(pile.position[1])];
+		svg(group, 'circle', { cx, cy, r: radius + 4, class: 'sub-pile-hit' });
+		svg(group, 'circle', { cx, cy, r: radius, class: 'sub-pile' });
+		svg(group, 'path', { d: `M${cx - radius} ${cy}H${cx + radius}M${cx} ${cy - radius}V${cy + radius}`, class: 'sub-pile-cross' });
+		if (radius >= 6 || selected) {
+			svg(group, 'text', { x: cx + radius * 0.75 + 2, y: cy + radius * 0.75 + 10, class: 'sub-pile-label' }, pile.id);
+		}
+	}
+
 	// Column bases.
 	for (const column of context.columns) {
 		const selected = options.selectedColumns.has(column.id);
@@ -263,7 +330,12 @@ export function renderPlan(container: HTMLElement, document: ISubstructure, cont
 	const barY = height - 16;
 	svg(root, 'path', { d: `M${barX} ${barY - 4}V${barY}H${barX + length * view.scale}V${barY - 4}`, class: 'sub-scale' });
 	svg(root, 'text', { x: barX + length * view.scale + 6, y: barY, class: 'sub-scale-label' }, localize('sub.scaleBar', "{0} m", formatNumber(length / 1000, 2)));
-	return root;
+	return {
+		svg: root,
+		mmPerPx: 1 / view.scale,
+		toPlan: (x, y) => [view.invX(x), view.invY(y)],
+		toScreen: p => [view.x(p[0]), view.y(p[1])],
+	};
 }
 
 /** The colour of a value from 0 (low) to 1 (high) on a sequential blue → red ramp, as a CSS class step. */
