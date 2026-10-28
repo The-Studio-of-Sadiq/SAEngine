@@ -552,9 +552,14 @@ export class FloorPlanEditor extends EditorPane {
 		const resources = [plan.uri, soil.uri, ...(this.objects ? [this.objects.uri] : [])];
 		if (result?.plot && !resources.some(r => this.textFileService.isDirty(r))) {
 			const warnings = result.warnings ?? [];
+			// Members, not warnings: a column outside on two sides is one member outside.
+			const members = (kind: 'outside' | 'setback') => new Set(warnings.filter(w => w.kind === kind).map(w => `${w.group}:${w.id}`)).size;
+			const outside = members('outside');
+			const failed = new Set(warnings.map(w => `${w.group}:${w.id}`)).size;
 			void this.partStatusService.reportChecks('floorPlan', {
 				problems: 0,
-				failed: warnings.length,
+				failed,
+				failedText: outside ? localize('floorPlan.outsidePlot', "{0} outside the plot", outside) : localize('floorPlan.inSetbacks', "{0} in setbacks", members('setback')),
 				items: warnings.map(w => ({ severity: 'warning' as const, message: w.message, where: w.id })),
 			}, ['floorPlan', 'soil', 'objects']);
 		}

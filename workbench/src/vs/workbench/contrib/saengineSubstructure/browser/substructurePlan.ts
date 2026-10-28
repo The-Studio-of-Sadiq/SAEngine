@@ -288,7 +288,11 @@ export function renderPlan(container: HTMLElement, document: ISubstructure, cont
 		svg(group, 'circle', { cx, cy, r: radius, class: 'sub-pile' });
 		svg(group, 'path', { d: `M${cx - radius} ${cy}H${cx + radius}M${cx} ${cy - radius}V${cy + radius}`, class: 'sub-pile-cross' });
 		if (radius >= 6 || selected) {
-			svg(group, 'text', { x: cx + radius * 0.75 + 2, y: cy + radius * 0.75 + 10, class: 'sub-pile-label' }, pile.id);
+			// The mark goes on the pile's outer side, away from its cap's centre (and the column label there).
+			const center = document.foundations.find(f => f.id === caps.get(pile.id))?.center ?? pile.position;
+			const sx = pile.position[0] < center[0] ? -1 : 1;
+			const sy = pile.position[1] > center[1] ? -1 : 1; // screen y runs down
+			svg(group, 'text', { x: cx + sx * (radius * 0.75 + 2), y: cy + sy * (radius * 0.75 + 2) + (sy > 0 ? 8 : 0), class: 'sub-pile-label', 'text-anchor': sx > 0 ? 'start' : 'end' }, pile.id);
 		}
 	}
 

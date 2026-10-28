@@ -81,6 +81,7 @@ export interface IPartStatusInputs {
  *   "problems": 2,                        // input problems to fix (validation): the part fails
  *   "checked": 14, "total": 18,           // items checked of those that need checking (optional)
  *   "failed": 1,                          // checked items that fail (optional)
+ *   "failedText": "1 in setbacks",        // what fails, for the part list (optional; else "1 fail")
  *   "unsupported": 0,                     // items the checks cannot handle (optional)
  *   "source": { "settings": "<stamp>" },  // `sourceStamp` of each saved file the counts read
  *   "items": [{ "severity": "error", "message": "…", "where": "loads.live" }] }  // optional, a few
@@ -110,6 +111,8 @@ export interface IPartCheckCounts {
 	readonly checked?: number;
 	readonly total?: number;
 	readonly failed?: number;
+	/** What fails, in a few words for the part list instead of "N fail" ("12 in setbacks"). */
+	readonly failedText?: string;
 	readonly unsupported?: number;
 	readonly items?: readonly IPartCheckItem[];
 }
@@ -137,6 +140,7 @@ export function partChecksFile(part: string, counts: IPartCheckCounts, sources: 
 		...(counts.checked !== undefined ? { checked: counts.checked } : {}),
 		...(counts.total !== undefined ? { total: counts.total } : {}),
 		...(counts.failed !== undefined ? { failed: counts.failed } : {}),
+		...(counts.failedText ? { failedText: counts.failedText } : {}),
 		...(counts.unsupported !== undefined ? { unsupported: counts.unsupported } : {}),
 		...(items?.length ? { items } : {}),
 		source,
@@ -175,7 +179,8 @@ export function applyPartChecks(own: IPartStatus, checks: IPartChecks | undefine
 	}
 	const failed = positive(checks.failed);
 	if (failed > 0) {
-		return own.state === 'failed' ? own : status(own.part, 'failed', localize('partStatus.checks.fail', "{0} fail", failed), checks.items?.[0]?.message ?? localize('partStatus.checks.review', "review the failing checks"));
+		const text = typeof checks.failedText === 'string' && checks.failedText ? checks.failedText : localize('partStatus.checks.fail', "{0} fail", failed);
+		return own.state === 'failed' ? own : status(own.part, 'failed', text, checks.items?.[0]?.message ?? localize('partStatus.checks.review', "review the failing checks"));
 	}
 	if (own.state === 'failed') {
 		return own;
