@@ -580,6 +580,12 @@ CommandsRegistry.registerCommand('saengine.soil.location', async (accessor, args
 	return accessor.get(IFemSolverService).engine(python, 'soil/location', { soilText: args.soilText, bimText: args.bimText, settingsText: args.settingsText, projectRoot: accessor.get(ISaengineProjectService).project?.root.fsPath });
 });
 
+/** The plot and its envelope in project mm, and the floor plan's members outside them (Floor Plan warnings). */
+CommandsRegistry.registerCommand('saengine.soil.plotCheck', async (accessor, args: { readonly soilText: string; readonly floorPlanText: string; readonly objectsText?: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'soil/plotCheck', { soilText: args.soilText, floorPlanText: args.floorPlanText, objectsText: args.objectsText });
+});
+
 CommandsRegistry.registerCommand('saengine.soil.gisExport', async (accessor, args: { readonly projectRoot: string; readonly format: 'geojson' | 'gpkg'; readonly outPath: string }) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	return accessor.get(IFemSolverService).engine(python, 'soil/gisExport', { projectRoot: args.projectRoot, format: args.format, outPath: args.outPath });
@@ -686,17 +692,19 @@ CommandsRegistry.registerCommand('saengine.export.e2k', async (accessor, args: {
 
 /**
  * Integrator glue: the backend of the New Building wizard (newBuildingWizard.ts calls it by id,
- * `saengine.library.generateBuilding` `{spec, destParent, name}`): `library/generateBuilding`
+ * `saengine.library.generateBuilding` `{spec, destParent, name, site?}`): `library/generateBuilding`
  * generates the building from its grids and storeys into `<destParent>/<name>`
- * (saengine.project.new_building, saengine.library.generator) and answers `{root, name, notes,
- * summary, settingsPatch, files}`, or `{error}`.
+ * (saengine.project.new_building, saengine.library.generator), with the soil report's `site`
+ * (its plot) when given, and answers `{root, name, notes, summary, settingsPatch, files}`, or
+ * `{error}`.
  */
-CommandsRegistry.registerCommand('saengine.library.generateBuilding', async (accessor, args: { readonly spec: object; readonly destParent: string; readonly name?: string }) => {
+CommandsRegistry.registerCommand('saengine.library.generateBuilding', async (accessor, args: { readonly spec: object; readonly destParent: string; readonly name?: string; readonly site?: object }) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	return accessor.get(IFemSolverService).engine(python, 'library/generateBuilding', {
 		spec: args.spec,
 		destParent: args.destParent,
 		...(args.name ? { name: args.name } : {}),
+		...(args.site ? { site: args.site } : {}),
 	});
 });
 

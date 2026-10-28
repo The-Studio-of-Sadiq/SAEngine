@@ -11403,6 +11403,62 @@ export const SOIL_SCHEMA: IJSONSchema = {
 			title: 'Pile',
 			type: 'object',
 		},
+		Plot: {
+			additionalProperties: false,
+			description: 'The plot: its corners in the project grid (when the site boundary is not given in\nlatitude/longitude), the side facing the road and the setbacks that leave the buildable\nenvelope (``saengine.gis.plot``).',
+			properties: {
+				points: {
+					description: 'Plot corners in the project coordinates [mm], in order around the plot: drawn on the project grid or typed as a rectangle. Used when the site boundary (latitude/longitude) is empty.',
+					items: {
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					title: 'Corners',
+					type: 'array',
+				},
+				road: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The side facing the road: the side from corner `road` to the next one (0 is the first corner\'s).',
+					title: 'Road side',
+				},
+				front: {
+					default: 0,
+					description: 'From the side facing the road [mm].',
+					minimum: 0,
+					title: 'Front setback',
+					type: 'number',
+				},
+				rear: {
+					default: 0,
+					description: 'From the side opposite the road [mm].',
+					minimum: 0,
+					title: 'Rear setback',
+					type: 'number',
+				},
+				side: {
+					default: 0,
+					description: 'From each other side [mm].',
+					minimum: 0,
+					title: 'Side setback',
+					type: 'number',
+				},
+			},
+			title: 'Plot',
+			type: 'object',
+		},
 		ReportInfo: {
 			additionalProperties: false,
 			description: 'The soil investigation report the data comes from.',
@@ -11924,7 +11980,7 @@ export const SOIL_SCHEMA: IJSONSchema = {
 					title: 'Address',
 				},
 				boundary: {
-					description: 'Plot boundary as [longitude, latitude] points (WGS 84), e.g. imported from QGIS.',
+					description: 'Plot boundary as [longitude, latitude] points (WGS 84): drawn on the map or imported from QGIS. When given, it is the plot (its corners in the project grid are worked out through the site point).',
 					items: {
 						items: {
 							type: 'number',
@@ -11935,6 +11991,19 @@ export const SOIL_SCHEMA: IJSONSchema = {
 					},
 					title: 'Site boundary',
 					type: 'array',
+				},
+				plot: {
+					anyOf: [
+						{
+							$ref: '#/$defs/Plot',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The plot\'s corners in the project grid (without a boundary), the road side and the setbacks.',
+					title: 'Plot',
 				},
 			},
 			title: 'Site',

@@ -608,6 +608,34 @@ POSITIONS = {
 }
 
 
+class Plot(_Model):
+    """The plot: its corners in the project grid (when the site boundary is not given in
+    latitude/longitude), the side facing the road and the setbacks that leave the buildable
+    envelope (``saengine.gis.plot``)."""
+
+    points: list[Annotated[list[float], Field(min_length=2, max_length=2)]] = Field(
+        default_factory=list,
+        title="Corners",
+        description="Plot corners in the project coordinates [mm], in order around the plot: "
+        "drawn on the project grid or typed as a rectangle. Used when the site boundary "
+        "(latitude/longitude) is empty.",
+    )
+    road: int | None = Field(
+        default=None,
+        ge=0,
+        title="Road side",
+        description="The side facing the road: the side from corner `road` to the next one "
+        "(0 is the first corner's).",
+    )
+    front: Depth = Field(
+        default=0, title="Front setback", description="From the side facing the road [mm]."
+    )
+    rear: Depth = Field(
+        default=0, title="Rear setback", description="From the side opposite the road [mm]."
+    )
+    side: Depth = Field(default=0, title="Side setback", description="From each other side [mm].")
+
+
 class Site(_Model):
     """The site on the map (WGS 84, EPSG:4326). Its point georeferences the project grid: the
     project point (x, y) lies at (lat, lon), and the project +Y axis points ``rotation``
@@ -633,9 +661,25 @@ class Site(_Model):
     boundary: list[Annotated[list[float], Field(min_length=2, max_length=2)]] = Field(
         default_factory=list,
         title="Site boundary",
-        description="Plot boundary as [longitude, latitude] points (WGS 84), e.g. imported "
-        "from QGIS.",
+        description="Plot boundary as [longitude, latitude] points (WGS 84): drawn on the map "
+        "or imported from QGIS. When given, it is the plot (its corners in the project grid are "
+        "worked out through the site point).",
     )
+    plot: Plot | None = Field(
+        default=None,
+        description="The plot's corners in the project grid (without a boundary), the road side "
+        "and the setbacks.",
+    )
+
+    @model_validator(mode="after")
+    def _road(self) -> Site:
+        corners = len(self.boundary) or (len(self.plot.points) if self.plot else 0)
+        if self.plot is not None and self.plot.road is not None and self.plot.road >= corners:
+            raise ValueError(
+                f"plot.road: the plot has {corners} sides; the road side is one of 0 to "
+                f"{max(corners - 1, 0)}"
+            )
+        return self
 
     @property
     def georeferenced(self) -> bool:

@@ -33,11 +33,13 @@ Methods:
 - ``export/e2k`` ``{projectRoot, outPath?, units?, lateral?}`` -> the project as an ETABS text
   model in ``11 Exports/ETABS`` with its export report (``{path, reportPath, report}`` or
   ``{error}``; ``saengine.exporters.etabs``; in a worker thread)
-- ``library/generateBuilding`` ``{spec, destParent, name?, overwrite?}`` -> a new building
+- ``library/generateBuilding`` ``{spec, destParent, name?, overwrite?, site?}`` -> a new building
   project generated from its grids and storeys (``{root, name, notes, summary, settingsPatch,
   files}`` or ``{error}``; ``saengine.project.new_building``; in a worker thread)
 - ``soil/location`` ``{soilText, bimText?, settingsText?, projectRoot?}`` -> the site, boreholes and building
   outline in WGS 84 with the nearest BNBC town (``saengine.gis.site``)
+- ``soil/plotCheck`` ``{soilText, floorPlanText, objectsText?}`` -> the plot and its buildable
+  envelope in project mm and the floor plan's members outside them (``saengine.gis.plot``)
 - ``soil/gisExport`` ``{projectRoot, format: geojson|gpkg, outPath}`` -> ``{path, counts,
   problems}``; ``soil/gisImport`` ``{path, soilText?}`` -> ``{soilText, added, updated, ...}``
 - ``soil/qgisProgram`` ``{}`` -> an installed QGIS launcher's path or null;
@@ -444,7 +446,11 @@ def create_server() -> JsonRPCServer:
     def _new_building(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.new_building(
-            args["spec"], args["destParent"], args.get("name"), bool(args.get("overwrite"))
+            args["spec"],
+            args["destParent"],
+            args.get("name"),
+            bool(args.get("overwrite")),
+            args.get("site"),
         )
 
     @server.feature("library/steelSections")
@@ -546,6 +552,14 @@ def create_server() -> JsonRPCServer:
         args = _plain(params)
         return handlers.soil_location(
             args.get("soilText"), args.get("bimText"), args.get("settingsText")
+        )
+
+    @server.feature("soil/plotCheck")
+    @_in_worker
+    def _soil_plot_check(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.plot_check(
+            args.get("soilText"), args.get("floorPlanText"), args.get("objectsText")
         )
 
     @server.feature("soil/gisExport")

@@ -151,9 +151,13 @@ def create_building(
     dest_parent: str | Path,
     name: str | None = None,
     overwrite: bool = False,
+    site: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Generates the building of ``spec`` into a new project ``<dest_parent>/<name>`` (default:
     the spec's name): ``{"root", "name", "notes", "summary", "settingsPatch", "files"}``.
+    ``site``: the soil report's site (``saengine.library.soil.Site``) the project starts with;
+    with a plot, the project grid is turned along it with its origin inside the buildable
+    envelope (``saengine.gis.plot.aligned_site``), where the wizard fitted the grid.
     Raises :class:`NewBuildingError` for an invalid spec, a ``dest_parent`` that is not an
     absolute path to an existing folder (:func:`project_parent`), or a folder holding files
     already (unless ``overwrite``, which replaces the generated part files only)."""
@@ -173,12 +177,28 @@ def create_building(
         raise NewBuildingError(f"the building spec is not valid: {problems}") from error
     except ValueError as error:
         raise NewBuildingError(str(error)) from error
+    soil_text = None
+    if site:
+        from saengine.gis.plot import aligned_site
+        from saengine.library.soil import Site, SoilReport
+        from saengine.soil.report import dumps
+
+        try:
+            given = Site.model_validate(site)
+            soil_text = dumps(SoilReport(site=Site.model_validate(aligned_site(given) or site)))
+        except ValidationError as error:
+            raise NewBuildingError(f"the site is not valid: {error.errors()[0]['msg']}") from error
     title = parsed.name
     root = parent / _safe(title)
     if root.exists() and any(root.iterdir()) and not overwrite:
         raise NewBuildingError(f"{root} exists already and is not empty")
     root.mkdir(parents=True, exist_ok=True)
     files = write_building(result, root, title)
+    if soil_text is not None:
+        path = root / "01 Soil Report" / "soil-report.json"
+        path.parent.mkdir(exist_ok=True)
+        path.write_text(soil_text, encoding="utf-8")
+        files.append(path)
     for folder, main in OTHER_PARTS.items():
         (root / folder).mkdir(exist_ok=True)
         if main is not None and not (root / folder / main[0]).exists():

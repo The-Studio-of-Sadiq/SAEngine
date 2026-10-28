@@ -6,7 +6,9 @@ between files), the same checks the editors run:
 
 - 2 Project Settings, 3 Materials, 4 Objects, 5 Floor Plan / Structural Model, 6 BIM:
   :func:`saengine.library.check.check_library` (the editors' ``saengine.library.check``), with
-  the materials for the object types and the object types for the layouts;
+  the materials for the object types and the object types for the layouts; the floor plan's
+  members outside the soil report's plot or in its setbacks as warnings
+  (:func:`saengine.gis.plot.encroachments`);
 - 1 Soil Report: the model, and :func:`saengine.library.soil.check` (what the computations will
   be missing) as warnings;
 - 7 MEP: :func:`saengine.library.mep.parse` and :func:`saengine.library.mep.check` against 6 BIM;
@@ -108,6 +110,25 @@ def _library(project: Project, part: str, model_name: str) -> Any:
         return None
 
 
+def _plot_warnings(project: Project, floor_plan_text: str) -> list[dict[str, Any]]:
+    """The floor plan's members outside the soil report's plot or inside its setbacks."""
+    from saengine.gis.plot import encroachments
+    from saengine.library.soil import is_placeholder
+    from saengine.soil.report import parse
+
+    soil_text = project.text("soil")
+    try:
+        if not soil_text or is_placeholder(json.loads(soil_text)):
+            return []
+    except ValueError:
+        return []
+    report = parse(soil_text)
+    if isinstance(report, list):
+        return []
+    found = encroachments(report.site, floor_plan_text, project.text("objects"))
+    return [_problem(w["message"], "warning", w["id"]) for w in found["warnings"]]
+
+
 def validate_part(project: Project, part: str) -> PartValidation:
     """The problems of part ``part`` of ``project``."""
     from saengine.codes import context as code_context
@@ -141,6 +162,8 @@ def validate_part(project: Project, part: str) -> PartValidation:
         problems = [
             _problem(p["message"], path=p.get("path") or "", index=p.get("index")) for p in found
         ]
+        if part == "floorPlan" and not problems:
+            problems = _plot_warnings(project, text)
     elif part == "soil":
         from saengine.library.soil import SoilReport, check
 

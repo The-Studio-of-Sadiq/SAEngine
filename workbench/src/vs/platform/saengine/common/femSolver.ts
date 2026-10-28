@@ -551,7 +551,8 @@ export interface IFemSolverService {
  * The design mode (`saengine.design`) and the site map (`saengine.gis.site`):
  * `design/required` `{outDir, projectPath, options?}`, `design/proposal` `{outDir, projectPath,
  * options?}`, `design/applyProposal` `{objectsText, bimText?, proposal, floorPlanText?,
- * substructureText?}`, `soil/location` `{soilText, bimText?, settingsText?}`, `soil/gisExport`
+ * substructureText?}`, `soil/location` `{soilText, bimText?, settingsText?}`, `soil/plotCheck`
+ * `{soilText, floorPlanText, objectsText?}` (the floor plan against the plot), `soil/gisExport`
  * `{projectRoot, format, outPath}`, `soil/gisImport` `{path, soilText?}` and
  * `soil/qgisProgram` `{}` (a launcher path or null); the earthquake design from the response
  * spectrum `fem/seismicDesign` `{outDir, projectPath}` (null when the project designs from the
@@ -564,14 +565,14 @@ export interface IFemSolverService {
  * project as an ETABS text model `export/e2k` `{projectRoot, outPath?, units?, lateral?}` (`{path,
  * reportPath, report}` or `{error}`; in a worker thread) and
  * the standard steel section table `library/steelSections` `{}`; a new building generated from its
- * grids and storeys `library/generateBuilding` `{spec, destParent, name?, overwrite?}` (`{root, name,
+ * grids and storeys `library/generateBuilding` `{spec, destParent, name?, overwrite?, site?}` (`{root, name,
  * notes, summary, settingsPatch, files}` or `{error}`; in a worker thread).
  */
 export type EngineMethod =
 	| 'design/required' | 'design/proposal' | 'design/applyProposal'
 	| 'fem/seismicDesign' | 'fem/secondOrder'
 	| 'fem/storyResponse' | 'fem/memberForces' | 'fem/columnInteraction' | 'fem/exportXlsx'
-	| 'soil/location' | 'soil/gisExport' | 'soil/gisImport' | 'soil/qgisProgram'
+	| 'soil/location' | 'soil/plotCheck' | 'soil/gisExport' | 'soil/gisImport' | 'soil/qgisProgram'
 	| 'drawings/generate' | 'drawings/list' | 'drawings/progress'
 	| 'import/structural' | 'export/e2k' | 'library/steelSections' | 'library/generateBuilding'
 	| 'section/analyse';
