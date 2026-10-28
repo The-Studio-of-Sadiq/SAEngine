@@ -11,6 +11,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IPartSectionOptions } from '../../../services/saengineProject/common/partSections.js';
 import { IPartStatus, PartState } from '../../../services/saengineProject/common/partStatus.js';
 import { IProjectPart, ISaengineProject } from '../../../services/saengineProject/common/saengineProject.js';
 import { ExportsEditorInput } from './exportsEditorInput.js';
@@ -60,6 +61,103 @@ export function partGroups(parts: readonly IProjectPart[]): IPartGroup[] {
 		}
 	}
 	return groups.filter(group => group.parts.length);
+}
+
+/**
+ * An entry under a part in the sidebar: one view of the part's editor (a section of it, opened
+ * with `{ section }`), or an editor of its own the part has (opened by a command, or by the
+ * part's file in another editor).
+ */
+export interface IPartSection {
+	readonly id: string;
+	readonly label: string;
+	/** The editor's section ids this entry shows: the first is opened. */
+	readonly sections?: readonly string[];
+	/** The editor (by its id) that shows the part's file for this entry. */
+	readonly editorId?: string;
+	/** The command that opens this entry's editor, and that editor's input type. */
+	readonly command?: string;
+	/** The input type of the editor this entry is (the part's own editor, or the command's). */
+	readonly typeId?: string;
+}
+
+/** Editor and input ids of the part editors with entries (kept as strings: no imports between the parts). */
+const GRIDS_EDITOR_ID = 'workbench.editor.saengine.grids';
+const FLOOR_PLAN_INPUT = 'workbench.input.saengine.floorPlan';
+const MEMBERS_TABLE_INPUT = 'workbench.input.saengine.membersTable';
+const FEM_MODEL_INPUT = 'workbench.input.saengine.femModel';
+const FEM_RESULTS_INPUT = 'workbench.input.saengine.femResults';
+const FEM_PROPOSAL_INPUT = 'workbench.input.saengine.femDesignProposal';
+
+/** The entries under the parts that hold several views (agreed for alpha 7); none for the others. */
+export function partSections(partId: string): readonly IPartSection[] {
+	switch (partId) {
+		case 'settings': return [
+			{ id: 'code', label: localize('partSection.settingsCode', "Code and Site"), sections: ['codes', 'project', 'occupancy', 'site'] },
+			{ id: 'loads', label: localize('partSection.settingsLoads', "Loads"), sections: ['areaLoads'] },
+			{ id: 'seismic', label: localize('partSection.settingsSeismic', "Seismic"), sections: ['seismic'] },
+			{ id: 'wind', label: localize('partSection.settingsWind', "Wind"), sections: ['wind'] },
+			{ id: 'combinations', label: localize('partSection.settingsCombinations', "Combinations and Analysis"), sections: ['combinations', 'analysis'] },
+			{ id: 'foundation', label: localize('partSection.settingsFoundation', "Foundation"), sections: ['foundation'] },
+			{ id: 'drawings', label: localize('partSection.settingsDrawings', "Drawings"), sections: ['drawings'] },
+		];
+		case 'floorPlan': return [
+			{ id: 'plan', label: localize('partSection.floorPlanPlan', "Plan"), typeId: FLOOR_PLAN_INPUT },
+			{ id: 'grids', label: localize('partSection.floorPlanGrids', "Grids & Stories"), editorId: GRIDS_EDITOR_ID },
+			{ id: 'members', label: localize('partSection.floorPlanMembers', "Members Table"), command: 'saengine.floorPlan.openMembersTable', typeId: MEMBERS_TABLE_INPUT },
+		];
+		case 'bim': return [
+			{ id: '3d', label: localize('partSection.bim3d', "3D View"), sections: ['3d'] },
+			{ id: 'additions', label: localize('partSection.bimAdditions', "Additions"), sections: ['additions'] },
+			{ id: 'summary', label: localize('partSection.bimSummary', "Summary"), sections: ['summary'] },
+		];
+		case 'mep': return [
+			{ id: 'coordination', label: localize('partSection.mepCoordination', "Coordination"), sections: ['coordination'] },
+			{ id: 'plumbing', label: localize('partSection.mepPlumbing', "Plumbing"), sections: ['plumbing'] },
+			{ id: 'hvac', label: localize('partSection.mepHvac', "HVAC"), sections: ['hvac'] },
+			{ id: 'electrical', label: localize('partSection.mepElectrical', "Electrical"), sections: ['electrical'] },
+			{ id: 'fire', label: localize('partSection.mepFire', "Fire"), sections: ['fire'] },
+		];
+		case 'fem': return [
+			{ id: 'model', label: localize('partSection.femModel', "Model and Analysis"), typeId: FEM_MODEL_INPUT },
+			{ id: 'results', label: localize('partSection.femResults', "Analysis Charts"), command: 'saengine.fem.showCharts', typeId: FEM_RESULTS_INPUT },
+			{ id: 'proposal', label: localize('partSection.femProposal', "Design Reinforcement"), command: 'saengine.fem.designReinforcement', typeId: FEM_PROPOSAL_INPUT },
+		];
+		default: return [];
+	}
+}
+
+/** Whether the active editor (its input `editor`, its pane `section`) shows `entry`. */
+export function isSectionActive(entry: IPartSection, editor: { readonly typeId: string; readonly editorId: string | undefined } | undefined, section: string | undefined): boolean {
+	if (!editor) {
+		return false;
+	}
+	if (entry.editorId) {
+		return editor.editorId === entry.editorId;
+	}
+	if (entry.typeId) {
+		return editor.typeId === entry.typeId && editor.editorId !== GRIDS_EDITOR_ID;
+	}
+	return !!section && !!entry.sections?.includes(section);
+}
+
+/** Whether the active editor is one of a part's own editors without the part's file (results, tables). */
+export function isPartEditor(partId: string, editor: { readonly typeId: string } | undefined): boolean {
+	return !!editor && partSections(partId).some(entry => entry.command && entry.typeId === editor.typeId);
+}
+
+/** Opens `entry` of `part`. */
+export async function openPartSection(project: ISaengineProject, part: IProjectPart, entry: IPartSection, services: {
+	readonly editorService: IEditorService;
+	readonly commandService: ICommandService;
+}, options?: { readonly preserveFocus?: boolean }): Promise<void> {
+	const resource = partResource(project, part);
+	if (entry.command) {
+		await services.commandService.executeCommand(entry.command);
+	} else if (resource) {
+		const section: IPartSectionOptions = { pinned: false, preserveFocus: options?.preserveFocus, override: entry.editorId, section: entry.sections?.[0] };
+		await services.editorService.openEditor({ resource, options: section });
+	}
 }
 
 /** The file the part's editor opens, if it has one. */

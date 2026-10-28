@@ -21,6 +21,7 @@ import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { BIM_SCHEMA, TEMPLATES } from '../../../services/saengineProject/common/projectLibraries.generated.js';
@@ -36,6 +37,7 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ISaengineModelSelectionService, MemberGroup, ModelSelection } from '../../../services/saengineProject/common/modelSelection.js';
 import { recordedStamp, sourceStamp, upstreamPart } from '../../../services/saengineProject/common/partSources.js';
+import { IPartSectionPane, sectionOption } from '../../../services/saengineProject/common/partSections.js';
 import { ISaengineProjectService, partById, PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
 import { loadViewerModule, viewerAssetBaseUrl } from '../../saengineFem/browser/viewerModule.js';
 import { propertySheet } from '../../saengineModel/browser/modelData.js';
@@ -157,7 +159,7 @@ const GENERATED = ['source', 'stories', 'elements'];
  * exports IFC. Elements that belong to the building model itself (no floor-plan source) are
  * kept when it is rebuilt.
  */
-export class BuildingEditor extends JsonDocumentEditor {
+export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPane {
 
 	static readonly ID = LibraryEditorInput.BUILDING_EDITOR_ID;
 
@@ -168,6 +170,8 @@ export class BuildingEditor extends JsonDocumentEditor {
 	private readonly viewButtons = new Map<View, HTMLButtonElement>();
 	private readonly form: SchemaForm;
 	private view: View = '3d';
+	private readonly _onDidChangePartSection = this._register(new Emitter<void>());
+	readonly onDidChangePartSection = this._onDidChangePartSection.event;
 
 	private viewer: BuildingViewer | undefined;
 	private viewerLoading: Promise<BuildingViewer | undefined> | undefined;
@@ -762,8 +766,26 @@ export class BuildingEditor extends JsonDocumentEditor {
 
 	// ───────────────────────────── rendering ─────────────────────────────
 
+	/** The view shown, for the sidebar's entries under BIM. */
+	get partSection(): string | undefined {
+		return this.view;
+	}
+
+	/** `section` (from the sidebar) shows that view. */
+	protected override applyOptions(options: IEditorOptions | undefined): void {
+		const section = sectionOption(options);
+		const view = VIEWS.find(v => v.view === section)?.view;
+		if (view) {
+			this.showView(view);
+			this.render();
+		}
+	}
+
 	private showView(view: View): void {
-		this.view = view;
+		if (this.view !== view) {
+			this.view = view;
+			this._onDidChangePartSection.fire();
+		}
 		this.viewport.classList.toggle('hidden', view !== '3d' || !this.document);
 		this.summary.classList.toggle('hidden', view !== 'summary');
 		this.additions.classList.toggle('hidden', view !== 'additions');
