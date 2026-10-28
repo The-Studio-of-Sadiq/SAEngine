@@ -508,5 +508,15 @@ def test_design_status_on_the_cover() -> None:
     assert status({"available": True, "checked": 3, "failed": 0})["headline"] == (
         "Design checks pass: all 3 members."
     )
+    # Joints and seismic requirements are not called members (the alpha 6 release gate).
+    counts = [["members", 18, 2], ["beam-column joints", 6, 3], ["seismic requirements", 3, 0]]
+    broken_down = status({"available": True, "checked": 27, "failed": 5, "counts": counts})
+    assert broken_down["headline"] == (
+        "DESIGN FAILS: 2 of 18 members and 3 of 6 beam-column joints fail their design checks."
+    )
+    counts = [["members", 18, 0], ["beam-column joints", 6, 0], ["seismic requirements", 3, 0]]
+    assert status({"available": True, "checked": 27, "failed": 0, "counts": counts})[
+        "headline"
+    ] == ("Design checks pass: all 18 members, 6 beam-column joints and 3 seismic requirements.")
     unchecked = status({"available": False, "problem": "no code pack"})
     assert unchecked["state"] == "unchecked" and "no code pack" in unchecked["headline"]

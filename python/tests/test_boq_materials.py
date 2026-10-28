@@ -120,6 +120,26 @@ def test_masonry_takes_its_mortar_and_a_concrete_without_a_mix_gets_an_assumed_o
     ]
 
 
+def test_an_assumed_mix_uses_the_projects_cement() -> None:
+    # One cement line: the assumed mix of the concrete without a mix takes the cement type of
+    # the project's mixes (the alpha 6 sample listed "Cement" and "Cement (OPC)" apart).
+    from saengine.boq.quantities import _Bill
+
+    m = _Measure.__new__(_Measure)
+    m.materials = {
+        "C25": SimpleNamespace(id="C25", composition=NominalMix(ratio=[1, 2, 4], cementType="OPC")),
+        "C30": SimpleNamespace(id="C30", composition=None, concrete=SimpleNamespace(fc=30.0)),
+    }
+    m.bill = _Bill()
+    m.notes = []
+    m.unreinforced = {}
+    m.bill.add("concrete", (1, "C25"), "Concrete C25 in beams", "m3", "B1", 2.0, material="C25")
+    m.bill.add("concrete", (1, "C30"), "Concrete C30 in tanks", "m3", "T1", 1.0, material="C30")
+    m.measure_materials()
+    cement = [i.description for i in m.bill.items() if i.description.startswith("Cement")]
+    assert cement == ["Cement (OPC)", f"Cement (OPC) in {CEMENT_BAG:g} kg bags"]
+
+
 def test_assumed_mixes_by_strength() -> None:
     from saengine.boq.quantities import assumed_mix
 

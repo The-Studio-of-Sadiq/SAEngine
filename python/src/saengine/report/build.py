@@ -214,15 +214,19 @@ def design_status(report: dict[str, Any]) -> dict[str, Any]:
     failed = int(design.get("failed", 0) or 0) if design.get("available") else 0
     f_checked = int(fdn.get("checked", 0) or 0) if fdn.get("available") else 0
     f_failed = int(fdn.get("failed", 0) or 0) if fdn.get("available") else 0
+    # The members, beam-column joints and seismic requirements apart ("counts"), as the design
+    # summary counts them; a design without that breakdown counts members only.
+    counts = (design.get("counts") or [["members", checked, failed]]) if checked else []
     parts = []
     if failed:
-        parts.append(f"{failed} of {checked} members fail their design checks")
+        failing = [f"{n} of {of} {what}" for what, of, n in counts if n]
+        parts.append(_and(failing) + " fail their design checks")
     if f_failed:
         parts.append(f"{f_failed} of {f_checked} foundations or tie beams fail")
     if parts:
         state, headline = "fail", "DESIGN FAILS: " + "; ".join(parts) + "."
     elif checked or f_checked:
-        what = [f"all {checked} members"] if checked else []
+        what = ["all " + _and([f"{of} {what}" for what, of, _ in counts if of])] if checked else []
         what += [f"all {f_checked} foundations and tie beams"] if f_checked else []
         state, headline = "pass", "Design checks pass: " + " and ".join(what) + "."
     else:
@@ -247,6 +251,11 @@ def design_status(report: dict[str, Any]) -> dict[str, Any]:
         "foundationsChecked": f_checked,
         "foundationsFailed": f_failed,
     }
+
+
+def _and(items: list[str]) -> str:
+    """``a``, ``a and b``, ``a, b and c``."""
+    return ", ".join(items[:-1]) + " and " + items[-1] if len(items) > 1 else "".join(items)
 
 
 def render_pdf(data: dict[str, Any]) -> tuple[bytes, list[str]]:
@@ -1698,6 +1707,7 @@ def _design(results_dir: Path, model_path: Path, warnings: list[str]) -> dict[st
         ],
         "failed": failed,
         "failedText": failed_text,
+        "counts": _counts(summary),
         "checked": int(summary.get("checked", 0) or 0),
         "combinations": [str(c) for c in report.get("combinations", [])],
         "tables": tables,
@@ -2082,6 +2092,31 @@ def _seismic_detailing(report: dict[str, Any]) -> dict[str, Any]:
             else []
         ),
     }
+
+
+def _counts(summary: dict[str, Any]) -> list[list[Any]]:
+    """``[what, checked, failed]`` of the members, beam-column joints and project-level seismic
+    requirements of the design ``summary`` (those it has), for the cover's headline."""
+    elements = summary.get("elements")
+    if not isinstance(elements, dict):
+        return [
+            ["members", int(summary.get("checked", 0) or 0), int(summary.get("failed", 0) or 0)]
+        ]
+    joints = summary.get("joints") if isinstance(summary.get("joints"), dict) else {}
+    rows = [
+        ["members", int(elements.get("checked", 0) or 0), int(elements.get("failed", 0) or 0)],
+        [
+            "beam-column joints",
+            int(joints.get("checked", 0) or 0),
+            int(joints.get("failed", 0) or 0),
+        ],
+        [
+            "seismic requirements",
+            int(summary.get("seismicChecks", 0) or 0),
+            int(summary.get("seismicChecksFailed", 0) or 0),
+        ],
+    ]
+    return [row for row in rows if row[1]]
 
 
 def _failed_text(summary: dict[str, Any]) -> str:

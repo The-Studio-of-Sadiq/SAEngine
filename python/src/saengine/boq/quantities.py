@@ -1893,6 +1893,11 @@ class _Measure:
         ]
         missing: dict[str, str] = {}
         assumed: dict[str, str] = {}
+        # An assumed mix uses the cement of the project's own mixes (the most common type), so
+        # its cement joins theirs on one line instead of a second, untyped one.
+        mixes = [getattr(m, "composition", None) for m in self.materials.values()]
+        types = [t for t in (getattr(mix, "cementType", None) for mix in mixes) if t]
+        project_cement = max(sorted(set(types)), key=types.count) if types else None
         for line in lines:
             material = self.materials.get(line.material or "")
             if material is None:
@@ -1910,7 +1915,7 @@ class _Measure:
             else:
                 mix = material.composition
                 if mix is None:
-                    mix = assumed_mix(material)
+                    mix = assumed_mix(material).model_copy(update={"cementType": project_cement})
                     ratio = ":".join(f"{r:g}" for r in mix.ratio)
                     assumed[material.id] = (
                         f"concrete {material.id} has no mix: {ratio} assumed "
