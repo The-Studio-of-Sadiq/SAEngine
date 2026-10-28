@@ -746,23 +746,12 @@ class InteractionSurface:
 
     def _capacities(self, pu: np.ndarray, angle: np.ndarray) -> np.ndarray:
         """:meth:`moment_capacity` of each (``pu``, ``angle``), on arrays."""
-        m = self._meridians  # (meridians, rows, 3)
-        lo = m[None, :, :-1, 0] - pu[:, None, None]
-        hi = m[None, :, 1:, 0] - pu[:, None, None]
-        hit = (lo == 0) | (lo * hi < 0)
-        reaches = hit.any(axis=2).all(axis=1)
-        t = np.where(hit, lo / np.where(hit & (lo != hi), lo - hi, 1.0), 0.0)
-        cuts = m[None, :, :-1, 1:] + t[..., None] * (m[None, :, 1:, 1:] - m[None, :, :-1, 1:])
-        reach = np.where(hit, np.hypot(cuts[..., 0], cuts[..., 1]), np.inf)
-        nearest = np.argmin(reach, axis=2)
-        p = np.take_along_axis(cuts, nearest[:, :, None, None], axis=2)[:, :, 0, :]
-        if self.symmetric:
-            p = np.concatenate(
-                [p, p[:, ::-1] * [-1, 1], p * [-1, -1], p[:, ::-1] * [1, -1]], axis=1
-            )
+        # The contour depends on Pu alone: worked out once per distinct Pu (the stations of a
+        # piece and the combinations often share one), the rays per demand.
+        values, inverse = np.unique(pu, return_inverse=True)
+        p, reaches, encloses = self._contours(values)
+        p, reaches, encloses = p[inverse], reaches[inverse], encloses[inverse]
         q = np.roll(p, -1, axis=1)
-        cross = p[..., 0] * q[..., 1] - p[..., 1] * q[..., 0]
-        encloses = np.abs(np.arctan2(cross, (p * q).sum(axis=2)).sum(axis=1)) > math.pi
         d = q - p
         c, s = np.cos(angle)[:, None], np.sin(angle)[:, None]
         signs = ((1, 1),) if self.symmetric else ((1, 1), (-1, 1), (-1, -1), (1, -1))
@@ -780,6 +769,38 @@ class InteractionSurface:
             found &= ok.any(axis=1)
             least = np.minimum(least, np.where(ok, t_ray, np.inf).min(axis=1))
         return np.where(reaches & encloses & found, least, 0.0)
+
+    def _contours(self, pu: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """The contours of :meth:`contour` at each ``pu`` (closed polygons, anticlockwise),
+        whether every meridian reaches it and whether the contour encloses the origin."""
+        m = self._meridians  # (meridians, rows, 3)
+        lo = m[None, :, :-1, 0] - pu[:, None, None]
+        hi = m[None, :, 1:, 0] - pu[:, None, None]
+        hit = (lo == 0) | (lo * hi < 0)
+        reaches = hit.any(axis=2).all(axis=1)
+        # The cuts of the rows crossing Pu only (a meridian crosses it once or a few times),
+        # the nearest to the origin kept per meridian (the first of equals); a meridian not
+        # reaching Pu keeps its first row (the result is 0 then, see ``reaches``).
+        n, k, r = np.nonzero(hit)
+        lo_hit, hi_hit = lo[n, k, r], hi[n, k, r]
+        t = lo_hit / np.where(lo_hit != hi_hit, lo_hit - hi_hit, 1.0)
+        a, b = m[k, r, 1:], m[k, r + 1, 1:]
+        cuts = a + t[:, None] * (b - a)
+        reach = np.hypot(cuts[:, 0], cuts[:, 1])
+        group = n * m.shape[0] + k
+        order = np.lexsort((r, reach, group))
+        _, first = np.unique(group[order], return_index=True)
+        chosen = order[first]
+        p = np.broadcast_to(m[None, :, 0, 1:], (len(pu), m.shape[0], 2)).copy()
+        p[n[chosen], k[chosen]] = cuts[chosen]
+        if self.symmetric:
+            p = np.concatenate(
+                [p, p[:, ::-1] * [-1, 1], p * [-1, -1], p[:, ::-1] * [1, -1]], axis=1
+            )
+        q = np.roll(p, -1, axis=1)
+        cross = p[..., 0] * q[..., 1] - p[..., 1] * q[..., 0]
+        encloses = np.abs(np.arctan2(cross, (p * q).sum(axis=2)).sum(axis=1)) > math.pi
+        return p, reaches, encloses
 
     def check(self, pu: float, mux: float, muy: float) -> ColumnCheck:
         """Utilisation of a demand (Pu compression positive [N], Mux, Muy [N·mm])."""
