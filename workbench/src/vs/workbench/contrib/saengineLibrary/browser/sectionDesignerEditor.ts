@@ -28,6 +28,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { projectMaterial } from '../../../services/saengineProject/common/materialDefaults.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { appendPropertyHeading, appendPropertyNote, EditorFrame } from '../../saengineProject/browser/editorFrame.js';
 import { renderChart } from '../../saengineFem/browser/femChart.js';
@@ -119,6 +120,8 @@ export class SectionDesignerEditor extends EditorPane {
 	/** The large interaction diagram over the drawing, while it is shown. */
 	private chartOverlay: HTMLElement | undefined;
 	private materials: IMaterialChoice[] = [];
+	/** The project's concrete and rebar (03 Materials `defaults`, else the first of each). */
+	private projectMaterials: { concrete?: string; rebar?: string } = {};
 	private readonly settings = { material: '', rebar: '', dia: 20, spacing: 150, count: 4, grid: 25 };
 	/** View: screen = (origin.x + x k, origin.y - y k). */
 	private view = { k: 0.5, ox: 0, oy: 0 };
@@ -276,8 +279,8 @@ export class SectionDesignerEditor extends EditorPane {
 
 	private defaultsFromSection(): void {
 		const section = this.section!;
-		this.settings.material ||= section.regions[0]?.material ?? this.materials.find(m => m.category === 'concrete')?.id ?? '';
-		this.settings.rebar = section.rebar ?? (this.settings.rebar || this.materials.find(m => m.category === 'rebar')?.id || '');
+		this.settings.material ||= section.regions[0]?.material ?? this.projectMaterials.concrete ?? '';
+		this.settings.rebar = section.rebar ?? (this.settings.rebar || this.projectMaterials.rebar || '');
 	}
 
 	private commit(): void {
@@ -342,11 +345,13 @@ export class SectionDesignerEditor extends EditorPane {
 		const read = () => {
 			try {
 				const data = JSON.parse(model.getValue());
+				this.projectMaterials = { concrete: projectMaterial(data, 'concrete'), rebar: projectMaterial(data, 'rebar') };
 				this.materials = (Array.isArray(data?.materials) ? data.materials : [])
 					.filter((m: IMaterialChoice) => typeof m?.id === 'string' && ['concrete', 'steel', 'rebar'].includes(m.category))
 					.map((m: IMaterialChoice) => ({ id: m.id, name: typeof m.name === 'string' ? m.name : m.id, category: m.category }));
 			} catch {
 				this.materials = [];
+				this.projectMaterials = {};
 			}
 		};
 		read();

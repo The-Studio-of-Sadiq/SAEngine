@@ -2770,7 +2770,13 @@ def _lintels_of(ctx: _Ctx) -> list[dict[str, Any]]:
             types = dict(ctx.types)
             mats = {m.id: m for m in ctx.materials.materials} if ctx.materials else {}
             result = lintel_design.lintels_of(
-                ctx.building, types, mats, ctx.settings, high_wind=_high_wind(ctx.settings)
+                ctx.building,
+                types,
+                mats,
+                ctx.settings,
+                concrete=ctx.materials.default_concrete() if ctx.materials else None,
+                steel=ctx.materials.default_rebar() if ctx.materials else None,
+                high_wind=_high_wind(ctx.settings),
             )
             ctx.lintels = list(result["elements"])
         except (ValueError, AttributeError, KeyError) as error:

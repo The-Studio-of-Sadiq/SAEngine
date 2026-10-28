@@ -20,6 +20,7 @@ import math
 from pathlib import Path
 from typing import Any
 
+from saengine.library.materials import Category, default_of
 from saengine.library.substructure import SUBSTRUCTURE_FILE
 
 #: The bar diameters a minimum mesh is chosen from [mm] (as the sizing assistant's).
@@ -56,7 +57,8 @@ def minimum_mesh(thickness: float, fy: float = 420.0) -> dict[str, float]:
 
 def _rebar(root: Path, document: dict[str, Any]) -> tuple[str | None, float]:
     """The bar material a foundation without bars gets: the one the other foundations use, else
-    the first rebar of 03 Materials; with its fy [MPa] (420 when unknown)."""
+    the project's rebar of 03 Materials (``defaults.rebar``, else the first one); with its fy
+    [MPa] (420 when unknown)."""
     used = next(
         (
             r["material"]
@@ -66,13 +68,17 @@ def _rebar(root: Path, document: dict[str, Any]) -> tuple[str | None, float]:
         None,
     )
     try:
-        materials = json.loads((root / MATERIALS_FILE).read_text(encoding="utf-8")).get(
-            "materials", []
-        )
+        library = json.loads((root / MATERIALS_FILE).read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        materials = []
+        library = {}
+    if not isinstance(library, dict):
+        library = {}
+    materials = library.get("materials") or []
     rebars = [m for m in materials if isinstance(m, dict) and m.get("category") == "rebar"]
-    chosen = next((m for m in rebars if m.get("id") == used), rebars[0] if rebars else None)
+    project = default_of(library, Category.REBAR)
+    chosen = next((m for m in rebars if m.get("id") == used), None) or next(
+        (m for m in rebars if m.get("id") == project), None
+    )
     fy = chosen.get("steel", {}).get("fy") if chosen else None
     material = used or (chosen.get("id") if chosen else None)
     return material, float(fy) if isinstance(fy, int | float) and fy > 0 else 420.0

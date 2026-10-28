@@ -334,21 +334,16 @@ class Sizer:
 
     def materials_of(self, column: ColumnElement) -> tuple[str, str]:
         """Concrete and bar material ids for a column's footing: the column's own, else the
-        first of the library's."""
+        project's (``defaults`` of the materials, else the first of the library's)."""
         mats = self.ctx.mats
         column_type = self.ctx.types.get(column.type)
         concrete = getattr(column_type, "material", None)
         if concrete not in mats or mats[concrete].category != Category.CONCRETE:
-            concrete = next(
-                (m.id for m in mats.values() if m.category == Category.CONCRETE and m.concrete),
-                None,
-            )
+            concrete = self.ctx.materials.default_concrete()
         reinforcement = getattr(column_type, "reinforcement", None)
         rebar = reinforcement.material if reinforcement is not None else None
         if rebar not in mats or mats[rebar].steel is None:
-            rebar = next(
-                (m.id for m in mats.values() if m.category == Category.REBAR and m.steel), None
-            )
+            rebar = self.ctx.materials.default_rebar()
         if concrete is None or rebar is None:
             raise Skip("the material library has no concrete or no reinforcing bars")
         return concrete, rebar

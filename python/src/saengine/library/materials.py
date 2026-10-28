@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import math
 from enum import Enum
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -204,9 +204,22 @@ class Material(_Model):
         return self
 
 
+class MaterialDefaults(_Model):
+    """The project's materials of choice (the New Building wizard's): what an element without
+    its own gets, e.g. the bars the design proposes for a type that has none yet."""
+
+    concrete: Id | None = Field(default=None, description="Id of the project's concrete.")
+    rebar: Id | None = Field(default=None, description="Id of the project's reinforcing bars.")
+
+
 class MaterialLibrary(_Model):
     schema_: Literal["saengine.materials/1"] = Field(default=SCHEMA_ID, alias="schema")
     materials: list[Material] = Field(default_factory=list)
+    defaults: MaterialDefaults | None = Field(
+        default=None,
+        description="The project's concrete and reinforcing bars, used wherever a type has none "
+        "of its own; else the first of the category.",
+    )
 
     @model_validator(mode="after")
     def _references(self) -> MaterialLibrary:
@@ -218,10 +231,55 @@ class MaterialLibrary(_Model):
         for m in self.materials:
             if m.masonry and m.masonry.mortar and m.masonry.mortar not in mortars:
                 raise ValueError(f"material '{m.id}' refers to unknown mortar '{m.masonry.mortar}'")
+        if self.defaults is not None:
+            for key, category in (("concrete", Category.CONCRETE), ("rebar", Category.REBAR)):
+                chosen = getattr(self.defaults, key)
+                found = self.get(chosen) if chosen else None
+                if chosen and (found is None or found.category != category):
+                    raise ValueError(
+                        f"defaults.{key} '{chosen}' is not a {category.value} material"
+                    )
         return self
 
     def get(self, material_id: str) -> Material | None:
         return next((m for m in self.materials if m.id == material_id), None)
+
+    def default_concrete(self) -> str | None:
+        """The project's concrete (``defaults.concrete``), else the first concrete."""
+        return default_of(self, Category.CONCRETE)
+
+    def default_rebar(self) -> str | None:
+        """The project's reinforcing bars (``defaults.rebar``), else the first rebar."""
+        return default_of(self, Category.REBAR)
+
+
+def default_of(library: Any, category: Category) -> str | None:
+    """The id of the project's material of ``category`` (concrete or rebar): the library's
+    ``defaults`` entry, else its first material of that category, else None. ``library`` may be
+    a :class:`MaterialLibrary` (or an object with its ``materials`` and ``defaults``) or the
+    JSON of ``materials.json`` (read leniently: a stale or malformed entry falls back to the
+    first one)."""
+    if library is None:
+        return None
+    if not isinstance(library, dict):
+        entries = [
+            (m.id, getattr(m.category, "value", m.category))
+            for m in getattr(library, "materials", None) or []
+        ]
+        defaults = getattr(library, "defaults", None)
+        chosen = getattr(defaults, category.value, None) if defaults is not None else None
+    else:
+        entries = [
+            (m.get("id"), m.get("category"))
+            for m in library.get("materials") or []
+            if isinstance(m, dict) and isinstance(m.get("id"), str)
+        ]
+        defaults = library.get("defaults")
+        chosen = defaults.get(category.value) if isinstance(defaults, dict) else None
+    ids = [i for i, c in entries if c == category.value]
+    if isinstance(chosen, str) and chosen in ids:
+        return chosen
+    return ids[0] if ids else None
 
 
 # ───────────────────────── values derived from f'c, and plausibility ─────────────────────────

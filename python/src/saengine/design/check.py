@@ -53,7 +53,7 @@ from saengine.library.bim import (
     SlabElement,
     WallElement,
 )
-from saengine.library.materials import Category, MaterialLibrary
+from saengine.library.materials import Category, MaterialLibrary, default_of
 from saengine.library.objects import (
     Beam,
     Brace,
@@ -727,13 +727,13 @@ def design(
     for type_id, (section, _) in {**beam_sections, **column_sections}.items():
         notes += [f"{type_id}: {note}" for note in section.notes]
     # The report without the assumed bars (see ``assumed``): the same up to the slabs.
-    default_rebar = _default_rebar_id(objects, mats)
+    default_rebar = _default_rebar_id(objects, materials)
     plain = (
         _Plain(assumed, list(checked), list(skipped), list(notes))
         if collect is not None
         and assumed
         and all(isinstance(types.get(t), Slab) for t in assumed)
-        and default_rebar == _default_rebar_id(objects, mats, without=assumed)
+        and default_rebar == _default_rebar_id(objects, materials, without=assumed)
         else None
     )
     # Where the elements found after the slabs go: the report's lists, and the plain ones.
@@ -795,7 +795,13 @@ def design(
     except (ValueError, KeyError, AttributeError, TypeError):
         wind = 0.0
     lintels_found = lintel_design.lintels_of(
-        building, types, mats, settings, high_wind=wind * 3.6 > 200.0
+        building,
+        types,
+        mats,
+        settings,
+        concrete=default_of(materials, Category.CONCRETE),
+        steel=default_of(materials, Category.REBAR),
+        high_wind=wind * 3.6 > 200.0,
     )
     for into in sinks:
         into[0].extend(lintels_found["elements"])
@@ -996,10 +1002,10 @@ def _with_mep_openings(building: BuildingModel, root: Path) -> BuildingModel:
 
 
 def _default_rebar_id(
-    objects: ObjectLibrary, mats: dict[str, Any], without: set[str] | None = None
+    objects: ObjectLibrary, materials: MaterialLibrary, without: set[str] | None = None
 ) -> str | None:
     """The reinforcement material the object types use most (for stairs without bars), the
-    types ``without`` left out."""
+    types ``without`` left out; else the project's (``MaterialLibrary.default_rebar``)."""
     counts: dict[str, int] = {}
     for o in objects.objects:
         if without and o.id in without:
@@ -1009,7 +1015,7 @@ def _default_rebar_id(
             counts[reinforcement.material] = counts.get(reinforcement.material, 0) + 1
     if counts:
         return max(counts, key=lambda m: counts[m])
-    return None
+    return default_of(materials, Category.REBAR)
 
 
 # ─────────────────────────────────────── slabs ───────────────────────────────────────

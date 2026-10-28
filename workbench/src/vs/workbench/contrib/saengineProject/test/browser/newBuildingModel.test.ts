@@ -87,7 +87,7 @@ suite('SAEngine - New Building wizard model', () => {
 				stories: [{ id: 'BASE', name: 'Base', elevation: 0 }, { id: 'L1', name: 'Level 1', elevation: 3600 }, { id: 'L2', name: 'Level 2', elevation: 6800 }],
 				storyHeights: [3600, 3200],
 				system: 'rcFrameCore',
-				materials: { concrete: 'C27.6', rebar: 'B500DWR' },
+				materials: { concrete: 'C27.6', rebar: 'B420DWR' },
 				footing: 'isolated',
 				site: { location: 'sylhet', siteClass: 'SD', siteClassSource: 'assumed' },
 				occupancy: { use: 'office', category: 'III' },

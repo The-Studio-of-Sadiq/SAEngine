@@ -344,6 +344,46 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 			title: 'Material',
 			type: 'object',
 		},
+		MaterialDefaults: {
+			additionalProperties: false,
+			description: 'The project\'s materials of choice (the New Building wizard\'s): what an element without\nits own gets, e.g. the bars the design proposes for a type that has none yet.',
+			properties: {
+				concrete: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Id of the project\'s concrete.',
+					title: 'Concrete',
+				},
+				rebar: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Id of the project\'s reinforcing bars.',
+					title: 'Rebar',
+				},
+			},
+			title: 'MaterialDefaults',
+			type: 'object',
+		},
 		Mechanical: {
 			additionalProperties: false,
 			description: 'Pset_MaterialCommon / Pset_MaterialMechanical.',
@@ -595,6 +635,19 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 			},
 			title: 'Materials',
 			type: 'array',
+		},
+		defaults: {
+			anyOf: [
+				{
+					$ref: '#/$defs/MaterialDefaults',
+				},
+				{
+					type: 'null',
+				},
+			],
+			default: null,
+			description: 'The project\'s concrete and reinforcing bars, used wherever a type has none of its own; else the first of the category.',
+			title: 'Defaults',
 		},
 	},
 	title: 'SAEngine materials',

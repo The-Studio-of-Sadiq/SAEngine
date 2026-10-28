@@ -24,6 +24,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
+import { projectMaterial } from '../../../services/saengineProject/common/materialDefaults.js';
 import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
 import { SectionDesignerEditor } from './sectionDesignerEditor.js';
 import { SectionDesignerInput, SectionDesignerInputSerializer } from './sectionDesignerInput.js';
@@ -141,14 +142,13 @@ registerAction2(class extends Action2 {
 	}
 });
 
-/** The first concrete and rebar materials of the project (03 Materials), else BNBC defaults. */
+/** The project's concrete and rebar (03 Materials: its `defaults`, else the first of each), else BNBC defaults. */
 async function defaultMaterials(fileService: IFileService, root: URI): Promise<{ concrete: string; rebar: string }> {
 	let concrete = 'C27.6', rebar = 'B420DWR';
 	try {
 		const data = JSON.parse((await fileService.readFile(joinPath(root, '03 Materials', 'materials.json'))).value.toString());
-		const materials: { id: string; category: string }[] = Array.isArray(data?.materials) ? data.materials : [];
-		concrete = materials.find(m => m.category === 'concrete')?.id ?? concrete;
-		rebar = materials.find(m => m.category === 'rebar')?.id ?? rebar;
+		concrete = projectMaterial(data, 'concrete') ?? concrete;
+		rebar = projectMaterial(data, 'rebar') ?? rebar;
 	} catch {
 		// No materials file: the defaults.
 	}

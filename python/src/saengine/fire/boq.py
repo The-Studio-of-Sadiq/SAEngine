@@ -48,7 +48,7 @@ def measure_fire(measure: Any, designs: dict[str, Any] | None = None) -> bool:
         for entry in (designs or {}).values()
         if isinstance(entry, dict)
     }
-    context = TankContext(materials=measure.materials)
+    context = TankContext(materials=measure.materials, rebar=measure.library.default_rebar())
     for tank in fire.tanks:
         if tank.construction != "rc" or tank.kind not in ("overhead", "underground"):
             measure.notes.append(f"{tank.id}: fire tank ({tank.construction}) is not measured")

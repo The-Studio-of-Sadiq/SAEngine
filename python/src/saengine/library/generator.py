@@ -60,7 +60,7 @@ from saengine.library import bnbc
 from saengine.library.bim import generate, source_stamp
 from saengine.library.defaults import default_material_library
 from saengine.library.floorplan import FloorPlan
-from saengine.library.materials import Category
+from saengine.library.materials import Category, MaterialDefaults
 from saengine.library.objects import ObjectLibrary
 from saengine.library.settings import LocationId, ProjectSettings, default_project_settings
 from saengine.library.substructure import SUBSTRUCTURE_FILE, Substructure
@@ -1154,6 +1154,9 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
     rebar = materials.get(s.rebar)
     if rebar is None or rebar.category != Category.REBAR or rebar.steel is None:
         raise ValueError(f"'{s.rebar}' is not a rebar of the default materials")
+    # The chosen concrete and bars, recorded: the types are generated without bars, so this is
+    # what the design proposes them with (and the BOQ bills), not the library's first rebar.
+    materials.defaults = MaterialDefaults(concrete=s.concrete, rebar=s.rebar)
     fc, fy = concrete.concrete.fc, rebar.steel.fy
     gamma = (concrete.mechanical.density or 2400.0) * G / 1000.0  # kN/m³
 

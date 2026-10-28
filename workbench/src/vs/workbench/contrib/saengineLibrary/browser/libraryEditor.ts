@@ -31,6 +31,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { BNBC, MATERIALS_SCHEMA, OBJECTS_SCHEMA, TEMPLATES } from '../../../services/saengineProject/common/projectLibraries.generated.js';
+import { keepMaterialDefaults, projectMaterial } from '../../../services/saengineProject/common/materialDefaults.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { EditorFrame } from '../../saengineProject/browser/editorFrame.js';
 import { clone, IDocumentFrameActions, IDocumentProblem, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
@@ -308,6 +309,10 @@ export class LibraryEditor extends JsonDocumentEditor {
 			return;
 		}
 		if (path === 'id' && item) {
+			// The project's concrete or rebar (`defaults`) follows its material's new ID.
+			if (this.config?.listKey === 'materials' && this.document && this.selectedId !== undefined) {
+				keepMaterialDefaults(this.document, this.selectedId, String(item.id));
+			}
 			this.selectedId = item.id as string;
 		}
 		if (item && path === 'concrete.fc') {
@@ -406,10 +411,27 @@ export class LibraryEditor extends JsonDocumentEditor {
 				continue;
 			}
 			const allowed = this.references(entryPath);
-			if (allowed && typeof entry === 'string' && !allowed.includes(entry) && allowed.length) {
+			// A new type's bars and concrete are the project's (`defaults` of 03 Materials, as the
+			// New Building wizard chose them), else the template's when the project has it.
+			const preferred = this.projectChoice(entryPath, entry);
+			if (allowed && preferred !== undefined && allowed.includes(preferred)) {
+				value[key] = preferred;
+			} else if (allowed && typeof entry === 'string' && !allowed.includes(entry) && allowed.length) {
 				value[key] = allowed[0];
 			}
 		}
+	}
+
+	/** The project's material for a template's reference: its rebar for bars, its concrete for a concrete type's material. */
+	private projectChoice(path: string, entry: JsonValue): string | undefined {
+		if (this.config?.listKey !== 'objects' || !this.materialsDoc?.defaults) {
+			return undefined;
+		}
+		if (path === 'reinforcement.material') {
+			return projectMaterial(this.materialsDoc, 'rebar');
+		}
+		const concrete = path === 'material' && this.materialIds.members.some(m => m.id === entry && m.category === 'concrete');
+		return concrete ? projectMaterial(this.materialsDoc, 'concrete') : undefined;
 	}
 
 	private uniqueId(base: string): string {
@@ -511,6 +533,9 @@ export class LibraryEditor extends JsonDocumentEditor {
 		const list = this.document[this.config.listKey] as JsonValue[];
 		const index = list.indexOf(item);
 		list.splice(index, 1);
+		if (this.config.listKey === 'materials') {
+			keepMaterialDefaults(this.document); // a deleted default is no longer the project's
+		}
 		const remaining = this.items;
 		this.selectedId = remaining[Math.min(index, remaining.length - 1)]?.id as string | undefined;
 		this.changed(true);
@@ -542,6 +567,9 @@ export class LibraryEditor extends JsonDocumentEditor {
 		}
 		const list = this.document[this.config.listKey] as JsonValue[];
 		list[list.indexOf(item)] = replacement;
+		if (this.config.listKey === 'materials') {
+			keepMaterialDefaults(this.document); // a default that changed category is no longer the project's
+		}
 		this.changed(true);
 	}
 

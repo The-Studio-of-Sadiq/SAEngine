@@ -167,6 +167,10 @@ def roof_live(spec: TankSpec, options: TankOptions) -> float:
     return options.roofLive
 
 
+#: The bars of a tank when neither it, the options nor the project name any.
+FALLBACK_REBAR = "B420DWR"
+
+
 @dataclass
 class TankOptions:
     """The design settings (Project Settings, plumbing → tanks; the integrator maps them)."""
@@ -187,7 +191,8 @@ class TankOptions:
     mesh: float | None = None  # m; None: the wall height / 8
     cover: float | None = None  # mm, every face; None: BNBC Sec 8.1.7
     defaultConcrete: str = "C27.6"
-    defaultRebar: str = "B420DWR"
+    #: None: the project's rebar (:attr:`TankContext.rebar`), else :data:`FALLBACK_REBAR`.
+    defaultRebar: str | None = None
 
     @classmethod
     def of(cls, data: dict[str, Any] | TankOptions | None) -> TankOptions:
@@ -207,6 +212,8 @@ class TankContext:
     profiles: list[Any] = field(default_factory=list)
     options: TankOptions = field(default_factory=TankOptions)
     folder: str | Path | None = None
+    #: The project's reinforcing bars (``MaterialLibrary.default_rebar``): a tank's without its own.
+    rebar: str | None = None
 
     @classmethod
     def build(
@@ -222,12 +229,13 @@ class TankContext:
 
         library = materials if materials is not None else default_material_library()
         found = {m.id: m for m in getattr(library, "materials", library)}
+        rebar = library.default_rebar() if hasattr(library, "default_rebar") else None
         profiles: list[Any] = []
         if soil_text:
             from saengine.substructure.piles import profiles_of
 
             profiles, _, _ = profiles_of(soil_text)
-        return cls(found, profiles, TankOptions.of(options), folder)
+        return cls(found, profiles, TankOptions.of(options), folder, rebar)
 
 
 # ─────────────────────────────────────── the tank ───────────────────────────────────────
@@ -314,7 +322,7 @@ def tank_spec(tank: dict[str, Any], context: TankContext) -> TankSpec:
         top = 0.15 if kind in GROUND_KINDS else 0.0
     materials = context.materials
     concrete_id = str(tank.get("material") or o.defaultConcrete)
-    rebar_id = str(tank.get("rebar") or o.defaultRebar)
+    rebar_id = str(tank.get("rebar") or o.defaultRebar or context.rebar or FALLBACK_REBAR)
     concrete = materials.get(concrete_id)
     rebar = materials.get(rebar_id)
     if concrete is None or getattr(concrete, "concrete", None) is None:

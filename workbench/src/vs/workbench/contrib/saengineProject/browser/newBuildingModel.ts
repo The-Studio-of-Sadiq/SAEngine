@@ -105,7 +105,7 @@ export const DEFAULT_FORM: INewBuildingForm = {
 	heights: '',
 	system: 'rcFrame',
 	concrete: 'C27.6',
-	rebar: 'B500DWR',
+	rebar: 'B420DWR', // Grade 500 is not allowed in special frames (BNBC 2020 Part 6 Sec 8.3.3.4(b)), the default system.
 	footing: 'isolated',
 	location: 'dhaka',
 	siteClass: 'SD',

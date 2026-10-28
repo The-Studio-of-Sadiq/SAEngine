@@ -611,8 +611,9 @@ def lintels_of(
     opening's, ``kind`` "lintel", ``type`` the host wall's type, ``host``, ``members`` empty,
     ``checks``, ``utilisation``, ``ok`` and :func:`design_lintel`'s fields).
 
-    ``concrete``, ``steel``: material ids of the lintels (default: the first concrete with f'c
-    and the first reinforcing steel of ``mats``); ``floor_loads``: per wall id the floor's
+    ``concrete``, ``steel``: material ids of the lintels (the callers pass the project's,
+    ``MaterialLibrary.default_concrete`` / ``default_rebar``; default: the first concrete with
+    f'c and the first reinforcing steel of ``mats``); ``floor_loads``: per wall id the floor's
     line load on the wall (dead, live) [kN/m] used where the arch cannot form (default 0 where
     a beam runs over the wall, else 0 with a note)."""
     from saengine.design.stairs import loads_from_settings

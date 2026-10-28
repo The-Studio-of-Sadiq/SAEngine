@@ -36,7 +36,7 @@ from saengine.design.rc import (
     section_of,
 )
 from saengine.library.bim import BuildingModel
-from saengine.library.materials import Category, MaterialLibrary
+from saengine.library.materials import Category, MaterialLibrary, default_of
 from saengine.library.objects import (
     CircleProfile,
     Column,
@@ -161,7 +161,9 @@ class Gathered:
 
 
 def _default_rebar(objects: dict[str, Any], materials: MaterialLibrary) -> str | None:
-    """The reinforcement material the project's object types use most, else the first one."""
+    """The reinforcement material the project's object types use most, else the project's
+    (``defaults.rebar`` of the materials, as a generated building records it), else the first
+    one."""
     counts: dict[str, int] = {}
     for o in objects.get("objects", []):
         material = (o.get("reinforcement") or {}).get("material")
@@ -169,7 +171,7 @@ def _default_rebar(objects: dict[str, Any], materials: MaterialLibrary) -> str |
             counts[material] = counts.get(material, 0) + 1
     if counts:
         return max(counts, key=lambda m: counts[m])
-    return next((m.id for m in materials.materials if m.category == Category.REBAR), None)
+    return default_of(materials, Category.REBAR)
 
 
 def with_assumed_bars(
