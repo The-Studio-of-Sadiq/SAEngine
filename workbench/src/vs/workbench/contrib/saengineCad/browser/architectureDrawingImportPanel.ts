@@ -542,12 +542,7 @@ export class DrawingImportPanel extends Disposable {
 	private accept(): void {
 		const target = this.grid[this.target]?.point ?? [0, 0];
 		const align = this.twoPoints && this.base2 ? { base: this.base2, at: this.grid[this.target2]?.point ?? [0, 0] } : undefined;
-		const layers: { [layer: string]: DrawingRole } = {};
-		for (const layer of this.options.info.layers) {
-			if (layer.total) {
-				layers[layer.name] = this.roles.get(layer.name) ?? 'ignore';
-			}
-		}
+		const layers = this.options.info.layers.filter(l => l.total).map(l => [l.name, this.roles.get(l.name) ?? 'ignore'] as const);
 		this.problem = undefined;
 		this._onDidAccept.fire({
 			layers,

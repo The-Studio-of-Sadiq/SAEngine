@@ -695,9 +695,9 @@ def import_drawing(
 ) -> tuple[Architecture, dict[str, Any]]:
     """Adopts the drawing at ``path`` into ``arch`` on ``options["story"]``.
 
-    ``options``: ``layers`` ({layer: role}), ``unit``, ``base``/``at``/``rotation`` (or
-    ``align``: ``{"base", "at"}``, a second pair of points), ``source`` (the file's name as
-    recorded), ``wallType`` (for centre lines). Returns the new architecture and the summary
+    ``options``: ``layers`` ({layer: role}, or [[layer, role], ...] as the editor sends it over
+    JSON-RPC), ``unit``, ``base``/``at``/``rotation`` (or ``align``: ``{"base", "at"}``, a second
+    pair of points), ``source`` (the file's name as recorded), ``wallType`` (for centre lines). Returns the new architecture and the summary
     ``{"adopted": {kind: count}, "skipped": [why], "notes": [...], "replaced": n}``.
     """
     with _opened(path) as (doc, warnings):
@@ -721,9 +721,10 @@ class _Importer:
             raise ValueError(f"no story '{self.story}' in the floor plan")
         self.elevations = elevations
         self.source = str(options.get("source") or "drawing")
-        self.layer_roles: dict[str, str] = {
-            str(k): str(v) for k, v in (options.get("layers") or {}).items() if v in ROLES
-        }
+        # {layer: role}, or [[layer, role], ...] (over JSON-RPC: layer names are not identifiers).
+        layers = options.get("layers") or {}
+        pairs = layers.items() if isinstance(layers, dict) else layers
+        self.layer_roles: dict[str, str] = {str(k): str(v) for k, v in pairs if v in ROLES}
         self.unit = str(options.get("unit") or "mm")
         if self.unit not in UNITS:
             raise ValueError(f"unknown unit '{self.unit}'")

@@ -56,7 +56,8 @@ export interface IDrawingImportRecord {
 
 /** What the backend is asked to do with the drawing. */
 export interface IDrawingImportOptions {
-	readonly layers: { readonly [layer: string]: DrawingRole };
+	/** What each layer holds, as pairs: over JSON-RPC an object's keys must be identifiers, layer names are not. */
+	readonly layers: readonly (readonly [string, DrawingRole])[];
 	readonly unit: DrawingUnit;
 	readonly story: string;
 	/** The drawing's point (drawing units) placed at `at` (plan mm). */

@@ -161,6 +161,7 @@ export class ArchitectureEditor extends EditorPane {
 	private lastImport: { readonly file: string; readonly summary: IImportSummary } | undefined;
 	/** The layer-mapping step of a DWG/DXF import, while it is open. */
 	private drawingImport: DrawingImportPanel | undefined;
+	private propertiesBeforeImport = false;
 	private writing = false;
 	private actionsKey = '';
 
@@ -1164,11 +1165,12 @@ export class ArchitectureEditor extends EditorPane {
 			this.setNotice(localize('arch.drawingFailed', "The drawing could not be read: {0}", info?.problems?.join(' ') ?? localize('arch.importNoAnswer', "the backend gave no answer")));
 			return;
 		}
-		const project = dirname(dirname(input.resource));
+		// Recorded relative to the project folder when the drawing is in it, else by its full path.
+		const inProject = relativePath(dirname(dirname(input.resource)), source);
 		const panel = this.drawingImport = new DrawingImportPanel(this.frame.main, {
 			info,
 			name: basename(source),
-			source: relativePath(project, source) ?? source.fsPath,
+			source: inProject && !inProject.startsWith('..') ? inProject : source.fsPath,
 			arch: this.arch,
 			floorPlan: parse(this.planModel),
 			stories: storiesOf(parse(this.planModel)).map(s => ({ id: s.id, name: s.name })),
@@ -1180,6 +1182,9 @@ export class ArchitectureEditor extends EditorPane {
 		});
 		panel.onDidAccept(options => void this.runDrawingImport(input, source, options));
 		this.setNotice(localize('arch.mapLayers', "Say what each layer of {0} holds, place it and press Import.", basename(source)));
+		// The mapping step takes the whole editor; the properties come back when it closes.
+		this.propertiesBeforeImport = this.frame.isPropertiesVisible;
+		this.frame.setPropertiesVisible(false);
 		this.updateToolbar();
 		panel.focus();
 	}
@@ -1234,6 +1239,9 @@ export class ArchitectureEditor extends EditorPane {
 		if (panel) {
 			this.drawingImport = undefined;
 			panel.dispose();
+			if (this.propertiesBeforeImport) {
+				this.frame.setPropertiesVisible(true);
+			}
 			this.updateToolbar();
 			this.frame.element.focus();
 		}

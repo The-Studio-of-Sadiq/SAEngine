@@ -121,7 +121,7 @@
 
 .sa-drawing-import .sa-di-field {
 	display: grid;
-	grid-template-columns: 150px minmax(0, 1fr);
+	grid-template-columns: 128px minmax(0, 1fr);
 	align-items: center;
 	gap: var(--sa-space-1) var(--sa-space-2);
 	margin: var(--sa-space-1) 0;

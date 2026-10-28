@@ -376,6 +376,11 @@ def test_handlers(tmp_path) -> None:
         str(path), None, plan, {"layers": LAYERS, "story": "L1", "unit": "mm", "source": "flat.dxf"}
     )
     assert not result.get("problems"), result
+    # As the editor sends it: layer names are not identifiers, so pairs, not an object.
+    pairs = architecture_import_drawing(
+        str(path), None, plan, {"layers": [list(kv) for kv in LAYERS.items()], "story": "L1"}
+    )
+    assert pairs["summary"]["adopted"]["walls"] == 5
     arch = Architecture.model_validate(result["architecture"])
     assert len(arch.walls) == 5 and len(arch.imports) == 1
     # Defaults are left out of the adopted items, as the editor writes them.
