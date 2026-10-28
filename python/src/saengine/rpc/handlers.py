@@ -1596,16 +1596,21 @@ def import_structural(
 
 
 def new_building(
-    spec: dict[str, Any], dest_parent: str, name: str | None = None, overwrite: bool = False
+    spec: dict[str, Any],
+    dest_parent: str,
+    name: str | None = None,
+    overwrite: bool = False,
+    site: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Integrator glue: a new building project from a grid and storeys
     (``saengine.project.new_building.create_building``, the generator of
     ``saengine.library.generator``): ``{root, name, notes, summary, settingsPatch, files}``, or
-    ``{error}`` when the spec is not valid or the folder holds files already."""
+    ``{error}`` when the spec is not valid or the folder holds files already. ``site``: the soil
+    report's site the new project starts with (its plot, the grid aligned with it)."""
     from saengine.project.new_building import NewBuildingError, create_building
 
     try:
-        return create_building(spec, dest_parent, name, overwrite)
+        return create_building(spec, dest_parent, name, overwrite, site)
     except NewBuildingError as error:
         return {"error": str(error), "notes": []}
 
@@ -1627,6 +1632,20 @@ def soil_location(
     from saengine.gis.site import soil_location as locate
 
     return locate(soil_text, bim_text, settings_text)
+
+
+def plot_check(
+    soil_text: str | None, floor_plan_text: str | None, objects_text: str | None = None
+) -> dict[str, Any]:
+    """The plot and its buildable envelope in project mm, and the floor plan's members outside
+    them (``saengine.gis.plot.encroachments``): ``{plot, envelope, warnings, problems}``."""
+    from saengine.gis.plot import encroachments
+    from saengine.soil.report import parse
+
+    report = parse(soil_text or "")
+    if isinstance(report, list):
+        return {"plot": None, "envelope": None, "warnings": [], "problems": report}
+    return encroachments(report.site, floor_plan_text, objects_text)
 
 
 def gis_export(project_root: str, format: str, out_path: str) -> dict[str, Any]:

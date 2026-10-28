@@ -252,6 +252,27 @@ def bim_members(text: str | None) -> int:
     return len(elements) if isinstance(elements, list) else 0
 
 
+def _plot_checks(project: Project, floor_plan_text: str) -> list[dict[str, Any]]:
+    """The floor plan's members outside the soil report's plot or in its setbacks
+    (``saengine.gis.plot``), written as the floor plan's checks (each one fails) when the site
+    has a plot."""
+    from saengine.gis.plot import encroachments, part_check_counts
+    from saengine.pipeline.status import write_part_checks
+    from saengine.soil.report import parse
+
+    soil_text = project.text("soil")
+    report = parse(soil_text) if soil_text else None
+    if report is None or isinstance(report, list):
+        return []
+    found = encroachments(report.site, floor_plan_text, project.text("objects"))
+    if found["plot"] is None:
+        return []
+    write_part_checks(
+        project, "floorPlan", part_check_counts(found), ("floorPlan", "soil", "objects")
+    )
+    return found["warnings"]
+
+
 def _bim(project: Project, step: StepResult) -> None:
     upstream = "structure" if project.type == "structure" else "floorPlan"
     source = project.text(upstream)
@@ -286,6 +307,15 @@ def _bim(project: Project, step: StepResult) -> None:
         step.message = "Building model built."
     members = bim_members(current)
     step.counts = {"elements": members}
+    if upstream == "floorPlan":
+        outside = _plot_checks(project, source)
+        if outside:
+            step.counts["plotWarnings"] = len(outside)
+            step.message += (
+                f" {len(outside)} member(s) outside the plot or in its setbacks: "
+                + "; ".join(w["message"].rstrip(".") for w in outside[:3])
+                + ("; ..." if len(outside) > 3 else ".")
+            )
     if not members:
         # G3: nothing to analyse, so nothing after it means anything ("0 pass, 0 fail").
         raise StepFailure(

@@ -53,7 +53,7 @@ import { IGridState, newGridState, SoilGrid } from './soilGrid.js';
 import { LabTest } from './soilLabTests.js';
 import { SoilLabPanel } from './soilLabPanel.js';
 import { appendSoilPatterns, appendSoilSwatch, renderBoreholeLog, renderFence, renderLiquefactionChart } from './soilLog.js';
-import { IBnbcSuggestion, tileSource } from './soilMap.js';
+import { applyPlotEdit, IBnbcSuggestion, tileSource } from './soilMap.js';
 import { IMapViewState, ISoilMapHost, SoilMapView } from './soilMapView.js';
 import { SampleSheet, SPT_DRIVE, StrataSheet } from './soilSheet.js';
 
@@ -1020,7 +1020,8 @@ export class SoilEditor extends EditorPane {
 				text: this.parseError,
 				actions: [{ label: localize('soil.openText', "Open as Text"), primary: true, run: () => void this.openAsText() }],
 			});
-		} else if (this.report && !this.report.boreholes.length) {
+		} else if (this.report && !this.report.boreholes.length && this.view !== 'map') {
+			// The Map view stays usable without boreholes: the site and its plot come first.
 			this.frame.setEmpty({
 				icon: Codicon.layers,
 				title: localize('soil.emptyTitle', "No boreholes yet"),
@@ -2261,6 +2262,13 @@ export class SoilEditor extends EditorPane {
 				this.changed(true);
 			},
 			moveBorehole: (index, position) => void this.moveBorehole(index, position),
+			editPlot: edit => {
+				applyPlotEdit(report.site ??= {}, edit);
+				if (report.site && !Object.keys(report.site).length) {
+					delete report.site;
+				}
+				this.changed(true);
+			},
 			moveBoreholeOnGrid: (index, x, y) => {
 				const borehole = report.boreholes[index];
 				if (!borehole) {

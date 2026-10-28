@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { gridLabel } from '../../../../services/saengineProject/common/gridLabels.js';
-import { buildSpec, centralBay, DEFAULT_FORM, folderError, formatLengths, gridLines, parseSpacings, readGenerateResult, readGenerateSummary, readPendingBuilding, storyHeights, summarize } from '../../browser/newBuildingModel.js';
+import { buildSpec, centralBay, DEFAULT_FORM, fitSpacings, folderError, formatLengths, gridLines, IWizardPlot, parseSpacings, plotFitWarning, readGenerateResult, readGenerateSummary, readPendingBuilding, storyHeights, summarize } from '../../browser/newBuildingModel.js';
 
 suite('SAEngine - New Building wizard model', () => {
 
@@ -153,5 +153,41 @@ suite('SAEngine - New Building wizard model', () => {
 			sizes: [{ what: 'Columns L1-L3 interior', size: 'C500x500' }, { what: 'Beams', size: 'B300x500' }, { what: 'Slabs', size: 'S150' }],
 		});
 		assert.strictEqual(readGenerateSummary('nope'), undefined);
+	});
+
+	test('fit to the buildable area: the same bays in proportion, to 50 mm, filling it', () => {
+		const fit = (spacings: number[], room: number) => {
+			const fitted = fitSpacings(spacings, room);
+			return fitted && { spacings: formatLengths(fitted), total: fitted.reduce((a, b) => a + b, 0) };
+		};
+		assert.deepStrictEqual([
+			fit([6000, 6000, 6000], 17400),
+			fit([6000, 4500], 9420),
+			fit([5000], 10000),
+			fit([3000, 6000, 3000], 14990),
+			fit([6000, 6000, 6000], 2900),
+			fit([], 10000),
+		], [
+			{ spacings: '3×5800', total: 17400 },
+			// 9420 → 9400 in all: 6000:4500 → 5371:4029 → 5350 and 4050 (the larger bay takes the rest).
+			{ spacings: '5350, 4050', total: 9400 },
+			{ spacings: '10000', total: 10000 },
+			{ spacings: '3750, 7450, 3750', total: 14950 },
+			undefined,
+			undefined,
+		]);
+	});
+
+	test('a grid larger than the plot buildable area is warned about', () => {
+		const plot: IWizardPlot = { project: 'Site', width: 10000, depth: 15500, plot: [], envelope: [], site: {} };
+		assert.deepStrictEqual([
+			plotFitWarning([5000, 5000], [7750, 7750], plot),
+			plotFitWarning([6000, 6000], [8000, 8000], plot),
+			plotFitWarning([6000, 4000], [9000, 7000], plot),
+		], [
+			undefined,
+			'The grid is larger than the buildable area of the plot (10.00 × 15.50 m): X by 2.00 m, Y by 0.50 m. Use Fit to the Buildable Area or shorten the bays.',
+			'The grid is larger than the buildable area of the plot (10.00 × 15.50 m): Y by 0.50 m. Use Fit to the Buildable Area or shorten the bays.',
+		]);
 	});
 });

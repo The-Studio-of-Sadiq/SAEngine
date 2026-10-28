@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { boreholePosition, formatNumber, IBtm, ILatLon, ISoilLocationResult, ISoilReport } from './soilDocument.js';
+import { boreholePosition, formatNumber, IBtm, ILatLon, IPlotSide, ISoilLocationResult, ISoilPlot, ISoilReport, ISoilSite } from './soilDocument.js';
 
 /*
  * The model of the site map (soilMapView.ts), free of the DOM and of MapLibre: the tile source and
@@ -379,4 +379,164 @@ export function boundsOf(points: readonly ILatLon[]): [[number, number], [number
 	const lons = points.map(p => p.lon);
 	const lats = points.map(p => p.lat);
 	return [[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]];
+}
+
+// ───────────────────────────── the plot ─────────────────────────────
+
+/** One foot [mm]; the plot can be typed in m or ft. */
+export const FOOT = 304.8;
+
+export type LengthUnit = 'm' | 'ft';
+
+/** "240 m² (3.59 katha, 5.93 decimal)": the area as Bangladeshi deeds give it too. */
+export function formatPlotArea(area: number, katha: number, decimal: number): string {
+	return localize('soil.plot.area', "{0} m² ({1} katha, {2} decimal)", formatNumber(area, 1), formatNumber(katha, 2), formatNumber(decimal, 2));
+}
+
+/** A length typed in `unit` ("12", "12.5", "40 ft") as mm, or undefined when it is not a positive number. */
+export function parsePlotLength(text: string, unit: LengthUnit): number | undefined {
+	const trimmed = text.trim().replace(/\s*(m|ft|′)$/i, '');
+	const value = trimmed ? Number(trimmed) : NaN;
+	return Number.isFinite(value) && value > 0 ? value * (unit === 'ft' ? FOOT : 1000) : undefined;
+}
+
+/** A side of the project grid: the bottom (−Y), right (+X), top (+Y) or left (−X). */
+export type GridSide = '-y' | '+x' | '+y' | '-x';
+
+export const GRID_SIDES: readonly GridSide[] = ['-y', '+x', '+y', '-x'];
+
+/** The bearing a grid side faces (outwards) for the grid bearing `rotation` [°]. */
+export function gridSideFacing(side: GridSide, rotation: number): number {
+	const offset = { '-y': 180, '+x': 90, '+y': 0, '-x': 270 }[side];
+	return ((rotation + offset) % 360 + 360) % 360;
+}
+
+const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+
+/** The compass point of a bearing: "SW". */
+export function compassPoint(degrees: number): string {
+	return COMPASS[((Math.round(degrees / 45) % 8) + 8) % 8];
+}
+
+/** "Bottom (−Y), faces S": a grid side as the road side list shows it. */
+export function gridSideLabel(side: GridSide, rotation: number): string {
+	const facing = compassPoint(gridSideFacing(side, rotation));
+	switch (side) {
+		case '-y': return localize('soil.plot.sideBottom', "Bottom (−Y), faces {0}", facing);
+		case '+x': return localize('soil.plot.sideRight', "Right (+X), faces {0}", facing);
+		case '+y': return localize('soil.plot.sideTop', "Top (+Y), faces {0}", facing);
+		case '-x': return localize('soil.plot.sideLeft', "Left (−X), faces {0}", facing);
+	}
+}
+
+/**
+ * A rectangular plot `frontage` × `depth` [mm], the frontage along the road side, aligned with the
+ * project grid with its lower-left corner at `origin` (the project point): its corners
+ * counter-clockwise from there, and the index of the road side (side i runs from corner i).
+ */
+export function rectanglePlot(frontage: number, depth: number, road: GridSide, origin: { readonly x: number; readonly y: number }): { readonly points: number[][]; readonly road: number } {
+	const alongX = road === '-y' || road === '+y';
+	const [w, h] = alongX ? [frontage, depth] : [depth, frontage];
+	const points = [[0, 0], [w, 0], [w, h], [0, h]].map(([x, y]) => [Math.round(origin.x + x), Math.round(origin.y + y)]);
+	return { points, road: GRID_SIDES.indexOf(road) };
+}
+
+/** The road side after corner `index` is deleted: the two sides at it become one (the earlier). */
+export function roadAfterDelete(road: number | undefined, index: number, corners: number): number | undefined {
+	if (road === undefined || corners - 1 < 3) {
+		return undefined;
+	}
+	if (road === index) {
+		// The side from the deleted corner merges into the one before it.
+		return (index - 1 + corners - 1) % (corners - 1);
+	}
+	return road > index ? road - 1 : road;
+}
+
+/** A change to the plot (`ISoilSite.boundary` and `plot`) from the map or the panel. */
+export interface IPlotEdit {
+	/** New corners as [lon, lat] (drawn on the map): the boundary; the project corners go. */
+	readonly lonlat?: readonly (readonly number[])[];
+	/** New corners in project mm (on the project grid, or a rectangle): the boundary goes. */
+	readonly points?: readonly (readonly number[])[];
+	/** The road side; null clears it. */
+	readonly road?: number | null;
+	/** Setbacks [mm]; null clears one. */
+	readonly front?: number | null;
+	readonly rear?: number | null;
+	readonly side?: number | null;
+	/** Removes the plot (boundary, corners, road side; the setbacks stay). */
+	readonly clear?: boolean;
+}
+
+/** Applies `edit` to `site` in place, the way the soil report stores the plot. */
+export function applyPlotEdit(site: ISoilSite, edit: IPlotEdit): void {
+	const plot: ISoilPlot = site.plot ?? {};
+	if (edit.clear) {
+		delete site.boundary;
+		delete plot.points;
+		delete plot.road;
+	}
+	if (edit.lonlat) {
+		site.boundary = edit.lonlat.map(([lon, lat]) => [Number(lon.toFixed(8)), Number(lat.toFixed(8))]);
+		delete plot.points;
+	} else if (edit.points) {
+		plot.points = edit.points.map(([x, y]) => [Math.round(x), Math.round(y)]);
+		delete site.boundary;
+	}
+	for (const key of ['road', 'front', 'rear', 'side'] as const) {
+		const value = edit[key];
+		if (value === null) {
+			delete plot[key];
+		} else if (typeof value === 'number' && Number.isFinite(value)) {
+			plot[key] = key === 'road' ? value : Math.round(value);
+		}
+	}
+	const corners = site.boundary?.length || plot.points?.length || 0;
+	if (typeof plot.road === 'number' && plot.road >= corners) {
+		delete plot.road;
+	}
+	if (!site.boundary?.length) {
+		delete site.boundary;
+	}
+	if (Object.keys(plot).length) {
+		site.plot = plot;
+	} else {
+		delete site.plot;
+	}
+}
+
+/**
+ * The plot's corners as the map draws them ([lon, lat], open ring): the backend's, else the
+ * site's own boundary (without a backend).
+ */
+export function plotLonLat(report: ISoilReport, location: ISoilLocationResult | undefined): number[][] {
+	const ring = location?.plot?.lonlat;
+	if (ring && ring.length > 3) {
+		return ring.slice(0, -1).map(p => [p[0], p[1]]);
+	}
+	return (report.site?.boundary ?? []).filter(p => p.length >= 2 && p.every(Number.isFinite)).map(p => [p[0], p[1]]);
+}
+
+/** The plot's corners in project mm for the plain grid: the backend's, else the plot's own corners. */
+export function plotProject(report: ISoilReport, location: ISoilLocationResult | undefined): { x: number; y: number }[] {
+	const own = report.site?.boundary?.length ? [] : report.site?.plot?.points ?? [];
+	const ring = location?.plot?.ring ?? own;
+	return ring.filter(p => p.length >= 2 && p.every(Number.isFinite)).map(p => ({ x: p[0], y: p[1] }));
+}
+
+/** The buildable envelope in project mm for the plain grid. */
+export function envelopeProject(location: ISoilLocationResult | undefined): { x: number; y: number }[] {
+	return (location?.plot?.envelope ?? []).filter(p => p.length >= 2 && p.every(Number.isFinite)).map(p => ({ x: p[0], y: p[1] }));
+}
+
+/** "Side 2: 20 m, faces SE (front)": a side of the plot in the road side list. */
+export function plotSideLabel(side: IPlotSide): string {
+	const length = formatNumber(side.length / 1000, 2);
+	const kind = side.kind === 'front' ? localize('soil.plot.front', "front")
+		: side.kind === 'rear' ? localize('soil.plot.rear', "rear")
+			: side.kind === 'side' ? localize('soil.plot.side', "side") : undefined;
+	return kind
+		? localize('soil.plot.sideKind', "Side {0}: {1} m, faces {2} ({3})", side.index + 1, length, side.facing, kind)
+		: localize('soil.plot.sideLabel', "Side {0}: {1} m, faces {2}", side.index + 1, length, side.facing);
 }

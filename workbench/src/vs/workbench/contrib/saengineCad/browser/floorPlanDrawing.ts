@@ -27,9 +27,14 @@ export const FLOOR_PLAN_LAYERS = {
 	slabs: 'S-SLAB',
 	footings: 'S-FNDN',
 	labels: 'S-ANNO-IDEN',
+	/** The plot (property line) and its buildable envelope from 01 Soil Report: a read-only underlay. */
+	plot: 'C-PROP',
+	envelope: 'C-PROP-SETB',
 } as const;
 
 const LAYERS: readonly CadLayerSpec[] = [
+	{ name: FLOOR_PLAN_LAYERS.plot, color: 9, description: 'Plot boundary (01 Soil Report)' },
+	{ name: FLOOR_PLAN_LAYERS.envelope, color: 9, linetype: 'DASHED', description: 'Buildable envelope inside the setbacks' },
 	{ name: FLOOR_PLAN_LAYERS.grid, color: 8, linetype: 'CENTER', description: 'Grid lines' },
 	{ name: FLOOR_PLAN_LAYERS.gridLabels, color: 7, description: 'Grid bubbles and labels' },
 	{ name: FLOOR_PLAN_LAYERS.columns, color: 4, description: 'Columns' },
@@ -78,6 +83,28 @@ export interface IMemberShape {
 	readonly group: MemberGroup;
 	readonly id: string;
 	readonly outline: { readonly kind: 'polygon'; readonly points: readonly CadPoint[] } | { readonly kind: 'circle'; readonly center: CadPoint; readonly radius: number };
+}
+
+/** The plot and its buildable envelope in project mm (`saengine.soil.plotCheck`), drawn under every story. */
+export interface IPlotUnderlay {
+	readonly plot?: readonly (readonly number[])[] | null;
+	readonly envelope?: readonly (readonly number[])[] | null;
+}
+
+/** The plot's lines, first in the drawing so the model draws over them. */
+function plotEntities(underlay: IPlotUnderlay | undefined): CadEntitySpec[] {
+	const ring = (points: readonly (readonly number[])[] | null | undefined): CadPoint[] =>
+		(points ?? []).filter(p => p.length >= 2 && Number.isFinite(p[0]) && Number.isFinite(p[1])).map(p => [p[0], p[1]]);
+	const entities: CadEntitySpec[] = [];
+	const plot = ring(underlay?.plot);
+	if (plot.length >= 3) {
+		entities.push({ kind: 'polyline', layer: FLOOR_PLAN_LAYERS.plot, points: plot, closed: true });
+	}
+	const envelope = ring(underlay?.envelope);
+	if (plot.length >= 3 && envelope.length >= 3) {
+		entities.push({ kind: 'polyline', layer: FLOOR_PLAN_LAYERS.envelope, points: envelope, closed: true, linetypeScale: BEAM_LINETYPE_SCALE });
+	}
+	return entities;
 }
 
 export interface IFloorPlan {
@@ -297,16 +324,17 @@ function slabWarnings(id: string, points: readonly CadPoint[], supports: readonl
 
 /**
  * The plan of story `storyId`: grids with bubbles, the columns and walls rising to it (plans
- * look down from just below the level), and the beams, slabs and footings at its level.
+ * look down from just below the level), and the beams, slabs and footings at its level; under
+ * them, the site's plot and buildable envelope when `underlay` gives them.
  */
-export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: string): IFloorPlan {
+export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: string, underlay?: IPlotUnderlay): IFloorPlan {
 	const model = isObject(layout) ? layout : {};
 	const { x: xLines, y: yLines } = gridsOf(model);
 	const elevation = new Map(storiesOf(model).map(s => [s.id, s.elevation]));
 	const level = elevation.get(storyId);
 	const types = new Map(list(isObject(objects) ? objects.objects : undefined).filter(o => typeof o.id === 'string').map(o => [o.id as string, o]));
 
-	const entities: CadEntitySpec[] = [];
+	const entities: CadEntitySpec[] = plotEntities(underlay);
 	const problems: string[] = [];
 	const warnings: string[] = [];
 	const members: IMemberShape[] = [];

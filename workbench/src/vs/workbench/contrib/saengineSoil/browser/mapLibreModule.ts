@@ -27,6 +27,8 @@ export interface IMapLibreEvent {
 	readonly tile?: unknown;
 	readonly error?: { readonly message?: string; readonly status?: number };
 	readonly lngLat?: { readonly lng: number; readonly lat: number };
+	/** The DOM event of a mouse event (`click`). */
+	readonly originalEvent?: MouseEvent;
 }
 
 export interface IMapLibreSource {

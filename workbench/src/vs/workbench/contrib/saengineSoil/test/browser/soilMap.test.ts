@@ -5,8 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ILatLon, ISoilLocationResult, ISoilReport, newSoilReport } from '../../browser/soilDocument.js';
-import { bnbcSuggestion, boreholePoints, boundsOf, spreadLabels, formatBtm, formatDegrees, formatDistance, formatDms, formatLatLon, gridExtent, inBangladesh, mapState, OSM_ATTRIBUTION, OSM_TILE_URL, outlineProject, outlineRings, parseLatLon, sitePosition, tileSource } from '../../browser/soilMap.js';
+import { ILatLon, ISoilLocationResult, ISoilReport, ISoilSite, newSoilReport } from '../../browser/soilDocument.js';
+import { applyPlotEdit, bnbcSuggestion, boreholePoints, boundsOf, spreadLabels, compassPoint, formatBtm, formatDegrees, formatDistance, formatDms, formatLatLon, formatPlotArea, gridExtent, GRID_SIDES, gridSideLabel, inBangladesh, mapState, OSM_ATTRIBUTION, OSM_TILE_URL, outlineProject, outlineRings, parseLatLon, parsePlotLength, plotLonLat, plotProject, plotSideLabel, rectanglePlot, roadAfterDelete, sitePosition, tileSource } from '../../browser/soilMap.js';
 
 function report(extra: Partial<ISoilReport> = {}): ISoilReport {
 	return {
@@ -190,6 +190,84 @@ suite('SAEngine - Soil site map', () => {
 			bounds: [[90.4, 23.8], [90.42, 23.81]],
 			one: undefined,
 			offsets: [0, 14, 0],
+		});
+	});
+
+	test('the plot typed as a rectangle: lengths in m or ft, the road side, the area in katha and decimal', () => {
+		// 40 ft × 66 ft = 12.192 m × 20.117 m; the road on the right (+X) turns the frontage along Y.
+		assert.deepStrictEqual({
+			lengths: [parsePlotLength('12', 'm'), parsePlotLength('40', 'ft'), parsePlotLength('12.5 m', 'm'), parsePlotLength('0', 'm'), parsePlotLength('', 'ft'), parsePlotLength('x', 'm')],
+			bottom: rectanglePlot(12000, 20000, '-y', { x: 0, y: 0 }),
+			right: rectanglePlot(12192, 20117, '+x', { x: 5000, y: -2000 }),
+			sides: GRID_SIDES.map(side => gridSideLabel(side, 30)),
+			compass: [0, 22, 23, 180, 337.6, -45].map(compassPoint),
+			area: formatPlotArea(240, 3.588, 5.931),
+		}, {
+			lengths: [12000, 12192, 12500, undefined, undefined, undefined],
+			bottom: { points: [[0, 0], [12000, 0], [12000, 20000], [0, 20000]], road: 0 },
+			right: { points: [[5000, -2000], [25117, -2000], [25117, 10192], [5000, 10192]], road: 1 },
+			sides: ['Bottom (−Y), faces SW', 'Right (+X), faces SE', 'Top (+Y), faces NE', 'Left (−X), faces NW'],
+			compass: ['N', 'N', 'NE', 'S', 'N', 'NW'],
+			area: '240 m² (3.59 katha, 5.93 decimal)',
+		});
+	});
+
+	test('plot edits: drawn on the map or the grid, the road side kept with its corners, cleared', () => {
+		const steps: unknown[] = [];
+		const site: ISoilSite = { lat: 23.8, lon: 90.4, boundary: [[90.4, 23.8], [90.401, 23.8], [90.401, 23.801]] };
+		// On the grid: the project corners replace the lat/lon boundary.
+		applyPlotEdit(site, { points: [[0, 0], [12000.4, 0], [12000, 20000], [0, 20000]], road: 0, front: 3000 });
+		steps.push(structuredClone(site));
+		// Setbacks typed; one cleared.
+		applyPlotEdit(site, { rear: 1500.2, side: 1000, front: null });
+		steps.push(structuredClone(site.plot));
+		// Drawn again on the map: three corners, so the road side on the fourth side goes.
+		applyPlotEdit(site, { lonlat: [[90.41234567891, 23.8], [90.4, 23.801], [90.401, 23.801]], road: 3 });
+		steps.push(structuredClone(site));
+		applyPlotEdit(site, { clear: true });
+		steps.push(structuredClone(site));
+		assert.deepStrictEqual(steps, [
+			{ lat: 23.8, lon: 90.4, plot: { points: [[0, 0], [12000, 0], [12000, 20000], [0, 20000]], road: 0, front: 3000 } },
+			{ points: [[0, 0], [12000, 0], [12000, 20000], [0, 20000]], road: 0, rear: 1500, side: 1000 },
+			{ lat: 23.8, lon: 90.4, boundary: [[90.41234568, 23.8], [90.4, 23.801], [90.401, 23.801]], plot: { rear: 1500, side: 1000 } },
+			{ lat: 23.8, lon: 90.4, plot: { rear: 1500, side: 1000 } },
+		]);
+	});
+
+	test('deleting a corner keeps the road side on the same side of the plot', () => {
+		// Five corners, road on side 2 (corner 2 to 3); the first side merges into the last; a
+		// triangle left with a corner less is no plot.
+		assert.deepStrictEqual({
+			five: [0, 1, 2, 3, 4].map(index => roadAfterDelete(2, index, 5)),
+			first: roadAfterDelete(0, 0, 5),
+			none: roadAfterDelete(undefined, 1, 5),
+			triangle: roadAfterDelete(1, 1, 3),
+		}, { five: [1, 1, 1, 2, 2], first: 3, none: undefined, triangle: undefined });
+	});
+
+	test('the plot as the map and the grid draw it: the backend measures, else the report own corners', () => {
+		const site: ISoilSite = { plot: { points: [[0, 0], [12000, 0], [12000, 20000]] } };
+		const location: ISoilLocationResult = {
+			plot: {
+				ring: [[0, 0], [12000, 0], [12000, 20000]],
+				lonlat: [[90.4, 23.8], [90.4001, 23.8], [90.4001, 23.8002], [90.4, 23.8]],
+				sides: [{ index: 0, length: 12000, bearing: 90, faces: 180, facing: 'S', kind: 'front', setback: 3000 }],
+			},
+		};
+		assert.deepStrictEqual({
+			own: plotProject(report({ site }), undefined),
+			measured: plotProject(report({ site }), location),
+			boundaryOnly: plotProject(report({ site: { boundary: [[90.4, 23.8]], plot: { points: [[1, 2]] } } }), undefined),
+			map: plotLonLat(report({ site }), location),
+			mapOwn: plotLonLat(report({ site: { boundary: [[90.4, 23.8], [90.5, 23.8], [90.5, 23.9]] } }), undefined),
+			side: plotSideLabel(location.plot!.sides![0]),
+		}, {
+			own: [{ x: 0, y: 0 }, { x: 12000, y: 0 }, { x: 12000, y: 20000 }],
+			measured: [{ x: 0, y: 0 }, { x: 12000, y: 0 }, { x: 12000, y: 20000 }],
+			boundaryOnly: [],
+			map: [[90.4, 23.8], [90.4001, 23.8], [90.4001, 23.8002]],
+			mapOwn: [[90.4, 23.8], [90.5, 23.8], [90.5, 23.9]],
+			side: 'Side 1: 12 m, faces S (front)',
 		});
 	});
 });

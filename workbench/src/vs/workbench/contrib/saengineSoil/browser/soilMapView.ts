@@ -3,14 +3,14 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, clearNode, EventType, getWindow } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, clearNode, EventType, getWindow, isHTMLElement } from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { formatNumber, ILatLon, ISoilLocationResult, ISoilReport } from './soilDocument.js';
 import { ensureMapLibreStyles, IMapLibreMap, IMapLibreMarker, IMapLibreModule, loadMapLibre } from './mapLibreModule.js';
-import { bnbcSuggestion, boreholePoints, boundsOf, spreadLabels, formatBtm, formatDms, formatLatLon, formatProjectPoint, gridExtent, IBnbcSuggestion, IMapPoint, inBangladesh, ITileSource, mapState, MapState, OSM_COPYRIGHT_URL, OSM_MAX_ZOOM, offlineNote, outlineProject, outlineRings, parseLatLon, sitePosition } from './soilMap.js';
+import { bnbcSuggestion, boreholePoints, boundsOf, spreadLabels, compassPoint, envelopeProject, formatBtm, formatDms, formatLatLon, formatPlotArea, formatProjectPoint, gridExtent, GRID_SIDES, GridSide, gridSideLabel, IBnbcSuggestion, IMapPoint, inBangladesh, IPlotEdit, ITileSource, LengthUnit, mapState, MapState, OSM_COPYRIGHT_URL, OSM_MAX_ZOOM, offlineNote, outlineProject, outlineRings, parseLatLon, parsePlotLength, plotLonLat, plotProject, plotSideLabel, rectanglePlot, roadAfterDelete, sitePosition } from './soilMap.js';
 import { niceStep, svg } from './soilLog.js';
 
 /*
@@ -35,6 +35,8 @@ export interface ISoilMapHost {
 	moveSite(position: ILatLon): void;
 	setRotation(degrees: number | undefined): void;
 	moveBorehole(index: number, position: ILatLon): void;
+	/** Changes the plot (its corners, road side or setbacks) as one undoable edit. */
+	editPlot(edit: IPlotEdit): void;
 	/** On the plain grid: the borehole's project position [mm]. */
 	moveBoreholeOnGrid(index: number, x: number, y: number): void;
 	select(index: number | undefined): void;
@@ -56,6 +58,12 @@ export interface IMapViewState {
 	coordinateStyle: 'decimal' | 'dms';
 	/** The map was framed on the site and all the boreholes once (on its first opening). */
 	framed?: boolean;
+	/** The plot being drawn: its corners so far, [lon, lat] on the map or project [x, y] mm on the grid. */
+	plotDraft?: { readonly on: 'map' | 'grid'; readonly corners: number[][] };
+	/** The plot corner picked (Delete removes it). */
+	plotCorner?: number;
+	/** What the rectangle form holds, kept while the panel is drawn again. */
+	plotForm?: { frontage: string; depth: string; unit: LengthUnit; road: GridSide };
 }
 
 const DEFAULT_ZOOM = 17;
@@ -81,6 +89,9 @@ export class SoilMapView extends Disposable {
 	/** The id label of each borehole marker, moved apart where they would overlap. */
 	private readonly markerLabels = new Map<IMapLibreMarker, HTMLElement>();
 	private siteMarker: IMapLibreMarker | undefined;
+	/** The plot's corners on the map (draggable), and the corners of the plot being drawn. */
+	private plotMarkers: IMapLibreMarker[] = [];
+	private readonly compass: HTMLElement;
 	private module: IMapLibreModule | undefined;
 	private loading = false;
 	private tileLoaded = false;
@@ -89,12 +100,13 @@ export class SoilMapView extends Disposable {
 
 	constructor(container: HTMLElement, private host: ISoilMapHost, private readonly state: IMapViewState) {
 		super();
-		this.element = append(container, $('.soil-map-view'));
+		this.element = append(container, $('.soil-map-view', { tabIndex: -1 }));
 		this.banner = append(this.element, $('.soil-map-banner', { role: 'status' }));
 		const body = append(this.element, $('.soil-map-body'));
 		const stage = append(body, $('.soil-map-stage'));
 		this.mapArea = append(stage, $('.soil-map-area'));
 		this.note = append(stage, $('.soil-map-note', { role: 'note' }));
+		this.compass = append(stage, $('.soil-map-compass', { role: 'img' }));
 		const attribution = append(stage, $('.soil-map-attribution'));
 		const link = append(attribution, $<HTMLAnchorElement>('a', { href: OSM_COPYRIGHT_URL, role: 'link' }, host.tiles.attribution));
 		this._register(addDisposableListener(link, EventType.CLICK, e => {
@@ -103,6 +115,7 @@ export class SoilMapView extends Disposable {
 		}));
 		this.panel = append(body, $('.soil-map-panel'));
 		const window = getWindow(this.element);
+		this._register(addDisposableListener(this.element, EventType.KEY_DOWN, e => this.onKey(e)));
 		this._register(addDisposableListener(window, 'online', () => this.update(this.host)));
 		this._register(addDisposableListener(window, 'offline', () => this.update(this.host)));
 		this.update(host);
@@ -113,6 +126,7 @@ export class SoilMapView extends Disposable {
 		this.host = host;
 		this.renderBanner();
 		this.renderPanel();
+		this.renderCompass();
 		const site = sitePosition(host.report, host.location);
 		const online = getWindow(this.element).navigator.onLine;
 		const state = mapState({ hasSite: !!site, online, mapLibre: !this.state.mapLibreFailed, tilesFailed: !!this.state.tilesFailed });
@@ -123,6 +137,10 @@ export class SoilMapView extends Disposable {
 			this.markers = [];
 			this.markerLabels.clear();
 			this.siteMarker = undefined;
+			this.plotMarkers = [];
+			if (this.state.plotDraft && this.state.plotDraft.on !== (state === 'map' ? 'map' : 'grid')) {
+				this.state.plotDraft = undefined; // drawn in the other view
+			}
 			this.gridDisposables.clear();
 			clearNode(this.mapArea);
 			this.element.classList.toggle('offline', state !== 'map');
@@ -210,6 +228,8 @@ export class SoilMapView extends Disposable {
 			append(this.panel, $('p.soil-note', undefined, this.state.geolocationNote));
 		}
 
+		this.renderPlotPanel(heading, row);
+
 		heading(localize('soil.map.boreholes', "Boreholes"));
 		const points = boreholePoints(report, location);
 		const list = append(this.panel, $('.soil-map-list', { role: 'listbox', 'aria-label': localize('soil.map.boreholes', "Boreholes") }));
@@ -262,11 +282,241 @@ export class SoilMapView extends Disposable {
 		}
 	}
 
-	private button(container: HTMLElement, icon: ThemeIcon, label: string, run: () => void, title?: string): void {
+	private button(container: HTMLElement, icon: ThemeIcon, label: string, run: () => void, title?: string): HTMLButtonElement {
 		const button = append(container, $<HTMLButtonElement>('button.soil-map-button', { type: 'button', title: title ?? '' }));
 		append(button, $(ThemeIcon.asCSSSelector(icon)));
 		append(button, $('span', undefined, label));
 		this.panelDisposables.add(addDisposableListener(button, EventType.CLICK, run));
+		return button;
+	}
+
+	// ───────────────────────────── the plot ─────────────────────────────
+
+	/**
+	 * The plot: drawn on the map or the grid (corners dragged, picked and deleted), or typed as a
+	 * rectangle at the project point; its area, sides and the setbacks that leave the buildable
+	 * envelope (measured by the backend, saengine.gis.plot).
+	 */
+	private renderPlotPanel(heading: (text: string) => HTMLElement, row: (label: string, value: string, title?: string) => HTMLElement): void {
+		const { report, location } = this.host;
+		const plot = location?.plot ?? undefined;
+		const own = report.site?.plot;
+		const draft = this.state.plotDraft;
+		const corners = this.currentCorners();
+		heading(localize('soil.plot.heading', "Plot"));
+		const drawing = append(this.panel, $('.soil-map-actions'));
+		if (draft) {
+			append(this.panel, $('p.soil-note', { role: 'status' }, localize('soil.plot.drawing', "Click the corners in order around the plot ({0} so far). Close it with Close Plot or by clicking the first corner; Escape cancels.", draft.corners.length)));
+			const close = this.button(drawing, Codicon.check, localize('soil.plot.close', "Close Plot"), () => this.closeDraft());
+			close.disabled = draft.corners.length < 3;
+			this.button(drawing, Codicon.close, localize('soil.plot.cancel', "Cancel"), () => this.cancelDraft());
+		} else {
+			this.button(drawing, Codicon.edit, corners.length ? localize('soil.plot.redraw', "Draw Again") : localize('soil.plot.draw', "Draw Plot"), () => this.startDraft(), localize('soil.plot.drawTitle', "Click the plot's corners on the map (or on the project grid)"));
+			if (this.state.plotCorner !== undefined && this.state.plotCorner < corners.length) {
+				const remove = this.button(drawing, Codicon.trash, localize('soil.plot.deleteCorner', "Delete Corner {0}", this.state.plotCorner + 1), () => this.deleteCorner());
+				remove.disabled = corners.length <= 3;
+				remove.title = corners.length <= 3 ? localize('soil.plot.keepThree', "A plot needs three corners.") : '';
+			}
+			if (corners.length) {
+				this.button(drawing, Codicon.clearAll, localize('soil.plot.clear', "Clear Plot"), () => {
+					this.state.plotCorner = undefined;
+					this.host.editPlot({ clear: true });
+				});
+			}
+		}
+
+		if (plot && typeof plot.area === 'number') {
+			row(localize('soil.plot.areaLabel', "Area"), formatPlotArea(plot.area, plot.katha ?? 0, plot.decimal ?? 0), localize('soil.plot.areaTitle', "1 katha = 720 sq ft, 1 decimal = 435.6 sq ft"));
+			row(localize('soil.plot.perimeter', "Perimeter"), localize('soil.plot.metres', "{0} m", formatNumber((plot.perimeter ?? 0) / 1000, 2)));
+			const sides = append(this.panel, $('.soil-map-list.soil-plot-sides', { role: 'list', 'aria-label': localize('soil.plot.sides', "Sides") }));
+			for (const side of plot.sides ?? []) {
+				const item = append(sides, $('.soil-map-item', { role: 'listitem' }));
+				append(item, $('span.soil-map-item-id', undefined, localize('soil.plot.sideNumber', "{0}", side.index + 1)));
+				append(item, $('span.soil-map-item-detail', undefined, localize('soil.plot.sideDetail', "{0} m, bearing {1}°, faces {2}{3}", formatNumber(side.length / 1000, 2), formatNumber(side.bearing, 1), side.facing,
+					side.kind ? localize('soil.plot.sideSetback', " · {0} {1} m", side.kind === 'front' ? localize('soil.plot.front', "front") : side.kind === 'rear' ? localize('soil.plot.rear', "rear") : localize('soil.plot.side', "side"), formatNumber(side.setback / 1000, 2)) : '')));
+			}
+			// The road side picks which setback each side takes.
+			const roadRow = append(this.panel, $('.soil-map-row'));
+			const roadLabel = localize('soil.plot.road', "Road side");
+			append(roadRow, $('span.soil-map-label', { title: localize('soil.plot.roadTitle', "The side facing the road: it takes the front setback, the side opposite it the rear") }, roadLabel));
+			const roadSelect = append(append(roadRow, $('span.soil-map-value.soil-prop-control')), $<HTMLSelectElement>('select.soil-input', { 'aria-label': roadLabel }));
+			roadSelect.dataset.key = 'plotRoad';
+			append(roadSelect, $<HTMLOptionElement>('option', { value: '' }, localize('soil.plot.noRoad', "(not set)")));
+			for (const side of plot.sides ?? []) {
+				const option = append(roadSelect, $<HTMLOptionElement>('option', { value: String(side.index) }, plotSideLabel({ ...side, kind: null })));
+				option.selected = side.index === plot.road;
+			}
+			this.panelDisposables.add(addDisposableListener(roadSelect, EventType.CHANGE, () => this.host.editPlot({ road: roadSelect.value === '' ? null : Number(roadSelect.value) })));
+		} else if (corners.length >= 3 && this.host.locationState === 'computing') {
+			append(this.panel, $('p.soil-note', undefined, localize('soil.plot.measuring', "Measuring the plot...")));
+		}
+
+		// Setbacks [m]: front (the road side), rear, each other side.
+		const setbacks = append(this.panel, $('.soil-plot-setbacks'));
+		append(setbacks, $('span.soil-map-label', undefined, localize('soil.plot.setbacks', "Setbacks")));
+		for (const [key, label] of [['front', localize('soil.plot.setbackFront', "Front")], ['rear', localize('soil.plot.setbackRear', "Rear")], ['side', localize('soil.plot.setbackSide', "Each side")]] as const) {
+			const cell = append(setbacks, $('label.soil-plot-setback'));
+			append(cell, $('span', undefined, localize('soil.plot.inMetres', "{0} (m)", label)));
+			const input = append(cell, $<HTMLInputElement>('input.soil-input.number', { type: 'text', spellcheck: 'false', 'aria-label': localize('soil.plot.setbackAria', "{0} setback in m", label) }));
+			input.dataset.key = `plot-${key}`;
+			this.panelInputs.set(`plot-${key}`, input);
+			const value = own?.[key];
+			input.value = typeof value === 'number' ? formatNumber(value / 1000, 3) : '';
+			input.placeholder = '0';
+			this.panelDisposables.add(addDisposableListener(input, EventType.CHANGE, () => {
+				const text = input.value.trim();
+				const number = text ? Number(text) : 0;
+				const valid = Number.isFinite(number) && number >= 0 && number < 1000;
+				input.classList.toggle('invalid', !valid);
+				if (valid) {
+					this.host.editPlot({ [key]: number ? number * 1000 : null });
+				}
+			}));
+		}
+		if (plot && typeof plot.envelopeArea === 'number') {
+			row(localize('soil.plot.buildable', "Buildable"), localize('soil.plot.buildableArea', "{0} m² inside the setbacks", formatNumber(plot.envelopeArea, 1)), localize('soil.plot.buildableTitle', "The buildable envelope: the plot less its setbacks (dashed)"));
+		}
+
+		// A rectangle typed: frontage along the road side, at the project point, along the grid.
+		const form = this.state.plotForm ??= { frontage: '', depth: '', unit: 'm', road: '-y' };
+		const rectangle = append(this.panel, $('.soil-plot-rectangle'));
+		append(rectangle, $('span.soil-map-label', undefined, localize('soil.plot.rectangle', "Or type a rectangle")));
+		const sizes = append(rectangle, $('.soil-plot-sizes'));
+		const field = (key: 'frontage' | 'depth', label: string) => {
+			const cell = append(sizes, $('label.soil-plot-setback'));
+			append(cell, $('span', undefined, label));
+			const input = append(cell, $<HTMLInputElement>('input.soil-input.number', { type: 'text', spellcheck: 'false', 'aria-label': label }));
+			input.dataset.key = `plot-${key}`;
+			this.panelInputs.set(`plot-${key}`, input);
+			input.value = form[key];
+			this.panelDisposables.add(addDisposableListener(input, EventType.INPUT, () => form[key] = input.value));
+			return input;
+		};
+		const frontage = field('frontage', localize('soil.plot.frontage', "Frontage"));
+		const depth = field('depth', localize('soil.plot.depth', "Depth"));
+		const unit = append(sizes, $<HTMLSelectElement>('select.soil-input', { 'aria-label': localize('soil.plot.unit', "Unit") }));
+		for (const value of ['m', 'ft'] as const) {
+			const option = append(unit, $<HTMLOptionElement>('option', { value }, value === 'm' ? localize('soil.plot.unitM', "m") : localize('soil.plot.unitFt', "ft")));
+			option.selected = form.unit === value;
+		}
+		this.panelDisposables.add(addDisposableListener(unit, EventType.CHANGE, () => form.unit = unit.value === 'ft' ? 'ft' : 'm'));
+		const roadSide = append(rectangle, $<HTMLSelectElement>('select.soil-input', { 'aria-label': localize('soil.plot.roadFacing', "Side facing the road") }));
+		const rotation = report.site?.rotation ?? 0;
+		for (const side of GRID_SIDES) {
+			const option = append(roadSide, $<HTMLOptionElement>('option', { value: side }, localize('soil.plot.roadOn', "Road: {0}", gridSideLabel(side, rotation))));
+			option.selected = form.road === side;
+		}
+		this.panelDisposables.add(addDisposableListener(roadSide, EventType.CHANGE, () => form.road = roadSide.value as GridSide));
+		const set = append(rectangle, $('.soil-map-actions'));
+		this.button(set, Codicon.check, localize('soil.plot.setRectangle', "Set Rectangle"), () => {
+			const f = parsePlotLength(frontage.value, form.unit);
+			const d = parsePlotLength(depth.value, form.unit);
+			frontage.classList.toggle('invalid', f === undefined);
+			depth.classList.toggle('invalid', d === undefined);
+			if (f === undefined || d === undefined) {
+				return;
+			}
+			this.state.plotDraft = undefined;
+			this.state.plotCorner = undefined;
+			const placed = rectanglePlot(f, d, form.road, { x: report.site?.x ?? 0, y: report.site?.y ?? 0 });
+			this.host.editPlot({ points: placed.points, road: placed.road });
+		}, localize('soil.plot.setRectangleTitle', "A rectangle with its lower-left corner at the project point, along the project grid"));
+		for (const problem of plot?.problems ?? []) {
+			append(this.panel, $('p.soil-note.warning', undefined, problem));
+		}
+	}
+
+	/** The plot's corners where the plot is shown now: [lon, lat] on the map, project [x, y] on the grid. */
+	private currentCorners(): number[][] {
+		const { report, location } = this.host;
+		return this.shown === 'map' ? plotLonLat(report, location) : plotProject(report, location).map(p => [p.x, p.y]);
+	}
+
+	/** Stores `corners` (in the space shown) as the plot, keeping its road side. */
+	private storeCorners(corners: number[][], road?: number | null): void {
+		const edit: IPlotEdit = this.shown === 'map' ? { lonlat: corners } : { points: corners };
+		this.host.editPlot(road === undefined ? edit : { ...edit, road });
+	}
+
+	private startDraft(): void {
+		this.state.plotDraft = { on: this.shown === 'map' ? 'map' : 'grid', corners: [] };
+		this.state.plotCorner = undefined;
+		this.update(this.host);
+		this.element.focus();
+	}
+
+	private cancelDraft(): void {
+		this.state.plotDraft = undefined;
+		this.update(this.host);
+	}
+
+	private closeDraft(): void {
+		const draft = this.state.plotDraft;
+		if (!draft || draft.corners.length < 3) {
+			return;
+		}
+		this.state.plotDraft = undefined;
+		this.state.plotCorner = undefined;
+		// A new shape: its sides are new, so the road side is chosen again.
+		this.host.editPlot(draft.on === 'map' ? { lonlat: draft.corners, road: null } : { points: draft.corners, road: null });
+	}
+
+	/** Adds a corner to the plot being drawn; a click on the first corner closes it. */
+	private addDraftCorner(corner: number[]): void {
+		const draft = this.state.plotDraft;
+		if (!draft) {
+			return;
+		}
+		draft.corners.push(corner);
+		this.update(this.host);
+	}
+
+	private deleteCorner(): void {
+		const index = this.state.plotCorner;
+		const corners = this.currentCorners();
+		if (index === undefined || index >= corners.length || corners.length <= 3) {
+			return;
+		}
+		this.state.plotCorner = undefined;
+		const road = roadAfterDelete(this.host.report.site?.plot?.road, index, corners.length);
+		this.storeCorners(corners.filter((_, i) => i !== index), road ?? null);
+	}
+
+	private onKey(e: KeyboardEvent): void {
+		const target = e.target as HTMLElement | null;
+		if (target && (target.tagName === 'INPUT' || target.tagName === 'SELECT')) {
+			return;
+		}
+		if (e.key === 'Escape' && this.state.plotDraft) {
+			e.preventDefault();
+			this.cancelDraft();
+		} else if (e.key === 'Enter' && this.state.plotDraft) {
+			e.preventDefault();
+			this.closeDraft();
+		} else if ((e.key === 'Delete' || e.key === 'Backspace') && this.state.plotCorner !== undefined && !this.state.plotDraft) {
+			e.preventDefault();
+			this.deleteCorner();
+		}
+	}
+
+	private pickCorner(index: number): void {
+		this.state.plotCorner = this.state.plotCorner === index ? undefined : index;
+		this.update(this.host);
+	}
+
+	/** True north, and the project +Y axis at the grid bearing. */
+	private renderCompass(): void {
+		clearNode(this.compass);
+		const rotation = this.host.report.site?.rotation ?? 0;
+		this.compass.setAttribute('aria-label', localize('soil.plot.compassAria', "North; the project +Y axis is at {0}° ({1})", formatNumber(rotation, 1), compassPoint(rotation)));
+		this.compass.title = localize('soil.plot.compassTitle', "North is up. The project +Y axis points {0}° clockwise from north (the grid bearing).", formatNumber(rotation, 1));
+		const root = svg(this.compass, 'svg', { width: 56, height: 64, viewBox: '-28 -34 56 64' });
+		svg(root, 'path', { d: 'M0 -20 L6 4 L0 0 L-6 4 Z', class: 'soil-compass-north' });
+		svg(root, 'text', { x: 0, y: -24, 'text-anchor': 'middle', class: 'soil-compass-label' }, localize('soil.map.north', "N"));
+		const grid = svg(root, 'g', { transform: `rotate(${rotation})`, class: 'soil-compass-grid' });
+		svg(grid, 'line', { x1: 0, y1: 8, x2: 0, y2: -16 });
+		svg(grid, 'path', { d: 'M0 -18 L3 -12 L-3 -12 Z' });
+		svg(root, 'text', { x: 0, y: 26, 'text-anchor': 'middle', class: 'soil-compass-label grid' }, localize('soil.plot.gridLabel', "+Y {0}°", formatNumber(rotation, 1)));
 	}
 
 	/** A lat/lon box: takes what Google Maps, QGIS or a survey sheet gives; Enter or leaving it applies. */
@@ -415,6 +665,14 @@ export class SoilMapView extends Disposable {
 			map.addSource('outline', { type: 'geojson', data: this.outlineData() });
 			map.addLayer({ id: 'outline-fill', type: 'fill', source: 'outline', paint: { 'fill-color': blue, 'fill-opacity': 0.12 } });
 			map.addLayer({ id: 'outline-line', type: 'line', source: 'outline', paint: { 'line-color': blue, 'line-width': 2 } });
+			const style = getWindow(this.element).getComputedStyle(this.element);
+			const orange = style.getPropertyValue('--vscode-charts-orange').trim() || 'rgb(209, 134, 22)';
+			const green = style.getPropertyValue('--vscode-charts-green').trim() || 'rgb(56, 138, 52)';
+			map.addSource('plot', { type: 'geojson', data: this.plotData() });
+			map.addLayer({ id: 'plot-fill', type: 'fill', source: 'plot', filter: ['==', ['get', 'kind'], 'plot'], paint: { 'fill-color': orange, 'fill-opacity': 0.08 } });
+			map.addLayer({ id: 'plot-line', type: 'line', source: 'plot', filter: ['==', ['get', 'kind'], 'plot'], paint: { 'line-color': orange, 'line-width': 2.5 } });
+			map.addLayer({ id: 'plot-envelope', type: 'line', source: 'plot', filter: ['==', ['get', 'kind'], 'envelope'], paint: { 'line-color': green, 'line-width': 1.5, 'line-dasharray': [3, 2] } });
+			map.addLayer({ id: 'plot-draft', type: 'line', source: 'plot', filter: ['==', ['get', 'kind'], 'draft'], paint: { 'line-color': orange, 'line-width': 2, 'line-dasharray': [2, 1] } });
 			this.updateMap();
 			if (!this.state.framed) {
 				// The first time: the site and every borehole in view, however far apart.
@@ -428,7 +686,68 @@ export class SoilMapView extends Disposable {
 			this.spreadMapLabels();
 		});
 		map.on('zoomend', () => this.spreadMapLabels());
+		map.on('click', e => {
+			// A click on a corner marker is the marker's (the first one closes the plot), not a new corner.
+			const target = e.originalEvent?.target;
+			const onCorner = isHTMLElement(target) && !!target.closest('.soil-map-corner');
+			if (this.state.plotDraft?.on === 'map' && e.lngLat && !onCorner) {
+				this.addDraftCorner([e.lngLat.lng, e.lngLat.lat]);
+			}
+		});
 		this.updateMap();
+	}
+
+	/** The plot, its envelope and the plot being drawn, as GeoJSON for the map. */
+	private plotData(): object {
+		const features: object[] = [];
+		const corners = plotLonLat(this.host.report, this.host.location);
+		if (corners.length >= 3 && !this.state.plotDraft) {
+			features.push({ type: 'Feature', properties: { kind: 'plot' }, geometry: { type: 'Polygon', coordinates: [[...corners, corners[0]]] } });
+		}
+		const envelope = this.host.location?.plot?.envelopeLonlat;
+		if (envelope && envelope.length > 3 && !this.state.plotDraft) {
+			features.push({ type: 'Feature', properties: { kind: 'envelope' }, geometry: { type: 'LineString', coordinates: envelope } });
+		}
+		const draft = this.state.plotDraft?.on === 'map' ? this.state.plotDraft.corners : [];
+		if (draft.length >= 2) {
+			features.push({ type: 'Feature', properties: { kind: 'draft' }, geometry: { type: 'LineString', coordinates: draft } });
+		}
+		return { type: 'FeatureCollection', features };
+	}
+
+	/** The plot's corners (drag to move, click to pick), or the corners drawn so far. */
+	private updatePlotMarkers(module: IMapLibreModule, map: IMapLibreMap): void {
+		for (const marker of this.plotMarkers) {
+			marker.remove();
+		}
+		const draft = this.state.plotDraft?.on === 'map' ? this.state.plotDraft.corners : undefined;
+		const corners = draft ?? plotLonLat(this.host.report, this.host.location);
+		this.plotMarkers = corners.map((corner, index) => {
+			const element = $('.soil-map-corner', { role: 'button', tabIndex: 0, 'aria-label': draft ? localize('soil.plot.draftCorner', "Corner {0}", index + 1) : localize('soil.plot.cornerMarker', "Plot corner {0} (drag to move, click to pick)", index + 1) });
+			element.classList.toggle('selected', !draft && index === this.state.plotCorner);
+			element.classList.toggle('first', !!draft && index === 0 && corners.length >= 3);
+			append(element, $('span.soil-map-corner-label', undefined, String(index + 1)));
+			const marker = new module.Marker({ element, draggable: !draft, anchor: 'center' }).setLngLat([corner[0], corner[1]]).addTo(map);
+			let dragged = false;
+			marker.on('dragstart', () => dragged = true);
+			marker.on('dragend', () => {
+				const p = marker.getLngLat();
+				const moved = corners.map((c, i) => i === index ? [p.lng, p.lat] : c);
+				this.storeCorners(moved);
+			});
+			element.addEventListener('click', e => {
+				e.stopPropagation(); // not a new corner on the map under it
+				if (draft) {
+					if (index === 0) {
+						this.closeDraft();
+					}
+				} else if (!dragged) {
+					this.pickCorner(index);
+				}
+				dragged = false;
+			});
+			return marker;
+		});
 	}
 
 	/** Moves the borehole ids apart where they would overlap at this zoom. */
@@ -469,6 +788,9 @@ export class SoilMapView extends Disposable {
 			return;
 		}
 		(map.getSource('outline'))?.setData(this.outlineData());
+		(map.getSource('plot'))?.setData(this.plotData());
+		this.updatePlotMarkers(module, map);
+		this.mapArea.classList.toggle('drawing', this.state.plotDraft?.on === 'map');
 		const site = sitePosition(this.host.report, this.host.location);
 		if (site) {
 			if (!this.siteMarker) {
@@ -516,6 +838,60 @@ export class SoilMapView extends Disposable {
 
 	// ───────────────────────────── the plain grid ─────────────────────────────
 
+	/** A plot corner on the grid: drag to move it, click to pick it; while drawing, the first one closes the plot. */
+	private gridCorner(root: SVGElement, corner: { readonly x: number; readonly y: number }, index: number, drafting: boolean, count: number, px: (x: number) => number, py: (y: number) => number, scale: number): void {
+		const selected = !drafting && index === this.state.plotCorner;
+		const group = svg(root, 'g', { class: `soil-site-corner${selected ? ' selected' : ''}${drafting && index === 0 && count >= 3 ? ' first' : ''}`, tabindex: 0, role: 'button', 'aria-label': localize('soil.plot.cornerMarker', "Plot corner {0} (drag to move, click to pick)", index + 1) });
+		const handle = svg(group, 'rect', { x: px(corner.x) - 5, y: py(corner.y) - 5, width: 10, height: 10 });
+		svg(group, 'text', { x: px(corner.x) + 8, y: py(corner.y) - 6, class: 'soil-site-label' }, String(index + 1));
+		svg(group, 'title', {}, localize('soil.plot.cornerTitle', "Corner {0}: {1}", index + 1, formatProjectPoint(corner.x, corner.y)));
+		let drag: { startX: number; startY: number; moved: boolean } | undefined;
+		this.gridDisposables.add(addDisposableListener(group, EventType.POINTER_DOWN, (e: PointerEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+			group.setPointerCapture(e.pointerId);
+			drag = { startX: e.clientX, startY: e.clientY, moved: false };
+		}));
+		this.gridDisposables.add(addDisposableListener(group, EventType.POINTER_MOVE, (e: PointerEvent) => {
+			if (!drag || drafting) {
+				return;
+			}
+			const dx = e.clientX - drag.startX;
+			const dy = e.clientY - drag.startY;
+			drag.moved ||= Math.abs(dx) + Math.abs(dy) > 3;
+			handle.setAttribute('x', String(px(corner.x) + dx - 5));
+			handle.setAttribute('y', String(py(corner.y) + dy - 5));
+		}));
+		this.gridDisposables.add(addDisposableListener(group, EventType.CLICK, (e: MouseEvent) => e.stopPropagation()));
+		this.gridDisposables.add(addDisposableListener(group, EventType.POINTER_UP, (e: PointerEvent) => {
+			const d = drag;
+			drag = undefined;
+			if (!d) {
+				return;
+			}
+			if (drafting) {
+				if (index === 0) {
+					this.closeDraft();
+				}
+				return;
+			}
+			if (!d.moved) {
+				this.pickCorner(index);
+				return;
+			}
+			const x = Math.round((corner.x + (e.clientX - d.startX) / scale) / 10) * 10;
+			const y = Math.round((corner.y - (e.clientY - d.startY) / scale) / 10) * 10;
+			const corners = plotProject(this.host.report, this.host.location).map((p, i) => i === index ? [x, y] : [p.x, p.y]);
+			this.storeCorners(corners);
+		}));
+		this.gridDisposables.add(addDisposableListener(group, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				this.pickCorner(index);
+			}
+		}));
+	}
+
 	/** The project coordinates as a plain grid: the outline, the site's project point and the boreholes (drag to move). */
 	private renderGrid(): void {
 		this.gridDisposables.clear();
@@ -525,7 +901,10 @@ export class SoilMapView extends Disposable {
 		const height = Math.max(260, this.mapArea.clientHeight || 420);
 		const outline = [outlineProject(location)].filter(ring => ring.length > 2);
 		const origin = { x: report.site?.x ?? 0, y: report.site?.y ?? 0 };
-		const extent = gridExtent([...report.boreholes, ...outline.flat(), origin]);
+		const draft = this.state.plotDraft?.on === 'grid' ? this.state.plotDraft.corners.map(([x, y]) => ({ x, y })) : undefined;
+		const plot = plotProject(report, location);
+		const envelope = envelopeProject(location);
+		const extent = gridExtent([...report.boreholes, ...outline.flat(), origin, ...plot, ...(draft ?? [])]);
 		const pad = 28;
 		const scale = Math.min((width - 2 * pad) / (extent.maxX - extent.minX), (height - 2 * pad) / (extent.maxY - extent.minY));
 		const cx = (extent.minX + extent.maxX) / 2;
@@ -544,15 +923,34 @@ export class SoilMapView extends Disposable {
 		}
 		svg(root, 'text', { x: width - 8, y: height - 6, class: 'soil-heading', 'text-anchor': 'end' }, localize('soil.map.xAxis', "X (m)"));
 		svg(root, 'text', { x: 4, y: 14, class: 'soil-heading' }, localize('soil.map.yAxis', "Y (m)"));
-		for (const polygon of outline) {
-			if (polygon.length > 2) {
-				svg(root, 'polygon', { points: polygon.map(p => `${px(p.x).toFixed(1)},${py(p.y).toFixed(1)}`).join(' '), class: 'soil-site-outline' });
+		const pointsOf = (ring: readonly { readonly x: number; readonly y: number }[]) => ring.map(p => `${px(p.x).toFixed(1)},${py(p.y).toFixed(1)}`).join(' ');
+		if (plot.length > 2 && !draft) {
+			svg(root, 'polygon', { points: pointsOf(plot), class: 'soil-site-plot' });
+			if (envelope.length > 2) {
+				svg(root, 'polygon', { points: pointsOf(envelope), class: 'soil-site-envelope' });
 			}
 		}
-		// North: the project's +Y is `rotation` clockwise from north, so north is that much anticlockwise from +Y.
-		const north = svg(root, 'g', { class: 'soil-site-north', transform: `translate(${width - 30} 34) rotate(${-(report.site?.rotation ?? 0)})` });
-		svg(north, 'path', { d: 'M0 -16 L6 6 L0 2 L-6 6 Z' });
-		svg(north, 'text', { x: 0, y: -20, 'text-anchor': 'middle', class: 'soil-heading' }, localize('soil.map.north', "N"));
+		for (const polygon of outline) {
+			if (polygon.length > 2) {
+				svg(root, 'polygon', { points: pointsOf(polygon), class: 'soil-site-outline' });
+			}
+		}
+		// While drawing, a click on the grid places the next corner (to 10 mm).
+		root.classList.toggle('drawing', !!draft);
+		this.gridDisposables.add(addDisposableListener(root, EventType.CLICK, (e: MouseEvent) => {
+			if (!draft) {
+				return;
+			}
+			const rect = root.getBoundingClientRect();
+			const x = Math.round((cx + (e.clientX - rect.left - width / 2) / scale) / 10) * 10;
+			const y = Math.round((cy - (e.clientY - rect.top - height / 2) / scale) / 10) * 10;
+			this.addDraftCorner([x, y]);
+		}));
+		if (draft && draft.length >= 2) {
+			svg(root, 'polyline', { points: pointsOf(draft), class: 'soil-site-draft' });
+		}
+		(draft ?? plot).forEach((corner, index) => this.gridCorner(root, corner, index, !!draft, (draft ?? plot).length, px, py, scale));
+		// North and the grid bearing: the compass over the stage (renderCompass), as on the map.
 		// Ids that would overlap are stepped down a line.
 		const offsets = spreadLabels(report.boreholes.map(b => ({ x: px(b.x) + 9, y: py(b.y), width: b.id.length * 7 + 4 })));
 		const originMark = svg(root, 'g', { class: 'soil-site-origin' });

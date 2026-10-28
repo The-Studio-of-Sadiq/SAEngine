@@ -23,7 +23,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from saengine.gis import geojson, gpkg, towns
+from saengine.gis import geojson, gpkg, plot, towns
 from saengine.gis.crs import BTM_NAME, Grid, btm_to_wgs84, wgs84_to_btm
 from saengine.library.soil import Borehole, Site, SoilReport
 
@@ -264,6 +264,7 @@ def locate(report: SoilReport, bim_text: str | None = None) -> dict[str, Any]:
         "outline": outline,
         "outlineProject": [list(p) for p in outline_xy] if outline_xy else None,
         "outlineSource": how,
+        "plot": plot.describe(report.site),
         "btmName": BTM_NAME,
         "problems": problems,
         "_point": point,
@@ -357,10 +358,51 @@ def _layers(project_root: str) -> tuple[list[gpkg.Layer], list[str]]:
             )
         )
     layers.append(site_layer)
-    boundary = gpkg.Layer("site_boundary", "POLYGON", {"name": "TEXT"}, description="Site boundary")
-    if site is not None and len(site["boundary"]) >= 3:
-        boundary.rows.append(([tuple(p) for p in site["boundary"]], {"name": "Site boundary"}))
+    boundary = gpkg.Layer(
+        "site_boundary",
+        "POLYGON",
+        {"name": "TEXT", "area_m2": "REAL", "road_side": "INTEGER"},
+        description="Site boundary (the plot); road_side: the side facing the road (0: from the "
+        "first corner to the second)",
+    )
+    envelope = gpkg.Layer(
+        "buildable_envelope",
+        "POLYGON",
+        {"name": "TEXT", "area_m2": "REAL", "front_m": "REAL", "rear_m": "REAL", "side_m": "REAL"},
+        description="The buildable envelope: the plot less its setbacks [m]",
+    )
+    the_plot = location["plot"]
+    if the_plot is not None and the_plot.get("lonlat"):
+        ring, road = plot.counter_clockwise(the_plot["lonlat"][:-1], the_plot.get("road"))
+        boundary.rows.append(
+            (
+                [tuple(p) for p in ring],
+                {"name": "Site boundary", "area_m2": the_plot.get("area"), "road_side": road},
+            )
+        )
+        setback = report.site.plot if report.site is not None else None
+        if (
+            the_plot.get("envelopeLonlat")
+            and setback
+            and (setback.front or setback.rear or setback.side)
+        ):
+            envelope.rows.append(
+                (
+                    [tuple(p) for p in the_plot["envelopeLonlat"]],
+                    {
+                        "name": "Buildable envelope",
+                        "area_m2": the_plot.get("envelopeArea"),
+                        "front_m": setback.front / 1e3,
+                        "rear_m": setback.rear / 1e3,
+                        "side_m": setback.side / 1e3,
+                    },
+                )
+            )
+    elif the_plot is not None:
+        problems.append("The plot is not on the map (the site has no position): left out.")
     layers.append(boundary)
+    if envelope.rows:  # only with setbacks: without, it is the boundary
+        layers.append(envelope)
     holes = gpkg.Layer(
         "boreholes",
         "POINT",
@@ -535,6 +577,9 @@ def gis_import(path: str, soil_text: str | None = None) -> dict[str, Any]:
             if "building" in layer:
                 notes.append(f"{shape.where}: the building outline is not imported")
                 continue
+            if "envelope" in layer:
+                notes.append(f"{shape.where}: the buildable envelope is worked out, not imported")
+                continue
             if boundary:
                 problems.append(f"{shape.where}: a second polygon; only the first is the boundary")
                 continue
@@ -546,6 +591,23 @@ def gis_import(path: str, soil_text: str | None = None) -> dict[str, Any]:
                 continue
             site["boundary"] = ring
             boundary = True
+            # The boundary is the plot now: its corners in the project grid go; the road side
+            # stays when the plot keeps its number of sides (importing an export), and its
+            # road_side attribute, if any, gives it.
+            the_plot = site.get("plot")
+            road = _attribute(shape.properties, ("roadside", "road"))
+            if the_plot is not None or road is not None:
+                the_plot = site.setdefault("plot", {})
+                the_plot.pop("points", None)
+                try:
+                    given = int(road[0]) if road is not None else None
+                except (TypeError, ValueError):
+                    given = None
+                if given is not None and 0 <= given < len(ring):
+                    the_plot["road"] = given
+                elif the_plot.get("road") is not None and the_plot["road"] >= len(ring):
+                    the_plot.pop("road")
+                    notes.append(f"{shape.where}: the plot has other sides; choose its road side")
             continue
         if layer == "site":
             if site.get("lat") is None:

@@ -155,4 +155,26 @@ suite('SAEngine - Floor plan drawing', () => {
 			],
 		});
 	});
+
+	test('the site plot and its buildable envelope are drawn first, under the members', () => {
+		const plan = floorPlanDrawing(layout, objects, 'L1', {
+			plot: [[-1000, -3000], [11000, -3000], [11000, 17000], [-1000, 17000]],
+			envelope: [[0, 0], [10000, 0], [10000, 15500]],
+		});
+		const noEnvelope = floorPlanDrawing(layout, objects, 'L1', { plot: [[0, 0], [1, 0]], envelope: [[0, 0], [1, 0], [1, 1]] });
+		assert.deepStrictEqual({
+			first: plan.drawing.entities.slice(0, 3).map(describe),
+			layers: plan.drawing.layers.filter(l => l.name.startsWith('C-')).map(l => `${l.name} ${l.color} ${l.linetype ?? ''}`),
+			// A plot of fewer than three corners is not drawn, nor its envelope.
+			degenerate: noEnvelope.drawing.entities.filter(e => e.layer.startsWith('C-')).length,
+		}, {
+			first: [
+				'C-PROP polyline -1000,-3000 11000,-3000 11000,17000 -1000,17000 closed',
+				'C-PROP-SETB polyline 0,0 10000,0 10000,15500 closed',
+				'S-GRID line 0,-1500 0,1500',
+			],
+			layers: ['C-PROP 9 ', 'C-PROP-SETB 9 DASHED'],
+			degenerate: 0,
+		});
+	});
 });

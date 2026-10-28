@@ -179,6 +179,64 @@ export function formatLengths(values: readonly number[]): string {
 	return parts.join(', ');
 }
 
+/** Bay spacings fitted to a plot are rounded to this [mm]. */
+export const FIT_STEP = 50;
+
+/**
+ * `spacings` scaled to fill `room` [mm] with the same number of bays in the same proportions,
+ * each a multiple of {@link FIT_STEP} and their sum the most that fits (the largest bays take
+ * the rounding); undefined when the room is too small for that many bays.
+ */
+export function fitSpacings(spacings: readonly number[], room: number): number[] | undefined {
+	const total = Math.floor(room / FIT_STEP) * FIT_STEP;
+	const sum = spacings.reduce((a, b) => a + b, 0);
+	if (!spacings.length || sum <= 0 || total < spacings.length * MIN_SPACING) {
+		return undefined;
+	}
+	const fitted = spacings.map(s => Math.max(MIN_SPACING, Math.round(s * total / sum / FIT_STEP) * FIT_STEP));
+	let rest = total - fitted.reduce((a, b) => a + b, 0);
+	// The rounding goes to (or comes from) the largest bays first, a step at a time.
+	const order = fitted.map((_, i) => i).sort((a, b) => spacings[b] - spacings[a] || a - b);
+	for (let k = 0; rest !== 0 && k < 10 * fitted.length; k++) {
+		const i = order[k % order.length];
+		const step = rest > 0 ? FIT_STEP : -FIT_STEP;
+		if (fitted[i] + step >= MIN_SPACING && fitted[i] + step <= MAX_SPACING) {
+			fitted[i] += step;
+			rest -= step;
+		}
+	}
+	return rest === 0 && fitted.every(s => s <= MAX_SPACING) ? fitted : undefined;
+}
+
+/** The plot of the open project's soil report as the wizard draws it, in the grid's frame [mm]. */
+export interface IWizardPlot {
+	/** The project it is from. */
+	readonly project: string;
+	/** The room for the grid lines (inside the envelope, less the column allowance) [mm]. */
+	readonly width: number;
+	readonly depth: number;
+	readonly plot: readonly (readonly number[])[];
+	readonly envelope: readonly (readonly number[])[];
+	/** The soil report's site, passed to the generator (which turns the grid along the plot). */
+	readonly site: object;
+}
+
+/** Why the grid does not fit the plot's envelope (`x`, `y` total lengths [mm]), or undefined. */
+export function plotFitWarning(x: readonly number[], y: readonly number[], plot: IWizardPlot): string | undefined {
+	const lx = x.reduce((a, b) => a + b, 0);
+	const ly = y.reduce((a, b) => a + b, 0);
+	const over: string[] = [];
+	if (lx > plot.width + 0.5) {
+		over.push(localize('newBuilding.overX', "X by {0} m", ((lx - plot.width) / 1000).toFixed(2)));
+	}
+	if (ly > plot.depth + 0.5) {
+		over.push(localize('newBuilding.overY', "Y by {0} m", ((ly - plot.depth) / 1000).toFixed(2)));
+	}
+	return over.length
+		? localize('newBuilding.overPlot', "The grid is larger than the buildable area of the plot ({0} × {1} m): {2}. Use Fit to the Buildable Area or shorten the bays.", (plot.width / 1000).toFixed(2), (plot.depth / 1000).toFixed(2), over.join(', '))
+		: undefined;
+}
+
 /** The grid lines of an axis from its spacings, the first at 0. */
 export function gridLines(axis: 'x' | 'y', spacings: readonly number[]): IGridLine[] {
 	const lines: IGridLine[] = [{ label: gridLabel(axis, 0), position: 0 }];

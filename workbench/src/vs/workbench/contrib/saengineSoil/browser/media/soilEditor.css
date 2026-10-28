@@ -1834,10 +1834,6 @@
 	stroke-width: 1.5;
 }
 
-.saengine-soil-editor .soil-site-north path {
-	fill: var(--vscode-foreground);
-}
-
 .saengine-soil-editor .soil-site-origin path {
 	stroke: var(--sa-fail);
 	stroke-width: 1.5;
@@ -1921,4 +1917,176 @@
 	background: var(--vscode-textCodeBlock-background);
 	border: 1px solid var(--sa-border);
 	border-radius: 4px;
+}
+
+/* The plot: its corners, the envelope inside the setbacks, the compass. */
+.saengine-soil-editor .soil-map-compass {
+	position: absolute;
+	right: var(--sa-space-3);
+	top: var(--sa-space-3);
+	padding: 2px;
+	border: 1px solid var(--sa-border);
+	border-radius: var(--sa-radius);
+	background: color-mix(in srgb, var(--sa-surface) 85%, transparent);
+	pointer-events: auto;
+	z-index: 2;
+}
+
+.saengine-soil-editor .soil-map-compass svg {
+	display: block;
+}
+
+.saengine-soil-editor .soil-compass-north {
+	fill: var(--vscode-foreground);
+}
+
+.saengine-soil-editor .soil-compass-grid line {
+	stroke: var(--vscode-charts-orange, #d18616);
+	stroke-width: 1.5;
+}
+
+.saengine-soil-editor .soil-compass-grid path {
+	fill: var(--vscode-charts-orange, #d18616);
+}
+
+.saengine-soil-editor .soil-compass-label {
+	font-size: 10px;
+	font-weight: 600;
+	fill: var(--vscode-foreground);
+}
+
+.saengine-soil-editor .soil-compass-label.grid {
+	fill: var(--vscode-charts-orange, #d18616);
+}
+
+.saengine-soil-editor .soil-map-area.drawing,
+.saengine-soil-editor .soil-map-area.drawing canvas,
+.saengine-soil-editor .soil-site-grid.drawing {
+	cursor: crosshair;
+}
+
+.saengine-soil-editor .soil-map-corner {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 14px;
+	height: 14px;
+	border: 2px solid var(--vscode-charts-orange, #d18616);
+	background: var(--sa-surface);
+	cursor: grab;
+	outline: none;
+}
+
+.saengine-soil-editor .soil-map-corner.selected,
+.saengine-soil-editor .soil-map-corner:focus-visible,
+.saengine-soil-editor .soil-map-corner.first {
+	background: var(--vscode-charts-orange, #d18616);
+}
+
+.saengine-soil-editor .soil-map-corner-label {
+	position: absolute;
+	left: 16px;
+	top: -12px;
+	padding: 0 2px;
+	border-radius: 2px;
+	background: color-mix(in srgb, var(--sa-surface) 85%, transparent);
+	font-size: 10px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.saengine-soil-editor .soil-site-plot {
+	fill: color-mix(in srgb, var(--vscode-charts-orange, #d18616) 8%, transparent);
+	stroke: var(--vscode-charts-orange, #d18616);
+	stroke-width: 2;
+}
+
+.saengine-soil-editor .soil-site-envelope {
+	fill: none;
+	stroke: var(--vscode-charts-green, #388a34);
+	stroke-width: 1.5;
+	stroke-dasharray: 6 4;
+}
+
+.saengine-soil-editor .soil-site-draft {
+	fill: none;
+	stroke: var(--vscode-charts-orange, #d18616);
+	stroke-width: 2;
+	stroke-dasharray: 4 3;
+}
+
+.saengine-soil-editor .soil-site-corner {
+	cursor: grab;
+	outline: none;
+}
+
+.saengine-soil-editor .soil-site-corner rect {
+	fill: var(--sa-surface);
+	stroke: var(--vscode-charts-orange, #d18616);
+	stroke-width: 2;
+}
+
+.saengine-soil-editor .soil-site-corner.selected rect,
+.saengine-soil-editor .soil-site-corner.first rect,
+.saengine-soil-editor .soil-site-corner:focus-visible rect {
+	fill: var(--vscode-charts-orange, #d18616);
+}
+
+.saengine-soil-editor .soil-plot-setbacks,
+.saengine-soil-editor .soil-plot-sizes {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	align-items: end;
+	gap: var(--sa-space-1) var(--sa-space-2);
+	margin: var(--sa-space-1) 0;
+}
+
+.saengine-soil-editor .soil-plot-setbacks > .soil-map-label,
+.saengine-soil-editor .soil-plot-rectangle > .soil-map-label {
+	grid-column: 1 / -1;
+	width: auto;
+}
+
+.saengine-soil-editor .soil-plot-setback {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+	font-size: var(--sa-font-s);
+}
+
+.saengine-soil-editor .soil-plot-setback > span:first-child {
+	color: var(--sa-muted);
+}
+
+.saengine-soil-editor .soil-plot-setbacks .soil-input,
+.saengine-soil-editor .soil-plot-rectangle .soil-input {
+	width: 100%;
+	min-width: 0;
+	border-color: var(--vscode-input-border, var(--sa-border));
+	background: var(--vscode-input-background);
+}
+
+.saengine-soil-editor .soil-plot-sizes > select.soil-input {
+	align-self: end;
+}
+
+.saengine-soil-editor .soil-plot-rectangle {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sa-space-1);
+	margin-top: var(--sa-space-2);
+}
+
+.saengine-soil-editor .soil-map-value select.soil-input {
+	width: 100%;
+	border-color: var(--vscode-input-border, var(--sa-border));
+	background: var(--vscode-input-background);
+}
+
+.saengine-soil-editor .soil-plot-sides .soil-map-item {
+	flex-direction: row;
+	align-items: baseline;
+	gap: var(--sa-space-2);
+	cursor: default;
 }
