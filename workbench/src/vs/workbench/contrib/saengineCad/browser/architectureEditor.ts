@@ -944,7 +944,7 @@ export class ArchitectureEditor extends EditorPane {
 				if (hosted.length) {
 					appendPropertyRow(panel, localize('arch.openings', "Doors and windows"), hosted.join(', '));
 				}
-				appendPropertyNote(panel, localize('arch.wallNote', "Architectural walls are physical only: they add no stiffness to the analysis."));
+				appendPropertyNote(panel, localize('arch.wallNote', "Architectural walls add no stiffness to the analysis; their weight loads the beams or slabs under them (superimposed dead load, see the Floor Plan's Loads list)."));
 				break;
 			}
 			case 'doors': case 'windows': {
@@ -987,7 +987,7 @@ export class ArchitectureEditor extends EditorPane {
 					this.selectRow(panel, label, [{ id: '', text: localize('arch.none', "(none)") }, ...finishes.map(f => ({ id: f.id, text: `${f.name} (${f.thickness} mm)` }))], room[field] ?? '', id => change({ [field]: id || undefined }, localize('arch.finishChanged', "{0}: {1} {2}.", room.id, label, id || '-')));
 				}
 				this.selectRow(panel, localize('arch.wet', "Wet area"), [{ id: '', text: localize('arch.no', "No") }, { id: 'yes', text: localize('arch.yes', "Yes (toilet, kitchen)") }], room.wet ? 'yes' : '', id => change({ wet: id ? true : undefined }, id ? localize('arch.isWet', "{0} is a wet area.", room.id) : localize('arch.isDry', "{0} is a dry area.", room.id)));
-				appendPropertyNote(panel, localize('arch.roomNote', "Occupancy and finishes are recorded now; their loads come in a later round."));
+				appendPropertyNote(panel, localize('arch.roomNote', "The analysis model takes the room's floor finish (instead of the floor's flat finish) and its occupancy's live load over its area; the bill measures its finishes."));
 				break;
 			}
 			case 'separators': {
