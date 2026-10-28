@@ -29,6 +29,8 @@ export const SOIL_GIS_EXPORT_COMMAND = 'saengine.soil.gisExport';
 export const SOIL_GIS_IMPORT_COMMAND = 'saengine.soil.gisImport';
 export const SOIL_QGIS_PROGRAM_COMMAND = 'saengine.soil.qgisProgram';
 export const SOIL_OPEN_IN_QGIS_COMMAND = 'saengine.soil.openInQgis';
+/** The plot and its buildable envelope in project mm, and the floor plan's members outside them. */
+export const SOIL_PLOT_CHECK_COMMAND = 'saengine.soil.plotCheck';
 
 /** The tile URL template of the site map (a setting the desktop registers). */
 export const MAP_TILE_URL_SETTING = 'saengine.map.tileUrl';
@@ -226,8 +228,22 @@ export interface ISoilSite {
 	y?: number;
 	rotation?: number;
 	address?: string;
-	/** The plot boundary as [lon, lat] points (from QGIS). */
+	/** The plot boundary as [lon, lat] points (drawn on the map or from QGIS); when given, it is the plot. */
 	boundary?: number[][];
+	plot?: ISoilPlot;
+	[key: string]: unknown;
+}
+
+/**
+ * The plot (`Site.plot`): its corners in project mm when the boundary is not given in lat/lon,
+ * the side facing the road (side i runs from corner i to the next) and the setbacks [mm].
+ */
+export interface ISoilPlot {
+	points?: number[][];
+	road?: number;
+	front?: number;
+	rear?: number;
+	side?: number;
 	[key: string]: unknown;
 }
 
@@ -427,7 +443,89 @@ export interface ISoilLocationResult {
 	/** The same in project coordinates [mm], an open ring of [x, y]. */
 	readonly outlineProject?: readonly (readonly number[])[] | null;
 	readonly outlineSource?: string;
+	/** The plot as `saengine.gis.plot.describe` measures it; null without one. */
+	readonly plot?: ISitePlot | null;
 	readonly suggestion?: ISoilLocationSuggestion | null;
+	readonly problems?: readonly string[];
+}
+
+/** One side of the plot: corner `index` to the next. */
+export interface IPlotSide {
+	readonly index: number;
+	/** [mm] */
+	readonly length: number;
+	/** Of the side, from its corner to the next, clockwise from true north [°]. */
+	readonly bearing: number;
+	/** The direction the side faces (outwards) [°], and as a compass point ("SW"). */
+	readonly faces: number;
+	readonly facing: string;
+	readonly kind: 'front' | 'rear' | 'side' | null;
+	/** [mm] */
+	readonly setback: number;
+}
+
+/** The grid frame of the plot: turned along the road side, its origin at the envelope's lower-left corner. */
+export interface IPlotFit {
+	/** How far the grid turns clockwise [°], and the grid bearing it then has. */
+	readonly turn: number;
+	readonly rotation: number;
+	/** The largest rectangle in the envelope, in that frame [mm]. */
+	readonly width: number;
+	readonly depth: number;
+	/** The plot and the envelope in that frame [mm]. */
+	readonly plot: readonly (readonly number[])[];
+	readonly envelope: readonly (readonly number[])[];
+}
+
+export interface ISitePlot {
+	/** `wgs84`: the site boundary is the plot; `project`: its corners in the project grid. */
+	readonly given?: 'wgs84' | 'project';
+	/** Corners in project mm (open ring); null when the site has no position for a lat/lon boundary. */
+	readonly ring?: readonly (readonly number[])[] | null;
+	/** Closed [lon, lat] ring; null without a site point. */
+	readonly lonlat?: readonly (readonly number[])[] | null;
+	/** [m²], and in katha (720 sq ft) and decimal (435.6 sq ft). */
+	readonly area?: number;
+	readonly katha?: number;
+	readonly decimal?: number;
+	/** [mm] */
+	readonly perimeter?: number;
+	readonly sides?: readonly IPlotSide[];
+	readonly road?: number | null;
+	/** The buildable envelope in project mm (open ring), and as a closed [lon, lat] ring. */
+	readonly envelope?: readonly (readonly number[])[] | null;
+	readonly envelopeLonlat?: readonly (readonly number[])[] | null;
+	/** [m²] */
+	readonly envelopeArea?: number | null;
+	readonly fit?: IPlotFit | null;
+	readonly problems?: readonly string[];
+}
+
+/** `saengine.soil.plotCheck`: the floor plan against the soil report's plot. */
+export interface IPlotCheckRequest {
+	readonly soilText: string;
+	readonly floorPlanText: string;
+	readonly objectsText?: string;
+}
+
+export interface IPlotWarning {
+	/** The story whose plan shows the member. */
+	readonly story: string;
+	readonly group: 'column' | 'wall' | 'beam' | 'slab';
+	readonly id: string;
+	/** `outside`: outside the plot; `setback`: inside the setback of `side`. */
+	readonly kind: 'outside' | 'setback';
+	/** How far [mm]. */
+	readonly amount: number;
+	readonly side: 'front' | 'rear' | 'side' | null;
+	readonly message: string;
+}
+
+export interface IPlotCheckResult {
+	/** The plot and the envelope in project mm (open rings), null without them. */
+	readonly plot?: readonly (readonly number[])[] | null;
+	readonly envelope?: readonly (readonly number[])[] | null;
+	readonly warnings?: readonly IPlotWarning[];
 	readonly problems?: readonly string[];
 }
 
