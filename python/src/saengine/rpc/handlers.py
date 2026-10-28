@@ -306,11 +306,13 @@ def building_ifc(
     substructure_text: str | None = None,
     settings_text: str | None = None,
     mep_text: str | None = None,
+    architecture_text: str | None = None,
 ) -> dict[str, Any]:
     """The IFC of the building model: ``{"text", "ids", "skipped"}`` or ``{"problems"}``.
 
     With ``mep_text`` (``07 MEP/mep.json``) its equipment, plinths, sleeves, openings and shafts
-    are in the model too.
+    are in the model too; with ``architecture_text`` (``05 Floor Plan/architecture.json``) its
+    walls, doors, windows, rooms and finishes, keyed ``arch:<id>`` in ``ids``.
 
     ``ids`` maps element ids to IFC GlobalIds, for the 3D view to link elements to the project.
     With ``substructure_text`` (``09 Substructure/substructure.json``, once it is no longer the
@@ -354,10 +356,104 @@ def building_ifc(
             and (mep.electrical.equipment or mep.electrical.risers or mep.electrical.trays)
         )
     )
+    from saengine.library.architecture import parse as parse_architecture
+
+    try:
+        architecture = parse_architecture(architecture_text)
+    except ValueError as exc:
+        return {"problems": [f"Architecture: {_first_line(exc)}"]}
     ifc, ids, skipped = export_ifc(
-        building, objects, materials, name, substructure, ground, mep if has_mep else None
+        building,
+        objects,
+        materials,
+        name,
+        substructure,
+        ground,
+        mep if has_mep else None,
+        architecture if architecture.instances() else None,
     )
-    return {"text": ifc.to_string(), "ids": ids, "skipped": skipped}
+    hosts = {w.id: w.base for w in architecture.walls}
+    stories = {
+        **{f"arch:{w.id}": w.base for w in architecture.walls},
+        **{f"arch:{o.id}": hosts[o.wall] for o in [*architecture.doors, *architecture.windows]},
+        **{
+            f"arch:{key}": r.story
+            for r in architecture.rooms
+            for key in (r.id, f"{r.id}:flooring", f"{r.id}:ceiling")
+        },
+    }
+    return {
+        "text": ifc.to_string(),
+        "ids": ids,
+        "skipped": skipped,
+        "architectureStories": {k: v for k, v in stories.items() if k in ids},
+    }
+
+
+def architecture_import_ifc(
+    path: str, architecture_text: str | None, floor_plan_text: str
+) -> dict[str, Any]:
+    """Adopts an architect's IFC (walls, doors, windows, spaces) into the architecture:
+    ``{"architecture": <json>, "summary": {"adopted", "skipped", "notes"}}`` or ``{"problems"}``.
+    """
+    from pydantic import ValidationError
+
+    from saengine.library.architecture import parse as parse_architecture
+    from saengine.library.architecture_ifc import import_architecture
+    from saengine.library.export import library_json
+    from saengine.library.floorplan import FloorPlan
+
+    try:
+        architecture = parse_architecture(architecture_text)
+        floor_plan = FloorPlan.model_validate_json(floor_plan_text)
+    except (ValidationError, ValueError) as exc:
+        return {"problems": [_first_line(exc)]}
+    if not floor_plan.stories:
+        return {"problems": ["The floor plan has no stories to put the architecture on."]}
+    elevations = {s.id: s.elevation for s in floor_plan.stories}
+    try:
+        result, summary = import_architecture(path, architecture, elevations)
+    except (OSError, RuntimeError, ValidationError, ValueError) as exc:
+        return {"problems": [f"The IFC could not be read: {_first_line(exc)}"]}
+    data = library_json(result)
+    # The adopted items as the editor writes them: without their default values.
+    for key in ("walls", "doors", "windows", "rooms", "separators"):
+        data[key] = [
+            item.model_dump(mode="json", by_alias=True, exclude_none=True, exclude_defaults=True)
+            for item in getattr(result, key)
+        ]
+    return {"architecture": data, "summary": summary}
+
+
+def architecture_check(architecture_text: str, floor_plan_text: str | None) -> dict[str, Any]:
+    """Problems of the architecture, with its rooms' net floor outlines and areas:
+    ``{"problems", "rooms": {id: {"outline", "area"}}}`` (areas in m²)."""
+    from pydantic import ValidationError
+
+    from saengine.library.architecture import check, parse, room_boundary
+    from saengine.library.floorplan import FloorPlan
+
+    try:
+        architecture = parse(architecture_text)
+    except (ValidationError, ValueError) as exc:
+        return {"problems": [_first_line(exc)], "rooms": {}}
+    floor_plan = None
+    if floor_plan_text:
+        try:
+            floor_plan = FloorPlan.model_validate_json(floor_plan_text)
+        except (ValidationError, ValueError):
+            floor_plan = None
+    rooms: dict[str, Any] = {}
+    if floor_plan is not None:
+        elevations = {s.id: s.elevation for s in floor_plan.stories}
+        for room in architecture.rooms:
+            boundary = room_boundary(architecture, room, elevations)
+            if boundary is not None:
+                rooms[room.id] = {
+                    "outline": [list(p) for p in list(boundary[1].exterior.coords)[:-1]],
+                    "area": boundary[1].area / 1e6,
+                }
+    return {"problems": check(architecture, floor_plan), "rooms": rooms}
 
 
 def _substructure_inputs(

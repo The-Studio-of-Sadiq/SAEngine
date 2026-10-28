@@ -10,6 +10,11 @@ Methods:
 - ``library/check`` ``{kind, text, materialsText?}`` -> rule violations in a library file
 - ``section/analyse`` ``{text, materialsText?, projectRoot?, capacity?, surface?}`` -> a designed
   section's properties, interaction diagrams and P-Mx-My surface (Section Designer)
+- ``architecture/importIfc`` ``{path, architectureText?, floorPlanText}`` -> an architect's IFC
+  walls, doors, windows and spaces adopted into the architecture, with what was skipped (in a
+  worker thread)
+- ``architecture/check`` ``{architectureText, floorPlanText?}`` -> the architecture's problems and
+  its rooms' net outlines and areas
 - ``structure/shapeGeometry`` ``{shape}`` -> a parametric shape's members, areas and supports
 - ``structure/importGeometry`` ``{path, options, objectsText?}`` -> a DXF, DWG, IFC or Rhino
   file's
@@ -367,7 +372,21 @@ def create_server() -> JsonRPCServer:
             args.get("substructureText"),
             args.get("settingsText"),
             args.get("mepText"),
+            args.get("architectureText"),
         )
+
+    @server.feature("architecture/importIfc")
+    @_in_worker  # IfcOpenShell meshes every wall, door, window and space
+    def _architecture_import_ifc(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.architecture_import_ifc(
+            args["path"], args.get("architectureText"), args["floorPlanText"]
+        )
+
+    @server.feature("architecture/check")
+    def _architecture_check(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.architecture_check(args["architectureText"], args.get("floorPlanText"))
 
     @server.feature("structure/shapeGeometry")
     def _shape_geometry(params: Any) -> dict[str, Any]:
