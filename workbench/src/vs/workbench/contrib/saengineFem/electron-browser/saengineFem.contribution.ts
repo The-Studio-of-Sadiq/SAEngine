@@ -185,6 +185,24 @@ CommandsRegistry.registerCommand('saengine.architecture.importIfc', async (acces
 });
 
 /**
+ * An architect's DWG/DXF read for the layer-mapping step (`{path}` -> its layers, unit and a
+ * preview, or `{problems}`). Internal: the Architecture editor calls it by id.
+ */
+CommandsRegistry.registerCommand('saengine.architecture.inspectDrawing', async (accessor, request: { readonly path: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'architecture/inspectDrawing', request);
+});
+
+/**
+ * An architect's DWG/DXF plan adopted onto one story with the mapping and placement chosen
+ * (`IArchitectureImportRequest` and `options`): `{architecture, summary}` or `{problems}`.
+ */
+CommandsRegistry.registerCommand('saengine.architecture.importDrawing', async (accessor, request: IArchitectureImportRequest & { readonly options: object }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'architecture/importDrawing', request);
+});
+
+/**
  * Reads the open project's part files by part id, with their unsaved edits (undefined without a
  * project or file). Take it from the accessor before the first await.
  */

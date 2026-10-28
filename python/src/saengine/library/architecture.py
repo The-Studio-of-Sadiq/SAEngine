@@ -184,6 +184,30 @@ class RoomSeparator(_Model):
     end: Point2
 
 
+DrawingRole = Literal["walls", "doors", "windows", "rooms", "ignore"]
+DrawingUnit = Literal["mm", "cm", "m", "ft", "in"]
+
+
+class DrawingImport(_Model):
+    """An import of an architect's DWG/DXF onto one story: the layer mapping and placement used
+    (offered again next time) and the items it made (replaced when the same file is imported onto
+    the same story again)."""
+
+    file: str = Field(min_length=1, description="The drawing (relative to the project folder).")
+    story: Id
+    layers: dict[str, DrawingRole] = Field(
+        default_factory=dict, description="What each layer of the drawing holds."
+    )
+    unit: DrawingUnit = Field(default="mm", description="The drawing's unit.")
+    base: Point2 = Field(
+        default_factory=lambda: [0.0, 0.0],
+        description="The drawing's point placed at `at` [drawing units].",
+    )
+    at: Point2 = Field(default_factory=lambda: [0.0, 0.0], description="[x, y] in mm.")
+    rotation: float = Field(default=0, description="[°], counter-clockwise about `at`.")
+    items: list[Id] = Field(default_factory=list, description="The walls, doors, ... it made.")
+
+
 class Architecture(_Model):
     schema_: Literal["saengine.architecture/1"] = Field(default=SCHEMA_ID, alias="schema")
     wallTypes: list[WallType] = Field(default_factory=list, title="Wall types")
@@ -195,6 +219,11 @@ class Architecture(_Model):
     windows: list[Window] = Field(default_factory=list)
     rooms: list[Room] = Field(default_factory=list)
     separators: list[RoomSeparator] = Field(default_factory=list, title="Room separators")
+    imports: list[DrawingImport] = Field(
+        default_factory=list,
+        title="Drawing imports",
+        description="Architects' DWG/DXF drawings imported, to import them again.",
+    )
 
     def instances(self) -> list[Any]:
         return [*self.walls, *self.doors, *self.windows, *self.rooms, *self.separators]
