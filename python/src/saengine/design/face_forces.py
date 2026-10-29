@@ -308,7 +308,21 @@ def combined_face_rows(
 def _interpolate(rows: np.ndarray, length: float, x: float) -> np.ndarray:
     """The row at ``x`` [m] of station ``rows`` evenly spread over ``length``: a parabola through
     the three nearest stations (exact for a uniform load), linear with two stations."""
-    return _interpolate_many(rows, length, np.array([x], dtype=float))[0]
+    n = len(rows)
+    if n == 1 or length <= 0:
+        return rows[0].copy()
+    x = min(max(x, 0.0), length)
+    step = length / (n - 1)
+    if n == 2:
+        t = x / length
+        return (1 - t) * rows[0] + t * rows[1]
+    first = int(min(max(round(x / step) - 1, 0), n - 3))
+    x0 = step * first
+    x1, x2 = x0 + step, x0 + 2 * step
+    w0 = (x - x1) * (x - x2) / (2 * step * step)
+    w1 = -(x - x0) * (x - x2) / (step * step)
+    w2 = (x - x0) * (x - x1) / (2 * step * step)
+    return w0 * rows[first] + w1 * rows[first + 1] + w2 * rows[first + 2]
 
 
 def _interpolate_many(rows: np.ndarray, length: float, xs: np.ndarray) -> np.ndarray:
@@ -463,6 +477,56 @@ def _faces(
     return found
 
 
+class _Combined:
+    """A kind's curves of every piece (:func:`at_faces`), re-stationed and read at the faces for
+    all combinations at once: they share the piece's stations (per combination, a 10-storey
+    design made millions of small calls). A piece whose curves differ falls back to them."""
+
+    def __init__(self, of_kind: list[list[_Curve | None] | None]) -> None:
+        self.of_kind = of_kind
+        self._together: dict[int, _Curve | None] = {}
+        self._from_node: dict[int, np.ndarray | None] = {}
+        self._readings: dict[tuple[int, float], np.ndarray | None] = {}
+
+    def _stacked(self, k: int) -> _Curve | None:
+        """One curve of piece ``k`` with the combinations along a second axis, or None."""
+        if k not in self._together:
+            parts = self.of_kind[k]
+            together = None
+            if parts and all(c is not None for c in parts):
+                first = parts[0]
+                if all(
+                    c.rows.shape == first.rows.shape  # type: ignore[union-attr]
+                    and (c.length, c.ri, c.rj) == (first.length, first.ri, first.rj)  # type: ignore[union-attr]
+                    for c in parts
+                ):
+                    together = _Curve(
+                        np.stack([c.rows for c in parts], axis=1),  # type: ignore[union-attr]
+                        first.length,  # type: ignore[union-attr]
+                        first.ri,  # type: ignore[union-attr]
+                        first.rj,  # type: ignore[union-attr]
+                    )
+            self._together[k] = together
+        return self._together[k]
+
+    def from_node(self, k: int) -> np.ndarray | None:
+        """:meth:`_Curve.from_node` of each combination of piece ``k`` (combination first)."""
+        if k not in self._from_node:
+            together = self._stacked(k)
+            self._from_node[k] = (
+                None if together is None else np.moveaxis(together.from_node(), 1, 0)
+            )
+        return self._from_node[k]
+
+    def read(self, k: int, x: float, c: int) -> np.ndarray:
+        """:meth:`_Curve.at` ``x`` of combination ``c`` of piece ``k``."""
+        if (k, x) not in self._readings:
+            together = self._stacked(k)
+            self._readings[(k, x)] = None if together is None else together.at(x)
+        found = self._readings[(k, x)]
+        return found[c] if found is not None else self.of_kind[k][c].at(x)  # type: ignore[index,union-attr]
+
+
 def at_faces(
     pieces: list[Any],
     project: dict[str, Any],
@@ -516,16 +580,18 @@ def at_faces(
     cols, shears = list(_AT_FACE), list(_SHEARS)
     for kind in ("forces", "sway", "sustained"):
         of_kind = curves(kind)
+        combined = _Combined(of_kind)
         for k in touched:
             parts = of_kind[k]
             if parts is None:
                 continue
+            all_rows = combined.from_node(k)
             done: list[Any] = []
             for c, curve in enumerate(parts):
                 if curve is None:
                     done.append(getattr(chain[k], kind)[c])
                     continue
-                rows = curve.from_node()
+                rows = all_rows[c].copy() if all_rows is not None else curve.from_node()
                 xs = np.linspace(0.0, curve.length, len(rows))
                 for f in faces:
                     if k != f.land and k not in f.inside:
@@ -537,13 +603,13 @@ def at_faces(
                     given = (
                         f.given[c] if kind == "forces" and f.given and c < len(f.given) else None
                     )
-                    at = given if given is not None else land.at(f.x)
+                    at = given if given is not None else combined.read(f.land, f.x, c)
                     shear = at
                     if not math.isclose(f.shear_x, f.x, abs_tol=_TOL):
-                        shear = land.at(f.shear_x)
+                        shear = combined.read(f.land, f.shear_x, c)
                         if given is not None:
                             # The analysis's face row, moved to d by the stations' change.
-                            shear = given + shear - land.at(f.x)
+                            shear = given + shear - combined.read(f.land, f.x, c)
                     if k in f.inside:
                         rows[:, cols] = at[cols]
                         rows[:, shears] = shear[shears]
