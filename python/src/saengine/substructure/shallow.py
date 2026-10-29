@@ -843,8 +843,9 @@ def design_footing(
         faces = [s for lo, hi, _, _ in point for s in (lo, hi) if -span / 2 < s < span / 2]
         samples = [s for s in np.linspace(-span / 2, span / 2, 241)[1:-1] if not inside(float(s))]
         stations = [*faces, *map(float, samples)]
-        sag = max(((moment(s), s) for s in stations), default=(0.0, 0.0))
-        hog = min(((moment(s), s) for s in stations), default=(0.0, 0.0))
+        moments = [(moment(s), s) for s in stations]
+        sag = max(moments, default=(0.0, 0.0))
+        hog = min(moments, default=(0.0, 0.0))
         per_m = 1000 / across
         strip = strip_flexure(mesh_area(bottom), d, fc, fy, spec.es)
         note = f"{where}at {label.lower()} = {sag[1]:.0f} mm, d = {d:.0f} mm"
