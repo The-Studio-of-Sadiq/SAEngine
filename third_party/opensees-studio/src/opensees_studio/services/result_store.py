@@ -81,10 +81,14 @@ def _write_int_dict(group: Any, name: str, data: dict[int, np.ndarray]) -> None:
         sub.create_dataset(str(key), data=np.asarray(arr, dtype=float))
 
 
-def _read_int_dict(group: Any, name: str) -> dict[int, np.ndarray]:
+def _read_int_dict(group: Any, name: str, keys: Any = None) -> dict[int, np.ndarray]:
+    """The arrays of ``group[name]`` by id; only those of ``keys`` when given (each array is its
+    own dataset, so reading a few of many is much faster than reading them all)."""
     if name not in group:
         return {}
     sub = group[name]
+    if keys is not None:
+        return {int(k): sub[str(k)][()] for k in sorted({int(k) for k in keys}) if str(k) in sub}
     return {int(k): sub[k][()] for k in sorted(sub.keys(), key=int)}
 
 
@@ -202,6 +206,19 @@ def write_manifest(out_dir: str | Path, entries: list[dict[str, Any]], project: 
 def load_manifest(out_dir: str | Path) -> dict[str, Any]:
     """Read ``manifest.json`` from ``out_dir``."""
     return json.loads((Path(out_dir) / MANIFEST_NAME).read_text(encoding="utf-8"))
+
+
+def load_node_reactions(
+    entry: dict[str, Any], out_dir: str | Path, nodes: Any = None
+) -> dict[int, np.ndarray] | None:
+    """The node reactions of the static case of a manifest ``entry`` (only those of ``nodes``
+    when given), without reading its other results; None for any other kind of case."""
+    import h5py
+
+    if entry["result_type"] != "StaticResults":
+        return None
+    with h5py.File(Path(out_dir) / entry["files"][0], "r") as f:
+        return _read_int_dict(f, "node_reaction", nodes)
 
 
 def load_results(entry: dict[str, Any], out_dir: str | Path) -> AnyResults:

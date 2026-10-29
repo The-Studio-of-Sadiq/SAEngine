@@ -210,8 +210,8 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 		return this.request(python, 'substructure/report', { projectRoot });
 	}
 
-	substructureSize(python: string, projectRoot: string, columns?: readonly string[]): Promise<object> {
-		return this.request(python, 'substructure/size', { projectRoot, columns });
+	substructureSize(python: string, projectRoot: string, columns?: readonly string[], substructureText?: string): Promise<object> {
+		return this.request(python, 'substructure/size', { projectRoot, columns, substructureText });
 	}
 
 	substructureMigrate(python: string, projectRoot: string): Promise<object> {

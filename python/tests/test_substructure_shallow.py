@@ -831,6 +831,25 @@ def test_report_of_synthetic_footings_and_ties() -> None:
     assert not data["summary"]["analysed"]
 
 
+def test_report_fails_footings_that_overlap() -> None:
+    # 1800 mm square footings 1500 mm apart overlap by 300 mm: both fail, 1 + 300 / 1800.
+    data = report(two_columns(p1=400, p2=400, x2=1500))
+    rows = {
+        f["id"]: by_name(f["checks"]).get("Clear of the other footings")
+        for f in data["foundations"]
+    }
+    assert (
+        rows["F1"]["demand"] == pytest.approx(300) and "overlaps F2 by 300 mm" in rows["F1"]["note"]
+    )
+    assert rows["F2"]["utilisation"] == pytest.approx(1 + 300 / 1800, abs=1e-3)
+    assert data["summary"]["failed"] >= 2 and data["summary"]["status"] == "fail"
+    # Touching footings (1800 mm apart) are clear.
+    data = report(two_columns(p1=400, p2=400, x2=1800))
+    assert not any(
+        c["name"] == "Clear of the other footings" for f in data["foundations"] for c in f["checks"]
+    )
+
+
 # ─────────────────────────────── the analysed one-bay frame ───────────────────────────────
 
 
@@ -1127,11 +1146,11 @@ def test_sizing_assistant_proposes_footings_that_pass(frame: Path) -> None:
 
 def test_sizing_assistant_leaves_a_column_on_a_pile_cap_alone(frame: Path) -> None:
     # Selected or not, a column on a pile cap keeps it: no footing is proposed in its place.
+    # The cap is the editor's, not saved yet.
     c1 = next(e for e in generate(PLAN, "s").elements if e.id == "C1")
     x, y = c1.position
     piles = [(x - 750, y - 750), (x + 750, y - 750), (x + 750, y + 750), (x - 750, y + 750)]
-    write_substructure(
-        frame,
+    text = json.dumps(
         {
             "foundations": [
                 {"id": "PC1", "type": "pileCap", "columns": ["C1"], "center": [x, y],
@@ -1147,7 +1166,7 @@ def test_sizing_assistant_leaves_a_column_on_a_pile_cap_alone(frame: Path) -> No
         },
     )  # fmt: skip
     settings = SETTINGS.model_copy(update={"foundation": FoundationSettings(allowableBearing=60)})
-    ctx = load_context(frame)
+    ctx = load_context(frame, substructure_text=text)
     ctx.settings = settings
     ctx.__post_init__()
     proposal = propose(ctx, ["C1", "C2"])

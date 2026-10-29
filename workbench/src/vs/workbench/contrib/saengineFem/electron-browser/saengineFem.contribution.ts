@@ -362,6 +362,8 @@ CommandsRegistry.registerCommand('saengine.report.build', async (accessor, args:
 interface ISubstructureCommandArgs {
 	readonly projectRoot: string;
 	readonly columns?: readonly string[];
+	/** The editor's substructure, unsaved edits included. */
+	readonly substructureText?: string;
 }
 
 /** A backend answer of only `{problems}` becomes an error the caller shows. */
@@ -386,7 +388,7 @@ CommandsRegistry.registerCommand('saengine.substructure.report', async (accessor
 
 CommandsRegistry.registerCommand('saengine.substructure.size', async (accessor, args: ISubstructureCommandArgs) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
-	return orThrow(await accessor.get(IFemSolverService).substructureSize(python, args.projectRoot, args.columns));
+	return orThrow(await accessor.get(IFemSolverService).substructureSize(python, args.projectRoot, args.columns, args.substructureText));
 });
 
 CommandsRegistry.registerCommand('saengine.substructure.migrate', async (accessor, args: ISubstructureCommandArgs) => {

@@ -1151,14 +1151,19 @@ def substructure_sources(project_root: str) -> dict[str, str]:
     return stamps
 
 
-def substructure_size(project_root: str, columns: list[str] | None = None) -> dict[str, Any]:
+def substructure_size(
+    project_root: str, columns: list[str] | None = None, substructure_text: str | None = None
+) -> dict[str, Any]:
     """Footings proposed for ``columns`` (default: the columns without a foundation) from the
-    reactions and the soil report: ``{"foundations", "designs", "notes"}`` or ``{"problems"}``."""
+    reactions and the soil report, with the editor's substructure ``substructure_text`` when
+    given: ``{"foundations", "designs", "notes"}`` or ``{"problems"}``."""
     from saengine.substructure.context import Skip, load_context
     from saengine.substructure.sizing import propose
 
     try:
-        return propose(load_context(project_root), columns=columns)
+        return propose(
+            load_context(project_root, substructure_text=substructure_text), columns=columns
+        )
     except Skip as reason:  # no analysis results yet
         return {"foundations": [], "designs": [], "notes": [f"Nothing sized: {reason}."]}
     except ValueError as error:

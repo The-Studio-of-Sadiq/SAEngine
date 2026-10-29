@@ -10,14 +10,19 @@ has no design yet is listed as skipped, with the reason).
 from __future__ import annotations
 
 import importlib
+import math
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
+from saengine.design.check import _check
 from saengine.library.bim import ColumnElement, WallElement
 from saengine.library.substructure import FOUNDATION_TYPES, check, pile_layout_warnings
 from saengine.substructure.context import Context, Skip, load_context
 from saengine.substructure.shallow import SHALLOW_METHOD, design_shallow, design_tie_beam
+from saengine.substructure.sizing import penetration
 
 #: Foundation type -> (modules to look in, the design function's name, method list names). The
 #: function takes ``(ctx: Context, foundation: Foundation)`` and returns the foundation's result
@@ -112,6 +117,7 @@ def report(ctx: Context) -> dict[str, Any]:
             continue
         foundations.append(result)
         notes += found
+    mark_overlaps(foundations)
     ties: list[dict[str, Any]] = []
     for tie in substructure.tieBeams:
         try:
@@ -156,6 +162,49 @@ def report(ctx: Context) -> dict[str, Any]:
             "strength": [name for name, _ in ctx.loads.strength] if ctx.loads else [],
         },
     }
+
+
+def _corners(result: dict[str, Any]) -> np.ndarray | None:
+    """The plan corners [mm] of a footing's result (isolated, combined, strip), else None."""
+    sizes = result.get("sizes")
+    if result["type"] not in ("isolated", "combined", "strip") or not sizes:
+        return None
+    theta = math.radians(sizes.get("rotation") or 0.0)
+    u = np.array([math.cos(theta), math.sin(theta)])
+    v = np.array([-math.sin(theta), math.cos(theta)])
+    center = np.array(sizes["center"], dtype=float)
+    half_u, half_v = sizes["length"] / 2 * u, sizes["width"] / 2 * v
+    return np.array(
+        [center + su * half_u + sv * half_v for su, sv in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+    )
+
+
+def mark_overlaps(foundations: list[dict[str, Any]]) -> None:
+    """Footings that overlap in plan fail: each is checked alone, but under the overlap their
+    pressures add up (and they cannot both be cast there). A check row on each, utilisation
+    1 + the overlap over the footing's smaller side."""
+    shapes = [(r, c) for r in foundations if (c := _corners(r)) is not None]
+    for k, (a, ca) in enumerate(shapes):
+        for b, cb in shapes[k + 1 :]:
+            depth = penetration(ca, cb)
+            if depth <= 0.5:  # mm: touching footings are fine
+                continue
+            for this, other in ((a, b), (b, a)):
+                side = min(this["sizes"]["length"], this["sizes"]["width"])
+                row = _check(
+                    "Clear of the other footings",
+                    depth,
+                    0.0,
+                    "mm",
+                    None,
+                    f"overlaps {other['id']} by {depth:.0f} mm in plan: their soil pressures add "
+                    "up there. Make them one combined footing (select both and Size Footings) "
+                    "or a raft",
+                    utilisation=1.0 + depth / side,
+                )
+                this["checks"].append(row)
+                this["ok"] = False
+                this["utilisation"] = max(this["utilisation"], row["utilisation"])
 
 
 def unsupported_bases(ctx: Context) -> list[tuple[str, str]]:

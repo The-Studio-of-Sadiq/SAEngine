@@ -127,17 +127,25 @@ class Trial:
         )
 
 
-def overlap(a: Trial, b: Trial) -> bool:
-    """Whether two footings overlap in plan (separating axis test; touching is no overlap)."""
-    ca, cb = a.corners(), b.corners()
+def penetration(ca: np.ndarray, cb: np.ndarray) -> float:
+    """How far two rectangles (their 4 corners in order) overlap in plan [their unit]: the least
+    overlap of their projections on the axes of their sides (separating axis test); 0 when they
+    are apart or only touch."""
+    depth = math.inf
     for corners in (ca, cb):
         for k in range(2):
             edge = corners[k + 1] - corners[k]
             axis = np.array([-edge[1], edge[0]]) / float(np.linalg.norm(edge))
             pa, pb = ca @ axis, cb @ axis
-            if pa.max() <= pb.min() + 1e-6 or pb.max() <= pa.min() + 1e-6:
-                return False
-    return True
+            depth = min(depth, float(min(pa.max() - pb.min(), pb.max() - pa.min())))
+            if depth <= 1e-6:
+                return 0.0
+    return depth
+
+
+def overlap(a: Trial, b: Trial) -> bool:
+    """Whether two footings overlap in plan (touching is no overlap)."""
+    return penetration(a.corners(), b.corners()) > 0
 
 
 class Sizer:

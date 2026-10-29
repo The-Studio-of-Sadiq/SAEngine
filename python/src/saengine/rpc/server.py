@@ -78,7 +78,8 @@ Methods:
   minimum bars given, the checks (``saengine.substructure.run.design_foundations``; in a worker
   thread, as ``substructure/report`` and ``report/build``)
 - ``substructure/report`` ``{projectRoot}`` -> the design checks of the saved substructure
-- ``substructure/size`` ``{projectRoot, columns?}`` -> footings proposed by the sizing assistant
+- ``substructure/size`` ``{projectRoot, columns?, substructureText?}`` -> footings proposed by the
+  sizing assistant (in a worker thread; the editor's unsaved substructure when given)
 - ``substructure/migrate`` ``{projectRoot}`` -> the substructure with the building model's footings
 - ``substructure/ensure`` ``{projectRoot}`` -> moves the footings into a placeholder substructure
 - ``fem/derive`` also takes ``mepText?`` and ``substructureText?`` (else the project's files beside
@@ -641,10 +642,17 @@ def create_server() -> JsonRPCServer:
         _import_substructure()
         return await _substructure_design_worker(params)
 
-    @server.feature("substructure/size")
-    def _substructure_size(params: Any) -> dict[str, Any]:
+    @_in_worker
+    def _substructure_size_worker(params: Any) -> dict[str, Any]:
         args = _plain(params)
-        return handlers.substructure_size(args["projectRoot"], args.get("columns"))
+        return handlers.substructure_size(
+            args["projectRoot"], args.get("columns"), args.get("substructureText")
+        )
+
+    @server.feature("substructure/size")
+    async def _substructure_size(params: Any) -> dict[str, Any]:
+        _import_substructure()
+        return await _substructure_size_worker(params)
 
     @server.feature("substructure/migrate")
     def _substructure_migrate(params: Any) -> dict[str, Any]:

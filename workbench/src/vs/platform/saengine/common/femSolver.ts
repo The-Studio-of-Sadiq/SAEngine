@@ -461,8 +461,8 @@ export interface IFemSolverService {
 	 */
 	substructureReport(python: string, projectRoot: string): Promise<object>;
 
-	/** Footings proposed by the sizing assistant for `columns` (default: those without a foundation), or `{problems}`. */
-	substructureSize(python: string, projectRoot: string, columns?: readonly string[]): Promise<object>;
+	/** Footings proposed by the sizing assistant for `columns` (default: those without a foundation), with the editor's unsaved `substructureText` when given, or `{problems}`. */
+	substructureSize(python: string, projectRoot: string, columns?: readonly string[], substructureText?: string): Promise<object>;
 
 	/** The saved substructure with the building model's footings added, nothing written (`{substructure, notes, count}`), or `{problems}`. */
 	substructureMigrate(python: string, projectRoot: string): Promise<object>;

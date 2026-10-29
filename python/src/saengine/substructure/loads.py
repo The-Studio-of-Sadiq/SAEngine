@@ -23,6 +23,7 @@ Units: the reactions as the results store them, N and N·m in global axes; posit
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -146,12 +147,14 @@ def _wind_variants(cases: set[str]) -> Any:
     return variants
 
 
-def case_reactions(out_dir: str | Path) -> dict[str, dict[int, np.ndarray]]:
+def case_reactions(
+    out_dir: str | Path, nodes: Iterable[int] | None = None
+) -> dict[str, dict[int, np.ndarray]]:
     """The support reactions ``[Fx, Fy, Fz, Mx, My, Mz]`` [N, N·m, global axes] of each static
-    case of the results in ``out_dir``, by case code (D, SD, L, ...) and node id. Raises
-    ``ValueError`` when there are no results."""
-    from opensees_studio.services.result_store import load_manifest, load_results
-    from opensees_studio.services.results import StaticResults
+    case of the results in ``out_dir``, by case code (D, SD, L, ...) and node id; only those of
+    ``nodes`` when given (the other results are not read). Raises ``ValueError`` when there are
+    no results."""
+    from opensees_studio.services.result_store import load_manifest, load_node_reactions
 
     from saengine.fem.display import _code, _last
 
@@ -160,13 +163,12 @@ def case_reactions(out_dir: str | Path) -> dict[str, dict[int, np.ndarray]]:
     except (OSError, ValueError) as error:
         raise ValueError("there are no results; run the analysis first") from error
     by_case: dict[str, dict[int, np.ndarray]] = {}
+    wanted = None if nodes is None else set(nodes)
     for entry in manifest["cases"]:
-        results = load_results(entry, out_dir)
-        if not isinstance(results, StaticResults):
+        reactions = load_node_reactions(entry, out_dir, wanted)
+        if reactions is None:
             continue
-        by_case[_code(entry["case_name"])] = {
-            int(n): _last(results.node_reaction, n, 6) for n in results.node_reaction
-        }
+        by_case[_code(entry["case_name"])] = {int(n): _last(reactions, n, 6) for n in reactions}
     return by_case
 
 
@@ -288,8 +290,8 @@ def base_loads(
     """The reactions of the column and wall bases of ``building`` that stand on supports of the
     analysis model ``project`` (``08 FEM/model.osmodel``) under the results in ``out_dir``.
     Raises ``ValueError`` when there are no results."""
-    cases = case_reactions(out_dir)
     supports = support_nodes(project)
+    cases = case_reactions(out_dir, supports.values())
     bases: dict[str, Base] = {}
     unsupported: list[str] = []
     for element in building.elements:

@@ -166,10 +166,15 @@ def polygon_centroid(points: list[list[float]]) -> np.ndarray:
     )
 
 
-def load_context(project_root: str | Path, out_dir: str | Path | None = None) -> Context:
+def load_context(
+    project_root: str | Path,
+    out_dir: str | Path | None = None,
+    substructure_text: str | None = None,
+) -> Context:
     """The context of the project at ``project_root``, with the loads of the results in
-    ``out_dir`` (default ``08 FEM/model.results``) when the analysis has run. Raises
-    ``ValueError`` when a part cannot be read or is invalid."""
+    ``out_dir`` (default ``08 FEM/model.results``) when the analysis has run, and the
+    substructure ``substructure_text`` (the editor's, unsaved) instead of the saved one when
+    given. Raises ``ValueError`` when a part cannot be read or is invalid."""
     root = Path(project_root)
 
     def read(relative: str) -> str:
@@ -184,10 +189,11 @@ def load_context(project_root: str | Path, out_dir: str | Path | None = None) ->
     materials = MaterialLibrary.model_validate_json(read("03 Materials/materials.json"))
     objects = ObjectLibrary.model_validate_json(read("04 Objects/objects.json"))
     building = BuildingModel.model_validate_json(read("06 BIM/bim.json"))
-    try:
-        substructure_text = (root / SUBSTRUCTURE_FILE).read_text(encoding="utf-8")
-    except OSError:
-        substructure_text = None
+    if substructure_text is None:
+        try:
+            substructure_text = (root / SUBSTRUCTURE_FILE).read_text(encoding="utf-8")
+        except OSError:
+            substructure_text = None
     substructure = parse(substructure_text, building)
     out = Path(out_dir) if out_dir is not None else root / "08 FEM" / "model.results"
     model: Path | None = root / "08 FEM" / "model.osmodel"
