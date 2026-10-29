@@ -27,9 +27,11 @@ frames stays in :mod:`saengine.design.ductile_joints` (Sec 8.3.8, 8.3.10.3).
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import Any
+
+import numpy as np
 
 from saengine.design.rc import DesignError, RcSection, bar_area
 from saengine.library.objects import CircleProfile, RectangleProfile
@@ -142,10 +144,21 @@ def column_shear_strength(
     return ColumnShear(phi * (vc + vs), vc, vs, limited, av_min)
 
 
+@dataclass(frozen=True)
+class ShearPoints:
+    """A column's points on arrays: Pu [N, compression positive], Vx, Vy [N], and ``label(i)``
+    the (combination, where) of point i, asked only of the points the checks report."""
+
+    pu: np.ndarray
+    vx: np.ndarray
+    vy: np.ndarray
+    label: Callable[[int], tuple[str | None, str]]
+
+
 def column_shear_checks(
     section: RcSection,
     transverse: Any | None,
-    points: Iterable[tuple[float, float, float, str | None, str]],
+    points: Iterable[tuple[float, float, float, str | None, str]] | ShearPoints,
     lam: float = 1.0,
     phi: float | None = None,
     fyt_max: float | None = None,
@@ -155,7 +168,7 @@ def column_shear_checks(
     Av,min flag over every point where they apply (not only the governing one). ``points``: (Pu [N, compression
     positive], Vx [N, along the profile's x], Vy [N, along y], combination, where), as
     :func:`saengine.design.check._profile_forces` gives them per station (``P``, ``Vx``,
-    ``Vy``). A circle checks the resultant √(Vx² + Vy²)."""
+    ``Vy``), or the same as :class:`ShearPoints`. A circle checks the resultant √(Vx² + Vy²)."""
     from saengine.codes import context as code_context
 
     if phi is None:
@@ -168,34 +181,80 @@ def column_shear_checks(
     # Per axis: the point of the highest Vu/φVn; the point of the tightest tie-spacing limit
     # among those with Vu > φVc; the point of the highest Vu/(0.5 φVc) among those above
     # 0.5 φVc. Vc changes with the simultaneous axial force, so these can be different points.
+    if not isinstance(points, ShearPoints):
+        listed = list(points)
+        points = ShearPoints(
+            np.array([p[0] for p in listed], dtype=float),
+            np.array([p[1] for p in listed], dtype=float),
+            np.array([p[2] for p in listed], dtype=float),
+            lambda i: (listed[i][3], listed[i][4]),
+        )
     worst: dict[str, tuple[float, float, ColumnShear, float, str | None, str]] = {}
     spacing_worst: dict[str, tuple[float, bool, float, str | None, str]] = {}
     minimum_worst: dict[str, tuple[float, ColumnShear, str | None, str]] = {}
     root = math.sqrt(section.fc)
-    for pu, vx, vy, combination, where in points:
-        for part in parts:
-            vu = math.hypot(vx, vy) if circle else abs(vy if part.axis == "y" else vx)
-            strength = column_shear_strength(
-                part, pu, ag, section.fc, section.fy, fyt_max, phi, lam
+    pu = points.pu
+    if len(pu):
+        # Every point at once, the same arithmetic as column_shear_strength and in its order;
+        # the first point of equals is kept, as one by one.
+        fc_root = min(math.sqrt(section.fc), ROOT_FC_MAX)
+        factor = np.where(pu >= 0, 1 + pu / (14 * ag), np.maximum(0.0, 1 + 0.29 * pu / ag))
+        if circle:
+            vu_all = np.array(
+                [
+                    math.hypot(x, y)
+                    for x, y in zip(points.vx.tolist(), points.vy.tolist(), strict=True)
+                ]
             )
-            ratio = vu / strength.phi_vn if strength.phi_vn > 0 else (math.inf if vu > 0 else 0.0)
-            best = worst.get(part.axis)
-            if best is None or ratio > best[0]:
-                worst[part.axis] = (ratio, vu, strength, pu, combination, where)
-            phi_vc = phi * strength.vc
-            if vu > phi_vc and part.spacing:
+        for part in parts:
+            vu = vu_all if circle else np.abs(points.vy if part.axis == "y" else points.vx)
+            fixed = column_shear_strength(part, 0.0, ag, section.fc, section.fy, fyt_max, phi, lam)
+            vc = 0.17 * factor * lam * fc_root * part.bw * part.d
+            phi_vn = phi * (vc + fixed.vs)
+            positive = phi_vn > 0
+            ratio = np.where(
+                positive,
+                vu / np.where(positive, phi_vn, 1.0),
+                np.where(vu > 0, math.inf, 0.0),
+            )
+
+            def at(i: int, part: ShearAxis = part) -> ColumnShear:
+                return column_shear_strength(
+                    part, float(pu[i]), ag, section.fc, section.fy, fyt_max, phi, lam
+                )
+
+            i = int(np.argmax(ratio))
+            worst[part.axis] = (
+                float(ratio[i]),
+                float(vu[i]),
+                at(i),
+                float(pu[i]),
+                *points.label(i),
+            )
+            phi_vc = phi * vc
+            if part.spacing:
                 # Sec 6.4.3.4.1, 6.4.3.4.3: the spacing limit where shear reinforcement is
                 # needed, halved where the Vs needed exceeds 0.33 √f'c bw d.
-                tight = vu / phi - strength.vc > 0.33 * root * part.bw * part.d
-                s_max = min(part.d / 2, 600.0) / (2 if tight else 1)
-                held = spacing_worst.get(part.axis)
-                if held is None or s_max < held[0]:
-                    spacing_worst[part.axis] = (s_max, tight, pu, combination, where)
-            if vu > 0.5 * phi_vc and part.av < strength.av_min:
-                excess = vu / (0.5 * phi_vc) if phi_vc > 0 else math.inf
-                held_min = minimum_worst.get(part.axis)
-                if held_min is None or excess > held_min[0]:
-                    minimum_worst[part.axis] = (excess, strength, combination, where)
+                needed = np.flatnonzero(vu > phi_vc)
+                if len(needed):
+                    tight = vu[needed] / phi - vc[needed] > 0.33 * root * part.bw * part.d
+                    s_max = np.where(tight, min(part.d / 2, 600.0) / 2, min(part.d / 2, 600.0) / 1)
+                    k = int(np.argmin(s_max))
+                    j = int(needed[k])
+                    spacing_worst[part.axis] = (
+                        float(s_max[k]),
+                        bool(tight[k]),
+                        float(pu[j]),
+                        *points.label(j),
+                    )
+            if part.av < fixed.av_min:
+                above = np.flatnonzero(vu > 0.5 * phi_vc)
+                if len(above):
+                    half = 0.5 * phi_vc[above]
+                    excess = np.where(half > 0, vu[above] / np.where(half > 0, half, 1.0), math.inf)
+                    k = int(np.argmax(excess))
+                    j = int(above[k])
+                    minimum_worst[part.axis] = (float(excess[k]), at(j), *points.label(j))
     rows = []
     for part in parts:
         if part.axis not in worst:

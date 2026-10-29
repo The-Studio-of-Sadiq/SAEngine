@@ -20,6 +20,7 @@ puts the top bars in tension (hogging) and negative My the bottom bars (sagging)
 
 from __future__ import annotations
 
+import bisect
 import contextvars
 import copy
 import dataclasses
@@ -2147,26 +2148,31 @@ def _column_checks(
 
 def _shear_points(
     pieces: list[_Piece], combinations: list[str], turned: bool
-) -> list[tuple[float, float, float, str | None, str]]:
+) -> column_shear.ShearPoints:
     """Every station's (Pu [N, compression positive], Vx, Vy [N, along the profile's x and y],
     combination, where) of a column, for :func:`saengine.design.column_shear.
-    column_shear_checks`."""
-    points = []
+    column_shear_checks`, on arrays (the labels made for the points reported)."""
+    pu, vx, vy, blocks = [], [], [], []
+    start = 0
     for piece in pieces:
         for c, forces in enumerate(piece.forces):
             values = _profile_forces(piece, turned, forces)
             count = len(forces)
-            for k in range(count):
-                points.append(
-                    (
-                        float(values["P"][k]),
-                        float(values["Vx"][k]),
-                        float(values["Vy"][k]),
-                        combinations[c],
-                        _where(piece, k, count),
-                    )
-                )
-    return points
+            pu.append(np.asarray(values["P"], dtype=float).reshape(-1)[:count])
+            vx.append(np.asarray(values["Vx"], dtype=float).reshape(-1)[:count])
+            vy.append(np.asarray(values["Vy"], dtype=float).reshape(-1)[:count])
+            blocks.append((start, piece, c, count))
+            start += count
+    starts = [b[0] for b in blocks]
+
+    def label(i: int) -> tuple[str | None, str]:
+        first, piece, c, count = blocks[bisect.bisect_right(starts, i) - 1]
+        return combinations[c], _where(piece, i - first, count)
+
+    def joined(parts: list[np.ndarray]) -> np.ndarray:
+        return np.concatenate(parts) if parts else np.zeros(0)
+
+    return column_shear.ShearPoints(joined(pu), joined(vx), joined(vy), label)
 
 
 #: Plan tolerance [mm] of the framing found from the building model (a point on a line).
