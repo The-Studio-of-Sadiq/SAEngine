@@ -781,7 +781,7 @@ def column_rows(
     governing: Point | None = None
     if points and search.layouts:
         surface = search.surface(len(search.layouts) - 1 if index is None else index, True)
-        governing = max(points, key=lambda p: surface.check(p[0], p[1], p[2]).utilisation)
+        governing = points[int(np.argmax(surface.utilisations([p[:3] for p in points])))]
     elif points:
         governing = max(points, key=lambda p: p[0])
     notes = []

@@ -1962,12 +1962,17 @@ def _column_checks(
                             _where(piece, k, count),
                         )
                     )
-    for pu, mux, muy, combination, where in points:
+    for pu, _mux, _muy, combination, where in points:
         if pu > axial[0]:
             axial = (pu, combination, where)
+    if points:
+        # All the points' utilisations at once, then the governing one (the first of equals)
+        # checked for its details.
+        utilisations = surface.utilisations([p[:3] for p in points])
+        g = int(np.argmax(utilisations))
+        pu, mux, muy, combination, where = points[g]
         result = surface.check(pu, mux, muy)
-        if governing is None or result.utilisation > governing[0]:
-            governing = (result.utilisation, result, combination, where, pu)
+        governing = (result.utilisation, result, combination, where, pu)
     checks = [
         _check(
             "Axial compression",

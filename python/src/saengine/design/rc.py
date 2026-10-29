@@ -393,7 +393,6 @@ def _rectangle_bars(
 
 
 def _concrete_section(section: RcSection):
-    from concreteproperties.concrete_section import ConcreteSection
     from concreteproperties.material import Concrete, SteelBar
     from concreteproperties.pre import add_bar
     from concreteproperties.stress_strain_profile import (
@@ -433,7 +432,11 @@ def _concrete_section(section: RcSection):
         geometry = circular_section_by_area(area=math.pi * p.radius**2, n=48, material=concrete)
     for bar in section.bars:
         geometry = add_bar(geometry, area=bar.area, material=steel, x=bar.x, y=bar.y)
-    return ConcreteSection(geometry, moment_centroid=(0.0, 0.0))
+    # The ultimate actions in closed form (saengine.design.fast_ultimate): the same numbers,
+    # tens of times faster than the meshed integration.
+    from saengine.design.fast_ultimate import FastConcreteSection
+
+    return FastConcreteSection(geometry, moment_centroid=(0.0, 0.0))
 
 
 # ─────────────────────────────────────── beams ───────────────────────────────────────
@@ -743,6 +746,33 @@ class InteractionSurface:
             if stop_above is not None and worst > stop_above:
                 break
         return worst
+
+    def utilisations(self, points: Any) -> np.ndarray:
+        """The :meth:`check` utilisation of each demand (rows Pu, Mux, Muy [N, N·mm]), on
+        arrays: the design checks ask it of every station and combination of a member (on 10
+        storeys, close to a million points), then :meth:`check` the governing one for its
+        details."""
+        pts = np.asarray(points, dtype=float).reshape(-1, 3)
+        out = np.zeros(len(pts))
+        if not len(pts):
+            return out
+        s = self.section
+        pu, mu = pts[:, 0], np.hypot(pts[:, 1], pts[:, 2])
+        over, tension = pu > s.phi_pn_max, pu < -s.phi_tension
+        out[over] = pu[over] / s.phi_pn_max
+        out[tension] = -pu[tension] / s.phi_tension
+        inside = ~over & ~tension
+        for i in np.flatnonzero(inside & (mu <= 0)):  # few: axial force alone (scalar rules)
+            out[i] = self.check(*pts[i]).utilisation
+        bending = np.flatnonzero(inside & (mu > 0))
+        for start in range(0, len(bending), self._BLOCK):
+            rows = bending[start : start + self._BLOCK]
+            block = pts[rows]
+            caps = self._capacities(
+                block[:, 0], np.arctan2(np.abs(block[:, 2]), np.abs(block[:, 1]))
+            )
+            out[rows] = np.where(caps > 0, mu[rows] / np.where(caps > 0, caps, 1.0), math.inf)
+        return out
 
     def _capacities(self, pu: np.ndarray, angle: np.ndarray) -> np.ndarray:
         """:meth:`moment_capacity` of each (``pu``, ``angle``), on arrays."""

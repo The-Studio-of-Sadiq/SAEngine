@@ -282,6 +282,31 @@ def _column(width: float, depth: float, groups: list[dict]) -> InteractionSurfac
     return InteractionSurface(section_of(profile, reinforcement, 28, 420))
 
 
+@pytest.mark.parametrize(
+    "groups",
+    [
+        [{"position": "perimeter", "count": 8, "dia": 25}],
+        [
+            {"position": "top", "count": 3, "dia": 20},
+            {"position": "bottom", "count": 5, "dia": 28},
+            {"position": "sides", "count": 2, "dia": 16},
+        ],
+    ],
+)
+def test_utilisations_on_arrays_are_those_of_check(groups: list[dict]) -> None:
+    # The design checks take a member's utilisations at once: the same as check, point by point,
+    # over tension, axial force alone, bending and demands beyond φPn,max.
+    surface = _column(400, 600, groups)
+    s = surface.section
+    rng = np.random.default_rng(3)
+    pu = rng.uniform(-1.2 * s.phi_tension, 1.1 * s.phi_pn_max, 400)
+    moments = rng.uniform(0, 600e6, (400, 2)) * rng.choice([0, 1], (400, 1), p=[0.1, 0.9])
+    points = np.column_stack([pu, moments])
+    each = [surface.check(*p).utilisation for p in points]
+    assert surface.utilisations(points) == pytest.approx(each, rel=1e-9)
+    assert len(surface.utilisations(np.empty((0, 3)))) == 0
+
+
 def _exact(surface: InteractionSurface, degrees: float, d_n: float) -> tuple[float, float, float]:
     """φPn, φMnx, φMny [N, N·mm] of the section at that neutral axis, φ from its εt."""
     cp = surface.section.analysis
