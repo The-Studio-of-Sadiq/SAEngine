@@ -751,14 +751,18 @@ class SeismicForces:
     def parts(self) -> list[str]:
         return [p for p in PARTS if p in self.modal or p in self.torsion]
 
-    def _envelope(self, kind: str, key: int, value: Any) -> dict[str, np.ndarray]:
+    def _envelope(
+        self, kind: str, key: int, value: Any, values: Any = None
+    ) -> dict[str, np.ndarray]:
+        """``value(results)`` of each mode combined per part; ``values(modes)``, when given,
+        gives them for a part's modes at once (the same rows)."""
         cached = self._cache.get((kind, "", key))
         if cached is not None:
             return cached
         out: dict[str, np.ndarray] = {}
         for part, results in self.modal.items():
             rule, damping, omegas = self.rules[part]
-            rows = [value(r) for r in results]
+            rows = list(values(results)) if values is not None else [value(r) for r in results]
             out[part] = self.scale[part[1]] * combine(np.array(rows), omegas, damping, rule)
         for part, results in self.torsion.items():
             out[part] = np.abs(value(results))
@@ -768,7 +772,22 @@ class SeismicForces:
     def frame(self, element: Any) -> dict[str, np.ndarray]:
         """Section forces N, Vy, Vz, T, My, Mz at the stations of a frame element
         (:class:`saengine.fem.display._Element`), shape (STATIONS, 6), per part."""
-        from saengine.fem.display import _last, element_section_forces
+        from saengine.fem.display import _last, element_section_forces, element_section_forces_many
+
+        def modes(results: list[Any]) -> Any:
+            # Every mode at once (element_section_forces, the same arithmetic).
+            if not results or not element.length > 0:
+                return [
+                    element_section_forces(
+                        element, _last(r.element_forces, element.id, 12), np.zeros(3)
+                    )
+                    for r in results
+                ]
+            return element_section_forces_many(
+                np.full(len(results), float(element.length)),
+                np.array([_last(r.element_forces, element.id, 12) for r in results]),
+                np.zeros((len(results), 3)),
+            )
 
         return self._envelope(
             "frame",
@@ -776,6 +795,7 @@ class SeismicForces:
             lambda r: element_section_forces(
                 element, _last(r.element_forces, element.id, 12), np.zeros(3)
             ),
+            modes,
         )
 
     def end_forces(self, element_id: int) -> dict[str, np.ndarray]:

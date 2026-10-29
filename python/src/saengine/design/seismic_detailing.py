@@ -487,10 +487,18 @@ def apply(
         zones = dm.zones_of(transverse)
         axial = (0.0, None)
         for piece in d.pieces:
-            for c, forces in enumerate(piece.forces):
-                p = float(np.max(profile_forces(piece, d.turned, forces)["P"]))
+            every = dj.stacked_parts(piece.forces, list(range(len(piece.forces))))
+            if every is not None and every.ndim == 3:
+                # Each combination's largest P at once, then the first of the largest.
+                peaks = profile_forces(piece, d.turned, every)["P"].max(axis=1).tolist()
+            else:
+                peaks = [
+                    float(np.max(profile_forces(piece, d.turned, forces)["P"]))
+                    for forces in piece.forces
+                ]
+            for c, p in enumerate(peaks):
                 if p > axial[0]:
-                    axial = (p, combinations[c])
+                    axial = (float(p), combinations[c])
         dem = demands(d.pieces, d.turned, d.id)
         stirrups = dj.Stirrups(zones.dia, zones.legs, zones.in_zone) if zones is not None else None
         rows: list[dict[str, Any]] = []

@@ -530,7 +530,7 @@ def test_seismic_demands_from_pieces() -> None:
     piece = SimpleNamespace(forces=[forces], sway=[sway])
 
     def profile_forces(_piece, _turned, f):
-        return {"P": -f[:, 0], "Vy": f[:, 1]}
+        return {"P": -f[..., 0], "Vy": f[..., 1]}
 
     d = seismic_demands([piece], [0], False, profile_forces)
     assert (d.pmin, d.pmax) == (480e3, 500e3)

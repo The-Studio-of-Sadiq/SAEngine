@@ -942,18 +942,52 @@ class SeismicDemands:
     doubled_e_shear_x: float = 0.0
 
 
+def stacked_parts(parts: list[Any] | None, combinations: list[int]) -> np.ndarray | None:
+    """The arrays ``parts[c]`` of ``combinations`` stacked (combination first), or None when
+    they are not all arrays of one shape (the caller then goes one by one)."""
+    if not parts or not combinations or any(c >= len(parts) for c in combinations):
+        return None
+    chosen = [parts[c] for c in combinations]
+    if not all(isinstance(a, np.ndarray) for a in chosen):
+        return None
+    if any(a.shape != chosen[0].shape for a in chosen):
+        return None
+    return np.stack(chosen)
+
+
 def seismic_demands(
     pieces: list[Any], combinations: list[int], turned: bool, profile_forces: Any
 ) -> SeismicDemands:
     """From a member's analysis pieces (``check._Piece``: ``forces`` and ``sway`` per
     combination) over the combination indices ``combinations`` (those with E), through
-    ``profile_forces`` (``check._profile_forces``: ``P``, ``Vy`` and, when it gives it, ``Vx``)."""
+    ``profile_forces`` (``check._profile_forces``: ``P``, ``Vy`` and, when it gives it, ``Vx``;
+    it is given the combinations stacked, a leading axis before the stations, where they agree
+    in shape)."""
     pmin, pmax = math.inf, -math.inf
     v = vg = v2 = vx = v2x = 0.0
     for piece in pieces:
-        for c in combinations:
-            forces = piece.forces[c]
-            lateral = piece.sway[c] if piece.sway is not None else np.zeros_like(forces)
+        forces_all = stacked_parts(piece.forces, combinations)
+        lateral_all = (
+            stacked_parts(piece.sway, combinations)
+            if piece.sway is not None
+            else (None if forces_all is None else np.zeros_like(forces_all))
+        )
+        if (
+            forces_all is not None
+            and lateral_all is not None
+            and (lateral_all.shape == forces_all.shape)
+        ):
+            # Every combination at once: the same extremes as one by one.
+            blocks = [(forces_all, lateral_all)]
+        else:
+            blocks = [
+                (
+                    piece.forces[c],
+                    piece.sway[c] if piece.sway is not None else np.zeros_like(piece.forces[c]),
+                )
+                for c in combinations
+            ]
+        for forces, lateral in blocks:
             total = profile_forces(piece, turned, forces)
             sway = profile_forces(piece, turned, lateral)
             pmin = min(pmin, float(np.min(total["P"])))

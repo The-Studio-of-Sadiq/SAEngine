@@ -1810,7 +1810,9 @@ def _combined_stacks(
     for (shape, dtype), members in groups.items():
         stacked: dict[str, np.ndarray] = {}
 
-        def stack(case: str, members: list[int] = members) -> np.ndarray:
+        def stack(
+            case: str, members: list[int] = members, stacked: dict[str, np.ndarray] = stacked
+        ) -> np.ndarray:
             if case not in stacked:
                 stacked[case] = np.stack([by_case[case][i] for i in members])
             return stacked[case]
