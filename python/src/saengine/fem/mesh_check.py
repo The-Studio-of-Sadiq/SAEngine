@@ -123,12 +123,16 @@ def mesh_convergence(
     factor: float = 2.0,
     threshold: float = THRESHOLD,
     cases: tuple[str, ...] = GRAVITY_CASES,
+    fine: tuple[dict[str, Any], Path, dict[str, Any] | None] | None = None,
 ) -> dict[str, Any]:
     """The change of the beams' gravity end moments when the mesh is ``factor`` times coarser:
     ``{"meshSize_mm", "coarseSize_mm", "cases", "maxChangePercent", "estimatedErrorPercent"
     (the fine mesh's error by Richardson extrapolation), "members": [{"member",
     "end", "fine_kNm", "coarse_kNm", "changePercent"}] (largest first, at most 10),
-    "compared", "threshold", "warning", "note"}``. Raises ``ValueError`` when a run fails."""
+    "compared", "threshold", "warning", "note"}``. Raises ``ValueError`` when a run fails.
+    ``fine``: the project's own analysed model, its results folder and faces (current, see
+    :func:`project_mesh_convergence`), which then stand for the fine mesh: only the coarse one
+    is derived and run (on 25 storeys each derivation took minutes)."""
     from saengine.fem.derive import derive_fem
     from saengine.library.bim import BeamElement
 
@@ -137,6 +141,9 @@ def mesh_convergence(
     moments = []
     with tempfile.TemporaryDirectory(prefix="saengine-meshcheck-") as tmp:
         for k, scale in enumerate((1.0, factor)):
+            if k == 0 and fine is not None:
+                moments.append(_beam_end_moments(fine[0], fine[1], beams, fine[2], cases))
+                continue
             analysis = settings.analysis.model_copy(update={"meshScale": scale})
             derivation = derive_fem(
                 building,
@@ -222,6 +229,7 @@ def project_mesh_convergence(project_folder: str | Path, **options: Any) -> dict
 
     loads_path = root / ll.LOADS_FILE
     member_loads = ll.parse(loads_path.read_text(encoding="utf-8") if loads_path.exists() else None)
+    options.setdefault("fine", _current_analysis(root))
     return mesh_convergence(
         building,
         objects,
@@ -232,6 +240,32 @@ def project_mesh_convergence(project_folder: str | Path, **options: Any) -> dict
         model_dir=root / "08 FEM",
         **options,
     )
+
+
+def _current_analysis(root: Path) -> tuple[dict[str, Any], Path, dict[str, Any] | None] | None:
+    """The project's analysed model, its results folder and faces when the model is derived
+    from the project's files as they are and the results are its own (Run All's tests:
+    ``derivation_state``, ``results_current``), else None."""
+    from saengine.fem.end_zones import read_faces
+    from saengine.pipeline.project import open_project
+    from saengine.pipeline.run_all import (
+        DERIVATION_INPUTS,
+        derivation_state,
+        results_current,
+        results_folder,
+    )
+
+    try:
+        project = open_project(root)
+        model_path = project.file("fem")
+        model = json.loads(model_path.read_text(encoding="utf-8"))
+        description = model.get("meta", {}).get("description")
+        derived, changed = derivation_state(description, project.texts(DERIVATION_INPUTS))
+    except (OSError, ValueError, AttributeError):
+        return None
+    if not derived or changed or not results_current(model_path):
+        return None
+    return model, results_folder(model_path), read_faces(model_path)
 
 
 #: The check's result beside the analysis results (``08 FEM/model.results``).
