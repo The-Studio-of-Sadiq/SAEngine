@@ -366,6 +366,11 @@ def settings_stamp(text: str) -> str:
     return stamp(js_json({k: v for k, v in document.items() if k not in SETTINGS_INFO_KEYS}))
 
 
+#: The stamps worked out last, by a hash of the model's raw text (a 10-storey model takes
+#: seconds to stamp, and Run All's steps stamp the same file many times).
+_MODEL_STAMPS: dict[bytes, str] = {}
+
+
 def model_stamp(data: bytes | str) -> str:
     """The stamp of an analysis model's text without its ``meta`` (its name and the stamps of
     the sources it was derived from): what the solver computes from, so a model derived again
@@ -373,16 +378,29 @@ def model_stamp(data: bytes | str) -> str:
     analysis, the design checks' cache, the response spectrum design). The workbench computes
     the same (``femModelStamp`` in runAll.ts); a text that is not a JSON object is stamped
     whole."""
+    import hashlib
     import json
 
+    raw = data if isinstance(data, bytes) else data.encode("utf-8", errors="surrogatepass")
+    key = hashlib.sha1(raw).digest()
+    found = _MODEL_STAMPS.get(key)
+    if found is not None:
+        return found
     text = data.decode("utf-8", errors="replace") if isinstance(data, bytes) else data
     try:
         document = json.loads(text)
     except ValueError:
-        return stamp(text)
-    if not isinstance(document, dict):
-        return stamp(text)
-    return stamp(js_json({k: v for k, v in document.items() if k != "meta"}))
+        result = stamp(text)
+    else:
+        result = (
+            stamp(js_json({k: v for k, v in document.items() if k != "meta"}))
+            if isinstance(document, dict)
+            else stamp(text)
+        )
+    if len(_MODEL_STAMPS) >= 8:
+        _MODEL_STAMPS.clear()
+    _MODEL_STAMPS[key] = result
+    return result
 
 
 def _unlabelled(items: list[Any]) -> list[Any]:
