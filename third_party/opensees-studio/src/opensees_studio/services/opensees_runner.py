@@ -94,8 +94,10 @@ from opensees_studio.core import (
 from opensees_studio.core.constraints import constrained_nodes
 from opensees_studio.core.modal import (
     CONDENSED_MAX_COORDINATES,
+    SOLVER_ARPACK,
     SOLVER_CONDENSED,
     SOLVER_DENSE,
+    arpack_basis,
     dof_indices,
     free_dof_count,
     mass_dof_bound,
@@ -1911,7 +1913,14 @@ class OpenSeesRunner:
         if solver == SOLVER_CONDENSED:
             reduced = None if case.preload_case_ids else self._mass_coordinates()
             if reduced is None:
-                solver = SOLVER_DENSE  # a preload or a mass layout the condensation leaves out
+                # A preload or a mass layout the condensation leaves out: ARPACK when it can run
+                # (auto condenses big models it could), else dense.
+                solver = (
+                    SOLVER_ARPACK
+                    if 2 * case.n_modes < n_free
+                    and arpack_basis(case.n_modes) < mass_dof_bound(self.project)
+                    else SOLVER_DENSE
+                )
         raw_shapes: dict[int, dict[int, np.ndarray]] = {}
         if reduced is not None:
             eigenvalues, raw_shapes = self._condensed_modes(case.n_modes, *reduced)
@@ -2028,7 +2037,7 @@ class OpenSeesRunner:
         pattern = 1 + max([p.id for p in self.project.load_patterns] + [0])
         ops.wipeAnalysis()
         ops.timeSeries("Constant", series)
-        ops.system("BandGeneral")
+        ops.system("UmfPack")  # sparse: a banded system of a tall building takes gigabytes
         ops.numberer("RCM")
         ops.constraints(self._constraints_handler("Plain"))
         ops.test("NormDispIncr", 1e-8, 10)

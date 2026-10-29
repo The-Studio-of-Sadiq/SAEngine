@@ -76,7 +76,12 @@ def test_few_dof_with_mass_route_to_dense_or_condensed() -> None:
     solver, reason = resolve_modal_solver("auto", CONDENSED_MIN_FREE_DOF + 1, 6, 6)
     assert solver == "condensed" and "DOF with mass" in reason
     assert resolve_modal_solver("auto", 5000, 2, 10)[0] == "condensed"  # 2 + 8 >= 10
-    assert resolve_modal_solver("auto", 5000, 2, 11)[0] == "genBandArpack"
+    # auto condenses a large model whose masses sit on few DOF even where ARPACK could run
+    solver, reason = resolve_modal_solver("auto", 5000, 2, 11)
+    assert solver == "condensed" and "11 DOF with mass" in reason
+    assert resolve_modal_solver("auto", 5000, 2, 601)[0] == "genBandArpack"
+    assert resolve_modal_solver("auto", 2000, 2, 11)[0] == "genBandArpack"
+    assert resolve_modal_solver("genBandArpack", 5000, 2, 11)[0] == "genBandArpack"
 
 
 def test_symm_band_lapack_is_refused_with_the_massless_dof_message() -> None:

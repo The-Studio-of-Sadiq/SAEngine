@@ -55,7 +55,9 @@ SOLVER_DENSE = "fullGenLapack"
 SOLVER_SYMM_BAND = "symmBandLapack"
 SOLVER_CONDENSED = "condensed"
 """Not a case option: the routing's exact solve for a model whose masses sit on few DOF (masses
-lumped at the floors) when it is too large for the dense solver. The runner condenses the
+lumped at the floors) when it is too large for the dense solver: ``auto`` takes it whenever
+those DOF are few (ARPACK's banded solve of a 25-storey model ran for hours; this one takes
+minutes), and ARPACK takes it when its basis reaches them. The runner condenses the
 stiffness onto the DOF with mass (one static solve per such DOF, exact for lumped masses: the
 massless DOF carry no inertia), solves that small eigen problem directly and expands the mode
 shapes from the static solutions."""
@@ -166,7 +168,8 @@ def resolve_modal_solver(
     Arnoldi basis (``max(2 * n_modes, n_modes + 8)`` vectors) reaches the DOF
     with mass (masses lumped at a few floors; the same abort). Such a case runs
     dense up to :data:`CONDENSED_MIN_FREE_DOF` free DOF and condensed
-    (:data:`SOLVER_CONDENSED`, exact) above it.
+    (:data:`SOLVER_CONDENSED`, exact) above it. ``auto`` condenses above that size whenever
+    the DOF with mass are at most :data:`CONDENSED_MAX_COORDINATES`, ARPACK or not.
     """
     if requested == SOLVER_SYMM_BAND:
         raise ValueError(SYMM_BAND_REFUSAL)
@@ -180,6 +183,12 @@ def resolve_modal_solver(
             return SOLVER_DENSE, f"auto: {n_free} free DOF, dense at or below {threshold}"
         requested = SOLVER_ARPACK
         reason = f"auto: {n_free} free DOF, above {threshold}"
+        if (
+            n_mass is not None
+            and n_free > CONDENSED_MIN_FREE_DOF
+            and 0 < n_mass <= CONDENSED_MAX_COORDINATES
+        ):
+            return SOLVER_CONDENSED, f"{reason}; {n_mass} DOF with mass, condensing onto them"
     else:
         reason = f"requested: {n_free} free DOF"
     if requested == SOLVER_ARPACK and 2 * n_modes >= n_free:
