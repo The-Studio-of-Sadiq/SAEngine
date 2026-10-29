@@ -7,7 +7,11 @@ result kind is written to the output directory and rebuilt from it:
 - ``StaticResults``, ``PushoverResults``, ``ModalResults`` and
   ``ResponseSpectrumResults`` go to ``case_<id>.results.h5`` (float64
   datasets, so the round trip is exact) plus scalar metadata in the
-  manifest entry.
+  manifest entry. Each ``{id: array}`` dict (node displacements, element
+  forces, ...) is one group of four packed datasets (``ids``, ``offsets``,
+  ``shapes``, ``values``), read in four reads however many nodes or
+  elements the model has; files of the earlier layout, one dataset per id,
+  are still read.
 - ``TransientResults`` already keeps its history in ``case_<id>.h5``
   written by the runner; the manifest entry only records the scalars.
 
@@ -75,21 +79,56 @@ def results_file_name(case_id: int) -> str:
 
 
 # ─────────────────────── helpers ───────────────────────
+#: Most dimensions of a packed array (node and element results are 1 to 3 dimensional).
+_PACKED_NDIM = 3
+
+
 def _write_int_dict(group: Any, name: str, data: dict[int, np.ndarray]) -> None:
+    """``data`` packed into ``group[name]``: the ids, each array's offset into ``values`` and its
+    shape (``ndim`` then the dimensions), and all the values flattened in id order. One dataset
+    per id made reading a 10-storey model's results take minutes (an HDF5 lookup per array)."""
     sub = group.create_group(name)
-    for key, arr in data.items():
-        sub.create_dataset(str(key), data=np.asarray(arr, dtype=float))
+    sub.attrs["packed"] = 1
+    ids = sorted(int(k) for k in data)
+    arrays = [np.asarray(data[k], dtype=float) for k in ids]
+    if any(a.ndim > _PACKED_NDIM for a in arrays):
+        raise ValueError(f"{name}: arrays of more than {_PACKED_NDIM} dimensions cannot be packed")
+    shapes = np.zeros((len(arrays), _PACKED_NDIM + 1), dtype=np.int64)
+    for i, a in enumerate(arrays):
+        shapes[i, 0] = a.ndim
+        shapes[i, 1 : 1 + a.ndim] = a.shape
+    sizes = np.array([a.size for a in arrays], dtype=np.int64)
+    offsets = np.concatenate([[0], np.cumsum(sizes)]).astype(np.int64)
+    values = np.concatenate([a.ravel() for a in arrays]) if arrays else np.empty(0)
+    sub.create_dataset("ids", data=np.asarray(ids, dtype=np.int64))
+    sub.create_dataset("offsets", data=offsets)
+    sub.create_dataset("shapes", data=shapes)
+    sub.create_dataset("values", data=values)
 
 
 def _read_int_dict(group: Any, name: str, keys: Any = None) -> dict[int, np.ndarray]:
-    """The arrays of ``group[name]`` by id; only those of ``keys`` when given (each array is its
-    own dataset, so reading a few of many is much faster than reading them all)."""
+    """The arrays of ``group[name]`` by id, in id order; only those of ``keys`` when given."""
     if name not in group:
         return {}
     sub = group[name]
-    if keys is not None:
-        return {int(k): sub[str(k)][()] for k in sorted({int(k) for k in keys}) if str(k) in sub}
-    return {int(k): sub[k][()] for k in sorted(sub.keys(), key=int)}
+    wanted = None if keys is None else {int(k) for k in keys}
+    if not sub.attrs.get("packed"):
+        # The earlier layout: one dataset per id.
+        if wanted is not None:
+            return {k: sub[str(k)][()] for k in sorted(wanted) if str(k) in sub}
+        return {int(k): sub[k][()] for k in sorted(sub.keys(), key=int)}
+    ids = sub["ids"][()]
+    offsets = sub["offsets"][()]
+    shapes = sub["shapes"][()]
+    values = sub["values"][()]
+    out: dict[int, np.ndarray] = {}
+    for i, key in enumerate(ids.tolist()):
+        if wanted is not None and key not in wanted:
+            continue
+        ndim = int(shapes[i, 0])
+        shape = tuple(int(d) for d in shapes[i, 1 : 1 + ndim])
+        out[key] = values[offsets[i] : offsets[i + 1]].reshape(shape)
+    return out
 
 
 def _mode_scalars(mode: ModeContribution) -> dict[str, Any]:
