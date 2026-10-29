@@ -1272,6 +1272,17 @@ def _derive_fem(
     def shells_of_source(source: str) -> list[_Shell]:
         return [shell for shell in b.shells if shell.source == source]
 
+    node_table: list[Any] = []
+
+    def nodes_on(p0: np.ndarray, p1: np.ndarray) -> list[int]:
+        """The nodes on the segment ``p0``-``p1`` (:func:`_on_segment`, for all nodes at once:
+        node by node, a 25-storey model's line loads made 58 million calls)."""
+        if not node_table or node_table[0] != len(b.coords):
+            ids = list(b.coords)
+            node_table[:] = [len(b.coords), ids, np.array([b.coords[n] for n in ids], dtype=float)]
+        _, ids, xyz = node_table
+        return [ids[k] for k in np.flatnonzero(_on_segment_mask(xyz, p0, p1))]
+
     def line_load(
         source: str,
         case: str,
@@ -1295,9 +1306,8 @@ def _derive_fem(
         axis = p1 - p0
         length = float(np.linalg.norm(axis))
         on_line = sorted(
-            (float((xyz - p0) @ axis) / length**2, node_id)
-            for node_id, xyz in b.coords.items()
-            if _on_segment(xyz, p0, p1)
+            (float((b.coords[node_id] - p0) @ axis) / length**2, node_id)
+            for node_id in nodes_on(p0, p1)
         )
         complete = bool(on_line) and on_line[0][0] < 1e-6 and on_line[-1][0] > 1 - 1e-6
         stage = stage_of(float(p0[2]))
@@ -3109,6 +3119,17 @@ def _on_segment(point: np.ndarray, a: np.ndarray, b: np.ndarray, tolerance: floa
     length2 = float(axis @ axis)
     t = float((point - a) @ axis / length2) if length2 else 0.0
     return -1e-6 <= t <= 1 + 1e-6 and float(np.linalg.norm(a + t * axis - point)) <= tolerance
+
+
+def _on_segment_mask(
+    points: np.ndarray, a: np.ndarray, b: np.ndarray, tolerance: float = 1e-3
+) -> np.ndarray:
+    """:func:`_on_segment` of each row of ``points``."""
+    axis = b - a
+    length2 = float(axis @ axis)
+    t = (points - a) @ axis / length2 if length2 else np.zeros(len(points))
+    gap = np.linalg.norm(a + t[:, None] * axis - points, axis=1)
+    return (t >= -1e-6) & (t <= 1 + 1e-6) & (gap <= tolerance)
 
 
 def _live_arrangements(

@@ -54,7 +54,7 @@ patternLive``).
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from saengine.design.slab import LINE_TOLERANCE  # one grid line: within 300 mm across
 
@@ -83,6 +83,8 @@ class Grid:
     xs: tuple[float, ...]
     ys: tuple[float, ...]
     levels: tuple[float, ...] = ()
+    #: :meth:`level` by elevation (each arrangement asks it again for every load).
+    _level_of: dict[float, int] = field(default_factory=dict, compare=False, repr=False)
 
     @classmethod
     def of(
@@ -105,7 +107,12 @@ class Grid:
             return 0
         if z is None:
             raise ValueError("the arrangement differs by floor: the load's elevation is needed")
-        return min(range(len(self.levels)), key=lambda k: abs(self.levels[k] - float(z)))
+        z = float(z)
+        found = self._level_of.get(z)
+        if found is None:
+            found = min(range(len(self.levels)), key=lambda k: abs(self.levels[k] - z))
+            self._level_of[z] = found
+        return found
 
     def lines(self, direction: str) -> tuple[float, ...]:
         return self.xs if direction == "X" else self.ys
