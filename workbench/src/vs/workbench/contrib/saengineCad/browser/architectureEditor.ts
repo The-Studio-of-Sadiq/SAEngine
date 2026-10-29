@@ -92,6 +92,17 @@ const PREVIEW_LAYERS: readonly CadLayerSpec[] = [
 const STRUCTURE_GREY = { dark: 251, light: 254 };
 const GRID_LAYERS: ReadonlySet<string> = new Set([FLOOR_PLAN_LAYERS.grid, FLOOR_PLAN_LAYERS.gridLabels]);
 
+/** The walls, doors, windows and rooms of a count, each "1 wall" or "3 walls". */
+function itemCounts(counts: { readonly walls?: number; readonly doors?: number; readonly windows?: number; readonly rooms?: number }): [string, string, string, string] {
+	const { walls = 0, doors = 0, windows = 0, rooms = 0 } = counts;
+	return [
+		walls === 1 ? localize('arch.oneWall', "1 wall") : localize('arch.nWalls', "{0} walls", walls),
+		doors === 1 ? localize('arch.oneDoor', "1 door") : localize('arch.nDoors', "{0} doors", doors),
+		windows === 1 ? localize('arch.oneWindow', "1 window") : localize('arch.nWindows', "{0} windows", windows),
+		rooms === 1 ? localize('arch.oneRoom', "1 room") : localize('arch.nRooms', "{0} rooms", rooms),
+	];
+}
+
 function parse(model: ITextModel | undefined): unknown {
 	try {
 		return model ? JSON.parse(model.getValue()) : undefined;
@@ -853,7 +864,7 @@ export class ArchitectureEditor extends EditorPane {
 		const story = this.story;
 		if (this.arch && story) {
 			const counts = storyCounts(this.arch, story, this.elevations());
-			parts.push(localize('arch.counts', "{0} walls, {1} doors, {2} windows, {3} rooms on this story", counts.walls, counts.doors, counts.windows, counts.rooms));
+			parts.push(localize('arch.counts', "{0}, {1}, {2}, {3} on this story", ...itemCounts(counts)));
 		}
 		const problems = this.drawing?.problems ?? [];
 		if (problems.length) {
@@ -1134,7 +1145,7 @@ export class ArchitectureEditor extends EditorPane {
 		this.write(parsed.value);
 		this.lastImport = { file: basename(source), summary: result.summary };
 		const { adopted, skipped } = result.summary;
-		const text = localize('arch.imported', "Adopted {0} walls, {1} doors, {2} windows and {3} rooms; {4} skipped.", adopted.walls ?? 0, adopted.doors ?? 0, adopted.windows ?? 0, adopted.rooms ?? 0, skipped.length);
+		const text = localize('arch.imported', "Adopted {0}, {1}, {2} and {3}; {4} skipped.", ...itemCounts(adopted), skipped.length);
 		this.setNotice(text);
 		this.selected = undefined;
 		this.renderProperties();
@@ -1241,8 +1252,8 @@ export class ArchitectureEditor extends EditorPane {
 		const { adopted, skipped, replaced } = result.summary;
 		const name = basename(source);
 		const text = replaced
-			? localize('arch.drawingReimported', "Adopted {0} walls, {1} doors, {2} windows and {3} rooms from {4}, replacing its earlier import; {5} skipped.", adopted.walls ?? 0, adopted.doors ?? 0, adopted.windows ?? 0, adopted.rooms ?? 0, name, skipped.length)
-			: localize('arch.drawingImported', "Adopted {0} walls, {1} doors, {2} windows and {3} rooms from {4}; {5} skipped.", adopted.walls ?? 0, adopted.doors ?? 0, adopted.windows ?? 0, adopted.rooms ?? 0, name, skipped.length);
+			? localize('arch.drawingReimported', "Adopted {0}, {1}, {2} and {3} from {4}, replacing its earlier import; {5} skipped.", ...itemCounts(adopted), name, skipped.length)
+			: localize('arch.drawingImported', "Adopted {0}, {1}, {2} and {3} from {4}; {5} skipped.", ...itemCounts(adopted), name, skipped.length);
 		this.setNotice(text);
 		this.renderProperties();
 		this.frame.setPropertiesVisible(true);
