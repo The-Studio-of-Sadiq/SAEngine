@@ -166,6 +166,7 @@ class OpenSeesRunner:
             import openseespy.opensees as ops_module  # local import for testability
         self._ops = ops_module
         self._on_progress = on_progress
+        self._linear_model: bool | None = None
         self.project = project
         self._dof_idx: tuple[int, ...] = _dof_indices(project.ndm, project.ndf)
         self._solid_twin: dict[int, int] = {}
@@ -1366,6 +1367,104 @@ class OpenSeesRunner:
             node_reaction=node_reaction,
             element_forces=element_forces,
             element_deformations=element_deformations,
+            shell_forces=shell_forces,
+        )
+
+    # ─────────────────────── linear static batch ───────────────────────
+    def batch_key(self, case: Any) -> tuple[Any, ...] | None:
+        """The solver settings a linear static case shares with the cases it may run with in one
+        model (:meth:`start_static_batch`), or None when it runs alone: a preload, several steps,
+        an algorithm other than Linear, released diaphragms, section overrides, a load factor at
+        the step other than 1, or a model that is not linear."""
+        if not isinstance(case, StaticCase):
+            return None
+        if (
+            case.preload_case_ids
+            or case.section_overrides
+            or case.n_steps != 1
+            or case.algorithm != "Linear"
+            or case.algorithm_args
+            or case.integrator != "LoadControl"
+            or case.load_factor_increment != 1.0
+        ):
+            return None
+        if case.release_diaphragms and any(
+            isinstance(mp, RigidDiaphragmConstraint) for mp in self.project.mp_constraints
+        ):
+            return None
+        series = {ts.id: ts for ts in self.project.time_series}
+        patterns = {p.id: p for p in self.project.load_patterns}
+        for pid in case.pattern_ids:
+            pattern = patterns.get(pid)
+            if not isinstance(pattern, PlainLoadPattern):
+                return None
+            ts = series.get(pattern.time_series_id)
+            if not isinstance(ts, LinearTimeSeries | ConstantTimeSeries) or ts.factor != 1.0:
+                return None
+        if self._linear_model is None:
+            self._linear_model = not self._nonlinear_parts({el.id for el in self.project.elements})
+        if not self._linear_model:
+            return None
+        return (
+            case.system,
+            tuple(case.system_args),
+            case.numberer,
+            case.constraints,
+            case.test,
+            case.tolerance,
+            case.max_iter,
+        )
+
+    def start_static_batch(self, cases: list[StaticCase]) -> None:
+        """Build the model once for linear static cases of one :meth:`batch_key`, run one after
+        the other by :meth:`next_static_batch_case`. Each case's patterns get their own copies
+        on a series that is 1 at the case's step and 0 at every other, and the stiffness is
+        factored once (``Linear -factorOnce``): on a 25-storey model a case took 7 s alone, as
+        each built the model and factored the same stiffness again."""
+        for case in cases:
+            self.project.validate_case_references(case)
+        self.build()
+        self._check_dof_coverage()
+        ops = self._ops
+        patterns = {p.id: p for p in self.project.load_patterns}
+        series = 1 + max([ts.id for ts in self.project.time_series] + [0])
+        tag = 1 + max([p.id for p in self.project.load_patterns] + [0])
+        for step, case in enumerate(cases, start=1):
+            ops.timeSeries(
+                "Path", series, "-time", step - 1, step, step + 1, "-values", 0.0, 1.0, 0.0
+            )
+            for pid in case.pattern_ids:
+                copy = patterns[pid].model_copy(update={"id": tag, "time_series_id": series})
+                self._emit_pattern(copy)
+                tag += 1
+            series += 1
+        self._setup_analysis(cases[0])
+        ops.algorithm("Linear", "-factorOnce")
+
+    def next_static_batch_case(self, case: StaticCase) -> StaticResults:
+        """The results of the next case of the batch (:meth:`start_static_batch`, same order)."""
+        ops = self._ops
+        status = ops.analyze(1)
+        if status != 0:
+            raise RuntimeError(
+                f"Static analysis failed at step 1/1 (ops.analyze returned {status})."
+            )
+        links = [el for el in self.project.elements if isinstance(el, TwoNodeLinkElement)]
+        shells = [el for el in self.project.elements if isinstance(el, ShellElement)]
+        disp, reaction, forces, deformations, shell_forces = (
+            {tag: values[None, :].copy() for tag, values in part.items()}
+            for part in self._read_state(links, shells)
+        )
+        self._progress(1, 1)
+        return StaticResults(
+            case_id=case.id,
+            case_name=case.name,
+            n_steps=1,
+            load_factors=np.array([1.0]),
+            node_disp=disp,
+            node_reaction=reaction,
+            element_forces=forces,
+            element_deformations=deformations,
             shell_forces=shell_forces,
         )
 

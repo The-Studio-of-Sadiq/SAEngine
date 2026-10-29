@@ -279,7 +279,47 @@ def main(argv: list[str] | None = None) -> int:
     entries: list[dict[str, Any]] = []
     eigen_called = False
     protocol.log(f"Building model: {len(project.nodes)} nodes, {len(project.elements)} elements.")
-    for case in cases:
+    planner = OpenSeesRunner(project)
+    keys = [planner.batch_key(case) for case in cases]
+    batch: OpenSeesRunner | None = None
+    for k, case in enumerate(cases):
+        key = keys[k]
+        together = key is not None and (
+            (k > 0 and keys[k - 1] == key) or (k + 1 < len(keys) and keys[k + 1] == key)
+        )
+        if together:
+            # Linear static cases of one solver setting: one model, the stiffness factored once.
+            protocol.emit(
+                type="case_started",
+                case_id=case.id,
+                case_type=type(case).__name__,
+                case_name=case.name,
+            )
+            protocol.log(f"Running case '{case.name}' ({type(case).__name__}) ...")
+            try:
+                if batch is None:
+                    end = k
+                    while end < len(cases) and keys[end] == key:
+                        end += 1
+                    batch = OpenSeesRunner(project)
+                    batch.start_static_batch(cases[k:end])
+                batch._on_progress = _throttled(protocol, case.id)
+                results = batch.next_static_batch_case(case)
+                if k + 1 == len(cases) or keys[k + 1] != key:
+                    batch = None  # the run of cases ends here
+                entry = write_results(results, out_dir)
+            except Exception as exc:
+                protocol.emit(type="error", message=str(exc), traceback=traceback.format_exc())
+                write_manifest(out_dir, entries, str(args.project))
+                return EXIT_ANALYSIS_ERROR
+            entries.append(entry)
+            for warning in entry["warnings"]:
+                protocol.log(f"Warning: {warning}")
+            protocol.log("Analysis complete.")
+            protocol.emit(type="case_finished", **entry)
+            continue
+        batch = None
+
         if eigen_called and _routed_to_arpack(project, case):
             entry, code = _run_in_fresh_process(protocol, args, case)
             if entry is None:
