@@ -1699,6 +1699,11 @@ def _demands(
             "displacements": {c: displacements[c] for c in SERVICE_CASES if c in displacements},
         }
 
+    # Each combination of all the elements of one shape at once: the same sums element by
+    # element, in the same order (sum over the factors), on stacked arrays.
+    forces_of = _combined_stacks(by_case, [e.id for e in elements], factors_of)
+    sway_of = _combined_stacks(by_case, [e.id for e in elements], lateral, parts=True)
+    sustained_of = _combined_stacks(by_case, [e.id for e in elements], sustained, parts=True)
     pieces: dict[str, list[_Piece]] = {}
     for e in elements:
         a, b = coords[e.i], coords[e.j]
@@ -1711,23 +1716,16 @@ def _demands(
                 length=e.length,
                 depth_along_z=not vertical,  # quarter turns are applied by the caller
                 axes=e.axes,
-                forces=[
-                    sum(f * by_case[case][e.id] for case, f in factors.items())
-                    for factors in factors_of
-                ],
+                forces=forces_of[e.id],
                 start=a,
                 end=b,
-                sway=[_part(by_case, e.id, part) for part in lateral],
-                sustained=[_part(by_case, e.id, part) for part in sustained],
+                sway=sway_of[e.id],
+                sustained=sustained_of[e.id],
             )
         )
 
     # Shells: N11 ... Q23 at each integration point of the last step, per combination.
-    shells: dict[int, list[np.ndarray]] = {}
-    for i in shell_ids:
-        shells[i] = [
-            sum(f * shell_case[case][i] for case, f in factors.items()) for factors in factors_of
-        ]
+    shells: dict[int, list[np.ndarray]] = _combined_stacks(shell_case, shell_ids, factors_of)
     if extra is not None:
         # The shells' lateral parts, for the walls' share of the storey shear (slenderness).
         extra["shellSway"] = {
@@ -1741,6 +1739,57 @@ def _demands(
             for i in shell_ids
         }
     return names, pieces, notes, shells
+
+
+def _combined_stacks(
+    by_case: dict[str, dict[int, np.ndarray]],
+    ids: list[int],
+    factors_of: list[dict[str, float]],
+    parts: bool = False,
+) -> dict[int, list[Any]]:
+    """Per id its forces under each combination's ``factors``: ``sum(f * by_case[case][id])``
+    over them, or with ``parts`` :func:`_part`'s sum (the first term to start, zeros for
+    none). The ids whose arrays agree in shape and type in every case are stacked and worked
+    out together, element by element the same operations in the same order; the rest one by
+    one."""
+    out: dict[int, list[Any]] = {}
+    groups: dict[tuple[Any, ...], list[int]] = {}
+    cases = list(by_case.values())
+    for i in ids:
+        first = cases[0].get(i) if cases else None
+        key = (first.shape, first.dtype) if isinstance(first, np.ndarray) else None
+        if key is not None and all(
+            isinstance(c.get(i), np.ndarray) and (c[i].shape, c[i].dtype) == key for c in cases
+        ):
+            groups.setdefault(key, []).append(i)
+        else:
+            out[i] = [
+                _part(by_case, i, factors)
+                if parts
+                else sum(f * by_case[case][i] for case, f in factors.items())
+                for factors in factors_of
+            ]
+    for (shape, dtype), members in groups.items():
+        stacked: dict[str, np.ndarray] = {}
+
+        def stack(case: str, members: list[int] = members) -> np.ndarray:
+            if case not in stacked:
+                stacked[case] = np.stack([by_case[case][i] for i in members])
+            return stacked[case]
+
+        rows: list[list[Any]] = [[] for _ in members]
+        for factors in factors_of:
+            if parts:
+                found = [f * stack(case) for case, f in factors.items() if case in by_case]
+                total: Any = (
+                    sum(found[1:], found[0]) if found else np.zeros((len(members), *shape))
+                )
+            else:
+                total = sum(f * stack(case) for case, f in factors.items())
+            for k, row in enumerate(rows):
+                row.append(total[k] if isinstance(total, np.ndarray) else total)
+        out.update(zip(members, rows, strict=True))
+    return out
 
 
 def _shells_of(project: dict[str, Any], ids: set[str]) -> set[int]:
