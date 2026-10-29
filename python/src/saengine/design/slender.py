@@ -1484,7 +1484,8 @@ class SlenderContext:
                 # effect: Pc with the cantilever's k, Cm = 1.0, the sway limit of 22.
                 k_auto, k_note = seg.k_s, FREE_END_NOTE
             elif sway_storey and seg.k_s is not None:
-                k_auto = seg.k_s
+                # Overwritten as sway with a free end: the cantilever's k, said so.
+                k_auto, k_note = seg.k_s, UNFRAMED_SWAY_NOTE if seg.free else ""
             elif sway_storey:
                 # Overwritten as sway, an end not framed by beams in this direction: no
                 # alignment chart k; the cantilever's (fixed at one end, free to sway at the

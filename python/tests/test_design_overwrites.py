@@ -190,20 +190,22 @@ def _free_top(overwrites: dict, piece: _Piece):
 
 
 def test_sway_overwrite_of_an_unframed_column_takes_the_cantilever_k() -> None:
-    # Overwritten as sway, an unframed column takes k = 2 (the cantilever's, the least for a
-    # sway column with a free end), not the nonsway k = 1, and says so.
+    # Overwritten as sway, an unframed column takes the cantilever's k (the sway chart's with
+    # psi infinite at its free end), not the nonsway k = 1, and says so.
     total = [_rows(-3e6, 60e3, 100e3)]
     stub = _piece(4.0, total, [np.zeros((STATIONS, 6))], [_rows(-1.5e6, 0, 0)])
+    # Not overwritten, its free top already makes it a cantilever: k_sway(psi 1 at the base, inf).
     plain = _about_y(_free_top({}, stub).column("C1", SECTION, [stub], False, EC))
-    assert plain.check["slenderness"]["k"] == 1.0 and plain.check["slenderness"]["kSway"] is None
+    assert plain.check["slenderness"]["k"] == pytest.approx(2.321, abs=1e-3)
+    assert plain.check["slenderness"]["kNonsway"] == 1.0
     forced = {"C1": ow.resolve(None, {"designOverwrites": {"framing": "sway"}})}
     axis = _about_y(_free_top(forced, stub).column("C1", SECTION, [stub], False, EC))
     s = axis.check["slenderness"]
-    assert s["sway"] is True and s["k"] == 2.0
-    assert s["klu_r"] == pytest.approx(2.0 * 4000 / 150, rel=1e-3)  # 53.3 > 22: slender
+    assert s["sway"] is True and s["k"] == pytest.approx(2.321, abs=1e-3)
+    assert s["klu_r"] == pytest.approx(2.321 * 4000 / 150, rel=1e-3)  # 61.9 > 22: slender
     assert not s["neglected"]
     note = axis.check["note"]
-    assert "k = 2.00 (sway, an end not framed: the cantilever's k" in note
+    assert "k = 2.32 (sway, an end not framed: the cantilever's k" in note
     assert "designed as sway (type overwrite)" in note and "give δs" in note
     # A k given wins, without the note; a δs given is used.
     given = {
