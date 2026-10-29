@@ -884,9 +884,14 @@ def test_identical_beams_of_typical_floors_share_one_elevation() -> None:
     sheet.view(spec, *sheet.area[:2])
     texts = " ".join(_texts(sheet.doc))
     assert "B20" in texts  # every mark is listed on the elevation
-
-
-# ─────────────────────────────── labels ───────────────────────────────
+    # Members come in id order (L10 before L7): the title runs bottom up by elevation.
+    beams = []
+    for n in (10, 7, 8, 9):
+        b = _beam()
+        b.mark, b.members, b.level = f"B-L{n}", [f"B-L{n}"], f"Level {n}"
+        beams.append(b)
+    order = {f"Level {n}": 3200.0 * n for n in range(1, 11)}
+    assert merge_beams(beams, order)[0].level == "Level 7 to Level 10, 4 levels"
 
 
 def test_labels_keep_off_lines_and_leaders_off_texts() -> None:

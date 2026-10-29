@@ -386,17 +386,21 @@ def _join(items: list[str]) -> str:
     return ", ".join(seen)
 
 
-def levels_text(names: list[str], most: int = 3) -> str:
-    """Level names for a title: all of them, or the first and last and how many."""
+def levels_text(names: list[str], most: int = 3, order: dict[str, float] | None = None) -> str:
+    """Level names for a title: all of them, or the first and last and how many; bottom up by
+    their elevations in ``order`` when given (the members come in id order: L10 before L7)."""
     names = [n for i, n in enumerate(names) if n and n not in names[:i]]
+    if order:
+        names.sort(key=lambda n: order.get(n, math.inf))
     if len(names) <= most:
         return ", ".join(names)
     return f"{names[0]} to {names[-1]}, {len(names)} levels"
 
 
-def merge_beams(beams: list[BeamDetail]) -> list[BeamDetail]:
+def merge_beams(beams: list[BeamDetail], order: dict[str, float] | None = None) -> list[BeamDetail]:
     """Beam lines with the same bars, links and supports drawn once, with all their marks and
-    levels (identical beams of typical floors share one elevation)."""
+    levels (identical beams of typical floors share one elevation), the levels bottom up by
+    their elevations in ``order``."""
     out: dict[tuple, tuple[BeamDetail, list[str], list[str]]] = {}
     for beam in beams:
         key = _beam_signature(beam)
@@ -410,7 +414,7 @@ def merge_beams(beams: list[BeamDetail]) -> list[BeamDetail]:
     merged = []
     for beam, marks, levels in out.values():
         beam.mark = _join(marks)
-        beam.level = levels_text(levels)
+        beam.level = levels_text(levels, order=order)
         merged.append(beam)
     return merged
 
@@ -1073,7 +1077,7 @@ def fill_from_detailing(
             else 2
         )
         beams.append(beam_detail(e, lv.name if lv else "", slab, legs))
-    data.beams = merge_beams(beams)
+    data.beams = merge_beams(beams, {lv.name: lv.elevation for lv in data.building.levels})
     slabs_by_id = {s.id: s for s in data.building.slabs}
     slab_elements = [e for e in elements if e.get("kind") == "slab"]
     openings: dict[str, list[list[tuple]]] = {}
