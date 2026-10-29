@@ -693,6 +693,22 @@ class SeismicForces:
     loads: dict[str, list[dict[int, np.ndarray]]] = field(default_factory=dict)
     heights: dict[int, float] = field(default_factory=dict)  # node -> z [m]
     _cache: dict[tuple[str, str, int], dict[str, np.ndarray]] = field(default_factory=dict)
+    #: R part -> (node heights [m], per mode its loads [N, (nodes, 3)]), stacked once.
+    _stacked: dict[str, tuple[np.ndarray, list[np.ndarray]]] = field(default_factory=dict)
+    _shears: dict[float, dict[str, np.ndarray]] = field(default_factory=dict)
+
+    def _loads_of(self, part: str) -> tuple[np.ndarray, list[np.ndarray]]:
+        """The modes' lateral loads of an R part as arrays over its nodes (in a fixed order),
+        with the nodes' heights: a storey cut is then a mask, not a loop over every node."""
+        found = self._stacked.get(part)
+        if found is None:
+            modes = self.loads[part]
+            nodes = sorted({n for mode in modes for n in mode})
+            heights = np.array([self.heights.get(n, -np.inf) for n in nodes])
+            zero = np.zeros(3)
+            loads = [np.array([mode.get(n, zero) for n in nodes]).reshape(-1, 3) for mode in modes]
+            found = self._stacked[part] = (heights, loads)
+        return found
 
     def storey_shear(self, cut: float) -> dict[str, np.ndarray]:
         """The scaled response spectrum storey shear [N, global X Y Z, ≥ 0] at the height
@@ -701,22 +717,21 @@ class SeismicForces:
         responses. The peak of the sum, not the sum of the members' peaks, so it matches the
         combined drift of the storey (for its stability index Q). The torsion cases add no
         storey shear (moments only)."""
+        if cut in self._shears:
+            return dict(self._shears[cut])
         out: dict[str, np.ndarray] = {}
-        for part, modes in self.loads.items():
+        for part in self.loads:
             if part not in self.rules:
                 continue
             rule, damping, omegas = self.rules[part]
-            rows = [
-                sum(
-                    (f for n, f in mode.items() if self.heights.get(n, -np.inf) > cut),
-                    np.zeros(3),
-                )
-                for mode in modes
-            ]
+            heights, loads = self._loads_of(part)
+            above = heights > cut
+            rows = [mode[above].sum(axis=0) for mode in loads]
             out[part] = self.scale[part[1]] * combine(
                 np.array(rows).reshape(-1, 3), omegas, damping, rule
             )
-        return out
+        self._shears[cut] = out
+        return dict(out)
 
     @property
     def parts(self) -> list[str]:
