@@ -6,15 +6,20 @@ from __future__ import annotations
 
 import json
 import math
+from itertools import combinations, product
 
 import numpy as np
 import pytest
+from ezdxf import bbox
 
 from saengine.drawings.sheets import DrawingSettings, build_sheets
 from saengine.drawings.sheets.model import (
     Building,
     DrawingSet,
+    Grid,
+    Level,
     PileGridPlan,
+    PlanColumn,
     PlanFooting,
     PlanPile,
 )
@@ -179,3 +184,69 @@ def test_pile_layout_plan_and_cap_schedule() -> None:
     texts = {e.dxf.text for e in plan.doc.modelspace().query("TEXT MTEXT") if e.dxftype() == "TEXT"}
     assert {"PL1", "PL5", "PC1"} <= texts
     assert math.isfinite(spec.scale)
+
+
+def _grid_on_piles(rotation: float) -> Building:
+    """Grids A-D (6 m) by 1-3 (5 m), a 400 mm column on each crossing on a four-pile cap, and a
+    pile grid through the piles (lines 750 mm either side of the building's), turned by
+    ``rotation`` about its origin."""
+    xs, ys = [0.0, 6000.0, 12000.0, 18000.0], [0.0, 5000.0, 10000.0]
+    building = Building(
+        grids_x=[Grid(c, x) for c, x in zip("ABCD", xs, strict=True)],
+        grids_y=[Grid(str(i + 1), y) for i, y in enumerate(ys)],
+        levels=[Level("GF", "GF", 0.0), Level("L1", "L1", 3000.0)],
+        pile_grid=PileGridPlan(
+            (-750.0, -750.0),
+            rotation,
+            [Grid(c, x + d + 750) for c, (x, d) in zip("abcdefgh", product(xs, (-750, 750)))],
+            [Grid(f"p{i + 1}", y + d + 750) for i, (y, d) in enumerate(product(ys, (-750, 750)))],
+        ),
+    )
+    for x, y in product(xs, ys):
+        cap = f"PC{len(building.footings) + 1}"
+        building.columns.append(PlanColumn(cap, "C", x, y, -1500.0, 3000.0, 400.0, 400.0))
+        piles = [((x + dx, y + dy), 500.0) for dx, dy in product((-750, 750), (-750, 750))]
+        outline = [(x - 1150, y - 1150), (x + 1150, y - 1150), (x + 1150, y + 1150),
+                   (x - 1150, y + 1150)]  # fmt: skip
+        building.footings.append(PlanFooting(cap, cap, outline, -600.0, piles))
+        building.piles += [
+            PlanPile(f"PL{len(building.piles) + 1}", c, 500.0, cap) for c, _ in piles
+        ]
+    return building
+
+
+@pytest.mark.parametrize("rotation", [0.0, 10.0, 30.0])
+def test_pile_grid_labels_clear_of_building_grid(rotation: float) -> None:
+    """On the pile layout plan the pile grid's labels (its bubbles and their letters, the text
+    of its chain) keep 5 mm of paper from the building grid's bubbles, its bubbles keep clear of
+    one another and of every other text (the view's title, the marks, the building's chains),
+    whether the pile grid is square to the building or turned."""
+    sheets = build_sheets(DrawingSet(building=_grid_on_piles(rotation)), DrawingSettings())
+    plan = next(s for s in sheets if any(v.spec.title == "Pile layout plan" for v in s.views))
+    msp = plan.doc.modelspace()
+
+    def box(e) -> tuple[float, float, float, float]:
+        b = bbox.extents([e])
+        return (b.extmin.x, b.extmin.y, b.extmax.x, b.extmax.y)
+
+    def gap(a, b) -> float:  # paper mm between two boxes, 0 where they overlap
+        dx, dy = max(a[0] - b[2], b[0] - a[2], 0), max(a[1] - b[3], b[1] - a[3], 0)
+        return math.hypot(dx, dy) / plan.scale
+
+    main = [box(e) for e in msp.query('CIRCLE TEXT[layer=="S-GRID-BUBBLE"]')]
+    bubbles = [box(e) for e in msp.query('CIRCLE TEXT[layer=="S-PILE-GRID"]')]
+    assert len(main) == 2 * (4 * 2 + 3 * 2) and len(bubbles) == 2 * (8 + 6)
+    # The chains beyond the building's bubbles (top and right) are the pile grid's.
+    top, right = max(b[3] for b in main), max(b[2] for b in main)
+    chain, other = [], []
+    for d in msp.query("DIMENSION"):
+        texts = [box(v) for v in d.virtual_entities() if v.dxftype() in ("TEXT", "MTEXT")]
+        pile = d.dxf.defpoint.y > top or d.dxf.defpoint.x > right
+        (chain if pile else other).extend(texts)
+    if rotation == 0:
+        assert len(chain) == 7 + 5
+    other += [box(e) for e in msp.query("TEXT MTEXT") if e.dxf.layer != "S-PILE-GRID"]
+    assert min(gap(a, b) for a in bubbles + chain for b in main) >= 5.0
+    assert min(gap(a, b) for a in bubbles for b in other) >= 1.0
+    circles = [box(e) for e in msp.query('CIRCLE[layer=="S-PILE-GRID"]')]
+    assert min(gap(a, b) for a, b in combinations(circles, 2)) >= 1.0

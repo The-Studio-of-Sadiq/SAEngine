@@ -361,54 +361,97 @@ def foundation_plan(building: Building, scale: float = 100) -> ViewSpec | None:
     )
 
 
+PILE_BUBBLE = BUBBLE * 0.8  # paper mm radius of a pile grid bubble (smaller than the building's)
+PILE_GAP = 1.5  # paper mm kept between pile grid bubbles
+PILE_ROWS = 3  # rows a pile grid bubble may step out to when its neighbour is in the way
+# The pile grid's chains (top and right) run past the building grid's bubbles, and its lines end
+# on a ring (left, bottom, right, top; paper mm from the plan) past everything the building grid
+# draws there: its bubbles all round, its chains at the bottom and left, the pile chains.
+PILE_CHAIN = EXTEND + 2 * BUBBLE + 10
+PILE_RING = (DIM_2 + 8, DIM_2 + 8, PILE_CHAIN + 8, PILE_CHAIN + 8)
+PILE_PAD = tuple(ring + PILE_ROWS * (2 * PILE_BUBBLE + PILE_GAP) + 3 for ring in PILE_RING)
+
+
+def _line_through(
+    p: Point, d: Point, rect: tuple[float, float, float, float]
+) -> tuple[float, float] | None:
+    """The parameters (t_in, t_out) where the line p + t d crosses ``rect``; None if it misses."""
+    lo, hi = -math.inf, math.inf
+    for k in (0, 1):
+        if abs(d[k]) < 1e-12:
+            if not rect[k] <= p[k] <= rect[k + 2]:
+                return None
+            continue
+        a, b = (rect[k] - p[k]) / d[k], (rect[k + 2] - p[k]) / d[k]
+        lo, hi = max(lo, min(a, b)), min(hi, max(a, b))
+    return (lo, hi) if lo <= hi else None
+
+
+def pile_grid_bubbles(
+    building: Building, bbox: tuple[float, float, float, float], scale: float
+) -> list[tuple[str, Point, Point, Point]]:
+    """Where the pile grid's lines and bubbles go: per line its label, the bubble's centre and
+    the line's two ends (real mm). The x lines' bubbles are at their low end (the bottom), the y
+    lines' at their high end (the right), on :data:`PILE_RING` past the building grid's bubbles
+    and chains, so the two grids' labels never meet; a bubble that would touch one placed before
+    steps out along its line by a bubble, up to :data:`PILE_ROWS` rows."""
+    g = building.pile_grid
+    if g is None:
+        return []
+    x0, y0, x1, y1 = bbox
+    e = EXTEND * scale
+    r = PILE_BUBBLE * scale
+    step = (2 * PILE_BUBBLE + PILE_GAP) * scale
+    near = (x0 - e, y0 - e, x1 + e, y1 + e)
+    ring = (
+        x0 - PILE_RING[0] * scale, y0 - PILE_RING[1] * scale,
+        x1 + PILE_RING[2] * scale, y1 + PILE_RING[3] * scale,
+    )  # fmt: skip
+    a = math.radians(g.rotation)
+    u, v = (math.cos(a), math.sin(a)), (-math.sin(a), math.cos(a))
+    placed: list[tuple[str, Point, Point, Point]] = []
+    for lines, d, sign in ((g.x, v, -1), (g.y, u, 1)):
+        for line in lines:
+            p = g.point(line.position, 0) if sign < 0 else g.point(0, line.position)
+            far, inner = _line_through(p, d, ring), _line_through(p, d, near)
+            if far is None:
+                continue
+            # the bubble end on the ring, the other just past the plan
+            t_end = far[0] if sign < 0 else far[1]
+            t_other = (inner or far)[1] if sign < 0 else (inner or far)[0]
+            for row in range(PILE_ROWS):
+                t = t_end + sign * row * step
+                c = (p[0] + d[0] * (t + sign * r), p[1] + d[1] * (t + sign * r))
+                clear = all(math.dist(c, q[1]) >= 2 * r + PILE_GAP * scale for q in placed)
+                if clear:
+                    break
+            end = (p[0] + d[0] * t, p[1] + d[1] * t)
+            other = (p[0] + d[0] * t_other, p[1] + d[1] * t_other)
+            placed.append((line.label, c, end, other))
+    return placed
+
+
 def pile_grid(view: View, building: Building, bbox: tuple[float, float, float, float]) -> None:
-    """The pile grid: centre lines across the plan with their labels in bubbles beyond the
-    building grid's (x lines at the bottom, y lines at the right; on its own layer), and the chain
-    of its spacings."""
+    """The pile grid: centre lines across the plan with their labels in smaller bubbles of its
+    own layer, on a ring past the building grid's bubbles and chains (see
+    :func:`pile_grid_bubbles`), and the chain of its spacings."""
     g = building.pile_grid
     if g is None:
         return
-    x0, y0, x1, y1 = bbox
-    # The bubbles go past the building grid's bubbles and chain dimensions (x lines, at the
-    # bottom) and past the pile grid's own chain (y lines, at the right).
-    e = view.real(EXTEND)
-    e_x = view.real(DIM_2 + 8)
-    e_y = view.real(DIM_1 + 8)
-    r = view.real(BUBBLE * 0.8)
-    a = math.radians(g.rotation)
-    ux, uy = math.cos(a), math.sin(a)
-    corners = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
-    # The local extent of the plan, so that the lines cross all of it.
-    local = [
-        ((px - g.origin[0]) * ux + (py - g.origin[1]) * uy,
-         -(px - g.origin[0]) * uy + (py - g.origin[1]) * ux)
-        for px, py in corners
-    ]  # fmt: skip
-    lo_u, hi_u = min(p[0] for p in local) - e, max(p[0] for p in local) + e_y
-    lo_v, hi_v = min(p[1] for p in local) - e_x, max(p[1] for p in local) + e
-    for line in g.x:
-        ends = [g.point(line.position, lo_v), g.point(line.position, hi_v)]
-        view.line(ends[0], ends[1], "S-PILE-GRID")
-        for end, sign in ((ends[0], -1),):
-            c = (end[0] - sign * uy * r, end[1] + sign * ux * r)
-            view.circle(c, r, "S-PILE-GRID")
-            view.reserve([(c[0] - r, c[1] - r), (c[0] + r, c[1] + r)])
-            view.text(line.label, c, TEXT, "MC", "S-PILE-GRID")
-    for line in g.y:
-        ends = [g.point(lo_u, line.position), g.point(hi_u, line.position)]
-        view.line(ends[0], ends[1], "S-PILE-GRID")
-        for end, sign in ((ends[1], 1),):
-            c = (end[0] + sign * ux * r, end[1] + sign * uy * r)
-            view.circle(c, r, "S-PILE-GRID")
-            view.reserve([(c[0] - r, c[1] - r), (c[0] + r, c[1] + r)])
-            view.text(line.label, c, TEXT, "MC", "S-PILE-GRID")
+    _, _, x1, y1 = bbox
+    r = view.real(PILE_BUBBLE)
+    for label, c, end, other in pile_grid_bubbles(building, bbox, view.scale):
+        view.line(other, end, "S-PILE-GRID")
+        view.circle(c, r, "S-PILE-GRID")
+        view.reserve([(c[0] - r, c[1] - r), (c[0] + r, c[1] + r)])
+        view.text(label, c, TEXT, "MC", "S-PILE-GRID")
     if abs(g.rotation) < 1e-6:
         xs = sorted({g.origin[0] + line.position for line in g.x})
         ys = sorted({g.origin[1] + line.position for line in g.y})
         if len(xs) > 1:
-            view.chain([(x, y1) for x in xs], DIM_1)
+            view.chain([(x, y1) for x in xs], PILE_CHAIN)
         if len(ys) > 1:
-            view.chain([(x1, y) for y in ys], -DIM_1, angle=90)
+            view.chain([(x1, y) for y in ys], -PILE_CHAIN, angle=90)
 
 
 def pile_layout_plan(building: Building, scale: float = 100) -> ViewSpec | None:
@@ -463,7 +506,7 @@ def pile_layout_plan(building: Building, scale: float = 100) -> ViewSpec | None:
         scale=scale,
         bbox=bbox,
         draw=draw,
-        pad=tuple(v + 2 * BUBBLE + 14 for v in _pad()),
+        pad=PILE_PAD,
         key="plan:piles",
     )
 
