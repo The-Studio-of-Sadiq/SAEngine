@@ -20,10 +20,14 @@ puts the top bars in tension (hogging) and negative My the bottom bars (sagging)
 
 from __future__ import annotations
 
+import contextvars
+import copy
 import dataclasses
 import itertools
 import json
 import math
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -217,6 +221,49 @@ def ensure_seismic_design(
 #: Why the response spectrum design could not be run, by results folder (for the notes).
 _SEISMIC_PROBLEMS: dict[str, str] = {}
 
+_SHARED: contextvars.ContextVar[dict[Any, Any] | None] = contextvars.ContextVar(
+    "shared_demands", default=None
+)
+
+
+def _shared_copy(value: Any) -> Any:
+    """A copy of the demands :func:`shared_demands` keeps: new containers and pieces, the
+    arrays shared and made read-only (the checks replace a combination's array, never write
+    into one; a write would raise rather than change the other call's forces)."""
+    if isinstance(value, np.ndarray):
+        value.setflags(write=False)
+        return value
+    if isinstance(value, dict):
+        return {k: _shared_copy(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_shared_copy(v) for v in value]
+    if isinstance(value, tuple):
+        return tuple(_shared_copy(v) for v in value)
+    if isinstance(value, _Piece):
+        piece = copy.copy(value)
+        for f in dataclasses.fields(piece):
+            setattr(piece, f.name, _shared_copy(getattr(value, f.name)))
+        return piece
+    if isinstance(value, (str, int, float, bool, type(None))):
+        return value
+    return copy.deepcopy(value)
+
+
+@contextmanager
+def shared_demands() -> Iterator[None]:
+    """Within it, :func:`design` calls on the same results folder and combinations work out the
+    combined forces once (they do not depend on the bars: the design checks with assumed bars and
+    the report without them, :mod:`saengine.pipeline.design_mode`). Only for calls between
+    which the model and the results do not change; nested, the outer one is used."""
+    if _SHARED.get() is not None:
+        yield
+        return
+    token = _SHARED.set({})
+    try:
+        yield
+    finally:
+        _SHARED.reset(token)
+
 
 @code_context.in_project_pack(path_params=("out_dir",))
 def design(
@@ -327,57 +374,77 @@ def design(
         formed = by_pattern
     if len(formed) != len(with_omega.combinations):
         with_omega = with_omega.model_copy(update={"combinations": formed})
-    static: dict[str, Any] = {}
-    if seismic_design.design_uses_spectrum(settings):
-
-        def static_demands(
-            project: dict[str, Any], out_dir: str | Path, settings: Any, inner: Any = None
-        ) -> Any:
-            found = _demands(project, out_dir, settings, inner)
-            static.update(
-                names=list(found[0]),
-                shells={i: list(rows) for i, rows in found[3].items()},
-                inner=inner if inner is not None else {},
-            )
-            return found
-
-        summary = None
-        if omega_elements:
-            summary = seismic_design.load_summary(out_dir)
-            if summary and summary.get("combinations"):
-                summary = {
-                    **summary,
-                    "combinations": summary["combinations"]
-                    + seismic_rules.omega_rs_combinations(summary["combinations"], resolved),
-                }
-        combinations, pieces, notes, shell_forces = seismic_design.design_demands(
-            project, out_dir, with_omega, extra, summary=summary, base=static_demands
+    # The forces do not depend on the bars: design() calls within shared_demands() on the
+    # same results and combinations (the checks with and without assumed bars) work them
+    # out once.
+    share = _SHARED.get()
+    key = (
+        (str(Path(out_dir).resolve()), with_omega.model_dump_json(), tuple(sorted(omega_elements)))
+        if share is not None
+        else None
+    )
+    if share is not None and key in share:
+        combinations, pieces, notes, shell_forces, extra, static, with_omega = _shared_copy(
+            share[key]
         )
-        if "shellSway" not in extra and static:
-            extra["shellSway"] = _spectrum_shell_sway(static, combinations, shell_forces)
-        problem = _SEISMIC_PROBLEMS.pop(str(Path(out_dir)), None)
-        if problem:
-            notes.append(
-                f"the response spectrum design could not be run: {problem}"
-                if "static cases" in problem
-                else f"the response spectrum design could not be run ({problem}): the "
-                "earthquake combinations use the static cases EX, EY"
-            )
     else:
-        # Integrator glue: with the eccentric static cases (analysis.accidentalEccentricity),
-        # each E combination is checked with the masses shifted both ways (BNBC 2020 Part 6
-        # Sec 2.5.7.6.2): EX becomes EXP and EXN, EY becomes EYP and EYN.
-        from saengine.fem.combinations import eccentric_combinations, model_cases
+        static: dict[str, Any] = {}
+        if seismic_design.design_uses_spectrum(settings):
 
-        expanded = eccentric_combinations(with_omega.combinations, model_cases(project))
-        if expanded is not None:
-            with_omega = with_omega.model_copy(update={"combinations": expanded})
-        combinations, pieces, notes, shell_forces = _demands(project, out_dir, with_omega, extra)
-        if expanded is not None:
-            notes.append(
-                "accidental torsion: each earthquake combination is checked with the eccentric "
-                "static cases EXP/EXN (EYP/EYN), the story masses shifted ±5 % across the force "
-                "(BNBC 2020 Part 6 Sec 2.5.7.6.2)"
+            def static_demands(
+                project: dict[str, Any], out_dir: str | Path, settings: Any, inner: Any = None
+            ) -> Any:
+                found = _demands(project, out_dir, settings, inner)
+                static.update(
+                    names=list(found[0]),
+                    shells={i: list(rows) for i, rows in found[3].items()},
+                    inner=inner if inner is not None else {},
+                )
+                return found
+
+            summary = None
+            if omega_elements:
+                summary = seismic_design.load_summary(out_dir)
+                if summary and summary.get("combinations"):
+                    summary = {
+                        **summary,
+                        "combinations": summary["combinations"]
+                        + seismic_rules.omega_rs_combinations(summary["combinations"], resolved),
+                    }
+            combinations, pieces, notes, shell_forces = seismic_design.design_demands(
+                project, out_dir, with_omega, extra, summary=summary, base=static_demands
+            )
+            if "shellSway" not in extra and static:
+                extra["shellSway"] = _spectrum_shell_sway(static, combinations, shell_forces)
+            problem = _SEISMIC_PROBLEMS.pop(str(Path(out_dir)), None)
+            if problem:
+                notes.append(
+                    f"the response spectrum design could not be run: {problem}"
+                    if "static cases" in problem
+                    else f"the response spectrum design could not be run ({problem}): the "
+                    "earthquake combinations use the static cases EX, EY"
+                )
+        else:
+            # Integrator glue: with the eccentric static cases (analysis.accidentalEccentricity),
+            # each E combination is checked with the masses shifted both ways (BNBC 2020 Part 6
+            # Sec 2.5.7.6.2): EX becomes EXP and EXN, EY becomes EYP and EYN.
+            from saengine.fem.combinations import eccentric_combinations, model_cases
+
+            expanded = eccentric_combinations(with_omega.combinations, model_cases(project))
+            if expanded is not None:
+                with_omega = with_omega.model_copy(update={"combinations": expanded})
+            combinations, pieces, notes, shell_forces = _demands(
+                project, out_dir, with_omega, extra
+            )
+            if expanded is not None:
+                notes.append(
+                    "accidental torsion: each earthquake combination is checked with the eccentric "
+                    "static cases EXP/EXN (EYP/EYN), the story masses shifted ±5 % across the force "
+                    "(BNBC 2020 Part 6 Sec 2.5.7.6.2)"
+                )
+        if share is not None:
+            share[key] = _shared_copy(
+                (combinations, pieces, notes, shell_forces, extra, static, with_omega)
             )
     notes = pre_notes + notes
     service = extra.get("service") or (static.get("inner") or {}).get("service") or {}
@@ -1783,12 +1850,34 @@ def _profile_forces(piece: _Piece, turned: bool, forces: np.ndarray) -> dict[str
     column, a beam turned on its side) keeps local + as "top".
     """
     along_z = piece.depth_along_z != turned
-    n, vy, vz, my, mz = forces[:, 0], forces[:, 1], forces[:, 2], forces[:, 4], forces[:, 5]
+    n, vy, vz, my, mz = (forces[..., i] for i in (0, 1, 2, 4, 5))
     rise = float(piece.axes[2 if along_z else 1][2])
     up = -1.0 if rise < -1e-9 else 1.0
     if along_z:
         return {"P": -n, "Mx": up * my * 1e3, "Vy": vz, "My": mz * 1e3, "Vx": vy}
     return {"P": -n, "Mx": -up * mz * 1e3, "Vy": vy, "My": my * 1e3, "Vx": vz}
+
+
+def _profile_blocks(
+    piece: _Piece, turned: bool
+) -> list[tuple[int, np.ndarray, dict[str, np.ndarray]]]:
+    """:func:`_profile_forces` of the piece's combinations in blocks: ``(first combination,
+    forces, values)`` with a leading combination axis, all of them in one block when their
+    stations agree (one call rather than one per combination), else one block each. Blocks
+    without stations are left out."""
+    parts = piece.forces
+    if not parts:
+        return []
+    shape = np.shape(parts[0])
+    if len(shape) == 2 and shape[0] and all(np.shape(f) == shape for f in parts):
+        stacked = np.stack([np.asarray(f, dtype=float) for f in parts])
+        return [(0, stacked, _profile_forces(piece, turned, stacked))]
+    blocks = []
+    for c, forces in enumerate(parts):
+        if len(forces):
+            one = np.asarray(forces, dtype=float)[None]
+            blocks.append((c, one, _profile_forces(piece, turned, one)))
+    return blocks
 
 
 def _turned(element: Any, exact: bool = False) -> bool:
@@ -1850,20 +1939,22 @@ def _beam_checks(
     combinations: list[str],
     turned: bool = False,
 ) -> list[dict[str, Any]]:
-    sag = hog = shear_demand = (0.0, None, "")
+    peaks = {"sag": (0.0, None, ""), "hog": (0.0, None, ""), "shear": (0.0, None, "")}
     for piece in pieces:
-        for c, forces in enumerate(piece.forces):
-            values = _profile_forces(piece, turned, forces)
-            count = len(forces)
-            for k in range(count):
-                moment, v = float(values["Mx"][k]), abs(float(values["Vy"][k]))
-                where = _where(piece, k, count)
-                if -moment > sag[0]:
-                    sag = (-moment, combinations[c], where)
-                if moment > hog[0]:
-                    hog = (moment, combinations[c], where)
-                if v > shear_demand[0]:
-                    shear_demand = (v, combinations[c], where)
+        for first, _, values in _profile_blocks(piece, turned):
+            count = values["Mx"].shape[1]
+            # The first station of each peak (combination by combination, station by
+            # station), as a scan finds it.
+            for peak, rows in (
+                ("sag", -values["Mx"]),
+                ("hog", values["Mx"]),
+                ("shear", np.abs(values["Vy"])),
+            ):
+                c, k = divmod(int(np.argmax(rows)), count)
+                value = float(rows[c, k])
+                if value > peaks[peak][0]:
+                    peaks[peak] = (value, combinations[first + c], _where(piece, k, count))
+    sag, hog, shear_demand = peaks["sag"], peaks["hog"], peaks["shear"]
     checks = []
     for label, hogging, demand in (
         ("Flexure, sagging (bottom bars)", False, sag),
@@ -2291,6 +2382,76 @@ def torsion_stations(
     return list(dict.fromkeys([*above[:limit], *by_stress])) or by_tu[:1]
 
 
+def _torsion_candidates(
+    pieces: list[_Piece],
+    combinations: list[str],
+    turned: bool,
+    ts: Any,
+    fc: float,
+    kind: str,
+    threshold: float,
+    limit: int = _TORSION_CANDIDATES,
+) -> list[tuple[float, float, float, float, str, str]]:
+    """:func:`torsion_stations` of every station of ``pieces`` in every combination, the same
+    stations in the same order, worked out on arrays: only the candidates become points."""
+    columns: list[list[np.ndarray]] = [[], [], [], []]
+    # Per block of combinations: piece, first combination, station count, first point.
+    blocks: list[tuple[int, int, int, int]] = []
+    size = 0
+    for index, piece in enumerate(pieces):
+        for first, forces, values in _profile_blocks(piece, turned):
+            columns[0].append((np.abs(forces[..., 3]) * 1e3).ravel())  # N·m -> N·mm
+            columns[1].append(np.abs(values["Vy"]).ravel())
+            columns[2].append(values["Mx"].ravel())
+            columns[3].append(values["P"].ravel())
+            blocks.append((index, first, forces.shape[1], size))
+            size += forces.shape[0] * forces.shape[1]
+    if not size:
+        return []
+    tu, vu, mu, nu = (np.concatenate(column).astype(float) for column in columns)
+    block_starts = np.array([start for *_, start in blocks])
+
+    def point(i: int) -> tuple[float, float, float, float, str, str]:
+        index, first, count, start = blocks[int(np.searchsorted(block_starts, i, "right")) - 1]
+        c, k = divmod(i - start, count)
+        where = _where(pieces[index], k, count)
+        return (
+            float(tu[i]),
+            float(vu[i]),
+            float(mu[i]),
+            float(nu[i]),
+            combinations[first + c],
+            where,
+        )
+
+    by_tu = np.argsort(-tu, kind="stable")
+    above = by_tu[tu[by_tu] > 0.5 * threshold]
+    if not len(above):
+        return [point(int(by_tu[0]))]
+    bw_d = ts.b * ts.d
+    torsion_share = ts.ph / (1.7 * ts.aoh**2)
+    capped = tu[above]
+    if kind == "compatibility":
+        acp, pcp, _ = ts.outline()
+        phi = torsion_design._phi_shear()
+        root = torsion_design._root(fc)
+        ratio = 1 + nu[above] / (0.33 * ts.gross_area * 1.0 * root)
+        factor = np.where(nu[above] == 0, 1.0, np.sqrt(np.maximum(0.0, ratio)))
+        capped = np.minimum(capped, 0.33 * phi * 1.0 * root * acp**2 / pcp * factor)
+    # The stress screen of torsion_stations; np.hypot may differ from math.hypot in the last
+    # bit, so the stations near the cut are ordered with math.hypot, as torsion_stations does.
+    rough = np.hypot(vu[above] / bw_d, capped * torsion_share)
+    if len(above) > limit:
+        cut = np.partition(rough, len(rough) - limit)[len(rough) - limit]
+        near = np.nonzero(rough >= cut * (1 - 1e-9))[0]
+    else:
+        near = np.arange(len(above))
+    exact = [math.hypot(float(vu[above[j]]) / bw_d, float(capped[j]) * torsion_share) for j in near]
+    by_stress = [int(above[near[j]]) for j in np.argsort(-np.array(exact), kind="stable")][:limit]
+    chosen = [point(int(i)) for i in above[:limit]] + [point(i) for i in by_stress]
+    return list(dict.fromkeys(chosen))
+
+
 def _beam_torsion_checks(
     element: BeamElement,
     beam: Beam,
@@ -2340,25 +2501,9 @@ def _beam_torsion_checks(
     )
     fc = section.fc
     threshold = torsion_design.threshold_torsion(ts, fc)
-    points: list[tuple[float, float, float, float, str, str]] = []
-    for piece in pieces:
-        for c, forces in enumerate(piece.forces):
-            values = _profile_forces(piece, turned, forces)
-            count = len(forces)
-            for k in range(count):
-                points.append(
-                    (
-                        abs(float(forces[k, 3])) * 1e3,  # N·m -> N·mm
-                        abs(float(values["Vy"][k])),
-                        float(values["Mx"][k]),
-                        float(values["P"][k]),
-                        combinations[c],
-                        _where(piece, k, count),
-                    )
-                )
-    if not points:
+    candidates = _torsion_candidates(pieces, combinations, turned, ts, fc, kind, threshold)
+    if not candidates:
         return [], None
-    candidates = torsion_stations(points, ts, fc, kind, threshold)
     best: tuple[float, Any, tuple[float, float, float, float, str, str]] | None = None
     # The station of the highest stress of Eq. 6.6.59: the section size is checked there (the
     # governing station, of the stirrups, can be another one).

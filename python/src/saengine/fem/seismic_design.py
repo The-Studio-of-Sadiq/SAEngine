@@ -66,6 +66,7 @@ Units follow the model: m, N, N·m (the summary gives kN).
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import os
@@ -269,8 +270,21 @@ def combine(peaks: np.ndarray, omegas: list[float], damping: float | None, rule:
         return np.zeros(peaks.shape[1:])
     if rule.upper() == "CQC":
         zeta = damping if damping and damping > 0 else 0.05
-        return combine_cqc(peaks, cqc_correlation(omegas, zeta))
+        key = (tuple(float(w) for w in omegas), float(zeta))
+        rho = _CQC_RHO.get(key)
+        if rho is None:
+            # The same modes are combined for every element and combination: the matrix once.
+            rho = cqc_correlation(omegas, zeta)
+            rho.setflags(write=False)
+            if len(_CQC_RHO) > 16:
+                _CQC_RHO.clear()
+            _CQC_RHO[key] = rho
+        return combine_cqc(peaks, rho)
     return combine_srss(peaks)
+
+
+_CQC_RHO: dict[tuple[tuple[float, ...], float], np.ndarray] = {}
+"""The CQC correlation matrices :func:`combine` made, by frequencies and damping."""
 
 
 def modal_base_shear(modes: list[dict[str, Any]], damping: float | None, rule: str) -> float:
@@ -1195,6 +1209,27 @@ def seismic_design(
     # manifest that then changes must not be stamped with the later one.
     try:
         stamp_before = _stamp(out_dir, project_path, False) if run else None
+    except (OSError, ValueError, KeyError):
+        stamp_before = None
+    memo_key = (
+        (
+            str(out_dir.resolve()),
+            stamp_before,
+            settings.model_dump_json(),
+            repr(options),
+            repr(levels),
+        )
+        if stamp_before is not None
+        else None
+    )
+    known = _SUMMARY_MEMO
+    if memo_key is not None and known is not None and known[0] == memo_key:
+        try:
+            if (folder / SUMMARY_FILE).stat().st_mtime_ns == known[1]:
+                return copy.deepcopy(known[2])
+        except OSError:
+            pass
+    try:
         spectra = _spectra(out_dir)
     except (OSError, ValueError, KeyError):
         spectra = {}
@@ -1393,7 +1428,20 @@ def seismic_design(
         summary["run"] = run_info
         folder.mkdir(parents=True, exist_ok=True)
         (folder / SUMMARY_FILE).write_text(json.dumps(summary, indent=1), encoding="utf-8")
+        if memo_key is not None:
+            _remember_summary(memo_key, (folder / SUMMARY_FILE).stat().st_mtime_ns, summary)
     return summary
+
+
+_SUMMARY_MEMO: tuple[tuple[Any, ...], int, dict[str, Any]] | None = None
+"""The last summary :func:`seismic_design` ran and wrote: its inputs, the time its file was
+written and the summary. While the results, the model and the settings stay the same and the
+file is the one it wrote, the next call returns it rather than reading every result again."""
+
+
+def _remember_summary(key: tuple[Any, ...], written: int, summary: dict[str, Any]) -> None:
+    global _SUMMARY_MEMO
+    _SUMMARY_MEMO = (key, written, copy.deepcopy(summary))
 
 
 def load_summary(out_dir: str | Path) -> dict[str, Any] | None:

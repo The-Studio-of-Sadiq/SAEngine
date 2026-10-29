@@ -526,6 +526,63 @@ class _Combined:
         found = self._readings[(k, x)]
         return found[c] if found is not None else self.of_kind[k][c].at(x)  # type: ignore[index,union-attr]
 
+    def read_all(self, k: int, x: float) -> np.ndarray | None:
+        """:meth:`read` of every combination (combination first), or None when piece ``k``'s
+        curves differ."""
+        if self._stacked(k) is None:
+            return None
+        self.read(k, x, 0)
+        return self._readings[(k, x)]
+
+
+def _moved_together(
+    rows: np.ndarray,
+    length: float,
+    faces: list[_Face],
+    combined: _Combined,
+    kind: str,
+    k: int,
+    cols: list[int],
+    shears: list[int],
+    moved: set[int],
+    sheared: set[int],
+) -> np.ndarray:
+    """:func:`at_faces`' moves of the stations of piece ``k`` for every combination at once
+    (``rows``: combination, station, force), the same values as one combination at a time."""
+    count = rows.shape[0]
+    xs = np.linspace(0.0, length, rows.shape[1])
+    for f in faces:
+        read_x = combined.read_all(f.land, f.x)
+        assert read_x is not None
+        at = read_x.copy()
+        given = np.zeros(count, dtype=bool)
+        if kind == "forces" and f.given:
+            for c in range(min(len(f.given), count)):
+                if f.given[c] is not None:
+                    at[c] = f.given[c]
+                    given[c] = True
+        shear = at
+        if not math.isclose(f.shear_x, f.x, abs_tol=_TOL):
+            read_d = combined.read_all(f.land, f.shear_x)
+            assert read_d is not None
+            shear = read_d.copy()
+            # The analysis's face row, moved to d by the stations' change.
+            shear[given] = at[given] + read_d[given] - read_x[given]
+        if k in f.inside:
+            rows[:, :, cols] = at[:, None, cols]
+            rows[:, :, shears] = shear[:, None, shears]
+            moved.update(range(rows.shape[1]))
+            continue
+        sign = 1.0 if f.side == "i" else -1.0
+        for s, x in enumerate(xs):
+            if sign * (f.x - x) > _TOL:
+                rows[:, s, cols] = at[:, cols]
+                moved.add(s)
+            if sign * (f.shear_x - x) > _TOL:
+                rows[:, s, shears] = shear[:, shears]
+                sheared.add(s)
+    return rows
+
 
 def at_faces(
     pieces: list[Any],
@@ -586,6 +643,25 @@ def at_faces(
             if parts is None:
                 continue
             all_rows = combined.from_node(k)
+            mine = [f for f in faces if k == f.land or k in f.inside]
+            if all_rows is not None and all(
+                combined.read_all(f.land, f.x) is not None for f in mine
+            ):
+                new_parts[(k, kind)] = list(
+                    _moved_together(
+                        all_rows.copy(),
+                        parts[0].length,
+                        mine,
+                        combined,
+                        kind,
+                        k,
+                        cols,
+                        shears,
+                        moved_of[k],
+                        shear_of[k],
+                    )
+                )
+                continue
             done: list[Any] = []
             for c, curve in enumerate(parts):
                 if curve is None:

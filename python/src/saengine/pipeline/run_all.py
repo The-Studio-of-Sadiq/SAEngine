@@ -673,12 +673,16 @@ def _design(project: Project, step: StepResult) -> dict[str, Any]:
     if stamp is None:
         report = _handlers().design_report(str(results_folder(model)), str(model))
     else:
-        # The checks once, for the report here and the required steel below (design_mode).
-        try:
-            design_mode.gathered(results_folder(model), model, stamp)
-        except Exception:  # noqa: BLE001, S110 - the report is then made on its own
-            pass
-        report = design_mode.checks(results_folder(model), model, stamp)
+        # The checks once, for the report here and the required steel below (design_mode);
+        # with types without bars, the report without them reuses the checks' forces.
+        from saengine.design.check import shared_demands
+
+        with shared_demands():
+            try:
+                design_mode.gathered(results_folder(model), model, stamp)
+            except Exception:  # noqa: BLE001, S110 - the report is then made on its own
+                pass
+            report = design_mode.checks(results_folder(model), model, stamp)
     if not report:
         raise StepFailure("The design checks are not available.")
     summary = S.record(report.get("summary"))
