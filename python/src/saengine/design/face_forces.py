@@ -308,24 +308,34 @@ def combined_face_rows(
 def _interpolate(rows: np.ndarray, length: float, x: float) -> np.ndarray:
     """The row at ``x`` [m] of station ``rows`` evenly spread over ``length``: a parabola through
     the three nearest stations (exact for a uniform load), linear with two stations."""
+    return _interpolate_many(rows, length, np.array([x], dtype=float))[0]
+
+
+def _interpolate_many(rows: np.ndarray, length: float, xs: np.ndarray) -> np.ndarray:
+    """:func:`_interpolate` at each of ``xs`` [m] at once (one row per x): a member's stations
+    are re-stationed thousands of times in a design, so not one x at a time."""
+    rows = np.asarray(rows, dtype=float)
     n = len(rows)
     if n == 1 or length <= 0:
-        return rows[0].copy()
-    x = min(max(x, 0.0), length)
+        return np.repeat(rows[:1], len(xs), axis=0)
+    xs = np.clip(xs, 0.0, length)
+    shape = (-1,) + (1,) * (rows.ndim - 1)
     step = length / (n - 1)
     if n == 2:
-        t = x / length
+        t = (xs / length).reshape(shape)
         return (1 - t) * rows[0] + t * rows[1]
-    first = int(min(max(round(x / step) - 1, 0), n - 3))
-    xs = [step * (first + k) for k in range(3)]
-    out = np.zeros_like(rows[0], dtype=float)
-    for a in range(3):
-        weight = 1.0
-        for b in range(3):
-            if a != b:
-                weight *= (x - xs[b]) / (xs[a] - xs[b])
-        out = out + weight * rows[first + a]
-    return out
+    first = np.clip(np.round(xs / step) - 1, 0, n - 3).astype(int)
+    x0 = step * first
+    x1, x2 = x0 + step, x0 + 2 * step
+    # Lagrange weights of the three stations x0, x1, x2 (a step apart).
+    w0 = (xs - x1) * (xs - x2) / (2 * step * step)
+    w1 = -(xs - x0) * (xs - x2) / (step * step)
+    w2 = (xs - x0) * (xs - x1) / (2 * step * step)
+    return (
+        w0.reshape(shape) * rows[first]
+        + w1.reshape(shape) * rows[first + 1]
+        + w2.reshape(shape) * rows[first + 2]
+    )
 
 
 @dataclass
@@ -348,8 +358,9 @@ class _Curve:
         """The rows re-stationed from the node (as many, evenly over the node to node length)."""
         if self.ri <= 0 and self.rj <= 0:
             return np.array(self.rows, dtype=float, copy=True)
-        xs = np.linspace(0.0, self.length, len(self.rows))
-        return np.array([self.at(float(x)) for x in xs])
+        flexible = max(self.length - self.ri - self.rj, 0.0)
+        xs = np.clip(np.linspace(0.0, self.length, len(self.rows)) - self.ri, 0.0, flexible)
+        return _interpolate_many(self.rows, self.length, xs)
 
 
 @dataclass
