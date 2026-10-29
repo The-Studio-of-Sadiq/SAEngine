@@ -2666,7 +2666,8 @@ export class SubstructureEditor extends EditorPane {
 		clearNode(panel);
 		this.propertiesFor = { document, selection };
 		if (!document) {
-			appendPropertyNote(panel, this.parseError ?? localize('sub.propsNone', "No substructure."));
+			// Before the file is open (opening waits on the backend, busy on a big model): loading.
+			appendPropertyNote(panel, this.parseError ?? (this.model ? localize('sub.propsNone', "No substructure.") : localize('sub.propsLoading', "Opening the substructure…")));
 			return;
 		}
 		this.renderingProperties = true;
