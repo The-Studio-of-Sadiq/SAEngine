@@ -804,25 +804,35 @@ class InteractionSurface:
         """The contours of :meth:`contour` at each ``pu`` (closed polygons, anticlockwise),
         whether every meridian reaches it and whether the contour encloses the origin."""
         m = self._meridians  # (meridians, rows, 3)
-        lo = m[None, :, :-1, 0] - pu[:, None, None]
-        hi = m[None, :, 1:, 0] - pu[:, None, None]
-        hit = (lo == 0) | (lo * hi < 0)
-        reaches = hit.any(axis=2).all(axis=1)
-        # The cuts of the rows crossing Pu only (a meridian crosses it once or a few times),
-        # the nearest to the origin kept per meridian (the first of equals); a meridian not
-        # reaching Pu keeps its first row (the result is 0 then, see ``reaches``).
-        n, k, r = np.nonzero(hit)
-        lo_hit, hi_hit = lo[n, k, r], hi[n, k, r]
-        t = lo_hit / np.where(lo_hit != hi_hit, lo_hit - hi_hit, 1.0)
-        a, b = m[k, r, 1:], m[k, r + 1, 1:]
-        cuts = a + t[:, None] * (b - a)
-        reach = np.hypot(cuts[:, 0], cuts[:, 1])
-        group = n * m.shape[0] + k
-        order = np.lexsort((r, reach, group))
-        _, first = np.unique(group[order], return_index=True)
-        chosen = order[first]
+        rising = self.__dict__.get("_rising")
+        if rising is None:
+            rising = self._rising = (np.diff(m[:, :, 0], axis=1) >= 0).all(axis=1)
+        rows = m.shape[1]
         p = np.broadcast_to(m[None, :, 0, 1:], (len(pu), m.shape[0], 2)).copy()
-        p[n[chosen], k[chosen]] = cuts[chosen]
+        reaches = np.ones(len(pu), dtype=bool)
+        for k in range(m.shape[0]):
+            if not rising[k]:
+                p[:, k], reached = self._cuts(m[k], pu)
+                reaches &= reached
+                continue
+            # φPn never falls along the meridian (as a rule): the row crossing Pu is found by a
+            # sorted search, the same cut as below; Pu equal to several rows goes below.
+            col = m[k, :, 0]
+            a = np.searchsorted(col, pu, "left")
+            b = np.searchsorted(col, pu, "right")
+            equal = np.minimum(b, rows - 1) - a
+            between = (a == b) & (a >= 1) & (a <= rows - 1)
+            one = between | (equal == 1)
+            many = equal > 1
+            reaches &= one | many
+            n = np.flatnonzero(one)
+            r = np.where(between, a - 1, a)[n]
+            lo, hi = col[r] - pu[n], col[r + 1] - pu[n]
+            t = lo / np.where(lo != hi, lo - hi, 1.0)
+            start, end = m[k, r, 1:], m[k, r + 1, 1:]
+            p[n, k] = start + t[:, None] * (end - start)
+            if many.any():
+                p[many, k], _ = self._cuts(m[k], pu[many])
         if self.symmetric:
             p = np.concatenate(
                 [p, p[:, ::-1] * [-1, 1], p * [-1, -1], p[:, ::-1] * [1, -1]], axis=1
@@ -831,6 +841,26 @@ class InteractionSurface:
         cross = p[..., 0] * q[..., 1] - p[..., 1] * q[..., 0]
         encloses = np.abs(np.arctan2(cross, (p * q).sum(axis=2)).sum(axis=1)) > math.pi
         return p, reaches, encloses
+
+    @staticmethod
+    def _cuts(meridian: np.ndarray, pu: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """The cut of one meridian (rows φPn, φMnx, φMny) at each ``pu`` nearest the origin (the
+        first of equals; its first row where it does not reach Pu) and whether it reaches it."""
+        lo = meridian[None, :-1, 0] - pu[:, None]
+        hi = meridian[None, 1:, 0] - pu[:, None]
+        hit = (lo == 0) | (lo * hi < 0)
+        n, r = np.nonzero(hit)
+        lo_hit, hi_hit = lo[n, r], hi[n, r]
+        t = lo_hit / np.where(lo_hit != hi_hit, lo_hit - hi_hit, 1.0)
+        a, b = meridian[r, 1:], meridian[r + 1, 1:]
+        cuts = a + t[:, None] * (b - a)
+        reach = np.hypot(cuts[:, 0], cuts[:, 1])
+        order = np.lexsort((r, reach, n))
+        _, first = np.unique(n[order], return_index=True)
+        chosen = order[first]
+        p = np.broadcast_to(meridian[0, 1:], (len(pu), 2)).copy()
+        p[n[chosen]] = cuts[chosen]
+        return p, hit.any(axis=1)
 
     def check(self, pu: float, mux: float, muy: float) -> ColumnCheck:
         """Utilisation of a demand (Pu compression positive [N], Mux, Muy [N·mm])."""

@@ -128,17 +128,30 @@ class _Cut:
 
     def resultant(self, forces_of: NodalForces) -> np.ndarray:
         """[P, V2, V3, T, M2, M3] [N, N·m] of the shells' nodal forces ``forces_of(id)``."""
-        force, moment = np.zeros(3), np.zeros(3)
-        for shell, indices in self.terms:
+        terms = self.__dict__.get("_arms")
+        if terms is None:
+            # Per shell the indices of its nodes on the cut and their arms from the centre,
+            # the same for every case (a cut is read for all of them).
+            terms = self._arms = [
+                (s, np.asarray(ks, dtype=int), np.array([s.points[k] - self.centre for k in ks]))
+                for s, ks in self.terms
+            ]
+        rows, arms = [], []
+        for shell, indices, arm in terms:
             found = forces_of(shell.id)
             if found is None:
                 continue
             f = np.asarray(found, dtype=float).reshape(-1, 6)
             if len(f) != len(shell.nodes):
                 continue
-            for k in indices:
-                force += f[k, :3]
-                moment += np.cross(shell.points[k] - self.centre, f[k, :3]) + f[k, 3:]
+            rows.append(f[indices])
+            arms.append(arm)
+        force, moment = np.zeros(3), np.zeros(3)
+        if rows:
+            f, arm = np.concatenate(rows), np.concatenate(arms)
+            # Added up node by node in order, as one sum after the other (cumsum, not sum).
+            force = np.cumsum(np.vstack([force, f[:, :3]]), axis=0)[-1]
+            moment = np.cumsum(np.vstack([moment, np.cross(arm, f[:, :3]) + f[:, 3:]]), axis=0)[-1]
         force, moment = self.sign * force, self.sign * moment
         e1, e2, e3 = self.axes
         return np.array(

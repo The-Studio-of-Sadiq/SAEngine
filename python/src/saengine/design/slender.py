@@ -390,30 +390,47 @@ def _crosses(z_values: Any, mid: float) -> bool:
     return low - 1e-6 <= mid < high - 1e-6
 
 
-def _shell_cut(points: list[np.ndarray], rows: np.ndarray) -> np.ndarray:
-    """The force [N, global] that the part of a vertical shell above a horizontal cut through
-    it exerts on the part below: its mean membrane and transverse shear forces per length
-    (N11 N22 N12 . . . Q13 Q23, the shell's axes) on the cut's normal (up, in its plane),
-    times its horizontal width."""
+def _cut_geometry(points: list[np.ndarray]) -> tuple[np.ndarray, ...] | None:
+    """What :func:`_shell_cut` needs of a shell's geometry, the same for all its forces: e3, n,
+    the outer products of its axes and the cut's width; None for a horizontal shell."""
     from saengine.design.slab import shell_axes
 
     e1, e2, e3 = shell_axes(points)
-    m = np.asarray(rows, dtype=float).reshape(-1, 8).mean(axis=0)
     up = np.array([0.0, 0.0, 1.0])
     n = up - (up @ e3) * e3
     size = float(np.linalg.norm(n))
     if size < 1e-9:
-        return np.zeros(3)
+        return None
     n = n / size
-    s = (
-        m[0] * np.outer(e1, e1)
-        + m[1] * np.outer(e2, e2)
-        + m[2] * (np.outer(e1, e2) + np.outer(e2, e1))
-    )
-    traction = s @ n + (m[6] * float(e1 @ n) + m[7] * float(e2 @ n)) * e3
     across = np.cross(e3, n)
     width = float(np.ptp([p @ across for p in points]))
-    return traction * width
+    e1n, e2n = float(e1 @ n), float(e2 @ n)
+    return (
+        e3,
+        n,
+        np.outer(e1, e1),
+        np.outer(e2, e2),
+        np.outer(e1, e2) + np.outer(e2, e1),
+        np.array([e1n, e2n, width]),
+    )
+
+
+def _shell_cut(
+    points: list[np.ndarray], rows: np.ndarray, geometry: Any = False
+) -> np.ndarray:
+    """The force [N, global] that the part of a vertical shell above a horizontal cut through
+    it exerts on the part below: its mean membrane and transverse shear forces per length
+    (N11 N22 N12 . . . Q13 Q23, the shell's axes) on the cut's normal (up, in its plane),
+    times its horizontal width. ``geometry``: :func:`_cut_geometry` of ``points`` if known."""
+    if geometry is False:
+        geometry = _cut_geometry(points)
+    if geometry is None:
+        return np.zeros(3)
+    e3, n, o11, o22, o12, (e1n, e2n, width) = geometry
+    m = np.asarray(rows, dtype=float).reshape(-1, 8).mean(axis=0)
+    s = m[0] * o11 + m[1] * o22 + m[2] * o12
+    traction = s @ n + (m[6] * float(e1n) + m[7] * float(e2n)) * e3
+    return traction * float(width)
 
 
 def storeys(
@@ -446,7 +463,7 @@ def storeys(
     present = [lv for lv in levels if any(abs(z - lv) <= 1e-3 for z in z_of.values())]
     names = {round(float(s.elevation) * 1e-3, 6): s.name or s.id for s in building.stories}
     frames = [p for own in pieces.values() for p in own if p.start is not None]
-    walls: list[tuple[list[np.ndarray], list[np.ndarray], list[np.ndarray]]] = []
+    walls: list[tuple[list[np.ndarray], list[np.ndarray], list[np.ndarray], Any]] = []
     for e in project.get("elements", []):
         found = (shells or {}).get(int(e["id"])) if e.get("type") == "Shell" else None
         nodes = [int(n) for n in e.get("nodes", [])]
@@ -455,7 +472,7 @@ def storeys(
         points = [xyz[n] for n in nodes]
         normal = np.cross(points[1] - points[0], points[2] - points[0])
         if np.linalg.norm(normal) > 0 and abs(normal[2]) < 0.1 * np.linalg.norm(normal):
-            walls.append((points, found[0], found[1]))
+            walls.append((points, found[0], found[1], _cut_geometry(points)))
     n_comb = len(combinations)
     result: list[Storey] = []
     for z0, z1 in itertools.pairwise(present):
@@ -475,11 +492,11 @@ def storeys(
                 pu -= float(_global_force(p, p.forces[c])[2])
                 if p.sway is not None:
                     fv = fv + _global_force(p, p.sway[c])
-            for points, total, sway in cut:
+            for points, total, sway, geometry in cut:
                 if c < len(total):
-                    pu -= float(_shell_cut(points, total[c])[2])
+                    pu -= float(_shell_cut(points, total[c], geometry)[2])
                 if c < len(sway):
-                    wv = wv + _shell_cut(points, sway[c])
+                    wv = wv + _shell_cut(points, sway[c], geometry)
             pu_of.append(pu)
             frame_v.append(fv)
             wall_v.append(wv)

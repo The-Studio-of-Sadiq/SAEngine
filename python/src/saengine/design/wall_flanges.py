@@ -621,15 +621,23 @@ class FlangedInteraction(InteractionSurface):
 
     def _frame(self, theta: float) -> tuple[Any, np.ndarray, np.ndarray]:
         """The polygon and bars in the frame of the neutral axis at ``theta`` (v' towards the
-        compressed side n = (-sin θ, cos θ))."""
+        compressed side n = (-sin θ, cos θ)). The last angle's is kept: a meridian and the
+        search for a depth ask it of one angle many times."""
         from shapely import affinity
 
+        last = self.__dict__.get("_last_frame")
+        if last is not None and last[0] == theta:
+            return last[1]
         s = self.section
         rotated = affinity.rotate(s.polygon, -theta, origin=(0, 0), use_radians=True)
         xy = np.array([[b.x, b.y] for b in s.bars])
         c, si = math.cos(theta), math.sin(theta)
         local = np.column_stack([xy[:, 0] * c + xy[:, 1] * si, -xy[:, 0] * si + xy[:, 1] * c])
-        return rotated, local, np.array([b.area for b in s.bars])
+        frame = (rotated, local, np.array([b.area for b in s.bars]))
+        for array in frame[1:]:
+            array.setflags(write=False)
+        self._last_frame = (theta, frame)
+        return frame
 
     def actions(self, theta: float, c: float) -> tuple[float, float, float, float]:
         """Nominal (Pn [N], Sx, Sy [N·mm], εt) at the neutral-axis angle ``theta`` and depth
