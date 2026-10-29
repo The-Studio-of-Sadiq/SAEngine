@@ -227,17 +227,36 @@ _SHARED: contextvars.ContextVar[dict[Any, Any] | None] = contextvars.ContextVar(
 )
 
 
+class _ArrayDict(dict):  # type: ignore[type-arg]
+    """A kept dict whose values are all read-only arrays: copied flat (:func:`_shared_copy`)."""
+
+
+class _ArrayList(list):  # type: ignore[type-arg]
+    """A kept list whose items are all read-only arrays: copied flat."""
+
+
 def _shared_copy(value: Any) -> Any:
     """A copy of the demands :func:`shared_demands` keeps: new containers and pieces, the
     arrays shared and made read-only (the checks replace a combination's array, never write
-    into one; a write would raise rather than change the other call's forces)."""
+    into one; a write would raise rather than change the other call's forces). Containers of
+    arrays alone are marked when kept and copied flat when handed out (plain dict, list)."""
     if isinstance(value, np.ndarray):
         value.setflags(write=False)
         return value
+    if isinstance(value, _ArrayDict):
+        return dict(value)
+    if isinstance(value, _ArrayList):
+        return list(value)
     if isinstance(value, dict):
-        return {k: _shared_copy(v) for k, v in value.items()}
+        copied = {k: _shared_copy(v) for k, v in value.items()}
+        if copied and all(type(v) is np.ndarray for v in copied.values()):
+            return _ArrayDict(copied)
+        return copied
     if isinstance(value, list):
-        return [_shared_copy(v) for v in value]
+        listed = [_shared_copy(v) for v in value]
+        if listed and all(type(v) is np.ndarray for v in listed):
+            return _ArrayList(listed)
+        return listed
     if isinstance(value, tuple):
         return tuple(_shared_copy(v) for v in value)
     if isinstance(value, _Piece):
@@ -1619,7 +1638,14 @@ def _demands(
     from opensees_studio.services.results import StaticResults
 
     from saengine.fem.combinations import combination_factors
-    from saengine.fem.display import _case_loads, _code, _elements, _last, element_section_forces
+    from saengine.fem.display import (
+        _case_loads,
+        _code,
+        _elements,
+        _last,
+        element_section_forces,
+        element_section_forces_many,
+    )
     from saengine.fem.thermal import (
         end_force_corrections,
         load_corrections,
@@ -1659,14 +1685,24 @@ def _demands(
             i: _shell_rows(results.shell_forces.get(i)) + reached * shell_add.get(i, 0.0)
             for i in shell_ids
         }
-        by_case[code] = {
-            e.id: element_section_forces(
-                e,
-                _last(results.element_forces, e.id, 12) + reached * frame_add.get(e.id, 0.0),
-                reached * loads.get(e.id, np.zeros(3)),
-            )
+        ends = [
+            _last(results.element_forces, e.id, 12) + reached * frame_add.get(e.id, 0.0)
             for e in elements
-        }
+        ]
+        spans = [reached * loads.get(e.id, np.zeros(3)) for e in elements]
+        if elements and all(e.length > 0 for e in elements):
+            # All the elements at once (element_section_forces, the same arithmetic).
+            many = element_section_forces_many(
+                np.array([e.length for e in elements], dtype=float),
+                np.array(ends, dtype=float).reshape(len(elements), 12),
+                np.array(spans, dtype=float).reshape(len(elements), 3),
+            )
+            by_case[code] = {e.id: many[k] for k, e in enumerate(elements)}
+        else:
+            by_case[code] = {
+                e.id: element_section_forces(e, end, span)
+                for e, end, span in zip(elements, ends, spans, strict=True)
+            }
 
     names: list[str] = []
     factors_of: list[dict[str, float]] = []
@@ -1691,8 +1727,9 @@ def _demands(
     ]
     if extra is not None:
         extra["factors"] = factors_of
+        stacks = _displacement_stacks(displacements)
         extra["lateralDisplacements"] = [
-            _combined_displacements(displacements, part) for part in lateral
+            _combined_displacements(displacements, part, stacks) for part in lateral
         ]
         # The unfactored gravity cases, for the deflection checks (saengine.design.deflection).
         extra["service"] = {
@@ -1870,10 +1907,35 @@ def _part(by_case: dict[str, dict[int, np.ndarray]], element: int, factors: dict
     return np.zeros(shape)
 
 
+def _displacement_stacks(
+    displacements: dict[str, dict[int, np.ndarray]],
+) -> dict[str, tuple[tuple[int, ...], np.ndarray]]:
+    """Per case its nodes and their displacements stacked (n, 6), for
+    :func:`_combined_displacements`; cases with other than six values per node left out."""
+    out: dict[str, tuple[tuple[int, ...], np.ndarray]] = {}
+    for case, values in displacements.items():
+        rows = list(values.values())
+        if rows and all(np.shape(v) == (6,) for v in rows):
+            out[case] = (tuple(values), np.array(rows, dtype=float))
+    return out
+
+
 def _combined_displacements(
-    displacements: dict[str, dict[int, np.ndarray]], factors: dict[str, float]
+    displacements: dict[str, dict[int, np.ndarray]],
+    factors: dict[str, float],
+    stacks: dict[str, tuple[tuple[int, ...], np.ndarray]] | None = None,
 ) -> dict[int, np.ndarray]:
-    """The node displacements of a combination's cases ``factors``."""
+    """The node displacements of a combination's cases ``factors``. ``stacks``:
+    :func:`_displacement_stacks` of ``displacements``; where the cases share their nodes they
+    are added up on it, node by node the same sums in the same order."""
+    present = [case for case in factors if case in displacements]
+    if stacks and present and all(case in stacks for case in present):
+        nodes = stacks[present[0]][0]
+        if all(stacks[case][0] == nodes for case in present):
+            total = np.zeros((len(nodes), 6))
+            for case in present:
+                total = total + factors[case] * stacks[case][1]
+            return dict(zip(nodes, total, strict=True))
     result: dict[int, np.ndarray] = {}
     for case, f in factors.items():
         for node, value in displacements.get(case, {}).items():

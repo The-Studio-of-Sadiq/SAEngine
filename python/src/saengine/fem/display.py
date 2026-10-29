@@ -129,6 +129,25 @@ def element_section_forces(
     return np.column_stack([forces, moments])
 
 
+def element_section_forces_many(
+    lengths: np.ndarray, end_forces: np.ndarray, loads: np.ndarray
+) -> np.ndarray:
+    """:func:`element_section_forces` of many elements at once, shape (elements, STATIONS, 6):
+    ``lengths`` (n,), ``end_forces`` (n, 12), ``loads`` (n, 3); element by element the same
+    operations in the same order (lengths > 0: linspace takes another path at a zero one)."""
+    f, m = end_forces[:, None, 0:3], end_forces[:, None, 3:6]
+    x = np.linspace(0.0, lengths, STATIONS, axis=1)
+    load = loads[:, None, :]
+    forces = -(f + x[:, :, None] * load)
+    zero = np.zeros_like(x)
+    moments = -(
+        m
+        + np.stack([zero, x * f[..., 2], -x * f[..., 1]], axis=2)
+        + np.stack([zero, load[..., 2] * x**2 / 2, -load[..., 1] * x**2 / 2], axis=2)
+    )
+    return np.concatenate([forces, moments], axis=2)
+
+
 def case_pattern_ids(analysis: dict[str, Any] | None, stages: int | None = None) -> list[int]:
     """The load patterns of a static analysis; of a staged one, those of its stages (the first
     ``stages`` of them, all when None)."""
