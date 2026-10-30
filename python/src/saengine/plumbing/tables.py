@@ -165,56 +165,24 @@ _names = code_context.TableNames("plumbing", _build)
 
 
 def __getattr__(name: str) -> Any:
+    if name in _FIRE_NAMES:
+        from saengine.fire import tables as fire_tables
+
+        return getattr(fire_tables, name)
     return _names.get(name, __name__)
 
 
 def __dir__() -> list[str]:
-    return sorted(set(globals()) | set(_names()))
+    return sorted(set(globals()) | set(_names()) | set(_FIRE_NAMES))
 
 
-# ────────────────────────── Part 4 Table 4.4.1: fire protection flows ──────────────────────────
-
-#: Table 4.4.1: (sprinkler, standpipe and hose) l/min by hazard; durations by height.
-FIRE_FLOWS = {
-    "lightI": (1000, 1000),
-    "lightII": (1900, 1900),
-    "ordinaryI": (2650, 1900),
-    "ordinaryII": (3200, 1900),
-    "ordinaryIII": (4800, 1900),
-}
-#: Table 4.4.1 note **: "Values will be for one riser serving floor area of 1000 m2" [m²].
-FIRE_RISER_AREA = 1000.0
-#: Notes of Table 4.4.1: hazard class of the Part 3 occupancy groups (a group letter alone
-#: covers all its subgroups). Group J: extra hazard, at least ordinary hazard-III.
-FIRE_HAZARD = {
-    "A1": "lightI",
-    "A2": "lightI",
-    "A3": "lightI",
-    "E1": "lightI",
-    "A4": "lightII",
-    "A5": "lightII",
-    "B": "lightII",
-    "C": "lightII",
-    "D": "lightII",
-    "E2": "lightII",
-    "E3": "lightII",
-    "I2": "lightII",
-    "I4": "lightII",
-    "F1": "lightII",
-    "I1": "ordinaryI",
-    "I3": "ordinaryI",
-    "I5": "ordinaryI",
-    "F2": "ordinaryI",
-    "F3": "ordinaryI",
-    "G1": "ordinaryI",
-    "G2": "ordinaryII",
-    "H1": "ordinaryII",
-    "H2": "ordinaryIII",
-    "J": "ordinaryIII",
-}
-HAZARD_ORDER = ["lightI", "lightII", "ordinaryI", "ordinaryII", "ordinaryIII"]
+# Part 4 Table 4.4.1 (fire protection flows) is the fire table's: these names, which Part 8's
+# storage reads, are served from it (saengine.fire.tables).
+_FIRE_NAMES = ("FIRE_FLOWS", "FIRE_RISER_AREA", "FIRE_HAZARD", "HAZARD_ORDER")
 
 
 def fire_hazard(group: str) -> str | None:
     """Table 4.4.1's hazard class of a Part 3 occupancy group, or None when it lists none."""
-    return FIRE_HAZARD.get(group) or FIRE_HAZARD.get(group[:1])
+    from saengine.fire import tables as fire_tables
+
+    return fire_tables.fire_hazard(group)

@@ -1155,6 +1155,109 @@ class ElectricalTable(_Services):
     steelWeight: PosNum
 
 
+class FireFlow(_Row):
+    sprinkler: PosNum = Field(description="[l/min]")
+    standpipe: PosNum = Field(description="Standpipe and hose [l/min].")
+
+
+class PumpRating(_Row):
+    rating: PosNum = Field(description="[l/min]")
+    pipe: PosNum = Field(description="Minimum discharge pipe [mm].")
+
+
+class PipeSchedule(_Row):
+    size: PosNum = Field(description="Nominal size [mm].")
+    light: PosNum | None = Field(description="Heads, light hazard; null: no limit.")
+    ordinary: PosNum | None
+    extra: PosNum | None
+
+
+class Extinguisher(_Group):
+    perUnit: PosNum = Field(description="Area per unit of A rating [m²].")
+    rating: PosNum = Field(description="The smallest rating.")
+    max: PosNum = Field(description="The largest area per extinguisher [m²].")
+
+
+class FireTable(_Services):
+    """BNBC 2020 Part 4 (fire protection): flows, durations, pressures, pump ratings, pipe
+    schedules, sprinkler spacing; the NFPA values the code leaves out (from memory, marked in
+    ``sources``) and SAEngine's pipe and pump assumptions."""
+
+    highRiseHeight: PosNum = Field(description="[m]")
+    highRiseStoreys: Annotated[int, Field(gt=0)]
+    tallHeight: PosNum = Field(description="[m]")
+    hazardOrder: list[str] = Field(description="Table 4.4.1's hazard classes, least first.")
+    hazardLabels: dict[str, str]
+    flows: dict[str, FireFlow] = Field(description="Hazard -> flows (one riser, riserArea).")
+    riserArea: PosNum = Field(description="[m²]")
+    hazardOfGroup: dict[str, str] = Field(
+        description="Part 3 occupancy group (or its letter) -> hazard class."
+    )
+    durationHeights: tuple[PosNum, PosNum] = Field(description="[m]")
+    durations: dict[str, tuple[PosNum, PosNum, PosNum]] = Field(description="[min] by height.")
+    additionalStandpipeFlow: PosNum
+    maxAdditionalStandpipes: Annotated[int, Field(ge=0)]
+    hosePressure: dict[str, PosNum] = Field(description="[kPa]")
+    combinedPressure: PosNum
+    maxPressure: PosNum
+    prvPressure: PosNum
+    gravityHeight: dict[str, PosNum] = Field(description="[m]")
+    hoseSize: dict[str, PosNum] = Field(description="[mm]")
+    hoseLength: PosNum
+    outletHeight: PosNum
+    wetRiserMin: PosNum
+    supportExtra: NonNegNum = Field(description="[kg]")
+    hangerFactor: PosNum
+    hangerSpacing: PosNum = Field(description="[m]")
+    testStandpipe: PosNum = Field(description="[kPa]")
+    testSprinkler: PosNum = Field(description="[kPa]")
+    pumpMinNet: PosNum = Field(description="[kPa]")
+    pumpRatings: list[PumpRating]
+    steelSchedule: list[PipeSchedule]
+    copperSchedule: list[PipeSchedule]
+    riserFloorArea: dict[str, PosNum] = Field(description="[m²]")
+    coverage: dict[str, dict[str, tuple[PosNum, PosNum]]] = Field(
+        description="Construction -> hazard family -> (area m², spacing m)."
+    )
+    densityArea: dict[str, tuple[PosNum, PosNum]] = Field(
+        description="Hazard -> (density l/min/m², design area m²)."
+    )
+    hoseAllowance: dict[str, tuple[PosNum, PosNum]] = Field(description="(l/min, min)")
+    kFactor: PosNum
+    minHeadPressure: PosNum = Field(description="[kPa]")
+    designAreaLength: PosNum
+    jockeyShare: Share
+    jockeyAbove: PosNum = Field(description="[kPa]")
+    overloadFlow: PosNum
+    overloadHead: Share
+    extinguisher: dict[str, Extinguisher]
+    extinguisherTravel: PosNum = Field(description="[m]")
+    extinguisherSmallFloor: PosNum = Field(description="[m²]")
+    detectorArea: PosNum = Field(description="[m²]")
+    callPointArea: PosNum = Field(description="[m²]")
+    steelBore: dict[int, PosNum] = Field(description="Nominal size -> inside diameter [mm].")
+    copperBore: dict[int, PosNum]
+    hazenC: dict[str, PosNum]
+    steelMass: dict[int, PosNum] = Field(description="Nominal size -> [kg/m].")
+    maxVelocity: PosNum = Field(description="[m/s]")
+    pumpEfficiency: Share
+    jockeyEfficiency: Share
+    motorSizes: list[PosNum] = Field(description="[kW]")
+    pumpClearance: NonNegNum = Field(description="[m]")
+    controllerStrip: NonNegNum = Field(description="[m]")
+    pumpCentre: NonNegNum = Field(description="[m]")
+
+    @model_validator(mode="after")
+    def _keys(self) -> FireTable:
+        for hazard in self.hazardOrder:
+            if hazard not in self.flows or hazard not in self.durations:
+                raise ValueError(f"hazardOrder: '{hazard}' needs flows and durations")
+        for group, hazard in self.hazardOfGroup.items():
+            if hazard not in self.flows:
+                raise ValueError(f"hazardOfGroup.{group}: no hazard '{hazard}'")
+        return self
+
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -1175,6 +1278,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "plumbing": PlumbingTable,
     "hvac": HvacTable,
     "electrical": ElectricalTable,
+    "fire": FireTable,
 }
 
 

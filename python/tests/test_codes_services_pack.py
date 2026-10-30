@@ -65,7 +65,24 @@ def test_electrical_functions_read_the_table():
     assert T.cite("1.3.18.7", "(g)") == "BNBC 2020 Part 8 Sec 1.3.18.7(g) (p800)"
 
 
-@pytest.mark.parametrize("name", ["plumbing", "hvac", "electrical"])
+def test_fire_table_equals_the_old_module():
+    assert _differences("saengine.fire.tables", "fire") == []
+
+
+def test_fire_flows_have_one_home():
+    """Table 4.4.1 is the fire table's: Part 8's storage reads the same values through the
+    plumbing module's old names."""
+    from saengine.fire import tables as F
+    from saengine.plumbing import tables as P
+
+    assert P.FIRE_FLOWS == F.FIRE_FLOWS and P.FIRE_HAZARD == F.FIRE_HAZARD
+    assert P.FIRE_RISER_AREA == F.RISER_AREA and P.HAZARD_ORDER == F.HAZARD_ORDER
+    assert [F.hazard_of(g) for g in ("A3", "B1", "J2", "Z")] == ["lightI", "lightII", "extra", None]
+    assert P.fire_hazard("J2") == "ordinaryIII"
+    assert [F.duration("lightI", h) for h in (51.0, 51.5, 102.5)] == [30, 38, 45]
+
+
+@pytest.mark.parametrize("name", ["plumbing", "hvac", "electrical", "fire"])
 def test_moved_table_is_registered_covered_and_cited(name):
     manifest = json.loads((PACKS_DIR / "bnbc2020" / "pack.json").read_text(encoding="utf-8"))
     assert name in TABLE_MODELS

@@ -78,6 +78,9 @@ TABLE_HELP: dict[str, str] = {
     "electrical": "Electrical services: load densities by use, the substation, transformer and "
     "generator rooms, shafts and risers, earthing, the lightning risk indices and protection, "
     "and typical equipment sizes and masses for the first layout.",
+    "fire": "Fire protection: hazard classes of the occupancy groups, flows and durations, "
+    "standpipe and hose pressures, pump ratings, sprinkler pipe schedules and spacing, and the "
+    "NFPA values the code leaves out (marked 'from memory, to be checked').",
 }
 
 #: Keys of pack.json, in the order the template writes them, with their help (written into the
