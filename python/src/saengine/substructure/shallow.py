@@ -1515,6 +1515,9 @@ def design_shallow(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str]
         "rotation": round(math.degrees(math.atan2(placed.axis_u[1], placed.axis_u[0])), 3),
     }
     result = summary(foundation, checks, members, sizes=sizes, pressure=pressure)
+    if bearing_check is None and service:
+        # No qa: the footing is not checked for what sizes it, whatever its other checks say.
+        result["notChecked"] = ["bearing"]
     return result, placed.notes + notes
 
 
