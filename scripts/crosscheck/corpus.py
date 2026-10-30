@@ -163,7 +163,9 @@ def offsets_beam(folder: Path) -> Path:
         generate(plan, "v"),
         objects(COLUMN, BEAM),
         MATERIALS,
-        settings(endOffsets=True, rigidZoneFactor=0.5, diaphragm="flexible"),
+        # one element between the joints, as the Verification Manual's case (since 0.0.45 a
+        # beam is cut into members of the mesh size for the slabs' load shapes)
+        settings(endOffsets=True, rigidZoneFactor=0.5, diaphragm="flexible", meshSize=10000),
     )
     project = d.project
     (element,) = [e for e in project["elements"] if str(e.get("name", "")).startswith("B11")]
