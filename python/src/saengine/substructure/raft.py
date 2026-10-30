@@ -783,7 +783,7 @@ def _needed_bars(spec: RaftSpec, checks: list[dict[str, Any]]) -> None:
     instead how much steel it needs: As from Mu = 0.9 As fy 0.9 d (d with 16 mm bars), at least
     As,min, and the lightest mesh that gives it (as a new foundation's,
     :func:`saengine.substructure.run.minimum_mesh`)."""
-    from saengine.substructure.run import BAR_DIAS
+    from saengine.substructure.run import bar_dias
     from saengine.substructure.shallow import min_steel_ratio
 
     cover = spec.reinforcement.cover if spec.reinforcement is not None else 75.0
@@ -798,7 +798,7 @@ def _needed_bars(spec: RaftSpec, checks: list[dict[str, Any]]) -> None:
         mesh = next(
             (
                 f"{dia:g}@{spacing:g}"
-                for dia in BAR_DIAS
+                for dia in bar_dias()
                 for spacing in [min(math.floor(math.pi * dia**2 / 4 * 1e3 / need / 25) * 25, limit)]
                 if spacing >= 125
             ),

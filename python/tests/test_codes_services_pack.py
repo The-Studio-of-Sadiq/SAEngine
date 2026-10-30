@@ -167,3 +167,15 @@ def test_unknown_names_are_attribute_errors():
     with pytest.raises(AttributeError):
         _ = T.NOT_A_TABLE_NAME
     assert not hasattr(T, "__wrapped__")
+
+
+def test_rebar_sets_equal_the_old_module_constants():
+    """The bar sizes the tanks and 9 Substructure chose from (plumbing/tanks.py BAR_DIAS,
+    substructure/run.py and sizing.py BAR_DIAS before code packs 3) are sets of the pack's
+    ``concrete.barDiameters``."""
+    from saengine.design.bars import diameters
+    from saengine.substructure.run import bar_dias
+
+    assert same((10.0, 12.0, 16.0, 20.0, 25.0), diameters("tank")) == []
+    assert same((12, 16, 20, 25), bar_dias()) == []
+    assert same((12.0, 16.0, 20.0, 25.0), tuple(float(d) for d in diameters("foundation"))) == []

@@ -378,10 +378,13 @@ class FactorsTable(TableModel):
 
 
 class BarDiameters(_Group):
-    """Bar size sets [mm] by use (extra sets allowed)."""
+    """Bar size sets [mm] by use (extra sets allowed; an extra set keeps its sizes as printed,
+    integers or decimals: 9 Substructure's minimum mesh is written as given)."""
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
-    __pydantic_extra__: dict[str, list[Positive]] = Field(init=False)  # type: ignore[assignment]
+    __pydantic_extra__: dict[  # type: ignore[assignment]
+        str, list[Annotated[int, Field(gt=0)] | Annotated[float, Field(gt=0)]]
+    ] = Field(init=False)
 
     all: list[Positive] = Field(min_length=1)
     main: list[Positive] = Field(min_length=1)
