@@ -126,6 +126,12 @@ table in its own `source`.
 | `detailing` | Detailing limits that are plain numbers: special moment frames, joints, walls, lintels. |
 | `steel` | φ factors and slenderness limits of structural steel. |
 | `foundations` | Pile safety factors, partial factors of skin and base resistance, strut-and-tie factors. |
+| `slabCoefficients` | The two-way slab moment coefficients (BNBC Tables 6.6.8-6.6.11), their limits and the one-way coefficients. |
+| `plumbing` | Water supply, drainage and rainwater (BNBC Part 8 Chapters 5-7): water demand by occupancy, storage, fixture units and the probable demand curve, velocity and pressure limits, stacks, drains and vents, septic tank and soak pit, leaders, gutters and storm drains; the pipe diameters, Hazen-Williams C, sleeves and wet-room fixtures SAEngine assumes where the code is silent. |
+| `hvac` | Air-conditioning and energy (Part 8 Chapter 2, Part 3 Chapter 4): outside design conditions of the stations, inside conditions, ventilation rates and occupancy, lighting power density, glazing and overhangs; equipment loads, metabolic heat and supply air SAEngine assumes (listed in the report). |
+| `electrical` | Electrical services (Part 8 Chapter 1, Sec 4.2.1): load densities, substation, transformer and generator rooms, shafts and risers, earthing, the lightning risk indices and protection; typical equipment sizes and masses for the first layout. |
+| `fire` | Fire protection (Part 4): hazard classes and flows, durations, standpipe and hose pressures, pump ratings, sprinkler pipe schedules and spacing; the NFPA values the code leaves out (marked "from memory, to be checked"). |
+| `steelSections` | The standard steel shapes: the nominal dimensions of each family (IPE, HEA, HEB: EN 10365; ISMB, ISMC: IS 808; equal angles: EN 10056 / IS 808; SHS, RHS, CHS: EN 10219), the walls rolled per size, the density. SAEngine computes the properties (A, I, S, Z, J, Cw) from them. |
 
 `saengine codepack show bnbc2020` lists them with their clauses. Short examples:
 
@@ -391,7 +397,9 @@ date when you change a value, so that a report always says which values it used.
 - 9 Substructure's design report and its sizing assistant: the piles (`foundations`:
   `pileSafety`, `pileControls`, `partialSkin`, `partialBase`, `sptSafety`, `noLoadTestSafety`,
   `loadTestSafety`) and the pile caps (`foundations.strutAndTie`, `factors.phi.strutAndTie`,
-  `concrete.cover.pileCap`).
+  `concrete.cover.pileCap`);
+- the steel member design's section table (`steelSections`: the shapes the design checks,
+  their dimensions and the steel density).
 
 **What does not follow it yet** (read from the built-in BNBC 2020 values, whatever the pack):
 the concrete section design's φ factors and constants (`factors.phi`: `tension`,
@@ -405,8 +413,13 @@ pile and pile cap checks Part 9's editor runs while you type, and the bill of qu
 bearing and cover (they read the tables above, but of BNBC 2020 until they run under the
 project's pack); the analysis exporters' and importers' cracked factors; the soil part
 (liquefaction's site factors); the settings editor's derived-value hints and its Code Values
-panel. A pack's values in those tables are validated and shown, but not used: keep them equal
-to BNBC 2020 until a later version wires them. No design function consults hooks yet.
+panel; the building services (`plumbing`, `hvac`, `electrical`, `fire`: 07 MEP runs under the
+default pack, BNBC 2020 or a user copy that replaces it) and the steel section table wherever it
+is read outside the member design (the 04 Objects section list, the bill of quantities, the
+drawings, the importers and exporters). A pack's values in those tables are validated and
+shown, but not used: keep them equal to BNBC 2020 until a later version wires them. No design
+function consults hooks yet. A pack written before a table moved into the code pack (code packs
+3: the services tables and `steelSections`) that has no copy of it reads BNBC 2020's.
 
 The project's Location must be one of BNBC 2020's towns (or "Custom" with Z and V): a pack's own
 towns are validated and listed but cannot yet be chosen in the settings.

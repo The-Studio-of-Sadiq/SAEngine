@@ -290,6 +290,11 @@ export function coverageLabel(area: string): string {
 		case 'concrete': return localize('codePacks.coverConcrete', "Concrete");
 		case 'steel': return localize('codePacks.coverSteel', "Steel");
 		case 'detailing': return localize('codePacks.coverDetailing', "Detailing");
+		case 'plumbing': return localize('codePacks.coverPlumbing', "Plumbing");
+		case 'hvac': return localize('codePacks.coverHvac', "HVAC");
+		case 'electrical': return localize('codePacks.coverElectrical', "Electrical");
+		case 'fire': return localize('codePacks.coverFire', "Fire protection");
+		case 'steelSections': return localize('codePacks.coverSteelSections', "Steel sections");
 		case 'hooks': return localize('codePacks.coverHooks', "Design hooks");
 		default: return area.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, c => c.toUpperCase());
 	}
