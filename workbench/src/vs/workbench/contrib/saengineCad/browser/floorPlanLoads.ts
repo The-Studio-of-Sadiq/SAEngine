@@ -78,10 +78,18 @@ export interface IWallType {
 
 export interface IWallLoad {
 	readonly type: string;
-	/** [mm] */
+	/** [mm]; with `auto`, the height on the beam and story it is stored on. */
 	readonly height: number;
 	/** Percentage of the wall face that is doors and windows. */
 	readonly openings?: number;
+	/**
+	 * The height is worked out on each beam and story the load is on (the story height above less
+	 * the depth of the beam above, a parapet on the top story), so typical floors of different
+	 * heights get their own walls (`saengine.library.line_loads.auto_height`).
+	 */
+	readonly auto?: boolean;
+	/** With `auto`: no wall on the top story, instead of a parapet. */
+	readonly skipRoof?: boolean;
 }
 
 interface ILoadBase {
@@ -191,7 +199,8 @@ function readableLoad(l: Json): boolean {
 		return false;
 	}
 	const wall = l.wall;
-	const wallOk = isObject(wall) && typeof wall.type === 'string' && num(wall.height) !== undefined && (wall.openings === undefined || num(wall.openings) !== undefined);
+	const flag = (value: unknown) => value === undefined || typeof value === 'boolean';
+	const wallOk = isObject(wall) && typeof wall.type === 'string' && num(wall.height) !== undefined && (wall.openings === undefined || num(wall.openings) !== undefined) && flag(wall.auto) && flag(wall.skipRoof);
 	return (wall === undefined) !== (l.value === undefined) && (wall === undefined ? num(l.value) !== undefined : wallOk);
 }
 
@@ -215,36 +224,55 @@ export function isPoint(load: MemberLoad): load is IPointLoad {
 	return load.kind === 'point';
 }
 
-/** kN/m of a line load, kN of a point load; undefined for a wall of an unknown type. */
-export function loadValue(load: MemberLoad, loads: IMemberLoads): number | undefined {
+/** Where a load is looked at: the floor plan, its object types and the member it is on there. */
+export interface ILoadPlace {
+	readonly layout: unknown;
+	readonly objects: unknown;
+	readonly member: string;
+}
+
+/** kN/m of a line load (on `place`, for a wall whose height is worked out there), kN of a point load; undefined for a wall of an unknown type. */
+export function loadValue(load: MemberLoad, loads: IMemberLoads, place?: ILoadPlace): number | undefined {
 	if (isPoint(load) || load.value !== undefined) {
 		return load.value;
 	}
-	const type = load.wall && loads.wallTypes.find(w => w.id === load.wall!.type);
-	return type ? wallLineLoad(type, load.wall!.height, load.wall!.openings ?? 0) : undefined;
+	const wall = load.wall!;
+	const type = loads.wallTypes.find(w => w.id === wall.type);
+	if (!type) {
+		return undefined;
+	}
+	const on = place ? wallOn(place.layout, place.objects, wall, place.member) : undefined;
+	if (on && on.height === undefined) {
+		return 0; // none on the top story
+	}
+	return wallLineLoad(type, on?.height ?? wall.height, on?.parapet ? 0 : wall.openings ?? 0);
 }
 
 const round = (value: number, digits = 2) => Number(value.toFixed(digits)).toString();
 
 /** "11.56 kN/m", "30 kN". */
-export function valueLabel(load: MemberLoad, loads: IMemberLoads): string {
-	const value = loadValue(load, loads);
+export function valueLabel(load: MemberLoad, loads: IMemberLoads, place?: ILoadPlace): string {
+	const value = loadValue(load, loads, place);
 	if (value === undefined) {
 		return '?';
 	}
 	return isPoint(load) ? localize('loads.kN', "{0} kN", round(value)) : localize('loads.kNm', "{0} kN/m", round(value));
 }
 
-/** How the load is formed: "BW250 × 2.7 m − 20 %", "explicit", "at 2000 mm", "at the joint". */
-export function sourceLabel(load: MemberLoad): string {
+/** How the load is formed: "BW250 × 2.7 m − 20 %", "BW250 parapet × 1 m", "explicit", "at 2000 mm", "at the joint" (a wall as on `place` when given). */
+export function sourceLabel(load: MemberLoad, place?: ILoadPlace): string {
 	if (isPoint(load)) {
 		return load.distance !== undefined ? localize('loads.atDistance', "at {0} mm", load.distance) : localize('loads.atJoint', "at the joint");
 	}
 	if (!load.wall) {
 		return localize('loads.explicit', "explicit");
 	}
+	const on = place ? wallOn(place.layout, place.objects, load.wall, place.member) : undefined;
+	if (on?.parapet) {
+		return on.height === undefined ? localize('loads.roofSkipped', "{0}: none on the top story", load.wall.type) : localize('loads.parapetSource', "{0} parapet × {1} m", load.wall.type, round(on.height / 1000, 3));
+	}
 	const openings = load.wall.openings ? localize('loads.lessOpenings', " − {0} %", load.wall.openings) : '';
-	return localize('loads.wallSource', "{0} × {1} m{2}", load.wall.type, round(load.wall.height / 1000, 3), openings);
+	return localize('loads.wallSource', "{0} × {1} m{2}", load.wall.type, round((on?.height ?? load.wall.height) / 1000, 3), openings);
 }
 
 // ───────────────────────────── the floor plan ─────────────────────────────
@@ -312,11 +340,11 @@ export function defaultWallHeight(layout: unknown, objects: unknown, beamId: str
  * {@link defaultWallHeight} with how it is worked out, for the Line Load form: "3600 (Level 2 to
  * Level 3) − 500 (depth of B9) = 3100 mm", or why it is a parapet.
  */
-export function wallHeightBasis(layout: unknown, objects: unknown, beamId: string): { readonly height: number; readonly basis: string } {
+export function wallHeightBasis(layout: unknown, objects: unknown, beamId: string): { readonly height: number; readonly basis: string; readonly parapet: boolean } {
 	const beam = beamsOf(layout).find(b => b.id === beamId);
 	const stories = storiesOf(layout);
 	const index = stories.findIndex(s => s.id === beam?.story);
-	const parapet = { height: PARAPET_HEIGHT, basis: localize('loads.parapetBasis', "{0} mm: a parapet (no story above {1}).", PARAPET_HEIGHT, beamId) };
+	const parapet = { height: PARAPET_HEIGHT, parapet: true, basis: localize('loads.parapetBasis', "{0} mm: a parapet (no story above {1}).", PARAPET_HEIGHT, beamId) };
 	if (!beam || index < 0 || index === stories.length - 1) {
 		return parapet;
 	}
@@ -332,8 +360,50 @@ export function wallHeightBasis(layout: unknown, objects: unknown, beamId: strin
 	const source = aboveDepth !== undefined ? String(above!.id) : beamId;
 	return {
 		height: Math.round(height),
+		parapet: false,
 		basis: localize('loads.heightBasis', "{0} ({1} to {2}) − {3} (depth of {4}) = {5} mm", round(storyHeight, 0), stories[index].name, stories[index + 1].name, round(depth, 0), source, Math.round(height)),
 	};
+}
+
+export interface IWallOn {
+	/** [mm]; undefined: no wall there (the top story, skipped). */
+	readonly height: number | undefined;
+	/** On the top story: a parapet (no openings), or none. */
+	readonly parapet: boolean;
+	readonly basis: string;
+}
+
+/**
+ * The height of `wall` on beam `beamId`: a wall whose height is worked out (`auto`) gets that
+ * beam's and story's ({@link wallHeightBasis}: a parapet on the top story, or none when it skips
+ * the roof), as the analysis does (`saengine.library.line_loads.auto_height`); else its own.
+ */
+export function wallOn(layout: unknown, objects: unknown, wall: IWallLoad, beamId: string): IWallOn {
+	if (!wall.auto) {
+		return { height: wall.height, parapet: false, basis: '' };
+	}
+	const basis = wallHeightBasis(layout, objects, beamId);
+	if (basis.parapet && wall.skipRoof) {
+		return { height: undefined, parapet: true, basis: localize('loads.roofSkippedBasis', "None: {0} is on the top story, and the roof is skipped.", beamId) };
+	}
+	return basis;
+}
+
+/**
+ * The partition walls (non-structural floor-plan walls) standing on beam `beamId`: the analysis
+ * applies their weight to the beam already (`saengine.fem.derive`), so a wall line load there
+ * would count it twice.
+ */
+export function partitionsOn(layout: unknown, objects: unknown, beamId: string): string[] {
+	const beam = beamsOf(layout).find(b => b.id === beamId);
+	if (!beam) {
+		return [];
+	}
+	const types = list(isObject(objects) ? objects.objects : undefined);
+	const key = beamKey(beam);
+	return list(isObject(layout) ? layout.walls : undefined)
+		.filter(w => w.base === beam.story && beamKey(w) === key && types.find(t => t.id === w.type)?.structural === false)
+		.map(w => String(w.id));
 }
 
 /** Whether beam `other` runs the other way from beam `beamId` (same place, start and end swapped). */
@@ -429,8 +499,11 @@ export interface ILoadEdit {
 	readonly problems: readonly string[];
 }
 
-/** `loads` with a line load added on each of `beams` (floor-plan beam ids). */
-export function addLineLoads(loads: IMemberLoads, layout: unknown, beams: readonly string[], spec: ILineLoadSpec): ILoadEdit {
+/**
+ * `loads` with a line load added on each of `beams` (floor-plan beam ids). A wall whose height is
+ * worked out (`auto`) stores each beam's own height (from `objects`' depths), not the first one's.
+ */
+export function addLineLoads(loads: IMemberLoads, layout: unknown, beams: readonly string[], spec: ILineLoadSpec, objects?: unknown): ILoadEdit {
 	const problems: string[] = [];
 	if ((spec.wall === undefined) === (spec.value === undefined)) {
 		return { loads, ids: [], problems: [localize('loads.wallOrValue', "Give a wall (type and height) or a load in kN/m.")] };
@@ -447,9 +520,10 @@ export function addLineLoads(loads: IMemberLoads, layout: unknown, beams: readon
 			continue;
 		}
 		const where = storedOn(layout, id, beam.story, !!spec.thisStoryOnly);
+		const wall = spec.wall && (spec.wall.auto ? { ...spec.wall, height: wallHeightBasis(layout, objects, where.member).height } : { ...spec.wall });
 		added.push({
 			id: nextLoadId(loads, 'LL', taken), kind: 'line', ...where, case: spec.case,
-			...(spec.wall ? { wall: { ...spec.wall } } : { value: spec.value }),
+			...(wall ? { wall } : { value: spec.value }),
 			...(spec.thisStoryOnly ? { thisStoryOnly: true } : {}),
 		});
 	}
@@ -506,7 +580,8 @@ export function removeLoads(loads: IMemberLoads, ids: readonly string[]): IMembe
 	return { ...loads, loads: loads.loads.filter(l => !ids.includes(l.id)) };
 }
 
-export type LoadPatch = { readonly case?: LoadCase; readonly value?: number; readonly height?: number; readonly openings?: number; readonly distance?: number };
+/** A typed `height` fixes the wall's height on every story; `auto` works it out on each again. */
+export type LoadPatch = { readonly case?: LoadCase; readonly value?: number; readonly height?: number; readonly auto?: boolean; readonly openings?: number; readonly distance?: number };
 
 /** `loads` with load `id` changed: its case, its kN/m or kN, or its wall's height and openings. */
 export function updateLoad(loads: IMemberLoads, id: string, patch: LoadPatch): IMemberLoads {
@@ -519,7 +594,11 @@ export function updateLoad(loads: IMemberLoads, id: string, patch: LoadPatch): I
 			if (isPoint(next)) {
 				next = { ...next, ...(patch.value !== undefined ? { value: patch.value } : {}), ...(patch.distance !== undefined ? { distance: patch.distance } : {}) };
 			} else if (next.wall) {
-				next = { ...next, wall: { ...next.wall, ...(patch.height !== undefined ? { height: patch.height } : {}), ...(patch.openings !== undefined ? { openings: patch.openings } : {}) } };
+				const w = next.wall;
+				const wall: IWallLoad = patch.height !== undefined
+					? { type: w.type, height: patch.height, ...(w.openings !== undefined ? { openings: w.openings } : {}) }
+					: patch.auto ? { ...w, auto: true } : w;
+				next = { ...next, wall: { ...wall, ...(patch.openings !== undefined ? { openings: patch.openings } : {}) } };
 			} else if (patch.value !== undefined) {
 				next = { ...next, value: patch.value };
 			}
@@ -542,29 +621,49 @@ export interface ILoadRow {
 	readonly source: string;
 	/** Total on all its stories [kN], for the beams' lengths in the plan. */
 	readonly total: number | undefined;
+	/** A wall whose height is worked out per story: its height on each, "2.7 m on Level 1, 3.1 m on Level 2, parapet on Roof". */
+	readonly heights?: string;
 }
 
-/** The rows of the Loads list, by story (lowest first), then member. */
-export function loadRows(loads: IMemberLoads, layout: unknown): ILoadRow[] {
+/** The rows of the Loads list, by story (lowest first), then member; walls of `auto` height as on each story (`objects`: the beams' depths). */
+export function loadRows(loads: IMemberLoads, layout: unknown, objects?: unknown): ILoadRow[] {
 	const stories = storiesOf(layout);
 	const order = new Map(stories.map((s, i) => [s.id, i]));
 	const names = new Map(stories.map(s => [s.id, s.name]));
 	return loads.loads.map(load => {
-		const value = loadValue(load, loads);
-		const on = storiesOfLoad(layout, load).length;
+		const place: ILoadPlace = { layout, objects, member: load.member };
+		const value = loadValue(load, loads, place);
+		const on = storiesOfLoad(layout, load);
 		let total: number | undefined;
+		let heights: string | undefined;
 		if (value !== undefined) {
 			if (isPoint(load)) {
-				total = value * on;
+				total = value * on.length;
 			} else {
-				const ends = beamEnds(layout, load.member);
-				total = ends ? value * Math.hypot(ends[1][0] - ends[0][0], ends[1][1] - ends[0][1]) / 1000 * on : undefined;
+				// Each story's beam at the place, with its own length and (an auto wall's) height.
+				const parts: string[] = [];
+				total = 0;
+				for (const story of on) {
+					const member = samePlace(layout, load.member, load.story, story);
+					const ends = member ? beamEnds(layout, member) : undefined;
+					if (!member || !ends) {
+						continue;
+					}
+					total += (loadValue(load, loads, { layout, objects, member }) ?? 0) * Math.hypot(ends[1][0] - ends[0][0], ends[1][1] - ends[0][1]) / 1000;
+					if (load.wall?.auto) {
+						const wall = wallOn(layout, objects, load.wall, member);
+						parts.push(wall.height === undefined ? localize('loads.heightNone', "none on {0}", names.get(story) ?? story)
+							: wall.parapet ? localize('loads.heightParapet', "{0} m parapet on {1}", round(wall.height / 1000, 3), names.get(story) ?? story)
+								: localize('loads.heightOn', "{0} m on {1}", round(wall.height / 1000, 3), names.get(story) ?? story));
+					}
+				}
+				heights = parts.length ? parts.join(', ') : undefined;
 			}
 		}
 		return {
-			id: load.id, story: load.story, storyName: names.get(load.story) ?? load.story, stories: on, member: load.member,
+			id: load.id, story: load.story, storyName: names.get(load.story) ?? load.story, stories: on.length, member: load.member,
 			kind: isPoint(load) ? 'point' as const : 'line' as const, case: load.case ?? 'SD', value,
-			valueLabel: valueLabel(load, loads), source: sourceLabel(load), total,
+			valueLabel: valueLabel(load, loads, place), source: sourceLabel(load, place), total, heights,
 		};
 	}).sort((a, b) => (order.get(a.story) ?? 99) - (order.get(b.story) ?? 99) || a.member.localeCompare(b.member, undefined, { numeric: true }) || a.id.localeCompare(b.id, undefined, { numeric: true }));
 }
@@ -585,15 +684,25 @@ const TICK_SPACING = 750;
 const LABEL_TEXT = 220;
 const POINT_RADIUS = 160;
 
+/** The unit normal of `a`→`b` toward the side the floor plan puts a beam's label (floorPlanDrawing: above, left of a vertical beam). */
+function labelSide(a: CadPoint, b: CadPoint, length: number): CadPoint {
+	const [nx, ny] = [-(b[1] - a[1]) / length, (b[0] - a[0]) / length];
+	return ny < -1e-9 || (Math.abs(ny) <= 1e-9 && nx > 0) ? [-nx, -ny] : [nx, ny];
+}
+
 /** The loads on the plan of `story`: a line beside each loaded beam with ticks to it and its value, a circled cross at each point load. */
-export function loadsDrawing(loads: IMemberLoads, layout: unknown, story: string): CadEntitySpec[] {
+export function loadsDrawing(loads: IMemberLoads, layout: unknown, story: string, objects?: unknown): CadEntitySpec[] {
 	const entities: CadEntitySpec[] = [];
 	const stacked = new Map<string, number>();
 	for (const { load, member } of loadsOnStory(loads, layout, story)) {
-		const label = valueLabel(load, loads);
+		// A wall whose height is worked out shows its value on this story's beam.
+		const label = valueLabel(load, loads, { layout, objects, member });
+		if (!isPoint(load) && loadValue(load, loads, { layout, objects, member }) === 0) {
+			continue; // none on the top story
+		}
 		if (isPoint(load)) {
-			// The point on the member, and the side the symbol goes to: right of the beam's
-			// direction (line loads are on its left, the member's id on its centreline), or
+			// The point on the member, and the side the symbol goes to: the side of the member's
+			// label, beyond it (line loads go on the other side), or
 			// diagonally off a column's joint.
 			let at: CadPoint | undefined;
 			let side: CadPoint = [Math.SQRT1_2, -Math.SQRT1_2];
@@ -606,7 +715,7 @@ export function loadsDrawing(loads: IMemberLoads, layout: unknown, story: string
 					const t = Math.min(load.distance / length, 1);
 					at = [stored[0][0] + (stored[1][0] - stored[0][0]) * t, stored[0][1] + (stored[1][1] - stored[0][1]) * t];
 					const shownLength = Math.hypot(shown[1][0] - shown[0][0], shown[1][1] - shown[0][1]) || 1;
-					side = [(shown[1][1] - shown[0][1]) / shownLength, -(shown[1][0] - shown[0][0]) / shownLength];
+					side = labelSide(shown[0], shown[1], shownLength);
 				}
 			} else {
 				at = columnAt(layout, member);
@@ -636,9 +745,11 @@ export function loadsDrawing(loads: IMemberLoads, layout: unknown, story: string
 		}
 		const level = stacked.get(member) ?? 0;
 		stacked.set(member, level + 1);
-		// To the left of the beam's direction, so a beam's loads stack on one side.
+		// Opposite the member's label (above a horizontal beam, left of a vertical one), so the
+		// load's value and the beam's name never overlap; a beam's loads stack on that side.
 		const offset = LOAD_OFFSET + level * LOAD_STEP;
-		const [nx, ny] = [-(b[1] - a[1]) / length, (b[0] - a[0]) / length];
+		const [lx, ly] = labelSide(a, b, length);
+		const [nx, ny] = [-lx, -ly];
 		const shift = (p: CadPoint, d: number): CadPoint => [p[0] + nx * d, p[1] + ny * d];
 		const [p, q] = [shift(a, offset), shift(b, offset)];
 		entities.push({ kind: 'line', layer: LOAD_LAYERS.loads, start: p, end: q });
@@ -824,11 +935,14 @@ export class FloorPlanLoadsFile extends Disposable {
 		return parseLoads(this.model?.getValue());
 	}
 
-	/** Replaces the file's content with `loads` as one undoable edit (creating the file first) and saves it. */
-	async write(loads: IMemberLoads): Promise<void> {
+	/**
+	 * Replaces the file's content with `loads` as one undoable edit (creating the file first) and
+	 * saves it; the model's versions around the edit, for the floor plan's undo history.
+	 */
+	async write(loads: IMemberLoads): Promise<ILoadsWrite | undefined> {
 		const resource = this.resource;
 		if (!resource) {
-			return;
+			return undefined;
 		}
 		let model = this.model;
 		if (!model) {
@@ -837,18 +951,35 @@ export class FloorPlanLoadsFile extends Disposable {
 			}
 			model = await this.resolve(resource);
 			if (!model) {
-				return;
+				return undefined;
 			}
 		}
 		const current = parseLoads(model.getValue());
 		if (current.problem) {
 			throw new Error(current.problem);
 		}
+		const before = model.getAlternativeVersionId();
 		model.pushStackElement();
 		model.pushEditOperations([], [{ range: model.getFullModelRange(), text: loadsText(loads) }], () => null);
 		model.pushStackElement();
+		const after = model.getAlternativeVersionId();
 		await this.textFileService.save(resource);
+		return { resource, before, after };
 	}
+
+	/** Saves the file after an undo or redo of it (the panel has no Save of its own). */
+	async save(): Promise<void> {
+		if (this.resource && this.model) {
+			await this.textFileService.save(this.resource);
+		}
+	}
+}
+
+/** A write of the loads file: the model's versions before and after it, for undo and redo. */
+export interface ILoadsWrite {
+	readonly resource: URI;
+	readonly before: number;
+	readonly after: number;
 }
 
 // ───────────────────────────── properties panel ─────────────────────────────
@@ -864,6 +995,8 @@ export interface ILoadsPanelContext {
 	readonly editable: boolean;
 	/** Shows a message in the editor's status line. */
 	readonly notify: (text: string) => void;
+	/** A load was added, changed or deleted: `label` names it in the floor plan's Undo and Redo. */
+	readonly edited?: (label: string, write: ILoadsWrite) => void;
 	/** Draws the properties panel again (a form opened or closed). */
 	readonly rerender: () => void;
 	/** Selects a member on the plan (from the Loads list). */
@@ -1025,13 +1158,18 @@ export class FloorPlanLoadsPanel extends Disposable {
 	}
 
 	private async write(loads: IMemberLoads, notice: string, context: ILoadsPanelContext): Promise<void> {
+		let write: ILoadsWrite | undefined;
 		try {
-			await this.file.write(loads);
+			write = await this.file.write(loads);
 		} catch (error) {
 			context.notify(localize('loads.writeFailed', "The loads could not be written: {0}", String(error)));
 			return;
 		}
-		context.notify(notice);
+		if (write && context.edited) {
+			context.edited(notice, write);
+		} else {
+			context.notify(notice);
+		}
 		context.rerender();
 	}
 
@@ -1062,17 +1200,33 @@ export class FloorPlanLoadsPanel extends Disposable {
 		return box;
 	}
 
-	private familyCheckbox(container: HTMLElement, store: DisposableStore, context: ILoadsPanelContext, story: string | undefined): () => boolean {
+	/** A checkbox row whose words toggle it too (as a native checkbox's label), with a muted note after them. */
+	private checkRow(container: HTMLElement, store: DisposableStore, row: string, label: string, note: string, checked: boolean, onChange?: () => void): { readonly checkbox: Checkbox; readonly row: HTMLElement; readonly note: HTMLElement } {
+		const checkbox = store.add(new Checkbox(label, checked, defaultCheckboxStyles));
+		const cell = $('.floor-plan-loads-check');
+		cell.appendChild(checkbox.domNode);
+		const text = append(cell, $('span.floor-plan-loads-check-label', undefined, label));
+		const muted = append(cell, $('span.floor-plan-loads-check-note', undefined, note));
+		store.add(addDisposableListener(text, EventType.CLICK, () => {
+			checkbox.checked = !checkbox.checked;
+			checkbox.focus();
+			onChange?.();
+		}));
+		if (onChange) {
+			store.add(checkbox.onChange(() => onChange()));
+		}
+		const element = appendPropertyRow(container, row, cell);
+		element.classList.add('editable');
+		return { checkbox, row: element, note: muted };
+	}
+
+	private familyCheckbox(container: HTMLElement, store: DisposableStore, context: ILoadsPanelContext, story: string | undefined, onChange?: () => void): () => boolean {
 		const family = story ? familyOf(context.layout, story) : [];
 		if (family.length < 2) {
 			return () => false;
 		}
-		const label = localize('loads.thisStoryOnly', "This story only");
-		const checkbox = store.add(new Checkbox(label, false, defaultCheckboxStyles));
-		const cell = $('.floor-plan-loads-check');
-		cell.appendChild(checkbox.domNode);
-		append(cell, $('span', undefined, localize('loads.familyNote', "else on all {0} stories of the typical floor", family.length)));
-		appendPropertyRow(container, label, cell).classList.add('editable');
+		const { checkbox } = this.checkRow(container, store, localize('loads.applies', "Applies to"), localize('loads.thisStoryOnly', "This story only"),
+			localize('loads.familyNote', "(else on all {0} stories of the typical floor)", family.length), false, onChange);
 		return () => checkbox.checked;
 	}
 
@@ -1083,32 +1237,95 @@ export class FloorPlanLoadsPanel extends Disposable {
 		let fromWall = types.length > 0;
 		let typeIndex = Math.max(0, types.findIndex(t => t.id === 'BW250'));
 		let caseIndex = 0;
-		const { height, basis } = wallHeightBasis(context.layout, context.objects, beams[0]);
+		const { layout, objects } = context;
+		const { height, basis } = wallHeightBasis(layout, objects, beams[0]);
+		const stories = storiesOf(layout);
+		const names = new Map(stories.map(s => [s.id, s.name]));
+		const top = stories[stories.length - 1]?.id;
 		const form = append(section, $('.floor-plan-loads-form'));
 		const wallRows: HTMLElement[] = [];
 		/** The form's controls, set as they are made (the callbacks run after that). */
-		const c: { result?: HTMLElement; height?: InputBox; openings?: InputBox; value?: InputBox; valueRow?: HTMLElement } = {};
+		const c: {
+			result?: HTMLElement; height?: InputBox; openings?: InputBox; value?: InputBox; valueRow?: HTMLElement;
+			auto?: Checkbox; heights?: HTMLElement; roof?: { readonly checkbox: Checkbox; readonly row: HTMLElement }; onlyHere?: () => boolean;
+		} = {};
+		const auto = () => c.auto?.checked ?? true;
+		/** The stories the load goes on: the typical floor's, or this one. */
+		const onStories = () => context.story && !c.onlyHere?.() ? familyOf(layout, context.story) : context.story ? [context.story] : [];
+		/** Each selected beam on each of those stories, with the wall's height there. */
+		const placed = (wall: IWallLoad) => beams.flatMap(beam => {
+			const from = beamsOf(layout).find(b => b.id === beam)?.story;
+			return onStories().map(story => {
+				const member = typeof from === 'string' ? samePlace(layout, beam, from, story) : undefined;
+				return { story, member, on: member ? wallOn(layout, objects, wall, member) : undefined };
+			});
+		});
 		const spec = (): ILineLoadSpec | undefined => {
 			const kase = LOAD_CASES[caseIndex].id;
 			if (fromWall) {
 				const h = Number(c.height?.value), o = Number(c.openings?.value || '0');
-				return types[typeIndex] && h > 0 && o >= 0 && o < 100 ? { case: kase, wall: { type: types[typeIndex].id, height: h, ...(o ? { openings: o } : {}) } } : undefined;
+				const worked = auto() ? { auto: true, ...(c.roof?.checkbox.checked ? { skipRoof: true } : {}) } : {};
+				return types[typeIndex] && h > 0 && o >= 0 && o < 100 ? { case: kase, wall: { type: types[typeIndex].id, height: h, ...(o ? { openings: o } : {}), ...worked } } : undefined;
 			}
 			const text = c.value?.value ?? '';
 			const v = Number(text);
 			return text.trim() && Number.isFinite(v) && v !== 0 ? { case: kase, value: v } : undefined;
 		};
+		/** "2700 mm on Level 1, Level 3; 3100 mm on Level 2; 1000 mm parapet on Roof", or a warning when a typed height meets stories of other heights. */
+		const heightsNote = (wall: IWallLoad): string => {
+			const found = placed(wall);
+			if (!wall.auto) {
+				const story = (id: string) => {
+					const i = stories.findIndex(s => s.id === id);
+					return i >= 0 && i < stories.length - 1 ? stories[i + 1].elevation - stories[i].elevation : undefined;
+				};
+				const heights = [...new Set(onStories().map(story).filter((h): h is number => h !== undefined))];
+				const roof = onStories().includes(top ?? '');
+				return heights.length > 1 || roof
+					? localize('loads.typedWarning', "Warning: {0} mm is used on every story the load is on, but they are {1} mm high{2}. Tick Per beam and story to work it out on each.", wall.height, heights.join(', '), roof ? localize('loads.typedRoof', ", and the top story gets a full wall") : '')
+					: '';
+			}
+			const groups = new Map<string, string[]>();
+			for (const { story, on } of found) {
+				const key = !on ? '' : on.height === undefined ? localize('loads.groupNone', "no wall") : on.parapet ? localize('loads.groupParapet', "{0} mm parapet", on.height) : localize('loads.groupHeight', "{0} mm", on.height);
+				if (key && !(groups.get(key) ?? []).includes(names.get(story) ?? story)) {
+					groups.set(key, [...groups.get(key) ?? [], names.get(story) ?? story]);
+				}
+			}
+			const parts = [...groups].map(([key, where]) => localize('loads.groupOn', "{0} on {1}", key, where.join(', ')));
+			return parts.length ? localize('loads.workedOut', "Worked out on each beam and story: {0}.", parts.join('; ')) : '';
+		};
 		const refresh = () => {
 			wallRows.forEach(row => row.classList.toggle('hidden', !fromWall));
 			c.valueRow?.classList.toggle('hidden', fromWall);
+			if (c.height) {
+				c.height.setEnabled(!auto());
+				if (auto()) {
+					c.height.value = String(height);
+				}
+			}
+			c.roof?.row.classList.toggle('hidden', !fromWall || !auto() || !onStories().includes(top ?? ''));
 			const s = spec();
-			const value = s?.wall ? wallLineLoad(types[typeIndex], s.wall.height, s.wall.openings ?? 0) : s?.value;
+			if (c.heights) {
+				c.heights.textContent = s?.wall ? heightsNote(s.wall) : '';
+			}
 			if (!c.result) {
 				return;
 			}
-			c.result.textContent = value !== undefined
-				? localize('loads.preview', "{0} kN/m on each beam", round(value))
-				: localize('loads.previewIncomplete', "Enter the wall's height (and openings below 100 %) or a load in kN/m.");
+			let values: number[] = [];
+			if (s?.wall) {
+				const type = types[typeIndex];
+				values = s.wall.auto
+					? placed(s.wall).map(p => !p.on || p.on.height === undefined ? 0 : wallLineLoad(type, p.on.height, p.on.parapet ? 0 : s.wall!.openings ?? 0)).filter(v => v > 0)
+					: [wallLineLoad(type, s.wall.height, s.wall.openings ?? 0)];
+			} else if (s?.value !== undefined) {
+				values = [s.value];
+			}
+			const [low, high] = [Math.min(...values), Math.max(...values)];
+			c.result.textContent = !values.length
+				? localize('loads.previewIncomplete', "Enter the wall's height (and openings below 100 %) or a load in kN/m.")
+				: Math.abs(high - low) < 0.005 ? localize('loads.preview', "{0} kN/m on each beam", round(low))
+					: localize('loads.previewRange', "{0} to {1} kN/m, by beam and story", round(low), round(high));
 		};
 		this.select(form, store, localize('loads.source', "Load from"), kinds, fromWall ? 0 : 1, index => {
 			fromWall = index === 0 && types.length > 0;
@@ -1125,7 +1342,7 @@ export class FloorPlanLoadsPanel extends Disposable {
 				context.notify(localize('loads.incomplete', "The line load is incomplete."));
 				return;
 			}
-			const edit = addLineLoads(loads, context.layout, beams, { ...s, thisStoryOnly: onlyHere() });
+			const edit = addLineLoads(loads, layout, beams, { ...s, thisStoryOnly: c.onlyHere?.() }, objects);
 			if (!edit.ids.length) {
 				context.notify(edit.problems.join(' '));
 				return;
@@ -1133,8 +1350,13 @@ export class FloorPlanLoadsPanel extends Disposable {
 			this.form = undefined;
 			void this.write(edit.loads, edit.ids.length === 1 ? localize('loads.addedOne', "Added line load {0}.", edit.ids[0]) : localize('loads.addedMany', "Added {0} line loads.", edit.ids.length), context);
 		};
+		c.auto = this.checkRow(form, store, localize('loads.heightFrom', "Wall height"), localize('loads.perBeam', "Per beam and story"),
+			localize('loads.perBeamNote2', "(story height − beam depth)"), true, refresh).checkbox;
 		c.height = this.input(form, store, localize('loads.height', "Height (mm)"), String(height), localize('loads.heightHint', "Storey height less the beam depth"), refresh, apply);
-		appendPropertyNote(form, beams.length > 1 ? localize('loads.heightBasisMany', "{0} (for {1}; edit it if the beams differ)", basis, beams[0]) : basis);
+		appendPropertyNote(form, beams.length > 1 ? localize('loads.heightBasisMany', "{0} (for {1})", basis, beams[0]) : basis);
+		c.heights = appendPropertyNote(form, '');
+		c.roof = this.checkRow(form, store, localize('loads.roof', "Top story"), localize('loads.skipRoof', "No wall there"),
+			localize('loads.skipRoofNote', "(else a {0} mm parapet)", PARAPET_HEIGHT), false, refresh);
 		c.openings = this.input(form, store, localize('loads.openings', "Openings (%)"), '0', localize('loads.openingsHint', "Doors and windows, % of the wall face"), refresh, apply);
 		for (let i = before; i < form.childElementCount; i++) {
 			wallRows.push(form.children[i] as HTMLElement);
@@ -1142,8 +1364,12 @@ export class FloorPlanLoadsPanel extends Disposable {
 		c.value = this.input(form, store, localize('loads.valueKnm', "Load (kN/m)"), '', localize('loads.valueKnmHint', "e.g. 7.5"), refresh, apply);
 		c.valueRow = form.lastElementChild as HTMLElement;
 		this.select(form, store, localize('loads.case', "Load case"), LOAD_CASES.map(c => c.label), caseIndex, index => caseIndex = index);
-		const onlyHere = this.familyCheckbox(form, store, context, context.story);
+		c.onlyHere = this.familyCheckbox(form, store, context, context.story, refresh);
 		c.result = appendPropertyNote(form, '');
+		const doubled = beams.flatMap(beam => partitionsOn(layout, objects, beam).map(wall => `${beam} (${wall})`));
+		if (doubled.length) {
+			appendPropertyNote(form, localize('loads.partitionTwice', "Warning: partition walls of the floor plan stand on {0}; the analysis applies their weight already, so a wall here counts it twice. Use one or the other: a partition wall to see it on the plan, or this line load.", doubled.join(', '))).classList.add('warning');
+		}
 		refresh();
 		const links = append(form, $('.sa-props-links'));
 		propertyLink(links, localize('loads.add', "Add"), apply, store);
@@ -1193,7 +1419,7 @@ export class FloorPlanLoadsPanel extends Disposable {
 
 	/** The Loads list: story, member, kind, case, value and how it is formed; editable. */
 	private renderList(section: HTMLElement, store: DisposableStore, context: ILoadsPanelContext, loads: IMemberLoads, problem: string | undefined): void {
-		const rows = loadRows(loads, context.layout);
+		const rows = loadRows(loads, context.layout, context.objects);
 		const onStory = context.story ? new Set(loadsOnStory(loads, context.layout, context.story).map(s => s.load.id)) : new Set<string>();
 		const shown = this.showAll ? rows : rows.filter(r => onStory.has(r.id));
 		const total = shown.reduce((sum, r) => sum + (r.total ?? 0), 0);
@@ -1251,24 +1477,29 @@ export class FloorPlanLoadsPanel extends Disposable {
 					inputBoxStyles: defaultInputBoxStyles,
 					ariaLabel: wall ? localize('loads.heightOf', "Wall height of {0} in mm", row.id) : localize('loads.valueOf', "Value of {0}", row.id),
 				}));
-				box.value = wall ? String(wall.height) : String(row.value ?? '');
-				box.element.title = wall ? localize('loads.heightTitle', "Wall height (mm): {0}", row.valueLabel) : row.valueLabel;
+				const autoWord = localize('loads.autoWord', "auto");
+				box.value = wall ? (wall.auto ? autoWord : String(wall.height)) : String(row.value ?? '');
+				box.element.title = wall ? localize('loads.heightTitle', "Wall height (mm), or {0} to work it out on each beam and story: {1}", autoWord, row.valueLabel) : row.valueLabel;
 				store.add(addDisposableListener(box.inputElement, EventType.KEY_DOWN, e => {
 					if (e.key !== 'Enter') {
 						return;
 					}
 					e.preventDefault();
 					e.stopPropagation();
+					if (wall && box.value.trim().toLowerCase() === autoWord.toLowerCase()) {
+						void this.write(updateLoad(loads, row.id, { auto: true }), localize('loads.changed', "Changed {0}.", row.id), context);
+						return;
+					}
 					const v = Number(box.value);
 					if (!Number.isFinite(v) || v === 0 || (wall && v < 0)) {
-						context.notify(localize('loads.badValue', "Type a number."));
+						context.notify(wall ? localize('loads.badHeight', "Type the height in mm, or {0}.", autoWord) : localize('loads.badValue', "Type a number."));
 						return;
 					}
 					void this.write(updateLoad(loads, row.id, wall ? { height: v } : { value: v }), localize('loads.changed', "Changed {0}.", row.id), context);
 				}));
 				append(valueCell, $('span.unit', undefined, wall ? localize('loads.mmUnit', "mm") : unit));
 			} else {
-				valueCell.textContent = wall ? `${wall.height} ${localize('loads.mmUnit', "mm")}` : row.valueLabel;
+				valueCell.textContent = wall ? (wall.auto ? localize('loads.autoWord', "auto") : `${wall.height} ${localize('loads.mmUnit', "mm")}`) : row.valueLabel;
 			}
 			const actions = append(tr, $('td'));
 			if (context.editable) {
@@ -1276,7 +1507,9 @@ export class FloorPlanLoadsPanel extends Disposable {
 			}
 			const story = row.stories > 1 ? localize('loads.storyFamily', "{0}, repeats on {1} stories", row.storyName, row.stories) : row.storyName;
 			const kind = row.kind === 'point' ? localize('loads.kindPoint', "point") : localize('loads.kindLine', "line");
-			const source = wall ? localize('loads.wallSourceValue', "{0} = {1}", row.source, row.valueLabel) : row.source;
+			const source = !wall ? row.source
+				: row.heights ? localize('loads.wallSourceHeightsOn', "{0} = {1} on {2}; height per story: {3}", row.source, row.valueLabel, row.storyName, row.heights)
+					: localize('loads.wallSourceValue', "{0} = {1}", row.source, row.valueLabel);
 			append(append(body, $('tr.detail')), $('td.source', { colSpan: 5 }, localize('loads.detail', "{0} · {1}, {2} · {3}", row.id, story, kind, source)));
 		}
 		appendPropertyNote(section, localize('loads.totalNote', "Total {0} kN on the stories listed (each typical-floor load counted on every story it is on). Loads go to the analysis as their load case; walls are superimposed dead load by default.", round(total, 1)));
