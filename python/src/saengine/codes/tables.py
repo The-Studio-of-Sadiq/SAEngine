@@ -992,6 +992,169 @@ class HvacTable(_Services):
         return self
 
 
+class ElectricalUse(_Row):
+    """A row of Table 8.1.17: the minimum unit load [W/m²]."""
+
+    label: str
+    nonAc: NonNegNum
+    ac: NonNegNum | None = Field(description="With air conditioning; null: the table gives none.")
+    lightningA: PosNum = Field(description="Table 8.1.27(a) index A of the row's kind.")
+    lightningC: PosNum = Field(description="Table 8.1.27(b) index C of the row's kind.")
+
+
+class SubstationArea(_Row):
+    number: Annotated[int, Field(gt=0)] = Field(description="Number of transformers.")
+    kva: PosNum
+    transformerArea: PosNum = Field(description="[m²]")
+    totalArea: PosNum = Field(description="With HT and LT panels, without generators [m²].")
+
+
+class IndexRow(_Row):
+    label: str
+    index: PosNum
+
+
+class IndexStep(_Row):
+    upTo: PosNum
+    index: PosNum
+
+
+class IecLevel(_Row):
+    sphere: PosNum = Field(description="Rolling sphere radius [m].")
+    mesh: PosNum = Field(description="Mesh size [m].")
+    downSpacing: PosNum = Field(description="Typical down-conductor spacing [m].")
+
+
+class TransformerUnit(_Row):
+    length: PosNum
+    width: PosNum
+    height: PosNum
+    mass: PosNum = Field(description="[kg]")
+    oil: PosNum = Field(description="[litres]")
+
+
+class GeneratorSet(_Row):
+    length: PosNum
+    width: PosNum
+    height: PosNum
+    mass: PosNum = Field(description="[kg]")
+
+
+class Busbar(_Row):
+    width: PosNum
+    depth: PosNum
+    mass: PosNum = Field(description="[kg/m]")
+
+
+class CableOd(_Row):
+    amps: PosNum
+    od: PosNum = Field(description="Outside diameter [mm].")
+
+
+class Panel(_Row):
+    width: PosNum
+    depth: PosNum
+    height: PosNum
+    mass: PosNum = Field(description="[kg]")
+    kvar: PosNum | None = Field(default=None, description="A capacitor bank's kvar.")
+
+
+class LtPanel(_Group):
+    section: PosNum = Field(description="Section width [mm].")
+    depth: PosNum
+    height: PosNum
+    massPerM: PosNum = Field(description="[kg/m]")
+    ampsPerSection: PosNum = Field(description="Amperes per section beyond the incomer.")
+
+
+class ElectricalTable(_Services):
+    """BNBC 2020 Part 8 Chapter 1 (electrical services) and Sec 4.2.1 (lifts); typical equipment
+    data for the first layout and SAEngine practice where the code is silent (marked in
+    ``sources``)."""
+
+    uses: dict[str, ElectricalUse]
+    loadFactor: Share
+    substationKw: PosNum
+    powerFactor: Share
+    ltVoltage: PosNum
+    substationHeight: tuple[PosNum, PosNum]
+    transformerClearance: dict[str, PosNum]
+    transformerSpacing: dict[str, PosNum]
+    soakPitOil: PosNum
+    substationAreas: list[SubstationArea]
+    transformerSizes: list[PosNum]
+    transformerMax: PosNum
+    generatorClearance: PosNum
+    generatorSpacing: PosNum
+    generatorAreas: dict[int, PosNum] = Field(description="Capacity [kW] -> room area [m²].")
+    generatorSizes: list[PosNum]
+    generatorPf: Share
+    fuelRate: PosNum
+    fuelHours: PosNum
+    essentialShare: Share
+    dieselDensity: PosNum
+    transformerOilDensity: PosNum
+    liftStoreys: Annotated[int, Field(gt=0)]
+    liftHeight: PosNum
+    liftStandbyStoreys: Annotated[int, Field(gt=0)]
+    liftStandbyHeight: PosNum
+    shaftStoreys: Annotated[int, Field(gt=0)]
+    shaftHeight: PosNum
+    shaftSize: tuple[PosNum, PosNum]
+    shaftArea: PosNum
+    cableRiserStoreys: Annotated[int, Field(gt=0)]
+    cableRiserArea: PosNum
+    busbarStoreys: Annotated[int, Field(gt=0)]
+    cableSpacing: PosNum
+    busbarRange: tuple[PosNum, PosNum]
+    openingClearance: NonNegNum
+    trayClearance: NonNegNum
+    openingStep: PosNum
+    trayHeadroom: NonNegNum
+    trayFill: Share
+    trayWidths: list[PosNum]
+    systemEarthOhm: PosNum
+    electrodeSpacing: PosNum
+    earthPit: PosNum
+    lightningEarthOhm: dict[str, PosNum]
+    construction: dict[str, IndexRow]
+    structureUse: dict[str, IndexRow]
+    contents: dict[str, IndexRow]
+    isolation: dict[str, IndexRow]
+    terrain: dict[str, IndexRow]
+    heightIndex: list[IndexStep]
+    thunderIndex: list[IndexStep]
+    thunderOver: PosNum
+    thunderDefault: PosNum
+    marginalRisk: PosNum
+    alwaysHeight: PosNum
+    spikeArea: PosNum
+    spikeHeight: PosNum
+    roofConductorReach: PosNum
+    downSingleArea: PosNum
+    downFirstArea: PosNum
+    downStepArea: PosNum
+    downPerimeter: PosNum
+    testBoxHeight: PosNum
+    lightningSizes: dict[str, str]
+    iecLevels: dict[str, IecLevel]
+    rebarOhm: PosNum
+    transformerOil: dict[int, TransformerUnit] = Field(description="kVA -> unit.")
+    dryMass: PosNum
+    generatorSets: dict[int | float, GeneratorSet] = Field(description="kVA -> set.")
+    busbars: dict[int, Busbar] = Field(description="Rating [A] -> trunking.")
+    cableOd: list[CableOd]
+    ltPanel: LtPanel
+    htPanel: Panel
+    capacitorPanel: Panel
+    targetPf: Share
+    upsKgPerKva: PosNum
+    batteryKgPerKwh: PosNum
+    upsAutonomyMin: PosNum
+    tankPlate: PosNum
+    steelWeight: PosNum
+
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -1011,6 +1174,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "slabCoefficients": SlabCoefficientsTable,
     "plumbing": PlumbingTable,
     "hvac": HvacTable,
+    "electrical": ElectricalTable,
 }
 
 

@@ -52,7 +52,20 @@ def test_hvac_functions_read_the_table():
     assert station.key == "dhaka" and notes[0].startswith("site location 'nowhere'")
 
 
-@pytest.mark.parametrize("name", ["plumbing", "hvac"])
+def test_electrical_table_equals_the_old_module():
+    assert _differences("saengine.electrical.tables", "electrical") == []
+
+
+def test_electrical_functions_read_the_table():
+    from saengine.electrical import tables as T
+
+    assert [T.height_index(h) for h in (9.0, 9.5, 53.0, 54.0)] == [2, 4, 30, None]
+    assert [T.thunder_index(d) for d in (3, 21, 40)] == [2, 20, 21]
+    assert [T.cable_od(a) for a in (10, 33, 1000)] == [17.0, 19.0, 68.0]
+    assert T.cite("1.3.18.7", "(g)") == "BNBC 2020 Part 8 Sec 1.3.18.7(g) (p800)"
+
+
+@pytest.mark.parametrize("name", ["plumbing", "hvac", "electrical"])
 def test_moved_table_is_registered_covered_and_cited(name):
     manifest = json.loads((PACKS_DIR / "bnbc2020" / "pack.json").read_text(encoding="utf-8"))
     assert name in TABLE_MODELS

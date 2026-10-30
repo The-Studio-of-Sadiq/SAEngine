@@ -75,6 +75,9 @@ TABLE_HELP: dict[str, str] = {
     "hvac": "Air-conditioning and energy: the outside design conditions of the stations, inside "
     "conditions, ventilation rates and occupancy, lighting power density, glazing and overhangs, "
     "and the loads SAEngine assumes where the code is silent ('assumptions', for the report).",
+    "electrical": "Electrical services: load densities by use, the substation, transformer and "
+    "generator rooms, shafts and risers, earthing, the lightning risk indices and protection, "
+    "and typical equipment sizes and masses for the first layout.",
 }
 
 #: Keys of pack.json, in the order the template writes them, with their help (written into the
