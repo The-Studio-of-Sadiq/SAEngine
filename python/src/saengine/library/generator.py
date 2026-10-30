@@ -391,10 +391,10 @@ def _prune(points: list[tuple[Any, ...]]) -> list[tuple[Any, ...]]:
 _SEARCHES: dict[tuple[Any, ...], Any] = {}
 
 
-#: Cracked moments of inertia for the lateral deflections: BNBC 2020 Part 6 Sec 6.3.10.4.1
-#: (columns 0.70 Ig, beams 0.35 Ig, flat plates 0.25 Ig), which Sec 6.1.10.2 (p. 893) uses for
-#: the lateral deflections; the analysis model's default ("cracked") stiffness.
-CRACKED_COLUMN, CRACKED_BEAM, CRACKED_PLATE = 0.70, 0.35, 0.25
+# The cracked moments of inertia for the lateral deflections (BNBC 2020 Part 6 Sec 6.3.10.4.1:
+# columns 0.70 Ig, beams 0.35 Ig, flat plates 0.25 Ig, which Sec 6.1.10.2 (p. 893) uses for the
+# lateral deflections; the analysis model's default "cracked" stiffness) are the code pack's:
+# code_context.cracked_factors().
 
 
 def floor_beam_stiffness(
@@ -413,6 +413,7 @@ def floor_beam_stiffness(
     end: a beam rigid over r a at both ends is (l / lc)³ times stiffer at its joints in
     antisymmetric bending, lc = l - r (a1 + a2) its flexible length."""
     total = 0.0
+    cracked = code_context.cracked_factors()
     for (a, b), (bw, bh) in beams.items():
         if (a[1] == b[1]) == along_x:
             span = math.dist((xs[a[0]], ys[a[1]]), (xs[b[0]], ys[b[1]]))
@@ -420,12 +421,12 @@ def floor_beam_stiffness(
             if rigid > 0 and column_side:
                 flexible = span - rigid * (column_side[a] + column_side[b]) / 2
                 factor = (span / max(flexible, 0.5 * span)) ** 3
-            total += CRACKED_BEAM * bw * bh**3 / 12 / span * factor
+            total += cracked.beam * bw * bh**3 / 12 / span * factor
     if total <= 0:
         spans, other = (xs, ys) if along_x else (ys, xs)
         width = other[-1] - other[0]
         total = sum(
-            CRACKED_PLATE * width * slab_t**3 / 12 / (spans[m + 1] - spans[m])
+            cracked.plate * width * slab_t**3 / 12 / (spans[m + 1] - spans[m])
             for m in range(len(spans) - 1)
         )
     return total
@@ -444,13 +445,14 @@ def storey_column_stiffness(
     analysis model's rigid zone factor ``rigid`` and the depth of the deepest beam at each
     column's top (its end offset), (h / hc)³ times that, hc = h - r d the flexible height."""
     total = 0.0
+    column = code_context.cracked_factors().column
     for i in range(nx):
         for j in range(ny):
             factor = 1.0
             if rigid > 0 and top_depth:
                 flexible = height - rigid * top_depth.get((i, j), 0.0)
                 factor = (height / max(flexible, 0.5 * height)) ** 3
-            total += CRACKED_COLUMN * side_of[(i, j, k)] ** 4 / 12 / height * factor
+            total += column * side_of[(i, j, k)] ** 4 / 12 / height * factor
     return total
 
 
@@ -1805,11 +1807,12 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
             max((t / (PERIOD_TARGET * estimate.periodLimit)) ** 2 for t in
                 estimate.period.values()),
         ) <= 1.0 + 1e-6  # fmt: skip
+        cracked = code_context.cracked_factors()
         stiffness_note = (
             "Stiffness (PRELIMINARY drift and period check, before the P-M sizing of the "
             "columns): the frames as a shear building of Wilbur's storey stiffnesses (columns "
-            f"{CRACKED_COLUMN:g} Ig, beams {CRACKED_BEAM:g} Ig without the slab flange"
-            + (f", flat plate {CRACKED_PLATE:g} Ig" if flat else "")
+            f"{cracked.column:g} Ig, beams {cracked.beam:g} Ig without the slab flange"
+            + (f", flat plate {cracked.plate:g} Ig" if flat else "")
             + ", BNBC 2020 Part 6 Sec 6.3.10.4.1, p. 912, for the factored lateral loads as "
             "Sec 6.1.10.2, p. 893; "
             + (

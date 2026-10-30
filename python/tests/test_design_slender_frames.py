@@ -17,10 +17,9 @@ import numpy as np
 import pytest
 from test_design_slender import EC, SECTION, STATIONS, _about_y, _frame, _rows, _sway_case
 
+from saengine.codes.context import cracked_factors
 from saengine.design.check import _Piece
 from saengine.design.slender import (
-    CRACKED_BEAM,
-    CRACKED_COLUMN,
     Model,
     SlenderContext,
     SlenderOptions,
@@ -28,6 +27,9 @@ from saengine.design.slender import (
     storeys,
 )
 from saengine.library.bim import BuildingModel
+
+CRACKED_COLUMN = cracked_factors().column
+CRACKED_BEAM = cracked_factors().beam
 
 E = 25e9  # N/m²
 IC = 0.5 * 0.5**3 / 12  # m⁴, a 500 × 500 mm column

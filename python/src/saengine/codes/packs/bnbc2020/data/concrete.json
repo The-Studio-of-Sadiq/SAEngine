@@ -107,7 +107,8 @@
     "column": 0.7,
     "beam": 0.35,
     "plate": 0.25,
-    "wall": 0.35
+    "wall": 0.35,
+    "wallUncracked": 0.7
   },
   "slender": {
     "nonswayQ": 0.05,

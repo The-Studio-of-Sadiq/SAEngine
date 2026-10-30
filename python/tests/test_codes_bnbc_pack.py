@@ -183,6 +183,11 @@ PACK_ONLY = {
     ("saengine.design.steel.members", "PHI_V"),
     ("saengine.design.steel.members", "KL_R_COMPRESSION"),
     ("saengine.design.steel.members", "L_R_TENSION"),
+    ("saengine.design.slender", "CRACKED_COLUMN"),
+    ("saengine.design.slender", "CRACKED_BEAM"),
+    ("saengine.design.slender", "CRACKED_PLATE"),
+    ("saengine.design.slender", "CRACKED_WALL"),
+    ("saengine.fem.second_order", "ACI_FACTORS"),
 }
 
 OLD_MODULE_CONSTANTS = {
@@ -301,6 +306,13 @@ OLD_MODULE_CONSTANTS = {
     ("saengine.design.slender", "CRACKED_BEAM"): 0.35,
     ("saengine.design.slender", "CRACKED_PLATE"): 0.25,
     ("saengine.design.slender", "CRACKED_WALL"): 0.35,
+    ("saengine.fem.second_order", "ACI_FACTORS"): {
+        "column": 0.70,
+        "beam": 0.35,
+        "wallUncracked": 0.70,
+        "wallCracked": 0.35,
+        "slab": 0.25,
+    },
     ("saengine.design.lintels", "LINTEL_DIAMETERS"): (10.0, 12.0, 16.0, 20.0, 25.0),
     ("saengine.design.lintels", "COVER"): 25.0,
     ("saengine.design.lintels", "MIN_BEARING"): 100.0,
@@ -450,6 +462,13 @@ def _pack_value(module: str, name: str):
         "CRACKED_BEAM": c.crackedStiffness["beam"],
         "CRACKED_PLATE": c.crackedStiffness["plate"],
         "CRACKED_WALL": c.crackedStiffness["wall"],
+        "ACI_FACTORS": {
+            "column": c.crackedStiffness["column"],
+            "beam": c.crackedStiffness["beam"],
+            "wallUncracked": c.crackedStiffness["wallUncracked"],
+            "wallCracked": c.crackedStiffness["wall"],
+            "slab": c.crackedStiffness["plate"],
+        },
         "MIN_BEARING": d.lintels["minBearing"],
         "BEARING": d.lintels["bearing"],
         "DEFLECTION_RATIO": d.lintels["deflectionRatio"],
@@ -683,3 +702,17 @@ def test_registry_resolves_the_same_values_when_available():
     assert pack.table("locations") == t("locations")
     assert pack.table("seismic") == t("seismic")
     assert pack.table("combinations") == t("combinations")
+
+
+def test_cracked_factors_walls_uncracked_default_to_the_column_factor():
+    from types import SimpleNamespace
+
+    from saengine.codes.context import cracked_factors
+
+    data = json.loads((PACK / "data" / "concrete.json").read_text(encoding="utf-8"))
+    assert cracked_factors().walls(cracked=False) == data["crackedStiffness"]["wallUncracked"]
+    del data["crackedStiffness"]["wallUncracked"]
+    data["crackedStiffness"]["column"] = 0.8
+    table = tables.validate_table("concrete", data)
+    factors = cracked_factors(SimpleNamespace(table=lambda name: table))
+    assert (factors.walls(cracked=False), factors.walls(cracked=True)) == (0.8, 0.35)

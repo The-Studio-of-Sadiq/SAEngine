@@ -407,8 +407,13 @@ class CrackedStiffness(_Group):
 
     column: Share
     beam: Share
-    plate: Share
-    wall: Share
+    plate: Share = Field(description="Flat plates and flat slabs.")
+    wall: Share = Field(description="Cracked walls.")
+    wallUncracked: Share | None = Field(
+        default=None,
+        description="Walls taken as uncracked (Project Settings > Analysis > Walls cracked off); "
+        "the column factor when not given.",
+    )
 
 
 class SlenderLimits(_Group):
