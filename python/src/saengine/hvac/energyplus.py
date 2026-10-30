@@ -70,13 +70,18 @@ class EnergyPlusError(RuntimeError):
     """EnergyPlus did not finish: the message holds its severe and fatal errors."""
 
 
+def bundled_dir() -> Path:
+    """Where the setup's *Energy simulation* component puts EnergyPlus:
+    ``<app>/resources/python/python.exe`` -> ``<app>/resources/energyplus``."""
+    return Path(sys.executable).resolve().parent.parent / "energyplus"
+
+
 def _candidates() -> list[Path]:
     out: list[Path] = []
     env = os.environ.get(ENV_VAR)
     if env:
         out.append(Path(env))
-    # The bundled copy: <app>/resources/python/python.exe -> <app>/resources/energyplus.
-    out.append(Path(sys.executable).resolve().parent.parent / "energyplus")
+    out.append(bundled_dir())
     if os.name == "nt":
         for root in (os.environ.get("SystemDrive", "C:") + "\\", r"C:\Program Files"):
             out.extend(sorted(Path(root).glob("EnergyPlusV26-*"), reverse=True))

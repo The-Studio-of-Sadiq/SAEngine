@@ -784,6 +784,29 @@ def convert_dwg(path: str, cache: str | None = None) -> dict[str, Any]:
         return {"ok": False, "code": "failed", "message": str(exc)}
 
 
+def installer_components() -> dict[str, Any]:
+    """The setup's optional components the backend runs, found as the backend finds them for
+    use (``find_energyplus``, ``find_converter``): ``{"energyplus", "libredwg"}``, each
+    ``{"state": "installed" | "elsewhere" | "missing", "path"?}``. ``installed``: the component's
+    copy in the app folder; ``elsewhere``: another copy (the environment variable, an installed
+    program), which works too. LibreCAD is found by the workbench (``findCadProgram``)."""
+    from saengine.hvac.energyplus import bundled_dir as energyplus_dir
+    from saengine.hvac.energyplus import find_energyplus
+    from saengine.library.dwg import bundled_dir as libredwg_dir
+    from saengine.library.dwg import find_converter
+
+    def state(exe: Path | None, bundled: Path) -> dict[str, Any]:
+        if exe is None:
+            return {"state": "missing"}
+        inside = exe.resolve().is_relative_to(bundled.resolve())
+        return {"state": "installed" if inside else "elsewhere", "path": str(exe)}
+
+    return {
+        "energyplus": state(find_energyplus(), energyplus_dir()),
+        "libredwg": state(find_converter(), libredwg_dir()),
+    }
+
+
 def insert_geometry(structure_text: str, geometry: dict[str, Any]) -> dict[str, Any]:
     """The structural model with previewed geometry added: ``{"text", "ids", "skipped"}``."""
     import json

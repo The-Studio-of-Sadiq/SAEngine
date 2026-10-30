@@ -194,3 +194,32 @@ def test_the_cache_is_computed() -> None:
     assert is_computed("05 Floor Plan/Underlays/.dwg-cache/plan.dwg.dxf")
     assert is_computed("05 Floor Plan/.dwg-cache", folder=True)
     assert not is_computed("05 Floor Plan/Underlays/plan.dwg")
+
+
+def test_installer_components(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """``components/list``: the component's copy beside the bundled Python is "installed", one
+    found elsewhere (the environment variable) "elsewhere", none "missing"."""
+    from saengine.hvac import energyplus as EP
+
+    python = tmp_path / "resources" / "python" / "python.exe"
+    python.parent.mkdir(parents=True)
+    python.write_bytes(b"")
+    monkeypatch.setattr(dwg.sys, "executable", str(python))
+    monkeypatch.setattr(dwg.shutil, "which", lambda name: None)
+    monkeypatch.delenv(dwg.ENV_VAR, raising=False)
+    monkeypatch.setattr(EP, "_candidates", lambda: [tmp_path / "nowhere", EP.bundled_dir()])
+    assert handlers.installer_components() == {
+        "energyplus": {"state": "missing"},
+        "libredwg": {"state": "missing"},
+    }
+    bundled = tmp_path / "resources" / "libredwg" / dwg.EXE
+    bundled.parent.mkdir(parents=True)
+    bundled.write_bytes(b"")
+    other = tmp_path / "EnergyPlusV26-2-0" / EP.EXE
+    other.parent.mkdir(parents=True)
+    other.write_bytes(b"")
+    monkeypatch.setattr(EP, "_candidates", lambda: [other.parent, EP.bundled_dir()])
+    assert handlers.installer_components() == {
+        "energyplus": {"state": "elsewhere", "path": str(other)},
+        "libredwg": {"state": "installed", "path": str(bundled)},
+    }

@@ -50,6 +50,7 @@ import { editNotice, IMemberRef as IModifierMemberRef, memberTargets, modifiersV
 import { renderModifiers } from '../../saengineModel/browser/modifiersPanel.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameIconButton } from '../../saengineProject/browser/editorFrame.js';
 import { DWG_TO_DXF_COMMAND, OPEN_DXF_IN_CAD_UI_COMMAND } from '../../saengineProject/browser/projectArchiveModel.js';
+import { COMPONENTS_ADD_COMMAND } from '../../saengineUpdate/common/components.js';
 import { acquireCadEditor, cadBackground, forCanvas, isLightCanvas, releaseCadEditor } from './cadHost.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { floorPlanDrawing, gridsOf, IFloorPlan, IMemberShape, storyOfSelection } from './floorPlanDrawing.js';
@@ -2516,7 +2517,12 @@ export class FloorPlanEditor extends EditorPane {
 			let source = joinPath(dirname(input.resource), file);
 			if (/\.dwg$/i.test(file)) {
 				// A DWG is shown through its DXF copy, converted (and cached) by the backend.
-				const answer = await this.commandService.executeCommand<{ ok?: boolean; dxf?: string; message?: string }>(DWG_TO_DXF_COMMAND, { path: source.fsPath });
+				const answer = await this.commandService.executeCommand<{ ok?: boolean; dxf?: string; code?: string; message?: string }>(DWG_TO_DXF_COMMAND, { path: source.fsPath });
+				if (answer?.code === 'no-converter' && CommandsRegistry.getCommand(COMPONENTS_ADD_COMMAND)) {
+					this.notificationService.prompt(Severity.Info,
+						localize('floorPlan.noLibreDwg', "LibreDWG is not installed, so the DWG underlay {0} cannot be shown. The setup's DWG import component adds it; or save the drawing as DXF.", file),
+						[{ label: localize('floorPlan.addLibreDwg', "Add Component..."), run: () => this.commandService.executeCommand(COMPONENTS_ADD_COMMAND, 'libredwg') }]);
+				}
 				if (!answer?.ok || typeof answer.dxf !== 'string') {
 					throw new Error(answer?.message ?? localize('floorPlan.dwgUnavailable', "DWG drawings cannot be converted here."));
 				}

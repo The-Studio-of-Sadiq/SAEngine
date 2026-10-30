@@ -26,6 +26,9 @@ Methods:
 - ``cad/convertDwg`` ``{path, cache?}`` -> ``{ok, dxf, warnings, cached}``: a DWG drawing
   converted to DXF by GNU LibreDWG's dwg2dxf (``saengine.library.dwg``; a separate program, in a
   worker thread), or ``{ok: false, code, message}`` (``no-converter``, ``failed``)
+- ``components/list`` ``{}`` -> the setup's optional components the backend runs (EnergyPlus,
+  LibreDWG): ``{energyplus, libredwg}``, each ``{state, path?}`` (``installed``, ``elsewhere``,
+  ``missing``; ``handlers.installer_components``)
 - ``structure/insert`` ``{structureText, geometry}`` -> the structural model with them added
 - ``structure/runScript`` ``{structureText, scriptPath}`` -> the model a script built
 - ``design/report`` ``{outDir, projectPath}`` -> the RC member design checks of a run
@@ -425,6 +428,11 @@ def create_server() -> JsonRPCServer:
     def _convert_dwg(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.convert_dwg(args["path"], args.get("cache"))
+
+    @server.feature("components/list")
+    @_in_worker
+    def _installer_components(params: Any) -> dict[str, Any]:
+        return handlers.installer_components()
 
     @server.feature("structure/insert")
     def _insert_geometry(params: Any) -> dict[str, Any]:
