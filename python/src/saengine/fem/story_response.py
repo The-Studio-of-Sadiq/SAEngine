@@ -30,6 +30,7 @@ from __future__ import annotations
 import json
 import math
 import threading
+from collections.abc import Iterator, Mapping
 from itertools import pairwise
 from pathlib import Path
 from typing import Any
@@ -147,10 +148,13 @@ def _storey_loads(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Forces at each level in X and Y (each load at the nearest level)."""
     fx, fy = np.zeros(len(levels)), np.zeros(len(levels))
-    for z, x, y in loads:
-        k = _nearest(levels, z)
-        fx[k] += x
-        fy[k] += y
+    if not loads or not levels:
+        return fx, fy
+    values = np.asarray(loads, dtype=float).reshape(-1, 3)
+    # The nearest level of each load (the first of two as near, as argmin gives).
+    k = np.abs(values[:, :1] - np.asarray(levels, dtype=float)[None, :]).argmin(axis=1)
+    np.add.at(fx, k, values[:, 1])
+    np.add.at(fy, k, values[:, 2])
     return fx, fy
 
 
@@ -164,6 +168,26 @@ def _overturning(forces: np.ndarray, levels: list[float]) -> np.ndarray:
     """Overturning moment at each level from the level forces above it."""
     z = np.asarray(levels)
     return np.array([float(np.sum(forces[k + 1 :] * (z[k + 1 :] - z[k]))) for k in range(len(z))])
+
+
+class _Rows(Mapping[int, np.ndarray]):
+    """Node id -> displacement row, over one array of every node's rows (a combination is a sum
+    of the cases' arrays, not of a dictionary per node)."""
+
+    def __init__(self, index: dict[int, int], values: np.ndarray) -> None:
+        self.index, self.values = index, values
+
+    def __getitem__(self, node: int) -> np.ndarray:
+        return self.values[self.index[node]]
+
+    def __contains__(self, node: object) -> bool:
+        return node in self.index
+
+    def __iter__(self) -> Iterator[int]:
+        return iter(self.index)
+
+    def __len__(self) -> int:
+        return len(self.index)
 
 
 def _displacements(
@@ -317,14 +341,18 @@ def _spectrum_forces(
         zero = np.zeros(len(levels))
         return zero, zero, zero[1:], zero[1:]
     level_forces = np.zeros((len(modes), 2, len(levels)))
+    level_of = {
+        nid: _nearest(levels, float(coords[nid][2]))
+        for nid, m in mass.items()
+        if m.any() and nid in coords
+    }
     for i, mode in enumerate(modes):
         omega2 = mode.angular_frequency**2
         for nid, u in mode.modal_peak_disp.items():
             m = mass.get(nid)
             if m is None or not m.any() or nid not in coords:
                 continue
-            k = _nearest(levels, float(coords[nid][2]))
-            level_forces[i, :, k] += m * omega2 * np.asarray(u, dtype=float)[:2]
+            level_forces[i, :, level_of[nid]] += m * omega2 * np.asarray(u, dtype=float)[:2]
     shears = np.array([[_shears(level_forces[i, a]) for a in (0, 1)] for i in range(len(modes))])
     omegas = [m.angular_frequency for m in modes]
     rule, damping = results.combination, results.damping_ratio
@@ -424,7 +452,47 @@ def _base_reactions(parts: list[tuple[float, Any]], restrained: set[int]) -> lis
     return [float(v) for v in total]
 
 
+_responses: dict[str, tuple[tuple[Any, ...], dict[str, Any]]] = {}
+_responses_lock = threading.Lock()
+
+
+def _response_stamp(out_dir: str | Path, project_path: str | Path) -> tuple[Any, ...]:
+    """What the storey response is worked out from: the run, the model, the settings, the
+    building (its storey names) and the response spectrum design of the run."""
+    from saengine.fem.seismic_design import RS_FOLDER, SUMMARY_FILE
+
+    model = Path(project_path).resolve()
+    root = model.parent.parent
+    files = (
+        Path(out_dir) / "manifest.json",
+        model,
+        root / "02 Project Settings" / "project-settings.json",
+        root / "06 BIM" / "bim.json",
+        Path(out_dir) / RS_FOLDER / SUMMARY_FILE,
+    )
+    return tuple(f.stat().st_mtime_ns if f.exists() else None for f in files)
+
+
 def story_response(out_dir: str | Path, project_path: str | Path) -> dict[str, Any]:
+    """:func:`work_out_story_response`, kept while the run and what it is worked out from stay
+    the same: the charts are opened again and again (a tall building's takes a minute)."""
+    key = f"{Path(out_dir).resolve()}|{Path(project_path).resolve()}"
+    try:
+        stamp = _response_stamp(out_dir, project_path)
+    except OSError:
+        return work_out_story_response(out_dir, project_path)
+    with _responses_lock:
+        found = _responses.get(key)
+    if found is not None and found[0] == stamp:
+        return found[1]
+    response = work_out_story_response(out_dir, project_path)
+    with _responses_lock:
+        _responses.clear()  # one run at a time
+        _responses[key] = (stamp, response)
+    return response
+
+
+def work_out_story_response(out_dir: str | Path, project_path: str | Path) -> dict[str, Any]:
     """The storey response of every result of a run, and its modal and other curves:
     ``{"levels": [{"z", "name"}], "results": [{"key", "label", "kind", "storeys": [rows],
     "baseReaction": [Fx, Fy, Fz, Mx, My, Mz] | None, "forceScale"?}], "modal", "spectrum",
@@ -471,6 +539,9 @@ def story_response(out_dir: str | Path, project_path: str | Path) -> dict[str, A
     design: dict[str, Any] | None = None
     # Static cases: displacements, lateral loads (scaled by the load factor reached).
     static: dict[str, tuple[dict[str, Any], Any, list[tuple]]] = {}
+    # Every node's last displacement row per static case, in the order of node_ids.
+    arrays: dict[str, np.ndarray] = {}
+    node_index = {n: k for k, n in enumerate(node_ids)}
     pushover, histories = [], []
     for entry, r in loaded:
         key = f"case:{entry['case_id']}"
@@ -481,7 +552,10 @@ def story_response(out_dir: str | Path, project_path: str | Path) -> dict[str, A
                 for z, x, y in _pattern_loads(project, analyses.get(int(entry["case_id"])))
             ]
             static[_code(entry["case_name"])] = (entry, r, loads)
-            disp = {n: _last(r.node_disp, n, 6) for n in node_ids}
+            arrays[_code(entry["case_name"])] = np.array(
+                [_last(r.node_disp, n, 6) for n in node_ids], dtype=float
+            ).reshape(-1, 6)
+            disp = _Rows(node_index, arrays[_code(entry["case_name"])])
             fx, fy = _storey_loads(loads, levels)
             dx, dy = _drifts(project, disp, levels)
             storeys = _storeys(
@@ -560,24 +634,26 @@ def story_response(out_dir: str | Path, project_path: str | Path) -> dict[str, A
 
     # The load combinations of the project settings, factored sums of the static cases.
     if project.get("meta", {}).get("author") == "SAEngine":
-        from saengine.fem.combinations import combination_factors, settings_beside
+        from saengine.fem.combinations import (
+            combination_factors,
+            combination_label,
+            settings_beside,
+        )
 
         settings = settings_beside(project_path)
         for number, combination in enumerate(settings.combinations if settings else [], 1):
             factors = combination_factors(combination, set(static))
             if not factors or not set(factors) <= set(static):
                 continue
-            disp = {
-                n: sum(f * _last(static[c][1].node_disp, n, 6) for c, f in factors.items())
-                for n in node_ids
-            }
+            # The factored sum, in the factors' order (the same sums as node by node).
+            disp = _Rows(node_index, sum(f * arrays[c] for c, f in factors.items()))
             loads = [(z, f * x, f * y) for c, f in factors.items() for z, x, y in static[c][2]]
             fx, fy = _storey_loads(loads, levels)
             dx, dy = _drifts(project, disp, levels)
             results.append(
                 {
                     "key": f"combination:{number}",
-                    "label": combination.name,
+                    "label": combination_label(combination, set(static)),
                     "kind": "combination",
                     "storeys": _storeys(
                         names,

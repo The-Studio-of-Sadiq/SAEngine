@@ -582,36 +582,67 @@ def storey_drifts(
     the displacements of nodes on the storey's two levels at the same plan position, over the
     storey height. ``displacement``: node id -> displacement row (6 values). ``levels`` [m]:
     the building's storey elevations (by default the diaphragm floors and the base)."""
-    coords = {n["id"]: np.asarray(n["coords"], dtype=float) for n in project.get("nodes", [])}
     levels = sorted(levels) if levels else _levels(project)
-    at: list[dict[tuple[int, int], int]] = []
-    for z in levels:
-        here = {}
-        for node, xyz in coords.items():
-            if abs(xyz[2] - z) < 1e-3 and node in displacement:
-                here[(round(xyz[0] * 1e3), round(xyz[1] * 1e3))] = node
-        at.append(here)
     rows = []
-    for k in range(1, len(levels)):
+    for k, (positions, above, below) in enumerate(_storey_pairs(project, levels), 1):
+        # The pairs of nodes both moved (all of them for a static result).
+        kept = [
+            i
+            for i, (a, b) in enumerate(zip(above, below))
+            if a in displacement and b in displacement
+        ]
+        if not kept:
+            continue
         height = levels[k] - levels[k - 1]
-        best: tuple[float, tuple[int, int] | None] = (0.0, None)
-        for position, node in at[k].items():
-            below = at[k - 1].get(position)
-            if below is None:
-                continue
-            drift = abs(float(displacement[node][axis]) - float(displacement[below][axis]))
-            if drift / height > best[0] or best[1] is None:
-                best = (drift / height, position)
-        if best[1] is not None:
-            rows.append(
-                {
-                    "from": levels[k - 1],
-                    "to": levels[k],
-                    "drift": best[0],
-                    "at": [best[1][0] / 1e3, best[1][1] / 1e3],
-                }
-            )
+        top = np.array([float(displacement[above[i]][axis]) for i in kept])
+        bottom = np.array([float(displacement[below[i]][axis]) for i in kept])
+        ratios = np.abs(top - bottom) / height
+        best = int(np.argmax(ratios))  # the first of equal ones, as the pairs are ordered
+        position = positions[kept[best]]
+        rows.append(
+            {
+                "from": levels[k - 1],
+                "to": levels[k],
+                "drift": float(ratios[best]),
+                "at": [position[0] / 1e3, position[1] / 1e3],
+            }
+        )
     return rows
+
+
+#: The last model's storey pairs: (the model itself, its levels, the pairs). The model is held,
+#: so it is the same object (not another one at a reused address).
+_pairs: list[tuple[dict[str, Any], tuple[float, ...], list[Any]]] = []
+
+
+def _storey_pairs(
+    project: dict[str, Any], levels: list[float]
+) -> list[tuple[list[tuple[int, int]], list[int], list[int]]]:
+    """Per storey (levels k-1, k) the plan positions [mm] where both its levels have a node,
+    with the node above and the node below, in node order; worked out once per model and levels
+    (a tall building's drifts are asked for every case and combination)."""
+    for held, zs, found in _pairs:
+        if held is project and zs == tuple(levels):
+            return found
+    at: list[dict[tuple[int, int], int]] = [{} for _ in levels]
+    for n in project.get("nodes", []):
+        xyz = n["coords"]
+        for k, z in enumerate(levels):
+            if abs(float(xyz[2]) - z) < 1e-3:
+                at[k][(round(float(xyz[0]) * 1e3), round(float(xyz[1]) * 1e3))] = n["id"]
+    out = []
+    for k in range(1, len(levels)):
+        positions, above, below = [], [], []
+        for position, node in at[k].items():
+            under = at[k - 1].get(position)
+            if under is not None:
+                positions.append(position)
+                above.append(node)
+                below.append(under)
+        out.append((positions, above, below))
+    _pairs.clear()  # one model at a time: it is large
+    _pairs.append((project, tuple(levels), out))
+    return out
 
 
 def _frame_axes(
