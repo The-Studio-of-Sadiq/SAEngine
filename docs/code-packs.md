@@ -348,13 +348,28 @@ date when you change a value, so that a report always says which values it used.
   in its settings, and choosing a pack does not rewrite them; in the app, new projects and
   **Reset Combinations to BNBC 2020** still use BNBC 2020's: enter a pack's combinations in
   Project Settings → Load combinations.
+- the seismic detailing scope of the design (which provisions of the code's earthquake chapter
+  apply): the system's row of the systems table (R, Ω0, Cd, height limits per Seismic Design
+  Category, frame detailing level, special walls: `seismic.systems`), the detailing level each
+  category requires (`seismic.requiredDetailing`) and the material limits of special frames and
+  walls (`materials`: `seismicFcMin`, `lightweightFcMax`, `lightweightDensity`,
+  `seismicRebarFy`, `seismicRebarFyMax`, `gradeTolerance`, `fyActualMargin`, `fyRetestMargin`,
+  `fuFyMin`);
+- the building generator's choice of the seismic force-resisting system (`seismic.systems`,
+  `seismic.requiredDetailing`) and its period estimate (`seismic.periodUpperFactor`);
+- the steel member design's φ factors and slenderness limits (`steel.phi`: `tensionYield`,
+  `tensionRupture`, `compression`, `flexure`, `shear`; `steel.slenderness`).
 
 **What does not follow it yet** (read from the built-in BNBC 2020 values, whatever the pack):
-the member design's φ factors, cover, bar sizes, minimum thicknesses and steel ratios, the
-seismic detailing limits, the steel design factors and the foundation factors (`factors`,
-`concrete`, `detailing`, `steel`, `foundations`, `materials` tables); the building generator;
-the soil part (liquefaction's site factors); the settings editor's derived-value hints and its
-Code Values panel. A pack's values in those tables are validated and shown, but not used: keep
+the concrete member design's φ factors, cover, bar sizes, minimum thicknesses and steel ratios,
+the seismic detailing limits of the members and joints, the steel connection factors
+(`steel.phi`: `bolt`, `bearing`, `blockShear`, `weld`, `plateFlexure`; `steel.netAreaMax`), the
+material constants (`materials`: `concreteStrain`, `steelE`, `steelShearModulus`), the lintels
+(`detailing.lintels`) and the foundation factors of 9 Substructure and the bill of quantities
+(`foundations`, `factors.phi.strutAndTie`): the rest of the `factors`, `concrete`, `detailing`,
+`steel`, `foundations` and `materials` tables; the building generator's member sizes; the soil
+part (liquefaction's site factors); the settings editor's derived-value hints and its Code
+Values panel. A pack's values in those tables are validated and shown, but not used: keep
 them equal to BNBC 2020 until a later version wires them. No design function consults hooks
 yet.
 
