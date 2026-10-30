@@ -169,15 +169,25 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, BinaryIO
 
-from pygls.protocol import JsonRPCProtocol, default_converter
+from pygls.protocol import JsonRPCProtocol, JsonRPCRequestMessage, default_converter
 from pygls.server import JsonRPCServer
 
 from saengine.codes import context as code_context
 from saengine.rpc import handlers
 
 
+def _converter() -> Any:
+    """pygls's converter with request params kept as the JSON objects they are. Its named
+    tuples rename every key that is not a Python name (``from``, ``08 FEM``) to ``_0``, ``_1``…,
+    so such keys were lost (a split proposal's ``from``: "KeyError: 'from'" on Apply).
+    Notifications keep the named tuples (``$/cancelRequest`` reads ``params.id``)."""
+    converter = default_converter()
+    converter.register_structure_hook(JsonRPCRequestMessage, lambda obj, cls: cls(**obj))
+    return converter
+
+
 def _plain(value: Any) -> Any:
-    """pygls hands untyped params over as named tuples; turn them back into JSON values."""
+    """Request params as JSON values (named tuples, from older callers, turned back)."""
     if hasattr(value, "_asdict"):
         return {k: _plain(v) for k, v in value._asdict().items()}
     if isinstance(value, list | tuple):
@@ -277,7 +287,7 @@ def _import_substructure() -> None:
 
 
 def create_server() -> JsonRPCServer:
-    server = JsonRPCServer(protocol_cls=JsonRPCProtocol, converter_factory=default_converter)
+    server = JsonRPCServer(protocol_cls=JsonRPCProtocol, converter_factory=_converter)
     feature = server.feature
 
     def scoped_feature(*args: Any, **kwargs: Any) -> Callable[[Callable], Callable]:
