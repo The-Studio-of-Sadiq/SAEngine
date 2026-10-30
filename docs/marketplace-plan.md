@@ -418,6 +418,27 @@ Total: about **8–10 rounds**, of which M6 can run in parallel with M1–M4. A 
 release (browse and install design codes and structure presets from the official index) is M1 +
 M2 + M3, about 3.5–4 rounds.
 
+**Built in M2 (2026-10-30)** (pull requests in the four repositories, none merged or released
+yet): `saengine-index` holds `sources.json`, the models and JSON Schemas of `sources.json`,
+`packages.json` (one release's manifest, `saengine.packageRelease/1`) and `index.json`
+(`saengine.packageIndex/1`, as in §3 plus `repository` and `tag`), the reusable workflows
+`validate-packages.yml` (SAEngine's `codepack validate --kind` on each changed package, then
+`check_packages.py`: SPDX licence, a code licence for hooks, previews ≤ 256 KB and ≤ 1024 px,
+a CODEOWNERS entry for packages with hooks, a new version for a changed package, mirrors equal
+to their SAEngine commit) and `publish-packages.yml` (on a `packages-*` tag: reproducible
+`<id>-<version>.zip` for each version not yet released, `packages.json`, a GitHub Release, a
+dispatch to the index; a dry run keeps the files as an artifact), `build_index.py` (verifies
+every asset's size and SHA-256) and `sign_index.py` (Ed25519; `index.json.sig` is
+`saengine.packageIndexSignature/1` with a key id; a TEST KEY derived from a published seed
+signs in CI, the owner's offline key signs releases, also through `openssl pkeyutl`). The three
+kind repositories call those workflows and hold the first content: BNBC 2020 and
+`saengine-shapes` as mirrors (`mirrors.json`, written by `scripts/marketplace/mirror_packages.py`),
+`saengine-default-building` (the wizard's `DEFAULT_FORM` as a `BuildingSpec`; the wizard still
+has its own copy until M4 reads the template) and a synthetic sample design code that extends
+`bnbc2020`. In SAEngine: the built-in `saengine-shapes` package and the inputs-only check of
+`template.civil` (`project.archive.inputs_only_problems`). The location-precision and
+drawing-author checks of full templates are left for M4.
+
 Every round ends with the usability walk-through (fresh project, both window sizes) and a
 duplication check: no second installer UI, no second manifest, no second trust store.
 
