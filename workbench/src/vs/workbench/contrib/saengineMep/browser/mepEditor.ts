@@ -27,7 +27,7 @@ import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -66,6 +66,7 @@ import {
 } from './hvacDocument.js';
 import { renderDraft, renderHvac } from './hvacPlan.js';
 import { renderHvacReport } from './hvacResults.js';
+import { COMPONENTS_ADD_COMMAND } from '../../saengineUpdate/common/components.js';
 import { renderDuctProperties, renderHvacData, renderHvacSummaryProperties, renderLocalHvac, renderPlantProperties } from './hvacView.js';
 import {
 	checkElectrical, ELEC_KINDS, ELEC_RISER_KINDS, elecKindLabel, ElecKind, elecLetters, elecRiserOnStory, ElecRiserKind, ELECTRICAL_OPENINGS_COMMAND, ELECTRICAL_PROPOSE_COMMAND,
@@ -4350,7 +4351,11 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		}
 		// Without EnergyPlus there is nothing to run: the report already shows the estimate.
 		if (this.hvacReport?.energyPlusFound === false) {
-			this.notificationService.info(localize('hvac.loadsNoEnergyPlus', "EnergyPlus 26.2 is not installed, so the cooling loads shown are SAEngine's estimate (see Method in Results). Install EnergyPlus, or set SAENGINE_ENERGYPLUS to its folder, then run Calculate Loads again."));
+			const message = localize('hvac.loadsNoEnergyPlus', "EnergyPlus is not installed, so the cooling loads shown are SAEngine's estimate (see Method in Results). Add the setup's Energy simulation component (or set SAENGINE_ENERGYPLUS to an EnergyPlus 26.2 folder), then run Calculate Loads again.");
+			this.notificationService.prompt(Severity.Info, message, CommandsRegistry.getCommand(COMPONENTS_ADD_COMMAND) ? [{
+				label: localize('hvac.addEnergyPlus', "Add Component..."),
+				run: () => this.commandService.executeCommand(COMPONENTS_ADD_COMMAND, 'energyplus'),
+			}] : []);
 			return;
 		}
 		const source = this.hvacLoads = new CancellationTokenSource();
@@ -4629,6 +4634,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 			storyName: id => this.storyName(id),
 			tableHead: (table, columns) => this.tableHead(table, columns),
 			row: (body, id) => this.resultRow(document, body, id),
+			addEnergyPlus: CommandsRegistry.getCommand(COMPONENTS_ADD_COMMAND) ? () => this.commandService.executeCommand(COMPONENTS_ADD_COMMAND, 'energyplus') : undefined,
 		});
 		this.markSelectedRows();
 	}

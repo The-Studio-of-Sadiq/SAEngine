@@ -24,7 +24,64 @@ the bundled Python (`python -I -m saengine.cli`); `bin\saengine-app.cmd` opens a
 file in the SAEngine window.
 
 Unattended install (for IT): `SAEngine-x64-user-setup-<version>.exe /VERYSILENT /NORESTART
-/MERGETASKS="!runcode"`; add `/DIR="<folder>"` for another folder.
+/MERGETASKS="!runcode"`; add `/DIR="<folder>"` for another folder, `/TYPE=compact` for the core
+only, or `/COMPONENTS="energyplus,librecad"` for a chosen set (see [Components](#components)).
+
+## Components
+
+The setup asks for a type on its *Select Components* page:
+
+| Type | What it installs |
+| --- | --- |
+| **Full** (the default, also for an unattended install) | the core and every component below |
+| **Compact** | the core only |
+| **Custom** | the core and the components you tick |
+
+| Component (`/COMPONENTS=` name) | Contents | Without it |
+| --- | --- | --- |
+| **SAEngine** (always) | the workbench, the bundled Python with the backend, OpenSeesPy, gmsh, IfcOpenShell, all MEP disciplines, BNBC 2020 | — |
+| **Energy simulation** (`energyplus`) | EnergyPlus 26.2.0, a separate program (`resources\energyplus`) | 7 MEP › HVAC shows SAEngine's estimate of the cooling loads instead of the EnergyPlus design-day run |
+| **CAD editor** (`librecad`) | LibreCAD 2.2.1.6, a separate GPL-2.0-only program with its GPL and Qt licence texts (`resources\librecad`); shipped alongside, never linked | *Open in LibreCAD* opens the DXF in the program Windows uses for `.dxf` files; the drawings themselves are made by SAEngine either way |
+| **DWG import** (`libredwg`) | GNU LibreDWG 0.14's `dwg2dxf`, a separate GPL-3.0-or-later program (`resources\libredwg`) | a DWG underlay or import asks for the drawing as DXF |
+
+Sizes on disk, as the build prints them (see [Building the installer](#building-the-installer);
+measured on a local build, 2026-10-30):
+
+| Part | On disk |
+| --- | --- |
+| Energy simulation (EnergyPlus minimal runtime) | 59 MB |
+| CAD editor (LibreCAD, trimmed, with its Qt and VC++ DLLs) | 115 MB |
+| DWG import (LibreDWG) | 30 MB |
+| all three components | 204 MB |
+
+The core is the rest: the bundled Python alone is about 780 MB. A local build's core
+(3.1 GB) is larger than a release's because it packages the Copilot extension compiled from
+sources; the release build's table is in its log. The setup of that local build with all three
+components was 711 MB.
+
+**A missing component is a state, not an error.** Where SAEngine uses the program it says it
+is not installed and offers **Add Component...**: the HVAC results and *Calculate Loads*
+(EnergyPlus), *Open in CAD* (LibreCAD, once, with *Don't Show Again*), a DWG underlay in the
+floor plan (LibreDWG). **Help › Installer Components...** lists all three with their state:
+*installed*, *not installed*, or *not installed by the setup; using ...* when SAEngine finds
+the program elsewhere (`SAENGINE_ENERGYPLUS`, `SAENGINE_LIBREDWG`, the `saengine.cad.program`
+setting, or a LibreCAD in `%ProgramFiles%`).
+
+**Adding a component later** runs the setup again; SAEngine does not download programs by
+itself. *Add Component...* asks for the setup of the version you have
+(`SAEngine-x64-user-setup-<version>.exe` from the release page; *Open Release Page* opens it)
+with its `.sha256` file next to it. SAEngine checks the setup's SHA-256 against that file
+and only then runs it with `/COMPONENTS=` set to the components already installed plus the new
+one, so the wizard opens with them ticked. The setup asks to close SAEngine, adds the
+component and keeps projects and settings. A setup of another version asks first, since it also
+updates (or downgrades) SAEngine.
+
+By hand: run the setup again and choose *Custom*, or from a terminal
+`SAEngine-x64-user-setup-<version>.exe /COMPONENTS="energyplus,librecad,libredwg"`. The list is
+the whole selection: a component left out is **removed** (the setup deletes its folder), which
+is also how to remove one. An update without `/COMPONENTS=` or `/TYPE=` keeps the components
+chosen before; an update from a version without components (up to Pre-Alpha-v7) installs as
+Full.
 
 ## Uninstalling
 
@@ -42,7 +99,7 @@ the program folder, including the bundled Python. It keeps your projects (by def
 | Workbench (app root) | `...\SAEngine\resources\app` |
 | Bundled Python | `...\SAEngine\resources\python\python.exe` (CPython 3.12.10, x64) |
 | Command line | `...\SAEngine\bin\saengine.cmd` (the window launcher: `bin\saengine-app.cmd`) |
-| EnergyPlus, LibreCAD, LibreDWG (when bundled) | `...\SAEngine\resources\energyplus`, `...\SAEngine\resources\librecad`, `...\SAEngine\resources\libredwg` (separate programs, with their licences) |
+| EnergyPlus, LibreCAD, LibreDWG ([components](#components), when installed) | `...\SAEngine\resources\energyplus`, `...\SAEngine\resources\librecad`, `...\SAEngine\resources\libredwg` (separate programs, with their licences) |
 | Backend packages | `...\SAEngine\resources\python\Lib\site-packages` |
 | Licences | `...\SAEngine\LICENSE.txt` (AGPL-3.0), `THIRD_PARTY_NOTICES.txt` (viewer bundles' npm packages, Python packages, source offers), `resources\app\ThirdPartyNotices.txt` (Code - OSS), `LICENSES.chromium.html` |
 | Settings, logs | `%APPDATA%\SAEngine` |
@@ -107,8 +164,12 @@ The script checks the prerequisites and then:
    `dist\SAEngine-<version>-third-party-sources` (about 300 MB);
 5. runs Inno Setup (`vscode-win32-x64-user-setup`, from the `innosetup` npm package in
    `workbench\node_modules`) and copies the result to
-   `dist\SAEngine-x64-user-setup-<version>.exe` with a `.sha256` file;
-6. prints sizes and timings.
+   `dist\SAEngine-x64-user-setup-<version>.exe` with a `.sha256` file. Each separate program
+   that was bundled (`-EnergyPlusDir`, `-LibreCADDir`, `-LibreDWGDir`) becomes a setup
+   component (`workbench\build\win32\code.iss`, `[Types]` and `[Components]`); without any, the
+   setup has no *Select Components* page;
+6. prints sizes and timings, with a table *Setup components (installed size)*: the core, each
+   component, and a Compact and a Full install.
 
 **Publishing.** Upload the setup, its `.sha256` file **and** the
 `SAEngine-<version>-third-party-sources` folder to the same place (the same release page or
@@ -150,8 +211,9 @@ powershell -ExecutionPolicy Bypass -File scripts\installer\smoke-test.ps1
 It installs silently into `%TEMP%\SAEngine-smoke\install`, analyses a one-bay frame with the
 bundled Python under a hostile Python environment (`PYTHONHOME` pointing nowhere, a
 `PYTHONPATH` and a user site-packages with a broken `numpy`), checking imports, the JSON-RPC
-round trip, `opensees_studio.run` and equilibrium,
-starts the installed SAEngine and checks over the DevTools protocol that the workbench renders,
+round trip, `opensees_studio.run` and equilibrium, runs the setup again as Compact (the
+components' folders go, the backend reports them missing) and with `/COMPONENTS=` (they come
+back), starts the installed SAEngine and checks over the DevTools protocol that the workbench renders,
 the FEM viewer bundle loads and *Check Python Runtime* reports the bundled Python, then
 uninstalls.
 

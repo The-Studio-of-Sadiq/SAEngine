@@ -11,7 +11,7 @@ import { CommandsRegistry, ICommandService } from '../../../../platform/commands
 import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, NeverShowAgainScope, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
@@ -21,6 +21,7 @@ import {
 	ARCHIVE_EXPORT_COMMAND, ARCHIVE_EXTENSION, ARCHIVE_IMPORT_COMMAND, ARCHIVE_INSPECT_COMMAND, archiveSummaryLines, CAD_OPEN_COMMAND, DEFAULT_EXPORT_OPTIONS, defaultArchiveName, exportArgs,
 	formatSize, IArchiveExportOptions, IExportArchiveCommandArgs, importArgs, IOpenArchiveCommandArgs, projectNameForArchive, readArchiveManifest, readProblems, uniqueFolderName,
 } from './projectArchiveModel.js';
+import { COMPONENTS_ADD_COMMAND } from '../../saengineUpdate/common/components.js';
 import { ProjectOpener } from './projectOpener.js';
 import { saveProjectEdits } from './projectEdits.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
@@ -338,6 +339,13 @@ export class ProjectArchiveFlows {
 			if (bag.ok === false) {
 				const problems = readProblems(result);
 				throw new Error(problems.join(' ') || localize('cad.noProgram', "No program for DXF drawings was found."));
+			}
+			if (bag.program === 'system' && hasCommand(COMPONENTS_ADD_COMMAND)) {
+				// No LibreCAD: a state, said once, with the way to add it.
+				this.notificationService.prompt(Severity.Info,
+					localize('cad.noLibreCad', "LibreCAD is not installed, so {0} opened in the program Windows uses for DXF files. The setup's CAD editor component adds LibreCAD.", basename(file)),
+					[{ label: localize('cad.addLibreCad', "Add Component..."), run: () => this.commandService.executeCommand(COMPONENTS_ADD_COMMAND, 'librecad') }],
+					{ neverShowAgain: { id: 'saengine.cad.noLibreCad', scope: NeverShowAgainScope.APPLICATION } });
 			}
 			return true;
 		} catch (error) {

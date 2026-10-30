@@ -4,19 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
+import { createHash } from 'crypto';
 import { createInterface } from 'readline';
 import type { MessageConnection } from 'vscode-jsonrpc/node.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { promises as fs } from 'fs';
+import { createReadStream, promises as fs } from 'fs';
 import { FileAccess } from '../../../base/common/network.js';
-import { dirname, extname, isAbsolute, join } from '../../../base/common/path.js';
+import { basename, dirname, extname, isAbsolute, join } from '../../../base/common/path.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { killTree } from '../../../base/node/processes.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemResultList, IFemResultView, IFemRunEventMessage, IBuildingIfc, IBuildingIfcRequest, IFemDerivation, IFemDeriveRequest, IGeneratedBuilding, ILibraryProblem, LibraryFileKind, IFemRunExit, IFemRunRequest, IFemSolverService, IStructureEdit, IStructureGeometry, IStructureScriptResult, StructureGeometryResult, IBoqComputation, IBoqComputeRequest, IReportBuild, ISoilBearing, ISoilBearingRequest, ISoilImport, ISoilSources, ISoilTemplate, ISubstructureMigration, IMepServiceParams, MepServiceMethod, ICadOpenRequest, ICadOpenResult, ProjectPlatformMethod, EngineMethod, IQgisOpenRequest, IQgisOpenResult } from '../common/femSolver.js';
+import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemResultList, IFemResultView, IFemRunEventMessage, IBuildingIfc, IBuildingIfcRequest, IFemDerivation, IFemDeriveRequest, IGeneratedBuilding, ILibraryProblem, LibraryFileKind, IFemRunExit, IFemRunRequest, IFemSolverService, IStructureEdit, IStructureGeometry, IStructureScriptResult, StructureGeometryResult, IBoqComputation, IBoqComputeRequest, IReportBuild, ISoilBearing, ISoilBearingRequest, ISoilImport, ISoilSources, ISoilTemplate, ISubstructureMigration, IMepServiceParams, MepServiceMethod, ICadOpenRequest, ICadOpenResult, ICadProgram, ISetupRunRequest, ISetupRunResult, SETUP_COMPONENTS, ProjectPlatformMethod, EngineMethod, IQgisOpenRequest, IQgisOpenResult } from '../common/femSolver.js';
 
 interface IRun {
 	readonly child: cp.ChildProcess;
@@ -316,6 +317,44 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 		});
 	}
 
+	cadProgram(configured?: string): Promise<ICadProgram | undefined> {
+		return findCadProgram(configured);
+	}
+
+	async runSetup(request: ISetupRunRequest): Promise<ISetupRunResult> {
+		const refuse = (problem: string): ISetupRunResult => ({ ok: false, problems: [problem] });
+		const setup = request.setup;
+		if (!isWindows) {
+			return refuse(localize('setup.notWindows', "Components are added by the Windows setup only."));
+		}
+		if (typeof setup !== 'string' || !isAbsolute(setup) || extname(setup).toLowerCase() !== '.exe' || !await isFile(setup)) {
+			return refuse(localize('setup.notExe', "{0} is not a setup program (an existing .exe file).", String(setup)));
+		}
+		const components = [...new Set(request.components)];
+		if (!components.length || components.some(name => !(SETUP_COMPONENTS as readonly string[]).includes(name))) {
+			return refuse(localize('setup.badComponents', "Unknown setup components: {0}.", components.join(', ')));
+		}
+		if (typeof request.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(request.sha256)) {
+			return refuse(localize('setup.noChecksum', "No SHA-256 to check {0} against.", basename(setup)));
+		}
+		// The bytes checked are the file started: a setup that is not the release's never runs.
+		const actual = await sha256(setup);
+		if (actual !== request.sha256) {
+			this.logService.warn(`[saengine] ${setup}: sha256 ${actual}, expected ${request.sha256}; not run`);
+			return refuse(localize('setup.mismatch', "{0} does not match the release's SHA-256, so it is not that SAEngine setup or it is damaged. It was not run.", basename(setup)));
+		}
+		const args = [`/COMPONENTS=${components.join(',')}`];
+		this.logService.info(`[saengine] running ${setup} ${args.join(' ')} (sha256 ${actual})`);
+		const child = cp.spawn(setup, args, { cwd: dirname(setup), detached: true, stdio: 'ignore', shell: false, windowsHide: false });
+		return new Promise<ISetupRunResult>(resolve => {
+			child.once('error', error => resolve(refuse(localize('setup.startFailed', "{0} could not be started: {1}", basename(setup), error.message))));
+			child.once('spawn', () => {
+				child.unref();
+				resolve({ ok: true, pid: child.pid });
+			});
+		});
+	}
+
 	engine(python: string, method: EngineMethod, params: object): Promise<unknown> {
 		return this.request(python, method, params);
 	}
@@ -433,6 +472,14 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 	}
 }
 
+/** The lower-case hex SHA-256 of a file, read as a stream (a setup is hundreds of MB). */
+function sha256(path: string): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const hash = createHash('sha256');
+		createReadStream(path).on('error', reject).on('data', chunk => hash.update(chunk)).on('end', () => resolve(hash.digest('hex')));
+	});
+}
+
 async function isFile(path: string): Promise<boolean> {
 	try {
 		return (await fs.stat(path)).isFile();
@@ -446,7 +493,7 @@ async function isFile(path: string): Promise<boolean> {
  * existing program, else the copy bundled with SAEngine (`resources/librecad`, beside the bundled
  * Python), else an installed LibreCAD (`%ProgramFiles%\LibreCAD`).
  */
-async function findCadProgram(configured: string | undefined): Promise<{ readonly program: string; readonly source: 'setting' | 'bundled' | 'installed' } | undefined> {
+async function findCadProgram(configured: string | undefined): Promise<ICadProgram | undefined> {
 	if (configured?.trim() && isAbsolute(configured.trim()) && await isFile(configured.trim())) {
 		return { program: configured.trim(), source: 'setting' };
 	}

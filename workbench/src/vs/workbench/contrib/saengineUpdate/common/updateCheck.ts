@@ -19,6 +19,14 @@ import { decodeBase64, encodeHex } from '../../../../base/common/buffer.js';
 /** A setup asset of a release: `SAEngine-x64-user-setup-<version>.exe`. */
 export const SETUP_ASSET = /^SAEngine-x64-user-setup-([0-9A-Za-z.\-]+)\.exe$/;
 
+/**
+ * The running SAEngine version: product.json's `saengineVersion`, which build-installer.ps1 stamps
+ * into the packaged app, else (a build from sources) Code - OSS's `version` from package.json.
+ */
+export function runningVersion(product: { readonly version: string; readonly saengineVersion?: string }): string {
+	return product.saengineVersion || product.version;
+}
+
 export interface IParsedVersion {
 	readonly core: readonly [number, number, number];
 	readonly prerelease: readonly (number | string)[];

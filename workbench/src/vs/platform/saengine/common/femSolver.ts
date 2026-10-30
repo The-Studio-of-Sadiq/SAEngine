@@ -543,6 +543,20 @@ export interface IFemSolverService {
 	openInCad(request: ICadOpenRequest): Promise<ICadOpenResult>;
 
 	/**
+	 * The LibreCAD {@link openInCad} would start (`configured`: the `saengine.cad.program`
+	 * setting), or undefined: the state of the setup's *CAD editor* component.
+	 */
+	cadProgram(configured?: string): Promise<ICadProgram | undefined>;
+
+	/**
+	 * Runs a SAEngine setup the user chose, to add optional components: only when the file's
+	 * SHA-256 equals `request.sha256`, with `/COMPONENTS=<components>` (Inno Setup installs those and
+	 * the core, and removes the components left out), started directly (no shell) and left running.
+	 * Nothing is downloaded.
+	 */
+	runSetup(request: ISetupRunRequest): Promise<ISetupRunResult>;
+
+	/**
 	 * A method of the design mode or the site map (see {@link EngineMethod}); the backend's
 	 * answer as it is (plain JSON).
 	 */
@@ -625,7 +639,10 @@ export type ProjectPlatformMethod =
 	| 'codes/list' | 'codes/show' | 'codes/new' | 'codes/install' | 'codes/validate' | 'codes/trust'
 	// A DWG drawing as DXF (`saengine.library.dwg`, GNU LibreDWG's dwg2dxf as a separate program):
 	// `cad/convertDwg` `{path, cache?}` -> `{ok, dxf, warnings, cached}` or `{ok: false, code, message}`.
-	| 'cad/convertDwg';
+	| 'cad/convertDwg'
+	// The setup's optional components the backend runs (`saengine.rpc.handlers.installer_components`):
+	// `components/list` `{}` -> `{energyplus, libredwg}`, each `{state, path?}`.
+	| 'components/list';
 
 export interface ICadOpenRequest {
 	/** Absolute path of the `.dxf` file. */
@@ -643,8 +660,33 @@ export interface ICadOpenResult {
 	/** Its arguments: the drawing's path. */
 	readonly args: readonly string[];
 	/** Where the program came from: the setting, the bundled copy or an installed one. */
-	readonly source?: 'setting' | 'bundled' | 'installed';
+	readonly source?: ICadProgram['source'];
 	/** The process id when started. */
+	readonly pid?: number;
+	readonly problems?: readonly string[];
+}
+
+export interface ICadProgram {
+	readonly program: string;
+	/** The `saengine.cad.program` setting, the setup's copy (`resources/librecad`) or an installed LibreCAD. */
+	readonly source: 'setting' | 'bundled' | 'installed';
+}
+
+/** The optional components of the SAEngine setup (`[Components]` of `workbench/build/win32/code.iss`). */
+export const SETUP_COMPONENTS = ['energyplus', 'librecad', 'libredwg'] as const;
+export type SetupComponent = typeof SETUP_COMPONENTS[number];
+
+export interface ISetupRunRequest {
+	/** Absolute path of the setup (`.exe`). */
+	readonly setup: string;
+	/** The lower-case hex SHA-256 the setup must have (from the release's `.sha256`). */
+	readonly sha256: string;
+	/** Every optional component the install should have afterwards. */
+	readonly components: readonly SetupComponent[];
+}
+
+export interface ISetupRunResult {
+	readonly ok: boolean;
 	readonly pid?: number;
 	readonly problems?: readonly string[];
 }

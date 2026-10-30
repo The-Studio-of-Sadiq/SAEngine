@@ -6,6 +6,19 @@
     DirExists(RepoDir + "\licenses") && Language != "" \
       ? ('; LicenseFile: "' + RepoDir + '\licenses\LICENSE-' + Language + '.rtf"') \
       : '; LicenseFile: "' + RootLicenseFile + '"'
+// SAEngine: the optional components of the setup (docs/marketplace-plan.md §6). Each separate
+// program build-installer.ps1 bundled into resources\ becomes a component; a build without it has
+// no such component. Inno Setup computes the sizes shown on the Select Components page.
+#define SAEngineResources (VersionedResourcesFolder == "" ? "resources" : VersionedResourcesFolder + "\resources")
+#define HasEnergyPlus DirExists(SourceDir + "\" + SAEngineResources + "\energyplus")
+#define HasLibreCAD DirExists(SourceDir + "\" + SAEngineResources + "\librecad")
+#define HasLibreDWG DirExists(SourceDir + "\" + SAEngineResources + "\libredwg")
+#define HasComponents HasEnergyPlus || HasLibreCAD || HasLibreDWG
+#if HasComponents
+#define CoreComponent "; Components: core"
+#else
+#define CoreComponent ""
+#endif
 
 [Setup]
 AppId={#AppId}
@@ -79,6 +92,17 @@ Type: files; Name: "{app}\{#VersionedResourcesFolder}\resources\app\node_modules
 Type: files; Name: "{app}\{#VersionedResourcesFolder}\resources\app\Credits_45.0.2454.85.html"; Check: IsNotBackgroundUpdate
 // SAEngine: an upgrade replaces the bundled Python whole, so no package of an older version stays.
 Type: filesandordirs; Name: "{app}\{#VersionedResourcesFolder}\resources\python"; Check: IsNotBackgroundUpdate
+// SAEngine: a component left out (Custom, or /COMPONENTS= without it) is removed, so re-running
+// the setup adds and removes components (disablenouninstallwarning below).
+#if HasEnergyPlus
+Type: filesandordirs; Name: "{app}\{#SAEngineResources}\energyplus"; Components: not energyplus; Check: IsNotBackgroundUpdate
+#endif
+#if HasLibreCAD
+Type: filesandordirs; Name: "{app}\{#SAEngineResources}\librecad"; Components: not librecad; Check: IsNotBackgroundUpdate
+#endif
+#if HasLibreDWG
+Type: filesandordirs; Name: "{app}\{#SAEngineResources}\libredwg"; Components: not libredwg; Check: IsNotBackgroundUpdate
+#endif
 
 [UninstallDelete]
 // SAEngine: the bundled Python (resources\python) may gain files at runtime (bytecode caches).
@@ -89,6 +113,28 @@ Type: files; Name: "{app}\old_*"
 Type: files; Name: "{app}\new_*"
 Type: files; Name: "{app}\updating_version"
 
+#if HasComponents
+// SAEngine: Full is the first type, so a new install (also a silent one) gets everything; an
+// update keeps the components chosen before (UsePreviousSetupType, UsePreviousComponents).
+[Types]
+Name: "full"; Description: "{cm:SAEngineTypeFull}"
+Name: "compact"; Description: "{cm:SAEngineTypeCompact}"
+Name: "custom"; Description: "{cm:SAEngineTypeCustom}"; Flags: iscustom
+
+// The names are what /COMPONENTS= takes (SETUP_COMPONENTS in the workbench's femSolver.ts).
+[Components]
+Name: "core"; Description: "{cm:SAEngineComponentCore}"; Types: full compact custom; Flags: fixed
+#if HasEnergyPlus
+Name: "energyplus"; Description: "{cm:SAEngineComponentEnergyPlus}"; Types: full; Flags: disablenouninstallwarning
+#endif
+#if HasLibreCAD
+Name: "librecad"; Description: "{cm:SAEngineComponentLibreCAD}"; Types: full; Flags: disablenouninstallwarning
+#endif
+#if HasLibreDWG
+Name: "libredwg"; Description: "{cm:SAEngineComponentLibreDWG}"; Types: full; Flags: disablenouninstallwarning
+#endif
+
+#endif
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked; OnlyBelowVersion: 0,6.1
@@ -104,7 +150,19 @@ Name: "runcode"; Description: "{cm:RunAfter,{#NameShort}}"; GroupDescription: "{
 Name: "{app}"; AfterInstall: DisableAppDirInheritance
 
 [Files]
-Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\policies,\policies\*,\appx,\appx\*,\{#ProductJsonRelativePath},\{#ExeBasename}.exe,\{#ExeBasename}.VisualElementsManifest.xml,\bin,\bin\*"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
+// SAEngine: the optional programs are left out here and installed by their components below.
+Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\policies,\policies\*,\appx,\appx\*,\{#ProductJsonRelativePath},\{#ExeBasename}.exe,\{#ExeBasename}.VisualElementsManifest.xml,\bin,\bin\*,\{#SAEngineResources}\energyplus,\{#SAEngineResources}\energyplus\*,\{#SAEngineResources}\librecad,\{#SAEngineResources}\librecad\*,\{#SAEngineResources}\libredwg,\{#SAEngineResources}\libredwg\*"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs{#CoreComponent}
+#if HasEnergyPlus
+Source: "{#SAEngineResources}\energyplus\*"; DestDir: "{code:GetDestDir}\{#SAEngineResources}\energyplus"; Components: energyplus; Flags: ignoreversion recursesubdirs createallsubdirs
+#endif
+// LibreCAD (GPL-2.0-only) is a separate program with its own licence texts: shipped alongside,
+// never linked.
+#if HasLibreCAD
+Source: "{#SAEngineResources}\librecad\*"; DestDir: "{code:GetDestDir}\{#SAEngineResources}\librecad"; Components: librecad; Flags: ignoreversion recursesubdirs createallsubdirs
+#endif
+#if HasLibreDWG
+Source: "{#SAEngineResources}\libredwg\*"; DestDir: "{code:GetDestDir}\{#SAEngineResources}\libredwg"; Components: libredwg; Flags: ignoreversion recursesubdirs createallsubdirs
+#endif
 Source: "{#ExeBasename}.exe"; DestDir: "{code:GetDestDir}"; DestName: "{code:GetExeBasename}"; Flags: ignoreversion
 Source: "{#ExeBasename}.VisualElementsManifest.xml"; DestDir: "{code:GetDestDir}"; DestName: "{code:GetVisualElementsManifest}"; Flags: ignoreversion
 Source: "tools\*"; DestDir: "{app}\{#VersionedResourcesFolder}\tools"; Flags: ignoreversion
@@ -1334,6 +1392,13 @@ Root: {#EnvironmentRootKey}; Subkey: "Software\Microsoft\Windows\CurrentVersion\
 // SAEngine: messages of the SAEngine tasks and file types (all languages).
 [CustomMessages]
 SAEngineAddToPath=Add the saengine command to PATH (requires shell restart)
+SAEngineTypeFull=Full installation (all programs)
+SAEngineTypeCompact=Compact installation (SAEngine only)
+SAEngineTypeCustom=Custom installation
+SAEngineComponentCore=SAEngine (design, analysis, MEP, BNBC 2020, Python)
+SAEngineComponentEnergyPlus=Energy simulation: EnergyPlus (HVAC design-day loads)
+SAEngineComponentLibreCAD=CAD editor: LibreCAD, a separate GPL-2.0 program (edits the DXF drawings)
+SAEngineComponentLibreDWG=DWG import: GNU LibreDWG, a separate GPL-3.0 program (reads DWG drawings)
 SAEngineCivilFile=SAEngine Project Archive
 
 [Code]

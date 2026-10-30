@@ -346,6 +346,17 @@ a setup component or a package then.
 How the app finds a component stays as it is today (the bundled path first, then a user-set
 path), plus: a missing component is a *state*, not an error, everywhere it is used.
 
+**Built in M6 (2026-10-30)**, option (a): `code.iss` has `[Types]` Full/Compact/Custom and the
+components `energyplus`, `librecad`, `libredwg` (a component left out is removed by
+`[InstallDelete]`); the backend's `components/list` and the shared process's `cadProgram`
+report each state from the existing finders; *Add Component...* (in the HVAC results,
+*Calculate Loads*, *Open in CAD*, DWG underlays) and **Help › Installer Components...** ask for
+the setup with its `.sha256`, check it and run it with `/COMPONENTS=`. Until the Packages page
+exists the list lives in the Help menu; M3's *Components* section should open that same list
+(`saengine.components.show`), not a second one. User docs: `docs/install/README.md`
+(Components). Measured component sizes: EnergyPlus 59 MB, LibreCAD 115 MB, LibreDWG
+30 MB on disk (204 MB together); a local setup with all three was 711 MB.
+
 ## 7. Offline install
 
 Many offices have slow or metered connections, so offline is first-class:

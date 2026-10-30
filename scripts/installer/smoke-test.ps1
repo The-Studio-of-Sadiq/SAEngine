@@ -8,6 +8,8 @@
        desktop-icon and run-after-install tasks; checks the bin shims (saengine.cmd, the
        command line; saengine-app.cmd, the window launcher) and, when bundled, LibreCAD with
        its licences and LibreDWG's dwg2dxf (it runs, and the backend finds it). Runs "bin\saengine.cmd --help" when the backend has saengine.cli.
+       When the setup has optional components: runs it again with /TYPE=compact (they are
+       removed, the backend reports them missing) and with /COMPONENTS= (they are back).
     2. With the bundled resources\python\python.exe, from a folder outside the repository and
        with a hostile Python environment (PYTHONHOME pointing nowhere, PYTHONPATH and a user
        site-packages that shadow numpy): checks the isolation, imports the backend, makes the JSON-RPC
@@ -129,6 +131,42 @@ Measure-Step 'silent install' {
             throw 'THIRD_PARTY_NOTICES.txt does not name the bundled GNU LibreDWG.'
         }
         Write-Host "GNU LibreDWG $($bundle.version) is bundled."
+    }
+}
+
+# The setup's optional components (code.iss [Components]), when this build has any: running the
+# setup again as Compact removes them, and with /COMPONENTS= (what the app's Add Component...
+# passes) adds them back; the backend reports each state (components/list).
+$componentFolders = [ordered]@{ energyplus = 'resources\energyplus'; librecad = 'resources\librecad'; libredwg = 'resources\libredwg' }
+$components = @($componentFolders.Keys | Where-Object { Test-Path (Join-Path $InstallDir $componentFolders[$_]) })
+if ($components.Count -gt 0) {
+    function Invoke-Setup([string[]]$Extra, [string]$Log) {
+        $arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$InstallDir`"", "/LOG=`"$(Join-Path $smokeRoot $Log)`"") + $Extra
+        $process = Start-Process -FilePath $Setup -ArgumentList $arguments -Wait -PassThru
+        if ($process.ExitCode -ne 0) { throw "The setup ($($Extra -join ' ')) exited with $($process.ExitCode); see $smokeRoot\$Log." }
+    }
+    function Get-BackendComponents {
+        $text = & (Join-Path $InstallDir 'resources\python\python.exe') -I -c 'import json; from saengine.rpc.handlers import installer_components as c; print(json.dumps(c()))'
+        return "$text" | ConvertFrom-Json
+    }
+    Measure-Step "components: Compact removes $($components -join ', '), /COMPONENTS= adds them back" {
+        $state = Get-BackendComponents
+        foreach ($name in @('energyplus', 'libredwg')) {
+            if ($components -contains $name -and $state.$name.state -ne 'installed') { throw "The backend reports $name as '$($state.$name.state)' in a Full install." }
+        }
+        Invoke-Setup @('/TYPE=compact', '/MERGETASKS="!runcode"') 'setup-compact.log'
+        foreach ($name in $components) {
+            if (Test-Path (Join-Path $InstallDir $componentFolders[$name])) { throw "The Compact install kept $($componentFolders[$name])." }
+        }
+        if (-not (Test-Path (Join-Path $InstallDir 'resources\python\python.exe'))) { throw 'The Compact install lacks the bundled Python.' }
+        $state = Get-BackendComponents
+        foreach ($name in @('energyplus', 'libredwg')) {
+            if ($state.$name.state -eq 'installed') { throw "The backend still reports $name as installed after the Compact install." }
+        }
+        Invoke-Setup @("/COMPONENTS=$($components -join ',')", '/MERGETASKS="!runcode"') 'setup-components.log'
+        foreach ($name in $components) {
+            if (-not (Test-Path (Join-Path $InstallDir $componentFolders[$name]))) { throw "/COMPONENTS= did not add $($componentFolders[$name])." }
+        }
     }
 }
 

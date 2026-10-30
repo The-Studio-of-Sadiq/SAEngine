@@ -33,7 +33,8 @@ import { asJson, asText, IRequestService } from '../../../../platform/request/co
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
-import { checksumMatches, IAvailableUpdate, IGitHubRelease, parseSha256File, pickUpdate } from '../common/updateCheck.js';
+import { checksumMatches, IAvailableUpdate, IGitHubRelease, parseSha256File, pickUpdate, runningVersion } from '../common/updateCheck.js';
+import './saengineComponents.js';
 
 /*
  * SAEngine's update check. Code - OSS's own update service needs an update server answering
@@ -125,7 +126,7 @@ class SAEngineUpdateService implements ISAEngineUpdateService {
 	}
 
 	private currentVersion(): string {
-		return this.product.saengineVersion || this.productService.version;
+		return runningVersion({ version: this.productService.version, saengineVersion: this.product.saengineVersion });
 	}
 
 	async check(manual: boolean): Promise<void> {

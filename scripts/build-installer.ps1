@@ -36,7 +36,8 @@
          which the in-app update check compares with the GitHub releases.
          Code signing: not yet (docs\release.md). SAENGINE_SIGN_HOOK may name a script that
          is called before Inno Setup with the app folder and after it with the setup.
-      6. Prints sizes and timings.
+      6. Prints sizes (also of each setup component: core, EnergyPlus, LibreCAD, LibreDWG, and a
+         Compact and a Full install) and timings.
 
     Docs: docs\install\README.md
 
@@ -648,6 +649,28 @@ if ($setupFile) {
 }
 $rows += [pscustomobject]@{ Item = "$sourcesName\ (publish next to the setup)"; Size = Format-Size (Get-FolderSize $sourcesDir) }
 $rows | Format-Table -AutoSize | Out-String | Write-Host
+# The setup's components (code.iss [Types]/[Components]): what a Compact and a Full install put on
+# disk. Each bundled program is one optional component; the rest is the core.
+$componentRows = @()
+$optional = 0
+foreach ($component in @(
+        @{ Name = 'energyplus'; Title = 'Energy simulation (EnergyPlus)'; Path = $appEnergyPlus },
+        @{ Name = 'librecad'; Title = 'CAD editor (LibreCAD)'; Path = $appLibreCAD },
+        @{ Name = 'libredwg'; Title = 'DWG import (LibreDWG)'; Path = $appLibreDWG })) {
+    if (Test-Path -LiteralPath $component.Path) {
+        $size = Get-FolderSize $component.Path
+        $optional += $size
+        $componentRows += [pscustomobject]@{ Component = $component.Name; Contents = $component.Title; 'On disk' = Format-Size $size }
+    } else {
+        $componentRows += [pscustomobject]@{ Component = $component.Name; Contents = "$($component.Title): not bundled, no component"; 'On disk' = '-' }
+    }
+}
+$appSize = Get-FolderSize $appDir
+$componentRows = @([pscustomobject]@{ Component = 'core (fixed)'; Contents = 'workbench, Python, SAEngine, MEP, BNBC 2020'; 'On disk' = Format-Size ($appSize - $optional) }) + $componentRows
+$componentRows += [pscustomobject]@{ Component = 'Compact install'; Contents = 'core only'; 'On disk' = Format-Size ($appSize - $optional) }
+$componentRows += [pscustomobject]@{ Component = 'Full install'; Contents = 'core and every component'; 'On disk' = Format-Size $appSize }
+Write-Host 'Setup components (installed size):'
+$componentRows | Format-Table -AutoSize | Out-String | Write-Host
 foreach ($key in $timings.Keys) {
     Write-Host ('{0,-40} {1:hh\:mm\:ss}' -f $key, $timings[$key])
 }

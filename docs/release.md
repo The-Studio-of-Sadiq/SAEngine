@@ -63,6 +63,25 @@ A **test build** (no release): Run workflow with the tag empty. It builds, smoke
 uploads the artefact; nothing is released. Each run costs 180 to 360 Windows-billed minutes, so
 run it only when the installer or the workflow changed.
 
+## Setup components
+
+The release build bundles EnergyPlus, LibreCAD and LibreDWG, so its setup has the *Select
+Components* page (`[Types]` Full, Compact, Custom and `[Components]` in
+`workbench/build/win32/code.iss`; [install/README.md](install/README.md#components)). Full is
+the first type: a new install, attended or silent, gets everything, and an update keeps what
+was chosen before. The build log's table *Setup components (installed size)* gives the size
+of the core and of each component; copy it into the release notes when it changed.
+
+*Add Component...* in the app re-runs the setup of the installed version with
+`/COMPONENTS=`. It needs that version's setup **and** its `.sha256` from the release page (the
+user puts both in one folder), so both stay release assets. The app never downloads the setup
+for this (decision D7 of [marketplace-plan.md](marketplace-plan.md)): it asks for the file,
+checks the SHA-256 in the shared process (`IFemSolverService.runSetup`) and starts it. Once the
+setup is code-signed, that check should also verify the Authenticode signature (round M7).
+
+The smoke test runs the setup again as Compact and with `/COMPONENTS=` and checks that the
+components' folders go and come back.
+
 ## In-app update check
 
 Help, **Check for SAEngine Updates...** (also in the Command Palette), and once at start-up

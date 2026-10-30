@@ -61,13 +61,18 @@ class Conversion:
         return {"dxf": str(self.dxf), "warnings": self.warnings, "cached": self.cached}
 
 
+def bundled_dir() -> Path:
+    """Where the setup's *DWG import* component puts ``dwg2dxf``:
+    ``<app>/resources/python/python.exe`` -> ``<app>/resources/libredwg``."""
+    return Path(sys.executable).resolve().parent.parent / "libredwg"
+
+
 def _candidates() -> list[Path]:
     out: list[Path] = []
     env = os.environ.get(ENV_VAR)
     if env:
         out.append(Path(env))
-    # The bundled copy: <app>/resources/python/python.exe -> <app>/resources/libredwg.
-    out.append(Path(sys.executable).resolve().parent.parent / "libredwg")
+    out.append(bundled_dir())
     found = shutil.which("dwg2dxf")
     if found:
         out.append(Path(found))
@@ -181,8 +186,9 @@ def convert(
     exe = find_converter(converter)
     if exe is None:
         raise ConverterMissing(
-            f"{dwg.name}: opening DWG drawings needs GNU LibreDWG's dwg2dxf, which the SAEngine "
-            f"installer bundles; set {ENV_VAR} to its folder, or save the drawing as DXF"
+            f"{dwg.name}: opening DWG drawings needs GNU LibreDWG's dwg2dxf, the SAEngine "
+            f"setup's DWG import component, which is not installed: add it with Help > "
+            f"Installer Components..., set {ENV_VAR} to its folder, or save the drawing as DXF"
         )
     warnings = _run(exe, dwg, dxf, timeout)
     with contextlib.suppress(OSError):

@@ -52,8 +52,11 @@ function roomZones(view: HTMLElement, report: IHvacReport, host: IResultsHost): 
 	}
 }
 
-/** Renders the report into `view`. */
-export function renderHvacReport(view: HTMLElement, report: IHvacReport, host: IResultsHost): void {
+/**
+ * Renders the report into `view`. `addEnergyPlus`: *Add Component...* of the setup's Energy
+ * simulation component, offered while EnergyPlus is not installed (desktop only).
+ */
+export function renderHvacReport(view: HTMLElement, report: IHvacReport, host: IResultsHost & { readonly addEnergyPlus?: () => void }): void {
 	const header = append(view, $('.mep-view-header'));
 	append(header, $('span.mep-view-title', undefined, localize('hvacResults.title', "HVAC coordination")));
 	append(header, $('span.mep-view-subtitle', undefined, localize('hvacResults.subtitle', "Computed by the backend to BNBC 2020 Part 8 Chapter 2 from the HVAC set-up; not stored in the file.")));
@@ -61,9 +64,14 @@ export function renderHvacReport(view: HTMLElement, report: IHvacReport, host: I
 	append(engine, $('span.hvac-engine-label', undefined, localize('hvacResults.engine', "Cooling loads")));
 	append(engine, $('span.hvac-engine-value', undefined, report.estimate
 		? report.energyPlusFound === false
-			? localize('hvacResults.estimateNoEnergyPlus', "SAEngine's estimate: EnergyPlus 26.2 is not installed (install it, or set SAENGINE_ENERGYPLUS, for the design-day loads)")
+			? localize('hvacResults.estimateNoEnergyPlus', "SAEngine's estimate: EnergyPlus is not installed (the setup's Energy simulation component gives the design-day loads)")
 			: localize('hvacResults.estimate', "estimate (Calculate Loads runs EnergyPlus for the design day)")
 		: report.computed ? localize('hvacResults.engineAt', "{0}, {1}", report.engine, report.computed) : report.engine));
+	const addEnergyPlus = host.addEnergyPlus;
+	if (report.estimate && report.energyPlusFound === false && addEnergyPlus) {
+		const add = append(engine, $<HTMLButtonElement>('button.mep-link', { type: 'button', title: localize('hvacResults.addEnergyPlusTitle', "Add EnergyPlus by running the SAEngine setup again with Energy simulation ticked") }, localize('hvacResults.addEnergyPlus', "Add Component...")));
+		add.addEventListener('click', () => addEnergyPlus());
+	}
 
 	const tile = tiles(view);
 	if (report.total?.total !== undefined) {
