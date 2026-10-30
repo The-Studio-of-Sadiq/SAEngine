@@ -207,3 +207,36 @@
 	text-overflow: ellipsis;
 	padding-right: 22px; /* the ellipsis stops before the arrow */
 }
+
+/* Select boxes end their text in an ellipsis before the arrow, never under it; the story picker
+ * is as wide as its longest name ("Level 10 (+30000) = Level 2"). */
+.saengine-floor-plan .monaco-select-box {
+	text-overflow: ellipsis;
+	padding-right: 22px;
+}
+
+.saengine-floor-plan .floor-plan-select.story {
+	width: auto;
+	min-width: 200px;
+	max-width: 320px;
+}
+
+.saengine-floor-plan .floor-plan-select.story .monaco-select-box {
+	width: max-content;
+	min-width: 200px;
+	max-width: 320px;
+}
+
+/* The properties panel scrolls down only: its tables and fields fit its width. */
+.saengine-floor-plan .sa-frame-panel-content {
+	overflow-x: hidden;
+}
+
+.saengine-floor-plan .sa-props-row.editable .floor-plan-prop-control .monaco-select-box {
+	width: 100%;
+}
+
+/* While the start card shows, the plan is fitted beside it, so it covers none of the grid bubbles. */
+.saengine-floor-plan .saengine-cad-editor.with-start .cad-host {
+	left: min(472px, 45%);
+}

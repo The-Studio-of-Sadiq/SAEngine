@@ -158,7 +158,7 @@ export function countByGroup(selection: readonly IMemberRef[]): [MemberGroup, nu
 	return GROUP_ORDER.map(g => [g, selection.filter(r => r.group === g).length] as [MemberGroup, number]).filter(([, n]) => n > 0);
 }
 
-function groupCount(group: MemberGroup, n: number): string {
+export function groupCount(group: MemberGroup, n: number): string {
 	switch (group) {
 		case 'columns': return n === 1 ? localize('sel.column', "1 column") : localize('sel.columns', "{0} columns", n);
 		case 'beams': return n === 1 ? localize('sel.beam', "1 beam") : localize('sel.beams', "{0} beams", n);
