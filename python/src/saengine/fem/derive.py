@@ -503,6 +503,29 @@ def local_axes(
     return x, y, np.cross(x, y)
 
 
+def member_axes(axes: np.ndarray) -> np.ndarray:
+    """The member axes 1, 2, 3 results are shown in (rows), from an element's analysis axes
+    (rows x, y, z of :func:`local_axes`).
+
+    The analysis gives a horizontal member local z up and its strong-axis inertia in Iy, so its
+    gravity bending is My and its vertical shear Vz. Shown as the engineer reads them (axis 2
+    up, gravity bending M3 and shear V2, as a column's strong-axis bending is M3), such a member
+    is turned a quarter about its axis: 2 = z, 3 = -y. A member whose local y is the nearer to
+    vertical (a column: neither is) keeps its axes. The design reads the analysis axes."""
+    x, y, z = np.asarray(axes, dtype=float)
+    if abs(z[2]) > abs(y[2]) + 1e-9:
+        return np.array([x, z, -y])
+    return np.array([x, y, z])
+
+
+def to_member_axes(forces: np.ndarray, axes: np.ndarray) -> np.ndarray:
+    """Section forces ``[..., N, Vy, Vz, T, My, Mz]`` in an element's analysis axes turned to
+    its :func:`member_axes` (``[..., P, V2, V3, T, M2, M3]``)."""
+    forces = np.asarray(forces, dtype=float)
+    turn = member_axes(axes) @ np.asarray(axes, dtype=float).T
+    return np.concatenate([forces[..., :3] @ turn.T, forces[..., 3:6] @ turn.T], axis=-1)
+
+
 def derive_fem(
     building: BuildingModel,
     objects: ObjectLibrary,
