@@ -68,11 +68,30 @@ export interface IFixtures {
 	[key: string]: unknown;
 }
 
+/** Where a storey's fixtures come from: auto (typed counts override the rooms), the architecture's wet rooms, or typed. */
+export type FixturesFrom = 'auto' | 'rooms' | 'typed';
+
 export interface IPlumbingStory {
 	story: string;
 	occupancy?: string;
 	population?: number;
 	fixtures: IFixtures;
+	fixturesFrom?: FixturesFrom | string;
+	[key: string]: unknown;
+}
+
+/** The fixtures every wet room of a kind holds in this project (07 MEP `plumbing.roomFixtures`). */
+export interface IRoomFixtures {
+	kind: string;
+	fixtures: IFixtures;
+	[key: string]: unknown;
+}
+
+/** A wet room of the architecture given its own kind or fixtures (07 MEP `plumbing.wetRooms`). */
+export interface IWetRoomSetting {
+	room: string;
+	kind?: string;
+	fixtures?: IFixtures;
 	[key: string]: unknown;
 }
 
@@ -144,6 +163,8 @@ export interface IRoof {
 export interface IPlumbing {
 	supply: ISupply;
 	stories: IPlumbingStory[];
+	roomFixtures?: IRoomFixtures[];
+	wetRooms?: IWetRoomSetting[];
 	risers: IRiser[];
 	tanks: ITank[];
 	roof: IRoof;
@@ -168,6 +189,15 @@ export function normalizePlumbing(value: unknown): IPlumbing | undefined {
 			story.fixtures.other = recordList<IOtherFixture>(story.fixtures.other);
 		}
 	}
+	if (plumbing.roomFixtures !== undefined) {
+		plumbing.roomFixtures = recordList<IRoomFixtures>(plumbing.roomFixtures);
+		for (const entry of plumbing.roomFixtures) {
+			entry.fixtures = isRecord(entry.fixtures) ? entry.fixtures : {};
+		}
+	}
+	if (plumbing.wetRooms !== undefined) {
+		plumbing.wetRooms = recordList<IWetRoomSetting>(plumbing.wetRooms);
+	}
 	plumbing.risers = recordList<IRiser>(plumbing.risers);
 	plumbing.tanks = recordList<ITank>(plumbing.tanks);
 	plumbing.roof = isRecord(plumbing.roof) ? plumbing.roof : { drains: [] };
@@ -189,6 +219,19 @@ export function ensurePlumbing(document: IMep): IPlumbing {
 /** The plumbing of the document as read, without creating it. */
 export function plumbingOf(document: IMep): IPlumbing | undefined {
 	return normalizePlumbing(document.plumbing);
+}
+
+/** Whether an architecture file's text (`05 Floor Plan/architecture.json`) has a room marked wet: its fixtures start the plumbing. */
+export function architectureHasWetRooms(text: string | undefined): boolean {
+	if (!text) {
+		return false;
+	}
+	try {
+		const data: unknown = JSON.parse(text);
+		return isRecord(data) && records<Record<string, unknown>>(data.rooms).some(r => r.wet === true);
+	} catch {
+		return false;
+	}
 }
 
 export function hasPlumbing(document: IMep): boolean {
@@ -805,6 +848,104 @@ export interface IPlumbingReport {
 	readonly problems: readonly string[];
 	readonly method: readonly string[];
 	readonly sources?: { readonly [part: string]: string };
+	/** The architecture's rooms as inputs: where each storey's fixtures come from, the wet rooms, the branch runs. */
+	readonly rooms?: IPlumbingRooms;
+}
+
+/** A storey's fixtures and where they come from (`saengine.mep.rooms.with_rooms`). */
+export interface IFixtureSource {
+	readonly story: string;
+	/** 'rooms', 'typed' or 'none'. */
+	readonly source: string;
+	readonly rooms: readonly string[];
+	readonly fromRooms: Readonly<Record<string, number>>;
+	readonly typed: Readonly<Record<string, number>>;
+	readonly population?: number;
+	readonly populationSource?: string;
+	readonly note?: string;
+}
+
+/** A wet room of the architecture as the plumbing counts it. */
+export interface IMepRoom {
+	readonly id: string;
+	readonly story: string;
+	readonly name: string;
+	readonly number: string;
+	readonly area: number;
+	readonly kind?: string;
+	/** 'name' (found from the room's name) or '07 MEP'. */
+	readonly kindFrom?: string;
+	readonly fixtures: Readonly<Record<string, number>>;
+	readonly outline: readonly Point[];
+}
+
+/** A run from a riser or stack to a wet room (`saengine.plumbing.branches`). */
+export interface IBranchRun {
+	readonly room: string;
+	readonly label: string;
+	readonly story: string;
+	/** 'supply' or 'drainage'. */
+	readonly system: string;
+	readonly riser: string;
+	readonly path: readonly Point[];
+	/** [m] */
+	readonly length: number;
+	readonly beams: readonly string[];
+}
+
+export interface IPlumbingRooms {
+	readonly stories: readonly IFixtureSource[];
+	readonly wetRooms: readonly IMepRoom[];
+	readonly branches: readonly IBranchRun[];
+	/** Each kind of wet room: its label, its fixtures here and whether the project gives them (else SAEngine's defaults). */
+	readonly kinds: Readonly<Record<string, { readonly label: string; readonly fixtures: Readonly<Record<string, number>>; readonly project: boolean }>>;
+	readonly notes: readonly string[];
+}
+
+function counts(value: unknown): Record<string, number> {
+	return Object.fromEntries(Object.entries(record(value)).filter((e): e is [string, number] => typeof e[1] === 'number'));
+}
+
+function points(value: unknown): Point[] {
+	return Array.isArray(value) ? value.filter(isPoint) : [];
+}
+
+/** The report's `rooms` section, read defensively. */
+function readRooms(raw: unknown): IPlumbingRooms | undefined {
+	if (!isRecord(raw)) {
+		return undefined;
+	}
+	const kinds: Record<string, { label: string; fixtures: Record<string, number>; project: boolean }> = {};
+	for (const [kind, entry] of Object.entries(record(raw.kinds))) {
+		const e = record(entry);
+		kinds[kind] = { label: String(e.label ?? kind), fixtures: counts(e.fixtures), project: e.project === true };
+	}
+	return {
+		stories: records<Record<string, unknown>>(raw.stories).map(s => ({
+			story: String(s.story ?? ''), source: String(s.source ?? 'none'), rooms: strings(s.rooms), fromRooms: counts(s.fromRooms), typed: counts(s.typed),
+			population: optionalNumber(s.population), populationSource: optionalString(s.populationSource), note: optionalString(s.note),
+		})),
+		wetRooms: records<Record<string, unknown>>(raw.wetRooms).map(r => ({
+			id: String(r.id ?? ''), story: String(r.story ?? ''), name: String(r.name ?? ''), number: String(r.number ?? ''), area: num(r.area),
+			kind: optionalString(r.kind), kindFrom: optionalString(r.kindFrom), fixtures: counts(r.fixtures), outline: points(r.outline),
+		})),
+		branches: records<Record<string, unknown>>(raw.branches).map(b => ({
+			room: String(b.room ?? ''), label: String(b.label ?? ''), story: String(b.story ?? ''), system: String(b.system ?? ''), riser: String(b.riser ?? ''),
+			path: points(b.path), length: num(b.length), beams: strings(b.beams),
+		})),
+		kinds,
+		notes: strings(raw.notes),
+	};
+}
+
+/** "WC × 1, Basin × 1, Floor drain × 2": a count of fixtures with the table's labels. */
+export function fixtureWords(fixtures: Readonly<Record<string, number>>): string {
+	return FIXTURES.filter(k => fixtures[k]).map(k => `${fixtureLabel(k)} × ${fixtures[k]}`).join(', ');
+}
+
+/** The label of a wet room kind from the report (the key when the report has none yet). */
+export function wetKindLabel(rooms: IPlumbingRooms | undefined, kind: string): string {
+	return rooms?.kinds[kind]?.label ?? kind;
 }
 
 const UNITS = localize('plb.unit.units', "units");
@@ -975,6 +1116,7 @@ export function readPlumbingReport(raw: unknown): IPlumbingReport | undefined {
 		problems: [...strings(raw.problems), ...strings(hydraulics.problems)],
 		method: strings(raw.method),
 		sources: isRecord(raw.sources) ? Object.fromEntries(Object.entries(raw.sources).filter((e): e is [string, string] => typeof e[1] === 'string')) : undefined,
+		rooms: readRooms(raw.rooms),
 	};
 }
 
@@ -991,13 +1133,16 @@ export function plumbingFailures(report: IPlumbingReport): { items: number; floo
 
 /** The status line: "6 storeys · 4 risers · 2 tanks · 1 floor below the minimum pressure". */
 export function plumbingSummary(document: IMep, report: IPlumbingReport | undefined): string {
-	const plumbing = plumbingOf(document);
+	// Without a plumbing section, a report still comes from the architecture's wet rooms.
+	const plumbing = plumbingOf(document) ?? (report ? { supply: {}, stories: [], risers: [], tanks: [], roof: { drains: [] } } : undefined);
 	if (!plumbing) {
 		return localize('plb.sum.none', "No plumbing yet");
 	}
 	const parts: string[] = [];
 	const n = (count: number, one: string, many: string) => parts.push(count === 1 ? one : many);
-	n(plumbing.stories.length, localize('plb.sum.storey', "1 storey"), localize('plb.sum.storeys', "{0} storeys", plumbing.stories.length));
+	// The storeys the report sized: those typed here and those the architecture's wet rooms add.
+	const storeys = Math.max(plumbing.stories.length, report?.demand.length ?? 0);
+	n(storeys, localize('plb.sum.storey', "1 storey"), localize('plb.sum.storeys', "{0} storeys", storeys));
 	n(plumbing.risers.length, localize('plb.sum.riser', "1 riser"), localize('plb.sum.risers', "{0} risers", plumbing.risers.length));
 	n(plumbing.tanks.length, localize('plb.sum.tank', "1 tank"), localize('plb.sum.tanks', "{0} tanks", plumbing.tanks.length));
 	if (plumbing.roof.drains.length) {

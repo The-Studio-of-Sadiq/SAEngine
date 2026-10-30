@@ -284,7 +284,8 @@ def _bottom(project: Any) -> str | None:
 def _entry(uid: str, kind: str, story: str, length, width, height, capacity, weight, **extra):
     return {"id": uid, "kind": kind, "story": story, "x": 0.0, "y": 0.0,
             "length": float(length), "width": float(width), "height": float(height),
-            "capacity": round(float(capacity), 2) if capacity and capacity > 0 else None,
+            # Rounded up, so that a proposed unit always gives what it was sized for.
+            "capacity": math.ceil(float(capacity) * 100 - 1e-6) / 100 if capacity and capacity > 0 else None,
             "operatingWeight": round(float(weight), 1),
             "sized": True, **extra}  # fmt: skip
 

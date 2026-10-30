@@ -1614,14 +1614,24 @@ class _Measure:
                 kind=opening.kind,
             )
 
-    def measure_plumbing(self, designs: dict[str, Any] | None = None) -> None:
+    def measure_plumbing(
+        self, designs: dict[str, Any] | None = None, architecture: Any = None
+    ) -> None:
         """The plumbing's RC tanks (concrete, formwork, bars from their last design, the
         ground tanks' excavation), risers and stacks by system and diameter [m], and the
-        fixtures by kind. ``designs``: the cached tank designs
+        fixtures by kind (the architecture's wet rooms' where they are used,
+        :func:`saengine.mep.rooms.with_rooms`). ``designs``: the cached tank designs
         (:func:`saengine.plumbing.project.read_designs`)."""
         mep = self.mep
         plumbing = getattr(mep, "plumbing", None)
-        if plumbing is None or not (plumbing.tanks or plumbing.risers or plumbing.stories):
+        if plumbing is None:
+            return
+        from saengine.mep.rooms import room_inputs, with_rooms
+
+        rooms = room_inputs(architecture, self.building, plumbing)
+        mep, _ = with_rooms(mep, rooms)
+        plumbing = mep.plumbing
+        if not (plumbing.tanks or plumbing.risers or plumbing.stories):
             return
         from saengine.library.mep import PLUMBING_SYSTEMS, TANK_KINDS, Fixtures
         from saengine.plumbing.project import _with_proposals, pipe_runs, tank_stamp
@@ -1631,7 +1641,7 @@ class _Measure:
         self.plumbing_measured = True
         try:
             report: dict[str, Any] | None = plumbing_results(
-                mep, self.building, None, self.ground_level
+                mep, self.building, None, self.ground_level, rooms=rooms
             )
         except Exception as error:  # noqa: BLE001 - the rest of the bill still measures
             report = None
@@ -2119,7 +2129,7 @@ def bill_of_quantities(
 
         measure.architecture_measured = measure_architecture(measure, architecture, objects)
     measure.measure_mep()
-    measure.measure_plumbing(tank_designs)
+    measure.measure_plumbing(tank_designs, architecture)
     measure.measure_services()
     from saengine.fire.boq import measure_fire
 

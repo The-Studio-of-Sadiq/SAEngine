@@ -157,3 +157,12 @@ def test_plant_room_headroom_for_the_installation(tmp_path: Path) -> None:
     project, zones = _zones(tmp_path / "b", "chilledWater", [1010.10101, 1010.10101])
     result = plant.propose_plant(project, zones)
     assert any("headroom" in c["name"] for c in result["checks"])
+
+
+def test_a_proposed_unit_gives_at_least_what_it_was_sized_for() -> None:
+    # 0.0404 m³/s of outdoor air rounded to the nearest 0.01 gave a 0.04 m³/s fresh air unit
+    # that failed its own check: proposals round up.
+    from saengine.hvac.plant import _entry
+
+    assert _entry("FAU-L1", "freshAirUnit", "L1", 1, 1, 1, 0.0404, 1)["capacity"] == 0.05
+    assert _entry("SODU1", "splitOutdoor", "R", 1, 1, 1, 6.4, 1)["capacity"] == 6.4

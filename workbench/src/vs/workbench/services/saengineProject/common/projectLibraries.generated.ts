@@ -15863,6 +15863,14 @@ export const MEP_SCHEMA: IJSONSchema = {
 					$ref: '#/$defs/FacadeGlazing',
 					title: 'Glazing',
 				},
+				gainsFrom: {
+					default: 'auto',
+					description: 'Where the story\'s occupants, gains and outdoor air come from: the rooms of the architecture (their areas and uses) or the use and values typed here. Auto: the rooms where the story has any; typed occupants, lighting and equipment still override.',
+					enum: ['auto', 'rooms', 'typed'],
+					enumDescriptions: ['Auto (the rooms where drawn)', 'The rooms', 'Typed'],
+					title: 'Gains from',
+					type: 'string',
+				},
 			},
 			required: ['story'],
 			title: 'HvacStory',
@@ -16306,6 +16314,22 @@ export const MEP_SCHEMA: IJSONSchema = {
 					title: 'Stories',
 					type: 'array',
 				},
+				roomFixtures: {
+					description: 'The fixtures of each kind of wet room; a kind not listed has SAEngine\'s defaults.',
+					items: {
+						$ref: '#/$defs/RoomFixtures',
+					},
+					title: 'Fixtures per wet room',
+					type: 'array',
+				},
+				wetRooms: {
+					description: 'Wet rooms of the architecture given their own kind or fixtures.',
+					items: {
+						$ref: '#/$defs/WetRoom',
+					},
+					title: 'Wet rooms',
+					type: 'array',
+				},
 				risers: {
 					items: {
 						$ref: '#/$defs/Riser',
@@ -16442,6 +16466,14 @@ export const MEP_SCHEMA: IJSONSchema = {
 				},
 				fixtures: {
 					$ref: '#/$defs/Fixtures',
+				},
+				fixturesFrom: {
+					default: 'auto',
+					description: 'Where the story\'s fixtures come from: the wet rooms of the architecture (05 Floor Plan/architecture.json) or the counts typed here. Auto: the typed counts when any is given (they override the rooms), else the rooms.',
+					enum: ['auto', 'rooms', 'typed'],
+					enumDescriptions: ['Auto (typed counts override the rooms)', 'The architecture\'s wet rooms', 'Typed'],
+					title: 'Fixtures from',
+					type: 'string',
 				},
 			},
 			required: ['story'],
@@ -17069,6 +17101,24 @@ export const MEP_SCHEMA: IJSONSchema = {
 			title: 'RoofDrain',
 			type: 'object',
 		},
+		RoomFixtures: {
+			additionalProperties: false,
+			description: 'The fixtures every wet room of a kind holds in this project (replacing SAEngine\'s\ndefaults for the kind).',
+			properties: {
+				kind: {
+					enum: ['toilet', 'halfBath', 'publicToilet', 'kitchen', 'laundry', 'wetArea'],
+					enumDescriptions: ['Toilet with shower', 'WC and basin', 'Public toilet', 'Kitchen', 'Laundry', 'Other wet area (floor drain)'],
+					title: 'Kind',
+					type: 'string',
+				},
+				fixtures: {
+					$ref: '#/$defs/Fixtures',
+				},
+			},
+			required: ['kind'],
+			title: 'RoomFixtures',
+			type: 'object',
+		},
 		Shaft: {
 			additionalProperties: false,
 			description: 'A vertical service shaft: a hole through the floors from one story up to another.',
@@ -17119,6 +17169,51 @@ export const MEP_SCHEMA: IJSONSchema = {
 			},
 			required: ['id', 'outline', 'fromStory', 'toStory'],
 			title: 'Shaft',
+			type: 'object',
+		},
+		WetRoom: {
+			additionalProperties: false,
+			description: 'One wet room of the architecture given its own kind or its own fixtures.',
+			properties: {
+				room: {
+					description: 'Room id in 05 Floor Plan/architecture.json.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Room',
+					type: 'string',
+				},
+				kind: {
+					anyOf: [
+						{
+							enum: ['toilet', 'halfBath', 'publicToilet', 'kitchen', 'laundry', 'wetArea'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Empty: found from the room\'s name.',
+					enumDescriptions: ['Toilet with shower', 'WC and basin', 'Public toilet', 'Kitchen', 'Laundry', 'Other wet area (floor drain)'],
+					title: 'Kind',
+				},
+				fixtures: {
+					anyOf: [
+						{
+							$ref: '#/$defs/Fixtures',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Empty: those of its kind.',
+					title: 'Fixtures',
+				},
+			},
+			required: ['room'],
+			title: 'WetRoom',
 			type: 'object',
 		},
 	},

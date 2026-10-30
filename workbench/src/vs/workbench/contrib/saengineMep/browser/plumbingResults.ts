@@ -8,7 +8,7 @@ import { localize } from '../../../../nls.js';
 import { formatNumber } from '../../saengineSoil/browser/soilDocument.js';
 import { svg } from '../../saengineSoil/browser/soilLog.js';
 import { checksTable, resultSection, statusCell, statusText, value, ITableColumn } from './mepResults.js';
-import { IFloorHead, IPlumbingReport, ISizedItem, plumbingFailures, PlumbingStatus, systemLabel, tankKindLabel } from './plumbingDocument.js';
+import { fixtureWords, IFloorHead, IPlumbingReport, ISizedItem, plumbingFailures, PlumbingStatus, systemLabel, tankKindLabel } from './plumbingDocument.js';
 
 /*
  * The Results view of the plumbing: the backend's report (`saengine.plumbing.report`) as one
@@ -91,6 +91,8 @@ export function renderPlumbingReport(view: HTMLElement, report: IPlumbingReport,
 			append(problems, $('p.mep-note.plb-problem', undefined, line));
 		}
 	}
+
+	renderRooms(view, report, host);
 
 	// Demand and storage.
 	if (report.demand.length || report.storage.length) {
@@ -260,6 +262,53 @@ export function renderPlumbingReport(view: HTMLElement, report: IPlumbingReport,
 			}
 		}
 	}
+}
+
+/** Where each storey's fixtures come from, and the runs from the risers and stacks to the wet rooms. */
+function renderRooms(view: HTMLElement, report: IPlumbingReport, host: IPlumbingResultsHost): void {
+	const rooms = report.rooms;
+	if (!rooms || (!rooms.stories.some(s => s.rooms.length) && !rooms.branches.length)) {
+		return;
+	}
+	const sources = section(view, localize('plb.roomsSection', "Fixtures from the architecture"), localize('plb.roomsSectionDetail', "the wet rooms of 6 BIM › Architecture; counts typed in the set-up override them"));
+	const table = append(sources, $('table.mep-table.mep-result-table'));
+	host.tableHead(table, [
+		{ label: localize('plb.f.story', "Storey"), width: 130 }, { label: localize('plb.f.source', "Fixtures from"), width: 130 },
+		{ label: localize('plb.f.wetRooms', "Wet rooms"), numeric: true, width: 90 }, { label: localize('plb.f.counted', "Counted"), width: 360 },
+	]);
+	const body = append(table, $('tbody'));
+	for (const s of rooms.stories) {
+		const tr = append(body, $('tr'));
+		append(tr, $('td', undefined, host.storyName(s.story)));
+		append(tr, $('td', undefined, s.source === 'rooms' ? localize('plb.fromRoomsLong', "The rooms") : s.source === 'typed' ? localize('plb.fromTypedLong', "Typed counts") : '—'));
+		append(tr, $('td.number', undefined, String(s.rooms.length)));
+		const counted = fixtureWords(s.source === 'rooms' ? s.fromRooms : s.typed);
+		append(tr, $('td', { title: s.note ?? '' }, s.note && s.source === 'typed' ? `${counted} (${s.note})` : counted));
+	}
+	for (const note of rooms.notes) {
+		append(sources, $('p.mep-note', undefined, note));
+	}
+	if (!rooms.branches.length) {
+		return;
+	}
+	const runs = section(view, localize('plb.branches', "Branch runs to the wet rooms"), localize('plb.branchesDetail', "SAEngine layout through corridors, shafts and wet rooms; supply in the ceiling, drainage under the floor"));
+	const runTable = append(runs, $('table.mep-table.mep-result-table'));
+	host.tableHead(runTable, [
+		{ label: localize('plb.f.story', "Storey"), width: 110 }, { label: localize('plb.f.room', "Room"), width: 170 },
+		{ label: localize('plb.f.system', "System"), width: 90 }, { label: localize('plb.f.from', "From"), width: 80 },
+		{ label: localize('plb.f.length', "Length"), unit: M, numeric: true, width: 80 }, { label: localize('plb.f.beamsCrossed', "Beams crossed"), width: 220 },
+	]);
+	const runBody = append(runTable, $('tbody'));
+	for (const run of rooms.branches) {
+		const tr = host.row(runBody, run.riser);
+		append(tr, $('td', undefined, host.storyName(run.story)));
+		append(tr, $('td', undefined, run.label || run.room));
+		append(tr, $('td', undefined, run.system === 'supply' ? localize('plb.supplyRun', "Supply") : localize('plb.drainageRun', "Drainage")));
+		append(tr, $('td', undefined, run.riser));
+		append(tr, $('td.number', undefined, formatNumber(run.length, 1)));
+		append(tr, $('td', undefined, run.beams.join(', ') || '—'));
+	}
+	append(runs, $('p.mep-note', undefined, localize('plb.branchesNote', "A run that crosses a beam passes below it or through a sleeve in its web: add the opening in Coordination. BNBC Part 8 sizes the risers and stacks, not where their branches go.")));
 }
 
 function sizedTable(view: HTMLElement, host: IPlumbingResultsHost, title: string, detail: string, items: readonly ISizedItem[], leaders: boolean): void {

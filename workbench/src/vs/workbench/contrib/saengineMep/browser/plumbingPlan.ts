@@ -9,7 +9,7 @@ import { svg } from '../../saengineSoil/browser/soilLog.js';
 import { IMep, IMepContext, Point } from './mepDocument.js';
 import type { MepSelection } from './mepPlan.js';
 import { IPlanView, polygonPoints } from './planSvg.js';
-import { IPlumbingReport, isGroundTank, plumbingOf, riserOnStory, systemLabel, systemLetters, tankCapacity, tankKindLabel, tankOutline, tankStory } from './plumbingDocument.js';
+import { fixtureWords, IPlumbingReport, isGroundTank, plumbingOf, riserOnStory, systemLabel, systemLetters, tankCapacity, tankKindLabel, tankOutline, tankStory } from './plumbingDocument.js';
 
 /*
  * The plumbing drawn over the plan of one story (mepPlan.ts draws the building first): the
@@ -58,6 +58,23 @@ export function renderPlumbing(root: SVGElement, view: IPlanView, document: IMep
 			const group = svg(layer, 'g', { class: 'plb-catchment' });
 			svg(group, 'title', {}, localize('plb.catchmentTitle', "Catchment of {0}: {1} m²", catchment.drain, catchment.area === undefined ? '?' : formatNumber(catchment.area, 1)));
 			svg(group, 'polygon', { points: polygonPoints(view, catchment.outline), class: 'plb-catchment-shape' });
+		}
+	}
+
+	// The architecture's wet rooms and the branch runs to them (the report's layout), under the risers.
+	for (const room of report?.rooms?.wetRooms ?? []) {
+		if (room.story === story && room.outline.length >= 3) {
+			const group = svg(layer, 'g', { class: 'plb-wet-room' });
+			svg(group, 'title', {}, localize('plb.wetRoomTitle', "{0}: {1}", `${room.number} ${room.name}`.trim(), fixtureWords(room.fixtures)));
+			svg(group, 'polygon', { points: polygonPoints(view, room.outline), class: 'plb-wet-room-shape' });
+		}
+	}
+	for (const run of report?.rooms?.branches ?? []) {
+		if (run.story === story && run.path.length >= 2) {
+			const group = svg(layer, 'g', { class: `plb-branch ${run.system}` });
+			svg(group, 'title', {}, localize('plb.branchTitle', "{0} to {1}: {2} m{3}", run.riser, run.label || run.room, formatNumber(run.length, 1),
+				run.beams.length ? localize('plb.branchBeams', ", crosses {0}", run.beams.join(', ')) : ''));
+			svg(group, 'polyline', { points: polygonPoints(view, run.path), class: 'plb-branch-line' });
 		}
 	}
 

@@ -24,7 +24,11 @@ from saengine.hvac.constructions import GLAZING_KEYS, GLAZINGS, ROOF_KEYS, ROOFS
 from saengine.hvac.tables import STATION_KEYS, STATIONS, VENTILATION, VENTILATION_KEYS
 from saengine.library.labels import field_title
 from saengine.library.materials import Id
-from saengine.plumbing.tables import OCCUPANCIES, OCCUPANCY_KEYS
+from saengine.plumbing.tables import (
+    OCCUPANCIES,
+    OCCUPANCY_KEYS,
+    WET_ROOM_KINDS,
+)
 
 SCHEMA_ID = "saengine.mep/1"
 MEP_FILE = "07 MEP/mep.json"
@@ -341,6 +345,41 @@ class PlumbingStory(_Model):
         "kitchen sink, Sec 5.6.3) or 7.4 m² per person for offices (Sec 5.6.4).",
     )
     fixtures: Fixtures = Field(default_factory=Fixtures)
+    fixturesFrom: Literal["auto", "rooms", "typed"] = Field(
+        default="auto",
+        title="Fixtures from",
+        description="Where the story's fixtures come from: the wet rooms of the architecture "
+        "(05 Floor Plan/architecture.json) or the counts typed here. Auto: the typed counts when "
+        "any is given (they override the rooms), else the rooms.",
+        json_schema_extra=_labels(
+            ["Auto (typed counts override the rooms)", "The architecture's wet rooms", "Typed"]
+        ),
+    )
+
+
+WetRoomKind = Literal[tuple(WET_ROOM_KINDS)]  # type: ignore[valid-type]
+
+
+class RoomFixtures(_Model):
+    """The fixtures every wet room of a kind holds in this project (replacing SAEngine's
+    defaults for the kind)."""
+
+    kind: WetRoomKind = Field(  # type: ignore[valid-type]
+        json_schema_extra=_labels(list(WET_ROOM_KINDS.values()))
+    )
+    fixtures: Fixtures = Field(default_factory=Fixtures)
+
+
+class WetRoom(_Model):
+    """One wet room of the architecture given its own kind or its own fixtures."""
+
+    room: Id = Field(description="Room id in 05 Floor Plan/architecture.json.")
+    kind: WetRoomKind | None = Field(  # type: ignore[valid-type]
+        default=None,
+        description="Empty: found from the room's name.",
+        json_schema_extra=_labels(list(WET_ROOM_KINDS.values())),
+    )
+    fixtures: Fixtures | None = Field(default=None, description="Empty: those of its kind.")
 
 
 class Riser(_Model):
@@ -474,6 +513,17 @@ class Plumbing(_Model):
 
     supply: PlumbingSupply = Field(default_factory=PlumbingSupply)
     stories: list[PlumbingStory] = Field(default_factory=list)
+    roomFixtures: list[RoomFixtures] = Field(
+        default_factory=list,
+        title="Fixtures per wet room",
+        description="The fixtures of each kind of wet room; a kind not listed has SAEngine's "
+        "defaults.",
+    )
+    wetRooms: list[WetRoom] = Field(
+        default_factory=list,
+        title="Wet rooms",
+        description="Wet rooms of the architecture given their own kind or fixtures.",
+    )
     risers: list[Riser] = Field(default_factory=list)
     tanks: list[PlumbingTank] = Field(default_factory=list)
     roof: PlumbingRoof | None = None
@@ -497,6 +547,13 @@ class Plumbing(_Model):
         duplicates = sorted({i for i in ids if ids.count(i) > 1})
         if duplicates:
             raise ValueError(f"duplicate plumbing ids: {', '.join(duplicates)}")
+        for name, keys in (
+            ("roomFixtures kinds", [r.kind for r in self.roomFixtures]),
+            ("wetRooms rooms", [r.room for r in self.wetRooms]),
+        ):
+            twice = sorted({k for k in keys if keys.count(k) > 1})
+            if twice:
+                raise ValueError(f"duplicate plumbing {name}: {', '.join(twice)}")
         stories = [s.story for s in self.stories]
         twice = sorted({s for s in stories if stories.count(s) > 1})
         if twice:
@@ -642,6 +699,15 @@ class HvacStory(_Model):
         default=None, ge=0, description="Plug loads [W/m²]; empty: SAEngine's value for the use."
     )
     glazing: FacadeGlazing = Field(default_factory=FacadeGlazing)
+    gainsFrom: Literal["auto", "rooms", "typed"] = Field(
+        default="auto",
+        title="Gains from",
+        description="Where the story's occupants, gains and outdoor air come from: the rooms "
+        "of the architecture (their areas and uses) or the use and values typed here. Auto: "
+        "the rooms where the story has any; typed occupants, lighting and equipment still "
+        "override.",
+        json_schema_extra=_labels(["Auto (the rooms where drawn)", "The rooms", "Typed"]),
+    )
 
 
 class HvacPlant(_Model):

@@ -79,6 +79,10 @@ class ZoneGains:
     indoorRH: float
     sources: list[str] = field(default_factory=list)
     problems: list[str] = field(default_factory=list)
+    #: "rooms" when the architecture's rooms gave them (:func:`room_gains`), else "typed"
+    gainsFrom: str = "typed"
+    #: the rooms' groups by use: ``[{use, label, area, occupants, outdoorAir, rooms}]``
+    rooms: list[dict[str, Any]] = field(default_factory=list)
 
     def outdoor_air(self, area: float, volume: float) -> float:
         """Design outdoor air [m³/s]: Rp Pz + Ra Az, or the larger of the air changes and the
@@ -87,6 +91,116 @@ class ZoneGains:
         if self.ach is not None:
             return max(self.ach * volume / 3600.0, people)
         return people + self.perArea * area
+
+
+def _inside(use: str, hvac: Any) -> tuple[float, float, str]:
+    """Inside dry bulb, RH and their source: the use's, or 07 MEP's design values."""
+    db, rh, inside = T.inside_conditions(use)
+    design = hvac.design if hvac is not None else None
+    if design is not None and design.indoorDB is not None:
+        db = design.indoorDB
+        inside = f"{db:g} °C entered"
+    if design is not None and design.indoorRH is not None:
+        rh = design.indoorRH
+        inside += f", {rh:g} % RH entered"
+    return db, rh, inside
+
+
+#: Below this share of a story's plan covered by rooms, the rest of the floor takes the story's
+#: own use (rooms still being drawn); above it, the rest is walls and shafts (SAEngine).
+ROOMS_COVER = 0.7
+
+
+def room_gains(
+    zone: Any,
+    hvac: Any,
+    groups: list[dict[str, Any]] | None,
+    population: float | None = None,
+) -> ZoneGains:
+    """The gains of a zone from its story's rooms (``groups``: the rooms by Table 8.2.3 use,
+    :meth:`saengine.mep.rooms.StoryRooms.hvac_groups`), each group with its own use's density,
+    lighting, equipment and outdoor air (Rp Pz + Ra Az, or the air changes of a dwelling's
+    living areas), added up over the story. Persons of a use without a density (dwellings)
+    are the story's plumbing ``population`` shared by area. Occupants, lighting and equipment
+    typed in 07 MEP override; ``gainsFrom`` "typed" (or no rooms) gives :func:`zone_gains`."""
+    base = zone_gains(zone, hvac, population)
+    entry = zone.entry
+    if not groups or (entry is not None and entry.gainsFrom == "typed"):
+        return base
+    area, height = zone.area, zone.height
+    rooms_area = sum(g["area"] for g in groups)
+    covered = rooms_area / area if area else 1.0
+    rest = area - rooms_area if covered < ROOMS_COVER else 0.0
+    shared = sum(
+        g["area"]
+        for g in groups
+        if T.VENTILATION[g["use"]].density is None and T.VENTILATION[g["use"]].perPerson
+    )
+    sources = [f"{zone.story}: from the rooms of the architecture ({covered:.0%} of the floor)"]
+    out_groups = []
+    people = lighting = equipment = air = 0.0
+    for g in groups:
+        row = T.VENTILATION[g["use"]]
+        a = g["area"]
+        if row.density is not None:
+            persons = row.density * a / 100.0
+        elif row.perPerson and population and shared:
+            persons = population * a / shared
+        else:
+            persons = 0.0
+        lpd = T.LPD[T.GROUP_LPD.get(row.group) or "offices"]
+        plug = T.EQUIPMENT.get(row.group, T.EQUIPMENT_DEFAULT)
+        by_people = (row.perPerson or 0.0) * persons / 1000.0
+        if row.ach is not None:
+            flow = max(row.ach * a * height / 3600.0, by_people)
+        else:
+            flow = by_people + (row.perArea or 0.0) * a / 1000.0
+        people += persons
+        lighting += lpd * a
+        equipment += plug * a
+        air += flow
+        out_groups.append(
+            {
+                "use": g["use"], "label": row.label, "area": a, "occupants": persons,
+                "outdoorAir": flow, "rooms": list(g["rooms"]),
+            }
+        )  # fmt: skip
+        sources.append(
+            f"{row.label}: {a:.1f} m², {persons:.1f} persons, {lpd:g} W/m² lighting, "
+            f"{flow * 1000:.0f} l/s outdoor air (Table 8.2.3; Part 3 Table 3.4.5)"
+        )
+    if rest > 0:
+        share = rest / area
+        people += base.occupants * share
+        lighting += base.lighting * rest
+        equipment += base.equipment * rest
+        air += base.outdoor_air(area, zone.volume) * share
+        sources.append(
+            f"the rooms cover {covered:.0%} of the floor: the other {rest:.0f} m² as "
+            f"{T.VENTILATION[base.use].label}"
+        )
+    floor = rooms_area + rest
+    typed = entry is not None
+    use = groups[0]["use"]
+    row = T.VENTILATION[use]
+    db, rh, inside = _inside(use, hvac)
+    sources.append(f"inside {inside}")
+    return ZoneGains(
+        use,
+        base.occupants if typed and entry.occupants is not None else people,
+        base.lighting if typed and entry.lighting is not None else lighting / floor,
+        base.equipment if typed and entry.equipment is not None else equipment / floor,
+        T.ACTIVITY.get(row.group, T.ACTIVITY_DEFAULT),
+        0.0,
+        air / area if area else 0.0,
+        None,
+        db,
+        rh,
+        sources,
+        [p for p in base.problems if "give its occupants" not in p],
+        "rooms",
+        out_groups,
+    )
 
 
 def zone_gains(zone: Any, hvac: Any, population: float | None = None) -> ZoneGains:
@@ -131,14 +245,7 @@ def zone_gains(zone: Any, hvac: Any, population: float | None = None) -> ZoneGai
             "project's equipment load)"
         )
     activity = T.ACTIVITY.get(row.group, T.ACTIVITY_DEFAULT)
-    db, rh, inside = T.inside_conditions(use)
-    design = hvac.design if hvac is not None else None
-    if design is not None and design.indoorDB is not None:
-        db = design.indoorDB
-        inside = f"{db:g} °C entered"
-    if design is not None and design.indoorRH is not None:
-        rh = design.indoorRH
-        inside += f", {rh:g} % RH entered"
+    db, rh, inside = _inside(use, hvac)
     sources.append(f"inside {inside}")
     return ZoneGains(
         use, occupants, lighting, equipment, activity,

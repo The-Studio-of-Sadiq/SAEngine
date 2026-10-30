@@ -51,10 +51,10 @@ import {
 import { MepEditorInput } from './mepEditorInput.js';
 import { IPlanClash, IPlanView, MepSelection, renderPlan } from './mepPlan.js';
 import {
-	allIds, checkPlumbing, constructionLabel, ensurePlumbing, FIXTURES, fixtureLabel, fixtureTotals, hasPlumbing, IOccupancy, IPlumbing, IPlumbingReport, IRiser, IRoofDrain, ITank, isGroundTank, mergeSizedTanks,
+	allIds, architectureHasWetRooms, checkPlumbing, constructionLabel, ensurePlumbing, FIXTURES, fixtureLabel, fixtureTotals, fixtureWords, hasPlumbing, IOccupancy, IPlumbing, IPlumbingReport, IRiser, IRoofDrain, ITank, isGroundTank, mergeSizedTanks,
 	newRiser, newRoofDrain, newTank, PIPE_MATERIALS, PLUMBING_OCCUPANCIES_COMMAND, PLUMBING_REPORT_COMMAND, PLUMBING_SIZE_TANKS_COMMAND, PLUMBING_SLEEVES_COMMAND, PLUMBING_SYSTEMS, plumbingFailures, plumbingOf,
 	plumbingSummary, plumbingSummaryFile, PlumbingSystem, readOccupancies, readPlumbingReport, readSizedTanks, riserOnStory, sourceLabel, storyRow, SUPPLY_SOURCES, systemLabel, systemLetters,
-	TANK_CONSTRUCTIONS, TANK_KINDS, tankCapacity, TankKind, tankKindLabel, tankStory,
+	TANK_CONSTRUCTIONS, TANK_KINDS, tankCapacity, TankKind, tankKindLabel, tankStory, wetKindLabel,
 } from './plumbingDocument.js';
 import { plumbingExtent, renderPlumbing } from './plumbingPlan.js';
 import { renderPlumbingReport } from './plumbingResults.js';
@@ -152,8 +152,11 @@ const HVAC_LOADS_TIMEOUT_MIN = 8;
 
 /** The parts the plan is drawn against, by the key of {@link IMepContextTexts}. */
 const SITE_PARTS: readonly (readonly [keyof IMepContextTexts, string])[] = [
-	['bim', 'bim'], ['objects', 'objects'], ['floorPlan', 'floorPlan'], ['materials', 'materials'], ['settings', 'settings'],
+	['bim', 'bim'], ['objects', 'objects'], ['floorPlan', 'floorPlan'], ['materials', 'materials'], ['settings', 'settings'], ['architecture', 'architecture'],
 ];
+
+/** The architecture's file beside the floor plan (`saengine.library.architecture.ARCHITECTURE_FILE`): not a part of its own. */
+const ARCHITECTURE_FILE = 'architecture.json';
 
 const MM = localize('mep.unit.mm', "mm");
 const M = localize('mep.unit.m', "m");
@@ -248,6 +251,8 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 
 	private plumbingReport: IPlumbingReport | undefined;
 	private plumbingState: ReportState = 'idle';
+	/** The report's rooms section the plumbing data view was drawn with (JSON). */
+	private renderedRooms: string | undefined;
 	private plumbingError: string | undefined;
 	private plumbingVersion = 0;
 	private occupancies: readonly IOccupancy[] = [];
@@ -562,7 +567,8 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 	private async openSite(input: MepEditorInput): Promise<void> {
 		const root = dirname(dirname(input.resource));
 		await Promise.all(SITE_PARTS.map(async ([key, partId]) => {
-			const part = partById(partId);
+			const floorPlan = partById('floorPlan');
+			const part = partId === 'architecture' && floorPlan ? { folder: floorPlan.folder, mainFile: ARCHITECTURE_FILE } : partById(partId);
 			if (!part?.mainFile) {
 				return;
 			}
@@ -1503,6 +1509,9 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 
 	private renderReportDependent(): void {
 		if (this.view !== 'data') {
+			this.renderView();
+		} else if (this.discipline === 'plumbing' && this.renderedRooms !== JSON.stringify(this.plumbingReport?.rooms ?? null) && !this.viewElement.contains(this.viewElement.ownerDocument.activeElement)) {
+			// The plumbing data shows what the rooms of the architecture give: redrawn when that changes, not while typing.
 			this.renderView();
 		}
 		this.renderProperties();
@@ -3353,7 +3362,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		const document = this.document;
 		const version = ++this.plumbingVersion;
 		const request = this.request();
-		if (!document || !request || !hasPlumbing(document)) {
+		if (!document || !request || !(hasPlumbing(document) || architectureHasWetRooms(this.siteTexts().architecture))) {
 			this.setBusy('plumbing', false);
 			this.plumbingReport = undefined;
 			this.plumbingState = 'idle';
@@ -3428,6 +3437,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 	private renderPlumbingData(document: IMep): void {
 		const view = this.viewElement;
 		const plumbing = plumbingOf(document);
+		this.renderedRooms = JSON.stringify(this.plumbingReport?.rooms ?? null);
 		const header = append(view, $('.mep-view-header'));
 		append(header, $('span.mep-view-title', undefined, localize('plb.dataTitle', "Plumbing set-up")));
 		append(header, $('span.mep-view-subtitle', undefined, localize('plb.dataSubtitle', "The fixtures and population of each storey, the supply, the risers and stacks, the tanks and the roof drains; sizes in mm, positions in m.")));
@@ -3467,9 +3477,17 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		if (!this.occupanciesFromBackend) {
 			append(fixtures, $('p.mep-note.plb-static-note', undefined, localize('plb.loadingOccupancies', "Loading the occupancies of BNBC Table 8.5.1 from the backend...")));
 		}
+		const sources = new Map((this.plumbingReport?.rooms?.stories ?? []).map(s => [s.story, s]));
+		const fromOptions = [
+			{ value: 'auto', label: localize('plb.fromAuto', "Auto") },
+			{ value: 'rooms', label: localize('plb.fromRooms', "Rooms") },
+			{ value: 'typed', label: localize('plb.fromTyped', "Typed") },
+		];
 		const table = append(append(fixtures, $('.mep-table-scroll')), $('table.mep-table.plb-fixtures'));
 		const columns = [
-			{ label: localize('plb.f.story', "Storey"), width: 110 }, { label: localize('plb.f.occupancy', "Occupancy"), width: 270 }, { label: P.population.label, numeric: true, width: 80 },
+			{ label: localize('plb.f.story', "Storey"), width: 110 }, { label: localize('plb.f.occupancy', "Occupancy"), width: 270 },
+			{ label: localize('plb.f.fixturesFrom', "Fixtures from"), width: 150, title: localize('plb.f.fixturesFromTitle', "Auto: the counts typed here when any is given (they override the rooms), else the wet rooms of the architecture") },
+			{ label: P.population.label, numeric: true, width: 80 },
 			...FIXTURES.map(key => ({ label: fixtureLabel(key), numeric: true, width: 62 })), { label: '', width: 28 },
 		];
 		this.tableHead(table, columns);
@@ -3490,10 +3508,34 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 				}
 				this.changed(true);
 			}, path('occupancy'), localize('plb.f.occupancyOf', "Occupancy of {0}", this.storyName(storyId)), true));
-			append(append(tr, $('td')), this.textInput(P.population, row?.population, this.plumbingStore(target, 'population', () => this.updatePlumbingTotals(document)), path('population')));
+			const source = sources.get(storyId);
+			const fromCell = append(tr, $('td.plb-from'));
+			append(fromCell, this.selectInput(fromOptions, String(row?.fixturesFrom ?? 'auto'), value => {
+				const r = target();
+				if (value && value !== 'auto') {
+					r.fixturesFrom = value;
+				} else {
+					delete r.fixturesFrom;
+				}
+				this.changed(true);
+			}, path('fixturesFrom'), localize('plb.f.fixturesFromOf', "Fixtures of {0} from", this.storyName(storyId))));
+			// The source the backend used; the rooms' counts show greyed in the empty cells.
+			const fromRooms = source?.source === 'rooms';
+			if (source && source.source !== 'none') {
+				append(fromCell, $(`span.plb-source.plb-source-${source.source}`, undefined, fromRooms ? localize('plb.sourceRooms', "rooms") : localize('plb.sourceTyped', "typed")));
+			}
+			if (fromRooms) {
+				tr.classList.add('plb-from-rooms');
+			}
+			const populationHint = row?.population === undefined && source?.population !== undefined && source.populationSource ? formatNumber(source.population, 1) : undefined;
+			const population = append(append(tr, $('td')), this.textInput(P.population, row?.population, this.plumbingStore(target, 'population', () => this.updatePlumbingTotals(document)), path('population'), populationHint));
+			if (populationHint && source?.populationSource) {
+				population.title = localize('plb.populationFromRooms', "From the rooms: {0}", source.populationSource);
+			}
 			for (const key of FIXTURES) {
 				const field = fixtureField(key, fixtureLabel(key));
-				append(append(tr, $('td')), this.textInput(field, row?.fixtures[key], this.plumbingStore(() => target().fixtures, key, () => this.updatePlumbingTotals(document)), path(`fixtures.${key}`)));
+				const hint = fromRooms && source.fromRooms[key] ? String(source.fromRooms[key]) : undefined;
+				append(append(tr, $('td')), this.textInput(field, row?.fixtures[key], this.plumbingStore(() => target().fixtures, key, () => this.updatePlumbingTotals(document)), path(`fixtures.${key}`), hint));
 			}
 			if (row) {
 				this.removeButton(tr, () => {
@@ -3505,7 +3547,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 			}
 		}
 		const totals = append(body, $('tr.plb-total'));
-		append(totals, $('td', { colspan: '2' }, localize('plb.totals', "Totals")));
+		append(totals, $('td', { colspan: '3' }, localize('plb.totals', "Totals")));
 		for (const key of ['population', ...FIXTURES]) {
 			this.totalCells.set(key, append(totals, $('td.number')));
 		}
@@ -3514,11 +3556,134 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		if (rows.some(r => r.fixtures.other?.length)) {
 			append(fixtures, $('p.mep-note', undefined, localize('plb.otherNote', "Other fixtures of the file (with their own supply and drainage units) are kept and counted; edit them as text.")));
 		}
+		this.renderFixtureSources(fixtures);
 
+		this.renderWetRooms(document);
 		this.renderRiserTable(document);
 		this.renderTankTable(document);
 		this.renderDrainTable(document);
 		this.markSelectedRows();
+	}
+
+	/** Which counts each storey uses, said plainly under the fixtures table. */
+	private renderFixtureSources(container: HTMLElement): void {
+		const rooms = this.plumbingReport?.rooms;
+		const label = (id: string) => {
+			const room = rooms?.wetRooms.find(r => r.id === id);
+			return room ? `${room.number} ${room.name}`.trim() : id;
+		};
+		const lines: string[] = [];
+		for (const s of rooms?.stories ?? []) {
+			if (s.source === 'rooms') {
+				lines.push(localize('plb.sourceLineRooms', "{0}: from {1} wet room(s) of the architecture ({2}): {3}.", this.storyName(s.story), s.rooms.length, s.rooms.map(label).join(', '), fixtureWords(s.fromRooms)));
+			} else if (s.rooms.length) {
+				lines.push(localize('plb.sourceLineTyped', "{0}: the typed counts ({1}) override the {2} wet room(s) of the architecture ({3}).", this.storyName(s.story), fixtureWords(s.typed) || '0', s.rooms.length, fixtureWords(s.fromRooms)));
+			} else if (s.note) {
+				lines.push(`${this.storyName(s.story)}: ${s.note}.`);
+			}
+			if (s.populationSource && s.populationSource !== 'entered' && s.population !== undefined) {
+				lines.push(localize('plb.sourceLinePopulation', "{0}: population {1} from the rooms: {2}.", this.storyName(s.story), formatNumber(s.population, 1), s.populationSource));
+			}
+		}
+		if (this.plumbingState === 'ok' && !rooms?.wetRooms.length) {
+			lines.push(localize('plb.noWetRooms', "No wet rooms in the architecture: the counts are typed here. Draw rooms in 6 BIM › Architecture and mark the toilets and kitchens wet, and their fixtures fill this table."));
+		}
+		for (const line of lines) {
+			append(container, $('p.mep-note.plb-source-note', undefined, line));
+		}
+	}
+
+	/** The architecture's wet rooms with their kinds and fixtures, and the fixtures of each kind (editable). */
+	private renderWetRooms(document: IMep): void {
+		const rooms = this.plumbingReport?.rooms;
+		if (!rooms?.wetRooms.length) {
+			return;
+		}
+		const p = () => ensurePlumbing(document);
+		const section = this.section(localize('plb.wetRooms', "Wet rooms of the architecture"), rooms.wetRooms.length, {
+			label: localize('plb.openArchitecture', "Open Architecture"),
+			run: () => void this.commandService.executeCommand('saengine.architecture.open', { story: this.story }),
+		});
+		append(section, $('p.mep-note', undefined, localize('plb.wetRoomsNote', "Rooms marked wet in 6 BIM › Architecture, with the architecture's areas. The kind is found from the room's name; choose another to change the fixtures counted.")));
+		const table = append(append(section, $('.mep-table-scroll')), $('table.mep-table.plb-wet-rooms'));
+		this.tableHead(table, [
+			{ label: localize('plb.f.story', "Storey"), width: 110 }, { label: localize('plb.f.room', "Room"), width: 180 },
+			{ label: localize('plb.f.area', "Area"), unit: localize('plb.unit.m2', "m²"), numeric: true, width: 70 },
+			{ label: localize('plb.f.kind', "Kind"), width: 220 }, { label: localize('plb.f.fixturesCounted', "Fixtures counted"), width: 320 },
+		]);
+		const body = append(table, $('tbody'));
+		const kinds = Object.entries(rooms.kinds).map(([value, k]) => ({ value, label: k.label }));
+		for (const room of rooms.wetRooms) {
+			const name = `${room.number} ${room.name}`.trim();
+			const tr = append(body, $('tr.mep-row'));
+			append(tr, $('td', undefined, this.storyName(room.story)));
+			append(tr, $('td', undefined, name));
+			append(tr, $('td.number', undefined, formatNumber(room.area, 1)));
+			const own = plumbingOf(document)?.wetRooms?.find(w => w.room === room.id);
+			const auto = room.kindFrom === 'name' && room.kind ? localize('plb.kindAuto', "Auto: {0}", wetKindLabel(rooms, room.kind)) : localize('plb.kindAutoPlain', "Auto (from the name)");
+			append(append(tr, $('td')), this.selectInput(kinds, own?.kind ?? '', value => {
+				const plumbing = p();
+				const list = plumbing.wetRooms ?? (plumbing.wetRooms = []);
+				const index = list.findIndex(w => w.room === room.id);
+				const entry = index >= 0 ? list[index] : { room: room.id };
+				if (value) {
+					entry.kind = value;
+				} else {
+					delete entry.kind;
+				}
+				if (index < 0 && value) {
+					list.push(entry);
+				} else if (index >= 0 && Object.keys(entry).length === 1) {
+					list.splice(index, 1);
+				}
+				if (!list.length) {
+					delete plumbing.wetRooms;
+				}
+				this.changed(true);
+			}, `plumbing.wetRooms.${room.id}.kind`, localize('plb.f.kindOf', "Kind of {0}", name), auto));
+			append(tr, $('td', undefined, fixtureWords(room.fixtures) || localize('plb.noFixtures', "none")));
+		}
+
+		// The fixtures of each kind: SAEngine's defaults greyed, the project's own in the cells.
+		const kindsSection = this.section(localize('plb.kindFixtures', "Fixtures per wet room kind"), undefined);
+		append(kindsSection, $('p.mep-note', undefined, localize('plb.kindFixturesNote', "Greyed counts are SAEngine's defaults (common practice, not BNBC). Type a count to set the kind's fixtures for this project.")));
+		const kindTable = append(append(kindsSection, $('.mep-table-scroll')), $('table.mep-table.plb-kind-fixtures'));
+		this.tableHead(kindTable, [
+			{ label: localize('plb.f.kind', "Kind"), width: 220 }, ...FIXTURES.map(key => ({ label: fixtureLabel(key), numeric: true, width: 62 })), { label: '', width: 28 },
+		]);
+		const kindBody = append(kindTable, $('tbody'));
+		for (const [kind, entry] of Object.entries(rooms.kinds)) {
+			const tr = append(kindBody, $('tr.mep-row'));
+			append(tr, $('td', undefined, entry.label));
+			const own = plumbingOf(document)?.roomFixtures?.find(r => r.kind === kind);
+			const target = () => {
+				const plumbing = p();
+				const list = plumbing.roomFixtures ?? (plumbing.roomFixtures = []);
+				let row = list.find(r => r.kind === kind);
+				if (!row) {
+					// The first count typed takes the others from the defaults, so the kind keeps them.
+					row = { kind, fixtures: { ...entry.fixtures } };
+					list.push(row);
+				}
+				return row.fixtures;
+			};
+			for (const key of FIXTURES) {
+				const field = fixtureField(key, fixtureLabel(key));
+				append(append(tr, $('td')), this.textInput(field, own?.fixtures[key], this.plumbingStore(target, key), `plumbing.roomFixtures.${kind}.${key}`, own ? undefined : String(entry.fixtures[key] ?? '')));
+			}
+			if (own) {
+				this.removeButton(tr, () => {
+					const plumbing = p();
+					plumbing.roomFixtures = (plumbing.roomFixtures ?? []).filter(r => r.kind !== kind);
+					if (!plumbing.roomFixtures.length) {
+						delete plumbing.roomFixtures;
+					}
+					this.changed(true);
+				});
+			} else {
+				append(tr, $('td'));
+			}
+		}
 	}
 
 	private updatePlumbingTotals(document: IMep): void {
