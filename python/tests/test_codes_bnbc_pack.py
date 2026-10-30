@@ -69,6 +69,28 @@ OLD_SYSTEMS = {
     "steelOmf": ("Steel ordinary moment frame", 3.5, 3.0, 3.0),
     "steelScbf": ("Steel special concentrically braced frame", 6.0, 2.0, 5.0),
 }
+#: design/seismic_rules.py TABLE_6_2_19 (v0.0.44), now read from the pack (system_row):
+#: (row, R, Omega0, Cd, height limits B/C/D, frame, specialWalls, concrete).
+OLD_TABLE_6_2_19 = {
+    "rcSmf": ("C.4 (p. 623)", 8.0, 3.0, 5.5, (None, None, None), "special", False, True),
+    "rcImf": ("C.5 (p. 623)", 5.0, 3.0, 4.5, (None, None, 0.0), "intermediate", False, True),
+    "rcOmf": (
+        "C.5 [sic, the 6th row] (p. 623)",
+        3.0,
+        3.0,
+        2.5,
+        (None, 0.0, 0.0),
+        "ordinary",
+        False,
+        True,
+    ),
+    "rcSpecialWallFrame": ("B.5 (p. 622)", 6.0, 2.5, 5.0, (None, None, 50.0), None, True, True),
+    "rcOrdinaryWallFrame": ("B.6 (p. 622)", 5.0, 2.5, 4.25, (None, None, 0.0), None, False, True),
+    "rcDualSpecial": ("D.3 (p. 623)", 7.0, 2.5, 5.5, (None, None, None), "special", True, True),
+    "steelSmf": ("C.1 (p. 622)", 8.0, 3.0, 5.5, (None, None, None), None, False, False),
+    "steelOmf": ("C.3 (p. 622)", 3.5, 3.0, 3.0, (None, None, 0.0), None, False, False),
+    "steelScbf": ("B.3 (p. 622)", 6.0, 2.0, 5.0, (None, None, 50.0), None, False, False),
+}
 OLD_SITE_CLASSES = {
     "SA": "Rock or rock-like formation, at most 5 m of weaker material on top (Vs > 800 m/s)",
     "SB": "Very dense sand, gravel or very stiff clay (Vs 360-800 m/s, N > 50, su > 250 kPa)",
@@ -139,6 +161,14 @@ OLD_SCALARS = {
 # ────────────────────── frozen copy of the other modules' constants (v0.0.42) ──────────────────────
 
 #: (module, name) -> value as written in the module.
+#: Constants deleted from their modules, which read the pack instead: only the pack's value is
+#: checked against the frozen copy.
+PACK_ONLY = {
+    ("saengine.fem.seismic_design", "_SDC"),
+    ("saengine.fem.seismic_design", "ALLOWABLE_DRIFT"),
+    ("saengine.design.seismic_rules", "REQUIRED_LEVEL"),
+}
+
 OLD_MODULE_CONSTANTS = {
     ("saengine.fem.seismic_design", "MINIMUM_FRACTION"): 0.85,
     ("saengine.fem.seismic_design", "ACCIDENTAL_ECCENTRICITY"): 0.05,
@@ -502,16 +532,15 @@ def test_combinations_table_matches_the_old_combinations():
 
 
 def test_seismic_table_matches_the_old_system_rows_and_spectrum():
-    from saengine.design.seismic_rules import TABLE_6_2_19
+    from saengine.design.seismic_rules import system_row
 
     s = t("seismic")
-    for key, row in TABLE_6_2_19.items():
-        system = s.systems[key]
-        assert (system.R, system.Omega0, system.Cd) == (row.r, row.omega, row.cd)
-        assert tuple(system.heightLimits[c] for c in "BCD") == row.limits
-        assert system.row == row.row
-        assert system.frame == row.frame
-        assert system.specialWalls == row.specialWalls and system.concrete == row.concrete
+    assert set(s.systems) == set(OLD_TABLE_6_2_19)
+    for key, row in OLD_TABLE_6_2_19.items():
+        current = system_row(key)
+        assert current is not None
+        assert tuple(current) == row
+    assert system_row("notASystem") is None
     assert s.pgaFactor == 2 / 3 and s.verticalFactor == 0.5
     assert s.designCategories.aliases == {"S1": "SE", "S2": "SE"}
 
@@ -522,6 +551,9 @@ def test_pack_value_equals_the_old_module_constant(module, name):
 
     old = OLD_MODULE_CONSTANTS[(module, name)]
     assert _tuple(_pack_value(module, name)) == _tuple(old)
+    if (module, name) in PACK_ONLY:
+        assert not hasattr(importlib.import_module(module), name), "read it from the pack"
+        return
     current = getattr(importlib.import_module(module), name)
     assert current == old, f"{module}.{name} changed in the module; update the pack and this copy"
 

@@ -89,25 +89,34 @@ class SystemRow(NamedTuple):
 NL = None
 NP = 0.0
 
-#: Table 6.2.19 rows of the systems a project can choose (``bnbc.STRUCTURAL_SYSTEMS``).
-TABLE_6_2_19: dict[str, SystemRow] = {
-    "rcSmf": SystemRow("C.4 (p. 623)", 8.0, 3.0, 5.5, (NL, NL, NL), "special"),
-    "rcImf": SystemRow("C.5 (p. 623)", 5.0, 3.0, 4.5, (NL, NL, NP), "intermediate"),
-    "rcOmf": SystemRow("C.5 [sic, the 6th row] (p. 623)", 3.0, 3.0, 2.5, (NL, NP, NP), "ordinary"),
-    "rcSpecialWallFrame": SystemRow(
-        "B.5 (p. 622)", 6.0, 2.5, 5.0, (NL, NL, 50.0), None, specialWalls=True
-    ),
-    "rcOrdinaryWallFrame": SystemRow("B.6 (p. 622)", 5.0, 2.5, 4.25, (NL, NL, NP), None),
-    "rcDualSpecial": SystemRow(
-        "D.3 (p. 623)", 7.0, 2.5, 5.5, (NL, NL, NL), "special", specialWalls=True
-    ),
-    "steelSmf": SystemRow("C.1 (p. 622)", 8.0, 3.0, 5.5, (NL, NL, NL), None, concrete=False),
-    "steelOmf": SystemRow("C.3 (p. 622)", 3.5, 3.0, 3.0, (NL, NL, NP), None, concrete=False),
-    "steelScbf": SystemRow("B.3 (p. 622)", 6.0, 2.0, 5.0, (NL, NL, 50.0), None, concrete=False),
-}
 
-#: The detailing level each category requires (Sec 8.3.2(b)-(d)).
-REQUIRED_LEVEL: dict[str, FrameType] = {"D": "special", "C": "intermediate", "B": "ordinary"}
+def system_row(system: str) -> SystemRow | None:
+    """The Table 6.2.19 row (pp. 621-624) of ``system`` (a ``bnbc.STRUCTURAL_SYSTEMS`` id) in the
+    pack in force (``seismic.systems``); None for a system the pack does not list."""
+    entry = code_context.table("seismic").systems.get(system)
+    if entry is None:
+        return None
+    limits = entry.heightLimits
+    frame = entry.frame
+    return SystemRow(
+        entry.row,
+        float(entry.R),
+        float(entry.Omega0),
+        float(entry.Cd),
+        tuple(None if limits[c] is None else float(limits[c]) for c in "BCD"),  # type: ignore[arg-type]
+        frame,
+        specialWalls=bool(entry.specialWalls),
+        concrete=bool(entry.concrete),
+    )
+
+
+def required_level(sdc: str | None) -> FrameType | None:
+    """The detailing level Seismic Design Category ``sdc`` requires (Sec 8.3.2(b)-(d)) in the
+    pack in force (``seismic.requiredDetailing``); None without a category."""
+    if not sdc:
+        return None
+    return code_context.table("seismic").requiredDetailing.get(sdc)
+
 
 #: Sec 8.3.3.3: f'c of special moment frames and special walls at least 21 MPa; lightweight
 #: concrete at most 35 MPa unless shown by tests.
@@ -230,9 +239,9 @@ def system_checks(
                 "-",
                 f"Table 6.2.19 row {row.row}: {name} is NP (not permitted) in Category {sdc}"
                 + (
-                    f"; Sec 8.3.2 requires {REQUIRED_LEVEL[sdc]} seismic detailing in Category "
+                    f"; Sec 8.3.2 requires {required_level(sdc)} seismic detailing in Category "
                     f"{sdc}: choose a system with it (and its R, Ω0, Cd)"
-                    if row.frame and not _level_at_least(row.frame, REQUIRED_LEVEL[sdc])
+                    if row.frame and not _level_at_least(row.frame, required_level(sdc))
                     else ""
                 ),
                 utilisation=99.0,
@@ -759,7 +768,7 @@ def detailing_level(row: SystemRow | None, sdc: str | None) -> FrameType | None:
     not RC."""
     if row is None or not row.concrete:
         return None
-    required = REQUIRED_LEVEL.get(sdc or "", "ordinary")
+    required = required_level(sdc) or "ordinary"
     own = row.frame or required
     return own if _level_at_least(own, required) else required
 
@@ -880,6 +889,7 @@ def _flat_slabs(objects: Any, building: Any) -> list[str]:
     return sorted(flat & used)
 
 
+@code_context.in_project_pack()
 def seismic_detailing_scope(
     settings: Any,
     materials: Any,
@@ -904,13 +914,13 @@ def seismic_detailing_scope(
 
     values = derived(settings)
     system = settings.seismic.system
-    row = TABLE_6_2_19.get(system)
+    row = system_row(system)
     sdc, zone = seismic_design_category(settings)
     if height is None:
         height = building_height(building)
     frame_type = frame_type_of(row, sdc)
     level = detailing_level(row, sdc)
-    required = REQUIRED_LEVEL.get(sdc) if sdc else None
+    required = required_level(sdc)
     notes: list[str] = []
     checks: list[dict[str, Any]] = []
 

@@ -307,7 +307,7 @@ def _system(kind: str, sdc: str | None, height_m: float) -> tuple[str, bool, lis
     """(settings' system id, core walls needed, notes) for the generator's system in ``sdc``:
     the first candidate Table 6.2.19 permits in the category and the height, with the detailing
     level the category requires (Sec 8.3.2)."""
-    from saengine.design.seismic_rules import NP, REQUIRED_LEVEL, TABLE_6_2_19, _level_at_least
+    from saengine.design.seismic_rules import NP, _level_at_least, required_level, system_row
 
     candidates = {
         "rcFrame": ["rcOmf", "rcImf", "rcSmf"],
@@ -317,11 +317,15 @@ def _system(kind: str, sdc: str | None, height_m: float) -> tuple[str, bool, lis
     category = sdc or "B"
     notes: list[str] = []
     for system in candidates:
-        row = TABLE_6_2_19[system]
+        row = system_row(system)
+        if row is None:
+            continue
         limit = row.limits["BCD".index(category)]
         if limit == NP or (limit is not None and height_m > limit):
             continue
-        if row.frame is not None and not _level_at_least(row.frame, REQUIRED_LEVEL[category]):
+        if row.frame is not None and not _level_at_least(
+            row.frame, required_level(category) or "ordinary"
+        ):
             continue
         walls = kind == "rcFrameWithWalls" or system in ("rcSpecialWallFrame", "rcDualSpecial")
         if kind == "flatSlab" and walls:
