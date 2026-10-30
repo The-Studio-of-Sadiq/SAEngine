@@ -176,6 +176,13 @@ PACK_ONLY = {
     ("saengine.design.seismic_rules", "FY_ACTUAL_MARGIN"),
     ("saengine.design.seismic_rules", "FY_RETEST_MARGIN"),
     ("saengine.design.seismic_rules", "FU_FY_MIN"),
+    ("saengine.design.steel.members", "PHI_TY"),
+    ("saengine.design.steel.members", "PHI_TR"),
+    ("saengine.design.steel.members", "PHI_C"),
+    ("saengine.design.steel.members", "PHI_B"),
+    ("saengine.design.steel.members", "PHI_V"),
+    ("saengine.design.steel.members", "KL_R_COMPRESSION"),
+    ("saengine.design.steel.members", "L_R_TENSION"),
 }
 
 OLD_MODULE_CONSTANTS = {

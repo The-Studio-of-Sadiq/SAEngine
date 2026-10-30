@@ -47,6 +47,7 @@ from typing import Any
 
 import numpy as np
 
+from saengine.codes import context as code_context
 from saengine.design.rc import DesignError
 from saengine.design.steel import classify as cl
 from saengine.design.steel.lengths import (
@@ -63,13 +64,20 @@ from saengine.library import steel_sections
 
 CODE = "BNBC 2020 Part 6 Chapter 10 (LRFD; AISC 360-05 provisions)"
 G = 77_200.0  # MPa, Sec 10.5.4 (p 3843)
-PHI_TY = 0.90
-PHI_TR = 0.75
-PHI_C = 0.90
-PHI_B = 0.90
-PHI_V = 0.90
-KL_R_COMPRESSION = 150.0  # Sec 10.5.2
-L_R_TENSION = 300.0  # Sec 10.4.1
+
+
+def _phi(name: str) -> float:
+    """φ ``name`` of the pack's ``steel`` table (BNBC 2020: tensionYield 0.90, tensionRupture
+    0.75, compression, flexure and shear 0.90)."""
+    return float(code_context.table("steel").phi[name])
+
+
+def _slenderness(name: str) -> float:
+    """The pack's slenderness limit ``name`` (BNBC 2020: KL/r of compression members 150, Sec
+    10.5.2; L/r of tension members 300, Sec 10.4.1)."""
+    return float(code_context.table("steel").slenderness[name])
+
+
 S = "BNBC 2020 Part 6 "
 
 METHOD = [
@@ -178,7 +186,7 @@ def default_shear_lag(shape: ShapeProperties) -> tuple[float, str]:
 
 def tension_yielding(shape: ShapeProperties, steel: Steel) -> Capacity:
     return Capacity(
-        PHI_TY,
+        _phi("tensionYield"),
         steel.fy * shape.area,
         "tensile yielding",
         S + "Sec 10.4.2(a), Eq 6.10.11",
@@ -196,7 +204,7 @@ def tension_rupture(
     an = net_ratio * shape.area
     ae = an * u
     return Capacity(
-        PHI_TR,
+        _phi("tensionRupture"),
         steel.fu * ae,
         "tensile rupture",
         S + "Sec 10.4.2(b), Eqs 6.10.12-13, Table 6.10.2",
@@ -334,7 +342,7 @@ def compression(
             note = f"Fcry = {fcry:.1f}, Fcrz = {fcrz:.1f} MPa, H = {h:.3f}"
             state = "flexural-torsional buckling (Eq 6.10.21)" if fcr_t <= fcr_x else mode
             return Capacity(
-                PHI_C,
+                _phi("compression"),
                 fcr * shape.area,
                 state,
                 S + "Sec 10.5.4, Eqs 6.10.20-22",
@@ -389,7 +397,7 @@ def compression(
         note += f"; slender elements: Q = Qs Qa = {qs:.3f} × {qa:.3f} = {q:.3f}"
     if notes:
         note += "; " + "; ".join(notes)
-    return Capacity(PHI_C, fcr * shape.area, mode, clause, note)
+    return Capacity(_phi("compression"), fcr * shape.area, mode, clause, note)
 
 
 def compression_slenderness(shape: ShapeProperties, klx: float, kly: float) -> float:
@@ -551,7 +559,7 @@ def _least(candidates: list[tuple[float, str, str]], notes: list[str]) -> Capaci
     note = f"Mn = {mn / 1e6:.1f} kN·m ({state})" + (f"; also {others} kN·m" if others else "")
     if notes:
         note += "; " + "; ".join(notes)
-    return Capacity(PHI_B, mn, state, S + clause, note)
+    return Capacity(_phi("flexure"), mn, state, S + clause, note)
 
 
 def _hss_flexure(shape: ShapeProperties, steel: Steel, axis: str) -> Capacity:
@@ -766,7 +774,7 @@ def _chs_shear(shape: ShapeProperties, steel: Steel, lv: float) -> Capacity:
     fb = 0.78 * e / ratio**1.5
     fcr = min(max(fa, fb), 0.6 * fy)
     return Capacity(
-        PHI_V,
+        _phi("shear"),
         fcr * shape.area / 2,
         "shear yielding / buckling",
         S + "Sec 10.7.6, Eqs 6.10.145-146",
@@ -794,7 +802,7 @@ def shear_major(shape: ShapeProperties, steel: Steel, lv: float = 0.0) -> Capaci
                 )
             cv = web_shear_coefficient(h_tw, 5.0, e, fy)
             return Capacity(
-                PHI_V,
+                _phi("shear"),
                 0.6 * fy * aw * cv,
                 "shear yielding / buckling",
                 S + "Sec 10.7.2.1(b), Eqs 6.10.136, 6.10.138-140",
@@ -804,7 +812,7 @@ def shear_major(shape: ShapeProperties, steel: Steel, lv: float = 0.0) -> Capaci
             aw = d["d"] * d["tw"]
             cv = web_shear_coefficient(d["d"] / d["tw"], 1.2, e, fy)
             return Capacity(
-                PHI_V,
+                _phi("shear"),
                 0.6 * fy * aw * cv,
                 "shear yielding / buckling",
                 S + "Sec 10.7.2.1(b), Eqs 6.10.136, 6.10.138-140",
@@ -813,7 +821,7 @@ def shear_major(shape: ShapeProperties, steel: Steel, lv: float = 0.0) -> Capaci
         case "angle":
             aw = d["d"] * d["t"]
             return Capacity(
-                PHI_V,
+                _phi("shear"),
                 0.6 * fy * aw,
                 "shear yielding",
                 S + "Sec 10.7.4, Eq 6.10.136",
@@ -831,7 +839,7 @@ def _rhs_shear(shape: ShapeProperties, steel: Steel, h: float) -> Capacity:
     aw = 2 * h * t
     cv = web_shear_coefficient(h / t, 5.0, steel.e, steel.fy)
     return Capacity(
-        PHI_V,
+        _phi("shear"),
         0.6 * steel.fy * aw * cv,
         "shear yielding / buckling",
         S + "Sec 10.7.5, Eqs 6.10.136, 6.10.138-140",
@@ -850,7 +858,7 @@ def shear_minor(shape: ShapeProperties, steel: Steel, lv: float = 0.0) -> Capaci
             cv = web_shear_coefficient(b / d["tf"], 1.2, e, fy)
             aw = flanges * d["bf"] * d["tf"]
             return Capacity(
-                PHI_V,
+                _phi("shear"),
                 0.6 * fy * aw * cv,
                 "shear yielding / buckling",
                 S + "Sec 10.7.7, Eq 6.10.136",
@@ -860,7 +868,7 @@ def shear_minor(shape: ShapeProperties, steel: Steel, lv: float = 0.0) -> Capaci
         case "angle":
             aw = d["b"] * d["t"]
             return Capacity(
-                PHI_V,
+                _phi("shear"),
                 0.6 * fy * aw,
                 "shear yielding",
                 S + "Sec 10.7.4, Eq 6.10.136",
@@ -1108,9 +1116,9 @@ def check_member(
                 r_least = shape.rz if shape.family == "angle" else min(shape.rx, shape.ry)
                 lr = max(lx, ly) / r_least
                 worst["lr"].offer(
-                    lr / L_R_TENSION,
+                    lr / _slenderness("tension"),
                     lr,
-                    L_R_TENSION,
+                    _slenderness("tension"),
                     st.combination,
                     f"L/r with r = {r_least:.1f} mm; {where}",
                     S + "Sec 10.4.1",
@@ -1126,9 +1134,9 @@ def check_member(
                 )
                 klr = compression_slenderness(shape, kx * lx, ky * ly)
                 worst["klr"].offer(
-                    klr / KL_R_COMPRESSION,
+                    klr / _slenderness("compression"),
                     klr,
-                    KL_R_COMPRESSION,
+                    _slenderness("compression"),
                     st.combination,
                     f"K = {kx:g}{source_tag(lengths, 'kx')} / {ky:g}{source_tag(lengths, 'ky')}, "
                     f"L = {lx:.0f}{source_tag(lengths, 'Lx')} / {ly:.0f}"
