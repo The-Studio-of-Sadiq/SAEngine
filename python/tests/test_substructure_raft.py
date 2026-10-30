@@ -219,3 +219,48 @@ def test_raft_punching_proposes_and_checks_shear_reinforcement(tmp_path: Path) -
     (given,) = raft._punching(spec, results, {"U": [load]}, {"U": 1.2})
     assert not given["ok"]
     assert given["proposedReinforcement"] is not None
+
+
+def test_rigid_raft_pressure_matches_p_over_a_and_my_over_s() -> None:
+    # 10 m x 6 m: A = 60 m², S about y = B L² / 6 = 6 · 10² / 6 = 100 m³.
+    outline = [[0, 0], [10000, 0], [10000, 6000], [0, 6000]]
+    centre = RaftColumn("C", 5000, 3000, 400, 400)
+    total, qmax, qmin = raft._rigid_pressures(outline, [centre], [np.array([6e6, 0, 0])])
+    assert total == 6e6 and qmax == pytest.approx(0.1) and qmin == pytest.approx(0.1)  # 100 kPa
+    # The same load 1 m off centre in X: M = 6000 kN·m, ±M/S = ±60 kPa.
+    off = RaftColumn("C", 6000, 3000, 400, 400)
+    _, qmax, qmin = raft._rigid_pressures(outline, [off], [np.array([6e6, 0, 0])])
+    assert (qmax, qmin) == (pytest.approx(0.16), pytest.approx(0.04))
+    # A moment vector about +Y (6000 kN·m) presses the +X side as the offset load does.
+    _, qmax2, qmin2 = raft._rigid_pressures(outline, [centre], [np.array([6e6, 0, 6e9])])
+    assert (qmax2, qmin2) == (pytest.approx(0.16), pytest.approx(0.04))
+
+
+def test_governing_combinations_keep_the_gravity_and_the_extremes() -> None:
+    """N-U1: a raft was solved under every one of 300+ combinations (over an hour); it is now
+    solved under those that govern a rigid raft: every gravity service combination, the largest
+    load and the largest and least pressure; per column its largest axial load and moment."""
+    outline = [[0, 0], [12000, 0], [12000, 6000], [0, 6000]]
+    columns = [RaftColumn("A", 1000, 3000, 400, 400), RaftColumn("B", 11000, 3000, 400, 400)]
+
+    def loads(a: float, b: float, m: float = 0.0) -> list[np.ndarray]:
+        return [np.array([a, 0, m]), np.array([b, 0, m])]
+
+    service = {
+        "D": loads(1e6, 1e6),
+        "D + L": loads(1.5e6, 1.5e6),
+        "D + WX": loads(0.8e6, 1.4e6),  # the largest pressure (at B's side)
+        "D + 0.75WX": loads(0.9e6, 1.25e6),  # milder: not kept
+        "0.6D + WX": loads(0.4e6, 0.9e6),  # the least pressure
+        "D - WX": loads(1.3e6, 0.9e6),  # milder than D + WX: not kept
+    }
+    strength = {
+        "1.4D": loads(1.4e6, 1.4e6),
+        "1.2D + 1.6L": loads(2.0e6, 2.0e6),  # the largest load at both
+        "1.2D + 1.6WX": loads(1.0e6, 2.1e6),  # the largest at B and the largest pressure
+        "1.2D + 0.8WX": loads(1.5e6, 1.9e6),  # not governing
+        "0.9D + 1.6WX": loads(0.5e6, 1.2e6, 3e8),  # the least pressure; the largest moment
+    }
+    kept_service, kept_strength = raft.governing_combinations(outline, columns, service, strength)
+    assert kept_service == ["D", "D + L", "D + WX", "0.6D + WX"]
+    assert kept_strength == ["1.2D + 1.6L", "1.2D + 1.6WX", "0.9D + 1.6WX"]
