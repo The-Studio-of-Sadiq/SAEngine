@@ -126,6 +126,7 @@ class Requires(BaseModel):
                 raise ValueError(f"'{spec}' ({pack_id}) is not a version requirement like '>=1.0'")
         return value
 
+
 class Basis(BaseModel):
     """What the report and the design method state the design follows. A pack that extends
     another inherits the labels it does not give; without any, the pack's edition (or name)."""
