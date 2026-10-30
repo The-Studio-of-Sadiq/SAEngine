@@ -642,6 +642,11 @@ class FlangedInteraction(InteractionSurface):
     def actions(self, theta: float, c: float) -> tuple[float, float, float, float]:
         """Nominal (Pn [N], Sx, Sy [N·mm], εt) at the neutral-axis angle ``theta`` and depth
         ``c`` [mm] (math.inf: uniform εcu)."""
+        return self._actions(theta, c, True)  # type: ignore[return-value]
+
+    def _actions(self, theta: float, c: float, moments: bool) -> tuple[float, ...]:
+        """:meth:`actions`, or Pn alone (the same value) without ``moments``: the search for
+        a depth asks only Pn, about 70 times per depth."""
         from shapely import clip_by_rect
 
         s = self.section
@@ -663,6 +668,8 @@ class FlangedInteraction(InteractionSurface):
         stress = np.clip(s.es * strain, -s.fy, s.fy) - np.where(dist < a, 0.85 * s.fc, 0.0)
         force = stress * area
         conc = 0.85 * s.fc * float(block.area) if not block.is_empty else 0.0
+        if not moments:
+            return (conc + float(force.sum()),)
         if conc > 0:
             ct = block.centroid
             cu, cv = ct.x, ct.y
@@ -721,24 +728,31 @@ class FlangedInteraction(InteractionSurface):
         ``direction`` and the compression on its side; (0, inf) when ``pu`` is beyond the
         section's compressive strength, (0, 0) beyond its tensile strength."""
         u = np.asarray(direction, dtype=float)
+        key = (pu, u.tobytes())
+        found = self.__dict__.setdefault("_nominal", {}).get(key)
+        if found is not None:  # the shear and boundary checks ask the same forces
+            return found
         u = u / (np.linalg.norm(u) or 1.0)
         theta = math.atan2(-u[0], u[1])
         lo_x, hi_x = self.section.extent(u)
         depth = hi_x - lo_x
         lo, hi = 1e-6 * depth, 50.0 * depth
-        if self.actions(theta, hi)[0] < pu:
-            return 0.0, math.inf
-        if self.actions(theta, lo)[0] > pu:
-            return 0.0, 0.0
-        for _ in range(70):
-            mid = (lo + hi) / 2
-            if self.actions(theta, mid)[0] < pu:
-                lo = mid
-            else:
-                hi = mid
-        c = (lo + hi) / 2
-        _, sx, sy, _ = self.actions(theta, c)
-        return float(sx * u[0] + sy * u[1]), c
+        if self._actions(theta, hi, False)[0] < pu:
+            result = (0.0, math.inf)
+        elif self._actions(theta, lo, False)[0] > pu:
+            result = (0.0, 0.0)
+        else:
+            for _ in range(70):
+                mid = (lo + hi) / 2
+                if self._actions(theta, mid, False)[0] < pu:
+                    lo = mid
+                else:
+                    hi = mid
+            c = (lo + hi) / 2
+            _, sx, sy, _ = self.actions(theta, c)
+            result = (float(sx * u[0] + sy * u[1]), c)
+        self._nominal[key] = result
+        return result
 
 
 # ─────────────────────────────────────── forces ───────────────────────────────────────
