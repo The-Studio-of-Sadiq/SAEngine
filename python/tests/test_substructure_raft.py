@@ -264,3 +264,34 @@ def test_governing_combinations_keep_the_gravity_and_the_extremes() -> None:
     kept_service, kept_strength = raft.governing_combinations(outline, columns, service, strength)
     assert kept_service == ["D", "D + L", "D + WX", "0.6D + WX"]
     assert kept_strength == ["1.2D + 1.6L", "1.2D + 1.6WX", "0.9D + 1.6WX"]
+
+
+def test_a_newer_check_stops_the_running_solve(tmp_path: Path) -> None:
+    """N-U1: each save started one more raft solve beside the running ones. A newer check of the
+    same project stops the solver of the older one, which ends with Superseded."""
+    import sys
+    import threading
+    import time
+
+    from saengine.substructure.jobs import Superseded, newest
+
+    started = threading.Event()
+    outcome: dict[str, object] = {}
+
+    def older() -> None:
+        with newest(tmp_path):
+            started.set()
+            try:
+                raft._solve([sys.executable, "-c", "import time; time.sleep(60)"], tmp_path)
+            except Superseded as error:
+                outcome["error"] = error
+
+    thread = threading.Thread(target=older)
+    begin = time.monotonic()
+    thread.start()
+    started.wait(10)
+    time.sleep(1.0)
+    with newest(tmp_path / "."):  # the same project, however it is spelled
+        thread.join(20)
+    assert isinstance(outcome.get("error"), Superseded)
+    assert time.monotonic() - begin < 15  # not the solver's 60 s
