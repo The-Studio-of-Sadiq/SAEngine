@@ -893,6 +893,105 @@ class PlumbingTable(_Services):
         return self
 
 
+class Station(_Row):
+    """A row of Table 8.2.2: outside design conditions for summer [°C]."""
+
+    name: str
+    cooling: dict[str, tuple[Num, Num]] = Field(
+        description="Level (0.4, 1, 2 %) -> (DB, mean coincident WB): the cooling load."
+    )
+    evaporation: dict[str, tuple[Num, Num]] = Field(
+        description="Level -> (WB, mean coincident DB): cooling towers, evaporative equipment."
+    )
+    range: Num = Field(description="Mean daily range of the dry bulb.")
+    latitude: Num = Field(ge=-90, le=90, description="[°N]")
+    longitude: Num = Field(ge=-180, le=180, description="[°E]")
+
+
+class InsideRow(_Row):
+    """A row of Table 8.2.1: acceptable inside design conditions for summer."""
+
+    label: str
+    db: tuple[Num, Num] = Field(description="Dry bulb range [°C].")
+    rh: tuple[Num, Num] | None = Field(description="Relative humidity range [%]; null: '--'.")
+
+
+class VentilationRow(_Row):
+    """A row of Table 8.2.3; null where the table prints '-'."""
+
+    label: str
+    group: str
+    perPerson: NonNegNum | None = Field(description="Outdoor air per person [l/s].")
+    perArea: NonNegNum | None = Field(description="Outdoor air per floor area [l/s per m²].")
+    density: NonNegNum | None = Field(description="Persons per 100 m² (note a).")
+    exhaust: NonNegNum | None = Field(default=None, description="[l/s per m²]")
+    exhaustNote: str = Field(default="", description="An exhaust given otherwise (per room).")
+    ach: NonNegNum | None = Field(default=None, description="Air changes per hour.")
+    inside: int | None = Field(default=None, description="Row of 'inside' that applies.")
+
+
+class LeastWindowShare(_Group):
+    """Sec 4.5.1.2(a)-(c): the least window area as a share of the external wall, by the room's
+    depth [m]."""
+
+    shallowDepth: PosNum = Field(description="Rooms less deep than this take 'shallow'.")
+    deepDepth: PosNum = Field(description="Rooms deeper than this take 'deep'.")
+    shallow: Share
+    medium: Share
+    deep: Share
+
+
+class HvacTable(_Services):
+    """BNBC 2020 Part 8 Chapter 2 (air-conditioning) and Part 3 Chapter 4 (energy); SAEngine's
+    stated assumptions where the code is silent (marked in ``sources``, listed in
+    ``assumptions`` for the report)."""
+
+    stations: dict[str, Station]
+    defaultStation: str = Field(description="The station of a project without a site location.")
+    designLevel: str = Field(description="The Table 8.2.2 level for cooling (Sec 2.12.2.1).")
+    designMonths: list[Annotated[int, Field(ge=1, le=12)]]
+    indoorDb: Num
+    maxIndoorOutdoorDifference: PosNum
+    settingsStation: dict[str, str] = Field(description="Project Settings location -> station.")
+    inside: dict[int, InsideRow]
+    ventilation: dict[str, VentilationRow]
+    lpd: dict[str, PosNum] = Field(description="Table 3.4.5 [W/m²].")
+    groupLpd: dict[str, str] = Field(description="Ventilation group -> row of 'lpd'.")
+    shgcByWwr: dict[int, tuple[PosNum, PosNum]] = Field(
+        description="Window-to-wall ratio [%] -> (SHGC, SC) limit."
+    )
+    overhangA: dict[float, NonNegNum] = Field(description="Projection factor -> correction A.")
+    overhangFactor: PosNum
+    leastWindowShare: LeastWindowShare
+    equipment: dict[str, NonNegNum] = Field(description="Ventilation group -> [W/m²].")
+    equipmentDefault: NonNegNum
+    activity: dict[str, PosNum] = Field(description="Ventilation group -> heat per person [W].")
+    activityDefault: PosNum
+    supplyAirTemperature: Num
+    supplyAirHumidity: PosNum
+    designWindSpeed: NonNegNum
+    siteElevation: Num
+    timeZone: Num = Field(description="Hours from UTC.")
+    assumptions: list[str]
+
+    @model_validator(mode="after")
+    def _keys(self) -> HvacTable:
+        if self.defaultStation not in self.stations:
+            raise ValueError(f"defaultStation: no station '{self.defaultStation}'")
+        if not any(self.designLevel in s.cooling for s in self.stations.values()):
+            raise ValueError(f"designLevel: no station has the level '{self.designLevel}'")
+        for location, station in self.settingsStation.items():
+            if station not in self.stations:
+                raise ValueError(f"settingsStation.{location}: no station '{station}'")
+        for key, row in self.ventilation.items():
+            if row.inside is not None and row.inside not in self.inside:
+                raise ValueError(f"ventilation.{key}: no inside row {row.inside}")
+        for group, row in self.groupLpd.items():
+            if row not in self.lpd:
+                raise ValueError(f"groupLpd.{group}: no lpd row '{row}'")
+        return self
+
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -911,6 +1010,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "foundations": FoundationsTable,
     "slabCoefficients": SlabCoefficientsTable,
     "plumbing": PlumbingTable,
+    "hvac": HvacTable,
 }
 
 

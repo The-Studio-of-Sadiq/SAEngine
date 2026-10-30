@@ -68,6 +68,13 @@ TABLE_HELP: dict[str, str] = {
     "resistance, strut-and-tie factors.",
     "slabCoefficients": "Slabs on beams designed by moment coefficients: the two-way tables "
     "by span ratio and edge case, their limits, the one-way coefficients, bar spacing limits.",
+    "plumbing": "Water supply, drainage and rainwater: water demand by occupancy, storage, "
+    "fixture units and the probable demand curve, velocity and pressure limits, stacks, drains "
+    "and vents, septic tank and soak pit, leaders, gutters and storm drains, and the pipe data "
+    "SAEngine assumes. 'pages' names where each clause is; the reports cite it.",
+    "hvac": "Air-conditioning and energy: the outside design conditions of the stations, inside "
+    "conditions, ventilation rates and occupancy, lighting power density, glazing and overhangs, "
+    "and the loads SAEngine assumes where the code is silent ('assumptions', for the report).",
 }
 
 #: Keys of pack.json, in the order the template writes them, with their help (written into the

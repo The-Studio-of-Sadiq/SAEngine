@@ -177,10 +177,14 @@ class TableNames:
     with ``def __getattr__(name): return names.get(name)``, so ``tables.HUNTER`` reads the pack
     in force where it is used."""
 
+    #: How many tables' names are kept (the default pack's and a few projects').
+    KEEP = 4
+
     def __init__(self, table_name: str, build: Callable[[Any], dict[str, Any]]) -> None:
         self.table_name = table_name
         self.build = build
         self._memo: tuple[CodePack, Any, dict[str, Any]] | None = None
+        self._built: list[tuple[Any, dict[str, Any]]] = []
         self._lock = threading.Lock()
 
     def __call__(self) -> dict[str, Any]:
@@ -191,7 +195,12 @@ class TableNames:
             return memo[2]
         source = pack_table(self.table_name)
         with self._lock:
-            names = memo[2] if memo is not None and memo[1] is source else self.build(source)
+            # A project pack that extends BNBC 2020 resolves an equal copy of a table it does not
+            # change: the names built for an equal table are reused.
+            names = next((n for t, n in self._built if t is source or t == source), None)
+            if names is None:
+                names = self.build(source)
+                self._built = [(source, names), *self._built[: self.KEEP - 1]]
             self._memo = (pack, source, names)
         return names
 

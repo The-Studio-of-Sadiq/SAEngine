@@ -22,7 +22,8 @@
     "steel",
     "foundations",
     "slabCoefficients",
-    "plumbing"
+    "plumbing",
+    "hvac"
   ],
   "description": "Bangladesh National Building Code 2020, Part 6 (Structural Design): loads, wind and earthquake, load combinations, reinforced concrete, seismic detailing, structural steel and foundations. The values SAEngine used before code packs, transcribed from its modules; every table names its clauses and pages.",
   "sources": [
@@ -91,6 +92,10 @@
     "plumbing": [
       "BNBC 2020 Part 8 Chapters 5-7 and Appendices O, R, S (pp. 1034-1215)",
       "BNBC 2020 Part 3 Sec 2.4.4 (p. 94)"
+    ],
+    "hvac": [
+      "BNBC 2020 Part 8 Chapter 2 (pp. 859-916)",
+      "BNBC 2020 Part 3 Chapter 4 (pp. 186-192)"
     ]
   },
   "basis": {

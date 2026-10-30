@@ -1,0 +1,788 @@
+{
+  "$defs": {
+    "InsideRow": {
+      "additionalProperties": false,
+      "description": "A row of Table 8.2.1: acceptable inside design conditions for summer.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "db": {
+          "description": "Dry bulb range [°C].",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            }
+          ],
+          "title": "Db",
+          "type": "array"
+        },
+        "rh": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Relative humidity range [%]; null: '--'.",
+          "title": "Rh"
+        }
+      },
+      "required": [
+        "label",
+        "db",
+        "rh"
+      ],
+      "title": "InsideRow",
+      "type": "object"
+    },
+    "LeastWindowShare": {
+      "additionalProperties": false,
+      "description": "Sec 4.5.1.2(a)-(c): the least window area as a share of the external wall, by the room's\ndepth [m].",
+      "properties": {
+        "shallowDepth": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Rooms less deep than this take 'shallow'.",
+          "title": "Shallowdepth"
+        },
+        "deepDepth": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Rooms deeper than this take 'deep'.",
+          "title": "Deepdepth"
+        },
+        "shallow": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Shallow",
+          "type": "number"
+        },
+        "medium": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Medium",
+          "type": "number"
+        },
+        "deep": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Deep",
+          "type": "number"
+        }
+      },
+      "required": [
+        "shallowDepth",
+        "deepDepth",
+        "shallow",
+        "medium",
+        "deep"
+      ],
+      "title": "LeastWindowShare",
+      "type": "object"
+    },
+    "Station": {
+      "additionalProperties": false,
+      "description": "A row of Table 8.2.2: outside design conditions for summer [°C].",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "cooling": {
+          "additionalProperties": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              },
+              {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              }
+            ],
+            "type": "array"
+          },
+          "description": "Level (0.4, 1, 2 %) -> (DB, mean coincident WB): the cooling load.",
+          "title": "Cooling",
+          "type": "object"
+        },
+        "evaporation": {
+          "additionalProperties": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              },
+              {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              }
+            ],
+            "type": "array"
+          },
+          "description": "Level -> (WB, mean coincident DB): cooling towers, evaporative equipment.",
+          "title": "Evaporation",
+          "type": "object"
+        },
+        "range": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "description": "Mean daily range of the dry bulb.",
+          "title": "Range"
+        },
+        "latitude": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "description": "[°N]",
+          "ge": -90,
+          "le": 90,
+          "title": "Latitude"
+        },
+        "longitude": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "description": "[°E]",
+          "ge": -180,
+          "le": 180,
+          "title": "Longitude"
+        }
+      },
+      "required": [
+        "name",
+        "cooling",
+        "evaporation",
+        "range",
+        "latitude",
+        "longitude"
+      ],
+      "title": "Station",
+      "type": "object"
+    },
+    "VentilationRow": {
+      "additionalProperties": false,
+      "description": "A row of Table 8.2.3; null where the table prints '-'.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "group": {
+          "title": "Group",
+          "type": "string"
+        },
+        "perPerson": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Outdoor air per person [l/s].",
+          "title": "Perperson"
+        },
+        "perArea": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Outdoor air per floor area [l/s per m²].",
+          "title": "Perarea"
+        },
+        "density": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Persons per 100 m² (note a).",
+          "title": "Density"
+        },
+        "exhaust": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "[l/s per m²]",
+          "title": "Exhaust"
+        },
+        "exhaustNote": {
+          "default": "",
+          "description": "An exhaust given otherwise (per room).",
+          "title": "Exhaustnote",
+          "type": "string"
+        },
+        "ach": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Air changes per hour.",
+          "title": "Ach"
+        },
+        "inside": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Row of 'inside' that applies.",
+          "title": "Inside"
+        }
+      },
+      "required": [
+        "label",
+        "group",
+        "perPerson",
+        "perArea",
+        "density"
+      ],
+      "title": "VentilationRow",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "BNBC 2020 Part 8 Chapter 2 (air-conditioning) and Part 3 Chapter 4 (energy); SAEngine's\nstated assumptions where the code is silent (marked in ``sources``, listed in\n``assumptions`` for the report).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "pages": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause id -> citation.",
+      "title": "Pages",
+      "type": "object"
+    },
+    "stations": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Station"
+      },
+      "title": "Stations",
+      "type": "object"
+    },
+    "defaultStation": {
+      "description": "The station of a project without a site location.",
+      "title": "Defaultstation",
+      "type": "string"
+    },
+    "designLevel": {
+      "description": "The Table 8.2.2 level for cooling (Sec 2.12.2.1).",
+      "title": "Designlevel",
+      "type": "string"
+    },
+    "designMonths": {
+      "items": {
+        "maximum": 12,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "title": "Designmonths",
+      "type": "array"
+    },
+    "indoorDb": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "title": "Indoordb"
+    },
+    "maxIndoorOutdoorDifference": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Maxindooroutdoordifference"
+    },
+    "settingsStation": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Project Settings location -> station.",
+      "title": "Settingsstation",
+      "type": "object"
+    },
+    "inside": {
+      "additionalProperties": {
+        "$ref": "#/$defs/InsideRow"
+      },
+      "title": "Inside",
+      "type": "object"
+    },
+    "ventilation": {
+      "additionalProperties": {
+        "$ref": "#/$defs/VentilationRow"
+      },
+      "title": "Ventilation",
+      "type": "object"
+    },
+    "lpd": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          }
+        ]
+      },
+      "description": "Table 3.4.5 [W/m²].",
+      "title": "Lpd",
+      "type": "object"
+    },
+    "groupLpd": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Ventilation group -> row of 'lpd'.",
+      "title": "Grouplpd",
+      "type": "object"
+    },
+    "shgcByWwr": {
+      "additionalProperties": {
+        "maxItems": 2,
+        "minItems": 2,
+        "prefixItems": [
+          {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          }
+        ],
+        "type": "array"
+      },
+      "description": "Window-to-wall ratio [%] -> (SHGC, SC) limit.",
+      "title": "Shgcbywwr",
+      "type": "object"
+    },
+    "overhangA": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "minimum": 0,
+            "type": "integer"
+          },
+          {
+            "minimum": 0,
+            "type": "number"
+          }
+        ]
+      },
+      "description": "Projection factor -> correction A.",
+      "title": "Overhanga",
+      "type": "object"
+    },
+    "overhangFactor": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Overhangfactor"
+    },
+    "leastWindowShare": {
+      "$ref": "#/$defs/LeastWindowShare"
+    },
+    "equipment": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "minimum": 0,
+            "type": "integer"
+          },
+          {
+            "minimum": 0,
+            "type": "number"
+          }
+        ]
+      },
+      "description": "Ventilation group -> [W/m²].",
+      "title": "Equipment",
+      "type": "object"
+    },
+    "equipmentDefault": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "minimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Equipmentdefault"
+    },
+    "activity": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          }
+        ]
+      },
+      "description": "Ventilation group -> heat per person [W].",
+      "title": "Activity",
+      "type": "object"
+    },
+    "activityDefault": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Activitydefault"
+    },
+    "supplyAirTemperature": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "title": "Supplyairtemperature"
+    },
+    "supplyAirHumidity": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Supplyairhumidity"
+    },
+    "designWindSpeed": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "minimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Designwindspeed"
+    },
+    "siteElevation": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "title": "Siteelevation"
+    },
+    "timeZone": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "description": "Hours from UTC.",
+      "title": "Timezone"
+    },
+    "assumptions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Assumptions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "stations",
+    "defaultStation",
+    "designLevel",
+    "designMonths",
+    "indoorDb",
+    "maxIndoorOutdoorDifference",
+    "settingsStation",
+    "inside",
+    "ventilation",
+    "lpd",
+    "groupLpd",
+    "shgcByWwr",
+    "overhangA",
+    "overhangFactor",
+    "leastWindowShare",
+    "equipment",
+    "equipmentDefault",
+    "activity",
+    "activityDefault",
+    "supplyAirTemperature",
+    "supplyAirHumidity",
+    "designWindSpeed",
+    "siteElevation",
+    "timeZone",
+    "assumptions"
+  ],
+  "title": "HvacTable",
+  "type": "object",
+  "$id": "saengine.codePack.hvac/1"
+}

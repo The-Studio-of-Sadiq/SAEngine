@@ -39,7 +39,20 @@ def test_plumbing_table_equals_the_old_module():
     assert _differences("saengine.plumbing.tables", "plumbing") == []
 
 
-@pytest.mark.parametrize("name", ["plumbing"])
+def test_hvac_table_equals_the_old_module():
+    assert _differences("saengine.hvac.tables", "hvac") == []
+
+
+def test_hvac_functions_read_the_table():
+    from saengine.hvac import tables as T
+
+    assert [T.default_wwr(d) for d in (0.0, 7.99, 8.0, 14.0, 14.01)] == [0.2, 0.2, 0.3, 0.3, 0.35]
+    assert [T.shgc_limit(r) for r in (0.0, 0.1, 0.15, 0.9, 1.0)] == [0.85, 0.85, 0.6, 0.27, 0.27]
+    station, notes = T.station_for(None, "nowhere")
+    assert station.key == "dhaka" and notes[0].startswith("site location 'nowhere'")
+
+
+@pytest.mark.parametrize("name", ["plumbing", "hvac"])
 def test_moved_table_is_registered_covered_and_cited(name):
     manifest = json.loads((PACKS_DIR / "bnbc2020" / "pack.json").read_text(encoding="utf-8"))
     assert name in TABLE_MODELS
