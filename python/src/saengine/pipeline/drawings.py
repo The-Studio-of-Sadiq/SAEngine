@@ -514,6 +514,13 @@ def _generate(
             if state is not None:
                 state.update(message=f"writing sheet {n} of {count}")
 
+    def files_progress(message: str) -> None:
+        # The PDF pages, assembling the PDF (minutes for a large set) and the previews.
+        with _GUARD:
+            state = _RUNNING.get(_key(root))
+            if state is not None:
+                state.update(message=message)
+
     written = write_drawings(
         chosen,
         folder,
@@ -523,6 +530,7 @@ def _generate(
         pdf_name=PDF,
         problems=data.problems,
         on_sheet=sheet_progress,
+        on_step=files_progress,
     )
     conflicts = []
     for sheet in chosen:
@@ -606,6 +614,10 @@ def _generate(
         "warnings": warnings,
         "errors": errors,
         "marks": model.get("marks"),
+        # Members without reinforcement: while there are any the title blocks read
+        # NOT FOR CONSTRUCTION ({kind: {object type: count}}).
+        "undesigned": data.undesigned,
+        "status": data.title.status,
     }
     (folder / RECORD).write_text(
         json.dumps(record, indent="\t", ensure_ascii=False) + "\n", encoding="utf-8"

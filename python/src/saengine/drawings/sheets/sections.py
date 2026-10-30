@@ -65,6 +65,19 @@ def column_section(view: View, centre: Point, section: ColumnSection, dims: bool
     """The section of a column at ``centre`` (real mm of ``view``)."""
     cx, cy = centre
     b, h = section.b, section.h
+    if not section.designed:
+        # No bars to draw: the outline crossed out, so the cell cannot pass for a section.
+        if section.round:
+            r = b / 2
+            view.circle(centre, r, "S-CONC")
+            d = r / math.sqrt(2)
+            view.line((cx - d, cy - d), (cx + d, cy + d), "S-CONC")
+            view.line((cx - d, cy + d), (cx + d, cy - d), "S-CONC")
+        else:
+            view.rect(cx - b / 2, cy - h / 2, cx + b / 2, cy + h / 2, "S-CONC")
+            view.line((cx - b / 2, cy - h / 2), (cx + b / 2, cy + h / 2), "S-CONC")
+            view.line((cx - b / 2, cy + h / 2), (cx + b / 2, cy - h / 2), "S-CONC")
+        return
     dias = sorted((d for n, d in section.bars for _ in range(n)), reverse=True)
     big = dias[0] if dias else 16.0
     tie = section.tie_dia
