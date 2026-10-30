@@ -27,7 +27,7 @@ import { ISaengineProject, ISaengineProjectService, partById } from '../../../se
 import { recordedStamp, sourceStamp, upstreamPart } from '../../../services/saengineProject/common/partSources.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { awaitsTankDesigns, BOQ_COMPUTE_COMMAND, BOQ_SOURCES, boqComputeArgs, changedSources, IBoqComputeResult, parseBoq } from '../../saengineBoq/browser/boqDocument.js';
-import { BUILD_REPORT_COMMAND_ID, IReportBuildRequest, IReportBuildResult, reportProblems } from '../../saengineReport/browser/reportBuild.js';
+import { BUILD_REPORT_COMMAND_ID, IReportBuildRequest, IReportBuildResult, reportProblems, reportStepMessage } from '../../saengineReport/browser/reportBuild.js';
 import { ISubstructureRequest, parseSubstructure, readSubstructureReport, SUBSTRUCTURE_SUMMARY_FILE, substructureSummaryFile } from '../../saengineSubstructure/browser/substructureDocument.js';
 import { IMepContextTexts, IMepReport, IMepRequest, isOpenClash, MEP_REPORT_COMMAND, MEP_SOURCE_PARTS, MEP_SUMMARY_FILE, mepSummaryFile, parseMep, readMepReport } from '../../saengineMep/browser/mepDocument.js';
 import { hasPlumbing, IPlumbingReport, PLUMBING_REPORT_COMMAND, plumbingFailures, plumbingSummaryFile, readPlumbingReport } from '../../saengineMep/browser/plumbingDocument.js';
@@ -958,7 +958,8 @@ export class RunAllService implements IRunAllService {
 			throw new StepFailure(problems.join(' ') || localize('runAll.reportFailed', "The report could not be built."));
 		}
 		context.pdf = URI.file(result.path);
-		return { status: 'ok', message: localize('runAll.reportWritten', "written") };
+		const { message, warning } = reportStepMessage(result);
+		return { status: warning ? 'warning' : 'ok', message };
 	}
 
 	/**

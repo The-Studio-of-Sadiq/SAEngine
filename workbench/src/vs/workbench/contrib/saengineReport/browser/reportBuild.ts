@@ -28,6 +28,33 @@ export interface IReportBuildResult {
 	readonly warnings?: readonly string[];
 	/** Why no report was written, e.g. "There are no analysis results: run the analysis first." */
 	readonly problems?: readonly string[];
+	/** The design result its cover leads with (`saengine.report.build.design_status`). */
+	readonly status?: IReportStatus;
+}
+
+/** The design result of a report: what its cover banner and `report.summary.json` say. */
+export interface IReportStatus {
+	readonly state: 'pass' | 'fail' | 'incomplete' | 'unchecked';
+	readonly headline: string;
+	/** Members left without reinforcement, by kind: `{ column: 28, slab: 120 }`. */
+	readonly notDesigned?: { readonly [kind: string]: number };
+}
+
+/**
+ * The words of Run All's report step: "written", and the cover's headline when the design fails
+ * or members are not designed (the step must not read as a clean pass then).
+ */
+export function reportStepMessage(result: IReportBuildResult): { readonly message: string; readonly warning: boolean } {
+	const headline = warningHeadline(result);
+	return headline
+		? { message: localize('report.writtenHeadline', "written; {0}", headline), warning: true }
+		: { message: localize('report.writtenStep', "written"), warning: false };
+}
+
+/** The cover's headline when the design fails or members are not designed. */
+function warningHeadline(result: IReportBuildResult): string | undefined {
+	const status = result.status;
+	return status && (status.state === 'fail' || status.state === 'incomplete') && status.headline ? status.headline : undefined;
 }
 
 /** The problems of a result, or of an unusable one; empty when a PDF was written. */
@@ -46,6 +73,12 @@ export function reportProblems(result: IReportBuildResult | undefined): string[]
 
 /** The message shown when the report was written. */
 export function reportWrittenMessage(result: IReportBuildResult): string {
+	const headline = warningHeadline(result);
+	const written = writtenMessage(result);
+	return headline ? `${written} ${headline}` : written;
+}
+
+function writtenMessage(result: IReportBuildResult): string {
 	const warnings = result.warnings?.length ?? 0;
 	if (typeof result.pages === 'number') {
 		return warnings

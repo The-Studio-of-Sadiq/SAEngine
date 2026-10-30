@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IReportBuildResult, reportProblems, reportWrittenMessage } from '../../browser/reportBuild.js';
+import { IReportBuildResult, reportProblems, reportStepMessage, reportWrittenMessage } from '../../browser/reportBuild.js';
 
 suite('SAEngine - Design report', () => {
 
@@ -35,6 +35,19 @@ suite('SAEngine - Design report', () => {
 			'Design report written (9 pages).',
 			'Design report written (9 pages) with 2 warning(s); they are listed in its Limitations section.',
 			'Design report written.',
+		]);
+	});
+
+	test('members not designed are named, not passed off as "written" (N-R3)', () => {
+		const incomplete: IReportBuildResult = { path: 'r.pdf', pages: 9, status: { state: 'incomplete', headline: 'DESIGN INCOMPLETE: 28 columns and 120 slabs are not designed (no reinforcement); the others pass.', notDesigned: { column: 28, slab: 120 } } };
+		assert.deepStrictEqual([
+			reportStepMessage(incomplete),
+			reportStepMessage({ path: 'r.pdf', status: { state: 'pass', headline: 'Design checks pass: all 10 members.' } }),
+			reportWrittenMessage(incomplete),
+		], [
+			{ message: 'written; DESIGN INCOMPLETE: 28 columns and 120 slabs are not designed (no reinforcement); the others pass.', warning: true },
+			{ message: 'written', warning: false },
+			'Design report written (9 pages). DESIGN INCOMPLETE: 28 columns and 120 slabs are not designed (no reinforcement); the others pass.',
 		]);
 	});
 });
