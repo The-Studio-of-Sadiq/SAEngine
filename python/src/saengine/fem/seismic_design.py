@@ -343,6 +343,10 @@ def torsion_loads(project: dict[str, Any], case: str) -> tuple[list[dict[str, An
 
 
 def _static_case(case_id: int, name: str) -> dict[str, Any]:
+    from saengine.fem.derive import SOLVER
+
+    # The analysis's own solver: a banded one runs out of memory on tall buildings (on 25
+    # storeys OpenSees crashed and the design fell back to the static EX, EY).
     return {
         "id": case_id,
         "name": name,
@@ -350,7 +354,7 @@ def _static_case(case_id: int, name: str) -> dict[str, Any]:
         "pattern_ids": [case_id],
         "n_steps": 1,
         "load_factor_increment": 1.0,
-        "system": "BandGeneral",
+        "system": SOLVER,
         "constraints": "Plain",
         "integrator": "LoadControl",
         "algorithm": "Linear",
@@ -543,10 +547,18 @@ def _run(model: dict[str, Any], folder: Path, ids: list[int] | None = None) -> P
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     )
     if done.returncode != 0:
-        lines = [line for line in (done.stderr or done.stdout).splitlines() if line.strip()]
-        raise ValueError(
-            f"the response spectrum force run failed: {lines[-1] if lines else done.returncode}"
-        )
+        # The runner's own error line when it wrote one; else the process stopped (OpenSees
+        # crashed, e.g. out of memory), and stderr holds only its banners.
+        errors = []
+        for line in done.stdout.splitlines():
+            try:
+                message = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(message, dict) and message.get("type") == "error":
+                errors.append(str(message.get("message", "")))
+        reason = errors[-1] if errors else f"OpenSees stopped (exit code {done.returncode})"
+        raise ValueError(f"the response spectrum force run failed: {reason}")
     return out
 
 
@@ -676,8 +688,9 @@ def _stamp(out_dir: Path, project_path: Path, torsion: bool) -> str:
     # The model without its meta: deriving it again to the same analysis keeps this run.
     model = model_stamp(Path(project_path).read_bytes()).encode()
     text = model + (out_dir / "manifest.json").read_bytes()
-    # "2": the modal-force cases carry the RS case's stiffness (overrides, preload).
-    return hashlib.sha1(text + (b"T" if torsion else b"-") + b"2").hexdigest()
+    # "2": the modal-force cases carry the RS case's stiffness (overrides, preload); "3": they
+    # are solved with the analysis's solver.
+    return hashlib.sha1(text + (b"T" if torsion else b"-") + b"3").hexdigest()
 
 
 @dataclass

@@ -62,8 +62,10 @@ _DERIVED = frozenset(
 #: The same by path in the results folder: the response spectrum design's summary is written
 #: again on every design (``saengine.fem.seismic_design.seismic_design`` keeps its run while
 #: the model and the results do not change but rewrites the summary of it), so its time would
-#: make every kept answer stale at once. The run it is made from is stamped.
-_DERIVED_PATHS = frozenset({"rs-design/seismic-design.json"})
+#: make every kept answer stale at once. The run it is made from is stamped. Its case file is
+#: made from the model and the results, both stamped; a run that fails writes it again on
+#: every design (on 25 storeys that made the design checks work everything out twice).
+_DERIVED_PATHS = frozenset({"rs-design/seismic-design.json", "rs-design/rs-design.osmodel"})
 
 #: The results' manifest, written by the solver at the end of a run.
 RESULTS_MANIFEST = "manifest.json"
