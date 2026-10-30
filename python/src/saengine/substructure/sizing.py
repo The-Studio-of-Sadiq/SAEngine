@@ -762,9 +762,13 @@ def raft_proposal(sizer: Sizer, columns: list[ColumnElement]) -> tuple[dict[str,
     """One raft under ``columns`` (see the module notes), as ``substructure.json``'s raft, and
     notes on how it was sized. The thickness: d for punching at each column as an interior
     column, Vu <= phi 0.33 sqrt(fc) b0 d with b0 = 4 (c + d) (ACI 318-19 22.6.5.2(a), the soil
-    reaction inside the section left out: conservative), h = d + cover + 1.5 bar, in steps of
-    :data:`STEP`, at least :data:`RAFT_MIN_THICKNESS`."""
+    reaction inside the section left out: conservative), and d for one-way shear of a metre
+    strip between the columns: the net factored soil pressure qu = sum of the columns' largest
+    factored loads / the raft's area over (L/2 - c/2 - d), L the largest distance of a column to
+    its nearest one, against phi Vc of ACI 318-19 Table 22.5.5.1(c) with the minimum mesh;
+    h = d + cover + 1.5 bar, in steps of :data:`STEP`, at least :data:`RAFT_MIN_THICKNESS`."""
     from saengine.substructure.run import minimum_mesh
+    from saengine.substructure.shallow import one_way_shear_capacity
 
     ctx = sizer.ctx
     concrete, rebar = sizer.materials_of(columns[0])
@@ -783,8 +787,29 @@ def raft_proposal(sizer: Sizer, columns: list[ColumnElement]) -> tuple[dict[str,
         if need > d:
             d, heaviest = need, column.id
     dia = 20.0
-    thickness = max(RAFT_MIN_THICKNESS, _round_up(d + COVER + 1.5 * dia))
-    mesh = minimum_mesh(thickness, fy)
+    outline = raft_outline(columns)
+    area = column_plan(columns)
+    qu = sum(sizer.loads.max_axial(c.id, "strength") for c in columns) / area if area else 0.0
+    points = np.array([c.position[:2] for c in columns], dtype=float)
+    span = max(
+        (
+            float(np.min(np.delete(np.linalg.norm(points - p, axis=1), k)))
+            for k, p in enumerate(points)
+        ),
+        default=0.0,
+    )
+    side = max((max(sizer.side(c), 200.0) for c in columns), default=200.0)
+    governs = "punching at " + heaviest
+    while True:
+        h = max(RAFT_MIN_THICKNESS, _round_up(d + COVER + 1.5 * dia))
+        mesh = minimum_mesh(h, fy)
+        rho = math.pi * mesh["dia"] ** 2 / 4 * 1000 / mesh["spacing"] / (1000 * d) if d else 0.0
+        demand = qu * 1000 * max(span / 2 - side / 2 - d, 0.0)
+        if d <= 0 or one_way_shear_capacity(1000.0, d, rho, fc) >= demand:
+            break
+        d += 25.0
+        governs = f"one-way shear between the columns ({span / 1e3:.1f} m apart)"
+    thickness = h
     taken = {f.id for f in ctx.substructure.foundations}
     number = 1
     while f"R{number}" in taken:
@@ -794,7 +819,7 @@ def raft_proposal(sizer: Sizer, columns: list[ColumnElement]) -> tuple[dict[str,
         "id": f"R{number}",
         "type": "raft",
         "columns": [c.id for c in columns],
-        "outline": raft_outline(columns),
+        "outline": outline,
         "thickness": thickness,
         "foundingLevel": founding,
         "material": concrete,
@@ -804,15 +829,14 @@ def raft_proposal(sizer: Sizer, columns: list[ColumnElement]) -> tuple[dict[str,
             **{layer: dict(mesh) for layer in ("bottomX", "bottomY", "topX", "topY")},
         },
         "note": (
-            f"Proposed by the sizing assistant for {len(columns)} columns; thickness for "
-            f"punching at {heaviest}."
+            f"Proposed by the sizing assistant for {len(columns)} columns; thickness for {governs}."
         ),
     }
     Foundation.model_validate(raft)
     notes = [
         (
-            f"Raft thickness {thickness:.0f} mm: punching at {heaviest} without shear "
-            f"reinforcement (ACI 318-19 22.6.5.2(a), d = {d:.0f} mm), minimum mesh "
+            f"Raft thickness {thickness:.0f} mm for {governs} without shear reinforcement "
+            f"(ACI 318-19 22.6.5.2(a), 22.5.5.1; d = {d:.0f} mm), minimum mesh "
             f"{mesh['dia']:g}@{mesh['spacing']:g} both ways top and bottom (ACI 318-19 7.6.1.1); "
             "the raft check gives the bars its flexure needs"
         )

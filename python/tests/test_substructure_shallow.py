@@ -1337,7 +1337,20 @@ def test_sizing_assistant_proposes_a_raft_when_footings_would_cover_the_plan() -
     fc = ctx.mats[raft["material"]].concrete.fc
     v = PHI_V * PUNCHING * math.sqrt(fc)
     d = (-400 + math.sqrt(400**2 + vu / v)) / 2
-    assert raft["thickness"] == max(500, math.ceil((d + 75 + 30) / 50) * 50)
+    assert max(500, math.ceil((d + 75 + 30) / 50) * 50) == 650  # punching alone (d = 545 mm)
+    # One-way shear of a metre strip governs here: qu = 4 x 2500 kN / (6 m x 6 m) = 278 kPa
+    # over L/2 - c/2 - d; at d = 1070 mm (h 1200 with 20@125, rho 0.00235, lambda_s 0.62)
+    # Vu = 278 x 0.73 = 203 kN/m <= phi Vc (ACI 318-19 Table 22.5.5.1(c)).
+    from saengine.substructure.shallow import one_way_shear_capacity
+
+    assert raft["thickness"] == 1200 and raft["reinforcement"]["bottomX"] == {
+        "dia": 20,
+        "spacing": 125,
+    }
+    qu = 4 * 2500e3 / 6000**2
+    rho = math.pi * 20**2 / 4 * 1000 / 125 / (1000 * 1070)
+    assert one_way_shear_capacity(1000, 1070, rho, fc) >= qu * 1000 * (2000 - 200 - 1070)
+    assert "one-way shear" in raft["note"]
     assert raft["foundingLevel"] + raft["thickness"] <= ctx.ground_level
     assert set(raft["reinforcement"]) >= {"bottomX", "bottomY", "topX", "topY"}
     # Light loads: four separate footings, no raft.
