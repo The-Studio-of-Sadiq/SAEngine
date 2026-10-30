@@ -216,6 +216,43 @@ def matches(patterns: Iterable[str], relative: str, folder: bool = False) -> boo
     return any(_glob_regex(p).match(path) for p in patterns)
 
 
+def inputs_only_problems(path: str | Path) -> list[dict[str, Any]]:
+    """Why the archive ``path`` is not inputs only, as a building template must be (docs/
+    marketplace-plan.md): one error per kind of file it may not hold: results (the computed
+    caches), the soil report (client data), the deliverables of ``11 Exports`` and the version
+    history. Empty when it holds only inputs; an unreadable archive is :func:`inspect_archive`'s
+    to report."""
+    reasons = {
+        "results": "results, which SAEngine computes again",
+        "soil": f"a soil report ({PARTS['soil'][0]}): templates never hold client data",
+        "exports": f"deliverables ({EXPORTS_FOLDER})",
+        "versions": "the version history (.git)",
+    }
+    found: dict[str, str] = {}
+    try:
+        with zipfile.ZipFile(path) as archive:
+            names = [i.filename for i in archive.infolist() if not i.is_dir()]
+    except (zipfile.BadZipFile, OSError):
+        return []
+    for name in names:
+        if not name.startswith(PROJECT_PREFIX):
+            continue
+        relative = name[len(PROJECT_PREFIX) :]
+        top = relative.split("/", 1)[0].casefold()
+        if is_computed(relative):
+            found.setdefault("results", relative)
+        elif top == PARTS["soil"][0].casefold():
+            found.setdefault("soil", relative)
+        elif top == EXPORTS_FOLDER.casefold():
+            found.setdefault("exports", relative)
+        elif top == VERSIONS_FOLDER:
+            found.setdefault("versions", relative)
+    return [
+        _problem(f"not-inputs-only-{key}", f"the archive holds {reasons[key]}, e.g. {relative}")
+        for key, relative in found.items()
+    ]
+
+
 def is_computed(relative: str, folder: bool = False) -> bool:
     """Whether ``relative`` (relative to the project root, ``/``-separated; a folder if
     ``folder``) is a computed cache, one of :data:`COMPUTED_PATHS`."""
