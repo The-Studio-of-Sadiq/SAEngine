@@ -152,7 +152,7 @@ def test_part_8_no_longer_designs_footings_and_part_9_designs_them_alike(
     assert DESIGNED_IN_PART_9 in report["notes"]
 
     # The same footings in Part 9, moved there by the hand-over, check as Part 8 checked them
-    # (pinned: Part 8's footing_checks, removed in 0.0.45, gave these).
+    # (pinned: Part 8's footing_checks, removed in 0.0.46, gave these).
     root = _analysed(_project(tmp_path, building), frame)
     ensure_migrated(root)
     new = {f["id"]: f for f in substructure_report(root)["foundations"]}

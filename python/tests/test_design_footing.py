@@ -2,7 +2,7 @@
 shear and flexure by hand, and the footings drawn in the building model of an analysed one-bay
 frame, moved into 9 Substructure by the hand-over and designed there.
 
-The frame's checks were pinned against Part 8's old ``footing_checks`` (removed in 0.0.45): the
+The frame's checks were pinned against Part 8's old ``footing_checks`` (removed in 0.0.46): the
 same names, demands, capacities, utilisations, governing combinations and notes."""
 
 from __future__ import annotations

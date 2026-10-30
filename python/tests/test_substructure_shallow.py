@@ -953,7 +953,7 @@ def test_report_of_the_analysed_frame(frame: Path, monkeypatch: pytest.MonkeyPat
     assert "9 Substructure: F9: 'C9' is not a column or wall of 6 BIM" in data["notes"]
     assert data["tieBeams"][0]["force"] > 0
     assert data["summary"]["checked"] == 4 and data["summary"]["skipped"] == 3
-    # Pinned: Part 8's old footing_checks (removed in 0.0.45) gave the same checks for the
+    # Pinned: Part 8's old footing_checks (removed in 0.0.46) gave the same checks for the
     # same footing drawn in the building model.
     assert [(c["name"], c["demand"], c["capacity"]) for c in by_id["F1"]["checks"]] == [
         ("Bearing (service)", 106.86, 150.0),
