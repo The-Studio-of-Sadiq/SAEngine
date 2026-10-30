@@ -273,3 +273,12 @@ def test_project_files_feed_the_reports(bim: Any, tmp_path: Any) -> None:
     [zone] = [z for z in loads["zones"] if z["story"] == "L1"]
     assert zone["gainsFrom"] == "rooms" and zone["occupants"] == pytest.approx(5.0)
     assert {g["use"] for g in zone["rooms"]} >= {"livingArea", "corridor"}
+
+
+def test_wet_rooms_start_the_plumbing(bim: Any) -> None:
+    # No plumbing section yet: the wet rooms give an empty set-up's stories and demand.
+    report = plumbing_results(MepModel(), bim, rooms=inputs(bim))
+    assert [s["story"] for s in report["demand"]["stories"]] == ["L1"]
+    assert report["rooms"]["stories"][0]["source"] == "rooms"
+    # Without wet rooms nothing starts.
+    assert plumbing_results(MepModel(), bim)["demand"] is None

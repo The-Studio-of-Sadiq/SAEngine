@@ -51,7 +51,7 @@ import {
 import { MepEditorInput } from './mepEditorInput.js';
 import { IPlanClash, IPlanView, MepSelection, renderPlan } from './mepPlan.js';
 import {
-	allIds, checkPlumbing, constructionLabel, ensurePlumbing, FIXTURES, fixtureLabel, fixtureTotals, fixtureWords, hasPlumbing, IOccupancy, IPlumbing, IPlumbingReport, IRiser, IRoofDrain, ITank, isGroundTank, mergeSizedTanks,
+	allIds, architectureHasWetRooms, checkPlumbing, constructionLabel, ensurePlumbing, FIXTURES, fixtureLabel, fixtureTotals, fixtureWords, hasPlumbing, IOccupancy, IPlumbing, IPlumbingReport, IRiser, IRoofDrain, ITank, isGroundTank, mergeSizedTanks,
 	newRiser, newRoofDrain, newTank, PIPE_MATERIALS, PLUMBING_OCCUPANCIES_COMMAND, PLUMBING_REPORT_COMMAND, PLUMBING_SIZE_TANKS_COMMAND, PLUMBING_SLEEVES_COMMAND, PLUMBING_SYSTEMS, plumbingFailures, plumbingOf,
 	plumbingSummary, plumbingSummaryFile, PlumbingSystem, readOccupancies, readPlumbingReport, readSizedTanks, riserOnStory, sourceLabel, storyRow, SUPPLY_SOURCES, systemLabel, systemLetters,
 	TANK_CONSTRUCTIONS, TANK_KINDS, tankCapacity, TankKind, tankKindLabel, tankStory, wetKindLabel,
@@ -3362,7 +3362,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		const document = this.document;
 		const version = ++this.plumbingVersion;
 		const request = this.request();
-		if (!document || !request || !hasPlumbing(document)) {
+		if (!document || !request || !(hasPlumbing(document) || architectureHasWetRooms(this.siteTexts().architecture))) {
 			this.setBusy('plumbing', false);
 			this.plumbingReport = undefined;
 			this.plumbingState = 'idle';

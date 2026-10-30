@@ -353,9 +353,14 @@ def with_rooms(mep: Any, inputs: RoomInputs | None) -> tuple[Any, list[dict[str,
     and the source of each story's fixtures for the report: ``[{story, source, rooms,
     fromRooms, typed, occupancy, population, populationSource, note}]``. The model is returned
     unchanged without plumbing or rooms."""
-    from saengine.library.mep import Fixtures, PlumbingStory
+    from saengine.library.mep import Fixtures, Plumbing, PlumbingStory
 
     plumbing = mep.plumbing
+    if plumbing is None and inputs is not None and any(s.wet for s in inputs.stories.values()):
+        # The wet rooms are the plumbing's start: a project without a plumbing section yet
+        # gets their fixtures as an empty set-up's.
+        plumbing = Plumbing()
+        mep = mep.model_copy(update={"plumbing": plumbing})
     if plumbing is None or inputs is None or not inputs.stories:
         rows = []
         for entry in plumbing.stories if plumbing is not None else []:

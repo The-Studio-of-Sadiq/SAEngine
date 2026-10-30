@@ -221,6 +221,19 @@ export function plumbingOf(document: IMep): IPlumbing | undefined {
 	return normalizePlumbing(document.plumbing);
 }
 
+/** Whether an architecture file's text (`05 Floor Plan/architecture.json`) has a room marked wet: its fixtures start the plumbing. */
+export function architectureHasWetRooms(text: string | undefined): boolean {
+	if (!text) {
+		return false;
+	}
+	try {
+		const data: unknown = JSON.parse(text);
+		return isRecord(data) && records<Record<string, unknown>>(data.rooms).some(r => r.wet === true);
+	} catch {
+		return false;
+	}
+}
+
 export function hasPlumbing(document: IMep): boolean {
 	const p = plumbingOf(document);
 	return !!p && (p.stories.length + p.risers.length + p.tanks.length + p.roof.drains.length > 0);
@@ -1120,13 +1133,16 @@ export function plumbingFailures(report: IPlumbingReport): { items: number; floo
 
 /** The status line: "6 storeys · 4 risers · 2 tanks · 1 floor below the minimum pressure". */
 export function plumbingSummary(document: IMep, report: IPlumbingReport | undefined): string {
-	const plumbing = plumbingOf(document);
+	// Without a plumbing section, a report still comes from the architecture's wet rooms.
+	const plumbing = plumbingOf(document) ?? (report ? { supply: {}, stories: [], risers: [], tanks: [], roof: { drains: [] } } : undefined);
 	if (!plumbing) {
 		return localize('plb.sum.none', "No plumbing yet");
 	}
 	const parts: string[] = [];
 	const n = (count: number, one: string, many: string) => parts.push(count === 1 ? one : many);
-	n(plumbing.stories.length, localize('plb.sum.storey', "1 storey"), localize('plb.sum.storeys', "{0} storeys", plumbing.stories.length));
+	// The storeys the report sized: those typed here and those the architecture's wet rooms add.
+	const storeys = Math.max(plumbing.stories.length, report?.demand.length ?? 0);
+	n(storeys, localize('plb.sum.storey', "1 storey"), localize('plb.sum.storeys', "{0} storeys", storeys));
 	n(plumbing.risers.length, localize('plb.sum.riser', "1 riser"), localize('plb.sum.risers', "{0} risers", plumbing.risers.length));
 	n(plumbing.tanks.length, localize('plb.sum.tank', "1 tank"), localize('plb.sum.tanks', "{0} tanks", plumbing.tanks.length));
 	if (plumbing.roof.drains.length) {
