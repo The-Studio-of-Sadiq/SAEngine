@@ -407,17 +407,102 @@ def test_unticked_split_keeps_the_type_on_bars_for_all_its_members() -> None:
         apply_proposal(objects_text, bim_text, proposal(new_apply=False, by_type=False))
 
 
+# ─────────────────────────────── seismic column ties ───────────────────────────────
+
+
+def _column_ties(count: int, dia: float):
+    from saengine.design.proposal import seismic_transverse
+    from saengine.library.objects import Column
+
+    column = Column.model_validate(
+        {
+            "id": "C550",
+            "name": "Column",
+            "material": "C28",
+            "profile": {"shape": "rectangle", "xDim": 550, "yDim": 550},
+        }
+    )
+    context = {"level": "special", "lateral": True, "cover": 40.0, "axial": (3000e3,)}
+    reinforcement = {
+        "material": "B420",
+        "cover": 40.0,
+        "longitudinal": [{"position": "perimeter", "count": count, "dia": dia}],
+        "transverse": {"type": "tie", "dia": 10.0, "spacing": 150.0, "legs": 2},
+    }
+    return seismic_transverse(
+        "column",
+        column,
+        reinforcement,
+        [{"seismicContext": {**context, "clearHeight": 2500.0}}],
+        FC,
+        FY,
+        200_000.0,
+        None,
+        Options.of({}),
+    )
+
+
+def test_seismic_ties_never_have_more_legs_than_bars_on_a_face() -> None:
+    # N-X3 of usability walk 2: 4Ø32 in a 550 mm column got 4-leg ties. Its corner bars are
+    # 550 - 2 × 40 - 2 × 10 - 32 = 418 mm apart, above hx = 350 mm (Sec 8.3.5.4(c)), and a cross
+    # tie needs a bar to hold (8.3.5.4(a)(iii)): no ties can be made, so the layout is refused
+    # ("detailable": False) and the proposal moves to one with more bars on its faces.
+    _, info = _column_ties(4, 32.0)
+    assert info is not None and info["detailable"] is False
+    # 8Ø25: 3 bars a face, 3 legs; 12Ø20: 4 bars a face, at most 4 legs.
+    found, info = _column_ties(8, 25.0)
+    assert info.get("detailable", True) and found["transverse"]["legs"] == 3
+    assert found["transverse"].get("legsX", 3) <= 3
+    found, _ = _column_ties(12, 20.0)
+    assert found["transverse"]["legs"] <= 4 and found["transverse"].get("legsX", 4) <= 4
+
+
+def test_column_pick_prefers_fewer_larger_bars() -> None:
+    # N-X3: the lightest layout of a 1050 mm column was 56Ø16 (11 259 mm²); 24Ø25 (11 781 mm²,
+    # 4.6 % more) is within FEWER_BARS_MARGIN and is taken instead.
+    from saengine.design.proposal import FEWER_BARS_MARGIN, _column_pick
+    from saengine.design.required import ColumnSearch
+    from saengine.library.objects import Column
+
+    column = Column.model_validate(
+        {
+            "id": "C1050",
+            "name": "Column",
+            "material": "C28",
+            "profile": {"shape": "rectangle", "xDim": 1050, "yDim": 1050},
+        }
+    )
+    search = ColumnSearch(column, FC, FY, 200_000.0, None, Options.of({}))
+    points = [(2000e3, 50e6, 50e6, "U1", "bottom")]
+    index = search.smallest(points)
+    lightest = search.layouts[index]
+    pick = _column_pick(search, index, points)
+    chosen = search.layouts[pick.index]
+    assert chosen.area <= lightest.area * (1 + FEWER_BARS_MARGIN) + 1e-6
+    assert chosen.count <= lightest.count
+    assert (lightest.count, lightest.dia) == (56, 16.0)
+    assert (chosen.count, chosen.dia) == (24, 25.0)
+
+
 # ─────────────────────────────── joint shear ───────────────────────────────
 
 
-def _joint_frame(tmp_path: Path, monkeypatch, sag: float, hog: float):
+def _joint_frame(
+    tmp_path: Path,
+    monkeypatch,
+    sag: float,
+    hog: float,
+    options: dict | None = None,
+    b2: tuple[float, float] | None = None,
+):
     """An interior joint of a special moment frame, f'c 25, fy 420: the 400 x 400 column C1
     (storey 0-3 m) with C2 above it, 300 x 500 beams B1 and B2 of one type framing into two
     opposite faces (x) at 3 m. The checks' own joint shear: γ = 1.2 (two opposite faces
     confined, 300 ≥ 0.75 × 400), Aj = 400 × min(400, 300 + 400) = 160 000 mm², φ Vn = 0.85 ×
     1.2 × √25 × 160 000 = 816 kN. The beam demands (sagging, hogging [kN·m], shear 150 kN) are
     given directly; the joint is found in the building model as the checks found it (their row
-    named "Detailing: Joint shear, ..."), and the proposal is made for them."""
+    named "Detailing: Joint shear, ..."), and the proposal is made for them. ``b2``: other
+    demands (sagging, hogging) of B2."""
     from types import SimpleNamespace
 
     from saengine.design import proposal as P
@@ -476,9 +561,10 @@ def _joint_frame(tmp_path: Path, monkeypatch, sag: float, hog: float):
     )
     common = {"fc": fc, "fy": FY, "es": 200_000.0, "aggregate": None}
     loads = BeamLoads(sag * 1e6, hog * 1e6, 150e3)
+    light = BeamLoads(b2[0] * 1e6, b2[1] * 1e6, 150e3) if b2 else loads
     beams = [
-        {"id": b, "kind": "beam", "type": "B300x500", "object": beam, "loads": loads, **common}
-        for b in ("B1", "B2")
+        {"id": b, "kind": "beam", "type": "B300x500", "object": beam, "loads": own, **common}
+        for b, own in (("B1", loads), ("B2", light))
     ]
     columns = [
         {
@@ -503,7 +589,7 @@ def _joint_frame(tmp_path: Path, monkeypatch, sag: float, hog: float):
         notes=[],
     )
     monkeypatch.setattr(P, "_beam_loads", lambda member, combinations: member["loads"])
-    return P.design_proposal(tmp_path, tmp_path / "model.osmodel", gathered=gathered)
+    return P.design_proposal(tmp_path, tmp_path / "model.osmodel", options, gathered=gathered)
 
 
 def test_lighter_beam_bars_make_the_joint_pass(tmp_path: Path, monkeypatch) -> None:
@@ -537,6 +623,51 @@ def test_joint_shear_reports_the_column_too_small(tmp_path: Path, monkeypatch) -
     assert column["tooSmall"]["suggestion"].startswith("try 650 x 650 mm (+250 mm)")
     assert any(n.startswith("bars for its axial forces and moments:") for n in column["notes"])
     assert "C400: section too small — joint shear at C1@3000" in proposal["warnings"]
+
+
+def test_joint_shear_verdict_is_the_same_in_both_modes(tmp_path: Path, monkeypatch) -> None:
+    # N-X5 of usability walk 2: the split moves the lightly loaded B2 to a lighter new type, and
+    # the joint was judged on those lighter bars: the C400 failed joint shear when keeping
+    # shared types and passed when splitting. Both modes now judge the joints on the beam
+    # type's shared bars (top 4Ø25, bottom 3Ø25 here), so both report the column too small.
+    verdicts = {}
+    for mode in ("byType", "splitTypes"):
+        proposal = _joint_frame(
+            tmp_path / mode, monkeypatch, sag=196, hog=280, options={"mode": mode}, b2=(40, 80)
+        )
+        column = next(t for t in proposal["types"] if t["type"] == "C400")
+        verdicts[mode] = (column["status"], column["tooSmall"]["reason"])
+        if mode == "splitTypes":
+            assert [n["members"] for n in proposal["newTypes"]] == [["B2"]]
+        # The bars its strength needs stay on offer ("apply strength bars anyway").
+        assert column["strengthBars"]["text"].startswith("8Ø16")
+    assert verdicts["byType"] == verdicts["splitTypes"] == ("tooSmall", "joint shear at C1@3000")
+
+
+def test_strength_bars_applied_anyway_on_request(tmp_path: Path, monkeypatch) -> None:
+    proposal = _joint_frame(tmp_path, monkeypatch, sag=196, hog=280)
+    column = next(t for t in proposal["types"] if t["type"] == "C400")
+    # The fixture's column type has no bars, so no rebar grade to carry over (a real type
+    # without bars is checked with assumed ones, which have it).
+    column = {**column, "strengthBars": {**column["strengthBars"], "material": "B420"}}
+    objects = {
+        "objects": [
+            {
+                "id": "C400",
+                "kind": "column",
+                "name": "Column",
+                "material": "C25",
+                "profile": {"shape": "rectangle", "xDim": 400, "yDim": 400},
+            }
+        ]
+    }
+    request = {**proposal, "types": [{**column, "apply": True}]}
+    untouched = apply_proposal(json.dumps(objects), "{}", request)
+    assert "reinforcement" not in json.loads(untouched["objectsText"])["objects"][0]
+    request = {**proposal, "types": [{**column, "apply": True, "applyStrengthBars": True}]}
+    applied = apply_proposal(json.dumps(objects), "{}", request)
+    bars = json.loads(applied["objectsText"])["objects"][0]["reinforcement"]
+    assert bars["longitudinal"] == [{"position": "perimeter", "count": 8, "dia": 16.0}]
 
 
 # ─────────────────────────────── the shipped sample ───────────────────────────────

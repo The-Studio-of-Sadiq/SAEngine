@@ -353,6 +353,52 @@ def test_column_capacity_shear_by_hand() -> None:
     assert rows[0]["capacity"] == pytest.approx(0.75 * vs / KN, rel=1e-3)
 
 
+def test_column_capacity_shear_on_a_base_takes_the_beams_at_the_top() -> None:
+    # N-X3 of usability walk 2: a first-storey column (on a base, beams at its top joint only)
+    # was given Ve = 2 Mpr / lu with no limit, 1717 kN on a 900 x 900 column (7-leg ties).
+    # Sec 8.3.8.1(b): the end at the base takes the column's Mpr, the top end at most its share
+    # of the beams' ΣMpr: Ve = (Mpr + share) / lu.
+    section = column_section()
+    mpr = rect_mn(400, 400, COLUMN_LAYERS, 1.25 * FY, 500 * KN)
+    rows = column_capacity_shear(
+        section,
+        0.0,
+        np.array([1.0, 0.0]),
+        2500,
+        500 * KN,
+        500 * KN,
+        0.0,
+        None,
+        Stirrups(10, 2, 100),
+        base_beam_moment=0.4 * mpr,
+    )
+    assert rows[0]["demand"] == pytest.approx(1.4 * mpr / 2500 / KN, rel=5e-3)
+    assert "on a base" in rows[0]["note"]
+    # Beams stronger than the column at the top: 2 Mpr / lu as before.
+    rows = column_capacity_shear(
+        section,
+        0.0,
+        np.array([1.0, 0.0]),
+        2500,
+        500 * KN,
+        500 * KN,
+        0.0,
+        None,
+        Stirrups(10, 2, 100),
+        base_beam_moment=2 * mpr,
+    )
+    assert rows[0]["demand"] == pytest.approx(2 * mpr / 2500 / KN, rel=5e-3)
+
+
+def test_av_s_row_says_why_none_is_needed() -> None:
+    section = column_section()
+    rows = column_capacity_shear(
+        section, 0.0, np.array([1.0, 0.0]), 2500, 500 * KN, 500 * KN, 0.0, 10 * KN, None
+    )
+    assert rows[1]["demand"] == 0.0
+    assert "φ Vc carries Ve" in rows[1]["note"]
+
+
 def test_joint_beam_mpr_per_direction() -> None:
     mpr = joint_beam_mpr(interior_joint(), {"BM": beam_section()}, 0.0)
     assert set(mpr) == {"x"}

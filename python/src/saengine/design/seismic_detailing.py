@@ -23,7 +23,8 @@ What this glue derives from the model, where BNBC gives no rule for it (SAEngine
 - the axial forces at a joint: the column pieces with an end at the joint's level.
 
 Every detailing check's name starts with ``"Detailing: "`` (the workbench groups them) and has
-a ``"clause"``; they count in the member's utilisation like the strength checks.
+a ``"clause"``; a failing one sets the member's utilisation, a passing one does not
+(:func:`rate`).
 """
 
 from __future__ import annotations
@@ -43,6 +44,42 @@ from saengine.design.rc import DesignError, RcSection
 
 PREFIX = "Detailing: "
 CODE = "BNBC 2020 Part 6"
+
+
+def rate(entry: dict[str, Any]) -> None:
+    """Sets a checked member's utilisation from its ``checks`` (N-X7 of usability walk 2: every
+    member read 1.00 from a detailing equality such as lo 550 against 550 mm):
+
+    - ``strengthUtilisation``: the largest of the strength checks (every counted check not
+      named ``"Detailing: "``), ``detailingUtilisation`` the largest of the detailing ones;
+    - ``utilisation``: the strength one, or the detailing one when a detailing check fails (a
+      passing detailing check never governs);
+    - ``governingCheck``: ``{"name", "combination"}`` of the check that sets ``utilisation``;
+    - ``ok``: every counted check passes.
+
+    Flagged checks are reported only and count in none of them."""
+    counted = [c for c in entry["checks"] if not c["flag"]]
+    strength = [c for c in counted if not c["name"].startswith(PREFIX)]
+    detailing = [c for c in counted if c["name"].startswith(PREFIX)]
+    top_strength = max(strength, key=lambda c: c["utilisation"], default=None)
+    top_detailing = max(detailing, key=lambda c: c["utilisation"], default=None)
+    governing = top_strength
+    failing = any(not c["ok"] for c in detailing)
+    if top_detailing is not None and (
+        top_strength is None
+        or (failing and top_detailing["utilisation"] > top_strength["utilisation"])
+    ):
+        governing = top_detailing
+    entry["strengthUtilisation"] = top_strength["utilisation"] if top_strength else 0.0
+    entry["detailingUtilisation"] = top_detailing["utilisation"] if top_detailing else 0.0
+    entry["utilisation"] = governing["utilisation"] if governing else 0.0
+    entry["governingCheck"] = (
+        {"name": governing["name"], "combination": governing.get("combination")}
+        if governing
+        else None
+    )
+    entry["ok"] = all(c["ok"] for c in counted)
+
 
 #: Combinations with earthquake: these cases (static) or a response spectrum envelope.
 EARTHQUAKE_CASES = ("EX", "EY")
@@ -454,6 +491,12 @@ def apply(
                 "type": _joint_type(joint, rotation),
                 "level": joint.level,
                 "scwb": {"x": scwb.get("x"), "y": scwb.get("y")},
+                # The factored axial forces of the columns at the joint [N, pmin and pmax over
+                # the combinations with earthquake]: Design Reinforcement checks ΣMnc with them.
+                "axial": {
+                    "below": [jb.pmin, jb.pmax],
+                    "above": None if ja is None else [ja.pmin, ja.pmax],
+                },
                 "shear": None
                 if governing_shear is None
                 else {
@@ -665,9 +708,7 @@ def apply(
             info["zones"].update(_zone_spacing(info["zones"], tagged, zones))
         d.entry["checks"] = d.entry["checks"] + tagged
         d.entry["detailing"] = info
-        strength = [c for c in d.entry["checks"] if not c["flag"]]
-        d.entry["utilisation"] = max((c["utilisation"] for c in strength), default=0.0)
-        d.entry["ok"] = all(c["ok"] for c in strength)
+        rate(d.entry)
     return {"joints": joints_out, "notes": notes}
 
 
@@ -796,10 +837,14 @@ def _column_shear(
     top = own[-1] if own else None
     rows: list[dict[str, Any]] = []
     best: tuple[float, float, float] = (-1.0, 0.0, 0.0)
-    context.update(lu=lu, rotation=rotation, beamLimit={})
+    context.update(lu=lu, rotation=rotation, beamLimit={}, baseBeamMoment={})
     for k, direction in enumerate(dj.column_axes(rotation)):
         axis = "xy"[k]
-        beam_limit = None
+        beam_limit = base_moment = None
+        if top is not None and bottom is None and top.id in mpr_at:
+            # On a base: the hinge there takes the column's Mpr, the top joint's beams limit
+            # the other end (Sec 8.3.8.1(b)).
+            base_moment = (0.5 if top.above else 1.0) * mpr_at[top.id].get(axis, 0.0)
         if top is not None and bottom is not None:
             share_top = 0.5 if top.above else 1.0
             beam_limit = dj.beam_limited_column_shear(
@@ -810,6 +855,7 @@ def _column_shear(
                 0.5,
             )
         context["beamLimit"][axis] = beam_limit
+        context["baseBeamMoment"][axis] = base_moment
         legs = (zones.across_depth if k == 0 else zones.legs) if zones else 0
         stirrups = dj.Stirrups(zones.dia, legs, zones.in_zone) if zones and legs else None
         found = dj.column_capacity_shear(
@@ -824,6 +870,7 @@ def _column_shear(
             stirrups,
             level=level,
             doubled_e_shear=dem.doubled_e_shear_x if k == 0 else dem.doubled_e_shear,
+            base_beam_moment=base_moment,
         )
         rows += found
         if found and found[0]["utilisation"] > best[0]:
@@ -924,6 +971,7 @@ def capacity_av_s(section: RcSection, kind: str, context: dict[str, Any]) -> dic
             None,
             level=level,
             doubled_e_shear=dem.doubled_e_shear_x if k == 0 else dem.doubled_e_shear,
+            base_beam_moment=context.get("baseBeamMoment", {}).get(axis),
         )
         if len(rows) > 1:
             out[axis] = rows[1]["demand"]
