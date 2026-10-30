@@ -541,6 +541,9 @@ def test_rigid_diaphragm_released_for_the_case(tmp_path: Path, derived: dict[str
     bare["mp_constraints"] = []
     used = {n for e in bare["elements"] for n in e["nodes"]}
     bare["nodes"] = [n for n in bare["nodes"] if n["id"] in used]
+    # The loads lumped at the diaphragms' own nodes (story masses, static earthquake) go too.
+    for p in bare["load_patterns"]:
+        p["nodal_loads"] = [load for load in p["nodal_loads"] if load["node_id"] in used]
     for a in bare["analyses"]:
         a.pop("release_diaphragms", None)
     bare_result, bare_forces = _run(bare, case, tmp_path / "bare")

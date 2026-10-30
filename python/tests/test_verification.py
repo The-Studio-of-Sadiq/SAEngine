@@ -19,7 +19,7 @@ from saengine.verification.run import main, render_pdf, run_all, summary_table
 #: this test accepts; any other failing quantity fails it.
 KNOWN_ISSUES = {
     # Linear tetrahedra at the meshes Project Settings allow: about 8 % stiff in bending.
-    "A9": {"Tip deflection, default 1000 mm mesh", "Tip deflection, 100 mm mesh (finest allowed)"},
+    "A9": {"Tip deflection, default 500 mm mesh", "Tip deflection, 100 mm mesh (finest allowed)"},
 }
 
 

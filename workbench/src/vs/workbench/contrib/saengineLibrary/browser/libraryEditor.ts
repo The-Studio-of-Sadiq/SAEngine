@@ -33,6 +33,8 @@ import { EditorFrame } from '../../saengineProject/browser/editorFrame.js';
 import { clone, IDocumentFrameActions, IDocumentProblem, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditorInput, LibraryKind } from './libraryEditorInput.js';
 import { humanize, JsonObject, JsonValue, SchemaForm } from './schemaForm.js';
+import { modifiersView, objectTypeTarget, pruneForKind, readCodeStiffness, resetObjectTypeGroup, setObjectTypeField } from '../../saengineModel/browser/modifiersModel.js';
+import { renderModifiers } from '../../saengineModel/browser/modifiersPanel.js';
 
 interface IVariant {
 	/** Value of the item's discriminator field (material category, object kind). */
@@ -96,6 +98,8 @@ export class LibraryEditor extends JsonDocumentEditor {
 
 	/** Ids from the project's materials file, for the material fields of object types. */
 	private materialIds: { members: string[]; rebar: string[] } = { members: [], rebar: [] };
+	/** The materials document, for which object types take the code's cracked factors (stiffness modifiers). */
+	private materialsDoc: JsonObject | undefined;
 
 	private readonly form: SchemaForm;
 	private readonly listDisposables = this._register(new DisposableStore());
@@ -200,8 +204,10 @@ export class LibraryEditor extends JsonDocumentEditor {
 
 	protected override onCompanionChanged(text: string): void {
 		try {
-			const materials = (JSON.parse(text) as JsonObject).materials;
+			const document = JSON.parse(text) as JsonObject;
+			const materials = document.materials;
 			const list = Array.isArray(materials) ? materials.filter(isObject) : [];
+			this.materialsDoc = document;
 			this.materialIds = {
 				// Members are made of concrete, steel, masonry, ...; never of rebar or mortar alone.
 				members: list.filter(m => m.category !== 'rebar' && m.category !== 'mortar').map(m => String(m.id)),
@@ -367,6 +373,15 @@ export class LibraryEditor extends JsonDocumentEditor {
 		if (this.config.listKey === 'objects' && isObject(item.profile) && replacement.profile !== undefined) {
 			replacement.profile = item.profile;
 		}
+		if (this.config.listKey === 'objects') {
+			// The stiffness modifiers and design overwrites the new kind still has.
+			for (const key of ['modifiers', 'designOverwrites']) {
+				if (item[key] !== undefined) {
+					replacement[key] = item[key];
+				}
+			}
+			pruneForKind(replacement);
+		}
 		const list = this.document[this.config.listKey] as JsonValue[];
 		list[list.indexOf(item)] = replacement;
 		this.changed(true);
@@ -519,7 +534,21 @@ export class LibraryEditor extends JsonDocumentEditor {
 
 		const schema = config.schema.$defs?.[variants[current].defName];
 		if (schema) {
-			this.form.render(form, schema, item, [config.discriminator]);
+			this.form.render(form, schema, item, [config.discriminator, 'modifiers', 'designOverwrites']);
+		}
+		if (config.listKey === 'objects') {
+			// Stiffness modifiers and design overwrites of the type (the members inherit them).
+			renderModifiers(form, modifiersView('type', [objectTypeTarget(item, this.materialsDoc)], readCodeStiffness(undefined, undefined)), this.detailDisposables, {
+				contextViewService: this.contextViewService,
+				apply: (group, key, value) => {
+					setObjectTypeField(item, group, key, value);
+					this.changed(true);
+				},
+				reset: group => {
+					resetObjectTypeGroup(item, group);
+					this.changed(true);
+				},
+			});
 		}
 	}
 

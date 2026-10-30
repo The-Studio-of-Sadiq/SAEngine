@@ -467,6 +467,13 @@ export interface IFemSolverService {
 	 */
 	ssiCompare(python: string, projectRoot: string): Promise<object>;
 
+	/**
+	 * The mesh convergence check of Run All (`saengine.fem.mesh_check`): the beams' gravity end
+	 * moments on the project's mesh and on one twice as coarse (also written to
+	 * `08 FEM/model.results/mesh-check.json`); `{skipped}` when not needed, or `{problems}`.
+	 */
+	meshCheck(python: string, projectRoot: string): Promise<object>;
+
 	/** The MEP coordination report of the project (`saengine.mep.mep_report`), plain JSON read by the MEP editor, or `{problems}`. */
 	mepReport(python: string, projectRoot: string, mepText?: string): Promise<object>;
 

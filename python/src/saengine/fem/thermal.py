@@ -382,7 +382,7 @@ def add_thermal_case(
             continue
         if e["type"] == "ElasticBeamColumn":
             a, b = coords[nodes[0]], coords[nodes[1]]
-            axes = np.array(local_axes(a, b))
+            axes = np.array(local_axes(a, b, e.get("vecxz")))
             # The gradient is top minus bottom: the +z face is the top when local z points up.
             up = float(np.sign(axes[2][2])) if abs(axes[2][2]) > 1e-9 else 0.0
             f0 = frame_fixed_end_forces(

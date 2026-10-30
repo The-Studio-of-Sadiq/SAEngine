@@ -28,6 +28,22 @@ in 3D (the runner picks ``vecxz`` from the element axis)."""
 
 GEOM_TRANSF_TYPES: tuple[str, ...] = get_args(GeomTransfType)
 
+Vector3 = tuple[float, float, float]
+"""A vector in global axes."""
+
+JointOffsets = tuple[float, float, float, float, float, float]
+"""``geomTransf ... -jntOffset dXi dYi dZi dXj dYj dZj``: the rigid offsets of the element's
+ends from its nodes, in global axes (model length units)."""
+
+_VECXZ_DESCRIPTION = (
+    "In 3D, a vector in the element's local x-z plane (``geomTransf ... vecxz``); empty: the "
+    "runner picks it from the element axis (global X for a vertical element, else global Z)."
+)
+_OFFSETS_DESCRIPTION = (
+    "Rigid end offsets (``-jntOffset``) from node i and node j, global axes: the element "
+    "deforms between the offset points (rigid end zones). Empty: none."
+)
+
 BeamIntegrationRule = Literal["Lobatto", "Legendre", "NewtonCotes", "Radau", "Trapezoidal"]
 """``beamIntegration`` rule of a force or displacement beam-column. Each gives its own
 section locations and weights in OpenSeesPy 3.8.0 for 2 to 10 points. Beyond 10 points the
@@ -78,6 +94,10 @@ class ElasticBeamColumn(Entity):
             "consistent mass distribution for their modal periods."
         ),
     )
+    vecxz: Vector3 | None = Field(default=None, description=_VECXZ_DESCRIPTION)
+    joint_offsets: JointOffsets | None = Field(default=None, description=_OFFSETS_DESCRIPTION)
+
+    serialize_without_defaults = omit_when_default("vecxz", "joint_offsets")
 
 
 class ForceBeamColumn(Entity):
@@ -91,8 +111,10 @@ class ForceBeamColumn(Entity):
     geom_transf: GeomTransfType = "Linear"
     max_iter: int = Field(default=10, ge=1)
     tolerance: float = Field(default=1e-12, gt=0.0)
+    vecxz: Vector3 | None = Field(default=None, description=_VECXZ_DESCRIPTION)
+    joint_offsets: JointOffsets | None = Field(default=None, description=_OFFSETS_DESCRIPTION)
 
-    serialize_without_defaults = omit_when_default("integration")
+    serialize_without_defaults = omit_when_default("integration", "vecxz", "joint_offsets")
 
 
 class DispBeamColumn(Entity):
@@ -104,8 +126,10 @@ class DispBeamColumn(Entity):
     integration_points: int = Field(default=5, ge=2, le=10)
     integration: BeamIntegrationRule = "Lobatto"
     geom_transf: GeomTransfType = "Linear"
+    vecxz: Vector3 | None = Field(default=None, description=_VECXZ_DESCRIPTION)
+    joint_offsets: JointOffsets | None = Field(default=None, description=_OFFSETS_DESCRIPTION)
 
-    serialize_without_defaults = omit_when_default("integration")
+    serialize_without_defaults = omit_when_default("integration", "vecxz", "joint_offsets")
 
 
 class ZeroLengthElement(Entity):

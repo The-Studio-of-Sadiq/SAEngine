@@ -30,6 +30,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from saengine.library.floorplan import FloorPlan, GridPoint, Story
 from saengine.library.labels import field_title
 from saengine.library.materials import Id
+from saengine.library.modifiers import DesignOverwrites, FrameModifiers, ShellModifiers
 from saengine.library.objects import ObjectLibrary
 from saengine.library.structure import StructuralModel
 
@@ -89,6 +90,17 @@ class ColumnElement(_Element):
     bottom: Mm = Field(description="Elevation of the bottom [mm].")
     top: Mm = Field(description="Elevation of the top [mm].")
     rotation: float = Field(default=0, description="[°]")
+    modifiers: FrameModifiers | None = Field(
+        default=None,
+        title="Stiffness modifiers",
+        description="Factors on the analysis section properties (empty: the code's cracked "
+        "factors for concrete and masonry, else 1).",
+    )
+    designOverwrites: DesignOverwrites | None = Field(
+        default=None,
+        title="Design overwrites",
+        description="k, unbraced lengths and framing for the design (empty: automatic).",
+    )
 
 
 class BeamElement(_Element):
@@ -98,6 +110,17 @@ class BeamElement(_Element):
     start: Point2
     end: Point2
     elevation: Mm = Field(description="Elevation of the top [mm].")
+    modifiers: FrameModifiers | None = Field(
+        default=None,
+        title="Stiffness modifiers",
+        description="Factors on the analysis section properties (empty: the code's cracked "
+        "factors for concrete and masonry, else 1).",
+    )
+    designOverwrites: DesignOverwrites | None = Field(
+        default=None,
+        title="Design overwrites",
+        description="k, unbraced lengths and framing for the design (empty: automatic).",
+    )
 
 
 class WallElement(_Element):
@@ -106,6 +129,12 @@ class WallElement(_Element):
     end: Point2
     bottom: Mm = Field(description="[mm]")
     top: Mm = Field(description="[mm]")
+    modifiers: ShellModifiers | None = Field(
+        default=None,
+        title="Stiffness modifiers",
+        description="Factors on the analysis shell stiffness, mass and weight (empty: the "
+        "code's cracked factors for concrete and masonry, else 1).",
+    )
 
 
 class SlabElement(_Element):
@@ -116,6 +145,12 @@ class SlabElement(_Element):
         default=None,
         title="Area load",
         description="Area load from 02 Project Settings; none: the floor or roof load there.",
+    )
+    modifiers: ShellModifiers | None = Field(
+        default=None,
+        title="Stiffness modifiers",
+        description="Factors on the analysis shell stiffness, mass and weight (empty: the "
+        "code's cracked factors for concrete and masonry, else 1).",
     )
 
 
@@ -363,6 +398,8 @@ def generate(plan: FloorPlan, stamp: str, previous: BuildingModel | None = None)
                 bottom=level[c.base],
                 top=level[c.top],
                 rotation=c.rotation,
+                modifiers=c.modifiers,
+                designOverwrites=c.designOverwrites,
             )
         )
     for b in plan.beams:
@@ -374,6 +411,8 @@ def generate(plan: FloorPlan, stamp: str, previous: BuildingModel | None = None)
                 start=at(b.start),
                 end=at(b.end),
                 elevation=level[b.story],
+                modifiers=b.modifiers,
+                designOverwrites=b.designOverwrites,
             )
         )
     for w in plan.walls:
@@ -386,6 +425,7 @@ def generate(plan: FloorPlan, stamp: str, previous: BuildingModel | None = None)
                 end=at(w.end),
                 bottom=level[w.base],
                 top=level[w.top],
+                modifiers=w.modifiers,
             )
         )
     for s in plan.slabs:
@@ -397,6 +437,7 @@ def generate(plan: FloorPlan, stamp: str, previous: BuildingModel | None = None)
                 boundary=[at(p) for p in s.boundary],
                 elevation=level[s.story],
                 areaLoad=s.areaLoad,
+                modifiers=s.modifiers,
             )
         )
     for f in plan.footings:

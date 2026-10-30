@@ -27,11 +27,10 @@ Used by:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
-
-Framing = Literal["braced", "sway"]
+# The models live in the library (object types and floor-plan members carry them).
+from saengine.library.modifiers import DesignOverwrites, Framing, MomentMagnifiers
 
 #: Where a resolved value came from.
 MEMBER = "member"
@@ -39,76 +38,6 @@ TYPE = "type"
 DEFAULT = "default"
 
 _SOURCE_TEXT = {MEMBER: " (overwrite)", TYPE: " (type overwrite)", DEFAULT: ""}
-
-
-class MomentMagnifiers(BaseModel):
-    """Moment magnification factors given instead of worked out (RC columns, BNBC 6.3.10)."""
-
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
-
-    cm: float | None = Field(
-        default=None, gt=0, le=1.0, title="Cm", description="Equivalent moment factor Cm."
-    )
-    deltaNs: float | None = Field(
-        default=None, ge=1.0, title="δns", description="Nonsway moment magnifier δns (>= 1)."
-    )
-    deltaS: float | None = Field(
-        default=None, ge=1.0, title="δs", description="Sway moment magnifier δs (>= 1)."
-    )
-
-
-class DesignOverwrites(BaseModel):
-    """Design overwrites of a member or of an object type (empty fields inherit)."""
-
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
-
-    k2: float | None = Field(
-        default=None,
-        gt=0,
-        le=10,
-        title="k minor (2)",
-        description="Effective length factor for bending about the profile's y-axis.",
-    )
-    k3: float | None = Field(
-        default=None,
-        gt=0,
-        le=10,
-        title="k major (3)",
-        description="Effective length factor for bending about the profile's x-axis.",
-    )
-    Lb: float | None = Field(
-        default=None,
-        gt=0,
-        title="Lb",
-        description="Laterally unbraced length of the compression flange (steel) [mm].",
-    )
-    Lu2: float | None = Field(
-        default=None,
-        gt=0,
-        title="Lu minor (2)",
-        description="Unbraced length for bending about the profile's y-axis [mm].",
-    )
-    Lu3: float | None = Field(
-        default=None,
-        gt=0,
-        title="Lu major (3)",
-        description="Unbraced length for bending about the profile's x-axis [mm].",
-    )
-    framing: Framing | None = Field(
-        default=None,
-        title="Framing",
-        description="Braced (nonsway) or sway; none: from the storey's stability index.",
-    )
-    momentMagnifiers: MomentMagnifiers | None = Field(
-        default=None, title="Moment magnifiers", description="Cm, δns, δs given (RC columns)."
-    )
-    liveLoadReduction: float | None = Field(
-        default=None,
-        gt=0,
-        le=1.0,
-        title="Live load reduction",
-        description="Live load reduction factor (placeholder: not applied yet).",
-    )
 
 
 #: The fields resolved one by one (``momentMagnifiers`` per factor).

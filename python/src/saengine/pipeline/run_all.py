@@ -86,7 +86,16 @@ DERIVATION_SOURCES = (
     ("objects", "objects", "Object Types"),
     ("materials", "materials", "Materials"),
 )
-DERIVATION_INPUTS = ("bim", "settings", "objects", "materials", "soil", "mep", "substructure")
+DERIVATION_INPUTS = (
+    "bim",
+    "settings",
+    "objects",
+    "materials",
+    "soil",
+    "mep",
+    "substructure",
+    "loads",
+)
 #: ``BOQ_SOURCES``: (part, label, required, optional).
 BOQ_SOURCES = (
     ("bim", "Building Model", True, False),
@@ -101,6 +110,7 @@ TANK_BARS_PENDING = "its bars are not measured: it has no current design"
 PUSHOVER_FILE = "pushover.osmodel"
 THERMAL_FILE = "thermal.json"
 SSI_FILE = "ssi.json"
+FACES_FILE = "faces.json"
 
 #: A progress callback: ``(step id, step index, step count, message or None)``.
 Progress = Callable[[str, int, int, str | None], None]
@@ -238,6 +248,14 @@ def derivation_state(description: Any, texts: dict[str, str | None]) -> tuple[bo
             changed.append("MEP")
     elif recorded and mep_has_content(mep_text):
         changed.append("MEP")
+    from saengine.pipeline.status import loads_have_content
+
+    loads_text = texts.get("loads")
+    if "loads" in recorded:
+        if loads_text is None or recorded["loads"] != source_stamp(loads_text):
+            changed.append("Line Loads")
+    elif recorded and loads_have_content(loads_text):
+        changed.append("Line Loads")
     return bool(recorded), changed
 
 
@@ -267,6 +285,7 @@ def _derive(project: Project, step: StepResult) -> bool:
         texts.get("soil"),
         texts.get("mep"),
         texts.get("substructure"),
+        texts.get("loads") or "",
     )
     if not result.get("text"):
         raise StepFailure("; ".join(result.get("problems") or []))
@@ -274,6 +293,7 @@ def _derive(project: Project, step: StepResult) -> bool:
     for name, text in (
         (THERMAL_FILE, result.get("thermalText")),
         (SSI_FILE, result.get("ssiText")),
+        (FACES_FILE, result.get("facesText")),
     ):
         side = folder / name
         if text is not None:
@@ -411,6 +431,20 @@ def _analysis(project: Project, step: StepResult, report: Callable[[str], None])
     step.counts = {"cases": outcome["cases"]}
     step.message = f"Analysis complete: {outcome['cases']} case(s)."
     step.outputs.append(_relative(project, results_folder(model)))
+    # The mesh convergence check (``analysis.meshCheck``, saengine.fem.mesh_check): a warning,
+    # never a stop, as the app's Run All.
+    report("mesh check")
+    check = _handlers().mesh_check(str(project.root))
+    if check.get("problems"):
+        step.counts["meshCheck"] = {"problems": check["problems"]}
+    elif "skipped" not in check:
+        step.counts["meshCheck"] = {
+            "maxChangePercent": check.get("maxChangePercent"),
+            "warning": bool(check.get("warning")),
+            "note": check.get("note"),
+        }
+        if check.get("warning"):
+            step.message += f" Warning: {check.get('note')}."
 
 
 # ─────────────────────────────── 3: soil springs ───────────────────────────────

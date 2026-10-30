@@ -20,6 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from saengine.library.labels import field_title
 from saengine.library.materials import Id
+from saengine.library.modifiers import DesignOverwrites, FrameModifiers, ShellModifiers
 from saengine.library.objects import ObjectLibrary
 
 SCHEMA_ID = "saengine.floorPlan/1"
@@ -102,12 +103,34 @@ class PlacedColumn(_Placed):
     base: Id = Field(description="Story the column starts at.")
     top: Id = Field(description="Story the column ends at.")
     rotation: float = Field(default=0, description="Rotation of the section about its axis [°].")
+    modifiers: FrameModifiers | None = Field(
+        default=None,
+        title="Stiffness modifiers",
+        description="Factors on the analysis section properties (empty: the code's cracked "
+        "factors for concrete and masonry, else 1).",
+    )
+    designOverwrites: DesignOverwrites | None = Field(
+        default=None,
+        title="Design overwrites",
+        description="k, unbraced lengths and framing for the design (empty: automatic).",
+    )
 
 
 class PlacedBeam(_Placed):
     story: Id
     start: GridPoint
     end: GridPoint
+    modifiers: FrameModifiers | None = Field(
+        default=None,
+        title="Stiffness modifiers",
+        description="Factors on the analysis section properties (empty: the code's cracked "
+        "factors for concrete and masonry, else 1).",
+    )
+    designOverwrites: DesignOverwrites | None = Field(
+        default=None,
+        title="Design overwrites",
+        description="k, unbraced lengths and framing for the design (empty: automatic).",
+    )
 
 
 class PlacedWall(_Placed):
@@ -115,6 +138,12 @@ class PlacedWall(_Placed):
     top: Id
     start: GridPoint
     end: GridPoint
+    modifiers: ShellModifiers | None = Field(
+        default=None,
+        title="Stiffness modifiers",
+        description="Factors on the analysis shell stiffness, mass and weight (empty: the "
+        "code's cracked factors for concrete and masonry, else 1).",
+    )
 
 
 class PlacedSlab(_Placed):
@@ -126,6 +155,12 @@ class PlacedSlab(_Placed):
         default=None,
         title="Area load",
         description="Area load from 02 Project Settings; none: the floor or roof load there.",
+    )
+    modifiers: ShellModifiers | None = Field(
+        default=None,
+        title="Stiffness modifiers",
+        description="Factors on the analysis shell stiffness, mass and weight (empty: the "
+        "code's cracked factors for concrete and masonry, else 1).",
     )
 
 

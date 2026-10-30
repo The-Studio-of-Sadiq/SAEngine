@@ -11,6 +11,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from saengine.fem.end_zones import element_offsets
 from saengine.library import FloorPlan, MaterialLibrary, ObjectLibrary
 from saengine.library.bim import generate
 from saengine.library.generator import (
@@ -395,13 +396,13 @@ def applied(project: dict, name: str) -> np.ndarray:
     total = sum((np.array(n["forces"][:3]) for n in pattern["nodal_loads"]), np.zeros(3))
     for load in pattern["element_loads"]:
         a, b = (coords[n] for n in elements[load["element_id"]]["nodes"])
+        # Element loads act on the flexible length (rigid end zones, saengine.fem.end_zones).
+        span = np.linalg.norm(b - a) - sum(element_offsets(elements[load["element_id"]]))
         x = (b - a) / np.linalg.norm(b - a)
         vecxz = np.array([1.0, 0, 0]) if abs(x[2]) > abs(x[0]) else np.array([0, 0, 1.0])
         y = np.cross(vecxz, x)
         y /= np.linalg.norm(y)
-        total = total + (
-            load["wx"] * x + load["wy"] * y + load["wz"] * np.cross(x, y)
-        ) * np.linalg.norm(b - a)
+        total = total + (load["wx"] * x + load["wy"] * y + load["wz"] * np.cross(x, y)) * span
     return total
 
 

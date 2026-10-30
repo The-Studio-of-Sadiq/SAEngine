@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 
 from saengine.fem.derive import derive_fem
+from saengine.fem.end_zones import element_offsets
 from saengine.library import FloorPlan, ObjectLibrary, default_floor_plan, default_material_library
 from saengine.library.bim import Additions, WallOpening, generate
 from saengine.library.settings import default_project_settings
@@ -134,8 +135,10 @@ def total(project: dict, case: str) -> np.ndarray:
     result = sum((np.array(n["forces"][:3]) for n in pattern["nodal_loads"]), np.zeros(3))
     for load in pattern["element_loads"]:
         a, b = (coords[n] for n in elements[load["element_id"]]["nodes"])
+        # Element loads act on the flexible length (rigid end zones, saengine.fem.end_zones).
+        span = np.linalg.norm(b - a) - sum(element_offsets(elements[load["element_id"]]))
         x, y, z = local_axes(a, b)
-        result = result + (load["wx"] * x + load["wy"] * y + load["wz"] * z) * np.linalg.norm(b - a)
+        result = result + (load["wx"] * x + load["wy"] * y + load["wz"] * z) * span
     return result
 
 
@@ -205,7 +208,8 @@ def test_shell_slabs_carry_the_area_loads(tmp_path: Path) -> None:
     assert total(d.project, "SD")[2] == pytest.approx(-sd, rel=1e-6)
     assert total(d.project, "L")[2] == pytest.approx(-30 * floor.live * 1e3, rel=1e-6)
 
-    results = run(d.project, tmp_path, [1, 2, 7, 9])
+    modal = next(a["id"] for a in d.project["analyses"] if a["type"] == "Modal")
+    results = run(d.project, tmp_path, [1, 2, 7, modal])
     reaction = sum(r[-1] for r in results[1].node_reaction.values())
     assert reaction[2] == pytest.approx(-total(d.project, "D")[2], rel=1e-6)
     # Rigid floors: under the earthquake in X, level 2 translates and twists (the wall is off
@@ -224,7 +228,7 @@ def test_shell_slabs_carry_the_area_loads(tmp_path: Path) -> None:
         expected = [master[0] - master[5] * dy, master[1] + master[5] * dx, master[5]]
         assert [u[0], u[1], u[5]] == pytest.approx(expected, rel=1e-6, abs=1e-12)
     assert abs(master[5]) > 0  # the off-centre wall makes the floor twist
-    assert results[9].periods[0] > 0
+    assert results[modal].periods[0] > 0
     assert results[2].shell_forces
 
     from saengine.fem.display import result_view

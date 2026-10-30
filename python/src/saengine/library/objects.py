@@ -18,6 +18,12 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from saengine.library.labels import field_title
 from saengine.library.materials import Category, Id, MaterialLibrary
+from saengine.library.modifiers import (  # noqa: F401 - MomentMagnifiers: for the editors
+    DesignOverwrites,
+    FrameModifiers,
+    MomentMagnifiers,
+    ShellModifiers,
+)
 
 SCHEMA_ID = "saengine.objects/1"
 
@@ -444,6 +450,17 @@ class Beam(_ObjectBase):
         description="Steel beams: the simple shear connection at both ends (fin plate or end "
         "plate); none: not checked.",
     )
+    modifiers: FrameModifiers | None = Field(
+        default=None,
+        title="Stiffness modifiers",
+        description="Factors on the analysis section properties (empty: the code's cracked "
+        "factors for concrete and masonry, else 1).",
+    )
+    designOverwrites: DesignOverwrites | None = Field(
+        default=None,
+        title="Design overwrites",
+        description="k, unbraced lengths and framing for the design (empty: automatic).",
+    )
 
 
 class Column(_ObjectBase):
@@ -452,6 +469,17 @@ class Column(_ObjectBase):
     reinforcement: LinearReinforcement | None = None
     seismicRole: SeismicRole = _role()
     omegaCombinations: OmegaCombinations = _omega()
+    modifiers: FrameModifiers | None = Field(
+        default=None,
+        title="Stiffness modifiers",
+        description="Factors on the analysis section properties (empty: the code's cracked "
+        "factors for concrete and masonry, else 1).",
+    )
+    designOverwrites: DesignOverwrites | None = Field(
+        default=None,
+        title="Design overwrites",
+        description="k, unbraced lengths and framing for the design (empty: automatic).",
+    )
 
 
 class Brace(_ObjectBase):
@@ -462,6 +490,17 @@ class Brace(_ObjectBase):
     connection: SteelConnection | None = Field(
         default=None,
         description="Steel braces: the bolted gusset connection at both ends; none: not checked.",
+    )
+    modifiers: FrameModifiers | None = Field(
+        default=None,
+        title="Stiffness modifiers",
+        description="Factors on the analysis section properties (empty: the code's cracked "
+        "factors for concrete and masonry, else 1).",
+    )
+    designOverwrites: DesignOverwrites | None = Field(
+        default=None,
+        title="Design overwrites",
+        description="k, unbraced lengths and framing for the design (empty: automatic).",
     )
 
 
@@ -475,6 +514,12 @@ class Slab(_ObjectBase):
         title="Punching reinforcement",
         description="Studs or stirrups round the columns of a flat slab, checked where the "
         "concrete alone is not enough (empty: none).",
+    )
+    modifiers: ShellModifiers | None = Field(
+        default=None,
+        title="Stiffness modifiers",
+        description="Factors on the analysis shell stiffness, mass and weight (empty: the "
+        "code's cracked factors for concrete and masonry, else 1).",
     )
 
 
@@ -497,6 +542,12 @@ class Wall(_ObjectBase):
     basement: bool = Field(
         default=False,
         description="Exterior basement or foundation wall (BNBC 6.6.3.4, 6.6.5.3).",
+    )
+    modifiers: ShellModifiers | None = Field(
+        default=None,
+        title="Stiffness modifiers",
+        description="Factors on the analysis shell stiffness, mass and weight (empty: the "
+        "code's cracked factors for concrete and masonry, else 1).",
     )
 
 

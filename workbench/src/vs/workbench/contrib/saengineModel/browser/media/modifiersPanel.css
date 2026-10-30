@@ -1,0 +1,113 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Stiffness modifiers and design overwrites (modifiersPanel.ts): in the floor plan's Properties
+ * panel and in the object type editor's form. Each row: the field's name with where its value
+ * comes from under it, and the field. An empty field shows the inherited value greyed. */
+
+.sa-modifiers-group {
+	margin: var(--sa-space-3, 12px) 0 var(--sa-space-2, 8px);
+}
+
+.sa-modifiers-heading {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	margin-bottom: var(--sa-space-1, 4px);
+	font-size: var(--sa-font-s, 12px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.sa-modifiers-reset {
+	text-transform: none;
+	letter-spacing: normal;
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+
+.sa-modifiers-reset:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.sa-modifiers-reset:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.sa-modifiers-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(88px, min(40%, 220px));
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+	padding: 2px 0;
+}
+
+.sa-modifiers-label {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.sa-modifiers-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.sa-modifiers-row.own .sa-modifiers-name {
+	font-weight: 600;
+}
+
+.sa-modifiers-source {
+	font-size: var(--sa-font-xs, 11px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.sa-modifiers-row.warning .sa-modifiers-source {
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.sa-modifiers-source > .codicon {
+	margin-left: var(--sa-space-1, 4px);
+	font-size: 12px;
+	vertical-align: -2px;
+}
+
+.sa-modifiers-control {
+	min-width: 0;
+	font-variant-numeric: tabular-nums;
+}
+
+/* The inherited value in an empty field: greyed and italic, so it never reads as typed. */
+.sa-modifiers .sa-modifiers-control .monaco-inputbox input::placeholder {
+	color: var(--vscode-input-placeholderForeground, var(--sa-muted));
+	font-style: italic;
+	opacity: 1;
+}
+
+.sa-modifiers-control .monaco-select-box {
+	width: 100%;
+}
+
+.sa-modifiers-readonly {
+	display: block;
+	text-align: right;
+}
+
+.sa-modifiers-readonly.inherited {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.sa-modifiers-note {
+	margin-top: var(--sa-space-1, 4px);
+	font-size: var(--sa-font-s, 12px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}

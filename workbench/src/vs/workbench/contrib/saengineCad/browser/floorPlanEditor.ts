@@ -42,12 +42,15 @@ import { PROJECT_PARTS } from '../../../services/saengineProject/common/saengine
 import { IProjectDocuments, PropertyAction, propertySheet } from '../../saengineModel/browser/modelData.js';
 import { openOwner } from '../../saengineModel/browser/projectDocuments.js';
 import { propertyHeading, propertyLink, propertyNote, propertyRow, renderPropertySheet } from '../../saengineModel/browser/propertySheetView.js';
+import { editNotice, IMemberRef as IModifierMemberRef, memberTargets, modifiersView, readCodeStiffness, resetMembersGroup, setMembersField } from '../../saengineModel/browser/modifiersModel.js';
+import { renderModifiers } from '../../saengineModel/browser/modifiersPanel.js';
 import { EditorFrame, IEditorFrameIconButton } from '../../saengineProject/browser/editorFrame.js';
 import { DWG_TO_DXF_COMMAND } from '../../saengineProject/browser/projectArchiveModel.js';
 import { acquireCadEditor, cadBackground, isLightCanvas, releaseCadEditor } from './cadHost.js';
 import { floorPlanDrawing, gridsOf, IFloorPlan, IMemberShape, storiesOf, storyOfSelection } from './floorPlanDrawing.js';
 import { basePoint, bayAt, changeMemberType, EditResult, IGridNode, moveMember, pickMember, placeColumn, placeLinear, placePolygonSlab, placeSlab, PlacementTool, removeMember, rotateMember, snapPoint, snapToGrid, TOOL_GROUP, TOOL_KINDS } from './floorPlanEdits.js';
 import { FloorPlanEditorInput, siblingPartFile } from './floorPlanEditorInput.js';
+import { FloorPlanLoadsFile, FloorPlanLoadsPanel, LOAD_LAYER_SPECS, loadsDrawing } from './floorPlanLoads.js';
 import { copyStory, familyNote, familyOf, inSync, masterOf, setSimilar } from './floorPlanTypical.js';
 import { BulkResult, bulkNotice, BulkVerb, changeTypes, copyMembers, copyToClipboard, copyToStories, deleteMembers, fill, FillDirection, FillKind, FloorPlanCommand, IFloorPlanClipboard, mirrorMembers, moveMembers, parseCommand, paste, rotateMembers } from './floorPlanBulk.js';
 import { combine, commonFields, countByGroup, IMemberRef, IRect, prune, rectOf, sameMember, selectAll, selectByType, selectInWindow, selectionSummary, typesOnPlan, windowMode } from './floorPlanSelection.js';
@@ -204,6 +207,8 @@ export class FloorPlanEditor extends EditorPane {
 	/** Optional, for the properties panel: material names and the building model's state. */
 	private materials: ITextModel | undefined;
 	private bim: ITextModel | undefined;
+	/** Optional: the project settings, for the code's stiffness factors the modifiers inherit. */
+	private settings: ITextModel | undefined;
 	private plan: IFloorPlan | undefined;
 	private storyIds: string[] = [];
 	private fitPending = false;
@@ -271,6 +276,9 @@ export class FloorPlanEditor extends EditorPane {
 	private readonly chromeDisposable = this._register(new MutableDisposable());
 	private readonly renderScheduler = this._register(new RunOnceScheduler(() => this.renderPlan(), 150));
 	private readonly previewFrame = this._register(new MutableDisposable());
+	/** Line and point loads of `05 Floor Plan/loads.json`, drawn on the plan and edited in the properties panel. */
+	private readonly loadsFile: FloorPlanLoadsFile;
+	private readonly loadsPanel: FloorPlanLoadsPanel;
 
 	constructor(
 		group: IEditorGroup,
@@ -289,6 +297,9 @@ export class FloorPlanEditor extends EditorPane {
 		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(FloorPlanEditor.ID, group, telemetryService, themeService, storageService);
+		this.loadsFile = this._register(this.instantiationService.createInstance(FloorPlanLoadsFile));
+		this.loadsPanel = this._register(this.instantiationService.createInstance(FloorPlanLoadsPanel, this.loadsFile));
+		this._register(this.loadsFile.onDidChange(() => this.renderScheduler.schedule()));
 		this._register(this.selectionService.onDidChangeSelection(({ source, selection }) => {
 			if (source !== SELECTION_SOURCE) {
 				// Selected elsewhere (Model Explorer, BIM): that member alone.
@@ -391,6 +402,7 @@ export class FloorPlanEditor extends EditorPane {
 			}));
 		}
 		void this.trackOptional(input);
+		void this.loadsFile.open(input.resource);
 
 		let editor: CadEditorApi;
 		try {
@@ -420,7 +432,7 @@ export class FloorPlanEditor extends EditorPane {
 
 	/** The materials and the building model, for the properties panel; neither is required. */
 	private async trackOptional(input: FloorPlanEditorInput): Promise<void> {
-		for (const id of ['materials', 'bim'] as const) {
+		for (const id of ['materials', 'bim', 'settings'] as const) {
 			try {
 				const reference = await this.textModelService.createModelReference(siblingPartFile(input.resource, id));
 				if (this.input !== input) {
@@ -491,7 +503,7 @@ export class FloorPlanEditor extends EditorPane {
 		this.previewFrame.clear();
 		this.chromeDisposable.clear();
 		this.inputDisposables.clear();
-		this.planModel = this.objects = this.materials = this.bim = undefined;
+		this.planModel = this.objects = this.materials = this.bim = this.settings = undefined;
 		this.plan = undefined;
 		this.underlayKey = undefined;
 		this.underlayProblem = undefined;
@@ -1429,7 +1441,8 @@ export class FloorPlanEditor extends EditorPane {
 
 		this.plan = floorPlanDrawing(layout, parse(this.objects), input.story ?? '');
 		this.selected = prune(this.selected, this.plan.members);
-		this.editor.setGenerated(forCanvas(this.plan.drawing, this.lightCanvas));
+		const loads = loadsDrawing(this.loadsFile.read().loads, layout, input.story ?? '');
+		this.editor.setGenerated(forCanvas({ layers: [...this.plan.drawing.layers, ...LOAD_LAYER_SPECS], entities: [...this.plan.drawing.entities, ...loads] }, this.lightCanvas));
 		void this.syncUnderlay(layout, input);
 		if (this.fitPending) {
 			this.fitPending = false;
@@ -1639,6 +1652,7 @@ export class FloorPlanEditor extends EditorPane {
 		const input = this.input as FloorPlanEditorInput | undefined;
 		if (!this.picked && this.selected.length > 1) {
 			this.renderSelectionEdits(panel);
+			this.renderLoads(panel);
 			return;
 		}
 		const selected: ModelSelection | undefined = this.picked ? { kind: 'member', group: this.picked.group, id: this.picked.id } : this.selectionService.selection;
@@ -1669,6 +1683,7 @@ export class FloorPlanEditor extends EditorPane {
 			}
 			propertyNote(panel, localize('floorPlan.selectHint', "Select a member in the plan to see and change its properties."));
 		}
+		this.renderLoads(panel);
 		const problems = [...(this.plan?.problems ?? []), ...(this.underlayProblem ? [this.underlayProblem] : [])];
 		if (problems.length) {
 			propertyHeading(panel, localize('floorPlan.problemsHeading', "Problems"));
@@ -1676,6 +1691,53 @@ export class FloorPlanEditor extends EditorPane {
 				propertyNote(panel, problem);
 			}
 		}
+	}
+
+	/**
+	 * The stiffness modifiers and design overwrites of the selected members (their own values over
+	 * their object type's and the code's), each change one undoable edit of the floor plan.
+	 */
+	private renderModifierGroups(panel: HTMLElement, refs: readonly IModifierMemberRef[]): void {
+		const layout = parse(this.planModel);
+		const objects = parse(this.objects);
+		const targets = memberTargets(layout, objects, parse(this.materials), refs);
+		if (!targets.length) {
+			return;
+		}
+		const code = readCodeStiffness(parse(this.settings), undefined);
+		renderModifiers(panel, modifiersView('member', targets, code), this.propertiesDisposables, {
+			contextViewService: this.contextViewService,
+			editable: this.layoutState === 'ok',
+			apply: (group, key, value) => {
+				const result = setMembersField(parse(this.planModel), refs, objects, group, key, value);
+				this.applyBulk(result, undefined, false, result.ok ? editNotice(group, key, result.ids.length) : undefined);
+			},
+			reset: group => {
+				const result = resetMembersGroup(parse(this.planModel), refs, objects, group);
+				this.applyBulk(result, undefined, false, result.ok ? editNotice(group, undefined, result.ids.length) : undefined);
+			},
+		});
+	}
+
+	/** Line Load... and Point Load... for the selection, and the Loads list. */
+	private renderLoads(panel: HTMLElement): void {
+		const input = this.input as FloorPlanEditorInput | undefined;
+		this.loadsPanel.render(panel, this.propertiesDisposables, {
+			layout: parse(this.planModel),
+			objects: parse(this.objects),
+			story: input?.story,
+			selected: this.picked ? [this.picked] : this.selected,
+			editable: this.layoutState === 'ok',
+			notify: text => this.setNotice(text),
+			rerender: () => this.renderProperties(),
+			reveal: (member, story) => {
+				if (input && input.story !== story) {
+					input.story = story;
+					this.renderPlan();
+				}
+				this.select([member]);
+			},
+		});
 	}
 
 	/** Type, rotation and position of the selected member, changed as undoable edits. */
@@ -1736,6 +1798,7 @@ export class FloorPlanEditor extends EditorPane {
 		});
 		this.renderCopyInput(panel);
 		propertyNote(panel, localize('floorPlan.editNote', "Press Enter to apply. Each change is one undoable edit."));
+		this.renderModifierGroups(panel, [{ group: member.group, id: member.id }]);
 		const links = append(panel, $('.sa-props-links'));
 		this.renderBulkLinks(links);
 		propertyLink(links, localize('floorPlan.deleteMember', "Delete {0}", member.id), () => this.deleteMember(member.group, member.id), store);
@@ -1824,6 +1887,7 @@ export class FloorPlanEditor extends EditorPane {
 			}
 		});
 		this.renderCopyInput(panel);
+		this.renderModifierGroups(panel, refs);
 		propertyNote(panel, localize('floorPlan.bulkNote', "Press Enter to apply; each change is one undoable edit of all {0} members. Moved members keep their nearest grid point plus an offset.", refs.length));
 		const links = append(panel, $('.sa-props-links'));
 		this.renderBulkLinks(links);

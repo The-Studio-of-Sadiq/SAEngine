@@ -392,6 +392,7 @@ def derive_fem(
     soil_text: str | None = None,
     mep_text: str | None = None,
     substructure_text: str | None = None,
+    loads_text: str | None = None,
 ) -> dict[str, Any]:
     """The analysis model (``model.osmodel`` text) of the building model with the settings' loads.
 
@@ -406,6 +407,12 @@ def derive_fem(
     given. The MEP file's stamp (of what the model takes from it, ``derive.mep_stamp``) is recorded
     (key ``mep``) once it is more than the placeholder,
     the substructure's (key ``substructure``) when the supports are soil springs.
+
+    ``loads_text`` (``05 Floor Plan/loads.json``, :mod:`saengine.library.line_loads`, read
+    beside ``model_folder`` when not given): the line and point loads on members; its stamp is
+    recorded (key ``loads``) once it has a load. With end offsets the result also has
+    ``"facesText"``, the support face offsets for ``08 FEM/faces.json``
+    (:mod:`saengine.fem.end_zones`).
 
     The site class is resolved here (``saengine.library.settings.resolve_site_class``): with
     the source "From the soil report", the soil report's governing class replaces the entered
@@ -463,6 +470,16 @@ def derive_fem(
         return {"problems": [f"MEP: {_first_line(exc)}"]}
     if mep_text and _has_content(mep):
         stamps["mep"] = mep_stamp(mep_text)
+    from saengine.library import line_loads as ll
+
+    if loads_text is None and root is not None:
+        loads_text = _read(root / ll.LOADS_FILE)
+    try:
+        member_loads = ll.parse(loads_text)
+    except ValueError as exc:
+        return {"problems": [f"Line loads: {_first_line(exc)}"]}
+    if member_loads.loads:
+        stamps["loads"] = stamp(loads_text or "")
     substructure = None
     if settings.analysis.supports == "soilSprings":
         if substructure_text is None and root is not None:
@@ -484,6 +501,7 @@ def derive_fem(
         mep=mep if _has_content(mep) else None,
         substructure=substructure,
         soil_text=soil_text,
+        member_loads=member_loads if member_loads.loads else None,
     )
     result = {
         "text": json.dumps(derivation.project, indent="\t", ensure_ascii=False) + "\n",
@@ -498,6 +516,8 @@ def derive_fem(
         result["thermalText"] = json.dumps(derivation.thermal)
     if derivation.ssi is not None:
         result["ssiText"] = json.dumps(derivation.ssi, indent="\t", ensure_ascii=False) + "\n"
+    if derivation.faces is not None:
+        result["facesText"] = json.dumps(derivation.faces, ensure_ascii=False)
     return result
 
 
@@ -1253,6 +1273,27 @@ def ssi_compare(project_root: str) -> dict[str, Any]:
     from saengine.fem.ssi_compare import compare
 
     return _mep_call(lambda: compare(project_root))
+
+
+def mesh_check(project_root: str) -> dict[str, Any]:
+    """The mesh convergence check of Run All (``saengine.fem.mesh_check``): the beams' gravity
+    end moments on the project's mesh and on one twice as coarse, written to ``08 FEM/
+    model.results/mesh-check.json``; ``{"skipped": why}`` when the project needs none,
+    ``{"problems"}`` when it could not be run."""
+    from saengine.fem import mesh_check as mc
+
+    root = Path(project_root)
+    try:
+        why = mc.needs_check(root)
+        if why is not None:
+            return {"skipped": why}
+        result = mc.project_mesh_convergence(root)
+    except (OSError, ValueError, KeyError) as error:
+        return {"problems": [f"mesh check: {_first_line(error)}"]}
+    folder = root / "08 FEM" / "model.results"
+    if folder.is_dir():
+        (folder / mc.MESH_CHECK_FILE).write_text(mc.dumps(result), encoding="utf-8")
+    return result
 
 
 def substructure_ensure(project_root: str) -> dict[str, Any]:

@@ -317,6 +317,7 @@ def write_e2k(
     grids: list[tuple[str, str, float]] | None = None,
     equipment: list[Equipment] | None = None,
     file: str | None = None,
+    member_loads: Any = None,
 ) -> E2kExport:
     """The e2k text of a building (see the module notes).
 
@@ -326,7 +327,9 @@ def write_e2k(
     ``lateral="coefficient"``). Without them the lateral patterns have no loads (reported).
     ``live_share`` is the code's share of the live load in the seismic weight; ``grids`` the
     grid lines (axis "X" or "Y", label, position [mm]), from the floor plan; ``equipment`` the
-    loads of 07 MEP's equipment (:func:`equipment_of`).
+    loads of 07 MEP's equipment (:func:`equipment_of`); ``member_loads`` the line and point
+    loads on members (``05 Floor Plan/loads.json``, :class:`saengine.library.line_loads.
+    MemberLoads`), written as frame loads on the beams (point loads at joints on the points).
     """
     force, length = (u.upper() for u in units)
     if force not in _FORCE or length not in _LENGTH:
@@ -352,6 +355,7 @@ def write_e2k(
     ]
     report.count("gridLines", len(writer.grids))
     writer.equipment = equipment or []
+    writer.member_loads = member_loads
     text = writer.run(name or settings.project.name)
     return E2kExport(text, report)
 
@@ -390,6 +394,7 @@ class _Writer:
         self.point_xy: dict[str, tuple[float, float, float]] = {}
         self.labels: set[str] = set()
         self.equipment: list[Equipment] = []
+        self.member_loads: Any = None
         self.patterns = list(_PATTERNS)
         self.used_materials: set[str] = set()
         self.frame_sections: dict[str, list[str]] = {}  # type id -> lines
@@ -724,7 +729,10 @@ class _Writer:
 
     # ── geometry ──
 
-    def _modifiers(self, kind: str, type_id: str) -> str:
+    def _modifiers(self, kind: str, type_id: str, member: Any = None) -> str:
+        own = self._own_modifiers(kind, type_id, member)
+        if own is not None:
+            return own
         if not self.cracked:
             return ""
         t = self.types.get(type_id)
@@ -749,6 +757,106 @@ class _Writer:
                 + " "
             )
         return ""
+
+    def _own_modifiers(self, kind: str, type_id: str, member: Any) -> str | None:
+        """The engineer's stiffness modifiers of a frame (member over type,
+        :mod:`saengine.library.modifiers`) as ETABS property modifiers, the code's cracked factor
+        for I22 and I33 where none is given; None when the frame has none."""
+        from saengine.library.modifiers import resolve_modifiers
+
+        if kind not in ("column", "beam", "brace"):
+            return None
+        found = {k: v for k, (v, _) in resolve_modifiers(member, self.types.get(type_id)).items()}
+        if not found:
+            return None
+        t = self.types.get(type_id)
+        material = self.mats.get(t.material) if t else None
+        concrete = material is not None and material.category.value in ("concrete", "masonry")
+        code = _CRACKED.get(kind) if self.cracked and concrete else None
+        keys = {
+            "A": "PROPMODA",
+            "As2": "PROPMODA2",
+            "As3": "PROPMODA3",
+            "J": "PROPMODT",
+            "I22": "PROPMODI22",
+            "I33": "PROPMODI33",
+            "mass": "PROPMODM",
+            "weight": "PROPMODW",
+        }
+        pairs = []
+        for key, word in keys.items():
+            value = found.get(key)
+            if value is None and key in ("I22", "I33") and code is not None:
+                value = code
+            if value is not None:
+                pairs.append(f"{word} {_n(value)}")
+        self.report.count("memberModifiers")
+        return " ".join(pairs) + " " if pairs else None
+
+    def _member_loads(self) -> None:
+        """The line and point loads on members (``05 Floor Plan/loads.json``) on the beams
+        they are on, every story of a typical floor's family as in SAEngine's analysis."""
+        if self.member_loads is None or not getattr(self.member_loads, "loads", None):
+            return
+        from saengine.fem.member_loads import member_loads
+
+        found = member_loads(self.b, self.member_loads)
+        for line in found.lines:
+            a = (line.start[0] * 1000, line.start[1] * 1000)
+            c = (line.end[0] * 1000, line.end[1] * 1000)
+            z = line.start[2] * 1000
+            written = False
+            for label, story, s, f, bz in self.beams:
+                if abs(bz - z) > TOLERANCE:
+                    continue
+                span = _overlap(s, f, a, c)
+                if span is None:
+                    continue
+                value = _n(self.u.line(line.load))
+                self.line_loads.append(
+                    f'  LINELOAD  {_q(label)}  {_q(story)}  TYPE "TRAPF"  DIR "GRAV"  '
+                    f"LC {_q(line.case)}  FSTART {value}  FEND {value}  "
+                    f"RDSTART {_n(span[0])}  RDEND {_n(span[1])}  "
+                )
+                written = True
+            length = math.dist(a, c) / 1000
+            if written:
+                self.report.carried[line.case] += line.load * length / 1000
+                self.report.count("memberLineLoads")
+            else:
+                self.report.skip("line loads on no exported beam", line.source)
+                self.report.not_carried[line.case] += line.load * length / 1000
+        for point in found.points:
+            x, y, z = (v * 1000 for v in point.at)
+            written = False
+            if point.along is not None:
+                for label, story, s, f, bz in self.beams:
+                    if abs(bz - z) > TOLERANCE:
+                        continue
+                    rd = _on_beam(s, f, (x, y))
+                    if rd is None:
+                        continue
+                    self.line_loads.append(
+                        f'  LINELOAD  {_q(label)}  {_q(story)}  TYPE "POINTF"  DIR "GRAV"  '
+                        f"LC {_q(point.case)}  FVAL {_n(self.u.to_force(point.force))}  "
+                        f"RDIST {_n(rd)}  "
+                    )
+                    written = True
+                    break
+            else:
+                at = self._point(x, y, z)
+                if at is not None:
+                    self.point_loads.append(
+                        f'  POINTLOAD  {_q(at[0])}  {_q(self._story(at[1]))}  TYPE "FORCE"  '
+                        f"LC {_q(point.case)}    FZ {_n(self.u.to_force(-point.force))}"
+                    )
+                    written = True
+            if written:
+                self.report.carried[point.case] += point.force / 1000
+                self.report.count("memberPointLoads")
+            else:
+                self.report.skip("point loads on no exported beam or point", point.source)
+                self.report.not_carried[point.case] += point.force / 1000
 
     def _line(
         self,
@@ -784,7 +892,11 @@ class _Writer:
         self.places.setdefault(place, name)
         self.lines.append(f"  LINE  {_q(label)}  {word}  {_q(pa[0])}  {_q(pc[0])}  {below}")
         pairs = f"SECTION {_q(section)}  "
-        modifiers = self._modifiers(kind, type_id)
+        # The building element the line is (a column split per story is "<id>-<k>").
+        member = next((e for e in self.b.elements if e.id == name), None) or next(
+            (e for e in self.b.elements if name.startswith(f"{e.id}-")), None
+        )
+        modifiers = self._modifiers(kind, type_id, member)
         if modifiers:
             pairs += modifiers
         angle = rotation + self.extra_rotation.get(section, 0.0)
@@ -1259,6 +1371,7 @@ class _Writer:
         self._stories()
         self._geometry()
         self._partition_loads()
+        self._member_loads()
         self._equipment_loads()
         # supports
         for label in sorted(self.base_points, key=int):
@@ -1488,6 +1601,18 @@ def _area3(points: list[list[float]]) -> float:
     return polygon_area([tuple(p) for p in points])  # type: ignore[misc]
 
 
+def _on_beam(s: tuple[float, float], f: tuple[float, float], p: Any) -> float | None:
+    """The relative distance (0-1) of point ``p`` along beam ``s``-``f`` when it is on it."""
+    length = math.dist(s, f)
+    if length <= TOLERANCE:
+        return None
+    ux, uy = (f[0] - s[0]) / length, (f[1] - s[1]) / length
+    if abs((p[0] - s[0]) * uy - (p[1] - s[1]) * ux) > TOLERANCE:
+        return None
+    t = ((p[0] - s[0]) * ux + (p[1] - s[1]) * uy) / length
+    return round(t, 6) if -1e-9 <= t <= 1 + 1e-9 else None
+
+
 def _overlap(
     s: tuple[float, float], f: tuple[float, float], a: Any, c: Any
 ) -> tuple[float, float] | None:
@@ -1600,11 +1725,20 @@ def export_e2k(
         except ValidationError:
             report_note = "The floor plan has errors: no grid lines exported."
             notes.append(report_note)
+    from saengine.library import line_loads
+    from saengine.pipeline.project import read_text
+
+    try:
+        member_loads = line_loads.parse(read_text(p.root / line_loads.LOADS_FILE))
+    except ValueError:
+        member_loads = None
+        notes.append("05 Floor Plan/loads.json has errors: the member loads are not exported.")
     export = write_e2k(
         building,
         objects,
         materials,
         settings,
+        member_loads=member_loads,
         name=p.name,
         grids=grids,
         equipment=equipment_of(mep, materials) if mep is not None else [],

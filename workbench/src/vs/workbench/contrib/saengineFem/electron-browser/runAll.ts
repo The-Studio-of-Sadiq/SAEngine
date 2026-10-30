@@ -27,11 +27,22 @@ import { hasPlumbing, IPlumbingReport, PLUMBING_REPORT_COMMAND, plumbingFailures
 import { hasHvac, HVAC_REPORT_COMMAND, hvacFailures, hvacSummaryFile, IHvacReport, readHvacReport } from '../../saengineMep/browser/hvacDocument.js';
 import { ELECTRICAL_REPORT_COMMAND, electricalFailures, electricalSummaryFile, hasElectrical, IElectricalReport, readElectricalReport } from '../../saengineMep/browser/electricalDocument.js';
 import { DRAWINGS_GENERATE_COMMAND, DRAWINGS_LIST_COMMAND, readDrawingSet } from '../../saengineProject/browser/drawingsModel.js';
-import { DERIVATION_INPUTS, deriveAnalysisModel, derivationState, partFile, SSI_FILE } from '../browser/femDerivationBar.js';
+import { DERIVATION_INPUTS, deriveAnalysisModel, derivationState, LOADS_DERIVATION_SOURCE, partFile, SSI_FILE } from '../browser/femDerivationBar.js';
 import { SSI_COMPARE_COMMAND } from '../browser/femSsi.js';
 import { IFemDesignReport, IFemDesignRequired, runDesign, runDesignRequired, shortElements, tooSmallElements, writeDesignSummary } from '../browser/femDesign.js';
 import { errorSummary } from '../browser/femResultsBar.js';
 import { FemAnalysisRunner } from './femAnalysisRunner.js';
+
+/** Internal command of the mesh convergence check (`saengine.fem.mesh_check`). */
+const MESH_CHECK_COMMAND = 'saengine.fem.meshCheck';
+
+/** What the mesh check answers (read defensively). */
+interface IMeshCheck {
+	readonly warning?: boolean;
+	readonly maxChangePercent?: number;
+	readonly coarseSize_mm?: number;
+	readonly skipped?: string;
+}
 import { FemModelEditorInput } from '../browser/femModelEditorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 
@@ -170,6 +181,9 @@ export class RunAllService implements IRunAllService {
 			if (outcome.status !== 'done') {
 				throw new StepFailure(outcome.message ?? outcome.status);
 			}
+			report(localize('runAll.meshCheck', "mesh check"));
+			await this.checkMesh(project);
+			this.check(token);
 
 			step = 2;
 			report();
@@ -282,12 +296,12 @@ export class RunAllService implements IRunAllService {
 		const texts = new Map<string, string | undefined>();
 		for (const id of ids) {
 			const part = partById(id);
-			if (!part?.mainFile) {
+			if (!part?.mainFile && id !== LOADS_DERIVATION_SOURCE.part) {
 				texts.set(id, undefined);
 				continue;
 			}
 			try {
-				const content = await this.fileService.readFile(joinPath(project.root, part.folder, part.mainFile));
+				const content = await this.fileService.readFile(part?.mainFile ? joinPath(project.root, part.folder, part.mainFile) : partFile(project.root, id));
 				texts.set(id, content.value.toString());
 			} catch {
 				texts.set(id, undefined);
@@ -395,6 +409,27 @@ export class RunAllService implements IRunAllService {
 			await this.commandService.executeCommand(SSI_COMPARE_COMMAND, { projectRoot: project.root.fsPath });
 		} catch (error) {
 			throw new StepFailure(errorSummary(error));
+		}
+	}
+
+	/**
+	 * The mesh convergence check (`analysis.meshCheck`, `saengine.fem.mesh_check`): a warning
+	 * when a beam's gravity end moment changes by more than 5 % on a mesh twice as coarse; never
+	 * stops Run All (mirrors `_analysis` of `saengine.pipeline.run_all`).
+	 */
+	private async checkMesh(project: ISaengineProject): Promise<void> {
+		let result: IMeshCheck | undefined;
+		try {
+			result = await this.commandService.executeCommand<IMeshCheck>(MESH_CHECK_COMMAND, { projectRoot: project.root.fsPath });
+		} catch (error) {
+			this.notificationService.notify({ severity: Severity.Warning, message: localize('runAll.meshCheckFailed', "The mesh check could not be run: {0}", errorSummary(error)) });
+			return;
+		}
+		if (result?.warning) {
+			this.notificationService.notify({
+				severity: Severity.Warning,
+				message: localize('runAll.meshWarning', "Mesh check: the beams' gravity end moments change by up to {0} % on a mesh twice as coarse ({1} mm); the mesh is not converged. Make Mesh Size smaller in Project Settings, Analysis model.", (result.maxChangePercent ?? 0).toFixed(1), result.coarseSize_mm ?? 0),
+			});
 		}
 	}
 

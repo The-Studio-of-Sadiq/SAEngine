@@ -45,7 +45,10 @@ PROJECT_PARTS: tuple[Part, ...] = (
 STRUCTURE_PART = Part("structure", "05 Structural Model", "structure.json", "Structural Model")
 
 ALL_PARTS: tuple[Part, ...] = (*PROJECT_PARTS, STRUCTURE_PART)
-_BY_ID = {p.id: p for p in ALL_PARTS}
+#: The line and point loads on members (:mod:`saengine.library.line_loads`): a file of part 5
+#: beside the floor plan, a source of the analysis model, not a part of its own.
+LOADS_PART = Part("loads", "05 Floor Plan", "loads.json", "Line Loads")
+_BY_ID = {p.id: p for p in (*ALL_PARTS, LOADS_PART)}
 
 
 def part_by_id(part_id: str) -> Part:

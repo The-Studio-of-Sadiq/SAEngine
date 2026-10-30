@@ -21,7 +21,7 @@ from typing import Any
 
 from saengine.fem.derive import mep_stamp
 from saengine.library.bim import source_stamp
-from saengine.pipeline.project import ALL_PARTS, Part, Project, read_text
+from saengine.pipeline.project import ALL_PARTS, LOADS_PART, Part, Project, read_text
 
 #: The states of a part (``PartState``).
 STATES = ("notStarted", "inProgress", "done", "stale", "failed", "error")
@@ -40,7 +40,7 @@ OPTIONAL_PARTS = frozenset({"soil", "mep", "substructure"})
 FEM_SOURCES = ("bim", "settings", "objects", "materials")
 BOQ_SOURCES = ("bim", "objects", "materials")
 BOQ_RECORDED_SOURCES = ("substructure", "settings", "mep")
-FEM_RECORDED_SOURCES = ("substructure", "mep")
+FEM_RECORDED_SOURCES = ("substructure", "mep", "loads")
 MEP_SCHEMA_ID = "saengine.mep/1"
 SUBSTRUCTURE_SCHEMA_ID = "saengine.substructure/1"
 BOQ_SCHEMA_ID = "saengine.boq/1"
@@ -222,6 +222,18 @@ def _has_overhead_tank(document: dict[str, Any]) -> bool:
     return isinstance(tanks, list) and any(
         isinstance(t, dict) and t.get("kind") == "overhead" for t in tanks
     )
+
+
+def loads_have_content(text: str | None) -> bool:
+    """Whether a ``05 Floor Plan/loads.json`` text has a load (a model derived without it is
+    then out of date); an unreadable file counts (deriving reports it)."""
+    if not text or not text.strip():
+        return False
+    value = _parse(text)
+    if value is None:
+        return True
+    loads = value.get("loads")
+    return isinstance(loads, list) and len(loads) > 0
 
 
 def _mep_has_content(inputs: StatusInputs) -> bool:
@@ -406,10 +418,12 @@ def fem_status(inputs: StatusInputs) -> PartStatus:
         for p in FEM_RECORDED_SOURCES
     )
     mep_added = "mep" not in recorded and _mep_has_content(inputs)
+    loads_added = "loads" not in recorded and loads_have_content(inputs.texts.get("loads"))
     if (
         soil_changed
         or recorded_changed
         or mep_added
+        or loads_added
         or any(_changed(inputs.texts, p, recorded.get(p)) for p in FEM_SOURCES)
     ):
         return _status("fem", "stale", STALE, "derive the analysis model again")
@@ -664,6 +678,7 @@ def read_inputs(project: Project) -> StatusInputs:
     """``readInputs``: what the rules read from the project's files."""
     root = project.root
     texts = {p.id: read_text(root / p.folder / p.main_file) for p in ALL_PARTS if p.main_file}
+    texts["loads"] = read_text(root / LOADS_PART.folder / LOADS_PART.main_file)
     fem = root / "08 FEM"
     results = fem / FEM_RESULTS_FOLDER
     substructure = root / "09 Substructure"

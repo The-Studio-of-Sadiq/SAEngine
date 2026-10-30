@@ -53,6 +53,19 @@ SOLVER_AUTO = "auto"
 SOLVER_ARPACK = "genBandArpack"
 SOLVER_DENSE = "fullGenLapack"
 SOLVER_SYMM_BAND = "symmBandLapack"
+SOLVER_CONDENSED = "condensed"
+"""Not a case option: the routing's exact solve for a model whose masses sit on few DOF (masses
+lumped at the floors) when it is too large for the dense solver. The runner condenses the
+stiffness onto the DOF with mass (one static solve per such DOF, exact for lumped masses: the
+massless DOF carry no inertia), solves that small eigen problem directly and expands the mode
+shapes from the static solutions."""
+
+CONDENSED_MIN_FREE_DOF = 3000
+"""Above this free DOF count, a case ARPACK cannot run for too few DOF with mass is condensed
+(:data:`SOLVER_CONDENSED`) instead of solved dense (dense grows with the cube of the size)."""
+
+CONDENSED_MAX_COORDINATES = 600
+"""The most coordinates with mass (one static solve each) the condensed solve takes on."""
 
 OFFERED_SOLVERS: tuple[str, ...] = (SOLVER_AUTO, SOLVER_ARPACK, SOLVER_DENSE)
 """Solver names a case may ask for: the two the build really runs, plus the routing."""
@@ -92,6 +105,30 @@ def free_dof_count(project: Project) -> int:
     return sum(len(idx) - sum(int(node.restraint[i]) for i in idx) for node in project.nodes)
 
 
+def mass_dof_bound(project: Project) -> int:
+    """An upper bound of the rank of the mass matrix: the unrestrained DOF with mass, a rigid
+    diaphragm's nodes counting together for at most 3 (its in-plane translations and rotation),
+    as the Transformation handler condenses them. A model whose mass is lumped at a few floors
+    has few: ARPACK cannot build its Arnoldi factorization when ``2 * n_modes`` reaches it."""
+    idx = dof_indices(project.ndm, project.ndf)
+    group: dict[int, int] = {}
+    for k, mp in enumerate(project.mp_constraints):
+        if type(mp).__name__ == "RigidDiaphragmConstraint":
+            group[mp.retained_node] = k
+            for n in mp.constrained_nodes:
+                group[n] = k
+    count = 0
+    grouped: dict[int, int] = {}
+    for node in project.nodes:
+        mass = list(getattr(node, "mass", None) or [])
+        dofs = sum(1 for i in idx if i < len(mass) and mass[i] and not node.restraint[i])
+        if node.id in group:
+            grouped[group[node.id]] = grouped.get(group[node.id], 0) + dofs
+        else:
+            count += dofs
+    return count + sum(min(3, v) for v in grouped.values())
+
+
 def dense_eigen_max_free_dof() -> int:
     """The routing threshold: the environment override when set, else the constant."""
     raw = os.environ.get(DENSE_EIGEN_MAX_FREE_DOF_ENV, "").strip()
@@ -108,7 +145,15 @@ def dense_eigen_max_free_dof() -> int:
     return value
 
 
-def resolve_modal_solver(requested: str, n_free: int, n_modes: int) -> tuple[str, str]:
+def arpack_basis(n_modes: int) -> int:
+    """The Arnoldi vectors OpenSees' ARPACK solver works with for ``n_modes`` modes (taken as
+    the larger of its two usual rules, so the routing errs towards an exact solver)."""
+    return max(2 * n_modes, n_modes + 8)
+
+
+def resolve_modal_solver(
+    requested: str, n_free: int, n_modes: int, n_mass: int | None = None
+) -> tuple[str, str]:
     """Return ``(solver, reason)`` for a modal case.
 
     ``requested`` is the case's ``solver`` field. ``auto`` picks the dense
@@ -117,6 +162,11 @@ def resolve_modal_solver(requested: str, n_free: int, n_modes: int) -> tuple[str
     falls back to dense when ``2 * n_modes >= n_free`` (it cannot allocate
     its Arnoldi workspace and aborts with ``_saupd info = -9999``).
     ``symmBandLapack`` raises :class:`ValueError` with :data:`SYMM_BAND_REFUSAL`.
+    ``n_mass`` (:func:`mass_dof_bound`): ARPACK cannot run either when its
+    Arnoldi basis (``max(2 * n_modes, n_modes + 8)`` vectors) reaches the DOF
+    with mass (masses lumped at a few floors; the same abort). Such a case runs
+    dense up to :data:`CONDENSED_MIN_FREE_DOF` free DOF and condensed
+    (:data:`SOLVER_CONDENSED`, exact) above it.
     """
     if requested == SOLVER_SYMM_BAND:
         raise ValueError(SYMM_BAND_REFUSAL)
@@ -134,6 +184,11 @@ def resolve_modal_solver(requested: str, n_free: int, n_modes: int) -> tuple[str
         reason = f"requested: {n_free} free DOF"
     if requested == SOLVER_ARPACK and 2 * n_modes >= n_free:
         return SOLVER_DENSE, f"{reason}; ARPACK needs 2 * n_modes < free DOF, using dense"
+    if requested == SOLVER_ARPACK and n_mass is not None and arpack_basis(n_modes) >= n_mass:
+        why = f"{reason}; ARPACK's basis reaches the {n_mass} DOF with mass"
+        if n_free > CONDENSED_MIN_FREE_DOF:
+            return SOLVER_CONDENSED, f"{why}, condensing onto them"
+        return SOLVER_DENSE, f"{why}, using dense"
     return requested, reason
 
 

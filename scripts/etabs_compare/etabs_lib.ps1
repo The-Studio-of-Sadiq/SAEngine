@@ -27,13 +27,33 @@ function Assert-CanRun([string]$EtabsDir) {
   if (Get-Process -Name "ETABS" -ErrorAction SilentlyContinue) { throw "refusing to run: an instance is already running (the licence allows one at a time)" }
 }
 
+function Get-EtabsIds { return @(Get-Process -Name "ETABS" -ErrorAction SilentlyContinue | ForEach-Object { $_.Id }) }
+
+# Starts the program hidden and records the process it started ($global:EtabsPid, its start time in
+# $global:EtabsStart): the one process the harness may ever stop.
 function Start-Etabs([string]$EtabsDir) {
   [void][Reflection.Assembly]::LoadFrom((Join-Path $EtabsDir "ETABSv1.dll"))
+  $before = Get-EtabsIds
   $helper = New-Object ETABSv1.Helper
   $global:etabs = $helper.CreateObjectProgID("CSI.ETABS.API.ETABSObject")
   [void]$global:etabs.ApplicationStart()
   [void]$global:etabs.Hide()
+  $new = @(Get-Process -Name "ETABS" -ErrorAction SilentlyContinue | Where-Object { $before -notcontains $_.Id })
+  if ($new.Count -eq 1) { $global:EtabsPid = $new[0].Id; $global:EtabsStart = $new[0].StartTime }
+  else { $global:EtabsPid = $null; L "could not tell which process was started ($($new.Count) new); none will be stopped" }
   return $global:etabs.SapModel
+}
+
+# Stops the process recorded in "<pid file>" (pid and start time) if it is still running: never any
+# other instance (a user's own session keeps running).
+function Stop-OwnEtabs([string]$PidFile) {
+  if (-not (Test-Path $PidFile)) { return "no process recorded: nothing stopped" }
+  $parts = (Get-Content $PidFile -Raw).Trim() -split " ", 2
+  $p = Get-Process -Id ([int]$parts[0]) -ErrorAction SilentlyContinue
+  if ($null -eq $p -or $p.ProcessName -ne "ETABS") { return "process $($parts[0]) has exited or is not the program: nothing stopped" }
+  if ($parts.Count -gt 1 -and $p.StartTime.ToString("o") -ne $parts[1]) { return "process $($parts[0]) is another instance: not stopped" }
+  Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+  return "stopped the run's own process $($p.Id)"
 }
 
 function Stop-Etabs {
@@ -53,6 +73,18 @@ function Edit-Table($m, [string]$key, [string]$field, [string]$value) {
   $fe = 0; $ne = 0; $nw = 0; $ni = 0; $il = ""
   $r = $m.DatabaseTables.ApplyEditedTables($true, [ref]$fe, [ref]$ne, [ref]$nw, [ref]$ni, [ref]$il)
   return "edit $key.$field=$value rows=$nr ret=$r fatal=$fe errors=$ne warnings=$nw"
+}
+
+# Edits the first field matching a pattern in every row of an editable table (field names differ
+# between versions); returns the log line, with the table's field names when none matches.
+function Edit-TableField($m, [string]$key, [string]$pattern, [string]$value) {
+  $tv = 0; [string[]]$fk = @(); $nr = 0; [string[]]$td = @()
+  $r = $m.DatabaseTables.GetTableForEditingArray($key, "", [ref]$tv, [ref]$fk, [ref]$nr, [ref]$td)
+  if ($r -ne 0) { return "get $key failed ($r)" }
+  $field = @($fk | Where-Object { $_ -match $pattern })[0]
+  [void]$m.DatabaseTables.CancelTableEditing()
+  if (-not $field) { return "no field like '$pattern' in $key (fields: $($fk -join ', '))" }
+  return (Edit-Table $m $key $field $value)
 }
 
 function Get-FrameRows($m, [string]$name) {

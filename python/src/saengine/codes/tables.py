@@ -102,6 +102,34 @@ class AreaLoadsTable(TableModel):
     uses: dict[str, AreaUse]
 
 
+class WallTypeRow(_Row):
+    id: str
+    name: str
+    thickness: float = Field(gt=0, description="Masonry thickness [mm].")
+    masonry: str = Field(description="Key into 'masonry'.")
+    plaster: float = Field(default=0, ge=0, description="Plaster on each face [mm].")
+    plasterFaces: int = Field(default=2, ge=0, le=2)
+    plasterKind: str = Field(default="cement", description="Key into 'plaster'.")
+
+
+class DeadLoadsTable(TableModel):
+    """Unit weights of masonry and plaster [kN/m³] and the default wall types of member loads
+    (line loads of walls on beams, :mod:`saengine.library.line_loads`)."""
+
+    masonry: dict[str, float]
+    plaster: dict[str, float]
+    wallTypes: list[WallTypeRow] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _keys(self) -> DeadLoadsTable:
+        for row in self.wallTypes:
+            if row.masonry not in self.masonry:
+                raise ValueError(f"wall type {row.id}: no masonry '{row.masonry}'")
+            if row.plasterKind not in self.plaster:
+                raise ValueError(f"wall type {row.id}: no plaster '{row.plasterKind}'")
+        return self
+
+
 # ───────────────────────────────────────── combinations ─────────────────────────────────────────
 
 
@@ -189,6 +217,21 @@ class SeismicTable(TableModel):
     allowableDrift: dict[str, float] = Field(description="Δa/hsx by occupancy category.")
     dampingEta: float = 1.0
     liveShare: float = Field(description="Share of the floor live load in the seismic weight.")
+    heavyLiveLimit: float | None = Field(
+        default=None,
+        ge=0,
+        description="Live loads above this [kN/m²] count in the seismic weight with "
+        "heavyLiveShare (empty: every live load with liveShare).",
+    )
+    heavyLiveShare: float | None = Field(
+        default=None, ge=0, le=1, description="Share of a heavy live load in the seismic weight."
+    )
+    periodUpperFactor: float | None = Field(
+        default=None,
+        gt=1,
+        description="A period from the structure's properties is at most this times the "
+        "approximate period Ta (empty: 1.4).",
+    )
     minimumScale: float = Field(description="Least share of the static base shear for RS.")
     accidentalEccentricity: float
     orthogonalShare: float
@@ -527,6 +570,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "zoneCoefficients": ZoneCoefficientsTable,
     "occupancyCategories": OccupancyCategoriesTable,
     "areaLoads": AreaLoadsTable,
+    "deadLoads": DeadLoadsTable,
     "combinations": CombinationsTable,
     "seismic": SeismicTable,
     "wind": WindTable,
@@ -548,6 +592,7 @@ MERGE_KEYS: dict[str, dict[str, str]] = {
         "temperature": "name",
         "gravity": "name",
     },
+    "deadLoads": {"wallTypes": "id"},
 }
 
 

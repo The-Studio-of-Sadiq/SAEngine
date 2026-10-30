@@ -89,29 +89,48 @@ def judge(q: Quantity, reasons: dict[str, str], floor: float | None = None) -> Q
 # ─────────────────────────────── member forces at a station ───────────────────────────────
 
 
-def internal_forces(fi: list[float], w: list[float], x: float) -> list[float]:
+def internal_forces(
+    fi: list[float], w: list[float], x: float, loaded: float | None = None
+) -> list[float]:
     """Internal forces [N, Vy, Vz, T, My, Mz] (local) at ``x`` from end i of an element with
     end-i forces ``fi`` (the forces on the element, OpenSees localForce) and uniform local
-    load ``w`` = [wx, wy, wz] per length. Free body from i to x; the signs are those of the
-    part beyond x acting on it, only the magnitudes are compared."""
+    load ``w`` = [wx, wy, wz] per length acting over ``[0, loaded]`` (default: wherever the
+    station is). Free body from i to x; the signs are those of the part beyond x acting on it,
+    only the magnitudes are compared.
+
+    With rigid end zones, ``x`` is measured from the flexible end i (the face, where OpenSees
+    reports localForce with ``-jntOffset``) and ``loaded`` is the flexible length: a station
+    inside a rigid zone (x < 0 or x > loaded) is reached by statics with no load on the zone,
+    as SAEngine moves the zone's load to the joint."""
     n, vy, vz, t, my, mz = fi
     wx, wy, wz = w
+    xc = x if loaded is None else min(max(x, 0.0), loaded)
+    xc = max(xc, 0.0)
+    arm = x - xc / 2  # from the station to the resultant of the load over [0, xc]
     return [
-        -(n + wx * x),
-        -(vy + wy * x),
-        -(vz + wz * x),
+        -(n + wx * xc),
+        -(vy + wy * xc),
+        -(vz + wz * xc),
         -t,
-        -(my + vz * x + wz * x * x / 2),
-        -(mz - vy * x - wy * x * x / 2),
+        -(my + vz * x + wz * xc * arm),
+        -(mz - vy * x - wy * xc * arm),
     ]
+
+
+def _node_range(sub: dict[str, Any]) -> tuple[float, float]:
+    """The span stations of a sub-element's nodes (``na``/``nb``; older exports: ``a``/``b``)."""
+    return sub.get("na", sub["a"]), sub.get("nb", sub["b"])
 
 
 def saengine_at(span: dict[str, Any], case: str, station: float) -> dict[str, Any] | None:
     """SAEngine's internal forces of a span at ``station`` (m from its start): from the
-    sub-element containing it, by statics from that sub-element's end i."""
+    sub-element whose nodes enclose it, by statics from that sub-element's end i. ``a`` and
+    ``b`` are the stations of its flexible ends (its nodes, or its faces when it has rigid
+    end offsets: OpenSees reports the end forces there)."""
     best = None
     for sub in span["subs"]:
-        lo, hi = min(sub["a"], sub["b"]), max(sub["a"], sub["b"])
+        na, nb = _node_range(sub)
+        lo, hi = min(na, nb), max(na, nb)
         if lo - 1e-6 <= station <= hi + 1e-6:
             best = sub
             if station < hi - 1e-6 or sub is span["subs"][-1]:
@@ -119,33 +138,79 @@ def saengine_at(span: dict[str, Any], case: str, station: float) -> dict[str, An
     if best is None or case not in best["cases"]:
         return None
     data = best["cases"][case]
-    x = abs(station - best["a"])
-    f = internal_forces(data["fi"], data["w"], x)
-    return {"f": f, "axes": best["axes"]}
+    a, b = best["a"], best["b"]
+    direction = 1.0 if b >= a else -1.0
+    x = (station - a) * direction
+    f = internal_forces(data["fi"], data["w"], x, abs(b - a))
+    return {"f": f, "axes": best["axes"], "sub": best}
+
+
+def _unit(v: list[float]) -> list[float]:
+    n = math.sqrt(sum(c * c for c in v))
+    return [c / n for c in v]
+
+
+def _cross(a: list[float], b: list[float]) -> list[float]:
+    return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+
+
+def _dot(a: list[float], b: list[float]) -> float:
+    return sum(x * y for x, y in zip(a, b, strict=True))
+
+
+def reference_axes(pi: list[float], pj: list[float], angle_deg: float = 0.0) -> dict[str, Any]:
+    """The reference program's frame axes (its documented default): local 1 from i to j; a
+    vertical frame has local 2 along +X; any other frame has its 1-2 plane vertical (local 2
+    upward, local 3 horizontal); then both turn by ``angle_deg`` about local 1."""
+    e1 = _unit([pj[k] - pi[k] for k in range(3)])
+    if math.hypot(e1[0], e1[1]) < 1e-3:
+        e2 = [1.0, 0.0, 0.0]
+        e3 = _cross(e1, e2)
+    else:
+        e3 = _unit(_cross(e1, [0.0, 0.0, 1.0]))
+        e2 = _cross(e3, e1)
+    c, s = math.cos(math.radians(angle_deg)), math.sin(math.radians(angle_deg))
+    r2 = [c * e2[k] + s * e3[k] for k in range(3)]
+    r3 = [-s * e2[k] + c * e3[k] for k in range(3)]
+    return {"e1": e1, "e2": r2, "e3": r3}
+
+
+def mirror_angle(pi: list[float], pj: list[float], z: list[float]) -> float:
+    """The reference's frame angle (degrees) that puts its local 2 on SAEngine's local z (so
+    its local 3 is SAEngine's local y, I33 = Iy and M3 = My), for any orientation."""
+    ax = reference_axes(pi, pj, 0.0)
+    angle = math.degrees(math.atan2(_dot(z, ax["e3"]), _dot(z, ax["e2"])))
+    return 0.0 if abs(angle) < 1e-6 else round(angle, 6)
 
 
 def moment_components(
-    kind: str, local: list[float], axes: dict[str, list[float]]
+    kind: str,
+    local: list[float],
+    axes: dict[str, list[float]],
+    ref_axes: dict[str, list[float]] | None = None,
 ) -> dict[str, float]:
-    """The moment magnitudes compared: a column's about global X and Y, a beam's or brace's
-    major (about its horizontal axis) and minor."""
+    """SAEngine's moment magnitudes in the reference's terms: its local moment vector
+    (My about y, Mz about z) projected on the reference's local 3 (M3, major) and 2 (M2,
+    minor). Projecting on the axes, not converting signed components, keeps the comparison
+    independent of the two programs' sign conventions. Without ``ref_axes``: |My|, |Mz|."""
     my, mz = local[4], local[5]
-    if kind == "column":
+    if ref_axes is None:
+        major, minor = abs(my), abs(mz)
+    else:
         y, z = axes["y"], axes["z"]
-        gx = my * y[0] + mz * z[0]
-        gy = my * y[1] + mz * z[1]
-        return {"Mx": abs(gx), "My": abs(gy)}
-    return {"Mmajor": abs(my), "Mminor": abs(mz)}
-
-
-def reference_components(kind: str, row: dict[str, Any], angle_deg: float) -> dict[str, float]:
-    """The reference program's moments (M2 about local 2, M3 about local 3) in the same terms:
-    for a vertical frame local 2 is global X turned by its angle."""
-    m2, m3 = row["M2"], row["M3"]
+        g = [my * y[k] + mz * z[k] for k in range(3)]
+        major, minor = abs(_dot(g, ref_axes["e3"])), abs(_dot(g, ref_axes["e2"]))
     if kind == "column":
-        c, s = math.cos(math.radians(angle_deg)), math.sin(math.radians(angle_deg))
-        return {"Mx": abs(m2 * c - m3 * s), "My": abs(m2 * s + m3 * c)}
-    return {"Mmajor": abs(m3), "Mminor": abs(m2)}
+        return {"M2": minor, "M3": major}
+    return {"Mmajor": major, "Mminor": minor}
+
+
+def reference_components(kind: str, row: dict[str, Any]) -> dict[str, float]:
+    """The reference program's moments: M2 about its local 2, M3 about its local 3."""
+    m2, m3 = abs(row["M2"]), abs(row["M3"])
+    if kind == "column":
+        return {"M2": m2, "M3": m3}
+    return {"Mmajor": m3, "Mminor": m2}
 
 
 # ─────────────────────────────── the reference program's output ───────────────────────────────
@@ -273,31 +338,70 @@ def reasons_for(mode: str, sae: dict[str, Any]) -> dict[str, str]:
         if shells
         else "slab loads to the beams: SAEngine's edge shares vs the reference's membrane distribution"
     )
+    rigid = has_rigid_zones(sae)
+    # The reference's rigid zones stiffen bending and shear only: axial and torsional deformation
+    # stay over the full length (its analysis reference manual, Eqn. 7-7); OpenSees -jntOffset
+    # zones are rigid in every direction. Torsional modes feel that first.
+    zone_note = (
+        "rigid end zones: the reference's stiffen bending and shear only (axial and torsion over "
+        "the full length), SAEngine's (-jntOffset) are rigid in every direction"
+    )
     if mode == "mirror":
         return {
-            "period": "same model: a solver or mass difference; check that the reference lumps no mass",
-            "modalMass": "the reference's mode normalisation or mass lumping (it lumps lateral mass at storeys by default)",
+            "period": (
+                f"same model except one convention: {zone_note}"
+                if rigid
+                else "same model: a solver or mass difference; check that the reference lumps no mass"
+            ),
+            "modalMass": (
+                f"follows the mode shapes: {zone_note}"
+                if rigid
+                else "the reference's mode normalisation or mass lumping (it lumps lateral mass at storeys by default)"
+            ),
             "reaction": "same model, same loads: investigate the load transfer",
             "baseShear": "same nodal forces: investigate",
             "weight": "same joint masses: investigate",
             "storyShear": "same nodal forces: investigate",
             "drift": "same model: a stiffness difference (thick vs thin shells, element formulation)",
+            # Both programs solve the same mesh node by node, so discretisation cannot explain
+            # a difference here: it is unexplained until investigated.
             "faceMoment": (
-                f"slab mesh not converged at {mesh} mm (D2: 500 mm or span/8) or shell formulation"
+                "same mesh and loads, so not the mesh: unexplained; candidates are the shell "
+                "formulation (thick shell vs SAEngine's ASDShellQ4) or the beam-slab "
+                "interaction; investigate"
                 if shells
                 else "same frame model and loads: investigate"
             ),
         }
     return {
-        "period": "conventions: rigid end zones, thin shells, storey mass lumping, column angle (snapped rotation)",
+        "period": "conventions: rigid end zones, thin shells, storey mass lumping",
         "modalMass": f"storey mass lumping (D1): SAEngine's lumping is '{lumping}'",
         "reaction": "loaded areas differ: self-weight overlaps at joints (counted in full in SAEngine), openings, equipment as point loads; see the notes",
         "baseShear": f"seismic-weight convention (D1): the reference sends the lower half of the first storey to the base; SAEngine '{lumping}'",
         "weight": f"seismic-weight convention (D1): the reference sends the lower half of the first storey to the base; SAEngine '{lumping}'",
         "storyShear": "follows W (D1) and the vertical distribution",
         "drift": "follows the storey forces (W) and the stiffness conventions (end offsets, thin shells)",
-        "faceMoment": f"rigid end zones and auto end offsets (D3); {slab_note}; compared at the same station",
+        "faceMoment": (
+            "both programs have rigid end zones with the same factor (D3): the zone lengths "
+            "(the reference's from the connected members' depths), axial and torsion over the "
+            f"full length in the reference; {slab_note}; compared at the same station"
+            if rigid
+            else f"rigid end zones and auto end offsets (D3); {slab_note}; compared at the same station"
+        ),
     }
+
+
+def has_rigid_zones(sae: dict[str, Any]) -> bool:
+    """Whether SAEngine's analysed members have rigid end zones (any probed sub-element with a
+    rigid length, or a rigid-zone factor in the analysis settings)."""
+    settings = sae.get("analysisSettings") or {}
+    if settings.get("rigidZoneFactor"):
+        return True
+    return any(
+        any(float(r) > 0 for r in sub.get("rigid") or [])
+        for span in sae.get("members") or []
+        for sub in span.get("subs") or []
+    )
 
 
 def compare(sae: dict[str, Any], ref: dict[str, Any], mode: str) -> list[Quantity]:
@@ -451,19 +555,31 @@ def compare(sae: dict[str, Any], ref: dict[str, Any], mode: str) -> list[Quantit
             last = [r for r in _as_list(fr.get("last")) if r.get("case") == case]
             if not first or not last:
                 continue
+            subs = span.get("subs") or []
             ends = (
-                ("i", min(first, key=lambda r: r["sta"]), 0.0),
-                ("j", max(last, key=lambda r: r["sta"]), float(fr.get("lastStart") or 0.0)),
+                ("i", min(first, key=lambda r: r["sta"]), subs[0] if subs else None),
+                ("j", max(last, key=lambda r: r["sta"]), subs[-1] if subs else None),
             )
-            for end, row, offset in ends:
-                station = offset + row["sta"]
+            for end, row, probed in ends:
+                if mode == "mirror" and probed is not None:
+                    # the reference's frame is SAEngine's sub-element, drawn from its node i:
+                    # stations count from that node, in its direction
+                    na, nb = _node_range(probed)
+                    station = na + (1.0 if nb >= na else -1.0) * row["sta"]
+                    ref_axes = probed.get("refAxes")
+                else:
+                    # native: one frame per span, drawn from the span's start
+                    station = row["sta"]
+                    ref_axes = None
+                if ref_axes is None and span.get("start") and span.get("end"):
+                    # an export without the mirror's axes drew its frames at angle 0
+                    angle = span.get("angle", 0.0) if mode == "native" else 0.0
+                    ref_axes = reference_axes(span["start"], span["end"], angle)
                 s = saengine_at(span, case, station)
                 if s is None:
                     continue
-                sc = moment_components(span["kind"], s["f"], s["axes"])
-                rc = reference_components(
-                    span["kind"], row, span.get("angle", 0.0) if mode == "native" else 0.0
-                )
+                sc = moment_components(span["kind"], s["f"], s["axes"], ref_axes)
+                rc = reference_components(span["kind"], row)
                 for comp in sc:
                     peak = max(peak, sc[comp])
                     q = Quantity(
@@ -482,17 +598,20 @@ def compare(sae: dict[str, Any], ref: dict[str, Any], mode: str) -> list[Quantit
                     }
                     rows.append(q)
         angle = float(span.get("angle", 0.0) or 0.0)
-        skew = (
+        # a skewed column that SAEngine analysed without its own axes (no vecxz on its
+        # elements) was snapped to a quarter turn: name that as the reason
+        snapped = (
             mode == "native"
             and span["kind"] == "column"
             and abs(angle / 90 - round(angle / 90)) > 1e-6
+            and not any(sub.get("vecxz") for sub in span.get("subs") or [])
         )
         for q in rows:
             judge(q, reasons, floor=0.02 * peak)
-            if skew and q.status == "FLAG":
+            if snapped and q.status == "FLAG":
                 q.reason = (
-                    f"column at {angle:g}°: SAEngine's analysis snaps it to a quarter turn "
-                    "(rotation bug, stream A); components in global axes"
+                    f"column at {angle:g}°: SAEngine's analysis snapped it to a quarter turn "
+                    "(its elements carry no vecxz)"
                 )
             out.append(q)
     return out
@@ -554,8 +673,16 @@ def report_markdown(
         "stories": "Storey shears and drifts",
         "members": "Member moments at the support faces"
         if meta.get("mode") == "native"
-        else "Member end moments (at the joints)",
+        else "Member end moments (at the joints, or at the faces where there are end offsets)",
     }
+    lines += [
+        (
+            "Member moments are magnitudes about the reference's frame axes: M3 (major) and M2 "
+            "(minor); for a column local 2 is global X turned by its angle. SAEngine's moment "
+            "vector is projected on those axes."
+        ),
+        "",
+    ]
     for group, title in titles.items():
         rows = [q for q in quantities if q.group == group]
         if not rows:
