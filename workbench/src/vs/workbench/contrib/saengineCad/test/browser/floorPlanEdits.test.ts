@@ -200,7 +200,7 @@ suite('SAEngine - Floor plan edits', () => {
 		const split = model(splitSlab(layout, 'S1', 'B6'));
 		const corners = (split.slabs as { id: string; boundary: { x: string; y: string; dx?: number }[] }[]).map(s => `${s.id}: ${s.boundary.map(p => `${p.x}${p.y}${p.dx ? `+${p.dx}` : ''}`).join(' ')}`);
 		assert.deepStrictEqual({ corners, edge: outcome(splitSlab(layout, 'S1', 'B7')) }, {
-			corners: ['S1: B1 B2 A2 A1', 'S2: C1 C2 B2 B1'],
+			corners: ['S1: A1 B1 B2 A2', 'S2: B1 C1 C2 B2'],
 			edge: 'B7 does not run across S1.',
 		});
 	});
