@@ -40,7 +40,7 @@ import { IWorkingCopyService } from '../../../services/workingCopy/common/workin
 import { EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { saveProjectEdits } from '../../saengineProject/browser/projectEdits.js';
 import { DESIGN_APPLY_COMMAND, DESIGN_PROPOSAL_COMMAND, designArguments, IFemDesignReport, runDesign } from './femDesign.js';
-import { describeBeforeAfter, describeChange, describeCheckCounts, describeFailing, describeSteelProposal, DesignProposalMode, DesignProposalModel, IDesignProposalRow, IDesignProposalTexts, IFemDesignApplyResult, IFemDesignProposal, failingItems, notFixedBy, proposalEdits } from './femDesignProposal.js';
+import { countFailing, describeBeforeAfter, describeChange, describeCheckCounts, describeFailing, describeSteelProposal, DesignProposalMode, DesignProposalModel, IDesignProposalRow, IDesignProposalTexts, IFemDesignApplyResult, IFailingItem, IFemDesignProposal, failingItems, notFixedBy, proposalEdits } from './femDesignProposal.js';
 import { FemDesignProposalInput } from './femDesignProposalInput.js';
 import { errorSummary } from './femResultsBar.js';
 
@@ -529,9 +529,16 @@ export class FemDesignProposalEditor extends EditorPane {
 			: localize('femProposal.headerByType', "Bars per type, for its most demanding member")));
 		if (this.before) {
 			append(text, $('.fem-proposal-header-detail', undefined, localize('femProposal.now', "Design checks now: {0}.", describeCheckCounts(this.before))));
+			// From the rows (N-X5 of usability walk 2: "bars are proposed" for a type whose row
+			// proposed none).
 			const noBars = this.before.summary.noBars ?? [];
-			if (noBars.length) {
-				append(text, $('.fem-proposal-header-detail', undefined, localize('femProposal.noBarsYet', "Not checked for want of bars: {0}. Bars are proposed for them below.", noBars.join(', '))));
+			const withoutBars = noBars.filter(type => rows.some(r => r.type === type && r.tooSmall && !r.included));
+			const proposed = noBars.filter(type => !withoutBars.includes(type));
+			if (proposed.length) {
+				append(text, $('.fem-proposal-header-detail', undefined, localize('femProposal.noBarsYet', "Not checked for want of bars: {0}. Bars are proposed for them below.", proposed.join(', '))));
+			}
+			if (withoutBars.length) {
+				append(text, $('.fem-proposal-header-detail.warn', undefined, localize('femProposal.noBarsNone', "Not checked for want of bars, and no bars proposed: {0}. See their rows for the section to try.", withoutBars.join(', '))));
 			}
 		}
 		const button = this.renderStore.add(new Button(header, { ...defaultButtonStyles, supportIcons: true }));
@@ -542,12 +549,22 @@ export class FemDesignProposalEditor extends EditorPane {
 		// while every joint and a beam failed).
 		const left = notFixedBy(rows, this.before);
 		if (!rows.some(r => r.changed)) {
-			append(this.list, left.length
-				? $('.fem-proposal-warning', undefined, localize('femProposal.noBarFix', "No change of bars is proposed, but these still fail: {0}. Bars do not fix them: change the section, the material or the layout.", describeFailing(left)))
-				: $('.fem-proposal-note', undefined, localize('femProposal.allFine', "The bars of every type already provide the steel required: nothing to change.")));
+			if (left.length) {
+				this.renderFailing(this.list, localize('femProposal.noBarFix', "No change of bars is proposed, but these still fail: {0}. Bars do not fix them: change the section, the material or the layout.", countFailing(left)), left);
+			} else {
+				append(this.list, $('.fem-proposal-note', undefined, localize('femProposal.allFine', "The bars of every type already provide the steel required: nothing to change.")));
+			}
 		} else if (left.length) {
-			append(this.list, $('.fem-proposal-warning', undefined, localize('femProposal.notFixed', "Not fixed by the rows included: {0}.", describeFailing(left))));
+			this.renderFailing(this.list, localize('femProposal.notFixed', "Not fixed by the rows included: {0}.", countFailing(left)), left);
 		}
+	}
+
+	/** A warning with the failing items counted, their ids under a disclosure (N-X21 of usability walk 2). */
+	private renderFailing(container: HTMLElement, text: string, items: readonly IFailingItem[]): void {
+		const warning = append(container, $('.fem-proposal-warning'));
+		const details = append(warning, $('details.fem-proposal-disclosure'));
+		append(details, $('summary', undefined, text));
+		append(details, $('.fem-proposal-ids', undefined, describeFailing(items)));
 	}
 
 	/** The banner of the last apply: the checks before and after, what changed, and Undo. */
@@ -556,7 +573,8 @@ export class FemDesignProposalEditor extends EditorPane {
 		if (!applied) {
 			return;
 		}
-		const ok = !!applied.after && applied.after.summary.failed === 0;
+		// Applied is a success; what still fails is a warning inside it (N-X21 of usability walk 2).
+		const ok = !!applied.after && !applied.problem;
 		const banner = append(this.list, $(`.fem-proposal-applied${ok ? '.pass' : ''}${applied.undone ? '.undone' : ''}`));
 		const head = append(banner, $('.fem-proposal-applied-head'));
 		append(head, $('span.fem-proposal-applied-title', undefined, applied.undone
@@ -573,7 +591,7 @@ export class FemDesignProposalEditor extends EditorPane {
 			}
 			const failing = failingItems(applied.after);
 			if (failing.length) {
-				append(banner, $('.fem-proposal-warning', undefined, localize('femProposal.stillFailing', "Still failing: {0}.", describeFailing(failing))));
+				this.renderFailing(banner, localize('femProposal.stillFailing', "Still failing: {0}.", countFailing(failing)), failing);
 			}
 			if (this.canUndo(applied)) {
 				const undo = this.renderStore.add(new Button(banner, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
@@ -594,7 +612,9 @@ export class FemDesignProposalEditor extends EditorPane {
 		const toggle = append(element, $('.fem-proposal-toggle'));
 		const title = row.blocked
 			? localize('femProposal.blockedRow', "{0} cannot be applied as the rows stand", row.type)
-			: row.changed
+			: row.strengthBars
+				? localize('femProposal.strengthRow', "Apply the bars the strength of {0} needs anyway (its joints still fail)", row.type)
+				: row.changed
 				? localize('femProposal.includeRow', "Include {0}", row.type)
 				: row.tooSmall
 					? row.steel
@@ -655,8 +675,18 @@ export class FemDesignProposalEditor extends EditorPane {
 		if (steelFacts) {
 			append(body, $('.fem-proposal-facts', undefined, steelFacts));
 		}
+		if (row.strengthBars) {
+			append(body, $('.fem-proposal-facts', undefined, row.included
+				? localize('femProposal.strengthIncluded', "Included: these bars are applied, but its joints still fail joint shear until the section grows.")
+				: localize('femProposal.strengthOffer', "Tick to apply the bars its strength needs anyway; its joints still fail joint shear until the section grows.")));
+		}
 		if (row.overDesigned.length) {
-			append(body, $('.fem-proposal-facts', undefined, localize('femProposal.overDesigned', "Over-designed with these bars: {0}", row.overDesigned.join(', '))));
+			// A count, the ids under a disclosure (N-X21 of usability walk 2: a wall of member ids).
+			const details = append(body, $('details.fem-proposal-disclosure.fem-proposal-facts'));
+			append(details, $('summary', undefined, row.overDesigned.length === 1
+				? localize('femProposal.overDesignedOne', "1 member over-designed with these bars")
+				: localize('femProposal.overDesignedMany', "{0} members over-designed with these bars", row.overDesigned.length)));
+			append(details, $('.fem-proposal-ids', undefined, row.overDesigned.join(', ')));
 		}
 		for (const warning of row.warnings) {
 			append(body, $('.fem-proposal-warning', undefined, warning));

@@ -6,8 +6,8 @@
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { describeDesignCounts, describeSteel, describeSteelRatio, designArguments, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, otherFailureElements, requiredSteelOf, shortElements, tooSmallElements } from '../../browser/femDesign.js';
-import { describeBars, describeBeforeAfter, describeChange, describeFailing, describeTransverseSpacing, DesignProposalModel, failingItems, IFemDesignProposal, notFixedBy, proposalEdits } from '../../browser/femDesignProposal.js';
+import { describeDesignCounts, describeEngineError, describeNotChecked, describeSteel, describeSteelRatio, designArguments, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, otherFailureElements, requiredSteelOf, shortElements, tooSmallElements } from '../../browser/femDesign.js';
+import { countFailing, describeBars, describeBeforeAfter, describeChange, describeFailing, describeTransverseSpacing, DesignProposalModel, failingItems, IFemDesignProposal, notFixedBy, proposalEdits } from '../../browser/femDesignProposal.js';
 
 const B1_CURRENT = { material: 'B500', cover: 40, longitudinal: [{ position: 'top' as const, count: 3, dia: 16 }, { position: 'bottom' as const, count: 3, dia: 16 }], transverse: { type: 'stirrup' as const, dia: 10, spacing: 200, legs: 2 } };
 const B1_PROPOSED = { material: 'B500', cover: 40, longitudinal: [{ position: 'top' as const, count: 4, dia: 20 }, { position: 'bottom' as const, count: 3, dia: 16 }], transverse: { type: 'stirrup' as const, dia: 10, spacing: 150, legs: 2 }, text: '4 Ø20 top, 3 Ø16 bottom, Ø10 @ 150' };
@@ -127,6 +127,56 @@ suite('SAEngine - FEM design proposal', () => {
 			'17 members pass, 1 fail',
 			'26 members pass, 1 fail',
 		]);
+	});
+
+	test('the one count of the backend: members, joints and building checks apart; not checked by reason (N-X8)', () => {
+		const counts = {
+			members: { total: 657, checked: 629, passed: 629, failed: 0, notChecked: 28, byKind: { column: { total: 200, checked: 172, passed: 172, failed: 0, notChecked: 28 } } },
+			joints: { checked: 172, passed: 152, failed: 20 },
+			building: { checked: 3, passed: 3, failed: 0 },
+			notChecked: { noBars: 28, other: 0 },
+		};
+		const summary = { checked: 804, passed: 784, failed: 20, skipped: 28, maxUtilisation: 0.93, governing: 'C-A1-L1', counts };
+		assert.deepStrictEqual([
+			describeDesignCounts(summary),
+			describeNotChecked(summary),
+			describeNotChecked({ ...summary, counts: { ...counts, notChecked: { noBars: 12, other: 16 } } }),
+			describeNotChecked({ ...summary, counts: undefined, skipped: 1 }),
+		], [
+			'629 members pass, 0 fail; 172 joints, 20 fail',
+			'28 members not checked for want of bars',
+			'28 members not checked (12 for want of bars)',
+			'1 member not checked',
+		]);
+	});
+
+	test('a code pack the engine cannot use says to restart it (N-X17)', () => {
+		assert.ok(describeEngineError('saengine.codes.registry.CodePackError: code pack \'bnbc2020\' cannot be used: basis: Extra inputs are not permitted').startsWith('The code pack cannot be used (code pack \'bnbc2020\''));
+		assert.strictEqual(describeEngineError('ValueError: unknown result case'), 'ValueError: unknown result case');
+	});
+
+	test('what still fails, counted for the line over its ids (N-X21)', () => {
+		const items = [
+			...['J1', 'J2', 'J3'].map(id => ({ id, type: undefined, kind: 'joint' as const, what: 'strong column / weak beam' })),
+			{ id: 'B5', type: 'B1', kind: 'member' as const, what: 'Deflection' },
+		];
+		assert.strictEqual(countFailing(items), '3 joints (strong column / weak beam); 1 member (Deflection)');
+	});
+
+	test('a column too small for joint shear offers its strength bars, left out until ticked (N-X5)', () => {
+		const strength = { material: 'B420', cover: 40, longitudinal: [{ position: 'perimeter' as const, count: 8, dia: 16 }], transverse: { type: 'tie' as const, dia: 10, spacing: 150 }, text: '8Ø16, ties Ø10 @ 150' };
+		const proposal: IFemDesignProposal = {
+			...BY_TYPE,
+			types: [{ ...BY_TYPE.types[2], tooSmall: { reason: 'joint shear at C2@3000', suggestion: 'try 450 x 450 mm (+50 mm)' }, strengthBars: strength }],
+		};
+		const model = new DesignProposalModel();
+		model.setProposal('byType', proposal);
+		const [row] = model.rows();
+		assert.deepStrictEqual([row.tooSmall, row.strengthBars, row.changed, row.included, row.proposed], [true, true, true, false, '8Ø16, ties Ø10 @ 150']);
+		assert.strictEqual(model.applyRequest(), undefined);
+		model.setIncluded(row.key, true);
+		const request = model.applyRequest();
+		assert.deepStrictEqual([request?.types[0].apply, request?.types[0].applyStrengthBars], [true, true]);
 	});
 
 	test('ties of one spacing along the member are said once (X27)', () => {

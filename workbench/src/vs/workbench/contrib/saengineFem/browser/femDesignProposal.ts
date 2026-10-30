@@ -127,6 +127,13 @@ export interface IDesignProposalType {
 	 */
 	readonly byType?: DesignBars;
 	readonly tooSmall?: IDesignTooSmall | null;
+	/**
+	 * A column type too small for its joints' shear: the bars its own strength needs, which the
+	 * engineer may apply anyway (`applyStrengthBars`) rather than leave its columns without bars.
+	 */
+	readonly strengthBars?: DesignBars;
+	/** True: apply `strengthBars` (set by this page). */
+	readonly applyStrengthBars?: boolean;
 	readonly notes?: readonly string[];
 	readonly warnings?: readonly DesignProposalWarning[];
 	/** A steel type: its section is proposed instead of bars (`current`, `proposed` then unused). */
@@ -211,6 +218,11 @@ export interface IDesignProposalRow {
 	readonly blocked: boolean;
 	/** A steel type's section proposal: its rows show sections, not bars. */
 	readonly steel?: IDesignSteelProposal;
+	/**
+	 * Too small for its joints' shear, with the bars its strength needs on offer: included, the
+	 * row applies them anyway (`proposed` then describes them).
+	 */
+	readonly strengthBars?: boolean;
 }
 
 function formatMass(value: number): string {
@@ -486,6 +498,33 @@ export function describeFailing(items: readonly IFailingItem[]): string {
 }
 
 /**
+ * "20 joints (strong column / weak beam); 2 members (Deflection)": what fails, counted per kind
+ * and reason, for a line whose ids are listed under a disclosure (N-X21 of usability walk 2).
+ */
+export function countFailing(items: readonly IFailingItem[]): string {
+	const groups = new Map<string, { kind: IFailingItem['kind']; what: string; count: number }>();
+	for (const item of items) {
+		const key = `${item.kind}|${item.what}`;
+		const group = groups.get(key) ?? { kind: item.kind, what: item.what, count: 0 };
+		group.count++;
+		groups.set(key, group);
+	}
+	return [...groups.values()].map(g => {
+		switch (g.kind) {
+			case 'building': return g.count === 1
+				? localize('femProposal.countBuilding', "1 building check")
+				: localize('femProposal.countBuildings', "{0} building checks", g.count);
+			case 'joint': return g.count === 1
+				? localize('femProposal.countJoint', "1 joint ({0})", g.what)
+				: localize('femProposal.countJoints', "{0} joints ({1})", g.count, g.what);
+			default: return g.count === 1
+				? localize('femProposal.countMember', "1 member ({0})", g.what)
+				: localize('femProposal.countMembers', "{0} members ({1})", g.count, g.what);
+		}
+	}).join('; ');
+}
+
+/**
  * What the included rows leave failing: the building's checks and the joints (bars proposed per
  * type design neither) and the members whose type no included row changes.
  */
@@ -611,9 +650,16 @@ export class DesignProposalModel {
 			const steel = steelProposalOf(t);
 			const unchecked = this.unchecked(t.type);
 			const steelEntry = steel && this.entry(`type:${t.type}`, steel.proposed ? t.status : 'tooSmall', steel.current, steel.proposed, !unchecked);
+			// Too small for its joints' shear (N-X5 of usability walk 2): its strength bars are on
+			// offer, left out unless the engineer includes them.
+			const strength = !steel && t.status === 'tooSmall' && t.strengthBars ? t.strengthBars : undefined;
+			const strengthEntry = strength !== undefined && {
+				...this.entry(`type:${t.type}`, 'ok', t.current, strength, false),
+				tooSmall: true,
+			};
 			const entry = steelEntry
 				? { ...steelEntry, proposed: steelEntry.tooSmall ? localize('femProposal.noSteelSection', "no {0} section passes", steel.family) : steelEntry.proposed }
-				: this.entry(`type:${t.type}`, whole ? undefined : t.status, t.current, whole && t.byType ? t.byType : t.proposed, !unchecked);
+				: strengthEntry || this.entry(`type:${t.type}`, whole ? undefined : t.status, t.current, whole && t.byType ? t.byType : t.proposed, !unchecked);
 			const keptNote = whole
 				? [localize('femProposal.keptBack', "Bars for all its members (the new type for {0} is left out).", keptBack.join(', '))]
 				: [];
@@ -633,6 +679,7 @@ export class DesignProposalModel {
 				notes: whole ? keptNote : t.notes ?? [],
 				blocked,
 				...(steel ? { steel } : {}),
+				...(strength !== undefined ? { strengthBars: true } : {}),
 			});
 		}
 		rows.push(...newRows);
@@ -730,7 +777,10 @@ export class DesignProposalModel {
 		return {
 			...proposal,
 			mode: this._mode,
-			types: proposal.types.map(t => ({ ...t, apply: included.has(`type:${t.type}`) })),
+			types: proposal.types.map(t => {
+				const apply = included.has(`type:${t.type}`);
+				return { ...t, apply, ...(apply && t.status === 'tooSmall' && t.strengthBars ? { applyStrengthBars: true } : {}) };
+			}),
 			...(proposal.newTypes ? { newTypes: proposal.newTypes.map(t => ({ ...t, apply: included.has(`new:${t.type}`) })) } : {}),
 			...(proposal.reassign ? { reassign: proposal.reassign.map(r => ({ ...r, apply: included.has(`new:${r.to}`) })) } : {}),
 		};
