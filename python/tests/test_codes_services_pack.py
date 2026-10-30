@@ -31,7 +31,7 @@ def _user_folder(tmp_path, monkeypatch):
 
 def _differences(module_name: str, stem: str) -> list[str]:
     module = importlib.import_module(module_name)
-    old = frozen(stem)
+    old = {k: v for k, v in frozen(stem).items() if "(" not in k}  # calls: their own tests
     return [d for name in old for d in same(old[name], plain(getattr(module, name)), name)]
 
 
@@ -82,7 +82,34 @@ def test_fire_flows_have_one_home():
     assert [F.duration("lightI", h) for h in (51.0, 51.5, 102.5)] == [30, 38, 45]
 
 
-@pytest.mark.parametrize("name", ["plumbing", "hvac", "electrical", "fire"])
+def test_steel_sections_equal_the_old_module():
+    assert _differences("saengine.library.steel_sections", "steel_sections") == []
+
+
+def test_steel_section_table_and_its_json_equal_the_old_ones():
+    from saengine.library import steel_sections as S
+
+    old = frozen("steel_sections")
+    assert same(old["section_table()"], plain(list(S.section_table()))) == []
+    assert same(old["table_json()"], plain(S.table_json())) == []
+
+
+def test_steel_sections_follow_the_pack_in_force(tmp_path):
+    from saengine.library import steel_sections as S
+
+    data = json.loads((PACKS_DIR / "bnbc2020/data/steelSections.json").read_text(encoding="utf-8"))
+    ipe = data["rolled"]["IPE"]
+    pack = registry.load_path(
+        _pack_extending_bnbc(tmp_path, "steelSections", {"rolled": {"IPE": ipe}, "density": 7800})
+    )
+    base = S.find("IPE 300")
+    with code_context.using(pack):
+        mine = S.find("IPE 300")
+        assert mine.A == base.A and mine.mass == pytest.approx(base.mass * 7800 / 7850)
+    assert S.find("IPE 300") == base
+
+
+@pytest.mark.parametrize("name", ["plumbing", "hvac", "electrical", "fire", "steelSections"])
 def test_moved_table_is_registered_covered_and_cited(name):
     manifest = json.loads((PACKS_DIR / "bnbc2020" / "pack.json").read_text(encoding="utf-8"))
     assert name in TABLE_MODELS

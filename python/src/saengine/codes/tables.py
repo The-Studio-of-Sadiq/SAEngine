@@ -1258,6 +1258,87 @@ class FireTable(_Services):
         return self
 
 
+class RolledSection(_Row):
+    designation: PosNum = Field(description="The size in the name, e.g. 300 of IPE 300.")
+    h: PosNum = Field(description="Depth [mm].")
+    b: PosNum = Field(description="Flange width [mm].")
+    tw: PosNum = Field(description="Web thickness [mm].")
+    tf: PosNum = Field(description="Flange thickness (mean, for tapered flanges) [mm].")
+    r: NonNegNum = Field(description="Root radius [mm].")
+
+
+class RolledFamily(_Row):
+    """A family of rolled I sections or channels; ``source`` names the standard."""
+
+    shape: Literal["I", "U"]
+    sections: list[RolledSection] = Field(min_length=1)
+
+
+class AngleSection(_Row):
+    leg: PosNum = Field(description="[mm]")
+    t: PosNum = Field(description="Thickness [mm].")
+    r1: NonNegNum = Field(description="Root radius [mm].")
+
+
+class AngleFamily(_Row):
+    """Equal angles; the toe radius is ``toeRadiusShare`` of the root radius."""
+
+    toeRadiusShare: NonNegNum
+    sections: list[AngleSection] = Field(min_length=1)
+
+
+class BoxSize(_Row):
+    h: PosNum
+    b: PosNum
+
+
+class WallRange(_Group):
+    """Walls rolled for a hollow section: those whose slenderness (the smaller side or the
+    diameter over the wall) is within [minRatio, maxRatio]."""
+
+    walls: list[PosNum] = Field(min_length=1)
+    minRatio: PosNum
+    maxRatio: PosNum
+
+
+class HollowFamilies(_Row):
+    """Cold-formed hollow sections by size; ``source`` names the standard."""
+
+    shs: list[PosNum] = Field(description="Square sizes [mm].")
+    rhs: list[BoxSize] = Field(description="Rectangular sizes [mm].")
+    chs: list[PosNum] = Field(description="Outside diameters [mm].")
+    boxWalls: WallRange
+    chsWalls: WallRange
+
+
+class SteelSectionsTable(TableModel):
+    """The standard table of rolled and hollow steel sections SAEngine designs with: the
+    nominal dimensions of each family, as its standard publishes them (``source`` of each
+    family); the properties are computed from them (:mod:`saengine.library.steel_sections`)."""
+
+    density: PosNum = Field(description="Mass density of the steel [kg/m³].")
+    families: list[str] = Field(description="The families, in the order the workbench lists them.")
+    shapeFamilies: dict[str, list[str]] = Field(
+        description="Profile shape -> the families a member of it can be redesigned into."
+    )
+    rolled: dict[str, RolledFamily]
+    angles: AngleFamily
+    hollow: HollowFamilies
+    notes: list[str] = Field(default_factory=list, description="Shown with the table.")
+
+    @model_validator(mode="after")
+    def _keys(self) -> SteelSectionsTable:
+        known = {*self.rolled, "L", "SHS", "RHS", "CHS"}
+        for family in self.families:
+            if family not in known:
+                raise ValueError(f"families: no family '{family}'")
+        for shape, families in self.shapeFamilies.items():
+            for family in families:
+                if family not in self.families:
+                    raise ValueError(f"shapeFamilies.{shape}: no family '{family}'")
+        return self
+
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -1279,6 +1360,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "hvac": HvacTable,
     "electrical": ElectricalTable,
     "fire": FireTable,
+    "steelSections": SteelSectionsTable,
 }
 
 

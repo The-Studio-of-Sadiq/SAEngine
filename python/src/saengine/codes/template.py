@@ -81,6 +81,9 @@ TABLE_HELP: dict[str, str] = {
     "fire": "Fire protection: hazard classes of the occupancy groups, flows and durations, "
     "standpipe and hose pressures, pump ratings, sprinkler pipe schedules and spacing, and the "
     "NFPA values the code leaves out (marked 'from memory, to be checked').",
+    "steelSections": "The standard steel shapes: the nominal dimensions of each rolled family "
+    "with the standard it comes from (its 'source'), the angles, the hollow section sizes and "
+    "the walls rolled for them, the density. SAEngine computes the properties from them.",
 }
 
 #: Keys of pack.json, in the order the template writes them, with their help (written into the

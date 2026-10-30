@@ -1,0 +1,535 @@
+{
+  "$defs": {
+    "AngleFamily": {
+      "additionalProperties": false,
+      "description": "Equal angles; the toe radius is ``toeRadiusShare`` of the root radius.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "toeRadiusShare": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Toeradiusshare"
+        },
+        "sections": {
+          "items": {
+            "$ref": "#/$defs/AngleSection"
+          },
+          "minItems": 1,
+          "title": "Sections",
+          "type": "array"
+        }
+      },
+      "required": [
+        "toeRadiusShare",
+        "sections"
+      ],
+      "title": "AngleFamily",
+      "type": "object"
+    },
+    "AngleSection": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "leg": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "[mm]",
+          "title": "Leg"
+        },
+        "t": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Thickness [mm].",
+          "title": "T"
+        },
+        "r1": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Root radius [mm].",
+          "title": "R1"
+        }
+      },
+      "required": [
+        "leg",
+        "t",
+        "r1"
+      ],
+      "title": "AngleSection",
+      "type": "object"
+    },
+    "BoxSize": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "h": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "H"
+        },
+        "b": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "B"
+        }
+      },
+      "required": [
+        "h",
+        "b"
+      ],
+      "title": "BoxSize",
+      "type": "object"
+    },
+    "HollowFamilies": {
+      "additionalProperties": false,
+      "description": "Cold-formed hollow sections by size; ``source`` names the standard.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "shs": {
+          "description": "Square sizes [mm].",
+          "items": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "title": "Shs",
+          "type": "array"
+        },
+        "rhs": {
+          "description": "Rectangular sizes [mm].",
+          "items": {
+            "$ref": "#/$defs/BoxSize"
+          },
+          "title": "Rhs",
+          "type": "array"
+        },
+        "chs": {
+          "description": "Outside diameters [mm].",
+          "items": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "title": "Chs",
+          "type": "array"
+        },
+        "boxWalls": {
+          "$ref": "#/$defs/WallRange"
+        },
+        "chsWalls": {
+          "$ref": "#/$defs/WallRange"
+        }
+      },
+      "required": [
+        "shs",
+        "rhs",
+        "chs",
+        "boxWalls",
+        "chsWalls"
+      ],
+      "title": "HollowFamilies",
+      "type": "object"
+    },
+    "RolledFamily": {
+      "additionalProperties": false,
+      "description": "A family of rolled I sections or channels; ``source`` names the standard.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "shape": {
+          "enum": [
+            "I",
+            "U"
+          ],
+          "title": "Shape",
+          "type": "string"
+        },
+        "sections": {
+          "items": {
+            "$ref": "#/$defs/RolledSection"
+          },
+          "minItems": 1,
+          "title": "Sections",
+          "type": "array"
+        }
+      },
+      "required": [
+        "shape",
+        "sections"
+      ],
+      "title": "RolledFamily",
+      "type": "object"
+    },
+    "RolledSection": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "designation": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "The size in the name, e.g. 300 of IPE 300.",
+          "title": "Designation"
+        },
+        "h": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Depth [mm].",
+          "title": "H"
+        },
+        "b": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Flange width [mm].",
+          "title": "B"
+        },
+        "tw": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Web thickness [mm].",
+          "title": "Tw"
+        },
+        "tf": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Flange thickness (mean, for tapered flanges) [mm].",
+          "title": "Tf"
+        },
+        "r": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Root radius [mm].",
+          "title": "R"
+        }
+      },
+      "required": [
+        "designation",
+        "h",
+        "b",
+        "tw",
+        "tf",
+        "r"
+      ],
+      "title": "RolledSection",
+      "type": "object"
+    },
+    "WallRange": {
+      "additionalProperties": false,
+      "description": "Walls rolled for a hollow section: those whose slenderness (the smaller side or the\ndiameter over the wall) is within [minRatio, maxRatio].",
+      "properties": {
+        "walls": {
+          "items": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "Walls",
+          "type": "array"
+        },
+        "minRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Minratio"
+        },
+        "maxRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Maxratio"
+        }
+      },
+      "required": [
+        "walls",
+        "minRatio",
+        "maxRatio"
+      ],
+      "title": "WallRange",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The standard table of rolled and hollow steel sections SAEngine designs with: the\nnominal dimensions of each family, as its standard publishes them (``source`` of each\nfamily); the properties are computed from them (:mod:`saengine.library.steel_sections`).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "density": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "description": "Mass density of the steel [kg/m³].",
+      "title": "Density"
+    },
+    "families": {
+      "description": "The families, in the order the workbench lists them.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Families",
+      "type": "array"
+    },
+    "shapeFamilies": {
+      "additionalProperties": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "description": "Profile shape -> the families a member of it can be redesigned into.",
+      "title": "Shapefamilies",
+      "type": "object"
+    },
+    "rolled": {
+      "additionalProperties": {
+        "$ref": "#/$defs/RolledFamily"
+      },
+      "title": "Rolled",
+      "type": "object"
+    },
+    "angles": {
+      "$ref": "#/$defs/AngleFamily"
+    },
+    "hollow": {
+      "$ref": "#/$defs/HollowFamilies"
+    },
+    "notes": {
+      "description": "Shown with the table.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Notes",
+      "type": "array"
+    }
+  },
+  "required": [
+    "density",
+    "families",
+    "shapeFamilies",
+    "rolled",
+    "angles",
+    "hollow"
+  ],
+  "title": "SteelSectionsTable",
+  "type": "object",
+  "$id": "saengine.codePack.steelSections/1"
+}
