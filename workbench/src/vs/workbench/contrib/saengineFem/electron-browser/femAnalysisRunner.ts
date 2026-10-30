@@ -17,8 +17,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
-import { FemRunEvent, FemRunExitCode, IFemCaseResults, IFemResultTable, IFemRunExit, IFemSolverService } from '../../../../platform/saengine/common/femSolver.js';
-import { formatCell } from '../browser/femChartData.js';
+import { FemRunEvent, FemRunExitCode, IFemCaseResults, IFemRunExit, IFemSolverService } from '../../../../platform/saengine/common/femSolver.js';
 import { resultsFolder } from '../browser/femDesign.js';
 import { errorSummary, IFemRunOptions, IFemRunOutcome, IFemRunTracker } from '../browser/femResultsBar.js';
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
@@ -26,9 +25,6 @@ import { IOutputService } from '../../../services/output/common/output.js';
 
 export const FEM_OUTPUT_CHANNEL_ID = 'saengine.fem.analysis';
 export const FEM_PYTHON_SETTING = 'saengine.python.path';
-
-/** How many rows of each result table the output summary prints. */
-const MAX_SUMMARY_ROWS = 12;
 
 interface ICasePick extends IQuickPickItem {
 	readonly caseId: number;
@@ -202,10 +198,11 @@ export class FemAnalysisRunner {
 			return { status: 'failed', cases: 0, message };
 		}
 
-		// The log keeps the result tables; the FEM editor shows them in its tables panel.
+		// The log lists the cases and their warnings: reading every table of a tall building's
+		// run took minutes; the FEM editor reads them one at a time in its tables panel.
 		try {
-			const results = await this.solverService.getResultTables(python, outDir.fsPath, projectPath);
-			output?.append(formatResults(results));
+			const index = await this.solverService.engine(python, 'fem/tableIndex', { outDir: outDir.fsPath, projectPath }) as { readonly results?: readonly IFemIndexEntry[] } | undefined;
+			output?.append(formatIndex(index?.results ?? []));
 		} catch (error) {
 			output?.append(localize('femRun.tablesFailed', "Could not read the results: {0}\n", String(error)));
 		}
@@ -356,23 +353,19 @@ function caseTypeLabel(type: string): string {
 	return type.replace(/Case$/, '');
 }
 
-function formatTable(table: IFemResultTable): string {
-	const rows = table.rows.slice(0, MAX_SUMMARY_ROWS).map(row => row.map(formatCell));
-	const widths = table.columns.map((c, i) => Math.max(c.length, ...rows.map(r => (r[i] ?? '').length)));
-	const line = (cells: readonly string[]) => cells.map((c, i) => c.padStart(widths[i])).join('  ');
-	const out = [`  ${table.title}`, ...table.notes.map(n => `  ! ${n}`), `  ${line(table.columns)}`, ...rows.map(r => `  ${line(r)}`)];
-	if (table.rows.length > rows.length) {
-		out.push(localize('femRun.moreRows', "  ... {0} more row(s)", table.rows.length - rows.length));
-	}
-	return out.join('\n');
+interface IFemIndexEntry {
+	readonly label: string;
+	readonly group: string;
+	readonly warnings: readonly string[];
+	readonly tables: readonly unknown[];
 }
 
-function formatResults(cases: readonly IFemCaseResults[]): string {
+/** The cases of a run and their warnings, for the log (the tables are in the FEM view's Result Tables). */
+function formatIndex(results: readonly IFemIndexEntry[]): string {
 	const parts: string[] = [];
-	for (const c of cases) {
-		parts.push(`\n== ${localize('femRun.caseHeader', "Case #{0} '{1}' ({2})", c.caseId, c.caseName, c.resultType)}${c.earlyStop ? ' ' + localize('femRun.earlyStop', "[stopped early]") : ''}`);
-		parts.push(...c.warnings.map(w => `  ! ${w}`));
-		parts.push(...c.tables.map(formatTable));
+	for (const r of results.filter(r => r.group === 'case')) {
+		parts.push(`== ${r.label}`, ...r.warnings.map(w => `  ! ${w}`));
 	}
-	return parts.join('\n') + '\n';
+	parts.push(localize('femRun.tablesHint', "The result tables are in the FEM view: Result Tables."));
+	return '\n' + parts.join('\n') + '\n';
 }
