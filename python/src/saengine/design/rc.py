@@ -753,9 +753,16 @@ class InteractionSurface:
         storeys, close to a million points), then :meth:`check` the governing one for its
         details."""
         pts = np.asarray(points, dtype=float).reshape(-1, 3)
-        out = np.zeros(len(pts))
         if not len(pts):
-            return out
+            return np.zeros(0)
+        # The signs of the moments do not change a utilisation: each distinct (Pu, |Mux|,
+        # |Muy|) once (a fifth of a column's points repeat another).
+        pts = np.column_stack([pts[:, 0], np.abs(pts[:, 1:])])
+        pts, inverse = np.unique(pts, axis=0, return_inverse=True)
+        return self._utilisations(pts)[inverse.reshape(-1)]
+
+    def _utilisations(self, pts: np.ndarray) -> np.ndarray:
+        out = np.zeros(len(pts))
         s = self.section
         pu, mu = pts[:, 0], np.hypot(pts[:, 1], pts[:, 2])
         over, tension = pu > s.phi_pn_max, pu < -s.phi_tension
@@ -810,29 +817,31 @@ class InteractionSurface:
         rows = m.shape[1]
         p = np.broadcast_to(m[None, :, 0, 1:], (len(pu), m.shape[0], 2)).copy()
         reaches = np.ones(len(pu), dtype=bool)
-        for k in range(m.shape[0]):
-            if not rising[k]:
-                p[:, k], reached = self._cuts(m[k], pu)
-                reaches &= reached
-                continue
-            # φPn never falls along the meridian (as a rule): the row crossing Pu is found by a
-            # sorted search, the same cut as below; Pu equal to several rows goes below.
-            col = m[k, :, 0]
-            a = np.searchsorted(col, pu, "left")
-            b = np.searchsorted(col, pu, "right")
+        for k in np.flatnonzero(~rising):
+            p[:, k], reached = self._cuts(m[k], pu)
+            reaches &= reached
+        fast = np.flatnonzero(rising)
+        if len(fast):
+            # φPn never falls along these meridians (as a rule): the row crossing Pu is found by
+            # counting the rows below it (a sorted search, all meridians at once), the same cut
+            # as _cuts; Pu equal to several rows goes to _cuts.
+            col = m[fast, :, 0]
+            a = (col[None] < pu[:, None, None]).sum(axis=2)
+            b = (col[None] <= pu[:, None, None]).sum(axis=2)
             equal = np.minimum(b, rows - 1) - a
             between = (a == b) & (a >= 1) & (a <= rows - 1)
             one = between | (equal == 1)
             many = equal > 1
-            reaches &= one | many
-            n = np.flatnonzero(one)
-            r = np.where(between, a - 1, a)[n]
-            lo, hi = col[r] - pu[n], col[r + 1] - pu[n]
+            reaches &= (one | many).all(axis=1)
+            n, j = np.nonzero(one)
+            k = fast[j]
+            r = np.where(between, a - 1, a)[n, j]
+            lo, hi = m[k, r, 0] - pu[n], m[k, r + 1, 0] - pu[n]
             t = lo / np.where(lo != hi, lo - hi, 1.0)
             start, end = m[k, r, 1:], m[k, r + 1, 1:]
             p[n, k] = start + t[:, None] * (end - start)
-            if many.any():
-                p[many, k], _ = self._cuts(m[k], pu[many])
+            for j in np.flatnonzero(many.any(axis=0)):
+                p[many[:, j], fast[j]], _ = self._cuts(m[fast[j]], pu[many[:, j]])
         if self.symmetric:
             p = np.concatenate(
                 [p, p[:, ::-1] * [-1, 1], p * [-1, -1], p[:, ::-1] * [1, -1]], axis=1

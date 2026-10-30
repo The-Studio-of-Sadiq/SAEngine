@@ -694,13 +694,16 @@ class ColumnSearch:
         return self._surfaces[key]
 
     def _demands(self, points: list[Point]) -> np.ndarray:
-        """The (Pu, Mux, Muy) rows of ``points``, made once per list."""
+        """The distinct (Pu, |Mux|, |Muy|) rows of ``points``, made once per list (the signs of
+        the moments do not change a utilisation; a fifth of the rows repeat another)."""
         key = id(points)
         found = self._rows.get(key)
         if found is None or found[0] is not points:
             if len(self._rows) > 64:
                 self._rows.clear()
-            found = (points, np.array([p[:3] for p in points], dtype=float).reshape(-1, 3))
+            rows = np.array([p[:3] for p in points], dtype=float).reshape(-1, 3)
+            rows[:, 1:] = np.abs(rows[:, 1:])
+            found = (points, np.unique(rows, axis=0))
             self._rows[key] = found
         return found[1]
 
