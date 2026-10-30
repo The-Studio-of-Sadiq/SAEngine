@@ -1,6 +1,7 @@
 # Drawing sheets: layers, linetypes, text and plotting
 
-The structural drawing sheets (`11 Exports/Drawings/S-1xx *.dxf`) use one layer scheme, one
+The drawing sheets (`11 Exports/Drawings/S-1xx *.dxf`, and `A-1xx *.dxf` when the project has
+an architecture) use one layer scheme, one
 text style and SAEngine's own linetypes, so that they open the same in AutoCAD, BricsCAD and
 LibreCAD and plot as the PDF set does. The scheme is defined in
 `python/src/saengine/drawings/sheets/layout.py` (`LAYERS`, `LINETYPES`, `FONT`,
@@ -9,7 +10,9 @@ LibreCAD and plot as the PDF set does. The scheme is defined in
 ## Layers
 
 Names follow the US National CAD Standard pattern that most Bangladeshi offices already use for
-structural work (discipline `S-`, then the element). Colours are the AutoCAD Colour Index
+structural work (discipline `S-`, then the element; `A-` for the architectural sheets, which use
+the `S-` grid, dimension, text and table layers too, and draw the structure they show on its
+`S-` layers). Colours are the AutoCAD Colour Index
 (ACI); the lineweight is the layer's plotted lineweight. Every entity is ByLayer (colour,
 linetype and lineweight), except the north arrow's solid fill.
 
@@ -38,7 +41,15 @@ linetype and lineweight), except the north arrow's solid fill.
 | `S-WELD` | 6 magenta | Continuous | 0.25 | Weld symbols (AWS A2.4) and their text |
 | `S-DIMS` | 2 yellow | Continuous | 0.18 | Dimensions |
 | `S-TEXT` | 7 | Continuous | 0.25 | Marks, labels, leaders, view titles |
-| `S-TABLE` | 7 | Continuous | 0.25 | Schedules and tables (BBS, column schedule) |
+| `S-TABLE` | 7 | Continuous | 0.25 | Schedules and tables (BBS, column schedule, door and window and room finish schedules) |
+| `A-WALL` | 7 | Continuous | 0.50 | Architectural walls cut by a plan (their outline, stopped at columns and openings) |
+| `A-WALL-PATT` | 8 grey | Continuous | 0.09 | Wall layer lines and their hatching (masonry ANSI31, concrete AR-CONC) |
+| `A-DOOR` | 3 green | Continuous | 0.25 | Doors: jambs, leaves and swings in plan; outlines in elevation |
+| `A-GLAZ` | 4 cyan | Continuous | 0.25 | Windows: frame and glass (`HIDDEN` above the plan's cut) |
+| `A-AREA-IDEN` | 7 | Continuous | 0.25 | Room tags: number and name, net area, finish codes |
+| `A-ELEV` | 7 | Continuous | 0.25 | Elevations and sections: what is seen beyond the cut |
+| `A-SECT` | 7 | Continuous | 0.50 | Sections: outlines of what the cut passes through; the ground line |
+| `A-ANNO-SYMB` | 7 | Continuous | 0.25 | Section lines (`PHANTOM`) and their marks on the plans |
 | `S-VIEWPORT` | 8 | Continuous | 0.09 | The layout's viewport (not plotted) |
 
 Bars are the heaviest lines of a detail (0.50) and concrete outlines lighter (0.35), as in RC
@@ -58,8 +69,8 @@ base scale, so that they plot at these lengths whatever the scale:
 | --- | --- | --- |
 | `CENTER` | 12 dash, 3 gap, 2 dash, 3 gap | Grid lines |
 | `DASHED` | 3 dash, 1.5 gap | Beams below, top bars in slab plans, slab line in beam elevations |
-| `HIDDEN` | 2 dash, 1 gap | Foundations below the level |
-| `PHANTOM` | 12, 2, 2, 2, 2, 2 | Not used by the sheets; for the engineer's own additions |
+| `HIDDEN` | 2 dash, 1 gap | Foundations below the level; windows above the cut of an architectural plan |
+| `PHANTOM` | 12, 2, 2, 2, 2, 2 | Section lines on the architectural plans |
 
 `PSLTSCALE` is 0: the sheets are drafted in model space at the base scale (see below), and the
 layout's single viewport shows them at that scale, so the model space `LTSCALE` applies.

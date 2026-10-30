@@ -101,8 +101,8 @@ def test_generate_writes_the_set_and_its_record(generated: tuple[Path, dict]):
     assert all(p["severity"] in ("error", "warning") for p in answer["problems"])
     record = json.loads((folder / d.RECORD).read_text(encoding="utf-8"))
     assert record["schema"] == d.SCHEMA_ID and record["marks"]
-    assert set(record["source"]) == {"settings", "materials", "objects", "floorPlan", "bim",
-                                     "substructure", "results"}  # fmt: skip
+    assert set(record["source"]) == {"settings", "materials", "objects", "floorPlan",
+                                     "architecture", "bim", "substructure", "results"}  # fmt: skip
     assert record["settings"]["firm"] == "Example Consulting Engineers"
     # The title block of the sheets carries the drawing settings.
     dxf = Path(answer["sheets"][0]["dxf"]).read_text(encoding="utf-8", errors="replace")

@@ -1,4 +1,5 @@
-"""The structural drawings of ``11 Exports/Drawings``: generating them and telling whether they
+"""The drawings of ``11 Exports/Drawings`` (structural, and architectural when there is an
+architecture): generating them and telling whether they
 are current. The glue between the project and the drawing streams:
 :func:`saengine.drawings.detailing.detailing_model` (bars, laps, marks),
 :mod:`saengine.drawings.bbs` (the bar bending schedule) and :mod:`saengine.drawings.sheets` (the
@@ -6,7 +7,9 @@ DXF sheets, the PDF set and the PNG previews).
 
 What a generation writes into ``11 Exports/Drawings``:
 
-- one DXF per sheet (``S-101 General notes.dxf``, ...), for AutoCAD, BricsCAD or LibreCAD;
+- one DXF per sheet (``S-101 General notes.dxf``, ..., then ``A-101 Architectural plan -
+  Base.dxf``, ... when ``05 Floor Plan/architecture.json`` has walls), for AutoCAD, BricsCAD
+  or LibreCAD;
 - ``drawings.pdf``: every sheet, one page each; ``previews/S-101.png``, ...: the previews;
 - ``bbs.csv``: the bar bending schedule (UTF-8 with a byte order mark, for Excel);
 - ``drawings.json``: this module's record of the set: its sheets, the drawing settings it was
@@ -15,7 +18,8 @@ What a generation writes into ``11 Exports/Drawings``:
   marks of the detailing model are kept too: a later generation keeps the bar marks.
 
 Staleness: the stamps (:func:`saengine.library.bim.source_stamp`) of Project Settings,
-Materials, Object Types, the floor plan, the building model and the substructure, and of the
+Materials, Object Types, the floor plan, the architecture, the building model and the
+substructure, and of the
 analysis results' manifest when the design checks were used. Any change of one makes the
 sheets drawn before it out of date. Generating some sheets only rewrites their DXF and preview
 (and their stamps); the PDF set is then older than those sheets until the whole set is drawn.
@@ -57,6 +61,7 @@ SOURCES: tuple[tuple[str, str, str], ...] = (
     ("materials", "03 Materials/materials.json", "Materials"),
     ("objects", "04 Objects/objects.json", "Object Types"),
     ("floorPlan", "05 Floor Plan/floor-plan.json", "Floor Plan"),
+    ("architecture", "05 Floor Plan/architecture.json", "Architecture"),
     ("bim", "06 BIM/bim.json", "Building Model"),
     ("substructure", "09 Substructure/substructure.json", "Substructure"),
 )

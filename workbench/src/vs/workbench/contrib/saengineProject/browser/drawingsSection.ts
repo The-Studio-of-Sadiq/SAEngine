@@ -118,13 +118,13 @@ export class DrawingsSection extends Disposable {
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 	) {
 		super();
-		this.element = $('section.exports-kind.exports-drawings', { 'aria-label': localize('drawings.title', "Structural drawings") });
+		this.element = $('section.exports-kind.exports-drawings', { 'aria-label': localize('drawings.title', "Drawings") });
 		this.element.hidden = true;
 
 		const row = append(this.element, $('.exports-row'));
 		append(row, $(`span.exports-icon${ThemeIcon.asCSSSelector(Codicon.symbolRuler)}`));
 		const text = append(row, $('.exports-text'));
-		append(text, $('.exports-title', undefined, localize('drawings.title', "Structural drawings")));
+		append(text, $('.exports-title', undefined, localize('drawings.title', "Drawings")));
 		this.description = append(text, $('.exports-description'));
 		this.when = append(row, $('.exports-when'));
 		const actions = append(row, $('.exports-actions.drawings-generate'));

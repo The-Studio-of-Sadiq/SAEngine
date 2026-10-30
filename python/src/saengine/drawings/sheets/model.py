@@ -585,4 +585,7 @@ class DrawingSet:
     notes: list[str] = field(default_factory=list)  # general notes
     tables: list[Table] = field(default_factory=list)  # notes tables (lap and development, ...)
     steel: SteelSet = field(default_factory=SteelSet)
+    # the architecture (05 Floor Plan/architecture.json, saengine.library.architecture's model)
+    # its sheets draw; None: no architectural sheets
+    architecture: Any = None
     problems: list[str] = field(default_factory=list)

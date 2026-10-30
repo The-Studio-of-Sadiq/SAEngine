@@ -35,7 +35,6 @@ from typing import Any
 
 from saengine.drawings.sheets.layout import (
     TEXT,
-    TEXT_LARGE,
     View,
     ViewSpec,
     tag,
@@ -51,6 +50,7 @@ from saengine.drawings.sheets.model import (
     SteelSet,
     Table,
 )
+from saengine.drawings.sheets.plans import elevation_grids, level_lines
 
 EPS = 1.0  # mm
 BOQ_FILE = "10 BOQ/boq.json"
@@ -689,26 +689,8 @@ def steel_elevation(building: Building, steel: SteelSet, line: ElevationLine, sc
     bbox = (u0 - 300, z0 - 300, u1 + 300, z1 + 300)
 
     def draw(view: View) -> None:
-        e, r = view.real(6.0), view.real(4.5)
-        for label, u in grids:
-            view.line((u, z0 - e), (u, z1 + e), "S-GRID")
-            c = (u, z1 + e + r)
-            view.circle(c, r, "S-GRID-BUBBLE")
-            view.reserve([(c[0] - r, c[1] - r), (c[0] + r, c[1] + r)])
-            view.text(label, c, TEXT_LARGE, "MC", "S-GRID-BUBBLE")
-        for lv in levels:
-            view.line((u0 - 300, lv.elevation), (u1 + 300, lv.elevation), "S-GRID")
-            tip = (u1 + 300 + view.real(1.5), lv.elevation)
-            s = view.real(1.8)
-            view.polyline(
-                [tip, (tip[0] + s, tip[1] + s), (tip[0] - s, tip[1] + s)], "S-GRID-BUBBLE", True
-            )
-            view.text(
-                f"{lv.name.upper()} {lv.elevation / 1000:+.3f}",
-                (tip[0] + s + view.real(1.0), lv.elevation),
-                TEXT,
-                "ML",
-            )
+        elevation_grids(view, grids, z0, z1)
+        level_lines(view, levels, u0 - 300, u1 + 300)
         for c in columns:
             half = c.extent_along(line.direction)
             u = line.u((c.x, c.y))

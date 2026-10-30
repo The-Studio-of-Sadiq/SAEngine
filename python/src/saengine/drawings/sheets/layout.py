@@ -108,6 +108,14 @@ LAYERS: tuple[tuple[str, int, str, int, str, bool], ...] = (
     ("S-DIMS", 2, "Continuous", 18, "Dimensions", True),
     ("S-TEXT", 7, "Continuous", 25, "Text, marks and labels", True),
     ("S-TABLE", 7, "Continuous", 25, "Schedules and tables", True),
+    ("A-WALL", 7, "Continuous", 50, "Architectural walls cut by the plan or section", True),
+    ("A-WALL-PATT", 8, "Continuous", 9, "Wall layer lines and their hatching", True),
+    ("A-DOOR", 3, "Continuous", 25, "Doors: frames, leaves and swings", True),
+    ("A-GLAZ", 4, "Continuous", 25, "Windows: frames and glass", True),
+    ("A-AREA-IDEN", 7, "Continuous", 25, "Room names, numbers, areas and finishes", True),
+    ("A-ELEV", 7, "Continuous", 25, "Elevations and sections: what is seen beyond the cut", True),
+    ("A-SECT", 7, "Continuous", 50, "Sections: what the cut passes through; the ground line", True),
+    ("A-ANNO-SYMB", 7, "Continuous", 25, "Section lines (phantom) and their marks", True),
     ("S-VIEWPORT", 8, "Continuous", 9, "Viewports (not plotted)", False),
 )
 
@@ -307,7 +315,7 @@ def _segments_cross(a, b, c, d) -> bool:
     return (d1 * d2 < 0) and (d3 * d4 < 0)
 
 
-SOFT_LAYERS = frozenset({"S-GRID", "S-HATCH"})
+SOFT_LAYERS = frozenset({"S-GRID", "S-HATCH", "A-WALL-PATT", "A-ANNO-SYMB"})
 """Linework a label may cross when no position clear of everything is found (grid centre lines);
 the rest (concrete, bars, beams, walls, openings, leaders...) labels keep off."""
 NO_OBSTACLE_LAYERS = frozenset({"S-TABLE", "S-SHEET", "S-TITLE", "S-VIEWPORT"})
@@ -891,12 +899,19 @@ class View:
         )
 
     def hatch(
-        self, points: Iterable[Sequence[float]], pattern: str = "ANSI31", layer: str = "S-HATCH"
+        self,
+        points: Iterable[Sequence[float]],
+        pattern: str = "ANSI31",
+        layer: str = "S-HATCH",
+        holes: Iterable[Iterable[Sequence[float]]] = (),
     ):
-        """A hatch of the polygon ``points``: ``pattern`` (ezdxf's metric definition, written
-        into the HATCH) at its size on paper of :data:`HATCH_SCALES`, or SOLID."""
+        """A hatch of the polygon ``points`` less its ``holes`` (polygons inside it):
+        ``pattern`` (ezdxf's metric definition, written into the HATCH) at its size on paper of
+        :data:`HATCH_SCALES`, or SOLID."""
         hatch = self.sheet.msp.add_hatch(color=256, dxfattribs={"layer": layer})
         hatch.paths.add_polyline_path([self.m(*p[:2]) for p in points], is_closed=True)
+        for hole in holes:
+            hatch.paths.add_polyline_path([self.m(*p[:2]) for p in hole], is_closed=True)
         if pattern.upper() == "SOLID":
             hatch.set_solid_fill(color=256)
         else:
@@ -941,6 +956,7 @@ class View:
         leader: bool = False,
         rings: bool = True,
         force: bool = True,
+        layer: str = "S-TEXT",
     ) -> tuple[float, float] | None:
         """``text`` near the real point ``anchor``: the first of the paper offsets
         ``candidates`` (``(dx, dy)`` or ``(dx, dy, align)``) where it is clear of other text,
@@ -949,7 +965,8 @@ class View:
         rings. Grid lines may be crossed only when nothing else is free. When no place at all
         is free the label goes to the first candidate and is listed in ``labels.forced``.
         ``rings`` False: only the candidates are tried; ``force`` False: nothing is drawn
-        when none is free (returns None). Returns the paper position used."""
+        when none is free (returns None). ``layer``: of the text (its leader is on S-TEXT).
+        Returns the paper position used."""
         labels = self.sheet.labels
         ax, ay = self.p(*anchor)
         tries = [(c[0], c[1], c[2] if len(c) > 2 else align) for c in (candidates or [(0, 0)])]
@@ -1008,7 +1025,7 @@ class View:
             labels.forced.append(text)
         dx, dy, how, line = choice
         px, py = ax + dx, ay + dy
-        index = self.sheet.p_text(text, px, py, height, how, "S-TEXT", rotation)
+        index = self.sheet.p_text(text, px, py, height, how, layer, rotation)
         segment = None
         if line is not None:
             self.sheet.p_line(line[0], line[1], "S-TEXT")
