@@ -408,6 +408,17 @@ class CodePack:
         return [f.id for f in self._chain]
 
     @property
+    def basis(self) -> dict[str, str]:
+        """The manifest's ``basis`` labels (general, concrete, steel, method), each from the
+        nearest pack in the chain that gives it; the ones none gives are left out."""
+        labels: dict[str, str] = {}
+        for found in reversed(self._chain):
+            basis = found.manifest.basis if found.manifest is not None else None
+            if basis is not None:
+                labels.update(basis.model_dump(exclude_none=True))
+        return labels
+
+    @property
     def warnings(self) -> list[Problem]:
         """Warnings for whoever uses the pack (report, run log): the pack's own warnings and,
         for a user or project copy that replaces the built-in pack of the same id, a note that

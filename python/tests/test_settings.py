@@ -151,3 +151,33 @@ def test_override_values_out_of_the_code_range_are_reported() -> None:
         "site.zoneCoefficient",
         "site.windSpeed",
     ]
+
+
+def test_code_basis_comes_from_the_pack() -> None:
+    from saengine.library.settings import code_basis
+
+    basis = code_basis(default_project_settings("Tower"))
+    assert basis.rows() == [
+        ["Loads and general", "BNBC 2020"],
+        ["Concrete", "BNBC 2020 Part 6 Chapter 6"],
+        ["Steel", "BNBC 2020 Part 6 Chapter 10"],
+        ["Design method", "Strength design (LRFD)"],
+    ]
+
+
+def test_old_codes_are_read_but_not_written_back() -> None:
+    from saengine.pipeline.status import holds_defaults
+
+    old = settings(
+        codes={
+            "general": "BNBC 2020",
+            "concrete": "ACI 318-19",
+            "steel": "AISC 360-22",
+            "method": "strength",
+        }
+    )
+    model = ProjectSettings.model_validate(old)
+    assert model.codes is not None and model.codes.concrete == "ACI 318-19"
+    assert "codes" not in model.model_dump(mode="json", by_alias=True)
+    assert holds_defaults(old, "settings")
+    assert ProjectSettings.model_json_schema()["properties"]["codes"]["deprecated"] is True

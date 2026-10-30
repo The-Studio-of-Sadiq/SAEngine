@@ -242,12 +242,13 @@ const TOOLBAR_KEYS: ReadonlySet<string> = new Set(['codePack']);
 
 /**
  * The sections of the settings form: one per top-level setting of the schema (an object, a
- * list), in schema order; plain values join the section named in {@link SECTION_OF}.
+ * list), in schema order; plain values join the section named in {@link SECTION_OF}. Deprecated
+ * settings (the old `codes`, replaced by the code pack) have none.
  */
 export function settingsSections(schema: IJSONSchema): ISettingsSection[] {
 	const sections: { id: string; title: string; keys: string[] }[] = [];
 	for (const [key, property] of Object.entries(schema.properties ?? {})) {
-		if (property.const !== undefined || TOOLBAR_KEYS.has(key)) {
+		if (property.const !== undefined || property.deprecated || TOOLBAR_KEYS.has(key)) {
 			continue;
 		}
 		const owner = SECTION_OF[key];
@@ -384,6 +385,14 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		if (section && SECTIONS.some(s => s.id === section)) {
 			this.selectSection(section);
 		}
+	}
+
+	/** Old files' deprecated `codes` (the design code is the code pack) is dropped when they are saved. */
+	protected override commit(): void {
+		if (this.document) {
+			delete this.document.codes;
+		}
+		super.commit();
 	}
 
 	protected override onWillLoadInput(): void {

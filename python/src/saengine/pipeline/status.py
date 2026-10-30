@@ -721,8 +721,8 @@ def _defined(value: dict[str, Any]) -> dict[str, Any]:
 
 def holds_defaults(document: dict[str, Any], part: str) -> bool:
     """``holdsDefaults``: whether a settings or materials file still holds what a new project
-    starts with (the settings apart from the project name, the concrete and steel codes, the
-    site's location and the building's use)."""
+    starts with (the settings apart from the project name, the code pack, the site's location
+    and the building's use; the deprecated ``codes`` of old files is not compared)."""
     from saengine.library.defaults import default_material_library
     from saengine.library.export import library_json
     from saengine.library.settings import default_project_settings
@@ -730,17 +730,11 @@ def holds_defaults(document: dict[str, Any], part: str) -> bool:
     if part == "materials":
         return _canonical(document) == _canonical(library_json(default_material_library()))
     defaults = library_json(default_project_settings())
-    codes = _object(document.get("codes"))
+    document = {k: v for k, v in document.items() if k != "codes"}
     expected = {
         **defaults,
         "project": _defined({"name": _object(document.get("project")).get("name")}),
-        "codes": _defined(
-            {
-                **_object(defaults.get("codes")),
-                "concrete": codes.get("concrete"),
-                "steel": codes.get("steel"),
-            }
-        ),
+        "codePack": document.get("codePack", defaults.get("codePack")),
         "site": _defined(
             {
                 **_object(defaults.get("site")),

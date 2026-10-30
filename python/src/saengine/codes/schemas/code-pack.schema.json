@@ -1,5 +1,65 @@
 {
   "$defs": {
+    "Basis": {
+      "additionalProperties": false,
+      "description": "What the report and the design method state the design follows. A pack that extends\nanother inherits the labels it does not give; without any, the pack's edition (or name).",
+      "properties": {
+        "general": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Loads and general, e.g. 'BNBC 2020'.",
+          "title": "General"
+        },
+        "concrete": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Concrete design, e.g. 'BNBC 2020 Part 6 Chapter 6'.",
+          "title": "Concrete"
+        },
+        "steel": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Steel design, e.g. 'BNBC 2020 Part 6 Chapter 10'.",
+          "title": "Steel"
+        },
+        "method": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Design method, e.g. 'Strength design (LRFD)'.",
+          "title": "Method"
+        }
+      },
+      "title": "Basis",
+      "type": "object"
+    },
     "Requires": {
       "additionalProperties": false,
       "description": "What a package needs: the SAEngine versions that understand it and other packages.",
@@ -241,6 +301,18 @@
       "description": "Clause references per table, e.g. {'combinations': ['BNBC Part 6 2.7.3']}; a data file's own '$sources' take precedence.",
       "title": "Clauses",
       "type": "object"
+    },
+    "basis": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Basis"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The code the design follows, as the report states it (loads and general, concrete, steel, design method)."
     },
     "author": {
       "anyOf": [
