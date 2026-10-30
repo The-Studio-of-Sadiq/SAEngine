@@ -454,3 +454,46 @@ export function placePolygonSlab(layout: unknown, type: string, story: string, p
 	}
 	return append(layout, 'slabs', { type, story, boundary });
 }
+
+/** The part of polygon `points` on the left of the line `a`→`b` (`side` 1) or its right (-1). */
+function clipToSide(points: readonly CadPoint[], a: CadPoint, b: CadPoint, side: 1 | -1): CadPoint[] {
+	const s = (p: CadPoint) => side * ((b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]));
+	const out: CadPoint[] = [];
+	for (let i = 0; i < points.length; i++) {
+		const [p, q] = [points[i], points[(i + 1) % points.length]];
+		const [sp, sq] = [s(p), s(q)];
+		if (sp >= 0) {
+			out.push(p);
+		}
+		if ((sp > 0 && sq < 0) || (sp < 0 && sq > 0)) {
+			const t = sp / (sp - sq);
+			out.push([p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1])]);
+		}
+	}
+	return out;
+}
+
+/**
+ * Slab `slabId` split in two along the line of beam or wall `memberId` (a member across it): the
+ * slab keeps its id, type and properties on one side, a new slab like it takes the other. The
+ * corners where the line cuts the edges are stored exactly, so both slabs meet on the member.
+ */
+export function splitSlab(layout: unknown, slabId: string, memberId: string): EditResult {
+	const next = JSON.parse(JSON.stringify(layout)) as Json;
+	const slab = members(next, 'slabs').find(s => s.id === slabId);
+	const member = [...members(next, 'beams'), ...members(next, 'walls')].find(m => m.id === memberId);
+	const corners = slab && Array.isArray(slab.boundary) ? slab.boundary.map(c => resolvePoint(next, c)) : [];
+	const [a, b] = member ? [resolvePoint(next, member.start), resolvePoint(next, member.end)] : [undefined, undefined];
+	if (!slab || !member || !a || !b || corners.length < 3 || corners.some(c => !c)) {
+		return { ok: false, error: localize('edit.splitMissing', "{0} or {1} no longer exists.", slabId, memberId) };
+	}
+	const halves = ([1, -1] as const).map(side => clipToSide(corners as CadPoint[], a, b, side));
+	if (halves.some(h => h.length < 3 || Math.abs(polygonArea(h)) < 1e4)) {
+		return { ok: false, error: localize('edit.splitNotAcross', "{0} does not run across {1}.", memberId, slabId) };
+	}
+	const boundary = (points: readonly CadPoint[]) => points.map(p => anchor(next, p, true)!);
+	const other: Json = { ...slab, boundary: boundary(halves[1]) };
+	delete other.id;
+	slab.boundary = boundary(halves[0]);
+	return append(next, 'slabs', other);
+}
