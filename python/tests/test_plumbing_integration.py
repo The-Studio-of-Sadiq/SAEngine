@@ -103,7 +103,7 @@ def test_the_report_joins_the_sizing_the_tank_designs_and_the_hydraulics(
     assert not any(n.startswith("City main fills the roof") for n in hydraulic)
     assert report["hydraulics"]["mains"]["roofTank"]["applies"] is False
     assert report["hydraulics"]["pump"]["flow"] > 0
-    assert set(report["sources"]) == {"mep", "bim", "soil", "materials", "settings"}
+    assert set(report["sources"]) == {"mep", "bim", "soil", "materials", "settings", "architecture"}
     # The designs are kept: the next report reads them instead of running OpenSees again.
     assert len(read_designs(sample)) == 3
     again = full_report(sample, hydraulics=False)

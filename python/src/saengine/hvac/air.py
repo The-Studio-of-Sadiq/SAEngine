@@ -509,6 +509,10 @@ def load_project(project_root: str | Path, mep_text: str | None = None) -> Proje
             raise ValueError(f"{MEP_FILE} is not valid: {error}") from error
         mep = parse(json.dumps(rest))
     project = Project(root, mep, hvac_section(mep, data))
+    from saengine.mep.rooms import read_room_inputs, with_rooms
+
+    # The toilets' and kitchens' exhausts count the same fixtures as the plumbing.
+    project.mep, _ = with_rooms(mep, read_room_inputs(root, mep.plumbing)[0])
     for relative, attribute, kind in (
         ("06 BIM/bim.json", "bim", BuildingModel),
         ("04 Objects/objects.json", "objects", ObjectLibrary),

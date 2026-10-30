@@ -91,6 +91,8 @@ export interface IHvacStory {
 	equipment?: number;
 	/** Window-to-wall ratio per facade, 0 to 1. */
 	glazing?: { N?: number; E?: number; S?: number; W?: number;[key: string]: unknown };
+	/** Where the occupants, gains and outdoor air come from: 'auto' (the rooms where drawn), 'rooms' or 'typed'. */
+	gainsFrom?: string;
 	[key: string]: unknown;
 }
 
@@ -846,6 +848,10 @@ export interface IStoryLoadRow {
 	readonly freshAir?: number;
 	readonly exhaust?: number;
 	readonly note?: string;
+	/** 'rooms' when the architecture's rooms gave the occupants, gains and outdoor air, else 'typed'. */
+	readonly gainsFrom?: string;
+	/** The rooms by Table 8.2.3 use: area [m²], persons, outdoor air [m³/s]. */
+	readonly rooms?: readonly { readonly use: string; readonly label: string; readonly area: number; readonly occupants: number; readonly outdoorAir: number; readonly rooms: readonly string[] }[];
 }
 
 export interface IHvacItemResult {
@@ -1047,6 +1053,10 @@ export function readHvacReport(raw: unknown): IHvacReport | undefined {
 			story, area, sensible: optionalNumber(r.sensible), latent: optionalNumber(r.latent), total,
 			density: optionalNumber(r.density) ?? (total !== undefined && area ? total * 1000 / area : undefined),
 			supply: optionalNumber(flow.airflow ?? flow.supply ?? r.supply), freshAir: optionalNumber(flow.outdoorAir ?? flow.freshAir ?? r.freshAir), exhaust: exhaustOf(flow.exhaust), note: noteOf(r),
+			gainsFrom: optionalString(r.gainsFrom),
+			rooms: records<Record<string, unknown>>(r.rooms).map(g => ({
+				use: String(g.use ?? ''), label: String(g.label ?? g.use ?? ''), area: num(g.area), occupants: num(g.occupants), outdoorAir: num(g.outdoorAir), rooms: strings(g.rooms),
+			})),
 		};
 	});
 	const sum = (key: 'sensible' | 'latent' | 'total' | 'area' | 'supply' | 'freshAir') => stories.some(s => s[key] !== undefined) ? stories.reduce((s, r) => s + num(r[key]), 0) : undefined;

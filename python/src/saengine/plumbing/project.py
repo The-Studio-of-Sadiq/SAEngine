@@ -289,6 +289,10 @@ def full_report(
         mep = parse(text)
     except ValueError as error:
         return {"problems": [f"{MEP_FILE} is not valid: {error}"]}
+    from saengine.mep.rooms import read_room_inputs, stamp, with_rooms
+
+    # The hydraulics draw the same fixtures as the sizing: the rooms' where they are used.
+    mep, _ = with_rooms(mep, read_room_inputs(root, mep.plumbing)[0])
     proposed = list(report.get("sleeves") or [])
     missing = missing_sleeves(mep, proposed)
     report["sleeves"] = missing
@@ -316,6 +320,7 @@ def full_report(
         "soil": _stamp(soil_text),
         "materials": _stamp(materials_text),
         "settings": _stamp(_read(root, SETTINGS_FILE)),
+        "architecture": stamp(root),
     }
     return finite(report)
 

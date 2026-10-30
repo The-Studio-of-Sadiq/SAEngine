@@ -113,10 +113,20 @@ def _place(kind: str, dims: dict[str, Any], building: Building, story: str | Non
 
 
 def plumbing_results(
-    mep: MepModel, bim: Any = None, soil: Any = None, ground: float | None = None
+    mep: MepModel,
+    bim: Any = None,
+    soil: Any = None,
+    ground: float | None = None,
+    rooms: Any = None,
 ) -> dict[str, Any]:
     """The plumbing report of parsed models (``bim``: a BuildingModel, ``soil``: a
-    SoilReport, both optional)."""
+    SoilReport, both optional). ``rooms``: the architecture's rooms
+    (:class:`saengine.mep.rooms.RoomInputs`): the stories' fixtures, occupancy and population
+    come from them where they are used (:func:`saengine.mep.rooms.with_rooms`; ``rooms`` in the
+    result says which, story by story), and the branch runs to the wet rooms are laid out."""
+    from saengine.mep.rooms import with_rooms
+
+    mep, sources = with_rooms(mep, rooms)
     building = Building.of(bim, ground)
     problems = check(mep, bim) if bim is not None else []
     plumbing = mep.plumbing
@@ -333,8 +343,11 @@ def plumbing_results(
     checks.extend(shaft_checks(mep, sizes))
     notes.extend(sleeves["notes"])
 
+    room_section = _rooms_section(mep, rooms, sources, building, bim)
+
     failed = [c["name"] for c in checks if not c["ok"]]
     summary = [
+        *([room_section["line"]] if room_section["line"] else []),
         (
             f"Population {demand['population']:g}, daily demand {demand['dailyM3']:.2f} m³ "
             f"(peak hourly {demand['peakHourlyLpm']:.1f} l/min)"
@@ -363,6 +376,35 @@ def plumbing_results(
         "notes": notes,
         "problems": problems,
         "method": METHOD,
+        "rooms": room_section,
+    }
+
+
+def _rooms_section(
+    mep: MepModel, rooms: Any, sources: list[dict[str, Any]], building: Building, bim: Any
+) -> dict[str, Any]:
+    """Where each story's fixtures come from, the wet rooms and the branch runs to them."""
+    from saengine.mep.rooms import kind_fixtures
+    from saengine.plumbing.branches import branch_runs
+
+    runs, run_notes = branch_runs(mep.plumbing, rooms, building, bim, list(mep.shafts))
+    from_rooms = [s["story"] for s in sources if s["source"] == "rooms"]
+    typed = [s["story"] for s in sources if s["source"] == "typed"]
+    line = ""
+    if rooms is not None and rooms.stories:
+        parts = []
+        if from_rooms:
+            parts.append(f"from the architecture's wet rooms on {', '.join(from_rooms)}")
+        if typed:
+            parts.append(f"typed in 07 MEP on {', '.join(typed)}")
+        line = "Fixtures " + "; ".join(parts) if parts else ""
+    return {
+        "stories": sources,
+        "wetRooms": [r.as_dict() for r in (rooms.rooms if rooms is not None else []) if r.kind],
+        "branches": runs,
+        "kinds": kind_fixtures(mep.plumbing),
+        "notes": [*(rooms.notes if rooms is not None else []), *run_notes],
+        "line": line,
     }
 
 
@@ -447,14 +489,20 @@ def _load(project_root: str | Path, mep_text: str | None = None):
 
 
 def plumbing_report(project_root: str | Path, mep_text: str | None = None) -> dict[str, Any]:
-    """The plumbing report of a project (``mep_text``: unsaved ``07 MEP/mep.json``)."""
+    """The plumbing report of a project (``mep_text``: unsaved ``07 MEP/mep.json``), with the
+    rooms of ``05 Floor Plan/architecture.json`` (:func:`plumbing_results`)."""
+    from saengine.mep.rooms import read_room_inputs
+
     try:
         mep, bim, soil, ground, problems = _load(project_root, mep_text)
     except ValueError as error:
         return {"problems": [str(error)]}
+    rooms, problem = read_room_inputs(project_root, mep.plumbing)
+    if problem:
+        problems.append(problem)
     try:
         result = plumbing_results(
-            mep, bim, soil, ground if isinstance(ground, int | float) else None
+            mep, bim, soil, ground if isinstance(ground, int | float) else None, rooms=rooms
         )
     except Exception as error:  # noqa: BLE001 - a partly entered model must not fail the RPC
         return {"problems": [*problems, f"the plumbing sizing failed: {error!r}"]}

@@ -25,6 +25,33 @@ const KN = localize('hvacResults.unit.kn', "kN");
 /** One ton of refrigeration [kW] (12 000 BTU/h, the backend's KW_PER_TON), when the report gives no tons. */
 const TR = 3.51685;
 
+/** The rooms of each story grouped by their Table 8.2.3 use, as they feed the story's zone. */
+function roomZones(view: HTMLElement, report: IHvacReport, host: IResultsHost): void {
+	const rows = report.stories.filter(s => s.gainsFrom === 'rooms' && s.rooms?.length);
+	if (!rows.length) {
+		return;
+	}
+	const section = resultSection(view, localize('hvacResults.roomZones', "Zones from the rooms"), localize('hvacResults.roomZonesDetail', "the rooms of 6 BIM › Architecture by use (Table 8.2.3); EnergyPlus models one thermal zone per story with their gains added up"));
+	const table = append(section, $('table.mep-table.mep-result-table'));
+	host.tableHead(table, [
+		{ label: localize('hvacResults.f.story', "Story"), width: 130 }, { label: localize('hvacResults.f.use', "Use"), width: 240 },
+		{ label: localize('hvacResults.f.rooms', "Rooms"), numeric: true, width: 64 }, { label: localize('hvacResults.f.area', "Area"), unit: M2, numeric: true, width: 80 },
+		{ label: localize('hvacResults.f.persons', "Persons"), numeric: true, width: 80 }, { label: localize('hvacResults.f.freshAir', "Outdoor air"), unit: M3S, numeric: true, width: 84 },
+	]);
+	const body = append(table, $('tbody'));
+	for (const row of rows) {
+		for (const group of row.rooms ?? []) {
+			const tr = append(body, $('tr'));
+			append(tr, $('td', undefined, host.storyName(row.story)));
+			append(tr, $('td', undefined, group.label));
+			append(tr, $('td.number', undefined, String(group.rooms.length)));
+			append(tr, $('td.number', undefined, formatNumber(group.area, 1)));
+			append(tr, $('td.number', undefined, formatNumber(group.occupants, 1)));
+			append(tr, $('td.number', undefined, formatNumber(group.outdoorAir, 3)));
+		}
+	}
+}
+
 /** Renders the report into `view`. */
 export function renderHvacReport(view: HTMLElement, report: IHvacReport, host: IResultsHost): void {
 	const header = append(view, $('.mep-view-header'));
@@ -93,7 +120,10 @@ export function renderHvacReport(view: HTMLElement, report: IHvacReport, host: I
 			for (const [n, digits] of [[row.area, 0], [row.sensible, 1], [row.latent, 1], [row.total, 1], [row.density, 0], [row.supply, 2], [row.freshAir, 3]] as const) {
 				append(tr, $('td.number', undefined, value(n, digits)));
 			}
-			append(tr, $('td.mep-wrap', undefined, row.note ?? ''));
+			const from = row.gainsFrom === 'rooms'
+				? localize('hvacResults.fromRooms', "gains from {0} room group(s) of the architecture", row.rooms?.length ?? 0)
+				: row.gainsFrom === 'typed' ? localize('hvacResults.fromTyped', "gains from the use typed in the set-up") : '';
+			append(tr, $('td.mep-wrap', undefined, [from, row.note ?? ''].filter(Boolean).join(' · ')));
 		}
 		const total = report.total;
 		if (total) {
@@ -109,6 +139,7 @@ export function renderHvacReport(view: HTMLElement, report: IHvacReport, host: I
 		}
 	}
 
+	roomZones(view, report, host);
 	itemTable(view, host, localize('hvacResults.ducts', "Airflow and ducts"), localize('hvacResults.ductsDetail', "the flow each duct carries, its size and velocity"), report.ducts, 'duct');
 	itemTable(view, host, localize('hvacResults.plant', "Plant"), localize('hvacResults.plantDetail', "capacity against the load it serves; the operating weight is a load on the structure"), report.plant, 'plant');
 	openingsTable(view, host, localize('hvacResults.openings', "Duct openings"), localize('hvacResults.openingsDetail', "through beams (web openings), slabs and walls: the governing check of each"), report.openings);

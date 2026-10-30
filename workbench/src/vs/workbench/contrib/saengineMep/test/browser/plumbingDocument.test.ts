@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IMep, newMep, parseMep, readMepContext, readSleeveSuggestions, serializeMep } from '../../browser/mepDocument.js';
 import { renderPlan } from '../../browser/mepPlan.js';
 import {
-	checkPlumbing, ensurePlumbing, fixtureTotals, hasPlumbing, IPlumbing, mergeSizedTanks, newRiser, newRoofDrain, newTank, plumbingOf, plumbingSummary, plumbingSummaryFile, readOccupancies,
+	checkPlumbing, ensurePlumbing, fixtureTotals, fixtureWords, hasPlumbing, IPlumbing, mergeSizedTanks, newRiser, newRoofDrain, newTank, plumbingOf, plumbingSummary, plumbingSummaryFile, readOccupancies,
 	readPlumbingReport, readSizedTanks, riserOnStory, storyRow, tankCapacity, tankOutline, tankStory,
 } from '../../browser/plumbingDocument.js';
 import { plumbingExtent, renderPlumbing } from '../../browser/plumbingPlan.js';
@@ -243,7 +243,59 @@ suite('SAEngine MEP plumbing', () => {
 			failedRows: 8,
 		});
 	});
+
+	test('the rooms of the architecture: the source of each storey, the wet rooms and the branch runs', () => {
+		const document = setUp();
+		const report = readPlumbingReport({ ...REPORT, rooms: ROOMS })!;
+		const rooms = report.rooms!;
+		assert.deepStrictEqual({
+			sources: rooms.stories.map(s => `${s.story} ${s.source} ${s.rooms.join('+')} ${fixtureWords(s.source === 'rooms' ? s.fromRooms : s.typed)}`),
+			wet: rooms.wetRooms.map(r => `${r.id} ${r.kind} ${r.area} ${r.outline.length}`),
+			runs: rooms.branches.map(b => `${b.room} ${b.system} ${b.riser} ${b.length} ${b.beams.join('+')}`),
+			kinds: Object.keys(rooms.kinds),
+			none: readPlumbingReport(REPORT)!.rooms,
+		}, {
+			sources: ['L1 rooms WT1+K1 WC × 1, Kitchen sink × 1, Floor drain × 2', 'ROOF typed WT2 WC × 2'],
+			wet: ['WT1 toilet 3 4', 'K1 kitchen 4 4'],
+			runs: ['WT1 supply R1 6.2 B1', 'WT1 drainage ST1 1.5 '],
+			kinds: ['toilet', 'kitchen'],
+			none: undefined,
+		});
+
+		const container = mainWindow.document.createElement('div');
+		renderPlan(container, document, CONTEXT, {
+			width: 600, height: 400, story: 'L1', plumbing: true,
+			overlay: (root, view) => renderPlumbing(root, view, document, CONTEXT, { story: 'L1', report }),
+		});
+		assert.deepStrictEqual({
+			rooms: container.querySelectorAll('.plb-wet-room-shape').length,
+			runs: [...container.querySelectorAll('.plb-branch')].map(e => e.getAttribute('class')),
+		}, { rooms: 2, runs: ['plb-branch supply', 'plb-branch drainage'] });
+
+		const page = mainWindow.document.createElement('div');
+		renderPlumbingReport(page, report, { storyName: id => id, occupancyName: key => key, row: body => body.appendChild(mainWindow.document.createElement('tr')), tableHead: () => { } });
+		const titles = [...page.querySelectorAll('.mep-section-title')].map(e => e.textContent);
+		assert.deepStrictEqual(titles.slice(0, 3), ['Fixtures from the architecture', 'Branch runs to the wet rooms', 'Demand and storage']);
+	});
 });
+
+/** A `rooms` section in the backend's shape (`saengine.plumbing.report._rooms_section`). */
+const ROOMS = {
+	stories: [
+		{ story: 'L1', source: 'rooms', rooms: ['WT1', 'K1'], fromRooms: { wc: 1, kitchenSink: 1, floorDrain: 2 }, typed: {}, population: null, populationSource: '', note: '' },
+		{ story: 'ROOF', source: 'typed', rooms: ['WT2'], fromRooms: { wc: 1 }, typed: { wc: 2 }, population: 4, populationSource: 'entered', note: 'the typed counts override the 1 wet room(s) of the architecture' },
+	],
+	wetRooms: [
+		{ id: 'WT1', story: 'L1', name: 'Toilet', number: '101', area: 3, kind: 'toilet', kindFrom: 'name', fixtures: { wc: 1, floorDrain: 1 }, outline: [[4000, 1500], [6000, 1500], [6000, 3000], [4000, 3000]] },
+		{ id: 'K1', story: 'L1', name: 'Kitchen', number: '102', area: 4, kind: 'kitchen', kindFrom: '07 MEP', fixtures: { kitchenSink: 1, floorDrain: 1 }, outline: [[4000, 3000], [6000, 3000], [6000, 5000], [4000, 5000]] },
+	],
+	branches: [
+		{ room: 'WT1', label: '101 Toilet', story: 'L1', system: 'supply', riser: 'R1', path: [[-300, 700], [0, 700], [5000, 2250]], length: 6.2, beams: ['B1'] },
+		{ room: 'WT1', label: '101 Toilet', story: 'L1', system: 'drainage', riser: 'ST1', path: [[5800, 1700], [5000, 2250]], length: 1.5, beams: [] },
+	],
+	kinds: { toilet: { label: 'Toilet with shower', fixtures: { wc: 1 }, project: false }, kitchen: { label: 'Kitchen', fixtures: { kitchenSink: 1 }, project: true } },
+	notes: [],
+};
 
 /**
  * A report in the backend's shape (P1 `plumbing_report`, with P2's `design_tank` as

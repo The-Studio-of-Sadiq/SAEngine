@@ -30,7 +30,7 @@ from saengine.hvac import energyplus as EP
 from saengine.hvac import fallback as F
 from saengine.hvac import tables as T
 from saengine.hvac.constructions import envelope as envelope_choice
-from saengine.hvac.gains import design_conditions, zone_gains
+from saengine.hvac.gains import design_conditions, room_gains
 from saengine.hvac.geometry import zones as make_zones
 from saengine.library.mep import HVAC_PLANT_KINDS, MEP_FILE, MepModel, hvac_references, parse
 from saengine.plumbing.building import Building
@@ -136,6 +136,7 @@ def hvac_results(
     cache: dict[str, Any] | None = None,
     folder: Path | None = None,
     run_energyplus: bool = True,
+    rooms: Any = None,
 ) -> dict[str, Any]:
     """The cooling loads of parsed models (``bim``: a BuildingModel; ``location``: the Project
     Settings site location). ``cache``: the stored ``{stamp, run}`` of an EnergyPlus run, reused
@@ -143,7 +144,14 @@ def hvac_results(
     ``folder``: where EnergyPlus runs (kept); a temporary folder when None.
     ``run_energyplus`` False: EnergyPlus is not started (the editor's report after each edit,
     Run All); its cached run is still used when its stamp matches, else the estimate is given
-    with ``calculated`` False ("loads not calculated: run Calculate Loads")."""
+    with ``calculated`` False ("loads not calculated: run Calculate Loads").
+    ``rooms``: the architecture's rooms (:class:`saengine.mep.rooms.RoomInputs`): a story's
+    occupants, gains and outdoor air come from its rooms' areas and uses where it has any
+    (:func:`saengine.hvac.gains.room_gains`; each zone's ``gainsFrom`` and ``rooms`` say so),
+    and the plumbing population the dwellings share from its fixtures."""
+    from saengine.mep.rooms import with_rooms
+
+    mep, _ = with_rooms(mep, rooms)
     hvac = mep.hvac
     if hvac is None:
         return {"engine": None, "zones": [], "total": 0.0, "notes": [],
@@ -160,7 +168,14 @@ def hvac_results(
     gains = {}
     for zone in zoning.zones:
         if zone.conditioned or zone.entry is not None:
-            g = zone_gains(zone, hvac, populations.get(zone.story))
+            story_rooms = rooms.story(zone.story) if rooms is not None else None
+            groups = story_rooms.hvac_groups() if story_rooms is not None else []
+            if zone.entry is not None and zone.entry.gainsFrom == "rooms" and not groups:
+                problems.append(
+                    f"{zone.story}: gains from the rooms asked for, but the architecture has no "
+                    "rooms with a use on this story: the typed use is taken"
+                )
+            g = room_gains(zone, hvac, groups, populations.get(zone.story))
             gains[zone.name] = g
             problems.extend(g.problems if zone.conditioned else [])
     conditioned = [z for z in zoning.zones if z.conditioned]
@@ -239,6 +254,8 @@ def hvac_results(
             "indoorDB": g.indoorDB,
             "indoorRH": g.indoorRH,
             "sources": g.sources,
+            "gainsFrom": g.gainsFrom,
+            "rooms": g.rooms,
         }
         if run is not None and "problem" not in run["zones"].get(zone.name, {"problem": 1}):
             r = run["zones"][zone.name]
@@ -370,10 +387,16 @@ def hvac_loads(
     except ValueError as error:
         return {"engine": None, "zones": [], "total": 0.0, "notes": [], "problems": [str(error)]}
     old = read_cache(root) if cache else None
+    from saengine.mep.rooms import read_room_inputs
+
+    rooms, problem = read_room_inputs(root, mep.plumbing)
+    if problem:
+        problems.append(problem)
     try:
         result = hvac_results(
             mep, bim, location, ground, energyplus=energyplus,
             use_energyplus=use_energyplus, cache=old, run_energyplus=run_energyplus,
+            rooms=rooms,
         )  # fmt: skip
     except Exception as error:  # noqa: BLE001 - a partly entered model must not fail the RPC
         return {"engine": None, "zones": [], "total": 0.0, "notes": [],

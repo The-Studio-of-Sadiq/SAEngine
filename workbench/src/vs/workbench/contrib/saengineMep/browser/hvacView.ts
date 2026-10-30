@@ -131,11 +131,13 @@ export function renderHvacData(view: HTMLElement, host: IMepFormHost, tables: IH
 	const table = append(append(stories, $('.mep-table-scroll')), $('table.mep-table'));
 	const columns = [
 		{ label: localize('hvacView.f.story', "Storey"), width: 110 }, { label: localize('hvacView.f.conditioned', "Air-conditioned"), width: 70 }, { label: localize('hvacView.f.use', "Use"), width: 250 },
+		{ label: localize('hvacView.f.gainsFrom', "Gains from"), width: 90, title: localize('hvacView.f.gainsFromTitle', "Auto: the rooms of the architecture where the storey has any (their areas and uses give the occupants, gains and outdoor air), else the use typed here; typed occupants, lighting and equipment still override") },
 		{ label: H.occupants.label, numeric: true, width: 76 }, { label: H.lighting.label, unit: WM2, numeric: true, width: 72 }, { label: H.equipment.label, unit: WM2, numeric: true, width: 72 },
 		...FACADES.map(f => ({ label: localize('hvacView.f.wwr', "WWR {0}", f), numeric: true, width: 52 })), { label: localize('hvacView.f.area', "Floor"), unit: localize('hvacView.unit.m2', "m²"), numeric: true, width: 64 }, { label: '', width: 28 },
 	];
 	host.tableHead(table, columns);
 	const body = append(table, $('tbody'));
+	const gainsOptions = [{ value: 'rooms', label: localize('hvacView.gainsRooms', "Rooms") }, { value: 'typed', label: localize('hvacView.gainsTyped', "Typed") }];
 	const useOptions = tables.uses.map(u => ({ value: u.key, label: u.perPerson !== undefined ? localize('hvacView.useOption', "{0} ({1} L/s per person)", u.label, formatNumber(u.perPerson, 2)) : u.label }));
 	for (const storyId of storyRowIds(host.context, rows)) {
 		const index = rows.findIndex(r => r.story === storyId);
@@ -149,6 +151,8 @@ export function renderHvacData(view: HTMLElement, host: IMepFormHost, tables: IH
 			host.changed(true);
 		}, localize('hvacView.f.conditionedOf', "{0} is air-conditioned", host.storyName(storyId))));
 		append(append(tr, $('td')), host.selectInput(useOptions, String(row?.use ?? ''), v => host.setOptional(target(), 'use', v), path('use'), localize('hvacView.f.useOf', "Use of {0}", host.storyName(storyId)), true));
+		append(append(tr, $('td')), host.selectInput(gainsOptions, String(row?.gainsFrom ?? ''), v => host.setOptional(target(), 'gainsFrom', v), path('gainsFrom'),
+			localize('hvacView.f.gainsFromOf', "Gains of {0} from", host.storyName(storyId)), localize('hvacView.gainsAuto', "Auto")));
 		for (const field of [H.occupants, H.lighting, H.equipment]) {
 			append(append(tr, $('td')), host.textInput(field, row?.[field.key], v => host.setField(target(), field.key, v), path(field.key)));
 		}

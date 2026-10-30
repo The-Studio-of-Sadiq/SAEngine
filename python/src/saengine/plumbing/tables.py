@@ -737,3 +737,25 @@ SLEEVE_SIZES = [50, 65, 80, 100, 125, 150, 200, 250, 300, 350, 400, 450, 500]
 #: SAEngine practice: the clear plan area a pipe takes in a shaft, a square of its outside
 #: diameter plus 100 mm (50 mm all round for fixing and insulation).
 SHAFT_CLEARANCE = 100.0
+
+# ─────────────────────────── wet rooms of the architecture ───────────────────────────
+#: The kinds of wet room (05 Floor Plan/architecture.json rooms with the wet flag) and their
+#: fixtures: SAEngine defaults from common Bangladeshi practice, not BNBC (Part 8 Sec 4 gives
+#: the minimum fixtures of a building by its occupants, not those of a room). 07 MEP
+#: ``plumbing.roomFixtures`` replaces them for the project, ``plumbing.wetRooms`` for one room.
+WET_ROOM_KINDS: dict[str, str] = {
+    "toilet": "Toilet with shower",
+    "halfBath": "WC and basin",
+    "publicToilet": "Public toilet",
+    "kitchen": "Kitchen",
+    "laundry": "Laundry",
+    "wetArea": "Other wet area (floor drain)",
+}
+DEFAULT_ROOM_FIXTURES: dict[str, dict[str, int]] = {
+    "toilet": {"wc": 1, "basin": 1, "shower": 1, "floorDrain": 1},
+    "halfBath": {"wc": 1, "basin": 1},
+    "publicToilet": {"wc": 2, "urinal": 2, "basin": 2, "floorDrain": 1},
+    "kitchen": {"kitchenSink": 1, "floorDrain": 1},
+    "laundry": {"washingMachine": 1, "floorDrain": 1},
+    "wetArea": {"floorDrain": 1},
+}

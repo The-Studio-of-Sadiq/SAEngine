@@ -287,6 +287,8 @@ export interface IMepContextTexts {
 	readonly materials?: string;
 	/** The project settings: not drawn, but the report reads them (stamped in the summary). */
 	readonly settings?: string;
+	/** The architecture beside the floor plan: not drawn here; its rooms feed the plumbing and HVAC reports. */
+	readonly architecture?: string;
 }
 
 /**
