@@ -228,11 +228,16 @@ _SHARED: contextvars.ContextVar[dict[Any, Any] | None] = contextvars.ContextVar(
 
 
 class _ArrayDict(dict):  # type: ignore[type-arg]
-    """A kept dict whose values are all read-only arrays: copied flat (:func:`_shared_copy`)."""
+    """A kept dict whose values are all read-only arrays or plain numbers and strings: copied
+    flat (:func:`_shared_copy`)."""
 
 
 class _ArrayList(list):  # type: ignore[type-arg]
     """A kept list whose items are all read-only arrays: copied flat."""
+
+
+#: What a kept dict may hold and still be copied flat.
+_FLAT = frozenset({np.ndarray, str, int, float, bool, type(None)})
 
 
 def _shared_copy(value: Any) -> Any:
@@ -248,11 +253,21 @@ def _shared_copy(value: Any) -> Any:
     if isinstance(value, _ArrayList):
         return list(value)
     if isinstance(value, dict):
+        if value and all(type(v) in _FLAT for v in value.values()):
+            for v in value.values():
+                if type(v) is np.ndarray:
+                    v.setflags(write=False)
+            return _ArrayDict(value)
         copied = {k: _shared_copy(v) for k, v in value.items()}
         if copied and all(type(v) is np.ndarray for v in copied.values()):
             return _ArrayDict(copied)
         return copied
     if isinstance(value, list):
+        if value and all(type(v) is np.ndarray for v in value):
+            # The common case (a piece's combinations): flagged in one pass, no recursion.
+            for v in value:
+                v.setflags(write=False)
+            return _ArrayList(value)
         listed = [_shared_copy(v) for v in value]
         if listed and all(type(v) is np.ndarray for v in listed):
             return _ArrayList(listed)
@@ -1821,9 +1836,7 @@ def _combined_stacks(
         for factors in factors_of:
             if parts:
                 found = [f * stack(case) for case, f in factors.items() if case in by_case]
-                total: Any = (
-                    sum(found[1:], found[0]) if found else np.zeros((len(members), *shape))
-                )
+                total: Any = sum(found[1:], found[0]) if found else np.zeros((len(members), *shape))
             else:
                 total = sum(f * stack(case) for case, f in factors.items())
             for k, row in enumerate(rows):

@@ -122,12 +122,12 @@ def _read_int_dict(group: Any, name: str, keys: Any = None) -> dict[int, np.ndar
     shapes = sub["shapes"][()]
     values = sub["values"][()]
     out: dict[int, np.ndarray] = {}
-    for i, key in enumerate(ids.tolist()):
+    # Plain ints taken once (hundreds of thousands of ids on tall buildings).
+    bounds = offsets.tolist()
+    for i, (key, row) in enumerate(zip(ids.tolist(), shapes.tolist(), strict=True)):
         if wanted is not None and key not in wanted:
             continue
-        ndim = int(shapes[i, 0])
-        shape = tuple(int(d) for d in shapes[i, 1 : 1 + ndim])
-        out[key] = values[offsets[i] : offsets[i + 1]].reshape(shape)
+        out[key] = values[bounds[i] : bounds[i + 1]].reshape(row[1 : 1 + row[0]])
     return out
 
 
