@@ -118,24 +118,14 @@ def required_level(sdc: str | None) -> FrameType | None:
     return code_context.table("seismic").requiredDetailing.get(sdc)
 
 
-#: Sec 8.3.3.3: f'c of special moment frames and special walls at least 21 MPa; lightweight
-#: concrete at most 35 MPa unless shown by tests.
-FC_MIN = 21.0
-FC_MAX_LIGHTWEIGHT = 35.0
-#: Lightweight concrete: equilibrium density 1450-1850 kg/m³ (Sec 6.1 definitions, p. 868).
-LIGHTWEIGHT_DENSITY = 1850.0
-#: Sec 8.3.3.4(b): permitted grades, as their specified yield strength [MPa]: ASTM A706 Grade
-#: 420; BDS ISO 6935-2 Grades 300, 350, 400, 420; ASTM A615 Grades 275 and 420.
-PERMITTED_FY = (275.0, 300.0, 350.0, 400.0, 420.0)
-FY_MAX = 420.0
-#: A specified fy within this fraction of a permitted grade is taken as that grade, with a
-#: warning (Grade 420 / 60 ksi = 413.7 MPa is often entered as 415 MPa): an SAEngine choice.
-GRADE_TOLERANCE = 0.02
-#: Sec 8.3.3.4(b)(i): actual (mill-test) fy at most the specified fy + 125 MPa (retests +20).
-FY_ACTUAL_MARGIN = 125.0
-FY_RETEST_MARGIN = 20.0
-#: Sec 8.3.3.4(b)(ii): actual tensile / actual yield at least 1.25.
-FU_FY_MIN = 1.25
+# The material limits of Sec 8.3.3.3-8.3.3.4 are the pack's ``materials`` table (BNBC 2020:
+# f'c at least 21 MPa, lightweight concrete (density at most 1850 kg/m³, Sec 6.1 definitions,
+# p. 868) at most 35 MPa; the permitted grades fy 275, 300, 350, 400, 420 MPa (ASTM A706 Grade
+# 420; BDS ISO 6935-2 Grades 300, 350, 400, 420; ASTM A615 Grades 275 and 420), at most 420;
+# a specified fy within 2 % of a grade taken as it, with a warning (60 ksi = 413.7 MPa is
+# often entered as 415: an SAEngine choice); actual fy at most fy + 125 MPa (retests +20);
+# actual fu/fy at least 1.25), read when the checks run.
+
 #: Sec 8.3.3.4(c): fyt of the confinement reinforcement at most 700 MPa.
 FYT_CONFINEMENT_MAX = 700.0
 #: Sec 6.4.3.2 via 8.3.3.4(d): fy, fyt of shear reinforcement at most 420 MPa.
@@ -343,6 +333,13 @@ def material_checks(
         ("wall",) if special_walls else ()
     )
     concrete_used, rebar_used = _used_materials(objects, kinds, frame_types)
+    limits = code_context.table("materials")
+    fc_min, fc_max_light = float(limits.seismicFcMin), float(limits.lightweightFcMax)
+    light_density = float(limits.lightweightDensity)
+    permitted_fy, fy_max = tuple(map(float, limits.seismicRebarFy)), float(limits.seismicRebarFyMax)
+    tolerance, margin = float(limits.gradeTolerance), float(limits.fyActualMargin)
+    retest = float(limits.fyRetestMargin)
+    fu_fy_min = float(limits.fuFyMin)
     by_id = {m.id: m for m in getattr(materials, "materials", [])}
     checks: list[dict[str, Any]] = []
     for mid, types in sorted(concrete_used.items()):
@@ -353,20 +350,20 @@ def material_checks(
         used = ", ".join(types)
         checks.append(
             _check(
-                f"f'c ≥ 21 MPa (Sec 8.3.3.3, p. 1089): {mid}",
-                FC_MIN,
+                f"f'c ≥ {fc_min:g} MPa (Sec 8.3.3.3, p. 1089): {mid}",
+                fc_min,
                 fc,
                 "MPa",
                 f"concrete of {used}",
             )
         )
         density = m.mechanical.density
-        if density is not None and density <= LIGHTWEIGHT_DENSITY:
+        if density is not None and density <= light_density:
             checks.append(
                 _check(
-                    f"Lightweight f'c ≤ 35 MPa (Sec 8.3.3.3, p. 1089): {mid}",
+                    f"Lightweight f'c ≤ {fc_max_light:g} MPa (Sec 8.3.3.3, p. 1089): {mid}",
                     fc,
-                    FC_MAX_LIGHTWEIGHT,
+                    fc_max_light,
                     "MPa",
                     f"density {density:g} kg/m³ is lightweight concrete ({CLAUSES['lightweight']});"
                     " higher strengths need experimental evidence; λ per Sec 6.1.8",
@@ -380,14 +377,14 @@ def material_checks(
         fy = float(steel.fy)
         used = ", ".join(t.id for t in types)
         grade = steel.grade or mid
-        nearest = min(PERMITTED_FY, key=lambda g: abs(fy - g))
+        nearest = min(permitted_fy, key=lambda g: abs(fy - g))
         exact = abs(fy - nearest) < 1e-6
-        near = not exact and abs(fy - nearest) <= GRADE_TOLERANCE * nearest
+        near = not exact and abs(fy - nearest) <= tolerance * nearest
         if exact:
             remark = ""
         elif near:
             remark = (
-                f"; fy {fy:g} MPa taken as Grade {nearest:g} (within {GRADE_TOLERANCE:.0%}: "
+                f"; fy {fy:g} MPa taken as Grade {nearest:g} (within {tolerance:.0%}: "
                 "60 ksi = 413.7 MPa is often entered as 415): confirm the grade"
             )
         else:
@@ -396,13 +393,13 @@ def material_checks(
             _check(
                 f"Reinforcement grade (Sec 8.3.3.4(b), p. 1090): {mid}",
                 fy,
-                FY_MAX,
+                fy_max,
                 "MPa",
                 f"{grade}, fy {fy:g} MPa, in {used}: only ASTM A706 Grade 420, BDS ISO 6935-2 "
                 "Grades 300, 350, 400, 420 or ASTM A615 Grades 275, 420 may resist earthquake-"
                 "induced flexure and axial force" + remark,
                 flag=near,
-                utilisation=None if exact or near or fy > FY_MAX else 99.0,
+                utilisation=None if exact or near or fy > fy_max else 99.0,
             )
         )
         actual_fy = getattr(steel, "fyActual", None)
@@ -410,22 +407,22 @@ def material_checks(
         if actual_fy is not None:
             checks.append(
                 _check(
-                    f"Actual fy ≤ fy + 125 MPa (Sec 8.3.3.4(b)(i), p. 1090): {mid}",
+                    f"Actual fy ≤ fy + {margin:g} MPa (Sec 8.3.3.4(b)(i), p. 1090): {mid}",
                     float(actual_fy),
-                    fy + FY_ACTUAL_MARGIN,
+                    fy + margin,
                     "MPa",
-                    "mill-test yield strength; retests at most a further 20 MPa",
+                    f"mill-test yield strength; retests at most a further {retest:g} MPa",
                 )
             )
         else:
             checks.append(
                 _check(
-                    f"Actual fy ≤ fy + 125 MPa (Sec 8.3.3.4(b)(i), p. 1090): {mid}",
+                    f"Actual fy ≤ fy + {margin:g} MPa (Sec 8.3.3.4(b)(i), p. 1090): {mid}",
                     fy,
-                    fy + FY_ACTUAL_MARGIN,
+                    fy + margin,
                     "MPa",
                     "the material has no mill-test yield strength: check the mill certificate "
-                    f"(actual fy at most {fy + FY_ACTUAL_MARGIN:g} MPa)",
+                    f"(actual fy at most {fy + margin:g} MPa)",
                     flag=True,
                 )
             )
@@ -436,8 +433,8 @@ def material_checks(
             actual = actual_fu is not None and actual_fy is not None
             checks.append(
                 _check(
-                    f"fu/fy ≥ 1.25 (Sec 8.3.3.4(b)(ii), p. 1090): {mid}",
-                    FU_FY_MIN,
+                    f"fu/fy ≥ {fu_fy_min:g} (Sec 8.3.3.4(b)(ii), p. 1090): {mid}",
+                    fu_fy_min,
                     ratio,
                     "-",
                     f"fu {float(fu):g} / fy {ratio_fy:g} MPa"
@@ -452,8 +449,8 @@ def material_checks(
         else:
             checks.append(
                 _check(
-                    f"fu/fy ≥ 1.25 (Sec 8.3.3.4(b)(ii), p. 1090): {mid}",
-                    FU_FY_MIN,
+                    f"fu/fy ≥ {fu_fy_min:g} (Sec 8.3.3.4(b)(ii), p. 1090): {mid}",
+                    fu_fy_min,
                     0.0,
                     "-",
                     "the material has no fu: enter it from the mill certificate (actual tensile / "

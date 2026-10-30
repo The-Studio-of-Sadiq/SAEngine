@@ -167,6 +167,15 @@ PACK_ONLY = {
     ("saengine.fem.seismic_design", "_SDC"),
     ("saengine.fem.seismic_design", "ALLOWABLE_DRIFT"),
     ("saengine.design.seismic_rules", "REQUIRED_LEVEL"),
+    ("saengine.design.seismic_rules", "FC_MIN"),
+    ("saengine.design.seismic_rules", "FC_MAX_LIGHTWEIGHT"),
+    ("saengine.design.seismic_rules", "LIGHTWEIGHT_DENSITY"),
+    ("saengine.design.seismic_rules", "PERMITTED_FY"),
+    ("saengine.design.seismic_rules", "FY_MAX"),
+    ("saengine.design.seismic_rules", "GRADE_TOLERANCE"),
+    ("saengine.design.seismic_rules", "FY_ACTUAL_MARGIN"),
+    ("saengine.design.seismic_rules", "FY_RETEST_MARGIN"),
+    ("saengine.design.seismic_rules", "FU_FY_MIN"),
 }
 
 OLD_MODULE_CONSTANTS = {
