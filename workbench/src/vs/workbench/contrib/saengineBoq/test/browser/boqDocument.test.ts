@@ -178,8 +178,7 @@ suite('SAEngine - Bill of quantities', () => {
 		const materials = (extra: object[]) => JSON.stringify({ schema: 'saengine.materials/1', materials: [{ id: 'C25', name: 'Concrete', density: 2400.0, alpha: 0.00001 }, ...extra] }, undefined, '	');
 		const text = materials([]);
 		const measured: IBoqDocument = { ...document, source: { ...document.source, materials: boqMaterialsStamp(text, ['C25']), materialIds: ['C25'] as unknown as string } };
-		const texts = (m: string) => new Map([['bim', '{"a": 1}
-'], ['objects', 'o'], ['materials', m]]);
+		const texts = (m: string) => new Map([['bim', '{"a": 1}\n'], ['objects', 'o'], ['materials', m]]);
 		assert.deepStrictEqual({
 			current: changedSources(measured, texts(text)),
 			unusedAdded: changedSources(measured, texts(materials([{ id: 'FE500', name: 'Steel' }]))),
