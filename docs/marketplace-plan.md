@@ -1,6 +1,9 @@
 # Marketplace and modular install: plan
 
-Status: **plan for discussion** (2026-10-30). Nothing here is built yet. Decisions D1–D11 are
+Status: **plan for discussion** (2026-10-30). Round M1 (manifest and registry kinds) is built:
+`kind`, `requires`, `contents`, `preview` in `pack.json`, per-kind discovery, no programs in a
+package, `saengine codepack --kind` (alias `saengine package`); see docs/code-packs.md, "Other
+package kinds". The rest is not built yet. Decisions D1–D11 are
 in §9: four are settled by the owner, the others follow the stated recommendation until the owner
 says otherwise.
 

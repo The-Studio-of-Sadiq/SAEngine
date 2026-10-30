@@ -1,0 +1,368 @@
+{
+  "$defs": {
+    "GridRef": {
+      "additionalProperties": false,
+      "description": "A bay by the grid lines at its lower-left corner.",
+      "properties": {
+        "x": {
+          "title": "X",
+          "type": "string"
+        },
+        "y": {
+          "title": "Y",
+          "type": "string"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "title": "GridRef",
+      "type": "object"
+    },
+    "StorySpec": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "height": {
+          "description": "Height of the storey below this level [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Height",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "height"
+      ],
+      "title": "StorySpec",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "What :func:`generate_building` builds.",
+  "properties": {
+    "name": {
+      "default": "Building",
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "gridsX": {
+      "description": "Spacings between the X grid lines (labelled A, B, ...) [mm].",
+      "items": {
+        "description": "[mm]",
+        "exclusiveMinimum": 0,
+        "type": "number"
+      },
+      "minItems": 1,
+      "title": "Gridsx",
+      "type": "array"
+    },
+    "gridsY": {
+      "description": "Spacings between the Y grid lines (labelled 1, 2, ...) [mm].",
+      "items": {
+        "description": "[mm]",
+        "exclusiveMinimum": 0,
+        "type": "number"
+      },
+      "minItems": 1,
+      "title": "Gridsy",
+      "type": "array"
+    },
+    "stories": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/StorySpec"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The storeys from the bottom; or storyCount and heights.",
+      "title": "Stories"
+    },
+    "storyCount": {
+      "anyOf": [
+        {
+          "maximum": 100,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Storycount"
+    },
+    "typicalHeight": {
+      "default": 3000,
+      "description": "[mm]",
+      "exclusiveMinimum": 0,
+      "title": "Typicalheight",
+      "type": "number"
+    },
+    "groundHeight": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Height of the ground storey [mm]; none: typical.",
+      "title": "Groundheight"
+    },
+    "baseElevation": {
+      "default": 0,
+      "description": "Level of the base [mm].",
+      "title": "Baseelevation",
+      "type": "number"
+    },
+    "typical": {
+      "default": true,
+      "description": "Storeys above the first suspended floor are similar to the first typical floor (a new family where the column types change).",
+      "title": "Typical",
+      "type": "boolean"
+    },
+    "system": {
+      "default": "rcFrame",
+      "enum": [
+        "rcFrame",
+        "rcFrameWithWalls",
+        "flatSlab"
+      ],
+      "title": "System",
+      "type": "string"
+    },
+    "coreBay": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/GridRef"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Bay of the core walls (rcFrameWithWalls, and flatSlab in Category D); none: the middle bay."
+    },
+    "concrete": {
+      "default": "C24.1",
+      "title": "Concrete",
+      "type": "string"
+    },
+    "rebar": {
+      "default": "B420DWR",
+      "title": "Rebar",
+      "type": "string"
+    },
+    "footing": {
+      "default": "isolated",
+      "enum": [
+        "isolated",
+        "mat",
+        "none"
+      ],
+      "title": "Footing",
+      "type": "string"
+    },
+    "occupancy": {
+      "default": "residential",
+      "enum": [
+        "residential",
+        "office",
+        "educational",
+        "healthcare",
+        "assembly",
+        "retail",
+        "industrial",
+        "storage",
+        "parking",
+        "mixed"
+      ],
+      "title": "Occupancy",
+      "type": "string"
+    },
+    "occupancyCategory": {
+      "anyOf": [
+        {
+          "enum": [
+            "I",
+            "II",
+            "III",
+            "IV"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Occupancy category (BNBC Table 6.1.1); none: the conservative default of the use (healthcare IV, educational and assembly III, else II), never below the settings' own.",
+      "title": "Occupancycategory"
+    },
+    "live": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Floor live load [kN/m²]; none: the code minimum.",
+      "title": "Live"
+    },
+    "location": {
+      "anyOf": [
+        {
+          "enum": [
+            "dhaka",
+            "chattogram",
+            "coxsbazar",
+            "khulna",
+            "rajshahi",
+            "sylhet",
+            "barishal",
+            "rangpur",
+            "mymensingh",
+            "cumilla",
+            "custom"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Location"
+    },
+    "siteClass": {
+      "anyOf": [
+        {
+          "enum": [
+            "SA",
+            "SB",
+            "SC",
+            "SD",
+            "SE"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Siteclass"
+    },
+    "siteClassSource": {
+      "default": "entered",
+      "description": "How siteClass was found: entered (known, e.g. from a soil report read by the engineer) or assumed (no soil report yet: the soil report replaces it once its boreholes give a class).",
+      "enum": [
+        "entered",
+        "assumed"
+      ],
+      "title": "Siteclasssource",
+      "type": "string"
+    },
+    "allowableBearing": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Net allowable bearing pressure for the preliminary footing sizes [kPa]; none: the settings' override, else 100 kPa.",
+      "title": "Allowablebearing"
+    },
+    "columnGroupStoreys": {
+      "default": 3,
+      "description": "Storeys per column type change.",
+      "maximum": 20,
+      "minimum": 1,
+      "title": "Columngroupstoreys",
+      "type": "integer"
+    },
+    "lateralSizing": {
+      "default": "auto",
+      "description": "Column sizes: 'auto' also for the wind and earthquake moments (portal method, P-M interaction, strong column / weak beam) in Seismic Design Categories C and D, and for wind in B; 'gravity' the axial rule only.",
+      "enum": [
+        "auto",
+        "gravity"
+      ],
+      "title": "Lateralsizing",
+      "type": "string"
+    },
+    "columnRho": {
+      "default": 0.025,
+      "description": "Steel ratio the lateral column sizing allows before it enlarges a column.",
+      "maximum": 0.06,
+      "minimum": 0.01,
+      "title": "Columnrho",
+      "type": "number"
+    },
+    "beamSpanDepth": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": 12,
+      "description": "Rule of thumb span/depth of frame beams, for their stiffness under lateral load (the stiffness check may deepen them to span/10); none: the deflection minimum only.",
+      "title": "Beamspandepth"
+    },
+    "minSlab": {
+      "default": 125,
+      "description": "Least slab thickness (SAEngine practice) [mm].",
+      "exclusiveMinimum": 0,
+      "title": "Minslab",
+      "type": "number"
+    },
+    "matOverhang": {
+      "default": 1000,
+      "description": "Mat beyond the grid [mm].",
+      "minimum": 0,
+      "title": "Matoverhang",
+      "type": "number"
+    },
+    "reinforcement": {
+      "default": false,
+      "description": "Write template bars on the types (placeholders); default none: Design mode proposes them.",
+      "title": "Reinforcement",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "gridsX",
+    "gridsY"
+  ],
+  "title": "SAEngine building template (a building specification)",
+  "type": "object",
+  "$id": "saengine.buildingTemplate/1"
+}

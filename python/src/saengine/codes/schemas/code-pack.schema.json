@@ -1,5 +1,35 @@
 {
   "$defs": {
+    "Requires": {
+      "additionalProperties": false,
+      "description": "What a package needs: the SAEngine versions that understand it and other packages.",
+      "properties": {
+        "saengine": {
+          "anyOf": [
+            {
+              "pattern": "^\\s*(?:>=|<=|==|!=|~=|>|<)?\\s*\\d+(?:\\.\\d+)*(?:\\s*,\\s*(?:>=|<=|==|!=|~=|>|<)?\\s*\\d+(?:\\.\\d+)*)*\\s*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "SAEngine versions the package works with, e.g. '>=0.0.50'.",
+          "title": "Saengine"
+        },
+        "packages": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Other packages it needs, by id, with their versions, e.g. {'bnbc2020': '>=1.0.0'} for a building template made with BNBC 2020.",
+          "title": "Packages",
+          "type": "object"
+        }
+      },
+      "title": "Requires",
+      "type": "object"
+    },
     "Source": {
       "additionalProperties": true,
       "description": "A document the pack's values come from (a code, a standard, a gazette notification).",
@@ -90,6 +120,17 @@
       "const": "saengine.codePack/1",
       "default": "saengine.codePack/1",
       "title": "Schema",
+      "type": "string"
+    },
+    "kind": {
+      "default": "designCode",
+      "description": "What the package holds: a design code (default), a structure template (presets of a parametric shape) or a building template.",
+      "enum": [
+        "designCode",
+        "structureTemplate",
+        "buildingTemplate"
+      ],
+      "title": "Kind",
       "type": "string"
     },
     "id": {
@@ -238,13 +279,54 @@
       "default": null,
       "description": "Python file in the pack (e.g. 'hooks.py') whose top-level functions override design functions of the same name. Imported only when the user trusts the pack; editing the file revokes the trust.",
       "title": "Hooks"
+    },
+    "requires": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Requires"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The SAEngine versions and the other packages it needs."
+    },
+    "contents": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The package's files of its kind, as paths or globs relative to its folder (default: 'data/*.json' for a design code, 'templates/*.json' for a structure template, 'spec.json' and 'template.civil' for a building template).",
+      "title": "Contents"
+    },
+    "preview": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Card image of the package: a small .png, .jpg or .webp in its folder.",
+      "title": "Preview"
     }
   },
   "required": [
     "id",
     "name"
   ],
-  "title": "SAEngine code pack",
+  "title": "SAEngine package (code pack)",
   "type": "object",
   "$id": "saengine.codePack/1"
 }

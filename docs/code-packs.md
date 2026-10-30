@@ -68,6 +68,8 @@ bd-coastal/
 | `sources`, `clauses` | Where the values come from: the documents, and the clauses by table. |
 | `author`, `licence` | Who prepared it and on what terms it may be shared. |
 | `hooks` | Optional Python file for formulas ([below](#data-or-formula-hooks-and-trust)); `null` for a data-only pack. |
+| `requires` | Optional: what the pack needs, `{"saengine": ">=0.0.47", "packages": {"bnbc2020": ">=1.0.0"}}`. A pack that needs a newer SAEngine is not installed; a missing or too old required package is reported and the pack is not used until it is installed. |
+| `kind`, `contents`, `preview` | Optional. `kind` is `designCode` (the default: leave it out); the other kinds are templates ([Other package kinds](#other-package-kinds)). `contents` lists the pack's files (default `data/*.json`); `preview` is a small card image in the folder. |
 
 JSON has no comments. In the data files, keys that start with `$` are not data: `$help` and
 `$example` are notes for you, and a few others are instructions to the loader (`$replace`,
@@ -301,6 +303,10 @@ Code Packs page → the pack → **Validate**.
 `saengine codepack show <id or folder>` lists a pack's tables, which are its own and which are
 inherited, the clauses of each, its trust state and its problems.
 
+A pack holds data, and Python `hooks` at most: a pack with a program or script (`.exe`,
+`.dll`, `.pyd`, `.bat`, `.cmd`, `.ps1`, `.js`, ...), a link, a file over 5 MB (50 MB for a
+`.civil`) or over 200 MB in all is refused when installed and reported as an error when found.
+
 ## Use and share a pack
 
 Where SAEngine finds packs (the same id in a higher place wins):
@@ -389,16 +395,33 @@ towns are validated and listed but cannot yet be chosen in the settings.
   and page of each table are in its `source`. Check every value of a pack you write against the
   edition of the code that governs your project.
 
+## Other package kinds
+
+The same `pack.json` and the same registry hold the other packages of the marketplace
+([marketplace-plan.md](marketplace-plan.md)); `kind` says which:
+
+| Kind | Holds | Checked against | User folder |
+| --- | --- | --- | --- |
+| `designCode` (default) | `data/<table>.json` | the table models | `%APPDATA%\SAEngine\code-packs\` |
+| `structureTemplate` | `templates/*.json`: presets of a built-in shape (`{"name": "Warren truss 24 m", "shape": {"kind": "planeTruss", ...}}`) | the Generate panel's shape model (`structure-template.schema.json`) | `%APPDATA%\SAEngine\packages\structure-templates\` |
+| `buildingTemplate` | `spec.json` (a New Building specification) or `template.civil` (an inputs-only project) | the generator's `BuildingSpec` (`building-template.schema.json`), the archive check | `%APPDATA%\SAEngine\packages\building-templates\` |
+
+Templates are installed for the user only (applying one copies it into the project), take no
+`extends`, and share the built-in folder and the trust of hooks with design codes. Ids are one
+namespace across kinds. Applying templates (the Generate panel, the New Building wizard) comes in
+a later round; for now they are listed, validated and installed:
+`saengine codepack list --kind all`, `saengine codepack validate <folder> --kind structureTemplate`.
+
 ## Command reference
 
 | Command | What it does |
 | --- | --- |
-| `saengine codepack list [--root PROJECT]` | The installed packs: built-in, user, and the project's with `--root`. |
-| `saengine codepack show <id or folder> [--root PROJECT]` | A pack's details: inheritance, tables (own or inherited) with their clauses, hooks and trust, problems. |
+| `saengine codepack list [--kind KIND\|all] [--root PROJECT]` | The installed packs: built-in, user, and the project's with `--root`; design codes unless `--kind` says otherwise. |
+| `saengine codepack show <id or folder> [--kind KIND] [--root PROJECT]` | A pack's details: inheritance, tables (own or inherited) with their clauses, requires, contents, hooks and trust, problems. |
 | `saengine codepack new <id> --dest <dir> [--name N] [--extends bnbc2020] [--edition E] [--country C] [--author A]` | Creates `<dir>/<id>/`, a pack that extends `--extends` (`--extends ""` for none). |
-| `saengine codepack validate <folder> [--root PROJECT]` | Checks a pack; exit code 1 when it has errors. |
+| `saengine codepack validate <folder> [--kind KIND] [--root PROJECT]` | Checks a pack; exit code 1 when it has errors, or with `--kind` when it is of another kind. |
 | `saengine codepack diff <a> <b> [--root PROJECT]` | The differences of two packs (ids or folders), table by table and key by key: `+` only in b, `-` only in a, `~` changed. |
 
-Every command takes `--json` (one JSON document on stdout, as the other `saengine` commands)
+`saengine package ...` is the same command. Every command takes `--json` (one JSON document on stdout, as the other `saengine` commands)
 and `-q`. Exit codes: 0 ok, 1 the pack has errors (`validate`), 2 usage (unknown pack, bad id,
 existing folder), 3 error.

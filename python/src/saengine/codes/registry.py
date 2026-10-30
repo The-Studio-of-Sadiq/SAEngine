@@ -8,6 +8,15 @@ Where packs come from (precedence for the same id: project > user > built-in, re
   Windows);
 * project: ``<project>/02 Project Settings/code-packs/<id>/`` (travel with the project).
 
+Every package kind (``pack.json`` ``kind``, docs/marketplace-plan.md) is found by this one
+registry, with one cache and one trust store. Design codes live in the folders above; templates
+share the built-in folder and have their own user folders, ``<user folder>/packages/
+structure-templates/<id>/`` and ``.../building-templates/<id>/`` (:func:`user_kind_dir`), and no
+project folder (a template is applied: its content is copied into the project). A package in
+the folder of another kind is reported, not used. The listing and loading functions take a
+``kind`` (default: design codes, so the design code callers see only design codes); ``requires``
+is checked against the running SAEngine and every installed package.
+
 A pack that ``extends`` its own id builds on the same id in a lower scope (a project's patched
 copy of ``bnbc2020`` over the built-in one).
 
@@ -28,6 +37,7 @@ import hashlib
 import importlib
 import json
 import shutil
+import stat
 import tempfile
 import threading
 import types
@@ -41,19 +51,30 @@ from pydantic import RootModel, TypeAdapter, ValidationError
 
 from saengine.codes.manifest import (
     DATA_DIR,
+    DEFAULT_KIND,
+    KIND_NAMES,
+    KINDS,
     KNOWN_TABLES,
     MANIFEST_FILE,
     SCOPE_ORDER,
+    Kind,
     PackInfo,
     PackManifest,
     Problem,
     Scope,
+    version_satisfies,
 )
 from saengine.codes.merge import TableFile, parse_table_file, resolve_table
 from saengine.codes.trust import TrustStore, code_hash, read_code, user_data_dir
 
 DEFAULT_PACK = "bnbc2020"
 PROJECT_PACKS = Path("02 Project Settings") / "code-packs"
+# The user folders of the template kinds, under the user's packages folder (design codes keep
+# <user folder>/code-packs, D9 of docs/marketplace-plan.md).
+KIND_USER_FOLDERS: dict[str, str] = {
+    "structureTemplate": "structure-templates",
+    "buildingTemplate": "building-templates",
+}
 BUILTIN_DIR = Path(__file__).resolve().parent / "packs"
 # A folder given directly (``saengine codepack validate <dir>``): above every other scope.
 _FOLDER: Scope = "folder"
@@ -162,16 +183,23 @@ class _Found:
     problems: list[Problem] = field(default_factory=list)
     signature: tuple = ()
     duplicate: bool = False  # another pack of the same scope has the id: never picked
+    kind: str = DEFAULT_KIND
+    folder_kind: str | None = None  # the kind of the folder it was found in; None: any
+    contents: list[str] = field(default_factory=list)
+    preview: Path | None = None
 
     @property
     def has_errors(self) -> bool:
         return any(p.severity == "error" for p in self.problems)
 
 
-def _read_pack(scope: str, pack_dir: Path, signature: tuple) -> _Found:
+def _read_pack(
+    scope: str, pack_dir: Path, signature: tuple, folder_kind: str | None = None
+) -> _Found:
     problems: list[Problem] = []
     manifest: PackManifest | None = None
     pack_id = pack_dir.name
+    kind = folder_kind or DEFAULT_KIND
     try:
         raw = json.loads((pack_dir / MANIFEST_FILE).read_text(encoding="utf-8-sig"))
     except (OSError, ValueError) as e:
@@ -180,6 +208,8 @@ def _read_pack(scope: str, pack_dir: Path, signature: tuple) -> _Found:
     if raw is not None:
         if isinstance(raw, dict) and isinstance(raw.get("id"), str):
             pack_id = raw["id"]
+        if isinstance(raw, dict) and raw.get("kind") in KINDS:
+            kind = raw["kind"]
         try:
             manifest = PackManifest.model_validate(raw)
         except ValidationError as e:
@@ -194,9 +224,19 @@ def _read_pack(scope: str, pack_dir: Path, signature: tuple) -> _Found:
                 file=MANIFEST_FILE,
             )
         )
-    found = _Found(scope, pack_dir, pack_id, manifest, problems=problems, signature=signature)
+    found = _Found(
+        scope,
+        pack_dir,
+        pack_id,
+        manifest,
+        problems=problems,
+        signature=signature,
+        kind=kind,
+        folder_kind=folder_kind,
+    )
+    problems.extend(_package_problems(found))
     data_dir = pack_dir / DATA_DIR
-    if data_dir.is_dir():
+    if kind == DEFAULT_KIND and data_dir.is_dir():
         for path in sorted(data_dir.glob("*.json")):
             rel = f"{DATA_DIR}/{path.name}"
             try:
@@ -251,6 +291,58 @@ def _read_pack(scope: str, pack_dir: Path, signature: tuple) -> _Found:
                     )
                 )
     return found
+
+
+def _package_problems(found: _Found) -> list[Problem]:
+    """What every kind checks: the folder it is in, ``requires.saengine``, no programs, the
+    contents of the kind and the preview (fills ``found.contents`` and ``found.preview``)."""
+    from saengine.codes import contents
+
+    problems: list[Problem] = []
+    if found.folder_kind is not None and found.kind != found.folder_kind:
+        problems.append(
+            Problem(
+                message=f"this is a {KIND_NAMES[found.kind]} package in the folder of "
+                f"{KIND_NAMES[found.folder_kind]}s: install it again to put it in its own folder",
+                file=MANIFEST_FILE,
+            )
+        )
+    problems.extend(contents.folder_problems(found.path))
+    m = found.manifest
+    if m is None:
+        return problems
+    wanted = m.requires.saengine if m.requires else None
+    if wanted and not version_satisfies(saengine_version(), wanted):
+        problems.append(
+            Problem(
+                message=f"needs SAEngine {wanted}; this is SAEngine {saengine_version()}",
+                file=MANIFEST_FILE,
+            )
+        )
+    if m.kind != DEFAULT_KIND:
+        for key in ("extends", "covers", "clauses"):
+            if getattr(m, key):
+                problems.append(
+                    Problem(
+                        severity="error" if key == "extends" else "warning",
+                        message=f"{key} is for design codes only",
+                        file=MANIFEST_FILE,
+                    )
+                )
+    found.contents, more = contents.content_files(found.path, m)
+    problems.extend(more)
+    if m.kind != DEFAULT_KIND:
+        problems.extend(contents.check_template(found.path, m.kind, found.contents))
+    found.preview, more = contents.preview_file(found.path, m)
+    problems.extend(more)
+    return problems
+
+
+def saengine_version() -> str:
+    """The running SAEngine's version (``requires.saengine`` is checked against it)."""
+    from saengine import __version__
+
+    return __version__
 
 
 # ---------------------------------------------------------------- the resolved pack
@@ -420,9 +512,13 @@ class Registry:
         builtin_dir: Path | None = None,
         user_dir: Path | None = None,
         trust_store: TrustStore | None = None,
+        packages_dir: Path | None = None,
     ) -> None:
+        """``user_dir``: the user's design codes; ``packages_dir``: the folder of the user's
+        other packages (default: ``packages`` beside ``user_dir``, as in the user folder)."""
         self._builtin_dir = builtin_dir
         self._user_dir = user_dir
+        self._packages_dir = packages_dir
         self.trust = trust_store or TrustStore()
         self._lock = threading.RLock()
         self._read_cache: dict[Path, _Found] = {}
@@ -443,12 +539,40 @@ class Registry:
     def user_dir(self) -> Path:
         return self._user_dir if self._user_dir is not None else user_packs_dir()
 
-    def scope_dir(self, scope: Scope, project_root: Path | None = None) -> Path | None:
+    @property
+    def packages_dir(self) -> Path:
+        if self._packages_dir is not None:
+            return self._packages_dir
+        if self._user_dir is not None:
+            return self._user_dir.parent / "packages"
+        return user_data_dir() / "packages"
+
+    def scope_dir(
+        self, scope: Scope, project_root: Path | None = None, kind: Kind = DEFAULT_KIND
+    ) -> Path | None:
+        """The folder of ``kind`` packages in ``scope``; None when that scope has none for the
+        kind (templates have no project folder) or no project is given."""
         if scope == "builtin":
             return self.builtin_dir
         if scope == "user":
-            return self.user_dir
+            if kind == DEFAULT_KIND:
+                return self.user_dir
+            return self.packages_dir / KIND_USER_FOLDERS[kind]
+        if kind != DEFAULT_KIND:
+            return None
         return Path(project_root) / PROJECT_PACKS if project_root is not None else None
+
+    def _scope_dirs(self, scope: Scope, project_root: Path | None) -> list[tuple[Path, str | None]]:
+        """The folders of a scope with the kind each holds (None: the built-in folder, shared by
+        every kind)."""
+        if scope == "builtin":
+            return [(self.builtin_dir, None)]
+        dirs = []
+        for kind in KINDS:
+            base = self.scope_dir(scope, project_root, kind)
+            if base is not None:
+                dirs.append((base, kind))
+        return dirs
 
     def clear_cache(self) -> None:
         with self._lock:
@@ -458,47 +582,54 @@ class Registry:
 
     # discovery
 
-    def _read(self, scope: str, pack_dir: Path) -> _Found:
+    def _read(self, scope: str, pack_dir: Path, folder_kind: str | None = None) -> _Found:
         signature = _signature(pack_dir)
         key = pack_dir.resolve()
         cached = self._read_cache.get(key)
-        if cached is not None and cached.signature == signature and cached.scope == scope:
+        if (
+            cached is not None
+            and cached.signature == signature
+            and cached.scope == scope
+            and cached.folder_kind == folder_kind
+        ):
             return cached
-        found = _read_pack(scope, pack_dir, signature)
+        found = _read_pack(scope, pack_dir, signature, folder_kind)
         self._read_cache[key] = found
         return found
 
     def _discover(self, project_root: Path | None, extra: Path | None = None) -> list[_Found]:
-        """Every pack folder, highest precedence first (``extra`` above all)."""
+        """Every package folder of every kind, highest precedence first (``extra`` above all).
+        Ids are one namespace across kinds (one index, ``requires`` by id): a second package
+        with the id in the same scope is a duplicate whatever its kind."""
         result: list[_Found] = []
         if extra is not None:
             result.append(self._read(_FOLDER, Path(extra)))
         for scope in SCOPE_ORDER:
-            base = self.scope_dir(scope, project_root)
-            if base is None or not base.is_dir():
-                continue
             seen: dict[str, Path] = {}
-            for sub in sorted(base.iterdir(), key=lambda p: p.name):
-                if not sub.is_dir() or sub.name.startswith((".", "__")):
+            for base, folder_kind in self._scope_dirs(scope, project_root):
+                if not base.is_dir():
                     continue
-                if not (sub / MANIFEST_FILE).is_file():
-                    continue
-                if extra is not None and sub.resolve() == Path(extra).resolve():
-                    continue
-                found = self._read(scope, sub)
-                if found.id in seen:
-                    found = copy.copy(found)
-                    found.duplicate = True
-                    found.problems = found.problems + [
-                        Problem(
-                            message=f"another {scope} pack has the id '{found.id}': "
-                            f"{seen[found.id].name}",
-                            file=MANIFEST_FILE,
-                        )
-                    ]
-                else:
-                    seen[found.id] = sub
-                result.append(found)
+                for sub in sorted(base.iterdir(), key=lambda p: p.name):
+                    if not sub.is_dir() or sub.name.startswith((".", "__")):
+                        continue
+                    if not (sub / MANIFEST_FILE).is_file():
+                        continue
+                    if extra is not None and sub.resolve() == Path(extra).resolve():
+                        continue
+                    found = self._read(scope, sub, folder_kind)
+                    if found.id in seen:
+                        found = copy.copy(found)
+                        found.duplicate = True
+                        found.problems = found.problems + [
+                            Problem(
+                                message=f"another {scope} pack has the id '{found.id}': "
+                                f"{seen[found.id]}",
+                                file=MANIFEST_FILE,
+                            )
+                        ]
+                    else:
+                        seen[found.id] = sub
+                    result.append(found)
         return result
 
     @staticmethod
@@ -521,7 +652,7 @@ class Registry:
         copy of a pack therefore never breaks the packs that extend it."""
         options = []
         for c in candidates:
-            if c.id != parent_id or c is child:
+            if c.id != parent_id or c is child or c.kind != DEFAULT_KIND:
                 continue
             if parent_id == child.id and self._rank(c.scope) <= self._rank(child.scope):
                 continue  # extending its own id: the same id in a lower scope
@@ -564,6 +695,7 @@ class Registry:
                     )
                 )
             current = parent
+        problems.extend(_requires_problems(found, candidates))
         if any(p.severity == "error" for p in problems) or found.manifest is None:
             return _Resolved(found, chain, problems, None)
 
@@ -644,14 +776,16 @@ class Registry:
         self._resolved_cache[key] = (world, resolved)
         return resolved
 
-    def _effective(self, candidates: list[_Found]) -> dict[str, _Found]:
-        """The pack used for each id: the highest-precedence copy (project > user > built-in)
-        that works. A broken copy is skipped (it is listed with its problems and a note that a
-        lower copy is used); when no copy works, the highest one is returned so that its
-        problems are reported."""
+    def _effective(
+        self, candidates: list[_Found], kind: str | None = DEFAULT_KIND
+    ) -> dict[str, _Found]:
+        """The pack used for each id of ``kind`` (None: every kind): the highest-precedence copy
+        (project > user > built-in) that works. A broken copy is skipped (it is listed with its
+        problems and a note that a lower copy is used); when no copy works, the highest one is
+        returned so that its problems are reported."""
         by_id: dict[str, list[_Found]] = {}
         for c in candidates:
-            if not c.duplicate:
+            if not c.duplicate and (kind is None or c.kind == kind):
                 by_id.setdefault(c.id, []).append(c)
         result: dict[str, _Found] = {}
         for pack_id, options in by_id.items():
@@ -676,7 +810,8 @@ class Registry:
                 )
             )
         builtin_namesake = any(
-            c.id == found.id and c.scope == "builtin" and not c.duplicate for c in candidates
+            c.id == found.id and c.scope == "builtin" and not c.duplicate and c.kind == found.kind
+            for c in candidates
         )
         if _same(effective, found) and found.scope != "builtin" and builtin_namesake:
             where = "this project" if found.scope == "project" else "every project on this machine"
@@ -699,9 +834,13 @@ class Registry:
         found = resolved.found
         m = found.manifest
         if effective is None:
-            effective = self._effective(candidates)
+            effective = self._effective(candidates, found.kind)
         winner = effective.get(found.id)
-        same = [c for c in candidates if c.id == found.id and not _same(c, found)]
+        same = [
+            c
+            for c in candidates
+            if c.id == found.id and c.kind == found.kind and not _same(c, found)
+        ]
         if found.scope == _FOLDER:  # validate(): a folder outranks every installed copy
             is_effective = True
             higher: list[_Found] = []
@@ -715,6 +854,7 @@ class Registry:
         untrusted = [f.id for f in hook_packs if not self._is_trusted(f)]
         return PackInfo(
             id=found.id,
+            kind=found.kind,
             name=m.name if m else found.id,
             edition=m.edition if m else None,
             country=m.country if m else None,
@@ -733,39 +873,53 @@ class Registry:
             trusted=(not untrusted) if hook_packs and not found.has_errors else None,
             hooksFrom=[f.id for f in hook_packs],
             untrustedHooks=untrusted,
+            requires=m.requires if m else None,
+            missingRequires=_missing_requires(found, candidates),
+            contents=list(found.contents),
+            preview=str(found.preview) if found.preview else None,
             usable=resolved.complete,
             problems=resolved.problems + self._notes(found, winner, candidates),
         )
 
     # public API
 
-    def list_packs(self, project_root: Path | None = None) -> list[PackInfo]:
-        """Every pack found (built-in, user, project), shadowed ones included, with problems."""
+    def list_packs(
+        self, project_root: Path | None = None, kind: Kind | None = DEFAULT_KIND
+    ) -> list[PackInfo]:
+        """Every pack of ``kind`` (None: every kind) found (built-in, user, project), shadowed
+        ones included, with problems."""
         with self._lock:
             candidates = self._discover(project_root)
-            effective = self._effective(candidates)
+            effective = {k: self._effective(candidates, k) for k in KINDS}
             infos = [
-                self._info(self._resolved(c, candidates), candidates, effective) for c in candidates
+                self._info(self._resolved(c, candidates), candidates, effective[c.kind])
+                for c in candidates
+                if kind is None or c.kind == kind
             ]
         order = {s: i for i, s in enumerate(SCOPE_ORDER)}
-        return sorted(infos, key=lambda i: (i.id, order[i.scope]))
+        return sorted(infos, key=lambda i: (KINDS.index(i.kind), i.id, order[i.scope]))
 
-    def info(self, pack_id: str, project_root: Path | None = None) -> PackInfo:
-        """The effective pack with this id; :class:`CodePackError` when none."""
+    def info(
+        self, pack_id: str, project_root: Path | None = None, kind: Kind = DEFAULT_KIND
+    ) -> PackInfo:
+        """The effective pack of ``kind`` with this id; :class:`CodePackError` when none."""
         with self._lock:
             candidates = self._discover(project_root)
-            found = self._effective(candidates).get(pack_id)
+            found = self._effective(candidates, kind).get(pack_id)
             if found is None:
-                raise CodePackError(f"no code pack '{pack_id}' is installed")
+                raise CodePackError(_not_installed(pack_id, kind))
             return self._info(self._resolved(found, candidates), candidates)
 
-    def load(self, pack_id: str, project_root: Path | None = None) -> CodePack:
-        """The effective pack with this id, resolved and validated (cached by file times)."""
+    def load(
+        self, pack_id: str, project_root: Path | None = None, kind: Kind = DEFAULT_KIND
+    ) -> CodePack:
+        """The effective pack of ``kind`` with this id, resolved and validated (cached by file
+        times)."""
         with self._lock:
             candidates = self._discover(project_root)
-            found = self._effective(candidates).get(pack_id)
+            found = self._effective(candidates, kind).get(pack_id)
             if found is None:
-                raise CodePackError(f"no code pack '{pack_id}' is installed")
+                raise CodePackError(_not_installed(pack_id, kind))
             resolved = self._resolved(found, candidates)
             if resolved.pack is not None:
                 # A partial pack (no sound copy to fall back on) carries its table errors as
@@ -775,7 +929,10 @@ class Registry:
                     for p in resolved.problems
                 ] + self._notes(found, found, candidates)
                 resolved.pack._replaces_builtin = found.scope != "builtin" and any(
-                    c.id == found.id and c.scope == "builtin" and not c.duplicate
+                    c.id == found.id
+                    and c.scope == "builtin"
+                    and not c.duplicate
+                    and c.kind == found.kind
                     for c in candidates
                 )
         return _checked(resolved, partial=True)
@@ -819,16 +976,20 @@ class Registry:
         return self.load(active_id(settings), project_root)
 
     def set_trusted(
-        self, pack_id: str, trusted: bool, project_root: Path | None = None
+        self,
+        pack_id: str,
+        trusted: bool,
+        project_root: Path | None = None,
+        kind: Kind = DEFAULT_KIND,
     ) -> PackInfo:
         """Trust (or stop trusting) the hooks of the effective pack ``pack_id`` as they are now:
         its own and those of the packs it extends (built-in ones are always trusted), since all
         of them run when it is active."""
         with self._lock:
             candidates = self._discover(project_root)
-            found = self._effective(candidates).get(pack_id)
+            found = self._effective(candidates, kind).get(pack_id)
             if found is None:
-                raise CodePackError(f"no code pack '{pack_id}' is installed")
+                raise CodePackError(_not_installed(pack_id, kind))
             chain = self._resolved(found, candidates).chain
             targets = [f for f in chain if f.manifest and f.manifest.hooks and f.scope != "builtin"]
             if not targets:
@@ -851,12 +1012,16 @@ class Registry:
         replace: bool = False,
     ) -> PackInfo:
         """Copy a pack (a folder with pack.json, or a .zip of one) into the user packs or the
-        project's packs, as ``<scope dir>/<id>``. Returns its info (with any problems)."""
+        project's packs, as ``<scope dir of its kind>/<id>``. Returns its info (with any
+        problems; ``missingRequires`` names the required packages to install next).
+
+        Refused: a package that holds a program, a link or an oversized file
+        (:func:`saengine.codes.contents.forbidden_file`), one that needs a newer SAEngine, and a
+        template into a project (templates are installed for the user)."""
+        from saengine.codes.contents import folder_problems
+
         if scope == "builtin":
             raise CodePackError("built-in packs cannot be installed")
-        target_base = self.scope_dir(scope, project_root)
-        if target_base is None:
-            raise CodePackError("installing into the project needs the project folder")
         source = Path(source)
         with tempfile.TemporaryDirectory(prefix="saengine-codepack-") as tmp:
             if source.is_file() and source.suffix.lower() == ".zip":
@@ -869,9 +1034,27 @@ class Registry:
                 raise CodePackError("no pack.json in the pack")
             try:
                 raw = json.loads((folder / MANIFEST_FILE).read_text(encoding="utf-8-sig"))
-                pack_id = PackManifest.model_validate(raw).id
+                manifest = PackManifest.model_validate(raw)
             except (OSError, ValueError) as e:
                 raise CodePackError(f"pack.json is not valid: {e}") from e
+            pack_id = manifest.id
+            refused = folder_problems(folder)
+            if refused:
+                raise CodePackError(f"not installed: {refused[0].message}", refused)
+            wanted = manifest.requires.saengine if manifest.requires else None
+            if wanted and not version_satisfies(saengine_version(), wanted):
+                raise CodePackError(
+                    f"'{pack_id}' needs SAEngine {wanted}; this is SAEngine "
+                    f"{saengine_version()}: update SAEngine first"
+                )
+            target_base = self.scope_dir(scope, project_root, manifest.kind)
+            if target_base is None:
+                if manifest.kind != DEFAULT_KIND:
+                    raise CodePackError(
+                        f"a {KIND_NAMES[manifest.kind]} is installed for the user, not into a "
+                        "project (applying it copies it into the project)"
+                    )
+                raise CodePackError("installing into the project needs the project folder")
             dest = target_base / pack_id
             src, dst = folder.resolve(), dest.resolve()
             if src == dst:
@@ -963,6 +1146,62 @@ def _same(a: _Found | None, b: _Found | None) -> bool:
     return a is b or (a.scope == b.scope and a.path.resolve() == b.path.resolve())
 
 
+def _not_installed(pack_id: str, kind: str) -> str:
+    if kind == DEFAULT_KIND:
+        return f"no code pack '{pack_id}' is installed"
+    return f"no {KIND_NAMES[kind]} '{pack_id}' is installed"
+
+
+def _required(found: _Found, candidates: list[_Found]) -> list[tuple[str, str, _Found | None]]:
+    """(id, version requirement, the installed package it finds or None) for each package
+    ``found`` requires: the highest-precedence copy of that id, of any kind."""
+    m = found.manifest
+    if m is None or m.requires is None:
+        return []
+    result = []
+    for pack_id, spec in m.requires.packages.items():
+        options = [
+            c
+            for c in candidates
+            if c.id == pack_id and not c.duplicate and not _same(c, found) and not c.has_errors
+        ]
+        options.sort(key=lambda c: Registry._rank(c.scope))
+        result.append((pack_id, spec, options[0] if options else None))
+    return result
+
+
+def _requires_problems(found: _Found, candidates: list[_Found]) -> list[Problem]:
+    problems = []
+    for pack_id, spec, dep in _required(found, candidates):
+        if dep is None:
+            problems.append(
+                Problem(
+                    message=f"needs the package '{pack_id}' {spec}, which is not installed",
+                    file=MANIFEST_FILE,
+                )
+            )
+            continue
+        version = dep.manifest.version if dep.manifest else None
+        if not version_satisfies(version, spec):
+            problems.append(
+                Problem(
+                    message=f"needs the package '{pack_id}' {spec}; version {version} is "
+                    f"installed ({dep.scope})",
+                    file=MANIFEST_FILE,
+                )
+            )
+    return problems
+
+
+def _missing_requires(found: _Found, candidates: list[_Found]) -> list[str]:
+    return [
+        pack_id
+        for pack_id, spec, dep in _required(found, candidates)
+        if dep is None
+        or not version_satisfies(dep.manifest.version if dep.manifest else None, spec)
+    ]
+
+
 def _checked(resolved: _Resolved, partial: bool = False) -> CodePack:
     """The resolved pack; :class:`CodePackError` when it cannot be used (with ``partial``, a
     pack whose only errors are in some tables is returned: those tables raise when read)."""
@@ -978,11 +1217,30 @@ def _checked(resolved: _Resolved, partial: bool = False) -> CodePack:
 def _extract_zip(zip_path: Path, dest: Path) -> Path:
     """Extract safely (no absolute paths or '..'); the pack folder: the root if it has pack.json,
     else its single sub folder."""
+    from saengine.codes.contents import forbidden_file
+    from saengine.codes.manifest import MAX_PACKAGE_BYTES
+
     with zipfile.ZipFile(zip_path) as zf:
+        total = 0
         for member in zf.infolist():
             name = member.filename.replace("\\", "/")
             if name.startswith("/") or ".." in name.split("/") or ":" in name:
                 raise CodePackError(f"unsafe path in the zip: {member.filename}")
+            if member.is_dir():
+                continue
+            link = stat.S_ISLNK(member.external_attr >> 16)
+            parts = name.split("/")
+            if "__pycache__" in parts or name.lower().endswith((".pyc", ".pyo")):
+                continue  # never copied with a pack (as from a folder)
+            reason = forbidden_file(name, member.file_size, link)
+            if reason:
+                raise CodePackError(f"not installed: {reason}")
+            total += member.file_size
+        if total > MAX_PACKAGE_BYTES:
+            raise CodePackError(
+                f"not installed: the package unpacks to {total / 1e6:.0f} MB "
+                f"(at most {MAX_PACKAGE_BYTES // 2**20} MB)"
+            )
         zf.extractall(dest)
     if (dest / MANIFEST_FILE).is_file():
         return dest
@@ -1009,6 +1267,13 @@ def user_packs_dir() -> Path:
     return user_data_dir() / "code-packs"
 
 
+def user_kind_dir(kind: Kind = DEFAULT_KIND) -> Path:
+    """The user's packages of ``kind``: the code packs, else ``<user folder>/packages/<kind>``."""
+    if kind == DEFAULT_KIND:
+        return user_packs_dir()
+    return user_data_dir() / "packages" / KIND_USER_FOLDERS[kind]
+
+
 def project_packs_dir(project_root: Path) -> Path:
     return Path(project_root) / PROJECT_PACKS
 
@@ -1022,20 +1287,22 @@ def default_registry() -> Registry:
     return _default
 
 
-def list_packs(project_root: Path | None = None) -> list[PackInfo]:
-    return _default.list_packs(project_root)
+def list_packs(
+    project_root: Path | None = None, kind: Kind | None = DEFAULT_KIND
+) -> list[PackInfo]:
+    return _default.list_packs(project_root, kind)
 
 
-def load(pack_id: str, project_root: Path | None = None) -> CodePack:
-    return _default.load(pack_id, project_root)
+def load(pack_id: str, project_root: Path | None = None, kind: Kind = DEFAULT_KIND) -> CodePack:
+    return _default.load(pack_id, project_root, kind)
 
 
 def active(settings: Any = None, project_root: Path | None = None) -> CodePack:
     return _default.active(settings, project_root)
 
 
-def info(pack_id: str, project_root: Path | None = None) -> PackInfo:
-    return _default.info(pack_id, project_root)
+def info(pack_id: str, project_root: Path | None = None, kind: Kind = DEFAULT_KIND) -> PackInfo:
+    return _default.info(pack_id, project_root, kind)
 
 
 def validate(path: Path, project_root: Path | None = None) -> PackInfo:
@@ -1065,11 +1332,24 @@ SCHEMAS_DIR = Path(__file__).resolve().parent / "schemas"
 
 
 def schema_documents() -> dict[str, dict]:
-    """File name -> JSON Schema: ``code-pack.schema.json`` (pack.json) and
-    ``<table>.schema.json`` for every registered table."""
+    """File name -> JSON Schema: ``code-pack.schema.json`` (pack.json of every kind),
+    ``<table>.schema.json`` for every registered table, and the template files:
+    ``structure-template.schema.json`` (a preset) and ``building-template.schema.json`` (a
+    building specification)."""
+    from saengine.codes.contents import building_spec_model, structure_preset_model
     from saengine.codes.manifest import manifest_schema
 
     docs = {"code-pack.schema.json": manifest_schema()}
+    for file, model, schema_id, title in (
+        ("structure-template.schema.json", structure_preset_model(),
+         "saengine.structureTemplate/1", "SAEngine structure template (a shape preset)"),
+        ("building-template.schema.json", building_spec_model(),
+         "saengine.buildingTemplate/1", "SAEngine building template (a building specification)"),
+    ):  # fmt: skip
+        schema = model.model_json_schema(by_alias=True, mode="validation")
+        schema["$id"] = schema_id
+        schema["title"] = title
+        docs[file] = schema
     for name, schema in table_schemas().items():
         schema = dict(schema)
         schema["$id"] = f"saengine.codePack.{name}/1"

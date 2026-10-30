@@ -1,10 +1,14 @@
-"""``saengine codepack``: list, show, create, validate and compare design code packs.
+"""``saengine codepack``: list, show, create, validate and compare design code packs, and list,
+show and validate the other packages (``--kind``; ``saengine package`` is the same command).
 
-    saengine codepack list [--root PROJECT] [--json]
-    saengine codepack show <id> [--root PROJECT] [--json]
+    saengine codepack list [--kind KIND|all] [--root PROJECT] [--json]
+    saengine codepack show <id> [--kind KIND] [--root PROJECT] [--json]
     saengine codepack new <id> [--name NAME] [--extends bnbc2020] --dest <dir> [--root PROJECT]
-    saengine codepack validate <dir> [--json]
+    saengine codepack validate <dir> [--kind KIND] [--json]
     saengine codepack diff <a> <b> [--root PROJECT] [--json]
+
+KIND is designCode (the default), structureTemplate or buildingTemplate; ``validate --kind``
+also fails when the package is of another kind (the package repositories' CI uses it).
 
 <id>, <a> and <b> are pack ids (built-in, user, or the project's with --root) or pack folders
 (a folder with a pack.json, resolved against the installed packs).
@@ -24,15 +28,19 @@ from pathlib import Path
 from typing import Any
 
 EXIT_OK, EXIT_CHECKS, EXIT_USAGE, EXIT_ERROR = 0, 1, 2, 3
+KIND_CHOICES = ("designCode", "structureTemplate", "buildingTemplate")
+ALIASES = ("package",)
 
 
 def register(commands: Any, common: argparse.ArgumentParser) -> argparse.ArgumentParser:
     """Adds ``codepack`` and its actions to the subparsers ``commands`` of ``saengine``."""
     sub = commands.add_parser(
         "codepack",
-        help="design code packs: list, show, new, validate, diff",
+        aliases=list(ALIASES),
+        help="design code packs and other packages: list, show, new, validate, diff",
         description="Design code packs: the code's reference data and factors, as a folder "
-        "(see docs/code-packs.md).",
+        "(see docs/code-packs.md); with --kind, the other packages: structure and building "
+        "templates (see docs/marketplace-plan.md).",
     )
     actions = sub.add_subparsers(dest="action", metavar="ACTION")
     actions.required = True
@@ -43,9 +51,17 @@ def register(commands: Any, common: argparse.ArgumentParser) -> argparse.Argumen
             parser.add_argument("--root", help="a project folder: also its own packs")
         return parser
 
-    action("list", "the installed packs: built-in, user and the project's")
+    def kind(parser: argparse.ArgumentParser, every: bool = False, default: str | None = None):
+        choices = KIND_CHOICES + (("all",) if every else ())
+        parser.add_argument("--kind", choices=choices, default=default, metavar="KIND",
+                            help=f"package kind: {', '.join(choices)}"
+                            + (f" (default: {default})" if default else ""))  # fmt: skip
+
+    parser = action("list", "the installed packs: built-in, user and the project's")
+    kind(parser, every=True, default="designCode")
     parser = action("show", "a pack's details: coverage, inheritance, sources, problems")
     parser.add_argument("pack", help="pack id or pack folder")
+    kind(parser, default="designCode")
     parser = action("new", "create a new pack that extends another one")
     parser.add_argument("id", help="the new pack's id (lower-case letters, digits, hyphens)")
     parser.add_argument("--name", default="", help="its name (default: the id)")
@@ -57,6 +73,7 @@ def register(commands: Any, common: argparse.ArgumentParser) -> argparse.Argumen
     parser.add_argument("--dest", required=True, help="the folder the pack folder is created in")
     parser = action("validate", "check a pack folder; exit 1 when it has errors")
     parser.add_argument("path", help="the pack folder")
+    kind(parser)
     parser = action("diff", "the table/key differences of two packs")
     parser.add_argument("a", help="pack id or folder")
     parser.add_argument("b", help="pack id or folder")
@@ -76,21 +93,24 @@ def _problem_text(problem: Any) -> str:
 def cmd_list(args: argparse.Namespace, out: Any) -> int:
     from saengine.codes import registry
 
-    packs = registry.list_packs(_root(args))
+    kind = getattr(args, "kind", "designCode")
+    packs = registry.list_packs(_root(args), None if kind == "all" else kind)
     for info in packs:
         errors = sum(p.severity == "error" for p in info.problems)
-        notes = [info.scope]
+        notes = [info.scope] if kind != "all" else [info.kind, info.scope]
         if info.extends:
             notes.append(f"extends {info.extends}")
         if not info.effective:
             notes.append(f"hidden by the {info.shadowedBy} pack")
         if info.hooks:
             notes.append("hooks, trusted" if info.trusted else "hooks, not trusted")
+        if info.missingRequires:
+            notes.append(f"needs {', '.join(info.missingRequires)}")
         if errors:
             notes.append(f"{errors} error{'s' * (errors != 1)}")
         out.line(f"{info.id:<16} {info.name}  ({', '.join(notes)})")
     if not packs:
-        out.line("no code packs found")
+        out.line("no code packs found" if kind == "designCode" else "no packages found")
     out.document("codepack list", EXIT_OK,
                  {"packs": [p.model_dump(mode="json") for p in packs]})  # fmt: skip
     return EXIT_OK
@@ -102,15 +122,20 @@ def cmd_show(args: argparse.Namespace, out: Any) -> int:
     root = _root(args)
     folder = Path(args.pack)
     is_folder = (folder / "pack.json").is_file()
-    info = registry.validate(folder, root) if is_folder else registry.info(args.pack, root)
+    kind = getattr(args, "kind", None) or "designCode"
+    info = registry.validate(folder, root) if is_folder else registry.info(args.pack, root, kind)
     manifest: dict[str, Any] = {}
     tables: dict[str, dict[str, Any]] = {}
     if info.usable:
-        pack = registry.load_path(folder, root) if is_folder else registry.load(args.pack, root)
+        pack = (
+            registry.load_path(folder, root) if is_folder else registry.load(args.pack, root, kind)
+        )
         manifest = pack.info.model_dump(mode="json", by_alias=True, exclude_none=True)
         for name in pack.tables():
             tables[name] = {"providedBy": pack.provided_by(name), "sources": pack.source(name)}
     out.line(f"{info.id}: {info.name}")
+    if info.kind != "designCode":
+        out.line(f"  kind: {info.kind}")
     for key in ("edition", "country", "region", "version", "extends"):
         value = getattr(info, key)
         if value:
@@ -121,6 +146,15 @@ def cmd_show(args: argparse.Namespace, out: Any) -> int:
     for key in ("author", "licence"):
         if manifest.get(key):
             out.line(f"  {key}: {manifest[key]}")
+    if info.requires:
+        needs = [f"SAEngine {info.requires.saengine}"] if info.requires.saengine else []
+        needs += [f"{pid} {spec}" for pid, spec in info.requires.packages.items()]
+        if needs:
+            out.line(f"  requires: {', '.join(needs)}")
+    if info.kind != "designCode":
+        out.line(f"  contents: {', '.join(info.contents) or 'none'}")
+    if info.preview:
+        out.line(f"  preview: {info.preview}")
     if tables:
         out.line("  tables:")
     for name, table in tables.items():
@@ -160,7 +194,7 @@ def cmd_new(args: argparse.Namespace, out: Any) -> int:
 def cmd_validate(args: argparse.Namespace, out: Any) -> int:
     from saengine.codes.template import validate_pack
 
-    result = validate_pack(args.path, _root(args))
+    result = validate_pack(args.path, _root(args), getattr(args, "kind", None))
     for problem in result.problems:
         out.line(str(problem))
     errors = sum(p.level == "error" for p in result.problems)
