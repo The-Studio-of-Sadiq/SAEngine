@@ -88,12 +88,6 @@ jobs:
           $libs = @(Get-ChildItem -Path (Join-Path $vs 'VC\Tools\MSVC') -Filter delayimp.lib -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Directory.Name -eq 'x64' -and $_.Directory.Parent.Name -eq 'lib' })
           $libs | ForEach-Object { Write-Host "delayimp.lib: $($_.FullName)" }
           if ($libs.Count -eq 0) { throw "Visual Studio 2022 at $vs has no MSVC lib\x64\delayimp.lib." }
-          # Without a node_modules cache npm ci compiles keytar and tree-sitter, and their link still
-          # failed with "LNK1181: cannot open input file 'delayimp.lib'" on windows-2022 20261025
-          # (run 41117829840). link.exe searches LIB, so put the newest toolset's lib\x64 there.
-          $newest = $libs | Sort-Object { [version]$_.Directory.Parent.Parent.Name } | Select-Object -Last 1
-          Write-Host "LIB gets $($newest.Directory.FullName)"
-          Add-Content -Path $env:GITHUB_ENV -Value "LIB=$($newest.Directory.FullName);$env:LIB"
           Add-Content -Path $env:GITHUB_ENV -Value 'npm_config_msvs_version=2022'
           Add-Content -Path $env:GITHUB_ENV -Value "npm_config_python=$(Join-Path $env:pythonLocation 'python.exe')"
 
