@@ -63,7 +63,12 @@ from saengine.design.steel.properties import ShapeProperties, shape_properties
 from saengine.library import steel_sections
 
 CODE = "BNBC 2020 Part 6 Chapter 10 (LRFD; AISC 360-05 provisions)"
-G = 77_200.0  # MPa, Sec 10.5.4 (p 3843)
+
+
+def _shear_modulus() -> float:
+    """G of structural steel [MPa], the pack's ``materials.steelShearModulus`` (BNBC 2020:
+    77 200 MPa, Sec 10.5.4, p 3843)."""
+    return float(code_context.table("materials").steelShearModulus)
 
 
 def _phi(name: str) -> float:
@@ -273,7 +278,7 @@ def _elastic_buckling(
     fex = _euler(e, klx, shape.rx)
     fey = _euler(e, kly, shape.ry)
     modes = [(fex, "flexural buckling about x"), (fey, "flexural buckling about y")]
-    torsion = (math.pi**2 * e * shape.cw / klz**2 if klz > 0 else 0.0) + G * shape.j
+    torsion = (math.pi**2 * e * shape.cw / klz**2 if klz > 0 else 0.0) + _shear_modulus() * shape.j
     if shape.family == "I":
         modes.append((torsion / (shape.ix + shape.iy), "torsional buckling (Eq 6.10.23)"))
     elif shape.family in ("channel", "tee"):
@@ -330,7 +335,7 @@ def compression(
             clause = S + "Sec 10.5.4, Eqs 6.10.20-30"
         if shape.family == "tee" and not slender:
             fcry = _fcr(_euler(e, kly, shape.ry), fy)
-            fcrz = G * shape.j / (shape.area * shape.ro2)
+            fcrz = _shear_modulus() * shape.j / (shape.area * shape.ro2)
             h = shape.big_h
             fcr_t = (
                 (fcry + fcrz)
@@ -645,7 +650,12 @@ def _tee_flexure(
     candidates = [(min(mp, limit), "yielding", "Sec 10.6.9.1, Eqs 6.10.104-106")]
     if lb > 0:
         b = (-1 if stem_compression else 1) * 2.3 * (d["d"] / lb) * math.sqrt(shape.iy / shape.j)
-        mcr = math.pi * math.sqrt(e * shape.iy * G * shape.j) / lb * (b + math.sqrt(1 + b * b))
+        mcr = (
+            math.pi
+            * math.sqrt(e * shape.iy * _shear_modulus() * shape.j)
+            / lb
+            * (b + math.sqrt(1 + b * b))
+        )
         candidates.append((mcr, "lateral-torsional buckling", "Sec 10.6.9.2, Eqs 6.10.107-108"))
     (flange,) = cl.flexure_elements(shape, fy, e, "x")
     if not stem_compression and flange.cls != cl.COMPACT:

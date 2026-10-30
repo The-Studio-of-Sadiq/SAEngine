@@ -99,12 +99,13 @@ from typing import Any
 
 import numpy as np
 
+from saengine.codes import context as code_context
 from saengine.design.bars import (
-    SPACING_STEP,
     Mesh,
     column_min_clear,
     mesh_for,
     round_down,
+    spacing_step,
     strip_capacity,
 )
 from saengine.design.ductile_members import _row, so_special
@@ -141,34 +142,46 @@ CLAUSES = {
     "confinement": "BNBC 2020 Part 6 Sec 8.3.5.4 (pp. 1097-1098)",
 }
 
-#: Least ratios (vertical, horizontal) of 6.6.3.2 / 6.6.3.3 and 8.3.6.2(a)(i)/(ii): bars not
-#: larger than 16 mm with fy not less than 420 MPa, and other deformed bars.
-RHO_SMALL_BARS = (0.0012, 0.0020)
-RHO_OTHER_BARS = (0.0015, 0.0025)
-SMALL_BAR_MAX = 16.0
-SMALL_BAR_FY = 420.0
-#: 6.4.8.9.2, 6.4.8.9.4 and 8.3.6.2(a).
-RHO_SHEAR = 0.0025
-#: Thickness above which the bars go in two layers (6.6.3.4).
-TWO_LAYER_THICKNESS = 250.0
-SPACING_MAX = 450.0
-#: Shear thresholds of 8.3.6.2: x Acv λ √f'c.
-RELAXED_SHARE = 0.083
-TWO_CURTAIN_SHARE = 0.17
-#: Displacement-based boundary elements: least δu/hw (8.3.6.6(b)(i)).
-DRIFT_MIN = 0.007
-#: Stress-based boundary elements: required above / may stop below x f'c (8.3.6.6(c)).
-STRESS_REQUIRED, STRESS_STOP = 0.2, 0.15
-#: φ for shear of members whose Vn is below the shear at Mn (6.2.3.3(a)); diagonally
-#: reinforced coupling beams (6.2.3.3(c)).
-PHI_SHEAR_SEISMIC = 0.60
-PHI_DIAGONAL = 0.85
-FYT_CONFINEMENT_MAX = 700.0
-HX_MAX = 350.0
-#: Least horizontal and vertical wall-bar diameters of the design mode's meshes.
-WALL_DIAMETERS = (10.0, 12.0, 16.0, 20.0)
-BOUNDARY_DIAMETERS = (16.0, 20.0, 25.0, 32.0)
-HOOP_DIAMETERS = (10.0, 12.0)
+
+def steel_limit(name: str) -> float:
+    """The pack's ``concrete.walls`` value ``name`` (BNBC 2020: smallBarMax 16 mm and smallBarFy
+    420 MPa, the bars of the small-bar ratios of 6.6.3.2 / 6.6.3.3; rhoShear 0.0025 of
+    6.4.8.9.2, 6.4.8.9.4 and 8.3.6.2(a); twoLayerThickness 250 mm, above which the bars go in
+    two layers (6.6.3.4); spacingMax 450 mm (6.6.3.5, 8.3.6.2(a)))."""
+    return float(code_context.table("concrete").walls[name])
+
+
+def least_ratios(name: str) -> tuple[float, float]:
+    """The pack's least ratios (vertical, horizontal) ``name`` of 6.6.3.2 / 6.6.3.3 and
+    8.3.6.2(a)(i)/(ii) (BNBC 2020: rhoSmallBars (0.0012, 0.0020), bars not larger than 16 mm
+    with fy not less than 420 MPa; rhoOtherBars (0.0015, 0.0025), other deformed bars)."""
+    rho = code_context.table("concrete").walls[name]
+    return (float(rho[0]), float(rho[1]))
+
+
+def special_limit(name: str) -> float:
+    """The pack's ``detailing.walls`` value ``name`` (BNBC 2020: relaxedShare 0.083 and
+    twoCurtainShare 0.17, shear thresholds of 8.3.6.2 as x Acv λ √f'c; driftMin 0.007, the
+    least δu/hw of displacement-based boundary elements (8.3.6.6(b)(i)); stressRequired 0.2 and
+    stressStop 0.15, stress-based boundary elements required above / may stop below x f'c
+    (8.3.6.6(c)); fytConfinementMax 700 MPa; hxMax 350 mm (8.3.5.4(c)))."""
+    return float(code_context.table("detailing").walls[name])
+
+
+def wall_phi(name: str) -> float:
+    """The pack's φ ``name`` (BNBC 2020: shearSeismic 0.60, shear of members whose Vn is below
+    the shear at Mn (6.2.3.3(a)); diagonalCoupling 0.85, diagonally reinforced coupling beams
+    (6.2.3.3(c)))."""
+    return float(code_context.table("factors").phi[name])
+
+
+def bar_sizes(name: str) -> tuple[float, ...]:
+    """The pack's bar size set ``name`` [mm] of the design mode (BNBC 2020: wall (10, 12, 16,
+    20), the horizontal and vertical wall bars; boundary (16, 20, 25, 32); hoop (10, 12))."""
+    return tuple(float(d) for d in code_context.table("concrete").barDiameters[name])
+
+
+#: Least spacing of the design mode's wall meshes [mm].
 MIN_WALL_SPACING = 100.0
 #: Boundary element lengths are rounded up to this [mm].
 LENGTH_STEP = 50.0
@@ -589,12 +602,15 @@ def nominal_bending(section: RcSection, pu: float, top: bool) -> tuple[float, fl
 def minimum_ratios(dia_vertical: float, dia_horizontal: float, fy: float) -> tuple[float, float]:
     """Least ρl and ρt of 6.6.3.2 / 6.6.3.3 (and 8.3.6.2(a)(i)/(ii)) by bar size and grade."""
 
+    small_max, small_fy = steel_limit("smallBarMax"), steel_limit("smallBarFy")
+    small_bars, other_bars = least_ratios("rhoSmallBars"), least_ratios("rhoOtherBars")
+
     def small(dia: float) -> bool:
-        return dia <= SMALL_BAR_MAX and fy >= SMALL_BAR_FY
+        return dia <= small_max and fy >= small_fy
 
     return (
-        RHO_SMALL_BARS[0] if small(dia_vertical) else RHO_OTHER_BARS[0],
-        RHO_SMALL_BARS[1] if small(dia_horizontal) else RHO_OTHER_BARS[1],
+        small_bars[0] if small(dia_vertical) else other_bars[0],
+        small_bars[1] if small(dia_horizontal) else other_bars[1],
     )
 
 
@@ -683,7 +699,7 @@ def boundary_length(c: float, lw: float) -> float:
 def displacement_trigger(lw: float, drift: float) -> float:
     """The neutral-axis depth at and above which boundary elements are required (Eq. 6.8.10):
     lw / (600 max(δu/hw, 0.007))."""
-    return lw / (600 * max(drift, DRIFT_MIN))
+    return lw / (600 * max(drift, special_limit("driftMin")))
 
 
 def extreme_stress(geometry: WallGeometry, pu: float, mu: float) -> float:
@@ -695,7 +711,7 @@ def extreme_stress(geometry: WallGeometry, pu: float, mu: float) -> float:
 def boundary_ash(bc: float, fc: float, fyt: float) -> float:
     """Least Ash / s [mm²/mm] across a core dimension bc: Eq. 6.8.8 (8.3.6.6(d)(iii) waives
     Eq. 6.8.7), fyt at most 700 MPa (8.3.3.4(c))."""
-    return 0.09 * bc * fc / min(fyt, FYT_CONFINEMENT_MAX)
+    return 0.09 * bc * fc / min(fyt, special_limit("fytConfinementMax"))
 
 
 # ─────────────────────────────────────── results ───────────────────────────────────────
@@ -797,13 +813,13 @@ def wall_checks(
     shear_reinforced = _shear_reinforced(geometry, forces, fc, lam)  # 6.4.8.8
     req_l, req_t = min_l, min_t
     if special:
-        if vu > RELAXED_SHARE * acv * lam * root:
-            req_l = req_t = RHO_SHEAR
+        if vu > special_limit("relaxedShare") * acv * lam * root:
+            req_l = req_t = steel_limit("rhoShear")
             rule = "8.3.6.2(a)"
         else:
             rule = "8.3.6.2(a)(i)/(ii): Vu <= 0.083 Acv λ √f'c"
     elif shear_reinforced:
-        req_t = max(req_t, RHO_SHEAR)
+        req_t = max(req_t, steel_limit("rhoShear"))
         t_need = _rho_t_shear(geometry, forces, fc, fy, lam)
         req_l = max(req_l, rho_l_eq71(geometry, rho_t, t_need))
         rule = "6.4.8.9.2 / 6.4.8.9.4 (Vu > 0.5 φVc, 6.4.8.8)"
@@ -837,23 +853,25 @@ def wall_checks(
         )
 
     # Spacing.
-    s_v, s_h = min(3 * t, SPACING_MAX), min(3 * t, SPACING_MAX)
+    s_max = steel_limit("spacingMax")
+    s_v, s_h = min(3 * t, s_max), min(3 * t, s_max)
     why_v = why_h = "min(3t, 450 mm) (6.6.3.5)"
     if shear_reinforced and not special:
-        s_h, why_h = min(lw / 5, 3 * t, SPACING_MAX), "min(lw/5, 3h, 450 mm) (6.4.8.9.3)"
-        s_v, why_v = min(lw / 3, 3 * t, SPACING_MAX), "min(lw/3, 3h, 450 mm) (6.4.8.9.5)"
+        s_h, why_h = min(lw / 5, 3 * t, s_max), "min(lw/5, 3h, 450 mm) (6.4.8.9.3)"
+        s_v, why_v = min(lw / 3, 3 * t, s_max), "min(lw/3, 3h, 450 mm) (6.4.8.9.5)"
     if special:
         why_v = why_h = "450 mm (8.3.6.2(a)) and min(3t, 450 mm) (6.6.3.5)"
     out.checks.append(_row(f"Vertical bar spacing, {why_v}", bars.vertical_spacing, s_v, "mm"))
     out.checks.append(_row(f"Horizontal bar spacing, {why_h}", bars.horizontal_spacing, s_h, "mm"))
 
     # Layers.
-    if t > TWO_LAYER_THICKNESS and not geometry.basement:
+    if t > steel_limit("twoLayerThickness") and not geometry.basement:
         out.checks.append(
             _row("Two layers in walls thicker than 250 mm (6.6.3.4)", 2, bars.layers, "layers")
         )
     if special:
-        need2 = vu > TWO_CURTAIN_SHARE * acv * lam * root
+        curtains = special_limit("twoCurtainShare") * acv * lam * root
+        need2 = vu > curtains
         out.checks.append(
             _row(
                 "Two curtains where Vu > 0.17 Acv λ √f'c (8.3.6.2(b))",
@@ -861,8 +879,7 @@ def wall_checks(
                 bars.layers,
                 "curtains",
                 vu_name,
-                f"Vu = {_kn(vu):.1f} kN, 0.17 Acv λ √f'c = "
-                f"{_kn(TWO_CURTAIN_SHARE * acv * lam * root):.1f} kN",
+                f"Vu = {_kn(vu):.1f} kN, 0.17 Acv λ √f'c = {_kn(curtains):.1f} kN",
             )
         )
 
@@ -910,7 +927,7 @@ def wall_checks(
                 if phi_case is None or v > v_at_mn:
                     v_at_mn, phi_case = v, g
             if phi_case is not None and vn < v_at_mn:
-                phi_v = PHI_SHEAR_SEISMIC
+                phi_v = wall_phi("shearSeismic")
             shown = f"{_kn(v_at_mn):.1f} kN" if math.isfinite(v_at_mn) else "∞"
             note = (
                 f"Vn = Acv (αc λ √f'c + ρt fy), αc = {sv['alpha']:.3f} (hw/lw = "
@@ -1031,7 +1048,7 @@ def wall_checks(
             out.notes.append(
                 "δu/hw not given: boundary elements by the stress method of 8.3.6.6(c)"
             )
-        if vu >= RELAXED_SHARE * acv * lam * root and not boundary.required:
+        if vu >= special_limit("relaxedShare") * acv * lam * root and not boundary.required:
             out.notes.append(
                 "8.3.6.6(e)(ii): the horizontal bars ending at the wall edges need a standard "
                 "hook engaging the edge bars, or U-stirrups of the same size and spacing "
@@ -1071,8 +1088,9 @@ def rho_l_eq71(geometry: WallGeometry, rho_t: float, rho_t_required: float) -> f
     """Least vertical ratio of 6.4.8.9.4 (Eq. 6.6.71): max(0.0025, 0.0025 + 0.5 (2.5 - hw/lw)
     (ρt - 0.0025)) with ρt the horizontal ratio provided (6.4.8.9.2), but not more than the ρt
     required by 6.4.8.9.1 (and 0.0025 of 6.4.8.9.2)."""
-    eq71 = RHO_SHEAR + 0.5 * (2.5 - geometry.height / geometry.length) * (rho_t - RHO_SHEAR)
-    return max(RHO_SHEAR, min(eq71, max(rho_t_required, RHO_SHEAR)))
+    least = steel_limit("rhoShear")
+    eq71 = least + 0.5 * (2.5 - geometry.height / geometry.length) * (rho_t - least)
+    return max(least, min(eq71, max(rho_t_required, least)))
 
 
 def _k_factor(geometry: WallGeometry) -> float:
@@ -1143,7 +1161,7 @@ def boundary_need(
             if geometry.height > 0:
                 height = min(height, max(geometry.height, lw))
     else:
-        required = stress > STRESS_REQUIRED * fc
+        required = stress > special_limit("stressRequired") * fc
     least = length = boundary_length(c_max, lw)
     cover = bars.cover if bars else 40.0
     b = bars.boundary if bars else None
@@ -1159,7 +1177,7 @@ def boundary_need(
         if b:
             hx = max(bc_len / max(b.legs_across - 1, 1), bc_t / max(b.legs_along - 1, 1))
         else:
-            hx = HX_MAX
+            hx = special_limit("hxMax")
         spacing = min(min(t, own) / 3, 6 * db, so_special(hx))
         proposal = propose_boundary(length, t, cover, fc, fyt, db, b.count if b else 0)
     elif bars is not None:
@@ -1207,9 +1225,11 @@ def propose_boundary(
     bc_len, bc_t = length - cover, t - 2 * cover
     need_len, need_t = boundary_ash(bc_len, fc, fyt), boundary_ash(bc_t, fc, fyt)
     best: tuple[float, Boundary] | None = None
-    for dh in HOOP_DIAMETERS:
-        across = max(2, math.ceil(bc_len / HX_MAX - 1e-9) + 1)
-        along = max(2, math.ceil(bc_t / HX_MAX - 1e-9) + 1)
+    hx_max = special_limit("hxMax")
+    step = spacing_step()
+    for dh in bar_sizes("hoop"):
+        across = max(2, math.ceil(bc_len / hx_max - 1e-9) + 1)
+        along = max(2, math.ceil(bc_t / hx_max - 1e-9) + 1)
         while across * bar_area(dh) / need_len < 75.0:
             across += 1
         while along * bar_area(dh) / need_t < 75.0:
@@ -1222,7 +1242,7 @@ def propose_boundary(
             across * bar_area(dh) / need_len,
             along * bar_area(dh) / need_t,
         )
-        s = max(round_down(s, SPACING_STEP), 50.0)
+        s = max(round_down(s, step), 50.0)
         weight = (across * bc_t + along * bc_len) * bar_area(dh) / s
         if best is None or weight < best[0] - 1e-9:
             best = (weight, Boundary(length, count, db, dh, s, across, along))
@@ -1255,10 +1275,10 @@ def _boundary_rows(
             _row(
                 "Boundary elements: extreme fibre stress > 0.2 f'c (8.3.6.6(c))",
                 need.stress,
-                STRESS_REQUIRED * fc,
+                special_limit("stressRequired") * fc,
                 "MPa",
                 note=f"{state}; may stop where the stress is below 0.15 f'c = "
-                f"{STRESS_STOP * fc:.1f} MPa",
+                f"{special_limit('stressStop') * fc:.1f} MPa",
                 utilisation=0.0,
             )
         )
@@ -1357,7 +1377,9 @@ def _boundary_rows(
         (b.length - bars.cover) / max(b.legs_across - 1, 1),
         (t - 2 * bars.cover) / max(b.legs_along - 1, 1),
     )
-    rows.append(_row("Boundary hoop legs hx <= 350 mm (8.3.5.4(c))", hx, HX_MAX, "mm"))
+    rows.append(
+        _row("Boundary hoop legs hx <= 350 mm (8.3.5.4(c))", hx, special_limit("hxMax"), "mm")
+    )
     return rows
 
 
@@ -1390,20 +1412,21 @@ def wall_need(
     vu = max((abs(f.V2) for f in forces), default=0.0)
     notes: list[str] = []
     cover = bars.cover if bars else cover
-    layers = 2 if (t > TWO_LAYER_THICKNESS and not geometry.basement) else 1
-    if special and vu > TWO_CURTAIN_SHARE * acv * lam * root:
+    layers = 2 if (t > steel_limit("twoLayerThickness") and not geometry.basement) else 1
+    if special and vu > special_limit("twoCurtainShare") * acv * lam * root:
         layers = 2
     if bars is not None:
         layers = max(layers, bars.layers)
-    s_v = s_h = min(3 * t, SPACING_MAX)
+    s_max = steel_limit("spacingMax")
+    s_v = s_h = min(3 * t, s_max)
     base_l = base_t = 0.0
     eq71 = False
     if special:
-        if vu > RELAXED_SHARE * acv * lam * root:
-            base_l = base_t = RHO_SHEAR
+        if vu > special_limit("relaxedShare") * acv * lam * root:
+            base_l = base_t = steel_limit("rhoShear")
         # Vu <= φ Acv (αc λ √f'c + ρt fy) with φ = 0.60 (6.2.3.3(a)): the check takes 0.75
         # where Vn reaches the shear at Mn; the proposal does not rely on it.
-        sv_need = vu / PHI_SHEAR_SEISMIC / acv - alpha_c(geometry.aspect) * lam * root
+        sv_need = vu / wall_phi("shearSeismic") / acv - alpha_c(geometry.aspect) * lam * root
         sv_need = max(sv_need, 0.0) / min(fy, FYT_SHEAR_MAX)
         notes.append("ρt for shear with φ = 0.60 (6.2.3.3(a)), on the safe side")
     else:
@@ -1415,22 +1438,24 @@ def wall_need(
                 "the wall is too thin or short"
             )
         if _shear_reinforced(geometry, forces, fc, lam):
-            base_t = RHO_SHEAR
+            base_t = steel_limit("rhoShear")
             eq71 = True  # Eq. 6.6.71 with the ρt of the proposed horizontal mesh, below
-            s_h = min(lw / 5, 3 * t, SPACING_MAX)
-            s_v = min(lw / 3, 3 * t, SPACING_MAX)
+            s_h = min(lw / 5, 3 * t, s_max)
+            s_v = min(lw / 3, 3 * t, s_max)
+
+    sizes = bar_sizes("wall")
 
     def per_face(rho_of) -> dict[float, float]:
-        return {dia: rho_of(dia) * t * 1000 / layers for dia in WALL_DIAMETERS}
+        return {dia: rho_of(dia) * t * 1000 / layers for dia in sizes}
 
     def rho_horizontal(dia: float) -> float:
         return max(minimum_ratios(dia, dia, fy)[1], base_t, sv_need)
 
-    horizontal = mesh_for(0.0, s_h, WALL_DIAMETERS, MIN_WALL_SPACING, per_face(rho_horizontal))
+    horizontal = mesh_for(0.0, s_h, sizes, MIN_WALL_SPACING, per_face(rho_horizontal))
     rho_t = (
         layers * bar_area(horizontal.dia) / (t * horizontal.spacing)
         if horizontal
-        else rho_horizontal(SMALL_BAR_MAX)
+        else rho_horizontal(steel_limit("smallBarMax"))
     )
     floor = rho_t if special and geometry.aspect <= 2.0 else 0.0
     if floor:
@@ -1441,18 +1466,19 @@ def wall_need(
     def rho_vertical(dia: float) -> float:
         return max(minimum_ratios(dia, dia, fy)[0], base_l, floor)
 
-    vertical = mesh_for(0.0, s_v, WALL_DIAMETERS, MIN_WALL_SPACING, per_face(rho_vertical))
+    vertical = mesh_for(0.0, s_v, sizes, MIN_WALL_SPACING, per_face(rho_vertical))
     rho_l = (
         layers * bar_area(vertical.dia) / (t * vertical.spacing)
         if vertical
-        else rho_vertical(SMALL_BAR_MAX)
+        else rho_vertical(steel_limit("smallBarMax"))
     )
     if horizontal is None or vertical is None:
         notes.append("no mesh of Ø10-Ø20 at >= 100 mm apart carries it: the wall is too thin")
-    if special and vu > PHI_SHEAR_SEISMIC * 0.83 * acv * root:
+    vmax_special = wall_phi("shearSeismic") * 0.83 * acv * root
+    if special and vu > vmax_special:
         notes.append(
             f"Vu = {_kn(vu):.0f} kN above φ 0.83 Acw √f'c = "
-            f"{_kn(PHI_SHEAR_SEISMIC * 0.83 * acv * root):.0f} kN: the wall is too thin or short"
+            f"{_kn(vmax_special):.0f} kN: the wall is too thin or short"
         )
     end_bars = None
     web = None
@@ -1543,7 +1569,7 @@ def _search_end_bars(
     if not required and not ties and passes(web):
         return True, None
     options = sorted(
-        ((n, d) for n in (4, 6, 8, 10, 12) for d in BOUNDARY_DIAMETERS),
+        ((n, d) for n in (4, 6, 8, 10, 12) for d in bar_sizes("boundary")),
         key=lambda o: (o[0] * bar_area(o[1]), o[1]),
     )
     for n, d in options:
@@ -1630,9 +1656,10 @@ def coupling_beam_checks(
         alpha = math.atan((h - 2 * edge) / ln)
     vmax = 0.83 * acw * root
     sin = math.sin(alpha)
-    out.avd_required = vu / (PHI_DIAGONAL * 2 * fy * sin) if sin > 0 else math.inf
+    phi_d = wall_phi("diagonalCoupling")
+    out.avd_required = vu / (phi_d * 2 * fy * sin) if sin > 0 else math.inf
     if mode != "flexural":
-        for d in BOUNDARY_DIAMETERS:
+        for d in bar_sizes("boundary"):
             n = max(4, 2 * math.ceil(out.avd_required / bar_area(d) / 2))
             if n <= 8:
                 out.proposal = Diagonal(n, d, edge, alpha)
@@ -1643,7 +1670,7 @@ def coupling_beam_checks(
             _row(
                 "Coupling beam diagonal bars Vn = 2 Avd fy sin α <= 0.83 Acw √f'c (Eq. 6.8.11)",
                 _kn(vu),
-                _kn(PHI_DIAGONAL * vn),
+                _kn(phi_d * vn),
                 "kN",
                 combination,
                 f"{diagonal.count} Ø{diagonal.dia:g} per group, α = {math.degrees(alpha):.1f}°, "

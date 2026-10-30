@@ -90,14 +90,14 @@ def test_slab_strip_per_metre_and_spacing_rounding() -> None:
     h, cover = 150.0, 20.0
     required = {
         dia: max(_singly(20e6, 1000, h - cover - dia / 2), 0.0018 * h * 1000)
-        for dia in B.SLAB_DIAMETERS
+        for dia in B.diameters("slab")
     }
     assert required[10] == pytest.approx(436.7, abs=0.3)  # d = 125
     for dia, value in required.items():
         need = B.slab_flexure_need(20e6, h - cover - dia / 2, FC, FY)
         assert max(need.area, 270.0) == pytest.approx(value, rel=1e-6)
     # Ø10: 78.54 × 1000 / 436.7 = 179.8 -> 175 mm (448.8 mm²/m); Ø12: 256.8 -> 250 (452.4).
-    mesh = B.mesh_for(0.0, min(2 * h, 450), B.SLAB_DIAMETERS, 100, required)
+    mesh = B.mesh_for(0.0, min(2 * h, 450), B.diameters("slab"), 100, required)
     assert mesh == B.Mesh(10.0, 175.0)
     assert mesh.area == pytest.approx(448.8, abs=0.1)
     # Depths of the four layers, X outer: Ø10 bottom X, Ø12 bottom Y.

@@ -84,6 +84,7 @@ from typing import Any
 
 import numpy as np
 
+from saengine.codes import context as code_context
 from saengine.design.rc import (
     EPS_CU,
     PHI_SHEAR,
@@ -164,9 +165,26 @@ METHOD = [
 
 #: Demands below this [N·m/m] need no bars (numerical noise near a free or pinned edge).
 NO_DEMAND = 50.0
-EPS_T_MIN = 0.004  # least net tensile strain of a nonprestressed slab (ACI 7.3.3.1, 8.3.3.1)
 LAYERS = ("bottomX", "bottomY", "topX", "topY")
-PHI_PUNCHING = PHI_SHEAR
+
+
+def _eps_t_min() -> float:
+    """Least net tensile strain of a nonprestressed slab, the pack's ``concrete.slabStrainMin``
+    (BNBC 2020: 0.004, ACI 7.3.3.1, 8.3.3.1)."""
+    return float(code_context.table("concrete").slabStrainMin)
+
+
+def _phi_punching() -> float:
+    """φ of two-way (punching) shear, the pack's ``factors.phi.punching`` (BNBC 2020: 0.75, as
+    the shear φ)."""
+    return float(code_context.table("factors").phi["punching"])
+
+
+def _two_way_thickness() -> dict[float, tuple[float, float, float]]:
+    """ACI Table 8.3.1.1 (without drop panels), the pack's ``concrete.twoWayThickness``: fy ->
+    (exterior without edge beams, exterior with edge beams, interior) divisors of ln (BNBC
+    2020: 280 -> 33, 36, 36; 420 -> 30, 33, 33; 520 -> 28, 31, 31)."""
+    return code_context.table("concrete").twoWayThickness
 
 
 # ─────────────────────────────────────── Wood-Armer ───────────────────────────────────────
@@ -379,7 +397,7 @@ def layer_capacity(
     eps_t = EPS_CU * (d - c) / c if c > 0 else math.inf
     phi = phi_axial_flexure(eps_t, fy, es)
     mn = area * fy * (d - a / 2)
-    limit = EPS_CU / (EPS_CU + EPS_T_MIN)
+    limit = EPS_CU / (EPS_CU + _eps_t_min())
     return LayerCapacity(area, d, a, c, eps_t, phi, mn, phi * mn, limit)
 
 
@@ -562,21 +580,18 @@ def punching_stress(section: CriticalSection, vu: float, m_u: float, m_v: float)
 
 # ─────────────────────────────────────── thickness ───────────────────────────────────────
 
-#: ACI Table 8.3.1.1 (without drop panels): fy -> (exterior without edge beams, exterior with
-#: edge beams, interior) divisors of ln.
-_TABLE_8_3_1_1 = {280.0: (33.0, 36.0, 36.0), 420.0: (30.0, 33.0, 33.0), 520.0: (28.0, 31.0, 31.0)}
-
 
 def two_way_divisor(fy: float, exterior: bool, edge_beams: bool) -> float:
     """The ln divisor of ACI Table 8.3.1.1, interpolated in fy (footnote)."""
     column = 2 if not exterior else (1 if edge_beams else 0)
-    keys = sorted(_TABLE_8_3_1_1)
+    table = _two_way_thickness()
+    keys = sorted(table)
     fy = min(max(fy, keys[0]), keys[-1])
     for lo, hi in pairwise(keys):
         if lo <= fy <= hi:
-            a, b = _TABLE_8_3_1_1[lo][column], _TABLE_8_3_1_1[hi][column]
+            a, b = table[lo][column], table[hi][column]
             return a + (b - a) * (fy - lo) / (hi - lo)
-    return _TABLE_8_3_1_1[keys[-1]][column]
+    return table[keys[-1]][column]
 
 
 @dataclass(frozen=True)
@@ -1670,6 +1685,7 @@ def _punching_checks(
     if not top:
         return []
     d = sum(layer.d for layer in top) / len(top)
+    phi_punching = _phi_punching()
     checks = []
     for column in context.columns:
         section = critical_section(
@@ -1693,7 +1709,7 @@ def _punching_checks(
             continue
         vu_max, stress, vu, combination = worst
         area = section.b0 * d
-        phi_vc = PHI_PUNCHING * capacity.vc
+        phi_vc = phi_punching * capacity.vc
         a, b, cc = capacity.expressions
         note = (
             f"{section.location} column, b0 = {section.b0:.0f} mm, d = {d:.0f} mm ({source}), "
@@ -1841,8 +1857,6 @@ COEFFICIENT_METHOD = (
 
 def coefficient_table() -> dict[str, Any]:
     """The code pack's ``slabCoefficients`` table as plain data."""
-    from saengine.codes import context as code_context
-
     table = code_context.table("slabCoefficients")
     if hasattr(table, "model_dump"):
         return table.model_dump(by_alias=True)

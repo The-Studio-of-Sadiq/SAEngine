@@ -2871,10 +2871,11 @@ def _detail_lintels(ctx: _Ctx, wall: Any, element: dict[str, Any]) -> list[str]:
     bars is checked from mid-span (the section of the largest moment) to the bar's end
     (8.2.3); stirrups with 135° hooks (8.1.2.1(c)) from 50 mm off each end at the design's
     spacing."""
-    from saengine.design.lintels import COVER, WIND_BAR_EXTENSION
+    from saengine.design.lintels import WIND_BAR_EXTENSION, lintel_cover
 
     openings = {o.id: o for o in ctx.building.additions.wallOpenings if o.host == wall.id}
     done = []
+    lintel_cover_mm = lintel_cover()
     for found in _lintels_of(ctx):
         o = openings.get(str(found.get("id")))
         if o is None:
@@ -2895,7 +2896,7 @@ def _detail_lintels(ctx: _Ctx, wall: Any, element: dict[str, Any]) -> list[str]:
         grade = ctx.grade(steel) if steel else None
         fy = ctx.fy(steel) if steel else 420.0
         fc = ctx.fc(str(found.get("concrete") or ""))
-        cover = COVER
+        cover = lintel_cover_mm
         at = {"opening": o.id, "from": round(x0, 1), "to": round(x0 + length, 1),
               "bottom": round(head, 1), "depth": h, "width": b}  # fmt: skip
         run = length - 2 * cover

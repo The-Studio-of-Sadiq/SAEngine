@@ -17,6 +17,7 @@ from typing import Any
 
 import numpy as np
 
+from saengine.codes import context as code_context
 from saengine.design.check import _check
 from saengine.library.bim import ColumnElement, WallElement
 from saengine.library.substructure import FOUNDATION_TYPES, check, pile_layout_warnings
@@ -45,8 +46,14 @@ def substructure_report(project_root: str | Path, out_dir: str | Path | None = N
     "reason"}``; each check ``{"name", "demand", "capacity", "unit", "utilisation",
     "combination", "ok", "note", "flag"}`` as :func:`saengine.design.design_report`'s
     (``flag`` checks are reported but do not make the foundation fail). Raises ``ValueError``
-    when a part of the project cannot be read or is invalid."""
-    return report(load_context(project_root, out_dir))
+    when a part of the project cannot be read or is invalid. Runs under the project's code
+    pack."""
+    ctx = load_context(project_root, out_dir)
+    with (
+        code_context.project(ctx.root or project_root),
+        code_context.using(code_context.pack_for(ctx.settings, ctx.root)),
+    ):
+        return report(ctx)
 
 
 def _external(foundation_type: str) -> tuple[Callable[..., Any] | None, list[str], str]:

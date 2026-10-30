@@ -5177,7 +5177,6 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			default: null,
 			deprecated: true,
 			description: 'Deprecated: the design code is chosen by codePack. Read from old files and dropped when they are saved.',
-			readOnly: true,
 			title: 'Codes (deprecated)',
 		},
 		occupancy: {

@@ -36,31 +36,64 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
+from saengine.codes import context as code_context
 from saengine.design.rc import EPS_CU, PHI_SHEAR, PHI_TENSION, STEEL_E, bar_area, beta1
 
-#: Bar diameters of Bangladeshi practice [mm] (BDS ISO 6935-2 sizes in common use).
-DIAMETERS = (10.0, 12.0, 16.0, 20.0, 25.0, 32.0)
-#: Beam and column main bars: the practical subset.
-MAIN_DIAMETERS = (12.0, 16.0, 20.0, 25.0, 32.0)
-COLUMN_DIAMETERS = (16.0, 20.0, 25.0, 32.0)
-SLAB_DIAMETERS = (10.0, 12.0, 16.0)
-STIRRUP_DIAMETERS = (8.0, 10.0, 12.0)
-#: Bar spacings of slabs and footings, and stirrup spacings, are multiples of this [mm].
-SPACING_STEP = 25.0
-#: Least practical spacing of slab and footing bars and of stirrups [mm] (site practice, not a
-#: code limit).
-MIN_SLAB_SPACING = 100.0
-MIN_STIRRUP_SPACING = 75.0
-#: Column steel ratio limits (ACI 10.6.1.1).
-RHO_MIN, RHO_MAX = 0.01, 0.08
-#: Largest tension steel of a beam, as a share of b h, before the section is called too small:
-#: a practical limit (congestion), not an ACI clause.
-BEAM_RATIO_MAX = 0.04
 EPS_T_SLAB = 0.004
 
+# The practice values below are the code pack's ``concrete`` table (read where they are used,
+# so the pack in force is the one read).
 
-def round_down(value: float, step: float = SPACING_STEP) -> float:
-    """``value`` rounded down to a multiple of ``step`` (a hair of tolerance kept)."""
+
+def diameters(kind: str) -> tuple[float, ...]:
+    """Bar diameters [mm] of use ``kind``, the pack's ``concrete.barDiameters[kind]``. BNBC 2020
+    (BDS ISO 6935-2 sizes in common Bangladeshi practice): "all" 10, 12, 16, 20, 25, 32; "main"
+    (beam and column main bars, the practical subset) 12 to 32; "column" 16 to 32; "slab" 10,
+    12, 16; "stirrup" 8, 10, 12."""
+    return tuple(code_context.table("concrete").barDiameters[kind])
+
+
+#: :func:`diameters` under a name the functions with a ``diameters`` argument can call.
+diameters_of = diameters
+
+
+def spacing_step() -> float:
+    """Bar spacings of slabs and footings, and stirrup spacings, are multiples of this [mm]
+    (the pack's ``concrete.spacingStep``; BNBC 2020: 25 mm)."""
+    return float(code_context.table("concrete").spacingStep)
+
+
+def min_slab_spacing() -> float:
+    """Least practical spacing of slab and footing bars [mm] (site practice, not a code limit;
+    the pack's ``concrete.minSlabSpacing``; BNBC 2020: 100 mm)."""
+    return float(code_context.table("concrete").minSlabSpacing)
+
+
+def min_stirrup_spacing() -> float:
+    """Least practical spacing of stirrups [mm] (site practice, not a code limit; the pack's
+    ``concrete.minStirrupSpacing``; BNBC 2020: 75 mm)."""
+    return float(code_context.table("concrete").minStirrupSpacing)
+
+
+def column_rho() -> tuple[float, float]:
+    """(least, largest) column steel ratio (ACI 10.6.1.1; the pack's ``concrete.columnRho``;
+    BNBC 2020: 0.01, 0.08)."""
+    low, high = code_context.table("concrete").columnRho
+    return float(low), float(high)
+
+
+def beam_ratio_max() -> float:
+    """Largest tension steel of a beam, as a share of b h, before the section is called too
+    small: a practical limit (congestion), not an ACI clause (the pack's
+    ``concrete.beamRatioMax``; BNBC 2020: 0.04)."""
+    return float(code_context.table("concrete").beamRatioMax)
+
+
+def round_down(value: float, step: float | None = None) -> float:
+    """``value`` rounded down to a multiple of ``step`` (default :func:`spacing_step`; a hair
+    of tolerance kept)."""
+    if step is None:
+        step = spacing_step()
     return math.floor(value / step + 1e-9) * step
 
 
@@ -102,13 +135,16 @@ def beam_flexure_need(
     fc: float,
     fy: float,
     es: float = STEEL_E,
-    ratio_max: float = BEAM_RATIO_MAX,
+    ratio_max: float | None = None,
     h: float | None = None,
 ) -> FlexureNeed:
     """The tension and compression bars of a rectangular beam section for ``mu`` (see the
-    module notes). ``d_comp``: depth of the compression bars from the compression face."""
+    module notes). ``d_comp``: depth of the compression bars from the compression face;
+    ``ratio_max`` default :func:`beam_ratio_max`."""
     if mu <= 0:
         return FlexureNeed(0.0, 0.0)
+    if ratio_max is None:
+        ratio_max = beam_ratio_max()
     b1 = beta1(fc)
     c_tc = tension_controlled_depth(d, fy, es)
     a_tc = b1 * c_tc
@@ -262,17 +298,23 @@ class Stirrups:
 def choose_stirrups(
     need: ShearNeed,
     b: float,
-    diameters: tuple[float, ...] = STIRRUP_DIAMETERS,
-    min_spacing: float = MIN_STIRRUP_SPACING,
+    diameters: tuple[float, ...] | None = None,
+    min_spacing: float | None = None,
 ) -> Stirrups | None:
     """The stirrups that give ``need.av_s`` with the least steel: spacings in 25 mm steps
     within the largest spacing, two legs before four (four only in beams at least 300 mm wide),
-    the smaller bar on a tie; None when none fits."""
-    s_max = round_down(need.s_max)
+    the smaller bar on a tie; None when none fits. Defaults: the pack's stirrup diameters and
+    least stirrup spacing."""
+    if diameters is None:
+        diameters = diameters_of("stirrup")
+    if min_spacing is None:
+        min_spacing = min_stirrup_spacing()
+    step = spacing_step()
+    s_max = round_down(need.s_max, step)
     best: tuple[float, int, float, Stirrups] | None = None
     for legs in (2, 4) if b >= 300 else (2,):
         for dia in diameters:
-            spacing = min(round_down(legs * bar_area(dia) / need.av_s), s_max)
+            spacing = min(round_down(legs * bar_area(dia) / need.av_s, step), s_max)
             if spacing < min_spacing:
                 continue
             option = Stirrups(dia, legs, spacing)
@@ -309,15 +351,19 @@ def face_options(
     required: float,
     width: float,
     inset: float,
-    diameters: tuple[float, ...] = MAIN_DIAMETERS,
+    diameters: tuple[float, ...] | None = None,
     aggregate: float | None = None,
     min_count: int = 2,
     max_rows: int = 2,
 ) -> list[FaceBars]:
     """Bar choices of one beam face for ``required`` [mm²], best first: one diameter, at least
     ``min_count`` bars, in at most ``max_rows`` rows at the least clear spacing (ACI 25.2.1);
-    ranked by :attr:`FaceBars.score` (the steel, extra rows and the number of bars)."""
+    ranked by :attr:`FaceBars.score` (the steel, extra rows and the number of bars).
+    ``diameters`` default: the pack's main bars."""
     from saengine.design.rc import bars_per_row
+
+    if diameters is None:
+        diameters = diameters_of("main")
 
     options: list[FaceBars] = []
     for dia in diameters:
@@ -348,20 +394,26 @@ class Mesh:
 def mesh_for(
     required: float,
     s_max: float,
-    diameters: tuple[float, ...] = SLAB_DIAMETERS,
-    min_spacing: float = MIN_SLAB_SPACING,
+    diameters: tuple[float, ...] | None = None,
+    min_spacing: float | None = None,
     required_of: dict[float, float] | None = None,
 ) -> Mesh | None:
     """The slab or footing mesh with the least steel giving ``required`` [mm²/m] (or, per
     diameter, ``required_of[dia]`` when the requirement depends on the bar through d), the
     spacing rounded down to 25 mm and at most ``s_max``; a wider spacing on a tie; None when
-    every diameter needs bars closer than ``min_spacing``."""
+    every diameter needs bars closer than ``min_spacing``. Defaults: the pack's slab diameters
+    and least slab spacing."""
+    if diameters is None:
+        diameters = diameters_of("slab")
+    if min_spacing is None:
+        min_spacing = min_slab_spacing()
+    step = spacing_step()
     best: Mesh | None = None
     for dia in diameters:
         need = (required_of or {}).get(dia, required)
-        spacing = round_down(s_max)
+        spacing = round_down(s_max, step)
         if need > 0:
-            spacing = min(spacing, round_down(bar_area(dia) * 1000 / need))
+            spacing = min(spacing, round_down(bar_area(dia) * 1000 / need, step))
         if spacing < min_spacing:
             continue
         option = Mesh(dia, spacing)
@@ -406,17 +458,24 @@ def column_layouts(
     b: float,
     h: float,
     inset: float,
-    diameters: tuple[float, ...] = COLUMN_DIAMETERS,
+    diameters: tuple[float, ...] | None = None,
     aggregate: float | None = None,
-    rho_min: float = RHO_MIN,
-    rho_max: float = RHO_MAX,
+    rho_min: float | None = None,
+    rho_max: float | None = None,
 ) -> list[ColumnLayout]:
     """The symmetric layouts of a rectangular (``b`` x ``h``) or circular (``b`` the diameter)
     column with a steel ratio in [``rho_min``, ``rho_max``] (ACI 10.6.1.1, 10.7.3.1: at least 4
     bars in a rectangle, 6 in a circle) and the least clear spacing of ACI 25.2.3, by area
     (fewer bars first on a tie). A square column (sides within 10 %) gets the same number of bars
     on each face (4, 8, 12, ... bars); a rectangle shares the bars between its faces in proportion
-    to their lengths, as :func:`saengine.design.rc.section_of` lays them out."""
+    to their lengths, as :func:`saengine.design.rc.section_of` lays them out. Defaults: the
+    pack's column diameters and :func:`column_rho`."""
+    if diameters is None:
+        diameters = diameters_of("column")
+    if rho_min is None or rho_max is None:
+        low, high = column_rho()
+        rho_min = low if rho_min is None else rho_min
+        rho_max = high if rho_max is None else rho_max
     layouts: list[ColumnLayout] = []
     if shape == "circle":
         gross = math.pi * b**2 / 4
@@ -468,10 +527,13 @@ def column_ties(
     b: float,
     h: float,
     cover: float,
-    diameters: tuple[float, ...] = STIRRUP_DIAMETERS,
+    diameters: tuple[float, ...] | None = None,
 ) -> Ties:
     """Ties of a column (ACI 25.7.2, see the module notes); ``legs``: the larger number of tie
-    legs across either face (crossties included) that hold the bars per 25.7.2.3."""
+    legs across either face (crossties included) that hold the bars per 25.7.2.3.
+    ``diameters`` default: the pack's stirrup diameters."""
+    if diameters is None:
+        diameters = diameters_of("stirrup")
     notes: list[str] = []
     wanted = 10.0 if layout.dia <= 32 else 13.0
     usable = [d for d in diameters if d >= wanted]

@@ -420,7 +420,7 @@ def _column_pick(
             "",
             0.0,
             too_small=(
-                f"no layout with ρ up to {B.RHO_MAX:g} (ACI 10.6.1.1) carries the demand"
+                f"no layout with ρ up to {B.column_rho()[1]:g} (ACI 10.6.1.1) carries the demand"
                 if search.layouts
                 else "no bar layout fits the section at the least clear spacing (ACI 25.2.3)"
             ),
@@ -1444,7 +1444,7 @@ def seismic_transverse(
                     f"{b:g} x {h:g} mm: least to perpendicular dimension below 0.4 (Sec 8.3.5.1(b))"
                 )
             rho = section.steel_area / section.gross_area
-            if rho > dm.SMF_COLUMN_RHO[1] + 1e-9:
+            if rho > dm._column_rho()[1] + 1e-9:
                 too_small.append(
                     f"ρg = {100 * rho:.2f} % above 6 % of a special moment frame column (Sec "
                     "8.3.5.3(a))"
@@ -1471,11 +1471,13 @@ def seismic_transverse(
         for axis, value in capacity_av_s(section, kind, c).items():
             av_s[axis] = max(av_s.get(axis, 0.0), value)
 
+    hx_max = dm._special("hxMax")
+
     def zones_for(dia: float, ly: int, lx: int) -> dict[str, Any] | None:
         db = min(bar.dia for bar in section.bars)
         if kind == "column" and special and not circle:
             hx = max(dm._hx(b - 2 * cover, dia, db, ly), dm._hx(h - 2 * cover, dia, db, lx))
-            if hx > dm.HX_MAX:
+            if hx > hx_max:
                 return None
         area = bar_area(dia)
         shear_spacing = float(t["spacing"])

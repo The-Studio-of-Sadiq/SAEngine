@@ -81,21 +81,36 @@ from dataclasses import dataclass, field
 from itertools import pairwise
 from typing import Any
 
+from saengine.codes import context as code_context
 from saengine.design import bars as B
 from saengine.design import slab as slab_design
 from saengine.design.rc import PHI_SHEAR, bar_area
 
 G = 9.80665  # m/s², as saengine.fem.derive
 DENSITY = 2400.0  # kg/m³ when the material gives none
-COVER = 20.0  # mm, assumed when no reinforcement is entered (as the design mode's slabs)
 SUPPORT_WIDTH = 250.0  # mm, width of the supporting beams or walls when not entered
 SPANNINGS = ("betweenBeams", "landingEdges", "withLandings", "landingsThreeSides")
 
 #: Live load on stairs, BNBC 2020 Part 6 Table 6.2.3 (p. 536) [kN/m²].
 LIVE_STAIRS = 4.80
 LIVE_STAIRS_DWELLING = 2.00
-#: Strength combinations of BNBC Part 6 Sec 2.7.3.1 (p. 685) with gravity loads only.
-GRAVITY_COMBINATIONS = (("1.4D", 1.4, 0.0), ("1.2D + 1.6L", 1.2, 1.6))
+
+
+def gravity_combinations() -> tuple[tuple[str, float, float], ...]:
+    """The strength combinations with gravity loads only, as (name, D factor, L factor): the
+    pack's ``combinations.gravity`` (BNBC 2020 Part 6 Sec 2.7.3.1, p. 685: 1.4D and
+    1.2D + 1.6L)."""
+    return tuple(
+        (c.name, c.factors["D"], c.factors.get("L", 0.0))
+        for c in code_context.table("combinations").gravity
+    )
+
+
+def _cover() -> float:
+    """Cover [mm] assumed when no reinforcement is entered (as the design mode's slabs): the
+    pack's ``concrete.cover.stair`` (BNBC 2020: 20 mm)."""
+    return float(code_context.table("concrete").cover["stair"])
+
 
 #: Sum of two risers and one tread, BNBC Part 3 Sec 1.14.5.2 (p. 69) [mm].
 TWO_R_PLUS_T = (610.0, 648.0)
@@ -359,7 +374,7 @@ def loads_from_settings(settings: Any | None) -> StairLoads:
         live, finish = LIVE_STAIRS, 0.0
         source = f"BNBC Table 6.2.3 (p. 536): stairs and exit ways {LIVE_STAIRS} kN/m²"
     if not combos:
-        combos = list(GRAVITY_COMBINATIONS)
+        combos = list(gravity_combinations())
     return StairLoads(finish, live, tuple(combos), source)
 
 
@@ -1033,10 +1048,12 @@ def need_of(
     demands: Sequence[Demand],
     cover: float,
     material: StairMaterial,
-    diameters: Sequence[float] = B.SLAB_DIAMETERS,
+    diameters: Sequence[float] | None = None,
 ) -> StairNeed:
     """The bars the parts need, per bar diameter (d depends on it): flexure (bars.
     slab_flexure_need) at least As,min, and the shear the waist must carry without bars."""
+    if diameters is None:
+        diameters = B.diameters("slab")
     need = StairNeed()
     fc, fy, es = material.fc, material.fy, material.es
     ratio = min_ratio(fy, material.brick_aggregate)
@@ -1086,12 +1103,16 @@ def propose(
     need: StairNeed,
     material_id: str,
     cover: float,
-    diameters: Sequence[float] = B.SLAB_DIAMETERS,
-    min_spacing: float = B.MIN_SLAB_SPACING,
+    diameters: Sequence[float] | None = None,
+    min_spacing: float | None = None,
 ) -> StairPick:
     """Bars for a staircase type (``StairReinforcement`` JSON with the proposed ``top`` and
     ``landing`` meshes when needed): the mesh with the least steel per layer (bars.mesh_for),
     spacings in 25 mm steps within the spacing limits."""
+    if diameters is None:
+        diameters = B.diameters("slab")
+    if min_spacing is None:
+        min_spacing = B.min_slab_spacing()
     if need.too_small:
         return StairPick(
             None,
@@ -1155,15 +1176,17 @@ def design_stair(
     loads: StairLoads,
     use: str | None = None,
     occupants: int | None = None,
-    diameters: Sequence[float] = B.SLAB_DIAMETERS,
+    diameters: Sequence[float] | None = None,
 ) -> StairResult:
     """Geometry checks, demands, the checks of the entered bars and what is needed."""
+    if diameters is None:
+        diameters = B.diameters("slab")
     geometry = stair_geometry(spec, rise)
     checks, notes = geometry_checks(spec, geometry, use, occupants)
     demands = [flight_demand(f, spec, material, loads) for f in geometry.flights]
     by_name = {d.part: d for d in demands}
     demands += [landing_demand(lnd, by_name, spec, material, loads) for lnd in geometry.landings]
-    cover = spec.bars.cover if spec.bars else COVER
+    cover = spec.bars.cover if spec.bars else _cover()
     need = need_of(demands, cover, material, diameters)
     parts = [
         {
@@ -1228,13 +1251,15 @@ def stair_report(
     materials: dict[str, Any],
     settings: Any | None,
     collect: dict[str, Any] | None = None,
-    diameters: Sequence[float] = B.SLAB_DIAMETERS,
+    diameters: Sequence[float] | None = None,
     default_rebar: str | None = None,
 ) -> dict[str, Any]:
     """The stairs of 06 BIM (``building.additions.stairs``) designed: ``{"elements",
     "skipped", "notes"}`` in the design report's format (``kind`` "staircase"). With
     ``collect``, ``collect["stairs"]`` gets per staircase type ``{"type", "object", "material",
     "need", "members"}`` for the design mode (:func:`propose`)."""
+    if diameters is None:
+        diameters = B.diameters("slab")
     levels = {s.id: s.elevation for s in building.stories}
     loads = loads_from_settings(settings)
     use = settings.occupancy.use if settings is not None else None
@@ -1303,11 +1328,15 @@ def stair_report(
 
 def proposal_entries(
     collected: list[dict[str, Any]],
-    diameters: Sequence[float] = B.SLAB_DIAMETERS,
-    min_spacing: float = B.MIN_SLAB_SPACING,
+    diameters: Sequence[float] | None = None,
+    min_spacing: float | None = None,
 ) -> list[dict[str, Any]]:
     """Design-mode entries (the shape of ``saengine.design.proposal._entry``) per staircase
     type from ``collect["stairs"]`` of :func:`stair_report`."""
+    if diameters is None:
+        diameters = B.diameters("slab")
+    if min_spacing is None:
+        min_spacing = B.min_slab_spacing()
     from saengine.design.proposal import _same
     from saengine.design.proposal import bars_of as reported
 
@@ -1316,7 +1345,7 @@ def proposal_entries(
         t, need = group["object"], group["need"]
         current = t.reinforcement.model_dump(exclude_none=True) if t.reinforcement else None
         material_id = t.reinforcement.material if t.reinforcement else group["material"].steel
-        cover = t.reinforcement.cover if t.reinforcement else COVER
+        cover = t.reinforcement.cover if t.reinforcement else _cover()
         pick = propose(need, material_id, cover, diameters, min_spacing)
         if pick.reinforcement is None:
             pick.suggestion = thicker_waist(group, cover, diameters, min_spacing)
@@ -1358,11 +1387,15 @@ GROWTH = 150.0
 def thicker_waist(
     group: dict[str, Any],
     cover: float,
-    diameters: Sequence[float] = B.SLAB_DIAMETERS,
-    min_spacing: float = B.MIN_SLAB_SPACING,
+    diameters: Sequence[float] | None = None,
+    min_spacing: float | None = None,
 ) -> str:
     """The least waist, in 25 mm steps up to +150 mm, with which every stair of the type works
     (landings of no thickness of their own follow the waist)."""
+    if diameters is None:
+        diameters = B.diameters("slab")
+    if min_spacing is None:
+        min_spacing = B.min_slab_spacing()
     cases: list[tuple[StairSpec, float]] = group.get("cases", [])
     if not cases:
         return "try a thicker waist"

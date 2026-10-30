@@ -909,7 +909,7 @@ class ProjectSettings(_Model):
         title="Codes (deprecated)",
         description="Deprecated: the design code is chosen by codePack. Read from old files "
         "and dropped when they are saved.",
-        json_schema_extra={"deprecated": True, "readOnly": True},
+        json_schema_extra={"deprecated": True},
     )
     occupancy: Occupancy = Field(default_factory=Occupancy)
     site: Site = Field(default_factory=Site)
