@@ -18,7 +18,7 @@ import sys
 from importlib import metadata
 from pathlib import Path
 
-SOURCE_URL = "https://github.com/princekhan7748/saengine"
+SOURCE_URL = "https://github.com/The-Studio-of-Sadiq/SAEngine"
 RULE = "=" * 100
 
 HEADER = """\

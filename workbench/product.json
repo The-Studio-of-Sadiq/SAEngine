@@ -7,8 +7,8 @@
 	"sharedDataFolderName": ".saengine-shared",
 	"win32MutexName": "saengine",
 	"licenseName": "MIT",
-	"licenseUrl": "https://github.com/princekhan7748/saengine/blob/main/LICENSE.txt",
-	"serverLicenseUrl": "https://github.com/princekhan7748/saengine/blob/main/LICENSE.txt",
+	"licenseUrl": "https://github.com/The-Studio-of-Sadiq/SAEngine/blob/main/LICENSE.txt",
+	"serverLicenseUrl": "https://github.com/The-Studio-of-Sadiq/SAEngine/blob/main/LICENSE.txt",
 	"serverGreeting": [],
 	"serverLicense": [],
 	"serverLicensePrompt": "",
@@ -32,9 +32,9 @@
 	"linuxDesktopName": "org.saengine.SAEngine",
 	"linuxIconName": "saengine",
 	"licenseFileName": "LICENSE.txt",
-	"reportIssueUrl": "https://github.com/princekhan7748/saengine/issues/new",
+	"reportIssueUrl": "https://github.com/The-Studio-of-Sadiq/SAEngine/issues/new",
 	"saengineUpdate": {
-		"releasesUrl": "https://api.github.com/repos/princekhan7748/saengine/releases?per_page=20"
+		"releasesUrl": "https://api.github.com/repos/The-Studio-of-Sadiq/SAEngine/releases?per_page=20"
 	},
 	"nodejsArtifactFeed": "",
 	"electronArtifactFeed": "",

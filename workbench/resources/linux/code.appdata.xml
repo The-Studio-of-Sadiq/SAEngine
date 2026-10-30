@@ -4,7 +4,7 @@
 	<metadata_license>@@LICENSE@@</metadata_license>
 	<project_license>@@LICENSE@@</project_license>
 	<name>@@NAME_LONG@@</name>
-	<url type="homepage">https://github.com/princekhan7748/saengine</url>
+	<url type="homepage">https://github.com/The-Studio-of-Sadiq/SAEngine</url>
 	<summary>Open-source structural analysis and engineering workbench.</summary>
 	<description>
 		<p>SAEngine is an open-source engineering workbench for structural modeling and analysis, designed to grow into a connected platform for finite-element analysis, CAD, and BIM.</p>

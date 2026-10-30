@@ -952,8 +952,8 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				const name = this.productService.nameShort;
 				cb({
 					cancel: false, requestHeaders: Object.assign(details.requestHeaders, {
-						'User-Agent': `${name}/${this.productService.version} (structural engineering desktop application; +https://github.com/princekhan7748/saengine)`,
-						'Referer': 'https://github.com/princekhan7748/saengine',
+						'User-Agent': `${name}/${this.productService.version} (structural engineering desktop application; +https://github.com/The-Studio-of-Sadiq/SAEngine)`,
+						'Referer': 'https://github.com/The-Studio-of-Sadiq/SAEngine',
 					})
 				});
 				return;

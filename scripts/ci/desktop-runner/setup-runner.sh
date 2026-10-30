@@ -7,7 +7,7 @@
 set -euo pipefail
 TOKEN=${1:?usage: setup-runner.sh <registration-token> [runners]}
 COUNT=${2:-2}
-REPO=https://github.com/princekhan7748/saengine
+REPO=https://github.com/The-Studio-of-Sadiq/SAEngine
 LABELS=saengine-desktop
 
 # systemd (runner services) and passwordless sudo (CI installs apt packages).

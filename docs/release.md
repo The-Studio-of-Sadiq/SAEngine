@@ -70,7 +70,7 @@ Help, **Check for SAEngine Updates...** (also in the Command Palette), and once 
 check runs only in an installed build, never from sources.
 
 1. Reads `product.json` `saengineUpdate.releasesUrl`
-   (`https://api.github.com/repos/princekhan7748/saengine/releases?per_page=20`). No token,
+   (`https://api.github.com/repos/The-Studio-of-Sadiq/SAEngine/releases?per_page=20`). No token,
    no data is sent beyond the request itself.
 2. Picks the newest published release (drafts are never seen; pre-releases count) whose assets
    include `SAEngine-x64-user-setup-<version>.exe` **and** its `.sha256`, and whose version is

@@ -336,7 +336,7 @@ function manualFolders(): URI[] {
 }
 
 /** The manual's chapters online, for builds that do not carry the manual. */
-const MANUAL_ONLINE = 'https://github.com/princekhan7748/saengine/tree/main/docs/manual';
+const MANUAL_ONLINE = 'https://github.com/The-Studio-of-Sadiq/SAEngine/tree/main/docs/manual';
 
 /**
  * Opens the user manual: a chapter (`01-soil-report`, `tutorials/01-sample-project`) in the
