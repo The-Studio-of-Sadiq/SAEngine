@@ -351,7 +351,8 @@ report each state from the existing finders; *Add Component...* (in the HVAC res
 the setup with its `.sha256`, check it and run it with `/COMPONENTS=`. Until the Packages page
 exists the list lives in the Help menu; M3's *Components* section should open that same list
 (`saengine.components.show`), not a second one. User docs: `docs/install/README.md`
-(Components).
+(Components). Measured component sizes: EnergyPlus 59 MB, LibreCAD 115 MB, LibreDWG
+30 MB on disk (204 MB together); a local setup with all three was 711 MB.
 
 ## 7. Offline install
 

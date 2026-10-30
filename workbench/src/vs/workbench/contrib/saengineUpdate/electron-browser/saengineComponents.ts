@@ -180,13 +180,11 @@ async function showComponents(accessor: ServicesAccessor): Promise<boolean> {
 		component,
 		label: componentLabel(component),
 		description: componentStateText(states[component]),
-		detail: states[component].state === 'installed'
-			? componentPurpose(component)
-			: localize('components.pickToAdd', "{0} Choose to add it with the SAEngine setup.", componentPurpose(component)),
+		detail: componentPurpose(component),
 	}));
 	const picked = await quickInputService.pick(items, {
 		title: localize('components.title', "Installer Components"),
-		placeHolder: localize('components.placeholder', "The optional programs of the SAEngine setup; the core (design, analysis, MEP, BNBC) is always installed"),
+		placeHolder: localize('components.placeholder', "Choose a component to add it; the core is always installed"),
 		matchOnDescription: true,
 	});
 	if (!picked) {

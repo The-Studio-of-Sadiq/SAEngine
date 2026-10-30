@@ -44,8 +44,20 @@ The setup asks for a type on its *Select Components* page:
 | **CAD editor** (`librecad`) | LibreCAD 2.2.1.6, a separate GPL-2.0-only program with its GPL and Qt licence texts (`resources\librecad`); shipped alongside, never linked | *Open in LibreCAD* opens the DXF in the program Windows uses for `.dxf` files; the drawings themselves are made by SAEngine either way |
 | **DWG import** (`libredwg`) | GNU LibreDWG 0.14's `dwg2dxf`, a separate GPL-3.0-or-later program (`resources\libredwg`) | a DWG underlay or import asks for the drawing as DXF |
 
-Sizes on disk (the build prints them, see [Building the installer](#building-the-installer);
-measured on 0.0.47-dev, 2026-10-30): SIZES_TABLE
+Sizes on disk, as the build prints them (see [Building the installer](#building-the-installer);
+measured on a local build, 2026-10-30):
+
+| Part | On disk |
+| --- | --- |
+| Energy simulation (EnergyPlus minimal runtime) | 59 MB |
+| CAD editor (LibreCAD, trimmed, with its Qt and VC++ DLLs) | 115 MB |
+| DWG import (LibreDWG) | 30 MB |
+| all three components | 204 MB |
+
+The core is the rest: the bundled Python alone is about 780 MB. A local build's core
+(3.1 GB) is larger than a release's because it packages the Copilot extension compiled from
+sources; the release build's table is in its log. The setup of that local build with all three
+components was 711 MB.
 
 **A missing component is a state, not an error.** Where SAEngine uses the program it says it
 is not installed and offers **Add Component...**: the HVAC results and *Calculate Loads*
