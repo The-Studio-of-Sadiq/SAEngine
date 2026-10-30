@@ -9,7 +9,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IFemResultEntry } from '../../../../../platform/saengine/common/femSolver.js';
 import { niceTicks, renderChart, renderSheet, tickText } from '../../browser/femChart.js';
 import { closedPmCurve, defaultChartResult, displayTable, exportCell, formatCell, isLateralResult, orderLike, supportReactions, describeMode, elasticDriftLimit, extremes, filterRows, IFemColumnDiagram, IFemMemberForces, IFemStoryResponse, IFemStoryResult, isEarthquakeResult, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, sortRows, spectrumAt, storeyProfile, storeyTable, workbookSheets } from '../../browser/femChartData.js';
-import { defaultResult, deflectionMagnification, modeText, scaleText } from '../../browser/femResultsBar.js';
+import { defaultResult, deflectionMagnification, modeText, resultOptions, scaleText } from '../../browser/femResultsBar.js';
+import { groupedOptions } from '../../browser/femModelEditor.js';
 import { chartUnits, memberNames } from '../../browser/femResultsView.js';
 import { cameraOf, freeTopColumns, gridLines, IFilterModel, modelLevels, viewChoices, visibleElements } from '../../browser/femViewFilter.js';
 
@@ -164,12 +165,26 @@ suite('SAEngine - FEM charts', () => {
 		assert.strictEqual(deflectionMagnification(undefined, view, 1), undefined);
 	});
 
-	test('a new run opens at the first combination, else the first static case', () => {
-		const entry = (key: string, kind: IFemResultEntry['kind']): IFemResultEntry => ({ key, label: key, kind });
+	test('a new run opens at the earthquake in X, else the first combination, else the first static case', () => {
+		const entry = (key: string, kind: IFemResultEntry['kind'], label = key): IFemResultEntry => ({ key, label, kind });
+		assert.strictEqual(defaultResult([entry('case:1', 'static', 'D: Dead'), entry('case:7', 'static', 'EX: Earthquake in X'), entry('combination:1', 'combination')])?.key, 'case:7');
 		assert.strictEqual(defaultResult([entry('case:10', 'modal'), entry('case:1', 'static'), entry('combination:1', 'combination')])?.key, 'combination:1');
 		assert.strictEqual(defaultResult([entry('case:10', 'modal'), entry('case:1', 'static')])?.key, 'case:1');
 		assert.strictEqual(defaultResult([entry('case:10', 'modal')])?.key, 'case:10');
 		assert.strictEqual(defaultResult([]), undefined);
+	});
+
+	test('the result pickers file the results under headings', () => {
+		const entry = (key: string, kind: IFemResultEntry['kind']): IFemResultEntry => ({ key, label: key, kind });
+		const picked = resultOptions([entry('case:1', 'static'), entry('case:2', 'static'), entry('combination:1', 'combination'), entry('case:3', 'modal')]);
+		assert.deepStrictEqual(picked.rows, [-1, 0, 1, -1, 2, -1, 3]);
+		assert.deepStrictEqual(picked.options.map(o => !!o.isDisabled), [true, false, false, true, false, true, false]);
+		const tables = groupedOptions([
+			{ key: 'case:1', label: 'D', group: 'case', warnings: [], tables: [] },
+			{ key: 'combination:1', label: '1.4D + 1.4SD', group: 'combination', warnings: [], tables: [] },
+			{ key: 'combination:2', label: '1.2D', group: 'combination', warnings: [], tables: [] },
+		]);
+		assert.deepStrictEqual(tables.rows, [-1, 0, -1, 1, 2]);
 	});
 
 	test('the members to pick: frame members by name, naturally sorted', () => {

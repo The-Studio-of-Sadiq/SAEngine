@@ -60,6 +60,8 @@ export interface IChartSpec {
 	readonly equalAxes?: boolean;
 	/** The x axis spans exactly this range (a member's length), not the round ticks around it. */
 	readonly xDomain?: readonly [number, number];
+	/** Only whole numbers on the x axis (mode numbers). */
+	readonly integerX?: boolean;
 	/** What matters, said under the chart (and to screen readers). */
 	readonly caption?: string;
 	readonly height?: number;
@@ -193,6 +195,12 @@ export function renderChart(parent: HTMLElement, spec: IChartSpec): HTMLElement 
 		const inside = niceTicks(x0, x1).filter(t => t >= x0 - 1e-9 && t <= x1 + 1e-9);
 		const step = inside.length > 1 ? inside[1] - inside[0] : x1 - x0;
 		xTicks = [...inside.filter(t => t < x1 - 0.4 * step), Number(x1.toPrecision(4))];
+	}
+	if (spec.integerX) {
+		const whole = xTicks.filter(t => Number.isInteger(t));
+		xTicks = whole.length >= 2 ? whole : [Math.floor(x0), Math.ceil(x1)];
+		x0 = Math.min(x0, xTicks[0]);
+		x1 = Math.max(x1, xTicks[xTicks.length - 1]);
 	}
 	const sx = (v: number) => MARGIN.left + (x1 > x0 ? (v - x0) / (x1 - x0) : 0.5) * plotW;
 	const sy = (v: number) => MARGIN.top + plotH - (y1 > y0 ? (v - y0) / (y1 - y0) : 0.5) * plotH;

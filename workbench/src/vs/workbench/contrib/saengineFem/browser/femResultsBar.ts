@@ -15,6 +15,7 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { dirname, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -50,8 +51,38 @@ function framesOf(entry: IFemResultEntry): NonNullable<IFemResultEntry['frames']
  * members are designed for), else the first static case, else the first result.
  */
 export function defaultResult(results: readonly IFemResultEntry[]): IFemResultEntry | undefined {
-	return results.find(r => r.kind === 'combination') ?? results.find(r => r.kind === 'static') ?? results[0];
+	// A lateral case first: the sway is what the engineer looks at first (gravity alone shows little).
+	const lateral = results.find(r => r.kind === 'static' && /^EX/.test(r.label));
+	return lateral ?? results.find(r => r.kind === 'combination') ?? results.find(r => r.kind === 'static') ?? results[0];
 }
+
+/** Where the result picker files a result: the load cases, the combinations, the dynamic results. */
+export function resultGroupLabel(entry: IFemResultEntry): string {
+	return entry.kind === 'static' ? localize('femResults.groupCases', "Load cases")
+		: entry.kind === 'combination' ? localize('femResults.groupCombinations', "Load combinations")
+			: localize('femResults.groupDynamic', "Modal, spectrum and time history");
+}
+
+/** The picker's options: a heading (disabled) before each group of results; `rows[k]`: the result of option k, -1 for a heading. */
+export function resultOptions(results: readonly IFemResultEntry[]): { readonly options: ISelectOptionItem[]; readonly rows: number[] } {
+	const options: ISelectOptionItem[] = [];
+	const rows: number[] = [];
+	let group: string | undefined;
+	results.forEach((entry, index) => {
+		const label = resultGroupLabel(entry);
+		if (label !== group) {
+			group = label;
+			options.push({ text: `── ${label} ──`, isDisabled: true });
+			rows.push(-1);
+		}
+		options.push({ text: entry.label });
+		rows.push(index);
+	});
+	return { options, rows };
+}
+
+/** What the results bar keeps of a model across restarts (workspace storage): the result and what of it was shown. */
+const VIEW_STATE_KEY = 'saengine.fem.results.viewState';
 
 /** `joints`: the beam-column joints' checks, drawn as utilisation of the members framing in. */
 type Show = FemResultQuantity | 'none' | 'joints';
@@ -413,6 +444,10 @@ export class FemResultsBar extends Disposable {
 	private format = resultFormatter(undefined);
 	private list: IFemResultList = { results: [], stale: false };
 	private key: string | undefined;
+	/** The result picker's option k shows result `resultRows[k]` (-1: a group's heading). */
+	private resultRows: number[] = [];
+	/** What the engineer chose to show: shown again on every result that has it (a mode shape has no forces). */
+	private wantedShow: Show | undefined;
 	private mode = 1;
 	private show: Show = 'deformed';
 	/** What was shown before the design utilisation was toggled on. */
@@ -464,6 +499,7 @@ export class FemResultsBar extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@IFileService private readonly fileService: IFileService,
 		@IContextViewService contextViewService: IContextViewService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 		this.ssi = this._register(new FemSsiPanel(() => this.host.changed(), commandService, fileService, model => dirname(dirname(model))));
@@ -473,8 +509,14 @@ export class FemResultsBar extends Disposable {
 		this.resultPicker = this._register(new SelectBox([], 0, contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('femResults.resultAria', "Analysis result shown") }));
 		this.resultPicker.render(append(this.resultGroup, $('.fem-results-select.result')));
 		this._register(this.resultPicker.onDidSelect(({ index }) => {
+			const row = this.resultRows[index] ?? -1;
+			if (row < 0) {
+				this.render(); // a heading: the picker shows the result it showed
+				return;
+			}
 			this.stopPlaying();
-			this.key = this.list.results[index]?.key;
+			this.key = this.list.results[row]?.key;
+			this.saveViewState();
 			this.mode = this.firstFrame();
 			void this.showResult();
 		}));
@@ -579,6 +621,7 @@ export class FemResultsBar extends Disposable {
 		}
 		this.stopPlaying();
 		this.key = entry.key;
+		this.saveViewState();
 		this.mode = this.firstFrame();
 		void this.showResult();
 	}
@@ -699,6 +742,8 @@ export class FemResultsBar extends Disposable {
 			this.showBeforeDesign = this.show;
 		}
 		this.show = show;
+		this.wantedShow = show;
+		this.saveViewState();
 		if (isDesignShow(this.show)) {
 			if (this.designProblem) {
 				this.clearDesign(); // choosing it again retries
@@ -749,10 +794,42 @@ export class FemResultsBar extends Disposable {
 		}
 		if (!list.results.some(r => r.key === this.key)) {
 			this.stopPlaying();
-			this.key = defaultResult(list.results)?.key;
+			// The result shown last time (by its label: a new run numbers its cases again), else a lateral case.
+			const saved = this.key === undefined ? this.readViewState() : undefined;
+			if (saved?.show && !this.wantedShow) {
+				this.wantedShow = saved.show;
+			}
+			this.key = (saved?.result !== undefined ? list.results.find(r => r.label === saved.result) : undefined)?.key ?? defaultResult(list.results)?.key;
 			this.mode = this.firstFrame();
 		}
 		await this.showResult();
+	}
+
+	private readViewState(): { readonly result?: string; readonly show?: Show } | undefined {
+		const resource = this.resource;
+		const raw = resource ? this.storageService.get(VIEW_STATE_KEY, StorageScope.WORKSPACE) : undefined;
+		try {
+			const all = raw ? JSON.parse(raw) : undefined;
+			const state = all && typeof all === 'object' ? all[resource!.toString()] : undefined;
+			return state && typeof state === 'object' ? { result: typeof state.result === 'string' ? state.result : undefined, show: typeof state.show === 'string' ? state.show as Show : undefined } : undefined;
+		} catch {
+			return undefined;
+		}
+	}
+
+	private saveViewState(): void {
+		const resource = this.resource;
+		if (!resource) {
+			return;
+		}
+		let all: { [model: string]: unknown } = {};
+		try {
+			all = JSON.parse(this.storageService.get(VIEW_STATE_KEY, StorageScope.WORKSPACE) ?? '{}') ?? {};
+		} catch {
+			all = {};
+		}
+		all[resource.toString()] = { result: this.entry?.label ?? this.list.results.find(r => r.key === this.key)?.label, show: this.wantedShow ?? this.show };
+		this.storageService.store(VIEW_STATE_KEY, JSON.stringify(all), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	private get entry(): IFemResultEntry | undefined {
@@ -921,7 +998,10 @@ export class FemResultsBar extends Disposable {
 			}
 		}
 		this.view = view;
-		if (!this.showOptions().some(o => o.show === this.show)) {
+		const options = this.showOptions();
+		if (this.wantedShow && options.some(o => o.show === this.wantedShow)) {
+			this.show = this.wantedShow;
+		} else if (!options.some(o => o.show === this.show)) {
 			this.show = 'deformed';
 		}
 		this.render();
@@ -978,13 +1058,16 @@ export class FemResultsBar extends Disposable {
 		const scalable = !!entry && this.show !== 'none' && !isDesignShow(this.show) && SOLID_COMPONENTS[this.show] === undefined && !SHELL_COMPONENTS.includes(this.show);
 		this.scaleContainer.classList.toggle('hidden', !scalable);
 		if (entry) {
-			this.resultPicker.setOptions(this.list.results.map<ISelectOptionItem>(r => ({ text: r.label })), this.list.results.indexOf(entry));
+			const grouped = resultOptions(this.list.results);
+			this.resultRows = grouped.rows;
+			this.resultPicker.setOptions(grouped.options, Math.max(0, grouped.rows.indexOf(this.list.results.indexOf(entry))));
 			if (modal) {
 				const modes = entry.modes ?? [];
 				this.modePicker.setOptions(modes.map<ISelectOptionItem>(m => ({
 					text: m.period === null ? String(m.number) : m.ux === undefined || m.uy === undefined
 						? localize('femResults.modeOption', "{0} (T = {1} s)", m.number, m.period.toFixed(3))
-						: localize('femResults.modeOptionShares', "{0} (T = {1} s, UX {2} %, UY {3} %)", m.number, m.period.toFixed(3), (100 * m.ux).toFixed(0), (100 * m.uy).toFixed(0)),
+						// Short enough for a laptop's toolbar: the larger share; the status line has both.
+						: localize('femResults.modeOptionShare', "{0} · {1} s · {2} {3} %", m.number, m.period.toFixed(3), m.ux >= m.uy ? 'UX' : 'UY', (100 * Math.max(m.ux, m.uy)).toFixed(0)),
 				})), Math.max(0, this.mode - 1));
 				const animatable = this.show === 'deformed';
 				this.animateButton.element.classList.toggle('hidden', !animatable);
@@ -1140,21 +1223,26 @@ export class FemResultsBar extends Disposable {
 					return undefined;
 				}
 				const atNode = Math.hypot(largest[1], largest[2], largest[3]);
-				const text = localize('femResults.largestDisplacement', "Largest displacement {0} at node {1} (x {2}, y {3}, z {4}).",
-					format('length', atNode), largest[0], format('length', largest[1]), format('length', largest[2]), format('length', largest[3]));
-				// The view labels the largest along the frame members: say it when it differs
-				// (a slab's middle moves more than any beam), so label and status agree.
-				let frame: { value: number; name: string } | undefined;
+				// The view labels the largest along the frame members: the status names the same
+				// value and member (one formatter, so label and status agree), and says when a
+				// slab's or wall's node moves more.
+				let frame: { value: number; name: string; d: readonly number[] } | undefined;
 				for (const element of this.shownElements(view)) {
 					for (const d of element.displacements) {
 						const value = Math.hypot(d[0], d[1], d[2]);
 						if (!frame || value > frame.value) {
-							frame = { value, name: element.name.split('#')[0] };
+							frame = { value, name: element.name.split('#')[0], d };
 						}
 					}
 				}
-				return frame && Math.abs(frame.value - atNode) > 0.01 * atNode
-					? `${text} ${localize('femResults.largestFrameDisplacement', "On the frame members (labelled in the view): {0} in {1}.", format('length', frame.value), frame.name)}`
+				if (!frame) {
+					return localize('femResults.largestDisplacement', "Largest displacement {0} at node {1} (x {2}, y {3}, z {4}).",
+						format('length', atNode), largest[0], format('length', largest[1]), format('length', largest[2]), format('length', largest[3]));
+				}
+				const text = localize('femResults.largestMemberDisplacement', "Largest displacement {0} in {1} (x {2}, y {3}, z {4}).",
+					format('length', frame.value), frame.name, format('length', frame.d[0]), format('length', frame.d[1]), format('length', frame.d[2]));
+				return atNode > 1.01 * frame.value
+					? `${text} ${localize('femResults.largestNodeDisplacement', "A wall or slab node moves more: {0}.", format('length', atNode))}`
 					: text;
 			}
 			case 'reactions': {
