@@ -18,6 +18,19 @@ of :mod:`saengine.substructure.shallow`:
    width grown for bearing like an isolated footing's, with top bars between the columns.
 
 The bearing loop runs again after the thickness is chosen (the footing's weight grows with it).
+A footing thicker than its founding depth is lowered so its top stays at the finished ground.
+Merging repeats until no two proposed footings overlap; one that would overlap a foundation that
+is kept is reported.
+
+5. A raft instead: when the footings would cover more than :data:`RAFT_RATIO` of the plan of the
+   columns they carry, or overlapping footings cannot be combined, and every column base is
+   being sized (at least :data:`RAFT_MIN_COLUMNS`, not in one line), one raft under all of
+   them is proposed (:func:`raft_proposal`): the columns'
+   outline :data:`RAFT_OVERHANG` beyond the outer column lines, the thickness for punching at
+   the heaviest column without shear reinforcement and the minimum mesh both faces. The raft
+   check (:mod:`saengine.substructure.raft`) then gives its flexure, settlement and pressure.
+   When only some columns are sized, the proposal stays footings and a note suggests the raft.
+
 The proposal is a fragment of ``substructure.json`` (``{"foundations": [...]}``) for the editor
 to merge; nothing is written.
 """
@@ -50,6 +63,8 @@ STEP = 50.0
 #: The thinnest footing proposed [mm] (ACI 318-19 13.3.1.2: d of the bottom bars >= 150 mm).
 MIN_THICKNESS = 300.0
 MAX_THICKNESS = 2500.0
+#: A raft is proposed for at least this many columns spread over an area (not in one line).
+RAFT_MIN_COLUMNS = 4
 #: The largest isolated footing proposed before giving up [mm].
 MAX_SIZE = 8000.0
 #: Concrete cast against and permanently in contact with the ground (ACI 318-19 Table
@@ -58,6 +73,18 @@ COVER = 75.0
 BAR_DIAS = (12.0, 16.0, 20.0, 25.0)
 #: Beyond the outer column faces of a combined footing [mm].
 OVERHANG = 300.0
+#: Footings covering more than this share of the plan of their columns are replaced by a raft:
+#: the usual rule of practice (a mat when spread footings would cover more than about half the
+#: building area; e.g. Bowles, Foundation Analysis and Design, 5th ed., section 10-1). Not a
+#: BNBC value.
+RAFT_RATIO = 0.5
+#: A proposed raft's edge beyond the outer column centre lines [mm].
+RAFT_OVERHANG = 1000.0
+#: The thinnest raft proposed [mm].
+RAFT_MIN_THICKNESS = 500.0
+#: phi of shear (ACI 318-19 Table 21.2.1) and the punching stress factor of 22.6.5.2(a).
+PHI_V = 0.75
+PUNCHING = 0.33
 
 SHEAR_CHECKS = ("Punching at", "One-way shear")
 BEARING_CHECKS = (
@@ -327,12 +354,26 @@ class Sizer:
         """Plan size, thickness and bars of a trial; its final checks."""
         for _ in range(6):
             self.size_bearing(trial)
-            before = (trial.length, trial.width)
+            before = (trial.length, trial.width, trial.founding_level)
             self.size_section(trial)
+            self.keep_below_ground(trial)
             self.size_bearing(trial)  # the weight grew with the thickness
-            if (trial.length, trial.width) == before:
+            if (trial.length, trial.width, trial.founding_level) == before:
                 break
         return self.evaluate(trial)
+
+    def keep_below_ground(self, trial: Trial) -> None:
+        """Lowers a footing thicker than its founding depth until its top is at the finished
+        ground (a footing standing out of the ground is not what was meant), in steps of
+        :data:`STEP`."""
+        if trial.founding_level + trial.thickness > self.ctx.ground_level:
+            lowered = math.floor((self.ctx.ground_level - trial.thickness) / STEP) * STEP
+            self.notes.append(
+                f"{', '.join(trial.columns)}: the footing is {trial.thickness:.0f} mm thick, more "
+                f"than its founding depth: founded {trial.founding_level - lowered:.0f} mm "
+                "deeper so its top stays at the finished ground"
+            )
+            trial.founding_level = lowered
 
     # ── trials ──
 
@@ -470,9 +511,11 @@ def propose(ctx: Context, columns: list[str] | None = None) -> dict[str, Any]:
             continue
         trials.append(trial)
 
-    # Merge overlapping footings into combined ones until none overlap.
+    # Merge overlapping footings into combined ones until none overlap (each merge leaves one
+    # footing fewer, so this ends).
     by_id = {c.id: c for c in chosen}
-    for _ in range(len(trials)):
+    unresolved = False
+    while True:
         pair = next(
             ((a, b) for k, a in enumerate(trials) for b in trials[k + 1 :] if overlap(a, b)),
             None,
@@ -489,12 +532,73 @@ def propose(ctx: Context, columns: list[str] | None = None) -> dict[str, Any]:
                 f"{', '.join(c.id for c in group)}: their footings overlap and no combined "
                 f"footing could be proposed: {reason}"
             )
+            unresolved = True
             break
         sizer.notes.append(
             f"{', '.join(merged.columns)}: their footings would overlap: one combined footing, "
             "centred on the resultant of the heaviest service gravity combination"
         )
         trials = [t for t in trials if t is not a and t is not b] + [merged]
+
+    # Footings that would overlap a foundation that stays (not being sized again).
+    sized = {c for t in trials for c in t.columns}
+    kept = [f for f in ctx.substructure.foundations if not sized & set(f.columns)]
+    for trial in trials:
+        for other in kept:
+            corners = foundation_corners(other)
+            if corners is not None and penetration(trial.corners(), corners) > 0.5:
+                sizer.notes.append(
+                    f"{', '.join(trial.columns)}: the footing would overlap {other.id}, which is "
+                    f"not being sized: select {other.id}'s columns too and Size Footings again"
+                )
+                unresolved = True
+
+    # A raft when the footings would cover most of the plan, or cannot be kept apart.
+    bases = [b for b in loads.bases.values() if isinstance(b.element, ColumnElement)]
+    every = len(chosen) == len(bases) and not on_caps
+    plan = column_plan(chosen)
+    covered = sum(t.length * t.width for t in trials)
+    ratio = covered / plan if plan > 0 else 0.0
+    spread = len(chosen) >= RAFT_MIN_COLUMNS and column_hull_area(chosen) > 0
+    if trials and spread and (ratio > RAFT_RATIO or unresolved):
+        why = (
+            f"the footings would cover {ratio:.0%} of the plan of their columns (more than "
+            f"{RAFT_RATIO:.0%})"
+            if ratio > RAFT_RATIO
+            else "overlapping footings could not be kept apart"
+        )
+        if every:
+            try:
+                raft, raft_notes = raft_proposal(sizer, chosen)
+            except Skip as reason:
+                sizer.notes.append(f"A raft would suit ({why}) but none was proposed: {reason}")
+            else:
+                return {
+                    "foundations": [raft],
+                    "designs": [
+                        {
+                            "id": raft["id"],
+                            "columns": raft["columns"],
+                            "utilisation": None,
+                            "ok": None,
+                            "governing": None,
+                        }
+                    ],
+                    "notes": [
+                        (
+                            f"One raft proposed instead of {len(trials)} footings: {why}. Its "
+                            "flexure, contact pressure and settlement are checked once it is applied."
+                        ),
+                        *raft_notes,
+                        *sizer.notes,
+                    ],
+                    "raft": {"areaRatio": round(ratio, 3), "footings": len(trials)},
+                }
+        else:
+            sizer.notes.append(
+                f"Consider a raft: {why}. Size all the columns (select none) to have one "
+                "proposed, or use Add Raft"
+            )
 
     taken = {f.id for f in ctx.substructure.foundations}
     number = 0
@@ -526,6 +630,127 @@ def propose(ctx: Context, columns: list[str] | None = None) -> dict[str, Any]:
             }
         )
     return {"foundations": foundations, "designs": designs, "notes": sizer.notes}
+
+
+def foundation_corners(foundation: Foundation) -> np.ndarray | None:
+    """The plan corners [mm] of a footing or pile cap with a centre and a size; a raft's
+    outline; else None."""
+    if foundation.type == "raft" and foundation.outline:
+        return None  # a raft carries its own columns; footings never stand beside one
+    if foundation.center is None or not foundation.length or not foundation.width:
+        return None
+    trial = Trial(
+        list(foundation.columns),
+        np.array(foundation.center[:2], dtype=float),
+        float(foundation.rotation or 0.0),
+        float(foundation.length),
+        float(foundation.width),
+        0.0,
+        "",
+        "",
+        0.0,
+    )
+    return trial.corners()
+
+
+def column_hull_area(columns: list[ColumnElement]) -> float:
+    """The area [mm²] of the convex hull of the columns' centres (0 when they are in a line)."""
+    from shapely.geometry import MultiPoint
+
+    return float(MultiPoint([(c.position[0], c.position[1]) for c in columns]).convex_hull.area)
+
+
+def column_plan(columns: list[ColumnElement]) -> float:
+    """The plan area [mm²] of a group of columns: their convex hull :data:`RAFT_OVERHANG`
+    beyond the outer column lines (what a raft under them would cover); 0 for none."""
+    outline = raft_outline(columns)
+    if not outline:
+        return 0.0
+    points = np.array(outline)
+    x, y = points[:, 0], points[:, 1]
+    return float(abs((x * np.roll(y, -1) - np.roll(x, -1) * y).sum()) / 2)
+
+
+def raft_outline(columns: list[ColumnElement]) -> list[list[float]]:
+    """A raft's outline under ``columns``: the convex hull of their centres grown by
+    :data:`RAFT_OVERHANG` with mitred corners, rounded to :data:`STEP` (counter-clockwise)."""
+    from shapely.geometry import MultiPoint
+
+    if not columns:
+        return []
+    hull = MultiPoint([(c.position[0], c.position[1]) for c in columns]).convex_hull
+    grown = hull.buffer(RAFT_OVERHANG, join_style=2, cap_style=3)
+    ring = list(grown.exterior.coords)[:-1]
+    outline: list[list[float]] = []
+    for x, y in ring:
+        point = [round(x / STEP) * STEP, round(y / STEP) * STEP]
+        if not outline or point != outline[-1]:
+            outline.append(point)
+    if len(outline) > 1 and outline[0] == outline[-1]:
+        outline.pop()
+    return outline
+
+
+def raft_proposal(sizer: Sizer, columns: list[ColumnElement]) -> tuple[dict[str, Any], list[str]]:
+    """One raft under ``columns`` (see the module notes), as ``substructure.json``'s raft, and
+    notes on how it was sized. The thickness: d for punching at each column as an interior
+    column, Vu <= phi 0.33 sqrt(fc) b0 d with b0 = 4 (c + d) (ACI 318-19 22.6.5.2(a), the soil
+    reaction inside the section left out: conservative), h = d + cover + 1.5 bar, in steps of
+    :data:`STEP`, at least :data:`RAFT_MIN_THICKNESS`."""
+    from saengine.substructure.run import minimum_mesh
+
+    ctx = sizer.ctx
+    concrete, rebar = sizer.materials_of(columns[0])
+    fc = ctx.mats[concrete].concrete.fc if ctx.mats[concrete].concrete else None
+    fy = ctx.mats[rebar].steel.fy if ctx.mats[rebar].steel else None
+    if not fc or not fy:
+        raise Skip("the concrete or bars have no strength")
+    stress = PHI_V * PUNCHING * math.sqrt(fc)  # N/mm²
+    d = 0.0
+    heaviest = ""
+    for column in columns:
+        vu = sizer.loads.max_axial(column.id, "strength")
+        c = max(sizer.side(column), 200.0)
+        # 4 stress (c + d) d = Vu
+        need = (-c + math.sqrt(c * c + vu / stress)) / 2
+        if need > d:
+            d, heaviest = need, column.id
+    dia = 20.0
+    thickness = max(RAFT_MIN_THICKNESS, _round_up(d + COVER + 1.5 * dia))
+    mesh = minimum_mesh(thickness, fy)
+    taken = {f.id for f in ctx.substructure.foundations}
+    number = 1
+    while f"R{number}" in taken:
+        number += 1
+    founding = ctx.ground_level - max(DEFAULT_FOUNDING_DEPTH, thickness)
+    raft = {
+        "id": f"R{number}",
+        "type": "raft",
+        "columns": [c.id for c in columns],
+        "outline": raft_outline(columns),
+        "thickness": thickness,
+        "foundingLevel": founding,
+        "material": concrete,
+        "reinforcement": {
+            "material": rebar,
+            "cover": COVER,
+            **{layer: dict(mesh) for layer in ("bottomX", "bottomY", "topX", "topY")},
+        },
+        "note": (
+            f"Proposed by the sizing assistant for {len(columns)} columns; thickness for "
+            f"punching at {heaviest}."
+        ),
+    }
+    Foundation.model_validate(raft)
+    notes = [
+        (
+            f"Raft thickness {thickness:.0f} mm: punching at {heaviest} without shear "
+            f"reinforcement (ACI 318-19 22.6.5.2(a), d = {d:.0f} mm), minimum mesh "
+            f"{mesh['dia']:g}@{mesh['spacing']:g} both ways top and bottom (ACI 318-19 7.6.1.1); "
+            "the raft check gives the bars its flexure needs"
+        )
+    ]
+    return raft, notes
 
 
 def propose_footings(
