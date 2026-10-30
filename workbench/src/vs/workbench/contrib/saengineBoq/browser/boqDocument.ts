@@ -50,6 +50,8 @@ export interface IBoqDocument {
 	readonly notes?: readonly string[];
 	/** What the bill could not measure (no bars on a type, a tank not designed, ...): while there are any the bill is incomplete. */
 	readonly problems?: readonly string[];
+	/** How much the bill left out (elements with no bars measured, one per other problem): the part is incomplete while above 0. */
+	readonly notMeasured?: number;
 }
 
 /**
@@ -130,7 +132,7 @@ export const BOQ_GROUPS: readonly { readonly group: BoqGroup; readonly title: st
 	{ group: 'formwork', title: localize('boq.group.formwork', "Formwork") },
 	{ group: 'steel', title: localize('boq.group.steel', "Structural Steel") },
 	{ group: 'mep', title: localize('boq.group.mep', "MEP Coordination") },
-	{ group: 'materials', title: localize('boq.group.materials', "Materials: Cement, Sand, Stone Chips and Water") },
+	{ group: 'materials', title: localize('boq.group.materialsTakeOff', "Materials Take-off") },
 ];
 
 /**
@@ -176,7 +178,7 @@ export function changedSources(document: IBoqDocument | undefined, texts: Readon
 		if (text === undefined) {
 			return required || recorded !== undefined;
 		}
-		return recorded !== boqSourceStamp(part, text);
+		return recorded !== boqSourceStamp(part, text, document);
 	}).map(s => s.part).concat(
 		// The architecture also once it has a wall or a room a bill measured without it lacks.
 		recordedStamp(document, 'architecture') === undefined && architectureHasContent(texts.get('architecture')) ? ['architecture'] : [],
@@ -258,9 +260,29 @@ export function displayQuantity(quantity: number, unit: string, imperial: boolea
 	return to ? { quantity: quantity * to.factor, unit: to.unit } : { quantity, unit };
 }
 
-/** A quantity as the bill shows it: volumes to the litre, areas and masses to two decimals, counts whole. */
-export function formatQuantity(quantity: number, unit: string): string {
-	return quantity.toFixed(unit === 'm3' ? 3 : unit === 'nr' ? 0 : 2);
+/** Decimals each unit is shown to: volumes to the litre, masses, counts and litres whole, the rest to two. */
+function decimals(unit: string): number {
+	switch (unit) {
+		case 'm3': return 3;
+		case 'kg': case 'nr': case 'bag': case 'l': return 0;
+		default: return 2;
+	}
+}
+
+/**
+ * A quantity as the bill shows it, to the decimals of its unit ({@link decimals}) and grouped in
+ * thousands with Western digits whatever the system's locale (`grouped` false: plain, for the
+ * clipboard). Cement bags are rounded up: a part bag is bought whole.
+ */
+export function formatQuantity(quantity: number, unit: string, grouped = true): string {
+	const digits = decimals(unit);
+	const value = unit === 'bag' ? Math.ceil(quantity - 1e-9) : quantity;
+	const plain = value.toFixed(digits);
+	if (!grouped) {
+		return plain;
+	}
+	const [whole, fraction] = plain.split('.');
+	return whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (fraction !== undefined ? `.${fraction}` : '');
 }
 
 /** A quantity with its unit, in feet when `imperial` (see {@link displayQuantity}). */
@@ -273,12 +295,12 @@ export function quantityText(quantity: number, unit: string, imperial = false): 
  * The bill as CSV (RFC 4180): one `item` row per item, followed by an `element` row per entry
  * of its breakdown. Item quantities and element quantities are in separate columns, so summing
  * either column (or a SUMIF by code over it) gives the bill's quantities without counting
- * anything twice.
+ * anything twice. The empty Rate and Amount columns of the item rows are the estimator's.
  */
 export function toCsv(document: IBoqDocument): string {
-	const rows: (string | number | undefined)[][] = [['Row', 'Code', 'Group', 'Description', 'Element', 'Story', 'Detail', 'Item Quantity', 'Element Quantity', 'Unit']];
+	const rows: (string | number | undefined)[][] = [['Row', 'Code', 'Group', 'Description', 'Element', 'Story', 'Detail', 'Item Quantity', 'Element Quantity', 'Unit', 'Rate', 'Amount']];
 	for (const item of document.items) {
-		rows.push(['item', item.code, item.group, item.description, '', '', '', item.quantity, '', item.unit]);
+		rows.push(['item', item.code, item.group, item.description, '', '', '', item.quantity, '', item.unit, '', '']);
 		for (const entry of item.breakdown ?? []) {
 			rows.push(['element', item.code, item.group, item.description, entry.element, entry.story, entry.detail, '', entry.quantity, item.unit]);
 		}

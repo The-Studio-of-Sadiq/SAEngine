@@ -21,6 +21,7 @@ import { ITextModelService } from '../../../../editor/common/services/resolverSe
 import { localize } from '../../../../nls.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -123,6 +124,7 @@ export class BoqEditor extends EditorPane {
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super(BoqEditor.ID, group, telemetryService, themeService, storage);
 		// Editors restore before the project is detected: find the source files once it is.
@@ -488,6 +490,8 @@ export class BoqEditor extends EditorPane {
 				fileService: this.fileService,
 				fileDialogService: this.fileDialogService,
 				notificationService: this.notificationService,
+				openerService: this.openerService,
+				commandService: this.commandService,
 			});
 		}
 	}
@@ -543,7 +547,7 @@ export class BoqEditor extends EditorPane {
 		const actions: IAction[] = [
 			new Action('saengine.boq.row.toggle', open ? localize('boq.hideBreakdown', "Hide Breakdown") : localize('boq.showBreakdown', "Show Breakdown"), undefined, true, async () => this.toggle(item.code)),
 			new Separator(),
-			new Action('saengine.boq.row.copyQuantity', localize('boq.copyQuantity', "Copy Quantity"), undefined, true, () => this.clipboardService.writeText(formatQuantity(item.quantity, item.unit))),
+			new Action('saengine.boq.row.copyQuantity', localize('boq.copyQuantity', "Copy Quantity"), undefined, true, () => this.clipboardService.writeText(formatQuantity(item.quantity, item.unit, false))),
 			new Action('saengine.boq.row.copyRow', localize('boq.copyRow', "Copy Row"), undefined, true, () => this.clipboardService.writeText([item.code, item.description, quantity].join('\t'))),
 			new Separator(),
 			this.exportAction,

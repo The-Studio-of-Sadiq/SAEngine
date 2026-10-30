@@ -380,7 +380,8 @@ function boqStatus(inputs: IPartStatusInputs): IPartStatus {
 	// before Part 9 do not record them; Run All measures them again). Of the settings only the
 	// ground level counts: the earthwork is dug from it, and nothing else in the bill reads them.
 	const recorded = (part: string) => recordedStamp(document, part) !== undefined;
-	if (BOQ_SOURCES.some(part => changed(inputs.texts, part, recordedStamp(document, part)))
+	// The materials: only those the bill used (see boqSourceStamp).
+	if (BOQ_SOURCES.some(part => changed(inputs.texts, part, recordedStamp(document, part), (p, text) => boqSourceStamp(p, text, document)))
 		|| BOQ_RECORDED_SOURCES.some(part => recorded(part) && changed(inputs.texts, part, recordedStamp(document, part), boqSourceStamp))
 		|| (!recorded('substructure') && substructureHasFoundations(inputs))
 		|| (!recorded('mep') && mepHasContent(inputs))
