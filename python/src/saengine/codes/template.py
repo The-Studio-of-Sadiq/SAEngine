@@ -95,6 +95,12 @@ MANIFEST_HELP: dict[str, str] = {
     "hooks": "Optional: a Python file in the pack (hooks.py) whose functions replace design "
     "formulas. Hooks run code, so SAEngine runs them only after the user trusts the pack, and "
     "any edit of the file withdraws the trust. null for a data-only pack.",
+    "kind": 'Optional: "designCode" (the default; leave it out for a design code pack). '
+    'Templates are "structureTemplate" or "buildingTemplate" packages.',
+    "requires": 'Optional: what the pack needs, {"saengine": ">=0.0.47", "packages": '
+    '{"bnbc2020": ">=1.0.0"}}; SAEngine refuses or flags a pack whose needs are not met.',
+    "contents": 'Optional: the pack\'s files, default ["data/*.json"].',
+    "preview": "Optional: a small card image in the pack folder (preview.png).",
 }
 
 
@@ -363,8 +369,8 @@ def _authoring_checks(folder: Path, result: ValidationResult) -> None:
         manifest = _read_json(folder / MANIFEST_FILE)
     except (OSError, ValueError):
         return  # the registry reports it
-    if not isinstance(manifest, dict):
-        return
+    if not isinstance(manifest, dict) or manifest.get("kind", "designCode") != "designCode":
+        return  # templates: their files are validated by the registry
     covers = manifest.get("covers")
     covers = set(covers) if isinstance(covers, list) else set()
     data = folder / "data"
@@ -395,9 +401,12 @@ def _authoring_checks(folder: Path, result: ValidationResult) -> None:
         )
 
 
-def validate_pack(folder: Path | str, project_root: Path | None = None) -> ValidationResult:
+def validate_pack(
+    folder: Path | str, project_root: Path | None = None, kind: str | None = None
+) -> ValidationResult:
     """Checks the pack in ``folder``: the registry's validation (manifest, inheritance, every
-    table) and the authoring checks."""
+    table or template file, requires, no programs) and the authoring checks. With ``kind``, a
+    package of another kind is an error."""
     from saengine.codes import registry
 
     folder = Path(folder)
@@ -407,6 +416,10 @@ def validate_pack(folder: Path | str, project_root: Path | None = None) -> Valid
         return result
     info = registry.validate(folder, project_root)
     result.id = info.id
+    if kind is not None and info.kind != kind:
+        result.problems.append(
+            Problem("error", "pack.json", f"the package is a {info.kind}, not a {kind}")
+        )
     for problem in info.problems:
         where = problem.file or (f"data/{problem.table}.json" if problem.table else "pack")
         result.problems.append(Problem(problem.severity, where, problem.message))

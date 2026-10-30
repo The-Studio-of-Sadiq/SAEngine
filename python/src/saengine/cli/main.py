@@ -14,6 +14,7 @@ Commands (see ``docs/cli.md`` for examples and the JSON schema)::
     saengine versions status|list|save|diff|restore|issue <project> ...
     saengine verify [--out DIR] [--pdf] [--fast] [--cases ID ...]
     saengine codepack list|show <id>|new <id> --extends ID --dest DIR|validate <dir>|diff <a> <b>
+    saengine package ...  (the same as codepack; --kind for templates)
 
 Results go to stdout (text, or one JSON document with ``--json``), progress to stderr.
 
@@ -790,6 +791,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return int(exit_.code or 0) if not isinstance(exit_.code, str) else EXIT_USAGE
     if args.command == "analyze":
         args.command = "analyse"
+    if args.command == "package":
+        args.command = "codepack"
     out = Output(getattr(args, "json", False), getattr(args, "quiet", False))
     command = (
         f"{args.command} {args.action}"
