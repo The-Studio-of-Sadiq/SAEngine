@@ -83,6 +83,7 @@ def _steel_set() -> SteelSet:
 
 def _with_steel():
     data = _synthetic_set()
+    data.architecture = None  # the steel sheets close the set (no architectural ones after)
     data.steel = _steel_set()
     return data
 
@@ -95,9 +96,9 @@ def test_no_steel_no_steel_sheets() -> None:
 @pytest.fixture(scope="module", params=["A1", "A3"])
 def steel_sheets(request, tmp_path_factory):
     data = _with_steel()
-    concrete = len(
-        build_sheets(_synthetic_set(), DrawingSettings.from_dict({"size": request.param}))
-    )
+    base = _synthetic_set()
+    base.architecture = None
+    concrete = len(build_sheets(base, DrawingSettings.from_dict({"size": request.param})))
     sheets = build_sheets(data, DrawingSettings.from_dict({"size": request.param}))
     out = tmp_path_factory.mktemp(f"steel-{request.param}")
     steel = [s for s in sheets if s.category.startswith("Steel")]

@@ -85,6 +85,50 @@ def _frame_two_by_two() -> Building:
     return b
 
 
+def _architecture():
+    """The architecture of a flat on the 2 x 2 bay frame: a 250 mm outer wall as one loop on the
+    grids, 125 mm partitions on grid B and on grid 2 (B-C), single, double and sliding doors,
+    sliding, casement and high windows, three rooms; a 1 m parapet on the roof (L1)."""
+    from saengine.library import architecture as arch_lib
+
+    data = arch_lib.default_architecture().model_dump(by_alias=True)
+    data["doorTypes"].append(
+        {"id": "DS", "name": "Sliding door", "style": "sliding", "width": 1800, "height": 2100}
+    )
+    data["windowTypes"].append(
+        {"id": "W3", "name": "Casement", "style": "casement", "width": 900, "height": 1200}
+    )
+    loop = [[0, 0], [12000, 0], [12000, 10000], [0, 10000], [0, 0]]
+    data["walls"] = [
+        {"id": "AW1", "type": "BW250", "base": "BASE", "path": loop},
+        {"id": "AW2", "type": "BW125", "base": "BASE", "path": [[6000, 0], [6000, 10000]]},
+        {"id": "AW3", "type": "BW125", "base": "BASE", "path": [[6000, 5000], [12000, 5000]]},
+        {"id": "AW4", "type": "BW125", "base": "L1", "height": 1000, "path": loop},
+    ]
+    data["doors"] = [
+        {"id": "D-1", "type": "D1", "wall": "AW1", "offset": 3000},
+        {"id": "D-2", "type": "D2", "wall": "AW2", "offset": 2500, "flip": True},
+        {"id": "D-3", "type": "DD", "wall": "AW3", "offset": 3000},
+        {"id": "D-4", "type": "DS", "wall": "AW2", "offset": 7500},
+    ]
+    data["windows"] = [
+        {"id": "W-1", "type": "W1", "wall": "AW1", "offset": 9000},
+        {"id": "W-2", "type": "W2", "wall": "AW1", "offset": 14500},
+        {"id": "W-3", "type": "W3", "wall": "AW1", "offset": 25000},
+        {"id": "W-4", "type": "V1", "wall": "AW1", "offset": 36000},
+    ]
+    finishes = {"floorFinish": "TILE", "wallFinish": "PLASTER", "ceilingFinish": "CEIL"}
+    data["rooms"] = [
+        {"id": "R1", "story": "BASE", "point": [3000, 5000], "name": "Living", "number": "101",
+         **finishes},
+        {"id": "R2", "story": "BASE", "point": [9000, 2500], "name": "Bed", "number": "102",
+         **finishes},
+        {"id": "R3", "story": "BASE", "point": [9000, 7500], "name": "Kitchen", "number": "103",
+         "wet": True, **finishes},
+    ]  # fmt: skip
+    return arch_lib.Architecture.model_validate(data)
+
+
 def _beam() -> BeamDetail:
     """A two-span beam line with continuous, cut-off and hooked bars."""
     return BeamDetail(
@@ -392,6 +436,7 @@ def _synthetic_set() -> DrawingSet:
     )
     slab = building.slabs[0]
     return DrawingSet(
+        architecture=_architecture(),
         title=TitleInfo(project="Synthetic", firm="Firm"),
         building=building,
         columns=[
@@ -491,8 +536,12 @@ def test_drawing_set_sheets_dxf_round_trip_and_pdf(tmp_path: Path) -> None:
 
     data = _synthetic_set()
     sheets = build_sheets(data, DrawingSettings.from_dict({"size": "A2", "firstNumber": 201}))
-    numbers = [s.number for s in sheets]
-    assert numbers == [f"S-{201 + i}" for i in range(len(sheets))]
+    numbers = [s.number for s in sheets if s.number.startswith("S-")]
+    assert numbers == [f"S-{201 + i}" for i in range(len(numbers))]
+    # the architectural sheets after the structural ones, numbered on their own
+    arch = [s.number for s in sheets if s.number.startswith("A-")]
+    assert arch == [f"A-{201 + i}" for i in range(len(arch))]
+    assert [s.number for s in sheets] == numbers + arch
     titles = [s.title for s in sheets]
     assert titles[0] == "General notes"
     assert any(t.startswith("Framing plan") for t in titles)

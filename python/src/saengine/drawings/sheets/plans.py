@@ -10,7 +10,7 @@ their mark and size; slabs carry their mark and thickness; openings are crossed.
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 
 from saengine.drawings.sheets.layout import TEXT, TEXT_LARGE, View, ViewSpec, tag
 from saengine.drawings.sheets.model import (
@@ -95,6 +95,37 @@ def grids(view: View, building: Building, bbox: tuple[float, float, float, float
     return dims
 
 
+def elevation_grids(view: View, lines: Iterable[tuple[str, float]], z0: float, z1: float) -> None:
+    """The grid lines of an elevation or section, ``(label, u)`` along its axis, from below
+    ``z0`` to above ``z1``, with their bubbles at the top."""
+    e = view.real(EXTEND)
+    r = view.real(BUBBLE)
+    for label, u in lines:
+        view.line((u, z0 - e), (u, z1 + e), "S-GRID")
+        c = (u, z1 + e + r)
+        view.circle(c, r, "S-GRID-BUBBLE")
+        view.reserve([(c[0] - r, c[1] - r), (c[0] + r, c[1] + r)])
+        view.text(label, c, TEXT_LARGE, "MC", "S-GRID-BUBBLE")
+
+
+def level_lines(view: View, levels: Iterable[Level], u0: float, u1: float) -> None:
+    """The levels of an elevation or section: a centre line from ``u0`` to ``u1``, and at its
+    right end a level mark with the level's name and elevation [m]."""
+    for lv in levels:
+        view.line((u0, lv.elevation), (u1, lv.elevation), "S-GRID")
+        tip = (u1 + view.real(1.5), lv.elevation)
+        s = view.real(1.8)
+        view.polyline(
+            [tip, (tip[0] + s, tip[1] + s), (tip[0] - s, tip[1] + s)], "S-GRID-BUBBLE", True
+        )
+        view.text(
+            f"{lv.name.upper()} {lv.elevation / 1000:+.3f}",
+            (tip[0] + s + view.real(1.0), lv.elevation),
+            TEXT,
+            "ML",
+        )
+
+
 def _centroid(points: list[Point]) -> Point:
     a = cx = cy = 0.0
     for (x1, y1), (x2, y2) in zip(points, points[1:] + points[:1]):
@@ -107,8 +138,15 @@ def _centroid(points: list[Point]) -> Point:
     return (cx / (3 * a), cy / (3 * a))
 
 
-def _inside_label(view: View, text: str, boundary: list[Point]) -> None:
-    """``text`` inside the polygon's box: near its centroid where it is free."""
+def _inside_label(
+    view: View,
+    text: str,
+    boundary: list[Point],
+    layer: str = "S-TEXT",
+    shorter: Sequence[str] = (),
+) -> None:
+    """``text`` inside the polygon's box: near its centroid where it is free; else the
+    ``shorter`` forms of it, in turn, inside; else the shortest further out."""
     c = _centroid(boundary)
     x0, y0, x1, y1 = _bounds(boundary)
     cx, cy = view.p(*c)
@@ -120,10 +158,12 @@ def _inside_label(view: View, text: str, boundary: list[Point]) -> None:
             cands.append((px - cx, py - cy, "MC"))
     cands.sort(key=lambda d: d[0] ** 2 + d[1] ** 2)
     # inside the panel, without a leader: on its lines, or on one line; else further out
-    for variant in (text, text.replace("\n", " ")):
-        if view.label(variant, c, [(0, 0, "MC"), *cands], TEXT, rings=False, force=False):
+    for variant in (text, text.replace("\n", " "), *shorter):
+        if view.label(
+            variant, c, [(0, 0, "MC"), *cands], TEXT, rings=False, force=False, layer=layer
+        ):
             return
-    view.label(text, c, [(0, 0, "MC"), *cands], TEXT)
+    view.label(shorter[-1] if shorter else text, c, [(0, 0, "MC"), *cands], TEXT, layer=layer)
 
 
 def _angle(a: Point, b: Point) -> float:
@@ -640,10 +680,12 @@ def level_has_plan(building: Building, level: Level) -> bool:
 __all__ = [
     "TEXT",
     "default_top_bars",
+    "elevation_grids",
     "foundation_plan",
     "framing_plan",
     "grids",
     "level_has_plan",
+    "level_lines",
     "pile_layout_plan",
     "slab_plan",
 ]

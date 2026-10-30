@@ -16,7 +16,9 @@ piles, the pile layout plan and the pile cap schedule); the framing plans per le
 reinforcement plans; the column schedule; the beam elevations; the footing, wall and stair
 details; the bar bending schedule; then, with structural steel
 (:mod:`.steel`), the steel notes, framing plans, braced elevations, member schedule and
-connection details. A category takes as many sheets as its views need; small views share a
+connection details; then, with an architecture (:mod:`.architecture`), the architectural
+sheets numbered on their own (``A-101`` on): plans, elevations, sections, the door and window
+schedule and the room finish schedule. A category takes as many sheets as its views need; small views share a
 sheet.
 
 Why one DXF per sheet in model space: LibreCAD 2.2 edits the model space only (it has no paper
@@ -32,6 +34,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from saengine.drawings.sheets import architecture as ar
 from saengine.drawings.sheets import details, plans, schedules
 from saengine.drawings.sheets import steel as st
 from saengine.drawings.sheets.layout import (
@@ -94,6 +97,7 @@ class _Category:
     plan: bool = False
     scale_text: str | None = None
     notes: list[str] | None = None  # the sheets' notes (plans: the plans' notes)
+    prefix: str | None = None  # of the sheet numbers (None: the settings')
 
 
 def _fit_plan(
@@ -261,6 +265,7 @@ def categories(data: DrawingSet, settings: DrawingSettings) -> tuple[list[_Categ
     if specs:
         out.append(_Category("Bar bending schedule", 1, specs, scale_text="NTS"))
     out += _steel_categories(data, settings, area, problems)
+    out += _architecture_categories(data, settings, area, problems)
     for category in out:
         for spec in category.specs:
             if not fits(spec, area):
@@ -275,8 +280,9 @@ def build_sheets(data: DrawingSet, settings: DrawingSettings | None = None) -> l
     cats, problems = categories(data, settings)
     data.problems += problems
     sheets: list[Sheet] = []
-    number = settings.first
+    numbers: dict[str, int] = {}
     for cat in cats:
+        prefix = cat.prefix or settings.prefix
         pages = pack(cat.specs, area)
         if cat.plan:
             pages = [centred(page, area) for page in pages]
@@ -289,8 +295,10 @@ def build_sheets(data: DrawingSet, settings: DrawingSettings | None = None) -> l
                     title = page[0][0].title
             elif len(pages) > 1:
                 title = f"{cat.title} ({i + 1} of {len(pages)})"
+            number = numbers.setdefault(prefix, settings.first)
+            numbers[prefix] += 1
             sheet = Sheet(
-                f"{settings.prefix}{number}",
+                f"{prefix}{number}",
                 title,
                 settings.size,
                 cat.scale,
@@ -312,7 +320,6 @@ def build_sheets(data: DrawingSet, settings: DrawingSettings | None = None) -> l
                 sheet.notes(_plan_notes(data))
             sheet.finish()
             sheets.append(sheet)
-            number += 1
     return sheets
 
 
@@ -394,6 +401,68 @@ def _steel_categories(
                 notes=st.CONNECTION_NOTES,
             )
         )
+    return out
+
+
+def _architecture_categories(
+    data: DrawingSet, settings: DrawingSettings, area, problems: list[str]
+) -> list[_Category]:
+    """The architectural sheets (numbered A-101 on), after the structural ones: the plans of the
+    stories, the elevations and sections (at the plan scale), the door and window schedule and
+    the room finish schedule. None without architectural walls."""
+    arch = data.architecture
+    if arch is None or not arch.walls:
+        return []
+    b = data.building
+    height = area[3] - area[1]
+    width = area[2] - area[0]
+    out: list[_Category] = []
+    cuts = ar.section_lines(arch, b)
+    by_scale: dict[float, list[ViewSpec]] = {}
+    problems += ar.unenclosed_rooms(arch, b)
+    for lv in ar.plan_levels(arch, b):
+        spec, p = _fit_plan(
+            lambda s, lv=lv: ar.floor_plan(b, arch, lv, s, cuts), settings.plan_scale, area
+        )
+        problems += p
+        by_scale.setdefault(spec.scale, []).append(spec)
+    for scale, specs in by_scale.items():
+        out.append(
+            _Category(
+                "Architectural plans", scale, specs, plan=True, notes=ar.PLAN_NOTES,
+                prefix=ar.PREFIX,
+            )
+        )  # fmt: skip
+    for title, views, notes in (
+        (
+            "Elevations",
+            [lambda s, side=side: ar.elevation(b, arch, side, s) for side, _ in ar.SIDES],
+            ar.ELEVATION_NOTES,
+        ),
+        (
+            "Sections",
+            [lambda s, cut=cut: ar.section(b, arch, cut, s) for cut in cuts],
+            ar.SECTION_NOTES,
+        ),
+    ):
+        by_scale = {}
+        for make in views:
+            spec, p = _fit_plan(make, settings.plan_scale, area)
+            problems += p
+            by_scale.setdefault(spec.scale, []).append(spec)
+        for scale, specs in by_scale.items():
+            out.append(_Category(title, scale, specs, notes=notes, prefix=ar.PREFIX))
+    for title, tables in (
+        ("Door and window schedule", ar.door_window_tables(arch, b)),
+        ("Room finish schedule", ar.room_tables(arch, b)),
+    ):
+        specs = []
+        for table in tables:
+            specs += schedules.table_specs(
+                table, height, key=f"arch-table:{table.title}", max_width=width
+            )
+        if specs:
+            out.append(_Category(title, 1, specs, scale_text="NTS", notes=[], prefix=ar.PREFIX))
     return out
 
 

@@ -1,5 +1,5 @@
 """The drawing set of a project: its plan geometry from the building model (06 BIM), the floor
-plan's grids (05 Floor Plan), the object types (04 Objects) and the foundations (09
+plan's grids and the architecture (05 Floor Plan), the object types (04 Objects) and the foundations (09
 Substructure); its detailed members from the detailing model
 (:func:`saengine.drawings.detailing.detailing_model`); its bar bending schedule from
 :mod:`saengine.drawings.bbs`; its title block from the project settings (02 Project Settings)
@@ -58,6 +58,7 @@ FILES = {
     "materials": "03 Materials/materials.json",
     "objects": "04 Objects/objects.json",
     "floorPlan": "05 Floor Plan/floor-plan.json",
+    "architecture": "05 Floor Plan/architecture.json",
     "bim": "06 BIM/bim.json",
     "substructure": "09 Substructure/substructure.json",
 }
@@ -1003,6 +1004,16 @@ def drawing_set(
     if dias and concrete and fy:
         data.tables.append(lap_table(dias, fy, concrete))
     data.tables.append(cover_table(objects))
+    if texts["architecture"]:
+        from saengine.library import architecture as arch_lib
+
+        try:
+            architecture = arch_lib.parse(texts["architecture"])
+        except ValueError as error:
+            data.problems.append(f"The architecture could not be read, so it is not drawn: {error}")
+        else:
+            if architecture.walls:
+                data.architecture = architecture
     if materials is not None:
         from saengine.drawings.sheets.steel import steel_set
 
