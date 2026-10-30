@@ -68,7 +68,7 @@ from saengine.library.objects import (
     Slab,
     Wall,
 )
-from saengine.library.settings import LoadCombination, ProjectSettings
+from saengine.library.settings import LoadCombination, ProjectSettings, code_basis
 
 #: Said in the notes instead of designing footings: they are Part 9's (saengine.substructure).
 DESIGNED_IN_PART_9 = (
@@ -969,7 +969,7 @@ def _assemble(
     notes.append(DESIGNED_IN_PART_9)
     failed = [e for e in checked if not e["ok"]]
     governing = max(checked, key=lambda e: e["utilisation"], default=None)
-    code = settings.codes.concrete
+    code = code_basis(settings).concrete
     method = [line.format(code=code) for line in METHOD]
     if columns_seen:
         method += slenderness_design.method(slender_options, context.model.lateral_cracked)

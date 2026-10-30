@@ -9,6 +9,7 @@ Units: kN/m² for area loads, m/s for wind speed.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -49,7 +50,8 @@ class ProjectInfo(_Model):
 
 
 class Codes(_Model):
-    """The codes the design follows. BNBC 2020 Part 6 adopts ACI 318 for concrete and AISC 360 for steel."""
+    """Deprecated: the design code is the code pack (codePack); the report states the labels of
+    its basis. Old files keep validating; the value is not read and not written back."""
 
     general: Literal["BNBC 2020"] = Field(default="BNBC 2020", title="Loads and general")
     concrete: Literal["BNBC 2020 Part 6 Chapter 6", "ACI 318-19"] = "BNBC 2020 Part 6 Chapter 6"
@@ -901,7 +903,14 @@ class ProjectSettings(_Model):
         "seismic and wind coefficients). Built-in: bnbc2020. A project's own packs live in "
         "02 Project Settings/code-packs/<id>/; the user's in the SAEngine user folder.",
     )
-    codes: Codes = Field(default_factory=Codes)
+    codes: Codes | None = Field(
+        default=None,
+        exclude=True,
+        title="Codes (deprecated)",
+        description="Deprecated: the design code is chosen by codePack. Read from old files "
+        "and dropped when they are saved.",
+        json_schema_extra={"deprecated": True},
+    )
     occupancy: Occupancy = Field(default_factory=Occupancy)
     site: Site = Field(default_factory=Site)
     seismic: Seismic = Field(default_factory=Seismic)
@@ -991,6 +1000,39 @@ def code_pack(settings: ProjectSettings | None = None) -> CodePack:
     project in :func:`saengine.codes.context.project`. Raises :class:`CodePackError` when it is
     not installed or cannot be used (:func:`check` reports that)."""
     return code_context.pack_for(settings)
+
+
+@dataclass(frozen=True)
+class CodeBasis:
+    """What the design follows, as the report and the design method state it."""
+
+    general: str
+    concrete: str
+    steel: str
+    method: str
+
+    def rows(self) -> list[list[str]]:
+        return [
+            ["Loads and general", self.general],
+            ["Concrete", self.concrete],
+            ["Steel", self.steel],
+            ["Design method", self.method],
+        ]
+
+
+def code_basis(settings: ProjectSettings | None = None) -> CodeBasis:
+    """The labels of the code the settings choose, from its pack's ``basis`` (inherited along
+    the packs it extends); a label no pack gives is the pack's edition (or name), the method
+    strength design. Raises :class:`CodePackError` as :func:`code_pack`."""
+    pack = code_pack(settings)
+    labels = pack.basis
+    edition = pack.edition or pack.name
+    return CodeBasis(
+        general=labels.get("general", edition),
+        concrete=labels.get("concrete", edition),
+        steel=labels.get("steel", edition),
+        method=labels.get("method", "Strength design (LRFD)"),
+    )
 
 
 def derived(settings: ProjectSettings) -> dict[str, Any]:

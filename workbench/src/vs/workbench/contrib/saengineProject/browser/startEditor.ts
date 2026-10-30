@@ -13,13 +13,13 @@ import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -35,7 +35,8 @@ import { IPathService } from '../../../services/path/common/pathService.js';
 import { PROJECT_TYPES, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
 import { NEW_BUILDING_COMMAND } from './newBuildingModel.js';
 import { BNBC, SETTINGS_SCHEMA } from '../../../services/saengineProject/common/projectLibraries.generated.js';
-import { DESIGN_CODES, DesignCode, ProjectOpener, projectFolderName } from './projectOpener.js';
+import { CODES_LIST_COMMAND, DEFAULT_CODE_PACK, ICodePackInfo, packOptions, readCodePacks } from '../../saengineLibrary/browser/codePacksModel.js';
+import { ProjectOpener, projectFolderName } from './projectOpener.js';
 import { appendProjectPath } from './projectParts.js';
 import { StartEditorInput } from './startEditorInput.js';
 import { IMPORT_STRUCTURAL_UI_COMMAND } from './structuralImportModel.js';
@@ -244,6 +245,18 @@ export class StartEditor extends EditorPane {
 		select(initial);
 	}
 
+	/** The code packs installed on this computer (no project yet); undefined while the backend cannot list them. */
+	private async installedCodePacks(): Promise<ICodePackInfo[] | undefined> {
+		if (!CommandsRegistry.getCommand(CODES_LIST_COMMAND)) {
+			return undefined;
+		}
+		try {
+			return readCodePacks(await this.commandService.executeCommand<unknown>(CODES_LIST_COMMAND, {}));
+		} catch {
+			return undefined;
+		}
+	}
+
 	private async renderNewProject(): Promise<void> {
 		const page = this.resetMain();
 		append(page, $('h2', undefined, localize('start.newTitle', "New Project")));
@@ -306,9 +319,22 @@ export class StartEditor extends EditorPane {
 		});
 		append(form, typeHint);
 
-		let code: DesignCode = 'bnbc';
+		// The design code: the code packs installed (built-in and the user's), as Project Settings lists them.
+		let codePack = DEFAULT_CODE_PACK;
+		let packChoices = packOptions([], codePack);
 		append(form, $('label', undefined, localize('start.code', "Design code")));
-		this.choices(form, localize('start.code', "Design code"), DESIGN_CODES.map(c => ({ value: c.code, label: c.label })), code, value => code = value);
+		const codeOptions = () => packChoices.map(o => ({ text: o.label, description: o.description, isDisabled: o.unusable }));
+		const code = this.pageDisposables.add(new SelectBox(codeOptions(), 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('start.code', "Design code") }));
+		code.render(append(form, $('.select')));
+		this.pageDisposables.add(code.onDidSelect(e => codePack = packChoices[e.index]?.id ?? DEFAULT_CODE_PACK));
+		let shown = true;
+		this.pageDisposables.add(toDisposable(() => shown = false));
+		void this.installedCodePacks().then(packs => {
+			if (shown && packs) {
+				packChoices = packOptions(packs, codePack);
+				code.setOptions(codeOptions(), Math.max(0, packChoices.findIndex(o => o.id === codePack)));
+			}
+		});
 
 		const target = append(form, $('p.target'));
 		const updateTarget = () => {
@@ -333,7 +359,7 @@ export class StartEditor extends EditorPane {
 				name.focus();
 				return;
 			}
-			this.run(() => this.opener.createAndOpen(URI.file(location.value.trim()), name.value, type, { code, location: siteId, use: useValue }));
+			this.run(() => this.opener.createAndOpen(URI.file(location.value.trim()), name.value, type, { codePack, location: siteId, use: useValue }));
 		};
 		this.pageDisposables.add(create.onDidClick(submit));
 		this.pageDisposables.add(addDisposableListener(form, EventType.KEY_DOWN, e => {

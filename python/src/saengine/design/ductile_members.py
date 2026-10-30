@@ -97,7 +97,8 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from saengine.design.bars import SPACING_STEP, round_down
+from saengine.codes import context as code_context
+from saengine.design.bars import round_down, spacing_step
 from saengine.design.rc import (
     ROW_CLEAR,
     Bar,
@@ -112,27 +113,33 @@ from saengine.library.objects import CircleProfile, RectangleProfile
 Frame = Literal["special", "intermediate", "ordinary"]
 FRAMES: tuple[str, ...] = ("special", "intermediate", "ordinary")
 
-#: Share of Ag f'c above which a frame member is designed as a column (8.3.4.1(a), 8.3.5.1,
-#: 8.3.9.2, 8.3.10.2, 8.3.12.2).
-AXIAL_SHARE = 0.10
-#: Largest beam steel ratio of a special moment frame (8.3.4.2(a)).
-SMF_BEAM_RHO_MAX = 0.025
-#: Column steel ratio limits of a special moment frame (8.3.5.3(a)).
-SMF_COLUMN_RHO = (0.01, 0.06)
-#: Least beam width [mm] and width-to-depth ratio (8.3.4.1(c), (d)).
-SMF_BEAM_MIN_WIDTH, SMF_BEAM_MIN_RATIO = 250.0, 0.3
-#: Least column dimension [mm] and least-to-perpendicular ratio (8.3.5.1).
-SMF_COLUMN_MIN_DIMENSION, SMF_COLUMN_MIN_RATIO = 300.0, 0.4
-#: Largest fyt in the confinement equations (8.3.3.4(c)).
-FYT_CONFINEMENT_MAX = 700.0
-#: Largest spacing of cross ties or hoop legs across the section, hx (8.3.5.4(c)).
-HX_MAX = 350.0
-#: Largest clear distance of an unsupported bar from a supported one (8.1.9.4(c)).
-UNSUPPORTED_CLEAR = 150.0
+# The plain-number limits of special moment frame members are the pack's
+# ``detailing.special`` group, read when the checks run (BNBC 2020): ``axialShare`` 0.10, the
+# share of Ag f'c above which a frame member is designed as a column (8.3.4.1(a), 8.3.5.1,
+# 8.3.9.2, 8.3.10.2, 8.3.12.2); ``beamRhoMax`` 0.025, the largest beam steel ratio (8.3.4.2(a));
+# ``columnRho`` (0.01, 0.06), the column steel ratio limits (8.3.5.3(a)); ``beamMinWidth``
+# 250 mm and ``beamMinRatio`` 0.3, the least beam width and width-to-depth ratio (8.3.4.1(c),
+# (d)); ``columnMinDimension`` 300 mm and ``columnMinRatio`` 0.4, the least column dimension and
+# least-to-perpendicular ratio (8.3.5.1); ``fytConfinementMax`` 700 MPa, the largest fyt in the
+# confinement equations (8.3.3.4(c)); ``hxMax`` 350 mm, the largest spacing of cross ties or
+# hoop legs across the section (8.3.5.4(c)); ``unsupportedClear`` 150 mm, the largest clear
+# distance of an unsupported bar from a supported one (8.1.9.4(c)); ``beamFirstHoop`` 50 mm,
+# the first hoop of a beam from the joint face (8.3.4.3(b), 8.3.10.4(b)).
+
+
+def _special(name: str) -> float:
+    """The pack's ``detailing.special`` limit ``name`` (BNBC 2020: see above)."""
+    return float(code_context.table("detailing").special[name])
+
+
+def _column_rho() -> tuple[float, float]:
+    """The pack's column steel ratio limits (least, largest) (BNBC 2020 8.3.5.3(a): 0.01, 0.06)."""
+    low, high = code_context.table("detailing").special.columnRho
+    return (float(low), float(high))
+
+
 # Bars of one row: their outer edges within this of each other [mm].
 EDGE_TOLERANCE = 1.0
-#: First hoop of a beam from the joint face (8.3.4.3(b), 8.3.10.4(b)).
-BEAM_FIRST_HOOP = 50.0
 
 _CLAUSES = {
     "special": "8.3.4",
@@ -339,7 +346,7 @@ def held_required(face: list[tuple[float, float]]) -> int:
     if n <= 2:
         return n
     gaps = [face[k + 1][0] - face[k][0] - (face[k][1] + face[k + 1][1]) / 2 for k in range(n - 1)]
-    if max(gaps) > UNSUPPORTED_CLEAR:
+    if max(gaps) > _special("unsupportedClear"):
         return n
     return 2 + (n - 2) // 2
 
@@ -364,7 +371,7 @@ def _support_rows(
                 legs,
                 "legs",
                 note=f"{len(face)} bars on the face: every corner and alternate bar held, none "
-                f"more than {UNSUPPORTED_CLEAR:g} mm clear from a held one; "
+                f"more than {_special('unsupportedClear'):g} mm clear from a held one; "
                 + ("legs" if axis == "y" else "legsX")
                 + f" = {legs}",
             )
@@ -421,15 +428,15 @@ def beam_need(section: RcSection, frame: str, transverse_dia: float, lateral: bo
         zone_length=2 * h if zone else None,
         zone_spacing=zone_spacing,
         zone_rule=zone_rule,
-        first=BEAM_FIRST_HOOP if zone else None,
+        first=_special("beamFirstHoop") if zone else None,
         outside_spacing=outside,
         outside_rule="d/2" if outside is not None else "",
         splice_spacing=min(d / 4, 100.0) if longitudinal and frame == "special" else None,
-        min_width=max(SMF_BEAM_MIN_WIDTH, SMF_BEAM_MIN_RATIO * h)
+        min_width=max(_special("beamMinWidth"), _special("beamMinRatio") * h)
         if frame == "special" and lateral
         else None,
         rho_min=rho_min if longitudinal else None,
-        rho_max=SMF_BEAM_RHO_MAX if longitudinal else None,
+        rho_max=_special("beamRhoMax") if longitudinal else None,
         positive_share=(1 / 2 if longitudinal else 1 / 3 if frame == "intermediate" else None),
         any_share=(1 / 4 if longitudinal else 1 / 5 if frame == "intermediate" else None),
     )
@@ -482,7 +489,7 @@ def beam_checks(
                 "twice the lateral displacement exceeds φMn) is not checked"
             )
         )
-    if pu > AXIAL_SHARE * ag_fc:
+    if pu > _special("axialShare") * ag_fc:
         note = (
             "Pu above 0.1 Ag f'c: detail the member as a column ("
             + {"special": "8.3.5", "intermediate": "8.3.10.5", "ordinary": "8.3.9.2"}[frame]
@@ -495,7 +502,7 @@ def beam_checks(
             _at_most(
                 f"Axial force of a flexural member ({axial_clause})",
                 pu / 1e3,
-                AXIAL_SHARE * ag_fc / 1e3,
+                _special("axialShare") * ag_fc / 1e3,
                 "kN",
                 note,
                 combination=combination,
@@ -518,13 +525,15 @@ def beam_checks(
         out.checks.append(
             _at_least(
                 "Width to depth ≥ 0.3 (8.3.4.1(c))",
-                SMF_BEAM_MIN_RATIO,
+                _special("beamMinRatio"),
                 b / h,
                 "",
                 f"b = {b:g} mm, h = {h:g} mm",
             )
         )
-        out.checks.append(_at_least("Width ≥ 250 mm (8.3.4.1(d))", SMF_BEAM_MIN_WIDTH, b, "mm"))
+        out.checks.append(
+            _at_least("Width ≥ 250 mm (8.3.4.1(d))", _special("beamMinWidth"), b, "mm")
+        )
         for k, (c1, c2) in enumerate(supports):
             limit = c2 + 2 * min(c2, 0.75 * c1)
             out.checks.append(
@@ -559,7 +568,7 @@ def beam_checks(
                 _at_most(
                     f"Largest steel ratio, {face} (8.3.4.2(a))",
                     100 * rho,
-                    100 * SMF_BEAM_RHO_MAX,
+                    100 * _special("beamRhoMax"),
                     "%",
                 )
             )
@@ -663,13 +672,13 @@ def beam_checks(
                 _at_most(
                     f"First {kind.lower()} from the face ({zone_clause})",
                     zones.zone_first,
-                    BEAM_FIRST_HOOP,
+                    _special("beamFirstHoop"),
                     "mm",
                 )
             )
         else:
             out.notes.append(
-                f"first {kind.lower()} within {BEAM_FIRST_HOOP:g} mm of the support face "
+                f"first {kind.lower()} within {_special('beamFirstHoop'):g} mm of the support face "
                 f"({zone_clause})"
             )
         if frame == "special":
@@ -762,13 +771,13 @@ def so_special(hx: float) -> float:
 def ash_per_spacing(bc: float, ag: float, ach: float, fc: float, fyt: float) -> float:
     """Least Ash / s [mm²/mm] of rectangular hoops across a core dimension ``bc``: the larger
     of Eq. 6.8.7 and Eq. 6.8.8, fyt at most 700 MPa (8.3.3.4(c))."""
-    fyt = min(fyt, FYT_CONFINEMENT_MAX)
+    fyt = min(fyt, _special("fytConfinementMax"))
     return max(0.3 * bc * fc / fyt * (ag / ach - 1), 0.09 * bc * fc / fyt)
 
 
 def rho_s_required(ag: float, ach: float, fc: float, fyt: float) -> float:
     """Least volumetric ratio of spirals and circular hoops: Eq. 6.8.6 and Eq. 6.6.12."""
-    fyt = min(fyt, FYT_CONFINEMENT_MAX)
+    fyt = min(fyt, _special("fytConfinementMax"))
     return max(0.12 * fc / fyt, 0.45 * (ag / ach - 1) * fc / fyt)
 
 
@@ -792,7 +801,7 @@ def column_need(
     db = _smallest_bar(section)
     dt = zones.dia
     fc, fyt = section.fc, section.fy  # one rebar material for the bars and the ties
-    above = axial > AXIAL_SHARE * section.gross_area * fc
+    above = axial > _special("axialShare") * section.gross_area * fc
     notes: list[str] = []
     circle = isinstance(section.profile, CircleProfile)
     special = frame == "special" and (lateral or above)
@@ -911,7 +920,7 @@ def column_need(
             zone_rule=f"min(d/4, 8 db, 24 dt, 300 mm), {governing} governs; d = {d:.0f} mm",
             so=limits[governing],
             hx=None,
-            first=BEAM_FIRST_HOOP,
+            first=_special("beamFirstHoop"),
             outside_spacing=d / 2,
             outside_rule="d/2 throughout",
             splice_spacing=None,
@@ -1009,7 +1018,7 @@ def column_checks(
     pu, _ = axial
     ag = section.gross_area
     circle = isinstance(section.profile, CircleProfile)
-    above = pu > AXIAL_SHARE * ag * section.fc
+    above = pu > _special("axialShare") * ag * section.fc
 
     if frame == "special" and lateral:
         if not above:
@@ -1020,13 +1029,16 @@ def column_checks(
         if not circle:
             out.checks.append(
                 _at_least(
-                    "Least dimension ≥ 300 mm (8.3.5.1(a))", SMF_COLUMN_MIN_DIMENSION, least, "mm"
+                    "Least dimension ≥ 300 mm (8.3.5.1(a))",
+                    _special("columnMinDimension"),
+                    least,
+                    "mm",
                 )
             )
             out.checks.append(
                 _at_least(
                     "Least to perpendicular dimension ≥ 0.4 (8.3.5.1(b))",
-                    SMF_COLUMN_MIN_RATIO,
+                    _special("columnMinRatio"),
                     least / largest,
                     "",
                     f"{b:g} x {h:g} mm",
@@ -1036,7 +1048,7 @@ def column_checks(
             out.checks.append(
                 _at_least(
                     "Least dimension ≥ 300 mm (8.3.5.1(a))",
-                    SMF_COLUMN_MIN_DIMENSION,
+                    _special("columnMinDimension"),
                     2 * section.profile.radius,
                     "mm",
                 )
@@ -1044,7 +1056,7 @@ def column_checks(
     smf_bars = frame == "special" and (lateral or above)
     if smf_bars:
         rho = section.steel_area / ag
-        low, high = SMF_COLUMN_RHO
+        low, high = _column_rho()
         clause = "8.3.5.3(a)" if lateral else "8.3.12.3(c), 8.3.5.3(a)"
         out.checks.append(_at_least(f"Least steel ratio ({clause})", 100 * low, 100 * rho, "%"))
         out.checks.append(_at_most(f"Largest steel ratio ({clause})", 100 * rho, 100 * high, "%"))
@@ -1192,7 +1204,7 @@ def column_checks(
                 _at_most(
                     "Cross-tie spacing hx (8.3.5.4(c))",
                     need.hx,
-                    HX_MAX,
+                    _special("hxMax"),
                     "mm",
                     f"so = {need.so:.0f} mm from hx",
                 )
@@ -1235,8 +1247,8 @@ def minimum_dimensions(kind: str, frame: str, depth: float | None = None) -> dic
     if frame != "special":
         return {}
     if kind == "beam":
-        return {"width": max(SMF_BEAM_MIN_WIDTH, SMF_BEAM_MIN_RATIO * (depth or 0))}
-    return {"least": SMF_COLUMN_MIN_DIMENSION, "ratio": SMF_COLUMN_MIN_RATIO}
+        return {"width": max(_special("beamMinWidth"), _special("beamMinRatio") * (depth or 0))}
+    return {"least": _special("columnMinDimension"), "ratio": _special("columnMinRatio")}
 
 
 def propose_zones(
@@ -1245,14 +1257,17 @@ def propose_zones(
     legs: int,
     legs_x: int | None = None,
     shear_spacing: float | None = None,
-    step: float = SPACING_STEP,
+    step: float | None = None,
 ) -> dict[str, Any] | None:
     """The transverse fields a proposal can write for the seismic zones: ``{"spacing",
     "zone": {"length", "spacing", "first"}, "splice"?: {"spacing"}}`` with spacings rounded
     down to ``step``, from a :class:`BeamNeed` or :class:`ColumnNeed` and the ties (``dia``,
     ``legs``, ``legs_x``; for a column they set hx, so and Ash, so ``need`` must have been
     formed with the same ties). ``shear_spacing``: the largest spacing the shear design allows
-    (both zones keep within it). None when the member has no zone rule."""
+    (both zones keep within it). None when the member has no zone rule. ``step`` default: the
+    pack's spacing step (:func:`saengine.design.bars.spacing_step`)."""
+    if step is None:
+        step = spacing_step()
     if need.zone_spacing is None:
         if need.outside_spacing is None or not math.isfinite(need.outside_spacing):
             return None

@@ -74,6 +74,7 @@ from typing import Any
 
 import numpy as np
 
+from saengine.codes import context as code_context
 from saengine.design.rc import PHI_SHEAR, STEEL_E
 from saengine.design.slab import NO_DEMAND, critical_section, punching_capacity
 from saengine.library.objects import BarMesh
@@ -92,8 +93,6 @@ G = 9.80665
 DEEP_RATIO = 1.0
 #: Least clear distance from a pile's face to the cap's edge [mm] (BNBC Sec 3.10.1.20).
 EDGE_DISTANCE = 100.0
-#: Least clear cover of the cap's main bars [mm] (BNBC Sec 3.10.1.20).
-CAP_COVER = 50.0
 #: Least embedment of the piles in the cap [mm] (BNBC Sec 3.10.1.20).
 PILE_EMBEDMENT = 75.0
 
@@ -461,12 +460,16 @@ def cap_checks(
     return checks, detail
 
 
-#: Strut-and-tie (ACI 318-19): φ (Table 21.2.1 (g)), the tie's lever arm over d, and βn of
-#: the column's node (C-C-C) and of the pile heads' nodes (C-C-T) (Table 23.9.2).
-PHI_STM = 0.75
-TIE_ARM = 0.9
-BETA_CCC = 1.0
-BETA_CCT = 0.8
+def _phi_stm() -> float:
+    """The pack's ``factors.phi.strutAndTie`` (BNBC 2020 / ACI 318-19 Table 21.2.1 (g): 0.75)."""
+    return float(code_context.table("factors").phi["strutAndTie"])
+
+
+def _strut_and_tie(name: str) -> float:
+    """The pack's ``foundations.strutAndTie`` value ``name`` (ACI 318-19): ``tieArm``, the tie's
+    lever arm over d (0.9); ``betaCCC`` / ``betaCCT``, βn of the column's node (C-C-C, 1.0) and
+    of the pile heads' nodes (C-C-T, 0.8) (Table 23.9.2)."""
+    return float(code_context.table("foundations").strutAndTie[name])
 
 
 def _tie_check(
@@ -484,7 +487,8 @@ def _tie_check(
     halves, each at c/4 from its centre), z = 0.9 d; against φ As fy (ACI 23.7.2.1)."""
     from saengine.design.check import _check
 
-    z = TIE_ARM * d
+    tie_arm, phi = _strut_and_tie("tieArm"), _phi_stm()
+    z = tie_arm * d
     worst: tuple[float, str | None, str] = (0.0, None, "")
     for k, column in enumerate(spec.columns):
         quarter = (column.cu, column.cv)[axis] / 4
@@ -504,11 +508,11 @@ def _tie_check(
         _check(
             f"Tie (bottom {bars} bars, strut-and-tie)",
             tie / 1e3,
-            PHI_STM * area * spec.fy / 1e3,
+            phi * area * spec.fy / 1e3,
             "kN",
             combination,
             f"T = M / z, M of the pile reactions beyond the column's quarter point, z = "
-            f"{TIE_ARM:g} d = {z:.0f} mm; φ As fy, φ = {PHI_STM:g}, As = {area:.0f} mm² over "
+            f"{tie_arm:g} d = {z:.0f} mm; φ As fy, φ = {phi:g}, As = {area:.0f} mm² over "
             f"{width:.0f} mm (ACI 318-19 23.7.2.1, 21.2.1); {where}",
         )
     ]
@@ -522,20 +526,21 @@ def _node_checks(
     from saengine.design.check import _check
 
     checks: list[dict[str, Any]] = []
+    phi, beta_ccc, beta_cct = _phi_stm(), _strut_and_tie("betaCCC"), _strut_and_tie("betaCCT")
     for k, column in enumerate(spec.columns):
         area = column.cu * column.cv
         worst = max(((float(loads[k][0]), name) for name, loads in strength.items()), default=None)
         if worst is None or area <= 0:
             continue
-        fce = 0.85 * BETA_CCC * spec.fc
+        fce = 0.85 * beta_ccc * spec.fc
         checks.append(
             _check(
                 f"Node under {column.id} (strut-and-tie)",
                 worst[0] / 1e3,
-                PHI_STM * fce * area / 1e3,
+                phi * fce * area / 1e3,
                 "kN",
                 worst[1],
-                f"C-C-C node, φ 0.85 βn f'c Anz with βn = {BETA_CCC:g}, Anz = the column "
+                f"C-C-C node, φ 0.85 βn f'c Anz with βn = {beta_ccc:g}, Anz = the column "
                 f"{column.cu:.0f} × {column.cv:.0f} mm (ACI 318-19 23.9.1, Table 23.9.2)",
             )
         )
@@ -544,15 +549,15 @@ def _node_checks(
         ((float(r.max()), name) for name, r in reactions_of.items() if len(r)), default=None
     )
     if worst_pile is not None:
-        fce = 0.85 * BETA_CCT * spec.fc
+        fce = 0.85 * beta_cct * spec.fc
         checks.append(
             _check(
                 "Node over a pile (strut-and-tie)",
                 max(worst_pile[0], 0.0) / 1e3,
-                PHI_STM * fce * area / 1e3,
+                phi * fce * area / 1e3,
                 "kN",
                 worst_pile[1],
-                f"C-C-T node at the pile head, φ 0.85 βn f'c Anz with βn = {BETA_CCT:g}, Anz = "
+                f"C-C-T node at the pile head, φ 0.85 βn f'c Anz with βn = {beta_cct:g}, Anz = "
                 f"the pile's area (Ø{spec.pile_diameter:.0f}) (ACI 318-19 23.9.1, Table 23.9.2)",
             )
         )
@@ -814,7 +819,8 @@ def pile_cap_design(
     checks.append(
         _check(
             "Cover of the cap's main bars",
-            max(CAP_COVER, PILE_EMBEDMENT),
+            # least clear cover of the cap's main bars (BNBC 2020 Sec 3.10.1.20: 50 mm)
+            max(float(code_context.table("concrete").cover["pileCap"]), PILE_EMBEDMENT),
             spec.cover,
             "mm",
             None,

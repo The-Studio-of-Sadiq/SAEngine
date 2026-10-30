@@ -1302,13 +1302,14 @@ class _Measure:
             self.notes.append(f"Lintels not measured: {error}.")
             return
         walls = {e.id: e for e in self.building.elements if isinstance(e, WallElement)}
+        bearing, cover = lintel_design.lintel_limit("bearing"), lintel_design.lintel_cover()
         for lintel in found["elements"]:
             material = self.materials.get(lintel["concrete"])
             if material is None:
                 continue
             host = walls.get(lintel.get("host"))
             story = self.story_at(host.bottom) if host is not None else None
-            length = float(lintel["clear"]) + 2 * lintel_design.BEARING
+            length = float(lintel["clear"]) + 2 * bearing
             b, h = float(lintel["b"]), float(lintel["h"])
             self.concrete(lintel["id"], material, "lintel", b * h * length, story)
             self.formwork(lintel["id"], "lintel", float(lintel["clear"]) * b, story, "soffit")
@@ -1318,14 +1319,14 @@ class _Measure:
                 group = bars.get(detail)
                 if group:
                     count, dia = int(group[0]), float(group[1])
-                    total = count * bar_length(length - 2 * lintel_design.COVER, dia)
+                    total = count * bar_length(length - 2 * cover, dia)
                     self.rebar(lintel["id"], lintel["steel"], dia, total, story, detail)
             links = bars.get("stirrups")
             if links:
                 legs, dia, spacing = int(links[0]), float(links[1]), float(links[2])
-                n = math.floor((length - 2 * lintel_design.COVER) / spacing) + 1
-                inner_b = b - 2 * lintel_design.COVER
-                inner_h = h - 2 * lintel_design.COVER
+                n = math.floor((length - 2 * cover) / spacing) + 1
+                inner_b = b - 2 * cover
+                inner_h = h - 2 * cover
                 each = 2 * (inner_b + inner_h) + (legs - 2) * inner_h + 20 * dia
                 self.rebar(lintel["id"], lintel["steel"], dia, n * each, story, "links")
         if found["elements"]:

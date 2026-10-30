@@ -342,8 +342,11 @@ def apply(
     def demands(pieces: list[Any], turned: bool, member_id: str | None) -> dj.SeismicDemands:
         return dj.seismic_demands(pieces, e_for(member_id), turned, profile_forces)
 
+    axial_share = dm._special("axialShare")
+    strong_ratio = dj._joints("strongColumnRatio")
+
     def heavy(d: Designed, pmax: float) -> bool:
-        return pmax > dm.AXIAL_SHARE * d.section.gross_area * d.section.fc
+        return pmax > axial_share * d.section.gross_area * d.section.fc
 
     # ── joints: strong column / weak beam (8.3.5.2) and joint shear (8.3.7) ──
     full_height: set[str] = set()
@@ -423,12 +426,12 @@ def apply(
         scwb: dict[str, Any] = {}
         for row in strong:
             axis = row["name"].rsplit(" ", 1)[-1]
-            mnb = row["demand"] / dj.STRONG_COLUMN_RATIO
+            mnb = row["demand"] / strong_ratio
             scwb[axis] = {
                 "ratio": round(row["capacity"] / mnb, 3) if mnb > 0 else None,
                 "sumMnc": row["capacity"],
                 "sumMnb": round(mnb, 2),
-                "required": dj.STRONG_COLUMN_RATIO,
+                "required": strong_ratio,
                 "utilisation": 0.0 if row["flag"] else row["utilisation"],
                 "notRequired": bool(row["flag"]),
             }

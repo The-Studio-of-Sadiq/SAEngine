@@ -3,12 +3,7 @@
 	"project": {
 		"name": "Sample Frame"
 	},
-	"codes": {
-		"general": "BNBC 2020",
-		"concrete": "BNBC 2020 Part 6 Chapter 6",
-		"steel": "BNBC 2020 Part 6 Chapter 10",
-		"method": "strength"
-	},
+	"codePack": "bnbc2020",
 	"occupancy": {
 		"use": "residential",
 		"category": "II"

@@ -31,6 +31,7 @@ from typing import Any
 
 import numpy as np
 
+from saengine.codes import context as code_context
 from saengine.design.bars import mesh_for, slab_flexure_need
 from saengine.library.bim import ColumnElement
 from saengine.library.materials import Category
@@ -533,9 +534,14 @@ def propose_footings(
     columns: list[str] | None = None,
 ) -> dict[str, Any]:
     """:func:`propose` for the project at ``project_root`` (results in ``out_dir``, default
-    ``08 FEM/model.results``). Raises ``ValueError`` when there are no analysis results."""
+    ``08 FEM/model.results``). Raises ``ValueError`` when there are no analysis results. Runs
+    under the project's code pack."""
     ctx = load_context(project_root, out_dir)
-    try:
-        return propose(ctx, columns)
-    except Skip as reason:
-        raise ValueError(str(reason)) from reason
+    with (
+        code_context.project(ctx.root or project_root),
+        code_context.using(code_context.pack_for(ctx.settings, ctx.root)),
+    ):
+        try:
+            return propose(ctx, columns)
+        except Skip as reason:
+            raise ValueError(str(reason)) from reason

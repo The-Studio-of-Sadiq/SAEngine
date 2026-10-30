@@ -96,6 +96,8 @@ from typing import Any
 
 import numpy as np
 
+from saengine.codes import context as code_context
+
 NONSWAY_Q = 0.05
 """Stability index up to which a storey is nonsway (BNBC 6.3.10.5.2, Eq. 6.6.17)."""
 SWAY_LIMIT = 22.0
@@ -132,12 +134,8 @@ ORTHOGONAL_SHARE = 0.25
 """... and at least this share of the same combination's storey shear in the other direction
 (a combination loading the other direction defines no Q here with its by-product shear and
 drift; 100 % + 30 % orthogonal combinations still do)."""
-CRACKED_COLUMN = 0.70
-CRACKED_BEAM = 0.35
-CRACKED_PLATE = 0.25
-"""Flat plates and flat slabs (BNBC 6.3.10.4.1)."""
-CRACKED_WALL = 0.35
-"""Cracked walls (BNBC 6.3.10.4.1), taken for the walls' share of a storey's drift."""
+# The cracked-section factors (BNBC 6.3.10.4.1: columns, beams, flat plates and cracked walls,
+# the walls' share of a storey's drift) are the pack's: code_context.cracked_factors().
 PLATE_CONE = 0.3
 """A slab's span from a column runs to the nearest column (or wall node) within this offset
 over the distance along the direction."""
@@ -415,9 +413,7 @@ def _cut_geometry(points: list[np.ndarray]) -> tuple[np.ndarray, ...] | None:
     )
 
 
-def _shell_cut(
-    points: list[np.ndarray], rows: np.ndarray, geometry: Any = False
-) -> np.ndarray:
+def _shell_cut(points: list[np.ndarray], rows: np.ndarray, geometry: Any = False) -> np.ndarray:
     """The force [N, global] that the part of a vertical shell above a horizontal cut through
     it exerts on the part below: its mean membrane and transverse shear forces per length
     (N11 N22 N12 . . . Q13 Q23, the shell's axes) on the cut's normal (up, in its plane),
@@ -439,7 +435,7 @@ def storeys(
     pieces: dict[str, list[Any]],
     combinations: list[str],
     lateral_disp: list[dict[int, np.ndarray]],
-    drift_factor: float | None = 1 / CRACKED_COLUMN,
+    drift_factor: float | None = None,
     shells: dict[int, tuple[list[np.ndarray], list[np.ndarray]]] | None = None,
     model: Model | None = None,
     storey_shear: list[Any] | None = None,
@@ -520,11 +516,11 @@ def storeys(
                 if drift_factor is not None:
                     factor = drift_factor
                 elif frame_factor is None:
-                    factor = 1 / CRACKED_COLUMN
+                    factor = 1 / code_context.cracked_factors().column
                 else:
                     vf, vw = abs(float(frame_v[c] @ unit)), abs(float(wall_v[c] @ unit))
                     factor = (
-                        (vf * frame_factor + vw / CRACKED_WALL) / (vf + vw)
+                        (vf * frame_factor + vw / code_context.cracked_factors().wall) / (vf + vw)
                         if vf + vw > 0
                         else frame_factor
                     )
@@ -624,7 +620,8 @@ class JointStiffness:
 
     @property
     def flexural_cracked(self) -> float:
-        return CRACKED_BEAM * self.beams + CRACKED_PLATE * self.slabs
+        cracked = code_context.cracked_factors()
+        return cracked.beam * self.beams + cracked.plate * self.slabs
 
 
 class Model:
@@ -684,7 +681,8 @@ class Model:
                 "embedding strut"
             ):
                 return 1.0
-            factor = CRACKED_COLUMN if column else CRACKED_BEAM
+            share = code_context.cracked_factors()
+            factor = share.column if column else share.beam
             source = (element.get("name") or str(element["id"])).split("#")[0]
             is_concrete, object_type = concrete_type(source)
             if cracked is True:
@@ -995,7 +993,7 @@ class Model:
         if flexural <= 0:
             return PSI_INFINITE, "no beams"
         note = "flat plate" if j.beams <= 0 else ""
-        return CRACKED_COLUMN * j.columns / flexural, note
+        return code_context.cracked_factors().column * j.columns / flexural, note
 
     # ── the cracked storey drift ──
 
@@ -1008,6 +1006,7 @@ class Model:
         B_gross)``, between 1/0.70 and 1/0.25. 1/0.35 when the storey has no frame columns or
         a floor without beams or slabs."""
         h = z1 - z0
+        share = code_context.cracked_factors()
         kc = 0.0
         for i in columns:
             f = self.frames.get(i)
@@ -1016,7 +1015,7 @@ class Model:
             _, y, z = f.axes
             kc += f.e * (f.iz * float(y @ unit) ** 2 + f.iy * float(z @ unit) ** 2) / h
         if kc <= 0:
-            return 1 / CRACKED_WALL
+            return 1 / share.wall
         gross, cracked = [], []
         for level in (z0, z1):
             nodes = self.column_nodes.get(round(level * 1e3), set())
@@ -1036,12 +1035,12 @@ class Model:
                         beams += f.e * f.iy * float(f.axes[0] @ unit) ** 2 / span
                 slabs += self._slab_stiffness(n, unit) / 2  # a panel from both its columns
             if beams + slabs <= 0:
-                return 1 / CRACKED_BEAM
+                return 1 / share.beam
             gross.append(1 / (beams + slabs))
-            cracked.append(1 / (CRACKED_BEAM * beams + CRACKED_PLATE * slabs))
+            cracked.append(1 / (share.beam * beams + share.plate * slabs))
         b_gross, b_cracked = sum(gross) / 2, sum(cracked) / 2
-        factor = (1 / (CRACKED_COLUMN * kc) + b_cracked) / (1 / kc + b_gross)
-        return min(max(factor, 1 / CRACKED_COLUMN), 1 / CRACKED_PLATE)
+        factor = (1 / (share.column * kc) + b_cracked) / (1 / kc + b_gross)
+        return min(max(factor, 1 / share.column), 1 / share.plate)
 
 
 # ─────────────────────────────── one column ───────────────────────────────

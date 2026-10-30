@@ -202,7 +202,7 @@ def boundary_entry(need: W.BoundaryNeed | None, fc: float) -> dict[str, Any] | N
     else:
         reason = (
             f"σ = {need.stress:.1f} MPa {'>' if need.required else '≤'} 0.2 f'c = "
-            f"{W.STRESS_REQUIRED * fc:.1f} MPa"
+            f"{W.special_limit('stressRequired') * fc:.1f} MPa"
         )
         clause = "BNBC 2020 Part 6 Sec 8.3.6.6(c)"
     if need.required and need.height:
@@ -226,9 +226,10 @@ def boundary_entry(need: W.BoundaryNeed | None, fc: float) -> dict[str, Any] | N
 def required_layers(geometry: W.WallGeometry, forces: list[W.PierForces], special: bool, fc: float):
     """Curtains required: two above 250 mm (6.6.3.4) or, in special walls, where Vu > 0.17 Acv
     λ √f'c (8.3.6.2(b))."""
-    layers = 2 if geometry.thickness > W.TWO_LAYER_THICKNESS and not geometry.basement else 1
+    two_layers = W.steel_limit("twoLayerThickness")
+    layers = 2 if geometry.thickness > two_layers and not geometry.basement else 1
     vu = max((abs(f.V2) for f in forces), default=0.0)
-    if special and vu > W.TWO_CURTAIN_SHARE * geometry.gross_area * math.sqrt(fc):
+    if special and vu > W.special_limit("twoCurtainShare") * geometry.gross_area * math.sqrt(fc):
         layers = 2
     return layers
 
@@ -998,7 +999,7 @@ def shear_ratio(collected: dict[str, Any]) -> float:
     if not collected["special"]:
         return W._rho_t_shear(g, forces, fc, fy, 1.0)
     vu = max((abs(f.V2) for f in forces), default=0.0)
-    need = vu / W.PHI_SHEAR_SEISMIC / g.gross_area - W.alpha_c(g.aspect) * math.sqrt(fc)
+    need = vu / W.wall_phi("shearSeismic") / g.gross_area - W.alpha_c(g.aspect) * math.sqrt(fc)
     return max(need, 0.0) / min(fy, W.FYT_SHEAR_MAX)
 
 
@@ -1223,7 +1224,7 @@ def _heavier_meshes(least: dict[str, Any], s_max: float) -> list[dict[str, float
     lightest first."""
     area = W.bar_area(float(least["dia"])) / float(least["spacing"])
     out = []
-    for dia in W.WALL_DIAMETERS:
+    for dia in W.bar_sizes("wall"):
         spacing = math.floor(s_max / 25.0) * 25.0
         while spacing >= W.MIN_WALL_SPACING:
             if W.bar_area(dia) / spacing > area * (1 + 1e-9):
@@ -1265,6 +1266,7 @@ def proposal_entries(
         thickness = group[0]["geometry"].thickness
         too_small = ""
         picks: dict[str, Any] = {}
+        sizes = W.bar_sizes("wall")
         for key, rho, s_max in (
             ("vertical", "rho_l", "vertical_s_max"),
             ("horizontal", "rho_t", "horizontal_s_max"),
@@ -1274,7 +1276,7 @@ def proposal_entries(
                 break
             area = max(_face(getattr(n, rho), thickness, layers) for n in needs)
             spacing = min(getattr(n, s_max) for n in needs)
-            mesh = mesh_for(area, spacing, W.WALL_DIAMETERS, W.MIN_WALL_SPACING)
+            mesh = mesh_for(area, spacing, sizes, W.MIN_WALL_SPACING)
             if mesh is None:
                 too_small = f"no {key} mesh carries {area:.0f} mm²/m at ≤ {spacing:.0f} mm"
                 break

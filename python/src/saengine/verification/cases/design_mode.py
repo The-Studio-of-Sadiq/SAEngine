@@ -180,7 +180,7 @@ def slab_strip(_: Path) -> Outcome:
     h, cover, mu = 150.0, 20.0, 20e6
     as_min = 0.0018 * h * 1000
     required = {}
-    for dia in B.SLAB_DIAMETERS:
+    for dia in B.diameters("slab"):
         d = h - cover - dia / 2
         rn = mu / (0.9 * 1000 * d**2)
         rho = 0.85 * FC / FY * (1 - math.sqrt(1 - 2 * rn / (0.85 * FC)))
@@ -188,9 +188,9 @@ def slab_strip(_: Path) -> Outcome:
     s10 = math.floor(_area(10) * 1000 / required[10] / 25) * 25
     computed = {
         dia: max(B.slab_flexure_need(mu, h - cover - dia / 2, FC, FY).area, as_min)
-        for dia in B.SLAB_DIAMETERS
+        for dia in B.diameters("slab")
     }
-    mesh = B.mesh_for(0.0, min(2 * h, 450.0), B.SLAB_DIAMETERS, 100.0, computed)
+    mesh = B.mesh_for(0.0, min(2 * h, 450.0), B.diameters("slab"), 100.0, computed)
     reference = Reference(
         source="ACI 318-19 22.2 (stress block), 8.6.1.1 / Table 24.4.3.2 (As,min = 0.0018 Ag "
         "for fy = 420), 8.7.2.2 (spacing <= min(2h, 450 mm))",

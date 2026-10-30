@@ -183,6 +183,85 @@ PACK_ONLY = {
     ("saengine.design.steel.members", "PHI_V"),
     ("saengine.design.steel.members", "KL_R_COMPRESSION"),
     ("saengine.design.steel.members", "L_R_TENSION"),
+    ("saengine.design.slender", "CRACKED_COLUMN"),
+    ("saengine.design.slender", "CRACKED_BEAM"),
+    ("saengine.design.slender", "CRACKED_PLATE"),
+    ("saengine.design.slender", "CRACKED_WALL"),
+    ("saengine.fem.second_order", "ACI_FACTORS"),
+    ("saengine.substructure.piles", "TABLE_6_3_10A"),
+    ("saengine.substructure.piles", "CONTROLS"),
+    ("saengine.substructure.piles", "PARTIAL_SKIN"),
+    ("saengine.substructure.piles", "PARTIAL_BASE"),
+    ("saengine.substructure.piles", "SPT_FS"),
+    ("saengine.substructure.piles", "NO_LOAD_TEST_FS"),
+    ("saengine.substructure.piles", "LOAD_TEST_FS"),
+    ("saengine.substructure.pilecap", "CAP_COVER"),
+    ("saengine.substructure.pilecap", "PHI_STM"),
+    ("saengine.substructure.pilecap", "TIE_ARM"),
+    ("saengine.substructure.pilecap", "BETA_CCC"),
+    ("saengine.substructure.pilecap", "BETA_CCT"),
+    ("saengine.design.ductile_members", "AXIAL_SHARE"),
+    ("saengine.design.ductile_members", "SMF_BEAM_RHO_MAX"),
+    ("saengine.design.ductile_members", "SMF_COLUMN_RHO"),
+    ("saengine.design.ductile_members", "SMF_BEAM_MIN_WIDTH"),
+    ("saengine.design.ductile_members", "SMF_BEAM_MIN_RATIO"),
+    ("saengine.design.ductile_members", "SMF_COLUMN_MIN_DIMENSION"),
+    ("saengine.design.ductile_members", "SMF_COLUMN_MIN_RATIO"),
+    ("saengine.design.ductile_members", "FYT_CONFINEMENT_MAX"),
+    ("saengine.design.ductile_members", "HX_MAX"),
+    ("saengine.design.ductile_members", "UNSUPPORTED_CLEAR"),
+    ("saengine.design.ductile_members", "BEAM_FIRST_HOOP"),
+    ("saengine.design.ductile_joints", "PROBABLE_STRESS"),
+    ("saengine.design.ductile_joints", "STRONG_COLUMN_RATIO"),
+    ("saengine.design.ductile_joints", "AXIAL_LIMIT"),
+    ("saengine.design.ductile_joints", "PHI_JOINT"),
+    ("saengine.design.ductile_joints", "JOINT_GAMMA"),
+    ("saengine.design.ductile_joints", "VC_ZERO_AXIAL"),
+    ("saengine.design.bars", "DIAMETERS"),
+    ("saengine.design.bars", "MAIN_DIAMETERS"),
+    ("saengine.design.bars", "COLUMN_DIAMETERS"),
+    ("saengine.design.bars", "SLAB_DIAMETERS"),
+    ("saengine.design.bars", "STIRRUP_DIAMETERS"),
+    ("saengine.design.bars", "SPACING_STEP"),
+    ("saengine.design.bars", "MIN_SLAB_SPACING"),
+    ("saengine.design.bars", "MIN_STIRRUP_SPACING"),
+    ("saengine.design.bars", "RHO_MIN"),
+    ("saengine.design.bars", "RHO_MAX"),
+    ("saengine.design.bars", "BEAM_RATIO_MAX"),
+    ("saengine.design.slab", "PHI_PUNCHING"),
+    ("saengine.design.slab", "EPS_T_MIN"),
+    ("saengine.design.slab", "_TABLE_8_3_1_1"),
+    ("saengine.design.stairs", "COVER"),
+    ("saengine.design.stairs", "GRAVITY_COMBINATIONS"),
+    ("saengine.library.generator", "FLAT_DIVISORS"),
+    ("saengine.library.generator", "ONE_WAY_SLAB"),
+    ("saengine.library.generator", "BEAM"),
+    ("saengine.design.steel.members", "G"),
+    ("saengine.design.walls", "RHO_SMALL_BARS"),
+    ("saengine.design.walls", "RHO_OTHER_BARS"),
+    ("saengine.design.walls", "SMALL_BAR_MAX"),
+    ("saengine.design.walls", "SMALL_BAR_FY"),
+    ("saengine.design.walls", "RHO_SHEAR"),
+    ("saengine.design.walls", "TWO_LAYER_THICKNESS"),
+    ("saengine.design.walls", "SPACING_MAX"),
+    ("saengine.design.walls", "RELAXED_SHARE"),
+    ("saengine.design.walls", "TWO_CURTAIN_SHARE"),
+    ("saengine.design.walls", "DRIFT_MIN"),
+    ("saengine.design.walls", "STRESS_REQUIRED"),
+    ("saengine.design.walls", "STRESS_STOP"),
+    ("saengine.design.walls", "PHI_SHEAR_SEISMIC"),
+    ("saengine.design.walls", "PHI_DIAGONAL"),
+    ("saengine.design.walls", "FYT_CONFINEMENT_MAX"),
+    ("saengine.design.walls", "HX_MAX"),
+    ("saengine.design.walls", "WALL_DIAMETERS"),
+    ("saengine.design.walls", "BOUNDARY_DIAMETERS"),
+    ("saengine.design.walls", "HOOP_DIAMETERS"),
+    ("saengine.design.lintels", "LINTEL_DIAMETERS"),
+    ("saengine.design.lintels", "COVER"),
+    ("saengine.design.lintels", "MIN_BEARING"),
+    ("saengine.design.lintels", "BEARING"),
+    ("saengine.design.lintels", "DEFLECTION_RATIO"),
+    ("saengine.design.lintels", "PROBABLE"),
 }
 
 OLD_MODULE_CONSTANTS = {
@@ -301,6 +380,13 @@ OLD_MODULE_CONSTANTS = {
     ("saengine.design.slender", "CRACKED_BEAM"): 0.35,
     ("saengine.design.slender", "CRACKED_PLATE"): 0.25,
     ("saengine.design.slender", "CRACKED_WALL"): 0.35,
+    ("saengine.fem.second_order", "ACI_FACTORS"): {
+        "column": 0.70,
+        "beam": 0.35,
+        "wallUncracked": 0.70,
+        "wallCracked": 0.35,
+        "slab": 0.25,
+    },
     ("saengine.design.lintels", "LINTEL_DIAMETERS"): (10.0, 12.0, 16.0, 20.0, 25.0),
     ("saengine.design.lintels", "COVER"): 25.0,
     ("saengine.design.lintels", "MIN_BEARING"): 100.0,
@@ -450,6 +536,13 @@ def _pack_value(module: str, name: str):
         "CRACKED_BEAM": c.crackedStiffness["beam"],
         "CRACKED_PLATE": c.crackedStiffness["plate"],
         "CRACKED_WALL": c.crackedStiffness["wall"],
+        "ACI_FACTORS": {
+            "column": c.crackedStiffness["column"],
+            "beam": c.crackedStiffness["beam"],
+            "wallUncracked": c.crackedStiffness["wallUncracked"],
+            "wallCracked": c.crackedStiffness["wall"],
+            "slab": c.crackedStiffness["plate"],
+        },
         "MIN_BEARING": d.lintels["minBearing"],
         "BEARING": d.lintels["bearing"],
         "DEFLECTION_RATIO": d.lintels["deflectionRatio"],
@@ -683,3 +776,17 @@ def test_registry_resolves_the_same_values_when_available():
     assert pack.table("locations") == t("locations")
     assert pack.table("seismic") == t("seismic")
     assert pack.table("combinations") == t("combinations")
+
+
+def test_cracked_factors_walls_uncracked_default_to_the_column_factor():
+    from types import SimpleNamespace
+
+    from saengine.codes.context import cracked_factors
+
+    data = json.loads((PACK / "data" / "concrete.json").read_text(encoding="utf-8"))
+    assert cracked_factors().walls(cracked=False) == data["crackedStiffness"]["wallUncracked"]
+    del data["crackedStiffness"]["wallUncracked"]
+    data["crackedStiffness"]["column"] = 0.8
+    table = tables.validate_table("concrete", data)
+    factors = cracked_factors(SimpleNamespace(table=lambda name: table))
+    assert (factors.walls(cracked=False), factors.walls(cracked=True)) == (0.8, 0.35)

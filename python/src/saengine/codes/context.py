@@ -24,6 +24,7 @@ import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -156,6 +157,38 @@ def current() -> CodePack:
 def table(name: str) -> Any:
     """Table ``name`` of the pack in force."""
     return current().table(name)
+
+
+@dataclass(frozen=True)
+class CrackedFactors:
+    """The cracked-section stiffness factors (share of the gross moment of inertia) of the
+    pack's ``concrete.crackedStiffness``."""
+
+    column: float
+    beam: float
+    plate: float
+    """Flat plates and flat slabs."""
+    wall: float
+    """Cracked walls."""
+    wall_uncracked: float
+    """Walls taken as uncracked."""
+
+    def walls(self, cracked: bool) -> float:
+        return self.wall if cracked else self.wall_uncracked
+
+
+def cracked_factors(pack: CodePack | None = None) -> CrackedFactors:
+    """The cracked-section factors of ``pack`` (default: the pack in force); walls taken as
+    uncracked use the column factor when the pack gives none."""
+    group = (pack or current()).table("concrete").crackedStiffness
+    column = float(group.column)
+    return CrackedFactors(
+        column=column,
+        beam=float(group.beam),
+        plate=float(group.plate),
+        wall=float(group.wall),
+        wall_uncracked=column if group.wallUncracked is None else float(group.wallUncracked),
+    )
 
 
 def front_matter(pack: CodePack) -> dict[str, Any]:

@@ -4197,7 +4197,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 		},
 		Codes: {
 			additionalProperties: false,
-			description: 'The codes the design follows. BNBC 2020 Part 6 adopts ACI 318 for concrete and AISC 360 for steel.',
+			description: 'Deprecated: the design code is the code pack (codePack); the report states the labels of\nits basis. Old files keep validating; the value is not read and not written back.',
 			properties: {
 				general: {
 					const: 'BNBC 2020',
@@ -5166,7 +5166,18 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			type: 'string',
 		},
 		codes: {
-			$ref: '#/$defs/Codes',
+			anyOf: [
+				{
+					$ref: '#/$defs/Codes',
+				},
+				{
+					type: 'null',
+				},
+			],
+			default: null,
+			deprecated: true,
+			description: 'Deprecated: the design code is chosen by codePack. Read from old files and dropped when they are saved.',
+			title: 'Codes (deprecated)',
 		},
 		occupancy: {
 			$ref: '#/$defs/Occupancy',
@@ -5234,12 +5245,6 @@ export const DEFAULT_SETTINGS: object = {
 		name: 'Project',
 	},
 	codePack: 'bnbc2020',
-	codes: {
-		general: 'BNBC 2020',
-		concrete: 'BNBC 2020 Part 6 Chapter 6',
-		steel: 'BNBC 2020 Part 6 Chapter 10',
-		method: 'strength',
-	},
 	occupancy: {
 		use: 'residential',
 		category: 'II',

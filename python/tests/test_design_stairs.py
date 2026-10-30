@@ -17,7 +17,7 @@ from saengine.library.settings import default_project_settings
 GAMMA = 2400 * 9.80665 / 1000  # kN/m³
 FC, FY = 25.0, 420.0
 MATERIAL = S.StairMaterial(FC, FY, steel="RB420")
-LOADS = S.StairLoads(1.2, 4.8, S.GRAVITY_COMBINATIONS)
+LOADS = S.StairLoads(1.2, 4.8, S.gravity_combinations())
 
 
 def hand_area(mu: float, d: float) -> float:
@@ -377,7 +377,7 @@ def test_loads_from_settings():
     assert "1.4D" in names and "1.2D + 1.6L + 0.5Lr" in names
     assert all(not any(k in n for k in ("W", "E")) for n in names)
     bare = S.loads_from_settings(None)
-    assert bare.live == S.LIVE_STAIRS and bare.combinations == S.GRAVITY_COMBINATIONS
+    assert bare.live == S.LIVE_STAIRS and bare.combinations == S.gravity_combinations()
     # an apartment building with the stairs at 2.0 kN/m² is warned: Table 6.2.3's 2.00 row is
     # for one- and two-family residences only
     stairs = next(a for a in settings.areaLoads if a.use == "stairs")

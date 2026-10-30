@@ -88,6 +88,12 @@
       "Sec 8.1.11.2 (p. 1075)"
     ]
   },
+  "basis": {
+    "general": "BNBC 2020",
+    "concrete": "BNBC 2020 Part 6 Chapter 6",
+    "steel": "BNBC 2020 Part 6 Chapter 10",
+    "method": "Strength design (LRFD)"
+  },
   "author": "SAEngine contributors",
   "licence": "AGPL-3.0-only"
 }

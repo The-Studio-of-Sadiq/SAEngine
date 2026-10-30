@@ -14,8 +14,8 @@ from typing import Any
 import numpy as np
 import pytest
 
+from saengine.codes.context import cracked_factors
 from saengine.fem.second_order import (
-    ACI_FACTORS,
     SecondOrderOptions,
     apply_second_order,
     drift_amplification,
@@ -575,7 +575,9 @@ def test_options_from_settings_defaults() -> None:
     gross = SecondOrderOptions(stiffness="gross", crackedFor="lateral")
     assert apply_second_order(cantilever(1e5, 1), gross).notes == []
     assert options_from_settings(object()) == SecondOrderOptions()
-    assert ACI_FACTORS["column"] == 0.70 and ACI_FACTORS["slab"] == 0.25
+    factors = cracked_factors()
+    assert (factors.column, factors.beam, factors.plate) == (0.70, 0.35, 0.25)
+    assert (factors.walls(cracked=False), factors.walls(cracked=True)) == (0.70, 0.35)
 
 
 # ─────────────────────────── the sample building ───────────────────────────

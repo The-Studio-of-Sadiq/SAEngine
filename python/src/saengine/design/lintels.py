@@ -64,12 +64,13 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from typing import Any
 
+from saengine.codes import context as code_context
 from saengine.design.bars import (
-    STIRRUP_DIAMETERS,
     beam_flexure_need,
     beam_min_area,
     beam_shear_need,
     choose_stirrups,
+    diameters,
     face_options,
     round_down,
     with_minimum,
@@ -95,11 +96,6 @@ CLAUSES = {
     "capacity": "BNBC 2020 Part 6 Sec 8.3.8.1(a) (p. 1111), 8.3.8.2(a) (p. 1112)",
 }
 
-#: Least bearing of a lintel on each end (7.4.3.2) [mm], and the default bearing.
-MIN_BEARING = 100.0
-BEARING = 150.0
-#: Deflection limit of members supporting masonry: clear span / 600 (7.4.3.2).
-DEFLECTION_RATIO = 600.0
 #: Lintel span limit and bar extension beyond the opening (7.9.6.3, high wind regions) [mm].
 WIND_SPAN_MAX = 3500.0
 WIND_BAR_EXTENSION = 600.0
@@ -109,17 +105,32 @@ DEPTH_STEP = 25.0
 #: Unit weights [kN/m³] when the material has no density: reinforced concrete, brick masonry.
 CONCRETE_WEIGHT = 24.0
 MASONRY_WEIGHT = 18.85
-#: Lintel bars: main diameters, hangers.
-LINTEL_DIAMETERS = (10.0, 12.0, 16.0, 20.0, 25.0)
+#: Lintel hangers (the main bar sizes are the pack's, :func:`lintel_diameters`).
 HANGER = (2, 10.0)
-COVER = 25.0
 #: Members at most this deep need no shear reinforcement where Vu <= φVc (ACI Table
 #: 9.6.3.1); their nominal links (legs, dia, spacing).
 SHALLOW = 250.0
 NOMINAL_LINKS = (2, 8.0, 150.0)
-#: Probable moment: bars at 1.25 fy (notation p. 882, 8.3.8.1).
-PROBABLE = 1.25
 G = 9.80665
+
+
+def lintel_limit(name: str) -> float:
+    """The pack's ``detailing.lintels`` value ``name`` (BNBC 2020: minBearing 100 mm, the least
+    bearing of a lintel on each end, and bearing 150 mm, the default bearing (7.4.3.2);
+    deflectionRatio 600, members supporting masonry deflect at most clear span / 600 (7.4.3.2);
+    probable 1.25, the probable moment's bars at 1.25 fy (notation p. 882, 8.3.8.1))."""
+    return float(code_context.table("detailing").lintels[name])
+
+
+def lintel_cover() -> float:
+    """The pack's clear cover of lintels and spandrels designed as beams [mm] (BNBC 2020: 25)."""
+    return float(code_context.table("concrete").cover["lintel"])
+
+
+def lintel_diameters() -> tuple[float, ...]:
+    """The pack's main bar sizes of lintels [mm] (BNBC 2020: 10, 12, 16, 20, 25)."""
+    return tuple(float(d) for d in code_context.table("concrete").barDiameters["lintel"])
+
 
 METHOD = [
     (
@@ -173,14 +184,15 @@ def lintel_loads(
     *,
     masonry_weight: float = MASONRY_WEIGHT,
     concrete_weight: float = CONCRETE_WEIGHT,
-    bearing: float = BEARING,
+    bearing: float | None = None,
     angle: float = 45.0,
     floor_dead: float = 0.0,
     floor_live: float = 0.0,
 ) -> LintelLoads:
     """The loads on a lintel ``width`` x ``depth`` over an opening ``clear`` wide [mm] with
     ``height_above`` [mm] of masonry above it (unit weights in kN/m³, the floor's line loads in
-    kN/m = N/mm): see the module notes."""
+    kN/m = N/mm): see the module notes. ``bearing``: default the pack's (BNBC 2020: 150 mm)."""
+    bearing = lintel_limit("bearing") if bearing is None else bearing
     span = clear + bearing
     rise = span / 2 * math.tan(math.radians(angle))
     gamma = masonry_weight * 1e-6  # N/mm³
@@ -226,8 +238,9 @@ def probable_moment(area: float, b: float, d: float, fc: float, fy: float) -> fl
     """Mpr [N·mm]: the bars at 1.25 fy, φ = 1 (the stress block, singly reinforced)."""
     if area <= 0:
         return 0.0
-    a = area * PROBABLE * fy / (0.85 * fc * b)
-    return area * PROBABLE * fy * (d - a / 2)
+    probable = lintel_limit("probable")
+    a = area * probable * fy / (0.85 * fc * b)
+    return area * probable * fy * (d - a / 2)
 
 
 def cracked_inertia(area: float, b: float, d: float, n: float) -> float:
@@ -278,8 +291,9 @@ def _bars_for(
 ) -> tuple[int, float] | None:
     """The best bars of one face (one row if they fit), with at most ``max_count`` bars where
     such a choice exists (two-leg hoops hold every corner and alternate bar of three)."""
+    sizes = lintel_diameters()
     for rows in (1, 2):
-        options = face_options(area, b, inset, LINTEL_DIAMETERS, min_count=2, max_rows=rows)
+        options = face_options(area, b, inset, sizes, min_count=2, max_rows=rows)
         if max_count is not None:
             few = [o for o in options if o.count <= max_count]
             options = few or options
@@ -297,7 +311,7 @@ def design_beam(
     fy: float,
     *,
     fyt: float | None = None,
-    cover: float = COVER,
+    cover: float | None = None,
     combination: str | None = None,
     shear_combination: str | None = None,
     symmetric: bool = False,
@@ -309,9 +323,10 @@ def design_beam(
     """Bars for ``mu`` [N·mm] and stirrups for ``vu`` [N] of a ``b`` x ``h`` beam: bottom bars
     (and the same on top when ``symmetric``, else Ø10 hangers), with their rows. ``vc_zero``:
     Vc = 0 (8.3.8.2(a)); ``stirrup_s_max``: a closer spacing limit (the hoop zones);
-    ``max_count``: bars per face preferred at most."""
+    ``max_count``: bars per face preferred at most. ``cover``: default the pack's lintel cover."""
     fyt = fy if fyt is None else fyt
-    stirrup = STIRRUP_DIAMETERS[0]
+    cover = lintel_cover() if cover is None else cover
+    stirrup = diameters("stirrup")[0]
     dia = 12.0
     need = None
     bars = None
@@ -448,14 +463,16 @@ def design_lintel(
         ("1.4D", 1.4, 0.0),
         ("1.2D + 1.6L", 1.2, 1.6),
     ),
-    bearing: float = BEARING,
-    cover: float = COVER,
+    bearing: float | None = None,
+    cover: float | None = None,
     es: float = STEEL_E,
     high_wind: bool = False,
 ) -> dict[str, Any]:
     """A lintel's design: ``{"span", "clear", "b", "h", "loads", "bars", "label", "checks",
     "utilisation", "ok", "notes"}`` (bars ``{"bottom": [count, dia], "top": ..., "stirrups":
-    [legs, dia, spacing]}``)."""
+    [legs, dia, spacing]}``). ``bearing``, ``cover``: default the pack's."""
+    bearing = lintel_limit("bearing") if bearing is None else bearing
+    cover = lintel_cover() if cover is None else cover
     combos = list(combinations)
     mu, m_name = max(((loads.moment(d, l_), n) for n, d, l_ in combos), default=(0.0, None))
     vu, v_name = max(((loads.shear(d, l_), n) for n, d, l_ in combos), default=(0.0, None))
@@ -476,7 +493,7 @@ def design_lintel(
     checks.append(
         _row(
             "Bearing on each end (7.4.3.2)",
-            MIN_BEARING,
+            lintel_limit("minBearing"),
             bearing,
             "mm",
             note="lintels bear at least 100 mm on the supporting masonry",
@@ -495,7 +512,7 @@ def design_lintel(
             _row(
                 "Deflection under total loads ≤ clear span / 600 (7.4.3.2)",
                 delta,
-                loads.clear / DEFLECTION_RATIO,
+                loads.clear / lintel_limit("deflectionRatio"),
                 "mm",
                 "D + L",
                 f"immediate, Ie = {ie / 1e6:.1f}e6 mm⁴ (Eq. 6.6.1; Ig = {ig / 1e6:.1f}e6, Mcr = "
@@ -603,7 +620,7 @@ def lintels_of(
     steel: str | None = None,
     floor_loads: Mapping[str, tuple[float, float]] | None = None,
     angle: float = 45.0,
-    bearing: float = BEARING,
+    bearing: float | None = None,
     high_wind: bool = False,
 ) -> dict[str, Any]:
     """The lintels of every opening in a wall that is not a structural concrete wall:
@@ -615,11 +632,14 @@ def lintels_of(
     ``MaterialLibrary.default_concrete`` / ``default_rebar``; default: the first concrete with
     f'c and the first reinforcing steel of ``mats``); ``floor_loads``: per wall id the floor's
     line load on the wall (dead, live) [kN/m] used where the arch cannot form (default 0 where
-    a beam runs over the wall, else 0 with a note)."""
+    a beam runs over the wall, else 0 with a note); ``bearing``: default the pack's (BNBC 2020:
+    150 mm)."""
     from saengine.design.stairs import loads_from_settings
     from saengine.library.bim import WallElement
     from saengine.library.materials import Category
     from saengine.library.objects import Wall
+
+    bearing = lintel_limit("bearing") if bearing is None else bearing
 
     elements: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
@@ -759,7 +779,7 @@ def spandrel_design(
     *,
     special: bool,
     earthquake: Iterable[str] | None = None,
-    cover: float = COVER,
+    cover: float | None = None,
     es: float = STEEL_E,
     lateral_stability: bool = False,
 ) -> dict[str, Any]:
@@ -768,7 +788,7 @@ def spandrel_design(
     designed as a beam (see the module notes): ``{"id", "mode", "ln", "h", "bars", "label",
     "checks", "utilisation", "ok", "notes"}``. ``lateral_stability``: the engineer has shown
     by analysis that the beam is laterally stable, so the width rules of 8.3.7.1(c), (d) are
-    waived (8.3.6.7(a)); otherwise they count."""
+    waived (8.3.6.7(a)); otherwise they count. ``cover``: default the pack's lintel cover."""
     from saengine.design import ductile_members as D
     from saengine.design.rc import section_of
     from saengine.library.objects import (
@@ -778,6 +798,8 @@ def spandrel_design(
         Transverse,
         TransverseZone,
     )
+
+    cover = lintel_cover() if cover is None else cover
 
     seismic = None if earthquake is None else set(earthquake)
     ln, h, bw = float(spandrel["length"]), float(spandrel["depth"]), float(spandrel["tw"])

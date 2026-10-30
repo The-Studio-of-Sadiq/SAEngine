@@ -51,6 +51,7 @@ bd-coastal/
   "description": "BNBC 2020 with the local towns and the 0.5L seismic combination.",
   "sources": [{ "id": "LOCAL", "title": "Local schedule", "edition": "2026" }],
   "clauses": { "locations": ["Local schedule, Table 1"] },
+  "basis": { "general": "BNBC 2020 with the local schedule" },
   "author": "A. Engineer, Firm Ltd",
   "licence": "CC-BY-4.0",
   "hooks": null
@@ -66,6 +67,7 @@ bd-coastal/
 | `extends` | The pack this one starts from (`bnbc2020`); `null` for a pack that provides every table itself. |
 | `covers` | The tables this pack provides. |
 | `sources`, `clauses` | Where the values come from: the documents, and the clauses by table. |
+| `basis` | What the report and the design method say the design follows: `general` (loads and general), `concrete`, `steel` and `method`. Each label a pack leaves out comes from the pack it extends (BNBC 2020: "BNBC 2020", "BNBC 2020 Part 6 Chapter 6", "BNBC 2020 Part 6 Chapter 10", "Strength design (LRFD)"); without any, the pack's `edition`. |
 | `author`, `licence` | Who prepared it and on what terms it may be shared. |
 | `hooks` | Optional Python file for formulas ([below](#data-or-formula-hooks-and-trust)); `null` for a data-only pack. |
 | `requires` | Optional: what the pack needs, `{"saengine": ">=0.0.47", "packages": {"bnbc2020": ">=1.0.0"}}`. A pack that needs a newer SAEngine is not installed; a missing or too old required package is reported and the pack is not used until it is installed. |
@@ -318,8 +320,14 @@ Where SAEngine finds packs (the same id in a higher place wins):
    elsewhere): available to every project on this computer;
 3. **built-in**: `bnbc2020`, shipped with SAEngine.
 
-To use a pack, choose it in **02 Project Settings → Design code**. A project without a choice
+To use a pack, choose it in **02 Project Settings → Design code**, or in **New Project →
+Design code**, which lists the packs installed on this computer. A project without a choice
 (every project made before code packs) uses `bnbc2020`, and designs exactly as before.
+
+The design code is the code pack alone. Project settings written before code packs also have a
+`codes` section (the concrete and steel codes as labels, for instance "ACI 318-19"); it is no
+longer read, the settings form no longer shows it, and it is dropped the next time the settings
+are saved. The report's "Design basis" now states the pack's `basis`.
 
 To share a pack, zip its folder and send it; the receiver installs it with **≡ → Code Packs… →
 Install Code Pack…** (the zip or the folder, into the user folder or into the project), or
@@ -364,20 +372,41 @@ date when you change a value, so that a report always says which values it used.
 - the building generator's choice of the seismic force-resisting system (`seismic.systems`,
   `seismic.requiredDetailing`) and its period estimate (`seismic.periodUpperFactor`);
 - the steel member design's φ factors and slenderness limits (`steel.phi`: `tensionYield`,
-  `tensionRupture`, `compression`, `flexure`, `shear`; `steel.slenderness`).
+  `tensionRupture`, `compression`, `flexure`, `shear`; `steel.slenderness`) and the steel shear
+  modulus (`materials.steelShearModulus`);
+- the code the report and the design method name (the manifest's `basis`);
+- the cracked-section stiffness factors of the analysis model, the slender column design and
+  the building generator's drift estimate (`concrete.crackedStiffness`, with `wallUncracked`
+  for walls taken as uncracked);
+- the concrete design's bar sizes, spacings and steel ratios (`concrete.barDiameters`,
+  `spacingStep`, `minSlabSpacing`, `minStirrupSpacing`, `columnRho`, `beamRatioMax`), the slab
+  design's punching φ, least strain and two-way thicknesses (`factors.phi.punching`,
+  `concrete.slabStrainMin`, `concrete.twoWayThickness`), the stairs (`concrete.cover.stair`,
+  `combinations.gravity`) and the building generator's slab and beam depths
+  (`concrete.twoWayThickness`, `oneWaySlabThickness`, `beamThickness`);
+- the walls (`concrete.walls`, `detailing.walls`, `factors.phi`: `shearSeismic`,
+  `diagonalCoupling`, the wall, boundary and hoop bar sizes), the seismic detailing of special
+  moment frames and their joints (`detailing.special`, `detailing.joints`, `factors.phi.joint`)
+  and the lintels (`detailing.lintels`, `concrete.cover.lintel`, the lintel bar sizes);
+- 9 Substructure's design report and its sizing assistant: the piles (`foundations`:
+  `pileSafety`, `pileControls`, `partialSkin`, `partialBase`, `sptSafety`, `noLoadTestSafety`,
+  `loadTestSafety`) and the pile caps (`foundations.strutAndTie`, `factors.phi.strutAndTie`,
+  `concrete.cover.pileCap`).
 
 **What does not follow it yet** (read from the built-in BNBC 2020 values, whatever the pack):
-the concrete member design's φ factors, cover, bar sizes, minimum thicknesses and steel ratios,
-the seismic detailing limits of the members and joints, the steel connection factors
+the concrete section design's φ factors and constants (`factors.phi`: `tension`,
+`compressionTied`, `compressionSpiral`, `shear`; `materials`: `concreteStrain`, `steelE`;
+`concrete`: `fytShearMax`, `slendernessLimit`), the slender column limits
+(`concrete.slender`, `factors.phi.stiffnessReduction`), the steel connection factors
 (`steel.phi`: `bolt`, `bearing`, `blockShear`, `weld`, `plateFlexure`; `steel.netAreaMax`), the
-material constants (`materials`: `concreteStrain`, `steelE`, `steelShearModulus`), the lintels
-(`detailing.lintels`) and the foundation factors of 9 Substructure and the bill of quantities
-(`foundations`, `factors.phi.strutAndTie`): the rest of the `factors`, `concrete`, `detailing`,
-`steel`, `foundations` and `materials` tables; the building generator's member sizes; the soil
-part (liquefaction's site factors); the settings editor's derived-value hints and its Code
-Values panel. A pack's values in those tables are validated and shown, but not used: keep
-them equal to BNBC 2020 until a later version wires them. No design function consults hooks
-yet.
+seismic analysis checks of `fem/seismic_design` (`seismic`: `minimumScale`,
+`accidentalEccentricity`, `orthogonalShare`, `massParticipation`, the torsion limits); the
+pile and pile cap checks Part 9's editor runs while you type, and the bill of quantities' lintel
+bearing and cover (they read the tables above, but of BNBC 2020 until they run under the
+project's pack); the analysis exporters' and importers' cracked factors; the soil part
+(liquefaction's site factors); the settings editor's derived-value hints and its Code Values
+panel. A pack's values in those tables are validated and shown, but not used: keep them equal
+to BNBC 2020 until a later version wires them. No design function consults hooks yet.
 
 The project's Location must be one of BNBC 2020's towns (or "Custom" with Z and V): a pack's own
 towns are validated and listed but cannot yet be chosen in the settings.

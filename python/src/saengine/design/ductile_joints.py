@@ -52,6 +52,7 @@ from typing import Any
 
 import numpy as np
 
+from saengine.codes import context as code_context
 from saengine.design.rc import (
     FYT_SHEAR_MAX,
     PHI_SHEAR,
@@ -63,20 +64,32 @@ from saengine.design.rc import (
 )
 from saengine.library.objects import CircleProfile, RectangleProfile
 
-#: Stress of the beam bars for probable moments and joint forces, as a multiple of fy (Sec
-#: 8.3.7.1(a), p 1108; the notation of Mpr, p 882).
-PROBABLE_STRESS = 1.25
-#: Eq. 6.8.5 (Sec 8.3.5.2(b), p 1096): ΣMnc ≥ 1.2 ΣMnb.
-STRONG_COLUMN_RATIO = 1.2
-#: Columns of special moment frames: factored axial compression above this share of Ag f'c
-#: (Sec 8.3.5.1, 8.3.5.2(a), pp 1095-1096).
-AXIAL_LIMIT = 0.1
-#: φ for joint shear in special moment frames (Sec 6.2.3.3(c), p 898).
-PHI_JOINT = 0.85
-#: Joint shear coefficients γ of Vn = γ √f'c Aj (Sec 8.3.7.3, p 1110), SI units.
-JOINT_GAMMA = {4: 1.7, 3: 1.2, "opposite": 1.2, "other": 1.0}
-#: Vc = 0 below this axial compression, as a share of Ag f'c (Sec 8.3.8.2(a), p 1112).
-VC_ZERO_AXIAL = 0.05
+# The plain numbers of special moment frame joints are the pack's ``detailing.joints`` group
+# and the joint φ its ``factors.phi.joint``, read when the checks run (BNBC 2020):
+# ``probableStress`` 1.25, the stress of the beam bars for probable moments and joint forces as
+# a multiple of fy (Sec 8.3.7.1(a), p 1108; the notation of Mpr, p 882); ``strongColumnRatio``
+# 1.2, Eq. 6.8.5 (Sec 8.3.5.2(b), p 1096): ΣMnc ≥ 1.2 ΣMnb; ``axialLimit`` 0.1, columns of
+# special moment frames: factored axial compression above this share of Ag f'c (Sec 8.3.5.1,
+# 8.3.5.2(a), pp 1095-1096); ``gamma`` {"4": 1.7, "3": 1.2, "opposite": 1.2, "other": 1.0},
+# the joint shear coefficients γ of Vn = γ √f'c Aj (Sec 8.3.7.3, p 1110), SI units;
+# ``vcZeroAxial`` 0.05, Vc = 0 below this axial compression as a share of Ag f'c (Sec
+# 8.3.8.2(a), p 1112); φ for joint shear 0.85 (Sec 6.2.3.3(c), p 898).
+
+
+def _joints(name: str) -> float:
+    """The pack's ``detailing.joints`` number ``name`` (BNBC 2020: see above)."""
+    return float(code_context.table("detailing").joints[name])
+
+
+def _gamma(key: int | str) -> float:
+    """The pack's joint shear coefficient γ for ``key`` (4, 3, "opposite" or "other")."""
+    return float(code_context.table("detailing").joints.gamma[str(key)])
+
+
+def _phi_joint() -> float:
+    """The pack's φ for joint shear (BNBC 2020 Sec 6.2.3.3(c), p 898: 0.85)."""
+    return float(code_context.table("factors").phi["joint"])
+
 
 SECTION = "BNBC 2020 Part 6"
 
@@ -111,7 +124,8 @@ def _memo(section: Any, key: tuple[Any, ...], compute: Any) -> Any:
 
 def probable_section(section: RcSection) -> RcSection:
     """The section with its bars at fs = 1.25 fy (elastic-perfectly plastic), for Mpr."""
-    return _memo(section, ("probable",), lambda: replace(section, fy=PROBABLE_STRESS * section.fy))
+    stress = _joints("probableStress")
+    return _memo(section, ("probable", stress), lambda: replace(section, fy=stress * section.fy))
 
 
 @dataclass(frozen=True)
@@ -456,7 +470,8 @@ def strong_column_checks(
     directions, notes = _directions(joint, beams, below.rotation)
     rows: list[dict[str, Any]] = []
     columns = [c for c in (below, above) if c is not None]
-    required = max(c.axial_share for c in columns) > AXIAL_LIMIT
+    required = max(c.axial_share for c in columns) > _joints("axialLimit")
+    ratio = _joints("strongColumnRatio")
     for d in directions:
         mnc = 0.0
         parts = []
@@ -490,7 +505,7 @@ def strong_column_checks(
         rows.append(
             _check(
                 f"Strong column / weak beam, {joint.id} {d.name}",
-                STRONG_COLUMN_RATIO * mnb / 1e6,
+                ratio * mnb / 1e6,
                 mnc / 1e6,
                 "kN·m",
                 None,
@@ -529,11 +544,11 @@ def joint_confinement(
     count = len(confined)
     opposite = {(0, 1), (0, -1)} <= confined or {(1, 1), (1, -1)} <= confined
     if count == 4:
-        gamma = JOINT_GAMMA[4]
+        gamma = _gamma(4)
     elif count == 3 or opposite:
-        gamma = JOINT_GAMMA[3]
+        gamma = _gamma(3)
     else:
-        gamma = JOINT_GAMMA["other"]
+        gamma = _gamma("other")
     return gamma, count, count == 4
 
 
@@ -578,6 +593,7 @@ def joint_checks(
     fc = below.section.fc
     rows: list[dict[str, Any]] = []
     lever = (joint.height_below + joint.height_above) / 2 if above else joint.height_below / 2
+    stress, phi = _joints("probableStress"), _phi_joint()
     for d in directions:
         frame = column_frame(profile, below.rotation, d.axis)
         h = frame.along
@@ -591,8 +607,7 @@ def joint_checks(
                 if side:
                     fy = side[0][1].fy
                     tension += max(
-                        PROBABLE_STRESS * fy * (m.as_top if hog else m.as_bottom)
-                        for _, _, m in side
+                        stress * fy * (m.as_top if hog else m.as_bottom) for _, _, m in side
                     )
             mpr = _sum_beams(d, sense, probable=True)
             vcol = mpr / lever if lever > 0 else 0.0
@@ -600,7 +615,7 @@ def joint_checks(
             if vj > best[0]:
                 best = (vj, tension, vcol, sense)
         vj, tension, vcol, _ = best
-        capacity = PHI_JOINT * gamma * math.sqrt(fc) * aj
+        capacity = phi * gamma * math.sqrt(fc) * aj
         kind = {1.7: "all four faces", 1.2: "three or two opposite faces"}.get(gamma, "others")
         rows.append(
             _check(
@@ -610,7 +625,7 @@ def joint_checks(
                 "kN",
                 None,
                 f"Vj = ΣT - Vcol = {tension / 1e3:.0f} - {vcol / 1e3:.0f} kN, T = 1.25 fy As "
-                f"({SECTION} Sec 8.3.7.1(a)); φ γ √f'c Aj, φ = {PHI_JOINT:g} (Sec 6.2.3.3(c)), "
+                f"({SECTION} Sec 8.3.7.1(a)); φ γ √f'c Aj, φ = {phi:g} (Sec 6.2.3.3(c)), "
                 f"γ = {gamma:g} (confined: {kind}, {faces} face(s), Sec 8.3.7.3), Aj = "
                 f"{h:.0f} × {bj:.0f} mm (bj by ACI 318-19 18.8.4.3: BNBC does not define it); "
                 f"Vcol = ΣMpr / {lever:.0f} mm",
@@ -688,7 +703,7 @@ def _shear_rows(
 ) -> list[dict[str, Any]]:
     """Ve against φ (Vc + Vs), with Vc = 0 by Sec 8.3.8.2(a) in special moment frames, and the
     required transverse steel Av/s against the provided."""
-    zero = special and v_sway >= 0.5 * ve and axial < VC_ZERO_AXIAL * gross_area * fc
+    zero = special and v_sway >= 0.5 * ve and axial < _joints("vcZeroAxial") * gross_area * fc
     vc = 0.0 if zero else vc_full
     fyt = min(fyt, FYT_SHEAR_MAX)
     vs_max = 0.66 * math.sqrt(fc) * bw * d
@@ -1167,7 +1182,7 @@ def non_sfrs_checks(
     fc, ag = section.fc, section.gross_area
     rows: list[dict[str, Any]] = []
     notes: list[str] = []
-    light = gravity_axial <= AXIAL_LIMIT * ag * fc
+    light = gravity_axial <= _joints("axialLimit") * ag * fc
     exceeds = induced_moment > phi_mn or induced_shear > phi_vn
     if category == "D":
         rows.append(

@@ -242,12 +242,6 @@ class BuildingSpec(_Spec):
 G = 9.80665
 #: Default net allowable bearing for the preliminary footings [kPa] (rule of thumb).
 DEFAULT_BEARING = 100.0
-#: Table 6.6.3 (p. 902), no drop panels: fy -> (exterior without edge beams, exterior with
-#: edge beams, interior) divisors of ln.
-FLAT_DIVISORS = {280.0: (33.0, 36.0, 36.0), 420.0: (30.0, 33.0, 33.0), 520.0: (28.0, 31.0, 31.0)}
-#: Table 6.6.1 (p. 900) divisors by the number of continuous ends (0, 1, 2).
-ONE_WAY_SLAB = (20.0, 24.0, 28.0)
-BEAM = (16.0, 18.5, 21.0)
 #: Column bending allowance on the axial estimate by position (rule of thumb).
 POSITION_FACTOR = {"interior": 1.0, "edge": 1.25, "corner": 1.5}
 
@@ -271,17 +265,37 @@ def fy_factor(fy: float) -> float:
     return 1.0 if abs(fy - 420) < 1e-6 else 0.4 + fy / 700
 
 
+def _flat_divisors() -> dict[float, tuple[float, float, float]]:
+    """Table 6.6.3 (p. 902), no drop panels, the pack's ``concrete.twoWayThickness``: fy ->
+    (exterior without edge beams, exterior with edge beams, interior) divisors of ln (BNBC
+    2020: 280 -> 33, 36, 36; 420 -> 30, 33, 33; 520 -> 28, 31, 31)."""
+    return code_context.table("concrete").twoWayThickness
+
+
+def _one_way_slab() -> tuple[float, float, float]:
+    """Table 6.6.1 (p. 900) divisors of one-way slabs by the number of continuous ends (0, 1,
+    2), the pack's ``concrete.oneWaySlabThickness`` (BNBC 2020: 20, 24, 28)."""
+    return tuple(code_context.table("concrete").oneWaySlabThickness)
+
+
+def _beam_divisors() -> tuple[float, float, float]:
+    """Table 6.6.1 (p. 900) divisors of beams by the number of continuous ends (0, 1, 2), the
+    pack's ``concrete.beamThickness`` (BNBC 2020: 16, 18.5, 21)."""
+    return tuple(code_context.table("concrete").beamThickness)
+
+
 def flat_divisor(fy: float, kind: int) -> float:
     """The Table 6.6.3 h = ln/divisor, linear interpolation of h between the fy rows; kind 0
     exterior without edge beams, 1 exterior with edge beams, 2 interior."""
-    rows = sorted(FLAT_DIVISORS)
+    divisors = _flat_divisors()
+    rows = sorted(divisors)
     fy = min(max(fy, rows[0]), rows[-1])
     for lo, hi in itertools.pairwise(rows):
         if lo <= fy <= hi:
             t = (fy - lo) / (hi - lo)
-            h = (1 - t) / FLAT_DIVISORS[lo][kind] + t / FLAT_DIVISORS[hi][kind]
+            h = (1 - t) / divisors[lo][kind] + t / divisors[hi][kind]
             return 1 / h
-    return FLAT_DIVISORS[rows[-1]][kind]
+    return divisors[rows[-1]][kind]
 
 
 def _deep_merge(base: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
@@ -391,10 +405,10 @@ def _prune(points: list[tuple[Any, ...]]) -> list[tuple[Any, ...]]:
 _SEARCHES: dict[tuple[Any, ...], Any] = {}
 
 
-#: Cracked moments of inertia for the lateral deflections: BNBC 2020 Part 6 Sec 6.3.10.4.1
-#: (columns 0.70 Ig, beams 0.35 Ig, flat plates 0.25 Ig), which Sec 6.1.10.2 (p. 893) uses for
-#: the lateral deflections; the analysis model's default ("cracked") stiffness.
-CRACKED_COLUMN, CRACKED_BEAM, CRACKED_PLATE = 0.70, 0.35, 0.25
+# The cracked moments of inertia for the lateral deflections (BNBC 2020 Part 6 Sec 6.3.10.4.1:
+# columns 0.70 Ig, beams 0.35 Ig, flat plates 0.25 Ig, which Sec 6.1.10.2 (p. 893) uses for the
+# lateral deflections; the analysis model's default "cracked" stiffness) are the code pack's:
+# code_context.cracked_factors().
 
 
 def floor_beam_stiffness(
@@ -413,6 +427,7 @@ def floor_beam_stiffness(
     end: a beam rigid over r a at both ends is (l / lc)³ times stiffer at its joints in
     antisymmetric bending, lc = l - r (a1 + a2) its flexible length."""
     total = 0.0
+    cracked = code_context.cracked_factors()
     for (a, b), (bw, bh) in beams.items():
         if (a[1] == b[1]) == along_x:
             span = math.dist((xs[a[0]], ys[a[1]]), (xs[b[0]], ys[b[1]]))
@@ -420,12 +435,12 @@ def floor_beam_stiffness(
             if rigid > 0 and column_side:
                 flexible = span - rigid * (column_side[a] + column_side[b]) / 2
                 factor = (span / max(flexible, 0.5 * span)) ** 3
-            total += CRACKED_BEAM * bw * bh**3 / 12 / span * factor
+            total += cracked.beam * bw * bh**3 / 12 / span * factor
     if total <= 0:
         spans, other = (xs, ys) if along_x else (ys, xs)
         width = other[-1] - other[0]
         total = sum(
-            CRACKED_PLATE * width * slab_t**3 / 12 / (spans[m + 1] - spans[m])
+            cracked.plate * width * slab_t**3 / 12 / (spans[m + 1] - spans[m])
             for m in range(len(spans) - 1)
         )
     return total
@@ -444,13 +459,14 @@ def storey_column_stiffness(
     analysis model's rigid zone factor ``rigid`` and the depth of the deepest beam at each
     column's top (its end offset), (h / hc)³ times that, hc = h - r d the flexible height."""
     total = 0.0
+    column = code_context.cracked_factors().column
     for i in range(nx):
         for j in range(ny):
             factor = 1.0
             if rigid > 0 and top_depth:
                 flexible = height - rigid * top_depth.get((i, j), 0.0)
                 factor = (height / max(flexible, 0.5 * height)) ** 3
-            total += CRACKED_COLUMN * side_of[(i, j, k)] ** 4 / 12 / height * factor
+            total += column * side_of[(i, j, k)] ** 4 / 12 / height * factor
     return total
 
 
@@ -1088,10 +1104,12 @@ def lateral_column_sizes(
                     )
             # Strong column / weak beam with the least layout (ρ about 1 %, on the safe side:
             # the design may put more bars in).
+            axial_limit = dj._joints("axialLimit")
+            strong_ratio = dj._joints("strongColumnRatio")
             while special and side < MAX_SIDE:
                 demand = [p for m in members for p in points(m, side)]
                 pus = [p[0] for p in demand]
-                if max(pus) <= dj.AXIAL_LIMIT * side * side * fc:
+                if max(pus) <= axial_limit * side * side * fc:
                     break
                 section = least_section(side)
                 # The range widened to whole 50 kN (the lowest Mn is at an end of it: on the
@@ -1114,7 +1132,7 @@ def lateral_column_sizes(
                         mnc if (k + 1) in groups[g] else mnc_of.get((group_of[k + 1], kind), mnc)
                     )
                     for along_x, axis in ((True, 1), (False, 0)):
-                        need = dj.STRONG_COLUMN_RATIO * sum_mnb(i, j, k, along_x)
+                        need = strong_ratio * sum_mnb(i, j, k, along_x)
                         if mnc[axis] + above[axis] < need - 1e-6:
                             weak = (i, j, k)
                             break
@@ -1291,6 +1309,7 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
     beam_size: dict[tuple[tuple[int, int], tuple[int, int]], tuple[float, float]] = {}
     beam_rule: list[str] = []
     if not flat:
+        beam_divisors = _beam_divisors()
         lines: list[list[tuple[tuple[int, int], tuple[int, int], float]]] = []
         for j in range(ny):
             lines.append([((i, j), (i + 1, j), xs[i + 1] - xs[i]) for i in range(nx - 1)])
@@ -1299,14 +1318,16 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
         for line in lines:
             for k, (a, b, span) in enumerate(line):
                 continuous = (k > 0) + (k < len(line) - 1)
-                table = span / BEAM[continuous] * fy_factor(fy)
+                table = span / beam_divisors[continuous] * fy_factor(fy)
                 thumb = span / s.beamSpanDepth if s.beamSpanDepth else 0.0
                 h = ceil_to(max(table, thumb, 300.0), 25)
                 b_min = max(250.0, 0.3 * h)
                 width = ceil_to(b_min, 25)
                 beam_size[(a, b)] = (width, h)
         beam_rule.append(
-            "Beams: depth h = max(Table 6.6.1 minimum l/16, l/18.5, l/21 for 0, 1, 2 continuous "
+            "Beams: depth h = max(Table 6.6.1 minimum "
+            + ", ".join(f"l/{v:g}" for v in beam_divisors)
+            + " for 0, 1, 2 continuous "
             f"ends x (0.4 + fy/700) = x{fy_factor(fy):.3f}, "
             + (
                 f"span/{s.beamSpanDepth:g} (rule of thumb for the stiffness of frame beams under "
@@ -1324,6 +1345,8 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
         )
 
     # ── slabs ──
+    one_way_slab = _one_way_slab()
+
     def edge_strip(a: tuple[int, int], b: tuple[int, int]) -> tuple[float, bool]:
         """Slab width an edge beam carries [mm] and whether it is on the building's edge."""
         if a[1] == b[1]:  # along x at y index a[1]
@@ -1357,12 +1380,12 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
             else:
                 ends = (j > 0) + (j < ny - 2)
                 span = ly
-            h = span / ONE_WAY_SLAB[ends] * fy_factor(fy)
+            h = span / one_way_slab[ends] * fy_factor(fy)
             t = ceil_to(max(h, s.minSlab), 25)
             return (
                 t,
                 "oneWay",
-                f"one-way (beta {beta:.2f} > 2): Table 6.6.1 l/{ONE_WAY_SLAB[ends]:g}",
+                f"one-way (beta {beta:.2f} > 2): Table 6.6.1 l/{one_way_slab[ends]:g}",
             )
         hs = 150.0
         how = ""
@@ -1805,11 +1828,12 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
             max((t / (PERIOD_TARGET * estimate.periodLimit)) ** 2 for t in
                 estimate.period.values()),
         ) <= 1.0 + 1e-6  # fmt: skip
+        cracked = code_context.cracked_factors()
         stiffness_note = (
             "Stiffness (PRELIMINARY drift and period check, before the P-M sizing of the "
             "columns): the frames as a shear building of Wilbur's storey stiffnesses (columns "
-            f"{CRACKED_COLUMN:g} Ig, beams {CRACKED_BEAM:g} Ig without the slab flange"
-            + (f", flat plate {CRACKED_PLATE:g} Ig" if flat else "")
+            f"{cracked.column:g} Ig, beams {cracked.beam:g} Ig without the slab flange"
+            + (f", flat plate {cracked.plate:g} Ig" if flat else "")
             + ", BNBC 2020 Part 6 Sec 6.3.10.4.1, p. 912, for the factored lateral loads as "
             "Sec 6.1.10.2, p. 893; "
             + (

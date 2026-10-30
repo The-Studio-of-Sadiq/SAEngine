@@ -82,7 +82,9 @@ def test_lintel_bars_are_detailed_on_the_wall(model: dict) -> None:
     assert at["from"] == pytest.approx(1000 - bearing)
     assert at["to"] - at["from"] == pytest.approx(1000 + 2 * bearing)
     assert at["bottom"] == pytest.approx(2100)
-    assert roles["lintel bottom"]["dims"]["A"] == pytest.approx(1000 + 2 * bearing - 2 * L.COVER)
+    assert roles["lintel bottom"]["dims"]["A"] == pytest.approx(
+        1000 + 2 * bearing - 2 * L.lintel_cover()
+    )
     # Stirrups at the design's spacing, first 50 mm in from each end.
     _legs, ds, spacing = designed["bars"]["stirrups"]
     stirrup = roles["lintel stirrup"]

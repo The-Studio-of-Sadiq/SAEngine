@@ -775,24 +775,25 @@ function object(value: unknown): JsonObject {
 /**
  * Whether a settings, materials or object types file still holds what a new project starts with. The
  * settings are compared apart from what the new-project dialog fills in: the project name, the
- * concrete and steel codes, the site's location and the building's use. Projects whose settings were written with other values (New
- * Building from Grid, the importers) or with older defaults count as changed.
+ * code pack, the site's location and the building's use. The deprecated `codes` of old files is not
+ * compared. Projects whose settings were written with other values (New Building from Grid, the
+ * importers) or with older defaults count as changed.
  */
 export function holdsDefaults(document: JsonObject, part: string): boolean {
 	if (part === 'materials' || part === 'objects') {
 		return canonical(document) === canonical(part === 'materials' ? DEFAULT_MATERIALS : DEFAULT_OBJECTS);
 	}
 	const defaults = DEFAULT_SETTINGS as JsonObject;
-	const codes = object(document.codes);
+	const { codes: _codes, ...current } = document;
 	const expected = {
 		...defaults,
 		project: { name: object(document.project).name },
-		codes: { ...object(defaults.codes), concrete: codes.concrete, steel: codes.steel },
+		codePack: document.codePack ?? defaults.codePack,
 		// The new-project form also picks the site and the building's use; the rest still needs review.
 		site: { ...object(defaults.site), location: object(document.site).location },
 		occupancy: { ...object(defaults.occupancy), use: object(document.occupancy).use },
 	};
-	return canonical(document) === canonical(expected);
+	return canonical(current) === canonical(expected);
 }
 
 /** The members a floor plan places (columns, beams, walls, slabs and footings) or a structural model draws (members and areas). */

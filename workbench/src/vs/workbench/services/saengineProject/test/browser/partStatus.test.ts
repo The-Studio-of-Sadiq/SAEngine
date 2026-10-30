@@ -447,9 +447,10 @@ suite('SAEngine - PartStatus', () => {
 			'boq: notStarted not measured',
 			'exports: notStarted no report',
 		]);
-		// The design code the new-project dialog chose (ACI 318-19 here) still counts as the defaults.
+		// The code pack the new-project dialog chose still counts as the defaults, and so does the
+		// deprecated `codes` of an old file.
 		const settings = JSON.parse(texts.settings!);
-		const aci = JSON.stringify({ ...settings, codes: { ...settings.codes, concrete: 'ACI 318-19', steel: 'AISC 360-22' } }, undefined, '\t');
+		const aci = JSON.stringify({ ...settings, codePack: 'aci318', codes: { concrete: 'ACI 318-19', steel: 'AISC 360-22' } }, undefined, '\t');
 		const changedSettings = JSON.stringify({ ...settings, occupancy: { use: 'office', category: 'III' } });
 		const changedMaterials = JSON.stringify({ ...DEFAULT_MATERIALS, materials: (DEFAULT_MATERIALS as { materials: object[] }).materials.slice(1) });
 		const objects = JSON.stringify({ schema: 'saengine.objects/1', objects: [{ id: 'C400' }, { id: 'B300x500' }] });

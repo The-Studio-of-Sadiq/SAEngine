@@ -127,6 +127,24 @@ class Requires(BaseModel):
         return value
 
 
+class Basis(BaseModel):
+    """What the report and the design method state the design follows. A pack that extends
+    another inherits the labels it does not give; without any, the pack's edition (or name)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    general: str | None = Field(default=None, description="Loads and general, e.g. 'BNBC 2020'.")
+    concrete: str | None = Field(
+        default=None, description="Concrete design, e.g. 'BNBC 2020 Part 6 Chapter 6'."
+    )
+    steel: str | None = Field(
+        default=None, description="Steel design, e.g. 'BNBC 2020 Part 6 Chapter 10'."
+    )
+    method: str | None = Field(
+        default=None, description="Design method, e.g. 'Strength design (LRFD)'."
+    )
+
+
 class PackManifest(BaseModel):
     """``pack.json``: what the pack is, which pack it builds on and which tables it provides."""
 
@@ -167,6 +185,11 @@ class PackManifest(BaseModel):
         default_factory=dict,
         description="Clause references per table, e.g. {'combinations': ['BNBC Part 6 2.7.3']}; "
         "a data file's own '$sources' take precedence.",
+    )
+    basis: Basis | None = Field(
+        default=None,
+        description="The code the design follows, as the report states it (loads and general, "
+        "concrete, steel, design method).",
     )
     author: str | None = None
     licence: str | None = Field(default=None, description="SPDX id of the pack's licence.")

@@ -576,12 +576,25 @@ def _meta(name: str, settings: Any, version: str | None, today: date) -> dict[st
         "project": name,
         "details": details,
         "titleBlock": sign,
-        "code": settings.codes.concrete if settings is not None else "–",
+        "code": _concrete_code(settings),
         "date": f"{today.day} {today:%B %Y}",
         "isoDate": today.isoformat(),
         "version": version or saengine.__version__,
         "units": UNITS_STATEMENT,
     }
+
+
+def _concrete_code(settings: Any) -> str:
+    """The concrete code the cover states (the code pack's ``basis``); "–" without one."""
+    if settings is None:
+        return "–"
+    from saengine.codes import CodePackError
+    from saengine.library.settings import code_basis
+
+    try:
+        return code_basis(settings).concrete
+    except CodePackError:
+        return "–"
 
 
 def code_pack_text(settings: Any) -> str:
@@ -615,7 +628,7 @@ def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[s
     basis: dict[str, Any] = {}
     if settings is not None:
         from saengine.codes import CodePackError
-        from saengine.library.settings import code_pack, derived
+        from saengine.library.settings import code_basis, code_pack, derived
 
         try:
             pack = code_pack(settings)
@@ -624,13 +637,7 @@ def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[s
             return basis
         parts.warnings.extend(f"Code pack {pack.id}: {w.message}" for w in pack.warnings)
         values = derived(settings)
-        codes = settings.codes
-        basis["codes"] = [
-            ["Loads and general", codes.general],
-            ["Concrete", codes.concrete],
-            ["Steel", codes.steel],
-            ["Design method", "Strength design (LRFD)"],
-        ]
+        basis["codes"] = code_basis(settings).rows()
         location = pack.table("locations").locations.get(settings.site.location)
         category = pack.table("occupancyCategories").categories.get(settings.occupancy.category)
         system = pack.table("seismic").systems.get(settings.seismic.system)

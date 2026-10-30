@@ -151,16 +151,33 @@
           "type": "number"
         },
         "plate": {
+          "description": "Flat plates and flat slabs.",
           "exclusiveMinimum": 0,
           "maximum": 1,
           "title": "Plate",
           "type": "number"
         },
         "wall": {
+          "description": "Cracked walls.",
           "exclusiveMinimum": 0,
           "maximum": 1,
           "title": "Wall",
           "type": "number"
+        },
+        "wallUncracked": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Walls taken as uncracked (Project Settings > Analysis > Walls cracked off); the column factor when not given.",
+          "title": "Walluncracked"
         }
       },
       "required": [

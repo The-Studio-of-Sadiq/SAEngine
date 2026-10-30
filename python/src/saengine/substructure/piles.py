@@ -44,7 +44,7 @@ where W counts fully as the code writes it). Sec 3.10.1.18: a minimum overall fa
 of 3.0 against bearing failure, or 2.0 when the design rests on a load test at the site with
 good quality control (``FactorsOfSafety.load_test``); Table 6.3.10a's factors by construction
 control (Permanent structure: 2.0 good, 2.5 normal, 2.8 poor, 3.0 very poor;
-:data:`TABLE_6_3_10A`) assume load test data (Table 6.3.10b), so without a load test the
+:func:`table_factor`) assume load test data (Table 6.3.10b), so without a load test the
 compression factor is raised to at least 3.0 (a note says so). Sec 3.11.3 (part1 p796) asks
 the same of uplift: a factor of safety of at least 3.0 on an uplift capacity found by analysis,
 2.0 on one from a load test (2.0 and 1.5 where the uplift comes from wind or earthquake; not
@@ -67,10 +67,11 @@ Units: m, kPa and kN inside; reported in mm, kPa and kN.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from statistics import fmean
 from typing import Any
 
+from saengine.codes import context as code_context
 from saengine.soil import piles as soil_piles
 from saengine.soil.profile import Profile, SoilLayer
 
@@ -78,23 +79,6 @@ from saengine.soil.profile import Profile, SoilLayer
 SLICE = 0.1
 #: Unit weight of the pile concrete [kN/m³].
 CONCRETE_UNIT_WEIGHT = 24.0
-#: BNBC 2020 Part 6 Table 6.3.10a, design factor of safety for deep foundations (downward
-#: and upward load): structure -> (good, normal, poor, very poor control).
-TABLE_6_3_10A: dict[str, tuple[float, float, float, float]] = {
-    "monument": (2.30, 3.00, 3.50, 4.00),
-    "permanent": (2.00, 2.50, 2.80, 3.00),
-    "temporary": (1.40, 2.00, 2.30, 2.80),
-}
-CONTROLS = ("good", "normal", "poor", "veryPoor")
-#: Partial factors of safety on skin friction and end bearing (BNBC Sec 3.10.1.18).
-PARTIAL_SKIN = 1.5
-PARTIAL_BASE = 3.0
-#: Factor of safety of the SPT relations (BNBC Secs 3.10.1.13, 3.10.1.16, 3.10.4.5, 3.10.4.7).
-SPT_FS = 3.5
-#: Least overall factor of safety without / with a load test at the site: compression (BNBC
-#: Sec 3.10.1.18; Sec 3.10.4.10 for bored piles) and uplift (Sec 3.11.3).
-NO_LOAD_TEST_FS = 3.0
-LOAD_TEST_FS = 2.0
 #: Uplift: the share of the skin friction that resists pulling out (BNBC Eq 6.3.12).
 UPLIFT_SKIN = 0.7
 
@@ -119,26 +103,47 @@ METHODS = {
 }
 
 
+def _foundations() -> Any:
+    """The pack's ``foundations`` table (BNBC 2020 Part 6 Sec 3.10.1)."""
+    return code_context.table("foundations")
+
+
+def _safety(name: str) -> float:
+    """The pack's ``foundations.<name>`` factor of safety. BNBC 2020: ``partialSkin`` 1.5 and
+    ``partialBase`` 3.0, the partial factors on skin friction and end bearing (Sec 3.10.1.18);
+    ``sptSafety`` 3.5, the SPT relations (Secs 3.10.1.13, 3.10.1.16, 3.10.4.5, 3.10.4.7);
+    ``noLoadTestSafety`` 3.0 / ``loadTestSafety`` 2.0, the least overall factor without / with
+    a load test at the site, in compression (Sec 3.10.1.18; Sec 3.10.4.10 for bored piles) and
+    uplift (Sec 3.11.3)."""
+    return float(getattr(_foundations(), name))
+
+
+def _permanent_normal() -> float:
+    """Table 6.3.10a's factor for a permanent structure under normal control (BNBC 2020: 2.5)."""
+    return table_factor()
+
+
 @dataclass(frozen=True)
 class FactorsOfSafety:
     """Overall factors of safety in compression and uplift, the partial factors, and whether
     the design rests on a load test at the site (BNBC Sec 3.10.1.18)."""
 
-    compression: float = TABLE_6_3_10A["permanent"][1]
-    uplift: float = TABLE_6_3_10A["permanent"][1]
-    skin: float = PARTIAL_SKIN
-    base: float = PARTIAL_BASE
+    compression: float = field(default_factory=_permanent_normal)
+    uplift: float = field(default_factory=_permanent_normal)
+    skin: float = field(default_factory=lambda: _safety("partialSkin"))
+    base: float = field(default_factory=lambda: _safety("partialBase"))
     load_test: bool = False
 
     def for_method(self, method: str) -> FactorsOfSafety:
         """The least overall factors: 3.0 without a load test at the site, 2.0 with one, in
         compression (Sec 3.10.1.18, bored piles by Sec 3.10.4.10) and in uplift (Sec 3.11.3);
         3.5 with the SPT relations."""
-        least = LOAD_TEST_FS if self.load_test else NO_LOAD_TEST_FS
+        least = _safety("loadTestSafety" if self.load_test else "noLoadTestSafety")
         compression = max(self.compression, least)
         uplift = max(self.uplift, least)
         if method == "bnbcSpt":
-            compression, uplift = max(compression, SPT_FS), max(uplift, SPT_FS)
+            spt = _safety("sptSafety")
+            compression, uplift = max(compression, spt), max(uplift, spt)
         return FactorsOfSafety(compression, uplift, self.skin, self.base, self.load_test)
 
     def raised(self, method: str) -> str | None:
@@ -146,10 +151,11 @@ class FactorsOfSafety:
         factors = self.for_method(method)
         used = factors.compression
         notes = []
+        spt = _safety("sptSafety")
         if used > self.compression:
-            if method == "bnbcSpt" and used == SPT_FS:
+            if method == "bnbcSpt" and used == spt:
                 notes.append(
-                    f"FS in compression raised from {self.compression:g} to {SPT_FS:g}: BNBC "
+                    f"FS in compression raised from {self.compression:g} to {spt:g}: BNBC "
                     "asks for 3.5 with the SPT relations"
                 )
             else:
@@ -168,8 +174,12 @@ class FactorsOfSafety:
 
 
 def table_factor(structure: str = "permanent", control: str = "normal") -> float:
-    """BNBC 2020 Part 6 Table 6.3.10a's factor of safety."""
-    return TABLE_6_3_10A[structure][CONTROLS.index(control)]
+    """The pack's ``foundations.pileSafety`` factor of safety (BNBC 2020 Part 6 Table 6.3.10a,
+    design factor of safety for deep foundations, downward and upward load: structure ->
+    (good, normal, poor, very poor control), e.g. permanent 2.00, 2.50, 2.80, 3.00), the
+    control's place in ``foundations.pileControls`` (good, normal, poor, veryPoor)."""
+    f = _foundations()
+    return f.pileSafety[structure][list(f.pileControls).index(control)]
 
 
 def nearest_profile(profiles: list[Profile], x_mm: float, y_mm: float) -> tuple[Profile, float]:

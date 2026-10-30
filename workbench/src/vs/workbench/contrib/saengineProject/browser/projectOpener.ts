@@ -23,9 +23,10 @@ export function projectFolderName(name: string): string {
 	return name.trim().replace(new RegExp(INVALID_NAME.source, 'g'), '-').replace(/[. ]+$/, '');
 }
 
-/** What the new-project form fills into the settings besides the name: the code, the site's location and the building's use. */
+/** What the new-project form fills into the settings besides the name: the code pack, the site's location and the building's use. */
 export interface INewProjectChoices {
-	readonly code?: DesignCode;
+	/** The id of the code pack the project follows (Project Settings > `codePack`). */
+	readonly codePack?: string;
 	readonly location?: string;
 	readonly use?: string;
 }
@@ -39,14 +40,6 @@ const OPENED_STORAGE_KEY = 'saengine.project.lastOpened';
 
 /** The sample project shipped with the app: `<app root>/resources/saengine/samples/<name>`. */
 const SAMPLE_NAME = 'Sample Frame';
-
-/** The design code a new project follows (Project Settings > codes). */
-export type DesignCode = 'bnbc' | 'aci';
-
-export const DESIGN_CODES: readonly { readonly code: DesignCode; readonly label: string; readonly codes: { readonly concrete: string; readonly steel: string } }[] = [
-	{ code: 'bnbc', label: localize('designCode.bnbc', "BNBC 2020"), codes: { concrete: 'BNBC 2020 Part 6 Chapter 6', steel: 'BNBC 2020 Part 6 Chapter 10' } },
-	{ code: 'aci', label: localize('designCode.aci', "ACI 318-19"), codes: { concrete: 'ACI 318-19', steel: 'AISC 360-22' } },
-];
 
 export interface IRecentProject {
 	readonly project: ISaengineProject;
@@ -150,17 +143,16 @@ export class ProjectOpener {
 		await this.open(folder);
 	}
 
-	/** Writes the codes of the design code, the site's location and the building's use into the settings of a new project. */
+	/** Writes the code pack, the site's location and the building's use into the settings of a new project. */
 	private async setInitialSettings(project: ISaengineProject, choices: INewProjectChoices): Promise<void> {
-		const codes = choices.code && DESIGN_CODES.find(c => c.code === choices.code)?.codes;
 		const part = partById('settings');
-		if ((!codes && !choices.location && !choices.use) || !part?.mainFile) {
+		if ((!choices.codePack && !choices.location && !choices.use) || !part?.mainFile) {
 			return;
 		}
 		const file = joinPath(project.root, part.folder, part.mainFile);
 		const settings = JSON.parse((await this.fileService.readFile(file)).value.toString());
-		if (codes) {
-			settings.codes = { ...settings.codes, ...codes };
+		if (choices.codePack) {
+			settings.codePack = choices.codePack;
 		}
 		if (choices.location) {
 			settings.site = { ...settings.site, location: choices.location };

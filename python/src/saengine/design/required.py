@@ -98,19 +98,19 @@ TOLERANCE = 1e-3
 class Options:
     """The design mode's choices (``options`` of the RPC methods, all optional)."""
 
-    diameters: tuple[float, ...] = B.MAIN_DIAMETERS
-    column_diameters: tuple[float, ...] = B.COLUMN_DIAMETERS
-    slab_diameters: tuple[float, ...] = B.SLAB_DIAMETERS
+    diameters: tuple[float, ...] = field(default_factory=lambda: B.diameters("main"))
+    column_diameters: tuple[float, ...] = field(default_factory=lambda: B.diameters("column"))
+    slab_diameters: tuple[float, ...] = field(default_factory=lambda: B.diameters("slab"))
     footing_diameters: tuple[float, ...] = (12.0, 16.0, 20.0, 25.0)
-    stirrup_diameters: tuple[float, ...] = B.STIRRUP_DIAMETERS
+    stirrup_diameters: tuple[float, ...] = field(default_factory=lambda: B.diameters("stirrup"))
     max_sizes: int = 2  # bar sizes in a beam (top and bottom), stirrups not counted
     over_design: float = 0.25  # members whose own bars would be this much less are listed
     max_new_types: int = 3  # per object type, when splitting
-    beam_ratio_max: float = B.BEAM_RATIO_MAX
-    rho_min: float = B.RHO_MIN
-    rho_max: float = B.RHO_MAX
-    min_slab_spacing: float = B.MIN_SLAB_SPACING
-    min_stirrup_spacing: float = B.MIN_STIRRUP_SPACING
+    beam_ratio_max: float = field(default_factory=B.beam_ratio_max)
+    rho_min: float = field(default_factory=lambda: B.column_rho()[0])
+    rho_max: float = field(default_factory=lambda: B.column_rho()[1])
+    min_slab_spacing: float = field(default_factory=B.min_slab_spacing)
+    min_stirrup_spacing: float = field(default_factory=B.min_stirrup_spacing)
 
     @classmethod
     def of(cls, options: dict[str, Any] | None) -> Options:
@@ -410,7 +410,7 @@ def beam_need(
     sag: float,
     hog: float,
     vu: float,
-    ratio_max: float = B.BEAM_RATIO_MAX,
+    ratio_max: float | None = None,
 ) -> tuple[BeamNeed, B.FlexureNeed, B.FlexureNeed, B.ShearNeed]:
     g = geometry
     sag_need = B.beam_flexure_need(
@@ -759,7 +759,7 @@ class ColumnSearch:
         carries them; None when none does."""
         if index is None:
             return None
-        minimum = B.RHO_MIN * self.gross
+        minimum = B.column_rho()[0] * self.gross
         if index == 0:
             return max(minimum, 0.0)
         u_hi = self.utilisation(index, points)
@@ -791,13 +791,13 @@ def column_rows(
     too_small = required is None
     if too_small:
         notes.append(
-            f"no layout with ρ up to {B.RHO_MAX:g} carries the demand (ACI 10.6.1.1): section "
+            f"no layout with ρ up to {B.column_rho()[1]:g} carries the demand (ACI 10.6.1.1): section "
             "too small"
             if search.layouts
             else "no bar layout fits the section at the least clear spacing (ACI 25.2.3)"
         )
     elif index == 0:
-        notes.append(f"ρ_min = {B.RHO_MIN:g} governs (ACI 10.6.1.1)")
+        notes.append(f"ρ_min = {B.column_rho()[0]:g} governs (ACI 10.6.1.1)")
     if governing is not None:
         notes.append(f"Pu = {governing[0] / 1e3:.1f} kN; {governing[4]}")
     rows = [
@@ -809,8 +809,8 @@ def column_rows(
             "longitudinal bars",
             None if governing is None else math.hypot(governing[1], governing[2]) / 1e6,
             "kN·m",
-            required if required is not None else B.RHO_MAX * search.gross,
-            B.RHO_MIN * search.gross,
+            required if required is not None else B.column_rho()[1] * search.gross,
+            B.column_rho()[0] * search.gross,
             None if assumed else section.steel_area,
             "mm²",
             governing[3] if governing else None,

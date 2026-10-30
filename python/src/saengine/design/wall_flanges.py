@@ -960,6 +960,7 @@ def flanged_checks(
         )
 
     # Shear along each direction: the webs together (8.3.6.4(d) for special walls).
+    phi_seismic = W.wall_phi("shearSeismic")
     for u, section, surface in surfaces:
         webs = [group.leg(w) for w in section.webs]
         best: tuple[float, dict[str, Any]] | None = None
@@ -995,7 +996,7 @@ def flanged_checks(
                 mn, _ = surface.nominal(f.P, sense * u)
                 v_at_mn = vu * mn / mu if mu > 0 else math.inf
                 if vn < v_at_mn:
-                    phi = W.PHI_SHEAR_SEISMIC
+                    phi = phi_seismic
             u_ = vu / (phi * vn)
             if best is None or u_ > best[0]:
                 best = (
@@ -1053,6 +1054,7 @@ def _boundary(
     method = "displacement" if drift is not None and continuous else "stress"
     seismic = [f for f in forces if f.earthquake] or list(forces)
     base = [f for f in seismic if f.where == "bottom"] or seismic
+    stress_required = W.special_limit("stressRequired")
     for u, section, surface in surfaces:
         lo, hi = section.extent(u)
         lw = hi - lo
@@ -1084,12 +1086,12 @@ def _boundary(
                 )
             else:
                 stress = max(stress, 0.0)
-                required = stress > W.STRESS_REQUIRED * fc
+                required = stress > stress_required * fc
                 row = _row(
                     f"Boundary element at {where}: stress > 0.2 f'c, flanged gross section "
                     "(8.3.6.6(c))",
                     stress,
-                    W.STRESS_REQUIRED * fc,
+                    stress_required * fc,
                     "MPa",
                     note="required" if required else "not required",
                 )

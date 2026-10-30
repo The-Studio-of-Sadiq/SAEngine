@@ -607,3 +607,22 @@ def test_exported_schemas_are_current():
         or json.loads((SCHEMAS_DIR / file).read_text(encoding="utf-8")) != schema
     ]
     assert stale == [], f"codes/schemas is out of date: {stale}; run registry.export_schemas()"
+
+
+def test_basis_labels_are_inherited_label_by_label(dirs):
+    write_pack(
+        dirs.builtin,
+        "base",
+        BASE_TABLES,
+        basis={"general": "Code 2020", "concrete": "Code 2020 Ch 6", "steel": "Code 2020 Ch 10"},
+    )
+    write_pack(dirs.user, "region", {}, extends="base", basis={"concrete": "Local RC 2026"})
+    write_pack(dirs.user, "plain", BASE_TABLES)
+    assert dirs.reg.load("region").basis == {
+        "general": "Code 2020",
+        "concrete": "Local RC 2026",
+        "steel": "Code 2020 Ch 10",
+    }
+    assert dirs.reg.load("plain").basis == {}
+    bad = write_pack(dirs.user, "bad", BASE_TABLES, basis={"timber": "X"})
+    assert not dirs.reg.validate(bad).usable

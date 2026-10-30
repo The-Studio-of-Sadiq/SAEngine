@@ -80,14 +80,10 @@ from typing import Any, Literal
 
 import numpy as np
 
-#: Moment of inertia factors of BNBC 2020 Part 6 Sec 6.3.10.4.1 (ACI 318-19 Table 6.6.3.1.1(a)).
-ACI_FACTORS = {
-    "column": 0.70,
-    "beam": 0.35,
-    "wallUncracked": 0.70,
-    "wallCracked": 0.35,
-    "slab": 0.25,
-}
+from saengine.codes import context as code_context
+
+# The moment of inertia factors (BNBC 2020 Part 6 Sec 6.3.10.4.1, ACI 318-19 Table
+# 6.6.3.1.1(a)) are the code pack's: code_context.cracked_factors().
 #: The gravity loads of the P-Delta preload: the gravity part of 1.2D + 1.0E + 1.0L (BNBC 2020
 #: Part 6 Sec 2.7.3.1); D's factor also applies to SD and F (as in the combinations).
 DEFAULT_PDELTA_FACTORS = {"D": 1.2, "SD": 1.2, "F": 1.2, "L": 1.0}
@@ -178,18 +174,17 @@ def _cracked(
     """The section with the code's cracked factors; ``keep``: properties the engineer's
     stiffness modifiers set (they replace the cracked factor of that property)."""
     out = dict(section)
+    factors = code_context.cracked_factors()
     if role in ("column", "beam"):
-        factor = ACI_FACTORS[role]
+        factor = factors.column if role == "column" else factors.beam
         for key in ("Iz", "Iy"):
             if out.get(key) is not None and key not in keep:
                 out[key] = out[key] * factor
     elif role == "slab":
         if "Ep_mod" not in keep:
-            out["Ep_mod"] = ACI_FACTORS["slab"] * out.get("Ep_mod", 1.0)
+            out["Ep_mod"] = factors.plate * out.get("Ep_mod", 1.0)
     elif role == "wall" and "E" not in keep:
-        out["E"] = (
-            out["E"] * ACI_FACTORS["wallCracked" if options.wallsCracked else "wallUncracked"]
-        )
+        out["E"] = out["E"] * factors.walls(options.wallsCracked)
     return out
 
 
@@ -341,12 +336,14 @@ def apply_second_order(
                         "cracked stiffness: the temperature case T keeps the gross sections "
                         "its equivalent loads were computed with"
                     )
-        wall = ACI_FACTORS["wallCracked" if options.wallsCracked else "wallUncracked"]
+        factors = code_context.cracked_factors()
+        wall = factors.walls(options.wallsCracked)
         notes.append(
-            "cracked stiffness (BNBC 2020 Part 6 Sec 6.3.10.4.1): columns 0.70 Ig, beams "
-            f"0.35 Ig, walls {wall:.2f} Ig (E x {wall:.2f}: in a shell a wall's in-plane flexure "
-            "is membrane action, so its in-plane axial and shear stiffness are reduced too), "
-            "slabs 0.25 Ig in bending (their membrane stiffness stays gross), area 1.0 Ag, "
+            f"cracked stiffness (BNBC 2020 Part 6 Sec 6.3.10.4.1): columns {factors.column:.2f} "
+            f"Ig, beams {factors.beam:.2f} Ig, walls {wall:.2f} Ig (E x {wall:.2f}: in a shell a "
+            "wall's in-plane flexure is membrane action, so its in-plane axial and shear "
+            f"stiffness are reduced too), slabs {factors.plate:.2f} Ig in bending (their "
+            "membrane stiffness stays gross), area 1.0 Ag, "
             "torsion gross; "
             + (
                 "for every case"
@@ -800,7 +797,6 @@ def drift_amplification(
 
 
 __all__ = [
-    "ACI_FACTORS",
     "DEFAULT_PDELTA_FACTORS",
     "STABILITY_GRAVITY_FACTORS",
     "SecondOrderModel",
