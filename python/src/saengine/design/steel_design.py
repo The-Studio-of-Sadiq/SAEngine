@@ -43,22 +43,6 @@ def is_steel(material: Any) -> bool:
     return steel_members.is_steel_member(material)
 
 
-def mass_per_metre(object_type: Any, material: Any, section: dict[str, Any]) -> float:
-    """The member's steel weight [kg/m] as the bill of quantities measures it: the section
-    table's nominal area (with its corner radii, :func:`saengine.library.steel_sections.
-    section_of_profile`) × the material's density, so the report and the BOQ agree. Falls back
-    to the design entry's own value (sharp corners) when the table cannot read the profile."""
-    from saengine.library.steel_sections import section_of_profile
-
-    try:
-        area = section_of_profile(object_type.profile).A
-    except (TypeError, ValueError, KeyError, AttributeError):
-        return section.get("massPerMetre", 0.0)
-    mechanical = getattr(material, "mechanical", None)
-    density = (getattr(mechanical, "density", None) if mechanical else None) or 7850.0
-    return round(area * 1e-6 * density, 3)  # rounded as finely as the BOQ, so both print alike
-
-
 def _connection_demands(stations: list[Any], kind: str) -> list[tuple[str | None, float]]:
     """The connection's demands from the member's stations: a beam's end shears along the
     depth [N], a brace's (and column's) axial forces, tension positive [N], at every station
@@ -177,7 +161,6 @@ def design_member(
         options,
     )
     entry["material"] = material.id
-    entry["section"]["massPerMetre"] = mass_per_metre(object_type, material, entry["section"])
     stations = steel_members.member_stations(pieces, combinations, turned)
     try:
         connection = connection_result(object_type, material, mats, stations, kind)

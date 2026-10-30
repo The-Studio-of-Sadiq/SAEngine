@@ -59,6 +59,7 @@ from saengine.design.steel.lengths import (
     source_tag,
 )
 from saengine.design.steel.properties import ShapeProperties, shape_properties
+from saengine.library import steel_sections
 
 CODE = "BNBC 2020 Part 6 Chapter 10 (LRFD; AISC 360-05 provisions)"
 G = 77_200.0  # MPa, Sec 10.5.4 (p 3843)
@@ -1260,6 +1261,17 @@ def _density(material: Any) -> float:
     return (getattr(mechanical, "density", None) if mechanical else None) or 7850.0
 
 
+def _mass_per_metre(profile: Any, material: Any) -> float:
+    """The member's steel weight [kg/m] as the bill of quantities measures it
+    (:func:`saengine.library.steel_sections.mass_per_metre`: the nominal section with its
+    corner radii, not the design wall thickness), so the report and the BOQ agree; the sharp-
+    cornered nominal section when the table cannot read the profile."""
+    try:
+        return steel_sections.mass_per_metre(profile, _density(material))
+    except (TypeError, ValueError, KeyError, AttributeError):
+        return round(shape_properties(profile, erw=False).area * 1e-6 * _density(material), 3)
+
+
 def is_steel_member(material: Any) -> bool:
     """Whether a member of ``material`` is designed here (structural steel with fy)."""
     category = getattr(
@@ -1322,11 +1334,7 @@ def design_steel_member(
             "area": round(shape.area, 1),
             "class": cl.section_class(elements),
             "elements": [el.describe() for el in elements],
-            # Nominal (not design) wall thickness: the weight of the steel bought.
-            "massPerMetre": round(
-                shape_properties(object_type.profile, erw=False).area * 1e-6 * _density(material),
-                2,
-            ),
+            "massPerMetre": _mass_per_metre(object_type.profile, material),
             "notes": [*shape.notes, *steel.notes],
         },
         "lengths": slenderness_note(lengths),

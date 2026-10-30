@@ -21,10 +21,13 @@ ry, J, Cw, the mass per metre (7850 kg/m³), and for angles the principal Iu, Iv
 A, I, S and Z are exact for the plates plus the fillets and corner roundings (each a
 spandrel, a square less a quarter circle, with its own centroid and inertia; only the plastic
 moduli take the spandrels as lumped areas, an error far below 0.1 %). J uses the thin-walled
-formulas (I, channel, angle: Σ b t³/3 without the fillets, slightly conservative; hollow:
-Bredt on the mid-line), Cw the usual closed forms (I: Iy h0²/4; channel and angle: the AISC
-Design Guide 9 forms; hollow sections: 0). :mod:`saengine.library.sections` (sectionproperties,
-finite elements) cross-checks the table in the tests.
+formulas (I, channel, tee, angle: Σ b t³/3 without the fillets, slightly conservative;
+hollow: Bredt on the mid-line), Cw the usual closed forms (I: Iy h0²/4; channel, tee and angle:
+the AISC Design Guide 9 forms; hollow sections: 0). Tees (not in the table) are built for
+custom profiles. This is the one place A, I, S and Z of steel shapes are computed:
+:mod:`saengine.design.steel.properties` builds the member design's on it, without fillets.
+:mod:`saengine.library.sections` (sectionproperties, finite elements) cross-checks the table in
+the tests.
 """
 
 from __future__ import annotations
@@ -56,7 +59,8 @@ SHAPE_FAMILIES: dict[str, tuple[str, ...]] = {
 class SteelSection:
     name: str
     family: str
-    shape: str  # the 04 Objects profile shape: "I", "U", "L", "rectangleHollow", "circleHollow"
+    #: The 04 Objects profile shape: "I", "U", "T", "L", "rectangleHollow", "circleHollow".
+    shape: str
     h: float  # mm, depth (CHS: outside diameter)
     b: float  # mm, width
     tw: float  # mm, web (angle, hollow: wall) thickness
@@ -328,6 +332,22 @@ def channel_section(name: str, family: str, h: float, b: float, tw: float, tf: f
     bp, hp = b - tw / 2, h - tf
     cw = (tf * bp**3 * hp**2 / 12) * (3 * bp * tf + 2 * hp * tw) / (6 * bp * tf + hp * tw)
     return _section(name, family, "U", (h, b, tw, tf, r, 0.0), props, j, cw)
+
+
+def tee_section(name: str, family: str, h: float, b: float, tw: float, tf: float, r: float):
+    """Tee, flange at the top, stem tip at y = 0, with root fillets."""
+    xw0, xw1 = (b - tw) / 2, (b + tw) / 2
+    parts = [
+        _rect(0, b, h - tf, h),
+        _rect(xw0, xw1, 0, h - tf),
+        *_spandrel(xw1, h - tf, 1, -1, r),
+        *_spandrel(xw0, h - tf, -1, -1, r),
+    ]
+    props = _combine(parts, b, h)
+    j = (b * tf**3 + (h - tf / 2) * tw**3) / 3
+    # Cw of a tee (AISC 360-16 Commentary to E4).
+    cw = tf**3 * b**3 / 144 + tw**3 * (h - tf / 2) ** 3 / 36
+    return _section(name, family, "T", (h, b, tw, tf, r, 0.0), props, j, cw)
 
 
 def angle_section(name: str, d: float, b: float, t: float, r1: float, r2: float):
@@ -772,6 +792,16 @@ def section_of_profile(profile: o.Profile | dict[str, Any]) -> SteelSection:
                 p["flangeThickness"],
                 p.get("filletRadius", 0) or 0,
             )
+        case "T":
+            return tee_section(
+                name,
+                "T",
+                p["depth"],
+                p["flangeWidth"],
+                p["webThickness"],
+                p["flangeThickness"],
+                p.get("filletRadius", 0) or 0,
+            )
         case "L":
             return angle_section(
                 name,
@@ -795,6 +825,14 @@ def section_of_profile(profile: o.Profile | dict[str, Any]) -> SteelSection:
         case "circleHollow":
             return chs_section(name, 2 * p["radius"], p["wallThickness"])
     raise TypeError(f"not a steel profile: {p['shape']}")
+
+
+def mass_per_metre(profile: o.Profile | dict[str, Any], density: float = STEEL_DENSITY) -> float:
+    """The steel weight of a member of ``profile`` [kg/m], as the bill of quantities and the
+    design report give it: the nominal area of :func:`section_of_profile` (with its fillets
+    and corner radii) × ``density`` [kg/m³], rounded to 1 g. Raises ``TypeError`` for a
+    profile that is not a steel shape."""
+    return round(section_of_profile(profile).A * 1e-6 * density, 3)
 
 
 def lightest(

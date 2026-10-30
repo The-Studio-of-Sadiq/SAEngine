@@ -1,11 +1,13 @@
-"""Section properties of rolled and hollow steel shapes for member design, in closed form.
+"""Section properties of rolled and hollow steel shapes for member design: an adapter over
+:mod:`saengine.library.steel_sections`.
 
-The profiles are the object library's IFC-style ones (:mod:`saengine.library.objects`); the
-design needs more than the analysis does (plastic moduli Z, warping constant Cw, shear centre,
-flat widths of the walls), and a design-mode search over a section table needs them fast, so
-they are worked out here from the plates the shape is made of rather than meshed
-(:func:`saengine.library.sections.section_properties` meshes them for the analysis; the two agree
-to the fillets).
+The profiles are the object library's IFC-style ones (:mod:`saengine.library.objects`). A, I, S
+and Z are those of the section table's engine (:mod:`saengine.library.steel_sections`, the one
+place they are computed), taken without fillets and corner radii; what the member design adds
+is here: the design wall thickness of hollow sections, the torsion and warping constants of the
+design, the shear centre, the plate dimensions for local buckling and the notes
+(:func:`saengine.library.sections.section_properties` meshes the shapes for the analysis; the
+two agree to the fillets).
 
 Assumptions (stated in the design notes):
 
@@ -30,11 +32,10 @@ import math
 from dataclasses import dataclass, field
 
 from saengine.library import objects as o
+from saengine.library import steel_sections as tables
 
 #: Design wall thickness of ERW hollow sections, BNBC 2020 Part 6 Sec 10.2.3.12 (p 3824).
 ERW_FACTOR = 0.93
-
-Rect = tuple[float, float, float, float]  # x0, x1, y0, y1
 
 
 @dataclass(frozen=True)
@@ -91,76 +92,20 @@ class ShapeProperties:
 # ───────────────────────────────── plate assemblies ─────────────────────────────────
 
 
-def _area(rects: list[Rect]) -> float:
-    return sum((x1 - x0) * (y1 - y0) for x0, x1, y0, y1 in rects)
-
-
-def _centroid(rects: list[Rect]) -> tuple[float, float]:
-    a = _area(rects)
-    cx = sum((x1 - x0) * (y1 - y0) * (x0 + x1) / 2 for x0, x1, y0, y1 in rects) / a
-    cy = sum((x1 - x0) * (y1 - y0) * (y0 + y1) / 2 for x0, x1, y0, y1 in rects) / a
-    return cx, cy
-
-
-def _inertia(rects: list[Rect]) -> tuple[float, float, float]:
-    """Ix, Iy, Ixy about the centroid."""
-    cx, cy = _centroid(rects)
-    ix = iy = ixy = 0.0
-    for x0, x1, y0, y1 in rects:
-        b, h = x1 - x0, y1 - y0
-        a = b * h
-        dx, dy = (x0 + x1) / 2 - cx, (y0 + y1) / 2 - cy
-        ix += b * h**3 / 12 + a * dy**2
-        iy += h * b**3 / 12 + a * dx**2
-        ixy += a * dx * dy
-    return ix, iy, ixy
-
-
-def _plastic(rects: list[Rect], axis: str) -> float:
-    """Plastic modulus about the horizontal (``axis`` "x") or vertical equal-area axis."""
-    lo_i, hi_i = (2, 3) if axis == "x" else (0, 1)
-    spans = [(r[lo_i], r[hi_i], (r[1] - r[0]) * (r[3] - r[2]) / (r[hi_i] - r[lo_i])) for r in rects]
-    total = sum((hi - lo) * w for lo, hi, w in spans)
-
-    def below(c: float) -> float:
-        return sum(max(0.0, min(hi, c) - lo) * w for lo, hi, w in spans)
-
-    lo = min(s[0] for s in spans)
-    hi = max(s[1] for s in spans)
-    for _ in range(200):
-        mid = (lo + hi) / 2
-        lo, hi = (mid, hi) if below(mid) < total / 2 else (lo, mid)
-    c = (lo + hi) / 2
-    z = 0.0
-    for a, b, w in spans:
-        # ∫ |s - c| w ds over [a, b]
-        if b <= c:
-            z += w * ((c - a) ** 2 - (c - b) ** 2) / 2
-        elif a >= c:
-            z += w * ((b - c) ** 2 - (a - c) ** 2) / 2
-        else:
-            z += w * ((c - a) ** 2 + (b - c) ** 2) / 2
-    return z
-
-
-def _assembly(rects: list[Rect]) -> dict[str, float]:
-    a = _area(rects)
-    cx, cy = _centroid(rects)
-    ix, iy, ixy = _inertia(rects)
-    xmin, xmax = min(r[0] for r in rects), max(r[1] for r in rects)
-    ymin, ymax = min(r[2] for r in rects), max(r[3] for r in rects)
+def _assembly(section: tables.SteelSection) -> dict[str, float]:
+    """A, centroid, I, S and Z of a table-engine section (built without fillets): x across
+    its width from its left edge, y up its depth from its bottom edge."""
     return {
-        "A": a,
-        "cx": cx,
-        "cy": cy,
-        "Ix": ix,
-        "Iy": iy,
-        "Ixy": ixy,
-        "Sx_top": ix / (ymax - cy),
-        "Sx_bottom": ix / (cy - ymin),
-        "Sy": iy / max(xmax - cx, cx - xmin),
-        "Zx": _plastic(rects, "x"),
-        "Zy": _plastic(rects, "y"),
+        "A": section.A,
+        "cx": section.cx,
+        "cy": section.cy,
+        "Ix": section.Ix,
+        "Iy": section.Iy,
+        "Sx_top": section.Ix / (section.h - section.cy),
+        "Sx_bottom": section.Ix / section.cy,
+        "Sy": section.Sy,
+        "Zx": section.Zx,
+        "Zy": section.Zy,
     }
 
 
@@ -171,12 +116,7 @@ def i_shape(
     d: float, bf: float, tf: float, tw: float, r: float = 0.0, label: str = ""
 ) -> ShapeProperties:
     """A doubly symmetric rolled I-shape (W, UB/UC, IPE, HEA/HEB)."""
-    rects = [
-        (-bf / 2, bf / 2, 0.0, tf),
-        (-tw / 2, tw / 2, tf, d - tf),
-        (-bf / 2, bf / 2, d - tf, d),
-    ]
-    p = _assembly(rects)
+    p = _assembly(tables.i_section("", "I", d, bf, tw, tf, 0.0))
     ho = d - tf
     sx = min(p["Sx_top"], p["Sx_bottom"])
     return ShapeProperties(
@@ -201,12 +141,7 @@ def channel(
     d: float, bf: float, tf: float, tw: float, r: float = 0.0, label: str = ""
 ) -> ShapeProperties:
     """A channel, web at the left (x = 0), symmetric about its horizontal axis."""
-    rects = [
-        (0.0, bf, 0.0, tf),
-        (0.0, tw, tf, d - tf),
-        (0.0, bf, d - tf, d),
-    ]
-    p = _assembly(rects)
+    p = _assembly(tables.channel_section("", "U", d, bf, tw, tf, 0.0))
     ho = d - tf
     b1 = bf - tw / 2  # flange width to the web centreline
     e0 = 3 * b1**2 * tf / (6 * b1 * tf + ho * tw)  # shear centre from the web centreline
@@ -235,8 +170,7 @@ def tee(
     d: float, bf: float, tf: float, tw: float, r: float = 0.0, label: str = ""
 ) -> ShapeProperties:
     """A tee, flange at the top, stem tip at y = 0."""
-    rects = [(-tw / 2, tw / 2, 0.0, d - tf), (-bf / 2, bf / 2, d - tf, d)]
-    p = _assembly(rects)
+    p = _assembly(tables.tee_section("", "T", d, bf, tw, tf, 0.0))
     y0 = (d - tf / 2) - p["cy"]  # shear centre at the flange centreline
     return ShapeProperties(
         family="tee",
@@ -259,10 +193,8 @@ def tee(
 
 def angle(d: float, b: float, t: float, label: str = "") -> ShapeProperties:
     """An angle, heel at the origin: leg ``d`` vertical, leg ``b`` horizontal."""
-    rects = [(0.0, t, 0.0, d), (t, b, 0.0, t)]
-    p = _assembly(rects)
-    mean = (p["Ix"] + p["Iy"]) / 2
-    radius = math.hypot((p["Ix"] - p["Iy"]) / 2, p["Ixy"])
+    section = tables.angle_section("", d, b, t, 0.0, 0.0)
+    p = _assembly(section)
     return ShapeProperties(
         family="angle",
         label=label or f"L {d:g}x{b:g}x{t:g}",
@@ -280,7 +212,7 @@ def angle(d: float, b: float, t: float, label: str = "") -> ShapeProperties:
         dims={"d": d, "b": b, "t": t, "cx": p["cx"], "cy": p["cy"]},
         sx_top=p["Sx_top"],
         sx_bottom=p["Sx_bottom"],
-        iz=mean - radius,
+        iz=section.Iv or 0.0,
     )
 
 
@@ -289,13 +221,7 @@ def rhs(
 ) -> ShapeProperties:
     """A square or rectangular hollow section ``big_b`` wide and ``big_h`` deep, wall ``t``
     (the design wall thickness)."""
-    rects = [
-        (-big_b / 2, big_b / 2, -big_h / 2, -big_h / 2 + t),
-        (-big_b / 2, big_b / 2, big_h / 2 - t, big_h / 2),
-        (-big_b / 2, -big_b / 2 + t, -big_h / 2 + t, big_h / 2 - t),
-        (big_b / 2 - t, big_b / 2, -big_h / 2 + t, big_h / 2 - t),
-    ]
-    p = _assembly(rects)
+    p = _assembly(tables.rhs_section("", "RHS", big_h, big_b, t, 0.0))
     # Flat widths, Sec 10.2.4.2(d): less the inside corner radius each side, or 3 t when the
     # radius is not known.
     inside = r_out - t if r_out > t else None
@@ -323,26 +249,22 @@ def rhs(
 
 def chs(diameter: float, t: float, label: str = "") -> ShapeProperties:
     """A circular hollow section of outside diameter ``diameter`` and wall ``t``."""
-    inner = diameter - 2 * t
-    area = math.pi / 4 * (diameter**2 - inner**2)
-    i = math.pi / 64 * (diameter**4 - inner**4)
-    s = i / (diameter / 2)
-    z = (diameter**3 - inner**3) / 6
+    section = tables.chs_section("", diameter, t)
     return ShapeProperties(
         family="chs",
         label=label or f"CHS {diameter:g}x{t:g}",
-        area=area,
-        ix=i,
-        iy=i,
-        sx=s,
-        sy=s,
-        zx=z,
-        zy=z,
-        j=2 * i,
+        area=section.A,
+        ix=section.Ix,
+        iy=section.Iy,
+        sx=section.Sx,
+        sy=section.Sy,
+        zx=section.Zx,
+        zy=section.Zy,
+        j=section.J,
         cw=0.0,
         dims={"D": diameter, "t": t},
-        sx_top=s,
-        sx_bottom=s,
+        sx_top=section.Sx,
+        sx_bottom=section.Sx,
     )
 
 
