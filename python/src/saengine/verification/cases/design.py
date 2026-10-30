@@ -1,8 +1,8 @@
 """Design benchmarks: SAEngine's design functions against hand calculations to ACI 318-19.
 
 Each case calls the design function the design checks use (:mod:`saengine.design.rc`,
-:mod:`saengine.design.slab`, :mod:`saengine.design.footing`) and works the same quantity out
-by hand, step by step, with plain arithmetic: none of SAEngine's helpers are used for the
+:mod:`saengine.design.slab`, :mod:`saengine.substructure.shallow`) and works the same quantity
+out by hand, step by step, with plain arithmetic: none of SAEngine's helpers are used for the
 reference. BNBC 2020 Part 6 Chapter 6 is based on an earlier ACI 318 (e.g. Vc = 0.17λ√f'c bw d,
 Eq 6.6.49, without the size factor); the cases check to ACI 318-19, which matches or is stricter.
 
@@ -16,7 +16,6 @@ from pathlib import Path
 
 from saengine.design import rc
 from saengine.design import slab as slab_design
-from saengine.design.footing import ColumnBase, FootingSpec, design_footing
 from saengine.library.objects import (
     BarMesh,
     LinearReinforcement,
@@ -24,6 +23,7 @@ from saengine.library.objects import (
     RectangleProfile,
 )
 from saengine.library.settings import Foundation
+from saengine.substructure.shallow import ColumnBase, FootingSpec, design_footing
 from saengine.verification.cases.common import Case, Outcome, Quantity, Reference, fmt
 
 FC, FY = 28.0, 420.0  # MPa: β1 = 0.85 at f'c = 28 MPa
@@ -554,7 +554,7 @@ def footing(_: Path) -> Outcome:
                 "covers that rounding."
             ),
             (
-                "design/footing.py measures d to the centroid of the bars of the direction "
+                "substructure/shallow.py measures d to the centroid of the bars of the direction "
                 "considered: 517 mm for the outer (X) layer and 501 mm for the inner (Y) one, for "
                 "flexure and one-way shear (its notes read d = 517 and 501 mm), and the mean, "
                 "509 mm, for punching (22.6.2.1). Which layer is outer is not an input of a "

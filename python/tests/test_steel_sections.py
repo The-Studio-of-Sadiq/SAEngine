@@ -125,3 +125,31 @@ def test_wall_thickness_matches_exactly(size):
     # a 2.8 mm wall is no table section: custom, its own area
     p = {"shape": "rectangleHollow", "xDim": size, "yDim": size, "wallThickness": 2.8}
     assert t.match(p) is None and t.section_of_profile(p).name == "custom"
+
+
+def test_tee_by_hand_and_with_fillets():
+    d, b, tw, tf = 200.0, 150.0, 8.0, 12.0
+    s = t.tee_section("T", "T", d, b, tw, tf, 0.0)
+    stem = d - tf
+    area = b * tf + stem * tw
+    cy = (b * tf * (d - tf / 2) + stem * tw * stem / 2) / area
+    assert s.A == pytest.approx(area) and s.cy == pytest.approx(cy)
+    ix = b * tf**3 / 12 + b * tf * (d - tf / 2 - cy) ** 2 + tw * stem**3 / 12
+    ix += stem * tw * (stem / 2 - cy) ** 2
+    assert s.Ix == pytest.approx(ix)
+    assert s.Sx == pytest.approx(ix / cy)  # the stem tip is the far fibre
+    profile = {"shape": "T", "depth": d, "flangeWidth": b, "flangeThickness": tf}
+    profile |= {"webThickness": tw, "filletRadius": 10}
+    fillets = t.section_of_profile(profile)
+    assert fillets.shape == "T" and fillets.A == pytest.approx(area + (2 - math.pi / 2) * 100)
+    fe = section_properties(TypeAdapter(Profile).validate_python(profile))
+    assert fe.area == pytest.approx(fillets.A, rel=0.003)
+    assert fe.ixx == pytest.approx(fillets.Ix, rel=0.003)
+
+
+def test_mass_per_metre_is_the_nominal_section_with_its_corners():
+    s = t.find("SHS 100x100x5")
+    assert t.mass_per_metre(s.profile()) == round(s.A * 1e-6 * 7850, 3)
+    assert t.mass_per_metre(s.profile(), 7800) == round(s.A * 1e-6 * 7800, 3)
+    with pytest.raises(TypeError):
+        t.mass_per_metre({"shape": "rectangle", "xDim": 100, "yDim": 100})

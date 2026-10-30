@@ -89,44 +89,43 @@ class SystemRow(NamedTuple):
 NL = None
 NP = 0.0
 
-#: Table 6.2.19 rows of the systems a project can choose (``bnbc.STRUCTURAL_SYSTEMS``).
-TABLE_6_2_19: dict[str, SystemRow] = {
-    "rcSmf": SystemRow("C.4 (p. 623)", 8.0, 3.0, 5.5, (NL, NL, NL), "special"),
-    "rcImf": SystemRow("C.5 (p. 623)", 5.0, 3.0, 4.5, (NL, NL, NP), "intermediate"),
-    "rcOmf": SystemRow("C.5 [sic, the 6th row] (p. 623)", 3.0, 3.0, 2.5, (NL, NP, NP), "ordinary"),
-    "rcSpecialWallFrame": SystemRow(
-        "B.5 (p. 622)", 6.0, 2.5, 5.0, (NL, NL, 50.0), None, specialWalls=True
-    ),
-    "rcOrdinaryWallFrame": SystemRow("B.6 (p. 622)", 5.0, 2.5, 4.25, (NL, NL, NP), None),
-    "rcDualSpecial": SystemRow(
-        "D.3 (p. 623)", 7.0, 2.5, 5.5, (NL, NL, NL), "special", specialWalls=True
-    ),
-    "steelSmf": SystemRow("C.1 (p. 622)", 8.0, 3.0, 5.5, (NL, NL, NL), None, concrete=False),
-    "steelOmf": SystemRow("C.3 (p. 622)", 3.5, 3.0, 3.0, (NL, NL, NP), None, concrete=False),
-    "steelScbf": SystemRow("B.3 (p. 622)", 6.0, 2.0, 5.0, (NL, NL, 50.0), None, concrete=False),
-}
 
-#: The detailing level each category requires (Sec 8.3.2(b)-(d)).
-REQUIRED_LEVEL: dict[str, FrameType] = {"D": "special", "C": "intermediate", "B": "ordinary"}
+def system_row(system: str) -> SystemRow | None:
+    """The Table 6.2.19 row (pp. 621-624) of ``system`` (a ``bnbc.STRUCTURAL_SYSTEMS`` id) in the
+    pack in force (``seismic.systems``); None for a system the pack does not list."""
+    entry = code_context.table("seismic").systems.get(system)
+    if entry is None:
+        return None
+    limits = entry.heightLimits
+    frame = entry.frame
+    return SystemRow(
+        entry.row,
+        float(entry.R),
+        float(entry.Omega0),
+        float(entry.Cd),
+        tuple(None if limits[c] is None else float(limits[c]) for c in "BCD"),  # type: ignore[arg-type]
+        frame,
+        specialWalls=bool(entry.specialWalls),
+        concrete=bool(entry.concrete),
+    )
 
-#: Sec 8.3.3.3: f'c of special moment frames and special walls at least 21 MPa; lightweight
-#: concrete at most 35 MPa unless shown by tests.
-FC_MIN = 21.0
-FC_MAX_LIGHTWEIGHT = 35.0
-#: Lightweight concrete: equilibrium density 1450-1850 kg/m³ (Sec 6.1 definitions, p. 868).
-LIGHTWEIGHT_DENSITY = 1850.0
-#: Sec 8.3.3.4(b): permitted grades, as their specified yield strength [MPa]: ASTM A706 Grade
-#: 420; BDS ISO 6935-2 Grades 300, 350, 400, 420; ASTM A615 Grades 275 and 420.
-PERMITTED_FY = (275.0, 300.0, 350.0, 400.0, 420.0)
-FY_MAX = 420.0
-#: A specified fy within this fraction of a permitted grade is taken as that grade, with a
-#: warning (Grade 420 / 60 ksi = 413.7 MPa is often entered as 415 MPa): an SAEngine choice.
-GRADE_TOLERANCE = 0.02
-#: Sec 8.3.3.4(b)(i): actual (mill-test) fy at most the specified fy + 125 MPa (retests +20).
-FY_ACTUAL_MARGIN = 125.0
-FY_RETEST_MARGIN = 20.0
-#: Sec 8.3.3.4(b)(ii): actual tensile / actual yield at least 1.25.
-FU_FY_MIN = 1.25
+
+def required_level(sdc: str | None) -> FrameType | None:
+    """The detailing level Seismic Design Category ``sdc`` requires (Sec 8.3.2(b)-(d)) in the
+    pack in force (``seismic.requiredDetailing``); None without a category."""
+    if not sdc:
+        return None
+    return code_context.table("seismic").requiredDetailing.get(sdc)
+
+
+# The material limits of Sec 8.3.3.3-8.3.3.4 are the pack's ``materials`` table (BNBC 2020:
+# f'c at least 21 MPa, lightweight concrete (density at most 1850 kg/m³, Sec 6.1 definitions,
+# p. 868) at most 35 MPa; the permitted grades fy 275, 300, 350, 400, 420 MPa (ASTM A706 Grade
+# 420; BDS ISO 6935-2 Grades 300, 350, 400, 420; ASTM A615 Grades 275 and 420), at most 420;
+# a specified fy within 2 % of a grade taken as it, with a warning (60 ksi = 413.7 MPa is
+# often entered as 415: an SAEngine choice); actual fy at most fy + 125 MPa (retests +20);
+# actual fu/fy at least 1.25), read when the checks run.
+
 #: Sec 8.3.3.4(c): fyt of the confinement reinforcement at most 700 MPa.
 FYT_CONFINEMENT_MAX = 700.0
 #: Sec 6.4.3.2 via 8.3.3.4(d): fy, fyt of shear reinforcement at most 420 MPa.
@@ -230,9 +229,9 @@ def system_checks(
                 "-",
                 f"Table 6.2.19 row {row.row}: {name} is NP (not permitted) in Category {sdc}"
                 + (
-                    f"; Sec 8.3.2 requires {REQUIRED_LEVEL[sdc]} seismic detailing in Category "
+                    f"; Sec 8.3.2 requires {required_level(sdc)} seismic detailing in Category "
                     f"{sdc}: choose a system with it (and its R, Ω0, Cd)"
-                    if row.frame and not _level_at_least(row.frame, REQUIRED_LEVEL[sdc])
+                    if row.frame and not _level_at_least(row.frame, required_level(sdc))
                     else ""
                 ),
                 utilisation=99.0,
@@ -334,6 +333,13 @@ def material_checks(
         ("wall",) if special_walls else ()
     )
     concrete_used, rebar_used = _used_materials(objects, kinds, frame_types)
+    limits = code_context.table("materials")
+    fc_min, fc_max_light = float(limits.seismicFcMin), float(limits.lightweightFcMax)
+    light_density = float(limits.lightweightDensity)
+    permitted_fy, fy_max = tuple(map(float, limits.seismicRebarFy)), float(limits.seismicRebarFyMax)
+    tolerance, margin = float(limits.gradeTolerance), float(limits.fyActualMargin)
+    retest = float(limits.fyRetestMargin)
+    fu_fy_min = float(limits.fuFyMin)
     by_id = {m.id: m for m in getattr(materials, "materials", [])}
     checks: list[dict[str, Any]] = []
     for mid, types in sorted(concrete_used.items()):
@@ -344,20 +350,20 @@ def material_checks(
         used = ", ".join(types)
         checks.append(
             _check(
-                f"f'c ≥ 21 MPa (Sec 8.3.3.3, p. 1089): {mid}",
-                FC_MIN,
+                f"f'c ≥ {fc_min:g} MPa (Sec 8.3.3.3, p. 1089): {mid}",
+                fc_min,
                 fc,
                 "MPa",
                 f"concrete of {used}",
             )
         )
         density = m.mechanical.density
-        if density is not None and density <= LIGHTWEIGHT_DENSITY:
+        if density is not None and density <= light_density:
             checks.append(
                 _check(
-                    f"Lightweight f'c ≤ 35 MPa (Sec 8.3.3.3, p. 1089): {mid}",
+                    f"Lightweight f'c ≤ {fc_max_light:g} MPa (Sec 8.3.3.3, p. 1089): {mid}",
                     fc,
-                    FC_MAX_LIGHTWEIGHT,
+                    fc_max_light,
                     "MPa",
                     f"density {density:g} kg/m³ is lightweight concrete ({CLAUSES['lightweight']});"
                     " higher strengths need experimental evidence; λ per Sec 6.1.8",
@@ -371,14 +377,14 @@ def material_checks(
         fy = float(steel.fy)
         used = ", ".join(t.id for t in types)
         grade = steel.grade or mid
-        nearest = min(PERMITTED_FY, key=lambda g: abs(fy - g))
+        nearest = min(permitted_fy, key=lambda g: abs(fy - g))
         exact = abs(fy - nearest) < 1e-6
-        near = not exact and abs(fy - nearest) <= GRADE_TOLERANCE * nearest
+        near = not exact and abs(fy - nearest) <= tolerance * nearest
         if exact:
             remark = ""
         elif near:
             remark = (
-                f"; fy {fy:g} MPa taken as Grade {nearest:g} (within {GRADE_TOLERANCE:.0%}: "
+                f"; fy {fy:g} MPa taken as Grade {nearest:g} (within {tolerance:.0%}: "
                 "60 ksi = 413.7 MPa is often entered as 415): confirm the grade"
             )
         else:
@@ -387,13 +393,13 @@ def material_checks(
             _check(
                 f"Reinforcement grade (Sec 8.3.3.4(b), p. 1090): {mid}",
                 fy,
-                FY_MAX,
+                fy_max,
                 "MPa",
                 f"{grade}, fy {fy:g} MPa, in {used}: only ASTM A706 Grade 420, BDS ISO 6935-2 "
                 "Grades 300, 350, 400, 420 or ASTM A615 Grades 275, 420 may resist earthquake-"
                 "induced flexure and axial force" + remark,
                 flag=near,
-                utilisation=None if exact or near or fy > FY_MAX else 99.0,
+                utilisation=None if exact or near or fy > fy_max else 99.0,
             )
         )
         actual_fy = getattr(steel, "fyActual", None)
@@ -401,22 +407,22 @@ def material_checks(
         if actual_fy is not None:
             checks.append(
                 _check(
-                    f"Actual fy ≤ fy + 125 MPa (Sec 8.3.3.4(b)(i), p. 1090): {mid}",
+                    f"Actual fy ≤ fy + {margin:g} MPa (Sec 8.3.3.4(b)(i), p. 1090): {mid}",
                     float(actual_fy),
-                    fy + FY_ACTUAL_MARGIN,
+                    fy + margin,
                     "MPa",
-                    "mill-test yield strength; retests at most a further 20 MPa",
+                    f"mill-test yield strength; retests at most a further {retest:g} MPa",
                 )
             )
         else:
             checks.append(
                 _check(
-                    f"Actual fy ≤ fy + 125 MPa (Sec 8.3.3.4(b)(i), p. 1090): {mid}",
+                    f"Actual fy ≤ fy + {margin:g} MPa (Sec 8.3.3.4(b)(i), p. 1090): {mid}",
                     fy,
-                    fy + FY_ACTUAL_MARGIN,
+                    fy + margin,
                     "MPa",
                     "the material has no mill-test yield strength: check the mill certificate "
-                    f"(actual fy at most {fy + FY_ACTUAL_MARGIN:g} MPa)",
+                    f"(actual fy at most {fy + margin:g} MPa)",
                     flag=True,
                 )
             )
@@ -427,8 +433,8 @@ def material_checks(
             actual = actual_fu is not None and actual_fy is not None
             checks.append(
                 _check(
-                    f"fu/fy ≥ 1.25 (Sec 8.3.3.4(b)(ii), p. 1090): {mid}",
-                    FU_FY_MIN,
+                    f"fu/fy ≥ {fu_fy_min:g} (Sec 8.3.3.4(b)(ii), p. 1090): {mid}",
+                    fu_fy_min,
                     ratio,
                     "-",
                     f"fu {float(fu):g} / fy {ratio_fy:g} MPa"
@@ -443,8 +449,8 @@ def material_checks(
         else:
             checks.append(
                 _check(
-                    f"fu/fy ≥ 1.25 (Sec 8.3.3.4(b)(ii), p. 1090): {mid}",
-                    FU_FY_MIN,
+                    f"fu/fy ≥ {fu_fy_min:g} (Sec 8.3.3.4(b)(ii), p. 1090): {mid}",
+                    fu_fy_min,
                     0.0,
                     "-",
                     "the material has no fu: enter it from the mill certificate (actual tensile / "
@@ -759,7 +765,7 @@ def detailing_level(row: SystemRow | None, sdc: str | None) -> FrameType | None:
     not RC."""
     if row is None or not row.concrete:
         return None
-    required = REQUIRED_LEVEL.get(sdc or "", "ordinary")
+    required = required_level(sdc) or "ordinary"
     own = row.frame or required
     return own if _level_at_least(own, required) else required
 
@@ -880,6 +886,7 @@ def _flat_slabs(objects: Any, building: Any) -> list[str]:
     return sorted(flat & used)
 
 
+@code_context.in_project_pack()
 def seismic_detailing_scope(
     settings: Any,
     materials: Any,
@@ -904,13 +911,13 @@ def seismic_detailing_scope(
 
     values = derived(settings)
     system = settings.seismic.system
-    row = TABLE_6_2_19.get(system)
+    row = system_row(system)
     sdc, zone = seismic_design_category(settings)
     if height is None:
         height = building_height(building)
     frame_type = frame_type_of(row, sdc)
     level = detailing_level(row, sdc)
-    required = REQUIRED_LEVEL.get(sdc) if sdc else None
+    required = required_level(sdc)
     notes: list[str] = []
     checks: list[dict[str, Any]] = []
 

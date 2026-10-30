@@ -31,6 +31,7 @@ from typing import Any
 
 import numpy as np
 
+from saengine.design.bars import mesh_for, slab_flexure_need
 from saengine.library.bim import ColumnElement
 from saengine.library.materials import Category
 from saengine.library.objects import BarMesh, Column
@@ -39,7 +40,6 @@ from saengine.substructure.context import Context, Skip, load_context
 from saengine.substructure.shallow import (
     design_footing,
     footing_loads,
-    mesh_area,
     min_steel_ratio,
     place_footing,
 )
@@ -241,31 +241,26 @@ class Sizer:
 
     def choose_mesh(self, trial: Trial, demand: float, axis_d: float, top: bool) -> BarMesh:
         """The lightest mesh carrying ``demand`` [N·mm per metre] at depth ``axis_d`` with the
-        minimum steel and the largest spacing of ACI 7.7.2.3."""
+        minimum steel and the largest spacing of ACI 7.7.2.3: the bars of
+        :func:`saengine.design.bars.slab_flexure_need` in :func:`saengine.design.bars.mesh_for`
+        (as Design Reinforcement chooses them); too thin a footing is skipped."""
         h = trial.thickness
         concrete = self.ctx.mats[trial.material].concrete
         rebar = self.ctx.mats[trial.rebar].steel
         if concrete is None or rebar is None:
             raise Skip("the footing's concrete or bars have no strength")
         fc, fy = concrete.fc, rebar.fy
-        # As from Mu = 0.9 As fy (d - As fy / (2 · 0.85 f'c b)), b = 1000 mm.
-        k = fy / (2 * 0.85 * fc * 1000)
-        disc = axis_d**2 - 4 * k * demand / (0.9 * fy)
-        need = (axis_d - math.sqrt(disc)) / (2 * k) if disc > 0 else math.inf
+        flexure = slab_flexure_need(demand, axis_d, fc, fy)
+        if flexure.too_small:
+            raise Skip("the footing is too thin for the flexure")
+        need = flexure.area
         if not top:
             need = max(need, min_steel_ratio(fy) * h * 1000)
-        limit = min(3 * h, 450.0)
-        best: BarMesh | None = None
-        for dia in BAR_DIAS:
-            for spacing in np.arange(math.floor(limit / 25) * 25, 99, -25):
-                mesh = BarMesh(dia=dia, spacing=float(spacing))
-                if mesh_area(mesh) >= need * 1.02:  # a little over: d of the layers differ
-                    if best is None or mesh_area(mesh) < mesh_area(best):
-                        best = mesh
-                    break
+        # A little over: d of the layers differ.
+        best = mesh_for(need * 1.02, min(3 * h, 450.0), BAR_DIAS)
         if best is None:
             raise Skip("no mesh of the bar sizes carries the flexure")
-        return best
+        return BarMesh(dia=best.dia, spacing=best.spacing)
 
     def size_section(self, trial: Trial) -> dict[str, dict[str, Any]]:
         """Thickness and meshes: thicken until punching and one-way shear pass without shear

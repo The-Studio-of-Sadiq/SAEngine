@@ -953,37 +953,21 @@ def test_report_of_the_analysed_frame(frame: Path, monkeypatch: pytest.MonkeyPat
     assert "9 Substructure: F9: 'C9' is not a column or wall of 6 BIM" in data["notes"]
     assert data["tieBeams"][0]["force"] > 0
     assert data["summary"]["checked"] == 4 and data["summary"]["skipped"] == 3
-    # The same footing in Part 8's old path gives the same checks.
-    from saengine.design.footing import footing_checks
-
-    old_building = generate(PLAN, "s")
-    old_building = old_building.model_copy(
-        update={
-            "elements": [
-                *old_building.elements,
-                FootingElement(id="F1", type="F18", position=[0, 0], elevation=-1000),
-            ]
-        }
-    )
-    objects = ObjectLibrary.model_validate(
-        {
-            "objects": [
-                *STRIP_OBJECTS.model_dump(mode="json", by_alias=True)["objects"],
-                {"id": "F18", "name": "F18", "kind": "footing", "material": "C24.1",
-                 "length": 1800, "width": 1800, "thickness": 500, "reinforcement": REINFORCEMENT},
-            ]
-        }
-    )  # fmt: skip
-    project = json.loads((frame / "08 FEM" / "model.osmodel").read_text(encoding="utf-8"))
-    settings = SETTINGS.model_copy(update={"foundation": FoundationSettings(allowableBearing=150)})
-    old, _, _ = footing_checks(
-        project, frame / "08 FEM" / "model.results", old_building, objects,
-        default_material_library(), settings,
-    )  # fmt: skip
-    new = by_id["F1"]["checks"]
-    assert [c["name"] for c in old[0]["checks"]] == [c["name"] for c in new]
-    for a, b in zip(old[0]["checks"], new, strict=True):
-        assert a["demand"] == pytest.approx(b["demand"]) and a["capacity"] == b["capacity"]
+    # Pinned: Part 8's old footing_checks (removed in 0.0.46) gave the same checks for the
+    # same footing drawn in the building model.
+    assert [(c["name"], c["demand"], c["capacity"]) for c in by_id["F1"]["checks"]] == [
+        ("Bearing (service)", 106.86, 150.0),
+        ("Punching at C1", 211.16, 1400.74),
+        ("One-way shear X", 41.67, 233.07),
+        ("One-way shear Y", 36.71, 229.84),
+        ("Flexure X (bottom)", 18.48, 204.32),
+        ("Flexure Y (bottom)", 15.58, 196.21),
+        ("Flexure X (top)", 4.51, 41.75),
+        ("Flexure Y (top)", 2.0, 41.75),
+        ("Min. reinforcement X (bottom)", 900.0, 1340.41),
+        ("Min. reinforcement Y (bottom)", 900.0, 1340.41),
+        ("Full contact under gravity (service)", 97.35, 100.0),
+    ]
 
 
 def test_strip_footing_under_the_wall_and_its_columns(wall_frame: Path) -> None:

@@ -118,19 +118,6 @@ TORSION_EXTREME = 1.4
 #: Upper limit of the torsional amplification factor Ax (eq. 6.2.44, p. 630).
 AX_LIMIT = 3.0
 
-#: Table 6.2.18 (p. 617): Seismic Design Category by site class and zone 1-4, for occupancy
-#: categories I-III and for IV. S1 and S2 sites take the SE row.
-_SDC = {
-    "SA": ("BCCD", "CDDD"),
-    "SB": ("BCDD", "CDDD"),
-    "SC": ("BCDD", "CDDD"),
-    "SD": ("CDDD", "DDDD"),
-    "SE": ("DDDD", "DDDD"),
-}
-
-#: Table 6.2.21 (p. 648): allowable storey drift Δa / hsx of "all other structures", by occupancy
-#: category (I and II, III, IV).
-ALLOWABLE_DRIFT = {"I": 0.020, "II": 0.020, "III": 0.015, "IV": 0.010}
 #: Systems "comprised solely of moment frames" (Sec 2.5.14.1, p. 647): Δa/ρ in Category D.
 MOMENT_FRAMES = frozenset({"rcSmf", "rcImf", "rcOmf", "steelSmf", "steelOmf"})
 

@@ -2,7 +2,7 @@
 
 Net allowable pressure ``qa`` [kPa], compared with the net soil pressure under the service
 loads (gross pressure minus the total overburden at the founding level, as
-:mod:`saengine.design.footing` computes it). It is the lower of:
+:func:`saengine.substructure.shallow.design_footing` computes it). It is the lower of:
 
 (a) Shear failure: the general bearing capacity equation with Vesic's (1973, 1975) factors,
     De Beer's shape factors and Hansen's (1970) depth factors, as tabulated by Vesic (1975) in

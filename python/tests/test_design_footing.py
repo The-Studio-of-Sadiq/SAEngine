@@ -1,10 +1,15 @@
-"""Isolated and combined footing design: soil pressure, shear and flexure by hand, and the
-footings of an analysed one-bay frame."""
+"""Isolated and combined footing design (:mod:`saengine.substructure.shallow`): soil pressure,
+shear and flexure by hand, and the footings drawn in the building model of an analysed one-bay
+frame, moved into 9 Substructure by the hand-over and designed there.
+
+The frame's checks were pinned against Part 8's old ``footing_checks`` (removed in 0.0.46): the
+same names, demands, capacities, utilisations, governing combinations and notes."""
 
 from __future__ import annotations
 
 import json
 import math
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -13,21 +18,24 @@ import numpy as np
 import pytest
 from test_fem_derive import OBJECTS, PLAN, SETTINGS
 
-from saengine.design.footing import (
-    ColumnBase,
-    FootingSpec,
-    design_footing,
-    footing_checks,
-    one_way_shear_capacity,
-    punching_stress,
-    service_combinations,
-    soil_pressure,
-)
 from saengine.fem.derive import derive_fem
 from saengine.library import ObjectLibrary, default_material_library
 from saengine.library.bim import BuildingModel, FootingElement, generate
 from saengine.library.objects import BarMesh
-from saengine.library.settings import Foundation, ProjectSettings
+from saengine.library.settings import SOIL_FILE, Foundation, ProjectSettings
+from saengine.library.substructure import SUBSTRUCTURE_FILE
+from saengine.substructure import substructure_report
+from saengine.substructure.handover import ensure_migrated
+from saengine.substructure.loads import service_combinations
+from saengine.substructure.shallow import (
+    ColumnBase,
+    FootingSpec,
+    SoilBearing,
+    design_footing,
+    one_way_shear_capacity,
+    punching_stress,
+    soil_pressure,
+)
 
 KN = 1e3
 
@@ -471,31 +479,51 @@ def frame(tmp_path_factory: pytest.TempPathFactory) -> tuple[dict, Path]:
     return d.project, out
 
 
-def run_checks(
-    frame: tuple[dict, Path], building: BuildingModel, settings: ProjectSettings | None = None
-):
+def part9_checks(
+    frame: tuple[dict, Path],
+    root: Path,
+    building: BuildingModel,
+    settings: ProjectSettings | None = None,
+    soil: str | None = None,
+) -> tuple[list[dict], list[dict], list[str]]:
+    """The footings of ``building``, analysed as ``frame``, designed by 9 Substructure in a
+    project at ``root``: (designed foundations, skipped ones, notes of the hand-over and of
+    the report)."""
     project, out = frame
-    return footing_checks(
-        project,
-        out,
-        building,
-        OBJECTS_WITH_FOOTINGS,
-        default_material_library(),
-        settings or SETTINGS.model_copy(update={"foundation": Foundation(allowableBearing=150)}),
+    settings = settings or SETTINGS.model_copy(
+        update={"foundation": Foundation(allowableBearing=150)}
     )
+    files = {
+        "02 Project Settings/project-settings.json": settings.model_dump_json(by_alias=True),
+        "03 Materials/materials.json": default_material_library().model_dump_json(by_alias=True),
+        "04 Objects/objects.json": OBJECTS_WITH_FOOTINGS.model_dump_json(by_alias=True),
+        "06 BIM/bim.json": building.model_dump_json(by_alias=True),
+        SUBSTRUCTURE_FILE: '{\n\t"schema": 1,\n\t"part": "substructure"\n}\n',
+        "08 FEM/model.osmodel": json.dumps(project),
+    }
+    if soil is not None:
+        files[SOIL_FILE] = soil
+    for relative, text in files.items():
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    shutil.copytree(out, root / "08 FEM" / "model.results")
+    moved = ensure_migrated(root)
+    data = substructure_report(root)
+    return data["foundations"], data["skipped"], moved["notes"] + data["notes"]
 
 
-def test_isolated_footings_under_every_column(frame: tuple[dict, Path]) -> None:
+def test_isolated_footings_under_every_column(frame: tuple[dict, Path], tmp_path: Path) -> None:
     building = with_footings(
         *(footing(f"F{i + 1}", "F18", x, y) for i, (x, y) in enumerate(CORNERS))
     )
-    elements, skipped, notes = run_checks(frame, building)
+    elements, skipped, notes = part9_checks(frame, tmp_path, building)
     json.dumps(elements)
     assert not skipped
     assert [e["id"] for e in elements] == ["F1", "F2", "F3", "F4"]
     for i, element in enumerate(elements):
-        assert element["kind"] == "footing" and element["type"] == "F18"
-        assert element["members"] == [f"C{i + 1}"]
+        assert element["type"] == "isolated"
+        assert element["columns"] == [f"C{i + 1}"]
         names = [c["name"] for c in element["checks"]]
         # The light corner columns carry large base moments: the weight of the footing and
         # the soil hogs the light side, which plain concrete carries (no top bars).
@@ -517,6 +545,8 @@ def test_isolated_footings_under_every_column(frame: tuple[dict, Path]) -> None:
         # Nearly full contact under the governing service combination: well within qa.
         bearing = checks["Bearing (service)"]
         assert bearing["ok"] and bearing["utilisation"] < 0.8
+        # Pinned (Part 8's footing_checks gave the same).
+        assert (bearing["demand"], element["utilisation"]) == (106.86, 0.712)
         assert element["ok"], [c for c in element["checks"] if not c["ok"]]
         for name in names:
             if name.endswith("(top)"):
@@ -524,28 +554,30 @@ def test_isolated_footings_under_every_column(frame: tuple[dict, Path]) -> None:
         assert checks["Bearing (service)"]["demand"] > 0
         assert checks["Bearing (service)"]["capacity"] == 150
         # A project combination, or one of its design wind load cases (BNBC Figure 6.2.9,
-        # "<name> [Case 3 -WY]": the same combinations as 9 Substructure since 0.0.45).
+        # "<name> [Case 3 -WY]").
         governing = checks[f"Punching at C{i + 1}"]["combination"]
         assert governing.split(" [Case ")[0] in [c.name for c in SETTINGS.combinations]
         assert all(c["demand"] >= 0 for c in element["checks"])
         counted = [c for c in element["checks"] if not c["flag"]]  # flags are reported only
         assert element["utilisation"] == max(c["utilisation"] for c in counted)
         assert element["ok"] == all(c["ok"] for c in counted)
-    assert not any("no footing under it" in n for n in notes)
+    assert not any("no foundation under it" in n for n in notes)
 
 
-def test_combined_footing_takes_the_resultant_of_its_columns(frame: tuple[dict, Path]) -> None:
+def test_combined_footing_takes_the_resultant_of_its_columns(
+    frame: tuple[dict, Path], tmp_path: Path
+) -> None:
     building = with_footings(
         footing("CF1", "CF", 3000, 0),
         footing("F3", "F18", 6000, 5000),
-        footing("S1", "SF", 3000, 5000),
+        footing("SF1", "SF", 3000, 5000),
         footing("F9", "F18", 3000, 2500),  # under no column
     )
-    elements, skipped, notes = run_checks(frame, building)
+    elements, skipped, notes = part9_checks(frame, tmp_path, building)
     by_id = {e["id"]: e for e in elements}
     assert sorted(by_id) == ["CF1", "F3"]
     combined = by_id["CF1"]
-    assert combined["members"] == ["C1", "C2"]
+    assert combined["columns"] == ["C1", "C2"]
     checks = by_name(combined["checks"])
     for name in (
         "Bearing (service)",
@@ -559,27 +591,24 @@ def test_combined_footing_takes_the_resultant_of_its_columns(frame: tuple[dict, 
     assert checks["Flexure between columns (top)"]["demand"] > 0
 
     reasons = {s["id"]: s["reason"] for s in skipped}
-    assert reasons == {
-        "S1": "strip footings are not designed yet",
-        "F9": "no column base lies within its plan outline",
-    }
-    # The strip S1 spans C3 and C4; C3 already stands on F3, the footing listed first.
-    assert "C3: stands on more than one footing; taken by the first" in notes
-    assert not any("no footing under it" in n for n in notes)
+    assert reasons == {"SF1": "no reinforcement", "F9": "it carries no column or wall"}
+    # The strip SF1 spans C3 and C4; C3 already stands on F3, the footing listed first.
+    assert "C3: stands on more than one footing; kept on the first" in notes
+    assert not any("no foundation under it" in n for n in notes)
 
 
-def test_column_without_footing_and_bearing_without_qa(frame: tuple[dict, Path]) -> None:
+def test_column_without_footing_and_bearing_without_qa(
+    frame: tuple[dict, Path], tmp_path: Path
+) -> None:
     building = with_footings(footing("F1", "F18", 0, 0))
-    elements, _, notes = run_checks(frame, building, SETTINGS)
+    elements, _, notes = part9_checks(frame, tmp_path / "a", building, SETTINGS)
     assert [e["id"] for e in elements] == ["F1"]
     names = [c["name"] for c in elements[0]["checks"]]
     assert "Bearing (service)" not in names and "Punching at C1" in names
     assert any(n.startswith("F1: bearing not checked: enter the net allowable") for n in notes)
-    assert {"C2: no footing under it", "C3: no footing under it", "C4: no footing under it"} <= set(
-        notes
-    )
-    # A building without footings gives nothing to report.
-    assert run_checks(frame, generate(PLAN, "s")) == ([], [], [])
+    assert {f"Column C{i}: no foundation under it" for i in (2, 3, 4)} <= set(notes)
+    # A building without footings gives none to design.
+    assert part9_checks(frame, tmp_path / "b", generate(PLAN, "s"))[:2] == ([], [])
 
 
 # ─────────────────────────── qa from the soil report (Part 1) ───────────────────────────
@@ -619,20 +648,17 @@ STIFF_CLAY = [
 ]
 
 
-def run_with_soil(frame, building, soil: str, settings: ProjectSettings = SETTINGS):
-    project, out = frame
-    return footing_checks(
-        project, out, building, OBJECTS_WITH_FOOTINGS, default_material_library(), settings, soil
-    )
+def run_with_soil(frame, root: Path, building, soil: str, settings: ProjectSettings = SETTINGS):
+    return part9_checks(frame, root, building, settings, soil)
 
 
-def test_qa_per_footing_from_the_soil_report(frame: tuple[dict, Path]) -> None:
+def test_qa_per_footing_from_the_soil_report(frame: tuple[dict, Path], tmp_path: Path) -> None:
     # F18 (1.8 x 1.8 x 0.5 m, top at -1.0 m) founded at -1.5 m: Df = 1.5 m below BH-1's ground,
     # on clay with cu = 100 kPa, undrained: qu - q = cu Nc sc dc with Nc = 5.14,
     # sc = 1 + (B/L)(Nq/Nc) = 1 + 1/5.14, dc = 1 + 0.4 Df/B = 1 + 0.4 x 1.5/1.8, FS = 3:
     hand = 100 * 5.14 * (1 + 1 / 5.14) * (1 + 0.4 * 1.5 / 1.8) / 3  # 272.9 kPa
     building = with_footings(footing("F1", "F18", 0, 0))
-    elements, _, notes = run_with_soil(frame, building, soil_text(STIFF_CLAY))
+    elements, _, notes = run_with_soil(frame, tmp_path / "a", building, soil_text(STIFF_CLAY))
     bearing = by_name(elements[0]["checks"])["Bearing (service)"]
     assert bearing["capacity"] == pytest.approx(hand, abs=0.05)
     assert "qa = 272.9 kPa from 1 Soil Report: BH-1, 0.5 m away, Df = 1.50 m" in bearing["note"]
@@ -643,7 +669,9 @@ def test_qa_per_footing_from_the_soil_report(frame: tuple[dict, Path]) -> None:
 
     # The override of Project Settings wins, and the note gives the soil report's value.
     override = SETTINGS.model_copy(update={"foundation": Foundation(allowableBearing=150)})
-    elements, _, notes = run_with_soil(frame, building, soil_text(STIFF_CLAY), override)
+    elements, _, notes = run_with_soil(
+        frame, tmp_path / "b", building, soil_text(STIFF_CLAY), override
+    )
     bearing = by_name(elements[0]["checks"])["Bearing (service)"]
     assert bearing["capacity"] == 150
     assert "the override in Project Settings → Foundation" in bearing["note"]
@@ -651,16 +679,18 @@ def test_qa_per_footing_from_the_soil_report(frame: tuple[dict, Path]) -> None:
     assert not any(n.startswith("Allowable bearing pressures") for n in notes)
 
 
-def test_net_pressure_takes_off_the_overburden_qa_is_net_of(frame: tuple[dict, Path]) -> None:
+def test_net_pressure_takes_off_the_overburden_qa_is_net_of(
+    frame: tuple[dict, Path], tmp_path: Path
+) -> None:
     # F18 founded at -1.5 m, BH-1's ground at the datum: qa is net of the clay's overburden
     # 19 x 1.5 = 28.5 kPa. With the finished ground at the datum too, the net pressure takes off
     # gamma Df = 18 x 1.5 = 27 kPa (the smaller). With the finished ground 1.0 m higher (site
     # fill), the gross pressure gains 18 x 1.0 = 18 kPa of soil above the footing, but only the
     # 28.5 kPa the soil qa allowed for comes off (not 18 x 2.5 = 45): net + 18 - 1.5 = +16.5 kPa.
     building = with_footings(footing("F1", "F18", 0, 0))
-    same, _, _ = run_with_soil(frame, building, soil_text(STIFF_CLAY))
+    same, _, _ = run_with_soil(frame, tmp_path / "a", building, soil_text(STIFF_CLAY))
     filled = SETTINGS.model_copy(update={"foundation": Foundation(groundLevel=1000)})
-    raised, _, notes = run_with_soil(frame, building, soil_text(STIFF_CLAY), filled)
+    raised, _, notes = run_with_soil(frame, tmp_path / "b", building, soil_text(STIFF_CLAY), filled)
     low = by_name(same[0]["checks"])["Bearing (service)"]
     high = by_name(raised[0]["checks"])["Bearing (service)"]
     assert high["capacity"] == low["capacity"]  # the same soil qa: Df below BH-1's ground
@@ -683,25 +713,29 @@ def test_net_pressure_takes_off_the_overburden_qa_is_net_of(frame: tuple[dict, P
     )
 
 
-def test_soil_report_without_qa_and_old_projects(frame: tuple[dict, Path]) -> None:
+def test_soil_report_without_qa_and_old_projects(frame: tuple[dict, Path], tmp_path: Path) -> None:
     building = with_footings(footing("F1", "F18", 0, 0))
     # Fill without any strength (no SPT in it either) right under the base: no qa.
     fill = [
         {"top": 0, "bottom": 3000, "description": "Fill", "soilType": "fill", "unitWeight": 17},
         {**STIFF_CLAY[0], "top": 3000},
     ]
-    elements, _, notes = run_with_soil(frame, building, soil_text(fill, spt_from=4500))
+    elements, _, notes = run_with_soil(
+        frame, tmp_path / "a", building, soil_text(fill, spt_from=4500)
+    )
     assert "Bearing (service)" not in by_name(elements[0]["checks"])
     note = next(n for n in notes if n.startswith("F1: bearing not checked"))
     assert "1 Soil Report gives no qa here (BH-1 gives none: layer 1 (fill): no strength" in note
     # ... and the override, when given, is used instead.
     override = SETTINGS.model_copy(update={"foundation": Foundation(allowableBearing=120)})
-    elements, _, _ = run_with_soil(frame, building, soil_text(fill, spt_from=4500), override)
+    elements, _, _ = run_with_soil(
+        frame, tmp_path / "b", building, soil_text(fill, spt_from=4500), override
+    )
     assert by_name(elements[0]["checks"])["Bearing (service)"]["capacity"] == 120
 
     # The placeholder of an old project (or no soil report): qa from the settings as before.
-    for text in ('{"schema": 1, "part": "soil"}', None):
-        elements, _, notes = run_with_soil(frame, building, text, override)
+    for k, text in enumerate(('{"schema": 1, "part": "soil"}', None)):
+        elements, _, notes = run_with_soil(frame, tmp_path / f"c{k}", building, text, override)
         bearing = by_name(elements[0]["checks"])["Bearing (service)"]
         assert bearing["capacity"] == 120
         assert bearing["note"].endswith("qa = 120 kPa from Project Settings → Foundation")
@@ -710,9 +744,6 @@ def test_soil_report_without_qa_and_old_projects(frame: tuple[dict, Path]) -> No
 
 def test_soil_note_names_the_practice_of_the_soil_report() -> None:
     """The footing note says how qa was worked out with the soil report's own practice."""
-    from saengine.design.footing import SoilBearing
-    from saengine.library.settings import Foundation
-
     clay = [{"top": 0, "bottom": 20000, "description": "Stiff clay", "soilType": "clay", "cu": 80}]
     text = json.loads(soil_text(clay))
     textbook = SoilBearing(json.dumps(text), Foundation()).notes()
