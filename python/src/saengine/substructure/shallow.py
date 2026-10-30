@@ -540,7 +540,27 @@ def _beam(
             value += couple * min(max((s - lo) / (hi - lo), 0.0), 1.0)
         return value
 
-    return shear, moment, point, span
+    def moments(stations: list[float]) -> list[float]:
+        """:func:`moment` at many stations. In full contact the soil pressure across the beam
+        integrates to across · (a + g s), so its force and moment are polynomials in s: all
+        stations at once (N-U4: the flexure scan took most of the sizing time). In partial
+        contact, one station at a time."""
+        if pressure.clip:
+            return [moment(s) for s in stations]
+        s = np.asarray(stations, dtype=float)
+        g = pressure.gu if axis == "u" else pressure.gv
+        a = pressure.a
+        force = across * (a * (s - start) + g * (s**2 - start**2) / 2)
+        first = across * (a * (s**2 - start**2) / 2 + g * (s**3 - start**3) / 3)
+        part = np.maximum(s - start, 0.0)
+        value = s * force - first - weight * across * part**2 / 2
+        for lo, hi, p, couple in point:
+            top = np.minimum(s, hi)
+            value -= np.where(top > lo, p / (hi - lo) * ((s - lo) ** 2 - (s - top) ** 2) / 2, 0.0)
+            value += couple * np.clip((s - lo) / (hi - lo), 0.0, 1.0)
+        return [float(v) for v in value]
+
+    return shear, moment, moments, point, span
 
 
 def _transverse_strip(
@@ -788,7 +808,7 @@ def design_footing(
         """One-way shear and flexure of ``beam_spec`` as a beam along ``axis``; ``strip_of`` is
         the column (or wall piece) of a transverse strip of a combined footing."""
         label = labels[axis]
-        shear, moment, point, span = _beam(beam_spec, pressure, loads, axis, weight)
+        shear, _, moments_at, point, span = _beam(beam_spec, pressure, loads, axis, weight)
         across = beam_spec.width if axis == "u" else beam_spec.length
         bottom, top = meshes[axis]
         d = beam_spec.depths("bottom")[axis]  # this direction's own layer
@@ -843,7 +863,7 @@ def design_footing(
         faces = [s for lo, hi, _, _ in point for s in (lo, hi) if -span / 2 < s < span / 2]
         samples = [s for s in np.linspace(-span / 2, span / 2, 241)[1:-1] if not inside(float(s))]
         stations = [*faces, *map(float, samples)]
-        moments = [(moment(s), s) for s in stations]
+        moments = list(zip(moments_at(stations), stations, strict=True))
         sag = max(moments, default=(0.0, 0.0))
         hog = min(moments, default=(0.0, 0.0))
         per_m = 1000 / across
