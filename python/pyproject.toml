@@ -47,6 +47,8 @@ version = { attr = "saengine.__version__" }
     "packs/*/pack.json",
     "packs/*/data/*.json",
     "packs/*/*.md",
+    "packs/*/*.png",
+    "packs/*/templates/*.json",
     "schemas/*.json",
 ]
 # Copied in by scripts/installer/bundle-python.ps1 from third_party/freecad-profiles.
