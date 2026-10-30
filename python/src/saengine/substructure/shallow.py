@@ -50,7 +50,7 @@ from saengine.design.check import _check
 from saengine.design.rc import PHI_SHEAR, STEEL_E, beta1, phi_axial_flexure
 from saengine.library.objects import BarMesh
 from saengine.library.settings import Foundation
-from saengine.substructure.loads import column_action, combine
+from saengine.substructure.loads import column_action
 
 G = 9.80665
 #: The least share of a footing's base in contact under a service combination before it is
@@ -1443,20 +1443,46 @@ def place_footing(ctx: Any, foundation: Any) -> Placed:
     return Placed(spec, nodes, center, axis_u, axis_v, founding, notes)
 
 
+def _factors(cases: list[str], combinations: list[tuple[str, dict[str, float]]]) -> np.ndarray:
+    """The factors of ``combinations`` as a matrix (combination x case, in the order of
+    ``cases``)."""
+    index = {case: k for k, case in enumerate(cases)}
+    matrix = np.zeros((len(combinations), len(cases)))
+    for row, (_, factors) in enumerate(combinations):
+        for case, factor in factors.items():
+            matrix[row, index[case]] += factor  # a case that was not analysed: KeyError
+    return matrix
+
+
 def footing_loads(loads: Any, placed: Placed) -> tuple[Loads, Loads]:
-    """The service and strength loads ``[P, Cu, Cv]`` of each column of a placed footing."""
+    """The service and strength loads ``[P, Cu, Cv]`` of each column of a placed footing.
+
+    All the combinations at once (factor matrix x the cases' column actions): the sizing
+    assistant calls this for every trial size, and a building has some 300 combinations of
+    some 60 cases (N-U4: one loop per combination took most of the 19 min of 20 columns)."""
     zero = np.zeros(6)
-    per_case = {
-        case: [
-            column_action(reactions.get(node, zero), c.arm, placed.axis_u, placed.axis_v)
-            for c, node in zip(placed.spec.columns, placed.nodes, strict=True)
+    cases = list(loads.cases)
+    per_case = np.array(
+        [
+            [
+                column_action(
+                    loads.cases[case].get(node, zero), c.arm, placed.axis_u, placed.axis_v
+                )
+                for c, node in zip(placed.spec.columns, placed.nodes, strict=True)
+            ]
+            for case in cases
         ]
-        for case, reactions in loads.cases.items()
-    }
-    return (
-        {name: combine(per_case, factors) for name, factors in loads.service},
-        {name: combine(per_case, factors) for name, factors in loads.strength},
-    )
+    ).reshape(len(cases), len(placed.spec.columns), 3)
+
+    def combined(combinations: list[tuple[str, dict[str, float]]]) -> Loads:
+        key = (tuple(cases), id(combinations), len(combinations))
+        cache = loads.__dict__.setdefault("_factor_matrices", {})
+        if key not in cache:
+            cache[key] = _factors(cases, combinations)
+        values = np.einsum("kc,cjd->kjd", cache[key], per_case)
+        return {name: list(values[k]) for k, (name, _) in enumerate(combinations)}
+
+    return combined(loads.service), combined(loads.strength)
 
 
 def summary(

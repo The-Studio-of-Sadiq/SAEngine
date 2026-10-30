@@ -52,6 +52,7 @@ from saengine.library.objects import BarMesh, Column
 from saengine.library.substructure import DEFAULT_FOUNDING_DEPTH, Foundation
 from saengine.substructure.context import Context, Skip, load_context
 from saengine.substructure.shallow import (
+    LATERAL,
     design_footing,
     footing_loads,
     min_steel_ratio,
@@ -351,7 +352,74 @@ class Sizer:
         return checks
 
     def size(self, trial: Trial) -> dict[str, dict[str, Any]]:
-        """Plan size, thickness and bars of a trial; its final checks."""
+        """Plan size, thickness and bars of a trial; its final checks under every combination.
+
+        Sized under the combinations that govern it (:meth:`governing`), then checked under all
+        of them; a combination that makes a check fail there is added and the trial sized again
+        (N-U4: each trial size was checked under some 300 combinations; 20 columns took 19 min).
+        """
+        full = self.loads
+        service, strength = self.governing(trial)
+        try:
+            for _ in range(4):
+                self.loads = replace(full, service=service, strength=strength)
+                self._size(trial)
+                self.loads = full
+                checks = self.evaluate(trial)
+                used = {n for n, _ in service} | {n for n, _ in strength}
+                missed = {
+                    c["combination"]
+                    for c in checks.values()
+                    if not c["ok"] and not c["flag"] and c["combination"] not in used
+                }
+                if not missed:
+                    return checks
+                service = [c for c in full.service if c[0] in used or c[0] in missed]
+                strength = [c for c in full.strength if c[0] in used or c[0] in missed]
+            return self.evaluate(trial)
+        finally:
+            self.loads = full
+
+    def governing(
+        self, trial: Trial
+    ) -> tuple[list[tuple[str, dict[str, float]]], list[tuple[str, dict[str, float]]]]:
+        """The service and strength combinations a footing under ``trial``'s columns is sized
+        for: by their resultant at the columns' centroid (P down, M about X and Y), those with
+        the largest P, the least P (uplift), the largest |M| each way and the largest corner
+        pressure P/B² + 6 (|Mx| + |My|)/B³ of square footings B = 1 to 6 m; and every service
+        combination without wind or earthquake (the full-contact check under gravity)."""
+        loads = self.loads
+        about = np.array([*np.mean([b.nodes[0][1][:2] for b in self.bases(trial)], axis=0), 0.0])
+
+        def pick(combinations: list[tuple[str, dict[str, float]]]) -> set[str]:
+            if not combinations:
+                return set()
+            rows = np.array(
+                [
+                    sum(loads.resultant(c, factors, about) for c in trial.columns)
+                    for _, factors in combinations
+                ]
+            )
+            p, mx, my = -rows[:, 2], np.abs(rows[:, 3]), np.abs(rows[:, 4])
+            names = [n for n, _ in combinations]
+            keep = {names[int(np.argmax(p))], names[int(np.argmin(p))]}
+            keep |= {names[int(np.argmax(mx))], names[int(np.argmax(my))]}
+            for b in (1000.0, 2000.0, 3000.0, 4000.0, 6000.0):
+                keep.add(names[int(np.argmax(p / b**2 + 6 * (mx + my) / b**3))])
+            return keep
+
+        service = pick(loads.service) | {n for n, _ in loads.service if not LATERAL.search(n)}
+        strength = pick(loads.strength)
+        return (
+            [c for c in loads.service if c[0] in service],
+            [c for c in loads.strength if c[0] in strength],
+        )
+
+    def bases(self, trial: Trial) -> list[Any]:
+        return [self.loads.bases[c] for c in trial.columns]
+
+    def _size(self, trial: Trial) -> None:
+        """Plan size, thickness and bars of a trial under :attr:`loads`."""
         for _ in range(6):
             self.size_bearing(trial)
             before = (trial.length, trial.width, trial.founding_level)
@@ -360,7 +428,6 @@ class Sizer:
             self.size_bearing(trial)  # the weight grew with the thickness
             if (trial.length, trial.width, trial.founding_level) == before:
                 break
-        return self.evaluate(trial)
 
     def keep_below_ground(self, trial: Trial) -> None:
         """Lowers a footing thicker than its founding depth until its top is at the finished
