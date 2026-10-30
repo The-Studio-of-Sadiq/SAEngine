@@ -1,0 +1,1867 @@
+{
+  "$defs": {
+    "AbsorptionRow": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "rate": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Percolation [min / 25 mm], upper bound.",
+          "title": "Rate"
+        },
+        "trench": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Trench bottom [l/m²/day].",
+          "title": "Trench"
+        },
+        "pit": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Seepage pit wall [l/m²/day].",
+          "title": "Pit"
+        }
+      },
+      "required": [
+        "rate",
+        "trench",
+        "pit"
+      ],
+      "title": "AbsorptionRow",
+      "type": "object"
+    },
+    "BranchVentRow": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "diameter": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Diameter"
+        },
+        "slope": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "[mm/m]",
+          "title": "Slope"
+        },
+        "lengths": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": "Vent diameter -> maximum length [m]; null: no limit (NL).",
+          "title": "Lengths",
+          "type": "object"
+        }
+      },
+      "required": [
+        "diameter",
+        "slope",
+        "lengths"
+      ],
+      "title": "BranchVentRow",
+      "type": "object"
+    },
+    "BuildingDrainRow": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "diameter": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Diameter"
+        },
+        "units": {
+          "description": "Fixture units by slope (drainSlopes).",
+          "items": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Units",
+          "type": "array"
+        }
+      },
+      "required": [
+        "diameter",
+        "units"
+      ],
+      "title": "BuildingDrainRow",
+      "type": "object"
+    },
+    "DrainageUnitsRow": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "units": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Units"
+        },
+        "outlet": {
+          "description": "Minimum waste outlet [mm].",
+          "minimum": 0,
+          "title": "Outlet",
+          "type": "integer"
+        },
+        "soil": {
+          "description": "A soil appliance (to a soil stack).",
+          "title": "Soil",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "units",
+        "outlet",
+        "soil"
+      ],
+      "title": "DrainageUnitsRow",
+      "type": "object"
+    },
+    "HunterRow": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "units": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Fixture units.",
+          "title": "Units"
+        },
+        "tank": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Flow with flush tanks [l/min].",
+          "title": "Tank"
+        },
+        "valve": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Flow with flush valves [l/min].",
+          "title": "Valve"
+        }
+      },
+      "required": [
+        "units",
+        "tank",
+        "valve"
+      ],
+      "title": "HunterRow",
+      "type": "object"
+    },
+    "LeaderRow": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "diameter": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Diameter"
+        },
+        "area": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Maximum projected roof area [m²].",
+          "title": "Area"
+        },
+        "flow": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "[l/min]",
+          "title": "Flow"
+        }
+      },
+      "required": [
+        "diameter",
+        "area",
+        "flow"
+      ],
+      "title": "LeaderRow",
+      "type": "object"
+    },
+    "Reduction": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "factor": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Factor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "factor"
+      ],
+      "title": "Reduction",
+      "type": "object"
+    },
+    "SepticTank": {
+      "additionalProperties": false,
+      "properties": {
+        "minVolume": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "[l]",
+          "title": "Minvolume"
+        },
+        "minWidth": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "[mm]",
+          "title": "Minwidth"
+        },
+        "minDepth": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Liquid depth [mm].",
+          "title": "Mindepth"
+        },
+        "lengthRatio": {
+          "description": "Length: at least, at most (widths).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ]
+            },
+            {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ]
+            }
+          ],
+          "title": "Lengthratio",
+          "type": "array"
+        },
+        "maxUsers": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Maxusers"
+        },
+        "sludge": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "[l/capita/year]",
+          "title": "Sludge"
+        },
+        "clearance": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Liquid level to the cover slab [mm].",
+          "title": "Clearance"
+        },
+        "retention": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "[day]",
+          "title": "Retention"
+        },
+        "desludging": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "[year]",
+          "title": "Desludging"
+        },
+        "twoChambers": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Two chambers above this volume [l].",
+          "title": "Twochambers"
+        },
+        "inletFraction": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Inletfraction",
+          "type": "number"
+        },
+        "coverLive": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Cover design live load [kPa].",
+          "title": "Coverlive"
+        },
+        "flowCity": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Waste water of groups A, C, D [lpcd].",
+          "title": "Flowcity"
+        },
+        "flowOther": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Waste water of other groups [lpcd].",
+          "title": "Flowother"
+        }
+      },
+      "required": [
+        "minVolume",
+        "minWidth",
+        "minDepth",
+        "lengthRatio",
+        "maxUsers",
+        "sludge",
+        "clearance",
+        "retention",
+        "desludging",
+        "twoChambers",
+        "inletFraction",
+        "coverLive",
+        "flowCity",
+        "flowOther"
+      ],
+      "title": "SepticTank",
+      "type": "object"
+    },
+    "SizeStep": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "upTo": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Upper bound of the step; null: above the last.",
+          "title": "Upto"
+        },
+        "diameter": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Diameter"
+        }
+      },
+      "required": [
+        "upTo",
+        "diameter"
+      ],
+      "title": "SizeStep",
+      "type": "object"
+    },
+    "SlopedPipeRow": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "diameter": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Diameter"
+        },
+        "slopes": {
+          "additionalProperties": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  }
+                ]
+              },
+              {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  }
+                ]
+              }
+            ],
+            "type": "array"
+          },
+          "description": "Slope [mm/m] -> (area m², flow l/min).",
+          "title": "Slopes",
+          "type": "object"
+        }
+      },
+      "required": [
+        "diameter",
+        "slopes"
+      ],
+      "title": "SlopedPipeRow",
+      "type": "object"
+    },
+    "StackRow": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "diameter": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Diameter"
+        },
+        "branch": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Any horizontal fixture branch.",
+          "title": "Branch"
+        },
+        "threeStoreys": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "One stack of 3 storeys or 3 intervals.",
+          "title": "Threestoreys"
+        },
+        "stackTotal": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "More than 3 storeys: total for the stack.",
+          "title": "Stacktotal"
+        },
+        "storeyTotal": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "More than 3 storeys: total at one storey.",
+          "title": "Storeytotal"
+        }
+      },
+      "required": [
+        "diameter",
+        "branch",
+        "threeStoreys",
+        "stackTotal",
+        "storeyTotal"
+      ],
+      "title": "StackRow",
+      "type": "object"
+    },
+    "SupplyUnitsRow": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "cold": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Cold"
+        },
+        "hot": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Hot"
+        },
+        "total": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Total"
+        },
+        "minimum": {
+          "description": "Minimum supply pipe [mm].",
+          "minimum": 0,
+          "title": "Minimum",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "cold",
+        "hot",
+        "total",
+        "minimum"
+      ],
+      "title": "SupplyUnitsRow",
+      "type": "object"
+    },
+    "TrapUnits": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "diameter": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Diameter"
+        },
+        "units": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Units"
+        }
+      },
+      "required": [
+        "diameter",
+        "units"
+      ],
+      "title": "TrapUnits",
+      "type": "object"
+    },
+    "VelocityLimit": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "diameter": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Diameter"
+        },
+        "velocity": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "[m/s]",
+          "title": "Velocity"
+        }
+      },
+      "required": [
+        "diameter",
+        "velocity"
+      ],
+      "title": "VelocityLimit",
+      "type": "object"
+    },
+    "VentRow": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "diameter": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Diameter"
+        },
+        "units": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Fixture units connected.",
+          "title": "Units"
+        },
+        "lengths": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "description": "Vent diameter -> maximum length [m].",
+          "title": "Lengths",
+          "type": "object"
+        }
+      },
+      "required": [
+        "diameter",
+        "units",
+        "lengths"
+      ],
+      "title": "VentRow",
+      "type": "object"
+    },
+    "WaterOccupancy": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "table": {
+          "description": "The table the row is in, e.g. \"8.5.1(a)\".",
+          "title": "Table",
+          "type": "string"
+        },
+        "row": {
+          "description": "The row's category as printed.",
+          "title": "Row",
+          "type": "string"
+        },
+        "full": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "lpcd, full facility; null where printed '---'.",
+          "title": "Full"
+        },
+        "restricted": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "lpcd, restricted facility.",
+          "title": "Restricted"
+        },
+        "group": {
+          "description": "Part 3 occupancy group.",
+          "title": "Group",
+          "type": "string"
+        },
+        "unit": {
+          "default": "person",
+          "enum": [
+            "person",
+            "bed",
+            "seat"
+          ],
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "table",
+        "row",
+        "full",
+        "restricted",
+        "group"
+      ],
+      "title": "WaterOccupancy",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "BNBC 2020 Part 8 Chapters 5-7: water supply, drainage, rainwater; and SAEngine's pipe\ndata where the code is silent (marked in ``sources``).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "pages": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause id -> citation.",
+      "title": "Pages",
+      "type": "object"
+    },
+    "occupancies": {
+      "additionalProperties": {
+        "$ref": "#/$defs/WaterOccupancy"
+      },
+      "title": "Occupancies",
+      "type": "object"
+    },
+    "familySize": {
+      "exclusiveMinimum": 0,
+      "title": "Familysize",
+      "type": "integer"
+    },
+    "officeAreaPerPerson": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Officeareaperperson"
+    },
+    "roofTankFraction": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Rooftankfraction"
+    },
+    "reservoirFraction": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Reservoirfraction"
+    },
+    "fireReserveHours": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "minimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Firereservehours"
+    },
+    "consumptionHours": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Consumptionhours"
+    },
+    "peakFactor": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Peakfactor"
+    },
+    "tankDrain": {
+      "items": {
+        "$ref": "#/$defs/SizeStep"
+      },
+      "title": "Tankdrain",
+      "type": "array"
+    },
+    "tankOverflow": {
+      "items": {
+        "$ref": "#/$defs/SizeStep"
+      },
+      "title": "Tankoverflow",
+      "type": "array"
+    },
+    "velocityLimits": {
+      "items": {
+        "$ref": "#/$defs/VelocityLimit"
+      },
+      "title": "Velocitylimits",
+      "type": "array"
+    },
+    "maxHeadLoss": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Maxheadloss"
+    },
+    "supplyDiameters": {
+      "items": {
+        "anyOf": [
+          {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          }
+        ]
+      },
+      "title": "Supplydiameters",
+      "type": "array"
+    },
+    "flowPressureTank": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Flowpressuretank"
+    },
+    "flowPressureValve": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Flowpressurevalve"
+    },
+    "maxStaticHead": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Maxstatichead"
+    },
+    "highRise": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Highrise"
+    },
+    "hunter": {
+      "items": {
+        "$ref": "#/$defs/HunterRow"
+      },
+      "title": "Hunter",
+      "type": "array"
+    },
+    "supplyUnits": {
+      "additionalProperties": {
+        "$ref": "#/$defs/SupplyUnitsRow"
+      },
+      "title": "Supplyunits",
+      "type": "object"
+    },
+    "drainageUnits": {
+      "additionalProperties": {
+        "$ref": "#/$defs/DrainageUnitsRow"
+      },
+      "title": "Drainageunits",
+      "type": "object"
+    },
+    "trapUnits": {
+      "items": {
+        "$ref": "#/$defs/TrapUnits"
+      },
+      "title": "Trapunits",
+      "type": "array"
+    },
+    "stacks": {
+      "items": {
+        "$ref": "#/$defs/StackRow"
+      },
+      "title": "Stacks",
+      "type": "array"
+    },
+    "drainSlopes": {
+      "items": {
+        "anyOf": [
+          {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          }
+        ]
+      },
+      "title": "Drainslopes",
+      "type": "array"
+    },
+    "buildingDrains": {
+      "items": {
+        "$ref": "#/$defs/BuildingDrainRow"
+      },
+      "title": "Buildingdrains",
+      "type": "array"
+    },
+    "ventStacks": {
+      "items": {
+        "$ref": "#/$defs/VentRow"
+      },
+      "title": "Ventstacks",
+      "type": "array"
+    },
+    "branchVents": {
+      "items": {
+        "$ref": "#/$defs/BranchVentRow"
+      },
+      "title": "Branchvents",
+      "type": "array"
+    },
+    "drainVelocity": {
+      "description": "Least, self-cleansing and largest velocity [m/s].",
+      "maxItems": 3,
+      "minItems": 3,
+      "prefixItems": [
+        {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ]
+        },
+        {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ]
+        },
+        {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ]
+        }
+      ],
+      "title": "Drainvelocity",
+      "type": "array"
+    },
+    "septic": {
+      "$ref": "#/$defs/SepticTank"
+    },
+    "septicReduction": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Reduction"
+      },
+      "title": "Septicreduction",
+      "type": "object"
+    },
+    "disposalDistances": {
+      "additionalProperties": {
+        "additionalProperties": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "type": "object"
+      },
+      "title": "Disposaldistances",
+      "type": "object"
+    },
+    "treatmentTankDistances": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "minimum": 0,
+            "type": "integer"
+          },
+          {
+            "minimum": 0,
+            "type": "number"
+          }
+        ]
+      },
+      "title": "Treatmenttankdistances",
+      "type": "object"
+    },
+    "absorption": {
+      "items": {
+        "$ref": "#/$defs/AbsorptionRow"
+      },
+      "title": "Absorption",
+      "type": "array"
+    },
+    "seepageCapacityFactor": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Seepagecapacityfactor"
+    },
+    "seepageAboveWaterTable": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "minimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Seepageabovewatertable"
+    },
+    "percolationBySoil": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          }
+        ]
+      },
+      "title": "Percolationbysoil",
+      "type": "object"
+    },
+    "tableRainfall": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Tablerainfall"
+    },
+    "defaultRainfall": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Defaultrainfall"
+    },
+    "harvestPlot": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Harvestplot"
+    },
+    "harvestDays": {
+      "additionalProperties": {
+        "exclusiveMinimum": 0,
+        "type": "integer"
+      },
+      "title": "Harvestdays",
+      "type": "object"
+    },
+    "leaders": {
+      "items": {
+        "$ref": "#/$defs/LeaderRow"
+      },
+      "title": "Leaders",
+      "type": "array"
+    },
+    "gutters": {
+      "items": {
+        "$ref": "#/$defs/SlopedPipeRow"
+      },
+      "title": "Gutters",
+      "type": "array"
+    },
+    "stormDrains": {
+      "items": {
+        "$ref": "#/$defs/SlopedPipeRow"
+      },
+      "title": "Stormdrains",
+      "type": "array"
+    },
+    "minStormDrain": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Minstormdrain"
+    },
+    "outsideDiameter": {
+      "additionalProperties": {
+        "additionalProperties": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ]
+        },
+        "type": "object"
+      },
+      "title": "Outsidediameter",
+      "type": "object"
+    },
+    "hazenC": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          }
+        ]
+      },
+      "title": "Hazenc",
+      "type": "object"
+    },
+    "sleeveClearance": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "minimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Sleeveclearance"
+    },
+    "sleeveSizes": {
+      "items": {
+        "anyOf": [
+          {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          }
+        ]
+      },
+      "title": "Sleevesizes",
+      "type": "array"
+    },
+    "shaftClearance": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "minimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Shaftclearance"
+    },
+    "wetRoomKinds": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Wetroomkinds",
+      "type": "object"
+    },
+    "roomFixtures": {
+      "additionalProperties": {
+        "additionalProperties": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "type": "object"
+      },
+      "title": "Roomfixtures",
+      "type": "object"
+    }
+  },
+  "required": [
+    "occupancies",
+    "familySize",
+    "officeAreaPerPerson",
+    "roofTankFraction",
+    "reservoirFraction",
+    "fireReserveHours",
+    "consumptionHours",
+    "peakFactor",
+    "tankDrain",
+    "tankOverflow",
+    "velocityLimits",
+    "maxHeadLoss",
+    "supplyDiameters",
+    "flowPressureTank",
+    "flowPressureValve",
+    "maxStaticHead",
+    "highRise",
+    "hunter",
+    "supplyUnits",
+    "drainageUnits",
+    "trapUnits",
+    "stacks",
+    "drainSlopes",
+    "buildingDrains",
+    "ventStacks",
+    "branchVents",
+    "drainVelocity",
+    "septic",
+    "septicReduction",
+    "disposalDistances",
+    "treatmentTankDistances",
+    "absorption",
+    "seepageCapacityFactor",
+    "seepageAboveWaterTable",
+    "percolationBySoil",
+    "tableRainfall",
+    "defaultRainfall",
+    "harvestPlot",
+    "harvestDays",
+    "leaders",
+    "gutters",
+    "stormDrains",
+    "minStormDrain",
+    "outsideDiameter",
+    "hazenC",
+    "sleeveClearance",
+    "sleeveSizes",
+    "shaftClearance",
+    "wetRoomKinds",
+    "roomFixtures"
+  ],
+  "title": "PlumbingTable",
+  "type": "object",
+  "$id": "saengine.codePack.plumbing/1"
+}

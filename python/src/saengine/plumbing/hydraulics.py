@@ -64,16 +64,24 @@ SETTINGS_FILE = "02 Project Settings/project-settings.json"
 # pressures, Sec 5.10.4.2's 35 m, the Hazen-Williams C) are shared, so that the hydraulics and
 # the sizing agree; this module adds what only the network needs.
 
-#: Minimum flow pressure at the fixtures, BNBC Table 8.5.6 (p. 1047) [kPa].
-REQUIRED_KPA = T.FLOW_PRESSURE_TANK
-REQUIRED_KPA_FLUSH_VALVE = T.FLOW_PRESSURE_VALVE
-#: Maximum water head on any fitting, BNBC Sec 5.10.4.2 (p. 1047): 35 m (345 kPa); Sec 5.11.1
-#: (p. 1049) gives 350 kPa for tall buildings.
-MAX_HEAD = T.MAX_STATIC_HEAD
-#: Maximum permissible head loss, BNBC Sec 5.10.1(c)(ii) (p. 1044): 1.5-1.6 m per 100 m.
-MAX_GRADIENT = T.MAX_HEAD_LOSS / 100.0
-#: Hazen-Williams C by pipe material (BNBC gives only the C = 100 nomograph, Figure 8.O.4).
-HAZEN_C = T.HAZEN_C
+#: The table names this module offered under its own names, read from the pack in force:
+#: the minimum flow pressure at the fixtures, BNBC Table 8.5.6 (p. 1047) [kPa]; the maximum
+#: water head on any fitting, BNBC Sec 5.10.4.2 (p. 1047): 35 m (345 kPa; Sec 5.11.1 (p. 1049)
+#: gives 350 kPa for tall buildings); the Hazen-Williams C by pipe material (BNBC gives only the
+#: C = 100 nomograph, Figure 8.O.4).
+_TABLE_ALIASES = {
+    "REQUIRED_KPA": "FLOW_PRESSURE_TANK",
+    "REQUIRED_KPA_FLUSH_VALVE": "FLOW_PRESSURE_VALVE",
+    "MAX_HEAD": "MAX_STATIC_HEAD",
+    "HAZEN_C": "HAZEN_C",
+}
+
+
+def __getattr__(name: str) -> Any:
+    if name in _TABLE_ALIASES:
+        return getattr(T, _TABLE_ALIASES[name])
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 #: Required flow rate of a single fixture [L/min], BNBC Table 8.5.6 (p. 1047): the least flow a
 #: floor branch carries (below the 20 units where Table 8.5.5 starts it can give less).
@@ -393,7 +401,7 @@ def _tank(
 
 def _material_c(material: str | None, o: HydraulicOptions) -> tuple[str, float]:
     name = material or o.defaultMaterial
-    return name, HAZEN_C.get(name, HAZEN_C["uPVC"])
+    return name, T.HAZEN_C.get(name, T.HAZEN_C["uPVC"])
 
 
 # ────────────────────────────────────── the analysis ──────────────────────────────────────
@@ -514,7 +522,7 @@ def water_hydraulics(
 
     supply = plumbing.get("supply") or {}
     flush = bool(supply.get("flushValves", o.flushValves))
-    required_default = (REQUIRED_KPA_FLUSH_VALVE if flush else REQUIRED_KPA) / KPA_PER_M
+    required_default = (T.FLOW_PRESSURE_VALVE if flush else T.FLOW_PRESSURE_TANK) / KPA_PER_M
     required = float(supply.get("minResidualHead") or required_default)
 
     tanks: list[_Tank] = []
@@ -822,7 +830,7 @@ def _floor_results(
             v_seg = float(velocity[f.segment])
             v_branch = float(velocity[f.branch])
             ok_pressure = head_f >= f.required - 1e-6
-            ok_static = static <= MAX_HEAD + 1e-9
+            ok_static = static <= T.MAX_STATIC_HEAD + 1e-9
             out.append(
                 {
                     "story": f.story.id,
@@ -838,7 +846,7 @@ def _floor_results(
                     "head": round(head_f, 4),
                     "required": round(f.required, 4),
                     "staticHead": round(static, 4),
-                    "maxHead": MAX_HEAD,
+                    "maxHead": T.MAX_STATIC_HEAD,
                     "velocity": round(v_seg, 4),
                     "branchVelocity": round(v_branch, 4),
                     "branchDiameter": f.branch_diameter,
@@ -862,7 +870,7 @@ def _floor_results(
                 _check(
                     f"Static head on the fittings, {name}",
                     static,
-                    MAX_HEAD,
+                    T.MAX_STATIC_HEAD,
                     "m",
                     "BNBC Sec 5.10.4.2 (Sec 5.11.1: 350 kPa)",
                 )
@@ -931,7 +939,7 @@ def _zone_members(floors: list[_Floor], full: float, o: HydraulicOptions) -> lis
     """From the first of ``floors`` down, those whose take-off is within 35 m of ``full``."""
     members = [floors[0]]
     for f in floors[1:]:
-        if full - (f.story.elevation + o.takeoffHeight) > MAX_HEAD + 1e-9:
+        if full - (f.story.elevation + o.takeoffHeight) > T.MAX_STATIC_HEAD + 1e-9:
             break
         members.append(f)
     return members
@@ -984,10 +992,11 @@ def _zones(
                 margin, _ = _zone_margin(r, members, outlet, o, flush)
             full = outlet + drawdown
             z_top = top.story.elevation + o.takeoffHeight
-            if full - z_top > MAX_HEAD + 1e-9:
+            if full - z_top > T.MAX_STATIC_HEAD + 1e-9:
                 problems.append(
-                    f"{r.id}: below {top.story.name} even one floor needs more than {MAX_HEAD:g} "
-                    "m of static head with a tank: use pressure reducing valves or a booster."
+                    f"{r.id}: below {top.story.name} even one floor needs more than "
+                    f"{T.MAX_STATIC_HEAD:g} m of static head with a tank: use pressure reducing "
+                    "valves or a booster."
                 )
             groups.append({"outlet": outlet, "full": full, "members": members, "margin": margin})
             k += len(members)
@@ -1006,7 +1015,7 @@ def _zones(
                     f"{full:.2f} m (BNBC Sec 5.11.1(a): its own down-take pipe; the floor it "
                     f"stands on fed from the zone above), or a pressure reducing valve on "
                     f"{r.id} above {above} (Sec 5.11.1(b)) set to a downstream head level of "
-                    f"{outlet:.2f} m to {lowest + MAX_HEAD:.2f} m"
+                    f"{outlet:.2f} m to {lowest + T.MAX_STATIC_HEAD:.2f} m"
                 )
             zones.append(
                 {
@@ -1025,8 +1034,9 @@ def _zones(
                 }
             )
         notes.append(
-            f"{r.id}: the static head exceeds {MAX_HEAD:g} m from {groups[1]['members'][0].story.name} "
-            f"down: {len(groups)} pressure zones (BNBC Sec 5.11.1: intermediate tanks every 5-6 "
+            f"{r.id}: the static head exceeds {T.MAX_STATIC_HEAD:g} m from "
+            f"{groups[1]['members'][0].story.name} down: {len(groups)} pressure zones (BNBC Sec "
+            "5.11.1: intermediate tanks every 5-6 "
             "storeys, or pressure reducing valves). Each lower zone was solved on its own to "
             "place its source (with its friction and the roof tank's draw-down); the floor "
             "heads above are those of the network as entered."
@@ -1233,7 +1243,7 @@ def _mains(
         problems.append("Supply from the city main: give its residual head at the connection.")
         return None
     head = float(supply["mainsHead"])
-    residual = float(supply.get("minResidualHead") or REQUIRED_KPA / KPA_PER_M)
+    residual = float(supply.get("minResidualHead") or T.FLOW_PRESSURE_TANK / KPA_PER_M)
     out: dict[str, Any] = {"head": head, "connectionLevel": round(ground, 4)}
     if underground:
         inlet = max(t.inlet for t in underground)

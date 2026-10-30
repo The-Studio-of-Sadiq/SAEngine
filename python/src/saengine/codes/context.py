@@ -159,6 +159,50 @@ def table(name: str) -> Any:
     return current().table(name)
 
 
+def pack_table(name: str) -> Any:
+    """Table ``name`` of the pack in force; the default pack's when the pack in force has none,
+    and the built-in BNBC 2020 one when neither has it (a pack written before the table moved
+    into the code pack, such as a user copy of BNBC 2020)."""
+    for pack in (current(), default_pack()):
+        if pack.has(name):
+            return pack.table(name)
+    from saengine.codes.tables import builtin_table
+
+    return builtin_table(name, DEFAULT_PACK)
+
+
+class TableNames:
+    """The module-level names a module derives from a pack table (``build(table) -> {name:
+    value}``), built again only when the pack in force gives another table. A module serves them
+    with ``def __getattr__(name): return names.get(name)``, so ``tables.HUNTER`` reads the pack
+    in force where it is used."""
+
+    def __init__(self, table_name: str, build: Callable[[Any], dict[str, Any]]) -> None:
+        self.table_name = table_name
+        self.build = build
+        self._memo: tuple[CodePack, Any, dict[str, Any]] | None = None
+        self._lock = threading.Lock()
+
+    def __call__(self) -> dict[str, Any]:
+        # Hot path (a name read in an inner loop): the same pack as last time.
+        pack = current()
+        memo = self._memo
+        if memo is not None and memo[0] is pack:
+            return memo[2]
+        source = pack_table(self.table_name)
+        with self._lock:
+            names = memo[2] if memo is not None and memo[1] is source else self.build(source)
+            self._memo = (pack, source, names)
+        return names
+
+    def get(self, name: str, module: str = "") -> Any:
+        """Name ``name``; AttributeError when the table gives none (as a module attribute)."""
+        names = self()
+        if name not in names:
+            raise AttributeError(f"module {module!r} has no attribute {name!r}")
+        return names[name]
+
+
 @dataclass(frozen=True)
 class CrackedFactors:
     """The cracked-section stiffness factors (share of the gross moment of inertia) of the

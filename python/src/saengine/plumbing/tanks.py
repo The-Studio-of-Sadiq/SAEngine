@@ -112,7 +112,7 @@ import numpy as np
 
 from saengine.design.rc import EPS_CU, PHI_SHEAR, STEEL_E, bar_area, beta1, phi_axial_flexure
 from saengine.design.slab import min_steel_ratio, one_way_shear, wood_armer
-from saengine.plumbing.tables import SEPTIC_COVER_LIVE
+from saengine.plumbing import tables as plumbing_tables
 from saengine.plumbing.tanks_model import (
     M11,
     M12,
@@ -163,7 +163,7 @@ def roof_live(spec: TankSpec, options: TankOptions) -> float:
     """The roof live load [kPa]: ``roofLive``, at least 7 kPa on a septic tank (BNBC Part 8 Sec
     6.9.12.14: the manhole cover and the roof designed for at least 7 kPa)."""
     if spec.kind == "septic":
-        return max(options.roofLive, SEPTIC_COVER_LIVE)
+        return max(options.roofLive, plumbing_tables.SEPTIC_COVER_LIVE)
     return options.roofLive
 
 

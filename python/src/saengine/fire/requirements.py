@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from saengine.fire import tables as T
-from saengine.plumbing.tables import OCCUPANCIES
+from saengine.plumbing import tables as plumbing_tables
 
 SYSTEMS = {
     "extinguishers": "Portable fire extinguishers",
@@ -72,7 +72,7 @@ class Context:
 
 def _group(rules: list[Rule], ctx: Context, key: str, stories: list[str], underground: bool):
     """The rules of one occupancy (a 07 MEP story occupancy key) for ``stories``."""
-    group = OCCUPANCIES[key].group
+    group = plumbing_tables.OCCUPANCIES[key].group
     letter = group[:1]
 
     def rule(clause: str, text: str, **kw: Any) -> None:
@@ -301,7 +301,7 @@ def requirements(
     for key, rows in by_key.items():
         above = [r["story"] for r in rows if r["level"] >= 0]
         below = [r["story"] for r in rows if r["level"] < 0]
-        if OCCUPANCIES[key].group == "F2" and below:
+        if plumbing_tables.OCCUPANCIES[key].group == "F2" and below:
             _group(rules, ctx, key, below, True)
         _group(rules, ctx, key, above + below, False)
     notes = []
@@ -359,7 +359,7 @@ def requirements(
         notes.append("a hydrant system is required: it is designed although set off")
     gross: dict[str, float] = {}
     for s in stories:
-        g = OCCUPANCIES[s["occupancy"]].group
+        g = plumbing_tables.OCCUPANCIES[s["occupancy"]].group
         gross[g] = gross.get(g, 0.0) + s["area"]
     plan = fire_plan(ctx, set(gross), gross)
     return {

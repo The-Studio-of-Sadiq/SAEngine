@@ -29,8 +29,8 @@ from saengine.fire import tables as T
 from saengine.fire.requirements import extinguishers, requirements
 from saengine.fire.sprinklers import floor_sprinklers, hand_demand, schedule_size
 from saengine.library.mep import FIRE_PUMP_DUTIES, MEP_FILE, MepModel, parse
+from saengine.plumbing import tables as plumbing_tables
 from saengine.plumbing.building import Building
-from saengine.plumbing.tables import OCCUPANCIES
 
 #: The fire tanks' designs between runs, and their models (beside the plumbing tanks').
 DESIGNS_FILE = "07 MEP/mep.results/fire-tank-designs.json"
@@ -232,7 +232,7 @@ def fire_results(
         area = entry.area or building.floor_area(entry.story)
         if not area:
             problems.append(f"fire: story {entry.story} has no area (enter it, or add its slabs)")
-        group = OCCUPANCIES[entry.occupancy].group
+        group = plumbing_tables.OCCUPANCIES[entry.occupancy].group
         hazard = entry.hazard or T.hazard_of(group)
         if hazard is None:
             hazard = "lightII"

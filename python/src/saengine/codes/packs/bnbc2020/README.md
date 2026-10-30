@@ -25,6 +25,7 @@ of the old constants and checks every value of the pack against it.
 | `detailing.json` | Special moment frames, joints, special walls, lintels | Sec 8.3 (pp. 1088-1122) |
 | `steel.json` | φ, slenderness limits, An ≤ 0.85 Ag | Chapter 10 |
 | `foundations.json` | Pile factors of safety, strut-and-tie factors | Chapter 3, Table 6.3.10a (p. 750) |
+| `plumbing.json` | Water demand (Table 8.5.1), storage, supply fixture units and Hunter's curve, velocity and pressure limits, drainage units, stacks, drains and vents, septic tank and soak pit, rainwater leaders, gutters and storm drains; SAEngine's pipe diameters, Hazen-Williams C, sleeves and wet-room fixtures | Part 8 Chapters 5-7 and Appendices O, R, S (pp. 1034-1215), Part 3 Sec 2.4.4 (p. 94) |
 
 Each file names its clauses in `source` (the table), `sources` (single entries) and `$sources`
 (for the registry). Some entries are SAEngine practice, not code clauses (bar sizes in use,
