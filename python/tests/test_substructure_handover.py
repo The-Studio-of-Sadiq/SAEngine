@@ -17,7 +17,6 @@ from test_fem_derive import PLAN, SETTINGS
 
 from saengine.boq import compute_boq
 from saengine.design.check import DESIGNED_IN_PART_9, design
-from saengine.design.footing import footing_checks
 from saengine.library import default_material_library
 from saengine.library.bim import (
     BuildingModel,
@@ -152,16 +151,15 @@ def test_part_8_no_longer_designs_footings_and_part_9_designs_them_alike(
     assert all(e["kind"] != "footing" for e in report["elements"])
     assert DESIGNED_IN_PART_9 in report["notes"]
 
-    # The same footings in Part 9, moved there by the hand-over, check as Part 8 checked them.
-    old, _, _ = footing_checks(project, out, building, OBJECTS, materials, SETTINGS_150)
+    # The same footings in Part 9, moved there by the hand-over, check as Part 8 checked them
+    # (pinned: Part 8's footing_checks, removed in 0.0.45, gave these).
     root = _analysed(_project(tmp_path, building), frame)
     ensure_migrated(root)
     new = {f["id"]: f for f in substructure_report(root)["foundations"]}
-    for element in old:
-        checks = {c["name"]: c for c in new[element["id"]]["checks"]}
-        bearing = next(c for c in element["checks"] if c["name"].startswith("Bearing"))
-        assert checks[bearing["name"]]["demand"] == pytest.approx(bearing["demand"], rel=1e-6)
-        assert new[element["id"]]["utilisation"] == pytest.approx(element["utilisation"], rel=1e-3)
+    assert sorted(new) == ["F1", "F2", "F3", "F4"]
+    for foundation in new.values():
+        bearing = next(c for c in foundation["checks"] if c["name"].startswith("Bearing"))
+        assert (bearing["demand"], foundation["utilisation"]) == (106.86, 0.712)
 
 
 # ─────────────────────────────── bill of quantities ───────────────────────────────

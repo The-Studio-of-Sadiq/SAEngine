@@ -15,7 +15,6 @@ import pytest
 from saengine.boq.quantities import bill_of_quantities
 from saengine.cli.main import main as cli_main
 from saengine.design import slab
-from saengine.design.footing import ColumnBase, FootingSpec, design_footing
 from saengine.design.proposal import _with_punching, apply_proposal, punching_layout
 from saengine.library import ObjectLibrary, default_material_library
 from saengine.library.bim import BuildingModel
@@ -23,6 +22,7 @@ from saengine.library.objects import BarMesh, PlanarReinforcement, PunchingReinf
 from saengine.library.settings import Foundation
 from saengine.project.new_building import NewBuildingError, create_building, spec_from_wizard
 from saengine.rpc import handlers
+from saengine.substructure.shallow import ColumnBase, FootingSpec, design_footing
 
 KN = 1e3
 
