@@ -58,6 +58,9 @@ largest entry (1 to 2 GB).
    PC and check it.
 4. **Publish the draft by hand** on GitHub. Publishing a dispatched draft creates the tag on
    the built commit. Only published releases are visible to the in-app update check.
+5. Refresh the module mirrors from the release commit (`docs/marketplace-plan.md`, "Code
+   modules"): `python -I scripts/modules/mirror.py --list`, then
+   `python -I scripts/modules/mirror.py <id> --push` for each.
 
 A **test build** (no release): Run workflow with the tag empty. It builds, smoke-tests and
 uploads the artefact; nothing is released. Each run costs 180 to 360 Windows-billed minutes, so

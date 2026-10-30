@@ -17,12 +17,15 @@ suite('SAEngine - installer components', () => {
 			energyplus: { state: 'missing' },
 			librecad: { state: 'installed', path: 'C:\\SAEngine\\resources\\librecad\\LibreCAD.exe' },
 			libredwg: { state: 'elsewhere', path: 'C:\\tools\\dwg2dxf.exe' },
+			ai: { state: 'installed', path: 'C:\\SAEngine\\resources\\app\\extensions\\copilot' },
+			git: { state: 'missing' },
+			collaboration: { state: 'elsewhere', path: 'C:\\Users\\a\\.saengine\\extensions\\tunnel-forwarding' },
 		};
 		// Inno Setup's /COMPONENTS= is the whole selection: LibreCAD must stay in it; LibreDWG found
 		// elsewhere was never installed by the setup and stays out.
-		assert.deepStrictEqual(setupComponents(states, 'energyplus'), ['energyplus', 'librecad']);
-		assert.deepStrictEqual(setupComponents(states, 'libredwg'), ['librecad', 'libredwg']);
-		assert.deepStrictEqual(setupComponents({ ...states, librecad: { state: 'unknown' } }, 'energyplus'), ['energyplus']);
+		assert.deepStrictEqual(setupComponents(states, 'energyplus'), ['energyplus', 'librecad', 'ai']);
+		assert.deepStrictEqual(setupComponents(states, 'libredwg'), ['librecad', 'libredwg', 'ai']);
+		assert.deepStrictEqual(setupComponents({ ...states, librecad: { state: 'unknown' }, ai: { state: 'missing' } }, 'energyplus'), ['energyplus']);
 	});
 
 	test('reads the backend answer', () => {
