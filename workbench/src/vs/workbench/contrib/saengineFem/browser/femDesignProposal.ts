@@ -397,6 +397,20 @@ export function describeBars(bars: DesignBars | undefined): string {
 	return parts.length ? parts.join(bars.bottomX || bars.bottomY || bars.topX || bars.topY ? '; ' : ', ') : localize('femProposal.noBars', "no bars");
 }
 
+/** A step of the work Design Reinforcement waits for (N-X4 of usability walk 2: minutes of a blank page). */
+export interface IDesignWaitStep {
+	readonly index: number;
+	readonly count: number;
+	readonly text: string;
+}
+
+/** "Checking the members again (step 3 of 4), 1:05". */
+export function describeWaitStep(step: IDesignWaitStep, elapsedMs: number): string {
+	const seconds = Math.max(0, Math.floor(elapsedMs / 1000));
+	const clock = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+	return localize('femProposal.step', "{0} (step {1} of {2}), {3}", step.text, step.index, step.count, clock);
+}
+
 /** "13 pass, 2 fail" (and the members not checked). */
 export function describeCheckCounts(report: Pick<IFemDesignReport, 'summary'>): string {
 	const { passed, failed, skipped } = report.summary;

@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { describeDesignCounts, describeEngineError, describeNotChecked, describeSteel, describeSteelRatio, designArguments, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, otherFailureElements, requiredSteelOf, shortElements, tooSmallElements } from '../../browser/femDesign.js';
-import { countFailing, describeBars, describeBeforeAfter, describeChange, describeFailing, describeTransverseSpacing, DesignProposalModel, failingItems, IFemDesignProposal, notFixedBy, proposalEdits } from '../../browser/femDesignProposal.js';
+import { countFailing, describeBars, describeBeforeAfter, describeChange, describeFailing, describeTransverseSpacing, describeWaitStep, DesignProposalModel, failingItems, IFemDesignProposal, notFixedBy, proposalEdits } from '../../browser/femDesignProposal.js';
 
 const B1_CURRENT = { material: 'B500', cover: 40, longitudinal: [{ position: 'top' as const, count: 3, dia: 16 }, { position: 'bottom' as const, count: 3, dia: 16 }], transverse: { type: 'stirrup' as const, dia: 10, spacing: 200, legs: 2 } };
 const B1_PROPOSED = { material: 'B500', cover: 40, longitudinal: [{ position: 'top' as const, count: 4, dia: 20 }, { position: 'bottom' as const, count: 3, dia: 16 }], transverse: { type: 'stirrup' as const, dia: 10, spacing: 150, legs: 2 }, text: '4 Ø20 top, 3 Ø16 bottom, Ø10 @ 150' };
@@ -46,6 +46,12 @@ const SPLIT: IFemDesignProposal = {
 suite('SAEngine - FEM design proposal', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('the page names the step it waits for and how long (N-X4)', () => {
+		const step = { index: 3, count: 4, text: 'Checking the members again with the new bars' };
+		assert.strictEqual(describeWaitStep(step, 65_400), 'Checking the members again with the new bars (step 3 of 4), 1:05');
+		assert.strictEqual(describeWaitStep(step, -5), 'Checking the members again with the new bars (step 3 of 4), 0:00');
+	});
 
 	test('bars read as the backend describes them, or as the drawings write them', () => {
 		assert.deepStrictEqual([
