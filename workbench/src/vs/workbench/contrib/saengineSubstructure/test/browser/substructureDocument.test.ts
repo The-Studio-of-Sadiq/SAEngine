@@ -566,7 +566,9 @@ suite('SAEngine - Substructure', () => {
 			points: [{ x: 250, y: 250, pressure: 80 }, { x: 750, y: 250, pressure: 100 }, { x: 250, y: 750, pressure: 120 }, { x: 750, y: 750, pressure: 140 }],
 		}, CONTEXT, 'pressure', { width: 300, height: 200 });
 		assert.deepStrictEqual({
-			foundations: plan.querySelectorAll('[data-foundation]').length,
+			// The outlines; each id label also selects its foundation (drawn on top since N-U10).
+			foundations: plan.querySelectorAll('[data-foundation]:not(.sub-foundation-label)').length,
+			labels: plan.querySelectorAll('.sub-foundation-label[data-foundation]').length,
 			selected: plan.querySelectorAll('.sub-foundation.selected').length,
 			failing: plan.querySelectorAll('.sub-foundation.band-fail').length,
 			piles: plan.querySelectorAll('[data-pile]').length,
@@ -587,7 +589,7 @@ suite('SAEngine - Substructure', () => {
 			// The tie beam runs between the columns its foundations carry (C1 to C3), not their centres.
 			tieEnds: tieBeamEnds(doc.foundations[0], doc.foundations[1], CONTEXT),
 		}, {
-			foundations: 3, selected: 1, failing: 1, piles: 5, freePiles: 1, selectedPiles: ['PL5'], pileGrid: 4, back: [3000, 2500], columns: 4, selectedColumns: 1, ties: 1, boreholes: 2, grid: 4, proposals: 1,
+			foundations: 3, labels: 3, selected: 1, failing: 1, piles: 5, freePiles: 1, selectedPiles: ['PL5'], pileGrid: 4, back: [3000, 2500], columns: 4, selectedColumns: 1, ties: 1, boreholes: 2, grid: 4, proposals: 1,
 			heatCells: 4, hottest: 1, range: { min: 80, max: 140 },
 			utilisation: '1.12',
 			tieEnds: [[CONTEXT.columns[0].x, CONTEXT.columns[0].y], [CONTEXT.columns[2].x, CONTEXT.columns[2].y]],
