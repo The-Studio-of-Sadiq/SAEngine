@@ -33,7 +33,11 @@ METHOD = [
         "(bolts, bearing, block shear, welds, the Whitmore section); listed as 'Connection: ...' "
         "checks of the member. The analysis pins these member ends (no end moment); an end "
         "kept rigid (at a support or a free end) is flagged as 'end moment at a simple "
-        "connection'."
+        "connection'. Flange-plate moment connections (beam ends kept rigid; with the column "
+        "flange, web and panel zone checks of Sec 10.10.10), cover-plate splices (Sec "
+        "10.10.6), column base plates on concrete (bearing Sec 10.10.8, anchor rod steel) and "
+        "welded HSS truss joints (Sec 10.11.2) are checked the same way when the type sets "
+        "them."
     ),
 ]
 
@@ -98,38 +102,188 @@ def _end_moment_check(stations: list[Any]) -> dict[str, Any] | None:
     }
 
 
-def connection_result(
-    object_type: Any, material: Any, mats: dict[str, Any], stations: list[Any], kind: str
-) -> dict[str, Any] | None:
-    """The checks of the type's simple connection (None when it has none), with ``end`` "both"
-    and a ``description``. Raises ``ValueError`` or ``TypeError`` when it cannot be checked."""
+def _steel_of(mats: dict[str, Any], material_id: str | None, what: str) -> Any:
+    """The steel material ``material_id`` as a design material, None when not given."""
+    from saengine.design.steel_proposal import SteelMaterial
+
+    found = mats.get(material_id) if material_id else None
+    if found is None:
+        return None
+    if not is_steel(found):
+        raise ValueError(f"{what} material '{found.id}' is not structural steel")
+    return SteelMaterial.from_material(found)
+
+
+def _section_named(name: str | None, what: str) -> Any:
+    from saengine.library.steel_sections import find
+
+    if not name:
+        return None
+    section = find(name)
+    if section is None:
+        raise ValueError(f"{what} section '{name}' is not in the steel sections table")
+    return section
+
+
+#: Descriptions of the connection kinds in the design report.
+DESCRIPTIONS = {
+    "finPlate": "fin plate (shear tab) at both ends",
+    "endPlate": "shear end plate at both ends",
+    "gusset": "bolted gusset at both ends",
+    "flangePlate": "bolted flange-plate moment connection at both ends",
+    "hssJoint": "welded HSS truss joint at both ends",
+    "coverPlate": "bolted cover-plate splice",
+    "basePlate": "column base plate and anchor rods",
+}
+
+
+def _end_rows(stations: list[Any]) -> list[tuple[str | None, float, float]]:
+    """``(combination, M [N·mm], V [N])`` at both ends of every combination."""
+    rows = []
+    for st in stations:
+        if not len(st.s):
+            continue
+        for k in (0, -1):
+            rows.append((st.combination, float(st.Mx[k]), float(st.Vy[k])))
+    return rows
+
+
+def _rows_at(stations: list[Any], s: float) -> list[tuple[str | None, float, float, float]]:
+    """``(combination, P, Mx, Vy)`` at the station nearest ``s`` [m] of every combination;
+    empty when ``s`` is beyond the member."""
+    rows = []
+    for st in stations:
+        if not len(st.s) or s > float(st.s[-1]) + 1e-6:
+            continue
+        k = int(abs(st.s - s).argmin())
+        rows.append((st.combination, float(st.P[k]), float(st.Mx[k]), float(st.Vy[k])))
+    return rows
+
+
+def _base_rows(
+    stations: list[Any], pieces: list[Any], project: dict[str, Any] | None
+) -> list[tuple[str | None, float, float, float]]:
+    """``(combination, P, V, M)`` at the column's lower end when it stands on a support (a node
+    of the analysis model restrained in translation there); empty otherwise."""
+    if not project or not pieces:
+        return []
+    ends = [p.start for p in pieces if p.start is not None]
+    ends += [p.end for p in pieces if p.end is not None]
+    if not ends:
+        return []
+    low = min(ends, key=lambda xyz: float(xyz[2]))
+    supported = any(
+        all((n.get("restraint") or [False] * 3)[:3])
+        and sum((float(a) - float(b)) ** 2 for a, b in zip(n["coords"], low)) < 1e-6
+        for n in project.get("nodes", [])
+    )
+    if not supported:
+        return []
+    rows = []
+    for st in stations:
+        if not len(st.s):
+            continue
+        v = (float(st.Vx[0]) ** 2 + float(st.Vy[0]) ** 2) ** 0.5
+        m = (float(st.Mx[0]) ** 2 + float(st.My[0]) ** 2) ** 0.5
+        rows.append((st.combination, float(st.P[0]), v, m))
+    return rows
+
+
+def connection_results(
+    object_type: Any,
+    material: Any,
+    mats: dict[str, Any],
+    stations: list[Any],
+    kind: str,
+    pieces: list[Any] | None = None,
+    project: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """The checks of the type's connection, splice and base plate, the end connection first
+    (each with ``end`` and a ``description``). Raises ``ValueError`` or ``TypeError`` when one
+    cannot be checked."""
     from saengine.design import steel_connections as sc
     from saengine.design.steel_proposal import SteelMaterial
     from saengine.library.steel_sections import section_of_profile
 
+    member = SteelMaterial.from_material(material)
+    section = section_of_profile(object_type.profile)
+    results: list[dict[str, Any]] = []
     connection = getattr(object_type, "connection", None)
-    if connection is None:
+    if connection is not None:
+        plate = _steel_of(mats, connection.plateMaterial, "plate")
+        if connection.type == "flangePlate":
+            if kind != "beam":
+                raise ValueError("flange-plate moment connections are for beams")
+            result = sc.check_flange_plate(
+                connection,
+                section,
+                member,
+                plate,
+                _end_rows(stations),
+                _section_named(connection.columnSection, "column"),
+                _steel_of(mats, connection.columnMaterial, "column"),
+            )
+        elif connection.type == "hssJoint":
+            chord = _section_named(connection.chordSection, "chord")
+            if chord is None:
+                raise ValueError("the HSS joint has no chord section")
+            result = sc.check_hss_joint(
+                connection,
+                section,
+                member,
+                chord,
+                _steel_of(mats, connection.chordMaterial, "chord"),
+                _connection_demands(stations, "brace"),
+            )
+        else:
+            result = sc.check_connection(
+                connection, section, member, plate, _connection_demands(stations, kind)
+            )
+            moment = _end_moment_check(stations)
+            if moment is not None:
+                result["checks"].append(moment)
+        result["end"] = "both"
+        result["description"] = DESCRIPTIONS.get(connection.type, connection.type)
+        results.append(result)
+    splice = getattr(object_type, "splice", None)
+    if splice is not None and kind in ("beam", "column"):
+        rows = _rows_at(stations, splice.distance / 1e3)
+        if rows:
+            result = sc.check_splice(
+                splice,
+                section,
+                member,
+                _steel_of(mats, splice.plateMaterial, "plate"),
+                rows,
+                column=kind == "column",
+            )
+            result["end"] = None
+            result["description"] = (
+                f"{DESCRIPTIONS['coverPlate']} {splice.distance:g} mm from the lower end"
+            )
+            results.append(result)
+    base = getattr(object_type, "basePlate", None)
+    if base is not None and kind == "column":
+        rows = _base_rows(stations, pieces or [], project)
+        if rows:
+            result = sc.check_base_plate(
+                base, section, member, _steel_of(mats, base.plateMaterial, "plate"), rows
+            )
+            result["end"] = None
+            result["description"] = DESCRIPTIONS["basePlate"]
+            results.append(result)
+    return results
+
+
+def connection_result(
+    object_type: Any, material: Any, mats: dict[str, Any], stations: list[Any], kind: str
+) -> dict[str, Any] | None:
+    """The checks of the type's end connection (None when it has none), with ``end`` "both"
+    and a ``description``. Raises ``ValueError`` or ``TypeError`` when it cannot be checked."""
+    if getattr(object_type, "connection", None) is None:
         return None
-    plate = mats.get(connection.plateMaterial) if connection.plateMaterial else None
-    if plate is not None and not is_steel(plate):
-        raise ValueError(f"plate material '{plate.id}' is not structural steel")
-    result = sc.check_connection(
-        connection,
-        section_of_profile(object_type.profile),
-        SteelMaterial.from_material(material),
-        SteelMaterial.from_material(plate) if plate is not None else None,
-        _connection_demands(stations, kind),
-    )
-    moment = _end_moment_check(stations)
-    if moment is not None:
-        result["checks"].append(moment)
-    result["end"] = "both"
-    result["description"] = {
-        "finPlate": "fin plate (shear tab) at both ends",
-        "endPlate": "shear end plate at both ends",
-        "gusset": "bolted gusset at both ends",
-    }.get(connection.type, connection.type)
-    return result
+    found = connection_results(object_type, material, mats, stations, kind)
+    return found[0] if found else None
 
 
 def design_member(
@@ -163,17 +317,20 @@ def design_member(
     entry["material"] = material.id
     stations = steel_members.member_stations(pieces, combinations, turned)
     try:
-        connection = connection_result(object_type, material, mats, stations, kind)
+        connections = connection_results(
+            object_type, material, mats, stations, kind, pieces, project
+        )
     except (ValueError, TypeError, KeyError) as error:
-        connection = None
+        connections = []
         entry["section"]["notes"] = [
             *entry["section"].get("notes", []),
             f"connection not checked: {error}",
         ]
-    if connection is not None:
-        entry["connections"] = [connection]
-        for check in connection["checks"]:
-            entry["checks"].append({**check, "name": f"Connection: {check['name']}"})
+    if connections:
+        entry["connections"] = connections
+        for connection in connections:
+            for check in connection["checks"]:
+                entry["checks"].append({**check, "name": f"Connection: {check['name']}"})
         strength = [c for c in entry["checks"] if not c["flag"]]
         entry["utilisation"] = max((c["utilisation"] for c in strength), default=0.0)
         entry["ok"] = all(c["ok"] for c in strength)
@@ -218,4 +375,11 @@ def proposal_entries(
     return found["types"], notes
 
 
-__all__ = ["KINDS", "connection_result", "design_member", "is_steel", "proposal_entries"]
+__all__ = [
+    "KINDS",
+    "connection_result",
+    "connection_results",
+    "design_member",
+    "is_steel",
+    "proposal_entries",
+]

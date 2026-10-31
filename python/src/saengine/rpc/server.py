@@ -575,6 +575,27 @@ def create_server() -> JsonRPCServer:
 
         return rpc_export_e2k(_plain(params))
 
+    @server.feature("revit/export")
+    @_in_worker  # details the reinforcement cages (seconds)
+    def _revit_export(params: Any) -> dict[str, Any]:
+        from saengine.exporters.revit_link import rpc_export
+
+        return rpc_export(_plain(params))
+
+    @server.feature("revit/preview")
+    @_in_worker
+    def _revit_preview(params: Any) -> dict[str, Any]:
+        from saengine.exporters.revit_link import rpc_preview
+
+        return rpc_preview(_plain(params))
+
+    @server.feature("revit/apply")
+    @_in_worker
+    def _revit_apply(params: Any) -> dict[str, Any]:
+        from saengine.exporters.revit_link import rpc_apply
+
+        return rpc_apply(_plain(params))
+
     @server.feature("library/generateBuilding")
     @_in_worker
     def _new_building(params: Any) -> dict[str, Any]:
