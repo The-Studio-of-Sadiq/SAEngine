@@ -392,6 +392,19 @@ export function jointNodeId(joint: IFemJoint, model: IFemDetailingModel | undefi
 	return named?.id ?? (Number.isFinite(Number(node)) ? Number(node) : undefined);
 }
 
+/** Each joint's governing utilisation at its analysis node, for the 3D view's joint glyphs. */
+export function jointNodeUtilisation(report: IFemDesignReport | undefined, model: IFemDetailingModel | undefined): { [nodeId: number]: number } {
+	const result: { [nodeId: number]: number } = {};
+	for (const joint of jointsOf(report)) {
+		const governing = jointGoverning(joint);
+		const node = jointNodeId(joint, model);
+		if (governing && node !== undefined) {
+			result[node] = Math.max(result[node] ?? 0, governing.utilisation);
+		}
+	}
+	return result;
+}
+
 /** The building model members of a joint: its column, then its beams. */
 function jointMembers(joint: IFemJoint): string[] {
 	return [...(joint.column ? [joint.column] : []), ...(joint.beams ?? [])];

@@ -27,7 +27,7 @@ import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFra
 import { describeDesignCounts, describeDesignSummary, describeSlenderness, describeSteel, describeSteelRatio, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, isSecondOrderRequired, isSlendernessCheck, otherFailureElements, requiredSteelOf, resultsFolder, runDesign, runDesignRequired, secondOrderRequiredMembers, shortElements, slendernessHeading, sortedChecks, tooSmallElements, writeDesignSummary } from './femDesign.js';
 import { describeScaleOnResult, describeSecondOrder, FemAxis, IFemSecondOrder, isFirstOrderReference, IFemSeismicDesign, runSecondOrder, runSeismicDesign, seismicSection, spectrumAxis, storeyAmplificationRows } from './femSeismicDesign.js';
 import { FemSsiPanel } from './femSsi.js';
-import { describeJointsSummary, describeJointVerdict, detailingSection, FemDetailingItem, generalChecks, IFemDetailingModel, IFemJoint, jointAtNode, jointColouring, jointHeading, jointItems, jointOk, jointsOf, jointsOfMember } from './femSeismicDetailing.js';
+import { describeJointsSummary, describeJointVerdict, detailingSection, FemDetailingItem, generalChecks, IFemDetailingModel, IFemJoint, jointAtNode, jointColouring, jointHeading, jointItems, jointNodeUtilisation, jointOk, jointsOf, jointsOfMember } from './femSeismicDetailing.js';
 import { describeSteelSummary, memberConnectionChecks, steelSection } from './femSteelDesign.js';
 import { checkItems, describeStaircaseVerdict, describeWallsSummary, formatPierForce, IFemPierDiagram, isStaircase, isWall, ownChecks, pierDiagram, staircasesOf, staircaseSection, wallSection } from './femWallsStairs.js';
 
@@ -52,7 +52,7 @@ function framesOf(entry: IFemResultEntry): NonNullable<IFemResultEntry['frames']
  */
 export function defaultResult(results: readonly IFemResultEntry[]): IFemResultEntry | undefined {
 	// A lateral case first: the sway is what the engineer looks at first (gravity alone shows little).
-	const lateral = results.find(r => r.kind === 'static' && /^EX/.test(r.label));
+	const lateral = results.find(r => r.kind === 'static' && /^EX\b/.test(r.label));
 	return lateral ?? results.find(r => r.kind === 'combination') ?? results.find(r => r.kind === 'static') ?? results[0];
 }
 
@@ -1121,6 +1121,8 @@ export class FemResultsBar extends Disposable {
 				utilisation: !this.design ? undefined
 					: show === 'utilisation' ? designUtilisation(this.design)
 						: show === 'joints' ? jointColouring(this.design, this.model) : undefined,
+				// The joints as glyphs at their nodes, over the members' or the joints' colours.
+				nodeUtilisation: this.design && isDesignShow(show) ? jointNodeUtilisation(this.design, this.model) : undefined,
 			} : undefined,
 		);
 		this.renderLegend();
@@ -1256,7 +1258,7 @@ export class FemResultsBar extends Disposable {
 				for (const element of this.shownElements(view)) {
 					for (const forces of element.forces ?? []) {
 						if (!largest || Math.abs(forces[component]) > Math.abs(largest.value)) {
-							largest = { value: forces[component], name: element.name };
+							largest = { value: forces[component], name: element.name.split('#')[0] };
 						}
 					}
 				}
@@ -1288,6 +1290,10 @@ export class FemResultsBar extends Disposable {
 				append(row, $(`span.fem-design-swatch.${band}`));
 				append(row, $('span', undefined, label));
 			}
+			if (jointsOf(this.design).length) {
+				append(this.legend, $('.fem-legend-row', undefined, localize('femResults.jointGlyphs', "Squares: beam-column joints")));
+			}
+			append(this.legend, $('.fem-legend-row', undefined, localize('femResults.designUncoloured', "Grey: not checked")));
 			shown = true;
 		} else if (this.entry) {
 			const contour = this.contourRange();
@@ -1438,7 +1444,12 @@ export class FemResultsBar extends Disposable {
 		}
 		const element = view.elements.find(e => e.id === selection.id);
 		const shell = element ? undefined : view.shells?.find(s => s.id === selection.id);
-		appendPropertyHeading(container, element?.name ?? shell?.name ?? localize('femResults.elementHeading', "Element {0}", selection.id));
+		// A meshed member's piece is headed by its member (as the legend and status name it), the piece below.
+		const piece = element?.name.split('#')[1];
+		appendPropertyHeading(container, element?.name.split('#')[0] ?? shell?.name ?? localize('femResults.elementHeading', "Element {0}", selection.id));
+		if (piece) {
+			appendPropertyNote(container, localize('femResults.elementPiece', "Analysis piece {0} of the member: its forces below.", piece));
+		}
 		if (element?.forces?.length) {
 			// Every section force along the member: smallest, largest and at both ends.
 			for (const [index, name] of COMPONENT_NAMES.entries()) {

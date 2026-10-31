@@ -135,6 +135,11 @@ export interface FemResultDisplay {
 	 */
 	readonly utilisation?: { readonly [elementId: number]: number };
 	/**
+	 * `show: 'utilisation'`: utilisation of checks at nodes (the beam-column joints), by node id,
+	 * drawn as a glyph at each node in its band's colour.
+	 */
+	readonly nodeUtilisation?: { readonly [nodeId: number]: number };
+	/**
 	 * Force diagrams: label every member's largest and least value (a member is the analysis
 	 * elements of one name before `#`: `B1`, `B1#2`, ...), not only the largest of the model.
 	 */
