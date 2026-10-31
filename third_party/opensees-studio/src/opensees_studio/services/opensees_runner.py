@@ -174,6 +174,10 @@ class OpenSeesRunner:
         self._geom_transf_tags: dict[str, int] = {}
         self._element_geom_transf_tag: dict[int, int] = {}
         self._emitted_time_series: set[int] = set()
+        #: Modal results already computed on this model, by modal case id: a response spectrum
+        #: case whose modal case is here combines them instead of solving the eigenproblem
+        #: again (the analysis CLI fills it as it runs or keeps modal cases).
+        self.known_modal_results: dict[int, ModalResults] = {}
 
     # ─────────────────────── public API ───────────────────────
     def _progress(self, completed: int, total: int) -> None:
@@ -251,6 +255,11 @@ class OpenSeesRunner:
             return runner.run(case.model_copy(update={"section_overrides": []}), results_dir)
         if isinstance(case, StagedCase):
             return self._run_staged(case)  # builds one model per stage
+        if (
+            isinstance(case, ResponseSpectrumCase)
+            and case.modal_case_id in self.known_modal_results
+        ):
+            return self._run_response_spectrum(case)  # no eigen solve, so no model either
         if (
             isinstance(case, StaticCase)
             and case.release_diaphragms
@@ -1895,7 +1904,8 @@ class OpenSeesRunner:
         )
 
     def _run_response_spectrum(self, case: ResponseSpectrumCase) -> ResponseSpectrumResults:
-        """Re-run the referenced modal case, then combine via SRSS/CQC.
+        """Re-run the referenced modal case (or take its results from
+        :attr:`known_modal_results`), then combine via SRSS/CQC.
 
         We delegate to the spectrum service for the math; the runner's
         only job is finding the linked ModalCase + ResponseSpectrum and
@@ -1929,7 +1939,7 @@ class OpenSeesRunner:
                 f"{case.spectrum_id}, but no such ResponseSpectrum exists.",
             )
 
-        modal_results = self._run_modal(modal_case)
+        modal_results = self.known_modal_results.get(modal_case.id) or self._run_modal(modal_case)
 
         warnings: list[str] = []
         damping: float | None = None

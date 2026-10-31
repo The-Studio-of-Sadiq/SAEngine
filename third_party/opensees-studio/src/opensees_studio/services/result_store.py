@@ -231,12 +231,17 @@ def write_results(results: AnyResults, out_dir: str | Path) -> dict[str, Any]:
     return entry
 
 
-def write_manifest(out_dir: str | Path, entries: list[dict[str, Any]], project: str) -> Path:
-    """Write ``manifest.json`` under ``out_dir``."""
+def write_manifest(
+    out_dir: str | Path,
+    entries: list[dict[str, Any]],
+    project: str,
+    name: str = MANIFEST_NAME,
+) -> Path:
+    """Write ``manifest.json`` (or ``name``) under ``out_dir``."""
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     manifest = {"schema": MANIFEST_SCHEMA, "project": project, "cases": entries}
-    target = out / MANIFEST_NAME
+    target = out / name
     target.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return target
 
