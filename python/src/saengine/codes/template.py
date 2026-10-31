@@ -66,6 +66,8 @@ TABLE_HELP: dict[str, str] = {
     "steel": "Structural steel: phi factors and slenderness limits.",
     "foundations": "Foundations: pile safety factors, partial factors of skin and base "
     "resistance, strut-and-tie factors.",
+    "transfer": "Deep beams and transfer girders, corbels and brackets, diaphragm chords and "
+    "collectors: the limits and least steel of their clauses.",
     "slabCoefficients": "Slabs on beams designed by moment coefficients: the two-way tables "
     "by span ratio and edge case, their limits, the one-way coefficients, bar spacing limits.",
     "plumbing": "Water supply, drainage and rainwater: water demand by occupancy, storage, "

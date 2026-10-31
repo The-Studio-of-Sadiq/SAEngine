@@ -38,12 +38,19 @@
   "strutAndTie": {
     "tieArm": 0.9,
     "betaCCC": 1.0,
-    "betaCCT": 0.8
+    "betaCCT": 0.8,
+    "betaCTT": 0.6,
+    "betaPrism": 1.0,
+    "betaBottle": 0.75,
+    "betaBottlePlain": 0.6,
+    "minAngle": 25.0,
+    "webRatio": 0.003
   },
   "sources": {
     "pileSafety": "BNBC 2020 Part 6 Table 6.3.10a (p. 750)",
     "partialSkin": "BNBC 2020 Part 6 Sec 3.10.1.18",
     "sptSafety": "BNBC 2020 Part 6 Secs 3.10.1.13, 3.10.1.16, 3.10.4.5, 3.10.4.7",
-    "noLoadTestSafety": "BNBC 2020 Part 6 Sec 3.10.1.18, 3.10.4.10"
+    "noLoadTestSafety": "BNBC 2020 Part 6 Sec 3.10.1.18, 3.10.4.10",
+    "strutAndTie": "ACI 318-19 Tables 23.4.3, 23.9.2, Secs 23.2.7, 23.5.1 (the procedure BNBC 2020 Part 6 Sec 6.4.6 sends deep members to; φ in BNBC Sec 6.2.3.2, p. 897); tieArm is SAEngine practice"
   }
 }

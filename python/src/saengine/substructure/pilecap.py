@@ -75,6 +75,7 @@ from typing import Any
 import numpy as np
 
 from saengine.codes import context as code_context
+from saengine.design import stm
 from saengine.design.rc import PHI_SHEAR, STEEL_E
 from saengine.design.slab import NO_DEMAND, critical_section, punching_capacity
 from saengine.library.objects import BarMesh
@@ -461,15 +462,13 @@ def cap_checks(
 
 
 def _phi_stm() -> float:
-    """The pack's ``factors.phi.strutAndTie`` (BNBC 2020 / ACI 318-19 Table 21.2.1 (g): 0.75)."""
-    return float(code_context.table("factors").phi["strutAndTie"])
+    """φ of strut-and-tie models (:func:`saengine.design.stm.phi`)."""
+    return stm.phi()
 
 
 def _strut_and_tie(name: str) -> float:
-    """The pack's ``foundations.strutAndTie`` value ``name`` (ACI 318-19): ``tieArm``, the tie's
-    lever arm over d (0.9); ``betaCCC`` / ``betaCCT``, βn of the column's node (C-C-C, 1.0) and
-    of the pile heads' nodes (C-C-T, 0.8) (Table 23.9.2)."""
-    return float(code_context.table("foundations").strutAndTie[name])
+    """The pack's strut-and-tie factor ``name`` (:func:`saengine.design.stm.factor`)."""
+    return stm.factor(name)
 
 
 def _tie_check(
@@ -508,7 +507,7 @@ def _tie_check(
         _check(
             f"Tie (bottom {bars} bars, strut-and-tie)",
             tie / 1e3,
-            phi * area * spec.fy / 1e3,
+            stm.tie_capacity(area, spec.fy) / 1e3,
             "kN",
             combination,
             f"T = M / z, M of the pile reactions beyond the column's quarter point, z = "
@@ -526,18 +525,17 @@ def _node_checks(
     from saengine.design.check import _check
 
     checks: list[dict[str, Any]] = []
-    phi, beta_ccc, beta_cct = _phi_stm(), _strut_and_tie("betaCCC"), _strut_and_tie("betaCCT")
+    beta_ccc, beta_cct = _strut_and_tie("betaCCC"), _strut_and_tie("betaCCT")
     for k, column in enumerate(spec.columns):
         area = column.cu * column.cv
         worst = max(((float(loads[k][0]), name) for name, loads in strength.items()), default=None)
         if worst is None or area <= 0:
             continue
-        fce = 0.85 * beta_ccc * spec.fc
         checks.append(
             _check(
                 f"Node under {column.id} (strut-and-tie)",
                 worst[0] / 1e3,
-                phi * fce * area / 1e3,
+                stm.node_capacity(spec.fc, area, "CCC") / 1e3,
                 "kN",
                 worst[1],
                 f"C-C-C node, φ 0.85 βn f'c Anz with βn = {beta_ccc:g}, Anz = the column "
@@ -549,12 +547,11 @@ def _node_checks(
         ((float(r.max()), name) for name, r in reactions_of.items() if len(r)), default=None
     )
     if worst_pile is not None:
-        fce = 0.85 * beta_cct * spec.fc
         checks.append(
             _check(
                 "Node over a pile (strut-and-tie)",
                 max(worst_pile[0], 0.0) / 1e3,
-                phi * fce * area / 1e3,
+                stm.node_capacity(spec.fc, area, "CCT") / 1e3,
                 "kN",
                 worst_pile[1],
                 f"C-C-T node at the pile head, φ 0.85 βn f'c Anz with βn = {beta_cct:g}, Anz = "

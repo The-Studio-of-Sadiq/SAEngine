@@ -673,6 +673,21 @@ class StrutAndTie(_Group):
     tieArm: Share = Field(description="Lever arm of the tie as a share of the effective depth.")
     betaCCC: Share = Field(description="βn of a C-C-C node.")
     betaCCT: Share = Field(description="βn of a C-C-T node.")
+    betaCTT: Share = Field(default=0.6, description="βn of a C-T-T node.")
+    betaPrism: Share = Field(default=1.0, description="βs of a prism-shaped strut.")
+    betaBottle: Share = Field(
+        default=0.75, description="βs of a bottle-shaped strut with distributed web steel."
+    )
+    betaBottlePlain: Share = Field(
+        default=0.6, description="βs of a bottle-shaped strut without distributed web steel."
+    )
+    minAngle: Positive = Field(
+        default=25.0, lt=90, description="Least angle between a strut and a tie [degrees]."
+    )
+    webRatio: Rho = Field(
+        default=0.003,
+        description="Distributed web steel ratio that confines a bottle-shaped strut.",
+    )
 
 
 class FoundationsTable(TableModel):
@@ -684,6 +699,56 @@ class FoundationsTable(TableModel):
     noLoadTestSafety: float
     loadTestSafety: float
     strutAndTie: StrutAndTie
+
+
+class DeepBeam(_Group):
+    spanRatio: Positive = Field(
+        description="Clear span over depth at or below which a beam is deep."
+    )
+    loadDistance: Positive = Field(
+        description="Concentrated loads within this many depths of a support make a beam deep."
+    )
+    shearLimit: Positive = Field(description="Vn at most this × √f'c bw d [MPa^0.5].")
+    verticalRatio: Rho = Field(description="Least vertical web steel Av / (bw s).")
+    horizontalRatio: Rho = Field(description="Least horizontal web steel Avh / (bw s2).")
+    spacingDepth: Positive = Field(description="Web steel spacing at most d over this.")
+    spacingMax: Positive = Field(description="Web steel spacing at most this [mm].")
+
+
+class Corbel(_Group):
+    spanRatio: Positive = Field(description="Largest shear span over depth av / d.")
+    tensionShare: Share = Field(description="Least horizontal tension Nuc over Vu.")
+    tensionMaxShare: Positive = Field(description="Largest horizontal tension Nuc over Vu.")
+    friction: Positive = Field(description="μ of concrete cast monolithically (× λ).")
+    shearCoefficient: Share = Field(description="Vn at most this × f'c bw d.")
+    shearIntercept: Positive = Field(description="Vn at most (this + slope f'c) bw d [MPa].")
+    shearSlope: Share = Field(description="Slope of the second Vn limit.")
+    shearStressMax: Positive = Field(description="Vn at most this × bw d [MPa].")
+    minSteel: Share = Field(description="Least As / (b d) over f'c / fy.")
+    tiesShare: Share = Field(description="Closed ties Ah at least this × (As - An).")
+    tiesDepth: Share = Field(description="Closed ties within this share of d next to As.")
+    edgeDepth: Share = Field(description="Depth at the outer edge at least this × d.")
+
+
+class Diaphragm(_Group):
+    forceMin: Positive = Field(description="Fpx at least this × SDS I wpx.")
+    forceMax: Positive = Field(description="Fpx at most this × SDS I wpx.")
+    plateau: Positive = Field(description="SDS over the peak ground acceleration (2/3) Z S.")
+    collectorCategories: list[str] = Field(
+        description="Seismic Design Categories whose collectors take the Ω0 forces."
+    )
+    irregularIncrease: Positive = Field(
+        description="Factor on the connection forces of irregular buildings."
+    )
+
+
+class TransferTable(TableModel):
+    """Deep beams and transfer girders, corbels and brackets, diaphragm chords and collectors
+    (BNBC 2020 Part 6 Sec 6.4.6, 6.4.7, 2.5.5.6)."""
+
+    deepBeam: DeepBeam
+    corbel: Corbel
+    diaphragm: Diaphragm
 
 
 class TwoWayTables(BaseModel):
@@ -1418,6 +1483,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "detailing": DetailingTable,
     "steel": SteelTable,
     "foundations": FoundationsTable,
+    "transfer": TransferTable,
     "slabCoefficients": SlabCoefficientsTable,
     "plumbing": PlumbingTable,
     "hvac": HvacTable,

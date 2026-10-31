@@ -36,7 +36,7 @@ from typing import Any
 import numpy as np
 
 from saengine.codes import context as code_context
-from saengine.design import column_shear, seismic_rules, slab, steel_design
+from saengine.design import column_shear, deep_beams, seismic_rules, slab, steel_design
 from saengine.design import deflection as deflection_design
 from saengine.design import slender as slenderness_design
 from saengine.design import torsion as torsion_design
@@ -701,6 +701,24 @@ def design(
                         bars.steel.fy,
                         notes,
                     )
+                    # Integrator glue (T3): deep spans and transfer girders by the strut-and-tie
+                    # model (saengine.design.deep_beams, BNBC 2020 Part 6 Sec 6.4.6).
+                    deep_rows, deep_notes = deep_beams.member_checks(
+                        element,
+                        object_type,
+                        section,
+                        own,
+                        combinations,
+                        _turned(element, exact),
+                        framing,
+                    )
+                    if deep_rows:
+                        for row in checks:
+                            if row["name"] == "Shear" or row["name"].startswith("Minimum stirrups"):
+                                row["flag"] = True
+                                row["note"] += f"; {deep_beams.REFERENCE_NOTE}"
+                        checks += deep_rows
+                        notes.extend(deep_notes)
             else:
                 if type_id not in column_sections:
                     section = section_of(
