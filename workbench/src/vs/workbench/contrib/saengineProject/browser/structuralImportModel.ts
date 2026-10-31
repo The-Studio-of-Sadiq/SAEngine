@@ -157,8 +157,12 @@ export interface IStructuralImportResult {
 	readonly problems: readonly string[];
 }
 
-/** The counts the report always shows, in this order. */
-export const MAIN_COUNTS = ['stories', 'columns', 'beams', 'braces', 'slabs', 'walls', 'sections', 'materials', 'loads', 'combinations'] as const;
+/**
+ * The counts the report always shows, in this order, the same for every importer: the frame
+ * members (columns, beams, braces and inclined members) apart from the slabs and walls; the area
+ * loads apart from the file's load cases (patterns).
+ */
+export const MAIN_COUNTS = ['stories', 'columns', 'beams', 'braces', 'inclinedMembers', 'slabs', 'walls', 'sections', 'materials', 'loads', 'loadCases', 'combinations', 'supports'] as const;
 
 function bagOf(value: unknown): { readonly [key: string]: unknown } {
 	return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as { readonly [key: string]: unknown } : {};
@@ -285,7 +289,10 @@ export function countLabel(kind: string): string {
 		case 'walls': return localize('import.count.walls', "Walls");
 		case 'sections': return localize('import.count.sections', "Sections");
 		case 'materials': return localize('import.count.materials', "Materials");
-		case 'loads': return localize('import.count.loads', "Loads");
+		case 'loads': return localize('import.count.areaLoads', "Area loads");
+		case 'inclinedMembers': return localize('import.count.inclinedMembers', "Inclined members");
+		case 'loadCases': return localize('import.count.loadCases', "Load cases");
+		case 'combinationsFromFile': return localize('import.count.combinationsFromFile', "Combinations from the file");
 		case 'combinations': return localize('import.count.combinations', "Load combinations");
 		case 'joints': return localize('import.count.joints', "Joints");
 		case 'supports': return localize('import.count.supports', "Supports");
@@ -313,7 +320,7 @@ export function countRows(report: IImportReport): IImportCountRow[] {
 	return [...main, ...others];
 }
 
-/** The members imported (columns, beams, braces). */
+/** The frame members imported (columns, beams, braces, inclined members): not the slabs or walls. */
 export function memberCount(report: IImportReport): number {
 	return (report.counts.columns ?? 0) + (report.counts.beams ?? 0) + (report.counts.braces ?? 0) + (report.counts.inclinedMembers ?? 0);
 }
@@ -329,7 +336,7 @@ function total(items: readonly IImportReportItem[]): number {
 export function describeImportSummary(report: IImportReport): string {
 	const parts = [
 		localize('import.summaryStories', "{0} stories", report.counts.stories ?? 0),
-		localize('import.summaryMembers', "{0} members", memberCount(report)),
+		localize('import.summaryMembers', "{0} frame members", memberCount(report)),
 		localize('import.summarySlabs', "{0} slabs", report.counts.slabs ?? 0),
 		...(report.counts.walls === 1 ? [localize('import.summaryWall', "1 wall")] : []),
 		...(report.counts.walls > 1 ? [localize('import.summaryWalls', "{0} walls", report.counts.walls)] : []),
