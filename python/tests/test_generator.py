@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import json
 import math
 import subprocess
@@ -729,3 +730,40 @@ def test_walkthrough_frame_is_stiff_enough(walkthrough: dict) -> None:
         "Assumed (not checked here)",
     ):
         assert words in note, words
+
+
+def test_column_groups_step_down_at_most_a_fifth(frame: dict) -> None:
+    """N-N4: a storey group's columns are at most MAX_COLUMN_STEP (20 %) smaller than the
+    group's below, rounded up to 50 mm (walkthrough 2 had 1050 at L1-L3 over 700 at L4)."""
+    from saengine.library.generator import MAX_COLUMN_STEP, ceil_to
+
+    assert MAX_COLUMN_STEP == 0.2
+    sides: dict[str, list[tuple[int, float]]] = {}
+    for what, size in frame["summary"]["columnTypes"].items():
+        storeys, kind = what.split(" ")
+        sides.setdefault(kind, []).append(
+            (int(storeys.split("-")[0][1:]), float(size[1:].split("x")[0]))
+        )
+    for kind, groups in sides.items():
+        groups.sort()
+        for (_, below), (_, above) in itertools.pairwise(groups):
+            assert above >= ceil_to(0.8 * below, 50), kind
+
+
+@pytest.mark.slow
+def test_drift_not_met_is_a_warning_with_core_walls_offered() -> None:
+    """N-N4: a 10-storey Dhaka frame that fails the preliminary drift in Y says so first (the
+    wizard's warning box), offers core walls, and lists the overlapping footings."""
+    result = generate_building(
+        {"gridsX": [6000] * 3, "gridsY": [5000] * 2, "storyCount": 10, "groundHeight": 3500,
+         "typicalHeight": 3000, "location": "dhaka"}
+    )  # fmt: skip
+    summary = result["summary"]
+    assert summary["stiffness"]["met"] is False
+    assert (
+        summary["warnings"][0].startswith("Drift or period NOT met")
+        and "along Y" in (summary["warnings"][0])
+    )
+    assert any("pairs of footings overlap" in w for w in summary["warnings"])
+    assert summary["suggestCoreWalls"] is True
+    assert set(summary["columnReasons"]) <= set(summary["columnTypes"])
