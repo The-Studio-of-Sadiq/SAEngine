@@ -79,6 +79,13 @@ interface IBuildingIfc {
 	readonly architectureStories?: { readonly [elementId: string]: string };
 }
 
+/** The foundations of 9 Substructure, as its file has them. */
+interface ISubstructureItems {
+	readonly foundations: JsonObject[];
+	readonly piles: JsonObject[];
+	readonly tieBeams: JsonObject[];
+}
+
 const ELEMENT_KINDS: readonly { readonly kind: string; readonly group?: MemberGroup; readonly label: string }[] = [
 	{ kind: 'column', group: 'columns', label: localize('element.columns', "Columns") },
 	{ kind: 'beam', group: 'beams', label: localize('element.beams', "Beams") },
@@ -89,6 +96,18 @@ const ELEMENT_KINDS: readonly { readonly kind: string; readonly group?: MemberGr
 	{ kind: 'area', label: localize('element.areas', "Areas") },
 	{ kind: 'block', label: localize('element.blocks', "Blocks") },
 ];
+
+/** The foundation types of 9 Substructure (see `saengine.library.substructure.FOUNDATION_TYPES`). */
+const FOUNDATION_LABELS: { readonly [type: string]: string } = {
+	isolated: localize('foundation.isolated', "Isolated footing"),
+	combined: localize('foundation.combined', "Combined footing"),
+	strip: localize('foundation.strip', "Strip footing"),
+	pileCap: localize('foundation.pileCap', "Pile cap"),
+	raft: localize('foundation.raft', "Raft"),
+};
+
+/** The id map prefix of a foundation of 9 Substructure whose id an element of this model has. */
+const SUBSTRUCTURE_ID = '9:';
 
 type View = '3d' | 'additions' | 'summary';
 
@@ -192,11 +211,18 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 	private selectedElement: string | undefined;
 	/** The story each architecture element (`arch:<id>`) stands on, from the last IFC. */
 	private architectureStories: { readonly [id: string]: string } = {};
+	/** The id map of the last IFC: element ids to GlobalIds. */
+	private ifcIds: { readonly [id: string]: string } = {};
 
 	private objectsText: string | undefined;
 	private materials: ITextModel | undefined;
 	/** `07 MEP/mep.json` (unsaved edits included), for picking its equipment in 3D. */
 	private mep: ITextModel | undefined;
+	/**
+	 * `09 Substructure/substructure.json` (unsaved edits included): its foundations, piles and
+	 * tie beams are the building's foundations in 3D, read here, never copied into this model.
+	 */
+	private substructure: ITextModel | undefined;
 	/** The objects file, read here when the tab was restored before the project was open. */
 	private readonly objectsReference = this._register(new MutableDisposable<IReference<IResolvedTextEditorModel>>());
 
@@ -319,6 +345,7 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 	override async setInput(input: LibraryEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.materials = undefined;
 		this.mep = undefined;
+		this.substructure = undefined;
 		this.objectsText = undefined;
 		this.objectsReference.clear();
 		this.storyFilter = undefined;
@@ -362,6 +389,25 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 				// A project without 7 MEP.
 			}
 		}
+		// The foundations of 9 Substructure: counted in the summary and picked in 3D.
+		const substructurePart = partById('substructure');
+		if (substructurePart?.mainFile) {
+			try {
+				const reference = await this.textModels.createModelReference(joinPath(root, substructurePart.folder, substructurePart.mainFile));
+				if (this.input !== input) {
+					reference.dispose();
+					return;
+				}
+				this.inputDisposables.add(reference);
+				this.substructure = reference.object.textEditorModel;
+				this.inputDisposables.add(this.substructure.onDidChangeContent(() => {
+					this.ifcScheduler.schedule();
+					this.render();
+				}));
+			} catch {
+				// A project without 9 Substructure: the building model's footings are its foundations.
+			}
+		}
 		// Material names for the IFC, read from the materials file (unsaved edits included).
 		const part = PROJECT_PARTS.find(p => p.id === 'materials')!;
 		try {
@@ -395,8 +441,7 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 			}
 		}
 		this.ifcScheduler.schedule();
-		this.updateChrome();
-		this.renderProperties();
+		this.render();
 	}
 
 	override clearInput(): void {
@@ -546,7 +591,8 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 		if (viewer && version === this.ifcVersion) {
 			try {
 				this.architectureStories = result.architectureStories ?? {};
-				await viewer.load(VSBuffer.fromString(result.text).buffer, result.ids ?? {});
+				this.ifcIds = result.ids ?? {};
+				await viewer.load(VSBuffer.fromString(result.text).buffer, result.ids ?? {}, this.foundationLayers(result.ids ?? {}));
 				const selection = this.selectionService.selection;
 				this.selectedElement ??= selection?.kind === 'member' ? this.elementOfMember(selection.id) : undefined;
 				await viewer.setSelection(this.selectedElement);
@@ -666,6 +712,9 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 				ids.push(String(e.id));
 			}
 		}
+		if (index === 0) {
+			ids.push(...Object.keys(this.ifcIds).filter(key => this.findFoundation(key)));
+		}
 		const additions = isObject(this.document?.additions) ? this.document.additions : {};
 		for (const stair of Array.isArray(additions.stairs) ? additions.stairs.filter(isObject) : []) {
 			if (stair.top === id) {
@@ -693,6 +742,52 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 	}
 
 	/** The items of 7 MEP that the 3D view draws, with the list each is in. */
+	/** The foundations, piles and tie beams of 9 Substructure; none while it is the placeholder. */
+	private substructureItems(): ISubstructureItems {
+		const data = this.parse(this.substructure?.getValue());
+		const list = (key: string) => isObject(data) && Array.isArray(data[key]) ? (data[key] as JsonValue[]).filter(isObject) : [];
+		return { foundations: list('foundations'), piles: list('piles'), tieBeams: list('tieBeams') };
+	}
+
+	/**
+	 * The foundation, pile or tie beam of 9 Substructure an id of the 3D view stands for: its own
+	 * id, `9:<id>` when an element of this model has that id, `<tie>/<n>` for a piece of a tie beam.
+	 */
+	private findFoundation(id: string): { readonly item: JsonObject; readonly label: string } | undefined {
+		const prefixed = id.startsWith(SUBSTRUCTURE_ID);
+		const key = prefixed ? id.slice(SUBSTRUCTURE_ID.length) : id;
+		if (!prefixed) {
+			// The id is this model's element's, unless that is a footing the foundations replace.
+			const own = this.findElement(id);
+			if (own && own.item.kind !== 'footing') {
+				return undefined;
+			}
+		}
+		const { foundations, piles, tieBeams } = this.substructureItems();
+		const foundation = foundations.find(f => f.id === key);
+		if (foundation) {
+			return { item: foundation, label: FOUNDATION_LABELS[String(foundation.type)] ?? humanize(String(foundation.type)) };
+		}
+		const pile = piles.find(p => p.id === key);
+		if (pile) {
+			return { item: pile, label: localize('building.pile', "Pile") };
+		}
+		const tie = tieBeams.find(t => t.id === key || key.startsWith(`${t.id}/`));
+		return tie ? { item: tie, label: localize('building.tieBeam', "Tie beam") } : undefined;
+	}
+
+	/** Rafts are IfcSlabs, but the 3D view shows them with the foundations. */
+	private foundationLayers(ids: { readonly [id: string]: string }): { [id: string]: BuildingLayer } {
+		const layers: { [id: string]: BuildingLayer } = {};
+		for (const raft of this.substructureItems().foundations.filter(f => f.type === 'raft')) {
+			const key = `${SUBSTRUCTURE_ID}${raft.id}` in ids ? `${SUBSTRUCTURE_ID}${raft.id}` : String(raft.id);
+			if (key in ids) {
+				layers[key] = 'footing';
+			}
+		}
+		return layers;
+	}
+
 	private mepItems(): { readonly item: JsonObject; readonly label: string }[] {
 		const mep = this.parse(this.mep?.getValue());
 		if (!isObject(mep)) {
@@ -748,7 +843,8 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 	/** An element picked in 3D selects its floor-plan member (Properties, Model Explorer, plan). */
 	private onViewerSelection(elementId: string | undefined): void {
 		const elements = Array.isArray(this.document?.elements) ? this.document.elements.filter(isObject) : [];
-		const element = elements.find(e => e.id === elementId);
+		// A foundation of 9 Substructure is no member of the floor plan, even with a footing's id.
+		const element = elementId && this.findFoundation(elementId) ? undefined : elements.find(e => e.id === elementId);
 		const group = ELEMENT_KINDS.find(k => k.kind === element?.kind)?.group;
 		const member = typeof element?.source === 'string' ? element.source : undefined;
 		this.selectedElement = elementId;
@@ -1000,13 +1096,28 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 		for (const header of [localize('building.kind', "Kind"), localize('building.fromSource', "From {0}", this.sourceName), localize('building.own', "Own"), localize('building.total', "Total")]) {
 			append(elementTable, $('span.header', undefined, header));
 		}
+		const substructure = this.substructureItems();
+		const ownFoundations = substructure.foundations.length + substructure.piles.length + substructure.tieBeams.length > 0;
 		for (const { kind, label } of ELEMENT_KINDS) {
+			if (kind === 'footing' && ownFoundations) {
+				continue; // 9 Substructure's foundations replace the footings: counted below
+			}
 			const ofKind = elements.filter(e => e.kind === kind);
 			const generated = ofKind.filter(e => typeof e.source === 'string').length;
 			append(elementTable, $('span', undefined, label));
 			append(elementTable, $('span.number', undefined, String(generated)));
 			append(elementTable, $('span.number', undefined, String(ofKind.length - generated)));
 			append(elementTable, $('span.number', undefined, String(ofKind.length)));
+		}
+		if (ownFoundations) {
+			append(this.summary, $('h3', undefined, localize('building.foundationsHeading', "Foundations (from 9 Substructure)")));
+			const foundationTable = append(this.summary, $('.building-table.two'));
+			for (const [label, count] of this.foundationCounts(substructure)) {
+				append(foundationTable, $('span', undefined, label));
+				append(foundationTable, $('span.number', undefined, String(count)));
+			}
+			const open = append(this.summary, $<HTMLAnchorElement>('a.building-problems-link', { role: 'button', tabIndex: 0 }, localize('building.openSubstructure', "Edit in 9 Substructure")));
+			this.viewDisposables.add(addDisposableListener(open, EventType.CLICK, () => this.openSubstructure()));
 		}
 		if (this.problemCount) {
 			const link = append(this.summary, $<HTMLAnchorElement>('a.building-problems-link', { role: 'button', tabIndex: 0 }, this.problemCount === 1
@@ -1078,6 +1189,11 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 			propertyLink(panel, localize('building.openArchitecture', "Open in Architecture"), () => void this.commands.executeCommand('saengine.architecture.open'), this.propertiesDisposables);
 			return;
 		}
+		const foundation = this.selectedElement ? this.findFoundation(this.selectedElement) : undefined;
+		if (foundation) {
+			this.renderFoundationProperties(panel, foundation.item, foundation.label);
+			return;
+		}
 		const found = this.selectedElement ? this.findElement(this.selectedElement) : undefined;
 		if (found) {
 			const { item, list } = found;
@@ -1124,11 +1240,15 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 		const elements = Array.isArray(document.elements) ? document.elements.filter(isObject) : [];
 		appendPropertyHeading(panel, localize('building.modelHeading', "Building Model"));
 		appendPropertyRow(panel, localize('building.storiesRow', "Stories above the base"), String(this.storiesAboveBase()));
+		const replaced = this.substructureItems().foundations.length > 0;
 		for (const { kind, label } of ELEMENT_KINDS) {
 			const count = elements.filter(e => e.kind === kind).length;
-			if (count) {
+			if (count && !(kind === 'footing' && replaced)) {
 				appendPropertyRow(panel, label, String(count));
 			}
+		}
+		for (const [label, count] of this.foundationCounts(this.substructureItems())) {
+			appendPropertyRow(panel, localize('building.foundationRow', "{0} (9 Substructure)", label), String(count));
 		}
 		const additions = isObject(document.additions) ? document.additions : {};
 		const added = Object.keys(ADDITION_LISTS).reduce((n, list) => n + (Array.isArray(additions[list]) ? (additions[list] as JsonValue[]).length : 0), 0);
@@ -1147,6 +1267,45 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 			}
 		}
 		appendPropertyNote(panel, localize('building.selectHint', "Select an element in the 3D view to see its properties."));
+	}
+
+	/** A foundation, pile or tie beam of 9 Substructure picked in 3D, with a link to edit it there. */
+	private renderFoundationProperties(panel: HTMLElement, item: JsonObject, label: string): void {
+		appendPropertyHeading(panel, String(item.id), label);
+		append(panel, $('.sa-props-section', undefined, localize('building.substructureSection', "9 Substructure")));
+		for (const [key, value] of Object.entries(item)) {
+			const list = Array.isArray(value) && value.every(v => typeof v === 'string');
+			if (key === 'id' || value === null || typeof value === 'object' && !list) {
+				continue;
+			}
+			const unit = /^(length|width|thickness|diameter|foundingLevel|level|settlement)$/.test(key) ? 'mm' : key === 'rotation' ? '°' : key === 'allowableBearing' ? 'kPa' : undefined;
+			const text = Array.isArray(value) ? value.join(', ') : key === 'type' && typeof value === 'string' && FOUNDATION_LABELS[value] ? FOUNDATION_LABELS[value] : formatPropertyValue(value, unit);
+			appendPropertyRow(panel, humanize(key), text);
+		}
+		propertyLink(panel, localize('building.openSubstructure', "Edit in 9 Substructure"), () => this.openSubstructure(), this.propertiesDisposables);
+		appendPropertyNote(panel, localize('building.substructureNote', "Placed and designed in 9 Substructure; the building model only shows it. Change it there."));
+	}
+
+	/** How many foundations of each type, piles and tie beams 9 Substructure has. */
+	private foundationCounts({ foundations, piles, tieBeams }: ISubstructureItems): [string, number][] {
+		const counts = Object.entries(FOUNDATION_LABELS)
+			.map(([type, label]): [string, number] => [label, foundations.filter(f => f.type === type).length])
+			.filter(([, count]) => count > 0);
+		if (piles.length) {
+			counts.push([localize('building.piles', "Piles"), piles.length]);
+		}
+		if (tieBeams.length) {
+			counts.push([localize('building.tieBeams', "Tie beams"), tieBeams.length]);
+		}
+		return counts;
+	}
+
+	private openSubstructure(): void {
+		const part = partById('substructure');
+		const resource = this.resource;
+		if (part?.mainFile && resource) {
+			void this.editors.openEditor({ resource: joinPath(dirname(dirname(resource)), part.folder, part.mainFile) });
+		}
 	}
 
 	/** An item of 7 MEP picked in 3D: its values, and a link to edit it in 7 MEP (which owns it). */
