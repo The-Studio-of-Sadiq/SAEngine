@@ -653,3 +653,11 @@
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 1px;
 }
+
+/* "Planned" chips of analyses and designs not in this MVP (see femPlannedFeatures.ts). */
+.fem-planned-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--sa-space-1, 4px);
+	margin: var(--sa-space-1, 4px) 0 var(--sa-space-2, 8px);
+}
