@@ -179,12 +179,14 @@ def test_analysis_runs_and_combinations_balance(tmp_path: Path) -> None:
     listing = result_list(out, model)
     keys = {r["label"]: r["key"] for r in listing["results"]}
     assert not listing["stale"]
-    view = result_view(out, model, keys["1.2D + 1.6L + 0.5Lr"])
+    # The label writes out every factor the combination applies (N-X15).
+    view = result_view(out, model, keys["1.2D + 1.2SD + 1.6L + 0.5Lr"])
     assert sum(r[3] for r in view["reactions"]) == pytest.approx(total[3], rel=1e-6)
-    # B1 is a chain of members B1, B1#1 ...: hogging at its first end, sagging in the span.
+    # B1 is a chain of members B1, B1#1 ...: in member axes its gravity bending is M3,
+    # hogging (negative) at its first end and sagging (positive) in the span.
     pieces = [e for e in view["elements"] if e["name"].split("#")[0] == "B1"]
     first = next(e for e in pieces if e["name"] == "B1")
-    assert first["forces"][0][4] > 0 > min(f[4] for e in pieces for f in e["forces"])
+    assert first["forces"][0][5] < 0 < max(f[5] for e in pieces for f in e["forces"])
     modal = next(r for r in listing["results"] if r["kind"] == "modal")
     shape = result_view(out, model, modal["key"], 1)
     assert max(abs(c) for n in shape["nodes"] for c in n[1:4]) == pytest.approx(1.0)
