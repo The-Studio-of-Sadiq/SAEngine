@@ -45,7 +45,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from shapely.geometry import Point
+from shapely.geometry import box
 
 from saengine.mep.geometry import bounded_id
 
@@ -251,23 +251,60 @@ def refrigerant_pair(capacity_kw: float) -> dict[str, Any]:
 
 
 def _row(
-    project: Any, story: str, units: list[dict[str, Any]], notes: list[str]
+    project: Any,
+    story: str,
+    units: list[dict[str, Any]],
+    notes: list[str],
+    taken: list[Any] | None = None,
 ) -> list[dict[str, Any]]:
-    """Places ``units`` (with length and width) in a row along X centred on the story's
-    slabs (SAEngine's first placement: move them to the plant's real place)."""
+    """Places ``units`` (with length and width) on the story's slabs, packed in rows along X
+    with ``SPACING`` clear between them and from the slab edges, the places nearest the middle
+    of the slabs first (SAEngine's first placement: move them to the plant's real place).
+    ``taken``: the footprints already placed on the story (updated). Units that do not fit are
+    put in a row beside the slabs, with one note that says so."""
+    taken = [] if taken is None else taken
     roof = project.building.roof(story) if project.building.known else None
     if roof is None or roof.is_empty:
         cx = cy = 0.0
-    else:
-        cx, cy = roof.centroid.x, roof.centroid.y
-    total = sum(u["length"] for u in units) + SPACING * max(len(units) - 1, 0)
-    x = cx - total / 2
+        total = sum(u["length"] for u in units) + SPACING * max(len(units) - 1, 0)
+        x = cx - total / 2
+        for u in units:
+            u["x"], u["y"] = round(x + u["length"] / 2), round(cy)
+            x += u["length"] + SPACING
+        return units
+    inner = roof.buffer(-SPACING / 2)
+    middle = roof.centroid
+    minx, miny, maxx, maxy = roof.bounds
+    left: list[dict[str, Any]] = []
     for u in units:
-        u["x"] = round(x + u["length"] / 2)
-        u["y"] = round(cy)
-        x += u["length"] + SPACING
-        if roof is not None and not roof.is_empty and not roof.covers(Point(u["x"], u["y"])):
-            notes.append(f"{u['id']}: placed outside the slabs of {story}: move it")
+        pitch_x, pitch_y = u["length"] + SPACING, u["width"] + SPACING
+        cells = [
+            (minx + SPACING / 2 + pitch_x * (i + 0.5), miny + SPACING / 2 + pitch_y * (j + 0.5))
+            for i in range(max(int((maxx - minx) // pitch_x), 0))
+            for j in range(max(int((maxy - miny) // pitch_y), 0))
+        ]
+        cells.sort(key=lambda c: (c[0] - middle.x) ** 2 + (c[1] - middle.y) ** 2)
+        for x, y in cells:
+            cell = box(x - pitch_x / 2, y - pitch_y / 2, x + pitch_x / 2, y + pitch_y / 2)
+            body = box(x - u["length"] / 2, y - u["width"] / 2, x + u["length"] / 2,
+                       y + u["width"] / 2)  # fmt: skip
+            if inner.covers(body) and not any(cell.intersects(t) for t in taken):
+                u["x"], u["y"] = round(x), round(y)
+                taken.append(body.buffer(SPACING / 2 - 1.0))
+                break
+        else:
+            left.append(u)
+    if left:
+        x = maxx + SPACING
+        for u in left:
+            u["x"], u["y"] = round(x + u["length"] / 2), round(miny + u["width"] / 2)
+            x += u["length"] + SPACING
+        notes.append(
+            f"{len(left)} of {len(units)} units ({', '.join(u['id'] for u in left)}) do not "
+            f"fit on the slabs of {story} with {SPACING:g} mm clear around each; they are put "
+            "beside the building: choose fewer, larger units, or place them on the floors' "
+            "ledges or another roof"
+        )
     return units
 
 
@@ -320,11 +357,13 @@ def propose_plant(
     notes.append(f"plant capacity {q:.0f} kW: {cap['note']}")
     top, bottom = _top(project), _bottom(project)
     proposed: dict[str, list[dict[str, Any]]] = {}
+    taken: dict[str, list[Any]] = {}
 
     def add(kind: str, story: str | None, units: list[dict[str, Any]]) -> None:
         if story is None or not units:
             return
-        proposed.setdefault(kind, []).extend(_row(project, story, units, notes))
+        here = taken.setdefault(story, [])
+        proposed.setdefault(kind, []).extend(_row(project, story, units, notes, here))
 
     if system == "chilledWater":
         plan = chiller_plan(q, standby)

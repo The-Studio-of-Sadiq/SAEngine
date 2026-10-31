@@ -439,7 +439,8 @@ def test_riser_assumed_at_the_tank_and_project_folder(tmp_path):
     )
     r = water_hydraulics(tmp_path)
     assert [f["story"] for f in r["floors"]] == ["L3", "L2", "L1", "L0"]
-    assert r["risers"][0]["id"] == "R-auto"
+    # The assumed riser is named for its tank, not "R-auto" (N-E8).
+    assert r["risers"][0]["id"].endswith("-riser")
     assert any("assumed" in n for n in r["notes"])
     json.dumps(r)  # plain JSON for the RPC
 

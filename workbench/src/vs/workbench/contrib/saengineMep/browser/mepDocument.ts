@@ -1187,6 +1187,8 @@ export interface IEquipmentLoad {
 	readonly load?: number;
 	/** Over the footprint [kPa]. */
 	readonly pressure?: number;
+	/** Presses on the middle of a slab panel, away from its beams (the note says what to do). */
+	readonly heavy?: boolean;
 	/** The slab or beam it loads. */
 	readonly host?: string;
 	readonly loadCase?: string;
@@ -1313,7 +1315,7 @@ export function readMepReport(raw: unknown): IMepReport | undefined {
 			operatingWeight: optionalNumber(e.operatingWeight), onGrade,
 			applied: typeof e.applied === 'boolean' ? e.applied : !onGrade && !/not applied/.test(note ?? ''),
 			load: optionalNumber(e.load ?? e.operatingWeight), pressure: optionalNumber(e.pressure),
-			host: optionalString(e.host), loadCase: optionalString(e.loadCase), note,
+			host: optionalString(e.host), loadCase: optionalString(e.loadCase), note, heavy: e.heavy === true,
 		};
 	});
 	const stories = records(raw.stories).filter(s => typeof s.story === 'string').map(s => ({

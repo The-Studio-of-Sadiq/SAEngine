@@ -16,6 +16,7 @@ import {
 	hvacSystemLabel, IConstructions, IDuct, IHvacCity, IHvacReport, IHvacUse, IPlant, isFan, PLANT_KINDS, plantAsEquipment, plantKindLabel, plantLetters, PlantKind, riserInShaft, SHADINGS,
 	shadingLabel,
 } from './hvacDocument.js';
+import { storyUseOf } from './storyUses.js';
 
 /*
  * The HVAC's Data view and properties panel in the MEP editor: the system and the design
@@ -150,7 +151,12 @@ export function renderHvacData(view: HTMLElement, host: IMepFormHost, tables: IH
 			target().conditioned = v;
 			host.changed(true);
 		}, localize('hvacView.f.conditionedOf', "{0} is air-conditioned", host.storyName(storyId))));
-		append(append(tr, $('td')), host.selectInput(useOptions, String(row?.use ?? ''), v => host.setOptional(target(), 'use', v), path('use'), localize('hvacView.f.useOf', "Use of {0}", host.storyName(storyId)), true));
+		const shared = storyUseOf(host.document, storyId);
+		if (shared) {
+			host.storyUseLink(append(tr, $('td')), shared.use);
+		} else {
+			append(append(tr, $('td')), host.selectInput(useOptions, String(row?.use ?? ''), v => host.setOptional(target(), 'use', v), path('use'), localize('hvacView.f.useOf', "Use of {0}", host.storyName(storyId)), true));
+		}
 		append(append(tr, $('td')), host.selectInput(gainsOptions, String(row?.gainsFrom ?? ''), v => host.setOptional(target(), 'gainsFrom', v), path('gainsFrom'),
 			localize('hvacView.f.gainsFromOf', "Gains of {0} from", host.storyName(storyId)), localize('hvacView.gainsAuto', "Auto")));
 		for (const field of [H.occupants, H.lighting, H.equipment]) {

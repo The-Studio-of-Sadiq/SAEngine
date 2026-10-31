@@ -27,6 +27,8 @@ class Building:
     slabs: dict[str, tuple[Polygon, float]] = field(default_factory=dict)
     holes: list[tuple[str, Polygon]] = field(default_factory=list)  # (slab id, opening)
     ground: float = 0.0
+    #: The building model itself (beams and slab panels for placing an overhead tank).
+    model: Any = None
 
     @classmethod
     def of(cls, model: Any, ground: float | None = None) -> Building:
@@ -59,7 +61,7 @@ class Building:
             holes.append((o.host, rect))
         # The ground is at level 0 unless Project Settings give it (its default is 0 too):
         # not the lowest story, which is a basement's floor in a building with basements.
-        return cls(stories, names, slabs, holes, 0.0 if ground is None else float(ground))
+        return cls(stories, names, slabs, holes, 0.0 if ground is None else float(ground), model)
 
     @property
     def known(self) -> bool:

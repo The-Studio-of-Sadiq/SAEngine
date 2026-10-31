@@ -149,7 +149,8 @@ export function renderHvacReport(view: HTMLElement, report: IHvacReport, host: I
 
 	roomZones(view, report, host);
 	itemTable(view, host, localize('hvacResults.ducts', "Airflow and ducts"), localize('hvacResults.ductsDetail', "the flow each duct carries, its size and velocity"), report.ducts, 'duct');
-	itemTable(view, host, localize('hvacResults.plant', "Plant"), localize('hvacResults.plantDetail', "capacity against the load it serves; the operating weight is a load on the structure"), report.plant, 'plant');
+	itemTable(view, host, localize('hvacResults.plant', "Plant"), localize('hvacResults.plantDetail', "capacity against the load it serves; the operating weight is a load on the structure"), report.plant.filter(p => p.inModel !== false), 'plant');
+	itemTable(view, host, localize('hvacResults.plantProposed', "Proposed plant (not in the model)"), localize('hvacResults.plantProposedDetail', "what SAEngine would put in; not a load on the structure until Propose Plant adds it to the file"), report.plant.filter(p => p.inModel === false), 'plant');
 	openingsTable(view, host, localize('hvacResults.openings', "Duct openings"), localize('hvacResults.openingsDetail', "through beams (web openings), slabs and walls: the governing check of each"), report.openings);
 	shaftsTable(view, host, report.shafts);
 	if (report.checks.length) {

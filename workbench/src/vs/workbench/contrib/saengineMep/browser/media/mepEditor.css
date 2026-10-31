@@ -1804,3 +1804,37 @@
 .saengine-mep-editor .sa-frame-end:has(.mep-text-actions) {
 	flex-shrink: 0;
 }
+
+/* 1366 px (N-E10): the storey picker keeps room for its arrow and the view switch for its
+   labels; at narrow widths the view switch drops its icons, not its words. */
+.saengine-mep-editor .mep-story,
+.saengine-mep-editor .sa-frame-controls .sa-segmented {
+	flex-shrink: 0;
+}
+
+.saengine-mep-editor .mep-story-select {
+	min-width: 140px;
+}
+
+@media (max-width: 1500px) {
+	.saengine-mep-editor .mep-story-select {
+		width: 140px;
+	}
+
+	.saengine-mep-editor .sa-frame-controls .sa-segment .codicon {
+		display: none;
+	}
+
+	.saengine-mep-editor .mep-discipline .sa-segment {
+		padding-left: 6px;
+		padding-right: 6px;
+	}
+}
+
+/* The totals in read-only inputs, aligned with the inputs above (N-E11). */
+.saengine-mep-editor tr.plb-total .plb-total-value {
+	border-color: transparent;
+	background: transparent;
+	font-weight: 600;
+	pointer-events: none;
+}
