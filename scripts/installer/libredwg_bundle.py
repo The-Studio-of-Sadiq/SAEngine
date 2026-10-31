@@ -10,7 +10,8 @@ as a separate program in ``resources/libredwg`` and run by the backend as its ow
 
 ``--source`` is the official Windows build ``libredwg-<version>-win64.zip`` unpacked (the folder
 holding ``dwg2dxf.exe`` is found inside it). Only :data:`KEEP` is copied: ``dwg2dxf.exe`` and
-``libredwg-0.dll``, the one DLL it imports (the zip's other programs, the iconv and PCRE2 DLLs
+``libredwg-0.dll``, the one DLL it imports, and ``dxf2dwg.exe`` (:data:`OPTIONAL`: the DWG writer
+of the drawing sheets) when the build has it (the zip's other programs, the iconv and PCRE2 DLLs
 that only ``dwggrep`` needs, headers, import libraries, Python bindings and manuals are left
 out: 51 MB down to about 31 MB). The zip ships no licence file, so the release build passes
 LibreDWG's COPYING (the GPL-3.0 text, pinned in scripts/ci/third-party-binaries.json) with
@@ -34,6 +35,8 @@ from pathlib import Path
 PROGRAM = "dwg2dxf.exe"
 #: What the bundle holds, besides the licences: the converter and the library it imports.
 KEEP = (PROGRAM, "libredwg-0.dll")
+#: Copied when the build has it: the DWG writer of the drawing sheets (drawings/issue, DWG).
+OPTIONAL = ("dxf2dwg.exe",)
 MANIFEST_NAME = "SAENGINE-BUNDLE.json"
 
 
@@ -87,6 +90,7 @@ def bundle(
     missing = [name for name in KEEP if not (root / name).is_file()]
     if missing:
         raise BundleError(f"{root} lacks {', '.join(missing)}: not a LibreDWG Windows build")
+    keep = KEEP + tuple(name for name in OPTIONAL if (root / name).is_file())
     licenses = list(licenses or [])
     for path in licenses:
         if not path.is_file():
@@ -101,7 +105,7 @@ def bundle(
     version = program_version(root / PROGRAM) if check else None
     if expect_version and version and version != expect_version:
         raise BundleError(f"{root / PROGRAM} is version {version}, expected {expect_version}")
-    size = sum((root / name).stat().st_size for name in KEEP) + sum(
+    size = sum((root / name).stat().st_size for name in keep) + sum(
         p.stat().st_size for p in licenses
     )
     manifest = {
@@ -110,7 +114,7 @@ def bundle(
         "license": "GPL-3.0-or-later",
         "program": PROGRAM,
         "licenses": [f"licenses/{p.name}" for p in licenses],
-        "files": len(KEEP) + len(licenses),
+        "files": len(keep) + len(licenses),
         "bytes": size,
         "source": str(root),
     }
@@ -119,7 +123,7 @@ def bundle(
         f"{' (dry run: nothing copied)' if dry_run else ''}"
     )
     if dry_run:
-        for name in KEEP:
+        for name in keep:
             print(f"  copy {name}")
         for path in licenses:
             print(f"  licence {path} -> licenses/{path.name}")
@@ -127,7 +131,7 @@ def bundle(
     if dest.exists():
         shutil.rmtree(dest)
     dest.mkdir(parents=True)
-    for name in KEEP:
+    for name in keep:
         shutil.copy2(root / name, dest / name)
     if licenses:
         (dest / "licenses").mkdir()

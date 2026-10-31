@@ -14,12 +14,14 @@
     "diagonalCoupling": 0.85,
     "joint": 0.85,
     "strutAndTie": 0.75,
-    "stiffnessReduction": 0.75
+    "stiffnessReduction": 0.75,
+    "bearing": 0.65
   },
   "sources": {
     "shearSeismic": "BNBC 2020 Part 6 Sec 6.2.3.3(a)",
     "diagonalCoupling": "BNBC 2020 Part 6 Sec 6.2.3.3(c)",
     "joint": "BNBC 2020 Part 6 Sec 6.2.3.3(c) (p. 898)",
-    "stiffnessReduction": "BNBC 2020 Part 6 Eqs. 6.6.19 and 6.6.28"
+    "stiffnessReduction": "BNBC 2020 Part 6 Eqs. 6.6.19 and 6.6.28",
+    "bearing": "BNBC 2020 Part 6 Sec 6.2.3.2 (p. 897): bearing on concrete"
   }
 }

@@ -66,6 +66,8 @@ TABLE_HELP: dict[str, str] = {
     "steel": "Structural steel: phi factors and slenderness limits.",
     "foundations": "Foundations: pile safety factors, partial factors of skin and base "
     "resistance, strut-and-tie factors.",
+    "transfer": "Deep beams and transfer girders, corbels and brackets, diaphragm chords and "
+    "collectors: the limits and least steel of their clauses.",
     "slabCoefficients": "Slabs on beams designed by moment coefficients: the two-way tables "
     "by span ratio and edge case, their limits, the one-way coefficients, bar spacing limits.",
     "plumbing": "Water supply, drainage and rainwater: water demand by occupancy, storage, "
@@ -78,6 +80,9 @@ TABLE_HELP: dict[str, str] = {
     "electrical": "Electrical services: load densities by use, the substation, transformer and "
     "generator rooms, shafts and risers, earthing, the lightning risk indices and protection, "
     "and typical equipment sizes and masses for the first layout.",
+    "planning": "Planning rules of the plot: FAR and maximum ground coverage by use, plot size "
+    "and road width, setbacks by plot size and height (the planning authority's rules; Dhaka: "
+    "Imarat Nirman Bidhimala 2008).",
     "fire": "Fire protection: hazard classes of the occupancy groups, flows and durations, "
     "standpipe and hose pressures, pump ratings, sprinkler pipe schedules and spacing, and the "
     "NFPA values the code leaves out (marked 'from memory, to be checked').",

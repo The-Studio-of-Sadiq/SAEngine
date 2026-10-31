@@ -31,6 +31,8 @@ import { ITextFileService } from '../../../services/textfile/common/textfiles.js
 import { LibraryEditorInput } from '../../saengineLibrary/browser/libraryEditorInput.js';
 import { BUILD_REPORT_COMMAND_ID, CONFIGURE_REPORT_COMMAND_ID, CREATE_REPORT_TEMPLATE_COMMAND_ID, EXPORT_WORD_REPORT_COMMAND_ID, IReportBuildRequest, IReportBuildResult, IReportTemplates, PRINT_REPORT_COMMAND_ID, REPORT_TEMPLATES_COMMAND_ID, REPORT_TEMPLATES_FOLDER, ReportFormat, reportProblems, reportWrittenMessage, templateId, USE_REPORT_TEMPLATE_COMMAND_ID } from './reportBuild.js';
 import { ReportTemplateEditor } from './reportTemplateEditor.js';
+import { worksheetKinds, WorksheetEditor } from './worksheetEditor.js';
+import { IWorksheetInfo, IWorksheetKind, kindsByGroup, NEW_WORKSHEET_COMMAND_ID, OPEN_WORKSHEETS_COMMAND_ID, worksheetId, WORKSHEETS_FOLDER, WORKSHEETS_REQUEST_COMMAND_ID } from './worksheetModel.js';
 
 const category = localize2('saengine.category', "SAEngine");
 
@@ -320,3 +322,189 @@ class ReportTemplateEditorResolverContribution extends Disposable implements IWo
 }
 
 registerWorkbenchContribution2(ReportTemplateEditorResolverContribution.ID, ReportTemplateEditorResolverContribution, WorkbenchPhase.BlockStartup);
+
+// ─────────────────────────────── calculation worksheets ───────────────────────────────
+
+interface IKindPick extends IQuickPickItem {
+	readonly kind: IWorksheetKind;
+}
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: NEW_WORKSHEET_COMMAND_ID,
+			title: localize2('saengine.newWorksheet', "New Calculation Worksheet..."),
+			category,
+			icon: Codicon.symbolNumeric,
+			f1: true,
+			precondition: projectOpen,
+			menu: [
+				{ id: MenuId.ViewTitle, group: '9_report', order: 4, when: ContextKeyExpr.and(projectOpen, ContextKeyExpr.equals('view', MODEL_EXPLORER_VIEW_ID)) },
+			],
+		});
+	}
+
+	/** Picks a kind (beam, column, footing, development length, wind on a sign, ...), names it, writes it with the kind's defaults and opens it. */
+	override async run(accessor: ServicesAccessor, args?: { readonly kind?: string }): Promise<void> {
+		const project = accessor.get(ISaengineProjectService).project;
+		const commandService = accessor.get(ICommandService);
+		const quickInput = accessor.get(IQuickInputService);
+		const notificationService = accessor.get(INotificationService);
+		const editorService = accessor.get(IEditorService);
+		if (!project) {
+			return;
+		}
+		let kinds: readonly IWorksheetKind[];
+		try {
+			kinds = await worksheetKinds(commandService);
+		} catch (error) {
+			notificationService.error(localize('worksheet.kindsFailed', "The worksheet kinds could not be listed: {0}", toErrorMessage(error)));
+			return;
+		}
+		let kind = kinds.find(k => k.id === args?.kind);
+		if (!kind) {
+			const items: (IKindPick | IQuickPickSeparator)[] = [];
+			for (const [group, list] of kindsByGroup(kinds)) {
+				items.push({ type: 'separator', label: group });
+				items.push(...list.map(k => ({ label: k.title, detail: k.summary, kind: k })));
+			}
+			const pick = await quickInput.pick(items, { placeHolder: localize('worksheet.pickKind', "Choose the calculation"), matchOnDetail: true }) as IKindPick | undefined;
+			kind = pick?.kind;
+		}
+		if (!kind) {
+			return;
+		}
+		const title = await quickInput.input({
+			prompt: localize('worksheet.name', "Title of the worksheet, as the report prints it (its file name is made from it)"),
+			value: kind.title,
+			validateInput: async value => worksheetId(value) ? undefined : localize('worksheet.nameEmpty', "Give the worksheet a title with letters or digits."),
+		});
+		if (!title) {
+			return;
+		}
+		const answer = await commandService.executeCommand<{ path?: string; existing?: boolean; problems?: string[] }>(WORKSHEETS_REQUEST_COMMAND_ID, 'worksheets/create', { projectRoot: project.root.fsPath, kind: kind.id, id: worksheetId(title), title });
+		if (!answer?.path) {
+			notificationService.error(localize('worksheet.createFailed', "The worksheet was not written: {0}", (answer?.problems ?? []).join(' ')));
+			return;
+		}
+		if (answer.existing) {
+			notificationService.info(localize('worksheet.existing', "A worksheet with this name exists already; it is opened."));
+		}
+		await editorService.openEditor({ resource: URI.file(answer.path), options: { pinned: true } });
+	}
+});
+
+interface IWorksheetPick extends IQuickPickItem {
+	readonly path?: string;
+	readonly create?: boolean;
+}
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: OPEN_WORKSHEETS_COMMAND_ID,
+			title: localize2('saengine.openWorksheets', "Calculation Worksheets..."),
+			category,
+			icon: Codicon.symbolNumeric,
+			f1: true,
+			precondition: projectOpen,
+			menu: [
+				{ id: MenuId.ViewTitle, group: '9_report', order: 5, when: ContextKeyExpr.and(projectOpen, ContextKeyExpr.equals('view', MODEL_EXPLORER_VIEW_ID)) },
+			],
+		});
+	}
+
+	/** Lists the project's worksheets with their result; one opens in its editor. */
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const project = accessor.get(ISaengineProjectService).project;
+		const commandService = accessor.get(ICommandService);
+		const quickInput = accessor.get(IQuickInputService);
+		const notificationService = accessor.get(INotificationService);
+		const editorService = accessor.get(IEditorService);
+		if (!project) {
+			return;
+		}
+		let listed: { worksheets?: IWorksheetInfo[]; problems?: string[] } | undefined;
+		try {
+			listed = await commandService.executeCommand(WORKSHEETS_REQUEST_COMMAND_ID, 'worksheets/list', { projectRoot: project.root.fsPath });
+		} catch (error) {
+			notificationService.error(localize('worksheet.listFailed', "The worksheets could not be listed: {0}", toErrorMessage(error)));
+			return;
+		}
+		const verdict = (w: IWorksheetInfo) => w.problems.length
+			? localize('worksheet.listProblem', "not calculated")
+			: w.ok
+				? localize('worksheet.listOk', "passes ({0})", w.utilisation === null ? '–' : w.utilisation.toFixed(2))
+				: localize('worksheet.listFail', "fails");
+		const items: (IWorksheetPick | IQuickPickSeparator)[] = [
+			...(listed?.worksheets ?? []).map(w => ({
+				label: w.title,
+				description: w.print ? verdict(w) : localize('worksheet.listNotPrinted', "{0} · not printed", verdict(w)),
+				detail: w.kind,
+				path: w.path,
+			})),
+			{ type: 'separator' },
+			{ label: `$(add) ${localize('worksheet.newItem', "New Calculation Worksheet...")}`, create: true },
+		];
+		for (const problem of listed?.problems ?? []) {
+			notificationService.warn(problem);
+		}
+		const pick = await quickInput.pick(items, { placeHolder: localize('worksheet.pick', "The project's calculation worksheets (11 Exports/worksheets)") }) as IWorksheetPick | undefined;
+		if (pick?.create) {
+			await commandService.executeCommand(NEW_WORKSHEET_COMMAND_ID);
+		} else if (pick?.path) {
+			await editorService.openEditor({ resource: URI.file(pick.path), options: { pinned: true } });
+		}
+	}
+});
+
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(WorksheetEditor, LibraryEditorInput.WORKSHEET_EDITOR_ID, localize('worksheetEditorPane', "SAEngine Calculation Worksheet Editor")),
+	[new SyncDescriptor(LibraryEditorInput)]
+);
+
+/** Opens the project's worksheets (`11 Exports/worksheets/*.json`) in the worksheet editor by default. */
+class WorksheetEditorResolverContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.saengine.worksheetEditorResolver';
+
+	constructor(
+		@IEditorResolverService editorResolverService: IEditorResolverService,
+		@ISaengineProjectService private readonly projectService: ISaengineProjectService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+		this._register(editorResolverService.registerEditor(
+			`**/${WORKSHEETS_FOLDER}/*.json`,
+			{
+				id: LibraryEditorInput.WORKSHEET_EDITOR_ID,
+				label: localize('worksheetEditorLabel', "Calculation Worksheet Editor"),
+				detail: localize('worksheetEditorDetail', "SAEngine"),
+				priority: RegisteredEditorPriority.default,
+			},
+			{
+				singlePerResource: true,
+				canSupportResource: resource => this.isWorksheet(resource),
+			},
+			{
+				createEditorInput: ({ resource, options }) => ({
+					editor: instantiationService.createInstance(LibraryEditorInput, resource, 'worksheet', undefined),
+					options,
+				}),
+			}
+		));
+	}
+
+	/** A file of the open project's `11 Exports/worksheets` folder. */
+	private isWorksheet(resource: URI): boolean {
+		const project = this.projectService.project;
+		const exportsPart = partById('exports');
+		if (!project || !exportsPart) {
+			return false;
+		}
+		const folder = joinPath(project.root, exportsPart.folder, WORKSHEETS_FOLDER);
+		return extUriBiasedIgnorePathCase.isEqual(extUriBiasedIgnorePathCase.dirname(resource), folder);
+	}
+}
+
+registerWorkbenchContribution2(WorksheetEditorResolverContribution.ID, WorksheetEditorResolverContribution, WorkbenchPhase.BlockStartup);

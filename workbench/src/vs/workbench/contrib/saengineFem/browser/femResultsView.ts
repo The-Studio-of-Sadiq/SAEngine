@@ -40,6 +40,7 @@ import { EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/e
 import { ChartColor, IChartSeries, renderChart, renderSheet } from './femChart.js';
 import { baseReactionTable, closedPmCurve, defaultChartResult, describeMode, elasticDriftLimit, orderLike, extremes, FEM_COLUMN_INTERACTION_COMMAND, FEM_MEMBER_FORCES_COMMAND, FEM_STORY_RESPONSE_COMMAND, FemAxis2, IFemColumnDiagram, IFemColumnInteraction, IFemMemberForces, IFemStoryResponse, IFemStoryResult, isEarthquakeResult, MemberComponent, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, spectrumAt, storeyProfile, StoreyQuantity, storeyQuantityLabel, STOREY_QUANTITIES } from './femChartData.js';
 import { IFemDesignRequired, IFemSteelRequirement, resultsFolder, runDesignRequired } from './femDesign.js';
+import { appendPlannedChips, FemPlanned } from './femPlannedFeatures.js';
 import { errorSummary, FEM_RESULT_LIST_COMMAND, IFemRunTracker } from './femResultsBar.js';
 import { formatNumber } from '../../../services/saengineProject/common/formatting.js';
 
@@ -638,6 +639,8 @@ export class FemResultsEditor extends EditorPane {
 				yLabel: withUnit(localize('femResults.baseShear', "Base shear"), this.units.force),
 				series: [{ name: curve.label, color: 'blue', points: curve.displacement.map((d, k) => [d * this.units.length.scale, Math.abs(curve.shear[k]) * this.units.force.scale]) }],
 			});
+			// Where the performance point and the hinge states will show.
+			this.renderStore.add(appendPlannedChips(section, undefined, [FemPlanned.performancePoint, FemPlanned.pushoverHinges, FemPlanned.fibreWalls], this.commandService));
 		}
 		for (const history of response.histories) {
 			const section = this.section(localize('femResults.historyHeading', "Time History: {0}", history.label));
@@ -647,6 +650,7 @@ export class FemResultsEditor extends EditorPane {
 				yLabel: withUnit(localize('femResults.displacement', "Displacement"), this.units.length),
 				series: (['X', 'Y'] as const).map((axis, a) => ({ name: axis, color: AXIS_COLORS[axis], points: history.time.map((t, k) => [t, history.displacement[k][a] * this.units.length.scale]) })),
 			});
+			this.renderStore.add(appendPlannedChips(section, undefined, [FemPlanned.nonlinearTimeHistory, FemPlanned.timeHistoryDesign, FemPlanned.recordScaling], this.commandService));
 		}
 	}
 

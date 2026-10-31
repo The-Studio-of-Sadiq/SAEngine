@@ -22,6 +22,7 @@ from saengine.drawings.sheets.layout import Sheet
 
 def sheet_svg(sheet: Sheet) -> str:
     """The SVG of ``sheet`` at its paper size (mm)."""
+    sheet._revisions()  # a sheet not finished yet still shows its revision
     from ezdxf.addons.drawing import Frontend, RenderContext, config, layout, svg
 
     backend = svg.SVGBackend()

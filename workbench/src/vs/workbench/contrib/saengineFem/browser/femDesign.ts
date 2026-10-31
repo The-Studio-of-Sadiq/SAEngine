@@ -84,7 +84,7 @@ export interface IFemDesignElement {
 	/** Building model element id (`B1`, `C3`, `S1`, ...). */
 	readonly id: string;
 	/** A wall's members are its shells; a staircase has none (it is not in the analysis model). */
-	readonly kind: 'beam' | 'column' | 'brace' | 'slab' | 'footing' | 'wall' | 'staircase';
+	readonly kind: 'beam' | 'column' | 'brace' | 'slab' | 'footing' | 'wall' | 'staircase' | 'diaphragm';
 	/** Object type id. */
 	readonly type: string;
 	/**
@@ -204,6 +204,9 @@ export interface IFemDesignReport {
 
 /** `(model?: URI) => void`: opens the Design Reinforcement page (registered by this contribution). */
 export const DESIGN_REINFORCEMENT_COMMAND = 'saengine.fem.designReinforcement';
+
+/** Planned: strut-and-tie models of any D-region (registered in saengineFem.contribution.ts). */
+export const PLANNED_STM_GENERAL = 'fem.stm-general';
 
 /** `{outDir, projectPath} => IFemDesignRequired`: the steel required by every member of a run. */
 export const DESIGN_REQUIRED_COMMAND = 'saengine.design.required';
@@ -386,11 +389,13 @@ export interface IFemDesignSummaryFile {
 	readonly governing: string | null;
 	/** ISO time the checks were computed. */
 	readonly computed: string;
+	/** The run's one count (N-X8), for the part list; absent from an older backend. */
+	readonly counts?: IFemDesignCounts;
 }
 
 export function designSummaryFile(report: IFemDesignReport, computed: Date): IFemDesignSummaryFile {
-	const { checked, passed, failed, maxUtilisation, governing } = report.summary;
-	return { checked, passed, failed, maxUtilisation, governing, computed: computed.toISOString() };
+	const { checked, passed, failed, maxUtilisation, governing, counts } = report.summary;
+	return { checked, passed, failed, maxUtilisation, governing, computed: computed.toISOString(), ...(counts ? { counts } : {}) };
 }
 
 /** Writes the design checks' summary of `model`'s run to `<model>.results/design-summary.json`. */
@@ -580,7 +585,7 @@ export function sortedChecks(element: IFemDesignElement): IFemDesignCheck[] {
 	return [...element.checks].sort((a, b) => Number(a.flag) - Number(b.flag) || b.utilisation - a.utilisation);
 }
 
-/** "beam", "column", "brace", "slab", "footing", "wall", "staircase". */
+/** "beam", "column", "brace", "slab", "footing", "wall", "staircase", "diaphragm". */
 export function designKindLabel(kind: IFemDesignElement['kind'] | string): string {
 	return kind === 'beam' ? localize('femDesign.beam', "beam")
 		: kind === 'brace' ? localize('femDesign.brace', "brace")
@@ -588,7 +593,8 @@ export function designKindLabel(kind: IFemDesignElement['kind'] | string): strin
 			: kind === 'footing' ? localize('femDesign.footing', "footing")
 				: kind === 'wall' ? localize('femDesign.wall', "wall")
 					: kind === 'staircase' ? localize('femDesign.staircase', "staircase")
-						: localize('femDesign.column', "column");
+						: kind === 'diaphragm' ? localize('femDesign.diaphragm', "diaphragm")
+							: localize('femDesign.column', "column");
 }
 
 function formatCheck(check: IFemDesignCheck): string {

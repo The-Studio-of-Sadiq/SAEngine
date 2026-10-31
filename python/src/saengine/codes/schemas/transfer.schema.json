@@ -1,0 +1,245 @@
+{
+  "$defs": {
+    "Corbel": {
+      "additionalProperties": false,
+      "properties": {
+        "spanRatio": {
+          "description": "Largest shear span over depth av / d.",
+          "exclusiveMinimum": 0,
+          "title": "Spanratio",
+          "type": "number"
+        },
+        "tensionShare": {
+          "description": "Least horizontal tension Nuc over Vu.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tensionshare",
+          "type": "number"
+        },
+        "tensionMaxShare": {
+          "description": "Largest horizontal tension Nuc over Vu.",
+          "exclusiveMinimum": 0,
+          "title": "Tensionmaxshare",
+          "type": "number"
+        },
+        "friction": {
+          "description": "μ of concrete cast monolithically (× λ).",
+          "exclusiveMinimum": 0,
+          "title": "Friction",
+          "type": "number"
+        },
+        "shearCoefficient": {
+          "description": "Vn at most this × f'c bw d.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Shearcoefficient",
+          "type": "number"
+        },
+        "shearIntercept": {
+          "description": "Vn at most (this + slope f'c) bw d [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Shearintercept",
+          "type": "number"
+        },
+        "shearSlope": {
+          "description": "Slope of the second Vn limit.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Shearslope",
+          "type": "number"
+        },
+        "shearStressMax": {
+          "description": "Vn at most this × bw d [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Shearstressmax",
+          "type": "number"
+        },
+        "minSteel": {
+          "description": "Least As / (b d) over f'c / fy.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Minsteel",
+          "type": "number"
+        },
+        "tiesShare": {
+          "description": "Closed ties Ah at least this × (As - An).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tiesshare",
+          "type": "number"
+        },
+        "tiesDepth": {
+          "description": "Closed ties within this share of d next to As.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tiesdepth",
+          "type": "number"
+        },
+        "edgeDepth": {
+          "description": "Depth at the outer edge at least this × d.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Edgedepth",
+          "type": "number"
+        }
+      },
+      "required": [
+        "spanRatio",
+        "tensionShare",
+        "tensionMaxShare",
+        "friction",
+        "shearCoefficient",
+        "shearIntercept",
+        "shearSlope",
+        "shearStressMax",
+        "minSteel",
+        "tiesShare",
+        "tiesDepth",
+        "edgeDepth"
+      ],
+      "title": "Corbel",
+      "type": "object"
+    },
+    "DeepBeam": {
+      "additionalProperties": false,
+      "properties": {
+        "spanRatio": {
+          "description": "Clear span over depth at or below which a beam is deep.",
+          "exclusiveMinimum": 0,
+          "title": "Spanratio",
+          "type": "number"
+        },
+        "loadDistance": {
+          "description": "Concentrated loads within this many depths of a support make a beam deep.",
+          "exclusiveMinimum": 0,
+          "title": "Loaddistance",
+          "type": "number"
+        },
+        "shearLimit": {
+          "description": "Vn at most this × √f'c bw d [MPa^0.5].",
+          "exclusiveMinimum": 0,
+          "title": "Shearlimit",
+          "type": "number"
+        },
+        "verticalRatio": {
+          "description": "Least vertical web steel Av / (bw s).",
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Verticalratio",
+          "type": "number"
+        },
+        "horizontalRatio": {
+          "description": "Least horizontal web steel Avh / (bw s2).",
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Horizontalratio",
+          "type": "number"
+        },
+        "spacingDepth": {
+          "description": "Web steel spacing at most d over this.",
+          "exclusiveMinimum": 0,
+          "title": "Spacingdepth",
+          "type": "number"
+        },
+        "spacingMax": {
+          "description": "Web steel spacing at most this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Spacingmax",
+          "type": "number"
+        }
+      },
+      "required": [
+        "spanRatio",
+        "loadDistance",
+        "shearLimit",
+        "verticalRatio",
+        "horizontalRatio",
+        "spacingDepth",
+        "spacingMax"
+      ],
+      "title": "DeepBeam",
+      "type": "object"
+    },
+    "Diaphragm": {
+      "additionalProperties": false,
+      "properties": {
+        "forceMin": {
+          "description": "Fpx at least this × SDS I wpx.",
+          "exclusiveMinimum": 0,
+          "title": "Forcemin",
+          "type": "number"
+        },
+        "forceMax": {
+          "description": "Fpx at most this × SDS I wpx.",
+          "exclusiveMinimum": 0,
+          "title": "Forcemax",
+          "type": "number"
+        },
+        "plateau": {
+          "description": "SDS over the peak ground acceleration (2/3) Z S.",
+          "exclusiveMinimum": 0,
+          "title": "Plateau",
+          "type": "number"
+        },
+        "collectorCategories": {
+          "description": "Seismic Design Categories whose collectors take the Ω0 forces.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Collectorcategories",
+          "type": "array"
+        },
+        "irregularIncrease": {
+          "description": "Factor on the connection forces of irregular buildings.",
+          "exclusiveMinimum": 0,
+          "title": "Irregularincrease",
+          "type": "number"
+        }
+      },
+      "required": [
+        "forceMin",
+        "forceMax",
+        "plateau",
+        "collectorCategories",
+        "irregularIncrease"
+      ],
+      "title": "Diaphragm",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Deep beams and transfer girders, corbels and brackets, diaphragm chords and collectors\n(BNBC 2020 Part 6 Sec 6.4.6, 6.4.7, 2.5.5.6).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "deepBeam": {
+      "$ref": "#/$defs/DeepBeam"
+    },
+    "corbel": {
+      "$ref": "#/$defs/Corbel"
+    },
+    "diaphragm": {
+      "$ref": "#/$defs/Diaphragm"
+    }
+  },
+  "required": [
+    "deepBeam",
+    "corbel",
+    "diaphragm"
+  ],
+  "title": "TransferTable",
+  "type": "object",
+  "$id": "saengine.codePack.transfer/1"
+}
