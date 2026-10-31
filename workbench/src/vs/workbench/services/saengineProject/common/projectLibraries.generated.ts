@@ -7180,7 +7180,7 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 		},
 		Underlay: {
 			additionalProperties: false,
-			description: 'An architect\'s drawing shown, greyed and read-only, under one story\'s plan.',
+			description: 'An architect\'s drawing shown, greyed and read-only, under one story\'s plan.\n\nA PDF shows one page\'s vector linework (``saengine.library.pdf_underlay``) in paper mm, so its\n``scale`` is the drawing\'s scale (100 for 1:100), set by calibrating two points against a\nknown length on the floor plan.',
 			properties: {
 				story: {
 					description: 'Story whose plan shows the drawing.',
@@ -7191,11 +7191,18 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 					type: 'string',
 				},
 				file: {
-					description: 'DXF file, relative to the 05 Floor Plan folder.',
+					description: 'DXF, DWG or PDF file, relative to the 05 Floor Plan folder.',
 					minLength: 1,
-					pattern: '\\.[dD]([xX][fF]|[wW][gG])$',
+					pattern: '\\.([dD]([xX][fF]|[wW][gG])|[pP][dD][fF])$',
 					title: 'File',
 					type: 'string',
+				},
+				page: {
+					default: 1,
+					description: 'A PDF\'s page shown (from 1).',
+					minimum: 1,
+					title: 'Page',
+					type: 'integer',
 				},
 				dx: {
 					default: 0,
@@ -7225,6 +7232,12 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 				visible: {
 					default: true,
 					title: 'Visible',
+					type: 'boolean',
+				},
+				locked: {
+					default: false,
+					description: 'Locked: moving, rotating and calibrating the underlay are turned off.',
+					title: 'Locked',
 					type: 'boolean',
 				},
 			},
@@ -17561,6 +17574,44 @@ export const MEP_SCHEMA: IJSONSchema = {
 			title: 'Shaft',
 			type: 'object',
 		},
+		StoryUseEntry: {
+			additionalProperties: false,
+			description: 'A storey\'s use, entered once for the plumbing, HVAC and electrical services\n(:mod:`saengine.mep.uses`).',
+			properties: {
+				story: {
+					description: 'Building-model story.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				use: {
+					description: 'Mapped to BNBC 2020 Part 8 Tables 8.5.1, 8.2.3 and 8.1.17. Roof and services: not occupied (left out of every service\'s stories).',
+					enum: ['residential', 'office', 'retail', 'supermarket', 'restaurant', 'hotel', 'hospital', 'school', 'bank', 'assembly', 'industrial', 'storage', 'parking', 'services', 'roof'],
+					enumDescriptions: ['Residential flats', 'Offices', 'Shops', 'Supermarket', 'Restaurant', 'Hotel rooms', 'Hospital wards', 'School classrooms', 'Bank', 'Assembly hall', 'Light industry', 'Storage', 'Parking', 'Services, plant (not occupied)', 'Roof (not occupied)'],
+					title: 'Use',
+					type: 'string',
+				},
+				population: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Persons; empty: each service\'s default for the use and the floor area.',
+					title: 'Population',
+				},
+			},
+			required: ['story', 'use'],
+			title: 'StoryUseEntry',
+			type: 'object',
+		},
 		WetRoom: {
 			additionalProperties: false,
 			description: 'One wet room of the architecture given its own kind or its own fixtures.',
@@ -17614,6 +17665,14 @@ export const MEP_SCHEMA: IJSONSchema = {
 			default: 'saengine.mep/1',
 			title: 'Schema_',
 			type: 'string',
+		},
+		storyUses: {
+			description: 'The use of each storey, read by the plumbing, HVAC and electrical services (their own storey tables keep the fixtures, gains and loads).',
+			items: {
+				$ref: '#/$defs/StoryUseEntry',
+			},
+			title: 'Storey use',
+			type: 'array',
 		},
 		equipment: {
 			items: {
