@@ -220,6 +220,13 @@ def categories(data: DrawingSet, settings: DrawingSettings) -> tuple[list[_Categ
             )
         )
     specs = _details(details.footing_detail, data.footings, settings.detail_scale, area, problems)
+    specs += _details(
+        details.retaining_wall_detail,
+        data.retaining_walls,
+        settings.detail_scale,
+        area,
+        problems,
+    )
     if specs:
         out.append(
             _Category(
