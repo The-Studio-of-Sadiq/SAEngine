@@ -13425,6 +13425,29 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 					default: null,
 					title: 'Reinforcement',
 				},
+				headFixity: {
+					default: 'fixed',
+					description: 'Fixed: the pile bars developed into the cap, which holds the head against rotation; free: the head may rotate (pinned).',
+					enum: ['fixed', 'free'],
+					enumDescriptions: ['Fixed in the cap', 'Free (pinned)'],
+					title: 'Head fixity',
+					type: 'string',
+				},
+				fixityDepth: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Below the pile head, where the pile acts as fixed against the lateral load, from the geotechnical report [mm]; none: the pile is designed for axial force only.',
+					title: 'Depth to fixity',
+				},
 			},
 			required: ['id', 'diameter', 'length', 'material'],
 			title: 'PileType',

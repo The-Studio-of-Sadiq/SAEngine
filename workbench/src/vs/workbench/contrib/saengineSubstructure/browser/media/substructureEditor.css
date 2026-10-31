@@ -1008,3 +1008,11 @@
 	width: max-content;
 	min-width: 100%;
 }
+
+/* "Planned" chips of features not in this MVP, under the table they will extend. */
+.saengine-substructure-editor .sub-planned {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--sa-space-2);
+	margin-top: var(--sa-space-2);
+}
