@@ -205,6 +205,9 @@ export interface IFemDesignReport {
 /** `(model?: URI) => void`: opens the Design Reinforcement page (registered by this contribution). */
 export const DESIGN_REINFORCEMENT_COMMAND = 'saengine.fem.designReinforcement';
 
+/** Planned: strut-and-tie models of any D-region (registered in saengineFem.contribution.ts). */
+export const PLANNED_STM_GENERAL = 'fem.stm-general';
+
 /** `{outDir, projectPath} => IFemDesignRequired`: the steel required by every member of a run. */
 export const DESIGN_REQUIRED_COMMAND = 'saengine.design.required';
 /** `{outDir, projectPath, mode, diameters?} => IFemDesignProposal`: bars proposed per object type. */

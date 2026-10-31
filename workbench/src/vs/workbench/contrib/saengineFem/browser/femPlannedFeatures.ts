@@ -36,8 +36,6 @@ export const FemPlanned = {
 	/** T44: composite steel and concrete. */
 	compositeBeams: 'fem.compositeBeams',
 	compositeColumns: 'fem.compositeColumns',
-	/** T3: strut-and-tie models of any D-region. */
-	stmGeneral: 'fem.stm-general',
 } as const;
 
 /**

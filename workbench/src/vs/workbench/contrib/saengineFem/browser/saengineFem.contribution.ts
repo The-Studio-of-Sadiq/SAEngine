@@ -23,7 +23,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { registerPlannedFeature } from '../../../services/saengineProject/common/plannedFeatures.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { PROJECT_MENU, ProjectOpenContext } from '../../saengineProject/browser/projectMenu.js';
-import { DESIGN_REINFORCEMENT_COMMAND } from './femDesign.js';
+import { DESIGN_REINFORCEMENT_COMMAND, PLANNED_STM_GENERAL } from './femDesign.js';
 import { FemPlanned } from './femPlannedFeatures.js';
 import { FemDesignProposalEditor } from './femDesignProposalEditor.js';
 import { FemDesignProposalInput, FemDesignProposalInputSerializer } from './femDesignProposalInput.js';
@@ -562,12 +562,11 @@ registerPlannedFeature({
 	references: [
 		localize('planned.compositeColumns.ref1', "BNBC 2020 Part 6 Chapter 10 (steel; the provisions of AISC 360-05)"),
 		localize('planned.compositeColumns.ref2', "AISC 360 Ch I (composite members)"),
-	],
-});
-// T3: general strut-and-tie models (BNBC 2020 designs deep beams, transfer girders and corbels;
-// a model of any D-region needs the procedure of ACI 318 Chapter 23, which BNBC does not give).
+
+// Planned (MVP: BNBC 2020 designs deep beams, transfer girders and corbels; a general strut-and-tie
+// model of any D-region needs the procedure of ACI 318 Chapter 23, which BNBC does not give).
 registerPlannedFeature({
-	id: FemPlanned.stmGeneral,
+	id: PLANNED_STM_GENERAL,
 	part: 'fem',
 	title: localize('planned.stmGeneral.title', "Strut-and-Tie Models of Any D-Region"),
 	summary: localize('planned.stmGeneral.summary', "Draw and check a strut-and-tie model for regions the deep-beam checks do not cover: dapped ends, beams and walls with openings, frame corners, continuous deep beams and corbels with several loads."),

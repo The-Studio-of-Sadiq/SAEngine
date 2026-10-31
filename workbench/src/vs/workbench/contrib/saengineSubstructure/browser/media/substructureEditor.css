@@ -1011,3 +1011,11 @@
 
 /* A retaining wall that fails a check: its utilisation in the fail tier. */
 .saengine-substructure-editor td.sub-rw-fail { color: var(--sa-fail); font-weight: 600; }
+
+/* "Planned" chips of features not in this MVP, under the table they will extend. */
+.saengine-substructure-editor .sub-planned {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--sa-space-2);
+	margin-top: var(--sa-space-2);
+}

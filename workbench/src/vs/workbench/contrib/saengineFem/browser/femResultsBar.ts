@@ -24,7 +24,8 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IFemResultEntry, IFemResultList, IFemResultView } from '../../../../platform/saengine/common/femSolver.js';
 import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameIconButton, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
-import { describeDesignCounts, describeEngineError, describeDesignSummary, describeSlenderness, describeSteel, describeSteelRatio, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, isSecondOrderRequired, isSlendernessCheck, otherFailureElements, requiredSteelOf, resultsFolder, runDesign, runDesignRequired, secondOrderRequiredMembers, shortElements, slendernessHeading, sortedChecks, tooSmallElements, writeDesignSummary } from './femDesign.js';
+import { appendPlannedFeatureChip } from '../../saengineProject/browser/plannedFeatureEditor.js';
+import { describeDesignCounts, describeEngineError, describeDesignSummary, describeSlenderness, describeSteel, describeSteelRatio, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, isSecondOrderRequired, isSlendernessCheck, otherFailureElements, PLANNED_STM_GENERAL, requiredSteelOf, resultsFolder, runDesign, runDesignRequired, secondOrderRequiredMembers, shortElements, slendernessHeading, sortedChecks, tooSmallElements, writeDesignSummary } from './femDesign.js';
 import { describeScaleOnResult, describeSecondOrder, FemAxis, IFemSecondOrder, isFirstOrderReference, IFemSeismicDesign, runSecondOrder, runSeismicDesign, seismicSection, spectrumAxis, storeyAmplificationRows } from './femSeismicDesign.js';
 import { FemSsiPanel } from './femSsi.js';
 import { describeJointsSummary, describeJointVerdict, detailingSection, FemDetailingItem, generalChecks, IFemDetailingModel, IFemJoint, jointAtNode, jointColouring, jointHeading, jointItems, jointNodeUtilisation, jointOk, jointsOf, jointsOfMember } from './femSeismicDetailing.js';
@@ -429,6 +430,7 @@ export class FemResultsBar extends Disposable {
 	private playing = false;
 	private playToken = 0;
 	private readonly watch = this._register(new DisposableStore());
+	private readonly diaphragmChips = this._register(new DisposableStore());
 	private readonly resultsWatch = this._register(new MutableDisposable());
 	/** The "Planned" chips of the properties shown (see `FemPlanned`). */
 	private readonly plannedChips = this._register(new MutableDisposable<DisposableStore>());
@@ -1727,7 +1729,9 @@ export class FemResultsBar extends Disposable {
 			appendPropertyNote(container, localize('femResults.diaphragmsNone', "No diaphragm chords or collectors: the model has no equivalent static earthquake cases (EX, EY) or no slabs."));
 		}
 		appendPropertyNote(container, localize('femResults.deepMembersNote', "Deep beams, transfer girders and corbels are checked with their beams: select one for its strut-and-tie and corbel checks."));
-		this.appendPlanned(container, [FemPlanned.stmGeneral]);
+		const chips = append(container, $('.fem-planned-chips'));
+		this.diaphragmChips.clear();
+		this.diaphragmChips.add(appendPlannedFeatureChip(chips, PLANNED_STM_GENERAL, this.commandService));
 	}
 
 	/**

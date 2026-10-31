@@ -435,6 +435,7 @@ def _report_data(
     }
     report["basis"] = _basis(settings, parts, model, manifest)
     report["soil"] = _soil(parts)
+    report["planning"] = _planning(parts)
     report["foundations"] = _foundations(parts)
     report["model"] = _model_summary(root, model, manifest, parts, warnings)
     report["results"] = _results(
@@ -453,6 +454,7 @@ def _report_data(
     report["electrical"] = _guarded(_electrical, parts, "electrical")
     report["fire"] = _guarded(_fire, parts, "fire")
     report["boq"] = _boq(parts)
+    report["worksheets"] = _worksheets(root, warnings)
     report["status"] = design_status(report)
     report["limitations"] = {
         "design": report["design"].get("notes", []),
@@ -2552,6 +2554,23 @@ def _range(top: Any, bottom: Any) -> str:
     return f"{_m(top)}–{_m(bottom)}"
 
 
+def _planning(parts: _Parts) -> dict[str, Any] | None:
+    """The plot's planning compliance (:func:`saengine.gis.planning.check`) when the soil
+    report's plot has a planning entry; never fails the report."""
+    from saengine.gis.planning import check
+    from saengine.soil.report import parse
+
+    text = parts.text(SOIL_FILE)
+    report = parse(text) if text else None
+    if report is None or isinstance(report, list):
+        return None
+    try:
+        return check(report.site, parts.text(BIM_FILE))
+    except Exception as error:  # noqa: BLE001 - the planning check must not fail the report
+        parts.warnings.append(f"The planning compliance could not be checked: {error}")
+        return None
+
+
 def _soil(parts: _Parts) -> dict[str, Any]:
     """The soil and foundations chapter: printed only when the soil report has boreholes."""
     from saengine.library.settings import resolve_settings_text
@@ -3454,6 +3473,20 @@ def _guarded(chapter: Any, parts: _Parts, label: str) -> dict[str, Any]:
         return chapter(parts)
     except Exception as error:  # noqa: BLE001 - a partly entered model must not fail the report
         return {"available": False, "problem": f"the {label} chapter failed: {error}", "notes": []}
+
+
+def _worksheets(root: Path, warnings: list[str]) -> list[dict[str, Any]]:
+    """The project's calculation worksheets marked to print (``[{title, blocks}]``, the
+    report's "worksheets" section); never fails the report."""
+    try:
+        from saengine.report.worksheets import project_worksheets
+
+        sheets, problems = project_worksheets(root)
+    except Exception as error:  # noqa: BLE001 - a broken worksheet must not fail the report
+        warnings.append(f"The calculation worksheets could not be printed: {error}")
+        return []
+    warnings.extend(problems)
+    return sheets
 
 
 def _service_checks(rows: list[dict[str, Any]]) -> list[list[str]]:
