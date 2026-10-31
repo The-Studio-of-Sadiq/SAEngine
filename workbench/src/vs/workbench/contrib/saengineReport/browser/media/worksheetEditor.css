@@ -1,0 +1,132 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The calculation worksheet editor (worksheetEditor.ts): inputs left, calculation right; one
+ * column below 900 px. Tokens from saengineTokens.css. */
+
+.saengine-worksheet-editor {
+	padding: var(--sa-space-3, 12px);
+	box-sizing: border-box;
+}
+
+.saengine-worksheet-editor .sa-worksheet-layout {
+	display: grid;
+	grid-template-columns: minmax(280px, 380px) minmax(0, 1fr);
+	gap: var(--sa-space-4, 16px);
+	align-items: start;
+}
+
+@media (max-width: 900px) {
+	.saengine-worksheet-editor .sa-worksheet-layout {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+.saengine-worksheet-editor .sa-worksheet-group {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sa-space-1, 4px);
+	margin-bottom: var(--sa-space-3, 12px);
+}
+
+.saengine-worksheet-editor .sa-worksheet-group-title {
+	font-weight: 600;
+	font-size: var(--sa-font-s, 12px);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	margin: var(--sa-space-2, 8px) 0 var(--sa-space-1, 4px);
+}
+
+.saengine-worksheet-editor .sa-worksheet-field {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 120px 56px;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+}
+
+.saengine-worksheet-editor .sa-worksheet-field input[type="text"],
+.saengine-worksheet-editor .sa-worksheet-field select,
+.saengine-worksheet-editor .sa-worksheet-notes {
+	box-sizing: border-box;
+	width: 100%;
+	padding: 2px 6px;
+	color: var(--vscode-input-foreground);
+	background: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border, var(--sa-border, transparent));
+	border-radius: var(--sa-radius, 2px);
+	font: inherit;
+}
+
+.saengine-worksheet-editor .sa-worksheet-field.sa-worksheet-wide {
+	grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+}
+
+.saengine-worksheet-editor .sa-worksheet-invalid {
+	border-color: var(--sa-fail, var(--vscode-inputValidation-errorBorder)) !important;
+}
+
+.saengine-worksheet-editor .sa-worksheet-check {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+}
+
+.saengine-worksheet-editor .sa-worksheet-unit,
+.saengine-worksheet-editor .sa-worksheet-muted,
+.saengine-worksheet-editor .sa-worksheet-clause {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-worksheet-editor .sa-worksheet-notes {
+	min-height: 64px;
+	resize: vertical;
+}
+
+.saengine-worksheet-editor .sa-worksheet-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-worksheet-editor .sa-worksheet-table td,
+.saengine-worksheet-editor .sa-worksheet-table th {
+	padding: 3px 6px;
+	border-bottom: 1px solid var(--sa-border, var(--vscode-panel-border));
+	vertical-align: top;
+	text-align: left;
+}
+
+.saengine-worksheet-editor .sa-worksheet-table th {
+	padding-top: var(--sa-space-2, 8px);
+	font-weight: 600;
+}
+
+.saengine-worksheet-editor .sa-worksheet-expression .sa-worksheet-clause,
+.saengine-worksheet-editor .sa-worksheet-quantity .sa-worksheet-clause {
+	display: block;
+}
+
+.saengine-worksheet-editor .sa-worksheet-value {
+	text-align: right !important;
+	white-space: nowrap;
+}
+
+.saengine-worksheet-editor .sa-worksheet-checks tr.ok .sa-worksheet-verdict {
+	color: var(--sa-ok, var(--vscode-testing-iconPassed));
+}
+
+.saengine-worksheet-editor .sa-worksheet-checks tr.fail .sa-worksheet-verdict,
+.saengine-worksheet-editor .sa-worksheet-fail {
+	color: var(--sa-fail, var(--vscode-errorForeground));
+	font-weight: 600;
+}
+
+.saengine-worksheet-editor .sa-worksheet-notes-list {
+	margin: var(--sa-space-2, 8px) 0;
+	padding-left: 18px;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}

@@ -454,6 +454,7 @@ def _report_data(
     report["electrical"] = _guarded(_electrical, parts, "electrical")
     report["fire"] = _guarded(_fire, parts, "fire")
     report["boq"] = _boq(parts)
+    report["worksheets"] = _worksheets(root, warnings)
     report["status"] = design_status(report)
     report["limitations"] = {
         "design": report["design"].get("notes", []),
@@ -3472,6 +3473,20 @@ def _guarded(chapter: Any, parts: _Parts, label: str) -> dict[str, Any]:
         return chapter(parts)
     except Exception as error:  # noqa: BLE001 - a partly entered model must not fail the report
         return {"available": False, "problem": f"the {label} chapter failed: {error}", "notes": []}
+
+
+def _worksheets(root: Path, warnings: list[str]) -> list[dict[str, Any]]:
+    """The project's calculation worksheets marked to print (``[{title, blocks}]``, the
+    report's "worksheets" section); never fails the report."""
+    try:
+        from saengine.report.worksheets import project_worksheets
+
+        sheets, problems = project_worksheets(root)
+    except Exception as error:  # noqa: BLE001 - a broken worksheet must not fail the report
+        warnings.append(f"The calculation worksheets could not be printed: {error}")
+        return []
+    warnings.extend(problems)
+    return sheets
 
 
 def _service_checks(rows: list[dict[str, Any]]) -> list[list[str]]:
