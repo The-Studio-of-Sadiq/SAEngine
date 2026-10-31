@@ -77,6 +77,12 @@ def test_column_lines_are_marked_by_grid_position() -> None:
     (line,) = column_lines(columns, objects, gx, gy)
     assert line.mark == "B1"
     assert line.members == ["C-B1-L1", "C-B1-L2"]
+    # Off the grid (150 mm off A1): its member id alone would read as grid C1.
+    off = [{"id": "C1", "type": "C400", "story": "L1", "bars": [],
+            "at": {"position": [150, 0], "bottom": 0.0}}]  # fmt: skip
+    assert [line.mark for line in column_lines(off, objects, gx, gy)] == ["C1 (near A1)"]
+    off[0]["at"]["position"] = [3000, 0]
+    assert [line.mark for line in column_lines(off, objects, gx, gy)] == ["C1"]
 
 
 def test_the_appendix_prints_the_governing_element_of_each_type_and_storey() -> None:

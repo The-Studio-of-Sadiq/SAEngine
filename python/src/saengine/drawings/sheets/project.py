@@ -493,6 +493,10 @@ def _zone_length(row: dict[str, Any], at: dict[str, Any]) -> float:
     return t - f
 
 
+#: How far [mm] off a grid intersection a column is still named "near" it.
+NEAR_GRID = 1000.0
+
+
 def grid_position(
     x: float, y: float, grids_x: list[Grid], grids_y: list[Grid], tolerance: float = 50.0
 ) -> str | None:
@@ -510,7 +514,7 @@ def column_lines(
 ) -> list[ColumnLine]:
     """Column elements of the detailing model stacked on plan positions, marked by their grid
     intersection ("A1": the stack runs every storey, so not the member id of its lowest one),
-    else by that member's id."""
+    else by that member's id and the intersection it is near ("C1 (near A1)")."""
     stacks: dict[tuple[int, int], ColumnLine] = {}
     for e in sorted(columns, key=lambda e: float(e.get("at", {}).get("bottom", 0))):
         pos = e.get("at", {}).get("position") or [0, 0]
@@ -518,8 +522,14 @@ def column_lines(
         section = column_section(e, _type_of(objects, str(e.get("type"))))
         if section is None:
             continue
-        mark = grid_position(float(pos[0]), float(pos[1]), grids_x or [], grids_y or [])
-        line = stacks.setdefault(key, ColumnLine(mark or str(e.get("member") or e["id"]), []))
+        x, y = float(pos[0]), float(pos[1])
+        mark = grid_position(x, y, grids_x or [], grids_y or [])
+        if mark is None:
+            # Off the grids: the member id alone ("C1") reads as grid C1; say which it is near.
+            member = str(e.get("member") or e["id"])
+            near = grid_position(x, y, grids_x or [], grids_y or [], NEAR_GRID)
+            mark = f"{member} (near {near})" if near else member
+        line = stacks.setdefault(key, ColumnLine(mark, []))
         line.members.append(str(e["id"]))
         line.sections[str(e.get("story") or "")] = section
     return list(stacks.values())
