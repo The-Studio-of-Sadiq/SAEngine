@@ -52,7 +52,6 @@ from __future__ import annotations
 import contextlib
 import json
 import os
-import shutil
 import subprocess
 import sys
 import time
@@ -477,9 +476,11 @@ def run_analysis(
     python: str | None = None,
 ) -> dict[str, Any]:
     """Runs every case of ``model`` with OpenSees Studio's runner, as the app does: validates
-    it, removes the previous run's results (only when they are one), runs
-    ``python -P -u -m opensees_studio.run --project … --cases … --out …`` (``-P``: the project
-    folder, the working folder, is not on ``sys.path``) and reads its event lines.
+    it, runs ``python -P -u -m opensees_studio.run --project … --cases … --out … --reuse``
+    (``-P``: the project folder, the working folder, is not on ``sys.path``) and reads its event
+    lines. ``--reuse``: the runner keeps the previous run's results of the cases whose model and
+    definition did not change and removes the rest of that run; it runs the other cases, in
+    parallel processes on large models.
     Returns ``{"status": "done"|"invalid"|"empty"|"failed", "cases", "message"?}``."""
     validation = _handlers().validate_project(str(model))
     summary = validation.get("summary")
@@ -494,14 +495,13 @@ def run_analysis(
     if not case_ids:
         return {"status": "empty", "cases": 0, "message": "The model defines no analysis cases."}
     out_dir = results_folder(model)
-    if (out_dir / "manifest.json").exists():
-        shutil.rmtree(out_dir)
     # ``-P`` (and PYTHONSAFEPATH for any process the runner starts): the working folder is the
     # project's, which a received project or a .civil archive fills, so it must not be on
     # sys.path, or a planted ``opensees_studio`` package would run in place of the solver.
     args = [
         python or sys.executable, "-P", "-u", "-m", "opensees_studio.run",
         "--project", str(model), "--cases", *map(str, case_ids), "--out", str(out_dir),
+        "--reuse",
     ]  # fmt: skip
     env = {
         **os.environ,

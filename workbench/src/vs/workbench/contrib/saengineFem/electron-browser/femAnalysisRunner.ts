@@ -8,12 +8,11 @@ import { CancellationTokenSource } from '../../../../base/common/cancellation.js
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
-import { basename, joinPath } from '../../../../base/common/resources.js';
+import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
@@ -42,7 +41,6 @@ export class FemAnalysisRunner {
 		@IFemSolverService private readonly solverService: IFemSolverService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
-		@IFileService private readonly fileService: IFileService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -173,8 +171,8 @@ export class FemAnalysisRunner {
 			return { status: 'cancelled', cases: 0 };
 		}
 
+		// The runner keeps the results of unchanged cases and removes the rest of the previous run.
 		const outDir = resultsFolder(model);
-		await this.clearPreviousResults(outDir);
 
 		const output = this.outputService.getChannel(FEM_OUTPUT_CHANNEL_ID);
 		// replace() rather than clear(): clear() resets asynchronously and would also drop the lines appended right after it.
@@ -280,7 +278,7 @@ export class FemAnalysisRunner {
 		}
 
 		const start = async () => {
-			runId = await this.solverService.startRun({ python, project, caseIds, outDir });
+			runId = await this.solverService.startRun({ python, project, caseIds, outDir, reuse: true });
 			if (cancelled) {
 				void this.solverService.cancelRun(runId);
 			}
@@ -316,13 +314,6 @@ export class FemAnalysisRunner {
 			return { result: await done.p, lastError };
 		} finally {
 			disposables.dispose();
-		}
-	}
-
-	/** Removes the previous run's output, but only if it is one (it has a `manifest.json`). */
-	private async clearPreviousResults(outDir: URI): Promise<void> {
-		if (await this.fileService.exists(joinPath(outDir, 'manifest.json'))) {
-			await this.fileService.del(outDir, { recursive: true, useTrash: false });
 		}
 	}
 
