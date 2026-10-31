@@ -176,11 +176,13 @@ def test_column_size_by_hand(frame: dict) -> None:
     beams = (2 * 3 * 0.25 * (0.4 - 0.175) + 2 * 2.5 * 0.25 * (0.35 - 0.175)) * GAMMA
     floor = slab + 30 * (1.2 + 1.0 + 2.0) + beams  # finish, partitions, residential live
     roof = slab + 30 * (1.5 + 1.0) + beams
-    # Its own weight: 550 (L1-L3), 450 (L4-L6), 350 (L7-L8), 300 (L9-L10).
-    own = (0.55**2 * 9.5 + 0.45**2 * 9 + 0.35**2 * 6 + 0.3**2 * 6) * GAMMA
+    # Its own weight: 550 (L1-L3), 450 (L4-L6), 400 (L7-L8), 350 (L9-L10). The upper two were
+    # 350 and 300 by the axial rule; N-N4's step cap (each group at least 0.8 x the one below,
+    # rounded up to 50 mm) raises them, which adds 10 kN here (2804 kN before).
+    own = (0.55**2 * 9.5 + 0.45**2 * 9 + 0.4**2 * 6 + 0.35**2 * 6) * GAMMA
     p = 9 * floor + roof + own
-    assert p == pytest.approx(2804, abs=2)
-    # Ag = P / (0.4 f'c), interior k = 1.0: sqrt(2804e3 / 9.64) = 539 -> 550.
+    assert p == pytest.approx(2814, abs=2)
+    # Ag = P / (0.4 f'c), interior k = 1.0: sqrt(2814e3 / 9.64) = 540 -> 550.
     side = math.ceil(math.sqrt(p * 1000 / (0.4 * 24.1)) / 50) * 50
     assert side == 550
     assert column["C-B2-L1"] == column["C-C2-L3"] == "C550x550"
@@ -195,7 +197,7 @@ def test_isolated_footing_by_hand(frame: dict) -> None:
     footing = {f["id"]: f for f in frame["substructure"]["foundations"]}["F-B2"]
     assert footing["columns"] == ["C-B2-L1"]
     assert footing["center"] == [6000, 5000]
-    # Service load 2804 kN (above), qa 100 kPa: sqrt(1.1 x 2804 / 100) = 5.55 m -> 5600;
+    # Service load 2814 kN (above), qa 100 kPa: sqrt(1.1 x 2814 / 100) = 5.56 m -> 5600;
     # thickness 5600 / 4 = 1400.
     assert (footing["length"], footing["width"], footing["thickness"]) == (5600, 5600, 1400)
 
