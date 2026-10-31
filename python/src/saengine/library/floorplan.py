@@ -205,6 +205,20 @@ class Underlay(_Model):
         return value
 
 
+class Tower(_Model):
+    """One tower of a building with several towers on a common podium: the plan region whose
+    floors above the podium move on their own (a rigid diaphragm per tower and storey) and whose
+    drift, period and base shear are checked on their own (``saengine.fem.towers``)."""
+
+    id: Id
+    name: str = Field(min_length=1)
+    boundary: list[GridPoint] = Field(
+        min_length=3,
+        description="Corners of the tower's plan region, in order around it; the floors inside "
+        "it above the podium belong to the tower.",
+    )
+
+
 # Object kinds each member may use.
 _ALLOWED_KINDS = {
     "columns": ("column",),
@@ -226,6 +240,16 @@ class FloorPlan(_Model):
     footings: list[PlacedFooting] = Field(default_factory=list)
     underlays: list[Underlay] = Field(
         default_factory=list, description="Architects' drawings under the story plans."
+    )
+    podiumTop: Id | None = Field(
+        default=None,
+        title="Podium top",
+        description="Several towers on one podium: the story at the top of the podium. The "
+        "floors above it are split into the towers.",
+    )
+    towers: list[Tower] = Field(
+        default_factory=list,
+        description="The towers above the podium, each a plan region (needs a podium top).",
     )
 
     def members(self) -> list[tuple[str, _Placed]]:
@@ -270,6 +294,20 @@ class FloorPlan(_Model):
         def story(member: _Placed, story_id: str) -> None:
             if story_id not in elevation:
                 raise ValueError(f"{member.id}: no story '{story_id}'")
+
+        if self.podiumTop is not None and self.podiumTop not in elevation:
+            raise ValueError(f"podium top: no story '{self.podiumTop}'")
+        if self.towers and self.podiumTop is None:
+            raise ValueError("towers need a podium top story")
+        tower_ids = [t.id for t in self.towers]
+        if len(set(tower_ids)) != len(tower_ids):
+            raise ValueError("tower ids must be unique")
+        for tower in self.towers:
+            for corner in tower.boundary:
+                if corner.x not in x_labels:
+                    raise ValueError(f"tower {tower.id}: no X grid line '{corner.x}'")
+                if corner.y not in y_labels:
+                    raise ValueError(f"tower {tower.id}: no Y grid line '{corner.y}'")
 
         for underlay in self.underlays:
             if underlay.story not in elevation:
