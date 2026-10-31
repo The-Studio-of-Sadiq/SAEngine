@@ -138,6 +138,10 @@ Methods:
 - ``mep/report`` ``{projectRoot, outDir?, mepText?}`` -> the MEP coordination report
 - ``mep/suggestSleeves`` ``{projectRoot, mepText?, allowance?}`` -> sleeves for the clashes
 - ``mep/importIfc`` ``{projectRoot, path, copy?}`` -> what an MEP IFC model holds
+- ``mep/coordinate`` ``{projectRoot, mepText?, tests?}`` -> clash tests run, issues merged
+- ``mep/exportBcf`` ``{projectRoot, path, mepText?, issues?}`` -> ``{path, topics}`` BCF 3.0
+- ``mep/importBcf`` ``{projectRoot, path, mepText?}`` -> ``{coordination, counts}``
+- ``mep/checkIds`` ``{projectRoot, mepText?}`` -> IDS checks (IfcTester), issues merged
 - ``mep/plumbingReport`` ``{projectRoot, mepText?}`` -> the plumbing report (BNBC 2020 Part 8
   sizing, ``tankDesigns``, ``hydraulics``, missing sleeves), JSON-safe
 - ``mep/plumbingSizeTanks`` ``{projectRoot, mepText?}`` -> ``{tanks, notes}`` proposed tanks
@@ -933,6 +937,30 @@ def create_server() -> JsonRPCServer:
     def _mep_import_ifc(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.mep_import_ifc(args["projectRoot"], args["path"], bool(args.get("copy")))
+
+    @server.feature("mep/coordinate")
+    @_in_worker
+    def _mep_coordinate(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.mep_coordinate(args["projectRoot"], args.get("mepText"), args.get("tests"))
+
+    @server.feature("mep/exportBcf")
+    def _mep_export_bcf(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.mep_export_bcf(
+            args["projectRoot"], args["path"], args.get("mepText"), args.get("issues")
+        )
+
+    @server.feature("mep/importBcf")
+    def _mep_import_bcf(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.mep_import_bcf(args["projectRoot"], args["path"], args.get("mepText"))
+
+    @server.feature("mep/checkIds")
+    @_in_worker
+    def _mep_check_ids(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.mep_check_ids(args["projectRoot"], args.get("mepText"))
 
     # A project's first tank designs take about half a minute (cached after): in a worker thread,
     # so the editor's other requests (the HVAC and electrical reports) are answered meanwhile.

@@ -488,6 +488,8 @@ interface IMepCommandArgs {
 	readonly mepText?: string;
 	readonly allowance?: number;
 	readonly path?: string;
+	readonly tests?: readonly string[];
+	readonly issues?: readonly string[];
 }
 
 /**
@@ -508,6 +510,30 @@ CommandsRegistry.registerCommand('saengine.mep.suggestSleeves', async (accessor,
 CommandsRegistry.registerCommand('saengine.mep.importIfc', async (accessor, args: IMepCommandArgs) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	return problemsOrResult(await accessor.get(IFemSolverService).mepImportIfc(python, args.projectRoot, args.path ?? ''), ['path', 'elements']);
+});
+
+/**
+ * Part 7 coordination: the multi-discipline clash tests with the issue workflow, BCF 3.0 export
+ * and import, and the IDS checks. Internal: the MEP editor calls them by id.
+ */
+CommandsRegistry.registerCommand('saengine.mep.coordinate', async (accessor, args: IMepCommandArgs) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return problemsOrResult(await accessor.get(IFemSolverService).mepCoordinate(python, args.projectRoot, args.mepText, args.tests), ['coordination']);
+});
+
+CommandsRegistry.registerCommand('saengine.mep.exportBcf', async (accessor, args: IMepCommandArgs) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return problemsOrResult(await accessor.get(IFemSolverService).mepExportBcf(python, args.projectRoot, args.path ?? '', args.mepText, args.issues), ['topics']);
+});
+
+CommandsRegistry.registerCommand('saengine.mep.importBcf', async (accessor, args: IMepCommandArgs) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return problemsOrResult(await accessor.get(IFemSolverService).mepImportBcf(python, args.projectRoot, args.path ?? '', args.mepText), ['coordination']);
+});
+
+CommandsRegistry.registerCommand('saengine.mep.checkIds', async (accessor, args: IMepCommandArgs) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return problemsOrResult(await accessor.get(IFemSolverService).mepCheckIds(python, args.projectRoot, args.mepText), ['coordination']);
 });
 
 /**

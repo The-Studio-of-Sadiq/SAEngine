@@ -15797,6 +15797,145 @@ export const MEP_SCHEMA: IJSONSchema = {
 			title: 'CableTray',
 			type: 'object',
 		},
+		ClashTest: {
+			additionalProperties: false,
+			description: 'A clash rule: every element of the sets ``a`` against every element of the sets ``b``,\neither intersecting (hard) or closer than the clearance.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					default: '',
+					title: 'Name',
+					type: 'string',
+				},
+				a: {
+					items: {
+						enum: ['structure', 'architecture', 'mechanical', 'plumbing', 'fire', 'electrical', 'external'],
+						type: 'string',
+					},
+					minItems: 1,
+					title: 'Set A',
+					type: 'array',
+				},
+				b: {
+					items: {
+						enum: ['structure', 'architecture', 'mechanical', 'plumbing', 'fire', 'electrical', 'external'],
+						type: 'string',
+					},
+					minItems: 1,
+					title: 'Set B',
+					type: 'array',
+				},
+				kind: {
+					default: 'hard',
+					enum: ['hard', 'clearance'],
+					enumDescriptions: ['Hard (intersecting)', 'Clearance'],
+					title: 'Kind',
+					type: 'string',
+				},
+				clearance: {
+					default: 0.0,
+					description: 'Least gap for a clearance test [mm].',
+					minimum: 0,
+					title: 'Clearance',
+					type: 'number',
+				},
+				tolerance: {
+					default: 2.0,
+					description: 'Least overlap reported as a hard clash [mm].',
+					minimum: 0,
+					title: 'Tolerance',
+					type: 'number',
+				},
+				ignoreSameModel: {
+					default: false,
+					description: 'Skip pairs from the same IFC model (a model\'s own fittings touch).',
+					title: 'Ignore within one model',
+					type: 'boolean',
+				},
+				enabled: {
+					default: true,
+					title: 'Enabled',
+					type: 'boolean',
+				},
+			},
+			required: ['id', 'a', 'b'],
+			title: 'ClashTest',
+			type: 'object',
+		},
+		Coordination: {
+			additionalProperties: false,
+			description: 'Multi-discipline coordination: the other IFC models, the clash tests, the IDS files the\nmodels are checked against, and the issues with their status workflow (exchanged as BCF).',
+			properties: {
+				models: {
+					items: {
+						$ref: '#/$defs/CoordinationModel',
+					},
+					title: 'IFC models',
+					type: 'array',
+				},
+				tests: {
+					items: {
+						$ref: '#/$defs/ClashTest',
+					},
+					title: 'Clash tests',
+					type: 'array',
+				},
+				idsFiles: {
+					description: 'Project-relative .ids paths.',
+					items: {
+						type: 'string',
+					},
+					title: 'IDS files',
+					type: 'array',
+				},
+				issues: {
+					items: {
+						$ref: '#/$defs/Issue',
+					},
+					title: 'Issues',
+					type: 'array',
+				},
+				author: {
+					default: '',
+					description: 'Author of new issues and comments (BCF).',
+					title: 'Author',
+					type: 'string',
+				},
+			},
+			title: 'Coordination',
+			type: 'object',
+		},
+		CoordinationModel: {
+			additionalProperties: false,
+			description: 'An IFC model taking part in the coordination besides the MEP models (an architect\'s or\nanother consultant\'s file).',
+			properties: {
+				path: {
+					description: 'Project-relative path of the .ifc file.',
+					minLength: 1,
+					title: 'Path',
+					type: 'string',
+				},
+				name: {
+					default: '',
+					title: 'Name',
+					type: 'string',
+				},
+				visible: {
+					default: true,
+					title: 'Visible',
+					type: 'boolean',
+				},
+			},
+			required: ['path'],
+			title: 'CoordinationModel',
+			type: 'object',
+		},
 		Duct: {
 			additionalProperties: false,
 			description: 'A duct run: horizontal in plan on a story, or a riser at its first point.',
@@ -18182,6 +18321,166 @@ export const MEP_SCHEMA: IJSONSchema = {
 			title: 'IfcModel',
 			type: 'object',
 		},
+		Issue: {
+			additionalProperties: false,
+			description: 'A coordination issue: a clash found by a test, a failed IDS requirement, or a topic\nimported from BCF. ``key`` matches a clash again on the next run (test and the two\nelements\' GlobalIds).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				guid: {
+					default: '',
+					description: 'BCF topic GUID.',
+					title: 'Guid',
+					type: 'string',
+				},
+				title: {
+					default: '',
+					title: 'Title',
+					type: 'string',
+				},
+				source: {
+					default: 'clash',
+					enum: ['clash', 'ids', 'bcf', 'manual'],
+					title: 'Source',
+					type: 'string',
+				},
+				key: {
+					default: '',
+					description: 'test:globalIdA:globalIdB for a clash.',
+					title: 'Key',
+					type: 'string',
+				},
+				test: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Test',
+				},
+				status: {
+					default: 'new',
+					enum: ['new', 'active', 'reviewed', 'approved', 'resolved', 'closed'],
+					enumDescriptions: ['New', 'Active', 'Reviewed', 'Approved (accepted as is)', 'Resolved', 'Closed'],
+					title: 'Status',
+					type: 'string',
+				},
+				priority: {
+					default: 'normal',
+					enum: ['low', 'normal', 'high', 'critical'],
+					title: 'Priority',
+					type: 'string',
+				},
+				assignedTo: {
+					default: '',
+					title: 'Assigned to',
+					type: 'string',
+				},
+				dueDate: {
+					default: '',
+					title: 'Due date',
+					type: 'string',
+				},
+				description: {
+					default: '',
+					title: 'Description',
+					type: 'string',
+				},
+				elements: {
+					description: 'IFC GlobalIds.',
+					items: {
+						type: 'string',
+					},
+					title: 'Elements',
+					type: 'array',
+				},
+				point: {
+					anyOf: [
+						{
+							items: {
+								type: 'number',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[x, y, z] in mm.',
+					title: 'Point',
+				},
+				story: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Story',
+				},
+				created: {
+					default: '',
+					title: 'Created',
+					type: 'string',
+				},
+				modified: {
+					default: '',
+					title: 'Modified',
+					type: 'string',
+				},
+				comments: {
+					items: {
+						$ref: '#/$defs/IssueComment',
+					},
+					title: 'Comments',
+					type: 'array',
+				},
+			},
+			required: ['id'],
+			title: 'Issue',
+			type: 'object',
+		},
+		IssueComment: {
+			additionalProperties: false,
+			properties: {
+				guid: {
+					default: '',
+					title: 'Guid',
+					type: 'string',
+				},
+				date: {
+					default: '',
+					description: 'ISO 8601 date and time.',
+					title: 'Date',
+					type: 'string',
+				},
+				author: {
+					default: '',
+					title: 'Author',
+					type: 'string',
+				},
+				text: {
+					default: '',
+					title: 'Text',
+					type: 'string',
+				},
+			},
+			title: 'IssueComment',
+			type: 'object',
+		},
 		Lightning: {
 			additionalProperties: false,
 			description: 'Lightning protection and earthing (BNBC 2020 Part 8 Sec 1.3.33).',
@@ -19637,6 +19936,19 @@ export const MEP_SCHEMA: IJSONSchema = {
 			default: null,
 			description: 'Fire protection: the systems required, standpipes, sprinklers, fire pumps and the fire reservoir, to BNBC 2020 Part 4.',
 			title: 'Fire',
+		},
+		coordination: {
+			anyOf: [
+				{
+					$ref: '#/$defs/Coordination',
+				},
+				{
+					type: 'null',
+				},
+			],
+			default: null,
+			description: 'Multi-discipline clash tests, coordination issues with their status workflow (BCF 3.0) and IDS model checks.',
+			title: 'Coordination',
 		},
 	},
 	title: 'SAEngine MEP coordination',

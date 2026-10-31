@@ -452,6 +452,39 @@
 	background: var(--vscode-toolbar-hoverBackground);
 }
 
+/* Coordination: clash tests, issues, BCF and IDS (coordinationView.ts) */
+.saengine-mep-editor .coord-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--sa-space-2);
+	margin: var(--sa-space-1) 0 var(--sa-space-2);
+}
+
+.saengine-mep-editor .coord-actions .mep-add:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
+.saengine-mep-editor .coord-sets {
+	white-space: normal;
+}
+
+.saengine-mep-editor .coord-set {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+	margin-right: var(--sa-space-2);
+	white-space: nowrap;
+}
+
+.saengine-mep-editor .coord-author {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1);
+	margin-left: auto;
+}
+
 .saengine-mep-editor .mep-table-scroll {
 	overflow-x: auto;
 }

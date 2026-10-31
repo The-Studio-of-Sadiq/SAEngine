@@ -220,6 +220,125 @@ class IfcModel(_Model):
     visible: bool = True
 
 
+# ─────────────────────── coordination (clash tests, issues, BCF, IDS) ───────────────────────
+
+#: The element sets a clash test compares: SAEngine's own structure and architecture (exported
+#: to IFC from the building model and the floor plan), the MEP IFC models by discipline, and the
+#: other IFC models of the coordination (an architect's or a consultant's file).
+ClashSet = Literal[
+    "structure", "architecture", "mechanical", "plumbing", "fire", "electrical", "external"
+]
+CLASH_SETS = {
+    "structure": "Structure (building model)",
+    "architecture": "Architecture (floor plan)",
+    "mechanical": "Mechanical (HVAC) models",
+    "plumbing": "Plumbing models",
+    "fire": "Fire protection models",
+    "electrical": "Electrical models",
+    "external": "Other IFC models",
+}
+#: The status workflow of a coordination issue (BCF's TopicStatus).
+IssueStatus = Literal["new", "active", "reviewed", "approved", "resolved", "closed"]
+ISSUE_STATUSES = {
+    "new": "New",
+    "active": "Active",
+    "reviewed": "Reviewed",
+    "approved": "Approved (accepted as is)",
+    "resolved": "Resolved",
+    "closed": "Closed",
+}
+IssuePriority = Literal["low", "normal", "high", "critical"]
+
+
+class CoordinationModel(_Model):
+    """An IFC model taking part in the coordination besides the MEP models (an architect's or
+    another consultant's file)."""
+
+    path: str = Field(min_length=1, description="Project-relative path of the .ifc file.")
+    name: str = Field(default="")
+    visible: bool = True
+
+
+class ClashTest(_Model):
+    """A clash rule: every element of the sets ``a`` against every element of the sets ``b``,
+    either intersecting (hard) or closer than the clearance."""
+
+    id: Id
+    name: str = Field(default="")
+    a: list[ClashSet] = Field(min_length=1, title="Set A")
+    b: list[ClashSet] = Field(min_length=1, title="Set B")
+    kind: Literal["hard", "clearance"] = Field(
+        default="hard", json_schema_extra=_labels(["Hard (intersecting)", "Clearance"])
+    )
+    clearance: Mm = Field(default=0.0, ge=0, description="Least gap for a clearance test [mm].")
+    tolerance: Mm = Field(
+        default=2.0, ge=0, description="Least overlap reported as a hard clash [mm]."
+    )
+    ignoreSameModel: bool = Field(
+        default=False,
+        title="Ignore within one model",
+        description="Skip pairs from the same IFC model (a model's own fittings touch).",
+    )
+    enabled: bool = True
+
+
+class IssueComment(_Model):
+    guid: str = Field(default="")
+    date: str = Field(default="", description="ISO 8601 date and time.")
+    author: str = Field(default="")
+    text: str = Field(default="")
+
+
+class Issue(_Model):
+    """A coordination issue: a clash found by a test, a failed IDS requirement, or a topic
+    imported from BCF. ``key`` matches a clash again on the next run (test and the two
+    elements' GlobalIds)."""
+
+    id: Id
+    guid: str = Field(default="", description="BCF topic GUID.")
+    title: str = Field(default="")
+    source: Literal["clash", "ids", "bcf", "manual"] = "clash"
+    key: str = Field(default="", description="test:globalIdA:globalIdB for a clash.")
+    test: str | None = None
+    status: IssueStatus = Field(
+        default="new", json_schema_extra=_labels(list(ISSUE_STATUSES.values()))
+    )
+    priority: IssuePriority = "normal"
+    assignedTo: str = Field(default="", title="Assigned to")
+    dueDate: str = Field(default="", title="Due date")
+    description: str = Field(default="")
+    elements: list[str] = Field(default_factory=list, description="IFC GlobalIds.")
+    point: list[float] | None = Field(default=None, description="[x, y, z] in mm.")
+    story: str | None = None
+    created: str = Field(default="")
+    modified: str = Field(default="")
+    comments: list[IssueComment] = Field(default_factory=list)
+
+
+class Coordination(_Model):
+    """Multi-discipline coordination: the other IFC models, the clash tests, the IDS files the
+    models are checked against, and the issues with their status workflow (exchanged as BCF)."""
+
+    models: list[CoordinationModel] = Field(default_factory=list, title="IFC models")
+    tests: list[ClashTest] = Field(default_factory=list, title="Clash tests")
+    idsFiles: list[str] = Field(
+        default_factory=list, title="IDS files", description="Project-relative .ids paths."
+    )
+    issues: list[Issue] = Field(default_factory=list)
+    author: str = Field(default="", description="Author of new issues and comments (BCF).")
+
+    @model_validator(mode="after")
+    def _unique(self) -> Coordination:
+        for name, ids in (
+            ("tests", [t.id for t in self.tests]),
+            ("issues", [i.id for i in self.issues]),
+        ):
+            duplicates = sorted({i for i in ids if ids.count(i) > 1})
+            if duplicates:
+                raise ValueError(f"duplicate {name}: {', '.join(duplicates)}")
+        return self
+
+
 # ─────────────────────────── plumbing (sized by saengine.plumbing) ───────────────────────────
 
 PlumbingSystem = Literal[
@@ -1462,6 +1581,11 @@ class MepModel(_Model):
         default=None,
         description="Fire protection: the systems required, standpipes, sprinklers, fire "
         "pumps and the fire reservoir, to BNBC 2020 Part 4.",
+    )
+    coordination: Coordination | None = Field(
+        default=None,
+        description="Multi-discipline clash tests, coordination issues with their status "
+        "workflow (BCF 3.0) and IDS model checks.",
     )
 
     @model_validator(mode="after")
