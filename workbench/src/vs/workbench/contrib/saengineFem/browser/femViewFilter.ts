@@ -25,8 +25,12 @@ export type FemViewChoice =
 	| { readonly kind: 'all' }
 	| { readonly kind: 'plan'; readonly z: number; readonly name: string }
 	| { readonly kind: 'elevation'; readonly axis: 'x' | 'y'; readonly at: number }
-	| { readonly kind: 'storey'; readonly bottom: number; readonly top: number; readonly name: string };
-
+	| { readonly kind: 'storey'; readonly bottom: number; readonly top: number; readonly name: string }
+	/**
+	 * A developed elevation: the frames and walls on a plan path (x, y in metres) unfolded into
+	 * one plane. The viewer finds the elements on the path (`setDevelopment`).
+	 */
+	| { readonly kind: 'developed'; readonly path: readonly (readonly [number, number])[]; readonly name: string };
 /** Nodes within it of a level or grid line are on it [m]. */
 const TOLERANCE = 0.005;
 
@@ -155,8 +159,8 @@ export function freeTopColumns(model: IFilterModel): string[] {
 
 /** The elements a view draws (undefined: all of them). */
 export function visibleElements(model: IFilterModel, view: FemViewChoice): Set<number> | undefined {
-	if (view.kind === 'all') {
-		return undefined;
+	if (view.kind === 'all' || view.kind === 'developed') {
+		return undefined; // a developed elevation's elements: the viewer's `setDevelopment`
 	}
 	const coords = new Map(model.nodes.map(n => [n.id, n.coords]));
 	const out = new Set<number>();
@@ -193,12 +197,61 @@ export function cameraOf(view: FemViewChoice): FemCameraView {
 	switch (view.kind) {
 		case 'plan': return 'top';
 		case 'elevation': return view.axis === 'x' ? 'side' : 'front';
+		case 'developed': return 'front'; // unfolded into the x-z plane
 		default: return '3d';
 	}
 }
 
-/** The View picker's choices: 3D, each level's plan, each grid line's elevation, each storey. */
-export function viewChoices(model: IFilterModel, names?: ReadonlyMap<number, string>): { readonly choice: FemViewChoice; readonly label: string }[] {
+/**
+ * The outer column lines walked round, as a developed elevation's path: from the lowest x and y
+ * anticlockwise in plan and back to the start. Undefined without two lines each way.
+ */
+export function perimeterPath(model: IFilterModel): [number, number][] | undefined {
+	const { x, y } = gridLines(model);
+	if (x.length < 2 || y.length < 2) {
+		return undefined;
+	}
+	const x0 = x[0];
+	const x1 = x[x.length - 1];
+	const y0 = y[0];
+	const y1 = y[y.length - 1];
+	return [[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]];
+}
+
+/**
+ * A plan path typed as `x, y; x, y; ...` (metres; spaces or semicolons between points), or the
+ * reason it is not one.
+ */
+export function parsePlanPath(text: string): { readonly path: [number, number][] } | { readonly error: string } {
+	const points = text.split(/[;\n]+/).map(p => p.trim()).filter(p => p.length);
+	const path: [number, number][] = [];
+	for (const point of points) {
+		const values = point.split(/[,\s]+/).filter(v => v.length).map(Number);
+		if (values.length !== 2 || values.some(v => !Number.isFinite(v))) {
+			return { error: localize('femView.pathPoint', "\"{0}\" is not a point: give x, y in metres.", point) };
+		}
+		path.push([values[0], values[1]]);
+	}
+	if (path.length < 2) {
+		return { error: localize('femView.pathShort', "Give at least two points, such as 0, 0; 12, 0; 12, 9.") };
+	}
+	if (path.every(p => Math.hypot(p[0] - path[0][0], p[1] - path[0][1]) <= TOLERANCE)) {
+		return { error: localize('femView.pathLength', "The points are all in one place: the path has no length.") };
+	}
+	return { path };
+}
+
+/** A plan path as typed (the inverse of {@link parsePlanPath}). */
+export function formatPlanPath(path: readonly (readonly [number, number])[]): string {
+	const n = (v: number) => String(round(v));
+	return path.map(([x, y]) => `${n(x)}, ${n(y)}`).join('; ');
+}
+
+/**
+ * The View picker's choices: 3D, each level's plan, each grid line's elevation, each storey,
+ * the perimeter developed, and the developed elevation along `custom` when one was given.
+ */
+export function viewChoices(model: IFilterModel, names?: ReadonlyMap<number, string>, custom?: readonly (readonly [number, number])[]): { readonly choice: FemViewChoice; readonly label: string }[] {
 	const levels = modelLevels(model);
 	const nameOf = (z: number, k: number) => names?.get(z) ?? (k === 0 ? localize('femView.base', "Base") : localize('femView.level', "Level {0}", k));
 	const grids = gridLines(model);
@@ -219,5 +272,12 @@ export function viewChoices(model: IFilterModel, names?: ReadonlyMap<number, str
 			choices.push({ choice: { kind: 'storey', bottom: levels[k - 1], top: z, name: nameOf(z, k) }, label: localize('femView.storey', "Storey Below {0} (isolated)", nameOf(z, k)) });
 		}
 	});
+	const perimeter = perimeterPath(model);
+	if (perimeter) {
+		choices.push({ choice: { kind: 'developed', path: perimeter, name: 'perimeter' }, label: localize('femView.developedPerimeter', "Developed Elevation: Perimeter") });
+	}
+	if (custom) {
+		choices.push({ choice: { kind: 'developed', path: custom, name: 'custom' }, label: localize('femView.developedCustom', "Developed Elevation: {0}", formatPlanPath(custom)) });
+	}
 	return choices;
 }

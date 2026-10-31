@@ -293,7 +293,10 @@ def architecture_has_content(text: str | None) -> bool:
     value = _parse(text)
     if value is None:
         return True
-    return any(_length(value.get(key)) > 0 for key in ("walls", "rooms"))
+    return any(
+        _length(value.get(key)) > 0
+        for key in ("walls", "rooms", "curtainWalls", "roofs", "ramps", "railings")
+    )
 
 
 def _mep_has_content(inputs: StatusInputs) -> bool:

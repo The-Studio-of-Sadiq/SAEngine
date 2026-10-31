@@ -127,6 +127,11 @@ export interface FemResultDisplay {
 	readonly scale: number;
 	/** Mode shapes only: oscillate the shape. */
 	readonly animate: boolean;
+	/**
+	 * Any deflected shape moves (a static one grows from rest to its full size and back), not
+	 * only a mode shape: for recording an animation.
+	 */
+	readonly animateAny?: boolean;
 	/** Text of a value for the labels, in the units the user reads. */
 	readonly format: (quantity: FemValueQuantity, value: number) => string;
 	/**
