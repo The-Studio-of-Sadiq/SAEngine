@@ -6831,7 +6831,7 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 		},
 		Underlay: {
 			additionalProperties: false,
-			description: 'An architect\'s drawing shown, greyed and read-only, under one story\'s plan.',
+			description: 'An architect\'s drawing shown, greyed and read-only, under one story\'s plan.\n\nA PDF shows one page\'s vector linework (``saengine.library.pdf_underlay``) in paper mm, so its\n``scale`` is the drawing\'s scale (100 for 1:100), set by calibrating two points against a\nknown length on the floor plan.',
 			properties: {
 				story: {
 					description: 'Story whose plan shows the drawing.',
@@ -6842,11 +6842,18 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 					type: 'string',
 				},
 				file: {
-					description: 'DXF file, relative to the 05 Floor Plan folder.',
+					description: 'DXF, DWG or PDF file, relative to the 05 Floor Plan folder.',
 					minLength: 1,
-					pattern: '\\.[dD]([xX][fF]|[wW][gG])$',
+					pattern: '\\.([dD]([xX][fF]|[wW][gG])|[pP][dD][fF])$',
 					title: 'File',
 					type: 'string',
+				},
+				page: {
+					default: 1,
+					description: 'A PDF\'s page shown (from 1).',
+					minimum: 1,
+					title: 'Page',
+					type: 'integer',
 				},
 				dx: {
 					default: 0,
@@ -6876,6 +6883,12 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 				visible: {
 					default: true,
 					title: 'Visible',
+					type: 'boolean',
+				},
+				locked: {
+					default: false,
+					description: 'Locked: moving, rotating and calibrating the underlay are turned off.',
+					title: 'Locked',
 					type: 'boolean',
 				},
 			},
@@ -10686,6 +10699,19 @@ export const SOIL_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Depth the borehole was drilled to [mm]; the deepest layer\'s bottom when empty.',
 					title: 'Termination depth',
+				},
+				excludeFromSite: {
+					anyOf: [
+						{
+							type: 'boolean',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The site\'s bearing table takes the lowest of the other boreholes (one far from the building, say); the borehole\'s own results stay.',
+					title: 'Leave out of the site table',
 				},
 				date: {
 					anyOf: [
