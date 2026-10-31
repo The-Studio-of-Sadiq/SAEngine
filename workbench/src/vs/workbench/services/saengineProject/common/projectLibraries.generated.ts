@@ -4378,7 +4378,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				sheetSize: {
 					default: 'A1',
 					description: 'ISO sheet of every drawing.',
-					enum: ['A1', 'A2', 'A3'],
+					enum: ['A0', 'A1', 'A2', 'A3'],
 					title: 'Sheet size',
 					type: 'string',
 				},
@@ -4892,9 +4892,9 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			properties: {
 				location: {
 					default: 'dhaka',
-					description: 'District town; sets the seismic zone and the basic wind speed.',
-					enum: ['dhaka', 'chattogram', 'coxsbazar', 'khulna', 'rajshahi', 'sylhet', 'barishal', 'rangpur', 'mymensingh', 'cumilla', 'custom'],
-					enumDescriptions: ['Dhaka', 'Chattogram', 'Cox\'s Bazar', 'Khulna', 'Rajshahi', 'Sylhet', 'Barishal', 'Rangpur', 'Mymensingh', 'Cumilla', 'Custom (enter Z and V)'],
+					description: 'District town (BNBC 2020 Tables 6.2.8 and 6.2.15); sets the seismic zone and the basic wind speed. Open the list and type the first letters to find a town; elsewhere choose Custom and enter Z and V.',
+					enum: ['bagerhat', 'bandarban', 'barguna', 'barishal', 'bhola', 'bogura', 'brahmanbaria', 'chandpur', 'chapainawabganj', 'chattogram', 'chuadanga', 'coxsbazar', 'cumilla', 'dhaka', 'dinajpur', 'faridpur', 'feni', 'gaibandha', 'gazipur', 'gopalganj', 'habiganj', 'jamalpur', 'jashore', 'jhalokati', 'jhenaidah', 'joypurhat', 'khagrachhari', 'khulna', 'kishoreganj', 'kurigram', 'kushtia', 'lakshmipur', 'lalmonirhat', 'madaripur', 'magura', 'manikganj', 'meherpur', 'moulvibazar', 'munshiganj', 'mymensingh', 'naogaon', 'narail', 'narayanganj', 'narsingdi', 'natore', 'netrokona', 'nilphamari', 'noakhali', 'pabna', 'panchagarh', 'patuakhali', 'pirojpur', 'rajbari', 'rajshahi', 'rangamati', 'rangpur', 'satkhira', 'shariatpur', 'sherpur', 'sirajganj', 'srimangal', 'sunamganj', 'sylhet', 'tangail', 'thakurgaon', 'custom'],
+					enumDescriptions: ['Bagerhat (zone 1, Z 0.12, V 77.5 m/s)', 'Bandarban (zone 3, Z 0.28, V 62.5 m/s)', 'Barguna (zone 1, Z 0.12, V 80 m/s)', 'Barishal (zone 1, Z 0.12, V 78.7 m/s)', 'Bhola (zone 1, Z 0.12, V 69.5 m/s)', 'Bogura (zone 3, Z 0.28, V 61.9 m/s)', 'Brahmanbaria (zone 3, Z 0.28, V 56.7 m/s)', 'Chandpur (zone 2, Z 0.20, V 50.6 m/s)', 'Chapai Nawabganj (zone 1, Z 0.12, V 41.4 m/s)', 'Chattogram (zone 3, Z 0.28, V 80 m/s)', 'Chuadanga (zone 1, Z 0.12, V 61.9 m/s)', 'Cox\'s Bazar (zone 3, Z 0.28, V 80 m/s)', 'Cumilla (zone 2, Z 0.20, V 61.4 m/s)', 'Dhaka (zone 2, Z 0.20, V 65.7 m/s)', 'Dinajpur (zone 2, Z 0.20, V 41.4 m/s)', 'Faridpur (zone 2, Z 0.20, V 63.1 m/s)', 'Feni (zone 2, Z 0.20, V 64.1 m/s)', 'Gaibandha (zone 3, Z 0.28, V 65.6 m/s)', 'Gazipur (zone 2, Z 0.20, V 66.5 m/s)', 'Gopalganj (zone 1, Z 0.12, V 74.5 m/s)', 'Habiganj (zone 4, Z 0.36, V 54.2 m/s)', 'Jamalpur (zone 4, Z 0.36, V 56.7 m/s)', 'Jashore (zone 1, Z 0.12, V 64.1 m/s)', 'Jhalokati (zone 1, Z 0.12, V 80 m/s)', 'Jhenaidah (zone 1, Z 0.12, V 65 m/s)', 'Joypurhat (zone 2, Z 0.20, V 56.7 m/s)', 'Khagrachhari (zone 3, Z 0.28, V 56.7 m/s)', 'Khulna (zone 1, Z 0.12, V 73.3 m/s)', 'Kishoreganj (zone 4, Z 0.36, V 64.7 m/s)', 'Kurigram (zone 4, Z 0.36, V 65.6 m/s)', 'Kushtia (zone 2, Z 0.20, V 66.9 m/s)', 'Lakshmipur (zone 2, Z 0.20, V 51.9 m/s)', 'Lalmonirhat (zone 3, Z 0.28, V 63.7 m/s)', 'Madaripur (zone 2, Z 0.20, V 68.1 m/s)', 'Magura (zone 1, Z 0.12, V 65 m/s)', 'Manikganj (zone 2, Z 0.20, V 58.2 m/s)', 'Meherpur (zone 1, Z 0.12, V 58.2 m/s)', 'Moulvibazar (zone 4, Z 0.36, V 53 m/s)', 'Munshiganj (zone 2, Z 0.20, V 57.1 m/s)', 'Mymensingh (zone 4, Z 0.36, V 67.4 m/s)', 'Naogaon (zone 2, Z 0.20, V 55.2 m/s)', 'Narail (zone 1, Z 0.12, V 68.6 m/s)', 'Narayanganj (zone 2, Z 0.20, V 61.1 m/s)', 'Narsingdi (zone 3, Z 0.28, V 59.7 m/s)', 'Natore (zone 2, Z 0.20, V 61.9 m/s)', 'Netrokona (zone 4, Z 0.36, V 65.6 m/s)', 'Nilphamari (zone 1, Z 0.12, V 44.7 m/s)', 'Noakhali (zone 2, Z 0.20, V 57.1 m/s)', 'Pabna (zone 2, Z 0.20, V 63.1 m/s)', 'Panchagarh (zone 2, Z 0.20, V 41.4 m/s)', 'Patuakhali (zone 1, Z 0.12, V 80 m/s)', 'Pirojpur (zone 1, Z 0.12, V 80 m/s)', 'Rajbari (zone 2, Z 0.20, V 59.1 m/s)', 'Rajshahi (zone 1, Z 0.12, V 49.2 m/s)', 'Rangamati (zone 3, Z 0.28, V 56.7 m/s)', 'Rangpur (zone 3, Z 0.28, V 65.3 m/s)', 'Satkhira (zone 1, Z 0.12, V 57.6 m/s)', 'Shariatpur (zone 2, Z 0.20, V 61.9 m/s)', 'Sherpur (zone 4, Z 0.36, V 62.5 m/s)', 'Sirajganj (zone 3, Z 0.28, V 50.6 m/s)', 'Srimangal (zone 4, Z 0.36, V 50.6 m/s)', 'Sunamganj (zone 4, Z 0.36, V 61.1 m/s)', 'Sylhet (zone 4, Z 0.36, V 61.1 m/s)', 'Tangail (zone 3, Z 0.28, V 50.6 m/s)', 'Thakurgaon (zone 2, Z 0.20, V 41.4 m/s)', 'Custom (enter Z and V)'],
 					title: 'Location',
 					type: 'string',
 				},
@@ -5766,55 +5766,330 @@ export const BNBC: IBnbcTables = {
 		'4': 0.36,
 	},
 	locations: {
-		dhaka: {
-			name: 'Dhaka',
-			zone: 2,
-			windSpeed: 65.7,
-		},
-		chattogram: {
-			name: 'Chattogram',
-			zone: 3,
-			windSpeed: 80.0,
-		},
-		coxsbazar: {
-			name: 'Cox\'s Bazar',
-			zone: 3,
-			windSpeed: 80.0,
-		},
-		khulna: {
-			name: 'Khulna',
+		bagerhat: {
+			name: 'Bagerhat',
 			zone: 1,
-			windSpeed: 73.3,
+			windSpeed: 77.5,
 		},
-		rajshahi: {
-			name: 'Rajshahi',
+		bandarban: {
+			name: 'Bandarban',
+			zone: 3,
+			windSpeed: 62.5,
+		},
+		barguna: {
+			name: 'Barguna',
 			zone: 1,
-			windSpeed: 49.2,
-		},
-		sylhet: {
-			name: 'Sylhet',
-			zone: 4,
-			windSpeed: 61.1,
+			windSpeed: 80.0,
 		},
 		barishal: {
 			name: 'Barishal',
 			zone: 1,
 			windSpeed: 78.7,
 		},
-		rangpur: {
-			name: 'Rangpur',
+		bhola: {
+			name: 'Bhola',
+			zone: 1,
+			windSpeed: 69.5,
+		},
+		bogura: {
+			name: 'Bogura',
 			zone: 3,
-			windSpeed: 65.3,
+			windSpeed: 61.9,
+		},
+		brahmanbaria: {
+			name: 'Brahmanbaria',
+			zone: 3,
+			windSpeed: 56.7,
+		},
+		chandpur: {
+			name: 'Chandpur',
+			zone: 2,
+			windSpeed: 50.6,
+		},
+		chapainawabganj: {
+			name: 'Chapai Nawabganj',
+			zone: 1,
+			windSpeed: 41.4,
+		},
+		chattogram: {
+			name: 'Chattogram',
+			zone: 3,
+			windSpeed: 80.0,
+		},
+		chuadanga: {
+			name: 'Chuadanga',
+			zone: 1,
+			windSpeed: 61.9,
+		},
+		coxsbazar: {
+			name: 'Cox\'s Bazar',
+			zone: 3,
+			windSpeed: 80.0,
+		},
+		cumilla: {
+			name: 'Cumilla',
+			zone: 2,
+			windSpeed: 61.4,
+		},
+		dhaka: {
+			name: 'Dhaka',
+			zone: 2,
+			windSpeed: 65.7,
+		},
+		dinajpur: {
+			name: 'Dinajpur',
+			zone: 2,
+			windSpeed: 41.4,
+		},
+		faridpur: {
+			name: 'Faridpur',
+			zone: 2,
+			windSpeed: 63.1,
+		},
+		feni: {
+			name: 'Feni',
+			zone: 2,
+			windSpeed: 64.1,
+		},
+		gaibandha: {
+			name: 'Gaibandha',
+			zone: 3,
+			windSpeed: 65.6,
+		},
+		gazipur: {
+			name: 'Gazipur',
+			zone: 2,
+			windSpeed: 66.5,
+		},
+		gopalganj: {
+			name: 'Gopalganj',
+			zone: 1,
+			windSpeed: 74.5,
+		},
+		habiganj: {
+			name: 'Habiganj',
+			zone: 4,
+			windSpeed: 54.2,
+		},
+		jamalpur: {
+			name: 'Jamalpur',
+			zone: 4,
+			windSpeed: 56.7,
+		},
+		jashore: {
+			name: 'Jashore',
+			zone: 1,
+			windSpeed: 64.1,
+		},
+		jhalokati: {
+			name: 'Jhalokati',
+			zone: 1,
+			windSpeed: 80.0,
+		},
+		jhenaidah: {
+			name: 'Jhenaidah',
+			zone: 1,
+			windSpeed: 65.0,
+		},
+		joypurhat: {
+			name: 'Joypurhat',
+			zone: 2,
+			windSpeed: 56.7,
+		},
+		khagrachhari: {
+			name: 'Khagrachhari',
+			zone: 3,
+			windSpeed: 56.7,
+		},
+		khulna: {
+			name: 'Khulna',
+			zone: 1,
+			windSpeed: 73.3,
+		},
+		kishoreganj: {
+			name: 'Kishoreganj',
+			zone: 4,
+			windSpeed: 64.7,
+		},
+		kurigram: {
+			name: 'Kurigram',
+			zone: 4,
+			windSpeed: 65.6,
+		},
+		kushtia: {
+			name: 'Kushtia',
+			zone: 2,
+			windSpeed: 66.9,
+		},
+		lakshmipur: {
+			name: 'Lakshmipur',
+			zone: 2,
+			windSpeed: 51.9,
+		},
+		lalmonirhat: {
+			name: 'Lalmonirhat',
+			zone: 3,
+			windSpeed: 63.7,
+		},
+		madaripur: {
+			name: 'Madaripur',
+			zone: 2,
+			windSpeed: 68.1,
+		},
+		magura: {
+			name: 'Magura',
+			zone: 1,
+			windSpeed: 65.0,
+		},
+		manikganj: {
+			name: 'Manikganj',
+			zone: 2,
+			windSpeed: 58.2,
+		},
+		meherpur: {
+			name: 'Meherpur',
+			zone: 1,
+			windSpeed: 58.2,
+		},
+		moulvibazar: {
+			name: 'Moulvibazar',
+			zone: 4,
+			windSpeed: 53.0,
+		},
+		munshiganj: {
+			name: 'Munshiganj',
+			zone: 2,
+			windSpeed: 57.1,
 		},
 		mymensingh: {
 			name: 'Mymensingh',
 			zone: 4,
 			windSpeed: 67.4,
 		},
-		cumilla: {
-			name: 'Cumilla',
+		naogaon: {
+			name: 'Naogaon',
 			zone: 2,
-			windSpeed: 61.4,
+			windSpeed: 55.2,
+		},
+		narail: {
+			name: 'Narail',
+			zone: 1,
+			windSpeed: 68.6,
+		},
+		narayanganj: {
+			name: 'Narayanganj',
+			zone: 2,
+			windSpeed: 61.1,
+		},
+		narsingdi: {
+			name: 'Narsingdi',
+			zone: 3,
+			windSpeed: 59.7,
+		},
+		natore: {
+			name: 'Natore',
+			zone: 2,
+			windSpeed: 61.9,
+		},
+		netrokona: {
+			name: 'Netrokona',
+			zone: 4,
+			windSpeed: 65.6,
+		},
+		nilphamari: {
+			name: 'Nilphamari',
+			zone: 1,
+			windSpeed: 44.7,
+		},
+		noakhali: {
+			name: 'Noakhali',
+			zone: 2,
+			windSpeed: 57.1,
+		},
+		pabna: {
+			name: 'Pabna',
+			zone: 2,
+			windSpeed: 63.1,
+		},
+		panchagarh: {
+			name: 'Panchagarh',
+			zone: 2,
+			windSpeed: 41.4,
+		},
+		patuakhali: {
+			name: 'Patuakhali',
+			zone: 1,
+			windSpeed: 80.0,
+		},
+		pirojpur: {
+			name: 'Pirojpur',
+			zone: 1,
+			windSpeed: 80.0,
+		},
+		rajbari: {
+			name: 'Rajbari',
+			zone: 2,
+			windSpeed: 59.1,
+		},
+		rajshahi: {
+			name: 'Rajshahi',
+			zone: 1,
+			windSpeed: 49.2,
+		},
+		rangamati: {
+			name: 'Rangamati',
+			zone: 3,
+			windSpeed: 56.7,
+		},
+		rangpur: {
+			name: 'Rangpur',
+			zone: 3,
+			windSpeed: 65.3,
+		},
+		satkhira: {
+			name: 'Satkhira',
+			zone: 1,
+			windSpeed: 57.6,
+		},
+		shariatpur: {
+			name: 'Shariatpur',
+			zone: 2,
+			windSpeed: 61.9,
+		},
+		sherpur: {
+			name: 'Sherpur',
+			zone: 4,
+			windSpeed: 62.5,
+		},
+		sirajganj: {
+			name: 'Sirajganj',
+			zone: 3,
+			windSpeed: 50.6,
+		},
+		srimangal: {
+			name: 'Srimangal',
+			zone: 4,
+			windSpeed: 50.6,
+		},
+		sunamganj: {
+			name: 'Sunamganj',
+			zone: 4,
+			windSpeed: 61.1,
+		},
+		sylhet: {
+			name: 'Sylhet',
+			zone: 4,
+			windSpeed: 61.1,
+		},
+		tangail: {
+			name: 'Tangail',
+			zone: 3,
+			windSpeed: 50.6,
+		},
+		thakurgaon: {
+			name: 'Thakurgaon',
+			zone: 2,
+			windSpeed: 41.4,
 		},
 	},
 	categories: {
@@ -5945,7 +6220,7 @@ export const BNBC: IBnbcTables = {
 			r: 3.0,
 			omega: 3.0,
 			cd: 2.5,
-			row: 'C.5 [sic, the 6th row] (p. 623)',
+			row: 'C.5 (p. 623)',
 			heightLimits: {
 				B: null,
 				C: 0.0,

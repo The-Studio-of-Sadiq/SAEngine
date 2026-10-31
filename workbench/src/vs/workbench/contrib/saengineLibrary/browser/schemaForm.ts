@@ -49,6 +49,13 @@ export interface ISchemaFormContext {
 	 * derived from other fields), shown greyed in the field: "8 (BNBC 2020 Table 6.2.19)".
 	 */
 	placeholder?(path: string): string | undefined;
+	/**
+	 * A quiet line below a valid field: what an entered override replaces ("override; the code
+	 * value is 0.20"), or a value derived from it (a column's ρ).
+	 */
+	note?(path: string): string | undefined;
+	/** A field's label other than its schema title, where two would read alike ("Bar material"). */
+	label?(path: string): string | undefined;
 	/** The option text of a reference (`references`) in its list, e.g. an area load with its loads; undefined: the id. */
 	referenceLabel?(path: string, id: string): string | undefined;
 	/**
@@ -125,7 +132,9 @@ export class SchemaForm {
 	/** Top-level groups and lists render without their heading (see {@link ISchemaFormRenderOptions}). */
 	private flat = false;
 	/** The text fields of the rendered form by path, so a value derived elsewhere can be shown in place. */
-	private readonly inputs = new Map<string, { readonly box: InputBox; readonly placeholder: () => void }>();
+	private readonly inputs = new Map<string, { readonly box: InputBox; readonly placeholder: () => void; readonly note: () => void }>();
+	/** The rows of the rendered form's fields by path (see {@link row}). */
+	private readonly rows = new Map<string, HTMLElement>();
 
 	constructor(
 		private readonly ctx: ISchemaFormContext,
@@ -136,6 +145,7 @@ export class SchemaForm {
 	render(container: HTMLElement, schema: IJSONSchema, value: JsonObject, skip: readonly string[] = [], options: ISchemaFormRenderOptions = {}): void {
 		this.disposables.clear();
 		this.inputs.clear();
+		this.rows.clear();
 		this.flat = !!options.flat;
 		this.renderObject(container, this.resolve(schema).schema, value, '', skip);
 	}
@@ -160,6 +170,11 @@ export class SchemaForm {
 		}
 	}
 
+	/** The row of the field at `path` in the rendered form (its table cell inside a table). */
+	row(path: string): HTMLElement | undefined {
+		return this.rows.get(path);
+	}
+
 	/** Puts the cursor in the text field at `path` (e.g. the ID of a new entry), its text selected. */
 	focus(path: string): void {
 		const input = this.inputs.get(path);
@@ -171,6 +186,7 @@ export class SchemaForm {
 	refreshPlaceholders(): void {
 		for (const input of this.inputs.values()) {
 			input.placeholder();
+			input.note();
 		}
 	}
 
@@ -233,7 +249,7 @@ export class SchemaForm {
 		}
 		const inner = mode === 'required' ? undefined : this.optional(property);
 		const schema = inner ?? this.optional(property) ?? property;
-		const title = property.title ?? this.resolve(schema).schema.title ?? humanize(key);
+		const title = this.ctx.label?.(path) ?? property.title ?? this.resolve(schema).schema.title ?? humanize(key);
 		const description = property.description ?? this.resolve(schema).schema.description;
 
 		const union = this.union(schema);
@@ -513,6 +529,11 @@ export class SchemaForm {
 
 	private renderField(container: HTMLElement, title: string, description: string | undefined, schema: IJSONSchema, owner: JsonObject, key: string, path: string, optional: boolean): void {
 		const row = this.fieldRow(container, title, description);
+		// The editor can find a field's row, e.g. to put buttons beside it.
+		const element = this.inlineCells ? row.control : row.control.parentElement;
+		if (element) {
+			this.rows.set(path, element);
+		}
 		const value = owner[key];
 
 		const references = this.ctx.references(path.replace(/\.\d+(?=\.|$)/g, ''));
@@ -538,7 +559,8 @@ export class SchemaForm {
 			}
 			const options = values.map(v => ({
 				text: v === null ? localize('schemaForm.notSet', "(not set)") : label(v),
-				description: references && v !== null && !references.includes(v as string) ? localize('schemaForm.missing', "Not defined") : undefined,
+				// An empty reference is one still to be chosen (its label says so), not a missing one.
+				description: references && v !== null && v !== '' && !references.includes(v as string) ? localize('schemaForm.missing', "Not defined") : undefined,
 			}));
 			// A value left out of the file is its default (not the first option) until one is picked.
 			const fallback = schema.default ?? this.resolve(schema).schema.default;
@@ -621,9 +643,13 @@ export class SchemaForm {
 		// Empty optional fields are handled below, so the leaf is validated as non-nullable.
 		const leaf: IConfigurationPropertySchema = { ...schema };
 		const validator = createValidator(leaf);
+		// An empty field with a default (a combination factor, a mesh size left out of the file)
+		// means "use the default", which its placeholder shows: not a missing number.
+		const defaulted = schema.default !== undefined && schema.default !== null && typeof schema.default !== 'object';
+		const empty = optional || defaulted;
 		const check = (text: string): string | undefined => {
 			const trimmed = text.trim();
-			if (optional && trimmed === '') {
+			if (empty && trimmed === '') {
 				return undefined;
 			}
 			if (numeric && trimmed !== '' && !isFinite(Number(trimmed))) {
@@ -648,28 +674,47 @@ export class SchemaForm {
 			box.inputElement.placeholder = own ?? (schema.default !== undefined && schema.default !== null && typeof schema.default !== 'object' ? String(schema.default) : '');
 		};
 		placeholder();
-		this.inputs.set(path, { box, placeholder });
 		// The problem stays written below the field (not only in a popup while it has focus), and
 		// says that the file keeps its last valid value meanwhile.
 		const field = container.closest<HTMLElement>('.form-field, .form-cell') ?? container;
 		const message = append(field, $('.form-message', { role: 'alert' }));
+		const noteLine = append(field, $('.form-note', { 'aria-live': 'polite' }));
+		const note = () => {
+			noteLine.textContent = field.classList.contains('invalid') ? '' : this.ctx.note?.(path) ?? '';
+		};
 		const showMessage = (text: string) => {
 			const error = check(text);
 			message.textContent = error ? localize('schemaForm.notApplied', "{0} Not applied: the file keeps its last valid value.", error) : '';
 			field.classList.toggle('invalid', !!error);
 		};
+		// Table cells cut long text short ("1.2D + 1.0E + 0.5L + 0.2S"): the whole of it on hover.
+		const showTitle = (text: string) => {
+			if (container.classList.contains('form-cell')) {
+				box.inputElement.title = text;
+			}
+		};
+		this.inputs.set(path, { box, placeholder, note });
 		showMessage(initial);
+		note();
+		showTitle(initial);
 		this.disposables.add(box.onDidChange(text => {
 			showMessage(text);
+			showTitle(text);
 			if (check(text) !== undefined) {
+				note();
 				return;
 			}
 			const trimmed = text.trim();
-			apply(optional && trimmed === '' ? undefined : numeric ? Number(trimmed) : trimmed);
+			apply(empty && trimmed === '' ? undefined : numeric ? Number(trimmed) : trimmed);
 			this.ctx.changed(path, false);
+			note();
 		}));
 		this.disposables.add(addDisposableListener(box.inputElement, EventType.FOCUS, () => this.ctx.editing?.(true)));
-		this.disposables.add(addDisposableListener(box.inputElement, EventType.BLUR, () => this.ctx.editing?.(false)));
+		this.disposables.add(addDisposableListener(box.inputElement, EventType.BLUR, () => {
+			this.ctx.editing?.(false);
+			// The field's help does not linger over the next row once the cursor has left it.
+			this.hoverService.hideHover(true);
+		}));
 	}
 
 	/** A small borderless icon button (remove a row, add a part), with a hover. */

@@ -104,9 +104,16 @@ class Occupancy(_Model):
 class Site(_Model):
     location: LocationId = Field(  # type: ignore[valid-type]
         default="dhaka",
-        description="District town; sets the seismic zone and the basic wind speed.",
+        description="District town (BNBC 2020 Tables 6.2.8 and 6.2.15); sets the seismic zone "
+        "and the basic wind speed. Open the list and type the first letters to find a town; "
+        "elsewhere choose Custom and enter Z and V.",
         json_schema_extra=_labels(
-            [v.name for v in bnbc.LOCATIONS.values()] + ["Custom (enter Z and V)"]
+            [
+                f"{v.name} (zone {v.zone}, Z {bnbc.ZONE_COEFFICIENT[v.zone]:.2f}, "
+                f"V {v.wind_speed:g} m/s)"
+                for v in bnbc.LOCATIONS.values()
+            ]
+            + ["Custom (enter Z and V)"]
         ),
     )
     siteClassSource: Literal["soilReport", "entered"] = Field(
@@ -885,7 +892,7 @@ class Drawings(_Model):
         description="The revisions of the set, oldest first; the last is the current revision "
         "(0 when there is none).",
     )
-    sheetSize: Literal["A1", "A2", "A3"] = Field(
+    sheetSize: Literal["A0", "A1", "A2", "A3"] = Field(
         default="A1", title="Sheet size", description="ISO sheet of every drawing."
     )
     planScale: Literal[PLAN_SCALES] = _scale(  # type: ignore[valid-type]

@@ -36,6 +36,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { BNBC, DEFAULT_SETTINGS, SETTINGS_SCHEMA, TEMPLATES, THERMAL_COMBINATIONS } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { IPartSectionPane, sectionOption } from '../../../services/saengineProject/common/partSections.js';
+import { IPartCheckItem, ISaenginePartStatusService } from '../../../services/saengineProject/common/partStatus.js';
 import { ISaengineProjectService, partById, PROJECT_TYPES, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
 import { appendPropertyRow, EditorFrame } from '../../saengineProject/browser/editorFrame.js';
 import './media/codePacks.css';
@@ -258,9 +259,20 @@ export function settingsSections(schema: IJSONSchema): ISettingsSection[] {
 		}
 		const ref = property.$ref?.startsWith('#/$defs/') ? schema.$defs?.[property.$ref.slice('#/$defs/'.length)] : undefined;
 		sections.push({ id: key, title: titleCase(property.title ?? ref?.title ?? humanize(key)), keys: [key] });
+		if (key === 'drawings') {
+			// How the bars are detailed is an engineering choice, not part of the title block.
+			sections.push({ id: DETAILING_SECTION, title: localize('settings.detailingSection', "Detailing"), keys: [key] });
+		}
 	}
 	return sections;
 }
+
+/** The section of the drawings' detailing choices (development length, bar cut-off). */
+const DETAILING_SECTION = 'detailing';
+const DETAILING_FIELDS: ReadonlySet<string> = new Set(['developmentLength', 'curtail']);
+
+/** The title block fields of Drawings whose home is Project: [drawings field, project field]. */
+const PROJECT_FIELDS: readonly (readonly [string, string])[] = [['projectNumber', 'number'], ['engineer', 'engineer']];
 
 const SECTIONS = settingsSections(SETTINGS_SCHEMA);
 
@@ -311,6 +323,9 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 	/** The read-only rows of the Site and Foundation sections telling where the values come from. */
 	private siteSourceCell: HTMLElement | undefined;
 	private bearingSourceCell: HTMLElement | undefined;
+	/** The Seismic section's read-only design category row (see renderSeismicSummary). */
+	private seismicCell: HTMLElement | undefined;
+	private readonly seismicDisposables = this._register(new DisposableStore());
 	private readonly resetAction = this._register(Object.assign(
 		new Action('saengine.settings.resetCombinations', localize('settings.resetCombinationsEllipsis', "Reset Combinations to {0}...", BNBC.edition), undefined, true, () => this.resetCombinations()),
 		{ tooltip: localize('settings.resetTitle', "Replace the load combinations with the {0} strength design combinations", BNBC.edition) },
@@ -331,6 +346,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		@IHoverService private readonly hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITextFileService private readonly textFiles: ITextFileService,
+		@ISaenginePartStatusService private readonly partStatus: ISaenginePartStatusService,
 	) {
 		super(SettingsEditor.ID, group, telemetryService, themeService, storageService, commands, editorService, textModels, project);
 		this.trackDeveloperMode(configurationService);
@@ -340,9 +356,10 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			references: path => this.references(path),
 			validate: (path, value) => this.validate(path, value),
 			changed: (path, structural) => this.onChanged(path, structural),
-			mode: path => path === 'site.siteClass' && this.siteClassFromSoil ? 'hidden' : undefined,
+			mode: path => this.fieldMode(path),
 			newItem: (path, list) => this.newItem(path, list),
 			placeholder: path => this.placeholder(path),
+			note: path => this.note(path),
 			referenceLabel: (path, id) => this.referenceLabel(path, id),
 			editing: active => this.fieldEditing(active),
 		});
@@ -629,6 +646,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			}
 			append(bearing, $('span.settings-source-value', undefined, text));
 		}
+		this.renderSeismicSummary();
 	}
 
 	protected override createDocumentFrame(parent: HTMLElement): EditorFrame {
@@ -749,6 +767,74 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		return BNBC.systems[String(seismic.system)];
 	}
 
+	/**
+	 * Fields the section or the data leave out: the entered site class while the soil report gives
+	 * one; the detailing choices on the Detailing page only (and the rest of Drawings off it); the
+	 * drawings' own project number and engineer, whose home is Project, unless an old file holds
+	 * one that differs from Project's (shown so that it can be cleared).
+	 */
+	private fieldMode(path: string): 'hidden' | undefined {
+		if (path === 'site.siteClass' && this.siteClassFromSoil) {
+			return 'hidden';
+		}
+		const [group, field] = path.split('.');
+		if (group !== 'drawings' || field === undefined || path.split('.').length !== 2) {
+			return undefined;
+		}
+		if ((this.section?.id === DETAILING_SECTION) !== DETAILING_FIELDS.has(field)) {
+			return 'hidden';
+		}
+		const own = PROJECT_FIELDS.find(([drawing]) => drawing === field);
+		return own && this.titleBlockOverride(own[0], own[1]) === undefined ? 'hidden' : undefined;
+	}
+
+	/** A drawings field (`projectNumber`) that holds a value other than Project's (`number`). */
+	private titleBlockOverride(drawingField: string, projectField: string): string | undefined {
+		const drawings = isObject(this.document?.drawings) ? this.document.drawings : {};
+		const project = isObject(this.document?.project) ? this.document.project : {};
+		const value = drawings[drawingField];
+		return typeof value === 'string' && value !== '' && value !== project[projectField] ? value : undefined;
+	}
+
+	/** A quiet line under an entered override: the code value it replaces (clear the field to use it). */
+	private note(path: string): string | undefined {
+		const document = this.document;
+		const object = (key: string) => (isObject(document?.[key]) ? document![key] : {}) as JsonObject;
+		const site = object('site');
+		const location = this.location;
+		const system = this.system;
+		switch (path) {
+			case 'site.zoneCoefficient':
+				return typeof site.zoneCoefficient === 'number' && location
+					? localize('settings.zOverrideNote', "Override: {0} Table 6.2.14 gives {1} for {2} (zone {3}). Clear the field to use it.", BNBC.edition, format(BNBC.zoneCoefficient[String(location.zone)]), location.name, location.zone)
+					: typeof site.zoneCoefficient === 'number'
+						? localize('settings.zCustomNote', "Seismic zone {0} (Table 6.2.14: the zone whose Z is nearest).", zoneOf(site.zoneCoefficient))
+						: undefined;
+			case 'site.windSpeed':
+				return typeof site.windSpeed === 'number' && location
+					? localize('settings.vOverrideNote', "Override: {0} Table 6.2.8 gives {1} m/s for {2}. Clear the field to use it.", BNBC.edition, format(location.windSpeed), location.name)
+					: undefined;
+			case 'seismic.r':
+			case 'seismic.omega':
+			case 'seismic.cd': {
+				const key = path.slice('seismic.'.length) as 'r' | 'omega' | 'cd';
+				return typeof object('seismic')[key] === 'number' && system
+					? localize('settings.factorOverrideNote', "Override: {0} Table 6.2.19 row {1} gives {2} for {3}.", BNBC.edition, system.row, format(system[key]), system.name)
+					: undefined;
+			}
+		}
+		const own = PROJECT_FIELDS.find(([drawing]) => path === `drawings.${drawing}`);
+		if (own) {
+			const project = object('project')[own[1]];
+			return this.titleBlockOverride(own[0], own[1]) !== undefined
+				? typeof project === 'string' && project
+					? localize('settings.titleBlockDiffers', "Differs from Project's \"{0}\". Clear it so that the drawings print Project's.", project)
+					: localize('settings.titleBlockMove', "Project has none: enter it in Project and clear it here, so that it is kept in one place.")
+				: undefined;
+		}
+		return undefined;
+	}
+
 	/** An empty override shows the value it would replace, with its table. */
 	private placeholder(path: string): string | undefined {
 		const location = this.location;
@@ -764,11 +850,27 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			case 'wind.topographic': return localize('settings.kztPlaceholder', "{0} (flat terrain)", format(BNBC.wind.topographic));
 			case 'wind.gust': return localize('settings.gustPlaceholder', "{0} (rigid, Sec 2.4.8.1)", format(BNBC.wind.gust));
 			case 'foundation.allowableBearing': return localize('settings.qaPlaceholder', "from 1 Soil Report");
+			case 'analysis.seismicLiveFactor': {
+				const live = this.earthquakeLiveFactor();
+				return live !== undefined
+					? localize('settings.seismicLivePlaceholder', "{0} (the 1.2D + 1.0E combination's; Sec 2.7.3.1)", format(live))
+					: localize('settings.seismicLiveNone', "the earthquake combination's (Sec 2.7.3.1)");
+			}
+			case 'analysis.massSource.liveShare': return localize('settings.liveSharePlaceholder', "0.25; 0.5 above 3 kN/m² (Sec 2.5.7.3)");
+			case 'analysis.slenderness.driftFactor': return localize('settings.driftFactorPlaceholder', "automatic: 1.0 on cracked sections");
+			case 'analysis.ssiShearModulusRatio': return localize('settings.gRatioPlaceholder', "from (2/3)·Z·S (ASCE 7-05 Table 19.2-1)");
 		}
 		if (/^combinations\.\d+\.F$/.test(path)) {
 			return localize('settings.fPlaceholder', "as D");
 		}
 		return undefined;
+	}
+
+	/** L's factor in the project's 1.2D + 1.0E + L combination (the first with E and D 1.2). */
+	private earthquakeLiveFactor(): number | undefined {
+		const combinations = Array.isArray(this.document?.combinations) ? this.document.combinations.filter(isObject) : [];
+		const quake = combinations.find(c => c.D === 1.2 && (typeof c.EX === 'number' && c.EX !== 0 || typeof c.EY === 'number' && c.EY !== 0));
+		return typeof quake?.L === 'number' ? quake.L : undefined;
 	}
 
 	private validate(path: string, value: string): string | undefined {
@@ -822,6 +924,56 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		}
 		if (path === 'occupancy.use') {
 			void this.offerFloorUse();
+		}
+		if (path === 'site.location') {
+			const from = this.shownLocation;
+			this.shownLocation = this.siteLocation;
+			if (from === 'custom' && this.shownLocation !== 'custom') {
+				void this.offerCodeSiteValues();
+			}
+		}
+	}
+
+	/** The location the form showed last, to tell when the site leaves Custom. */
+	private shownLocation: string | undefined;
+
+	private get siteLocation(): string | undefined {
+		const site = isObject(this.document?.site) ? this.document.site : undefined;
+		return site ? String(site.location ?? 'dhaka') : undefined;
+	}
+
+	/**
+	 * Leaving Custom for a town: the Z and V entered for the custom site would silently override
+	 * the town's code values, so the engineer is asked (the code values are the default answer).
+	 */
+	private async offerCodeSiteValues(): Promise<void> {
+		const document = this.document;
+		const site = isObject(document?.site) ? document.site : undefined;
+		const location = this.location;
+		const entered = (['zoneCoefficient', 'windSpeed'] as const).filter(k => typeof site?.[k] === 'number');
+		if (!document || !site || !location || !entered.length) {
+			return;
+		}
+		const z = BNBC.zoneCoefficient[String(location.zone)];
+		const values = [
+			typeof site.zoneCoefficient === 'number' ? localize('settings.siteZ', "Z {0} (the code gives {1})", format(site.zoneCoefficient), format(z)) : undefined,
+			typeof site.windSpeed === 'number' ? localize('settings.siteV', "V {0} m/s (the code gives {1})", format(site.windSpeed), format(location.windSpeed)) : undefined,
+		].filter(Boolean).join(', ');
+		const useCode = await this.dialogService.prompt<boolean>({
+			type: 'question',
+			message: localize('settings.leaveCustomConfirm', "Use the code values of {0}?", location.name),
+			detail: localize('settings.leaveCustomDetail', "The custom site had {0}. Kept, they override {1}'s values from {2} Tables 6.2.14 and 6.2.8.", values, location.name, BNBC.edition),
+			buttons: [
+				{ label: localize('settings.useCodeValues', "&&Use the Code Values"), run: () => true },
+				{ label: localize('settings.keepOverrides', "&&Keep as Overrides"), run: () => false },
+			],
+			cancelButton: { label: localize('settings.keepOverridesCancel', "Keep as Overrides"), run: () => false },
+		});
+		if (useCode.result && this.document === document) {
+			for (const key of entered) {
+				delete site[key];
+			}
+			this.changed(true);
 		}
 	}
 
@@ -935,6 +1087,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 
 	protected render(): void {
 		this.problemBox = undefined;
+		this.shownLocation = this.siteLocation;
 		this.renderProjectType();
 		this.renderCodePack();
 		this.renderNav();
@@ -980,6 +1133,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 
 	private renderPage(): void {
 		this.pageDisposables.clear();
+		this.seismicCell = undefined;
 		clearNode(this.page);
 		const section = this.section;
 		if (!this.document || !section) {
@@ -1005,7 +1159,62 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		this.bearingSourceCell = section.keys.includes('foundation')
 			? this.sourceRow(form, fieldTitle('Foundation', 'allowableBearing'), localize('settings.qaUsed', "Allowable bearing qa used"))
 			: undefined;
+		// The category the site, occupancy and system give, also when the Code Values panel is closed.
+		this.seismicCell = section.keys.includes('seismic')
+			? this.sourceRow(form, undefined, localize('settings.designCategoryRow', "Design category"))
+			: undefined;
+		if (section.id === 'drawings') {
+			this.renderTitleBlockSource(this.sourceRow(form, undefined, localize('settings.titleBlockRow', "Project number and engineer")));
+		}
 		this.renderSources();
+	}
+
+	/** Drawings: the title block's project number and engineer come from Project (one home). */
+	private renderTitleBlockSource(cell: HTMLElement): void {
+		const project = isObject(this.document?.project) ? this.document.project : {};
+		const text = (value: JsonValue | undefined) => typeof value === 'string' && value ? value : localize('settings.notEntered', "not entered");
+		append(cell, $('span.settings-source-value', undefined, localize('settings.titleBlockFromProject', "from Project: {0}, {1}. Edit them in Project; every sheet prints them.", text(project.number), text(project.engineer))));
+		const button = this.pageDisposables.add(new Button(append(cell, $('span.settings-source-action')), { ...defaultButtonStyles, secondary: true }));
+		button.label = localize('settings.showProject', "Show Project");
+		this.pageDisposables.add(button.onDidClick(() => this.selectSection('project')));
+	}
+
+	/**
+	 * The Seismic section's read-only summary: "SDC D (zone 2, Z 0.20, SD, occupancy II), I = 1,
+	 * special detailing", and when the system is not permitted, why and a switch to one that is.
+	 */
+	private renderSeismicSummary(): void {
+		const cell = this.seismicCell;
+		const document = this.document;
+		if (!cell || !document) {
+			return;
+		}
+		this.seismicDisposables.clear();
+		clearNode(cell);
+		const soil = this.sources?.soil;
+		const site = isObject(document.site) ? document.site : {};
+		const siteClass = soil?.class && site.siteClassSource !== 'entered' ? soil.class : String(site.siteClass);
+		const values = codeValues(document, soil?.class ? { class: soil.class, label: soil.label } : undefined);
+		const value = (label: string) => values.find(v => v.label === label);
+		const category = designCategory(document, siteClass);
+		const occupancy = isObject(document.occupancy) ? document.occupancy : {};
+		const detailing = value(localize('code.detailing', "Seismic detailing"));
+		append(cell, $('span.settings-source-value', undefined, category
+			? localize('settings.designCategorySummary', "SDC {0} (zone {1}, Z {2}, site class {3}, occupancy category {4}), I = {5}; {6} detailing",
+				category.sdc, category.zone, value(localize('code.z', "Zone coefficient Z"))?.value ?? '—', siteClass, String(occupancy.category),
+				value(localize('code.seismicImportance', "Seismic importance factor I"))?.value ?? '—', detailing?.value ?? '—')
+			: localize('settings.designCategoryNone', "needs the zone: choose a location, or enter Z for a custom site")));
+		if (detailing?.problem) {
+			const warning = append(cell, $('span.settings-source-warning'));
+			append(warning, $(`span${ThemeIcon.asCSSSelector(Codicon.warning)}`));
+			append(warning, $('span', undefined, detailing.problem));
+		}
+		if (category?.alternative) {
+			const target = BNBC.systems[category.alternative];
+			const button = this.seismicDisposables.add(new Button(append(cell, $('span.settings-source-action')), { ...defaultButtonStyles, supportIcons: true }));
+			button.label = localize('settings.useSystem', "Use {0}", target?.name ?? category.alternative);
+			this.seismicDisposables.add(button.onDidClick(() => void this.switchSystem(category.alternative!)));
+		}
 	}
 
 	private selectSection(id: string): void {
@@ -1132,12 +1341,36 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		}
 	}
 
+	private readonly checksScheduler = this._register(new RunOnceScheduler(() => void this.reportChecks(), 500));
+
+	/**
+	 * The settings' problems for the part list (`02 Project Settings/checks.json`): the checks of
+	 * the saved file and a structural system the Seismic Design Category does not permit, so the
+	 * part is not "done" while any is open. Unsaved edits are not reported (the counts must match
+	 * the saved file the stamps are taken from).
+	 */
+	private async reportChecks(): Promise<void> {
+		const document = this.document;
+		const resource = this.resource;
+		if (!document || !resource || this.textFiles.isDirty(resource)) {
+			return;
+		}
+		const items: IPartCheckItem[] = this.problems.map(p => ({ severity: 'error', message: p.message, ...(p.path ? { where: p.path } : {}) }));
+		const soil = this.sources?.soil;
+		const system = codeValues(document, soil?.class ? { class: soil.class, label: soil.label } : undefined).find(v => v.problem);
+		if (system?.problem && !this.problems.some(p => p.path.startsWith('seismic'))) {
+			items.push({ severity: 'error', message: system.problem, where: 'seismic.system' });
+		}
+		await this.partStatus.reportChecks('settings', { problems: items.length, items }, ['settings', 'soil']);
+	}
+
 	/** The status line: problems when there are any, otherwise what the settings are for. */
 	private renderStatus(): void {
 		const frame = this.documentFrame;
 		if (!frame || !this.document) {
 			return;
 		}
+		this.checksScheduler.schedule();
 		if (this.problems.length) {
 			const first = this.problems[0];
 			const section = SECTIONS.find(s => this.problemsIn(s).includes(first));
