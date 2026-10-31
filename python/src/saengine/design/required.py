@@ -1053,6 +1053,11 @@ def slab_rows(collected: dict[str, Any], combinations: list[str], assumed: bool)
     layers = slab_design.layers_of(reinforcement, h)
     dias = {n: (layer.dia if layer else 0.0) for n, layer in layers.items()}
     depths = slab_depths(h, reinforcement.cover, dias)
+    ribs = collected["context"].ribs
+    if ribs is not None:
+        # The layers of a rib direction work at the total depth (saengine.design.slab_systems).
+        full = slab_depths(ribs.total, reinforcement.cover, dias)
+        depths = {n: (full[n] if n[-1] in ribs.directions else d) for n, d in depths.items()}
     envelope = slab_envelope(collected, combinations)
     span = slab_design.span_direction(obj.system, {n: p.value * 1e3 for n, p in envelope.items()})
     rules = slab_layer_rules(obj.system, h, span)

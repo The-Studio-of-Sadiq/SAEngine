@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { disposeObject, Floats, ModelIndex } from './geometry.js';
 import { LabelLayer } from './labels.js';
-import { FemResultDisplay, FemResultElement, FemResultQuantity, FemResultView, FemVisibleElements, FORCE_COMPONENTS, formatUtilisation, outerFaces, SHELL_COMPONENTS, SOLID_COMPONENTS, utilisationBand } from './model.js';
+import { FemResultDisplay, FemResultElement, FemResultQuantity, FemResultShell, FemResultView, FemValueQuantity, FemVisibleElements, FORCE_COMPONENTS, formatUtilisation, outerFaces, SHELL_COMPONENTS, SOLID_COMPONENTS, utilisationBand } from './model.js';
 
 export interface ResultColors {
 	readonly deformed: string;
@@ -135,6 +135,8 @@ export class ResultOverlay {
 			this.drawDeformed();
 		} else if (SHELL_COMPONENTS.includes(display.show)) {
 			this.drawContour(SHELL_COMPONENTS.indexOf(display.show));
+		} else if (display.show === 'shellValues') {
+			this.drawShellValues(display.shellValues ?? {}, display.shellValueQuantity ?? 'forcePerLength');
 		} else if (display.show in SOLID_COMPONENTS) {
 			this.drawStress(SOLID_COMPONENTS[display.show]);
 		} else if (display.show === 'reactions') {
@@ -633,10 +635,21 @@ export class ResultOverlay {
 	 */
 	private drawContour(component: number): void {
 		const shells = (this.results.shells ?? []).filter(s => s.forces);
+		const kind = component < 3 ? 'forcePerLength' : component < 6 ? 'momentPerLength' : 'forcePerLength';
+		this.contour(shells, shells.map(s => s.forces![component]), kind);
+	}
+
+	/** One given value per shell (by element id) as a contour; shells without one are left out. */
+	private drawShellValues(byId: { readonly [elementId: number]: number }, kind: FemValueQuantity): void {
+		const shells = (this.results.shells ?? []).filter(s => byId[s.id] !== undefined);
+		this.contour(shells, shells.map(s => byId[s.id]), kind);
+	}
+
+	/** `shells` coloured by their `values` from the least to the largest, the largest labelled. */
+	private contour(shells: readonly FemResultShell[], values: readonly number[], kind: FemValueQuantity): void {
 		if (!shells.length) {
 			return;
 		}
-		const values = shells.map(s => s.forces![component]);
 		const low = least(values);
 		const high = largest(values);
 		const positions = new Floats();
@@ -668,7 +681,6 @@ export class ResultOverlay {
 		lines.setAttribute('position', outline.attribute());
 		this.group.add(new THREE.LineSegments(lines, new THREE.LineBasicMaterial({ color: this.colors.labelBackground, transparent: true, opacity: 0.5 })));
 		if (biggest) {
-			const kind = component < 3 ? 'forcePerLength' : component < 6 ? 'momentPerLength' : 'forcePerLength';
 			this.labelling = this.fixedLabel(this.display.format(kind, biggest.value), biggest.at, this.colors.label);
 		}
 	}

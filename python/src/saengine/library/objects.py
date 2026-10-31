@@ -276,6 +276,56 @@ class PunchingReinforcement(_Model):
     )
 
 
+class DropPanel(_Model):
+    """A thickening of a flat slab under every column it sits on (BNBC 2020 Part 6 Sec 6.5;
+    ACI 318-19 8.2.4): a rectangle centred on the column, in the column's axes."""
+
+    depth: Length = Field(
+        description="Projection below the slab's soffit [mm] (at least a quarter of the slab "
+        "thickness to count as a drop panel)."
+    )
+    length: Length = Field(
+        description="Plan dimension along the column's local x [mm] (at least a sixth of the "
+        "span each way from the column's centre line)."
+    )
+    width: Length = Field(description="Plan dimension along the column's local y [mm].")
+
+
+class ColumnCapital(_Model):
+    """A flared column head under the slab (or under its drop panel) at every column the slab
+    sits on: square in plan, widening from the column to ``size`` over ``depth`` (BNBC 2020
+    Part 6 Sec 6.5; ACI 318-11 13.1.2: only the part inside a 90° cone or pyramid from the
+    column counts)."""
+
+    size: Length = Field(
+        description="Plan dimension of the capital where it meets the slab or drop panel [mm]."
+    )
+    depth: Length = Field(description="Depth of the flare below the slab or drop panel [mm].")
+
+
+class SlabRibs(_Model):
+    """Ribs under the slab: a ribbed (one-way joist) slab, or a waffle slab with ribs both ways
+    (BNBC 2020 Part 6 joist construction; ACI 318-19 9.8.1). The slab's thickness is then the
+    topping over the ribs."""
+
+    direction: Literal["x", "y", "both"] = Field(
+        default="both",
+        description="Ribs along the slab's local x, along y (ribbed), or both ways (waffle).",
+        json_schema_extra={
+            "enumDescriptions": ["Ribs along x (ribbed)", "Ribs along y (ribbed)", "Waffle"]
+        },
+    )
+    width: Length = Field(default=125, description="Width of a rib's web [mm] (at least 100).")
+    depth: Length = Field(
+        default=300,
+        description="Depth of a rib below the topping [mm] (at most 3.5 times its width).",
+    )
+    spacing: Length = Field(
+        default=750,
+        description="Centre-to-centre spacing of the ribs [mm] (clear spacing at most 750).",
+    )
+
+
 class BoundaryHoops(_Model):
     """Hoops and crossties of a wall's boundary element (BNBC 2020 Part 6 Sec 8.3.6.6(d)(iii),
     8.3.5.4), or its end ties (8.3.6.6(e)(i))."""
@@ -506,9 +556,25 @@ class Brace(_ObjectBase):
 
 class Slab(_ObjectBase):
     kind: Literal["slab"] = "slab"
-    thickness: Length
+    thickness: Length = Field(description="[mm]; with ribs: the topping over them.")
     system: Literal["oneWay", "twoWay", "flat"] = "twoWay"
     reinforcement: PlanarReinforcement | None = None
+    ribs: SlabRibs | None = Field(
+        default=None,
+        description="Ribs under the slab: ribbed (one way) or waffle (both ways); empty: solid. "
+        "Bottom bars are given per metre width and placed in the ribs.",
+    )
+    dropPanel: DropPanel | None = Field(
+        default=None,
+        title="Drop panel",
+        description="Thickening under every column of a flat slab (on a waffle slab: the "
+        "solid head); empty: none.",
+    )
+    capital: ColumnCapital | None = Field(
+        default=None,
+        title="Column capital",
+        description="Flared head of every column under a flat slab; empty: none.",
+    )
     punchingReinforcement: PunchingReinforcement | None = Field(
         default=None,
         title="Punching reinforcement",

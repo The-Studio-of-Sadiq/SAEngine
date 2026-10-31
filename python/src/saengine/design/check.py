@@ -42,6 +42,7 @@ from saengine.design import (
     live_reduction,
     seismic_rules,
     slab,
+    slab_systems,
     steel_design,
 )
 from saengine.design import corbels as corbel_design
@@ -1516,6 +1517,25 @@ def _design_slabs(
         context.columns = _slab_columns(
             building, types, pieces, outline, level, notes if flat else []
         )
+        # Ribs, drop panels and capitals (saengine.design.slab_systems); drop panels and
+        # capitals only round the columns of a flat slab.
+        ribs = getattr(object_type, "ribs", None)
+        context.ribs = slab_systems.rib_section(object_type.thickness, ribs) if ribs else None
+        context.drop = getattr(object_type, "dropPanel", None) if flat else None
+        context.capital = getattr(object_type, "capital", None) if flat else None
+        drop_counts = False
+        if context.drop is not None and context.columns:
+            frame = slab.PlanFrame(axes)
+            plan = [frame.local(c.centre) for c in context.columns]
+            spans = (slab._grid_span(plan, 0), slab._grid_span(plan, 1))
+            drop_counts, problems = slab_systems.drop_qualifies(
+                object_type.thickness, context.drop, spans
+            )
+            if problems:
+                notes.append(
+                    f"{slab_id}: the drop panel does not count as one for the minimum "
+                    f"thickness (ACI 318-19 8.2.4): {'; '.join(problems)}"
+                )
         neighbours = [
             other
             for other_id, _, other, _, other_level in candidates
@@ -1526,17 +1546,23 @@ def _design_slabs(
                 outline,
                 axes,
                 object_type.system,
-                object_type.thickness,
+                slab_systems.design_depth(object_type),
                 fy,
                 concrete.mechanical.E or 4700 * math.sqrt(fc),
                 neighbours,
                 beams_at.get(round(level), []),
                 column_size=(
-                    sum(max(c.c1, c.c2) for c in context.columns) / len(context.columns)
+                    sum(
+                        max(slab_systems.support_size(c.c1, c.c2, context.capital))
+                        for c in context.columns
+                    )
+                    / len(context.columns)
                     if context.columns
                     else 0.0
                 ),
                 columns=[c.centre for c in context.columns] if flat else (),
+                drop=drop_counts,
+                ribbed=context.ribs is not None and object_type.system == "oneWay",
             )
         except (ValueError, ZeroDivisionError) as error:
             notes.append(f"{slab_id}: minimum thickness not checked: {error}")
@@ -1579,6 +1605,9 @@ def _design_slabs(
                 "utilisation": max((c["utilisation"] for c in strength), default=0.0),
                 "ok": all(c["ok"] for c in strength),
                 "strips": [_strip_outline(strip, axes) for strip in context.strips],
+                # The rebar contours: per analysis shell id, the steel [mm²/m] each layer
+                # needs (bottomX, bottomY, topX, topY), strength only.
+                "rebar": {str(k): v for k, v in context.contours.items()},
             }
         )
         notes += [f"{slab_id}: {note}" for note in context.notes]
@@ -1617,6 +1646,11 @@ def _coefficient_slab(
 
     if axes is None:
         return "not a horizontal slab (inclined areas are not designed yet)"
+    if getattr(object_type, "ribs", None) is not None:
+        return (
+            "ribbed and waffle slabs are designed from the shells: set the analysis's slabs "
+            "to shells (the coefficient methods are for solid slabs)"
+        )
     roof = level >= top_level - 1.0
     area_loads = {a.id: a for a in settings.areaLoads}
     load_id = getattr(element, "areaLoad", None) or (

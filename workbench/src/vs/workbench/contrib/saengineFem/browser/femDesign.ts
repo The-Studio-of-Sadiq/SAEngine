@@ -110,6 +110,12 @@ export interface IFemDesignElement {
 	 * its flexure checks name the governing one in their notes.
 	 */
 	readonly strips?: readonly IFemDesignStrip[];
+	/**
+	 * A slab's rebar contours: per analysis shell id, the steel [mm²/m] each layer needs for its
+	 * Wood-Armer moments enveloped over the combinations (bottom X, bottom Y, top X, top Y;
+	 * strength only, without the minimum steel).
+	 */
+	readonly rebar?: { readonly [shellId: string]: readonly number[] };
 }
 
 /** One bay of a slab's design strip (ACI 318-19 8.4.1.5: column and middle strips). */
@@ -466,6 +472,23 @@ export function designUtilisation(report: IFemDesignReport): { [elementId: numbe
 	for (const element of report.elements) {
 		for (const id of element.members) {
 			result[id] = element.utilisation;
+		}
+	}
+	return result;
+}
+
+/** The slab layers of {@link IFemDesignElement.rebar}, in its order. */
+export const SLAB_REBAR_LAYERS = ['bottomX', 'bottomY', 'topX', 'topY'] as const;
+
+/**
+ * The steel [mm²/m] layer `layer` (index in {@link SLAB_REBAR_LAYERS}) needs in each slab shell,
+ * by analysis element id: the rebar contours.
+ */
+export function slabRebar(report: IFemDesignReport, layer: number): { [elementId: number]: number } {
+	const result: { [elementId: number]: number } = {};
+	for (const element of report.elements) {
+		for (const [id, values] of Object.entries(element.rebar ?? {})) {
+			result[Number(id)] = values[layer] ?? 0;
 		}
 	}
 	return result;

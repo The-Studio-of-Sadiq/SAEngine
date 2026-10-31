@@ -690,6 +690,8 @@ def _derive_fem(
     beams and slabs under them and its rooms set their finish and live loads
     (:mod:`saengine.fem.architecture_loads`; ``analysis.partitionLoads``).
     """
+    from saengine.design import slab_systems  # here: saengine.design imports this module
+
     mep_notes: list[str] = []
     if mep is not None:
         from saengine.mep.loads import with_mep_openings, with_services_equipment
@@ -789,23 +791,36 @@ def _derive_fem(
         )
 
     def plate(
-        type_id: str, mods: dict[str, float] | None = None
+        type_id: str, mods: dict[str, float] | None = None, extra: float = 0.0
     ) -> tuple[int, float, float] | None:
-        """Plate section of a wall or slab type: (section id, density, thickness m); ``mods``:
-        stiffness modifiers (``membrane`` on E, ``bending`` on the plate bending)."""
+        """Plate section of a wall or slab type: (section id, density, thickness m whose weight
+        is its own); ``mods``: stiffness modifiers (``membrane`` on E, ``bending`` on the plate
+        bending); ``extra``: mm added to the thickness (a slab over a drop panel or capital).
+        A ribbed or waffle slab's plate has the ribs' equivalent bending thickness and the
+        membrane stiffness of its mean thickness (saengine.design.slab_systems)."""
         object_type = types.get(type_id)
         material = mats.get(object_type.material) if object_type else None
         if object_type is None or material is None or not material.mechanical.E:
             return None
-        thickness = object_type.thickness * MM
+        if object_type.kind == "slab" and not extra:
+            bending, membrane_t, weight = slab_systems.analysis_thicknesses(object_type)
+        else:
+            bending = membrane_t = weight = object_type.thickness + extra
+        thickness = bending * MM
+        ribbed = not math.isclose(membrane_t, bending)
         stiff = {k: v for k, v in (mods or {}).items() if k in ("membrane", "bending")}
-        key = ("plate", type_id, *sorted(stiff.items()))
+        key = ("plate", type_id, *sorted(stiff.items()), *((extra,) if extra else ()))
         if key not in b.section_ids:
             b.section_ids[key] = len(b.sections) + 1
-            membrane = stiff.get("membrane", 1.0)
+            membrane = stiff.get("membrane", 1.0) * (membrane_t / bending)
+            name = f"{type_id} {object_type.kind}" + (" (modified)" if stiff else "")
+            if extra:
+                name += f" +{extra:g} mm"
+            elif ribbed:
+                name += " (ribs: equivalent thickness)"
             plate_section = {
                 "id": b.section_ids[key],
-                "name": f"{type_id} {object_type.kind}" + (" (modified)" if stiff else ""),
+                "name": name,
                 "type": "ElasticMembranePlateSection",
                 "E": material.mechanical.E * 1e6 * membrane,
                 "nu": poisson(material),
@@ -813,14 +828,15 @@ def _derive_fem(
                 # The mass is lumped at the nodes with the loads, as for the frames.
                 "rho": 0.0,
             }
-            if stiff:
+            if stiff or ribbed:
                 plate_section["Ep_mod"] = stiff.get("bending", 1.0) / membrane
+            if stiff:
                 b.modified[b.section_ids[key]] = {
                     *(["E"] if "membrane" in stiff else []),
                     *(["Ep_mod"] if "bending" in stiff else []),
                 }
             b.sections.append(plate_section)
-        return b.section_ids[key], material.mechanical.density or 0.0, thickness
+        return b.section_ids[key], material.mechanical.density or 0.0, weight * MM
 
     # ── geometry: frames as lines, structural walls (and shell slabs) as surfaces ──
     lines: list[tuple[str, tuple[float, float, float], tuple[float, float, float]]] = []
@@ -1204,6 +1220,9 @@ def _derive_fem(
             ids = tuple(node_of[n] for n in nodes)
             if len(set(ids)) == len(ids):
                 b.shells.append(_Shell(source, ids, sec[0]))
+    # Drop panels and column capitals: the shells over them thicker, their extra weight
+    # (mm of concrete per shell, applied with the slab loads).
+    head_weight = _thicken_heads(b, building, types, plate, modifiers_of) if shell_slabs else {}
     for key, tetrahedra in meshed.volumes.items():
         material_id, density = block_materials[key]
         for nodes in tetrahedra:
@@ -1547,7 +1566,7 @@ def _derive_fem(
         self_weight = (
             (material.mechanical.density or 0.0)
             * G
-            * object_type.thickness
+            * slab_systems.weight_thickness(object_type)
             * MM
             * modifiers_of.get(element.id, {}).get("weight", 1.0)
             if material
@@ -1589,6 +1608,12 @@ def _derive_fem(
                     continue
                 for shell in shells_of[element.id] if pressure else []:
                     shell_pressure(shell, case, pressure)
+            density = (material.mechanical.density or 0.0) if material else 0.0
+            factor = modifiers_of.get(element.id, {}).get("weight", 1.0)
+            for shell in shells_of[element.id]:
+                extra = head_weight.get(id(shell), 0.0)
+                if extra and density:
+                    shell_pressure(shell, "D", density * G * extra * MM * factor)
             if rooms_here:
                 # Each shell element takes the area-weighted mean of the rooms over it.
                 for shell in shells_of[element.id]:
@@ -3340,6 +3365,85 @@ def pinned_twins(project: dict[str, Any]) -> dict[int, int]:
     }
 
 
+def _thicken_heads(
+    b: Any, building: Any, types: dict[str, Any], plate: Any, modifiers_of: dict[str, Any]
+) -> dict[int, float]:
+    """Drop panels and column capitals of flat slabs (saengine.design.slab_systems): every shell
+    of a slab whose centre lies over a drop panel or capital round a column below it takes a
+    plate that much thicker (the drop's depth; over a capital the drop's and the capital's).
+    Returns the extra concrete [mm] each such shell weighs beyond the slab's own self-weight
+    (``id(shell)`` -> mm): the drop's depth, and over a capital the capital's frustum smeared
+    over its square. Also notes the one-way ribs' isotropic plate."""
+    from saengine.design import slab_systems
+    from saengine.design.slab import _inside
+    from saengine.library.objects import CircleProfile, RectangleProfile
+
+    weights: dict[int, float] = {}
+    by_source: dict[str, list[_Shell]] = {}
+    for shell in b.shells:
+        by_source.setdefault(shell.source, []).append(shell)
+    columns = [e for e in building.elements if isinstance(e, ColumnElement)]
+    for element in building.elements:
+        if not isinstance(element, SlabElement) or element.id not in by_source:
+            continue
+        slab_type = types.get(element.type)
+        if slab_type is None or slab_type.kind != "slab":
+            continue
+        ribs = getattr(slab_type, "ribs", None)
+        if ribs is not None and ribs.direction != "both":
+            b.notes.append(
+                f"{element.id}: one-way ribs are analysed as a plate with the ribs' bending "
+                "stiffness both ways (isotropic); the design takes the moments the ribs' way"
+            )
+        drop = getattr(slab_type, "dropPanel", None)
+        capital = getattr(slab_type, "capital", None)
+        if slab_type.system != "flat" or (drop is None and capital is None):
+            continue
+        heads = []
+        for column in columns:
+            if abs(column.top - element.elevation) > 1:
+                continue
+            if not _inside(np.asarray(column.position, dtype=float), element.boundary):
+                continue
+            profile = getattr(types.get(column.type), "profile", None)
+            if isinstance(profile, RectangleProfile):
+                c1, c2 = float(profile.xDim), float(profile.yDim)
+            elif isinstance(profile, CircleProfile):
+                c1 = c2 = math.sqrt(math.pi) * float(profile.radius)
+            else:
+                continue
+            centre = (float(column.position[0]), float(column.position[1]))
+            heads.append((centre, float(column.rotation or 0.0), c1, c2))
+        if not heads:
+            continue
+        mods = modifiers_of.get(element.id)
+        h = float(slab_type.thickness)
+        base = slab_systems.weight_thickness(slab_type)
+        depth = float(drop.depth) if drop is not None else 0.0
+        for shell in by_source[element.id]:
+            middle = np.mean([b.coords[n] for n in shell.nodes], axis=0) / MM
+            extra, weight = 0.0, 0.0
+            for centre, angle, c1, c2 in heads:
+                if capital is not None:
+                    size = float(capital.size)
+                    if slab_systems.drop_zone(centre, angle, size, size, middle):
+                        smeared = slab_systems.capital_volume(c1, c2, capital) / size**2
+                        extra = max(extra, depth + float(capital.depth))
+                        weight = max(weight, h + depth + smeared - base)
+                        continue
+                if drop is not None and slab_systems.drop_zone(
+                    centre, angle, float(drop.length), float(drop.width), middle
+                ):
+                    extra = max(extra, depth)
+                    weight = max(weight, h + depth - base)
+            if extra:
+                sec = plate(element.type, mods, extra)
+                if sec is not None:
+                    shell.section = sec[0]
+                    weights[id(shell)] = weight
+    return weights
+
+
 def _rectangle(opening: Any, z: float) -> list[tuple[float, float, float]]:
     """Corners of a rectangular slab opening at elevation ``z`` (mm)."""
     angle = math.radians(opening.rotation)
@@ -3475,6 +3579,8 @@ def _live_arrangements(
     (``live_log``: kind, member index or node, load vector, placing point [mm]) goes to the
     arrangements whose bays hold its point. Arrangements that load nothing are left out.
     Returns the arrangements kept (they carry no seismic weight and no construction stage)."""
+    from saengine.design import slab_systems
+
     from saengine.fem import pattern_live
 
     if mode == "off" or not live_log:
@@ -3498,7 +3604,8 @@ def _live_arrangements(
             continue
         material = mats.get(slab_type.material)
         density = (material.mechanical.density or 0.0) if material else 0.0
-        dead = load.finish + load.partitions + density * G * slab_type.thickness * MM / 1e3
+        weight = slab_systems.weight_thickness(slab_type)
+        dead = load.finish + load.partitions + density * G * weight * MM / 1e3
         ok, why = pattern_live.patterns_required(slab_type.system, dead, load.live)
         needed.append(ok)
         reasons.append(why)

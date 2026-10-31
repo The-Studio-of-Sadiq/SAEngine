@@ -104,13 +104,14 @@ export interface FemResultElement {
 }
 
 /** Kinds of values the labels show. */
-export type FemValueQuantity = 'length' | 'force' | 'moment' | 'forcePerLength' | 'momentPerLength' | 'stress';
+export type FemValueQuantity = 'length' | 'force' | 'moment' | 'forcePerLength' | 'momentPerLength' | 'stress' | 'areaPerLength';
 
 /** What to draw of a result: the deflected shape, one section force's diagram, or the reactions. */
 export type FemResultQuantity = 'deformed' | 'N' | 'Vy' | 'Vz' | 'T' | 'My' | 'Mz' | 'reactions'
 	| 'N11' | 'N22' | 'N12' | 'M11' | 'M22' | 'M12' | 'Q13' | 'Q23'
 	| 'S11' | 'S22' | 'S33' | 'SVM'
-	| 'utilisation';
+	| 'utilisation'
+	| 'shellValues';
 
 export const FORCE_COMPONENTS: readonly FemResultQuantity[] = ['N', 'Vy', 'Vz', 'T', 'My', 'Mz'];
 
@@ -139,6 +140,13 @@ export interface FemResultDisplay {
 	 * drawn as a glyph at each node in its band's colour.
 	 */
 	readonly nodeUtilisation?: { readonly [nodeId: number]: number };
+	/**
+	 * `show: 'shellValues'`: one value per shell element by element id (for example the steel a
+	 * slab's layer needs there), drawn as a contour; shells without a value are not coloured.
+	 */
+	readonly shellValues?: { readonly [elementId: number]: number };
+	/** `show: 'shellValues'`: what the values are, for the label of the largest. */
+	readonly shellValueQuantity?: FemValueQuantity;
 	/**
 	 * Force diagrams: label every member's largest and least value (a member is the analysis
 	 * elements of one name before `#`: `B1`, `B1#2`, ...), not only the largest of the model.

@@ -36,6 +36,9 @@ export const FemPlanned = {
 	/** T44: composite steel and concrete. */
 	compositeBeams: 'fem.compositeBeams',
 	compositeColumns: 'fem.compositeColumns',
+	/** T14: cracked long-term FE deflection of slabs, and crack widths. */
+	crackedSlabDeflection: 'fem.crackedSlabDeflection',
+	crackWidths: 'fem.crackWidths',
 	/** T26: floor vibration from walking. */
 	floorVibration: 'fem.floorVibration',
 } as const;

@@ -546,6 +546,8 @@ class ConcreteTable(TableModel):
     slendernessLimit: float
     #: fy -> (exterior without edge beams, exterior with edge beams, interior) divisors of ln.
     twoWayThickness: dict[float, tuple[float, float, float]]
+    #: The same with drop panels (BNBC 2020 Table 6.6.3's right-hand columns).
+    twoWayThicknessDrop: dict[float, tuple[float, float, float]] | None = None
     oneWaySlabThickness: tuple[float, float, float]
     beamThickness: tuple[float, float, float]
     cover: Covers = Field(description="Assumed covers [mm] by element.")

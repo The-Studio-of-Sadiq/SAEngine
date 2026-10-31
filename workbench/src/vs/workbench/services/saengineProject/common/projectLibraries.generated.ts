@@ -1364,6 +1364,27 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			title: 'Column',
 			type: 'object',
 		},
+		ColumnCapital: {
+			additionalProperties: false,
+			description: 'A flared column head under the slab (or under its drop panel) at every column the slab\nsits on: square in plan, widening from the column to ``size`` over ``depth`` (BNBC 2020\nPart 6 Sec 6.5; ACI 318-11 13.1.2: only the part inside a 90° cone or pyramid from the\ncolumn counts).',
+			properties: {
+				size: {
+					description: 'Plan dimension of the capital where it meets the slab or drop panel [mm].',
+					exclusiveMinimum: 0,
+					title: 'Size',
+					type: 'number',
+				},
+				depth: {
+					description: 'Depth of the flare below the slab or drop panel [mm].',
+					exclusiveMinimum: 0,
+					title: 'Depth',
+					type: 'number',
+				},
+			},
+			required: ['size', 'depth'],
+			title: 'ColumnCapital',
+			type: 'object',
+		},
 		CouplingDiagonal: {
 			additionalProperties: false,
 			description: 'One of the two groups of diagonal bars of the coupling beams (spandrels over openings) of\na special structural wall (BNBC 2020 Part 6 Sec 8.3.6.7).',
@@ -1543,6 +1564,33 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			},
 			required: ['section'],
 			title: 'DesignedProfile',
+			type: 'object',
+		},
+		DropPanel: {
+			additionalProperties: false,
+			description: 'A thickening of a flat slab under every column it sits on (BNBC 2020 Part 6 Sec 6.5;\nACI 318-19 8.2.4): a rectangle centred on the column, in the column\'s axes.',
+			properties: {
+				depth: {
+					description: 'Projection below the slab\'s soffit [mm] (at least a quarter of the slab thickness to count as a drop panel).',
+					exclusiveMinimum: 0,
+					title: 'Depth',
+					type: 'number',
+				},
+				length: {
+					description: 'Plan dimension along the column\'s local x [mm] (at least a sixth of the span each way from the column\'s centre line).',
+					exclusiveMinimum: 0,
+					title: 'Length',
+					type: 'number',
+				},
+				width: {
+					description: 'Plan dimension along the column\'s local y [mm].',
+					exclusiveMinimum: 0,
+					title: 'Width',
+					type: 'number',
+				},
+			},
+			required: ['depth', 'length', 'width'],
+			title: 'DropPanel',
 			type: 'object',
 		},
 		EndPlateConnection: {
@@ -2663,7 +2711,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					type: 'string',
 				},
 				thickness: {
-					description: '[mm]',
+					description: '[mm]; with ribs: the topping over them.',
 					exclusiveMinimum: 0,
 					title: 'Thickness',
 					type: 'number',
@@ -2685,6 +2733,45 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					],
 					default: null,
 					title: 'Reinforcement',
+				},
+				ribs: {
+					anyOf: [
+						{
+							$ref: '#/$defs/SlabRibs',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Ribs under the slab: ribbed (one way) or waffle (both ways); empty: solid. Bottom bars are given per metre width and placed in the ribs.',
+					title: 'Ribs',
+				},
+				dropPanel: {
+					anyOf: [
+						{
+							$ref: '#/$defs/DropPanel',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Thickening under every column of a flat slab (on a waffle slab: the solid head); empty: none.',
+					title: 'Drop panel',
+				},
+				capital: {
+					anyOf: [
+						{
+							$ref: '#/$defs/ColumnCapital',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Flared head of every column under a flat slab; empty: none.',
+					title: 'Column capital',
 				},
 				punchingReinforcement: {
 					anyOf: [
@@ -2715,6 +2802,43 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			},
 			required: ['id', 'name', 'material', 'thickness'],
 			title: 'Slab',
+			type: 'object',
+		},
+		SlabRibs: {
+			additionalProperties: false,
+			description: 'Ribs under the slab: a ribbed (one-way joist) slab, or a waffle slab with ribs both ways\n(BNBC 2020 Part 6 joist construction; ACI 318-19 9.8.1). The slab\'s thickness is then the\ntopping over the ribs.',
+			properties: {
+				direction: {
+					default: 'both',
+					description: 'Ribs along the slab\'s local x, along y (ribbed), or both ways (waffle).',
+					enum: ['x', 'y', 'both'],
+					enumDescriptions: ['Ribs along x (ribbed)', 'Ribs along y (ribbed)', 'Waffle'],
+					title: 'Direction',
+					type: 'string',
+				},
+				width: {
+					default: 125,
+					description: 'Width of a rib\'s web [mm] (at least 100).',
+					exclusiveMinimum: 0,
+					title: 'Width',
+					type: 'number',
+				},
+				depth: {
+					default: 300,
+					description: 'Depth of a rib below the topping [mm] (at most 3.5 times its width).',
+					exclusiveMinimum: 0,
+					title: 'Depth',
+					type: 'number',
+				},
+				spacing: {
+					default: 750,
+					description: 'Centre-to-centre spacing of the ribs [mm] (clear spacing at most 750).',
+					exclusiveMinimum: 0,
+					title: 'Spacing',
+					type: 'number',
+				},
+			},
+			title: 'SlabRibs',
 			type: 'object',
 		},
 		Solid: {
@@ -10196,6 +10320,21 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		lines: 4,
 		firstLine: 50,
 		spacing: 100,
+	},
+	DropPanel: {
+		depth: 100,
+		length: 2400,
+		width: 2400,
+	},
+	ColumnCapital: {
+		size: 1000,
+		depth: 300,
+	},
+	SlabRibs: {
+		direction: 'both',
+		width: 125,
+		depth: 300,
+		spacing: 750,
 	},
 	PlanarReinforcement: {
 		material: 'B420DWR',

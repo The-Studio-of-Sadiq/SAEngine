@@ -564,6 +564,61 @@ registerPlannedFeature({
 		localize('planned.compositeColumns.ref2', "AISC 360 Ch I (composite members)"),
 	],
 });
+
+// T14: cracked long-term FE deflection of slabs, and crack widths.
+registerPlannedFeature({
+	id: FemPlanned.crackedSlabDeflection,
+	part: 'fem',
+	title: localize('fem.planned.crackedDeflection.title', "Cracked Long-Term Slab Deflection (FE)"),
+	summary: localize('fem.planned.crackedDeflection.summary', "Deflections of slabs from the finite element model with cracked sections, creep and shrinkage, instead of the hand method's immediate and long-term multipliers."),
+	steps: [
+		localize('fem.planned.crackedDeflection.step1', "Run the service load combinations on the shell model."),
+		localize('fem.planned.crackedDeflection.step2', "Reduce each shell's stiffness where its moment exceeds the cracking moment, from the bars entered (effective moment of inertia per shell), and iterate."),
+		localize('fem.planned.crackedDeflection.step3', "Add creep and shrinkage curvature over time for the sustained loads."),
+		localize('fem.planned.crackedDeflection.step4', "Compare the deflection after the partitions are built with the limits, and draw the deflected slab as a contour."),
+	],
+	inputs: [
+		{ label: localize('fem.planned.crackedDeflection.sustained', "Sustained share of the live load"), unit: '%', example: '25' },
+		{ label: localize('fem.planned.crackedDeflection.age', "Age at loading"), unit: localize('fem.planned.days', "days"), example: '28' },
+		{ label: localize('fem.planned.crackedDeflection.humidity', "Relative humidity"), unit: '%', example: '75' },
+		{ label: localize('fem.planned.crackedDeflection.creep', "Creep coefficient"), example: '2.0' },
+	],
+	outputs: [
+		localize('fem.planned.crackedDeflection.out1', "Immediate and long-term deflection contours per slab"),
+		localize('fem.planned.crackedDeflection.out2', "Deflection checks against the span limits, in the design checks and the report"),
+	],
+	references: [
+		'ACI 318-19 24.2.3, 24.2.4 (long-term deflection)',
+		'ACI 435R (control of deflection in concrete structures)',
+		'ACI 209.2R (creep and shrinkage models)',
+	],
+});
+
+registerPlannedFeature({
+	id: FemPlanned.crackWidths,
+	part: 'fem',
+	title: localize('fem.planned.crackWidths.title', "Crack Widths of Beams, Slabs and Walls"),
+	summary: localize('fem.planned.crackWidths.summary', "Calculated crack widths under service loads for beams, slabs and walls, checked against exposure limits. Today crack widths are checked for water tanks only."),
+	steps: [
+		localize('fem.planned.crackWidths.step1', "Take the service moments and axial forces of each member and slab strip."),
+		localize('fem.planned.crackWidths.step2', "Find the steel stress of the cracked section from the bars entered."),
+		localize('fem.planned.crackWidths.step3', "Work out the crack spacing and width, and compare with the limit of the exposure."),
+	],
+	inputs: [
+		{ label: localize('fem.planned.crackWidths.exposure', "Exposure class"), example: localize('fem.planned.crackWidths.exposureExample', "moderate") },
+		{ label: localize('fem.planned.crackWidths.limit', "Crack width limit"), unit: 'mm', example: '0.3' },
+		{ label: localize('fem.planned.crackWidths.combination', "Service combination"), example: 'D + L' },
+	],
+	outputs: [
+		localize('fem.planned.crackWidths.out1', "Crack width per member and per slab strip, as a design check"),
+		localize('fem.planned.crackWidths.out2', "Crack width contours on the slabs"),
+	],
+	references: [
+		'EN 1992-1-1 7.3.4 (crack width calculation)',
+		'ACI 224R (control of cracking in concrete structures)',
+	],
+});
+
 // Planned (T26: BNBC 2020 gives no floor vibration method; linear buckling is built, in the
 // result tables of each load combination).
 registerPlannedFeature({
