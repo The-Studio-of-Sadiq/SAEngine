@@ -220,11 +220,11 @@ export class SoilMapView extends Disposable {
 				: localize('soil.map.siteUnset', "Not set yet: type the site point's latitude and longitude to place the project grid on the map.")));
 		}
 		if (own) {
-			row(localize('soil.map.dms', "DMS"), `${formatDms(site.lat, 'lat')}\n${formatDms(site.lon, 'lon')}`);
+			row(localize('soil.map.dms', "DMS"), `${formatDms(own.lat, 'lat')}\n${formatDms(own.lon, 'lon')}`);
 			if (location?.site?.btm) {
 				row(localize('soil.map.btmLabel', "BTM"), formatBtm(location.site.btm), localize('soil.map.btmTitle', "Bangladesh Transverse Mercator (EPSG:9678)"));
 			}
-			if (!inBangladesh(site)) {
+			if (!inBangladesh(own)) {
 				append(this.panel, $('p.soil-note.warning', undefined, localize('soil.map.outside', "This position is outside Bangladesh: the BNBC location towns do not apply.")));
 			}
 		}

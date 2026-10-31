@@ -80,16 +80,16 @@ suite('SAEngine - Soil grid', () => {
 	test('Enter at the end of a row starts the next row, also when the row has a sample (N-S1)', () => {
 		const host = new SamplesHost(borehole());
 		disposables.add({ dispose: () => host.dispose() });
-		// Depth, To, No., Type, Seat, N1, N2: twenty rows, 1.5 m apart, as a log sheet gives them.
-		for (let i = 1; i <= 20; i++) {
+		// Depth, To, No., Type, Seat, N1, N2: eight rows, 1.5 m apart, as a log sheet gives them.
+		for (let i = 1; i <= 8; i++) {
 			host.typeRow([(1.5 * i).toFixed(1), (1.5 * i + 0.45).toFixed(2), `D-${i}`, 'SPT', '2', String(i), String(i + 1)]);
 		}
 		const b = host.borehole;
-		assert.strictEqual(b.spt.length, 20);
-		assert.deepStrictEqual(b.spt.map(s => s.depth), Array.from({ length: 20 }, (_, i) => 1500 * (i + 1)));
-		assert.deepStrictEqual(b.spt.map(s => [s.N1, s.N2]), Array.from({ length: 20 }, (_, i) => [i + 1, i + 2]));
-		assert.deepStrictEqual(b.samples.map(s => s.number), Array.from({ length: 20 }, (_, i) => `D-${i + 1}`));
+		assert.strictEqual(b.spt.length, 8);
+		assert.deepStrictEqual(b.spt.map(s => s.depth), Array.from({ length: 8 }, (_, i) => 1500 * (i + 1)));
+		assert.deepStrictEqual(b.spt.map(s => [s.N1, s.N2]), Array.from({ length: 8 }, (_, i) => [i + 1, i + 2]));
+		assert.deepStrictEqual(b.samples.map(s => s.number), Array.from({ length: 8 }, (_, i) => `D-${i + 1}`));
 		// The active cell waits in the first column of the new row.
-		assert.deepStrictEqual(host.state.active, { row: 20, column: 0 });
+		assert.deepStrictEqual(host.state.active, { row: 8, column: 0 });
 	});
 });

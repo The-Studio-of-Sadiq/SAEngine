@@ -827,7 +827,7 @@ export interface IBackendSoilReport {
 		};
 		readonly ks?: Maybe<number>;
 		readonly ksDetail?: { readonly B?: Maybe<number>; readonly Df?: Maybe<number>; readonly method?: Maybe<string>; readonly note?: Maybe<string>; readonly bowles?: Maybe<number> };
-		readonly pile?: readonly { readonly top: number; readonly bottom: number; readonly soilType?: Maybe<string>; readonly fs?: Maybe<number>; readonly qb?: Maybe<number>; readonly method?: Maybe<string>; readonly note?: Maybe<string> }[];
+		readonly pile?: readonly { readonly top: number; readonly bottom: number; readonly soilType?: Maybe<string>; readonly fs?: Maybe<number>; readonly qb?: Maybe<number>; readonly method?: Maybe<string>; readonly note?: Maybe<string>; readonly liquefiable?: Maybe<number>; readonly fsSeismic?: Maybe<number> }[];
 		readonly settlement?: Maybe<IBackendSettlement>;
 		readonly permissibleSettlement?: BackendPermissible;
 		readonly notes?: readonly string[];
@@ -1611,18 +1611,20 @@ export function checkSoilReport(report: ISoilReport): ISoilProblem[] {
 		if (!borehole.layers.length) {
 			problem({ borehole: id, path: 'layers', message: localize('soil.p.noLayers', "{0} has no layers yet.", id), severity: 'warning' });
 		}
-		// BNBC 2020 Table 6.2.13 classifies the site by the top 30 m: a shallower log gives a provisional class.
-		const logged = terminationDepth(borehole);
-		const rockBelow = borehole.layers.some(l => l.soilType === 'rock' && l.bottom >= logged - 1);
-		if (borehole.spt.length && logged > 0 && logged < SITE_CLASS_DEPTH - 1 && !rockBelow) {
-			problem({ borehole: id, path: 'depth', message: localize('soil.p.shallowForSiteClass', "{0} ends at {1} m: BNBC 2020 Table 6.2.13 classifies the site by the top 30 m, so its site class is provisional (its last N is carried down to 30 m).", id, formatNumber(logged / 1000, 1)), severity: 'warning' });
-		}
 		const away = distanceFromSite(report, borehole);
 		if (away !== undefined && away > FAR_FROM_SITE) {
 			const path = boreholePosition(borehole) === 'wgs84' ? 'lat' : 'x';
 			problem({ borehole: id, path, message: localize('soil.p.farFromSite', "{0} is {1} m from the site: check its position.", id, formatNumber(away, 0)), severity: 'warning' });
 		}
 	});
+	// BNBC 2020 Table 6.2.13 classifies the site by the top 30 m: when no borehole with SPT reaches
+	// it (or rock), the site class is provisional. One note for the report, not one per borehole.
+	const tested = report.boreholes.filter(b => b.spt.length);
+	const reaches = (b: IBorehole) => terminationDepth(b) >= SITE_CLASS_DEPTH - 1 || b.layers.some(l => l.soilType === 'rock' && l.bottom >= terminationDepth(b) - 1);
+	if (tested.length && !tested.some(reaches)) {
+		const deepest = Math.max(...tested.map(terminationDepth));
+		problems.push({ message: localize('soil.p.shallowForSiteClass', "No borehole reaches 30 m (the deepest ends at {0} m): BNBC 2020 Table 6.2.13 classifies the site by the top 30 m, so the site class is provisional (the last N is carried down to 30 m). Drill one borehole to 30 m to confirm it.", formatNumber(deepest / 1000, 1)), severity: 'warning' });
+	}
 	return problems;
 }
 

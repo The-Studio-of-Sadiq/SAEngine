@@ -274,7 +274,8 @@ suite('SAEngine - Soil site map', () => {
 		const r = report({ site: { lat: 23.81, lon: 90.41 } });
 		r.boreholes[0].position = 'wgs84';
 		r.boreholes[0].x = 33000; // stored before the site point moved
-		r.boreholes[1].lat = 23.8105; // also given a lat/lon, but placed by its X and Y
+		r.boreholes[1].position = 'project'; // also given a lat/lon, but placed by its X and Y
+		r.boreholes[1].lat = 23.8105;
 		r.boreholes[1].lon = 90.4105;
 		const location: ISoilLocationResult = {
 			site: { lat: 23.81, lon: 90.41, georeferenced: true },
