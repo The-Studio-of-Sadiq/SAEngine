@@ -66,6 +66,8 @@ from saengine.codes import context as code_context
 from saengine.fem import loads as fl
 from saengine.fem import slab_load_shapes as sls
 from saengine.fem.mesh import Surface, Volume, mesh, shell_node_shares
+from saengine.fem.towers import region_of as tower_region
+from saengine.fem.towers import towers_of
 from saengine.library.bim import (
     AreaElement,
     BeamElement,
@@ -1817,9 +1819,14 @@ def _derive_fem(
         extra_total += weight
 
     # ── rigid diaphragms: each floor tied to a node at its centre of mass ──
+    # Above a podium (``podiumTop``) each tower's part of a floor is a diaphragm of its own
+    # (:mod:`saengine.fem.towers`): the towers move on their own and meet through the podium.
     constraints: list[dict[str, Any]] = []
     retained_of: dict[float, int] = {}
+    #: Every diaphragm node of a level (several on a floor shared by towers).
+    masters_of: dict[float, list[int]] = {}
     rotary: dict[int, float] = {}  # node -> mass moment of inertia about Z [kg·m²]
+    towers = towers_of(building)
 
     def take(node_id: int, w: float, parts: dict[str, float]) -> None:
         node_weight[node_id] = node_weight.get(node_id, 0.0) + w
@@ -1827,45 +1834,90 @@ def _derive_fem(
         for k, v in parts.items():
             own[k] = own.get(k, 0.0) + v
 
+    def floor_parts(h: float, tied: list[int]) -> list[list[int]]:
+        """The nodes of level ``h`` by diaphragm: one part, or above a podium one per tower
+        (and one of the nodes in no tower)."""
+        if towers is None or h <= towers.podium + 1e-6:
+            return [tied]
+        parts: dict[str | None, list[int]] = {}
+        for n in tied:
+            x, y = (float(v) for v in b.coords[n][:2])
+            parts.setdefault(tower_region(x, y, towers), []).append(n)
+        return [parts[k] for k in sorted(parts, key=lambda k: (k is None, str(k)))]
+
     for h in heights:
-        tied = level_nodes[h]
-        rigid = options.diaphragm == "rigid" and len(tied) >= 2
-        placed = [(p, w) for p, w, _ in lumped[h] if p is not None]
-        total = sum(node_weight.get(n, 0.0) for n in tied) + sum(w for _, w in placed)
-        if total:
-            plan = (
-                sum(b.coords[n][:2] * node_weight.get(n, 0.0) for n in tied)
-                + sum((p * w for p, w in placed), np.zeros(2))
-            ) / total
-        else:
-            plan = sum(b.coords[n][:2] for n in tied) / len(tied)
-        if not rigid:
-            # No diaphragm node: each lumped weight goes to the level's node nearest in plan.
-            for p, w, parts in lumped[h]:
-                at = plan if p is None else p
-                target = min(tied, key=lambda n, at=at: float(np.sum((b.coords[n][:2] - at) ** 2)))
-                take(target, w, parts)
-            continue
-        key = (round(plan[0] / MM), round(plan[1] / MM), round(h / MM))
-        if key in b.nodes and b.nodes[key] in tied:
-            retained = b.nodes[key]  # a node of the floor is at its centre
-        else:
-            retained = b.node(*key)
-            b.restraints[retained] = list(_IN_PLAN)
-        retained_of[h] = retained
-        for p, w, parts in lumped[h]:
-            take(retained, w, parts)
-            if p is not None:
-                r2 = float(np.sum((p - b.coords[retained][:2]) ** 2))
-                rotary[retained] = rotary.get(retained, 0.0) + w / G * r2
-        constraints.append(
-            {
-                "type": "RigidDiaphragm",
-                "perp_dir": 3,
-                "retained_node": retained,
-                "constrained_nodes": sorted(n for n in tied if n != retained),
-            }
-        )
+        floor = floor_parts(h, level_nodes[h])
+        # The weights lumped to the level go to the part whose region holds them (the level's
+        # centre of mass: the largest part).
+        lumped_of: list[list[tuple[np.ndarray | None, float, dict[str, float]]]] = [
+            [] for _ in floor
+        ]
+        largest = max(range(len(floor)), key=lambda k: len(floor[k]))
+        for item in lumped[h]:
+            k = largest
+            if item[0] is not None and len(floor) > 1:
+                at = item[0]
+                k = min(
+                    range(len(floor)),
+                    key=lambda j, at=at: min(
+                        float(np.sum((b.coords[n][:2] - at) ** 2)) for n in floor[j]
+                    ),
+                )
+            lumped_of[k].append(item)
+        masters: list[int] = []
+        for tied, here in zip(floor, lumped_of, strict=True):
+            rigid = options.diaphragm == "rigid" and len(tied) >= 2
+            placed = [(p, w) for p, w, _ in here if p is not None]
+            total = sum(node_weight.get(n, 0.0) for n in tied) + sum(w for _, w in placed)
+            if total:
+                plan = (
+                    sum(b.coords[n][:2] * node_weight.get(n, 0.0) for n in tied)
+                    + sum((p * w for p, w in placed), np.zeros(2))
+                ) / total
+            else:
+                plan = sum(b.coords[n][:2] for n in tied) / len(tied)
+            if not rigid:
+                # No diaphragm node: each lumped weight goes to the level's node nearest in plan.
+                for p, w, parts in here:
+                    at = plan if p is None else p
+                    target = min(
+                        tied, key=lambda n, at=at: float(np.sum((b.coords[n][:2] - at) ** 2))
+                    )
+                    take(target, w, parts)
+                continue
+            key = (round(plan[0] / MM), round(plan[1] / MM), round(h / MM))
+            if key in b.nodes and b.nodes[key] in tied:
+                retained = b.nodes[key]  # a node of the floor is at its centre
+            else:
+                retained = b.node(*key)
+                b.restraints[retained] = list(_IN_PLAN)
+            masters.append(retained)
+            for p, w, parts in here:
+                take(retained, w, parts)
+                if p is not None:
+                    r2 = float(np.sum((p - b.coords[retained][:2]) ** 2))
+                    rotary[retained] = rotary.get(retained, 0.0) + w / G * r2
+            constraints.append(
+                {
+                    "type": "RigidDiaphragm",
+                    "perp_dir": 3,
+                    "retained_node": retained,
+                    "constrained_nodes": sorted(n for n in tied if n != retained),
+                }
+            )
+        masters_of[h] = masters
+        if len(floor) == 1 and masters:
+            # One diaphragm: the level's torsional moments act on its node. With several (a
+            # floor of several towers) they are spread over the level's nodes as forces.
+            retained_of[h] = masters[0]
+    if towers is not None:
+        split = [h for h in heights if len(masters_of.get(h, [])) > 1]
+        if split:
+            b.notes.append(
+                f"podium and towers: {len(split)} floors above the podium top "
+                f"({towers.podium:g} m) have a rigid diaphragm per tower; the accidental and "
+                "wind torsion of such a floor is spread over its nodes as forces"
+            )
 
     # Each level's weight: its nodes' and the nodes between that count for it (with
     # "levelAbove" the nearest level above the base, the supports' share with the first level;
@@ -1885,9 +1937,9 @@ def _derive_fem(
     force_nodes: dict[float, list[int]] = {}
     for h in heights:
         nodes_here = list(level_nodes[h])
-        master = retained_of.get(h)
-        if master is not None and master not in nodes_here and node_weight.get(master, 0.0):
-            nodes_here.append(master)
+        for master in masters_of.get(h, []):
+            if master not in nodes_here and node_weight.get(master, 0.0):
+                nodes_here.append(master)
         force_nodes[h] = nodes_here
 
     def level_shares(h: float) -> dict[int, float]:
