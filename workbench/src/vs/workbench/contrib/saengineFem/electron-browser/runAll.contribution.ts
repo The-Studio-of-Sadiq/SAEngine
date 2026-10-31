@@ -3,16 +3,21 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IntervalTimer } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { IEngineBusy, IFemSolverService } from '../../../../platform/saengine/common/femSolver.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { EditorResourceAccessor } from '../../../common/editor.js';
+import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { FEM_RESULT_TABLES_COMMAND, FEM_RUN_CASES_COMMAND, FEM_SHOW_LOG_COMMAND, IFemRunOptions } from '../browser/femResultsBar.js';
 import { FemAnalysisRunner } from './femAnalysisRunner.js';
@@ -146,3 +151,72 @@ registerAction2(class extends Action2 {
 		await accessor.get(IRunAllService).run();
 	}
 });
+
+/** After this long on one request the status bar says the engine is busy (N-G3). */
+const ENGINE_BUSY_STATUS_MS = 10_000;
+/** After this long it offers Restart Engine. */
+const ENGINE_BUSY_RESTART_MS = 60_000;
+
+/**
+ * The engine watchdog (N-G3 of usability walk 2): a backend request that takes long shows "Engine
+ * busy 12 s" in the status bar (click: Restart Engine), and after a minute one notification
+ * offers Restart Engine. While Run All runs its own status entry says the same, so only the
+ * status bar entry shows.
+ */
+class EngineWatchdog extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.saengine.engineWatchdog';
+
+	private busy: IEngineBusy = { pending: 0 };
+	private readonly ticker = this._register(new IntervalTimer());
+	private readonly entry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	/** The busy period a restart was already offered for (by the oldest request's start). */
+	private offeredFor: number | undefined;
+
+	constructor(
+		@IFemSolverService solverService: IFemSolverService,
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IRunAllService private readonly runAll: IRunAllService,
+	) {
+		super();
+		this._register(solverService.onDidChangeBusy(busy => {
+			this.busy = busy;
+			if (busy.since === undefined) {
+				this.ticker.cancel();
+				this.entry.clear();
+			} else {
+				this.ticker.cancelAndSet(() => this.update(), 1000);
+			}
+			this.update();
+		}));
+	}
+
+	private update(): void {
+		const since = this.busy.since;
+		const elapsed = since === undefined ? 0 : Date.now() - since;
+		if (since === undefined || elapsed < ENGINE_BUSY_STATUS_MS) {
+			this.entry.clear();
+			return;
+		}
+		const seconds = Math.round(elapsed / 1000);
+		const text = localize('engineBusy.status', "Engine busy {0} s", seconds);
+		const tooltip = localize('engineBusy.tooltip', "The SAEngine engine has been working on one request ({0}) for {1} s. Click to restart it: the request is stopped and the next one starts a new engine.", this.busy.method ?? '?', seconds);
+		const entry = { name: localize('engineBusy.name', "Engine busy"), text: `$(loading~spin) ${text}`, ariaLabel: text, tooltip, command: RESTART_ENGINE_COMMAND_ID, kind: 'warning' as const };
+		if (this.entry.value) {
+			this.entry.value.update(entry);
+		} else {
+			this.entry.value = this.statusbarService.addEntry(entry, 'saengine.engineBusy', StatusbarAlignment.LEFT, -101);
+		}
+		if (elapsed >= ENGINE_BUSY_RESTART_MS && this.offeredFor !== since && !this.runAll.running) {
+			this.offeredFor = since;
+			this.notificationService.prompt(Severity.Warning, localize('engineBusy.prompt', "The engine has been busy for {0} s ({1}). If the app no longer responds, restart the engine: the request is stopped and the next one starts a new engine.", seconds, this.busy.method ?? '?'), [{
+				label: localize('engineBusy.restart', "Restart Engine"),
+				run: () => this.commandService.executeCommand(RESTART_ENGINE_COMMAND_ID),
+			}], { sticky: false });
+		}
+	}
+}
+
+registerWorkbenchContribution2(EngineWatchdog.ID, EngineWatchdog, WorkbenchPhase.AfterRestored);

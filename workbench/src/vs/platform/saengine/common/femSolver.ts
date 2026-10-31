@@ -377,6 +377,16 @@ export interface ILibraryProblem {
 	readonly message: string;
 }
 
+/** What the backend is working on: its open requests and the oldest one. */
+export interface IEngineBusy {
+	/** Requests sent and not answered yet. */
+	readonly pending: number;
+	/** When the oldest of them was sent [ms since the epoch]; undefined when idle. */
+	readonly since?: number;
+	/** The method of the oldest ("design/report"). */
+	readonly method?: string;
+}
+
 /**
  * Hosts the SAEngine Python backend (in the shared process): analysis runs through the
  * opensees-studio CLI, and queries through a long-lived `python -m saengine.rpc` server.
@@ -386,6 +396,8 @@ export interface IFemSolverService {
 
 	readonly onDidRunEvent: Event<IFemRunEventMessage>;
 	readonly onDidRunExit: Event<IFemRunExit>;
+	/** Fires when a backend request starts or ends (or a restart drops them): the engine watchdog (N-G3). */
+	readonly onDidChangeBusy: Event<IEngineBusy>;
 
 	/** Starts an analysis run and returns its id; progress arrives through the events. */
 	startRun(request: IFemRunRequest): Promise<string>;
