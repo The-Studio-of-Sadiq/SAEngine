@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/femModelEditor.css';
-import type { FemModel, FemResultDisplay, FemSelection, FemViewer, FemViewerTheme } from '@saengine/fem-viewer';
+import type { FemMeasureMode, FemMeasurement, FemModel, FemResultDisplay, FemSelection, FemViewer, FemViewerTheme } from '@saengine/fem-viewer';
 import { $, addDisposableListener, append, Dimension, clearNode, EventType } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
@@ -51,7 +51,7 @@ import { baseReactionTable, displayTable, exportCell, FEM_STORY_RESPONSE_COMMAND
 import { renderSheetRows } from './femChart.js';
 import { jointGoverning, jointGoverningName, jointHeading, jointOk, jointsOf } from './femSeismicDetailing.js';
 import { chartUnits } from './femResultsView.js';
-import { cameraOf, FemViewChoice, freeTopColumns, IFilterModel, viewChoices, visibleElements } from './femViewFilter.js';
+import { cameraOf, FemViewChoice, formatPlanPath, freeTopColumns, gridLines, IFilterModel, parsePlanPath, perimeterPath, viewChoices, visibleElements } from './femViewFilter.js';
 import { loadViewerModule } from './viewerModule.js';
 
 /** The building member an analysis element belongs to (`C3#2` -> `C3`). */
@@ -633,6 +633,41 @@ async function summaryTables(commandService: ICommandService, model: URI, units:
 	};
 }
 
+/** A length in metres, to the millimetre. */
+function metres(value: number): string {
+	return localize('femEditor.metres', "{0} m", value.toFixed(3));
+}
+
+/** The column lines along one axis, for a message: `0, 5, 10`. */
+function gridList(model: IFilterModel, axis: 'x' | 'y'): string {
+	return gridLines(model)[axis].map(v => String(v)).join(', ');
+}
+
+/** The status line while measuring: what to click next, or the value measured. */
+export function measureText(mode: Exclude<FemMeasureMode, 'off'>, m: FemMeasurement | undefined): string {
+	if (m?.length !== undefined) {
+		return localize('femEditor.measuredLength', "Distance {0} (Δx {1}, Δy {2}, Δz {3}). Click to measure again; Escape clears.", metres(m.length), (m.dx ?? 0).toFixed(3), (m.dy ?? 0).toFixed(3), (m.dz ?? 0).toFixed(3));
+	}
+	if (m?.angle !== undefined) {
+		return localize('femEditor.measuredAngle', "Angle {0}°. Click to measure again; Escape clears.", m.angle.toFixed(2));
+	}
+	if (mode === 'area' && m && m.points.length >= 3) {
+		return m.complete
+			? localize('femEditor.measuredArea', "Area {0} m², perimeter {1}. Click to measure again; Escape clears.", (m.area ?? 0).toFixed(3), metres(m.perimeter ?? 0))
+			: localize('femEditor.measuringArea', "Area so far {0} m². Click the next corner, or the first point to close.", (m.area ?? 0).toFixed(3));
+	}
+	const picked = m?.points.length ?? 0;
+	switch (mode) {
+		case 'distance':
+			return picked ? localize('femEditor.distanceSecond', "Click the second point.") : localize('femEditor.distanceFirst', "Measure distance: click the first point (nodes snap).");
+		case 'angle':
+			return picked === 0 ? localize('femEditor.angleFirst', "Measure angle: click a point on the first arm (nodes snap).")
+				: picked === 1 ? localize('femEditor.angleVertex', "Click the vertex.") : localize('femEditor.angleThird', "Click a point on the second arm.");
+		case 'area':
+			return localize('femEditor.areaPoints', "Measure area: click the corners in turn (nodes snap), then the first point again to close.");
+	}
+}
+
 /**
  * The analysis model (`08 FEM/model.osmodel`) in 3D, in the shared editor frame: one toolbar
  * (result and what to show of it, the inline controls a result needs, Derive when the model is
@@ -696,6 +731,18 @@ export class FemModelEditor extends EditorPane {
 		this.meshNodesAction.checked = !this.meshNodesAction.checked;
 		this.viewer?.setMeshNodes(!!this.meshNodesAction.checked);
 	}));
+	/** Clicks in the view measure (snapping to nodes) instead of selecting. */
+	private readonly measureActions: { readonly [mode in Exclude<FemMeasureMode, 'off'>]: Action } = {
+		distance: this._register(new Action('saengine.fem.editor.measureDistance', localize('femEditor.measureDistance', "Measure Distance"), undefined, true, async () => this.setMeasureMode('distance'))),
+		angle: this._register(new Action('saengine.fem.editor.measureAngle', localize('femEditor.measureAngle', "Measure Angle"), undefined, true, async () => this.setMeasureMode('angle'))),
+		area: this._register(new Action('saengine.fem.editor.measureArea', localize('femEditor.measureArea', "Measure Area"), undefined, true, async () => this.setMeasureMode('area'))),
+	};
+	private readonly exportAnimationAction = this._register(new Action('saengine.fem.editor.exportAnimation', localize('femEditor.exportAnimation', "Export Animation..."), undefined, true, () => this.exportAnimation()));
+	private measureMode: FemMeasureMode = 'off';
+	private measurement: FemMeasurement | undefined;
+	/** The plan path of the custom developed elevation, once given. */
+	private customPath: [number, number][] | undefined;
+	private recording = false;
 
 	private readonly inputDisposables = this._register(new DisposableStore());
 	private readonly viewerDisposable = this._register(new MutableDisposable());
@@ -768,7 +815,9 @@ export class FemModelEditor extends EditorPane {
 		const viewGroup = append(frame.titleSlot, $('.fem-results-group.view'));
 		const viewPicker = this.viewPicker = this._register(new SelectBox([], 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('femEditor.viewAria', "Part of the model shown: the whole model, a plan, an elevation or one storey") }));
 		viewPicker.render(append(viewGroup, $('.fem-results-select.view')));
-		this._register(viewPicker.onDidSelect(({ index }) => this.setView(this.views[index]?.choice ?? { kind: 'all' })));
+		this._register(viewPicker.onDidSelect(({ index }) => index === this.views.length
+			? void this.askDevelopedPath() // the last entry: "Developed Elevation: Custom Path..."
+			: this.setView(this.views[index]?.choice ?? { kind: 'all' })));
 		this._register(this.onDidChangeSelection(selection => {
 			this.selection = selection;
 			this.results?.setSelection(selection);
@@ -1030,7 +1079,18 @@ export class FemModelEditor extends EditorPane {
 			new Separator(),
 			this.fitAction,
 			this.meshNodesAction,
+			new Separator(),
+			this.measureActions.distance,
+			this.measureActions.angle,
+			this.measureActions.area,
+			this.exportAnimationAction,
 		];
+		for (const [mode, action] of Object.entries(this.measureActions)) {
+			action.checked = this.measureMode === mode;
+			action.enabled = this.nodeCount > 0;
+		}
+		// A deflected shape (a mode shape or a static case's) can be recorded moving.
+		this.exportAnimationAction.enabled = hasResults && this.shownResult?.display.show === 'deformed' && !this.recording;
 		const key = `${primary.map(a => a.id).join()}|${secondary.map(a => a.id).join()}`;
 		if (key !== this.actionsKey) {
 			this.actionsKey = key;
@@ -1098,6 +1158,15 @@ export class FemModelEditor extends EditorPane {
 			// Not "not derived" or "not analysed" before the model and its results are read.
 			return { busy: true, text: localize('femEditor.reading', "Reading the analysis model...") };
 		}
+		if (this.recording) {
+			return { busy: true, text: localize('femEditor.recording', "Recording the animation...") };
+		}
+		if (this.measureMode !== 'off') {
+			return {
+				text: measureText(this.measureMode, this.measurement),
+				link: { label: localize('femEditor.measureDone', "Stop Measuring"), run: () => this.setMeasureMode('off') },
+			};
+		}
 		const results = this.results?.status();
 		if (results) {
 			return results;
@@ -1158,6 +1227,7 @@ export class FemModelEditor extends EditorPane {
 		}
 		clearNode(panel);
 		this.propertiesStore.clear();
+		this.renderMeasurement(panel);
 		this.results?.renderProperties(panel);
 		this.renderMemberLink(panel);
 		appendPropertyHeading(panel, localize('femEditor.modelHeading', "Model"));
@@ -1193,6 +1263,39 @@ export class FemModelEditor extends EditorPane {
 			}
 		}
 		this.renderPlanned(panel);
+	}
+
+	/** The measurement taken in the view: its value and the points picked. */
+	private renderMeasurement(panel: HTMLElement): void {
+		const m = this.measurement;
+		if (this.measureMode === 'off' || !m) {
+			return;
+		}
+		const developed = this.view.kind === 'developed';
+		appendPropertyHeading(panel, localize('femEditor.measurement', "Measurement"));
+		if (m.length !== undefined) {
+			appendPropertyRow(panel, localize('femEditor.measureLength', "Length"), metres(m.length));
+			appendPropertyRow(panel, developed ? localize('femEditor.measureAlong', "Δ along path") : 'Δx', metres(m.dx ?? 0));
+			if (!developed) {
+				appendPropertyRow(panel, 'Δy', metres(m.dy ?? 0));
+			}
+			appendPropertyRow(panel, 'Δz', metres(m.dz ?? 0));
+		}
+		if (m.angle !== undefined) {
+			appendPropertyRow(panel, localize('femEditor.measureAngleRow', "Angle"), `${m.angle.toFixed(2)}°`);
+		}
+		if (m.area !== undefined) {
+			appendPropertyRow(panel, localize('femEditor.measureAreaRow', "Area"), localize('femEditor.squareMetres', "{0} m²", m.area.toFixed(3)));
+			appendPropertyRow(panel, localize('femEditor.measurePerimeter', "Perimeter"), metres(m.perimeter ?? 0));
+			if (!m.complete) {
+				appendPropertyNote(panel, localize('femEditor.measureAreaOpen', "Click the first point again to close the polygon."));
+			}
+		}
+		m.points.forEach((p, k) => appendPropertyRow(panel, localize('femEditor.measurePoint', "Point {0}", k + 1),
+			developed ? `s ${p[0].toFixed(3)}, z ${p[2].toFixed(3)} m` : `${p[0].toFixed(3)}, ${p[1].toFixed(3)}, ${p[2].toFixed(3)} m`));
+		if (developed) {
+			appendPropertyNote(panel, localize('femEditor.measureDeveloped', "Measured in the developed elevation: s is the distance along the path."));
+		}
 	}
 
 	/** Chips to the analyses and systems planned after this MVP (see `FemPlanned`). */
@@ -1297,15 +1400,19 @@ export class FemModelEditor extends EditorPane {
 			const viewer = createFemViewer(this.viewport, {
 				theme: this.computeTheme(),
 				onSelectionChanged: selection => this._onDidChangeSelection.fire(selection),
+				onMeasure: measurement => {
+					this.measurement = measurement;
+					this.updateChrome();
+				},
 			});
 			this.viewer = viewer;
 			viewer.setMeshNodes(!!this.meshNodesAction.checked);
+			viewer.setMeasureMode(this.measureMode);
 			if (this.shownResult) {
 				viewer.setResults(this.shownResult.view, this.shownResult.display);
 			}
 			if (this.view.kind !== 'all' && this.femModel) {
-				viewer.setVisibleElements(visibleElements(this.femModel as unknown as IFilterModel, this.view));
-				void viewer.setCameraView(cameraOf(this.view));
+				this.applyView(this.view, true);
 			}
 			this.viewerDisposable.value = toDisposable(() => {
 				viewer.dispose();
@@ -1363,11 +1470,98 @@ export class FemModelEditor extends EditorPane {
 
 	/** The View picker's choices for `model`, keeping the view shown when the model still has it. */
 	private updateViews(model: IFilterModel): void {
-		this.views = viewChoices(model);
+		this.views = viewChoices(model, undefined, this.customPath);
 		const key = JSON.stringify(this.view);
 		const index = Math.max(0, this.views.findIndex(v => JSON.stringify(v.choice) === key));
-		this.viewPicker?.setOptions(this.views.map<ISelectOptionItem>(v => ({ text: v.label })), index);
+		this.viewPicker?.setOptions([
+			...this.views.map<ISelectOptionItem>(v => ({ text: v.label })),
+			{ text: localize('femEditor.developedCustomPath', "Developed Elevation: Custom Path...") },
+		], index);
 		this.applyView(this.views[index]?.choice ?? { kind: 'all' }, false);
+	}
+
+	/**
+	 * Asks for the plan path of a developed elevation (points along the frames to unfold, such
+	 * as a facade's column lines) and shows it; the picker goes back to the view shown when
+	 * none is given.
+	 */
+	private async askDevelopedPath(): Promise<void> {
+		const model = this.femModel as unknown as IFilterModel | undefined;
+		const initial = this.customPath ?? (model ? perimeterPath(model) : undefined);
+		const text = await this.quickInputService.input({
+			title: localize('femEditor.developedTitle', "Developed Elevation"),
+			prompt: localize('femEditor.developedPrompt', "Plan points along the frames to unfold, in metres: x, y; x, y; ... The frames and walls standing on the path are laid out in one plane, in the order walked."),
+			placeHolder: '0, 0; 12, 0; 12, 9',
+			value: initial ? formatPlanPath(initial) : '',
+			validateInput: async value => {
+				const parsed = parsePlanPath(value);
+				return 'error' in parsed ? parsed.error : undefined;
+			},
+		});
+		const parsed = text === undefined ? undefined : parsePlanPath(text);
+		if (!parsed || 'error' in parsed || !model) {
+			this.updateViews(model ?? { nodes: [], elements: [] }); // the picker shows the view shown
+			return;
+		}
+		this.customPath = parsed.path;
+		this.view = { kind: 'developed', path: parsed.path, name: 'custom' };
+		this.updateViews(model);
+		this.applyView(this.view, true);
+		if (this.viewer && !this.viewer.setDevelopment(parsed.path)?.size) {
+			this.notificationService.info(localize('femEditor.developedEmpty', "No frame or wall stands on that path. Give points on the column lines (x = {0} m; y = {1} m).",
+				gridList(model, 'x'), gridList(model, 'y')));
+		}
+	}
+
+	private setMeasureMode(mode: FemMeasureMode): void {
+		const next = this.measureMode === mode ? 'off' : mode; // its menu item again: stop measuring
+		this.measureMode = next;
+		this.measurement = undefined;
+		this.viewer?.setMeasureMode(next);
+		this.updateChrome();
+		this.viewport?.focus(); // Escape clears the measurement
+	}
+
+	/**
+	 * Records the deflected shape shown moving (a mode shape oscillating, a static case's shape
+	 * growing and back) as a WebM video of the view, at the view's size.
+	 */
+	private async exportAnimation(): Promise<void> {
+		const resource = this.resource;
+		const viewer = this.viewer;
+		const shown = this.shownResult;
+		if (!resource || !viewer || shown?.display.show !== 'deformed' || this.recording) {
+			this.notificationService.info(localize('femEditor.animationNeedsShape', "Show a deflected shape (a mode shape or a case's deformed shape) to export it as an animation."));
+			return;
+		}
+		const name = shown.view.label.replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '') || 'animation';
+		const target = await this.fileDialogService.showSaveDialog({
+			title: localize('femEditor.exportAnimationTitle', "Export Animation"),
+			defaultUri: joinPath(dirname(resource), `${name}.webm`),
+			filters: [{ name: localize('femEditor.webmFiles', "WebM Videos"), extensions: ['webm'] }],
+		});
+		if (!target) {
+			return;
+		}
+		this.recording = true;
+		this.updateChrome();
+		try {
+			const video = await viewer.recordAnimation({ seconds: 6.4, fps: 30 });
+			if (!video) {
+				this.notificationService.error(localize('femEditor.animationFailed', "The animation could not be recorded: this view cannot record video."));
+				return;
+			}
+			await this.fileService.writeFile(target, VSBuffer.wrap(new Uint8Array(await video.arrayBuffer())));
+			this.notificationService.prompt(Severity.Info, localize('femEditor.animationExported', "Exported the animation of {0} to {1}.", shown.view.label, target.fsPath), [{
+				label: localize('femEditor.revealExport', "Show in Folder"),
+				run: () => this.commandService.executeCommand('revealFileInOS', target),
+			}]);
+		} catch (error) {
+			this.notificationService.error(localize('femEditor.animationFailed2', "The animation could not be exported: {0}", errorSummary(error)));
+		} finally {
+			this.recording = false;
+			this.updateChrome();
+		}
 	}
 
 	private setView(choice: FemViewChoice): void {
@@ -1382,7 +1576,12 @@ export class FemModelEditor extends EditorPane {
 		if (!this.viewer || !model) {
 			return;
 		}
-		const visible = visibleElements(model, choice);
+		// A developed elevation: the viewer unfolds the path and finds the elements on it.
+		const onPath = this.viewer.setDevelopment(choice.kind === 'developed' ? choice.path : undefined);
+		const visible = choice.kind === 'developed' ? new Set(onPath ?? []) : visibleElements(model, choice);
+		if (changed) {
+			this.measurement = undefined; // measured in the other drawing
+		}
 		this.viewer.setVisibleElements(visible);
 		this.results?.setVisible(visible);
 		if (frame || changed) {
