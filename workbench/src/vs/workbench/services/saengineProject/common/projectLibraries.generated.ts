@@ -7534,6 +7534,36 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 			title: 'Story',
 			type: 'object',
 		},
+		Tower: {
+			additionalProperties: false,
+			description: 'One tower of a building with several towers on a common podium: the plan region whose\nfloors above the podium move on their own (a rigid diaphragm per tower and storey) and whose\ndrift, period and base shear are checked on their own (``saengine.fem.towers``).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				boundary: {
+					description: 'Corners of the tower\'s plan region, in order around it; the floors inside it above the podium belong to the tower.',
+					items: {
+						$ref: '#/$defs/GridPoint',
+					},
+					minItems: 3,
+					title: 'Boundary',
+					type: 'array',
+				},
+			},
+			required: ['id', 'name', 'boundary'],
+			title: 'Tower',
+			type: 'object',
+		},
 		Underlay: {
 			additionalProperties: false,
 			description: 'An architect\'s drawing shown, greyed and read-only, under one story\'s plan.\n\nA PDF shows one page\'s vector linework (``saengine.library.pdf_underlay``) in paper mm, so its\n``scale`` is the drawing\'s scale (100 for 1:100), set by calibrating two points against a\nknown length on the floor plan.',
@@ -7663,6 +7693,30 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 			title: 'Underlays',
 			type: 'array',
 		},
+		podiumTop: {
+			anyOf: [
+				{
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					type: 'string',
+				},
+				{
+					type: 'null',
+				},
+			],
+			default: null,
+			description: 'Several towers on one podium: the story at the top of the podium. The floors above it are split into the towers.',
+			title: 'Podium top',
+		},
+		towers: {
+			description: 'The towers above the podium, each a plan region (needs a podium top).',
+			items: {
+				$ref: '#/$defs/Tower',
+			},
+			title: 'Towers',
+			type: 'array',
+		},
 	},
 	title: 'SAEngine floor plan',
 	type: 'object',
@@ -7710,6 +7764,7 @@ export const DEFAULT_FLOOR_PLAN: object = {
 	slabs: [],
 	footings: [],
 	underlays: [],
+	towers: [],
 };
 
 export const STRUCTURE_SCHEMA: IJSONSchema = {
@@ -8483,6 +8538,42 @@ export const BIM_SCHEMA: IJSONSchema = {
 			},
 			required: ['id', 'at'],
 			title: 'BimSupport',
+			type: 'object',
+		},
+		BimTower: {
+			additionalProperties: false,
+			description: 'A tower above the podium (``FloorPlan.towers``), its plan region in mm.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				boundary: {
+					description: 'Corners in order around it.',
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					minItems: 3,
+					title: 'Boundary',
+					type: 'array',
+				},
+			},
+			required: ['id', 'name', 'boundary'],
+			title: 'BimTower',
 			type: 'object',
 		},
 		BlockElement: {
@@ -9809,6 +9900,30 @@ export const BIM_SCHEMA: IJSONSchema = {
 			title: 'Supports',
 			type: 'array',
 		},
+		podiumTop: {
+			anyOf: [
+				{
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					type: 'string',
+				},
+				{
+					type: 'null',
+				},
+			],
+			default: null,
+			description: 'The story at the top of the podium.',
+			title: 'Podium top',
+		},
+		towers: {
+			description: 'The towers above the podium (from the floor plan).',
+			items: {
+				$ref: '#/$defs/BimTower',
+			},
+			title: 'Towers',
+			type: 'array',
+		},
 	},
 	title: 'SAEngine building model',
 	type: 'object',
@@ -9825,6 +9940,7 @@ export const DEFAULT_BIM: object = {
 		members: [],
 	},
 	supports: [],
+	towers: [],
 };
 
 export const TEMPLATES: { readonly [defName: string]: object } = {

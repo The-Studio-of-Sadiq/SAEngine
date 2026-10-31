@@ -68,6 +68,40 @@ export interface IFemTorsionLevel {
 	readonly moment?: number | null;
 }
 
+/** A tower's period in one direction: the mode with the largest effective mass of the tower. */
+export interface IFemTowerPeriod {
+	readonly period: number;
+	readonly mode?: number | null;
+	readonly massRatio?: number | null;
+}
+
+/** A tower's base shear at the podium top in one direction [kN], and the factor it needs. */
+export interface IFemTowerShear {
+	readonly static: number;
+	readonly dynamic: number;
+	readonly scale: number;
+}
+
+/** A storey's torsional irregularity check: the drift at one end over the average of the two. */
+export interface IFemTorsionCheck {
+	readonly direction: string;
+	readonly bottom: number;
+	readonly top: number;
+	readonly ratio: number;
+	readonly irregular?: boolean | null;
+	readonly extreme?: boolean | null;
+}
+
+/** One tower above the podium, checked on its own (`saengine.fem.towers`). */
+export interface IFemTowerCheck {
+	readonly id: string;
+	readonly name: string;
+	readonly period?: { readonly [axis: string]: IFemTowerPeriod } | null;
+	readonly baseShear?: { readonly [axis: string]: IFemTowerShear } | null;
+	readonly drift?: readonly IFemSeismicDrift[] | null;
+	readonly torsionalIrregularity?: readonly IFemTorsionCheck[] | null;
+}
+
 function hasTorsionMoment(level: IFemTorsionLevel): boolean {
 	return typeof level.moment === 'number' && Math.abs(level.moment) > 0;
 }
@@ -89,6 +123,8 @@ export interface IFemSeismicDesign {
 	readonly amplification?: number | null;
 	readonly clauses?: { readonly [name: string]: string } | null;
 	readonly notes?: readonly string[] | null;
+	/** Several towers on a podium: the podium top [m] and each tower's own checks. */
+	readonly towers?: { readonly podium: number; readonly towers: readonly IFemTowerCheck[] } | null;
 }
 
 /** A storey's drift with the second-order analysis and without it. */
@@ -263,6 +299,11 @@ export function seismicSection(design: IFemSeismicDesign | undefined, axis: FemA
 		if (drift && !combinations) {
 			items.push(...storeyDriftRows(design).map(row => ({ kind: 'row' as const, ...row })));
 		}
+		const towers = towerRows(design);
+		if (towers.length) {
+			items.push({ kind: 'heading', text: localize('femSeismic.towers', "Towers on the Podium") });
+			items.push(...towers.map(row => ({ kind: 'row' as const, ...row })));
+		}
 		if (combinations && design.combinations?.length) {
 			items.push({ kind: 'heading', text: localize('femSeismic.combinations', "Seismic Combinations") });
 			for (const combination of design.combinations) {
@@ -347,6 +388,49 @@ export function storeyDriftRows(design: IFemSeismicDesign | undefined): { readon
 		const value = rows.map(r => localize('femSeismic.driftAxis', "{0} {1}", fixedPercent(r.ratio), r.direction)).join(', ');
 		return { name, value: rows.some(r => r.ok === false) ? localize('femSeismic.storeyExceeds', "{0} (exceeds)", value) : value };
 	});
+}
+
+/**
+ * One row per tower above the podium: "Tower 1" → "T 1.24 s X, 1.10 s Y · V 1,234 kN X × 1.05 ·
+ * drift 0.62 % Y · torsion 1.31 X (irregular)".
+ */
+export function towerRows(design: IFemSeismicDesign | undefined): { readonly name: string; readonly value: string }[] {
+	const rows: { name: string; value: string }[] = [];
+	for (const tower of design?.available === false ? [] : design?.towers?.towers ?? []) {
+		const parts: string[] = [];
+		const periods = Object.entries(tower.period ?? {}).map(([axis, p]) => localize('femSeismic.towerPeriodAxis', "{0} s {1}", p.period.toFixed(2), axis));
+		if (periods.length) {
+			parts.push(localize('femSeismic.towerPeriod', "T {0}", periods.join(', ')));
+		}
+		const shears = Object.entries(tower.baseShear ?? {}).map(([axis, v]) => v.scale > 1 + 1e-6
+			? localize('femSeismic.towerShearScaled', "{0} {1} × {2}", formatShear(v.dynamic), axis, v.scale.toFixed(2))
+			: localize('femSeismic.towerShearAxis', "{0} {1}", formatShear(v.dynamic), axis));
+		if (shears.length) {
+			parts.push(localize('femSeismic.towerShear', "V {0}", shears.join(', ')));
+		}
+		let drift: IFemSeismicDrift | undefined;
+		for (const storey of tower.drift ?? []) {
+			if (!drift || storey.ratio > drift.ratio) {
+				drift = storey;
+			}
+		}
+		if (drift) {
+			const text = localize('femSeismic.towerDrift', "drift {0} {1}", fixedPercent(drift.ratio), drift.direction);
+			parts.push(drift.ok === false ? localize('femSeismic.towerDriftExceeds', "{0} (exceeds)", text) : text);
+		}
+		let torsion: IFemTorsionCheck | undefined;
+		for (const storey of tower.torsionalIrregularity ?? []) {
+			if (!torsion || storey.ratio > torsion.ratio) {
+				torsion = storey;
+			}
+		}
+		if (torsion) {
+			const kind = torsion.extreme ? localize('femSeismic.towerExtreme', " (extreme irregularity)") : torsion.irregular ? localize('femSeismic.towerIrregular', " (irregular)") : '';
+			parts.push(localize('femSeismic.towerTorsion', "torsion {0} {1}{2}", torsion.ratio.toFixed(2), torsion.direction, kind));
+		}
+		rows.push({ name: tower.name, value: parts.join(' · ') });
+	}
+	return rows;
 }
 
 function isSecondOrderRun(secondOrder: IFemSecondOrder | undefined): secondOrder is IFemSecondOrder {
