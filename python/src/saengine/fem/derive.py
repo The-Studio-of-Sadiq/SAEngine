@@ -93,9 +93,10 @@ UNITS = "SI (m, N, kg, s, Pa)"
 
 #: Load cases of the analysis model, in this order (see bnbc.LOAD_CASES). The fluid case F (the
 #: contents of equipment in 07 MEP) is last and is only in a model that has fluid loads, so the
-#: other cases keep their numbers. The temperature case T is added after them when the settings
+#: other cases keep their numbers; so is the earth pressure case H on the basement walls (9
+#: Substructure, :mod:`saengine.substructure.basement_loads`). The temperature case T is added after them when the settings
 #: ask for it (:mod:`saengine.fem.thermal`).
-CASES = ["D", "SD", "L", "Lr", "WX", "WY", "EX", "EY", "F"]
+CASES = ["D", "SD", "L", "Lr", "WX", "WY", "EX", "EY", "F", "H"]
 
 #: The equation solver of every analysis case. Rigid diaphragms tie each floor's master node to
 #: all of that floor's shell nodes, so a banded solver's band spans the floor: BandGeneral needed
@@ -1608,6 +1609,20 @@ def _derive_fem(
             )
         b.notes += eq.notes
 
+    # ── earth and water pressure on the basement walls (case H, 9 Substructure) ──
+    from saengine.substructure.basement_loads import basement_pressures
+
+    earth, earth_notes = basement_pressures(building, objects, settings, substructure, soil_text)
+    b.notes += earth_notes
+    for wall_pressure in earth:
+        for shell in shells_of_source(wall_pressure.wall):
+            points = [b.coords[n] for n in shell.nodes]
+            shares = shell_node_shares(points)
+            for node_id, area, xyz in zip(shell.nodes, shares, points, strict=True):
+                pressure = wall_pressure.pressure(float(xyz[2]) / MM) * 1e3  # Pa
+                if pressure > 0:
+                    add_nodal("H", node_id, wall_pressure.direction * pressure * area)
+
     # ── line and point loads on members (05 Floor Plan/loads.json) ──
     if member_set is not None:
 
@@ -2058,8 +2073,11 @@ def _derive_fem(
                 "dofs": dofs,
             }
         )
-    # The fluid case F only when it has loads (it is last, so the other cases keep their ids).
-    cases = [c for c in CASES if c != "F" or patterns[c]["nodal"] or patterns[c]["element"]]
+    # The fluid case F and the earth case H only when they have loads (they are last, so the
+    # other cases keep their ids).
+    cases = [
+        c for c in CASES if c not in ("F", "H") or patterns[c]["nodal"] or patterns[c]["element"]
+    ]
     # The eccentric earthquake cases after them (only when asked for, so the others keep ids).
     cases += [c for c in ECCENTRIC_CASES if c in patterns]
     # The torsional wind cases (BNBC Figure 6.2.9) and the live load arrangements after them.

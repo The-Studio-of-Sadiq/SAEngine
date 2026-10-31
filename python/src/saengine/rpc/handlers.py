@@ -551,7 +551,8 @@ def derive_fem(
     ``{"problems"}`` when an input has errors.
 
     ``mep_text`` (``07 MEP/mep.json``) and ``substructure_text`` (``09 Substructure/
-    substructure.json``, read only for soil springs) are read beside ``model_folder`` when not
+    substructure.json``: for soil springs, and for the earth pressure H on basement walls) are
+    read beside ``model_folder`` when not
     given. The MEP file's stamp (of what the model takes from it, ``derive.mep_stamp``) is recorded
     (key ``mep``) once it is more than the placeholder,
     the substructure's (key ``substructure``) when the supports are soil springs.
@@ -646,14 +647,21 @@ def derive_fem(
         return {"problems": [f"Architecture: {_first_line(exc)}"]}
     if has_loads(architecture):
         stamps["architecture"] = stamp(architecture_text or "")
-    substructure = None
-    if settings.analysis.supports == "soilSprings":
-        if substructure_text is None and root is not None:
-            substructure_text = _read(root / substructure_library.SUBSTRUCTURE_FILE)
-        try:
-            substructure = substructure_library.parse(substructure_text)
-        except ValueError as exc:
+    # The substructure: the foundations of the soil springs, and the earth pressure options and
+    # retaining walls of the basement walls' case H (saengine.substructure.basement_loads).
+    from saengine.substructure.basement_loads import has_earth_pressure
+
+    springs = settings.analysis.supports == "soilSprings"
+    if substructure_text is None and root is not None:
+        substructure_text = _read(root / substructure_library.SUBSTRUCTURE_FILE)
+    try:
+        substructure = substructure_library.parse(substructure_text)
+    except ValueError as exc:
+        if springs:
             return {"problems": [f"Substructure: {_first_line(exc)}"]}
+        substructure = None
+    earth = has_earth_pressure(parsed["bim"], parsed["objects"], substructure)
+    if springs or earth:
         stamps["substructure"] = stamp(substructure_text or "")
         if soil_text is not None:
             stamps["soil"] = stamp(soil_text)

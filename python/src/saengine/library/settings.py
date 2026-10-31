@@ -788,10 +788,21 @@ class LoadCombination(_Model):
         "the other 1.2D combinations is an SAEngine adoption, on the safe side for gravity.",
     )
 
+    H: float | None = Field(
+        default=None,
+        title="H",
+        description="Factor on the lateral earth and groundwater pressure on the basement walls "
+        "(case H, 9 Substructure). Empty: 1.6 in the combinations with 1.6L and in the 0.9D "
+        "ones, else 0 (BNBC 2020 Part 6 Sec 2.7.3.1 (p685), as ASCE 7-05 2.3.2: 1.2(D + F + T) "
+        "+ 1.6(L + H) + 0.5Lr, 0.9D + 1.6W + 1.6H, 0.9D + 1.0E + 1.6H).",
+    )
+
     @model_validator(mode="after")
     def _fluid_factor(self) -> LoadCombination:
         if self.F is None:
             self.F = self.D if self.D > 1.0 else 0.0
+        if self.H is None:
+            self.H = 1.6 if self.L >= 1.6 or 0 < self.D <= 0.9 else 0.0
         return self
 
 
