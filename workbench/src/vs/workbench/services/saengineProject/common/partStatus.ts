@@ -676,6 +676,8 @@ interface ISubstructureSummary {
 	readonly skipped?: number;
 	/** Foundations and tie beams in the file; optional. */
 	readonly total?: number;
+	/** Foundations whose bearing was not checked (no qa); optional. */
+	readonly bearingUnchecked?: readonly string[];
 	/** Columns without a support node or foundation the checks cannot handle (a count, or their ids); optional. */
 	readonly unsupported?: number | readonly string[];
 	/**
@@ -727,11 +729,17 @@ function substructureStatus(inputs: IPartStatusInputs): IPartStatus {
 		const text = summary && summary.failed > 0 ? localize('partStatus.substructure.failedBefore', "{0}, {1} failed when last checked", foundations, summary.failed) : foundations;
 		return status('substructure', 'inProgress', text, localize('partStatus.substructure.check', "check the foundations"));
 	}
-	if (summary.checked === 0) {
-		return status('substructure', 'inProgress', foundations, localize('partStatus.substructure.analyse', "run the analysis to design them"));
-	}
+	// Fails first: a foundation without its bearing check (no qa) can fail its other checks
+	// while none is checked in full (N-U3, N-U5).
 	if (summary.failed > 0) {
 		return status('substructure', 'failed', localize('partStatus.substructure.fail', "{0} fail", summary.failed), localize('partStatus.substructure.review', "review the failing foundations"));
+	}
+	const noQa = Array.isArray(summary.bearingUnchecked) ? summary.bearingUnchecked.length : 0;
+	if (noQa > 0) {
+		return status('substructure', 'inProgress', localize('partStatus.substructure.noQa', "{0} without a bearing check", noQa), localize('partStatus.substructure.enterQa', "enter qa in the soil report or Project Settings"));
+	}
+	if (summary.checked === 0) {
+		return status('substructure', 'inProgress', foundations, localize('partStatus.substructure.analyse', "run the analysis to design them"));
 	}
 	// All pass only when every foundation was checked (U2): skipped or unsupported ones are not.
 	// The editor's and Run All's file (substructureSummaryFile) give `total` and `unsupported` as a
