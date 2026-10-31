@@ -73,6 +73,7 @@ case's preload and section overrides.
 from __future__ import annotations
 
 import copy
+import json
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -126,6 +127,17 @@ class SecondOrderModel:
 
     def to_json(self) -> dict[str, Any]:
         return {"notes": self.notes, "summary": self.summary}
+
+
+def json_copy(value: Any) -> Any:
+    """A deep copy of JSON data through the C JSON encoder and decoder, several times faster
+    than ``copy.deepcopy`` on a tall building's model; ``copy.deepcopy`` for data the round
+    trip would change (tuples, keys that are not text, objects that are not JSON)."""
+    try:
+        copied = json.loads(json.dumps(value))
+    except (TypeError, ValueError):
+        return copy.deepcopy(value)
+    return copied if copied == value else copy.deepcopy(value)
 
 
 def options_from_settings(settings: Any) -> SecondOrderOptions:
@@ -257,7 +269,7 @@ def apply_second_order(
     }
     if options.secondOrder == "none" and options.stiffness == "gross":
         return SecondOrderModel(project=project, notes=notes, summary=summary)
-    p = copy.deepcopy(project)
+    p = json_copy(project)
     coords = {n["id"]: np.asarray(n["coords"], dtype=float) for n in p.get("nodes", [])}
     sections = {s["id"]: s for s in p.get("sections", [])}
 
@@ -501,7 +513,7 @@ def match_modal_stiffness(project: dict[str, Any], model: dict[str, Any]) -> dic
     preloads = [by_id[i] for i in modal.get("preload_case_ids", []) if i in by_id]
     if not overrides and not preloads:
         return model
-    out = copy.deepcopy(model)
+    out = json_copy(model)
     patterns = out.setdefault("load_patterns", [])
     cases = out.setdefault("analyses", [])
     series = {t["id"] for t in out.get("time_series", [])}

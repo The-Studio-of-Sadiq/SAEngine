@@ -42,7 +42,8 @@ import { ITextFileService } from '../../../services/textfile/common/textfiles.js
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { BOQ_ARCHITECTURE_FILE, BOQ_COMPUTE_COMMAND, BOQ_GROUPS, BOQ_SOURCES, BoqGroup, boqComputeArgs, boqProblems, changedSources, displayQuantity, formatQuantity, totalledItems, IBoqComputeResult, IBoqDocument, IBoqItem, parseBoq, quantityText, totalRows, totals, unitLabel } from './boqDocument.js';
 import { BoqEditorInput } from './boqEditorInput.js';
-import { exportBoqCsv } from './boqExport.js';
+import { exportBoqCsv, exportBoqXlsx } from './boqExport.js';
+import { BOQ_CARBON_FILE, BOQ_COST_COMMAND, BOQ_RATES_FILE, BoqCostPart, boqFile, formatCarbon, formatMoney, IBoqCostResult, readBoqFile } from './boqCosting.js';
 
 /** Short group names for the status line's totals. */
 function shortGroupName(group: BoqGroup): string {
@@ -61,6 +62,23 @@ function shortGroupName(group: BoqGroup): string {
 
 /** Where the viewer's choice of units (metric or feet) is kept. */
 const IMPERIAL_STORAGE_KEY = 'saengine.boq.imperial';
+
+function partLabel(part: BoqCostPart): string {
+	switch (part) {
+		case 'Superstructure': return localize('boq.part.superstructure', "Superstructure");
+		case 'Substructure': return localize('boq.part.substructure', "Substructure");
+		case 'Architecture': return localize('boq.part.architecture', "Architecture");
+		case 'MEP': return localize('boq.part.mep', "MEP");
+	}
+}
+
+function costStatus(status: string): string {
+	switch (status) {
+		case 'not rated': return localize('boq.status.notRated', "Not rated (the rate is empty)");
+		case 'unit mismatch': return localize('boq.status.unit', "Not priced (the rate's unit does not measure this item)");
+		default: return localize('boq.status.noItem', "Not priced (no rate item)");
+	}
+}
 
 function groupTitle(group: BoqGroup): string {
 	return BOQ_GROUPS.find(g => g.group === group)?.title ?? group;
@@ -101,7 +119,15 @@ export class BoqEditor extends EditorPane {
 
 	private readonly updateAction = this._register(new Action('saengine.boq.editor.update', localize('boq.update', "Update from Building Model"), ThemeIcon.asClassName(Codicon.refresh), true, () => this.compute()));
 	private readonly updateAgainAction = this._register(new Action('saengine.boq.editor.updateAgain', localize('boq.update', "Update from Building Model"), undefined, true, () => this.compute()));
-	private readonly exportAction = this._register(new Action('saengine.boq.editor.export', localize('boq.exportCsv', "Export CSV..."), ThemeIcon.asClassName(Codicon.export), true, () => this.exportCsv()));
+	private readonly excelAction = this._register(new Action('saengine.boq.editor.exportXlsx', localize('boq.exportXlsx', "Export Excel..."), ThemeIcon.asClassName(Codicon.export), true, () => this.exportXlsx()));
+	private readonly exportAction = this._register(new Action('saengine.boq.editor.export', localize('boq.exportCsv', "Export CSV..."), undefined, true, () => this.exportCsv()));
+	private readonly ratesAction = this._register(new Action('saengine.boq.editor.rates', localize('boq.editRates', "Edit Schedule of Rates"), undefined, true, () => this.commandService.executeCommand('saengine.boq.editRates')));
+	private readonly carbonAction = this._register(new Action('saengine.boq.editor.carbon', localize('boq.editCarbon', "Edit Embodied Carbon Factors"), undefined, true, () => this.commandService.executeCommand('saengine.boq.editCarbon')));
+
+	/** The bill priced by the project's schedule of rates, with its embodied carbon; for the texts of `costingKey`. */
+	private costing: IBoqCostResult | undefined;
+	private costingKey: string | undefined;
+	private costingVersion = 0;
 	private readonly expandAllAction = this._register(new Action('saengine.boq.editor.expandAll', localize('boq.expandAll', "Expand All"), undefined, true, async () => this.setAllExpanded(true)));
 	private readonly collapseAllAction = this._register(new Action('saengine.boq.editor.collapseAll', localize('boq.collapseAll', "Collapse All"), undefined, true, async () => this.setAllExpanded(false)));
 	private readonly openJsonAction = this._register(new Action('saengine.boq.editor.openJson', localize('boq.openJson', "Open as JSON"), undefined, true, () => this.openAsJson()));
@@ -132,6 +158,13 @@ export class BoqEditor extends EditorPane {
 			if (this.input) {
 				await this.trackSources();
 				this.renderChrome();
+			}
+		}));
+		this._register(this.fileService.onDidFilesChange(e => {
+			const project = this.projectService.project;
+			const files = project ? [boqFile(project, BOQ_RATES_FILE), boqFile(project, BOQ_CARBON_FILE)] : [];
+			if (this.input && files.some(file => file && e.contains(file))) {
+				void this.updateCosting();
 			}
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -254,6 +287,41 @@ export class BoqEditor extends EditorPane {
 	private render(): void {
 		this.renderBody();
 		this.renderChrome();
+		void this.updateCosting();
+	}
+
+	/**
+	 * Prices the bill by the project's schedule of rates (the sample's made-up rates when there is
+	 * none) with its embodied carbon, when the bill or either file changed; then shows it.
+	 */
+	private async updateCosting(): Promise<void> {
+		const project = this.projectService.project;
+		const boqText = this.model && !this.model.isDisposed() ? this.model.getValue() : undefined;
+		const version = ++this.costingVersion;
+		if (!project || !boqText || !this.document) {
+			this.costing = this.costingKey = undefined;
+			return;
+		}
+		const [ratesText, carbonText] = await Promise.all([
+			readBoqFile(project, BOQ_RATES_FILE, this.fileService),
+			readBoqFile(project, BOQ_CARBON_FILE, this.fileService),
+		]);
+		const key = JSON.stringify([boqText, ratesText, carbonText]);
+		if (version !== this.costingVersion || key === this.costingKey) {
+			return;
+		}
+		let result: IBoqCostResult | undefined;
+		try {
+			result = await this.commandService.executeCommand<IBoqCostResult>(BOQ_COST_COMMAND, { boqText, ratesText, carbonText });
+		} catch (error) {
+			result = { problems: [String(error)] };
+		}
+		if (version !== this.costingVersion) {
+			return;
+		}
+		this.costing = result;
+		this.costingKey = key;
+		this.renderChrome();
 	}
 
 	// ───────────────────────────── chrome ─────────────────────────────
@@ -270,14 +338,18 @@ export class BoqEditor extends EditorPane {
 
 		this.updateAction.label = document ? localize('boq.update', "Update from Building Model") : localize('boq.measure', "Measure from Building Model");
 		this.updateAction.enabled = this.updateAgainAction.enabled = !this.computing && !!this.model;
-		this.exportAction.enabled = !!document;
+		this.exportAction.enabled = this.excelAction.enabled = !!document;
 		const hasItems = !!document?.items.length;
 		this.expandAllAction.enabled = this.collapseAllAction.enabled = hasItems;
 
 		this.imperialAction.checked = this.imperial;
-		const primary: IAction[] = [...(stale ? [this.updateAction] : []), this.exportAction, frame.togglePropertiesAction];
+		const primary: IAction[] = [...(stale ? [this.updateAction] : []), this.excelAction, frame.togglePropertiesAction];
 		const secondary: IAction[] = [
 			...(stale ? [] : [this.updateAgainAction]),
+			new Separator(),
+			this.exportAction,
+			this.ratesAction,
+			this.carbonAction,
 			new Separator(),
 			this.imperialAction,
 			new Separator(),
@@ -409,6 +481,16 @@ export class BoqEditor extends EditorPane {
 				appendPropertyRow(panel, localize('boq.propDiameter', "Bar diameter"), localize('boq.mm', "{0} mm", item.diameter));
 			}
 			appendPropertyRow(panel, localize('boq.propElements', "Elements"), String(item.breakdown?.length ?? 0));
+			const line = this.costing?.costing?.lines.find(l => l.code === item.code);
+			if (line) {
+				const currency = this.costing?.costing?.currency ?? '';
+				appendPropertyHeading(panel, localize('boq.costHeading', "Cost"));
+				appendPropertyRow(panel, localize('boq.rateItem', "Rate item"), line.rateCode ?? localize('boq.noRateItem', "None"));
+				if (line.rateCode && typeof line.rate === 'number') {
+					appendPropertyRow(panel, localize('boq.rate', "Rate"), localize('boq.ratePer', "{0} {1} per {2}", formatMoney(line.rate), currency, unitLabel(line.rateUnit ?? '')));
+				}
+				appendPropertyRow(panel, localize('boq.amount', "Amount"), typeof line.amount === 'number' ? `${formatMoney(line.amount)} ${currency}` : costStatus(line.status));
+			}
 			const stories = Object.entries(item.byStory ?? {});
 			if (stories.length) {
 				appendPropertyHeading(panel, localize('boq.byStoryHeading', "By story"));
@@ -424,6 +506,8 @@ export class BoqEditor extends EditorPane {
 		} else {
 			appendPropertyNote(panel, localize('boq.selectRow', "Select a row for its details."));
 		}
+
+		this.renderCostSummary(panel);
 
 		const problems = boqProblems(document);
 		if (problems.length) {
@@ -446,7 +530,60 @@ export class BoqEditor extends EditorPane {
 		}
 	}
 
+	/** The cost per part and in total, and the embodied carbon, by the project's rates and factors. */
+	private renderCostSummary(panel: HTMLElement): void {
+		const result = this.costing;
+		if (!result) {
+			return;
+		}
+		appendPropertyHeading(panel, localize('boq.costingHeading', "Costing"));
+		if (result.problems?.length || !result.costing) {
+			for (const problem of result.problems ?? []) {
+				appendPropertyNote(panel, problem);
+			}
+			return;
+		}
+		const costing = result.costing;
+		if (result.sampleRates) {
+			appendPropertyNote(panel, localize('boq.sampleRates', "Priced by the sample's made-up example rates, not real ones. Enter your own rates (for example your edition of the PWD schedule of rates) with Edit Schedule of Rates."));
+		} else {
+			appendPropertyRow(panel, localize('boq.rateSchedule', "Rates"), costing.rateSchedule);
+		}
+		for (const [part, amount] of Object.entries(costing.parts)) {
+			appendPropertyRow(panel, partLabel(part as BoqCostPart), `${formatMoney(amount ?? 0)} ${costing.currency}`);
+		}
+		appendPropertyRow(panel, localize('boq.totalCost', "Total"), `${formatMoney(costing.total)} ${costing.currency}`);
+		const priced = costing.lines.filter(l => l.status === 'priced').length;
+		if (priced < costing.lines.length) {
+			appendPropertyNote(panel, localize('boq.pricedCount', "{0} of {1} items priced; the others have no rate item or no rate in the schedule.", priced, costing.lines.length));
+		}
+		appendPropertyHeading(panel, localize('boq.carbonHeading', "Embodied carbon"));
+		for (const [part, carbon] of Object.entries(costing.carbonParts)) {
+			appendPropertyRow(panel, partLabel(part as BoqCostPart), formatCarbon(carbon ?? 0));
+		}
+		appendPropertyRow(panel, localize('boq.totalCarbon', "Total"), formatCarbon(costing.carbonTotal));
+		const left = costing.carbon.filter(c => c.factor === null && c.mass > 0).map(c => c.material);
+		appendPropertyNote(panel, left.length
+			? localize('boq.carbonLeft', "Production of the materials only, by the factors of Edit Embodied Carbon Factors. Not counted (no factor): {0}.", left.join(', '))
+			: localize('boq.carbonNote', "Production of the materials only, by the factors of Edit Embodied Carbon Factors."));
+	}
+
 	// ───────────────────────────── actions ─────────────────────────────
+
+	private async exportXlsx(): Promise<void> {
+		const project = this.projectService.project;
+		const text = this.model && !this.model.isDisposed() ? this.model.getValue() : undefined;
+		if (project && text && this.document) {
+			await exportBoqXlsx(text, project, {
+				textModelService: this.textModelService,
+				fileService: this.fileService,
+				fileDialogService: this.fileDialogService,
+				notificationService: this.notificationService,
+				openerService: this.openerService,
+				commandService: this.commandService,
+			});
+		}
+	}
 
 	private async compute(): Promise<void> {
 		const model = this.model;

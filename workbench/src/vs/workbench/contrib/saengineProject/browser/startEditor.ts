@@ -129,7 +129,19 @@ export class StartEditor extends EditorPane {
 	override async setInput(input: StartEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		this.renderShell();
+		if (input.takeNewProjectRequest()) {
+			await this.renderNewProject();
+			return;
+		}
 		await this.renderRecent();
+	}
+
+	override setOptions(options: IEditorOptions | undefined): void {
+		super.setOptions(options);
+		// "New Project..." while the page is already open (N-N8).
+		if (this.input instanceof StartEditorInput && this.input.takeNewProjectRequest()) {
+			void this.renderNewProject();
+		}
 	}
 
 	override clearInput(): void {

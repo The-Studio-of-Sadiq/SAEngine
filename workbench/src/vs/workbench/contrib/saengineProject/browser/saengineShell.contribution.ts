@@ -39,7 +39,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { PROJECT_PARTS, STRUCTURE_PART } from '../../../services/saengineProject/common/saengineProject.js';
 import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
-import { applyDeveloperItems, ConfigurationDefaultsSwitch, gateMenuItems, gateSubmenus, parseDeveloperItemsSnapshot, partEditorLabels, ViewsGate } from './saengineShell.js';
+import { applyDeveloperItems, ConfigurationDefaultsSwitch, gateCommandPalette, gateMenuItems, gateSubmenus, parseDeveloperItemsSnapshot, partEditorLabels, ViewsGate } from './saengineShell.js';
 
 /*
  * The SAEngine window: an engineering app first. The code-editor half of Code-OSS (source control,
@@ -165,11 +165,12 @@ const SIMPLE_MENU_ITEMS: ReadonlyMap<MenuId, ReadonlySet<string>> = new Map([
 		'editor.action.clipboardPasteAction', 'actions.find', 'editor.action.startFindReplaceAction',
 	])],
 	[MenuId.MenubarHelpMenu, new Set(['workbench.action.showAboutDialog', 'workbench.action.showCommands'])],
+	// Settings: SAEngine's own (saengine.openSettings) in their place (N-G4).
 	[MenuId.MenubarPreferencesMenu, new Set([
-		'workbench.action.openSettings', 'workbench.action.openGlobalKeybindings', 'ThemesSubMenu',
+		'workbench.action.openGlobalKeybindings', 'ThemesSubMenu',
 	])],
 	[MenuId.GlobalActivity, new Set([
-		'workbench.action.showCommands', 'workbench.action.openSettings', 'workbench.action.openGlobalKeybindings',
+		'workbench.action.showCommands', 'workbench.action.openGlobalKeybindings',
 		'ThemesSubMenu',
 	])],
 ]);
@@ -177,6 +178,24 @@ const SIMPLE_MENU_ITEMS: ReadonlyMap<MenuId, ReadonlySet<string>> = new Map([
 function keptInSimpleMode(menu: MenuId, id: string): boolean {
 	return id.startsWith('saengine.') || !!SIMPLE_MENU_ITEMS.get(menu)?.has(id);
 }
+
+/**
+ * What the command palette lists outside developer mode (N-G4): SAEngine's own commands and these
+ * window, file and view commands; the 600-odd code-editor commands come back in developer mode.
+ */
+const SIMPLE_PALETTE_COMMANDS: ReadonlySet<string> = new Set([
+	'workbench.action.files.save', 'workbench.action.files.saveAll', 'workbench.action.files.revert',
+	'workbench.action.closeActiveEditor', 'workbench.action.closeAllEditors', 'workbench.action.reopenClosedEditor',
+	'workbench.action.newWindow', 'workbench.action.closeWindow', 'workbench.action.reloadWindow', 'workbench.action.quit',
+	'workbench.action.openSettings', 'workbench.action.openGlobalKeybindings', 'workbench.action.selectTheme',
+	'workbench.action.toggleFullScreen', 'workbench.action.zoomIn', 'workbench.action.zoomOut', 'workbench.action.zoomReset',
+	'workbench.action.toggleSidebarVisibility', 'workbench.action.togglePanel', 'workbench.action.showAboutDialog',
+	'workbench.action.openRecent', 'workbench.action.showCommands', 'workbench.action.quickOpen',
+	'workbench.action.showNotifications', 'workbench.action.clearAllNotifications', 'undo', 'redo',
+]);
+
+/** Gear menu Settings outside developer mode (N-G4): the settings editor filtered to SAEngine's. */
+const OPEN_SAENGINE_SETTINGS = 'saengine.openSettings';
 
 /**
  * Adds "developer mode" to the condition of the code-editor views. The containers are
@@ -261,6 +280,7 @@ class DeveloperModeContribution extends Disposable implements IWorkbenchContribu
 		for (const menu of SIMPLE_MENU_ITEMS.keys()) {
 			this._register(gateMenuItems(menu, id => keptInSimpleMode(menu, id), DeveloperModeContext));
 		}
+		this._register(gateCommandPalette(id => id.startsWith('saengine.') || SIMPLE_PALETTE_COMMANDS.has(id), DeveloperModeContext));
 
 		this.apply();
 		void lifecycleService.when(LifecyclePhase.Restored).then(() => this.applyToParts());
@@ -305,6 +325,26 @@ class DeveloperModeContribution extends Disposable implements IWorkbenchContribu
 }
 
 registerWorkbenchContribution2(DeveloperModeContribution.ID, DeveloperModeContribution, WorkbenchPhase.BlockStartup);
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: OPEN_SAENGINE_SETTINGS,
+			title: localize2('saengine.openSettings', "Settings"),
+			category: localize2('saengine.category', "SAEngine"),
+			f1: true,
+			menu: [
+				{ id: MenuId.GlobalActivity, group: '2_configuration', order: 1, when: DeveloperModeContext.negate() },
+				{ id: MenuId.MenubarPreferencesMenu, group: '1_settings', order: 1, when: DeveloperModeContext.negate() },
+			],
+		});
+	}
+
+	override run(accessor: ServicesAccessor): Promise<unknown> {
+		// The SAEngine settings only; clearing the search shows the rest.
+		return accessor.get(ICommandService).executeCommand('workbench.action.openSettings', 'saengine.');
+	}
+});
 
 registerAction2(class extends Action2 {
 	constructor() {

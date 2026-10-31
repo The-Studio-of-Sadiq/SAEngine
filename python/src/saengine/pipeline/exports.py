@@ -9,6 +9,9 @@ the Exports page writes them.
   the substructure, the project settings and the MEP coordination model);
 - ``csv``: the bill of quantities, ``11 Exports/boq.csv`` (``toCsv`` of ``boqDocument.ts``,
   ported exactly: RFC 4180, CRLF);
+- ``xlsx``: the bill of quantities with its costing and embodied carbon, ``11 Exports/boq.xlsx``
+  (:func:`saengine.boq.workbook.write_boq_xlsx`, priced by ``10 BOQ/rates.json`` and
+  ``10 BOQ/carbon-factors.json``, the shipped sample and factors when there are none);
 - ``dxf``: the structural plan of every story, ``11 Exports/Floor Plan/<story id> <name>.dxf``
   (``floorPlanDrawing`` of ``floorPlanDrawing.ts``, ported: the same layers, entities and
   sizes). The app writes the DXF with its CAD editor's writer and this module with ezdxf, so the
@@ -28,7 +31,7 @@ from typing import Any
 from saengine.pipeline.project import Project, write_text
 
 EXPORTS_FOLDER = "11 Exports"
-FORMATS = ("pdf", "docx", "ifc", "dxf", "csv", "drawings")
+FORMATS = ("pdf", "docx", "ifc", "dxf", "csv", "xlsx", "drawings")
 _UNSAFE = re.compile(r'[\\/:*?"<>|]')
 
 
@@ -134,6 +137,30 @@ def export_csv(project: Project, out: Path | None = None) -> list[Path]:
     target = out or _exports(project) / "boq.csv"
     write_text(target, boq_csv(document))
     return [target]
+
+
+def boq_folder_text(project: Project, name: str) -> str | None:
+    """The text of a file of ``10 BOQ`` beside ``boq.json`` (``rates.json``, ...), or None."""
+    from saengine.pipeline.project import read_text
+
+    return read_text(project.file("boq").parent / name)
+
+
+def export_xlsx(project: Project, out: Path | None = None) -> list[Path]:
+    from saengine.boq.costing import CARBON_FILE, RATES_FILE
+    from saengine.boq.workbook import write_boq_xlsx_texts
+
+    target = out or _exports(project) / "boq.xlsx"
+    result = write_boq_xlsx_texts(
+        target,
+        project.text("boq"),
+        boq_folder_text(project, RATES_FILE),
+        boq_folder_text(project, CARBON_FILE),
+        project.name or "",
+    )
+    if result.get("problems"):
+        raise ExportError(" ".join(map(str, result["problems"])))
+    return [Path(result["path"])]
 
 
 # ─────────────────────────────── DXF ───────────────────────────────
@@ -514,7 +541,8 @@ def export(project: Project, fmt: str, out: Path | None = None, **options: Any) 
         return export_drawings(project, out, options.get("size"))
     if fmt in ("pdf", "docx"):
         return export_pdf(project, out, fmt, options.get("template"))
-    writers = {"ifc": export_ifc, "csv": export_csv, "dxf": export_dxf}
+    writers = {"ifc": export_ifc, "csv": export_csv, "xlsx": export_xlsx,
+               "dxf": export_dxf}  # fmt: skip
     if fmt not in writers:
         raise ValueError(f"unknown export format: {fmt}")
     return writers[fmt](project, out)

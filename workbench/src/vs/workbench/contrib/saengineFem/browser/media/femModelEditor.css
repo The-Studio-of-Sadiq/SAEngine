@@ -654,10 +654,10 @@
 	outline-offset: 1px;
 }
 
-/* "Planned" chips of features not in this MVP, under a slab's design checks. */
+/* "Planned" chips of analyses and designs not in this MVP (see femPlannedFeatures.ts). */
 .fem-planned-chips {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 6px;
-	margin: 8px 0;
+	gap: var(--sa-space-1, 4px);
+	margin: var(--sa-space-1, 4px) 0 var(--sa-space-2, 8px);
 }

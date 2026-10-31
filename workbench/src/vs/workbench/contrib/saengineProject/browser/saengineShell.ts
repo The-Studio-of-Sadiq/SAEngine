@@ -3,7 +3,7 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { isISubmenuItem, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationDefaults, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
@@ -144,6 +144,48 @@ export function gateMenuItems(menu: MenuId, keep: (id: string) => boolean, condi
 			gate();
 		}
 	});
+}
+
+/**
+ * Adds `condition` to the command palette's entries that `keep` does not keep (N-G4): its
+ * explicit entries as {@link gateMenuItems} does, and the commands the palette lists without an
+ * entry of their own (the registry's implicit items, made new on every read) by registering an
+ * explicit entry with `condition` for each.
+ */
+export function gateCommandPalette(keep: (id: string) => boolean, condition: ContextKeyExpression): IDisposable {
+	const store = new DisposableStore();
+	const handled = new Set<string>();
+	let gating = false;
+	const gate = () => {
+		if (gating) {
+			return;
+		}
+		gating = true;
+		try {
+			for (const item of MenuRegistry.getMenuItems(MenuId.CommandPalette)) {
+				if (isISubmenuItem(item) || keep(item.command.id) || handled.has(item.command.id)) {
+					continue;
+				}
+				const implicit = Object.keys(item).length === 1 && MenuRegistry.getCommand(item.command.id) === item.command;
+				handled.add(item.command.id);
+				if (implicit) {
+					store.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: item.command, when: condition }));
+				} else {
+					const gatedItem: { when?: ContextKeyExpression } = item;
+					gatedItem.when = ContextKeyExpr.and(item.when, condition);
+				}
+			}
+		} finally {
+			gating = false;
+		}
+	};
+	gate();
+	store.add(MenuRegistry.onDidChangeMenu(menus => {
+		if (menus.has(MenuId.CommandPalette)) {
+			gate();
+		}
+	}));
+	return store;
 }
 
 /** What the user had chosen for the developer items before simple mode hid them. */

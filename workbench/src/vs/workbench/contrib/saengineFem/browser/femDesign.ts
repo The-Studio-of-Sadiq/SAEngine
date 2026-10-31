@@ -392,11 +392,13 @@ export interface IFemDesignSummaryFile {
 	readonly governing: string | null;
 	/** ISO time the checks were computed. */
 	readonly computed: string;
+	/** The run's one count (N-X8), for the part list; absent from an older backend. */
+	readonly counts?: IFemDesignCounts;
 }
 
 export function designSummaryFile(report: IFemDesignReport, computed: Date): IFemDesignSummaryFile {
-	const { checked, passed, failed, maxUtilisation, governing } = report.summary;
-	return { checked, passed, failed, maxUtilisation, governing, computed: computed.toISOString() };
+	const { checked, passed, failed, maxUtilisation, governing, counts } = report.summary;
+	return { checked, passed, failed, maxUtilisation, governing, computed: computed.toISOString(), ...(counts ? { counts } : {}) };
 }
 
 /** Writes the design checks' summary of `model`'s run to `<model>.results/design-summary.json`. */
@@ -453,15 +455,6 @@ export function designUtilisation(report: IFemDesignReport): { [elementId: numbe
 	}
 	return result;
 }
-
-/** Planned feature: slabs' cracked long-term deflection from the FE model (registered by the part). */
-export const CRACKED_SLAB_DEFLECTION_FEATURE = 'fem.crackedSlabDeflection';
-/** Planned feature: crack widths of beams, slabs and walls (registered by the part). */
-export const CRACK_WIDTHS_FEATURE = 'fem.crackWidths';
-/** Planned feature: automatic tendon layout of post-tensioned slabs (registered by the part). */
-export const TENDON_LAYOUT_FEATURE = 'fem.tendonLayout';
-/** Planned feature: time-step long-term losses of tendons (registered by the part). */
-export const TENDON_LOSSES_FEATURE = 'fem.tendonLongTermLosses';
 
 /** The slab layers of {@link IFemDesignElement.rebar}, in its order. */
 export const SLAB_REBAR_LAYERS = ['bottomX', 'bottomY', 'topX', 'topY'] as const;

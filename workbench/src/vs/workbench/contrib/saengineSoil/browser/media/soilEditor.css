@@ -2126,3 +2126,31 @@
 	color: var(--sa-fail);
 	font-weight: 600;
 }
+
+/* Planning compliance (soilMapView.renderPlanningPanel). */
+.saengine-soil-editor .soil-planning-inputs {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.saengine-soil-editor .soil-planning-statement {
+	width: 100%;
+	border-collapse: collapse;
+	margin: var(--sa-space-1) 0;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-soil-editor .soil-planning-statement th,
+.saengine-soil-editor .soil-planning-statement td {
+	padding: 2px 4px;
+	text-align: left;
+	border-bottom: 1px solid var(--sa-border, var(--vscode-panel-border));
+	white-space: pre;
+}
+
+.saengine-soil-editor .soil-planning-statement .number {
+	text-align: right;
+}
+
+.saengine-soil-editor .soil-planning-checks .soil-map-item.fail {
+	color: var(--sa-fail, var(--vscode-errorForeground));
+}

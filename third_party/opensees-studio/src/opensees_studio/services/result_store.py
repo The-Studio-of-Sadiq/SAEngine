@@ -94,12 +94,21 @@ def _write_int_dict(group: Any, name: str, data: dict[int, np.ndarray]) -> None:
     if any(a.ndim > _PACKED_NDIM for a in arrays):
         raise ValueError(f"{name}: arrays of more than {_PACKED_NDIM} dimensions cannot be packed")
     shapes = np.zeros((len(arrays), _PACKED_NDIM + 1), dtype=np.int64)
-    for i, a in enumerate(arrays):
-        shapes[i, 0] = a.ndim
-        shapes[i, 1 : 1 + a.ndim] = a.shape
-    sizes = np.array([a.size for a in arrays], dtype=np.int64)
-    offsets = np.concatenate([[0], np.cumsum(sizes)]).astype(np.int64)
-    values = np.concatenate([a.ravel() for a in arrays]) if arrays else np.empty(0)
+    first = arrays[0].shape if arrays else ()
+    if arrays and all(a.shape == first for a in arrays):
+        # The usual case (every node or element alike): the same datasets from whole arrays.
+        shapes[:, 0] = len(first)
+        shapes[:, 1 : 1 + len(first)] = first
+        size = int(np.prod(first, dtype=np.int64))
+        offsets = np.arange(len(arrays) + 1, dtype=np.int64) * size
+        values = np.stack(arrays).ravel()
+    else:
+        for i, a in enumerate(arrays):
+            shapes[i, 0] = a.ndim
+            shapes[i, 1 : 1 + a.ndim] = a.shape
+        sizes = np.array([a.size for a in arrays], dtype=np.int64)
+        offsets = np.concatenate([[0], np.cumsum(sizes)]).astype(np.int64)
+        values = np.concatenate([a.ravel() for a in arrays]) if arrays else np.empty(0)
     sub.create_dataset("ids", data=np.asarray(ids, dtype=np.int64))
     sub.create_dataset("offsets", data=offsets)
     sub.create_dataset("shapes", data=shapes)
@@ -231,12 +240,17 @@ def write_results(results: AnyResults, out_dir: str | Path) -> dict[str, Any]:
     return entry
 
 
-def write_manifest(out_dir: str | Path, entries: list[dict[str, Any]], project: str) -> Path:
-    """Write ``manifest.json`` under ``out_dir``."""
+def write_manifest(
+    out_dir: str | Path,
+    entries: list[dict[str, Any]],
+    project: str,
+    name: str = MANIFEST_NAME,
+) -> Path:
+    """Write ``manifest.json`` (or ``name``) under ``out_dir``."""
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     manifest = {"schema": MANIFEST_SCHEMA, "project": project, "cases": entries}
-    target = out / MANIFEST_NAME
+    target = out / name
     target.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return target
 

@@ -24,12 +24,12 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IFemResultEntry, IFemResultList, IFemResultView } from '../../../../platform/saengine/common/femSolver.js';
 import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameIconButton, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
-import { appendPlannedFeatureChip } from '../../saengineProject/browser/plannedFeatureEditor.js';
-import { CRACK_WIDTHS_FEATURE, CRACKED_SLAB_DEFLECTION_FEATURE, describeDesignCounts, describeEngineError, describeDesignSummary, describeSlenderness, describeSteel, describeSteelRatio, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, isSecondOrderRequired, isSlendernessCheck, otherFailureElements, requiredSteelOf, resultsFolder, runDesign, runDesignRequired, secondOrderRequiredMembers, shortElements, slabRebar, slendernessHeading, sortedChecks, TENDON_LAYOUT_FEATURE, TENDON_LOSSES_FEATURE, tooSmallElements, writeDesignSummary } from './femDesign.js';
+import { describeDesignCounts, describeEngineError, describeDesignSummary, describeSlenderness, describeSteel, describeSteelRatio, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, isSecondOrderRequired, isSlendernessCheck, otherFailureElements, requiredSteelOf, resultsFolder, runDesign, runDesignRequired, secondOrderRequiredMembers, shortElements, slabRebar, slendernessHeading, sortedChecks, tooSmallElements, writeDesignSummary } from './femDesign.js';
 import { describeScaleOnResult, describeSecondOrder, FemAxis, IFemSecondOrder, isFirstOrderReference, IFemSeismicDesign, runSecondOrder, runSeismicDesign, seismicSection, spectrumAxis, storeyAmplificationRows } from './femSeismicDesign.js';
 import { FemSsiPanel } from './femSsi.js';
 import { describeJointsSummary, describeJointVerdict, detailingSection, FemDetailingItem, generalChecks, IFemDetailingModel, IFemJoint, jointAtNode, jointColouring, jointHeading, jointItems, jointNodeUtilisation, jointOk, jointsOf, jointsOfMember } from './femSeismicDetailing.js';
 import { describeSteelSummary, memberConnectionChecks, steelSection } from './femSteelDesign.js';
+import { appendPlannedChips, FemPlanned } from './femPlannedFeatures.js';
 import { checkItems, describeStaircaseVerdict, describeWallsSummary, formatPierForce, IFemPierDiagram, isStaircase, isWall, ownChecks, pierDiagram, staircasesOf, staircaseSection, wallSection } from './femWallsStairs.js';
 
 export { resultsFolder } from './femDesign.js';
@@ -451,8 +451,8 @@ export class FemResultsBar extends Disposable {
 	private playToken = 0;
 	private readonly watch = this._register(new DisposableStore());
 	private readonly resultsWatch = this._register(new MutableDisposable());
-	/** The "Planned" chips of the properties panel, cleared with each rendering of it. */
-	private readonly propertyChips = this._register(new DisposableStore());
+	/** The "Planned" chips of the properties shown (see `FemPlanned`). */
+	private readonly plannedChips = this._register(new MutableDisposable<DisposableStore>());
 	private readonly reload = this._register(new RunOnceScheduler(() => void this.load(), 400));
 	/** The design checks' own inputs (reinforcement, materials, combinations) changed. */
 	// An edited input (the project settings: response spectrum design, orthogonal rule, torsion)
@@ -1414,9 +1414,9 @@ export class FemResultsBar extends Disposable {
 	 * design checks), and a pushover's capacity curve. Returns false without results.
 	 */
 	renderProperties(container: HTMLElement): boolean {
-		this.propertyChips.clear();
 		const entry = this.entry;
 		const view = this.view;
+		this.plannedChips.value = new DisposableStore();
 		if (!entry) {
 			return false;
 		}
@@ -1452,11 +1452,21 @@ export class FemResultsBar extends Disposable {
 		if (entry.kind === 'pushover') {
 			appendPropertyHeading(container, localize('femResults.curveHeading', "Capacity Curve"));
 			this.renderCurve(container, entry.frames ?? []);
+			this.appendPlanned(container, [FemPlanned.pushoverHinges, FemPlanned.fibreWalls, FemPlanned.performancePoint]);
+		} else if (entry.kind === 'history') {
+			this.appendPlanned(container, [FemPlanned.nonlinearTimeHistory, FemPlanned.timeHistoryDesign, FemPlanned.recordScaling]);
+		} else if (entry.kind === 'static' && entry.frames?.length) {
+			this.appendPlanned(container, [FemPlanned.stagedConstruction, FemPlanned.creepShrinkage, FemPlanned.columnShortening]);
 		}
 		if (!selection && !isDesignShow(this.show)) {
 			this.ssi.render(container);
 		}
 		return true;
+	}
+
+	/** Chips to the planned features that will extend the result shown. */
+	private appendPlanned(container: HTMLElement, ids: readonly string[]): void {
+		this.plannedChips.value?.add(appendPlannedChips(container, undefined, ids, this.commandService));
 	}
 
 	private renderSelection(container: HTMLElement, selection: FemSelection, view: IFemResultView): void {
@@ -1619,12 +1629,12 @@ export class FemResultsBar extends Disposable {
 			appendPropertyNote(container, localize('femResults.governing', "Governing: {0}.", governing.note));
 		}
 		if (element.kind === 'slab') {
-			// Not in this MVP: shown where they will appear.
-			const planned = append(container, $('.fem-planned-chips'));
 			const prestressed = element.checks.some(c => c.name.startsWith('PT '));
-			for (const feature of [CRACKED_SLAB_DEFLECTION_FEATURE, CRACK_WIDTHS_FEATURE, ...(prestressed ? [TENDON_LAYOUT_FEATURE, TENDON_LOSSES_FEATURE] : [])]) {
-				this.propertyChips.add(appendPlannedFeatureChip(planned, feature, this.commandService));
-			}
+			this.appendPlanned(container, [
+				FemPlanned.crackedSlabDeflection,
+				FemPlanned.crackWidths,
+				...(prestressed ? [FemPlanned.tendonLayout, FemPlanned.tendonLongTermLosses] : []),
+			]);
 		}
 		// A column's slenderness about each axis: how its moments are magnified for it.
 		for (const check of checks.filter(isSlendernessCheck)) {
@@ -1639,7 +1649,11 @@ export class FemResultsBar extends Disposable {
 			}
 		}
 		// A steel member's class, lengths, Cb and governing clause, then its connections.
-		this.renderDetailing(container, steelSection(element));
+		const steel = steelSection(element);
+		this.renderDetailing(container, steel);
+		if (steel.length) {
+			this.appendPlanned(container, [FemPlanned.compositeBeams, FemPlanned.compositeColumns]);
+		}
 		this.renderDetailing(container, detailingSection(report, element, this.model));
 		if (isWall(element)) {
 			const diagram = pierDiagram(element, selection.id);

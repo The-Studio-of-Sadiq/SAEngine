@@ -38,6 +38,26 @@ and override file; its protocol lines are relayed and its manifest entry
 merged, so the caller sees one run. Dense (``fullGenLapack``) cases are
 direct solves and run in place.
 
+Shared modal results: a response spectrum case whose modal case ran (or
+was kept) in the same run combines that case's modes instead of solving
+the eigenproblem again; the results are the same as the modal case's own
+first eigen call, so RX and RY of one modal case cost one eigen solve.
+
+Parallel runs (``--jobs N``, ``OPENSEES_STUDIO_JOBS``, automatic on models
+of :data:`PARALLEL_MIN_NODES` nodes or more): the cases are cut into units
+(:func:`run_units`: a modal case with its response spectrum cases, a cut of
+the linear static cases of one solver setting, any other case alone), each
+run by a child ``python -m opensees_studio.run`` writing its own
+``manifest.part-<k>.json``; their protocol lines are relayed as they come,
+and one ``manifest.json`` in the requested order is written at the end.
+
+Selective reruns (``--reuse``): each case's stamp (:func:`case_stamps`: the
+model without its meta and cases, and the case with its preloads and modal
+case) is kept in ``case-stamps.json``. The next run with ``--reuse`` keeps
+the results of the cases whose stamp did not change (reporting them as
+started and finished), removes everything else in ``--out``, and runs only
+the other cases.
+
 ``OPENSEES_STUDIO_CLI_HARD_EXIT_AFTER=N`` (tests only) makes the process
 leave with ``os._exit(255)`` after the N-th progress line, imitating a
 solver hard exit.
@@ -54,6 +74,7 @@ import traceback
 from pathlib import Path
 from typing import Any
 
+MANIFEST_FILE = "manifest.json"
 EXIT_OK = 0
 EXIT_ANALYSIS_ERROR = 2
 EXIT_INVALID_PROJECT = 3
@@ -116,6 +137,24 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         default=None,
         help="JSON file with a list of case objects that replace the same-id cases for this run",
     )
+    parser.add_argument(
+        "--reuse",
+        action="store_true",
+        help="keep the results in --out of the cases whose model and definition did not change "
+        f"({STAMPS_NAME}), remove the rest of the earlier run, and run only the other cases",
+    )
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=None,
+        metavar="N",
+        help=f"processes to run the cases in (default: ${JOBS_ENV}, else up to {MAX_AUTO_JOBS} "
+        f"on models of {PARALLEL_MIN_NODES} nodes or more, else 1)",
+    )
+    # Internal: the parallel run's and the fresh eigen processes' own manifests and the modal
+    # results handed to them.
+    parser.add_argument("--manifest-name", default=MANIFEST_FILE, help=argparse.SUPPRESS)
+    parser.add_argument("--known-modal", default=None, help=argparse.SUPPRESS)
     return parser.parse_args(argv)
 
 
@@ -178,8 +217,8 @@ def _run_in_fresh_process(
     """Run one case in a child CLI, relaying its protocol lines.
 
     Returns ``(manifest entry or None, exit code)``. The child writes its
-    result files into the same output directory; its own ``manifest.json``
-    is replaced by the parent's complete one afterwards.
+    result files into the same output directory and its own manifest under
+    another name, removed once it ends.
     """
     cmd = [
         sys.executable,
@@ -192,6 +231,8 @@ def _run_in_fresh_process(
         str(case.id),
         "--out",
         str(args.out),
+        "--manifest-name",
+        f"manifest.case-{case.id}.json",
     ]
     if args.case_override:
         cmd += ["--case-override", str(args.case_override)]
@@ -219,6 +260,7 @@ def _run_in_fresh_process(
             saw_error = True
         protocol.emit(**payload)
     code = child.wait()
+    (Path(args.out) / f"manifest.case-{case.id}.json").unlink(missing_ok=True)
     if code != EXIT_OK and not saw_error:
         protocol.emit(
             type="error",
@@ -237,38 +279,312 @@ def _run_in_fresh_process(
     return entry, EXIT_OK
 
 
+def _load_cases(args: argparse.Namespace, protocol: _Protocol) -> tuple[Any, list[Any]]:
+    """The project (with the case overrides) and the requested cases, in order."""
+    from opensees_studio.core import Project
+    from opensees_studio.services.persistence import load_project
+
+    project = load_project(args.project, on_notice=protocol.log)
+    if args.case_override:
+        overrides = json.loads(Path(args.case_override).read_text(encoding="utf-8"))
+        by_id = {int(c["id"]): c for c in overrides}
+        analyses = [by_id.get(c.id, c) for c in project.analyses]
+        project = Project.model_validate(
+            {
+                **project.model_dump(mode="json", by_alias=True),
+                "analyses": [
+                    a if isinstance(a, dict) else a.model_dump(mode="json", by_alias=True)
+                    for a in analyses
+                ],
+            }
+        )
+    project.validate_references()
+    cases = []
+    for cid in args.cases:
+        case = next((c for c in project.analyses if c.id == cid), None)
+        if case is None:
+            raise ValueError(f"No analysis case with id {cid} in the project.")
+        cases.append(case)
+    return project, cases
+
+
+# ─────────────────────── selective reruns ───────────────────────
+#: Per-case stamps of the results in an output folder, written beside ``manifest.json``.
+STAMPS_NAME = "case-stamps.json"
+STAMPS_SCHEMA = 1
+
+
+def case_stamps(project: Any, cases: list[Any]) -> dict[int, str]:
+    """What each case's results are computed from: the model without its meta and analysis
+    cases (nodes, elements, sections, masses, load patterns, spectra, ...) and the case with
+    every case it runs first or reads (its preloads, a response spectrum's modal case). Two runs
+    of a case with equal stamps give the same results."""
+    import hashlib
+
+    model = project.model_dump(mode="json", by_alias=True, exclude={"meta", "analyses"})
+    base = hashlib.sha256(json.dumps(model, sort_keys=True).encode("utf-8")).hexdigest()
+    by_id = {c.id: c for c in project.analyses}
+    stamps: dict[int, str] = {}
+    for case in cases:
+        closure: dict[int, Any] = {}
+        todo = [case.id]
+        while todo:
+            cid = todo.pop()
+            if cid in closure or cid not in by_id:
+                continue
+            closure[cid] = by_id[cid]
+            todo += list(getattr(closure[cid], "preload_case_ids", None) or [])
+            modal = getattr(closure[cid], "modal_case_id", None)
+            if modal is not None:
+                todo.append(modal)
+        dumped = [closure[cid].model_dump(mode="json", by_alias=True) for cid in sorted(closure)]
+        text = json.dumps([base, case.id, dumped], sort_keys=True)
+        stamps[case.id] = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    return stamps
+
+
+def _reusable_entries(
+    out_dir: Path, stamps: dict[int, str], manifest_name: str
+) -> dict[int, dict[str, Any]]:
+    """The manifest entries of ``out_dir`` computed from the same stamps as now, whose files
+    are all still there (none when the folder holds no earlier run)."""
+    try:
+        manifest = json.loads((out_dir / manifest_name).read_text(encoding="utf-8"))
+        kept = json.loads((out_dir / STAMPS_NAME).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(kept, dict) or kept.get("schema") != STAMPS_SCHEMA:
+        return {}
+    old = {int(k): v for k, v in (kept.get("cases") or {}).items()}
+    entries: dict[int, dict[str, Any]] = {}
+    for entry in manifest.get("cases", []):
+        cid = int(entry.get("case_id", -1))
+        if cid not in stamps or old.get(cid) != stamps[cid]:
+            continue
+        files = [out_dir / f for f in entry.get("files", [])]
+        if files and all(f.is_file() for f in files):
+            entries[cid] = entry
+    return entries
+
+
+def _clear_for_reuse(out_dir: Path, kept: dict[int, dict[str, Any]], manifest_name: str) -> None:
+    """Removes everything an earlier run (and its readers' caches) left in ``out_dir`` except
+    the files of the ``kept`` entries, as a fresh run into an emptied folder would; only when
+    the folder holds a run (its manifest)."""
+    import shutil
+
+    if not (out_dir / manifest_name).is_file():
+        return
+    keep = {(out_dir / f).resolve() for e in kept.values() for f in e.get("files", [])}
+    for item in out_dir.iterdir():
+        if item.resolve() in keep:
+            continue
+        if item.is_dir() and not item.is_symlink():
+            shutil.rmtree(item, ignore_errors=True)
+        else:
+            item.unlink(missing_ok=True)
+
+
+def _write_stamps(out_dir: Path, stamps: dict[int, str], entries: list[dict[str, Any]]) -> None:
+    done = {int(e["case_id"]) for e in entries}
+    payload = {
+        "schema": STAMPS_SCHEMA,
+        "cases": {str(cid): s for cid, s in stamps.items() if cid in done},
+    }
+    (out_dir / STAMPS_NAME).write_text(json.dumps(payload, indent=1), encoding="utf-8")
+
+
+# ─────────────────────── modal results shared by response spectrum cases ───────────────────────
+#: The file handing kept modal cases' manifest entries to the parallel run's processes.
+KNOWN_MODAL_NAME = ".known-modal.json"
+
+
+def _shareable_modal(case: Any) -> bool:
+    """A modal case whose results a response spectrum case may take as its own: it runs on the
+    model's own sections, as a response spectrum case solves its modal case."""
+    from opensees_studio.core import ModalCase
+
+    return isinstance(case, ModalCase) and not case.section_overrides
+
+
+def _takes_known_modal(case: Any, known: dict[int, Any]) -> bool:
+    """A response spectrum case that combines modal results already at hand (no eigen call)."""
+    from opensees_studio.core import ResponseSpectrumCase
+
+    return (
+        isinstance(case, ResponseSpectrumCase)
+        and case.modal_case_id in known
+        and not case.section_overrides
+    )
+
+
+def _load_known_modal(path: Path | None, out_dir: Path, cases: dict[int, Any]) -> dict[int, Any]:
+    from opensees_studio.services.result_store import load_results
+
+    if path is None or not path.is_file():
+        return {}
+    known: dict[int, Any] = {}
+    for entry in json.loads(path.read_text(encoding="utf-8")):
+        cid = int(entry["case_id"])
+        if cid in cases and _shareable_modal(cases[cid]):
+            known[cid] = load_results(entry, out_dir)
+    return known
+
+
+# ─────────────────────── parallel runs ───────────────────────
+#: The automatic job count runs cases in parallel processes only from this many nodes up:
+#: below it each process's start (about 10 s of imports) costs more than the cases.
+PARALLEL_MIN_NODES = 1500
+#: Most processes the automatic job count starts.
+MAX_AUTO_JOBS = 4
+JOBS_ENV = "OPENSEES_STUDIO_JOBS"
+#: Fewest linear static cases a batch is cut into a unit of its own for.
+MIN_BATCH_CHUNK = 3
+
+
+def job_count(requested: int | None, n_nodes: int) -> int:
+    """Processes to run the cases in: ``--jobs`` when given, else ``OPENSEES_STUDIO_JOBS``,
+    else half the logical processors (at most :data:`MAX_AUTO_JOBS`) on a model of
+    :data:`PARALLEL_MIN_NODES` nodes or more, and 1 below it."""
+    if requested is not None and requested > 0:
+        return requested
+    env = os.environ.get(JOBS_ENV, "").strip()
+    if env.isdigit() and int(env) > 0:
+        return int(env)
+    if n_nodes < PARALLEL_MIN_NODES:
+        return 1
+    return max(1, min(MAX_AUTO_JOBS, (os.cpu_count() or 2) // 2))
+
+
+def run_units(planner: Any, cases: list[Any], jobs: int) -> list[list[Any]]:
+    """The cases cut into units that run in a process each, the costliest first: a modal case
+    with the response spectrum cases that combine its modes (one eigen solve for all), every
+    other case that solves an eigenproblem or runs alone, then the linear static cases of one
+    solver setting (one factorisation per unit, cut into up to ``jobs`` units)."""
+    from opensees_studio.core import ModalCase, ResponseSpectrumCase
+
+    modal_ids = {c.id for c in cases if _shareable_modal(c)}
+    modal_units: dict[int, list[Any]] = {}
+    batches: dict[Any, list[Any]] = {}
+    eigen: list[list[Any]] = []
+    single: list[list[Any]] = []
+    for case in cases:
+        if case.id in modal_ids:
+            modal_units.setdefault(case.id, []).insert(0, case)
+        elif (
+            isinstance(case, ResponseSpectrumCase)
+            and case.modal_case_id in modal_ids
+            and not case.section_overrides
+        ):
+            modal_units.setdefault(case.modal_case_id, []).append(case)
+        elif isinstance(case, ModalCase | ResponseSpectrumCase):
+            eigen.append([case])
+        elif (key := planner.batch_key(case)) is not None:
+            batches.setdefault(key, []).append(case)
+        else:
+            single.append([case])
+    units = list(modal_units.values()) + eigen + single
+    for batch in batches.values():
+        parts = max(1, min(jobs, len(batch) // MIN_BATCH_CHUNK))
+        size = -(-len(batch) // parts)
+        units += [batch[i : i + size] for i in range(0, len(batch), size)]
+    return units
+
+
+def _run_parallel(
+    protocol: _Protocol,
+    args: argparse.Namespace,
+    units: list[list[Any]],
+    jobs: int,
+    known_modal: Path | None,
+) -> tuple[dict[int, dict[str, Any]], int]:
+    """Runs each unit in its own ``python -m opensees_studio.run`` (``jobs`` at a time),
+    relaying their protocol lines. Returns the manifest entries by case id and the exit code;
+    on the first failure the processes still running are stopped and no new one starts."""
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    lock = threading.Lock()
+    entries: dict[int, dict[str, Any]] = {}
+    failed: list[int] = []
+    children: list[subprocess.Popen[str]] = []
+
+    def run(index: int, unit: list[Any]) -> None:
+        with lock:
+            if failed:
+                return
+        manifest = f"manifest.part-{index}.json"
+        cmd = [sys.executable, "-u", "-m", "opensees_studio.run", "--project", str(args.project)]
+        cmd += ["--cases", *(str(c.id) for c in unit), "--out", str(args.out), "--jobs", "1"]
+        cmd += ["--manifest-name", manifest]
+        if args.case_override:
+            cmd += ["--case-override", str(args.case_override)]
+        if known_modal is not None:
+            cmd += ["--known-modal", str(known_modal)]
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        child = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, text=True, encoding="utf-8", creationflags=flags
+        )
+        with lock:
+            children.append(child)
+            if failed:  # a unit failed while this one started
+                child.kill()
+        saw_error = False
+        assert child.stdout is not None
+        for line in child.stdout:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                payload = {"type": "log", "message": line}
+            kind = payload.get("type")
+            with lock:
+                if kind == "case_finished":
+                    entries[int(payload["case_id"])] = {
+                        k: v for k, v in payload.items() if k != "type"
+                    }
+                elif kind == "error":
+                    saw_error = True
+                protocol.emit(**payload)
+        code = child.wait()
+        (Path(args.out) / manifest).unlink(missing_ok=True)
+        if code == EXIT_OK:
+            return
+        with lock:
+            first = not failed
+            failed.append(code)
+            if not first:
+                return  # stopped because another unit failed
+            if not saw_error:
+                names = ", ".join(f"'{c.name}'" for c in unit)
+                protocol.emit(
+                    type="error",
+                    message=f"The process running {names} exited with code {code}.",
+                    traceback="",
+                )
+            for other in children:
+                if other is not child and other.poll() is None:
+                    other.kill()
+
+    protocol.log(f"Running {len(units)} groups of cases in up to {jobs} processes.")
+    with ThreadPoolExecutor(max_workers=jobs) as pool:
+        for future in [pool.submit(run, i, unit) for i, unit in enumerate(units)]:
+            future.result()
+    return entries, EXIT_ANALYSIS_ERROR if failed else EXIT_OK
+
+
 def main(argv: list[str] | None = None) -> int:
     protocol = _Protocol(_claim_stdout())
     args = _parse_args(argv)
 
-    from opensees_studio.core import Project
-    from opensees_studio.services.persistence import load_project
     from opensees_studio.services.result_store import write_manifest, write_results
 
     out_dir = Path(args.out)
     try:
         out_dir.mkdir(parents=True, exist_ok=True)
-        project = load_project(args.project, on_notice=protocol.log)
-        if args.case_override:
-            overrides = json.loads(Path(args.case_override).read_text(encoding="utf-8"))
-            by_id = {int(c["id"]): c for c in overrides}
-            analyses = [by_id.get(c.id, c) for c in project.analyses]
-            project = Project.model_validate(
-                {
-                    **project.model_dump(mode="json", by_alias=True),
-                    "analyses": [
-                        a if isinstance(a, dict) else a.model_dump(mode="json", by_alias=True)
-                        for a in analyses
-                    ],
-                }
-            )
-        project.validate_references()
-        cases = []
-        for cid in args.cases:
-            case = next((c for c in project.analyses if c.id == cid), None)
-            if case is None:
-                raise ValueError(f"No analysis case with id {cid} in the project.")
-            cases.append(case)
+        project, cases = _load_cases(args, protocol)
     except Exception as exc:
         protocol.emit(type="error", message=str(exc), traceback=traceback.format_exc())
         return EXIT_INVALID_PROJECT
@@ -276,13 +592,69 @@ def main(argv: list[str] | None = None) -> int:
     from opensees_studio.services.opensees_runner import OpenSeesRunner
     from opensees_studio.services.results import eigen_solver_note
 
-    entries: list[dict[str, Any]] = []
-    eigen_called = False
+    manifest_name = args.manifest_name
+    stamps = case_stamps(project, cases) if args.reuse else {}
+    kept: dict[int, dict[str, Any]] = {}
+    if args.reuse:
+        kept = _reusable_entries(out_dir, stamps, manifest_name)
+        _clear_for_reuse(out_dir, kept, manifest_name)
+        if kept:
+            protocol.log(
+                f"Keeping the results of {len(kept)} of {len(cases)} case(s): their model and "
+                "case did not change."
+            )
+    by_id = {c.id: c for c in project.analyses}
+    finished: dict[int, dict[str, Any]] = dict(kept)
+    known_file = Path(args.known_modal) if args.known_modal else None
+    made_known_file = False
+
+    def finish(code: int) -> int:
+        entries = [finished[c.id] for c in cases if c.id in finished]
+        write_manifest(out_dir, entries, str(args.project), manifest_name)
+        if args.reuse:
+            _write_stamps(out_dir, stamps, entries)
+        if made_known_file and known_file is not None:
+            known_file.unlink(missing_ok=True)
+        return code
+
+    for case in cases:
+        if case.id in kept:
+            protocol.emit(
+                type="case_started",
+                case_id=case.id,
+                case_type=type(case).__name__,
+                case_name=case.name,
+            )
+            protocol.log(f"Case '{case.name}' did not change: its results are kept.")
+            protocol.emit(type="case_finished", **kept[case.id])
+    cases_to_run = [c for c in cases if c.id not in kept]
+
+    # Modal results a response spectrum case takes without solving again: those kept, those
+    # the parallel run's parent handed over, and those this process computes.
+    kept_modal = [e for cid, e in kept.items() if _shareable_modal(by_id.get(cid))]
+    if kept_modal and known_file is None:
+        known_file = out_dir / KNOWN_MODAL_NAME
+        known_file.write_text(json.dumps(kept_modal), encoding="utf-8")
+        made_known_file = True
+    try:
+        known = _load_known_modal(known_file, out_dir, by_id)
+    except Exception as exc:  # a kept file that no longer reads: solve again
+        protocol.log(f"The kept modal results could not be read ({exc}); solving them again.")
+        known = {}
+
     protocol.log(f"Building model: {len(project.nodes)} nodes, {len(project.elements)} elements.")
     planner = OpenSeesRunner(project)
-    keys = [planner.batch_key(case) for case in cases]
+    jobs = job_count(args.jobs, len(project.nodes))
+    units = run_units(planner, cases_to_run, jobs) if jobs > 1 else []
+    if len(units) > 1:
+        entries, code = _run_parallel(protocol, args, units, min(jobs, len(units)), known_file)
+        finished.update(entries)
+        return finish(code)
+
+    keys = [planner.batch_key(case) for case in cases_to_run]
     batch: OpenSeesRunner | None = None
-    for k, case in enumerate(cases):
+    eigen_called = False
+    for k, case in enumerate(cases_to_run):
         key = keys[k]
         together = key is not None and (
             (k > 0 and keys[k - 1] == key) or (k + 1 < len(keys) and keys[k + 1] == key)
@@ -299,20 +671,19 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 if batch is None:
                     end = k
-                    while end < len(cases) and keys[end] == key:
+                    while end < len(cases_to_run) and keys[end] == key:
                         end += 1
                     batch = OpenSeesRunner(project)
-                    batch.start_static_batch(cases[k:end])
+                    batch.start_static_batch(cases_to_run[k:end])
                 batch._on_progress = _throttled(protocol, case.id)
                 results = batch.next_static_batch_case(case)
-                if k + 1 == len(cases) or keys[k + 1] != key:
+                if k + 1 == len(cases_to_run) or keys[k + 1] != key:
                     batch = None  # the run of cases ends here
                 entry = write_results(results, out_dir)
             except Exception as exc:
                 protocol.emit(type="error", message=str(exc), traceback=traceback.format_exc())
-                write_manifest(out_dir, entries, str(args.project))
-                return EXIT_ANALYSIS_ERROR
-            entries.append(entry)
+                return finish(EXIT_ANALYSIS_ERROR)
+            finished[case.id] = entry
             for warning in entry["warnings"]:
                 protocol.log(f"Warning: {warning}")
             protocol.log("Analysis complete.")
@@ -320,12 +691,12 @@ def main(argv: list[str] | None = None) -> int:
             continue
         batch = None
 
-        if eigen_called and _routed_to_arpack(project, case):
+        shared = _takes_known_modal(case, known)
+        if eigen_called and not shared and _routed_to_arpack(project, case):
             entry, code = _run_in_fresh_process(protocol, args, case)
             if entry is None:
-                write_manifest(out_dir, entries, str(args.project))
-                return code
-            entries.append(entry)
+                return finish(code)
+            finished[case.id] = entry
             continue
         protocol.emit(
             type="case_started", case_id=case.id, case_type=type(case).__name__, case_name=case.name
@@ -333,24 +704,27 @@ def main(argv: list[str] | None = None) -> int:
         protocol.log(f"Running case '{case.name}' ({type(case).__name__}) ...")
         try:
             runner = OpenSeesRunner(project, on_progress=_throttled(protocol, case.id))
+            runner.known_modal_results = known
             results = runner.run(case, results_dir=out_dir)
             entry = write_results(results, out_dir)
         except Exception as exc:
             protocol.emit(type="error", message=str(exc), traceback=traceback.format_exc())
-            write_manifest(out_dir, entries, str(args.project))
-            return EXIT_ANALYSIS_ERROR
-        eigen_called = eigen_called or _uses_eigen(case)
+            return finish(EXIT_ANALYSIS_ERROR)
+        eigen_called = eigen_called or (_uses_eigen(case) and not shared)
+        if _shareable_modal(case):
+            known[case.id] = results
+        if shared:
+            protocol.log(f"Combined the modes of the modal case already solved for '{case.name}'.")
         note = eigen_solver_note(results)
         if note:
             protocol.log(note)
-        entries.append(entry)
+        finished[case.id] = entry
         for warning in entry["warnings"]:
             protocol.log(f"Warning: {warning}")
         protocol.log("Analysis complete.")
         protocol.emit(type="case_finished", **entry)
 
-    write_manifest(out_dir, entries, str(args.project))
-    return EXIT_OK
+    return finish(EXIT_OK)
 
 
 def _main_flushing() -> int:

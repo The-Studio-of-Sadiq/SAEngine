@@ -1,0 +1,528 @@
+{
+  "$defs": {
+    "BetweenBuildings": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "frontRear": {
+          "minimum": 0,
+          "title": "Frontrear",
+          "type": "number"
+        },
+        "side": {
+          "minimum": 0,
+          "title": "Side",
+          "type": "number"
+        },
+        "rule": {
+          "default": "",
+          "title": "Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "frontRear",
+        "side"
+      ],
+      "title": "BetweenBuildings",
+      "type": "object"
+    },
+    "NarrowRoad": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "minRoad": {
+          "exclusiveMinimum": 0,
+          "title": "Minroad",
+          "type": "number"
+        },
+        "maxRoad": {
+          "exclusiveMinimum": 0,
+          "title": "Maxroad",
+          "type": "number"
+        },
+        "far": {
+          "exclusiveMinimum": 0,
+          "title": "Far",
+          "type": "number"
+        },
+        "mgc": {
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "title": "Mgc",
+          "type": "number"
+        },
+        "rule": {
+          "default": "",
+          "title": "Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "minRoad",
+        "maxRoad",
+        "far",
+        "mgc"
+      ],
+      "title": "NarrowRoad",
+      "type": "object"
+    },
+    "PlanningRow": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "road": {
+          "description": "Road width the row needs [m].",
+          "exclusiveMinimum": 0,
+          "title": "Road",
+          "type": "number"
+        },
+        "far": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Largest FAR; null: not restricted (NR).",
+          "title": "Far"
+        },
+        "mgc": {
+          "description": "Maximum ground coverage [% of the plot].",
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "title": "Mgc",
+          "type": "number"
+        }
+      },
+      "required": [
+        "road",
+        "mgc"
+      ],
+      "title": "PlanningRow",
+      "type": "object"
+    },
+    "PlanningSetbacks": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "rows": {
+          "description": "One per plot band [m].",
+          "items": {
+            "$ref": "#/$defs/SetbackRow"
+          },
+          "title": "Rows",
+          "type": "array"
+        },
+        "highRise": {
+          "$ref": "#/$defs/SetbackRow"
+        },
+        "highRiseHeight": {
+          "description": "Above this height [m] the high-rise row.",
+          "exclusiveMinimum": 0,
+          "title": "Highriseheight",
+          "type": "number"
+        },
+        "highRiseStoreys": {
+          "description": "Or above this many storeys.",
+          "exclusiveMinimum": 0,
+          "title": "Highrisestoreys",
+          "type": "integer"
+        },
+        "rule": {
+          "default": "",
+          "title": "Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rows",
+        "highRise",
+        "highRiseHeight",
+        "highRiseStoreys"
+      ],
+      "title": "PlanningSetbacks",
+      "type": "object"
+    },
+    "PlanningUse": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "table": {
+          "description": "The table of the rules, e.g. 'Table 3(A)'.",
+          "title": "Table",
+          "type": "string"
+        },
+        "rows": {
+          "description": "One per plot band (plotBands); null: the use is not permitted there.",
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/PlanningRow"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Rows",
+          "type": "array"
+        },
+        "wideRoads": {
+          "description": "Rows for any plot size on a wide road.",
+          "items": {
+            "$ref": "#/$defs/PlanningRow"
+          },
+          "title": "Wideroads",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "table",
+        "rows"
+      ],
+      "title": "PlanningUse",
+      "type": "object"
+    },
+    "PlotBand": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "maxArea": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Largest plot area of the row [m²]; null: every larger plot.",
+          "title": "Maxarea"
+        },
+        "maxKatha": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The same in katha (720 sq ft).",
+          "title": "Maxkatha"
+        }
+      },
+      "required": [
+        "maxArea"
+      ],
+      "title": "PlotBand",
+      "type": "object"
+    },
+    "RoadCentre": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "distance": {
+          "description": "Least distance from the road's centre [m].",
+          "minimum": 0,
+          "title": "Distance",
+          "type": "number"
+        },
+        "boundary": {
+          "description": "Least distance from the plot boundary [m].",
+          "minimum": 0,
+          "title": "Boundary",
+          "type": "number"
+        },
+        "rule": {
+          "default": "",
+          "title": "Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "distance",
+        "boundary"
+      ],
+      "title": "RoadCentre",
+      "type": "object"
+    },
+    "RoadIncrement": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "step": {
+          "description": "Road width step [m].",
+          "exclusiveMinimum": 0,
+          "title": "Step",
+          "type": "number"
+        },
+        "far": {
+          "description": "FAR added per step.",
+          "minimum": 0,
+          "title": "Far",
+          "type": "number"
+        },
+        "fromRoad": {
+          "minimum": 0,
+          "title": "Fromroad",
+          "type": "number"
+        },
+        "toRoad": {
+          "exclusiveMinimum": 0,
+          "title": "Toroad",
+          "type": "number"
+        },
+        "rule": {
+          "default": "",
+          "title": "Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "step",
+        "far",
+        "fromRoad",
+        "toRoad"
+      ],
+      "title": "RoadIncrement",
+      "type": "object"
+    },
+    "SetbackRow": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "front": {
+          "minimum": 0,
+          "title": "Front",
+          "type": "number"
+        },
+        "rear": {
+          "minimum": 0,
+          "title": "Rear",
+          "type": "number"
+        },
+        "side": {
+          "minimum": 0,
+          "title": "Side",
+          "type": "number"
+        }
+      },
+      "required": [
+        "front",
+        "rear",
+        "side"
+      ],
+      "title": "SetbackRow",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Planning rules of the plot: FAR and maximum ground coverage by use, plot size and road\nwidth, and the setbacks (the planning authority's rules BNBC Part 3 defers to).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "authority": {
+      "description": "Whose rules these are.",
+      "title": "Authority",
+      "type": "string"
+    },
+    "plotBands": {
+      "items": {
+        "$ref": "#/$defs/PlotBand"
+      },
+      "minItems": 1,
+      "title": "Plotbands",
+      "type": "array"
+    },
+    "uses": {
+      "additionalProperties": {
+        "$ref": "#/$defs/PlanningUse"
+      },
+      "title": "Uses",
+      "type": "object"
+    },
+    "narrowRoads": {
+      "items": {
+        "$ref": "#/$defs/NarrowRoad"
+      },
+      "title": "Narrowroads",
+      "type": "array"
+    },
+    "roadIncrement": {
+      "$ref": "#/$defs/RoadIncrement"
+    },
+    "setbacks": {
+      "$ref": "#/$defs/PlanningSetbacks"
+    },
+    "roadCentre": {
+      "$ref": "#/$defs/RoadCentre"
+    },
+    "betweenBuildings": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BetweenBuildings"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "storeyHeightMax": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Largest storey height counted once in the floor area [m].",
+      "title": "Storeyheightmax"
+    }
+  },
+  "required": [
+    "authority",
+    "plotBands",
+    "uses",
+    "roadIncrement",
+    "setbacks",
+    "roadCentre"
+  ],
+  "title": "PlanningTable",
+  "type": "object",
+  "$id": "saengine.codePack.planning/1"
+}

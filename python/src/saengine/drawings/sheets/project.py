@@ -45,6 +45,7 @@ from saengine.drawings.sheets.model import (
     PlanSlab,
     PlanStair,
     PlanWall,
+    RetainingWallDetail,
     SlabDetail,
     StairDetail,
     Support,
@@ -688,6 +689,49 @@ def _dedupe_top_bars(slabs: list[SlabDetail]) -> None:
         s.top_bars = kept
 
 
+def settings_ground(bim: Any) -> float:
+    """The finished ground level [mm] the drawings take for retaining walls without their own
+    retained level: the lowest storey at or above 0, else 0."""
+    levels = sorted(s.elevation for s in getattr(bim, "stories", []))
+    return next((lv for lv in levels if lv >= 0), 0.0)
+
+
+def retaining_wall_detail(wall: Any, ground: float) -> RetainingWallDetail:
+    """The section of a retaining wall (:class:`~saengine.library.substructure.RetainingWall`)
+    with the bars of its ``reinforcement`` (none drawn without it)."""
+    bars = wall.reinforcement
+
+    def mesh(m: Any, mark: str) -> Mesh | None:
+        return Mesh(float(m.dia), float(m.spacing), mark) if m is not None else None
+
+    base_top = wall.foundingLevel + wall.baseThickness
+    retained = (
+        wall.retainedLevel if wall.retainedLevel is not None else ground
+    ) - wall.foundingLevel
+    front = (wall.frontLevel if wall.frontLevel is not None else base_top) - wall.foundingLevel
+    return RetainingWallDetail(
+        mark=wall.id,
+        kind=wall.kind,
+        toe=wall.toe,
+        heel=wall.heel,
+        stem_top=wall.stemTop,
+        stem_bottom=wall.stemBottom,
+        base=wall.baseThickness,
+        stem_height=wall.topLevel - base_top,
+        retained=max(retained, 0.0),
+        front=max(front, 0.0),
+        cover=float(bars.cover) if bars is not None else 50.0,
+        founding_level=wall.foundingLevel,
+        length=wall.length(),
+        stem_back=mesh(bars.stemBack, "RW1") if bars else None,
+        stem_front=mesh(bars.stemFront, "RW2") if bars else None,
+        horizontal=mesh(bars.horizontal, "RW3") if bars else None,
+        heel_top=mesh(bars.heelTop, "RW4") if bars else None,
+        toe_bottom=mesh(bars.toeBottom, "RW5") if bars else None,
+        supports=[level - wall.foundingLevel for level in wall.supports],
+    )
+
+
 def footing_detail(
     e: dict[str, Any], objects: Any, columns: dict[str, dict], substructure
 ) -> FootingDetail:
@@ -1139,6 +1183,10 @@ def fill_from_detailing(
         footing_detail(e, objects, by_id, substructure)
         for e in elements
         if e.get("kind") in ("footing", "pileCap")
+    ]
+    data.retaining_walls = [
+        retaining_wall_detail(w, settings_ground(bim))
+        for w in (substructure.retainingWalls if substructure is not None else [])
     ]
     data.walls = [
         wall_detail(e, _type_of(objects, str(e.get("type"))), bim, levels)
