@@ -147,7 +147,7 @@ suite('SAEngine - drawings', () => {
 		const CONFLICTS = ['The drawings name the engineer B. Designer, Project names A. Engineer.', `The drawings' project number is EC-7, Project's is P-0042.`];
 		const empty = readDrawingSettings({ project: { name: 'Frame', number: 'P-0042', engineer: 'A. Engineer' } });
 		const full = readDrawingSettings({
-			project: { name: 'Frame', number: 'P-0042', engineer: 'A. Engineer' },
+			project: { name: 'Frame', number: 'P-0042', engineer: 'A. Engineer', client: 'Example Developers' },
 			drawings: {
 				firm: 'Example Consultants', engineer: 'B. Designer', checkedBy: 'C. Checker', approvedBy: 'D. Approver', projectNumber: 'EC-7',
 				revisions: [{ code: 'P1', date: '2026-10-01', description: 'For comment' }, { code: 'A', date: '2026-10-23', description: 'For construction' }],
@@ -162,22 +162,22 @@ suite('SAEngine - drawings', () => {
 			drawingSettingsRows(full).map(r => `${r.name}: ${r.value ?? '-'}`),
 		], [
 			{
-				firm: undefined, engineer: 'A. Engineer', checkedBy: undefined, approvedBy: undefined, projectNumber: 'P-0042', revision: undefined,
+				client: undefined, firm: undefined, engineer: 'A. Engineer', checkedBy: undefined, approvedBy: undefined, projectNumber: 'P-0042', revision: undefined,
 				sheetSize: 'A1', planScale: '1:100', detailScale: '1:25', present: false, conflicts: [],
 			},
 			{
-				firm: 'Example Consultants', engineer: 'B. Designer', checkedBy: 'C. Checker', approvedBy: 'D. Approver', projectNumber: 'EC-7',
+				client: 'Example Developers', firm: 'Example Consultants', engineer: 'B. Designer', checkedBy: 'C. Checker', approvedBy: 'D. Approver', projectNumber: 'EC-7',
 				revision: { code: 'A', date: '2026-10-23', description: 'For construction' },
 				sheetSize: 'A2', planScale: '1:100', detailScale: '1:50', present: true, conflicts: CONFLICTS,
 			},
 			{
-				firm: undefined, engineer: undefined, checkedBy: undefined, approvedBy: undefined, projectNumber: undefined,
+				client: undefined, firm: undefined, engineer: undefined, checkedBy: undefined, approvedBy: undefined, projectNumber: undefined,
 				revision: { code: 'B', date: undefined, description: undefined },
 				sheetSize: 'A1', planScale: '1:200', detailScale: '1:25', present: true, conflicts: [],
 			},
 			['1:50', '1:25', '1:100', undefined, undefined],
 			[
-				'Firm: Example Consultants', 'Engineer: B. Designer', 'Checked by: C. Checker', 'Approved by: D. Approver', 'Project number: EC-7',
+				'Client: Example Developers', 'Firm: Example Consultants', 'Engineer: B. Designer', 'Checked by: C. Checker', 'Approved by: D. Approver', 'Project number: EC-7',
 				'Revision: A · 2026-10-23 · For construction', 'Sheet size: A2', 'Scales: plans 1:100, details 1:50',
 			],
 		]);

@@ -362,6 +362,11 @@ def _system(kind: str, sdc: str | None, height_m: float) -> tuple[str, bool, lis
 
 #: Largest column side the lateral sizing tries [mm].
 MAX_SIDE = 1500.0
+#: A storey group's columns are at most this share smaller than the group's below (SAEngine
+#: practice: a smooth stiffness change up the building, no soft or weak storey above a sudden
+#: step, cf. the soft and weak storeys of BNBC 2020 Part 6 Sec 2.5.5.3.2, vertical
+#: irregularities, after the plan ones of p. 617-618: the page is not in the code pack).
+MAX_COLUMN_STEP = 0.2
 #: Accidental eccentricity of the storey forces, as a share of the plan dimension across them
 #: (the static method's 5 %), for the share of the edge frames.
 ACCIDENTAL = 0.05
@@ -1766,8 +1771,41 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
             col_side = new_sides
             loads, load_parts = service_loads(col_side)
 
+    # ── no sudden step from one storey group to the next (MAX_COLUMN_STEP) ──
+    stepped_up: list[str] = []
+    for kind in POSITION_FACTOR:
+        for g in range(1, len(groups)):
+            below, here = group_side.get((g - 1, kind)), group_side.get((g, kind))
+            if below is None or here is None:
+                continue
+            least = ceil_to((1 - MAX_COLUMN_STEP) * below, 50)
+            if here < least:
+                group_side[(g, kind)] = least
+                governing[(g, kind)] = f"transition: at most {MAX_COLUMN_STEP:.0%} smaller"
+                stepped_up.append(
+                    f"{story_ids[groups[g][0]]}-{story_ids[groups[g][-1]]} {kind} "
+                    f"{here:g} -> {least:g} mm"
+                )
+    if stepped_up:
+        col_side = {
+            (i, j, k): group_side[(group_of[k], position(i, j))]
+            for i in range(nx)
+            for j in range(ny)
+            for k in range(1, n + 1)
+        }
+        loads, load_parts = service_loads(col_side)
+        notes.append(
+            f"Column transitions: a storey group's columns at most {MAX_COLUMN_STEP:.0%} smaller "
+            "than the ones below (rounded up to 50 mm; SAEngine practice, to avoid a sudden "
+            "stiffness and strength step, cf. the soft and weak storeys of BNBC 2020 Part 6 Sec "
+            "2.5.5.3.2, vertical irregularities; its page is not in the code pack: check it): "
+            + ", ".join(stepped_up)
+            + "."
+        )
+
     # The estimate at the final sizes (the P-M sizing may have enlarged columns since).
     stiffness_note = ""
+    met = True
     if first_estimate is not None:
         estimate = stiffness_estimate(
             final,
@@ -2097,6 +2135,7 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
     qa = s.allowableBearing or final.foundation.allowableBearing or DEFAULT_BEARING
     foundations: list[dict[str, Any]] = []
     footing_rule = ""
+    footing_clash = 0
     core_rule = ""
     # The core walls' own weight over the full height, per wall line [kN].
     wall_weight = {
@@ -2276,6 +2315,7 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
             + "; thickness max(450 mm, side/4) rounded up to 50 mm (rule of thumb). Part 9 "
             "designs them on the soil report."
         )
+        footing_clash = clash
         if clash:
             notes.append(
                 f"{clash} pairs of footings come within 300 mm of each other: consider combined "
@@ -2441,8 +2481,42 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
     if not s.reinforcement:
         notes.append("No bars on the types: Design mode proposes them after the analysis.")
 
+    # What the engineer should see before opening the building (the wizard's warning box).
+    warnings: list[str] = []
+    if first_estimate is not None and estimate is not None and not met:
+        ratios = {
+            a: max(
+                max(estimate.seismicRatio[a]) if estimate.driftLimit else 0.0,
+                estimate.windRatio[a],
+            )
+            for a in ("X", "Y")
+        }
+        flexible = [a for a in ("X", "Y") if ratios[a] > 1.0 + 1e-6]
+        warnings.append(
+            "Drift or period NOT met at the preliminary sizes"
+            + (
+                " along " + " and ".join(f"{a} (drift / limit {ratios[a]:.2f})" for a in flexible)
+                if flexible
+                else " (the period is above the target)"
+            )
+            + ": core walls, deeper beams or more frame lines are needed. The analysis is the "
+            "check."
+        )
+    if footing_clash:
+        warnings.append(
+            f"{footing_clash} pairs of footings overlap or come within 300 mm of each other: "
+            "combined footings or a mat (09 Substructure)."
+        )
     summary = {
         "sdc": sdc,
+        "warnings": warnings,
+        # Core walls would help the drift (a frame system without them that failed it).
+        "suggestCoreWalls": bool(warnings) and not walls_on and not met,
+        "columnReasons": {
+            f"{story_ids[groups[g][0]]}-{story_ids[groups[g][-1]]} {kind}": why
+            for (g, kind), why in sorted(governing.items())
+            if (g, kind) in group_side
+        },
         "zone": zone,
         "system": system_id,
         "counts": {
@@ -2492,7 +2566,7 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
                     a: round(max(r), 3) for a, r in estimate.seismicRatio.items()
                 },
                 "windDriftRatio": {a: round(r, 3) for a, r in estimate.windRatio.items()},
-                "met": not stiffness_unmet,
+                "met": met,
             }
             if first_estimate is not None and estimate is not None
             else None

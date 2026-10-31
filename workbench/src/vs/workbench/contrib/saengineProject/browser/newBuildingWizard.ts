@@ -32,6 +32,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { defaultButtonStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { EditorInputCapabilities, IEditorOpenContext, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -154,6 +155,7 @@ export class NewBuildingWizard extends EditorPane {
 		@IEditorService private readonly editorService: IEditorService,
 		@IFileService private readonly fileService: IFileService,
 		@ISaengineProjectService private readonly projectService: ISaengineProjectService,
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 	) {
 		super(NewBuildingWizard.ID, group, telemetryService, themeService, wizardStorage);
 		this.opener = instantiationService.createInstance(ProjectOpener);
@@ -197,18 +199,23 @@ export class NewBuildingWizard extends EditorPane {
 
 	/**
 	 * Where the building goes unless the engineer picks another folder: beside the open project,
-	 * else where the last building went, else the default projects folder. Never a relative path.
+	 * else in the open folder (not a project), else where the last building went, else the
+	 * default projects folder. Never a relative path; a Windows drive in capitals ("C:\").
 	 */
 	private async initialFolder(): Promise<string> {
 		const open = this.projectService.project?.root;
 		if (open?.scheme === 'file') {
-			return dirname(open).fsPath;
+			return driveInCapitals(dirname(open).fsPath);
+		}
+		const folder = this.workspaceService.getWorkspace().folders[0]?.uri;
+		if (folder?.scheme === 'file') {
+			return driveInCapitals(folder.fsPath);
 		}
 		const last = this.wizardStorage.get(LAST_FOLDER_STORAGE_KEY, StorageScope.APPLICATION);
 		if (last && !folderError(last, isWindows)) {
-			return last;
+			return driveInCapitals(last);
 		}
-		return (await this.opener.defaultLocation()).fsPath;
+		return driveInCapitals((await this.opener.defaultLocation()).fsPath);
 	}
 
 	/**
@@ -473,7 +480,7 @@ export class NewBuildingWizard extends EditorPane {
 				return;
 			}
 			this.wizardStorage.store(LAST_FOLDER_STORAGE_KEY, parent, StorageScope.APPLICATION, StorageTarget.MACHINE);
-			this.renderResult(result.spec.name, outcome.root, outcome.notes, outcome.summary);
+			this.renderResult(result.spec.name, outcome.root, outcome.notes, outcome.summary, parent);
 		};
 		this.pageDisposables.add(create.onDidClick(() => void submit()));
 		this.pageDisposables.add(addDisposableListener(form, EventType.KEY_DOWN, e => {
@@ -667,12 +674,27 @@ export class NewBuildingWizard extends EditorPane {
 	// ───────────────────────────── the result ─────────────────────────────
 
 	/** What was made, the actions first, then the sizes; how they were chosen folds out below. */
-	private renderResult(name: string, root: string, notes: readonly string[], summary: IGenerateSummary | undefined): void {
+	private renderResult(name: string, root: string, notes: readonly string[], summary: IGenerateSummary | undefined, parent: string): void {
 		const page = this.resetPage();
 		const header = append(page, $('header.header'));
 		append(header, $('h1', undefined, localize('newBuilding.created', "{0} Is Ready", name)));
 		append(header, $('p.subtitle', undefined, localize('newBuilding.createdIn', "Created in {0}. The member sizes are preliminary: check them before the analysis.", root)));
 		const result = append(page, $('.result'));
+		// What needs the engineer's attention first: drift not met, overlapping footings.
+		if (summary?.warnings.length) {
+			const box = append(result, $('.warning-box', { role: 'alert' }));
+			append(box, $('h2', undefined, localize('newBuilding.warnings', "Check Before the Analysis")));
+			const list = append(box, $('ul'));
+			for (const warning of summary.warnings) {
+				append(list, $('li', undefined, warning));
+			}
+			if (summary.suggestCoreWalls && this.form.system !== 'rcFrameCore') {
+				const coreWalls = this.pageDisposables.add(new Button(box, { ...defaultButtonStyles, secondary: true }));
+				coreWalls.label = localize('newBuilding.addCoreWalls', "Add Core Walls and Size Again");
+				coreWalls.setTitle(localize('newBuilding.addCoreWallsTitle', "Regenerates this building as a frame with a core in the central bay, in the same folder (the generated part files are replaced)."));
+				this.pageDisposables.add(coreWalls.onDidClick(() => void this.regenerateWithCore(name, parent, coreWalls)));
+			}
+		}
 		const actions = append(result, $('.form-actions'));
 		if (summary && (summary.counts.length || summary.sizes.length)) {
 			append(result, $('h2', undefined, localize('newBuilding.sizes', "Preliminary Sizes")));
@@ -685,6 +707,7 @@ export class NewBuildingWizard extends EditorPane {
 				const row = append(table, $('tr'));
 				append(row, $('th', { scope: 'row' }, size.what));
 				append(row, $('td', undefined, size.size));
+				append(row, $('td.why', undefined, size.why ?? ''));
 			}
 		}
 		const details = append(result, $('details.notes'));
@@ -707,6 +730,31 @@ export class NewBuildingWizard extends EditorPane {
 		this.scrollable.scanDomNode();
 	}
 
+	/** The building generated again as a frame with a core, over the files of the first one. */
+	private async regenerateWithCore(name: string, parent: string, button: Button): Promise<void> {
+		const form = { ...this.form, system: 'rcFrameCore' as const };
+		const spec = buildSpec(form, value => this.opener.validateName(value));
+		if (!spec.ok) {
+			return;
+		}
+		button.enabled = false;
+		button.label = localize('newBuilding.addingCoreWalls', "Sizing again with core walls...");
+		let outcome: IGenerateOutcome;
+		try {
+			outcome = readGenerateResult(await this.commandService.executeCommand(GENERATE_BUILDING_COMMAND, { spec: spec.spec, destParent: parent, name, overwrite: true, ...(this.plot ? { site: this.plot.site } : {}) }));
+		} catch (error) {
+			outcome = { notes: [], error: toErrorMessage(error) };
+		}
+		if (outcome.error || !outcome.root) {
+			button.enabled = true;
+			button.label = localize('newBuilding.addCoreWalls', "Add Core Walls and Size Again");
+			this.notificationService.error(localize('newBuilding.failed', "The building could not be created: {0}", outcome.error ?? ''));
+			return;
+		}
+		this.form = form;
+		this.renderResult(name, outcome.root, outcome.notes, outcome.summary, parent);
+	}
+
 	/** Opens the new project in this window; its floor plan opens there (see {@link NewBuildingOpener}). */
 	private async openBuilding(root: string, notes: readonly string[]): Promise<void> {
 		const pending: IPendingBuilding = { root, notes, time: Date.now() };
@@ -724,6 +772,11 @@ export class NewBuildingWizard extends EditorPane {
 			void this.editorService.closeEditor({ editor: input, groupId: this.group.id });
 		}
 	}
+}
+
+/** "c:\Users" -> "C:\Users": URIs keep the drive in lower case, the engineer types it in capitals. */
+export function driveInCapitals(path: string): string {
+	return path.replace(/^([a-z]):/, (_, drive: string) => `${drive.toUpperCase()}:`);
 }
 
 /**

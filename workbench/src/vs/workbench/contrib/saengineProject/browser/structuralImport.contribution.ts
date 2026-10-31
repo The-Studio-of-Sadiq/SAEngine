@@ -49,7 +49,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: IMPORT_STRUCTURAL_UI_COMMAND,
 			title: localize2('saengine.importStructural', "Import from ETABS, STAAD or SAP2000..."),
-			metadata: { description: localize2('saengine.importStructural.description', "Creates a new project from an ETABS (.e2k), STAAD.Pro (.std) or SAP2000 (.s2k) text file and shows what was imported. Arguments: {path, destParent, name, open}.") },
+			metadata: { description: localize2('saengine.importStructural.description', "Creates a new project from an ETABS (.e2k), STAAD.Pro (.std) or SAP2000 (.s2k) text file and shows what was imported.") },
 			category,
 			f1: true,
 			icon: Codicon.cloudDownload,
