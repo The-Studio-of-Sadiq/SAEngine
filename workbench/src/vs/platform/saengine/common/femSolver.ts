@@ -149,7 +149,7 @@ export interface IFemResultView {
 
 /** A rule violation in a library file, reported against the entry at `index` (none: the whole file). */
 /** Project files the Python models check. */
-export type LibraryFileKind = 'materials' | 'objects' | 'settings' | 'floorPlan' | 'structure' | 'bim' | 'reportTemplate';
+export type LibraryFileKind = 'materials' | 'objects' | 'settings' | 'floorPlan' | 'structure' | 'bim' | 'reportTemplate' | 'worksheet';
 
 export interface IGeneratedBuilding {
 	/** The new `bim.json` text, when it could be generated. */
@@ -629,7 +629,11 @@ export type EngineMethod =
 	| 'soil/location' | 'soil/plotCheck' | 'soil/gisExport' | 'soil/gisImport' | 'soil/qgisProgram'
 	| 'drawings/generate' | 'drawings/list' | 'drawings/progress'
 	| 'import/structural' | 'export/e2k' | 'library/steelSections' | 'library/generateBuilding'
-	| 'section/analyse' | 'architecture/importIfc' | 'architecture/inspectDrawing' | 'architecture/importDrawing' | 'architecture/check';
+	| 'section/analyse' | 'architecture/importIfc' | 'architecture/inspectDrawing' | 'architecture/importDrawing' | 'architecture/check'
+	// Calculation worksheets (`saengine.report.worksheets`): `worksheets/kinds` `{}`,
+	// `worksheets/calculate` `{kind, inputs, projectRoot?}`, `worksheets/list` `{projectRoot}`,
+	// `worksheets/create` `{projectRoot, kind, id, title?}`.
+	| 'worksheets/kinds' | 'worksheets/calculate' | 'worksheets/list' | 'worksheets/create';
 
 export interface IQgisOpenRequest {
 	/** Absolute path of the `.gpkg`, `.geojson` or `.json` file. */

@@ -71,6 +71,10 @@ Methods:
   Word (``format`` "docx"), as the report template chooses (``{path, pages, warnings, format,
   template}``); ``report/templates`` ``{projectRoot}`` -> ``{templates, current}``;
   ``report/createTemplate`` ``{projectRoot, id, base?, name?}`` -> ``{path}`` (a copy of ``base``)
+- ``worksheets/kinds`` ``{}`` -> the calculation worksheet kinds with their inputs;
+  ``worksheets/calculate`` ``{kind, inputs, projectRoot?}`` -> the calculation (the project's
+  code pack); ``worksheets/list`` ``{projectRoot}`` -> ``{worksheets, problems}``;
+  ``worksheets/create`` ``{projectRoot, kind, id, title?}`` -> ``{path}`` or ``{problems}``
 - ``drawings/generate`` ``{projectRoot, sheets?, size?, designReportText?}`` -> the structural
   drawings written into ``11 Exports/Drawings`` (``{sheets, pdf, bbsCsv, generatedAt, size,
   stale, notes, problems}``; ``saengine.pipeline.drawings``; in a worker thread; ``sheets``: only
@@ -594,6 +598,28 @@ def create_server() -> JsonRPCServer:
         args = _plain(params)
         return handlers.report_template_create(
             args["projectRoot"], args["id"], args.get("base"), args.get("name")
+        )
+
+    @server.feature("worksheets/kinds")
+    def _worksheet_kinds(params: Any) -> dict[str, Any]:
+        return handlers.worksheet_kinds()
+
+    @server.feature("worksheets/calculate")
+    def _worksheet_calculate(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.worksheet_calculate(
+            args["kind"], args.get("inputs") or {}, args.get("projectRoot")
+        )
+
+    @server.feature("worksheets/list")
+    def _worksheet_list(params: Any) -> dict[str, Any]:
+        return handlers.worksheet_list(_plain(params)["projectRoot"])
+
+    @server.feature("worksheets/create")
+    def _worksheet_create(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.worksheet_create(
+            args["projectRoot"], args["kind"], args["id"], args.get("title")
         )
 
     # Detailing, the schedule and the sheets take seconds to tens of seconds: in a worker thread,
