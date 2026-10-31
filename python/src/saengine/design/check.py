@@ -972,6 +972,17 @@ def design(
             slender_options,
         )
 
+    # Integrator glue (T9): fire resistance by least sizes and covers
+    # (saengine.design.fire_resistance; the ratings of BNBC 2020 Part 4).
+    from saengine.design.fire_resistance import CLAUSE as FIRE_CLAUSE
+    from saengine.design.fire_resistance import add_fire_checks
+
+    for into in sinks:
+        if add_fire_checks(into[0], types, settings):
+            into[2].append(
+                "fire resistance: the members' least sizes and covers checked for the ratings of "
+                f"Project Settings (BNBC 2020 Part 4) by {FIRE_CLAUSE}"
+            )
     # Integrator glue (T9): the columns' gravity load takedown (saengine.design.takedown).
     from saengine.design.takedown import takedown
 

@@ -4115,6 +4115,11 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					$ref: '#/$defs/Settlement',
 					title: 'Support settlement',
 				},
+				fireResistance: {
+					$ref: '#/$defs/FireResistance',
+					description: 'Ratings the concrete members\' least sizes and covers are checked for (the ratings of BNBC 2020 Part 4; the sizes of ACI 216.1).',
+					title: 'Fire resistance',
+				},
 				supports: {
 					default: 'fixed',
 					description: 'Fixed: the column bases are fixed. Soil springs: each column base stands on its foundation of 9 Substructure, on springs from the soil of 1 Soil Report (BNBC 2020 Part 6 Sec 1.2.7.3). Footings: ASCE 41-06 Sec 4.4.2.1.2 (Gazetas 1991). Pile caps: their piles\' head stiffnesses. Rafts: shells on subgrade springs. Columns without a foundation, strip footings and walls stay fixed. The foundations of 9 Substructure are then designed from a fixed-base run of the same model (Compare Fixed Base and Soil Springs; Run All runs it).',
@@ -4507,6 +4512,38 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			},
 			required: ['weight'],
 			title: 'ExtraMass',
+			type: 'object',
+		},
+		FireResistance: {
+			additionalProperties: false,
+			description: 'The fire resistance ratings the members are checked for (least sizes and covers); 0: not\nchecked.',
+			properties: {
+				columns: {
+					default: 0,
+					description: 'Rating of the columns [h] (0: not checked). Take it from BNBC 2020 Part 4 for the building\'s occupancy and construction type.',
+					enum: [0, 1, 1.5, 2, 3, 4],
+					title: 'Columns',
+				},
+				beams: {
+					default: 0,
+					description: 'Rating of the beams [h].',
+					enum: [0, 1, 1.5, 2, 3, 4],
+					title: 'Beams',
+				},
+				slabs: {
+					default: 0,
+					description: 'Rating of the slabs [h].',
+					enum: [0, 1, 1.5, 2, 3, 4],
+					title: 'Slabs',
+				},
+				walls: {
+					default: 0,
+					description: 'Rating of the structural walls [h].',
+					enum: [0, 1, 1.5, 2, 3, 4],
+					title: 'Walls',
+				},
+			},
+			title: 'FireResistance',
 			type: 'object',
 		},
 		Foundation: {
@@ -5802,6 +5839,12 @@ export const DEFAULT_SETTINGS: object = {
 		settlement: {
 			enabled: false,
 			supports: [],
+		},
+		fireResistance: {
+			columns: 0,
+			beams: 0,
+			slabs: 0,
+			walls: 0,
 		},
 		supports: 'fixed',
 		ssiPileGroupFactor: 1.0,
@@ -10000,6 +10043,12 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		settlement: {
 			enabled: false,
 			supports: [],
+		},
+		fireResistance: {
+			columns: 0,
+			beams: 0,
+			slabs: 0,
+			walls: 0,
 		},
 		supports: 'fixed',
 		ssiShearModulusRatio: null,

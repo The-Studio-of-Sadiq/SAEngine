@@ -344,6 +344,26 @@ class Thermal(_Model):
     )
 
 
+FireHours = Literal[0, 1, 1.5, 2, 3, 4]
+
+
+class FireResistance(_Model):
+    """The fire resistance ratings the members are checked for (least sizes and covers); 0: not
+    checked."""
+
+    columns: FireHours = Field(
+        default=0,
+        title="Columns",
+        description="Rating of the columns [h] (0: not checked). Take it from BNBC 2020 Part 4 "
+        "for the building's occupancy and construction type.",
+    )
+    beams: FireHours = Field(default=0, title="Beams", description="Rating of the beams [h].")
+    slabs: FireHours = Field(default=0, title="Slabs", description="Rating of the slabs [h].")
+    walls: FireHours = Field(
+        default=0, title="Walls", description="Rating of the structural walls [h]."
+    )
+
+
 class SettlementSupport(_Model):
     """A column base that settles in the settlement case ST."""
 
@@ -762,6 +782,12 @@ class Analysis(_Model):
     )
     thermal: Thermal = Field(default_factory=Thermal, title="Temperature")
     settlement: Settlement = Field(default_factory=Settlement, title="Support settlement")
+    fireResistance: FireResistance = Field(
+        default_factory=FireResistance,
+        title="Fire resistance",
+        description="Ratings the concrete members' least sizes and covers are checked for "
+        "(the ratings of BNBC 2020 Part 4; the sizes of ACI 216.1).",
+    )
     supports: Literal["fixed", "soilSprings"] = Field(
         default="fixed",
         title="Column supports",

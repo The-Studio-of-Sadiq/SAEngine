@@ -1427,6 +1427,29 @@ class LiveReductionTable(TableModel):
     kll: LiveElementFactors
 
 
+class FireResistanceTable(TableModel):
+    """Least sizes and covers of concrete members for a fire resistance rating, one value per
+    rating of ``ratings`` (hours)."""
+
+    ratings: list[Positive] = Field(min_length=1, description="Fire resistance ratings [h].")
+    slabThickness: list[Positive] = Field(description="Least slab thickness [mm].")
+    slabCover: list[Positive] = Field(description="Least slab cover to the bars [mm].")
+    wallThickness: list[Positive] = Field(description="Least wall thickness [mm].")
+    beamCover: list[Positive] = Field(description="Least beam cover to the main bars [mm].")
+    beamWidth: Positive = Field(description="Least beam width the beam covers hold for [mm].")
+    columnSize: list[Positive] = Field(description="Least column dimension [mm].")
+    columnCoverPerHour: Positive = Field(description="Column cover per hour of rating [mm].")
+    columnCoverMax: Positive = Field(description="Column cover need not exceed [mm].")
+
+    @model_validator(mode="after")
+    def _same_length(self) -> FireResistanceTable:
+        n = len(self.ratings)
+        for name in ("slabThickness", "slabCover", "wallThickness", "beamCover", "columnSize"):
+            if len(getattr(self, name)) != n:
+                raise ValueError(f"{name}: one value per rating ({n})")
+        return self
+
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -1450,6 +1473,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "fire": FireTable,
     "steelSections": SteelSectionsTable,
     "liveReduction": LiveReductionTable,
+    "fireResistance": FireResistanceTable,
 }
 
 

@@ -27,7 +27,8 @@
     "electrical",
     "fire",
     "steelSections",
-    "liveReduction"
+    "liveReduction",
+    "fireResistance"
   ],
   "description": "Bangladesh National Building Code 2020: Part 6 (Structural Design: loads, wind and earthquake, load combinations, reinforced concrete, seismic detailing, structural steel and foundations), Part 8 (plumbing, air-conditioning, electrical services), Part 4 (fire protection) and the standard steel sections SAEngine designs with. The values SAEngine used before code packs, transcribed from its modules; every table names its clauses and pages.",
   "sources": [
@@ -120,6 +121,9 @@
     ],
     "liveReduction": [
       "BNBC 2020 Part 6 Sec 2.3.13"
+    ],
+    "fireResistance": [
+      "ACI 216.1-14 (BNBC 2020 Part 6 gives no table; the ratings come from Part 4)"
     ]
   },
   "basis": {
