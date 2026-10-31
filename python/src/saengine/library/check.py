@@ -23,7 +23,14 @@ from saengine.library.settings import problems as settings_problems
 from saengine.library.structure import StructuralModel
 
 Kind = Literal[
-    "materials", "objects", "settings", "floorPlan", "structure", "bim", "reportTemplate"
+    "materials",
+    "objects",
+    "settings",
+    "floorPlan",
+    "structure",
+    "bim",
+    "reportTemplate",
+    "worksheet",
 ]
 
 
@@ -72,6 +79,8 @@ def check_library(kind: Kind, text: str, materials_text: str | None = None) -> l
         return _check_settings(data)
     if kind == "reportTemplate":
         return _check_report_template(data)
+    if kind == "worksheet":
+        return _check_worksheet(data)
     if kind == "floorPlan":
         return _check_layout(FloorPlan, data, materials_text)
     if kind == "bim":
@@ -192,6 +201,34 @@ def _check_report_template(data: Any) -> list[dict[str, Any]]:
                 _problem(None, f"sections.{index}.id", f"Section {section.id} is listed twice.")
             )
         seen.add(section.id)
+    return problems
+
+
+def _check_worksheet(data: Any) -> list[dict[str, Any]]:
+    """Problems of a calculation worksheet: its schema, a known kind, and inputs the kind has
+    and accepts (:func:`saengine.report.worksheets.calculate` names them)."""
+    from saengine.library.worksheet import Worksheet
+    from saengine.report.worksheets import KINDS, calculate
+
+    try:
+        sheet = Worksheet.model_validate(data)
+    except ValidationError as exc:
+        return [
+            _problem(None, ".".join(str(p) for p in error["loc"]), _clean(error["msg"]))
+            for error in exc.errors()
+        ]
+    kind = KINDS.get(sheet.kind)
+    if kind is None:
+        return [_problem(None, "kind", f"Unknown worksheet kind '{sheet.kind}'.")]
+    known = {i.name for i in kind.inputs}
+    problems = [
+        _problem(None, f"inputs.{name}", f"{kind.title} has no input '{name}'.")
+        for name in sheet.inputs
+        if name not in known
+    ]
+    problems += [
+        _problem(None, "inputs", p) for p in calculate(sheet.kind, sheet.inputs)["problems"]
+    ]
     return problems
 
 

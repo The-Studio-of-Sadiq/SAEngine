@@ -6431,6 +6431,158 @@ export const BNBC: IBnbcTables = {
 
 export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 	$defs: {
+		BeamCorbels: {
+			additionalProperties: false,
+			description: 'Corbels under a beam\'s ends (empty: the beam frames into the column).',
+			properties: {
+				start: {
+					anyOf: [
+						{
+							$ref: '#/$defs/Corbel',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'At the start',
+				},
+				end: {
+					anyOf: [
+						{
+							$ref: '#/$defs/Corbel',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'At the end',
+				},
+			},
+			title: 'BeamCorbels',
+			type: 'object',
+		},
+		Corbel: {
+			additionalProperties: false,
+			description: 'A corbel (bracket) cast with a column that carries a beam\'s end (BNBC 2020 Part 6 Sec\n6.4.7). The beam\'s end shear from the analysis is its Vu.',
+			properties: {
+				width: {
+					description: 'Across the beam [mm].',
+					exclusiveMinimum: 0,
+					title: 'Width bw',
+					type: 'number',
+				},
+				depth: {
+					description: 'At the column face [mm].',
+					exclusiveMinimum: 0,
+					title: 'Depth h',
+					type: 'number',
+				},
+				edgeDepth: {
+					description: 'At the outer edge [mm].',
+					exclusiveMinimum: 0,
+					title: 'Edge depth',
+					type: 'number',
+				},
+				projection: {
+					description: 'From the column face [mm].',
+					exclusiveMinimum: 0,
+					title: 'Projection',
+					type: 'number',
+				},
+				loadOffset: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Column face to the bearing\'s centre [mm]; empty: half the projection.',
+					title: 'Shear span av',
+				},
+				bearing: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Bearing pad along the projection [mm]; empty: no bearing check.',
+					title: 'Bearing length',
+				},
+				cover: {
+					default: 40.0,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Cover',
+					type: 'number',
+				},
+				mainBars: {
+					$ref: '#/$defs/CorbelBars',
+					description: 'Top tension bars.',
+					title: 'Main bars As',
+				},
+				ties: {
+					anyOf: [
+						{
+							$ref: '#/$defs/CorbelBars',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Closed ties parallel to the main bars (two legs each).',
+					title: 'Closed ties Ah',
+				},
+				horizontalForce: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Factored tension on the bearing [kN]; empty: 0.2 Vu, the least of the code.',
+					title: 'Horizontal force Nuc',
+				},
+			},
+			required: ['width', 'depth', 'edgeDepth', 'projection', 'mainBars'],
+			title: 'Corbel',
+			type: 'object',
+		},
+		CorbelBars: {
+			additionalProperties: false,
+			description: 'A set of bars of a corbel: how many and their diameter.',
+			properties: {
+				count: {
+					minimum: 1,
+					title: 'Count',
+					type: 'integer',
+				},
+				dia: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Diameter',
+					type: 'number',
+				},
+			},
+			required: ['count', 'dia'],
+			title: 'CorbelBars',
+			type: 'object',
+		},
 		DesignOverwrites: {
 			additionalProperties: false,
 			description: 'Design overwrites of a member or of an object type (empty fields inherit).',
@@ -6863,6 +7015,19 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'k, unbraced lengths and framing for the design (empty: automatic).',
 					title: 'Design overwrites',
+				},
+				corbels: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BeamCorbels',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Corbels under the beam\'s ends, designed by BNBC 2020 Part 6 Sec 6.4.7.',
+					title: 'Corbels',
 				},
 			},
 			required: ['id', 'type', 'story', 'start', 'end'],
@@ -7994,6 +8159,38 @@ export const BIM_SCHEMA: IJSONSchema = {
 			title: 'AreaElement',
 			type: 'object',
 		},
+		BeamCorbels: {
+			additionalProperties: false,
+			description: 'Corbels under a beam\'s ends (empty: the beam frames into the column).',
+			properties: {
+				start: {
+					anyOf: [
+						{
+							$ref: '#/$defs/Corbel',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'At the start',
+				},
+				end: {
+					anyOf: [
+						{
+							$ref: '#/$defs/Corbel',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'At the end',
+				},
+			},
+			title: 'BeamCorbels',
+			type: 'object',
+		},
 		BeamElement: {
 			additionalProperties: false,
 			description: 'A beam with its top at ``elevation`` (the level of the story it supports).',
@@ -8085,6 +8282,19 @@ export const BIM_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'k, unbraced lengths and framing for the design (empty: automatic).',
 					title: 'Design overwrites',
+				},
+				corbels: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BeamCorbels',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Corbels under the beam\'s ends, designed by BNBC 2020 Part 6 Sec 6.4.7.',
+					title: 'Corbels',
 				},
 			},
 			required: ['id', 'type', 'start', 'end', 'elevation'],
@@ -8289,6 +8499,126 @@ export const BIM_SCHEMA: IJSONSchema = {
 			},
 			required: ['id', 'type', 'position', 'bottom', 'top'],
 			title: 'ColumnElement',
+			type: 'object',
+		},
+		Corbel: {
+			additionalProperties: false,
+			description: 'A corbel (bracket) cast with a column that carries a beam\'s end (BNBC 2020 Part 6 Sec\n6.4.7). The beam\'s end shear from the analysis is its Vu.',
+			properties: {
+				width: {
+					description: 'Across the beam [mm].',
+					exclusiveMinimum: 0,
+					title: 'Width bw',
+					type: 'number',
+				},
+				depth: {
+					description: 'At the column face [mm].',
+					exclusiveMinimum: 0,
+					title: 'Depth h',
+					type: 'number',
+				},
+				edgeDepth: {
+					description: 'At the outer edge [mm].',
+					exclusiveMinimum: 0,
+					title: 'Edge depth',
+					type: 'number',
+				},
+				projection: {
+					description: 'From the column face [mm].',
+					exclusiveMinimum: 0,
+					title: 'Projection',
+					type: 'number',
+				},
+				loadOffset: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Column face to the bearing\'s centre [mm]; empty: half the projection.',
+					title: 'Shear span av',
+				},
+				bearing: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Bearing pad along the projection [mm]; empty: no bearing check.',
+					title: 'Bearing length',
+				},
+				cover: {
+					default: 40.0,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Cover',
+					type: 'number',
+				},
+				mainBars: {
+					$ref: '#/$defs/CorbelBars',
+					description: 'Top tension bars.',
+					title: 'Main bars As',
+				},
+				ties: {
+					anyOf: [
+						{
+							$ref: '#/$defs/CorbelBars',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Closed ties parallel to the main bars (two legs each).',
+					title: 'Closed ties Ah',
+				},
+				horizontalForce: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Factored tension on the bearing [kN]; empty: 0.2 Vu, the least of the code.',
+					title: 'Horizontal force Nuc',
+				},
+			},
+			required: ['width', 'depth', 'edgeDepth', 'projection', 'mainBars'],
+			title: 'Corbel',
+			type: 'object',
+		},
+		CorbelBars: {
+			additionalProperties: false,
+			description: 'A set of bars of a corbel: how many and their diameter.',
+			properties: {
+				count: {
+					minimum: 1,
+					title: 'Count',
+					type: 'integer',
+				},
+				dia: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Diameter',
+					type: 'number',
+				},
+			},
+			required: ['count', 'dia'],
+			title: 'CorbelBars',
 			type: 'object',
 		},
 		DesignOverwrites: {
