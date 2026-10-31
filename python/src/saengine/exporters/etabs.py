@@ -800,7 +800,7 @@ class _Writer:
             return
         from saengine.fem.member_loads import member_loads
 
-        found = member_loads(self.b, self.member_loads)
+        found = member_loads(self.b, self.member_loads, self.types)
         for line in found.lines:
             a = (line.start[0] * 1000, line.start[1] * 1000)
             c = (line.end[0] * 1000, line.end[1] * 1000)

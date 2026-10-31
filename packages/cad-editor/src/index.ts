@@ -5,12 +5,13 @@
 
 import { AcApDocManager, AcApOpenViewMode, AcApSettingManager, AcApXrefManager, AcEdOpenMode, MTEXT_RENDERER_WORKER_FILE } from '@mlightcad/cad-simple-viewer';
 import { applyGenerated, CadGeneratedDrawing, CadPoint } from './generated.js';
+import { greyDxf } from './underlay.js';
 
 export type { CadEntitySpec, CadGeneratedDrawing, CadLayerSpec, CadPoint } from './generated.js';
 export { setTrustedTypesHost, type TrustedTypesHost } from './trustedTypes.js';
 
-/** An architect's underlay is drawn in this light grey, well behind the model's own linework. */
-const UNDERLAY_GREY = 0xbfc4cc;
+/** An underlay sits this far below the drawing's plane [drawing units], so the model's linework draws over it. */
+const UNDERLAY_DEPTH = -1;
 
 export interface CadEditorOptions {
 	readonly container: HTMLElement;
@@ -220,9 +221,10 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 				blockName: 'SAENGINE-UNDERLAY',
 				fileName: `${underlay.name.replace(/\.dxf$/i, '')}.dxf`,
 				sourcePath: underlay.name,
-				content: encoder.encode(underlay.dxf).buffer as ArrayBuffer,
+				// Greyed in its own colours (compare display would grey the model too).
+				content: encoder.encode(greyDxf(underlay.dxf)).buffer as ArrayBuffer,
 				transform: {
-					position: { x: underlay.offset?.[0] ?? 0, y: underlay.offset?.[1] ?? 0, z: 0 },
+					position: { x: underlay.offset?.[0] ?? 0, y: underlay.offset?.[1] ?? 0, z: UNDERLAY_DEPTH },
 					scale: underlay.scale ?? 1,
 					rotationRad: (underlay.rotation ?? 0) * Math.PI / 180,
 				},
@@ -232,8 +234,6 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 				return;
 			}
 			underlaySession = session.id;
-			// Reference drawings read best greyed out, behind the host's own linework.
-			manager.setOverlayCompareDisplay(session.overlayId, { enabled: true, baseColor: UNDERLAY_GREY });
 		},
 		setPreview: drawing => {
 			preview = applyGenerated(manager.curDocument.database, preview, drawing);

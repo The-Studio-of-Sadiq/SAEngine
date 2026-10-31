@@ -24,6 +24,8 @@ export const FLOOR_PLAN_LAYERS = {
 	columns: 'S-COLS',
 	beams: 'S-BEAM',
 	walls: 'S-WALL',
+	/** Non-structural walls (brick partitions): their weight is a line load on the beam under them. */
+	partitions: 'S-WALL-PRTN',
 	slabs: 'S-SLAB',
 	footings: 'S-FNDN',
 	labels: 'S-ANNO-IDEN',
@@ -40,6 +42,7 @@ const LAYERS: readonly CadLayerSpec[] = [
 	{ name: FLOOR_PLAN_LAYERS.columns, color: 4, description: 'Columns' },
 	{ name: FLOOR_PLAN_LAYERS.beams, color: 3, linetype: 'DASHED', description: 'Beams (below the slab)' },
 	{ name: FLOOR_PLAN_LAYERS.walls, color: 5, description: 'Walls' },
+	{ name: FLOOR_PLAN_LAYERS.partitions, color: 8, linetype: 'DASHED', description: 'Partition walls (non-structural)' },
 	{ name: FLOOR_PLAN_LAYERS.slabs, color: 6, description: 'Slab edges' },
 	{ name: FLOOR_PLAN_LAYERS.footings, color: 30, description: 'Footings and pile caps' },
 	{ name: FLOOR_PLAN_LAYERS.labels, color: 7, description: 'Member labels' },
@@ -115,6 +118,16 @@ export interface IFloorPlan {
 	readonly problems: readonly string[];
 	/** Members drawn but likely wrong: a slab on nothing, a slab with a beam across it. */
 	readonly warnings: readonly string[];
+	/** Quick fixes for the warnings: split a slab along the beam or wall across it. */
+	readonly fixes?: readonly ISlabSplit[];
+}
+
+/** A slab with a beam or structural wall across it, to split along it. */
+export interface ISlabSplit {
+	readonly slab: string;
+	readonly member: string;
+	/** "Split S1 along B6". */
+	readonly label: string;
 }
 
 function isObject(value: unknown): value is Json {
@@ -299,7 +312,7 @@ function withSize(label: string, type: Json | undefined): string {
  * Why slab `id` (corners `points`) may be wrong: nothing under it at all (no beam or wall along
  * an edge, no column under it), or a beam or wall across it, where the slab is not split.
  */
-function slabWarnings(id: string, points: readonly CadPoint[], supports: readonly (readonly [CadPoint, CadPoint])[], columns: readonly CadPoint[]): string[] {
+function slabWarnings(id: string, points: readonly CadPoint[], supports: readonly ISupport[], columns: readonly CadPoint[]): { readonly warnings: string[]; readonly across?: string } {
 	const onEdge = (p: CadPoint) => points.some((q, i) => distanceToSegment(p, q, points[(i + 1) % points.length]) <= 1);
 	const warnings: string[] = [];
 	const edgeHeld = points.some((q, i) => {
@@ -307,19 +320,29 @@ function slabWarnings(id: string, points: readonly CadPoint[], supports: readonl
 		const mid: CadPoint = [(q[0] + r[0]) / 2, (q[1] + r[1]) / 2];
 		// A beam or wall along the edge (not one that only ends on it).
 		const along = ([a, b]: readonly [CadPoint, CadPoint]) => Math.abs((b[0] - a[0]) * (r[1] - q[1]) - (b[1] - a[1]) * (r[0] - q[0])) <= 1e-6 * Math.hypot(b[0] - a[0], b[1] - a[1]) * Math.hypot(r[0] - q[0], r[1] - q[1]);
-		return supports.some(support => along(support) && distanceToSegment(mid, support[0], support[1]) <= 1);
+		return supports.some(support => along(support.line) && distanceToSegment(mid, support.line[0], support.line[1]) <= 1);
 	});
 	if (!edgeHeld && !columns.some(c => insidePolygon(c, points) || onEdge(c))) {
 		warnings.push(localize('plan.slabUnsupported', "{0}: no beam, wall or column supports it; place beams along its edges or columns under it.", id));
 	}
-	const across = supports.some(([a, b]) => [0.25, 0.5, 0.75].some(t => {
+	// A partition (a non-structural wall) stands on the slab: it is a load, not a support to split at.
+	const across = supports.find(({ line: [a, b], partition }) => !partition && [0.25, 0.5, 0.75].some(t => {
 		const p: CadPoint = [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
 		return insidePolygon(p, points) && !onEdge(p);
 	}));
 	if (across) {
-		warnings.push(localize('plan.slabCrossed', "{0}: a beam or wall runs across it, but the slab is not split there; replace it with a Polygon Slab on each side.", id));
+		warnings.push(localize('plan.slabCrossed2', "{0}: {1} runs across it, but the slab is not split there; split it along {1} (Properties, Warnings).", id, across.label));
 	}
-	return warnings;
+	return { warnings, across: across?.id };
+}
+
+/** What a slab may rest on: a beam on the story or a wall rising to it. */
+interface ISupport {
+	readonly id: string;
+	readonly label: string;
+	readonly line: readonly [CadPoint, CadPoint];
+	/** A non-structural wall (a partition): not split at. */
+	readonly partition: boolean;
 }
 
 /**
@@ -406,6 +429,22 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 		const box = labelBox(position, value);
 		return placed.every(other => !boxesOverlap(box, other));
 	};
+	/**
+	 * Where a line member's label goes: beside it (above, left of a vertical one) at its middle,
+	 * else on its other side, else further along it, clear of the labels and bubbles placed so far.
+	 */
+	const besideLine = (start: CadPoint, end: CadPoint, width: number, name: string, normal: CadPoint): CadPoint => {
+		let [nx, ny] = normal;
+		if (ny < -1e-9 || (Math.abs(ny) <= 1e-9 && nx > 0)) {
+			[nx, ny] = [-nx, -ny];
+		}
+		const offset = width / 2 + LABEL_TEXT * 0.9 + Math.abs(nx) * name.length * LABEL_TEXT * 0.32;
+		const candidates = [0.5, 0.3, 0.7].flatMap(t => [1, -1].map(side => {
+			const at: CadPoint = [start[0] + t * (end[0] - start[0]), start[1] + t * (end[1] - start[1])];
+			return [at[0] + side * nx * offset, at[1] + side * ny * offset] as CadPoint;
+		}));
+		return candidates.find(c => free(c, name)) ?? candidates[0];
+	};
 	/** Columns and walls cross a plan when they start below the level and reach it. */
 	const spans = (member: Json) => {
 		const base = elevation.get(member.base as string);
@@ -427,15 +466,17 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 	// The beams on the story and the walls rising to it: what slabs rest on, and what labels keep clear of.
 	const beams = list(model.beams).filter(b => b.story === storyId);
 	const walls = list(model.walls).filter(spans);
-	const supports: [CadPoint, CadPoint][] = [];
+	const supports: ISupport[] = [];
 	for (const member of [...beams, ...walls]) {
 		const [start, end] = [resolve(member.start), resolve(member.end)];
-		if (start && end) {
-			supports.push([start, end]);
+		const type = typeof member.type === 'string' ? types.get(member.type) : undefined;
+		if (start && end && typeof member.id === 'string') {
+			supports.push({ id: member.id, label: labelOf(member), line: [start, end], partition: walls.includes(member) && type?.structural === false });
 		}
 	}
+	const fixes: ISlabSplit[] = [];
 	const columnPoints = list(model.columns).filter(spans).map(c => resolve(c.at)).filter((p): p is CadPoint => !!p);
-	const clear = (p: CadPoint) => supports.every(([a, b]) => distanceToSegment(p, a, b) > LABEL_TEXT * 1.2);
+	const clear = (p: CadPoint) => supports.every(({ line: [a, b] }) => distanceToSegment(p, a, b) > LABEL_TEXT * 1.2);
 
 	/** Slab labels go last: they move about the slab's centre, off the beams and their labels. */
 	const slabLabels: { readonly center: CadPoint; readonly name: string }[] = [];
@@ -450,7 +491,12 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 		shape('slabs', slab, { kind: 'polygon', points });
 		const thickness = num(type.thickness);
 		slabLabels.push({ center: centroid(points)!, name: thickness ? `${labelOf(slab)} (${thickness})` : labelOf(slab) });
-		warnings.push(...slabWarnings(labelOf(slab), points, supports, columnPoints));
+		const checked = slabWarnings(labelOf(slab), points, supports, columnPoints);
+		warnings.push(...checked.warnings);
+		if (checked.across && typeof slab.id === 'string') {
+			const member = supports.find(s => s.id === checked.across)!;
+			fixes.push({ slab: slab.id, member: member.id, label: localize('plan.splitSlab', "Split {0} along {1}", labelOf(slab), member.label) });
+		}
 	}
 	for (const beam of beams) {
 		const type = typeOf(beam);
@@ -471,9 +517,7 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 		if (ny < -1e-9 || (Math.abs(ny) <= 1e-9 && nx > 0)) {
 			[nx, ny] = [-nx, -ny];
 		}
-		const offset = width / 2 + LABEL_TEXT * 0.9 + Math.abs(nx) * name.length * LABEL_TEXT * 0.32;
-		const mid = centroid([start, end])!;
-		text([mid[0] + nx * offset, mid[1] + ny * offset], name);
+		text(besideLine(start, end, width, name, [nx, ny]), name);
 	}
 	// At the centre, moved up or down off a beam that crosses it and off the beams' labels.
 	for (const { center, name } of slabLabels) {
@@ -487,9 +531,14 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 		if (!start || !end || !thickness) {
 			continue;
 		}
-		const outline = band(FLOOR_PLAN_LAYERS.walls, start, end, thickness);
+		// A partition (non-structural) is drawn dashed and grey: it is weight, not structure.
+		const partition = type?.structural === false;
+		const outline = band(partition ? FLOOR_PLAN_LAYERS.partitions : FLOOR_PLAN_LAYERS.walls, start, end, thickness, partition ? BEAM_LINETYPE_SCALE : undefined);
 		if (outline) {
 			shape('walls', wall, { kind: 'polygon', points: outline });
+			const name = partition ? localize('plan.partitionLabel', "{0} partition t {1}", labelOf(wall), thickness) : `${labelOf(wall)} t ${thickness}`;
+			const length = Math.hypot(end[0] - start[0], end[1] - start[1]);
+			text(besideLine(start, end, thickness, name, [-(end[1] - start[1]) / length, (end[0] - start[0]) / length]), name);
 		}
 	}
 	for (const column of list(model.columns).filter(spans)) {
@@ -531,5 +580,52 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 		shape('footings', footing, { kind: 'polygon', points });
 		text(at, labelOf(footing));
 	}
-	return { drawing: { layers: LAYERS, entities }, members, problems, warnings };
+	return { drawing: { layers: LAYERS, entities }, members, problems, warnings, fixes };
 }
+
+/**
+ * `dxf` without the entities of its ENTITIES section on `layers`: a plan exported from the floor
+ * plan (11 Exports) attached as an underlay brings the plan's own grids, labels and loads, which
+ * the live plan draws already (doubled, and the labels of another story's members).
+ */
+export function withoutLayers(dxf: string, layers: ReadonlySet<string>): string {
+	const lines = dxf.split(/\r?\n/);
+	const out: string[] = [];
+	let inEntities = false;
+	let entity: string[] | undefined;
+	let drop = false;
+	const flush = () => {
+		if (entity && !drop) {
+			out.push(...entity);
+		}
+		entity = undefined;
+		drop = false;
+	};
+	for (let i = 0; i + 1 < lines.length; i += 2) {
+		const [code, value] = [lines[i].trim(), lines[i + 1]];
+		if (code === '0') {
+			flush();
+			if (value.trim() === 'ENDSEC') {
+				inEntities = false;
+			}
+			if (inEntities) {
+				entity = [lines[i], value];
+				continue;
+			}
+		} else if (code === '2' && value.trim() === 'ENTITIES' && out[out.length - 1]?.trim() === 'SECTION') {
+			inEntities = true;
+		} else if (entity) {
+			entity.push(lines[i], value);
+			if (code === '8' && layers.has(value.trim())) {
+				drop = true;
+			}
+			continue;
+		}
+		out.push(lines[i], value);
+	}
+	flush();
+	return out.join('\n');
+}
+
+/** The layers of the floor plan's own drawing that an exported plan used as an underlay leaves out. */
+export const PLAN_ANNOTATION_LAYERS: ReadonlySet<string> = new Set([FLOOR_PLAN_LAYERS.grid, FLOOR_PLAN_LAYERS.gridLabels, FLOOR_PLAN_LAYERS.labels, 'S-LOAD', 'S-LOAD-IDEN']);

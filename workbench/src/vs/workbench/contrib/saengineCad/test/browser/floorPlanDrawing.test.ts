@@ -8,7 +8,7 @@ import type { CadEntitySpec } from '@saengine/cad-editor';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DEFAULT_FLOOR_PLAN, DEFAULT_OBJECTS } from '../../../../services/saengineProject/common/projectLibraries.generated.js';
 import { storiesOf } from '../../../../services/saengineProject/common/floorPlanMembers.js';
-import { floorPlanDrawing, profileOutline } from '../../browser/floorPlanDrawing.js';
+import { floorPlanDrawing, profileOutline, withoutLayers } from '../../browser/floorPlanDrawing.js';
 
 /** One line per entity, rounded, so a whole plan reads as a snapshot. */
 function describe(entity: CadEntitySpec): string {
@@ -97,11 +97,16 @@ suite('SAEngine - Floor plan drawing', () => {
 				{ id: 's-2', type: 'S1', story: 'L1', boundary: [{ x: 'A', y: '1', dx: 8000 }, { x: 'B', y: '1', dx: 4000 }, { x: 'B', y: '1', dx: 4000, dy: 2000 }] },
 			],
 		};
-		assert.deepStrictEqual(floorPlanDrawing(crossed, objects, 'L1').warnings, [
-			's-1: no beam, wall or column supports it; place beams along its edges or columns under it.',
-			's-1: a beam or wall runs across it, but the slab is not split there; replace it with a Polygon Slab on each side.',
-			's-2: no beam, wall or column supports it; place beams along its edges or columns under it.',
-		]);
+		const plan = floorPlanDrawing(crossed, objects, 'L1');
+		assert.deepStrictEqual({ warnings: plan.warnings, fixes: plan.fixes }, {
+			warnings: [
+				's-1: no beam, wall or column supports it; place beams along its edges or columns under it.',
+				's-1: b-2 runs across it, but the slab is not split there; split it along b-2 (Properties, Warnings).',
+				's-2: no beam, wall or column supports it; place beams along its edges or columns under it.',
+			],
+			// The quick fix (N-F7).
+			fixes: [{ slab: 's-1', member: 'b-2', label: 'Split s-1 along b-2' }],
+		});
 	});
 
 	test('a slab label keeps clear of the label of a beam beside it', () => {
@@ -177,4 +182,11 @@ suite('SAEngine - Floor plan drawing', () => {
 			degenerate: 0,
 		});
 	});
+
+	test('an exported plan used as an underlay loses the live plan\'s grids and labels (N-F10, N-F11)', () => {
+		const dxf = ['0', 'SECTION', '2', 'ENTITIES', '0', 'LINE', '8', 'S-GRID', '10', '0', '0', 'TEXT', '8', 'S-ANNO-IDEN', '1', 'C1 900×900', '0', 'LINE', '8', 'S-COLS', '10', '5', '0', 'ENDSEC', '0', 'EOF'].join('\n');
+		assert.deepStrictEqual(withoutLayers(dxf, new Set(['S-GRID', 'S-ANNO-IDEN'])).split('\n'),
+			['0', 'SECTION', '2', 'ENTITIES', '0', 'LINE', '8', 'S-COLS', '10', '5', '0', 'ENDSEC', '0', 'EOF']);
+	});
+
 });

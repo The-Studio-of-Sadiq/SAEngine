@@ -357,6 +357,31 @@ exists the list lives in the Help menu; M3's *Components* section should open th
 (Components). Measured component sizes: EnergyPlus 59 MB, LibreCAD 115 MB, LibreDWG
 30 MB on disk (204 MB together); a local setup with all three was 711 MB.
 
+**AI assistant component (2026-10-31, owner).** The built-in Copilot extension
+(`resources\app\extensions\copilot`, about 280 MB, most of it the Copilot runtime) is the fourth
+component, `ai`: in Full, out of Compact. AI that builds and edits structures is planned, so
+Copilot stays, but only for those who want it. The MCP server (`docs/ai-assistants.md`) is core
+and works without it. The same day **Git** (`git`: Git, GitHub, merge-conflict) and
+**Collaboration** (`collaboration`: port forwarding, Microsoft sign-in; live collaboration joins it
+when built) became components too; GitHub sign-in is installed with either AI or Git.
+
+### Code modules: one repository now, mirrored one way
+
+Decided by the owner on 2026-10-31. Code that will one day install as its own package (steel
+design first; timber when it exists) stays **developed in SAEngine**, and each module also gets
+its own repository that is a **read-only mirror**: `scripts/modules/<id>.json` lists the module's
+paths and target repository, and `python -I scripts/modules/mirror.py <id> --push` replaces the
+repository's content with those paths at the current SAEngine commit (README, LICENSE and
+`MIRROR.json` with the commit are generated). Work never happens in the mirror, so there is one
+live copy only. Moving a module out for real (its repository becomes the live copy, SAEngine
+installs it from the Packages page) needs a stable design-module interface and is far off.
+Concrete design and BNBC stay in the core. The code-pack data a module uses (for example
+`bnbc2020/data/steel.json`) stays with its code pack (`saengine-design-codes`).
+
+| Module | Repository | Paths |
+| --- | --- | --- |
+| steel-design | `saengine-steel-design` | `scripts/modules/steel-design.json` (design/steel, the steel design, proposal and connection modules, section library, drawing sheets, verification cases, tests, the FEM steel panel) |
+
 ## 7. Offline install
 
 Many offices have slow or metered connections, so offline is first-class:
@@ -393,6 +418,27 @@ Total: about **8–10 rounds**, of which M6 can run in parallel with M1–M4. A 
 release (browse and install design codes and structure presets from the official index) is M1 +
 M2 + M3, about 3.5–4 rounds.
 
+**Built in M2 (2026-10-30)** (pull requests in the four repositories, none merged or released
+yet): `saengine-index` holds `sources.json`, the models and JSON Schemas of `sources.json`,
+`packages.json` (one release's manifest, `saengine.packageRelease/1`) and `index.json`
+(`saengine.packageIndex/1`, as in §3 plus `repository` and `tag`), the reusable workflows
+`validate-packages.yml` (SAEngine's `codepack validate --kind` on each changed package, then
+`check_packages.py`: SPDX licence, a code licence for hooks, previews ≤ 256 KB and ≤ 1024 px,
+a CODEOWNERS entry for packages with hooks, a new version for a changed package, mirrors equal
+to their SAEngine commit) and `publish-packages.yml` (on a `packages-*` tag: reproducible
+`<id>-<version>.zip` for each version not yet released, `packages.json`, a GitHub Release, a
+dispatch to the index; a dry run keeps the files as an artifact), `build_index.py` (verifies
+every asset's size and SHA-256) and `sign_index.py` (Ed25519; `index.json.sig` is
+`saengine.packageIndexSignature/1` with a key id; a TEST KEY derived from a published seed
+signs in CI, the owner's offline key signs releases, also through `openssl pkeyutl`). The three
+kind repositories call those workflows and hold the first content: BNBC 2020 and
+`saengine-shapes` as mirrors (`mirrors.json`, written by `scripts/marketplace/mirror_packages.py`),
+`saengine-default-building` (the wizard's `DEFAULT_FORM` as a `BuildingSpec`; the wizard still
+has its own copy until M4 reads the template) and a synthetic sample design code that extends
+`bnbc2020`. In SAEngine: the built-in `saengine-shapes` package and the inputs-only check of
+`template.civil` (`project.archive.inputs_only_problems`). The location-precision and
+drawing-author checks of full templates are left for M4.
+
 Every round ends with the usability walk-through (fresh project, both window sizes) and a
 duplication check: no second installer UI, no second manifest, no second trust store.
 
@@ -404,7 +450,7 @@ Settled by the owner on 2026-10-30:
 | --- | --- | --- |
 | D2 | One repository or one per kind | **one per kind** (design codes, structure templates, building templates) plus `saengine-index` |
 | D3 | Sign the index before SignPath | **yes**: Ed25519, the owner's key, from the first release |
-| D6 | Optional installer components | **EnergyPlus, LibreCAD, LibreDWG**; MEP, BNBC and Bangla stay in the core |
+| D6 | Optional installer components | **EnergyPlus, LibreCAD, LibreDWG**, and (2026-10-31) the **AI assistant** (Copilot), **Git** and **Collaboration** (port forwarding, Microsoft sign-in; live collaboration later); MEP, BNBC and Bangla stay in the core |
 | D10 | Community packages in the first release | **no**: official packages first; community entries after M5 with review rules |
 
 Still open (the plan follows the recommendation until told otherwise):

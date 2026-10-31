@@ -22,13 +22,13 @@ import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
-import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -53,15 +53,15 @@ import { DWG_TO_DXF_COMMAND, OPEN_DXF_IN_CAD_UI_COMMAND } from '../../saenginePr
 import { COMPONENTS_ADD_COMMAND } from '../../saengineUpdate/common/components.js';
 import { acquireCadEditor, cadBackground, forCanvas, isLightCanvas, releaseCadEditor } from './cadHost.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
-import { floorPlanDrawing, gridsOf, IFloorPlan, IMemberShape, storyOfSelection } from './floorPlanDrawing.js';
-import { basePoint, bayAt, changeMemberType, EditResult, footingsOwnedMessage, notRotatableMessage, IGridNode, moveMember, pickMember, placeColumn, placeLinear, placePolygonSlab, placeSlab, PlacementTool, removeMember, rotateMember, setMembersType, snapPoint, snapToGrid, TOOL_GROUP, TOOL_KINDS } from './floorPlanEdits.js';
+import { floorPlanDrawing, gridsOf, IFloorPlan, IMemberShape, ISlabSplit, PLAN_ANNOTATION_LAYERS, storyOfSelection, withoutLayers } from './floorPlanDrawing.js';
+import { basePoint, bayAt, changeMemberType, EditResult, footingsOwnedMessage, notRotatableMessage, IGridNode, moveMember, pickMember, placeColumn, placeLinear, placePolygonSlab, placeSlab, PlacementTool, removeMember, rotateMember, setMembersType, snapPoint, snapToGrid, splitSlab, TOOL_GROUP, TOOL_KINDS } from './floorPlanEdits.js';
 import { FloorPlanEditorInput, siblingPartFile } from './floorPlanEditorInput.js';
-import { ISnap, nearMisses, SNAP_NAMES, snapLinear, snapMarker, squareMarker, typedEnd } from './floorPlanSnap.js';
+import { ISnap, nearMisses, SNAP_NAMES, snapLinear, snapMarker, squareMarker, typedEnd, unsupportedBeams } from './floorPlanSnap.js';
 import { addObjectType, NEW_TYPE_PROMPTS, NewTypeKind, validateSize } from './floorPlanTypes.js';
-import { FloorPlanLoadsFile, FloorPlanLoadsPanel, LOAD_LAYER_SPECS, loadsDrawing } from './floorPlanLoads.js';
-import { copyStory, familyDiffersMessage, familyNote, familyOf, inSync, masterOf, repeatFamily, setSimilar } from './floorPlanTypical.js';
+import { FloorPlanLoadsFile, FloorPlanLoadsPanel, ILoadsWrite, LOAD_LAYER_SPECS, loadsDrawing } from './floorPlanLoads.js';
+import { copyStory, familyDiffersMessage, familyNote, familyOf, inSync, masterOf, repeatFamily, setSimilar, typicalLosses } from './floorPlanTypical.js';
 import { BulkResult, bulkNotice, BulkVerb, COMMAND_HELP, copyMembers, copyToClipboard, copyToStories, deleteMembers, fill, FillDirection, FillKind, FloorPlanCommand, IFloorPlanClipboard, mirrorMembers, moveMembers, parseCommand, paste, rotateMembers } from './floorPlanBulk.js';
-import { combine, commonFields, countByGroup, IMemberRef, IRect, prune, rectOf, sameMember, selectAll, selectByType, selectInWindow, selectionSummary, typesOnPlan, windowMode } from './floorPlanSelection.js';
+import { combine, commonFields, countByGroup, groupCount, IMemberRef, IRect, prune, rectOf, sameMember, selectAll, selectByType, selectInWindow, selectionSummary, typesOnPlan, windowMode } from './floorPlanSelection.js';
 
 const FLOOR_PLAN_SCHEMA_ID = 'saengine.floorPlan/1';
 
@@ -133,6 +133,24 @@ function parseDisplacement(text: string): CadPoint | undefined {
 	const parts = text.trim().replace(/^@/, '').split(/[\s,;]+/).filter(Boolean).map(Number);
 	return parts.length === 2 && parts.every(Number.isFinite) ? [parts[0], parts[1]] : undefined;
 }
+
+/**
+ * An edit made in the floor plan editor: of the floor plan, or of its loads file (the model
+ * versions before and after it, and its notice). A loads edit keeps the plan's version then, so
+ * an edit of the plan made since (Grids & Stories, the text) is undone first.
+ */
+interface IPlanEdit {
+	readonly file: 'plan' | 'loads';
+	readonly before: number;
+	readonly after: number;
+	readonly label: string;
+	readonly plan?: number;
+}
+
+/** Storage of the underlays hidden with Hide Underlay (view state: the floor plan is not edited). */
+const HIDDEN_UNDERLAYS_KEY = 'saengine.floorPlan.hiddenUnderlays';
+/** Storage of the story shown last, per floor plan. */
+const STORY_KEY = 'saengine.floorPlan.story';
 
 /** The selection service's name for this editor. */
 const SELECTION_SOURCE = 'floorPlan';
@@ -240,9 +258,12 @@ export class FloorPlanEditor extends EditorPane {
 	private writing = false;
 	/** The model versions around this editor's last write, until its notice names it. */
 	private pendingWrite: { readonly before: number; readonly after: number } | undefined;
-	/** What undoing (by the version it undoes from) or redoing (by the version it redoes from) does. */
-	private readonly undoLabels = new Map<number, string>();
-	private readonly redoLabels = new Map<number, string>();
+	/**
+	 * This editor's edits, last on top, for Undo and Redo: the floor plan's and the loads file's
+	 * (two files, one history), each with the versions around it and what it did.
+	 */
+	private undoStack: IPlanEdit[] = [];
+	private redoStack: IPlanEdit[] = [];
 	private actionsKey = '';
 	/** A narrow editor keeps the tools, Zoom Extents and the panel toggle; the rest goes to "...". */
 	private compact = false;
@@ -297,6 +318,8 @@ export class FloorPlanEditor extends EditorPane {
 	/** Line and point loads of `05 Floor Plan/loads.json`, drawn on the plan and edited in the properties panel. */
 	private readonly loadsFile: FloorPlanLoadsFile;
 	private readonly loadsPanel: FloorPlanLoadsPanel;
+	/** View state kept across sessions: hidden underlays, the story shown. */
+	private readonly viewStorage: IStorageService;
 
 	constructor(
 		group: IEditorGroup,
@@ -317,8 +340,10 @@ export class FloorPlanEditor extends EditorPane {
 		@INotificationService private readonly notificationService: INotificationService,
 		@ISaenginePartStatusService private readonly partStatusService: ISaenginePartStatusService,
 		@ITextFileService private readonly textFileService: ITextFileService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super(FloorPlanEditor.ID, group, telemetryService, themeService, storageService);
+		this.viewStorage = storageService;
 		this.loadsFile = this._register(this.instantiationService.createInstance(FloorPlanLoadsFile));
 		this.loadsPanel = this._register(this.instantiationService.createInstance(FloorPlanLoadsPanel, this.loadsFile));
 		this._register(this.loadsFile.onDidChange(() => this.renderScheduler.schedule()));
@@ -354,7 +379,10 @@ export class FloorPlanEditor extends EditorPane {
 			if (input && this.storyIds[index] !== input.story) {
 				input.story = this.storyIds[index];
 				this.resetGesture();
-				this.renderPlan();
+				// The last story's notice and the members picked there do not belong to this one.
+				this.notice = undefined;
+				this.renderPlan(); // keeps the selected members on this story's plan
+				this.select(this.selected);
 			}
 		}));
 
@@ -624,8 +652,8 @@ export class FloorPlanEditor extends EditorPane {
 		this.plotCheck = undefined;
 		this.plotCheckKey = undefined;
 		this.pendingWrite = undefined;
-		this.undoLabels.clear();
-		this.redoLabels.clear();
+		this.undoStack = [];
+		this.redoStack = [];
 		this.plan = undefined;
 		this.underlayKey = undefined;
 		this.underlayProblem = undefined;
@@ -676,8 +704,33 @@ export class FloorPlanEditor extends EditorPane {
 	}
 
 	/**
-	 * Undoes or redoes the last edit of the floor plan file and says which: one of this editor's
-	 * (by its notice), else one made in Grids & Stories or the text (they share the file's history).
+	 * The edit on top of the undo (or redo) stack when it can be undone (redone) now: its file is
+	 * as the edit left it (a loads edit also needs the plan as it was then). Entries of a file
+	 * changed elsewhere since are dropped; a plan entry is kept while an outside edit of the plan
+	 * is on top of it (that edit is undone first).
+	 */
+	private topEdit(redo: boolean): IPlanEdit | undefined {
+		const stack = redo ? this.redoStack : this.undoStack;
+		const plan = this.planModel?.getAlternativeVersionId();
+		while (stack.length) {
+			const top = stack[stack.length - 1];
+			const at = redo ? top.before : top.after;
+			if (top.file === 'plan') {
+				return at === plan ? top : undefined;
+			}
+			const loads = this.loadsFile.model;
+			if (loads && loads.getAlternativeVersionId() === at) {
+				return top.plan === plan ? top : undefined;
+			}
+			stack.pop(); // the loads file was changed elsewhere since: its own history has it
+		}
+		return undefined;
+	}
+
+	/**
+	 * Undoes or redoes the last edit and says which: one of this editor's, of the floor plan or of
+	 * its loads (by its notice), else one made in Grids & Stories or the text (they share the
+	 * floor plan file's history).
 	 */
 	private async undoRedo(redo: boolean): Promise<void> {
 		const resource = this.resource;
@@ -685,18 +738,42 @@ export class FloorPlanEditor extends EditorPane {
 		if (!resource || !model) {
 			return;
 		}
-		const version = model.getAlternativeVersionId();
-		const label = (redo ? this.redoLabels : this.undoLabels).get(version);
-		await (redo ? this.undoRedoService.redo(resource) : this.undoRedoService.undo(resource));
-		if (model.isDisposed()) {
+		const top = this.topEdit(redo);
+		const [from, to] = redo ? [this.redoStack, this.undoStack] : [this.undoStack, this.redoStack];
+		const target = top?.file === 'loads' ? this.loadsFile.model : model;
+		if (!target) {
 			return;
 		}
-		const changed = model.getAlternativeVersionId() !== version;
+		const version = target.getAlternativeVersionId();
+		this.pendingWrite = undefined;
+		await (redo ? this.undoRedoService.redo(target.uri) : this.undoRedoService.undo(target.uri));
+		if (model.isDisposed() || target.isDisposed()) {
+			return;
+		}
+		const changed = target.getAlternativeVersionId() !== version;
+		if (changed && top) {
+			from.pop();
+			to.push(top);
+		}
+		if (changed && top?.file === 'loads') {
+			await this.loadsFile.save();
+		}
 		this.setNotice(!changed ? (redo ? localize('floorPlan.nothingToRedo', "Nothing to redo.") : localize('floorPlan.nothingToUndo', "Nothing to undo."))
-			: label ? (redo ? localize('floorPlan.redid', "Redid: {0}", label) : localize('floorPlan.undid', "Undid: {0}", label))
-				: redo ? localize('floorPlan.redidOther', "Redid an edit of the grids, stories or file text (made outside the plan).")
-					: localize('floorPlan.undidOther', "Undid an edit of the grids, stories or file text (made outside the plan)."));
+			: top ? (redo ? localize('floorPlan.redid', "Redid: {0}", top.label) : localize('floorPlan.undid', "Undid: {0}", top.label))
+				: redo ? localize('floorPlan.redidOther', "Redid an edit of the grids, stories or file text (made in another editor).")
+					: localize('floorPlan.undidOther', "Undid an edit of the grids, stories or file text (made in another editor)."));
 		this.updateToolbar();
+	}
+
+	/** A load was added, changed or deleted in the properties panel: it goes on the undo history. */
+	private loadsEdited(label: string, write: ILoadsWrite): void {
+		const plan = this.planModel?.getAlternativeVersionId();
+		this.undoStack.push({ file: 'loads', before: write.before, after: write.after, label: label.replace(/\.$/, ''), plan });
+		this.redoStack = [];
+		this.pendingWrite = undefined;
+		this.notice = label;
+		this.updateToolbar();
+		this.updateStatus();
 	}
 
 	private onKey(e: KeyboardEvent): void {
@@ -757,12 +834,26 @@ export class FloorPlanEditor extends EditorPane {
 		if (command.kind === 'error') {
 			this.setNotice(command.message);
 		} else if (command.kind === 'help') {
-			this.notificationService.info(localize('floorPlan.commandHelp', "Floor plan commands (type them after ':'):\n{0}\nOther words go to the CAD drawing's own commands.", COMMAND_HELP.map(c => `${c.usage}: ${c.description}`).join('\n')));
+			void this.showCommandHelp(target);
 		} else if (command.kind === 'undo') {
 			// The plan's undo, not the CAD drawing's own (which has nothing of the plan's).
 			void this.undoRedo(command.redo);
 		} else if (this.layoutState === 'ok') {
 			this.runCommand(command);
+		}
+	}
+
+	/** The floor plan's commands, one row each; the one picked goes on the command line to complete. */
+	private async showCommandHelp(commandLine: HTMLInputElement): Promise<void> {
+		type Item = IQuickPickItem & { readonly usage: string };
+		const picked = await this.quickInputService.pick<Item>(COMMAND_HELP.map(c => ({ label: c.usage, detail: c.description, usage: c.usage })), {
+			title: localize('floorPlan.commandHelpTitle', "Floor Plan Commands"),
+			placeHolder: localize('floorPlan.commandHelpHint', "Pick one to type it on the command line; other words go to the CAD drawing's own commands"),
+			matchOnDetail: true,
+		});
+		if (picked && commandLine.isConnected) {
+			commandLine.value = `${picked.usage.split(' ')[0]} `;
+			commandLine.focus();
 		}
 	}
 
@@ -780,7 +871,7 @@ export class FloorPlanEditor extends EditorPane {
 			option.label = `${command.usage}: ${command.description}`;
 		}
 		target.setAttribute('list', list.id);
-		target.placeholder = localize('floorPlan.commandPlaceholder', "Command (help lists the floor plan's)");
+		target.placeholder = localize('floorPlan.commandPlaceholderShort', "Command, or help");
 	}
 
 	// ───────────────────────────── tools ─────────────────────────────
@@ -899,12 +990,16 @@ export class FloorPlanEditor extends EditorPane {
 			action.enabled = editable || tool === 'select';
 		}
 		const resource = this.resource;
-		this.undoAction.enabled = !!resource && this.undoRedoService.canUndo(resource);
-		this.redoAction.enabled = !!resource && this.undoRedoService.canRedo(resource);
+		const nextUndo = this.topEdit(false);
+		const nextRedo = this.topEdit(true);
+		this.undoAction.enabled = !!resource && (this.undoRedoService.canUndo(resource) || nextUndo?.file === 'loads');
+		this.redoAction.enabled = !!resource && (this.undoRedoService.canRedo(resource) || nextRedo?.file === 'loads');
+		this.undoAction.tooltip = nextUndo ? localize('floorPlan.undoWhat', "Undo: {0} (Ctrl+Z)", nextUndo.label) : localize('floorPlan.undoTip', "Undo (Ctrl+Z)");
+		this.redoAction.tooltip = nextRedo ? localize('floorPlan.redoWhat', "Redo: {0} (Ctrl+Y)", nextRedo.label) : localize('floorPlan.redoTip', "Redo (Ctrl+Y)");
 
 		const input = this.input as FloorPlanEditorInput | undefined;
 		const underlay = this.underlayOf(parse(this.planModel), input?.story);
-		const visible = underlay?.visible !== false;
+		const visible = !!underlay && this.underlayVisible(underlay);
 		this.underlayAction.enabled = editable && !!underlay;
 		this.underlayAction.checked = !!underlay && visible;
 		this.underlayAction.label = !underlay ? localize('floorPlan.noUnderlay', "Show Underlay (none attached: see More Actions)")
@@ -1167,19 +1262,23 @@ export class FloorPlanEditor extends EditorPane {
 		] : [
 			action('properties', localize('menu.properties', "Properties"), showPanel),
 			new Separator(),
-			action('move', localize('menu.move', "Move {0}", shape.id), () => {
+			// A multi-selection moves by a typed displacement in Properties (as Delete, named by its count).
+			many ? action('move', localize('menu.moveMany', "Move {0} Members...", this.selected.length), () => {
+				showPanel();
+				this.setNotice(localize('floorPlan.moveMany', "Type the displacement of the {0} members in Move by (mm) in Properties, then press Enter.", this.selected.length));
+			}) : action('move', localize('menu.move', "Move {0}", shape.id), () => {
 				this.setTool('move');
 				this.picked = shape;
 				this.setNotice(localize('floorPlan.moveTarget2', "Click where {0} goes, or type the displacement.", shape.id));
 				this.updateToolbar();
 				this.schedulePreview();
-			}, !many),
-			...(shape.group === 'columns' ? [action('rotate', localize('menu.rotate', "Rotate {0}...", shape.id), () => {
+			}),
+			...(shape.group === 'columns' && !many ? [action('rotate', localize('menu.rotate', "Rotate {0}...", shape.id), () => {
 				this.setTool('rotate');
 				this.picked = shape;
 				this.updateToolbar();
 				this.renderProperties();
-			}, !many)] : []),
+			})] : []),
 			action('copyStories', localize('menu.copyToStories', "Copy to Stories..."), () => void this.pickCopyToStories()),
 			action('mirror', localize('menu.mirror', "Mirror..."), () => void this.pickMirror()),
 			new Separator(),
@@ -1423,7 +1522,16 @@ export class FloorPlanEditor extends EditorPane {
 		const layout = parse(this.planModel);
 		const result = copyToStories(layout, this.editableSelection, story, stories);
 		const names = storiesOf(layout).filter(s => stories.includes(s.id)).map(s => s.name);
-		this.applyBulk(result, 'copied', false, result.ok ? localize('floorPlan.copiedToStories', "Copied {0} member(s) to {1} (and their typical floors); skipped {2} already there.", result.placed, names.join(', '), result.skipped) : undefined);
+		let notice = result.ok ? localize('floorPlan.copiedToStories', "Copied {0} member(s) to {1} (and their typical floors); skipped {2} already there.", result.placed, names.join(', '), result.skipped) : undefined;
+		if (result.ok) {
+			// A cantilever needs its column (or a beam) on each story it is copied to.
+			const copied = new Set(result.ids.filter(r => r.group === 'beams').map(r => r.id));
+			const loose = storiesOf(result.layout).flatMap(s => unsupportedBeams(result.layout, s.id, copied).map(id => `${id} (${s.name})`));
+			if (loose.length) {
+				notice = localize('floorPlan.copiedUnsupported', "{0} Warning: nothing supports {1} there (no column, wall or beam at either end); add the support or delete them.", notice, loose.join(', '));
+			}
+		}
+		this.applyBulk(result, 'copied', false, notice);
 	}
 
 	/** Asks for the stories to copy the selection to. */
@@ -1693,7 +1801,7 @@ export class FloorPlanEditor extends EditorPane {
 		if (result.ok) {
 			if (this.writeEdit(result.layout, story)) {
 				const kind = end.kind === 'free' || end.kind === 'gridLine' ? localize('floorPlan.freeEnd', " (a free end: a cantilever unless something is placed under it)") : '';
-				this.setNotice(localize('floorPlan.placedTo', "Placed {0} to {1}{2}.", result.id, this.snapLabel(end), kind));
+				this.setNotice(localize('floorPlan.placedToChain', "Placed {0} to {1}{2}. Chaining from its end: click the next end, or Esc to stop (Esc again for Select).", result.id, this.snapLabel(end), kind));
 			}
 		} else {
 			this.setNotice(result.error);
@@ -1780,6 +1888,26 @@ export class FloorPlanEditor extends EditorPane {
 		if (!similar) {
 			return;
 		}
+		// The stories that join lose their own plan: say which members go before replacing them.
+		const losses = typicalLosses(parse(this.planModel), master.story, similar.map(s => s.story));
+		if (losses.length) {
+			const lines = losses.map(l => [
+				...(l.removed.length ? [localize('typical.lossRemoved', "{0}: deletes {1}", name.get(l.story) ?? l.story, l.removed.join(', '))] : []),
+				...(l.retyped.length ? [localize('typical.lossRetyped', "{0}: replaces {1} by the typical floor's type or rotation", name.get(l.story) ?? l.story, l.retyped.join(', '))] : []),
+			].join('\n'));
+			const count = losses.reduce((n, l) => n + l.removed.length + l.retyped.length, 0);
+			const { confirmed } = await this.dialogService.confirm({
+				type: Severity.Warning,
+				message: losses.length === 1
+					? localize('typical.confirmOne', "Replace the plan of {0} with {1}'s?", name.get(losses[0].story) ?? losses[0].story, master.label)
+					: localize('typical.confirm', "Replace the plans of {0} stories with {1}'s?", losses.length, master.label),
+				detail: localize('typical.confirmDetail', "{0} of their own members are deleted or replaced:\n{1}\n\nUndo (Ctrl+Z) in the floor plan brings them back.", count, lines.join('\n')),
+				primaryButton: localize({ key: 'typical.replace', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
+			});
+			if (!confirmed) {
+				return;
+			}
+		}
 		this.write(setSimilar(parse(this.planModel), master.story, similar.map(s => s.story)));
 		const names = similar.map(s => name.get(s.story) ?? s.story);
 		this.setNotice(!names.length ? localize('typical.none', "{0} is not a typical floor now.", master.label)
@@ -1818,9 +1946,15 @@ export class FloorPlanEditor extends EditorPane {
 		const layout = parse(this.planModel);
 		const stories = storiesOf(layout);
 		this.storyIds = stories.map(s => s.id);
+		const storyKey = `${STORY_KEY}|${input.resource.toString()}`;
 		if (!input.story || !this.storyIds.includes(input.story)) {
-			// The first floor above the lowest level: the plan most people look at first.
-			input.story = this.storyIds[Math.min(1, this.storyIds.length - 1)];
+			// The story shown last (kept when the editor is reopened, e.g. after the Members Table), else
+			// the first floor above the lowest level: the plan most people look at first.
+			const remembered = this.viewStorage.get(storyKey, StorageScope.WORKSPACE);
+			input.story = remembered && this.storyIds.includes(remembered) ? remembered : this.storyIds[Math.min(1, this.storyIds.length - 1)];
+		}
+		if (input.story) {
+			this.viewStorage.store(storyKey, input.story, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 		this.storyPicker.setOptions(
 			stories.length ? stories.map(s => ({ text: `${s.name} (${s.elevation >= 0 ? '+' : ''}${s.elevation})${this.familyLabel(layout, s.id)}` })) : [{ text: localize('floorPlan.noStoriesOption', "(no stories)") }],
@@ -1832,9 +1966,10 @@ export class FloorPlanEditor extends EditorPane {
 		}
 		const plan = floorPlanDrawing(layout, parse(this.objects), input.story ?? '', this.plotCheck);
 		const outside = this.plotWarnings(layout, input.story ?? '').map(w => w.message);
-		this.plan = { ...plan, warnings: [...outside, ...plan.warnings, ...nearMisses(layout, input.story ?? '')] };
+		const loose = unsupportedBeams(layout, input.story ?? '').map(id => localize('floorPlan.beamUnsupported', "{0}: nothing supports it (no column, wall or beam at either end).", id));
+		this.plan = { ...plan, warnings: [...outside, ...plan.warnings, ...nearMisses(layout, input.story ?? ''), ...loose] };
 		this.selected = prune(this.selected, this.plan.members);
-		const loads = loadsDrawing(this.loadsFile.read().loads, layout, input.story ?? '');
+		const loads = loadsDrawing(this.loadsFile.read().loads, layout, input.story ?? '', parse(this.objects));
 		this.editor.setGenerated(forCanvas({ layers: [...this.plan.drawing.layers, ...LOAD_LAYER_SPECS], entities: [...this.plan.drawing.entities, ...loads] }, this.lightCanvas));
 		void this.syncUnderlay(layout, input);
 		if (this.fitPending) {
@@ -1868,6 +2003,12 @@ export class FloorPlanEditor extends EditorPane {
 		this.emptyDisposables.clear();
 		clearNode(this.emptyState);
 		this.emptyState.classList.toggle('hidden', !empty);
+		if (this.cad.classList.contains('with-start') !== empty) {
+			this.cad.classList.toggle('with-start', empty);
+			if (!this.userView) {
+				this.fitScheduler.schedule(); // the plan beside the card, or the whole width again
+			}
+		}
 		if (!empty) {
 			return;
 		}
@@ -2036,8 +2177,9 @@ export class FloorPlanEditor extends EditorPane {
 		if (write && text && write.after === this.planModel?.getAlternativeVersionId()) {
 			// The notice of an edit names it for Undo and Redo.
 			this.pendingWrite = undefined;
-			this.undoLabels.set(write.after, text.replace(/\.$/, ''));
-			this.redoLabels.set(write.before, text.replace(/\.$/, ''));
+			this.undoStack.push({ file: 'plan', before: write.before, after: write.after, label: text.replace(/\.$/, '') });
+			this.redoStack = [];
+			this.updateToolbar();
 		}
 		this.notice = text;
 		this.updateStatus();
@@ -2074,7 +2216,9 @@ export class FloorPlanEditor extends EditorPane {
 			parts.push(summary);
 		}
 		if (plan) {
-			parts.push(localize('floorPlan.count', "{0} members on this story", plan.members.length));
+			// Scoped: what this story's plan shows (columns and walls rising to it), by kind, as edited now.
+			const kinds = countByGroup(plan.members).map(([group, n]) => groupCount(group, n)).join(', ');
+			parts.push(kinds ? localize('floorPlan.countByKind', "On this story's plan: {0}", kinds) : localize('floorPlan.countNone', "No members on this story's plan"));
 		}
 		const problems = (plan?.problems.length ?? 0) + (this.underlayProblem ? 1 : 0);
 		if (problems) {
@@ -2110,6 +2254,7 @@ export class FloorPlanEditor extends EditorPane {
 			severity: problems || differs || warnings ? 'warning' : undefined,
 			link: differs && story ? { label: localize('floorPlan.copyTypical', "Copy the typical floor to them"), run: () => this.syncFamily(story) }
 				: noTypes ? { label: localize('floorPlan.openObjects', "Open Object Types"), run: () => this.openPart('objects') }
+				: plan?.fixes?.length === 1 && this.layoutState === 'ok' ? { label: plan.fixes[0].label, run: () => this.splitSlabAlong(plan.fixes![0]) }
 				: problems || warnings ? { label: localize('floorPlan.showProblems', "Details"), run: () => this.frame.setPropertiesVisible(true) }
 					: undefined,
 		});
@@ -2172,7 +2317,7 @@ export class FloorPlanEditor extends EditorPane {
 			if (underlay) {
 				append(panel, $('.sa-props-section', undefined, localize('floorPlan.underlaySection', "Underlay")));
 				appendPropertyRow(panel, localize('floorPlan.underlayFile', "File"), String(underlay.file));
-				appendPropertyRow(panel, localize('floorPlan.underlayShown', "Shown"), underlay.visible === false ? localize('no', "No") : localize('yes', "Yes"));
+				appendPropertyRow(panel, localize('floorPlan.underlayShown', "Shown"), this.underlayVisible(underlay) ? localize('yes', "Yes") : localize('no', "No"));
 			}
 			appendPropertyNote(panel, localize('floorPlan.selectHint', "Select a member in the plan to see and change its properties."));
 		}
@@ -2188,6 +2333,13 @@ export class FloorPlanEditor extends EditorPane {
 			appendPropertyHeading(panel, localize('floorPlan.warningsHeading', "Warnings"));
 			for (const warning of this.plan.warnings) {
 				appendPropertyNote(panel, warning);
+			}
+			const fixes = this.plan.fixes ?? [];
+			if (fixes.length && this.layoutState === 'ok') {
+				const links = append(panel, $('.sa-props-links'));
+				for (const fix of fixes) {
+					propertyLink(links, fix.label, () => this.splitSlabAlong(fix), this.propertiesDisposables);
+				}
 			}
 		}
 		if (this.plotCheck?.plot) {
@@ -2235,6 +2387,7 @@ export class FloorPlanEditor extends EditorPane {
 			selected: this.picked ? [this.picked] : this.selected,
 			editable: this.layoutState === 'ok',
 			notify: text => this.setNotice(text),
+			edited: (label, write) => this.loadsEdited(label, write),
 			rerender: () => this.renderProperties(),
 			reveal: (member, story) => {
 				if (input && input.story !== story) {
@@ -2244,6 +2397,16 @@ export class FloorPlanEditor extends EditorPane {
 				this.select([member]);
 			},
 		});
+	}
+
+	/** The quick fix of a slab with a beam or wall across it: two slabs meeting on the member, one undoable edit. */
+	private splitSlabAlong(fix: ISlabSplit): void {
+		const result = splitSlab(parse(this.planModel), fix.slab, fix.member);
+		if (!result.ok) {
+			this.setNotice(result.error);
+		} else if (this.writeEdit(result.layout, this.story)) {
+			this.setNotice(localize('floorPlan.slabSplit', "{0}: {1} and {2} now.", fix.label, fix.slab, result.id));
+		}
 	}
 
 	/** Type, rotation and position of the selected member, changed as undoable edits. */
@@ -2260,6 +2423,12 @@ export class FloorPlanEditor extends EditorPane {
 			appendPropertyNote(panel, footingsOwnedMessage());
 			propertyLink(append(panel, $('.sa-props-links')), localize('floorPlan.editInSubstructure', "Edit in 9 Substructure"), () => this.openPart('substructure'), store);
 			return;
+		}
+		const objects = parse(this.objects);
+		const wallType = isObject(objects) && Array.isArray(objects.objects) ? objects.objects.filter(isObject).find(o => o.id === current.type) : undefined;
+		if (member.group === 'walls' && wallType?.structural === false) {
+			// One way to enter a brick partition: as this wall or as a line load, never both.
+			appendPropertyNote(panel, localize('floorPlan.partitionNote', "A partition (non-structural, drawn dashed): the analysis puts its weight over the full story height on the beam under it. Do not also give that beam a wall Line Load, or the wall counts twice; for a wall with openings, a Line Load (wall type × height − openings) is the better way."));
 		}
 		append(panel, $('.sa-props-section', undefined, localize('floorPlan.editSection', "Change")));
 		const tool = (Object.keys(TOOL_GROUP) as PlacementTool[]).find(t => TOOL_GROUP[t] === member.group);
@@ -2441,12 +2610,39 @@ export class FloorPlanEditor extends EditorPane {
 		return list.find(u => u.story === story);
 	}
 
+	/** Where Hide/Show Underlay keeps whether each story's underlay shows: view state, not the floor plan. */
+	private underlayViewKey(underlay: { readonly [key: string]: unknown }): string {
+		return `${this.resource?.toString()}|${String(underlay.story)}|${String(underlay.file)}`;
+	}
+
+	/** Whether `underlay` shows: as Hide/Show Underlay last set it here, else as the file says. */
+	private underlayVisible(underlay: { readonly [key: string]: unknown }): boolean {
+		const hidden = this.readHiddenUnderlays();
+		const key = this.underlayViewKey(underlay);
+		return hidden[key] !== undefined ? !hidden[key] : underlay.visible !== false;
+	}
+
+	private readHiddenUnderlays(): { [key: string]: boolean } {
+		try {
+			const value = JSON.parse(this.viewStorage.get(HIDDEN_UNDERLAYS_KEY, StorageScope.WORKSPACE, '{}'));
+			return isObject(value) ? value as { [key: string]: boolean } : {};
+		} catch {
+			return {};
+		}
+	}
+
+	/** Hides or shows the story's underlay: a view setting (kept for the workspace), never an edit of the floor plan. */
 	private toggleUnderlay(): void {
 		const story = (this.input as FloorPlanEditorInput | undefined)?.story;
 		const underlay = this.underlayOf(parse(this.planModel), story);
-		if (underlay) {
-			const visible = underlay.visible !== false;
-			this.changeUnderlay(story, u => ({ ...u, visible: !visible }));
+		const input = this.input as FloorPlanEditorInput | undefined;
+		if (underlay && input) {
+			const hidden = this.readHiddenUnderlays();
+			hidden[this.underlayViewKey(underlay)] = this.underlayVisible(underlay);
+			this.viewStorage.store(HIDDEN_UNDERLAYS_KEY, JSON.stringify(hidden), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			void this.syncUnderlay(parse(this.planModel), input);
+			this.updateToolbar();
+			this.renderProperties();
 		}
 	}
 
@@ -2480,7 +2676,13 @@ export class FloorPlanEditor extends EditorPane {
 			await this.fileService.copy(source, target);
 			file = relativePath(folder, target)!;
 		}
+		const selected = this.selected;
 		this.changeUnderlay(story, () => ({ story, file }));
+		// The dialog's Enter must not reach the plan: keep the selection, focus back on the plan.
+		this.select(prune(selected, this.plan?.members ?? []));
+		this.frame.element.focus();
+		const name = storiesOf(parse(this.planModel)).find(s => s.id === story)?.name ?? story;
+		this.setNotice(localize('floorPlan.underlayAttached', "Attached {0} as the underlay of {1}; Hide Underlay in the toolbar hides it, Remove Underlay in More Actions removes it.", file, name));
 	}
 
 	/** Replaces (or with `undefined` removes) the underlay of `story`. */
@@ -2500,7 +2702,7 @@ export class FloorPlanEditor extends EditorPane {
 	private async syncUnderlay(layout: unknown, input: FloorPlanEditorInput): Promise<void> {
 		const editor = this.editor;
 		const underlay = this.underlayOf(layout, input.story);
-		const shown = underlay && underlay.visible !== false ? underlay : undefined;
+		const shown = underlay && this.underlayVisible(underlay) ? underlay : undefined;
 		const key = shown ? JSON.stringify([shown.file, shown.dx, shown.dy, shown.scale, shown.rotation]) : '';
 		if (!editor || key === this.underlayKey) {
 			return;
@@ -2546,7 +2748,7 @@ export class FloorPlanEditor extends EditorPane {
 		}
 		const num = (value: unknown, fallback: number) => typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 		try {
-			await editor.setUnderlay({ name: basename(URI.file(file)), dxf, offset: [num(shown.dx, 0), num(shown.dy, 0)], scale: num(shown.scale, 1), rotation: num(shown.rotation, 0) });
+			await editor.setUnderlay({ name: basename(URI.file(file)), dxf: withoutLayers(dxf, PLAN_ANNOTATION_LAYERS), offset: [num(shown.dx, 0), num(shown.dy, 0)], scale: num(shown.scale, 1), rotation: num(shown.rotation, 0) });
 		} catch (error) {
 			this.underlayProblem = localize('floorPlan.underlayFailed', "The underlay {0} could not be shown: {1}", file, String(error));
 			this.updateStatus();

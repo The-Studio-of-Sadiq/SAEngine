@@ -14,6 +14,7 @@ from saengine.rpc import handlers
 REPO = Path(__file__).resolve().parents[2]
 EXAMPLES = REPO / "third_party" / "opensees-studio" / "examples"
 SPACE_FRAME = EXAMPLES / "space_frame_3d.osmodel"
+SAMPLE = REPO / "workbench" / "resources" / "saengine" / "samples" / "Sample Frame"
 
 
 def test_info_reports_backend_versions() -> None:
@@ -118,6 +119,24 @@ def test_stdio_server_round_trip() -> None:
         assert info["result"]["python"].startswith("3.12")
         validated = _rpc(proc, 2, "project/validate", {"path": str(SPACE_FRAME)})
         assert validated["result"]["ok"]
+        # Keys that are not Python names reach the handler as sent (a split proposal's "from").
+        objects = SAMPLE / "04 Objects" / "objects.json"
+        first = json.loads(objects.read_text(encoding="utf-8"))["objects"][0]["id"]
+        applied = _rpc(
+            proc,
+            3,
+            "design/applyProposal",
+            {
+                "objectsText": objects.read_text(encoding="utf-8"),
+                "bimText": None,
+                "proposal": {
+                    "types": [],
+                    "newTypes": [{"type": "X-2", "from": first, "proposed": {}, "apply": False}],
+                    "reassign": [{"member": "M1", "from": first, "to": "X-2", "apply": False}],
+                },
+            },
+        )
+        assert "error" not in applied, applied
     finally:
         proc.kill()
         proc.wait()

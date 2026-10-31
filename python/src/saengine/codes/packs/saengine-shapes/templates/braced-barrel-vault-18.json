@@ -1,0 +1,13 @@
+{
+  "name": "Braced barrel vault 18 × 30 m",
+  "description": "Barrel vault with diagonal bracing, rise 4.5 m, 10 bays.",
+  "shape": {
+    "kind": "barrelVault",
+    "span": 18000.0,
+    "rise": 4500.0,
+    "length": 30000.0,
+    "segments": 10,
+    "bays": 10,
+    "memberType": "MEMBER"
+  }
+}

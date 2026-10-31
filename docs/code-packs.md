@@ -454,6 +454,17 @@ namespace across kinds. Applying templates (the Generate panel, the New Building
 a later round; for now they are listed, validated and installed:
 `saengine codepack list --kind all`, `saengine codepack validate <folder> --kind structureTemplate`.
 
+A full building template (`template.civil`) must hold inputs only: an archive with results, a
+soil report (`01 Soil Report`), deliverables (`11 Exports`) or the version history (`.git`) is
+refused by `validate` and by the install.
+
+SAEngine ships one template package built in: `saengine-shapes`, the presets of the six
+parametric shapes (their Generate panel starting values, which the tests keep equal to the
+panel's, and a few named variants). It and BNBC 2020 are also published, as read-only mirrors, in
+the marketplace's package repositories: edit them here and copy them there with
+`scripts/marketplace/mirror_packages.py` (the repositories' CI refuses a mirror that differs from
+the SAEngine commit it names).
+
 ## Command reference
 
 | Command | What it does |
