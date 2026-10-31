@@ -51,6 +51,11 @@ export function reportStepMessage(result: IReportBuildResult): { readonly messag
 		: { message: localize('report.writtenStep', "written"), warning: false };
 }
 
+/** How many members the report counts as not designed (no reinforcement), of every kind. */
+export function notDesignedCount(result: IReportBuildResult): number {
+	return Object.values(result.status?.notDesigned ?? {}).reduce((sum, n) => sum + (typeof n === 'number' ? n : 0), 0);
+}
+
 /** The cover's headline when the design fails or members are not designed. */
 function warningHeadline(result: IReportBuildResult): string | undefined {
 	const status = result.status;

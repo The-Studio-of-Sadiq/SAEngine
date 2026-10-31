@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IReportBuildResult, reportProblems, reportStepMessage, reportWrittenMessage } from '../../browser/reportBuild.js';
+import { IReportBuildResult, notDesignedCount, reportProblems, reportStepMessage, reportWrittenMessage } from '../../browser/reportBuild.js';
 
 suite('SAEngine - Design report', () => {
 
@@ -44,10 +44,14 @@ suite('SAEngine - Design report', () => {
 			reportStepMessage(incomplete),
 			reportStepMessage({ path: 'r.pdf', status: { state: 'pass', headline: 'Design checks pass: all 10 members.' } }),
 			reportWrittenMessage(incomplete),
+			notDesignedCount(incomplete),
+			notDesignedCount({ path: 'r.pdf' }),
 		], [
 			{ message: 'written; DESIGN INCOMPLETE: 28 columns and 120 slabs are not designed (no reinforcement); the others pass.', warning: true },
 			{ message: 'written', warning: false },
 			'Design report written (9 pages). DESIGN INCOMPLETE: 28 columns and 120 slabs are not designed (no reinforcement); the others pass.',
+			148,
+			0,
 		]);
 	});
 });
