@@ -37,11 +37,12 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { DEVELOPER_MODE_SETTING } from '../../../services/saengineProject/common/developerMode.js';
 import { partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
+import { appendPlannedFeatureChip } from '../../saengineProject/browser/plannedFeatureEditor.js';
 import { formatField, formatNumber, IFieldSpec, parseField } from '../../saengineSoil/browser/soilDocument.js';
 import {
 	addPiles, applyPileLayout, applyProposal, capPileType, connectGradeBeams, DEFAULT_SPACING_FACTOR, deletePiles, formatSpacings, foundationOf, gridLines, IPile, intersectionsInBox, makePileCap, MIN_SPACING_FACTOR, movePiles, newPileGrid, parseSpacings, PILE_GROUPS, pileAt, pileCaps, pilesInBox, placePileGroup, refitCap, setCapPileType, snapPoint, tied, formatPileBars, formatPileTies, minimumMesh, parsePileBars, parsePileTies, carriedAlready, checkStateText, checkSubstructure, documentSignatures, defaultFoundingLevel, EMPTY_CONTEXT, formatMesh, formatUtilisation, foundationCenter, foundationOutlines, foundationSize, foundationTypeLabel, FOUNDATION_TYPES, FoundationType, governingCheck, IColumnBase, IFoundation, IFoundationResult, IPileType, ISiteContext, ISiteTexts,
 	ISizingProposal, ISubstructure, ISubstructureMigration, ISubstructureProblem, ISubstructureReport, ISubstructureRequest, ITieBeam, importFoundations, maxPressure, MESH_KEYS, MeshKey, newFooting, newPileCap, newPileType, newRaft, newTieBeam, parseIdList, parseMesh, parseSubstructure, PILE_FACTOR_OF_SAFETY, pileFactorsUsed, PILE_KINDS, PILE_LAYOUTS,
-	errorSummary, pileKindLabel, Point, proposalFor, RAFT_MESH_SIZE, readSiteContext, readSizingProposal, readSubstructureReport, serializeSubstructure, SUBSTRUCTURE_ENSURE_COMMAND, SUBSTRUCTURE_MIGRATE_COMMAND, SUBSTRUCTURE_REPORT_COMMAND, SUBSTRUCTURE_REPORT_FILE, SUBSTRUCTURE_SIZE_COMMAND, SUBSTRUCTURE_SUMMARY_FILE, substructureCheckState, substructureSummary, substructureSummaryFile, foundationSignature, ISubstructureCheckState, tieBeamSignature, uncoveredBases, uncoveredColumns, utilisationBand,
+	errorSummary, FOOTING_SECTIONS, FootingSection, footingSectionLabel, ISubstructureDesign, newGroundSlab, pileKindLabel, Point, proposalFor, RAFT_MESH_SIZE, readSiteContext, readSizingProposal, readSubstructureReport, serializeSubstructure, SUBSTRUCTURE_ENSURE_COMMAND, SUBSTRUCTURE_MIGRATE_COMMAND, SUBSTRUCTURE_REPORT_COMMAND, SUBSTRUCTURE_REPORT_FILE, SUBSTRUCTURE_SIZE_COMMAND, SUBSTRUCTURE_SUMMARY_FILE, substructureCheckState, substructureSummary, substructureSummaryFile, foundationSignature, ISubstructureCheckState, tieBeamSignature, uncoveredBases, uncoveredColumns, utilisationBand,
 } from './substructureDocument.js';
 import { SubstructureEditorInput } from './substructureEditorInput.js';
 import { svg } from '../../saengineSoil/browser/soilLog.js';
@@ -106,6 +107,14 @@ const F = {
 	pileUplift: { key: 'pileUplift', label: localize('sub.f.fsUplift', "FS pile uplift"), kind: 'number', min: 1, max: 10, title: localize('sub.f.fsTitle', "BNBC 2020 Part 6 Table 6.3.10a: 2.5 for a permanent structure under normal control") },
 	bearing: { key: 'bearing', label: localize('sub.f.fsBearing', "FS bearing"), kind: 'number', min: 1, max: 10, title: localize('sub.f.fsBearingTitle', "Factor of safety on the bearing capacity of footings and rafts; the soil report's when empty") },
 	raftMeshSize: { key: 'raftMeshSize', label: localize('sub.f.raftMesh', "Raft mesh size"), unit: MM, kind: 'number', min: 100, max: 5000 },
+	edgeThickness: { key: 'edgeThickness', label: localize('sub.f.edgeThickness', "Edge thickness"), unit: MM, kind: 'number', min: 1, title: localize('sub.f.edgeThicknessTitle', "Sloped: the thickness at the edges; stepped: the lower step's thickness") },
+	topLength: { key: 'topLength', label: localize('sub.f.topLength', "Top length"), unit: MM, kind: 'number', min: 1, title: localize('sub.f.topLengthTitle', "Along the local x: the flat top round the column (sloped) or the upper step (stepped)") },
+	topWidth: { key: 'topWidth', label: localize('sub.f.topWidth', "Top width"), unit: MM, kind: 'number', min: 1, title: localize('sub.f.topWidthTitle', "Along the local y: the flat top or the upper step") },
+	slabThickness: { key: 'thickness', label: localize('sub.f.slabThickness', "Thickness"), unit: MM, kind: 'number', min: 50, required: true, width: 72 },
+	uniformLoad: { key: 'uniformLoad', label: localize('sub.f.uniformLoad', "Floor load"), unit: localize('sub.unit.kpa', "kPa"), kind: 'number', min: 0, width: 72 },
+	pointLoad: { key: 'pointLoad', label: localize('sub.f.pointLoad', "Post load"), unit: localize('sub.unit.kn', "kN"), kind: 'number', min: 0, title: localize('sub.f.pointLoadTitle', "The largest post, rack-leg or wheel load (service)"), width: 72 },
+	contactSide: { key: 'contactSide', label: localize('sub.f.contactSide', "Contact side"), unit: MM, kind: 'number', min: 10, title: localize('sub.f.contactSideTitle', "Side of the square base plate or tyre print"), width: 72 },
+	subgradeModulus: { key: 'subgradeModulus', label: localize('sub.f.subgradeK', "k"), unit: localize('sub.unit.knm3', "kN/m³"), kind: 'number', min: 1, title: localize('sub.f.subgradeKTitle', "Modulus of subgrade reaction of the compacted sub-base; the design's subgrade modulus when empty"), width: 80 },
 	springs: { key: 'springs', label: localize('sub.f.springs', "Subgrade modulus ks"), unit: localize('sub.unit.knm3', "kN/m³"), kind: 'number', min: 0.001, title: localize('sub.f.springsTitle', "The raft's springs; the soil report's ks when empty") },
 	pileX: { key: 'x', label: 'X', unit: M, kind: 'length', required: true, title: localize('sub.f.pileXTitle', "Plan position of the pile's centre") },
 	pileY: { key: 'y', label: 'Y', unit: M, kind: 'length', required: true, title: localize('sub.f.pileYTitle', "Plan position of the pile's centre") },
@@ -1882,6 +1891,7 @@ export class SubstructureEditor extends EditorPane {
 		this.renderPileTypeTable(document);
 		this.renderPileTable(document);
 		this.renderTieBeamTable(document);
+		this.renderGroundSlabTable(document);
 	}
 
 	private section(title: string, count: number, add?: { label: string; run: () => void }): HTMLElement {
@@ -2139,6 +2149,82 @@ export class SubstructureEditor extends EditorPane {
 		}
 	}
 
+	/** The slabs on grade: thickness, concrete, loads, sub-base k, mesh and utilisation. */
+	private renderGroundSlabTable(document: ISubstructure): void {
+		const section = this.section(localize('sub.groundSlabs', "Slabs on grade"), document.groundSlabs.length, {
+			label: localize('sub.addGroundSlab', "Add Slab on Grade"),
+			run: () => {
+				document.groundSlabs.push(newGroundSlab(document, this.context));
+				this.changed(true);
+			},
+		});
+		const table = append(append(section, $('.sub-table-scroll')), $('table.sub-table'));
+		const columns = [
+			{ label: F.id.label, width: 64 }, { label: F.slabThickness.label, unit: MM, numeric: true, width: 72 }, { label: localize('sub.f.material', "Concrete"), width: 96 },
+			{ label: F.uniformLoad.label, unit: F.uniformLoad.unit, numeric: true, width: 72 }, { label: F.pointLoad.label, unit: F.pointLoad.unit, numeric: true, width: 72 },
+			{ label: F.contactSide.label, unit: MM, numeric: true, width: 72 }, { label: F.subgradeModulus.label, unit: F.subgradeModulus.unit, numeric: true, width: 80 },
+			{ label: localize('sub.f.slabMesh', "Mesh"), width: 84 }, { label: localize('sub.f.utilisation', "Utilisation"), numeric: true, width: 120 }, { label: '', width: 28 },
+		];
+		this.tableHead(table, columns);
+		const body = append(table, $('tbody'));
+		document.groundSlabs.forEach((slab, index) => {
+			const row = append(body, $('tr'));
+			const path = (field: string) => `groundSlabs.${index}.${field}`;
+			const set = (key: string) => (value: number | string | undefined) => {
+				if (value === undefined || value === '') {
+					delete slab[key];
+				} else {
+					slab[key] = value;
+				}
+				this.changed(false);
+			};
+			append(append(row, $('td')), this.textInput(F.id, slab.id, value => {
+				slab.id = String(value ?? '');
+				this.changed(false);
+			}, path('id')));
+			append(append(row, $('td')), this.textInput(F.slabThickness, slab.thickness, set('thickness'), path('thickness')));
+			append(append(row, $('td')), this.materialInput(slab.material, value => {
+				if (value) {
+					slab.material = value;
+					this.changed(true);
+				}
+			}, path('material'), true));
+			append(append(row, $('td')), this.textInput(F.uniformLoad, slab.uniformLoad, set('uniformLoad'), path('uniformLoad'), '5'));
+			append(append(row, $('td')), this.textInput(F.pointLoad, slab.pointLoad, set('pointLoad'), path('pointLoad'), '0'));
+			append(append(row, $('td')), this.textInput(F.contactSide, slab.contactSide, set('contactSide'), path('contactSide'), '150'));
+			append(append(row, $('td')), this.textInput(F.subgradeModulus, slab.subgradeModulus, set('subgradeModulus'), path('subgradeModulus')));
+			const mesh = $<HTMLInputElement>('input.sub-input', { type: 'text', spellcheck: 'false', placeholder: localize('sub.plain', "plain"), 'aria-label': localize('sub.f.slabMesh', "Mesh") });
+			mesh.value = formatMesh(slab.mesh);
+			this.viewDisposables.add(addDisposableListener(mesh, EventType.CHANGE, () => {
+				const parsed = parseMesh(mesh.value);
+				if (parsed.error) {
+					mesh.classList.add('invalid');
+					mesh.title = parsed.error;
+					return;
+				}
+				if (parsed.value) {
+					slab.mesh = parsed.value;
+					slab.meshMaterial ??= this.context.barMaterial;
+				} else {
+					delete slab.mesh;
+					delete slab.meshMaterial;
+				}
+				this.changed(false);
+			}));
+			append(append(row, $('td')), mesh);
+			this.utilisationCell(row, this.report?.groundSlabs.find(r => r.id === slab.id)?.utilisation);
+			this.removeButton(row, () => {
+				document.groundSlabs.splice(index, 1);
+				this.changed(true);
+			});
+		});
+		if (!document.groundSlabs.length) {
+			append(append(body, $('tr')), $('td.sub-muted', { colspan: String(columns.length) }, localize('sub.noGroundSlabs', "None yet. A slab on grade is checked for its largest post or wheel load (Westergaard) and punching.")));
+		}
+		const planned = append(section, $('.sub-planned'));
+		this.viewDisposables.add(appendPlannedFeatureChip(planned, 'substructure.machineFoundation', this.commandService));
+	}
+
 	private tieSpan(tie: ITieBeam): string {
 		const from = this.document?.foundations.find(f => f.id === tie.from);
 		const to = this.document?.foundations.find(f => f.id === tie.to);
@@ -2164,6 +2250,34 @@ export class SubstructureEditor extends EditorPane {
 	}
 
 	// ───────────────────────────── edits ─────────────────────────────
+
+	/** An isolated footing's section (flat, sloped, stepped) and the sizes of its top. */
+	private renderFootingSection(panel: HTMLElement, foundation: IFoundation, path: (field: string) => string): void {
+		const label = localize('sub.f.section', "Section");
+		const current = foundation.section ?? 'flat';
+		this.propertyRow(panel, label, this.selectInput(FOOTING_SECTIONS.map(k => ({ value: k, label: footingSectionLabel(k) })), current, value => {
+			if (value === 'flat') {
+				delete foundation.section;
+				delete foundation.edgeThickness;
+				delete foundation.topLength;
+				delete foundation.topWidth;
+			} else {
+				foundation.section = value as FootingSection;
+				// Start from half the thickness at the edges and a top 75 mm round the column.
+				const column = this.context.columns.find(c => foundation.columns?.includes(c.id));
+				const thickness = foundation.thickness ?? 600;
+				foundation.edgeThickness ??= Math.round(thickness / 2 / 25) * 25;
+				foundation.topLength ??= Math.min(foundation.length ?? 1500, (column?.xDim ?? 400) + 150);
+				foundation.topWidth ??= Math.min(foundation.width ?? 1500, (column?.yDim ?? 400) + 150);
+			}
+			this.changed(true);
+		}, path('section'), label), undefined, localize('sub.f.sectionTitle', "Sloped: the top slopes from a flat top round the column to the edge thickness. Stepped: an upper step round the column on a lower slab. ACI 318-19 13.2.7.3: every section is checked with its own depth."));
+		if (current !== 'flat') {
+			this.fieldRow(panel, F.edgeThickness, foundation.edgeThickness, value => this.setField(foundation, 'edgeThickness', value), path('edgeThickness'));
+			this.fieldRow(panel, F.topLength, foundation.topLength, value => this.setField(foundation, 'topLength', value), path('topLength'));
+			this.fieldRow(panel, F.topWidth, foundation.topWidth, value => this.setField(foundation, 'topWidth', value), path('topWidth'));
+		}
+	}
 
 	private setField(foundation: IFoundation, key: string, value: number | string | undefined): void {
 		if (value === undefined || value === '') {
@@ -2943,6 +3057,9 @@ export class SubstructureEditor extends EditorPane {
 			this.fieldRow(panel, F.width, foundation.width, value => this.setField(foundation, 'width', value), path('width'));
 		}
 		this.fieldRow(panel, F.thickness, foundation.thickness, value => this.setField(foundation, 'thickness', value), path('thickness'));
+		if (foundation.type === 'isolated') {
+			this.renderFootingSection(panel, foundation, path);
+		}
 		this.fieldRow(panel, F.foundingLevel, foundation.foundingLevel, value => this.setField(foundation, 'foundingLevel', value), path('foundingLevel'), formatNumber(defaultFoundingLevel(this.context) / 1000, 3));
 		if (foundation.type === 'raft') {
 			this.renderRaftOutline(panel, foundation, path);
@@ -3306,6 +3423,7 @@ export class SubstructureEditor extends EditorPane {
 		if (!piled) {
 			this.fieldRow(panel, F.raftMeshSize, design.raftMeshSize, value => this.setDesign('raftMeshSize', value), 'design.raftMeshSize', String(RAFT_MESH_SIZE));
 			this.fieldRow(panel, F.springs, typeof design.springsFrom === 'number' ? design.springsFrom : undefined, value => this.setDesign('springsFrom', value), 'design.springsFrom', localize('sub.fromSoil', "soil report"));
+			this.raftSpringsRow(panel, design);
 			appendPropertyNote(panel, localize('sub.designNoteNoPiles', "Empty values use the soil report's bearing factor and subgrade modulus and a 500 mm raft mesh. The pile settings appear once there is a pile cap."));
 			return;
 		}
@@ -3336,7 +3454,17 @@ export class SubstructureEditor extends EditorPane {
 		refreshUsed();
 		this.fieldRow(panel, F.raftMeshSize, design.raftMeshSize, value => this.setDesign('raftMeshSize', value), 'design.raftMeshSize', String(RAFT_MESH_SIZE));
 		this.fieldRow(panel, F.springs, typeof design.springsFrom === 'number' ? design.springsFrom : undefined, value => this.setDesign('springsFrom', value), 'design.springsFrom', localize('sub.fromSoil', "soil report"));
+		this.raftSpringsRow(panel, design);
 		appendPropertyNote(panel, localize('sub.designNote', "Empty values use the defaults: pile factors of safety 2.5 (BNBC 2020 Part 6 Table 6.3.10a, permanent structure, normal control; in compression raised to 3.0 without a load test at the site), the soil report's bearing factor and subgrade modulus, a 500 mm raft mesh."));
+	}
+
+	private raftSpringsRow(panel: HTMLElement, design: ISubstructureDesign): void {
+		const label = localize('sub.f.raftSprings', "Raft springs");
+		this.propertyRow(panel, label, this.selectInput([
+			{ value: 'noTension', label: localize('sub.raftSprings.noTension', "No tension (iterative)") },
+			{ value: 'linear', label: localize('sub.raftSprings.linear', "Linear") },
+		], design.raftSprings ?? 'noTension', value => this.setDesign('raftSprings', value === 'noTension' ? undefined : value), 'design.raftSprings', label), undefined,
+			localize('sub.raftSpringsTitle', "No tension: where the raft lifts off, the soil carries nothing (solved iteratively, in load steps if one step does not converge). Linear: the springs may pull."));
 	}
 
 	private setDesign(key: string, value: number | string | undefined): void {

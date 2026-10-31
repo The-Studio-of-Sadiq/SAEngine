@@ -1449,9 +1449,15 @@ class _Measure:
                     "concrete, formwork and bars are not measured."
                 )
                 continue
-            self.concrete(f.id, material, kind, plan.area * f.thickness, story)
-            below[f.id] = below.get(f.id, 0.0) + plan.area * max(0.0, min(f.top, ground) - f.bottom)
-            self.formwork(f.id, kind, plan.exterior.length * f.thickness, story, "sides")
+            volume = f.volume if f.volume is not None else plan.area * f.thickness
+            self.concrete(f.id, material, kind, volume, story)
+            # Below the ground: a sloped or stepped footing in proportion to its prism.
+            share = volume / (plan.area * f.thickness) if f.thickness > 0 else 1.0
+            below[f.id] = below.get(f.id, 0.0) + share * plan.area * max(
+                0.0, min(f.top, ground) - f.bottom
+            )
+            sides = f.edge if f.edge is not None else f.thickness
+            self.formwork(f.id, kind, plan.exterior.length * sides + f.riser, story, "sides")
             reinforcement = f.reinforcement
             if reinforcement is None:
                 self.notes.append(f"{f.id}: no reinforcement; no bars are measured.")

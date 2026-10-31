@@ -665,6 +665,12 @@ class FoundationSolid:
     rotation: float = 0.0
     length: float = 0.0
     width: float = 0.0
+    #: Concrete volume [mm³] of a sloped or stepped footing (None: the prism's) and the height
+    #: of its vertical sides at the edges [mm].
+    volume: float | None = None
+    edge: float | None = None
+    #: Formwork of a stepped footing's upper step: its perimeter times its rise [mm²].
+    riser: float = 0.0
 
     @property
     def thickness(self) -> float:
@@ -783,6 +789,13 @@ def foundation_solids(
                     rotation=f.rotation,
                     length=length,
                     width=width,
+                    volume=f.concrete_volume() if f.section != "flat" else None,
+                    edge=f.edgeThickness if f.section != "flat" else None,
+                    riser=2
+                    * (float(f.topLength or 0) + float(f.topWidth or 0))
+                    * (float(f.thickness or 0) - float(f.edgeThickness or 0))
+                    if f.section == "stepped"
+                    else 0.0,
                 )
             )
             centers[f.id] = (cx, cy)

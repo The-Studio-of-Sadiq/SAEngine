@@ -41,6 +41,7 @@ Toolbar (the labels follow the selection):
 | --- | --- |
 | General | Type (*Isolated footing, Combined footing, Strip footing, Pile cap, Raft*), Columns |
 | Geometry | X, Y (m; default the columns' centroid), Rotation (°), Length, Width, Thickness (mm), Founding level (m; default ground − 1.5 m) |
+| Section (isolated footings) | *Flat*, *Sloped* or *Stepped*; Edge thickness, Top length and Top width (the flat top or upper step round the column) |
 | Piles (pile caps) | Pile type; layout *n piles at 3 diameters* with n = 2, 3, 4, 5, 6 or 9 |
 | Material and reinforcement | Concrete, Bars, Cover (75 mm), Bottom x/y and Top x/y as `12@150` |
 | Design (read only) | Utilisation, governing check, bearing pressure *p kPa (qa q)* |
@@ -53,7 +54,15 @@ New pile type: bored, 500 mm, 18 m.
 *BNBC SPT equations*; factors of safety for pile compression and uplift (default 2.5, BNBC Table
 6.3.10a; both raised to 3.0 without a pile load test at the site, Secs 3.10.1.18 and 3.11.3) and for bearing
 (default: the soil report's); *Pile load test at the site*; raft mesh size (500 mm); subgrade
-modulus ks (default: the soil report's).
+modulus ks (default: the soil report's); *Raft springs*: *No tension (iterative)* (default: where
+the raft lifts off, the soil carries nothing; a combination that does not converge in one step is
+rerun in 10 load steps) or *Linear*.
+
+**Slabs on grade:** the *Slabs on grade* table (Add Slab on Grade) gives each ground-bearing slab
+its thickness, concrete, floor load, largest post or wheel load and its contact side, the
+sub-base modulus k (empty: the design's subgrade modulus) and an optional crack-control mesh as
+`8@200`. A new slab covers the columns' extent, 150 mm, 5 kPa. Generator and machine foundations
+are planned (chip under the table).
 
 ## Sizing footings
 
@@ -87,6 +96,8 @@ first: it sizes from the support reactions.*
 | --- | --- |
 | Footings (isolated, combined, strip) | Bearing (service), Uplift (service), Resultant within the base (service), One-way shear X/Y, Punching at each column, Flexure X/Y bottom and top, Flexure between columns (top), Min. reinforcement. ACI 318-19 Ch. 13, 22 and 7; plain concrete per 14.5. |
 | Pile caps | Pile load in compression and uplift, group capacity, block failure (clay), group settlement, pile spacing, cap edge beyond the piles, cover, flexure, one-way shear, punching at columns and round a pile; strut-and-tie for deep caps. |
+| Sloped and stepped footings | The same checks, each section with its own depth (ACI 318-19 13.2.7.3): one-way shear summed over strips across the section (at d from the column faces, at d from the step, along the slope), flexure with the compression face as wide as the top there, punching with the depth at d/2 and round the upper step; weight and BOQ from the true volume. |
+| Slabs on grade | Flexural stress under the post load at the interior, an edge and a corner (Westergaard, Ioannides et al. 1985) against 0.62 √f'c / FS; punching of the plain slab under 1.6 P (ACI 14.5.5.1); mesh and joint spacing reported only. |
 | Pile capacity | Soil-report method or BNBC SPT equations (6.3.21 to 6.3.34): Qult = Qs + Qb − W, uplift ≤ 0.7 Qs + W. |
 | Rafts | OpenSees plate on compression-only springs: net contact pressure, maximum and differential settlement, angular distortion (BNBC Table 6.3.8), punching, slab flexure and shear (Wood-Armer). A contact pressure / settlement map can be shown on the plan. |
 | Tie beams | Tie force (10 %, BNBC Part 6 1.8.5.2), size (BNBC 8.3.11.3), flexure and shear from settlement. |

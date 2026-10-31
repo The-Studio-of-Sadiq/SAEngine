@@ -50,6 +50,10 @@ export const SUBSTRUCTURE_REPORT_FILE = 'substructure.results/report.json';
 export type FoundationType = 'isolated' | 'combined' | 'strip' | 'pileCap' | 'raft';
 export const FOUNDATION_TYPES: readonly FoundationType[] = ['isolated', 'combined', 'strip', 'pileCap', 'raft'];
 
+/** An isolated footing's section: one thickness, a sloped top or an upper step. */
+export type FootingSection = 'flat' | 'sloped' | 'stepped';
+export const FOOTING_SECTIONS: readonly FootingSection[] = ['flat', 'sloped', 'stepped'];
+
 export type PileKind = 'bored' | 'driven';
 export const PILE_KINDS: readonly PileKind[] = ['bored', 'driven'];
 
@@ -100,6 +104,38 @@ export interface IFoundation {
 	 * earlier version had a `pileType` and offsets from the centre: {@link upgradePileCaps}.
 	 */
 	piles?: string[];
+	/** Isolated footings: flat, sloped or stepped (default flat). */
+	section?: FootingSection;
+	/** Sloped: the edge thickness; stepped: the lower step's [mm]. */
+	edgeThickness?: number;
+	/** The flat top of a sloped footing or the upper step, centred on the column [mm]. */
+	topLength?: number;
+	topWidth?: number;
+	note?: string;
+	[key: string]: unknown;
+}
+
+/** A slab on grade: a ground-bearing slab under a floor load and a concentrated load. */
+export interface IGroundSlab {
+	id: string;
+	/** Plan outline [mm]. */
+	outline: Point[];
+	thickness: number;
+	material?: string;
+	/** One layer each way for crack control (none: plain). */
+	mesh?: { dia: number; spacing: number };
+	meshMaterial?: string;
+	/** Floor load [kPa]. */
+	uniformLoad?: number;
+	/** The largest post, rack-leg or wheel load, service [kN]. */
+	pointLoad?: number;
+	/** Side of the square contact of the concentrated load [mm]. */
+	contactSide?: number;
+	/** Of the compacted sub-base [kN/m³]; the design's subgrade springs value when not given. */
+	subgradeModulus?: number;
+	factorOfSafety?: number;
+	/** Contraction joint spacing [mm]. */
+	jointSpacing?: number;
 	note?: string;
 	[key: string]: unknown;
 }
@@ -168,6 +204,8 @@ export interface ISubstructureDesign {
 	raftMeshSize?: number;
 	/** Raft springs: the soil report's modulus of subgrade reaction, or a value [kN/m³]. */
 	springsFrom?: 'soilReport' | number;
+	/** Raft springs: no tension (solved iteratively, the default) or linear. */
+	raftSprings?: 'noTension' | 'linear';
 	[key: string]: unknown;
 }
 
@@ -179,6 +217,7 @@ export interface ISubstructure {
 	/** Every pile, placed in plan; a pile cap lists the ones it stands on. */
 	piles: IPile[];
 	tieBeams: ITieBeam[];
+	groundSlabs: IGroundSlab[];
 	design: ISubstructureDesign;
 	[key: string]: unknown;
 }
@@ -218,7 +257,7 @@ export const DEFAULT_DEPTH = 1500;
 // ───────────────────────────── reading and writing ─────────────────────────────
 
 export function newSubstructure(): ISubstructure {
-	return { schema: SUBSTRUCTURE_SCHEMA_ID, foundations: [], pileTypes: [], piles: [], tieBeams: [], design: {} };
+	return { schema: SUBSTRUCTURE_SCHEMA_ID, foundations: [], pileTypes: [], piles: [], tieBeams: [], groundSlabs: [], design: {} };
 }
 
 export type ParsedSubstructure =
@@ -259,7 +298,7 @@ export function parseSubstructure(text: string, columns: readonly IColumnBase[] 
 	if (value.schema !== SUBSTRUCTURE_SCHEMA_ID) {
 		return { kind: 'error', message: localize('sub.unexpected', "This file is not a SAEngine substructure ({0}).", SUBSTRUCTURE_SCHEMA_ID) };
 	}
-	for (const list of ['foundations', 'pileTypes', 'piles', 'tieBeams']) {
+	for (const list of ['foundations', 'pileTypes', 'piles', 'tieBeams', 'groundSlabs']) {
 		if (value[list] !== undefined && !Array.isArray(value[list])) {
 			return { kind: 'error', message: localize('sub.badList', "The substructure's {0} are not a list.", list) };
 		}
@@ -268,6 +307,7 @@ export function parseSubstructure(text: string, columns: readonly IColumnBase[] 
 	document.foundations = (document.foundations ?? []).filter(isRecord) as IFoundation[];
 	document.pileTypes = (document.pileTypes ?? []).filter(isRecord) as IPileType[];
 	document.tieBeams = (document.tieBeams ?? []).filter(isRecord) as ITieBeam[];
+	document.groundSlabs = (document.groundSlabs ?? []).filter(isRecord) as IGroundSlab[];
 	document.piles = (document.piles ?? []).filter(p => isRecord(p) && typeof p.id === 'string' && isPoint(p.position)) as IPile[];
 	document.design = isRecord(document.design) ? document.design : {};
 	if (document.pileGrid !== undefined) {
@@ -1228,6 +1268,35 @@ export function newRaft(document: ISubstructure, context: ISiteContext, columns:
 	return base(document, context, 'raft', columns, { outline: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]], thickness: 600 });
 }
 
+/** A 150 mm slab on grade over the extent of the columns (else 10 × 10 m), under 5 kPa. */
+export function newGroundSlab(document: ISubstructure, context: ISiteContext): IGroundSlab {
+	const xs = context.columns.map(c => c.x);
+	const ys = context.columns.map(c => c.y);
+	const [x0, x1] = xs.length ? [Math.min(...xs), Math.max(...xs)] : [0, 10000];
+	const [y0, y1] = ys.length ? [Math.min(...ys), Math.max(...ys)] : [0, 10000];
+	const slab: IGroundSlab = {
+		id: nextId('GS', document.groundSlabs.map(s => s.id)),
+		outline: [[x0, y0], [Math.max(x1, x0 + 1000), y0], [Math.max(x1, x0 + 1000), Math.max(y1, y0 + 1000)], [x0, Math.max(y1, y0 + 1000)]],
+		thickness: 150,
+		uniformLoad: 5,
+		pointLoad: 0,
+		contactSide: 150,
+	};
+	if (context.defaultMaterial) {
+		slab.material = context.defaultMaterial;
+	}
+	return slab;
+}
+
+export function footingSectionLabel(section: FootingSection | string): string {
+	switch (section) {
+		case 'flat': return localize('sub.section.flat', "Flat");
+		case 'sloped': return localize('sub.section.sloped', "Sloped");
+		case 'stepped': return localize('sub.section.stepped', "Stepped");
+		default: return String(section);
+	}
+}
+
 /** A tie beam between two foundations, of the first beam type. */
 export function newTieBeam(document: ISubstructure, context: ISiteContext, from: string, to: string): ITieBeam {
 	const beam: ITieBeam = { id: nextId('TB', document.tieBeams.map(t => t.id)), from, to };
@@ -1388,6 +1457,40 @@ export function checkSubstructure(document: ISubstructure, context: ISiteContext
 	duplicates(document.pileTypes, 'pileTypes');
 	duplicates(document.piles, 'piles');
 	duplicates(document.tieBeams, 'tieBeams');
+	duplicates(document.groundSlabs, 'groundSlabs');
+	document.groundSlabs.forEach((g, i) => {
+		const at = (field: string) => `groundSlabs.${i}.${field}`;
+		if (!(num(g.thickness) > 0)) {
+			error(at('thickness'), localize('sub.g.thickness', "{0}: give the slab's thickness.", g.id));
+		}
+		if (!Array.isArray(g.outline) || g.outline.length < 3) {
+			error(at('outline'), localize('sub.g.outline', "{0}: the outline needs at least 3 points.", g.id));
+		}
+		if (!g.material) {
+			error(at('material'), localize('sub.g.material', "{0}: choose the slab's concrete.", g.id));
+		}
+		if (g.mesh && !g.meshMaterial) {
+			error(at('meshMaterial'), localize('sub.g.meshMaterial', "{0}: the mesh needs a rebar material (03 Materials).", g.id));
+		}
+	});
+	document.foundations.forEach((f, i) => {
+		if (!f.section || f.section === 'flat') {
+			return;
+		}
+		const at = (field: string) => `foundations.${i}.${field}`;
+		if (f.type !== 'isolated') {
+			error(at('section'), localize('sub.f.sectionType', "{0}: only an isolated footing is sloped or stepped.", f.id));
+		}
+		if (!(num(f.edgeThickness) > 0) || num(f.edgeThickness) >= num(f.thickness)) {
+			error(at('edgeThickness'), localize('sub.f.edge', "{0}: the edge thickness must be less than the thickness.", f.id));
+		}
+		if (!(num(f.topLength) > 0) || num(f.topLength) > num(f.length)) {
+			error(at('topLength'), localize('sub.f.topLength', "{0}: the top length must lie within the footing's length.", f.id));
+		}
+		if (!(num(f.topWidth) > 0) || num(f.topWidth) > num(f.width)) {
+			error(at('topWidth'), localize('sub.f.topWidth', "{0}: the top width must lie within the footing's width.", f.id));
+		}
+	});
 
 	// The rules of the backend's schema (library/substructure.py) are errors: a document that
 	// breaks one is refused there as a whole, so no foundation of it would be checked.
@@ -1768,6 +1871,7 @@ export interface IFoundationResult {
 export interface ISubstructureReport {
 	readonly foundations: readonly IFoundationResult[];
 	readonly tieBeams: readonly IFoundationResult[];
+	readonly groundSlabs: readonly IFoundationResult[];
 	/** Foundations and tie beams not designed, and why. */
 	readonly skipped: readonly { readonly id: string; readonly type: string; readonly reason: string }[];
 	readonly pileCapacities: readonly IPileCapacity[];
@@ -1932,6 +2036,7 @@ export function readSubstructureReport(raw: unknown): ISubstructureReport | unde
 	}
 	const foundations = records(raw.foundations).map(readResult);
 	const tieBeams = records(raw.tieBeams).map(readResult);
+	const groundSlabs = records(raw.groundSlabs).map(readResult);
 	// Pile capacities: a flat list of rows, or per pile type a list per borehole (`boreholes` or
 	// `capacities`), or capacity tables ({borehole, rows}); else the pile caps' own capacities.
 	const pileCapacities: IPileCapacity[] = [];
@@ -1958,12 +2063,13 @@ export function readSubstructureReport(raw: unknown): ISubstructureReport | unde
 	}
 	const skipped = records(raw.skipped).map(s => ({ id: String(s.id ?? ''), type: String(s.type ?? ''), reason: String(s.reason ?? '') }));
 	const summary = isRecord(raw.summary) ? raw.summary : {};
-	const designed = [...foundations, ...tieBeams];
+	const designed = [...foundations, ...tieBeams, ...groundSlabs];
 	const failed = designed.filter(f => !f.ok).length;
 	const worst = designed.reduce<IFoundationResult | undefined>((w, f) => f.utilisation !== null && (w?.utilisation ?? -1) < f.utilisation ? f : w, undefined);
 	return {
 		foundations,
 		tieBeams,
+		groundSlabs,
 		skipped,
 		pileCapacities,
 		summary: readSummary(summary, designed.length, failed, skipped.length, worst),

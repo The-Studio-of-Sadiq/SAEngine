@@ -117,6 +117,19 @@ SHALLOW_METHOD = [
         "0.0018 Ag (ACI 7.6.1.1). Development lengths are not checked."
     ),
     (
+        "Sloped and stepped isolated footings (ACI 318-19 13.2.7.3: the depth and location of "
+        "the reinforcement satisfy the design requirements at every section): the full "
+        "thickness over the flat top or upper step round the column, the edge thickness at the "
+        "edges (sloped: the top's hipped planes in between; stepped: the lower step outside "
+        "the upper). Every section takes its own concrete: one-way shear sums 0.66 λs ρw^(1/3) "
+        "√f'c b d over strips across the section with their own d (at d from the column faces, "
+        "at d from the step for a stepped footing, and along the slope); flexure takes the "
+        "section's greatest d and its compression face only as wide as the top there; punching "
+        "at d/2 round the column with the depth at that section, and for a stepped footing "
+        "also at d/2 round the upper step with the lower step's d. The footing's weight is its "
+        "true volume (soil fills the rest of the depth)."
+    ),
+    (
         "Strip footings (local x along the path, straight paths only): under walls alone, per "
         "metre of wall: the wall's reactions over its length on the strip (each wall's total "
         "as a uniform line load), its eccentricity from the strip's centre line and its base "
@@ -449,6 +462,76 @@ class FootingSpec:
     #: Integrator glue: the foundation's punching studs or stirrups
     #: (``objects.PunchingReinforcement``) or None (saengine.design.punching).
     punching_reinforcement: Any = None
+    #: Isolated footings: "flat", "sloped" or "stepped" (``Foundation.section``), the edge
+    #: thickness and the plan of the full-thickness top, centred on the column [mm].
+    section: str = "flat"
+    edge_thickness: float | None = None
+    top_length: float | None = None
+    top_width: float | None = None
+
+    @property
+    def profiled(self) -> bool:
+        """Whether the footing is sloped or stepped (one column, thinner at the edges)."""
+        return (
+            self.section in ("sloped", "stepped")
+            and self.edge_thickness is not None
+            and self.edge_thickness < self.thickness
+            and len(self.columns) == 1
+        )
+
+    def top_plan(self) -> tuple[float, float, float, float]:
+        """(u0, u1, v0, v1) of the flat top or upper step, centred on the column, in the
+        footing's plan."""
+        c = self.columns[0]
+        lt = min(self.top_length or self.length, self.length)
+        bt = min(self.top_width or self.width, self.width)
+        u0 = min(max(c.u - lt / 2, -self.length / 2), self.length / 2 - lt)
+        v0 = min(max(c.v - bt / 2, -self.width / 2), self.width / 2 - bt)
+        return u0, u0 + lt, v0, v0 + bt
+
+    def thickness_at(self, u: Any, v: Any) -> Any:
+        """Thickness [mm] at plan points (u, v) (arrays allowed): the full thickness on the top,
+        the edge thickness outside a stepped footing's upper step, and between, on a sloped one,
+        the hipped planes from the top's edges down to the footing's edges."""
+        if not self.profiled:
+            return np.full(np.broadcast(u, v).shape, self.thickness)
+        u, v = np.asarray(u, dtype=float), np.asarray(v, dtype=float)
+        u0, u1, v0, v1 = self.top_plan()
+        h, he = self.thickness, float(self.edge_thickness)  # type: ignore[arg-type]
+        if self.section == "stepped":
+            on_top = (u >= u0 - 1e-6) & (u <= u1 + 1e-6) & (v >= v0 - 1e-6) & (v <= v1 + 1e-6)
+            return np.where(on_top, h, he)
+
+        def share(x: Any, lo: float, hi: float, edge: float) -> Any:
+            below = np.where(lo > -edge + 1e-6, (lo - x) / max(lo + edge, 1e-6), 0.0)
+            above = np.where(hi < edge - 1e-6, (x - hi) / max(edge - hi, 1e-6), 0.0)
+            return np.clip(np.maximum(below, above), 0.0, 1.0)
+
+        t = np.maximum(share(u, u0, u1, self.length / 2), share(v, v0, v1, self.width / 2))
+        return h - (h - he) * t
+
+    def mean_thickness(self) -> float:
+        """Concrete volume / plan area [mm] (:meth:`saengine.library.substructure.Foundation.
+        concrete_volume`'s shapes)."""
+        if not self.profiled:
+            return self.thickness
+        lt, bt = self.top_length or self.length, self.top_width or self.width
+        he = float(self.edge_thickness)  # type: ignore[arg-type]
+        area = self.length * self.width
+        rise = self.thickness - he
+        if self.section == "stepped":
+            return he + lt * bt * rise / area
+        return he + rise / 6 * (area + lt * bt + (self.length + lt) * (self.width + bt)) / area
+
+    def section_strips(self, axis: str, s: float, count: int = 41) -> tuple[np.ndarray, float]:
+        """The thicknesses [mm] of ``count`` equal strips across the section at ``s`` along
+        ``axis`` and the width of each strip [mm]."""
+        across = self.width if axis == "u" else self.length
+        step = across / count
+        t = -across / 2 + step * (np.arange(count) + 0.5)
+        if axis == "u":
+            return self.thickness_at(np.full(count, s), t), step
+        return self.thickness_at(t, np.full(count, s)), step
 
     def depths(self, face: str = "bottom") -> dict[str, float]:
         """Effective depth [mm] of each direction's bars of a ``face``, by axis ("u" for the X
@@ -606,6 +689,191 @@ def manual_bearing(foundation: Foundation) -> Bearing:
     return Bearing(None, "none", "")
 
 
+# ─────────────────────────────────────── sloped and stepped footings ─────────────────────────
+
+
+def _profiled_shear(
+    spec: FootingSpec,
+    axis: str,
+    d: float,
+    shear: Any,
+    sections: list[float],
+    keep: Any,
+    label: str,
+    name: str,
+) -> None:
+    """One-way shear of a sloped or stepped footing along ``axis``: at the sections at d from
+    the column faces (``sections``), at d from the upper step, and along the slope; each
+    section's capacity summed over strips across it with their own d (ACI 318-19 13.2.7.3)."""
+    offset = spec.thickness - d  # top face to this direction's bars
+    span = spec.length if axis == "u" else spec.width
+    u0, u1, v0, v1 = spec.top_plan()
+    lo, hi = (u0, u1) if axis == "u" else (v0, v1)
+    c = spec.columns[0]
+    face_lo = (c.u - c.cu / 2) if axis == "u" else (c.v - c.cv / 2)
+    face_hi = (c.u + c.cu / 2) if axis == "u" else (c.v + c.cv / 2)
+    if spec.section == "stepped":
+        de = float(spec.edge_thickness) - offset  # type: ignore[arg-type]
+        extra = [lo - de, hi + de]
+    else:
+        extra = [*np.linspace(-span / 2, lo, 8)[1:-1], *np.linspace(hi, span / 2, 8)[1:-1]]
+    candidates = [
+        float(s)
+        for s in [*sections, *extra]
+        if -span / 2 < s < span / 2 and (s <= face_lo - d + 1e-6 or s >= face_hi + d - 1e-6)
+    ]
+    as_per_m = mesh_area(spec.bottom_x if axis == "u" else spec.bottom_y)
+    best: tuple[float, float, float, float, float, float] | None = None
+    for s in candidates:
+        thick, step = spec.section_strips(axis, s)
+        depths = thick - offset
+        depths = depths[depths > 0]
+        if not len(depths):
+            continue
+        capacity = sum(
+            one_way_shear_capacity(step, float(di), as_per_m / (1000 * float(di)), spec.fc)
+            for di in depths
+        )
+        vu = abs(shear(s))
+        ratio = vu / capacity if capacity > 0 else math.inf
+        if best is None or ratio > best[0]:
+            best = (ratio, vu, capacity, s, float(depths.min()), float(depths.max()))
+    if best is None:
+        return
+    ratio, vu, capacity, at, d_min, d_max = best
+    keep(
+        f"One-way shear {label}",
+        ratio,
+        vu / 1e3,
+        capacity / 1e3,
+        "kN",
+        name,
+        f"{spec.section} footing: at {label.lower()} = {at:.0f} mm, d = {d_min:.0f} to "
+        f"{d_max:.0f} mm across the section, Σ 0.66 λs ρw^(1/3) √f'c b d over its strips "
+        "(ACI 22.5.5.1 (c), 13.2.7.3)",
+    )
+
+
+def _profiled_flexure(
+    spec: FootingSpec,
+    axis: str,
+    d: float,
+    moments: list[tuple[float, float]],
+    as_per_m: float,
+    keep: Any,
+    label: str,
+    name: str,
+) -> None:
+    """Bottom flexure of a sloped or stepped footing along ``axis``: at each station the
+    section's greatest d and a compression face as wide as the top there (ACI 318-19
+    13.2.7.3), the bars across the whole width."""
+    offset = spec.thickness - d
+    across = spec.width if axis == "u" else spec.length
+    per_m = 1000 / across
+    steel = as_per_m * across / 1000
+    best: tuple[float, float, float, float, float, float] | None = None
+    for moment, s in moments:
+        if moment <= 0:
+            continue
+        thick, step = spec.section_strips(axis, s)
+        top = float(thick.max())
+        width = step * int(np.count_nonzero(thick >= top - 1.0))
+        depth = top - offset
+        if steel <= 0 or depth <= 0:
+            capacity = 0.0
+        else:
+            capacity = strip_flexure(steel * 1000 / width, depth, spec.fc, spec.fy, spec.es).phi_mn
+            capacity *= width / 1000
+        ratio = moment / capacity if capacity > 0 else math.inf
+        if best is None or ratio > best[0]:
+            best = (ratio, moment, capacity, s, depth, width)
+    if best is None:
+        keep(f"Flexure {label} (bottom)", 0.0, 0.0, 0.0, "kN·m/m", name, "no sagging moment")
+        return
+    ratio, moment, capacity, at, depth, width = best
+    keep(
+        f"Flexure {label} (bottom)",
+        ratio,
+        moment * per_m / 1e6,
+        capacity * per_m / 1e6,
+        "kN·m/m",
+        name,
+        f"{spec.section} footing: at {label.lower()} = {at:.0f} mm, d = {depth:.0f} mm, "
+        f"compression face {width:.0f} mm wide (the top there), As = {steel:.0f} mm² across "
+        f"{across:.0f} mm (ACI 13.2.7.3); per metre of the footing's width",
+    )
+
+
+def _punching_depth(spec: FootingSpec, column: ColumnBase, d: float) -> float:
+    """d [mm] of the punching section at d/2 round a column of a sloped or stepped footing:
+    the least depth along that section (a few fixed-point steps, the section moving in as d
+    shrinks)."""
+    offset = spec.thickness - d
+    dp = d
+    t = np.linspace(0.0, 1.0, 21)
+    for _ in range(6):
+        u0, u1 = column.u - column.cu / 2 - dp / 2, column.u + column.cu / 2 + dp / 2
+        v0, v1 = column.v - column.cv / 2 - dp / 2, column.v + column.cv / 2 + dp / 2
+        along_u, along_v = u0 + (u1 - u0) * t, v0 + (v1 - v0) * t
+        us = np.concatenate([along_u, along_u, np.full(21, u0), np.full(21, u1)])
+        vs = np.concatenate([np.full(21, v0), np.full(21, v1), along_v, along_v])
+        inside = (np.abs(us) <= spec.length / 2) & (np.abs(vs) <= spec.width / 2)
+        if not inside.any():
+            return dp
+        least = float(spec.thickness_at(us[inside], vs[inside]).min()) - offset
+        if abs(least - dp) < 0.5:
+            return least
+        dp = max(min(d, least), 1.0)
+    return dp
+
+
+def _step_punching(
+    spec: FootingSpec,
+    pressure: SoilPressure,
+    weight: float,
+    column: ColumnBase,
+    load: np.ndarray,
+    name: str,
+    keep: Any,
+) -> None:
+    """Punching at d/2 round the upper step of a stepped footing (ACI 22.6), the step as the
+    loaded area and d of the lower step."""
+    de = float(spec.edge_thickness) - (spec.thickness - spec.d)  # type: ignore[arg-type]
+    if de <= 0:
+        return
+    u0, u1, v0, v1 = spec.top_plan()
+    lt, bt = u1 - u0, v1 - v0
+    a0, a1, b0_, b1_ = u0 - de / 2, u1 + de / 2, v0 - de / 2, v1 + de / 2
+    half_l, half_w = spec.length / 2, spec.width / 2
+    sides = {"u-": a0 > -half_l, "u+": a1 < half_l, "v-": b0_ > -half_w, "v+": b1_ < half_w}
+    ca0, ca1 = max(a0, -half_l), min(a1, half_l)
+    cb0, cb1 = max(b0_, -half_w), min(b1_, half_w)
+    b0 = (sides["u-"] + sides["u+"]) * (cb1 - cb0) + (sides["v-"] + sides["v+"]) * (ca1 - ca0)
+    count = sum(sides.values())
+    if count < 2 or b0 <= 0:
+        return
+    alpha_s = {4: 40, 3: 30, 2: 20}[count]
+    pu, cu_moment, cv_moment = float(load[0]), float(load[1]), float(load[2])
+    inside = pressure.over(ca0, ca1, cb0, cb1) - weight * (ca1 - ca0) * (cb1 - cb0)
+    vu = max(pu - inside, 0.0)
+    b1u, b1v = lt + de, bt + de
+    moment_u = gamma_v(b1u, b1v) * abs(cv_moment) * (b1u / 2) / polar_j(b1u, b1v, de)
+    moment_v = gamma_v(b1v, b1u) * abs(cu_moment) * (b1v / 2) / polar_j(b1v, b1u, de)
+    stress = vu / (b0 * de) + moment_u + moment_v
+    phi_vc = PHI_SHEAR * punching_stress(lt, bt, de, b0, alpha_s, spec.fc)
+    keep(
+        f"Punching at the step of {column.id}",
+        stress / phi_vc,
+        stress * b0 * de / 1e3,
+        phi_vc * b0 * de / 1e3,
+        "kN",
+        name,
+        f"at d/2 round the upper step {lt:.0f} × {bt:.0f} mm, d = {de:.0f} mm of the lower "
+        f"step, b0 = {b0:.0f} mm, vu = {stress:.2f} MPa (Vu = {vu / 1e3:.0f} kN), φvc = "
+        f"{phi_vc:.2f} MPa, αs = {alpha_s}",
+    )
+
+
 def design_footing(
     spec: FootingSpec,
     service: Loads,
@@ -628,7 +896,9 @@ def design_footing(
     gamma = foundation.soilUnitWeight * 1e-6  # N/mm³
     cover_depth = max(0.0, foundation.groundLevel - spec.elevation)
     founding = max(0.0, foundation.groundLevel - (spec.elevation - h))
-    own_weight = spec.unit_weight * h + gamma * cover_depth  # N/mm² of base
+    # A sloped or stepped footing weighs its true volume; soil fills the rest of its depth.
+    mean = spec.mean_thickness()
+    own_weight = spec.unit_weight * mean + gamma * (cover_depth + h - mean)  # N/mm² of base
     overburden = gamma * founding
     overburden_note = f"net = gross - γ Df = gross - {overburden * 1e3:.0f} kPa"
     if bearing.overburden is not None:
@@ -842,6 +1112,10 @@ def design_footing(
         ]
         rho = mesh_area(bottom) / (1000 * d) if d > 0 else 0.0
         capacity = one_way_shear_capacity(across, d, rho, fc)
+        profiled = beam_spec.profiled and strip_of is None
+        if profiled and sections:
+            _profiled_shear(beam_spec, axis, d, shear, sections, keep, label, name)
+            sections = []
         if sections:
             vu, at = max((abs(shear(s)), s) for s in sections)
             # Under a wall: per metre of wall.
@@ -880,15 +1154,18 @@ def design_footing(
                 f"band {min(length, width):.0f} mm wide (ACI 13.3.3.3)"
             )
         demand = max(sag[0], 0.0) * per_m
-        keep(
-            f"Flexure {label} (bottom)",
-            demand / strip.phi_mn if strip.phi_mn > 0 else (0.0 if demand <= 0 else math.inf),
-            demand / 1e6,
-            strip.phi_mn / 1e6,
-            "kN·m/m",
-            name,
-            note,
-        )
+        if profiled:
+            _profiled_flexure(beam_spec, axis, d, moments, mesh_area(bottom), keep, label, name)
+        else:
+            keep(
+                f"Flexure {label} (bottom)",
+                demand / strip.phi_mn if strip.phi_mn > 0 else (0.0 if demand <= 0 else math.inf),
+                demand / 1e6,
+                strip.phi_mn / 1e6,
+                "kN·m/m",
+                name,
+                note,
+            )
         hogging = max(-hog[0], 0.0) * per_m
         between = combined and axis == long_axis
         if between or hogging > 1e6:  # 1 kN·m/m: a hogging moment worth top bars
@@ -957,8 +1234,9 @@ def design_footing(
                     ),
                 )
             )
-            u0, u1 = column.u - column.cu / 2 - d / 2, column.u + column.cu / 2 + d / 2
-            v0, v1 = column.v - column.cv / 2 - d / 2, column.v + column.cv / 2 + d / 2
+            dp = _punching_depth(spec, column, d) if spec.profiled else d
+            u0, u1 = column.u - column.cu / 2 - dp / 2, column.u + column.cu / 2 + dp / 2
+            v0, v1 = column.v - column.cv / 2 - dp / 2, column.v + column.cv / 2 + dp / 2
             sides = {
                 "u-": u0 > -length / 2,
                 "u+": u1 < length / 2,
@@ -983,23 +1261,26 @@ def design_footing(
             alpha_s = {4: 40, 3: 30, 2: 20}[count]
             inside = pressure.over(cu0, cu1, cv0, cv1) - weight * (cu1 - cu0) * (cv1 - cv0)
             vu = max(pu - inside, 0.0)
-            b1u, b1v = column.cu + d, column.cv + d
-            moment_u = gamma_v(b1u, b1v) * abs(cv_moment) * (b1u / 2) / polar_j(b1u, b1v, d)
-            moment_v = gamma_v(b1v, b1u) * abs(cu_moment) * (b1v / 2) / polar_j(b1v, b1u, d)
-            stress = vu / (b0 * d) + moment_u + moment_v
-            vc = punching_stress(column.cu, column.cv, d, b0, alpha_s, fc)
+            b1u, b1v = column.cu + dp, column.cv + dp
+            moment_u = gamma_v(b1u, b1v) * abs(cv_moment) * (b1u / 2) / polar_j(b1u, b1v, dp)
+            moment_v = gamma_v(b1v, b1u) * abs(cu_moment) * (b1v / 2) / polar_j(b1v, b1u, dp)
+            stress = vu / (b0 * dp) + moment_u + moment_v
+            vc = punching_stress(column.cu, column.cv, dp, b0, alpha_s, fc)
             phi_vc = PHI_SHEAR * vc
             keep(
                 check_name,
                 stress / phi_vc,
-                stress * b0 * d / 1e3,
-                phi_vc * b0 * d / 1e3,
+                stress * b0 * dp / 1e3,
+                phi_vc * b0 * dp / 1e3,
                 "kN",
                 name,
                 f"vu = {stress:.2f} MPa (Vu = {vu / 1e3:.0f} kN, moments "
                 f"{(moment_u + moment_v):.2f} MPa), φvc = {phi_vc:.2f} MPa, b0 = {b0:.0f} mm, "
-                f"d = {d:.0f} mm, αs = {alpha_s}",
+                f"d = {dp:.0f} mm, αs = {alpha_s}"
+                + (f" ({spec.section} footing: the depth at d/2)" if dp < d else ""),
             )
+            if spec.profiled and spec.section == "stepped":
+                _step_punching(spec, pressure, weight, column, f, name, keep)
 
     for state, text in (
         ("uplift", "not checked for strength: the footing lifts off"),
@@ -1018,6 +1299,7 @@ def design_footing(
 
     order = [
         *(f"Punching at {c.id}" for c in spec.columns if c.punching),
+        *(f"Punching at the step of {c.id}" for c in spec.columns),
         "One-way shear X",
         "One-way shear Y",
         "Flexure X (bottom)",
@@ -1457,9 +1739,20 @@ def place_footing(ctx: Any, foundation: Any) -> Placed:
         top_y=reinforcement.topY,
         unit_weight=density * G * 1e-9,
         punching_reinforcement=getattr(foundation, "punchingReinforcement", None),
+        section=getattr(foundation, "section", "flat"),
+        edge_thickness=getattr(foundation, "edgeThickness", None),
+        top_length=getattr(foundation, "topLength", None),
+        top_width=getattr(foundation, "topWidth", None),
     )
     if min(spec.depths("bottom").values()) <= 0:
         raise Skip("the cover and bars leave no effective depth")
+    if spec.section != "flat" and not spec.profiled:
+        notes.append(
+            f"{foundation.id}: designed as a flat footing: a {spec.section} footing needs one "
+            "column and an edge thickness less than the thickness"
+        )
+    elif spec.profiled and float(spec.edge_thickness) - spec.thickness + spec.d <= 0:
+        raise Skip("the edge thickness leaves no effective depth at the edges")
     return Placed(spec, nodes, center, axis_u, axis_v, founding, notes)
 
 
