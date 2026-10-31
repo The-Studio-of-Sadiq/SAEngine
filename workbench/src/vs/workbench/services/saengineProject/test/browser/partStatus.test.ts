@@ -223,11 +223,11 @@ suite('SAEngine - PartStatus', () => {
 			'inProgress 2 foundations (run the analysis to design them)',
 			'failed 1 fail (review the failing foundations)',
 			// Stale: the fails of the last check stay in view, as in the editor's status line (N-U5).
-			'inProgress 2 foundations, 1 failed when last checked (check the foundations)',
-			'inProgress 2 foundations, 1 failed when last checked (check the foundations)',
-			'inProgress 2 foundations, 1 failed when last checked (check the foundations)',
-			'inProgress 2 foundations, 1 failed when last checked (check the foundations)',
-			'inProgress 2 foundations, 1 failed when last checked (check the foundations)',
+			'inProgress 1 fail (stale) (check the foundations)',
+			'inProgress 1 fail (stale) (check the foundations)',
+			'inProgress 1 fail (stale) (check the foundations)',
+			'inProgress 1 fail (stale) (check the foundations)',
+			'inProgress 1 fail (stale) (check the foundations)',
 			'failed 1 fail (review the failing foundations)',
 		]);
 	});
