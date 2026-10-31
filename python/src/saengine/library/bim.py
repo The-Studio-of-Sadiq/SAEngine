@@ -30,7 +30,12 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from saengine.library.floorplan import FloorPlan, GridPoint, Story
 from saengine.library.labels import field_title
 from saengine.library.materials import Id
-from saengine.library.modifiers import DesignOverwrites, FrameModifiers, ShellModifiers
+from saengine.library.modifiers import (
+    BeamCorbels,
+    DesignOverwrites,
+    FrameModifiers,
+    ShellModifiers,
+)
 from saengine.library.objects import ObjectLibrary
 from saengine.library.structure import StructuralModel
 
@@ -120,6 +125,11 @@ class BeamElement(_Element):
         default=None,
         title="Design overwrites",
         description="k, unbraced lengths and framing for the design (empty: automatic).",
+    )
+    corbels: BeamCorbels | None = Field(
+        default=None,
+        title="Corbels",
+        description="Corbels under the beam's ends, designed by BNBC 2020 Part 6 Sec 6.4.7.",
     )
 
 
@@ -527,6 +537,7 @@ def generate(plan: FloorPlan, stamp: str, previous: BuildingModel | None = None)
                 elevation=level[b.story],
                 modifiers=b.modifiers,
                 designOverwrites=b.designOverwrites,
+                corbels=b.corbels,
             )
         )
     for w in plan.walls:

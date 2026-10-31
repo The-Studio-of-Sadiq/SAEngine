@@ -37,6 +37,7 @@ import numpy as np
 
 from saengine.codes import context as code_context
 from saengine.design import column_shear, deep_beams, seismic_rules, slab, steel_design
+from saengine.design import corbels as corbel_design
 from saengine.design import deflection as deflection_design
 from saengine.design import slender as slenderness_design
 from saengine.design import torsion as torsion_design
@@ -702,7 +703,8 @@ def design(
                         notes,
                     )
                     # Integrator glue (T3): deep spans and transfer girders by the strut-and-tie
-                    # model (saengine.design.deep_beams, BNBC 2020 Part 6 Sec 6.4.6).
+                    # model (saengine.design.deep_beams, BNBC 2020 Part 6 Sec 6.4.6), and the corbels
+                    # under the beam's ends (saengine.design.corbels, Sec 6.4.7).
                     deep_rows, deep_notes = deep_beams.member_checks(
                         element,
                         object_type,
@@ -711,6 +713,14 @@ def design(
                         combinations,
                         _turned(element, exact),
                         framing,
+                    )
+                    checks += corbel_design.member_checks(
+                        element,
+                        own,
+                        combinations,
+                        _turned(element, exact),
+                        concrete.concrete.fc,
+                        bars.steel.fy,
                     )
                     if deep_rows:
                         for row in checks:
