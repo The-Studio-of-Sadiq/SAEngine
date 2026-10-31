@@ -171,6 +171,11 @@ export interface IBuildingIfcRequest {
 	readonly mepText?: string;
 	/** `05 Floor Plan/architecture.json`: its walls, doors, windows, rooms and finishes are in the model too (ids `arch:<id>`). */
 	readonly architectureText?: string;
+	/**
+	 * The project's folder: when given, the reinforcement cages of its beams and columns are in the
+	 * model too (IfcReinforcingBar, ids `rebar:<element>/<n>`), detailed as the drawings detail them.
+	 */
+	readonly projectRoot?: string;
 }
 
 export interface IBuildingIfc {

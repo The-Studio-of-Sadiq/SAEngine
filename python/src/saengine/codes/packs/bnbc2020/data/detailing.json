@@ -1,9 +1,17 @@
 {
   "$schema": "../../../schemas/detailing.schema.json",
   "$sources": [
-    "BNBC 2020 Part 6 Sec 8.3 (pp. 1088-1122)"
+    "BNBC 2020 Part 6 Sec 8.3 (pp. 1088-1122)",
+    "BNBC 2020 Part 6 Sec 8.1.6.1-8.1.6.3 (p. 1068)"
   ],
-  "source": "BNBC 2020 Part 6 Sec 8.3 (pp. 1088-1122)",
+  "source": "BNBC 2020 Part 6 Sec 8.3 (pp. 1088-1122); Sec 8.1.6 (p. 1068)",
+  "spacing": {
+    "layerMin": 25.0,
+    "layerDb": 1.0,
+    "betweenLayers": 25.0,
+    "columnMin": 40.0,
+    "columnDb": 1.5
+  },
   "special": {
     "axialShare": 0.1,
     "beamRhoMax": 0.025,
@@ -51,6 +59,7 @@
     "special": "BNBC 2020 Part 6 Sec 8.3.4, 8.3.5 (pp. 1090-1100), 8.1.9.4(c)",
     "joints": "BNBC 2020 Part 6 Sec 8.3.5.2(b), 8.3.7 (pp. 1096, 1108-1110), 8.3.8.2(a) (p. 1112)",
     "walls": "BNBC 2020 Part 6 Sec 8.3.6.2, 8.3.6.6 (pp. 1100-1105)",
-    "lintels": "SAEngine lintel design (design/lintels.py CLAUSES)"
+    "lintels": "SAEngine lintel design (design/lintels.py CLAUSES)",
+    "spacing": "BNBC 2020 Part 6 Sec 8.1.6.1 (layer: db and 25 mm), 8.1.6.2 (between layers: 25 mm), 8.1.6.3 (columns: 1.5 db and 40 mm), p. 1068"
   }
 }

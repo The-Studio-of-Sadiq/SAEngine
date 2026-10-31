@@ -173,6 +173,16 @@
 	gap: var(--sa-space-2, 8px);
 }
 
+/* the reinforcement toggle: one segment standing alone */
+.saengine-building-editor .building-rebar-toggle {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1, 4px);
+	height: 28px;
+	border: 1px solid var(--sa-border, var(--vscode-panel-border));
+	border-radius: var(--sa-radius, 4px);
+}
+
 .saengine-building-editor .building-story-filter {
 	height: 28px;
 	padding: 0 var(--sa-space-1, 4px);

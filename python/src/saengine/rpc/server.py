@@ -87,7 +87,9 @@ Methods:
 - ``soil/sources`` ``{soilText?, settingsText?, projectRoot?}`` -> where the site class and qa come from
 - ``fem/derive`` also takes ``soilText?`` (else the project's soil report beside ``modelFolder``)
 - ``bim/ifc`` and ``boq/compute`` also take ``substructureText?`` and ``settingsText?``: the
-  foundations of 9 Substructure (once it is no longer the placeholder) and the ground level
+  foundations of 9 Substructure (once it is no longer the placeholder) and the ground level;
+  ``bim/ifcRebar`` takes what ``bim/ifc`` takes and ``projectRoot``: the same IFC with the
+  reinforcement cages of the beams and columns (IfcReinforcingBar; in a worker thread)
 - ``substructure/design`` ``{projectRoot}`` -> Run All's foundation step: footings moved in,
   minimum bars given, the checks (``saengine.substructure.run.design_foundations``; in a worker
   thread, as ``substructure/report`` and ``report/build``)
@@ -409,6 +411,24 @@ def create_server() -> JsonRPCServer:
             args.get("settingsText"),
             args.get("mepText"),
             args.get("architectureText"),
+        )
+
+    # With the reinforcement: the detailing of every beam and column first (seconds to tens of
+    # seconds on a large building), in a worker thread.
+    @server.feature("bim/ifcRebar")
+    @_in_worker
+    def _building_ifc_rebar(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.building_ifc(
+            args["bimText"],
+            args["objectsText"],
+            args.get("materialsText"),
+            args.get("name") or "Project",
+            args.get("substructureText"),
+            args.get("settingsText"),
+            args.get("mepText"),
+            args.get("architectureText"),
+            rebar_root=args.get("projectRoot"),
         )
 
     @server.feature("architecture/importIfc")

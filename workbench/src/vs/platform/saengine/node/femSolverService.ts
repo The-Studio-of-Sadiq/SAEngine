@@ -152,7 +152,8 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 	}
 
 	buildingIfc(python: string, request: IBuildingIfcRequest): Promise<IBuildingIfc> {
-		return this.request(python, 'bim/ifc', request);
+		// With the reinforcement (projectRoot given) the backend details every beam and column first.
+		return this.request(python, request.projectRoot ? 'bim/ifcRebar' : 'bim/ifc', request);
 	}
 
 	deriveFem(python: string, request: IFemDeriveRequest): Promise<IFemDerivation> {

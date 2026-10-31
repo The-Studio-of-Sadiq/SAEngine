@@ -633,11 +633,23 @@ class LintelLimits(_Group):
     probable: float = Field(ge=1)
 
 
+class BarSpacing(_Group):
+    """Least clear spacing of parallel bars (the 3D rebar cages' congestion check)."""
+
+    layerMin: Positive = Field(description="Bars in a layer: at least this clear [mm].")
+    layerDb: Positive = Field(description="Bars in a layer: at least this many db clear.")
+    betweenLayers: Positive = Field(description="Between layers of bars, clear [mm].")
+    columnMin: Positive = Field(description="Column bars: at least this clear [mm].")
+    columnDb: Positive = Field(description="Column bars: at least this many db clear.")
+
+
 class DetailingTable(TableModel):
     special: SpecialFrames
     joints: Joints
     walls: SpecialWalls
     lintels: LintelLimits
+    #: None in a pack that gives no bar spacing limits: the congestion check is then skipped.
+    spacing: BarSpacing | None = None
 
 
 class SteelPhi(_Group):
