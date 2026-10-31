@@ -56,6 +56,8 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 
+import numpy as np
+
 from saengine.design.slab import LINE_TOLERANCE  # one grid line: within 300 mm across
 
 CLAUSE_ADJACENT = "BNBC 2020 Part 6 Sec 6.1.12.2 (a)"
@@ -171,6 +173,48 @@ class LivePattern:
         if self.checker and level % 2 == 1:
             start = 1 - start
         return (bay % 2) == start
+
+    def mask(self, grid: Grid, places: Placed) -> np.ndarray:
+        """:meth:`loads` of every load of ``places`` at once (a boolean per load)."""
+        bay = places.bays[self.direction]
+        n = grid.bays(self.direction)
+        if self.floors is not None or self.checker:
+            level = places.levels
+        else:
+            level = np.zeros(len(bay), dtype=np.int64)
+        keep = np.ones(len(bay), dtype=bool)
+        if self.floors is not None:
+            keep &= np.isin(level, list(self.floors))
+        if not self.alternate:
+            return keep & (bay >= 0) & (bay < n) & np.isin(bay, list(self.bays))
+        start = np.full(len(bay), min(self.bays) % 2, dtype=np.int64)
+        if self.checker:
+            start = np.where(level % 2 == 1, 1 - start, start)
+        return keep & ((bay % 2) == start)
+
+
+@dataclass(frozen=True)
+class Placed:
+    """The floor level index and the bay along X and along Y of each of a list of loads, worked
+    out once for every arrangement's :meth:`LivePattern.mask`."""
+
+    levels: np.ndarray
+    bays: dict[str, np.ndarray]
+
+    @classmethod
+    def of(cls, grid: Grid, points: Sequence[tuple[float, float, float | None]]) -> Placed:
+        """``points``: each load's (x, y, z) [mm]. The levels are only looked up when the grid
+        has two or more (else every load is on level 0, as :meth:`Grid.level` says)."""
+        levels = (
+            [grid.level(z) for _, _, z in points] if len(grid.levels) >= 2 else [0] * len(points)
+        )
+        return cls(
+            np.asarray(levels, dtype=np.int64),
+            {
+                "X": np.asarray([grid.bay("X", x) for x, _, _ in points], dtype=np.int64),
+                "Y": np.asarray([grid.bay("Y", y) for _, y, _ in points], dtype=np.int64),
+            },
+        )
 
 
 def live_patterns(

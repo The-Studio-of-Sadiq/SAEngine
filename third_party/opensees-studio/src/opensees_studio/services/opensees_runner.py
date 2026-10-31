@@ -1290,12 +1290,27 @@ class OpenSeesRunner:
         disp: dict[int, np.ndarray] = {}
         reaction: dict[int, np.ndarray] = {}
         for node in self.project.nodes:
-            disp[node.id] = np.array(
-                [ops.nodeDisp(node.id, dof) for dof in range(1, ndf + 1)], dtype=float
-            )
-            reaction[node.id] = np.array(
-                [self._reaction(node.id, dof) for dof in range(1, ndf + 1)], dtype=float
-            )
+            # One call per node for all its DOFs (six per node on a tall building's thousands
+            # of nodes, per case, was a fifth of the solver's time); a node with fewer DOFs
+            # than the model reads them one by one, as before.
+            values = ops.nodeDisp(node.id)
+            if isinstance(values, list | tuple) and len(values) == ndf:
+                disp[node.id] = np.array(values, dtype=float)
+            else:
+                disp[node.id] = np.array(
+                    [ops.nodeDisp(node.id, dof) for dof in range(1, ndf + 1)], dtype=float
+                )
+            forces_at = ops.nodeReaction(node.id)
+            if (
+                isinstance(forces_at, list | tuple)
+                and len(forces_at) == ndf
+                and node.id not in self._solid_twin
+            ):
+                reaction[node.id] = np.array(forces_at, dtype=float)
+            else:
+                reaction[node.id] = np.array(
+                    [self._reaction(node.id, dof) for dof in range(1, ndf + 1)], dtype=float
+                )
         forces: dict[int, np.ndarray] = {}
         for el in self.project.elements:
             if isinstance(el, SolidElement):

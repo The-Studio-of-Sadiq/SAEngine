@@ -586,7 +586,7 @@ def derive_fem(
     from pydantic import ValidationError
 
     from saengine.fem.derive import derive_fem as derive
-    from saengine.fem.derive import mep_stamp, objects_stamp, settings_stamp, stamp
+    from saengine.fem.derive import mep_stamp, model_text, objects_stamp, settings_stamp, stamp
     from saengine.library.bim import BuildingModel
     from saengine.library.materials import MaterialLibrary
     from saengine.library.objects import ObjectLibrary
@@ -686,14 +686,12 @@ def derive_fem(
         # The derivation's notes and code values for the report (it need not derive again).
         keep_derivation(model_folder, derivation)
     result = {
-        "text": json.dumps(derivation.project, indent="\t", ensure_ascii=False) + "\n",
+        "text": model_text(derivation.project),
         "notes": site_notes + list(derivation.notes),
         "summary": derivation.summary,
     }
     if derivation.pushover is not None:
-        result["pushoverText"] = (
-            json.dumps(derivation.pushover, indent="\t", ensure_ascii=False) + "\n"
-        )
+        result["pushoverText"] = model_text(derivation.pushover)
     if derivation.thermal is not None:
         result["thermalText"] = json.dumps(derivation.thermal)
     if derivation.ssi is not None:
