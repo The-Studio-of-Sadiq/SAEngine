@@ -36,7 +36,7 @@ import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
-import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { ISaengineModelSelectionService, ModelSelection } from '../../../services/saengineProject/common/modelSelection.js';
 import { newFloorPlan } from '../../../services/saengineProject/common/partSources.js';
 import { PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
@@ -2594,11 +2594,15 @@ export class FloorPlanEditor extends EditorPane {
 		}
 	}
 
-	/** The grids and stories form, beside the plan so its edits show in the plan as they are made. */
+	/**
+	 * The grids and stories form: beside the plan on a wide screen, so its edits show in the plan
+	 * as they are made; in this group on a laptop, where a split squeezes both (N-F8).
+	 */
 	private openGrids(): void {
 		const input = this.input as FloorPlanEditorInput | undefined;
 		if (input) {
-			void this.editorService.openEditor({ resource: input.resource, options: { override: GRIDS_EDITOR_ID } }, SIDE_GROUP);
+			const wide = getWindow(this.getContainer()).innerWidth >= 1500;
+			void this.editorService.openEditor({ resource: input.resource, options: { override: GRIDS_EDITOR_ID } }, wide ? SIDE_GROUP : ACTIVE_GROUP);
 		}
 	}
 
