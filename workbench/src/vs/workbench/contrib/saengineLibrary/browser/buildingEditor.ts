@@ -892,9 +892,11 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 		const elements = Array.isArray(document.elements) ? document.elements.filter(isObject) : [];
 		const stories = this.storiesAboveBase();
 		const own = elements.filter(e => typeof e.source !== 'string').length;
+		const count = elements.length === 1 ? localize('building.statusOneElement', "1 element") : localize('building.statusElements', "{0} elements", elements.length);
+		const where = stories === 1 ? localize('building.statusOneStory', "on 1 story above the base") : localize('building.statusStories', "on {0} stories above the base", stories);
 		const parts = [own
-			? localize('building.statusOwn', "{0} elements ({1} of its own) on {2} stories above the base", elements.length, own, stories)
-			: localize('building.statusCount', "{0} elements on {1} stories above the base", elements.length, stories)];
+			? localize('building.statusOwn', "{0} ({1} of its own) {2}", count, own, where)
+			: localize('building.statusCount', "{0} {1}", count, where)];
 		if (stale) {
 			parts.push(localize('building.statusStale', "the {0} changed since it was built", this.sourceName));
 		}
@@ -1251,18 +1253,60 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 			n++;
 		}
 		item.id = `${prefix}${n}`;
+		// Optional values the template leaves out get the schema's default (a slab opening's
+		// rotation 0), so the new row has no empty field the form calls invalid.
+		const properties = BIM_SCHEMA.$defs?.[defName]?.properties ?? {};
+		for (const [key, property] of Object.entries(properties)) {
+			if (item[key] === undefined && property.default !== undefined && property.default !== null && typeof property.default !== 'object') {
+				item[key] = property.default as JsonValue;
+			}
+		}
 		const first = (values: readonly string[]) => values[0];
 		if (name === 'slabOpenings') {
 			item.host = first(this.elementIds('slab')) ?? item.host;
+			// In the middle of its slab, not at the origin (which may be outside it).
+			const centre = this.slabCentre(String(item.host));
+			if (centre) {
+				[item.x, item.y] = centre;
+			}
 		} else if (name === 'wallOpenings') {
 			item.host = first(this.elementIds('wall')) ?? item.host;
 		} else if (name === 'stairs') {
-			item.type = first(this.typeIds(['staircase'])) ?? item.type;
+			const types = this.typeIds(['staircase']);
+			item.type = first(types) ?? item.type;
 			[item.base, item.top] = [this.stories[0] ?? item.base, this.stories[1] ?? item.top];
+			if (!types.length) {
+				// The template's type does not exist in this project: say where to add one.
+				this.notificationService.prompt(Severity.Warning,
+					localize('building.noStaircaseType', "There is no staircase type in 04 Objects yet. Add one there, then pick it as this stair's object type."),
+					[{ label: localize('building.openObjects', "Open 04 Objects"), run: () => this.openObjects() }]);
+			}
 		} else {
 			item.type = first(this.typeIds(['brace', 'beam', 'column'])) ?? item.type;
 		}
 		return item;
+	}
+
+	/** The centre of a slab element's boundary (the mean of its corners), rounded to the mm. */
+	private slabCentre(id: string): [number, number] | undefined {
+		const slab = (Array.isArray(this.document?.elements) ? this.document.elements.filter(isObject) : []).find(e => e.id === id);
+		const corners = slab && Array.isArray(slab.boundary)
+			? slab.boundary.filter((p): p is number[] => Array.isArray(p) && p.length >= 2 && p.every(c => typeof c === 'number'))
+			: [];
+		if (!corners.length) {
+			return undefined;
+		}
+		const mean = (i: number) => Math.round(corners.reduce((sum, p) => sum + p[i], 0) / corners.length);
+		return [mean(0), mean(1)];
+	}
+
+	/** 04 Objects, where staircase types are added. */
+	private openObjects(): void {
+		const objects = partById('objects');
+		const resource = this.resource;
+		if (objects?.mainFile && resource) {
+			void this.editors.openEditor({ resource: joinPath(dirname(dirname(resource)), objects.folder, objects.mainFile) });
+		}
 	}
 
 	protected renderProblems(): void {
