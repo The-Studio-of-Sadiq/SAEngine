@@ -81,6 +81,8 @@ TABLE_HELP: dict[str, str] = {
     "fire": "Fire protection: hazard classes of the occupancy groups, flows and durations, "
     "standpipe and hose pressures, pump ratings, sprinkler pipe schedules and spacing, and the "
     "NFPA values the code leaves out (marked 'from memory, to be checked').",
+    "liveReduction": "Reduction of floor live loads by influence area: the formula's "
+    "constants, the least factors, the uses not reduced and the live load element factors KLL.",
     "steelSections": "The standard steel shapes: the nominal dimensions of each rolled family "
     "with the standard it comes from (its 'source'), the angles, the hollow section sizes and "
     "the walls rolled for them, the density. SAEngine computes the properties from them.",

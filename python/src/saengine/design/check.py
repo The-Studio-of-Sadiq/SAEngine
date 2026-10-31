@@ -36,7 +36,7 @@ from typing import Any
 import numpy as np
 
 from saengine.codes import context as code_context
-from saengine.design import column_shear, seismic_rules, slab, steel_design
+from saengine.design import column_shear, live_reduction, seismic_rules, slab, steel_design
 from saengine.design import deflection as deflection_design
 from saengine.design import slender as slenderness_design
 from saengine.design import torsion as torsion_design
@@ -142,6 +142,9 @@ class _Piece:
     #: SD: βdns); None when not formed.
     sway: list[np.ndarray] | None = None
     sustained: list[np.ndarray] | None = None
+    #: Per combination, the part of ``forces`` from the floor live load cases (L, LP1, ...),
+    #: for the live load reduction (:mod:`saengine.design.live_reduction`); None when not formed.
+    live: list[np.ndarray] | None = None
 
 
 def design_report(out_dir: str | Path, project_path: str | Path) -> dict[str, Any]:
@@ -571,6 +574,7 @@ def design(
     steel_seen = False
     beam_sections: dict[str, tuple[RcSection, dict[bool, Any]]] = {}
     framing: _BeamFraming | None = None
+    live_scope = live_reduction.LiveScope.of(settings)
     column_sections: dict[str, tuple[RcSection, InteractionSurface]] = {}
     for member_id, type_id, element in members:
         object_type = types.get(type_id)
@@ -637,6 +641,39 @@ def design(
             skip(f"unknown reinforcement material '{object_type.reinforcement.material}'")
             continue
         es = bars.mechanical.E or 200_000.0
+        # Integrator glue (T9): the floor live load reduced by the member's influence area
+        # (saengine.design.live_reduction, BNBC 2020 Part 6 Sec 2.3.13), or by its overwrite.
+        live_row = None
+        given_factor = (resolved_overwrites.get(member_id) or design_overwrites.Resolved()).get(
+            "liveLoadReduction"
+        )
+        if given_factor is not None or settings.analysis.liveLoadReduction:
+            if given_factor is not None:
+                found_factor = (float(given_factor), f"given ({live_reduction.CLAUSE})")
+            else:
+                if isinstance(element, BeamElement):
+                    framing = framing or _BeamFraming(building, types)
+                found_factor = live_reduction.member_factor(
+                    element,
+                    "beam" if isinstance(object_type, Beam) else "column",
+                    own,
+                    service,
+                    building,
+                    live_scope,
+                    framing if isinstance(element, BeamElement) else None,
+                    float(getattr(object_type.profile, "xDim", 0.0) or 0.0),
+                )
+            if found_factor is not None:
+                own = live_reduction.reduced(own, found_factor[0])
+                live_row = _check(
+                    "Live load reduction L / L0",
+                    found_factor[0],
+                    1.0,
+                    "",
+                    None,
+                    found_factor[1],
+                    flag=True,
+                )
         joints_own = own
         torsion_found = None
         try:
@@ -744,6 +781,8 @@ def design(
                     _shear_points(own, combinations, _turned(element, exact)),
                 )
                 faced_any = faced_any or faced.at_faces
+            if live_row is not None:
+                checks.append(live_row)
             given = resolved_overwrites.get(member_id)
             if given:
                 notes.extend(f"{member_id}: {note}" for note in given.notes())
@@ -1706,6 +1745,7 @@ def _demands(
     from opensees_studio.services.result_store import load_manifest, load_results
     from opensees_studio.services.results import StaticResults
 
+    from saengine.design.live_reduction import is_live_case
     from saengine.fem.combinations import combination_factors
     from saengine.fem.display import (
         _case_loads,
@@ -1794,6 +1834,7 @@ def _demands(
         {c: f for c, f in factors.items() if c in slenderness_design.SUSTAINED_CASES}
         for factors in factors_of
     ]
+    live = [{c: f for c, f in factors.items() if is_live_case(c)} for factors in factors_of]
     if extra is not None:
         extra["factors"] = factors_of
         stacks = _displacement_stacks(displacements)
@@ -1811,6 +1852,7 @@ def _demands(
     forces_of = _combined_stacks(by_case, [e.id for e in elements], factors_of)
     sway_of = _combined_stacks(by_case, [e.id for e in elements], lateral, parts=True)
     sustained_of = _combined_stacks(by_case, [e.id for e in elements], sustained, parts=True)
+    live_of = _combined_stacks(by_case, [e.id for e in elements], live, parts=True)
     pieces: dict[str, list[_Piece]] = {}
     for e in elements:
         a, b = coords[e.i], coords[e.j]
@@ -1828,6 +1870,7 @@ def _demands(
                 end=b,
                 sway=sway_of[e.id],
                 sustained=sustained_of[e.id],
+                live=live_of[e.id],
             )
         )
 
@@ -1922,7 +1965,7 @@ def _drop_combinations(
         if member_id in keep:
             continue
         for piece in own:
-            for parts in (piece.forces, piece.sway, piece.sustained):
+            for parts in (piece.forces, piece.sway, piece.sustained, piece.live):
                 if parts is None:
                     continue
                 for c in indices:

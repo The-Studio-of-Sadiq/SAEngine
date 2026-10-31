@@ -559,6 +559,15 @@ class Analysis(_Model):
         description="Share of the live load taken as sustained for the long-term deflection "
         "(an SAEngine assumption for residential and office floors; raise it for storage).",
     )
+    liveLoadReduction: bool = Field(
+        default=False,
+        title="Live load reduction",
+        description="Reduce the floor live load of beams and columns by their influence area "
+        "(BNBC 2020 Part 6 Sec 2.3.13): L = L0 (0.25 + 4.57 / √(KLL AT)), at least 0.5 L0 "
+        "(one floor) or 0.4 L0 (two or more); none for assembly uses, and only 20 % for heavy "
+        "live loads and parking on members carrying two or more floors. A member's design "
+        "overwrite can give its own factor.",
+    )
     periodMethod: Literal["approximate", "analysis"] = Field(
         default="approximate",
         title="Period for the static base shear",

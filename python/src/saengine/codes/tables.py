@@ -1402,6 +1402,31 @@ class SteelSectionsTable(TableModel):
         return self
 
 
+class LiveElementFactors(_Group):
+    interiorColumn: Positive
+    exteriorColumn: Positive = Field(description="Exterior columns without cantilever slabs.")
+    edgeColumnCantilever: Positive = Field(description="Edge columns with cantilever slabs.")
+    cornerColumnCantilever: Positive = Field(description="Corner columns with cantilever slabs.")
+    interiorBeam: Positive
+    edgeBeam: Positive = Field(description="Edge beams without cantilever slabs.")
+    other: Positive = Field(description="All other members (one-way slabs, cantilevers ...).")
+
+
+class LiveReductionTable(TableModel):
+    """Reduction of floor live loads by influence area (BNBC 2020 Part 6 Sec 2.3.13)."""
+
+    influenceMin: Positive = Field(description="Least KLL AT [m²] that is reduced.")
+    constant: Share = Field(description="a of L = L0 (a + b / √(KLL AT)).")
+    coefficient: Positive = Field(description="b of L = L0 (a + b / √(KLL AT)) [m].")
+    minOneFloor: Share = Field(description="Least L / L0 of members supporting one floor.")
+    minFloors: Share = Field(description="Least L / L0 of members supporting two or more.")
+    heavyLive: Positive = Field(description="Live loads above this [kN/m²] are not reduced.")
+    heavyFactor: Share = Field(description="L / L0 of heavy loads on members of 2+ floors.")
+    notReduced: list[str] = Field(description="Area uses never reduced.")
+    twoFloorsOnly: list[str] = Field(description="Area uses reduced only on 2+ floors.")
+    kll: LiveElementFactors
+
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -1424,6 +1449,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "electrical": ElectricalTable,
     "fire": FireTable,
     "steelSections": SteelSectionsTable,
+    "liveReduction": LiveReductionTable,
 }
 
 
