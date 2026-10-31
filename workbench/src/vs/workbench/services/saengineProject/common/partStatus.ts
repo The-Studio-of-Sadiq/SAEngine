@@ -240,7 +240,7 @@ export function reportAnalysisStale(femState: PartState | undefined): boolean {
 }
 
 /** The export kind of a file of `11 Exports` from its path inside that folder, if it is one. */
-export function exportKind(relativePath: string): 'report' | 'ifc' | 'dxf' | 'csv' | undefined {
+export function exportKind(relativePath: string): 'report' | 'ifc' | 'dxf' | 'csv' | 'xlsx' | undefined {
 	const path = relativePath.replace(/\\/g, '/');
 	const lower = path.toLowerCase();
 	if (lower === REPORT_FILE) {
@@ -254,6 +254,9 @@ export function exportKind(relativePath: string): 'report' | 'ifc' | 'dxf' | 'cs
 	}
 	if (!path.includes('/') && lower.endsWith('.csv')) {
 		return 'csv';
+	}
+	if (!path.includes('/') && lower.endsWith('.xlsx')) {
+		return 'xlsx';
 	}
 	return undefined;
 }

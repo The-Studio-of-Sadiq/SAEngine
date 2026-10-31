@@ -1012,6 +1012,38 @@ def compute_boq(
     )
 
 
+def cost_boq(
+    boq_text: str, rates_text: str | None = None, carbon_text: str | None = None
+) -> dict[str, Any]:
+    """The bill priced by the schedule of rates, with its embodied carbon
+    (``saengine.boq.costing``): ``{"costing", "sampleRates"}`` or ``{"problems"}``."""
+    from saengine.boq.costing import cost_texts
+
+    return cost_texts(boq_text, rates_text, carbon_text)
+
+
+def boq_templates() -> dict[str, str]:
+    """The texts a project's ``10 BOQ/rates.json`` and ``carbon-factors.json`` start from: the
+    sample schedule (made-up rates) and the carbon factors shipped."""
+    from saengine.boq.costing import default_carbon_text, sample_rates_text
+
+    return {"rates": sample_rates_text(), "carbon": default_carbon_text()}
+
+
+def export_boq_xlsx(
+    path: str,
+    boq_text: str,
+    rates_text: str | None = None,
+    carbon_text: str | None = None,
+    title: str = "",
+) -> dict[str, Any]:
+    """The bill, its costing and embodied carbon written to an Excel workbook
+    (``saengine.boq.workbook``)."""
+    from saengine.boq.workbook import write_boq_xlsx_texts
+
+    return write_boq_xlsx_texts(path, boq_text, rates_text, carbon_text, title)
+
+
 def build_report(
     project_root: str,
     out_pdf: str | None = None,

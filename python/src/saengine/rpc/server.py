@@ -67,6 +67,11 @@ Methods:
   ``soil/qgisCommand`` ``{program, filePath}`` -> the arguments that open the file in it
 - ``boq/compute`` ``{bimText, objectsText, materialsText, projectRoot?}`` -> the bill of
   quantities (``projectRoot``: where the plumbing tanks' last designs give their bars)
+- ``boq/cost`` ``{boqText, ratesText?, carbonText?}`` -> the bill priced by the schedule of rates
+  with its embodied carbon (``{costing, sampleRates}``; the shipped sample and factors when not
+  given); ``boq/templates`` ``{}`` -> ``{rates, carbon}``, the texts the project's files start
+  from; ``boq/exportXlsx`` ``{path, boqText, ratesText?, carbonText?, title?}`` -> the bill, its
+  costing and carbon written to ``path`` (``{path, sheets, total, carbonTotal}``)
 - ``report/build`` ``{projectRoot, outPdf?, format?, template?}`` -> the design report, PDF or
   Word (``format`` "docx"), as the report template chooses (``{path, pages, warnings, format,
   template}``); ``report/templates`` ``{projectRoot}`` -> ``{templates, current}``;
@@ -564,6 +569,27 @@ def create_server() -> JsonRPCServer:
             args.get("mepText"),
             args.get("projectRoot"),
             args.get("architectureText"),
+        )
+
+    @server.feature("boq/cost")
+    def _cost_boq(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.cost_boq(args["boqText"], args.get("ratesText"), args.get("carbonText"))
+
+    @server.feature("boq/templates")
+    def _boq_templates(params: Any) -> dict[str, Any]:
+        return handlers.boq_templates()
+
+    @server.feature("boq/exportXlsx")
+    @_in_worker
+    def _export_boq_xlsx(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.export_boq_xlsx(
+            args["path"],
+            args["boqText"],
+            args.get("ratesText"),
+            args.get("carbonText"),
+            args.get("title") or "",
         )
 
     @_in_worker

@@ -679,7 +679,7 @@ def build_parser() -> argparse.ArgumentParser:
                           "ETABS text model (.e2k)")  # fmt: skip
     sub.add_argument("target", nargs="?", help="e2k: the .e2k file to write (as --out)")
     sub.add_argument("--format", required=True,
-                     choices=["ifc", "dxf", "csv", "pdf", "docx", "drawings", "civil", "e2k"])  # fmt: skip
+                     choices=["ifc", "dxf", "csv", "xlsx", "pdf", "docx", "drawings", "civil", "e2k"])  # fmt: skip
     sub.add_argument("--out", help="the file (the folder for dxf and drawings) to write")
     sub.add_argument("--units", choices=["kN-m", "N-mm"], default="kN-m",
                      help="e2k: the file's units (default: %(default)s)")  # fmt: skip
