@@ -166,3 +166,25 @@ def test_a_proposed_unit_gives_at_least_what_it_was_sized_for() -> None:
 
     assert _entry("FAU-L1", "freshAirUnit", "L1", 1, 1, 1, 0.0404, 1)["capacity"] == 0.05
     assert _entry("SODU1", "splitOutdoor", "R", 1, 1, 1, 6.4, 1)["capacity"] == 6.4
+
+
+def test_split_outdoor_units_are_packed_on_the_roof(tmp_path: Path) -> None:
+    # Many split outdoor units: packed in rows on the roof's slabs, each with SPACING clear
+    # around it, not strung out in one line beyond the building (N-E2); any that do not fit
+    # are listed in one note.
+    project, zones = _zones(tmp_path, "split", [120, 120])
+    result = plant.propose_plant(project, zones)
+    units = [p for p in result["plant"] if p["kind"] == "splitOutdoor"]
+    assert len(units) > 10
+    roof = project.building.roof(units[0]["story"])
+    minx, miny, maxx, maxy = roof.bounds
+    inside = [u for u in units if minx <= u["x"] <= maxx and miny <= u["y"] <= maxy]
+    outside = len(units) - len(inside)
+    assert inside
+    assert (outside == 0) == (not any("do not fit on the slabs" in n for n in result["notes"]))
+    for a in inside:
+        for b in inside:
+            if a is not b:
+                apart_x = abs(a["x"] - b["x"]) >= a["length"] + plant.SPACING - 1
+                apart_y = abs(a["y"] - b["y"]) >= a["width"] + plant.SPACING - 1
+                assert apart_x or apart_y

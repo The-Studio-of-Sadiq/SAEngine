@@ -372,10 +372,22 @@ CommandsRegistry.registerCommand('saengine.soil.sources', async (accessor, args:
 	return accessor.get(IFemSolverService).soilSources(python, args.soilText, args.settingsText, accessor.get(ISaengineProjectService).project?.root.fsPath);
 });
 
-/** The PDF design report of the project. Internal: the report command calls it by id. */
-CommandsRegistry.registerCommand('saengine.report.build', async (accessor, args: { projectRoot: string; outPdf?: string }) => {
+/** The design report of the project, PDF or Word. Internal: the report commands call it by id. */
+CommandsRegistry.registerCommand('saengine.report.build', async (accessor, args: { projectRoot: string; outPdf?: string; format?: 'pdf' | 'docx'; template?: string }) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
-	return accessor.get(IFemSolverService).buildReport(python, args.projectRoot, args.outPdf);
+	return accessor.get(IFemSolverService).buildReport(python, args.projectRoot, args.outPdf, { format: args.format, template: args.template });
+});
+
+/** The report templates the project can print. Internal: the report commands call it by id. */
+CommandsRegistry.registerCommand('saengine.report.templates', async (accessor, args: { projectRoot: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).reportTemplates(python, args.projectRoot);
+});
+
+/** Writes a new report template into the project. Internal: the report commands call it by id. */
+CommandsRegistry.registerCommand('saengine.report.createTemplate', async (accessor, args: { projectRoot: string; id: string; base?: string; name?: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).createReportTemplate(python, args.projectRoot, args.id, args.base, args.name);
 });
 
 /** What the Substructure editor asks the backend: the project folder (its saved files are read), and the columns to size. */

@@ -355,3 +355,28 @@
 .saengine-new-building .hint.indented.plot-hint {
 	word-break: normal;
 }
+
+.saengine-new-building .result .warning-box {
+	margin: 0 0 var(--sa-space-4, 16px);
+	padding: var(--sa-space-2, 8px) var(--sa-space-4, 16px);
+	border-left: 3px solid var(--sa-warn);
+	background-color: var(--vscode-inputValidation-warningBackground, transparent);
+}
+
+.saengine-new-building .result .warning-box h2 {
+	margin: 0 0 var(--sa-space-2, 8px);
+	font-size: 13px;
+}
+
+.saengine-new-building .result .warning-box ul {
+	margin: 0 0 var(--sa-space-2, 8px);
+	padding-left: 18px;
+}
+
+.saengine-new-building .result .warning-box .monaco-button {
+	width: auto;
+}
+
+.saengine-new-building table.sizes td.why {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}

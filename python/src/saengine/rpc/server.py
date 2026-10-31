@@ -26,6 +26,14 @@ Methods:
 - ``cad/convertDwg`` ``{path, cache?}`` -> ``{ok, dxf, warnings, cached}``: a DWG drawing
   converted to DXF by GNU LibreDWG's dwg2dxf (``saengine.library.dwg``; a separate program, in a
   worker thread), or ``{ok: false, code, message}`` (``no-converter``, ``failed``)
+- ``cad/convertPdf`` ``{path, page?, cache?}`` -> ``{ok, dxf, page, pages, vector, size,
+  segments, warnings, cached}``: one page of an architect's PDF as DXF, with its lines for object
+  snaps (``saengine.library.pdf_underlay``; in a worker thread), or ``{ok: false, code, message}``
+- ``workbook/export`` ``{outPath, floorPlanText, objectsText?, loadsText?}`` -> ``{ok, path,
+  sheets}``: grids, stories, members, sections and member loads as an Excel workbook;
+  ``workbook/import`` ``{path, floorPlanText, objectsText?, loadsText?}`` -> ``{ok, problems,
+  diff, texts, changed}``: an edited workbook validated, with the new files and what changed
+  (``saengine.library.workbook``; in a worker thread)
 - ``components/list`` ``{}`` -> the setup's optional components the backend runs (EnergyPlus,
   LibreDWG): ``{energyplus, libredwg}``, each ``{state, path?}`` (``installed``, ``elsewhere``,
   ``missing``; ``handlers.installer_components``)
@@ -64,7 +72,10 @@ Methods:
   given); ``boq/templates`` ``{}`` -> ``{rates, carbon}``, the texts the project's files start
   from; ``boq/exportXlsx`` ``{path, boqText, ratesText?, carbonText?, title?}`` -> the bill, its
   costing and carbon written to ``path`` (``{path, sheets, total, carbonTotal}``)
-- ``report/build`` ``{projectRoot, outPdf?}`` -> the PDF design report (``{path, pages, warnings}``)
+- ``report/build`` ``{projectRoot, outPdf?, format?, template?}`` -> the design report, PDF or
+  Word (``format`` "docx"), as the report template chooses (``{path, pages, warnings, format,
+  template}``); ``report/templates`` ``{projectRoot}`` -> ``{templates, current}``;
+  ``report/createTemplate`` ``{projectRoot, id, base?, name?}`` -> ``{path}`` (a copy of ``base``)
 - ``drawings/generate`` ``{projectRoot, sheets?, size?, designReportText?}`` -> the structural
   drawings written into ``11 Exports/Drawings`` (``{sheets, pdf, bbsCsv, generatedAt, size,
   stale, notes, problems}``; ``saengine.pipeline.drawings``; in a worker thread; ``sheets``: only
@@ -449,6 +460,28 @@ def create_server() -> JsonRPCServer:
         args = _plain(params)
         return handlers.convert_dwg(args["path"], args.get("cache"))
 
+    @server.feature("cad/convertPdf")
+    @_in_worker  # a dense plan has tens of thousands of paths
+    def _convert_pdf(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.convert_pdf(args["path"], args.get("page"), args.get("cache"))
+
+    @server.feature("workbook/export")
+    @_in_worker
+    def _workbook_export(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.workbook_export(
+            args["outPath"], args["floorPlanText"], args.get("objectsText"), args.get("loadsText")
+        )
+
+    @server.feature("workbook/import")
+    @_in_worker
+    def _workbook_import(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.workbook_import(
+            args["path"], args["floorPlanText"], args.get("objectsText"), args.get("loadsText")
+        )
+
     @server.feature("components/list")
     @_in_worker
     def _installer_components(params: Any) -> dict[str, Any]:
@@ -562,7 +595,12 @@ def create_server() -> JsonRPCServer:
     @_in_worker
     def _build_report_worker(params: Any) -> dict[str, Any]:
         args = _plain(params)
-        return handlers.build_report(args["projectRoot"], args.get("outPdf"))
+        return handlers.build_report(
+            args["projectRoot"],
+            args.get("outPdf"),
+            args.get("format") or "pdf",
+            args.get("template"),
+        )
 
     @server.feature("report/build")
     async def _build_report(params: Any) -> dict[str, Any]:
@@ -572,6 +610,17 @@ def create_server() -> JsonRPCServer:
         import saengine.report  # noqa: F401
 
         return await _build_report_worker(params)
+
+    @server.feature("report/templates")
+    def _report_templates(params: Any) -> dict[str, Any]:
+        return handlers.report_templates(_plain(params)["projectRoot"])
+
+    @server.feature("report/createTemplate")
+    def _report_create_template(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.report_template_create(
+            args["projectRoot"], args["id"], args.get("base"), args.get("name")
+        )
 
     # Detailing, the schedule and the sheets take seconds to tens of seconds: in a worker thread,
     # with ``drawings/progress`` answering meanwhile; ``drawings/list`` only reads files.

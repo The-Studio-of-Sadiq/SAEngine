@@ -250,6 +250,8 @@ export function drawingsDescription(set: IDrawingSet | undefined, available: boo
  * with the project's number and engineer (`project.*`) when the drawings do not name their own.
  */
 export interface IDrawingSettings {
+	/** The client (Project's), as the title block prints it. */
+	readonly client?: string;
 	readonly firm?: string;
 	readonly engineer?: string;
 	readonly checkedBy?: string;
@@ -309,6 +311,7 @@ export function readDrawingSettings(settings: unknown): IDrawingSettings {
 	differ(text(drawings.engineer), text(project.engineer), (own, projects) => localize('drawings.engineerConflict', "The drawings name the engineer {0}, Project names {1}.", own, projects));
 	differ(text(drawings.projectNumber), text(project.number), (own, projects) => localize('drawings.numberConflict', "The drawings' project number is {0}, Project's is {1}.", own, projects));
 	return {
+		client: text(project.client),
 		firm: text(drawings.firm, drawings.firmName),
 		engineer: text(drawings.engineer, project.engineer),
 		checkedBy: text(drawings.checkedBy, drawings.checked),
@@ -331,6 +334,7 @@ export function readDrawingSettings(settings: unknown): IDrawingSettings {
 export function drawingSettingsRows(settings: IDrawingSettings): { readonly name: string; readonly value: string | undefined }[] {
 	const revision = settings.revision;
 	return [
+		{ name: localize('drawings.client', "Client"), value: settings.client },
 		{ name: localize('drawings.firm', "Firm"), value: settings.firm },
 		{ name: localize('drawings.engineer', "Engineer"), value: settings.engineer },
 		{ name: localize('drawings.checkedBy', "Checked by"), value: settings.checkedBy },

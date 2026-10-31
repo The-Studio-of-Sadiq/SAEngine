@@ -64,7 +64,9 @@
     ],
     "wind": [
       "BNBC 2020 Part 6 Sec 2.4",
-      "Sec 2.4.11.3 and Figure 6.2.9 (pp. 559, 574-575): design wind load cases"
+      "Sec 2.4.11.3 and Figure 6.2.9 (pp. 559, 574-575): design wind load cases",
+      "Sec 2.4.8.2 and Table 6.2.10: gust-effect factor Gf of flexible buildings",
+      "Sec 2.4.11.5: components and cladding (GCp) by zone"
     ],
     "materials": [
       "BNBC 2020 Part 6 Sec 8.3.3 (pp. 1089-1090)"

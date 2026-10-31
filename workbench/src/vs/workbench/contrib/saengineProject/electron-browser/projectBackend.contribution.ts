@@ -12,14 +12,13 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ICadOpenResult, IFemSolverService, ProjectPlatformMethod } from '../../../../platform/saengine/common/femSolver.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
 import { FemAnalysisRunner } from '../../saengineFem/electron-browser/femAnalysisRunner.js';
-import { ARCHIVE_EXPORT_COMMAND, ARCHIVE_EXTENSION, ARCHIVE_IMPORT_COMMAND, ARCHIVE_INSPECT_COMMAND, CAD_OPEN_COMMAND, DWG_TO_DXF_COMMAND, OPEN_ARCHIVE_UI_COMMAND } from '../browser/projectArchiveModel.js';
+import { ARCHIVE_EXPORT_COMMAND, ARCHIVE_EXTENSION, ARCHIVE_IMPORT_COMMAND, ARCHIVE_INSPECT_COMMAND, CAD_OPEN_COMMAND, DWG_TO_DXF_COMMAND, OPEN_ARCHIVE_UI_COMMAND, PDF_TO_DXF_COMMAND, WORKBOOK_EXPORT_COMMAND, WORKBOOK_IMPORT_COMMAND } from '../browser/projectArchiveModel.js';
 import { ProjectOverviewInput } from '../browser/projectOverviewInput.js';
 import { StartEditorInput } from '../browser/startEditorInput.js';
 import { VERSIONS_DIFF_COMMAND, VERSIONS_LIST_COMMAND, VERSIONS_MARK_ISSUED_COMMAND, VERSIONS_RESTORE_COMMAND, VERSIONS_SAVE_COMMAND, VERSIONS_STATUS_COMMAND } from '../browser/versionsModel.js';
@@ -28,7 +27,8 @@ import { VERSIONS_DIFF_COMMAND, VERSIONS_LIST_COMMAND, VERSIONS_MARK_ISSUED_COMM
  * The backend of the project archive (`.civil`), the version history and the CAD hand-off: the
  * commands the UI of `../browser/projectPlatform.contribution.ts` calls by id, forwarded to the
  * Python backend (`saengine.project.archive` and `saengine.project.versions` over JSON-RPC) and
- * to the shared process (LibreCAD); DWG drawings are converted to DXF by the backend (LibreDWG). Also opens a `.civil` file the operating system hands over.
+ * to the shared process (LibreCAD); DWG drawings are converted to DXF by the backend (LibreDWG), PDF pages by pypdf; the
+ * model workbook (Excel round trip) is written and read by the backend too. Also opens a `.civil` file the operating system hands over.
  */
 
 /** The author of saved versions, "Name <email>". */
@@ -97,13 +97,13 @@ CommandsRegistry.registerCommand(ARCHIVE_EXPORT_COMMAND, async (accessor, raw: u
 		includeVersions: args.includeVersions === true,
 		includeExports: args.includeExports !== false,
 		note: str(args.note),
-		saengineVersion: accessor.get(IProductService).version,
+		// No version from here: the backend writes its own, as the design report does (one source).
 	}));
 });
 
 CommandsRegistry.registerCommand(ARCHIVE_INSPECT_COMMAND, async (accessor, raw: unknown) => {
 	const args = bag(typeof raw === 'string' ? { path: raw } : raw);
-	const result = bag(await call(accessor, 'project/inspectArchive', { path: args.path, currentVersion: accessor.get(IProductService).version }));
+	const result = bag(await call(accessor, 'project/inspectArchive', { path: args.path }));
 	// A file that could not be read at all: its reason as the archive's problem.
 	const problems = Array.isArray(result.problems) ? result.problems : [];
 	if (result.ok === false && !problems.length && typeof result.message === 'string') {
@@ -119,7 +119,7 @@ CommandsRegistry.registerCommand(ARCHIVE_IMPORT_COMMAND, async (accessor, raw: u
 		destParent: args.destParent,
 		name: str(args.name),
 		overwrite: args.overwrite === true,
-		currentVersion: accessor.get(IProductService).version,
+		// The backend compares with its own version (one source, as the archive and the report write).
 	})));
 	// What the import migrated, and what it leaves to the engineer, shown with its warnings.
 	const notes = [
@@ -235,6 +235,24 @@ CommandsRegistry.registerCommand(CAD_OPEN_COMMAND, async (accessor, raw: unknown
 /** `{path}` -> `{ok, dxf, warnings, cached}` or `{ok: false, code, message}`: a DWG as DXF. */
 CommandsRegistry.registerCommand(DWG_TO_DXF_COMMAND, async (accessor, raw: unknown) => {
 	return call(accessor, 'cad/convertDwg', { path: str(bag(typeof raw === 'string' ? { path: raw } : raw).path) ?? '' });
+});
+
+/** `{path, page?}` -> one page of a PDF drawing as DXF, with its lines for object snaps. */
+CommandsRegistry.registerCommand(PDF_TO_DXF_COMMAND, async (accessor, raw: unknown) => {
+	const args = bag(typeof raw === 'string' ? { path: raw } : raw);
+	return call(accessor, 'cad/convertPdf', { path: str(args.path) ?? '', page: typeof args.page === 'number' ? args.page : 1 });
+});
+
+// --- The model workbook (Excel round trip) ----------------------------------------------------
+
+CommandsRegistry.registerCommand(WORKBOOK_EXPORT_COMMAND, async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return orThrow(await call(accessor, 'workbook/export', { outPath: args.outPath, floorPlanText: args.floorPlanText, objectsText: args.objectsText, loadsText: args.loadsText }));
+});
+
+CommandsRegistry.registerCommand(WORKBOOK_IMPORT_COMMAND, async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return call(accessor, 'workbook/import', { path: args.path, floorPlanText: args.floorPlanText, objectsText: args.objectsText, loadsText: args.loadsText });
 });
 
 // --- A .civil file opened from the operating system ----------------------------------------

@@ -119,11 +119,19 @@ export function checksTable(parent: HTMLElement, host: Pick<IResultsHost, 'table
 			}
 		}
 	};
-	table(ordered.slice(0, shown), parent);
-	if (ordered.length > shown) {
+	// The checks that need attention in full; the passing ones grouped under one line (N-E6).
+	const attention = ordered.filter(c => c.status === 'fail' || c.status === 'warn');
+	const head = attention.length ? attention : ordered.slice(0, Math.min(shown, ordered.length));
+	const rest = ordered.slice(head.length);
+	if (head.length) {
+		table(head, parent);
+	}
+	if (rest.length) {
 		const more = append(parent, $('details.plb-more'));
-		append(more, $('summary', undefined, localize('mepResults.allChecks', "All {0} checks", ordered.length)));
-		table(ordered.slice(shown), more);
+		append(more, $('summary', undefined, attention.length
+			? localize('mepResults.passingChecks', "{0} more checks pass or are not applicable", rest.length)
+			: localize('mepResults.allChecks', "All {0} checks", ordered.length)));
+		table(rest, more);
 	}
 	return firstFailure;
 }

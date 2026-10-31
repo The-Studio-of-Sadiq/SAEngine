@@ -67,8 +67,41 @@ interface IFemDerivation {
 	readonly ssiText?: string;
 	readonly facesText?: string;
 	readonly notes?: readonly string[];
-	readonly summary?: { readonly [key: string]: number };
+	readonly summary?: { readonly [key: string]: number } & { readonly wind?: IFemWindSummary };
 	readonly problems?: readonly string[];
+}
+
+/** A zone of the wind components-and-cladding pressures (`saengine.fem.loads.cladding_pressures`). */
+export interface IFemCladdingZone {
+	readonly surface: 'wall' | 'roof';
+	readonly zone: string;
+	readonly label: string;
+	readonly pPos_kPa: number | null;
+	readonly pNeg_kPa: number | null;
+}
+
+/** The wind components and cladding of the derivation (BNBC 2020 Part 6 Sec 2.4.11.5). */
+export interface IFemCladding {
+	readonly h_m: number;
+	readonly qh_kPa: number;
+	readonly a_m: number;
+	readonly GCpi: number;
+	readonly area_m2: number | null;
+	readonly zones: readonly IFemCladdingZone[];
+	readonly parapet: { readonly height_m: number; readonly caseA_kPa: number; readonly caseB_kPa: number } | null;
+}
+
+/** The gust-effect factor of a wind direction (BNBC 2020 Part 6 Sec 2.4.8). */
+export interface IFemGust {
+	readonly n1_Hz: number;
+	readonly flexible: boolean;
+	readonly G: number;
+}
+
+/** What the derivation says of the wind beyond its story forces. */
+export interface IFemWindSummary {
+	readonly cladding?: IFemCladding;
+	readonly gust?: { readonly X?: IFemGust; readonly Y?: IFemGust };
 }
 
 /** The pushover model, derived beside the analysis model when the settings ask for pushovers. */
@@ -171,6 +204,8 @@ export interface IFemDeriveOutcome {
 	/** "Derived 120 nodes and 80 elements; base shear ..." (ok), or the problems (not ok). */
 	readonly message: string;
 	readonly notes: readonly string[];
+	/** The wind's cladding pressures and gust factor, when the model has wind. */
+	readonly wind?: IFemWindSummary;
 }
 
 /**
@@ -227,6 +262,7 @@ export async function deriveAnalysisModel(commandService: ICommandService, fileS
 		message: localize('fem.derived', "Derived {0} nodes and {1} elements; base shear {2} kN, seismic weight {3} kN.",
 			summary.nodes ?? 0, summary.elements ?? 0, (summary.base_shear_kN ?? 0).toFixed(1), (summary.weight_kN ?? 0).toFixed(1)),
 		notes: result.notes ?? [],
+		wind: summary.wind,
 	};
 }
 

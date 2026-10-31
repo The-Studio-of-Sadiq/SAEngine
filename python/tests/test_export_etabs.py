@@ -23,6 +23,7 @@ from saengine.exporters.etabs import (
     library_shape,
     write_e2k,
 )
+from saengine.importers.common import file_combinations
 from saengine.importers.etabs import read_e2k
 from saengine.importers.project import section_lookup_noted
 from saengine.library import BuildingModel, MaterialLibrary, ObjectLibrary, ProjectSettings
@@ -458,7 +459,8 @@ def check_round_trip(
     def factors(c: Any) -> tuple:
         return tuple(round(getattr(c, k), 6) for k in ("D", "L", "Lr", "WX", "WY", "EX", "EY"))
 
-    assert sorted(factors(c) for c in imported.settings.combinations) == sorted(
+    imported_combinations = file_combinations(imported.settings.combinations).values()
+    assert sorted(factors(c) for c in imported_combinations) == sorted(
         {factors(c) for c in settings.combinations}
     )
 
@@ -577,5 +579,12 @@ def test_app_export_writes_into_the_exports_folder(tmp_path: Path, monkeypatch: 
     assert Path(answer["path"]) == target and target.exists()
     assert Path(answer["reportPath"]) == target.with_name("Sample Frame.export-report.json")
     assert answer["report"]["exported"]["columns"] == 7
+    # N-R4: the report names the file, counts the stories above the base as the import does,
+    # and has a version to read beside the JSON.
+    assert answer["report"]["target"]["file"] == "Sample Frame.e2k"
+    readable = Path(answer["readablePath"])
+    assert readable == target.with_name("Sample Frame.export-report.md")
+    assert readable.read_text("utf-8").startswith("# ETABS export: Sample Frame")
+    assert "## Written" in readable.read_text("utf-8")
     missing = etabs.rpc_export_e2k({"projectRoot": str(tmp_path / "nowhere")})
     assert set(missing) == {"error"} and missing["error"]

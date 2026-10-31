@@ -939,7 +939,8 @@ def hvac_air(
 ) -> dict[str, Any]:
     """The air side of the project's HVAC for the structure's coordination:
     ``{"zones": [{"story", "airflow", "outdoorAir", "ductMain", ...}], "ducts": [{"id",
-    "size", "velocity", "ok", ...}], "shafts", "plant" (proposed 07 MEP plant entries),
+    "size", "velocity", "ok", ...}], "shafts", "plant" (07 MEP plant entries, the proposed
+    ones with ``inModel`` false),
     "openings" (proposed 07 MEP openings), "conflicts" (ducts that cannot pass a beam, with
     the options), "checks": [{name, demand, capacity, unit, utilisation, ok, note}], "notes",
     "problems"}``. ``loads``: the HVAC load calculation's result (H1); None runs it."""
@@ -980,6 +981,11 @@ def hvac_air(
 
         plant = propose_plant(project, zones, coincident=coincident_peak(loads))
         result["plant"] = plant_requirements(plant["plant"], plant["capacity"], zones)
+        # What is in 07 MEP already (entered, or a proposal accepted) against what SAEngine
+        # only proposes: the proposals are not loads on the structure until they are added.
+        entered = {p.get("id") for p in project.hvac.get("plant") or [] if isinstance(p, dict)}
+        for row in result["plant"]:
+            row["inModel"] = row.get("id") in entered
         result["pipes"] = plant["pipes"]
         result["equipment"] = plant["equipment"]
         result["checks"] += plant["checks"]

@@ -78,6 +78,8 @@ COMPUTED_PATHS: tuple[str, ...] = (
     # The DXF copies of DWG drawings (underlays), converted again from the DWG when missing
     # (saengine.library.dwg).
     "**/.dwg-cache/",
+    # ... and of PDF pages (saengine.library.pdf_underlay).
+    "**/.pdf-cache/",
 )
 
 #: The deliverables folder (report PDF, IFC, DXF, CSV), included unless ``include_exports`` is

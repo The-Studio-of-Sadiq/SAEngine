@@ -84,13 +84,14 @@ export class ProjectArchiveFlows {
 			return {
 				includeResults: typeof value.includeResults === 'boolean' ? value.includeResults : DEFAULT_EXPORT_OPTIONS.includeResults,
 				includeVersions: typeof value.includeVersions === 'boolean' ? value.includeVersions : DEFAULT_EXPORT_OPTIONS.includeVersions,
+				includeExports: typeof value.includeExports === 'boolean' ? value.includeExports : DEFAULT_EXPORT_OPTIONS.includeExports,
 			};
 		} catch {
 			return DEFAULT_EXPORT_OPTIONS;
 		}
 	}
 
-	/** What goes into the archive: results and versions, each on or off (the last choice preselected). */
+	/** What goes into the archive: versions, results and exports, each on or off (the last choice preselected). */
 	async askExportOptions(): Promise<IArchiveExportOptions | undefined> {
 		interface IOptionItem extends IQuickPickItem { readonly option: keyof IArchiveExportOptions }
 		const stored = this.storedOptions();
@@ -107,6 +108,12 @@ export class ProjectArchiveFlows {
 				detail: localize('archive.includeResultsDetail', "The analysis and design results (larger). Without them the receiver runs Run All once."),
 				picked: stored.includeResults,
 			},
+			{
+				option: 'includeExports',
+				label: localize('archive.includeExports', "Include Exports"),
+				detail: localize('archive.includeExportsDetail', "The design report and the generated drawings of 11 Exports (often most of the size). Without them the receiver prints and generates them again."),
+				picked: stored.includeExports,
+			},
 		];
 		const picked = await this.quickInputService.pick(items, {
 			canPickMany: true,
@@ -117,7 +124,7 @@ export class ProjectArchiveFlows {
 		if (!picked) {
 			return undefined;
 		}
-		const options = { includeResults: picked.some(i => i.option === 'includeResults'), includeVersions: picked.some(i => i.option === 'includeVersions') };
+		const options = { includeResults: picked.some(i => i.option === 'includeResults'), includeVersions: picked.some(i => i.option === 'includeVersions'), includeExports: picked.some(i => i.option === 'includeExports') };
 		this.storageService.store(OPTIONS_STORAGE_KEY, JSON.stringify(options), StorageScope.APPLICATION, StorageTarget.USER);
 		return options;
 	}
@@ -134,14 +141,14 @@ export class ProjectArchiveFlows {
 			return undefined;
 		}
 		let options: IArchiveExportOptions | undefined = args.includeResults !== undefined && args.includeVersions !== undefined
-			? { includeResults: args.includeResults, includeVersions: args.includeVersions }
+			? { includeResults: args.includeResults, includeVersions: args.includeVersions, includeExports: args.includeExports ?? DEFAULT_EXPORT_OPTIONS.includeExports }
 			: undefined;
 		if (!options) {
 			const asked = await this.askExportOptions();
 			if (!asked) {
 				return undefined;
 			}
-			options = { includeResults: args.includeResults ?? asked.includeResults, includeVersions: args.includeVersions ?? asked.includeVersions };
+			options = { includeResults: args.includeResults ?? asked.includeResults, includeVersions: args.includeVersions ?? asked.includeVersions, includeExports: args.includeExports ?? asked.includeExports };
 		}
 		let target = args.outPath ? URI.file(args.outPath) : undefined;
 		if (!target) {

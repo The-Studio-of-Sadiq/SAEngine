@@ -2,6 +2,7 @@
 the Exports page writes them.
 
 - ``pdf``: the design report, ``11 Exports/report.pdf`` (:func:`saengine.report.build_report`);
+- ``docx``: the same design report as a Word file, ``11 Exports/report.docx``;
 - ``ifc``: the building model, ``11 Exports/IFC/<project>.ifc`` (the building editor's Export
   IFC: :func:`saengine.rpc.handlers.building_ifc` with the building model, object types,
   materials, the project's name and, as the app's ``saengine.bim.ifc`` command fills them in,
@@ -30,7 +31,7 @@ from typing import Any
 from saengine.pipeline.project import Project, write_text
 
 EXPORTS_FOLDER = "11 Exports"
-FORMATS = ("pdf", "ifc", "dxf", "csv", "xlsx", "drawings")
+FORMATS = ("pdf", "docx", "ifc", "dxf", "csv", "xlsx", "drawings")
 _UNSAFE = re.compile(r'[\\/:*?"<>|]')
 
 
@@ -45,13 +46,21 @@ def _exports(project: Project) -> Path:
 # ─────────────────────────────── PDF ───────────────────────────────
 
 
-def export_pdf(project: Project, out: Path | None = None) -> list[Path]:
+def export_pdf(
+    project: Project, out: Path | None = None, fmt: str = "pdf", template: str | None = None
+) -> list[Path]:
     from saengine.rpc.handlers import build_report
 
-    result = build_report(str(project.root), str(out) if out else None)
+    result = build_report(str(project.root), str(out) if out else None, fmt, template)
     if result.get("problems") or not result.get("path"):
         raise ExportError(" ".join(map(str, result.get("problems") or ["no report written"])))
     return [Path(result["path"])]
+
+
+def export_docx(
+    project: Project, out: Path | None = None, template: str | None = None
+) -> list[Path]:
+    return export_pdf(project, out, "docx", template)
 
 
 # ─────────────────────────────── IFC ───────────────────────────────
@@ -526,10 +535,13 @@ def export_drawings(
 
 def export(project: Project, fmt: str, out: Path | None = None, **options: Any) -> list[Path]:
     """Writes export ``fmt`` (:data:`FORMATS`) of ``project``; the files written. ``options``:
-    ``size`` (A1, A2, A3) for the drawings."""
+    ``size`` (A1, A2, A3) for the drawings; ``template`` the report template of the design
+    report (pdf, docx), the project settings' when not given."""
     if fmt == "drawings":
         return export_drawings(project, out, options.get("size"))
-    writers = {"pdf": export_pdf, "ifc": export_ifc, "csv": export_csv, "xlsx": export_xlsx,
+    if fmt in ("pdf", "docx"):
+        return export_pdf(project, out, fmt, options.get("template"))
+    writers = {"ifc": export_ifc, "csv": export_csv, "xlsx": export_xlsx,
                "dxf": export_dxf}  # fmt: skip
     if fmt not in writers:
         raise ValueError(f"unknown export format: {fmt}")

@@ -13,9 +13,14 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/edit
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { EditorExtensions } from '../../../common/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ViewContainerLocation } from '../../../common/views.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { NEW_BUILDING_COMMAND } from './newBuildingModel.js';
 import { NewBuildingOpener, NewBuildingWizard, NewBuildingWizardInput } from './newBuildingWizard.js';
 import { PROJECT_MENU } from './projectMenu.js';
+import { DEVELOPER_MODE_SETTING } from './projectNavigatorView.js';
+import { PROJECT_VIEW_CONTAINER_ID } from './saengineNavigator.contribution.js';
 
 /*
  * New Building from Grid (start page, ≡ File, the sidebar's ≡ menu): the wizard here; the
@@ -44,7 +49,14 @@ registerAction2(class extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
+		const paneComposites = accessor.get(IPaneCompositePartService);
+		const developerMode = accessor.get(IConfigurationService).getValue<boolean>(DEVELOPER_MODE_SETTING) === true;
 		await accessor.get(IEditorService).openEditor(NewBuildingWizardInput.instance, { pinned: true });
+		// The side bar keeps (or comes back to) the project's parts, not Search or Explorer (as a project opens).
+		const active = paneComposites.getActivePaneComposite(ViewContainerLocation.Sidebar)?.getId();
+		if (!developerMode && !active?.startsWith('workbench.view.saengine.')) {
+			await paneComposites.openPaneComposite(PROJECT_VIEW_CONTAINER_ID, ViewContainerLocation.Sidebar, false);
+		}
 	}
 });
 

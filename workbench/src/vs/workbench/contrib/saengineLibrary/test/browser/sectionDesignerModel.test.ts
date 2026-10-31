@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { signedArea } from '../../../../../platform/saengine/common/geometry.js';
 import {
 	barsAlongEdges, barsLine, barsRing, cleanProperties, formatNumber, hitTest, interactionCurve, IUniaxial, moveSelection, newSection,
-	offsetRing, parseSection, pointInRegion, propertyRows, rectangle, regionArea, sameRegions, serializeSection, snapPoint, TEMPLATE_DEFAULTS, templateFields,
+	offsetRing, parseSection, pointInRegion, propertyRows, rectangle, regionArea, sameRegions, serializeSection, snapPoint, TEMPLATE_DEFAULTS, templateBars, templateFields,
 	templateProblem, templateRegions,
 } from '../../browser/sectionDesignerModel.js';
 
@@ -71,6 +71,24 @@ suite('SAEngine - Section Designer model', () => {
 		assert.ok(bars.every(b => pointInRegion([b.x, b.y], region)));
 	});
 
+	test('L, T and C template bars pair across each leg at no more than the spacing', () => {
+		const bars = templateBars('L', TEMPLATE_DEFAULTS.L, 70, 20, 150)!;
+		const region = templateRegions('L', TEMPLATE_DEFAULTS.L, 'C30')[0];
+		assert.ok(bars.every(b => pointInRegion([b.x, b.y], region)));
+		// The horizontal leg: every bar on its outer face (y = -230) has a partner on its inner face (y = -120).
+		const outer = bars.filter(b => b.y === -230).map(b => b.x).sort((a, b) => a - b);
+		assert.deepStrictEqual(bars.filter(b => b.y === -120).map(b => b.x).sort((a, b) => a - b), outer);
+		// The re-entrant corner bar, and even steps of no more than 150 mm along the leg.
+		assert.ok(bars.some(b => b.x === -120 && b.y === -120));
+		const steps = outer.slice(1).map((x, i) => x - outer[i]);
+		assert.ok(steps.every(s => s <= 150 && s >= 100), steps.join());
+		assert.strictEqual(templateBars('rectangle', TEMPLATE_DEFAULTS.rectangle, 70, 20, 150), undefined);
+		for (const kind of ['T', 'C'] as const) {
+			const shape = templateRegions(kind, TEMPLATE_DEFAULTS[kind], 'C30')[0];
+			assert.ok(templateBars(kind, TEMPLATE_DEFAULTS[kind], 70, 20, 150)!.every(b => pointInRegion([b.x, b.y], shape)), kind);
+		}
+	});
+
 	test('template dimensions: fields, checks and recognising the template', () => {
 		assert.deepStrictEqual(templateFields('L').map(f => f.key), ['b', 'h', 't']);
 		assert.deepStrictEqual(templateFields('I').map(f => f.key), ['b', 'h', 't', 'tf']);
@@ -96,6 +114,8 @@ suite('SAEngine - Section Designer model', () => {
 		assert.strictEqual(propertyRows(properties).find(r => r.label === 'x̄')?.value, '0');
 		// A real offset (an L's centroid) is kept.
 		assert.strictEqual(cleanProperties({ ...properties, cx: 84.5 }).cx, 84.5);
+		// The numerically solved shear centre's noise (-15e-6 mm) is 0 too.
+		assert.strictEqual(cleanProperties({ ...properties, scx: -15e-6 }).scx, 0);
 	});
 
 	test('lines and rings of bars', () => {

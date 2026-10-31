@@ -40,6 +40,7 @@ file or folder that cannot be read is an error (code ``io``), never taken as del
 from __future__ import annotations
 
 import fnmatch
+import json
 import logging
 import os
 import re
@@ -164,6 +165,20 @@ def _author(author: str | dict[str, str] | None) -> bytes:
     name = re.sub(r"[<>\n\r]", "", name).strip() or "SAEngine user"
     email = re.sub(r"[<>\s]", "", email) or "user@localhost"
     return f"{name} <{email}>".encode()
+
+
+def _engineer(path: Path) -> str | None:
+    """The engineer named in Project Settings (``project.engineer``), the author of versions
+    when the setting gives none (rather than "SAEngine user")."""
+    try:
+        settings = json.loads(
+            (path / "02 Project Settings" / "project-settings.json").read_text("utf-8")
+        )
+    except (OSError, ValueError):
+        return None
+    project = settings.get("project") if isinstance(settings, dict) else None
+    engineer = project.get("engineer") if isinstance(project, dict) else None
+    return engineer.strip() if isinstance(engineer, str) and engineer.strip() else None
 
 
 def _local_offset(now: float) -> int:
@@ -859,7 +874,8 @@ def save(
 ) -> dict[str, Any]:
     """Save the project's current files as a new version; the first save starts the history.
 
-    ``author`` is ``"Name <email>"`` (the setting; empty: :data:`DEFAULT_AUTHOR`). With
+    ``author`` is ``"Name <email>"`` (the setting; empty: Project Settings' engineer, else
+    :data:`DEFAULT_AUTHOR`). With
     ``issued``, the version is also marked issued with ``label`` (default "Issued"). With nothing
     changed since the last version, no version is added: an issued save marks the last version,
     a plain save raises :class:`VersionsError` (code ``nothingToSave``).
@@ -871,7 +887,7 @@ def save(
     text = (message or "").strip()
     if not text:
         text = f"Issued: {label.strip()}" if issued and label and label.strip() else "Saved"
-    who = _author(author)
+    who = _author(author or _engineer(path))
     repo = _open(path)
     initialized = repo is None
     if repo is None:
@@ -1058,7 +1074,7 @@ def restore(
     if repo is None:
         raise VersionsError("No version has been saved yet.", "notInitialized")
     scope = None if parts is None else list(dict.fromkeys(parts))
-    who = _author(author)
+    who = _author(author or _engineer(path))
     problems: list[str] = []
     try:
         _, head = _head(repo)
@@ -1069,6 +1085,9 @@ def restore(
         # Engineers read the history: the version number, no hash (only without one).
         name = f"version {number}" if number else short
         tags = _issued_tags(repo)
+        # An issued version is named by its issue label too ("version 4 (Rev A)").
+        if tags.get(sha):
+            name += f" ({', '.join(t['label'] for t in tags[sha])})"
         before_version = None
         version_files = _tree_files(repo, _commit_tree(repo, sha), regular=False)
         working_files = _working(path, repo)
@@ -1173,7 +1192,8 @@ def restore(
         # 3. Record the restore.
         after_version = None
         if commit and (written or deleted):
-            label = _part_names(changed_parts) if scope is not None else "all parts"
+            # The parts that changed, by name, whether some or all were asked for.
+            label = _part_names(changed_parts)
             restored_sha = _save(repo, path, f"Restored {label} from {name}", who)
             if restored_sha is not None:
                 history = _history(repo, restored_sha)
@@ -1236,7 +1256,7 @@ def mark_issued(
     try:
         history = _history(repo, _head(repo)[1])
         sha = _resolve(repo, version, history)
-        tag = _tag(repo, sha, label, _author(author))
+        tag = _tag(repo, sha, label, _author(author or _engineer(path)))
         number = len(history) - history.index(sha) if sha in history else None
         result = _version(repo, sha, number, _issued_tags(repo))
     finally:

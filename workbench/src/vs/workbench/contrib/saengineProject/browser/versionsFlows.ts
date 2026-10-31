@@ -101,11 +101,20 @@ export class VersionsFlows {
 			store.add(pick.onDidChangeValue(() => pick.validationMessage = undefined));
 			store.add(pick.onDidAccept(() => {
 				const message = pick.value.trim();
+				const chosen = pick.activeItems[0];
 				if (!message) {
-					pick.validationMessage = localize('versions.messageEmpty', "Say what changed in this version.");
+					// A choice clicked before the message is typed is kept: it goes first (typing
+					// makes the first item the active one) and Enter then takes it.
+					if (chosen && chosen !== pick.items[0]) {
+						pick.items = chosen.issued ? [issue, plain] : [plain, issue];
+						pick.activeItems = [chosen];
+					}
+					pick.validationMessage = chosen?.issued
+						? localize('versions.messageEmptyIssued', "Say what changed in this version, then press Enter: it is saved as issued and its label is asked next.")
+						: localize('versions.messageEmpty', "Say what changed in this version.");
 					return;
 				}
-				finish({ message, issued: pick.activeItems[0]?.issued ?? false });
+				finish({ message, issued: chosen?.issued ?? false });
 			}));
 			store.add(pick.onDidHide(() => {
 				finish(undefined);
