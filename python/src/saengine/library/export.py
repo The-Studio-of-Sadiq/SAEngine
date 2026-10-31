@@ -204,6 +204,15 @@ def generate_typescript() -> str:
                 if c.T
             ],
         ),
+        (
+            "SETTLEMENT_COMBINATIONS",
+            "readonly object[]",
+            [
+                c.model_dump(mode="json", by_alias=True, exclude_none=True)
+                for c in strength_combinations(settlement=True)
+                if c.ST
+            ],
+        ),
         ("BNBC", "IBnbcTables", bnbc_tables()),
         ("FLOOR_PLAN_SCHEMA", "IJSONSchema", json_schema(FloorPlan, "SAEngine floor plan")),
         ("DEFAULT_FLOOR_PLAN", "object", library_json(default_floor_plan())),

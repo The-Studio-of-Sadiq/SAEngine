@@ -4111,6 +4111,10 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					$ref: '#/$defs/Thermal',
 					title: 'Temperature',
 				},
+				settlement: {
+					$ref: '#/$defs/Settlement',
+					title: 'Support settlement',
+				},
 				supports: {
 					default: 'fixed',
 					description: 'Fixed: the column bases are fixed. Soil springs: each column base stands on its foundation of 9 Substructure, on springs from the soil of 1 Soil Report (BNBC 2020 Part 6 Sec 1.2.7.3). Footings: ASCE 41-06 Sec 4.4.2.1.2 (Gazetas 1991). Pile caps: their piles\' head stiffnesses. Rafts: shells on subgrade springs. Columns without a foundation, strip footings and walls stay fixed. The foundations of 9 Substructure are then designed from a fixed-base run of the same model (Compare Fixed Base and Soil Springs; Run All runs it).',
@@ -4597,6 +4601,12 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					title: 'T',
 					type: 'number',
 				},
+				ST: {
+					default: 0,
+					description: 'Factor on the support settlement case ST (Analysis model → Support settlement): differential settlement is a self-straining effect T of BNBC 2020 Part 6 Sec 2.7, so it takes T\'s factor, 1.2 in 1.2(D + F + T) + 1.6(L + H) + 0.5(Lr or R).',
+					title: 'ST',
+					type: 'number',
+				},
 				F: {
 					anyOf: [
 						{
@@ -4898,6 +4908,52 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'Seismic',
+			type: 'object',
+		},
+		Settlement: {
+			additionalProperties: false,
+			description: 'The support settlement case ST: imposed settlements of column bases. BNBC 2020 Part 6\ncounts differential settlement among the self-straining effects T of its load combinations\n(Sec 2.7); ST takes T\'s factor.',
+			properties: {
+				enabled: {
+					default: false,
+					description: 'Add the load case ST: the listed column bases settle by the given amounts (the differential settlement the soil report or 9 Substructure expects). Fixed bases only (not with soil springs).',
+					title: 'Settlement case ST',
+					type: 'boolean',
+				},
+				supports: {
+					description: 'Column bases and their settlement.',
+					items: {
+						$ref: '#/$defs/SettlementSupport',
+					},
+					title: 'Settling supports',
+					type: 'array',
+				},
+			},
+			title: 'Settlement',
+			type: 'object',
+		},
+		SettlementSupport: {
+			additionalProperties: false,
+			description: 'A column base that settles in the settlement case ST.',
+			properties: {
+				column: {
+					description: 'Column of the building model whose base settles.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Column',
+					type: 'string',
+				},
+				value: {
+					description: 'Downward settlement of the base [mm].',
+					exclusiveMinimum: 0,
+					maximum: 500,
+					title: 'Settlement',
+					type: 'number',
+				},
+			},
+			required: ['column', 'value'],
+			title: 'SettlementSupport',
 			type: 'object',
 		},
 		Site: {
@@ -5398,6 +5454,7 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.4,
 		},
 		{
@@ -5410,6 +5467,7 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.2,
 		},
 		{
@@ -5422,6 +5480,7 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.2,
 		},
 		{
@@ -5434,6 +5493,7 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.2,
 		},
 		{
@@ -5446,6 +5506,7 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.2,
 		},
 		{
@@ -5458,6 +5519,7 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.2,
 		},
 		{
@@ -5470,6 +5532,7 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.2,
 		},
 		{
@@ -5482,6 +5545,7 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.2,
 		},
 		{
@@ -5494,6 +5558,7 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.2,
 		},
 		{
@@ -5506,6 +5571,7 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.2,
 		},
 		{
@@ -5518,6 +5584,7 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.2,
 		},
 		{
@@ -5530,6 +5597,7 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 1.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.2,
 		},
 		{
@@ -5542,6 +5610,7 @@ export const DEFAULT_SETTINGS: object = {
 			EX: -1.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.2,
 		},
 		{
@@ -5554,6 +5623,7 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 1.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.2,
 		},
 		{
@@ -5566,6 +5636,7 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: -1.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.2,
 		},
 		{
@@ -5578,6 +5649,7 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 0.0,
 		},
 		{
@@ -5590,6 +5662,7 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 0.0,
 		},
 		{
@@ -5602,6 +5675,7 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 0.0,
 		},
 		{
@@ -5614,6 +5688,7 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 0.0,
 		},
 		{
@@ -5626,6 +5701,7 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 1.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 0.0,
 		},
 		{
@@ -5638,6 +5714,7 @@ export const DEFAULT_SETTINGS: object = {
 			EX: -1.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 0.0,
 		},
 		{
@@ -5650,6 +5727,7 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 1.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 0.0,
 		},
 		{
@@ -5662,6 +5740,7 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: -1.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 0.0,
 		},
 	],
@@ -5720,6 +5799,10 @@ export const DEFAULT_SETTINGS: object = {
 			gradient: 10.0,
 			scope: 'roof',
 		},
+		settlement: {
+			enabled: false,
+			supports: [],
+		},
 		supports: 'fixed',
 		ssiPileGroupFactor: 1.0,
 		ssiEmbedment: true,
@@ -5756,6 +5839,7 @@ export const THERMAL_COMBINATIONS: readonly object[] = [
 		EX: 0.0,
 		EY: 0.0,
 		T: 1.2,
+		ST: 0.0,
 		F: 1.2,
 	},
 	{
@@ -5768,6 +5852,23 @@ export const THERMAL_COMBINATIONS: readonly object[] = [
 		EX: 0.0,
 		EY: 0.0,
 		T: -1.2,
+		ST: 0.0,
+		F: 1.2,
+	},
+];
+
+export const SETTLEMENT_COMBINATIONS: readonly object[] = [
+	{
+		name: '1.2D + 1.2ST + 1.6L + 0.5Lr',
+		D: 1.2,
+		L: 1.6,
+		Lr: 0.5,
+		WX: 0.0,
+		WY: 0.0,
+		EX: 0.0,
+		EY: 0.0,
+		T: 0.0,
+		ST: 1.2,
 		F: 1.2,
 	},
 ];
@@ -9895,6 +9996,10 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 			uniform: 20.0,
 			gradient: 10.0,
 			scope: 'roof',
+		},
+		settlement: {
+			enabled: false,
+			supports: [],
 		},
 		supports: 'fixed',
 		ssiShearModulusRatio: null,
