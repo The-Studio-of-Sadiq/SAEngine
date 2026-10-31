@@ -192,8 +192,49 @@ class Wind(_Model):
         default=None,
         gt=0,
         title="Gust effect factor G",
-        description="Overrides the code's value for a rigid building (BNBC 2020 Sec 2.4.8.1). "
-        "A flexible building (natural frequency below 1 Hz) needs Gf of Sec 2.4.8.2 here.",
+        description="Overrides the code's value for every building (BNBC 2020 Sec 2.4.8.1). "
+        "Left empty, a flexible building (natural frequency below 1 Hz) gets Gf of Sec 2.4.8.2 "
+        "from its modal frequency.",
+    )
+    naturalFrequency: float | None = Field(
+        default=None,
+        gt=0,
+        title="Natural frequency n1",
+        description="The building's fundamental natural frequency [Hz] for the gust-effect "
+        "factor (BNBC 2020 Sec 2.4.8.2). Empty: from the modal analysis of the model, in each "
+        "wind direction.",
+    )
+    damping: float | None = Field(
+        default=None,
+        gt=0,
+        lt=0.2,
+        title="Damping ratio β",
+        description="Damping ratio of the gust-effect factor Gf (BNBC 2020 Sec 2.4.8.2). "
+        "Empty: the code pack's (0.02, a concrete building; 0.01 for steel).",
+    )
+    enclosure: Literal["enclosed", "partiallyEnclosed", "open"] = Field(
+        default="enclosed",
+        title="Enclosure",
+        description="Enclosure classification for the internal pressure (GCpi) of the "
+        "components and cladding (BNBC 2020 Sec 2.4.2 and Figure 6.2.5).",
+        json_schema_extra=_labels(
+            ["Enclosed (GCpi ±0.18)", "Partially enclosed (GCpi ±0.55)", "Open (GCpi 0)"]
+        ),
+    )
+    claddingArea: float | None = Field(
+        default=None,
+        gt=0,
+        title="Cladding effective wind area",
+        description="Effective wind area [m²] of the cladding element checked (a glazing panel, "
+        "a wall panel: span × the larger of its width and span/3). Empty: the smallest area "
+        "of the figures, the largest pressures.",
+    )
+    parapetHeight: float | None = Field(
+        default=None,
+        ge=0,
+        title="Parapet height",
+        description="Height of the roof parapet [m]. One of 0.9 m or more turns roof zone 3 "
+        "into zone 2; the parapet's own pressures are given too.",
     )
 
 

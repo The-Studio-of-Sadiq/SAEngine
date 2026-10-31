@@ -5153,8 +5153,73 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Overrides the code\'s value for a rigid building (BNBC 2020 Sec 2.4.8.1). A flexible building (natural frequency below 1 Hz) needs Gf of Sec 2.4.8.2 here.',
+					description: 'Overrides the code\'s value for every building (BNBC 2020 Sec 2.4.8.1). Left empty, a flexible building (natural frequency below 1 Hz) gets Gf of Sec 2.4.8.2 from its modal frequency.',
 					title: 'Gust effect factor G',
+				},
+				naturalFrequency: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The building\'s fundamental natural frequency [Hz] for the gust-effect factor (BNBC 2020 Sec 2.4.8.2). Empty: from the modal analysis of the model, in each wind direction.',
+					title: 'Natural frequency n1',
+				},
+				damping: {
+					anyOf: [
+						{
+							exclusiveMaximum: 0.2,
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Damping ratio of the gust-effect factor Gf (BNBC 2020 Sec 2.4.8.2). Empty: the code pack\'s (0.02, a concrete building; 0.01 for steel).',
+					title: 'Damping ratio β',
+				},
+				enclosure: {
+					default: 'enclosed',
+					description: 'Enclosure classification for the internal pressure (GCpi) of the components and cladding (BNBC 2020 Sec 2.4.2 and Figure 6.2.5).',
+					enum: ['enclosed', 'partiallyEnclosed', 'open'],
+					enumDescriptions: ['Enclosed (GCpi ±0.18)', 'Partially enclosed (GCpi ±0.55)', 'Open (GCpi 0)'],
+					title: 'Enclosure',
+					type: 'string',
+				},
+				claddingArea: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Effective wind area [m²] of the cladding element checked (a glazing panel, a wall panel: span × the larger of its width and span/3). Empty: the smallest area of the figures, the largest pressures.',
+					title: 'Cladding effective wind area',
+				},
+				parapetHeight: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Height of the roof parapet [m]. One of 0.9 m or more turns roof zone 3 into zone 2; the parapet\'s own pressures are given too.',
+					title: 'Parapet height',
 				},
 			},
 			title: 'Wind',
@@ -5279,6 +5344,7 @@ export const DEFAULT_SETTINGS: object = {
 	},
 	wind: {
 		exposure: 'A',
+		enclosure: 'enclosed',
 	},
 	areaLoads: [
 		{
@@ -10686,6 +10752,19 @@ export const SOIL_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Depth the borehole was drilled to [mm]; the deepest layer\'s bottom when empty.',
 					title: 'Termination depth',
+				},
+				excludeFromSite: {
+					anyOf: [
+						{
+							type: 'boolean',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The site\'s bearing table takes the lowest of the other boreholes (one far from the building, say); the borehole\'s own results stay.',
+					title: 'Leave out of the site table',
 				},
 				date: {
 					anyOf: [
