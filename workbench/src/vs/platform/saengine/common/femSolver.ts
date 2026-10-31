@@ -18,6 +18,11 @@ export interface IFemRunRequest {
 	readonly caseIds: readonly number[];
 	/** Output directory for result files and `manifest.json`. */
 	readonly outDir: string;
+	/**
+	 * Keep the results in `outDir` of the cases whose model and definition did not change
+	 * (`--reuse`: the runner removes the rest of the earlier run and runs only the other cases).
+	 */
+	readonly reuse?: boolean;
 }
 
 /**

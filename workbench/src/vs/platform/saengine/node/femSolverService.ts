@@ -75,6 +75,7 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 			'--project', request.project,
 			'--cases', ...request.caseIds.map(String),
 			'--out', request.outDir,
+			...(request.reuse ? ['--reuse'] : []),
 		];
 		this.logService.info(`[saengine] starting analysis run ${runId}: ${request.python} ${args.join(' ')}`);
 		const child = cp.spawn(request.python, args, { cwd: dirname(request.project), env: pythonEnv(), windowsHide: true });
