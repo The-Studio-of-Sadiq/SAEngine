@@ -37,7 +37,7 @@ import { FIRE_REPORT_COMMAND, fireFailures, fireSummaryFile, hasFire, readFireRe
 import { DRAWINGS_GENERATE_COMMAND, DRAWINGS_LIST_COMMAND, readDrawingSet } from '../../saengineProject/browser/drawingsModel.js';
 import { ARCHITECTURE_DERIVATION_SOURCE, DERIVATION_INPUTS, deriveAnalysisModel, derivationState, FACES_FILE, LOADS_DERIVATION_SOURCE, partFile, SSI_FILE, THERMAL_FILE } from '../browser/femDerivationBar.js';
 import { SSI_COMPARE_COMMAND } from '../browser/femSsi.js';
-import { DESIGN_REINFORCEMENT_COMMAND, DESIGN_SUMMARY_FILE, IFemDesignReport, IFemDesignRequired, resultsFolder, runDesign, runDesignRequired, shortElements, tooSmallElements, writeDesignSummary } from '../browser/femDesign.js';
+import { describeDesignCounts, describeNotChecked, DESIGN_REINFORCEMENT_COMMAND, DESIGN_SUMMARY_FILE, IFemDesignReport, IFemDesignRequired, resultsFolder, runDesign, runDesignRequired, shortElements, tooSmallElements, writeDesignSummary } from '../browser/femDesign.js';
 import { errorSummary, IFemRunOutcome, IFemRunTracker } from '../browser/femResultsBar.js';
 import { FemModelEditorInput } from '../browser/femModelEditorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -124,6 +124,8 @@ export interface IStepOutcome {
 	readonly seconds: number;
 	/** Checks of this step that fail (members, foundations, MEP checks): the engineer's work, not the step's failure. */
 	readonly failing?: number;
+	/** Items the step left unchecked (members without bars, footings without qa). */
+	readonly notChecked?: number;
 }
 
 /** What a step that ran says. */
@@ -131,6 +133,12 @@ interface IStepResult {
 	readonly status: 'ok' | 'warning' | 'skipped';
 	readonly message: string;
 	readonly failing?: number;
+	readonly notChecked?: number;
+}
+
+/** "F-A1, F-A2, F-B1 and 9 more": a list short enough for a status line. */
+export function shortList(ids: readonly string[], max = 3): string {
+	return ids.length <= max ? ids.join(', ') : localize('runAll.shortList', "{0} and {1} more", ids.slice(0, max).join(', '), ids.length - max);
 }
 
 /** A step that could not be done: its outcome is `failed`, and the steps that need it are not run. */
@@ -219,6 +227,31 @@ export function outcomeLine(outcome: IStepOutcome, index: number): string {
 	const mark = { ok: '✓', warning: '⚠', skipped: '–', failed: '✗', notRun: '·', cancelled: '■' }[outcome.status];
 	const time = outcome.status === 'notRun' || (outcome.status === 'cancelled' && !outcome.seconds) ? '' : ` (${formatDuration(outcome.seconds)})`;
 	return `${mark} ${index + 1}. ${outcome.label}: ${outcome.message}${time}`;
+}
+
+/**
+ * The lines of the step summary, steps not run for the same reason as one line
+ * ("· 4–10. analysis, …: not run: …", N-G7) instead of the reason repeated for each.
+ */
+export function outcomeLines(outcomes: readonly IStepOutcome[]): string[] {
+	const lines: string[] = [];
+	for (let i = 0; i < outcomes.length; i++) {
+		const outcome = outcomes[i];
+		let last = i;
+		if (outcome.status === 'notRun' || (outcome.status === 'cancelled' && !outcome.seconds)) {
+			while (last + 1 < outcomes.length && outcomes[last + 1].status === outcome.status && outcomes[last + 1].message === outcome.message && !outcomes[last + 1].seconds) {
+				last++;
+			}
+		}
+		if (last === i) {
+			lines.push(outcomeLine(outcome, i));
+		} else {
+			const mark = outcome.status === 'notRun' ? '·' : '■';
+			lines.push(`${mark} ${i + 1}–${last + 1}. ${outcomes.slice(i, last + 1).map(o => o.label).join(', ')}: ${outcome.message}`);
+			i = last;
+		}
+	}
+	return lines;
 }
 
 /**
@@ -681,7 +714,7 @@ export class RunAllService implements IRunAllService {
 		}
 		this.report(localize('runAll.meshCheck', "mesh check"));
 		const mesh = await this.checkMesh(context, project);
-		const message = localize('runAll.analysed', "{0} case(s) analysed", outcome.cases);
+		const message = outcome.cases === 1 ? localize('runAll.analysedOne', "1 case analysed") : localize('runAll.analysed', "{0} cases analysed", outcome.cases);
 		return mesh ? { status: 'warning', message: `${message}; ${mesh}` } : { status: 'ok', message };
 	}
 
@@ -758,13 +791,22 @@ export class RunAllService implements IRunAllService {
 		if (Array.isArray(added) && added.length) {
 			notes.push(localize('runAll.barsAdded', "minimum bars given to {0}: review them", added.join(', ')));
 		}
-		if (summary.status === 'incomplete') {
+		// N-U3: without qa the footings' bearing is not checked, so what sizes them is unconfirmed (a
+		// generated project sized them with an assumed qa). Said here, never counted as passing.
+		const noQa = summary.bearingUnchecked;
+		if (noQa.length) {
+			notes.push(localize('runAll.noQa', "bearing not checked for {0} (no qa): their sizes are not confirmed; enter qa in 1 Soil Report or Project Settings, Foundation", shortList(noQa)));
+		}
+		const notChecked = Math.max(0, summary.total - summary.checked - noQa.length);
+		if (summary.status === 'incomplete' && (notChecked || summary.unsupported.length)) {
 			notes.push(summary.unsupported.length
-				? localize('runAll.foundationsIncomplete', "{0} of {1} checked; no foundation under {2}", summary.checked, summary.total, summary.unsupported.join(', '))
+				? localize('runAll.foundationsIncomplete', "{0} of {1} checked; no foundation under {2}", summary.checked, summary.total, shortList(summary.unsupported))
 				: localize('runAll.foundationsPartly', "{0} of {1} checked", summary.checked, summary.total));
 		}
 		const message = localize('runAll.foundations', "{0} pass, {1} fail", summary.passed, summary.failed);
-		return { status: notes.length ? 'warning' : 'ok', message: [message, ...notes].join('; '), failing: summary.failed };
+		// N-G1: failing or unchecked foundations never get the ✓ of a clean step.
+		const unchecked = noQa.length + notChecked;
+		return { status: notes.length || summary.failed > 0 || unchecked > 0 ? 'warning' : 'ok', message: [message, ...notes].join('; '), failing: summary.failed, notChecked: unchecked };
 	}
 
 	/**
@@ -800,12 +842,20 @@ export class RunAllService implements IRunAllService {
 		const short = shortElements(context.required).length;
 		const tooSmall = tooSmallElements(context.required).length;
 		const notes = [
-			...(short ? [localize('runAll.steelShort', "steel short in {0} element(s)", short)] : []),
-			...(tooSmall ? [localize('runAll.tooSmall', "{0} section(s) too small", tooSmall)] : []),
+			...(short ? [short === 1 ? localize('runAll.steelShortOne', "steel short in 1 element") : localize('runAll.steelShort', "steel short in {0} elements", short)] : []),
+			...(tooSmall ? [tooSmall === 1 ? localize('runAll.tooSmallOne', "1 section too small") : localize('runAll.tooSmall', "{0} sections too small", tooSmall)] : []),
 			...(noBars.length ? [localize('runAll.noBars', "not checked for want of bars: {0}", noBars.join(', '))] : []),
 		];
-		const message = localize('runAll.designChecks', "{0} pass, {1} fail", report.summary.passed, report.summary.failed);
-		return { status: noBars.length ? 'warning' : 'ok', message: [message, ...notes].join('; '), failing: report.summary.failed };
+		// N-X8: the run's one count (members, joints and building checks apart).
+		const notChecked = describeNotChecked(report.summary);
+		const message = report.summary.counts ? describeDesignCounts(report.summary) : localize('runAll.designChecks', "{0} pass, {1} fail", report.summary.passed, report.summary.failed);
+		const unchecked = report.summary.counts?.members.notChecked ?? report.summary.skipped ?? 0;
+		return {
+			status: noBars.length || report.summary.failed > 0 || unchecked > 0 ? 'warning' : 'ok',
+			message: [message, ...(notChecked && !noBars.length ? [notChecked] : []), ...notes].join('; '),
+			failing: report.summary.failed,
+			notChecked: unchecked,
+		};
 	}
 
 	/**
@@ -1018,10 +1068,10 @@ export class RunAllService implements IRunAllService {
 			const first = failed[0];
 			message = localize('runAll.failedSummary', "Run All: step {0} of {1} ({2}) failed: {3}", RUN_ALL_STEPS.findIndex(s => s.id === first.id) + 1, RUN_ALL_STEPS.length, first.label, first.message);
 			if (failed.length > 1) {
-				message += ' ' + localize('runAll.moreFailed', "{0} more step(s) failed.", failed.length - 1);
+				message += ' ' + (failed.length === 2 ? localize('runAll.oneMoreFailed', "1 more step failed.") : localize('runAll.moreFailed', "{0} more steps failed.", failed.length - 1));
 			}
 			if (notRun) {
-				message += ' ' + localize('runAll.notRunCount', "{0} step(s) not run.", notRun);
+				message += ' ' + (notRun === 1 ? localize('runAll.oneNotRun', "1 step not run.") : localize('runAll.notRunCount', "{0} steps not run.", notRun));
 			}
 		} else if (cancelled) {
 			message = localize('runAll.cancelled', "Run All stopped at step {0} of {1} ({2}) after {3}.", RUN_ALL_STEPS.findIndex(s => s.id === cancelled.id) + 1, RUN_ALL_STEPS.length, cancelled.label, time);
@@ -1029,24 +1079,35 @@ export class RunAllService implements IRunAllService {
 			const counts: string[] = [];
 			const of = (id: StepId) => outcomes.find(o => o.id === id && (o.status === 'ok' || o.status === 'warning'));
 			const design = of('design');
+			const report = of('report');
 			if (design && context.design) {
-				counts.push(localize('runAll.short.design', "design {0} pass, {1} fail", context.design.summary.passed, context.design.summary.failed));
+				const members = context.design.summary.counts?.members;
+				counts.push(localize('runAll.short.design', "design {0} pass, {1} fail", members?.passed ?? context.design.summary.passed, members?.failed ?? context.design.summary.failed));
+				const joints = context.design.summary.counts?.joints.failed;
+				if (joints) {
+					counts.push(localize('runAll.short.joints', "joints {0} fail", joints));
+				}
+				// N-G1: the members left out are said (the report's "not designed" says it when it ran).
+				if (design.notChecked && !report?.failing) {
+					counts.push(localize('runAll.short.membersNotChecked', "{0} members not checked", design.notChecked));
+				}
 			}
 			const foundations = of('substructure');
 			if (foundations) {
-				counts.push(localize('runAll.short.foundations', "foundations {0} fail", foundations.failing ?? 0));
+				counts.push(foundations.notChecked
+					? localize('runAll.short.foundationsUnchecked', "foundations {0} fail, {1} not checked", foundations.failing ?? 0, foundations.notChecked)
+					: localize('runAll.short.foundations', "foundations {0} fail", foundations.failing ?? 0));
 			}
 			const mep = of('mep');
 			if (mep?.failing) {
 				counts.push(localize('runAll.short.mep', "MEP {0} fail", mep.failing));
 			}
-			const report = of('report');
 			if (report?.failing) {
 				counts.push(localize('runAll.short.notDesigned', "{0} not designed", report.failing));
 			}
 			const warnings = outcomes.filter(o => o.status === 'warning').length;
 			if (warnings) {
-				counts.push(localize('runAll.short.warnings', "{0} step(s) with notes", warnings));
+				counts.push(warnings === 1 ? localize('runAll.short.oneWarning', "1 step with notes") : localize('runAll.short.warnings', "{0} steps with notes", warnings));
 			}
 			message = localize('runAll.done', "Run All done in {0}: {1}", time, counts.join(' · ') || localize('runAll.short.allCurrent', "everything up to date"));
 		}
@@ -1068,15 +1129,19 @@ export class RunAllService implements IRunAllService {
 		if (pdf) {
 			choices.push({ label: localize('runAll.openReport', "Open Report"), run: () => this.openerService.open(pdf, { openExternal: true }) });
 		}
-		this.notificationService.prompt(severity, message, choices, { sticky: severity !== Severity.Info });
+		// N-G6: the toast leaves after its time and the outcome stays in the notification center, so
+		// it never covers the forms for good (an error with actions would otherwise stay).
+		this.notificationService.prompt(severity, message, choices, { sticky: false });
 	}
 
-	/** Every step of the run, how it ended and how long it took. */
+	/** Every step of the run, how it ended and how long it took, with the icon of how the run went (N-G7). */
 	private async showSteps(outcomes: readonly IStepOutcome[], seconds: number): Promise<void> {
-		await this.dialogService.info(
-			localize('runAll.stepsTitle', "Run All: {0} in total", formatDuration(seconds)),
-			outcomes.map((o, i) => outcomeLine(o, i)).join('\n'),
-		);
+		const severity = runSeverity(outcomes);
+		await this.dialogService.prompt({
+			type: severity === Severity.Error ? 'error' : severity === Severity.Warning ? 'warning' : 'info',
+			message: localize('runAll.stepsTitle', "Run All: {0} in total", formatDuration(seconds)),
+			detail: outcomeLines(outcomes).join('\n'),
+		});
 	}
 
 	/** Opens the analysis model's results in the 3D view (the FEM editor picks a design combination). */

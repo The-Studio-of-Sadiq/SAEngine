@@ -515,16 +515,58 @@ def fem_status(inputs: StatusInputs) -> PartStatus:
         inputs.designSummaryTime is not None and inputs.designSummaryTime < inputs.femResultsTime
     ):
         return _status("fem", "inProgress", "analysed", "run the design checks")
+    counts = _design_counts(summary)
     if summary["failed"] > 0:
-        return _status(
-            "fem", "failed", f"{_js(summary['failed'])} fail", "review the failing members"
+        text = counts["failedText"] if counts and counts["failedText"] else (
+            f"{_js(summary['failed'])} fail"
         )
-    if summary["checked"] == 0:
+        return _status("fem", "failed", text, "review the failing members")
+    if summary["checked"] == 0 or (counts and counts["checked"] == 0):
         return _status(
             "fem", "inProgress", "nothing checked",
             "no member was design-checked: open the design results",
         )  # fmt: skip
-    return _status("fem", "done", f"{_js(summary['passed'])} pass")
+    if counts and counts["notChecked"]:
+        hint = (
+            f"{counts['noBars']} members have no bars: Design Reinforcement proposes them"
+            if counts["noBars"]
+            else "open the design results for why"
+        )
+        return _status("fem", "inProgress", f"{counts['notChecked']} not checked", hint)
+    passed = counts["passed"] if counts else summary["passed"]
+    return _status("fem", "done", f"{_js(passed)} pass")
+
+
+def _design_counts(summary: dict[str, Any]) -> dict[str, Any] | None:
+    """``designCounts`` of partStatus.ts: the members' and joints' counts of a design summary
+    that records them (N-X8), "3 members, 2 joints fail" instead of a total of both."""
+    counts = summary.get("counts")
+    members = counts.get("members") if isinstance(counts, dict) else None
+    if not isinstance(members, dict) or not _is_number(members.get("checked")):
+        return None
+
+    def failed_of(key: str) -> int:
+        value = counts.get(key)
+        return int(_positive(value.get("failed"))) if isinstance(value, dict) else 0
+
+    failed = int(_positive(members.get("failed")))
+    joints = failed_of("joints")
+    building = failed_of("building")
+    parts = [
+        *([_plural(failed, "1 member", "{0} members")] if failed else []),
+        *([_plural(joints, "1 joint", "{0} joints")] if joints else []),
+        *([_plural(building, "1 building check", "{0} building checks")] if building else []),
+    ]
+    not_checked = counts.get("notChecked")
+    return {
+        "checked": members["checked"],
+        "passed": members["checked"] - failed,
+        "notChecked": int(_positive(members.get("notChecked"))),
+        "noBars": int(_positive(not_checked.get("noBars")))
+        if isinstance(not_checked, dict)
+        else 0,
+        "failedText": f"{', '.join(parts)} fail" if parts else None,
+    }
 
 
 def _substructure_has_foundations(inputs: StatusInputs) -> bool:
@@ -600,6 +642,14 @@ def bim_status(parts: tuple[Part, ...], inputs: StatusInputs) -> PartStatus:
         return _status("bim", "notStarted", "not built", "build the building model")
     if upstream and _changed(inputs.texts, upstream, recorded):
         return _status("bim", "stale", STALE, "build the building model again")
+    # N-B1: built from an empty plan, there is nothing to analyse yet.
+    if not _length(document.get("elements")):
+        hint = (
+            "draw the structural model"
+            if upstream == "structure"
+            else "draw the columns and beams in the floor plan"
+        )
+        return _status("bim", "notStarted", "no members", hint)
     return _status("bim", "done")
 
 
@@ -657,9 +707,14 @@ def substructure_status(inputs: StatusInputs) -> PartStatus:
         and (inputs.femResultsTime is None or time >= inputs.femResultsTime)
     )
     if not current or summary is None:
-        return _status("substructure", "inProgress", foundations, "check the foundations")
-    if summary.get("checked") == 0:
-        return _status("substructure", "inProgress", foundations, "run the analysis to design them")
+        # The fails of the last check stay in view until the next one (N-U5, as partStatus.ts).
+        text = (
+            f"{_js(summary['failed'])} fail (stale)"
+            if summary is not None and summary["failed"] > 0
+            else foundations
+        )
+        return _status("substructure", "inProgress", text, "check the foundations")
+    # Fails first: a footing without its bearing check can fail its other checks (N-U3, N-U5).
     if summary["failed"] > 0:
         return _status(
             "substructure",
@@ -667,7 +722,25 @@ def substructure_status(inputs: StatusInputs) -> PartStatus:
             f"{_js(summary['failed'])} fail",
             "review the failing foundations",
         )
-    unchecked = _positive(summary.get("skipped")) + _positive(summary.get("unsupported"))
+    no_qa = _length(summary.get("bearingUnchecked"))
+    if no_qa > 0:
+        return _status(
+            "substructure", "inProgress", f"{no_qa} without a bearing check",
+            "enter qa in the soil report or Project Settings",
+        )  # fmt: skip
+    if summary.get("checked") == 0:
+        return _status("substructure", "inProgress", foundations, "run the analysis to design them")
+    unsupported = summary.get("unsupported")
+    unsupported_count = (
+        len(unsupported) if isinstance(unsupported, list) else _positive(unsupported)
+    )
+    unchecked = (
+        max(
+            _positive(summary.get("skipped")),
+            _positive(summary.get("total")) - _positive(summary.get("checked")),
+        )
+        + unsupported_count
+    )
     if unchecked > 0:
         return _status(
             "substructure", "inProgress", f"{_js(unchecked)} not checked",

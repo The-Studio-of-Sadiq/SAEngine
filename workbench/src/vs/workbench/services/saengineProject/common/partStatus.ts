@@ -39,6 +39,16 @@ export interface IDesignSummary {
 	readonly maxUtilisation: number | null;
 	readonly governing: string | null;
 	readonly computed: string;
+	/**
+	 * The one count of the run (N-X8, python `saengine.design.check.design_counts`): members,
+	 * joints and building checks apart; summaries written before it lack it.
+	 */
+	readonly counts?: {
+		readonly members?: { readonly checked?: number; readonly failed?: number; readonly notChecked?: number };
+		readonly joints?: { readonly failed?: number };
+		readonly building?: { readonly failed?: number };
+		readonly notChecked?: { readonly noBars?: number };
+	};
 }
 
 /** What the rules read from a project. Times are modification times [ms since the epoch]. */
@@ -365,13 +375,44 @@ function femStatus(inputs: IPartStatusInputs): IPartStatus {
 	if (!summary || (inputs.designSummaryTime !== undefined && inputs.designSummaryTime < inputs.femResultsTime)) {
 		return status('fem', 'inProgress', localize('partStatus.fem.analysed', "analysed"), localize('partStatus.fem.design', "run the design checks"));
 	}
+	const counts = designCounts(summary);
 	if (summary.failed > 0) {
-		return status('fem', 'failed', localize('partStatus.fem.fail', "{0} fail", summary.failed), localize('partStatus.fem.review', "review the failing members"));
+		return status('fem', 'failed', counts?.failedText ?? localize('partStatus.fem.fail', "{0} fail", summary.failed), localize('partStatus.fem.review', "review the failing members"));
 	}
-	if (summary.checked === 0) {
+	if (summary.checked === 0 || counts?.members.checked === 0) {
 		return status('fem', 'inProgress', localize('partStatus.fem.noneChecked', "nothing checked"), localize('partStatus.fem.noneCheckedHint', "no member was design-checked: open the design results"));
 	}
-	return status('fem', 'done', localize('partStatus.fem.pass', "{0} pass", summary.passed));
+	// Members left out (no bars, no results) keep the part from "done" (N-X8).
+	if (counts?.members.notChecked) {
+		return status('fem', 'inProgress', localize('partStatus.fem.notChecked', "{0} not checked", counts.members.notChecked), counts.noBars
+			? localize('partStatus.fem.noBars', "{0} members have no bars: Design Reinforcement proposes them", counts.noBars)
+			: localize('partStatus.fem.notCheckedHint', "open the design results for why"));
+	}
+	return status('fem', 'done', localize('partStatus.fem.pass', "{0} pass", counts?.members.passed ?? summary.passed));
+}
+
+/**
+ * The members' and joints' counts of a design summary that records them (N-X8): "3 members,
+ * 2 joints fail" for the part list instead of a total that adds members and joints together.
+ */
+function designCounts(summary: IDesignSummary): { readonly members: { readonly checked: number; readonly passed: number; readonly notChecked: number }; readonly noBars: number; readonly failedText: string | undefined } | undefined {
+	const members = summary.counts?.members;
+	if (!members || typeof members.checked !== 'number') {
+		return undefined;
+	}
+	const failed = positive(members.failed);
+	const joints = positive(summary.counts?.joints?.failed);
+	const building = positive(summary.counts?.building?.failed);
+	const parts = [
+		...(failed ? [failed === 1 ? localize('partStatus.fem.oneMember', "1 member") : localize('partStatus.fem.members', "{0} members", failed)] : []),
+		...(joints ? [joints === 1 ? localize('partStatus.fem.oneJoint', "1 joint") : localize('partStatus.fem.joints', "{0} joints", joints)] : []),
+		...(building ? [building === 1 ? localize('partStatus.fem.oneBuildingCheck', "1 building check") : localize('partStatus.fem.buildingChecks', "{0} building checks", building)] : []),
+	];
+	return {
+		members: { checked: members.checked, passed: members.checked - failed, notChecked: positive(members.notChecked) },
+		noBars: positive(summary.counts?.notChecked?.noBars),
+		failedText: parts.length ? localize('partStatus.fem.countsFail', "{0} fail", parts.join(', ')) : undefined,
+	};
 }
 
 function boqStatus(inputs: IPartStatusInputs): IPartStatus {
@@ -418,6 +459,12 @@ function bimStatus(parts: readonly IProjectPart[], inputs: IPartStatusInputs): I
 	}
 	if (upstream && changed(inputs.texts, upstream, recorded)) {
 		return status('bim', 'stale', STALE(), localize('partStatus.bim.buildAgain', "build the building model again"));
+	}
+	// Built from an empty plan (N-B1): nothing to analyse yet, so not done.
+	if (!Array.isArray(document.elements) || !document.elements.length) {
+		return status('bim', 'notStarted', localize('partStatus.bim.empty', "no members"), upstream === 'structure'
+			? localize('partStatus.structure.start', "draw the structural model")
+			: localize('partStatus.bim.drawPlan', "draw the columns and beams in the floor plan"));
 	}
 	return status('bim', 'done');
 }
