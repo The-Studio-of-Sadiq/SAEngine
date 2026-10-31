@@ -50,6 +50,7 @@ linetype and lineweight), except the north arrow's solid fill.
 | `A-ELEV` | 7 | Continuous | 0.25 | Elevations and sections: what is seen beyond the cut |
 | `A-SECT` | 7 | Continuous | 0.50 | Sections: outlines of what the cut passes through; the ground line |
 | `A-ANNO-SYMB` | 7 | Continuous | 0.25 | Section lines (`PHANTOM`) and their marks on the plans |
+| `S-REV` | 6 | Continuous | 0.35 | Revision clouds and their triangles (drawn again on each run) |
 | `S-VIEWPORT` | 8 | Continuous | 0.09 | The layout's viewport (not plotted) |
 
 Bars are the heaviest lines of a detail (0.50) and concrete outlines lighter (0.35), as in RC
@@ -125,6 +126,36 @@ The layout's page setup is AutoCAD's `DWG To PDF.pc3`, paper `ISO full bleed A1/
 all sheets, and the result matches `drawings.pdf`. In LibreCAD (model space only), print the
 model space at 1:N on the sheet's size. A program without that plotter falls back to its own
 default device and keeps the paper size and scale.
+
+## Your edits, revisions and issue
+
+**Your edits are kept.** Draw on a sheet's DXF in LibreCAD or AutoCAD (a note, an extra
+dimension, a stamp, a sketch) and save it as DXF under the same name: when the sheet is drawn
+again, everything SAEngine did not draw is copied into the new sheet. SAEngine knows what it drew
+from `.sheet-index/<sheet>.json.gz` beside the sheets (keep that folder). Entities SAEngine draws
+are always drawn afresh from the model, so change the model, not SAEngine's own lines, to change
+them. Put your additions on a layer of your own (not an `S-` or `A-` layer of the table above):
+they are then kept even when a CAD program rewrote the whole file on saving, or when the sheet
+was drawn by an older SAEngine without an index. Layer `S-REV` is SAEngine's and is never kept.
+
+**Issue Drawings** (11 Exports, Drawings) draws every sheet again and gives each sheet that is new
+or changed since its last issue the issue's revision (default: the one after the last issue, `0`
+→ `1`, `A` → `B`, `P1` → `P2`): its title block REV and revision table list that sheet's own
+issues. The issued DXFs, the PDF set, the register and (when asked) the DWGs are copied into
+`Issued/<rev> <date>/`, with what each sheet showed when issued. From then on, a generation
+compares each sheet's drawing area with its last issue and draws a revision cloud with the
+pending revision's triangle around each group of changes (layer `S-REV`; a sheet changed nearly
+everywhere is listed as revised throughout instead). The clouds of earlier revisions are not
+drawn again.
+
+**The drawing register** (`register.pdf`, `register.csv`, `register.json`) lists every sheet
+with its revision at each issue, then the issues with their dates, purposes and descriptions.
+Until the first issue the title blocks show the revisions of Project Settings > Drawings.
+
+**DWG.** The sheets are DXF; **Export DWG** (or *Also write DWG* when issuing) writes them as
+AutoCAD R2000 DWG into `DWG/` with `dxf2dwg` of GNU LibreDWG, the setup's optional DWG component
+(GPL-3.0, run as a separate program, never linked into SAEngine). Without it the sheets stay DXF
+only. The DXF remains the master: LibreDWG's DWG writer is younger than its reader.
 
 ## Structural steel sheets
 

@@ -608,6 +608,49 @@ POSITIONS = {
 }
 
 
+class Planning(_Model):
+    """What the planning check of the plot needs beyond its shape: the use (a key of the code
+    pack's ``planning.uses``), the road it faces, and the building's height, storeys and areas
+    where the building model does not give them."""
+
+    use: str = Field(
+        default="A1-A4",
+        min_length=1,
+        title="Use",
+        description="Use class of the planning rules, e.g. A1-A4 (residential), F1 (office).",
+    )
+    roadWidth: Depth | None = Field(
+        default=None, title="Road width", description="Width of the road the plot faces [mm]."
+    )
+    height: Depth | None = Field(
+        default=None,
+        title="Building height",
+        description="Above the ground [mm]; empty: from the building model's stories.",
+    )
+    storeys: int | None = Field(
+        default=None, ge=1, title="Storeys", description="Empty: from the building model."
+    )
+    groundCoverage: float | None = Field(
+        default=None,
+        ge=0,
+        title="Ground coverage",
+        description="Building footprint [m²]; empty: the building model's slabs on plan.",
+    )
+    floorArea: float | None = Field(
+        default=None,
+        ge=0,
+        title="Gross floor area",
+        description="[m²]; empty: the sum of the building model's storeys.",
+    )
+    excludedArea: float = Field(
+        default=0,
+        ge=0,
+        title="Excluded floor area",
+        description="Floor area the rules leave out of FAR (stair and lift rooms over the roof, "
+        "parking, services) [m²].",
+    )
+
+
 class Plot(_Model):
     """The plot: its corners in the project grid (when the site boundary is not given in
     latitude/longitude), the side facing the road and the setbacks that leave the buildable
@@ -634,6 +677,12 @@ class Plot(_Model):
         default=0, title="Rear setback", description="From the side opposite the road [mm]."
     )
     side: Depth = Field(default=0, title="Side setback", description="From each other side [mm].")
+    planning: Planning | None = Field(
+        default=None,
+        title="Planning compliance",
+        description="The use and road the plot is checked for against the planning rules (FAR, "
+        "ground coverage, setbacks; saengine.gis.planning).",
+    )
 
 
 class Site(_Model):

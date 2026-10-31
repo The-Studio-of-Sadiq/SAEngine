@@ -246,7 +246,73 @@ export interface ISoilPlot {
 	front?: number;
 	rear?: number;
 	side?: number;
+	/** The planning check's inputs (`saengine.library.soil.Planning`). */
+	planning?: ISoilPlanning;
 	[key: string]: unknown;
+}
+
+/** What the planning check needs beyond the plot: the use, the road [mm] and the building's height [mm], storeys and areas [m²] where the building model gives none. */
+export interface ISoilPlanning {
+	use?: string;
+	roadWidth?: number;
+	height?: number;
+	storeys?: number;
+	groundCoverage?: number;
+	floorArea?: number;
+	excludedArea?: number;
+	[key: string]: unknown;
+}
+
+/** The planning inputs typed as numbers in the site map. */
+export type PlanningNumberKey = 'roadWidth' | 'height' | 'storeys' | 'groundCoverage' | 'floorArea' | 'excludedArea';
+
+/** The use a new planning check starts with: residential (A1-A4). */
+export const PLANNING_DEFAULT_USE = 'A1-A4';
+
+/** A planning check (`saengine.gis.planning.check`). */
+export interface IPlanningCheck {
+	readonly authority?: string;
+	readonly source?: string;
+	readonly use?: string;
+	readonly useName?: string;
+	readonly uses?: readonly { readonly id: string; readonly name: string }[];
+	/** [m²] */
+	readonly plotArea?: number;
+	readonly katha?: number;
+	/** The plot-size row of the tables. */
+	readonly band?: string;
+	/** [m] */
+	readonly road?: number | null;
+	readonly height?: number | null;
+	readonly storeys?: number | null;
+	readonly permitted?: {
+		readonly allowed: boolean;
+		/** null: not restricted. */
+		readonly far: number | null;
+		readonly farText?: string;
+		readonly mgc: number;
+		readonly rule: string;
+		readonly row: string | null;
+	};
+	readonly setbacks?: {
+		readonly required: { readonly front: number; readonly rear: number; readonly side: number };
+		readonly provided: { readonly front: number; readonly rear: number; readonly side: number };
+		readonly rule: string;
+	};
+	readonly areas?: {
+		readonly groundCoverage: number | null;
+		readonly grossFloorArea: number | null;
+		readonly excluded: number;
+		readonly farArea: number | null;
+		readonly openSpace: number | null;
+		readonly storeys: readonly { readonly name: string; readonly area: number; readonly elevation: number; readonly height: number | null }[];
+	};
+	/** [m²]; floorArea null: not restricted. */
+	readonly limits?: { readonly mgcArea: number; readonly floorArea: number | null; readonly openSpace: number };
+	readonly checks?: readonly { readonly label: string; readonly provided: number; readonly limit: number | null; readonly sense: string; readonly unit: string; readonly ok: boolean; readonly rule: string }[];
+	readonly ok?: boolean;
+	readonly notes?: readonly string[];
+	readonly problems?: readonly string[];
 }
 
 /** How a borehole is placed: its `position`, else inferred as the backend does. */
@@ -447,6 +513,8 @@ export interface ISoilLocationResult {
 	readonly outlineSource?: string;
 	/** The plot as `saengine.gis.plot.describe` measures it; null without one. */
 	readonly plot?: ISitePlot | null;
+	/** The plot's planning compliance; null until the plot has a planning entry. */
+	readonly planning?: IPlanningCheck | null;
 	readonly suggestion?: ISoilLocationSuggestion | null;
 	readonly problems?: readonly string[];
 }

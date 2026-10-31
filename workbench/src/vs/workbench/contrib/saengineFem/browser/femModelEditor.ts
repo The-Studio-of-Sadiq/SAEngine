@@ -45,6 +45,7 @@ import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFra
 import { FemDerivation, IFemDeriveOutcome, IFemWindSummary } from './femDerivationBar.js';
 import { DESIGN_REINFORCEMENT_COMMAND, designKindLabel, IFemDesignReport, sortedChecks } from './femDesign.js';
 import { FemModelEditorInput } from './femModelEditorInput.js';
+import { appendPlannedChips, FemPlanned } from './femPlannedFeatures.js';
 import { errorSummary, FEM_RUN_CASES_COMMAND, FEM_SHOW_CHARTS_COMMAND, FEM_SHOW_LOG_COMMAND, FEM_SHOW_MEMBER_COMMAND, FemResultsBar, IFemRun, IFemRunOptions, IFemRunOutcome, IFemRunTracker } from './femResultsBar.js';
 import { baseReactionTable, displayTable, exportCell, FEM_STORY_RESPONSE_COMMAND, filterRows, formatCell, IFemSheet, IFemStoryResponse, modalTable, sortRows, storeyTable, supportReactions } from './femChartData.js';
 import { renderSheetRows } from './femChart.js';
@@ -701,6 +702,7 @@ export class FemModelEditor extends EditorPane {
 	private readonly pill = this._register(new MutableDisposable());
 	private readonly emptyStore = this._register(new MutableDisposable());
 	private readonly propertiesStore = this._register(new MutableDisposable());
+	private readonly plannedStore = this._register(new MutableDisposable());
 	/** The model shown and the node or element picked in it (for the member details). */
 	private femModel: FemModel | undefined;
 	private selection: FemSelection | undefined;
@@ -1190,6 +1192,20 @@ export class FemModelEditor extends EditorPane {
 				appendPropertyNote(panel, note);
 			}
 		}
+		this.renderPlanned(panel);
+	}
+
+	/** Chips to the analyses and systems planned after this MVP (see `FemPlanned`). */
+	private renderPlanned(panel: HTMLElement): void {
+		const store = new DisposableStore();
+		store.add(appendPlannedChips(panel, localize('femEditor.plannedAnalyses', "Planned Analyses"), [
+			FemPlanned.stagedConstruction, FemPlanned.creepShrinkage, FemPlanned.columnShortening,
+			FemPlanned.pushoverHinges, FemPlanned.performancePoint, FemPlanned.nonlinearTimeHistory,
+		], this.commandService));
+		store.add(appendPlannedChips(panel, localize('femEditor.plannedSystems', "Planned: Isolation, Dampers, Existing Buildings"), [
+			FemPlanned.baseIsolation, FemPlanned.dampers, FemPlanned.existingAssessment, FemPlanned.retrofit,
+		], this.commandService));
+		this.plannedStore.value = store;
 	}
 
 	/** The wind's gust factor per direction and its cladding pressures by zone (BNBC 2020 Part 6 Sec 2.4.8, 2.4.11.5). */

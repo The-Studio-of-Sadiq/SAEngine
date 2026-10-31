@@ -165,7 +165,7 @@ def problems_only(raw: Any, keys: tuple[str, ...]) -> list[str] | None:
 def design_summary_file(report: dict[str, Any], computed: datetime | None = None) -> dict[str, Any]:
     """``designSummaryFile`` of a design report (``saengine.design.design_report``)."""
     summary = record(report.get("summary"))
-    return {
+    result = {
         "checked": summary.get("checked"),
         "passed": summary.get("passed"),
         "failed": summary.get("failed"),
@@ -173,6 +173,10 @@ def design_summary_file(report: dict[str, Any], computed: datetime | None = None
         "governing": summary.get("governing"),
         "computed": iso_time(computed),
     }
+    # N-X8: the run's one count (members, joints, building checks apart) for the part list.
+    if isinstance(summary.get("counts"), dict):
+        result["counts"] = summary["counts"]
+    return result
 
 
 # ─────────────────────────────── 9 Substructure ───────────────────────────────
@@ -283,12 +287,15 @@ def substructure_summary_file(
     total = optional_number(given.get("total"))
     total = total if total is not None else checked + len(records(raw.get("skipped")))
     unsupported = [str(u) for u in given.get("unsupported") or [] if isinstance(u, str)]
+    # N-U3: footings whose bearing was not checked (no qa); the report's summary leaves them
+    # out of `checked` and `passed` already.
+    bearing_unchecked = [str(b) for b in given.get("bearingUnchecked") or [] if isinstance(b, str)]
     status = given.get("status")
     if status not in ("pass", "fail", "incomplete", "none"):
         status = (
             "fail" if summary.get("failed") else
-            "none" if not checked else
-            "incomplete" if checked < total or unsupported else "pass"
+            "none" if not checked and not bearing_unchecked else
+            "incomplete" if checked < total or unsupported or bearing_unchecked else "pass"
         )  # fmt: skip
     result: dict[str, Any] = {
         "foundations": len(document.get("foundations", [])),
@@ -296,6 +303,7 @@ def substructure_summary_file(
         "total": total,
         "passed": summary.get("passed"),
         "failed": summary.get("failed"),
+        "bearingUnchecked": bearing_unchecked,
         "unsupported": unsupported,
         "status": status,
         "maxUtilisation": summary.get("maxUtilisation"),

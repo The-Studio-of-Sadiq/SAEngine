@@ -54,7 +54,7 @@ measured on a local build, 2026-10-30):
 | --- | --- |
 | Energy simulation (EnergyPlus minimal runtime) | 59 MB |
 | CAD editor (LibreCAD, trimmed, with its Qt and VC++ DLLs) | 115 MB |
-| DWG import (LibreDWG) | 30 MB |
+| DWG import and export (LibreDWG) | 30 MB |
 | all three components | 204 MB |
 
 The core is the rest: the bundled Python alone is about 780 MB. A local build's core
