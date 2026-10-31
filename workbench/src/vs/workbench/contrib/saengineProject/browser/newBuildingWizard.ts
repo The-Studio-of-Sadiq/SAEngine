@@ -633,16 +633,21 @@ export class NewBuildingWizard extends EditorPane {
 			this.add(svg, 'text', { class: 'label', x: px(0) - 18, y: py(v) }, gridLabel('y', i));
 		}
 		if (system !== 'flatSlab') {
+			// Load-bearing masonry: walls on every grid line in place of the beams.
+			const line = system === 'masonry' ? 'masonry-wall' : 'beam';
 			for (const v of ys) {
-				this.add(svg, 'line', { class: 'beam', x1: px(0), y1: py(v), x2: px(lx), y2: py(v) });
+				this.add(svg, 'line', { class: line, x1: px(0), y1: py(v), x2: px(lx), y2: py(v) });
 			}
 			for (const v of xs) {
-				this.add(svg, 'line', { class: 'beam', x1: px(v), y1: py(0), x2: px(v), y2: py(ly) });
+				this.add(svg, 'line', { class: line, x1: px(v), y1: py(0), x2: px(v), y2: py(ly) });
 			}
 		}
 		if (system === 'rcFrameCore') {
 			const [bx, by] = [centralBay(x), centralBay(y)];
 			this.add(svg, 'rect', { class: 'core', x: px(xs[bx]), y: py(ys[by + 1]), width: x[bx] * scale, height: y[by] * scale });
+		}
+		if (system === 'masonry') {
+			return; // no columns
 		}
 		const size = 6;
 		for (const vx of xs) {

@@ -29,7 +29,12 @@ __all__ = ["NewBuildingError", "create_building", "project_parent", "spec_from_w
 WIZARD_SCHEMA = "saengine.newBuilding/1"
 
 #: The wizard's structural systems -> the generator's.
-SYSTEMS = {"rcFrame": "rcFrame", "rcFrameCore": "rcFrameWithWalls", "flatSlab": "flatSlab"}
+SYSTEMS = {
+    "rcFrame": "rcFrame",
+    "rcFrameCore": "rcFrameWithWalls",
+    "flatSlab": "flatSlab",
+    "masonry": "masonry",
+}
 
 #: Parts the generator does not write: folder -> (main file, part id) or None (folder only).
 OTHER_PARTS: dict[str, tuple[str, str] | None] = {

@@ -283,10 +283,15 @@ def design_walls(
         skipped.append({"id": e.id, "kind": "wall", "type": e.type, "reason": reason})
 
     ready = []
+    masonry_ready: list[tuple[Any, Any, Any]] = []
     for e, t in candidates:
         concrete = mats.get(t.material)
+        if concrete is not None and concrete.category == Category.MASONRY:
+            # T31: masonry walls (saengine.design.masonry, BNBC 2020 Part 6 Chapter 7).
+            masonry_ready.append((e, t, concrete))
+            continue
         if concrete is None or concrete.category != Category.CONCRETE or not concrete.concrete:
-            skip(e, "not a concrete wall")
+            skip(e, "not a concrete or masonry wall")
             continue
         if t.reinforcement is None:
             skip(e, "no reinforcement")
@@ -300,7 +305,7 @@ def design_walls(
             skip(e, f"unknown reinforcement material '{t.reinforcement.material}'")
             continue
         ready.append((e, t, bars, concrete, steel))
-    if not ready:
+    if not ready and not masonry_ready:
         return {"elements": [], "skipped": skipped, "notes": notes, "designed": False}
 
     # The pier forces, with the combinations of check.py (the Ω0 ones for the response spectrum
@@ -321,7 +326,7 @@ def design_walls(
             ]
         found = wall_forces.wall_forces(project, building, out_dir, found_combos, seismic, signs)
     except (OSError, ValueError, KeyError) as error:
-        for e, *_ in ready:
+        for e, *_ in [*ready, *masonry_ready]:
             skip(e, f"the wall forces could not be found: {error}")
         return {"elements": [], "skipped": skipped, "notes": notes, "designed": False}
     notes += [f"walls: {n}" for n in found["notes"]]
@@ -510,7 +515,134 @@ def design_walls(
         }
     if flanged and elements:
         notes += design_flanged(building, types, elements, piers_of, infos, earthquake, story_names)
-    return {"elements": elements, "skipped": skipped, "notes": notes, "designed": bool(elements)}
+    concrete_designed = bool(elements)
+    masonry_elements = _design_masonry(
+        masonry_ready, piers_of, spandrels_of, stacks, story_names, mats, skipped
+    )
+    elements += masonry_elements
+    return {
+        "elements": elements,
+        "skipped": skipped,
+        "notes": notes,
+        "designed": concrete_designed,
+        "masonry": bool(masonry_elements),
+    }
+
+
+def _design_masonry(
+    masonry_ready: list[tuple[Any, Any, Any]],
+    piers_of: dict[str, list[dict[str, Any]]],
+    spandrels_of: dict[str, list[dict[str, Any]]],
+    stacks: dict[str, tuple[float, float, list[str]]],
+    story_names: dict[str, str],
+    mats: dict[str, Any],
+    skipped: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """T31 integrator glue: the masonry walls' design elements (``kind`` "wall", ``wallType``
+    "masonryPlain" or "masonryReinforced"), each pier checked by
+    :func:`saengine.design.masonry.masonry_wall_checks`; walls that cannot be checked go to
+    ``skipped``."""
+    from saengine.design import masonry as M
+
+    out: list[dict[str, Any]] = []
+    for e, t, material in masonry_ready:
+
+        def skip(reason: str, e: Any = e) -> None:
+            skipped.append({"id": e.id, "kind": "wall", "type": e.type, "reason": reason})
+
+        piers = piers_of.get(e.id, [])
+        if not piers:
+            skip("not in the analysis results (no shells of the wall)")
+            continue
+        try:
+            m = M.masonry_of(material, mats)
+        except DesignError as error:
+            skip(str(error))
+            continue
+        bars = W.wall_bars(t.reinforcement) if t.reinforcement is not None else None
+        fy, es = 420.0, None
+        if bars is not None:
+            steel = mats.get(t.reinforcement.material)
+            if steel is None or steel.steel is None:
+                skip(f"unknown reinforcement material '{t.reinforcement.material}'")
+                continue
+            fy, es = steel.steel.fy, steel.mechanical.E
+        bottom, top, _stack = stacks.get(e.id, (float(e.bottom), float(e.top), [e.id]))
+        hw = top - bottom
+        options = {
+            "braced": bool(getattr(t, "braced", True)),
+            "restrained": bool(getattr(t, "restrainedEnds", True)),
+            "basement": bool(getattr(t, "basement", False)),
+        }
+        entries: list[dict[str, Any]] = []
+        checks: list[dict[str, Any]] = []
+        members: set[int] = set()
+        notes: list[str] = []
+        for pier in piers:
+            name = pier["pier"]
+            geometry = W.geometry_of(pier, wall_height=hw, **options)
+            forces = W.pier_rows(pier, None, ("bottom", "middle", "top"))
+            try:
+                d = M.masonry_wall_checks(geometry, bars, forces, m, fy, es or M.STEEL_E)
+            except DesignError as error:
+                notes.append(f"{name}: not checked: {error}")
+                d = M.MasonryDesign(
+                    [_row("Masonry wall checked", 1.0, 0.0, "", note=f"{error}; not checked")],
+                    [],
+                    99.0,
+                )
+            entry = {
+                "id": name,
+                "storey": story_names.get(pier.get("storey"), pier.get("storey") or ""),
+                "lw": round(float(pier["lw"]), 1),
+                "tw": round(float(pier["tw"]), 1),
+                "members": list(pier.get("shells", [])),
+                "forces": _governing_forces(pier, d.checks),
+                "checks": d.checks,
+                "utilisation": d.utilisation,
+                "ok": all(c["ok"] for c in d.checks if not c["flag"]),
+                "boundary": None,
+                "whole": False,
+                "notes": d.notes,
+                "holes": list(pier.get("holes", [])),
+            }
+            entries.append(entry)
+            members.update(entry["members"])
+            for c in d.checks:
+                checks.append({**c, "note": f"{name}: {c['note']}" if c["note"] else name})
+        for s in spandrels_of.get(e.id, []):
+            members.update(s.get("shells", []))
+            reason = (
+                "spandrel of a masonry wall (over or under an opening): not designed here; "
+                "design it as a lintel"
+            )
+            skipped.append(
+                {"id": s["spandrel"], "kind": "spandrel", "type": e.type, "reason": reason}
+            )
+            notes.append(f"{s['spandrel']}: {reason}")
+        strength = [c for c in checks if not c["flag"]]
+        out.append(
+            {
+                "id": e.id,
+                "kind": "wall",
+                "type": e.type,
+                "members": sorted(members),
+                "checks": checks,
+                "utilisation": max((c["utilisation"] for c in strength), default=0.0),
+                "ok": all(c["ok"] for c in strength),
+                "wallType": "masonryReinforced" if bars is not None else "masonryPlain",
+                "masonry": M.describe(m, bars is not None),
+                "curtains": bars.layers if bars is not None else None,
+                "curtainsRequired": None,
+                "boundary": None,
+                "piers": entries,
+                "couplingBeams": [],
+                "drift": None,
+                "height": hw,
+                "notes": list(dict.fromkeys(notes + [n for p in entries for n in p["notes"]])),
+            }
+        )
+    return out
 
 
 @dataclass

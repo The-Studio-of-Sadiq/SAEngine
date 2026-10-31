@@ -69,6 +69,21 @@ OLD_SYSTEMS = {
     "steelOmf": ("Steel ordinary moment frame", 3.5, 3.0, 3.0),
     "steelScbf": ("Steel special concentrically braced frame", 6.0, 2.0, 5.0),
 }
+#: Masonry bearing wall systems, added with masonry design (T31).
+NEW_MASONRY_SYSTEMS = {
+    "masonryOrdinaryReinforced": (
+        "Bearing walls: ordinary reinforced masonry shear walls",
+        2.0,
+        2.5,
+        1.75,
+    ),
+    "masonryOrdinaryPlain": (
+        "Bearing walls: ordinary plain (unreinforced) masonry shear walls",
+        1.5,
+        2.5,
+        1.25,
+    ),
+}
 #: design/seismic_rules.py TABLE_6_2_19 (v0.0.44), now read from the pack (system_row):
 #: (row, R, Omega0, Cd, height limits B/C/D, frame, specialWalls, concrete).
 OLD_TABLE_6_2_19 = {
@@ -90,6 +105,17 @@ OLD_TABLE_6_2_19 = {
     "steelSmf": ("C.1 (p. 622)", 8.0, 3.0, 5.5, (None, None, None), None, False, False),
     "steelOmf": ("C.3 (p. 622)", 3.5, 3.0, 3.0, (None, None, 0.0), None, False, False),
     "steelScbf": ("B.3 (p. 622)", 6.0, 2.0, 5.0, (None, None, 50.0), None, False, False),
+    "masonryOrdinaryReinforced": (
+        "A.3 (p. 621)",
+        2.0,
+        2.5,
+        1.75,
+        (None, 50.0, 0.0),
+        None,
+        False,
+        False,
+    ),
+    "masonryOrdinaryPlain": ("A.4 (p. 621)", 1.5, 2.5, 1.25, (None, 0.0, 0.0), None, False, False),
 }
 OLD_SITE_CLASSES = {
     "SA": "Rock or rock-like formation, at most 5 m of weaker material on top (Vs > 800 m/s)",
@@ -616,8 +642,9 @@ def test_library_bnbc_keeps_every_public_value_type_and_order():
     assert list(bnbc.OCCUPANCY_CATEGORIES) == list(OLD_OCCUPANCY)
     assert {k: tuple(v) for k, v in bnbc.AREA_USES.items()} == OLD_AREA_USES
     assert list(bnbc.AREA_USES) == list(OLD_AREA_USES)
-    assert {k: tuple(v) for k, v in bnbc.STRUCTURAL_SYSTEMS.items()} == OLD_SYSTEMS
-    assert list(bnbc.STRUCTURAL_SYSTEMS) == list(OLD_SYSTEMS)
+    systems = {**OLD_SYSTEMS, **NEW_MASONRY_SYSTEMS}
+    assert {k: tuple(v) for k, v in bnbc.STRUCTURAL_SYSTEMS.items()} == systems
+    assert list(bnbc.STRUCTURAL_SYSTEMS) == list(systems)
     assert bnbc.STRUCTURAL_SYSTEMS["rcSmf"].omega == 3.0
     assert bnbc.SITE_CLASSES == OLD_SITE_CLASSES and list(bnbc.SITE_CLASSES) == list(
         OLD_SITE_CLASSES

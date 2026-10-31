@@ -260,6 +260,12 @@
 	opacity: 0.55;
 }
 
+.saengine-new-building svg .masonry-wall {
+	stroke: var(--vscode-charts-orange, var(--sa-warn));
+	stroke-width: 4;
+	opacity: 0.8;
+}
+
 .saengine-new-building svg .floor {
 	stroke: var(--vscode-foreground);
 	stroke-width: 1.5;

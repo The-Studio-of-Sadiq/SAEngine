@@ -44,6 +44,8 @@ export const FemPlanned = {
 	tendonLongTermLosses: 'fem.tendonLongTermLosses',
 	/** T26: floor vibration from walking. */
 	floorVibration: 'fem.floorVibration',
+	/** T31: confined masonry walls (tie columns and tie beams). */
+	confinedMasonry: 'fem.confinedMasonry',
 } as const;
 
 /**
