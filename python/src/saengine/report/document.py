@@ -1325,6 +1325,94 @@ def _seismic(data: dict[str, Any], ctx: Context) -> dict[str, Any] | None:
     return {"blocks": out}
 
 
+# ─────────────────────────────────────── planning ───────────────────────────────────
+
+
+@register_section("planning")
+def _planning(data: dict[str, Any], ctx: Context) -> dict[str, Any] | None:
+    """The plot's planning compliance: the rules applied, the area statement and the checks."""
+    plan = data.get("planning")
+    if not plan:
+        return None
+    out: list[Block] = [p(str(plan.get("authority", "")), strong="Rules: ")]
+    if plan.get("problems"):
+        out.append(note(" ".join(plan["problems"]), "Not complete:"))
+    num = lambda v, d=1: "-" if v is None else f"{v:,.{d}f}"
+    rows = [
+        ["Use", str(plan.get("useName") or plan.get("use") or "")],
+        ["Plot area", f"{num(plan.get('plotArea'))} m² ({num(plan.get('katha'), 2)} katha)"],
+        ["Plot size row", str(plan.get("band") or "")],
+        ["Road width", "-" if plan.get("road") is None else f"{plan['road']:g} m"],
+    ]
+    allowed = plan.get("permitted")
+    if allowed:
+        rows.append(
+            [
+                "Permitted",
+                f"FAR {allowed.get('farText')}, MGC {allowed['mgc']:g} % ({allowed['rule']})"
+                if allowed["allowed"]
+                else "not permitted",
+            ]
+        )
+    out.append(pairs(rows))
+    areas, limits = plan.get("areas") or {}, plan.get("limits") or {}
+    if areas:
+        statement = [["Plot area", num(plan.get("plotArea")), ""]]
+        statement.append(
+            ["Ground coverage", num(areas.get("groundCoverage")), num(limits.get("mgcArea"))]
+        )
+        statement.append(
+            [
+                "Open space",
+                num(areas.get("openSpace")),
+                "" if not limits else f"≥ {num(limits.get('openSpace'))}",
+            ]
+        )
+        for storey in areas.get("storeys") or []:
+            statement.append([f"  {storey['name']}", num(storey["area"]), ""])
+        statement.append(["Gross floor area", num(areas.get("grossFloorArea")), ""])
+        if areas.get("excluded"):
+            statement.append(["Less excluded", num(areas["excluded"]), ""])
+        far_limit = limits.get("floorArea") if limits else None
+        statement.append(
+            [
+                "Floor area for FAR",
+                num(areas.get("farArea")),
+                "not restricted" if limits and far_limit is None else num(far_limit),
+            ]
+        )
+        out += [
+            label("Area statement (m²)"),
+            table(["", "Provided", "Limit"], statement, ["1fr", "auto", "auto"], "lrr"),
+        ]
+    checks = plan.get("checks") or []
+    if checks:
+        out += [
+            label("Checks", None if plan.get("ok", True) else "fail"),
+            table(
+                ["Check", "Provided", "", "Limit", "Unit", "Result", "Rule"],
+                [
+                    [
+                        c["label"],
+                        f"{c['provided']:g}",
+                        c["sense"],
+                        "not restricted" if c["limit"] is None else f"{c['limit']:g}",
+                        c["unit"],
+                        "OK" if c["ok"] else "FAILS",
+                        c["rule"],
+                    ]
+                    for c in checks
+                ],
+                ["1fr", "auto", "auto", "auto", "auto", "auto", "30%"],
+                "lrcrlcl",
+                bad=[not c["ok"] for c in checks],
+            ),
+        ]
+    if plan.get("notes"):
+        out.append(bullets(plan["notes"], 8))
+    return {"blocks": out}
+
+
 # ─────────────────────────────────────── worksheets (hook) ───────────────────────────────────
 
 
