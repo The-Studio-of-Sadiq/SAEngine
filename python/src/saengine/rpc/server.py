@@ -1093,7 +1093,11 @@ def create_server() -> JsonRPCServer:
     def _codes_coded_geometry(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.codes_coded_geometry(
-            args["package"], args["file"], args.get("values"), args.get("root")
+            args["package"],
+            args["file"],
+            args.get("values"),
+            args.get("root"),
+            args.get("memberType"),
         )
 
     return server

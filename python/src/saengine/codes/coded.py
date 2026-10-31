@@ -61,10 +61,13 @@ def coded_geometry(
     values: dict[str, Any] | None = None,
     project_root: Path | None = None,
     registry: Registry | None = None,
+    member_type: str | None = None,
 ) -> dict[str, Any]:
     """The geometry of the coded template ``file`` of ``package`` with ``values`` over its
     starting values: :meth:`Geometry.to_json`, or ``{"problems": [...]}`` (with ``"untrusted":
-    true`` when the package's code is not trusted, so the panel can say where to trust it)."""
+    true`` when the package's code is not trusted, so the panel can say where to trust it).
+    ``member_type``: the object type that replaces the placeholder type ``MEMBER`` (the Generate
+    panel's current member type), as for the built-in shapes."""
     from saengine.library.shapes import Geometry
 
     reg = registry or default_registry()
@@ -100,4 +103,8 @@ def coded_geometry(
         geometry = result if isinstance(result, Geometry) else Geometry.from_json(result)
     except Exception as error:  # noqa: BLE001 - the package's code failed: say so, do not crash
         return {"problems": [f"the code of '{pack.name}' failed: {type(error).__name__}: {error}"]}
+    if member_type:
+        for member in geometry.members:
+            if member.type == "MEMBER":
+                member.type = member_type
     return geometry.placed(origin, rotation).to_json()

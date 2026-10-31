@@ -2099,13 +2099,17 @@ def codes_templates(kind: str, root: str | None = None) -> dict[str, Any]:
 
 
 def codes_coded_geometry(
-    package: str, file: str, values: dict[str, Any] | None = None, root: str | None = None
+    package: str,
+    file: str,
+    values: dict[str, Any] | None = None,
+    root: str | None = None,
+    member_type: str | None = None,
 ) -> dict[str, Any]:
     """The geometry of a coded structure template (:func:`saengine.codes.coded.coded_geometry`),
     to preview and insert like a built-in shape's; ``{problems}`` when it cannot be made."""
     from saengine.codes.coded import coded_geometry
 
-    return coded_geometry(package, file, values or {}, _pack_root(root))
+    return coded_geometry(package, file, values or {}, _pack_root(root), member_type=member_type)
 
 
 def codes_check_template(path: str, author: str = "") -> dict[str, Any]:

@@ -223,7 +223,7 @@ CommandsRegistry.registerCommand('saengine.codes.trust', async (accessor, raw: u
 
 CommandsRegistry.registerCommand('saengine.codes.codedGeometry', async (accessor, raw: unknown) => {
 	const args = bag(raw);
-	return call(accessor, 'codes/codedGeometry', { package: args.package, file: args.file, values: bag(args.values), root: str(args.root) });
+	return call(accessor, 'codes/codedGeometry', { package: args.package, file: args.file, values: bag(args.values), root: str(args.root), memberType: str(args.memberType) });
 });
 
 // --- CAD --------------------------------------------------------------------------------------

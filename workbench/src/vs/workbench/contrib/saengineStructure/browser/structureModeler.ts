@@ -1120,7 +1120,7 @@ export class StructureModelerEditor extends EditorPane {
 		try {
 			const coded = source.kind === 'shape' ? this.coded : undefined;
 			result = coded
-				? await this.commandService.executeCommand<StructureGeometryResult>(CODES_CODED_GEOMETRY_COMMAND, { package: coded.preset.package, file: coded.preset.file, values: coded.value.values })
+				? await this.commandService.executeCommand<StructureGeometryResult>(CODES_CODED_GEOMETRY_COMMAND, { package: coded.preset.package, file: coded.preset.file, values: coded.value.values, memberType: this.defaultType(['brace', 'beam']) ?? this.defaultType(MEMBER_KINDS) })
 				: source.kind === 'shape'
 				? await this.commandService.executeCommand<StructureGeometryResult>('saengine.structure.shapeGeometry', this.shapeValue?.shape)
 				: await this.commandService.executeCommand<StructureGeometryResult>('saengine.structure.importGeometry', source.file, this.importValue?.options, this.objects?.getValue());
