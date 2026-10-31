@@ -73,6 +73,8 @@ export class DrawingsSection extends Disposable {
 	private settings: IDrawingSettings = readDrawingSettings(undefined);
 	private listed = false;
 	private busy = false;
+	/** Why the drawings cannot be generated now (an empty building model), as the other exports say. */
+	private blocked: string | undefined;
 	private selection = new Set<string>();
 	private settingsOpen = true;
 	private listVersion = 0;
@@ -151,6 +153,15 @@ export class DrawingsSection extends Disposable {
 	private get settingsFile(): URI | undefined {
 		const part = partById('settings');
 		return this.root && part?.mainFile ? joinPath(this.root, part.folder, part.mainFile) : undefined;
+	}
+
+	/** The exports page's gate: the same reason every other export is blocked for, or undefined. */
+	setBlocked(reason: string | undefined): void {
+		if (reason !== this.blocked) {
+			this.blocked = reason;
+			this.updateHeading();
+			this.updateSelection();
+		}
 	}
 
 	/** Follows the project at `root` (undefined: none open): its last drawings and its settings. */
@@ -323,7 +334,7 @@ export class DrawingsSection extends Disposable {
 		const available = this.available;
 		this.element.classList.toggle('made', !!set?.sheets.length);
 		this.element.classList.toggle('stale', !!set?.stale);
-		this.description.textContent = this.busy ? localize('drawings.generating', "Generating the drawings...") : drawingsDescription(set, available);
+		this.description.textContent = this.busy ? localize('drawings.generating', "Generating the drawings...") : !set?.sheets.length && this.blocked ? this.blocked : drawingsDescription(set, available);
 		this.description.classList.toggle('stale', !!set?.stale && !this.busy);
 		if (set?.generatedAt) {
 			this.when.textContent = formatTime(set.generatedAt);
@@ -341,7 +352,8 @@ export class DrawingsSection extends Disposable {
 		const set = this.set;
 		const selected = selectedSheets(set, this.selection).length;
 		this.generateButton.label = generateLabel(set, selected);
-		this.generateButton.enabled = this.available && !this.busy && this.listed;
+		this.generateButton.enabled = this.available && !this.busy && this.listed && !this.blocked;
+		this.generateButton.setTitle(this.blocked ?? '');
 		this.generateButton.secondary = !!set?.sheets.length && !set.stale && !selected;
 		if (this.allCheck) {
 			this.allCheck.checked = !!set?.sheets.length && set.sheets.every(s => this.selection.has(s.number));
@@ -570,7 +582,7 @@ export class DrawingsSection extends Disposable {
 	/** Draws all sheets, or the selected ones, at the sheet size of the Project Settings (`drawings.sheetSize`). */
 	async generate(): Promise<void> {
 		const root = this.root;
-		if (!root || this.busy || !this.available) {
+		if (!root || this.busy || !this.available || this.blocked) {
 			return;
 		}
 		const unsaved = await saveProjectEdits(this.workingCopyService, root);

@@ -377,11 +377,14 @@ export class ExportsEditor extends EditorPane {
 		const boq = partById('boq');
 		const fem = partById('fem');
 		// An empty building model has nothing to export, whatever its status says.
-		const emptyModel = this.bimElements === 0 && bim ? localize('exports.emptyModel', "The building model ({0}) has no elements yet: draw the floor plan and build the model first.", partName(bim)) : undefined;
+		const emptyModel = this.emptyModel();
 		// A failing design is not an out-of-date analysis: its report shows the failures.
-		const reportStale = fem && this.files.get('report')?.length && reportAnalysisStale(this.statusService.statusOf('fem')?.state)
+		const printed = !!this.files.get('report')?.length;
+		const reportStale = fem && printed && reportAnalysisStale(this.statusService.statusOf('fem')?.state)
 			? localize('exports.reportStale', "Out of date: the analysis ({0}) is not current, so the report does not show this model. Run the analysis and update the report.", partName(fem))
-			: undefined;
+			: printed && this.statusService.statusOf('exports')?.state === 'stale'
+				? localize('exports.reportStaleDesign', "Out of date: the design checks or the analysis ran after the report was printed. Update the report.")
+				: undefined;
 		const kinds: IExportKind[] = [
 			{
 				kind: 'report', icon: Codicon.filePdf,
@@ -450,6 +453,12 @@ export class ExportsEditor extends EditorPane {
 		return kinds;
 	}
 
+	/** Why no export can be made yet: the building model has no elements (the drawings too). */
+	private emptyModel(): string | undefined {
+		const bim = partById('bim');
+		return this.bimElements === 0 && bim ? localize('exports.emptyModel', "The building model ({0}) has no elements yet: draw the floor plan and build the model first.", partName(bim)) : undefined;
+	}
+
 	// ───────────────────────────── rendering ─────────────────────────────
 
 	private render(): void {
@@ -474,6 +483,7 @@ export class ExportsEditor extends EditorPane {
 			this.renderKind(kind);
 		}
 		// The drawings render themselves (they follow the backend, not the folder).
+		this.drawings.setBlocked(this.emptyModel());
 		append(this.list, this.drawings.element);
 		restoreDrawingsFocus();
 		this.renderArchive(project);
@@ -491,7 +501,7 @@ export class ExportsEditor extends EditorPane {
 		this.dxfAction.enabled = can('dxf');
 		this.e2kAction.enabled = can('e2k') && !!CommandsRegistry.getCommand(EXPORT_E2K_COMMAND);
 		this.csvAction.enabled = can('csv');
-		this.drawingsAction.enabled = !!kinds && !!CommandsRegistry.getCommand(DRAWINGS_GENERATE_COMMAND);
+		this.drawingsAction.enabled = !!kinds && !!CommandsRegistry.getCommand(DRAWINGS_GENERATE_COMMAND) && !this.emptyModel();
 		this.revealFolderAction.enabled = !!kinds;
 		this.archiveAction.enabled = !!kinds && !!CommandsRegistry.getCommand(ARCHIVE_EXPORT_COMMAND);
 		this.openArchiveAction.enabled = !!CommandsRegistry.getCommand(ARCHIVE_IMPORT_COMMAND);
@@ -563,8 +573,11 @@ export class ExportsEditor extends EditorPane {
 			return;
 		}
 
-		const again = this.renderDisposables.add(this.frame.createIconButton(actions, Codicon.refresh, kind.againLabel, () => void this.make(kind.kind)));
-		again.element.disabled = running || !!kind.blocked;
+		const again = this.textButton(actions, kind.againLabel, () => void this.make(kind.kind));
+		again.enabled = !running && !kind.blocked;
+		if (kind.blocked) {
+			again.setTitle(kind.blocked);
+		}
 		this.firstControl ??= again.element;
 		if (files.length === 1) {
 			// One file: the row is the file.
@@ -595,14 +608,22 @@ export class ExportsEditor extends EditorPane {
 		}
 	}
 
+	/** The row's buttons say what they do in words (an icon alone was not understood). */
 	private renderFileButtons(container: HTMLElement, file: IExportFile, kind: IExportKind): void {
-		this.renderDisposables.add(this.frame.createIconButton(container, kind.kind === 'dxf' ? Codicon.goToFile : Codicon.linkExternal, localize('exports.openFile', "Open {0}", file.name), () => void this.openFile(file, kind)));
+		this.textButton(container, localize('exports.open', "Open"), () => void this.openFile(file, kind)).setTitle(localize('exports.openFile', "Open {0}", file.name));
 		if (kind.kind === 'dxf') {
-			this.renderDisposables.add(this.frame.createIconButton(container, Codicon.linkExternal, this.cadLabel(), () => void this.openInCad(file)));
+			this.textButton(container, this.cadLabel(), () => void this.openInCad(file));
 		}
 		if (CommandsRegistry.getCommand(REVEAL_IN_OS_COMMAND)) {
-			this.renderDisposables.add(this.frame.createIconButton(container, Codicon.folderOpened, localize('exports.reveal', "Reveal in File Explorer"), () => void this.reveal(file.resource)));
+			this.textButton(container, localize('exports.revealShort', "Show in Folder"), () => void this.reveal(file.resource)).setTitle(localize('exports.reveal', "Reveal in File Explorer"));
 		}
+	}
+
+	private textButton(container: HTMLElement, label: string, run: () => void): Button {
+		const button = this.renderDisposables.add(new Button(container, { ...defaultButtonStyles, secondary: true }));
+		button.label = label;
+		this.renderDisposables.add(button.onDidClick(run));
+		return button;
 	}
 
 	private showContextMenu(kind: IExportKind, file: IExportFile | undefined, e: MouseEvent): void {
@@ -766,14 +787,14 @@ export class ExportsEditor extends EditorPane {
 			this.contextMenuService.showContextMenu({ getAnchor: () => event, getActions: () => menu });
 		}));
 		if (CommandsRegistry.getCommand(ARCHIVE_IMPORT_COMMAND)) {
-			this.renderDisposables.add(this.frame.createIconButton(actions, Codicon.folderLibrary, localize('exports.openArchiveReceived', "Open Project Archive... (one you received: unpacks and opens it)"), () => void this.openArchive()));
+			this.textButton(actions, localize('exports.openArchiveShort', "Open Archive..."), () => void this.openArchive()).setTitle(localize('exports.openArchiveReceived', "Open Project Archive... (one you received: unpacks and opens it)"));
 		}
 		if (last && available) {
 			when.textContent = formatTime(last.time);
-			const again = this.renderDisposables.add(this.frame.createIconButton(actions, Codicon.refresh, localize('exports.archiveAgain', "Export Project Again..."), () => void this.exportArchive()));
+			const again = this.textButton(actions, localize('exports.archiveAgain', "Export Project Again..."), () => void this.exportArchive());
 			this.firstControl ??= again.element;
 			if (CommandsRegistry.getCommand(REVEAL_IN_OS_COMMAND)) {
-				this.renderDisposables.add(this.frame.createIconButton(actions, Codicon.folderOpened, localize('exports.reveal', "Reveal in File Explorer"), () => void this.reveal(last.resource)));
+				this.textButton(actions, localize('exports.revealShort', "Show in Folder"), () => void this.reveal(last.resource)).setTitle(localize('exports.reveal', "Reveal in File Explorer"));
 			}
 			return;
 		}
