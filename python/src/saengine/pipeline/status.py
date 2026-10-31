@@ -68,9 +68,14 @@ class PartStatus:
     state: str
     text: str = ""
     hint: str | None = None
+    #: The part whose input this part waits for (foundations without qa: the soil report).
+    needs: str | None = None
 
     def to_json(self) -> dict[str, Any]:
-        return asdict(self)
+        value = asdict(self)
+        if value["needs"] is None:
+            del value["needs"]
+        return value
 
 
 @dataclass
@@ -205,8 +210,10 @@ def _length(value: Any) -> int:
     return len(value) if isinstance(value, list) else 0
 
 
-def _status(part: str, state: str, text: str = "", hint: str | None = None) -> PartStatus:
-    return PartStatus(part, state, text, hint)
+def _status(
+    part: str, state: str, text: str = "", hint: str | None = None, needs: str | None = None
+) -> PartStatus:
+    return PartStatus(part, state, text, hint, needs)
 
 
 NOT_STARTED = "not started"
@@ -728,7 +735,7 @@ def substructure_status(inputs: StatusInputs) -> PartStatus:
     if no_qa > 0:
         return _status(
             "substructure", "inProgress", f"{no_qa} without a bearing check",
-            "enter qa in the soil report or Project Settings",
+            "enter qa in the soil report or Project Settings", "soil",
         )  # fmt: skip
     if summary.get("checked") == 0:
         return _status("substructure", "inProgress", foundations, "run the analysis to design them")
@@ -1033,15 +1040,44 @@ def compute_part_statuses(
 OPTIONAL_NEEDS_WORK = frozenset({"failed", "error", "stale"})
 
 
+def _urgency(status: PartStatus, before: bool) -> int | None:
+    """``urgency`` of partStatus.ts (N-N2): lower first; None when the part does not need the
+    engineer."""
+    if status.state == "done":
+        return None
+    if status.part == "fem":
+        return 4 if status.state == "failed" else 2
+    if status.part == "substructure":
+        if status.needs:
+            return 1
+        return 4 if status.state == "failed" else None if status.state == "notStarted" else 3
+    if status.part == "soil":
+        return 1 if status.state in OPTIONAL_NEEDS_WORK else None
+    if status.part == "mep":
+        return 6 if status.state in OPTIONAL_NEEDS_WORK else None
+    if status.part in OPTIONAL_PARTS:
+        return 5 if status.state in OPTIONAL_NEEDS_WORK else None
+    return 0 if before else 5
+
+
 def next_step(statuses: list[PartStatus]) -> tuple[int, PartStatus] | None:
-    """``nextStep``: the first part, in order, that needs doing (optional parts only once they
-    fail, are stale or cannot be read)."""
+    """``nextStep``: the part that needs doing first, ranked by :func:`_urgency` then workflow
+    order; a part waiting for another's input (``needs``) sends the engineer there with its
+    own hint."""
+    fem = next((i for i, s in enumerate(statuses) if s.part == "fem"), -1)
+    best: tuple[int, int, PartStatus] | None = None
     for index, status in enumerate(statuses):
-        if status.state != "done" and (
-            status.part not in OPTIONAL_PARTS or status.state in OPTIONAL_NEEDS_WORK
-        ):
-            return index, status
-    return None
+        rank = _urgency(status, fem < 0 or index < fem)
+        if rank is not None and (best is None or rank < best[0]):
+            best = (rank, index, status)
+    if best is None:
+        return None
+    _, index, status = best
+    needed = next((i for i, s in enumerate(statuses) if status.needs and s.part == status.needs), -1)
+    if needed >= 0:
+        target = statuses[needed]
+        return needed, PartStatus(target.part, target.state, target.text, status.hint, target.needs)
+    return index, status
 
 
 # ─────────────────────────────── the inputs, from disk ───────────────────────────────
