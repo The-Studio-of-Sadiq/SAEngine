@@ -181,6 +181,19 @@ class PileType(_Model):
     length: Length = Field(description="Below the underside of the cap [mm].")
     material: Id = Field(description="Concrete material id (03 Materials).")
     reinforcement: LinearReinforcement | None = None
+    headFixity: Literal["fixed", "free"] = Field(
+        default="fixed",
+        title="Head fixity",
+        description="Fixed: the pile bars developed into the cap, which holds the head against "
+        "rotation; free: the head may rotate (pinned).",
+        json_schema_extra=_labels(["Fixed in the cap", "Free (pinned)"]),
+    )
+    fixityDepth: Length | None = Field(
+        default=None,
+        title="Depth to fixity",
+        description="Below the pile head, where the pile acts as fixed against the lateral load, "
+        "from the geotechnical report [mm]; none: the pile is designed for axial force only.",
+    )
 
 
 class Pile(_Model):

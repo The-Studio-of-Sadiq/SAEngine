@@ -20,7 +20,12 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from saengine.library.labels import field_title
 from saengine.library.materials import Id
-from saengine.library.modifiers import DesignOverwrites, FrameModifiers, ShellModifiers
+from saengine.library.modifiers import (
+    BeamCorbels,
+    DesignOverwrites,
+    FrameModifiers,
+    ShellModifiers,
+)
 from saengine.library.objects import ObjectLibrary
 
 SCHEMA_ID = "saengine.floorPlan/1"
@@ -130,6 +135,11 @@ class PlacedBeam(_Placed):
         default=None,
         title="Design overwrites",
         description="k, unbraced lengths and framing for the design (empty: automatic).",
+    )
+    corbels: BeamCorbels | None = Field(
+        default=None,
+        title="Corbels",
+        description="Corbels under the beam's ends, designed by BNBC 2020 Part 6 Sec 6.4.7.",
     )
 
 

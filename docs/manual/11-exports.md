@@ -65,6 +65,34 @@ report → Template). A template file can be copied to another project as it is.
 **Export Design Report to Word** writes `11 Exports/report.docx`. Word fills in the contents and
 the page numbers when it opens the file (it may ask to update the fields).
 
+### Calculation worksheets
+
+A **calculation worksheet** is a hand calculation made with SAEngine's own design functions and
+the project's code pack, for a member or a check the model does not cover, or to show a
+calculation step by step. **New Calculation Worksheet...** (Model Explorer title bar or Command
+Palette) offers the kinds:
+
+- *Concrete*: beam in flexure, beam in shear, beam deflection, beam torsion threshold, column
+  axial capacity, column slenderness (non-sway), one-way slab, two-way slab panel (BNBC's
+  coefficient tables), punching shear at a column, lintel over an opening, stair flight;
+- *Detailing*: development length (tension, compression, standard hook), lap splice;
+- *Foundations*: isolated footing, bearing capacity (general equation), cantilever retaining
+  wall;
+- *Loads*: wind on a freestanding sign or wall, seismic base shear (equivalent static).
+
+A worksheet is written to `11 Exports/worksheets/<id>.json` with the kind's default values and
+opens in its editor: the inputs on the left, the calculation on the right, made again on every
+change. Each step shows its expression and the clause it comes from (BNBC 2020 Part 6, or the ACI
+318-19 clause BNBC adopts), then the checks with their utilisation. The title, a reference (a
+member mark, grid line or drawing) and notes are what the report prints; **Print in the design
+report** takes a worksheet out of the report without deleting it. **Calculation Worksheets...**
+lists the project's worksheets with their result.
+
+The design report prints the worksheets marked to print in its *Calculation worksheets* section:
+the inputs, the calculation (full detail only) and the checks. A worksheet that fails, or cannot
+be calculated, is named among the report's warnings. Nothing calculated is stored in the file:
+the report always shows what the present inputs and code pack give.
+
 ## Structural drawings
 
 The **Structural drawings** section of the Exports page makes the drawing set: *framing plans,
