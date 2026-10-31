@@ -653,3 +653,11 @@
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 1px;
 }
+
+/* "Planned" chips of features not in this MVP, under a slab's design checks. */
+.fem-planned-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin: 8px 0;
+}

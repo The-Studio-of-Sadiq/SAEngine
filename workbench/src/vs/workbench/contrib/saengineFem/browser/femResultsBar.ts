@@ -24,7 +24,8 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IFemResultEntry, IFemResultList, IFemResultView } from '../../../../platform/saengine/common/femSolver.js';
 import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameIconButton, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
-import { describeDesignCounts, describeEngineError, describeDesignSummary, describeSlenderness, describeSteel, describeSteelRatio, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, isSecondOrderRequired, isSlendernessCheck, otherFailureElements, requiredSteelOf, resultsFolder, runDesign, runDesignRequired, secondOrderRequiredMembers, shortElements, slendernessHeading, sortedChecks, tooSmallElements, writeDesignSummary } from './femDesign.js';
+import { appendPlannedFeatureChip } from '../../saengineProject/browser/plannedFeatureEditor.js';
+import { CRACK_WIDTHS_FEATURE, CRACKED_SLAB_DEFLECTION_FEATURE, describeDesignCounts, describeEngineError, describeDesignSummary, describeSlenderness, describeSteel, describeSteelRatio, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, isSecondOrderRequired, isSlendernessCheck, otherFailureElements, requiredSteelOf, resultsFolder, runDesign, runDesignRequired, secondOrderRequiredMembers, shortElements, slabRebar, slendernessHeading, sortedChecks, tooSmallElements, writeDesignSummary } from './femDesign.js';
 import { describeScaleOnResult, describeSecondOrder, FemAxis, IFemSecondOrder, isFirstOrderReference, IFemSeismicDesign, runSecondOrder, runSeismicDesign, seismicSection, spectrumAxis, storeyAmplificationRows } from './femSeismicDesign.js';
 import { FemSsiPanel } from './femSsi.js';
 import { describeJointsSummary, describeJointVerdict, detailingSection, FemDetailingItem, generalChecks, IFemDetailingModel, IFemJoint, jointAtNode, jointColouring, jointHeading, jointItems, jointNodeUtilisation, jointOk, jointsOf, jointsOfMember } from './femSeismicDetailing.js';
@@ -85,11 +86,19 @@ export function resultOptions(results: readonly IFemResultEntry[]): { readonly o
 const VIEW_STATE_KEY = 'saengine.fem.results.viewState';
 
 /** `joints`: the beam-column joints' checks, drawn as utilisation of the members framing in. */
-type Show = FemResultQuantity | 'none' | 'joints';
+/** A slab layer's rebar contour (the design's steel per shell), drawn as shell values. */
+type RebarShow = 'rebarBottomX' | 'rebarBottomY' | 'rebarTopX' | 'rebarTopY';
+type Show = FemResultQuantity | 'none' | 'joints' | RebarShow;
+/** The rebar contours in the order of `SLAB_REBAR_LAYERS`. */
+const REBAR_SHOWS: readonly RebarShow[] = ['rebarBottomX', 'rebarBottomY', 'rebarTopX', 'rebarTopY'];
+
+function isRebarShow(show: Show): show is RebarShow {
+	return (REBAR_SHOWS as readonly Show[]).includes(show);
+}
 
 /** Whether `show` draws design checks (members' utilisation, or the joints'). */
 function isDesignShow(show: Show): boolean {
-	return show === 'utilisation' || show === 'joints';
+	return show === 'utilisation' || show === 'joints' || isRebarShow(show);
 }
 
 interface IShowOption {
@@ -131,6 +140,16 @@ const DESIGN_OPTION: IShowOption = { show: 'utilisation', label: localize('femRe
  * Part 6 Sec 8.3.5.2, 8.3.7), coloured by their governing check; a joint's node selects it.
  */
 const JOINTS_OPTION: IShowOption = { show: 'joints', label: localize('femResults.joints', "Joint Checks") };
+/**
+ * The steel each slab layer needs, shell by shell, from the design's Wood-Armer moments
+ * enveloped over the combinations (rebar intensity contours), offered when the model has shells.
+ */
+const REBAR_OPTIONS: readonly IShowOption[] = [
+	{ show: 'rebarBottomX', label: localize('femResults.rebarBottomX', "Slab Steel Required, Bottom X") },
+	{ show: 'rebarBottomY', label: localize('femResults.rebarBottomY', "Slab Steel Required, Bottom Y") },
+	{ show: 'rebarTopX', label: localize('femResults.rebarTopX', "Slab Steel Required, Top X") },
+	{ show: 'rebarTopY', label: localize('femResults.rebarTopY', "Slab Steel Required, Top Y") },
+];
 const SHELL_COMPONENTS: readonly Show[] = ['N11', 'N22', 'N12', 'M11', 'M22', 'M12', 'Q13', 'Q23'];
 /** Solid stresses, offered when the result has solids with stresses. */
 const SOLID_OPTIONS: readonly IShowOption[] = [
@@ -227,6 +246,8 @@ type Quantity = FemValueQuantity;
  * kN·m. Models in other units show their own values.
  */
 export function resultFormatter(units: string | undefined): (quantity: Quantity, value: number) => string {
+	// Steel per width comes from the design in mm²/m, whatever the model's units.
+	const steel = (value: number) => localize('femResults.mm2PerM', "{0} mm²/m", Math.round(value).toString());
 	if (units?.startsWith('SI')) {
 		// "-0.0" reads as a value: what rounds to zero is shown as 0.
 		const fixed = (v: number, digits: number) => {
@@ -241,10 +262,11 @@ export function resultFormatter(units: string | undefined): (quantity: Quantity,
 				case 'forcePerLength': return localize('femResults.kNperM', "{0} kN/m", fixed(value / 1000, 1));
 				case 'momentPerLength': return localize('femResults.kNmPerM', "{0} kN·m/m", fixed(value / 1000, 2));
 				case 'stress': return localize('femResults.MPa', "{0} MPa", fixed(value / 1e6, 2));
+				case 'areaPerLength': return steel(value);
 			}
 		};
 	}
-	return (_quantity, value) => Number(value.toPrecision(4)).toString();
+	return (quantity, value) => quantity === 'areaPerLength' ? steel(value) : Number(value.toPrecision(4)).toString();
 }
 
 /*
@@ -429,6 +451,8 @@ export class FemResultsBar extends Disposable {
 	private playToken = 0;
 	private readonly watch = this._register(new DisposableStore());
 	private readonly resultsWatch = this._register(new MutableDisposable());
+	/** The "Planned" chips of the properties panel, cleared with each rendering of it. */
+	private readonly propertyChips = this._register(new DisposableStore());
 	private readonly reload = this._register(new RunOnceScheduler(() => void this.load(), 400));
 	/** The design checks' own inputs (reinforcement, materials, combinations) changed. */
 	// An edited input (the project settings: response spectrum design, orthogonal rule, torsion)
@@ -845,7 +869,9 @@ export class FemResultsBar extends Disposable {
 			case 'pushover': return [...STATIC_OPTIONS, ...(this.view?.solids?.some(s => s.stress) ? SOLID_OPTIONS : [])];
 		}
 		const solids = this.view?.solids?.some(s => s.stress) ? SOLID_OPTIONS : [];
-		return [...STATIC_OPTIONS, ...(this.view?.shells?.length ? SHELL_OPTIONS : []), ...solids, DESIGN_OPTION, JOINTS_OPTION];
+		const shells = this.view?.shells?.length ? SHELL_OPTIONS : [];
+		const rebar = this.view?.shells?.length ? REBAR_OPTIONS : [];
+		return [...STATIC_OPTIONS, ...shells, ...solids, DESIGN_OPTION, JOINTS_OPTION, ...rebar];
 	}
 
 	private clearDesign(): void {
@@ -1112,8 +1138,9 @@ export class FemResultsBar extends Disposable {
 		this.host.setDisplay(
 			view && show !== 'none' ? view : undefined,
 			view && show !== 'none' ? {
-				// The joints are drawn as the utilisation of the members framing into them.
-				show: show === 'joints' ? 'utilisation' : show,
+				// The joints are drawn as the utilisation of the members framing into them; a slab
+				// layer's rebar contour as one value per shell.
+				show: show === 'joints' ? 'utilisation' : isRebarShow(show) ? 'shellValues' : show,
 				scale: this.scale,
 				animate: this.animate,
 				memberLabels: this.memberLabels,
@@ -1122,7 +1149,9 @@ export class FemResultsBar extends Disposable {
 					: show === 'utilisation' ? designUtilisation(this.design)
 						: show === 'joints' ? jointColouring(this.design, this.model) : undefined,
 				// The joints as glyphs at their nodes, over the members' or the joints' colours.
-				nodeUtilisation: this.design && isDesignShow(show) ? jointNodeUtilisation(this.design, this.model) : undefined,
+				nodeUtilisation: this.design && isDesignShow(show) && !isRebarShow(show) ? jointNodeUtilisation(this.design, this.model) : undefined,
+				shellValues: this.design && isRebarShow(show) ? slabRebar(this.design, REBAR_SHOWS.indexOf(show)) : undefined,
+				shellValueQuantity: 'areaPerLength',
 			} : undefined,
 		);
 		this.renderLegend();
@@ -1156,6 +1185,9 @@ export class FemResultsBar extends Disposable {
 			}
 			if (!this.design) {
 				return { busy: true, text: localize('femResults.designRunning', "Checking the members against the load combinations...") };
+			}
+			if (isRebarShow(this.show)) {
+				return { text: localize('femResults.rebarStatus', "Steel each slab layer needs for strength (Wood-Armer moments, all combinations), shell by shell; minimum steel not included. X layers run along the slab's local x.") };
 			}
 			if (this.show === 'joints') {
 				const failing = jointsOf(this.design).some(j => !jointOk(j));
@@ -1276,7 +1308,7 @@ export class FemResultsBar extends Disposable {
 		let shown = false;
 		if (this.pending) {
 			// The result asked for is being read: its values are not known yet.
-		} else if (this.entry && isDesignShow(this.show) && this.design && (this.show === 'utilisation' || jointsOf(this.design).length)) {
+		} else if (this.entry && isDesignShow(this.show) && !isRebarShow(this.show) && this.design && (this.show === 'utilisation' || jointsOf(this.design).length)) {
 			// The colours of the 3D view's utilisation bands.
 			append(this.legend, $('.fem-legend-title', undefined, this.show === 'joints'
 				? localize('femResults.jointUtilisation', "Joint Utilisation")
@@ -1357,6 +1389,10 @@ export class FemResultsBar extends Disposable {
 
 	/** The lowest and highest value of a shell or solid contour, as the 3D view colours it. */
 	private contourRange(): { readonly min: string; readonly max: string } | undefined {
+		if (isRebarShow(this.show)) {
+			const values = this.design ? Object.values(slabRebar(this.design, REBAR_SHOWS.indexOf(this.show))) : [];
+			return values.length ? { min: this.format('areaPerLength', Math.min(...values)), max: this.format('areaPerLength', Math.max(...values)) } : undefined;
+		}
 		const solidComponent = SOLID_COMPONENTS[this.show];
 		if (solidComponent !== undefined) {
 			const stresses = (this.view?.solids ?? []).flatMap(s => s.stress ? [s.stress[solidComponent]] : []);
@@ -1378,6 +1414,7 @@ export class FemResultsBar extends Disposable {
 	 * design checks), and a pushover's capacity curve. Returns false without results.
 	 */
 	renderProperties(container: HTMLElement): boolean {
+		this.propertyChips.clear();
 		const entry = this.entry;
 		const view = this.view;
 		if (!entry) {
@@ -1580,6 +1617,13 @@ export class FemResultsBar extends Disposable {
 		const governing = checks.find(c => !c.flag);
 		if (governing?.note) {
 			appendPropertyNote(container, localize('femResults.governing', "Governing: {0}.", governing.note));
+		}
+		if (element.kind === 'slab') {
+			// Not in this MVP: shown where they will appear.
+			const planned = append(container, $('.fem-planned-chips'));
+			for (const feature of [CRACKED_SLAB_DEFLECTION_FEATURE, CRACK_WIDTHS_FEATURE]) {
+				this.propertyChips.add(appendPlannedFeatureChip(planned, feature, this.commandService));
+			}
 		}
 		// A column's slenderness about each axis: how its moments are magnified for it.
 		for (const check of checks.filter(isSlendernessCheck)) {
