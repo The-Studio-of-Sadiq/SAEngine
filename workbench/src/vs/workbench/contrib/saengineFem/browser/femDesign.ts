@@ -84,7 +84,7 @@ export interface IFemDesignElement {
 	/** Building model element id (`B1`, `C3`, `S1`, ...). */
 	readonly id: string;
 	/** A wall's members are its shells; a staircase has none (it is not in the analysis model). */
-	readonly kind: 'beam' | 'column' | 'brace' | 'slab' | 'footing' | 'wall' | 'staircase';
+	readonly kind: 'beam' | 'column' | 'brace' | 'slab' | 'footing' | 'wall' | 'staircase' | 'diaphragm';
 	/** Object type id. */
 	readonly type: string;
 	/**
@@ -199,6 +199,24 @@ export interface IFemDesignReport {
 		readonly counts?: IFemDesignCounts;
 	};
 	readonly notes: readonly string[];
+	/** The columns' gravity load takedown (BNBC 2020 Part 6 Sec 2.7.3.1 factors), kN. */
+	readonly takedown?: IFemTakedown;
+}
+
+/** One storey of a column line in the load takedown: per case what the storey adds and the load at the column's foot [kN]. */
+export interface IFemTakedownRow {
+	readonly story: string;
+	readonly column: string;
+	readonly storey: { readonly [kase: string]: number };
+	readonly cumulative: { readonly [kase: string]: number };
+	readonly total: number;
+	readonly factored: number;
+}
+
+export interface IFemTakedown {
+	readonly cases: readonly string[];
+	readonly note: string;
+	readonly lines: readonly { readonly line: string; readonly position: readonly number[]; readonly rows: readonly IFemTakedownRow[] }[];
 }
 
 /*
@@ -210,6 +228,9 @@ export interface IFemDesignReport {
 
 /** `(model?: URI) => void`: opens the Design Reinforcement page (registered by this contribution). */
 export const DESIGN_REINFORCEMENT_COMMAND = 'saengine.fem.designReinforcement';
+
+/** Planned: strut-and-tie models of any D-region (registered in saengineFem.contribution.ts). */
+export const PLANNED_STM_GENERAL = 'fem.stm-general';
 
 /** `{outDir, projectPath} => IFemDesignRequired`: the steel required by every member of a run. */
 export const DESIGN_REQUIRED_COMMAND = 'saengine.design.required';
@@ -605,7 +626,7 @@ export function sortedChecks(element: IFemDesignElement): IFemDesignCheck[] {
 	return [...element.checks].sort((a, b) => Number(a.flag) - Number(b.flag) || b.utilisation - a.utilisation);
 }
 
-/** "beam", "column", "brace", "slab", "footing", "wall", "staircase". */
+/** "beam", "column", "brace", "slab", "footing", "wall", "staircase", "diaphragm". */
 export function designKindLabel(kind: IFemDesignElement['kind'] | string): string {
 	return kind === 'beam' ? localize('femDesign.beam', "beam")
 		: kind === 'brace' ? localize('femDesign.brace', "brace")
@@ -613,7 +634,8 @@ export function designKindLabel(kind: IFemDesignElement['kind'] | string): strin
 			: kind === 'footing' ? localize('femDesign.footing', "footing")
 				: kind === 'wall' ? localize('femDesign.wall', "wall")
 					: kind === 'staircase' ? localize('femDesign.staircase', "staircase")
-						: localize('femDesign.column', "column");
+						: kind === 'diaphragm' ? localize('femDesign.diaphragm', "diaphragm")
+							: localize('femDesign.column', "column");
 }
 
 function formatCheck(check: IFemDesignCheck): string {

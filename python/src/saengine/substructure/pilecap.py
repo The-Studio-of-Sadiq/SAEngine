@@ -75,9 +75,12 @@ from typing import Any
 import numpy as np
 
 from saengine.codes import context as code_context
+from saengine.design import stm
 from saengine.design.rc import PHI_SHEAR, STEEL_E
 from saengine.design.slab import NO_DEMAND, critical_section, punching_capacity
 from saengine.library.objects import BarMesh
+from saengine.substructure.pilehead import METHOD as PILE_HEAD_METHOD
+from saengine.substructure.precast import PRECAST_METHOD
 from saengine.substructure.shallow import (
     ColumnBase,
     Loads,
@@ -310,11 +313,29 @@ def _shear_span(spec: CapSpec, axis: int, column: int, side: int) -> float | Non
     return max(arms) if arms else None
 
 
+def _head_moment(
+    spec: CapSpec, head: np.ndarray | None, axis: int, column: int, side: int
+) -> float:
+    """Σ of the fixed pile heads' moments [N·mm] bending along ``axis`` beyond a column's face
+    (:mod:`saengine.substructure.pilehead`); ``head`` one pile's ``[Mu, Mv]``."""
+    if head is None:
+        return 0.0
+    c = spec.columns[column]
+    face = (c.u, c.v)[axis] + side * (c.cu, c.cv)[axis] / 2
+    beyond = sum(1 for pu, pv in spec.piles if side * ((pu, pv)[axis] - face) > 0)
+    return beyond * abs(float(head[axis]))
+
+
 def cap_checks(
-    spec: CapSpec, strength: Loads, piles_by_combination: dict[str, np.ndarray] | None = None
+    spec: CapSpec,
+    strength: Loads,
+    piles_by_combination: dict[str, np.ndarray] | None = None,
+    head_moments: dict[str, np.ndarray] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Flexure, one-way shear, punching and minimum steel of the cap (see the module notes),
-    and what the editor shows (``{"deep": {...}, "d": ...}``)."""
+    and what the editor shows (``{"deep": {...}, "d": ...}``). ``head_moments``: per strength
+    combination one fixed pile head's moment ``[Mu, Mv]`` [N·mm], added to the face moments in
+    the sense that increases them (the lateral load reverses)."""
     from saengine.design.check import _check
 
     reactions_of = piles_by_combination or {
@@ -351,10 +372,11 @@ def cap_checks(
                 for combination, loads in strength.items():
                     reactions = reactions_of[combination]
                     moment, _ = _face_actions(spec, reactions, loads, axis, k, side, 0.0)
-                    if moment > sag[0]:
-                        sag = (moment, combination, where)
-                    if -moment > hog[0]:
-                        hog = (-moment, combination, where)
+                    head = _head_moment(spec, (head_moments or {}).get(combination), axis, k, side)
+                    if moment + head > sag[0]:
+                        sag = (moment + head, combination, where)
+                    if head - moment > hog[0]:
+                        hog = (head - moment, combination, where)
                     section = (column.u, column.v)[axis] + side * (
                         (column.cu, column.cv)[axis] / 2 + d
                     )
@@ -385,7 +407,8 @@ def cap_checks(
                     if bottom
                     else f"no bottom {bars} bars"
                 )
-                + (f"; {sag[2]}" if sag[2] else ""),
+                + (f"; {sag[2]}" if sag[2] else "")
+                + ("; with the fixed pile heads' moments" if head_moments else ""),
                 flag=is_deep,
             )
         )
@@ -461,15 +484,13 @@ def cap_checks(
 
 
 def _phi_stm() -> float:
-    """The pack's ``factors.phi.strutAndTie`` (BNBC 2020 / ACI 318-19 Table 21.2.1 (g): 0.75)."""
-    return float(code_context.table("factors").phi["strutAndTie"])
+    """φ of strut-and-tie models (:func:`saengine.design.stm.phi`)."""
+    return stm.phi()
 
 
 def _strut_and_tie(name: str) -> float:
-    """The pack's ``foundations.strutAndTie`` value ``name`` (ACI 318-19): ``tieArm``, the tie's
-    lever arm over d (0.9); ``betaCCC`` / ``betaCCT``, βn of the column's node (C-C-C, 1.0) and
-    of the pile heads' nodes (C-C-T, 0.8) (Table 23.9.2)."""
-    return float(code_context.table("foundations").strutAndTie[name])
+    """The pack's strut-and-tie factor ``name`` (:func:`saengine.design.stm.factor`)."""
+    return stm.factor(name)
 
 
 def _tie_check(
@@ -508,7 +529,7 @@ def _tie_check(
         _check(
             f"Tie (bottom {bars} bars, strut-and-tie)",
             tie / 1e3,
-            phi * area * spec.fy / 1e3,
+            stm.tie_capacity(area, spec.fy) / 1e3,
             "kN",
             combination,
             f"T = M / z, M of the pile reactions beyond the column's quarter point, z = "
@@ -526,18 +547,17 @@ def _node_checks(
     from saengine.design.check import _check
 
     checks: list[dict[str, Any]] = []
-    phi, beta_ccc, beta_cct = _phi_stm(), _strut_and_tie("betaCCC"), _strut_and_tie("betaCCT")
+    beta_ccc, beta_cct = _strut_and_tie("betaCCC"), _strut_and_tie("betaCCT")
     for k, column in enumerate(spec.columns):
         area = column.cu * column.cv
         worst = max(((float(loads[k][0]), name) for name, loads in strength.items()), default=None)
         if worst is None or area <= 0:
             continue
-        fce = 0.85 * beta_ccc * spec.fc
         checks.append(
             _check(
                 f"Node under {column.id} (strut-and-tie)",
                 worst[0] / 1e3,
-                phi * fce * area / 1e3,
+                stm.node_capacity(spec.fc, area, "CCC") / 1e3,
                 "kN",
                 worst[1],
                 f"C-C-C node, φ 0.85 βn f'c Anz with βn = {beta_ccc:g}, Anz = the column "
@@ -549,12 +569,11 @@ def _node_checks(
         ((float(r.max()), name) for name, r in reactions_of.items() if len(r)), default=None
     )
     if worst_pile is not None:
-        fce = 0.85 * beta_cct * spec.fc
         checks.append(
             _check(
                 "Node over a pile (strut-and-tie)",
                 max(worst_pile[0], 0.0) / 1e3,
-                phi * fce * area / 1e3,
+                stm.node_capacity(spec.fc, area, "CCT") / 1e3,
                 "kN",
                 worst_pile[1],
                 f"C-C-T node at the pile head, φ 0.85 βn f'c Anz with βn = {beta_cct:g}, Anz = "
@@ -663,6 +682,7 @@ def pile_cap_design(
     dead_factor: dict[str, float] | None = None,
     strength_dead_factor: dict[str, float] | None = None,
     kind: str = "bored",
+    lateral: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """All checks of a pile cap and its piles (see the module notes).
 
@@ -671,7 +691,10 @@ def pile_cap_design(
     None leaves those out). ``pile_section``: ``{"fc", "fy", "reinforcement"}`` of the pile
     (the structural check is left out without it). ``dead_factor`` / ``strength_dead_factor``:
     the factor on the dead load per service / strength combination, for the cap's weight
-    (default 1.0 and 1.2).
+    (default 1.0 and 1.2). ``lateral``: ``{"shears", "fixity", "depth"}``, the cap's horizontal
+    force ``[Hu, Hv]`` [N] per strength combination (:func:`saengine.substructure.pilehead.
+    cap_shears`), the piles' head fixity and depth to fixity [mm]: the pile heads' shear and
+    moment (:mod:`saengine.substructure.pilehead`).
 
     Returns ``{"checks", "piles", "group", "cap", "notes"}``: ``piles`` per pile its offsets
     [mm] and the largest and least service and factored loads [kN]."""
@@ -850,12 +873,14 @@ def pile_cap_design(
     factored_min = np.full(n, math.inf)
     pu = (0.0, None)
     tu = (0.0, None)
+    axial: dict[str, tuple[float, float]] = {}
     for name, loads in strength.items():
         strength_reactions[name] = pile_reactions(spec, loads)[0]
         factor = (strength_dead_factor or {}).get(name, 1.2)
         with_weight = pile_reactions(spec, loads, factor * spec.weight)[0]
         factored_max = np.maximum(factored_max, with_weight)
         factored_min = np.minimum(factored_min, with_weight)
+        axial[name] = (float(with_weight.max()), float(with_weight.min()))
         if with_weight.max() > pu[0]:
             pu = (float(with_weight.max()), name)
         if -with_weight.min() > tu[0]:
@@ -873,9 +898,47 @@ def pile_cap_design(
             pu[1],
             tu[1],
         )
+    if kind == "driven" and pile_section is not None:
+        from saengine.substructure.precast import handling_checks, reinforcement_checks
+
+        checks += handling_checks(
+            dia,
+            pile["length"],
+            pile_section["fc"],
+            pile_section["fy"],
+            pile_section.get("reinforcement"),
+            pile_section.get("unitWeight", 2400 * G * 1e-9),
+        )
+        checks += reinforcement_checks(dia, pile_section.get("reinforcement"))
+    head_detail = None
+    head_moments = None
+    if lateral is not None and strength and pile_section is not None:
+        from saengine.substructure.pilehead import head_actions, section_checks
+
+        shears = {k: v for k, v in lateral["shears"].items() if k in strength}
+        section_list, head_detail = section_checks(
+            dia,
+            pile_section["fc"],
+            pile_section["fy"],
+            pile_section.get("reinforcement"),
+            axial,
+            shears,
+            n,
+            lateral["fixity"],
+            lateral.get("depth"),
+            kind == "driven",
+        )
+        checks += section_list
+        if head_detail.get("note"):
+            notes.append(head_detail["note"])
+        if lateral["fixity"] == "fixed" and lateral.get("depth"):
+            head_moments = {
+                name: head_actions(h, n, "fixed", lateral["depth"])["head"]
+                for name, h in shears.items()
+            }
     cap: dict[str, Any] = {}
     if strength:
-        cap_list, cap = cap_checks(spec, strength, strength_reactions)
+        cap_list, cap = cap_checks(spec, strength, strength_reactions, head_moments)
         checks += cap_list
         if cap.get("note"):
             notes.append(cap["note"])
@@ -907,6 +970,7 @@ def pile_cap_design(
             "minSpacing": round(min_spacing(piles)) if n > 1 else None,
         },
         "cap": cap,
+        "pileHead": head_detail,
         "notes": notes,
     }
 
@@ -956,6 +1020,8 @@ PILE_CAP_METHOD = [
         "quarter point and z = 0.9 d, against 0.75 As fy, and the nodes under the column (βn "
         "1.0) and over the piles (βn 0.8) against 0.75 × 0.85 βn f'c."
     ),
+    PILE_HEAD_METHOD,
+    PRECAST_METHOD,
 ]
 
 
@@ -1051,6 +1117,9 @@ def design_pile_cap(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str
     service_dead = {
         name: factors_.get("D", factors_.get("SD", 1.0)) for name, factors_ in loads.service
     }
+    from saengine.substructure.pilehead import cap_shears
+
+    _, strength_shears = cap_shears(loads, placed)
     out = pile_cap_design(
         spec,
         service,
@@ -1061,10 +1130,16 @@ def design_pile_cap(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str
             "fc": pile_concrete.concrete.fc,
             "fy": pile_fy,
             "reinforcement": pile_type.reinforcement,
+            "unitWeight": (pile_concrete.mechanical.density or 2400.0) * G * 1e-9,
         },
         service_dead,
         loads.dead,
         kind,
+        {
+            "shears": strength_shears,
+            "fixity": getattr(pile_type, "headFixity", "fixed"),
+            "depth": getattr(pile_type, "fixityDepth", None),
+        },
     )
     available = (profile.bottom - head) * 1e3 - 3 * pile_type.diameter
     diameters, lengths = table_sizes(pile_type.diameter, pile_type.length, available)
@@ -1112,6 +1187,7 @@ def design_pile_cap(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str
         pile=pile,
         group=out["group"],
         cap=out["cap"],
+        pileHead=out["pileHead"],
         capacityTable=table,
     )
     return result, notes + [f"{foundation.id}: {n}" for n in out["notes"]]

@@ -174,6 +174,9 @@ class OpenSeesRunner:
         self._geom_transf_tags: dict[str, int] = {}
         self._element_geom_transf_tag: dict[int, int] = {}
         self._emitted_time_series: set[int] = set()
+        #: Whether a pattern of the case imposes support displacements (``sp`` with a value,
+        #: which the Plain handler cannot enforce).
+        self._imposed_displacements = False
         #: Modal results already computed on this model, by modal case id: a response spectrum
         #: case whose modal case is here combines them instead of solving the eigenproblem
         #: again (the analysis CLI fills it as it runs or keeps modal cases).
@@ -191,6 +194,7 @@ class OpenSeesRunner:
         ops = self._ops
         ops.wipe()
         self._emitted_time_series.clear()
+        self._imposed_displacements = False
         ops.model("basic", "-ndm", self.project.ndm, "-ndf", self.project.ndf)
 
         for node in self.project.nodes:
@@ -389,7 +393,9 @@ class OpenSeesRunner:
     def _constraints_handler(self, requested: str) -> str:
         """The constraint handler a case runs with: Transformation when the model
         has a rigid link or diaphragm (it enforces them exactly), else the case's own setting."""
-        return "Transformation" if self.project.needs_transformation else requested
+        if self.project.needs_transformation or self._imposed_displacements:
+            return "Transformation"
+        return requested
 
     # ─────────────────────── materials ───────────────────────
     def _emit_material(self, mat: Any) -> None:
@@ -1013,6 +1019,11 @@ class OpenSeesRunner:
                 for nl in pat.nodal_loads:
                     forces = tuple(nl.forces[i] for i in self._dof_idx)
                     ops.load(nl.node_id, *forces)
+                for sd in pat.support_displacements:
+                    # The fix in that DOF gives way to the imposed value (a settlement).
+                    ops.remove("sp", sd.node_id, sd.dof)
+                    ops.sp(sd.node_id, sd.dof, sd.value)
+                    self._imposed_displacements = True
                 for el in pat.element_loads:
                     # eleLoad -ele N -type -beamUniform wy wz wx
                     # 2D: only (wy, wx) are emitted (wz drops).

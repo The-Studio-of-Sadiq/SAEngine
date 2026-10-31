@@ -262,6 +262,7 @@ def export_ifc(
     ground_level: float = 0.0,
     mep: Any = None,
     architecture: Any = None,
+    rebar: dict[str, Any] | None = None,
 ) -> tuple[ifcopenshell.file, dict[str, str], list[str]]:
     """The IFC file of ``building``, its element id -> GlobalId map, and elements left out (why).
 
@@ -274,7 +275,9 @@ def export_ifc(
     sleeves, openings and shafts are added (:func:`_export_mep`). With ``architecture`` (the
     :class:`saengine.library.architecture.Architecture` of ``05 Floor Plan/architecture.json``)
     its walls, doors, windows, rooms and finishes are added, keyed ``arch:<id>`` in the map (see
-    :mod:`saengine.library.architecture_ifc`)."""
+    :mod:`saengine.library.architecture_ifc`). With ``rebar`` (the reinforcement cages of
+    :func:`saengine.drawings.cages.cage_model`) every bar mark of a beam or column is an
+    IfcReinforcingBar, keyed ``rebar:<member>/<n>`` (:mod:`saengine.library.ifc_rebar`)."""
     if mep is not None:
         from saengine.mep.loads import with_mep_openings
 
@@ -438,6 +441,10 @@ def export_ifc(
         elevations = {s.id: s.elevation for s in building.stories}
         export_architecture(w, architecture, elevations, storey_ids, storey_at, arch_ids, skipped)
         ids.update({f"arch:{key}": guid for key, guid in arch_ids.items()})
+    if rebar is not None:
+        from saengine.library.ifc_rebar import export_rebar
+
+        export_rebar(w, rebar, storey_at, ids, skipped)
     return w.file, ids, skipped
 
 

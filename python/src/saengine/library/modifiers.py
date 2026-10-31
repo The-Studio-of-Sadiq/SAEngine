@@ -113,7 +113,8 @@ class DesignOverwrites(BaseModel):
         gt=0,
         le=1.0,
         title="Live load reduction",
-        description="Live load reduction factor (placeholder: not applied yet).",
+        description="Live load reduction factor given instead of worked out (BNBC 2020 Part 6 "
+        "Sec 2.3.13); it applies to the floor live load L even with the project's reduction off.",
     )
 
 
@@ -135,3 +136,58 @@ def resolve_modifiers(member: Any, object_type: Any) -> dict[str, tuple[float, s
     found = {k: (v, "type") for k, v in modifiers_of(object_type).items()}
     found.update({k: (v, "member") for k, v in modifiers_of(member).items()})
     return found
+
+
+class CorbelBars(BaseModel):
+    """A set of bars of a corbel: how many and their diameter."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    count: int = Field(ge=1, title="Count")
+    dia: float = Field(gt=0, title="Diameter", description="[mm]")
+
+
+class Corbel(BaseModel):
+    """A corbel (bracket) cast with a column that carries a beam's end (BNBC 2020 Part 6 Sec
+    6.4.7). The beam's end shear from the analysis is its Vu."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    width: float = Field(gt=0, title="Width bw", description="Across the beam [mm].")
+    depth: float = Field(gt=0, title="Depth h", description="At the column face [mm].")
+    edgeDepth: float = Field(gt=0, title="Edge depth", description="At the outer edge [mm].")
+    projection: float = Field(gt=0, title="Projection", description="From the column face [mm].")
+    loadOffset: float | None = Field(
+        default=None,
+        gt=0,
+        title="Shear span av",
+        description="Column face to the bearing's centre [mm]; empty: half the projection.",
+    )
+    bearing: float | None = Field(
+        default=None,
+        gt=0,
+        title="Bearing length",
+        description="Bearing pad along the projection [mm]; empty: no bearing check.",
+    )
+    cover: float = Field(default=40.0, gt=0, title="Cover", description="[mm]")
+    mainBars: CorbelBars = Field(title="Main bars As", description="Top tension bars.")
+    ties: CorbelBars | None = Field(
+        default=None,
+        title="Closed ties Ah",
+        description="Closed ties parallel to the main bars (two legs each).",
+    )
+    horizontalForce: float | None = Field(
+        default=None,
+        ge=0,
+        title="Horizontal force Nuc",
+        description="Factored tension on the bearing [kN]; empty: 0.2 Vu, the least of the code.",
+    )
+
+
+class BeamCorbels(BaseModel):
+    """Corbels under a beam's ends (empty: the beam frames into the column)."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    start: Corbel | None = Field(default=None, title="At the start")
+    end: Corbel | None = Field(default=None, title="At the end")

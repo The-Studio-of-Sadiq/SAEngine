@@ -286,3 +286,16 @@
 	display: flex;
 	align-items: center;
 }
+
+/* ── capacity studies ───────────────────────────────────────────────────── */
+
+.saengine-section-designer .section-study-actions {
+	display: flex;
+	gap: var(--sa-space-2);
+	margin: var(--sa-space-1) 0 var(--sa-space-2);
+}
+
+.saengine-section-designer .section-study-actions .monaco-button {
+	width: auto;
+	padding: 2px var(--sa-space-3);
+}

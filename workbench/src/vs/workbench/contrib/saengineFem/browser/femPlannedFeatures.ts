@@ -42,6 +42,8 @@ export const FemPlanned = {
 	/** T15: automatic tendon layout and time-step long-term losses of PT slabs. */
 	tendonLayout: 'fem.tendonLayout',
 	tendonLongTermLosses: 'fem.tendonLongTermLosses',
+	/** T26: floor vibration from walking. */
+	floorVibration: 'fem.floorVibration',
 } as const;
 
 /**

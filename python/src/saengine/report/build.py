@@ -106,6 +106,7 @@ KIND_ORDER = [
     "slab",
     "staircase",
     "lintel",
+    "diaphragm",
 ]
 
 KIND_TITLES = {
@@ -119,6 +120,7 @@ KIND_TITLES = {
     "slab": "Slabs",
     "staircase": "Stairs",
     "lintel": "Lintels",
+    "diaphragm": "Diaphragms",
     "member": "Members",
 }
 
@@ -452,6 +454,7 @@ def _report_data(
     report["electrical"] = _guarded(_electrical, parts, "electrical")
     report["fire"] = _guarded(_fire, parts, "fire")
     report["boq"] = _boq(parts)
+    report["worksheets"] = _worksheets(root, warnings)
     report["status"] = design_status(report)
     report["limitations"] = {
         "design": report["design"].get("notes", []),
@@ -2016,6 +2019,7 @@ def _design(
     walls = _walls(report)
     stairs = _stairs(report)
     lintels = _lintels(report)
+    takedown = _takedown(report)
     punching = _punching(report)
     steel = _steel(report)
     skipped, not_designed, design_notes = _not_designed(report, building)
@@ -2039,6 +2043,7 @@ def _design(
         "walls": walls,
         "stairs": stairs,
         "lintels": lintels,
+        "takedown": takedown,
         "punching": punching,
         "steel": steel,
         "slenderness": slender_rows,
@@ -2254,6 +2259,28 @@ def _lintels(report: dict[str, Any]) -> dict[str, Any]:
         )
         bad.append(not element.get("ok"))
     return {"rows": rows, "bad": bad}
+
+
+def _takedown(report: dict[str, Any]) -> dict[str, Any]:
+    """Integrator glue (T9): the columns' gravity load takedown (saengine.design.takedown), one
+    row per column line and storey, top down."""
+    found = report.get("takedown") or {}
+    cases = list(found.get("cases") or [])
+    rows = []
+    for line in found.get("lines") or []:
+        for row in line.get("rows") or []:
+            rows.append(
+                [
+                    str(line.get("line", "")),
+                    str(row.get("story", "")),
+                    str(row.get("column", "")),
+                    *(fmt((row.get("storey") or {}).get(c), 1) for c in cases),
+                    *(fmt((row.get("cumulative") or {}).get(c), 1) for c in cases),
+                    fmt(row.get("total"), 1),
+                    fmt(row.get("factored"), 1),
+                ]
+            )
+    return {"rows": rows, "cases": cases, "note": str(found.get("note") or "")}
 
 
 def _punching(report: dict[str, Any]) -> dict[str, Any]:
@@ -3470,6 +3497,20 @@ def _guarded(chapter: Any, parts: _Parts, label: str) -> dict[str, Any]:
         return chapter(parts)
     except Exception as error:  # noqa: BLE001 - a partly entered model must not fail the report
         return {"available": False, "problem": f"the {label} chapter failed: {error}", "notes": []}
+
+
+def _worksheets(root: Path, warnings: list[str]) -> list[dict[str, Any]]:
+    """The project's calculation worksheets marked to print (``[{title, blocks}]``, the
+    report's "worksheets" section); never fails the report."""
+    try:
+        from saengine.report.worksheets import project_worksheets
+
+        sheets, problems = project_worksheets(root)
+    except Exception as error:  # noqa: BLE001 - a broken worksheet must not fail the report
+        warnings.append(f"The calculation worksheets could not be printed: {error}")
+        return []
+    warnings.extend(problems)
+    return sheets
 
 
 def _service_checks(rows: list[dict[str, Any]]) -> list[list[str]]:
