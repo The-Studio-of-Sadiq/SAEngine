@@ -1,0 +1,2237 @@
+{
+  "$schema": "../../../schemas/hvac.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 8 Chapter 2 (pp. 859-916)",
+    "BNBC 2020 Part 3 Chapter 4 (pp. 186-192)"
+  ],
+  "source": "BNBC 2020 Part 8 Chapter 2 (air-conditioning, heating and ventilation) and Part 3 Chapter 4 (energy efficiency), Bangladesh Gazette edition of 11 February 2021; p = PDF page. Entries marked SAEngine or 'from memory' in 'sources' are not BNBC's: documented assumptions where the code is silent, listed in 'assumptions' for the report.",
+  "pages": {
+    "8.2.1": "BNBC 2020 Part 8 Table 8.2.1 (Sec 2.7.2.1) (p859-860)",
+    "8.2.2": "BNBC 2020 Part 8 Table 8.2.2 (Sec 2.7.2.2) (p862), notes p863",
+    "8.2.3": "BNBC 2020 Part 8 Table 8.2.3 (p863-869)",
+    "2.12.2": "BNBC 2020 Part 8 Sec 2.12.2.1-2.12.2.3 (p915)",
+    "8.2.9a": "BNBC 2020 Part 8 Table 8.2.9(a) (p916)",
+    "3.4.2": "BNBC 2020 Part 3 Table 3.4.2 (Sec 4.4.1) (p186)",
+    "3.4.3": "BNBC 2020 Part 3 Table 3.4.3 (Sec 4.4.1.3) (p187)",
+    "4.4.3": "BNBC 2020 Part 3 Sec 4.4.3.1 and Figure 3.4.2 (p188-189)",
+    "4.5.1": "BNBC 2020 Part 3 Sec 4.5.1.2 (p191)",
+    "3.4.5": "BNBC 2020 Part 3 Table 3.4.5 (Sec 4.5.2) (p192)",
+    "2.7.2.1b": "BNBC 2020 Part 8 Sec 2.7.2.1(b) (p860)"
+  },
+  "stations": {
+    "barisal": {
+      "name": "Barisal",
+      "cooling": {
+        "0.4": [
+          35.5,
+          28.5
+        ],
+        "1": [
+          34.5,
+          28.5
+        ],
+        "2": [
+          34.0,
+          28.0
+        ]
+      },
+      "evaporation": {
+        "0.4": [
+          30.0,
+          33.0
+        ],
+        "1": [
+          29.5,
+          33.0
+        ],
+        "2": [
+          29.0,
+          32.0
+        ]
+      },
+      "range": 5.0,
+      "latitude": 22.7,
+      "longitude": 90.37
+    },
+    "bogra": {
+      "name": "Bogra",
+      "cooling": {
+        "0.4": [
+          36.5,
+          28.5
+        ],
+        "1": [
+          35.5,
+          28.5
+        ],
+        "2": [
+          34.5,
+          28.0
+        ]
+      },
+      "evaporation": {
+        "0.4": [
+          31.5,
+          33.5
+        ],
+        "1": [
+          30.0,
+          33.0
+        ],
+        "2": [
+          29.0,
+          33.0
+        ]
+      },
+      "range": 5.5,
+      "latitude": 24.85,
+      "longitude": 89.37
+    },
+    "chandpur": {
+      "name": "Chandpur",
+      "cooling": {
+        "0.4": [
+          35.5,
+          28.5
+        ],
+        "1": [
+          34.5,
+          28.5
+        ],
+        "2": [
+          34.0,
+          28.0
+        ]
+      },
+      "evaporation": {
+        "0.4": [
+          29.5,
+          33.0
+        ],
+        "1": [
+          29.5,
+          33.0
+        ],
+        "2": [
+          29.0,
+          32.5
+        ]
+      },
+      "range": 5.0,
+      "latitude": 23.23,
+      "longitude": 90.65
+    },
+    "chittagong": {
+      "name": "Chittagong",
+      "cooling": {
+        "0.4": [
+          34.0,
+          28.5
+        ],
+        "1": [
+          33.5,
+          28.5
+        ],
+        "2": [
+          33.0,
+          28.0
+        ]
+      },
+      "evaporation": {
+        "0.4": [
+          29.5,
+          32.5
+        ],
+        "1": [
+          29.0,
+          32.5
+        ],
+        "2": [
+          28.5,
+          32.0
+        ]
+      },
+      "range": 4.5,
+      "latitude": 22.35,
+      "longitude": 91.82
+    },
+    "comilla": {
+      "name": "Comilla",
+      "cooling": {
+        "0.4": [
+          35.0,
+          27.5
+        ],
+        "1": [
+          34.5,
+          27.5
+        ],
+        "2": [
+          34.0,
+          27.5
+        ]
+      },
+      "evaporation": {
+        "0.4": [
+          29.0,
+          33.0
+        ],
+        "1": [
+          28.5,
+          32.5
+        ],
+        "2": [
+          28.0,
+          32.0
+        ]
+      },
+      "range": 5.5,
+      "latitude": 23.46,
+      "longitude": 91.18
+    },
+    "coxsbazar": {
+      "name": "Cox's Bazar",
+      "cooling": {
+        "0.4": [
+          34.0,
+          27.5
+        ],
+        "1": [
+          33.5,
+          27.5
+        ],
+        "2": [
+          33.0,
+          27.5
+        ]
+      },
+      "evaporation": {
+        "0.4": [
+          29.0,
+          31.0
+        ],
+        "1": [
+          29.0,
+          30.0
+        ],
+        "2": [
+          29.0,
+          30.0
+        ]
+      },
+      "range": 5.0,
+      "latitude": 21.45,
+      "longitude": 91.97
+    },
+    "dhaka": {
+      "name": "Dhaka",
+      "cooling": {
+        "0.4": [
+          35.55,
+          27.5
+        ],
+        "1": [
+          35.0,
+          27.0
+        ],
+        "2": [
+          34.5,
+          27.0
+        ]
+      },
+      "evaporation": {
+        "0.4": [
+          29.0,
+          33.0
+        ],
+        "1": [
+          28.5,
+          29.0
+        ],
+        "2": [
+          28.5,
+          29.0
+        ]
+      },
+      "range": 5.0,
+      "latitude": 23.7,
+      "longitude": 90.4
+    },
+    "dinajpur": {
+      "name": "Dinajpur",
+      "cooling": {
+        "0.4": [
+          36.0,
+          28.5
+        ],
+        "1": [
+          35.0,
+          28.0
+        ],
+        "2": [
+          34.5,
+          28.0
+        ]
+      },
+      "evaporation": {
+        "0.4": [
+          30.0,
+          32.5
+        ],
+        "1": [
+          29.0,
+          33.0
+        ],
+        "2": [
+          29.0,
+          33.0
+        ]
+      },
+      "range": 5.5,
+      "latitude": 25.63,
+      "longitude": 88.64
+    },
+    "faridpur": {
+      "name": "Faridpur",
+      "cooling": {
+        "0.4": [
+          36.5,
+          28.5
+        ],
+        "1": [
+          35.5,
+          28.0
+        ],
+        "2": [
+          34.5,
+          28.0
+        ]
+      },
+      "evaporation": {
+        "0.4": [
+          29.5,
+          33.0
+        ],
+        "1": [
+          29.0,
+          33.0
+        ],
+        "2": [
+          29.0,
+          33.0
+        ]
+      },
+      "range": 5.0,
+      "latitude": 23.61,
+      "longitude": 89.84
+    },
+    "ishurdi": {
+      "name": "Ishurdi",
+      "cooling": {
+        "0.4": [
+          37.5,
+          27.0
+        ],
+        "1": [
+          36.5,
+          27.0
+        ],
+        "2": [
+          35.5,
+          28.0
+        ]
+      },
+      "evaporation": {
+        "0.4": [
+          30.0,
+          34.5
+        ],
+        "1": [
+          29.0,
+          33.5
+        ],
+        "2": [
+          29.0,
+          33.5
+        ]
+      },
+      "range": 6.0,
+      "latitude": 24.13,
+      "longitude": 89.07
+    },
+    "jessore": {
+      "name": "Jessore",
+      "cooling": {
+        "0.4": [
+          38.0,
+          28.5
+        ],
+        "1": [
+          37.0,
+          28.5
+        ],
+        "2": [
+          36.0,
+          28.0
+        ]
+      },
+      "evaporation": {
+        "0.4": [
+          30.0,
+          35.0
+        ],
+        "1": [
+          30.0,
+          35.0
+        ],
+        "2": [
+          29.5,
+          34.0
+        ]
+      },
+      "range": 6.5,
+      "latitude": 23.17,
+      "longitude": 89.21
+    },
+    "khulna": {
+      "name": "Khulna",
+      "cooling": {
+        "0.4": [
+          36.5,
+          29.0
+        ],
+        "1": [
+          36.0,
+          28.0
+        ],
+        "2": [
+          35.5,
+          28.0
+        ]
+      },
+      "evaporation": {
+        "0.4": [
+          30.0,
+          34.0
+        ],
+        "1": [
+          30.0,
+          34.0
+        ],
+        "2": [
+          29.5,
+          33.5
+        ]
+      },
+      "range": 5.0,
+      "latitude": 22.82,
+      "longitude": 89.55
+    },
+    "mongla": {
+      "name": "Mongla",
+      "cooling": {
+        "0.4": [
+          37.0,
+          31.0
+        ],
+        "1": [
+          36.0,
+          30.5
+        ],
+        "2": [
+          35.0,
+          30.0
+        ]
+      },
+      "evaporation": {
+        "0.4": [
+          33.0,
+          34.0
+        ],
+        "1": [
+          32.5,
+          34.0
+        ],
+        "2": [
+          32.0,
+          33.5
+        ]
+      },
+      "range": 5.0,
+      "latitude": 22.47,
+      "longitude": 89.6
+    },
+    "mymensingh": {
+      "name": "Mymensingh",
+      "cooling": {
+        "0.4": [
+          35.0,
+          28.0
+        ],
+        "1": [
+          34.0,
+          28.0
+        ],
+        "2": [
+          33.5,
+          27.5
+        ]
+      },
+      "evaporation": {
+        "0.4": [
+          29.5,
+          33.0
+        ],
+        "1": [
+          29.0,
+          32.5
+        ],
+        "2": [
+          28.5,
+          32.0
+        ]
+      },
+      "range": 4.5,
+      "latitude": 24.75,
+      "longitude": 90.4
+    },
+    "patuakhali": {
+      "name": "Patuakhali",
+      "cooling": {
+        "0.4": [
+          35.5,
+          28.5
+        ],
+        "1": [
+          35.0,
+          28.5
+        ],
+        "2": [
+          34.5,
+          28.5
+        ]
+      },
+      "evaporation": {
+        "0.4": [
+          30.0,
+          33.0
+        ],
+        "1": [
+          30.0,
+          33.0
+        ],
+        "2": [
+          29.5,
+          32.5
+        ]
+      },
+      "range": 5.0,
+      "latitude": 22.36,
+      "longitude": 90.33
+    },
+    "rajshahi": {
+      "name": "Rajshahi",
+      "cooling": {
+        "0.4": [
+          35.5,
+          29.0
+        ],
+        "1": [
+          34.5,
+          28.5
+        ],
+        "2": [
+          34.0,
+          29.0
+        ]
+      },
+      "evaporation": {
+        "0.4": [
+          31.5,
+          33.0
+        ],
+        "1": [
+          31.0,
+          32.5
+        ],
+        "2": [
+          30.0,
+          31.5
+        ]
+      },
+      "range": 5.0,
+      "latitude": 24.37,
+      "longitude": 88.6
+    },
+    "rangamati": {
+      "name": "Rangamati",
+      "cooling": {
+        "0.4": [
+          35.5,
+          26.0
+        ],
+        "1": [
+          34.5,
+          27.0
+        ],
+        "2": [
+          34.0,
+          27.5
+        ]
+      },
+      "evaporation": {
+        "0.4": [
+          28.5,
+          33.5
+        ],
+        "1": [
+          28.0,
+          32.5
+        ],
+        "2": [
+          28.0,
+          32.5
+        ]
+      },
+      "range": 6.0,
+      "latitude": 22.65,
+      "longitude": 92.17
+    },
+    "rangpur": {
+      "name": "Rangpur",
+      "cooling": {
+        "0.4": [
+          35.5,
+          28.5
+        ],
+        "1": [
+          34.5,
+          28.0
+        ],
+        "2": [
+          34.0,
+          28.0
+        ]
+      },
+      "evaporation": {
+        "0.4": [
+          29.5,
+          30.5
+        ],
+        "1": [
+          29.5,
+          30.0
+        ],
+        "2": [
+          29.5,
+          30.0
+        ]
+      },
+      "range": 5.0,
+      "latitude": 25.75,
+      "longitude": 89.25
+    },
+    "sylhet": {
+      "name": "Sylhet",
+      "cooling": {
+        "0.4": [
+          35.5,
+          27.0
+        ],
+        "1": [
+          34.5,
+          27.0
+        ],
+        "2": [
+          34.0,
+          26.5
+        ]
+      },
+      "evaporation": {
+        "0.4": [
+          28.5,
+          32.5
+        ],
+        "1": [
+          28.0,
+          32.5
+        ],
+        "2": [
+          28.0,
+          32.5
+        ]
+      },
+      "range": 5.5,
+      "latitude": 24.9,
+      "longitude": 91.87
+    },
+    "tangail": {
+      "name": "Tangail",
+      "cooling": {
+        "0.4": [
+          36.0,
+          27.5
+        ],
+        "1": [
+          35.5,
+          27.5
+        ],
+        "2": [
+          34.5,
+          27.5
+        ]
+      },
+      "evaporation": {
+        "0.4": [
+          29.0,
+          33.5
+        ],
+        "1": [
+          28.5,
+          33.0
+        ],
+        "2": [
+          28.5,
+          33.0
+        ]
+      },
+      "range": 5.5,
+      "latitude": 24.25,
+      "longitude": 89.92
+    }
+  },
+  "defaultStation": "dhaka",
+  "designLevel": "2",
+  "designMonths": [
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "indoorDb": 24.0,
+  "maxIndoorOutdoorDifference": 11.0,
+  "settingsStation": {
+    "dhaka": "dhaka",
+    "chattogram": "chittagong",
+    "coxsbazar": "coxsbazar",
+    "khulna": "khulna",
+    "rajshahi": "rajshahi",
+    "sylhet": "sylhet",
+    "barishal": "barisal",
+    "rangpur": "rangpur",
+    "mymensingh": "mymensingh",
+    "cumilla": "comilla"
+  },
+  "inside": {
+    "1": {
+      "label": "Restaurants, Cafeteria and Dining Hall",
+      "db": [
+        23,
+        26
+      ],
+      "rh": [
+        55,
+        60
+      ]
+    },
+    "2": {
+      "label": "Kitchens",
+      "db": [
+        28,
+        31
+      ],
+      "rh": null
+    },
+    "3": {
+      "label": "Office buildings",
+      "db": [
+        23,
+        26
+      ],
+      "rh": [
+        50,
+        60
+      ]
+    },
+    "4": {
+      "label": "Bank/Insurance/Commercial building",
+      "db": [
+        23,
+        26
+      ],
+      "rh": [
+        45,
+        55
+      ]
+    },
+    "5": {
+      "label": "Departmental stores",
+      "db": [
+        23,
+        26
+      ],
+      "rh": [
+        50,
+        60
+      ]
+    },
+    "6": {
+      "label": "Hotel guest rooms",
+      "db": [
+        23,
+        26
+      ],
+      "rh": [
+        50,
+        60
+      ]
+    },
+    "7": {
+      "label": "Ball room/meeting room",
+      "db": [
+        23,
+        26
+      ],
+      "rh": [
+        40,
+        60
+      ]
+    },
+    "8": {
+      "label": "Class rooms",
+      "db": [
+        23,
+        26
+      ],
+      "rh": [
+        50,
+        60
+      ]
+    },
+    "9": {
+      "label": "Auditoriums",
+      "db": [
+        23,
+        26
+      ],
+      "rh": [
+        50,
+        60
+      ]
+    },
+    "10": {
+      "label": "Recovery rooms",
+      "db": [
+        24,
+        26
+      ],
+      "rh": [
+        45,
+        55
+      ]
+    },
+    "11": {
+      "label": "Patient rooms",
+      "db": [
+        24,
+        26
+      ],
+      "rh": [
+        45,
+        55
+      ]
+    },
+    "12": {
+      "label": "Operation theatres",
+      "db": [
+        17,
+        27
+      ],
+      "rh": [
+        45,
+        55
+      ]
+    },
+    "13": {
+      "label": "Delivery room",
+      "db": [
+        20,
+        23
+      ],
+      "rh": [
+        45,
+        55
+      ]
+    },
+    "14": {
+      "label": "ICU/CCU",
+      "db": [
+        20,
+        23
+      ],
+      "rh": [
+        30,
+        60
+      ]
+    },
+    "15": {
+      "label": "New born Intensive care",
+      "db": [
+        22.5,
+        25.5
+      ],
+      "rh": [
+        30,
+        60
+      ]
+    },
+    "16": {
+      "label": "Treatment room",
+      "db": [
+        23,
+        25
+      ],
+      "rh": [
+        30,
+        60
+      ]
+    },
+    "17": {
+      "label": "Trauma room",
+      "db": [
+        17,
+        27
+      ],
+      "rh": [
+        45,
+        55
+      ]
+    },
+    "18": {
+      "label": "Endoscopy/Bronchoscopy",
+      "db": [
+        20,
+        23
+      ],
+      "rh": [
+        30,
+        60
+      ]
+    },
+    "19": {
+      "label": "X-ray (diagnostic & treatment)",
+      "db": [
+        25.5,
+        27
+      ],
+      "rh": [
+        40,
+        50
+      ]
+    },
+    "20": {
+      "label": "X-ray (surgery/critical area and catherization)",
+      "db": [
+        21,
+        24
+      ],
+      "rh": [
+        30,
+        60
+      ]
+    },
+    "21": {
+      "label": "Laboratory (diagnostics)",
+      "db": [
+        22.5,
+        24.5
+      ],
+      "rh": [
+        30,
+        60
+      ]
+    },
+    "22": {
+      "label": "Art Galleries/Museums",
+      "db": [
+        17,
+        22
+      ],
+      "rh": [
+        40,
+        55
+      ]
+    },
+    "23": {
+      "label": "Libraries",
+      "db": [
+        20,
+        22
+      ],
+      "rh": [
+        45,
+        55
+      ]
+    },
+    "24": {
+      "label": "Radio studio/Television studio",
+      "db": [
+        23,
+        26
+      ],
+      "rh": [
+        45,
+        55
+      ]
+    },
+    "25": {
+      "label": "Telephone terminal rooms",
+      "db": [
+        22,
+        26
+      ],
+      "rh": [
+        40,
+        50
+      ]
+    },
+    "26": {
+      "label": "Airport terminal/ bus terminal",
+      "db": [
+        23,
+        26
+      ],
+      "rh": [
+        50,
+        60
+      ]
+    }
+  },
+  "ventilation": {
+    "cellsNoPlumbing": {
+      "label": "Correctional: cells without plumbing fixtures",
+      "group": "correctional",
+      "perPerson": 2.5,
+      "perArea": 0.6,
+      "density": 25,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "cellsPlumbing": {
+      "label": "Correctional: cells with plumbing fixtures",
+      "group": "correctional",
+      "perPerson": 2.5,
+      "perArea": 0.6,
+      "density": 25,
+      "exhaust": 5.0,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "guardStations": {
+      "label": "Correctional: guard stations",
+      "group": "correctional",
+      "perPerson": 2.5,
+      "perArea": 0.3,
+      "density": 15,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "dayRoom": {
+      "label": "Correctional: day room",
+      "group": "correctional",
+      "perPerson": 2.5,
+      "perArea": 0.3,
+      "density": 30,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "bookingWaiting": {
+      "label": "Correctional: booking/waiting",
+      "group": "correctional",
+      "perPerson": 3.75,
+      "perArea": 0.3,
+      "density": 50,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "coinDryCleaner": {
+      "label": "Coin-operated dry cleaner",
+      "group": "laundry",
+      "perPerson": 3.75,
+      "perArea": null,
+      "density": 20,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "coinLaundry": {
+      "label": "Coin-operated laundries",
+      "group": "laundry",
+      "perPerson": 3.75,
+      "perArea": 0.3,
+      "density": 20,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "commercialDryCleaner": {
+      "label": "Commercial dry cleaner",
+      "group": "laundry",
+      "perPerson": 15,
+      "perArea": null,
+      "density": 30,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "commercialLaundry": {
+      "label": "Commercial laundry",
+      "group": "laundry",
+      "perPerson": 12.5,
+      "perArea": null,
+      "density": 10,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "laundryStorage": {
+      "label": "Laundry storage, pick up",
+      "group": "laundry",
+      "perPerson": 3.75,
+      "perArea": 0.6,
+      "density": 30,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "auditorium": {
+      "label": "Education: auditoriums",
+      "group": "education",
+      "perPerson": 2.5,
+      "perArea": 0.3,
+      "density": 150,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 9
+    },
+    "mediaCenter": {
+      "label": "Education: media center",
+      "group": "education",
+      "perPerson": 5,
+      "perArea": 0.6,
+      "density": 25,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 8
+    },
+    "sportsLocker": {
+      "label": "Education: sports locker rooms",
+      "group": "education",
+      "perPerson": null,
+      "perArea": null,
+      "density": null,
+      "exhaust": 2.5,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "musicTheaterDance": {
+      "label": "Education: music/theater/dance",
+      "group": "education",
+      "perPerson": 5,
+      "perArea": 0.3,
+      "density": 35,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 8
+    },
+    "smokingLoungeEducation": {
+      "label": "Education: smoking lounges",
+      "group": "education",
+      "perPerson": 30,
+      "perArea": null,
+      "density": 70,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "dayCare": {
+      "label": "Day care (through age 4)",
+      "group": "education",
+      "perPerson": 5,
+      "perArea": 0.9,
+      "density": 25,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 8
+    },
+    "classroom5to8": {
+      "label": "Classrooms (ages 5-8)",
+      "group": "education",
+      "perPerson": 5,
+      "perArea": 0.6,
+      "density": 25,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 8
+    },
+    "classroom9plus": {
+      "label": "Classrooms (age 9 plus)",
+      "group": "education",
+      "perPerson": 5,
+      "perArea": 0.6,
+      "density": 35,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 8
+    },
+    "lectureClassroom": {
+      "label": "Lecture classroom",
+      "group": "education",
+      "perPerson": 3.75,
+      "perArea": 0.3,
+      "density": 65,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 8
+    },
+    "lectureHall": {
+      "label": "Lecture hall (fixed seats)",
+      "group": "education",
+      "perPerson": 3.75,
+      "perArea": 0.3,
+      "density": 150,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 9
+    },
+    "artClassroom": {
+      "label": "Art classroom",
+      "group": "education",
+      "perPerson": 10,
+      "perArea": 0.9,
+      "density": 20,
+      "exhaust": 3.5,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 8
+    },
+    "scienceLab": {
+      "label": "Science laboratories",
+      "group": "education",
+      "perPerson": 5,
+      "perArea": 0.9,
+      "density": 25,
+      "exhaust": 5.0,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 8
+    },
+    "woodMetalShop": {
+      "label": "Wood/metal shops",
+      "group": "education",
+      "perPerson": 5,
+      "perArea": 0.9,
+      "density": 20,
+      "exhaust": 2.5,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "computerLab": {
+      "label": "Computer lab",
+      "group": "education",
+      "perPerson": 5,
+      "perArea": 0.6,
+      "density": 25,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 8
+    },
+    "multiuseAssembly": {
+      "label": "Multiuse assembly",
+      "group": "education",
+      "perPerson": 3.75,
+      "perArea": 0.3,
+      "density": 100,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 9
+    },
+    "lockerDressing": {
+      "label": "Locker/dressing rooms",
+      "group": "education",
+      "perPerson": null,
+      "perArea": null,
+      "density": null,
+      "exhaust": 1.25,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "bar": {
+      "label": "Bars, cocktail lounges",
+      "group": "food",
+      "perPerson": 3.75,
+      "perArea": 0.9,
+      "density": 100,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 1
+    },
+    "cafeteria": {
+      "label": "Cafeteria, fast food",
+      "group": "food",
+      "perPerson": 3.75,
+      "perArea": 0.9,
+      "density": 100,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 1
+    },
+    "diningRoom": {
+      "label": "Dining rooms",
+      "group": "food",
+      "perPerson": 3.75,
+      "perArea": 0.9,
+      "density": 70,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 1
+    },
+    "kitchenCooking": {
+      "label": "Kitchens (cooking)",
+      "group": "food",
+      "perPerson": null,
+      "perArea": null,
+      "density": null,
+      "exhaust": 3.5,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 2
+    },
+    "autopsy": {
+      "label": "Autopsy rooms",
+      "group": "hospital",
+      "perPerson": null,
+      "perArea": null,
+      "density": null,
+      "exhaust": 2.5,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "medicalProcedure": {
+      "label": "Medical procedure rooms",
+      "group": "hospital",
+      "perPerson": 7.5,
+      "perArea": null,
+      "density": 20,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 16
+    },
+    "operatingRoom": {
+      "label": "Operating rooms",
+      "group": "hospital",
+      "perPerson": 15,
+      "perArea": null,
+      "density": 20,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 12
+    },
+    "patientRoom": {
+      "label": "Patient rooms",
+      "group": "hospital",
+      "perPerson": 12.5,
+      "perArea": null,
+      "density": 10,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 11
+    },
+    "physicalTherapy": {
+      "label": "Physical therapy",
+      "group": "hospital",
+      "perPerson": 7.5,
+      "perArea": null,
+      "density": 20,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 16
+    },
+    "recoveryIcu": {
+      "label": "Recovery and ICU",
+      "group": "hospital",
+      "perPerson": 7.5,
+      "perArea": null,
+      "density": 20,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 10
+    },
+    "hotelAssembly": {
+      "label": "Hotel: multipurpose assembly",
+      "group": "hotel",
+      "perPerson": 2.5,
+      "perArea": 0.3,
+      "density": 120,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 7
+    },
+    "hotelBathroom": {
+      "label": "Hotel: bathrooms/toilet-private",
+      "group": "hotel",
+      "perPerson": null,
+      "perArea": null,
+      "density": null,
+      "exhaust": null,
+      "exhaustNote": "12.5/25 l/s per room (note f)",
+      "ach": null,
+      "inside": null
+    },
+    "hotelBedroom": {
+      "label": "Hotel: bedroom/living room",
+      "group": "hotel",
+      "perPerson": 2.5,
+      "perArea": 0.3,
+      "density": 10,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 6
+    },
+    "hotelConference": {
+      "label": "Hotel: conference/meeting",
+      "group": "hotel",
+      "perPerson": 2.5,
+      "perArea": 0.3,
+      "density": 50,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 7
+    },
+    "dormitory": {
+      "label": "Dormitory sleeping areas",
+      "group": "hotel",
+      "perPerson": 2.5,
+      "perArea": 0.3,
+      "density": 20,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 6
+    },
+    "casino": {
+      "label": "Gambling casinos",
+      "group": "hotel",
+      "perPerson": 3.75,
+      "perArea": 0.9,
+      "density": 120,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 7
+    },
+    "hotelLobby": {
+      "label": "Hotel: lobbies/pre-function",
+      "group": "hotel",
+      "perPerson": 3.75,
+      "perArea": 0.3,
+      "density": 30,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 6
+    },
+    "conferenceRoom": {
+      "label": "Office: conference rooms",
+      "group": "office",
+      "perPerson": 2.5,
+      "perArea": 0.3,
+      "density": 50,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 7
+    },
+    "officeSpace": {
+      "label": "Office spaces",
+      "group": "office",
+      "perPerson": 2.5,
+      "perArea": 0.3,
+      "density": 5,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 3
+    },
+    "reception": {
+      "label": "Office: reception areas",
+      "group": "office",
+      "perPerson": 2.5,
+      "perArea": 0.3,
+      "density": 30,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 3
+    },
+    "dataEntry": {
+      "label": "Office: telephone/data entry",
+      "group": "office",
+      "perPerson": 2.5,
+      "perArea": 0.3,
+      "density": 60,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 3
+    },
+    "entryLobby": {
+      "label": "Office: main entry lobbies",
+      "group": "office",
+      "perPerson": 2.5,
+      "perArea": 0.3,
+      "density": 10,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 3
+    },
+    "garageCommon": {
+      "label": "Dwellings: garages, common for multiple units",
+      "group": "dwelling",
+      "perPerson": null,
+      "perArea": null,
+      "density": null,
+      "exhaust": 3.75,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "garageSeparate": {
+      "label": "Dwellings: garages, separate for each dwelling",
+      "group": "dwelling",
+      "perPerson": null,
+      "perArea": null,
+      "density": null,
+      "exhaust": null,
+      "exhaustNote": "50 l/s per car",
+      "ach": null,
+      "inside": null
+    },
+    "dwellingKitchen": {
+      "label": "Dwellings: kitchens",
+      "group": "dwelling",
+      "perPerson": null,
+      "perArea": null,
+      "density": null,
+      "exhaust": null,
+      "exhaustNote": "12.5/50 l/s per room (note f)",
+      "ach": null,
+      "inside": null
+    },
+    "livingArea": {
+      "label": "Dwellings: living areas",
+      "group": "dwelling",
+      "perPerson": 7.5,
+      "perArea": null,
+      "density": null,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": 0.35,
+      "inside": 6
+    },
+    "dwellingToilet": {
+      "label": "Dwellings: toilet rooms and bath rooms",
+      "group": "dwelling",
+      "perPerson": null,
+      "perArea": null,
+      "density": null,
+      "exhaust": null,
+      "exhaustNote": "10/25 l/s per room (note f)",
+      "ach": null,
+      "inside": null
+    },
+    "corridor": {
+      "label": "Public spaces: corridors",
+      "group": "public",
+      "perPerson": null,
+      "perArea": 0.3,
+      "density": null,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "elevatorCar": {
+      "label": "Elevator car",
+      "group": "public",
+      "perPerson": null,
+      "perArea": null,
+      "density": null,
+      "exhaust": 5.0,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "showerRoom": {
+      "label": "Shower room (per shower head)",
+      "group": "public",
+      "perPerson": null,
+      "perArea": null,
+      "density": null,
+      "exhaust": null,
+      "exhaustNote": "25/10 l/s per shower head (note f)",
+      "ach": null,
+      "inside": null
+    },
+    "smokingLounge": {
+      "label": "Smoking lounges",
+      "group": "public",
+      "perPerson": 30,
+      "perArea": null,
+      "density": 70,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "publicToilet": {
+      "label": "Toilet rooms - public",
+      "group": "public",
+      "perPerson": null,
+      "perArea": null,
+      "density": null,
+      "exhaust": null,
+      "exhaustNote": "25/30 l/s per water closet or urinal (note e)",
+      "ach": null,
+      "inside": null
+    },
+    "worship": {
+      "label": "Places of religious worship",
+      "group": "public",
+      "perPerson": 2.5,
+      "perArea": 0.3,
+      "density": 120,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 9
+    },
+    "courtroom": {
+      "label": "Courtrooms",
+      "group": "public",
+      "perPerson": 2.5,
+      "perArea": 0.3,
+      "density": 70,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 7
+    },
+    "legislative": {
+      "label": "Legislative chambers",
+      "group": "public",
+      "perPerson": 2.5,
+      "perArea": 0.3,
+      "density": 50,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 7
+    },
+    "library": {
+      "label": "Libraries",
+      "group": "public",
+      "perPerson": 2.5,
+      "perArea": 0.6,
+      "density": 10,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 23
+    },
+    "museumChildren": {
+      "label": "Museums (children's)",
+      "group": "public",
+      "perPerson": 3.75,
+      "perArea": 0.6,
+      "density": 40,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 22
+    },
+    "museum": {
+      "label": "Museums/galleries",
+      "group": "public",
+      "perPerson": 3.75,
+      "perArea": 0.3,
+      "density": 40,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 22
+    },
+    "sales": {
+      "label": "Retail: sales (except as below)",
+      "group": "retail",
+      "perPerson": 3.75,
+      "perArea": 0.6,
+      "density": 15,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 5
+    },
+    "dressingRoom": {
+      "label": "Retail: dressing rooms",
+      "group": "retail",
+      "perPerson": null,
+      "perArea": null,
+      "density": null,
+      "exhaust": 1.25,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "mall": {
+      "label": "Mall common areas",
+      "group": "retail",
+      "perPerson": 3.75,
+      "perArea": 0.3,
+      "density": 40,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 5
+    },
+    "shipping": {
+      "label": "Retail: shipping and receiving",
+      "group": "retail",
+      "perPerson": null,
+      "perArea": 0.6,
+      "density": null,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "smokingLoungeRetail": {
+      "label": "Retail: smoking lounges",
+      "group": "retail",
+      "perPerson": 30,
+      "perArea": null,
+      "density": 70,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "storageRoom": {
+      "label": "Retail: storage rooms",
+      "group": "retail",
+      "perPerson": null,
+      "perArea": 0.6,
+      "density": null,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "fuelStation": {
+      "label": "Automotive motor-fuel dispensing stations",
+      "group": "specialty",
+      "perPerson": null,
+      "perArea": null,
+      "density": null,
+      "exhaust": 7.5,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "barber": {
+      "label": "Barber",
+      "group": "specialty",
+      "perPerson": 3.75,
+      "perArea": 0.3,
+      "density": 25,
+      "exhaust": 2.5,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 5
+    },
+    "beautySalon": {
+      "label": "Beauty and nail salons",
+      "group": "specialty",
+      "perPerson": 10,
+      "perArea": 0.6,
+      "density": 25,
+      "exhaust": 3.0,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 5
+    },
+    "embalming": {
+      "label": "Embalming room",
+      "group": "specialty",
+      "perPerson": null,
+      "perArea": null,
+      "density": null,
+      "exhaust": 10.0,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "petShop": {
+      "label": "Pet shops (animal areas)",
+      "group": "specialty",
+      "perPerson": 3.75,
+      "perArea": 0.9,
+      "density": 10,
+      "exhaust": 4.5,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "supermarket": {
+      "label": "Supermarkets",
+      "group": "specialty",
+      "perPerson": 3.75,
+      "perArea": 0.3,
+      "density": 8,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 5
+    },
+    "disco": {
+      "label": "Disco/dance floors",
+      "group": "sports",
+      "perPerson": 10,
+      "perArea": 0.3,
+      "density": 100,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 7
+    },
+    "bowling": {
+      "label": "Bowling alleys (seating areas)",
+      "group": "sports",
+      "perPerson": 5,
+      "perArea": 0.6,
+      "density": 40,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "arcade": {
+      "label": "Game arcades",
+      "group": "sports",
+      "perPerson": 3.75,
+      "perArea": 0.9,
+      "density": 20,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "iceArena": {
+      "label": "Ice arenas without combustion engines",
+      "group": "sports",
+      "perPerson": null,
+      "perArea": 0.3,
+      "density": null,
+      "exhaust": 2.5,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "gym": {
+      "label": "Gym, stadium, arena (play area)",
+      "group": "sports",
+      "perPerson": null,
+      "perArea": 0.3,
+      "density": null,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "spectator": {
+      "label": "Spectator areas",
+      "group": "sports",
+      "perPerson": 3.75,
+      "perArea": 0.3,
+      "density": 150,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 9
+    },
+    "pool": {
+      "label": "Swimming pools (pool and deck area)",
+      "group": "sports",
+      "perPerson": null,
+      "perArea": 2.4,
+      "density": null,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "aerobics": {
+      "label": "Health club/aerobics room",
+      "group": "sports",
+      "perPerson": 10,
+      "perArea": 0.3,
+      "density": 40,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "weightRoom": {
+      "label": "Health club/weight room",
+      "group": "sports",
+      "perPerson": 10,
+      "perArea": 0.3,
+      "density": 10,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "parkingGarage": {
+      "label": "Repair garages, enclosed parking garages",
+      "group": "storage",
+      "perPerson": null,
+      "perArea": null,
+      "density": null,
+      "exhaust": 3.75,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "warehouse": {
+      "label": "Warehouses",
+      "group": "storage",
+      "perPerson": null,
+      "perArea": 0.3,
+      "density": null,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "theaterLobby": {
+      "label": "Theaters: lobbies",
+      "group": "theater",
+      "perPerson": 2.5,
+      "perArea": 0.3,
+      "density": 150,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 9
+    },
+    "stage": {
+      "label": "Stages, studios",
+      "group": "theater",
+      "perPerson": 5,
+      "perArea": 0.3,
+      "density": 70,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 24
+    },
+    "ticketBooth": {
+      "label": "Ticket booths",
+      "group": "theater",
+      "perPerson": 2.5,
+      "perArea": 0.3,
+      "density": 60,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 9
+    },
+    "platform": {
+      "label": "Transportation: platforms",
+      "group": "transport",
+      "perPerson": 3.75,
+      "perArea": 0.3,
+      "density": 100,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 26
+    },
+    "transportWaiting": {
+      "label": "Transportation waiting",
+      "group": "transport",
+      "perPerson": 3.75,
+      "perArea": 0.3,
+      "density": 100,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 26
+    },
+    "bankVault": {
+      "label": "Bank vaults/safe deposit",
+      "group": "workroom",
+      "perPerson": 2.5,
+      "perArea": 0.3,
+      "density": 5,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 4
+    },
+    "darkroom": {
+      "label": "Darkrooms",
+      "group": "workroom",
+      "perPerson": null,
+      "perArea": null,
+      "density": null,
+      "exhaust": 5.0,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "copyRoom": {
+      "label": "Copy, printing rooms",
+      "group": "workroom",
+      "perPerson": 2.5,
+      "perArea": 0.3,
+      "density": 4,
+      "exhaust": 2.5,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 3
+    },
+    "meatProcessing": {
+      "label": "Meat processing",
+      "group": "workroom",
+      "perPerson": 7.5,
+      "perArea": null,
+      "density": 10,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": null
+    },
+    "pharmacy": {
+      "label": "Pharmacy (prep. area)",
+      "group": "workroom",
+      "perPerson": 2.5,
+      "perArea": 0.9,
+      "density": 10,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 21
+    },
+    "photoStudio": {
+      "label": "Photo studios",
+      "group": "workroom",
+      "perPerson": 2.5,
+      "perArea": 0.6,
+      "density": 10,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 24
+    },
+    "computerRoom": {
+      "label": "Computer (without printing)",
+      "group": "workroom",
+      "perPerson": 2.5,
+      "perArea": 0.3,
+      "density": 4,
+      "exhaust": null,
+      "exhaustNote": "",
+      "ach": null,
+      "inside": 25
+    }
+  },
+  "lpd": {
+    "offices": 9.0,
+    "retail": 13.0,
+    "hotels": 9.0,
+    "hospitals": 11.0,
+    "apartments": 7.0,
+    "educational": 11.0,
+    "coveredParking": 3.0,
+    "openParking": 1.6
+  },
+  "groupLpd": {
+    "office": "offices",
+    "workroom": "offices",
+    "retail": "retail",
+    "specialty": "retail",
+    "hotel": "hotels",
+    "hospital": "hospitals",
+    "dwelling": "apartments",
+    "education": "educational",
+    "storage": "coveredParking"
+  },
+  "shgcByWwr": {
+    "10": [
+      0.85,
+      0.98
+    ],
+    "20": [
+      0.6,
+      0.69
+    ],
+    "30": [
+      0.5,
+      0.57
+    ],
+    "40": [
+      0.4,
+      0.46
+    ],
+    "50": [
+      0.35,
+      0.4
+    ],
+    "60": [
+      0.33,
+      0.38
+    ],
+    "70": [
+      0.31,
+      0.36
+    ],
+    "80": [
+      0.3,
+      0.34
+    ],
+    "90": [
+      0.27,
+      0.31
+    ]
+  },
+  "overhangA": {
+    "0.0": 0.0,
+    "0.1": 0.05,
+    "0.2": 0.09,
+    "0.3": 0.14,
+    "0.4": 0.19,
+    "0.5": 0.24,
+    "0.6": 0.28,
+    "0.7": 0.33,
+    "0.8": 0.38,
+    "0.9": 0.43,
+    "1.0": 0.47
+  },
+  "overhangFactor": 0.234,
+  "leastWindowShare": {
+    "shallowDepth": 8.0,
+    "deepDepth": 14.0,
+    "shallow": 0.2,
+    "medium": 0.3,
+    "deep": 0.35
+  },
+  "equipment": {
+    "office": 10.8,
+    "workroom": 10.8,
+    "education": 5.4,
+    "dwelling": 5.0,
+    "hotel": 5.0,
+    "hospital": 10.8,
+    "retail": 5.4,
+    "specialty": 5.4,
+    "food": 5.4
+  },
+  "equipmentDefault": 5.0,
+  "activity": {
+    "retail": 160.0,
+    "specialty": 160.0,
+    "food": 160.0,
+    "sports": 250.0
+  },
+  "activityDefault": 130.0,
+  "supplyAirTemperature": 13.0,
+  "supplyAirHumidity": 0.008,
+  "designWindSpeed": 2.0,
+  "siteElevation": 10.0,
+  "timeZone": 6.0,
+  "assumptions": [
+    "Station latitudes and longitudes (Table 8.2.2 gives none): SAEngine values, check them.",
+    "Equipment loads by use (BNBC gives none): SAEngine defaults in the range of ASHRAE Fundamentals Ch 18's office load factors; enter the project's.",
+    "Metabolic heat per person by use: after ASHRAE Fundamentals Ch 18 Table 1 (heat and moisture given off by people).",
+    "Design-day wind speed 2 m/s and site elevation 10 m (BNBC gives none): SAEngine values.",
+    "Cooling supply air 13 °C at 0.008 kg/kg for the design airflow: SAEngine practice, to be checked."
+  ],
+  "sources": {
+    "stations": "BNBC 2020 Part 8 Table 8.2.2 (Sec 2.7.2.2) (p862), notes p863; columns (2)-(14) as printed (Dhaka's 0.4 % DB is printed 35.55); latitude and longitude: SAEngine, from memory, to be checked (BNBC gives none)",
+    "defaultStation": "SAEngine: Dhaka when the project gives no site location",
+    "designLevel": "BNBC 2020 Part 8 Sec 2.12.2.1-2.12.2.3 (p915): the 2 percent columns of Table 8.2.2 for cooling",
+    "designMonths": "BNBC 2020 Part 8 Table 8.2.2 (Sec 2.7.2.2) (p862), notes p863 note b: the summer months May through September; SAEngine runs a design day on the 21st of each",
+    "indoorDb": "BNBC 2020 Part 8 Sec 2.12.2.1-2.12.2.3 (p915): not less than 24 °C for cooling",
+    "maxIndoorOutdoorDifference": "BNBC 2020 Part 8 Sec 2.7.2.1(b) (p860)",
+    "settingsStation": "SAEngine: the Table 8.2.2 station of each Project Settings location",
+    "inside": "BNBC 2020 Part 8 Table 8.2.1 (Sec 2.7.2.1) (p859-860)",
+    "ventilation": "BNBC 2020 Part 8 Table 8.2.3 (p863-869); rows that only refer elsewhere are left out; 'inside': SAEngine's choice of the nearest Table 8.2.1 row",
+    "lpd": "BNBC 2020 Part 3 Table 3.4.5 (Sec 4.5.2) (p192): the maximum, taken as the design lighting when none is given",
+    "groupLpd": "SAEngine: the Table 3.4.5 row of each ventilation group; groups without one take the offices' value",
+    "shgcByWwr": "BNBC 2020 Part 8 Table 8.2.9(a) (p916) = BNBC 2020 Part 3 Table 3.4.2 (Sec 4.4.1) (p186)",
+    "overhangA": "BNBC 2020 Part 3 Table 3.4.3 (Sec 4.4.1.3) (p187)",
+    "overhangFactor": "BNBC 2020 Part 3 Sec 4.4.3.1 and Figure 3.4.2 (p188-189)",
+    "leastWindowShare": "BNBC 2020 Part 3 Sec 4.5.1.2 (p191)(a)-(c)",
+    "equipment": "SAEngine, from memory, to be checked: ASHRAE Handbook of Fundamentals (2017) Ch 18 office load factors (light 5.4, medium 10.8 W/m²); the other groups SAEngine's guesses (BNBC gives none)",
+    "activity": "SAEngine, from memory, to be checked: ASHRAE Handbook of Fundamentals Ch 18 Table 1",
+    "supplyAirTemperature": "SAEngine practice (an 11 °C supply difference at 24 °C), to be checked",
+    "supplyAirHumidity": "SAEngine practice, to be checked",
+    "designWindSpeed": "SAEngine, from memory, to be checked (BNBC gives none)",
+    "siteElevation": "SAEngine, from memory, to be checked (BNBC gives none)",
+    "timeZone": "Bangladesh Standard Time, UTC+6"
+  }
+}

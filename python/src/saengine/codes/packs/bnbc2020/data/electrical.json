@@ -1,0 +1,944 @@
+{
+  "$schema": "../../../schemas/electrical.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 8 Chapter 1 (pp. 763-828)",
+    "BNBC 2020 Part 8 Appendix A (pp. 1167-1168)",
+    "BNBC 2020 Part 8 Sec 4.2.1 (pp. 982-983)"
+  ],
+  "source": "BNBC 2020 Part 8 Chapter 1 (electrical and electronic engineering services for buildings) and Sec 4.2.1 (lifts); p = page of bnbc-2020-part2.pdf. Entries marked SAEngine practice or typical in 'sources' are not BNBC's: stated assumptions the engineer can change in 07 MEP, and catalogue ranges for the first layout.",
+  "pages": {
+    "1.3.2": "BNBC 2020 Part 8 Sec 1.3.2 (p763-764)",
+    "8.1.17": "BNBC 2020 Part 8 Table 8.1.17, Sec 1.3.2.5 (p765-767)",
+    "8.A.1": "BNBC 2020 Part 8 Appendix A Table 8.A.1 (p1167-1168)",
+    "1.3.13.1": "BNBC 2020 Part 8 Sec 1.3.13.1 (p790-791)",
+    "1.3.13.2": "BNBC 2020 Part 8 Sec 1.3.13.2 (p791)",
+    "1.3.13.3": "BNBC 2020 Part 8 Sec 1.3.13.3 (p792)",
+    "1.3.18.1": "BNBC 2020 Part 8 Sec 1.3.18.1 (p796)",
+    "1.3.18.2": "BNBC 2020 Part 8 Sec 1.3.18.2 (p796-797)",
+    "1.3.18.3": "BNBC 2020 Part 8 Sec 1.3.18.3 (p797-798)",
+    "8.1.23": "BNBC 2020 Part 8 Table 8.1.23 (p798)",
+    "1.3.18.4": "BNBC 2020 Part 8 Sec 1.3.18.4 (p799)",
+    "1.3.18.6": "BNBC 2020 Part 8 Sec 1.3.18.6 (p799)",
+    "1.3.18.7": "BNBC 2020 Part 8 Sec 1.3.18.7 (p800)",
+    "1.3.19.2": "BNBC 2020 Part 8 Sec 1.3.19.2 (p801)",
+    "1.3.19.3": "BNBC 2020 Part 8 Sec 1.3.19.3 (p801)",
+    "8.1.24": "BNBC 2020 Part 8 Table 8.1.24 (p802)",
+    "1.3.20.1": "BNBC 2020 Part 8 Sec 1.3.20.1(e) (p805)",
+    "1.3.32.7": "BNBC 2020 Part 8 Sec 1.3.32.7 (p818-819)",
+    "1.3.32.10": "BNBC 2020 Part 8 Sec 1.3.32.10 (p820)",
+    "8.1.27": "BNBC 2020 Part 8 Table 8.1.27(a)-(c), Sec 1.3.33.5 (p821-823)",
+    "8.1.28": "BNBC 2020 Part 8 Table 8.1.28 (p824)",
+    "1.3.33.6": "BNBC 2020 Part 8 Sec 1.3.33.6 (p823, p825)",
+    "1.3.33.7": "BNBC 2020 Part 8 Sec 1.3.33.7 (p825)",
+    "1.3.33.8": "BNBC 2020 Part 8 Sec 1.3.33.8 (p826-828)",
+    "8.1.29": "BNBC 2020 Part 8 Table 8.1.29 (p827)",
+    "8.1.1": "BNBC 2020 Part 8 Eq 8.1.1, Sec 1.3.33.8(g) (p828)",
+    "4.2.1": "BNBC 2020 Part 8 Sec 4.2.1.1, 4.2.1.3 (p982-983)"
+  },
+  "uses": {
+    "residenceSingle": {
+      "label": "Residence/dwelling: single family",
+      "nonAc": 20,
+      "ac": 75,
+      "lightningA": 2,
+      "lightningC": 2
+    },
+    "residenceMulti": {
+      "label": "Residence/dwelling: multi-family (other than hotels)",
+      "nonAc": 20,
+      "ac": 75,
+      "lightningA": 7,
+      "lightningC": 2
+    },
+    "hospital": {
+      "label": "Hospitals",
+      "nonAc": 32,
+      "ac": 80,
+      "lightningA": 10,
+      "lightningC": 10
+    },
+    "hotel": {
+      "label": "Hotels, including apartment house (no electric cooking)",
+      "nonAc": 24,
+      "ac": 75,
+      "lightningA": 7,
+      "lightningC": 2
+    },
+    "office": {
+      "label": "Office and commercial multi-storeyed buildings",
+      "nonAc": 28,
+      "ac": 75,
+      "lightningA": 7,
+      "lightningC": 2
+    },
+    "industrial": {
+      "label": "Industrial building (excluding the loads for machines)",
+      "nonAc": 16,
+      "ac": null,
+      "lightningA": 6,
+      "lightningC": 2
+    },
+    "departmentStore": {
+      "label": "Departmental stores",
+      "nonAc": 28,
+      "ac": 75,
+      "lightningA": 8,
+      "lightningC": 10
+    },
+    "bank": {
+      "label": "Banks",
+      "nonAc": 20,
+      "ac": 75,
+      "lightningA": 7,
+      "lightningC": 2
+    },
+    "restaurant": {
+      "label": "Restaurants (no electric cooking)",
+      "nonAc": 16,
+      "ac": 75,
+      "lightningA": 8,
+      "lightningC": 10
+    },
+    "barber": {
+      "label": "Barber shops and beauty parlours",
+      "nonAc": 32,
+      "ac": 75,
+      "lightningA": 7,
+      "lightningC": 2
+    },
+    "school": {
+      "label": "Schools and colleges",
+      "nonAc": 12,
+      "ac": 70,
+      "lightningA": 10,
+      "lightningC": 10
+    },
+    "parking": {
+      "label": "Parking area in commercial buildings",
+      "nonAc": 4,
+      "ac": null,
+      "lightningA": 7,
+      "lightningC": 2
+    },
+    "warehouse": {
+      "label": "Warehouses, large storage areas",
+      "nonAc": 2,
+      "ac": null,
+      "lightningA": 6,
+      "lightningC": 2
+    }
+  },
+  "loadFactor": 0.8,
+  "substationKw": 50.0,
+  "powerFactor": 0.85,
+  "ltVoltage": 400.0,
+  "substationHeight": [
+    3000.0,
+    3600.0
+  ],
+  "transformerClearance": {
+    "twoWalls": 750.0,
+    "threeWalls": 1000.0,
+    "enclosed": 1250.0
+  },
+  "transformerSpacing": {
+    "11kV": 1500.0,
+    "33kV": 2500.0
+  },
+  "soakPitOil": 2000.0,
+  "substationAreas": [
+    {
+      "number": 1,
+      "kva": 150,
+      "transformerArea": 12,
+      "totalArea": 45
+    },
+    {
+      "number": 1,
+      "kva": 250,
+      "transformerArea": 13,
+      "totalArea": 48
+    },
+    {
+      "number": 2,
+      "kva": 250,
+      "transformerArea": 26,
+      "totalArea": 100
+    },
+    {
+      "number": 1,
+      "kva": 400,
+      "transformerArea": 13,
+      "totalArea": 48
+    },
+    {
+      "number": 2,
+      "kva": 400,
+      "transformerArea": 30,
+      "totalArea": 100
+    },
+    {
+      "number": 3,
+      "kva": 400,
+      "transformerArea": 40,
+      "totalArea": 135
+    },
+    {
+      "number": 2,
+      "kva": 630,
+      "transformerArea": 26,
+      "totalArea": 100
+    },
+    {
+      "number": 3,
+      "kva": 630,
+      "transformerArea": 40,
+      "totalArea": 190
+    },
+    {
+      "number": 2,
+      "kva": 1000,
+      "transformerArea": 40,
+      "totalArea": 180
+    },
+    {
+      "number": 3,
+      "kva": 1000,
+      "transformerArea": 45,
+      "totalArea": 220
+    }
+  ],
+  "transformerSizes": [
+    100,
+    150,
+    160,
+    200,
+    250,
+    315,
+    400,
+    500,
+    630,
+    800,
+    1000,
+    1250,
+    1600,
+    2000,
+    2500
+  ],
+  "transformerMax": 1600,
+  "generatorClearance": 1000.0,
+  "generatorSpacing": 1250.0,
+  "generatorAreas": {
+    "25": 20,
+    "48": 24,
+    "100": 30,
+    "150": 36,
+    "300": 48,
+    "500": 56
+  },
+  "generatorSizes": [
+    20,
+    30,
+    40,
+    50,
+    62.5,
+    80,
+    100,
+    125,
+    160,
+    200,
+    250,
+    320,
+    400,
+    500,
+    625,
+    750,
+    1000,
+    1250,
+    1500
+  ],
+  "generatorPf": 0.8,
+  "fuelRate": 0.27,
+  "fuelHours": 8.0,
+  "essentialShare": 0.25,
+  "dieselDensity": 840.0,
+  "transformerOilDensity": 880.0,
+  "liftStoreys": 6,
+  "liftHeight": 20.0,
+  "liftStandbyStoreys": 10,
+  "liftStandbyHeight": 32.0,
+  "shaftStoreys": 6,
+  "shaftHeight": 20.0,
+  "shaftSize": [
+    200.0,
+    400.0
+  ],
+  "shaftArea": 1500.0,
+  "cableRiserStoreys": 5,
+  "cableRiserArea": 600.0,
+  "busbarStoreys": 9,
+  "cableSpacing": 37.0,
+  "busbarRange": [
+    200.0,
+    3000.0
+  ],
+  "openingClearance": 100.0,
+  "trayClearance": 50.0,
+  "openingStep": 50.0,
+  "trayHeadroom": 150.0,
+  "trayFill": 0.4,
+  "trayWidths": [
+    100,
+    150,
+    200,
+    300,
+    450,
+    600,
+    750,
+    900
+  ],
+  "systemEarthOhm": 1.0,
+  "electrodeSpacing": 1800.0,
+  "earthPit": 600.0,
+  "lightningEarthOhm": {
+    "upTo10": 10.0,
+    "highRise": 2.0
+  },
+  "construction": {
+    "steelNonmetalRoof": {
+      "label": "Steel framed encased with nonmetal roof",
+      "index": 1
+    },
+    "rcNonmetalRoof": {
+      "label": "Reinforced concrete with nonmetal roof",
+      "index": 2
+    },
+    "masonry": {
+      "label": "Brick, plain concrete or masonry with nonmetal roof",
+      "index": 4
+    },
+    "metalRoof": {
+      "label": "Steel framed encased or reinforced concrete with metal roof",
+      "index": 5
+    },
+    "timber": {
+      "label": "Timber framed or clad, roof other than metal or thatch",
+      "index": 7
+    },
+    "thatch": {
+      "label": "Any building with a thatched roof",
+      "index": 10
+    }
+  },
+  "structureUse": {
+    "house": {
+      "label": "Houses and similar buildings",
+      "index": 2
+    },
+    "houseAerial": {
+      "label": "Houses and similar buildings with outside aerial",
+      "index": 4
+    },
+    "factory": {
+      "label": "Small and medium size factories, workshops and laboratories",
+      "index": 6
+    },
+    "large": {
+      "label": "Big industrial plants, telephone exchanges, office blocks, hotels, flats",
+      "index": 7
+    },
+    "assembly": {
+      "label": "Places of assembly, department stores, stations, airports, stadiums",
+      "index": 8
+    },
+    "school": {
+      "label": "Schools, hospitals, children's homes and other such structures",
+      "index": 10
+    }
+  },
+  "contents": {
+    "ordinary": {
+      "label": "Ordinary domestic or office building, factories, workshops",
+      "index": 2
+    },
+    "susceptible": {
+      "label": "Industrial and agricultural buildings with specially susceptible contents",
+      "index": 5
+    },
+    "power": {
+      "label": "Power stations, gas works, telephone exchanges, radio stations",
+      "index": 6
+    },
+    "key": {
+      "label": "Industrial key plants, ancient monuments, historic buildings, museums",
+      "index": 8
+    },
+    "people": {
+      "label": "Schools, hospitals, children's and other homes, places of assembly",
+      "index": 10
+    }
+  },
+  "isolation": {
+    "builtUp": {
+      "label": "In a large area of structures or trees of similar or greater height",
+      "index": 2
+    },
+    "few": {
+      "label": "In an area with a few other structures or trees of similar height",
+      "index": 5
+    },
+    "isolated": {
+      "label": "Completely isolated or at least twice the height of its surroundings",
+      "index": 10
+    }
+  },
+  "terrain": {
+    "flat": {
+      "label": "Flat terrain at any level",
+      "index": 2
+    },
+    "hilly": {
+      "label": "Hilly terrain",
+      "index": 6
+    },
+    "mountainous": {
+      "label": "Mountainous terrain 300 m and above",
+      "index": 8
+    }
+  },
+  "heightIndex": [
+    {
+      "upTo": 9,
+      "index": 2
+    },
+    {
+      "upTo": 15,
+      "index": 4
+    },
+    {
+      "upTo": 18,
+      "index": 5
+    },
+    {
+      "upTo": 24,
+      "index": 8
+    },
+    {
+      "upTo": 30,
+      "index": 11
+    },
+    {
+      "upTo": 38,
+      "index": 16
+    },
+    {
+      "upTo": 46,
+      "index": 22
+    },
+    {
+      "upTo": 53,
+      "index": 30
+    }
+  ],
+  "thunderIndex": [
+    {
+      "upTo": 3,
+      "index": 2
+    },
+    {
+      "upTo": 6,
+      "index": 5
+    },
+    {
+      "upTo": 9,
+      "index": 8
+    },
+    {
+      "upTo": 12,
+      "index": 11
+    },
+    {
+      "upTo": 15,
+      "index": 14
+    },
+    {
+      "upTo": 18,
+      "index": 17
+    },
+    {
+      "upTo": 21,
+      "index": 20
+    }
+  ],
+  "thunderOver": 21,
+  "thunderDefault": 21,
+  "marginalRisk": 40,
+  "alwaysHeight": 53.0,
+  "spikeArea": 80.0,
+  "spikeHeight": 300.0,
+  "roofConductorReach": 9000.0,
+  "downSingleArea": 100.0,
+  "downFirstArea": 80.0,
+  "downStepArea": 100.0,
+  "downPerimeter": 30000.0,
+  "testBoxHeight": 1000.0,
+  "lightningSizes": {
+    "airTerminal": "copper rod 12 mm dia (copper strip 20 x 3 mm; stranded PVC copper cable 19 strands of 1.8 mm dia)",
+    "downConductor": "copper strip 20 x 3 mm or stranded PVC copper cable 19 x 1.8 mm dia",
+    "earthElectrode": "copper rod 12 mm dia; copper-clad steel 50 mm dia; GI pipe 38/50 mm dia"
+  },
+  "iecLevels": {
+    "I": {
+      "sphere": 20.0,
+      "mesh": 5.0,
+      "downSpacing": 10.0
+    },
+    "II": {
+      "sphere": 30.0,
+      "mesh": 10.0,
+      "downSpacing": 10.0
+    },
+    "III": {
+      "sphere": 45.0,
+      "mesh": 15.0,
+      "downSpacing": 15.0
+    },
+    "IV": {
+      "sphere": 60.0,
+      "mesh": 20.0,
+      "downSpacing": 20.0
+    }
+  },
+  "rebarOhm": 0.2,
+  "transformerOil": {
+    "100": {
+      "length": 1200,
+      "width": 800,
+      "height": 1300,
+      "mass": 750,
+      "oil": 250
+    },
+    "150": {
+      "length": 1250,
+      "width": 830,
+      "height": 1330,
+      "mass": 900,
+      "oil": 290
+    },
+    "160": {
+      "length": 1300,
+      "width": 850,
+      "height": 1350,
+      "mass": 950,
+      "oil": 300
+    },
+    "200": {
+      "length": 1350,
+      "width": 900,
+      "height": 1400,
+      "mass": 1100,
+      "oil": 350
+    },
+    "250": {
+      "length": 1400,
+      "width": 950,
+      "height": 1450,
+      "mass": 1300,
+      "oil": 400
+    },
+    "315": {
+      "length": 1450,
+      "width": 1000,
+      "height": 1500,
+      "mass": 1500,
+      "oil": 450
+    },
+    "400": {
+      "length": 1550,
+      "width": 1050,
+      "height": 1600,
+      "mass": 1800,
+      "oil": 550
+    },
+    "500": {
+      "length": 1650,
+      "width": 1100,
+      "height": 1650,
+      "mass": 2100,
+      "oil": 650
+    },
+    "630": {
+      "length": 1750,
+      "width": 1150,
+      "height": 1750,
+      "mass": 2500,
+      "oil": 750
+    },
+    "800": {
+      "length": 1850,
+      "width": 1200,
+      "height": 1850,
+      "mass": 3000,
+      "oil": 900
+    },
+    "1000": {
+      "length": 1950,
+      "width": 1250,
+      "height": 1950,
+      "mass": 3500,
+      "oil": 1050
+    },
+    "1250": {
+      "length": 2050,
+      "width": 1350,
+      "height": 2050,
+      "mass": 4200,
+      "oil": 1250
+    },
+    "1600": {
+      "length": 2200,
+      "width": 1450,
+      "height": 2150,
+      "mass": 5000,
+      "oil": 1500
+    },
+    "2000": {
+      "length": 2350,
+      "width": 1550,
+      "height": 2250,
+      "mass": 6000,
+      "oil": 1800
+    },
+    "2500": {
+      "length": 2500,
+      "width": 1650,
+      "height": 2350,
+      "mass": 7200,
+      "oil": 2100
+    }
+  },
+  "dryMass": 0.9,
+  "generatorSets": {
+    "20": {
+      "length": 1700,
+      "width": 800,
+      "height": 1200,
+      "mass": 700
+    },
+    "30": {
+      "length": 1900,
+      "width": 850,
+      "height": 1250,
+      "mass": 850
+    },
+    "40": {
+      "length": 2000,
+      "width": 880,
+      "height": 1300,
+      "mass": 1000
+    },
+    "50": {
+      "length": 2100,
+      "width": 900,
+      "height": 1350,
+      "mass": 1100
+    },
+    "62.5": {
+      "length": 2200,
+      "width": 950,
+      "height": 1400,
+      "mass": 1250
+    },
+    "80": {
+      "length": 2400,
+      "width": 980,
+      "height": 1500,
+      "mass": 1450
+    },
+    "100": {
+      "length": 2600,
+      "width": 1000,
+      "height": 1600,
+      "mass": 1600
+    },
+    "125": {
+      "length": 2800,
+      "width": 1050,
+      "height": 1650,
+      "mass": 1900
+    },
+    "160": {
+      "length": 3000,
+      "width": 1100,
+      "height": 1750,
+      "mass": 2300
+    },
+    "200": {
+      "length": 3200,
+      "width": 1200,
+      "height": 1800,
+      "mass": 2700
+    },
+    "250": {
+      "length": 3300,
+      "width": 1250,
+      "height": 1900,
+      "mass": 3000
+    },
+    "320": {
+      "length": 3500,
+      "width": 1400,
+      "height": 2000,
+      "mass": 3600
+    },
+    "400": {
+      "length": 3800,
+      "width": 1500,
+      "height": 2100,
+      "mass": 4300
+    },
+    "500": {
+      "length": 4100,
+      "width": 1600,
+      "height": 2200,
+      "mass": 5200
+    },
+    "625": {
+      "length": 4400,
+      "width": 1700,
+      "height": 2300,
+      "mass": 6200
+    },
+    "750": {
+      "length": 4700,
+      "width": 1800,
+      "height": 2350,
+      "mass": 7300
+    },
+    "1000": {
+      "length": 5200,
+      "width": 2000,
+      "height": 2400,
+      "mass": 9500
+    },
+    "1250": {
+      "length": 5800,
+      "width": 2100,
+      "height": 2500,
+      "mass": 11500
+    },
+    "1500": {
+      "length": 6200,
+      "width": 2200,
+      "height": 2600,
+      "mass": 13500
+    }
+  },
+  "busbars": {
+    "250": {
+      "width": 130,
+      "depth": 110,
+      "mass": 9
+    },
+    "400": {
+      "width": 130,
+      "depth": 110,
+      "mass": 11
+    },
+    "630": {
+      "width": 150,
+      "depth": 110,
+      "mass": 16
+    },
+    "800": {
+      "width": 170,
+      "depth": 110,
+      "mass": 19
+    },
+    "1000": {
+      "width": 190,
+      "depth": 110,
+      "mass": 23
+    },
+    "1250": {
+      "width": 230,
+      "depth": 110,
+      "mass": 29
+    },
+    "1600": {
+      "width": 290,
+      "depth": 110,
+      "mass": 37
+    },
+    "2000": {
+      "width": 350,
+      "depth": 110,
+      "mass": 46
+    },
+    "2500": {
+      "width": 430,
+      "depth": 110,
+      "mass": 58
+    },
+    "3200": {
+      "width": 590,
+      "depth": 110,
+      "mass": 75
+    }
+  },
+  "cableOd": [
+    {
+      "amps": 32,
+      "od": 17
+    },
+    {
+      "amps": 42,
+      "od": 19
+    },
+    {
+      "amps": 57,
+      "od": 22
+    },
+    {
+      "amps": 75,
+      "od": 26
+    },
+    {
+      "amps": 100,
+      "od": 30
+    },
+    {
+      "amps": 125,
+      "od": 34
+    },
+    {
+      "amps": 150,
+      "od": 38
+    },
+    {
+      "amps": 190,
+      "od": 42
+    },
+    {
+      "amps": 230,
+      "od": 47
+    },
+    {
+      "amps": 270,
+      "od": 52
+    },
+    {
+      "amps": 310,
+      "od": 57
+    },
+    {
+      "amps": 360,
+      "od": 62
+    },
+    {
+      "amps": 420,
+      "od": 68
+    }
+  ],
+  "ltPanel": {
+    "section": 800.0,
+    "depth": 1000.0,
+    "height": 2200.0,
+    "massPerM": 600.0,
+    "ampsPerSection": 800.0
+  },
+  "htPanel": {
+    "width": 600.0,
+    "depth": 1200.0,
+    "height": 2200.0,
+    "mass": 450.0
+  },
+  "capacitorPanel": {
+    "width": 800.0,
+    "depth": 800.0,
+    "height": 2200.0,
+    "mass": 400.0,
+    "kvar": 300.0
+  },
+  "targetPf": 0.95,
+  "upsKgPerKva": 6.0,
+  "batteryKgPerKwh": 30.0,
+  "upsAutonomyMin": 15.0,
+  "tankPlate": 5.0,
+  "steelWeight": 78.5,
+  "sources": {
+    "uses": "BNBC 2020 Part 8 Table 8.1.17, Sec 1.3.2.5 (p765-767); lightningA, lightningC: Table 8.1.27(a)-(b) index of the row's kind of building (SAEngine's default for the risk assessment)",
+    "loadFactor": "BNBC 2020 Part 8 Sec 1.3.18.1 (p796)",
+    "substationKw": "BNBC 2020 Part 8 Sec 1.3.18.1 (p796); BNBC 2020 Part 8 Sec 1.3.20.1(e) (p805)",
+    "powerFactor": "SAEngine practice (BNBC 2020 Part 8 gives none), editable in 07 MEP",
+    "ltVoltage": "BNBC 2020 Part 8 Sec 1.3.18: 0.4 kV",
+    "substationHeight": "BNBC 2020 Part 8 Sec 1.3.18.3 (p797-798)(a)",
+    "transformerClearance": "BNBC 2020 Part 8 Sec 1.3.18.3 (p797-798)(b)",
+    "transformerSpacing": "BNBC 2020 Part 8 Sec 1.3.18.3 (p797-798)(b)",
+    "soakPitOil": "BNBC 2020 Part 8 Sec 1.3.18.3 (p797-798)(c)",
+    "substationAreas": "BNBC 2020 Part 8 Table 8.1.23 (p798)",
+    "transformerSizes": "BNBC 2020 Part 8 Table 8.1.23 (p798) and the IEC 60076 preferred ratings (from memory, to be checked)",
+    "transformerMax": "SAEngine practice: the largest unit proposed before the load is split",
+    "generatorClearance": "BNBC 2020 Part 8 Sec 1.3.19.2 (p801)",
+    "generatorSpacing": "BNBC 2020 Part 8 Sec 1.3.19.2 (p801)",
+    "generatorAreas": "BNBC 2020 Part 8 Table 8.1.24 (p802)",
+    "generatorSizes": "typical catalogue data, from memory, to be checked; replace with the selected unit's data",
+    "generatorPf": "ISO 8528 rating basis (from memory, to be checked)",
+    "fuelRate": "typical catalogue data, from memory, to be checked; replace with the selected unit's data",
+    "fuelHours": "SAEngine practice (BNBC 2020 Part 8 gives none), editable in 07 MEP",
+    "essentialShare": "BNBC 2020 Part 8 Sec 1.3.19.2 (p801) lists essential loads without a number: SAEngine practice, editable in 07 MEP",
+    "dieselDensity": "typical 820-860 kg/m³",
+    "transformerOilDensity": "typical 870-890 kg/m³ (from memory, to be checked)",
+    "liftStoreys": "BNBC 2020 Part 8 Sec 4.2.1.1, 4.2.1.3 (p982-983)",
+    "liftStandbyStoreys": "BNBC 2020 Part 8 Sec 4.2.1.1, 4.2.1.3 (p982-983)",
+    "shaftStoreys": "BNBC 2020 Part 8 Sec 1.3.13.1 (p790-791)",
+    "shaftSize": "BNBC 2020 Part 8 Sec 1.3.13.1 (p790-791)",
+    "shaftArea": "BNBC 2020 Part 8 Sec 1.3.13.1 (p790-791)",
+    "cableRiserStoreys": "BNBC 2020 Part 8 Sec 1.3.13.2 (p791)(a)",
+    "busbarStoreys": "BNBC 2020 Part 8 Sec 1.3.13.2 (p791)(d)",
+    "cableSpacing": "BNBC 2020 Part 8 Sec 1.3.13.2 (p791)(e)",
+    "busbarRange": "BNBC 2020 Part 8 Sec 1.3.13.3 (p792)(a)",
+    "openingClearance": "SAEngine practice (Sec 1.3.13.1 asks the space round the cables to be filled, which needs room to place it)",
+    "trayClearance": "SAEngine practice",
+    "openingStep": "SAEngine practice",
+    "trayHeadroom": "SAEngine practice",
+    "trayFill": "the usual limit for multicore power cables (from memory, to be checked)",
+    "trayWidths": "typical",
+    "systemEarthOhm": "BNBC 2020 Part 8 Sec 1.3.32.7 (p818-819)",
+    "electrodeSpacing": "BNBC 2020 Part 8 Sec 1.3.32.7 (p818-819)(e)",
+    "earthPit": "BNBC 2020 Part 8 Sec 1.3.32.10 (p820)",
+    "lightningEarthOhm": "BNBC 2020 Part 8 Sec 1.3.33.8 (p826-828)(b)",
+    "construction": "BNBC 2020 Part 8 Table 8.1.27(a)-(c), Sec 1.3.33.5 (p821-823): index B",
+    "structureUse": "BNBC 2020 Part 8 Table 8.1.27(a)-(c), Sec 1.3.33.5 (p821-823): index A",
+    "contents": "BNBC 2020 Part 8 Table 8.1.27(a)-(c), Sec 1.3.33.5 (p821-823): index C",
+    "isolation": "BNBC 2020 Part 8 Table 8.1.27(a)-(c), Sec 1.3.33.5 (p821-823): index D",
+    "terrain": "BNBC 2020 Part 8 Table 8.1.27(a)-(c), Sec 1.3.33.5 (p821-823): index E",
+    "heightIndex": "BNBC 2020 Part 8 Table 8.1.27(a)-(c), Sec 1.3.33.5 (p821-823): index F",
+    "thunderIndex": "BNBC 2020 Part 8 Table 8.1.27(a)-(c), Sec 1.3.33.5 (p821-823): index G",
+    "thunderDefault": "BNBC 2020 Part 8 Table 8.1.28 (p824): the index BNBC's own examples use for Bangladesh",
+    "marginalRisk": "BNBC 2020 Part 8 Table 8.1.27(a)-(c), Sec 1.3.33.5 (p821-823) (Sec 1.3.33.5)",
+    "alwaysHeight": "BNBC 2020 Part 8 Table 8.1.27(a)-(c), Sec 1.3.33.5 (p821-823) note c",
+    "spikeArea": "BNBC 2020 Part 8 Sec 1.3.33.7 (p825)",
+    "spikeHeight": "BNBC 2020 Part 8 Sec 1.3.33.6 (p823, p825)(a)",
+    "roofConductorReach": "BNBC 2020 Part 8 Sec 1.3.33.8 (p826-828)(a)",
+    "downSingleArea": "BNBC 2020 Part 8 Sec 1.3.33.8 (p826-828)(c)",
+    "testBoxHeight": "BNBC 2020 Part 8 Sec 1.3.33.6 (p823, p825)(e)",
+    "lightningSizes": "BNBC 2020 Part 8 Table 8.1.29 (p827)",
+    "iecLevels": "IEC 62305-3 Tables 2 and 4 (from memory, to be checked); BNBC 2020 Part 8 allows the rolling sphere method of NFPA 780, Sec 1.3.33.8(j)",
+    "rebarOhm": "IEC 62305-3 (from memory, to be checked)",
+    "transformerOil": "typical catalogue data, from memory, to be checked; replace with the selected unit's data",
+    "dryMass": "typical catalogue data, from memory, to be checked; replace with the selected unit's data",
+    "generatorSets": "typical catalogue data, from memory, to be checked; replace with the selected unit's data",
+    "busbars": "typical catalogue data, from memory, to be checked; replace with the selected unit's data",
+    "cableOd": "typical catalogue data, from memory, to be checked; replace with the selected unit's data",
+    "ltPanel": "typical",
+    "htPanel": "typical",
+    "capacitorPanel": "typical",
+    "targetPf": "typical requirement of the distribution companies (from memory, to be checked)",
+    "upsKgPerKva": "typical",
+    "batteryKgPerKwh": "typical",
+    "upsAutonomyMin": "typical",
+    "tankPlate": "typical",
+    "steelWeight": "unit weight of steel"
+  }
+}

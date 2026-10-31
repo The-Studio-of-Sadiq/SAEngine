@@ -41,7 +41,8 @@ DEFAULT_SLAB = 150.0
 MIN_SINE = 0.17
 
 
-def _ceil(value: float, step: float = T.OPENING_STEP) -> float:
+def _ceil(value: float, step: float | None = None) -> float:
+    step = T.OPENING_STEP if step is None else step
     return math.ceil(value / step - 1e-9) * step
 
 

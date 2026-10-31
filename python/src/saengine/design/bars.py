@@ -49,8 +49,14 @@ def diameters(kind: str) -> tuple[float, ...]:
     """Bar diameters [mm] of use ``kind``, the pack's ``concrete.barDiameters[kind]``. BNBC 2020
     (BDS ISO 6935-2 sizes in common Bangladeshi practice): "all" 10, 12, 16, 20, 25, 32; "main"
     (beam and column main bars, the practical subset) 12 to 32; "column" 16 to 32; "slab" 10,
-    12, 16; "stirrup" 8, 10, 12."""
-    return tuple(code_context.table("concrete").barDiameters[kind])
+    12, 16; "stirrup" 8, 10, 12; "tank" (water and septic tanks) 10 to 25; "foundation" (9
+    Substructure's minimum mesh and sizing) 12 to 25. A pack without the set reads BNBC 2020's."""
+    sets = code_context.table("concrete").barDiameters
+    if kind not in sets:
+        from saengine.codes.tables import builtin_table
+
+        sets = builtin_table("concrete").barDiameters
+    return tuple(sets[kind])
 
 
 #: :func:`diameters` under a name the functions with a ``diameters`` argument can call.

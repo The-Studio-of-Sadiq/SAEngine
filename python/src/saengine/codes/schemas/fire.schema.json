@@ -1,0 +1,1170 @@
+{
+  "$defs": {
+    "Extinguisher": {
+      "additionalProperties": false,
+      "properties": {
+        "perUnit": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Area per unit of A rating [m²].",
+          "title": "Perunit"
+        },
+        "rating": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "The smallest rating.",
+          "title": "Rating"
+        },
+        "max": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "The largest area per extinguisher [m²].",
+          "title": "Max"
+        }
+      },
+      "required": [
+        "perUnit",
+        "rating",
+        "max"
+      ],
+      "title": "Extinguisher",
+      "type": "object"
+    },
+    "FireFlow": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "sprinkler": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "[l/min]",
+          "title": "Sprinkler"
+        },
+        "standpipe": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Standpipe and hose [l/min].",
+          "title": "Standpipe"
+        }
+      },
+      "required": [
+        "sprinkler",
+        "standpipe"
+      ],
+      "title": "FireFlow",
+      "type": "object"
+    },
+    "PipeSchedule": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "size": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Nominal size [mm].",
+          "title": "Size"
+        },
+        "light": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Heads, light hazard; null: no limit.",
+          "title": "Light"
+        },
+        "ordinary": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Ordinary"
+        },
+        "extra": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Extra"
+        }
+      },
+      "required": [
+        "size",
+        "light",
+        "ordinary",
+        "extra"
+      ],
+      "title": "PipeSchedule",
+      "type": "object"
+    },
+    "PumpRating": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "rating": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "[l/min]",
+          "title": "Rating"
+        },
+        "pipe": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Minimum discharge pipe [mm].",
+          "title": "Pipe"
+        }
+      },
+      "required": [
+        "rating",
+        "pipe"
+      ],
+      "title": "PumpRating",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "BNBC 2020 Part 4 (fire protection): flows, durations, pressures, pump ratings, pipe\nschedules, sprinkler spacing; the NFPA values the code leaves out (from memory, marked in\n``sources``) and SAEngine's pipe and pump assumptions.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "pages": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause id -> citation.",
+      "title": "Pages",
+      "type": "object"
+    },
+    "highRiseHeight": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "description": "[m]",
+      "title": "Highriseheight"
+    },
+    "highRiseStoreys": {
+      "exclusiveMinimum": 0,
+      "title": "Highrisestoreys",
+      "type": "integer"
+    },
+    "tallHeight": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "description": "[m]",
+      "title": "Tallheight"
+    },
+    "hazardOrder": {
+      "description": "Table 4.4.1's hazard classes, least first.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Hazardorder",
+      "type": "array"
+    },
+    "hazardLabels": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Hazardlabels",
+      "type": "object"
+    },
+    "flows": {
+      "additionalProperties": {
+        "$ref": "#/$defs/FireFlow"
+      },
+      "description": "Hazard -> flows (one riser, riserArea).",
+      "title": "Flows",
+      "type": "object"
+    },
+    "riserArea": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "description": "[m²]",
+      "title": "Riserarea"
+    },
+    "hazardOfGroup": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Part 3 occupancy group (or its letter) -> hazard class.",
+      "title": "Hazardofgroup",
+      "type": "object"
+    },
+    "durationHeights": {
+      "description": "[m]",
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ]
+        },
+        {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ]
+        }
+      ],
+      "title": "Durationheights",
+      "type": "array"
+    },
+    "durations": {
+      "additionalProperties": {
+        "maxItems": 3,
+        "minItems": 3,
+        "prefixItems": [
+          {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          }
+        ],
+        "type": "array"
+      },
+      "description": "[min] by height.",
+      "title": "Durations",
+      "type": "object"
+    },
+    "additionalStandpipeFlow": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Additionalstandpipeflow"
+    },
+    "maxAdditionalStandpipes": {
+      "minimum": 0,
+      "title": "Maxadditionalstandpipes",
+      "type": "integer"
+    },
+    "hosePressure": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          }
+        ]
+      },
+      "description": "[kPa]",
+      "title": "Hosepressure",
+      "type": "object"
+    },
+    "combinedPressure": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Combinedpressure"
+    },
+    "maxPressure": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Maxpressure"
+    },
+    "prvPressure": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Prvpressure"
+    },
+    "gravityHeight": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          }
+        ]
+      },
+      "description": "[m]",
+      "title": "Gravityheight",
+      "type": "object"
+    },
+    "hoseSize": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          }
+        ]
+      },
+      "description": "[mm]",
+      "title": "Hosesize",
+      "type": "object"
+    },
+    "hoseLength": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Hoselength"
+    },
+    "outletHeight": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Outletheight"
+    },
+    "wetRiserMin": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Wetrisermin"
+    },
+    "supportExtra": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "minimum": 0,
+          "type": "number"
+        }
+      ],
+      "description": "[kg]",
+      "title": "Supportextra"
+    },
+    "hangerFactor": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Hangerfactor"
+    },
+    "hangerSpacing": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "description": "[m]",
+      "title": "Hangerspacing"
+    },
+    "testStandpipe": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "description": "[kPa]",
+      "title": "Teststandpipe"
+    },
+    "testSprinkler": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "description": "[kPa]",
+      "title": "Testsprinkler"
+    },
+    "pumpMinNet": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "description": "[kPa]",
+      "title": "Pumpminnet"
+    },
+    "pumpRatings": {
+      "items": {
+        "$ref": "#/$defs/PumpRating"
+      },
+      "title": "Pumpratings",
+      "type": "array"
+    },
+    "steelSchedule": {
+      "items": {
+        "$ref": "#/$defs/PipeSchedule"
+      },
+      "title": "Steelschedule",
+      "type": "array"
+    },
+    "copperSchedule": {
+      "items": {
+        "$ref": "#/$defs/PipeSchedule"
+      },
+      "title": "Copperschedule",
+      "type": "array"
+    },
+    "riserFloorArea": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          }
+        ]
+      },
+      "description": "[m²]",
+      "title": "Riserfloorarea",
+      "type": "object"
+    },
+    "coverage": {
+      "additionalProperties": {
+        "additionalProperties": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ]
+            },
+            {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ]
+            }
+          ],
+          "type": "array"
+        },
+        "type": "object"
+      },
+      "description": "Construction -> hazard family -> (area m², spacing m).",
+      "title": "Coverage",
+      "type": "object"
+    },
+    "densityArea": {
+      "additionalProperties": {
+        "maxItems": 2,
+        "minItems": 2,
+        "prefixItems": [
+          {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          }
+        ],
+        "type": "array"
+      },
+      "description": "Hazard -> (density l/min/m², design area m²).",
+      "title": "Densityarea",
+      "type": "object"
+    },
+    "hoseAllowance": {
+      "additionalProperties": {
+        "maxItems": 2,
+        "minItems": 2,
+        "prefixItems": [
+          {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          }
+        ],
+        "type": "array"
+      },
+      "description": "(l/min, min)",
+      "title": "Hoseallowance",
+      "type": "object"
+    },
+    "kFactor": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Kfactor"
+    },
+    "minHeadPressure": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "description": "[kPa]",
+      "title": "Minheadpressure"
+    },
+    "designAreaLength": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Designarealength"
+    },
+    "jockeyShare": {
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Jockeyshare",
+      "type": "number"
+    },
+    "jockeyAbove": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "description": "[kPa]",
+      "title": "Jockeyabove"
+    },
+    "overloadFlow": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Overloadflow"
+    },
+    "overloadHead": {
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Overloadhead",
+      "type": "number"
+    },
+    "extinguisher": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Extinguisher"
+      },
+      "title": "Extinguisher",
+      "type": "object"
+    },
+    "extinguisherTravel": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "description": "[m]",
+      "title": "Extinguishertravel"
+    },
+    "extinguisherSmallFloor": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "description": "[m²]",
+      "title": "Extinguishersmallfloor"
+    },
+    "detectorArea": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "description": "[m²]",
+      "title": "Detectorarea"
+    },
+    "callPointArea": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "description": "[m²]",
+      "title": "Callpointarea"
+    },
+    "steelBore": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          }
+        ]
+      },
+      "description": "Nominal size -> inside diameter [mm].",
+      "title": "Steelbore",
+      "type": "object"
+    },
+    "copperBore": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          }
+        ]
+      },
+      "title": "Copperbore",
+      "type": "object"
+    },
+    "hazenC": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          }
+        ]
+      },
+      "title": "Hazenc",
+      "type": "object"
+    },
+    "steelMass": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          }
+        ]
+      },
+      "description": "Nominal size -> [kg/m].",
+      "title": "Steelmass",
+      "type": "object"
+    },
+    "maxVelocity": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "description": "[m/s]",
+      "title": "Maxvelocity"
+    },
+    "pumpEfficiency": {
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Pumpefficiency",
+      "type": "number"
+    },
+    "jockeyEfficiency": {
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Jockeyefficiency",
+      "type": "number"
+    },
+    "motorSizes": {
+      "description": "[kW]",
+      "items": {
+        "anyOf": [
+          {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          }
+        ]
+      },
+      "title": "Motorsizes",
+      "type": "array"
+    },
+    "pumpClearance": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "minimum": 0,
+          "type": "number"
+        }
+      ],
+      "description": "[m]",
+      "title": "Pumpclearance"
+    },
+    "controllerStrip": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "minimum": 0,
+          "type": "number"
+        }
+      ],
+      "description": "[m]",
+      "title": "Controllerstrip"
+    },
+    "pumpCentre": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "minimum": 0,
+          "type": "number"
+        }
+      ],
+      "description": "[m]",
+      "title": "Pumpcentre"
+    }
+  },
+  "required": [
+    "highRiseHeight",
+    "highRiseStoreys",
+    "tallHeight",
+    "hazardOrder",
+    "hazardLabels",
+    "flows",
+    "riserArea",
+    "hazardOfGroup",
+    "durationHeights",
+    "durations",
+    "additionalStandpipeFlow",
+    "maxAdditionalStandpipes",
+    "hosePressure",
+    "combinedPressure",
+    "maxPressure",
+    "prvPressure",
+    "gravityHeight",
+    "hoseSize",
+    "hoseLength",
+    "outletHeight",
+    "wetRiserMin",
+    "supportExtra",
+    "hangerFactor",
+    "hangerSpacing",
+    "testStandpipe",
+    "testSprinkler",
+    "pumpMinNet",
+    "pumpRatings",
+    "steelSchedule",
+    "copperSchedule",
+    "riserFloorArea",
+    "coverage",
+    "densityArea",
+    "hoseAllowance",
+    "kFactor",
+    "minHeadPressure",
+    "designAreaLength",
+    "jockeyShare",
+    "jockeyAbove",
+    "overloadFlow",
+    "overloadHead",
+    "extinguisher",
+    "extinguisherTravel",
+    "extinguisherSmallFloor",
+    "detectorArea",
+    "callPointArea",
+    "steelBore",
+    "copperBore",
+    "hazenC",
+    "steelMass",
+    "maxVelocity",
+    "pumpEfficiency",
+    "jockeyEfficiency",
+    "motorSizes",
+    "pumpClearance",
+    "controllerStrip",
+    "pumpCentre"
+  ],
+  "title": "FireTable",
+  "type": "object",
+  "$id": "saengine.codePack.fire/1"
+}
