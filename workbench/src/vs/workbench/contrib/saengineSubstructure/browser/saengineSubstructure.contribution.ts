@@ -237,3 +237,52 @@ registerPlannedFeature({
 		'OpenSees PySimple1 material',
 	],
 });
+
+registerPlannedFeature({
+	id: 'substructure.piledRaft',
+	part: 'substructure',
+	title: localize('planned.piledRaft.title', "Piled Raft"),
+	summary: localize('planned.piledRaft.summary', "A raft and its piles sharing the load: the raft on the soil's springs and the piles as springs of their own, with the interaction between them, so fewer piles carry the building within the settlement limits."),
+	steps: [
+		localize('planned.piledRaft.s1', "Place the piles under a raft of 9 Substructure."),
+		localize('planned.piledRaft.s2', "Model the raft on soil springs and the piles as nonlinear springs with pile-soil-pile and pile-raft interaction."),
+		localize('planned.piledRaft.s3', "Find the share of the load the piles carry, the settlements and the raft's moments."),
+	],
+	inputs: [
+		{ label: localize('planned.piledRaft.i1', "Pile spring model"), example: localize('planned.piledRaft.i1e', "Load-transfer (t-z, q-z)") },
+		{ label: localize('planned.piledRaft.i2', "Target pile share"), unit: '%', example: '60' },
+	],
+	outputs: [
+		localize('planned.piledRaft.o1', "Pile loads and the raft's contact pressure"),
+		localize('planned.piledRaft.o2', "Settlement and differential settlement against BNBC Table 6.3.8"),
+		localize('planned.piledRaft.o3', "Raft moments and pile design forces"),
+	],
+	references: [
+		'Poulos (2001), Piled raft foundations: design and applications, Géotechnique 51(2)',
+		'ISSMGE Combined Pile-Raft Foundation Guideline (2013)',
+	],
+});
+
+registerPlannedFeature({
+	id: 'substructure.pileGroupInteraction',
+	part: 'substructure',
+	title: localize('planned.groupInteraction.title', "Pile Group Settlement by Interaction Factors"),
+	summary: localize('planned.groupInteraction.summary', "The settlement of each pile of a group from elastic interaction factors, so a cap's differential settlement and its piles' load sharing are found, in addition to the equivalent-raft group settlement of BNBC Sec 3.10.5 that is checked now."),
+	steps: [
+		localize('planned.groupInteraction.s1', "Find each pile's single-pile settlement under its load from the soil's modulus."),
+		localize('planned.groupInteraction.s2', "Add the interaction of the other piles by their spacing (interaction factors)."),
+		localize('planned.groupInteraction.s3', "Solve for the loads of a rigid cap or the settlements of a flexible one."),
+	],
+	inputs: [
+		{ label: localize('planned.groupInteraction.i1', "Soil modulus"), unit: 'MPa', example: '30' },
+		{ label: localize('planned.groupInteraction.i2', "Cap"), example: localize('planned.groupInteraction.i2e', "Rigid") },
+	],
+	outputs: [
+		localize('planned.groupInteraction.o1', "Settlement of each pile and the cap's tilt"),
+		localize('planned.groupInteraction.o2', "Group settlement ratio and efficiency"),
+	],
+	references: [
+		'Poulos & Davis (1980), Pile Foundation Analysis and Design',
+		'BNBC 2020 Part 6 Sec 3.10.5 (equivalent raft, checked now)',
+	],
+});

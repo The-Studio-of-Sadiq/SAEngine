@@ -1421,7 +1421,7 @@ export function pileFixityLabel(fixity: PileFixity | string): string {
 export function pileKindLabel(kind: PileKind | string): string {
 	switch (kind) {
 		case 'bored': return localize('sub.pile.bored', "Bored (cast in situ)");
-		case 'driven': return localize('sub.pile.driven', "Driven (precast)");
+		case 'driven': return localize('sub.pile.driven', "Driven (precast, square)");
 		default: return String(kind);
 	}
 }

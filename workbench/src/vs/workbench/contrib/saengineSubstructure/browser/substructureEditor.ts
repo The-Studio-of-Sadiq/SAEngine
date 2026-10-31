@@ -87,7 +87,7 @@ const SITE_PARTS: readonly (readonly [keyof ISiteTexts, string])[] = [
 ];
 
 /** Planned pile features shown as chips under the pile types (registered in the contribution). */
-const PLANNED_PILE_FEATURES = ['substructure.lateralPileBroms', 'substructure.lateralPilePy'];
+const PLANNED_PILE_FEATURES = ['substructure.lateralPileBroms', 'substructure.lateralPilePy', 'substructure.piledRaft', 'substructure.pileGroupInteraction'];
 
 const MM = localize('sub.unit.mm', "mm");
 const M = localize('sub.unit.m', "m");
@@ -103,7 +103,7 @@ const F = {
 	foundingLevel: { key: 'foundingLevel', label: localize('sub.f.foundingLevel', "Founding level"), unit: M, kind: 'length', title: localize('sub.f.foundingTitle', "Underside of the foundation on the project datum; ground level − 1.5 m when empty"), width: 84 },
 	cover: { key: 'cover', label: localize('sub.f.cover', "Cover"), unit: MM, kind: 'number', min: 20, max: 200 },
 	note: { key: 'note', label: localize('sub.f.note', "Note"), kind: 'text' },
-	diameter: { key: 'diameter', label: localize('sub.f.diameter', "Diameter"), unit: MM, kind: 'number', min: 1, required: true, width: 80 },
+	diameter: { key: 'diameter', label: localize('sub.f.diameter', "Diameter"), unit: MM, kind: 'number', min: 1, required: true, width: 80, title: localize('sub.f.diameterTitle', "Bored piles: the diameter; driven precast piles: the side of the square") },
 	pileLength: { key: 'length', label: localize('sub.f.pileLength', "Length"), unit: M, kind: 'length', min: 0.001, required: true, width: 72 },
 	fixityDepth: { key: 'fixityDepth', label: localize('sub.f.fixityDepth', "Depth to fixity"), unit: M, kind: 'length', min: 0.001, title: localize('sub.f.fixityDepthTitle', "Below the pile head, where the pile acts as fixed against the lateral load, from the geotechnical report. Empty: the piles are designed for axial force only."), width: 80 },
 	level: { key: 'level', label: localize('sub.f.level', "Level"), unit: M, kind: 'length', title: localize('sub.f.levelTitle', "Top of the tie beam; the foundations' top when empty"), width: 72 },

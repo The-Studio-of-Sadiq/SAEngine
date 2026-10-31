@@ -97,12 +97,19 @@ def head_actions(shear: np.ndarray, count: int, fixity: str, depth: float | None
     return {"H": h, "head": np.zeros(2), "design": resultant * depth}
 
 
-def shear_capacity(diameter: float, fc: float, fy: float, reinforcement: Any) -> dict[str, float]:
+def shear_capacity(
+    diameter: float, fc: float, fy: float, reinforcement: Any, square: bool = False
+) -> dict[str, float]:
     """φVn [N] of a circular pile section (ACI 318-19 22.5.2.2: bw = D, d = 0.8 D), Nu = 0:
     Vc = 0.17 λ √f'c bw d with at least Av,min (Table 22.5.5.1 (a), 9.6.3.4), else 0.66 λs
     ρw^(1/3) √f'c bw d (c) with ρw = As/2 / (bw d), both ≤ 0.42 √f'c bw d; Vs = Av fyt d / s
-    ≤ 0.66 √f'c bw d with Av the two legs of a hoop or spiral."""
+    ≤ 0.66 √f'c bw d with Av the two legs of a hoop or spiral. A ``square`` (driven precast)
+    pile of side B: bw = B and d to the centroid of the far bars, B - cover - tie - bar / 2."""
     bw, d = diameter, 0.8 * diameter
+    if square and reinforcement is not None:
+        tie = reinforcement.transverse.dia if reinforcement.transverse else 0.0
+        bar = max((g.dia for g in reinforcement.longitudinal), default=0.0)
+        d = diameter - reinforcement.cover - tie - bar / 2
     root = min(math.sqrt(fc), 8.3)
     fyt = min(fy, FYT_MAX)
     longitudinal = getattr(reinforcement, "longitudinal", None) or []
@@ -140,14 +147,16 @@ def section_checks(
     count: int,
     fixity: str,
     depth: float | None,
+    square: bool = False,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """The pile section under axial force and the head moment (see the module notes):
     ``axial`` per strength combination the largest and least factored pile load [N]
     (compression positive), ``shears`` per strength combination the cap's ``[Hu, Hv]`` [N].
-    Returns ``(checks, detail)``, ``detail`` the governing head shear and moments [kN, kN·m]."""
+    Returns ``(checks, detail)``, ``detail`` the governing head shear and moments [kN, kN·m].
+    ``square``: a driven precast pile, the square section of side ``diameter``."""
     from saengine.design.check import _check
     from saengine.design.rc import DesignError, InteractionSurface, section_of
-    from saengine.library.objects import CircleProfile
+    from saengine.library.objects import CircleProfile, RectangleProfile
 
     detail: dict[str, Any] = {"fixity": fixity, "fixityDepth": depth, "H": 0.0, "M": 0.0}
     if not shears:
@@ -176,10 +185,16 @@ def section_checks(
     section = None
     reason = "no reinforcement"
     if reinforcement is not None and reinforcement.longitudinal:
+        profile = (
+            RectangleProfile(xDim=diameter, yDim=diameter)
+            if square
+            else CircleProfile(radius=diameter / 2)
+        )
         try:
-            section = section_of(CircleProfile(radius=diameter / 2), reinforcement, fc, fy)
+            section = section_of(profile, reinforcement, fc, fy)
         except DesignError as error:
             reason = str(error)
+    shape = f"{diameter:.0f} mm square" if square else f"Ø{diameter:.0f}"
     if section is None:
         moment = max(a["design"] for a in actions.values())
         if moment > 0:
@@ -212,7 +227,7 @@ def section_checks(
                     phi_mn / 1e6,
                     "kN·m",
                     name,
-                    f"ACI 318-19 22.4 P-M surface of the Ø{diameter:.0f} section, {bars}, at Pu = "
+                    f"ACI 318-19 22.4 P-M surface of the {shape} section, {bars}, at Pu = "
                     f"{pu / 1e3:.0f} kN; {where}; fully embedded: not a long column (BNBC 2020 "
                     "Part 6 Sec 3.10.1.31)",
                     utilisation=ratio,
@@ -223,10 +238,15 @@ def section_checks(
         capacity = plain_shear_capacity(diameter, fc)
         text = f"{reason}: plain concrete, φVn = 0.60 × 0.11 √f'c D² (ACI 318-19 14.5.5.1 (a))"
     else:
-        shear = shear_capacity(diameter, fc, fy, reinforcement)
+        shear = shear_capacity(diameter, fc, fy, reinforcement, square)
         capacity = shear["phiVn"]
+        where_d = (
+            f"bw = B, d = {shear['d']:.0f} mm"
+            if square
+            else f"ACI 318-19 22.5.2.2: bw = D, d = 0.8 D = {shear['d']:.0f} mm"
+        )
         text = (
-            f"ACI 318-19 22.5.2.2: bw = D, d = 0.8 D = {shear['d']:.0f} mm; Vc = "
+            f"{where_d}; Vc = "
             f"{shear['Vc'] / 1e3:.0f} kN (Table 22.5.5.1 {'(a)' if shear['minimum'] else '(c)'}), "
             f"Vs = {shear['Vs'] / 1e3:.0f} kN"
         )
