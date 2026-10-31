@@ -18354,7 +18354,7 @@ export const REPORT_TEMPLATE_SCHEMA: IJSONSchema = {
 					type: 'array',
 				},
 				storeys: {
-					description: 'Storey names or ids; empty: all.',
+					description: 'Storey names (Grids & Stories); empty: all.',
 					items: {
 						type: 'string',
 					},

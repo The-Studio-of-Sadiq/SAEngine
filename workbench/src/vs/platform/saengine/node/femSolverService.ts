@@ -17,7 +17,7 @@ import { killTree } from '../../../base/node/processes.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemResultList, IFemResultView, IFemRunEventMessage, IBuildingIfc, IBuildingIfcRequest, IFemDerivation, IFemDeriveRequest, IGeneratedBuilding, ILibraryProblem, LibraryFileKind, IFemRunExit, IFemRunRequest, IFemSolverService, IStructureEdit, IStructureGeometry, IStructureScriptResult, StructureGeometryResult, IBoqComputation, IBoqComputeRequest, IReportBuild, ISoilBearing, ISoilBearingRequest, ISoilImport, ISoilSources, ISoilTemplate, ISubstructureMigration, IMepServiceParams, MepServiceMethod, ICadOpenRequest, ICadOpenResult, ICadProgram, ISetupRunRequest, ISetupRunResult, SETUP_COMPONENTS, ProjectPlatformMethod, EngineMethod, IQgisOpenRequest, IQgisOpenResult } from '../common/femSolver.js';
+import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemResultList, IFemResultView, IFemRunEventMessage, IBuildingIfc, IBuildingIfcRequest, IFemDerivation, IFemDeriveRequest, IGeneratedBuilding, ILibraryProblem, LibraryFileKind, IFemRunExit, IFemRunRequest, IFemSolverService, IStructureEdit, IStructureGeometry, IStructureScriptResult, StructureGeometryResult, IBoqComputation, IBoqComputeRequest, IReportBuild, IReportBuildOptions, IReportTemplates, ISoilBearing, ISoilBearingRequest, ISoilImport, ISoilSources, ISoilTemplate, ISubstructureMigration, IMepServiceParams, MepServiceMethod, ICadOpenRequest, ICadOpenResult, ICadProgram, ISetupRunRequest, ISetupRunResult, SETUP_COMPONENTS, ProjectPlatformMethod, EngineMethod, IQgisOpenRequest, IQgisOpenResult } from '../common/femSolver.js';
 
 interface IRun {
 	readonly child: cp.ChildProcess;
@@ -183,8 +183,16 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 		return this.request(python, 'boq/compute', request);
 	}
 
-	buildReport(python: string, projectRoot: string, outPdf?: string): Promise<IReportBuild> {
-		return this.request(python, 'report/build', { projectRoot, outPdf });
+	buildReport(python: string, projectRoot: string, outPdf?: string, options?: IReportBuildOptions): Promise<IReportBuild> {
+		return this.request(python, 'report/build', { projectRoot, outPdf, format: options?.format, template: options?.template });
+	}
+
+	reportTemplates(python: string, projectRoot: string): Promise<IReportTemplates> {
+		return this.request(python, 'report/templates', { projectRoot });
+	}
+
+	createReportTemplate(python: string, projectRoot: string, id: string, base?: string, name?: string): Promise<{ readonly path?: string; readonly existing?: boolean; readonly problems?: readonly string[] }> {
+		return this.request(python, 'report/createTemplate', { projectRoot, id, base, name });
 	}
 
 	soilReport(python: string, soilText: string, settingsText?: string, projectRoot?: string): Promise<object> {

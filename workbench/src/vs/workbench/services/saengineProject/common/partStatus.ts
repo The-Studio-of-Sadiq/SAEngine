@@ -200,6 +200,8 @@ export const FEM_RESULTS_FOLDER = 'model.results';
 export const FEM_RESULTS_MANIFEST = 'manifest.json';
 export const DESIGN_SUMMARY_FILE = 'design-summary.json';
 export const REPORT_FILE = 'report.pdf';
+/** The same design report as a Word file (`saengine.report.word`). */
+export const WORD_REPORT_FILE = 'report.docx';
 /** The foundation checks' summary the Substructure editor and Run All write beside `substructure.json`. */
 export const SUBSTRUCTURE_SUMMARY_FILE = 'substructure.results/summary.json';
 /** The MEP coordination summary the MEP editor and Run All write beside `mep.json`. */

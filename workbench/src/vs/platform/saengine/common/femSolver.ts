@@ -149,7 +149,7 @@ export interface IFemResultView {
 
 /** A rule violation in a library file, reported against the entry at `index` (none: the whole file). */
 /** Project files the Python models check. */
-export type LibraryFileKind = 'materials' | 'objects' | 'settings' | 'floorPlan' | 'structure' | 'bim';
+export type LibraryFileKind = 'materials' | 'objects' | 'settings' | 'floorPlan' | 'structure' | 'bim' | 'reportTemplate';
 
 export interface IGeneratedBuilding {
 	/** The new `bim.json` text, when it could be generated. */
@@ -296,6 +296,29 @@ export interface IReportBuild {
 	readonly problems?: readonly string[];
 }
 
+/** What the design report is written as, and which report template it follows. */
+export interface IReportBuildOptions {
+	/** `pdf` (default) or `docx` (Word). */
+	readonly format?: 'pdf' | 'docx';
+	/** The report template's id; the one the project settings name when omitted. */
+	readonly template?: string;
+}
+
+/** A report template the project can print (`saengine.library.report_template.list_templates`). */
+export interface IReportTemplateInfo {
+	readonly id: string;
+	readonly name: string;
+	/** Built into SAEngine, or a file of the project (`path`). */
+	readonly source: 'builtIn' | 'project';
+	readonly path?: string;
+}
+
+/** The report templates of a project and the one its settings name. */
+export interface IReportTemplates {
+	readonly templates: readonly IReportTemplateInfo[];
+	readonly current: string;
+}
+
 /** A CSV or Excel file's boreholes merged into the soil report, or why it could not be read. */
 export interface ISoilImport {
 	/** The whole soil report with the file's boreholes in it. */
@@ -434,8 +457,14 @@ export interface IFemSolverService {
 	/** The bill of quantities of the building model and the substructure (`saengine.boq`). */
 	computeBoq(python: string, request: IBoqComputeRequest): Promise<IBoqComputation>;
 
-	/** Builds the PDF design report of the project (`saengine.report`), by default in `11 Exports`. */
-	buildReport(python: string, projectRoot: string, outPdf?: string): Promise<IReportBuild>;
+	/** Builds the design report of the project (`saengine.report`), PDF or Word, by default in `11 Exports`. */
+	buildReport(python: string, projectRoot: string, outPdf?: string, options?: IReportBuildOptions): Promise<IReportBuild>;
+
+	/** The report templates the project can print. */
+	reportTemplates(python: string, projectRoot: string): Promise<IReportTemplates>;
+
+	/** Writes a new report template into the project, a copy of `base`: its path, or the problems. */
+	createReportTemplate(python: string, projectRoot: string, id: string, base?: string, name?: string): Promise<{ readonly path?: string; readonly existing?: boolean; readonly problems?: readonly string[] }>;
 
 	/**
 	 * Everything computed from the soil report (`saengine.soil.soil_report`): per borehole and

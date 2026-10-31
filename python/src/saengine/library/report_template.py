@@ -140,7 +140,7 @@ class MemberSelection(_Model):
     storeys: list[str] = Field(
         default_factory=list,
         title="Storeys",
-        description="Storey names or ids; empty: all.",
+        description="Storey names (Grids & Stories); empty: all.",
     )
     ids: list[str] = Field(
         default_factory=list,

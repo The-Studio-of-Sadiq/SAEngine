@@ -215,7 +215,15 @@ def result_view(out_dir: str, project_path: str, key: str, mode: int | None) -> 
 def check_library(kind: str, text: str, materials_text: str | None = None) -> dict[str, Any]:
     from saengine.library.check import check_library as check
 
-    if kind not in ("materials", "objects", "settings", "floorPlan", "structure", "bim"):
+    if kind not in (
+        "materials",
+        "objects",
+        "settings",
+        "floorPlan",
+        "structure",
+        "bim",
+        "reportTemplate",
+    ):
         raise ValueError(f"unknown library kind: {kind}")
     return {"problems": check(kind, text, materials_text)}  # type: ignore[arg-type]
 
