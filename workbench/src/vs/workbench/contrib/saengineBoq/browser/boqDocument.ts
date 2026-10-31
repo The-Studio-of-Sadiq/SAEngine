@@ -302,7 +302,7 @@ export function toCsv(document: IBoqDocument): string {
 	for (const item of document.items) {
 		rows.push(['item', item.code, item.group, item.description, '', '', '', item.quantity, '', item.unit, '', '']);
 		for (const entry of item.breakdown ?? []) {
-			rows.push(['element', item.code, item.group, item.description, entry.element, entry.story, entry.detail, '', entry.quantity, item.unit]);
+			rows.push(['element', item.code, item.group, item.description, entry.element, entry.story, entry.detail, '', entry.quantity, item.unit, '', '']);
 		}
 	}
 	return csvText(rows);

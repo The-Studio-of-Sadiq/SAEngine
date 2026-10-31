@@ -95,8 +95,8 @@ suite('SAEngine - Bill of quantities', () => {
 			csv: [
 				'Row,Code,Group,Description,Element,Story,Detail,Item Quantity,Element Quantity,Unit,Rate,Amount',
 				'item,C.01,concrete,Concrete C24.1 in columns,,,,2.048,,m3,,',
-				'element,C.01,concrete,Concrete C24.1 in columns,C1,L1,,,1.024,m3',
-				'element,C.01,concrete,Concrete C24.1 in columns,C2,L1,,,1.024,m3',
+				'element,C.01,concrete,Concrete C24.1 in columns,C1,L1,,,1.024,m3,,',
+				'element,C.01,concrete,Concrete C24.1 in columns,C2,L1,,,1.024,m3,,',
 				'item,C.02,concrete,"Concrete C24.1 in ""beams"", ground",,,,3,,m3,,',
 				'',
 			],
