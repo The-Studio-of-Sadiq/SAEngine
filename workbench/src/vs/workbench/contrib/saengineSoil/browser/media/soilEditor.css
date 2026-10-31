@@ -2154,3 +2154,53 @@
 .saengine-soil-editor .soil-planning-checks .soil-map-item.fail {
 	color: var(--sa-fail, var(--vscode-errorForeground));
 }
+
+/* Strata view: 3D stratigraphy and fence diagrams (soilStrata.ts) */
+.saengine-soil-editor .soil-strata-controls {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--sa-space-3);
+	margin: var(--sa-space-1) 0;
+}
+
+.saengine-soil-editor .soil-strata-control {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1);
+}
+
+.saengine-soil-editor .soil-strata-boreholes {
+	min-width: 240px;
+}
+
+.saengine-soil-editor .soil-strata-boreholes.invalid {
+	outline: 1px solid var(--vscode-inputValidation-errorBorder);
+}
+
+.saengine-soil-editor .soil-link {
+	border: none;
+	background: transparent;
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	padding: 2px var(--sa-space-1);
+}
+
+.saengine-soil-editor .soil-link:hover {
+	text-decoration: underline;
+}
+
+.saengine-soil-editor .soil-strata-canvas {
+	overflow-x: auto;
+}
+
+.saengine-soil-editor .soil-strata-block .soil-stratum {
+	stroke: var(--vscode-editor-foreground);
+	stroke-opacity: 0.25;
+	stroke-width: 0.5;
+}
+
+.saengine-soil-editor .soil-strata-hole {
+	stroke: var(--vscode-editor-foreground);
+	stroke-width: 2;
+}

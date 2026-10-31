@@ -12499,6 +12499,31 @@ export const SOIL_SCHEMA: IJSONSchema = {
 			title: 'DirectShear',
 			type: 'object',
 		},
+		Fence: {
+			additionalProperties: false,
+			description: 'A fence diagram: a vertical section through the 3D stratigraphy along boreholes.',
+			properties: {
+				id: {
+					description: 'E.g. A.',
+					maxLength: 64,
+					minLength: 1,
+					title: 'ID',
+					type: 'string',
+				},
+				boreholes: {
+					description: 'The boreholes it passes through, in order.',
+					items: {
+						type: 'string',
+					},
+					minItems: 2,
+					title: 'Boreholes',
+					type: 'array',
+				},
+			},
+			required: ['id', 'boreholes'],
+			title: 'Fence',
+			type: 'object',
+		},
 		Grading: {
 			additionalProperties: false,
 			description: 'Grain size distribution (ASTM D6913 sieves, D7928 hydrometer): one curve.',
@@ -13754,6 +13779,30 @@ export const SOIL_SCHEMA: IJSONSchema = {
 			title: 'SptRefusal',
 			type: 'object',
 		},
+		Stratigraphy: {
+			additionalProperties: false,
+			description: 'How the strata of the boreholes are correlated into units, and the fence diagrams.',
+			properties: {
+				correlateBy: {
+					default: 'soilType',
+					description: 'Layers of one soil type (or one USCS group, where the log gives it) are one stratum; strata are matched between boreholes in order from the top.',
+					enum: ['soilType', 'uscs'],
+					enumDescriptions: ['Soil type', 'USCS group'],
+					title: 'Correlate by',
+					type: 'string',
+				},
+				fences: {
+					description: 'Fence diagrams; when none, one through all boreholes along the site.',
+					items: {
+						$ref: '#/$defs/Fence',
+					},
+					title: 'Fences',
+					type: 'array',
+				},
+			},
+			title: 'Stratigraphy',
+			type: 'object',
+		},
 		Triaxial: {
 			additionalProperties: false,
 			description: 'Triaxial test: the results (cu; c and φ), or the specimens they are worked out from.',
@@ -13939,6 +13988,19 @@ export const SOIL_SCHEMA: IJSONSchema = {
 		},
 		design: {
 			$ref: '#/$defs/Design',
+		},
+		stratigraphy: {
+			anyOf: [
+				{
+					$ref: '#/$defs/Stratigraphy',
+				},
+				{
+					type: 'null',
+				},
+			],
+			default: null,
+			description: 'How the boreholes\' strata are correlated into the 3D model, and the fence diagrams drawn through it.',
+			title: 'Stratigraphy',
 		},
 	},
 	title: 'SAEngine soil report',
