@@ -589,7 +589,7 @@ def water_hydraulics(
         if below:
             cold = [
                 {
-                    "id": "R-auto",
+                    "id": f"{top.id}-riser",
                     "system": "coldWater",
                     "x": top.x * 1000,
                     "y": top.y * 1000,
@@ -890,13 +890,24 @@ def _floor_results(
                 }
             )
             name = f"{f.story.name} ({r.id})"
+            fix = ""
+            if not ok_pressure:
+                # What to do, on the check itself (N-E8); _advice adds the riser's summary.
+                short = f.required - head_f
+                fix = (
+                    f"; short by {short:.2f} m: the main's head is too low, give a roof tank "
+                    "(BNBC Sec 5.8.2, 5.8.3)"
+                    if r.upfeed
+                    else f"; short by {short:.2f} m: raise the tank {r.source} by at least "
+                    f"{short:.2f} m, or feed this floor with a booster pump from the tank"
+                )
             checks.append(
                 _check(
                     f"Residual head at the fixture, {name}",
                     f.required,
                     max(head_f, 0.0),
                     "m",
-                    "BNBC Table 8.5.6, Sec 5.10.4.3",
+                    "BNBC Table 8.5.6, Sec 5.10.4.3" + fix,
                     ok=ok_pressure,
                 )
             )

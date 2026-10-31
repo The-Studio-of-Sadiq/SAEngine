@@ -1396,7 +1396,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		}
 		// Once, when every discipline the file has has answered: written report by report, the
 		// part list's status jumped from one discipline's failures to another's.
-		if (this.disciplineStates(document).some(([, state]) => state === 'idle' || state === 'computing')) {
+		if (this.disciplineStates(document, true).some(([, state]) => state === 'idle' || state === 'computing')) {
 			return;
 		}
 		const failures = this.disciplineFailures(document);
@@ -1408,11 +1408,16 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		this.fileService.writeFile(joinPath(dirname(this.resource), MEP_SUMMARY_FILE), VSBuffer.fromString(content)).catch(() => { /* the part list then shows the count only */ });
 	}
 
-	/** The state of each discipline's report that the file has (the coordination's always). */
-	private disciplineStates(document: IMep): [Discipline, ReportState][] {
+	/**
+	 * The state of each discipline's report that the file has (the coordination's always).
+	 * `forSummary`: the plumbing counts as answered while only its tank designs (minutes each)
+	 * are still running, so the part list is not left at "not checked" meanwhile (N-E7); the
+	 * summary is written again when they are in.
+	 */
+	private disciplineStates(document: IMep, forSummary = false): [Discipline, ReportState][] {
 		const states: [Discipline, ReportState][] = [['coordination', this.reportState]];
 		if (hasPlumbing(document)) {
-			states.push(['plumbing', this.plumbingReport?.tankDesignsPending ? 'computing' : this.plumbingState]);
+			states.push(['plumbing', this.plumbingReport?.tankDesignsPending && !forSummary ? 'computing' : this.plumbingState]);
 		}
 		if (hasHvac(document)) {
 			states.push(['hvac', this.hvacState]);
@@ -3475,15 +3480,22 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		if (version !== this.plumbingVersion) {
 			return;
 		}
-		const pending = (report as IPlumbingReport | undefined)?.tankDesignsPending ?? 0;
-		if (pending && report) {
-			this.plumbingReport = report;
+		const quick: IPlumbingReport | undefined = report;
+		const pending = quick?.tankDesignsPending ?? 0;
+		if (pending && quick) {
+			this.plumbingReport = quick;
 			this.plumbingState = 'ok';
 			this.plumbingError = undefined;
 			this.renderReportDependent();
+			this.writeSummary(document, sourceTexts);
 			await ask(true);
 			if (version !== this.plumbingVersion) {
 				return;
+			}
+			if (error && report === quick) {
+				// The designs failed: the rest of the report stands, and nothing is left "running" (N-E8).
+				report = { ...quick, tankDesignsPending: 0 };
+				this.notificationService.warn(localize('plb.designsFailed', "The tanks' designs could not be computed: {0}", error));
 			}
 		}
 		this.setBusy('plumbing', false);
