@@ -18,11 +18,11 @@ suite('SAEngine - project archive', () => {
 	test('the command arguments', () => {
 		assert.deepStrictEqual([
 			exportArgs('C:\\Projects\\Frame', 'C:\\Projects\\Frame 2026-10-19'),
-			exportArgs('C:\\Projects\\Frame', 'C:\\out\\frame.CIVIL', { includeResults: true, includeVersions: false }),
+			exportArgs('C:\\Projects\\Frame', 'C:\\out\\frame.CIVIL', { includeResults: true, includeVersions: false, includeExports: false }),
 			importArgs('C:\\in\\frame.civil', 'C:\\Projects', ' Frame (2) '),
 		], [
-			{ projectRoot: 'C:\\Projects\\Frame', outPath: 'C:\\Projects\\Frame 2026-10-19.civil', includeResults: false, includeVersions: true },
-			{ projectRoot: 'C:\\Projects\\Frame', outPath: 'C:\\out\\frame.CIVIL', includeResults: true, includeVersions: false },
+			{ projectRoot: 'C:\\Projects\\Frame', outPath: 'C:\\Projects\\Frame 2026-10-19.civil', includeResults: false, includeVersions: true, includeExports: true },
+			{ projectRoot: 'C:\\Projects\\Frame', outPath: 'C:\\out\\frame.CIVIL', includeResults: true, includeVersions: false, includeExports: false },
 			{ path: 'C:\\in\\frame.civil', destParent: 'C:\\Projects', name: 'Frame (2)' },
 		]);
 	});

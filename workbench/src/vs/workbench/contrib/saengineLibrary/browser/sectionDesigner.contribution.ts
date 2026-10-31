@@ -17,6 +17,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
@@ -136,11 +137,34 @@ registerAction2(class extends Action2 {
 		const resource = joinPath(folder, `${sectionId}.json`);
 		if (!await fileService.exists(resource)) {
 			const { concrete, rebar } = await defaultMaterials(fileService, project.root);
-			await fileService.writeFile(resource, VSBuffer.fromString(serializeSection(newSection(sectionId, concrete, rebar))));
+			// The concrete of the object type the section is made for, else the project's.
+			const own = await objectTypeMaterial(accessor.get(ITextModelService), project.root, sectionId);
+			await fileService.writeFile(resource, VSBuffer.fromString(serializeSection(newSection(sectionId, own ?? concrete, rebar))));
 		}
 		await editorService.openEditor({ resource, options: { pinned: true } });
 	}
 });
+
+/**
+ * The material of the object type (04 Objects, unsaved edits included) whose profile is the
+ * designed section `sectionId`, if one names it: the Objects editor names the section first.
+ */
+async function objectTypeMaterial(textModels: ITextModelService, root: URI, sectionId: string): Promise<string | undefined> {
+	try {
+		const reference = await textModels.createModelReference(joinPath(root, '04 Objects', 'objects.json'));
+		try {
+			const data = JSON.parse(reference.object.textEditorModel.getValue());
+			const objects: unknown[] = Array.isArray(data?.objects) ? data.objects : [];
+			const owner = objects.find((o): o is { material?: unknown; profile?: { section?: unknown } } =>
+				typeof o === 'object' && o !== null && (o as { profile?: { section?: unknown } }).profile?.section === sectionId);
+			return typeof owner?.material === 'string' && owner.material ? owner.material : undefined;
+		} finally {
+			reference.dispose();
+		}
+	} catch {
+		return undefined; // no objects file, or not valid JSON: the project's concrete
+	}
+}
 
 /** The project's concrete and rebar (03 Materials: its `defaults`, else the first of each), else BNBC defaults. */
 async function defaultMaterials(fileService: IFileService, root: URI): Promise<{ concrete: string; rebar: string }> {

@@ -347,3 +347,27 @@ def test_concrete_e_and_fr_follow_fc_and_far_values_are_flagged() -> None:
     concrete["mechanical"]["density"] = 24000
     paths = [path for path, _ in plausibility(Material.model_validate(concrete))]
     assert paths == ["mechanical.density", "concrete.ft"]
+
+
+def test_nominal_mix_too_weak_for_fc_is_flagged() -> None:
+    """Usability N-M2: 34.5 MPa on the default 1:2:4 nominal mix (about 20.7 MPa) is flagged;
+    the defaults (1:2:4 at 20.7, 1:1.5:3 at 24.1) and a 20 % margin are not."""
+    from saengine.library.materials import (
+        Material,
+        concrete_modulus,
+        modulus_of_rupture,
+        nominal_mix_strength,
+        plausibility,
+    )
+
+    assert nominal_mix_strength([1, 2, 4]) == 20.7
+    assert nominal_mix_strength([1, 1.5, 3]) == 24.1
+    assert nominal_mix_strength([1, 4]) is None  # mortar
+    concrete = default_material_library().materials[0].model_dump(by_alias=True)
+    assert concrete["composition"]["ratio"] == [1, 2, 4]
+    for fc, flagged in ((24.8, False), (34.5, True)):
+        concrete["concrete"]["fc"] = fc
+        concrete["mechanical"]["E"] = concrete_modulus(fc)
+        concrete["concrete"]["ft"] = modulus_of_rupture(fc)
+        problems = plausibility(Material.model_validate(concrete))
+        assert [p for p, _ in problems] == (["composition"] if flagged else []), fc

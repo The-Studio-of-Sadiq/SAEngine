@@ -187,6 +187,7 @@ function renderRow(container: HTMLElement, view: IModifiersView, part: ModifierP
 	}));
 	box.value = row.value;
 	const input = box.inputElement;
+	const message = append(line, $('.sa-modifiers-message', { role: 'alert' }));
 
 	/** Marks the field: typed and not stored, or not storable (a problem of the part), or as stored. */
 	const mark = (): 'clean' | 'dirty' | 'error' => {
@@ -195,6 +196,7 @@ function renderRow(container: HTMLElement, view: IModifiersView, part: ModifierP
 		line.classList.remove('applied');
 		line.classList.toggle('dirty', state === 'dirty');
 		line.classList.toggle('invalid', state === 'error');
+		message.textContent = commit.error ? localize('modifiers.notStored', "{0} Not applied: the file keeps its last valid value.", commit.error) : '';
 		status.set(row.key, state);
 		setUnappliedField(id, part, commit.error ? `${row.label}: ${box.value.trim()}: ${commit.error}` : undefined);
 		if (state === 'dirty') {

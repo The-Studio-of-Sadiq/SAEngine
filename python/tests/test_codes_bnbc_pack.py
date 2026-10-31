@@ -75,7 +75,7 @@ OLD_TABLE_6_2_19 = {
     "rcSmf": ("C.4 (p. 623)", 8.0, 3.0, 5.5, (None, None, None), "special", False, True),
     "rcImf": ("C.5 (p. 623)", 5.0, 3.0, 4.5, (None, None, 0.0), "intermediate", False, True),
     "rcOmf": (
-        "C.5 [sic, the 6th row] (p. 623)",
+        "C.5 (p. 623)",
         3.0,
         3.0,
         2.5,
@@ -603,8 +603,13 @@ def test_library_bnbc_keeps_every_public_value_type_and_order():
     assert bnbc.EDITION == OLD_SCALARS["EDITION"]
     assert bnbc.ZONE_COEFFICIENT == OLD_ZONE_COEFFICIENT
     assert list(bnbc.ZONE_COEFFICIENT) == [1, 2, 3, 4]
-    assert {k: tuple(v) for k, v in bnbc.LOCATIONS.items()} == OLD_LOCATIONS
-    assert list(bnbc.LOCATIONS) == list(OLD_LOCATIONS)
+    # The ten division towns keep their values; the table now lists every district town of
+    # Tables 6.2.8 and 6.2.15, alphabetically (usability N-P4).
+    assert {k: tuple(bnbc.LOCATIONS[k]) for k in OLD_LOCATIONS} == OLD_LOCATIONS
+    assert list(bnbc.LOCATIONS) == sorted(bnbc.LOCATIONS)
+    assert len(bnbc.LOCATIONS) == 65
+    assert tuple(bnbc.LOCATIONS["gazipur"]) == ("Gazipur", 2, 66.5)
+    assert tuple(bnbc.LOCATIONS["sunamganj"]) == ("Sunamganj", 4, 61.1)
     assert isinstance(bnbc.LOCATIONS["dhaka"], bnbc.Location)
     assert bnbc.LOCATIONS["dhaka"].wind_speed == 65.7
     assert {k: tuple(v) for k, v in bnbc.OCCUPANCY_CATEGORIES.items()} == OLD_OCCUPANCY

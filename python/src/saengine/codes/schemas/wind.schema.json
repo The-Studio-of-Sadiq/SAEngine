@@ -1,5 +1,171 @@
 {
   "$defs": {
+    "CladdingCurve": {
+      "additionalProperties": false,
+      "description": "One external pressure coefficient (GCp) of components and cladding: ``gcp1`` at an\neffective wind area up to ``area1`` [m²], ``gcp2`` from ``area2``, linear in log A between.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "surface": {
+          "enum": [
+            "wall",
+            "roof"
+          ],
+          "title": "Surface",
+          "type": "string"
+        },
+        "zone": {
+          "title": "Zone",
+          "type": "string"
+        },
+        "sign": {
+          "enum": [
+            "positive",
+            "negative"
+          ],
+          "title": "Sign",
+          "type": "string"
+        },
+        "area1": {
+          "exclusiveMinimum": 0,
+          "title": "Area1",
+          "type": "number"
+        },
+        "gcp1": {
+          "title": "Gcp1",
+          "type": "number"
+        },
+        "area2": {
+          "exclusiveMinimum": 0,
+          "title": "Area2",
+          "type": "number"
+        },
+        "gcp2": {
+          "title": "Gcp2",
+          "type": "number"
+        }
+      },
+      "required": [
+        "surface",
+        "zone",
+        "sign",
+        "area1",
+        "gcp1",
+        "area2",
+        "gcp2"
+      ],
+      "title": "CladdingCurve",
+      "type": "object"
+    },
+    "CladdingTable": {
+      "additionalProperties": false,
+      "description": "Components and cladding (BNBC 2020 Part 6 Sec 2.4.11.5): the (GCp) curves of walls and\nflat roofs (θ ≤ 10°) of low-rise (h ≤ ``lowRiseHeight``) and taller buildings, the internal\npressure coefficients and the edge-zone width a.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "lowRiseHeight": {
+          "description": "h [m] up to which the low-rise curves hold.",
+          "exclusiveMinimum": 0,
+          "title": "Lowriseheight",
+          "type": "number"
+        },
+        "lowRise": {
+          "items": {
+            "$ref": "#/$defs/CladdingCurve"
+          },
+          "title": "Lowrise",
+          "type": "array"
+        },
+        "highRise": {
+          "items": {
+            "$ref": "#/$defs/CladdingCurve"
+          },
+          "title": "Highrise",
+          "type": "array"
+        },
+        "lowRiseWallFactor": {
+          "description": "Factor on the low-rise wall (GCp) for a roof θ ≤ 10°.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Lowrisewallfactor",
+          "type": "number"
+        },
+        "internal": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "(GCpi) magnitude by enclosure.",
+          "title": "Internal",
+          "type": "object"
+        },
+        "edgeFraction": {
+          "description": "a ≤ edgeFraction · least plan dimension.",
+          "exclusiveMinimum": 0,
+          "title": "Edgefraction",
+          "type": "number"
+        },
+        "edgeHeightFraction": {
+          "description": "Low-rise: a ≤ this · h.",
+          "exclusiveMinimum": 0,
+          "title": "Edgeheightfraction",
+          "type": "number"
+        },
+        "edgeMinFraction": {
+          "description": "a ≥ this · least plan dimension.",
+          "exclusiveMinimum": 0,
+          "title": "Edgeminfraction",
+          "type": "number"
+        },
+        "edgeMin": {
+          "description": "a ≥ this [m].",
+          "exclusiveMinimum": 0,
+          "title": "Edgemin",
+          "type": "number"
+        },
+        "parapetCorner": {
+          "description": "A parapet this high [m] or more turns roof zone 3 into zone 2.",
+          "exclusiveMinimum": 0,
+          "title": "Parapetcorner",
+          "type": "number"
+        }
+      },
+      "required": [
+        "lowRiseHeight",
+        "lowRise",
+        "highRise",
+        "lowRiseWallFactor",
+        "internal",
+        "edgeFraction",
+        "edgeHeightFraction",
+        "edgeMinFraction",
+        "edgeMin",
+        "parapetCorner"
+      ],
+      "title": "CladdingTable",
+      "type": "object"
+    },
     "Exposure": {
       "additionalProperties": false,
       "properties": {
@@ -30,6 +196,90 @@
           "exclusiveMinimum": 0,
           "title": "Zg",
           "type": "number"
+        },
+        "c": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Turbulence intensity factor c.",
+          "title": "C"
+        },
+        "l": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Integral length scale ℓ [m].",
+          "title": "L"
+        },
+        "epsilonBar": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Integral length ε̄.",
+          "title": "Epsilonbar"
+        },
+        "alphaBar": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Mean-speed power ᾱ.",
+          "title": "Alphabar"
+        },
+        "bBar": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Mean-speed factor b̄.",
+          "title": "Bbar"
+        },
+        "zmin": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "z_min of z̄ [m].",
+          "title": "Zmin"
         }
       },
       "required": [
@@ -38,6 +288,72 @@
         "zg"
       ],
       "title": "Exposure",
+      "type": "object"
+    },
+    "FlexibleGustRow": {
+      "additionalProperties": false,
+      "description": "The gust-effect factor Gf of a flexible or dynamically sensitive building (BNBC 2020 Part 6\nSec 2.4.8.2): read by :func:`saengine.fem.loads.flexible_gust_factor`.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "frequencyLimit": {
+          "description": "A building below n1 [Hz] is flexible.",
+          "exclusiveMinimum": 0,
+          "title": "Frequencylimit",
+          "type": "number"
+        },
+        "gQ": {
+          "description": "Peak factor of the background response gQ.",
+          "exclusiveMinimum": 0,
+          "title": "Gq",
+          "type": "number"
+        },
+        "gv": {
+          "description": "Peak factor of the wind response gv.",
+          "exclusiveMinimum": 0,
+          "title": "Gv",
+          "type": "number"
+        },
+        "heightFactor": {
+          "description": "z̄ = heightFactor · h.",
+          "exclusiveMinimum": 0,
+          "title": "Heightfactor",
+          "type": "number"
+        },
+        "lead": {
+          "description": "The factor before the fraction (0.925).",
+          "exclusiveMinimum": 0,
+          "title": "Lead",
+          "type": "number"
+        },
+        "damping": {
+          "description": "Damping ratio β of a concrete building.",
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Damping",
+          "type": "number"
+        }
+      },
+      "required": [
+        "frequencyLimit",
+        "gQ",
+        "gv",
+        "heightFactor",
+        "lead",
+        "damping"
+      ],
+      "title": "FlexibleGustRow",
       "type": "object"
     },
     "WindDesignCasesRow": {
@@ -172,6 +488,30 @@
       ],
       "default": null,
       "description": "Factors of the design wind load cases 2-4 (torsional, simultaneous); None: Case 1 only."
+    },
+    "flexible": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FlexibleGustRow"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Gf of flexible buildings; None: rigid G only."
+    },
+    "cladding": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CladdingTable"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Components and cladding pressures; None: not computed."
     }
   },
   "required": [

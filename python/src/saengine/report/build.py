@@ -1138,6 +1138,8 @@ def _derivation_rows(values: dict[str, Any], root: Path) -> list[list[str]]:
         rows.append(
             ["Wind design cases", "Cases 1 and 3 only (BNBC 2020 Part 6 Sec 2.4.11.3, Exception)"]
         )
+    rows += _wind_gust_rows(wind.get("gust") or {})
+    rows += _wind_cladding_rows(wind.get("cladding") or {})
     live = values.get("patternLive") or {}
     if live.get("cases"):
         rows.append(
@@ -1166,6 +1168,80 @@ def _derivation_rows(values: dict[str, Any], root: Path) -> list[list[str]]:
         check = None
     if isinstance(check, dict) and check.get("note"):
         rows.append(["Mesh check", str(check["note"])])
+    return rows
+
+
+def _wind_gust_rows(gust: dict[str, Any]) -> list[list[str]]:
+    """The gust-effect factor of each wind direction (BNBC 2020 Part 6 Sec 2.4.8), with the
+    terms of Gf for a flexible building (Sec 2.4.8.2)."""
+    rows: list[list[str]] = []
+    for axis in ("X", "Y"):
+        entry = gust.get(axis)
+        if not entry:
+            continue
+        n1 = f"n1 = {fmt(entry.get('n1_Hz', 0), 3)} Hz from {gust.get('source', '')}"
+        if "Gf" in entry:
+            text = (
+                f"{n1}, flexible (n1 < 1 Hz): Gf = {fmt(entry['Gf'], 3)} (BNBC 2020 Part 6 Sec "
+                f"2.4.8.2) with β = {fmt(entry.get('beta', 0), 3)}, z̄ = "
+                f"{fmt(entry.get('zbar_m', 0), 1)} m, Iz̄ = {fmt(entry.get('Iz', 0), 3)}, Lz̄ = "
+                f"{fmt(entry.get('Lz_m', 0), 1)} m, Q = {fmt(entry.get('Q', 0), 3)}, Vz̄ = "
+                f"{fmt(entry.get('Vz_ms', 0), 1)} m/s, R = {fmt(entry.get('R', 0), 3)}, gR = "
+                f"{fmt(entry.get('gR', 0), 3)}; WX/WY and their torsion scaled by Gf / G"
+            )
+        else:
+            text = f"{n1}, rigid: G = {fmt(entry.get('G', 0), 2)} (BNBC 2020 Part 6 Sec 2.4.8.1)"
+        rows.append([f"Wind gust factor ({axis})", text])
+    return rows
+
+
+#: The internal pressure classes of the settings, for the report.
+_ENCLOSURES = {
+    "enclosed": "enclosed",
+    "partiallyEnclosed": "partially enclosed",
+    "open": "open",
+}
+
+
+def _wind_cladding_rows(cladding: dict[str, Any]) -> list[list[str]]:
+    """The components-and-cladding pressures by zone (BNBC 2020 Part 6 Sec 2.4.11.5)."""
+    if not cladding.get("zones"):
+        return []
+    area = cladding.get("area_m2")
+    rows = [
+        [
+            "Wind components and cladding",
+            (
+                f"p = qh·[(GCp) − (±GCpi)], qh = {fmt(cladding.get('qh_kPa', 0), 3)} kN/m² at "
+                f"h = {fmt(cladding.get('h_m', 0), 2)} m, "
+                + ("low-rise (h ≤ 18.3 m)" if cladding.get("lowRise") else "h > 18.3 m")
+                + f", edge zones a = {fmt(cladding.get('a_m', 0), 2)} m, "
+                + _ENCLOSURES.get(cladding.get("enclosure", ""), "enclosed")
+                + f" (GCpi = ±{fmt(cladding.get('GCpi', 0), 2)}), effective wind area "
+                + (f"{fmt(area, 2)} m²" if area else "the smallest (largest pressures)")
+                + " (BNBC 2020 Part 6 Sec 2.4.11.5; ASCE 7-05 Figures 6-11, 6-17)"
+            ),
+        ]
+    ]
+    for zone in cladding["zones"]:
+        parts = []
+        if zone.get("pPos_kPa") is not None:
+            parts.append(f"+{fmt(zone['pPos_kPa'], 2)} kN/m² (GCp = {fmt(zone['GCpPos'], 2)})")
+        if zone.get("pNeg_kPa") is not None:
+            parts.append(f"{fmt(zone['pNeg_kPa'], 2)} kN/m² (GCp = {fmt(zone['GCpNeg'], 2)})")
+        rows.append([f"C&C zone {zone['zone']}: {zone.get('label', '')}", ", ".join(parts)])
+    parapet = cladding.get("parapet")
+    if parapet:
+        rows.append(
+            [
+                f"Parapet {fmt(parapet.get('height_m', 0), 2)} m",
+                (
+                    f"qp = {fmt(parapet.get('qp_kPa', 0), 3)} kN/m²; Case A (windward) "
+                    f"{fmt(parapet.get('caseA_kPa', 0), 2)} kN/m², Case B (leeward) "
+                    f"{fmt(parapet.get('caseB_kPa', 0), 2)} kN/m² (ASCE 7-05 Sec 6.5.12.4.4)"
+                ),
+            ]
+        )
     return rows
 
 

@@ -30,6 +30,7 @@ from ezdxf.enums import TextEntityAlignment
 # ─────────────────────────────────── paper ───────────────────────────────────
 
 PAPER: dict[str, tuple[float, float]] = {
+    "A0": (1189.0, 841.0),
     "A1": (841.0, 594.0),
     "A2": (594.0, 420.0),
     "A3": (420.0, 297.0),
@@ -40,7 +41,7 @@ PAPER: dict[str, tuple[float, float]] = {
 MARGIN_LEFT = 20.0
 MARGIN = 10.0
 # Width of the title block strip at the right of the sheet [mm].
-TITLE_WIDTH = {"A1": 170.0, "A2": 150.0, "A3": 120.0}
+TITLE_WIDTH = {"A0": 180.0, "A1": 170.0, "A2": 150.0, "A3": 120.0}
 
 # Text heights on paper [mm], the ISO 3098 series: nothing smaller than 2.5, titles at least 3.5.
 TEXT = 2.5
