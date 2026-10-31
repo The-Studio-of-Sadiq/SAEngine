@@ -208,3 +208,32 @@ registerPlannedFeature({
 		'OpenSees PySimple1 material',
 	],
 });
+
+registerPlannedFeature({
+	id: 'substructure.machineFoundation',
+	part: 'substructure',
+	title: localize('planned.machine.title', "Generator and Machine Foundations"),
+	summary: localize('planned.machine.summary', "A block foundation for a generator, chiller or pump: its natural frequencies on the soil's dynamic springs kept clear of the machine's operating speed, and the vibration amplitude under the machine's unbalanced force kept within the limits."),
+	steps: [
+		localize('planned.machine.s1', "Enter the machine's mass, operating speed, unbalanced force and footprint."),
+		localize('planned.machine.s2', "Size the block (mass ratio to the machine) and find the soil's dynamic springs and damping from the soil report."),
+		localize('planned.machine.s3', "Compute the natural frequencies in each mode and the frequency ratios."),
+		localize('planned.machine.s4', "Compute the amplitudes at the operating speed and check them against the limits; check bearing under the static load."),
+	],
+	inputs: [
+		{ label: localize('planned.machine.i1', "Machine mass"), unit: 't', example: '6.5' },
+		{ label: localize('planned.machine.i2', "Operating speed"), unit: 'rpm', example: '1500' },
+		{ label: localize('planned.machine.i3', "Unbalanced force"), unit: 'kN', example: '2.0' },
+		{ label: localize('planned.machine.i4', "Allowable amplitude"), unit: 'μm', example: '50' },
+	],
+	outputs: [
+		localize('planned.machine.o1', "Block size and weight"),
+		localize('planned.machine.o2', "Natural frequencies and frequency ratios per mode"),
+		localize('planned.machine.o3', "Vibration amplitudes against the limits, in the report"),
+	],
+	references: [
+		'ACI 351.3R (foundations for dynamic equipment)',
+		'Richart, Hall & Woods (1970), Vibrations of Soils and Foundations',
+		'BNBC 2020 Part 6 Chapter 3 (shallow foundations: bearing)',
+	],
+});

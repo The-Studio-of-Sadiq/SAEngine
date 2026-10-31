@@ -13612,6 +13612,14 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 					description: 'Modulus of subgrade reaction of rafts: from the soil report, or a value [kN/m³].',
 					title: 'Subgrade springs',
 				},
+				raftSprings: {
+					default: 'noTension',
+					description: 'No tension: where the raft lifts off, the soil carries nothing (solved iteratively); linear: the springs may pull.',
+					enum: ['noTension', 'linear'],
+					enumDescriptions: ['No tension (iterative)', 'Linear'],
+					title: 'Raft springs',
+					type: 'string',
+				},
 			},
 			title: 'Design',
 			type: 'object',
@@ -13815,8 +13823,61 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: '[mm]',
+					description: '[mm]; a sloped or stepped footing: under the column.',
 					title: 'Thickness',
+				},
+				section: {
+					default: 'flat',
+					description: 'Isolated footings: flat (one thickness), sloped (the top slopes from a flat top round the column down to the edge thickness) or stepped (an upper step round the column on a lower slab of the edge thickness).',
+					enum: ['flat', 'sloped', 'stepped'],
+					enumDescriptions: ['Flat', 'Sloped', 'Stepped'],
+					title: 'Section',
+					type: 'string',
+				},
+				edgeThickness: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'A sloped footing: at its edges; a stepped footing: of the lower step [mm].',
+					title: 'Edge thickness',
+				},
+				topLength: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Along its local x, the flat top of a sloped footing or the upper step of a stepped one, centred on the column [mm].',
+					title: 'Top length',
+				},
+				topWidth: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Along its local y, the flat top or upper step [mm].',
+					title: 'Top width',
 				},
 				path: {
 					anyOf: [
@@ -13966,6 +14027,151 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 			},
 			required: ['id', 'type'],
 			title: 'Foundation',
+			type: 'object',
+		},
+		GroundSlab: {
+			additionalProperties: false,
+			description: 'A slab on grade (ground-bearing slab): a plain or lightly reinforced slab laid on the\ncompacted ground, under a uniform floor load and a concentrated (post or wheel) load.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				outline: {
+					description: 'Plan outline [[x, y], ...] mm.',
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					minItems: 3,
+					title: 'Outline',
+					type: 'array',
+				},
+				thickness: {
+					default: 150,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Thickness',
+					type: 'number',
+				},
+				material: {
+					description: 'Concrete material id (03 Materials).',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Material',
+					type: 'string',
+				},
+				mesh: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BarMesh',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'One layer of bars each way for crack control (empty: plain concrete).',
+					title: 'Mesh',
+				},
+				meshMaterial: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Rebar material id (03 Materials).',
+					title: 'Mesh material',
+				},
+				uniformLoad: {
+					default: 5.0,
+					description: 'Floor load on it [kPa].',
+					minimum: 0,
+					title: 'Uniform load',
+					type: 'number',
+				},
+				pointLoad: {
+					default: 0.0,
+					description: 'The largest post, rack-leg or wheel load, service [kN]; 0: none.',
+					minimum: 0,
+					title: 'Concentrated load',
+					type: 'number',
+				},
+				contactSide: {
+					default: 150,
+					description: 'Side of the square base plate or tyre print of the concentrated load [mm].',
+					exclusiveMinimum: 0,
+					title: 'Contact side',
+					type: 'number',
+				},
+				subgradeModulus: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Of the compacted sub-base [kN/m³]; empty: the subgrade springs value of 9 Substructure → Design.',
+					title: 'Subgrade modulus k',
+				},
+				factorOfSafety: {
+					default: 2.0,
+					description: 'On the modulus of rupture for the concentrated load\'s flexural stress.',
+					maximum: 5,
+					minimum: 1,
+					title: 'Factor of safety',
+					type: 'number',
+				},
+				jointSpacing: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Of the contraction joints [mm]; empty: not checked.',
+					title: 'Joint spacing',
+				},
+				note: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Note',
+				},
+			},
+			required: ['id', 'outline', 'material'],
+			title: 'GroundSlab',
 			type: 'object',
 		},
 		LinearReinforcement: {
@@ -14950,6 +15156,14 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 			title: 'Tie beams',
 			type: 'array',
 		},
+		groundSlabs: {
+			description: 'Ground-bearing slabs on the compacted ground.',
+			items: {
+				$ref: '#/$defs/GroundSlab',
+			},
+			title: 'Slabs on grade',
+			type: 'array',
+		},
 		retainingWalls: {
 			description: 'Cantilever retaining walls and basement walls, designed per metre run.',
 			items: {
@@ -14977,6 +15191,7 @@ export const DEFAULT_SUBSTRUCTURE: object = {
 	pileTypes: [],
 	piles: [],
 	tieBeams: [],
+	groundSlabs: [],
 	retainingWalls: [],
 	earthPressure: {
 		basementWalls: true,
@@ -14994,6 +15209,7 @@ export const DEFAULT_SUBSTRUCTURE: object = {
 		},
 		raftMeshSize: 500.0,
 		springsFrom: 'soilReport',
+		raftSprings: 'noTension',
 	},
 };
 
