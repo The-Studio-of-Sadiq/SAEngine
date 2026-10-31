@@ -44,6 +44,7 @@ import { ExportsEditorInput } from './exportsEditorInput.js';
 import { LAST_ARCHIVE_STORAGE_KEY, readLastArchive } from './projectArchiveFlows.js';
 import { ARCHIVE_EXPORT_COMMAND, ARCHIVE_IMPORT_COMMAND, CAD_OPEN_COMMAND, EXPORT_ARCHIVE_UI_COMMAND, lastArchiveDescription, OPEN_ARCHIVE_UI_COMMAND, OPEN_DXF_IN_CAD_UI_COMMAND } from './projectArchiveModel.js';
 import { partName } from './projectParts.js';
+import { EXCHANGE_SUFFIX, EXPORT_REVIT_FOLDER, REVIT_EXPORT_COMMAND, RevitLinkFlows } from './revitLink.js';
 import { formatDate } from '../../../services/saengineProject/common/formatting.js';
 
 /*
@@ -75,7 +76,7 @@ export const EXPORT_E2K_FOLDER = 'ETABS';
 /** The file explorer's "Reveal in File Explorer" (desktop only). */
 const REVEAL_IN_OS_COMMAND = 'revealFileInOS';
 
-type ExportKind = 'report' | 'word' | 'ifc' | 'dxf' | 'e2k' | 'csv' | 'xlsx';
+type ExportKind = 'report' | 'word' | 'ifc' | 'dxf' | 'e2k' | 'revit' | 'csv' | 'xlsx';
 
 interface IExportFile {
 	readonly resource: URI;
@@ -199,6 +200,8 @@ export class ExportsEditor extends EditorPane {
 	private readonly csvAction = this._register(new Action('saengine.exports.csv', localize('exports.exportCsv', "Export Bill of Quantities as CSV..."), undefined, true, () => this.make('csv')));
 	private readonly xlsxAction = this._register(new Action('saengine.exports.xlsx', localize('exports.exportXlsx', "Export Bill of Quantities to Excel..."), undefined, true, () => this.make('xlsx')));
 	private readonly e2kAction = this._register(new Action('saengine.exports.e2k', localize('exports.exportE2k', "Export to ETABS (.e2k)"), undefined, true, () => this.make('e2k')));
+	private readonly revitAction = this._register(new Action('saengine.exports.revit', localize('exports.exportRevit', "Export for Revit"), undefined, true, () => this.make('revit')));
+	private readonly revitImportAction = this._register(new Action('saengine.exports.revitImport', localize('exports.revitImport', "Import Changes from Revit..."), undefined, true, () => this.importFromRevit()));
 	private readonly archiveAction = this._register(new Action('saengine.exports.archive', localize('exports.exportArchive', "Export Project (.civil)..."), undefined, true, () => this.exportArchive()));
 	private readonly openArchiveAction = this._register(new Action('saengine.exports.openArchive', localize('exports.openArchive', "Open Project Archive..."), undefined, true, () => this.openArchive()));
 	private readonly drawingsAction = this._register(new Action('saengine.exports.drawings', localize('exports.generateDrawings', "Generate Drawings"), undefined, true, () => this.drawings.generate()));
@@ -223,7 +226,7 @@ export class ExportsEditor extends EditorPane {
 		super(ExportsEditor.ID, group, telemetryService, themeService, storage);
 		this._register(this.storage.onDidChangeValue(StorageScope.WORKSPACE, LAST_ARCHIVE_STORAGE_KEY, this._store)(() => this.scanScheduler.schedule(0)));
 		this._register(CommandsRegistry.onDidRegisterCommand(id => {
-			if (id === ARCHIVE_EXPORT_COMMAND || id === ARCHIVE_IMPORT_COMMAND || id === CAD_OPEN_COMMAND || id === DRAWINGS_GENERATE_COMMAND || id === EXPORT_E2K_COMMAND) {
+			if (id === ARCHIVE_EXPORT_COMMAND || id === ARCHIVE_IMPORT_COMMAND || id === CAD_OPEN_COMMAND || id === DRAWINGS_GENERATE_COMMAND || id === EXPORT_E2K_COMMAND || id === REVIT_EXPORT_COMMAND) {
 				this.render();
 			}
 		}));
@@ -238,7 +241,7 @@ export class ExportsEditor extends EditorPane {
 		}));
 		this.frame.element.classList.add('saengine-exports-editor');
 		this.frame.setTitle(localize('exports.title', "Exports"));
-		this.frame.setHelp(localize('exports.help', "What the project hands over: the design report, the building model as IFC, the floor plans as DXF, the analysis model for ETABS (.e2k), the structural drawings (DXF sheets for LibreCAD, one PDF set and the bar bending schedule) and the bill of quantities as CSV. Each is made from its part and written to the 11 Exports folder. The project archive (.civil) holds the whole project in one file."));
+		this.frame.setHelp(localize('exports.help', "What the project hands over: the design report, the building model as IFC, the floor plans as DXF, the analysis model for ETABS (.e2k), the exchange file of the Revit link, the structural drawings (DXF sheets for LibreCAD, one PDF set and the bar bending schedule) and the bill of quantities as CSV. Each is made from its part and written to the 11 Exports folder. The project archive (.civil) holds the whole project in one file."));
 		this.list = $('.exports-list');
 		this.scrollable = this._register(new DomScrollableElement(this.list, { horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Auto }));
 		append(this.frame.main, this.scrollable.getDomNode()).classList.add('exports-scroll');
@@ -313,6 +316,7 @@ export class ExportsEditor extends EditorPane {
 				for (const child of stat.children ?? []) {
 					const kind = !child.isFile ? undefined
 						: path === EXPORT_E2K_FOLDER ? (child.name.toLowerCase().endsWith('.e2k') ? 'e2k' : undefined)
+							: path === EXPORT_REVIT_FOLDER ? (child.name.toLowerCase().endsWith(EXCHANGE_SUFFIX) ? 'revit' : undefined)
 							: !path && child.name.toLowerCase() === WORD_REPORT_FILE ? 'word'
 								: exportKind(path ? `${path}/${child.name}` : child.name);
 					if (kind) {
@@ -325,7 +329,7 @@ export class ExportsEditor extends EditorPane {
 				// Not made yet: the folder is created by the first export.
 			}
 		};
-		const [archive, bimElements] = await Promise.all([this.findLastArchive(), this.countBimElements(), ...['', EXPORT_IFC_FOLDER, EXPORT_DXF_FOLDER, EXPORT_E2K_FOLDER].map(read)]);
+		const [archive, bimElements] = await Promise.all([this.findLastArchive(), this.countBimElements(), ...['', EXPORT_IFC_FOLDER, EXPORT_DXF_FOLDER, EXPORT_E2K_FOLDER, EXPORT_REVIT_FOLDER].map(read)]);
 		if (version !== this.scanVersion) {
 			return;
 		}
@@ -462,6 +466,17 @@ export class ExportsEditor extends EditorPane {
 			runningLabel: localize('exports.e2kRunning', "Exporting to ETABS..."),
 		});
 		kinds.push({
+			kind: 'revit', icon: Codicon.sync,
+			title: localize('exports.revit', "Revit link"),
+			description: localize('exports.revitDescription', "The analytical model and the designed bars as an exchange file for the SAEngine Revit add-in. Changes made in Revit come back through Import Changes, with a preview."),
+			location: `${exportsFolder}/${EXPORT_REVIT_FOLDER}`,
+			makeLabel: localize('exports.exportRevit', "Export for Revit"),
+			againLabel: localize('exports.exportRevitAgain', "Export for Revit Again"),
+			command: REVIT_EXPORT_COMMAND,
+			blocked: emptyModel ?? (bim ? blockedBy('bim', localize('exports.revitBlocked', "Build the building model ({0}) first.", partName(bim))) : undefined),
+			runningLabel: localize('exports.revitRunning', "Exporting for Revit..."),
+		});
+		kinds.push({
 			kind: 'csv', icon: Codicon.table,
 			title: localize('exports.csv', "Bill of quantities (CSV)"),
 			description: localize('exports.csvDescription', "Concrete, reinforcement, formwork and steel, for a spreadsheet."),
@@ -535,13 +550,15 @@ export class ExportsEditor extends EditorPane {
 		this.ifcAction.enabled = can('ifc');
 		this.dxfAction.enabled = can('dxf');
 		this.e2kAction.enabled = can('e2k') && !!CommandsRegistry.getCommand(EXPORT_E2K_COMMAND);
+		this.revitAction.enabled = can('revit') && RevitLinkFlows.available();
+		this.revitImportAction.enabled = has('revit') && !this.running.has('revit') && RevitLinkFlows.available();
 		this.csvAction.enabled = can('csv');
 		this.xlsxAction.enabled = can('xlsx');
 		this.drawingsAction.enabled = !!kinds && !!CommandsRegistry.getCommand(DRAWINGS_GENERATE_COMMAND) && !this.emptyModel();
 		this.revealFolderAction.enabled = !!kinds;
 		this.archiveAction.enabled = !!kinds && !!CommandsRegistry.getCommand(ARCHIVE_EXPORT_COMMAND);
 		this.openArchiveAction.enabled = !!CommandsRegistry.getCommand(ARCHIVE_IMPORT_COMMAND);
-		const secondary: IAction[] = [this.printAction, this.ifcAction, ...(has('dxf') ? [this.dxfAction] : []), this.e2kAction, this.drawingsAction, this.csvAction, this.xlsxAction, new Separator(), this.archiveAction, this.openArchiveAction, new Separator(), this.refreshAction];
+		const secondary: IAction[] = [this.printAction, this.ifcAction, ...(has('dxf') ? [this.dxfAction] : []), this.e2kAction, this.revitAction, this.revitImportAction, this.drawingsAction, this.csvAction, this.xlsxAction, new Separator(), this.archiveAction, this.openArchiveAction, new Separator(), this.refreshAction];
 		const key = secondary.map(a => a.id).join();
 		if (key !== this.actionsKey) {
 			this.actionsKey = key;
@@ -585,6 +602,12 @@ export class ExportsEditor extends EditorPane {
 			e.preventDefault();
 			this.showContextMenu(kind, files.length === 1 ? files[0] : undefined, e);
 		}));
+		if (kind.kind === 'revit' && RevitLinkFlows.available()) {
+			// Changes made in Revit come back from the file the add-in writes, with a preview.
+			const back = this.textButton(actions, localize('exports.revitImportShort', "Import Changes..."), () => void this.importFromRevit());
+			back.setTitle(localize('exports.revitImportTitle', "Import Changes from Revit... (a file written back by the add-in: preview, then apply to the floor plan)"));
+			back.enabled = !running;
+		}
 		const showRunning = () => {
 			clearNode(when);
 			append(when, $(`span${ThemeIcon.asCSSSelector(ThemeIcon.modify(Codicon.loading, 'spin'))}`));
@@ -697,6 +720,8 @@ export class ExportsEditor extends EditorPane {
 				try {
 					if (kindId === 'e2k') {
 						await this.exportE2k(project);
+					} else if (kindId === 'revit') {
+						await this.instantiationService.createInstance(RevitLinkFlows).export();
 					} else {
 						await this.commandService.executeCommand(kind.command);
 					}
@@ -746,6 +771,21 @@ export class ExportsEditor extends EditorPane {
 		]);
 	}
 
+	/** Changes made in Revit, back into the floor plan after their preview. */
+	private async importFromRevit(): Promise<void> {
+		if (this.running.has('revit')) {
+			return;
+		}
+		this.running.add('revit');
+		this.render();
+		try {
+			await this.instantiationService.createInstance(RevitLinkFlows).import();
+		} finally {
+			this.running.delete('revit');
+			this.render();
+		}
+	}
+
 	/** The export report: Markdown in its preview (the built-in Markdown extension), else as text. */
 	private async showReport(report: URI): Promise<void> {
 		if (report.path.endsWith('.md')) {
@@ -761,7 +801,7 @@ export class ExportsEditor extends EditorPane {
 
 	/** Drawings open in SAEngine's CAD editor; the report, IFC and CSV in the system's own application. */
 	private async openFile(file: IExportFile, kind: IExportKind): Promise<void> {
-		if (kind.kind === 'dxf' || kind.kind === 'e2k') {
+		if (kind.kind === 'dxf' || kind.kind === 'e2k' || kind.kind === 'revit') {
 			await this.editorService.openEditor({ resource: file.resource, options: { pinned: true } });
 		} else {
 			// The system's viewer can take seconds to appear: the page says it is on its way.
