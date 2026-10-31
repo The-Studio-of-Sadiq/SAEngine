@@ -4826,6 +4826,13 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					title: 'Appendix of element checks',
 					type: 'string',
 				},
+				template: {
+					default: 'default',
+					description: 'The report template printed: its id, the file name of one in 11 Exports/report-templates, or a built-in one (default: every section in full; summary: the results without each element\'s calculations). The template chooses the sections, their order and detail, the cover, the letterhead and the members printed.',
+					pattern: '^[a-z0-9][a-z0-9-]{0,63}$',
+					title: 'Template',
+					type: 'string',
+				},
 			},
 			title: 'Report',
 			type: 'object',
@@ -5661,6 +5668,7 @@ export const DEFAULT_SETTINGS: object = {
 	},
 	report: {
 		appendix: 'governing',
+		template: 'default',
 	},
 };
 
@@ -10686,6 +10694,19 @@ export const SOIL_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Depth the borehole was drilled to [mm]; the deepest layer\'s bottom when empty.',
 					title: 'Termination depth',
+				},
+				excludeFromSite: {
+					anyOf: [
+						{
+							type: 'boolean',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The site\'s bearing table takes the lowest of the other boreholes (one far from the building, say); the borehole\'s own results stay.',
+					title: 'Leave out of the site table',
 				},
 				date: {
 					anyOf: [
@@ -18214,4 +18235,378 @@ export const DEFAULT_ARCHITECTURE: object = {
 	rooms: [],
 	separators: [],
 	imports: [],
+};
+
+export const REPORT_TEMPLATE_SCHEMA: IJSONSchema = {
+	$defs: {
+		Cover: {
+			additionalProperties: false,
+			properties: {
+				show: {
+					default: true,
+					title: 'Print a cover page',
+					type: 'boolean',
+				},
+				title: {
+					default: 'Structural Design Report',
+					minLength: 1,
+					title: 'Title',
+					type: 'string',
+				},
+				subtitle: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Subtitle',
+				},
+				showStatus: {
+					default: true,
+					description: 'The design result (pass, fail, incomplete) on the cover. A report whose members fail says so on its cover; turn this off only for a report of inputs.',
+					title: 'Design result',
+					type: 'boolean',
+				},
+				showTitleBlock: {
+					default: true,
+					description: 'The title block of the drawings (Project Settings → Drawings) for the signatures.',
+					title: 'Signature block',
+					type: 'boolean',
+				},
+				note: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Text printed on the cover above the disclaimer (a submission note).',
+					title: 'Note',
+				},
+			},
+			title: 'Cover',
+			type: 'object',
+		},
+		Letterhead: {
+			additionalProperties: false,
+			properties: {
+				enabled: {
+					default: false,
+					title: 'Print a letterhead',
+					type: 'boolean',
+				},
+				organisation: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The firm\'s name; empty: the firm of the drawings\' title block.',
+					title: 'Organisation',
+				},
+				lines: {
+					description: 'Address, telephone, e-mail: one per line, under the name.',
+					items: {
+						type: 'string',
+					},
+					title: 'Lines',
+					type: 'array',
+				},
+				logo: {
+					anyOf: [
+						{
+							pattern: '(?i)^[^:*?\\"<>|]+\\.(png|jpe?g)$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'A PNG or JPEG file, its path relative to the project folder.',
+					title: 'Logo',
+				},
+			},
+			title: 'Letterhead',
+			type: 'object',
+		},
+		MemberSelection: {
+			additionalProperties: false,
+			properties: {
+				kinds: {
+					description: 'The kinds of member the member tables and the appendix print; empty: all.',
+					items: {
+						enum: ['column', 'beam', 'slab', 'wall', 'brace', 'staircase', 'member'],
+						type: 'string',
+					},
+					title: 'Kinds',
+					type: 'array',
+				},
+				storeys: {
+					description: 'Storey names or ids; empty: all.',
+					items: {
+						type: 'string',
+					},
+					title: 'Storeys',
+					type: 'array',
+				},
+				ids: {
+					description: 'Member ids; empty: all (of the kinds and storeys).',
+					items: {
+						type: 'string',
+					},
+					title: 'Members',
+					type: 'array',
+				},
+				failingOnly: {
+					default: false,
+					title: 'Only failing members',
+					type: 'boolean',
+				},
+				appendix: {
+					default: 'settings',
+					description: 'Which elements the appendix prints every check of: as the project settings (Design report → Appendix), the governing element of each type and storey and every failing one, all, or none.',
+					enum: ['settings', 'governing', 'all', 'none'],
+					enumDescriptions: ['As the project settings', 'Governing', 'All', 'None'],
+					title: 'Appendix',
+					type: 'string',
+				},
+			},
+			title: 'MemberSelection',
+			type: 'object',
+		},
+		ReportSection: {
+			additionalProperties: false,
+			properties: {
+				id: {
+					enum: ['basis', 'soil', 'foundations', 'model', 'results', 'design', 'seismic', 'worksheets', 'mep', 'plumbing', 'hvac', 'electrical', 'fire', 'boq', 'limitations', 'appendix'],
+					enumDescriptions: ['Design basis', 'Soil and foundations', 'Foundations', 'Analysis model', 'Analysis results', 'Member design', 'Seismic detailing', 'Calculation worksheets', 'MEP coordination', 'Plumbing', 'HVAC coordination', 'Electrical coordination', 'Fire protection', 'Bill of quantities', 'Limitations and notes', 'Appendix: element checks'],
+					title: 'Section',
+					type: 'string',
+				},
+				include: {
+					default: true,
+					title: 'Print',
+					type: 'boolean',
+				},
+				detail: {
+					default: 'inherit',
+					description: 'Summary: the results and the governing values; full: every table and the calculations of each element. Inherit: the template\'s detail.',
+					enum: ['inherit', 'summary', 'full'],
+					enumDescriptions: ['As the template', 'Summary', 'Full'],
+					title: 'Detail',
+					type: 'string',
+				},
+				title: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Another heading for the section; empty: its own.',
+					title: 'Heading',
+				},
+			},
+			required: ['id'],
+			title: 'ReportSection',
+			type: 'object',
+		},
+	},
+	additionalProperties: false,
+	properties: {
+		schema: {
+			const: 'saengine.reportTemplate/1',
+			default: 'saengine.reportTemplate/1',
+			title: 'Schema_',
+			type: 'string',
+		},
+		id: {
+			default: 'default',
+			description: 'The template\'s id: its file name in 11 Exports/report-templates.',
+			pattern: '^[a-z0-9][a-z0-9-]{0,63}$',
+			title: 'Id',
+			type: 'string',
+		},
+		name: {
+			default: 'Full design report',
+			minLength: 1,
+			title: 'Name',
+			type: 'string',
+		},
+		description: {
+			anyOf: [
+				{
+					type: 'string',
+				},
+				{
+					type: 'null',
+				},
+			],
+			default: null,
+			title: 'Description',
+		},
+		detail: {
+			default: 'full',
+			description: 'Summary: results and governing values, for a submission or a client; full: every table and every element\'s calculations, for checking.',
+			enum: ['summary', 'full'],
+			enumDescriptions: ['Summary', 'Full calculations'],
+			title: 'Detail',
+			type: 'string',
+		},
+		contents: {
+			default: true,
+			title: 'Table of contents',
+			type: 'boolean',
+		},
+		paper: {
+			default: 'a4',
+			enum: ['a4', 'us-letter'],
+			enumDescriptions: ['A4', 'US Letter'],
+			title: 'Paper',
+			type: 'string',
+		},
+		sections: {
+			description: 'The sections in the order they print. A section left out of the list is not printed; a section without content in this project is skipped.',
+			items: {
+				$ref: '#/$defs/ReportSection',
+			},
+			title: 'Sections',
+			type: 'array',
+		},
+		cover: {
+			$ref: '#/$defs/Cover',
+		},
+		letterhead: {
+			$ref: '#/$defs/Letterhead',
+		},
+		members: {
+			$ref: '#/$defs/MemberSelection',
+			title: 'Member selection',
+		},
+	},
+	title: 'SAEngine report template',
+	type: 'object',
+};
+
+export const DEFAULT_REPORT_TEMPLATE: object = {
+	schema: 'saengine.reportTemplate/1',
+	id: 'default',
+	name: 'Full design report',
+	detail: 'full',
+	contents: true,
+	paper: 'a4',
+	sections: [
+		{
+			id: 'basis',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'soil',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'foundations',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'model',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'results',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'design',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'seismic',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'worksheets',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'mep',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'plumbing',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'hvac',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'electrical',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'fire',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'boq',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'limitations',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'appendix',
+			include: true,
+			detail: 'inherit',
+		},
+	],
+	cover: {
+		show: true,
+		title: 'Structural Design Report',
+		showStatus: true,
+		showTitleBlock: true,
+	},
+	letterhead: {
+		enabled: false,
+		lines: [],
+	},
+	members: {
+		kinds: [],
+		storeys: [],
+		ids: [],
+		failingOnly: false,
+		appendix: 'settings',
+	},
 };

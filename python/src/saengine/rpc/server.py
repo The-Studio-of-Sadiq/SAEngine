@@ -59,7 +59,10 @@ Methods:
   ``soil/qgisCommand`` ``{program, filePath}`` -> the arguments that open the file in it
 - ``boq/compute`` ``{bimText, objectsText, materialsText, projectRoot?}`` -> the bill of
   quantities (``projectRoot``: where the plumbing tanks' last designs give their bars)
-- ``report/build`` ``{projectRoot, outPdf?}`` -> the PDF design report (``{path, pages, warnings}``)
+- ``report/build`` ``{projectRoot, outPdf?, format?, template?}`` -> the design report, PDF or
+  Word (``format`` "docx"), as the report template chooses (``{path, pages, warnings, format,
+  template}``); ``report/templates`` ``{projectRoot}`` -> ``{templates, current}``;
+  ``report/createTemplate`` ``{projectRoot, id, base?, name?}`` -> ``{path}`` (a copy of ``base``)
 - ``drawings/generate`` ``{projectRoot, sheets?, size?, designReportText?}`` -> the structural
   drawings written into ``11 Exports/Drawings`` (``{sheets, pdf, bbsCsv, generatedAt, size,
   stale, notes, problems}``; ``saengine.pipeline.drawings``; in a worker thread; ``sheets``: only
@@ -536,7 +539,12 @@ def create_server() -> JsonRPCServer:
     @_in_worker
     def _build_report_worker(params: Any) -> dict[str, Any]:
         args = _plain(params)
-        return handlers.build_report(args["projectRoot"], args.get("outPdf"))
+        return handlers.build_report(
+            args["projectRoot"],
+            args.get("outPdf"),
+            args.get("format") or "pdf",
+            args.get("template"),
+        )
 
     @server.feature("report/build")
     async def _build_report(params: Any) -> dict[str, Any]:
@@ -546,6 +554,17 @@ def create_server() -> JsonRPCServer:
         import saengine.report  # noqa: F401
 
         return await _build_report_worker(params)
+
+    @server.feature("report/templates")
+    def _report_templates(params: Any) -> dict[str, Any]:
+        return handlers.report_templates(_plain(params)["projectRoot"])
+
+    @server.feature("report/createTemplate")
+    def _report_create_template(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.report_template_create(
+            args["projectRoot"], args["id"], args.get("base"), args.get("name")
+        )
 
     # Detailing, the schedule and the sheets take seconds to tens of seconds: in a worker thread,
     # with ``drawings/progress`` answering meanwhile; ``drawings/list`` only reads files.
