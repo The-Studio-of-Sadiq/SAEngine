@@ -959,7 +959,7 @@ export class StructureModelerEditor extends EditorPane {
 		const select = this.presetSelect;
 		clearNode(select);
 		this.panelPresets.classList.toggle('hidden', this.source?.kind !== 'shape' || !this.presets.length);
-		const placeholder = append(select, $('option', { value: '' }, localize('modeler.presetPlaceholder', "Start from a structure template...")));
+		const placeholder = append(select, $('option', { value: '' }, localize('modeler.presetPlaceholder', "Start from a structure template..."))) as HTMLOptionElement;
 		placeholder.selected = true;
 		groupPresets(this.presets).forEach((group, g) => {
 			const optgroup = append(select, $('optgroup', { label: group.name }));
