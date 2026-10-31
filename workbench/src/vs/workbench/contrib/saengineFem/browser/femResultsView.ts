@@ -460,18 +460,26 @@ export class FemResultsEditor extends EditorPane {
 		if (!input || input.page.kind !== 'member' || this.interactionState === 'loading') {
 			return;
 		}
-		const request = this.request;
+		const member = input.page.member;
+		const model = input.model.toString();
+		// The page may refresh during the minutes this takes (the results' files change): the
+		// answer still belongs to it while it shows the same member of the same model (N-X16 of
+		// usability walk 2: 282 s of work, then the button again and nothing shown).
+		const current = () => {
+			const shown = this.typed;
+			return !!shown && shown.page.kind === 'member' && shown.page.member === member && shown.model.toString() === model;
+		};
 		this.interactionState = 'loading';
 		this.render();
 		try {
-			const answer = await this.commandService.executeCommand<IFemColumnInteraction>(FEM_COLUMN_INTERACTION_COMMAND, input.model, input.page.member);
-			if (request !== this.request) {
+			const answer = await this.commandService.executeCommand<IFemColumnInteraction>(FEM_COLUMN_INTERACTION_COMMAND, input.model, member);
+			if (!current()) {
 				return;
 			}
-			this.interaction = answer?.columns[input.page.member];
+			this.interaction = answer?.columns[member];
 			this.interactionState = this.interaction ? 'idle' : 'none';
 		} catch (error) {
-			if (request !== this.request) {
+			if (!current()) {
 				return;
 			}
 			this.interactionState = 'failed';

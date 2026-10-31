@@ -12,6 +12,7 @@ import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { Action, Separator } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { IntervalTimer } from '../../../../base/common/async.js';
 import { DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
 import { basename, dirname, joinPath } from '../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
@@ -40,7 +41,7 @@ import { IWorkingCopyService } from '../../../services/workingCopy/common/workin
 import { EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { saveProjectEdits } from '../../saengineProject/browser/projectEdits.js';
 import { DESIGN_APPLY_COMMAND, DESIGN_PROPOSAL_COMMAND, designArguments, IFemDesignReport, runDesign } from './femDesign.js';
-import { describeBeforeAfter, describeChange, describeCheckCounts, describeFailing, describeSteelProposal, DesignProposalMode, DesignProposalModel, IDesignProposalRow, IDesignProposalTexts, IFemDesignApplyResult, IFemDesignProposal, failingItems, notFixedBy, proposalEdits } from './femDesignProposal.js';
+import { countFailing, describeBeforeAfter, describeChange, describeCheckCounts, describeFailing, describeSteelProposal, describeWaitStep, DesignProposalMode, IDesignWaitStep, DesignProposalModel, IDesignProposalRow, IDesignProposalTexts, IFemDesignApplyResult, IFailingItem, IFemDesignProposal, failingItems, notFixedBy, proposalEdits } from './femDesignProposal.js';
 import { FemDesignProposalInput } from './femDesignProposalInput.js';
 import { errorSummary } from './femResultsBar.js';
 
@@ -72,6 +73,11 @@ interface IAppliedState {
 	problem?: string;
 }
 
+/** A step of the work the page waits for, and since when. */
+interface IWaitStep extends IDesignWaitStep {
+	readonly since: number;
+}
+
 /**
  * Design Reinforcement: the bars proposed for each object type from the steel its members
  * require (the backend's `saengine.design.proposal`), current against proposed, with the member
@@ -92,8 +98,13 @@ export class FemDesignProposalEditor extends EditorPane {
 	private loading = false;
 	private applying = false;
 	private problem: string | undefined;
+	/** The engineer stopped waiting: a note, not an error. */
+	private stopped = false;
 	private applied: IAppliedState | undefined;
 	private request = 0;
+	/** What the page waits for, step k of n, and since when (N-X4 of usability walk 2: minutes of a blank page). */
+	private step: IWaitStep | undefined;
+	private readonly ticker = this._register(new IntervalTimer());
 
 	private readonly renderStore = this._register(new DisposableStore());
 	/** The text models of the files an apply edits, held while the page is open so their undo stays. */
@@ -102,6 +113,7 @@ export class FemDesignProposalEditor extends EditorPane {
 
 	private readonly applyAction = this._register(new Action('saengine.fem.proposal.apply', localize('femProposal.apply', "Apply Proposal"), ThemeIcon.asClassName(Codicon.check), false, () => this.apply()));
 	private readonly refreshAction = this._register(new Action('saengine.fem.proposal.refresh', localize('femProposal.refresh', "Propose Again"), ThemeIcon.asClassName(Codicon.refresh), true, () => this.reload()));
+	private readonly stopAction = this._register(new Action('saengine.fem.proposal.stop', localize('femProposal.stop', "Stop Waiting"), ThemeIcon.asClassName(Codicon.debugStop), false, async () => this.stopWaiting()));
 	private readonly includeAllAction = this._register(new Action('saengine.fem.proposal.includeAll', localize('femProposal.includeAll', "Include All Changes"), undefined, true, async () => this.includeAll(true)));
 	private readonly includeNoneAction = this._register(new Action('saengine.fem.proposal.includeNone', localize('femProposal.includeNone', "Include None"), undefined, true, async () => this.includeAll(false)));
 	private readonly openObjectsAction = this._register(new Action('saengine.fem.proposal.openObjects', localize('femProposal.openObjects', "Open Object Types"), undefined, true, () => this.openObjects()));
@@ -137,7 +149,7 @@ export class FemDesignProposalEditor extends EditorPane {
 		this.modePicker = this._register(new SelectBox(MODES.map<ISelectOptionItem>(m => ({ text: m.label })), 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('femProposal.modeAria', "How members share object types") }));
 		this.modePicker.render(append(mode, $('.fem-proposal-select')));
 		this._register(this.modePicker.onDidSelect(({ index }) => this.setMode(MODES[index]?.mode ?? 'byType')));
-		this.frame.setActions([this.applyAction, this.refreshAction], [this.includeAllAction, this.includeNoneAction, new Separator(), this.openObjectsAction]);
+		this.frame.setActions([this.applyAction, this.refreshAction, this.stopAction], [this.includeAllAction, this.includeNoneAction, new Separator(), this.openObjectsAction]);
 		this.list = $('.fem-proposal-list');
 		this.scrollable = this._register(new DomScrollableElement(this.list, { horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Auto }));
 		append(this.frame.main, this.scrollable.getDomNode()).classList.add('fem-proposal-scroll');
@@ -157,6 +169,8 @@ export class FemDesignProposalEditor extends EditorPane {
 
 	override clearInput(): void {
 		this.request++;
+		this.step = undefined;
+		this.ticker.cancel();
 		this.references.clear();
 		this.modelReferences.clear();
 		this.renderStore.clear();
@@ -195,13 +209,14 @@ export class FemDesignProposalEditor extends EditorPane {
 		}
 		this.model.clear();
 		this.problem = undefined;
+		this.stopped = false;
 		if (!CommandsRegistry.getCommand(DESIGN_PROPOSAL_COMMAND)) {
 			this.render();
 			return;
 		}
 		const request = ++this.request;
 		this.loading = true;
-		this.render();
+		this.setStep({ index: 1, count: 2, text: localize('femProposal.stepSave', "Saving the project files") });
 		// The backend reads the files on disk: save what the engineer sees first (as Run All does).
 		const unsaved = await saveProjectEdits(this.workingCopyService, dirname(dirname(model)));
 		if (request !== this.request) {
@@ -211,9 +226,10 @@ export class FemDesignProposalEditor extends EditorPane {
 			// Proposing from the files on disk would propose for bars the engineer has changed since.
 			this.problem = localize('femProposal.saveFailed', "No bars were proposed: {0} could not be saved first.", unsaved.map(file => basename(file)).join(', '));
 			this.loading = false;
-			this.render();
+			this.setStep(undefined);
 			return;
 		}
+		this.setStep({ index: 2, count: 2, text: localize('femProposal.stepPropose', "Checking the bars now and proposing bars from the required steel") });
 		const [before] = await Promise.all([
 			runDesign(this.commandService, model).catch(() => undefined),
 			this.fetch(this.model.mode, request),
@@ -224,7 +240,35 @@ export class FemDesignProposalEditor extends EditorPane {
 		this.before = before;
 		this.model.setChecks(before);
 		this.loading = false;
+		this.setStep(undefined);
+	}
+
+	/** Shows `step` (undefined: none) and keeps its clock running while there is one. */
+	private setStep(step: IDesignWaitStep | undefined): void {
+		this.step = step && { ...step, since: Date.now() };
+		if (step) {
+			this.ticker.cancelAndSet(() => this.frame.setStatus(this.status()), 1000);
+		} else {
+			this.ticker.cancel();
+		}
 		this.render();
+	}
+
+	/**
+	 * Gives the page back while the engine works on: its answer is no longer waited for (an
+	 * apply not yet written leaves the files as they were; one written keeps its Undo). The
+	 * engine keeps the proposal it finishes, so Propose Again shows it at once.
+	 */
+	private stopWaiting(): void {
+		if (!this.loading && !this.applying) {
+			return;
+		}
+		this.request++;
+		this.loading = false;
+		this.applying = false;
+		this.stopped = true;
+		this.problem = localize('femProposal.stopped', "Stopped waiting. The engine finishes in the background and keeps the proposal: Propose Again shows it once it is done.");
+		this.setStep(undefined);
 	}
 
 	/** Asks for the proposal of `mode` once. */
@@ -251,15 +295,18 @@ export class FemDesignProposalEditor extends EditorPane {
 		}
 		this.model.mode = mode;
 		this.problem = undefined;
+		this.stopped = false;
 		if (!this.model.has(mode) && CommandsRegistry.getCommand(DESIGN_PROPOSAL_COMMAND)) {
 			const request = ++this.request;
 			this.loading = true;
-			this.render();
+			this.setStep({ index: 1, count: 1, text: localize('femProposal.stepMode', "Proposing bars for \"{0}\"", MODES.find(m => m.mode === mode)?.label ?? mode) });
 			await this.fetch(mode, request);
 			if (request !== this.request) {
 				return;
 			}
 			this.loading = false;
+			this.setStep(undefined);
+			return;
 		}
 		this.render();
 	}
@@ -319,7 +366,8 @@ export class FemDesignProposalEditor extends EditorPane {
 		const request = this.request;
 		this.applying = true;
 		this.problem = undefined;
-		this.render();
+		this.stopped = false;
+		this.setStep({ index: 1, count: 4, text: localize('femProposal.stepWrite', "Writing the bars into the object types") });
 		try {
 			// The files the backend edits: the object types always; the building model and the
 			// floor plan its members come from (members moved to new types).
@@ -342,6 +390,10 @@ export class FemDesignProposalEditor extends EditorPane {
 				...(current.floorPlanText !== undefined ? { floorPlanText: current.floorPlanText } : {}),
 				proposal,
 			});
+			if (request !== this.request) {
+				// Stopped waiting before anything was edited: the files stay as they were.
+				return;
+			}
 			if (!result) {
 				throw new Error(localize('femProposal.applyNothing', "the backend returned nothing"));
 			}
@@ -362,31 +414,41 @@ export class FemDesignProposalEditor extends EditorPane {
 			}
 			const changes = (result.changes ?? []).map(describeChange).filter(c => !!c);
 			const before = this.before;
+			this.setStep({ index: 2, count: 4, text: localize('femProposal.stepSaveApplied', "Saving the edited files") });
 			const unsaved = await this.save(edited.map(file => file.resource));
+			// Kept even if the engineer stops waiting from here on: the files are edited, Undo stays.
+			const applied: IAppliedState = { before, after: undefined, changes, edited, undone: false };
+			this.applied = applied;
 			if (request !== this.request) {
 				return;
 			}
 			if (unsaved.length) {
 				// The checks read the files on disk: checking now would count the old bars.
-				this.applied = { before, after: undefined, changes, edited, undone: false, problem: notSavedText(unsaved) };
+				applied.problem = notSavedText(unsaved);
 				this.model.clear();
 				return;
 			}
+			this.setStep({ index: 3, count: 4, text: localize('femProposal.stepCheck', "Checking the members again with the new bars") });
 			const after = edited.length ? await runDesign(this.commandService, model).catch(() => undefined) : before;
 			if (request !== this.request) {
 				return;
 			}
-			this.applied = { before, after, changes, edited, undone: false };
+			applied.after = after;
 			this.before = after;
 			this.model.setChecks(after);
 			// The bars changed: propose again from them (the rows now show what was applied).
 			this.model.clear();
+			this.setStep({ index: 4, count: 4, text: localize('femProposal.stepProposeAgain', "Proposing again from the new bars") });
 			await this.fetch(this.model.mode, request);
 		} catch (error) {
-			this.problem = localize('femProposal.applyFailed', "The proposal could not be applied: {0}", errorSummary(error));
+			if (request === this.request) {
+				this.problem = localize('femProposal.applyFailed', "The proposal could not be applied: {0}", errorSummary(error));
+			}
 		} finally {
-			this.applying = false;
-			this.render();
+			if (request === this.request) {
+				this.applying = false;
+				this.setStep(undefined);
+			}
 		}
 	}
 
@@ -407,7 +469,7 @@ export class FemDesignProposalEditor extends EditorPane {
 		}
 		const request = this.request;
 		this.applying = true;
-		this.render();
+		this.setStep({ index: 1, count: 3, text: localize('femProposal.stepUndo', "Undoing the apply and saving the files") });
 		try {
 			// One undo: the group undoes the other file's edit too.
 			await this.undoRedoService.undo(applied.edited[0].resource);
@@ -422,6 +484,7 @@ export class FemDesignProposalEditor extends EditorPane {
 				this.model.clear();
 				return;
 			}
+			this.setStep({ index: 2, count: 3, text: localize('femProposal.stepCheckUndone', "Checking the members again with the bars before") });
 			const after = await runDesign(this.commandService, model).catch(() => undefined);
 			if (request !== this.request) {
 				return;
@@ -430,12 +493,15 @@ export class FemDesignProposalEditor extends EditorPane {
 			this.before = after;
 			this.model.setChecks(after);
 			this.model.clear();
+			this.setStep({ index: 3, count: 3, text: localize('femProposal.stepProposeAgain', "Proposing again from the new bars") });
 			await this.fetch(this.model.mode, request);
 		} catch (error) {
 			applied.problem = localize('femProposal.undoFailed', "The apply could not be undone: {0}", errorSummary(error));
 		} finally {
-			this.applying = false;
-			this.render();
+			if (request === this.request) {
+				this.applying = false;
+				this.setStep(undefined);
+			}
 		}
 	}
 
@@ -450,6 +516,7 @@ export class FemDesignProposalEditor extends EditorPane {
 		this.applyAction.enabled = available && !!CommandsRegistry.getCommand(DESIGN_APPLY_COMMAND) && included > 0 && !this.applying && !this.loading;
 		this.applyAction.label = applyLabel(included);
 		this.refreshAction.enabled = available && !this.applying && !this.loading;
+		this.stopAction.enabled = this.applying || this.loading;
 		this.includeAllAction.enabled = this.includeNoneAction.enabled = rows.length > 0 && !this.applying;
 		this.modePicker.select(Math.max(0, MODES.findIndex(m => m.mode === this.model.mode)));
 		this.modePicker.setEnabled(available && !this.applying);
@@ -470,15 +537,28 @@ export class FemDesignProposalEditor extends EditorPane {
 			return;
 		}
 		const proposal = this.model.proposal;
-		// Without a proposal, the banner of an apply whose files could not be saved still shows.
-		if (!proposal && !this.loading && !this.applied?.problem) {
+		// Without a proposal, the banner of an apply still shows (with its Undo) while the page
+		// checks and proposes again, and when the files could not be saved.
+		if (!proposal && !this.loading && !this.applying && !this.applied) {
 			this.frame.setEmpty({
 				icon: Codicon.symbolRuler,
 				title: localize('femProposal.noneTitle', "No proposal"),
 				text: this.problem ?? localize('femProposal.none', "Run the analysis first: bars are proposed from its results."),
 				actions: [{ label: localize('femProposal.refresh', "Propose Again"), icon: Codicon.refresh, run: () => void this.reload() }],
 			});
-			this.frame.setStatus(this.problem ? { severity: 'error', text: this.problem } : undefined);
+			this.frame.setStatus(this.problem ? this.status() : undefined);
+			this.scrollable.scanDomNode();
+			return;
+		}
+		if (!proposal && this.loading && !this.applied) {
+			// Not a blank page while the engine works: what it does, and how to stop waiting.
+			this.frame.setEmpty({
+				icon: Codicon.loading,
+				title: localize('femProposal.loadingTitle', "Proposing bars"),
+				text: this.step?.text ?? localize('femProposal.loading', "Proposing bars from the required steel..."),
+				actions: [{ label: localize('femProposal.stop', "Stop Waiting"), icon: Codicon.debugStop, run: () => this.stopWaiting() }],
+			});
+			this.frame.setStatus(this.status());
 			this.scrollable.scanDomNode();
 			return;
 		}
@@ -500,11 +580,14 @@ export class FemDesignProposalEditor extends EditorPane {
 				this.renderRow(row);
 			}
 		}
-		this.frame.setStatus(this.status(rows, included));
+		this.frame.setStatus(this.status());
 		this.scrollable.scanDomNode();
 	}
 
-	private status(rows: readonly IDesignProposalRow[], included: number): IEditorFrameStatus | undefined {
+	private status(): IEditorFrameStatus | undefined {
+		if ((this.applying || this.loading) && this.step) {
+			return { busy: true, text: describeWaitStep(this.step, Date.now() - this.step.since) };
+		}
 		if (this.applying) {
 			return { busy: true, text: localize('femProposal.applying', "Applying the proposal and checking the members again...") };
 		}
@@ -512,9 +595,11 @@ export class FemDesignProposalEditor extends EditorPane {
 			return { busy: true, text: localize('femProposal.loading', "Proposing bars from the required steel...") };
 		}
 		if (this.problem) {
-			return { severity: 'error', text: this.problem };
+			return { severity: this.stopped ? 'info' : 'error', text: this.problem };
 		}
+		const rows = this.model.rows();
 		const changed = rows.filter(r => r.changed).length;
+		const included = rows.filter(r => r.included).length;
 		return {
 			text: localize('femProposal.statusCounts', "{0} of {1} types change, {2} included.", changed, rows.length, included),
 		};
@@ -529,9 +614,16 @@ export class FemDesignProposalEditor extends EditorPane {
 			: localize('femProposal.headerByType', "Bars per type, for its most demanding member")));
 		if (this.before) {
 			append(text, $('.fem-proposal-header-detail', undefined, localize('femProposal.now', "Design checks now: {0}.", describeCheckCounts(this.before))));
+			// From the rows (N-X5 of usability walk 2: "bars are proposed" for a type whose row
+			// proposed none).
 			const noBars = this.before.summary.noBars ?? [];
-			if (noBars.length) {
-				append(text, $('.fem-proposal-header-detail', undefined, localize('femProposal.noBarsYet', "Not checked for want of bars: {0}. Bars are proposed for them below.", noBars.join(', '))));
+			const withoutBars = noBars.filter(type => rows.some(r => r.type === type && r.tooSmall && !r.included));
+			const proposed = noBars.filter(type => !withoutBars.includes(type));
+			if (proposed.length) {
+				append(text, $('.fem-proposal-header-detail', undefined, localize('femProposal.noBarsYet', "Not checked for want of bars: {0}. Bars are proposed for them below.", proposed.join(', '))));
+			}
+			if (withoutBars.length) {
+				append(text, $('.fem-proposal-header-detail.warn', undefined, localize('femProposal.noBarsNone', "Not checked for want of bars, and no bars proposed: {0}. See their rows for the section to try.", withoutBars.join(', '))));
 			}
 		}
 		const button = this.renderStore.add(new Button(header, { ...defaultButtonStyles, supportIcons: true }));
@@ -542,12 +634,22 @@ export class FemDesignProposalEditor extends EditorPane {
 		// while every joint and a beam failed).
 		const left = notFixedBy(rows, this.before);
 		if (!rows.some(r => r.changed)) {
-			append(this.list, left.length
-				? $('.fem-proposal-warning', undefined, localize('femProposal.noBarFix', "No change of bars is proposed, but these still fail: {0}. Bars do not fix them: change the section, the material or the layout.", describeFailing(left)))
-				: $('.fem-proposal-note', undefined, localize('femProposal.allFine', "The bars of every type already provide the steel required: nothing to change.")));
+			if (left.length) {
+				this.renderFailing(this.list, localize('femProposal.noBarFix', "No change of bars is proposed, but these still fail: {0}. Bars do not fix them: change the section, the material or the layout.", countFailing(left)), left);
+			} else {
+				append(this.list, $('.fem-proposal-note', undefined, localize('femProposal.allFine', "The bars of every type already provide the steel required: nothing to change.")));
+			}
 		} else if (left.length) {
-			append(this.list, $('.fem-proposal-warning', undefined, localize('femProposal.notFixed', "Not fixed by the rows included: {0}.", describeFailing(left))));
+			this.renderFailing(this.list, localize('femProposal.notFixed', "Not fixed by the rows included: {0}.", countFailing(left)), left);
 		}
+	}
+
+	/** A warning with the failing items counted, their ids under a disclosure (N-X21 of usability walk 2). */
+	private renderFailing(container: HTMLElement, text: string, items: readonly IFailingItem[]): void {
+		const warning = append(container, $('.fem-proposal-warning'));
+		const details = append(warning, $('details.fem-proposal-disclosure'));
+		append(details, $('summary', undefined, text));
+		append(details, $('.fem-proposal-ids', undefined, describeFailing(items)));
 	}
 
 	/** The banner of the last apply: the checks before and after, what changed, and Undo. */
@@ -556,7 +658,8 @@ export class FemDesignProposalEditor extends EditorPane {
 		if (!applied) {
 			return;
 		}
-		const ok = !!applied.after && applied.after.summary.failed === 0;
+		// Applied is a success; what still fails is a warning inside it (N-X21 of usability walk 2).
+		const ok = !!applied.after && !applied.problem;
 		const banner = append(this.list, $(`.fem-proposal-applied${ok ? '.pass' : ''}${applied.undone ? '.undone' : ''}`));
 		const head = append(banner, $('.fem-proposal-applied-head'));
 		append(head, $('span.fem-proposal-applied-title', undefined, applied.undone
@@ -573,7 +676,7 @@ export class FemDesignProposalEditor extends EditorPane {
 			}
 			const failing = failingItems(applied.after);
 			if (failing.length) {
-				append(banner, $('.fem-proposal-warning', undefined, localize('femProposal.stillFailing', "Still failing: {0}.", describeFailing(failing))));
+				this.renderFailing(banner, localize('femProposal.stillFailing', "Still failing: {0}.", countFailing(failing)), failing);
 			}
 			if (this.canUndo(applied)) {
 				const undo = this.renderStore.add(new Button(banner, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
@@ -594,7 +697,9 @@ export class FemDesignProposalEditor extends EditorPane {
 		const toggle = append(element, $('.fem-proposal-toggle'));
 		const title = row.blocked
 			? localize('femProposal.blockedRow', "{0} cannot be applied as the rows stand", row.type)
-			: row.changed
+			: row.strengthBars
+				? localize('femProposal.strengthRow', "Apply the bars the strength of {0} needs anyway (its joints still fail)", row.type)
+				: row.changed
 				? localize('femProposal.includeRow', "Include {0}", row.type)
 				: row.tooSmall
 					? row.steel
@@ -655,8 +760,18 @@ export class FemDesignProposalEditor extends EditorPane {
 		if (steelFacts) {
 			append(body, $('.fem-proposal-facts', undefined, steelFacts));
 		}
+		if (row.strengthBars) {
+			append(body, $('.fem-proposal-facts', undefined, row.included
+				? localize('femProposal.strengthIncluded', "Included: these bars are applied, but its joints still fail joint shear until the section grows.")
+				: localize('femProposal.strengthOffer', "Tick to apply the bars its strength needs anyway; its joints still fail joint shear until the section grows.")));
+		}
 		if (row.overDesigned.length) {
-			append(body, $('.fem-proposal-facts', undefined, localize('femProposal.overDesigned', "Over-designed with these bars: {0}", row.overDesigned.join(', '))));
+			// A count, the ids under a disclosure (N-X21 of usability walk 2: a wall of member ids).
+			const details = append(body, $('details.fem-proposal-disclosure.fem-proposal-facts'));
+			append(details, $('summary', undefined, row.overDesigned.length === 1
+				? localize('femProposal.overDesignedOne', "1 member over-designed with these bars")
+				: localize('femProposal.overDesignedMany', "{0} members over-designed with these bars", row.overDesigned.length)));
+			append(details, $('.fem-proposal-ids', undefined, row.overDesigned.join(', ')));
 		}
 		for (const warning of row.warnings) {
 			append(body, $('.fem-proposal-warning', undefined, warning));

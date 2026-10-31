@@ -244,6 +244,27 @@ def test_duplicate_ids_in_one_scope(dirs):
     assert dirs.reg.load("dup").edition == "first"
 
 
+def test_builtin_pack_broken_on_disk_keeps_the_copy_read_before(dirs):
+    # N-X17 of usability walk 2: the app's own pack changed on disk while the engine ran (a newer
+    # format) and every design check failed with a raw CodePackError. The copy read before is
+    # kept, with a warning to restart the engine; a user's own pack still reports its errors.
+    pack_dir = write_pack(dirs.builtin, "base", BASE_TABLES)
+    assert dirs.reg.load("base").data("factors")["phi"]["flexure"] == 0.9
+    (pack_dir / "data" / "factors.json").write_text("{half written", encoding="utf-8")
+    pack = dirs.reg.load("base")
+    assert pack.data("factors")["phi"]["flexure"] == 0.9
+    assert any(w.message == registry.CHANGED_ON_DISK for w in pack.warnings)
+    dirs.reg.clear_cache()  # a restart reads the files again
+    with pytest.raises(CodePackError):
+        dirs.reg.load("base")
+
+    user_dir = write_pack(dirs.user, "mine", BASE_TABLES)
+    assert dirs.reg.load("mine").data("factors")["phi"]["flexure"] == 0.9
+    (user_dir / "data" / "factors.json").write_text("{bad", encoding="utf-8")
+    with pytest.raises(CodePackError):
+        dirs.reg.load("mine")
+
+
 def test_broken_higher_copy_falls_back_to_working_lower_copy(dirs):
     write_pack(dirs.builtin, "base", BASE_TABLES, edition="builtin")
     # a broken user copy (folder name differs, data unreadable) that extends the built-in
