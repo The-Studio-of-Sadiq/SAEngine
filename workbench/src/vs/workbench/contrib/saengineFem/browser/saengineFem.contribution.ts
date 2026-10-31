@@ -562,6 +562,8 @@ registerPlannedFeature({
 	references: [
 		localize('planned.compositeColumns.ref1', "BNBC 2020 Part 6 Chapter 10 (steel; the provisions of AISC 360-05)"),
 		localize('planned.compositeColumns.ref2', "AISC 360 Ch I (composite members)"),
+	],
+});
 
 // Planned (MVP: BNBC 2020 designs deep beams, transfer girders and corbels; a general strut-and-tie
 // model of any D-region needs the procedure of ACI 318 Chapter 23, which BNBC does not give).
