@@ -701,6 +701,90 @@ registerPlannedFeature({
 	],
 });
 
+// T27: the steel connection methods BNBC 2020 does not give (base plate thickness and moment
+// bases, anchors in concrete, end-plate moment connections by yield lines).
+registerPlannedFeature({
+	id: FemPlanned.basePlateDesign,
+	part: 'fem',
+	title: localize('planned.basePlateDesign.title', "Base Plate Thickness and Moment Bases"),
+	summary: localize('planned.basePlateDesign.summary', "Sizes the base plate of a steel column by the cantilever method and designs moment bases (large eccentricity, anchor rods in tension). Today the base plate is checked for bearing on the concrete, the anchor rods' steel and the welds only."),
+	steps: [
+		localize('planned.basePlateDesign.step1', "Take the column base forces of every combination: axial force, shear and moments."),
+		localize('planned.basePlateDesign.step2', "Find the bearing length and stress, and the anchor rod tension when the eccentricity is large."),
+		localize('planned.basePlateDesign.step3', "Work out the plate thickness from the cantilevers m, n and λn' and from the anchor rod tension."),
+		localize('planned.basePlateDesign.step4', "Propose the plate size, thickness and anchor layout, and draw the base detail."),
+	],
+	inputs: [
+		{ label: localize('planned.basePlateDesign.size', "Plate N × B"), unit: 'mm', example: '450 × 350' },
+		{ label: localize('planned.basePlateDesign.thickness', "Plate thickness"), unit: 'mm', example: '30' },
+		{ label: localize('planned.basePlateDesign.anchors', "Anchor rods and their gauge"), example: localize('planned.basePlateDesign.anchorsExample', "4 M24 at 300 mm") },
+		{ label: localize('planned.basePlateDesign.fc', "Concrete f'c"), unit: 'MPa', example: '25' },
+	],
+	outputs: [
+		localize('planned.basePlateDesign.out1', "Required plate thickness and the plate bending check per combination"),
+		localize('planned.basePlateDesign.out2', "Anchor rod forces of moment bases"),
+		localize('planned.basePlateDesign.out3', "A base plate detail on the steel drawings"),
+	],
+	references: [
+		localize('planned.basePlateDesign.ref1', "BNBC 2020 Part 6 Sec 10.10.8 (bearing on concrete; no plate thickness method)"),
+		localize('planned.basePlateDesign.ref2', "AISC Design Guide 1 (base plate and anchor rod design)"),
+	],
+});
+
+registerPlannedFeature({
+	id: FemPlanned.anchorConcrete,
+	part: 'fem',
+	title: localize('planned.anchorConcrete.title', "Anchors in Concrete"),
+	summary: localize('planned.anchorConcrete.summary', "Checks the concrete around the anchor rods of base plates and embedded plates: breakout, pullout, side-face blowout and pryout, in tension and shear. Today only the anchor rods' steel is checked."),
+	steps: [
+		localize('planned.anchorConcrete.step1', "Take the anchor group, its embedment and edge distances, and the forces on it."),
+		localize('planned.anchorConcrete.step2', "Work out the breakout cones and their projected areas with the edge and group factors."),
+		localize('planned.anchorConcrete.step3', "Check breakout, pullout and side-face blowout in tension, and breakout and pryout in shear."),
+		localize('planned.anchorConcrete.step4', "Combine tension and shear and report the governing mode."),
+	],
+	inputs: [
+		{ label: localize('planned.anchorConcrete.embedment', "Effective embedment hef"), unit: 'mm', example: '300' },
+		{ label: localize('planned.anchorConcrete.edge', "Least edge distance"), unit: 'mm', example: '150' },
+		{ label: localize('planned.anchorConcrete.cracked', "Concrete cracked"), example: localize('planned.anchorConcrete.crackedExample', "Yes") },
+		{ label: localize('planned.anchorConcrete.reinforcement', "Anchor reinforcement"), example: localize('planned.anchorConcrete.reinforcementExample', "None") },
+	],
+	outputs: [
+		localize('planned.anchorConcrete.out1', "Concrete capacities of the anchor group in tension and shear"),
+		localize('planned.anchorConcrete.out2', "The governing failure mode with its check in the base plate's checks"),
+	],
+	references: [
+		localize('planned.anchorConcrete.ref1', "BNBC 2020 Part 6 Sec 10.10.9 (anchor rods; the concrete refers out)"),
+		localize('planned.anchorConcrete.ref2', "ACI 318-19 Chapter 17 (anchoring to concrete)"),
+	],
+});
+
+registerPlannedFeature({
+	id: FemPlanned.endPlateMoment,
+	part: 'fem',
+	title: localize('planned.endPlateMoment.title', "End-Plate Moment Connections"),
+	summary: localize('planned.endPlateMoment.summary', "Designs flush and extended end-plate moment connections: the end plate and the column flange by yield lines, the bolts in tension with prying, and the stiffeners. Today moment connections are checked as bolted flange plates."),
+	steps: [
+		localize('planned.endPlateMoment.step1', "Choose the end-plate configuration: flush, extended four-bolt or eight-bolt, stiffened or not."),
+		localize('planned.endPlateMoment.step2', "Find the bolt tension and the plate thickness from the yield-line mechanism of the plate."),
+		localize('planned.endPlateMoment.step3', "Check the column flange by its yield lines, and the web, panel zone and stiffeners."),
+		localize('planned.endPlateMoment.step4', "Check the shear bolts and welds, and draw the connection."),
+	],
+	inputs: [
+		{ label: localize('planned.endPlateMoment.configuration', "Configuration"), example: localize('planned.endPlateMoment.configurationExample', "Extended, four bolts") },
+		{ label: localize('planned.endPlateMoment.bolts', "Bolts"), example: 'M24 10.9' },
+		{ label: localize('planned.endPlateMoment.plate', "End plate thickness"), unit: 'mm', example: '25' },
+	],
+	outputs: [
+		localize('planned.endPlateMoment.out1', "End plate, bolt and column flange checks per combination"),
+		localize('planned.endPlateMoment.out2', "An end-plate detail on the steel drawings"),
+	],
+	references: [
+		localize('planned.endPlateMoment.ref1', "BNBC 2020 Part 6 Sec 10.10 (bolts and welds; no yield-line method)"),
+		localize('planned.endPlateMoment.ref2', "AISC Design Guide 4 and 16 (end-plate moment connections)"),
+		localize('planned.endPlateMoment.ref3', "AISC 358 (prequalified connections)"),
+	],
+});
+
 // Planned (MVP: BNBC 2020 designs deep beams, transfer girders and corbels; a general strut-and-tie
 // model of any D-region needs the procedure of ACI 318 Chapter 23, which BNBC does not give).
 registerPlannedFeature({
