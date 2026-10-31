@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IReference } from '../../../../base/common/lifecycle.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -16,13 +16,14 @@ import { EditorInputCapabilities, GroupIdentifier, IEditorDescriptor, IEditorPan
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 
-export type LibraryKind = 'materials' | 'objects' | 'settings' | 'floorPlan' | 'structure' | 'bim';
+export type LibraryKind = 'materials' | 'objects' | 'settings' | 'floorPlan' | 'structure' | 'bim' | 'reportTemplate';
 
 const materialsIcon = registerIcon('saengine-materials-editor-icon', Codicon.symbolColor, localize('materialsEditorIcon', "Icon of the materials editor."));
 const objectsIcon = registerIcon('saengine-objects-editor-icon', Codicon.symbolStructure, localize('objectsEditorIcon', "Icon of the object types editor."));
 const settingsIcon = registerIcon('saengine-settings-editor-icon', Codicon.settingsGear, localize('settingsEditorIcon', "Icon of the project settings editor."));
 const gridsIcon = registerIcon('saengine-grids-editor-icon', Codicon.table, localize('gridsEditorIcon', "Icon of the grids and stories editor."));
 const structureIcon = registerIcon('saengine-structure-editor-icon', Codicon.symbolStructure, localize('structureEditorIcon', "Icon of the structural model editor."));
+const reportTemplateIcon = registerIcon('saengine-report-template-editor-icon', Codicon.book, localize('reportTemplateEditorIcon', "Icon of the report template editor."));
 const buildingIcon = registerIcon('saengine-building-editor-icon', Codicon.layers, localize('buildingEditorIcon', "Icon of the building model editor."));
 
 /**
@@ -38,6 +39,8 @@ export class LibraryEditorInput extends EditorInput {
 	static readonly GRIDS_EDITOR_ID = 'workbench.editor.saengine.grids';
 	static readonly SETTINGS_EDITOR_ID = 'workbench.editor.saengine.settings';
 	static readonly STRUCTURE_EDITOR_ID = 'workbench.editor.saengine.structure';
+	/** A report template of `11 Exports/report-templates` (contrib/saengineReport). */
+	static readonly REPORT_TEMPLATE_EDITOR_ID = 'workbench.editor.saengine.reportTemplate';
 	/** The 3D modeller of the structural model (contrib/saengineStructure). */
 	static readonly STRUCTURE_MODELER_ID = 'workbench.editor.saengine.structureModeler';
 
@@ -72,6 +75,7 @@ export class LibraryEditorInput extends EditorInput {
 			case 'floorPlan': return LibraryEditorInput.GRIDS_EDITOR_ID;
 			case 'settings': return LibraryEditorInput.SETTINGS_EDITOR_ID;
 			case 'structure': return LibraryEditorInput.STRUCTURE_EDITOR_ID;
+			case 'reportTemplate': return LibraryEditorInput.REPORT_TEMPLATE_EDITOR_ID;
 			default: return LibraryEditorInput.EDITOR_ID;
 		}
 	}
@@ -88,6 +92,7 @@ export class LibraryEditorInput extends EditorInput {
 			case 'floorPlan': return localize('gridsEditor', "Grids & Stories");
 			case 'bim': return localize('buildingEditor', "Building Model");
 			case 'structure': return this.editorOverride ? localize('structureModeler', "Structural Model 3D") : localize('structureEditor', "Structural Model");
+			case 'reportTemplate': return localize('reportTemplateEditor', "Report Template: {0}", basename(this.resource).replace(/\.json$/i, ''));
 		}
 	}
 
@@ -99,6 +104,7 @@ export class LibraryEditorInput extends EditorInput {
 			case 'floorPlan': return gridsIcon;
 			case 'bim': return buildingIcon;
 			case 'structure': return structureIcon;
+			case 'reportTemplate': return reportTemplateIcon;
 		}
 	}
 

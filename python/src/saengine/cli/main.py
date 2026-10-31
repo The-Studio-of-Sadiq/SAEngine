@@ -340,7 +340,7 @@ def cmd_export(args: argparse.Namespace, out: Output) -> int:
     from saengine.pipeline.exports import ExportError, export
 
     try:
-        written = export(project, args.format, out_path, size=args.size)
+        written = export(project, args.format, out_path, size=args.size, template=args.template)
     except ExportError as error:
         raise CommandError(str(error)) from error
     for path in written:
@@ -679,7 +679,7 @@ def build_parser() -> argparse.ArgumentParser:
                           "ETABS text model (.e2k)")  # fmt: skip
     sub.add_argument("target", nargs="?", help="e2k: the .e2k file to write (as --out)")
     sub.add_argument("--format", required=True,
-                     choices=["ifc", "dxf", "csv", "pdf", "drawings", "civil", "e2k"])  # fmt: skip
+                     choices=["ifc", "dxf", "csv", "pdf", "docx", "drawings", "civil", "e2k"])  # fmt: skip
     sub.add_argument("--out", help="the file (the folder for dxf and drawings) to write")
     sub.add_argument("--units", choices=["kN-m", "N-mm"], default="kN-m",
                      help="e2k: the file's units (default: %(default)s)")  # fmt: skip
@@ -688,6 +688,9 @@ def build_parser() -> argparse.ArgumentParser:
                      "user coefficient (default: %(default)s)")  # fmt: skip
     sub.add_argument("--size", choices=["A0", "A1", "A2", "A3"],
                      help="drawings: the sheet size (default: Project Settings' drawings)")  # fmt: skip
+    sub.add_argument("--template",
+                     help="pdf, docx: the report template's id (11 Exports/report-templates; "
+                     "built-in: default, summary); default: Project Settings' design report")  # fmt: skip
     sub.add_argument("--include-results", action="store_true",
                      help="civil: also archive the computed results")  # fmt: skip
     sub.add_argument("--include-versions", action="store_true",

@@ -35,7 +35,7 @@ import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { EXPORT_DXF_FOLDER, EXPORT_IFC_FOLDER, exportKind, ISaenginePartStatusService, REPORT_FILE, reportAnalysisStale } from '../../../services/saengineProject/common/partStatus.js';
+import { EXPORT_DXF_FOLDER, EXPORT_IFC_FOLDER, exportKind, ISaenginePartStatusService, REPORT_FILE, reportAnalysisStale, WORD_REPORT_FILE } from '../../../services/saengineProject/common/partStatus.js';
 import { ISaengineProject, ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { DRAWINGS_GENERATE_COMMAND } from './drawingsModel.js';
 import { DrawingsSection } from './drawingsSection.js';
@@ -54,6 +54,8 @@ import { formatDate } from '../../../services/saengineProject/common/formatting.
 
 /** Prints the design report (saengineReport). */
 export const PRINT_REPORT_COMMAND = 'saengine.report.print';
+/** Writes the same design report as Word, `11 Exports/report.docx` (saengineReport). */
+export const EXPORT_WORD_REPORT_COMMAND = 'saengine.report.exportWord';
 /** Writes the IFC of the building model to `11 Exports/IFC/<project>.ifc` (building model editor, part 6). */
 export const EXPORT_IFC_COMMAND = 'saengine.bim.exportIfc';
 /** Writes the plan of every story to `11 Exports/Floor Plan/<story>.dxf` (floor plan editor, part 5). */
@@ -71,7 +73,7 @@ export const EXPORT_E2K_FOLDER = 'ETABS';
 /** The file explorer's "Reveal in File Explorer" (desktop only). */
 const REVEAL_IN_OS_COMMAND = 'revealFileInOS';
 
-type ExportKind = 'report' | 'ifc' | 'dxf' | 'e2k' | 'csv';
+type ExportKind = 'report' | 'word' | 'ifc' | 'dxf' | 'e2k' | 'csv';
 
 interface IExportFile {
 	readonly resource: URI;
@@ -308,7 +310,8 @@ export class ExportsEditor extends EditorPane {
 				for (const child of stat.children ?? []) {
 					const kind = !child.isFile ? undefined
 						: path === EXPORT_E2K_FOLDER ? (child.name.toLowerCase().endsWith('.e2k') ? 'e2k' : undefined)
-							: exportKind(path ? `${path}/${child.name}` : child.name);
+							: !path && child.name.toLowerCase() === WORD_REPORT_FILE ? 'word'
+								: exportKind(path ? `${path}/${child.name}` : child.name);
 					if (kind) {
 						const list = files.get(kind) ?? [];
 						list.push({ resource: child.resource, name: child.name, mtime: child.mtime });
@@ -382,12 +385,14 @@ export class ExportsEditor extends EditorPane {
 		// An empty building model has nothing to export, whatever its status says.
 		const emptyModel = this.emptyModel();
 		// A failing design is not an out-of-date analysis: its report shows the failures.
-		const printed = !!this.files.get('report')?.length;
-		const reportStale = fem && printed && reportAnalysisStale(this.statusService.statusOf('fem')?.state)
+		// The PDF and the Word report are drawn from the same document: out of date for the same reasons.
+		const stale = (printed: boolean) => fem && printed && reportAnalysisStale(this.statusService.statusOf('fem')?.state)
 			? localize('exports.reportStale', "Out of date: the analysis ({0}) is not current, so the report does not show this model. Run the analysis and update the report.", partName(fem))
 			: printed && this.statusService.statusOf('exports')?.state === 'stale'
 				? localize('exports.reportStaleDesign', "Out of date: the design checks or the analysis ran after the report was printed. Update the report.")
 				: undefined;
+		const reportStale = stale(!!this.files.get('report')?.length);
+		const wordStale = stale(!!this.files.get('word')?.length);
 		const kinds: IExportKind[] = [
 			{
 				kind: 'report', icon: Codicon.filePdf,
@@ -400,6 +405,18 @@ export class ExportsEditor extends EditorPane {
 				blocked: emptyModel,
 				stale: reportStale,
 				runningLabel: localize('exports.reportRunning', "Printing the report..."),
+			},
+			{
+				kind: 'word', icon: Codicon.fileText,
+				title: localize('exports.wordReport', "Design report (Word)"),
+				description: localize('exports.wordReportDescription', "The same report as an editable Word file, as the report template chooses (Configure Design Report)."),
+				location: `${exportsFolder}/${WORD_REPORT_FILE}`,
+				makeLabel: localize('exports.exportWord', "Export Word Report"),
+				againLabel: localize('exports.updateWord', "Update Word Report"),
+				command: EXPORT_WORD_REPORT_COMMAND,
+				blocked: emptyModel,
+				stale: wordStale,
+				runningLabel: localize('exports.wordRunning', "Writing the Word report..."),
 			},
 			{
 				kind: 'ifc', icon: Codicon.layers,

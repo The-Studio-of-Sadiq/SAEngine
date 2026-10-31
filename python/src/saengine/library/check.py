@@ -22,7 +22,9 @@ from saengine.library.settings import ProjectSettings
 from saengine.library.settings import problems as settings_problems
 from saengine.library.structure import StructuralModel
 
-Kind = Literal["materials", "objects", "settings", "floorPlan", "structure", "bim"]
+Kind = Literal[
+    "materials", "objects", "settings", "floorPlan", "structure", "bim", "reportTemplate"
+]
 
 
 @cache
@@ -68,6 +70,8 @@ def check_library(kind: Kind, text: str, materials_text: str | None = None) -> l
 
     if kind == "settings":
         return _check_settings(data)
+    if kind == "reportTemplate":
+        return _check_report_template(data)
     if kind == "floorPlan":
         return _check_layout(FloorPlan, data, materials_text)
     if kind == "bim":
@@ -167,6 +171,28 @@ def _check_layout(
             _problem(None, "", "The object types file has errors; member types were not checked."),
         ]
     return [*problems, *(_problem(None, "", message) for message in model.check_objects(objects))]
+
+
+def _check_report_template(data: Any) -> list[dict[str, Any]]:
+    """Problems of a report template: its schema, and each section listed once."""
+    from saengine.library.report_template import ReportTemplate
+
+    try:
+        template = ReportTemplate.model_validate(data)
+    except ValidationError as exc:
+        return [
+            _problem(None, ".".join(str(p) for p in error["loc"]), _clean(error["msg"]))
+            for error in exc.errors()
+        ]
+    problems = []
+    seen: set[str] = set()
+    for index, section in enumerate(template.sections):
+        if section.id in seen:
+            problems.append(
+                _problem(None, f"sections.{index}.id", f"Section {section.id} is listed twice.")
+            )
+        seen.add(section.id)
+    return problems
 
 
 def _check_settings(data: Any) -> list[dict[str, Any]]:

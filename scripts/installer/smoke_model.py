@@ -37,6 +37,8 @@ HEADLESS_MODULES = [
     "sectionproperties",
     "concreteproperties",
     "typst",
+    "docx",
+    "saengine.report.word",
     "pygls",
     "wntr",
     "saengine.plumbing.hydraulics",

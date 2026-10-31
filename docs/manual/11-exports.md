@@ -13,6 +13,7 @@ Open it with **11 Exports** in the sidebar (or *SAEngine: Exports*).
 | Row | Make it with | Writes |
 | --- | --- | --- |
 | **Design report** — the printed calculations: loads, analysis, design checks and their limitations | **Print Design Report** / **Update Report** | `11 Exports/report.pdf` |
+| **Design report (Word)** — the same report as an editable Word file | **Export Word Report** / **Update Word Report** | `11 Exports/report.docx` |
 | **IFC building model** — for BIM software | **Export IFC** | `11 Exports/IFC/<project>.ifc` |
 | **DXF floor plans** — the structural plan of every storey, for CAD | **Export DXF Floor Plans** | `11 Exports/Floor Plan/` |
 | **Bill of quantities (CSV)** | **Export CSV...** | `11 Exports/boq.csv` |
@@ -43,6 +44,26 @@ Contents:
 6. **Bill of quantities.**
 7. **Limitations and notes.**
 8. **Appendix:** the design checks of every element.
+
+### Configuring the report: templates
+
+The report follows a **report template**: which sections it prints and in what order, their
+headings, the detail (**Summary**: the results and governing values; **Full**: every table and the
+calculations of each element), the cover (title, subtitle, design result, signature block, a
+note), a letterhead (organisation, address lines, logo) and the members printed (kinds, storeys,
+member ids, only failing members, and which elements the appendix prints). The PDF and the Word
+file are drawn from the same document, so they always hold the same content.
+
+**Configure Design Report...** (File menu or Command Palette) lists the templates. Two are built in:
+*default* (every section in full) and *summary* (no appendix, the member tables cut to the
+failing members and the governing one). Choosing a built-in one, or **New Template...**, writes an
+editable copy to `11 Exports/report-templates/<id>.json` and opens it in its form; the form's
+toolbar prints the PDF or exports Word with it, and **Print This Template for the Project** makes
+it the one Print Design Report, Export Word Report and Run All use (Project Settings → Design
+report → Template). A template file can be copied to another project as it is.
+
+**Export Design Report to Word** writes `11 Exports/report.docx`. Word fills in the contents and
+the page numbers when it opens the file (it may ask to update the fields).
 
 ## Structural drawings
 

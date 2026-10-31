@@ -950,6 +950,15 @@ class Report(_Model):
         "fails), all (every element: hundreds of pages for a tall building) or none. The member "
         "tables list every element either way.",
     )
+    template: str = Field(
+        default="default",
+        pattern=r"^[a-z0-9][a-z0-9-]{0,63}$",
+        title="Template",
+        description="The report template printed: its id, the file name of one in "
+        "11 Exports/report-templates, or a built-in one (default: every section in full; "
+        "summary: the results without each element's calculations). The template chooses the "
+        "sections, their order and detail, the cover, the letterhead and the members printed.",
+    )
 
 
 class ProjectSettings(_Model):
