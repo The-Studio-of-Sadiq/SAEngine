@@ -225,6 +225,21 @@ def plumbing_results(
     for t in plumbing.tanks:
         by_kind.setdefault(t.kind, []).append(t)
     wanted = ["overhead"] if down_feed(plumbing) else []
+    if (
+        vol["fireReserve"] == 0
+        and plumbing.supply.fireReserve is None
+        and _hydrant_required(mep, bim)
+    ):
+        dedicated = mep.fire is not None and mep.fire.supply.storage == "dedicated"
+        if not dedicated:
+            checks.append(
+                _check(
+                    "Fire reserve", 1, 0, "m³", False,
+                    "Part 4 requires a hydrant (standpipe) system for this building (see 07 MEP "
+                    "Fire) but the tanks hold no fire water: set up the fire water in Fire "
+                    "(dedicated tanks), or enter the fire reserve in the supply settings",
+                )
+            )  # fmt: skip
     if not wanted:
         notes.append("up-feed (07 MEP supply): no overhead tank proposed or checked")
         if by_kind.get("overhead"):
@@ -380,15 +395,30 @@ def plumbing_results(
         elif well.get("ok"):
             wdims = {"diameter": well["diameter"], "waterDepth": well["waterDepth"]}
             wells = by_kind.get("soakWell") or []
-            for i in range(well["count"] * septic["count"]):
+            count = well["count"] * septic["count"]
+            for i in range(count):
                 tank = wells[i] if i < len(wells) else None
                 proposal = _proposal(tank, "soakWell", wdims, taken, building, top)
                 if tank is None and i > 0:
                     # Next to the previous well, 6 m clear (Table 8.6.8 seepage pits).
                     prev = next(p for p in reversed(proposals) if p["kind"] == "soakWell")
-                    proposal["x"] = prev["x"] + well["diameter"] + 6000.0
+                    proposal["x"] = prev["x"] + well["diameter"] + WELL_CLEAR
                     proposal["y"] = prev["y"]
                 proposals.append(proposal)
+            if count - min(count, len(wells)) > 1:
+                # The plot is not in the project: say how much ground the wells take (N-E6).
+                run = (count * (well["diameter"] + WELL_CLEAR) - WELL_CLEAR) / 1000.0
+                footprint = building.footprint()
+                wide = (footprint.bounds[2] - footprint.bounds[0]) / 1000.0 if footprint else 0.0
+                note = (
+                    f"{count} soak wells of Ø{well['diameter'] / 1000:g} m, "
+                    f"{WELL_CLEAR / 1000:g} m clear (Table 8.6.8), take a {run:.0f} m run of open "
+                    "ground beside the building: SAEngine does not know the plot, so check that "
+                    "they fit (move them on the plan), or give fewer, deeper wells"
+                )
+                notes.append(note)
+                if wide and run > wide:
+                    checks.append(_check("Soak wells' ground", run, wide, "m", False, note))
         else:
             checks.append(_check("Soak well", 1, None, "", False, "; ".join(well["notes"])))
     if septic is not None or by_kind.get("septic") or by_kind.get("soakWell"):
@@ -467,6 +497,29 @@ def _rooms_section(
         "notes": [*(rooms.notes if rooms is not None else []), *run_notes],
         "line": line,
     }
+
+
+#: Clear distance between soak wells [mm] (BNBC 2020 Part 8 Table 8.6.8, seepage pits).
+WELL_CLEAR = 6000.0
+
+
+def _hydrant_required(mep: MepModel, bim: Any) -> bool:
+    """Whether Part 4 asks this building for a hydrant (standpipe) system, as 07 MEP Fire
+    decides it (with its defaults when the file has no fire section yet)."""
+    if bim is None:
+        return False
+    from saengine.fire.report import fire_results
+    from saengine.library.mep import Fire
+
+    probe = mep if mep.fire is not None else mep.model_copy(update={"fire": Fire()})
+    try:
+        found = fire_results(probe, bim, hydraulics=False).get("requirements") or {}
+    except Exception:  # noqa: BLE001 - a partly entered model must not fail the plumbing
+        return False
+    return any(
+        s.get("system") == "hydrant" and s.get("status") == "required"
+        for s in found.get("systems") or []
+    )
 
 
 def _support_checks(proposals: list[dict[str, Any]], bim: Any) -> list[dict[str, Any]]:
