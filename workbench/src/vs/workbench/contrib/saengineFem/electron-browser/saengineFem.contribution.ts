@@ -307,6 +307,26 @@ CommandsRegistry.registerCommand('saengine.boq.compute', async (accessor, args: 
 });
 
 /**
+ * The bill priced by the schedule of rates with its embodied carbon (`boq/cost`), the texts the
+ * project's rates and carbon factors start from (`boq/templates`), and the bill written to an
+ * Excel workbook (`boq/exportXlsx`). Internal: the BOQ editor and its export command call them by id.
+ */
+CommandsRegistry.registerCommand('saengine.boq.cost', async (accessor, args: { boqText: string; ratesText?: string; carbonText?: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'boq/cost', args);
+});
+
+CommandsRegistry.registerCommand('saengine.boq.templates', async accessor => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'boq/templates', {});
+});
+
+CommandsRegistry.registerCommand('saengine.boq.writeXlsx', async (accessor, target: URI, args: { boqText: string; ratesText?: string; carbonText?: string; title?: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'boq/exportXlsx', { ...args, path: target.fsPath });
+});
+
+/**
  * The soil report's results (`saengine.soil.soil_report`, returned as it is: the editor reads
  * it). Internal: the Soil Report editor calls it by id.
  */

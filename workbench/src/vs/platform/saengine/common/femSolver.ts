@@ -590,7 +590,11 @@ export interface IFemSolverService {
  * reportPath, report}` or `{error}`; in a worker thread) and
  * the standard steel section table `library/steelSections` `{}`; a new building generated from its
  * grids and storeys `library/generateBuilding` `{spec, destParent, name?, overwrite?, site?}` (`{root, name,
- * notes, summary, settingsPatch, files}` or `{error}`; in a worker thread).
+ * notes, summary, settingsPatch, files}` or `{error}`; in a worker thread); the bill of quantities
+ * priced by the schedule of rates with its embodied carbon `boq/cost` `{boqText, ratesText?,
+ * carbonText?}`, the texts the project's rates and carbon factors start from `boq/templates` `{}`,
+ * and the bill, its costing and carbon written to Excel `boq/exportXlsx` `{path, boqText,
+ * ratesText?, carbonText?, title?}` (in a worker thread).
  */
 export type EngineMethod =
 	| 'design/required' | 'design/proposal' | 'design/applyProposal'
@@ -600,7 +604,8 @@ export type EngineMethod =
 	| 'soil/location' | 'soil/plotCheck' | 'soil/gisExport' | 'soil/gisImport' | 'soil/qgisProgram'
 	| 'drawings/generate' | 'drawings/list' | 'drawings/progress'
 	| 'import/structural' | 'export/e2k' | 'library/steelSections' | 'library/generateBuilding'
-	| 'section/analyse' | 'architecture/importIfc' | 'architecture/inspectDrawing' | 'architecture/importDrawing' | 'architecture/check';
+	| 'section/analyse' | 'architecture/importIfc' | 'architecture/inspectDrawing' | 'architecture/importDrawing' | 'architecture/check'
+	| 'boq/cost' | 'boq/templates' | 'boq/exportXlsx';
 
 export interface IQgisOpenRequest {
 	/** Absolute path of the `.gpkg`, `.geojson` or `.json` file. */

@@ -27,7 +27,9 @@ import { IEditorResolverService, RegisteredEditorPriority } from '../../../servi
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { BoqEditor } from './boqEditor.js';
 import { BoqEditorInput, BoqEditorInputSerializer } from './boqEditorInput.js';
-import { BOQ_EXPORT_CSV_COMMAND, exportBoqCsv, readProjectBoq } from './boqExport.js';
+import { BOQ_EXPORT_CSV_COMMAND, BOQ_EXPORT_XLSX_COMMAND, exportBoqCsv, exportBoqXlsx, readProjectBoq } from './boqExport.js';
+import { BOQ_RATES_FILE, BOQ_CARBON_FILE, ensureBoqFile } from './boqCosting.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(BoqEditor, BoqEditor.ID, localize('boqEditorPane', "SAEngine Bill of Quantities")),
@@ -115,3 +117,77 @@ registerAction2(class extends Action2 {
 		await exportBoqCsv(document, project, { textModelService, fileService, fileDialogService, notificationService, openerService, commandService });
 	}
 });
+
+/** The bill as it is now (unsaved edits included) as text, or undefined when it was not measured. */
+async function projectBoqText(accessor: ServicesAccessor): Promise<string | undefined> {
+	const project = accessor.get(ISaengineProjectService).project;
+	const part = partById('boq');
+	if (!project || !part?.mainFile) {
+		return undefined;
+	}
+	const document = await readProjectBoq(project, accessor.get(ITextModelService));
+	return document ? JSON.stringify(document) : undefined;
+}
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: BOQ_EXPORT_XLSX_COMMAND,
+			title: localize2('saengine.boq.exportXlsx', "Export Bill of Quantities to Excel (with Costing and Carbon)..."),
+			category: localize2('saengine.category', "SAEngine"),
+			icon: Codicon.export,
+			f1: true,
+			precondition: ContextKeyExpr.has('saengineProjectOpen'),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const project = accessor.get(ISaengineProjectService).project;
+		const services = {
+			textModelService: accessor.get(ITextModelService),
+			fileService: accessor.get(IFileService),
+			fileDialogService: accessor.get(IFileDialogService),
+			notificationService: accessor.get(INotificationService),
+			openerService: accessor.get(IOpenerService),
+			commandService: accessor.get(ICommandService),
+		};
+		if (!project) {
+			return;
+		}
+		const text = await projectBoqText(accessor);
+		if (!text) {
+			services.notificationService.info(localize('boq.exportNotMeasured', "Measure the bill of quantities from the building model before exporting it."));
+			return;
+		}
+		await exportBoqXlsx(text, project, services);
+	}
+});
+
+for (const [kind, id, title, file] of [
+	['rates', 'saengine.boq.editRates', localize2('saengine.boq.editRates', "Edit Schedule of Rates"), BOQ_RATES_FILE],
+	['carbon', 'saengine.boq.editCarbon', localize2('saengine.boq.editCarbon', "Edit Embodied Carbon Factors"), BOQ_CARBON_FILE],
+] as const) {
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({ id, title, category: localize2('saengine.category', "SAEngine"), f1: true, precondition: ContextKeyExpr.has('saengineProjectOpen') });
+		}
+
+		/** Opens `10 BOQ/<file>`, made from the shipped template when the project has none. */
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			const project = accessor.get(ISaengineProjectService).project;
+			const notificationService = accessor.get(INotificationService);
+			const editorService = accessor.get(IEditorService);
+			if (!project) {
+				return;
+			}
+			try {
+				const resource = await ensureBoqFile(project, kind, accessor.get(IFileService), accessor.get(ICommandService));
+				if (resource) {
+					await editorService.openEditor({ resource, options: { pinned: true } });
+				}
+			} catch (error) {
+				notificationService.error(localize('boq.editFileFailed', "{0} could not be created: {1}", file, String(error)));
+			}
+		}
+	});
+}
