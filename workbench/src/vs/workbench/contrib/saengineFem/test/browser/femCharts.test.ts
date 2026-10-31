@@ -8,7 +8,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFemResultEntry } from '../../../../../platform/saengine/common/femSolver.js';
 import { niceTicks, renderChart, renderSheet, tickText } from '../../browser/femChart.js';
-import { closedPmCurve, defaultChartResult, displayTable, exportCell, formatCell, isLateralResult, orderLike, supportReactions, describeMode, elasticDriftLimit, extremes, filterRows, IFemColumnDiagram, IFemMemberForces, IFemStoryResponse, IFemStoryResult, isEarthquakeResult, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, sortRows, spectrumAt, storeyProfile, storeyTable, workbookSheets } from '../../browser/femChartData.js';
+import { closedPmCurve, columnDecimals, defaultChartResult, displayTable, exportCell, formatCell, isLateralResult, orderLike, supportReactions, describeMode, elasticDriftLimit, extremes, filterRows, formatFixedCell, IFemColumnDiagram, IFemMemberForces, IFemStoryResponse, IFemStoryResult, isEarthquakeResult, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, sortRows, spectrumAt, storeyProfile, storeyTable, workbookSheets } from '../../browser/femChartData.js';
 import { defaultResult, deflectionMagnification, modeText, resultOptions, scaleText } from '../../browser/femResultsBar.js';
 import { groupedOptions } from '../../browser/femModelEditor.js';
 import { chartUnits, memberNames } from '../../browser/femResultsView.js';
@@ -229,6 +229,14 @@ suite('SAEngine - FEM charts', () => {
 			['0.0001235', '12350', '3', '1.5', 'C3#2', '0.000123457', 'C3'],
 		);
 		assert.deepStrictEqual([formatCell(-3.2e-11), formatCell(1.2e-9), exportCell(0.30000000000000004), exportCell(-1e-12)], ['0', '0', '0.3', '0']);
+		// A column's decimals: four significant digits of its largest value (0.048: five; 2.364:
+		// three), none for whole numbers, at most six.
+		const rows = [[0, 2.364, 3, 0.001105], [0.048, 0, 4, 0.0000004], [-0.0001, 0, 5, 0]];
+		assert.deepStrictEqual(
+			[columnDecimals(rows, 0), columnDecimals(rows, 1), columnDecimals(rows, 2), columnDecimals(rows, 3), columnDecimals([[12345.6]], 0)],
+			[5, 3, undefined, 6, 0],
+		);
+		assert.deepStrictEqual([formatFixedCell(0, 3), formatFixedCell(0.048, 3), formatFixedCell(-0.0001, 3), formatFixedCell(7, undefined), formatFixedCell('A-1', 2)], ['0.000', '0.048', '0.000', '7', 'A-1']);
 		const parent = mainWindow.document.createElement('div');
 		renderSheet(parent, { name: 'Modes', columns: ['Mode', 'T [s]'], rows: [[1, 0.876543], ['2', 0.5]], notes: ['Mass participation from the eigen solver.'] });
 		assert.deepStrictEqual({
@@ -237,7 +245,8 @@ suite('SAEngine - FEM charts', () => {
 			note: parent.querySelector('.fem-results-note')?.textContent,
 		}, {
 			head: ['Mode', 'T [s]'],
-			cells: ['number:1', 'number:0.8765', ':2', 'number:0.5'],
+			// The same decimals down a column: 0.5 reads 0.5000 under 0.8765.
+			cells: ['number:1', 'number:0.8765', ':2', 'number:0.5000'],
 			note: 'Mass participation from the eigen solver.',
 		});
 	});

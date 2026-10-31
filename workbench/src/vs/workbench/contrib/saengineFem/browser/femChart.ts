@@ -16,7 +16,7 @@
 import './media/femChart.css';
 import { $, append } from '../../../../base/browser/dom.js';
 import { FemTableCell } from '../../../../platform/saengine/common/femSolver.js';
-import { formatCell, IFemSheet } from './femChartData.js';
+import { columnDecimals, formatFixedCell, IFemSheet } from './femChartData.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
 
@@ -117,13 +117,18 @@ function svg<K extends keyof SVGElementTagNameMap>(parent: Element, tag: K, attr
 	return element;
 }
 
-/** Appends the rows of a result table to its `tbody`, numbers right-aligned ({@link formatCell}). */
+/**
+ * Appends the rows of a result table to its `tbody`, numbers right-aligned with the same
+ * decimals down each column ({@link columnDecimals}).
+ */
 export function renderSheetRows(body: HTMLElement, rows: readonly (readonly FemTableCell[])[]): void {
+	const width = Math.max(0, ...rows.map(r => r.length));
+	const decimals = Array.from({ length: width }, (_, column) => columnDecimals(rows, column));
 	for (const row of rows) {
 		const tr = append(body, $('tr'));
-		for (const cell of row) {
-			append(tr, $(typeof cell === 'number' ? 'td.number' : 'td', undefined, formatCell(cell)));
-		}
+		row.forEach((cell, column) => {
+			append(tr, $(typeof cell === 'number' ? 'td.number' : 'td', undefined, formatFixedCell(cell, decimals[column])));
+		});
 	}
 }
 
