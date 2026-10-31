@@ -947,7 +947,13 @@ def seismic_detailing_scope(
                 f"{row.frame} detailing in Category {sdc} is permitted to use its lower design "
                 f"forces (Sec 8.3.2(e), p. 1089)"
             )
-        if not row.concrete:
+        system_entry = code_context.table("seismic").systems.get(system)
+        if system_entry is not None and system_entry.masonry:
+            notes.append(
+                "a masonry bearing wall system: its walls are designed as masonry (Part 6 "
+                "Chapter 7); the RC detailing of Sec 8.3 applies to its concrete members only"
+            )
+        elif not row.concrete:
             notes.append(
                 "a steel system: the RC detailing of Sec 8.3 does not apply to its members "
                 "(Part 6 Chapter 10)"

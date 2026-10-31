@@ -206,6 +206,12 @@
           "title": "Concrete",
           "type": "boolean"
         },
+        "masonry": {
+          "default": false,
+          "description": "A masonry system: its walls are designed as masonry.",
+          "title": "Masonry",
+          "type": "boolean"
+        },
         "momentFrame": {
           "default": false,
           "title": "Momentframe",

@@ -21,7 +21,7 @@ export const NEW_BUILDING_COMMAND = 'saengine.project.newBuilding';
 /** Application storage: the building just generated, so its window opens the floor plan and shows the notes. */
 export const PENDING_BUILDING_STORAGE_KEY = 'saengine.newBuilding.pending';
 
-export type StructuralSystemChoice = 'rcFrame' | 'rcFrameCore' | 'flatSlab';
+export type StructuralSystemChoice = 'rcFrame' | 'rcFrameCore' | 'flatSlab' | 'masonry';
 /** The foundations the generator places (integrator: combined footings and pile caps are added in 09 Substructure). */
 export type FootingChoice = 'isolated' | 'mat' | 'none';
 export type OccupancyCategory = 'I' | 'II' | 'III' | 'IV';
@@ -32,6 +32,7 @@ export const SYSTEM_CHOICES: readonly { readonly value: StructuralSystemChoice; 
 	{ value: 'rcFrame', label: localize('system.rcFrame', "RC frame"), description: localize('system.rcFrame.description', "Columns at every grid intersection, beams on every grid line, a slab in every bay.") },
 	{ value: 'rcFrameCore', label: localize('system.rcFrameCore', "RC frame + core walls"), description: localize('system.rcFrameCore.description', "The frame, with shear walls around the central bay for the lift and stair core.") },
 	{ value: 'flatSlab', label: localize('system.flatSlab', "Flat slab"), description: localize('system.flatSlab.description', "Columns and flat plates only, no beams (no drop panels or edge beams); core walls where Seismic Design Category D needs them.") },
+	{ value: 'masonry', label: localize('system.masonry', "Load-bearing masonry (low-rise)"), description: localize('system.masonry.description', "Brick walls on every grid line carrying two-way slabs, strip footings, no columns or beams; plain masonry in Seismic Design Category B, reinforced in C, not permitted in D (BNBC 2020 Table 6.2.19).") },
 ];
 
 export const FOOTING_CHOICES: readonly { readonly value: FootingChoice; readonly label: string }[] = [
@@ -507,7 +508,7 @@ export function readGenerateSummary(value: unknown): IGenerateSummary | undefine
 			sizes.push({ what: localize('size.columns', "Columns {0}", what), size, why: typeof why === 'string' ? why : localize('size.gravity', "gravity: axial load") });
 		}
 	}
-	for (const [key, label] of [['beamTypes', localize('size.beams', "Beams")], ['slabTypes', localize('size.slabs', "Slabs")]] as const) {
+	for (const [key, label] of [['beamTypes', localize('size.beams', "Beams")], ['wallTypes', localize('size.walls', "Walls")], ['slabTypes', localize('size.slabs', "Slabs")]] as const) {
 		const types = Array.isArray(record[key]) ? (record[key] as unknown[]).filter((t): t is string => typeof t === 'string') : [];
 		if (types.length) {
 			sizes.push({ what: label, size: types.join(', ') });

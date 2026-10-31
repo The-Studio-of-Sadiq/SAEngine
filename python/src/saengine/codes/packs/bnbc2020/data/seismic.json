@@ -194,6 +194,44 @@
       "concrete": false,
       "momentFrame": false,
       "periodFamily": null
+    },
+    "masonryOrdinaryReinforced": {
+      "name": "Bearing walls: ordinary reinforced masonry shear walls",
+      "R": 2.0,
+      "Omega0": 2.5,
+      "Cd": 1.75,
+      "row": "A.3 (p. 621)",
+      "heightLimits": {
+        "B": null,
+        "C": 50.0,
+        "D": 0.0
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": false,
+      "masonry": true,
+      "momentFrame": false,
+      "periodFamily": null,
+      "source": "BNBC 2020 Part 6 Table 6.2.19, bearing wall systems (row and page to be checked against the text; the values are those of ASCE 7-05 Table 12.2-1 A.11 that the table follows)"
+    },
+    "masonryOrdinaryPlain": {
+      "name": "Bearing walls: ordinary plain (unreinforced) masonry shear walls",
+      "R": 1.5,
+      "Omega0": 2.5,
+      "Cd": 1.25,
+      "row": "A.4 (p. 621)",
+      "heightLimits": {
+        "B": null,
+        "C": 0.0,
+        "D": 0.0
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": false,
+      "masonry": true,
+      "momentFrame": false,
+      "periodFamily": null,
+      "source": "BNBC 2020 Part 6 Table 6.2.19, bearing wall systems (row and page to be checked against the text; the values are those of ASCE 7-05 Table 12.2-1 A.13 that the table follows)"
     }
   },
   "periodCoefficients": {
