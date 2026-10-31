@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from typing import Any
 
@@ -66,12 +65,12 @@ def test_prefetch_solves_the_missing_profiles(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setenv(sections.CACHE_ENV, str(tmp_path / "cache"))
+    monkeypatch.setenv(sections.JOBS_ENV, "2")
     monkeypatch.setattr(sections, "_MEMO", {})
     profiles = [o.RectangleProfile(xDim=300, yDim=500), o.RectangleProfile(xDim=400, yDim=400)]
     sections.prefetch_section_properties([*profiles, profiles[0]])
     keys = [sections.profile_key(p) for p in profiles]
-    if (os.cpu_count() or 2) >= 4:
-        assert all(k in sections._MEMO for k in keys)
+    assert all(k in sections._MEMO for k in keys)
     for profile, key in zip(profiles, keys, strict=True):
         assert sections.section_properties(profile) == sections._solve(key)
 
